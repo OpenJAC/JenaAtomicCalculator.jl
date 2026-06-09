@@ -528,7 +528,6 @@ struct   ValenceShells                  <:  AbstractConfigurationTheme     end
 struct   FineStructure                  <:  AbstractConfigurationTheme     end
 struct   FineStructureLS                <:  AbstractConfigurationTheme     end
 struct   HundsRules                     <:  AbstractConfigurationTheme     end
-struct   HyperfineStructure             <:  AbstractConfigurationTheme     end
 
 export  AbstractConfigurationTheme, AddElectrons, ExciteElectrons, RemoveElectrons, RestrictExcitations,
         ForAutoIonization, ForElectronCapture, ForDielectronicCapture, ForDielectronicRecombination, ForHollowIons, 
@@ -831,6 +830,27 @@ function Base.string(theme::Basics.ForStepwiseDecay)
 end
 
 function Base.show(io::IO, theme::Basics.ForStepwiseDecay)
+    sa = string(theme);       print(io, sa)
+end
+  
+  
+"""
+`struct  Basics.HyperfineStructure      <:  AbstractConfigurationTheme`   
+    ... to display the total F hyperfine-structure levels of a configuration (without energies).
+
+    + spinI        ::AngularJ64   ... Nuclear spin I.
+"""
+struct   HyperfineStructure             <:  AbstractConfigurationTheme
+    spinI          ::AngularJ64 
+end
+
+
+function Base.string(theme::Basics.HyperfineStructure)
+    sa = "HyperfineStructure theme with nuclear spin $(theme.spinI)."
+    return( sa )
+end
+
+function Base.show(io::IO, theme::Basics.HyperfineStructure)
     sa = string(theme);       print(io, sa)
 end
 

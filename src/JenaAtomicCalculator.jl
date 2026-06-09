@@ -29,6 +29,7 @@ incBasicProcesses       = true
 incAdvancedProcesses    = true
 incCascades             = true  ## Requires: incBasicProcesses
 incPlasma               = true  ## Requires: incProperties
+incLiouville            = true  ## Requires: incProperties
 incStrongField          = true
 incAtomicCompass        = true
 incRacahAlgebra         = true
@@ -38,6 +39,7 @@ incDeepLearning         = true
 incAdvancedProcesses    = false
 incCascades             = false  ## Requires: incBasicProcesses
 incPlasma               = false  ## Requires: incProperties
+incLiouville            = false  ## Requires: incProperties
 incStrongField          = false
 incAtomicCompass        = false
 incRacahAlgebra         = false  ==#
@@ -76,7 +78,7 @@ export AbstractCImethod, AbstractConfigurationRestriction, AbstractEeInteraction
        InteractionStrength, InternalConv, InternalConversion, InternalRecombination, Isotope, IsotopeShift, IsotopicFraction, IsOccupied,
        Kronecker, 
        LandeF, LandeJ, LandeZeeman, Level, LevelSelection, LevelSymmetry, LineSelection, LSjj, LSjjSettings, LeftCircular, 
-       LeadingConfiguration, LeadingConfigurationR,
+       LeadingConfiguration, LeadingConfigurationR, Liouville,
        ManyElectron, MeanFieldSettings, MeanFieldBasis, MeanFieldMultiplet, minus, Model, modify, 
        MultiPhotonDE, MultiPhotonDeExcitation, MultiPhotonDoubleIon, 
        MultiPI, MultiPDI, MultiPhotonIonization, MultipoleMoment, MultipolePolarizibility, Multiplet, MeanConfiguration, MeanOccupation, 
@@ -121,7 +123,7 @@ include("module-AngularMomentum.jl")
 include("module-SpinAngular.jl");       using ..SpinAngular
 ##x include("module-Bsplines.jl");          using ..Bsplines
 include("module-BsplinesN.jl");         using ..BsplinesN
-include("module-Pulse.jl")
+include("module-Pulse.jl");             using ..Pulse
 include("module-Beam.jl")
 include("module-Continuum.jl")
 ##x include("module-Details.jl")
@@ -227,6 +229,11 @@ if  incPlasma
 include("module-Plasma.jl");            using ..Plasma
 end
 
+if  incLiouville
+# Functions/methods for plasma computations
+include("module-Liouville.jl");         using ..Liouville
+end
+
 
 if  incCascades
 # Functions/methods for cascade computations
@@ -260,7 +267,7 @@ function __init__()
 end
 
 println("\nWelcome to JenaAtomicCalculator (JAC):  A community approach to the computation of atomic structures, " *
-        "cascades and time evolutions [(C) Copyright by Stephan Fritzsche, Jena (2018-2025)].")
+        "cascades and time evolutions [(C) Copyright by Stephan Fritzsche, Jena (2018-2026)].")
         
 
 end

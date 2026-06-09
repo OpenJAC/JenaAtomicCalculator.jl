@@ -140,22 +140,22 @@ function  Basics.displayConfiguration(stream::IO, theme::Basics.FineStructureLS,
 end
 
 """
-`Basics.displayConfiguration(stream::IO, theme::Basics.HyperfineStructure, spinI::AngularJ64, config::Configuration; 
+`Basics.displayConfiguration(stream::IO, theme::Basics.HyperfineStructure, config::Configuration; 
                              details::String="", header::Bool=true)`  
     ... displays the given configuration along with its hyperfine-structure, i.e. the total F's and their number of 
         levels for the nuclear spin I. Nothing is returned in this case.
 """
-function  Basics.displayConfiguration(stream::IO, theme::Basics.HyperfineStructure, spinI::AngularJ64, config::Configuration; 
+function  Basics.displayConfiguration(stream::IO, theme::Basics.HyperfineStructure, config::Configuration; 
                                       details::String="", header::Bool=true)
     if  header
-        if  details == ""   println(stream,"  Hyperfine-structure of configuration for nuclear spin $spinI:")
-        else                println(stream,"  Hyperfine-structure of configuration for nuclear spin $spinI and $details:") 
+        if  details == ""   println(stream,"  Hyperfine-structure of configuration for nuclear spin $theme.spinI:")
+        else                println(stream,"  Hyperfine-structure of configuration for nuclear spin $theme.spinI and $details:") 
         end
     end
     
     totalJs = Basics.extractFromConfiguration(TotalAM(true, AngularJ64[]), config)
     tJs     = unique(totalJs);   tJs = sort(tJs)
-    totalFs = AngularJ64[];      for totalJ in totalJs    append!(totalFs, Basics.oplus(spinI, totalJ) )   end
+    totalFs = AngularJ64[];      for totalJ in totalJs    append!(totalFs, Basics.oplus(theme.spinI, totalJ) )   end
     tFs     = unique(totalFs);   tFs = sort(tFs)
 
     counts  = Dict{AngularJ64, Int}()

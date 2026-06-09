@@ -8,7 +8,7 @@ module Pulse
 
 using   ..Basics, ..Defaults, ..Radial, GSL, SpecialFunctions
 
-export  AbstractEnvelope, AbstractBeam
+export  AbstractEnvelope, AbstractBeam, AbstractPulse
 
 
 """
@@ -143,192 +143,153 @@ function Base.show(io::IO, beam::PlaneWaveBeam)
 end
 
 
-#====================================================================================== 
-#  These data types need to be worked through
-
 """
-`struct  Pulse.Envelope`  ... defines a type for the envelope (function) of an em pulse.
+`abstract type Pulse.AbstractPulseParameter` 
+    ... defines an abstract type to deal with the (experimental) specification of light pulses of type Pulse.GeneratedPulse.
+        These (experimental) GeneratedPulse's are always converted into (computational) Gaussian, SinSquared, ... pulses
+        before they are used in Liouville time-evolutions and simulations. These parameters are usually defined as singletons
+        but can provide also a few additional parameters (like the ellipticity of elliptical-polarized pulse).
+        The list of these parameters can be readily extended, whereas the conversion from the GeneratedPulse's to the 
+        computational pulses is usually nontrivial and need to be done step-by-step.
 
-    + timeDelay          ::Float64             ... Time delay with regard to an arbitrary time t=0, often used for the first pulse.
-    + f0                 ::Float64             ... Amplitude of the envelope function f(t) = f0 * f_shape(t)
-    + shapeFunction      ::Array{Float64,1}    ... (Normalized) shape function of the pulse.
+    + GaussianShape            ... to represent a Gaussian-shaped pulse with a given width.
+    + SinSquaredShape          ... to represent a sin^2-shaped pulse of given period (a.u.).
+    + LinearPolarized          ... to represent a linearly-polarized pulse.
+    + EllipticalPolarized      ... to represent a elliptically-polarized pulse with given ellipticity.
+    + LeftCircular             ... to represent a left-circular polarized pulse.
+    + RightCircular            ... to represent a right-circular polarized pulse.
 """
-struct Envelope
-    timeDelay            ::Float64
-    f0                   ::Float64
-    shapeFunction        ::Array{Float64,1}
-end 
-
-
-"""
-`Pulse.Envelope()`  ... constructor for an `empty` instance of Pulse.Envelope().
-"""
-function Envelope()
-    Envelope( 0., 0., Float64[] )
-end
-
-
-# `Base.show(io::IO, envelope::Pulse.Envelope)`  ... prepares a proper printout of the variable envelope::Pulse.Envelope.
-function Base.show(io::IO, envelope::Pulse.Envelope) 
-    println(io, "timeDelay:             $(envelope.timeDelay)  ")
-    println(io, "f0:                    $(envelope.f0)  ")
-    println(io, "shapeFunction:         $(envelope.shapeFunction)  ")
-end
+abstract type  AbstractPulseParameter  end
+struct   GaussianShape          <:  Pulse.AbstractPulseParameter   end
+struct   SinSquaredShape        <:  Pulse.AbstractPulseParameter   end
+struct   LinearPolarized        <:  Pulse.AbstractPulseParameter   end
+struct   EllipticalPolarized    <:  Pulse.AbstractPulseParameter   end
+struct   LeftCircular           <:  Pulse.AbstractPulseParameter   end
+struct   RightCircular          <:  Pulse.AbstractPulseParameter   end
 
 
 """
-`@enum   PolarizationType`  ... defines a type of polarization of an experimentally described light pulse
+`abstract type Pulse.AbstractPulse` 
+    ... defines an abstract type to comprise different full laser pulses that are characterized in terms of their amplitude, 
+        frequency, carrier-envelope phase, polarization as well their occurrence time (with regard to a reference time refTime).
+        Here, we shall distinguish between an GeneratedPulse that is specified in terms of experimentally accessible parameters
+        and specifications as well as various pulses (Gaussian, ...) that are used in computations. Each GeneratedPulse need
+        first to be converted into the internal (computational) format before it can be applied in simulations.
 
-+ NoType, Linear, LeftCircular, RightCircular, Elliptical      ... with obvious meaning.
+    + FelPulse                 ... to represent an FEL pulse in experimentally simple terms and parameters.
+    + GeneratedPulse           ... to represent a pulse in experimentally accessible terms and parameters.
+    + Gaussian                 ... to represent a Gaussian pulse
+    + SinSquared               ... to represent a SinSquared pulse
 """
-@enum   PolarizationType    NoType    Linear    LeftCircular    RightCircular    Elliptical
-
-
-"""
-`Pulse.PolarizationType(sa::String)`  ... constructor for a given String.
-"""
-function PolarizationType(sa::String)
-    if       sa == "linear"                  wa = Linear
-    elseif   sa == "left-circular"           wa = LeftCircular
-    elseif   sa == "right-circular"          wa = RightCircular
-    elseif   sa == "elliptical"              wa = Elliptical
-    else
-        error("stop a")
-    end
-    PolarizationType(wa)
-end
-
-
-# `Base.show(io::IO, ptyp::Pulse.PolarizationType)`  ... prepares a proper printout of the variable ptyp::Pulse.PolarizationType.
-function Base.show(io::IO, ptyp::Pulse.PolarizationType) 
-    print(io, string(ptyp) )
-end
+abstract type  AbstractPulse  end
 
 
 """
-`Base.string(ptyp::Pulse.PolarizationType)`  ... provides a proper printout of the variable ptyp::Pulse.PolarizationType.
+`struct  Pulse.FelPulse   <:  Pulse.AbstractPulse`  
+    ... defines an FEL pulse with experimentally accessible properties; these pulses need first to the converted into a 
+        proper computational pulse before they can be utilized in Liouville time evolutions.
+
+    + shape            ::String        ... Shape (GaussianSimplified) of the pulse.
+    + omega            ::Float64       ... Central frequency [eV] of the em pulse.
+    + intensity        ::Float64       ... Peak intensity [W/cm^2] of the pulse.
+    + fwhm             ::Float64       ... full-width-half-maximum in time [fs] of pulse. 
+    + timeDelay        ::Float64       ... Propagation time [fs] of the pulse before its peak arrives at the atomic target.
+    + energySpread     ::Float64       ... Energy spread [eV] of the em pulse.
 """
-function Base.string(ptyp::Pulse.PolarizationType) 
-    if      ptyp == NoType              return( "undefined polarization" )
-    elseif  ptyp == Linear              return( "linear polarization" )
-    elseif  ptyp == LeftCircular        return( "left-circular polarization" )
-    elseif  ptyp == RightCircular       return( "right-circular polarization" )
-    elseif  ptyp == Elliptical          return( "elliptical polarization" )
-    elseif  ptyp == Linear              return( "linear polarization" )
-    else    error("stop a")
-    end
-end
-
-
-"""
-`struct  Pulse.Polarization`  ... defines a type for the polarization of an em pulse.
-
-    + type               ::Pulse.PolarizationType    ... General type of polarization.
-    + circularDegree     ::Float64                   ... Degree of circular polarization.
-    + linearDegree       ::Float64                   ... Degree of linear polarization.
-    + linearPolarization ::SolidAngle                ... Direction of the (linear) polarization vector as described by the
-                                                            unit vector u = u(Omega') with regard to the x'-z' plane of the incident pulse.
-    + has_gCoefficients  ::Bool                      ... True, of the complex gPlus and gMinus coefficients are properly defined.
-    + gPlus              ::Complex{Float64}          ... g_+1 coefficient.    
-    + gMinus             ::Complex{Float64}          ... g_-1 coefficient.    
-"""
-struct Polarization
-    typ                  ::Pulse.PolarizationType 
-    circularDegree       ::Float64
-    linearDegree         ::Float64
-    linearPolarization   ::SolidAngle
-    has_gCoefficients    ::Bool
-    gPlus                ::Complex{Float64} 
-    gMinus               ::Complex{Float64}
-end 
-
-
-"""
-`Pulse.Polarization()`  ... constructor for an `empty` instance of Pulse.Polarization().
-"""
-function Polarization()
-    Polarization( NoType, 0., 0., SolidAngle(0., 0.), false, Complex(0.), Complex(0.) )
-end
-
-
-# `Base.show(io::IO, polarization::Pulse.Polarization)`  ... prepares a proper printout of the variable polarization::Pulse.Polarization.
-function Base.show(io::IO, polarization::Pulse.Polarization) 
-    println(io, "type:                    $(polarization.typ)  ")
-    println(io, "circularDegree:          $(polarization.circularDegree)  ")
-    println(io, "linearDegree:            $(polarization.linearDegree)  ")
-    println(io, "linearPolarization:      $(polarization.linearPolarization)  ")
-    println(io, "has_gCoefficients:       $(polarization.has_gCoefficients)  ")
-    println(io, "gPlus:                   $(polarization.gPlus)  ")
-    println(io, "gMinus:                  $(polarization.gMinus)  ")
-end
-
-
-"""
-`struct  Pulse.ExperimentalCharacterization`  ... defines a type for characterizing an experimental or physically described em pulse.
-
-    + kind             ::Pulse.Shape            ... General shape of a given pulse.
-    + propagation      ::SolidAngle             ... Propagation direction of the pulse as described by the unit vector u = u(Omega).
-    + omega            ::Float64                ... Central frequency of the em pulse.
-    + maxIntensity     ::Float64                ... maximum intensity in units ...
-    + fwhm             ::Float64                ... approximate full-width-half maximum (fwhm) for rather long pulses; the nearest widths
-                                                    with an integer No. of cycles is taken.
-    + timeDelay        ::Float64                ... time delay with regard to some arbitrarely chosen time t = 0 
-                                                    (often taken for the first pulse).
-    + NoCycles         ::Int64                  ... No. of cycles which always determines the lengths of the pulse.
-    + multipoles       ::Array{EmMultipole,1}   ... Multipoles of the em field to be included in the description of the light field.
-    + polarization     ::Pulse.Polarization     ... Describes the polarization properties of the em pulse.
-"""
-struct ExperimentalCharacterization
-    kind               ::Pulse.Shape
-    propagation        ::SolidAngle
-    omega              ::Float64
-    maxIntensity       ::Float64
-    fwhm               ::Float64
+struct FelPulse   <:  Pulse.AbstractPulse
+    shape              ::String
+    omega              ::Float64 
+    intensity          ::Float64 
+    fwhm               ::Float64 
     timeDelay          ::Float64
-    NoCycles           ::Int64 
-    multipoles         ::Array{EmMultipole,1}
-    polarization       ::Pulse.Polarization
+    energySpread       ::Float64
 end 
 
 
 """
-`Pulse.ExperimentalCharacterization()`  ... constructor for an `empty` instance of ExperimentalCharacterization().
+`Pulse.FelPulse()`  ... constructor for an `empty` instance of Pulse.FelPulse().
 """
-function ExperimentalCharacterization()
-    ExperimentalCharacterization( NoShape, SolidAngle(0., 0.), 0., 0., 0., 0., 0, EmMultipole[], Polarization() )
+function FelPulse()
+    FelPulse( "NoShape", 0., 0., 0., 0., 0. )
 end
 
 
-# `Base.show(io::IO, chz::Pulse.ExperimentalCharacterization)`  
-#		... prepares a proper printout of the variable  chz::Pulse.ExperimentalCharacterization.
-function Base.show(io::IO, characterization::Pulse.ExperimentalCharacterization) 
-    println(io, "kind:              $(chz.kind)  ")
-    println(io, "propagation:       $(chz.propagation)  ")
-    println(io, "omega:             $(chz.omega)  ")
-    println(io, "maxIntensity:      $(chz.maxIntensity)  ")
-    println(io, "fwhm:              $(chz.fwhm)  ")
-    println(io, "timeDelay:         $(chz.timeDelay)  ")
-    println(io, "NoCycles:          $(chz.NoCycles)  ")
-    println(io, "multipoles:        $(chz.multipoles)  ")
-    println(io, "polarization:      $(chz.polarization)  ")
+# `Base.show(io::IO, pulse::Pulse.FelPulse)`  ... prepares a proper printout of the variable pulse::Pulse.FelPulse.
+function Base.show(io::IO, pulse::Pulse.FelPulse) 
+    println(io, "shape:         $(pulse.shape)  ")
+    println(io, "omega:         $(pulse.omega)  ")
+    println(io, "intensity:     $(pulse.intensity)  ")
+    println(io, "fwhm:          $(pulse.fwhm)       ")
+    println(io, "timeDelay:     $(pulse.timeDelay)  ")
+    println(io, "energySpread:  $(pulse.energySpread)  ")
 end
 
 
 """
-`struct  Pulse.Gaussian`  ... defines a type for a Gaussian light pulse that is used for evaluating time-dependent statistical tensors.
+`struct  Pulse.GeneratedPulse   <:  Pulse.AbstractPulse`  
+    ... defines a (full) GeneratedPulse light pulse in terms of experimentally accessible parameters, keywords, etc.
 
-    + propagation      ::SolidAngle             ... Propagation direction of the pulse as described by the unit vector u = u(Omega).
-    + omega            ::Float64                ... Central frequency of the em pulse.
-    + multipoles       ::Array{EmMultipole,1}   ... Multipoles of the em field to be included in the description of the light field.
-    + envelope         ::Pulse.Envelope         ... Envelope (function) of the light pulse.
-    + polarization     ::Pulse.Polarization     ... Polarization of the light pulse with typically well-defined g_+1 and g_-1 coefficients.
+    + propagation      ::SolidAngle                     ... Propagation direction of the pulse as described by the unit vector u = u(Omega).
+    + omega            ::Float64                        ... Central frequency of the em pulse (in atomic units)
+    + intensity        ::Float64                        ... Peak intensity of the em pulse (in W/cm^2).
+    + timeDelay        ::Float64                        
+        ... Initial time-delay with regard to the reference time (a.u.); the detailed meaning of this time-delay depends
+            on the shape of the pulse.
+    + multipoles       ::Array{EmMultipole,1}           ... Multipoles of the em field to be included in the description of the light field.
+    + shape            ::Pulse.AbstractPulseParameter   ... to characterize the shape/envelope of the light pulse.
+    + polarization     ::Pulse.AbstractPulseParameter   ... to characterize the polarization of the light pulse.
 """
-struct Gaussian
+struct GeneratedPulse   <:  Pulse.AbstractPulse
     propagation        ::SolidAngle 
     omega              ::Float64 
+    intensity          ::Float64 
+    timeDelay          ::Float64
     multipoles         ::Array{EmMultipole,1}
-    envelope           ::Pulse.Envelope 
-    polarization       ::Pulse.Polarization
+    shape              ::Pulse.AbstractPulseParameter 
+    polarization       ::Pulse.AbstractPulseParameter
+end 
+
+
+"""
+`Pulse.GeneratedPulse()`  ... constructor for an `empty` instance of Pulse.GeneratedPulse().
+"""
+function GeneratedPulse()
+    GeneratedPulse( SolidAngle(0., 0.), 0., 0., 0., EmMultipole[], Pulse.GaussianShape, Pulse.LinearPolarized  )
+end
+
+
+# `Base.show(io::IO, pulse::Pulse.GeneratedPulse)`  ... prepares a proper printout of the variable pulse::Pulse.GeneratedPulse.
+function Base.show(io::IO, pulse::Pulse.GeneratedPulse) 
+    println(io, "propagation:        $(pulse.propagation)  ")
+    println(io, "omega:              $(pulse.omega)  ")
+    println(io, "intensity:          $(pulse.intensity)  ")
+    println(io, "timeDelay:          $(pulse.timeDelay)  ")
+    println(io, "multipoles:         $(pulse.multipoles)  ")
+    println(io, "shape:              $(pulse.shape)  ")
+    println(io, "polarization:       $(pulse.polarization)  ")
+end
+
+
+"""
+`struct  Pulse.Gaussian   <:  Pulse.AbstractPulse`  
+    ... defines a (full) Gaussian light pulse with well-defined frequency, carrier-envelope phase, polarization as well their 
+        occurrence time (with regard to a reference time refTime).
+
+    + propagation      ::SolidAngle                 ... Propagation direction of the pulse as described by the unit vector u = u(Omega).
+    + omega            ::Float64                    ... Central frequency of the em pulse.
+    + timeDelay        ::Float64                    ... Initial time-delay of the peak center with regard to the reference time (a.u.).
+    + multipoles       ::Array{EmMultipole,1}       ... Multipoles of the em field to be included in the description of the light field.
+    + envelope         ::Pulse.GaussianEnvelope     ... Gaussian envelope (function) of the light pulse.
+    + polarization     ::Pulse.AbstractPolarization ... Polarization of the light pulse with typically well-defined 
+                                                        g_+1 and g_-1 coefficients; not yet.
+"""
+struct Gaussian   <:  Pulse.AbstractPulse
+    propagation        ::SolidAngle 
+    omega              ::Float64 
+    timeDelay          ::Float64 
+    multipoles         ::Array{EmMultipole,1}
+    envelope           ::Pulse.GaussianEnvelope
+    # polarization     ::Pulse.AbstractPolarization
 end 
 
 
@@ -336,19 +297,100 @@ end
 `Pulse.Gaussian()`  ... constructor for an `empty` instance of Pulse.Gaussian().
 """
 function Gaussian()
-    Gaussian( SolidAngle(0., 0.), 0., EmMultipole[], Pulse.Envelope(), Pulse.Polarization()  )
+    Gaussian( SolidAngle(0., 0.), 0., 0., EmMultipole[], Pulse.GaussianEnvelope(0.)  )
 end
 
 
-# `Base.show(io::IO, gaussian::Pulse.Gaussian)`  ... prepares a proper printout of the variable gaussian::Pulse.Gaussian.
-function Base.show(io::IO, gaussian::Pulse.Gaussian) 
-    println(io, "propagation:        $(gaussian.propagation)  ")
-    println(io, "omega:              $(gaussian.omega)  ")
-    println(io, "multipoles:         $(gaussian.multipoles)  ")
-    println(io, "envelope:           $(gaussian.envelope)  ")
-    println(io, "polarization:       $(gaussian.polarization)  ")
+# `Base.show(io::IO, pulse::Pulse.Gaussian)`  ... prepares a proper printout of the variable pulse::Pulse.Gaussian.
+function Base.show(io::IO, pulse::Pulse.Gaussian) 
+    println(io, "propagation:        $(pulse.propagation)  ")
+    println(io, "omega:              $(pulse.omega)  ")
+    println(io, "timeDelay:          $(pulse.timeDelay)  ")
+    println(io, "multipoles:         $(pulse.multipoles)  ")
+    println(io, "envelope:           $(pulse.envelope)  ")
 end
-============================================================================================#
+
+
+"""
+`struct  Pulse.GaussianSimplified   <:  Pulse.AbstractPulse`  
+    ... defines a full but simplified and linearly-polarized Gaussian light pulse with well-defined frequency, 
+        peak amplitude, fwhm as well as energy spread, such as they occur at FEL sources. These simplified pulses 
+        always propagate along the z-axis and are polarized along the x-axis. The full pulse is internal 
+        restricted to 5*fwhm.
+
+    + omega            ::Float64       ... Central frequency (a.u.) of the em pulse.
+    + A0               ::Float64       ... peak amplitude of the pulse.
+    + fwhm             ::Float64       ... full-width-half-maximum in time (a.u.) of the Gaussian pulse. 
+    + timeDelay        ::Float64       ... Propagation time (a.u.) of the pulse before its peak arrives at the atomic target.
+    + energySpread     ::Float64       ... Energy spread (a.u.) of the em pulse.
+"""
+struct GaussianSimplified   <:  Pulse.AbstractPulse
+    omega              ::Float64 
+    A0                 ::Float64 
+    fwhm               ::Float64 
+    timeDelay          ::Float64
+    energySpread       ::Float64
+end 
+
+
+"""
+`Pulse.GaussianSimplified()`  ... constructor for an `empty` instance of Pulse.GaussianSimplified().
+"""
+function GaussianSimplified()
+    Gaussian( 0., 0., 0., 0., 0.)
+end
+
+
+# `Base.show(io::IO, pulse::Pulse.GaussianSimplified)`  ... prepares a proper printout of the variable pulse::Pulse.GaussianSimplified.
+function Base.show(io::IO, pulse::Pulse.GaussianSimplified) 
+    println(io, "omega:         $(pulse.omega)  ")
+    println(io, "A0:            $(pulse.A0)  ")
+    println(io, "fwhm:          $(pulse.fwhm)  ")
+    println(io, "timeDelay:     $(pulse.timeDelay)  ")
+    println(io, "energySpread:  $(pulse.energySpread)  ")
+end
+
+
+"""
+`struct  Pulse.SinSquared   <:  Pulse.AbstractPulse`  
+    ... defines a (full) sin^2 light pulse with well-defined frequency, carrier-envelope phase, polarization as well their 
+        occurrence time (with regard to a reference time refTime).
+
+    + propagation      ::SolidAngle                 ... Propagation direction of the pulse as described by the unit vector u = u(Omega).
+    + omega            ::Float64                    ... Central frequency of the em pulse.
+    + timeDelay        ::Float64                    ... Initial time-delay of the peak center with regard to the reference time (a.u.).
+    + multipoles       ::Array{EmMultipole,1}       ... Multipoles of the em field to be included in the description of the light field.
+    + envelope         ::Pulse.SinSquaredEnvelope   ... Gaussian envelope (function) of the light pulse.
+    + polarization     ::Pulse.AbstractPolarization ... Polarization of the light pulse with typically well-defined 
+                                                        g_+1 and g_-1 coefficients; not yet.
+"""
+struct SinSquared   <:  Pulse.AbstractPulse
+    propagation        ::SolidAngle 
+    omega              ::Float64 
+    timeDelay          ::Float64 
+    multipoles         ::Array{EmMultipole,1}
+    envelope           ::Pulse.SinSquaredEnvelope
+    # polarization     ::Pulse.AbstractPolarization
+end 
+
+
+"""
+`Pulse.SinSquared()`  ... constructor for an `empty` instance of Pulse.SinSquared().
+"""
+function SinSquared()
+    SinSquared( SolidAngle(0., 0.), 0., 0., EmMultipole[], Pulse.SinSquaredEnvelope(0.)  )
+end
+
+
+# `Base.show(io::IO, pulse::Pulse.SinSquared)`  ... prepares a proper printout of the variable pulse::Pulse.SinSquared.
+function Base.show(io::IO, pulse::Pulse.SinSquared) 
+    println(io, "propagation:        $(pulse.propagation)  ")
+    println(io, "omega:              $(pulse.omega)  ")
+    println(io, "timeDelay:          $(pulse.timeDelay)  ")
+    println(io, "multipoles:         $(pulse.multipoles)  ")
+    println(io, "envelope:           $(pulse.envelope)  ")
+end
+
 
 ###################################################################################################################
 ###################################################################################################################
@@ -364,6 +406,28 @@ end
 function computeFieldAmplitude(intensity::Float64, omega::Float64)
     wa = sqrt(8 * pi * Defaults.getDefaults("alpha") * intensity) / omega
     return( wa )
+end
+
+
+"""
+`Pulse.convertPulse(expPulse::Pulse.FelPulse)`  
+    ... converts the experimentally specified FEL pulse into a proper computational pulse that can be utilized for 
+        the Liouville time evolution.
+"""
+function convertPulse(expPulse::Pulse.FelPulse)
+    
+    omega        = Defaults.convertUnits("energy: from eV to atomic",        expPulse.omega)
+    energySpread = Defaults.convertUnits("energy: from eV to atomic",        expPulse.energySpread)
+    A0           = Defaults.convertUnits("intensity: from W/cm^2 to atomic", expPulse.intensity)
+    fwhm         = expPulse.fwhm      * 1.0e-15 / Defaults.convertUnits("time: from atomic to sec", 1.0)
+    timeDelay    = expPulse.timeDelay * 1.0e-15 / Defaults.convertUnits("time: from atomic to sec", 1.0)
+    
+    if    expPulse.shape == "GaussianSimplified"     
+        compPulse = Pulse.GaussianSimplified(omega, A0, fwhm, timeDelay, energySpread);  @show compPulse
+    else  error("Unknown pulse shape = $(expPulse.shape) ")
+    end 
+    
+    return( compPulse )
 end
 
 
@@ -807,5 +871,11 @@ function pulseShapeQuadIntegral(envelope::Pulse.AbstractEnvelope, beam::Abstract
 end
 return( wa )
 end
+
+
+
+###################################################################################################################
+###################################################################################################################
+###################################################################################################################
 
 end # module

@@ -1,23 +1,14 @@
 
-#==
-++  September 2025: The Hfs module now comprises again all basic data structure (IJF_Vecor, HfBasisVector, HfLevel, HfMultiplet) 
-    that are needed to construct the hyperfine levels, either by including the hyperfine-interaction explicitly into 
-    their representation or by omitting this interaction (i.e. due to a pure coupling of the angular momenta.) 
-    
-    This change will re-quire to adapt a few procedures and will make them also more transparent in their purpose and use.
-==#
-
 """
 `module  JAC.Hfs`  
-    ... a submodel of JAC that contains all methods for computing HFS A and B coefficients, hyperfine-level representations, etc.
+    ... a submodel of JAC that contains all methods for computing HFS A, B and C coefficients, hyperfine-level representations, etc.
         We apply IJF-coupling throughout in this module and within JAC. While the hyperfine-interaction usually acts between 
         electronic (CSF) basis states or, more accurately, between IJF-coupled basis vectors, all hyperfine representations
-        usually refer to product basis of nuclear + electronic states/levels in order to keep the number of hyperfine levels
-        moderate.
+        usually refer to the product basis of nuclear + electronic states/levels in order to keep the number of hyperfine 
+        levels moderate.
         
-        This distinctions between a purely IJF-coupled basis and the use of hyperfine levels and multiplets in different 
-        applications makes it necessary to separate their treatment also in way how they are referred to. In particular,
-        we now distinguish between:
+        This (clear) distinctions between a purely IJF-coupled basis and the use of hyperfine levels and multiplets in 
+        different applications makes it necessary to implement the following data types:
         
         + IJF_Vector = IJF_Vector(F, parity, isomer::Nuclear.Isomer, csf::CsfR, basisJ::Basis)
           ... such a vector describes a tensor product state nuclear + electronic (state) and is appropriate to form 
@@ -102,11 +93,10 @@ end
 
 
 """
-`struct  Hfs.HfBasisVector`  ... defines a type for a hyperfine basis vector that enables one to think and deal with 
-    hyperfine levels. These hyperfine levels have representations with regard to (tensor) product states, which are formed
-    from a set of isomeric states as well as a set of electronic ASF level J. Hyperfine basis vectors are need to diagonalize
-    the hyperfine Hamiltonian in a tensor basis of isomeric + ASF states. The different representations have different
-    advantages.
+`struct  Hfs.HfBasisVector`  ... defines a type for a hyperfine basis vector that enables one to think about and deal with 
+    individual hyperfine levels. These hyperfine levels have representations with regard to (tensor) product states, which 
+    are formed from a set of isomeric states as well as a set of electronic ASF level J. Hyperfine basis vectors are obtained
+    from diagonalizing the hyperfine Hamiltonian in a tensor basis of isomeric + ASF states. 
 
     + F         ::AngularJ64        ... Total angular momentum F
     + parity    ::Parity            ... Total parity of the basis vector = nuclear x electronic parity.
@@ -114,7 +104,7 @@ end
     + LevelJ    ::Basis             ... Electronic level that is part of the electronic basis.
     
     There is no need to introduce a type HfBasis since such a hfBasis = Hfs.HfBasisVector[...] can be readily formed at all 
-    occurrences. 
+    occurrences. The IJF_Vector's and     HfBasisVector's have different advantages.
 
 """
 struct HfBasisVector
@@ -148,8 +138,8 @@ end
     Each hyperfine level has a representation mc that refers to the hfBasis, and which contains all information about the 
     representation of the underlying nuclear and electronic basis states. The electronic basis is formed by a selected set 
     of ASF, typically taken from some (electronic) multiplet. In contrast to a pure (electronic) IJF_Basis, the use of 
-    ASF simplifies the interpretation of physical findings but cannot reduce the computational effort (perhaps, even slightly 
-    increase the computational effort).
+    ASF simplifies the interpretation of physical findings but cannot reduce the computational effort (perhaps, even results
+    in slightly increase the computational effort). A HfLevel is defined by:
 
     + F              ::AngularJ64               ... Total angular momentum F.
     + M              ::AngularM64               ... Total projection M, only defined if a particular magnetic sublevel is referred to.
@@ -157,6 +147,8 @@ end
     + energy         ::Float64                  ... energy
     + hfBbasis       ::Array{HfBasisVector,1}   ... the product basis nuclear (isomeric) state x selected ASF.
     + mc             ::Vector{Float64}          ... Vector of mixing coefficients w.r.t hfBasis.
+    
+    
 """
 struct HfLevel
     F                ::AngularJ64
@@ -218,22 +210,24 @@ end
 #################################################################################################################################
 #################################################################################################################################
 
-#==  The following procedures need to be adapted to the new definition of the basis vectors and HfLevel/HfMultiplet  ... till the end ==#
-
 """
 `struct  Hfs.InteractionMatrix`  ... defines a type for storing the T^1 and T^2 interaction matrices for a given basis.
 
-    + calcT1   ::Bool               ... true, if the matrixT1 has been calculated and false otherwise.
-    + calcT2   ::Bool               ... true, if the matrixT2 has been calculated and false otherwise.
-    + matrixT1 ::Array{Float64,2}   ... T1 interaction matrix
-    + matrixT2 ::Array{Float64,2}   ... T2 interaction matrix
+    + calcM1   ::Bool               ... true, if the matrixM1 has been calculated and false otherwise.
+    + calcE2   ::Bool               ... true, if the matrixE2 has been calculated and false otherwise.
+    + calcM3   ::Bool               ... true, if the matrixM3 has been calculated and false otherwise.
+    + matrixM1 ::Array{Float64,2}   ... T^M1 interaction matrix
+    + matrixE2 ::Array{Float64,2}   ... T^E2 interaction matrix
+    + matrixM3 ::Array{Float64,2}   ... T^M3 interaction matrix
 
 """
 struct InteractionMatrix
-    calcT1     ::Bool
-    calcT2     ::Bool
-    matrixT1   ::Array{Float64,2}
-    matrixT2   ::Array{Float64,2}
+    calcM1     ::Bool
+    calcE2     ::Bool
+    calcM3     ::Bool
+    matrixM1   ::Array{Float64,2}
+    matrixE2   ::Array{Float64,2}
+    matrixM3   ::Array{Float64,2}
 end 
 
 
@@ -241,16 +235,18 @@ end
 `Hfs.InteractionMatrix()`  ... constructor for an `empty` instance of InteractionMatrix.
 """
 function InteractionMatrix()
-    InteractionMatrix(false, false, zeros(2,2), zeros(2,2))
+    InteractionMatrix(false, false, false, zeros(2,2), zeros(2,2), zeros(2,2))
 end
 
 
 # `Base.show(io::IO, im::Hfs.InteractionMatrix)`  ... prepares a proper printout of the variable InteractionMatrix.
 function Base.show(io::IO, im::Hfs.InteractionMatrix) 
-    println(io, "calcT1:           $(im.calcT1)  ")
-    println(io, "calcT2:           $(im.calcT2)  ")
-    println(io, "matrixT1:         $(im.matrixT1)  ")
-    println(io, "matrixT2:         $(im.matrixT2)  ")
+    println(io, "calcM1:           $(im.calcM1)  ")
+    println(io, "calcE2:           $(im.calcE2)  ")
+    println(io, "calcM3:           $(im.calcM3)  ")
+    println(io, "matrixM1:         $(im.matrixM1)  ")
+    println(io, "matrixE2:         $(im.matrixE2)  ")
+    println(io, "matrixM3:         $(im.matrixM3)  ")
 end
 
 
@@ -260,19 +256,25 @@ end
         other results.
 
     + Jlevel                    ::Level            ... Atomic level to which the outcome refers to.
+    + gJ                        ::Float64          ... Lande's g_J factor of the level.
     + AIoverMu                  ::Float64          ... HFS A * I / mu value.
     + BoverQ                    ::Float64          ... HFS B / Q value
-    + amplitudeT1               ::Complex{Float64} ... T1 amplitude
-    + amplitudeT2               ::Complex{Float64} ... T2 amplitude
+    + CoverOmega                ::Float64          ... HFS C / Omega value
+    + amplitudeM1               ::Complex{Float64} ... M1 amplitude
+    + amplitudeE2               ::Complex{Float64} ... E2 amplitude
+    + amplitudeM3               ::Complex{Float64} ... M3 amplitude
     + nuclearI                  ::AngularJ64       ... nuclear spin
     + hfsMultiplet              ::HfMultiplet      ... Multiplet of HfLevel's as associated with the JLevel.
 """
 struct Outcome 
     Jlevel                      ::Level 
+    gJ                          ::Float64 
     AIoverMu                    ::Float64
     BoverQ                      ::Float64
-    amplitudeT1                 ::Complex{Float64}
-    amplitudeT2                 ::Complex{Float64}
+    CoverOmega                  ::Float64
+    amplitudeM1                 ::Complex{Float64}
+    amplitudeE2                 ::Complex{Float64}
+    amplitudeM3                 ::Complex{Float64}
     nuclearI                    ::AngularJ64
     hfsMultiplet                ::HfMultiplet
 end 
@@ -282,17 +284,20 @@ end
 `Hfs.Outcome()`  ... constructor for an `empty` instance of Hfs.Outcome for the computation of HFS properties.
 """
 function Outcome()
-    Outcome(Level(), 0., 0., 0., 0., AngularJ64(0), HfMultiplet() )
+    Outcome(Level(), 0., 0., 0., 0., 0., 0., 0., AngularJ64(0), HfMultiplet() )
 end
 
 
 # `Base.show(io::IO, outcome::Hfs.Outcome)`  ... prepares a proper printout of the variable outcome::Hfs.Outcome.
 function Base.show(io::IO, outcome::Hfs.Outcome) 
     println(io, "Jlevel:                    $(outcome.Jlevel)  ")
+    println(io, "gJ:                        $(outcome.gJ)  ")
     println(io, "AIoverMu:                  $(outcome.AIoverMu)  ")
     println(io, "BoverQ:                    $(outcome.BoverQ)  ")
-    println(io, "amplitudeT1:               $(outcome.amplitudeT1)  ")
-    println(io, "amplitudeT2:               $(outcome.amplitudeT2)  ")
+    println(io, "CoverOmega:                $(outcome.CoverOmega)  ")
+    println(io, "amplitudeM1:               $(outcome.amplitudeM1)  ")
+    println(io, "amplitudeE2:               $(outcome.amplitudeE2)  ")
+    println(io, "amplitudeM3:               $(outcome.amplitudeM3)  ")
     println(io, "nuclearI:                  $(outcome.nuclearI)  ")
     println(io, "hfMultiplet:                (outcome.hfMultiplet)  ")
 end
@@ -301,42 +306,46 @@ end
 """
 `struct  Settings  <:  AbstractPropertySettings`  ... defines a type for the details and parameters of computing HFS A and B coefficients.
 
-    + calcT1                    ::Bool             ... True if T1-amplitudes (HFS A values) need to be calculated, and false otherwise.
-    + calcT2                    ::Bool             ... True if T2-amplitudes (HFS B values) need to be calculated, and false otherwise.
+    + calcM1                    ::Bool             ... True if T^M1-amplitudes (HFS A values) need to be calculated, and false otherwise.
+    + calcE2                    ::Bool             ... True if T^E2-amplitudes (HFS B values) need to be calculated, and false otherwise.
+    + calcM3                    ::Bool             ... True if T^M3-amplitudes (HFS C values) need to be calculated, and false otherwise.
     + calcNondiagonal           ::Bool             
         ... True if also (non-)diagonal hyperfine amplitudes are to be calculated and printed, and false otherwise.
-    + calcIJFexpansion          ::Bool             
-        ... True if the selected atomic levels are to be represented in a IJF-coupled basis, and false otherwise.
+    + calcHfMultiplet           ::Bool             
+        ... True if representation of all hyperfine levels need to be generated in the IJF-coupled ASF basis;
+            only the nuclear spin and the selected atomic levels are considered in the basis. false otherwise.
     + printBefore               ::Bool             ... True if a list of selected levels is printed before the actual computations start. 
     + levelSelection            ::LevelSelection   ... Specifies the selected levels, if any.
 """
 struct Settings  <:  AbstractPropertySettings
-    calcT1                      ::Bool
-    calcT2                      ::Bool
+    calcM1                      ::Bool
+    calcE2                      ::Bool
+    calcM3                      ::Bool
     calcNondiagonal             ::Bool 
-    calcIJFexpansion            ::Bool 
+    calcHfMultiplet             ::Bool 
     printBefore                 ::Bool 
     levelSelection              ::LevelSelection
 end 
 
 
 """
-`Hfs.Settings(; calcT1::Bool=true,` calcT2::Bool=false, calcNondiagonal::Bool=false, calcIJFexpansion::Bool=false, 
-                    printBefore::Bool=false, levelSelection::LevelSelection=LevelSelection()) 
-    ... keyword constructor to overwrite selected value of Einstein line computations.
+`Hfs.Settings(; calcM1::Bool=true,` calcE2::Bool=false, calcM3::Bool=false, calcNondiagonal::Bool=false, 
+                calcHfMultiplet::Bool=false, printBefore::Bool=false, levelSelection::LevelSelection=LevelSelection()) 
+    ... keyword constructor to overwrite selected value of Hfs.Settings. 
 """
-function Settings(; calcT1::Bool=true, calcT2::Bool=false, calcNondiagonal::Bool=false, calcIJFexpansion::Bool=false, 
-                    printBefore::Bool=false, levelSelection::LevelSelection=LevelSelection())
-    Settings(calcT1, calcT2, calcNondiagonal, calcIJFexpansion, printBefore, levelSelection)
+function Settings(; calcM1::Bool=true, calcE2::Bool=false, calcM3::Bool=false, calcNondiagonal::Bool=false, 
+                    calcHfMultiplet::Bool=false, printBefore::Bool=false, levelSelection::LevelSelection=LevelSelection())
+    Settings(calcM1, calcE2, calcM3, calcNondiagonal, calcHfMultiplet, printBefore, levelSelection)
 end
 
 
 # `Base.show(io::IO, settings::Hfs.Settings)`  ... prepares a proper printout of the variable settings::Hfs.Settings.
 function Base.show(io::IO, settings::Hfs.Settings) 
-    println(io, "calcT1:                   $(settings.calcT1)  ")
-    println(io, "calcT2:                   $(settings.calcT2)  ")
+    println(io, "calcM1:                   $(settings.calcM1)  ")
+    println(io, "calcE2:                   $(settings.calcE2)  ")
+    println(io, "calcM3:                   $(settings.calcM3)  ")
     println(io, "calcNondiagonal:          $(settings.calcNondiagonal)  ")
-    println(io, "calcIJFexpansion:         $(settings.calcIJFexpansion)  ")
+    println(io, "calcHfMultiplet:         $(settings.calcHfMultiplet)  ")
     println(io, "printBefore:              $(settings.printBefore)  ")
     println(io, "levelSelection:           $(settings.levelSelection)  ")
 end
@@ -420,82 +429,42 @@ end
 
 
 """
-`Hfs.amplitude(kind::String, rLevel::Level, sLevel::Level, grid::Radial.Grid; printout::Bool=true)` 
-    ... to compute either the  T^(1) or T^(2) hyperfine amplitude <alpha_r J_r || T^(n)) || alpha_s J_s>  
+`Hfs.amplitude(mp::EmMultipole, rLevel::Level, sLevel::Level, grid::Radial.Grid; printout::Bool=true)` 
+    ... to compute either the  T^(M1), T^(E2) or T^(M3) hyperfine amplitude <alpha_r J_r || T^(n)) || alpha_s J_s>  
         for a given pair of levels. A value::ComplexF64 is returned.
 """
-function  amplitude(kind::String, rLevel::Level, sLevel::Level, grid::Radial.Grid; printout::Bool=true)
+function  amplitude(mp::EmMultipole, rLevel::Level, sLevel::Level, grid::Radial.Grid; printout::Bool=true)
     #
     if  rLevel.parity != sLevel.parity   return( ComplexF64(0.) )   end
     nr = length(rLevel.basis.csfs);    ns = length(sLevel.basis.csfs);    matrix = zeros(ComplexF64, nr, ns)
     if  printout   printstyled("Compute hyperfine $(kind[1:5]) matrix of dimension $nr x $ns ... \n", color=:light_green)   end
     #
+    if        mp == M1    opa = SpinAngular.OneParticleOperator(1, plus, true);  hfsFunc = InteractionStrength.hfs_tM1;  sb = "t^M1"
+    elseif    mp == E2    opa = SpinAngular.OneParticleOperator(2, plus, true);  hfsFunc = InteractionStrength.hfs_tE2;  sb = "t^E2"
+    elseif    mp == M3    opa = SpinAngular.OneParticleOperator(3, plus, true);  hfsFunc = InteractionStrength.hfs_tM3;  sb = "t^M3"
+    elseif    error("Undefined nuclear multipole $mp ")
+    end 
+    
     for  r = 1:nr
         for  s = 1:ns
             me = 0.
             if  rLevel.basis.csfs[r].parity  != rLevel.parity    ||  sLevel.basis.csfs[s].parity  != sLevel.parity  ||
                 rLevel.parity != sLevel.parity    continue    
             end 
+
+            subshellList = sLevel.basis.subshells
+            wa           = SpinAngular.computeCoefficients(opa, rLevel.basis.csfs[r], sLevel.basis.csfs[s], subshellList) 
             #
-            if      kind == "T^(1) amplitude"
-            #--------------------------------
-                 # Calculate the spin-angular coefficients
-                if  Defaults.saRatip()
-                    waR = Basics.compute("angular coefficients: 1-p, Grasp92", 0, 1, rLevel.basis.csfs[r], sLevel.basis.csfs[s])
-                    wa  = waR       
-                end
-                if  Defaults.saGG()
-                    subshellList = sLevel.basis.subshells
-                    opa = SpinAngular.OneParticleOperator(1, plus, true)
-                    waG = SpinAngular.computeCoefficients(opa, rLevel.basis.csfs[r], sLevel.basis.csfs[s], subshellList) 
-                    wa  = waG
-                end
-                if  Defaults.saRatip() && Defaults.saGG() && true
-                    if  length(waR) != 0     println("\n>> Angular coeffients from GRASP/MCT   = $waR ")    end
-                    if  length(waG) != 0     println(  ">> Angular coeffients from SpinAngular = $waG ")    end
-                end
-                #
-                for  coeff in wa
-                    ja = Basics.subshell_2j(rLevel.basis.orbitals[coeff.a].subshell)
-                    jb = Basics.subshell_2j(sLevel.basis.orbitals[coeff.b].subshell)
-                    tamp  = InteractionStrength.hfs_tM1(rLevel.basis.orbitals[coeff.a], sLevel.basis.orbitals[coeff.b], grid)
-                    #
-                    ## println("**  <$(coeff.a) || t1 || $(coeff.b)>  = $(coeff.T * tamp)   = $(coeff.T) * $tamp" )
-                    me = me + coeff.T * tamp  
-                end
-            #
-            elseif  kind == "T^(2) amplitude"
-            #--------------------------------
-                # Calculate the spin-angular coefficients
-                if  Defaults.saRatip()
-                    waR = Basics.compute("angular coefficients: 1-p, Grasp92", 0, 2, rLevel.basis.csfs[r], sLevel.basis.csfs[s])
-                    wa  = waR       
-                end
-                if  Defaults.saGG()
-                    subshellList = sLevel.basis.subshells
-                    opa = SpinAngular.OneParticleOperator(2, plus, true)
-                    waG = SpinAngular.computeCoefficients(opa, rLevel.basis.csfs[r], sLevel.basis.csfs[s], subshellList) 
-                    wa  = waG
-                end
-                if  Defaults.saRatip() && Defaults.saGG() && true
-                    if  length(waR) != 0     println("\n>> Angular coeffients from GRASP/MCT   = $waR ")    end
-                    if  length(waG) != 0     println(  ">> Angular coeffients from SpinAngular = $waG ")    end
-                end
-                #
-                for  coeff in wa
-                    ja = Basics.subshell_2j(rLevel.basis.orbitals[coeff.a].subshell)
-                    jb = Basics.subshell_2j(sLevel.basis.orbitals[coeff.b].subshell)
-                    tamp  = InteractionStrength.hfs_tE2(rLevel.basis.orbitals[coeff.a], sLevel.basis.orbitals[coeff.b], grid)
-                    #
-                    ## println("**  <$(coeff.a) || t2 || $(coeff.b)>  = $(coeff.T * tamp)   = $(coeff.T) * $tamp" )
-                    me = me + coeff.T * tamp  
-                end
-            #
-            else    error("stop a")
+            for  coeff in wa
+                ja = Basics.subshell_2j(rLevel.basis.orbitals[coeff.a].subshell)
+                jb = Basics.subshell_2j(sLevel.basis.orbitals[coeff.b].subshell)
+                tamp  = hfsFunc(rLevel.basis.orbitals[coeff.a], sLevel.basis.orbitals[coeff.b], grid)
+                ## println("**  <$(coeff.a) || $sb || $(coeff.b)>  = $(coeff.T * tamp)   = $(coeff.T) * $tamp" )
+                me = me + coeff.T * tamp  
             end
             #
             matrix[r,s] = me
-            println(">>> HF interaction matrix:  <$r || $kind || $s> = $me" )
+            println(">>> HF interaction matrix:  <$r || T^($mp) || $s> = $me" )
         end
     end
     if  printout   printstyled("done.\n", color=:light_green)   end
@@ -503,6 +472,8 @@ function  amplitude(kind::String, rLevel::Level, sLevel::Level, grid::Radial.Gri
     #
     return( amplitude )
 end
+
+
 """
 `Hfs.computeInteractionAmplitudeM(mp::EmMultipole, leftIsomer::Nuclear.Isomer, rightIsomer::Nuclear.Isomer)` 
     ... to compute the hyperfine interaction amplitude (<leftIsomer || M^(mp)) || rightIsomer>) for the interaction of two
@@ -543,8 +514,8 @@ end
 
 """
 `Hfs.computeInteractionAmplitudeT(mp::EmMultipole, aLevel::Level, bLevel, grid::Radial.Grid)` 
-    ... to compute the T^(mp) interaction matrices for the given basis, i.e. (<aLevel || T^(mp) || bLevel>).
-        Both levels must refer to the same basis. A me::ComplexF64 is returned.
+    ... to compute the T^(mp) interaction amplitude for two levels of the same basis, i.e. (<aLevel || T^(mp) || bLevel>).
+        A me::ComplexF64 is returned.
 """
 function  computeInteractionAmplitudeT(mp::EmMultipole, aLevel::Level, bLevel, grid::Radial.Grid)
     #
@@ -566,50 +537,35 @@ function  computeInteractionAmplitudeT(mp::EmMultipole, aLevel::Level, bLevel, g
                         ja   = Basics.subshell_2j(orbitals[coeff.a].subshell)
                         jb   = Basics.subshell_2j(orbitals[coeff.b].subshell)
                         if     mp == M1   
-                            if  aLevel.basis.csfs[ia].parity  != bLevel.basis.csfs[ib].parity   
-                                tamp = 0
-                            else
-                                tamp = InteractionStrength.hfs_tM1(orbitals[coeff.a], orbitals[coeff.b], grid)
-                            end                            
+                            if  aLevel.basis.csfs[ia].parity  != bLevel.basis.csfs[ib].parity        tamp = 0.
+                            else       tamp = InteractionStrength.hfs_tM1(orbitals[coeff.a], orbitals[coeff.b], grid)   end                            
                         elseif  mp == E2
-                            if  aLevel.basis.csfs[ia].parity  != bLevel.basis.csfs[ib].parity   
-                                tamp = 0
-                            else
-                                tamp = InteractionStrength.hfs_tE2(orbitals[coeff.a], orbitals[coeff.b], grid)
-                            end                       
+                            if  aLevel.basis.csfs[ia].parity  != bLevel.basis.csfs[ib].parity        tamp = 0.
+                            else       tamp = InteractionStrength.hfs_tE2(orbitals[coeff.a], orbitals[coeff.b], grid)   end                       
                         elseif  mp == E1 
                             if  aLevel.basis.csfs[ia].parity  != bLevel.basis.csfs[ib].parity 
-                                tamp = InteractionStrength.hfs_tE1(orbitals[coeff.a], orbitals[coeff.b], grid)  
-                            else
-                                tamp = 0
-                            end
+                                       tamp = InteractionStrength.hfs_tE1(orbitals[coeff.a], orbitals[coeff.b], grid)  
+                            else       tamp = 0.                                                                        end
                         elseif  mp == E3   
                             if  aLevel.basis.csfs[ia].parity  != bLevel.basis.csfs[ib].parity 
-                                tamp = InteractionStrength.hfs_tE3(orbitals[coeff.a], orbitals[coeff.b], grid)
-                            else
-                                tamp = 0
-                            end
+                                       tamp = InteractionStrength.hfs_tE3(orbitals[coeff.a], orbitals[coeff.b], grid)
+                            else       tamp = 0.                                                                        end
                         elseif  mp == M2    
                             if  aLevel.basis.csfs[ia].parity  != bLevel.basis.csfs[ib].parity
-                                tamp = InteractionStrength.hfs_tM2(orbitals[coeff.a], orbitals[coeff.b], grid)   
-                            else
-                                tamp = 0
-                            end
+                                       tamp = InteractionStrength.hfs_tM2(orbitals[coeff.a], orbitals[coeff.b], grid)   
+                            else       tamp = 0.                                                                        end
                         elseif  mp == M3  
-                            if  aLevel.basis.csfs[ia].parity  != bLevel.basis.csfs[ib].parity
-                                tamp = 0
-                            else
-                                tamp = InteractionStrength.hfs_tM3(orbitals[coeff.a], orbitals[coeff.b], grid) 
-                            end                              
+                            if  aLevel.basis.csfs[ia].parity  != bLevel.basis.csfs[ib].parity        tamp = 0.
+                            else       tamp = InteractionStrength.hfs_tM3(orbitals[coeff.a], orbitals[coeff.b], grid)   end                              
                         else    error("stop b")    
                         end 
-                        #wb = wb + coeff.T * tamp   #Stephan
-                    #  @show ja, jb, tamp 
+                        # wb = wb + coeff.T * tamp   #Stephan
                         wb = wb + coeff.T * tamp/ sqrt( ja + 1) * sqrt( (Basics.twice(aLevel.J) + 1))    #Wu
+                        ##x  @show ja, jb, tamp 
                     end
             end 
             me = me + aLevel.mc[ia] * bLevel.mc[ib] * wb    
-           # @show aLevel.mc[ia],bLevel.mc[ib] 
+            ##x @show aLevel.mc[ia], bLevel.mc[ib] 
         end 
     end 
 
@@ -618,34 +574,47 @@ end
 
 
 """
-`Hfs.computeAmplitudesProperties(outcome::Hfs.Outcome, nm::Nuclear.Model, grid::Radial.Grid, settings::Hfs.Settings, im::Hfs.InteractionMatrix) 
+`Hfs.computeAmplitudesProperties(outcome::Hfs.Outcome, nm::Nuclear.Model, grid::Radial.Grid, settings::Hfs.Settings, 
+                                 im::Hfs.InteractionMatrix) 
     ... to compute all amplitudes and properties of for a given level; an outcome::Hfs.Outcome is returned for which the 
-        amplitudes and properties are now evaluated explicitly.
+        amplitudes and properties are evaluated explicitly.
 """
-function  computeAmplitudesProperties(outcome::Hfs.Outcome, nm::Nuclear.Model, grid::Radial.Grid, settings::Hfs.Settings, im::Hfs.InteractionMatrix)
-    AIoverMu = BoverQ = amplitudeT1 = amplitudeT2 = 0.;    J = AngularMomentum.oneJ(outcome.Jlevel.J)
-    if  settings.calcT1  &&  outcome.Jlevel.J != AngularJ64(0)
-        if  im.calcT1   amplitudeT1 = transpose(outcome.Jlevel.mc) * im.matrixT1 * outcome.Jlevel.mc
-        else            amplitudeT1 = Hfs.amplitude("T^(1) amplitude", outcome.Jlevel, outcome.Jlevel, grid)
+function  computeAmplitudesProperties(outcome::Hfs.Outcome, nm::Nuclear.Model, grid::Radial.Grid, settings::Hfs.Settings, 
+                                      im::Hfs.InteractionMatrix)
+    AIoverMu = BoverQ = CoverOmega = amplitudeM1 = amplitudeE2 = amplitudeM3 = 0.;    
+    J = AngularMomentum.oneJ(outcome.Jlevel.J)
+    #
+    if  settings.calcM1  &&  outcome.Jlevel.J != AngularJ64(0)
+        if  im.calcM1   amplitudeM1 = transpose(outcome.Jlevel.mc) * im.matrixM1 * outcome.Jlevel.mc
+        else            amplitudeM1 = Hfs.amplitude(Basics.M1, outcome.Jlevel, outcome.Jlevel, grid)
         end
-        
-        AIoverMu = amplitudeT1 / sqrt(J * (J+1))
+        wx       = Defaults.convertUnits("moment: from nuclear magneton to atomic", 1.0)
+        AIoverMu = amplitudeM1 / sqrt(J * (J+1)) * wx 
     end
     #
-    if  settings.calcT2  &&  outcome.Jlevel.J != AngularJ64(0)
-        if  im.calcT2   amplitudeT2 = transpose(outcome.Jlevel.mc) * im.matrixT2 * outcome.Jlevel.mc
-        else            amplitudeT2 = Hfs.amplitude("T^(2) amplitude", outcome.Jlevel, outcome.Jlevel, grid)
+    if  settings.calcE2  &&  outcome.Jlevel.J != AngularJ64(0)
+        if  im.calcE2   amplitudeE2 = transpose(outcome.Jlevel.mc) * im.matrixE2 * outcome.Jlevel.mc
+        else            amplitudeE2 = Hfs.amplitude("T^(E2) amplitude", outcome.Jlevel, outcome.Jlevel, grid)
         end
-        
-        BoverQ   = 2 * amplitudeT2 * sqrt( (2J-1) / ((J+1)*(2J+3)) )  ## * sqrt(J)
+        wx       = Defaults.convertUnits("cross section: from barn to atomic unit", 1.0)
+        BoverQ   = 2 * amplitudeE2 * sqrt( (2J-1) / ((J+1)*(2J+3)) ) * wx  ## * sqrt(J)
+    end
+    #
+    if  settings.calcM3  &&  outcome.Jlevel.J != AngularJ64(0)
+        if  im.calcM3   amplitudeM3 = transpose(outcome.Jlevel.mc) * im.matrixM3 * outcome.Jlevel.mc
+        else            amplitudeM3 = Hfs.amplitude("T^(M3) amplitude", outcome.Jlevel, outcome.Jlevel, grid)
+        end
+        wx         = Defaults.convertUnits("moment: from nuclear magneton x fm^2 to atomic", 1.0)
+        CoverOmega =   - amplitudeM3 * sqrt( J *(J-1)*(2J-1) / ((J+1)*(J+2)*(2J+3)) ) * wx   
     end
     #
     hfMultiplet = Hfs.HfMultiplet()
-    if  settings.calcIJFexpansion
+    if  settings.calcHfMultiplet
         # Determine a HfMultiplet for the given Jlevel/outcome
+        error("... still to be done for a single nuclear spin/isomer")
         hfsMultiplet = Hfs.computeHyperfineMultiplet(outcome.Jlevel, nm, grid)
     end
-    newOutcome = Hfs.Outcome( outcome.Jlevel, AIoverMu, BoverQ, amplitudeT1, amplitudeT2, 
+    newOutcome = Hfs.Outcome( outcome.Jlevel, 1., AIoverMu, BoverQ, CoverOmega, amplitudeM1, amplitudeE2, amplitudeM3, 
                               nm.spinI, hfMultiplet)
     return( newOutcome )
 end
@@ -712,14 +681,14 @@ function computeHyperfineRepresentation(hfBasisVectors::Array{HfBasisVector,1}, 
             #
             wa = AngularMomentum.phaseFactor([spinI, +1, Jr, +1, F])  * 
                     AngularMomentum.Wigner_6j(spinI, Jr, F, Js, spinI, AngularJ64(1))
-            wb = Hfs.amplitude("T^(1) amplitude", hfBasis.vectors[r].levelJ, hfBasis.vectors[s].levelJ, grid::Radial.Grid)
+            wb = Hfs.amplitude(Basics.M1, hfBasis.vectors[r].levelJ, hfBasis.vectors[s].levelJ, grid::Radial.Grid)
             wc = nm.mu * sqrt( (Ix+1)/Ix )
             matrix[r,s] = matrix[r,s] + wa * wb * wc     * 1.0e-6 ## fudge-factor to keep HFS interaction small
             #
             if  spinI  in [AngularJ64(0), AngularJ64(1//2)]                                 continue     end
             wa = AngularMomentum.phaseFactor([spinI, +1, Jr, +1, F]) * 
                     AngularMomentum.Wigner_6j(spinI, Jr, F, Js, spinI, AngularJ64(2))
-            wb = Hfs.amplitude("T^(2) amplitude", hfBasis.vectors[r].levelJ, hfBasis.vectors[s].levelJ, grid::Radial.Grid)
+            wb = Hfs.amplitude(Basics.E2, hfBasis.vectors[r].levelJ, hfBasis.vectors[s].levelJ, grid::Radial.Grid)
             wc = nm.Q / 2. * sqrt( (Ix+1)*(2Ix+3)/ (Ix*(2Ix-1)) )
             matrix[r,s] = matrix[r,s] + wa * wb * wc     * 1.0e-6 ## fudge-factor to keep HFS interaction small
         end
@@ -748,82 +717,81 @@ end
 
 """
 `Hfs.computeInteractionMatrix(basis::Basis, grid::Radial.Grid, settings::Hfs.Settings)` 
-    ... to compute the T^1 and/or T^2 interaction matrices for the given basis, i.e. (<csf_r || T^(n)) || csf_s>).
+    ... to compute the T^M1 and/or T^E2 interaction matrices for the given basis, i.e. (<csf_r || T^(n)) || csf_s>).
         An im::Hfs.InteractionMatrix is returned.
 """
 function  computeInteractionMatrix(basis::Basis, grid::Radial.Grid, settings::Hfs.Settings)
     #
-    ncsf = length(basis.csfs);    matrixT1 = zeros(ncsf,ncsf);    matrixT2 = zeros(ncsf,ncsf)
+    ncsf = length(basis.csfs);    matrixM1 = zeros(ncsf,ncsf);    matrixE2 = zeros(ncsf,ncsf);    matrixM3 = zeros(ncsf,ncsf)
     #
-    if  settings.calcT1
-        calcT1 = true;    matrixT1 = zeros(ncsf,ncsf)
+    if  settings.calcM1
+        calcM1 = true;    matrixM1 = zeros(ncsf,ncsf)
         for  r = 1:ncsf
             for  s = 1:ncsf
                 if  basis.csfs[r].parity  != basis.csfs[s].parity   continue    end 
-                #
                 # Calculate the spin-angular coefficients
-                if  Defaults.saRatip()
-                    waR = Basics.compute("angular coefficients: 1-p, Grasp92", 0, 1, basis.csfs[r], basis.csfs[s])
-                    wa  = waR       
-                end
-                if  Defaults.saGG()
-                    subshellList = basis.subshells
-                    opa = SpinAngular.OneParticleOperator(1, plus, true)
-                    waG = SpinAngular.computeCoefficients(opa, basis.csfs[r], basis.csfs[s], subshellList) 
-                    wa  = waG
-                end
-                if  Defaults.saRatip() && Defaults.saGG() && true
-                    if  length(waR) != 0     println("\n>> Angular coeffients from GRASP/MCT   = $waR ")    end
-                    if  length(waG) != 0     println(  ">> Angular coeffients from SpinAngular = $waG ")    end
-                end
+                subshellList = basis.subshells
+                opa = SpinAngular.OneParticleOperator(1, plus, true)
+                wa  = SpinAngular.computeCoefficients(opa, basis.csfs[r], basis.csfs[s], subshellList) 
+                ##x if  length(wa) != 0     println(  ">> Angular coeffients from SpinAngular = $wa ")    end
                 #
                 for  coeff in wa
                     ja   = Basics.subshell_2j(basis.orbitals[coeff.a].subshell)
                     jb   = Basics.subshell_2j(basis.orbitals[coeff.b].subshell)
                     tamp = InteractionStrength.hfs_tM1(basis.orbitals[coeff.a], basis.orbitals[coeff.b], grid)
-                    matrixT1[r,s] = matrixT1[r,s] + coeff.T * tamp  
+                    matrixM1[r,s] = matrixM1[r,s] + coeff.T * tamp  
                 end
             end
         end
     else   
-        calcT1 = false;    matrixT1 = zeros(2,2)
+        calcM1 = false;    matrixM1 = zeros(2,2)
     end
     #
-    if  settings.calcT2
-        calcT2 = true;    matrixT2 = zeros(ncsf,ncsf)
+    if  settings.calcE2
+        calcE2 = true;    matrixE2 = zeros(ncsf,ncsf)
         for  r = 1:ncsf
             for  s = 1:ncsf
                 if  basis.csfs[r].parity  != basis.csfs[s].parity   continue    end 
-                #
-                # Calculate the spin-angular coefficients
-                if  Defaults.saRatip()
-                    waR = Basics.compute("angular coefficients: 1-p, Grasp92", 0, 2, basis.csfs[r], basis.csfs[s])
-                    wa  = waR       
-                end
-                if  Defaults.saGG()
-                    subshellList = basis.subshells
-                    opa = SpinAngular.OneParticleOperator(2, plus, true)
-                    waG = SpinAngular.computeCoefficients(opa, basis.csfs[r], basis.csfs[s], subshellList) 
-                    wa  = waG
-                end
-                if  Defaults.saRatip() && Defaults.saGG() && true
-                    if  length(waR) != 0     println("\n>> Angular coeffients from GRASP/MCT   = $waR ")    end
-                    if  length(waG) != 0     println(  ">> Angular coeffients from SpinAngular = $waG ")    end
-                end
+                 # Calculate the spin-angular coefficients
+                subshellList = basis.subshells
+                opa = SpinAngular.OneParticleOperator(2, plus, true)
+                wa  = SpinAngular.computeCoefficients(opa, basis.csfs[r], basis.csfs[s], subshellList) 
                 #
                 for  coeff in wa
                     ja   = Basics.subshell_2j(basis.orbitals[coeff.a].subshell)
                     jb   = Basics.subshell_2j(basis.orbitals[coeff.b].subshell)
                     tamp  = InteractionStrength.hfs_tE2(basis.orbitals[coeff.a], basis.orbitals[coeff.b], grid)
-                    matrixT2[r,s] = matrixT2[r,s] + coeff.T * tamp  
+                    matrixE2[r,s] = matrixE2[r,s] + coeff.T * tamp  
                 end
             end
         end
     else   
-        calcT2 = false;    matrixT2 = zeros(2,2)
+        calcE2 = false;    matrixE2 = zeros(2,2)
     end
     #
-    im = Hfs.InteractionMatrix(calcT1, calcT2, matrixT1, matrixT2)
+    if  settings.calcM3
+        calcM3 = true;    matrixM3 = zeros(ncsf,ncsf)
+        for  r = 1:ncsf
+            for  s = 1:ncsf
+                if  basis.csfs[r].parity  != basis.csfs[s].parity   continue    end 
+                 # Calculate the spin-angular coefficients
+                subshellList = basis.subshells
+                opa = SpinAngular.OneParticleOperator(3, plus, true)
+                wa  = SpinAngular.computeCoefficients(opa, basis.csfs[r], basis.csfs[s], subshellList) 
+                #
+                for  coeff in wa
+                    ja   = Basics.subshell_2j(basis.orbitals[coeff.a].subshell)
+                    jb   = Basics.subshell_2j(basis.orbitals[coeff.b].subshell)
+                    tamp  = InteractionStrength.hfs_tE2(basis.orbitals[coeff.a], basis.orbitals[coeff.b], grid)
+                    matrixM3[r,s] = matrixM3[r,s] + coeff.T * tamp  
+                end
+            end
+        end
+    else   
+        calcM3 = false;    matrixM3 = zeros(2,2)
+    end
+    #
+    im = Hfs.InteractionMatrix(calcM1, calcE2, calcM3, matrixM1, matrixE2, matrixM3)
     #
     return( im )
 end
@@ -831,7 +799,7 @@ end
 
 """
 `Hfs.computeOutcomes(multiplet::Multiplet, nm::Nuclear.Model, grid::Radial.Grid, settings::Hfs.Settings; output=true)`  
-    ... to compute (as selected) the HFS A and B parameters as well as hyperfine energy splittings for the levels 
+    ... to compute (as selected) the HFS A, B and C parameters as well as hyperfine energy splittings for the levels 
         of the given multiplet and as specified by the given settings. The results are printed in neat tables to 
         screen and, if requested, an arrays{Hfs.Outcome,1} with all the results are returned.
 """
@@ -1029,7 +997,7 @@ function  determineOutcomes(multiplet::Multiplet, settings::Hfs.Settings)
     outcomes = Hfs.Outcome[]
     for  level  in  multiplet.levels
         if  Basics.selectLevel(level, settings.levelSelection)
-            push!( outcomes, Hfs.Outcome(level, 0., 0., 0., 0., AngularJ64(0), Hfs.IJF_Multiplet() ) )
+            push!( outcomes, Hfs.Outcome(level, 0., 0., 0., 0., 0., 0., 0., AngularJ64(0), Hfs.HfMultiplet() ) )
         end
     end
     return( outcomes )
@@ -1061,9 +1029,11 @@ function  displayNondiagonal(stream::IO, multiplet::Multiplet, grid::Radial.Grid
     sa = sa * TableStrings.center(10, "Level_f"; na=2)
     sa = sa * TableStrings.center(10, "Level_i"; na=2)
     sa = sa * TableStrings.center(10, "J^P_f";   na=3)
-    sa = sa * TableStrings.center(57, "T1   --   Amplitudes   --   T2"; na=4);              
+    sb = repeat(" ", length(sa))
+    sa = sa * TableStrings.center(70, "Amplitudes";                                     na=4);              
+    sb = sb * TableStrings.center(70, "M1        ----        E2        ----        M3"; na=4);              
     sa = sa * TableStrings.center(10, "J^P_f";   na=4)
-    println(stream, sa);    println(stream, "  ", TableStrings.hLine(nx)) 
+    println(stream, sa);    println(stream, sb);    println(stream, "  ", TableStrings.hLine(nx)) 
     #  
     for  (f,i) in pairs
         sa   = "  ";    
@@ -1072,10 +1042,12 @@ function  displayNondiagonal(stream::IO, multiplet::Multiplet, grid::Radial.Grid
         symf = LevelSymmetry( multiplet.levels[f].J, multiplet.levels[f].parity)
         symi = LevelSymmetry( multiplet.levels[i].J, multiplet.levels[i].parity)
         sa   = sa * TableStrings.center(10, string(symf); na=4)
-        T1   = Hfs.amplitude("T^(1) amplitude", multiplet.levels[f], multiplet.levels[i], grid, printout=false)
-        T2   = Hfs.amplitude("T^(2) amplitude", multiplet.levels[f], multiplet.levels[i], grid, printout=false)
-        sa   = sa * @sprintf("%.5e %s %.5e", T1.re, "  ", T1.im) * "    "
-        sa   = sa * @sprintf("%.5e %s %.5e", T2.re, "  ", T2.im) * "    "
+        M1   = Hfs.amplitude("T^(M1) amplitude", multiplet.levels[f], multiplet.levels[i], grid, printout=false)
+        E2   = Hfs.amplitude("T^(E2) amplitude", multiplet.levels[f], multiplet.levels[i], grid, printout=false)
+        M3   = Hfs.amplitude("T^(M3) amplitude", multiplet.levels[f], multiplet.levels[i], grid, printout=false)
+        sa   = sa * @sprintf("%.5e %s %.5e", M1.re, "  ", M1.im) * "    "
+        sa   = sa * @sprintf("%.5e %s %.5e", E2.re, "  ", E2.im) * "    "
+        sa   = sa * @sprintf("%.5e %s %.5e", M3.re, "  ", M3.im) * "    "
         sa   = sa * TableStrings.center(10, string(symi); na=4)
         println(stream, sa )
     end
@@ -1123,19 +1095,47 @@ end
         parameters are taken from the nuclear model. A neat table is printed but nothing is returned otherwise.
 """
 function  displayResults(stream::IO, outcomes::Array{Hfs.Outcome,1}, nm::Nuclear.Model, settings::Hfs.Settings)
-    nx = 117
+    nx = 128
     println(stream, " ")
-    println(stream, "  HFS parameters and amplitudes:")
+    println(stream, "  HFS amplitudes and g_J factors:")
     println(stream, " ")
     println(stream, "  ", TableStrings.hLine(nx))
     sa = "  ";   sb = "  "
     sa = sa * TableStrings.center(10, "Level"; na=2);                             sb = sb * TableStrings.hBlank(12)
     sa = sa * TableStrings.center(10, "J^P";   na=4);                             sb = sb * TableStrings.hBlank(14)
-    sa = sa * TableStrings.center(14, "Energy"; na=4);              
-    sb = sb * TableStrings.center(14, TableStrings.inUnits("energy"); na=4)
-    sa = sa * TableStrings.center(31, "A/mu [mu_N]  --  HFS  --  B/Q [barn]"; na=4);              
-    sb = sb * TableStrings.center(31, TableStrings.inUnits("energy"); na=4)
-    sa = sa * TableStrings.center(32, "T1 -- Amplitudes -- T2"    ; na=4);        sb = sb * TableStrings.hBlank(36)
+    sa = sa * TableStrings.center(14, "Energy"; na=10);              
+    sb = sb * TableStrings.center(14, TableStrings.inUnits("energy"); na=10)
+    sa = sa * TableStrings.center(54, "M1  -- Amplitudes --   E2  -- Amplitudes --   M3"    ; na=8);        
+    sb = sb * TableStrings.hBlank(66)
+    sa = sa * TableStrings.center(12, "g_J"; na=2);              
+    sb = sb * TableStrings.center(12, "   "; na=2); 
+    println(stream, sa);    println(stream, sb);    println(stream, "  ", TableStrings.hLine(nx)) 
+    #  
+    for  outcome in outcomes
+        sa  = "  ";    sym = LevelSymmetry( outcome.Jlevel.J, outcome.Jlevel.parity)
+        sa = sa * TableStrings.center(10, TableStrings.level(outcome.Jlevel.index); na=2)
+        sa = sa * TableStrings.center(10, string(sym); na=4)
+        energy = outcome.Jlevel.energy
+        sa = sa * @sprintf("%.8e", Defaults.convertUnits("energy: from atomic", energy))                        * "      "
+        sa = sa * @sprintf("% .8e %s % .8e %s % .8e", outcome.amplitudeM1.re, "      ", outcome.amplitudeE2.re, 
+                                                                              "      ", outcome.amplitudeM3.re) * "      "
+        sa = sa * @sprintf("%.8e", outcome.gJ)                                                                  * "    " 
+        println(stream, sa )
+    end
+    println(stream, "  ", TableStrings.hLine(nx))
+    #
+    nx = 140
+    println(stream, " ")
+    println(stream, "  HFS parameters:")
+    println(stream, " ")
+    println(stream, "  ", TableStrings.hLine(nx))
+    sa = "  ";   sb = "  "
+    sa = sa * TableStrings.center(10, "Level"; na=2);                             sb = sb * TableStrings.hBlank(12)
+    sa = sa * TableStrings.center(10, "J^P";   na=4);                             sb = sb * TableStrings.hBlank(14)
+    sa = sa * TableStrings.center(14, "Energy"; na=10);              
+    sb = sb * TableStrings.center(14, TableStrings.inUnits("energy"); na=10)
+    sa = sa * TableStrings.center(85, "  A     ---    A/mu     ---     B    ---     B/Q     ---      C    ---     C/Omega     "; na=2);              
+    sb = sb * TableStrings.center(85, "[MHz]       [MHz/mu_nuc]      [MHz]       [MHz/barn]        [MHz]     [MHz/mu_nuc fm^2]"; na=2); 
     println(stream, sa);    println(stream, sb);    println(stream, "  ", TableStrings.hLine(nx)) 
     #  
     for  outcome in outcomes
@@ -1144,13 +1144,19 @@ function  displayResults(stream::IO, outcomes::Array{Hfs.Outcome,1}, nm::Nuclear
         sa = sa * TableStrings.center(10, string(sym); na=4)
         energy = outcome.Jlevel.energy
         sa = sa * @sprintf("%.8e", Defaults.convertUnits("energy: from atomic", energy))           * "      "
-        wa = Defaults.convertUnits("energy: from atomic", outcome.AIoverMu) / nm.spinI.num * nm.spinI.den 
-        wa = wa / (2 * 1836.15267 ) * Defaults.getDefaults("alpha")  # take 2m_p and alpha into account
-        sa = sa * @sprintf("%.8e", wa)                                                   * "    " 
-        wa = Defaults.convertUnits("energy: from atomic", outcome.BoverQ) 
-        wa = wa / Defaults.convertUnits("cross section: from atomic to barn", 1.0)  # take Q [barn] into account
-        sa = sa * @sprintf("%.8e", wa)                                                   * "    "
-        sa = sa * @sprintf("%.8e %s %.8e", outcome.amplitudeT1.re, "  ", outcome.amplitudeT2.re) * "    "
+        we = Defaults.convertUnits("energy: from atomic to Hz", 1.0) / 1.0e9      # Energy factor into MHz
+        wa = outcome.AIoverMu / nm.spinI.num * nm.spinI.den * nm.mu * we          # Prepare A
+        sa = sa * @sprintf("% .6e", wa)       * "  " 
+        wa = outcome.AIoverMu / nm.spinI.num * nm.spinI.den * we                  # Prepare A/mu
+        sa = sa * @sprintf("% .6e", wa)       * "  " 
+        wa = outcome.BoverQ * nm.Q * we                                           # Prepare B
+        sa = sa * @sprintf("% .6e", wa)       * "  " 
+        wa = outcome.BoverQ * we                                                  # Prepare B/Q
+        sa = sa * @sprintf("% .6e", wa)       * "  " 
+        wa = outcome.CoverOmega * nm.Omega * we                                   # Prepare C
+        sa = sa * @sprintf("% .6e", wa)       * "  " 
+        wa = outcome.CoverOmega * we                                              # Prepare C/Omega
+        sa = sa * @sprintf("% .6e", wa)       * "  " 
         println(stream, sa )
     end
     println(stream, "  ", TableStrings.hLine(nx))
@@ -1161,9 +1167,10 @@ function  displayResults(stream::IO, outcomes::Array{Hfs.Outcome,1}, nm::Nuclear
     println(stream, " ")
     println(stream, "  HFS Delta E_F energy shifts with regard to the (electronic) level energies E_J:")
     println(stream, " ")
-    println(stream, "    Nuclear spin I:                          $(nm.spinI) ")
-    println(stream, "    Nuclear magnetic-dipole moment      mu = $(nm.mu)    ")
-    println(stream, "    Nuclear electric-quadrupole moment   Q = $(nm.Q)     ")
+    println(stream, "    Nuclear spin I:                             $(nm.spinI) ")
+    println(stream, "    Nuclear magnetic-dipole moment      mu    = $(nm.mu)    ")
+    println(stream, "    Nuclear electric-quadrupole moment  Q     = $(nm.Q)     ")
+    println(stream, "    Nuclear magnetic-octupole moment    Omega = $(nm.Omega) ")
     println(stream, " ")
     println(stream, "  ", TableStrings.hLine(nx))
     sa = "  ";   sb = "  "
@@ -1173,7 +1180,7 @@ function  displayResults(stream::IO, outcomes::Array{Hfs.Outcome,1}, nm::Nuclear
     sa = sa * TableStrings.center(10, "F^P";   na=4);                             sb = sb * TableStrings.hBlank(14)
     sa = sa * TableStrings.center(14, "Delta E_F"; na=4);                         
     sb = sb * TableStrings.center(14, TableStrings.inUnits("energy"); na=4)
-    sa = sa * TableStrings.center(14, "C factor"; na=4);                         
+    sa = sa * TableStrings.center(14, "K factor"; na=4);                         
     println(stream, sa);    println(stream, sb);    println(stream, "  ", TableStrings.hLine(nx)) 
     #  
     for  outcome in outcomes
@@ -1189,15 +1196,15 @@ function  displayResults(stream::IO, outcomes::Array{Hfs.Outcome,1}, nm::Nuclear
         for  Fang in Flist
             Fsym    = LevelSymmetry(Fang, outcome.Jlevel.parity)
             F       = AngularMomentum.oneJ(Fang)
-            Cfactor = F*(F+1) - J*(J+1) - spinI*(spinI+1)
-            energy  = outcome.AIoverMu * nm.mu / spinI * Cfactor / 2.
+            Kfactor = F*(F+1) - J*(J+1) - spinI*(spinI+1)
+            energy  = outcome.AIoverMu * nm.mu / spinI * Kfactor / 2.
             if  abs(outcome.BoverQ) > 1.0e-10
-                energy  = energy +  outcome.BoverQ * nm.Q * 3/4 * (Cfactor*(Cfactor+1) - spinI*(spinI+1)*J*(J+1) ) /
+                energy  = energy +  outcome.BoverQ * nm.Q * 3/4 * (Kfactor*(Kfactor+1) - spinI*(spinI+1)*J*(J+1) ) /
                                     ( 2spinI*(2spinI-1)*J*(2J-1) )
             end
             sb = TableStrings.center(10, string(Fsym); na=2)
             sb = sb * TableStrings.flushright(16, @sprintf("%.8e", Defaults.convertUnits("energy: from atomic", energy))) * "    "
-            sb = sb * TableStrings.flushright(12, @sprintf("%.5e", Cfactor))
+            sb = sb * TableStrings.flushright(12, @sprintf("%.5e", Kfactor))
             #
             if   first    println(stream,  sa*sb );   first = false
             else          println(stream,  TableStrings.hBlank( length(sa) ) * sb )
@@ -1206,7 +1213,7 @@ function  displayResults(stream::IO, outcomes::Array{Hfs.Outcome,1}, nm::Nuclear
     end
     println(stream, "  ", TableStrings.hLine(nx))
     #
-    if  settings.calcIJFexpansion
+    if  settings.calcHfMultiplet
         nx = 90
         println(stream, " ")
         println(stream, "  IJF-coupled hyperfine levels:")
