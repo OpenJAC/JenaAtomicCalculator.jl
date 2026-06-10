@@ -321,19 +321,19 @@ function Settings(set::DielectronicRecombination.Settings;
     mimimumPhotonEnergy::Union{Nothing,Float64}=nothing,                   temperatures::Union{Nothing,Array{Float64,1}}=nothing,    
     corrections::Union{Nothing,Array{AbstractCorrections,1}}=nothing,      augerOperator::Union{Nothing,AbstractEeInteraction}=nothing)
     
-    if  multipoles           == nothing  multipolesx           = set.multipoles            else  multipolesx           = multipoles            end 
-    if  gauges               == nothing  gaugesx               = set.gauges                else  gaugesx               = gauges                end 
-    if  calcOnlyPassages     == nothing  calcOnlyPassagesx     = set.calcOnlyPassages      else  calcOnlyPassagesx     = calcOnlyPassages      end 
-    if  calcRateAlpha        == nothing  calcRateAlphax        = set.calcRateAlpha         else  calcRateAlphax        = calcRateAlpha         end 
-    if  calcHyperfineResolved== nothing  calcHyperfineResolvedx= set.calcHyperfineResolved else  calcHyperfineResolvedx= calcHyperfineResolved end 
-    if  printBefore          == nothing  printBeforex          = set.printBefore           else  printBeforex          = printBefore           end 
-    if  pathwaySelection     == nothing  pathwaySelectionx     = set.pathwaySelection      else  pathwaySelectionx     = pathwaySelection      end 
-    if  electronEnergyShift  == nothing  electronEnergyShiftx  = set.electronEnergyShift   else  electronEnergyShiftx  = electronEnergyShift   end 
-    if  photonEnergyShift    == nothing  photonEnergyShiftx    = set.photonEnergyShift     else  photonEnergyShiftx    = photonEnergyShift     end 
-    if  mimimumPhotonEnergy  == nothing  mimimumPhotonEnergyx  = set.mimimumPhotonEnergy   else  mimimumPhotonEnergyx  = mimimumPhotonEnergy   end 
-    if  temperatures         == nothing  temperaturesx         = set.temperatures          else  temperaturesx         = temperatures          end 
-    if  corrections          == nothing  correctionsx          = set.corrections           else  correctionsx          = corrections           end 
-    if  augerOperator        == nothing  augerOperatorx        = set.augerOperator         else  augerOperatorx        = augerOperator         end 
+    if  isnothing(multipoles)  multipolesx           = set.multipoles            else  multipolesx           = multipoles            end 
+    if  isnothing(gauges)  gaugesx               = set.gauges                else  gaugesx               = gauges                end 
+    if  isnothing(calcOnlyPassages)  calcOnlyPassagesx     = set.calcOnlyPassages      else  calcOnlyPassagesx     = calcOnlyPassages      end 
+    if  isnothing(calcRateAlpha)  calcRateAlphax        = set.calcRateAlpha         else  calcRateAlphax        = calcRateAlpha         end 
+    if  isnothing(calcHyperfineResolved)  calcHyperfineResolvedx= set.calcHyperfineResolved else  calcHyperfineResolvedx= calcHyperfineResolved end 
+    if  isnothing(printBefore)  printBeforex          = set.printBefore           else  printBeforex          = printBefore           end 
+    if  isnothing(pathwaySelection)  pathwaySelectionx     = set.pathwaySelection      else  pathwaySelectionx     = pathwaySelection      end 
+    if  isnothing(electronEnergyShift)  electronEnergyShiftx  = set.electronEnergyShift   else  electronEnergyShiftx  = electronEnergyShift   end 
+    if  isnothing(photonEnergyShift)  photonEnergyShiftx    = set.photonEnergyShift     else  photonEnergyShiftx    = photonEnergyShift     end 
+    if  isnothing(mimimumPhotonEnergy)  mimimumPhotonEnergyx  = set.mimimumPhotonEnergy   else  mimimumPhotonEnergyx  = mimimumPhotonEnergy   end 
+    if  isnothing(temperatures)  temperaturesx         = set.temperatures          else  temperaturesx         = temperatures          end 
+    if  isnothing(corrections)  correctionsx          = set.corrections           else  correctionsx          = corrections           end 
+    if  isnothing(augerOperator)  augerOperatorx        = set.augerOperator         else  augerOperatorx        = augerOperator         end 
 
     Settings( multipolesx, gaugesx, calcOnlyPassagesx, calcRateAlphax, calcHyperfineResolvedx, printBeforex, 
               pathwaySelectionx, electronEnergyShiftx, photonEnergyShiftx, mimimumPhotonEnergyx, temperaturesx,

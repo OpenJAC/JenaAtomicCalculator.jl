@@ -66,17 +66,17 @@ function Settings(set::PhotoExcitation.Settings;
     photonEnergyShift::Union{Nothing,Float64}=nothing,              mimimumPhotonEnergy::Union{Nothing,Float64}=nothing,     
     maximumPhotonEnergy::Union{Nothing,Float64}=nothing,            stokes::Union{Nothing,ExpStokes}=nothing)  
     
-    if  multipoles          == nothing   multipolesx          = set.multipoles              else  multipolesx          = multipoles            end 
-    if  gauges              == nothing   gaugesx              = set.gauges                  else  gaugesx              = gauges                end 
-    if  calcForStokes       == nothing   calcForStokesx       = set.calcForStokes           else  calcForStokesx       = calcForStokes         end 
-    if  calcPhotonDm        == nothing   calcPhotonDmx        = set.calcPhotonDm            else  calcPhotonDmx        = calcPhotonDm          end 
-    if  calcTensors         == nothing   calcTensorsx         = set.calcTensors             else  calcTensorsx         = calcTensors           end 
-    if  printBefore         == nothing   printBeforex         = set.printBefore             else  printBeforex         = printBefore           end 
-    if  lineSelection       == nothing   lineSelectionx       = set.lineSelection           else  lineSelectionx       = lineSelection         end 
-    if  photonEnergyShift   == nothing   photonEnergyShiftx   = set.photonEnergyShift       else  photonEnergyShiftx   = photonEnergyShift     end 
-    if  mimimumPhotonEnergy == nothing   mimimumPhotonEnergyx = set.mimimumPhotonEnergy     else  mimimumPhotonEnergyx = mimimumPhotonEnergy   end 
-    if  maximumPhotonEnergy == nothing   maximumPhotonEnergyx = set.maximumPhotonEnergy     else  maximumPhotonEnergyx = maximumPhotonEnergy   end 
-    if  stokes              == nothing   stokesx              = set.stokes                  else  stokesx              = stokes                end 
+    if  isnothing(multipoles)   multipolesx          = set.multipoles              else  multipolesx          = multipoles            end 
+    if  isnothing(gauges)   gaugesx              = set.gauges                  else  gaugesx              = gauges                end 
+    if  isnothing(calcForStokes)   calcForStokesx       = set.calcForStokes           else  calcForStokesx       = calcForStokes         end 
+    if  isnothing(calcPhotonDm)   calcPhotonDmx        = set.calcPhotonDm            else  calcPhotonDmx        = calcPhotonDm          end 
+    if  isnothing(calcTensors)   calcTensorsx         = set.calcTensors             else  calcTensorsx         = calcTensors           end 
+    if  isnothing(printBefore)   printBeforex         = set.printBefore             else  printBeforex         = printBefore           end 
+    if  isnothing(lineSelection)   lineSelectionx       = set.lineSelection           else  lineSelectionx       = lineSelection         end 
+    if  isnothing(photonEnergyShift)   photonEnergyShiftx   = set.photonEnergyShift       else  photonEnergyShiftx   = photonEnergyShift     end 
+    if  isnothing(mimimumPhotonEnergy)   mimimumPhotonEnergyx = set.mimimumPhotonEnergy     else  mimimumPhotonEnergyx = mimimumPhotonEnergy   end 
+    if  isnothing(maximumPhotonEnergy)   maximumPhotonEnergyx = set.maximumPhotonEnergy     else  maximumPhotonEnergyx = maximumPhotonEnergy   end 
+    if  isnothing(stokes)   stokesx              = set.stokes                  else  stokesx              = stokes                end 
     
     Settings( multipolesx, gaugesx, calcForStokesx, calcPhotonDmx, calcTensorsx, printBeforex, lineSelectionx,
                 photonEnergyShiftx, mimimumPhotonEnergyx, maximumPhotonEnergyx, stokesx)

@@ -77,22 +77,22 @@ function Settings(set::PhotoIonization.Settings;
     stokes::Union{Nothing,ExpStokes}=nothing,                               freeElectronShift::Union{Nothing,Float64}=nothing,
     lValues::Union{Nothing,Array{Int64,1}}=nothing)  
     
-    if  multipoles        == nothing   multipolesx        = set.multipoles        else  multipolesx        = multipoles         end 
-    if  gauges            == nothing   gaugesx            = set.gauges            else  gaugesx            = gauges             end 
-    if  photonEnergies    == nothing   photonEnergiesx    = set.photonEnergies    else  photonEnergiesx    = photonEnergies     end 
-    if  electronEnergies  == nothing   electronEnergiesx  = set.electronEnergies  else  electronEnergiesx  = electronEnergies   end 
-    if  thetas            == nothing   thetasx            = set.thetas            else  thetasx            = thetas             end 
-    if  calcAnisotropy    == nothing   calcAnisotropyx    = set.calcAnisotropy    else  calcAnisotropyx    = calcAnisotropy     end 
-    if  calcPartialCs     == nothing   calcPartialCsx     = set.calcPartialCs     else  calcPartialCsx     = calcPartialCs      end 
-    if  calcTimeDelay     == nothing   calcTimeDelayx     = set.calcTimeDelay     else  calcTimeDelayx     = calcTimeDelay      end 
-    if  calcNonE1AngleDifferentialCS   == nothing   calcNonE1AngleDifferentialCSx = set.calcNonE1AngleDifferentialCS        else  
+    if  isnothing(multipoles)   multipolesx        = set.multipoles        else  multipolesx        = multipoles         end 
+    if  isnothing(gauges)   gaugesx            = set.gauges            else  gaugesx            = gauges             end 
+    if  isnothing(photonEnergies)   photonEnergiesx    = set.photonEnergies    else  photonEnergiesx    = photonEnergies     end 
+    if  isnothing(electronEnergies)   electronEnergiesx  = set.electronEnergies  else  electronEnergiesx  = electronEnergies   end 
+    if  isnothing(thetas)   thetasx            = set.thetas            else  thetasx            = thetas             end 
+    if  isnothing(calcAnisotropy)   calcAnisotropyx    = set.calcAnisotropy    else  calcAnisotropyx    = calcAnisotropy     end 
+    if  isnothing(calcPartialCs)   calcPartialCsx     = set.calcPartialCs     else  calcPartialCsx     = calcPartialCs      end 
+    if  isnothing(calcTimeDelay)   calcTimeDelayx     = set.calcTimeDelay     else  calcTimeDelayx     = calcTimeDelay      end 
+    if  isnothing(calcNonE1AngleDifferentialCS)   calcNonE1AngleDifferentialCSx = set.calcNonE1AngleDifferentialCS        else  
         calcNonE1AngleDifferentialCSx  = calcNonE1AngleDifferentialCS                                                           end 
-    if  calcTensors       == nothing   calcTensorsx       = set.calcTensors       else  calcTensorsx       = calcTensors        end 
-    if  printBefore       == nothing   printBeforex       = set.printBefore       else  printBeforex       = printBefore        end 
-    if  lineSelection     == nothing   lineSelectionx     = set.lineSelection     else  lineSelectionx     = lineSelection      end 
-    if  stokes            == nothing   stokesx            = set.stokes            else  stokesx            = stokes             end 
-    if  freeElectronShift == nothing   freeElectronShiftx = set.freeElectronShift else  freeElectronShiftx = freeElectronShift  end 
-    if  lValues           == nothing   lValuesx           = set.lValues           else  lValuesx           = lValues            end 
+    if  isnothing(calcTensors)   calcTensorsx       = set.calcTensors       else  calcTensorsx       = calcTensors        end 
+    if  isnothing(printBefore)   printBeforex       = set.printBefore       else  printBeforex       = printBefore        end 
+    if  isnothing(lineSelection)   lineSelectionx     = set.lineSelection     else  lineSelectionx     = lineSelection      end 
+    if  isnothing(stokes)   stokesx            = set.stokes            else  stokesx            = stokes             end 
+    if  isnothing(freeElectronShift)   freeElectronShiftx = set.freeElectronShift else  freeElectronShiftx = freeElectronShift  end 
+    if  isnothing(lValues)   lValuesx           = set.lValues           else  lValuesx           = lValues            end 
 
     Settings( multipolesx, gaugesx, photonEnergiesx, electronEnergiesx, thetasx, calcAnisotropyx, calcPartialCsx, calcTimeDelayx, 
                 calcNonE1AngleDifferentialCSx, calcTensorsx, printBeforex, lineSelectionx, stokesx, freeElectronShiftx, lValuesx)

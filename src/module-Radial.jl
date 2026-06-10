@@ -123,16 +123,16 @@ function Grid(gr::Radial.Grid;
     orderS::Union{Nothing,Int64}=nothing,       orderGL::Union{Nothing,Int64}=nothing,  meshType::Union{Nothing,Radial.AbstractMesh}=nothing, 
     printout::Bool=false)
     
-    if  rnt      == nothing   rntx      = gr.rnt        else    rntx      = rnt       end 
-    if  h        == nothing   hx        = gr.h          else    hx        = h         end 
-    if  hp       == nothing   hpx       = gr.hp         else    hpx       = hp        end 
-    if  rbox     == nothing   rboxx     = nothing       else    rboxx     = rbox      end 
-    if  orderL   == nothing   orderLx   = gr.orderL     else    orderLx   = orderL    end 
-    if  orderS   == nothing   orderSx   = gr.orderS     else    orderSx   = orderS    end 
-    if  orderGL  == nothing   orderGLx  = gr.orderGL    else    orderGLx  = orderGL   end 
-    if  meshType == nothing   meshTypex = gr.meshType   else    meshTypex = meshType  end 
+    if  isnothing(rnt)   rntx      = gr.rnt        else    rntx      = rnt       end 
+    if  isnothing(h)   hx        = gr.h          else    hx        = h         end 
+    if  isnothing(hp)   hpx       = gr.hp         else    hpx       = hp        end 
+    if  isnothing(rbox)   rboxx     = nothing       else    rboxx     = rbox      end 
+    if  isnothing(orderL)   orderLx   = gr.orderL     else    orderLx   = orderL    end 
+    if  isnothing(orderS)   orderSx   = gr.orderS     else    orderSx   = orderS    end 
+    if  isnothing(orderGL)   orderGLx  = gr.orderGL    else    orderGLx  = orderGL   end 
+    if  isnothing(meshType)   meshTypex = gr.meshType   else    meshTypex = meshType  end 
     
-    if      rboxx == nothing    NoPointsx = gr.NoPoints - rem(gr.NoPoints, orderGLx)
+    if      isnothing(rboxx)    NoPointsx = gr.NoPoints - rem(gr.NoPoints, orderGLx)
     elseif  rboxx  > 0.         NoPointsx = Radial.determineNoPoints(rntx, hx, hpx, rboxx, orderGLx)
     else    error("stop a")
     end

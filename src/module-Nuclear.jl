@@ -105,14 +105,14 @@ function Model(nm::Nuclear.Model;            Z::Union{Nothing,Float64}=nothing, 
     mass::Union{Nothing,Float64}=nothing,    radius::Union{Nothing,Float64}=nothing,     spinI::Union{Nothing,AngularJ64}=nothing,  
     mu::Union{Nothing,Float64}=nothing,      Q::Union{Nothing,Float64}=nothing,          Omega::Union{Nothing,Float64}=nothing)
 
-    if  Z         == nothing   Zx          = nm.Z           else   Zx          = Z          end 
-    if  model     == nothing   modelx      = nm.model       else   modelx      = model      end 
-    if  mass      == nothing   massx       = nm.mass        else   massx       = mass       end 
-    if  radius    == nothing   radiusx     = nm.radius      else   radiusx     = radius     end 
-    if  spinI     == nothing   spinIx      = nm.spinI       else   spinIx      = spinI      end 
-    if  mu        == nothing   mux         = nm.mu          else   mux         = mu         end 
-    if  Q         == nothing   Qx          = nm.Q           else   Qx          = Q          end 
-    if  Omega     == nothing   Omegax      = nm.Omega       else   Omegax      = Omega      end 
+    if  isnothing(Z)   Zx          = nm.Z           else   Zx          = Z          end 
+    if  isnothing(model)   modelx      = nm.model       else   modelx      = model      end 
+    if  isnothing(mass)   massx       = nm.mass        else   massx       = mass       end 
+    if  isnothing(radius)   radiusx     = nm.radius      else   radiusx     = radius     end 
+    if  isnothing(spinI)   spinIx      = nm.spinI       else   spinIx      = spinI      end 
+    if  isnothing(mu)   mux         = nm.mu          else   mux         = mu         end 
+    if  isnothing(Q)   Qx          = nm.Q           else   Qx          = Q          end 
+    if  isnothing(Omega)   Omegax      = nm.Omega       else   Omegax      = Omega      end 
     
     Model(Zx, modelx, massx, radiusx, spinIx, mux, Qx, Omegax)
 end

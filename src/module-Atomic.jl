@@ -91,19 +91,19 @@ function Computation(comp::Atomic.Computation;
     processSettings::Union{Nothing,Any}=nothing,            
     printout::Bool=false)
     
-    if  name                    == nothing  namex                    = comp.name                    else  namex                    = name                     end 
-    if  nuclearModel            == nothing  nuclearModelx            = comp.nuclearModel            else  nuclearModelx            = nuclearModel             end 
-    if  grid                    == nothing  gridx                    = comp.grid                    else  gridx                    = grid                     end 
-    if  propertySettings        == nothing  propertySettingsx        = comp.propertySettings        else  propertySettingsx        = propertySettings         end 
-    if  configs                 == nothing  configsx                 = comp.configs                 else  configsx                 = configs                  end 
-    if  asfSettings             == nothing  asfSettingsx             = comp.asfSettings             else  asfSettingsx             = asfSettings              end 
-    if  initialConfigs          == nothing  initialConfigsx          = comp.initialConfigs          else  initialConfigsx          = initialConfigs           end 
-    if  initialAsfSettings      == nothing  initialAsfSettingsx      = comp.initialAsfSettings      else  initialAsfSettingsx      = initialAsfSettings       end 
-    if  intermediateConfigs     == nothing  intermediateConfigsx     = comp.intermediateConfigs     else  intermediateConfigsx     = intermediateConfigs      end 
-    if  intermediateAsfSettings == nothing  intermediateAsfSettingsx = comp.intermediateAsfSettings else  intermediateAsfSettingsx = intermediateAsfSettings  end 
-    if  finalConfigs            == nothing  finalConfigsx            = comp.finalConfigs            else  finalConfigsx            = finalConfigs             end 
-    if  finalAsfSettings        == nothing  finalAsfSettingsx        = comp.finalAsfSettings        else  finalAsfSettingsx        = finalAsfSettings         end 
-    if  processSettings         == nothing  prsx                     = comp.processSettings         else  prsx                     = processSettings          end 
+    if  isnothing(name)  namex                    = comp.name                    else  namex                    = name                     end 
+    if  isnothing(nuclearModel)  nuclearModelx            = comp.nuclearModel            else  nuclearModelx            = nuclearModel             end 
+    if  isnothing(grid)  gridx                    = comp.grid                    else  gridx                    = grid                     end 
+    if  isnothing(propertySettings)  propertySettingsx        = comp.propertySettings        else  propertySettingsx        = propertySettings         end 
+    if  isnothing(configs)  configsx                 = comp.configs                 else  configsx                 = configs                  end 
+    if  isnothing(asfSettings)  asfSettingsx             = comp.asfSettings             else  asfSettingsx             = asfSettings              end 
+    if  isnothing(initialConfigs)  initialConfigsx          = comp.initialConfigs          else  initialConfigsx          = initialConfigs           end 
+    if  isnothing(initialAsfSettings)  initialAsfSettingsx      = comp.initialAsfSettings      else  initialAsfSettingsx      = initialAsfSettings       end 
+    if  isnothing(intermediateConfigs)  intermediateConfigsx     = comp.intermediateConfigs     else  intermediateConfigsx     = intermediateConfigs      end 
+    if  isnothing(intermediateAsfSettings)  intermediateAsfSettingsx = comp.intermediateAsfSettings else  intermediateAsfSettingsx = intermediateAsfSettings  end 
+    if  isnothing(finalConfigs)  finalConfigsx            = comp.finalConfigs            else  finalConfigsx            = finalConfigs             end 
+    if  isnothing(finalAsfSettings)  finalAsfSettingsx        = comp.finalAsfSettings        else  finalAsfSettingsx        = finalAsfSettings         end 
+    if  isnothing(processSettings)  prsx                     = comp.processSettings         else  prsx                     = processSettings          end 
     
     
     cp = Computation(namex, nuclearModelx, gridx, propertySettingsx, configsx, asfSettingsx, initialConfigsx, initialAsfSettingsx,     
