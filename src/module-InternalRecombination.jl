@@ -65,12 +65,12 @@ function Settings(set::InternalRecombination.Settings;
     resonanceEnergyShift::Union{Nothing,Float64}=nothing,    gamma::Union{Nothing,Float64}=nothing,  
     lineSelection::Union{Nothing,LineSelection}=nothing,     operator::Union{Nothing,String}=nothing)  
     
-    if  isnothing(rydbergShells)  rydbergShellsx        = set.rydbergShells        else  rydbergShellsx        = rydbergShells        end 
-    if  isnothing(printBefore)  printBeforex          = set.printBefore          else  printBeforex          = printBefore          end 
-    if  isnothing(resonanceEnergyShift)  resonanceEnergyShiftx = set.resonanceEnergyShift else  resonanceEnergyShiftx = resonanceEnergyShift end 
-    if  isnothing(gamma)  gammax                = set.gamma                else  gammax                = gamma                end 
-    if  isnothing(lineSelection)  lineSelectionx        = set.lineSelection        else  lineSelectionx        = lineSelection        end 
-    if  isnothing(operator)  operatorx             = set.operator             else  operatorx             = operator             end 
+    if  rydbergShells        == nothing  rydbergShellsx        = set.rydbergShells        else  rydbergShellsx        = rydbergShells        end 
+    if  printBefore          == nothing  printBeforex          = set.printBefore          else  printBeforex          = printBefore          end 
+    if  resonanceEnergyShift == nothing  resonanceEnergyShiftx = set.resonanceEnergyShift else  resonanceEnergyShiftx = resonanceEnergyShift end 
+    if  gamma                == nothing  gammax                = set.gamma                else  gammax                = gamma                end 
+    if  lineSelection        == nothing  lineSelectionx        = set.lineSelection        else  lineSelectionx        = lineSelection        end 
+    if  operator             == nothing  operatorx             = set.operator             else  operatorx             = operator             end 
 
     Settings( rydbergShellsx, printBeforex, resonanceEnergyShiftx, gammax, lineSelectionx, operatorx)
 end

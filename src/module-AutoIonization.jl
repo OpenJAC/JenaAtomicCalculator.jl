@@ -70,16 +70,16 @@ function Settings(set::AutoIonization.Settings;
     maxKappa::Union{Nothing,Int64}=nothing,                 operator::Union{Nothing,String}=nothing,
     gMultiplet::Union{Nothing,Multiplet}=nothing)  
     
-    if  isnothing(calcAnisotropy)   calcAnisotropyx    = set.calcAnisotropy    else  calcAnisotropyx    = calcAnisotropy    end 
-    if  isnothing(calcTeAuger)   calcTeAugerx       = set.calcTeAuger       else  calcTeAugerx       = calcTeAuger       end 
-    if  isnothing(printBefore)   printBeforex       = set.printBefore       else  printBeforex       = printBefore       end 
-    if  isnothing(lineSelection)   lineSelectionx     = set.lineSelection     else  lineSelectionx     = lineSelection     end 
-    if  isnothing(augerEnergyShift)   augerEnergyShiftx  = set.augerEnergyShift  else  augerEnergyShiftx  = augerEnergyShift  end 
-    if  isnothing(minAugerEnergy)   minAugerEnergyx    = set.minAugerEnergy    else  minAugerEnergyx    = minAugerEnergy    end 
-    if  isnothing(maxAugerEnergy)   maxAugerEnergyx    = set.maxAugerEnergy    else  maxAugerEnergyx    = maxAugerEnergy    end 
-    if  isnothing(maxKappa)   maxKappax          = set.maxKappa          else  maxKappax          = maxKappa          end 
-    if  isnothing(operator)   operatorx          = set.operator          else  operatorx          = operator          end 
-    if  isnothing(gMultiplet)   gMultipletx        = set.gMultiplet        else  gMultipletx        = gMultiplet        end 
+    if  calcAnisotropy   == nothing   calcAnisotropyx    = set.calcAnisotropy    else  calcAnisotropyx    = calcAnisotropy    end 
+    if  calcTeAuger      == nothing   calcTeAugerx       = set.calcTeAuger       else  calcTeAugerx       = calcTeAuger       end 
+    if  printBefore      == nothing   printBeforex       = set.printBefore       else  printBeforex       = printBefore       end 
+    if  lineSelection    == nothing   lineSelectionx     = set.lineSelection     else  lineSelectionx     = lineSelection     end 
+    if  augerEnergyShift == nothing   augerEnergyShiftx  = set.augerEnergyShift  else  augerEnergyShiftx  = augerEnergyShift  end 
+    if  minAugerEnergy   == nothing   minAugerEnergyx    = set.minAugerEnergy    else  minAugerEnergyx    = minAugerEnergy    end 
+    if  maxAugerEnergy   == nothing   maxAugerEnergyx    = set.maxAugerEnergy    else  maxAugerEnergyx    = maxAugerEnergy    end 
+    if  maxKappa         == nothing   maxKappax          = set.maxKappa          else  maxKappax          = maxKappa          end 
+    if  operator         == nothing   operatorx          = set.operator          else  operatorx          = operator          end 
+    if  gMultiplet       == nothing   gMultipletx        = set.gMultiplet        else  gMultipletx        = gMultiplet        end 
 
     Settings( calcAnisotropyx, calcTeAugerx, printBeforex, lineSelectionx, augerEnergyShiftx, 
               minAugerEnergyx, maxAugerEnergyx, maxKappax, operatorx, gMultipletx)

@@ -73,17 +73,17 @@ function Settings(set::PhotoDoubleIonization.Settings;
     printBefore::Union{Nothing,Bool}=nothing,                               lineSelection::Union{Nothing,LineSelection}=nothing, 
     eeInteraction::Union{Nothing,AbstractEeInteraction}=nothing,            gMultiplet::Union{Nothing,Multiplet}=nothing)  
     
-    if  isnothing(multipoles)   multipolesx         = set.multipoles         else  multipolesx         = multipoles          end 
-    if  isnothing(gauges)   gaugesx             = set.gauges             else  gaugesx             = gauges              end 
-    if  isnothing(quasiShells)   quasiShellsx        = set.quasiShells        else  quasiShellsx        = quasiShells         end 
-    if  isnothing(photonEnergies)   photonEnergiesx     = set.photonEnergies     else  photonEnergiesx     = photonEnergies      end 
-    if  isnothing(NoEnergySharings)   NoEnergySharingsx   = set.electronEnergies   else  NoEnergySharingsx   = NoEnergySharings    end 
-    if  isnothing(maxKappa)   maxKappax           = set.maxKappa           else  maxKappasx          = maxKappa            end 
-    if  isnothing(calcDifferentialCs)   calcDifferentialCsx = set.calcDifferentialCs else  calcDifferentialCsx = calcDifferentialCs  end 
-    if  isnothing(printBefore)   printBeforex        = set.printBefore        else  printBeforex        = printBefore         end 
-    if  isnothing(lineSelection)   lineSelectionx      = set.lineSelection      else  lineSelectionx      = lineSelection       end 
-    if  isnothing(eeInteraction)   eeInteractionx      = set.eeInteraction      else  eeInteractionx      = eeInteraction       end 
-    if  isnothing(gMultiplet)   gMultipletx         = set.gMultiplet         else  gMultipletx         = gMultiplet          end 
+    if  multipoles         == nothing   multipolesx         = set.multipoles         else  multipolesx         = multipoles          end 
+    if  gauges             == nothing   gaugesx             = set.gauges             else  gaugesx             = gauges              end 
+    if  quasiShells        == nothing   quasiShellsx        = set.quasiShells        else  quasiShellsx        = quasiShells         end 
+    if  photonEnergies     == nothing   photonEnergiesx     = set.photonEnergies     else  photonEnergiesx     = photonEnergies      end 
+    if  NoEnergySharings   == nothing   NoEnergySharingsx   = set.electronEnergies   else  NoEnergySharingsx   = NoEnergySharings    end 
+    if  maxKappa           == nothing   maxKappax           = set.maxKappa           else  maxKappasx          = maxKappa            end 
+    if  calcDifferentialCs == nothing   calcDifferentialCsx = set.calcDifferentialCs else  calcDifferentialCsx = calcDifferentialCs  end 
+    if  printBefore        == nothing   printBeforex        = set.printBefore        else  printBeforex        = printBefore         end 
+    if  lineSelection      == nothing   lineSelectionx      = set.lineSelection      else  lineSelectionx      = lineSelection       end 
+    if  eeInteraction      == nothing   eeInteractionx      = set.eeInteraction      else  eeInteractionx      = eeInteraction       end 
+    if  gMultiplet         == nothing   gMultipletx         = set.gMultiplet         else  gMultipletx         = gMultiplet          end 
 
     Settings( multipolesx, gaugesx, quasiShellsx, photonEnergiesx, NoEnergySharingsx, maxKappax, calcDifferentialCsx, 
                 printBeforex, lineSelectionx, eeInteractionx, gMultipletx)

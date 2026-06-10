@@ -101,11 +101,11 @@ function Computation(comp::Empirical.Computation;
     grid::Union{Nothing,Radial.Grid}=nothing,          configs::Union{Nothing,Array{Configuration,1}}=nothing,       settings::Union{Nothing,Any}=nothing,            
     printout::Bool=false)
     
-    if  isnothing(name)  namex                    = comp.name                    else  namex                    = name                     end 
-    if  isnothing(nuclearModel)  nuclearModelx            = comp.nuclearModel            else  nuclearModelx            = nuclearModel             end 
-    if  isnothing(grid)  gridx                    = comp.grid                    else  gridx                    = grid                     end 
-    if  isnothing(configs)  configsx                 = comp.configs                 else  configsx                 = configs                  end 
-    if  isnothing(settings)  settingsx                = comp.settings                else  settingsx                = settings                 end 
+    if  name                    == nothing  namex                    = comp.name                    else  namex                    = name                     end 
+    if  nuclearModel            == nothing  nuclearModelx            = comp.nuclearModel            else  nuclearModelx            = nuclearModel             end 
+    if  grid                    == nothing  gridx                    = comp.grid                    else  gridx                    = grid                     end 
+    if  configs                 == nothing  configsx                 = comp.configs                 else  configsx                 = configs                  end 
+    if  settings                == nothing  settingsx                = comp.settings                else  settingsx                = settings                 end 
     
     
     cp = Computation(namex, nuclearModelx, gridx, propertySettingsx, configsx, settingsx) 

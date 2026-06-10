@@ -51,12 +51,12 @@ function Settings(set::ElectronCapture.Settings;
     minCaptureEnergy::Union{Nothing,Float64}=nothing,       maxCaptureEnergy::Union{Nothing,Float64}=nothing,
     maxKappa::Union{Nothing,Int64}=nothing,                 operator::Union{Nothing,String}=nothing)  
     
-    if  isnothing(printBefore)   printBeforex      = set.printBefore       else  printBeforex      = printBefore        end 
-    if  isnothing(lineSelection)   lineSelectionx    = set.lineSelection     else  lineSelectionx    = lineSelection      end 
-    if  isnothing(minCaptureEnergy)   minCaptureEnergyx = set.minCaptureEnergy  else  minCaptureEnergyx = minCaptureEnergy   end 
-    if  isnothing(maxCaptureEnergy)   maxCaptureEnergyx = set.maxCaptureEnergy  else  maxCaptureEnergyx = maxCaptureEnergy   end 
-    if  isnothing(maxKappa)   maxKappax         = set.maxKappa          else  maxKappax         = maxKappa           end 
-    if  isnothing(operator)   operatorx         = set.operator          else  operatorx         = operator           end 
+    if  printBefore      == nothing   printBeforex      = set.printBefore       else  printBeforex      = printBefore        end 
+    if  lineSelection    == nothing   lineSelectionx    = set.lineSelection     else  lineSelectionx    = lineSelection      end 
+    if  minCaptureEnergy == nothing   minCaptureEnergyx = set.minCaptureEnergy  else  minCaptureEnergyx = minCaptureEnergy   end 
+    if  maxCaptureEnergy == nothing   maxCaptureEnergyx = set.maxCaptureEnergy  else  maxCaptureEnergyx = maxCaptureEnergy   end 
+    if  maxKappa         == nothing   maxKappax         = set.maxKappa          else  maxKappax         = maxKappa           end 
+    if  operator         == nothing   operatorx         = set.operator          else  operatorx         = operator           end 
 
     Settings( printBeforex, lineSelectionx, minCaptureEnergyx, maxCaptureEnergyx, maxKappax, operatorx)
 end

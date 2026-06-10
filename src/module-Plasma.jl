@@ -222,9 +222,9 @@ function Settings(set::Plasma.Settings;
     temperature::Union{Nothing,Float64}=nothing,                            density::Union{Nothing,Float64}=nothing,
     useNumberDensity::Union{Nothing,Bool}=nothing)  
     
-    if  isnothing(temperature)   temperaturex      = set.temperature        else  temperaturex      = temperature       end 
-    if  isnothing(density)   densityx          = set.density            else  densityx          = density           end 
-    if  isnothing(useNumberDensity)   useNumberDensityx = set.useNumberDensity   else  useNumberDensityx = useNumberDensity  end 
+    if  temperature      == nothing   temperaturex      = set.temperature        else  temperaturex      = temperature       end 
+    if  density          == nothing   densityx          = set.density            else  densityx          = density           end 
+    if  useNumberDensity == nothing   useNumberDensityx = set.useNumberDensity   else  useNumberDensityx = useNumberDensity  end 
 
     Settings( temperaturex, densityx, useNumberDensityx )
 end
@@ -286,12 +286,12 @@ function Computation(comp::Plasma.Computation;
     settings::Union{Nothing,Plasma.Settings}=nothing, 
     printout::Bool=false)
     
-    if  isnothing(scheme)  schemex            = comp.scheme            else  schemex                  = scheme                   end 
-    if  isnothing(nuclearModel)  nuclearModelx      = comp.nuclearModel      else  nuclearModelx            = nuclearModel             end 
-    if  isnothing(grid)  gridx              = comp.grid              else  gridx                    = grid                     end 
-    if  isnothing(refConfigs)  refConfigsx        = comp.refConfigs        else  refConfigsx              = refConfigs               end 
-    if  isnothing(asfSettings)  asfSettingsx       = comp.asfSettings       else  asfSettingsx             = asfSettings              end 
-    if  isnothing(settings)  settingsx          = comp.settings          else  settingsx                = settings                 end 
+    if  scheme           == nothing  schemex            = comp.scheme            else  schemex                  = scheme                   end 
+    if  nuclearModel     == nothing  nuclearModelx      = comp.nuclearModel      else  nuclearModelx            = nuclearModel             end 
+    if  grid             == nothing  gridx              = comp.grid              else  gridx                    = grid                     end 
+    if  refConfigs       == nothing  refConfigsx        = comp.refConfigs        else  refConfigsx              = refConfigs               end 
+    if  asfSettings      == nothing  asfSettingsx       = comp.asfSettings       else  asfSettingsx             = asfSettings              end 
+    if  settings         == nothing  settingsx          = comp.settings          else  settingsx                = settings                 end 
     
     
     cp = Computation(schemex, nuclearModelx, gridx, refConfigsx, asfSettingsx, settingsx) 

@@ -527,11 +527,11 @@ function Settings(set::CoulombExcitation.Settings;
     printBefore::Union{Nothing,Bool}=nothing,                       lineSelection::Union{Nothing,LineSelection}=nothing,
     zerosGL::Union{Nothing,Int64}=nothing)  
     
-    if  isnothing(ionEnergies)   ionEnergies          = set.ionEnergies             else  ionEnergiesx         = ionEnergies       end 
-    if  isnothing(calcAlignment)   calcAlignmentx       = set.calcAlignment           else  calcAlignmentx       = calcAlignment     end 
-    if  isnothing(printBefore)   printBeforex         = set.printBefore             else  printBeforex         = printBefore       end 
-    if  isnothing(lineSelection)   lineSelectionx       = set.lineSelection           else  lineSelectionx       = lineSelection     end 
-    if  isnothing(zerosGL)   zerosGLx             = set.zerosGL                 else  zerosGLx             = zerosGL           end 
+    if  ionEnergies         == nothing   ionEnergies          = set.ionEnergies             else  ionEnergiesx         = ionEnergies       end 
+    if  calcAlignment       == nothing   calcAlignmentx       = set.calcAlignment           else  calcAlignmentx       = calcAlignment     end 
+    if  printBefore         == nothing   printBeforex         = set.printBefore             else  printBeforex         = printBefore       end 
+    if  lineSelection       == nothing   lineSelectionx       = set.lineSelection           else  lineSelectionx       = lineSelection     end 
+    if  zerosGL             == nothing   zerosGLx             = set.zerosGL                 else  zerosGLx             = zerosGL           end 
     
     Settings( ionEnergiesx, calcAlignmentx, printBeforex, lineSelectionx, zerosGLx)
 end

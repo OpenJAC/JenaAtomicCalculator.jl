@@ -177,15 +177,15 @@ function Computation(comp::Liouville.Computation;
     settings::Union{Nothing,Liouville.Settings}=nothing, 
     printout::Bool=false)
     
-    if  isnothing(scheme)  schemex            = comp.scheme            else  schemex                  = scheme                   end 
-    if  isnothing(approach)  approachx          = comp.approach          else  approachx                = approach                 end 
-    if  isnothing(freeTime)  freeTimex          = comp.freeTime          else  freeTimex                = freeTime                 end 
-    if  isnothing(pulses)  pulsesx            = comp.pulses            else  pulsesx                  = pulses                   end 
-    if  isnothing(nuclearModel)  nuclearModelx      = comp.nuclearModel      else  nuclearModelx            = nuclearModel             end 
-    if  isnothing(grid)  gridx              = comp.grid              else  gridx                    = grid                     end 
-    if  isnothing(refConfigs)  refConfigsx        = comp.refConfigs        else  refConfigsx              = refConfigs               end 
-    if  isnothing(asfSettings)  asfSettingsx       = comp.asfSettings       else  asfSettingsx             = asfSettings              end 
-    if  isnothing(settings)  settingsx          = comp.settings          else  settingsx                = settings                 end 
+    if  scheme           == nothing  schemex            = comp.scheme            else  schemex                  = scheme                   end 
+    if  approach         == nothing  approachx          = comp.approach          else  approachx                = approach                 end 
+    if  freeTime         == nothing  freeTimex          = comp.freeTime          else  freeTimex                = freeTime                 end 
+    if  pulses           == nothing  pulsesx            = comp.pulses            else  pulsesx                  = pulses                   end 
+    if  nuclearModel     == nothing  nuclearModelx      = comp.nuclearModel      else  nuclearModelx            = nuclearModel             end 
+    if  grid             == nothing  gridx              = comp.grid              else  gridx                    = grid                     end 
+    if  refConfigs       == nothing  refConfigsx        = comp.refConfigs        else  refConfigsx              = refConfigs               end 
+    if  asfSettings      == nothing  asfSettingsx       = comp.asfSettings       else  asfSettingsx             = asfSettings              end 
+    if  settings         == nothing  settingsx          = comp.settings          else  settingsx                = settings                 end 
     
     
     cp = Computation(schemex, approachx, freeTimex, pulsesx, nuclearModelx, gridx, refConfigsx, asfSettingsx, settingsx) 
