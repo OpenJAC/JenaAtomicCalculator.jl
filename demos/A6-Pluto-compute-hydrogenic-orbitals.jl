@@ -480,7 +480,7 @@ JenaAtomicCalculator = "830ae420-d14d-11e8-2f94-6b071437414d"
 Trapz = "592b5752-818d-11e9-1e9a-2b8ca4a44cd1"
 
 [compat]
-JenaAtomicCalculator = "~0.1.0"
+JenaAtomicCalculator = "~0.3.0"
 Trapz = "~2.0.3"
 """
 

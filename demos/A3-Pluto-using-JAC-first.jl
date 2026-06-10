@@ -101,7 +101,7 @@ PLUTO_PROJECT_TOML_CONTENTS = """
 JenaAtomicCalculator = "830ae420-d14d-11e8-2f94-6b071437414d"
 
 [compat]
-JenaAtomicCalculator = "~0.1.0"
+JenaAtomicCalculator = "~0.3.0"
 """
 
 # ╔═╡ 00000000-0000-0000-0000-000000000002

@@ -79,7 +79,7 @@ JenaAtomicCalculator = "830ae420-d14d-11e8-2f94-6b071437414d"
 SymEngine = "123dc426-2d89-5057-bbad-38513e3affd8"
 
 [compat]
-JenaAtomicCalculator = "~0.1.0"
+JenaAtomicCalculator = "~0.3.0"
 SymEngine = "~0.12.0"
 """
 

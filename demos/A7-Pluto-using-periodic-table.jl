@@ -316,7 +316,7 @@ JenaAtomicCalculator = "830ae420-d14d-11e8-2f94-6b071437414d"
 Markdown = "d6f4376e-aef5-505a-96c1-9c027394607a"
 
 [compat]
-JenaAtomicCalculator = "~0.1.0"
+JenaAtomicCalculator = "~0.3.0"
 """
 
 # ╔═╡ 00000000-0000-0000-0000-000000000002
