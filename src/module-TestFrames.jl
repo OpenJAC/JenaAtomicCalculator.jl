@@ -592,7 +592,7 @@ function testModule_Hfs(; short::Bool=true)
     wa = Atomic.Computation(Atomic.Computation(), name="xx", grid=Radial.Grid(true),
                             nuclearModel=Nuclear.Model(26., "Fermi", 58., 3.81, AngularJ64(5//2), 1.0, 1.0, 0.),
                             configs=[Configuration("[Ne] 3s^2 3p^5"), Configuration("[Ne] 3s 3p^6")],
-                            propertySettings = [ Hfs.Settings(true, true, true, true, true, LevelSelection() )] )
+                            propertySettings = [ Hfs.Settings(true, true, true, true, true, false, LevelSelection() )] )
 
     wb = perform(wa)
     ###
@@ -828,7 +828,7 @@ function testModule_PhotoExcitationAutoion(; short::Bool=true)
     Defaults.setDefaults("print summary: open", "test-PhotoExcitationAutoion-new.sum")
     printstyled("\n\nTest the module  PhotoExcitationAutoion  ... \n", color=:cyan)
     ### Make the tests
-    grid = Radial.Grid(Radial.Grid(false), rnt = 2.0e-5, h = 5.0e-2, hp = 1.5e-2, NoPoints = 600)
+    grid = Radial.Grid(Radial.Grid(false), rnt = 2.0e-5, h = 5.0e-2, hp = 1.5e-2, rbox = 9.5)
     wa = Atomic.Computation("xx",  Nuclear.Model(26.); grid=grid, 
                             initialConfigs=[Configuration("1s^2 2s"), Configuration("1s^2 2p")],
                             intermediateConfigs=[Configuration("1s 2s^2"), Configuration("1s 2p^2")],
@@ -862,7 +862,8 @@ function testModule_PhotoExcitationFluores(; short::Bool=true)
                             initialConfigs=[Configuration("1s^2 2s"), Configuration("1s^2 2p")],
                             intermediateConfigs=[Configuration("1s 2s^2 2p"), Configuration("1s 2s 2p^2") ],
                             finalConfigs  =[Configuration("1s^2 2s^2"), Configuration("1s^2 2s 2p") ], 
-                            processSettings=PhotoExcitationFluores.Settings([E1, M1], [UseCoulomb, UseBabushkin], true, 
+                            processSettings=PhotoExcitationFluores.Settings([E1, M1], [UseCoulomb, UseBabushkin],
+                                                    false, false, false, true, ExpStokes(), SolidAngle[], 0.,
                                                     PathwaySelection(true, indexTriples=[(1,1,1)]) )  )
     wb = perform(wa)
     ###

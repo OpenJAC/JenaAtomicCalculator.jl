@@ -34,7 +34,7 @@ using JenaAtomicCalculator, ..Defaults, ..TestFrames
 
     @testset "JAC properties" begin
         @test TestFrames.testModule_Einstein()
-        ## @test TestFrames.testModule_Hfs()   
+        ## @test TestFrames.testModule_Hfs()           ## disabled: runtime error "still to be done" in Hfs.computeAmplitudesProperties (calcNondiagonal path not implemented)
         @test TestFrames.testModule_LandeZeeman() 
         @test TestFrames.testModule_IsotopeShift()   
         @test TestFrames.testModule_AlphaVariation() 
@@ -50,11 +50,11 @@ using JenaAtomicCalculator, ..Defaults, ..TestFrames
         @test TestFrames.testModule_PhotoRecombination()
         @test TestFrames.testModule_AutoIonization()  
         @test TestFrames.testModule_DielectronicRecombination()  
-        ## @test TestFrames.testModule_PhotoExcitationFluores() 
-        ## @test TestFrames.testModule_PhotoExcitationAutoion() 
-        ## @test TestFrames.testModule_RayleighCompton() 
-        ## @test TestFrames.testModule_MultiPhotonDeExcitation() 
-        ## @test TestFrames.testModule_CoulombExcitation() 
+        ## @test TestFrames.testModule_PhotoExcitationFluores()  ## disabled: Atomic.Computation constructor signature changed; test call needs updating
+        ## @test TestFrames.testModule_PhotoExcitationAutoion()  ## disabled: PhotoExcitationAutoion.Settings positional call outdated; test call needs updating
+        @test TestFrames.testModule_RayleighCompton()
+        @test TestFrames.testModule_MultiPhotonDeExcitation()
+        @test TestFrames.testModule_CoulombExcitation()
     end
 
     @testset "JAC cascades" begin
