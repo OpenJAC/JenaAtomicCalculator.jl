@@ -255,7 +255,6 @@ function amplitude(processType::ElasticElectronNR, beamType::Beam.PlaneWave,
         amplitude = 4pi * amplitude / beamType.kz
     else  error("stop a")
     end
-    ##x @show processType, beamType, l, amplitude
     
     return( amplitude )
 end
@@ -315,7 +314,6 @@ function amplitude(processType::ElasticElectronNR, beamType::Beam.BesselBeam, nu
                     wa * wc * AngularMomentum.sphericalYlm(l, beamType.mOAM+nu, theta, phi) * sin(lPhase)
         amplitude = amplitude + ComplexF64(wb)
     end
-    ##x @show processType, beamType, l, amplitude, typeof(amplitude)
     
     return( amplitude )
 end
@@ -587,7 +585,6 @@ function  determineEventsNR(finalMultiplet::Multiplet, initialMultiplet::Multipl
     for  iLevel  in  initialMultiplet.levels
         for  fLevel  in  finalMultiplet.levels
             if  Basics.selectLevelPair(iLevel, fLevel, settings.lineSelection)
-                ##x pws = ParticleScattering.determinePartialWavesNR(fLevel, iLevel, settings) 
                 for en in settings.impactEnergies
                     enau    = Defaults.convertUnits("energy: to atomic", en)
                     newBeam = Beam.redefineEnergy(enau, settings.beamType)

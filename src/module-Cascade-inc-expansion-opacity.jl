@@ -89,7 +89,6 @@ function generateBlocks(scheme::Cascade.ExpansionOpacityScheme, comp::Cascade.Co
             # Determine a list of hydrogenic orbitals for later use 
             relconfList = ConfigurationR[]
             for  confa in confs
-                ##x wa = Basics.generateConfigurationRs(confa)
                 wa = Basics.generateConfigurations(Basics.RelativisticConfigurations(), confa)
                 append!( relconfList, wa)
             end
@@ -105,13 +104,11 @@ function generateBlocks(scheme::Cascade.ExpansionOpacityScheme, comp::Cascade.Co
             # Now distinguish between the first and all other blocks; for the first block, a SCF is generated and the occupied orbital
             # used also for all other blocks. In addition, a set of hydrogenic orbitals generated for later use
             if  ia == 1
-                ##x basis     = Basics.performSCF([confa], comp.nuclearModel, comp.grid, comp.asfSettings; printout=false)
                 basis     = SelfConsistent.performSCF([confa], comp.nuclearModel, comp.grid, comp.asfSettings; printout=false)
             else
                 # Generate a list of relativistic configurations and determine an ordered list of subshells for these configurations
                 relconfList  = ConfigurationR[]
                 #
-                ##x wa           = Basics.generateConfigurationRs(confa)
                 wa           = Basics.generateConfigurations(Basics.RelativisticConfigurations(), confa)
                 append!( relconfList, wa)
                 subshellList = Basics.generateSubshellList(relconfList)
@@ -141,8 +138,6 @@ function generateBlocks(scheme::Cascade.ExpansionOpacityScheme, comp::Cascade.Co
                 
                 basis         = Basis(true, confa.NoElectrons, subshellList, csfList, coreSubshellList, orbitals)
             end
-            ##x multiplet = Basics.perform("computation: mutiplet from orbitals, no CI, CSF diagonal", [confa],  basis.orbitals, 
-            ##x                             comp.nuclearModel, comp.grid, comp.asfSettings; printout=false)
             multiplet = Hamiltonian.performCIwithFrozenOrbitals([confa],  basis.orbitals, comp.nuclearModel, comp.grid, comp.asfSettings; printout=false)
             push!( blockList, Cascade.Block(confa.NoElectrons, [confa], true, multiplet) )
             println("and $(length(multiplet.levels[1].basis.csfs)) CSF done. ")
@@ -160,8 +155,6 @@ function generateBlocks(scheme::Cascade.ExpansionOpacityScheme, comp::Cascade.Co
         for  confa  in confs
             print("  Multiplet computations for $(string(confa)[1:end])   with $(confa.NoElectrons) electrons ... ")
             if  printSummary   println(iostream, "\n*  Multiplet computations for $(string(confa)[1:end])   with $(confa.NoElectrons) electrons ... ")   end
-            ##x basis     = Basics.performSCF([confa], comp.nuclearModel, comp.grid, comp.asfSettings; printout=false)
-            ##x multiplet = Basics.performCI(basis,    comp.nuclearModel, comp.grid, comp.asfSettings; printout=false)
             multiplet = SelfConsistent.performSCF([confa], comp.nuclearModel, comp.grid, comp.asfSettings; printout=false)
             push!( blockList, Cascade.Block(confa.NoElectrons, [confa], true, multiplet) )
             println("and $(length(multiplet.levels[1].basis.csfs)) CSF done. ")
@@ -205,8 +198,6 @@ function perform(scheme::ExpansionOpacityScheme, comp::Cascade.Computation; outp
     #
     # Perform the SCF and CI computation for the intial-state multiplets if initial configurations are given
     if  comp.initialConfigs != Configuration[]
-        ##x basis      = Basics.performSCF(comp.initialConfigs, comp.nuclearModel, comp.grid, comp.asfSettings; printout=false)
-        ##x multiplet  = Basics.performCI(basis, comp.nuclearModel, comp.grid, comp.asfSettings; printout=false)
         multiplet  = SelfConsistent.performSCF(comp.initialConfigs, comp.nuclearModel, comp.grid, comp.asfSettings; printout=false)
         multiplets = [Multiplet("initial states", multiplet.levels)]
     else
@@ -218,7 +209,6 @@ function perform(scheme::ExpansionOpacityScheme, comp::Cascade.Computation; outp
     #
     # Generate subsequent cascade configurations as well as display and group them together
     wa  = Cascade.generateConfigurationsForExpansionOpacity(comp.initialConfigs, comp.scheme, comp.nuclearModel, comp.grid)
-    ##x wb  = Cascade.groupDisplayConfigurationList(comp.nuclearModel.Z, wa, sa="excited configurations of the expansion opacity ")
     wb  = Basics.displayConfigurations(comp.nuclearModel.Z, wa, sa="excited configurations of the expansion opacity ")
     #
     # Determine first all configuration 'blocks' and from them the individual steps of the cascade

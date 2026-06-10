@@ -618,8 +618,6 @@ function  computeHydrogenicRate(ni::Int64, li::Int64, nf::Int64, lf::Int64,  Zef
     elseif  lf == (li - 1)     rate = (2*(li-1) + 1) / (2*li+1) * computeOsc(nf, li-1, ni, li)
     else    error("stop b")
     end
-    ##x alpha = 137.036
-    ##x rate = rate * Zeff^4 / (2.0*alpha^3) * (1/nf^2 - 1/ni^2)^2
     rate = rate * Zeff^4 / 2.0 * Defaults.getDefaults("alpha")^3 * (1/nf^2 - 1/ni^2)^2
     ## println(">>>> Hydrogenic rate for A($ni, $li;  -> $nf, $lf) = $rate")
 
@@ -688,7 +686,6 @@ function determineEmpiricalTreatment(finalMultiplet::Multiplet, intermediateMult
     # Extract the n-shell quantum numbers from the various multiplets
     NoCoreElectrons          = initialMultiplet.levels[1].basis.NoElectrons
     basis                    = intermediateMultiplet.levels[1].basis
-    ##x intermediateConfs        = Basics.extractNonrelativisticConfigurations(basis)
     intermediateConfs        = Basics.extractConfigurations(Basics.FromBasis(), basis)
     intermediateShellList    = Basics.extractNonrelativisticShellList(intermediateMultiplet.levels[1].basis.subshells)
     finalShellList           = Basics.extractNonrelativisticShellList(finalMultiplet.levels[1].basis.subshells)
@@ -1181,7 +1178,6 @@ function  isResonanceToBeExcluded(level::Level, refLevel, rSelection::ResonanceS
         # Analyze of whether level belongs to the selected resonances; it determines of whether level has 
         # electrons in either toShells or intoShells, and if there is one electron less in the fromShells
         fromwb    = false;    towb    = false;    intowb    = true
-        ##x confList  = Basics.extractNonrelativisticConfigurations(level.basis)
         confList  = Basics.extractConfigurations(Basics.FromBasis(), level.basis)
         occShells = Basics.extractShellList(confList) 
         for  shell in rSelection.toShells   
@@ -1192,7 +1188,6 @@ function  isResonanceToBeExcluded(level::Level, refLevel, rSelection::ResonanceS
         end
         # Compare the occupation of the given resonance level with those of the refLevel; there should be (at least)
         # one electron more in the shells of leadingConfig than in the same shells of level
-        ##x refConfig = Basics.extractLeadingConfiguration(refLevel)
         refConfig = Basics.extractConfiguration(Basics.LeadingConfiguration(), refLevel)
         levConfig = confList[1];   NoElectrons = 0
         for  (k,v) in refConfig.shells

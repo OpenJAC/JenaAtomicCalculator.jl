@@ -1038,7 +1038,6 @@ function  generateBasis(multiplet::Multiplet, index::Int64, addIndices::Array{In
         for  isomer in isomers
             for level  in  multiplet.levels
                 if  level.index  in  index  ||   level.index  in  addIndices 
-                    ##x @show level.J
                     if   AngularMomentum.isTriangle(isomer.spinI, level.J, F)
                         push!(basis, HyperfineInduced.IJF_Vector(F, isomer, level) )
                     end 

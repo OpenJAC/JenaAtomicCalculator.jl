@@ -150,7 +150,6 @@ function Basics.perform(computation::Empirical.Computation; output::Bool=false)
     
     if typeof(computation.settings)  in  [ImpactIonization.Settings]
         # Generate an SCF basis for the given configurations to extract the one-particle energies for all shells
-        ##x basis  = Basics.performSCF(computation.configs, nm, computation.grid, asfSettings)
         multiplet  = SelfConsistent.performSCF(computation.configs, nm, computation.grid, asfSettings)
         basis      = multiplet.levels[1].basis
         

@@ -5,7 +5,6 @@
 	    solve the single-electron Dirac equation in a local potential. It also provides the major function
         calls to generate self-consistent fields; cf. JAC.SelfConsistent.
     
-    !!  Remove all ##x lines
     !!  Remove in RadialIntegrals:       ... all methods that depend on Bspline
     !!  Remove in InteractionStrength:   ... all methods that depend on Bspline
     !!  Change in Hydrogenic             ... sequence of arguments
@@ -179,7 +178,7 @@ end
 function generateOrbitals(subshells::Array{Subshell,1}, pot::Radial.Potential, nm::Nuclear.Model, 
                           primitives::BsplinesN.Primitives; printout::Bool=true)
     orbitals = Dict{Subshell, Orbital}()
-    kappas   = Int64[];   for sh in subshells  push!(kappas, sh.kappa)   end;   kappas = unique(kappas);   ##x @show kappas
+    kappas   = Int64[];   for sh in subshells  push!(kappas, sh.kappa)   end;   kappas = unique(kappas)
     nsL      = primitives.grid.nsL;    nsS = primitives.grid.nsS
     
     # Define the storage for the calculations of matrices; this is necessary to use the BsplinesN.generateTTpMatrix!() function.
@@ -289,15 +288,11 @@ function generateOrbitalFromPrimitives(sh::Subshell, energy::Float64, mtp::Int64
         lower = primitives.bsplinesL[i].lower;   upper = primitives.bsplinesL[i].upper;   add = 1 - primitives.bsplinesL[i].lower
         for  j = lower:upper  P[j]      = P[j] + ev[i] * primitives.bsplinesL[i].bs[j+add]           end
         for  j = lower:upper  Pprime[j] = Pprime[j] + ev[i] * primitives.bsplinesL[i].bp[j+add]      end
-        ##x for  j = primitives.bsplinesL[i].lower:primitives.bsplinesL[i].upper  P[j]      = P[j] + ev[i] * primitives.bsplinesL[i].bs[j]      end
-        ##x for  j = primitives.bsplinesL[i].lower:primitives.bsplinesL[i].upper  Pprime[j] = Pprime[j] + ev[i] * primitives.bsplinesL[i].bp[j] end
     end 
     for  i = 1:nsS   
         lower = primitives.bsplinesS[i].lower;   upper = primitives.bsplinesS[i].upper;   add = 1 - primitives.bsplinesS[i].lower
         for  j = lower:upper  Q[j]      = Q[j] + ev[nsL+i] * primitives.bsplinesS[i].bs[j+add]       end
         for  j = lower:upper  Qprime[j] = Qprime[j] + ev[nsL+i] * primitives.bsplinesS[i].bp[j+add]  end
-        ##x for  j = primitives.bsplinesS[i].lower:primitives.bsplinesS[i].upper  Q[j]      = Q[j] + ev[nsL+i] * primitives.bsplinesS[i].bs[j]      end
-        ##x for  j = primitives.bsplinesS[i].lower:primitives.bsplinesS[i].upper  Qprime[j] = Qprime[j] + ev[nsL+i] * primitives.bsplinesS[i].bp[j] end
     end 
     
     Px      = zeros(mtp);    Qx      = zeros(mtp);    Px[1:mtp]      = P[1:mtp];         Qx[1:mtp]      = Q[1:mtp]    

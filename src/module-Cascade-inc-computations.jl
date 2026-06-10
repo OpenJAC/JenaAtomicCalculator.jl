@@ -26,7 +26,6 @@ function Basics.extractConfiguration(theme::Basics.LeadingConfiguration, cLevel:
         end
     elseif length(cLevel.daugthers) > 0   
         daugth = cLevel.daugthers[1]
-        ##x @show typeof(daugth.lines[daugth.index])
         if      daugth.process == Basics.Auger()       level = daugth.lines[daugth.index].initialLevel
         elseif  daugth.process == Basics.Radiative()   level = daugth.lines[daugth.index].initialLevel
         else    error("stop b")
@@ -34,12 +33,10 @@ function Basics.extractConfiguration(theme::Basics.LeadingConfiguration, cLevel:
     else        error("stop c")
     end
 
-    ##x allConfs = Basics.extractNonrelativisticConfigurations(level.basis)
     allConfs = Basics.extractConfigurations(Basics.FromBasis(), level.basis)
     weights  = zeros(length(allConfs))
     for  (ia, allConf) in  enumerate(allConfs)
         for (ic, csf) in enumerate(level.basis.csfs)
-            ##x if  allConf == Basics.extractNonrelativisticConfigurationFromCsfR(csf, level.basis)     
             if  allConf == Basics.extractConfiguration(Basics.FromBasis(), level.basis, csf)     
                 weights[ia] = weights[ia] + level.mc[ic]
             end
@@ -117,9 +114,7 @@ function computeDecayProbabilities(outcome::DecayYield.Outcome, linesR::Array{Ph
     #
     # Determine the leading configuration and shells of the initial level
     subshList     = Basics.extractRelativisticSubshellList(outcome.level)
-    ##x relConfigs    = Basics.extractRelativisticConfigurations(outcome.level.basis, outcome.level.J)
     relConfigs    = Basics.extractConfigurations(Basics.RelativisticConfigurations(), outcome.level.basis, outcome.level.J)
-    ##x holeSubshells = Basics.extractOpenSubshells(relConfigs[1]);   holeSubshell = holeSubshells[1]
     holeSubshells = Basics.extractFromConfiguration(Basics.OpenSubshells(), relConfigs[1]);   holeSubshell = holeSubshells[1]
     #
     # Initialize and fill dictionaries for collecting the radiative and Auger rates
@@ -155,11 +150,8 @@ function computeDecayProbabilities(outcome::DecayYield.Outcome, linesR::Array{Ph
         if  similarKey == LevelKey( LevelSymmetry(line.initialLevel.J, line.initialLevel.parity), line.initialLevel.index, line.initialLevel.energy, 0.)
             rateR = rateR + line.photonRate;   NoPhotonLines = NoPhotonLines + 1  
             # Extract the subshells that make the difference between the initial and final levels; terminate if NO 1s_1/2 occurs
-            ##x confi = Basics.extractLeadingConfigurationR(line.initialLevel)
-            ##x conff = Basics.extractLeadingConfigurationR(line.finalLevel)
             confi = Basics.extractConfiguration(Basics.LeadingConfigurationR(), line.initialLevel)
             conff = Basics.extractConfiguration(Basics.LeadingConfigurationR(), line.finalLevel)
-            ##x occDiffs = Basics.extractShellOccupationDifference(confi, conff);   subshList = Subshell[]
             occDiffs = Basics.extractFromConfigurations(Basics.OccupationDifference(), confi, conff);   subshList = Subshell[]
             for  diff in occDiffs
                 # holeSubshell must differ by -1
@@ -180,11 +172,8 @@ function computeDecayProbabilities(outcome::DecayYield.Outcome, linesR::Array{Ph
         if  similarKey == LevelKey( LevelSymmetry(line.initialLevel.J, line.initialLevel.parity), line.initialLevel.index, line.initialLevel.energy, 0.)
             rateA = rateA + line.totalRate;   NoAugerLines = NoAugerLines + 1    
             # Extract the subshells that make the difference between the initial and final levels; terminate if NO 1s_1/2 occurs
-            ##x confi = Basics.extractLeadingConfigurationR(line.initialLevel)
-            ##x conff = Basics.extractLeadingConfigurationR(line.finalLevel)
             confi = Basics.extractConfiguration(Basics.LeadingConfigurationR(), line.initialLevel)
             conff = Basics.extractConfiguration(Basics.LeadingConfigurationR(), line.finalLevel)
-            ##x occDiffs = Basics.extractShellOccupationDifference(confi, conff);   subshList = Subshell[]
             occDiffs = Basics.extractFromConfigurations(Basics.OccupationDifference(), confi, conff);   subshList = Subshell[]
             for  diff in occDiffs
                 # holeSubshell must differ by -1
@@ -343,9 +332,7 @@ function displayDecayProbabilities(stream::IO, outcome::DecayYield.Outcome, rPro
     #
     # Determine the leading configuration and shells of the initial level
     subshList     = Basics.extractRelativisticSubshellList(outcome.level)
-    ##x relConfigs    = Basics.extractRelativisticConfigurations(outcome.level.basis, outcome.level.J)
     relConfigs    = Basics.extractConfigurations(Basics.RelativisticConfigurations(), outcome.level.basis, outcome.level.J)
-    ##x holeSubshells = Basics.extractOpenSubshells(relConfigs[1]);   holeSubshell = holeSubshells[1]
     holeSubshells = Basics.extractFromConfiguration(Basics.OpenSubshells(), relConfigs[1]);   holeSubshell = holeSubshells[1]
     @show subshList, relConfigs, holeSubshell
     
@@ -466,9 +453,7 @@ function dumpDecayProbabilities(stream::IO, outcome::DecayYield.Outcome, subshEn
     #
     # Determine the leading configuration and shells of the initial level
     subshList     = Basics.extractRelativisticSubshellList(outcome.level)
-    ##x relConfigs    = Basics.extractRelativisticConfigurations(outcome.level.basis, outcome.level.J)
     relConfigs    = Basics.extractConfigurations(Basics.RelativisticConfigurations(), outcome.level.basis, outcome.level.J)
-    ##x holeSubshells = Basics.extractOpenSubshells(relConfigs[1]);   holeSubshell = holeSubshells[1]
     holeSubshells = Basics.extractFromConfiguration(Basics.OpenSubshells(), relConfigs[1]);   holeSubshell = holeSubshells[1]
     
     # Dump probabilities for the given holeSubshell to the data file
@@ -506,9 +491,7 @@ function dumpDecayProbabilities(stream::IO, outcome::DecayYield.Outcome, subshEn
     #
     # Determine the leading configuration and shells of the initial level
     subshList     = Basics.extractRelativisticSubshellList(outcome.level)
-    ##x relConfigs    = Basics.extractRelativisticConfigurations(outcome.level.basis, outcome.level.J)
     relConfigs    = Basics.extractConfigurations(Basics.RelativisticConfigurations(), outcome.level.basis, outcome.level.J)
-    ##x holeSubshells = Basics.extractOpenSubshells(relConfigs[1]);   holeSubshell = holeSubshells[1]
     holeSubshells = Basics.extractFromConfiguration(Basics.OpenSubshells(), relConfigs[1]);   holeSubshell = holeSubshells[1]
     
     # Dump probabilities for the given holeSubshell to the data file
@@ -545,7 +528,6 @@ function displayLevels(stream::IO, multiplets::Array{Multiplet,1}; sa::String=""
     println(stream, "* Configurations and levels for all given " * sa * "multiplets of the cascade, relative to the lowest:")
     for  multiplet  in multiplets
         println(stream, "  ")
-        ##x confList = Basics.extractNonrelativisticConfigurations(multiplet.levels[1].basis)
         confList = Basics.extractConfigurations(Basics.FromBasis(), multiplet.levels[1].basis)
          for  conf in confList
             println(stream, "  $conf")
@@ -642,8 +624,6 @@ function generateBlocks(comp::Cascade.Computation, confs::Array{Configuration,1}
         for  confa  in confs
             print("  Multiplet computations for $(string(confa)[1:end]) with $(confa.NoElectrons) electrons ... ")
             if  printSummary   println(iostream, "\n*  Multiplet computations for $(string(confa)[1:end]) with $(confa.NoElectrons) electrons ... ")   end
-            ##x multiplet = Basics.perform("computation: mutiplet from orbitals, no CI, CSF diagonal", [confa],  initalOrbitals, 
-            ##x                             comp.nuclearModel, comp.grid, comp.asfSettings; printout=false)
             multiplet = Hamiltonian.performCIwithFrozenOrbitals([confa], initalOrbitals, comp.nuclearModel, comp.grid, comp.asfSettings; printout=false)
 
             # Shift the total energies of all levels if requested for the StepwiseDecayScheme
@@ -677,8 +657,6 @@ function generateBlocks(comp::Cascade.Computation, confs::Array{Configuration,1}
             ## i = i + 1;    if   i < 11  ||  i > 11   println("  Block $i omitted.");    continue    end
             print("  Multiplet computations for $(string(confa)[1:end]) with $(confa.NoElectrons) electrons ... ")
             if  printSummary   print(iostream, "* Multiplet computations for $(string(confa)[1:end]) with $(confa.NoElectrons) electrons ... ")   end
-            ##x basis     = Basics.performSCF([confa], comp.nuclearModel, comp.grid, comp.asfSettings; printout=false)
-            ##x multiplet = Basics.performCI(basis, comp.nuclearModel, comp.grid, comp.asfSettings; printout=false)
             multiplet = SelfConsistent.performSCF([confa], comp.nuclearModel, comp.grid, comp.asfSettings; printout=false)
             # Shift the total energies of all levels if requested for the StepwiseDecayScheme
             if  typeof(comp.scheme) == StepwiseDecayScheme   &&   haskey(comp.scheme.chargeStateShifts, confa.NoElectrons)
@@ -709,7 +687,6 @@ function generateConfigurationList(multiplets::Array{Multiplet,1}, further::Int6
     # Determine all (different) configurations from multiplets
     confList = Configuration[]
     for mp  in  multiplets   
-        ##x cfList = Basics.extractNonrelativisticConfigurations(mp.levels[1].basis)
         cfList = Basics.extractConfigurations(Basics.FromBasis(), mp.levels[1].basis)
         for  cf in cfList   if  cf in confList   nothing   else   push!(confList, cf)      end      end
     end
@@ -718,11 +695,6 @@ function generateConfigurationList(multiplets::Array{Multiplet,1}, further::Int6
     for  fur = 1:further+1
         newConfList = Configuration[]
         for conf  in cList
-            ##x holeList = Basics.determineHoleShells(conf)
-            ##x for  holeShell in holeList
-            ##x     wa = generateConfigurationsWith1OuterHole(conf,  holeShell);   append!(newConfList, wa)
-            ##x     wa = generateConfigurationsWith2OuterHoles(conf, holeShell);   append!(newConfList, wa)
-            ##x end
             wa = Basics.generateConfigurations(Basics.ForPhotoEmission(), [conf]);   append!(newConfList, wa)
             wa = Basics.generateConfigurations(Basics.ForAutoIonization(), [conf]);  append!(newConfList, wa)
         end

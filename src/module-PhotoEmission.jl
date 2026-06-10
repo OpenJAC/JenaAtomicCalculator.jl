@@ -200,14 +200,12 @@ function amplitude(kind::String, Mp::EmMultipole, gauge::EmGauge, omega::Float64
                     ja = Basics.subshell_2j(fLevel.basis.orbitals[coeff.a].subshell)
                     ## jb = Basics.subshell_2j(iLevel.basis.orbitals[coeff.b].subshell)
                     me = me + coeff.T * MabJohnsony / sqrt( ja + 1) * sqrt( (Basics.twice(fLevel.J) + 1))      ## * sqrt( jb + 1)
-                    ##x @show coeff.a, coeff.b, Mp, gauge, MbaJohnsonx, MabJohnsony, abs(MbaJohnsonx/MabJohnsony)
                 end
                 matrix[r,s] = me
             end
         end 
         if  printout   printstyled("done. \n", color=:light_green)    end
         amplitude = transpose(fLevel.mc) * matrix * iLevel.mc 
-        ##x @show "*******", iLevel.index, fLevel.index, amplitude, iLevel.J, fLevel.J
         #
         #
     elseif  kind == "absorption"
@@ -411,7 +409,6 @@ function  computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, g
     # Define a common subshell list for both multiplets
     subshellList = Basics.generate("subshells: ordered list for two bases", finalMultiplet.levels[1].basis, initialMultiplet.levels[1].basis)
     Defaults.setDefaults("relativistic subshell list", subshellList; printout=true)
-    ##x Defaults.setDefaults("standard grid", grid)
     println("")
     printstyled("PhotoEmission.computeLines(): The computation of the transition amplitudes and properties starts now ... \n", color=:light_green)
     printstyled("-------------------------------------------------------------------------------------------------------- \n", color=:light_green)
@@ -652,7 +649,6 @@ function  displayLifetimes(stream::IO, lines::Array{PhotoEmission.Line,1}, setti
     for  ii in  ilevels
         waCoulomb = waBabushkin = 0.
         for  i = 1:length(lines)
-            ##x @show  ii, lines[i].initialLevel.index
             if   lines[i].initialLevel.index == ii    
                 waCoulomb   = waCoulomb   + lines[i].photonRate.Coulomb
                 waBabushkin = waBabushkin + lines[i].photonRate.Babushkin
@@ -683,7 +679,6 @@ function  displayLifetimes(stream::IO, lines::Array{PhotoEmission.Line,1}, setti
         sa = sa * "Coulomb          " * @sprintf("%.6e",              1.0/irates[ii].Coulomb)     * "  "
         sa = sa * @sprintf("%.6e", Defaults.convertUnits("time: from atomic",   1.0/irates[ii].Coulomb) )   * "    "
         sa = sa * @sprintf("%.6e", Defaults.convertUnits("energy: from atomic",     irates[ii].Coulomb) )
-        ##x @show 1.0/Defaults.convertUnits("rate: from atomic",  irates[ii].Coulomb), irates[ii].Coulomb
         println(stream, sa)
         sa = repeat(" ", length(istr[ii]) )
         sa = sa * "Babushkin        " * @sprintf("%.6e",              1.0/irates[ii].Babushkin)   * "  "

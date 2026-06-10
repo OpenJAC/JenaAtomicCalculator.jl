@@ -69,9 +69,6 @@ function computeAngularCoefficients(scField::Basics.ALField, basis::Basis)
             push!(coeffs2px, SpinAngular.Coefficient2p(nu, a, b, c, d, V) );   V = 0.
         end 
     end
-    ##x @show "cc", length(coeffs1px), coeffs1px
-    ##x @show "cc", length(coeffs2px), coeffs2px
-    ##x error("xx")
         
     return( (coeffs1px, coeffs2px) )
 end
@@ -231,20 +228,16 @@ function initializeBasis(configs::Array{Configuration,1}, nuclearModel::Nuclear.
     # Generate a full set of relativistic CSF from the given configurations and collect the associated level symmetries
     relconfList = ConfigurationR[]
     for  conf in configs
-        ##x wa = Basics.generate("configuration list: relativistic", conf)
-        ##x wa = Basics.generateConfigurationRs(conf)
         wa = Basics.generateConfigurations(Basics.RelativisticConfigurations(), conf)
         append!( relconfList, wa)
     end
     if  printout    for  i = 1:length(relconfList)    println(">>> include ", relconfList[i])    end   end
-    ##x subshellList = Basics.generate("subshells: ordered list for relativistic configurations", relconfList)
     subshells = Basics.generateSubshellList(relconfList)
     Defaults.setDefaults("relativistic subshell list", subshells; printout=printout)
 
     # Generate the relativistic CSF's for the given subshell list
     csfList = CsfR[]
     for  relconf in relconfList
-        ##x newCsfs = Basics.generate("CSF list: from single ConfigurationR", relconf, subshells)
         newCsfs = Basics.generateCsfRs(relconf, subshells)
         append!( csfList, newCsfs)
     end
@@ -312,7 +305,6 @@ function performSCF(configs::Array{Configuration,1}, nm::Nuclear.Model, grid::Ra
     basis      = SelfConsistent.initializeBasis(configs, nm, primitives, settings; levelSymmetries, printout)
     
     # Solve a self-consistent field for this basis
-    ##x @show settings.scField
     if   typeof(settings.scField)  in  [Basics.DFSField, Basics.DFSwCPField, Basics.HSField]
         basis = SelfConsistent.solveMeanFieldBasis(basis, nm, primitives, settings; printout=printout) 
     elseif   settings.scField in [Basics.NuclearField()]  && settings.startScfFrom == StartFromHydrogenic() 
@@ -633,7 +625,6 @@ function solveMeanFieldBasis(basis::Basis, nuclearModel::Nuclear.Model, primitiv
                         sa = sa * @sprintf("%.4e", wcOrbital)   * "  ["
                         sa = sa * @sprintf("%.4e", wcBlock)             * " for sym-block kappa = $kappa]"
                         if  printout    println(sa)    end
-                    ##x println("  $sh  en [a.u.] = $(newOrbital.energy)   self-consistency = $(wcOrbital), $(wcBlock) [kappa=$kappa] ") 
                     previousOrbitals[sh] = newOrbital
                 end
             end

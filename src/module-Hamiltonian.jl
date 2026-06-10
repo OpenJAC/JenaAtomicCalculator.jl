@@ -61,8 +61,7 @@ function performCI(basis::Basis, nm::Nuclear.Model, grid::Radial.Grid, settings:
     for  (sym,v) in  symmetries
         # Skip the symmetry block if it not selected
         if  !Basics.selectSymmetry(sym, settings.levelSelectionCI)     continue    end
-        ##x matrix = compute("matrix: CI, J^P symmetry", sym, basis, nm, grid, settings; printout=printout)
-        matrix = Hamiltonian.setupMatrix(sym, basis, nm, grid, settings; printout=printout);   ##x @show matrix
+        matrix = Hamiltonian.setupMatrix(sym, basis, nm, grid, settings; printout=printout)
         eigen  = Basics.diagonalize("matrix: LinearAlgebra", matrix)
         
         # Reassign state vectors to levels
@@ -93,16 +92,10 @@ function performCI(basis::Basis, nm::Nuclear.Model, grid::Radial.Grid, settings:
     # Display all level energies and energy splittings
     if  printout
         Basics.tabulate(stdout, mp, levelNos)
-        ##x Basics.tabulate(stdout, "multiplet: energies", mp, levelNos)
-        ##x Basics.tabulate(stdout, "multiplet: energy relative to immediately lower level",    mp, levelNos)
-        ##x Basics.tabulate(stdout, "multiplet: energy of each level relative to lowest level", mp, levelNos)
     end
     printSummary, iostream = Defaults.getDefaults("summary flag/stream")
     if  printSummary     
         Basics.tabulate(iostream, mp, levelNos)
-        ##x Basics.tabulate(iostream, "multiplet: energies", mp, levelNos)
-        ##x Basics.tabulate(iostream, "multiplet: energy relative to immediately lower level",    mp, levelNos)
-        ##x Basics.tabulate(iostream, "multiplet: energy of each level relative to lowest level", mp, levelNos)
     end
 
     return( mp )
@@ -124,7 +117,6 @@ function performCIwithFrozenOrbitals(configs::Array{Configuration,1}, frozenOrbi
     # Generate a list of relativistic configurations and determine an ordered list of subshells for these configurations
     relconfList = ConfigurationR[]
     for  conf in configs
-        ##x wa = Basics.generateConfigurationRs(conf)
         wa = Basics.generateConfigurations(Basics.RelativisticConfigurations(), conf)
         append!( relconfList, wa)
     end
@@ -209,16 +201,10 @@ function performCIwithFrozenOrbitals(configs::Array{Configuration,1}, frozenOrbi
     # Display all level energies and energy splittings
     if  printout
         Basics.tabulate(stdout, mp, levelNos)
-        ##x Basics.tabulate(stdout, "multiplet: energies", mp, levelNos)
-        ##x Basics.tabulate(stdout, "multiplet: energy relative to immediately lower level",    mp, levelNos)
-        ##x Basics.tabulate(stdout, "multiplet: energy of each level relative to lowest level", mp, levelNos)
     end
     printSummary, iostream = Defaults.getDefaults("summary flag/stream")
     if  printSummary  &&  printout    
         Basics.tabulate(iostream, mp, levelNos)
-        ##x Basics.tabulate(iostream, "multiplet: energies", mp, levelNos)
-        ##x Basics.tabulate(iostream, "multiplet: energy relative to immediately lower level",    mp, levelNos)
-        ##x Basics.tabulate(iostream, "multiplet: energy of each level relative to lowest level", mp, levelNos)
     end
 
     return( mp )
@@ -258,7 +244,7 @@ function setupMatrix(sym::LevelSymmetry, basis::Basis, nm::Nuclear.Model, grid::
         for  s = 1:n
             if  settings.eeInteractionCI == DiagonalCoulomb()  &&  r != s    continue    end
             # Calculate the spin-angular coefficients
-            subshellList = basis.subshells;   ##x @show r, s, subshellList
+            subshellList = basis.subshells
             opa  = SpinAngular.OneParticleOperator(0, plus, true)
             waG1 = SpinAngular.computeCoefficients(opa, basis.csfs[idx_csf[r]], basis.csfs[idx_csf[s]], subshellList) 
             opa  = SpinAngular.TwoParticleOperator(0, plus, true)

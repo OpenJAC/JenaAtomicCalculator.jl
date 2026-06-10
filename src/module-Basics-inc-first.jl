@@ -348,9 +348,6 @@ function shellNotation(l::Int64)
     wa = [ "s", "p", "d", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "q", "r", "t", "u", "v", "w", "x", "y", "z"]
     return( wa[l+1] )  
     #
-    ##x !(0 <= l <= 25)      &&   error("Orbital QN 0 <= l <= 25; l = $l")
-    ##x wa = [ "s", "p", "d", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "q", "r", "t", "u", "v", "w", "x", "y", "z"]
-    ##x return( wa[l+1] )   
 end
 
 
@@ -680,7 +677,6 @@ end
 function Configuration(sa::String)
     sax = strip(sa)
     shellOccList = split(sax, " ")
-    ##x println("shellOccList = $shellOccList")
     NoElectrons = 0;    shellDict    = Dict{Shell,Int64}()
     for shocc in shellOccList
         if       shocc == " "    continue
@@ -819,7 +815,6 @@ function  Base.:(==)(confa::Configuration, confb::Configuration)
     if   confa.NoElectrons  != confb.NoElectrons    return( false )    end
     allShells = Base.merge(confa.shells, confb.shells)
     wk        = keys(allShells)
-    ##x @show confa, confb, wk
     for  k in wk
         if  haskey(confa.shells, k)   &&   haskey(confb.shells, k)  &&   
                                             confa.shells[k] != confb.shells[k]     return( false )    end
@@ -862,7 +857,6 @@ end
 # `Base.string(conf::ConfigurationR)`  ... provides a String notation for the variable conf::ConfigurationR.
 function Base.string(conf::ConfigurationR)
     wa = keys(conf.subshells);   va = values(conf.subshells)
-    ##x wb = Defaults.getDefaults("ordered subshell list: relativistic", 7)
     subshells = Subshell[];   for  k in wa    push!(subshells, k)    end
     sortedSubshells = Base.sort( subshells , lt=Base.isless)
 

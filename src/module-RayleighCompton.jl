@@ -269,7 +269,6 @@ function  computeChannelAmplitude(channel::RayleighCompton.Channel, finalLevel::
     # Analyse of whether there is a sign change in the denominator for the current and next function
     hasPole = false;    leftIdx = -99
     for  (ig, gLevel)  in  enumerate(gChannel.gMultiplet.levels)
-        ##x if channel.isS12    @show channel.isS12, ig, gLevel.energy, initialLevel.energy - gLevel.energy - channel.omega2   end
         if   ig == 1   continue
         elseif   channel.isS12   &&    sign(initialLevel.energy - gChannel.gMultiplet.levels[ig-1].energy - channel.omega2)  !=  
                                        sign(initialLevel.energy - gLevel.energy - channel.omega2)  
@@ -360,7 +359,6 @@ function determineChannels(finalLevel::Level, initialLevel::Level, inOmega::Floa
                     elseif (string(mp1)[1] == 'E' || string(mp2)[1] == 'E')  &&   gauge == Basics.UseBabushkin    
                         push!(channels, Channel(true,  symn, mp1, mp2, Basics.Babushkin, inOmega, outOmega, ComplexF64(0.)) ) 
                         push!(channels, Channel(false, symn, mp1, mp2, Basics.Babushkin, inOmega, outOmega, ComplexF64(0.)) ) 
-                        ##x @show  gauge, Channel(true,  symn, mp1, mp2, Basics.Babushkin, inOmega, outOmega, ComplexF64(0.))
                     elseif string(mp1)[1] == 'M' && string(mp2)[1] == 'M'
                         push!(channels, Channel(true,  symn, mp1, mp2, Basics.Magnetic,  inOmega, outOmega, ComplexF64(0.)) ) 
                         push!(channels, Channel(false, symn, mp1, mp2, Basics.Magnetic,  inOmega, outOmega, ComplexF64(0.)) ) 

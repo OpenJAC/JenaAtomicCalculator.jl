@@ -278,7 +278,6 @@ function isotope_smsB(a::Orbital, c::Orbital, Z::Float64, grid::Radial.Grid)
     mtp = min(size(a.P, 1), size(c.P, 1));   alphaZ = Defaults.getDefaults("alpha") * Z
     kapa = a.subshell.kappa;   mkapa = -kapa;    kapc = c.subshell.kappa;   mkapc = -kapc 
     
-    ##x @show AngularMomentum.sigma_reduced_me_ma(mkapa, kapc), AngularMomentum.sigma_reduced_me_mb(kapa,  mkapc)
     
     # Distinguish the radial integration for different grid definitions
     if  grid.meshType == Radial.MeshGrasp()
@@ -729,7 +728,6 @@ function SlaterRk_2dim(k::Int64, a::Radial.Orbital, b::Radial.Orbital, c::Radial
         for  r = 2:mtp_ac
             for  s = 2:mtp_bd   wa = wa + wac[r] * ul(grid.r[r], grid.r[s]) * wbd[s]   end
         end
-        ##x @show a.subshell, c.subshell, b.subshell, d.subshell, k, wa
         return( wa )
     else
         error("stop a")

@@ -308,7 +308,6 @@ function computeOutcomes(multiplet::Multiplet, nm::Nuclear.Model, grid::Radial.G
     printstyled("IsotopeShift.computeOutcomes(): The computation of the isotope-shift parameters starts now ... \n", color=:light_green)
     printstyled("-------------------------------------------------------------------------------------------------- \n", color=:light_green)
     #
-    ##x @show settings
     outcomes = IsotopeShift.determineOutcomes(multiplet, settings)
     # Display all selected levels before the computations start
     if  settings.printBefore    IsotopeShift.displayOutcomes(outcomes)    end

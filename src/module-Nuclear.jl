@@ -262,7 +262,6 @@ end
 function fermiDistributedNucleus(Rrms::Float64, Z::Float64, grid::Radial.Grid)
 
     zz = zeros(Float64, grid.NoPoints);   zznew = zeros(Float64, grid.NoPoints);   dx = zeros(Float64, grid.NoPoints)
-    ##x function  rho(r::Float64)  1.0 / (1.0 + exp( (r-fermiC_au)/fermiA_au ) )   end
     function  r_rho(r::Float64)  r / (1.0 + exp( (r-fermiC_au)/fermiA_au ) )   end
     function  rr_rho(r::Float64)  r^2 / (1.0 + exp( (r-fermiC_au)/fermiA_au ) )  end
 
@@ -311,7 +310,6 @@ end
 function uniformNucleus(R::Float64, Z::Float64, grid::Radial.Grid)
 
     zz = zeros(Float64, grid.NoPoints);   R_au = Defaults.convertUnits("length: from fm to atomic", R)
-    ##x println("uniformNucleus()::  R_au = $R_au")
 
     for i = 1:grid.NoPoints
         if     grid.r[i] <= R_au    zz[i] = Z / (2 * R_au) * (3. - grid.r[i]^2/R_au^2) * grid.r[i]

@@ -298,9 +298,6 @@ function  compute2pRDM(level::Level)
                             for  coeff in wa
                                 if  (p == coeff.a   &&  q == coeff.b   &&  r == coeff.c   &&  s == coeff.d)  ||  
                                     (p == coeff.c   &&  q == coeff.d   &&  r == coeff.a   &&  s == coeff.b)
-                                    ##x if  coeff.V != 0.  @show i, j, coeff.V    end
-                                    ##x jj = Basics.subshell_2j(level.basis.orbitals[coeff.a].subshell)
-                                    ##x rdm[ip,iq,ir,is] = rdm[ir,is,ip,iq] = rdm[ip,iq,ir,is] + level.mc[ir] * coeff.T * sqrt( jj + 1) * level.mc[is]
                                     rdm[ip,iq,ir,is] = rdm[ir,is,ip,iq] = rdm[ip,iq,ir,is] + level.mc[i] * coeff.V * level.mc[j]
                                 end
                             end

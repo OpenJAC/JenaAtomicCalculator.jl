@@ -663,7 +663,6 @@ function Basics.displayLevels(stream::IO, multiplets::Array{Multiplet,1}; N::Int
     for  (n, level)  in  enumerate(sortedLevels)
         if  n > N   break   end
         mc2  = level.mc .* level.mc;   index = findmax(mc2)[2]
-        ##x conf = Basics.extractNonrelativisticConfigurationFromCsfR(level.basis.csfs[index],  level.basis)
         conf = Basics.extractConfiguration(Basics.FromBasis(), level.basis, level.basis.csfs[index])
         #
         sa   = TableStrings.flushright(12, string(LevelSymmetry(level.J, level.parity)))  * 
@@ -714,7 +713,6 @@ function Basics.displayMeanEnergies(stream::IO, multiplets::Array{Multiplet,1}; 
     leadingConfigs = Configuration[]
     for  (n, level)  in  enumerate(sortedLevels)
         mc2  = level.mc .* level.mc;   index = findmax(mc2)[2]
-        ##x conf = Basics.extractNonrelativisticConfigurationFromCsfR(level.basis.csfs[index],  level.basis)
         conf = Basics.extractConfiguration(Basics.FromBasis(), level.basis, level.basis.csfs[index])
         push!(leadingConfigs, conf)
     end
@@ -955,7 +953,6 @@ end
 """
 function Basics.extractNonrelativisticShellList(multiplet::Multiplet) 
     shellList = Shell[]
-    ##x confs     = Basics.extractNonrelativisticConfigurations(multiplet.levels[1].basis)
     confs     = Basics.extractConfigurations(Basics.FromBasis(), multiplet.levels[1].basis)
     
     for conf in confs
@@ -1222,7 +1219,6 @@ function Basics.extractSubshellList(conf::Configuration, orbitals::Dict{Subshell
         if haskey(orbitals, subsh)    else   push!(notSubshells, subsh)   end
     end
     
-    ##x @show allSubshells, notSubshells
     
     return( notSubshells )
 end

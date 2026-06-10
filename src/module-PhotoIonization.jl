@@ -416,9 +416,6 @@ function  computeAmplitudesProperties(line::PhotoIonization.Line, nm::Nuclear.Mo
         end
     end
     Ji2 = Basics.twice(line.initialLevel.J)
-    ##x csFactor     = 4 * pi^2 * Defaults.getDefaults("alpha") * line.photonEnergy / (2*(Ji2 + 1))
-    ##x csFactor     = 4 * pi^2 * Defaults.getDefaults("alpha") / line.photonEnergy / (Ji2 + 1)
-    ##x csFactor     = 4 * pi^2 / Defaults.getDefaults("alpha") / line.photonEnergy / (Ji2 + 1)
     csFactor     = 8 * pi^3 / Defaults.getDefaults("alpha") / line.photonEnergy
     ##  csFactor     = csFactor / 2.   # Not fully clear, arises likely from the Rydberg normalization
     ##  Correct for energy normalization 
@@ -594,7 +591,6 @@ function  computeLinesCascade(finalMultiplet::Multiplet, initialMultiplet::Multi
         # Do not compute line if initial level is not in initialLevelSelection()
         ## @show Basics.selectLevel(line.initialLevel, initialLevelSelection), line.initialLevel.index
         if  !Basics.selectLevel(line.initialLevel, initialLevelSelection)   continue   ## @show "jump photoioization line";    continue  
-        ##x else @show "jump to be calculated";    continue 
         end
         #
         newLine = PhotoIonization.computeAmplitudesProperties(line, nm, grid, nrContinuum, settings, printout=printout) 
@@ -844,7 +840,6 @@ function determineChannels(finalLevel::Level, initialLevel::Level, settings::Pho
     if  Basics.UseCoulomb  in  settings.gauges   gaugeM = Basics.UseCoulomb    else   gaugeM = Basics.UseBabushkin    end
     for  mp in settings.multipoles
         symList = AngularMomentum.allowedMultipoleSymmetries(symi, mp)
-        ##x println("mp = $mp   symi = $symi   symList = $symList")
         for  symt in symList
             kappaList = AngularMomentum.allowedKappaSymmetries(symt, symf)
             for  kappa in kappaList
@@ -1026,7 +1021,6 @@ function  displayLines(stream::IO, lines::Array{PhotoIonization.Line,1})
                                                 line.channels[i].symmetry) )
             nchannels = nchannels + 1
         end
-        ##x println("PhotoIonization-diplayLines-ad: kappaMultipoleSymmetryList = ", kappaMultipoleSymmetryList)
         wa = TableStrings.kappaMultipoleSymmetryTupels(85, kappaMultipoleSymmetryList)
         sb = sa * wa[1];    println(stream,  sb )  
         for  i = 2:length(wa)
@@ -1138,8 +1132,6 @@ function  displayResults(stream::IO, lines::Array{PhotoIonization.Line,1}, setti
         sa = sa * TableStrings.flushleft(11, mpString[1:10];  na=2)
         sa = sa * @sprintf("%.6e", Defaults.convertUnits("cross section: from atomic", wx * line.crossSection.Coulomb))     * "    "
         sa = sa * @sprintf("%.6e", Defaults.convertUnits("cross section: from atomic", wx * line.crossSection.Babushkin))   * "                 "
-        ##x sa = sa * @sprintf("%.6e", line.crossSection.Coulomb)     * "    "
-        ##x sa = sa * @sprintf("%.6e", line.crossSection.Babushkin)   * "    "
         println(stream, sa)
     end
     println(stream, "  ", TableStrings.hLine(nx))
@@ -1468,11 +1460,8 @@ function  extractCrossSection(lines::Array{PhotoIonization.Line,1}, omega::Float
         if  line.initialLevel.index == initialLevel.index  &&  line.initialLevel.energy == initialLevel.energy  &&  
             line.photonEnergy       == omega 
             # Now determined of whether the photoionization refers to the given shell
-            ##x confi     = Basics.extractLeadingConfiguration(line.initialLevel)
-            ##x conff     = Basics.extractLeadingConfiguration(line.finalLevel)
             confi     = Basics.extractConfiguration(Basics.LeadingConfiguration(), line.initialLevel)
             conff     = Basics.extractConfiguration(Basics.LeadingConfiguration(), line.finalLevel)
-            ##x shellOccs = Basics.extractShellOccupationDifference(confi::Configuration, conff::Configuration)
             shellOccs = Basics.extractFromConfigurations(Basics.OccupationDifference(), confi, conff)
             if  length(shellOccs) > 1  ||  shellOccs[1][2] < 0      error("stop a")   end
             if  shellOccs[1][1] == shell   cs = cs + line.crossSection      end  

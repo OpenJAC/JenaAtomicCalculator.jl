@@ -561,11 +561,9 @@ function  computeInteractionAmplitudeT(mp::EmMultipole, aLevel::Level, bLevel, g
                         end 
                         # wb = wb + coeff.T * tamp   #Stephan
                         wb = wb + coeff.T * tamp/ sqrt( ja + 1) * sqrt( (Basics.twice(aLevel.J) + 1))    #Wu
-                        ##x  @show ja, jb, tamp 
                     end
             end 
             me = me + aLevel.mc[ia] * bLevel.mc[ib] * wb    
-            ##x @show aLevel.mc[ia], bLevel.mc[ib] 
         end 
     end 
 
@@ -733,7 +731,6 @@ function  computeInteractionMatrix(basis::Basis, grid::Radial.Grid, settings::Hf
                 subshellList = basis.subshells
                 opa = SpinAngular.OneParticleOperator(1, plus, true)
                 wa  = SpinAngular.computeCoefficients(opa, basis.csfs[r], basis.csfs[s], subshellList) 
-                ##x if  length(wa) != 0     println(  ">> Angular coeffients from SpinAngular = $wa ")    end
                 #
                 for  coeff in wa
                     ja   = Basics.subshell_2j(basis.orbitals[coeff.a].subshell)

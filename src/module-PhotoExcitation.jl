@@ -163,7 +163,6 @@ function  computeAmplitudesProperties(line::PhotoExcitation.Line, grid::Radial.G
     # Calculate the absorption oscillator strength
     oscCoulomb = oscBabushkin = 0.;   omega = line.omega;   alpha = Defaults.getDefaults("alpha")
     for  channel  in  newChannels
-        ##x wa = line.omega / (Basics.twice(channel.multipole.L) + 1) * (alpha * line.omega)^(2*channel.multipole.L - 2)
         wa = 8pi * alpha * line.omega / (Ji2 + 1) * (Jf2 + 1) / 2.
         #x @show  channel
         if      channel.gauge == Basics.Coulomb     oscCoulomb   = oscCoulomb    +  channel.amplitude * conj(channel.amplitude) * wa
@@ -260,7 +259,6 @@ function  computeLinesCascade(finalMultiplet::Multiplet, initialMultiplet::Multi
     newLines = PhotoExcitation.Line[]
     for  (i,line)  in  enumerate(lines)
         if  rem(i,200) == 0    println("> Excitation line $i:")   end
-        ##x @show Basics.selectLevel(line.initialLevel, initialLevelSelection)
         if  !Basics.selectLevel(line.initialLevel, initialLevelSelection)     continue    
         ## else @show "jump to be calculated";    continue 
         end
@@ -316,7 +314,6 @@ function determineChannels(finalLevel::Level, initialLevel::Level, settings::Pho
             end
         end
     end
-    ##x println("PhotoExcitation.determineChannels-aa: channels = $channels ")
     return( channels )  
 end
 
@@ -454,7 +451,6 @@ function  displayLines(stream::IO, lines::Array{PhotoExcitation.Line,1})
         for  i in 1:length(line.channels)
             push!( mpGaugeList, (line.channels[i].multipole, line.channels[i].gauge) )
         end
-        ##x println("PhotoExcitation.diplayLines-ad: mpGaugeList = ", mpGaugeList)
         sa = sa * TableStrings.multipoleGaugeTupels(50, mpGaugeList)
         println(stream, sa )
     end
@@ -541,8 +537,6 @@ function  displayCrossSections(stream::IO, lines::Array{PhotoExcitation.Line,1},
         sa = sa * TableStrings.flushleft(11, mpString[1:10];  na=5)
         sa = sa * @sprintf("%.4e", Defaults.convertUnits("cross section: from atomic", line.crossSection.Coulomb))     * "   "
         sa = sa * @sprintf("%.4e", Defaults.convertUnits("cross section: from atomic", line.crossSection.Babushkin))   * "    "
-        ##x sa = sa * @sprintf("%.6e", line.anisotropy.Coulomb)      * "    "
-        ##x sa = sa * @sprintf("%.6e", line.anisotropy.Babushkin)    * "    "
         println(stream, sa)
     end
     println(stream, "  ", TableStrings.hLine(nx))
@@ -675,7 +669,6 @@ function  estimateCrossSection(lines::Array{PhotoExcitation.Line,1}, omega::Floa
         end  
     end
     
-    ##x if  cs != Basics.EmProperty(0.)   @show  omega, gamma, cs    end
     
     return( cs )
 end

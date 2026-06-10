@@ -502,7 +502,6 @@ function extractOccupation(levels::Array{Cascade.Level,1}, groundConfigs::Array{
     #
     wocc = 0.
     for level in levels
-        ##x if  Basics.extractLeadingConfiguration(level) in groundConfigs   wocc = wocc + level.relativeOcc     end
         if  Basics.extractConfiguration(Basics.LeadingConfiguration(), level) in groundConfigs   wocc = wocc + level.relativeOcc     end
     end
 
@@ -564,13 +563,11 @@ function extractLevels(data::Array{Cascade.Data,1}, settings::Cascade.Simulation
         if  typeof(cData) == Cascade.Data{PhotoEmission.Line}
             linesR = cData.lines
             for  (i,line)  in  enumerate(linesR)
-                ##x major  = Basics.extractLeadingConfiguration(line.initialLevel)
                 major  = Basics.extractConfiguration(Basics.LeadingConfiguration(), line.initialLevel)
                 iLevel = Cascade.Level( line.initialLevel.energy, line.initialLevel.J, line.initialLevel.parity, line.initialLevel.basis.NoElectrons,
                                         major, line.initialLevel.relativeOcc, Cascade.LineIndex[],
                                         [ Cascade.LineIndex(linesR, Basics.Radiative(), i)] ) 
                 Cascade.pushLevels!(levels, iLevel)  
-                ##x major  = Basics.extractLeadingConfiguration(line.finalLevel)
                 major  = Basics.extractConfiguration(Basics.LeadingConfiguration(), line.finalLevel)
                 fLevel = Cascade.Level( line.finalLevel.energy, line.finalLevel.J, line.finalLevel.parity, line.finalLevel.basis.NoElectrons,
                                         major, line.finalLevel.relativeOcc, [ Cascade.LineIndex(linesR, Basics.Radiative(), i)], 
@@ -581,13 +578,11 @@ function extractLevels(data::Array{Cascade.Data,1}, settings::Cascade.Simulation
         elseif  typeof(cData) == Cascade.Data{AutoIonization.Line}
             linesA = cData.lines
             for  (i,line)  in  enumerate(linesA)
-                ##x major  = Basics.extractLeadingConfiguration(line.initialLevel)
                 major  = Basics.extractConfiguration(Basics.LeadingConfiguration(), line.initialLevel)
                 iLevel = Cascade.Level( line.initialLevel.energy, line.initialLevel.J, line.initialLevel.parity, line.initialLevel.basis.NoElectrons,
                                         major, line.initialLevel.relativeOcc, Cascade.LineIndex[], 
                                         [ Cascade.LineIndex(linesA, Basics.Auger(), i)] ) 
                 Cascade.pushLevels!(levels, iLevel)  
-                ##x major  = Basics.extractLeadingConfiguration(line.finalLevel)
                 major  = Basics.extractConfiguration(Basics.LeadingConfiguration(), line.finalLevel)
                 fLevel = Cascade.Level( line.finalLevel.energy, line.finalLevel.J, line.finalLevel.parity, line.finalLevel.basis.NoElectrons,
                                         major, line.finalLevel.relativeOcc, [ Cascade.LineIndex(linesA, Basics.Auger(), i)], Cascade.LineIndex[] ) 
@@ -597,12 +592,10 @@ function extractLevels(data::Array{Cascade.Data,1}, settings::Cascade.Simulation
         elseif  typeof(cData) == Cascade.Data{PhotoIonization.Line}
             linesP = cData.lines
             for  (i,line)  in  enumerate(linesP)
-                ##x major  = Basics.extractLeadingConfiguration(line.initialLevel)
                 major  = Basics.extractConfiguration(Basics.LeadingConfiguration(), line.initialLevel)
                 iLevel = Cascade.Level( line.initialLevel.energy, line.initialLevel.J, line.initialLevel.parity, line.initialLevel.basis.NoElectrons,
                                         major, line.initialLevel.relativeOcc, Cascade.LineIndex[], [ Cascade.LineIndex(linesP, Basics.Photo(), i)] ) 
                 Cascade.pushLevels!(levels, iLevel)  
-                ##x major  = Basics.extractLeadingConfiguration(line.finalLevel)
                 major  = Basics.extractConfiguration(Basics.LeadingConfiguration(), line.finalLevel)
                 fLevel = Cascade.Level( line.finalLevel.energy, line.finalLevel.J, line.finalLevel.parity, line.finalLevel.basis.NoElectrons,
                                         major, line.finalLevel.relativeOcc, [ Cascade.LineIndex(linesP, Basics.Photo(), i)], Cascade.LineIndex[] ) 
@@ -960,7 +953,6 @@ function propagateProbability!(levels::Array{Cascade.Level,1};
                         elseif  daugther.process == Basics.Photo()         line = daugther.lines[idx]
                         else    error("stop b; process = $(daugther.process) ")
                         end
-                        ##x major    = Basics.extractLeadingConfiguration(line.finalLevel)
                         major    = Basics.extractConfiguration(Basics.LeadingConfiguration(), line.finalLevel)
                         newLevel = Cascade.Level( line.finalLevel.energy, line.finalLevel.J, line.finalLevel.parity, 
                                                     line.finalLevel.basis.NoElectrons, major, 0., Cascade.LineIndex[], Cascade.LineIndex[] )
@@ -1465,8 +1457,6 @@ function simulatePhotoAbsorptionSpectrum(simulation::Cascade.Simulation,
         # all levels with iocc != focc + 1 for just one of the shells
         newLinesP = PhotoIonization.Line[];    newLinesE = PhotoExcitation.Line[]
         for  line in linesP
-            ##x iConf = Basics.extractLeadingConfiguration(line.initialLevel)
-            ##x fConf = Basics.extractLeadingConfiguration(line.finalLevel)
             iConf = Basics.extractConfiguration(Basics.LeadingConfiguration(), line.initialLevel)
             fConf = Basics.extractConfiguration(Basics.LeadingConfiguration(), line.finalLevel)
             diffInsideShells = 0;   diffOutsideShells = 0;   addLine = true;   diff = 0
@@ -1478,18 +1468,14 @@ function simulatePhotoAbsorptionSpectrum(simulation::Cascade.Simulation,
                     end     
                 else    diffOutsideShells = diffOutsideShells + abs(occ - fConf.shells[sh]) 
                 end
-                ##x @show  paProperty.shells, sh, diff, diffInsideShells, diffOutsideShells, addLine
             end
             if  addLine  &&  diffInsideShells == 1  &&   diffOutsideShells == 0
                 push!(newLinesP, line)  
-                ##x  @show paProperty.shells, diffInsideShells, diffOutsideShells
             end
         end
         linesP = newLinesP
     
         for  line in linesE
-            ##x iConf = Basics.extractLeadingConfiguration(line.initialLevel)
-            ##x fConf = Basics.extractLeadingConfiguration(line.finalLevel)
             iConf = Basics.extractConfiguration(Basics.LeadingConfiguration(), line.initialLevel)
             fConf = Basics.extractConfiguration(Basics.LeadingConfiguration(), line.finalLevel)
             diffInsideShells = 0;   diffOutsideShells = 0;   addLine = true;   diff = 0
@@ -1658,7 +1644,6 @@ function simulateRrRateCoefficients(lines::Array{PhotoRecombination.Line,1}, sim
             if   length(simulation.property.finalConfigurations) > 0
                 # If finalConfigurations are given, only their contributions are counted and all final levels just
                 # refer to these configurations
-                ##x finalConfigurations = Basics.extractNonrelativisticConfigurations(line.finalLevel.basis)
                 finalConfigurations = Basics.extractConfigurations(Basics.FromBasis(), line.finalLevel.basis)
                 if  !(finalConfigurations[1]  in  simulation.property.finalConfigurations)           continue    end
                 if   simulation.property.finalLevelSelection.active  &&  
@@ -1744,14 +1729,12 @@ function specifyInitialOccupation!(levels::Array{Cascade.Level,1}, leadingConfig
     #
     nx = 0
     for  lev = 1:length(levels)
-        ##x if  Basics.extractLeadingConfiguration(levels[lev])  in  leadingConfigs   nx = nx + 1    end
         if  Basics.extractConfiguration(Basics.LeadingConfiguration(), levels[lev])  in  leadingConfigs   nx = nx + 1    end
     end
     if  nx == 0     error("Inappropriate selection of leading configurations for the given set of cascade levels.")     end
     #
     # Now distribute the occupation
     for  lev = 1:length(levels)
-        ##x if  Basics.extractLeadingConfiguration(levels[lev]) in leadingConfigs   levels[lev].relativeOcc = 1/nx    end
         if  Basics.extractConfiguration(Basics.LeadingConfiguration(), levels[lev]) in leadingConfigs   levels[lev].relativeOcc = 1/nx    end
     end
 

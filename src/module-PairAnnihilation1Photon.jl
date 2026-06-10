@@ -173,7 +173,6 @@ function determineChannels(finalLevel::Level, initialLevel::Level, settings::Pai
     for  mp in settings.multipoles
         for  gauge in settings.gauges
             symList = AngularMomentum.allowedMultipoleSymmetries(symi, mp)
-            ##x println("mp = $mp   symi = $symi   symList = $symList")
             for  symt in symList
                 kappaList = AngularMomentum.allowedKappaSymmetries(symt, symf)
                 for  kappa in kappaList

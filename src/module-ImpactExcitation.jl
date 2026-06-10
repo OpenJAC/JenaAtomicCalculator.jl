@@ -239,8 +239,6 @@ function amplitude(kind::AbstractEeInteraction, channel::ImpactExcitation.Channe
                                 "and for partial waves $(string(fPartial)[2:end]),  $(string(iPartial)[2:end])... ", color=:light_green) end
     matrix = zeros(Float64, nf, ni)
     #
-    ##x @show cInitialLevel.basis.subshells
-    ##x @show cFinalLevel.basis.subshells
     if  cInitialLevel.basis.subshells == cFinalLevel.basis.subshells
         iLevel = cInitialLevel;   fLevel = cFinalLevel
     else

@@ -227,7 +227,6 @@ function Basics.isViolated(conf::Configuration, restriction::AbstractConfigurati
         end
         if  dis > restriction.maxDisplace                                                      wa = true   end
     elseif  typeof(restriction) == RestrictParity
-        ##x if  Basics.determineParity(conf) != restriction.parity    wa = true   end
         if  Basics.extractFromConfiguration(Basics.GetParity(), conf) != restriction.parity    wa = true   end
     elseif  typeof(restriction) == RestrictToShellDoubles
         for (sh,v) in  conf.shells
@@ -425,8 +424,6 @@ function Basics.modifyLevelMixing(level::Level, enhancementFaktor::Float64)
     wx  = 0.;          for  mc  in  mcx   wx = wx + abs(mc)^2         end
     mcy = Float64[];   for  mc  in  mcx   push!(mcy, mc / sqrt(wx))   end
     wy  = 0.;          for  mc  in  mcy   wy = wy + abs(mc)^2         end
-    ##x @show  " ", level.mc
-    ##x @show  mcy, wx, wy
     
     newLevel = Level(level.J, level.M, level.parity, level.index, level.energy, level.relativeOcc, 
                      level.hasStateRep, level.basis, mcy)

@@ -232,7 +232,6 @@ function expandLevelsIntoLS(multiplet::Multiplet, settings::ManyElectron.LSjjSet
     # Make the jj-LS expansion of all selected levels
     if  Basics.isStandardSubshellList(multiplet.levels[1].basis)
         shellList = Basics.extractNonrelativisticShellList(multiplet.levels[1].basis.subshells) 
-        ##x confList  = Basics.extractNonrelativisticConfigurations(multiplet.levels[1].basis)
         confList  = Basics.extractConfigurations(Basics.FromBasis(), multiplet.levels[1].basis)
         csfsNR    = LSjj.generateNonrelativisticCsfList(confList, shellList)
         basisNR   = BasisNR(multiplet.levels[1].basis.NoElectrons, shellList, csfsNR)
@@ -249,9 +248,7 @@ function expandLevelsIntoLS(multiplet::Multiplet, settings::ManyElectron.LSjjSet
             csfR = multiplet.levels[1].basis.csfs[r]
             # Cycle over this CSF if it has too low weight (not yet)
             # Determine the number of open shells in CsfR
-            ##x conf       = Basics.extractNonrelativisticConfigurationFromCsfR(csfR, multiplet.levels[1].basis)
             conf       = Basics.extractConfiguration(Basics.FromBasis(), multiplet.levels[1].basis, csfR)
-            ##x openShells = Basics.extractNoOpenShells(conf)
             openShells = Basics.extractFromConfiguration(Basics.OpenShellNumber(),conf)
             mcCsfR     = LSjj.expandCsfRintoNonrelativisticBasis(openShells, csfR, multiplet.levels[1].basis, basisNR)
             # Cycle through all selected levels    
@@ -369,10 +366,8 @@ end
 function expandCsfRintoNonrelativisticBasis(openShells::ZeroOpenShell, csfR::CsfR, basisR::Basis, basisNR::BasisNR)
     if  csfR.J != AngularJ64(0)  ||   csfR.parity != Basics.plus    error("stop a")   end
     mcVector = Float64[]
-    ##x confR     = Basics.extractNonrelativisticConfigurationFromCsfR(csfR,  basisR)
     confR     = Basics.extractConfiguration(Basics.FromBasis(), basisR, csfR)
     for  csf in basisNR.csfs
-        ##x confNR = LSjj.extractConfigurationFromCsfNR(csf, basisNR)   
         confNR = Basics.extractConfiguration(Basics.NonrelativisticBasis(), csf, basisNR)   
         if      confR == confNR    push!( mcVector, 1.0)
         else                       push!( mcVector, 0.0)
@@ -601,7 +596,6 @@ function expandCsfRintoNonrelativisticBasis(openShells::ThreeOpenShells, csfR::C
                             wa2 = LSjj.getLSjjCoefficient(rsh2.l, N2, LS_jj_qn(w2, QQ2, LL2, SS2, Basics.twice(T2), Nm2, QQm2, JJm2, QQp2, JJp2) )
                             wa3 = LSjj.getLSjjCoefficient(rsh3.l, N3, LS_jj_qn(w3, QQ3, LL3, SS3, Basics.twice(T3), Nm3, QQm3, JJm3, QQp3, JJp3) )
                             for  T12 in T12List
-                                ##x println("T1 = $T1   T2 = $T2   T3 = $T3   wa1 = $wa1   wa2 = $wa2   wa3 = $wa3")
                                 if AngularMomentum.triangularDelta(T1,Jm1,Jp1) == 1  &&  T1 == Xp1  &&
                                 AngularMomentum.triangularDelta(T2,Jm2,Jp2) == 1  &&  AngularMomentum.triangularDelta(T3,Jm3,Jp3) == 1
                                     me  = me + sqrt(AngularMomentum.bracket([T1, T2, T3, T12, L12, L123, S12, S123])) * 
@@ -650,7 +644,6 @@ function extractConfigurationWeightsOfLevelNR(levelNR::LevelNR)
     weights = Dict{String,Float64}()
     for  s = 1:length(levelNR.basis.csfs)
         csf  = levelNR.basis.csfs[s];    weight = abs(levelNR.mc[s])^2
-        ##x conf = Base.string(LSjj.extractConfigurationFromCsfNR(csf, levelNR.basis))
         conf = Base.string( Basics.extractConfiguration(Basics.NonrelativisticBasis(), csf, levelNR.basis) )
         if      haskey(weights, conf)    weights[conf] = weights[conf] + weight
         else    weights = Base.merge( weights, Dict( conf => weight))
@@ -694,7 +687,6 @@ function generateNonrelativisticCsfList(confList::Array{Configuration,1}, shellL
 
     # Cycle through all configurations 
     for conf  in  confList
-        ##x first = true;    parity  = Basics.determineParity(conf)
         first = true;    parity  = Basics.extractFromConfiguration(Basics.GetParity(), conf)
         for  shell  in shellList
             if   shell  in  keys(conf.shells)    occ = conf.shells[shell]    else    occ = 0    end
@@ -712,7 +704,6 @@ function generateNonrelativisticCsfList(confList::Array{Configuration,1}, shellL
                 # Now support also all couplings of the subshell states with the CSFs that were built-up so far
                 stateList   = LSjj.provideShellStates(shell, occ)
                 currentCsfs = CsfNR[]
-                ##x for  i = 1:length(previousCsfs)    println("generate-aa: ", previousCsfs[i])    end
                 for  csf in  previousCsfs
                     for  state in stateList
                         occupation = deepcopy(csf.occupation);    w = deepcopy(csf.w);    QQ = deepcopy(csf.QQ);    
@@ -738,13 +729,11 @@ function generateNonrelativisticCsfList(confList::Array{Configuration,1}, shellL
     currentCsfs = CsfNR[]
     for  csf in  csfList   #### previousCsfs
         newJList = oplus( csf.shellLX[end], csf.shellSX[end] )
-        ##x println("abc: LX = $(csf.shellLX[end])   SX = $(csf.shellSX[end])   newJList = $newJList")
         for  newJ in newJList
             push!( currentCsfs, CsfNR( newJ, csf.parity, csf.occupation, csf.w, csf.QQ, csf.shellL, csf.shellS, csf.shellLX, csf.shellSX) )
         end
     end
     
-    ##x println("Final Csfs = $currentCsfs ")
     return( currentCsfs )
 end
 
@@ -1193,7 +1182,6 @@ end
 function getLSjjCoefficient(l::Int64, N::Int64, qn::LS_jj_qn)
     global  LS_jj_p_3,  LS_jj_p_4,  LS_jj_p_5,  LS_jj_p_6,  LS_jj_d_3,  LS_jj_d_4,  LS_jj_d_5,  LS_jj_d_6,  LS_jj_d_7,
             LS_jj_d_8,  LS_jj_d_9,  LS_jj_d_10,  LS_jj_f_3,  LS_jj_f_4,  LS_jj_f_5,  LS_jj_f_6
-    ##x println("getLSjjCoefficient: aa  l = $l   N = $N   qn.w = $(qn.w)")
     #
     wa = 0.
     # Deal separately with the occupations N = 0, 1, 2  before the matrix elements are taken from some predefined lists
@@ -1230,9 +1218,7 @@ function getLSjjCoefficient(l::Int64, N::Int64, qn::LS_jj_qn)
         elseif  N == 4   ## Use data from the array LS_jj_p_4
             for  me  in  LS_jj_p_4    if  qn == me.qn    wa = me.factor * sqrt( me.nom/me.denom );    break    end    end
         elseif  N == 5   ## Use data from the array LS_jj_p_5
-            ##x println("getLSjjCoefficient: bb")
             for  me  in  LS_jj_p_5    
-                ##x println("** qn = $qn       me.qn = $(me.qn)")
                 if  qn == me.qn    wa = me.factor * sqrt( me.nom/me.denom );    break    end    
             end
         elseif  N == 6   ## Use data from the array LS_jj_p_6
@@ -1271,7 +1257,6 @@ function getLSjjCoefficient(l::Int64, N::Int64, qn::LS_jj_qn)
         end
     else        error("stop g")
     end
-    ##x println("getLSjjCoefficient: cc     wa = $wa")
     
     return(wa)
 end

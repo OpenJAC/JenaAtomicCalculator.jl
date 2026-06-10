@@ -246,7 +246,6 @@ function generateConfigurationsForStepwiseDecay(scheme::Cascade.StepwiseDecaySch
         for shell in decayShells    if  haskey(nshells, shell)   else    nshells[shell] = 0    end   end
         push!(newConfigs, Configuration(nshells, conf.NoElectrons))
     end
-    ##x newConfigs = Basics.excludeConfigurations(newConfigs, initialNo-maxElectronLoss)
     newConfigs = Basics.extractConfigurations(Basics.ByNumber([initialNo-maxElectronLoss]), newConfigs)
     @show "a", newConfigs
     # Now add all decay configurations
@@ -282,7 +281,6 @@ function generateConfigurationsForStepwiseDecay(scheme::Cascade.StepwiseDecaySch
         if length(dConfigs) > 0     append!(decayConfigs, dConfigs)     else   further = false      end
     end
     decayConfigs = unique(decayConfigs)
-    ##x decayConfigs = Basics.excludeConfigurations(decayConfigs, initialNo-maxElectronLoss)
     decayConfigs = Basics.extractConfigurations(Basics.ByNumber([initialNo-maxElectronLoss]), decayConfigs)
     allConfigs   = append!(allConfigs, decayConfigs)
     dConfigs     = copy(newConfigs)
@@ -293,7 +291,6 @@ function generateConfigurationsForStepwiseDecay(scheme::Cascade.StepwiseDecaySch
         if length(dConfigs) > 0     append!(decayConfigs, dConfigs)     else   further = false      end
     end
     decayConfigs = unique(decayConfigs)
-    ##x decayConfigs = Basics.excludeConfigurations(decayConfigs, initialNo-maxElectronLoss)
     decayConfigs = Basics.extractConfigurations(Basics.ByNumber([initialNo-maxElectronLoss]), decayConfigs)
     allConfigs   = append!(allConfigs, decayConfigs)
     dConfigs     = copy(decayConfigs)
@@ -305,7 +302,6 @@ function generateConfigurationsForStepwiseDecay(scheme::Cascade.StepwiseDecaySch
     end
     allConfigs   = append!(allConfigs, decayConfigs)
     allConfigs   = unique(allConfigs)
-    ##x allConfigs   = Basics.excludeConfigurations(allConfigs, initialNo-maxElectronLoss)
     allConfigs   = Basics.extractConfigurations(Basics.ByNumber([initialNo-maxElectronLoss]), allConfigs)
     #
     # Discard configurations with energies higher than initial configurations after electron capture;
@@ -333,8 +329,6 @@ function perform(scheme::StepwiseDecayScheme, comp::Cascade.Computation; output:
     #
     # Perform the SCF and CI computation for the intial-state multiplets if initial configurations are given
     if  comp.initialConfigs != Configuration[]
-        ##x basis      = Basics.performSCF(comp.initialConfigs, comp.nuclearModel, comp.grid, comp.asfSettings; printout=false)
-        ##x multiplet  = Basics.performCI(basis, comp.nuclearModel, comp.grid, comp.asfSettings; printout=false)
         multiplet  = SelfConsistent.performSCF(comp.initialConfigs, comp.nuclearModel, comp.grid, comp.asfSettings; printout=false)
         basis      = multiplet.levels[1].basis
         multiplets = [Multiplet("initial states", multiplet.levels)]
@@ -357,15 +351,9 @@ function perform(scheme::StepwiseDecayScheme, comp::Cascade.Computation; output:
     append!(decayConfigs, initialConfigs)
     NoElectrons     = unique( Basics.extractFromConfigurations(Basics.NumberOfElectrons(), decayConfigs) )
     Basics.displayConfigurations(stdout, Basics.ByNumber(NoElectrons), decayConfigs, details="decay configurations")
-    ##x wa   = Cascade.generateConfigurationsForStepwiseDecay(comp.scheme, comp.initialConfigs)
-    ##x wb  = Cascade.groupDisplayConfigurationList(comp.nuclearModel.Z, wa, sa="decay ")
-    ##x wbx = Cascade.groupDisplayConfigurationList(comp.nuclearModel.Z, wax, sa="OLD decay ")
-    ##x wb  = Basics.displayConfigurations(comp.nuclearModel.Z, wa, sa="decay ")
     #
     # Determine first all configuration 'blocks' and from them the individual steps of the cascade
-    ##x wc = Cascade.generateBlocks(comp, wb, basis.orbitals, sa="for the decay cascade:")
     wc = Cascade.generateBlocks(comp, decayConfigs, basis.orbitals, sa="for the decay cascade:")
-    ##x error("xxx")
     Cascade.displayBlocks(stdout, wc, sa="for the decay cascade ")
     if  printSummary   Cascade.displayBlocks(iostream, wc, sa="for the decay cascade ")    end 
     gMultiplets = Multiplet[];     for block in wc  push!(gMultiplets, block.multiplet)    end

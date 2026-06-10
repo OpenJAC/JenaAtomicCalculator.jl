@@ -177,7 +177,6 @@ function  amplitude(kind::String, rLevel::Level, sLevel::Level, grid::Radial.Gri
                 #
                 for  coeff in wa
                     tamp  = InteractionStrength.zeeman_n1(rLevel.basis.orbitals[coeff.a], sLevel.basis.orbitals[coeff.b], grid)
-                    ##x @show "***** n1-amplitude", coeff.a, coeff.b, tamp
                     me = me + coeff.T * tamp  
                 end
             #
@@ -196,12 +195,10 @@ function  amplitude(kind::String, rLevel::Level, sLevel::Level, grid::Radial.Gri
             end
             #
             matrix[r,s] = me
-            ##x @show r, s, me
         end
     end
     printstyled("done.\n", color=:light_green)
     amplitude = transpose(rLevel.mc) * matrix * sLevel.mc 
-    ##x @show "*****", rLevel.J, sLevel.J, amplitude
     #
     return( amplitude )
 end
@@ -230,8 +227,6 @@ function amplitudeN1(kind::String, rLevel::Level, sLevel::Level, grid::Radial.Gr
                 wa  = SpinAngular.computeCoefficients(opa, rLevel.basis.csfs[r], sLevel.basis.csfs[s], subshellList) 
                 #
                 for  coeff in wa
-                    ##x ja   = Basics.subshell_2j(rLevel.basis.orbitals[coeff.a].subshell)
-                    ##x jb   = Basics.subshell_2j(sLevel.basis.orbitals[coeff.b].subshell)
                     tamp = InteractionStrength.zeeman_n1(rLevel.basis.orbitals[coeff.a], sLevel.basis.orbitals[coeff.b], grid)
                     matrix[r,s] = matrix[r,s] + coeff.T * tamp  
                 end
@@ -277,7 +272,6 @@ function  computeAmplitudesProperties(outcome::LandeZeeman.Outcome, grid::Radial
         #       
         LandeJ = 2*(amplitudeN1 + amplitudeDeltaN1) / sqrt(J*(J+1))    
     end
-    ##x @show J, LandeJ, amplitudeN1, amplitudeDeltaN1
     
 
     if settings.calcQZScoeff  &&  outcome.nuclearI != AngularJ64(0)
@@ -346,7 +340,6 @@ function  computeQuadraticZeemanC2(level::Level, Jsub::SublevelJ, grid::Radial.G
         c2 = c2 + cg^2 / (level.energy - nLevel.energy) * amp^2
         @show  "compute c2: cc", amplitudeN1, amplitudeDeltaN1, c2
 
-        ##x w3jValue = AngularMomentum.Wigner_3j(level.J, AngularJ64(1), ilevel.J, Jsub.M, AngularM64(0), AngularM64(-Jsub.M.num//Jsub.M.den))
     end
 
     conv = 0.11909076 #Conversion Factor from atomic units to MHz/T^2

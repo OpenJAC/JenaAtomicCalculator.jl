@@ -426,7 +426,6 @@ function  displayLifetimes(stream::IO, lines::Array{TwoElectronOnePhoton.Line,1}
         sa = sa * "Coulomb          " * @sprintf("%.6e",              1.0/irates[ii].Coulomb)     * "  "
         sa = sa * @sprintf("%.6e", Defaults.convertUnits("time: from atomic",   1.0/irates[ii].Coulomb) )   * "    "
         sa = sa * @sprintf("%.6e", Defaults.convertUnits("energy: from atomic",     irates[ii].Coulomb) )
-        ##x @show 1.0/Defaults.convertUnits("rate: from atomic",  irates[ii].Coulomb), irates[ii].Coulomb
         println(stream, sa)
         sa = repeat(" ", length(istr[ii]) )
         sa = sa * "Babushkin        " * @sprintf("%.6e",              1.0/irates[ii].Babushkin)   * "  "

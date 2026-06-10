@@ -121,12 +121,10 @@ include("module-Nuclear.jl");           using ..Nuclear
 include("module-AngularMomentum.jl")
 ## include("module-AngularCoefficients-Ratip2013.jl")  ## keep for internal test purposes only
 include("module-SpinAngular.jl");       using ..SpinAngular
-##x include("module-Bsplines.jl");          using ..Bsplines
 include("module-BsplinesN.jl");         using ..BsplinesN
 include("module-Pulse.jl");             using ..Pulse
 include("module-Beam.jl")
 include("module-Continuum.jl")
-##x include("module-Details.jl")
 include("module-RadialIntegrals.jl");   using ..RadialIntegrals
 include("module-HydrogenicIon.jl")
 include("module-InteractionStrength.jl")

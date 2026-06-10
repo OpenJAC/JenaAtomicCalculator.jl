@@ -414,7 +414,7 @@ function normalizeOrbitalOngRussek(cOrbital::Orbital, pot::Radial.Potential, set
     A = (( (E-V)^2 -wc^4 - wc^2 *kappa*(kappa+1)/r0^2)^(1/2)) / (E-V+wc^2) * (Pe^2 + U^2)
     A = sqrt(A);              phir0 = atan(U, Pe)
     phi = phir0 - q*r0;       N  = 1 / (A * sqrt(pi*wc))
-    phi = rem(phi+1000pi, pi)    ##x to bring phi in the interval 0. <= phi < pi
+    phi = rem(phi+1000pi, pi)    ## to bring phi in the interval 0. <= phi < pi
     
     println(">> WKB (Ong-Russek) normalized continuum orbital with normalization constant N=" * @sprintf("%.4e",N) *
             " and phase phi=" * @sprintf("%.4e",phi) *

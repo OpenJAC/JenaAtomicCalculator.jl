@@ -32,7 +32,6 @@ function computeSteps(scheme::Cascade.PhotoExcitationScheme, comp::Cascade.Compu
                                                 "giving now rise to a total of $nt $(string(step.process)) decay lines." )   end      
     end
     #
-    ##x data = Cascade.ExcitationData(linesE)
     return( linesE )
 end
 
@@ -95,10 +94,7 @@ function generateBlocks(scheme::Cascade.PhotoExcitationScheme, comp::Cascade.Com
         for  confa  in confs
             print("  Multiplet computations for $(string(confa)[1:end])   with $(confa.NoElectrons) electrons ... ")
             if  printSummary   println(iostream, "\n*  Multiplet computations for $(string(confa)[1:end])   with $(confa.NoElectrons) electrons ... ")   end
-            ##x basis     = Basics.performSCF([confa], comp.nuclearModel, comp.grid, comp.asfSettings; printout=false)
             multiplet = SelfConsistent.performSCF([confa], comp.nuclearModel, comp.grid, comp.asfSettings; printout=false)
-            ##x multiplet = Basics.perform("computation: mutiplet from orbitals, no CI, CSF diagonal", [confa],  basis.orbitals, 
-            ##x                            comp.nuclearModel, comp.grid, comp.asfSettings; printout=false)
             multiplet = Hamiltonian.performCIwithFrozenOrbitals([confa], multiplet.levels[1].basis.orbitals, 
                                                                 comp.nuclearModel, comp.grid, comp.asfSettings; printout=false)
             push!( blockList, Cascade.Block(confa.NoElectrons, [confa], true, multiplet) )
@@ -122,7 +118,6 @@ function generateConfigurationsForPhotoexcitation(multiplets::Array{Multiplet,1}
     # Determine all (reference) configurations from multiplets and generate the 'excited' configurations due to the specificed excitations
     initialConfList = Configuration[]
     for mp  in  multiplets   
-        ##x confList = Basics.extractNonrelativisticConfigurations(mp.levels[1].basis)
         confList = Basics.extractConfigurations(Basics.FromBasis(), mp.levels[1].basis)
         for  conf in confList   if  conf in initialConfList   nothing   else   push!(initialConfList, conf)      end      end
     end
@@ -130,25 +125,20 @@ function generateConfigurationsForPhotoexcitation(multiplets::Array{Multiplet,1}
     # Exclude configurations with too low or too high mean energies as well as those that are parity forbidden for the given multipoles
     hasPlus = false;   hasMinus = false
     for  conf  in  initialConfList   
-        ##x if  Basics.determineParity(conf) == Basics.plus   hasPlus = true    else   hasMinus = true      end
         if  Basics.extractFromConfiguration(Basics.GetParity(), conf) == Basics.plus   hasPlus = true    else   hasMinus = true      end
     end
     en     = Float64[];   
-    ##x for conf in initialConfList    push!(en, -Semiempirical.estimate("binding energy: XrayDataBooklet", round(Int64, nm.Z), conf))   end
     for conf in initialConfList    push!(en, Empirical.totalEnergy(round(Int64, nm.Z), conf, data = PeriodicTable.XrayDataBooklet() ))    end
     maxen  = maximum(en);    minen  = minimum(en);  
     println(">>> initial configuration(s) have energies from $minen  to  $maxen  [a.u.].")
     #
     newBlockConfList = Configuration[]
-    ##x for  conf  in  blockConfList    meanEnergy = -Semiempirical.estimate("binding energy: XrayDataBooklet", round(Int64, nm.Z), conf)
     for  conf  in  blockConfList    meanEnergy = Empirical.totalEnergy(round(Int64, nm.Z), conf, data = PeriodicTable.XrayDataBooklet() )
         minEn = 0.2* Defaults.convertUnits("energy: from predefined to atomic unit", scheme.minPhotonEnergy) 
         maxEn = 5*   Defaults.convertUnits("energy: from predefined to atomic unit", scheme.maxPhotonEnergy) 
         if  minen + minEn  <= meanEnergy <= maxen + maxEn
             if      hasPlus  &&  hasMinus                                                                        push!(newBlockConfList, conf)   
             elseif  M1 in scheme.multipoles  ||  E2 in scheme.multipoles  ||  M2 in scheme.multipoles            push!(newBlockConfList, conf)  
-            ##x elseif  hasPlus  &&  E1 in scheme.multipoles  &&   Basics.determineParity(conf) == Basics.minus      push!(newBlockConfList, conf)  
-            ##x elseif  hasMinus &&  E1 in scheme.multipoles  &&   Basics.determineParity(conf) == Basics.plus       push!(newBlockConfList, conf)  
             elseif  hasPlus  &&  E1 in scheme.multipoles  &&   Basics.extractFromConfiguration(Basics.GetParity(), conf) == Basics.minus 
                 push!(newBlockConfList, conf)  
             elseif  hasMinus &&  E1 in scheme.multipoles  &&   Basics.extractFromConfiguration(Basics.GetParity(), conf) == Basics.plus 
@@ -180,8 +170,6 @@ function perform(scheme::PhotoExcitationScheme, comp::Cascade.Computation; outpu
     #
     # Perform the SCF and CI computation for the intial-state multiplets if initial configurations are given
     if  comp.initialConfigs != Configuration[]
-        ##x basis      = Basics.performSCF(comp.initialConfigs, comp.nuclearModel, comp.grid, comp.asfSettings; printout=false)
-        ##x multiplet  = Basics.performCI(basis, comp.nuclearModel, comp.grid, comp.asfSettings; printout=false)
         multiplet  = SelfConsistent.performSCF(comp.initialConfigs, comp.nuclearModel, comp.grid, comp.asfSettings; printout=false)
         multiplets = [Multiplet("initial states", multiplet.levels)]
     else

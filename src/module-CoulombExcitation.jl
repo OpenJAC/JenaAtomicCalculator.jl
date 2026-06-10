@@ -704,7 +704,6 @@ function  computeAmplitude(channel::CoulombExcitation.Channel, Mi::AngularM64, M
             wc = wc - beta * AngularMomentum.ClebschGordan(Lx, 0., 1., 0., tx, 0.) *
                       CoulombExcitation.computeKjTme(line.finalLevel, t, line.initialLevel)
             if  abs(Mint) > Lint   continue   end
-            ##x @show Lint, Mint, acos(line.q0/channel.q), wc
             wc = im^Lx * conj( AngularMomentum.sphericalYlm(Lint, Mint, acos(line.q0/channel.q), 0.) ) * wc
             wb = wb + wc
         end

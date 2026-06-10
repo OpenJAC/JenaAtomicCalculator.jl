@@ -143,7 +143,6 @@ function Basics.generate(repType::AtomicState.CiExpansion, rep::AtomicState.Repr
     # Generate a list of relativistic configurations and  CSF's for the given subshell list
     relconfList = ConfigurationR[]
     for  conf in rep.refConfigs
-        ##x wa = Basics.generateConfigurationRs(conf)
         wa = Basics.generateConfigurations(Basics.RelativisticConfigurations(), conf)
         append!( relconfList, wa)
     end
@@ -265,7 +264,6 @@ function Basics.generate(repType::AtomicState.GreenExpansion, rep::AtomicState.R
     # Generate all (non-relativistic) configurations from the bound configurations due to the given excitation scheme 
     confList = Basics.generateConfigurationsForExcitationScheme(rep.refConfigs, repType.excitationScheme, settings.nMax, settings.lValues)
     # Print (if required) information about the generated configuration list
-    ##x if  settings.printBefore    Basics.display(stdout, confList)    end
     if  settings.printBefore    Basics.displayConfigurations(stdout, confList)    end
     
     # Generate shell list abd a full single-electron spectrum for this potential
@@ -431,7 +429,6 @@ end
         by subshellList; a list::Array{CsfR,1} is returned.
 """
 function Basics.generateCsfRs(conf::ConfigurationR, subshellList::Array{Subshell,1})
-    ##x parity  = Basics.determineParity(conf)
     parity  = Basics.extractFromConfiguration(Basics.GetParity(), conf)
     csfList = CsfR[];   useStandardSubshells = true;    first = true;    previousCsfs = CsfR[]
     # subhshellList = Subshell[];   
@@ -689,7 +686,6 @@ function Basics.generateBasis(confList::Array{Configuration,1}, symmetries::Arra
     #
     relconfList = ConfigurationR[]
     for  conf in confList
-        ##x wa = Basics.generateConfigurationRs(conf)
         wa = Basics.generateConfigurations(Basics.RelativisticConfigurations(), conf)
         append!( relconfList, wa)
     end
@@ -768,7 +764,6 @@ function Basics.generateBasis(refConfigs::Array{Configuration,1}, symmetries::Ar
     #
     relconfList = ConfigurationR[]
     for  conf in confList
-        ##x wa = Basics.generateConfigurationRs(conf)
         wa = Basics.generateConfigurations(Basics.RelativisticConfigurations(), conf)
         append!( relconfList, wa)
     end
@@ -1327,7 +1322,6 @@ function  Basics.generateOrbitalsForPotential(grid::Radial.Grid, meanPot::Radial
     for  kappa = kappaMin:kappaMax
         # Determine all requested subshells of symmetry kappa ... to compute them together
         shList     = Subshell[];    for  subsh in subshellList    if kappa == subsh.kappa    push!( shList, subsh)    end    end
-        ##x shOrbitals = BsplinesN.generateOrbitalsForPotential(wa, kappa, shList, meanPot; printout=false)
         shOrbitals = BsplinesN.generateOrbitals(shList, meanPot, Nuclear.Model(1.0), wa; printout=true)
         for  sh in shList
             orbitals = Base.merge( orbitals, Dict( sh => shOrbitals[sh]))

@@ -284,13 +284,10 @@ function determineIonicClasses(scheme::Plasma.SahaBoltzmannScheme, temp::Float64
         subshells  = Basics.extractRelativisticSubshellList([groundConf])
         nMax = 0;    for  subsh in subshells    if  subsh.n  > nMax  nMax = subsh.n                                          end   end
         kMax = 0;    for  subsh in subshells    if  subsh.n == nMax  &&  abs(subsh.kappa) > abs(kMax)   kMax = subsh.kappa   end   end
-        ##x @show  groundConf, nMax, kMax
         bindingEn  = Semiempirical.estimate("binding energy", nZ, Subshell(nMax,kMax), useLarkins=true )
         if  abs(bindingEn - temp)  <  deltaIp   deltaIp = abs(bindingEn - temp);   closestNe = ne   end
     end
     
-    ##x neMin = round(Int, closestNe - scheme.NoChargeStates/2 + 0.6);   if  neMin < 0   neMin = 0   end
-    ##x @show  deltaIp, closestNe, neMin
     neMin = max(0, nZ-scheme.qRange.stop);   neMax = nZ-scheme.qRange.start
     for  ne = neMin:neMax
         if  ne > nZ   continue    end
@@ -328,7 +325,6 @@ function determineInitialIonDensitiesPropterties(scheme::Plasma.SahaBoltzmannSch
     
     # Compute factor to re-normalize the partition function
     nDensityTotal = Plasma.computeIonLevelNumberDensityTotal(isoClass)
-    ##x @show isotopicDensity, isotopicDensity / nDensityTotal
     pfIsoClass    = Plasma.computeIsotopicPartitionFunction(temp, isoClass, chemMuE, dominantEnergy) 
     pfIsoClass    = pfIsoClass * isotopicDensity / nDensityTotal
     
@@ -376,8 +372,6 @@ end
 """
 function determineIpShifts(pm::Basics.AbstractPlasmaModel, temp::Float64, ni::Float64, isoClass::IsotopeClass)
     groundE = Dict{Int64,Float64}();     deltaIp = Dict{Int64,Float64}()
-    ##x qMax   = 0;   for  ionClass  in  isotopeClass.ionClasses   qMax   = max(qMax, ionClass.q)   end
-    ##x for  q = 0:qMax   groundE[q] = 0.;   deltaIp[q] = 0.   end 
     
     # Determine the ground-state energies of the different charge states
     for ionClass  in  isoClass.ionClasses   groundE[ionClass.q] = ionClass.groundEnergy   end
@@ -696,9 +690,7 @@ function  perform(scheme::Plasma.SahaBoltzmannScheme, computation::Plasma.Comput
     for  isoClass  in  isoClasses
         newIsoClass = Plasma.readEvaluateIonLevelData(scheme, isoClass, computation.grid)
         newIsoClass = Plasma.restrictIonLevelData(scheme, newIsoClass) 
-        ##x @show "Lambda_e", sqrt(2pi) / sqrt(computation.settings.temperature)
         newIsoClass = Plasma.determineInitialIonDensitiesPropterties(scheme, computation.settings.temperature, totalIonDensity, newIsoClass)
-        ##x @show newIsoClass
         push!(newIsoClasses, newIsoClass)  
     end
 
@@ -765,7 +757,6 @@ function solveSahaBoltzmannEquilibrium(temp::Float64, isoClasses::Array{IsotopeC
         else                   ne = Plasma.computeElectronNumberDensity(temp, oldIsoClasses)
         end
         chemMuE       = Plasma.computeElectronChemicalPotential(temp, ne) 
-        ##x @show ne, chemMuE, chemMuE/temp
         
         # Update plasma model for ionization-potential depression (IPD)
         npm = Plasma.updateIpdPlasmaModel(opm, temp, ne, oldIsoClasses)
@@ -776,16 +767,11 @@ function solveSahaBoltzmannEquilibrium(temp::Float64, isoClasses::Array{IsotopeC
             # Extract the ground energies and Delta I_p for the given plasma model
             groundE, deltaIp = Plasma.determineIpShifts(npm, temp, ionDensity, isoClass)
             qMax = 0;    for ionClass  in  isoClass.ionClasses   qMax = max(qMax, ionClass.q)   end
-            ##x @show groundE
-            ##x @show deltaIp, isoClass.isotopicFraction, qMax
             
             dominantEnergy = -4*temp  ## Plasma.computeDominantIsotopeEnergy(isoClass)  -32.3703
                 
             # Compute factor to re-normalize the partition function
-            ##x nDensityTotal = Plasma.computeIonLevelNumberDensityTotal(isoClass)
-            ##xnormFactor    = isoClass.isotopicDensity / nDensityTotal
             pfIsoClass    = Plasma.computeIsotopicPartitionFunction(temp, isoClass, chemMuE, dominantEnergy) 
-            ##x @show isoClass.isotopicDensity, pfIsoClass
 
             newIonClasses  = Plasma.IonicClass[]
             for  ionClass  in  isoClass.ionClasses
@@ -794,7 +780,6 @@ function solveSahaBoltzmannEquilibrium(temp::Float64, isoClasses::Array{IsotopeC
                 for  ionLevel  in  ionClass.ionLevels
                     if   ionLevel.energy < groundEnergy     groundEnergy = ionLevel.energy     end
                     # Assign a non-zero level density only if the level is bound under the given IPD plasma model
-                    ##x @show ionClass.q, ionLevel.energy
                     if  ionLevel.energy == 0.                                          ||
                         ionClass.q      == qMax                                        ||
                         ionLevel.energy + deltaIp[ionClass.q] < groundE[ionClass.q+1]
@@ -810,9 +795,6 @@ function solveSahaBoltzmannEquilibrium(temp::Float64, isoClasses::Array{IsotopeC
                                               isoClass.isotopicFraction, newIonClasses)
             push!(newIsoClasses, newIsoClass)
                 
-            ##x # Check the re-normalize the partition function
-            ##x nDensityTotal = Plasma.computeIonLevelNumberDensityTotal(newIsoClass)
-            ##x @show newIsoClass.isotopicDensity, nDensityTotal
             
             
         end
@@ -918,7 +900,6 @@ function generateIonLevelData(scheme::Plasma.SahaBoltzmannScheme, isoClass::Isot
     repOutput    = generate(repBasis, output=true)
     
     orbitals = repOutput["mean-field basis"].orbitals
-    ##x for (k,v) in orbitals @show k   end
     
     
     # Extract levels from output
@@ -931,7 +912,6 @@ function generateIonLevelData(scheme::Plasma.SahaBoltzmannScheme, isoClass::Isot
     
     for  level in repMultiplet.levels
         # Determine the uppermost shell of the given level
-        ##x confs          = Basics.extractNonrelativisticConfigurations(level.basis)
         confs          = Basics.extractConfigurations(Basics.FromBasis(), level.basis)
         shellList      = Basics.extractNonrelativisticShellList(confs)
         uppermostShell = Shell(0,0)
@@ -1052,7 +1032,6 @@ function readEvaluateIonLevelData(scheme::Plasma.SahaBoltzmannScheme, isoClass::
             if  length(ionClass.ionLevels) == 0    incomplete = true    end
         end
     end
-    ##x @show newIsoClass
     #
     if incomplete
         newIonClasses = Plasma.IonicClass[] 

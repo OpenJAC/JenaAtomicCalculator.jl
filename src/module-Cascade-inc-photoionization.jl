@@ -41,7 +41,6 @@ function computeSteps(scheme::Cascade.PhotoIonizationScheme, comp::Cascade.Compu
                                                 "giving now rise to a total of $nt $(string(step.process)) photoionization lines." )   end      
     end
     #
-    ##x data = [ Cascade.PhotoIonizationData(linesP) ]
     return( linesP )
 end
 
@@ -108,10 +107,7 @@ function generateBlocks(scheme::Cascade.PhotoIonizationScheme, comp::Cascade.Com
         for  confa  in confs
             print("  Multiplet computations for $(string(confa)[1:end])   with $(confa.NoElectrons) electrons ... ")
             if  printSummary   println(iostream, "\n*  Multiplet computations for $(string(confa)[1:end])   with $(confa.NoElectrons) electrons ... ")   end
-            ##x basis     = Basics.performSCF([confa], comp.nuclearModel, comp.grid, comp.asfSettings; printout=false)
             multiplet = SelfConsistent.performSCF([confa], comp.nuclearModel, comp.grid, comp.asfSettings; printout=false)
-            ##x    multiplet = Basics.perform("computation: mutiplet from orbitals, no CI, CSF diagonal", [confa],  basis.orbitals, 
-            ##x                                comp.nuclearModel, comp.grid, comp.asfSettings; printout=false)
             multiplet = Hamiltonian.performCIwithFrozenOrbitals([confa], multiplet.levels[1].basis.orbitals, comp.nuclearModel, 
                                                                 comp.grid, comp.asfSettings; printout=false)
             push!( blockList, Cascade.Block(confa.NoElectrons, [confa], true, multiplet) )
@@ -136,7 +132,6 @@ function generateConfigurationsForPhotoionization(multiplets::Array{Multiplet,1}
     # specificed excitation/ionization
     initialConfList = Configuration[];   ionConfList = Configuration[];   excConfList = Configuration[];
     for mp  in  multiplets   
-        ##x confList = Basics.extractNonrelativisticConfigurations(mp.levels[1].basis)
         confList = Basics.extractConfigurations(Basics.FromBasis(), mp.levels[1].basis)
         for  conf in confList   if  conf in initialConfList   nothing   else   push!(initialConfList, conf)      end      end
     end
@@ -169,8 +164,6 @@ function perform(scheme::PhotoIonizationScheme, comp::Cascade.Computation; outpu
     #
     # Perform the SCF and CI computation for the intial-state multiplets if initial configurations are given
     if  comp.initialConfigs != Configuration[]
-        ##x basis      = Basics.performSCF(comp.initialConfigs, comp.nuclearModel, comp.grid, comp.asfSettings; printout=false)
-        ##x multiplet  = Basics.performCI(basis, comp.nuclearModel, comp.grid, comp.asfSettings; printout=false)
         multiplet  = SelfConsistent.performSCF(comp.initialConfigs, comp.nuclearModel, comp.grid, comp.asfSettings; printout=false)
         multiplets = [Multiplet("initial states", multiplet.levels)]
     else
@@ -182,8 +175,6 @@ function perform(scheme::PhotoIonizationScheme, comp::Cascade.Computation; outpu
     #
     # Generate subsequent cascade configurations as well as display and group them together
     wa  = Cascade.generateConfigurationsForPhotoionization(multiplets, comp.scheme, comp.nuclearModel)
-    ##x wb1 = Cascade.groupDisplayConfigurationList(comp.nuclearModel.Z, wa[1], sa="(initial part of the) photoionization ")
-    ##x wb2 = Cascade.groupDisplayConfigurationList(comp.nuclearModel.Z, wa[2], sa="(generated part of the) photoionization ")
     wb1 = Basics.displayConfigurations(comp.nuclearModel.Z, wa[1], sa="(initial part of the) photoionization ")
     wb2 = Basics.displayConfigurations(comp.nuclearModel.Z, wa[2], sa="(generated part of the) photoionization ")
     #

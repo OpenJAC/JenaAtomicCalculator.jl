@@ -151,14 +151,12 @@ function generateBlocks(scheme::Cascade.DielectronicRecombinationScheme, comp::C
             # Determine a list of hydrogenic orbitals for later use 
             relconfList = ConfigurationR[]
             for  confa in confs
-                ##x wa = Basics.generateConfigurationRs(confa)
                 wa = Basics.generateConfigurations(Basics.RelativisticConfigurations(), confa)
                 append!( relconfList, wa)
             end
             subshellList = Basics.generateSubshellList(relconfList)
             Defaults.setDefaults("relativistic subshell list", subshellList; printout=printout)
             wa                 = BsplinesN.generatePrimitives(comp.grid)
-            ##x hydrogenicOrbitals = BsplinesN.generateOrbitalsHydrogenic(wa, comp.nuclearModel, subshellList; printout=printout)
             hydrogenicOrbitals = BsplinesN.generateOrbitalsHydrogenic(subshellList, comp.nuclearModel, wa; printout=printout)
         end
         
@@ -168,13 +166,11 @@ function generateBlocks(scheme::Cascade.DielectronicRecombinationScheme, comp::C
             # Now distinguish between the first and all other blocks; for the first block, a SCF is generated and the occupied orbital
             # used also for all other blocks. In addition, a set of hydrogenic orbitals generated for later use
             if  ia == 1
-                ##x basis     = Basics.performSCF([confa], comp.nuclearModel, comp.grid, comp.asfSettings; printout=false)
                 multiplet     = SelfConsistent.performSCF([confa], comp.nuclearModel, comp.grid, comp.asfSettings; printout=false)
                 basis         = multiplet.levels[1].basis
             else
                 # Generate a list of relativistic configurations and determine an ordered list of subshells for these configurations
                 relconfList  = ConfigurationR[]
-                ##x wa           = Basics.generateConfigurationRs(confa)
                 wa           = Basics.generateConfigurations(Basics.RelativisticConfigurations(), confa)
                 append!( relconfList, wa)
                 subshellList = Basics.generateSubshellList(relconfList)
@@ -204,8 +200,6 @@ function generateBlocks(scheme::Cascade.DielectronicRecombinationScheme, comp::C
                 
                 basis         = Basis(true, confa.NoElectrons, subshellList, csfList, coreSubshellList, orbitals)
             end
-            ##x multiplet = Basics.perform("computation: mutiplet from orbitals, no CI, CSF diagonal", [confa],  basis.orbitals, 
-            ##x                             comp.nuclearModel, comp.grid, comp.asfSettings; printout=false)
             multiplet = Hamiltonian.performCIwithFrozenOrbitals([confa],  basis.orbitals, comp.nuclearModel, comp.grid, comp.asfSettings; printout=false)
             
             push!( blockList, Cascade.Block(confa.NoElectrons, [confa], true, multiplet) )
@@ -224,8 +218,6 @@ function generateBlocks(scheme::Cascade.DielectronicRecombinationScheme, comp::C
         for  confa  in confs
             print("  Multiplet computations for $(string(confa)[1:end])   with $(confa.NoElectrons) electrons ... ")
             if  printSummary   println(iostream, "\n*  Multiplet computations for $(string(confa)[1:end])   with $(confa.NoElectrons) electrons ... ")   end
-                ##x basis     = Basics.performSCF([confa], comp.nuclearModel, comp.grid, comp.asfSettings; printout=false)
-                ##x multiplet = Basics.performCI(basis,    comp.nuclearModel, comp.grid, comp.asfSettings; printout=false)
                 multiplet = SelfConsistent.performSCF([confa], comp.nuclearModel, comp.grid, comp.asfSettings; printout=false)
             push!( blockList, Cascade.Block(confa.NoElectrons, [confa], true, multiplet) )
             println("and $(length(multiplet.levels[1].basis.csfs)) CSF done. ")
@@ -295,7 +287,6 @@ function generateCaptureConfigurations(multiplets::Array{Multiplet,1},  coreConf
     nCount = 0
     for  n = 1:nMax,   l = 0:lMax 
         if  l > n - 1    continue   end
-        ##x newConfList = Basics.generateConfigurationsWithAdditionalElectron(coreConfList, [Shell(n,l)])
         newConfList = Basics.generateConfigurations(Basics.AddElectrons(1, [Shell(n,l)]), coreConfList)
         for  conf in newConfList
             orbitals  = copy(mp.levels[1].basis.orbitals)
@@ -344,7 +335,6 @@ function generateConfigurationsForDielectronicCapture(multiplets::Array{Multiple
     # Determine all (reference) configurations from multiplets and generate the 'excited' configurations due to the specificed excitations
     initialConfList = Configuration[]
     for mp  in  multiplets   
-        ##x confList = Basics.extractNonrelativisticConfigurations(mp.levels[1].basis)
         confList = Basics.extractConfigurations(Basics.FromBasis(), mp.levels[1].basis)
         for  conf in confList   if  conf in initialConfList   nothing   else   push!(initialConfList, conf)      end      end
     end
@@ -408,8 +398,6 @@ function perform(scheme::DielectronicRecombinationScheme, comp::Cascade.Computat
     #
     # Perform the SCF and CI computation for the intial-state multiplets if initial configurations are given
     if  comp.initialConfigs != Configuration[]
-        ##x basis      = Basics.performSCF(comp.initialConfigs, comp.nuclearModel, comp.grid, comp.asfSettings; printout=false)
-        ##x multiplet  = Basics.performCI(basis, comp.nuclearModel, comp.grid, comp.asfSettings; printout=false)
         multiplet  = SelfConsistent.performSCF(comp.initialConfigs, comp.nuclearModel, comp.grid, comp.asfSettings; printout=false)
         multiplets = [Multiplet("initial states", multiplet.levels)]
     else
@@ -431,10 +419,6 @@ function perform(scheme::DielectronicRecombinationScheme, comp::Cascade.Computat
     if  printSummary   Cascade.displayLevels(iostream, multiplets, sa="initial ")                            end
     #
     # Generate subsequent cascade configurations as well as display and group them together
-    ##x wa  = Cascade.generateConfigurationsForDielectronicCapture(multiplets, comp.scheme, comp.nuclearModel, comp.grid)
-    ##x Basics.displayConfigurations(stdout, wa[1], details="initial configurations of the DR cascade ")
-    ##x Basics.displayConfigurations(stdout, wa[2], details="doubly-excited capture configurations of the DR cascade ")
-    ##x Basics.displayConfigurations(stdout, wa[3], details="decay configurations of the DR cascade ")
     
     
     initialConfigs  = Basics.extractConfigurations(Basics.FromMultiplet(), multiplets)
@@ -442,22 +426,10 @@ function perform(scheme::DielectronicRecombinationScheme, comp::Cascade.Computat
     theme           = Basics.ForDielectronicRecombination(comp.scheme.excitationFromShells, comp.scheme.excitationToShells,
                                                           comp.scheme.intoShells, comp.scheme.decayShells)
     capturedConfigs, decayConfigs = Basics.generateConfigurations(theme, initialConfigs)
-    ##x excitedConfigs  = Basics.generateConfigurations(Basics.ExciteElectrons(1, comp.scheme.excitationFromShells, comp.scheme.excitationToShells), initialConfigs)
-    ##x capturedConfigs = Basics.generateConfigurations(Basics.AddElectrons(1, comp.scheme.intoShells), excitedConfigs)
     Basics.displayConfigurations(stdout, capturedConfigs, details="doubly-excited capture configurations of the DR cascade ")
-    ##x allShells       = comp.scheme.excitationToShells
-    ##x append!(allShells, comp.scheme.excitationDecayShells)
-    ##x allShells       = sort( unique(allShells) )
-    ##x decayConfigs    = Basics.generateConfigurations(Basics.ExciteElectrons(1, allShells, comp.scheme.decayShells), excitedConfigs)
     Basics.displayConfigurations(stdout, decayConfigs, details="decay configurations of the DR cascade ")
-    ##x wb1 = Cascade.groupDisplayConfigurationList(comp.nuclearModel.Z, wa[1], sa="initial configurations of the DR cascade ")
-    ##x wb2 = Cascade.groupDisplayConfigurationList(comp.nuclearModel.Z, wa[2], sa="doubly-excited capture configurations of the DR cascade ")
-    ##x wb3 = Cascade.groupDisplayConfigurationList(comp.nuclearModel.Z, wa[3], sa="decay configurations of the DR cascade ")
     #
     # Determine first all configuration 'blocks' and from them the individual steps of the cascade
-    ##x wc1 = Cascade.generateBlocks(scheme, comp::Cascade.Computation, wb1)
-    ##x wc2 = Cascade.generateBlocks(scheme, comp::Cascade.Computation, wb2, printout=false)
-    ##x wc3 = Cascade.generateBlocks(scheme, comp::Cascade.Computation, wb3, printout=false)
     wc1 = Cascade.generateBlocks(scheme, comp::Cascade.Computation, initialConfigs)
     wc2 = Cascade.generateBlocks(scheme, comp::Cascade.Computation, capturedConfigs, printout=false)
     wc3 = Cascade.generateBlocks(scheme, comp::Cascade.Computation, decayConfigs,    printout=false)
@@ -471,7 +443,6 @@ function perform(scheme::DielectronicRecombinationScheme, comp::Cascade.Computat
         end
         println(">> Shift all initial level energies by $(-scheme.electronEnergyShift) $(Defaults.getDefaults("unit: energy"))")
     end
-    ##x error("xxx")
     #
     Cascade.displayBlocks(stdout, wc1, sa="from the initial configurations of the DR cascade ");      
     Cascade.displayBlocks(stdout, wc2, sa="from the doubly-excited capture configurations of the DR cascade ")

@@ -174,7 +174,6 @@ function integrateTransform(f::Function, n0::Int64, mtp::Int64, grid::Radial.Gri
     end
 
     if (mtp - i0) % (n - 1) + 1 == 1
-        ##x result -= newtonCotesCoefficientsOnGrid[n] * f(mtp)
         result -= newtonCotesCoefficientsOnGrid[n] * f(mtp) * grid.rp[mtp]
     end
 

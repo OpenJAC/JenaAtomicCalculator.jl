@@ -278,8 +278,6 @@ function computeTotalCsLinear(line::MultiPhotonDeExcitation.Line_2pAbsorptionMon
                                 wc = AngularMomentum.Wigner_3j(mp1.L, mp2.L, K, lambda1, lambda2, q)
                                 wd = MultiPhotonDeExcitation.getReducedAmplitudeAbsorption(K, line.finalLevel, mp2, Jsym, omega, mp1, 
                                                                                             line.initialLevel, gauge, line.channels) 
-                                ##x println("computeTotalCsLinear: L1, L2, K, lambda1, lambda2, q = $(mp1.L), $(mp2.L), $K, $lambda1, $lambda2, $q")
-                                ##x println("computeTotalCsLinear: wa, wb, wc, wd = $wa  $wb  $wc  $wd")
                                                                                                         
                                 amp = amp + (1.0im)^(mp1.L - p1 + mp2.L - p2) * (-lambda1)^p1 * (-lambda2)^p2           *
                                             sqrt( (2*mp1.L + 1)*(2*mp2.L + 1) ) * (2*Basics.twice(K) + 1)       *
@@ -481,7 +479,6 @@ function  displayLines_2pAbsorptionMonochromatic(lines::Array{MultiPhotonDeExcit
         for  channel in  line.channels
             push!( mpGaugeList, (channel.K, channel.multipole1, channel.Jsym, channel.multipole2, channel.gauge) )
         end
-        ##x println("displayLines_2pAbsorptionMonochromatic: mpGaugeList = ", mpGaugeList)
         wa = TableStrings.twoPhotonGaugeTupels(105, mpGaugeList)
         if  length(wa) > 0    sb = sa * wa[1];    println( sb )    end  
         for  i = 2:length(wa)

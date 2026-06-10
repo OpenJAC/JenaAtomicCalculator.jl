@@ -64,7 +64,6 @@ end
 """
 function eMultipole(k::Int64, a::Orbital, b::Orbital, grid::Radial.Grid)
     wa = AngularMomentum.CL_reduced_me_rb(a.subshell, k, b.subshell) * RadialIntegrals.rkDiagonal(k, a, b, grid)
-    ##x @show RadialIntegrals.rkDiagonal(k, a, b, grid), AngularMomentum.CL_reduced_me_rb(a.subshell, k, b.subshell)
     return( wa )
 end
 
@@ -107,7 +106,6 @@ function hfs_t1(a::Orbital, b::Orbital, grid::Radial.Grid)
     wc =   RadialIntegrals.rkNonDiagonal(-2, a, b, grid)
     wa =   wb * wc
     #
-    ##x println("**  <$(a.subshell) || t1 || $(b.subshell)>  = $wa   = $wb * $wc" )
     return( wa )
 end
 
@@ -142,7 +140,6 @@ function hfs_tM1(a::Orbital, b::Orbital, grid::Radial.Grid)
     wc =   RadialIntegrals.rkNonDiagonal(-2, a, b, grid)
     wa =   wb * wc
     #
-    ##x println("**  <$(a.subshell) || t1 || $(b.subshell)>  = $wa   = $wb * $wc" )
     return( wa )
 end
 
@@ -158,7 +155,6 @@ function hfs_tM2(a::Orbital, b::Orbital, grid::Radial.Grid)
     wc =   RadialIntegrals.rkNonDiagonal(-3, a, b, grid)/2
     wa =   wb * wc
     #
-    ##x println("**  <$(a.subshell) || t1 || $(b.subshell)>  = $wa   = $wb * $wc" )
     return( wa )
 end
 
@@ -174,7 +170,6 @@ function hfs_tM3(a::Orbital, b::Orbital, grid::Radial.Grid)
     wc =   RadialIntegrals.rkNonDiagonal(-4, a, b, grid)/3
     wa =   wb * wc
     #
-    ##x println("**  <$(a.subshell) || t1 || $(b.subshell)>  = $wa   = $wb * $wc" )
     return( wa )
 end
 
@@ -882,7 +877,6 @@ function XL_Coulomb_WO(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital,
     if   rem(L,2) == 1    xc = - xc    end 
     
     XL_Coulomb = xc * RadialIntegrals.SlaterRk_2dim_WO(L, a, b, c, d, grid)
-    ##x XL_Coulomb = xc * RadialIntegrals.SlaterRk_new(L, a, b, c, d, grid)
     return( XL_Coulomb )
 end
 
@@ -937,7 +931,6 @@ function XL_Coulomb(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital, gr
         if   rem(L,2) == 1    xc = - xc    end 
         XL_Coulomb = xc * RadialIntegrals.SlaterRk_2dim(L, a, b, c, d, grid)
         
-        ##x XL_Coulomb = XL_Coulomb* (-1)^( (ja2+jb2+jc2+jd2)/2 )
     end
     
     return( XL_Coulomb )
@@ -1089,7 +1082,6 @@ function XL_CoulombDamped(tau::Float64, L::Int64, a::Orbital, b::Orbital, c::Orb
     if   rem(L,2) == 1    xc = - xc    end 
     
     XL_Coulomb = xc * RadialIntegrals.SlaterRk_2dim_Damped(tau::Float64, L, a, b, c, d, grid)
-    ##x XL_Coulomb = xc * RadialIntegrals.SlaterRk_new(L, a, b, c, d, grid)
     return( XL_Coulomb )
 end
 
@@ -1150,10 +1142,6 @@ end
         a, b, c and d at the given grid. A value::Float64 is returned.
 """
 function X_smsB(a::Orbital, b::Orbital, c::Orbital, d::Orbital, nm::Nuclear.Model, grid::Radial.Grid)
-    ##x println("")
-    ##x @show AngularMomentum.CL_reduced_me_sms(b.subshell, 1, d.subshell) 
-    ##x @show RadialIntegrals.Vinti(b, d, grid)
-    ##x @show RadialIntegrals.isotope_smsB(a, c, nm.Z, grid)
     wa = - AngularMomentum.CL_reduced_me_sms(b.subshell, 1, d.subshell) * RadialIntegrals.Vinti(b, d, grid) *
             RadialIntegrals.isotope_smsB(a, c, nm.Z, grid) / 2
     return( wa )

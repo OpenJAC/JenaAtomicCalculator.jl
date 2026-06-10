@@ -200,9 +200,6 @@ function ChengI(kapa::Int64, kapb::Int64, L::AngularJ64)
     wa = AngularMomentum.phaseFactor([ja, +1, L, -1, jb]) *  (-1)^L.num  * 
     ## wa = (-1)^L.num  * sqrt( (Basics.twice(jb)+1)*(Basics.twice(L)+1) / (4*pi) ) / sqrt(Basics.twice(jb)+1) *  
             AngularMomentum.ClebschGordan(jb, AngularM64(1//2), L, AngularM64(0), ja, AngularM64(1//2)) 
-    ##x @show "ChengI", wa, ChengI(kapa, AngularM64(ja), kapb, AngularM64(jb), L, AngularM64(L))
-    ##x xa = (Basics.twice(ja) - Basics.twice(jb))/2.
-    ##x wa = wa * (-1)^xa
     return( wa )
 end
 
@@ -562,7 +559,6 @@ function sphericalYlm(l::Int64, m::Int64, theta::Float64, phi::Float64)
         # Further values can be find in /home/fritzsch/fri/rabs-jena/rabs_dirac_orbital.f90
     end   ==#
     
-    ##x @show l,m, cos(theta), iphi
     ylm = sf_legendre_sphPlm(l, abs(m), cos(theta)) * exp(iphi)
     
     return( ylm )

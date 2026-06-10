@@ -130,7 +130,6 @@ function ManyElectron.provideSubshellStates(sh::Subshell, occ::Int64)
                                             push!( wb, Basics.SubshellStateR( sh, occ, 4,10) )
                                             push!( wb, Basics.SubshellStateR( sh, occ, 4,16) );       return(wb)
         end
-    ##x elseif   Basics.subshell_2j(sh) in [ 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31, 33, 35, 37, 39, 41, 43]
     elseif   Basics.subshell_2j(sh) in 9:2:2001
         if       occ == 0                   push!( wb, Basics.SubshellStateR( sh, occ, 0, 0) );                 return(wb)
         elseif   occ == 1                   push!( wb, Basics.SubshellStateR( sh, occ, 1, subshell_2j(sh)) );   return(wb)

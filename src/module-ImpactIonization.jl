@@ -433,7 +433,6 @@ function  computeCrossSections(model::DirectMultipleModel, cs::ImpactIonization.
     end
     
     # Here we calculate total electron number and charge state.
-    ##x conf          = Basics.extractNonrelativisticConfigurations(basis)[1];   
     conf          = Basics.extractConfigurations(Basics.FromBasis(), basis)[1];   
     totalElectron = conf.NoElectrons; @show totalElectron
     chargeState   = atomicNumber - totalElectron; @show chargeState
@@ -454,22 +453,18 @@ function  computeCrossSections(model::DirectMultipleModel, cs::ImpactIonization.
     if false
         valenceShell = Basics.extractValenceShell(basis);                    @show valenceShell
         
-        ##x confs        = Basics.extractNonrelativisticConfigurations(basis);   @show confs
         confs        = Basics.extractConfigurations(Basics.FromBasis(), basis);   @show confs
         #
         # Now generate N-1 (N = multipleN from your settings) new bases to extract improved one-particle energies
         newBases = ManyElectron.Basis[];  @show newBases
         totalEnergy = Float64[];
         for  N = 1:multipleN
-            ##x newConfs  = Basics.generateConfigurationsWithElectronLoss(confs::Array{Configuration,1}, [valenceShell])
             newConfs      = Basics.generateConfigurations(Basics.RemoveElectrons([valenceShell]), confs)
             @show confs
-            ##x newBasis  = Basics.performSCF(newConfs, nm, grid, ManyElectron.AsfSettings() );   @show newBasis.subshells
             multipletX    = SelfConsistent.performSCF(computation.configs, nm, computation.grid, asfSettings)
             newBasis      = multipletX.levels[1].basis
             push!(newBases, newBasis)
             #
-            ##x confs        = Basics.extractNonrelativisticConfigurations(newBasis);   @show confs
             confs        = Basics.extractConfigurations(Basics.FromBasis(), newBasis);   @show confs
             valenceShell = Basics.extractValenceShell(newBasis);                    @show valenceShell
         end    
@@ -544,7 +539,6 @@ function  computeCrossSections(model::InDirectDoubleModel, cs::ImpactIonization.
     end
     
     # Here we calculate the total electron number and charge state.
-    ##x conf          = Basics.extractNonrelativisticConfigurations(basis)[1];   
     conf          = Basics.extractConfigurations(Basics.FromBasis(), basis)[1];   
     totalElectron = conf.NoElectrons; @show totalElectron
     chargeState   = atomicNumber - totalElectron; @show chargeState
@@ -658,7 +652,6 @@ function  computeCrossSections(model::DoubleExperimentModel, cs::ImpactIonizatio
     end
     
     # Here we calculate the total electron number and charge state.
-    ##x conf          = Basics.extractNonrelativisticConfigurations(basis)[1];   
     conf          = Basics.extractConfigurations(Basics.FromBasis(), basis)[1];   
     totalElectron = conf.NoElectrons;               @show totalElectron
     chargeState   = atomicNumber - totalElectron;   @show chargeState
@@ -777,7 +770,6 @@ function  computeCrossSections(model::LotzMultipleModel, cs::ImpactIonization.Cr
     end
     
     # Calculate the total electron numbers and charge state
-    ##x conf          = Basics.extractNonrelativisticConfigurations(basis)[1];   
     conf          = Basics.extractConfigurations(Basics.FromBasis(), basis)[1];   
     totalElectron = conf.NoElectrons; @show totalElectron
     chargeState   = atomicNumber - totalElectron; @show chargeState
@@ -850,7 +842,6 @@ function  determineCrossSections(basis::Basis, settings::ImpactIonization.Settin
     if  settings.shellSelection.active
         subshells = Basics.generateSubshellList(settings.shellSelection.shells) 
     else
-        ##x confs     = Basics.extractNonrelativisticConfigurations(basis)
         confs     = Basics.extractConfigurations(Basics.FromBasis(), basis)
         shells    = Basics.extractShellList(confs)
         subshells = Basics.generateSubshellList(shells)
@@ -897,7 +888,6 @@ function  displayCrossSections(stream::IO, crossSections::Array{ImpactIonization
         sa = sa * TableStrings.center(18, string(crossSections[1].subshell); na=6)
         println(stream, sa)            
         for  cs  in crossSections
-            ##x @show cs.subshell, cs.impactEnergy, cs.partialCS
             sb = TableStrings.hBlank(86)
             sb = sb * @sprintf("%.6e", cs.impactEnergy) * "             "    
             wa = cs.partialCS
@@ -940,7 +930,6 @@ end
 """
 function  effectiveCharge(subshell::Subshell, nm::Nuclear.Model, basis::Basis)
     wz        = nm.Z
-    ##x confs     = Basics.extractNonrelativisticConfigurations(basis)
     confs     = Basics.extractConfigurations(Basics.FromBasis(), basis)
     shells    = Basics.extractShellList(confs)
     subshells = Basics.generateSubshellList(shells)

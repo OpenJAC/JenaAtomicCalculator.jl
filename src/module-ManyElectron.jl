@@ -280,7 +280,6 @@ end
     ... simple constructor for given closed-shell occupation (such as "[Ne]"), and where standardOrbitals is set to true.
 """
 function CsfR(sa::String)
-        ##x wa = subshellsFromClosedShellConfiguration(sa)
         wa = Basics.extractFromConfiguration(Basics.ClosedSubshells(), sa)
 
         occupation = Int64[];	  subshellJ = AngularJ64[];	subshellX  = AngularJ64[]

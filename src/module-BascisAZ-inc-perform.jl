@@ -397,7 +397,6 @@ function Basics.performCI(configs::Array{Configuration,1}, initalOrbitals::Dict{
     #
     n = length(csfList);    matrix = zeros(Float64, n, n)
     for  r = 1:n
-        ##x wa = compute("angular coefficients: e-e, Ratip2013", basis.csfs[r], basis.csfs[r])
         # Calculate the spin-angular coefficients
         if  Defaults.saRatip()
             waR = compute("angular coefficients: e-e, Ratip2013", basis.csfs[r], basis.csfs[r])
@@ -500,7 +499,6 @@ function Basics.performCI(basis::Basis, nuclearModel::Nuclear.Model, grid::Radia
             if  !Basics.selectSymmetry(sym, settings.levelSelectionCI)     continue    end
         matrix = compute("matrix: CI, J^P symmetry", sym, basis, nuclearModel, grid, settings; printout=printout)
         #
-        ##x if  size(matrix,1) == 2   matrix[1,2] = matrix[2,1] = -1.0 * matrix[2,1]     end
         eigen  = Basics.diagonalize("matrix: LinearAlgebra", matrix)
         levels = Level[]
         for  ev = 1:length(eigen.values)

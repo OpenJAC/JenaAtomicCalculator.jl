@@ -107,8 +107,6 @@ end
 # `Base.show(io::IO, applic::DeepLearning.Application)`  ... prepares a proper printout applic::DeepLearning.Application.
 function Base.show(io::IO, applic::DeepLearning.Application)
     sa = Base.string(applic)
-    ##x sa = sa * "\n ... in addition, the following parameters/settings are defined: ";       print(io, sa, "\n")
-    ##x println(io, "> cascade scheme:           $(comp.scheme)  ")
 end
 
 

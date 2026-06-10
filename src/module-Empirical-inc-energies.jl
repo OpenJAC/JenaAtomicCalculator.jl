@@ -142,7 +142,6 @@ end
         Note: This is an estimate of the total energy which need not to be so accurate.
 """
 function  totalEnergy(Z::Int64, conf::Configuration; data::PeriodicTable.AbstractEnergyData = PeriodicTable.Williams2000() )
-    ##x @show Z, conf, data
     if         typeof(data) == PeriodicTable.Nist2025
         wa = PeriodicTable.ionizationPotentials_Nist2025(Z) 
         # Use the ionization potentials to make a realistic estimate of the total energy ... and return the value

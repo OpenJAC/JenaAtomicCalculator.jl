@@ -272,7 +272,6 @@ function determineChannels(finalLevel::Level, initialLevel::Level, settings::Int
     subshells = Basics.generateSubshellList(settings.rydbergShells)
     for  subsh in subshells
         tSymmetries = AngularMomentum.allowedTotalSymmetries(symi, subsh.kappa)
-        ##x @show symi, subsh.kappa, tSymmetries
         for  symt in tSymmetries
             if  symt != symf      continue    end
             push!(channels, InternalRecombination.Channel(subsh, symt, Complex(0.)) )
@@ -295,7 +294,6 @@ function  determineLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet,
         for  fLevel  in  finalMultiplet.levels
             if  Basics.selectLevelPair(iLevel, fLevel, settings.lineSelection)
                 dEnergy = iLevel.energy - fLevel.energy   + settings.resonanceEnergyShift
-                ##x if   energy < 0.01                                                             continue   end
                 channels = InternalRecombination.determineChannels(fLevel, iLevel, settings) 
                 push!( lines, InternalRecombination.Line(iLevel, fLevel, dEnergy, 0., 0., channels) )
             end
