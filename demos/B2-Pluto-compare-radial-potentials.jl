@@ -73,8 +73,7 @@ To calculate **atomic** potentials, we also need the electron density from a par
 
 # ╔═╡ 0cc196c8-be62-49b2-b015-fee7de7a009b
 begin
-basis     = Basics.performSCF([Configuration("1s^2 2s^2 2p^2")], nucModel, radial_grid, AsfSettings())
-multiplet = Basics.performCI(basis, nucModel, radial_grid, AsfSettings());
+multiplet = SelfConsistent.performSCF([Configuration("1s^2 2s^2 2p^2")], nucModel, radial_grid, AsfSettings())
 end
 
 # ╔═╡ 310ac439-3211-4b13-b28b-8afae5687683
@@ -82,18 +81,18 @@ md"""
 
 From this multiplet, we take the *lowest* level to derive the electron density for the potential. JenaAtomicCalculator provides three choices for such an **electronic** potential, as accessible via `? compute` at the REPL:
 
-   •  `("radial potential: core-Hartree", grid::Radial.Grid, level::Level)` — computes a core-Hartree potential for the given level; cf. `Basics.computePotentialCoreHartree`.
-   •  `("radial potential: Kohn-Sham", grid::Radial.Grid, level::Level)` — computes a Kohn-Sham potential for the given level; cf. `Basics.computePotentialKohnSham`.
-   •  `("radial potential: Dirac-Fock-Slater", grid::Radial.Grid, level::Level)` — computes a Dirac-Fock-Slater potential; cf. `Basics.computePotentialDFS`. This approximation suffers from self-interaction and an incorrect asymptotic behaviour.
+   •  `Basics.computePotential(Basics.CHField(),  grid, level)` — core-Hartree potential.
+   •  `Basics.computePotential(Basics.KSField(),  grid, level)` — Kohn-Sham potential.
+   •  `Basics.computePotential(Basics.DFSField(), grid, level)` — Dirac-Fock-Slater potential. This approximation suffers from self-interaction and an incorrect asymptotic behaviour.
 
 """
 
 # ╔═╡ 8a3b3a24-ec2b-4c5a-b9ee-bb028dfaf7a6
 begin
 level  = multiplet.levels[1]
-potCH  = compute("radial potential: core-Hartree",      radial_grid, level)
-potDFS = compute("radial potential: Dirac-Fock-Slater", radial_grid, level)
-potKS  = compute("radial potential: Kohn-Sham",         radial_grid, level)
+potCH  = Basics.computePotential(Basics.CHField(),  radial_grid, level)
+potDFS = Basics.computePotential(Basics.DFSField(), radial_grid, level)
+potKS  = Basics.computePotential(Basics.KSField(),  radial_grid, level)
 end
 
 # ╔═╡ f7b8b729-49f7-4512-b3cb-9b7888cab3c0
