@@ -780,11 +780,11 @@ function Simulation(sim::Cascade.Simulation;
     method::Union{Nothing,Cascade.AbstractSimulationMethod}=nothing,      settings::Union{Nothing,Cascade.SimulationSettings}=nothing,    
     computationData::Union{Nothing,Array{Dict{String,Any},1}}=nothing )
 
-    if  name            == nothing   namex            = sim.name              else  namex            = name                end 
-    if  property        == nothing   propertyx        = sim.property          else  propertyx        = property            end 
-    if  method          == nothing   methodx          = sim.method            else  methodx          = method              end 
-    if  settings        == nothing   settingsx        = sim.settings          else  settingsx        = settings            end 
-    if  computationData == nothing   computationDatax = sim.computationData   else  computationDatax = computationData     end 
+    if  isnothing(name)              namex            = sim.name              else  namex            = name                end 
+    if  isnothing(property)          propertyx        = sim.property          else  propertyx        = property            end 
+    if  isnothing(method)            methodx          = sim.method            else  methodx          = method              end 
+    if  isnothing(settings)          settingsx        = sim.settings          else  settingsx        = settings            end 
+    if  isnothing(computationData)   computationDatax = sim.computationData   else  computationDatax = computationData     end 
     
     Simulation(namex, propertyx, methodx, settingsx, computationDatax)
 end

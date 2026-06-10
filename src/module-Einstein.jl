@@ -44,10 +44,10 @@ function Settings(settings::Einstein.Settings;                            multip
     photonEnergyShift::Union{Nothing,Float64}=nothing,  
     mimimumPhotonEnergy::Union{Nothing,Float64}=nothing,                  maximumPhotonEnergy::Union{Nothing,Float64}=nothing)
 
-    if  multipoles         == nothing   multipolesx          = settings.multipoles            else  multipolesx = multipoles                   end 
-    if  printBefore        == nothing   printBeforex         = settings.printBefore           else  printBeforex = printBefore                 end 
-    if  lineSelection      == nothing   lineSelectionx       = set.lineSelection              else  lineSelectionx = lineSelection             end 
-    if  photonEnergyShift  == nothing   photonEnergyShiftx   = settings.photonEnergyShift     else  photonEnergyShiftx = photonEnergyShift     end 
+    if  isnothing(multipoles)           multipolesx          = settings.multipoles            else  multipolesx = multipoles                   end 
+    if  isnothing(printBefore)          printBeforex         = settings.printBefore           else  printBeforex = printBefore                 end 
+    if  isnothing(lineSelection)        lineSelectionx       = set.lineSelection              else  lineSelectionx = lineSelection             end 
+    if  isnothing(photonEnergyShift)    photonEnergyShiftx   = settings.photonEnergyShift     else  photonEnergyShiftx = photonEnergyShift     end 
     if  mimimumPhotonEnergy== nothing   mimimumPhotonEnergyx = settings.mimimumPhotonEnergy   else  mimimumPhotonEnergyx = mimimumPhotonEnergy end 
     if  maximumPhotonEnergy== nothing   maximumPhotonEnergyx = settings.maximumPhotonEnergy   else  maximumPhotonEnergyx = maximumPhotonEnergy end 
     

@@ -240,35 +240,35 @@ function testEvaluation_sumRulesForOneWnj(; short::Bool=true)
 
     rex = RacahAlgebra.selectRacahExpression(1);         println(">> rex-original  = $rex")
     wa  = RacahAlgebra.evaluate(rex);                    println(">> rex-evaluated = $wa")
-    if  wa == nothing
+    if  isnothing(wa)
         success = false
         if printTest   info(iostream, "No simplification found for $rex")   end
     end
 
     rex = RacahAlgebra.selectRacahExpression(2);         println(">> rex-original  = $rex")
     wa  = RacahAlgebra.evaluate(rex);                    println(">> rex-evaluated = $wa")
-    if  wa == nothing
+    if  isnothing(wa)
         success = false
         if printTest   info(iostream, "No simplification found for $rex")   end
     end
 
     rex = RacahAlgebra.selectRacahExpression(3);         println(">> rex-original  = $rex")
     wa  = RacahAlgebra.evaluate(rex);                    println(">> rex-evaluated = $wa")
-    if  wa == nothing
+    if  isnothing(wa)
         success = false
         if printTest   info(iostream, "No simplification found for $rex")   end
     end
 
     rex = RacahAlgebra.selectRacahExpression(4);         println(">> rex-original  = $rex")
     wa  = RacahAlgebra.evaluate(rex);                    println(">> rex-evaluated = $wa")
-    if  wa == nothing
+    if  isnothing(wa)
         success = false
         if printTest   info(iostream, "No simplification found for $rex")   end
     end
 
     rex = RacahAlgebra.selectRacahExpression(5);         println(">> rex-original  = $rex")
     wa  = RacahAlgebra.evaluate(rex);                    println(">> rex-evaluated = $wa")
-    if  wa == nothing
+    if  isnothing(wa)
         success = false
         if printTest   info(iostream, "No simplification found for $rex")   end
     end
@@ -289,21 +289,21 @@ function testEvaluation_sumRulesForTwoWnj(; short::Bool=true)
 
     rex = RacahAlgebra.selectRacahExpression(6);         println(">> rex-original  = $rex")
     wa  = RacahAlgebra.evaluate(rex);                    println(">> rex-evaluated = $wa")
-    if  wa == nothing
+    if  isnothing(wa)
         success = false
         if printTest   info(iostream, "No simplification found for $rex")   end
     end
 
     rex = RacahAlgebra.selectRacahExpression(7);         println(">> rex-original  = $rex")
     wa  = RacahAlgebra.evaluate(rex);                    println(">> rex-evaluated = $wa")
-    if  wa == nothing
+    if  isnothing(wa)
         success = false
         if printTest   info(iostream, "No simplification found for $rex")   end
     end
 
     rex = RacahAlgebra.selectRacahExpression(8);         println(">> rex-original  = $rex")
     wa  = RacahAlgebra.evaluate(rex);                    println(">> rex-evaluated = $wa")
-    if  wa == nothing
+    if  isnothing(wa)
         success = false
         if printTest   info(iostream, "No simplification found for $rex")   end
     end

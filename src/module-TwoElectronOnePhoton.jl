@@ -56,13 +56,13 @@ function Settings(set::TwoElectronOnePhoton.Settings;
     photonEnergyShift::Union{Nothing,Float64}=nothing,          eeInteraction::Union{Nothing,AbstractEeInteraction}=nothing,
     gMultiplet::Union{Nothing,Multiplet}=nothing)
     
-    if  multipoles          == nothing   multipolesx          = set.multipoles          else  multipolesx          = multipoles         end 
-    if  gauges              == nothing   gaugesx              = set.gauges              else  gaugesx              = gauges             end 
-    if  printBefore         == nothing   printBeforex         = set.printBefore         else  printBeforex         = printBefore        end 
-    if  lineSelection       == nothing   lineSelectionx       = set.lineSelection       else  lineSelectionx       = lineSelection      end 
-    if  photonEnergyShift   == nothing   photonEnergyShiftx   = set.photonEnergyShift   else  photonEnergyShiftx   = photonEnergyShift  end 
-    if  eeInteraction       == nothing   eeInteractionx       = set.eeInteraction       else  eeInteractionx       = eeInteraction      end 
-    if  gMultiplet          == nothing   gMultipletx          = set.gMultiplet          else  gMultipletx          = gMultiplet         end 
+    if  isnothing(multipoles)            multipolesx          = set.multipoles          else  multipolesx          = multipoles         end 
+    if  isnothing(gauges)                gaugesx              = set.gauges              else  gaugesx              = gauges             end 
+    if  isnothing(printBefore)           printBeforex         = set.printBefore         else  printBeforex         = printBefore        end 
+    if  isnothing(lineSelection)         lineSelectionx       = set.lineSelection       else  lineSelectionx       = lineSelection      end 
+    if  isnothing(photonEnergyShift)     photonEnergyShiftx   = set.photonEnergyShift   else  photonEnergyShiftx   = photonEnergyShift  end 
+    if  isnothing(eeInteraction)         eeInteractionx       = set.eeInteraction       else  eeInteractionx       = eeInteraction      end 
+    if  isnothing(gMultiplet)            gMultipletx          = set.gMultiplet          else  gMultipletx          = gMultiplet         end 
         
     Settings( multipolesx, gaugesx, printBeforex, lineSelectionx, photonEnergyShiftx, eeInteractionx, gMultipletx)
 end

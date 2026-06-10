@@ -436,8 +436,8 @@ export  Subshell, subshell_2j
 """
 function Subshell(sa::String) 
     wa = strip( sa );   
-    wb = findnext("_", wa, 1);    if  wb == nothing   error("No underscore in sa = $sa")           else   wb = wb[1]   end
-    wc = findnext("/", wa, wb);   if  wc == nothing   error("No / in wa[] = $(wa[wb[1]+1:end])")   else   wc = wc[1]   end
+    wb = findnext("_", wa, 1);    if  isnothing(wb)   error("No underscore in sa = $sa")           else   wb = wb[1]   end
+    wc = findnext("/", wa, wb);   if  isnothing(wc)   error("No / in wa[] = $(wa[wb[1]+1:end])")   else   wc = wc[1]   end
     wd = string( wa[wb+1:wc-1] )
     n  = parse(Int64, wa[1:wb-2]);                  l  = shellNotation( string(wa[ wb-1 ]) )
     j2 = parse(Int64, wd );                         !(string(wa[end]) == "2")    &&  error("Unrecognized subshell string sa = $sa") 

@@ -145,9 +145,9 @@ function OneElectronSettings(settings::AtomicState.OneElectronSettings;
     nMax::Union{Nothing,Int64}=nothing,                             lValues::Union{Nothing,Array{Int64,1}}=nothing,
     levelSelectionMean::Union{Nothing,LevelSelection}=nothing)
     
-    if  nMax               == nothing   nMaxx               = settings.nMax                else   nMaxx               = nMax               end 
-    if  lValues            == nothing   lValuesx            = settings.lValues             else   lValuesx            = lValues            end 
-    if  levelSelectionMean == nothing   levelSelectionMeanx = settings.levelSelectionMean  else   levelSelectionMeanx = levelSelectionMean end 
+    if  isnothing(nMax)                 nMaxx               = settings.nMax                else   nMaxx               = nMax               end 
+    if  isnothing(lValues)              lValuesx            = settings.lValues             else   lValuesx            = lValues            end 
+    if  isnothing(levelSelectionMean)   levelSelectionMeanx = settings.levelSelectionMean  else   levelSelectionMeanx = levelSelectionMean end 
     
     OneElectronSettings( nMaxx, lValuesx, levelSelectionMeanx)
 end
@@ -406,8 +406,8 @@ end
 function CiSettings(settings::AtomicState.CiSettings;
     eeInteractionCI::Union{Nothing,AbstractEeInteraction}=nothing,        levelSelectionCI::Union{Nothing,LevelSelection}=nothing)
     
-    if  eeInteractionCI     == nothing   eeInteractionCIx      = settings.eeInteractionCI       else   eeInteractionCIx      = eeInteractionCI      end 
-    if  levelSelectionCI    == nothing   levelSelectionCIx     = settings.levelSelectionCI      else   levelSelectionCIx     = levelSelectionCI     end 
+    if  isnothing(eeInteractionCI)       eeInteractionCIx      = settings.eeInteractionCI       else   eeInteractionCIx      = eeInteractionCI      end 
+    if  isnothing(levelSelectionCI)      levelSelectionCIx     = settings.levelSelectionCI      else   levelSelectionCIx     = levelSelectionCI     end 
     
     CiSettings( eeInteractionCIx, levelSelectionCIx)
 end

@@ -58,17 +58,17 @@ function Settings(set::PhotoRecombination.Settings;
     printBefore::Union{Nothing,Bool}=nothing,                               maxKappa::Union{Nothing,Int64}=nothing, 
     lineSelection::Union{Nothing,LineSelection}=nothing)  
     
-    if  multipoles        == nothing   multipolesx        = set.multipoles        else  multipolesx        = multipoles         end 
-    if  gauges            == nothing   gaugesx            = set.gauges            else  gaugesx            = gauges             end 
-    if  electronEnergies  == nothing   electronEnergiesx  = set.electronEnergies  else  electronEnergiesx  = electronEnergies   end 
-    if  ionEnergies       == nothing   ionEnergiesx       = set.ionEnergies       else  ionEnergiesx       = ionEnergies        end 
-    if  useIonEnergies    == nothing   useIonEnergiesx    = set.useIonEnergies    else  useIonEnergiesx    = useIonEnergies     end 
-    if  calcTotalCs       == nothing   calcTotalCsx       = set.calcTotalCs       else  calcTotalCsx       = calcTotalCs        end 
-    if  calcAnisotropy    == nothing   calcAnisotropyx    = set.calcAnisotropy    else  calcAnisotropyx    = calcAnisotropy     end 
-    if  calcTensors       == nothing   calcTensorsx       = set.calcTensors       else  calcTensorsx       = calcTensors        end 
-    if  printBefore       == nothing   printBeforex       = set.printBefore       else  printBeforex       = printBefore        end 
-    if  maxKappa          == nothing   maxKappax          = set.maxKappa          else  maxKappax          = maxKappa           end 
-    if  lineSelection     == nothing   lineSelectionx     = set.lineSelection     else  lineSelectionx     = lineSelection      end 
+    if  isnothing(multipoles)          multipolesx        = set.multipoles        else  multipolesx        = multipoles         end 
+    if  isnothing(gauges)              gaugesx            = set.gauges            else  gaugesx            = gauges             end 
+    if  isnothing(electronEnergies)    electronEnergiesx  = set.electronEnergies  else  electronEnergiesx  = electronEnergies   end 
+    if  isnothing(ionEnergies)         ionEnergiesx       = set.ionEnergies       else  ionEnergiesx       = ionEnergies        end 
+    if  isnothing(useIonEnergies)      useIonEnergiesx    = set.useIonEnergies    else  useIonEnergiesx    = useIonEnergies     end 
+    if  isnothing(calcTotalCs)         calcTotalCsx       = set.calcTotalCs       else  calcTotalCsx       = calcTotalCs        end 
+    if  isnothing(calcAnisotropy)      calcAnisotropyx    = set.calcAnisotropy    else  calcAnisotropyx    = calcAnisotropy     end 
+    if  isnothing(calcTensors)         calcTensorsx       = set.calcTensors       else  calcTensorsx       = calcTensors        end 
+    if  isnothing(printBefore)         printBeforex       = set.printBefore       else  printBeforex       = printBefore        end 
+    if  isnothing(maxKappa)            maxKappax          = set.maxKappa          else  maxKappax          = maxKappa           end 
+    if  isnothing(lineSelection)       lineSelectionx     = set.lineSelection     else  lineSelectionx     = lineSelection      end 
 
     Settings( multipolesx, gaugesx, electronEnergiesx, ionEnergiesx, useIonEnergiesx, calcTotalCsx, calcAnisotropyx, 
               calcTensorsx, printBeforex, maxKappax, lineSelectionx)

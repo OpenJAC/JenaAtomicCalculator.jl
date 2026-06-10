@@ -65,15 +65,15 @@ function Settings(set::PhotoEmission.Settings;
     photonEnergyShift::Union{Nothing,Float64}=nothing,          mimimumPhotonEnergy::Union{Nothing,Float64}=nothing, 
     maximumPhotonEnergy::Union{Nothing,Float64}=nothing)
     
-    if  multipoles          == nothing   multipolesx          = set.multipoles              else  multipolesx          = multipoles            end 
-    if  gauges              == nothing   gaugesx              = set.gauges                  else  gaugesx              = gauges                end 
-    if  calcAnisotropy      == nothing   calcAnisotropyx      = set.calcAnisotropy          else  calcAnisotropyx      = calcAnisotropy        end 
-    if  printBefore         == nothing   printBeforex         = set.printBefore             else  printBeforex         = printBefore           end 
-    if  corePolarization    == nothing   corePolarizationx    = set.corePolarization        else  corePolarizationx    = corePolarization      end 
-    if  lineSelection       == nothing   lineSelectionx       = set.lineSelection           else  lineSelectionx       = lineSelection         end 
-    if  photonEnergyShift   == nothing   photonEnergyShiftx   = set.photonEnergyShift       else  photonEnergyShiftx   = photonEnergyShift     end 
-    if  mimimumPhotonEnergy == nothing   mimimumPhotonEnergyx = set.mimimumPhotonEnergy     else  mimimumPhotonEnergyx = mimimumPhotonEnergy   end 
-    if  maximumPhotonEnergy == nothing   maximumPhotonEnergyx = set.maximumPhotonEnergy     else  maximumPhotonEnergyx = maximumPhotonEnergy   end 
+    if  isnothing(multipoles)            multipolesx          = set.multipoles              else  multipolesx          = multipoles            end 
+    if  isnothing(gauges)                gaugesx              = set.gauges                  else  gaugesx              = gauges                end 
+    if  isnothing(calcAnisotropy)        calcAnisotropyx      = set.calcAnisotropy          else  calcAnisotropyx      = calcAnisotropy        end 
+    if  isnothing(printBefore)           printBeforex         = set.printBefore             else  printBeforex         = printBefore           end 
+    if  isnothing(corePolarization)      corePolarizationx    = set.corePolarization        else  corePolarizationx    = corePolarization      end 
+    if  isnothing(lineSelection)         lineSelectionx       = set.lineSelection           else  lineSelectionx       = lineSelection         end 
+    if  isnothing(photonEnergyShift)     photonEnergyShiftx   = set.photonEnergyShift       else  photonEnergyShiftx   = photonEnergyShift     end 
+    if  isnothing(mimimumPhotonEnergy)   mimimumPhotonEnergyx = set.mimimumPhotonEnergy     else  mimimumPhotonEnergyx = mimimumPhotonEnergy   end 
+    if  isnothing(maximumPhotonEnergy)   maximumPhotonEnergyx = set.maximumPhotonEnergy     else  maximumPhotonEnergyx = maximumPhotonEnergy   end 
     
     Settings( multipolesx, gaugesx, calcAnisotropyx, printBeforex, corePolarizationx, lineSelectionx, 
               photonEnergyShiftx, mimimumPhotonEnergyx, maximumPhotonEnergyx)

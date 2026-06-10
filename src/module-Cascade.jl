@@ -1110,18 +1110,18 @@ function Computation(comp::Cascade.Computation;
     scheme::Union{Nothing,Cascade.AbstractCascadeScheme}=nothing,         approach::Union{Nothing,Cascade.AbstractCascadeApproach}=nothing, 
     initialConfigs::Union{Nothing,Array{Configuration,1}}=nothing,        initialMultiplets::Union{Nothing,Array{Multiplet,1}}=nothing)
     
-    if  initialConfigs != nothing   &&   initialMultiplets != nothing   
+    if  !isnothing(initialConfigs)   &&   !isnothing(initialMultiplets)   
         error("Only initialConfigs=..  'xor'  initialMultiplets=..  can be specified for a Cascade.Computation().")
     end
 
-    if  name                 == nothing   namex                 = comp.name                    else  namex = name                              end 
-    if  nuclearModel         == nothing   nuclearModelx         = comp.nuclearModel            else  nuclearModelx = nuclearModel              end 
-    if  grid                 == nothing   gridx                 = comp.grid                    else  gridx = grid                              end 
-    if  asfSettings          == nothing   asfSettingsx          = comp.asfSettings             else  asfSettingsx = asfSettings                end 
-    if  scheme               == nothing   schemex               = comp.scheme                  else  schemex = scheme                          end 
-    if  approach             == nothing   approachx             = comp.approach                else  approachx = approach                      end 
-    if  initialConfigs       == nothing   initialConfigsx       = comp.initialConfigs          else  initialConfigsx = initialConfigs          end 
-    if  initialMultiplets    == nothing   initialMultipletsx    = comp.initialMultiplets       else  initialMultipletsx = initialMultiplets    end
+    if  isnothing(name)                   namex                 = comp.name                    else  namex = name                              end 
+    if  isnothing(nuclearModel)           nuclearModelx         = comp.nuclearModel            else  nuclearModelx = nuclearModel              end 
+    if  isnothing(grid)                   gridx                 = comp.grid                    else  gridx = grid                              end 
+    if  isnothing(asfSettings)            asfSettingsx          = comp.asfSettings             else  asfSettingsx = asfSettings                end 
+    if  isnothing(scheme)                 schemex               = comp.scheme                  else  schemex = scheme                          end 
+    if  isnothing(approach)               approachx             = comp.approach                else  approachx = approach                      end 
+    if  isnothing(initialConfigs)         initialConfigsx       = comp.initialConfigs          else  initialConfigsx = initialConfigs          end 
+    if  isnothing(initialMultiplets)      initialMultipletsx    = comp.initialMultiplets       else  initialMultipletsx = initialMultiplets    end
     
     Computation(namex, nuclearModelx, gridx, asfSettingsx, schemex, approachx, initialConfigsx, initialMultipletsx)
 end

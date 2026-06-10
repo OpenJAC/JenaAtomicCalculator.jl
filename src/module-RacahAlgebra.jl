@@ -440,17 +440,17 @@ function RacahExpression(rex::RacahAlgebra.RacahExpression;
                             w6js::Union{Nothing,Array{W6j,1}}=nothing,                w9js::Union{Nothing,Array{W9j,1}}=nothing,
                             ylms::Union{Nothing,Array{Ylm,1}}=nothing,                djpqs::Union{Nothing,Array{Djpq,1}}=nothing) 
     
-    if  summations == nothing   summationsx = rex.summations    else   summationsx = summations     end 
-    if  integrals  == nothing   integralsx  = rex.integrals     else   integralsx  = integrals      end 
-    if  phase      == nothing   phasex      = rex.phase         else   phasex = phase               end 
-    if  weight     == nothing   weightx     = rex.weight        else   weightx = weight             end 
-    if  deltas     == nothing   deltasx     = rex.deltas        else   deltasx = deltas             end 
-    if  triangles  == nothing   trianglesx  = rex.triangles     else   trianglesx = triangles       end 
-    if  w3js       == nothing   w3jsx       = rex.w3js          else   w3jsx  = w3js                end 
-    if  w6js       == nothing   w6jsx       = rex.w6js          else   w6jsx  = w6js                end 
-    if  w9js       == nothing   w9jsx       = rex.w9js          else   w9jsx  = w9js                end 
-    if  ylms       == nothing   ylmsx       = rex.ylms          else   ylmsx  = ylms                end 
-    if  djpqs      == nothing   djpqsx      = rex.djpqs         else   djpqsx = djpqs               end 
+    if  isnothing(summations)   summationsx = rex.summations    else   summationsx = summations     end 
+    if  isnothing(integrals)    integralsx  = rex.integrals     else   integralsx  = integrals      end 
+    if  isnothing(phase)        phasex      = rex.phase         else   phasex = phase               end 
+    if  isnothing(weight)       weightx     = rex.weight        else   weightx = weight             end 
+    if  isnothing(deltas)       deltasx     = rex.deltas        else   deltasx = deltas             end 
+    if  isnothing(triangles)    trianglesx  = rex.triangles     else   trianglesx = triangles       end 
+    if  isnothing(w3js)         w3jsx       = rex.w3js          else   w3jsx  = w3js                end 
+    if  isnothing(w6js)         w6jsx       = rex.w6js          else   w6jsx  = w6js                end 
+    if  isnothing(w9js)         w9jsx       = rex.w9js          else   w9jsx  = w9js                end 
+    if  isnothing(ylms)         ylmsx       = rex.ylms          else   ylmsx  = ylms                end 
+    if  isnothing(djpqs)        djpqsx      = rex.djpqs         else   djpqsx = djpqs               end 
     
     RacahExpression( summationsx, integralsx, phasex, weightx, deltasx, trianglesx, w3jsx, w6jsx, w9jsx, ylmsx, djpqsx)
 end
@@ -772,21 +772,21 @@ function  evaluate(rx::RacahExpression; special::Bool=false)
     if  special
         # Simplify by means of special values if this is requested
         for  (iaW3j, aW3j) in enumerate(rex.w3js)    wa = evaluate(aW3j)
-            if wa != nothing    newW3js = W3j[]     
+            if !isnothing(wa)    newW3js = W3j[]     
                 for  (ibW3j, bW3j) in enumerate(rex.w3js)   if  iaW3j == ibW3j  else  push!(newW3js, ibW3j)   end    end
                 rrex = RacahExpression( rex.summations, rex.integrals, rex.phase, rex.weight, rex.deltas, rex.triangles, newW3js, rex.w6js, rex.w9js, rex.ylms, rex.djpqs)
                 return( rrex * wa )
             end
         end
         for  (iaW6j, aW6j) in enumerate(rex.w6js)    wa = evaluate(aW6j)
-            if wa != nothing    newW6js = W6j[]     
+            if !isnothing(wa)    newW6js = W6j[]     
                 for  (ibW6j, bW6j) in enumerate(rex.w6js)   if  iaW6j == ibW6j  else  push!(newW6js, ibW6j)   end    end
                 rrex = RacahExpression( rex.summations, rex.integrals, rex.phase, rex.weight, rex.deltas, rex.triangles, rex.w3js, newW6js, rex.w9js, rex.ylms, rex.djpqs)
                 return( rrex * wa )
             end
         end
         for  (iaW9j, aW9j) in enumerate(rex.w9js)    wa = evaluate(aW9j)
-            if wa != nothing    newW9js = W9j[]     
+            if !isnothing(wa)    newW9js = W9j[]     
                 for  (ibW9j, bW9j) in enumerate(rex.w9js)   if  iaW9j == ibW9j  else  push!(newW9js, ibW9j)   end    end
                 rrex = RacahExpression( rex.summations, rex.integrals, rex.phase, rex.weight, rex.deltas, rex.triangles, rex.w3js, rex.w6js, newW9js, rex.ylms, rex.djpqs)
                 return( rrex * wa )

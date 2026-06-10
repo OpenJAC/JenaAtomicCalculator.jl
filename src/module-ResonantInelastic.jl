@@ -67,15 +67,15 @@ function Settings(set::ResonantInelastic.Settings;
     omegaInInterval::Union{Nothing,NamedTuple{(:lower, :upper), Tuple{Float64, Float64}} }=nothing,            
     omegaOutInterval::Union{Nothing,NamedTuple{(:lower, :upper), Tuple{Float64, Float64}} }=nothing)
     
-    if  multipoles          == nothing   multipolesx          = set.multipoles              else  multipolesx          = multipoles            end 
-    if  gauges              == nothing   gaugesx              = set.gauges                  else  gaugesx              = gauges                end 
-    if  calcRixsCI          == nothing   calcRixsCIx          = set.calcRixsCI              else  calcRixsCIx          = calcRixsCI            end 
-    if  printBefore         == nothing   printBeforex         = set.printBefore             else  printBeforex         = printBefore           end 
-    if  ciEnhancement       == nothing   ciEnhancementx       = set.ciEnhancement           else  ciEnhancementx       = ciEnhancement         end 
-    if  width               == nothing   widthx               = set.width                   else  widthx               = width                 end 
-    if  pathwaySelection    == nothing   pathwaySelectionx    = set.pathwaySelection        else  pathwaySelectionx    = pathwaySelection      end 
-    if  omegaInInterval     == nothing   omegaInIntervalx     = set.omegaInInterval         else  omegaInIntervalx     = omegaInInterval       end 
-    if  omegaOutInterval    == nothing   omegaOutIntervalx    = set.omegaOutInterval        else  omegaOutIntervalx    = omegaOutInterval      end 
+    if  isnothing(multipoles)            multipolesx          = set.multipoles              else  multipolesx          = multipoles            end 
+    if  isnothing(gauges)                gaugesx              = set.gauges                  else  gaugesx              = gauges                end 
+    if  isnothing(calcRixsCI)            calcRixsCIx          = set.calcRixsCI              else  calcRixsCIx          = calcRixsCI            end 
+    if  isnothing(printBefore)           printBeforex         = set.printBefore             else  printBeforex         = printBefore           end 
+    if  isnothing(ciEnhancement)         ciEnhancementx       = set.ciEnhancement           else  ciEnhancementx       = ciEnhancement         end 
+    if  isnothing(width)                 widthx               = set.width                   else  widthx               = width                 end 
+    if  isnothing(pathwaySelection)      pathwaySelectionx    = set.pathwaySelection        else  pathwaySelectionx    = pathwaySelection      end 
+    if  isnothing(omegaInInterval)       omegaInIntervalx     = set.omegaInInterval         else  omegaInIntervalx     = omegaInInterval       end 
+    if  isnothing(omegaOutInterval)      omegaOutIntervalx    = set.omegaOutInterval        else  omegaOutIntervalx    = omegaOutInterval      end 
     
     Settings( multipolesx, gaugesx, calcRixsCIx, printBeforex, ciEnhancementx, widthx, pathwaySelectionx, omegaInIntervalx, omegaOutIntervalx)
 end

@@ -100,18 +100,18 @@ function Settings(set::ImpactExcitation.Settings;
     printBefore::Union{Nothing, Bool} = nothing,
     operator::Union{Nothing, AbstractEeInteraction} = nothing )
 
-    if lineSelection == nothing     lineSelectionx = set.lineSelection       else lineSelectionx = lineSelection        end
-    if electronEnergies == nothing  electronEnergiesx = set.electronEnergies else electronEnergiesx = electronEnergies  end
-    if energyShift == nothing       energyShiftx = set.energyShift           else energyShiftx = energyShift            end
-    if maxKappa == nothing          maxKappax = set.maxKappa                 else maxKappax = maxKappa                  end
-    if calcRateCoefficient == nothing   calcRateCoefficientx = set.calcRateCoefficient else 
+    if isnothing(lineSelection)     lineSelectionx = set.lineSelection       else lineSelectionx = lineSelection        end
+    if isnothing(electronEnergies)  electronEnergiesx = set.electronEnergies else electronEnergiesx = electronEnergies  end
+    if isnothing(energyShift)       energyShiftx = set.energyShift           else energyShiftx = energyShift            end
+    if isnothing(maxKappa)          maxKappax = set.maxKappa                 else maxKappax = maxKappa                  end
+    if isnothing(calcRateCoefficient)   calcRateCoefficientx = set.calcRateCoefficient else 
                                                                                 calcRateCoefficientx = calcRateCoefficient end
-    if maxEnergyMultiplier == nothing maxEnergyMultiplierx = set.maxEnergyMultiplier else maxEnergyMultiplierx = maxEnergyMultiplier end
-    if numElectronEnergies == nothing numElectronEnergiesx = set.numElectronEnergies else 
+    if isnothing(maxEnergyMultiplier) maxEnergyMultiplierx = set.maxEnergyMultiplier else maxEnergyMultiplierx = maxEnergyMultiplier end
+    if isnothing(numElectronEnergies) numElectronEnergiesx = set.numElectronEnergies else 
                                                                              numElectronEnergiesx = numElectronEnergies end
-    if temperatures == nothing      temperaturesx = set.temperatures         else temperaturesx = temperatures          end
-    if printBefore == nothing       printBeforex = set.printBefore           else printBeforex = printBefore            end
-    if operator == nothing          operatorx = set.operator                 else operatorx = operator                  end
+    if isnothing(temperatures)      temperaturesx = set.temperatures         else temperaturesx = temperatures          end
+    if isnothing(printBefore)       printBeforex = set.printBefore           else printBeforex = printBefore            end
+    if isnothing(operator)          operatorx = set.operator                 else operatorx = operator                  end
 
     Settings( lineSelectionx, electronEnergiesx, energyShiftx, maxKappax, calcRateCoefficientx, maxEnergyMultiplierx, 
                                                             numElectronEnergiesx, temperaturesx, printBeforex, operatorx )
