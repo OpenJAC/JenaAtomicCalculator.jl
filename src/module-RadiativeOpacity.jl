@@ -42,7 +42,7 @@ end
     ... constructor for an `empty` instance of RadiativeOpacity.Settings for the computation of radiative opacities.
 """
 function Settings()
-    Settings( )
+    Settings(1, 0, 0, 0., 0., 0., Float64[], Float64[])
 end
 
 

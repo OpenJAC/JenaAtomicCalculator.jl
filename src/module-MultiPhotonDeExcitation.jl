@@ -246,7 +246,7 @@ end
 `MultiPhotonDeExcitation.Settings()`  ... constructor for the default values of multi-photon excitation and decay rates.
 """
 function Settings()
-    Settings( TwoPhotonEmission(), EmMultipole[], UseGauge[], Multiplet(), false, 0., LineSelection() )
+    Settings( TwoPhotonEmission(), EmMultipole[], UseGauge[], Multiplet(), 0, false, 0., LineSelection() )
 end
 
 

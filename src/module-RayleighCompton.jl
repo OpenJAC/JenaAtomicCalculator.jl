@@ -44,7 +44,7 @@ end
 `RayleighCompton.Settings()`  ... constructor for the default values of Rayleigh-Compton photon-scattering estimates.
 """
 function Settings()
-    Settings(EmMultipole[], UseGauge[], GreenChannel[], 0., false, false, false, false, ExpStokes(), SolidAngle[], LineSelection() )
+    Settings(EmMultipole[], UseGauge[], Float64[], GreenChannel[], false, false, false, false, ExpStokes(), SolidAngle[], LineSelection() )
 end
 
 

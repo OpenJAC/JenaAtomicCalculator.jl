@@ -37,9 +37,9 @@ end
                                     printBefore::Bool=true, levelSelection::LevelSelection=LevelSelection()) 
     ... keyword constructor to overwrite selected value of reduced-density matrix computations.
 """
-function Settings(; calcNatural::Bool=true, calcDensity::Bool=true, calcIpq::Bool=false, 
-                                    printBefore::Bool=true, levelSelection::LevelSelection=LevelSelection())
-    Settings(calcNatural, calcDensity, calcIpq, printBefore, levelSelection)
+function Settings(; calcNatural::Bool=true, calcDensity::Bool=true, calcIpq::Bool=false,
+                    calc2pRDM::Bool=false, printBefore::Bool=true, levelSelection::LevelSelection=LevelSelection())
+    Settings(calcNatural, calcDensity, calcIpq, calc2pRDM, printBefore, levelSelection)
 end
 
 # `Base.show(io::IO, settings::ReducedDensityMatrix.Settings)`  

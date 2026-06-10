@@ -281,7 +281,7 @@ end
     ... constructor for the default values of SFA computations.
 """
 function Settings()
-    Settings([E1], [UseCoulomb], true, true, false, false, true)
+    Settings([E1], "Coulomb", true, true, false, false, true)
 end
 
 

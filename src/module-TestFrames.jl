@@ -66,16 +66,106 @@ function testCompareFiles(fold::String, fnew::String, sa::String, noLines::Int64
 end
 
 
-function testPrint(sa::String, success::Bool) 
+function testPrint(sa::String, success::Bool)
     printTest, iostream = Defaults.getDefaults("test flag/stream")
     ok(succ) =  succ ? "[OK]" : "[Fail]"
     sb = sa * TableStrings.hBlank(110);   sb = sb[1:100] * ok(success);    println(iostream, sb)
     return( nothing )
-end 
+end
 
 
 """
-`TestFrames.testEvaluation_Wigner_3j_specialValues(; short::Bool=true)`  
+`TestFrames.testStructConstructors(; short::Bool=true)`
+    ... tests that all major struct constructors and Base.show methods work without error.
+        This fast structural test catches breakage caused by adding or removing struct fields
+        without updating all constructor call sites. No physics computations are performed.
+"""
+function testStructConstructors(; short::Bool=true)
+    success = true
+    printTest, iostream = Defaults.getDefaults("test flag/stream")
+
+    items = Tuple{String,Function}[
+        # Core structs: Nuclear.Model with all simple constructors
+        ("Nuclear.Model(Z)",                        () -> Nuclear.Model(26.)                            ),
+        ("Nuclear.Model(Z,M)",                      () -> Nuclear.Model(26., 55.845)                    ),
+        ("Nuclear.Model(Z,model)",                  () -> Nuclear.Model(26., "Fermi")                   ),
+        ("Nuclear.Isomer()",                        () -> Nuclear.Isomer()                              ),
+        # Radial grid
+        ("Radial.Grid(false)",                      () -> Radial.Grid(false)                            ),
+        # Configurations, shells
+        ("Configuration(string)",                   () -> Configuration("1s^2 2s^2 2p^6")              ),
+        ("Shell(string)",                           () -> Shell("2p")                                   ),
+        ("Subshell(string)",                        () -> Subshell("2p_1/2")                            ),
+        # General settings structs
+        ("AsfSettings()",                           () -> AsfSettings()                                 ),
+        ("LevelSelection()",                        () -> LevelSelection()                              ),
+        ("LineSelection()",                         () -> LineSelection()                               ),
+        # Atomic property settings
+        ("Einstein.Settings()",                     () -> Einstein.Settings()                           ),
+        ("Hfs.Settings()",                          () -> Hfs.Settings()                               ),
+        ("IsotopeShift.Settings()",                 () -> IsotopeShift.Settings()                      ),
+        ("LandeZeeman.Settings()",                  () -> LandeZeeman.Settings()                       ),
+        ("StarkShift.Settings()",                   () -> StarkShift.Settings()                        ),
+        ("AlphaVariation.Settings()",               () -> AlphaVariation.Settings()                    ),
+        ("FormFactor.Settings()",                   () -> FormFactor.Settings()                        ),
+        ("DecayYield.Settings()",                   () -> DecayYield.Settings()                        ),
+        ("MultipolePolarizibility.Settings()",      () -> MultipolePolarizibility.Settings()           ),
+        ("ReducedDensityMatrix.Settings()",         () -> ReducedDensityMatrix.Settings()              ),
+        ("RadiativeOpacity.Settings()",             () -> RadiativeOpacity.Settings()                  ),
+        # Basic process settings
+        ("PhotoEmission.Settings()",                () -> PhotoEmission.Settings()                     ),
+        ("PhotoExcitation.Settings()",              () -> PhotoExcitation.Settings()                   ),
+        ("PhotoIonization.Settings()",              () -> PhotoIonization.Settings()                   ),
+        ("PhotoRecombination.Settings()",           () -> PhotoRecombination.Settings()                ),
+        ("AutoIonization.Settings()",               () -> AutoIonization.Settings()                    ),
+        ("ElectronCapture.Settings()",              () -> ElectronCapture.Settings()                   ),
+        ("DielectronicRecombination.Settings()",    () -> DielectronicRecombination.Settings()         ),
+        ("PhotoExcitationFluores.Settings()",       () -> PhotoExcitationFluores.Settings()            ),
+        ("PhotoExcitationAutoion.Settings()",       () -> PhotoExcitationAutoion.Settings()            ),
+        ("RayleighCompton.Settings()",              () -> RayleighCompton.Settings()                   ),
+        ("ParticleScattering.Settings()",           () -> ParticleScattering.Settings()                ),
+        ("BeamPhotoExcitation.Settings()",          () -> BeamPhotoExcitation.Settings()               ),
+        ("HyperfineInduced.Settings()",             () -> HyperfineInduced.Settings()                  ),
+        ("ResonantInelastic.Settings()",            () -> ResonantInelastic.Settings()                 ),
+        ("ImpactExcitation.Settings()",             () -> ImpactExcitation.Settings()                  ),
+        ("CoulombExcitation.Settings()",            () -> CoulombExcitation.Settings()                 ),
+        # Advanced process settings
+        ("MultiPhotonDeExcitation.Settings()",      () -> MultiPhotonDeExcitation.Settings()           ),
+        ("MultiPhotonIonization.Settings()",        () -> MultiPhotonIonization.Settings()             ),
+        ("MultiPhotonDoubleIon.Settings()",         () -> MultiPhotonDoubleIon.Settings()              ),
+        ("PhotoDoubleIonization.Settings()",        () -> PhotoDoubleIonization.Settings()             ),
+        ("PhotoIonizationFluores.Settings()",       () -> PhotoIonizationFluores.Settings()            ),
+        ("PhotoIonizationAutoion.Settings()",       () -> PhotoIonizationAutoion.Settings()            ),
+        ("ImpactExcitationAutoion.Settings()",      () -> ImpactExcitationAutoion.Settings()           ),
+        ("RadiativeAuger.Settings()",               () -> RadiativeAuger.Settings()                    ),
+        ("InternalConversion.Settings()",           () -> InternalConversion.Settings()                ),
+        ("InternalRecombination.Settings()",        () -> InternalRecombination.Settings()             ),
+        ("TwoElectronOnePhoton.Settings()",         () -> TwoElectronOnePhoton.Settings()              ),
+        ("DoubleAutoIonization.Settings()",         () -> DoubleAutoIonization.Settings()              ),
+        # Further module settings
+        ("Plasma.Settings()",                       () -> Plasma.Settings()                            ),
+        ("Liouville.Settings()",                    () -> Liouville.Settings()                         ),
+        ("StrongField.Settings()",                  () -> StrongField.Settings()                       ),
+    ]
+
+    for (name, fn) in items
+        try
+            obj = fn()
+            show(devnull, obj)
+        catch e
+            success = false
+            println(stdout,   "    *** FAIL $name: $(sprint(showerror, e))")
+            if printTest   println(iostream, "    *** FAIL $name: $(sprint(showerror, e))")   end
+        end
+    end
+
+    testPrint("testStructConstructors()::", success)
+    return( success )
+end
+
+
+"""
+`TestFrames.testEvaluation_Wigner_3j_specialValues(; short::Bool=true)`
     ... tests on special values for the Wigner 3j symbols.
 """
 function testEvaluation_Wigner_3j_specialValues(; short::Bool=true)

@@ -6,7 +6,11 @@ using JenaAtomicCalculator, ..Defaults, ..TestFrames
     ## Defaults.Constants.define("print test: open", pwd() * "/runtests.report")
 
     @testset "JAC methods" begin
-        @test TestFrames.testMethod_Wigner_3j() 
+        @test TestFrames.testMethod_Wigner_3j()
+    end
+
+    @testset "JAC structs" begin
+        @test TestFrames.testStructConstructors()
     end
 
     @testset "JAC evaluations" begin

@@ -97,7 +97,7 @@ end
 `ParticleScattering.Settings()`  ... constructor for the default ParticleScattering.Settings.
 """
 function Settings()
-    Settings(ElasticElectron(), PlaneWave(), LinearX(), Float64[], Float64[], Float64[], Vector{Float64}[], false, LineSelection(), 2)
+    Settings(ElasticElectronNR(), Beam.PlaneWave(), LinearPolarization(), Float64[], Float64[], Float64[], Vector{Float64}[], false, LineSelection(), 2.)
 end
 
 
