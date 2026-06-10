@@ -74,7 +74,6 @@ GBL_FRAMEWORK                = "relativistic"
 GBL_CONT_POTENTIAL           = Basics.DFSField(0.42)
 GBL_CONT_SOLUTION            = BsplineGalerkin()         ###  ContBessel(), ContSine(), AsymptoticCoulomb(), NonrelativisticCoulomb(), BsplineGalerkin()
 GBL_CONT_NORMALIZATION       = AlokNorm()                ###  PureSineNorm(), CoulombSineNorm(), OngRussekNorm(), AlokNorm()
-##x GBL_CONT_NORMALIZATION       = PureSineNorm()            ###  PureSineNorm(), CoulombSineNorm(), OngRussekNorm()
 GBL_QED_HYDROGENIC_LAMBDAC   = [1.0,  1.0,  1.0,  1.0,  1.0]
 GBL_QED_NUCLEAR_CHARGE       = 0.1
 GBL_WARNINGS                 = String[]
@@ -417,9 +416,6 @@ end
 
 
 function setDefaults(sa::String, sb::String)
-    ## global GBL_ENERGY_UNIT, GBL_CROSS_SECTION_UNIT, GBL_RATE_UNIT, GBL_TIME_UNIT, GBL_SUMMARY_IOSTREAM, GBL_PRINT_SUMMARY, 
-    ##    GBL_TEST_IOSTREAM, GBL_PRINT_TEST 
-
     if        sa == "unit: energy"
         units = ["eV", "Kayser", "Hartree", "Hz", "A"]
         !(sb in units)    &&    error("Currently supported energy units: $(units)")
@@ -659,7 +655,6 @@ end
 """
 function getDefaults(sa::String, n_max::Int64)
 
-    ## !(1 <= n_max < 20)    &&    error("Unsupported value of n_max = $n_max")
     !(1 <= n_max < 12)    &&    error("Unsupported value of n_max = $n_max")
 
     if        sa == "ordered shell list: non-relativistic"
@@ -710,8 +705,6 @@ function warn(wa::AbstractWarning)
         close(iostream)
         #
     elseif    wa == ResetWarnings()
-        ## @warn("Reset global array GBL_WARNINGS.")
-        ## printstyled("Constants.warn():  Reset global array GBL_WARNINGS.", color=:light_magenta)
         GBL_WARNINGS = String[]
     else      error("Unsupported Warnings:: $wa")
     end
