@@ -38,6 +38,7 @@ using JenaAtomicCalculator, ..Defaults, ..TestFrames
 
     @testset "JAC properties" begin
         @test TestFrames.testModule_Einstein()
+        ## @test TestFrames.testModule_PlasmaShift()  ## disabled: PlasmaShift is now a Plasma.Computation scheme, not an Atomic property; needs Plasma module rework
         ## @test TestFrames.testModule_Hfs()           ## disabled: runtime error "still to be done" in Hfs.computeAmplitudesProperties (calcNondiagonal path not implemented)
         @test TestFrames.testModule_LandeZeeman() 
         @test TestFrames.testModule_IsotopeShift()   
