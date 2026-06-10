@@ -590,7 +590,7 @@ function testModule_Hfs(; short::Bool=true)
     printstyled("\n\nTest the module  Hfs  ... \n", color=:cyan)
     ### Make the tests
     wa = Atomic.Computation(Atomic.Computation(), name="xx", grid=Radial.Grid(true),
-                            nuclearModel=Nuclear.Model(26., "Fermi", 58., 3.81, AngularJ64(5//2), 1.0, 1.0),
+                            nuclearModel=Nuclear.Model(26., "Fermi", 58., 3.81, AngularJ64(5//2), 1.0, 1.0, 0.),
                             configs=[Configuration("[Ne] 3s^2 3p^5"), Configuration("[Ne] 3s 3p^6")],
                             propertySettings = [ Hfs.Settings(true, true, true, true, true, LevelSelection() )] )
 
@@ -639,7 +639,7 @@ function testModule_LandeZeeman(; short::Bool=true)
     printstyled("\n\nTest the module  LandeZeeman  ... \n", color=:cyan)
     ### Make the tests
     wa = Atomic.Computation(Atomic.Computation(), name="xx", grid=Radial.Grid(true),
-                            nuclearModel=Nuclear.Model(26., "Fermi", 58., 3.75, AngularJ64(5//2), 1.0, 2.0),
+                            nuclearModel=Nuclear.Model(26., "Fermi", 58., 3.75, AngularJ64(5//2), 1.0, 2.0, 0.),
                             configs=[Configuration("[Ne] 3s^2 3p^5"), Configuration("[Ne] 3s 3p^6")],
                             propertySettings = [ LandeZeeman.Settings(true, true, true, false, true, true, 0., 
                                                                       LevelSelection(), Multiplet() )] )
