@@ -381,8 +381,8 @@ function  computeQuadraticZeemanC2(multiplet::Multiplet, level::Level, Fsub::Sub
     println("   >>> Calculate Hyperfine parameters ...")
 
     #Calculate hyperfine splitting
-    amplitudeT1 = Hfs.amplitude("T^(1) amplitude", level, level, grid, printout=false)
-    amplitudeT2 = Hfs.amplitude("T^(2) amplitude", level, level, grid, printout=false)
+    amplitudeT1 = Hfs.amplitude(Basics.M1, level, level, grid; printout=false)
+    amplitudeT2 = Hfs.amplitude(Basics.E2, level, level, grid; printout=false)
     j = Float64(level.J)
     i = Float64(nm.spinI)
     A = nm.mu/i * 1/sqrt(j * (j + 1)) * amplitudeT1

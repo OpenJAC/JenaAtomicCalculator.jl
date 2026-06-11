@@ -429,47 +429,37 @@ end
 
 
 """
-`Hfs.amplitude(mp::EmMultipole, rLevel::Level, sLevel::Level, grid::Radial.Grid; printout::Bool=true)` 
-    ... to compute either the  T^(M1), T^(E2) or T^(M3) hyperfine amplitude <alpha_r J_r || T^(n)) || alpha_s J_s>  
+`Hfs.amplitude(mp::EmMultipole, rLevel::Level, sLevel::Level, grid::Radial.Grid; printout::Bool=true)`
+    ... to compute the T^(M1), T^(E2) or T^(M3) hyperfine amplitude <alpha_r J_r || T^(mp) || alpha_s J_s>
         for a given pair of levels. A value::ComplexF64 is returned.
 """
 function  amplitude(mp::EmMultipole, rLevel::Level, sLevel::Level, grid::Radial.Grid; printout::Bool=true)
-    #
     if  rLevel.parity != sLevel.parity   return( ComplexF64(0.) )   end
     nr = length(rLevel.basis.csfs);    ns = length(sLevel.basis.csfs);    matrix = zeros(ComplexF64, nr, ns)
-    if  printout   printstyled("Compute hyperfine $(kind[1:5]) matrix of dimension $nr x $ns ... \n", color=:light_green)   end
+    if  printout   printstyled("Compute hyperfine $(string(mp)) matrix of dimension $nr x $ns ... \n", color=:light_green)   end
     #
-    if        mp == M1    opa = SpinAngular.OneParticleOperator(1, plus, true);  hfsFunc = InteractionStrength.hfs_tM1;  sb = "t^M1"
-    elseif    mp == E2    opa = SpinAngular.OneParticleOperator(2, plus, true);  hfsFunc = InteractionStrength.hfs_tE2;  sb = "t^E2"
-    elseif    mp == M3    opa = SpinAngular.OneParticleOperator(3, plus, true);  hfsFunc = InteractionStrength.hfs_tM3;  sb = "t^M3"
-    elseif    error("Undefined nuclear multipole $mp ")
-    end 
-    
+    if        mp == M1    opa = SpinAngular.OneParticleOperator(1, plus, true);  hfsFunc = InteractionStrength.hfs_tM1
+    elseif    mp == E2    opa = SpinAngular.OneParticleOperator(2, plus, true);  hfsFunc = InteractionStrength.hfs_tE2
+    elseif    mp == M3    opa = SpinAngular.OneParticleOperator(3, plus, true);  hfsFunc = InteractionStrength.hfs_tM3
+    else      error("Hfs.amplitude: unsupported nuclear multipole $mp.")
+    end
     for  r = 1:nr
         for  s = 1:ns
             me = 0.
             if  rLevel.basis.csfs[r].parity  != rLevel.parity    ||  sLevel.basis.csfs[s].parity  != sLevel.parity  ||
-                rLevel.parity != sLevel.parity    continue    
-            end 
-
-            subshellList = sLevel.basis.subshells
-            wa           = SpinAngular.computeCoefficients(opa, rLevel.basis.csfs[r], sLevel.basis.csfs[s], subshellList) 
-            #
-            for  coeff in wa
-                ja = Basics.subshell_2j(rLevel.basis.orbitals[coeff.a].subshell)
-                jb = Basics.subshell_2j(sLevel.basis.orbitals[coeff.b].subshell)
-                tamp  = hfsFunc(rLevel.basis.orbitals[coeff.a], sLevel.basis.orbitals[coeff.b], grid)
-                ## println("**  <$(coeff.a) || $sb || $(coeff.b)>  = $(coeff.T * tamp)   = $(coeff.T) * $tamp" )
-                me = me + coeff.T * tamp  
+                rLevel.parity != sLevel.parity    continue
             end
-            #
+            subshellList = sLevel.basis.subshells
+            wa           = SpinAngular.computeCoefficients(opa, rLevel.basis.csfs[r], sLevel.basis.csfs[s], subshellList)
+            for  coeff in wa
+                tamp  = hfsFunc(rLevel.basis.orbitals[coeff.a], sLevel.basis.orbitals[coeff.b], grid)
+                me = me + coeff.T * tamp
+            end
             matrix[r,s] = me
-            println(">>> HF interaction matrix:  <$r || T^($mp) || $s> = $me" )
         end
     end
     if  printout   printstyled("done.\n", color=:light_green)   end
-    amplitude = transpose(rLevel.mc) * matrix * sLevel.mc 
-    #
+    amplitude = transpose(rLevel.mc) * matrix * sLevel.mc
     return( amplitude )
 end
 
@@ -592,7 +582,7 @@ function  computeAmplitudesProperties(outcome::Hfs.Outcome, nm::Nuclear.Model, g
     #
     if  settings.calcE2  &&  outcome.Jlevel.J != AngularJ64(0)
         if  im.calcE2   amplitudeE2 = transpose(outcome.Jlevel.mc) * im.matrixE2 * outcome.Jlevel.mc
-        else            amplitudeE2 = Hfs.amplitude("T^(E2) amplitude", outcome.Jlevel, outcome.Jlevel, grid)
+        else            amplitudeE2 = Hfs.amplitude(Basics.E2, outcome.Jlevel, outcome.Jlevel, grid)
         end
         wx       = Defaults.convertUnits("cross section: from barn to atomic unit", 1.0)
         BoverQ   = 2 * amplitudeE2 * sqrt( (2J-1) / ((J+1)*(2J+3)) ) * wx  ## * sqrt(J)
@@ -600,7 +590,7 @@ function  computeAmplitudesProperties(outcome::Hfs.Outcome, nm::Nuclear.Model, g
     #
     if  settings.calcM3  &&  outcome.Jlevel.J != AngularJ64(0)
         if  im.calcM3   amplitudeM3 = transpose(outcome.Jlevel.mc) * im.matrixM3 * outcome.Jlevel.mc
-        else            amplitudeM3 = Hfs.amplitude("T^(M3) amplitude", outcome.Jlevel, outcome.Jlevel, grid)
+        else            amplitudeM3 = Hfs.amplitude(Basics.M3, outcome.Jlevel, outcome.Jlevel, grid)
         end
         wx         = Defaults.convertUnits("moment: from nuclear magneton x fm^2 to atomic", 1.0)
         CoverOmega =   - amplitudeM3 * sqrt( J *(J-1)*(2J-1) / ((J+1)*(J+2)*(2J+3)) ) * wx   
@@ -1039,9 +1029,9 @@ function  displayNondiagonal(stream::IO, multiplet::Multiplet, grid::Radial.Grid
         symf = LevelSymmetry( multiplet.levels[f].J, multiplet.levels[f].parity)
         symi = LevelSymmetry( multiplet.levels[i].J, multiplet.levels[i].parity)
         sa   = sa * TableStrings.center(10, string(symf); na=4)
-        M1   = Hfs.amplitude("T^(M1) amplitude", multiplet.levels[f], multiplet.levels[i], grid, printout=false)
-        E2   = Hfs.amplitude("T^(E2) amplitude", multiplet.levels[f], multiplet.levels[i], grid, printout=false)
-        M3   = Hfs.amplitude("T^(M3) amplitude", multiplet.levels[f], multiplet.levels[i], grid, printout=false)
+        M1   = Hfs.amplitude(Basics.M1, multiplet.levels[f], multiplet.levels[i], grid; printout=false)
+        E2   = Hfs.amplitude(Basics.E2, multiplet.levels[f], multiplet.levels[i], grid; printout=false)
+        M3   = Hfs.amplitude(Basics.M3, multiplet.levels[f], multiplet.levels[i], grid; printout=false)
         sa   = sa * @sprintf("%.5e %s %.5e", M1.re, "  ", M1.im) * "    "
         sa   = sa * @sprintf("%.5e %s %.5e", E2.re, "  ", E2.im) * "    "
         sa   = sa * @sprintf("%.5e %s %.5e", M3.re, "  ", M3.im) * "    "
