@@ -112,7 +112,6 @@ function mergeConfigurations                                    end
 function modifyLevelEnergies                                    end
 function modifyLevelMixing                                      end
 function perform                                                end
-function performSCF                                             end
 function performCI                                              end
 function plot                                                   end
 function read                                                   end
