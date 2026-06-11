@@ -23,12 +23,12 @@ using  Printf,  LinearAlgebra, GaussQuadrature, JenaAtomicCalculator, ..Basics, 
        ..PhotoIonization  ==#
 
 
-include("module-BascisAZ-inc-AG.jl")
-include("module-BascisAZ-inc-compute.jl")
-include("module-BascisAZ-inc-configurations.jl")
-include("module-BascisAZ-inc-generate.jl")
-include("module-BascisAZ-inc-HP.jl")
-include("module-BascisAZ-inc-perform.jl")
-include("module-BascisAZ-inc-QZ.jl")
+include("module-BasicsAZ-inc-AG.jl")
+include("module-BasicsAZ-inc-compute.jl")
+include("module-BasicsAZ-inc-configurations.jl")
+include("module-BasicsAZ-inc-generate.jl")
+include("module-BasicsAZ-inc-HP.jl")
+include("module-BasicsAZ-inc-perform.jl")
+include("module-BasicsAZ-inc-QZ.jl")
 
 end # module

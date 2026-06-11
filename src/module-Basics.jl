@@ -52,10 +52,8 @@ function displayConfiguration                                   end
 function displayConfigurations                                  end
 function displayLevels                                          end
 function displayMeanEnergies                                    end
-function displayMeshes                                          end
 function displayOrbitalOverlap                                  end
 function displayOrbitalProperties                               end
-function excludeDoubles                                         end
 function expandOrbital                                          end
 function extractConfiguration                                   end
 function extractConfigurations                                  end
@@ -64,7 +62,6 @@ function extractFromConfigurations                              end
 function extractMeanEnergy                                      end
 function extractMeanOccupation                                  end
 function extractNonrelativisticShellList                        end
-function extractOpenShellQNfromCsfNR                            end
 function extractOpenShellQNfromCsfR                             end
 function extractRelativisticConfigurationFromCsfR               end
 function extractRelativisticSubshellList                        end
@@ -93,7 +90,6 @@ function generateOrbitalSuperposition                           end
 function generateShellList                                      end
 function generateSubshellList                                   end
 function generateSpectrumLorentzian                             end
-function generateSpectrumGaussian                               end
 function hasSubshell                                            end
 function integrate                                              end
 function integrateOnGridNewtonCotes                             end
@@ -108,7 +104,6 @@ function isViolated                                             end
 function isZero                                                 end
 function lastPoint                                              end
 function merge                                                  end
-function mergeConfigurations                                    end
 function modifyLevelEnergies                                    end
 function modifyLevelMixing                                      end
 function perform                                                end
@@ -132,6 +127,5 @@ function subshellStateString                                    end
 function tabulate                                               end
 function tabulateKappaSymmetryEnergiesDirac                     end
 function tools                                                  end
-function yesno                                                  end
 
 end  ## module
