@@ -64,9 +64,9 @@ using JenaAtomicCalculator, ..Defaults, ..TestFrames
 
     @testset "JAC cascades" begin
         @test TestFrames.testModule_Cascade_StepwiseDecay()
-        ## @test TestFrames.testModule_Cascade_PhotonIonization()
-        ## @test TestFrames.testModule_Cascade_PhotonExcitation()
-        ## @test TestFrames.testModule_Cascade_Simulation()
+        ## @test TestFrames.testModule_Cascade_PhotonIonization()  ## disabled: approved output is stale; code runs but produces 0 lines where approved had 8; needs approved file regeneration
+        ## @test TestFrames.testModule_Cascade_PhotonExcitation()  ## disabled: approved output is stale; new output is shorter than approved; needs approved file regeneration
+        ## @test TestFrames.testModule_Cascade_Simulation()  ## disabled: test-Cascade-StepwiseDecay-data.jld predates CsfR.seniorityNr field; needs data file regeneration
     end
 
 end

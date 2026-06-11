@@ -181,8 +181,8 @@ function perform(scheme::PhotoExcitationScheme, comp::Cascade.Computation; outpu
     #
     # Generate subsequent cascade configurations as well as display and group them together
     wa  = Cascade.generateConfigurationsForPhotoexcitation(multiplets, comp.scheme, comp.nuclearModel)
-    wb1 = Cascade.groupDisplayConfigurationList(comp.nuclearModel.Z, wa[1], sa="(initial part of the) photo-excited ")
-    wb2 = Cascade.groupDisplayConfigurationList(comp.nuclearModel.Z, wa[2], sa="(generated part of the) photo-excited ")
+    wb1 = Basics.displayConfigurations(comp.nuclearModel.Z, wa[1]; sa="(initial part of the) photo-excited ")
+    wb2 = Basics.displayConfigurations(comp.nuclearModel.Z, wa[2]; sa="(generated part of the) photo-excited ")
     #
     # Determine first all configuration 'blocks' and from them the individual steps of the cascade
     wc1 = Cascade.generateBlocks(scheme, comp::Cascade.Computation, wb1)

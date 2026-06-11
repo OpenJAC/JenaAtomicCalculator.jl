@@ -192,7 +192,7 @@ function generateConfigurationsForHollowIons(initialConfigs::Array{Configuration
     decayConfigs = Configuration[];    dConfigs = copy(newConfigs)
     further = true
     while  further
-        dConfigs = Cascade.generateConfigurationsWith2OuterHoles(dConfigs, decayShells)
+        dConfigs = Basics.generateConfigurations(Basics.RemoveElectrons(2, decayShells), dConfigs)
         if length(dConfigs) > 0     append!(decayConfigs, dConfigs)     else   further = false      end
     end
     decayConfigs = unique(decayConfigs)
@@ -200,7 +200,7 @@ function generateConfigurationsForHollowIons(initialConfigs::Array{Configuration
     dConfigs = copy(newConfigs);   append!(dConfigs, decayConfigs)
     further = true
     while  further
-        dConfigs = Cascade.generateConfigurationsWith1OuterHole(dConfigs, decayShells)
+        dConfigs = Basics.generateConfigurations(Basics.RemoveElectrons(1, decayShells), dConfigs)
         if length(dConfigs) > 0     append!(decayConfigs, dConfigs)     else   further = false      end
     end
     decayConfigs = unique(decayConfigs)

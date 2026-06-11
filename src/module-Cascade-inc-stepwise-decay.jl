@@ -254,17 +254,17 @@ function generateConfigurationsForStepwiseDecay(scheme::Cascade.StepwiseDecaySch
     #
     if      scheme.maxElectronLoss == 0
         # Just move the hole outwards into the decayShells
-        decayConfigs = Cascade.generateConfigurationsWith1OuterHole(allConfigs, decayShells)
+        decayConfigs = Basics.generateConfigurations(Basics.RemoveElectrons(1, decayShells), allConfigs)
         decayConfigs = unique(decayConfigs)
         allConfigs   = append!(allConfigs, decayConfigs)
         return( allConfigs )
         #
     elseif  scheme.maxElectronLoss == 1
-        decayConfigs1 = Cascade.generateConfigurationsWith1OuterHole(allConfigs, decayShells)
+        decayConfigs1 = Basics.generateConfigurations(Basics.RemoveElectrons(1, decayShells), allConfigs)
         decayConfigs1 = unique(decayConfigs1)
-        decayConfigs2 = Cascade.generateConfigurationsWith2OuterHoles(allConfigs, decayShells)
+        decayConfigs2 = Basics.generateConfigurations(Basics.RemoveElectrons(2, decayShells), allConfigs)
         decayConfigs2 = unique(decayConfigs2)
-        decayConfigs3 = Cascade.generateConfigurationsWith1OuterHole(decayConfigs2, decayShells)
+        decayConfigs3 = Basics.generateConfigurations(Basics.RemoveElectrons(1, decayShells), decayConfigs2)
         decayConfigs3 = unique(decayConfigs3)
         allConfigs    = append!(allConfigs, decayConfigs1, decayConfigs2, decayConfigs3)
         allConfigs    = unique(allConfigs)
@@ -277,7 +277,7 @@ function generateConfigurationsForStepwiseDecay(scheme::Cascade.StepwiseDecaySch
     # This earlier code for scheme.maxElectronLoss > 1 is highly inefficient if medium and heavy ions are considered.
     further = true;   dConfigs = copy(newConfigs)
     while  further
-        dConfigs = Cascade.generateConfigurationsWith1OuterHole(dConfigs, decayShells)
+        dConfigs = Basics.generateConfigurations(Basics.RemoveElectrons(1, decayShells), dConfigs)
         if length(dConfigs) > 0     append!(decayConfigs, dConfigs)     else   further = false      end
     end
     decayConfigs = unique(decayConfigs)
@@ -287,7 +287,7 @@ function generateConfigurationsForStepwiseDecay(scheme::Cascade.StepwiseDecaySch
     #
     further = true
     while  further
-        dConfigs = Cascade.generateConfigurationsWith2OuterHoles(dConfigs, decayShells)
+        dConfigs = Basics.generateConfigurations(Basics.RemoveElectrons(2, decayShells), dConfigs)
         if length(dConfigs) > 0     append!(decayConfigs, dConfigs)     else   further = false      end
     end
     decayConfigs = unique(decayConfigs)
@@ -297,7 +297,7 @@ function generateConfigurationsForStepwiseDecay(scheme::Cascade.StepwiseDecaySch
     #
     further = true
     while  further
-        dConfigs = Cascade.generateConfigurationsWith1OuterHole(dConfigs, decayShells)
+        dConfigs = Basics.generateConfigurations(Basics.RemoveElectrons(1, decayShells), dConfigs)
         if length(dConfigs) > 0     append!(decayConfigs, dConfigs)     else   further = false      end
     end
     allConfigs   = append!(allConfigs, decayConfigs)

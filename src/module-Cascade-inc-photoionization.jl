@@ -138,7 +138,7 @@ function generateConfigurationsForPhotoionization(multiplets::Array{Multiplet,1}
     # 
     # Generate all photoionized configurations if photoionization is to be considered; no configuration need to be excluded
     # since parity is give by the partial waves.
-    ionConfList = Basics.generateConfigurationsWithElectronLoss(initialConfList, scheme.excitationFromShells)
+    ionConfList = Basics.generateConfigurations(Basics.RemoveElectrons(1, scheme.excitationFromShells), initialConfList)
     ionConfList = unique(ionConfList)
     #
     return( initialConfList, ionConfList )
