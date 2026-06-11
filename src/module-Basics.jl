@@ -75,7 +75,6 @@ function generate                                               end
 function generateBasis                                          end
 function generateConfigurations                                 end
 function generateConfigurationsForExcitationScheme              end
-function generateConfigurationsWithElectronCapture              end
 function generateCsfRs                                          end
 function generateFieldCoordinates                               end
 function generateLevelWithExtraElectron                         end
