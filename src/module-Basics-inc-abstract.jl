@@ -2265,3 +2265,35 @@ struct         SimpsonRule  <:  AbstractIntegrationRule         end
 struct         TrapezRule   <:  AbstractIntegrationRule         end
 
 export  AbstractIntegrationRule, NewtonCotes, SimpsonRule, TrapezRule
+
+
+#################################################################################################################################
+#################################################################################################################################
+
+
+"""
+`abstract type Basics.AbstractGenerateTheme`
+    ... defines an abstract and a number of singleton types to select the generation theme for Basics.generate(),
+        replacing the former string-key dispatch.
+
+    + CondensedMultiplet                   ... condense/reduce the CSF basis of a multiplet by a single weight.
+    + ConfigurationListNRFromBasis         ... generate the NR configuration list from a given basis.
+    + ConfigurationListNRFromConfiguration ... generate an NR configuration list from a reference configuration with excitations.
+    + CsfList                              ... construct the CSF list from a single relativistic configuration.
+    + OrderedShellList                     ... generate an ordered NR shell list from a set of configurations.
+    + OrderedSubshellList                  ... generate an ordered relativistic subshell list from configurations or two bases.
+    + SlaterTypeSpectrum                   ... generate a complete single-electron STO spectrum (positive and negative states).
+    + SlaterTypeSpectrumPositive           ... generate the same but return only the positive states.
+"""
+abstract type  AbstractGenerateTheme                                              end
+struct         CondensedMultiplet              <:  AbstractGenerateTheme          end
+struct         ConfigurationListNRFromBasis    <:  AbstractGenerateTheme          end
+struct         ConfigurationListNRFromConfiguration  <:  AbstractGenerateTheme    end
+struct         CsfList                         <:  AbstractGenerateTheme          end
+struct         OrderedShellList                <:  AbstractGenerateTheme          end
+struct         OrderedSubshellList             <:  AbstractGenerateTheme          end
+struct         SlaterTypeSpectrum              <:  AbstractGenerateTheme          end
+struct         SlaterTypeSpectrumPositive      <:  AbstractGenerateTheme          end
+
+export  AbstractGenerateTheme, CondensedMultiplet, ConfigurationListNRFromBasis, ConfigurationListNRFromConfiguration,
+        CsfList, OrderedShellList, OrderedSubshellList, SlaterTypeSpectrum, SlaterTypeSpectrumPositive

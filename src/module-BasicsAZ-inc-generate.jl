@@ -297,23 +297,21 @@ end
 
 
 """
-`Basics.generate("condensed multiplet: by single weight", multiplet::Multiplet)`  
-    ... to condense/reduce the number of CSF in the basis of the given multiplet due to a single 'weight'; 
+`Basics.generate(::CondensedMultiplet, multiplet::Multiplet)`
+    ... to condense/reduce the number of CSF in the basis of the given multiplet due to a single 'weight';
         a multiplet::Multiplet is returned.  **Not yet implemented !**
 """
-function Basics.generate(sa::String, multiplet::Multiplet)
-    !(sa == "condensed multiplet: by single weight")   &&   error("Unsupported keystring = $sa")
+function Basics.generate(::CondensedMultiplet, multiplet::Multiplet)
     error("Not yet implemented !")
 end
 
 
 
 """
-`Basics.generate("configuration list: NR, from basis", basis::Basis)`  
+`Basics.generate(::ConfigurationListNRFromBasis, basis::Basis)`
     ... to (re-) generate the list of NR configurations from the given basis; a confList::Array{Configuration,1} is returned.
 """
-function Basics.generate(sa::String, basis::Basis)
-    !(sa == "configuration list: NR, from basis")   &&   error("Unsupported keystring = $sa")
+function Basics.generate(::ConfigurationListNRFromBasis, basis::Basis)
     confList    = Configuration[]
     NoElectrons = sum( basis.csfs[1].occupation )
     for  csf in basis.csfs
@@ -334,14 +332,13 @@ end
 
 
 """
-`Basics.generate("configuration list: NR, single-configuration", refConf::Configuration, NoExcitations::Int64, fromShells::Array{Shell,1},`
-                    toShells::Array{Shell,1})  
-    ... to generate a non-relativistic configuration list, including the given reference configuration (refConf) and with 
-        all configurations that differ by NoExcitations from the fromShells into the toShells; an Array{Configuration,1} 
+`Basics.generate(::ConfigurationListNRFromConfiguration, refConf::Configuration, NoExcitations::Int64, fromShells::Array{Shell,1},`
+                    toShells::Array{Shell,1})
+    ... to generate a non-relativistic configuration list, including the given reference configuration (refConf) and with
+        all configurations that differ by NoExcitations from the fromShells into the toShells; an Array{Configuration,1}
         is returned.
 """
-function Basics.generate(sa::String, refConf::Configuration, NoExcitations::Int64, fromShells::Array{Shell,1}, toShells::Array{Shell,1})
-    !(sa == "configuration list: NR, single-configuration")   &&   error("Unsupported keystring = $sa")
+function Basics.generate(::ConfigurationListNRFromConfiguration, refConf::Configuration, NoExcitations::Int64, fromShells::Array{Shell,1}, toShells::Array{Shell,1})
     confList = [refConf]
     # First prepare a proper reference configuration that also includes all fromShells and toShells with zero occupation
     shellDict = deepcopy(refConf.shells)
@@ -516,14 +513,12 @@ end  ==#
 
 
 """
-`Basics.generate("shells: ordered list for NR configurations", confs::Array{Configuration,1})`  
-    ... to generate for confs, i.e. all the given (non-relativistic) configurations, a common and ordered shell list; 
+`Basics.generate(::OrderedShellList, confs::Array{Configuration,1})`
+    ... to generate for confs, i.e. all the given (non-relativistic) configurations, a common and ordered shell list;
         a list::Array{Shell,1} is returned.
 """
-function Basics.generate(sa::String, confs::Array{Configuration,1})
-    shells = Shell[]   
-
-    !(sa == "shells: ordered list for NR configurations")  &&   error("Unsupported keystring = $sa")
+function Basics.generate(::OrderedShellList, confs::Array{Configuration,1})
+    shells = Shell[]
 
     wa = Defaults.getDefaults("ordered shell list: non-relativistic", 11)
     ## wa = Defaults.getDefaults("ordered shell list: non-relativistic", 19)
@@ -591,21 +586,19 @@ end  ==#
 
 
 """
-`Basics.generate("subshells: ordered list for two bases", basisA::Basis,  basisB::Basis)`  
+`Basics.generate(::OrderedSubshellList, basisA::Basis, basisB::Basis)`
     ... to generate common and ordered subshell list for the two basis A and B; a list::Array{Subshell,1} is returned.
 """
-function Basics.generate(sa::String, basisA::Basis,  basisB::Basis)
+function Basics.generate(::OrderedSubshellList, basisA::Basis, basisB::Basis)
     function areEqual(nn::Int64, sha::Array{Subshell,1}, shb::Array{Subshell,1})
         # Determines whether the first nn subshells are equal in sha and shb (true) or not (false)
-        for  i = 1:nx   
+        for  i = 1:nx
             if    sha[i] != shb[i]    return( false )   end
         end
         return( true )
     end
-        
-    subshells = Subshell[]   
 
-    !(sa == "subshells: ordered list for two bases")  &&   error("Unsupported keystring = $sa")
+    subshells = Subshell[]
 
     nx = min(length(basisA.subshells), length(basisB.subshells))
     if  areEqual(nx, basisA.subshells, basisB.subshells)
@@ -649,30 +642,34 @@ function Basics.generate(sa::String, basisA::Basis,  basisB::Basis)
 end
 
 
+## Backward-compatible string wrapper; to be removed when all callers are updated.
+function Basics.generate(sa::String, basisA::Basis, basisB::Basis)
+    !(sa == "subshells: ordered list for two bases")  &&   error("Unsupported keystring = $sa")
+    return Basics.generate(OrderedSubshellList(), basisA, basisB)
+end
+
 
 """
-`Basics.generate("single-electron spectrum: STO", N::Int64, potential::Radial.Potential, grid::Radial.Grid; N_0::Int64=30, alpha_0::Float64=1.0,
-                    beta_0::Float64=1.1)` 
-    ... to generate a complete one-electron spectrum with N positive and N negative states, and by using even-tempered Slater-type 
-        orbitals (STO) with parameters ``\alpha_i = \alpha_0 \beta_0^i``; a spectrum::SingleElecSpectrum is returned where just 
+`Basics.generate(::SlaterTypeSpectrum, N::Int64, potential::Radial.Potential, grid::Radial.Grid; N_0::Int64=30, alpha_0::Float64=1.0,`
+                    beta_0::Float64=1.1)
+    ... to generate a complete one-electron spectrum with N positive and N negative states, and by using even-tempered Slater-type
+        orbitals (STO) with parameters ``\\alpha_i = \\alpha_0 \\beta_0^i``; a spectrum::SingleElecSpectrum is returned where just
         N0 positive and N_0 negative are kept for later use.  **Not yet implemented !**
+"""
+function Basics.generate(::SlaterTypeSpectrum, N::Int64, potential::Radial.Potential, grid::Radial.Grid; N_0::Int64=30, alpha_0::Float64=1.0, beta_0::Float64=1.1)
+    error("Not yet implemented !")
+    return( nothing )
+end
 
-`Basics.generate("single-electron spectrum: STO, positive", N::Int64, potential::Radial.Potential, grid::Radial.Grid; N_0::Int64=30, alpha_0::Float64=1.0,
-                    beta_0::Float64=1.1)`  
+
+"""
+`Basics.generate(::SlaterTypeSpectrumPositive, N::Int64, potential::Radial.Potential, grid::Radial.Grid; N_0::Int64=30, alpha_0::Float64=1.0,`
+                    beta_0::Float64=1.1)
     ... to generate the same but to return only the N_0 positive states.  **Not yet implemented !**
 """
-function Basics.generate(sa::String, N::Int64, potential::Radial.Potential, grid::Radial.Grid; N_0::Int64=30, alpha_0::Float64=1.0, beta_0::Float64=1.1)
-    !(sa == "single-electron spectrum: STO"  &&  sa == "single-electron spectrum: STO, positive")   &&   error("Unsupported keystring = $sa")
+function Basics.generate(::SlaterTypeSpectrumPositive, N::Int64, potential::Radial.Potential, grid::Radial.Grid; N_0::Int64=30, alpha_0::Float64=1.0, beta_0::Float64=1.1)
     error("Not yet implemented !")
-
-    #= * define N normalized states in stoplus::Array{Vector{Float64},1} and stominus::Array{Vector{Float64},1} 
-        on the given grid and with given parameters
-    * calculate one-electron (NxN) Hamiltonian matrix with potential h_pq and overlap S_pq, p,q = 1..N
-    * solve generalized eigenvalue problem h c_vec = epsilon S c_vec
-    * set spectrum::SingleElecSpectrum with just N0 functions
-    * check normalization and orthogonality of the functions   =#
-
-    return( nothing )  
+    return( nothing )
 end
 
 
