@@ -28,7 +28,7 @@ test/run*
 zz*
 xx*
 xold*
-.gitigno*
+.gitignore-local
 
 test-*-new.sum
 jac-warn.report
