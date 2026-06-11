@@ -125,14 +125,14 @@ function  computeAmplitudesProperties(pathway::PhotoExcitationFluores.Pathway, g
     # Compute all excitation channels
     neweChannels = PhotoEmission.Channel[]
     for eChannel in pathway.excitChannels
-        amplitude   = PhotoEmission.amplitude("absorption", eChannel.multipole, eChannel.gauge, pathway.excitEnergy, 
+        amplitude   = PhotoEmission.amplitude(Absorption(), eChannel.multipole, eChannel.gauge, pathway.excitEnergy, 
                                                 pathway.intermediateLevel, pathway.initialLevel, grid)
         push!( neweChannels, PhotoEmission.Channel( eChannel.multipole, eChannel.gauge, amplitude))
     end
     # Compute all fluorescence channels
     newfChannels = PhotoEmission.Channel[]
     for fChannel in pathway.fluorChannels
-        amplitude   = PhotoEmission.amplitude("emission", fChannel.multipole, fChannel.gauge, pathway.fluorEnergy, 
+        amplitude   = PhotoEmission.amplitude(Emission(), fChannel.multipole, fChannel.gauge, pathway.fluorEnergy, 
                                                 pathway.finalLevel, pathway.intermediateLevel, grid)
         push!( newfChannels, PhotoEmission.Channel( fChannel.multipole, fChannel.gauge, amplitude))
     end

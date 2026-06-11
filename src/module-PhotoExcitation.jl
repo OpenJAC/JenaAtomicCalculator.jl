@@ -156,7 +156,7 @@ end
 function  computeAmplitudesProperties(line::PhotoExcitation.Line, grid::Radial.Grid, settings::PhotoExcitation.Settings; printout::Bool=true)
     newChannels = PhotoEmission.Channel[];    Ji2 = Basics.twice(line.initialLevel.J);    Jf2 = Basics.twice(line.finalLevel.J)
     for  channel  in  line.channels
-        amplitude = PhotoEmission.amplitude("absorption", channel.multipole, channel.gauge, line.omega, 
+        amplitude = PhotoEmission.amplitude(Absorption(), channel.multipole, channel.gauge, line.omega, 
                                             line.finalLevel, line.initialLevel, grid, printout=printout)
         push!( newChannels, PhotoEmission.Channel(channel.multipole, channel.gauge, amplitude) )
     end

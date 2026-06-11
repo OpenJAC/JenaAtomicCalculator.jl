@@ -182,7 +182,7 @@ function amplitude(kind::String, channel::PhotoRecombination.Channel, energy::Fl
                     continuumLevel::Level, grid::Radial.Grid)
     if      kind in [ "photorecombination"]
     #-----------------------------------
-        amplitude = PhotoEmission.amplitude("emission", channel.multipole, channel.gauge, energy, finalLevel, continuumLevel, grid)
+        amplitude = PhotoEmission.amplitude(Emission(), channel.multipole, channel.gauge, energy, finalLevel, continuumLevel, grid)
         amplitude = im^Basics.subshell_l(Subshell(101, channel.kappa)) * exp( im*channel.phase ) * amplitude
     else    error("stop b")
     end

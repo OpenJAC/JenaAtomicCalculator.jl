@@ -137,7 +137,7 @@ function  computeAmplitudesProperties(pathway::PhotoExcitationAutoion.Pathway, n
     # Compute all excitation channels
     neweChannels = PhotoEmission.Channel[]
     for eChannel in pathway.excitChannels
-        amplitude   = PhotoEmission.amplitude("absorption", eChannel.multipole, eChannel.gauge, pathway.excitEnergy, 
+        amplitude   = PhotoEmission.amplitude(Absorption(), eChannel.multipole, eChannel.gauge, pathway.excitEnergy, 
                                                 pathway.intermediateLevel, pathway.initialLevel, grid)
         push!( neweChannels, PhotoEmission.Channel( eChannel.multipole, eChannel.gauge, amplitude))
     end

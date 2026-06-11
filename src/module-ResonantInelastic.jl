@@ -165,14 +165,14 @@ function  computeAmplitudesProperties(pathway::ResonantInelastic.Pathway, grid::
     # Compute the amplitudes of the excitation and emission channels separately
     newExChannels = PhotoEmission.Channel[];    newEmChannels = PhotoEmission.Channel[]
     for exChannel in pathway.excitationChannels
-        amplitude    = PhotoEmission.amplitude("emission", exChannel.multipole, exChannel.gauge, pathway.omegaIn, 
+        amplitude    = PhotoEmission.amplitude(Emission(), exChannel.multipole, exChannel.gauge, pathway.omegaIn, 
                                                intermediateLevel, initialLevel, grid, display=false, printout=false)
         newExChannel = PhotoEmission.Channel( exChannel.multipole, exChannel.gauge, amplitude)
         push!( newExChannels, newExChannel)
     end
     
     for emChannel in pathway.emissionChannels
-        amplitude    = PhotoEmission.amplitude("emission", emChannel.multipole, emChannel.gauge, pathway.omegaOut, 
+        amplitude    = PhotoEmission.amplitude(Emission(), emChannel.multipole, emChannel.gauge, pathway.omegaOut, 
                                                intermediateLevel, pathway.finalLevel, grid, display=false, printout=false)
         newEmChannel = PhotoEmission.Channel( emChannel.multipole, emChannel.gauge, amplitude)
         push!( newEmChannels, newEmChannel)

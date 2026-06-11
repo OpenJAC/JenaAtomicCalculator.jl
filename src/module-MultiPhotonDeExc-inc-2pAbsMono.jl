@@ -202,8 +202,8 @@ function computeReducedAmplitudeAbsorption(K::AngularJ64, finalLevel::Level, mul
     U = Complex(0.);    found = false
     for nuLevel in gMultiplet.levels
         if  Jsym == LevelSymmetry(nuLevel.J, nuLevel.parity)          found = true
-            U = U + PhotoEmission.amplitude("absorption", multipole2, gauge, omega, finalLevel, nuLevel, grid, display=false) *
-                    PhotoEmission.amplitude("absorption", multipole1, gauge, omega, nuLevel, initialLevel, grid, display=false) / 
+            U = U + PhotoEmission.amplitude(Absorption(), multipole2, gauge, omega, finalLevel, nuLevel, grid, display=false) *
+                    PhotoEmission.amplitude(Absorption(), multipole1, gauge, omega, nuLevel, initialLevel, grid, display=false) / 
                     (initialLevel.energy + omega - nuLevel.energy)
         end
     end 

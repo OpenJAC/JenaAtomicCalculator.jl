@@ -234,16 +234,6 @@ function amplitude(::Absorption, Mp::EmMultipole, gauge::EmGauge, omega::Float64
 end
 
 
-## Backward-compatible string wrapper; to be removed when all callers are updated.
-function amplitude(kind::String, Mp::EmMultipole, gauge::EmGauge, omega::Float64, finalLevel::Level, initialLevel::Level,
-                    grid::Radial.Grid; display::Bool=false, printout::Bool=false)
-    if      kind == "emission"    return PhotoEmission.amplitude(Emission(),   Mp, gauge, omega, finalLevel, initialLevel, grid; display=display, printout=printout)
-    elseif  kind == "absorption"  return PhotoEmission.amplitude(Absorption(), Mp, gauge, omega, finalLevel, initialLevel, grid; display=display, printout=printout)
-    else    error("PhotoEmission.amplitude: unsupported kind = \"$kind\"")
-    end
-end
-    
-    
 """
 ` +  amplitude_Wu(::Emission, Mp::EmMultipole, gauge::EmGauge, omega::Float64, finalLevel::Level, initialLevel::Level,
                   grid::Radial.Grid; display::Bool=false, printout::Bool=false)`
@@ -320,15 +310,6 @@ function amplitude_Wu(::Absorption, Mp::EmMultipole, gauge::EmGauge, omega::Floa
 end
 
 
-## Backward-compatible string wrapper; to be removed when all callers are updated.
-function amplitude_Wu(kind::String, Mp::EmMultipole, gauge::EmGauge, omega::Float64, finalLevel::Level, initialLevel::Level,
-                    grid::Radial.Grid; display::Bool=false, printout::Bool=false)
-    if      kind == "emission"    return PhotoEmission.amplitude_Wu(Emission(),   Mp, gauge, omega, finalLevel, initialLevel, grid; display=display, printout=printout)
-    elseif  kind == "absorption"  return PhotoEmission.amplitude_Wu(Absorption(), Mp, gauge, omega, finalLevel, initialLevel, grid; display=display, printout=printout)
-    else    error("PhotoEmission.amplitude_Wu: unsupported kind = \"$kind\"")
-    end
-end
-
 """
 `PhotoEmission.amplitude(::Emission, cp::CorePolarization, omega::Float64, finalLevel::Level, initialLevel::Level, grid::Radial.Grid;
                           display::Bool=false, printout::Bool=false)`
@@ -379,16 +360,6 @@ function amplitude(::Emission, cp::CorePolarization, omega::Float64, finalLevel:
     end
 
     return( amplitude )
-end
-
-
-## Backward-compatible string wrapper; to be removed when all callers are updated.
-function amplitude(kind::String, cp::CorePolarization, omega::Float64, finalLevel::Level, initialLevel::Level, grid::Radial.Grid;
-                    display::Bool=false, printout::Bool=false)
-    if  kind == "E1 with core-polarization emission"
-        return PhotoEmission.amplitude(Emission(), cp, omega, finalLevel, initialLevel, grid; display=display, printout=printout)
-    else    error("PhotoEmission.amplitude: unsupported kind = \"$kind\"")
-    end
 end
 
 

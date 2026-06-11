@@ -307,8 +307,8 @@ function  computeChannelAmplitude(channel::RayleighCompton.Channel, finalLevel::
     for  (ig, gLevel)  in  enumerate(gChannel.gMultiplet.levels)
         if   ig != 1   continue   end
         if   channel.isS12  # for S_12
-            leftMe  = PhotoEmission.amplitude("absorption", channel.multipole1, channel.gauge, channel.omega1, finalLevel, gLevel, grid, display=false)
-            rightMe = PhotoEmission.amplitude("absorption", channel.multipole2, channel.gauge, channel.omega2, gLevel, initialLevel, grid, display=false)
+            leftMe  = PhotoEmission.amplitude(Absorption(), channel.multipole1, channel.gauge, channel.omega1, finalLevel, gLevel, grid, display=false)
+            rightMe = PhotoEmission.amplitude(Absorption(), channel.multipole2, channel.gauge, channel.omega2, gLevel, initialLevel, grid, display=false)
             #
             if        ig == leftIdx     lowerNom = leftMe * rightMe;   lowerDenom = (initialLevel.energy - gLevel.energy - channel.omega2);   me = 0.0im  
             elseif    ig == leftIdx+1   upperNom = leftMe * rightMe;   upperDenom = (initialLevel.energy - gLevel.energy - channel.omega2);   me = 0.0im 
@@ -316,8 +316,8 @@ function  computeChannelAmplitude(channel::RayleighCompton.Channel, finalLevel::
                                         denominator = (initialLevel.energy - gLevel.energy - channel.omega2)
             end
         else 
-            leftMe  = PhotoEmission.amplitude("absorption", channel.multipole2, channel.gauge, channel.omega2, finalLevel, gLevel, grid, display=false)
-            rightMe = PhotoEmission.amplitude("absorption", channel.multipole1, channel.gauge, channel.omega1, gLevel, initialLevel, grid, display=false)
+            leftMe  = PhotoEmission.amplitude(Absorption(), channel.multipole2, channel.gauge, channel.omega2, finalLevel, gLevel, grid, display=false)
+            rightMe = PhotoEmission.amplitude(Absorption(), channel.multipole1, channel.gauge, channel.omega1, gLevel, initialLevel, grid, display=false)
             #
             if        ig == leftIdx     lowerNom = leftMe * rightMe;   lowerDenom = (initialLevel.energy - gLevel.energy + channel.omega1);   me = 0.0im  
             elseif    ig == leftIdx+1   upperNom = leftMe * rightMe;   upperDenom = (initialLevel.energy - gLevel.energy + channel.omega1);   me = 0.0im 

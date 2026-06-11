@@ -217,8 +217,8 @@ function computeReducedAmplitudeEmission(K::AngularJ64, finalLevel::Level, omega
         if  Jsym == channel.symmetry
             found = true
             for (i, nuLevel) in enumerate(channel.gMultiplet.levels)
-                U = U + PhotoEmission.amplitude("emission", multipole2, gauge, omega2, finalLevel, nuLevel, grid) *
-                        PhotoEmission.amplitude("emission", multipole1, gauge, omega1, nuLevel, initialLevel, grid) / 
+                U = U + PhotoEmission.amplitude(Emission(), multipole2, gauge, omega2, finalLevel, nuLevel, grid) *
+                        PhotoEmission.amplitude(Emission(), multipole1, gauge, omega1, nuLevel, initialLevel, grid) / 
                         (initialLevel.energy + omega1 - nuLevel.energy)
             end
         end

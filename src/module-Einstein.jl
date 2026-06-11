@@ -190,7 +190,7 @@ function  computeAmplitudesProperties(line::Einstein.Line, grid::Radial.Grid, se
     newChannels = Einstein.Channel[];    rateC = rateB = 0.
     for channel in line.channels
         #
-        amplitude = PhotoEmission.amplitude("emission", channel.multipole, channel.gauge, line.omega, line.finalLevel, line.initialLevel, grid)
+        amplitude = PhotoEmission.amplitude(Emission(), channel.multipole, channel.gauge, line.omega, line.finalLevel, line.initialLevel, grid)
         #
         push!( newChannels, Einstein.Channel( channel.multipole, channel.gauge, amplitude) )
         if       channel.gauge == Basics.Coulomb     rateC = rateC + abs(amplitude)^2

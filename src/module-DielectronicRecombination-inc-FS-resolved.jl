@@ -148,7 +148,7 @@ function  computeAmplitudesProperties(passage::DielectronicRecombination.Passage
         #
         newpChannels = PhotoEmission.Channel[];    rateC = 0.;    rateB = 0.
         for pChannel in pChannels
-            amplitude   = PhotoEmission.amplitude("emission", pChannel.multipole, pChannel.gauge, pEnergy,
+            amplitude   = PhotoEmission.amplitude(Emission(), pChannel.multipole, pChannel.gauge, pEnergy,
                                                   fLevel, intermediateLevel, grid, display=false, printout=false)
             newpChannel = PhotoEmission.Channel( pChannel.multipole, pChannel.gauge, amplitude)
             push!( newpChannels, newpChannel)
@@ -258,7 +258,7 @@ function  computeAmplitudesProperties(pathway::DielectronicRecombination.Pathway
     
     newpChannels = PhotoEmission.Channel[];    rateC = 0.;    rateB = 0.
     for pChannel in pathway.photonChannels
-        amplitude   = PhotoEmission.amplitude("emission", pChannel.multipole, pChannel.gauge, pathway.photonEnergy, 
+        amplitude   = PhotoEmission.amplitude(Emission(), pChannel.multipole, pChannel.gauge, pathway.photonEnergy, 
                                                 finalLevel, intermediateLevel, grid, display=false, printout=false)
         newpChannel = PhotoEmission.Channel( pChannel.multipole, pChannel.gauge, amplitude)
         push!( newpChannels, newpChannel)

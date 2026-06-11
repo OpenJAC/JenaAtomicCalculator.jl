@@ -909,7 +909,7 @@ function  computeModifiedEinsteinRates(upperOutcome::Outcome, lowerOutcome::Outc
     println(stream, " ")
     for  multipole in multipoles
         if  multipole  in  [M1, M2, M3]    gaugex = Basics.Magnetic    else    gaugex = gauge  end
-        ampJ = PhotoEmission.amplitude("emission", multipole, gaugex, omega, upperOutcome.Jlevel, lowerOutcome.Jlevel, grid)
+        ampJ = PhotoEmission.amplitude(Emission(), multipole, gaugex, omega, upperOutcome.Jlevel, lowerOutcome.Jlevel, grid)
         push!(amplitudesJ, ampJ)
         println(stream, "  J-level amplitude for $multipole  = $ampJ  ")
     end

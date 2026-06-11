@@ -221,17 +221,17 @@ end
 
 
 """
-`PhotoDoubleIonization.amplitude(kind::String, Mp::EmMultipole, gauge::EmGauge, omega::Float64, finalLevel::Level, initialLevel::Level, 
-                                    gMultiplet::Multiplet, grid::Radial.Grid; display::Bool=false, printout::Bool=false)`  
-    ... to compute the photo-double ionization amplitude  
-    
-                <alpha_f J_f || O^(Mp, absorption) || alpha_n J_i> <alpha_n J_i || V^(e-e) || alpha_i J_i>  
-            +   <alpha_f J_f || V^(e-e) || alpha_n J_f> <alpha_n J_f || O^(Mp, absorption) || alpha_i J_i> 
-            
-        absorption amplitude for the interaction with the photon field of frequency omega, multipolarity Mp and gauge. 
+`PhotoDoubleIonization.amplitude(::Absorption, Mp::EmMultipole, gauge::EmGauge, omega::Float64, finalLevel::Level, initialLevel::Level,
+                                    gMultiplet::Multiplet, grid::Radial.Grid; display::Bool=false, printout::Bool=false)`
+    ... to compute the photo-double ionization amplitude
+
+                <alpha_f J_f || O^(Mp, absorption) || alpha_n J_i> <alpha_n J_i || V^(e-e) || alpha_i J_i>
+            +   <alpha_f J_f || V^(e-e) || alpha_n J_f> <alpha_n J_f || O^(Mp, absorption) || alpha_i J_i>
+
+        absorption amplitude for the interaction with the photon field of frequency omega, multipolarity Mp and gauge.
         A value::ComplexF64 is returned. The amplitude value is printed to screen if display=true.
 """
-function amplitude(kind::String, Mp::EmMultipole, gauge::EmGauge, omega::Float64, finalLevel::Level, initialLevel::Level, 
+function amplitude(::Absorption, Mp::EmMultipole, gauge::EmGauge, omega::Float64, finalLevel::Level, initialLevel::Level,
                     gMultiplet::Multiplet, grid::Radial.Grid; display::Bool=false, printout::Bool=false)
     #
     # Always ensure the same subshell list for all initial, intermediate and final levels
@@ -282,7 +282,7 @@ function amplitude(kind::String, Mp::EmMultipole, gauge::EmGauge, omega::Float64
     
     if  display  
         println("    < level=$(finalLevel.index) [J=$(finalLevel.J)$(string(finalLevel.parity))] ||" *
-                " PhotoDouble^($Mp, $kind) ($omega a.u., $gauge) ||" *
+                " PhotoDouble^($Mp, absorption) ($omega a.u., $gauge) ||" *
                 " $(initialLevel.index) [$(initialLevel.J)$(string(initialLevel.parity))] >  = $amplitude  ")
     end
     
@@ -314,7 +314,7 @@ function  computeAmplitudesProperties(line::PhotoDoubleIonization.Line, nm::Nucl
             newcLevel  = Basics.generateLevelWithExtraElectron(cOrbital, channel.tSymmetry, newfLevel)
             newChannel = PhotoDoubleIonization.Channel(channel.multipole, channel.gauge, channel.quasiSubshell, channel.xSymmetry,
                                                         channel.kappa, channel.tSymmetry, phase, 0.)
-            amplitude  = PhotoDoubleIonization.amplitude("absorption", channel.multipole, channel.gauge, sharing.omega, newcLevel,
+            amplitude  = PhotoDoubleIonization.amplitude(Absorption(), channel.multipole, channel.gauge, sharing.omega, newcLevel,
                                                             newiLevel, settings.gMultiplet, grid, display=true, printout=true)           
             push!( newChannels, PhotoIonization.Channel(newChannel.multipole, newChannel.gauge, newChannel.quasiSubshell, newChannel.xSymmetry, 
                                                         newChannel.kappa, newChannel.tSymmetry, newChannel.phase, amplitude) )

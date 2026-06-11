@@ -145,17 +145,17 @@ end
 
 
 """
-`TwoElectronOnePhoton.amplitude(Mp::EmMultipole, gauge::EmGauge, omega::Float64, finalLevel::Level, initialLevel::Level, 
-                                gMultiplet::Multiplet, grid::Radial.Grid; display::Bool=false, printout::Bool=false)`  
-    ... to compute the TEOP emission amplitude  
-    
-                <alpha_f J_f || O^(Mp, emission) || alpha_n J_i> <alpha_n J_i || V^(e-e) || alpha_i J_i>  
-            +   <alpha_f J_f || V^(e-e) || alpha_n J_f> <alpha_n J_f || O^(Mp, emission) || alpha_i J_i> 
-            
-        emission amplitude for the interaction with the photon field of multipolarity Mp and for the given transition energy 
+`TwoElectronOnePhoton.amplitude(::Emission, Mp::EmMultipole, gauge::EmGauge, omega::Float64, finalLevel::Level, initialLevel::Level,
+                                gMultiplet::Multiplet, grid::Radial.Grid; display::Bool=false, printout::Bool=false)`
+    ... to compute the TEOP emission amplitude
+
+                <alpha_f J_f || O^(Mp, emission) || alpha_n J_i> <alpha_n J_i || V^(e-e) || alpha_i J_i>
+            +   <alpha_f J_f || V^(e-e) || alpha_n J_f> <alpha_n J_f || O^(Mp, emission) || alpha_i J_i>
+
+        emission amplitude for the interaction with the photon field of multipolarity Mp and for the given transition energy
         and gauge. A value::ComplexF64 is returned. The amplitude value is printed to screen if display=true.
 """
-function amplitude(kind::String, Mp::EmMultipole, gauge::EmGauge, omega::Float64, finalLevel::Level, initialLevel::Level, 
+function amplitude(::Emission, Mp::EmMultipole, gauge::EmGauge, omega::Float64, finalLevel::Level, initialLevel::Level,
                     gMultiplet::Multiplet, grid::Radial.Grid; display::Bool=false, printout::Bool=false)
     #
     # Always ensure the same subshell list for all initial, intermediate and final levels
@@ -205,7 +205,7 @@ function amplitude(kind::String, Mp::EmMultipole, gauge::EmGauge, omega::Float64
     
     if  display  
         println("    < level=$(finalLevel.index) [J=$(finalLevel.J)$(string(finalLevel.parity))] ||" *
-                " TEOP^($Mp, $kind) ($omega a.u., $gauge) ||" *
+                " TEOP^($Mp, emission) ($omega a.u., $gauge) ||" *
                 " $(initialLevel.index) [$(initialLevel.J)$(string(initialLevel.parity))] >  = $amplitude  ")
     end
     
@@ -224,7 +224,7 @@ function  computeAmplitudesProperties(line::TwoElectronOnePhoton.Line, grid::Rad
     newChannels = TwoElectronOnePhoton.Channel[];    rateC = 0.;    rateB = 0.
     for channel in line.channels
         #
-        amplitude = TwoElectronOnePhoton.amplitude("emission", channel.multipole, channel.gauge, line.omega, 
+        amplitude = TwoElectronOnePhoton.amplitude(Emission(), channel.multipole, channel.gauge, line.omega,
                                                     line.finalLevel, line.initialLevel, settings.gMultiplet, grid, printout=printout)
         #
         push!( newChannels, TwoElectronOnePhoton.Channel( channel.multipole, channel.gauge, amplitude) )
