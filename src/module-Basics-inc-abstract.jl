@@ -2329,3 +2329,37 @@ struct         RadialOrbitalThomasFermi   <:  AbstractComputeTheme              
 
 export  AbstractComputeTheme, AngularCoeffsEeRatip2013, AngularCoeffs1pRatip2013, AngularCoeffs1pGrasp92,
         CImatrixWithSymmetryJP, RadialOrbitalBunge1993, RadialOrbitalMcLean1981, RadialOrbitalHydrogenic, RadialOrbitalThomasFermi
+
+
+"""
+`abstract type Basics.AbstractDisplayTheme`
+    ... defines an abstract and a number of singleton types to select the display theme for Basics.display(),
+        replacing the former string-key dispatch.
+
+    + PhysicalConstants   ... display all currently defined physical constants.
+    + CurrentSettings     ... display all currently defined settings of the JAC module.
+"""
+abstract type  AbstractDisplayTheme                                end
+struct         PhysicalConstants   <:  AbstractDisplayTheme       end
+struct         CurrentSettings     <:  AbstractDisplayTheme       end
+
+export  AbstractDisplayTheme, PhysicalConstants, CurrentSettings
+
+
+"""
+`abstract type Basics.AbstractPlotTheme`
+    ... defines an abstract and a number of singleton types to select the plot theme for Basics.plot(),
+        replacing the former string-key dispatch.
+
+    + RadialPotentials    ... plot one or more radial potentials.
+    + RadialOrbitalsLarge ... plot the large component of one or more radial orbitals.
+    + RadialOrbitalsSmall ... plot the small component of one or more radial orbitals.
+    + RadialOrbitalsBoth  ... plot both components of one or more radial orbitals.
+"""
+abstract type  AbstractPlotTheme                                   end
+struct         RadialPotentials    <:  AbstractPlotTheme           end
+struct         RadialOrbitalsLarge <:  AbstractPlotTheme           end
+struct         RadialOrbitalsSmall <:  AbstractPlotTheme           end
+struct         RadialOrbitalsBoth  <:  AbstractPlotTheme           end
+
+export  AbstractPlotTheme, RadialPotentials, RadialOrbitalsLarge, RadialOrbitalsSmall, RadialOrbitalsBoth

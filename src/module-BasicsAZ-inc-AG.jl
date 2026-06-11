@@ -526,40 +526,37 @@ end
 
 
 """
-`Basics.display("constants")`  or  `("physical constants")`  
-    ... to display (all) currently defined physical constants; nothing is returned if not indicated otherwise. 
-        Cf. Defaults.setDefaults().
-
-`Basics.display("settings")`     ... to display (all) currently defined settings of the JAC module.
+`Basics.display(::PhysicalConstants)`
+    ... to display (all) currently defined physical constants; nothing is returned. Cf. Defaults.setDefaults().
 """
-function Basics.display(sa::String)
+function Basics.display(::PhysicalConstants)
+    println("Physical constants are defines as follows:  \n",
+            "------------------------------------------  \n")
+    sb = "  + Fine-structure constant:    " * string( Defaults.getDefaults("alpha") );                println(sb)
+    sb = "  + Electron mass [kg]:         " * string( Defaults.getDefaults("electron mass: kg") );    println(sb)
+    sb = "  + Electron mass [amu]:        " * string( Defaults.getDefaults("electron mass: amu") );   println(sb)
+    println()
+    return( nothing )
+end
 
-    if        sa in ["constants", "physical constants"]
-        println("Physical constants are defines as follows:  \n", 
-                "------------------------------------------  \n")
-        sb = "  + Fine-structure constant:    " * string( Defaults.getDefaults("alpha") );                println(sb)        
-        sb = "  + Electron mass [kg]:         " * string( Defaults.getDefaults("electron mass: kg") );    println(sb)        
-        sb = "  + Electron mass [amu]:        " * string( Defaults.getDefaults("electron mass: amu") );   println(sb)        
-        println()
 
-    elseif   sa == "settings"
-        println("Current settings of the JAC module:  \n", 
-                "-----------------------------------  \n")
-        sb = "  + Framework:                              " * string( Defaults.getDefaults("framework") );                println(sb)        
-        sb = "  + Energy unit:                            " * string( Defaults.getDefaults("unit: energy") );             println(sb)        
-        sb = "  + Rate and transition probability unit:   " * string( Defaults.getDefaults("unit: rate") );               println(sb)        
-        sb = "  + Cross section unit:                     " * string( Defaults.getDefaults("unit: cross section") );      println(sb) 
-        sb = "  + Time unit:                              " * string( Defaults.getDefaults("unit: time") );               println(sb) 
-        println()       
-        
-        if      Defaults.getDefaults("standard grid") != false    println("  + A standard grid has been defined; cf. Defaults.getDefaults()" )
-        elseif  Defaults.getDefaults("standard grid") == false    println("  + No standard grid has yet been defined; cf. Defaults.setDefaults()" )
-        end
-        println()       
-
-    else    error("Unsupported keystring:: $sa")
+"""
+`Basics.display(::CurrentSettings)`
+    ... to display (all) currently defined settings of the JAC module; nothing is returned.
+"""
+function Basics.display(::CurrentSettings)
+    println("Current settings of the JAC module:  \n",
+            "-----------------------------------  \n")
+    sb = "  + Framework:                              " * string( Defaults.getDefaults("framework") );                println(sb)
+    sb = "  + Energy unit:                            " * string( Defaults.getDefaults("unit: energy") );             println(sb)
+    sb = "  + Rate and transition probability unit:   " * string( Defaults.getDefaults("unit: rate") );               println(sb)
+    sb = "  + Cross section unit:                     " * string( Defaults.getDefaults("unit: cross section") );      println(sb)
+    sb = "  + Time unit:                              " * string( Defaults.getDefaults("unit: time") );               println(sb)
+    println()
+    if      Defaults.getDefaults("standard grid") != false    println("  + A standard grid has been defined; cf. Defaults.getDefaults()" )
+    elseif  Defaults.getDefaults("standard grid") == false    println("  + No standard grid has yet been defined; cf. Defaults.setDefaults()" )
     end
-
+    println()
     return( nothing )
 end
 
