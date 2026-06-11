@@ -2352,20 +2352,28 @@ function testRecursions(; short::Bool=true)
 end
 
 
+function testPrint(sa::String, success::Bool)
+    printTest, iostream = Defaults.getDefaults("test flag/stream")
+    ok(succ) =  succ ? "[OK]" : "[Fail]"
+    sb = sa * repeat(" ", 110);   sb = sb[1:100] * ok(success);    println(iostream, sb)
+    return( nothing )
+end
+
+
 """
-`RacahAlgebra.testSpecialValuesW3j(; short::Bool=true)`  
+`RacahAlgebra.testSpecialValuesW3j(; short::Bool=true)`
     ... tests the implemented special values of the Wigner 3j symbols by just comparing comparing the number of Wigner symbols,
         which must be 0 in all cases. The success::Bool of these tests is returned.
 """
 function testSpecialValuesW3j(; short::Bool=true)
-    success  = true;   
+    success  = true;
     #
     for n = 2:16
         w3j = RacahAlgebra.selectW3j(n);;    nrex = RacahAlgebra.evaluate(w3j);      nwnjs = RacahAlgebra.countWignerSymbols(nrex)
         if  nwnjs != 0   println(">> Test fails for special value rule  $n :");      @show w3j;    @show nrex;    @show nwnjs     end
         success = success && (nwnjs == 0)
     end
-    
+    testPrint("testSpecialValuesW3j()::", success)
     return( success )
 end
 
@@ -2376,14 +2384,14 @@ end
         which must be 0 in all cases. The success::Bool of these tests is returned.
 """
 function testSpecialValuesW6j(; short::Bool=true)
-    success  = true;   
+    success  = true;
     #
     for n = 1:22
         w6j = RacahAlgebra.selectW6j(n);;    nrex = RacahAlgebra.evaluate(w6j);      nwnjs = RacahAlgebra.countWignerSymbols(nrex)
         if  nwnjs != 0   println(">> Test fails for special value rule  $n :");      @show w6j;    @show nrex;    @show nwnjs     end
         success = success && (nwnjs == 0)
     end
-    
+    testPrint("testSpecialValuesW6j()::", success)
     return( success )
 end
 
@@ -2394,14 +2402,14 @@ end
         which must be 0 in all cases. The success::Bool of these tests is returned.
 """
 function testSpecialValuesW9j(; short::Bool=true)
-    success  = true;   
+    success  = true;
     #
     for n = 1:2
         w9j = RacahAlgebra.selectW6j(n);;    nrex = RacahAlgebra.evaluate(w9j);      nwnjs = RacahAlgebra.countWignerSymbols(nrex)
         if  nwnjs != 0   println(">> Test fails for special value rule  $n :");      @show w6j;    @show nrex;    @show nwnjs     end
         success = success && (nwnjs == 0)
     end
-    
+    testPrint("testSpecialValuesW9j()::", success)
     return( success )
 end
 
@@ -2464,7 +2472,7 @@ function testSumRules(; short::Bool=true)
         success = success && (nwnjs == nwnjList[n])
         if  !(nwnjs == nwnjList[n])     println("\n**** Test for rule $n  with nwnjs = $(nwnjs)  !=== $(nwnjList[n])")       end
     end
-    
+    testPrint("testSumRules()::", success)
     return( success )
 end
 
