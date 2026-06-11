@@ -202,6 +202,9 @@ struct  DiagramC03   end
 struct  DiagramC04   end
 struct  DiagramC05   end
 
+## Sentinel type for the ordered-shells overload of recoupling2p; distinguishes it from the unordered overload.
+struct  Ordered2p    end
+
 include("module-SpinAngular-inc-reducedcoeffs.jl")
 
 #######################################################################################################################
@@ -1272,7 +1275,7 @@ end
 `SpinAngular.recoupling2p(leftCsf::CsfR, rightCsf::CsfR, rank1::AngularJ64, rank2::AngularJ64, rank3::AngularJ64, 
                             ia:Int64, ib:Int64, ic::Int64)`  
     ... computes the recoupling matrix R(ja, jb, Lambda^bra, Lambda^ket) for a scalar operator in the case of three 
-        interacting shells  (shells are not odered). See G. Gaigalas et al., 1997 J. Phys. B: At. Mol. Opt. Phys, 
+        interacting shells  (shells are not ordered). See G. Gaigalas et al., 1997 J. Phys. B: At. Mol. Opt. Phys,
         Vol 30 3747, Eq. (26) (p. 3756); a value::Float64 is returned.
 
         leftCsf  - is the bra confuguration state function in relativistic notation;
@@ -1288,22 +1291,22 @@ function  recoupling2p(leftCsf::CsfR, rightCsf::CsfR, rank1::AngularJ64,  rank2:
                         ia::Int64, ib::Int64, ic::Int64) 
     wa = 0.0
     if ic > ia  && ic > ib
-        if      ia < ib     wa = recoupling2p("odered", leftCsf, rightCsf, rank1, rank2, rank3, ia, ib, ic)
-        elseif  ia > ib     wa = recoupling2p("odered", leftCsf, rightCsf, rank2, rank1, rank3, ib, ia, ic)
+        if      ia < ib     wa = recoupling2p(Ordered2p(), leftCsf, rightCsf, rank1, rank2, rank3, ia, ib, ic)
+        elseif  ia > ib     wa = recoupling2p(Ordered2p(), leftCsf, rightCsf, rank2, rank1, rank3, ib, ia, ic)
                             wa = (-1)^Int64((Basics.twice(rank1)+Basics.twice(rank2)-Basics.twice(rank3))/2) * wa
         else                error("Recoupling_matrix_3_shells(): program stop A.")    
         end
     elseif ic < ia  && ic < ib
-        if      ia < ib     wa = recoupling2p("odered", leftCsf, rightCsf, rank3, rank1, rank2, ic, ia, ib)
+        if      ia < ib     wa = recoupling2p(Ordered2p(), leftCsf, rightCsf, rank3, rank1, rank2, ic, ia, ib)
                             wa = (-1)^Int64(Basics.twice(rank3)) * wa
-        elseif  ia > ib     wa = recoupling2p("odered", leftCsf, rightCsf, rank3, rank2, rank1, ic, ib, ia)
+        elseif  ia > ib     wa = recoupling2p(Ordered2p(), leftCsf, rightCsf, rank3, rank2, rank1, ic, ib, ia)
                             wa = (-1)^Int64((Basics.twice(rank1)+Basics.twice(rank2)+Basics.twice(rank3))/2) * wa
         else                error("Recoupling_matrix_3_shells(): program stop B.")
         end
     else
-        if      ia < ib     wa = recoupling2p("odered", leftCsf, rightCsf, rank1, rank3, rank2, ia, ic, ib)
+        if      ia < ib     wa = recoupling2p(Ordered2p(), leftCsf, rightCsf, rank1, rank3, rank2, ia, ic, ib)
                             wa = (-1)^Int64((Basics.twice(rank1)-Basics.twice(rank2)-Basics.twice(rank3))/2) * wa
-        elseif  ia > ib     wa = recoupling2p("odered", leftCsf, rightCsf, rank2, rank3, rank1, ib, ic, ia)
+        elseif  ia > ib     wa = recoupling2p(Ordered2p(), leftCsf, rightCsf, rank2, rank3, rank1, ib, ic, ia)
                             wa = (-1)^Int64(Basics.twice(rank1)) * wa
         else                error("Recoupling_matrix_3_shells(): program stop C.")
         end
@@ -1312,10 +1315,10 @@ function  recoupling2p(leftCsf::CsfR, rightCsf::CsfR, rank1::AngularJ64,  rank2:
 end
 
 """
-`SpinAngular.recoupling2p(sa::String, leftCsf::CsfR, rightCsf::CsfR, rank1::AngularJ64, rank2::AngularJ64, 
-                            rank::AngularJ64, ia::Int64, ib::Int64, ic::Int64)`  
-    ... computes the recoupling matrix R(ja, jb, Lambda^bra, Lambda^ket) for a scalar operator in the case of three 
-        interacting shells (shells are odered). See G. Gaigalas et al., 1997 J. Phys. B: At. Mol. Opt. Phys, 
+`SpinAngular.recoupling2p(::Ordered2p, leftCsf::CsfR, rightCsf::CsfR, rank1::AngularJ64, rank2::AngularJ64,
+                            rank::AngularJ64, ia::Int64, ib::Int64, ic::Int64)`
+    ... computes the recoupling matrix R(ja, jb, Lambda^bra, Lambda^ket) for a scalar operator in the case of three
+        interacting shells (shells are ordered). See G. Gaigalas et al., 1997 J. Phys. B: At. Mol. Opt. Phys,
         Vol 30 3747, Eq. (26) (p. 3756); a value::Float64 is returned.
 
         leftCsf  - is the bra confuguration state function in relativistic notation;
@@ -1327,10 +1330,9 @@ end
         ib       - is the index of the second interacting subshell;
         ic       - is the index of the third interacting subshell.
 """
-function  recoupling2p(sa::String, leftCsf::CsfR, rightCsf::CsfR, rank1::AngularJ64, rank2::AngularJ64, 
-                        rank::AngularJ64, ia::Int64, ib::Int64, ic::Int64) 
-    if sa != "odered"   error("Recoupling_matrix_3_ordered: program stop a.")    end
-    wa = 1.0 / sqrt((Basics.twice(leftCsf.subshellJ[ia])+1.) * (Basics.twice(leftCsf.subshellJ[ib])+1.) * 
+function  recoupling2p(::Ordered2p, leftCsf::CsfR, rightCsf::CsfR, rank1::AngularJ64, rank2::AngularJ64,
+                        rank::AngularJ64, ia::Int64, ib::Int64, ic::Int64)
+    wa = 1.0 / sqrt((Basics.twice(leftCsf.subshellJ[ia])+1.) * (Basics.twice(leftCsf.subshellJ[ib])+1.) *
                     (Basics.twice(rightCsf.subshellJ[ic])+1.)*(Basics.twice(rank)+1.))
     if ic - ib > 1      wa = wa * recouplingDiagram(DiagramC02(), leftCsf, rightCsf, rank, ib, ic)
                         if abs(wa) < 1.0e-11   return ( wa )   end
