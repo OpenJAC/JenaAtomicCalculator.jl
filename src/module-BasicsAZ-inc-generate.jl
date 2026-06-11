@@ -995,39 +995,6 @@ function Basics.generateConfigurationsForExcitationScheme(confs::Array{Configura
 end
 
 
-#==  August 2025, replaced by Basics.AddElectrons(), Basics.ExciteElectrons(), ...
-"""
-`Basics.generateConfigurationsWithElectronCapture(confs::Array{Configuration,1}, fromShells::Array{Shell,1}, toShells::Array{Shell,1}, noex::Int64)`  
-    ... generates a list of non-relativistic configurations for the given (reference) confs and with one additional (cpatured) 
-        electron. All (doubly) excited configurations with upto :NoExcitations displacements of electrons fromShells into toShells 
-        and 'one' additional electron in the toShells are taken into account. The may result in large configuration lists even for 
-        a moderate number of fromShell and/or toShells.
-"""
-function Basics.generateConfigurationsWithElectronCapture(confs::Array{Configuration,1}, fromShells::Array{Shell,1}, toShells::Array{Shell,1},
-                                                            noex::Int64)
-    newConfList = Configuration[];     NoElectrons = confs[1].NoElectrons + 1
-    confList    = Basics.generateConfigurations(confs, fromShells, toShells, noex)
-    # Now add one (captured) electron from the toShells to all configurations in confList
-    for  conf in confList
-        # Take one electron toShells and `add' it to conf
-        for  toShell  in  toShells
-            newShells = deepcopy( conf.shells )
-            if      haskey(conf.shells, toShell )  &&  conf.shells[toShell]  + 1 > 2*(2*toShell.l + 1)     continue    
-            elseif  haskey(conf.shells, toShell )  newShells[toShell] = newShells[toShell] + 1
-                    push!( newConfList, Configuration( newShells, NoElectrons))
-            else    newShells = Base.merge( newShells, Dict( toShell => 1))
-                    push!( newConfList, Configuration( newShells, NoElectrons))
-            end
-            if  false  println(">> Generate $(Configuration( newShells, NoElectrons)) with electron capture.")   end
-        end
-    end
-    newConfList = unique(newConfList)
-    
-    return( newConfList )
-end 
-==#
-
-
 """
 `Basics.generateFieldCoordinates(mesh::Basics.AbstractMesh)`  
     ... generates a list of field values of proper type due to the specification by the given mesh; 
