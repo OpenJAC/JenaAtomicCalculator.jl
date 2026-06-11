@@ -46,7 +46,12 @@ A mechanical replacement that shortens or lengthens the test expression will bre
 - 4-space indentation throughout
 - `if  condition` uses **two spaces** between `if` and the condition (JAC convention)
 - Single-line `if ... else ... end` is the standard form for copy-constructor guards
-- Blank lines between function definitions; two blank lines before a new docstring block
+- **Always two blank lines** between the closing `end` of one function/method and the opening
+  `"""` docstring of the next. Never collapse to one blank line when editing.
+- **Top-level functions and docstrings start at column 1** (no indentation). This applies to all
+  `function Module.name(...)` definitions and their preceding `"""..."""` docstrings in `.jl`
+  source files. Exception: code inside `include`-d files that is itself inside a module block
+  follows the 4-space indent rule like all other nested code (loops, `if-else-end`, etc.).
 
 ### Docstring style
 Every exported function and struct has a docstring in triple-quoted `"""..."""` form with:
