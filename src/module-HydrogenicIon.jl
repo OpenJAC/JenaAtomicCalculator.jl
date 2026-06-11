@@ -184,7 +184,6 @@ function radialOrbital(sh::Subshell, nm::Nuclear.Model, grid::Radial.Grid)
     basis   = Bsplines.generatePrimitives(grid)
     orb_dic = Bsplines.generateOrbitalsHydrogenic([sh], nm, basis; printout = false)
     orb     = orb_dic[sh]
-    @show orb_dic
     return( orb )
 end
 

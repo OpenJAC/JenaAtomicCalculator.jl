@@ -459,7 +459,7 @@ function  computeCrossSections(model::DirectMultipleModel, cs::ImpactIonization.
         newBases = ManyElectron.Basis[];  @show newBases
         totalEnergy = Float64[];
         for  N = 1:multipleN
-            newConfs      = Basics.generateConfigurations(Basics.RemoveElectrons([valenceShell]), confs)
+            newConfs      = Basics.generateConfigurations(Basics.RemoveElectrons(1, [valenceShell]), confs)
             @show confs
             multipletX    = SelfConsistent.performSCF(computation.configs, nm, computation.grid, asfSettings)
             newBasis      = multipletX.levels[1].basis
