@@ -25,7 +25,7 @@ function schiffMomentAmplitude(finalLevel::Level, initialLevel::Level, nm::Nucle
         for  s = 1:ni
             # Calculate the spin-angular coefficients
             if  Defaults.saRatip()
-                waR = Basics.compute("angular coefficients: 1-p, Grasp92", 0, 1, finalLevel.basis.csfs[r], initialLevel.basis.csfs[s])
+                waR = Basics.compute(AngularCoeffs1pGrasp92(), 0, 1, finalLevel.basis.csfs[r], initialLevel.basis.csfs[s])
                 wa  = waR       
             end
             if  Defaults.saGG()
@@ -114,7 +114,7 @@ function weakChargeAmplitude(finalLevel::Level, initialLevel::Level, nm::Nuclear
         for  s = 1:ni
             # Calculate the spin-angular coefficients
             if  Defaults.saRatip()
-                waR = Basics.compute("angular coefficients: 1-p, Grasp92", 0, 1, finalLevel.basis.csfs[r], initialLevel.basis.csfs[s])
+                waR = Basics.compute(AngularCoeffs1pGrasp92(), 0, 1, finalLevel.basis.csfs[r], initialLevel.basis.csfs[s])
                 wa  = waR       
             end
             if  Defaults.saGG()

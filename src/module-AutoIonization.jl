@@ -220,7 +220,7 @@ function amplitude(kind::AbstractEeInteraction, channel::AutoIonization.Channel,
                 if  iLevel.basis.csfs[s].J != iLevel.J  ||  iLevel.basis.csfs[s].parity != iLevel.parity      continue    end 
                     # Calculate the spin-angular coefficients
                 if  Defaults.saRatip()
-                    waR = compute("angular coefficients: e-e, Ratip2013", continuumLevel.basis.csfs[r], initialLevel.basis.csfs[s])
+                    waR = compute(AngularCoeffsEeRatip2013(), continuumLevel.basis.csfs[r], initialLevel.basis.csfs[s])
                     wa  = waR       
                 end
                 if  Defaults.saGG()

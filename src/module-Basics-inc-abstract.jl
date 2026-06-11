@@ -2297,3 +2297,35 @@ struct         SlaterTypeSpectrumPositive      <:  AbstractGenerateTheme        
 
 export  AbstractGenerateTheme, CondensedMultiplet, ConfigurationListNRFromBasis, ConfigurationListNRFromConfiguration,
         CsfList, OrderedShellList, OrderedSubshellList, SlaterTypeSpectrum, SlaterTypeSpectrumPositive
+
+
+#################################################################################################################################
+#################################################################################################################################
+
+
+"""
+`abstract type Basics.AbstractComputeTheme`
+    ... defines an abstract and a number of singleton types to select the computation theme for Basics.compute(),
+        replacing the former string-key dispatch.
+
+    + AngularCoeffsEeRatip2013    ... compute electron-electron angular coefficients via the Ratip2013 interface.
+    + AngularCoeffs1pRatip2013    ... compute single-particle angular coefficients via the Ratip2013 interface.
+    + AngularCoeffs1pGrasp92      ... compute single-particle angular coefficients via the Grasp92 interface.
+    + CImatrixWithSymmetryJP      ... compute the CI Hamiltonian matrix for a given J^P symmetry block.
+    + RadialOrbitalBunge1993      ... generate a start orbital from Bunge (1993) Roothaan-Hartree-Fock data.
+    + RadialOrbitalMcLean1981     ... generate a start orbital from McLean (1981) Roothaan-Hartree-Fock data.
+    + RadialOrbitalHydrogenic     ... generate a hydrogenic start orbital.
+    + RadialOrbitalThomasFermi    ... generate a Thomas-Fermi start orbital.
+"""
+abstract type  AbstractComputeTheme                                              end
+struct         AngularCoeffsEeRatip2013   <:  AbstractComputeTheme              end
+struct         AngularCoeffs1pRatip2013   <:  AbstractComputeTheme              end
+struct         AngularCoeffs1pGrasp92     <:  AbstractComputeTheme              end
+struct         CImatrixWithSymmetryJP     <:  AbstractComputeTheme              end
+struct         RadialOrbitalBunge1993     <:  AbstractComputeTheme              end
+struct         RadialOrbitalMcLean1981    <:  AbstractComputeTheme              end
+struct         RadialOrbitalHydrogenic    <:  AbstractComputeTheme              end
+struct         RadialOrbitalThomasFermi   <:  AbstractComputeTheme              end
+
+export  AbstractComputeTheme, AngularCoeffsEeRatip2013, AngularCoeffs1pRatip2013, AngularCoeffs1pGrasp92,
+        CImatrixWithSymmetryJP, RadialOrbitalBunge1993, RadialOrbitalMcLean1981, RadialOrbitalHydrogenic, RadialOrbitalThomasFermi

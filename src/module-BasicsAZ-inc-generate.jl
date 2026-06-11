@@ -96,7 +96,7 @@ function Basics.generate(repType::AtomicState.OneElectronSpectrum, rep::AtomicSt
     Basics.display(stdout, refBasis.orbitals, rep.grid; longTable=false)
     nuclearPot    = Nuclear.nuclearPotential(nModel, rep.grid)
     @warn("The potential is generated for the mean-field basis but not (yetc hosen for the selected levels.")
-    electronicPot = Basics.compute("radial potential: Dirac-Fock-Slater", rep.grid, refBasis)
+    electronicPot = Basics.computePotential(Basics.DFSField(1.0), rep.grid, refBasis)
     meanPot       = Basics.add(nuclearPot, electronicPot)
     
     println("")

@@ -63,7 +63,7 @@ function amplitude(K::Integer, level::Level, grid::Radial.Grid; display::Bool=fa
         end
 
         if Defaults.saRatip()
-            spinAngularCoeffs = Basics.compute("angular coefficients: 1-p, Grasp92", 0, K, level.basis.csfs[i], level.basis.csfs[j]) 
+            spinAngularCoeffs = Basics.compute(AngularCoeffs1pGrasp92(), 0, K, level.basis.csfs[i], level.basis.csfs[j]) 
         end
         if Defaults.saGG()
             operator = SpinAngular.OneParticleOperator(K, plus, true)
@@ -112,7 +112,7 @@ function dipoleAmplitude(finalLevel::Level, initialLevel::Level, grid::Radial.Gr
             for  s = 1:ni
                 # Calculate the spin-angular coefficients
                 if  Defaults.saRatip()
-                    waR = Basics.compute("angular coefficients: 1-p, Grasp92", 0, 1, finalLevel.basis.csfs[r], initialLevel.basis.csfs[s])
+                    waR = Basics.compute(AngularCoeffs1pGrasp92(), 0, 1, finalLevel.basis.csfs[r], initialLevel.basis.csfs[s])
                     wa  = waR       
                 end
                 if  Defaults.saGG()
@@ -219,7 +219,7 @@ function transitionAmplitude(mp::EmMultipole, gauge::EmGauge, omega::Float64, fi
     #
     for  r = 1:nf
         for  s = 1:ni
-            wa = compute("angular coefficients: 1-p, Grasp92", 0, mp.L, finalLevel.basis.csfs[r], initialLevel.basis.csfs[s])
+            wa = compute(AngularCoeffs1pGrasp92(), 0, mp.L, finalLevel.basis.csfs[r], initialLevel.basis.csfs[s])
             for  coeff in wa
                 tamp  = InteractionStrength.multipoleTransition(mp, gauge, omega, finalLevel.basis.orbitals[coeff.a], 
                                                                     initialLevel.basis.orbitals[coeff.b], grid)
