@@ -1,6 +1,12 @@
-## Developers:
+## Principal Developer
 
-* Fritzsche, Stephan, [s.fritzsche@gsi.de](mailto:s.fritzsche@gsi.de) (U Jena, Germany)
+**Fritzsche, Stephan** — [s.fritzsche@hi-jena.gsi.de](mailto:s.fritzsche@hi-jena.gsi.de)  
+Helmholtz Institute Jena & GSI Helmholtz Centre for Heavy Ion Research, Darmstadt, Germany  
+*Creator and lead developer of JAC.*
+
+
+## Further Developers
+
 * Sahoo, Aloka Kumar, [aloka_s@ph.iitr.ac.in](mailto:aloka_s@ph.iitr.ac.in) (HI Jena, Germany)
 * Huang, Houke (Institute of Modern Physics, Lanzhou, China)
 * Wang, Wu (HI Jena, Germany & U Haikou, China)

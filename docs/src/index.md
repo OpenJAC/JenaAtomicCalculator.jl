@@ -2,6 +2,17 @@
 
 *Last update:* October, 2nd, 2025
 
+---
+
+**Principal developer:** Stephan Fritzsche —
+Helmholtz Institute Jena & GSI Helmholtz Centre for Heavy Ion Research —
+[s.fritzsche@hi-jena.gsi.de](mailto:s.fritzsche@hi-jena.gsi.de)
+
+If you use JAC in published work, please cite:
+> S. Fritzsche, *A fresh computational approach to atomic structures, processes and cascades*,
+> Comput. Phys. Commun. **240**, 1–14 (2019). DOI: [10.1016/j.cpc.2019.01.012](https://doi.org/10.1016/j.cpc.2019.01.012)
+
+---
 
 # What is JAC?
 
