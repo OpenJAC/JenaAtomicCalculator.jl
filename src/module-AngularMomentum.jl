@@ -6,10 +6,8 @@
 """
 module AngularMomentum
 
-
 using  SpecialFunctions, WignerSymbols, ..Basics
 using  GSL: sf_coupling_3j, sf_coupling_6j, sf_coupling_9j, sf_legendre_sphPlm
-
 
 """
 `AngularMomentum.allowedDoubleKappaCouplingSequence(syma::LevelSymmetry, symb::LevelSymmetry, maxKappa::Int64)`  
@@ -32,7 +30,6 @@ function  allowedDoubleKappaCouplingSequence(syma::LevelSymmetry, symb::LevelSym
     return( couplings )         
 end
 
-
 """
 `AngularMomentum.allowedDoubleKappas(syma::LevelSymmetry, symb::LevelSymmetry, maxKappa::Int64)`  
     ... to determine all allowed pairs of kappa that fulfill  syma + (kappa1, kappa2) --> symb,
@@ -52,7 +49,6 @@ function  allowedDoubleKappas(syma::LevelSymmetry, symb::LevelSymmetry, maxKappa
     return( kappaPairs )         
 end
 
-
 """
 `AngularMomentum.allowedDoubleKappaSymmetries(syma::LevelSymmetry, kappa1::Int64, kappa2::Int64, symb::LevelSymmetry)`  
     ... to determine all allowed level symmetries symx that can be coupled to the sequence 
@@ -64,7 +60,6 @@ function  allowedDoubleKappaSymmetries(syma::LevelSymmetry, kappa1::Int64, kappa
     symx  = intersect(symx1, symx2)
     return( symx )         
 end
-
 
 """
 `AngularMomentum.allowedKappaSymmetries(syma::LevelSymmetry, symb::LevelSymmetry)`  
@@ -86,7 +81,6 @@ function  allowedKappaSymmetries(syma::LevelSymmetry, symb::LevelSymmetry)
     return( kappaList )         
 end
 
-
 """
 `AngularMomentum.allowedMultipoleSymmetries(syma::LevelSymmetry, multipole::EmMultipole)`  
     ... to determine all allowed level symmetries for which the given multipole can give rise to a non-zero (transition) 
@@ -102,7 +96,6 @@ function  allowedMultipoleSymmetries(syma::LevelSymmetry, multipole::EmMultipole
     end
     return( symList )           
 end
-
 
 """
 `AngularMomentum.allowedTotalSymmetries(syma::LevelSymmetry, kappa::Int64)`  
@@ -122,7 +115,6 @@ function allowedTotalSymmetries(syma::LevelSymmetry, kappa::Int64)
     end
     return( symtList )         
 end
-
 
 """
 `AngularMomentum.allowedTotalSymmetries(symf::LevelSymmetry, mp2::EmMultipole, mp1::EmMultipole, symi::LevelSymmetry)`  
@@ -146,7 +138,6 @@ function allowedTotalSymmetries(symf::LevelSymmetry, mp2::EmMultipole, mp1::EmMu
     return( symtList )         
 end
 
-
 """
 `AngularMomentum.bracket(jList::Array{AngularJ64,1})`  
     ... to compute the bracket [a, b, c, ... ] = (2a+1) * (2b+1) * (2b+1) * ... of the given angular momenta. 
@@ -156,7 +147,6 @@ function bracket(jList::Array{AngularJ64,1})
     value = 1;    for  j in jList    value = value * (Basics.twice(j) + 1)    end
     return( value )         
 end
-
 
 """
 `AngularMomentum.ChengI
@@ -178,7 +168,6 @@ function ChengI(kapa::Int64, ma::AngularM64, kapb::Int64, mb::AngularM64, L::Ang
             AngularMomentum.ClebschGordan(jb, mb, L, M, ja, ma) 
     return( wa )
 end
-
 
 """
 + (kapa::Int64, kapb::Int64, L::AngularJ64)` 
@@ -203,22 +192,6 @@ function ChengI(kapa::Int64, kapb::Int64, L::AngularJ64)
     return( wa )
 end
 
-
-#======================================================================================================================
-"""
-`AngularMomentum.ClebschGordan(ja, ma, jb, mb, Jab, Mab)`  
-    ... calculates the Clebsch-Gordan coefficient  <ja, ma, jb, mb; Jab, Mab> for given quantum numbers by 
-        a proper call to a Wigner 3-j symbol. A value::Float64 is returned.
-"""
-function ClebschGordan(ja, ma, jb, mb, Jab, Mab)
-    mab = - Basics.twice(Mab) / 2
-    pp  = (Basics.twice(ja) - Basics.twice(jb) + Basics.twice(Jab))/2
-    cg  = (-1)^pp * sqrt(Basics.twice(Jab) + 1) * sf_coupling_3j(Basics.twice(ja), Basics.twice(jb), Basics.twice(Jab),
-                                                                    Basics.twice(ma), Basics.twice(mb), Basics.twice(mab))
-    return( cg )
-end
-=======================================================================================================================#
-
 """
 `AngularMomentum.ClebschGordan(ja, ma, jb, mb, Jab, Mab)`  
     ... calculates the Clebsch-Gordan coefficient  <ja, ma, jb, mb; Jab, Mab> for given quantum numbers by 
@@ -231,7 +204,6 @@ function ClebschGordan(ja, ma, jb, mb, Jab, Mab)
     return( cg )
 end
 
-
 """
 `AngularMomentum.ClebschGordan_old(ja::AngularJ64, ma::AngularM64, jb::AngularJ64, mb::AngularM64, Jab::AngularJ64, Mab::AngularM64)`  
     ... calculates the Clebsch-Gordan coefficient  <ja, ma, jb, mb; Jab, Mab> for given quantum numbers by 
@@ -243,7 +215,6 @@ function ClebschGordan_old(ja::AngularJ64, ma::AngularM64, jb::AngularJ64, mb::A
     cg = AngularMomentum.phaseFactor([ja, -1, jb, +1, Mab]) * sqrt( (Basics.twice(Jab)+1) ) * 
             AngularMomentum.Wigner_3j(ja, jb, Jab, ma, mb, mab)
 end
-
 
 """
 `AngularMomentum.CL_reduced_me(suba::Subshell, L::Int64, subb::Subshell)`  
@@ -262,7 +233,6 @@ function  CL_reduced_me(suba::Subshell, L::Int64, subb::Subshell)
     return( redme )
 end
 
-
 """
 `AngularMomentum.CL_reduced_me_rb(suba::Subshell, L::Int64, subb::Subshell)`  
     ... calculates the reduced matrix element of the C^L spherical tensor <suba || C^(L) || subb>; a value::Float64 is returned.
@@ -277,7 +247,6 @@ function  CL_reduced_me_rb(suba::Subshell, L::Int64, subb::Subshell)
             
     return( redme )
 end
-
 
 """
 `AngularMomentum.CL_reduced_me_sms(suba::Subshell, L::Int64, subb::Subshell)`  
@@ -295,7 +264,6 @@ function  CL_reduced_me_sms(suba::Subshell, L::Int64, subb::Subshell)
     return( redme )
 end
 
-
 """
 `AngularMomentum.isAllowedMultipole(syma::LevelSymmetry, multipole::EmMultipole, symb::LevelSymmetry)`  
     ... evaluates to true if the given multipole may connect the two level symmetries, and false otherwise.
@@ -306,7 +274,6 @@ function  isAllowedMultipole(syma::LevelSymmetry, multipole::EmMultipole, symb::
     else                                                            return( false )
     end
 end
-
 
 """
 `AngularMomentum.isTriangle(ja::AngularJ64, jb::AngularJ64, jc::AngularJ64)`  
@@ -323,7 +290,6 @@ function isTriangle(ja::AngularJ64, jb::AngularJ64, jc::AngularJ64)
     end
 end
 
-
 """
 `AngularMomentum.isTriangle(ja::Int64, jb::Int64, jc::Int64)`  
     ... evaluates to true if Delta(ja,jb,jc) = 1, ie. if the three integer (length) ja, jb and jc can form a triangle, 
@@ -334,7 +300,6 @@ function isTriangle(ja::Int64, jb::Int64, jc::Int64)
     else                                                              return( false )
     end
 end
-
 
 """
 `AngularMomentum.JohnsonI(kapa::Int64, ma::AngularM64, kapb::Int64, mb::AngularM64, L::AngularJ64, M::AngularM64)` 
@@ -352,7 +317,6 @@ function JohnsonI(kapa::Int64, kapb::Int64, L::AngularJ64)
     return( wa )
 end
 
-
 """
 `AngularMomentum.kappa_j(kappa::Int64)`  ... calculates the j::AngularJ64 value of a given kappa.
 """
@@ -361,7 +325,6 @@ function  kappa_j(kappa::Int64)
     return( j )
 end
 
-
 """
 `AngularMomentum.kappa_l(kappa::Int64)`  ... calculates the l::AngularJ64 value of a given kappa.
 """
@@ -369,7 +332,6 @@ function  kappa_l(kappa::Int64)
     if  kappa < 0    l  = abs(kappa) -1   else   l  = kappa   end
     return( AngularJ64(l) )
 end
-
 
 """
 `AngularMomentum.j_values(j1::AngularJ64, j2::AngularJ64)`  
@@ -389,7 +351,6 @@ function  j_values(j1::AngularJ64, j2::AngularJ64)
     return( jList )
 end
 
-
 """
 `AngularMomentum.m_values(j::AngularJ64)`  ... returns a list of m-values for given j::AngularJ64.
 """
@@ -403,7 +364,6 @@ function  m_values(j::AngularJ64)
     return( mList )
 end
 
-
 """
 `AngularMomentum.oneJ(ja::AngularJ64)`  ... calculates ja; a (positive) value::Float64 is returned.
 """
@@ -412,7 +372,6 @@ function  oneJ(ja::AngularJ64)
     return( ja1 )
 end
 
-
 """
 `AngularMomentum.oneM(ma::AngularM64)`  ... calculates ma; a value::Float64 is returned.
 """
@@ -420,7 +379,6 @@ function  oneM(ma::AngularM64)
     if  ma.den  == 1    ma1 = 1.0 * ma.num   else   ma1 = ma.num / 2.   end
     return( ma1 )
 end
-
 
 """
 `AngularMomentum.parityEmMultipolePi(pa::Parity, multipole::EmMultipole, pb::Parity)`  
@@ -438,7 +396,6 @@ function  parityEmMultipolePi(pa::Parity, multipole::EmMultipole, pb::Parity)
     else                                                                    return( false )
     end
 end
-
 
 """
 `AngularMomentum.phaseFactor(list::Array{Any,1})` 
@@ -464,7 +421,6 @@ function phaseFactor(list::Array{Any,1})
     return( (-1.)^(jm2/2) )
 end
 
-
 """
 `AngularMomentum.phaseMultipole(x::ComplexF64, mp::EmMultipole)`  
     ... calculates (x)^p   with   mp = (L,p) and p = 0 (magnetic), p = 1 (electric).
@@ -475,7 +431,6 @@ function  phaseMultipole(x::ComplexF64, mp::EmMultipole)
     return( wa )
 end
     
-
 
 """
 `AngularMomentum.sigma_reduced_me(suba::Subshell, subb::Subshell)`  
@@ -520,7 +475,6 @@ function  sigma_reduced_me_mb(kapa::Int64, mkapb::Int64)
     return (redme)
 end
 
-
 """
 `AngularMomentum.sphericalYlm(l::Int64, m::Int64, theta::Float64, phi::Float64)`  
     ... calculates the spherical harmonics for low l-values explicitly. A value::Complex{Float64} is returned.
@@ -528,42 +482,11 @@ end
 """
 function sphericalYlm(l::Int64, m::Int64, theta::Float64, phi::Float64)
     one = 1.0 + 0.0im;    iphi = 0. + phi*im
-    #==
-    if      l < abs(m)              ylm = 0 * one
-    elseif  l ==  0  &&   m == 0    ylm = one / (2*sqrt(pi))
-    elseif  l ==  1  &&   m ==  1   ylm = - sqrt(3 /(2*pi)) / 2 * sin(theta) * exp(iphi)
-    elseif  l ==  1  &&   m ==  0   ylm = sqrt(3/pi) / 2 * cos(theta) * one
-    elseif  l ==  1  &&   m == -1   ylm = sqrt(3/(2*pi)) / 2 * sin(theta) * exp(-iphi)
-    elseif  l ==  2  &&   m ==  2   ylm = sqrt(3*5/(2*pi)) / (2*2) * sin(theta) * sin(theta) * exp(2*iphi)
-    elseif  l ==  2  &&   m ==  1   ylm =  - sqrt(3*5/(2*pi)) / 2 * cos(theta) * sin(theta) * exp(iphi)
-    elseif  l ==  2  &&   m ==  0   ylm = sqrt(5/pi) / 4 * (3 * cos(theta) * cos(theta) - 1) * one
-    elseif  l ==  2  &&   m == -1   ylm = sqrt(3*5/(2*pi)) / 2 * cos(theta) * sin(theta) * exp(-iphi)
-    elseif  l ==  2  &&   m == -2   ylm = sqrt(3*5/(2*pi)) / 4 * sin(theta) * sin(theta) * exp(-2*iphi)
-    elseif  l ==  3  &&   m ==  3   ylm = - sqrt(5*7/pi) / 8 * sin(theta) * sin(theta) * sin(theta) * exp(3*iphi)
-    elseif  l ==  3  &&   m ==  2   ylm = sqrt(3*5*7/(2*pi)) / 4 * cos(theta) * sin(theta) * sin(theta) * exp(2*iphi)
-    elseif  l ==  3  &&   m ==  1   ylm = - sqrt(3*7/pi) / 8 * (5*cos(theta) * cos(theta) - 1) * sin(theta) * exp(iphi)
-    elseif  l ==  3  &&   m ==  0   ylm = sqrt(7/pi) / 4 * (5*cos(theta) * cos(theta) - 3) * cos(theta) * one
-    elseif  l ==  3  &&   m == -1   ylm = sqrt(3*7/pi) / 8 * (5*cos(theta) * cos(theta) - 1) * sin(theta) * exp(-iphi)
-    elseif  l ==  3  &&   m == -2   ylm = sqrt(3*5*7/(2*pi)) / 4 * cos(theta) * sin(theta) * sin(theta) * exp(-2*iphi)
-    elseif  l ==  3  &&   m == -3   ylm = sqrt(5*7/pi) / 8 * sin(theta) * sin(theta) * sin(theta) * exp(-3*iphi)
-    elseif  l ==  4  &&   m ==  4   ylm =  3 * sqrt(5*7/(2*pi)) / 16 * (sin(theta)^4) * exp(4*iphi)
-    elseif  l ==  4  &&   m ==  3   ylm = -3 * sqrt(5*7/pi) / 8 * (sin(theta)^3) * cos(theta) * exp(3*iphi)
-    elseif  l ==  4  &&   m ==  2   ylm =  3 * sqrt(5/(2*pi)) / 8 * sin(theta) * sin(theta) * (7*cos(theta)*cos(theta) - 1) * exp(2*iphi)
-    elseif  l ==  4  &&   m ==  1   ylm = -3 * sqrt(5/pi) / 8 * sin(theta) * (7*(cos(theta)^3) - 3*cos(theta)) * exp(iphi)
-    elseif  l ==  4  &&   m ==  0   ylm =  3 * sqrt(1/pi) / 16 * (35*(cos(theta)^4) - 30*cos(theta)*cos(theta) + 3) * one  
-    elseif  l ==  4  &&   m == -1   ylm =  3 * sqrt(5/pi) / 8 * sin(theta) * (7*(cos(theta)^3) - 3*cos(theta))* exp(-iphi)
-    elseif  l ==  4  &&   m == -2   ylm =  3 * sqrt(5/(2*pi)) / 8 * sin(theta) * sin(theta) * (7*cos(theta)*cos(theta) - 1) * exp(-2*iphi)
-    elseif  l ==  4  &&   m == -3   ylm =  3 * sqrt(5*7/pi) / 8 * (sin(theta)^3) * cos(theta) * exp(-3*iphi)
-    elseif  l ==  4  &&   m == -4   ylm =  3 * sqrt(5*7/(2*pi)) / 16 * (sin(theta)^4) * exp(-4*iphi)
-    else    error("stop a")
-        # Further values can be find in /home/fritzsch/fri/rabs-jena/rabs_dirac_orbital.f90
-    end   ==#
     
     ylm = sf_legendre_sphPlm(l, abs(m), cos(theta)) * exp(iphi)
     
     return( ylm )
 end
-
 
 """
 `AngularMomentum.triangularDelta(ia2::Int64, ib2::Int64, ic2::Int64)`  
@@ -575,7 +498,6 @@ function triangularDelta(ia2::Int64, ib2::Int64, ic2::Int64)
     if  ia2 >= abs(i) + 1   &&   ia2 <= ib2 + ic2 - 1    return( 1 )   else    return( 0 )    end 
 end
 
-
 """
 `AngularMomentum.triangularDelta(ja::AngularJ64, jb::AngularJ64, jc::AngularJ64)`  
     ... calculates the tringular Delta(ja,jb,jc). The result is 0 if the triangular condition failes and 1 otherwise. 
@@ -583,26 +505,6 @@ end
 function triangularDelta(ja::AngularJ64, jb::AngularJ64, jc::AngularJ64)    
     if  abs(ja.num//ja.den - jb.num//jb.den) <= jc.num//jc.den <= ja.num//ja.den + jb.num//jb.den  return( 1 )   else    return( 0 )    end
 end
-
-
-#==
-"""
-`AngularMomentum.twoJ(ja::AngularJ64)`  ... calculates 2*ja; an (positive) value::Int64 is returned.
-"""
-function  twoJ(ja::AngularJ64)  
-    if  ja.den  == 1    ja2 = 2ja.num   else   ja2 = ja.num   end
-    return( ja2 )
-end
-
-
-"""
-`AngularMomentum.twoM(ma::AngularM64)`  ... calculates 2*ma; a value::Int64 is returned.
-"""
-function  twoM(ma::AngularM64)  
-    if  ma.den  == 1    ma2 = 2ma.num   else   ma2 = ma.num   end
-    return( ma2 )
-end  ==#
-
 
 """
 `AngularMomentum.Wigner_DFunction(j, p, q, alpha::Float64, beta::Float64, gamma::Float64)`  
@@ -613,7 +515,6 @@ end  ==#
 function Wigner_DFunction(j, p, q, alpha::Float64, beta::Float64, gamma::Float64)
     wa = exp(-im*p*alpha -im*q*gamma) * AngularMomentum.Wigner_dmatrix(j, p, q, beta)
 end
-
 
 """
 `AngularMomentum.Wigner_dmatrix(j, mp, m, beta::Float64)`  
@@ -638,19 +539,6 @@ function Wigner_dmatrix(jj, mmp, mm, beta::Float64)
     return( factor*wa )
 end
 
-#==================================================================================================================================
-"""
-`AngularMomentum.Wigner_3j(a, b, c, m_a, m_b, m_c)`  
-    ... calculates the value of a Wigner 3-j symbol for given quantum numbers as displayed in many texts on the theory of 
-        angular momentum (see R. D. Cowan, The Theory of Atomic Structure and Spectra; University of California Press, 1981, p. 142); 
-        it calls the corresponding function from the GNU Scientific Library. A value::Float64 is returned.
-"""
-function Wigner_3j(a, b, c, m_a, m_b, m_c)
-    sf_coupling_3j(Basics.twice(a),   Basics.twice(b),   Basics.twice(c),
-                    Basics.twice(m_a), Basics.twice(m_b), Basics.twice(m_c))
-end
-==================================================================================================================================#
-
 """
 `AngularMomentum.Wigner_3j(a, b, c, m_a, m_b, m_c)`  
     ... calculates the value of a Wigner 3-j symbol for given quantum numbers as displayed in many texts on the theory of 
@@ -661,7 +549,6 @@ function Wigner_3j(a, b, c, m_a, m_b, m_c)
     WignerSymbols.wigner3j(Basics.twice(a)/2.0,   Basics.twice(b)/2.0,   Basics.twice(c)/2.0,
                           Basics.twice(m_a)/2.0, Basics.twice(m_b)/2.0, Basics.twice(m_c)/2.0)
 end
-
 
 """
 `AngularMomentum.Wigner_3j_old(a::AngularJ64, b::AngularJ64, c::AngularJ64, m_a::AngularM64, m_b::AngularM64, m_c::AngularM64)`  
@@ -707,19 +594,6 @@ function Wigner_3j_old(a::AngularJ64, b::AngularJ64, c::AngularJ64, m_a::Angular
     if  rem(ik[14],2) != 0    w3j = - sqrt(delta) * qsum    else    w3j = sqrt(delta) * qsum    end
     return( w3j )
 end
-
-#==================================================================================================================================
-"""
-`AngularMomentum.Wigner_6j(a, b, c, d, e, f)`  
-    ... calculates the value of a Wigner 6-j symbol for given quantum numbers as displayed in many texts on the theory of 
-        angular momentum (see R. D. Cowan, The Theory of Atomic Structure and Spectra; University of California Press, 1981, p. 142); 
-        it calls the corresponding function from the GNU Scientific Library. A value::Float64 is returned.
-"""
-function Wigner_6j(a, b, c, d, e, f)
-    sf_coupling_6j(Basics.twice(a), Basics.twice(b), Basics.twice(c),
-                    Basics.twice(d), Basics.twice(e), Basics.twice(f))
-end
-==================================================================================================================================#
 
 """
 `AngularMomentum.Wigner_6j(a, b, c, d, e, f)`  
@@ -779,22 +653,6 @@ function Wigner_6j_old(a::AngularJ64, b::AngularJ64, c::AngularJ64, d::AngularJ6
     return( w6j )
 end
 
-
-#======================================================================================================================================
-"""
-`AngularMomentum.Wigner_9j(a, b, c, d, e, f, g, h, i)`  
-    ... calculates the value of a Wigner 3-j symbol for given quantum numbers as displayed in many texts on the theory of 
-        angular momentum (see R. D. Cowan, The Theory of Atomic Structure and Spectra; University of California Press, 1981, p. 142); 
-        it calls the corresponding function from the GNU Scientific Library. A value::Float64 is returned.
-"""
-function Wigner_9j(a, b, c, d, e, f, g, h, i)
-    sf_coupling_9j(Basics.twice(a), Basics.twice(b), Basics.twice(c),
-                    Basics.twice(d), Basics.twice(e), Basics.twice(f),
-                    Basics.twice(g), Basics.twice(h), Basics.twice(i))
-end
-======================================================================================================================================#
-
-
     """
     `AngularMomentum.Wigner_9j(a, b, c, d, e, f, g, h, i)`  
         ... calculates the value of a Wigner 3-j symbol for given quantum numbers as displayed in many texts on the theory of 
@@ -834,8 +692,6 @@ end
      
         return( nineJ )
     end
-
-
 
 """
 `AngularMomentum.Wigner_9j_old(a::AngularJ64, b::AngularJ64, c::AngularJ64, d::AngularJ64, e::AngularJ64, f::AngularJ64,

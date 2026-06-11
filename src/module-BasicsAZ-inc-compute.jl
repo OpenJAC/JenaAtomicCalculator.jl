@@ -1,7 +1,6 @@
 
 export compute
 
-
 """
 `Basics.compute("angular coefficients: e-e, Ratip2013", csfa::CsfR, csfb::CsfR)`  
     ... to compute the angular coefficients in the decomposition of a (reduced) many-electron matrix element with a general 
@@ -24,7 +23,6 @@ function Basics.compute(sa::String, csfa::CsfR, csfb::CsfR)
     return t_coeffs, v_coeffs
 end
 
-
 """
 `Basics.compute("angular coefficients: 1-p, Ratip2013", rank::Int64, csfa::CsfR, csfb::CsfR)`  
     ... to compute the the angular coefficients in the decomposition of a (reduced) many-electron matrix element with a general 
@@ -44,7 +42,6 @@ function Basics.compute(sa::String, rank, csfa::CsfR, csfb::CsfR)
     end
     return t_coeffs
 end
-
 
 """
 `Basics.compute("angular coefficients: 1-p, Grasp92", parity, rank::Integer, csfa::CsfR, csfb::CsfR)`  
@@ -68,8 +65,6 @@ function Basics.compute(sa::String, parity, rank::Integer, csfa::CsfR, csfb::Csf
     end
     return map(t -> AngularCoefficientsRatip2013.AngularTcoeff(t, subshells), mct_coeffs) # Convert Fmctcoefficient to AngularTcoeff
 end
-
-
 
 """
 `Basics.compute("matrix: CI, J^P symmetry", JP::LevelSymmetry, basis::Basis, nuclearModel::Nuclear.Model, grid::Radial.Grid,
@@ -173,7 +168,6 @@ function Basics.compute(sa::String, JP::LevelSymmetry, basis::Basis, nuclearMode
     return( matrix )
 end
 
-
 """
 `Basics.compute(JP::LevelSymmetry, basis::Basis, nuclearModel::Nuclear.Model, grid::Radial.Grid,
                 settings::AsfSettings, plasmaModel::Basics.AbstractPlasmaModel; printout::Bool=true)`  
@@ -248,8 +242,6 @@ function Basics.compute(JP::LevelSymmetry, basis::Basis, nuclearModel::Nuclear.M
     return( matrix )
 end
 
-
-
 """
 `Basics.compute("radial orbital: NR, Bunge (1993)", subshell::Subshell, Z::Int64)`  
     ... to compute a radial orbital::Orbital for the given subshell and nuclear charge by using the Roothan-Hartree-Fock data by 
@@ -273,36 +265,6 @@ function Basics.compute(sa::String, subshell::Subshell, Z::Int64)
     return( wa )
 end
 
-
-#==
-"""
-`Basics.compute(scField::Basics.AbstractScField, grid::Radial.Grid, level::Level)`  
-    ... to compute a (radial) SCF potential of type scField::AbstractScField from the given list of orbitals. 
-        A potential::RadialPotential is returned. 
-"""
-function Basics.compute(scField::Basics.AbstractScField, grid::Radial.Grid, level::Level)
-    
-    if      sa == "radial potential: core-Hartree"               wa = Basics.computePotentialCoreHartree(grid, level)
-    elseif  sa == "radial potential: Hartree"                    wa = Basics.computePotentialHartree(grid, level)
-    elseif  sa == "radial potential: Hartree-Slater"             wa = Basics.computePotentialHartreeSlater(grid, level)
-    elseif  sa == "radial potential: Kohn-Sham"                  wa = Basics.computePotentialKohnSham(grid, level)
-    elseif  sa == "radial potential: Dirac-Fock-Slater"          wa = Basics.computePotentialDFS(grid, level) 
-    elseif  sa == "radial potential: extended-Hartree"           wa = Basics.computePotentialExtendedHartree(grid, level)
-    else    error("Unsupported keystring = $sa ")
-    end
-
-    return( wa )
-end
-
-function Basics.compute(sa::String, grid::Radial.Grid, basis::Basis)
-    if      sa == "radial potential: Dirac-Fock-Slater"          wa = Basics.computePotentialDFS(grid, basis) 
-    else    error("Unsupported keystring = $sa ")
-    end
-
-    return( wa )
-end  ==#
-
-
 """
 `Basics.computeDensity(level::Level, grid::Radial.Grid)`  
     ... computes the electronic density of level; a rho::Array{Float64,1} is returned.
@@ -320,8 +282,6 @@ function Basics.computeDensity(level::Level, grid::Radial.Grid)
     return( rho )
 end
 
-
-
 """
 `Basics.computeDiracEnergy(sh::Subshell, Z::Float64)`  
     ... computes the Dirac energy for the hydrogenic subshell sh and for a point-like nucleus with nuclear charge Z; 
@@ -337,8 +297,6 @@ function Basics.computeDiracEnergy(sh::Subshell, Z::Float64)
     wa = Defaults.getDefaults("speed of light: c")^2 * (1/wa - 1.0)
     return( wa )
 end
-
-
 
 """
 `Basics.computeMeanSubshellOccupation(sh::Subshell, levels::Array{Level,1})`  
@@ -357,8 +315,6 @@ function Basics.computeMeanSubshellOccupation(sh::Subshell, levels::Array{Level,
     return( q/length(levels) )
 end
 
-
-
 """
 `Basics.computeMeanSubshellOccupation(sh::Subshell, basis::Basis)`  
     ... computes the mean subshell occupation for the subshell sh and for the given CSF in the basis; a q::Float64 is returned.
@@ -374,8 +330,6 @@ function Basics.computeMeanSubshellOccupation(sh::Subshell, basis::Basis)
     end
     return( q/length(basis.csfs) )
 end
-
-
 
 """
 `Basics.computeMultipletForGreenApproach(approach::AtomicState.SingleCSFwithoutCI, basis::Basis, nModel::Nuclear.Model, grid::Radial.Grid, 
@@ -401,12 +355,6 @@ function Basics.computeMultipletForGreenApproach(approach::AtomicState.SingleCSF
     ncsf      = length(basis.csfs);    matrix = zeros(Float64, ncsf, ncsf)
     for  (r, csf)  in enumerate(basis.csfs)
         # Calculate the spin-angular coefficients
-        #== 
-        wa = compute("angular coefficients: e-e, Ratip2013", basis.csfs[r], basis.csfs[r])
-        if  Defaults.saRatip()
-            waR = compute("angular coefficients: e-e, Ratip2013", basis.csfs[r], basis.csfs[r])
-            wa  = waR       
-        end  ==#
         if  Defaults.saGG()
             subshellList = basis.subshells
             opa  = SpinAngular.OneParticleOperator(0, plus, true)
@@ -415,13 +363,6 @@ function Basics.computeMultipletForGreenApproach(approach::AtomicState.SingleCSF
             waG2 = SpinAngular.computeCoefficients(opa, basis.csfs[r], basis.csfs[r], subshellList)
             wa   = [waG1, waG2]
         end
-        #==
-        if  Defaults.saRatip() && Defaults.saGG() && true
-            if  length(waR[1]) != 0     println(  ">> Angular coeffients from Ratip2013   = $(waR[1]) ")    end
-            if  length(waG1)   != 0     println("\n>> Angular coeffients from SpinAngular = $waG1 ")        end
-            if  length(waR[2]) != 0     println(  ">> Angular coeffients from Ratip2013   = $(waR[2]) ")    end
-            if  length(waG2)   != 0     println("\n>> Angular coeffients from SpinAngular = $waG2 ")        end
-        end  ==#
         #
         me = 0.
         for  coeff in wa[1]
@@ -453,8 +394,6 @@ function Basics.computeMultipletForGreenApproach(approach::AtomicState.SingleCSF
     multiplet = Multiplet("SingleCSFwithoutCI multiplet for $sym", levels)
     return( multiplet )
 end
-
-
 
 """
 `Basics.computeMultipletForGreenApproach(approach::AtomicState.CoreSpaceCI, basis::Basis, nModel::Nuclear.Model, grid::Radial.Grid, 
@@ -490,13 +429,6 @@ function Basics.computeMultipletForGreenApproach(approach::AtomicState.CoreSpace
                 waG2 = SpinAngular.computeCoefficients(opa, basis.csfs[r], basis.csfs[s], subshellList)
                 wa   = [waG1, waG2]
             end
-            #==
-            if  Defaults.saRatip() && Defaults.saGG() && true
-                if  length(waR[1]) != 0     println(  ">> Angular coeffients from Ratip2013   = $(waR[1]) ")    end
-                if  length(waG1)   != 0     println("\n>> Angular coeffients from SpinAngular = $waG1 ")        end
-                if  length(waR[2]) != 0     println(  ">> Angular coeffients from Ratip2013   = $(waR[2]) ")    end
-                if  length(waG2)   != 0     println("\n>> Angular coeffients from SpinAngular = $waG2 ")        end
-            end  ==#
             #
             me = 0.
             for  coeff in wa[1]
@@ -534,8 +466,6 @@ function Basics.computeMultipletForGreenApproach(approach::AtomicState.CoreSpace
     multiplet = Multiplet("CoreSpaceCI multiplet for $sym", levels)
     return( multiplet )
 end
-
-
 
 """
 `Basics.computeMultipletForGreenApproach(approach::AtomicState.DampedSpaceCI, basis::Basis, nModel::Nuclear.Model, grid::Radial.Grid,
@@ -605,7 +535,6 @@ function Basics.computeMultipletForGreenApproach(approach::AtomicState.DampedSpa
     return( multiplet )
 end
 
-
 """
 `Basics.computePotential(scField::Basics.AaHSField, grid::Radial.Grid, orbitals::Dict{Subshell, Orbital}, mu::Float64, temp::Float64)`  
     ... to compute a (radial) Hartree-Slater-type potential for the density as modeled by the given set of orbital
@@ -638,8 +567,6 @@ function Basics.computePotential(scField::Basics.AaHSField, grid::Radial.Grid, o
     wc = Radial.Potential("average-atom HS", wx, grid)
     return( wc )
 end
-
-
 
 """
 `Basics.computePotential(scField::Basics.AaDFSField, grid::Radial.Grid, orbitals::Dict{Subshell, Orbital}, mu::Float64, temp::Float64)`  
@@ -677,8 +604,6 @@ function Basics.computePotential(scField::Basics.AaDFSField, grid::Radial.Grid, 
     return( wc )
 end
 
-
-
 """
 `Basics.computePotential(scField::Basics.CHField, grid::Radial.Grid, level::Level)`  
     ... to compute a (radial) core-Hartree potential for the given level; a potential::RadialPotential is returned. 
@@ -713,8 +638,6 @@ function Basics.computePotential(scField::Basics.CHField, grid::Radial.Grid, lev
     return( wc )
 end
 
-
-
 """
 `Basics.computePotential(scField::Basics.HartreeField, grid::Radial.Grid, level::Level)`  
     ... to compute a (radial) Hartree potential for the given level; a potential::RadialPotential is returned. 
@@ -739,7 +662,6 @@ function Basics.computePotential(scField::Basics.HartreeField, grid::Radial.Grid
     wc = Radial.Potential("Hartree", wx, grid)
     return( wc )
 end
-
 
 """
 `Basics.computePotential(scField::Basics.HSField, grid::Radial.Grid, level::Level)`  
@@ -771,8 +693,6 @@ function Basics.computePotential(scField::Basics.HSField, grid::Radial.Grid, lev
     wc = Radial.Potential("Hartree-Slater", wx, grid)
     return( wc )
 end
-
-
 
 """
 `Basics.computePotential(scField::Basics.KSField, grid::Radial.Grid, level::Level)`  
@@ -808,8 +728,6 @@ function Basics.computePotential(scField::Basics.KSField, grid::Radial.Grid, lev
     wc = Radial.Potential("Kohn-Sham", wb, grid)
     return( wc )
 end
-
-
 
 """
 `Basics.computePotential(scField::Basics.DFSField, grid::Radial.Grid, level::Level)`  
@@ -849,8 +767,6 @@ function Basics.computePotential(scField::Basics.DFSField, grid::Radial.Grid, le
     return( wc )
 end
 
-
-
 """
 `Basics.computePotential(scField::Basics.DFSField, grid::Radial.Grid, basis::Basis)`  
     ... to compute the same but for the mean occupation of the orbitals in the given basis.
@@ -877,7 +793,6 @@ function Basics.computePotential(scField::Basics.DFSField, grid::Radial.Grid, ba
     wc = Radial.Potential("DFS for CSF basis", wb, grid)
     return( wc )
 end
-
 
 """
 `Basics.computePotential(scField::Basics.DFSwCPField, kappa::Int64, cp::CorePolarization, grid::Radial.Grid, level::Level)`  
@@ -926,8 +841,6 @@ function Basics.computePotential(scField::Basics.DFSwCPField, kappa::Int64, cp::
     wc = Radial.Potential("DFS", wb, grid)
     return( wc )
 end
-
-
 
 """
 `Basics.computePotential(scField::Basics.EHField, grid::Radial.Grid, level::Level)`  
@@ -995,8 +908,6 @@ function Basics.computePotential(scField::Basics.EHField, grid::Radial.Grid, lev
     for  i = 1:npoints   if  wg[i] > 0.    wx[i] = wx[i]/wg[i]   else   wx[i] = 0.   end    end
     return( wx )
 end
-
-
 
 """
 `Basics.computeScfCoefficients(field::Basics.ALField, basis::Basis, subsh::Subshell)`  
