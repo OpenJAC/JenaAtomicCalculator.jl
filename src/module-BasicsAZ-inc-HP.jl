@@ -63,16 +63,6 @@ function Basics.integrate(::TrapezRule, F::Array{Float64,1}, grid::Radial.Grid)
 end
 
 
-## Backward-compatible string wrapper; to be removed when all callers are updated.
-function Basics.integrate(sa::String, F::Array{Float64,1}, grid::Radial.Grid)
-    if       sa == "function: on radial grid, Newton-Cotes"     return Basics.integrate(NewtonCotes(), F, grid)
-    elseif   sa == "function: on radial grid, Simpson rule"     return Basics.integrate(SimpsonRule(), F, grid)
-    elseif   sa == "function: on radial grid, trapez rule"      return Basics.integrate(TrapezRule(),  F, grid)
-    else     error("Unsupported keystring = $sa.")
-    end
-end
-
-
 """
 `Basics.integrateOnGridNewtonCotes()`  ... integrates by using a 5-point Newton-Cotes integration formula; see Basic.integrate().
 """
