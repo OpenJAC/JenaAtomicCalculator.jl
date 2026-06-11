@@ -219,8 +219,8 @@ end
 function  computePathways(finalMultiplet::Multiplet, intermediateMultiplet::Multiplet, initialMultiplet::Multiplet, 
                           grid::Radial.Grid, settings::ResonantInelastic.Settings; output=true) 
     # Define a common subshell list for all three multiplets
-    subshellList = Basics.generate("subshells: ordered list for two bases", intermediateMultiplet.levels[1].basis, initialMultiplet.levels[1].basis)
-    subshellList = Basics.generate("subshells: ordered list for two bases", finalMultiplet.levels[1].basis, intermediateMultiplet.levels[1].basis)
+    subshellList = Basics.generate(OrderedSubshellList(), intermediateMultiplet.levels[1].basis, initialMultiplet.levels[1].basis)
+    subshellList = Basics.generate(OrderedSubshellList(), finalMultiplet.levels[1].basis, intermediateMultiplet.levels[1].basis)
     Defaults.setDefaults("relativistic subshell list", subshellList; printout=true)
     println("")
     printstyled("ResonantInelastic.computeLines(): The computation of the pathway properties starts now ... \n", color=:light_green)

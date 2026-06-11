@@ -642,13 +642,6 @@ function Basics.generate(::OrderedSubshellList, basisA::Basis, basisB::Basis)
 end
 
 
-## Backward-compatible string wrapper; to be removed when all callers are updated.
-function Basics.generate(sa::String, basisA::Basis, basisB::Basis)
-    !(sa == "subshells: ordered list for two bases")  &&   error("Unsupported keystring = $sa")
-    return Basics.generate(OrderedSubshellList(), basisA, basisB)
-end
-
-
 """
 `Basics.generate(::SlaterTypeSpectrum, N::Int64, potential::Radial.Potential, grid::Radial.Grid; N_0::Int64=30, alpha_0::Float64=1.0,`
                     beta_0::Float64=1.1)

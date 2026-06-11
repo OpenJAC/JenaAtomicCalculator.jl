@@ -451,7 +451,7 @@ end
 function  computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, nm::Nuclear.Model, grid::Radial.Grid, 
                        settings::HyperfineInduced.Settings; output=true) 
     # Define a common subshell list for both multiplets
-    subshellList = Basics.generate("subshells: ordered list for two bases", finalMultiplet.levels[1].basis, initialMultiplet.levels[1].basis)
+    subshellList = Basics.generate(OrderedSubshellList(), finalMultiplet.levels[1].basis, initialMultiplet.levels[1].basis)
     Defaults.setDefaults("relativistic subshell list", subshellList; printout=true)
     println("")
     printstyled("HyperfineInduced.computeLines(): The computation of hyperfine-induced transition amplitudes starts now ... \n", color=:light_green)
@@ -511,7 +511,7 @@ end
 function  computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, nm::Nuclear.Model, grid::Radial.Grid, 
                        settings::HyperfineInduced.Settings; output=true) 
     # Define a common subshell list for both multiplets
-    subshellList = Basics.generate("subshells: ordered list for two bases", finalMultiplet.levels[1].basis, initialMultiplet.levels[1].basis)
+    subshellList = Basics.generate(OrderedSubshellList(), finalMultiplet.levels[1].basis, initialMultiplet.levels[1].basis)
     Defaults.setDefaults("relativistic subshell list", subshellList; printout=true)
     println("")
     printstyled("HyperfineInduced.computeLines(): The computation of hyperfine-induced transition amplitudes starts now ... \n", color=:light_green)

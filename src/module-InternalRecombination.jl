@@ -198,7 +198,7 @@ function computeAmplitudesProperties(line::InternalRecombination.Line, nm::Nucle
                                         grid::Radial.Grid, settings::InternalRecombination.Settings; printout::Bool=true) 
     newChannels = InternalRecombination.Channel[];   rateZ = 0.;   rate = 0.;   gHalf = settings.gamma / 2.
     # Define a common subshell list for both multiplets
-    subshellList = Basics.generate("subshells: ordered list for two bases", line.finalLevel.basis, line.initialLevel.basis)
+    subshellList = Basics.generate(OrderedSubshellList(), line.finalLevel.basis, line.initialLevel.basis)
     Defaults.setDefaults("relativistic subshell list", subshellList; printout=false)
     
     for channel in line.channels

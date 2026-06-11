@@ -250,7 +250,7 @@ end
 function  computeLinesCascade(finalMultiplet::Multiplet, initialMultiplet::Multiplet, grid::Radial.Grid, 
                               settings::PhotoExcitation.Settings, initialLevelSelection::LevelSelection; output::Bool=true, printout::Bool=true) 
     # Define a common subshell list for both multiplets
-    subshellList = Basics.generate("subshells: ordered list for two bases", finalMultiplet.levels[1].basis, initialMultiplet.levels[1].basis)
+    subshellList = Basics.generate(OrderedSubshellList(), finalMultiplet.levels[1].basis, initialMultiplet.levels[1].basis)
     Defaults.setDefaults("relativistic subshell list", subshellList; printout=false)
     lines = PhotoExcitation.determineLines(finalMultiplet, initialMultiplet, settings)
     # Display all selected lines before the computations start

@@ -306,7 +306,7 @@ function  computeAmplitudesProperties(line::ImpactExcitation.Line, nm::Nuclear.M
     conv = 0.; conv0 = 0. ; n = 0
     
     # Define a common subshell list for both multiplets
-    subshellList = Basics.generate("subshells: ordered list for two bases", line.finalLevel.basis, line.initialLevel.basis)
+    subshellList = Basics.generate(OrderedSubshellList(), line.finalLevel.basis, line.initialLevel.basis)
     Defaults.setDefaults("relativistic subshell list", subshellList; printout=false)
     
     # First determine a common set of continuum orbitals for the incoming and outgoing electron

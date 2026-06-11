@@ -440,7 +440,7 @@ end
 """
 function  computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, grid::Radial.Grid, settings::PhotoEmission.Settings; output=true) 
     # Define a common subshell list for both multiplets
-    subshellList = Basics.generate("subshells: ordered list for two bases", finalMultiplet.levels[1].basis, initialMultiplet.levels[1].basis)
+    subshellList = Basics.generate(OrderedSubshellList(), finalMultiplet.levels[1].basis, initialMultiplet.levels[1].basis)
     Defaults.setDefaults("relativistic subshell list", subshellList; printout=true)
     println("")
     printstyled("PhotoEmission.computeLines(): The computation of the transition amplitudes and properties starts now ... \n", color=:light_green)
@@ -482,7 +482,7 @@ end
 function  computeLinesCascade(finalMultiplet::Multiplet, initialMultiplet::Multiplet, grid::Radial.Grid, 
                                 settings::PhotoEmission.Settings; output=true, printout::Bool=true) 
     # Define a common subshell list for both multiplets
-    subshellList = Basics.generate("subshells: ordered list for two bases", finalMultiplet.levels[1].basis, initialMultiplet.levels[1].basis)
+    subshellList = Basics.generate(OrderedSubshellList(), finalMultiplet.levels[1].basis, initialMultiplet.levels[1].basis)
     Defaults.setDefaults("relativistic subshell list", subshellList; printout=false)
     lines = PhotoEmission.determineLines(finalMultiplet, initialMultiplet, settings)
     ## Display all selected lines before the computations start
