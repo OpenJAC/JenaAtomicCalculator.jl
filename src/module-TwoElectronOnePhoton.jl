@@ -476,12 +476,12 @@ function  displayRates(stream::IO, lines::Array{TwoElectronOnePhoton.Line,1}, se
             sa = sa * TableStrings.center(9,  string(ch.multipole); na=4)
             sa = sa * TableStrings.flushleft(11, string(ch.gauge);  na=2)
             chRate =  8pi * Defaults.getDefaults("alpha") * line.omega / (Basics.twice(line.initialLevel.J) + 1) * (abs(ch.amplitude)^2) 
-            sa = sa * @sprintf("%.6e", Basics.recast("rate: radiative, to Einstein A",    line, chRate)) * "  "
-            sa = sa * @sprintf("%.6e", Basics.recast("rate: radiative, to Einstein B",    line, chRate)) * "    "
-            sa = sa * @sprintf("%.6e", Basics.recast("rate: radiative, to g_f",           line, chRate)) * "    "
-            sa = sa * @sprintf("%.6e", Basics.recast("rate: radiative, to decay width",   line, chRate)) * "    "
+            sa = sa * @sprintf("%.6e", Basics.recast(RecastRateToEinsteinA(),    line, chRate)) * "  "
+            sa = sa * @sprintf("%.6e", Basics.recast(RecastRateToEinsteinB(),    line, chRate)) * "    "
+            sa = sa * @sprintf("%.6e", Basics.recast(RecastRateToOscillatorGf(),           line, chRate)) * "    "
+            sa = sa * @sprintf("%.6e", Basics.recast(RecastRateToDecayWidth(),   line, chRate)) * "    "
             if  ch.multipole == E1
-                    sa = sa * @sprintf("%.6e", Basics.recast("rate: radiative, to S",     line, chRate)) * "    "
+                    sa = sa * @sprintf("%.6e", Basics.recast(RecastRateToLineStrengthS(),     line, chRate)) * "    "
             else    sa = sa * "  --  " 
             end
             println(stream, sa)

@@ -423,10 +423,10 @@ function  displayRates(stream::IO, lines::Array{Einstein.Line,1})
             sa = sa * TableStrings.flushleft(11, string(ch.gauge);  na=2)
             chRate =  8pi * Defaults.getDefaults("alpha") * line.omega / (Basics.twice(line.initialLevel.J) + 1) * (abs(ch.amplitude)^2) * 
                                                                 (Basics.twice(line.finalLevel.J) + 1)
-            sa = sa * @sprintf("%.6e", Basics.recast("rate: radiative, to Einstein A",  line, chRate)) * "  "
-            sa = sa * @sprintf("%.6e", Basics.recast("rate: radiative, to Einstein B",  line, chRate)) * "    "
-            sa = sa * @sprintf("%.6e", Basics.recast("rate: radiative, to f",           line, chRate)) * "    "
-            sa = sa * @sprintf("%.6e", Basics.recast("rate: radiative, to decay width", line, chRate)) * "    "
+            sa = sa * @sprintf("%.6e", Basics.recast(RecastRateToEinsteinA(),  line, chRate)) * "  "
+            sa = sa * @sprintf("%.6e", Basics.recast(RecastRateToEinsteinB(),  line, chRate)) * "    "
+            sa = sa * @sprintf("%.6e", Basics.recast(RecastRateToOscillatorF(),           line, chRate)) * "    "
+            sa = sa * @sprintf("%.6e", Basics.recast(RecastRateToDecayWidth(), line, chRate)) * "    "
             println(stream, sa)
         end
     end

@@ -271,72 +271,64 @@ end
 
 
 """
-`Basics.recast()`  
-    ... recasts some data from one number/representation into another one; cf. the supported keystrings and return values.
-
-+ `("rate: radiative, to decay width", line::Union{PhotoEmission.Line, HyperfineInduced.Line}, value::Float64)`  
-    ... to recast a given radiative rate (Einstein A in atomic units) into a decay withs, taking the selected energy unit 
-        into account. A Float64 is returned.
-
-+ `("rate: radiative, to Einstein A", line::Union{PhotoEmission.Line, HyperfineInduced.Line}, value::Float64)`  
-    ... to recast a given spontaneous radiative rate (= Einstein A-coefficient), taking the selected unit into account. 
-        A Float64 is returned.
-
-+ `("rate: radiative, to Einstein B", line::Union{PhotoEmission.Line, HyperfineInduced.Line}, value::Float64)`  
-    ... to recast a given radiative rate (Einstein A in atomic units) into an Einstein B-coefficient, taking the selected 
-        unit into account. A Float64 is returned.
-
-+ `("rate: radiative, to g_f", line::Union{PhotoEmission.Line}, value::Float64)`  
-    ... to recast a given radiative rate (Einstein A in atomic units) into an oscillator strength g_f; 
-        a Float64 is returned.
-
-+ `("rate: radiative, to f", line::Union{PhotoEmission.Line}, value::Float64)`  
-    ... to recast a given radiative rate (Einstein A in atomic units) into an oscillator strength f; 
-        a Float64 is returned.
-
-+ `("rate: radiative, to S", line::Union{PhotoEmission.Line}, value::Float64)`  
-    ... to recast a given radiative rate (Einstein A in atomic units) into a line strength S; 
+`Basics.recast(::RecastRateToDecayWidth, line::Union{Einstein.Line, PhotoEmission.Line, HyperfineInduced.Line, TwoElectronOnePhoton.Line}, wa::Float64)`
+    ... recasts a radiative rate (Einstein A, a.u.) into a decay width, taking the selected energy unit into account;
         a Float64 is returned.
 """
-function Basics.recast(sa::String, line::Union{Einstein.Line, PhotoEmission.Line, HyperfineInduced.Line}, wa::Float64)
-    if  typeof(line) == HyperfineInduced.Line  &&
-        ! (sa  in ["rate: radiative, to decay width", "rate: radiative, to Einstein A", "rate: radiative, to Einstein B"])
-        error("Not supported recast for HyperfineInduced.Line's ")
+function Basics.recast(::RecastRateToDecayWidth, line::Union{Einstein.Line, PhotoEmission.Line, HyperfineInduced.Line, TwoElectronOnePhoton.Line}, wa::Float64)
+    return( Defaults.convertUnits("energy: from atomic", wa) )
+end
+
+
+"""
+`Basics.recast(::RecastRateToEinsteinA, line::Union{Einstein.Line, PhotoEmission.Line, HyperfineInduced.Line, TwoElectronOnePhoton.Line}, wa::Float64)`
+    ... recasts a spontaneous radiative rate (Einstein A, a.u.) into Einstein A in selected units; a Float64 is returned.
+"""
+function Basics.recast(::RecastRateToEinsteinA, line::Union{Einstein.Line, PhotoEmission.Line, HyperfineInduced.Line, TwoElectronOnePhoton.Line}, wa::Float64)
+    return( Defaults.convertUnits("rate: from atomic", wa) )
+end
+
+
+"""
+`Basics.recast(::RecastRateToEinsteinB, line::Union{Einstein.Line, PhotoEmission.Line, HyperfineInduced.Line, TwoElectronOnePhoton.Line}, wa::Float64)`
+    ... recasts a radiative rate (Einstein A, a.u.) into an Einstein B-coefficient; a Float64 is returned.
+"""
+function Basics.recast(::RecastRateToEinsteinB, line::Union{Einstein.Line, PhotoEmission.Line, HyperfineInduced.Line, TwoElectronOnePhoton.Line}, wa::Float64)
+    einsteinB = pi^2 * Defaults.getDefaults("speed of light: c")^3 / line.omega^3  * wa
+    return( Defaults.convertUnits("Einstein B: from atomic", einsteinB) )
+end
+
+
+"""
+`Basics.recast(::RecastRateToOscillatorGf, line::Union{Einstein.Line, PhotoEmission.Line, TwoElectronOnePhoton.Line}, wa::Float64)`
+    ... recasts a radiative rate (Einstein A, a.u.) into the oscillator strength g_f; a Float64 is returned.
+"""
+function Basics.recast(::RecastRateToOscillatorGf, line::Union{Einstein.Line, PhotoEmission.Line, TwoElectronOnePhoton.Line}, wa::Float64)
+    return( (Basics.twice(line.initialLevel.J) + 1) / (Basics.twice(line.finalLevel.J) + 1) / 2. *
+                Defaults.getDefaults("speed of light: c")^3 / line.omega^2 * wa )
+end
+
+
+"""
+`Basics.recast(::RecastRateToOscillatorF, line::Union{Einstein.Line, PhotoEmission.Line}, wa::Float64)`
+    ... recasts a radiative rate (Einstein A, a.u.) into the oscillator strength f; a Float64 is returned.
+"""
+function Basics.recast(::RecastRateToOscillatorF, line::Union{Einstein.Line, PhotoEmission.Line}, wa::Float64)
+    return( Defaults.getDefaults("speed of light: c") / (12. * pi * line.omega) * wa )
+end
+
+
+"""
+`Basics.recast(::RecastRateToLineStrengthS, line::Union{Einstein.Line, PhotoEmission.Line, TwoElectronOnePhoton.Line}, wa::Float64)`
+    ... recasts a radiative rate (Einstein A, a.u.) into the line strength S; a Float64 is returned.
+"""
+function Basics.recast(::RecastRateToLineStrengthS, line::Union{Einstein.Line, PhotoEmission.Line, TwoElectronOnePhoton.Line}, wa::Float64)
+    einsteinA = Defaults.convertUnits("rate: from atomic to 1/s", wa)
+    if      true                    S = 3.707342e-14 * (Basics.twice(line.finalLevel.J) + 1) * einsteinA / (line.omega^3)
+    elseif  line.multipole == E1    S = 8.928970e-19 * (Basics.twice(line.finalLevel.J) + 1) * einsteinA / (line.omega^5)
+    else                            S = 0.
     end
-
-    if       sa == "rate: radiative, to decay width"
-        width = Defaults.convertUnits("energy: from atomic", wa)
-        return( width )
-
-    elseif   sa == "rate: radiative, to Einstein A"
-        einsteinA = Defaults.convertUnits("rate: from atomic", wa)
-        return( einsteinA )
-
-    elseif   sa == "rate: radiative, to Einstein B"
-        einsteinB = pi^2 * Defaults.getDefaults("speed of light: c")^3 / line.omega^3  * wa
-        einsteinB = Defaults.convertUnits("Einstein B: from atomic", einsteinB)
-        return( einsteinB )
-
-    elseif   sa == "rate: radiative, to g_f"
-        gf = (Basics.twice(line.initialLevel.J) + 1) / (Basics.twice(line.finalLevel.J) + 1) / 2. * 
-                Defaults.getDefaults("speed of light: c")^3 / line.omega^2 * wa   
-        return( gf )
-
-    elseif   sa == "rate: radiative, to f"
-        f  = Defaults.getDefaults("speed of light: c") / (12. * pi * line.omega) * wa   
-        ## f  = 2 * line.omega / 3. / (Basics.twice(line.initialLevel.J) + 1) * wa
-        return( f )
-
-    elseif   sa == "rate: radiative, to S"
-        einsteinA = Defaults.convertUnits("rate: from atomic to 1/s", wa)
-        if      true                    S = 3.707342e-14 * (Basics.twice(line.finalLevel.J) + 1) * einsteinA / (line.omega^3)
-        elseif  line.multipole == E1    S = 8.928970e-19 * (Basics.twice(line.finalLevel.J) + 1) * einsteinA / (line.omega^5)
-        else                            S = 0.
-        end
-        return( S )
-
-    else     error("Unsupported keystring = $sa")
-    end
+    return( S )
 end
 
 

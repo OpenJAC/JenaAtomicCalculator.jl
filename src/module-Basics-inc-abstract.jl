@@ -2363,3 +2363,27 @@ struct         RadialOrbitalsSmall <:  AbstractPlotTheme           end
 struct         RadialOrbitalsBoth  <:  AbstractPlotTheme           end
 
 export  AbstractPlotTheme, RadialPotentials, RadialOrbitalsLarge, RadialOrbitalsSmall, RadialOrbitalsBoth
+
+
+"""
+`abstract type Basics.AbstractRecastTheme`
+    ... defines an abstract and a number of singleton types to select the recast theme for Basics.recast(),
+        replacing the former string-key dispatch.
+
+    + RecastRateToDecayWidth    ... recast a radiative rate (Einstein A, a.u.) to a decay width.
+    + RecastRateToEinsteinA     ... recast a radiative rate (Einstein A, a.u.) to Einstein A in selected units.
+    + RecastRateToEinsteinB     ... recast a radiative rate (Einstein A, a.u.) to Einstein B-coefficient.
+    + RecastRateToOscillatorGf  ... recast a radiative rate (Einstein A, a.u.) to oscillator strength g_f.
+    + RecastRateToOscillatorF   ... recast a radiative rate (Einstein A, a.u.) to oscillator strength f.
+    + RecastRateToLineStrengthS ... recast a radiative rate (Einstein A, a.u.) to line strength S.
+"""
+abstract type  AbstractRecastTheme                                           end
+struct         RecastRateToDecayWidth    <:  AbstractRecastTheme             end
+struct         RecastRateToEinsteinA     <:  AbstractRecastTheme             end
+struct         RecastRateToEinsteinB     <:  AbstractRecastTheme             end
+struct         RecastRateToOscillatorGf  <:  AbstractRecastTheme             end
+struct         RecastRateToOscillatorF   <:  AbstractRecastTheme             end
+struct         RecastRateToLineStrengthS <:  AbstractRecastTheme             end
+
+export  AbstractRecastTheme, RecastRateToDecayWidth, RecastRateToEinsteinA, RecastRateToEinsteinB,
+        RecastRateToOscillatorGf, RecastRateToOscillatorF, RecastRateToLineStrengthS
