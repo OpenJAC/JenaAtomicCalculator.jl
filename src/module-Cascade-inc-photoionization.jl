@@ -20,7 +20,6 @@ function computeSteps(scheme::Cascade.PhotoIonizationScheme, comp::Cascade.Compu
     linesP = PhotoIonization.Line[]    
     printSummary, iostream = Defaults.getDefaults("summary flag/stream")
     nt = 0;   st = 0;   previousMeanEn = 0.
-    @show scheme.initialLevelSelection
     for  step  in  stepList
         st = st + 1
         nc = length(step.initialMultiplet.levels) * length(step.finalMultiplet.levels) * length(scheme.photonEnergies)
