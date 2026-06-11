@@ -1,0 +1,35 @@
+cff-version: 1.2.0
+message: "If you use JAC in published work, please cite it using the metadata below."
+type: software
+title: "JenaAtomicCalculator (JAC)"
+abstract: >
+  JAC is an open-source Julia package for atomic structure and collision computations.
+  It provides a relativistic electronic-structure code for interaction amplitudes,
+  atomic properties, excitation/decay processes, cascade simulations, and symbolic
+  Racah-algebra manipulations.
+authors:
+  - family-names: Fritzsche
+    given-names: Stephan
+    email: s.fritzsche@hi-jena.gsi.de
+    affiliation: "Helmholtz Institute Jena & GSI Helmholtz Centre for Heavy Ion Research"
+version: "0.3.0"
+date-released: "2024-01-01"
+url: "https://github.com/OpenJAC/JAC.jl"
+license: MIT
+keywords:
+  - atomic physics
+  - relativistic
+  - electronic structure
+  - Racah algebra
+  - Julia
+preferred-citation:
+  type: article
+  authors:
+    - family-names: Fritzsche
+      given-names: Stephan
+  title: "A fresh computational approach to atomic structures, processes and cascades"
+  journal: "Computer Physics Communications"
+  volume: 240
+  year: 2019
+  pages: "1-14"
+  doi: "10.1016/j.cpc.2019.01.012"

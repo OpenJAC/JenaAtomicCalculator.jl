@@ -118,6 +118,23 @@ using JenaAtomicCalculator
 !!! @info "Info"
     We suggest to use  JenaAtomicCalculator  with the Julia v1.10.
 
+## Author and principal developer
+
+JAC is created and maintained by **Stephan Fritzsche** (Helmholtz Institute Jena &
+GSI Helmholtz Centre for Heavy Ion Research, Darmstadt).
+
+Contact: s.fritzsche@hi-jena.gsi.de
+
+If you use JAC in published work, please cite the reference article:
+
+> S. Fritzsche, *A fresh computational approach to atomic structures, processes and cascades*,
+> Comput. Phys. Commun. **240**, 1–14 (2019).
+> DOI: [10.1016/j.cpc.2019.01.012](https://doi.org/10.1016/j.cpc.2019.01.012)
+
+A `CITATION.cff` file is included in this repository; GitHub displays a *Cite this repository*
+button in the sidebar that formats the citation automatically.
+
+
 ## Current limitations of JAC
 
 Although JAC has been designed for all atoms and ions across the periodic table, a number of limitations occur:
