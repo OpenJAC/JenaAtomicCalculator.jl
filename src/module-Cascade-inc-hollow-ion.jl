@@ -1,11 +1,4 @@
 
-#== August 2025, the following replacements need to be made and tested properly:
-++ Replace:  Cascade.generateConfigurationsForHollowIons(initialConfigs::Array{Configurations,1}, intoShells::Array{Shell,1}, 
-                                                decayShells::Array{Shell,1}, noElectrons::Int64)
-++ 
-++ See Basics.generateConfigurations(Basics.ForHollowIons(), confs)
-==#
-
 # Functions and methods for scheme::Cascade.HollowIonScheme computations
 
 
@@ -181,10 +174,10 @@ end
 """
 function generateConfigurationsForHollowIons(initialConfigs::Array{Configuration,1}, intoShells::Array{Shell,1}, 
                                                 decayShells::Array{Shell,1}, noElectrons::Int64)
-    # Generate all configurations with additional noElectrons in the intoShells 
+    # Generate all configurations with additional noElectrons in the intoShells
     newConfigs = copy(initialConfigs)
     for  ne = 1:noElectrons
-        newConfigs = Basics.generateConfigurationsWithElectronCapture(newConfigs,Shell[],intoShells,0)
+        newConfigs = Basics.generateConfigurationsForExcitationScheme(newConfigs, Basics.ExciteByCapture(), Shell[], Shell[], intoShells, 0)
     end
     #
     # Build configurations with all decayShells 'in between', even if zero occupation
