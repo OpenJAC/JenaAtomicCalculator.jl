@@ -110,144 +110,214 @@ end
 
 
 """
-`IsotopeShift.amplitude(kind::String, rLevel::Level, sLevel::Level, nm::Nuclear.Model, grid::Radial.Grid)` 
-    ... to compute either the  H^(NMS),  H^(SMS,A),  H^(SMS,B) or  H^(SMS,C) normal and specific mass-shift amplitudes
-        <alpha_r J_r || H^(A)) || alpha_s J_s>  for a given pair of levels. A value::ComplexF64 is returned.
+`abstract type IsotopeShift.AbstractIsotopeShiftKind`
+    ... selects the isotope-shift amplitude to be computed; used for typed dispatch in IsotopeShift.amplitude().
+
+    + NMSamplitude        ... normal mass-shift amplitude        H^(NMS).
+    + SMSamplitudeA       ... specific mass-shift amplitude A    H^(SMS,A).
+    + SMSamplitudeB       ... specific mass-shift amplitude B    H^(SMS,B).
+    + SMSamplitudeC       ... specific mass-shift amplitude C    H^(SMS,C).
+    + FieldShiftAmplitude ... field-shift amplitude              H^(field-shift).
+    + BosonFieldAmplitude ... boson-field shift amplitude        H^(boson-field).
 """
-function  amplitude(kind::String, rLevel::Level, sLevel::Level, nm::Nuclear.Model, grid::Radial.Grid)
+abstract type  AbstractIsotopeShiftKind                            end
+struct         NMSamplitude        <:  AbstractIsotopeShiftKind   end
+struct         SMSamplitudeA       <:  AbstractIsotopeShiftKind   end
+struct         SMSamplitudeB       <:  AbstractIsotopeShiftKind   end
+struct         SMSamplitudeC       <:  AbstractIsotopeShiftKind   end
+struct         FieldShiftAmplitude <:  AbstractIsotopeShiftKind   end
+struct         BosonFieldAmplitude <:  AbstractIsotopeShiftKind   end
+
+
+"""
+`IsotopeShift.amplitude(::NMSamplitude, rLevel::Level, sLevel::Level, nm::Nuclear.Model, grid::Radial.Grid)`
+    ... to compute the normal mass-shift amplitude  <alpha_r J_r || H^(NMS) || alpha_s J_s>  for a given pair of levels.
+        A value::ComplexF64 is returned.
+"""
+function  amplitude(::NMSamplitude, rLevel::Level, sLevel::Level, nm::Nuclear.Model, grid::Radial.Grid)
     nr = length(rLevel.basis.csfs);    ns = length(sLevel.basis.csfs);    matrix = zeros(ComplexF64, nr, ns)
-    printstyled("Compute mass-shift $(kind[1:9]) matrix of dimension $nr x $ns ... ", color=:light_green)
-    #
+    printstyled("Compute mass-shift H^(NMS)   matrix of dimension $nr x $ns ... ", color=:light_green)
     if  rLevel.parity != sLevel.parity   return( ComplexF64(0.) )   end
-    #
     for  r = 1:nr
         for  s = 1:ns
             me = 0.
             if  rLevel.basis.csfs[r].parity  != rLevel.parity    ||  sLevel.basis.csfs[s].parity  != sLevel.parity  ||
-                rLevel.parity != sLevel.parity    continue    
-            end 
-            #
-            if      kind == "H^(NMS)   amplitude"
-            #------------------------------------
-                subshellList = rLevel.basis.subshells
-                op = SpinAngular.OneParticleOperator(0, plus, true)
-                wa = SpinAngular.computeCoefficients(op, rLevel.basis.csfs[r], sLevel.basis.csfs[s], subshellList)
-                for  coeff in wa
-                    ja = Basics.subshell_2j(rLevel.basis.orbitals[coeff.a].subshell)
-                    jb = Basics.subshell_2j(sLevel.basis.orbitals[coeff.b].subshell)
-                    tamp  = InteractionStrength.hamiltonian_nms(rLevel.basis.orbitals[coeff.a], sLevel.basis.orbitals[coeff.b], nm, grid)
-                    me = me + coeff.T  * sqrt( ja + 1) * tamp  
-                end 
-            #
-            elseif  kind == "H^(SMS,A) amplitude"
-            #------------------------------------
-                subshellList = rLevel.basis.subshells
-                op = SpinAngular.TwoParticleOperator(0, plus, true)
-                wa = SpinAngular.computeCoefficients(op, rLevel.basis.csfs[r], sLevel.basis.csfs[s], subshellList)
-                for  coeff in wa
-                    if  coeff.nu != 1  continue   end
-                    ja = Basics.subshell_2j(rLevel.basis.orbitals[coeff.a].subshell)
-                    jb = Basics.subshell_2j(sLevel.basis.orbitals[coeff.b].subshell)
-                    tamp  = InteractionStrength.X_smsA(rLevel.basis.orbitals[coeff.a], rLevel.basis.orbitals[coeff.b],
-                                                        sLevel.basis.orbitals[coeff.c], sLevel.basis.orbitals[coeff.d], nm, grid)
-                    me = me + coeff.V * sqrt( ja + 1) * tamp  
-                end
-            #
-            elseif  kind == "H^(SMS,B) amplitude"
-            #------------------------------------
-                subshellList = rLevel.basis.subshells
-                op = SpinAngular.TwoParticleOperator(0, plus, true)
-                wa = SpinAngular.computeCoefficients(op, rLevel.basis.csfs[r], sLevel.basis.csfs[s], subshellList)
-                for  coeff in wa
-                    if  coeff.nu != 1  continue   end
-                    ja = Basics.subshell_2j(rLevel.basis.orbitals[coeff.a].subshell)
-                    jb = Basics.subshell_2j(sLevel.basis.orbitals[coeff.b].subshell)
-                    tamp  = InteractionStrength.X_smsB(rLevel.basis.orbitals[coeff.a], rLevel.basis.orbitals[coeff.b],
-                                                        sLevel.basis.orbitals[coeff.c], sLevel.basis.orbitals[coeff.d], nm, grid)
-                    me = me + coeff.V * sqrt( ja + 1) * tamp  
-                end
-            #
-            elseif  kind == "H^(SMS,C) amplitude"
-            #------------------------------------
-                subshellList = rLevel.basis.subshells
-                op = SpinAngular.TwoParticleOperator(0, plus, true)
-                wa = SpinAngular.computeCoefficients(op, rLevel.basis.csfs[r], sLevel.basis.csfs[s], subshellList)
-                for  coeff in wa
-                    if  coeff.nu != 1  continue   end
-                    ja = Basics.subshell_2j(rLevel.basis.orbitals[coeff.a].subshell)
-                    jb = Basics.subshell_2j(sLevel.basis.orbitals[coeff.b].subshell)
-                    tamp  = InteractionStrength.X_smsC(rLevel.basis.orbitals[coeff.a], rLevel.basis.orbitals[coeff.b],
-                                                        sLevel.basis.orbitals[coeff.c], sLevel.basis.orbitals[coeff.d], nm, grid)
-                    me = me + coeff.V * sqrt( ja + 1) * tamp  
-                end
-            #
-            else    error("stop a")
+                rLevel.parity != sLevel.parity    continue
             end
-            #
+            subshellList = rLevel.basis.subshells
+            op = SpinAngular.OneParticleOperator(0, plus, true)
+            wa = SpinAngular.computeCoefficients(op, rLevel.basis.csfs[r], sLevel.basis.csfs[s], subshellList)
+            for  coeff in wa
+                ja   = Basics.subshell_2j(rLevel.basis.orbitals[coeff.a].subshell)
+                tamp = InteractionStrength.hamiltonian_nms(rLevel.basis.orbitals[coeff.a], sLevel.basis.orbitals[coeff.b], nm, grid)
+                me   = me + coeff.T  * sqrt( ja + 1) * tamp
+            end
             matrix[r,s] = me
         end
     end
     printstyled("done.\n", color=:light_green)
-    amplitude = transpose(rLevel.mc) * matrix * sLevel.mc 
-    #
-    return( amplitude )
+    return( transpose(rLevel.mc) * matrix * sLevel.mc )
 end
 
 
 """
-`IsotopeShift.amplitude(kind::String, rLevel::Level, sLevel::Level, potential::Array{Float64,1}, grid::Radial.Grid)` 
-    ... to compute the H^(field-shift) field-shift amplitude  <alpha_r J_r || H^(field-shift) || alpha_s J_s> or the
-        H^(boson-field) shift amplitude  <alpha_r J_r || H^(boson-field) || alpha_s J_s>  for a given pair of levels.
-        The potential has to provide delta V^(nuc) for the field-shift amplitudes and the effective potential for the
-        boson-field shift. A value::ComplexF64 is returned.
+`IsotopeShift.amplitude(::SMSamplitudeA, rLevel::Level, sLevel::Level, nm::Nuclear.Model, grid::Radial.Grid)`
+    ... to compute the specific mass-shift amplitude A  <alpha_r J_r || H^(SMS,A) || alpha_s J_s>  for a given pair of levels.
+        A value::ComplexF64 is returned.
 """
-function  amplitude(kind::String, rLevel::Level, sLevel::Level, potential::Array{Float64,1}, grid::Radial.Grid)
+function  amplitude(::SMSamplitudeA, rLevel::Level, sLevel::Level, nm::Nuclear.Model, grid::Radial.Grid)
     nr = length(rLevel.basis.csfs);    ns = length(sLevel.basis.csfs);    matrix = zeros(ComplexF64, nr, ns)
-    printstyled("Compute field-shift $kind matrix of dimension $nr x $ns ... ", color=:light_green)
-    #
+    printstyled("Compute mass-shift H^(SMS,A)  matrix of dimension $nr x $ns ... ", color=:light_green)
     if  rLevel.parity != sLevel.parity   return( ComplexF64(0.) )   end
-    #
     for  r = 1:nr
         for  s = 1:ns
             me = 0.
             if  rLevel.basis.csfs[r].parity  != rLevel.parity    ||  sLevel.basis.csfs[s].parity  != sLevel.parity  ||
-                rLevel.parity != sLevel.parity    continue    
-            end 
-            #
-            if      kind == "H^(field-shift) amplitude"
-            #------------------------------------------
-                subshellList = rLevel.basis.subshells
-                op = SpinAngular.OneParticleOperator(0, plus, true)
-                wa = SpinAngular.computeCoefficients(op, rLevel.basis.csfs[r], sLevel.basis.csfs[s], subshellList)
-                for  coeff in wa
-                    ja = Basics.subshell_2j(rLevel.basis.orbitals[coeff.a].subshell)
-                    jb = Basics.subshell_2j(sLevel.basis.orbitals[coeff.b].subshell)
-                    tamp  = InteractionStrength.fieldShift(rLevel.basis.orbitals[coeff.a], sLevel.basis.orbitals[coeff.b], potential, grid)
-                    me = me + coeff.T  * sqrt( ja + 1) * tamp  
-                end
-            #
-            elseif  kind == "H^(boson-field) amplitude"
-            #------------------------------------------
-                subshellList = rLevel.basis.subshells
-                op = SpinAngular.OneParticleOperator(0, plus, true)
-                wa = SpinAngular.computeCoefficients(op, rLevel.basis.csfs[r], sLevel.basis.csfs[s], subshellList)
-                for  coeff in wa
-                    ja = Basics.subshell_2j(rLevel.basis.orbitals[coeff.a].subshell)
-                    jb = Basics.subshell_2j(sLevel.basis.orbitals[coeff.b].subshell)
-                    tamp  = InteractionStrength.bosonShift(rLevel.basis.orbitals[coeff.a], sLevel.basis.orbitals[coeff.b], potential, grid)
-                    me = me + coeff.T  * sqrt( ja + 1) * tamp  
-                end
-            #
-            else    error("stop b")
+                rLevel.parity != sLevel.parity    continue
             end
-            #
+            subshellList = rLevel.basis.subshells
+            op = SpinAngular.TwoParticleOperator(0, plus, true)
+            wa = SpinAngular.computeCoefficients(op, rLevel.basis.csfs[r], sLevel.basis.csfs[s], subshellList)
+            for  coeff in wa
+                if  coeff.nu != 1  continue   end
+                ja   = Basics.subshell_2j(rLevel.basis.orbitals[coeff.a].subshell)
+                tamp = InteractionStrength.X_smsA(rLevel.basis.orbitals[coeff.a], rLevel.basis.orbitals[coeff.b],
+                                                   sLevel.basis.orbitals[coeff.c], sLevel.basis.orbitals[coeff.d], nm, grid)
+                me   = me + coeff.V * sqrt( ja + 1) * tamp
+            end
             matrix[r,s] = me
         end
     end
     printstyled("done.\n", color=:light_green)
-    amplitude = transpose(rLevel.mc) * matrix * sLevel.mc 
-    #
-    return( amplitude )
+    return( transpose(rLevel.mc) * matrix * sLevel.mc )
+end
+
+
+"""
+`IsotopeShift.amplitude(::SMSamplitudeB, rLevel::Level, sLevel::Level, nm::Nuclear.Model, grid::Radial.Grid)`
+    ... to compute the specific mass-shift amplitude B  <alpha_r J_r || H^(SMS,B) || alpha_s J_s>  for a given pair of levels.
+        A value::ComplexF64 is returned.
+"""
+function  amplitude(::SMSamplitudeB, rLevel::Level, sLevel::Level, nm::Nuclear.Model, grid::Radial.Grid)
+    nr = length(rLevel.basis.csfs);    ns = length(sLevel.basis.csfs);    matrix = zeros(ComplexF64, nr, ns)
+    printstyled("Compute mass-shift H^(SMS,B)  matrix of dimension $nr x $ns ... ", color=:light_green)
+    if  rLevel.parity != sLevel.parity   return( ComplexF64(0.) )   end
+    for  r = 1:nr
+        for  s = 1:ns
+            me = 0.
+            if  rLevel.basis.csfs[r].parity  != rLevel.parity    ||  sLevel.basis.csfs[s].parity  != sLevel.parity  ||
+                rLevel.parity != sLevel.parity    continue
+            end
+            subshellList = rLevel.basis.subshells
+            op = SpinAngular.TwoParticleOperator(0, plus, true)
+            wa = SpinAngular.computeCoefficients(op, rLevel.basis.csfs[r], sLevel.basis.csfs[s], subshellList)
+            for  coeff in wa
+                if  coeff.nu != 1  continue   end
+                ja   = Basics.subshell_2j(rLevel.basis.orbitals[coeff.a].subshell)
+                tamp = InteractionStrength.X_smsB(rLevel.basis.orbitals[coeff.a], rLevel.basis.orbitals[coeff.b],
+                                                   sLevel.basis.orbitals[coeff.c], sLevel.basis.orbitals[coeff.d], nm, grid)
+                me   = me + coeff.V * sqrt( ja + 1) * tamp
+            end
+            matrix[r,s] = me
+        end
+    end
+    printstyled("done.\n", color=:light_green)
+    return( transpose(rLevel.mc) * matrix * sLevel.mc )
+end
+
+
+"""
+`IsotopeShift.amplitude(::SMSamplitudeC, rLevel::Level, sLevel::Level, nm::Nuclear.Model, grid::Radial.Grid)`
+    ... to compute the specific mass-shift amplitude C  <alpha_r J_r || H^(SMS,C) || alpha_s J_s>  for a given pair of levels.
+        A value::ComplexF64 is returned.
+"""
+function  amplitude(::SMSamplitudeC, rLevel::Level, sLevel::Level, nm::Nuclear.Model, grid::Radial.Grid)
+    nr = length(rLevel.basis.csfs);    ns = length(sLevel.basis.csfs);    matrix = zeros(ComplexF64, nr, ns)
+    printstyled("Compute mass-shift H^(SMS,C)  matrix of dimension $nr x $ns ... ", color=:light_green)
+    if  rLevel.parity != sLevel.parity   return( ComplexF64(0.) )   end
+    for  r = 1:nr
+        for  s = 1:ns
+            me = 0.
+            if  rLevel.basis.csfs[r].parity  != rLevel.parity    ||  sLevel.basis.csfs[s].parity  != sLevel.parity  ||
+                rLevel.parity != sLevel.parity    continue
+            end
+            subshellList = rLevel.basis.subshells
+            op = SpinAngular.TwoParticleOperator(0, plus, true)
+            wa = SpinAngular.computeCoefficients(op, rLevel.basis.csfs[r], sLevel.basis.csfs[s], subshellList)
+            for  coeff in wa
+                if  coeff.nu != 1  continue   end
+                ja   = Basics.subshell_2j(rLevel.basis.orbitals[coeff.a].subshell)
+                tamp = InteractionStrength.X_smsC(rLevel.basis.orbitals[coeff.a], rLevel.basis.orbitals[coeff.b],
+                                                   sLevel.basis.orbitals[coeff.c], sLevel.basis.orbitals[coeff.d], nm, grid)
+                me   = me + coeff.V * sqrt( ja + 1) * tamp
+            end
+            matrix[r,s] = me
+        end
+    end
+    printstyled("done.\n", color=:light_green)
+    return( transpose(rLevel.mc) * matrix * sLevel.mc )
+end
+
+
+"""
+`IsotopeShift.amplitude(::FieldShiftAmplitude, rLevel::Level, sLevel::Level, potential::Array{Float64,1}, grid::Radial.Grid)`
+    ... to compute the field-shift amplitude  <alpha_r J_r || H^(field-shift) || alpha_s J_s>  for a given pair of levels.
+        The potential must provide delta V^(nuc). A value::ComplexF64 is returned.
+"""
+function  amplitude(::FieldShiftAmplitude, rLevel::Level, sLevel::Level, potential::Array{Float64,1}, grid::Radial.Grid)
+    nr = length(rLevel.basis.csfs);    ns = length(sLevel.basis.csfs);    matrix = zeros(ComplexF64, nr, ns)
+    printstyled("Compute field-shift H^(field-shift) matrix of dimension $nr x $ns ... ", color=:light_green)
+    if  rLevel.parity != sLevel.parity   return( ComplexF64(0.) )   end
+    for  r = 1:nr
+        for  s = 1:ns
+            me = 0.
+            if  rLevel.basis.csfs[r].parity  != rLevel.parity    ||  sLevel.basis.csfs[s].parity  != sLevel.parity  ||
+                rLevel.parity != sLevel.parity    continue
+            end
+            subshellList = rLevel.basis.subshells
+            op = SpinAngular.OneParticleOperator(0, plus, true)
+            wa = SpinAngular.computeCoefficients(op, rLevel.basis.csfs[r], sLevel.basis.csfs[s], subshellList)
+            for  coeff in wa
+                ja   = Basics.subshell_2j(rLevel.basis.orbitals[coeff.a].subshell)
+                tamp = InteractionStrength.fieldShift(rLevel.basis.orbitals[coeff.a], sLevel.basis.orbitals[coeff.b], potential, grid)
+                me   = me + coeff.T  * sqrt( ja + 1) * tamp
+            end
+            matrix[r,s] = me
+        end
+    end
+    printstyled("done.\n", color=:light_green)
+    return( transpose(rLevel.mc) * matrix * sLevel.mc )
+end
+
+
+"""
+`IsotopeShift.amplitude(::BosonFieldAmplitude, rLevel::Level, sLevel::Level, potential::Array{Float64,1}, grid::Radial.Grid)`
+    ... to compute the boson-field shift amplitude  <alpha_r J_r || H^(boson-field) || alpha_s J_s>  for a given pair of levels.
+        The potential must provide the effective boson-field potential. A value::ComplexF64 is returned.
+"""
+function  amplitude(::BosonFieldAmplitude, rLevel::Level, sLevel::Level, potential::Array{Float64,1}, grid::Radial.Grid)
+    nr = length(rLevel.basis.csfs);    ns = length(sLevel.basis.csfs);    matrix = zeros(ComplexF64, nr, ns)
+    printstyled("Compute field-shift H^(boson-field) matrix of dimension $nr x $ns ... ", color=:light_green)
+    if  rLevel.parity != sLevel.parity   return( ComplexF64(0.) )   end
+    for  r = 1:nr
+        for  s = 1:ns
+            me = 0.
+            if  rLevel.basis.csfs[r].parity  != rLevel.parity    ||  sLevel.basis.csfs[s].parity  != sLevel.parity  ||
+                rLevel.parity != sLevel.parity    continue
+            end
+            subshellList = rLevel.basis.subshells
+            op = SpinAngular.OneParticleOperator(0, plus, true)
+            wa = SpinAngular.computeCoefficients(op, rLevel.basis.csfs[r], sLevel.basis.csfs[s], subshellList)
+            for  coeff in wa
+                ja   = Basics.subshell_2j(rLevel.basis.orbitals[coeff.a].subshell)
+                tamp = InteractionStrength.bosonShift(rLevel.basis.orbitals[coeff.a], sLevel.basis.orbitals[coeff.b], potential, grid)
+                me   = me + coeff.T  * sqrt( ja + 1) * tamp
+            end
+            matrix[r,s] = me
+        end
+    end
+    printstyled("done.\n", color=:light_green)
+    return( transpose(rLevel.mc) * matrix * sLevel.mc )
 end
 
 
@@ -262,34 +332,34 @@ function  computeAmplitudesProperties(outcome::IsotopeShift.Outcome, nm::Nuclear
     amplitudeKnms   = Ksms = F = Xboson = 0.
     amplitudeKsmsA  = amplitudeKsmsB = amplitudeKsmsC = amplitudeF = 0.
     if  settings.calcNMS
-        amplitudeKnms  = IsotopeShift.amplitude("H^(NMS)   amplitude", outcome.level, outcome.level, nm, grid)
+        amplitudeKnms  = IsotopeShift.amplitude(NMSamplitude(),  outcome.level, outcome.level, nm, grid)
     end
-    
+
     if  settings.calcSMS
-        amplitudeKsmsA = IsotopeShift.amplitude("H^(SMS,A) amplitude", outcome.level, outcome.level, nm, grid)
-        amplitudeKsmsB = IsotopeShift.amplitude("H^(SMS,B) amplitude", outcome.level, outcome.level, nm, grid)
-        amplitudeKsmsC = IsotopeShift.amplitude("H^(SMS,C) amplitude", outcome.level, outcome.level, nm, grid)
+        amplitudeKsmsA = IsotopeShift.amplitude(SMSamplitudeA(), outcome.level, outcome.level, nm, grid)
+        amplitudeKsmsB = IsotopeShift.amplitude(SMSamplitudeB(), outcome.level, outcome.level, nm, grid)
+        amplitudeKsmsC = IsotopeShift.amplitude(SMSamplitudeC(), outcome.level, outcome.level, nm, grid)
         Ksms = (amplitudeKsmsA + amplitudeKsmsB + amplitudeKsmsC)
     end
-    
+
     if  settings.calcF
         nmp       = Nuclear.Model(nm.Z, nm.mass+1.0)
         deltaPot  = Nuclear.nuclearPotential(nm, grid).Zr - Nuclear.nuclearPotential(nmp, grid).Zr
         deltaPot  = deltaPot / (nm.radius^2 - nmp.radius^2)
         lastPoint = Basics.lastPoint(deltaPot, 1.0e-9);   @show lastPoint
         #
-        Fme       = IsotopeShift.amplitude("H^(field-shift) amplitude", outcome.level, outcome.level, deltaPot, grid)
+        Fme       = IsotopeShift.amplitude(FieldShiftAmplitude(), outcome.level, outcome.level, deltaPot, grid)
         #
         density   = Basics.computeDensity(outcome.level, grid)
         wb        = zeros( lastPoint )
         wb[1:lastPoint] = - density[1:lastPoint] .* deltaPot[1:lastPoint] ./ grid.r[1:lastPoint]
         Fdensity  = RadialIntegrals.V0(wb, lastPoint, grid)
     end
-    
+
     if  settings.calcBoson
         potential = zeros( grid.NoPoints );   malpha = settings.bosonMass / Defaults.getDefaults("alpha")
         for     i = 1:length(potential)    potential[i] = exp( -malpha*grid.r[i] ) / grid.r[i]    end
-        Xboson    = IsotopeShift.amplitude("H^(boson-field) amplitude", outcome.level, outcome.level, potential, grid)
+        Xboson    = IsotopeShift.amplitude(BosonFieldAmplitude(), outcome.level, outcome.level, potential, grid)
     end
     
     newOutcome = IsotopeShift.Outcome( outcome.level, amplitudeKnms, Ksms, Fme, Fdensity, Xboson,
