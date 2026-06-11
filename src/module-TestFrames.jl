@@ -336,21 +336,21 @@ function testMethod_integrate_ongrid(; short::Bool=true)
     end
     integrand = integrand .* grid.rp[1:size(integrand, 1)]   # adopt to the form of Grasp92
 
-    integral  = Basic.integrate("function: on radial grid, Newton-Cotes", integrand, grid)
+    integral  = Basic.integrate(NewtonCotes(), integrand, grid)
     err = abs(integral - exact1)
     if  abs(err) > 1.0e-12
         success = false
         if printTest   info(iostream, "... Newton-Cotes:  I = $integral,  Err = $err")  end
     end
 
-    integral  = Basic.integrate("function: on radial grid, Simpson rule", integrand, grid)
+    integral  = Basic.integrate(SimpsonRule(), integrand, grid)
     err = abs(integral - exact1)
     if  abs(err) > 1.0e-12
         success = false
         if printTest   info(iostream, "... Simpson rule:  I = $integral,  Err = $err")  end
     end
 
-    integral  = Basic.integrate("function: on radial grid, trapez rule", integrand, grid)
+    integral  = Basic.integrate(TrapezRule(), integrand, grid)
     err = abs(integral - exact1)
     if  abs(err) > 1.0e-12
         success = false
@@ -373,9 +373,9 @@ function testMethod_integrate_ongrid(; short::Bool=true)
             mtp       = min(size(orb1.P, 1), size(orb2.P, 1))
             integrand = ( orb1.P[1:mtp] .* orb2.P[1:mtp] + orb1.Q[1:mtp] .* orb2.Q[1:mtp] ) .* grid.rp[1:mtp]
     
-            integrala = Basic.integrate("function: on radial grid, Newton-Cotes", integrand, grid)^2
-            integralb = Basic.integrate("function: on radial grid, Simpson rule", integrand, grid)^2
-            integralc = Basic.integrate("function: on radial grid, trapez rule",  integrand, grid)^2
+            integrala = Basic.integrate(NewtonCotes(), integrand, grid)^2
+            integralb = Basic.integrate(SimpsonRule(), integrand, grid)^2
+            integralc = Basic.integrate(TrapezRule(),  integrand, grid)^2
     
             info(iostream, "<$(string(orb1.subshell)) | $(string(orb2.subshell))> = $integrala, $integralb, $integralc")
         end

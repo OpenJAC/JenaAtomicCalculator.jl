@@ -34,28 +34,42 @@ end
 
 
 """
-`Basics.integrate()`  
-    ... integrates a one- or two-dimensional function by different numerical methods, either on a given grid or for a general function.
-
-+ `("function: on radial grid, Newton-Cotes", F::Array{Float64,1}, grid::Radial.Grid)`  
-    ... to integrate the (radial) function F over the given (radial) grid, int_0^infinity dr F(r) by using a 5-point Newton-Cotes 
-        integration formula; a value::Float64 is returned.   
-
-+ `("function: on radial grid, Simpson rule", F::Array{Float64,1}, grid::Radial.Grid)`  
-    ... to integrate the (radial) function F over the given (radial) grid, int_0^infinity dr F(r) by using Simpson's rule; 
-        a value::Float64 is returned. 
-
-+ `("function: on radial grid, trapez rule", F::Array{Float64,1}, grid::Radial.Grid)`  
-    ... to integrate the (radial) function F over the given (radial) grid, int_0^infinity dr F(r), by using a simple trapez rule; 
-        a value::Float64 is returned. 
+`Basics.integrate(::NewtonCotes, F::Array{Float64,1}, grid::Radial.Grid)`
+    ... to integrate the (radial) function F over the given (radial) grid, int_0^infinity dr F(r), by using
+        a 5-point Newton-Cotes integration formula; a value::Float64 is returned.
 """
+function Basics.integrate(::NewtonCotes, F::Array{Float64,1}, grid::Radial.Grid)
+    return integrateOnGridNewtonCotes(F, grid)
+end
+
+
+"""
+` + Basics.integrate(::SimpsonRule, F::Array{Float64,1}, grid::Radial.Grid)`
+    ... to integrate the (radial) function F over the given (radial) grid, int_0^infinity dr F(r), by using
+        Simpson's rule; a value::Float64 is returned.
+"""
+function Basics.integrate(::SimpsonRule, F::Array{Float64,1}, grid::Radial.Grid)
+    return integrateOnGridSimpsonRule(F, grid)
+end
+
+
+"""
+` + Basics.integrate(::TrapezRule, F::Array{Float64,1}, grid::Radial.Grid)`
+    ... to integrate the (radial) function F over the given (radial) grid, int_0^infinity dr F(r), by using
+        a simple trapezoid rule; a value::Float64 is returned.
+"""
+function Basics.integrate(::TrapezRule, F::Array{Float64,1}, grid::Radial.Grid)
+    return integrateOnGridTrapezRule(F, grid)
+end
+
+
+## Backward-compatible string wrapper; to be removed when all callers are updated.
 function Basics.integrate(sa::String, F::Array{Float64,1}, grid::Radial.Grid)
-    if       sa == "function: on radial grid, Newton-Cotes"     wa = integrateOnGridNewtonCotes(F, grid)   
-    elseif   sa == "function: on radial grid, Simpson rule"     wa = integrateOnGridSimpsonRule(F, grid)
-    elseif   sa == "function: on radial grid, trapez rule"      wa = integrateOnGridTrapezRule( F, grid)   
+    if       sa == "function: on radial grid, Newton-Cotes"     return Basics.integrate(NewtonCotes(), F, grid)
+    elseif   sa == "function: on radial grid, Simpson rule"     return Basics.integrate(SimpsonRule(), F, grid)
+    elseif   sa == "function: on radial grid, trapez rule"      return Basics.integrate(TrapezRule(),  F, grid)
     else     error("Unsupported keystring = $sa.")
     end
-    
 end
 
 
