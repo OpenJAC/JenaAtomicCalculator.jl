@@ -58,6 +58,10 @@ Every exported function and struct has a docstring in triple-quoted `"""..."""` 
 - A header line: `` `Module.FunctionName(args)` ``  followed by a description
 - Argument documentation as `+ fieldName ::Type ... description` bullet points
 - Examples or cross-references where helpful
+- **The function name, argument names, and types in the docstring header must be character-for-character
+  identical to those in the `function` line below it.** Never write a supertype or abstract type in the
+  header where the function itself uses a concrete type (e.g. write `::Emission`, not `::AbstractEmissionKind`,
+  if the method is dispatched on `Emission`).
 
 ### Settings structs
 Every process/property module has a `Settings` struct with:

@@ -1036,6 +1036,27 @@ end
 
 
 """
+`abstract type Basics.AbstractEmissionKind`
+    ... defines an abstract and two singleton types to distinguish between the emission and
+        absorption direction of a radiative amplitude.
+
+    + struct Emission    ... to compute the photon-emission amplitude  <f || O^(Mp) || i>.
+    + struct Absorption  ... to compute the photon-absorption amplitude <f || O^(Mp) || i>;
+                            equal to the conjugate of the emission amplitude with initial
+                            and final levels interchanged.
+"""
+abstract type  AbstractEmissionKind                      end
+struct         Emission    <:  AbstractEmissionKind      end
+struct         Absorption  <:  AbstractEmissionKind      end
+
+export  AbstractEmissionKind, Emission, Absorption
+
+
+#################################################################################################################################
+#################################################################################################################################
+
+
+"""
 `abstract type Basics.AbstractExcitationScheme` 
     ... defines an abstract and a number of singleton types to distinguish between different schemes for
         generating configuration lists as they frequently occur in Green function and cascade computations.
