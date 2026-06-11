@@ -11,7 +11,7 @@
 module PhotoDoubleIonization
 
 
-using Printf, ..AngularMomentum, ..Basics, ..Continuum, ..Defaults, ..Radial, ..Nuclear, ..ManyElectron, ..PhotoEmission, 
+using Printf, ..AngularMomentum, ..Basics, ..Bsplines, ..Continuum, ..Defaults, ..Radial, ..Nuclear, ..ManyElectron, ..PhotoEmission,
                 ..TableStrings
 
 """
@@ -354,7 +354,8 @@ function  computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, n
     # Generate orbitals for all quasi-subshells
     quasiSubshells = Basics.generateSubshellList(settings.quasiShells)
     meanPot        = Basics.computePotentialDFS(grid, finalMultiplet.levels[1].basis)
-    quasiOrbitals  = Basics.generateOrbitalsForPotential(grid, meanPot, quasiSubshells)
+    primitives     = Bsplines.generatePrimitives(grid)
+    quasiOrbitals  = Bsplines.generateOrbitals(quasiSubshells, meanPot, nm, primitives; printout=true)
     #
     lines = PhotoDoubleIonization.determineLines(finalMultiplet, initialMultiplet, settings)
     # Display all selected lines before the computations start

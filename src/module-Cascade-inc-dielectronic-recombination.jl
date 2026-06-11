@@ -156,8 +156,8 @@ function generateBlocks(scheme::Cascade.DielectronicRecombinationScheme, comp::C
             end
             subshellList = Basics.generateSubshellList(relconfList)
             Defaults.setDefaults("relativistic subshell list", subshellList; printout=printout)
-            wa                 = BsplinesN.generatePrimitives(comp.grid)
-            hydrogenicOrbitals = BsplinesN.generateOrbitalsHydrogenic(subshellList, comp.nuclearModel, wa; printout=printout)
+            wa                 = Bsplines.generatePrimitives(comp.grid)
+            hydrogenicOrbitals = Bsplines.generateOrbitalsHydrogenic(subshellList, comp.nuclearModel, wa; printout=printout)
         end
         
         for  (ia, confa)  in  enumerate(confs)
@@ -275,8 +275,8 @@ function generateCaptureConfigurations(multiplets::Array{Multiplet,1},  coreConf
     nmx = Nuclear.Model(nm; Z = nm.Z - coreConfList[1].NoElectrons + 1.)
     print(">> Generate hydrogenic spectrum for nuclear Z_eff = $(nmx.Z), nMax = $nMax and lMax = $lMax ...  ")
     Defaults.setDefaults("standard grid", grid)
-    primitives          = BsplinesN.generatePrimitives(grid)  
-    hydrogenicOrbitals  = BsplinesN.generateOrbitalsHydrogenic(allSubshells, nm, primitives; printout=false)
+    primitives          = Bsplines.generatePrimitives(grid)  
+    hydrogenicOrbitals  = Bsplines.generateOrbitalsHydrogenic(allSubshells, nm, primitives; printout=false)
     
     println(" ... hydrogenic spectrum done")
     
@@ -356,8 +356,8 @@ function generateConfigurationsForDielectronicCapture(multiplets::Array{Multiple
     append!(allConfList, initialConfList);      append!(allConfList, captureConfList);      append!(allConfList, decayConfList)
     
     allSubshells  = Basics.extractRelativisticSubshellList(allConfList)
-    primitives    = BsplinesN.generatePrimitives(grid)
-    orbitals      = BsplinesN.generateOrbitalsHydrogenic(allSubshells, nm, primitives, printout=true)
+    primitives    = Bsplines.generatePrimitives(grid)
+    orbitals      = Bsplines.generateOrbitalsHydrogenic(allSubshells, nm, primitives, printout=true)
     # Exclude configurations with too high mean energies
     en            = Float64[];   
     for conf in initialConfList

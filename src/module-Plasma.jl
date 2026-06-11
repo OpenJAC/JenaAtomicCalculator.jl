@@ -7,7 +7,7 @@
 module Plasma
 
 using  Dates, JLD2, Printf 
-using  ..AtomicState, ..Basics, ..BsplinesN, ..Defaults, ..ManyElectron, ..Nuclear, ..Radial, ..RadialIntegrals, 
+using  ..AtomicState, ..Basics, ..Bsplines, ..Defaults, ..ManyElectron, ..Nuclear, ..Radial, ..RadialIntegrals, 
        ..Semiempirical, ..TableStrings, ..FormFactor, ..PhotoEmission, ..PhotoIonization, ..AutoIonization
 
 

@@ -6,7 +6,7 @@
 module HydrogenicIon 
 
 
-using  Printf, ..Basics, ..BsplinesN, ..Defaults, ..Math, ..Nuclear, ..Radial, ..RadialIntegrals,  GSL
+using  Printf, ..Basics, ..Bsplines, ..Defaults, ..Math, ..Nuclear, ..Radial, ..RadialIntegrals,  GSL
 using  SpecialFunctions,  HypergeometricFunctions
 
 
@@ -51,8 +51,8 @@ end
 """
 function orbital(sh::Subshell, nm::Nuclear.Model, grid::Radial.Grid)
     Defaults.setDefaults("standard grid", grid; printout=false)
-    basis    = BsplinesN.generatePrimitives(grid)
-    orbitals = BsplinesN.generateOrbitalsHydrogenic(basis, nm, [sh]; printout = false)
+    basis    = Bsplines.generatePrimitives(grid)
+    orbitals = Bsplines.generateOrbitalsHydrogenic(basis, nm, [sh]; printout = false)
     orb      = orbitals[sh]
     return( orb )
 end
@@ -181,8 +181,8 @@ end
         of the Dirac Hamiltonian in a B-spline basis; an orbital::Radial.Orbital is returned; contributed by C Naumann (2022).
 """
 function radialOrbital(sh::Subshell, nm::Nuclear.Model, grid::Radial.Grid)
-    basis   = BsplinesN.generatePrimitives(grid)
-    orb_dic = BsplinesN.generateOrbitalsHydrogenic(basis, nm, [sh]; printout = false)
+    basis   = Bsplines.generatePrimitives(grid)
+    orb_dic = Bsplines.generateOrbitalsHydrogenic(basis, nm, [sh]; printout = false)
     orb     = orb_dic[sh]
     @show orb_dic
     return( orb )

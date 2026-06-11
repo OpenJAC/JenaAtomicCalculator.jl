@@ -107,8 +107,8 @@ function Basics.generate(repType::AtomicState.OneElectronSpectrum, rep::AtomicSt
     shellList = Basics.generateShellList(1, settings.nMax, settings.lValues)
     subshellList = Subshell[]
     for  shell in shellList     append!(subshellList, Basics.shellSplitIntoSubshells(shell))    end
-    primitives = BsplinesN.generatePrimitives(rep.grid)
-    orbitals   = BsplinesN.generateOrbitals(subshellList, meanPot, nModel, primitives; printout=true)
+    primitives = Bsplines.generatePrimitives(rep.grid)
+    orbitals   = Bsplines.generateOrbitals(subshellList, meanPot, nModel, primitives; printout=true)
     
     # Print all results to screen
     Basics.display(stdout, orbitals, rep.grid; longTable=true)
@@ -204,8 +204,8 @@ function Basics.generate(repType::AtomicState.RasExpansion, rep::AtomicState.Rep
     ## electronicPot  = Basics.compute("radial potential: Dirac-Fock-Slater", rep.grid, priorMultiplet.levels[1].basis)
     ## meanPot        = Basics.add(nuclearPot, electronicPot)
     subshellList   = Basics.extractRelativisticSubshellList(rep)             ## extract all subshells that occur in the RAS computation
-    primitives     = BsplinesN.generatePrimitives(rep.grid)
-    startOrbitals  = BsplinesN.generateOrbitals(subshellList, nuclearPot, nModel, primitives, printout=true)  ## generate a spectrum of sufficient size
+    primitives     = Bsplines.generatePrimitives(rep.grid)
+    startOrbitals  = Bsplines.generateOrbitals(subshellList, nuclearPot, nModel, primitives, printout=true)  ## generate a spectrum of sufficient size
     if output    results = Base.merge( results, Dict("reference multiplet" => Multiplet("Reference multiplet:", priorMultiplet.levels) ) )  end
 
     # The asfSettings only define the CI part of the RAS steps and partly derived from the RasSettings
@@ -268,8 +268,8 @@ function Basics.generate(repType::AtomicState.GreenExpansion, rep::AtomicState.R
     
     # Generate shell list abd a full single-electron spectrum for this potential
     subshellList = Basics.extractRelativisticSubshellList(confList)                      ## extract all subshells that occur in confList
-    primitives   = BsplinesN.generatePrimitives(rep.grid)
-    orbitals     = BsplinesN.generateOrbitals(subshellList, meanPot, nModel, primitives, printout=true) ## generate a spectrum of sufficient size
+    primitives   = Bsplines.generatePrimitives(rep.grid)
+    orbitals     = Bsplines.generateOrbitals(subshellList, meanPot, nModel, primitives, printout=true) ## generate a spectrum of sufficient size
     Defaults.setDefaults("relativistic subshell list", subshellList; printout=true)
     Basics.display(stdout, orbitals, rep.grid)
 
@@ -1263,41 +1263,6 @@ function Basics.generateMeshCoordinates(mesh::Basics.AbstractMesh)
     
     return( coords )
 end
-
-
-#==
-"""
-`Basics.generateOrbitalsForPotential(grid::Radial.Grid, meanPot::Radial.Potential, subshellList::Array{Subshell,1})`  
-    ... generates a set of (start) orbitals from the given potential and for all the subshells in subshellList. 
-        A set of orbitals::Dict{Subshell, Orbital} is returned.
-"""
-function  Basics.generateOrbitalsForPotential(grid::Radial.Grid, meanPot::Radial.Potential, subshellList::Array{Subshell,1})
-    orbitals = Dict{Subshell, Orbital}()
-    
-    # Determine kappaMin and kappaMax
-    kappaMin = 0;   kappaMax = 0
-    for  subsh in subshellList   
-        if       subsh.kappa < kappaMin    kappaMin = subsh.kappa
-        elseif   subsh.kappa > kappaMax    kappaMax = subsh.kappa
-        end
-    end
-    
-    # Generate the primitives for a B-spline basis
-    wa = BsplinesN.generatePrimitives(grid)
-    
-    # Now cycle through all kappa symmetries
-    for  kappa = kappaMin:kappaMax
-        # Determine all requested subshells of symmetry kappa ... to compute them together
-        shList     = Subshell[];    for  subsh in subshellList    if kappa == subsh.kappa    push!( shList, subsh)    end    end
-        shOrbitals = BsplinesN.generateOrbitals(shList, meanPot, Nuclear.Model(1.0), wa; printout=true)
-        for  sh in shList
-            orbitals = Base.merge( orbitals, Dict( sh => shOrbitals[sh]))
-        end
-    end
-
-    return( orbitals )
-end
-==#
 
 
 """

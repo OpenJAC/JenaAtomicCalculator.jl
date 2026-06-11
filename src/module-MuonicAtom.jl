@@ -357,14 +357,14 @@ end
 
 """
 `MuonicAtom.generateDiracOrbitals(subshells::Array{MuonSubshell,1}, nm::Nuclear.Model, 
-                                  primitives::BsplinesN.Primitives; printout::Bool=true)`
+                                  primitives::Bsplines.Primitives; printout::Bool=true)`
     ... generates all muonic (Dirac) orbitals from subshells for the nuclear potential as specified by nm. A set of 
         orbitals::Dict{Subshell, Orbital} is returned, for which the proper muon mass is taken into account for the 
         given nuclear model. Note that a properly chosen grid is essential to model the muonic solutions, which 
         can later be interpolated upon a suitable (electronic) grid.
 """
 function generateDiracOrbitals(subshells::Array{MuonSubshell,1}, nm::Nuclear.Model, 
-                               primitives::BsplinesN.Primitives; printout::Bool=true)
+                               primitives::Bsplines.Primitives; printout::Bool=true)
                 
     return( nothing )
 end

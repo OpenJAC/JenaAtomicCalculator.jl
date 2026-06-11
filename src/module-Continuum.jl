@@ -8,7 +8,7 @@ module Continuum
 
 
 using  GSL, Printf, SpecialFunctions, DelimitedFiles
-using  ..Basics, ..BsplinesN, ..Defaults, ..ManyElectron, ..Radial, ..Nuclear
+using  ..Basics, ..Bsplines, ..Defaults, ..ManyElectron, ..Radial, ..Nuclear
 
 
 """
@@ -187,8 +187,8 @@ end
 function generateOrbitalGalerkin(energy::Float64, sh::Subshell, pot::Radial.Potential, settings::Continuum.Settings)  
     P = zeros(settings.mtp);   Q = zeros(settings.mtp);   Pprime = zeros(settings.mtp);    Qprime = zeros(settings.mtp)
     nsL = pot.grid.nsL - 1;    nsS = pot.grid.nsS - 1
-    wa = BsplinesN.generatePrimitives(pot.grid)
-    wb = BsplinesN.generateGalerkinMatrix(sh, energy, pot, wa)
+    wa = Bsplines.generatePrimitives(pot.grid)
+    wb = Bsplines.generateGalerkinMatrix(sh, energy, pot, wa)
     wc = adjoint(wb) * wb
     
     # Test for 'real-symmetric matrix' ... and symmetrize otherwise
@@ -203,7 +203,7 @@ function generateOrbitalGalerkin(energy::Float64, sh::Subshell, pot::Radial.Pote
     wd = Basics.diagonalize("matrix: LinearAlgebra", wc) ## , range=1:1)
     ## println(">>> Galerkin-eigenvalues = $(wd.values[1]), $(wd.values[2]) for  $sh  with  energy = $energy")
     
-    cOrbital = BsplinesN.generateOrbitalFromPrimitives(sh, energy, settings.mtp, wd.vectors[1], wa)  
+    cOrbital = Bsplines.generateOrbitalFromPrimitives(sh, energy, settings.mtp, wd.vectors[1], wa)  
     mtp      = size(cOrbital.P,1)
     println(">> Continuum B-spline-Galerkin orbital for energy=" * @sprintf("%.4e",energy) * ",  kappa=$(sh.kappa) " *
             "[mpt=$mtp, r[mtp]=" * @sprintf("%.4e",pot.grid.r[mtp]) * ", smallest eigenvalue=" * @sprintf("%.4e",wd.values[1]) * "].")

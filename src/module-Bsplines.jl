@@ -1,6 +1,6 @@
 
 """
-`module  JAC.BsplinesN`  
+`module  JAC.Bsplines`  
 	... a submodel of JAC that contains all structs and methods to generate the B-spline basis and to 
 	    solve the single-electron Dirac equation in a local potential. It also provides the major function
         calls to generate self-consistent fields; cf. JAC.SelfConsistent.
@@ -10,14 +10,14 @@
     !!  Change in Hydrogenic             ... sequence of arguments
     !!  Change in module-Plasma-inc-average-atom  ... sequence of arguments
 """
-module BsplinesN
+module Bsplines
 
 
 using  BSplineKit, Printf, ..Basics, ..Defaults, ..Nuclear, ..Radial, JenaAtomicCalculator
 
 
 """
-`struct  BsplinesN.Bspline`  
+`struct  Bsplines.Bspline`  
     ... defines a type for a (single) B-spline that is defined on a given radial grid from r[lower:upper].
         Note that only the non-zero values are specified for the B-spline function and its derivative.
 
@@ -35,7 +35,7 @@ end
 
 
 """
-`struct  BsplinesN.Primitives`  ... defines a type for a set of primitive functions which typically belongs to a well-defined grid.
+`struct  Bsplines.Primitives`  ... defines a type for a set of primitive functions which typically belongs to a well-defined grid.
 
     + grid         ::Radial.Grid         ... radial grid on which the states are represented.
     + bsplinesL    ::Array{Bspline,1}    ... set of B-splines for the large components on the given radial grid.
@@ -48,8 +48,8 @@ struct Primitives
 end
 
 
-# `Base.show(io::IO, primitives::BsplinesN.Primitives)`  ... prepares a proper printout of the variable BsplinesN.Primitives.
-function Base.show(io::IO, primitives::BsplinesN.Primitives) 
+# `Base.show(io::IO, primitives::Bsplines.Primitives)`  ... prepares a proper printout of the variable Bsplines.Primitives.
+function Base.show(io::IO, primitives::Bsplines.Primitives) 
     println(io, "grid:               $(primitives.grid)  ")
     println(io, "bsplinesL:           (primitives.bsplinesL)  ")
     println(io, "bsplinesS:           (primitives.bsplinesS)  ")
@@ -57,10 +57,10 @@ end
 
 
 """
-`BsplinesN.computeOverlap(bspline1::BsplinesN.Bspline, bspline2::BsplinesN.Bspline, grid::Radial.Grid)`  
+`Bsplines.computeOverlap(bspline1::Bsplines.Bspline, bspline2::Bsplines.Bspline, grid::Radial.Grid)`  
     ... computes the (radial) overlap integral <bspline1|bsplines>  for two bpslines as defined on grid.
 """
-function computeOverlap(bspline1::BsplinesN.Bspline, bspline2::BsplinesN.Bspline, grid::Radial.Grid)
+function computeOverlap(bspline1::Bsplines.Bspline, bspline2::Bsplines.Bspline, grid::Radial.Grid)
     if  bspline1.upper <= bspline2.lower  ||  bspline2.upper <= bspline1.lower    return( 0. )   end
     lower = max(bspline1.lower, bspline2.lower);    add1 = 1 - bspline1.lower
     upper = min(bspline1.upper, bspline2.upper);    add2 = 1 - bspline2.lower
@@ -72,11 +72,11 @@ end
 
 
 """
-`BsplinesN.computeNondiagonalD(pm::Int64, kappa::Int64, bspline1::BsplinesN.Bspline, bspline2::BsplinesN.Bspline, grid::Radial.Grid)`  
+`Bsplines.computeNondiagonalD(pm::Int64, kappa::Int64, bspline1::Bsplines.Bspline, bspline2::Bsplines.Bspline, grid::Radial.Grid)`  
     ... computes the (radial and non-diagonal) D_kappa^+/- integral two the bsplines, all defined on grid
         <bspline1| +/- d/dr + kappa/r | bspline2>. -- pm = +1/-1 provides the phase for taking the derivative.
 """
-function computeNondiagonalD(pm::Int64, kappa::Int64, bspline1::BsplinesN.Bspline, bspline2::BsplinesN.Bspline, grid::Radial.Grid)
+function computeNondiagonalD(pm::Int64, kappa::Int64, bspline1::Bsplines.Bspline, bspline2::Bsplines.Bspline, grid::Radial.Grid)
     if  bspline1.upper <= bspline2.lower  ||  bspline2.upper <= bspline1.lower    return( 0. )   end
     lower = max(bspline1.lower, bspline2.lower);    add1 = 1 - bspline1.lower
     upper = min(bspline1.upper, bspline2.upper);    add2 = 1 - bspline2.lower
@@ -92,11 +92,11 @@ end
 
 
 """
-`BsplinesN.computeVlocal(bspline1::BsplinesN.Bspline, bspline2::BsplinesN.Bspline, pot::Radial.Potential, grid::Radial.Grid)`  
+`Bsplines.computeVlocal(bspline1::Bsplines.Bspline, bspline2::Bsplines.Bspline, pot::Radial.Potential, grid::Radial.Grid)`  
     ... computes the (radial) integral <bspline1| V_pot |bsplines>  for two bpslines and the given radial potential 
         as defined on grid.
 """
-function computeVlocal(bspline1::BsplinesN.Bspline, bspline2::BsplinesN.Bspline, pot::Radial.Potential, grid::Radial.Grid)
+function computeVlocal(bspline1::Bsplines.Bspline, bspline2::Bsplines.Bspline, pot::Radial.Potential, grid::Radial.Grid)
     if  bspline1.upper <= bspline2.lower  ||  bspline2.upper <= bspline1.lower    return( 0. )   end
     lower = max(bspline1.lower, bspline2.lower);    add1 = 1 - bspline1.lower
     upper = min(bspline1.upper, bspline2.upper);    add2 = 1 - bspline2.lower
@@ -112,7 +112,7 @@ end
 
 
 """
-`BsplinesN.extractBsplineCoefficients(sh::Subshell, wc::Basics.Eigen, grid::Radial.Grid)`  
+`Bsplines.extractBsplineCoefficients(sh::Subshell, wc::Basics.Eigen, grid::Radial.Grid)`  
     ... Here, it is assumed that the matrix wc contains the (column) eigenvectors as associated with a single-electron Dirac 
         Hamiltonian matrix for symmetry kappa in Subshell(n, kappa). The procedure then extracts the (full) vector of B-spline
         coefficients for the radial orbital of subshell sh by applying the standard rules of atomic physics for the principal
@@ -130,10 +130,10 @@ end
 
 
 """
-`BsplinesN.generateGalerkinMatrix(sh::Subshell, energy::Float64, pot::Radial.Potential, primitives::BsplinesN.Primitives)`  
+`Bsplines.generateGalerkinMatrix(sh::Subshell, energy::Float64, pot::Radial.Potential, primitives::Bsplines.Primitives)`  
     ... generates the Galerkin-A matrix for the given potential and B-spline primitives; a matrix::Array{Float64,2} is returned.
 """
-function generateGalerkinMatrix(sh::Subshell, energy::Float64, pot::Radial.Potential, primitives::BsplinesN.Primitives)
+function generateGalerkinMatrix(sh::Subshell, energy::Float64, pot::Radial.Potential, primitives::Bsplines.Primitives)
     nsL      = primitives.grid.nsL;    nsS = primitives.grid.nsS
 
     # Define the storage for the calculations of matrices; this is necessary to use the Bsplines.generateMatrix!() function
@@ -141,10 +141,10 @@ function generateGalerkinMatrix(sh::Subshell, energy::Float64, pot::Radial.Poten
     storage  = Dict{String,Array{Float64,2}}()
     # Set-up the overlap matrix
     wb  = zeros( nsL+nsS, nsL+nsS )
-    wb[1:nsL,1:nsL]                 = BsplinesN.generateTTpMatrix!("LL-overlap", 0, primitives, storage)
-    wb[nsL+1:nsL+nsS,nsL+1:nsL+nsS] = BsplinesN.generateTTpMatrix!("SS-overlap", 0, primitives, storage)
+    wb[1:nsL,1:nsL]                 = Bsplines.generateTTpMatrix!("LL-overlap", 0, primitives, storage)
+    wb[nsL+1:nsL+nsS,nsL+1:nsL+nsS] = Bsplines.generateTTpMatrix!("SS-overlap", 0, primitives, storage)
     # Set-up the local Hamiltonian matrix
-    wa = BsplinesN.setupLocalMatrix(sh.kappa, primitives, pot::Radial.Potential, storage::Dict{String,Array{Float64,2}})
+    wa = Bsplines.setupLocalMatrix(sh.kappa, primitives, pot::Radial.Potential, storage::Dict{String,Array{Float64,2}})
     wa[1:end,1:end] = wa[1:end,1:end] - energy * wb[1:end,1:end]
 
     return( wa )
@@ -152,11 +152,11 @@ end
 
 
 """
-`BsplinesN.generateOrbitalsHydrogenic(subshells::Array{Subshell,1}, nm::Nuclear.Model, primitives::BsplinesN.Primitives; printout::Bool=true)`  
+`Bsplines.generateOrbitalsHydrogenic(subshells::Array{Subshell,1}, nm::Nuclear.Model, primitives::Bsplines.Primitives; printout::Bool=true)`  
     ... generates all single-electron orbitals from subshell list for the nuclear potential as specified by nm.
         A set of orbitals::Dict{Subshell, Orbital} is returned.
 """
-function generateOrbitalsHydrogenic(subshells::Array{Subshell,1}, nm::Nuclear.Model, primitives::BsplinesN.Primitives; printout::Bool=true)
+function generateOrbitalsHydrogenic(subshells::Array{Subshell,1}, nm::Nuclear.Model, primitives::Bsplines.Primitives; printout::Bool=true)
     # Extract the requested radial potential from nm
     if       nm.model == "point"    pot = Nuclear.pointNucleus(nm.Z, primitives.grid)
     elseif   nm.model == "Fermi"    pot = Nuclear.fermiDistributedNucleus(nm.radius, nm.Z, primitives.grid) 
@@ -164,24 +164,24 @@ function generateOrbitalsHydrogenic(subshells::Array{Subshell,1}, nm::Nuclear.Mo
     else                            error("stop a")
     end
     
-    orbitals = BsplinesN.generateOrbitals(subshells, pot, nm, primitives; printout=printout)
+    orbitals = Bsplines.generateOrbitals(subshells, pot, nm, primitives; printout=printout)
     return( orbitals )
 end
 
 
 """
-`BsplinesN.generateOrbitals(subshells::Array{Subshell,1}, pot::Radial.Potential, nm::Nuclear.Model, 
-                            primitives::BsplinesN.Primitives; printout::Bool=true)`  
+`Bsplines.generateOrbitals(subshells::Array{Subshell,1}, pot::Radial.Potential, nm::Nuclear.Model, 
+                            primitives::Bsplines.Primitives; printout::Bool=true)`  
     ... generates all single-electron orbitals from subshell list for the radial potential pot. 
         A set of orbitals::Dict{Subshell, Orbital} is returned.
 """
 function generateOrbitals(subshells::Array{Subshell,1}, pot::Radial.Potential, nm::Nuclear.Model, 
-                          primitives::BsplinesN.Primitives; printout::Bool=true)
+                          primitives::Bsplines.Primitives; printout::Bool=true)
     orbitals = Dict{Subshell, Orbital}()
     kappas   = Int64[];   for sh in subshells  push!(kappas, sh.kappa)   end;   kappas = unique(kappas)
     nsL      = primitives.grid.nsL;    nsS = primitives.grid.nsS
     
-    # Define the storage for the calculations of matrices; this is necessary to use the BsplinesN.generateTTpMatrix!() function.
+    # Define the storage for the calculations of matrices; this is necessary to use the Bsplines.generateTTpMatrix!() function.
     if  printout    println(">> (Re-) Define a storage array for dealing with single-electron TTp B-spline matrices:")    end
     storage  = Dict{String,Array{Float64,2}}()
     
@@ -190,18 +190,18 @@ function generateOrbitals(subshells::Array{Subshell,1}, pot::Radial.Potential, n
         wb = zeros( nsL+nsS, nsL+nsS )
         
         # (1) Compute or fetch the diagonal 'overlap' blocks
-        wb[1:nsL,1:nsL]                 = BsplinesN.generateTTpMatrix!("LL-overlap", 0, primitives, storage)
-        wb[nsL+1:nsL+nsS,nsL+1:nsL+nsS] = BsplinesN.generateTTpMatrix!("SS-overlap", 0, primitives, storage)
+        wb[1:nsL,1:nsL]                 = Bsplines.generateTTpMatrix!("LL-overlap", 0, primitives, storage)
+        wb[nsL+1:nsL+nsS,nsL+1:nsL+nsS] = Bsplines.generateTTpMatrix!("SS-overlap", 0, primitives, storage)
         
         # (2) Compute the local Hamiltonian matrix and diagonalize it
-        wa = BsplinesN.setupLocalMatrix(kappa, primitives, pot, storage)
+        wa = Bsplines.setupLocalMatrix(kappa, primitives, pot, storage)
         w2 = Basics.diagonalize("generalized eigenvalues: LinearAlgebra", wa, wb)
         nsi = nsS    
         if  printout  Basics.tabulateKappaSymmetryEnergiesDirac(kappa, w2.values, nsi, nm)    end
         
         # (3) Collect all the requested single-electron orbitals
         for  sh in subshells
-            if  sh.kappa == kappa    orbitals[sh] = BsplinesN.generateOrbitalFromPrimitives(sh, w2, primitives)    end
+            if  sh.kappa == kappa    orbitals[sh] = Bsplines.generateOrbitalFromPrimitives(sh, w2, primitives)    end
         end
     end
     
@@ -210,11 +210,11 @@ end
 
 
 """
-`BsplinesN.extractVectorFromPrimitives(sh::Subshell, wc::Basics.Eigen, primitives::BsplinesN.Primitives)`  
+`Bsplines.extractVectorFromPrimitives(sh::Subshell, wc::Basics.Eigen, primitives::Bsplines.Primitives)`  
     ... extracts the B-spline coefficient of the sh orbital from eigenvalues & eigenvectors. 
         A vector::Array{Float64,1} is returned.
 """
-function extractVectorFromPrimitives(sh::Subshell, wc::Basics.Eigen, primitives::BsplinesN.Primitives)
+function extractVectorFromPrimitives(sh::Subshell, wc::Basics.Eigen, primitives::Bsplines.Primitives)
     nsL = primitives.grid.nsL;     nsS = primitives.grid.nsS
     l   = Basics.subshell_l(sh);   ni = nsS + sh.n - l;          if   sh.kappa > 0   ni = ni + 1 - 1  end
     vector = wc.vectors[ni];       if  length(vector) != nsL + nsS    error("stop a")                 end
@@ -224,11 +224,11 @@ end
 
 
 """
-`BsplinesN.generateOrbitalFromPrimitives(sh::Subshell, wc::Basics.Eigen, primitives::BsplinesN.Primitives)`  
+`Bsplines.generateOrbitalFromPrimitives(sh::Subshell, wc::Basics.Eigen, primitives::Bsplines.Primitives)`  
     ... generates the large and small components for the subshell sh from the primitives and their eigenvalues & eigenvectors. 
         A (normalized) orbital::Orbital is returned.
 """
-function generateOrbitalFromPrimitives(sh::Subshell, wc::Basics.Eigen, primitives::BsplinesN.Primitives)
+function generateOrbitalFromPrimitives(sh::Subshell, wc::Basics.Eigen, primitives::Bsplines.Primitives)
     nsL = primitives.grid.nsL;    nsS = primitives.grid.nsS
     l  = Basics.subshell_l(sh);   ni = nsS + sh.n - l;          if   sh.kappa > 0   ni = ni + 1 - 1  end
     en = wc.values[ni];        if  en < 0.    isBound = true  else   isBound = false                 end
@@ -276,11 +276,11 @@ end
 
 
 """
-`BsplinesN.generateOrbitalFromPrimitives(sh::Subshell, energy::Float64, mtp::Int64, ev::Array{Float64,1}, primitives::BsplinesN.Primitives)`  
+`Bsplines.generateOrbitalFromPrimitives(sh::Subshell, energy::Float64, mtp::Int64, ev::Array{Float64,1}, primitives::Bsplines.Primitives)`  
     ... generates the large and small components of a (relativistic) orbital for the subshell sh from the given primitives and the 
         eigenvector ev. A (non-normalized) orbital::Orbital is returned.
 """
-function generateOrbitalFromPrimitives(sh::Subshell, energy::Float64, mtp::Int64, ev::Array{Float64,1}, primitives::BsplinesN.Primitives)
+function generateOrbitalFromPrimitives(sh::Subshell, energy::Float64, mtp::Int64, ev::Array{Float64,1}, primitives::Bsplines.Primitives)
     nsL = primitives.grid.nsL;    nsS = primitives.grid.nsS
     P = zeros(primitives.grid.NoPoints);    Pprime = zeros(primitives.grid.NoPoints)
     Q = zeros(primitives.grid.NoPoints);    Qprime = zeros(primitives.grid.NoPoints)
@@ -303,18 +303,18 @@ end
 
 
 """
-`BsplinesN.generatePrimitives(grid::Radial.Grid)`  
+`Bsplines.generatePrimitives(grid::Radial.Grid)`  
     ... generates the breaks, knots and the B-spline primitives of order k, both for the large and small components. 
         The function applies the given grid parameters; no primitive is defined beyond grid[n_max]. The definition of 
         the primitives follow the work of Zatsarinny and Froese Fischer, CPC 202 (2016) 287. --- A (set of) 
-        primitives::BsplinesN.Primitives is returned.
+        primitives::Bsplines.Primitives is returned.
 """
 function generatePrimitives(grid::Radial.Grid)
     !(1 <= grid.orderL <= 11)   &&   error("Order should be 2 <= grid.orderL <= 11; obtained order = $(grid.orderL)")
     !(1 <= grid.orderS <= 11)   &&   error("Order should be 2 <= grid.orderS <= 11; obtained order = $(grid.orderS)")
     
     # Now determined the B-splines on the grid for the large and small components; initialize values
-    primitivesL = BsplinesN.Bspline[];   primitivesS = BsplinesN.Bspline[];   lower = 0;   upper = 0
+    primitivesL = Bsplines.Bspline[];   primitivesS = Bsplines.Bspline[];   lower = 0;   upper = 0
     
     # Generate B-spline basis for large component
     breaks = deepcopy( grid.tL[grid.orderL:end-grid.orderL+1] )
@@ -344,12 +344,12 @@ function generatePrimitives(grid::Radial.Grid)
         push!(primitivesS, Bspline(lower, upper, bs, bp) )
     end
     
-    return( BsplinesN.Primitives(grid, primitivesL, primitivesS) )
+    return( Bsplines.Primitives(grid, primitivesL, primitivesS) )
 end
 
 
 """
-`BsplinesN.generateTTpMatrix!(TTp::String, kappa::Int64, primitives::BsplinesN.Primitives, storage::Dict{String,Array{Float64,2}})`  
+`Bsplines.generateTTpMatrix!(TTp::String, kappa::Int64, primitives::Bsplines.Primitives, storage::Dict{String,Array{Float64,2}})`  
     ... returns the TTp block of the (single-electron) Dirac Hamiltonian matrix for an electron with symmetry kappa
         without any potential. The following TTp strings are allowed: ["LL-overlap", "SS-overlap", "LS-D_kappa^-", "LS-D_kappa^+"].
         
@@ -363,7 +363,7 @@ end
         is quadratic for 'LL-overlap' and 'SS-overlap' and whose dimension depends on the number of B-splines for the large 
         and small component, otherwise.  
 """
-function generateTTpMatrix!(TTp::String, kappa::Int64, primitives::BsplinesN.Primitives, storage::Dict{String,Array{Float64,2}})
+function generateTTpMatrix!(TTp::String, kappa::Int64, primitives::Bsplines.Primitives, storage::Dict{String,Array{Float64,2}})
     # Look up the dictionary of whether the requested matrix has been calculated before
     key = string(kappa) * ":" * TTp;      nsL = primitives.grid.nsL;   nsS = primitives.grid.nsS;
     wc  = Defaults.getDefaults("speed of light: c")
@@ -378,22 +378,22 @@ function generateTTpMatrix!(TTp::String, kappa::Int64, primitives::BsplinesN.Pri
     if      TTp == "LL-overlap"
         wa = zeros( nsL, nsL ) 
         for  i = 1:nsL,  j = 1:nsL
-            wa[i,j] = BsplinesN.computeOverlap(primitives.bsplinesL[i], primitives.bsplinesL[j], primitives.grid)
+            wa[i,j] = Bsplines.computeOverlap(primitives.bsplinesL[i], primitives.bsplinesL[j], primitives.grid)
         end
     elseif  TTp == "SS-overlap"
         wa = zeros( nsS, nsS ) 
         for  i = 1:nsS,  j = 1:nsS
-            wa[i,j] = BsplinesN.computeOverlap(primitives.bsplinesS[i], primitives.bsplinesS[j], primitives.grid)
+            wa[i,j] = Bsplines.computeOverlap(primitives.bsplinesS[i], primitives.bsplinesS[j], primitives.grid)
          end
     elseif  TTp == "LS-D_kappa^-"
         wa = zeros( nsL, nsS ) 
         for  i = 1:nsL,  j = 1:nsS
-            wa[i,j] = wc * BsplinesN.computeNondiagonalD(-1, kappa, primitives.bsplinesL[i], primitives.bsplinesS[j], primitives.grid)
+            wa[i,j] = wc * Bsplines.computeNondiagonalD(-1, kappa, primitives.bsplinesL[i], primitives.bsplinesS[j], primitives.grid)
         end
     elseif  TTp == "SL-D_kappa^+"
         wa = zeros( nsS, nsL ) 
         for  i = 1:nsS,  j = 1:nsL
-            wa[i,j] = wc * BsplinesN.computeNondiagonalD( 1, kappa, primitives.bsplinesS[i], primitives.bsplinesL[j], primitives.grid)
+            wa[i,j] = wc * Bsplines.computeNondiagonalD( 1, kappa, primitives.bsplinesS[i], primitives.bsplinesL[j], primitives.grid)
         end
     else   println("TTp = $TTp ");    error("stop a")
     end
@@ -404,24 +404,24 @@ end
 
 
 """
-`BsplinesN.setupLocalMatrix(kappa::Int64, primitives::BsplinesN.Primitives, pot::Radial.Potential, storage::Dict{String,Array{Float64,2}}) 
+`Bsplines.setupLocalMatrix(kappa::Int64, primitives::Bsplines.Primitives, pot::Radial.Potential, storage::Dict{String,Array{Float64,2}}) 
         ...set-up the local parts of the generalized eigenvalue problem for the symmetry block kappa and the given (local) potential pot. 
         The B-spline (basis) functions are defined by primitivesL for the large component and primitivesS for the small one, respectively.
 """
-function setupLocalMatrix(kappa::Int64, primitives::BsplinesN.Primitives, pot::Radial.Potential, storage::Dict{String,Array{Float64,2}})
+function setupLocalMatrix(kappa::Int64, primitives::Bsplines.Primitives, pot::Radial.Potential, storage::Dict{String,Array{Float64,2}})
     nsL = primitives.grid.nsL;    nsS = primitives.grid.nsS
     wa  = zeros( nsL+nsS, nsL+nsS );   wb  = zeros( nsL+nsS, nsL+nsS )
     
     # (1) Compute or fetch the diagonal 'overlap' blocks
-    wb[1:nsL,1:nsL]                 = BsplinesN.generateTTpMatrix!("LL-overlap", 0, primitives, storage)
-    wb[nsL+1:nsL+nsS,nsL+1:nsL+nsS] = BsplinesN.generateTTpMatrix!("SS-overlap", 0, primitives, storage)
+    wb[1:nsL,1:nsL]                 = Bsplines.generateTTpMatrix!("LL-overlap", 0, primitives, storage)
+    wb[nsL+1:nsL+nsS,nsL+1:nsL+nsS] = Bsplines.generateTTpMatrix!("SS-overlap", 0, primitives, storage)
     
     # (2) Re-compute the diagonal blocks for the local potential
     for  i = 1:nsL,  j = 1:nsL   
-        wa[i,j] = BsplinesN.computeVlocal(primitives.bsplinesL[i], primitives.bsplinesL[j], pot, primitives.grid)
+        wa[i,j] = Bsplines.computeVlocal(primitives.bsplinesL[i], primitives.bsplinesL[j], pot, primitives.grid)
     end
     for  i = 1:nsS,  j = 1:nsS    
-        wa[nsL+i,nsL+j] = BsplinesN.computeVlocal(primitives.bsplinesS[i], primitives.bsplinesS[j], pot, primitives.grid)
+        wa[nsL+i,nsL+j] = Bsplines.computeVlocal(primitives.bsplinesS[i], primitives.bsplinesS[j], pot, primitives.grid)
     end
     
     # (3) Substract the rest mass from the 'SS' block
@@ -429,8 +429,8 @@ function setupLocalMatrix(kappa::Int64, primitives::BsplinesN.Primitives, pot::R
                                       2 * Defaults.getDefaults("speed of light: c")^2 * wb[nsL+1:nsL+nsS,nsL+1:nsL+nsS]
     
     # (4) Compute or fetch the diagonal 'D_kappa' blocks
-    wa[1:nsL,nsL+1:nsL+nsS] = wa[1:nsL,nsL+1:nsL+nsS] + BsplinesN.generateTTpMatrix!("LS-D_kappa^-", kappa, primitives, storage)
-    wa[nsL+1:nsL+nsS,1:nsL] = wa[nsL+1:nsL+nsS,1:nsL] + BsplinesN.generateTTpMatrix!("SL-D_kappa^+", kappa, primitives, storage)
+    wa[1:nsL,nsL+1:nsL+nsS] = wa[1:nsL,nsL+1:nsL+nsS] + Bsplines.generateTTpMatrix!("LS-D_kappa^-", kappa, primitives, storage)
+    wa[nsL+1:nsL+nsS,1:nsL] = wa[nsL+1:nsL+nsS,1:nsL] + Bsplines.generateTTpMatrix!("SL-D_kappa^+", kappa, primitives, storage)
     
     #=====
     # Test for 'real-symmetric matrix' ... this is not fullfilled if the last B-spline is included !!

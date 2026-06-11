@@ -142,8 +142,8 @@ function generateBlocks(scheme::Cascade.RadiativeRecombinationScheme, comp::Casc
             end
             subshellList = Basics.generateSubshellList(relconfList)
             Defaults.setDefaults("relativistic subshell list", subshellList; printout=printout)
-            wa                 = BsplinesN.generatePrimitives(comp.grid)
-            hydrogenicOrbitals = BsplinesN.generateOrbitalsHydrogenic(subshellList, comp.nuclearModel, wa; printout=printout)
+            wa                 = Bsplines.generatePrimitives(comp.grid)
+            hydrogenicOrbitals = Bsplines.generateOrbitalsHydrogenic(subshellList, comp.nuclearModel, wa; printout=printout)
         end
         
         for  (ia, confa)  in  enumerate(confs)
@@ -242,8 +242,8 @@ function generateConfigurationsForRadiativeRecombination(multiplets::Array{Multi
     append!(allConfList, initialConfList);      append!(allConfList, captureConfList)
     
     allSubshells  = Basics.extractRelativisticSubshellList(allConfList)
-    primitives    = BsplinesN.generatePrimitives(grid)
-    orbitals      = BsplinesN.generateOrbitalsHydrogenic(allSubshells, nm, primitives, printout=true)
+    primitives    = Bsplines.generatePrimitives(grid)
+    orbitals      = Bsplines.generateOrbitalsHydrogenic(allSubshells, nm, primitives, printout=true)
     # Exclude configurations with too high mean energies
     en            = Float64[];   
     for conf in initialConfList

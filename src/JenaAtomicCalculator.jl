@@ -56,7 +56,7 @@ export AbstractCImethod, AbstractConfigurationRestriction, AbstractEeInteraction
        AngularJ64, AngularM64, AngularJ, AngularMomentum, AddElectrons, 
        AsfSettings, Atomic, AtomicState, AtomicStructure, Auger, AugerInPlasma, AutoIonization, AverageAtom, AtomicCompass,
        AtomicModel, AtomicFeatures,
-       Basics, Basis, Beam, BeamPhotoExcitation, BreitInteraction, Bsplines, BsplinesN, ByMultipoles, ByNumber, ByParity, 
+       Basics, Basis, Beam, BeamPhotoExcitation, BreitInteraction, Bsplines, ByMultipoles, ByNumber, ByParity,
        CartesianVector, Cartesian2DFieldVector, Cartesian3DFieldVector, CiSettings, CiExpansion, ClebschGordan, CloseCoupling, 
        compute, convertUnits, Compton, Configuration, ConfigurationR, 
        Cascade, Continuum, CorePolarization, Coulex, CoulombExcitation, Coulion, CoulombBreit, CoulombGaunt, 
@@ -121,7 +121,7 @@ include("module-Nuclear.jl");           using ..Nuclear
 include("module-AngularMomentum.jl")
 ## include("module-AngularCoefficients-Ratip2013.jl")  ## keep for internal test purposes only
 include("module-SpinAngular.jl");       using ..SpinAngular
-include("module-BsplinesN.jl");         using ..BsplinesN
+include("module-Bsplines.jl");          using ..Bsplines
 include("module-Pulse.jl");             using ..Pulse
 include("module-Beam.jl")
 include("module-Continuum.jl")

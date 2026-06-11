@@ -7,7 +7,7 @@
 module InternalRecombination
 
 
-using  Printf, ..AngularMomentum, ..Basics, ..Defaults, ..InteractionStrength, ..ManyElectron, ..Nuclear, 
+using  Printf, ..AngularMomentum, ..Basics, ..Bsplines, ..Defaults, ..InteractionStrength, ..ManyElectron, ..Nuclear,
                 ..Radial, ..SpinAngular, ..TableStrings
 
 """
@@ -237,7 +237,8 @@ function  computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, n
     # Generate orbitals for all rydberg-subshells
     rydbergSubshells = Basics.generateSubshellList(settings.rydbergShells)
     meanPot          = Basics.computePotential(Basics.DFSField(1.0), grid, initialMultiplet.levels[1].basis)
-    rydbergOrbitals  = Basics.generateOrbitalsForPotential(grid, meanPot, rydbergSubshells)
+    primitives       = Bsplines.generatePrimitives(grid)
+    rydbergOrbitals  = Bsplines.generateOrbitals(rydbergSubshells, meanPot, nm, primitives; printout=true)
     #
     lines = InternalRecombination.determineLines(finalMultiplet, initialMultiplet, settings)
     # Display all selected lines before the computations start

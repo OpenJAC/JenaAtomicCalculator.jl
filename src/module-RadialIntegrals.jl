@@ -7,7 +7,7 @@
 module  RadialIntegrals
 
 using  GSL, QuadGK
-using  ..AngularMomentum, ..Basics, ..BsplinesN, ..Defaults,  ..Radial, ..Math, ..ManyElectron, ..Nuclear
+using  ..AngularMomentum, ..Basics, ..Bsplines, ..Defaults,  ..Radial, ..Math, ..ManyElectron, ..Nuclear
 
 
 """
@@ -319,11 +319,11 @@ end
 
 
 """
-`RadialIntegrals.nondiagonalD(pm::Int64, kappa::Int64, bspline1::BsplinesN.Bspline, bspline2::BsplinesN.Bspline, grid::Radial.Grid)`  
+`RadialIntegrals.nondiagonalD(pm::Int64, kappa::Int64, bspline1::Bsplines.Bspline, bspline2::Bsplines.Bspline, grid::Radial.Grid)`  
     ... computes the (radial and non-diagonal) D_kappa^+/- integral two the bsplines, all defined on grid
         <bspline1| +/- d/dr + kappa/r | bspline2>. -- pm = +1/-1 provides the phase for taking the derivative.
 """
-function nondiagonalD(pm::Int64, kappa::Int64, bspline1::BsplinesN.Bspline, bspline2::BsplinesN.Bspline, grid::Radial.Grid) 
+function nondiagonalD(pm::Int64, kappa::Int64, bspline1::Bsplines.Bspline, bspline2::Bsplines.Bspline, grid::Radial.Grid) 
     if  bspline1.upper <= bspline2.lower  ||  bspline2.upper <= bspline1.lower    return( 0. )   end
     mtp = min( bspline1.upper, bspline2.upper)
     n0  = max( bspline1.lower, bspline2.lower)
@@ -390,10 +390,10 @@ end
 
 
 """
-+ (bspline1::BsplinesN.Bspline, bspline2::BsplinesN.Bspline, grid::Radial.Grid)`  
++ (bspline1::Bsplines.Bspline, bspline2::Bsplines.Bspline, grid::Radial.Grid)`  
     ... computes the (radial) overlap integral <bspline1|bsplines>  for two bpslines as defined on grid.
 """
-function overlap(bspline1::BsplinesN.Bspline, bspline2::BsplinesN.Bspline, grid::Radial.Grid)
+function overlap(bspline1::Bsplines.Bspline, bspline2::Bsplines.Bspline, grid::Radial.Grid)
     
     # Distinguish the radial integration for different grid definitions
     if  grid.meshType == Radial.MeshGrasp()
@@ -969,11 +969,11 @@ end
 
 
 """
-`RadialIntegrals.Vlocal(bspline1::BsplinesN.Bspline, bspline2::BsplinesN.Bspline, potential::Radial.Potential, grid::Radial.Grid)`  
+`RadialIntegrals.Vlocal(bspline1::Bsplines.Bspline, bspline2::Bsplines.Bspline, potential::Radial.Potential, grid::Radial.Grid)`  
     ... computes the (radial) integral for the local potential and for two bpslines, all defined on grid 
         <bspline1| potential.Zr | bspline2>. -- Here, potential. V must provide the effective charge zz(r) = - V * r.
 """
-function Vlocal(bspline1::BsplinesN.Bspline, bspline2::BsplinesN.Bspline, potential::Radial.Potential, grid::Radial.Grid)
+function Vlocal(bspline1::Bsplines.Bspline, bspline2::Bsplines.Bspline, potential::Radial.Potential, grid::Radial.Grid)
     ## if  bspline1.upper <= bspline2.lower  ||  bspline2.upper <= bspline1.lower    return( 0. )   end
     mtp = min( bspline1.upper, bspline2.upper)
     n0  = max( bspline1.lower, bspline2.lower)

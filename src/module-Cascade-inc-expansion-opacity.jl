@@ -94,8 +94,8 @@ function generateBlocks(scheme::Cascade.ExpansionOpacityScheme, comp::Cascade.Co
             end
             subshellList = Basics.generateSubshellList(relconfList)
             Defaults.setDefaults("relativistic subshell list", subshellList; printout=printout)
-            wa                 = BsplinesN.generatePrimitives(comp.grid)
-            hydrogenicOrbitals = BsplinesN.generateOrbitalsHydrogenic(wa, comp.nuclearModel, subshellList; printout=printout)
+            wa                 = Bsplines.generatePrimitives(comp.grid)
+            hydrogenicOrbitals = Bsplines.generateOrbitalsHydrogenic(wa, comp.nuclearModel, subshellList; printout=printout)
         end
         
         for  (ia, confa)  in  enumerate(confs)

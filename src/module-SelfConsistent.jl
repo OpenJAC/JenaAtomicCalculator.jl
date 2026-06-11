@@ -6,7 +6,7 @@
 """
 module SelfConsistent
 
-using  Printf, ..Basics, ..BsplinesN, ..Defaults, ..Hamiltonian, ..ManyElectron, ..Nuclear, ..Radial, ..SpinAngular
+using  Printf, ..Basics, ..Bsplines, ..Defaults, ..Hamiltonian, ..ManyElectron, ..Nuclear, ..Radial, ..SpinAngular
 
 
 """
@@ -124,7 +124,7 @@ end
 
 """
 `SelfConsistent.computeDirectExchangeV(subshell::Subshell, coeffs2p::Array{SpinAngular.Coefficient2p,1}, 
-                                       primitives::BsplinesN.Primitives, orbitals::Dict{Subshell, Orbital})`
+                                       primitives::Bsplines.Primitives, orbitals::Dict{Subshell, Orbital})`
     ... computes the direct and exchange contributions to the one-electron Hamiltonian matrix of the given subshelll.
         These contributions and their position in the Hamiltonian matrix can be derived from the position of subshell
         in the individual coefficient. The coefficient need to be "doubled" if the interaction refer to the same
@@ -133,7 +133,7 @@ end
         A (nsL+nsS) x (nsL+nsS) matrixV::Array{Float64,2} is returned.
 """
 function computeDirectExchangeV(subshell::Subshell, coeffs2p::Array{SpinAngular.Coefficient2p,1}, 
-                                primitives::BsplinesN.Primitives, orbitals::Dict{Subshell, Orbital})
+                                primitives::Bsplines.Primitives, orbitals::Dict{Subshell, Orbital})
     nsL     = primitives.grid.nsL;        nsS = primitives.grid.nsS;    grid = primitives.grid
     matrixV = zeros( nsL+nsS, nsL+nsS )
     
@@ -211,13 +211,13 @@ end
 
 
 """
-`SelfConsistent.initializeBasis(configs::Array{Configuration,1}, nuclearModel::Nuclear.Model, primitives::BsplinesN.Primitives, 
+`SelfConsistent.initializeBasis(configs::Array{Configuration,1}, nuclearModel::Nuclear.Model, primitives::Bsplines.Primitives, 
                                 settings::AsfSettings; levelSymmetries::Array{LevelSymmetry,1}=LevelSymmetry[], printout::Bool=false)` 
     ... Initialized a many-electron basis from the given list of configurations, the nuclear model as well as ASF settings.
         It assumes that a proper set of primitives::Primitives has been initialized before. The initial set of orbitals in this
         basis is determined by the settings::AsfSettings.  A basis::Basis is returned.
 """
-function initializeBasis(configs::Array{Configuration,1}, nuclearModel::Nuclear.Model, primitives::BsplinesN.Primitives, 
+function initializeBasis(configs::Array{Configuration,1}, nuclearModel::Nuclear.Model, primitives::Bsplines.Primitives, 
                          settings::AsfSettings; levelSymmetries::Array{LevelSymmetry,1}=LevelSymmetry[], printout::Bool=true)
     NoElectrons = configs[1].NoElectrons;   subshells = Subshell[];   coreSubshells = Subshell[];     csfs = CsfR[] 
     orbitals    = Dict{Subshell, Orbital}()
@@ -264,7 +264,7 @@ function initializeBasis(configs::Array{Configuration,1}, nuclearModel::Nuclear.
     if  typeof(settings.startScfFrom) == StartFromHydrogenic
         if  printout   println("> Start SCF process with hydrogenic orbitals.")   end
         # Generate start orbitals for the SCF field by using B-splines
-        orbitals  = BsplinesN.generateOrbitalsHydrogenic(subshells, nuclearModel, primitives; printout=printout)
+        orbitals  = Bsplines.generateOrbitalsHydrogenic(subshells, nuclearModel, primitives; printout=printout)
     elseif  typeof(settings.startScfFrom) == StartFromPrevious
         if  printout   println("> Start SCF process from given list of orbitals.energy")    end
         # Taking starting orbitals for the given dictionary; non-relativistic orbitals with a proper nuclear charge
@@ -301,7 +301,7 @@ function performSCF(configs::Array{Configuration,1}, nm::Nuclear.Model, grid::Ra
     
     # Generate primitives and initialize the many-electron basis
     Defaults.setDefaults("standard grid", grid)
-    primitives = BsplinesN.generatePrimitives(grid)    
+    primitives = Bsplines.generatePrimitives(grid)    
     basis      = SelfConsistent.initializeBasis(configs, nm, primitives, settings; levelSymmetries, printout)
     
     # Solve a self-consistent field for this basis
@@ -337,7 +337,7 @@ function performSCF(basis::Basis, nm::Nuclear.Model, grid::Radial.Grid,
                     settings::AsfSettings; levelSymmetries::Array{LevelSymmetry,1}=LevelSymmetry[], printout::Bool=false)
     
     # Generate primitives
-    primitives = BsplinesN.generatePrimitives(grid)    
+    primitives = Bsplines.generatePrimitives(grid)    
     
     # Solve a self-consistent field for this basis
     if   typeof(settings.scField)  in  [Basics.DFSField, Basics.DFSwCPField, Basics.HSField]
@@ -382,12 +382,12 @@ end
 
 """
 `SelfConsistent.solveAverageAtomField(orbitals::Dict{Subshell, Orbital}, nuclearModel::Nuclear.Model, scField::Basics.AbstractScField, 
-                                      temp::Float64, radiusWS::Float64, primitives::BsplinesN.Primitives; printout::Bool=true)` 
+                                      temp::Float64, radiusWS::Float64, primitives::Bsplines.Primitives; printout::Bool=true)` 
     ... solves the self-consistent field for a given local average-atom potential as specified by scField 
         A (new) set of orbitals::Dict{Subshell, Orbital} is returned.
 """
 function solveAverageAtomField(orbitals::Dict{Subshell, Orbital}, nuclearModel::Nuclear.Model, scField::Basics.AbstractScField, 
-                               temp::Float64, radiusWS::Float64, primitives::BsplinesN.Primitives; printout::Bool=true)
+                               temp::Float64, radiusWS::Float64, primitives::Bsplines.Primitives; printout::Bool=true)
     # Determine the chemical potential
     chemMu    = JAC.Plasma.determineChemicalPotential(orbitals, temp, radiusWS, nuclearModel, primitives.grid);        @show chemMu
     
@@ -402,8 +402,8 @@ function solveAverageAtomField(orbitals::Dict{Subshell, Orbital}, nuclearModel::
     # Set-up the overlap matrix; compute or fetch the diagonal 'overlap' blocks
     nsL = primitives.grid.nsL;        nsS = primitives.grid.nsS;    grid = primitives.grid
     wb  = zeros( nsL+nsS, nsL+nsS )
-    wb[1:nsL,1:nsL]                 = BsplinesN.generateTTpMatrix!("LL-overlap", 0, primitives, storage)
-    wb[nsL+1:nsL+nsS,nsL+1:nsL+nsS] = BsplinesN.generateTTpMatrix!("SS-overlap", 0, primitives, storage)
+    wb[1:nsL,1:nsL]                 = Bsplines.generateTTpMatrix!("LL-overlap", 0, primitives, storage)
+    wb[nsL+1:nsL+nsS,nsL+1:nsL+nsS] = Bsplines.generateTTpMatrix!("SS-overlap", 0, primitives, storage)
     
     # Determine the symmetry block of this basis and define storage for the kappa blocks and orbitals from the last iteration
     bsplineBlock = Dict{Int64,Basics.Eigen}();   previousOrbitals = deepcopy(orbitals)
@@ -464,13 +464,13 @@ end
 
 
 """
-`SelfConsistent.solveAverageLevelField(basis::Basis, nuclearModel::Nuclear.Model, primitives::BsplinesN.Primitives, 
+`SelfConsistent.solveAverageLevelField(basis::Basis, nuclearModel::Nuclear.Model, primitives::Bsplines.Primitives, 
                                        settings::AsfSettings; printout::Bool=true)` 
     ... solves the self-consistent field for the given orbitals (from basis), the nuclear model as well as
         for the average-level (AL) functional. In addition, the settings::AsfSettings are taken into account.
         A (new) basis::Basis is returned.
 """
-function solveAverageLevelField(basis::Basis, nuclearModel::Nuclear.Model, primitives::BsplinesN.Primitives, 
+function solveAverageLevelField(basis::Basis, nuclearModel::Nuclear.Model, primitives::Bsplines.Primitives, 
                                 settings::AsfSettings; printout::Bool=true)
     nsL    = primitives.grid.nsL;    nsS = primitives.grid.nsS;    grid = primitives.grid
     rotate = false
@@ -479,8 +479,8 @@ function solveAverageLevelField(basis::Basis, nuclearModel::Nuclear.Model, primi
     if  printout    println(">> (Re-) Define a storage array for dealing with single-electron TTp B-spline matrices:")    end
     storage = Dict{String,Array{Float64,2}}()
     matrixB = zeros( nsL+nsS, nsL+nsS )
-    matrixB[1:nsL,1:nsL]                 = BsplinesN.generateTTpMatrix!("LL-overlap", 0, primitives, storage)
-    matrixB[nsL+1:nsL+nsS,nsL+1:nsL+nsS] = BsplinesN.generateTTpMatrix!("SS-overlap", 0, primitives, storage)
+    matrixB[1:nsL,1:nsL]                 = Bsplines.generateTTpMatrix!("LL-overlap", 0, primitives, storage)
+    matrixB[nsL+1:nsL+nsS,nsL+1:nsL+nsS] = Bsplines.generateTTpMatrix!("SS-overlap", 0, primitives, storage)
 
     nucPot   = Nuclear.nuclearPotential(nuclearModel, primitives.grid)
     meanOcc  = Basics.extractMeanOccupation(basis)
@@ -513,7 +513,7 @@ function solveAverageLevelField(basis::Basis, nuclearModel::Nuclear.Model, primi
             print(">> Refine $subshell orbital with mean occ = $occ ... ")
             
             # (6) Set-up the Hamiltonian matrix for this shell, including the Dirac Hamiltonian + direct + exchange potentials
-            matrix  = BsplinesN.setupLocalMatrix(subshell.kappa, primitives, nucPot, storage)
+            matrix  = Bsplines.setupLocalMatrix(subshell.kappa, primitives, nucPot, storage)
             matrixV = SelfConsistent.computeDirectExchangeV(subshell, coeffs2p, primitives, orbitals)
             matrix  = matrix + occm1 * matrixV
             
@@ -522,9 +522,9 @@ function solveAverageLevelField(basis::Basis, nuclearModel::Nuclear.Model, primi
             
             # (8) Diagonalize the Hamiltonian matrix and refine the orbital and bVectors
             wc = Basics.diagonalize("generalized eigenvalues: LinearAlgebra", matrix, matrixB)
-            newOrb                = BsplinesN.generateOrbitalFromPrimitives(subshell, wc, primitives)
+            newOrb                = Bsplines.generateOrbitalFromPrimitives(subshell, wc, primitives)
             newOrbitals[subshell] = newOrb
-            newbVectors[subshell] = BsplinesN.extractVectorFromPrimitives(subshell,   wc, primitives)
+            newbVectors[subshell] = Bsplines.extractVectorFromPrimitives(subshell,   wc, primitives)
             
             # (9) Report about the new orbital
             ovlap = abs( RadialIntegrals.overlap(orb, newOrb, grid) )
@@ -559,12 +559,12 @@ end
 
 
 """
-`SelfConsistent.solveMeanFieldBasis(basis::Basis, nuclearModel::Nuclear.Model, primitives::BsplinesN.Primitives, 
+`SelfConsistent.solveMeanFieldBasis(basis::Basis, nuclearModel::Nuclear.Model, primitives::Bsplines.Primitives, 
                                     settings::AsfSettings; printout::Bool=true)` 
     ... solves the self-consistent field for the given orbitals (from basis), the nuclear model as well as
         the (local) mean-field potential as specified by the settings::AsfSettings. A (new) basis::Basis is returned.
 """
-function solveMeanFieldBasis(basis::Basis, nuclearModel::Nuclear.Model, primitives::BsplinesN.Primitives, 
+function solveMeanFieldBasis(basis::Basis, nuclearModel::Nuclear.Model, primitives::Bsplines.Primitives, 
                              settings::AsfSettings; printout::Bool=true)
     ## Defaults.setDefaults("standard grid", primitives.grid; printout=printout)
     # Define the storage for the calculations of matrices
@@ -574,8 +574,8 @@ function solveMeanFieldBasis(basis::Basis, nuclearModel::Nuclear.Model, primitiv
     # Set-up the overlap matrix; compute or fetch the diagonal 'overlap' blocks
     nsL = primitives.grid.nsL;    nsS = primitives.grid.nsS
     wb  = zeros( nsL+nsS, nsL+nsS )
-    wb[1:nsL,1:nsL]                 = BsplinesN.generateTTpMatrix!("LL-overlap", 0, primitives, storage)
-    wb[nsL+1:nsL+nsS,nsL+1:nsL+nsS] = BsplinesN.generateTTpMatrix!("SS-overlap", 0, primitives, storage)
+    wb[1:nsL,1:nsL]                 = Bsplines.generateTTpMatrix!("LL-overlap", 0, primitives, storage)
+    wb[nsL+1:nsL+nsS,nsL+1:nsL+nsS] = Bsplines.generateTTpMatrix!("SS-overlap", 0, primitives, storage)
     
     # Determine te nuclear potential once at the beginning
     nuclearPotential  = Nuclear.nuclearPotential(nuclearModel, primitives.grid)
@@ -609,7 +609,7 @@ function solveMeanFieldBasis(basis::Basis, nuclearModel::Nuclear.Model, primitiv
             wp  = Basics.computePotential(settings.scField, primitives.grid, wLevel)
             pot = Basics.add(nuclearPotential, wp)
             # (3) Set-up the diagonal part of the Hamiltonian matrix
-            wa = BsplinesN.setupLocalMatrix(kappa, primitives, pot, storage)
+            wa = Bsplines.setupLocalMatrix(kappa, primitives, pot, storage)
             # (4) Solve the generalized eigenvalue problem
             wc = Basics.diagonalize("generalized eigenvalues: LinearAlgebra", wa, wb)
             # (5) Analyse and print information about the convergence of the symmetry blocks and the occupied orbitals
@@ -618,7 +618,7 @@ function solveMeanFieldBasis(basis::Basis, nuclearModel::Nuclear.Model, primitiv
             for  sh in basis.subshells
                 if      sh in settings.frozenSubshells   ## do nothing
                 elseif  sh.kappa == kappa
-                    newOrbital = BsplinesN.generateOrbitalFromPrimitives(sh, wc, primitives)
+                    newOrbital = Bsplines.generateOrbitalFromPrimitives(sh, wc, primitives)
                     wcOrbital  = Basics.analyzeConvergence(previousOrbitals[sh], newOrbital)
                     if  wcOrbital > settings.accuracyScf   accuracyScf = wcOrbital;   go_on = true   end
                         sa = "  $sh::  en [a.u.] = " * @sprintf("%.7e", newOrbital.energy) * ";   self-cons'cy = "  
@@ -642,13 +642,13 @@ end
     
 
 """
-`SelfConsistent.solveOptimizedLevelField(basis::Basis, nuclearModel::Nuclear.Model, primitives::BsplinesN.Primitives, 
+`SelfConsistent.solveOptimizedLevelField(basis::Basis, nuclearModel::Nuclear.Model, primitives::Bsplines.Primitives, 
                                          settings::AsfSettings; printout::Bool=true)` 
     ... solves the self-consistent field for the given orbitals (from basis), the nuclear model as well as
         for the average-level (AL) functional. In addition, the settings::AsfSettings are taken into account.
         A (new) multiplet::Multiplet is returned.
 """
-function solveOptimizedLevelField(basis::Basis, nuclearModel::Nuclear.Model, primitives::BsplinesN.Primitives, 
+function solveOptimizedLevelField(basis::Basis, nuclearModel::Nuclear.Model, primitives::Bsplines.Primitives, 
                                   settings::AsfSettings; printout::Bool=true)
     error("Not yet implemented; this was never done so far.")
     

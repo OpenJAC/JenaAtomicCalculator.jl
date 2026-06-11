@@ -8,7 +8,7 @@ module BasicsAZ
 using  Printf,  LinearAlgebra, GaussQuadrature, JenaAtomicCalculator, ..Basics, ..TableStrings
        ## using JenaAtomicCalculator ... since otherwise almost all other modules must be included explicitly
        
-#==    ..AlphaVariation, ..AngularMomentum, ..Atomic, ..AtomicState,  ..AutoIonization,  ..Basics, ..BsplinesN, ..Cascade, 
+#==    ..AlphaVariation, ..AngularMomentum, ..Atomic, ..AtomicState,  ..AutoIonization,  ..Basics, ..Bsplines, ..Cascade, 
        ..DecayYield, ..Defaults, ..DielectronicRecombination, ..DoubleAutoIonization, ..Einstein, ..FormFactor,
        ..HydrogenicIon, ..Hfs, ..HyperfineInduced, ..ImpactExcitation, ..ImpactExcitationAutoion, ..InteractionStrength,  
        ..InteractionStrengthQED,  ..InternalRecombination, ..IsotopeShift, 

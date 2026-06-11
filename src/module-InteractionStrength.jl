@@ -7,7 +7,7 @@
 module InteractionStrength
 
 
-using  GSL, ..AngularMomentum, ..Basics, ..BsplinesN, ..Defaults, ..ManyElectron, ..Nuclear, ..Radial, ..RadialIntegrals
+using  GSL, ..AngularMomentum, ..Basics, ..Bsplines, ..Defaults, ..ManyElectron, ..Nuclear, ..Radial, ..RadialIntegrals
 
 
 """
@@ -788,12 +788,12 @@ end
 
 
 """
-`InteractionStrength.matrixL_Coulomb(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital, primitives::BsplinesN.Primitives)`  
+`InteractionStrength.matrixL_Coulomb(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital, primitives::Bsplines.Primitives)`  
     ... computes the partly-contracted (effective) Coulomb interaction matrices M^L_Coulomb (abcd) for given rank L and orbital functions 
         a, b, c and d at the given grid. The matrix M^L is defined for the primitives and contracted over the two orbitals
         b, d (for a=c) or  b, c (for a=d).  An error message is issued if a != c && a != d. A matrix::Array{Float64,2} is returned.
 """
-function matrixL_Coulomb(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital, primitives::BsplinesN.Primitives)
+function matrixL_Coulomb(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital, primitives::Bsplines.Primitives)
     grid = primitives.grid;   nsL = primitives.grid.nsL;    nsS = primitives.grid.nsS
     wm = zeros( nsL+nsS, nsL+nsS )
     # Test for the triangular-delta conditions and calculate the reduced matrix elements of the C^L tensors
@@ -938,11 +938,11 @@ end
 
 
 """
-`InteractionStrength.XL_Coulomb(L::Int64, a::Subshell, b::Orbital, c::Subshell, d::Orbital, primitives::BsplinesN.Primitives)`  
+`InteractionStrength.XL_Coulomb(L::Int64, a::Subshell, b::Orbital, c::Subshell, d::Orbital, primitives::Bsplines.Primitives)`  
     ... computes the (direct) Coulomb interaction strengths X^L_Coulomb (.b.d) for given rank L and orbital functions
         as well as the given primitives. A (nsL+nsS) x (nsL+nsS) matrixV::Array{Float64,2} is returned.
 """
-function XL_Coulomb(L::Int64, a::Subshell, b::Orbital, c::Subshell, d::Orbital, primitives::BsplinesN.Primitives)
+function XL_Coulomb(L::Int64, a::Subshell, b::Orbital, c::Subshell, d::Orbital, primitives::Bsplines.Primitives)
     nsL = primitives.grid.nsL;        nsS = primitives.grid.nsS;    grid = primitives.grid
     wm  = zeros(nsL+nsS, nsL+nsS)
     
@@ -993,11 +993,11 @@ end
 
 
 """
-`InteractionStrength.XL_Coulomb(L::Int64, a::Subshell, b::Orbital, c::Orbital, d::Subshell, primitives::BsplinesN.Primitives)`
+`InteractionStrength.XL_Coulomb(L::Int64, a::Subshell, b::Orbital, c::Orbital, d::Subshell, primitives::Bsplines.Primitives)`
     ... computes the (exchange) Coulomb interaction strengths X^L_Coulomb (.bc.) for given rank L and orbital functions
         as well as the given primitives. A (nsL+nsS) x (nsL+nsS) matrixV::Array{Float64,2} is returned.
 """
-function XL_Coulomb(L::Int64, a::Subshell, b::Orbital, c::Orbital, d::Subshell, primitives::BsplinesN.Primitives)
+function XL_Coulomb(L::Int64, a::Subshell, b::Orbital, c::Orbital, d::Subshell, primitives::Bsplines.Primitives)
     nsL = primitives.grid.nsL;        nsS = primitives.grid.nsS;    grid = primitives.grid
     wm  = zeros(nsL+nsS, nsL+nsS)
     

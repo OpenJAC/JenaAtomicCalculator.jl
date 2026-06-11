@@ -5,7 +5,7 @@
 """
 module InteractionStrengthQED
 
-using Printf, ..Basics, ..BsplinesN, ..Defaults, ..HydrogenicIon, ..ManyElectron, ..Radial, ..RadialIntegrals, ..Nuclear
+using Printf, ..Basics, ..Bsplines, ..Defaults, ..HydrogenicIon, ..ManyElectron, ..Radial, ..RadialIntegrals, ..Nuclear
 
 #                   Z/10       1s_1/2      2p_1/2      2p_3/2      3d_3/2      3d_5/2        Zi
 const   fez_qed =         [    4.6542     -0.1148      0.1304     -0.0427      0.0408   ;   #  10
