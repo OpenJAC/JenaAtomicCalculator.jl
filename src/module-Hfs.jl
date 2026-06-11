@@ -42,8 +42,13 @@
 module Hfs
 
 
-using Printf, ..AngularMomentum, ..Basics,  ..Defaults, ..InteractionStrength, ..ManyElectron, ..Radial, ..Nuclear, 
+using Printf, ..AngularMomentum, ..Basics,  ..Defaults, ..InteractionStrength, ..ManyElectron, ..Radial, ..Nuclear,
               ..SpinAngular, ..TableStrings, ..PhotoEmission
+
+## Tabulate-theme sentinel types for Basics.tabulate dispatch on Hfs.HfMultiplet.
+struct  HfEnergies          end   ## tabulate all hyperfine level energies
+struct  HfEnergiesRelative  end   ## tabulate hyperfine level energies relative to the lowest level
+
 
 
 
@@ -383,43 +388,39 @@ end
 
 
 """
-`Basics.tabulate(sa::String, multiplet::Hfs.HfMultiplet; stream::IO=stdout)`  
-    ... tabulates the energies from the multiplet due to different criteria.
-
-+ `("multiplet: energies", multiplet::Hfs.HfMultiplet; stream::IO=stdout)`  
-    ... to tabulate the energies of all hyperfine levels of the given multiplet into a neat format; nothing is returned.
-+ `("multiplet: energy of each level relative to lowest level", multiplet::Hfs.HfMultiplet; stream::IO=stdout)`  
-    ... to tabulate the energy splitting of all levels with regard to the lowest level of the given multiplet into 
-        a neat format; nothing is returned.
+`Basics.tabulate(stream::IO, ::HfEnergies, multiplet::Hfs.HfMultiplet)`
+    ... tabulates the energies of all hyperfine levels of the given multiplet; nothing is returned.
 """
-function Basics.tabulate(sa::String, multiplet::Hfs.HfMultiplet; stream::IO=stdout)
-    if        sa == "multiplet: energies"
-        println(stream, "\n  Eigenenergies for nuclear spin I = $(multiplet.levelFs[1].I):")
-        sb = "  Level  F Parity          Hartrees       " * "             eV                   " *  TableStrings.inUnits("energy")     
-        println(stream, "\n", sb, "\n")
-        for  i = 1:length(multiplet.levelFs)
-            lev = multiplet.levelFs[i]
-            en  = lev.energy;    en_eV = Defaults.convertUnits("energy: from atomic to eV", en);    en_requested = Defaults.convertUnits("energy: from atomic", en)
-            sc  = " " * TableStrings.level(i) * "    " * string(LevelSymmetry(lev.F, lev.parity)) * "    "
-            @printf(stream, "%s %.15e %s %.15e %s %.15e %s", sc, en, "  ", en_eV, "  ", en_requested, "\n")
-        end
-
-    elseif    sa == "multiplet: energy of each level relative to lowest level"
-        println(stream, "\n  Energy of each level relative to lowest level for nuclear spin I = $(multiplet.levelFs[1].I):")
-        sb = "  Level  F Parity          Hartrees       " * "             eV                   " * TableStrings.inUnits("energy")      
-        println(stream, "\n", sb, "\n")
-        for  i = 2:length(multiplet.levelFs)
-            lev = multiplet.levelFs[i]
-            en    = lev.energy - multiplet.levelFs[1].energy;    
-            en_eV = Defaults.convertUnits("energy: from atomic to eV", en);    en_requested = Defaults.convertUnits("energy: from atomic", en)
-            sc  = " " * TableStrings.level(i) * "    " * string(LevelSymmetry(lev.F, lev.parity))  * "    "
-            @printf(stream, "%s %.15e %s %.15e %s %.15e %s", sc, en, "  ", en_eV, "  ", en_requested, "\n")
-        end
-    else
-        error("Unsupported keystring.")
+function Basics.tabulate(stream::IO, ::HfEnergies, multiplet::Hfs.HfMultiplet)
+    println(stream, "\n  Eigenenergies for nuclear spin I = $(multiplet.levelFs[1].I):")
+    sb = "  Level  F Parity          Hartrees       " * "             eV                   " * TableStrings.inUnits("energy")
+    println(stream, "\n", sb, "\n")
+    for  i = 1:length(multiplet.levelFs)
+        lev = multiplet.levelFs[i]
+        en  = lev.energy;    en_eV = Defaults.convertUnits("energy: from atomic to eV", en);    en_requested = Defaults.convertUnits("energy: from atomic", en)
+        sc  = " " * TableStrings.level(i) * "    " * string(LevelSymmetry(lev.F, lev.parity)) * "    "
+        @printf(stream, "%s %.15e %s %.15e %s %.15e %s", sc, en, "  ", en_eV, "  ", en_requested, "\n")
     end
+    return( nothing )
+end
 
-    return( nothing )  
+
+"""
+`Basics.tabulate(stream::IO, ::HfEnergiesRelative, multiplet::Hfs.HfMultiplet)`
+    ... tabulates the hyperfine level energies relative to the lowest level of the multiplet; nothing is returned.
+"""
+function Basics.tabulate(stream::IO, ::HfEnergiesRelative, multiplet::Hfs.HfMultiplet)
+    println(stream, "\n  Energy of each level relative to lowest level for nuclear spin I = $(multiplet.levelFs[1].I):")
+    sb = "  Level  F Parity          Hartrees       " * "             eV                   " * TableStrings.inUnits("energy")
+    println(stream, "\n", sb, "\n")
+    for  i = 2:length(multiplet.levelFs)
+        lev   = multiplet.levelFs[i]
+        en    = lev.energy - multiplet.levelFs[1].energy
+        en_eV = Defaults.convertUnits("energy: from atomic to eV", en);    en_requested = Defaults.convertUnits("energy: from atomic", en)
+        sc    = " " * TableStrings.level(i) * "    " * string(LevelSymmetry(lev.F, lev.parity)) * "    "
+        @printf(stream, "%s %.15e %s %.15e %s %.15e %s", sc, en, "  ", en_eV, "  ", en_requested, "\n")
+    end
+    return( nothing )
 end
 
 
@@ -636,12 +637,12 @@ function computeHyperfineMultiplet(multiplet::Multiplet, nm::Nuclear.Model, grid
     hfMultiplet = Hfs.computeHyperfineRepresentation(hfBasis, nm, grid)
     # Print all results to screen
     hfMultiplet = Basics.sortByEnergy(hfMultiplet)
-    Basics.tabulate("multiplet: energies",                                      hfMultiplet) 
-    Basics.tabulate("multiplet: energy of each level relative to lowest level", hfMultiplet) 
+    Basics.tabulate(stdout,   HfEnergies(),         hfMultiplet)
+    Basics.tabulate(stdout,   HfEnergiesRelative(), hfMultiplet)
     printSummary, iostream = Defaults.getDefaults("summary flag/stream")
-    if  printSummary     
-        Basics.tabulate("multiplet: energies",                                      hfMultiplet, stream=iostream) 
-        Basics.tabulate("multiplet: energy of each level relative to lowest level", hfMultiplet, stream=iostream) 
+    if  printSummary
+        Basics.tabulate(iostream, HfEnergies(),         hfMultiplet)
+        Basics.tabulate(iostream, HfEnergiesRelative(), hfMultiplet)
     end
     #
     if    output    return( hfMultiplet )
