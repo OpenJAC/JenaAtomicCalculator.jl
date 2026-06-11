@@ -1,14 +1,9 @@
 
 """
-`module  JAC.Bsplines`  
-	... a submodel of JAC that contains all structs and methods to generate the B-spline basis and to 
+`module  JAC.Bsplines`
+	... a submodel of JAC that contains all structs and methods to generate the B-spline basis and to
 	    solve the single-electron Dirac equation in a local potential. It also provides the major function
         calls to generate self-consistent fields; cf. JAC.SelfConsistent.
-    
-    !!  Remove in RadialIntegrals:       ... all methods that depend on Bspline
-    !!  Remove in InteractionStrength:   ... all methods that depend on Bspline
-    !!  Change in Hydrogenic             ... sequence of arguments
-    !!  Change in module-Plasma-inc-average-atom  ... sequence of arguments
 """
 module Bsplines
 

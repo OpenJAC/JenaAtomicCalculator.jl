@@ -227,7 +227,7 @@ function  perform(scheme::Plasma.AverageAtomScheme, computation::Plasma.Computat
     subshells = Basics.generateSubshellList(shells)
     println(">> Subshells included into the average-atom scheme: \n   $subshells")
     # Generate hydrogenic orbitals for all subshells and display comparison
-    orbitals  = Bsplines.generateOrbitalsHydrogenic(wa, nm, subshells; printout=false)
+    orbitals  = Bsplines.generateOrbitalsHydrogenic(subshells, nm, wa; printout=false)
     chemMu    = Plasma.determineChemicalPotential(orbitals, temp, RWS, nm, computation.grid)
     Basics.displayOrbitalProperties(stdout, orbitals, chemMu, temp, RWS, nm, computation.grid)
     # Solve the orbitals and chemical potential self-consistently in the average-atom model

@@ -52,7 +52,7 @@ end
 function orbital(sh::Subshell, nm::Nuclear.Model, grid::Radial.Grid)
     Defaults.setDefaults("standard grid", grid; printout=false)
     basis    = Bsplines.generatePrimitives(grid)
-    orbitals = Bsplines.generateOrbitalsHydrogenic(basis, nm, [sh]; printout = false)
+    orbitals = Bsplines.generateOrbitalsHydrogenic([sh], nm, basis; printout = false)
     orb      = orbitals[sh]
     return( orb )
 end
@@ -182,7 +182,7 @@ end
 """
 function radialOrbital(sh::Subshell, nm::Nuclear.Model, grid::Radial.Grid)
     basis   = Bsplines.generatePrimitives(grid)
-    orb_dic = Bsplines.generateOrbitalsHydrogenic(basis, nm, [sh]; printout = false)
+    orb_dic = Bsplines.generateOrbitalsHydrogenic([sh], nm, basis; printout = false)
     orb     = orb_dic[sh]
     @show orb_dic
     return( orb )

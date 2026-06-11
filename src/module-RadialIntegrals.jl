@@ -9,7 +9,6 @@ module  RadialIntegrals
 using  GSL, QuadGK
 using  ..AngularMomentum, ..Basics, ..Bsplines, ..Defaults,  ..Radial, ..Math, ..ManyElectron, ..Nuclear
 
-
 """
 `RadialIntegrals.GrantIab(a::Radial.Orbital, b::Radial.Orbital, grid::Radial.Grid, potential::Radial.Potential)`  
     ... computes the (radial) single-electron energy integral:
@@ -56,7 +55,6 @@ function GrantIab(a::Radial.Orbital, b::Radial.Orbital, grid::Radial.Grid, poten
     end
 end
 
-
 """
 `RadialIntegrals.GrantIabDamped(tau::Float64, a::Radial.Orbital, b::Radial.Orbital, grid::Radial.Grid, potential::Radial.Potential)`  
     ... computes the (radial) single-electron energy integral:
@@ -88,7 +86,6 @@ function GrantIabDamped(tau::Float64, a::Radial.Orbital, b::Radial.Orbital, grid
     end
 end
 
-
 """
 `RadialIntegrals.GrantILminus(L::Int64, q::Float64, a::Radial.Orbital, b::Radial.Orbital, grid::Radial.Grid)`  
     ... computes Grant's (radial) integral for two relativistic orbitals:  
@@ -109,7 +106,6 @@ function GrantILminus(L::Int64, q::Float64, a::Radial.Orbital, b::Radial.Orbital
         error("stop a")
     end
 end
-
 
 """
 `RadialIntegrals.GrantILplus(L::Int64, q::Float64, a::Radial.Orbital, b::Radial.Orbital, grid::Radial.Grid)`  
@@ -132,7 +128,6 @@ function GrantILplus(L::Int64, q::Float64, a::Radial.Orbital, b::Radial.Orbital,
     end
 end
 
-
 """
 `RadialIntegrals.GrantIL0(L::Int64, q::Float64, a::Radial.Orbital, b::Radial.Orbital, grid::Radial.Grid)`  
     ... computes Grant's (radial) integral for two relativistic orbitals:  
@@ -153,7 +148,6 @@ function GrantIL0(L::Int64, q::Float64, a::Radial.Orbital, b::Radial.Orbital, gr
         error("stop a")
     end
 end
-
 
 """
 `RadialIntegrals.GrantJL(L::Int64, q::Float64, a::Radial.Orbital, b::Radial.Orbital, grid::Radial.Grid)`  
@@ -176,7 +170,6 @@ function GrantJL(L::Int64, q::Float64, a::Radial.Orbital, b::Radial.Orbital, gri
     end
 end
 
-
 """
 `RadialIntegrals.GrantJL_cp(L::Int64, q::Float64, a::Radial.Orbital, b::Radial.Orbital, grid::Radial.Grid, cp::CorePolarization)`  
     ... computes Grant's (radial) integral for two relativistic orbitals:  
@@ -197,7 +190,6 @@ function GrantJL_cp(L::Int64, q::Float64, a::Radial.Orbital, b::Radial.Orbital, 
         error("stop a")
     end
 end
-
 
 """
 `RadialIntegrals.isotope_boson(a::Orbital, b::Orbital, potential::Array{Float64,1}, grid::Radial.Grid)`  
@@ -220,7 +212,6 @@ function isotope_boson(a::Orbital, b::Orbital, potential::Array{Float64,1}, grid
     end
 end
 
-
 """
 `RadialIntegrals.isotope_field(a::Orbital, b::Orbital, deltaPotential::Array{Float64,1}, grid::Radial.Grid)`  
     ... computes the field-shift radial integral int_o^infty ... A value::Float64 is returned.
@@ -241,7 +232,6 @@ function isotope_field(a::Orbital, b::Orbital, deltaPotential::Array{Float64,1},
         error("stop b")
     end
 end
-
 
 """
 `RadialIntegrals.isotope_nms(a::Orbital, b::Orbital, Z::Float64, grid::Radial.Grid)`  
@@ -269,7 +259,6 @@ function isotope_nms(a::Orbital, b::Orbital, Z::Float64, grid::Radial.Grid)
     end
 end
 
-
 """
 `RadialIntegrals.isotope_smsB(a::Orbital, c::Orbital, Z::Float64, grid::Radial.Grid)`  
     ... computes the specific mass shift radial integral int_o^infty ... A value::Float64 is returned.
@@ -295,7 +284,6 @@ function isotope_smsB(a::Orbital, c::Orbital, Z::Float64, grid::Radial.Grid)
     end
 end
 
-
 """
 `RadialIntegrals.isotope_smsC(a::Orbital, c::Orbital, Z::Float64, grid::Radial.Grid)`  
     ... computes the specific mass shift radial integral int_o^infty ... A value::Float64 is returned.
@@ -316,47 +304,6 @@ function isotope_smsC(a::Orbital, c::Orbital, Z::Float64, grid::Radial.Grid)
         error("stop b")
     end
 end
-
-
-"""
-`RadialIntegrals.nondiagonalD(pm::Int64, kappa::Int64, bspline1::Bsplines.Bspline, bspline2::Bsplines.Bspline, grid::Radial.Grid)`  
-    ... computes the (radial and non-diagonal) D_kappa^+/- integral two the bsplines, all defined on grid
-        <bspline1| +/- d/dr + kappa/r | bspline2>. -- pm = +1/-1 provides the phase for taking the derivative.
-"""
-function nondiagonalD(pm::Int64, kappa::Int64, bspline1::Bsplines.Bspline, bspline2::Bsplines.Bspline, grid::Radial.Grid) 
-    if  bspline1.upper <= bspline2.lower  ||  bspline2.upper <= bspline1.lower    return( 0. )   end
-    mtp = min( bspline1.upper, bspline2.upper)
-    n0  = max( bspline1.lower, bspline2.lower)
-    
-    # Distinguish the radial integration for different grid definitions
-    if  grid.meshType == Radial.MeshGrasp()
-
-        function f1(i::Int64)
-            wa = pm * bspline1.bs[i] * bspline2.bp[i]
-            return( wa )                            
-        end
-        function f2(i :: Int64)
-            if  i == 1  wa = bspline1.bs[i] * kappa * bspline2.bs[i] / (0.3 * grid.r[2]) 
-            else        wa = bspline1.bs[i] * kappa * bspline2.bs[i] / grid.r[i]   end
-            return( wa )
-        end
-
-        I1 = Math.integrateTransform(f1, n0, mtp, grid)
-        I2 = Math.integrateTransform(f2, n0, mtp, grid)
-        return( I1+I2 )
-    elseif  grid.meshType == Radial.MeshGL()
-        wa = 0.
-        for  i = n0:mtp  
-            wa = wa + pm * bspline1.bs[i] * bspline2.bp[i] * grid.wr[i] 
-            if  i == 1  wa = wa + bspline1.bs[i] * kappa * bspline2.bs[i] / (0.3 * grid.r[2]) * grid.wr[i] 
-            else        wa = wa + bspline1.bs[i] * kappa * bspline2.bs[i] / grid.r[i] * grid.wr[i]   end
-        end
-        return( wa )
-    else
-        error("stop a")
-    end
-end
-
 
 """
 `RadialIntegrals.overlap()`
@@ -388,34 +335,6 @@ function overlap(orbital1::Radial.Orbital, orbital2::Radial.Orbital, grid::Radia
     end
 end
 
-
-"""
-+ (bspline1::Bsplines.Bspline, bspline2::Bsplines.Bspline, grid::Radial.Grid)`  
-    ... computes the (radial) overlap integral <bspline1|bsplines>  for two bpslines as defined on grid.
-"""
-function overlap(bspline1::Bsplines.Bspline, bspline2::Bsplines.Bspline, grid::Radial.Grid)
-    
-    # Distinguish the radial integration for different grid definitions
-    if  grid.meshType == Radial.MeshGrasp()
-        if  bspline1.upper <= bspline2.lower  ||  bspline2.upper <= bspline1.lower    return( 0. )   end
-        mtp = min( bspline1.upper, bspline2.upper)
-        n0  = max( bspline1.lower, bspline2.lower)
-
-        function f(i :: Int64)
-            return( bspline1.bs[i] * bspline2.bs[i] )
-        end
-
-        return( Math.integrateTransform(f, n0, mtp, grid) )
-    elseif  grid.meshType == Radial.MeshGL()
-        wa = 0.
-        for  i = 1:grid.NoPoints   wa = wa + bspline1.bs[i] * bspline2.bs[i] * grid.wr[i]   end
-        return( wa )
-    else
-        error("stop a")
-    end
-end
-
-
 """
 + (p1List::Array{Float64,1}, p2List::Array{Float64,1}, grid::Radial.Grid)`  
     ... computes the (radial) overlap integral of two (non-relativistic) radial orbital functions <p1|p2>  as defined on grid.
@@ -444,7 +363,6 @@ function overlap(p1List::Array{Float64,1}, p2List::Array{Float64,1}, grid::Radia
     end
 end
 
-
 function overlap_old2022(p1List::Array{Float64,1}, p2List::Array{Float64,1}, grid::Radial.Grid)
     
     mtp = min( length(p1List), length(p2List))
@@ -464,7 +382,6 @@ function overlap_old2022(p1List::Array{Float64,1}, p2List::Array{Float64,1}, gri
     end
 end
 
-
 """
 `RadialIntegrals.qedDampedOverlap(lambda::Float64, a::Radial.Orbital, b::Radial.Orbital, grid::Radial.Grid)` 
     ... computes the damped (radial) integral  int_0^infty (P_a P_b  +  Q_a Q_b) * e^{r/lambda} for the radial 
@@ -481,7 +398,6 @@ function qedDampedOverlap(lambda::Float64, a::Radial.Orbital, b::Radial.Orbital,
         error("stop a")
     end
 end
-
 
 """
 `RadialIntegrals.qedLowFrequency(a::Radial.Orbital, b::Radial.Orbital, nm::Nuclear.Model, grid::Radial.Grid, qgrid::Radial.GridGL)` 
@@ -503,7 +419,6 @@ function qedLowFrequency(a::Radial.Orbital, b::Radial.Orbital, nm::Nuclear.Model
     println("QED single-electron strength <$(a.subshell)| h^(SE, low-frequency) | $(b.subshell)> = $wa ")
     return( wa )
 end
-
 
 """
 `RadialIntegrals.qedUehling(a::Radial.Orbital, b::Radial.Orbital, nm::Nuclear.Model,
@@ -545,7 +460,6 @@ function qedUehling(a::Radial.Orbital, b::Radial.Orbital, nm::Nuclear.Model, gri
     return( wa )
 end
 
-
 """
 `RadialIntegrals.qedUehlingSimple(a::Radial.Orbital, b::Radial.Orbital, pot::Radial.Potential,
                                     grid::Radial.Grid, qgrid::Radial.GridGL)` 
@@ -581,7 +495,6 @@ function qedUehlingSimple(a::Radial.Orbital, b::Radial.Orbital, pot::Radial.Pote
     return( wa )
 end
 
-
 """
 `RadialIntegrals.rkDiagonal()`   ... computes the (radial and diagonal) integral of r^k for two radial orbital functions.
 
@@ -604,7 +517,6 @@ function rkDiagonal(k::Int64, a::Radial.Orbital, b::Radial.Orbital, grid::Radial
         error("stop a")
     end
 end
-
 
 """
 + (k::Int64, p1List::Array{Float64,1}, p2List::Array{Float64,1}, grid::Radial.Grid)`  
@@ -630,7 +542,6 @@ function rkDiagonal(k::Int64, p1List::Array{Float64,1}, p2List::Array{Float64,1}
     end
 end
 
-
 """
 `RadialIntegrals.rkNonDiagonal(k::Int64, a::Radial.Orbital, b::Radial.Orbital, grid::Radial.Grid)` 
     ... computes the (radial and non-diagonal) integral of r^k for two relativistic orbitals:
@@ -651,7 +562,6 @@ function rkNonDiagonal(k::Int64, a::Radial.Orbital, b::Radial.Orbital, grid::Rad
         error("stop a")
     end
 end
-
 
 """
 `RadialIntegrals.SlaterRkComponent_2dim(k::Int64, Ba::Array{Float64,1}, Bb::Array{Float64,1}, 
@@ -688,7 +598,6 @@ function SlaterRkComponent_2dim(k::Int64, Ba::Array{Float64,1}, Bb::Array{Float6
         error("stop b")
     end
 end
-
 
 """
 `RadialIntegrals.SlaterRk_2dim(k::Int64, a::Radial.Orbital, b::Radial.Orbital, c::Radial.Orbital, d::Orbital, grid::Radial.Grid)`  
@@ -734,7 +643,6 @@ function SlaterRk_2dim(k::Int64, a::Radial.Orbital, b::Radial.Orbital, c::Radial
     end
 end
 
-
 """
 `RadialIntegrals.SlaterRk_2dim_WO(k::Int64, a::Radial.Orbital, b::Radial.Orbital, c::Radial.Orbital, d::Orbital, grid::Radial.Grid)`  
     ... computes the (relativistic) Slater integral
@@ -778,7 +686,6 @@ function SlaterRk_2dim_WO(k::Int64, a::Radial.Orbital, b::Radial.Orbital, c::Rad
     end
 end
 
-
 """
 `RadialIntegrals.SlaterRk_2dim_Damped(tau::Float64, k::Int64, a::Radial.Orbital, b::Radial.Orbital, c::Radial.Orbital, d::Orbital, grid::Radial.Grid)`  
     ... computes the (relativistic) Slater integral
@@ -813,7 +720,6 @@ function SlaterRk_2dim_Damped(tau::Float64, k::Int64, a::Radial.Orbital, b::Radi
         error("stop b")
     end
 end
-
 
 """
 `RadialIntegrals.SlaterRk_new(k::Int64, a::Radial.Orbital, b::Radial.Orbital, c::Radial.Orbital, d::Orbital, grid::Radial.Grid)`  
@@ -877,7 +783,6 @@ function SlaterRk_new(k::Int64, a::Radial.Orbital, b::Radial.Orbital, c::Radial.
     end
 end
 
-
 """
 `RadialIntegrals.SlaterRk_DebyeHueckel_2dim(k::Int64, a::Radial.Orbital, b::Radial.Orbital, c::Radial.Orbital, d::Orbital, 
                                             grid::Radial.Grid, lambda::Float64)`  
@@ -937,7 +842,6 @@ function SlaterRk_DebyeHueckel_2dim(k::Int64, a::Radial.Orbital, b::Radial.Orbit
     end
 end
 
-
 """
 `RadialIntegrals.Vinti(a::Radial.Orbital, b::Radial.Orbital, grid::Radial.Grid)` 
     ... computes the (radial) Vinti integral for the two radia integrals a and b:
@@ -967,40 +871,6 @@ function  Vinti(a::Radial.Orbital, b::Radial.Orbital, grid::Radial.Grid)
     end
 end
 
-
-"""
-`RadialIntegrals.Vlocal(bspline1::Bsplines.Bspline, bspline2::Bsplines.Bspline, potential::Radial.Potential, grid::Radial.Grid)`  
-    ... computes the (radial) integral for the local potential and for two bpslines, all defined on grid 
-        <bspline1| potential.Zr | bspline2>. -- Here, potential. V must provide the effective charge zz(r) = - V * r.
-"""
-function Vlocal(bspline1::Bsplines.Bspline, bspline2::Bsplines.Bspline, potential::Radial.Potential, grid::Radial.Grid)
-    ## if  bspline1.upper <= bspline2.lower  ||  bspline2.upper <= bspline1.lower    return( 0. )   end
-    mtp = min( bspline1.upper, bspline2.upper)
-    n0  = max( bspline1.lower, bspline2.lower)
-    
-    # Distinguish the radial integration for different grid definitions
-    if  grid.meshType == Radial.MeshGrasp()
-
-        function f(i :: Int64)
-            if  i == 1  wa = - bspline1.bs[i] * potential.Zr[i] * bspline2.bs[i] / (0.3 * grid.r[2]) 
-            else        wa = - bspline1.bs[i] * potential.Zr[i] * bspline2.bs[i] / grid.r[i]   end
-            return( wa )
-        end
-
-        return( Math.integrateTransform(f, n0, mtp, grid) )
-    elseif  grid.meshType == Radial.MeshGL()
-        wa = 0.
-        for  i = n0:mtp  
-            if  i == 1  wa = wa - bspline1.bs[i] * potential.Zr[i] * bspline2.bs[i] / (0.3 * grid.r[2]) * grid.wr[i] 
-            else        wa = wa - bspline1.bs[i] * potential.Zr[i] * bspline2.bs[i] / grid.r[i] * grid.wr[i]   end
-        end
-        return( wa )
-    else
-        error("stop a")
-    end
-end
-
-
 """
 `RadialIntegrals.V0(wa::Array{Float64,1}, mtp::Int64, grid::Radial.Grid)` 
     ... computes the (radial) integral int_0^infty dr wa; a value::Float64 is returned.
@@ -1019,7 +889,6 @@ function V0(wa::Array{Float64,1}, mtp::Int64, grid::Radial.Grid)
         error("stop a")
     end
 end
-
 
 """
 `RadialIntegrals.W5_Integral(mu::Int64, nu::Int64, orbitala::Radial.Orbital, orbitalc::Radial.Orbital,  
@@ -1066,7 +935,6 @@ function W5_Integral(mu::Int64, nu::Int64, a::Radial.Orbital, b::Radial.Orbital,
         error("stop a")
     end
 end
-
 
 """
 `RadialIntegrals.Yk_ab(k::Int64, r::Float64, rho_ab::Array{Float64,1}, mtp::Int64, grid::Radial.Grid)`  
