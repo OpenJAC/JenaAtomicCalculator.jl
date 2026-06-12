@@ -2387,3 +2387,31 @@ struct         RecastRateToLineStrengthS <:  AbstractRecastTheme             end
 
 export  AbstractRecastTheme, RecastRateToDecayWidth, RecastRateToEinsteinA, RecastRateToEinsteinB,
         RecastRateToOscillatorGf, RecastRateToOscillatorF, RecastRateToLineStrengthS
+
+
+"""
+`abstract type Basics.AbstractAnalyzeTheme`
+    ... labels the theme (kind) of a Basics.analyze() call; it is used for dispatch and to avoid string comparisons.
+    Concrete subtypes:
+    + LevelDecompositionOfNRconfigurations ... analyze and list the NR configurations with weight > 5 %.
+    + LevelDecompositionOfCsfR             ... analyze and list (up to N) jj-coupled CSF and their weights.
+"""
+abstract type  AbstractAnalyzeTheme                                                      end
+struct         LevelDecompositionOfNRconfigurations  <:  AbstractAnalyzeTheme            end
+struct         LevelDecompositionOfCsfR              <:  AbstractAnalyzeTheme            end
+
+export  AbstractAnalyzeTheme, LevelDecompositionOfNRconfigurations, LevelDecompositionOfCsfR
+
+
+"""
+`abstract type Basics.AbstractDiagonalizeTheme`
+    ... labels the theme (kind) of a Basics.diagonalize() call; it is used for dispatch and to avoid string comparisons.
+    Concrete subtypes:
+    + MatrixWithLinearAlgebra                 ... diagonalize a single symmetric matrix using LinearAlgebra.eigen().
+    + GeneralizedEigenvaluesWithLinearAlgebra ... solve a generalized eigenvalue problem using LinearAlgebra.eigen().
+"""
+abstract type  AbstractDiagonalizeTheme                                                       end
+struct         MatrixWithLinearAlgebra                 <:  AbstractDiagonalizeTheme            end
+struct         GeneralizedEigenvaluesWithLinearAlgebra <:  AbstractDiagonalizeTheme            end
+
+export  AbstractDiagonalizeTheme, MatrixWithLinearAlgebra, GeneralizedEigenvaluesWithLinearAlgebra

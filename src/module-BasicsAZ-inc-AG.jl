@@ -41,17 +41,16 @@ end
 
 
 """
-`Basics.analyze("level decomposition: % of NR configurations", level::Level)`  
-    ... to analyze and list the non-relativistic configurations with a weight larger than 5%. A list of NR configurations with their 
-        corresponding weights are printed, but nothing is returned.
+`Basics.analyze(::LevelDecompositionOfNRconfigurations, level::Level)`
+    ... analyzes and lists the non-relativistic configurations with a weight larger than 5%; a list of NR
+        configurations with their corresponding weights is printed, but nothing is returned.
 """
-function Basics.analyze(sa::String, level::Level)
-    !(sa == "level decomposition: % of NR configurations")   &&   error("Unsupported keystring = $sa")
-    !(level.hasBasis)                                        &&   error("Levels without a basis cannot be analyzed.")
-    
+function Basics.analyze(::LevelDecompositionOfNRconfigurations, level::Level)
+    !(level.hasBasis)   &&   error("Levels without a basis cannot be analyzed.")
+
     confList   = generate("configuration list: NR, from basis", level.basis)
     percentage = zeros( length(confList) )
-    
+
     # Now generate for each CSF in this basis a Configuration, compare with confList and add contribution to the corresponding percentage
     for  k = 1:length(level.basis.csfs)
         csf = level.basis.csfs[k]
@@ -65,12 +64,12 @@ function Basics.analyze(sa::String, level::Level)
         confNew = Configuration( shellList, NoElectrons )
         # Compare and add the weight to the right configuration
         for  i = 1:length(confList)
-            if   confList[i] == confNew    percentage[i] = percentage[i] + level.mc[k]^2;    break    end 
+            if   confList[i] == confNew    percentage[i] = percentage[i] + level.mc[k]^2;    break    end
         end
     end
 
     # Check that all weights sum up properly
-    wa = sum( percentage );   abs(1. - wa) > 1.0e-3  &&    error("Total percentage $wa must add to 1.")
+    wa = sum( percentage );   abs(1. - wa) > 1.0e-3  &&   error("Total percentage $wa must add to 1.")
     # Sort the percentage and print both, configurations and percentage
     wb = sortperm( percentage )
     for i in wb
@@ -81,14 +80,13 @@ function Basics.analyze(sa::String, level::Level)
 end
 
 
-
 """
-`Basics.analyze("level decomposition: % of jj-coupled CSF", level::Level, N::Int64)`  
-    ... to anaylze and list (up to) N relativistic CSF, together with their weight |c_n|^2 in the expansion of the given level. 
-        A list of CSF and their corresponding weights are printed, but nothing is returned otherwise.  **Not yet implemented !**
+`Basics.analyze(::LevelDecompositionOfCsfR, level::Level, N::Int64)`
+    ... analyzes and lists (up to) N relativistic CSF together with their weight |c_n|^2 in the expansion of
+        the given level; a list of CSF and their corresponding weights is printed, but nothing is returned.
+        **Not yet implemented.**
 """
-function Basics.analyze(sa::String, level::Level, N::Int64)
-    !(sa == "level decomposition: % of jj-coupled CSF")   &&   error("Unsupported keystring = $sa")
+function Basics.analyze(::LevelDecompositionOfCsfR, level::Level, N::Int64)
     error("Not yet implemented !")
 
     return( nothing )
@@ -454,69 +452,60 @@ end
 
 
 """
-`Basics.diagonalize("matrix: LinearAlgebra", matrixA::Array{Float64,2}; range=(0:0)::UnitRange{Int64})`  
-    ... to apply the standard the standard LinearAlgebra.eigen() method from Julia for a symmetrc matrix; 
-        only the upper-triangular parts of matrixA is used by an explicit symmetrization; ; an eigen::Basics.Eigen is returned.
+`Basics.diagonalize(::MatrixWithLinearAlgebra, matrixA::Array{Float64,2}; range=(0:0)::UnitRange{Int64})`
+    ... applies LinearAlgebra.eigen() to the symmetric matrix matrixA; only the upper-triangular part is used
+        by an explicit symmetrization; an eigen::Basics.Eigen is returned.
 """
-function Basics.diagonalize(sa::String, matrixA::Array{Float64,2}; range=(0:0)::UnitRange{Int64})
-    if       sa == "matrix: LinearAlgebra" 
-        # Use the LinearAlgebra.eigen method from Julia for one symmetric matrix  
-        mA = LinearAlgebra.Symmetric(matrixA)
-        if  range == 0:0    
-            wa = LinearAlgebra.eigen( mA )
-            vectors = Vector{Float64}[];    wb = wa.vectors;    d = size(wb)[1]
-            for  i = 0:d-1    push!(vectors, wb[i*d+1:i*d+d])    end
-        else                
-            wa = LinearAlgebra.eigen( mA, range )
-            vectors = Vector{Float64}[];    for  i = range   push!( vectors, wa.vectors[:,1] )   end
-        end
-        #
-        wc = Basics.Eigen( wa.values, vectors )
-        return( wc )
-    #== elseif       sa == "matrix: Julia, eigfact" 
-        # Use the standard eigfact() method from Julia for a quadratic, full matrix   
-        wa = eigen( matrix )
+function Basics.diagonalize(::MatrixWithLinearAlgebra, matrixA::Array{Float64,2}; range=(0:0)::UnitRange{Int64})
+    mA = LinearAlgebra.Symmetric(matrixA)
+    if  range == 0:0
+        wa = LinearAlgebra.eigen( mA )
         vectors = Vector{Float64}[];    wb = wa.vectors;    d = size(wb)[1]
         for  i = 0:d-1    push!(vectors, wb[i*d+1:i*d+d])    end
-        wc = Basics.Eigen( wa.values, vectors )
-        return( wc )  ==#
-    else     error("Unsupported keystring = $sa")
+    else
+        wa = LinearAlgebra.eigen( mA, range )
+        vectors = Vector{Float64}[];    for  i = range   push!( vectors, wa.vectors[:,1] )   end
     end
+
+    return( Basics.Eigen( wa.values, vectors ) )
 end
 
 
 """
-`Basics.diagonalize("generalized eigenvalues: LinearAlgebra", matrixA::Array{Float64,2}, matrixB::Array{Float64,2})`  
-    ... to apply the standard LinearAlgebra.eigen() method from Julia for a generalized eigenvalue problem with two symmetric
-        matrices; only the upper-triangular parts of matrixA and matrixB are used by an explicit symmetrization; 
+`Basics.diagonalize(::GeneralizedEigenvaluesWithLinearAlgebra, matrixA::Array{Float64,2}, matrixB::Array{Float64,2})`
+    ... applies LinearAlgebra.eigen() to the generalized eigenvalue problem (matrixA, matrixB); only the
+        upper-triangular parts of both matrices are used by an explicit symmetrization;
         an eigen::Basics.Eigen is returned.
 """
+function Basics.diagonalize(::GeneralizedEigenvaluesWithLinearAlgebra, matrixA::Array{Float64,2}, matrixB::Array{Float64,2})
+    mA = LinearAlgebra.Symmetric(matrixA)
+    mB = LinearAlgebra.Symmetric(matrixB)
+    wa = LinearAlgebra.eigen(mA, mB)
+    vectors = Vector{Float64}[];    wb = wa.vectors;    d = size(wb)[1]
+    for  i = 0:d-1    push!(vectors, wb[i*d+1:i*d+d])    end
+
+    return( Basics.Eigen( wa.values, vectors ) )
+end
+
+
+## Forwarding wrappers — kept until all caller modules are migrated to typed dispatch.
+function Basics.diagonalize(sa::String, matrixA::Array{Float64,2}; range=(0:0)::UnitRange{Int64})
+    if  sa == "matrix: LinearAlgebra"
+        return( Basics.diagonalize(MatrixWithLinearAlgebra(), matrixA; range=range) )
+    else   error("Unsupported keystring = $sa")
+    end
+end
+
 function Basics.diagonalize(sa::String, matrixA::Array{Float64,2}, matrixB::Array{Float64,2})
-    if       sa == "generalized eigenvalues: LinearAlgebra" 
-        # Use the LinearAlgebra.eigen method from Julia for two symmetric matrices   
-        mA = LinearAlgebra.Symmetric(matrixA)
-        mB = LinearAlgebra.Symmetric(matrixB)
-        wa = LinearAlgebra.eigen(mA,mB)
-        vectors = Vector{Float64}[];    wb = wa.vectors;    d = size(wb)[1]
-        for   i = 0:d-1    push!(vectors, wb[i*d+1:i*d+d] )    end
-        wc      = Basics.Eigen( wa.values, vectors )
-        return( wc )
-    #== elseif       sa == "generalized eigenvalues: Julia, eigfact" 
-        # Use the standard eigfact() method from Julia for two quadratic, full matrices   
-        wa = eigen( matrixA, matrixB )
-        vectors = Vector{Float64}[];    wb = wa.vectors;    d = size(wb)[1]
-        # for  i = 0:d-1    push!(vectors, real(wb[i*d+1:i*d+d]) )    end
-        for  i = 0:d-1    push!(vectors, wb[i*d+1:i*d+d] )    end
-        # wc = Basics.Eigen( real(wa.values), vectors )
-        wc = Basics.Eigen( wa.values, vectors )
-        return( wc )  ==#
-    else     error("Unsupported keystring = $sa")
+    if  sa == "generalized eigenvalues: LinearAlgebra"
+        return( Basics.diagonalize(GeneralizedEigenvaluesWithLinearAlgebra(), matrixA, matrixB) )
+    else   error("Unsupported keystring = $sa")
     end
 end
 
 
 """
-`Basics.diracDelta(x::Float64, dx::Float64)`  
+`Basics.diracDelta(x::Float64, dx::Float64)`
     ... evaluates Dirac's function  delta(x) = 0  for abs(x) > dx/2   and   delta(x) = 1/dx    for abs(x) <= dx/2;
         a values::Float64 is returned.
 """
