@@ -67,4 +67,24 @@ using JenaAtomicCalculator, ..Defaults, ..TestFrames
         ## @test TestFrames.testModule_Cascade_Simulation()  ## disabled: test-Cascade-StepwiseDecay-data.jld predates CsfR.seniorityNr field; needs data file regeneration
     end
 
+    @testset "JAC empirical" begin
+        ## no tests defined yet
+    end
+
+    @testset "JAC plasma" begin
+        ## @test TestFrames.testModule_PlasmaShift()  ## disabled: PlasmaShift is now a Plasma.Computation scheme, not an Atomic property; needs Plasma module rework
+    end
+
+    @testset "JAC strongfield" begin
+        ## no tests defined yet
+    end
+
+    @testset "JAC Liouville" begin
+        @test TestFrames.testModule_Liouville()
+    end
+
+    @testset "JAC DeepLearning" begin
+        @test TestFrames.testModule_DeepLearning()
+    end
+
 end
