@@ -43,11 +43,40 @@ end
 
 
 """
-`PhotoExcitationAutoion.Settings()`  
+`PhotoExcitationAutoion.Settings()`
     ... constructor for the default values of photon-impact excitation-autoionizaton settings.
 """
 function Settings()
     Settings( Basics.EmMultipole[], UseGauge[], false, false, false, false, Basics.ExpStokes(), SolidAngle[], 0., 0, PathwaySelection())
+end
+
+
+"""
+`PhotoExcitationAutoion.Settings(set::PhotoExcitationAutoion.Settings; keywords...)`
+    ... keyword constructor to modify selected fields of a PhotoExcitationAutoion.Settings object;
+        for fields not given, the values of set are used.
+"""
+function Settings(set::PhotoExcitationAutoion.Settings;
+        multipoles::Union{Nothing,Array{EmMultipole,1}}=nothing,           gauges::Union{Nothing,Array{UseGauge,1}}=nothing,
+        calcPartialCs::Union{Nothing,Bool}=nothing,                        calcAngular::Union{Nothing,Bool}=nothing,
+        calcFano::Union{Nothing,Bool}=nothing,                             printBefore::Union{Nothing,Bool}=nothing,
+        incidentStokes::Union{Nothing,ExpStokes}=nothing,                  solidAngles::Union{Nothing,Array{SolidAngle,1}}=nothing,
+        electronEnergyShift::Union{Nothing,Float64}=nothing,               maxKappa::Union{Nothing,Int64}=nothing,
+        pathwaySelection::Union{Nothing,PathwaySelection}=nothing)
+    if  multipoles          == nothing   multipolsx           = set.multipoles          else   multipolsx           = multipoles          end
+    if  gauges              == nothing   gaugesx              = set.gauges              else   gaugesx              = gauges              end
+    if  calcPartialCs       == nothing   calcPartialCsx       = set.calcPartialCs       else   calcPartialCsx       = calcPartialCs       end
+    if  calcAngular         == nothing   calcAngularx         = set.calcAngular         else   calcAngularx         = calcAngular         end
+    if  calcFano            == nothing   calcFanox            = set.calcFano            else   calcFanox            = calcFano            end
+    if  printBefore         == nothing   printBeforex         = set.printBefore         else   printBeforex         = printBefore         end
+    if  incidentStokes      == nothing   incidentStokesx      = set.incidentStokes      else   incidentStokesx      = incidentStokes      end
+    if  solidAngles         == nothing   solidAnglesx         = set.solidAngles         else   solidAnglesx         = solidAngles         end
+    if  electronEnergyShift == nothing   electronEnergyShiftx = set.electronEnergyShift else   electronEnergyShiftx = electronEnergyShift end
+    if  maxKappa            == nothing   maxKappax            = set.maxKappa            else   maxKappax            = maxKappa            end
+    if  pathwaySelection    == nothing   pathwaySelectionx    = set.pathwaySelection    else   pathwaySelectionx    = pathwaySelection    end
+
+    Settings( multipolsx, gaugesx, calcPartialCsx, calcAngularx, calcFanox, printBeforex,
+              incidentStokesx, solidAnglesx, electronEnergyShiftx, maxKappax, pathwaySelectionx )
 end
 
 
@@ -232,9 +261,9 @@ function  determinePathways(finalMultiplet::Multiplet, intermediateMultiplet::Mu
                     aEnergy = nLevel.energy - fLevel.energy
                     pEnergy = fLevel.energy - iLevel.energy
                     if  eEnergy < 0.   ||   aEnergy < 0    continue    end
-                    rSettings = PhotoEmission.Settings( settings.multipoles, settings.gauges, false, false, LineSelection(), 0., 0., 0.)
+                    rSettings = PhotoEmission.Settings( settings.multipoles, settings.gauges, false, false, CorePolarization(), LineSelection(), 0., 0., 0.)
                     eChannels = PhotoEmission.determineChannels(nLevel, iLevel, rSettings) 
-                    aSettings = AutoIonization.Settings( false, false, LineSelection(), 0., 0., settings.maxKappa, CoulombInteraction())
+                    aSettings = AutoIonization.Settings( false, false, false, LineSelection(), 0., 0., 0., settings.maxKappa, CoulombInteraction(), Multiplet())
                     aChannels = AutoIonization.determineChannels(fLevel, nLevel, aSettings) 
                     pSettings = PhotoIonization.Settings( settings.multipoles, settings.gauges, [pEnergy], false, false, false, false, 
                                                             LineSelection(), ExpStokes())

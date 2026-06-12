@@ -936,64 +936,6 @@ end
 
 
 
-"""
-`TestFrames.testModule_PhotoExcitationAutoion(; short::Bool=true)`  ... tests on module PhotoExcitationAutoion.
-"""
-function testModule_PhotoExcitationAutoion(; short::Bool=true) 
-    Defaults.setDefaults("print summary: open", "test-PhotoExcitationAutoion-new.sum")
-    printstyled("\n\nTest the module  PhotoExcitationAutoion  ... \n", color=:cyan)
-    ### Make the tests
-    grid = Radial.Grid(Radial.Grid(false), rnt = 2.0e-5, h = 5.0e-2, hp = 1.5e-2, rbox = 9.5)
-    wa = Atomic.Computation("xx",  Nuclear.Model(26.); grid=grid, 
-                            initialConfigs=[Configuration("1s^2 2s"), Configuration("1s^2 2p")],
-                            intermediateConfigs=[Configuration("1s 2s^2"), Configuration("1s 2p^2")],
-                            finalConfigs=[Configuration("1s^2")], 
-                            processSettings=PhotoExcitationAutoion.Settings([E1, M1], [UseCoulomb, UseBabushkin], true, 
-                                                                            PathwaySelection(true, indexTriples=[(1,1,1)]), 2 ) )
-
-wb = perform(wa)
-    ###
-    Defaults.setDefaults("print summary: close", "")
-    # Make the comparison with approved data
-    printTest, iostream = Defaults.getDefaults("test flag/stream")
-    println(iostream, "Make the comparison with approved data for ... test-PhotoExcitationAutoion-new.sum")
-    success = true
-    success = testCompareFiles( joinpath(@__DIR__, "..", "test", "approved", "test-PhotoExcitationAutoion-approved.sum"), 
-                                joinpath(@__DIR__, "..", "test", "test-PhotoExcitationAutoion-new.sum"), "xxx", 10) 
-    testPrint("testModule_PhotoExcitationAutoion()::", success)
-    return(success)  
-end
-
-
-
-"""
-`TestFrames.testModule_PhotoExcitationFluores(; short::Bool=true)`  ... tests on module PhotoExcitationFluores.
-"""
-function testModule_PhotoExcitationFluores(; short::Bool=true) 
-    Defaults.setDefaults("print summary: open", "test-PhotoExcitationFluores-new.sum")
-    printstyled("\n\nTest the module  PhotoExcitationFluores  ... \n", color=:cyan)
-    ### Make the tests
-    wa = Atomic.Computation("xx",  Nuclear.Model(26.), 
-                            initialConfigs=[Configuration("1s^2 2s"), Configuration("1s^2 2p")],
-                            intermediateConfigs=[Configuration("1s 2s^2 2p"), Configuration("1s 2s 2p^2") ],
-                            finalConfigs  =[Configuration("1s^2 2s^2"), Configuration("1s^2 2s 2p") ], 
-                            processSettings=PhotoExcitationFluores.Settings([E1, M1], [UseCoulomb, UseBabushkin],
-                                                    false, false, false, true, ExpStokes(), SolidAngle[], 0.,
-                                                    PathwaySelection(true, indexTriples=[(1,1,1)]) )  )
-    wb = perform(wa)
-    ###
-    Defaults.setDefaults("print summary: close", "")
-    # Make the comparison with approved data
-    printTest, iostream = Defaults.getDefaults("test flag/stream")
-    println(iostream, "Make the comparison with approved data for ... test-PhotoExcitationFluores-new.sum")
-    success = true
-    success = testCompareFiles( joinpath(@__DIR__, "..", "test", "approved", "test-PhotoExcitationFluores-approved.sum"), 
-                                joinpath(@__DIR__, "..", "test", "test-PhotoExcitationFluores-new.sum"),  "xxx", 10) 
-    testPrint("testModule_PhotoExcitationFluores()::", success)
-    return(success)  
-end
-
-
 
 """
 `TestFrames.testModule_PhotoIonization(; short::Bool=true)`  ... tests on module PhotoIonization.

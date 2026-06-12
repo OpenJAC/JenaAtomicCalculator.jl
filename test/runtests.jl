@@ -55,8 +55,6 @@ using JenaAtomicCalculator, ..Defaults, ..TestFrames
         @test TestFrames.testModule_PhotoRecombination()
         @test TestFrames.testModule_AutoIonization()  
         @test TestFrames.testModule_DielectronicRecombination()  
-        ## @test TestFrames.testModule_PhotoExcitationFluores()  ## disabled: Atomic.Computation constructor signature changed; test call needs updating
-        ## @test TestFrames.testModule_PhotoExcitationAutoion()  ## disabled: PhotoExcitationAutoion.Settings positional call outdated; test call needs updating
         @test TestFrames.testModule_RayleighCompton()
         @test TestFrames.testModule_MultiPhotonDeExcitation()
         @test TestFrames.testModule_CoulombExcitation()
