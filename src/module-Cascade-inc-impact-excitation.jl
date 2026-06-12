@@ -119,7 +119,7 @@ function generateConfigurationsForImpactExcitation(multiplets::Array{Multiplet,1
     end
     blockConfList = Basics.generateConfigurations(initialConfList, scheme.fromShells, scheme.toShells, 1)
     # Exclude configurations with too low or too high mean energies 
-    en     = Float64[];   for conf in initialConfList    push!(en, -Semiempirical.estimate("binding energy", round(Int64, nm.Z), conf))   end
+    en     = Float64[];   for conf in initialConfList    push!(en, -Semiempirical.estimate(EstimateBindingEnergyWilliams2000(), round(Int64, nm.Z), conf))   end
     maxen  = maximum(en);    minen  = minimum(en);  
     println(">>> initial configuration(s) have energies from $minen  to  $maxen  [a.u.].")
     #
@@ -131,7 +131,7 @@ function generateConfigurationsForImpactExcitation(multiplets::Array{Multiplet,1
     @show maxen
     #
     newBlockConfList = Configuration[]
-    for  conf  in  blockConfList    meanEnergy = -Semiempirical.estimate("binding energy", round(Int64, nm.Z), conf)
+    for  conf  in  blockConfList    meanEnergy = -Semiempirical.estimate(EstimateBindingEnergyWilliams2000(), round(Int64, nm.Z), conf)
         if  meanEnergy <= maxen     push!(newBlockConfList, conf) 
         else    println(">>> exclude $conf with energy $meanEnergy [a.u.] because of energy reasons; maximum total energy = $maxen ")
         end

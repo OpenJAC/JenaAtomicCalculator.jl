@@ -254,33 +254,6 @@ function estimate(::EstimateBindingEnergyXrayDataBooklet, Z::Int64, conf::Config
 end
 
 
-## Forwarding wrappers — kept until all caller modules are migrated to typed dispatch.
-function estimate(sa::String, shell::Shell, Z::Int64)
-    if  sa == "ionization potential: inner-shell"
-        return( estimate(EstimateIonizationPotentialInnerShell(), shell, Z) )
-    else   error("Unsupported keystring = $sa")
-    end
-end
-
-function estimate(sa::String, Z::Int64, sh::Subshell; useLarkins::Bool=false)
-    if  sa == "binding energy"
-        if  useLarkins   return( estimate(EstimateBindingEnergyLarkins1977(),   Z, sh) )
-        else             return( estimate(EstimateBindingEnergyWilliams2000(),  Z, sh) )
-        end
-    else   error("Unsupported keystring = $sa")
-    end
-end
-
-function estimate(sa::String, Z::Int64, conf::Configuration)
-    if       sa == "binding energy: Williams2000"     return( estimate(EstimateBindingEnergyWilliams2000(),    Z, conf) )
-    elseif   sa == "binding energy: Larkins1977"      return( estimate(EstimateBindingEnergyLarkins1977(),     Z, conf) )
-    elseif   sa == "binding energy: XrayDataBooklet"  return( estimate(EstimateBindingEnergyXrayDataBooklet(), Z, conf) )
-    else     error("Unsupported keystring = $sa")
-    end
-end
-
-
-
 """
 `Semiempirical.estimateBindingEnergies(Z::Float64, coreConf::Configuration, nRange::UnitRange{Int64})`  
     ... to estimate the binding energies of the high-n shells with n = nRange for a (multiply-charged) 

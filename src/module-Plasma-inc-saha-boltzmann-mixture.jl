@@ -284,7 +284,7 @@ function determineIonicClasses(scheme::Plasma.SahaBoltzmannScheme, temp::Float64
         subshells  = Basics.extractRelativisticSubshellList([groundConf])
         nMax = 0;    for  subsh in subshells    if  subsh.n  > nMax  nMax = subsh.n                                          end   end
         kMax = 0;    for  subsh in subshells    if  subsh.n == nMax  &&  abs(subsh.kappa) > abs(kMax)   kMax = subsh.kappa   end   end
-        bindingEn  = Semiempirical.estimate("binding energy", nZ, Subshell(nMax,kMax), useLarkins=true )
+        bindingEn  = Semiempirical.estimate(EstimateBindingEnergyLarkins1977(), nZ, Subshell(nMax,kMax))
         if  abs(bindingEn - temp)  <  deltaIp   deltaIp = abs(bindingEn - temp);   closestNe = ne   end
     end
     
