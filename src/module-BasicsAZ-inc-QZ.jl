@@ -3,24 +3,31 @@ export  dummyQZ
 using FortranFiles, Dierckx
 
 """
-`Basics.read()`  ... reads in data from different files and sources.
-
-+ `("CSF list: Grasp92", "cslFilename")`  
-    ... reads in the CSF list as given by the (existing) .csl file cslFilename; an basis::Basis is returned with 
+`Basics.read(::ReadCslFileGrasp92, filename::String)`
+    ... reads in the CSF list from the (existing) .csl file filename; a basis::Basis is returned with
         basis.isDefined = true and with a proper sequence of orbitals, but with basis.orbitals = Orbital[].
+"""
+function Basics.read(::ReadCslFileGrasp92, filename::String)
+    return( Basics.readCslFileGrasp92(filename) )
+end
 
-+ `("orbital list: Grasp92", "orbFilename")`  
-    ... read in the orbitals from a (formatted) .rwf file orbFilename; a list of orbitals::Array{OrbitalsR,1} 
+
+"""
+`Basics.read(::ReadOrbitalFileGrasp92, filename::String)`
+    ... reads in the orbitals from a (formatted) .rwf file filename; a list of orbitals::Array{Orbital,1}
         is returned with all subfields specified.
 """
-function Basics.read(sa::String, filename::String)
-    if      sa == "CSF list: Grasp92"                          wa = Basics.readCslFileGrasp92(filename)
-    elseif  sa == "orbital list: Grasp92"                      wa = Basics.readOrbitalFileGrasp92(filename)
-    elseif  sa == "energies & mixing coefficients: Grasp18"    wa = Basics.readMixingFileGrasp18(filename)
-    else    error("Unsupported keystring = $sa ")
-    end
+function Basics.read(::ReadOrbitalFileGrasp92, filename::String)
+    return( Basics.readOrbitalFileGrasp92(filename) )
+end
 
-    return( wa )
+
+"""
+`Basics.read(::ReadMixingFileGrasp18, filename::String)`
+    ... reads energies & mixing coefficients from the Grasp18 mixing file filename.
+"""
+function Basics.read(::ReadMixingFileGrasp18, filename::String)
+    return( Basics.readMixingFileGrasp18(filename) )
 end
 
 

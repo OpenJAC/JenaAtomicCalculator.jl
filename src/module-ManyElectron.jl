@@ -600,7 +600,7 @@ function Basis(sa::String, cslFilename::String, rwfFilename::String)
         #
         println("ManyElectron.Basis-aa: warning ... The standard grid is set; make an interactive request if not appropriate.") 
         grid     = Radial.Grid(true)
-        basis    = Basics.read("CSF list: Grasp92", cslFilename)
+        basis    = Basics.read(ReadCslFileGrasp92(), cslFilename)
         orbitals = Basics.readOrbitalFileGrasp92(rwfFilename, grid)
     else  error("stop a")
     end

@@ -2435,3 +2435,20 @@ struct         EstimateBindingEnergyXrayDataBooklet    <:  AbstractEstimateTheme
 
 export  AbstractEstimateTheme, EstimateIonizationPotentialInnerShell,
         EstimateBindingEnergyWilliams2000, EstimateBindingEnergyLarkins1977, EstimateBindingEnergyXrayDataBooklet
+
+
+"""
+`abstract type Basics.AbstractReadFileTheme`
+    ... labels the file format for a Basics.read() call; it is used for dispatch and to avoid
+        string comparisons.
+    Concrete subtypes:
+    + ReadCslFileGrasp92    ... read a CSF list from a Grasp92 .csl / GRASP18 .c file.
+    + ReadOrbitalFileGrasp92 ... read orbitals from a (formatted) Grasp92 .rwf file.
+    + ReadMixingFileGrasp18  ... read energies & mixing coefficients from a Grasp18 mixing file.
+"""
+abstract type  AbstractReadFileTheme                                           end
+struct         ReadCslFileGrasp92     <:  AbstractReadFileTheme                end
+struct         ReadOrbitalFileGrasp92 <:  AbstractReadFileTheme                end
+struct         ReadMixingFileGrasp18  <:  AbstractReadFileTheme                end
+
+export  AbstractReadFileTheme, ReadCslFileGrasp92, ReadOrbitalFileGrasp92, ReadMixingFileGrasp18
