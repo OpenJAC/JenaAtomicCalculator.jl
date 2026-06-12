@@ -2415,3 +2415,23 @@ struct         MatrixWithLinearAlgebra                 <:  AbstractDiagonalizeTh
 struct         GeneralizedEigenvaluesWithLinearAlgebra <:  AbstractDiagonalizeTheme            end
 
 export  AbstractDiagonalizeTheme, MatrixWithLinearAlgebra, GeneralizedEigenvaluesWithLinearAlgebra
+
+
+"""
+`abstract type Basics.AbstractEstimateTheme`
+    ... labels the theme (kind) of a Semiempirical.estimate() call; it is used for dispatch and to avoid
+        string comparisons.
+    Concrete subtypes:
+    + EstimateIonizationPotentialInnerShell ... estimate the ionization potential of an inner-shell electron.
+    + EstimateBindingEnergyWilliams2000     ... estimate binding energies from Williams et al. (2000) tabulation.
+    + EstimateBindingEnergyLarkins1977      ... estimate binding energies from Larkins (1977) tabulation.
+    + EstimateBindingEnergyXrayDataBooklet  ... estimate binding energies from X-ray Data Booklet tabulation.
+"""
+abstract type  AbstractEstimateTheme                                                              end
+struct         EstimateIonizationPotentialInnerShell  <:  AbstractEstimateTheme                  end
+struct         EstimateBindingEnergyWilliams2000       <:  AbstractEstimateTheme                  end
+struct         EstimateBindingEnergyLarkins1977        <:  AbstractEstimateTheme                  end
+struct         EstimateBindingEnergyXrayDataBooklet    <:  AbstractEstimateTheme                  end
+
+export  AbstractEstimateTheme, EstimateIonizationPotentialInnerShell,
+        EstimateBindingEnergyWilliams2000, EstimateBindingEnergyLarkins1977, EstimateBindingEnergyXrayDataBooklet

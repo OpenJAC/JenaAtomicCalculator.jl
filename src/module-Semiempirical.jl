@@ -93,104 +93,190 @@ end
 
 
 """
-`Semiempirical.estimate("ionization potential: inner-shell", shell::Shell, Z::Int64)`  
-    ... to estimate the ionization potential = mean binding energy of an electron in the given shell; an energy value::Float64 
-        is returned. These ionization potentials are taken from the tabulation ....
+`Semiempirical.estimate(::EstimateIonizationPotentialInnerShell, shell::Shell, Z::Int64)`
+    ... estimates the ionization potential = mean binding energy of an electron in the given shell;
+        values are taken from Williams et al. (2000); an energy value::Float64 in Hartree is returned.
 """
-function  estimate(sa::String, shell::Shell, Z::Int64)
-    if      sa == "ionization potential: inner-shell"
-        shellIndex = Dict( Subshell("1s_1/2") => 1, Subshell("2s_1/2") => 2, Subshell("2p_1/2") => 3, Subshell("2p_3/2") => 4, 
-                        Subshell("3s_1/2") => 5, Subshell("3p_1/2") => 6, Subshell("3p_3/2") => 7, 
-                        Subshell("3d_3/2") => 8, Subshell("3d_3/2") => 9  )
-        idx = shellIndex[shell]
-        return( PeriodicTable.store("binding energies: Williams (2000)", Z)[idx] )
-    else
-        error("Unsupported keystring = $sa")
-    end
+function estimate(::EstimateIonizationPotentialInnerShell, shell::Shell, Z::Int64)
+    shellIndex = Dict( Subshell("1s_1/2") => 1, Subshell("2s_1/2") => 2, Subshell("2p_1/2") => 3, Subshell("2p_3/2") => 4,
+                       Subshell("3s_1/2") => 5, Subshell("3p_1/2") => 6, Subshell("3p_3/2") => 7,
+                       Subshell("3d_3/2") => 8, Subshell("3d_5/2") => 9 )
+    idx = shellIndex[shell]
+
+    return( PeriodicTable.store("binding energies: Williams (2000)", Z)[idx] )
 end
 
 
+"""
+`Semiempirical.estimate(::EstimateBindingEnergyWilliams2000, Z::Int64, sh::Subshell)`
+    ... provides the binding energy of a subshell electron from the Williams et al. (2000) tabulation,
+        https://userweb.jlab.org/~gwyn/ebindene.html; an energy::Float64 in Hartree is returned.
+"""
+function estimate(::EstimateBindingEnergyWilliams2000, Z::Int64, sh::Subshell)
+    wa = PeriodicTable.bindingEnergies_Williams2000(Z)
+    if      sh == Subshell("1s_1/2")    wb = wa[1]
+    elseif  sh == Subshell("2s_1/2")    wb = wa[2]
+    elseif  sh == Subshell("2p_1/2")    wb = wa[3]
+    elseif  sh == Subshell("2p_3/2")    wb = wa[4]
+    elseif  sh == Subshell("3s_1/2")    wb = wa[5]
+    elseif  sh == Subshell("3p_1/2")    wb = wa[6]
+    elseif  sh == Subshell("3p_3/2")    wb = wa[7]
+    elseif  sh == Subshell("3d_3/2")    wb = wa[8]
+    elseif  sh == Subshell("3d_5/2")    wb = wa[9]
+    elseif  sh == Subshell("4s_1/2")    wb = wa[10]
+    elseif  sh == Subshell("4p_1/2")    wb = wa[11]
+    elseif  sh == Subshell("4p_3/2")    wb = wa[12]
+    else    error("No binding energy available for Z = $Z and subshell $sh ")
+    end
+    if  wb == -1.   error("No binding energy available for Z = $Z and subshell $sh ")   end
 
-"""
-`Semiempirical.estimate("binding energy", Z::Int64, sh::Subshell; useLarkins::Bool=false)`   
-    ... to provide the binding energy of a subshell electron, taken from a semi-empirical tabulations by Williams et al. (2000), 
-        https://userweb.jlab.org/~gwyn/ebindene.html or Larkins (1977). A energy::Float64 in  Hartree is returned.
-"""
-function estimate(sa::String, Z::Int64, sh::Subshell; useLarkins::Bool=false)
-    if     sa == "binding energy"
-        if    useLarkins          wa = PeriodicTable.bindingEnergies_Larkins1977(Z)
-        else                      wa = PeriodicTable.bindingEnergies_Williams2000(Z)
-        end 
-        #
-        if      sh == Subshell("1s_1/2")    wb = wa[1]
-        elseif  sh == Subshell("2s_1/2")    wb = wa[2]
-        elseif  sh == Subshell("2p_1/2")    wb = wa[3]
-        elseif  sh == Subshell("2p_3/2")    wb = wa[4]
-        elseif  sh == Subshell("3s_1/2")    wb = wa[5]
-        elseif  sh == Subshell("3p_1/2")    wb = wa[6]
-        elseif  sh == Subshell("3p_3/2")    wb = wa[7]
-        elseif  sh == Subshell("3d_3/2")    wb = wa[8]
-        elseif  sh == Subshell("3d_5/2")    wb = wa[9]
-        elseif  sh == Subshell("4s_1/2")    wb = wa[10]
-        elseif  sh == Subshell("4p_1/2")    wb = wa[11]
-        elseif  sh == Subshell("4p_3/2")    wb = wa[12]
-        else    error("No binding energy available for Z = $Z and subshell $sh ")
-        end
-    else   error("Unsupported keystring")
-    end
-    #
-    if     wb == -1.   error("No binding energy available for Z = $Z and subshell $sh ")
-    else   wb = Defaults.convertUnits("energy: from eV to atomic", wb)
-    end
-    # 
-    return( wb )
+    return( Defaults.convertUnits("energy: from eV to atomic", wb) )
 end
 
 
+"""
+`Semiempirical.estimate(::EstimateBindingEnergyLarkins1977, Z::Int64, sh::Subshell)`
+    ... provides the binding energy of a subshell electron from the Larkins (1977) tabulation;
+        an energy::Float64 in Hartree is returned.
+"""
+function estimate(::EstimateBindingEnergyLarkins1977, Z::Int64, sh::Subshell)
+    wa = PeriodicTable.bindingEnergies_Larkins1977(Z)
+    if      sh == Subshell("1s_1/2")    wb = wa[1]
+    elseif  sh == Subshell("2s_1/2")    wb = wa[2]
+    elseif  sh == Subshell("2p_1/2")    wb = wa[3]
+    elseif  sh == Subshell("2p_3/2")    wb = wa[4]
+    elseif  sh == Subshell("3s_1/2")    wb = wa[5]
+    elseif  sh == Subshell("3p_1/2")    wb = wa[6]
+    elseif  sh == Subshell("3p_3/2")    wb = wa[7]
+    elseif  sh == Subshell("3d_3/2")    wb = wa[8]
+    elseif  sh == Subshell("3d_5/2")    wb = wa[9]
+    elseif  sh == Subshell("4s_1/2")    wb = wa[10]
+    elseif  sh == Subshell("4p_1/2")    wb = wa[11]
+    elseif  sh == Subshell("4p_3/2")    wb = wa[12]
+    else    error("No binding energy available for Z = $Z and subshell $sh ")
+    end
+    if  wb == -1.   error("No binding energy available for Z = $Z and subshell $sh ")   end
+
+    return( Defaults.convertUnits("energy: from eV to atomic", wb) )
+end
+
 
 """
-`Semiempirical.estimate("binding energy: ...", Z::Float64, conf::Configuration)`  
-    ... to provide an approximate binding energy of a given electron configuration. This estimate adds the binding 
-        energies of all subshell, taken frogm a semi-empirical tabulations by Williams et al., 
-        https://userweb.jlab.org/~gwyn/ebindene.html. If no binding energy is provided by this table, it simply scales the 
-        binding energies (e/ 12.) from the next lower shell of the same symmetry
-        No relaxation effects are included if several hole states
-        occur with regard to the neutral atom. An energy::Float64 in  Hartree is returned.
+`Semiempirical.estimate(::EstimateBindingEnergyWilliams2000, Z::Int64, conf::Configuration)`
+    ... provides an approximate total binding energy of a configuration from Williams et al. (2000);
+        no relaxation effects between hole states are included; an energy::Float64 in Hartree is returned.
 """
-function estimate(sa::String, Z::Int64, conf::Configuration)
-    if         sa == "binding energy: Williams2000"
-        wa = PeriodicTable.bindingEnergies_Williams2000(Z)    
-    elseif     sa == "binding energy: Larkins1977"
-        wa = PeriodicTable.bindingEnergies_Larkins1977(Z) 
-    elseif     sa == "binding energy: XrayDataBooklet"
-        wa = PeriodicTable.bindingEnergies_XrayDataBooklet(Z)    
-    else   error("Unsupported keystring")
-    end
-    #
+function estimate(::EstimateBindingEnergyWilliams2000, Z::Int64, conf::Configuration)
+    wa = PeriodicTable.bindingEnergies_Williams2000(Z)
     wb = 0.
     for (sh,v) in  conf.shells
-        if      sh == Shell("1s")    if wa[1]  == -1.   error("stop aa")          else    wb = wb + v * wa[1]    end
-        elseif  sh == Shell("2s")    if wa[2]  == -1.   error("stop ab")          else    wb = wb + v * wa[2]    end
-        elseif  sh == Shell("2p")    if wa[4]  == -1.   error("stop ac")          else    wb = wb + v * wa[4]    end
-        elseif  sh == Shell("3s")    if wa[5]  == -1.   error("stop ad")          else    wb = wb + v * wa[5]    end
-        elseif  sh == Shell("3p")    if wa[7]  == -1.   error("stop ae")          else    wb = wb + v * wa[7]    end
-        elseif  sh == Shell("3d")    if wa[9]  == -1.   error("stop af")          else    wb = wb + v * wa[9]    end
-        elseif  sh == Shell("4s")    if wa[10] == -1.   error("stop ag")          else    wb = wb + v * wa[10]   end
-        elseif  sh == Shell("4p")    if wa[12] == -1.   error("stop ah")          else    wb = wb + v * wa[12]   end
-        elseif  sh == Shell("4d")    if wa[14] == -1.   error("stop ai")          else    wb = wb + v * wa[14]   end
-        elseif  sh == Shell("4f")    if wa[16] == -1.   error("stop aj")          else    wb = wb + v * wa[16]   end
-        elseif  sh == Shell("5s")    if wa[17] == -1.   error("stop ag")          else    wb = wb + v * wa[17]   end
-        elseif  sh == Shell("5p")    if wa[19] == -1.   error("stop ah")          else    wb = wb + v * wa[19]   end
-        elseif  sh == Shell("5d")    if wa[21] == -1.                             else    wb = wb + v * wa[21]   end
-        elseif  sh == Shell("6s")    if wa[22] == -1.                             else    wb = wb + v * wa[12]   end
-        elseif  sh == Shell("6p")    if wa[24] == -1.                             else    wb = wb + v * wa[24]   end
-        else    ## error("No binding energy available for Z = $Z and subshell $sh ")
+        if      sh == Shell("1s")    if wa[1]  == -1.   error("stop aa")   else   wb = wb + v * wa[1]    end
+        elseif  sh == Shell("2s")    if wa[2]  == -1.   error("stop ab")   else   wb = wb + v * wa[2]    end
+        elseif  sh == Shell("2p")    if wa[4]  == -1.   error("stop ac")   else   wb = wb + v * wa[4]    end
+        elseif  sh == Shell("3s")    if wa[5]  == -1.   error("stop ad")   else   wb = wb + v * wa[5]    end
+        elseif  sh == Shell("3p")    if wa[7]  == -1.   error("stop ae")   else   wb = wb + v * wa[7]    end
+        elseif  sh == Shell("3d")    if wa[9]  == -1.   error("stop af")   else   wb = wb + v * wa[9]    end
+        elseif  sh == Shell("4s")    if wa[10] == -1.   error("stop ag")   else   wb = wb + v * wa[10]   end
+        elseif  sh == Shell("4p")    if wa[12] == -1.   error("stop ah")   else   wb = wb + v * wa[12]   end
+        elseif  sh == Shell("4d")    if wa[14] == -1.   error("stop ai")   else   wb = wb + v * wa[14]   end
+        elseif  sh == Shell("4f")    if wa[16] == -1.   error("stop aj")   else   wb = wb + v * wa[16]   end
+        elseif  sh == Shell("5s")    if wa[17] == -1.   error("stop ag")   else   wb = wb + v * wa[17]   end
+        elseif  sh == Shell("5p")    if wa[19] == -1.   error("stop ah")   else   wb = wb + v * wa[19]   end
+        elseif  sh == Shell("5d")    if wa[21] == -1.                      else   wb = wb + v * wa[21]   end
+        elseif  sh == Shell("6s")    if wa[22] == -1.                      else   wb = wb + v * wa[12]   end
+        elseif  sh == Shell("6p")    if wa[24] == -1.                      else   wb = wb + v * wa[24]   end
         end
     end
-    #
-    wb = Defaults.convertUnits("energy: from eV to atomic", wb)
-    # 
-    return( wb )
+
+    return( Defaults.convertUnits("energy: from eV to atomic", wb) )
+end
+
+
+"""
+`Semiempirical.estimate(::EstimateBindingEnergyLarkins1977, Z::Int64, conf::Configuration)`
+    ... provides an approximate total binding energy of a configuration from Larkins (1977);
+        no relaxation effects between hole states are included; an energy::Float64 in Hartree is returned.
+"""
+function estimate(::EstimateBindingEnergyLarkins1977, Z::Int64, conf::Configuration)
+    wa = PeriodicTable.bindingEnergies_Larkins1977(Z)
+    wb = 0.
+    for (sh,v) in  conf.shells
+        if      sh == Shell("1s")    if wa[1]  == -1.   error("stop aa")   else   wb = wb + v * wa[1]    end
+        elseif  sh == Shell("2s")    if wa[2]  == -1.   error("stop ab")   else   wb = wb + v * wa[2]    end
+        elseif  sh == Shell("2p")    if wa[4]  == -1.   error("stop ac")   else   wb = wb + v * wa[4]    end
+        elseif  sh == Shell("3s")    if wa[5]  == -1.   error("stop ad")   else   wb = wb + v * wa[5]    end
+        elseif  sh == Shell("3p")    if wa[7]  == -1.   error("stop ae")   else   wb = wb + v * wa[7]    end
+        elseif  sh == Shell("3d")    if wa[9]  == -1.   error("stop af")   else   wb = wb + v * wa[9]    end
+        elseif  sh == Shell("4s")    if wa[10] == -1.   error("stop ag")   else   wb = wb + v * wa[10]   end
+        elseif  sh == Shell("4p")    if wa[12] == -1.   error("stop ah")   else   wb = wb + v * wa[12]   end
+        elseif  sh == Shell("4d")    if wa[14] == -1.   error("stop ai")   else   wb = wb + v * wa[14]   end
+        elseif  sh == Shell("4f")    if wa[16] == -1.   error("stop aj")   else   wb = wb + v * wa[16]   end
+        elseif  sh == Shell("5s")    if wa[17] == -1.   error("stop ag")   else   wb = wb + v * wa[17]   end
+        elseif  sh == Shell("5p")    if wa[19] == -1.   error("stop ah")   else   wb = wb + v * wa[19]   end
+        elseif  sh == Shell("5d")    if wa[21] == -1.                      else   wb = wb + v * wa[21]   end
+        elseif  sh == Shell("6s")    if wa[22] == -1.                      else   wb = wb + v * wa[12]   end
+        elseif  sh == Shell("6p")    if wa[24] == -1.                      else   wb = wb + v * wa[24]   end
+        end
+    end
+
+    return( Defaults.convertUnits("energy: from eV to atomic", wb) )
+end
+
+
+"""
+`Semiempirical.estimate(::EstimateBindingEnergyXrayDataBooklet, Z::Int64, conf::Configuration)`
+    ... provides an approximate total binding energy of a configuration from the X-ray Data Booklet tabulation;
+        no relaxation effects between hole states are included; an energy::Float64 in Hartree is returned.
+"""
+function estimate(::EstimateBindingEnergyXrayDataBooklet, Z::Int64, conf::Configuration)
+    wa = PeriodicTable.bindingEnergies_XrayDataBooklet(Z)
+    wb = 0.
+    for (sh,v) in  conf.shells
+        if      sh == Shell("1s")    if wa[1]  == -1.   error("stop aa")   else   wb = wb + v * wa[1]    end
+        elseif  sh == Shell("2s")    if wa[2]  == -1.   error("stop ab")   else   wb = wb + v * wa[2]    end
+        elseif  sh == Shell("2p")    if wa[4]  == -1.   error("stop ac")   else   wb = wb + v * wa[4]    end
+        elseif  sh == Shell("3s")    if wa[5]  == -1.   error("stop ad")   else   wb = wb + v * wa[5]    end
+        elseif  sh == Shell("3p")    if wa[7]  == -1.   error("stop ae")   else   wb = wb + v * wa[7]    end
+        elseif  sh == Shell("3d")    if wa[9]  == -1.   error("stop af")   else   wb = wb + v * wa[9]    end
+        elseif  sh == Shell("4s")    if wa[10] == -1.   error("stop ag")   else   wb = wb + v * wa[10]   end
+        elseif  sh == Shell("4p")    if wa[12] == -1.   error("stop ah")   else   wb = wb + v * wa[12]   end
+        elseif  sh == Shell("4d")    if wa[14] == -1.   error("stop ai")   else   wb = wb + v * wa[14]   end
+        elseif  sh == Shell("4f")    if wa[16] == -1.   error("stop aj")   else   wb = wb + v * wa[16]   end
+        elseif  sh == Shell("5s")    if wa[17] == -1.   error("stop ag")   else   wb = wb + v * wa[17]   end
+        elseif  sh == Shell("5p")    if wa[19] == -1.   error("stop ah")   else   wb = wb + v * wa[19]   end
+        elseif  sh == Shell("5d")    if wa[21] == -1.                      else   wb = wb + v * wa[21]   end
+        elseif  sh == Shell("6s")    if wa[22] == -1.                      else   wb = wb + v * wa[12]   end
+        elseif  sh == Shell("6p")    if wa[24] == -1.                      else   wb = wb + v * wa[24]   end
+        end
+    end
+
+    return( Defaults.convertUnits("energy: from eV to atomic", wb) )
+end
+
+
+## Forwarding wrappers — kept until all caller modules are migrated to typed dispatch.
+function estimate(sa::String, shell::Shell, Z::Int64)
+    if  sa == "ionization potential: inner-shell"
+        return( estimate(EstimateIonizationPotentialInnerShell(), shell, Z) )
+    else   error("Unsupported keystring = $sa")
+    end
+end
+
+function estimate(sa::String, Z::Int64, sh::Subshell; useLarkins::Bool=false)
+    if  sa == "binding energy"
+        if  useLarkins   return( estimate(EstimateBindingEnergyLarkins1977(),   Z, sh) )
+        else             return( estimate(EstimateBindingEnergyWilliams2000(),  Z, sh) )
+        end
+    else   error("Unsupported keystring = $sa")
+    end
+end
+
+function estimate(sa::String, Z::Int64, conf::Configuration)
+    if       sa == "binding energy: Williams2000"     return( estimate(EstimateBindingEnergyWilliams2000(),    Z, conf) )
+    elseif   sa == "binding energy: Larkins1977"      return( estimate(EstimateBindingEnergyLarkins1977(),     Z, conf) )
+    elseif   sa == "binding energy: XrayDataBooklet"  return( estimate(EstimateBindingEnergyXrayDataBooklet(), Z, conf) )
+    else     error("Unsupported keystring = $sa")
+    end
 end
 
 
