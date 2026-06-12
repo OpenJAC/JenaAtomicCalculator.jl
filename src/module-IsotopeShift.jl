@@ -37,9 +37,31 @@ end
                             printBefore::Bool=true, bosonMass::Float64=0., levelSelection::LevelSelection=LevelSelection()) 
     ... keyword constructor to overwrite selected value of isoshift computations.
 """
-function Settings(; calcNMS::Bool=true, calcSMS::Bool=false, calcF::Bool=false, calcBoson::Bool=false, 
-                            printBefore::Bool=true, bosonMass::Float64=0., levelSelection::LevelSelection=LevelSelection())
+function Settings(; calcNMS::Bool=true, calcSMS::Bool=false, calcF::Bool=false, calcBoson::Bool=false,
+                    printBefore::Bool=true, bosonMass::Float64=0., levelSelection::LevelSelection=LevelSelection())
     Settings(calcNMS, calcSMS, calcF, calcBoson, printBefore, bosonMass, levelSelection)
+end
+
+
+"""
+`IsotopeShift.Settings(set::IsotopeShift.Settings; keywords...)`
+    ... keyword constructor to modify selected fields of an IsotopeShift.Settings object;
+        for fields not given, the values of set are used.
+"""
+function Settings(set::IsotopeShift.Settings;
+        calcNMS::Union{Nothing,Bool}=nothing,             calcSMS::Union{Nothing,Bool}=nothing,
+        calcF::Union{Nothing,Bool}=nothing,               calcBoson::Union{Nothing,Bool}=nothing,
+        printBefore::Union{Nothing,Bool}=nothing,         bosonMass::Union{Nothing,Float64}=nothing,
+        levelSelection::Union{Nothing,LevelSelection}=nothing)
+    if  calcNMS        == nothing   calcNMSx        = set.calcNMS        else   calcNMSx        = calcNMS        end
+    if  calcSMS        == nothing   calcSMSx        = set.calcSMS        else   calcSMSx        = calcSMS        end
+    if  calcF          == nothing   calcFx          = set.calcF          else   calcFx          = calcF          end
+    if  calcBoson      == nothing   calcBosonx      = set.calcBoson      else   calcBosonx      = calcBoson      end
+    if  printBefore    == nothing   printBeforex    = set.printBefore    else   printBeforex    = printBefore    end
+    if  bosonMass      == nothing   bosonMassx      = set.bosonMass      else   bosonMassx      = bosonMass      end
+    if  levelSelection == nothing   levelSelectionx = set.levelSelection else   levelSelectionx = levelSelection end
+
+    Settings( calcNMSx, calcSMSx, calcFx, calcBosonx, printBeforex, bosonMassx, levelSelectionx )
 end
 
 
