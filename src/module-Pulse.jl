@@ -526,7 +526,7 @@ function pulseShapeIntegral(plus::Bool, envelope::Pulse.SinSquaredEnvelope, beam
     if  np <= 10     orderGL = 100*np
     else             orderGL = 1000
     end
-    gaussLegendre = Radial.GridGL("Finite",0.0,Tp,orderGL)
+    gaussLegendre = Radial.GridGL(Radial.GridGaussLegendreFinite(),0.0,Tp,orderGL)
     tgrid = gaussLegendre.t
     weights = gaussLegendre.wt
     
@@ -757,7 +757,7 @@ function pulseShapeQuadIntegral(envelope::Pulse.SinSquaredEnvelope, beam::Abstra
     if  np <= 10     orderGL = 100*np
     else             orderGL = 1000
     end
-    gaussLegendre = Radial.GridGL("Finite",0.0,Tp,orderGL)
+    gaussLegendre = Radial.GridGL(Radial.GridGaussLegendreFinite(),0.0,Tp,orderGL)
     tgrid = gaussLegendre.t
     weights = gaussLegendre.wt
     

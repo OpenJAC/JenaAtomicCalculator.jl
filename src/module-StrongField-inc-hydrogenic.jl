@@ -51,7 +51,7 @@ end
 """
 function  computeScalarProdBoundContHydrogenicUncoupledOLD(epsilonp::Float64, lp::Int64, n::Int64, l::Int64, m::Int64, 
                                                             epsiloni::Float64, volkov::AbstractVolkovState)
-    rmax  = 1000.;       orderGL = 1000;     gaussLegendre = Radial.GridGL("Finite",0.0,rmax,orderGL)
+    rmax  = 1000.;       orderGL = 1000;     gaussLegendre = Radial.GridGL(Radial.GridGaussLegendreFinite(),0.0,rmax,orderGL)
     rgrid = gaussLegendre.t;                 weights = gaussLegendre.wt
     
     Pnl = hydrogenPnl( epsiloni, n, l, rgrid )
@@ -207,7 +207,7 @@ end
 """
 function  pReducedMEHydrogenicUncoupledOLD(epsilonp::Float64, lp::Int64, n::Int64, l::Int64, epsiloni::Float64, 
                                             volkov::AbstractVolkovState)
-    rmax  = 100.;        orderGL = 1000;     gaussLegendre = Radial.GridGL("Finite",0.0,rmax,orderGL)
+    rmax  = 100.;        orderGL = 1000;     gaussLegendre = Radial.GridGL(Radial.GridGaussLegendreFinite(),0.0,rmax,orderGL)
     rgrid = gaussLegendre.t;                 weights = gaussLegendre.wt
     
     Pnl = hydrogenPnl( epsiloni, n, l, rgrid )

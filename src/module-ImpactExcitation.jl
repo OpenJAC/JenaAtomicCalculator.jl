@@ -652,7 +652,7 @@ function computeEffStrengths(lines::Array{ImpactExcitation.Line, 1}, settings::I
         energies = [ line.finalElectronEnergy for line in lines]
         collisionStrengths = [ line.collisionStrength for line in lines]
         
-        enGrid = Radial.GridGL("Finite", minimum(energies), maximum(energies) , 25, printout=false)
+        enGrid = Radial.GridGL(Radial.GridGaussLegendreFinite(), minimum(energies), maximum(energies) , 25, printout=false)
         cs     = [ ImpactExcitation.interpolateCS(en, energies, collisionStrengths) for en in enGrid.t ]
 
         # For low temperature Gauss-Laguerre integration

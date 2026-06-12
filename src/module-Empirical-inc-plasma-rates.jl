@@ -441,7 +441,7 @@ function photoionizationPlasmaAlpha(dist::Distribution.AbstractPhotonDistributio
                                     approx::Empirical.AbstractEmpiricalApproximation=ScaledHydrogenic(), printout::Bool=false)
     alpha = 0.;    omegaMax = 100.
     # Perform a Gauss-Legendre integration by selecting the photon number distribution and cross sectins at the required energies
-    gridGL    = Radial.GridGL("Finite", 0., omegaMax, 24; printout=true)
+    gridGL    = Radial.GridGL(Radial.GridGaussLegendreFinite(), 0., omegaMax, 24; printout=true)
     css       = Empirical.photoionizationCrossSection(gridGL.t, iConf, fConf, approx; printout=false)
     for  n = 1:gridGL.nt
         alpha = alpha + css[n] * Distribution.photonNumberDensity(dist, gridGL.t[n]) * gridGL.wt[n]    
@@ -627,7 +627,7 @@ function photorecombinationPlasmaAlpha(dist::Distribution.Distribution.AbstractE
                                        approx::Empirical.AbstractEmpiricalApproximation=ScaledHydrogenic(), printout::Bool=false)
     alpha = 0.;    eenMax = 100.
     # Perform a Gauss-Legendre integration by selecting the electron energy distribution and cross sections at the required energies
-    gridGL    = Radial.GridGL("Finite", 0., eenMax, 24; printout=true)
+    gridGL    = Radial.GridGL(Radial.GridGaussLegendreFinite(), 0., eenMax, 24; printout=true)
     eEns      = gridGL.t
     css       = Empirical.photorecombinationCrossSection(gridGL.t, iConf, fConf, approx; printout=false)
     for  n = 1:gridGL.nt

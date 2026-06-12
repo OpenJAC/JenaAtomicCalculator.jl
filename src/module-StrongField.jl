@@ -1334,7 +1334,7 @@ function ReducedTime(epsiloni::Float64, volkov::AbstractVolkovState, envelope::P
     else            orderGLt = 1000
     end
 
-    gaussLegendret = Radial.GridGL("Finite",0.,Tp,orderGLt)
+    gaussLegendret = Radial.GridGL(Radial.GridGaussLegendreFinite(),0.,Tp,orderGLt)
     tgrid = gaussLegendret.t;       weightst = gaussLegendret.wt 
 
     #Define Gauss-Legendre grid for r integral

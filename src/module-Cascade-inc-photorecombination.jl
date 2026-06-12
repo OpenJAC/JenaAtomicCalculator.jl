@@ -11,7 +11,7 @@ function computeContinuumOrbitals(scheme::Cascade.RadiativeRecombinationScheme, 
     cOrbitals = Dict{Subshell, Orbital}()
     # Generate potential for continuum orbitals for this step
     maxFreeElectronEnergy_au  = Defaults.convertUnits("energy: to atomic", scheme.maxFreeElectronEnergy)
-    enGrid       = Radial.GridGL("Finite", 0.0, maxFreeElectronEnergy_au, scheme.NoFreeElectronEnergies, printout=false)
+    enGrid       = Radial.GridGL(Radial.GridGaussLegendreFinite(), 0.0, maxFreeElectronEnergy_au, scheme.NoFreeElectronEnergies, printout=false)
     @show "computeContinuumOrbitals", enGrid.t
     maxKappa     = maximum(scheme.lValues) + 1
     nrContinuum  = Continuum.gridConsistency(maximum(enGrid.t) + 0.1, comp.grid)
@@ -48,7 +48,7 @@ function computeSteps(scheme::Cascade.RadiativeRecombinationScheme, comp::Cascad
     linesRR = PhotoRecombination.Line[]
     printSummary, iostream = Defaults.getDefaults("summary flag/stream")
     maxFreeElectronEnergy_au  = Defaults.convertUnits("energy: to atomic", scheme.maxFreeElectronEnergy)
-    enGrid       = Radial.GridGL("Finite", 0.0, maxFreeElectronEnergy_au, scheme.NoFreeElectronEnergies, printout=false)
+    enGrid       = Radial.GridGL(Radial.GridGaussLegendreFinite(), 0.0, maxFreeElectronEnergy_au, scheme.NoFreeElectronEnergies, printout=false)
     @show "computeContinuumOrbitals", enGrid.t
     nt = 0;   st = 0;   previousMeanEn = 0.
     # First compute all necessary continuum orbitals
@@ -89,7 +89,7 @@ function determineSteps(scheme::Cascade.RadiativeRecombinationScheme, comp::Casc
     # Determine a (free-electron) energy grid 
     println(" ")
     maxFreeElectronEnergy_au  = Defaults.convertUnits("energy: to atomic", scheme.maxFreeElectronEnergy)
-    enGrid       = Radial.GridGL("Finite", 0.0, scheme.maxFreeElectronEnergy, scheme.NoFreeElectronEnergies, printout=true)
+    enGrid       = Radial.GridGL(Radial.GridGaussLegendreFinite(), 0.0, scheme.maxFreeElectronEnergy, scheme.NoFreeElectronEnergies, printout=true)
     @show "determineSteps", enGrid.t
     println(">> Energy grid points:  $(enGrid.t[1:3])  ...  $(enGrid.t[end-2:end])")
     stepList = Cascade.Step[]

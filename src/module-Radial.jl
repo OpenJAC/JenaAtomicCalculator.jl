@@ -27,6 +27,20 @@ struct   MeshGL     <:  Radial.AbstractMesh     end
 
 
 """
+`abstract type Radial.AbstractGridGaussLegendreScheme`
+    ... labels the kind of Gauss-Legendre grid to be constructed; it is used for dispatch and to avoid
+        string comparisons.
+    Concrete subtypes:
+    + GridGaussLegendreQED    ... generate a GL grid for QED computations over the interval [1, infinity).
+    + GridGaussLegendreFinite ... generate a GL grid over a finite interval [tmin, tmax].
+"""
+abstract type  AbstractGridGaussLegendreScheme                                              end
+struct         GridGaussLegendreQED     <:  AbstractGridGaussLegendreScheme                 end
+struct         GridGaussLegendreFinite  <:  AbstractGridGaussLegendreScheme                 end
+
+
+
+"""
 `struct  Radial.Grid`  ... defines a type for the radial grid which contains all information about the grid parameters, the genration 
                             of the B-spline basis as well as for performing radial integrations.
 
@@ -291,16 +305,15 @@ end
     ... specified a default version of a Gauss-Legendre grid with 6 points in the interval [0.,1.].
 """
 function GridGL()
-    GridGL("Finite", 0., 1., 6; printout=false)
+    GridGL(GridGaussLegendreFinite(), 0., 1., 6; printout=false)
 end
 
 
 """
-`Radial.GridGL("QED", orderGL::Int64; printout::Bool=false)`  
-    ... constructor to define Gauss-Legendre grid for the typical QED computation in the interval [1.0, infinity].
+`Radial.GridGL(::GridGaussLegendreQED, orderGL::Int64; printout::Bool=false)`
+    ... constructor to define Gauss-Legendre grid for the typical QED computation in the interval [1.0, infinity).
 """
-function GridGL(sa::String, orderGL::Int64; printout::Bool=false)
-    !(sa == "QED")  && error("Unrecognized keystring; sa = $sa")
+function GridGL(::GridGaussLegendreQED, orderGL::Int64; printout::Bool=false)
     txlow = 1.;    t = Float64[];    wt = Float64[];    nt = 0
     for i = 1:100000
         # Define the exponential increase (1.5) and the maximum size (infinity=150.)
@@ -320,11 +333,10 @@ end
 
 
 """
-`Radial.GridGL("Finite", tmin::Float64, tmax::Float64, orderGL::Int64; printout::Bool=false)`  
-    ... constructor to define Gauss-Legendre grid in the interval [tmin, tmax].
+`Radial.GridGL(::GridGaussLegendreFinite, tmin::Float64, tmax::Float64, orderGL::Int64; printout::Bool=false)`
+    ... constructor to define Gauss-Legendre grid in the finite interval [tmin, tmax].
 """
-function GridGL(sa::String, tmin::Float64, tmax::Float64, orderGL::Int64; printout::Bool=false)
-    !(sa == "Finite")  && error("Unrecognized keystring; sa = $sa")
+function GridGL(::GridGaussLegendreFinite, tmin::Float64, tmax::Float64, orderGL::Int64; printout::Bool=false)
     t = Float64[];    wt = Float64[]
     
     wax = QuadGK.gauss(orderGL);    t = wax[1];     wt = wax[2]        

@@ -815,7 +815,7 @@ end
 function determineChannels(finalLevel::Level, initialLevel::Level, q0::Float64, settings::CoulombExcitation.Settings)
     channels = CoulombExcitation.Channel[];  
     # Compute the q's and associated weights in the interval [q0, 10*q0]
-    gaussLegendre = Radial.GridGL("Finite", q0, 10*q0, settings.zerosGL);     qs = gaussLegendre.t;     ws = gaussLegendre.wt 
+    gaussLegendre = Radial.GridGL(Radial.GridGaussLegendreFinite(), q0, 10*q0, settings.zerosGL);     qs = gaussLegendre.t;     ws = gaussLegendre.wt
     for  (iq, q)  in  enumerate(qs)
         push!(channels, CoulombExcitation.Channel(q, ws[iq], ComplexF64(0.)) )
     end
