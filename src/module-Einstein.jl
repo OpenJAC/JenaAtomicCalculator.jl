@@ -32,26 +32,23 @@ end
 
 
 """
-`Einstein.Settings(settings::Einstein.Settings;`
-    
-            multipoles=..,            printBefore=..,      lineSelection=..,     
-            photonEnergyShift=..,     mimimumPhotonEnergy=..,         maximumPhotonEnergy=..)
-            
-    ... constructor for re-defining the settings::Einstein.Settings.
-"""
-function Settings(settings::Einstein.Settings;                            multipoles::Union{Nothing,Array{EmMultipole,1}}=nothing,    
-    printBefore::Union{Nothing,Bool}=nothing,                             lineSelection::Union{Nothing,LineSelection}=nothing, 
-    photonEnergyShift::Union{Nothing,Float64}=nothing,  
-    mimimumPhotonEnergy::Union{Nothing,Float64}=nothing,                  maximumPhotonEnergy::Union{Nothing,Float64}=nothing)
+`Einstein.Settings(set::Einstein.Settings;`
 
-    if  isnothing(multipoles)           multipolesx          = settings.multipoles            else  multipolesx = multipoles                   end 
-    if  isnothing(printBefore)          printBeforex         = settings.printBefore           else  printBeforex = printBefore                 end 
-    if  isnothing(lineSelection)        lineSelectionx       = set.lineSelection              else  lineSelectionx = lineSelection             end 
-    if  isnothing(photonEnergyShift)    photonEnergyShiftx   = settings.photonEnergyShift     else  photonEnergyShiftx = photonEnergyShift     end 
-    if  mimimumPhotonEnergy== nothing   mimimumPhotonEnergyx = settings.mimimumPhotonEnergy   else  mimimumPhotonEnergyx = mimimumPhotonEnergy end 
-    if  maximumPhotonEnergy== nothing   maximumPhotonEnergyx = settings.maximumPhotonEnergy   else  maximumPhotonEnergyx = maximumPhotonEnergy end 
-    
-    Settings(multipolesx, printBeforex, selectLinesx, selectedLinesx, photonEnergyShiftx, mimimumPhotonEnergyx, maximumPhotonEnergyx)
+        multipoles=..,        printBefore=..,      lineSelection=..,
+        photonEnergyShift=.., mimimumPhotonEnergy=..,  maximumPhotonEnergy=..)
+
+    ... keyword copy-constructor for re-defining selected values of a settings::Einstein.Settings.
+"""
+function Settings(set::Einstein.Settings;
+        multipoles=nothing,         printBefore=nothing,         lineSelection=nothing,
+        photonEnergyShift=nothing,  mimimumPhotonEnergy=nothing, maximumPhotonEnergy=nothing)
+    if  multipoles          == nothing   multipolesx          = set.multipoles            else   multipolesx          = multipoles          end
+    if  printBefore         == nothing   printBeforex         = set.printBefore           else   printBeforex         = printBefore         end
+    if  lineSelection       == nothing   lineSelectionx       = set.lineSelection         else   lineSelectionx       = lineSelection        end
+    if  photonEnergyShift   == nothing   photonEnergyShiftx   = set.photonEnergyShift     else   photonEnergyShiftx   = photonEnergyShift   end
+    if  mimimumPhotonEnergy == nothing   mimimumPhotonEnergyx = set.mimimumPhotonEnergy   else   mimimumPhotonEnergyx = mimimumPhotonEnergy end
+    if  maximumPhotonEnergy == nothing   maximumPhotonEnergyx = set.maximumPhotonEnergy   else   maximumPhotonEnergyx = maximumPhotonEnergy end
+    Settings(multipolesx, printBeforex, lineSelectionx, photonEnergyShiftx, mimimumPhotonEnergyx, maximumPhotonEnergyx)
 end
 
 

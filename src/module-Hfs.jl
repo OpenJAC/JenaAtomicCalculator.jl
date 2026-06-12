@@ -334,13 +334,34 @@ end
 
 
 """
-`Hfs.Settings(; calcM1::Bool=true,` calcE2::Bool=false, calcM3::Bool=false, calcNondiagonal::Bool=false, 
-                calcHfMultiplet::Bool=false, printBefore::Bool=false, levelSelection::LevelSelection=LevelSelection()) 
-    ... keyword constructor to overwrite selected value of Hfs.Settings. 
+`Hfs.Settings(; calcM1::Bool=true,` calcE2::Bool=false, calcM3::Bool=false, calcNondiagonal::Bool=false,
+                calcHfMultiplet::Bool=false, printBefore::Bool=false, levelSelection::LevelSelection=LevelSelection())
+    ... keyword constructor to create a Hfs.Settings with selected non-default values.
 """
-function Settings(; calcM1::Bool=true, calcE2::Bool=false, calcM3::Bool=false, calcNondiagonal::Bool=false, 
+function Settings(; calcM1::Bool=true, calcE2::Bool=false, calcM3::Bool=false, calcNondiagonal::Bool=false,
                     calcHfMultiplet::Bool=false, printBefore::Bool=false, levelSelection::LevelSelection=LevelSelection())
     Settings(calcM1, calcE2, calcM3, calcNondiagonal, calcHfMultiplet, printBefore, levelSelection)
+end
+
+
+"""
+`Hfs.Settings(set::Hfs.Settings;`
+
+        calcM1=.., calcE2=.., calcM3=.., calcNondiagonal=.., calcHfMultiplet=.., printBefore=.., levelSelection=..)
+
+    ... keyword copy-constructor for re-defining selected values of a settings::Hfs.Settings.
+"""
+function Settings(set::Hfs.Settings;
+        calcM1=nothing,       calcE2=nothing,       calcM3=nothing,       calcNondiagonal=nothing,
+        calcHfMultiplet=nothing,  printBefore=nothing,  levelSelection=nothing)
+    if  calcM1          == nothing   calcM1x          = set.calcM1          else   calcM1x          = calcM1          end
+    if  calcE2          == nothing   calcE2x          = set.calcE2          else   calcE2x          = calcE2          end
+    if  calcM3          == nothing   calcM3x          = set.calcM3          else   calcM3x          = calcM3          end
+    if  calcNondiagonal == nothing   calcNondiagonalx = set.calcNondiagonal  else   calcNondiagonalx = calcNondiagonal end
+    if  calcHfMultiplet == nothing   calcHfMultipletx = set.calcHfMultiplet  else   calcHfMultipletx = calcHfMultiplet end
+    if  printBefore     == nothing   printBeforex     = set.printBefore      else   printBeforex     = printBefore     end
+    if  levelSelection  == nothing   levelSelectionx  = set.levelSelection   else   levelSelectionx  = levelSelection  end
+    Settings(calcM1x, calcE2x, calcM3x, calcNondiagonalx, calcHfMultipletx, printBeforex, levelSelectionx)
 end
 
 
