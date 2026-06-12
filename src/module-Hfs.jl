@@ -689,7 +689,7 @@ function computeHyperfineRepresentation(hfBasisVectors::Array{HfBasisVector,1}, 
     end
     #
     # Diagonalize the matrix and set-up the representation
-    eigen    = Basics.diagonalize("matrix: LinearAlgebra", matrix)
+    eigen    = Basics.diagonalize(MatrixWithLinearAlgebra(), matrix)
     levelFs  = Hfs.HfLevel[]
     for  ev = 1:length(eigen.values)
         # Construct the eigenvector with regard to the given basis (not w.r.t the symmetry block)

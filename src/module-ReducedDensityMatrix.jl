@@ -148,7 +148,7 @@ end
 """
 function  computeNaturalOrbitalExpansion(rho1p::Array{Float64,2}, level::Level)
     naturalOcc = Float64[];      naturalExp = Dict{Subshell, Array{Float64,1}}();       lenNO = length(level.basis.subshells)
-    eigen  = Basics.diagonalize("matrix: LinearAlgebra", rho1p)
+    eigen  = Basics.diagonalize(MatrixWithLinearAlgebra(), rho1p)
     orbIndices = Float64[]
     for  vector in eigen.vectors    wx = findmax(vector);   push!(orbIndices, wx[2])    end
     @show "  "

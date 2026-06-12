@@ -386,7 +386,7 @@ function Basics.computeMultipletForGreenApproach(approach::AtomicState.SingleCSF
     end
     
     # (3) Diagonalize matrix with Julia;   assign a multiplet 
-    eigen  = Basics.diagonalize("matrix: LinearAlgebra", matrix)
+    eigen  = Basics.diagonalize(MatrixWithLinearAlgebra(), matrix)
     levels = Level[]
     for  ev = 1:length(eigen.values)
         level = Level( sym.J, AngularM64(sym.J.num//sym.J.den), sym.parity, 0, eigen.values[ev], 0., true, basis, eigen.vectors[ev] ) 
@@ -458,7 +458,7 @@ function Basics.computeMultipletForGreenApproach(approach::AtomicState.CoreSpace
     end
     
     # (3) Diagonalize matrix with Julia;   assign a multiplet 
-    eigen  = Basics.diagonalize("matrix: LinearAlgebra", matrix)
+    eigen  = Basics.diagonalize(MatrixWithLinearAlgebra(), matrix)
     levels = Level[]
     for  ev = 1:length(eigen.values)
         level = Level( sym.J, AngularM64(sym.J.num//sym.J.den), sym.parity, 0, eigen.values[ev], 0., true, basis, eigen.vectors[ev] ) 
@@ -526,7 +526,7 @@ function Basics.computeMultipletForGreenApproach(approach::AtomicState.DampedSpa
     end
     
     # (3) Diagonalize matrix with Julia;   assign a multiplet 
-    eigen  = Basics.diagonalize("matrix: LinearAlgebra", matrix)
+    eigen  = Basics.diagonalize(MatrixWithLinearAlgebra(), matrix)
     levels = Level[]
     for  ev = 1:length(eigen.values)
         level = Level( sym.J, AngularM64(sym.J.num//sym.J.den), sym.parity, 0, eigen.values[ev], 0., true, basis, eigen.vectors[ev] ) 

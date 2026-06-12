@@ -433,7 +433,7 @@ function solveAverageAtomField(orbitals::Dict{Subshell, Orbital}, nuclearModel::
             # (2) Set-up the diagonal part of the Hamiltonian matrix
             wa = Bsplines.setupLocalMatrix(kappa, primitives, pot, storage)
             # (3) Solve the generalized eigenvalue problem
-            wc = Basics.diagonalize("generalized eigenvalues: LinearAlgebra", wa, wb)
+            wc = Basics.diagonalize(GeneralizedEigenvaluesWithLinearAlgebra(), wa, wb)
             
             # (4) Analyse and print information about the convergence of the symmetry blocks and the occupied orbitals
             wcBlock = Basics.analyzeConvergence(bsplineBlock[kappa], wc)
@@ -521,7 +521,7 @@ function solveAverageLevelField(basis::Basis, nuclearModel::Nuclear.Model, primi
             ## matrix = Hamiltonian.projectHamiltonian(subshell, matrix, matrixB, bVectors)
             
             # (8) Diagonalize the Hamiltonian matrix and refine the orbital and bVectors
-            wc = Basics.diagonalize("generalized eigenvalues: LinearAlgebra", matrix, matrixB)
+            wc = Basics.diagonalize(GeneralizedEigenvaluesWithLinearAlgebra(), matrix, matrixB)
             newOrb                = Bsplines.generateOrbitalFromPrimitives(subshell, wc, primitives)
             newOrbitals[subshell] = newOrb
             newbVectors[subshell] = Bsplines.extractVectorFromPrimitives(subshell,   wc, primitives)
@@ -611,7 +611,7 @@ function solveMeanFieldBasis(basis::Basis, nuclearModel::Nuclear.Model, primitiv
             # (3) Set-up the diagonal part of the Hamiltonian matrix
             wa = Bsplines.setupLocalMatrix(kappa, primitives, pot, storage)
             # (4) Solve the generalized eigenvalue problem
-            wc = Basics.diagonalize("generalized eigenvalues: LinearAlgebra", wa, wb)
+            wc = Basics.diagonalize(GeneralizedEigenvaluesWithLinearAlgebra(), wa, wb)
             # (5) Analyse and print information about the convergence of the symmetry blocks and the occupied orbitals
             wcBlock = Basics.analyzeConvergence(bsplineBlock[kappa], wc)
             if  wcBlock > 1.000 * settings.accuracyScf   go_on = true   end

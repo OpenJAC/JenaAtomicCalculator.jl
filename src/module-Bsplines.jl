@@ -190,7 +190,7 @@ function generateOrbitals(subshells::Array{Subshell,1}, pot::Radial.Potential, n
         
         # (2) Compute the local Hamiltonian matrix and diagonalize it
         wa = Bsplines.setupLocalMatrix(kappa, primitives, pot, storage)
-        w2 = Basics.diagonalize("generalized eigenvalues: LinearAlgebra", wa, wb)
+        w2 = Basics.diagonalize(GeneralizedEigenvaluesWithLinearAlgebra(), wa, wb)
         nsi = nsS    
         if  printout  Basics.tabulateKappaSymmetryEnergiesDirac(kappa, w2.values, nsi, nm)    end
         

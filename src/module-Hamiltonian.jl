@@ -62,7 +62,7 @@ function performCI(basis::Basis, nm::Nuclear.Model, grid::Radial.Grid, settings:
         # Skip the symmetry block if it not selected
         if  !Basics.selectSymmetry(sym, settings.levelSelectionCI)     continue    end
         matrix = Hamiltonian.setupMatrix(sym, basis, nm, grid, settings; printout=printout)
-        eigen  = Basics.diagonalize("matrix: LinearAlgebra", matrix)
+        eigen  = Basics.diagonalize(MatrixWithLinearAlgebra(), matrix)
         
         # Reassign state vectors to levels
         levels = Level[]
@@ -179,7 +179,7 @@ function performCIwithFrozenOrbitals(configs::Array{Configuration,1}, frozenOrbi
         matrix[r,r] = me
     end 
     #
-    eigen  = Basics.diagonalize("matrix: LinearAlgebra", matrix)
+    eigen  = Basics.diagonalize(MatrixWithLinearAlgebra(), matrix)
     levels = Level[]
     for  ev = 1:length(eigen.values)
         vector = eigen.vectors[ev];   ns = 0

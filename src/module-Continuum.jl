@@ -200,7 +200,7 @@ function generateOrbitalGalerkin(energy::Float64, sh::Subshell, pot::Radial.Pote
             end
         end
     end
-    wd = Basics.diagonalize("matrix: LinearAlgebra", wc) ## , range=1:1)
+    wd = Basics.diagonalize(MatrixWithLinearAlgebra(), wc) ## , range=1:1)
     ## println(">>> Galerkin-eigenvalues = $(wd.values[1]), $(wd.values[2]) for  $sh  with  energy = $energy")
     
     cOrbital = Bsplines.generateOrbitalFromPrimitives(sh, energy, settings.mtp, wd.vectors[1], wa)  

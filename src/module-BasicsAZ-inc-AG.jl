@@ -488,22 +488,6 @@ function Basics.diagonalize(::GeneralizedEigenvaluesWithLinearAlgebra, matrixA::
 end
 
 
-## Forwarding wrappers — kept until all caller modules are migrated to typed dispatch.
-function Basics.diagonalize(sa::String, matrixA::Array{Float64,2}; range=(0:0)::UnitRange{Int64})
-    if  sa == "matrix: LinearAlgebra"
-        return( Basics.diagonalize(MatrixWithLinearAlgebra(), matrixA; range=range) )
-    else   error("Unsupported keystring = $sa")
-    end
-end
-
-function Basics.diagonalize(sa::String, matrixA::Array{Float64,2}, matrixB::Array{Float64,2})
-    if  sa == "generalized eigenvalues: LinearAlgebra"
-        return( Basics.diagonalize(GeneralizedEigenvaluesWithLinearAlgebra(), matrixA, matrixB) )
-    else   error("Unsupported keystring = $sa")
-    end
-end
-
-
 """
 `Basics.diracDelta(x::Float64, dx::Float64)`
     ... evaluates Dirac's function  delta(x) = 0  for abs(x) > dx/2   and   delta(x) = 1/dx    for abs(x) <= dx/2;
