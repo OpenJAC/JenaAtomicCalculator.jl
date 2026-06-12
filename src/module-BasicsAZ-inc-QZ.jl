@@ -271,29 +271,42 @@ end
 
 
 """
-`Basics.recast(::RecastRateToDecayWidth, line::Union{Einstein.Line, PhotoEmission.Line, HyperfineInduced.Line, TwoElectronOnePhoton.Line}, wa::Float64)`
-    ... recasts a radiative rate (Einstein A, a.u.) into a decay width, taking the selected energy unit into account;
-        a Float64 is returned.
+`Basics.recast(::RecastRateToDecayWidth,
+    line::Union{Einstein.Line, PhotoEmission.Line, HyperfineInduced.Line, TwoElectronOnePhoton.Line},
+    wa::Float64)`
+    ... recasts a radiative rate (Einstein A, a.u.) into a decay width, taking the selected energy unit
+        into account; a Float64 is returned.
 """
-function Basics.recast(::RecastRateToDecayWidth, line::Union{Einstein.Line, PhotoEmission.Line, HyperfineInduced.Line, TwoElectronOnePhoton.Line}, wa::Float64)
+function Basics.recast(::RecastRateToDecayWidth,
+        line::Union{Einstein.Line, PhotoEmission.Line, HyperfineInduced.Line, TwoElectronOnePhoton.Line},
+        wa::Float64)
     return( Defaults.convertUnits("energy: from atomic", wa) )
 end
 
 
 """
-`Basics.recast(::RecastRateToEinsteinA, line::Union{Einstein.Line, PhotoEmission.Line, HyperfineInduced.Line, TwoElectronOnePhoton.Line}, wa::Float64)`
-    ... recasts a spontaneous radiative rate (Einstein A, a.u.) into Einstein A in selected units; a Float64 is returned.
+`Basics.recast(::RecastRateToEinsteinA,
+    line::Union{Einstein.Line, PhotoEmission.Line, HyperfineInduced.Line, TwoElectronOnePhoton.Line},
+    wa::Float64)`
+    ... recasts a spontaneous radiative rate (Einstein A, a.u.) into Einstein A in selected units;
+        a Float64 is returned.
 """
-function Basics.recast(::RecastRateToEinsteinA, line::Union{Einstein.Line, PhotoEmission.Line, HyperfineInduced.Line, TwoElectronOnePhoton.Line}, wa::Float64)
+function Basics.recast(::RecastRateToEinsteinA,
+        line::Union{Einstein.Line, PhotoEmission.Line, HyperfineInduced.Line, TwoElectronOnePhoton.Line},
+        wa::Float64)
     return( Defaults.convertUnits("rate: from atomic", wa) )
 end
 
 
 """
-`Basics.recast(::RecastRateToEinsteinB, line::Union{Einstein.Line, PhotoEmission.Line, HyperfineInduced.Line, TwoElectronOnePhoton.Line}, wa::Float64)`
+`Basics.recast(::RecastRateToEinsteinB,
+    line::Union{Einstein.Line, PhotoEmission.Line, HyperfineInduced.Line, TwoElectronOnePhoton.Line},
+    wa::Float64)`
     ... recasts a radiative rate (Einstein A, a.u.) into an Einstein B-coefficient; a Float64 is returned.
 """
-function Basics.recast(::RecastRateToEinsteinB, line::Union{Einstein.Line, PhotoEmission.Line, HyperfineInduced.Line, TwoElectronOnePhoton.Line}, wa::Float64)
+function Basics.recast(::RecastRateToEinsteinB,
+        line::Union{Einstein.Line, PhotoEmission.Line, HyperfineInduced.Line, TwoElectronOnePhoton.Line},
+        wa::Float64)
     einsteinB = pi^2 * Defaults.getDefaults("speed of light: c")^3 / line.omega^3  * wa
     return( Defaults.convertUnits("Einstein B: from atomic", einsteinB) )
 end
@@ -319,7 +332,8 @@ end
 
 
 """
-`Basics.recast(::RecastRateToLineStrengthS, line::Union{Einstein.Line, PhotoEmission.Line, TwoElectronOnePhoton.Line}, wa::Float64)`
+`Basics.recast(::RecastRateToLineStrengthS,
+    line::Union{Einstein.Line, PhotoEmission.Line, TwoElectronOnePhoton.Line}, wa::Float64)`
     ... recasts a radiative rate (Einstein A, a.u.) into the line strength S; a Float64 is returned.
 """
 function Basics.recast(::RecastRateToLineStrengthS, line::Union{Einstein.Line, PhotoEmission.Line, TwoElectronOnePhoton.Line}, wa::Float64)
@@ -328,6 +342,7 @@ function Basics.recast(::RecastRateToLineStrengthS, line::Union{Einstein.Line, P
     elseif  line.multipole == E1    S = 8.928970e-19 * (Basics.twice(line.finalLevel.J) + 1) * einsteinA / (line.omega^5)
     else                            S = 0.
     end
+
     return( S )
 end
 

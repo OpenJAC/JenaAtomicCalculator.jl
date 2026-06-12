@@ -536,6 +536,7 @@ function Basics.display(::PhysicalConstants)
     sb = "  + Electron mass [kg]:         " * string( Defaults.getDefaults("electron mass: kg") );    println(sb)
     sb = "  + Electron mass [amu]:        " * string( Defaults.getDefaults("electron mass: amu") );   println(sb)
     println()
+
     return( nothing )
 end
 
@@ -557,6 +558,7 @@ function Basics.display(::CurrentSettings)
     elseif  Defaults.getDefaults("standard grid") == false    println("  + No standard grid has yet been defined; cf. Defaults.setDefaults()" )
     end
     println()
+
     return( nothing )
 end
 

@@ -156,6 +156,7 @@ function  amplitude(::NMSamplitude, rLevel::Level, sLevel::Level, nm::Nuclear.Mo
         end
     end
     printstyled("done.\n", color=:light_green)
+
     return( transpose(rLevel.mc) * matrix * sLevel.mc )
 end
 
@@ -189,6 +190,7 @@ function  amplitude(::SMSamplitudeA, rLevel::Level, sLevel::Level, nm::Nuclear.M
         end
     end
     printstyled("done.\n", color=:light_green)
+
     return( transpose(rLevel.mc) * matrix * sLevel.mc )
 end
 
@@ -222,6 +224,7 @@ function  amplitude(::SMSamplitudeB, rLevel::Level, sLevel::Level, nm::Nuclear.M
         end
     end
     printstyled("done.\n", color=:light_green)
+
     return( transpose(rLevel.mc) * matrix * sLevel.mc )
 end
 
@@ -255,6 +258,7 @@ function  amplitude(::SMSamplitudeC, rLevel::Level, sLevel::Level, nm::Nuclear.M
         end
     end
     printstyled("done.\n", color=:light_green)
+
     return( transpose(rLevel.mc) * matrix * sLevel.mc )
 end
 
@@ -286,6 +290,7 @@ function  amplitude(::FieldShiftAmplitude, rLevel::Level, sLevel::Level, potenti
         end
     end
     printstyled("done.\n", color=:light_green)
+
     return( transpose(rLevel.mc) * matrix * sLevel.mc )
 end
 
@@ -317,6 +322,7 @@ function  amplitude(::BosonFieldAmplitude, rLevel::Level, sLevel::Level, potenti
         end
     end
     printstyled("done.\n", color=:light_green)
+
     return( transpose(rLevel.mc) * matrix * sLevel.mc )
 end
 

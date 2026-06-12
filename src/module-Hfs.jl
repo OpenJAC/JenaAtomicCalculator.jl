@@ -396,11 +396,14 @@ function Basics.tabulate(stream::IO, ::HfEnergies, multiplet::Hfs.HfMultiplet)
     sb = "  Level  F Parity          Hartrees       " * "             eV                   " * TableStrings.inUnits("energy")
     println(stream, "\n", sb, "\n")
     for  i = 1:length(multiplet.levelFs)
-        lev = multiplet.levelFs[i]
-        en  = lev.energy;    en_eV = Defaults.convertUnits("energy: from atomic to eV", en);    en_requested = Defaults.convertUnits("energy: from atomic", en)
+        lev          = multiplet.levelFs[i]
+        en           = lev.energy
+        en_eV        = Defaults.convertUnits("energy: from atomic to eV", en)
+        en_requested = Defaults.convertUnits("energy: from atomic",       en)
         sc  = " " * TableStrings.level(i) * "    " * string(LevelSymmetry(lev.F, lev.parity)) * "    "
         @printf(stream, "%s %.15e %s %.15e %s %.15e %s", sc, en, "  ", en_eV, "  ", en_requested, "\n")
     end
+
     return( nothing )
 end
 
@@ -414,12 +417,14 @@ function Basics.tabulate(stream::IO, ::HfEnergiesRelative, multiplet::Hfs.HfMult
     sb = "  Level  F Parity          Hartrees       " * "             eV                   " * TableStrings.inUnits("energy")
     println(stream, "\n", sb, "\n")
     for  i = 2:length(multiplet.levelFs)
-        lev   = multiplet.levelFs[i]
-        en    = lev.energy - multiplet.levelFs[1].energy
-        en_eV = Defaults.convertUnits("energy: from atomic to eV", en);    en_requested = Defaults.convertUnits("energy: from atomic", en)
+        lev          = multiplet.levelFs[i]
+        en           = lev.energy - multiplet.levelFs[1].energy
+        en_eV        = Defaults.convertUnits("energy: from atomic to eV", en)
+        en_requested = Defaults.convertUnits("energy: from atomic",       en)
         sc    = " " * TableStrings.level(i) * "    " * string(LevelSymmetry(lev.F, lev.parity)) * "    "
         @printf(stream, "%s %.15e %s %.15e %s %.15e %s", sc, en, "  ", en_eV, "  ", en_requested, "\n")
     end
+
     return( nothing )
 end
 
