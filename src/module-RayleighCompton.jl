@@ -48,6 +48,40 @@ function Settings()
 end
 
 
+"""
+`RayleighCompton.Settings(set::RayleighCompton.Settings;`
+
+        multipoles=.., gauges=.., photonEnergies=.., green=.., calcRayleighRaman=.., calcAngular=..,
+        calcStokes=.., printBefore=.., incidentStokes=.., solidAngles=.., lineSelection=..)
+
+    ... keyword copy-constructor for re-defining selected values of a settings::RayleighCompton.Settings.
+"""
+function Settings(set::RayleighCompton.Settings;
+        multipoles::Union{Nothing,Array{EmMultipole}}=nothing,
+        gauges::Union{Nothing,Array{UseGauge}}=nothing,
+        photonEnergies::Union{Nothing,Array{Float64,1}}=nothing,
+        green::Union{Nothing,Array{AtomicState.GreenChannel,1}}=nothing,
+        calcRayleighRaman::Union{Nothing,Bool}=nothing,    calcAngular::Union{Nothing,Bool}=nothing,
+        calcStokes::Union{Nothing,Bool}=nothing,           printBefore::Union{Nothing,Bool}=nothing,
+        incidentStokes::Union{Nothing,ExpStokes}=nothing,  solidAngles::Union{Nothing,Array{SolidAngle,1}}=nothing,
+        lineSelection::Union{Nothing,LineSelection}=nothing)
+    if  multipoles         == nothing   multipolesx        = set.multipoles         else   multipolesx        = multipoles         end
+    if  gauges             == nothing   gaugesx            = set.gauges             else   gaugesx            = gauges             end
+    if  photonEnergies     == nothing   photonEnergiesx    = set.photonEnergies     else   photonEnergiesx    = photonEnergies     end
+    if  green              == nothing   greenx             = set.green              else   greenx             = green              end
+    if  calcRayleighRaman  == nothing   calcRayleighRamanx = set.calcRayleighRaman  else   calcRayleighRamanx = calcRayleighRaman  end
+    if  calcAngular        == nothing   calcAngularx       = set.calcAngular        else   calcAngularx       = calcAngular        end
+    if  calcStokes         == nothing   calcStokesx        = set.calcStokes         else   calcStokesx        = calcStokes         end
+    if  printBefore        == nothing   printBeforex       = set.printBefore        else   printBeforex       = printBefore        end
+    if  incidentStokes     == nothing   incidentStokesx    = set.incidentStokes     else   incidentStokesx    = incidentStokes     end
+    if  solidAngles        == nothing   solidAnglesx       = set.solidAngles        else   solidAnglesx       = solidAngles        end
+    if  lineSelection      == nothing   lineSelectionx     = set.lineSelection      else   lineSelectionx     = lineSelection      end
+
+    Settings( multipolesx, gaugesx, photonEnergiesx, greenx, calcRayleighRamanx,
+              calcAngularx, calcStokesx, printBeforex, incidentStokesx, solidAnglesx, lineSelectionx )
+end
+
+
 # `Base.show(io::IO, settings::RayleighCompton.Settings)`  ... prepares a proper printout of the variable settings::RayleighCompton.Settings.
 function Base.show(io::IO, settings::RayleighCompton.Settings) 
     println(io, "multipoles:               $(settings.multipoles)  ")

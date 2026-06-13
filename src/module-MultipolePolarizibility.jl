@@ -102,6 +102,29 @@ function Settings()
 end
 
 
+"""
+`MultipolePolarizibility.Settings(set::MultipolePolarizibility.Settings;`
+
+        multipoles=.., nLower=.., nUpper=.., omegas=.., printBefore=.., levelSelection=..)
+
+    ... keyword copy-constructor for re-defining selected values of a settings::MultipolePolarizibility.Settings.
+"""
+function Settings(set::MultipolePolarizibility.Settings;
+        multipoles::Union{Nothing,Array{EmMultipole,1}}=nothing,
+        nLower::Union{Nothing,Int64}=nothing,              nUpper::Union{Nothing,Int64}=nothing,
+        omegas::Union{Nothing,Array{Float64,1}}=nothing,   printBefore::Union{Nothing,Bool}=nothing,
+        levelSelection::Union{Nothing,LevelSelection}=nothing)
+    if  multipoles     == nothing   multipolesx     = set.multipoles     else   multipolesx     = multipoles     end
+    if  nLower         == nothing   nLowerx         = set.nLower         else   nLowerx         = nLower         end
+    if  nUpper         == nothing   nUpperx         = set.nUpper         else   nUpperx         = nUpper         end
+    if  omegas         == nothing   omegasx         = set.omegas         else   omegasx         = omegas         end
+    if  printBefore    == nothing   printBeforex    = set.printBefore    else   printBeforex    = printBefore    end
+    if  levelSelection == nothing   levelSelectionx = set.levelSelection else   levelSelectionx = levelSelection end
+
+    Settings( multipolesx, nLowerx, nUpperx, omegasx, printBeforex, levelSelectionx )
+end
+
+
 # `Base.show(io::IO, settings:MultipolePolarizibility.Settings)`  
 #		... prepares a proper printout of the variable settings::MultipolePolarizibility.Settings.
 function Base.show(io::IO, settings::MultipolePolarizibility.Settings) 

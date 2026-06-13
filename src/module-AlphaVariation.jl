@@ -31,6 +31,24 @@ function Settings()
 end
 
 
+"""
+`AlphaVariation.Settings(set::AlphaVariation.Settings;`
+
+        calcK=.., printBefore=.., levelSelection=..)
+
+    ... keyword copy-constructor for re-defining selected values of a settings::AlphaVariation.Settings.
+"""
+function Settings(set::AlphaVariation.Settings;
+        calcK::Union{Nothing,Bool}=nothing,
+        printBefore::Union{Nothing,Bool}=nothing,          levelSelection::Union{Nothing,LevelSelection}=nothing)
+    if  calcK          == nothing   calcKx          = set.calcK          else   calcKx          = calcK          end
+    if  printBefore    == nothing   printBeforex    = set.printBefore    else   printBeforex    = printBefore    end
+    if  levelSelection == nothing   levelSelectionx = set.levelSelection else   levelSelectionx = levelSelection end
+
+    Settings( calcKx, printBeforex, levelSelectionx )
+end
+
+
 # `Base.show(io::IO, settings::AlphaVariation.Settings)`  ... prepares a proper printout of the variable settings::AlphaVariation.Settings.
 function Base.show(io::IO, settings::AlphaVariation.Settings) 
     println(io, "calcK:                    $(settings.calcK)  ")
