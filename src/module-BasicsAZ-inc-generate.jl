@@ -463,52 +463,6 @@ function Basics.generateCsfRs(conf::ConfigurationR, subshellList::Array{Subshell
     
     return( previousCsfs )
 end
-
-
-#==
-"""
-`Basics.generate("CSF list: from single ConfigurationR", conf::ConfigurationR, subshellList::Array{Subshell,1})` 
-    ... to construct from a given (relativistic) configuration all possible CSF with regard to the subshell order as specified 
-        by subshellList; a list::Array{CsfR,1} is returned.
-"""
-function Basics.generate(sa::String, conf::ConfigurationR, subshellList::Array{Subshell,1})
-    parity  = Basics.determineParity(conf)
-    csfList = CsfR[];   useStandardSubshells = true;    first = true;    previousCsfs = CsfR[]
-    # subhshellList = Subshell[];   
-    for  subsh in subshellList
-        if   subsh in keys(conf.subshells)    occ = conf.subshells[subsh]    else    occ = 0    end
-        if   first
-            stateList   = ManyElectron.provideSubshellStates(subsh, occ)
-            currentCsfs = CsfR[]
-            for  state in stateList
-                push!( currentCsfs, CsfR( true, AngularJ64(state.Jsub2//2), parity, [state.occ], [state.nu],
-                                            [AngularJ64(state.Jsub2//2)], [AngularJ64(state.Jsub2//2)], Subshell[]) )
-            end
-            previousCsfs = copy(currentCsfs)
-            first        = false
-        else
-            # Now support also all couplings of the subshell states with the CSFs that were built-up so far
-            stateList   = ManyElectron.provideSubshellStates(subsh, occ)
-            currentCsfs = CsfR[]
-            for  csf in  previousCsfs
-                for  state in stateList
-                    occupation = deepcopy(csf.occupation);    seniorityNr = deepcopy(csf.seniorityNr);    
-                    subshellJ  = deepcopy(csf.subshellJ);     subshells = deepcopy(csf.subshells)
-                    push!(occupation, state.occ);   push!(seniorityNr, state.nu);   push!(subshellJ, AngularJ64(state.Jsub2//2) ) 
-                    push!(subshells, subsh)
-                    newXList = oplus( csf.subshellX[end], AngularJ64(state.Jsub2//2) )
-                    for  newX in newXList
-                        subshellX = deepcopy(csf.subshellX);   push!(subshellX, newX) 
-                        push!( currentCsfs, CsfR( true, subshellX[end], parity, occupation, seniorityNr, subshellJ, subshellX, Subshell[]) ) 
-                    end
-                end
-            end
-            previousCsfs = copy(currentCsfs)
-        end
-    end
-    
-    return( previousCsfs )
-end  ==#
     
 
 
@@ -550,39 +504,6 @@ function Basics.generateSubshellList(confs::Array{ConfigurationR,1})
     return( subshells )
 end
 
-
-#==
-"""
-`Basics.generate("subshells: ordered list for relativistic configurations", confs::Array{ConfigurationR,1})`  
-    ... to generate for confs, i.e. all the given (relativistic) configurations, common and ordered subshell list; 
-        a list::Array{Subshell,1} is returned.
-"""
-function Basics.generate(sa::String, confs::Array{ConfigurationR,1})
-    subshells = Subshell[]   
-
-    !(sa == "subshells: ordered list for relativistic configurations")  &&   error("Unsupported keystring = $sa")
-    
-    for  conf in confs
-        for  subsh in keys(conf.subshells)      push!(subshells, subsh)     end
-    end
-    subshells = Base.unique(subshells)
-    subshells = Base.sort( subshells, lt=Base.isless)
-    ## Do include 'empty' subshells into the subshell list if they are specified by the given configurations
-    ## if  a in ks   &&   confs[cf].subshells[a]  !=  0     push!(subshells, a);    break    end
-    
-
-    #== wa = Defaults.getDefaults("ordered subshell list: relativistic", 7)
-    for  a in wa
-        for  cf in 1:length(confs)
-            ks = keys(confs[cf].subshells)
-            ## Do include 'empty' subshells into the subshell list if they are specified by the given configurations
-            ## if  a in ks   &&   confs[cf].subshells[a]  !=  0     push!(subshells, a);    break    end
-            if  a in ks     push!(subshells, a);    break    end
-        end 
-    end ==#
-
-    return( subshells )
-end  ==#
 
 
 """

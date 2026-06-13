@@ -70,6 +70,13 @@ Every process/property module has a `Settings` struct with:
 - A `Settings(set::Module.Settings; kw...)` keyword copy-constructor with aligned columns
 - A `Base.show(io::IO, settings::Module.Settings)` method
 
+The keyword copy-constructor guards use `isnothing(field)`, **not** `field == nothing`:
+```julia
+if  isnothing(calcK)            calcKx          = set.calcK          else   calcKx          = calcK          end
+if  isnothing(levelSelection)   levelSelectionx = set.levelSelection else   levelSelectionx = levelSelection end
+```
+Keyword parameters in the signature use `Union{Nothing,T}=nothing` (e.g. `calcK::Union{Nothing,Bool}=nothing`).
+
 ## Reference file update protocol
 
 When a code change legitimately alters numerical output (a physics fix or new feature):
