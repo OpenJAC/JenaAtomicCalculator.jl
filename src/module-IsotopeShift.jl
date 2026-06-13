@@ -53,13 +53,13 @@ function Settings(set::IsotopeShift.Settings;
         calcF::Union{Nothing,Bool}=nothing,               calcBoson::Union{Nothing,Bool}=nothing,
         printBefore::Union{Nothing,Bool}=nothing,         bosonMass::Union{Nothing,Float64}=nothing,
         levelSelection::Union{Nothing,LevelSelection}=nothing)
-    if  calcNMS        == nothing   calcNMSx        = set.calcNMS        else   calcNMSx        = calcNMS        end
-    if  calcSMS        == nothing   calcSMSx        = set.calcSMS        else   calcSMSx        = calcSMS        end
-    if  calcF          == nothing   calcFx          = set.calcF          else   calcFx          = calcF          end
-    if  calcBoson      == nothing   calcBosonx      = set.calcBoson      else   calcBosonx      = calcBoson      end
-    if  printBefore    == nothing   printBeforex    = set.printBefore    else   printBeforex    = printBefore    end
-    if  bosonMass      == nothing   bosonMassx      = set.bosonMass      else   bosonMassx      = bosonMass      end
-    if  levelSelection == nothing   levelSelectionx = set.levelSelection else   levelSelectionx = levelSelection end
+    if  isnothing(calcNMS)          calcNMSx        = set.calcNMS        else   calcNMSx        = calcNMS        end
+    if  isnothing(calcSMS)          calcSMSx        = set.calcSMS        else   calcSMSx        = calcSMS        end
+    if  isnothing(calcF)            calcFx          = set.calcF          else   calcFx          = calcF          end
+    if  isnothing(calcBoson)        calcBosonx      = set.calcBoson      else   calcBosonx      = calcBoson      end
+    if  isnothing(printBefore)      printBeforex    = set.printBefore    else   printBeforex    = printBefore    end
+    if  isnothing(bosonMass)        bosonMassx      = set.bosonMass      else   bosonMassx      = bosonMass      end
+    if  isnothing(levelSelection)   levelSelectionx = set.levelSelection else   levelSelectionx = levelSelection end
 
     Settings( calcNMSx, calcSMSx, calcFx, calcBosonx, printBeforex, bosonMassx, levelSelectionx )
 end

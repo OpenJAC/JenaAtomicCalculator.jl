@@ -41,9 +41,9 @@ end
 function Settings(set::AlphaVariation.Settings;
         calcK::Union{Nothing,Bool}=nothing,
         printBefore::Union{Nothing,Bool}=nothing,          levelSelection::Union{Nothing,LevelSelection}=nothing)
-    if  calcK          == nothing   calcKx          = set.calcK          else   calcKx          = calcK          end
-    if  printBefore    == nothing   printBeforex    = set.printBefore    else   printBeforex    = printBefore    end
-    if  levelSelection == nothing   levelSelectionx = set.levelSelection else   levelSelectionx = levelSelection end
+    if  isnothing(calcK)            calcKx          = set.calcK          else   calcKx          = calcK          end
+    if  isnothing(printBefore)      printBeforex    = set.printBefore    else   printBeforex    = printBefore    end
+    if  isnothing(levelSelection)   levelSelectionx = set.levelSelection else   levelSelectionx = levelSelection end
 
     Settings( calcKx, printBeforex, levelSelectionx )
 end

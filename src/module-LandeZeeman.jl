@@ -160,15 +160,15 @@ function Settings(set::LandeZeeman.Settings;
         includeSchwinger::Union{Nothing,Bool}=nothing,      printBefore::Union{Nothing,Bool}=nothing,
         BField::Union{Nothing,Float64}=nothing,             levelSelection::Union{Nothing,LevelSelection}=nothing,
         gMultiplet::Union{Nothing,Multiplet}=nothing)
-    if  calcLandeJ       == nothing   calcLandeJx       = set.calcLandeJ       else   calcLandeJx       = calcLandeJ       end
-    if  calcLandeF       == nothing   calcLandeFx       = set.calcLandeF       else   calcLandeFx       = calcLandeF       end
-    if  calcZeeman       == nothing   calcZeemanx       = set.calcZeeman       else   calcZeemanx       = calcZeeman       end
-    if  calcQZScoeff     == nothing   calcQZScoeffx     = set.calcQZScoeff     else   calcQZScoeffx     = calcQZScoeff     end
-    if  includeSchwinger == nothing   includeSchwingerx = set.includeSchwinger else   includeSchwingerx = includeSchwinger end
-    if  printBefore      == nothing   printBeforex      = set.printBefore      else   printBeforex      = printBefore      end
-    if  BField           == nothing   BFieldx           = set.BField           else   BFieldx           = BField           end
-    if  levelSelection   == nothing   levelSelectionx   = set.levelSelection   else   levelSelectionx   = levelSelection   end
-    if  gMultiplet       == nothing   gMultipletx       = set.gMultiplet       else   gMultipletx       = gMultiplet       end
+    if  isnothing(calcLandeJ)         calcLandeJx       = set.calcLandeJ       else   calcLandeJx       = calcLandeJ       end
+    if  isnothing(calcLandeF)         calcLandeFx       = set.calcLandeF       else   calcLandeFx       = calcLandeF       end
+    if  isnothing(calcZeeman)         calcZeemanx       = set.calcZeeman       else   calcZeemanx       = calcZeeman       end
+    if  isnothing(calcQZScoeff)       calcQZScoeffx     = set.calcQZScoeff     else   calcQZScoeffx     = calcQZScoeff     end
+    if  isnothing(includeSchwinger)   includeSchwingerx = set.includeSchwinger else   includeSchwingerx = includeSchwinger end
+    if  isnothing(printBefore)        printBeforex      = set.printBefore      else   printBeforex      = printBefore      end
+    if  isnothing(BField)             BFieldx           = set.BField           else   BFieldx           = BField           end
+    if  isnothing(levelSelection)     levelSelectionx   = set.levelSelection   else   levelSelectionx   = levelSelection   end
+    if  isnothing(gMultiplet)         gMultipletx       = set.gMultiplet       else   gMultipletx       = gMultiplet       end
 
     Settings( calcLandeJx, calcLandeFx, calcZeemanx, calcQZScoeffx, includeSchwingerx, printBeforex,
               BFieldx, levelSelectionx, gMultipletx )

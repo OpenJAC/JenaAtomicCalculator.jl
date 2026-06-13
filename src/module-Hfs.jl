@@ -356,13 +356,13 @@ function Settings(set::Hfs.Settings;
         calcM3::Union{Nothing,Bool}=nothing,           calcNondiagonal::Union{Nothing,Bool}=nothing,
         calcHfMultiplet::Union{Nothing,Bool}=nothing,  printBefore::Union{Nothing,Bool}=nothing,
         levelSelection::Union{Nothing,LevelSelection}=nothing)
-    if  calcM1          == nothing   calcM1x          = set.calcM1          else   calcM1x          = calcM1          end
-    if  calcE2          == nothing   calcE2x          = set.calcE2          else   calcE2x          = calcE2          end
-    if  calcM3          == nothing   calcM3x          = set.calcM3          else   calcM3x          = calcM3          end
-    if  calcNondiagonal == nothing   calcNondiagonalx = set.calcNondiagonal else   calcNondiagonalx = calcNondiagonal end
-    if  calcHfMultiplet == nothing   calcHfMultipletx = set.calcHfMultiplet else   calcHfMultipletx = calcHfMultiplet end
-    if  printBefore     == nothing   printBeforex     = set.printBefore     else   printBeforex     = printBefore     end
-    if  levelSelection  == nothing   levelSelectionx  = set.levelSelection  else   levelSelectionx  = levelSelection  end
+    if  isnothing(calcM1)            calcM1x          = set.calcM1          else   calcM1x          = calcM1          end
+    if  isnothing(calcE2)            calcE2x          = set.calcE2          else   calcE2x          = calcE2          end
+    if  isnothing(calcM3)            calcM3x          = set.calcM3          else   calcM3x          = calcM3          end
+    if  isnothing(calcNondiagonal)   calcNondiagonalx = set.calcNondiagonal else   calcNondiagonalx = calcNondiagonal end
+    if  isnothing(calcHfMultiplet)   calcHfMultipletx = set.calcHfMultiplet else   calcHfMultipletx = calcHfMultiplet end
+    if  isnothing(printBefore)       printBeforex     = set.printBefore     else   printBeforex     = printBefore     end
+    if  isnothing(levelSelection)    levelSelectionx  = set.levelSelection  else   levelSelectionx  = levelSelection  end
 
     Settings( calcM1x, calcE2x, calcM3x, calcNondiagonalx, calcHfMultipletx, printBeforex, levelSelectionx )
 end

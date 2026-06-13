@@ -44,10 +44,10 @@ end
 function Settings(set::DecayYield.Settings;
         approach::Union{Nothing,String}=nothing,           printBefore::Union{Nothing,Bool}=nothing,
         geant4::Union{Nothing,Bool}=nothing,               levelSelection::Union{Nothing,LevelSelection}=nothing)
-    if  approach       == nothing   approachx       = set.approach       else   approachx       = approach       end
-    if  printBefore    == nothing   printBeforex    = set.printBefore    else   printBeforex    = printBefore    end
-    if  geant4         == nothing   geant4x         = set.geant4         else   geant4x         = geant4         end
-    if  levelSelection == nothing   levelSelectionx = set.levelSelection else   levelSelectionx = levelSelection end
+    if  isnothing(approach)         approachx       = set.approach       else   approachx       = approach       end
+    if  isnothing(printBefore)      printBeforex    = set.printBefore    else   printBeforex    = printBefore    end
+    if  isnothing(geant4)           geant4x         = set.geant4         else   geant4x         = geant4         end
+    if  isnothing(levelSelection)   levelSelectionx = set.levelSelection else   levelSelectionx = levelSelection end
 
     Settings( approachx, printBeforex, geant4x, levelSelectionx )
 end

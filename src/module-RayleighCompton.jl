@@ -65,17 +65,17 @@ function Settings(set::RayleighCompton.Settings;
         calcStokes::Union{Nothing,Bool}=nothing,           printBefore::Union{Nothing,Bool}=nothing,
         incidentStokes::Union{Nothing,ExpStokes}=nothing,  solidAngles::Union{Nothing,Array{SolidAngle,1}}=nothing,
         lineSelection::Union{Nothing,LineSelection}=nothing)
-    if  multipoles         == nothing   multipolesx        = set.multipoles         else   multipolesx        = multipoles         end
-    if  gauges             == nothing   gaugesx            = set.gauges             else   gaugesx            = gauges             end
-    if  photonEnergies     == nothing   photonEnergiesx    = set.photonEnergies     else   photonEnergiesx    = photonEnergies     end
-    if  green              == nothing   greenx             = set.green              else   greenx             = green              end
-    if  calcRayleighRaman  == nothing   calcRayleighRamanx = set.calcRayleighRaman  else   calcRayleighRamanx = calcRayleighRaman  end
-    if  calcAngular        == nothing   calcAngularx       = set.calcAngular        else   calcAngularx       = calcAngular        end
-    if  calcStokes         == nothing   calcStokesx        = set.calcStokes         else   calcStokesx        = calcStokes         end
-    if  printBefore        == nothing   printBeforex       = set.printBefore        else   printBeforex       = printBefore        end
-    if  incidentStokes     == nothing   incidentStokesx    = set.incidentStokes     else   incidentStokesx    = incidentStokes     end
-    if  solidAngles        == nothing   solidAnglesx       = set.solidAngles        else   solidAnglesx       = solidAngles        end
-    if  lineSelection      == nothing   lineSelectionx     = set.lineSelection      else   lineSelectionx     = lineSelection      end
+    if  isnothing(multipoles)          multipolesx        = set.multipoles         else   multipolesx        = multipoles         end
+    if  isnothing(gauges)              gaugesx            = set.gauges             else   gaugesx            = gauges             end
+    if  isnothing(photonEnergies)      photonEnergiesx    = set.photonEnergies     else   photonEnergiesx    = photonEnergies     end
+    if  isnothing(green)               greenx             = set.green              else   greenx             = green              end
+    if  isnothing(calcRayleighRaman)   calcRayleighRamanx = set.calcRayleighRaman  else   calcRayleighRamanx = calcRayleighRaman  end
+    if  isnothing(calcAngular)         calcAngularx       = set.calcAngular        else   calcAngularx       = calcAngular        end
+    if  isnothing(calcStokes)          calcStokesx        = set.calcStokes         else   calcStokesx        = calcStokes         end
+    if  isnothing(printBefore)         printBeforex       = set.printBefore        else   printBeforex       = printBefore        end
+    if  isnothing(incidentStokes)      incidentStokesx    = set.incidentStokes     else   incidentStokesx    = incidentStokes     end
+    if  isnothing(solidAngles)         solidAnglesx       = set.solidAngles        else   solidAnglesx       = solidAngles        end
+    if  isnothing(lineSelection)       lineSelectionx     = set.lineSelection      else   lineSelectionx     = lineSelection      end
 
     Settings( multipolesx, gaugesx, photonEnergiesx, greenx, calcRayleighRamanx,
               calcAngularx, calcStokesx, printBeforex, incidentStokesx, solidAnglesx, lineSelectionx )

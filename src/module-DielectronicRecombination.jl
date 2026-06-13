@@ -325,7 +325,7 @@ function Settings(set::DielectronicRecombination.Settings;
     if  isnothing(gauges)                gaugesx               = set.gauges                else  gaugesx               = gauges                end 
     if  isnothing(calcOnlyPassages)      calcOnlyPassagesx     = set.calcOnlyPassages      else  calcOnlyPassagesx     = calcOnlyPassages      end 
     if  isnothing(calcRateAlpha)         calcRateAlphax        = set.calcRateAlpha         else  calcRateAlphax        = calcRateAlpha         end 
-    if  calcHyperfineResolved== nothing  calcHyperfineResolvedx= set.calcHyperfineResolved else  calcHyperfineResolvedx= calcHyperfineResolved end 
+    if  isnothing(calcHyperfineResolved) calcHyperfineResolvedx= set.calcHyperfineResolved else  calcHyperfineResolvedx= calcHyperfineResolved end
     if  isnothing(printBefore)           printBeforex          = set.printBefore           else  printBeforex          = printBefore           end 
     if  isnothing(pathwaySelection)      pathwaySelectionx     = set.pathwaySelection      else  pathwaySelectionx     = pathwaySelection      end 
     if  isnothing(electronEnergyShift)   electronEnergyShiftx  = set.electronEnergyShift   else  electronEnergyShiftx  = electronEnergyShift   end 

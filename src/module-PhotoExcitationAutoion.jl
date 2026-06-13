@@ -63,17 +63,17 @@ function Settings(set::PhotoExcitationAutoion.Settings;
         incidentStokes::Union{Nothing,ExpStokes}=nothing,                  solidAngles::Union{Nothing,Array{SolidAngle,1}}=nothing,
         electronEnergyShift::Union{Nothing,Float64}=nothing,               maxKappa::Union{Nothing,Int64}=nothing,
         pathwaySelection::Union{Nothing,PathwaySelection}=nothing)
-    if  multipoles          == nothing   multipolsx           = set.multipoles          else   multipolsx           = multipoles          end
-    if  gauges              == nothing   gaugesx              = set.gauges              else   gaugesx              = gauges              end
-    if  calcPartialCs       == nothing   calcPartialCsx       = set.calcPartialCs       else   calcPartialCsx       = calcPartialCs       end
-    if  calcAngular         == nothing   calcAngularx         = set.calcAngular         else   calcAngularx         = calcAngular         end
-    if  calcFano            == nothing   calcFanox            = set.calcFano            else   calcFanox            = calcFano            end
-    if  printBefore         == nothing   printBeforex         = set.printBefore         else   printBeforex         = printBefore         end
-    if  incidentStokes      == nothing   incidentStokesx      = set.incidentStokes      else   incidentStokesx      = incidentStokes      end
-    if  solidAngles         == nothing   solidAnglesx         = set.solidAngles         else   solidAnglesx         = solidAngles         end
-    if  electronEnergyShift == nothing   electronEnergyShiftx = set.electronEnergyShift else   electronEnergyShiftx = electronEnergyShift end
-    if  maxKappa            == nothing   maxKappax            = set.maxKappa            else   maxKappax            = maxKappa            end
-    if  pathwaySelection    == nothing   pathwaySelectionx    = set.pathwaySelection    else   pathwaySelectionx    = pathwaySelection    end
+    if  isnothing(multipoles)            multipolsx           = set.multipoles          else   multipolsx           = multipoles          end
+    if  isnothing(gauges)                gaugesx              = set.gauges              else   gaugesx              = gauges              end
+    if  isnothing(calcPartialCs)         calcPartialCsx       = set.calcPartialCs       else   calcPartialCsx       = calcPartialCs       end
+    if  isnothing(calcAngular)           calcAngularx         = set.calcAngular         else   calcAngularx         = calcAngular         end
+    if  isnothing(calcFano)              calcFanox            = set.calcFano            else   calcFanox            = calcFano            end
+    if  isnothing(printBefore)           printBeforex         = set.printBefore         else   printBeforex         = printBefore         end
+    if  isnothing(incidentStokes)        incidentStokesx      = set.incidentStokes      else   incidentStokesx      = incidentStokes      end
+    if  isnothing(solidAngles)           solidAnglesx         = set.solidAngles         else   solidAnglesx         = solidAngles         end
+    if  isnothing(electronEnergyShift)   electronEnergyShiftx = set.electronEnergyShift else   electronEnergyShiftx = electronEnergyShift end
+    if  isnothing(maxKappa)              maxKappax            = set.maxKappa            else   maxKappax            = maxKappa            end
+    if  isnothing(pathwaySelection)      pathwaySelectionx    = set.pathwaySelection    else   pathwaySelectionx    = pathwaySelection    end
 
     Settings( multipolsx, gaugesx, calcPartialCsx, calcAngularx, calcFanox, printBeforex,
               incidentStokesx, solidAnglesx, electronEnergyShiftx, maxKappax, pathwaySelectionx )

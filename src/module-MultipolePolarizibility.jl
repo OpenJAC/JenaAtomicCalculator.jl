@@ -114,12 +114,12 @@ function Settings(set::MultipolePolarizibility.Settings;
         nLower::Union{Nothing,Int64}=nothing,              nUpper::Union{Nothing,Int64}=nothing,
         omegas::Union{Nothing,Array{Float64,1}}=nothing,   printBefore::Union{Nothing,Bool}=nothing,
         levelSelection::Union{Nothing,LevelSelection}=nothing)
-    if  multipoles     == nothing   multipolesx     = set.multipoles     else   multipolesx     = multipoles     end
-    if  nLower         == nothing   nLowerx         = set.nLower         else   nLowerx         = nLower         end
-    if  nUpper         == nothing   nUpperx         = set.nUpper         else   nUpperx         = nUpper         end
-    if  omegas         == nothing   omegasx         = set.omegas         else   omegasx         = omegas         end
-    if  printBefore    == nothing   printBeforex    = set.printBefore    else   printBeforex    = printBefore    end
-    if  levelSelection == nothing   levelSelectionx = set.levelSelection else   levelSelectionx = levelSelection end
+    if  isnothing(multipoles)       multipolesx     = set.multipoles     else   multipolesx     = multipoles     end
+    if  isnothing(nLower)           nLowerx         = set.nLower         else   nLowerx         = nLower         end
+    if  isnothing(nUpper)           nUpperx         = set.nUpper         else   nUpperx         = nUpper         end
+    if  isnothing(omegas)           omegasx         = set.omegas         else   omegasx         = omegas         end
+    if  isnothing(printBefore)      printBeforex    = set.printBefore    else   printBeforex    = printBefore    end
+    if  isnothing(levelSelection)   levelSelectionx = set.levelSelection else   levelSelectionx = levelSelection end
 
     Settings( multipolesx, nLowerx, nUpperx, omegasx, printBeforex, levelSelectionx )
 end

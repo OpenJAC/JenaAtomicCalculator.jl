@@ -60,16 +60,16 @@ function Settings(set::PhotoExcitationFluores.Settings;
         calcStokes::Union{Nothing,Bool}=nothing,                           printBefore::Union{Nothing,Bool}=nothing,
         incidentStokes::Union{Nothing,ExpStokes}=nothing,                  solidAngles::Union{Nothing,Array{SolidAngle,1}}=nothing,
         photonEnergyShift::Union{Nothing,Float64}=nothing,                 pathwaySelection::Union{Nothing,PathwaySelection}=nothing)
-    if  multipoles         == nothing   multipolsx          = set.multipoles         else   multipolsx          = multipoles         end
-    if  gauges             == nothing   gaugesx             = set.gauges             else   gaugesx             = gauges             end
-    if  calcPhotonDm       == nothing   calcPhotonDmx       = set.calcPhotonDm       else   calcPhotonDmx       = calcPhotonDm       end
-    if  calcAngular        == nothing   calcAngularx        = set.calcAngular        else   calcAngularx        = calcAngular        end
-    if  calcStokes         == nothing   calcStokesx         = set.calcStokes         else   calcStokesx         = calcStokes         end
-    if  printBefore        == nothing   printBeforex        = set.printBefore        else   printBeforex        = printBefore        end
-    if  incidentStokes     == nothing   incidentStokesx     = set.incidentStokes     else   incidentStokesx     = incidentStokes     end
-    if  solidAngles        == nothing   solidAnglesx        = set.solidAngles        else   solidAnglesx        = solidAngles        end
-    if  photonEnergyShift  == nothing   photonEnergyShiftx  = set.photonEnergyShift  else   photonEnergyShiftx  = photonEnergyShift  end
-    if  pathwaySelection   == nothing   pathwaySelectionx   = set.pathwaySelection   else   pathwaySelectionx   = pathwaySelection   end
+    if  isnothing(multipoles)          multipolsx          = set.multipoles         else   multipolsx          = multipoles         end
+    if  isnothing(gauges)              gaugesx             = set.gauges             else   gaugesx             = gauges             end
+    if  isnothing(calcPhotonDm)        calcPhotonDmx       = set.calcPhotonDm       else   calcPhotonDmx       = calcPhotonDm       end
+    if  isnothing(calcAngular)         calcAngularx        = set.calcAngular        else   calcAngularx        = calcAngular        end
+    if  isnothing(calcStokes)          calcStokesx         = set.calcStokes         else   calcStokesx         = calcStokes         end
+    if  isnothing(printBefore)         printBeforex        = set.printBefore        else   printBeforex        = printBefore        end
+    if  isnothing(incidentStokes)      incidentStokesx     = set.incidentStokes     else   incidentStokesx     = incidentStokes     end
+    if  isnothing(solidAngles)         solidAnglesx        = set.solidAngles        else   solidAnglesx        = solidAngles        end
+    if  isnothing(photonEnergyShift)   photonEnergyShiftx  = set.photonEnergyShift  else   photonEnergyShiftx  = photonEnergyShift  end
+    if  isnothing(pathwaySelection)    pathwaySelectionx   = set.pathwaySelection   else   pathwaySelectionx   = pathwaySelection   end
 
     Settings( multipolsx, gaugesx, calcPhotonDmx, calcAngularx, calcStokesx, printBeforex,
               incidentStokesx, solidAnglesx, photonEnergyShiftx, pathwaySelectionx )
