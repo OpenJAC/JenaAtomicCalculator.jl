@@ -1161,7 +1161,7 @@ function  displayResults(stream::IO, outcomes::Array{Hfs.Outcome,1}, nm::Nuclear
         sa = sa * TableStrings.center(10, string(sym); na=4)
         energy = outcome.Jlevel.energy
         sa = sa * @sprintf("%.8e", Defaults.convertUnits("energy: from atomic", energy))           * "      "
-        we = Defaults.convertUnits("energy: from atomic to Hz", 1.0) / 1.0e9      # Energy factor into MHz
+        we = Defaults.convertUnits("energy: from atomic to Hz", 1.0) / 1.0e6      # Energy factor into MHz
         wa = outcome.AIoverMu / nm.spinI.num * nm.spinI.den * nm.mu * we          # Prepare A
         sa = sa * @sprintf("% .6e", wa)       * "  " 
         wa = outcome.AIoverMu / nm.spinI.num * nm.spinI.den * we                  # Prepare A/mu

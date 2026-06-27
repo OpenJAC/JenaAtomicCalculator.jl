@@ -18,9 +18,9 @@ export Model
     + mass     ::Float64         ... atomic mass
     + radius   ::Float64         ... (root-mean square) radius of a uniform or Fermi-distributed nucleus
     + spinI    ::AngularJ64      ... nuclear spin I, must be >= 0
-    + mu       ::Float64         ... magnetic dipole moment [Bohr magnetons]
-    + Q        ::Float64         ... electric quadrupole moment
-    + Omega    ::Float64         ... magnetic octupole moment [Bohr-magnetons x barn]
+    + mu       ::Float64         ... magnetic dipole moment [nuclear magnetons]
+    + Q        ::Float64         ... electric quadrupole moment [barn]
+    + Omega    ::Float64         ... magnetic octupole moment [nuclear magnetons x barn]
 """
 struct  Model
     Z          ::Float64

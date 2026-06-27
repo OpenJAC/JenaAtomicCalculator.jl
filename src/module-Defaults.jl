@@ -276,8 +276,8 @@ function convertUnits(sa::String, wa::Float64)
     elseif  sa in ["length: from atomic to fm"]                         return (wa * CONVERT_LENGTH_AU_TO_FEMTOMETER )
     elseif  sa in ["length: from atomic to cm"]                         return (wa * CONVERT_LENGTH_AU_TO_FEMTOMETER * 1.0e-13 )
 
-    elseif  sa in ["moment: from nuclear magneton to atomic"]           return (wa * 5.446170e-4 )
-    elseif  sa in ["moment: from nuclear magneton x fm^2 to atomic"]    return (wa * 1.944690e-13 )
+    elseif  sa in ["moment: from nuclear magneton to atomic"]           return (wa * 5.446170e-4 / 2. )
+    elseif  sa in ["moment: from nuclear magneton x fm^2 to atomic"]    return (wa * 1.944690e-13 / 2. )
 
     elseif    sa in ["rate: from atomic to predefined unit", "rate: from atomic"]
         if       Defaults.getDefaults("unit: rate") == "1/s"            return( wa * CONVERT_RATE_AU_TO_PER_SEC )

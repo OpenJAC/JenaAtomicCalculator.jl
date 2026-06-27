@@ -626,7 +626,7 @@ function Basics.displayLevels(stream::IO, multiplets::Array{Multiplet,1}; N::Int
     for  multiplet  in multiplets
         for  level in  multiplet.levels   push!(allLevels, level)      end
     end
-    println(stream, ">>> Total number of levels is $(length(allLevels))  in all multiplets together. \n´")
+    println(stream, ">>> Total number of levels is $(length(allLevels))  in all multiplets together.")
     sortedLevels = Base.sort( allLevels, lt=Base.isless)
     energy0      = sortedLevels[1].energy + E0
     println(stream, "  ", TableStrings.hLine(nx))

@@ -862,61 +862,57 @@ end
     ... displays the EII cross sections in a neat tabular form; nothing is returned.
 """
 function  displayCrossSections(stream::IO, crossSections::Array{ImpactIonization.CrossSection,1}, settings::ImpactIonization.Settings)
-    # Display the partial (shell-dependent) cross sections
-    if  settings.calcPartialCs 
-        nx = 120 
+    # Display the partial (shell-dependent) cross sections, grouped by subshell
+    if  settings.calcPartialCs
+        nx = 70
         println(stream, " ")
         println(stream, "  Partial ionization cross sections for atoms by electron impact:")
         println(stream, " ")
         println(stream, "  ", TableStrings.hLine(nx))
-        sa = "  ";   sb = "  "
-        sa = sa * TableStrings.center(18, "subshell"         ; na=0);                       
-        sb = sb * TableStrings.hBlank(18)
-        sa = sa * TableStrings.center(18, "binding energy"   ; na=2);                       
-        sb = sb * TableStrings.center(18, TableStrings.inUnits("energy"); na=4)
-        sa = sa * TableStrings.center(18, "kinetic energy"   ; na=4)               
-        sb = sb * TableStrings.center(14, TableStrings.inUnits("energy"); na=0)
-        sa = sa * TableStrings.center(12, "occupation number"  ; na=4)             
-        sb = sb * TableStrings.hBlank(30) 
-        sa = sa * TableStrings.center(12, "impact energies"  ; na=4)             
-        sb = sb * TableStrings.center(12, TableStrings.inUnits("energy"); na=4)            
-        sa = sa * TableStrings.center(28, "Cross section"; na=3)      
-        sb = sb * TableStrings.center(30, TableStrings.inUnits("cross section"); na=3)
-        println(stream, sa);    println(stream, sb);    println(stream, "  ", TableStrings.hLine(nx))
+        sa = "  " * TableStrings.center(16, "subshell"; na=0) *
+                     TableStrings.center(26, "impact energy"; na=0) *
+                     TableStrings.center(26, "cross section"; na=0)
+        sb = "  " * TableStrings.hBlank(16) *
+                     TableStrings.center(26, TableStrings.inUnits("energy"); na=0) *
+                     TableStrings.center(26, TableStrings.inUnits("cross section"); na=0)
+        println(stream, sa);   println(stream, sb);   println(stream, "  ", TableStrings.hLine(nx))
         #
-        sa  = ""; 
-        sa = sa * TableStrings.center(18, string(crossSections[1].subshell); na=6)
-        println(stream, sa)            
+        prevSubshell = Subshell(0, 0)
         for  cs  in crossSections
-            sb = TableStrings.hBlank(86)
-            sb = sb * @sprintf("%.6e", cs.impactEnergy) * "             "    
-            wa = cs.partialCS
-            sb = sb * @sprintf("%.10e", Defaults.convertUnits("cross section: from atomic to barn", wa))
-            println(sb)
+            if  cs.subshell != prevSubshell
+                prevSubshell = cs.subshell
+                println(stream, "  " * string(cs.subshell))
+            end
+            sb = "  " * TableStrings.hBlank(16) *
+                         TableStrings.center(26, @sprintf("%.6e", cs.impactEnergy); na=0) *
+                         TableStrings.center(26, @sprintf("%.6e", Defaults.convertUnits("cross section: from atomic to barn", cs.partialCS)); na=0)
+            println(stream, sb)
         end
-        println(stream, "  ", TableStrings.hLine(nx))    
+        println(stream, "  ", TableStrings.hLine(nx))
     end
     #
-    # Display the total EII cross sections
-    if  settings.calcTotalCs 
-        nx = 120 
+    # Display the total EII cross sections with proper column headers
+    if  settings.calcTotalCs
+        nx = 70
         println(stream, " ")
         println(stream, "  Total ionization cross sections for atoms by electron impact:")
         println(stream, " ")
         println(stream, "  ", TableStrings.hLine(nx))
-        sa = "  "
-        for  iE in  settings.impactEnergies
-        totalCs = 0.0
+        sa = "  " * TableStrings.center(34, "impact energy"; na=0) *
+                     TableStrings.center(34, "cross section"; na=0)
+        sb = "  " * TableStrings.center(34, TableStrings.inUnits("energy"); na=0) *
+                     TableStrings.center(34, TableStrings.inUnits("cross section"); na=0)
+        println(stream, sa);   println(stream, sb);   println(stream, "  ", TableStrings.hLine(nx))
+        for  iE  in  settings.impactEnergies
+            totalCs = 0.0
             for  cs  in crossSections
-                if  cs.impactEnergy == iE   totalCs = totalCs + cs.partialCS      end
+                if  cs.impactEnergy == iE   totalCs = totalCs + cs.partialCS   end
             end
-            sa = TableStrings.hBlank(86)
-            sa = sa * @sprintf("%.6e", iE) * "             "    
-            wa = totalCs
-            sa = sa * @sprintf("%.10e", Defaults.convertUnits("cross section: from atomic to barn", wa))
-            println(stream, sa)            
-        end            
-        println(stream, "  ", TableStrings.hLine(nx))    
+            sb = "  " * TableStrings.center(34, @sprintf("%.6e", iE); na=0) *
+                         TableStrings.center(34, @sprintf("%.6e", Defaults.convertUnits("cross section: from atomic to barn", totalCs)); na=0)
+            println(stream, sb)
+        end
+        println(stream, "  ", TableStrings.hLine(nx))
     end
     #
     return( nothing )

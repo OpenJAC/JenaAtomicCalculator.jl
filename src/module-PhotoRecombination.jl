@@ -395,7 +395,7 @@ function  computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, n
     printSummary, iostream = Defaults.getDefaults("summary flag/stream")
     if  printSummary   PhotoRecombination.displayResults(iostream, newLines, settings)    end
     #
-    if    output    return( lines )
+    if    output    return( newLines )
     else            return( nothing )
     end
 end
