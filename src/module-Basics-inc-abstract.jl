@@ -447,6 +447,7 @@ end
     + ForStepwiseDecay        ... to generate configurations that are related by photoemission and autoionization.
 
     + ForGivenConfigs         ... to perform computations for given configurations.
+    + ForIsoelectronicSequence  ... to compute configuration-averaged energies along an isoelectronic sequence.
     
     + GroundConfiguration     ... to generate the ground configuration for a given number of electrons.
     + MeanConfiguration       ... to generate the mean configuration, i.e. a configuration with mean occupation numbers.
@@ -494,6 +495,7 @@ struct   ForPhotoEmission               <:  AbstractConfigurationTheme     end
 struct   ForPhotoIonization             <:  AbstractConfigurationTheme     end
 
 struct   ForGivenConfigs                <:  AbstractConfigurationTheme     end
+struct   ForIsoelectronicSequence       <:  AbstractConfigurationTheme     end
 #
 struct   MeanConfiguration              <:  AbstractConfigurationTheme     end
 struct   RelativisticConfigurations     <:  AbstractConfigurationTheme     end

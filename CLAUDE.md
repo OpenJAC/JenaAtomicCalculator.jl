@@ -120,6 +120,22 @@ is a regression.
 - New source modules: `module-<Name>.jl` in `src/`, following existing naming exactly
 - Diagnostic/scratch scripts in `work/`: `diag-<topic>.jl`
 
+## Test suite working directory (Rule 11)
+
+`test/runtests.jl` **must always be started from the `test/` subdirectory**, not from
+the JAC root.  Every `TestFrames` include file opens summary files with a relative path
+(e.g. `"test-Einstein-new.sum"`), so the working directory determines where those files
+land.  Running from the root scatters `test-*.sum` and `zzz-*.sum` files across the
+JAC root directory.  Running from `test/` places them correctly next to `test/approved/`.
+
+Correct invocation:
+```
+cd /home/fritzsch/fri/JAC.jl/test
+julia --project=.. runtests.jl
+```
+
+Never run `julia --project=. test/runtests.jl` from the JAC root.
+
 ## Commands
 
 A **command** is a named sequence of steps I execute and then summarize. The leading `/` is optional —
@@ -139,8 +155,9 @@ A **command** is a named sequence of steps I execute and then summarize. The lea
 **Run the general JAC test suite to verify the codebase is not broken.**
 Executes `test/runtests.jl` via:
 ```
-cd /home/fritzsch/fri/JAC.jl && julia --project=. test/runtests.jl
+cd /home/fritzsch/fri/JAC.jl/test && julia --project=.. runtests.jl
 ```
+**Must be run from the `test/` subdirectory** (see Rule 11 below).
 This runs all active `@testset` blocks (methods, structs, evaluations, representations,
 amplitudes, properties, processes, cascades). Produces a Pass/Fail summary per testset.
 A Fail is reported with the failing test name and error before anything else is done.
