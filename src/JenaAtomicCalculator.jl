@@ -61,7 +61,7 @@ export AbstractCImethod, AbstractConfigurationRestriction, AbstractEeInteraction
        compute, convertUnits, Compton, Configuration, ConfigurationR, 
        Cascade, Continuum, CorePolarization, Coulex, CoulombExcitation, Coulion, CoulombBreit, CoulombGaunt, 
        CoulombInteraction, CoulombIonization, CsfR, ClosedCore, ClosedShells, ClosedSubshells, ContractShells, checkConfigurations,
-       computeBranchingFractions,  computeCrossSections,  computeForPedestrians,  computeLevelEnergies,  computeLifetimes,  computeResonanceStrength, computeTransitionRates,
+       computeBranchingFractions,  computeChargeStateDistribution,  computeCrossSections,  computeForPedestrians,  computeLevelEnergies,  computeLifetimes,  computeResonanceStrength, computeTransitionRates,  displaySpectrum,
        diagonalize, Defaults, DecayYield, DielectronicRecombination, Dierec, Djpq, DoubleAutoIonization, DoubleAuger, DeepLearning,
        DiagonalCoulomb, DefaultQuantizationAxis, displayCouplings, displayConfiguration,  displayConfigurations, Distribution,
        Eimex, ElectronCapture, ElecCapture, estimate, ElectricDipoleMoment, Einstein, EinsteinX, EmMultipole, evaluate, ExpStokes, 
@@ -220,7 +220,6 @@ include("module-Empirical.jl");         using ..Empirical
 
 # Functions/methods for atomic computations
 include("module-Atomic.jl");            using ..Atomic
-include("module-ForPedestrians.jl");    using ..ForPedestrians
 
 if  incPlasma
 # Functions/methods for plasma computations
@@ -237,6 +236,9 @@ if  incCascades
 # Functions/methods for cascade computations
 include("module-Cascade.jl");           using ..Cascade
 end
+
+# ForPedestrians depends on Cascade and must be included after it
+include("module-ForPedestrians.jl");    using ..ForPedestrians
 
 # Functions/methods for symbolic computations
 if  incRacahAlgebra

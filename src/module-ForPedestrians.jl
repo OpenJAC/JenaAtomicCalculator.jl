@@ -13,12 +13,13 @@
 module ForPedestrians
 
 
-using  Printf, ..AngularMomentum, ..Atomic, ..AutoIonization, ..Basics, ..Defaults, ..DielectronicRecombination,
+using  Printf, ..AngularMomentum, ..Atomic, ..AutoIonization, ..Basics, ..Cascade, ..Defaults, ..DielectronicRecombination,
                ..Empirical, ..ImpactIonization, ..ManyElectron,  ..Nuclear, ..PhotoEmission, ..PhotoIonization,
                ..PhotoRecombination, ..Radial
 
-export computeBranchingFractions,  computeCrossSections,  computeForPedestrians,  computeLevelEnergies,
-       computeLifetimes,  computeResonanceStrength,  computeTransitionRates,  displayCouplings,  estimateCrossSections
+export computeBranchingFractions,  computeChargeStateDistribution,  computeCrossSections,  computeForPedestrians,  computeLevelEnergies,
+       computeLifetimes,  computeResonanceStrength,  computeTransitionRates,
+       displayCouplings,  displaySpectrum,  estimateCrossSections
 
 
        
@@ -200,6 +201,10 @@ function computeForPedestrians()
             "\n      ... E1 radiative branching fractions BF(i->f) [%]; Coulomb and Babushkin gauge." *
             "\n    computeBranchingFractions(ForAutoIonization(), initialConfigs, finalConfigs)" *
             "\n      ... Auger branching fractions BF(i->f) [%]; Coulomb interaction only." *
+            "\n    displaySpectrum(ForPhotoEmission(), initialConfigs, finalConfigs; plotfile=...)" *
+            "\n      ... photon emission spectrum as ASCII bar chart; optional Plots.jl figure." *
+            "\n    displaySpectrum(ForAutoIonization(), initialConfigs, finalConfigs; plotfile=...)" *
+            "\n      ... Auger electron spectrum as ASCII bar chart; optional Plots.jl figure." *
             "\n    computeLifetimes(ForPhotoEmission(), configs)" *
             "\n      ... total radiative lifetime of levels with inner-shell holes (E1 only)." *
             "\n    computeLifetimes(ForAutoIonization(), configs)" *
@@ -220,6 +225,11 @@ function computeForPedestrians()
             "\n    estimateCrossSections(ForImpactIonization(), initialConfigs)" *
             "\n      ... relativistic BEB electron-impact ionization cross sections for all shells." *
             "\n      ... Optional:  electronEnergies = [...]  to set the impact-energy grid [eV]." *
+            "\n" *
+            "\n  Decay cascades and charge state distributions:" *
+            "\n    computeChargeStateDistribution(ForStepwiseDecay(N), initialConfigs)" *
+            "\n      ... charge state distribution after stepwise radiative+Auger cascade." *
+            "\n      ... N = max. electron-loss steps; use N=3 for K-hole in Ne, N=5 for Ar." *
             "\n" *
             "\n  For more elaborate computations:  perform(comp::Atomic.Computation)" *
             "\n    Call ? Atomic.Computation   for the full interface." *
@@ -929,6 +939,204 @@ end
 
 #################################################################################################################################
 #################################################################################################################################
+
+
+"""
+`ForPedestrians.displaySpectrum(theme::Basics.ForPhotoEmission, initialConfigs, finalConfigs; ...)`
+    ... computes E1 radiative transition rates and displays the photon emission spectrum as an
+        ASCII bar chart (lines sorted by energy, bar height = relative intensity).
+        If plotfile is given and Plots.jl is loaded, a figure is also saved.
+
+        Simplified call:   setDefaults("nuclear: charge", 3.0)
+                           initialConfigs = [Configuration("1s^2 2p"), Configuration("1s^2 3s")]
+                           finalConfigs   = [Configuration("1s^2 2s"), Configuration("1s^2 2p")]
+                           displaySpectrum(Basics.ForPhotoEmission(), initialConfigs, finalConfigs,
+                                           plotfile="spectrum-photon.pdf")
+"""
+function displaySpectrum(theme::Basics.ForPhotoEmission, initialConfigs::Array{Configuration,1},
+                         finalConfigs::Array{Configuration,1};
+                         grid::Radial.Grid=Radial.Grid(true), asfSettings::AsfSettings=AsfSettings(),
+                         plotfile::String="", printout::Bool=false)
+    configs = copy(initialConfigs);   append!(configs, finalConfigs)
+    Basics.checkConfigurations(Basics.NumberOfElectrons(), configs)
+    Basics.displayConfigurations(stdout, configs, details = "photon emission spectrum computations")
+
+    sa =    "\n* Display the E1 photon emission spectrum (bar chart, relative intensities); " *
+            "the following assumptions/simplifications are made: " *
+            "\n    + All rates are based on the electric-dipole (E1) approximation only. " *
+            "\n    + BF[%] shown for both Coulomb and Babushkin gauge." *
+            "\n    + ASCII bar height = A_Bab(line) / max_line(A_Bab) x 100  (Babushkin gauge)." *
+            "\n    + Use the optional argument  plotfile = \"filename.pdf\"  to save a figure. " *
+            "\n    + For more elaborate computations, make use of perform(comp::Atomic.Computation) \n"
+    println(sa)
+
+    photoSettings = PhotoEmission.Settings(PhotoEmission.Settings(), multipoles=[E1],
+                                           gauges=[UseCoulomb, UseBabushkin], printBefore=true)
+    function atomic_code()
+        Defaults.setDefaults("standard grid", grid)
+        Z = Defaults.getDefaults("nuclear: charge")
+        comp = Atomic.Computation(Atomic.Computation(), name="Photon emission spectrum",
+                                  grid=grid, nuclearModel=Nuclear.Model(Z);
+                                  initialConfigs=initialConfigs, finalConfigs=finalConfigs,
+                                  processSettings=photoSettings)
+        return( perform(comp, output=true) )
+    end
+
+    if    printout  atomic_code()
+    else
+          results = redirect_stdout(devnull) do
+                        atomic_code()  end
+          lines = results["radiative lines:"]
+          # Sort by photon energy; normalise each gauge to its own strongest line
+          slines   = sort(lines, by = l -> l.omega, rev=true)
+          maxBab   = maximum(l.photonRate.Babushkin for l in slines)
+          sumCou   = sum(l.photonRate.Coulomb   for l in slines)
+          sumBab   = sum(l.photonRate.Babushkin for l in slines)
+          eunit    = Defaults.getDefaults("unit: energy")
+          # ASCII bar chart: two BF columns; bar shows Babushkin relative intensity
+          println("  Photon emission spectrum  (bar = Babushkin relative intensity):\n")
+          println("  " * "-"^102)
+          println(@sprintf("  %-14s  %-16s  %10s  %10s  %-42s", "Energy [" * eunit * "]",
+                            "i--J^P--f", "BF Cou[%]", "BF Bab[%]", "Rel. intensity (Bab)"))
+          println("  " * "-"^102)
+          for  l  in  slines
+              Eph  = Defaults.convertUnits("energy: from atomic", l.omega)
+              symI = string(LevelSymmetry(l.initialLevel.J,  l.initialLevel.parity))
+              symF = string(LevelSymmetry(l.finalLevel.J,    l.finalLevel.parity))
+              bfC  = sumCou > 0. ? 100. * l.photonRate.Coulomb   / sumCou : 0.
+              bfB  = sumBab > 0. ? 100. * l.photonRate.Babushkin / sumBab : 0.
+              relB = maxBab > 0. ? l.photonRate.Babushkin / maxBab : 0.
+              bars = "█" ^ max(0, round(Int, relB * 40))
+              jp   = @sprintf("%-5s->%-5s", symI, symF)
+              println(@sprintf("  %-14.4e  %-16s  %10.4f  %10.4f  %-42s", Eph, jp, bfC, bfB, bars))
+          end
+          println("  " * "-"^102)
+          # Optional Plots.jl figure: Coulomb and Babushkin side-by-side coloured bars
+          if  !isempty(plotfile)
+              if  isdefined(Main, :Plots)
+                  Plots   = Main.Plots
+                  Eph_vec = [Defaults.convertUnits("energy: from atomic", l.omega) for l in slines]
+                  BF_Cou  = [sumCou > 0. ? 100. * l.photonRate.Coulomb   / sumCou : 0. for l in slines]
+                  BF_Bab  = [sumBab > 0. ? 100. * l.photonRate.Babushkin / sumBab : 0. for l in slines]
+                  Erange  = length(Eph_vec) > 1 ? maximum(Eph_vec) - minimum(Eph_vec) : 1.0
+                  bar_w   = max(Erange * 0.04, 0.05) / 3   # visible bar width per gauge
+                  p = Plots.bar(Eph_vec .- bar_w/2, BF_Cou, bar_width=bar_w,
+                                color=:steelblue, label="Coulomb",
+                                xlabel="Photon energy [" * eunit * "]",
+                                ylabel="BF [%]", title="Photon emission spectrum")
+                  Plots.bar!(Eph_vec .+ bar_w/2, BF_Bab, bar_width=bar_w,
+                             color=:darkorange, label="Babushkin")
+                  Plots.savefig(p, plotfile)
+                  println("  Plot saved to: " * plotfile)
+              else
+                  println("  Plotting skipped — load Plots.jl first:  using Plots")
+              end
+          end
+    end
+
+    return( nothing )
+end
+
+
+"""
+`ForPedestrians.displaySpectrum(theme::Basics.ForAutoIonization, initialConfigs, finalConfigs; ...)`
+    ... computes Auger rates and displays the electron (Auger) emission spectrum as an
+        ASCII bar chart (lines sorted by kinetic energy, bar height = relative intensity).
+        If plotfile is given and Plots.jl is loaded, a figure is also saved.
+
+        Simplified call:   setDefaults("nuclear: charge", 10.0)
+                           initialConfigs = [Configuration("1s 2s^2 2p^6")]
+                           finalConfigs   = [Configuration("[He] 2p^6"), Configuration("[He] 2s 2p^5"),
+                                             Configuration("[He] 2s^2 2p^4")]
+                           displaySpectrum(Basics.ForAutoIonization(), initialConfigs, finalConfigs,
+                                           plotfile="spectrum-auger.pdf")
+"""
+function displaySpectrum(theme::Basics.ForAutoIonization, initialConfigs::Array{Configuration,1},
+                         finalConfigs::Array{Configuration,1};
+                         grid::Radial.Grid=Radial.Grid(), asfSettings::AsfSettings=AsfSettings(),
+                         plotfile::String="", printout::Bool=false)
+    Basics.checkConfigurations(Basics.NumberOfElectrons(), initialConfigs, finalConfigs)
+    configs = copy(initialConfigs);   append!(configs, finalConfigs)
+    Basics.displayConfigurations(stdout, configs, details = "Auger electron spectrum computations")
+
+    sa =    "\n* Display the Auger electron emission spectrum (bar chart, relative intensities); " *
+            "the following assumptions/simplifications are made: " *
+            "\n    + All Auger rates are based on the instantaneous Coulomb interaction only." *
+            "\n    + Continuum orbitals: B-spline Galerkin method, pure-sine normalization." *
+            "\n    + Bar height = Gamma_A(line) / max_line(Gamma_A) x 100  (relative intensity)." *
+            "\n    + Use the optional argument  plotfile = \"filename.pdf\"  to save a figure. " *
+            "\n    + For more elaborate computations, make use of perform(comp::Atomic.Computation) \n"
+    println(sa)
+
+    if      grid.NoPoints == 0    currentGrid = Radial.Grid(Radial.Grid(false), rnt=1.0e-5, h=5.0e-2, hp=2.0e-2, rbox=15.0)
+    else                          currentGrid = grid
+    end
+    augerSettings = AutoIonization.Settings()
+
+    function atomic_code()
+        Defaults.setDefaults("standard grid",         currentGrid)
+        Defaults.setDefaults("method: continuum, Galerkin")
+        Defaults.setDefaults("method: normalization, pure sine")
+        Z = Defaults.getDefaults("nuclear: charge")
+        comp = Atomic.Computation(Atomic.Computation(), name="Auger electron spectrum",
+                                  grid=currentGrid, nuclearModel=Nuclear.Model(Z);
+                                  initialConfigs=initialConfigs, finalConfigs=finalConfigs,
+                                  processSettings=augerSettings)
+        return( perform(comp, output=true) )
+    end
+
+    if    printout  atomic_code()
+    else
+          results = redirect_stdout(devnull) do
+                        atomic_code()  end
+          lines   = results["AutoIonization lines:"]
+          # Sort by electron kinetic energy (descending) and normalise
+          slines  = sort(lines, by = l -> l.electronEnergy, rev=true)
+          maxRate = maximum(l.totalRate for l in slines)
+          sumRate = sum(l.totalRate for l in slines)
+          eunit   = Defaults.getDefaults("unit: energy")
+          # ASCII bar chart
+          println("  Auger electron spectrum  (Coulomb interaction, relative to strongest line):\n")
+          println("  " * "-"^84)
+          println(@sprintf("  %-14s  %-16s  %6s  %-42s", "e_kin [" * eunit * "]",
+                            "i--J^P--f", "BF[%]", "Relative intensity"))
+          println("  " * "-"^84)
+          for  l  in  slines
+              Ekin = Defaults.convertUnits("energy: from atomic", l.electronEnergy)
+              symI = string(LevelSymmetry(l.initialLevel.J, l.initialLevel.parity))
+              symF = string(LevelSymmetry(l.finalLevel.J,   l.finalLevel.parity))
+              rel  = maxRate > 0. ? l.totalRate / maxRate : 0.
+              bfC  = sumRate > 0. ? 100. * l.totalRate / sumRate : 0.
+              bars = "█" ^ max(0, round(Int, rel * 40))
+              jp   = @sprintf("%-5s->%-5s", symI, symF)
+              println(@sprintf("  %-14.4e  %-16s  %6.2f  %-42s", Ekin, jp, bfC, bars))
+          end
+          println("  " * "-"^84)
+          # Optional Plots.jl figure
+          if  !isempty(plotfile)
+              if  isdefined(Main, :Plots)
+                  Plots = Main.Plots
+                  Ek_vec  = [Defaults.convertUnits("energy: from atomic", l.electronEnergy) for l in slines]
+                  BF_vec  = [sumRate > 0. ? 100. * l.totalRate / sumRate : 0. for l in slines]
+                  dE      = length(Ek_vec) > 1 ? minimum(diff(sort(Ek_vec))) * 0.3 : 1.0
+                  p = Plots.bar(Ek_vec, BF_vec, bar_width=dE, legend=false,
+                                xlabel="Electron kinetic energy [" * eunit * "]",
+                                ylabel="Relative intensity [%]",
+                                title="Auger electron spectrum")
+                  Plots.savefig(p, plotfile)
+                  println("  Plot saved to: " * plotfile)
+              else
+                  println("  Plotting skipped — load Plots.jl first:  using Plots")
+              end
+          end
+    end
+
+    return( nothing )
+end
+
+
+#################################################################################################################################
+#################################################################################################################################
 #################################################################################################################################
 #################################################################################################################################
 
@@ -1057,5 +1265,82 @@ function estimateCrossSections(theme::Basics.ForImpactIonization, initialConfigs
 
     return( nothing )
 end
+
+
+#################################################################################################################################
+#################################################################################################################################
+
+
+"""
+`ForPedestrians.computeChargeStateDistribution(theme::Basics.ForStepwiseDecay,
+                                               initialConfigs::Array{Configuration,1};
+                                               grid::Radial.Grid=Radial.Grid(false),
+                                               printout::Bool=false)`
+    ... computes the charge state distribution that arises from the stepwise radiative and Auger
+        decay of all levels from the given initial configurations (typically a single configuration
+        with one inner-shell hole).  Both radiative (E1) and Auger channels are included at each
+        step; the cascade is followed until at most theme.maximallyReleased electrons have been
+        emitted.  Mean-field (AverageSCA) orbitals are used throughout.  The initial population
+        is placed entirely on the lowest cascade level (weight 1.0).
+        The final ion distribution is printed to screen; nothing is returned otherwise.
+
+        Simplified call:   setDefaults("nuclear: charge", 10.0)
+                           initialConfigs = [Configuration("1s 2s^2 2p^6")]
+                           computeChargeStateDistribution(Basics.ForStepwiseDecay(3), initialConfigs)
+                           computeChargeStateDistribution(Basics.ForStepwiseDecay(5), initialConfigs,
+                                                          grid = Radial.Grid(Radial.Grid(false), rbox=25.0))
+"""
+function computeChargeStateDistribution(theme::Basics.ForStepwiseDecay,
+                                        initialConfigs::Array{Configuration,1};
+                                        grid::Radial.Grid=Radial.Grid(),
+                                        printout::Bool=false)
+    Basics.displayConfigurations(stdout, initialConfigs, details = "charge state distribution computations")
+
+    sa =    "\n* Compute the charge state distribution from stepwise (radiative + Auger) decay; " *
+            "the following assumptions/simplifications are made: " *
+            "\n    + Both radiative (E1) and Auger channels are included at each decay step." *
+            "\n    + Cascade is followed for at most $(theme.maximallyReleased) electron-loss steps." *
+            "\n    + Mean-field (AverageSCA) orbitals are used for all configurations." *
+            "\n    + Continuum orbitals are generated with the Galerkin method, pure-sine normalization." *
+            "\n    + The lowest cascade level carries the full initial population (weight 1.0)." *
+            "\n    + Use the optional argument  printout = true  to generate intermediate printout." *
+            "\n    + For more elaborate computations, make use of perform(comp::Cascade.Computation) " *
+            "\n    + Call ? Cascade.Computation for further details. \n"
+    println(sa)
+
+    # Determine a grid suitable for high-energy continuum orbitals in the cascade
+    if      grid.NoPoints == 0    currentGrid = Radial.Grid(Radial.Grid(false), rnt=2.0e-6, h=5.0e-2, hp=0.5e-2, rbox=20.0)
+    else                          currentGrid = grid
+    end
+
+    Z      = Defaults.getDefaults("nuclear: charge")
+    scheme = Cascade.StepwiseDecayScheme([Auger(), Radiative()], theme.maximallyReleased,
+                                          Dict{Int64,Float64}(), 0, Shell[], Shell[], Shell[])
+
+    function cascade_code()
+        Defaults.setDefaults("method: continuum, Galerkin")
+        Defaults.setDefaults("method: normalization, pure sine")
+        comp = Cascade.Computation(Cascade.Computation(), name="Charge state distribution",
+                                   nuclearModel=Nuclear.Model(Z), grid=currentGrid,
+                                   scheme=scheme, approach=Cascade.AverageSCA(),
+                                   initialConfigs=initialConfigs)
+        return( perform(comp; output=true) )
+    end
+
+    if    printout   wb = cascade_code()
+    else
+          wb = redirect_stdout(devnull) do
+                   cascade_code()  end
+    end
+
+    sim = Cascade.Simulation(Cascade.Simulation(), name="Charge state distribution",
+                              property=Cascade.IonDistribution(),
+                              settings=Cascade.SimulationSettings(),
+                              computationData=[Dict{String,Any}("results" => wb)])
+    perform(sim; output=true)
+
+    return( nothing )
+end
+
 
 end  ## module
