@@ -386,7 +386,7 @@ function Basics.selectLevelPair(iLevel::Level, fLevel::Level, lineSelection::Lin
         end
         # Test for level symmetries
         for sp in  lineSelection.symmetryPairs
-            if      ip == (LevelSymmetry(iLevel.J, iLevel.parity),  LevelSymmetry(fLevel.J, fLevel.parity))   return( true ) 
+            if      sp == (LevelSymmetry(iLevel.J, iLevel.parity),  LevelSymmetry(fLevel.J, fLevel.parity))   return( true )
             end
         end
     else                                                     return( true ) 
