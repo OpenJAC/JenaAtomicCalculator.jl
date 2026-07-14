@@ -305,4 +305,44 @@ function estimateRadialExpectation(Z::Float64, coreConf::Configuration, nRange::
 end
 
 
+"""
+`Semiempirical.estimateSlaterZeff(Z::Float64, conf::Configuration, sh::Subshell)`
+    ... estimates the effective nuclear charge Z_eff for a single electron in subshell sh,
+        given the remaining electrons in conf and the nuclear charge Z.  Slater's (1930)
+        empirical screening rules are applied: same-group electrons contribute σ = 0.35
+        (0.30 for [1s]), electrons with n' = n−1 contribute σ = 0.85 (sp targets only),
+        and all inner electrons contribute σ = 1.00.  For d and f electrons all inner
+        electrons contribute σ = 1.00.  The configuration conf must represent the other
+        N−1 electrons only (not include the target electron itself); a Zeff::Float64 is returned.
+"""
+function estimateSlaterZeff(Z::Float64, conf::Configuration, sh::Subshell)
+    ##  Slater groups in ascending order (used by nested helpers below):
+    ##  [1s]  [2sp] [3sp] [3d]  [4sp] [4d]  [4f]  [5sp] [5d]  [5f]  [6sp] [6d]  [7sp]
+    ##    1     2     3     4     5     6     7     8     9    10    11    12    13
+    function groupIndex(n::Int64, l::Int64)
+        if      l <= 1    return( n <= 7 ? [1, 2, 3, 5, 8, 11, 13][n] : 13 + 2*(n - 7) )
+        elseif  l == 2    return( [4, 6, 9, 12][n - 2] )
+        elseif  l == 3    return( [7, 10][n - 3] )
+        else    error("No Slater group defined for n = $n, l = $l")
+        end
+    end
+    function screen(n_t::Int64, l_t::Int64, n_o::Int64, l_o::Int64)
+        gi_t = groupIndex(n_t, l_t)
+        gi_o = groupIndex(n_o, l_o)
+        if      gi_o >  gi_t                     return( 0.0 )              ## outer group: no shielding
+        elseif  gi_o == gi_t                     return( n_t == 1 ? 0.30 : 0.35 )   ## same group
+        elseif  l_t <= 1  &&  n_o == n_t - 1    return( 0.85 )             ## sp target, one shell below
+        else                                     return( 1.00 )             ## sp target inner / d or f target
+        end
+    end
+    n_t   = sh.n
+    l_t   = sh.kappa > 0 ? sh.kappa : -sh.kappa - 1
+    sigma = 0.0
+    for (shell, occ) in conf.shells
+        sigma = sigma + occ * screen(n_t, l_t, shell.n, shell.l)
+    end
+    return( Z - sigma )
+end
+
+
 end # module
