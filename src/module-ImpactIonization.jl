@@ -469,7 +469,9 @@ function  computeCrossSections(model::DirectMultipleModel, cs::ImpactIonization.
     atomicNumber = Int.(nm.Z);
     multipleN    = settings.multipleN; 
 
-    if  multipleN  >  10
+    if  multipleN  <  2
+        error("inputError: DirectMultipleModel requires multipleN >= 2 (multiple ionization)!")
+    elseif  multipleN  >  10
         a1 = 1350 * multipleN^(-5.7)
         b1 = 2
     else
@@ -506,7 +508,7 @@ function  computeCrossSections(model::DirectMultipleModel, cs::ImpactIonization.
     term13 = log(u) / u 
       
     Barn2Au = Defaults.convertUnits("cross section: from atomic to barn", 1.0)
-    if  u < 1   else   partialCS = term11 * term12 * term13 / Barn2Au     end 
+    if  u < 1   else   partialCS = term11 * term12 * term13 * 1.0e6 / Barn2Au     end
     newCs = ImpactIonization.CrossSection(cs.subshell, cs.impactEnergy, partialCS, Float64[], Float64[])
     
     return( newCs )
@@ -719,8 +721,9 @@ function  computeCrossSections(model::DoubleExperimentModel, cs::ImpactIonizatio
             c_gamma     = C_GAMMA[i3]
             I_gamma     = inner_threshold[i3]
             phi_gamma   = PHI_GAMMA[i3]
+            if  c_gamma == 0.0;   continue   end
             x3          = epsilon / I_gamma
-            IA1         = alpha_gamma * c_gamma * (x3 - 1) / I_gamma^2 / x3 / (x3 + 5)
+            IA1         = alpha_gamma * c_gamma * (x3 - 1) / I_gamma^2 / x3 / (x3 + phi_gamma)
             IA2         = 1 + 0.3 / phi_gamma / log(4 * t + 1)
             IA          = IA1 * IA2
         end
@@ -810,10 +813,11 @@ function  computeCrossSections(model::LotzMultipleModel, cs::ImpactIonization.Cr
     # Impact energy
     iE = cs.impactEnergy
     u  = iE / totalEnergy
-    # Define parameters using symbols in BEB & BED formulas
+    # Lotz constant 4.5e-14 cm²·eV² converted to a.u./eV²; inner_threshold values are in eV
+    Barn2Au     = Defaults.convertUnits("cross section: from atomic to barn", 1.0)
+    Lotz2Au     = 4.5e-14 / (Barn2Au * 1.0e-24)
     sigma_indir = 0.0
-    epsilon = iE
-    t = epsilon / totalEnergy
+    epsilon     = iE
     for i4 in 1:length(inner_threshold)
         if epsilon < inner_threshold[i4]
             IA = 0
@@ -821,13 +825,13 @@ function  computeCrossSections(model::LotzMultipleModel, cs::ImpactIonization.Cr
             alpha_gamma = f_BR[i4]
             Ns          = inner_electron_number[i4]
             I_gamma     = inner_threshold[i4]
-            IA = 4.5 * alpha_gamma * Ns * log(t) / I_gamma^2 / t
+            t_inner     = epsilon / I_gamma
+            IA          = Lotz2Au * alpha_gamma * Ns * log(t_inner) / I_gamma^2 / t_inner
         end
         sigma_indir += IA
     end
-    
-    Barn2Au = Defaults.convertUnits("cross section: from atomic to barn", 1.0)  
-    if u < 1   else    partialCS = sigma_indir * 1e4 / Barn2Au    end 
+
+    if u < 1   else    partialCS = sigma_indir    end
     newCs = ImpactIonization.CrossSection(cs.subshell, cs.impactEnergy, partialCS, Float64[], Float64[])
     
     return( newCs )
