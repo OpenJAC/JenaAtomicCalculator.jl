@@ -69,6 +69,7 @@ using JenaAtomicCalculator, ..Defaults, ..TestFrames
 
     @testset "JAC empirical" begin
         @test TestFrames.testModule_ImpactIonization()
+        @test TestFrames.testModule_Semiempirical()
     end
 
     @testset "JAC plasma" begin

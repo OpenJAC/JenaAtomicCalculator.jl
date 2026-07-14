@@ -31,3 +31,31 @@ function testModule_ImpactIonization(; short::Bool=true)
     testPrint("testModule_ImpactIonization()::", success)
     return(success)
 end
+
+
+"""
+`TestFrames.testModule_Semiempirical(; short::Bool=true)`  ... tests on module Semiempirical.
+"""
+function testModule_Semiempirical(; short::Bool=true)
+    Defaults.setDefaults("print summary: open", "test-Semiempirical-new.sum")
+    printstyled("\n\nTest the module  Semiempirical  ... \n", color=:cyan)
+    success = true
+    ## Test 1: EstimateIonizationPotentialInnerShell for Ne 1s_1/2 (Bug 4 fix: Shell → Subshell argument)
+    e1 = Defaults.convertUnits("energy: from atomic", Semiempirical.estimate(Basics.EstimateIonizationPotentialInnerShell(), Subshell("1s_1/2"), 10))
+    success = success && abs(e1 - 870.2) < 0.01
+    ## Test 2: EstimateBindingEnergyWilliams2000 Subshell -- same Williams source, must agree with Test 1 exactly
+    e2 = Defaults.convertUnits("energy: from atomic", Semiempirical.estimate(Basics.EstimateBindingEnergyWilliams2000(), 10, Subshell("1s_1/2")))
+    success = success && e2 == e1
+    ## Test 3: EstimateBindingEnergyXrayDataBooklet Subshell for Xe 4d_3/2 (new function extending to deep subshells)
+    e3 = Defaults.convertUnits("energy: from atomic", Semiempirical.estimate(Basics.EstimateBindingEnergyXrayDataBooklet(), 54, Subshell("4d_3/2")))
+    success = success && abs(e3 - 69.5) < 0.01
+    ## Test 4: EstimateBindingEnergyWilliams2000 Configuration for Kr ground config (Bugs 1&2 fix: no BoundsError)
+    e4 = Defaults.convertUnits("energy: from atomic", Semiempirical.estimate(Basics.EstimateBindingEnergyWilliams2000(), 36, Configuration("[Ar] 3d^10 4s^2 4p^6")))
+    success = success && abs(e4 - 45514.0) < 0.1
+    ###
+    Defaults.setDefaults("print summary: close", "")
+    _, iostream = Defaults.getDefaults("test flag/stream")
+    println(iostream, "Make the comparison with approved data for ... test-Semiempirical-new.sum")
+    testPrint("testModule_Semiempirical()::", success)
+    return(success)
+end

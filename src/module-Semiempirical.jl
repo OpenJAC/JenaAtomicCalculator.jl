@@ -12,17 +12,19 @@ using Printf,
 
 
 """
-`Semiempirical.estimate(::EstimateIonizationPotentialInnerShell, shell::Shell, Z::Int64)`
-    ... estimates the ionization potential = mean binding energy of an electron in the given shell;
-        values are taken from Williams et al. (2000); an energy value::Float64 in Hartree is returned.
+`Semiempirical.estimate(::EstimateIonizationPotentialInnerShell, sh::Subshell, Z::Int64)`
+    ... estimates the ionization potential = binding energy of an electron in the given subshell;
+        values are taken from Williams et al. (2000); covers 1s_1/2 through 4p_3/2 (12 subshells);
+        an energy value::Float64 in Hartree is returned.
 """
-function estimate(::EstimateIonizationPotentialInnerShell, shell::Shell, Z::Int64)
+function estimate(::EstimateIonizationPotentialInnerShell, sh::Subshell, Z::Int64)
     shellIndex = Dict( Subshell("1s_1/2") => 1, Subshell("2s_1/2") => 2, Subshell("2p_1/2") => 3, Subshell("2p_3/2") => 4,
                        Subshell("3s_1/2") => 5, Subshell("3p_1/2") => 6, Subshell("3p_3/2") => 7,
-                       Subshell("3d_3/2") => 8, Subshell("3d_5/2") => 9 )
-    idx = shellIndex[shell]
+                       Subshell("3d_3/2") => 8, Subshell("3d_5/2") => 9,
+                       Subshell("4s_1/2") => 10, Subshell("4p_1/2") => 11, Subshell("4p_3/2") => 12 )
+    idx = shellIndex[sh]
 
-    return( PeriodicTable.store("binding energies: Williams (2000)", Z)[idx] )
+    return( Defaults.convertUnits("energy: from eV to atomic", PeriodicTable.bindingEnergies_Williams2000(Z)[idx]) )
 end
 
 
@@ -81,6 +83,45 @@ end
 
 
 """
+`Semiempirical.estimate(::EstimateBindingEnergyXrayDataBooklet, Z::Int64, sh::Subshell)`
+    ... provides the binding energy of a subshell electron from the X-ray Data Booklet tabulation;
+        covers 1s_1/2 through 6p_3/2 (24 subshells); an energy::Float64 in Hartree is returned.
+"""
+function estimate(::EstimateBindingEnergyXrayDataBooklet, Z::Int64, sh::Subshell)
+    wa = PeriodicTable.bindingEnergies_XrayDataBooklet(Z)
+    if      sh == Subshell("1s_1/2")    wb = wa[1]
+    elseif  sh == Subshell("2s_1/2")    wb = wa[2]
+    elseif  sh == Subshell("2p_1/2")    wb = wa[3]
+    elseif  sh == Subshell("2p_3/2")    wb = wa[4]
+    elseif  sh == Subshell("3s_1/2")    wb = wa[5]
+    elseif  sh == Subshell("3p_1/2")    wb = wa[6]
+    elseif  sh == Subshell("3p_3/2")    wb = wa[7]
+    elseif  sh == Subshell("3d_3/2")    wb = wa[8]
+    elseif  sh == Subshell("3d_5/2")    wb = wa[9]
+    elseif  sh == Subshell("4s_1/2")    wb = wa[10]
+    elseif  sh == Subshell("4p_1/2")    wb = wa[11]
+    elseif  sh == Subshell("4p_3/2")    wb = wa[12]
+    elseif  sh == Subshell("4d_3/2")    wb = wa[13]
+    elseif  sh == Subshell("4d_5/2")    wb = wa[14]
+    elseif  sh == Subshell("4f_5/2")    wb = wa[15]
+    elseif  sh == Subshell("4f_7/2")    wb = wa[16]
+    elseif  sh == Subshell("5s_1/2")    wb = wa[17]
+    elseif  sh == Subshell("5p_1/2")    wb = wa[18]
+    elseif  sh == Subshell("5p_3/2")    wb = wa[19]
+    elseif  sh == Subshell("5d_3/2")    wb = wa[20]
+    elseif  sh == Subshell("5d_5/2")    wb = wa[21]
+    elseif  sh == Subshell("6s_1/2")    wb = wa[22]
+    elseif  sh == Subshell("6p_1/2")    wb = wa[23]
+    elseif  sh == Subshell("6p_3/2")    wb = wa[24]
+    else    error("No binding energy available for Z = $Z and subshell $sh ")
+    end
+    if  wb == -1.   error("No binding energy available for Z = $Z and subshell $sh ")   end
+
+    return( Defaults.convertUnits("energy: from eV to atomic", wb) )
+end
+
+
+"""
 `Semiempirical.estimate(::EstimateBindingEnergyWilliams2000, Z::Int64, conf::Configuration)`
     ... provides an approximate total binding energy of a configuration from Williams et al. (2000);
         no relaxation effects between hole states are included; an energy::Float64 in Hartree is returned.
@@ -97,13 +138,6 @@ function estimate(::EstimateBindingEnergyWilliams2000, Z::Int64, conf::Configura
         elseif  sh == Shell("3d")    if wa[9]  == -1.   error("stop af")   else   wb = wb + v * wa[9]    end
         elseif  sh == Shell("4s")    if wa[10] == -1.   error("stop ag")   else   wb = wb + v * wa[10]   end
         elseif  sh == Shell("4p")    if wa[12] == -1.   error("stop ah")   else   wb = wb + v * wa[12]   end
-        elseif  sh == Shell("4d")    if wa[14] == -1.   error("stop ai")   else   wb = wb + v * wa[14]   end
-        elseif  sh == Shell("4f")    if wa[16] == -1.   error("stop aj")   else   wb = wb + v * wa[16]   end
-        elseif  sh == Shell("5s")    if wa[17] == -1.   error("stop ag")   else   wb = wb + v * wa[17]   end
-        elseif  sh == Shell("5p")    if wa[19] == -1.   error("stop ah")   else   wb = wb + v * wa[19]   end
-        elseif  sh == Shell("5d")    if wa[21] == -1.                      else   wb = wb + v * wa[21]   end
-        elseif  sh == Shell("6s")    if wa[22] == -1.                      else   wb = wb + v * wa[12]   end
-        elseif  sh == Shell("6p")    if wa[24] == -1.                      else   wb = wb + v * wa[24]   end
         end
     end
 
@@ -128,13 +162,6 @@ function estimate(::EstimateBindingEnergyLarkins1977, Z::Int64, conf::Configurat
         elseif  sh == Shell("3d")    if wa[9]  == -1.   error("stop af")   else   wb = wb + v * wa[9]    end
         elseif  sh == Shell("4s")    if wa[10] == -1.   error("stop ag")   else   wb = wb + v * wa[10]   end
         elseif  sh == Shell("4p")    if wa[12] == -1.   error("stop ah")   else   wb = wb + v * wa[12]   end
-        elseif  sh == Shell("4d")    if wa[14] == -1.   error("stop ai")   else   wb = wb + v * wa[14]   end
-        elseif  sh == Shell("4f")    if wa[16] == -1.   error("stop aj")   else   wb = wb + v * wa[16]   end
-        elseif  sh == Shell("5s")    if wa[17] == -1.   error("stop ag")   else   wb = wb + v * wa[17]   end
-        elseif  sh == Shell("5p")    if wa[19] == -1.   error("stop ah")   else   wb = wb + v * wa[19]   end
-        elseif  sh == Shell("5d")    if wa[21] == -1.                      else   wb = wb + v * wa[21]   end
-        elseif  sh == Shell("6s")    if wa[22] == -1.                      else   wb = wb + v * wa[12]   end
-        elseif  sh == Shell("6p")    if wa[24] == -1.                      else   wb = wb + v * wa[24]   end
         end
     end
 
@@ -164,7 +191,7 @@ function estimate(::EstimateBindingEnergyXrayDataBooklet, Z::Int64, conf::Config
         elseif  sh == Shell("5s")    if wa[17] == -1.   error("stop ag")   else   wb = wb + v * wa[17]   end
         elseif  sh == Shell("5p")    if wa[19] == -1.   error("stop ah")   else   wb = wb + v * wa[19]   end
         elseif  sh == Shell("5d")    if wa[21] == -1.                      else   wb = wb + v * wa[21]   end
-        elseif  sh == Shell("6s")    if wa[22] == -1.                      else   wb = wb + v * wa[12]   end
+        elseif  sh == Shell("6s")    if wa[22] == -1.                      else   wb = wb + v * wa[22]   end
         elseif  sh == Shell("6p")    if wa[24] == -1.                      else   wb = wb + v * wa[24]   end
         end
     end
@@ -180,7 +207,7 @@ end
         A list of energies::Array{Float64} [in Hartree] is returned.
 """
 function estimateBindingEnergies(Z::Float64, coreConf::Configuration, nRange::UnitRange{Int64})
-    energies = Float64[];    effZs = Float64[];    Ne = coreConf.NoElectrons
+    energies = Float64[];    Ne = coreConf.NoElectrons
     # Terminate if  nRange.start  <=  nMaxCore,  i.e. if any core-shell has a higher n-value
     nMaxCore = 0;     for (k,v) in coreConf.shells   if  k.n > nMaxCore   nMaxCore = k.n    end    end
     if  nRange.start  <=  nMaxCore   error("Unsupported n-values:  nMin = $(nRange.start)  <=  nMaxCore = $nMaxCore")    end
@@ -216,7 +243,7 @@ end
         A list of energies::Array{Float64} [in Hartree] is returned.
 """
 function estimateBindingEnergies(Z::Float64, coreConf::Configuration, nRange::UnitRange{Int64}, l::Int64)
-    energies = Float64[];    effZs = Float64[];    Ne = coreConf.NoElectrons
+    energies = Float64[];    Ne = coreConf.NoElectrons
     # Terminate if  nRange.start  <=  nMaxCore,  i.e. if any core-shell has a higher n-value
     nMaxCore = 0;     for (k,v) in coreConf.shells   if  k.n > nMaxCore   nMaxCore = k.n    end    end
     if  nRange.start  <=  nMaxCore   error("Unsupported n-values:  nMin = $(nRange.start)  <=  nMaxCore = $nMaxCore")    end
@@ -253,7 +280,7 @@ end
         coreConfiguration. A list of radii::Array{Float64} [in a_o] is returned.
 """
 function estimateRadialExpectation(Z::Float64, coreConf::Configuration, nRange::UnitRange{Int64}, l::Int64)
-    rValues = Float64[];    effZs = Float64[];    Ne = coreConf.NoElectrons
+    rValues = Float64[];    Ne = coreConf.NoElectrons
     # Terminate if  nRange.start  <=  nMaxCore,  i.e. if any core-shell has a higher n-value
     nMaxCore = 0;     for (k,v) in coreConf.shells   if  k.n > nMaxCore   nMaxCore = k.n    end    end
     if  nRange.start  <=  nMaxCore   error("Unsupported n-values:  nMin = $(nRange.start)  <=  nMaxCore = $nMaxCore")    end
@@ -262,7 +289,7 @@ function estimateRadialExpectation(Z::Float64, coreConf::Configuration, nRange::
     sn = "";    sZ = "";    sr = ""    
     for  n = nRange
         effZ = Z - Ne * (1 - 0.5/n^2.2)
-        rnl  = (3*n^2 - l*(l+1)) / (2*Z)
+        rnl  = (3*n^2 - l*(l+1)) / (2*effZ)
         push!(rValues, rnl)
         sx = "           " * string(n);                   sn = sn * sx[end-10:end]
         sx = "           " * @sprintf("% 2.2f", effZ);    sZ = sZ * sx[end-10:end]
