@@ -30,8 +30,8 @@ using  Printf, ..Basics, ..Cubature,
             Kim et al. PRA (2001) & Wang  et al. JPB (2024).
     + struct BEDmodel        
         ... to apply a improved BED model due to Huo PRA (2001) for non-relativistic impact energies.  
-    + struct RelativisticBEBmodel        
-        ... to apply a generalized BEB model for non-relativistic impact energies due to
+    + struct RelativisticBEBmodel
+        ... to apply a generalized BEB model for relativistic impact energies due to
             Kim et al. PRA (2001) & Wang  et al. JPB (2024).
     + struct RelativisticBEDmodel
         ... to apply a modified relativistic BEB model due to Uddin et al. PRA (2005) for relativistic impact energies.
@@ -60,10 +60,10 @@ struct         BEDmodel                  <:  AbstractModel   end
 struct         RelativisticBEBmodel      <:  AbstractModel   end
 struct         RelativisticBEDmodel      <:  AbstractModel   end
 struct         FittedBEDmodel            <:  AbstractModel   end
-struct         DirectMultipleModel       <:  AbstractModel   end   # modified for EIMI
-struct         InDirectDoubleModel       <:  AbstractModel   end   # modified for EIMI
-struct         DoubleExperimentModel     <:  AbstractModel   end   # modified for EIMI
-struct         LotzMultipleModel         <:  AbstractModel   end   # modified for EIMI
+struct         DirectMultipleModel       <:  AbstractModel   end
+struct         InDirectDoubleModel       <:  AbstractModel   end
+struct         DoubleExperimentModel     <:  AbstractModel   end
+struct         LotzMultipleModel         <:  AbstractModel   end
 
 export BEBmodel, BEDmodel, RelativisticBEBmodel, RelativisticBEDmodel, FittedBEDmodel,
        DirectMultipleModel, InDirectDoubleModel, DoubleExperimentModel, LotzMultipleModel
@@ -75,8 +75,8 @@ export BEBmodel, BEDmodel, RelativisticBEBmodel, RelativisticBEDmodel, FittedBED
     
     + model                      ::ImpactIonization.AbstractModel 
         ... model for computing empirical EII cross sections.
-    + multipleN                  ::Int64  # modified for EIMI
-        ... N of multiply charge   # modified for EIMI
+    + multipleN                  ::Int64
+        ... ionization order N for multiple ionization.
     + impactEnergies             ::Array{Float64,1}                       
         ... List of impact-energies of the incoming elecgtrons.
     ## + electronEnergies           ::Array{Float64,1}   ... List of continuum-electron energies.
@@ -90,7 +90,7 @@ export BEBmodel, BEDmodel, RelativisticBEBmodel, RelativisticBEDmodel, FittedBED
 """    
 struct Settings   <:  AbstractEmpiricalSettings
     model                        ::ImpactIonization.AbstractModel
-    multipleN                    ::Int64   # modified for EIMI
+    multipleN                    ::Int64
     impactEnergies               ::Array{Float64,1}
     calcPartialCs                ::Bool 
     calcTotalCs                  ::Bool 
@@ -99,18 +99,45 @@ end
 
 
 """
-`JAC.ImpactIonization.Settings()`  ... constructor for the default values of empirical electron-impact ionization cross sections.
+`ImpactIonization.Settings()`  ... constructor for the default values of empirical electron-impact ionization cross sections.
 """
 function Settings()
-    Settings(ImpactIonization.AbstractModel(), Int64[], Float64[], false, false, ShellSelection())  # Int64 for multipleN added, modified for EIMI
+    Settings(BEBmodel(), 1, Float64[], false, false, ShellSelection())
 end
 
 
-## `Base.show(io::IO, settings::ImpactIonization.Settings)`  
-##  ... prepares a proper printout of the variable settings::ImpactIonization.Settings.
-function Base.show(io::IO, settings::ImpactIonization.Settings) 
+"""
+`ImpactIonization.Settings(set::ImpactIonization.Settings;`
+
+        model=..,           multipleN=..,       impactEnergies=..,
+        calcPartialCs=..,   calcTotalCs=..,     shellSelection=..)
+
+    ... keyword copy-constructor for re-defining selected values of a settings::ImpactIonization.Settings.
+"""
+function Settings(set::ImpactIonization.Settings;
+        model          ::Union{Nothing,ImpactIonization.AbstractModel} = nothing,
+        multipleN      ::Union{Nothing,Int64}                          = nothing,
+        impactEnergies ::Union{Nothing,Array{Float64,1}}               = nothing,
+        calcPartialCs  ::Union{Nothing,Bool}                           = nothing,
+        calcTotalCs    ::Union{Nothing,Bool}                           = nothing,
+        shellSelection ::Union{Nothing,ShellSelection}                 = nothing)
+    if  isnothing(model)           modelx          = set.model           else   modelx          = model           end
+    if  isnothing(multipleN)       multipleNx      = set.multipleN       else   multipleNx      = multipleN       end
+    if  isnothing(impactEnergies)  impactEnergiesx = set.impactEnergies  else   impactEnergiesx = impactEnergies  end
+    if  isnothing(calcPartialCs)   calcPartialCsx  = set.calcPartialCs   else   calcPartialCsx  = calcPartialCs   end
+    if  isnothing(calcTotalCs)     calcTotalCsx    = set.calcTotalCs     else   calcTotalCsx    = calcTotalCs     end
+    if  isnothing(shellSelection)  shellSelectionx = set.shellSelection  else   shellSelectionx = shellSelection  end
+    Settings(modelx, multipleNx, impactEnergiesx, calcPartialCsx, calcTotalCsx, shellSelectionx)
+end
+
+
+"""
+`Base.show(io::IO, settings::ImpactIonization.Settings)`
+    ... prepares a proper printout of the variable settings::ImpactIonization.Settings.
+"""
+function Base.show(io::IO, settings::ImpactIonization.Settings)
     println(io, "model:                       $(settings.model)  ")
-    println(io, "multipleN:                   $(settings.multipleN)  ")  # modified for EIMI
+    println(io, "multipleN:                   $(settings.multipleN)  ")
     println(io, "impactEnergies:              $(settings.impactEnergies)  ")
     println(io, "calcPartialCs:               $(settings.calcPartialCs)  ")
     println(io, "calcTotalCs:                 $(settings.calcTotalCs)  ")
@@ -136,14 +163,34 @@ struct  CrossSection
     differentialCS      ::Array{Float64,1}
 end 
 
+"""
+`struct  ImpactIonization.MultipleCrossSection`
+    ... defines a type for total EIMI cross sections at a single impact energy.
+
+    + impactEnergy  ::Float64  ... energy of the impact electron [eV].
+    + totalCS       ::Float64  ... total multiple-ionization cross section [barn].
+"""
 struct  MultipleCrossSection
     impactEnergy        ::Float64
     totalCS             ::Float64
-end 
+end
 
 
-# `Base.show(io::IO, cs::ImpactIonization.CrossSection)`  ... prepares a proper printout of the variable line::ImpactIonization.CrossSection.
-function Base.show(io::IO, cs::ImpactIonization.CrossSection) 
+"""
+`Base.show(io::IO, cs::ImpactIonization.MultipleCrossSection)`
+    ... prepares a proper printout of the variable cs::ImpactIonization.MultipleCrossSection.
+"""
+function Base.show(io::IO, cs::ImpactIonization.MultipleCrossSection)
+    println(io, "impactEnergy:       $(cs.impactEnergy)  ")
+    println(io, "totalCS:            $(cs.totalCS)  ")
+end
+
+
+"""
+`Base.show(io::IO, cs::ImpactIonization.CrossSection)`
+    ... prepares a proper printout of the variable cs::ImpactIonization.CrossSection.
+"""
+function Base.show(io::IO, cs::ImpactIonization.CrossSection)
     println(io, "subshell:           $(cs.subshell)  ")
     println(io, "impactEnergy:       $(cs.impactEnergy)  ")
     println(io, "partialCS:          $(cs.partialCS)  ") 
@@ -194,21 +241,19 @@ function  computeCrossSections(model::BEBmodel, cs::ImpactIonization.CrossSectio
                                 basis::Basis, nm::Nuclear.Model, grid::Radial.Grid, settings::ImpactIonization.Settings)
     bindingEnergy = kineticEnergy = q = t = u = 0.0
     partialCS     = 0.0 
-    Ryd           = 13.6
     # Determine the binding energy, kinetic energy and occupation number for the subshell
     bindingEnergy    = - basis.orbitals[cs.subshell].energy
     orb              = basis.orbitals[cs.subshell]
     kineticEnergy    = RadialIntegrals.isotope_nms(orb, orb, 0.0, grid)
     occupationNumber = Basics.computeMeanSubshellOccupation(cs.subshell, basis)
     eC               = ImpactIonization.effectiveCharge(cs.subshell, nm, basis)
-    # Transform the imput energies into atomic unit and get the default values
-    iE = Defaults.convertUnits("energy: from eV to atomic", cs.impactEnergy)
-    ryd = Defaults.convertUnits("energy: from eV to atomic", Ryd)  # epislon/R
+    # Transform the input energies into atomic units
+    iE  = Defaults.convertUnits("energy: from eV to atomic", cs.impactEnergy)
+    ryd = 0.5   # 1 Rydberg = 1/2 Hartree, exact in atomic units
     # Define parameters using symbols in BEB & BED formulas
     t = iE / bindingEnergy     
     u = kineticEnergy / bindingEnergy  
     q = occupationNumber 
-    @show cs.subshell, eC
     # Calculate the partial and total cross sections
     csFactor = 4 * pi * q * ryd^2 * (1/bindingEnergy)^2/(t + (u + 1)/(eC+1))
     wc       = 1 - 1/t - log(t)/(1+t)
@@ -237,9 +282,9 @@ function  computeCrossSections(model::BEDmodel, cs::ImpactIonization.CrossSectio
     occupationNumber = Basics.computeMeanSubshellOccupation(cs.subshell, basis)
     eC               = ImpactIonization.effectiveCharge(cs.subshell, nm, basis)
     # Transform the imput energies into atomic unit and get the default values
-    iE = Defaults.convertUnits("energy: from eV to atomic", cs.impactEnergy); @show iE
+    iE = Defaults.convertUnits("energy: from eV to atomic", cs.impactEnergy)
     # Define parameters using symbols in BEB & BED formulas
-    t = iE / bindingEnergy; @show t     
+    t = iE / bindingEnergy     
     u = kineticEnergy / bindingEnergy  
     q = occupationNumber 
     # Calculate the dipole term
@@ -405,7 +450,7 @@ end
 
 
 """
-`ImpactIonization.computeMultipleCrossSections(model::DirectMultipleModel, cs::ImpactIonization.CrossSection,
+`ImpactIonization.computeCrossSections(model::DirectMultipleModel, cs::ImpactIonization.CrossSection,
                                                basis::Basis, nm::Nuclear.Model, grid::Radial.Grid, settings::ImpactIonization.Settings)`  
     ... to compute the particular EIMI cross sections (cs) for an atom or ion in DirectMultipleModel. While the basis describes the
         configuration of the atom, the settings provide access to the selected subshells and energies; 
@@ -419,9 +464,9 @@ function  computeCrossSections(model::DirectMultipleModel, cs::ImpactIonization.
     param_dir_mul_c = [1, 0.75]                            
     totalEnergy     = u = 0.0
     partialCS       = 0.0
-    Ryd             = 13.6
+    Ryd             = Defaults.convertUnits("energy: from atomic to eV", 0.5)
 
-    atomicNumber = Int.(nm.Z); 
+    atomicNumber = Int.(nm.Z);
     multipleN    = settings.multipleN; 
 
     if  multipleN  >  10
@@ -433,10 +478,10 @@ function  computeCrossSections(model::DirectMultipleModel, cs::ImpactIonization.
     end
     
     # Here we calculate total electron number and charge state.
-    conf          = Basics.extractConfigurations(Basics.FromBasis(), basis)[1];   
-    totalElectron = conf.NoElectrons; @show totalElectron
-    chargeState   = atomicNumber - totalElectron; @show chargeState
-   
+    conf          = Basics.extractConfigurations(Basics.FromBasis(), basis)[1];
+    totalElectron = conf.NoElectrons
+    chargeState   = atomicNumber - totalElectron
+
     if chargeState == 0
         c1 = param_dir_mul_c[1]
     else
@@ -444,52 +489,23 @@ function  computeCrossSections(model::DirectMultipleModel, cs::ImpactIonization.
     end
 
     if totalElectron < multipleN
-        printstyled("inputError: Target electron number must be more than ionization order!\n", color=:light_green)
-        error("inputError: InDirectDoubleModel only works for double ionization!")
+        error("inputError: Target electron number must be more than ionization order!")
     end
 
 
-    # This part is left for calculating the ionization potential from JAC, to be added
-    if false
-        valenceShell = Basics.extractValenceShell(basis);                    @show valenceShell
-        
-        confs        = Basics.extractConfigurations(Basics.FromBasis(), basis);   @show confs
-        #
-        # Now generate N-1 (N = multipleN from your settings) new bases to extract improved one-particle energies
-        newBases = ManyElectron.Basis[];  @show newBases
-        totalEnergy = Float64[];
-        for  N = 1:multipleN
-            newConfs      = Basics.generateConfigurations(Basics.RemoveElectrons(1, [valenceShell]), confs)
-            @show confs
-            multipletX    = SelfConsistent.performSCF(computation.configs, nm, computation.grid, asfSettings)
-            newBasis      = multipletX.levels[1].basis
-            push!(newBases, newBasis)
-            #
-            confs        = Basics.extractConfigurations(Basics.FromBasis(), newBasis);   @show confs
-            valenceShell = Basics.extractValenceShell(newBasis);                    @show valenceShell
-        end    
-        for  i = 1:multipleN
-            BIP = basis[i].orbitals[subshell]
-            push!(totalEnergy,BIP)
-        end
-        totalEnergyNew = sum(totalEnergy[chargeState+1:chargeState+multipleN]);     @show totalEnergyNew
-    end
-
-    EIP = PeriodicTable.ionizationPotentials_Nist2025(atomicNumber);    @show EIP
-
-    totalEnergy = sum(EIP[chargeState+1 : chargeState+multipleN]);      @show totalEnergy
-    ## error("xx")
+    EIP         = PeriodicTable.ionizationPotentials_Nist2025(atomicNumber)
+    totalEnergy = sum(EIP[chargeState+1 : chargeState+multipleN])
 
     # Impact energy and parameter u
     iE  = cs.impactEnergy
-    u   = iE / totalEnergy;                                             @show u     
+    u   = iE / totalEnergy     
     
     # Calculate the total cross section   
     term11 = (a1 * totalElectron^b1) / (totalEnergy / Ryd)^2
     term12 = ((u + 1) / u)^c1
     term13 = log(u) / u 
       
-    Barn2Au = 0.280_028_520_292_481_56e8  
+    Barn2Au = Defaults.convertUnits("cross section: from atomic to barn", 1.0)
     if  u < 1   else   partialCS = term11 * term12 * term13 / Barn2Au     end 
     newCs = ImpactIonization.CrossSection(cs.subshell, cs.impactEnergy, partialCS, Float64[], Float64[])
     
@@ -498,7 +514,7 @@ end
 
     
 """
-`ImpactIonization.computeMultipleCrossSections(model::InDirectDoubleModel, cs::ImpactIonization.CrossSection,
+`ImpactIonization.computeCrossSections(model::InDirectDoubleModel, cs::ImpactIonization.CrossSection,
                                                basis::Basis, nm::Nuclear.Model, grid::Radial.Grid, settings::ImpactIonization.Settings)`  
     ... to compute the particular EIMI cross sections (cs) for an atom or ion in InDirectDoubleModel. While the basis describes the
         configuration of the atom, the settings provide access to the selected subshells and energies; 
@@ -516,16 +532,14 @@ function  computeCrossSections(model::InDirectDoubleModel, cs::ImpactIonization.
                                [5, 1, 2, 1.8, [3.6], [4.5], [2], [217.66], [1 - 7129 / 1e4]],
                                [5, 3, 2, 5.0, [0], [0], [2], [259.368], [1.0]]                 ]
 
-    totalEnergy = u = EIP = 0.0 
-    Ryd         = 13.6
+    totalEnergy = u = EIP = 0.0
     partialCS   = 0.0
-    
-    atomicNumber = Int.(nm.Z); 
-    multipleN = settings.multipleN; 
 
-    # InDirectDoubleModel only works for double ionzation
+    atomicNumber = Int.(nm.Z);
+    multipleN    = settings.multipleN;
+
+    # InDirectDoubleModel only works for double ionization
     if multipleN != 2
-        printstyled("inputError: InDirectDoubleModel only works for double ionization!\n", color=:light_green)
         error("inputError: InDirectDoubleModel only works for double ionization!")
     end
     
@@ -539,27 +553,25 @@ function  computeCrossSections(model::InDirectDoubleModel, cs::ImpactIonization.
     end
     
     # Here we calculate the total electron number and charge state.
-    conf          = Basics.extractConfigurations(Basics.FromBasis(), basis)[1];   
-    totalElectron = conf.NoElectrons; @show totalElectron
-    chargeState   = atomicNumber - totalElectron; @show chargeState
-   
+    conf          = Basics.extractConfigurations(Basics.FromBasis(), basis)[1]
+    totalElectron = conf.NoElectrons
+    chargeState   = atomicNumber - totalElectron
+
     if totalElectron < multipleN
-        printstyled("inputError: Target electron number must be more than ionization order!\n", color=:light_green)
         error("inputError: Target electron number must be more than ionization order!")
     end
 
     # Calculate total ionization potential
-    EIP         = PeriodicTable.ionizationPotentials_Nist2025(atomicNumber); @show EIP
-    totalEnergy = sum(EIP[chargeState+1 : chargeState+multipleN]); @show totalEnergy
-     
+    EIP         = PeriodicTable.ionizationPotentials_Nist2025(atomicNumber)
+    totalEnergy = sum(EIP[chargeState+1 : chargeState+multipleN])
+
     A_dir = C_GAMMA = PHI_GAMMA =0.0
     inner_electron_number = 1
     inner_threshold = f_BR = 0.0
-     
-    if !(atomicNumber in all_atom_shev) || !(chargeState in all_charge_shev) 
-        printstyled("InputError: Input atomic number or charge state out of range!\n Parameters are available for limited ions!" *
-                    "\n To be added in near future. \n", color=:light_green)
-        error("InputError: Input atomic number or charge state out of range!")
+
+    if !(atomicNumber in all_atom_shev) || !(chargeState in all_charge_shev)
+        error("InputError: Input atomic number or charge state out of range! " *
+              "Parameters are available for limited ions; to be added in near future.")
     else
         for sf in 1:length(param_shevelko_fitting)
             if param_shevelko_fitting[sf][1] == atomicNumber && param_shevelko_fitting[sf][2] == chargeState && 
@@ -586,33 +598,32 @@ function  computeCrossSections(model::InDirectDoubleModel, cs::ImpactIonization.
     term22    = A_dir * (u - 1) / totalEnergy^3 / (u + 0.5)^2
     sigma_dir = term21 * term22
     # Calculate the indirect ionization part        
-    for epsilon in iE
-        for i2 in 1:length(inner_threshold)
-            if epsilon < inner_threshold[i2]
-                IA = 0
-            else
-                alpha_gamma = f_BR[i2]
-                c_gamma     = C_GAMMA[i2]
-                I_gamma     = inner_threshold[i2]
-                phi_gamma   = PHI_GAMMA[i2]
-                x2          = epsilon / I_gamma
-                IA          = alpha_gamma * c_gamma * (x2 - 1) / I_gamma^2 / x2 / (x2 + phi_gamma)
-            end
-            sigma_indir += IA
+    epsilon = iE
+    for i2 in 1:length(inner_threshold)
+        if epsilon < inner_threshold[i2]
+            IA = 0
+        else
+            alpha_gamma = f_BR[i2]
+            c_gamma     = C_GAMMA[i2]
+            I_gamma     = inner_threshold[i2]
+            phi_gamma   = PHI_GAMMA[i2]
+            x2          = epsilon / I_gamma
+            IA          = alpha_gamma * c_gamma * (x2 - 1) / I_gamma^2 / x2 / (x2 + phi_gamma)
         end
-        end
+        sigma_indir += IA
+    end
      
     # Calculate the total cross section
-    Barn2Au = 0.280_028_520_292_481_56e8 
-    if  u < 1   else    partialCS = (sigma_dir + sigma_indir) * 1e5 / Barn2Au     end 
+    Barn2Au = Defaults.convertUnits("cross section: from atomic to barn", 1.0)
+    if  u < 1   else    partialCS = (sigma_dir + sigma_indir) * 1e5 / Barn2Au     end
     newCs = ImpactIonization.CrossSection(cs.subshell, cs.impactEnergy, partialCS, Float64[], Float64[])
-    
+
     return( newCs )
 end
 
 
 """
-`ImpactIonization.computeMultipleCrossSections(model::DoubleExperimentModel, cs::ImpactIonization.CrossSection,
+`ImpactIonization.computeCrossSections(model::DoubleExperimentModel, cs::ImpactIonization.CrossSection,
                                                basis::Basis, nm::Nuclear.Model, grid::Radial.Grid, settings::ImpactIonization.Settings)`  
     ... to compute the particular EIMI cross sections (cs) for an atom or ion in DoubleExperimentModel. While the basis describes the
         configuration of the atom, the settings provide access to the selected subshells and energies; 
@@ -631,14 +642,12 @@ function  computeCrossSections(model::DoubleExperimentModel, cs::ImpactIonizatio
                                 [5, 3, 2, 5.0, [0], [0], [2], [259.368], [1.0]]              ]                           
     totalEnergy = u = 0.0
     partialCS   = 0.0
-    Ryd         = 13.6
+
+    atomicNumber = Int.(nm.Z);
+    multipleN    = settings.multipleN;
     
-    atomicNumber = Int.(nm.Z); 
-    multipleN    = settings.multipleN; 
-    
-    # InDirectDoubleModel only works for double ionzation
+    # DoubleExperimentModel only works for double ionization
     if multipleN != 2
-        printstyled("inputError: DoubleExperimentModel only works for double ionization!\n", color=:light_green)
         error("inputError: DoubleExperimentModel only works for double ionization!")
     end
     
@@ -652,29 +661,26 @@ function  computeCrossSections(model::DoubleExperimentModel, cs::ImpactIonizatio
     end
     
     # Here we calculate the total electron number and charge state.
-    conf          = Basics.extractConfigurations(Basics.FromBasis(), basis)[1];   
-    totalElectron = conf.NoElectrons;               @show totalElectron
-    chargeState   = atomicNumber - totalElectron;   @show chargeState
-   
+    conf          = Basics.extractConfigurations(Basics.FromBasis(), basis)[1]
+    totalElectron = conf.NoElectrons
+    chargeState   = atomicNumber - totalElectron
+
     if totalElectron < multipleN
-        printstyled("inputError: Target electron number must be more than ionization order!\n", color=:light_green)
         error("inputError: Target electron number must be more than ionization order!")
     end
 
-   
     # Calculate the total ionization potential
-    EIP         = PeriodicTable.ionizationPotentials_Nist2025(atomicNumber);   @show EIP
-    totalEnergy = sum(EIP[chargeState+1 : chargeState+multipleN]);             @show totalEnergy
+    EIP         = PeriodicTable.ionizationPotentials_Nist2025(atomicNumber)
+    totalEnergy = sum(EIP[chargeState+1 : chargeState+multipleN])
 
     # parameters used in the formula
     A_dir = C_GAMMA = PHI_GAMMA = 0.0
     inner_electron_number  = 1
     inner_threshold = f_BR = 0.0
-     
-    if !(atomicNumber in all_atom_shev)  ||  !(chargeState in all_charge_shev) 
-        printstyled("InputError: Input atomic number or charge state out of range!\n Parameters are available for limited ions! " *
-                    "\n To be added in near future. \n", color=:light_green)
-        error("InputError: Input atomic number or charge state out of range!")
+
+    if !(atomicNumber in all_atom_shev)  ||  !(chargeState in all_charge_shev)
+        error("InputError: Input atomic number or charge state out of range! " *
+              "Parameters are available for limited ions; to be added in near future.")
     else
         for sf in 1:length(param_shevelko_fitting)
             if param_shevelko_fitting[sf][1] == atomicNumber && param_shevelko_fitting[sf][2] == chargeState && param_shevelko_fitting[sf][3] == multipleN
@@ -703,29 +709,27 @@ function  computeCrossSections(model::DoubleExperimentModel, cs::ImpactIonizatio
     sigma_dir = term31 * term32 * term33
             
     # Calculate indirect ionization part
-    for epsilon in iE
-        for i3 in 1:length(inner_threshold)
-            if epsilon < inner_threshold[i3]
-                IA          = 0
-            else
-                t           = epsilon / totalEnergy
-                alpha_gamma = f_BR[i3]
-                c_gamma     = C_GAMMA[i3]
-                I_gamma     = inner_threshold[i3]
-                phi_gamma   = PHI_GAMMA[i3]
-                x3          = epsilon / I_gamma 
-                IA1         = alpha_gamma * c_gamma * (x3 - 1) / I_gamma^2 / x3 / (x3 + 5)
-                IA2         = 1 + 0.3 / phi_gamma / log(4 * t + 1)
-                IA          = IA1 * IA2
-            end
-            sigma_indir += IA
+    epsilon = iE
+    for i3 in 1:length(inner_threshold)
+        if epsilon < inner_threshold[i3]
+            IA          = 0
+        else
+            t           = epsilon / totalEnergy
+            alpha_gamma = f_BR[i3]
+            c_gamma     = C_GAMMA[i3]
+            I_gamma     = inner_threshold[i3]
+            phi_gamma   = PHI_GAMMA[i3]
+            x3          = epsilon / I_gamma
+            IA1         = alpha_gamma * c_gamma * (x3 - 1) / I_gamma^2 / x3 / (x3 + 5)
+            IA2         = 1 + 0.3 / phi_gamma / log(4 * t + 1)
+            IA          = IA1 * IA2
         end
+        sigma_indir += IA
     end
      
     # Calculate the total cross section     
-    Barn2Au = 0.280_028_520_292_481_56e8 
-    
-    if  u < 1   else    partialCS = (sigma_dir + sigma_indir) * 1e5 / Barn2Au    end 
+    Barn2Au = Defaults.convertUnits("cross section: from atomic to barn", 1.0)
+    if  u < 1   else    partialCS = (sigma_dir + sigma_indir) * 1e5 / Barn2Au    end
     newCs = ImpactIonization.CrossSection(cs.subshell, cs.impactEnergy, partialCS, Float64[], Float64[])
     
     return( newCs )
@@ -733,7 +737,7 @@ end
 
 
 """
-`ImpactIonization.computeMultipleCrossSections(model::LotzMultipleModel, cs::ImpactIonization.CrossSection,
+`ImpactIonization.computeCrossSections(model::LotzMultipleModel, cs::ImpactIonization.CrossSection,
                                                basis::Basis, nm::Nuclear.Model, grid::Radial.Grid, settings::ImpactIonization.Settings)`  
     ... to compute the particular EIMI cross sections (cs) for an atom or ion in LotzMultipleModel. While the basis describes the
         configuration of the atom, the settings provide access to the selected subshells and energies; 
@@ -756,9 +760,8 @@ function  computeCrossSections(model::LotzMultipleModel, cs::ImpactIonization.Cr
     multipleN    = settings.multipleN; 
  
     if multipleN != 2
-        printstyled("inputError: LotzMultipleModel currently only works for double ionization!" *
-                    "\n Branching ratio parameters are available for limited ions! \n To be added in near future. \n", color=:light_green)
-        error("inputError: LotzMultipleModel currentl only works for double ionization!")
+        error("inputError: LotzMultipleModel currently only works for double ionization! " *
+              "Branching ratio parameters are available for limited ions; to be added in near future.")
     end
     
     all_atom_shev   = []
@@ -770,29 +773,29 @@ function  computeCrossSections(model::LotzMultipleModel, cs::ImpactIonization.Cr
     end
     
     # Calculate the total electron numbers and charge state
-    conf          = Basics.extractConfigurations(Basics.FromBasis(), basis)[1];   
-    totalElectron = conf.NoElectrons; @show totalElectron
-    chargeState   = atomicNumber - totalElectron; @show chargeState
-   
+    conf          = Basics.extractConfigurations(Basics.FromBasis(), basis)[1]
+    totalElectron = conf.NoElectrons
+    chargeState   = atomicNumber - totalElectron
+
     if totalElectron < multipleN
-       println("inputError: Target electron number must be more than ionization order!")
+        error("inputError: Target electron number must be more than ionization order!")
     end
-   
+
     # Calculate the total ionization potential
-    EIP         = PeriodicTable.ionizationPotentials_Nist2025(atomicNumber);     @show EIP
-    totalEnergy = sum(EIP[chargeState+1 : chargeState+multipleN]);               @show totalEnergy
+    EIP         = PeriodicTable.ionizationPotentials_Nist2025(atomicNumber)
+    totalEnergy = sum(EIP[chargeState+1 : chargeState+multipleN])
 
     # Initialize parameter
     A_dir = C_GAMMA = PHI_GAMMA =0.0
     inner_electron_number  = 1
     inner_threshold = f_BR = 0.0
      
-    if !(atomicNumber in all_atom_shev)  ||  !(chargeState in all_charge_shev) 
-        println("InputError: Input atomic number or charge state out of range!")
-        exit(1)
+    if !(atomicNumber in all_atom_shev)  ||  !(chargeState in all_charge_shev)
+        error("InputError: Input atomic number or charge state out of range! " *
+              "Parameters are available for limited ions; to be added in near future.")
     else
         for sf in 1:length(param_shevelko_fitting)
-            if param_shevelko_fitting[sf][1] == atomicNumber && param_shevelko_fitting[sf][2] == chargeState && 
+            if param_shevelko_fitting[sf][1] == atomicNumber && param_shevelko_fitting[sf][2] == chargeState &&
                param_shevelko_fitting[sf][3] == multipleN
                 A_dir                 = param_shevelko_fitting[sf][4]
                 C_GAMMA               = param_shevelko_fitting[sf][5]
@@ -809,22 +812,21 @@ function  computeCrossSections(model::LotzMultipleModel, cs::ImpactIonization.Cr
     u  = iE / totalEnergy
     # Define parameters using symbols in BEB & BED formulas
     sigma_indir = 0.0
-    for epsilon in iE
-        t = epsilon / totalEnergy
-        for i4 in 1:length(inner_threshold)
-            if epsilon < inner_threshold[i4]
-                IA = 0
-            else
-                alpha_gamma = f_BR[i4]
-                Ns          = inner_electron_number[i4]
-                I_gamma     = inner_threshold[i4]
-                IA = 4.5 * alpha_gamma * Ns * log(t) / I_gamma^2 / t
-            end
-            sigma_indir += IA
+    epsilon = iE
+    t = epsilon / totalEnergy
+    for i4 in 1:length(inner_threshold)
+        if epsilon < inner_threshold[i4]
+            IA = 0
+        else
+            alpha_gamma = f_BR[i4]
+            Ns          = inner_electron_number[i4]
+            I_gamma     = inner_threshold[i4]
+            IA = 4.5 * alpha_gamma * Ns * log(t) / I_gamma^2 / t
         end
+        sigma_indir += IA
     end
     
-    Barn2Au = 0.280_028_520_292_481_56e8    
+    Barn2Au = Defaults.convertUnits("cross section: from atomic to barn", 1.0)  
     if u < 1   else    partialCS = sigma_indir * 1e4 / Barn2Au    end 
     newCs = ImpactIonization.CrossSection(cs.subshell, cs.impactEnergy, partialCS, Float64[], Float64[])
     
