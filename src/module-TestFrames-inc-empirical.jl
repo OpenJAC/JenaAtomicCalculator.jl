@@ -70,7 +70,7 @@ function testModule_Empirical(; short::Bool=true)
     ekins  = [Defaults.convertUnits("energy: from eV to atomic", e) for e in [0.1, 1.0, 5.0, 20.0, 100.0]]
     prCss  = Empirical.photorecombinationCrossSection(ekins, pfConf, piConf, Empirical.ScaledHydrogenic(), printout=false)
     prBarn = [round(Defaults.convertUnits("cross section: from atomic", cs), digits=3) for cs in prCss]
-    for  (ic, cs)  in  enumerate([1886.048, 181.094, 30.772, 4.919, 0.337])
+    for  (ic, cs)  in  enumerate([11316.288, 1086.564, 184.634, 29.515, 2.019])
         success = success && abs(prBarn[ic] - cs) < 0.001
     end
     #
@@ -115,6 +115,61 @@ function testModule_Empirical(; short::Bool=true)
     ##   negative number and could only ever throw. For Ne 1s (870.2 eV = 31.98 Hartree) this gives Z^(eff) = 8.0.
     z12 = Empirical.meanCharge(10, Subshell("1s_1/2"), Configuration("1s^2 2s^2 2p^6"))
     success = success && abs(z12 - 7.997) < 0.01
+    #
+    ## Test 13: the number of equivalent electrons N_e in Kramers' formula. He 1s^2 (N_e = 2) is the clean benchmark:
+    ##   it isolates N_e, since H 1s has N_e = 1 by definition and cannot discriminate. With N_e the threshold cross
+    ##   section is 8.75 Mb against an experimental ~7.4 Mb (1.18x); without it, 4.37 Mb would be 1.7x too low.
+    Defaults.setDefaults("nuclear: charge", 2.)
+    bEHe   = Empirical.bindingEnergy(2, Shell("1s"))
+    heCss  = Empirical.photoionizationCrossSection([bEHe * 1.0000001], Configuration("1s^2"), Configuration("1s^1"),
+                                                   Empirical.ScaledHydrogenic(), printout=false)
+    heMb   = Defaults.convertUnits("cross section: from atomic", heCss[1]) / 1.0e6
+    success = success && abs(heMb - 8.7464) < 0.001
+    #
+    ## Tests 14-16: photorecombination plasma rate coefficients for Ne 2p at T_e = 10 eV.
+    Defaults.setDefaults("nuclear: charge", 10.)
+    eDist  = Distribution.ElectronMaxwell(Defaults.convertUnits("energy: from eV to atomic", 10.0))
+    aSpont = Empirical.photorecombinationPlasmaAlpha(eDist, pfConf, piConf, printout=false)
+    fac    = Defaults.convertUnits("length: from atomic to cm", 1.0)^3 / Defaults.convertUnits("time: from atomic to sec", 1.0)
+    success = success && abs(fac*aSpont - 1.7694284698746885e-14) / 1.7694284698746885e-14 < 1.0e-6
+    ## Test 14: the vacuum photon field has n(omega) = 0 and must reproduce the spontaneous coefficient *exactly*.
+    aVac   = Empirical.photorecombinationPlasmaAlpha(eDist, Distribution.PhotonVacuumField(0.), pfConf, piConf, printout=false)
+    success = success && aVac == aSpont
+    ## Test 15: the stimulated contribution scales linearly with the photon field; a dilute Planckian with w = 0.5 must
+    ##   halve it exactly. This also verifies that nbar = n(omega) pi^2 c^3/omega^2 is applied distribution-independently.
+    T1000  = Defaults.convertUnits("energy: from eV to atomic", 1000.0)
+    aPlanck = Empirical.photorecombinationPlasmaAlpha(eDist, Distribution.PhotonPlanck(T1000), pfConf, piConf, printout=false)
+    aDilute = Empirical.photorecombinationPlasmaAlpha(eDist, Distribution.PhotonDilute(T1000, 0.5), pfConf, piConf, printout=false)
+    success = success && abs(fac*aPlanck - 6.454350011461036e-13) / 6.454350011461036e-13 < 1.0e-6
+    success = success && abs( (aDilute - aSpont)/(aPlanck - aSpont) - 0.5 ) < 1.0e-10
+    ## Test 16: the quadrature range must follow the electron temperature. With a fixed range of 0 ... 100 a.u., this
+    ##   coefficient came out as ~1e-39 instead of ~2.4e-13, i.e. the thermal peak was missed altogether.
+    eCool  = Distribution.ElectronMaxwell(Defaults.convertUnits("energy: from eV to atomic", 0.1))
+    aCool  = Empirical.photorecombinationPlasmaAlpha(eCool, pfConf, piConf, printout=false)
+    success = success && abs(fac*aCool - 2.3949359881380354e-13) / 2.3949359881380354e-13 < 1.0e-4
+    #
+    ## Test 17: the photoionization plasma rate per ion R^(PI: per ion) = int d(omega) n(omega;T) c sigma^(PI)(omega).
+    ##   This is a *rate* [1/s], not a rate coefficient [cm^3/s]: the photon number density is already contained in the
+    ##   convolution. The factor c was previously missing, and the mesh straddled the threshold step; the integration
+    ##   now starts at the threshold and is converged to < 0.2% against a dense reference quadrature.
+    rPI = Empirical.photoionizationPlasmaRatePerIon(Distribution.PhotonPlanck(Defaults.convertUnits("energy: from eV to atomic", 10.0)),
+                                                piConf, pfConf, printout=false)
+    rPIx = Defaults.convertUnits("rate: from atomic", rPI)
+    success = success && abs(rPIx - 2.5040605153139668e9) / 2.5040605153139668e9 < 1.0e-6
+    #
+    ## Test 18: the UsingJAC PI/PR cross sections are not validated -- they grow with omega (resp. eps) instead of
+    ##   falling (resp. diverging as 1/eps) -- and must refuse to return a value rather than deliver 92 Mb where ~1 Mb
+    ##   belongs. photoemissionEinsteinA(..., UsingJAC) is a bound-bound rate and must remain available.
+    ujPI = false;   ujPR = false
+    try     Empirical.photoionizationCrossSection(omegas, piConf, pfConf, Empirical.UsingJAC(), printout=false)
+    catch
+        ujPI = true
+    end
+    try     Empirical.photorecombinationCrossSection(ekins, pfConf, piConf, Empirical.UsingJAC(), printout=false)
+    catch
+        ujPR = true
+    end
+    success = success && ujPI && ujPR
     #
     ## Restore the global nuclear charge for all subsequent tests.
     Defaults.setDefaults("nuclear: charge", oldZ)

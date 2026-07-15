@@ -378,9 +378,12 @@ function photoionizationCrossSection(omegas::Array{Float64,1}, iConf::Configurat
     # Scale the hydrogenic formula by the binding energy (photoionization threshold) of the ionized shell.
     bEnergy = Empirical.scaledBindingEnergy(Z, iShell, iConf, data)
 
-    # Kramers' (1923) bound-free cross section, sigma = 32 pi alpha / (3 sqrt(3) n) * bE^2 / omega^3; at threshold
-    # this is the classical 7.91 Mb * n / Z^(eff)^2, to be compared with the exact 6.30 Mb for H 1s (Gaunt factor 0.8).
-    factor  = 32 * pi * Defaults.getDefaults("alpha") / (3 * sqrt(3) * iShell.n)
+    # Kramers' (1923) bound-free cross section, sigma = 32 pi alpha N_e / (3 sqrt(3) n) * bE^2 / omega^3, where N_e is
+    # the number of equivalent electrons in iShell: the photon may eject any one of them and, in an independent-particle
+    # picture, their cross sections simply add. At threshold this is the classical 7.91 Mb * N_e * n / Z^(eff)^2;
+    # cf. the exact 6.30 Mb for H 1s (Gaunt factor 0.8) and ~7.4 Mb for He 1s^2 (N_e = 2).
+    nEquiv  = iConf.shells[iShell]
+    factor  = 32 * pi * Defaults.getDefaults("alpha") * nEquiv / (3 * sqrt(3) * iShell.n)
 
     # Compute all cross sections in the ScaledHydrogenic approximation
     css = Float64[]
@@ -411,14 +414,26 @@ end
 
 
 """
-`Empirical.photoionizationCrossSection(omegas::Array{Float64,1}, iConf::Configuration, fConf::Configuration, 
-                                       approx::Empirical.UsingJAC; printout::Bool=false)`  
-    ... to estimate empirically the photoionization cross section for a transition from iConf -> fConf by using the binding
-        energy (ionization potential) of the ionized shell from JAC and Kramer's (1923) empirical formula.
-        A cs::Float64 is returned. 
+`Empirical.photoionizationCrossSection(omegas::Array{Float64,1}, iConf::Configuration, fConf::Configuration,
+                                       approx::Empirical.UsingJAC; printout::Bool=false)`
+    ... to estimate the photoionization cross section for a transition from iConf -> fConf from mean-field orbitals and
+        single-electron E1 amplitudes. A css::Array{Float64,1} [a.u.] is returned.
+
+        !! NOT VALIDATED; this method presently raises an error. !!
+        Its cross sections *grow* with the photon energy above the threshold, whereas any PI cross section has to fall:
+        for Ne 2p it yields 5.7 Mb at 25 eV but 92 Mb at 100 eV, where the experimental value has dropped to ~1 Mb.
+        The prefactor 8 pi^3 / (alpha omega) contradicts the defining relation
+        sigma^(PI)(omega; i -> f) = 4 pi^2 alpha omega sum_lambda |<f| D_lambda |i>|^2,
+        i.e. both the alpha- and the omega-dependence appear inverted. Since MabEmissionJohnsony provides an *emission*
+        amplitude, its normalization has to be settled before this prefactor can be re-derived; cf. the (correct)
+        treatment in module-PhotoIonization.jl. The body below is retained unchanged for that repair.
 """
-function photoionizationCrossSection(omegas::Array{Float64,1}, iConf::Configuration, fConf::Configuration, 
-                                     approx::Empirical.UsingJAC; printout::Bool=false) 
+function photoionizationCrossSection(omegas::Array{Float64,1}, iConf::Configuration, fConf::Configuration,
+                                     approx::Empirical.UsingJAC; printout::Bool=false)
+    error("Empirical.photoionizationCrossSection(..., UsingJAC) is not validated: its cross sections grow with omega " *
+          "above the threshold (Ne 2p: 5.7 Mb at 25 eV, but 92 Mb at 100 eV vs. ~1 Mb experimentally). The prefactor " *
+          "8 pi^3/(alpha omega) is inconsistent with sigma^(PI) = 4 pi^2 alpha omega sum |<f|D|i>|^2. " *
+          "Please use approx = ScaledHydrogenic() instead.")
     Z = Defaults.getDefaults("nuclear: charge");    iShell = Shell(0,0);    diff = 0;   zeroCss = false
     
     # Determine the initial shell and its binding (threshold) energy; set all css = 0, if the occupation of 
@@ -481,40 +496,66 @@ end
 
 
 """
-`Empirical.photoionizationPlasmaAlpha(dist::Distribution.AbstractPhotonDistribution, 
-                                      iConf::Configuration, fConf::Configuration; 
-                                      approx::Empirical.AbstractEmpiricalApproximation=ScaledHydrogenic(), printout::Bool=false)` 
-                                     
-    ... to estimate empirically the PI plasma rate coefficient alpha^(PI) for a transition from iConf -> fConf by applying some simple
-        approximation as determined by approx. For printout=true, basic information are printed about the approximation as well
-        as the results. An alpha::Float64 is returned.
+`Empirical.photoionizationPlasmaRatePerIon(dist::Distribution.AbstractPhotonDistribution,
+                                      iConf::Configuration, fConf::Configuration;
+                                      approx::Empirical.AbstractEmpiricalApproximation=ScaledHydrogenic(), printout::Bool=false,
+                                      data::PeriodicTable.AbstractEnergyData=PeriodicTable.Williams2000())`
+    ... to estimate empirically the photoionization plasma rate per ion R^(PI: per ion) (T; i -> f) for a transition from
+        iConf -> fConf and a photon field dist at the radiation temperature T. A rate::Float64 [a.u.] is returned.
+
+        Note: In contrast to the photorecombination coefficient alpha^(PR) [cm^3/s], this quantity is a *rate* [1/s] and
+              not a rate coefficient. The convolution R^(PI: per ion) = int d(omega) n(omega; T) c sigma^(PI)(omega)
+              already contains the photon number density of the radiation field and, hence, needs no further
+              multiplication by a density; it is the number of photoionization events per ion and per unit time.
+              The free-electron density, in contrast, does not enter the PI process at all.
 """
-function photoionizationPlasmaAlpha(dist::Distribution.AbstractPhotonDistribution,
-                                    iConf::Configuration, fConf::Configuration; 
-                                    approx::Empirical.AbstractEmpiricalApproximation=ScaledHydrogenic(), printout::Bool=false)
-    alpha = 0.;    omegaMax = 100.
-    # Perform a Gauss-Legendre integration by selecting the photon number distribution and cross sectins at the required energies
-    gridGL    = Radial.GridGL(Radial.GridGaussLegendreFinite(), 0., omegaMax, 24; printout=true)
-    css       = Empirical.photoionizationCrossSection(gridGL.t, iConf, fConf, approx; printout=false)
-    for  n = 1:gridGL.nt
-        alpha = alpha + css[n] * Distribution.photonNumberDensity(dist, gridGL.t[n]) * gridGL.wt[n]    
+function photoionizationPlasmaRatePerIon(dist::Distribution.AbstractPhotonDistribution,
+                                    iConf::Configuration, fConf::Configuration;
+                                    approx::Empirical.AbstractEmpiricalApproximation=ScaledHydrogenic(), printout::Bool=false,
+                                    data::PeriodicTable.AbstractEnergyData=PeriodicTable.Williams2000())
+    if  typeof(approx) != Empirical.ScaledHydrogenic
+        error("The photoionization plasma rate is presently supported only for approx = ScaledHydrogenic(); the " *
+              "threshold energy, which is needed to place the integration mesh, is not available for $approx.")
     end
-    
+    Z = Defaults.getDefaults("nuclear: charge");   alpha = 0.;   iShell = Shell(0,0);   diff = 0
+
+    # Determine the ionized shell and its binding energy; the PI cross section vanishes below this threshold.
+    wa = Basics.extractFromConfigurations(Basics.OccupationDifference(), iConf, fConf)
+    if length(wa) > 1   error("Incompatible initial and final configurations for a photoionization plasma rate.")   end
+    for  (k,v) in wa
+        diff = diff + v
+        if      v == 1     iShell = k    end
+    end
+    if  diff != 1   error("Incompatible initial and final configurations for a photoionization plasma rate.")   end
+    bEnergy = Empirical.scaledBindingEnergy(Z, iShell, iConf, data)
+    c       = Defaults.getDefaults("speed of light: c")
+
+    # Perform a Gauss-Legendre integration of  R^(PI: per ion) = int d(omega) n(omega; T) c sigma^(PI)(omega).
+    # The mesh starts at the threshold: sigma^(PI) jumps from zero to its maximum at omega = bEnergy, and a mesh that
+    # straddles this step converges badly (> 50% error for a mesh 0 ... 30 T). It ends at bEnergy + 30 T, since all
+    # supported photon fields fall off exponentially above their temperature. This quadrature is converged to < 0.2%.
+    gridGL    = Radial.GridGL(Radial.GridGaussLegendreFinite(), bEnergy, bEnergy + 30*dist.T, 96; printout=true)
+    css       = Empirical.photoionizationCrossSection(gridGL.t, iConf, fConf, approx; printout=false, data=data)
+    for  n = 1:gridGL.nt
+        alpha = alpha + css[n] * c * Distribution.photonNumberDensity(dist, gridGL.t[n]) * gridGL.wt[n]
+    end
+
     # Report about this estimate
     if  printout
+        unRate = Defaults.getDefaults("unit: rate");   unEnergy = Defaults.getDefaults("unit: energy")
         Tx     = Defaults.convertUnits("temperature: from atomic to Kelvin", dist.T)
-        factor = Defaults.convertUnits("length: from atomic to cm", 1.0)
-        factor = factor^3 / Defaults.convertUnits("time: from atomic to sec", 1.0)
-        alphax = factor * alpha
-        sa = "\n* Estimate empirically the photoionization plasma rate coefficient alpha for a given transition i -> f with the " *
+        alphax = Defaults.convertUnits("rate: from atomic to " * unRate, alpha)
+        bEx    = Defaults.convertUnits("energy: from atomic to " * unEnergy, bEnergy)
+        sa = "\n* Estimate empirically the photoionization plasma rate per ion for a given transition i -> f with the " *
              "following assumptions/simplifications: " *
-             "\n    + Photon field follows a $(SubString(string(dist), 22)) at temperature T [K] = $(Tx). " * 
-             "\n    + PI cross sections are generated in the $(SubString(string(approx), 22)) approximation. " * 
-             "\n    + iConf = $iConf  -->  fConf = $fConf " * 
-             "\n    + Plasma rate coefficient alpha^(PI) [cm^3/s] = $alphax \n"
+             "\n    + Photon field follows a $(SubString(string(dist), 22)) at temperature T [K] = $(Tx). " *
+             "\n    + PI cross sections are generated in the $(SubString(string(approx), 22)) approximation. " *
+             "\n    + iConf = $iConf  -->  fConf = $fConf " *
+             "\n    + Threshold energy of $iShell [$unEnergy] = $bEx " *
+             "\n    + Plasma rate per ion R^(PI: per ion) (T; i -> f) [$unRate] = $alphax \n"
         println(sa)
     end
-    
+
     return( alpha )
 end
     
@@ -570,8 +611,10 @@ function photorecombinationCrossSection(energies::Array{Float64,1}, iConf::Confi
     omegas  = energies .+ bEnergy
 
     # Compute the PI cross sections of the inverse process directly from the same bEnergy; cf. Kramers' formula in
-    # Empirical.photoionizationCrossSection(..., ScaledHydrogenic).
-    factor  = 32 * pi * Defaults.getDefaults("alpha") / (3 * sqrt(3) * fShell.n)
+    # Empirical.photoionizationCrossSection(..., ScaledHydrogenic). The inverse process ionizes fShell of fConf, so that
+    # N_e is here the occupation of fShell in the *recombined* ion fConf.
+    nEquiv  = fConf.shells[fShell]
+    factor  = 32 * pi * Defaults.getDefaults("alpha") * nEquiv / (3 * sqrt(3) * fShell.n)
     piCss   = [factor * bEnergy^2 / omega^3   for omega in omegas]
 
     # Apply the Einstein-Milne relation:  sigma^(PR) = omega^2 / (2 eps c^2) * (g_f/g_i) * sigma^(PI)
@@ -604,29 +647,37 @@ end
 
 
 """
-`Empirical.photorecombinationCrossSection(energies::Array{Float64,1}, iConf::Configuration, fConf::Configuration, 
-                                          approx::Empirical.UsingJAC; printout::Bool=false)`  
-    ... to estimate empirically the (spontaneous) photorecombination cross section for a transition from iConf -> fConf 
-        by using the Einstein-Milne relation and the binding energy (ionization potential) of the ionized shell 
-        from JAC and Kramer's (1923) empirical formula.A css::Array{Float64,1} [a.u.] is returned. 
+`Empirical.photorecombinationCrossSection(energies::Array{Float64,1}, iConf::Configuration, fConf::Configuration,
+                                          approx::Empirical.UsingJAC; printout::Bool=false)`
+    ... to estimate the (spontaneous) photorecombination cross section for a transition from iConf -> fConf by applying
+        the Einstein-Milne relation to mean-field PI cross sections; the binding energy of the captured electron is taken
+        from the mean-field orbital of fConf. A css::Array{Float64,1} [a.u.] is returned.
+
+        !! NOT VALIDATED; this method presently raises an error. !!
+        Its Einstein-Milne relation and an undefined variable have been corrected, but the method rests on
+        Empirical.photoionizationCrossSection(..., UsingJAC), whose cross sections are themselves unphysical. As a
+        consequence, these PR cross sections *grow* with the electron energy instead of exhibiting the characteristic
+        divergence sigma^(PR) ~ 1/eps as eps -> 0. Fixing the PI normalization above will repair this method as well.
 """
-function photorecombinationCrossSection(energies::Array{Float64,1}, iConf::Configuration, fConf::Configuration, 
-                                        approx::Empirical.UsingJAC; printout::Bool=false) 
+function photorecombinationCrossSection(energies::Array{Float64,1}, iConf::Configuration, fConf::Configuration,
+                                        approx::Empirical.UsingJAC; printout::Bool=false)
+    error("Empirical.photorecombinationCrossSection(..., UsingJAC) is not validated: it rests on the (unphysical) " *
+          "UsingJAC photoionization cross sections and, hence, grows with the electron energy instead of diverging " *
+          "as 1/eps for eps -> 0. Please use approx = ScaledHydrogenic() instead.")
     Z = Defaults.getDefaults("nuclear: charge");    fShell = Shell(0,0);    diff = 0
-    
-    # Determine the initial shell and its binding (threshold) energy; set all css = 0, if the occupation of 
-    # configurations differ by more than 1.
+
+    # Determine the final shell into which the electron is captured.
     wa = Basics.extractFromConfigurations(Basics.OccupationDifference(), iConf, fConf)
-    if length(wa) > 1   zeroCss = true   end 
- 
+    if length(wa) > 1   error("Incompatible initial and final configurations for a photorecombination cross section.")   end
+
     for  (k,v) in wa
         diff = diff + v
-        if     v == -1     fShell = k    end 
+        if     v == -1     fShell = k    end
     end
     if  diff != -1   error("Incompatible initial and final configurations for a photorecombination cross section.")   end
-    
+
     # Generate mean-field orbitals in order to extract the transition energies and amplitudes
-    grid        = Radial.Grid(Radial.Grid(true), rnt = 4.0e-6, h = 5.0e-2, rbox = 10.0) 
+    grid        = Radial.Grid(Radial.Grid(true), rnt = 4.0e-6, h = 5.0e-2, rbox = 10.0)
     mfSettings  = AtomicState.MeanFieldSettings(Basics.DFSField(1.0))
     meanField   = Representation("Internal", Nuclear.Model(Z), grid, [fConf], MeanFieldBasis(mfSettings) )
     mfrep       = generate(meanField; output=true)
@@ -634,17 +685,18 @@ function photorecombinationCrossSection(energies::Array{Float64,1}, iConf::Confi
     fSubsh      = Subshell(fShell.n, -fShell.l -1)
     bEnergy     = - fOrbitals[fSubsh].energy
     omegas  = energies .+ bEnergy
-    
+
     # Determine the photoionization cross section
     piCss   = Empirical.photoionizationCrossSection(omegas, fConf, iConf, approx, printout=false)
-    
-    # Apply the Einstein-Milne relation
-    prCss   = Float64[]
-    factor  = pi^2 * Defaults.getDefaults("speed of light: c")^2 *
-              Basics.extractFromConfiguration(Basics.Multiplicity(), fConf) / 
+
+    # Apply the Einstein-Milne relation:  sigma^(PR) = omega^2 / (2 eps c^2) * (g_f/g_i) * sigma^(PI); cf. the same
+    # relation in Empirical.photorecombinationCrossSection(..., ScaledHydrogenic). The 1/eps factor is essential:
+    # it produces the divergence sigma^(PR) ~ 1/eps as eps -> 0 that characterizes radiative recombination.
+    c       = Defaults.getDefaults("speed of light: c")
+    gf_gi   = Basics.extractFromConfiguration(Basics.Multiplicity(), fConf) /
               Basics.extractFromConfiguration(Basics.Multiplicity(), iConf)
-    for (im, omega) in enumerate(omegas)    push!(prCss, factor * piCss[im] / omega^2)   end 
-    
+    prCss   = [gf_gi * omegas[im]^2 / (2 * energies[im] * c^2) * piCss[im] for im in eachindex(omegas)]
+
     # Report about this estimate
     if  printout
         unCs    = Defaults.getDefaults("unit: cross section");   unEnergy = Defaults.getDefaults("unit: energy")
@@ -669,25 +721,119 @@ end
 
 
 """
-`Empirical.photorecombinationPlasmaAlpha(dist::Distribution.AbstractElectronDistribution, 
-                                         iConf::Configuration, fConf::Configuration; 
-                                         approx::Empirical.AbstractEmpiricalApproximation=ScaledHydrogenic(), printout::Bool=false)` 
-    ... to estimate empirically the spontaneous PR plasma rate coefficient alpha^(PR: spontaneous) for a transition 
-        from iConf -> fConf by applying some simple approximation as determined by approx. For printout=true, basic information 
-        are printed about the approximation as well as the results. An alpha::Float64 is returned.
+`Empirical.photorecombinationPlasmaAlpha(eDist::Distribution.AbstractElectronDistribution,
+                                         pDist::Distribution.AbstractPhotonDistribution,
+                                         iConf::Configuration, fConf::Configuration;
+                                         approx::Empirical.AbstractEmpiricalApproximation=ScaledHydrogenic(), printout::Bool=false,
+                                         data::PeriodicTable.AbstractEnergyData=PeriodicTable.Williams2000())`
+    ... to estimate empirically the total PR plasma rate coefficient alpha^(PR: total), i.e. the sum of the spontaneous and
+        the stimulated contribution, for a transition from iConf -> fConf. The free electrons follow the distribution eDist
+        at the electron temperature T_e, while the ambient radiation field is described by pDist at the (independent)
+        radiation temperature T. An alpha::Float64 [a.u.] is returned.
+
+        Note: The stimulated enhancement [1 + nbar(omega)] is evaluated *inside* the integral over the electron energies.
+              Photorecombination is a bound-free process, for which the emitted photon energy omega = eps + bEnergy is not
+              a single number but varies across the whole electron distribution; there is, therefore, no unique omega at
+              which a common factor [1 + nbar] could be taken out of the integral. Such a factorization is exact only for
+              bound-bound processes (PD, PX), where omega = E_f - E_i is fixed. It would introduce an error that grows with
+              the departure of the radiation field from the electron temperature, i.e. just in the non-LTE regime.
+              For pDist = PhotonVacuumField, nbar = 0 and the spontaneous coefficient is recovered.
 """
-function photorecombinationPlasmaAlpha(dist::Distribution.Distribution.AbstractElectronDistribution, 
-                                       iConf::Configuration, fConf::Configuration; 
-                                       approx::Empirical.AbstractEmpiricalApproximation=ScaledHydrogenic(), printout::Bool=false)
-    alpha = 0.;    eenMax = 100.
-    # Perform a Gauss-Legendre integration by selecting the electron energy distribution and cross sections at the required energies
-    gridGL    = Radial.GridGL(Radial.GridGaussLegendreFinite(), 0., eenMax, 24; printout=true)
-    eEns      = gridGL.t
-    css       = Empirical.photorecombinationCrossSection(gridGL.t, iConf, fConf, approx; printout=false)
-    for  n = 1:gridGL.nt
-        alpha = alpha + css[n] * eEns[n] * Distribution.electronEnergyDistribution(dist, eEns[n]) * gridGL.wt[n]    
+function photorecombinationPlasmaAlpha(eDist::Distribution.AbstractElectronDistribution,
+                                       pDist::Distribution.AbstractPhotonDistribution,
+                                       iConf::Configuration, fConf::Configuration;
+                                       approx::Empirical.AbstractEmpiricalApproximation=ScaledHydrogenic(), printout::Bool=false,
+                                       data::PeriodicTable.AbstractEnergyData=PeriodicTable.Williams2000())
+    # The threshold energy is needed only to place the emitted photon, i.e. only for the stimulated term. A vacuum
+    # field carries no photons and, hence, works for every approximation.
+    isVacuum = typeof(pDist)  == Distribution.PhotonVacuumField
+    isScaled = typeof(approx) == Empirical.ScaledHydrogenic
+    if  !isVacuum  &&  !isScaled
+        error("A stimulated PR contribution is presently supported only for approx = ScaledHydrogenic(); the threshold " *
+              "energy of the capture channel, which fixes the emitted photon energy omega = eps + bEnergy, is not " *
+              "available for $approx.")
     end
-    
+    Z = Defaults.getDefaults("nuclear: charge");   alpha = 0.;   fShell = Shell(0,0);   diff = 0
+
+    # Determine the shell into which the electron is captured; its binding energy fixes the photon energy
+    # omega = eps + bEnergy of each individual recombination channel.
+    wa = Basics.extractFromConfigurations(Basics.OccupationDifference(), iConf, fConf)
+    if length(wa) > 1   error("Incompatible initial and final configurations for a photorecombination rate coefficient.")   end
+    for  (k,v) in wa
+        diff = diff + v
+        if     v == -1     fShell = k    end
+    end
+    if  diff != -1   error("Incompatible initial and final configurations for a photorecombination rate coefficient.")   end
+    if  isVacuum   bEnergy = 0.
+    else           bEnergy = Empirical.scaledBindingEnergy(Z, fShell, fConf, data)
+    end
+    c       = Defaults.getDefaults("speed of light: c")
+
+    # Perform a Gauss-Legendre integration of
+    #     alpha^(PR: total) = int d(eps) f_e(eps; T_e) v(eps) sigma^(PR: spontaneous)(eps) [1 + nbar(eps + bEnergy; T)]
+    # with the electron velocity v(eps) = sqrt(2 eps) in atomic units. The integration range is scaled to the electron
+    # temperature: a fixed upper limit misses the thermal peak altogether for a cool plasma (at T_e = 0.1 eV, a range
+    # of 0 ... 100 a.u. returns a vanishing coefficient) and wastes all mesh points where f_e is negligible.
+    # With eenMax = 30 T_e and 96 mesh points, this quadrature is converged to < 0.01% for T_e = 0.1 ... 1000 eV.
+    if      hasproperty(eDist, :T)       Te = eDist.T
+    elseif  hasproperty(eDist, :Tpar)    Te = max(eDist.Tpar, eDist.Tperp)
+    else    error("No electron temperature can be extracted from $eDist.")
+    end
+    gridGL    = Radial.GridGL(Radial.GridGaussLegendreFinite(), 0., 30*Te, 96; printout=true)
+    eEns      = gridGL.t
+    if  isScaled   css = Empirical.photorecombinationCrossSection(gridGL.t, iConf, fConf, approx; printout=false, data=data)
+    else           css = Empirical.photorecombinationCrossSection(gridGL.t, iConf, fConf, approx; printout=false)
+    end
+    for  n = 1:gridGL.nt
+        ## nbar(omega) follows from the spectral photon number density by dividing out the density of photon modes
+        ## omega^2/(pi^2 c^3); this conversion applies to any (isotropic) photon distribution.
+        if  isVacuum   occNumber = 0.
+        else
+            omega     = eEns[n] + bEnergy
+            occNumber = Distribution.photonNumberDensity(pDist, omega) * pi^2 * c^3 / omega^2
+        end
+        alpha     = alpha + css[n] * sqrt(2*eEns[n]) * Distribution.electronEnergyDistribution(eDist, eEns[n]) *
+                            (1.0 + occNumber) * gridGL.wt[n]
+    end
+
+    # Report about this estimate
+    if  printout
+        Tex    = Defaults.convertUnits("temperature: from atomic to Kelvin", eDist.T)
+        Tpx    = Defaults.convertUnits("temperature: from atomic to Kelvin", pDist.T)
+        factor = Defaults.convertUnits("length: from atomic to cm", 1.0)
+        factor = factor^3 / Defaults.convertUnits("time: from atomic to sec", 1.0)
+        alphax = factor * alpha
+        sa = "\n* Estimate empirically the (total) photorecombination plasma rate coefficient alpha for a given transition " *
+             "i -> f with the following assumptions/simplifications: " *
+             "\n    + Electron field follows a $(SubString(string(eDist), 22)) at temperature T_e [K] = $(Tex). " *
+             "\n    + Photon field follows a $(SubString(string(pDist), 22)) at temperature T [K] = $(Tpx). " *
+             "\n    + Spontaneous PR cross sections are generated in the $approx approximation. " *
+             "\n    + The stimulated enhancement [1 + nbar(eps + bEnergy)] is applied inside the electron-energy integral. " *
+             "\n    + iConf = $iConf  -->  fConf = $fConf " *
+             "\n    + Plasma rate coefficient alpha^(PR: total) [cm^3/s] = $alphax   \n"
+        println(sa)
+    end
+
+    return( alpha )
+end
+
+
+"""
+`Empirical.photorecombinationPlasmaAlpha(dist::Distribution.AbstractElectronDistribution,
+                                         iConf::Configuration, fConf::Configuration;
+                                         approx::Empirical.AbstractEmpiricalApproximation=ScaledHydrogenic(), printout::Bool=false)`
+    ... to estimate empirically the spontaneous PR plasma rate coefficient alpha^(PR: spontaneous) for a transition
+        from iConf -> fConf by applying some simple approximation as determined by approx. For printout=true, basic information
+        are printed about the approximation as well as the results. An alpha::Float64 is returned. This is a short-cut to the
+        method above for a vanishing (vacuum) photon field.
+"""
+function photorecombinationPlasmaAlpha(dist::Distribution.AbstractElectronDistribution,
+                                       iConf::Configuration, fConf::Configuration;
+                                       approx::Empirical.AbstractEmpiricalApproximation=ScaledHydrogenic(), printout::Bool=false)
+    # The vacuum field has n(omega) = 0 and, hence, no stimulated contribution; this just returns the spontaneous coefficient.
+    alpha = Empirical.photorecombinationPlasmaAlpha(dist, Distribution.PhotonVacuumField(0.), iConf, fConf,
+                                                    approx=approx, printout=false)
+
     # Report about this estimate
     if  printout
         Tx     = Defaults.convertUnits("temperature: from atomic to Kelvin", dist.T)
