@@ -7,8 +7,8 @@
 module Empirical
 
 
-using  ..AtomicState, ..Basics, ..Continuum, ..Defaults, ..Distribution, ..Radial, ..ManyElectron, ..Nuclear, 
-       ..InteractionStrength, ..ImpactIonization, ..PeriodicTable, ..SelfConsistent
+using  ..AtomicState, ..Basics, ..Continuum, ..Defaults, ..Distribution, ..Radial, ..ManyElectron, ..Nuclear,
+       ..InteractionStrength, ..ImpactIonization, ..PeriodicTable, ..Semiempirical, ..SelfConsistent
 
 """
 `abstract type Empirical.AbstractEmpiricalApproximation` 

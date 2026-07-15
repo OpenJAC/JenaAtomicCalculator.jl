@@ -1,17 +1,60 @@
 
 #################################################################################################################################
+### Common helpers ##############################################################################################################
+
+
+"""
+`Empirical.scaledBindingEnergy(Z::Float64, sh::Shell, conf::Configuration, data::PeriodicTable.AbstractEnergyData)`
+    ... to provide the binding energy of an electron in shell sh of the given configuration conf; this energy scales all
+        hydrogenic (Kramers) estimates below and, hence, fixes the photoionization threshold as well as the transition
+        energies. The semi-empirical binding energies of the *neutral* atom are taken from the tabulation data whenever
+        this data set covers Z and sh. If no tabulated value is available, a Slater-screened hydrogenic estimate
+        bE = Z^(eff)^2 / (2 n^2) is applied instead and a warning is issued; Z^(eff) then follows from Slater's (1930)
+        rules for the remaining electrons of conf. An energy::Float64 > 0. [a.u.] is returned.
+
+        Note: A pure hydrogenic estimate is quite unreliable for valence shells; for neutral Ne, for instance, it places
+              the 2p threshold near 85 eV, while the tabulated (true) binding energy is 21.6 eV. The tabulated values
+              should therefore be preferred whenever they are available.
+"""
+function scaledBindingEnergy(Z::Float64, sh::Shell, conf::Configuration, data::PeriodicTable.AbstractEnergyData)
+    bEnergy = 0.
+    ## The tabulated data sets cover only a limited range of Z and shells; they raise an error or return 0. otherwise.
+    try
+        bEnergy = Empirical.bindingEnergy(round(Int64, Z), sh, data=data)
+    catch
+        bEnergy = 0.
+    end
+    if  bEnergy > 0.    return( bEnergy )    end
+
+    ## No tabulated value available: screen the nuclear charge by all *other* electrons of conf with Slater's rules.
+    shells = deepcopy(conf.shells)
+    if      haskey(shells, sh)  &&  shells[sh] > 1    shells[sh] = shells[sh] - 1
+    elseif  haskey(shells, sh)                        delete!(shells, sh)
+    end
+    rConf = Configuration(shells, conf.NoElectrons - 1)
+    Zeff  = Semiempirical.estimateSlaterZeff(Z, rConf, Subshell(sh.n, -sh.l - 1))
+    ## An electron of a neutral atom or positive ion sees at least a unit charge asymptotically.
+    if  Zeff < 1.0      Zeff = 1.0      end
+    @warn("No tabulated binding energy for Z = $Z and $sh in $data; a Slater-screened hydrogenic estimate is used.")
+
+    return( Zeff^2 / (2 * sh.n^2) )
+end
+
+
+#################################################################################################################################
 ### Photoemission (PE) ##########################################################################################################
 
 
 """
 `Empirical.photoemissionEinsteinA(iConf::Configuration, fConf::Configuration, approx::Empirical.ScaledHydrogenic;
-                                  printout::Bool=false)`  
-    ... to estimate empirically the Einstein-A value for a transition from iConf -> fConf by using a simple
-        hydrogenic scaling with an effective nuclear charge. A named triple
-        (multipole::EmMultipole=, energy::Float64=, rate::Float64=) is returned. 
+                                  printout::Bool=false, data::PeriodicTable.AbstractEnergyData=PeriodicTable.Williams2000())`
+    ... to estimate empirically the Einstein-A value for a transition from iConf -> fConf. The transition energy is
+        obtained as the difference of the binding energies of the two shells involved, cf.
+        Empirical.scaledBindingEnergy(), while the A-value follows from a hydrogenic scaling with an effective
+        nuclear charge. A named triple (multipole::EmMultipole=, energy::Float64=, rate::Float64=) is returned.
 """
 function photoemissionEinsteinA(iConf::Configuration, fConf::Configuration, approx::Empirical.ScaledHydrogenic;
-                                printout::Bool=false) 
+                                printout::Bool=false, data::PeriodicTable.AbstractEnergyData=PeriodicTable.Williams2000())
     multipole = Basics.E1;   tEnergy = rate = 0.;   Z = Defaults.getDefaults("nuclear: charge")
     iShell = fShell = Shell(0,0);    diff = 0
     
@@ -28,20 +71,26 @@ function photoemissionEinsteinA(iConf::Configuration, fConf::Configuration, appr
     end
     if  diff != 0   error("Incompatible initial and final configurations for a radiative transition.")   end
 
-    # Determine the effective charges Zi and Zf felt by an electron in the initial and final shells;
-    # Just substract all inner-shell electrons and use a pure hydrogenic scaling of the binding energy 
-    # (assume a charge 0.5 due to the other electrons in iShell or fShell)
-    ce      = 0;   
-    for  (shell, v) in iConf.shells   
+    # Determine the transition energy from the binding energies of the two shells involved; the electron moves from
+    # iShell into the more tightly bound fShell, so that tEnergy = bE(fShell) - bE(iShell) > 0. For the Ne K-alpha
+    # analogue this yields 870.2 - 21.6 = 848.6 eV, in agreement with the tabulated K-alpha energy.
+    tEnergy = Empirical.scaledBindingEnergy(Z, fShell, fConf, data) - Empirical.scaledBindingEnergy(Z, iShell, iConf, data)
+
+    # Determine the effective charges Zi and Zf felt by an electron in the initial and final shells, and apply the
+    # standard hydrogenic formula <r> = (3 n^2 - l (l+1)) / (2 Z^(eff)) for the radial expectation values;
+    # Just substract all inner-shell electrons (assume a charge 0.5 due to the other electrons in iShell or fShell).
+    # Note that these radial Z^(eff) are kept distinct from the charge implied by the binding energy above; the two
+    # differ considerably for valence shells, and the r-expectation values need the less-screened (radial) charge.
+    ce      = 0;
+    for  (shell, v) in iConf.shells
         if  shell.n < iShell.n  ||  (shell.n == iShell.n  &&  shell.l < iShell.l)   ce = ce + v   end
     end
-    Zi      = Z - ce - 0.5;    rxi = (3*iShell.n^2 - iShell.l + (iShell.l+1)) / (2*Zi)
-    ce      = 0;   
-    for  (shell, v) in fConf.shells   
+    Zi      = Z - ce - 0.5;    rxi = (3*iShell.n^2 - iShell.l * (iShell.l+1)) / (2*Zi)
+    ce      = 0;
+    for  (shell, v) in fConf.shells
         if  shell.n < fShell.n  ||  (shell.n == fShell.n  &&  shell.l < fShell.l)   ce = ce + v   end
     end
-    Zf      = Z - ce - 0.5;    rxf = (3*fShell.n^2 - fShell.l + (fShell.l+1)) / (2*Zf)
-    tEnergy = Zf^2 / fShell.n^2 - Zi^2 / (iShell.n - 0.07)^2
+    Zf      = Z - ce - 0.5;    rxf = (3*fShell.n^2 - fShell.l * (fShell.l+1)) / (2*Zf)
 
     # Determine the multipolarity of the transition
     if  multipole === missing    ||   diff != 0
@@ -71,10 +120,10 @@ function photoemissionEinsteinA(iConf::Configuration, fConf::Configuration, appr
         ratex   = Defaults.convertUnits("rate: from atomic to "   * unRate,   rate)
         sa = "\n* Estimate empirically the Einstein-A value for a given transition i -> f with the " *
              "following assumptions/simplifications: " *
-             "\n    + Use a simple hydrogenic scaling for the energy and A-value. " * 
-             "\n    + iConf = $iConf  -->  fConf = $fConf " * 
-             "\n    + Extract transition energy from binding energies of shells $iShell -> $fShell " * 
-             "\n    + $multipole transition with energy [$unEnergy] = $energyx  " * 
+             "\n    + Use the tabulated binding energies ($data) for the energy and a hydrogenic scaling for the A-value. " *
+             "\n    + iConf = $iConf  -->  fConf = $fConf " *
+             "\n    + Extract transition energy from binding energies of shells $iShell -> $fShell " *
+             "\n    + $multipole transition with energy [$unEnergy] = $energyx  " *
              "\n    + Rate [$unRate]                     = $ratex " * "\n"
         println(sa)
     end
@@ -304,39 +353,39 @@ end
 
 
 """
-`Empirical.photoionizationCrossSection(omegas::Array{Float64,1}, iConf::Configuration, fConf::Configuration, 
-                                       approx::Empirical.ScaledHydrogenic; printout::Bool=false)`  
+`Empirical.photoionizationCrossSection(omegas::Array{Float64,1}, iConf::Configuration, fConf::Configuration,
+                                       approx::Empirical.ScaledHydrogenic; printout::Bool=false,
+                                       data::PeriodicTable.AbstractEnergyData=PeriodicTable.Williams2000())`
     ... to estimate empirically the photoionization cross sections for a transition from iConf -> fConf by using the binding
-        energy (ionization potential) of the ionized shell from JAC and Kramer's (1923) empirical formula.
-        A css::Array{Float64,1} [a.u.] is returned. 
+        energy (ionization potential) of the ionized shell, cf. Empirical.scaledBindingEnergy(), and Kramer's (1923)
+        empirical formula. A css::Array{Float64,1} [a.u.] is returned.
 """
-function photoionizationCrossSection(omegas::Array{Float64,1}, iConf::Configuration, fConf::Configuration, 
-                                     approx::Empirical.ScaledHydrogenic; printout::Bool=false) 
-    Z = Defaults.getDefaults("nuclear: charge");    iShell = Shell(0,0);    diff = 0;   zeroCss = false
-    
-    # Determine the initial shell and its binding (threshold) energy; set all css = 0, if the occupation of 
-    # configurations differ by more than 1.
+function photoionizationCrossSection(omegas::Array{Float64,1}, iConf::Configuration, fConf::Configuration,
+                                     approx::Empirical.ScaledHydrogenic; printout::Bool=false,
+                                     data::PeriodicTable.AbstractEnergyData=PeriodicTable.Williams2000())
+    Z = Defaults.getDefaults("nuclear: charge");    iShell = Shell(0,0);    diff = 0
+
+    # Determine the initial shell and its binding (threshold) energy.
     wa = Basics.extractFromConfigurations(Basics.OccupationDifference(), iConf, fConf)
-    if length(wa) > 1   zeroCss = true   end 
- 
+    if length(wa) > 1   error("Incompatible initial and final configurations for a photoionization cross section.")   end
+
     for  (k,v) in wa
         diff = diff + v
-        if      v == 1     iShell = k    end 
+        if      v == 1     iShell = k    end
     end
     if  diff != 1   error("Incompatible initial and final configurations for a photoionization cross section.")   end
-    
-    # Just substract all inner-shell electrons and use a pure hydrogenic scaling of the binding energy 
-    # (assume a charge 0.5 due to the other electrons in iShell)
-    cShells = Basics.extractFromConfiguration(Basics.ClosedShells(), fConf)
-    ce      = 0;   for  cShell in cShells   ce = ce + 2 * (2*cShell.l + 1)   end
-    Zi      = Z - ce - 1.0
-    bEnergy = Zi^2 / iShell.n^2
-    factor  = 64 * pi^2 * Defaults.getDefaults("alpha") / (3 * sqrt(3) * iShell.n)
-    
+
+    # Scale the hydrogenic formula by the binding energy (photoionization threshold) of the ionized shell.
+    bEnergy = Empirical.scaledBindingEnergy(Z, iShell, iConf, data)
+
+    # Kramers' (1923) bound-free cross section, sigma = 32 pi alpha / (3 sqrt(3) n) * bE^2 / omega^3; at threshold
+    # this is the classical 7.91 Mb * n / Z^(eff)^2, to be compared with the exact 6.30 Mb for H 1s (Gaunt factor 0.8).
+    factor  = 32 * pi * Defaults.getDefaults("alpha") / (3 * sqrt(3) * iShell.n)
+
     # Compute all cross sections in the ScaledHydrogenic approximation
     css = Float64[]
-    for  omega in omegas   
-        if  omega > bEnergy    push!(css, factor * (bEnergy / omega)^3 )   else    push!(css, 0.)  end 
+    for  omega in omegas
+        if  omega > bEnergy    push!(css, factor * bEnergy^2 / omega^3 )   else    push!(css, 0.)  end
     end
 
     # Report about these estimates
@@ -348,9 +397,9 @@ function photoionizationCrossSection(omegas::Array{Float64,1}, iConf::Configurat
         for cs    in css     push!(cssx,    Defaults.convertUnits("cross section: from atomic to " * unCs, cs))   end
         sa = "\n* Estimate empirically the photoionization cross section for a given transition i -> f with the " *
              "following assumptions/simplifications: " *
-             "\n    + Use a simple hydrogenic scaling of the PI cross section following Bethe-Salpeter (1957). " * 
-             "\n    + Hydrogenic estimate of the binding energy (photoionization threshold) with Z^(eff) = $Zi " * 
-             "\n    + iConf = $iConf  -->  fConf = $fConf " * 
+             "\n    + Use Kramers' (1923) formula, scaled by the binding energy of the ionized shell. " *
+             "\n    + Binding energy (photoionization threshold) taken from $data " *
+             "\n    + iConf = $iConf  -->  fConf = $fConf " *
              "\n    + Binding energy of $iShell   = $energyx  " * unEnergy *
              "\n    + Omegas [$unEnergy]            = $omegasx " *
              "\n    + Cross sections [$unCs]  = $cssx     \n"
@@ -492,18 +541,20 @@ end
 
 
 """
-`Empirical.photorecombinationCrossSection(energies::Array{Float64,1}, iConf::Configuration, fConf::Configuration, 
-                                          approx::Empirical.ScaledHydrogenic; printout::Bool=false)`  
-    ... to estimate empirically the (spontaneous) photorecombination cross section for a transition from iConf -> fConf 
-        by using the Einstein-Milne relation and the binding energy (ionization potential) of the ionized shell 
-        from JAC and Kramer's (1923) empirical formula.A css::Array{Float64,1} [a.u.] is returned. 
+`Empirical.photorecombinationCrossSection(energies::Array{Float64,1}, iConf::Configuration, fConf::Configuration,
+                                          approx::Empirical.ScaledHydrogenic; printout::Bool=false,
+                                          data::PeriodicTable.AbstractEnergyData=PeriodicTable.Williams2000())`
+    ... to estimate empirically the (spontaneous) photorecombination cross section for a transition from iConf -> fConf
+        by using the Einstein-Milne relation and the binding energy (ionization potential) of the captured electron,
+        cf. Empirical.scaledBindingEnergy(), together with Kramer's (1923) empirical formula.
+        A css::Array{Float64,1} [a.u.] is returned.
 """
 function photorecombinationCrossSection(energies::Array{Float64,1}, iConf::Configuration, fConf::Configuration,
-                                        approx::Empirical.ScaledHydrogenic; printout::Bool=false)
+                                        approx::Empirical.ScaledHydrogenic; printout::Bool=false,
+                                        data::PeriodicTable.AbstractEnergyData=PeriodicTable.Williams2000())
     Z = Defaults.getDefaults("nuclear: charge");    fShell = Shell(0,0);    diff = 0
-    
-    # Determine the initial shell and its binding (threshold) energy; set all css = 0, if the occupation of 
-    # configurations differ by more than 1.
+
+    # Determine the final shell into which the electron is captured.
     wa = Basics.extractFromConfigurations(Basics.OccupationDifference(), iConf, fConf)
     if length(wa) > 1   error("Incompatible initial and final configurations for a photorecombination cross section.")   end
 
@@ -513,22 +564,20 @@ function photorecombinationCrossSection(energies::Array{Float64,1}, iConf::Confi
     end
     if  diff != -1   error("Incompatible initial and final configurations for a photorecombination cross section.")   end
 
-    # Hydrogenic scaling of the binding energy for the captured electron in fShell:
-    # Zf = charge seen by electron = Z - (electrons already in ion) + 0.1
-    Zf      = Z - iConf.NoElectrons + 0.1
-    bEnergy = Zf^2 / fShell.n^2
+    # Binding energy of the captured electron in fShell of the recombined ion fConf; this fixes the photon energies
+    # omega = eps + bE and must be the same threshold as seen by the inverse (photoionization) process.
+    bEnergy = Empirical.scaledBindingEnergy(Z, fShell, fConf, data)
     omegas  = energies .+ bEnergy
 
-    # Compute PI cross sections directly using bEnergy (bypasses photoionizationCrossSection which
-    # recomputes bEnergy from ClosedShells and would give an inconsistent, much higher threshold).
-    alpha_fs = Defaults.getDefaults("alpha")
-    factor_pi = 64 * pi^2 * alpha_fs / (3 * sqrt(3) * fShell.n)
-    piCss   = [omega > bEnergy ? factor_pi * (bEnergy/omega)^3 : 0.0 for omega in omegas]
+    # Compute the PI cross sections of the inverse process directly from the same bEnergy; cf. Kramers' formula in
+    # Empirical.photoionizationCrossSection(..., ScaledHydrogenic).
+    factor  = 32 * pi * Defaults.getDefaults("alpha") / (3 * sqrt(3) * fShell.n)
+    piCss   = [factor * bEnergy^2 / omega^3   for omega in omegas]
 
-    # Apply the correct Einstein-Milne relation: σ_PR = ω²/(2ε c²) × (g_f/g_i) × σ_PI
+    # Apply the Einstein-Milne relation:  sigma^(PR) = omega^2 / (2 eps c^2) * (g_f/g_i) * sigma^(PI)
     c       = Defaults.getDefaults("speed of light: c")
     gf_gi   = Basics.extractFromConfiguration(Basics.Multiplicity(), fConf) /
-               Basics.extractFromConfiguration(Basics.Multiplicity(), iConf)
+              Basics.extractFromConfiguration(Basics.Multiplicity(), iConf)
     prCss   = [gf_gi * omegas[im]^2 / (2 * energies[im] * c^2) * piCss[im] for im in eachindex(omegas)]
     
     # Report about this estimate

@@ -81,20 +81,22 @@ end
   
 
 """
-`Empirical.bindingEnergy(Z::Int64, sh::Shell, conf::Configuration; 
-                         data::PeriodicTable.AbstractEnergyData=Williams2000())`  
-    ... to evaluate the binding) energy of a shell electron if part of the given configuration. 
-        This procedure assumes that each missing electron (compared with the neutral system) adds 0.3 / n Hartree
-        to the binding energy, where n is the principal quantum number of the shell. It also requires that
-        shell is occupied in the given configuration. An energy::Float64 is returned.
+`Empirical.bindingEnergy(Z::Int64, subsh::Subshell, conf::Configuration;
+                         data::PeriodicTable.AbstractEnergyData=Williams2000())`
+    ... to evaluate the binding energy of a subshell electron if part of the given configuration.
+        The tabulated binding energies refer to the neutral atom; this procedure assumes that each missing
+        electron (compared with the neutral system) adds 0.3 / n Hartree to the binding energy, where n is
+        the principal quantum number of the subshell. It also requires that the shell associated with subsh
+        is occupied in the given configuration. An energy::Float64 is returned.
 """
-function  bindingEnergy(Z::Int64, subsh::Subshell, conf::Configuration; 
+function  bindingEnergy(Z::Int64, subsh::Subshell, conf::Configuration;
                         data::PeriodicTable.AbstractEnergyData=Williams2000())
+    sh = Shell(subsh.n, Basics.subshell_l(subsh))
     if !(sh in keys(conf.shells))   error("Shell $sh not part of $conf")   end
-    wc = Empirical.bindingEnergy(Z, sh, data=data)
+    wc = Empirical.bindingEnergy(Z, subsh, data=data)
     nm = Z - conf.NoElectrons
-    if  nm  >  0   wc = wc + 0.3 / sh.n   end
-    
+    if  nm  >  0   wc = wc + nm * 0.3 / subsh.n   end
+
     return( wc )
 end
 
@@ -119,15 +121,16 @@ end
 
 
 """
-`Empirical.meanCharge(Z::Int64, subshell::Subshell, conf::Configuration)`  
+`Empirical.meanCharge(Z::Int64, subshell::Subshell, conf::Configuration)`
     ... to estimate the mean charge  Z as seen by an electron in subshell for an ion with the given configuation.
-        An charge::Float64 is returned.
+        This charge is obtained by inverting the hydrogenic relation bE = Z^(eff)^2 / (2 n^2) for the binding
+        energy bE > 0. of the given subshell, i.e. Z^(eff) = n sqrt(2 bE). A charge::Float64 is returned.
 """
 function meanCharge(Z::Int64, subshell::Subshell, conf::Configuration)
-    we = Empirical.bindingEnergy(Z, subshell, conf)
-    Z  = sqrt( -2 * subshell.n^2 * we)
-    
-    return( Z )
+    we   = Empirical.bindingEnergy(Z, subshell, conf)
+    Zeff = sqrt( 2 * subshell.n^2 * we )
+
+    return( Zeff )
 end
 
 
