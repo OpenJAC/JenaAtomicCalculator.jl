@@ -201,6 +201,20 @@ end
 
 
 """
+`Semiempirical.estimate(::EstimateBindingEnergyNist2025, Z::Int64, q::Int64)`
+    ... returns the q-th successive ionization potential for element Z from the NIST (2025) database,
+        https://physics.nist.gov/PhysRefData/ASD/ionEnergy.html; q = 1 gives the first ionization
+        potential (outermost/valence electron of the neutral atom), q = 2 the second, and so on.
+        Covers Z = 1..90; an energy::Float64 in Hartree is returned.
+"""
+function estimate(::EstimateBindingEnergyNist2025, Z::Int64, q::Int64)
+    wa = PeriodicTable.ionizationPotentials_Nist2025(Z)
+    if  q < 1  ||  q > length(wa)   error("No $q-th ionization potential available for Z = $Z")   end
+    return( Defaults.convertUnits("energy: from eV to atomic", wa[q]) )
+end
+
+
+"""
 `Semiempirical.estimateBindingEnergies(Z::Float64, coreConf::Configuration, nRange::UnitRange{Int64})`  
     ... to estimate the binding energies of the high-n shells with n = nRange for a (multiply-charged) 
         ion with nuclear charge Z and core configuration coreConfiguration.

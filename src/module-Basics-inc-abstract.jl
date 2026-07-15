@@ -2428,15 +2428,18 @@ export  AbstractDiagonalizeTheme, MatrixWithLinearAlgebra, GeneralizedEigenvalue
     + EstimateBindingEnergyWilliams2000     ... estimate binding energies from Williams et al. (2000) tabulation.
     + EstimateBindingEnergyLarkins1977      ... estimate binding energies from Larkins (1977) tabulation.
     + EstimateBindingEnergyXrayDataBooklet  ... estimate binding energies from X-ray Data Booklet tabulation.
+    + EstimateBindingEnergyNist2025         ... estimate successive ionization potentials from NIST (2025) database.
 """
 abstract type  AbstractEstimateTheme                                                              end
 struct         EstimateIonizationPotentialInnerShell  <:  AbstractEstimateTheme                  end
 struct         EstimateBindingEnergyWilliams2000       <:  AbstractEstimateTheme                  end
 struct         EstimateBindingEnergyLarkins1977        <:  AbstractEstimateTheme                  end
 struct         EstimateBindingEnergyXrayDataBooklet    <:  AbstractEstimateTheme                  end
+struct         EstimateBindingEnergyNist2025           <:  AbstractEstimateTheme                  end
 
 export  AbstractEstimateTheme, EstimateIonizationPotentialInnerShell,
-        EstimateBindingEnergyWilliams2000, EstimateBindingEnergyLarkins1977, EstimateBindingEnergyXrayDataBooklet
+        EstimateBindingEnergyWilliams2000, EstimateBindingEnergyLarkins1977, EstimateBindingEnergyXrayDataBooklet,
+        EstimateBindingEnergyNist2025
 
 
 """
