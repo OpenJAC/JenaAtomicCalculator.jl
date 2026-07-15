@@ -4,6 +4,85 @@
 
 
 """
+`TestFrames.testModule_Empirical(; short::Bool=true)`  ... tests on module Empirical.
+"""
+function testModule_Empirical(; short::Bool=true)
+    Defaults.setDefaults("print summary: open", "test-Empirical-new.sum")
+    printstyled("\n\nTest the module  Empirical  ... \n", color=:cyan)
+    success = true
+    ## Preserve the global state; these tests set the nuclear charge and rely on fixed units.
+    oldZ = Defaults.getDefaults("nuclear: charge")
+    Defaults.setDefaults("unit: energy",        "eV")
+    Defaults.setDefaults("unit: cross section", "barn")
+    Defaults.setDefaults("unit: rate",          "1/s")
+    Defaults.setDefaults("nuclear: charge",     10.)
+    #
+    ## Test 1: bindingEnergy(Z, sh::Shell) for Ne 2p (Williams2000) = 21.6 eV
+    e1 = Defaults.convertUnits("energy: from atomic", Empirical.bindingEnergy(10, Shell("2p"), data=PeriodicTable.Williams2000()))
+    success = success && abs(e1 - 21.6) < 0.05
+    ## Test 2: ionizationPotential(Z, conf) for neutral Ne = 21.565 eV
+    e2 = Defaults.convertUnits("energy: from atomic", Empirical.ionizationPotential(10, Configuration("1s^2 2s^2 2p^6")))
+    success = success && abs(e2 - 21.565) < 0.001
+    #
+    ## Tests 3&4: photoemissionEinsteinA(ScaledHydrogenic) for the Ne K-alpha analogue 1s^1 2p^6 -> 1s^2 2p^5.
+    ##   The transition energy must be positive (emitted photon); a negative value signals the tEnergy sign bug.
+    iConf = Configuration("1s^1 2p^6");    fConf = Configuration("1s^2 2p^5")
+    wa    = Empirical.photoemissionEinsteinA(iConf, fConf, Empirical.ScaledHydrogenic(), printout=false)
+    e3    = Defaults.convertUnits("energy: from atomic", wa.energy)
+    r4    = Defaults.convertUnits("rate: from atomic",   wa.rate)
+    success = success && wa.multipole == E1
+    success = success && e3 > 0.  &&  abs(e3 - 1928.0221062934024) / 1928.0221062934024 < 1.0e-6
+    success = success && abs(r4 - 1.2266043004052588e15) / 1.2266043004052588e15 < 1.0e-6
+    #
+    ## Tests 5&6: photoexcitation/photodeexcitation plasma rates for Ne K-alpha at T = 1 keV.
+    ##   R^(PX) = (g_i/g_f) * A * nbar  and  R^(PD) = A * (1 + nbar)  with nbar the mean photon occupation number.
+    T     = Defaults.convertUnits("temperature: from Kelvin to (Hartree) units", 1.16e7)    ##  T = 1 keV
+    dist  = Distribution.PhotonPlanck(T)
+    rPX   = Defaults.convertUnits("rate: from atomic",
+                Empirical.photoexcitationPlasmaRatePerIon(  dist, iConf, fConf, approx=Empirical.ScaledHydrogenic(), printout=false))
+    rPD   = Defaults.convertUnits("rate: from atomic",
+                Empirical.photodeexcitationPlasmaRatePerIon(dist, iConf, fConf, approx=Empirical.ScaledHydrogenic(), printout=false))
+    success = success && abs(rPX - 6.95230197272653e13)  / 6.95230197272653e13  < 1.0e-6
+    success = success && abs(rPD - 1.4351733595870548e15) / 1.4351733595870548e15 < 1.0e-6
+    ## Test 6: detailed balance  R^(PD) / R^(PX) = (g_f/g_i) * exp(omega/kT); a physics identity, independent
+    ##   of the ScaledHydrogenic approximation itself.
+    gRatio  = Basics.extractFromConfiguration(Basics.Multiplicity(), fConf) /
+              Basics.extractFromConfiguration(Basics.Multiplicity(), iConf)
+    balance = gRatio * exp(wa.energy / T)
+    success = success && abs(rPD/rPX - balance) / balance < 1.0e-6
+    #
+    ## Test 7: photoionizationCrossSection(ScaledHydrogenic) for Ne 2p; Kramers (1923) formula.
+    ##   ScaledHydrogenic places the threshold at 170.07 eV (the true 2p IP is 21.6 eV; see example-Nc.jl).
+    ##   Below threshold the cross section vanishes; above it, it falls off as omega^-3, so doubling
+    ##   the photon energy must reduce the cross section by exactly a factor of 8.
+    piConf = Configuration("1s^2 2s^2 2p^6");    pfConf = Configuration("1s^2 2s^2 2p^5")
+    omegas = [Defaults.convertUnits("energy: from eV to atomic", e) for e in [150.0, 200.0, 300.0, 600.0, 1200.0]]
+    piCss  = Empirical.photoionizationCrossSection(omegas, piConf, pfConf, Empirical.ScaledHydrogenic(), printout=false)
+    success = success && piCss[1] == 0.
+    success = success && abs(piCss[4]/piCss[5] - 8.) < 1.0e-6
+    #
+    ## Test 8: photorecombinationCrossSection(ScaledHydrogenic) for Ne 2p via the Einstein-Milne relation.
+    ##   sigma^(PR) ~ 1 / [eps * (eps + bE)] and must diverge as eps -> 0; a flat or vanishing cross section
+    ##   signals a broken Milne relation or an inconsistent threshold.
+    ekins  = [Defaults.convertUnits("energy: from eV to atomic", e) for e in [0.1, 1.0, 5.0, 20.0, 100.0]]
+    prCss  = Empirical.photorecombinationCrossSection(ekins, pfConf, piConf, Empirical.ScaledHydrogenic(), printout=false)
+    prBarn = [round(Defaults.convertUnits("cross section: from atomic", cs), digits=3) for cs in prCss]
+    for  (ic, cs)  in  enumerate([1355.945, 122.375, 17.076, 2.001, 0.104])
+        success = success && abs(prBarn[ic] - cs) < 0.001
+    end
+    #
+    ## Restore the global nuclear charge for all subsequent tests.
+    Defaults.setDefaults("nuclear: charge", oldZ)
+    ###
+    Defaults.setDefaults("print summary: close", "")
+    _, iostream = Defaults.getDefaults("test flag/stream")
+    println(iostream, "Make the comparison with approved data for ... test-Empirical-new.sum")
+    testPrint("testModule_Empirical()::", success)
+    return(success)
+end
+
+
+"""
 `TestFrames.testModule_ImpactIonization(; short::Bool=true)`  ... tests on module ImpactIonization.
 """
 function testModule_ImpactIonization(; short::Bool=true)

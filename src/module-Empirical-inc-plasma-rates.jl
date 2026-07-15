@@ -41,15 +41,15 @@ function photoemissionEinsteinA(iConf::Configuration, fConf::Configuration, appr
         if  shell.n < fShell.n  ||  (shell.n == fShell.n  &&  shell.l < fShell.l)   ce = ce + v   end
     end
     Zf      = Z - ce - 0.5;    rxf = (3*fShell.n^2 - fShell.l + (fShell.l+1)) / (2*Zf)
-    tEnergy = Zi^2 / (iShell.n - 0.07)^2 - Zf^2 / fShell.n^2
-    
+    tEnergy = Zf^2 / fShell.n^2 - Zi^2 / (iShell.n - 0.07)^2
+
     # Determine the multipolarity of the transition
-    if  multipole === missing    ||   diff != 0  
+    if  multipole === missing    ||   diff != 0
     else
         if       abs(iShell.l - fShell.l) == 0        multipole = M1
         elseif   abs(iShell.l - fShell.l) == 1        multipole = E1
         elseif   abs(iShell.l - fShell.l) == 2        multipole = E2
-        elseif   abs(iShell.l - fShell.l) == 1        multipole = E3
+        elseif   abs(iShell.l - fShell.l) == 3        multipole = E3
         else     error("Shell structure not supported.")
         end 
     end
@@ -109,14 +109,14 @@ function photoemissionEinsteinA(iConf::Configuration, fConf::Configuration, appr
     if  diff != 0   error("Incompatible initial and final configurations for a radiative transition.")   end 
     
     # Determine the multipolarity of the transition
-    if  multipole === missing    ||   diff != 0  
+    if  multipole === missing    ||   diff != 0
     else
         if       abs(iShell.l - fShell.l) == 0        multipole = M1
         elseif   abs(iShell.l - fShell.l) == 1        multipole = E1
         elseif   abs(iShell.l - fShell.l) == 2        multipole = E2
-        elseif   abs(iShell.l - fShell.l) == 1        multipole = E3
+        elseif   abs(iShell.l - fShell.l) == 3        multipole = E3
         else     error("Shell structure not supported.")
-        end 
+        end
     end
 
     # Generate mean-field orbitals in order to extract the transition energies and amplitudes
@@ -213,9 +213,11 @@ function photoexcitationPlasmaRatePerIon(dist::Distribution.AbstractPhotonDistri
                                          iConf::Configuration, fConf::Configuration; 
                                          approx::Empirical.AbstractEmpiricalApproximation=UsingJAC(), printout::Bool=false)
     EinsteinA = Empirical.photoemissionEinsteinA(iConf, fConf, approx, printout=false)
+    c         = Defaults.getDefaults("speed of light: c")
     pnDensity = Distribution.photonNumberDensity(dist, EinsteinA.energy)
-    rate      = Basics.extractFromConfiguration(Basics.Multiplicity(), fConf) / 
-                Basics.extractFromConfiguration(Basics.Multiplicity(), iConf) * EinsteinA.rate * pnDensity
+    occNumber = pnDensity * pi^2 * c^3 / EinsteinA.energy^2    ## n̄ = 1/(exp(ω/T)-1); photonNumberDensity returns n(ω) = ω²/(π²c³) × n̄
+    rate      = Basics.extractFromConfiguration(Basics.Multiplicity(), iConf) /
+                Basics.extractFromConfiguration(Basics.Multiplicity(), fConf) * EinsteinA.rate * occNumber
 
     # Report about this estimate
     if  printout
@@ -253,8 +255,10 @@ function photodeexcitationPlasmaRatePerIon(dist::Distribution.AbstractPhotonDist
                                            iConf::Configuration, fConf::Configuration; 
                                            approx::Empirical.AbstractEmpiricalApproximation=UsingJAC(), printout::Bool=false)
     EinsteinA = Empirical.photoemissionEinsteinA(iConf, fConf, approx, printout=false)
+    c         = Defaults.getDefaults("speed of light: c")
     pnDensity = Distribution.photonNumberDensity(dist, EinsteinA.energy)
-    rate      = EinsteinA.rate * (1.0 + pnDensity)
+    occNumber = pnDensity * pi^2 * c^3 / EinsteinA.energy^2    ## n̄ = 1/(exp(ω/T)-1)
+    rate      = EinsteinA.rate * (1.0 + occNumber)
 
     # Report about this estimate
     if  printout
@@ -494,37 +498,38 @@ end
         by using the Einstein-Milne relation and the binding energy (ionization potential) of the ionized shell 
         from JAC and Kramer's (1923) empirical formula.A css::Array{Float64,1} [a.u.] is returned. 
 """
-function photorecombinationCrossSection(energies::Array{Float64,1}, iConf::Configuration, fConf::Configuration, 
-                                        approx::Empirical.ScaledHydrogenic; printout::Bool=false) 
-    Z = Defaults.getDefaults("nuclear: charge");    fShell = Shell(0,0);    diff = 0;   zeroCss = false
+function photorecombinationCrossSection(energies::Array{Float64,1}, iConf::Configuration, fConf::Configuration,
+                                        approx::Empirical.ScaledHydrogenic; printout::Bool=false)
+    Z = Defaults.getDefaults("nuclear: charge");    fShell = Shell(0,0);    diff = 0
     
     # Determine the initial shell and its binding (threshold) energy; set all css = 0, if the occupation of 
     # configurations differ by more than 1.
     wa = Basics.extractFromConfigurations(Basics.OccupationDifference(), iConf, fConf)
-    if length(wa) > 1   zeroCss = true   end 
- 
+    if length(wa) > 1   error("Incompatible initial and final configurations for a photorecombination cross section.")   end
+
     for  (k,v) in wa
         diff = diff + v
-        if     v == -1     fShell = k    end 
+        if     v == -1     fShell = k    end
     end
     if  diff != -1   error("Incompatible initial and final configurations for a photorecombination cross section.")   end
-    
-    # Just substract all inner-shell electrons and use a pure hydrogenic scaling of the binding energy 
-    # (assume a charge 0.5 due to the other electrons in iShell)
-    ce      = iConf.NoElectrons   
-    Zf      = Z - iConf.NoElectrons + 0.1   # effective Z felt by the captured electron in fShell
+
+    # Hydrogenic scaling of the binding energy for the captured electron in fShell:
+    # Zf = charge seen by electron = Z - (electrons already in ion) + 0.1
+    Zf      = Z - iConf.NoElectrons + 0.1
     bEnergy = Zf^2 / fShell.n^2
     omegas  = energies .+ bEnergy
-    
-    # Determine the photoionization cross section
-    piCss   = Empirical.photoionizationCrossSection(omegas, fConf, iConf, approx, printout=false)
-    
-    # Apply the Einstein-Milne relation
-    prCss   = Float64[]
-    factor  = pi^2 * Defaults.getDefaults("speed of light: c")^2 *
-              Basics.extractFromConfiguration(Basics.Multiplicity(), fConf) / 
-              Basics.extractFromConfiguration(Basics.Multiplicity(), iConf)
-    for (im, omega) in enumerate(omegas)    push!(prCss, factor * piCss[im] / omega^2)   end 
+
+    # Compute PI cross sections directly using bEnergy (bypasses photoionizationCrossSection which
+    # recomputes bEnergy from ClosedShells and would give an inconsistent, much higher threshold).
+    alpha_fs = Defaults.getDefaults("alpha")
+    factor_pi = 64 * pi^2 * alpha_fs / (3 * sqrt(3) * fShell.n)
+    piCss   = [omega > bEnergy ? factor_pi * (bEnergy/omega)^3 : 0.0 for omega in omegas]
+
+    # Apply the correct Einstein-Milne relation: σ_PR = ω²/(2ε c²) × (g_f/g_i) × σ_PI
+    c       = Defaults.getDefaults("speed of light: c")
+    gf_gi   = Basics.extractFromConfiguration(Basics.Multiplicity(), fConf) /
+               Basics.extractFromConfiguration(Basics.Multiplicity(), iConf)
+    prCss   = [gf_gi * omegas[im]^2 / (2 * energies[im] * c^2) * piCss[im] for im in eachindex(omegas)]
     
     # Report about this estimate
     if  printout
