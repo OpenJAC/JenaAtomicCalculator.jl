@@ -52,6 +52,12 @@ function testModule_Semiempirical(; short::Bool=true)
     ## Test 4: EstimateBindingEnergyWilliams2000 Configuration for Kr ground config (Bugs 1&2 fix: no BoundsError)
     e4 = Defaults.convertUnits("energy: from atomic", Semiempirical.estimate(Basics.EstimateBindingEnergyWilliams2000(), 36, Configuration("[Ar] 3d^10 4s^2 4p^6")))
     success = success && abs(e4 - 45514.0) < 0.1
+    ## Test 5: estimateSlaterZeff for Rb 5s_1/2 -- σ = 8×0.85 + 28×1.00 = 34.80 → Zeff = 2.20
+    z5 = Semiempirical.estimateSlaterZeff(37.0, Configuration("[Ar] 3d^10 4s^2 4p^6"), Subshell("5s_1/2"))
+    success = success && abs(z5 - 2.20) < 1.0e-10
+    ## Test 6: EstimateBindingEnergyNist2025 for He IP_1 = 24.587 eV (well-known textbook value)
+    e6 = Defaults.convertUnits("energy: from atomic", Semiempirical.estimate(Basics.EstimateBindingEnergyNist2025(), 2, 1))
+    success = success && abs(e6 - 24.587) < 0.001
     ###
     Defaults.setDefaults("print summary: close", "")
     _, iostream = Defaults.getDefaults("test flag/stream")

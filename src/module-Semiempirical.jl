@@ -251,22 +251,23 @@ end
 
 
 """
-`Semiempirical.estimateBindingEnergies(Z::Float64, coreConf::Configuration, nRange::UnitRange{Int64}, l::Int64)`  
+`Semiempirical.estimateBindingEnergies(Z::Float64, coreConf::Configuration, nRange::UnitRange{Int64}, l::Int64)`
     ... to estimate the binding energies of the high-n shells with n = nRange and orbital angular momentum l
-        for a (multiply-charged) ion with nuclear charge Z and core configuration coreConfiguration.
+        for a (multiply-charged) ion with nuclear charge Z and core configuration coreConfiguration;
+        Slater's (1930) screening rules are used to compute Z_eff for each (n, l) shell.
         A list of energies::Array{Float64} [in Hartree] is returned.
 """
 function estimateBindingEnergies(Z::Float64, coreConf::Configuration, nRange::UnitRange{Int64}, l::Int64)
-    energies = Float64[];    Ne = coreConf.NoElectrons
+    energies = Float64[];
     # Terminate if  nRange.start  <=  nMaxCore,  i.e. if any core-shell has a higher n-value
     nMaxCore = 0;     for (k,v) in coreConf.shells   if  k.n > nMaxCore   nMaxCore = k.n    end    end
     if  nRange.start  <=  nMaxCore   error("Unsupported n-values:  nMin = $(nRange.start)  <=  nMaxCore = $nMaxCore")    end
     if  l > nRange.start - 1         error("Unsupported l-value:   l = $l  >  nMin = $(nRange.start) - 1")               end
-    
-    # Compute an effective Zeff for each n separately (later by considering the (mean) overlap with the core-shell electrons) 
-    sn = "";    sZ = "";    se = "";    su = "";    
+
+    ## Compute Slater Z_eff for each (n, l) shell; kappa = -(l+1) selects the high-j subshell
+    sn = "";    sZ = "";    se = "";    su = "";
     for  n = nRange
-        effZ = Z - Ne * (1 - 0.5/n^2.2) * (1 - 0.1 * Ne / n /  (l+1) )
+        effZ = estimateSlaterZeff(Z, coreConf, Subshell(n, -(l+1)))
         eb   = -effZ^2/(2*n^2);     eu = Defaults.convertUnits("energy: from atomic", eb)
         push!(energies, eb ) 
         sx = "           " * string(n);                   sn = sn * sx[end-10:end]
@@ -335,8 +336,8 @@ function estimateSlaterZeff(Z::Float64, conf::Configuration, sh::Subshell)
     ##    1     2     3     4     5     6     7     8     9    10    11    12    13
     function groupIndex(n::Int64, l::Int64)
         if      l <= 1    return( n <= 7 ? [1, 2, 3, 5, 8, 11, 13][n] : 13 + 2*(n - 7) )
-        elseif  l == 2    return( [4, 6, 9, 12][n - 2] )
-        elseif  l == 3    return( [7, 10][n - 3] )
+        elseif  l == 2    return( n <= 6 ? [4, 6, 9, 12][n - 2] : 12 + 3*(n - 6) )
+        elseif  l == 3    return( n <= 5 ? [7, 10][n - 3]        : 10 + 3*(n - 5) )
         else    error("No Slater group defined for n = $n, l = $l")
         end
     end
