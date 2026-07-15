@@ -109,7 +109,7 @@ function ionizationPotential(Z::Int64, conf::Configuration)
         error("Ionization potential for non-standard filling required; conf = $conf")
     end
 
-    wa = PeriodicTable.ionizationPotentials_Nist2025(Z);  @show wa
+    wa = PeriodicTable.ionizationPotentials_Nist2025(Z)
     wi = Z - conf.NoElectrons
     wb = wa[ wi + 1 ]
     wc = Defaults.convertUnits("energy: from eV to atomic", wb)

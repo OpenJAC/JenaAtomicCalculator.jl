@@ -41,7 +41,7 @@ function photoemissionEinsteinA(iConf::Configuration, fConf::Configuration, appr
         if  shell.n < fShell.n  ||  (shell.n == fShell.n  &&  shell.l < fShell.l)   ce = ce + v   end
     end
     Zf      = Z - ce - 0.5;    rxf = (3*fShell.n^2 - fShell.l + (fShell.l+1)) / (2*Zf)
-    tEnergy = Zi^2 / (iShell.n - 0.07)^2 - Zf^2 / fShell.n^2;    @show iShell, Zi, fShell, Zf, tEnergy
+    tEnergy = Zi^2 / (iShell.n - 0.07)^2 - Zf^2 / fShell.n^2
     
     # Determine the multipolarity of the transition
     if  multipole === missing    ||   diff != 0  
@@ -578,7 +578,7 @@ function photorecombinationCrossSection(energies::Array{Float64,1}, iConf::Confi
     mfrep       = generate(meanField; output=true)
     fOrbitals   = mfrep["mean-field basis"].orbitals
     fSubsh      = Subshell(fShell.n, -fShell.l -1)
-    bEnergy     = - fOrbitals[fSubsh].energy;   @show fSubsh, bEnergy
+    bEnergy     = - fOrbitals[fSubsh].energy
     omegas  = energies .+ bEnergy
     
     # Determine the photoionization cross section

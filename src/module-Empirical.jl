@@ -28,7 +28,7 @@ struct     Axelrod1980                   <:  AbstractEmpiricalApproximation  end
 struct     KozmaFranson1992              <:  AbstractEmpiricalApproximation  end
 
 
-export  AbstractEmpiricalApproximation, GivenEinsteinA, ScaledHydrogenic, UsingJAC
+export  AbstractEmpiricalApproximation, GivenEinsteinA, ScaledHydrogenic, UsingJAC,
         Bohr1913, Bethe1931, Axelrod1980, KozmaFranson1992
    
 
@@ -48,9 +48,9 @@ struct  GivenEinsteinA  <:  Empirical.AbstractEmpiricalApproximation
 end
 
 
-# `Base.show(tripleA::GivenEinsteinA)`  ... provides a String notation for the variable tripleA::GivenEinsteinA.
-function Base.show(tripleA::GivenEinsteinA)
-    sa = "Given Einstein-A value for $(tripleA.multiple) transition with E_if [Hartree] = $(tripleA.multipole) " *
+# `Base.show(io::IO, tripleA::GivenEinsteinA)`  ... provides a String notation for the variable tripleA::GivenEinsteinA.
+function Base.show(io::IO, tripleA::GivenEinsteinA)
+    sa = "Given Einstein-A value for $(tripleA.multipole) transition with E_if [Hartree] = $(tripleA.energy) " *
          "and A_if [a.u.] = $(tripleA.rate) "
     print(io, sa, "\n")
 end
@@ -108,7 +108,7 @@ function Computation(comp::Empirical.Computation;
     if  isnothing(settings)                 settingsx                = comp.settings                else  settingsx                = settings                 end 
     
     
-    cp = Computation(namex, nuclearModelx, gridx, propertySettingsx, configsx, settingsx) 
+    cp = Computation(namex, nuclearModelx, gridx, configsx, settingsx)
                         
     if printout  Base.show(cp)      end
     return( cp )
