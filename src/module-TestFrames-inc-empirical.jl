@@ -243,6 +243,22 @@ function testModule_Empirical(; short::Bool=true)
                                                         bare, nLayers=10, printout=false)
     success = success && abs(fac6*aTot - 1.537388245827469e-23) / 1.537388245827469e-23 < 1.0e-6
     #
+    ## Test 23: multipoles of photoemissionEinsteinA(ScaledHydrogenic). The relativistically induced M1 estimate is
+    ##   anchored on the hydrogenic 2s -> 1s rate, W(M1) = 2.496e-6 Z^10 1/s (Breit & Teller 1940; Johnson 1972),
+    ##   scaled with the transition energy as (Delta-E/0.375 Hartree)^5; with the tabulated H binding energies
+    ##   (13.6 - 3.4014 = 10.199 eV vs. the exact 10.204 eV) it reproduces 2.489e-6 1/s. E2 and higher multipoles
+    ##   must refuse rather than return a silent zero rate.
+    Defaults.setDefaults("nuclear: charge", 1.)
+    m1    = Empirical.photoemissionEinsteinA(Configuration("2s^1"), Configuration("1s^1"), Empirical.ScaledHydrogenic(), printout=false)
+    m1x   = Defaults.convertUnits("rate: from atomic", m1.rate)
+    success = success && m1.multipole == M1  &&  abs(m1x - 2.4890450380695574e-6) / 2.4890450380695574e-6 < 1.0e-6
+    e2Err = false
+    try     Empirical.photoemissionEinsteinA(Configuration("3d^1"), Configuration("1s^1"), Empirical.ScaledHydrogenic(), printout=false)
+    catch
+        e2Err = true
+    end
+    success = success && e2Err
+    #
     ## Restore the global nuclear charge for all subsequent tests.
     Defaults.setDefaults("nuclear: charge", oldZ)
     ###

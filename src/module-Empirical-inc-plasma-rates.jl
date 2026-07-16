@@ -55,9 +55,20 @@ end
                                   printout::Bool=false, data::PeriodicTable.AbstractEnergyData=PeriodicTable.Williams2000())`
     ... to estimate empirically the Einstein-A value for a transition from iConf -> fConf. The transition energy is
         obtained as the difference of the binding energies of the two shells involved, cf.
-        Empirical.scaledBindingEnergy(), while the A-value follows from a hydrogenic scaling with an effective
-        nuclear charge. A named triple (multipole::EmMultipole=, energy::Float64=, rate::Float64=) is returned.
+        Empirical.scaledBindingEnergy(). A named triple (multipole::EmMultipole=, energy::Float64=, rate::Float64=)
+        is returned.
         Quantity: a spontaneous rate [1/s] -- an intrinsic property of the ion, independent of the plasma.
+
+        Rates are estimated for E1 and M1 transitions only:
+        + E1 (Delta-l = 1): from a hydrogenic scaling of the r-expectation values; good to a factor ~1.5
+          (Ne K-alpha: 6.0e13 vs. the literature 8.8e13 1/s).
+        + M1 (Delta-l = 0, always Delta-n != 0 here): such transitions are non-relativistically forbidden and
+          proceed only via the relativistically induced M1 amplitude; the estimate scales the hydrogenic
+          2s -> 1s anchor W(M1) = 2.496e-6 Z^10 1/s (Breit & Teller 1940; Johnson 1972) with the transition
+          energy, (Delta-E/0.375 Hartree)^5, and is good to an order of magnitude only.
+        + E2 and higher multipoles raise an error: the crude <r>-proxies misjudge their line strengths by
+          orders of magnitude, and no silent zero is returned; use GivenEinsteinA(..) or the PhotoEmission
+          module instead.
 """
 function photoemissionEinsteinA(iConf::Configuration, fConf::Configuration, approx::Empirical.ScaledHydrogenic;
                                 printout::Bool=false, data::PeriodicTable.AbstractEnergyData=PeriodicTable.Williams2000())
@@ -116,7 +127,20 @@ function photoemissionEinsteinA(iConf::Configuration, fConf::Configuration, appr
         c      = Defaults.getDefaults("speed of light: c")
         rate   = 4/3 * tEnergy^3 / c^3 * abs( rxi * rxf )
         triple = (multipole, tEnergy, rate)
-    else                                triple = (multipole, 0., 0.) 
+    elseif  multipole == M1
+        #  Any M1 assigned here has Delta-n != 0 and Delta-l = 0 (equal shells never appear in a configuration
+        #  difference); such transitions are forbidden non-relativistically -- the radial orbitals are orthogonal --
+        #  and proceed only through the relativistically induced M1 amplitude. The hydrogenic anchor is the famous
+        #  2s -> 1s decay, W(M1) = 1/972 m alpha (alpha Z)^10 ~ 2.496e-6 Z^10 1/s (Breit & Teller 1940; Johnson 1972);
+        #  with Delta-E = 3/8 Z^2 Hartree, the Z^10 scaling becomes (Delta-E / 0.375 Hartree)^5. This energy-scaled
+        #  form is applied as an order-of-magnitude estimate for all (induced) M1 transitions of this kind.
+        rate   = 2.496e-6 * Defaults.convertUnits("time: from atomic to sec", 1.0) * (tEnergy / 0.375)^5
+        triple = (multipole, tEnergy, rate)
+    else
+        error("No empirical rate estimate is supported for a $multipole transition ($iShell -> $fShell): the " *
+              "hydrogenic <r>-expectation proxies of this ScaledHydrogenic approximation misjudge E2 (and higher) " *
+              "line strengths by several orders of magnitude. Please provide the rate via GivenEinsteinA(..) or " *
+              "compute it with the PhotoEmission module.")
     end
     
     # Report about this estimate
