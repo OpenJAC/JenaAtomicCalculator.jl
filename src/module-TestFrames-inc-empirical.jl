@@ -171,6 +171,25 @@ function testModule_Empirical(; short::Bool=true)
     end
     success = success && ujPI && ujPR
     #
+    ## Test 19: K-shell fluorescence yield (KrauseAdopted2016) and the derived Auger yield/rate. The yield of Ne is
+    ##   0.01519 (Auger-dominated), of Ag 0.8313 (fluorescence-dominated); a_K = 1 - omega_K. The empirical Auger rate
+    ##   uses A_auger = A_rad (1 - omega_K)/omega_K, so that A_auger/A_rad must equal (1 - omega_K)/omega_K exactly.
+    success = success && abs(Empirical.fluorescenceYield(10) - 0.01519) < 1.0e-8
+    success = success && abs(Empirical.fluorescenceYield(47) - 0.8313)  < 1.0e-8
+    success = success && abs(Empirical.augerYield(10) - (1.0 - 0.01519)) < 1.0e-8
+    Defaults.setDefaults("nuclear: charge", 10.)
+    iK    = Configuration("1s^1 2p^6");    fK = Configuration("1s^2 2p^5")
+    aRad  = Empirical.photoemissionEinsteinA(iK, fK, Empirical.ScaledHydrogenic(), printout=false).rate
+    aAug  = Empirical.augerRate(iK, fK, Empirical.ScaledHydrogenic(), printout=false)
+    success = success && abs(aAug/aRad - (1.0 - 0.01519)/0.01519) < 1.0e-6
+    ## Yields are defined only where a K-shell vacancy can decay radiatively (Z >= 3) and within the tabulation.
+    fyErr = false
+    try     Empirical.fluorescenceYield(2)
+    catch
+        fyErr = true
+    end
+    success = success && fyErr
+    #
     ## Restore the global nuclear charge for all subsequent tests.
     Defaults.setDefaults("nuclear: charge", oldZ)
     ###

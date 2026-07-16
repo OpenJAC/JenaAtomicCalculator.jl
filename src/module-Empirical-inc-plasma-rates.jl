@@ -861,6 +861,84 @@ end
 ### Autoionization (AI) #########################################################################################################
 
 
+"""
+`Empirical.fluorescenceYield(Z::Int64; data::PeriodicTable.AbstractYieldData=PeriodicTable.KrauseAdopted2016())`
+    ... to provide the K-shell fluorescence yield omega_K of the neutral element with nuclear charge Z, i.e. the
+        probability that a K-shell vacancy is filled by a radiative (K X-ray) rather than a radiationless (Auger)
+        transition. A yield::Float64 in [0,1] is returned; cf. Empirical.augerYield for its complement.
+"""
+function fluorescenceYield(Z::Int64; data::PeriodicTable.AbstractYieldData=PeriodicTable.KrauseAdopted2016())
+    if  typeof(data) == PeriodicTable.KrauseAdopted2016
+        return( PeriodicTable.fluorescenceYields_KrauseAdopted2016(Z) )
+    else
+        error("Unsupported fluorescence-yield data set = $data")
+    end
+end
+
+
+"""
+`Empirical.augerYield(Z::Int64; data::PeriodicTable.AbstractYieldData=PeriodicTable.KrauseAdopted2016())`
+    ... to provide the K-shell Auger yield a_K = 1 - omega_K of the neutral element with nuclear charge Z, i.e. the
+        probability that a K-shell vacancy decays by a (radiationless) Auger transition. A yield::Float64 in [0,1]
+        is returned.
+"""
+function augerYield(Z::Int64; data::PeriodicTable.AbstractYieldData=PeriodicTable.KrauseAdopted2016())
+    return( 1.0 - Empirical.fluorescenceYield(Z, data=data) )
+end
+
+
+"""
+`Empirical.augerRate(iConf::Configuration, fConf::Configuration, approx::Empirical.ScaledHydrogenic;
+                     printout::Bool=false, data::PeriodicTable.AbstractEnergyData=PeriodicTable.Williams2000(),
+                     yieldData::PeriodicTable.AbstractYieldData=PeriodicTable.KrauseAdopted2016())`
+    ... to estimate empirically the (total) K-shell Auger rate A_auger for filling the K-shell vacancy of the transition
+        iConf -> fConf, from the fluorescence yield omega_K and the radiative K-shell rate. The two decay channels of a
+        K-shell hole share the same total rate Gamma = A_rad + A_auger, and their branching is fixed by the yield,
+        A_rad = omega_K Gamma, so that
+            A_auger = A_rad (1 - omega_K) / omega_K,
+        where A_rad is the (empirical) radiative rate of iConf -> fConf, cf. Empirical.photoemissionEinsteinA. A
+        rate::Float64 [a.u.] is returned.
+
+        Note: This estimate exploits that K-shell Auger rates are nearly independent of Z along an isoelectronic
+              sequence, whereas radiative rates scale approximately as Z^4; the whole Z dependence is therefore
+              carried by omega_K. It presumes that iConf -> fConf refills a *K-shell* (1s) vacancy; omega_K is taken
+              for the neutral element and is only a rough guide for an ion.
+
+        Note: The branching ratio A_auger/A_rad = (1 - omega_K)/omega_K is accurate (it is the definition of the
+              yield), but the *absolute* Auger rate is only as good as the radiative rate A_rad that feeds it. In the
+              ScaledHydrogenic approximation A_rad is itself good to about a factor 1.5, and this uncertainty is
+              amplified by the large factor (1 - omega_K)/omega_K for light elements: for neutral Ne the implied
+              K-shell width A_rad + A_auger comes out near 2.6 eV, against a measured natural width of ~0.27 eV.
+              The result should therefore be read as an order-of-magnitude estimate, most reliable near omega_K ~ 0.5.
+"""
+function augerRate(iConf::Configuration, fConf::Configuration, approx::Empirical.ScaledHydrogenic;
+                   printout::Bool=false, data::PeriodicTable.AbstractEnergyData=PeriodicTable.Williams2000(),
+                   yieldData::PeriodicTable.AbstractYieldData=PeriodicTable.KrauseAdopted2016())
+    Z      = round(Int64, Defaults.getDefaults("nuclear: charge"))
+    omegaK = Empirical.fluorescenceYield(Z, data=yieldData)
+    Arad   = Empirical.photoemissionEinsteinA(iConf, fConf, approx, printout=false, data=data).rate
+    Aauger = Arad * (1.0 - omegaK) / omegaK
+
+    # Report about this estimate
+    if  printout
+        unRate = Defaults.getDefaults("unit: rate")
+        Aradx  = Defaults.convertUnits("rate: from atomic to " * unRate, Arad)
+        Aaugx  = Defaults.convertUnits("rate: from atomic to " * unRate, Aauger)
+        sa = "\n* Estimate empirically the K-shell Auger rate for a given transition i -> f with the " *
+             "following assumptions/simplifications: " *
+             "\n    + A_auger = A_rad (1 - omega_K)/omega_K, with omega_K the K-shell fluorescence yield ($yieldData). " *
+             "\n    + Radiative rate A_rad is estimated in the $approx approximation. " *
+             "\n    + iConf = $iConf  -->  fConf = $fConf " *
+             "\n    + K-shell fluorescence yield omega_K (Z = $Z) = $omegaK " *
+             "\n    + Radiative rate A_rad [$unRate] = $Aradx " *
+             "\n    + Auger rate A_auger [$unRate] = $Aaugx \n"
+        println(sa)
+    end
+
+    return( Aauger )
+end
+
+
 #################################################################################################################################
 ### Electron-impact excitation (EIE) ############################################################################################
 
