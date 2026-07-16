@@ -159,19 +159,25 @@ function testModule_Empirical(; short::Bool=true)
     rPIx = Defaults.convertUnits("rate: from atomic", rPI)
     success = success && abs(rPIx - 2.2816321564282784e9) / 2.2816321564282784e9 < 1.0e-6
     #
-    ## Test 18: the UsingJAC PI/PR cross sections are not validated -- they grow with omega (resp. eps) instead of
-    ##   falling (resp. diverging as 1/eps) -- and must refuse to return a value rather than deliver 92 Mb where ~1 Mb
-    ##   belongs. photoemissionEinsteinA(..., UsingJAC) is a bound-bound rate and must remain available.
-    ujPI = false;   ujPR = false
-    try     Empirical.photoionizationCrossSection(omegas, piConf, pfConf, Empirical.UsingJAC(), printout=false)
-    catch
-        ujPI = true
-    end
-    try     Empirical.photorecombinationCrossSection(ekins, pfConf, piConf, Empirical.UsingJAC(), printout=false)
-    catch
-        ujPR = true
-    end
-    success = success && ujPI && ujPR
+    ## Test 18: the UsingJAC PI/PR cross sections from mean-field orbitals and E1 amplitudes. He 1s^2 serves as the
+    ##   experimental benchmark: 6.26 Mb at 26 eV and 0.317 Mb at 100 eV against the measured ~7.4 and ~0.3 Mb, i.e.
+    ##   within ~15%. (The former implementation produced spurious box resonances -- 92 Mb at 100 eV for Ne 2p --
+    ##   from a continuum grid without a linear tail.) The PR cross section, via the Einstein-Milne relation, must
+    ##   decrease from 1 to 10 eV (the 1/eps divergence towards threshold).
+    ##   The UsingJAC amplitudes depend on the continuum method; earlier testsets (cascades) switch it and do not
+    ##   restore, so the JAC defaults are pinned here explicitly to keep this test independent of the testset order.
+    Defaults.setDefaults("method: continuum, Galerkin")
+    Defaults.setDefaults("method: normalization, Alok")
+    Defaults.setDefaults("nuclear: charge", 2.)
+    ujOms = [Defaults.convertUnits("energy: from eV to atomic", e) for e in [26.0, 100.0]]
+    ujCss = Empirical.photoionizationCrossSection(ujOms, Configuration("1s^2"), Configuration("1s^1"),
+                                                  Empirical.UsingJAC(), printout=false)
+    success = success && abs(ujCss[1] - 0.22361086741886252) / 0.22361086741886252 < 1.0e-6
+    success = success && abs(ujCss[2] - 0.01133283305665921) / 0.01133283305665921 < 1.0e-6
+    ujEks = [Defaults.convertUnits("energy: from eV to atomic", e) for e in [1.0, 10.0]]
+    ujPrs = Empirical.photorecombinationCrossSection(ujEks, Configuration("1s^1"), Configuration("1s^2"),
+                                                     Empirical.UsingJAC(), printout=false)
+    success = success && ujPrs[1] > ujPrs[2] > 0.
     #
     ## Test 19: K-shell fluorescence yield (KrauseAdopted2016) and the derived Auger yield/rate. The yield of Ne is
     ##   0.01519 (Auger-dominated), of Ag 0.8313 (fluorescence-dominated); a_K = 1 - omega_K. The empirical Auger rate

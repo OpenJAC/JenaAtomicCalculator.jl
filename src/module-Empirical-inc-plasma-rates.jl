@@ -494,63 +494,89 @@ end
 """
 `Empirical.photoionizationCrossSection(omegas::Array{Float64,1}, iConf::Configuration, fConf::Configuration,
                                        approx::Empirical.UsingJAC; printout::Bool=false)`
-    ... to estimate the photoionization cross section for a transition from iConf -> fConf from mean-field orbitals and
-        single-electron E1 amplitudes. A css::Array{Float64,1} [a.u.] is returned.
+    ... to estimate the photoionization cross section for a transition from iConf -> fConf from mean-field (DFS)
+        orbitals and single-electron E1 amplitudes,
+            sigma^(PI) (omega) = N_shell/(4l+2) * 8 pi^3/(alpha omega) *
+                                 sum_(subshells j = l+-1/2) sum_(E1 channels kappa_c) |<eps kappa_c || O^(E1) || n kappa>|^2,
+        with energy-normalized continuum orbitals in the local (nuclear + DFS) potential; the prefactor
+        8 pi^3/(alpha omega) belongs to the Johnson (2007) convention of the reduced emission matrix elements and is
+        consistent with the (well-tested) bound-bound Einstein rate A = 8 pi alpha omega/(2J_i+1) |<f||O||i>|^2 by
+        smearing a line into the continuum. A css::Array{Float64,1} [a.u.] is returned.
+        Quantity: a cross section [a.u.] -- a property of the ion alone, independent of the plasma; fold it with the
+            photon/electron field, or pass the configurations to a *PlasmaRatePerIon / *PlasmaAlpha function, to obtain a rate.
 
-        !! NOT VALIDATED; this method presently raises an error. !!
-        Its cross sections *grow* with the photon energy above the threshold, whereas any PI cross section has to fall:
-        for Ne 2p it yields 5.7 Mb at 25 eV but 92 Mb at 100 eV, where the experimental value has dropped to ~1 Mb.
-        The prefactor 8 pi^3 / (alpha omega) contradicts the defining relation
-        sigma^(PI)(omega; i -> f) = 4 pi^2 alpha omega sum_lambda |<f| D_lambda |i>|^2,
-        i.e. both the alpha- and the omega-dependence appear inverted. Since MabEmissionJohnsony provides an *emission*
-        amplitude, its normalization has to be settled before this prefactor can be re-derived; cf. the (correct)
-        treatment in module-PhotoIonization.jl. The body below is retained unchanged for that repair.
+        Note: Validated against experiment: He 1s^2 gives 6.3/4.9/1.7/0.32 Mb at 26/30/50/100 eV against the measured
+              ~7.4/5.5/2/0.3 Mb (within ~15%); Ne 2p^6 reproduces shape and magnitude to ~30-50%. The *thresholds* are
+              the mean-field (DFS) orbital energies and lie below the true ionization potentials (Ne 2p: 12.0 eV
+              instead of 21.6 eV) -- a property of this approximation that has to be kept in mind near threshold.
+              The continuum requires a radial grid with a linear tail; the exponential grid formerly used here
+              produced spurious box resonances (92 Mb at 100 eV for Ne 2p) that invalidated all earlier results.
+              The amplitudes further depend on the globally selected continuum method; the validation above refers
+              to JAC's defaults, i.e. setDefaults("method: continuum, Galerkin") and
+              setDefaults("method: normalization, Alok").
 """
 function photoionizationCrossSection(omegas::Array{Float64,1}, iConf::Configuration, fConf::Configuration,
                                      approx::Empirical.UsingJAC; printout::Bool=false)
-    error("Empirical.photoionizationCrossSection(..., UsingJAC) is not validated: its cross sections grow with omega " *
-          "above the threshold (Ne 2p: 5.7 Mb at 25 eV, but 92 Mb at 100 eV vs. ~1 Mb experimentally). The prefactor " *
-          "8 pi^3/(alpha omega) is inconsistent with sigma^(PI) = 4 pi^2 alpha omega sum |<f|D|i>|^2. " *
-          "Please use approx = ScaledHydrogenic() instead.")
-    Z = Defaults.getDefaults("nuclear: charge");    iShell = Shell(0,0);    diff = 0;   zeroCss = false
-    
-    # Determine the initial shell and its binding (threshold) energy; set all css = 0, if the occupation of 
-    # configurations differ by more than 1.
+    Z = Defaults.getDefaults("nuclear: charge");    iShell = Shell(0,0);    diff = 0
+
+    # Determine the ionized shell.
     wa = Basics.extractFromConfigurations(Basics.OccupationDifference(), iConf, fConf)
-    if length(wa) > 1   zeroCss = true   end 
- 
+    if length(wa) > 1   error("Incompatible initial and final configurations for a photoionization cross section.")   end
     for  (k,v) in wa
         diff = diff + v
-        if      v == 1     iShell = k    end 
+        if      v == 1     iShell = k    end
     end
     if  diff != 1   error("Incompatible initial and final configurations for a photoionization cross section.")   end
 
-    # Generate mean-field orbitals in order to extract the transition energies and amplitudes
-    grid        = Radial.Grid(Radial.Grid(true), rnt = 4.0e-6, h = 5.0e-2, rbox = 10.0) 
+    # The E1 continuum channels kappa_c of an ionized subshell (l, 2j): parity change l_c = l +- 1 and |j_c - j| <= 1.
+    function e1Channels(li::Int64, ji2::Int64)
+        chans = Int64[]
+        for  lc in (li-1, li+1)
+            lc < 0    &&  continue
+            for  jc2 in (2lc-1, 2lc+1)
+                jc2 < 1              &&  continue
+                abs(jc2 - ji2) > 2   &&  continue
+                push!(chans, jc2 == 2lc+1 ? -lc-1 : lc)
+            end
+        end
+        return( chans )
+    end
+
+    # Generate mean-field orbitals in order to extract the threshold energies and amplitudes; the radial grid carries
+    # a linear tail (hp), which the oscillating continuum orbitals require.
+    grid        = Radial.Grid(Radial.Grid(false), rnt = 4.0e-6, h = 5.0e-2, hp = 1.5e-2, rbox = 20.0)
     mfSettings  = AtomicState.MeanFieldSettings(Basics.DFSField(1.0))
     meanField   = Representation("Internal", Nuclear.Model(Z), grid, [iConf], MeanFieldBasis(mfSettings) )
     mfrep       = generate(meanField; output=true)
     iBasis      = mfrep["mean-field basis"]
-    iSubsh      = Subshell(iShell.n, -iShell.l -1)
-    cSubsh      = Subshell(101, -iShell.l -1 -1)
-    bEnergy     = -iBasis.orbitals[iSubsh].energy
-    
-    # Compute single-electron photoionization cross sections
-    css      = Float64[];    contSettings = Continuum.Settings(false, 290);    nm = Nuclear.Model(Z)  
+
+    contSettings = Continuum.Settings(false, size(grid.r,1) - 11);    nm = Nuclear.Model(Z)
     nucPot   = Nuclear.nuclearPotential(nm, grid)
     dfsPot   = Basics.computePotential(Basics.DFSField(1.0), grid, iBasis)
     localPot = Basics.add(nucPot, dfsPot)
-    
+
+    li        = iShell.l;    nShell = iConf.shells[iShell];    alfa = Defaults.getDefaults("alpha")
+    subshells = li == 0  ?  [Subshell(iShell.n, -1)]  :  [Subshell(iShell.n, li), Subshell(iShell.n, -li-1)]
+    bEnergy   = minimum( -iBasis.orbitals[s].energy  for s in subshells if haskey(iBasis.orbitals, s) )
+
+    css = Float64[]
     for  omega in omegas
-        cOrbital, phase, norm = Continuum.generateOrbitalLocalPotential(omega-bEnergy, cSubsh, localPot, contSettings)
-        amp      = InteractionStrength.MabEmissionJohnsony(Basics.E1, Basics.Babushkin, omega, cOrbital,  
-                                                           iBasis.orbitals[iSubsh], grid)
-        wa       = 8 * pi^3 / Defaults.getDefaults("alpha") / omega / 
-                   Basics.extractFromConfiguration(Basics.Multiplicity(), iConf) *
-                   Basics.extractFromConfiguration(Basics.Multiplicity(), fConf) / (2*(2*iShell.l+1))
-        push!(css, wa * 1.0 * abs(amp)^2)  # A contribution 0.0 is considered due to the l-1 partial waves
+        sigma = 0.
+        for  subsh in subshells
+            haskey(iBasis.orbitals, subsh)   ||  continue
+            eps = omega + iBasis.orbitals[subsh].energy         # orbital energy is negative
+            eps <= 0.   &&  continue
+            ji2 = Basics.twice(Basics.subshell_j(subsh))
+            for  kapc in e1Channels(li, ji2)
+                cOrbital, phase, norm = Continuum.generateOrbitalLocalPotential(eps, Subshell(101, kapc), localPot, contSettings)
+                amp   = InteractionStrength.MabEmissionJohnsony(Basics.E1, Basics.Babushkin, omega, cOrbital,
+                                                                iBasis.orbitals[subsh], grid)
+                sigma = sigma + nShell / (2*(2li+1)) * 8 * pi^3 / (alfa * omega) * abs(amp)^2
+            end
+        end
+        push!(css, sigma)
     end
-    
+
     # Report about these estimates
     if  printout
         unCs    = Defaults.getDefaults("unit: cross section");   unEnergy = Defaults.getDefaults("unit: energy")
@@ -560,10 +586,12 @@ function photoionizationCrossSection(omegas::Array{Float64,1}, iConf::Configurat
         for cs    in css     push!(cssx,    Defaults.convertUnits("cross section: from atomic to " * unCs, cs))   end
         sa = "\n* Estimate empirically the photoionization cross section for a given transition i -> f with the " *
              "following assumptions/simplifications: " *
-             "\n    + Using a JAC mean-field approach for binding energy (threshold energy) and the PI cross sections. " * 
-             "\n    + Mean-field computations for inital configuration & one-electron PI matrix elements." * 
-             "\n    + iConf = $iConf  -->  fConf = $fConf " * 
-             "\n    + Binding energy of $iShell   = $energyx  " * unEnergy *
+             "\n    + Use a JAC mean-field (DFS) approach: one-electron E1 amplitudes with energy-normalized continuum " *
+             "orbitals, summed over the subshells j = l +- 1/2 and their E1 channels. " *
+             "\n    + The threshold energies are the mean-field orbital energies; they lie below the true ionization " *
+             "potentials. " *
+             "\n    + iConf = $iConf  -->  fConf = $fConf " *
+             "\n    + Mean-field threshold of $iShell   = $energyx  " * unEnergy *
              "\n    + Omegas [$unEnergy]            = $omegasx " *
              "\n    + Cross sections [$unCs]  = $cssx     " *
              "\n    + Quantity: cross section [$unCs] -- a property of the ion alone, independent of the plasma; fold it with the photon/electron field, or pass iConf/fConf to a *PlasmaRatePerIon / *PlasmaAlpha function, to obtain a rate. " * "\n"
@@ -737,20 +765,17 @@ end
 `Empirical.photorecombinationCrossSection(energies::Array{Float64,1}, iConf::Configuration, fConf::Configuration,
                                           approx::Empirical.UsingJAC; printout::Bool=false)`
     ... to estimate the (spontaneous) photorecombination cross section for a transition from iConf -> fConf by applying
-        the Einstein-Milne relation to mean-field PI cross sections; the binding energy of the captured electron is taken
-        from the mean-field orbital of fConf. A css::Array{Float64,1} [a.u.] is returned.
+        the Einstein-Milne relation to the mean-field (UsingJAC) PI cross sections of the inverse process; the binding
+        energy of the captured electron is taken from the mean-field orbital of fConf and is, therefore, consistent
+        with the thresholds of those PI cross sections. A css::Array{Float64,1} [a.u.] is returned.
+        Quantity: a cross section [a.u.] -- a property of the ion alone, independent of the plasma; fold it with the
+            photon/electron field, or pass the configurations to a *PlasmaRatePerIon / *PlasmaAlpha function, to obtain a rate.
 
-        !! NOT VALIDATED; this method presently raises an error. !!
-        Its Einstein-Milne relation and an undefined variable have been corrected, but the method rests on
-        Empirical.photoionizationCrossSection(..., UsingJAC), whose cross sections are themselves unphysical. As a
-        consequence, these PR cross sections *grow* with the electron energy instead of exhibiting the characteristic
-        divergence sigma^(PR) ~ 1/eps as eps -> 0. Fixing the PI normalization above will repair this method as well.
+        Note: cf. the validation notes of Empirical.photoionizationCrossSection(..., UsingJAC); in particular, the
+              mean-field thresholds lie below the true ionization potentials.
 """
 function photorecombinationCrossSection(energies::Array{Float64,1}, iConf::Configuration, fConf::Configuration,
                                         approx::Empirical.UsingJAC; printout::Bool=false)
-    error("Empirical.photorecombinationCrossSection(..., UsingJAC) is not validated: it rests on the (unphysical) " *
-          "UsingJAC photoionization cross sections and, hence, grows with the electron energy instead of diverging " *
-          "as 1/eps for eps -> 0. Please use approx = ScaledHydrogenic() instead.")
     Z = Defaults.getDefaults("nuclear: charge");    fShell = Shell(0,0);    diff = 0
 
     # Determine the final shell into which the electron is captured.
