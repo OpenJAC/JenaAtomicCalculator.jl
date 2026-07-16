@@ -35,7 +35,12 @@ function scaledBindingEnergy(Z::Float64, sh::Shell, conf::Configuration, data::P
     Zeff  = Semiempirical.estimateSlaterZeff(Z, rConf, Subshell(sh.n, -sh.l - 1))
     ## An electron of a neutral atom or positive ion sees at least a unit charge asymptotically.
     if  Zeff < 1.0      Zeff = 1.0      end
-    @warn("No tabulated binding energy for Z = $Z and $sh in $data; a Slater-screened hydrogenic estimate is used.")
+    ## For (Rydberg) shells outside the tabulation this estimate is the designed behavior -- for a Rydberg electron
+    ## it is even exact -- so the warning is limited; a summation over many capture channels would otherwise flood
+    ## the output with one warning per shell.
+    sa = "No tabulated binding energy for Z = $Z and $sh in $data; a Slater-screened hydrogenic estimate is used " *
+         "(exact for Rydberg shells; this warning is shown at most 5 times)."
+    @warn sa maxlog=5
 
     return( Zeff^2 / (2 * sh.n^2) )
 end
@@ -888,6 +893,177 @@ end
     
 #################################################################################################################################
 ### Three-Body Recombination (TBR) ##############################################################################################
+
+
+"""
+`Empirical.recombinationConfigurations(conf::Configuration; nLayers::Int64=10)`
+    ... to enumerate the configurations that arise from conf by the capture of one additional electron. These are the
+        capture channels of (three-body or radiative) recombination: every shell of conf with a vacancy as well as
+        all empty (Rydberg) shells up to n_max = n_valence + nLayers, where n_valence is the largest principal
+        quantum number occupied in conf. The enumeration truncates there -- the contribution of a capture channel
+        falls off with n, but the infinite Rydberg sum would diverge logarithmically, and very high Rydberg states
+        are pressure-ionized in any real plasma. Only shells with l <= 3 (s, p, d, f) are included, since Slater's
+        screening rules, which fix the binding energies of untabulated shells, are defined up to f electrons.
+        A confs::Array{Configuration,1} is returned.
+"""
+function recombinationConfigurations(conf::Configuration; nLayers::Int64=10)
+    confs    = Configuration[]
+    nValence = conf.NoElectrons == 0 ? 0 : maximum( sh.n for (sh, occ) in conf.shells if occ > 0 )
+    for  n = 1:(nValence + nLayers)
+        for  l = 0:min(n-1, 3)
+            sh  = Shell(n, l)
+            occ = haskey(conf.shells, sh) ? conf.shells[sh] : 0
+            if  occ < 2*(2l + 1)
+                shells     = deepcopy(conf.shells);    shells[sh] = occ + 1
+                push!(confs, Configuration(shells, conf.NoElectrons + 1))
+            end
+        end
+    end
+
+    return( confs )
+end
+
+
+"""
+`Empirical.threeBodyRecombinationPlasmaAlpha(eDist::Distribution.ElectronMaxwell,
+                                             iConf::Configuration, fConf::Configuration;
+                                             approx::Empirical.AbstractEmpiricalApproximation=Lotz1967(), printout::Bool=false,
+                                             data::PeriodicTable.AbstractEnergyData=PeriodicTable.Williams2000())`
+    ... to estimate empirically the three-body recombination (TBR) plasma rate coefficient alpha^(TBR) for the capture
+        channel iConf + e + e -> fConf + e, by detailed balance with the (Lotz) electron-impact ionization of fConf.
+        In LTE, the Saha equation fixes the ratio of the forward and backward rates, so that
+            alpha^(TBR) (T_e; i -> f) = alpha^(EII) (T_e; f -> i) * g_f/(2 g_i) * (2 pi/T_e)^(3/2) * exp(P/T_e),
+        with P the binding energy of the captured electron and the factor 2 the spin degeneracy of the free electron.
+        An alpha::Float64 [a.u.] is returned.
+        Quantity: a three-body rate coefficient [cm^6/s] -- multiply by the electron number density *squared*
+            n_e^2 [1/cm^6] to obtain the rate per ion [1/s]; TBR therefore dominates over radiative recombination
+            at high electron densities.
+
+        Note: The two exponentials exp(+P/T_e) (Saha) and exp(-P/T_e) (threshold suppression of the EII coefficient)
+              cancel analytically but *not* numerically: for T_e << P the EII coefficient underflows and the product
+              becomes 0 * Inf. The Saha exponential is therefore folded into the integrand, where it combines to the
+              well-behaved exp(-(eps - P)/T_e) on the threshold-started mesh. This cancellation requires a Maxwellian
+              electron distribution -- detailed balance in this form holds only in (local) thermodynamic equilibrium --
+              and the method is restricted accordingly.
+"""
+function threeBodyRecombinationPlasmaAlpha(eDist::Distribution.ElectronMaxwell,
+                                           iConf::Configuration, fConf::Configuration;
+                                           approx::Empirical.AbstractEmpiricalApproximation=Lotz1967(), printout::Bool=false,
+                                           data::PeriodicTable.AbstractEnergyData=PeriodicTable.Williams2000())
+    if  typeof(approx) != Empirical.Lotz1967
+        error("The TBR plasma rate coefficient is presently supported only for approx = Lotz1967().")
+    end
+    Z = Defaults.getDefaults("nuclear: charge");   alpha = 0.;   cShell = Shell(0,0);   diff = 0
+
+    # Determine the shell into which the electron is captured; its binding energy P is both the threshold of the
+    # inverse (EII) process and the energy released in the capture.
+    wa = Basics.extractFromConfigurations(Basics.OccupationDifference(), iConf, fConf)
+    if length(wa) > 1   error("Incompatible initial and final configurations for a TBR rate coefficient.")   end
+    for  (k,v) in wa
+        diff = diff + v
+        if     v == -1     cShell = k    end
+    end
+    if  diff != -1   error("Incompatible initial and final configurations for a TBR rate coefficient.")   end
+    P      = Empirical.scaledBindingEnergy(Z, cShell, fConf, data)
+    xi     = fConf.shells[cShell]
+    Te     = eDist.T
+
+    # Lotz's constant A = 4.5e-14 cm^2 eV^2 in atomic units; cf. Empirical.impactIonizationCrossSection.
+    Aau    = 4.5e-14 / Defaults.convertUnits("length: from atomic to cm", 1.0)^2 *
+             Defaults.convertUnits("energy: from eV to atomic", 1.0)^2
+
+    # Saha (statistical) factor without its exponential; the latter is kept inside the integrand for stability.
+    gf_gi  = Basics.extractFromConfiguration(Basics.Multiplicity(), fConf) /
+             Basics.extractFromConfiguration(Basics.Multiplicity(), iConf)
+    saha   = gf_gi / 2 * (2pi/Te)^1.5
+
+    # Gauss-Legendre integration of the exponentially shifted EII coefficient,
+    #     alpha^(TBR) = saha * int d(eps) [f_e(eps) e^(P/T_e)] v(eps) sigma^(EII)(eps)
+    # with  f_e(eps) e^(P/T_e) = 2/sqrt(pi) sqrt(eps) T_e^(-3/2) exp(-(eps - P)/T_e),  well-behaved for all T_e.
+    gridGL = Radial.GridGL(Radial.GridGaussLegendreFinite(), P, P + 30*Te, 96; printout=false)
+    for  n = 1:gridGL.nt
+        eps    = gridGL.t[n]
+        sigma  = Aau * xi * log(eps/P) / (eps * P)
+        fShift = 2/sqrt(pi) * sqrt(eps) / Te^1.5 * exp(-(eps - P)/Te)
+        alpha  = alpha + fShift * sqrt(2*eps) * sigma * gridGL.wt[n]
+    end
+    alpha  = saha * alpha
+
+    # Report about this estimate
+    if  printout
+        unEnergy = Defaults.getDefaults("unit: energy")
+        Tex    = Defaults.convertUnits("temperature: from atomic to Kelvin", Te)
+        Px     = Defaults.convertUnits("energy: from atomic to " * unEnergy, P)
+        factor = Defaults.convertUnits("length: from atomic to cm", 1.0)
+        factor = factor^6 / Defaults.convertUnits("time: from atomic to sec", 1.0)
+        alphax = factor * alpha
+        sa = "\n* Estimate empirically the three-body recombination plasma rate coefficient alpha for a given capture " *
+             "channel i -> f with the following assumptions/simplifications: " *
+             "\n    + Electron field: $eDist,  i.e. T_e [K] = $(Tex). " *
+             "\n    + Detailed balance (Saha) with the simplified Lotz (1967) EII cross section of the inverse process. " *
+             "\n    + iConf = $iConf  -->  fConf = $fConf " *
+             "\n    + Binding energy of the captured electron in $cShell [$unEnergy] = $Px " *
+             "\n    + Plasma rate coefficient alpha^(TBR) [cm^6/s] = $alphax " *
+             "\n    + Quantity: a three-body rate coefficient [cm^6/s] -- multiply by the electron number density squared n_e^2 [1/cm^6] for the rate per ion [1/s]. " * "\n"
+        println(sa)
+    end
+
+    return( alpha )
+end
+
+
+"""
+`Empirical.threeBodyRecombinationPlasmaAlpha(eDist::Distribution.ElectronMaxwell, iConf::Configuration;
+                                             nLayers::Int64=10, approx::Empirical.AbstractEmpiricalApproximation=Lotz1967(),
+                                             printout::Bool=false,
+                                             data::PeriodicTable.AbstractEnergyData=PeriodicTable.Williams2000())`
+    ... to estimate empirically the *total* three-body recombination plasma rate coefficient alpha^(TBR) (T_e; i) of
+        the ion iConf, i.e. the sum over all capture channels iConf + e + e -> fConf + e as enumerated by
+        Empirical.recombinationConfigurations(iConf; nLayers): every vacancy of iConf and all empty (Rydberg) shells
+        with l <= 3 up to n_max = n_valence + nLayers, where the sum is truncated. An alpha::Float64 [a.u.] is returned.
+        Quantity: a three-body rate coefficient [cm^6/s] -- multiply by the electron number density *squared*
+            n_e^2 [1/cm^6] to obtain the rate per ion [1/s].
+
+        Note: The truncation is not merely numerical but physical: capture into shells with binding energies well
+              below T_e is undone by the next collision, so that including ever higher Rydberg shells would inflate
+              the coefficient without describing effective recombination; n_max should be chosen in accordance with
+              the plasma density (pressure ionization). As a consequence, this *truncated direct-capture* sum is not
+              the classical collisional-radiative coefficient of Mansbach & Keck (1969): their scaling
+              alpha^(TBR) ~ T_e^(-9/2) rests on the cascade through levels with binding energy ~ T_e, which lie above
+              the truncation at low T_e. For H^+ with nLayers = 10, the present sum scales only ~ T_e^(-1.2 ... -1.4)
+              between 0.05 and 0.4 eV and lies about an order of magnitude below the classical estimate at 0.1 eV.
+"""
+function threeBodyRecombinationPlasmaAlpha(eDist::Distribution.ElectronMaxwell, iConf::Configuration;
+                                           nLayers::Int64=10, approx::Empirical.AbstractEmpiricalApproximation=Lotz1967(),
+                                           printout::Bool=false,
+                                           data::PeriodicTable.AbstractEnergyData=PeriodicTable.Williams2000())
+    alpha  = 0.;    confs = Empirical.recombinationConfigurations(iConf, nLayers=nLayers)
+    for  fConf in confs
+        alpha = alpha + Empirical.threeBodyRecombinationPlasmaAlpha(eDist, iConf, fConf, approx=approx,
+                                                                    printout=false, data=data)
+    end
+
+    # Report about this estimate
+    if  printout
+        nValence = iConf.NoElectrons == 0 ? 0 : maximum( sh.n for (sh, occ) in iConf.shells if occ > 0 )
+        Tex    = Defaults.convertUnits("temperature: from atomic to Kelvin", eDist.T)
+        factor = Defaults.convertUnits("length: from atomic to cm", 1.0)
+        factor = factor^6 / Defaults.convertUnits("time: from atomic to sec", 1.0)
+        alphax = factor * alpha
+        sa = "\n* Estimate empirically the total three-body recombination plasma rate coefficient alpha for a given " *
+             "ion i with the following assumptions/simplifications: " *
+             "\n    + Electron field: $eDist,  i.e. T_e [K] = $(Tex). " *
+             "\n    + Detailed balance (Saha) with the simplified Lotz (1967) EII cross section of each inverse process. " *
+             "\n    + iConf = $iConf " *
+             "\n    + Sum over $(length(confs)) capture channels: all vacancies of iConf and the empty (Rydberg) shells " *
+             "with l <= 3 up to n_max = $(nValence + nLayers); the sum is truncated there. " *
+             "\n    + Plasma rate coefficient alpha^(TBR: total) [cm^6/s] = $alphax " *
+             "\n    + Quantity: a three-body rate coefficient [cm^6/s] -- multiply by the electron number density squared n_e^2 [1/cm^6] for the rate per ion [1/s]. " * "\n"
+        println(sa)
+    end
+
+    return( alpha )
+end
 
 
 #################################################################################################################################

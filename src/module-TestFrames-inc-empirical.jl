@@ -221,6 +221,28 @@ function testModule_Empirical(; short::Bool=true)
     success = success && abs(Empirical.effectiveGauntFactor(1.0, true)  - 0.2) < 1.0e-10
     success = success && abs(Empirical.effectiveGauntFactor(10.0, true) - Empirical.effectiveGauntFactor(10.0, false)) < 1.0e-10
     #
+    ## Test 22: three-body recombination by detailed balance with the Lotz EII coefficient. The capture channels of
+    ##   H^+ (bare) with nLayers = 10 are the 34 shells n = 1 ... 10, l <= 3; for Ne^+ 2p^5 they are the 2p vacancy
+    ##   plus the empty n = 3 ... 12 shells (40 channels). The single-channel coefficient must obey the Saha identity
+    ##   alpha^(TBR) = alpha^(EII) g_f/(2 g_i) (2 pi/T)^(3/2) exp(P/T) where both sides are computable (T = 1 eV),
+    ##   and must remain finite at T_e = 0.05 eV (P/T = 272), where a naive product underflows to 0 * Inf = NaN.
+    Defaults.setDefaults("nuclear: charge", 1.)
+    bare  = Configuration("1s^0");    h1s = Configuration("1s^1")
+    success = success && length(Empirical.recombinationConfigurations(bare, nLayers=10)) == 34
+    success = success && length(Empirical.recombinationConfigurations(Configuration("1s^2 2s^2 2p^5"), nLayers=10)) == 40
+    Te1   = Defaults.convertUnits("energy: from eV to atomic", 1.0)
+    aTBR  = Empirical.threeBodyRecombinationPlasmaAlpha(Distribution.ElectronMaxwell(Te1), bare, h1s, printout=false)
+    aEII  = Empirical.impactIonizationPlasmaAlpha(Distribution.ElectronMaxwell(Te1), h1s, bare, printout=false)
+    Ph    = Empirical.scaledBindingEnergy(1.0, Shell("1s"), h1s, PeriodicTable.Williams2000())
+    success = success && abs( aTBR / (aEII * (2/1)/2 * (2pi/Te1)^1.5 * exp(Ph/Te1)) - 1.0 ) < 1.0e-10
+    aLow  = Empirical.threeBodyRecombinationPlasmaAlpha(Distribution.ElectronMaxwell(Defaults.convertUnits("energy: from eV to atomic", 0.05)),
+                                                        bare, h1s, printout=false)
+    success = success && !isnan(aLow)  &&  aLow > 0.
+    fac6  = Defaults.convertUnits("length: from atomic to cm", 1.0)^6 / Defaults.convertUnits("time: from atomic to sec", 1.0)
+    aTot  = Empirical.threeBodyRecombinationPlasmaAlpha(Distribution.ElectronMaxwell(Defaults.convertUnits("energy: from eV to atomic", 0.1)),
+                                                        bare, nLayers=10, printout=false)
+    success = success && abs(fac6*aTot - 1.537388245827469e-23) / 1.537388245827469e-23 < 1.0e-6
+    #
     ## Restore the global nuclear charge for all subsequent tests.
     Defaults.setDefaults("nuclear: charge", oldZ)
     ###

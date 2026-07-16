@@ -26,15 +26,15 @@ function  bindingEnergy(Z::Int64, sh::Shell; data::PeriodicTable.AbstractEnergyD
     shellIndex[Shell("5s")] = 17;    shellIndex[Shell("5p")] = 19;    shellIndex[Shell("5d")] = 21
     shellIndex[Shell("6s")] = 22;    shellIndex[Shell("6p")] = 24
     
-    # If no useful value is found, issue a warning and return 2.0 eV; this can be readily improved
-    if  sh in [Shell("5g"), Shell("6d"), Shell("6f"), Shell("6g")]  wb = 2.0;  @warn("Not defined shell $sh in data set $data");   return( 0. )   end
+    # If no useful value is found, raise an error; callers such as Empirical.scaledBindingEnergy catch it and
+    # apply a Slater-screened hydrogenic estimate instead. The former behavior -- a silent sentinel of 2.0 eV --
+    # poisoned every Rydberg shell (e.g. H 2s: 2.0 eV instead of the exact 3.4 eV).
+    if  sh in [Shell("5g"), Shell("6d"), Shell("6f"), Shell("6g")]   error("Not defined shell $sh in data set $data")   end
 
-    wb = wa[ shellIndex[sh] ];       
-    if      wb == -1.   wb = 2.0;  @warn("No useful binding energy found for shell $sh in data set $data")   
-    elseif  sh in [Shell("5g"), Shell("6d"), Shell("6f"), Shell("6g")]  wb = 2.0;  @warn("Not defined shell $sh in data set $data")   
-    end
+    wb = wa[ shellIndex[sh] ]
+    if  wb == -1.   error("No useful binding energy found for shell $sh in data set $data")   end
     wc = Defaults.convertUnits("energy: from eV to atomic", wb)
-    
+
     return( wc )
 end
 
