@@ -52,6 +52,7 @@ end
         obtained as the difference of the binding energies of the two shells involved, cf.
         Empirical.scaledBindingEnergy(), while the A-value follows from a hydrogenic scaling with an effective
         nuclear charge. A named triple (multipole::EmMultipole=, energy::Float64=, rate::Float64=) is returned.
+        Quantity: a spontaneous rate [1/s] -- an intrinsic property of the ion, independent of the plasma.
 """
 function photoemissionEinsteinA(iConf::Configuration, fConf::Configuration, approx::Empirical.ScaledHydrogenic;
                                 printout::Bool=false, data::PeriodicTable.AbstractEnergyData=PeriodicTable.Williams2000())
@@ -124,7 +125,8 @@ function photoemissionEinsteinA(iConf::Configuration, fConf::Configuration, appr
              "\n    + iConf = $iConf  -->  fConf = $fConf " *
              "\n    + Extract transition energy from binding energies of shells $iShell -> $fShell " *
              "\n    + $multipole transition with energy [$unEnergy] = $energyx  " *
-             "\n    + Rate [$unRate]                     = $ratex " * "\n"
+             "\n    + Rate [$unRate]                     = $ratex " *
+             "\n    + Quantity: a spontaneous rate [$unRate] -- an intrinsic property of the ion, independent of the plasma. " * "\n"
         println(sa)
     end
     
@@ -137,7 +139,8 @@ end
                                   printout::Bool=false)`  
     ... to estimate empirically the Einstein-A value for a transition from iConf -> fConf by using simple 
         JAC computations of transition and Einstein rates. A named triple
-        (multipole::EmMultipole=, energy::Float64=, rate::Float64=) is returned. 
+        (multipole::EmMultipole=, energy::Float64=, rate::Float64=) is returned.
+        Quantity: a spontaneous rate [1/s] -- an intrinsic property of the ion, independent of the plasma.
 """
 function photoemissionEinsteinA(iConf::Configuration, fConf::Configuration, approx::Empirical.UsingJAC;
                                 printout::Bool=false) 
@@ -217,7 +220,8 @@ function photoemissionEinsteinA(iConf::Configuration, fConf::Configuration, appr
              "\n    + iConf = $iConf  -->  fConf = $fConf " * 
              "\n    + Extract transition energy from binding energies of subshells $iSubsh -> $fSubsh " * 
              "\n    + $multipole transition with energy [$unEnergy] = $energyx  " * 
-             "\n    + Rate [$unRate]                     = $ratex " * "\n"
+             "\n    + Rate [$unRate]                     = $ratex " *
+             "\n    + Quantity: a spontaneous rate [$unRate] -- an intrinsic property of the ion, independent of the plasma. " * "\n"
         println(sa)
     end
     
@@ -228,7 +232,8 @@ end
 """
 `Empirical.photoemissionEinsteinA(approx::Empirical.GivenEinsteinA; printout::Bool=false)`  
     ... to simply return the Einstein-A value for the given transition. A named
-        (multipole::EmMultipole=, energy::Float64=, rate::Float64=) is returned. 
+        (multipole::EmMultipole=, energy::Float64=, rate::Float64=) is returned.
+        Quantity: a spontaneous rate [1/s] -- an intrinsic property of the ion, independent of the plasma.
 """
 function photoemissionEinsteinA(approx::Empirical.GivenEinsteinA; printout::Bool=false) 
     
@@ -239,7 +244,8 @@ function photoemissionEinsteinA(approx::Empirical.GivenEinsteinA; printout::Bool
         ratex   = Defaults.convertUnits("rate: from atomic to "   * unRate,   approx.rate)
         sa = "\n* User-given Einstein-A value for a given transition i -> f: "   *
              "\n    + $(approx.multipole) transition with energy = $energyx  " * unEnergy *
-             "\n    + rate = $ratex " * unRate * "\n"
+             "\n    + rate = $ratex " * unRate *
+             "\n    + Quantity: a spontaneous rate [" * unRate * "] -- an intrinsic property of the ion, independent of the plasma. " * "\n"
         println(sa)
     end
     
@@ -256,7 +262,9 @@ end
                                            approx::Empirical.AbstractEmpiricalApproximation=UsingJAC(), printout::Bool=false)` 
                                      
     ... to estimate the photoexcitation plasma rate per ion R^(PX: per ion) (T; i -> f) for a transition from 
-        iConf -> fConf by applying a given photon distribution dist. A rate::Float64 is returned. 
+        iConf -> fConf by applying a given photon distribution dist. A rate::Float64 is returned.
+        Quantity: a rate per ion [1/s] in the given field -- multiply by the ion number density n_ion [1/cm^3] to obtain
+            the volumetric rate [1/(cm^3 s)].
 """
 function photoexcitationPlasmaRatePerIon(dist::Distribution.AbstractPhotonDistribution,
                                          iConf::Configuration, fConf::Configuration; 
@@ -280,7 +288,8 @@ function photoexcitationPlasmaRatePerIon(dist::Distribution.AbstractPhotonDistri
              "\n    + Einstein-A values are determined in the $(SubString(string(approx), 22)) approximation " * 
              "\n    + iConf = $iConf  -->  fConf = $fConf " * 
              "\n    + Transition energy [$unEnergy]                                = $energyx " *
-             "\n    + Plasma rate per ion R^(PX: per ion) (T; i -> f) [$unRate] = $ratex \n"
+             "\n    + Plasma rate per ion R^(PX: per ion) (T; i -> f) [$unRate] = $ratex " *
+             "\n    + Quantity: a rate per ion [$unRate] in this field -- multiply by the ion number density n_ion [1/cm^3] for the volumetric rate [1/(cm^3 s)]. " * "\n"
         println(sa)
     end
     
@@ -298,7 +307,9 @@ end
                                              approx::Empirical.AbstractEmpiricalApproximation=UsingJAC(), printout::Bool=false)` 
                                      
     ... to estimate the total photodeexcitation plasma rate R^(PD: total, per ion) (T; i -> f) for a transition from 
-        iConf -> fConf by applying a given photon distribution dist. A rate::Float64 is returned. 
+        iConf -> fConf by applying a given photon distribution dist. A rate::Float64 is returned.
+        Quantity: a rate per ion [1/s] in the given field -- multiply by the ion number density n_ion [1/cm^3] to obtain
+            the volumetric rate [1/(cm^3 s)].
 """
 function photodeexcitationPlasmaRatePerIon(dist::Distribution.AbstractPhotonDistribution,
                                            iConf::Configuration, fConf::Configuration; 
@@ -322,7 +333,8 @@ function photodeexcitationPlasmaRatePerIon(dist::Distribution.AbstractPhotonDist
              "\n    + Einstein-A values are determined in the $(SubString(string(approx), 22)) approximation " * 
              "\n    + iConf = $iConf  -->  fConf = $fConf " * 
              "\n    + Transition energy [$unEnergy]                               = $energyx " *
-             "\n    + Plasma rate R^(PD: total, per ion) (T; i -> f) [$unRate] = $ratex \n"
+             "\n    + Plasma rate R^(PD: total, per ion) (T; i -> f) [$unRate] = $ratex " *
+             "\n    + Quantity: a rate per ion [$unRate] in this field -- multiply by the ion number density n_ion [1/cm^3] for the volumetric rate [1/(cm^3 s)]. " * "\n"
         println(sa)
     end
     
@@ -342,6 +354,8 @@ end
     ... to estimate empirically the PI cross section for a transition from iConf -> fConf by applying some simple approximation 
         as determined by approx. For printout=true, basic information are printed about the input parameters, approximation 
         as well as the results in user-defined units. A cs::Float64 [in a.u.] is returned.
+        Quantity: a cross section [a.u.] -- a property of the ion alone, independent of the plasma; fold it with the
+            photon/electron field, or pass the configurations to a *PlasmaRatePerIon / *PlasmaAlpha function, to obtain a rate.
 """
 function photoionizationCrossSection(omega::Float64, iConf::Configuration, fConf::Configuration; 
                                      approx::Empirical.AbstractEmpiricalApproximation=ScaledHydrogenic(), printout::Bool=false)
@@ -359,6 +373,8 @@ end
     ... to estimate empirically the photoionization cross sections for a transition from iConf -> fConf by using the binding
         energy (ionization potential) of the ionized shell, cf. Empirical.scaledBindingEnergy(), and Kramer's (1923)
         empirical formula. A css::Array{Float64,1} [a.u.] is returned.
+        Quantity: a cross section [a.u.] -- a property of the ion alone, independent of the plasma; fold it with the
+            photon/electron field, or pass the configurations to a *PlasmaRatePerIon / *PlasmaAlpha function, to obtain a rate.
 """
 function photoionizationCrossSection(omegas::Array{Float64,1}, iConf::Configuration, fConf::Configuration,
                                      approx::Empirical.ScaledHydrogenic; printout::Bool=false,
@@ -405,7 +421,8 @@ function photoionizationCrossSection(omegas::Array{Float64,1}, iConf::Configurat
              "\n    + iConf = $iConf  -->  fConf = $fConf " *
              "\n    + Binding energy of $iShell   = $energyx  " * unEnergy *
              "\n    + Omegas [$unEnergy]            = $omegasx " *
-             "\n    + Cross sections [$unCs]  = $cssx     \n"
+             "\n    + Cross sections [$unCs]  = $cssx     " *
+             "\n    + Quantity: cross section [$unCs] -- a property of the ion alone, independent of the plasma; fold it with the photon/electron field, or pass iConf/fConf to a *PlasmaRatePerIon / *PlasmaAlpha function, to obtain a rate. " * "\n"
         println(sa)
     end
     
@@ -487,7 +504,8 @@ function photoionizationCrossSection(omegas::Array{Float64,1}, iConf::Configurat
              "\n    + iConf = $iConf  -->  fConf = $fConf " * 
              "\n    + Binding energy of $iShell   = $energyx  " * unEnergy *
              "\n    + Omegas [$unEnergy]            = $omegasx " *
-             "\n    + Cross sections [$unCs]  = $cssx     \n"
+             "\n    + Cross sections [$unCs]  = $cssx     " *
+             "\n    + Quantity: cross section [$unCs] -- a property of the ion alone, independent of the plasma; fold it with the photon/electron field, or pass iConf/fConf to a *PlasmaRatePerIon / *PlasmaAlpha function, to obtain a rate. " * "\n"
         println(sa)
     end
     
@@ -502,6 +520,8 @@ end
                                       data::PeriodicTable.AbstractEnergyData=PeriodicTable.Williams2000())`
     ... to estimate empirically the photoionization plasma rate per ion R^(PI: per ion) (T; i -> f) for a transition from
         iConf -> fConf and a photon field dist at the radiation temperature T. A rate::Float64 [a.u.] is returned.
+        Quantity: a rate per ion [1/s] in the given field -- multiply by the ion number density n_ion [1/cm^3] to obtain
+            the volumetric rate [1/(cm^3 s)].
 
         Note: In contrast to the photorecombination coefficient alpha^(PR) [cm^3/s], this quantity is a *rate* [1/s] and
               not a rate coefficient. The convolution R^(PI: per ion) = int d(omega) n(omega; T) c sigma^(PI)(omega)
@@ -552,7 +572,8 @@ function photoionizationPlasmaRatePerIon(dist::Distribution.AbstractPhotonDistri
              "\n    + PI cross sections are generated in the $(SubString(string(approx), 22)) approximation. " *
              "\n    + iConf = $iConf  -->  fConf = $fConf " *
              "\n    + Threshold energy of $iShell [$unEnergy] = $bEx " *
-             "\n    + Plasma rate per ion R^(PI: per ion) (T; i -> f) [$unRate] = $alphax \n"
+             "\n    + Plasma rate per ion R^(PI: per ion) (T; i -> f) [$unRate] = $alphax " *
+             "\n    + Quantity: a rate per ion [$unRate] in this field -- multiply by the ion number density n_ion [1/cm^3] for the volumetric rate [1/(cm^3 s)]. " * "\n"
         println(sa)
     end
 
@@ -571,6 +592,8 @@ end
     ... to estimate empirically the PR cross section for a transition from iConf -> fConf by applying some simple approximation 
         as determined by approx. For printout=true, basic information are printed about the input parameters, approximation 
         as well as the results in user-defined units. A cs::Float64 [in a.u.] is returned.
+        Quantity: a cross section [a.u.] -- a property of the ion alone, independent of the plasma; fold it with the
+            photon/electron field, or pass the configurations to a *PlasmaRatePerIon / *PlasmaAlpha function, to obtain a rate.
 """
 function photorecombinationCrossSection(energy::Float64, iConf::Configuration, fConf::Configuration; 
                                         approx::Empirical.AbstractEmpiricalApproximation=ScaledHydrogenic(), printout::Bool=false)
@@ -589,6 +612,8 @@ end
         by using the Einstein-Milne relation and the binding energy (ionization potential) of the captured electron,
         cf. Empirical.scaledBindingEnergy(), together with Kramer's (1923) empirical formula.
         A css::Array{Float64,1} [a.u.] is returned.
+        Quantity: a cross section [a.u.] -- a property of the ion alone, independent of the plasma; fold it with the
+            photon/electron field, or pass the configurations to a *PlasmaRatePerIon / *PlasmaAlpha function, to obtain a rate.
 """
 function photorecombinationCrossSection(energies::Array{Float64,1}, iConf::Configuration, fConf::Configuration,
                                         approx::Empirical.ScaledHydrogenic; printout::Bool=false,
@@ -638,7 +663,8 @@ function photorecombinationCrossSection(energies::Array{Float64,1}, iConf::Confi
              "\n    + iConf = $iConf  -->  fConf = $fConf " * 
              "\n    + Binding energy of $fShell  [$unEnergy]  = $energyx  " *
              "\n    + Omegas [$unEnergy]                 = $omegasx " *
-             "\n    + PR Cross sections [$unCs]    = $cssx     \n"
+             "\n    + PR Cross sections [$unCs]    = $cssx     " *
+             "\n    + Quantity: cross section [$unCs] -- a property of the ion alone, independent of the plasma; fold it with the photon/electron field, or pass iConf/fConf to a *PlasmaRatePerIon / *PlasmaAlpha function, to obtain a rate. " * "\n"
         println(sa)
     end
     
@@ -712,7 +738,8 @@ function photorecombinationCrossSection(energies::Array{Float64,1}, iConf::Confi
              "\n    + iConf = $iConf  -->  fConf = $fConf " * 
              "\n    + Binding energy of $fShell  [$unEnergy]  = $energyx  " *
              "\n    + Omegas [$unEnergy]                 = $omegasx " *
-             "\n    + PR Cross sections [$unCs]    = $cssx     \n"
+             "\n    + PR Cross sections [$unCs]    = $cssx     " *
+             "\n    + Quantity: cross section [$unCs] -- a property of the ion alone, independent of the plasma; fold it with the photon/electron field, or pass iConf/fConf to a *PlasmaRatePerIon / *PlasmaAlpha function, to obtain a rate. " * "\n"
         println(sa)
     end
     
@@ -730,6 +757,8 @@ end
         the stimulated contribution, for a transition from iConf -> fConf. The free electrons follow the distribution eDist
         at the electron temperature T_e, while the ambient radiation field is described by pDist at the (independent)
         radiation temperature T. An alpha::Float64 [a.u.] is returned.
+        Quantity: a rate coefficient [cm^3/s] -- multiply by the electron number density n_e [1/cm^3] to obtain the rate
+            per ion [1/s].
 
         Note: The stimulated enhancement [1 + nbar(omega)] is evaluated *inside* the integral over the electron energies.
               Photorecombination is a bound-free process, for which the emitted photon energy omega = eps + bEnergy is not
@@ -810,7 +839,8 @@ function photorecombinationPlasmaAlpha(eDist::Distribution.AbstractElectronDistr
              "\n    + Spontaneous PR cross sections are generated in the $approx approximation. " *
              "\n    + The stimulated enhancement [1 + nbar(eps + bEnergy)] is applied inside the electron-energy integral. " *
              "\n    + iConf = $iConf  -->  fConf = $fConf " *
-             "\n    + Plasma rate coefficient alpha^(PR: total) [cm^3/s] = $alphax   \n"
+             "\n    + Plasma rate coefficient alpha^(PR: total) [cm^3/s] = $alphax   " *
+             "\n    + Quantity: a rate coefficient [cm^3/s] -- multiply by the electron number density n_e [1/cm^3] for the rate per ion [1/s]. " * "\n"
         println(sa)
     end
 
@@ -826,6 +856,8 @@ end
         from iConf -> fConf by applying some simple approximation as determined by approx. For printout=true, basic information
         are printed about the approximation as well as the results. An alpha::Float64 is returned. This is a short-cut to the
         method above for a vanishing (vacuum) photon field.
+        Quantity: a rate coefficient [cm^3/s] -- multiply by the electron number density n_e [1/cm^3] to obtain the rate
+            per ion [1/s].
 """
 function photorecombinationPlasmaAlpha(dist::Distribution.AbstractElectronDistribution,
                                        iConf::Configuration, fConf::Configuration;
@@ -845,7 +877,8 @@ function photorecombinationPlasmaAlpha(dist::Distribution.AbstractElectronDistri
              "\n    + Electron field: $dist,  i.e. T_e [K] = $(Tx). " * 
              "\n    + Spontaneous PR cross sections are generated in the $approx approximation. " * 
              "\n    + iConf = $iConf  -->  fConf = $fConf " * 
-             "\n    + Plasma rate coefficient alpha^(PR: spontaneous) [cm^3/s] = $alphax   \n"
+             "\n    + Plasma rate coefficient alpha^(PR: spontaneous) [cm^3/s] = $alphax   " *
+             "\n    + Quantity: a rate coefficient [cm^3/s] -- multiply by the electron number density n_e [1/cm^3] for the rate per ion [1/s]. " * "\n"
         println(sa)
     end
     
@@ -898,6 +931,7 @@ end
             A_auger = A_rad (1 - omega_K) / omega_K,
         where A_rad is the (empirical) radiative rate of iConf -> fConf, cf. Empirical.photoemissionEinsteinA. A
         rate::Float64 [a.u.] is returned.
+        Quantity: a spontaneous rate [1/s] -- an intrinsic property of the ion, independent of the plasma.
 
         Note: This estimate exploits that K-shell Auger rates are nearly independent of Z along an isoelectronic
               sequence, whereas radiative rates scale approximately as Z^4; the whole Z dependence is therefore
@@ -931,7 +965,8 @@ function augerRate(iConf::Configuration, fConf::Configuration, approx::Empirical
              "\n    + iConf = $iConf  -->  fConf = $fConf " *
              "\n    + K-shell fluorescence yield omega_K (Z = $Z) = $omegaK " *
              "\n    + Radiative rate A_rad [$unRate] = $Aradx " *
-             "\n    + Auger rate A_auger [$unRate] = $Aaugx \n"
+             "\n    + Auger rate A_auger [$unRate] = $Aaugx " *
+             "\n    + Quantity: a spontaneous rate [$unRate] -- an intrinsic property of the ion, independent of the plasma. " * "\n"
         println(sa)
     end
 
