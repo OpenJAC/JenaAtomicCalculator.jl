@@ -190,6 +190,37 @@ function testModule_Empirical(; short::Bool=true)
     end
     success = success && fyErr
     #
+    ## Test 20: electron-impact ionization after Lotz (1967). For He (P = 24.587 eV, xi = 2) the simplified formula
+    ##   with A = 4.5e-14 cm^2 eV^2 gives sigma(100 eV) = 5.13e-17 cm^2 = 1.8322 a_o^2, ~1.4x above the experimental
+    ##   ~3.6e-17 cm^2, i.e. within Lotz's claimed +40/-30% for light neutral atoms. Zero below the threshold, and the
+    ##   Maxwellian rate coefficient at T_e = 5 eV is locked as a regression value.
+    Defaults.setDefaults("nuclear: charge", 2.)
+    heI   = Configuration("1s^2");    heII = Configuration("1s^1")
+    eiiCs = Empirical.impactIonizationCrossSection([Defaults.convertUnits("energy: from eV to atomic", e) for e in [20.0, 100.0]],
+                                                   heI, heII, Empirical.Lotz1967(), printout=false)
+    success = success && eiiCs[1] == 0.  &&  abs(eiiCs[2] - 1.8322485748145694) / 1.8322485748145694 < 1.0e-6
+    aEII  = Empirical.impactIonizationPlasmaAlpha(Distribution.ElectronMaxwell(Defaults.convertUnits("energy: from eV to atomic", 5.0)),
+                                                  heI, heII, printout=false)
+    success = success && abs(fac*aEII - 1.3812552446980436e-10) / 1.3812552446980436e-10 < 1.0e-6
+    #
+    ## Test 21: electron-impact excitation after Van Regemorter (1962), anchored on H 1s -> 2p with the exact
+    ##   Einstein-A = 6.268e8 1/s: the implied oscillator strength f = (g_f/g_i) A / (2 alpha^3 omega^2) must equal
+    ##   the literature f = 0.4162, and sigma(eps = 2 deltaE) = 0.7944 a_o^2 with the neutral-atom Gaunt factor
+    ##   gbar = 0.074 x (1 + x^2) = 0.148 at x^2 = 1. The ion and neutral gbar branches join at x^2 = 2.06.
+    Defaults.setDefaults("nuclear: charge", 1.)
+    Aau   = 6.268e8 / (1.0 / Defaults.convertUnits("time: from atomic to sec", 1.0))
+    given = Empirical.GivenEinsteinA(Basics.E1, 0.375, Aau)
+    fosc  = 3.0 * Aau / (2 * Defaults.getDefaults("alpha")^3 * 0.375^2)
+    success = success && abs(fosc - 0.4162) < 0.001
+    eieCs = Empirical.impactExcitationCrossSection([Defaults.convertUnits("energy: from eV to atomic", 10.0), 2*0.375],
+                                                   Configuration("1s^1"), Configuration("2p^1"), given, printout=false)
+    success = success && eieCs[1] == 0.  &&  abs(eieCs[2] - 0.7944475607726056) / 0.7944475607726056 < 1.0e-6
+    aEIE  = Empirical.impactExcitationPlasmaAlpha(Distribution.ElectronMaxwell(Defaults.convertUnits("energy: from eV to atomic", 2.0)),
+                                                  Configuration("1s^1"), Configuration("2p^1"), approx=given, printout=false)
+    success = success && abs(fac*aEIE - 3.3150416264147014e-11) / 3.3150416264147014e-11 < 1.0e-6
+    success = success && abs(Empirical.effectiveGauntFactor(1.0, true)  - 0.2) < 1.0e-10
+    success = success && abs(Empirical.effectiveGauntFactor(10.0, true) - Empirical.effectiveGauntFactor(10.0, false)) < 1.0e-10
+    #
     ## Restore the global nuclear charge for all subsequent tests.
     Defaults.setDefaults("nuclear: charge", oldZ)
     ###

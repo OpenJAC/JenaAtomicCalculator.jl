@@ -978,7 +978,284 @@ end
 ### Electron-impact excitation (EIE) ############################################################################################
 
 
+"""
+`Empirical.effectiveGauntFactor(x2::Float64, isIon::Bool)`
+    ... to provide Van Regemorter's (1962) effective Gaunt factor gbar for electron-impact excitation of optically
+        allowed transitions; x2 = (eps - deltaE)/deltaE is the *final* electron energy in units of the transition
+        energy. For positive ions, the paper prescribes gbar = 0.2 up to x2 = 2 and the hydrogen 1s -> 2p curve
+        beyond; its high-energy form [Eq. (10)] gbar = sqrt(3)/(2 pi) ln(x2) reaches 0.2 just at x2 = 2.06, so that
+        both branches join seamlessly in gbar = max(0.2, sqrt(3)/(2 pi) ln(x2)). For neutral atoms, the
+        near-threshold behavior [Eq. (9)] gbar = 0.074 x (1 + x2) is applied and capped by the ion branch; the
+        cross section then vanishes at threshold, as it must for a neutral target. A gbar::Float64 is returned.
+"""
+function effectiveGauntFactor(x2::Float64, isIon::Bool)
+    if  x2 <= 0.    return( isIon ? 0.2 : 0. )   end
+    gLog = sqrt(3.0) / (2pi) * log(x2)
+    if  isIon    return( max(0.2, gLog) )
+    else         x = sqrt(x2);    return( min( 0.074 * x * (1.0 + x2), max(0.2, gLog) ) )
+    end
+end
+
+
+"""
+`Empirical.impactExcitationCrossSection(energies::Array{Float64,1}, iConf::Configuration, fConf::Configuration,
+                                        approx::Empirical.AbstractEmpiricalApproximation; printout::Bool=false,
+                                        data::PeriodicTable.AbstractEnergyData=PeriodicTable.Williams2000())`
+    ... to estimate empirically the electron-impact excitation (EIE) cross section for the optically allowed
+        transition iConf -> fConf at the given (free-electron) energies, by using Van Regemorter's (1962) formula
+            sigma^(EIE) (eps) = 8 pi / sqrt(3) * pi a_o^2 * (E_Ryd^2 / (eps deltaE)) * f * gbar(x),
+        where f is the absorption oscillator strength of the transition, obtained from the (empirical) Einstein-A
+        value via f = (g_f/g_i) A / (2 alpha^3 omega^2), and gbar the effective Gaunt factor, cf.
+        Empirical.effectiveGauntFactor(). The approximation approx fixes how the Einstein-A value is estimated;
+        both ScaledHydrogenic() and GivenEinsteinA(..) are supported. A css::Array{Float64,1} [a.u.] is returned.
+        Quantity: a cross section [a.u.] -- a property of the ion alone, independent of the plasma; fold it with the
+            electron field, or pass the configurations to Empirical.impactExcitationPlasmaAlpha, to obtain a rate.
+
+        Note: Van Regemorter's formula applies to optically allowed (E1) transitions only and is accurate to about
+              a factor 2; it fails for forbidden transitions, for which no estimate is returned (an error is raised).
+"""
+function impactExcitationCrossSection(energies::Array{Float64,1}, iConf::Configuration, fConf::Configuration,
+                                      approx::Empirical.AbstractEmpiricalApproximation; printout::Bool=false,
+                                      data::PeriodicTable.AbstractEnergyData=PeriodicTable.Williams2000())
+    Z = Defaults.getDefaults("nuclear: charge")
+
+    # Obtain the (downward) Einstein-A value of the transition fConf -> iConf; iConf is here the *lower* level.
+    if      typeof(approx) == Empirical.GivenEinsteinA
+        ea = Empirical.photoemissionEinsteinA(approx, printout=false)
+    elseif  typeof(approx) == Empirical.ScaledHydrogenic
+        ea = Empirical.photoemissionEinsteinA(fConf, iConf, approx, printout=false, data=data)
+    else
+        error("Unsupported approximation $approx for the EIE cross section; use ScaledHydrogenic() or GivenEinsteinA(..).")
+    end
+    if  ea.multipole != Basics.E1
+        error("Van Regemorter's formula applies to optically allowed (E1) transitions only; " *
+              "the transition iConf -> fConf was assigned the multipole $(ea.multipole).")
+    end
+    deltaE = ea.energy
+    if  deltaE <= 0.    error("Non-positive transition energy; fConf must lie above iConf.")   end
+
+    # Absorption oscillator strength from the Einstein-A value:  f = (g_f/g_i) A / (2 alpha^3 omega^2)
+    alfa   = Defaults.getDefaults("alpha")
+    gf_gi  = Basics.extractFromConfiguration(Basics.Multiplicity(), fConf) /
+             Basics.extractFromConfiguration(Basics.Multiplicity(), iConf)
+    fosc   = gf_gi * ea.rate / (2 * alfa^3 * deltaE^2)
+
+    # Van Regemorter's cross section; in atomic units 8 pi/sqrt(3) E_Ryd^2 = 2 pi/sqrt(3), since E_Ryd = 1/2 Hartree.
+    # A positive ion is recognized from the net charge of the target configuration.
+    isIon  = Z - iConf.NoElectrons >= 1
+    css    = Float64[]
+    for  eps in energies
+        if  eps > deltaE    x2 = (eps - deltaE) / deltaE
+                            push!(css, 2pi / sqrt(3.0) * fosc * Empirical.effectiveGauntFactor(x2, isIon) / (eps * deltaE))
+        else                push!(css, 0.)
+        end
+    end
+
+    # Report about these estimates
+    if  printout
+        unCs    = Defaults.getDefaults("unit: cross section");   unEnergy = Defaults.getDefaults("unit: energy")
+        energyx = Defaults.convertUnits("energy: from atomic to " * unEnergy, deltaE)
+        epsx    = Float64[];   cssx = Float64[]
+        for eps in energies  push!(epsx, Defaults.convertUnits("energy: from atomic to " * unEnergy, eps))   end
+        for cs  in css       push!(cssx, Defaults.convertUnits("cross section: from atomic to " * unCs, cs))   end
+        sa = "\n* Estimate empirically the electron-impact excitation cross section for a given transition i -> f with the " *
+             "following assumptions/simplifications: " *
+             "\n    + Use Van Regemorter's (1962) formula with the effective Gaunt factor for a " *
+             (isIon ? "positive ion. " : "neutral atom. ") *
+             "\n    + Einstein-A values are determined in the $approx approximation. " *
+             "\n    + iConf = $iConf  -->  fConf = $fConf " *
+             "\n    + Transition energy [$unEnergy] = $energyx " *
+             "\n    + Oscillator strength f = $fosc " *
+             "\n    + Electron energies [$unEnergy] = $epsx " *
+             "\n    + EIE cross sections [$unCs] = $cssx " *
+             "\n    + Quantity: cross section [$unCs] -- a property of the ion alone, independent of the plasma; fold it with the photon/electron field, or pass iConf/fConf to a *PlasmaRatePerIon / *PlasmaAlpha function, to obtain a rate. " * "\n"
+        println(sa)
+    end
+
+    return( css )
+end
+
+
+"""
+`Empirical.impactExcitationPlasmaAlpha(eDist::Distribution.AbstractElectronDistribution,
+                                       iConf::Configuration, fConf::Configuration;
+                                       approx::Empirical.AbstractEmpiricalApproximation=ScaledHydrogenic(), printout::Bool=false,
+                                       data::PeriodicTable.AbstractEnergyData=PeriodicTable.Williams2000())`
+    ... to estimate empirically the electron-impact excitation plasma rate coefficient alpha^(EIE) for the optically
+        allowed transition iConf -> fConf and an electron distribution eDist at the electron temperature T_e, by
+        folding Van Regemorter's cross section with the electron distribution,
+            alpha^(EIE) (T_e; i -> f) = int d(eps) f_e(eps; T_e) v(eps) sigma^(EIE)(eps).
+        An alpha::Float64 [a.u.] is returned.
+        Quantity: a rate coefficient [cm^3/s] -- multiply by the electron number density n_e [1/cm^3] to obtain the rate
+            per ion [1/s].
+"""
+function impactExcitationPlasmaAlpha(eDist::Distribution.AbstractElectronDistribution,
+                                     iConf::Configuration, fConf::Configuration;
+                                     approx::Empirical.AbstractEmpiricalApproximation=ScaledHydrogenic(), printout::Bool=false,
+                                     data::PeriodicTable.AbstractEnergyData=PeriodicTable.Williams2000())
+    alpha = 0.
+    # The EIE cross section of an ion is finite at threshold; the mesh therefore starts at the threshold, so that
+    # the Gauss-Legendre quadrature does not straddle this step, and follows the electron temperature.
+    if      typeof(approx) == Empirical.GivenEinsteinA   deltaE = approx.energy
+    else    ea = Empirical.photoemissionEinsteinA(fConf, iConf, approx, printout=false, data=data);   deltaE = ea.energy
+    end
+    if      hasproperty(eDist, :T)       Te = eDist.T
+    elseif  hasproperty(eDist, :Tpar)    Te = max(eDist.Tpar, eDist.Tperp)
+    else    error("No electron temperature can be extracted from $eDist.")
+    end
+    gridGL    = Radial.GridGL(Radial.GridGaussLegendreFinite(), deltaE, deltaE + 30*Te, 96; printout=true)
+    css       = Empirical.impactExcitationCrossSection(gridGL.t, iConf, fConf, approx; printout=false, data=data)
+    for  n = 1:gridGL.nt
+        alpha = alpha + css[n] * sqrt(2*gridGL.t[n]) * Distribution.electronEnergyDistribution(eDist, gridGL.t[n]) * gridGL.wt[n]
+    end
+
+    # Report about this estimate
+    if  printout
+        Tex    = Defaults.convertUnits("temperature: from atomic to Kelvin", Te)
+        factor = Defaults.convertUnits("length: from atomic to cm", 1.0)
+        factor = factor^3 / Defaults.convertUnits("time: from atomic to sec", 1.0)
+        alphax = factor * alpha
+        sa = "\n* Estimate empirically the electron-impact excitation plasma rate coefficient alpha for a given transition " *
+             "i -> f with the following assumptions/simplifications: " *
+             "\n    + Electron field: $eDist,  i.e. T_e [K] = $(Tex). " *
+             "\n    + EIE cross sections follow Van Regemorter (1962); Einstein-A values from the $approx approximation. " *
+             "\n    + iConf = $iConf  -->  fConf = $fConf " *
+             "\n    + Plasma rate coefficient alpha^(EIE) [cm^3/s] = $alphax " *
+             "\n    + Quantity: a rate coefficient [cm^3/s] -- multiply by the electron number density n_e [1/cm^3] for the rate per ion [1/s]. " * "\n"
+        println(sa)
+    end
+
+    return( alpha )
+end
+
+
 #################################################################################################################################
 ### Electron-impact ionization (EII) ############################################################################################
+
+
+"""
+`Empirical.impactIonizationCrossSection(energies::Array{Float64,1}, iConf::Configuration, fConf::Configuration,
+                                        approx::Empirical.Lotz1967; printout::Bool=false,
+                                        data::PeriodicTable.AbstractEnergyData=PeriodicTable.Williams2000())`
+    ... to estimate empirically the electron-impact ionization (EII) cross section for a transition iConf -> fConf
+        at the given (free-electron) energies, by using the simplified formula of Lotz (1967, 1968)
+            sigma^(EII) (eps) = A xi ln(eps/P) / (eps P),        A = 4.5e-14 cm^2 eV^2,
+        where P is the binding energy of the ionized shell, cf. Empirical.scaledBindingEnergy(), and xi the number
+        of its equivalent electrons. Lotz's full formula carries subshell constants a_i = 2.9 ... 4.5e-14 cm^2 eV^2
+        and two further parameters (b_i, c_i) that lower the near-threshold cross section of neutral atoms; the
+        simplified form with A = 4.5e-14 applies best to ions and overestimates light neutral atoms by ~40%
+        (accuracy +40/-30%). A css::Array{Float64,1} [a.u.] is returned.
+        Quantity: a cross section [a.u.] -- a property of the ion alone, independent of the plasma; fold it with the
+            electron field, or pass the configurations to Empirical.impactIonizationPlasmaAlpha, to obtain a rate.
+"""
+function impactIonizationCrossSection(energies::Array{Float64,1}, iConf::Configuration, fConf::Configuration,
+                                      approx::Empirical.Lotz1967; printout::Bool=false,
+                                      data::PeriodicTable.AbstractEnergyData=PeriodicTable.Williams2000())
+    Z = Defaults.getDefaults("nuclear: charge");   iShell = Shell(0,0);   diff = 0
+
+    # Determine the ionized shell, its binding energy and its number of equivalent electrons.
+    wa = Basics.extractFromConfigurations(Basics.OccupationDifference(), iConf, fConf)
+    if length(wa) > 1   error("Incompatible initial and final configurations for an EII cross section.")   end
+    for  (k,v) in wa
+        diff = diff + v
+        if      v == 1     iShell = k    end
+    end
+    if  diff != 1   error("Incompatible initial and final configurations for an EII cross section.")   end
+    P      = Empirical.scaledBindingEnergy(Z, iShell, iConf, data)
+    xi     = iConf.shells[iShell]
+
+    # Lotz's constant A = 4.5e-14 cm^2 eV^2, expressed in atomic units [a_o^2 Hartree^2].
+    Aau    = 4.5e-14 / Defaults.convertUnits("length: from atomic to cm", 1.0)^2 *
+             Defaults.convertUnits("energy: from eV to atomic", 1.0)^2
+
+    css    = Float64[]
+    for  eps in energies
+        if  eps > P    push!(css, Aau * xi * log(eps/P) / (eps * P))   else   push!(css, 0.)   end
+    end
+
+    # Report about these estimates
+    if  printout
+        unCs    = Defaults.getDefaults("unit: cross section");   unEnergy = Defaults.getDefaults("unit: energy")
+        energyx = Defaults.convertUnits("energy: from atomic to " * unEnergy, P)
+        epsx    = Float64[];   cssx = Float64[]
+        for eps in energies  push!(epsx, Defaults.convertUnits("energy: from atomic to " * unEnergy, eps))   end
+        for cs  in css       push!(cssx, Defaults.convertUnits("cross section: from atomic to " * unCs, cs))   end
+        sa = "\n* Estimate empirically the electron-impact ionization cross section for a given transition i -> f with the " *
+             "following assumptions/simplifications: " *
+             "\n    + Use the simplified Lotz (1967) formula with A = 4.5e-14 cm^2 eV^2 (best for ions; ~40% high " *
+             "for light neutral atoms). " *
+             "\n    + Binding energy (ionization threshold) taken from $data " *
+             "\n    + iConf = $iConf  -->  fConf = $fConf " *
+             "\n    + Binding energy of $iShell [$unEnergy] = $energyx;  equivalent electrons xi = $xi " *
+             "\n    + Electron energies [$unEnergy] = $epsx " *
+             "\n    + EII cross sections [$unCs] = $cssx " *
+             "\n    + Quantity: cross section [$unCs] -- a property of the ion alone, independent of the plasma; fold it with the photon/electron field, or pass iConf/fConf to a *PlasmaRatePerIon / *PlasmaAlpha function, to obtain a rate. " * "\n"
+        println(sa)
+    end
+
+    return( css )
+end
+
+
+"""
+`Empirical.impactIonizationPlasmaAlpha(eDist::Distribution.AbstractElectronDistribution,
+                                       iConf::Configuration, fConf::Configuration;
+                                       approx::Empirical.AbstractEmpiricalApproximation=Lotz1967(), printout::Bool=false,
+                                       data::PeriodicTable.AbstractEnergyData=PeriodicTable.Williams2000())`
+    ... to estimate empirically the electron-impact ionization plasma rate coefficient alpha^(EII) for a transition
+        iConf -> fConf and an electron distribution eDist at the electron temperature T_e, by folding the Lotz cross
+        section with the electron distribution,
+            alpha^(EII) (T_e; i -> f) = int d(eps) f_e(eps; T_e) v(eps) sigma^(EII)(eps).
+        An alpha::Float64 [a.u.] is returned.
+        Quantity: a rate coefficient [cm^3/s] -- multiply by the electron number density n_e [1/cm^3] to obtain the rate
+            per ion [1/s].
+"""
+function impactIonizationPlasmaAlpha(eDist::Distribution.AbstractElectronDistribution,
+                                     iConf::Configuration, fConf::Configuration;
+                                     approx::Empirical.AbstractEmpiricalApproximation=Lotz1967(), printout::Bool=false,
+                                     data::PeriodicTable.AbstractEnergyData=PeriodicTable.Williams2000())
+    if  typeof(approx) != Empirical.Lotz1967
+        error("The EII plasma rate coefficient is presently supported only for approx = Lotz1967().")
+    end
+    Z = Defaults.getDefaults("nuclear: charge");   alpha = 0.;   iShell = Shell(0,0);   diff = 0
+
+    # Determine the threshold in order to start the mesh there; cf. photoionizationPlasmaRatePerIon.
+    wa = Basics.extractFromConfigurations(Basics.OccupationDifference(), iConf, fConf)
+    if length(wa) > 1   error("Incompatible initial and final configurations for an EII rate coefficient.")   end
+    for  (k,v) in wa
+        diff = diff + v
+        if      v == 1     iShell = k    end
+    end
+    if  diff != 1   error("Incompatible initial and final configurations for an EII rate coefficient.")   end
+    P = Empirical.scaledBindingEnergy(Z, iShell, iConf, data)
+
+    if      hasproperty(eDist, :T)       Te = eDist.T
+    elseif  hasproperty(eDist, :Tpar)    Te = max(eDist.Tpar, eDist.Tperp)
+    else    error("No electron temperature can be extracted from $eDist.")
+    end
+    gridGL    = Radial.GridGL(Radial.GridGaussLegendreFinite(), P, P + 30*Te, 96; printout=true)
+    css       = Empirical.impactIonizationCrossSection(gridGL.t, iConf, fConf, approx; printout=false, data=data)
+    for  n = 1:gridGL.nt
+        alpha = alpha + css[n] * sqrt(2*gridGL.t[n]) * Distribution.electronEnergyDistribution(eDist, gridGL.t[n]) * gridGL.wt[n]
+    end
+
+    # Report about this estimate
+    if  printout
+        Tex    = Defaults.convertUnits("temperature: from atomic to Kelvin", Te)
+        factor = Defaults.convertUnits("length: from atomic to cm", 1.0)
+        factor = factor^3 / Defaults.convertUnits("time: from atomic to sec", 1.0)
+        alphax = factor * alpha
+        sa = "\n* Estimate empirically the electron-impact ionization plasma rate coefficient alpha for a given transition " *
+             "i -> f with the following assumptions/simplifications: " *
+             "\n    + Electron field: $eDist,  i.e. T_e [K] = $(Tex). " *
+             "\n    + EII cross sections follow the simplified Lotz (1967) formula. " *
+             "\n    + iConf = $iConf  -->  fConf = $fConf " *
+             "\n    + Plasma rate coefficient alpha^(EII) [cm^3/s] = $alphax " *
+             "\n    + Quantity: a rate coefficient [cm^3/s] -- multiply by the electron number density n_e [1/cm^3] for the rate per ion [1/s]. " * "\n"
+        println(sa)
+    end
+
+    return( alpha )
+end
 
 

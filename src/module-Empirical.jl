@@ -27,9 +27,12 @@ struct     Bethe1931                     <:  AbstractEmpiricalApproximation  end
 struct     Axelrod1980                   <:  AbstractEmpiricalApproximation  end
 struct     KozmaFranson1992              <:  AbstractEmpiricalApproximation  end
 
+struct     Lotz1967                      <:  AbstractEmpiricalApproximation  end
+struct     VanRegemorter1962             <:  AbstractEmpiricalApproximation  end
+
 
 export  AbstractEmpiricalApproximation, GivenEinsteinA, ScaledHydrogenic, UsingJAC,
-        Bohr1913, Bethe1931, Axelrod1980, KozmaFranson1992
+        Bohr1913, Bethe1931, Axelrod1980, KozmaFranson1992, Lotz1967, VanRegemorter1962
    
 
 """
