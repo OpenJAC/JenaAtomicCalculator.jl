@@ -4,6 +4,33 @@
 
 
 """
+`Empirical.boundFreeGauntFactor(n::Int64, x::Float64)`
+    ... to provide the bound-free Gaunt factor g^(bf) for the photoionization of shell n at the photon energy
+        x = omega/omega_threshold, i.e. the quantum correction to Kramers' semiclassical cross section,
+        sigma = sigma^(Kramers) * g^(bf). For n = 1 the factor is exact (nonrelativistic): it is the ratio of
+        Stobbe's (1930) closed-form 1s cross section,
+            sigma^(Stobbe)(x) = 2^9 pi^2/(3 e^4) alpha a_o^2 x^(-4) exp(4 - 4 arctan(kappa)/kappa) / (1 - e^(-2 pi/kappa))
+        with kappa = sqrt(x-1), to the Kramers form: at threshold, sigma^(Stobbe) = 6.304 Mb (Z = 1) analytically,
+        so that g(1) = 6.304/7.907 = 0.7973, while at large x the exact cross section falls off as x^(-7/2) against
+        Kramers' x^(-3), so that g ~ x^(-1/2). For n >= 2 the deviation from unity is scaled with the leading-order
+        n-dependence of the Menzel & Pekeris (1935) expansion, g = 1 + [g_1s(x) - 1] n^(-2/3), which preserves the
+        exact n = 1 limit and approaches the correct semiclassical limit g -> 1 for large n, where Kramers' formula
+        becomes exact. A gbf::Float64 is returned; g = 1 is returned for x <= 1, where no cross section remains to
+        be corrected.
+"""
+function boundFreeGauntFactor(n::Int64, x::Float64)
+    if  x <= 1.0    return( 1.0 )   end
+    kappa  = sqrt( max(x - 1.0, 1.0e-14) )
+    ## Stobbe's exact 1s cross section over the Kramers form; the common factor alpha a_o^2 cancels in the ratio.
+    sigmaS = 2^9 * pi^2 / 3 * x^(-4) * exp(4 - 4*atan(kappa)/kappa) / (1 - exp(-2pi/kappa)) / exp(4.0)
+    sigmaK = 64 * pi / (3 * sqrt(3.0)) * x^(-3)
+    g1s    = sigmaS / sigmaK
+
+    return( 1.0 + (g1s - 1.0) * n^(-2/3) )
+end
+
+
+"""
 `Empirical.scaledBindingEnergy(Z::Float64, sh::Shell, conf::Configuration, data::PeriodicTable.AbstractEnergyData)`
     ... to provide the binding energy of an electron in shell sh of the given configuration conf; this energy scales all
         hydrogenic (Kramers) estimates below and, hence, fixes the photoionization threshold as well as the transition
@@ -423,17 +450,22 @@ function photoionizationCrossSection(omegas::Array{Float64,1}, iConf::Configurat
     # Scale the hydrogenic formula by the binding energy (photoionization threshold) of the ionized shell.
     bEnergy = Empirical.scaledBindingEnergy(Z, iShell, iConf, data)
 
-    # Kramers' (1923) bound-free cross section, sigma = 32 pi alpha N_e / (3 sqrt(3) n) * bE^2 / omega^3, where N_e is
-    # the number of equivalent electrons in iShell: the photon may eject any one of them and, in an independent-particle
-    # picture, their cross sections simply add. At threshold this is the classical 7.91 Mb * N_e * n / Z^(eff)^2;
-    # cf. the exact 6.30 Mb for H 1s (Gaunt factor 0.8) and ~7.4 Mb for He 1s^2 (N_e = 2).
+    # Kramers' (1923) bound-free cross section, sigma = 32 pi alpha N_e / (3 sqrt(3) n) * bE^2 / omega^3 * g^(bf),
+    # where N_e is the number of equivalent electrons in iShell: the photon may eject any one of them and, in an
+    # independent-particle picture, their cross sections simply add. The bound-free Gaunt factor g^(bf), cf.
+    # Empirical.boundFreeGauntFactor(), corrects the semiclassical form: for H 1s it turns the Kramers 7.91 Mb at
+    # threshold into the exact 6.30 Mb and steepens the tail from omega^(-3) to the exact omega^(-7/2).
     nEquiv  = iConf.shells[iShell]
     factor  = 32 * pi * Defaults.getDefaults("alpha") * nEquiv / (3 * sqrt(3) * iShell.n)
 
     # Compute all cross sections in the ScaledHydrogenic approximation
     css = Float64[]
     for  omega in omegas
-        if  omega > bEnergy    push!(css, factor * bEnergy^2 / omega^3 )   else    push!(css, 0.)  end
+        if  omega > bEnergy
+            push!(css, factor * bEnergy^2 / omega^3 * Empirical.boundFreeGauntFactor(iShell.n, omega/bEnergy) )
+        else
+            push!(css, 0.)
+        end
     end
 
     # Report about these estimates
@@ -664,12 +696,12 @@ function photorecombinationCrossSection(energies::Array{Float64,1}, iConf::Confi
     bEnergy = Empirical.scaledBindingEnergy(Z, fShell, fConf, data)
     omegas  = energies .+ bEnergy
 
-    # Compute the PI cross sections of the inverse process directly from the same bEnergy; cf. Kramers' formula in
-    # Empirical.photoionizationCrossSection(..., ScaledHydrogenic). The inverse process ionizes fShell of fConf, so that
-    # N_e is here the occupation of fShell in the *recombined* ion fConf.
+    # Compute the PI cross sections of the inverse process directly from the same bEnergy; cf. Kramers' formula and
+    # the bound-free Gaunt factor in Empirical.photoionizationCrossSection(..., ScaledHydrogenic). The inverse process
+    # ionizes fShell of fConf, so that N_e is here the occupation of fShell in the *recombined* ion fConf.
     nEquiv  = fConf.shells[fShell]
     factor  = 32 * pi * Defaults.getDefaults("alpha") * nEquiv / (3 * sqrt(3) * fShell.n)
-    piCss   = [factor * bEnergy^2 / omega^3   for omega in omegas]
+    piCss   = [factor * bEnergy^2 / omega^3 * Empirical.boundFreeGauntFactor(fShell.n, omega/bEnergy)   for omega in omegas]
 
     # Apply the Einstein-Milne relation:  sigma^(PR) = omega^2 / (2 eps c^2) * (g_f/g_i) * sigma^(PI)
     c       = Defaults.getDefaults("speed of light: c")

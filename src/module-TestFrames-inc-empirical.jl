@@ -54,15 +54,16 @@ function testModule_Empirical(; short::Bool=true)
     balance = gRatio * exp(wa.energy / T)
     success = success && abs(rPD/rPX - balance) / balance < 1.0e-6
     #
-    ## Test 7: photoionizationCrossSection(ScaledHydrogenic) for Ne 2p; Kramers (1923) formula.
-    ##   The threshold is the tabulated 2p binding energy of 21.6 eV; below it the cross section vanishes.
-    ##   Above threshold the cross section falls off as omega^-3, so doubling the photon energy must reduce
-    ##   it by exactly a factor of 8.
+    ## Test 7: photoionizationCrossSection(ScaledHydrogenic) for Ne 2p; Kramers (1923) formula with the
+    ##   bound-free Gaunt factor. The threshold is the tabulated 2p binding energy of 21.6 eV; below it the cross
+    ##   section vanishes. Doubling the photon energy far above threshold reduces the cross section by a factor
+    ##   8 * g(600/21.6)/g(1200/21.6) = 8.913: the Gaunt factor steepens Kramers' omega^-3 tail towards the exact
+    ##   omega^-(7/2).
     piConf = Configuration("1s^2 2s^2 2p^6");    pfConf = Configuration("1s^2 2s^2 2p^5")
     omegas = [Defaults.convertUnits("energy: from eV to atomic", e) for e in [15.0, 25.0, 30.0, 600.0, 1200.0]]
     piCss  = Empirical.photoionizationCrossSection(omegas, piConf, pfConf, Empirical.ScaledHydrogenic(), printout=false)
     success = success && piCss[1] == 0.  &&  piCss[2] > 0.
-    success = success && abs(piCss[4]/piCss[5] - 8.) < 1.0e-6
+    success = success && abs(piCss[4]/piCss[5] - 8.913025108522556) < 1.0e-6
     #
     ## Test 8: photorecombinationCrossSection(ScaledHydrogenic) for Ne 2p via the Einstein-Milne relation.
     ##   sigma^(PR) ~ 1 / [eps * (eps + bE)] and must diverge as eps -> 0; a flat or vanishing cross section
@@ -70,19 +71,19 @@ function testModule_Empirical(; short::Bool=true)
     ekins  = [Defaults.convertUnits("energy: from eV to atomic", e) for e in [0.1, 1.0, 5.0, 20.0, 100.0]]
     prCss  = Empirical.photorecombinationCrossSection(ekins, pfConf, piConf, Empirical.ScaledHydrogenic(), printout=false)
     prBarn = [round(Defaults.convertUnits("cross section: from atomic", cs), digits=3) for cs in prCss]
-    for  (ic, cs)  in  enumerate([11316.288, 1086.564, 184.634, 29.515, 2.019])
+    for  (ic, cs)  in  enumerate([9880.029, 955.962, 167.145, 28.339, 2.006])
         success = success && abs(prBarn[ic] - cs) < 0.001
     end
     #
-    ## Test 9: Kramers' normalisation against the literature. For H 1s the semiclassical Kramers formula is known
-    ##   to give 7.91 Mb at threshold, to be compared with the exact 6.30 Mb (Gaunt factor 0.80). This anchors the
-    ##   prefactor 32 pi alpha / (3 sqrt(3) n) to a published value rather than to JAC's own output.
+    ## Test 9: the H 1s threshold cross section against the exact (Stobbe 1930) value. With the bound-free Gaunt
+    ##   factor included, the Kramers 7.91 Mb becomes the exact 2^9 pi^2 alpha a_o^2/(3 e^4) = 6.304 Mb; this anchors
+    ##   both the prefactor 32 pi alpha/(3 sqrt(3) n) and boundFreeGauntFactor to an analytic literature value.
     Defaults.setDefaults("nuclear: charge", 1.)
     bEH    = Empirical.bindingEnergy(1, Shell("1s"))
     hCss   = Empirical.photoionizationCrossSection([bEH * 1.0000001], Configuration("1s^1"), Configuration("1s^0"),
                                                    Empirical.ScaledHydrogenic(), printout=false)
     hMb    = Defaults.convertUnits("cross section: from atomic", hCss[1]) / 1.0e6
-    success = success && abs(hMb - 7.91) < 0.01
+    success = success && abs(hMb - 6.307) < 0.01
     #
     ## Test 10: the tabulated data sets cover different ranges of Z; Williams2000 has no Xe (Z=54) and must fall back
     ##   to a Slater-screened hydrogenic estimate, while XrayDataBooklet provides the 5p binding energy of 12.1 eV.
@@ -117,21 +118,22 @@ function testModule_Empirical(; short::Bool=true)
     success = success && abs(z12 - 7.997) < 0.01
     #
     ## Test 13: the number of equivalent electrons N_e in Kramers' formula. He 1s^2 (N_e = 2) is the clean benchmark:
-    ##   it isolates N_e, since H 1s has N_e = 1 by definition and cannot discriminate. With N_e the threshold cross
-    ##   section is 8.75 Mb against an experimental ~7.4 Mb (1.18x); without it, 4.37 Mb would be 1.7x too low.
+    ##   it isolates N_e, since H 1s has N_e = 1 by definition and cannot discriminate. With N_e and the bound-free
+    ##   Gaunt factor the threshold cross section is 6.97 Mb against an experimental ~7.4 Mb (0.94x); N_e = 1 would
+    ##   be 2x too low, and without the Gaunt factor the 8.75 Mb were 1.18x too high.
     Defaults.setDefaults("nuclear: charge", 2.)
     bEHe   = Empirical.bindingEnergy(2, Shell("1s"))
     heCss  = Empirical.photoionizationCrossSection([bEHe * 1.0000001], Configuration("1s^2"), Configuration("1s^1"),
                                                    Empirical.ScaledHydrogenic(), printout=false)
     heMb   = Defaults.convertUnits("cross section: from atomic", heCss[1]) / 1.0e6
-    success = success && abs(heMb - 8.7464) < 0.001
+    success = success && abs(heMb - 6.9735) < 0.001
     #
     ## Tests 14-16: photorecombination plasma rate coefficients for Ne 2p at T_e = 10 eV.
     Defaults.setDefaults("nuclear: charge", 10.)
     eDist  = Distribution.ElectronMaxwell(Defaults.convertUnits("energy: from eV to atomic", 10.0))
     aSpont = Empirical.photorecombinationPlasmaAlpha(eDist, pfConf, piConf, printout=false)
     fac    = Defaults.convertUnits("length: from atomic to cm", 1.0)^3 / Defaults.convertUnits("time: from atomic to sec", 1.0)
-    success = success && abs(fac*aSpont - 1.7694284698746885e-14) / 1.7694284698746885e-14 < 1.0e-6
+    success = success && abs(fac*aSpont - 1.613974906174875e-14) / 1.613974906174875e-14 < 1.0e-6
     ## Test 14: the vacuum photon field has n(omega) = 0 and must reproduce the spontaneous coefficient *exactly*.
     aVac   = Empirical.photorecombinationPlasmaAlpha(eDist, Distribution.PhotonVacuumField(0.), pfConf, piConf, printout=false)
     success = success && aVac == aSpont
@@ -140,13 +142,13 @@ function testModule_Empirical(; short::Bool=true)
     T1000  = Defaults.convertUnits("energy: from eV to atomic", 1000.0)
     aPlanck = Empirical.photorecombinationPlasmaAlpha(eDist, Distribution.PhotonPlanck(T1000), pfConf, piConf, printout=false)
     aDilute = Empirical.photorecombinationPlasmaAlpha(eDist, Distribution.PhotonDilute(T1000, 0.5), pfConf, piConf, printout=false)
-    success = success && abs(fac*aPlanck - 6.454350011461036e-13) / 6.454350011461036e-13 < 1.0e-6
+    success = success && abs(fac*aPlanck - 5.849171271603789e-13) / 5.849171271603789e-13 < 1.0e-6
     success = success && abs( (aDilute - aSpont)/(aPlanck - aSpont) - 0.5 ) < 1.0e-10
     ## Test 16: the quadrature range must follow the electron temperature. With a fixed range of 0 ... 100 a.u., this
     ##   coefficient came out as ~1e-39 instead of ~2.4e-13, i.e. the thermal peak was missed altogether.
     eCool  = Distribution.ElectronMaxwell(Defaults.convertUnits("energy: from eV to atomic", 0.1))
     aCool  = Empirical.photorecombinationPlasmaAlpha(eCool, pfConf, piConf, printout=false)
-    success = success && abs(fac*aCool - 2.3949359881380354e-13) / 2.3949359881380354e-13 < 1.0e-4
+    success = success && abs(fac*aCool - 2.0909570957225128e-13) / 2.0909570957225128e-13 < 1.0e-4
     #
     ## Test 17: the photoionization plasma rate per ion R^(PI: per ion) = int d(omega) n(omega;T) c sigma^(PI)(omega).
     ##   This is a *rate* [1/s], not a rate coefficient [cm^3/s]: the photon number density is already contained in the
@@ -155,7 +157,7 @@ function testModule_Empirical(; short::Bool=true)
     rPI = Empirical.photoionizationPlasmaRatePerIon(Distribution.PhotonPlanck(Defaults.convertUnits("energy: from eV to atomic", 10.0)),
                                                 piConf, pfConf, printout=false)
     rPIx = Defaults.convertUnits("rate: from atomic", rPI)
-    success = success && abs(rPIx - 2.5040605153139668e9) / 2.5040605153139668e9 < 1.0e-6
+    success = success && abs(rPIx - 2.2816321564282784e9) / 2.2816321564282784e9 < 1.0e-6
     #
     ## Test 18: the UsingJAC PI/PR cross sections are not validated -- they grow with omega (resp. eps) instead of
     ##   falling (resp. diverging as 1/eps) -- and must refuse to return a value rather than deliver 92 Mb where ~1 Mb
