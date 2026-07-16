@@ -276,7 +276,7 @@ function photoexcitationPlasmaRatePerIon(dist::Distribution.AbstractPhotonDistri
         ratex   = Defaults.convertUnits("rate: from atomic to "   * unRate,   rate)
         sa = "\n* Estimate empirically the photoexcitation plasma rate R^(PX: per ion) (T; i -> f) for a given transition " *
              "i -> f with the following assumptions/simplifications: " *
-             "\n    + Photon field follows a $(SubString(string(dist), 22)) at temperature T [K] = $(Tx). " * 
+             "\n    + Photon field: $dist,  i.e. T [K] = $(Tx). " * 
              "\n    + Einstein-A values are determined in the $(SubString(string(approx), 22)) approximation " * 
              "\n    + iConf = $iConf  -->  fConf = $fConf " * 
              "\n    + Transition energy [$unEnergy]                                = $energyx " *
@@ -318,7 +318,7 @@ function photodeexcitationPlasmaRatePerIon(dist::Distribution.AbstractPhotonDist
         sa = "\n* Estimate empirically the (total) photodeexcitation plasma rate R^(PD: total, per ion) (T; i -> f) " *
              "for a given transition i -> f" *
              "\n  with the following assumptions/simplifications: " *
-             "\n    + Photon field follows a $(SubString(string(dist), 22)) at temperature T [K] = $(Tx). " * 
+             "\n    + Photon field: $dist,  i.e. T [K] = $(Tx). " * 
              "\n    + Einstein-A values are determined in the $(SubString(string(approx), 22)) approximation " * 
              "\n    + iConf = $iConf  -->  fConf = $fConf " * 
              "\n    + Transition energy [$unEnergy]                               = $energyx " *
@@ -548,7 +548,7 @@ function photoionizationPlasmaRatePerIon(dist::Distribution.AbstractPhotonDistri
         bEx    = Defaults.convertUnits("energy: from atomic to " * unEnergy, bEnergy)
         sa = "\n* Estimate empirically the photoionization plasma rate per ion for a given transition i -> f with the " *
              "following assumptions/simplifications: " *
-             "\n    + Photon field follows a $(SubString(string(dist), 22)) at temperature T [K] = $(Tx). " *
+             "\n    + Photon field: $dist,  i.e. T [K] = $(Tx). " *
              "\n    + PI cross sections are generated in the $(SubString(string(approx), 22)) approximation. " *
              "\n    + iConf = $iConf  -->  fConf = $fConf " *
              "\n    + Threshold energy of $iShell [$unEnergy] = $bEx " *
@@ -805,8 +805,8 @@ function photorecombinationPlasmaAlpha(eDist::Distribution.AbstractElectronDistr
         alphax = factor * alpha
         sa = "\n* Estimate empirically the (total) photorecombination plasma rate coefficient alpha for a given transition " *
              "i -> f with the following assumptions/simplifications: " *
-             "\n    + Electron field follows a $(SubString(string(eDist), 22)) at temperature T_e [K] = $(Tex). " *
-             "\n    + Photon field follows a $(SubString(string(pDist), 22)) at temperature T [K] = $(Tpx). " *
+             "\n    + Electron field: $eDist,  i.e. T_e [K] = $(Tex). " *
+             "\n    + Photon field: $pDist,  i.e. T [K] = $(Tpx). " *
              "\n    + Spontaneous PR cross sections are generated in the $approx approximation. " *
              "\n    + The stimulated enhancement [1 + nbar(eps + bEnergy)] is applied inside the electron-energy integral. " *
              "\n    + iConf = $iConf  -->  fConf = $fConf " *
@@ -842,7 +842,7 @@ function photorecombinationPlasmaAlpha(dist::Distribution.AbstractElectronDistri
         alphax = factor * alpha
         sa = "\n* Estimate empirically the (spontaneous) photorecombination plasma rate coefficient alpha for a given transition " *
              "i -> f with the following assumptions/simplifications: " *
-             "\n    + Electron field follows a $(SubString(string(dist), 22)) at temperature T [K] = $(Tx). " * 
+             "\n    + Electron field: $dist,  i.e. T_e [K] = $(Tx). " * 
              "\n    + Spontaneous PR cross sections are generated in the $approx approximation. " * 
              "\n    + iConf = $iConf  -->  fConf = $fConf " * 
              "\n    + Plasma rate coefficient alpha^(PR: spontaneous) [cm^3/s] = $alphax   \n"
