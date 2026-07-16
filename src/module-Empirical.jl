@@ -55,7 +55,7 @@ end
 function Base.show(io::IO, tripleA::GivenEinsteinA)
     sa = "Given Einstein-A value for $(tripleA.multipole) transition with E_if [Hartree] = $(tripleA.energy) " *
          "and A_if [a.u.] = $(tripleA.rate) "
-    print(io, sa, "\n")
+    print(io, sa)
 end
    
         
