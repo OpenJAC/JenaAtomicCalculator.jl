@@ -367,6 +367,25 @@ function testModule_Empirical(; short::Bool=true)
     end
     success = success && adkErr == 2
     #
+    ## Test 26: scaledBindingEnergy() for a genuine few-electron ion (NoElectrons <= 2 and < Z) now bypasses the
+    ##   *neutral*-atom tabulation and returns the exact (H-like) or approximate (He-like, ~5-30% high, decreasing
+    ##   with Z; checked against NIST/CRC data) hydrogenic value, instead of silently reusing the neutral-atom
+    ##   entry; the tabulated path for near-neutral configurations (including the Ne K-alpha analog
+    ##   spectator-omitted shorthand) must remain exactly unchanged.
+    Defaults.setDefaults("nuclear: charge", 2.)
+    bEHePlus = Empirical.scaledBindingEnergy(2.0, Shell("1s"), Configuration("1s^1"), PeriodicTable.Williams2000())
+    success = success && abs(bEHePlus - 2.0) < 1.0e-10                              ## exact hydrogenic, Z^2/2 = 2.0
+    Defaults.setDefaults("nuclear: charge", 3.)
+    bELi2p = Empirical.scaledBindingEnergy(3.0, Shell("1s"), Configuration("1s^1"), PeriodicTable.Williams2000())
+    success = success && abs(bELi2p - 4.5) < 1.0e-10                                ## exact hydrogenic, Z^2/2 = 4.5
+    Defaults.setDefaults("nuclear: charge", 2.)
+    bEHeNeutral = Empirical.scaledBindingEnergy(2.0, Shell("1s"), Configuration("1s^2"), PeriodicTable.Williams2000())
+    success = success && abs(Defaults.convertUnits("energy: from atomic", bEHeNeutral) - 24.6) < 0.05  ## unchanged tabulated value
+    Defaults.setDefaults("nuclear: charge", 10.)
+    bENeKalpha = Empirical.scaledBindingEnergy(10.0, Shell("2p"), Configuration("1s^1 2p^6"), PeriodicTable.Williams2000())
+    e1au       = Empirical.bindingEnergy(10, Shell("2p"), data=PeriodicTable.Williams2000())
+    success = success && abs(bENeKalpha - e1au) < 1.0e-10     ## unchanged: same tabulated 2p value as Test 1
+    #
     ## Restore the global nuclear charge for all subsequent tests.
     Defaults.setDefaults("nuclear: charge", oldZ)
     ###

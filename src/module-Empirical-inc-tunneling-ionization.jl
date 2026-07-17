@@ -144,15 +144,16 @@ end
         rates::Array{Float64,1} [a.u.] is returned.
         Quantity: a field-ionization rate [1/s], cf. the direct (Z, Ip, l) method for the full description.
 
-        Note: Empirical.scaledBindingEnergy() looks up the binding energy of the ionized shell for the *neutral*
-              element of the given nuclear charge (falling back to a Slater-screened hydrogenic estimate only when
-              no tabulated value exists at all); it does not distinguish which ionization stage iConf actually
-              represents. For a near-neutral iConf this is the desired (empirical, more accurate) binding energy,
-              but for a highly stripped ion it silently returns the *neutral*-atom value, which can differ
-              substantially from the true one. Example: for He^+ (iConf = "1s^1"), this method would use neutral
-              He's tabulated 1s energy (24.6 eV) rather than the correct hydrogenic value for He^+ (Z^2/2 = 54.4 eV).
-              For such stripped ions, prefer the direct (Z, Ip, l) method with an explicitly supplied (e.g.
-              hydrogenic or NIST-tabulated) Ip.
+        Note: Empirical.scaledBindingEnergy() recognizes a genuine H-like or He-like ion (iConf.NoElectrons <= 2 and
+              < Z_nuclear, e.g. He^+ = "1s^1") and then returns the exact (H-like) or approximate (He-like, Slater
+              screening; overestimates the binding energy by ~5-30%, decreasing with Z) hydrogenic binding energy
+              automatically, rather than the *neutral*-atom tabulated value. A residual gap remains for more highly
+              charged ions with 3 or more electrons (e.g. a Li-like O^5+): such an iConf is indistinguishable, from
+              the electron count alone, from the common "spectator-omitted shorthand" for a near-neutral atom (e.g.
+              Configuration("1s^1 2p^6") for Ne), so the *neutral*-element tabulated value is still used and may
+              differ substantially from the true one for a genuinely stripped few-electron ion in this range. For
+              such ions, prefer the direct (Z, Ip, l) method with an explicitly supplied (e.g. hydrogenic or
+              NIST-tabulated) Ip.
 """
 function tunnelingIonizationRate(fields::Array{Float64,1}, iConf::Configuration, fConf::Configuration,
                                  approx::Empirical.ADK1986; m::Int64=0, printout::Bool=false,
@@ -181,9 +182,10 @@ function tunnelingIonizationRate(fields::Array{Float64,1}, iConf::Configuration,
              "assumptions/simplifications: " *
              "\n    + Use the (quasiclassical) ADK formula (Ammosov, Delone & Krainov 1986) for a static field. " *
              "\n    + iConf = $iConf  -->  fConf = $fConf;  ionized shell $iShell (l = $(iShell.l)), m = $m " *
-             "\n    + Binding energy of $iShell taken from $data for the *neutral* element; if fConf is a highly " *
-             "stripped ion, this may differ substantially from the true binding energy -- use the direct (Z, Ip, l) " *
-             "method with an explicit Ip in that case. " *
+             "\n    + Binding energy of $iShell from Empirical.scaledBindingEnergy() -- exact (H-like) or approximate " *
+             "(He-like, ~5-30% high) hydrogenic for a 1- or 2-electron ion, otherwise the *neutral*-element value from $data; a " *
+             "highly stripped ion with 3+ electrons may then differ substantially from the true binding energy -- " *
+             "use the direct (Z, Ip, l) method with an explicit Ip in that case. " *
              "\n    + Binding energy Ip [$unEnergy] = $Ipx;  residual ion charge Z = $Zres " *
              "\n    + Field strengths [a.u.]         = $fields " *
              "\n    + Tunneling ionization rates [$unRate] = $ratesx " *

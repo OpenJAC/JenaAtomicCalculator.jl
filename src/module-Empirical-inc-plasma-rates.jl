@@ -35,25 +35,44 @@ end
     ... to provide the binding energy of an electron in shell sh of the given configuration conf; this energy scales all
         hydrogenic (Kramers) estimates below and, hence, fixes the photoionization threshold as well as the transition
         energies. The semi-empirical binding energies of the *neutral* atom are taken from the tabulation data whenever
-        this data set covers Z and sh. If no tabulated value is available, a Slater-screened hydrogenic estimate
-        bE = Z^(eff)^2 / (2 n^2) is applied instead and a warning is issued; Z^(eff) then follows from Slater's (1930)
-        rules for the remaining electrons of conf. An energy::Float64 > 0. [a.u.] is returned.
+        this data set covers Z and sh *and* conf is not itself a genuine few-electron ion (see below). If no tabulated
+        value applies, a Slater-screened hydrogenic estimate bE = Z^(eff)^2 / (2 n^2) is applied instead and a warning
+        is issued; Z^(eff) then follows from Slater's (1930) rules for the remaining electrons of conf. An
+        energy::Float64 > 0. [a.u.] is returned.
 
         Note: A pure hydrogenic estimate is quite unreliable for valence shells; for neutral Ne, for instance, it places
               the 2p threshold near 85 eV, while the tabulated (true) binding energy is 21.6 eV. The tabulated values
               should therefore be preferred whenever they are available.
+
+        Note: The tabulation is indexed by Z alone and, hence, always returns the *neutral*-atom value regardless of
+              conf.NoElectrons. This is correct for the common "spectator-omitted shorthand" usage, where conf lists
+              only the shells taking part in a transition of an otherwise near-neutral atom (e.g. a K-alpha analog
+              Configuration("1s^1 2p^6") for Ne, with the 2s^2 spectator shell left out); it silently fails, however,
+              for a conf that literally describes a stripped few-electron ion, such as He+'s Configuration("1s^1").
+              A neutral atom with only 1 or 2 electrons is simply H or He, for which the tabulation already gives the
+              correct (neutral) value; conf.NoElectrons < Z with conf.NoElectrons <= 2 therefore unambiguously signals
+              a genuine few-electron ion rather than a spectator-omitted shorthand, and is routed directly to the
+              Slater-screened hydrogenic estimate. This estimate is exact for H-like ions (no other electron to
+              screen); for He-like ions, Slater's constant same-group screening (sigma = 0.30) systematically
+              overestimates the binding energy, from about +31% at Z=3 (Li+) down to a few percent by Z ~ 20, as
+              the ion becomes increasingly hydrogenic and the fixed screening constant matters proportionally
+              less (checked against NIST/CRC data for the He isoelectronic sequence, Z = 3...18).
 """
 function scaledBindingEnergy(Z::Float64, sh::Shell, conf::Configuration, data::PeriodicTable.AbstractEnergyData)
-    bEnergy = 0.
-    ## The tabulated data sets cover only a limited range of Z and shells; they raise an error or return 0. otherwise.
-    try
-        bEnergy = Empirical.bindingEnergy(round(Int64, Z), sh, data=data)
-    catch
-        bEnergy = 0.
-    end
-    if  bEnergy > 0.    return( bEnergy )    end
+    fewElectronIon = conf.NoElectrons <= 2  &&  conf.NoElectrons < round(Int64, Z)
 
-    ## No tabulated value available: screen the nuclear charge by all *other* electrons of conf with Slater's rules.
+    bEnergy = 0.
+    if  !fewElectronIon
+        ## The tabulated data sets cover only a limited range of Z and shells; they raise an error or return 0. otherwise.
+        try
+            bEnergy = Empirical.bindingEnergy(round(Int64, Z), sh, data=data)
+        catch
+            bEnergy = 0.
+        end
+        if  bEnergy > 0.    return( bEnergy )    end
+    end
+
+    ## No tabulated value applies: screen the nuclear charge by all *other* electrons of conf with Slater's rules.
     shells = deepcopy(conf.shells)
     if      haskey(shells, sh)  &&  shells[sh] > 1    shells[sh] = shells[sh] - 1
     elseif  haskey(shells, sh)                        delete!(shells, sh)
@@ -62,11 +81,21 @@ function scaledBindingEnergy(Z::Float64, sh::Shell, conf::Configuration, data::P
     Zeff  = Semiempirical.estimateSlaterZeff(Z, rConf, Subshell(sh.n, -sh.l - 1))
     ## An electron of a neutral atom or positive ion sees at least a unit charge asymptotically.
     if  Zeff < 1.0      Zeff = 1.0      end
-    ## For (Rydberg) shells outside the tabulation this estimate is the designed behavior -- for a Rydberg electron
-    ## it is even exact -- so the warning is limited; a summation over many capture channels would otherwise flood
-    ## the output with one warning per shell.
-    sa = "No tabulated binding energy for Z = $Z and $sh in $data; a Slater-screened hydrogenic estimate is used " *
-         "(exact for Rydberg shells; this warning is shown at most 5 times)."
+    if  fewElectronIon
+        ## For a genuine few-electron ion this branch is exact for H-like ions; for He-like ions, Slater's 0.30
+        ## same-group screening constant overestimates the binding energy by ~31% at Z=3, shrinking to a few
+        ## percent by Z ~ 20 (checked against NIST/CRC data), not merely a fallback, so the warning says so.
+        sa = "conf = $conf has only $(conf.NoElectrons) electron(s) at Z = $Z, i.e. it is a genuine few-electron ion, " *
+             "for which the tabulated *neutral*-atom binding energy in $data would be wrong. A Slater-screened " *
+             "hydrogenic estimate is used instead (exact for H-like ions; for He-like ions it overestimates the " *
+             "binding energy by ~5-30%, decreasing with Z; this warning is shown at most 5 times)."
+    else
+        ## For (Rydberg) shells outside the tabulation this estimate is the designed behavior -- for a Rydberg electron
+        ## it is even exact -- so the warning is limited; a summation over many capture channels would otherwise flood
+        ## the output with one warning per shell.
+        sa = "No tabulated binding energy for Z = $Z and $sh in $data; a Slater-screened hydrogenic estimate is used " *
+             "(exact for Rydberg shells; this warning is shown at most 5 times)."
+    end
     @warn sa maxlog=5
 
     return( Zeff^2 / (2 * sh.n^2) )
