@@ -136,7 +136,7 @@ end
 """
 `Empirical.tunnelingIonizationRate(fields::Array{Float64,1}, iConf::Configuration, fConf::Configuration,
                                    approx::Empirical.ADK1986; m::Int64=0, printout::Bool=false,
-                                   data::PeriodicTable.AbstractEnergyData=PeriodicTable.Williams2000())`
+                                   data::PeriodicTable.AbstractEnergyData=PeriodicTable.XrayDataBooklet())`
     ... to estimate the tunneling ionization rate of an electron from iConf -> fConf at the given (quasi-static)
         electric field strengths [a.u.]; a convenience wrapper around the direct (Z, Ip, l) method above, which
         determines the residual ion charge Z = Z_nuclear - fConf.NoElectrons and the binding energy Ip of the
@@ -157,7 +157,7 @@ end
 """
 function tunnelingIonizationRate(fields::Array{Float64,1}, iConf::Configuration, fConf::Configuration,
                                  approx::Empirical.ADK1986; m::Int64=0, printout::Bool=false,
-                                 data::PeriodicTable.AbstractEnergyData=PeriodicTable.Williams2000())
+                                 data::PeriodicTable.AbstractEnergyData=PeriodicTable.XrayDataBooklet())
     Znuc = Defaults.getDefaults("nuclear: charge");    iShell = Shell(0,0);    diff = 0
 
     # Determine the ionized shell.

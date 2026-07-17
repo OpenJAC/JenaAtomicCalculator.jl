@@ -458,6 +458,28 @@ function testModule_Empirical(; short::Bool=true)
     muCx  = Mproj*Mtarg/(Mproj+Mtarg)
     success = success && abs(alphaCx/(sqrt(8*Tcx/(pi*muCx)) * sigNieh) - 1.0) < 1.0e-10
     #
+    ## Test 29: XrayDataBooklet is now the default energy-data set (Z = 1, ..., 92, shells 1s-6p), replacing
+    ##   Williams2000 (Z = 1, ..., 36 only, shells 1s-4p); the two are numerically identical wherever both are
+    ##   tabulated, except Carbon 2s/2p, where XrayDataBooklet was missing a correction Williams2000 already had --
+    ##   now propagated. Checks: bindingEnergy(6, 2s/2p) now returns the corrected (not -1/fallback) values by
+    ##   default; the Ne K-alpha energy (a Z <= 36 case) is bit-identical under the new default and under an
+    ##   explicit Williams2000() call; and a Z = 54 (Xe) binding energy, unreachable via the old default, now
+    ##   resolves to a real tabulated value instead of the cruder Slater-hydrogenic fallback.
+    Defaults.setDefaults("nuclear: charge", 6.)
+    c2s = Defaults.convertUnits("energy: from atomic", Empirical.bindingEnergy(6, Shell("2s")))
+    c2p = Defaults.convertUnits("energy: from atomic", Empirical.bindingEnergy(6, Shell("2p")))
+    success = success && abs(c2s - 19.4) < 1.0e-8  &&  abs(c2p - 7.0) < 1.0e-8
+    Defaults.setDefaults("nuclear: charge", 10.)
+    neConf = Configuration("1s^1 2p^6");   neFConf = Configuration("1s^2 2p^5")
+    waDefault  = Empirical.photoemissionEinsteinA(neConf, neFConf, Empirical.ScaledHydrogenic(), printout=false)
+    waWilliams = Empirical.photoemissionEinsteinA(neConf, neFConf, Empirical.ScaledHydrogenic(), printout=false,
+                                                  data=PeriodicTable.Williams2000())
+    success = success && waDefault.energy == waWilliams.energy
+    Defaults.setDefaults("nuclear: charge", 54.)
+    xeConf = Configuration("[Kr] 4d^10 5s^2 5p^6")
+    bEXe   = Empirical.scaledBindingEnergy(54.0, Shell("5p"), xeConf, PeriodicTable.XrayDataBooklet())
+    success = success && abs(Defaults.convertUnits("energy: from atomic", bEXe) - 12.1) < 1.0e-8
+    #
     ## Restore the global nuclear charge for all subsequent tests.
     Defaults.setDefaults("nuclear: charge", oldZ)
     ###

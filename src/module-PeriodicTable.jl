@@ -13,10 +13,19 @@ module PeriodicTable
     ... defines an abstract and a number of singleton types to deal with different data set for binding energies,
         ionization potentials, etc.
 
-    + Larkins1977       ... assumes a Lorentzian line profile L^Lorentzian (omega)
-    + Nist2025          ... assumes a Lorentzian line profile L^Lorentzian (omega)
-    + Williams2000      ... applies the subshell binding energies by Williams (2000)
-    + XrayDataBooklet   ... assumes a Lorentzian line profile L^Lorentzian (omega)
+    + Larkins1977       ... F. Larkins' (1977) inner-shell (1s - 4p) subshell binding energies of the neutral atom;
+                            Z = 1, ..., 45, with many (Z, subshell) combinations left undefined.
+    + Nist2025          ... NIST's (2025) tabulated successive ionization potentials of the neutral atom and all its
+                            ions, Z = 1, ..., 92; used by Empirical.ionizationPotential and by
+                            Empirical.totalEnergy(data=Nist2025()); not supported by Empirical.bindingEnergy.
+    + Williams2000      ... the subshell binding energies of Williams (2000), part of the LBNL X-Ray Data Booklet's
+                            Table 1-1; Z = 1, ..., 36 only, shells 1s - 4p.
+    + XrayDataBooklet   ... the LBNL X-Ray Data Booklet's Table 1-1 [J. A. Bearden & A. F. Burr, Rev. Mod. Phys. 39,
+                            125 (1967); M. Cardona & L. Ley, Photoemission in Solids I (1978); J. C. Fuggle &
+                            N. Mårtensson, J. Electron Spectrosc. Relat. Phenom. 21, 275 (1980)] -- the same lineage
+                            as Williams2000, and numerically identical wherever both are tabulated, but with the
+                            fuller Z = 1, ..., 92 and shells 1s - 6p coverage; the default data set for
+                            Empirical.bindingEnergy/scaledBindingEnergy and the functions built on them.
 """
 abstract type  AbstractEnergyData                                    end
 struct     Larkins1977                   <:  AbstractEnergyData      end
@@ -527,8 +536,10 @@ end
     ... to return the `stored values' of Williams et al. (2000), ... for the element with nuclear charge Z.
 """
 function bindingEnergies_Williams2000(Z::Int64)
-    # This procedure 'stores' the binding energies of the inner-shell electrons 1s, ..., 3d for all elements from Z = 1, ..., 54;
-    # all binding energies are given in eV
+    # This procedure 'stores' the binding energies of the inner-shell electrons 1s, ..., 4p for all elements from Z = 1, ..., 36
+    # (not 54, despite what an earlier version of this comment claimed -- verified against the actual branches below);
+    # all binding energies are given in eV. For the fuller Z = 1, ..., 92 coverage, use XrayDataBooklet instead, which
+    # follows the same underlying LBNL X-Ray Data Booklet Table 1-1 and is numerically identical wherever both are tabulated.
     # 
     #                        1s_1/2,   2s_1/2,   2p_1/2,   2p_3/2,   3s_1/2,   3p_1/2,   3p_3/2,   3d_3/2,   3d_5/2,   4s_1/2,   4p_1/2,   4p_3/2 
     if     Z ==  1   wa = [    13.6,     -1.0,     -1.0,     -1.0,     -1.0,     -1.0,     -1.0,     -1.0,     -1.0,     -1.0,     -1.0,     -1.0]
@@ -598,8 +609,8 @@ function bindingEnergies_XrayDataBooklet(Z::Int64)
                                     -1.0,     -1.0,     -1.0,     -1.0,     -1.0,     -1.0,     -1.0,     -1.0,     -1.0,     -1.0,     -1.0,      -1.0 ]
     elseif Z ==  5   wa = [   188.0,     -1.0,     -1.0,     -1.0,     -1.0,     -1.0,     -1.0,     -1.0,     -1.0,     -1.0,     -1.0,     -1.0,
                                     -1.0,     -1.0,     -1.0,     -1.0,     -1.0,     -1.0,     -1.0,     -1.0,     -1.0,     -1.0,     -1.0,      -1.0 ]
-    elseif Z ==  6   wa = [   284.2,     -1.0,     -1.0,     -1.0,     -1.0,     -1.0,     -1.0,     -1.0,     -1.0,     -1.0,     -1.0,     -1.0,
-                                    -1.0,     -1.0,     -1.0,     -1.0,     -1.0,     -1.0,     -1.0,     -1.0,     -1.0,     -1.0,     -1.0,      -1.0 ]
+    elseif Z ==  6   wa = [   284.2,     19.4,      7.0,      7.0,     -1.0,     -1.0,     -1.0,     -1.0,     -1.0,     -1.0,     -1.0,     -1.0,
+                                    -1.0,     -1.0,     -1.0,     -1.0,     -1.0,     -1.0,     -1.0,     -1.0,     -1.0,     -1.0,     -1.0,      -1.0 ] #ZS: propagated from bindingEnergies_Williams2000's correction
     elseif Z ==  7   wa = [   409.9,     37.3,     -1.0,     -1.0,     -1.0,     -1.0,     -1.0,     -1.0,     -1.0,     -1.0,     -1.0,     -1.0,
                                     -1.0,     -1.0,     -1.0,     -1.0,     -1.0,     -1.0,     -1.0,     -1.0,     -1.0,     -1.0,     -1.0,      -1.0 ]
     elseif Z ==  8   wa = [   543.1,     41.6,     -1.0,     -1.0,     -1.0,     -1.0,     -1.0,     -1.0,     -1.0,     -1.0,     -1.0,     -1.0,

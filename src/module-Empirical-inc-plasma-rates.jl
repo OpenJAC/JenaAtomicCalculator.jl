@@ -108,7 +108,7 @@ end
 
 """
 `Empirical.photoemissionEinsteinA(iConf::Configuration, fConf::Configuration, approx::Empirical.ScaledHydrogenic;
-                                  printout::Bool=false, data::PeriodicTable.AbstractEnergyData=PeriodicTable.Williams2000())`
+                                  printout::Bool=false, data::PeriodicTable.AbstractEnergyData=PeriodicTable.XrayDataBooklet())`
     ... to estimate empirically the Einstein-A value for a transition from iConf -> fConf. The transition energy is
         obtained as the difference of the binding energies of the two shells involved, cf.
         Empirical.scaledBindingEnergy(). A named triple (multipole::EmMultipole=, energy::Float64=, rate::Float64=)
@@ -127,7 +127,7 @@ end
           module instead.
 """
 function photoemissionEinsteinA(iConf::Configuration, fConf::Configuration, approx::Empirical.ScaledHydrogenic;
-                                printout::Bool=false, data::PeriodicTable.AbstractEnergyData=PeriodicTable.Williams2000())
+                                printout::Bool=false, data::PeriodicTable.AbstractEnergyData=PeriodicTable.XrayDataBooklet())
     multipole = Basics.E1;   tEnergy = rate = 0.;   Z = Defaults.getDefaults("nuclear: charge")
     iShell = fShell = Shell(0,0);    diff = 0
     
@@ -454,7 +454,7 @@ end
 """
 `Empirical.photoionizationCrossSection(omegas::Array{Float64,1}, iConf::Configuration, fConf::Configuration,
                                        approx::Empirical.ScaledHydrogenic; printout::Bool=false,
-                                       data::PeriodicTable.AbstractEnergyData=PeriodicTable.Williams2000())`
+                                       data::PeriodicTable.AbstractEnergyData=PeriodicTable.XrayDataBooklet())`
     ... to estimate empirically the photoionization cross sections for a transition from iConf -> fConf by using the binding
         energy (ionization potential) of the ionized shell, cf. Empirical.scaledBindingEnergy(), and Kramer's (1923)
         empirical formula. A css::Array{Float64,1} [a.u.] is returned.
@@ -463,7 +463,7 @@ end
 """
 function photoionizationCrossSection(omegas::Array{Float64,1}, iConf::Configuration, fConf::Configuration,
                                      approx::Empirical.ScaledHydrogenic; printout::Bool=false,
-                                     data::PeriodicTable.AbstractEnergyData=PeriodicTable.Williams2000())
+                                     data::PeriodicTable.AbstractEnergyData=PeriodicTable.XrayDataBooklet())
     Z = Defaults.getDefaults("nuclear: charge");    iShell = Shell(0,0);    diff = 0
 
     # Determine the initial shell and its binding (threshold) energy.
@@ -635,7 +635,7 @@ end
 `Empirical.photoionizationPlasmaRatePerIon(dist::Distribution.AbstractPhotonDistribution,
                                       iConf::Configuration, fConf::Configuration;
                                       approx::Empirical.AbstractEmpiricalApproximation=ScaledHydrogenic(), printout::Bool=false,
-                                      data::PeriodicTable.AbstractEnergyData=PeriodicTable.Williams2000())`
+                                      data::PeriodicTable.AbstractEnergyData=PeriodicTable.XrayDataBooklet())`
     ... to estimate empirically the photoionization plasma rate per ion R^(PI: per ion) (T; i -> f) for a transition from
         iConf -> fConf and a photon field dist at the radiation temperature T. A rate::Float64 [a.u.] is returned.
         Quantity: a rate per ion [1/s] in the given field -- multiply by the ion number density n_ion [1/cm^3] to obtain
@@ -650,7 +650,7 @@ end
 function photoionizationPlasmaRatePerIon(dist::Distribution.AbstractPhotonDistribution,
                                     iConf::Configuration, fConf::Configuration;
                                     approx::Empirical.AbstractEmpiricalApproximation=ScaledHydrogenic(), printout::Bool=false,
-                                    data::PeriodicTable.AbstractEnergyData=PeriodicTable.Williams2000())
+                                    data::PeriodicTable.AbstractEnergyData=PeriodicTable.XrayDataBooklet())
     if  typeof(approx) != Empirical.ScaledHydrogenic
         error("The photoionization plasma rate is presently supported only for approx = ScaledHydrogenic(); the " *
               "threshold energy, which is needed to place the integration mesh, is not available for $approx.")
@@ -725,7 +725,7 @@ end
 """
 `Empirical.photorecombinationCrossSection(energies::Array{Float64,1}, iConf::Configuration, fConf::Configuration,
                                           approx::Empirical.ScaledHydrogenic; printout::Bool=false,
-                                          data::PeriodicTable.AbstractEnergyData=PeriodicTable.Williams2000())`
+                                          data::PeriodicTable.AbstractEnergyData=PeriodicTable.XrayDataBooklet())`
     ... to estimate empirically the (spontaneous) photorecombination cross section for a transition from iConf -> fConf
         by using the Einstein-Milne relation and the binding energy (ionization potential) of the captured electron,
         cf. Empirical.scaledBindingEnergy(), together with Kramer's (1923) empirical formula.
@@ -735,7 +735,7 @@ end
 """
 function photorecombinationCrossSection(energies::Array{Float64,1}, iConf::Configuration, fConf::Configuration,
                                         approx::Empirical.ScaledHydrogenic; printout::Bool=false,
-                                        data::PeriodicTable.AbstractEnergyData=PeriodicTable.Williams2000())
+                                        data::PeriodicTable.AbstractEnergyData=PeriodicTable.XrayDataBooklet())
     Z = Defaults.getDefaults("nuclear: charge");    fShell = Shell(0,0);    diff = 0
 
     # Determine the final shell into which the electron is captured.
@@ -867,7 +867,7 @@ end
                                          pDist::Distribution.AbstractPhotonDistribution,
                                          iConf::Configuration, fConf::Configuration;
                                          approx::Empirical.AbstractEmpiricalApproximation=ScaledHydrogenic(), printout::Bool=false,
-                                         data::PeriodicTable.AbstractEnergyData=PeriodicTable.Williams2000())`
+                                         data::PeriodicTable.AbstractEnergyData=PeriodicTable.XrayDataBooklet())`
     ... to estimate empirically the total PR plasma rate coefficient alpha^(PR: total), i.e. the sum of the spontaneous and
         the stimulated contribution, for a transition from iConf -> fConf. The free electrons follow the distribution eDist
         at the electron temperature T_e, while the ambient radiation field is described by pDist at the (independent)
@@ -887,7 +887,7 @@ function photorecombinationPlasmaAlpha(eDist::Distribution.AbstractElectronDistr
                                        pDist::Distribution.AbstractPhotonDistribution,
                                        iConf::Configuration, fConf::Configuration;
                                        approx::Empirical.AbstractEmpiricalApproximation=ScaledHydrogenic(), printout::Bool=false,
-                                       data::PeriodicTable.AbstractEnergyData=PeriodicTable.Williams2000())
+                                       data::PeriodicTable.AbstractEnergyData=PeriodicTable.XrayDataBooklet())
     # The threshold energy is needed only to place the emitted photon, i.e. only for the stimulated term. A vacuum
     # field carries no photons and, hence, works for every approximation.
     isVacuum = typeof(pDist)  == Distribution.PhotonVacuumField
@@ -1038,7 +1038,7 @@ end
 `Empirical.threeBodyRecombinationPlasmaAlpha(eDist::Distribution.ElectronMaxwell,
                                              iConf::Configuration, fConf::Configuration;
                                              approx::Empirical.AbstractEmpiricalApproximation=Lotz1967(), printout::Bool=false,
-                                             data::PeriodicTable.AbstractEnergyData=PeriodicTable.Williams2000())`
+                                             data::PeriodicTable.AbstractEnergyData=PeriodicTable.XrayDataBooklet())`
     ... to estimate empirically the three-body recombination (TBR) plasma rate coefficient alpha^(TBR) for the capture
         channel iConf + e + e -> fConf + e, by detailed balance with the (Lotz) electron-impact ionization of fConf.
         In LTE, the Saha equation fixes the ratio of the forward and backward rates, so that
@@ -1059,7 +1059,7 @@ end
 function threeBodyRecombinationPlasmaAlpha(eDist::Distribution.ElectronMaxwell,
                                            iConf::Configuration, fConf::Configuration;
                                            approx::Empirical.AbstractEmpiricalApproximation=Lotz1967(), printout::Bool=false,
-                                           data::PeriodicTable.AbstractEnergyData=PeriodicTable.Williams2000())
+                                           data::PeriodicTable.AbstractEnergyData=PeriodicTable.XrayDataBooklet())
     if  typeof(approx) != Empirical.Lotz1967
         error("The TBR plasma rate coefficient is presently supported only for approx = Lotz1967().")
     end
@@ -1126,7 +1126,7 @@ end
 `Empirical.threeBodyRecombinationPlasmaAlpha(eDist::Distribution.ElectronMaxwell, iConf::Configuration;
                                              nLayers::Int64=10, approx::Empirical.AbstractEmpiricalApproximation=Lotz1967(),
                                              printout::Bool=false,
-                                             data::PeriodicTable.AbstractEnergyData=PeriodicTable.Williams2000())`
+                                             data::PeriodicTable.AbstractEnergyData=PeriodicTable.XrayDataBooklet())`
     ... to estimate empirically the *total* three-body recombination plasma rate coefficient alpha^(TBR) (T_e; i) of
         the ion iConf, i.e. the sum over all capture channels iConf + e + e -> fConf + e as enumerated by
         Empirical.recombinationConfigurations(iConf; nLayers): every vacancy of iConf and all empty (Rydberg) shells
@@ -1146,7 +1146,7 @@ end
 function threeBodyRecombinationPlasmaAlpha(eDist::Distribution.ElectronMaxwell, iConf::Configuration;
                                            nLayers::Int64=10, approx::Empirical.AbstractEmpiricalApproximation=Lotz1967(),
                                            printout::Bool=false,
-                                           data::PeriodicTable.AbstractEnergyData=PeriodicTable.Williams2000())
+                                           data::PeriodicTable.AbstractEnergyData=PeriodicTable.XrayDataBooklet())
     alpha  = 0.;    confs = Empirical.recombinationConfigurations(iConf, nLayers=nLayers)
     for  fConf in confs
         alpha = alpha + Empirical.threeBodyRecombinationPlasmaAlpha(eDist, iConf, fConf, approx=approx,
@@ -1208,7 +1208,7 @@ end
 
 """
 `Empirical.augerRate(iConf::Configuration, fConf::Configuration, approx::Empirical.ScaledHydrogenic;
-                     printout::Bool=false, data::PeriodicTable.AbstractEnergyData=PeriodicTable.Williams2000(),
+                     printout::Bool=false, data::PeriodicTable.AbstractEnergyData=PeriodicTable.XrayDataBooklet(),
                      yieldData::PeriodicTable.AbstractYieldData=PeriodicTable.KrauseAdopted2016())`
     ... to estimate empirically the (total) K-shell Auger rate A_auger for filling the K-shell vacancy of the transition
         iConf -> fConf, from the fluorescence yield omega_K and the radiative K-shell rate. The two decay channels of a
@@ -1232,7 +1232,7 @@ end
               The result should therefore be read as an order-of-magnitude estimate, most reliable near omega_K ~ 0.5.
 """
 function augerRate(iConf::Configuration, fConf::Configuration, approx::Empirical.ScaledHydrogenic;
-                   printout::Bool=false, data::PeriodicTable.AbstractEnergyData=PeriodicTable.Williams2000(),
+                   printout::Bool=false, data::PeriodicTable.AbstractEnergyData=PeriodicTable.XrayDataBooklet(),
                    yieldData::PeriodicTable.AbstractYieldData=PeriodicTable.KrauseAdopted2016())
     Z      = round(Int64, Defaults.getDefaults("nuclear: charge"))
     omegaK = Empirical.fluorescenceYield(Z, data=yieldData)
@@ -1287,7 +1287,7 @@ end
 `Empirical.impactExcitationCrossSection(energies::Array{Float64,1}, iConf::Configuration, fConf::Configuration,
                                         approx::Empirical.VanRegemorter1962; printout::Bool=false,
                                         aSource::Empirical.AbstractEmpiricalApproximation=Empirical.ScaledHydrogenic(),
-                                        data::PeriodicTable.AbstractEnergyData=PeriodicTable.Williams2000())`
+                                        data::PeriodicTable.AbstractEnergyData=PeriodicTable.XrayDataBooklet())`
     ... to estimate empirically the electron-impact excitation (EIE) cross section for the optically allowed
         transition iConf -> fConf at the given (free-electron) energies, by using Van Regemorter's (1962) formula
             sigma^(EIE) (eps) = 8 pi / sqrt(3) * pi a_o^2 * (E_Ryd^2 / (eps deltaE)) * f * gbar(x),
@@ -1306,7 +1306,7 @@ end
 function impactExcitationCrossSection(energies::Array{Float64,1}, iConf::Configuration, fConf::Configuration,
                                       approx::Empirical.VanRegemorter1962; printout::Bool=false,
                                       aSource::Empirical.AbstractEmpiricalApproximation=Empirical.ScaledHydrogenic(),
-                                      data::PeriodicTable.AbstractEnergyData=PeriodicTable.Williams2000())
+                                      data::PeriodicTable.AbstractEnergyData=PeriodicTable.XrayDataBooklet())
     Z = Defaults.getDefaults("nuclear: charge")
 
     # Obtain the (downward) Einstein-A value of the transition fConf -> iConf; iConf is here the *lower* level.
@@ -1371,7 +1371,7 @@ end
                                        iConf::Configuration, fConf::Configuration;
                                        approx::Empirical.VanRegemorter1962=Empirical.VanRegemorter1962(), printout::Bool=false,
                                        aSource::Empirical.AbstractEmpiricalApproximation=Empirical.ScaledHydrogenic(),
-                                       data::PeriodicTable.AbstractEnergyData=PeriodicTable.Williams2000())`
+                                       data::PeriodicTable.AbstractEnergyData=PeriodicTable.XrayDataBooklet())`
     ... to estimate empirically the electron-impact excitation plasma rate coefficient alpha^(EIE) for the optically
         allowed transition iConf -> fConf and an electron distribution eDist at the electron temperature T_e, by
         folding Van Regemorter's cross section with the electron distribution,
@@ -1386,7 +1386,7 @@ function impactExcitationPlasmaAlpha(eDist::Distribution.AbstractElectronDistrib
                                      iConf::Configuration, fConf::Configuration;
                                      approx::Empirical.VanRegemorter1962=Empirical.VanRegemorter1962(), printout::Bool=false,
                                      aSource::Empirical.AbstractEmpiricalApproximation=Empirical.ScaledHydrogenic(),
-                                     data::PeriodicTable.AbstractEnergyData=PeriodicTable.Williams2000())
+                                     data::PeriodicTable.AbstractEnergyData=PeriodicTable.XrayDataBooklet())
     alpha = 0.
     # The EIE cross section of an ion is finite at threshold; the mesh therefore starts at the threshold, so that
     # the Gauss-Legendre quadrature does not straddle this step, and follows the electron temperature.
@@ -1426,7 +1426,7 @@ end
 """
 `Empirical.forbiddenExcitationCrossSection(energies::Array{Float64,1}, iConf::Configuration, fConf::Configuration,
                                            approx::Empirical.ConstantCollisionStrength; printout::Bool=false,
-                                           data::PeriodicTable.AbstractEnergyData=PeriodicTable.Williams2000())`
+                                           data::PeriodicTable.AbstractEnergyData=PeriodicTable.XrayDataBooklet())`
     ... to estimate empirically the electron-impact excitation (EIE) cross section for the optically forbidden
         (M1 or E2) transition iConf -> fConf at the given (incident free-electron) energies, by assuming a
         constant, energy-independent collision strength Omega = approx.Omega (of order unity by convention when
@@ -1447,7 +1447,7 @@ end
 """
 function forbiddenExcitationCrossSection(energies::Array{Float64,1}, iConf::Configuration, fConf::Configuration,
                                          approx::Empirical.ConstantCollisionStrength; printout::Bool=false,
-                                         data::PeriodicTable.AbstractEnergyData=PeriodicTable.Williams2000())
+                                         data::PeriodicTable.AbstractEnergyData=PeriodicTable.XrayDataBooklet())
     Z = Defaults.getDefaults("nuclear: charge");    iShell = fShell = Shell(0,0);    diff = 0
 
     # Determine the initial and final shells; iConf is here the *lower* (bound) level.
@@ -1514,7 +1514,7 @@ end
                                           iConf::Configuration, fConf::Configuration;
                                           approx::Empirical.ConstantCollisionStrength=Empirical.ConstantCollisionStrength(),
                                           printout::Bool=false,
-                                          data::PeriodicTable.AbstractEnergyData=PeriodicTable.Williams2000())`
+                                          data::PeriodicTable.AbstractEnergyData=PeriodicTable.XrayDataBooklet())`
     ... to estimate empirically the electron-impact excitation plasma rate coefficient alpha^(EIE) for the
         optically forbidden (M1 or E2) transition iConf -> fConf and an electron distribution eDist at the electron
         temperature T_e, by folding Empirical.forbiddenExcitationCrossSection with the electron distribution,
@@ -1531,7 +1531,7 @@ function forbiddenExcitationPlasmaAlpha(eDist::Distribution.AbstractElectronDist
                                         iConf::Configuration, fConf::Configuration;
                                         approx::Empirical.ConstantCollisionStrength=Empirical.ConstantCollisionStrength(),
                                         printout::Bool=false,
-                                        data::PeriodicTable.AbstractEnergyData=PeriodicTable.Williams2000())
+                                        data::PeriodicTable.AbstractEnergyData=PeriodicTable.XrayDataBooklet())
     alpha = 0.
     Z = Defaults.getDefaults("nuclear: charge");    iShell = fShell = Shell(0,0);    diff = 0
     wa = Basics.extractFromConfigurations(Basics.OccupationDifference(), iConf, fConf)
@@ -1585,7 +1585,7 @@ end
 """
 `Empirical.impactIonizationCrossSection(energies::Array{Float64,1}, iConf::Configuration, fConf::Configuration,
                                         approx::Empirical.Lotz1967; printout::Bool=false,
-                                        data::PeriodicTable.AbstractEnergyData=PeriodicTable.Williams2000())`
+                                        data::PeriodicTable.AbstractEnergyData=PeriodicTable.XrayDataBooklet())`
     ... to estimate empirically the electron-impact ionization (EII) cross section for a transition iConf -> fConf
         at the given (free-electron) energies, by using the simplified formula of Lotz (1967, 1968)
             sigma^(EII) (eps) = A xi ln(eps/P) / (eps P),        A = 4.5e-14 cm^2 eV^2,
@@ -1599,7 +1599,7 @@ end
 """
 function impactIonizationCrossSection(energies::Array{Float64,1}, iConf::Configuration, fConf::Configuration,
                                       approx::Empirical.Lotz1967; printout::Bool=false,
-                                      data::PeriodicTable.AbstractEnergyData=PeriodicTable.Williams2000())
+                                      data::PeriodicTable.AbstractEnergyData=PeriodicTable.XrayDataBooklet())
     Z = Defaults.getDefaults("nuclear: charge");   iShell = Shell(0,0);   diff = 0
 
     # Determine the ionized shell, its binding energy and its number of equivalent electrons.
@@ -1650,7 +1650,7 @@ end
 `Empirical.impactIonizationPlasmaAlpha(eDist::Distribution.AbstractElectronDistribution,
                                        iConf::Configuration, fConf::Configuration;
                                        approx::Empirical.AbstractEmpiricalApproximation=Lotz1967(), printout::Bool=false,
-                                       data::PeriodicTable.AbstractEnergyData=PeriodicTable.Williams2000())`
+                                       data::PeriodicTable.AbstractEnergyData=PeriodicTable.XrayDataBooklet())`
     ... to estimate empirically the electron-impact ionization plasma rate coefficient alpha^(EII) for a transition
         iConf -> fConf and an electron distribution eDist at the electron temperature T_e, by folding the Lotz cross
         section with the electron distribution,
@@ -1662,7 +1662,7 @@ end
 function impactIonizationPlasmaAlpha(eDist::Distribution.AbstractElectronDistribution,
                                      iConf::Configuration, fConf::Configuration;
                                      approx::Empirical.AbstractEmpiricalApproximation=Lotz1967(), printout::Bool=false,
-                                     data::PeriodicTable.AbstractEnergyData=PeriodicTable.Williams2000())
+                                     data::PeriodicTable.AbstractEnergyData=PeriodicTable.XrayDataBooklet())
     if  typeof(approx) != Empirical.Lotz1967
         error("The EII plasma rate coefficient is presently supported only for approx = Lotz1967().")
     end

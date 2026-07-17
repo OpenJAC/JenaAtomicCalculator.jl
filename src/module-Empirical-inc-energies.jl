@@ -1,14 +1,14 @@
 
 
 """
-`Empirical.bindingEnergy(Z::Int64, sh::Shell; data::PeriodicTable.AbstractEnergyData=Williams2000() )`  
+`Empirical.bindingEnergy(Z::Int64, sh::Shell; data::PeriodicTable.AbstractEnergyData=XrayDataBooklet() )`  
     ... to estimate the binding) energy of the given shell for a neutral atom; these binding energies 
         are taken from semi-empirical tabulations due to data by different data sets.
         An energy::Float64 > 0. is returned. 
         ...... Perhaps, introduce an optional argument scaleLast::Bool to scale values, if no explicit binding
                energies are available.
 """
-function  bindingEnergy(Z::Int64, sh::Shell; data::PeriodicTable.AbstractEnergyData=Williams2000() )
+function  bindingEnergy(Z::Int64, sh::Shell; data::PeriodicTable.AbstractEnergyData=XrayDataBooklet() )
     if         typeof(data)== PeriodicTable.Williams2000
         wa = PeriodicTable.bindingEnergies_Williams2000(Z)    
     elseif     typeof(data)== PeriodicTable.Larkins1977
@@ -40,12 +40,12 @@ end
 
 
 """
-`Empirical.bindingEnergy(Z::Int64, subsh::Subshell; data::PeriodicTable.AbstractEnergyData=Williams2000() )`  
+`Empirical.bindingEnergy(Z::Int64, subsh::Subshell; data::PeriodicTable.AbstractEnergyData=XrayDataBooklet() )`  
     ... to estimate the binding) energy of the given subshell for a neutral atom; these binding energies 
         are taken from semi-empirical tabulations due to data by different data sets.
         An energy::Float64 > 0. is returned.
 """
-function  bindingEnergy(Z::Int64, subsh::Subshell; data::PeriodicTable.AbstractEnergyData=Williams2000() )
+function  bindingEnergy(Z::Int64, subsh::Subshell; data::PeriodicTable.AbstractEnergyData=XrayDataBooklet() )
     if         typeof(data)== PeriodicTable.Williams2000
         wa = PeriodicTable.bindingEnergies_Williams2000(Z)    
     elseif     typeof(data)== PeriodicTable.Larkins1977
@@ -82,7 +82,7 @@ end
 
 """
 `Empirical.bindingEnergy(Z::Int64, subsh::Subshell, conf::Configuration;
-                         data::PeriodicTable.AbstractEnergyData=Williams2000())`
+                         data::PeriodicTable.AbstractEnergyData=XrayDataBooklet())`
     ... to evaluate the binding energy of a subshell electron if part of the given configuration.
         The tabulated binding energies refer to the neutral atom; this procedure assumes that each missing
         electron (compared with the neutral system) adds 0.3 / n Hartree to the binding energy, where n is
@@ -90,7 +90,7 @@ end
         is occupied in the given configuration. An energy::Float64 is returned.
 """
 function  bindingEnergy(Z::Int64, subsh::Subshell, conf::Configuration;
-                        data::PeriodicTable.AbstractEnergyData=Williams2000())
+                        data::PeriodicTable.AbstractEnergyData=XrayDataBooklet())
     sh = Shell(subsh.n, Basics.subshell_l(subsh))
     if !(sh in keys(conf.shells))   error("Shell $sh not part of $conf")   end
     wc = Empirical.bindingEnergy(Z, subsh, data=data)
@@ -144,7 +144,7 @@ end
         
         Note: This is an estimate of the total energy which need not to be so accurate.
 """
-function  totalEnergy(Z::Int64, conf::Configuration; data::PeriodicTable.AbstractEnergyData = PeriodicTable.Williams2000() )
+function  totalEnergy(Z::Int64, conf::Configuration; data::PeriodicTable.AbstractEnergyData = PeriodicTable.XrayDataBooklet() )
     if         typeof(data) == PeriodicTable.Nist2025
         wa = PeriodicTable.ionizationPotentials_Nist2025(Z) 
         # Use the ionization potentials to make a realistic estimate of the total energy ... and return the value
