@@ -1285,15 +1285,18 @@ end
 
 """
 `Empirical.impactExcitationCrossSection(energies::Array{Float64,1}, iConf::Configuration, fConf::Configuration,
-                                        approx::Empirical.AbstractEmpiricalApproximation; printout::Bool=false,
+                                        approx::Empirical.VanRegemorter1962; printout::Bool=false,
+                                        aSource::Empirical.AbstractEmpiricalApproximation=Empirical.ScaledHydrogenic(),
                                         data::PeriodicTable.AbstractEnergyData=PeriodicTable.Williams2000())`
     ... to estimate empirically the electron-impact excitation (EIE) cross section for the optically allowed
         transition iConf -> fConf at the given (free-electron) energies, by using Van Regemorter's (1962) formula
             sigma^(EIE) (eps) = 8 pi / sqrt(3) * pi a_o^2 * (E_Ryd^2 / (eps deltaE)) * f * gbar(x),
         where f is the absorption oscillator strength of the transition, obtained from the (empirical) Einstein-A
         value via f = (g_f/g_i) A / (2 alpha^3 omega^2), and gbar the effective Gaunt factor, cf.
-        Empirical.effectiveGauntFactor(). The approximation approx fixes how the Einstein-A value is estimated;
-        both ScaledHydrogenic() and GivenEinsteinA(..) are supported. A css::Array{Float64,1} [a.u.] is returned.
+        Empirical.effectiveGauntFactor(). The approx = VanRegemorter1962() argument selects this formula (as opposed
+        to, e.g., the forbidden-transition treatment of a different approx type); the separate aSource keyword fixes
+        how the Einstein-A value itself is estimated, with both ScaledHydrogenic() and GivenEinsteinA(..) supported.
+        A css::Array{Float64,1} [a.u.] is returned.
         Quantity: a cross section [a.u.] -- a property of the ion alone, independent of the plasma; fold it with the
             electron field, or pass the configurations to Empirical.impactExcitationPlasmaAlpha, to obtain a rate.
 
@@ -1301,17 +1304,18 @@ end
               a factor 2; it fails for forbidden transitions, for which no estimate is returned (an error is raised).
 """
 function impactExcitationCrossSection(energies::Array{Float64,1}, iConf::Configuration, fConf::Configuration,
-                                      approx::Empirical.AbstractEmpiricalApproximation; printout::Bool=false,
+                                      approx::Empirical.VanRegemorter1962; printout::Bool=false,
+                                      aSource::Empirical.AbstractEmpiricalApproximation=Empirical.ScaledHydrogenic(),
                                       data::PeriodicTable.AbstractEnergyData=PeriodicTable.Williams2000())
     Z = Defaults.getDefaults("nuclear: charge")
 
     # Obtain the (downward) Einstein-A value of the transition fConf -> iConf; iConf is here the *lower* level.
-    if      typeof(approx) == Empirical.GivenEinsteinA
-        ea = Empirical.photoemissionEinsteinA(approx, printout=false)
-    elseif  typeof(approx) == Empirical.ScaledHydrogenic
-        ea = Empirical.photoemissionEinsteinA(fConf, iConf, approx, printout=false, data=data)
+    if      typeof(aSource) == Empirical.GivenEinsteinA
+        ea = Empirical.photoemissionEinsteinA(aSource, printout=false)
+    elseif  typeof(aSource) == Empirical.ScaledHydrogenic
+        ea = Empirical.photoemissionEinsteinA(fConf, iConf, aSource, printout=false, data=data)
     else
-        error("Unsupported approximation $approx for the EIE cross section; use ScaledHydrogenic() or GivenEinsteinA(..).")
+        error("Unsupported aSource $aSource for the EIE cross section; use ScaledHydrogenic() or GivenEinsteinA(..).")
     end
     if  ea.multipole != Basics.E1
         error("Van Regemorter's formula applies to optically allowed (E1) transitions only; " *
@@ -1348,7 +1352,7 @@ function impactExcitationCrossSection(energies::Array{Float64,1}, iConf::Configu
              "following assumptions/simplifications: " *
              "\n    + Use Van Regemorter's (1962) formula with the effective Gaunt factor for a " *
              (isIon ? "positive ion. " : "neutral atom. ") *
-             "\n    + Einstein-A values are determined in the $approx approximation. " *
+             "\n    + Einstein-A values are determined in the $aSource approximation. " *
              "\n    + iConf = $iConf  -->  fConf = $fConf " *
              "\n    + Transition energy [$unEnergy] = $energyx " *
              "\n    + Oscillator strength f = $fosc " *
@@ -1365,32 +1369,36 @@ end
 """
 `Empirical.impactExcitationPlasmaAlpha(eDist::Distribution.AbstractElectronDistribution,
                                        iConf::Configuration, fConf::Configuration;
-                                       approx::Empirical.AbstractEmpiricalApproximation=ScaledHydrogenic(), printout::Bool=false,
+                                       approx::Empirical.VanRegemorter1962=Empirical.VanRegemorter1962(), printout::Bool=false,
+                                       aSource::Empirical.AbstractEmpiricalApproximation=Empirical.ScaledHydrogenic(),
                                        data::PeriodicTable.AbstractEnergyData=PeriodicTable.Williams2000())`
     ... to estimate empirically the electron-impact excitation plasma rate coefficient alpha^(EIE) for the optically
         allowed transition iConf -> fConf and an electron distribution eDist at the electron temperature T_e, by
         folding Van Regemorter's cross section with the electron distribution,
             alpha^(EIE) (T_e; i -> f) = int d(eps) f_e(eps; T_e) v(eps) sigma^(EIE)(eps).
+        The approx = VanRegemorter1962() argument selects this formula; the separate aSource keyword fixes how the
+        Einstein-A value itself is estimated, with both ScaledHydrogenic() and GivenEinsteinA(..) supported.
         An alpha::Float64 [a.u.] is returned.
         Quantity: a rate coefficient [cm^3/s] -- multiply by the electron number density n_e [1/cm^3] to obtain the rate
             per ion [1/s].
 """
 function impactExcitationPlasmaAlpha(eDist::Distribution.AbstractElectronDistribution,
                                      iConf::Configuration, fConf::Configuration;
-                                     approx::Empirical.AbstractEmpiricalApproximation=ScaledHydrogenic(), printout::Bool=false,
+                                     approx::Empirical.VanRegemorter1962=Empirical.VanRegemorter1962(), printout::Bool=false,
+                                     aSource::Empirical.AbstractEmpiricalApproximation=Empirical.ScaledHydrogenic(),
                                      data::PeriodicTable.AbstractEnergyData=PeriodicTable.Williams2000())
     alpha = 0.
     # The EIE cross section of an ion is finite at threshold; the mesh therefore starts at the threshold, so that
     # the Gauss-Legendre quadrature does not straddle this step, and follows the electron temperature.
-    if      typeof(approx) == Empirical.GivenEinsteinA   deltaE = approx.energy
-    else    ea = Empirical.photoemissionEinsteinA(fConf, iConf, approx, printout=false, data=data);   deltaE = ea.energy
+    if      typeof(aSource) == Empirical.GivenEinsteinA   deltaE = aSource.energy
+    else    ea = Empirical.photoemissionEinsteinA(fConf, iConf, aSource, printout=false, data=data);   deltaE = ea.energy
     end
     if      hasproperty(eDist, :T)       Te = eDist.T
     elseif  hasproperty(eDist, :Tpar)    Te = max(eDist.Tpar, eDist.Tperp)
     else    error("No electron temperature can be extracted from $eDist.")
     end
     gridGL    = Radial.GridGL(Radial.GridGaussLegendreFinite(), deltaE, deltaE + 30*Te, 96; printout=true)
-    css       = Empirical.impactExcitationCrossSection(gridGL.t, iConf, fConf, approx; printout=false, data=data)
+    css       = Empirical.impactExcitationCrossSection(gridGL.t, iConf, fConf, approx; printout=false, aSource=aSource, data=data)
     for  n = 1:gridGL.nt
         alpha = alpha + css[n] * sqrt(2*gridGL.t[n]) * Distribution.electronEnergyDistribution(eDist, gridGL.t[n]) * gridGL.wt[n]
     end
@@ -1404,7 +1412,7 @@ function impactExcitationPlasmaAlpha(eDist::Distribution.AbstractElectronDistrib
         sa = "\n* Estimate empirically the electron-impact excitation plasma rate coefficient alpha for a given transition " *
              "i -> f with the following assumptions/simplifications: " *
              "\n    + Electron field: $eDist,  i.e. T_e [K] = $(Tex). " *
-             "\n    + EIE cross sections follow Van Regemorter (1962); Einstein-A values from the $approx approximation. " *
+             "\n    + EIE cross sections follow Van Regemorter (1962); Einstein-A values from the $aSource approximation. " *
              "\n    + iConf = $iConf  -->  fConf = $fConf " *
              "\n    + Plasma rate coefficient alpha^(EIE) [cm^3/s] = $alphax " *
              "\n    + Quantity: a rate coefficient [cm^3/s] -- multiply by the electron number density n_e [1/cm^3] for the rate per ion [1/s]. " * "\n"

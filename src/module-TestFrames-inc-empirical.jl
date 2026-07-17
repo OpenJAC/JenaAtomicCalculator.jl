@@ -221,10 +221,11 @@ function testModule_Empirical(; short::Bool=true)
     fosc  = 3.0 * Aau / (2 * Defaults.getDefaults("alpha")^3 * 0.375^2)
     success = success && abs(fosc - 0.4162) < 0.001
     eieCs = Empirical.impactExcitationCrossSection([Defaults.convertUnits("energy: from eV to atomic", 10.0), 2*0.375],
-                                                   Configuration("1s^1"), Configuration("2p^1"), given, printout=false)
+                                                   Configuration("1s^1"), Configuration("2p^1"), Empirical.VanRegemorter1962();
+                                                   aSource=given, printout=false)
     success = success && eieCs[1] == 0.  &&  abs(eieCs[2] - 0.7944475607726056) / 0.7944475607726056 < 1.0e-6
     aEIE  = Empirical.impactExcitationPlasmaAlpha(Distribution.ElectronMaxwell(Defaults.convertUnits("energy: from eV to atomic", 2.0)),
-                                                  Configuration("1s^1"), Configuration("2p^1"), approx=given, printout=false)
+                                                  Configuration("1s^1"), Configuration("2p^1"), aSource=given, printout=false)
     success = success && abs(fac*aEIE - 3.3150416264147014e-11) / 3.3150416264147014e-11 < 1.0e-6
     success = success && abs(Empirical.effectiveGauntFactor(1.0, true)  - 0.2) < 1.0e-10
     success = success && abs(Empirical.effectiveGauntFactor(10.0, true) - Empirical.effectiveGauntFactor(10.0, false)) < 1.0e-10

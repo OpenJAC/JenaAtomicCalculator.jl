@@ -24,7 +24,10 @@ using  ..AtomicState, ..Basics, ..Continuum, ..Defaults, ..Distribution, ..Radia
     + Lotz1967             ... Lotz's (1967) formula for electron-impact ionization cross sections
                                [W. Lotz, Z. Physik 206, 205 (1967)].
     + VanRegemorter1962    ... Van Regemorter's (1962) formula for electron-impact excitation of optically
-                               allowed transitions [H. Van Regemorter, ApJ 136, 906 (1962)].
+                               allowed (E1) transitions [H. Van Regemorter, ApJ 136, 906 (1962)]; selects the
+                               formula in Empirical.impactExcitationCrossSection/PlasmaAlpha, which take a
+                               separate aSource::AbstractEmpiricalApproximation keyword (ScaledHydrogenic() or
+                               GivenEinsteinA(..)) to fix how the underlying Einstein-A value is estimated.
     + Bohr1913             ... Bohr's classical stopping power of a plasma, with the Coulomb logarithm
                                ln(1.123 m v^3 / (e^2 omega_p))  [N. Bohr, Philos. Mag. 25, 10 (1913)].
     + Bethe1931            ... Bethe's quantum stopping power of a plasma, with the Coulomb logarithm
