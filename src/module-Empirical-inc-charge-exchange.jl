@@ -234,3 +234,121 @@ function chargeExchangePlasmaAlpha(T::Float64, q::Float64, targetConf::Configura
     Ip = Empirical.ionizationPotential(round(Int64, targetZ), targetConf)
     return( Empirical.chargeExchangePlasmaAlpha(T, q, Ip, Mproj, Mtarget, approx; printout=printout) )
 end
+
+
+#################################################################################################################################
+### State-selective (n,l) charge exchange #######################################################################################
+##
+##  Empirical.chargeExchangeCrossSection() above returns only the *total*, state-summed capture cross section. The
+##  functions below additionally estimate *which* shell the electron is most likely captured into -- a considerably
+##  cruder, explicitly labeled extension (see the "StateSelective" name and the named-tuple field names below, so
+##  the distinction from the total cross section is unambiguous from the call site alone).
+
+
+"""
+`Empirical.chargeExchangeCaptureShell(q::Float64, Ip::Float64)`
+    ... to estimate the principal quantum number of the shell into which the active electron is most likely
+        captured in a slow-collision charge-exchange event, by the standard hydrogenic level-matching argument
+        associated with the over-barrier model: the electron is assumed to be captured near the point where the
+        H-like binding energy of shell n in the acceptor ion of charge q, E_n = q^2/(2 n^2), matches the donor's
+        own ionization potential Ip [a.u.], i.e.
+            n_c = q / sqrt(2 Ip) .
+        This level-matching argument is commonly invoked alongside the over-barrier model [e.g. H. Ryufuku,
+        K. Sasaki & T. Watanabe, Phys. Rev. A 21, 745 (1980); A. Niehaus, J. Phys. B 19, 2925 (1986)] to identify
+        the dominant shell of capture; it is a direct algebraic consequence of the hydrogenic formula already used
+        throughout this module (cf. Empirical.scaledBindingEnergy), not an independently fitted quantity. A named
+        tuple (nc::Float64=, n::Int64=) is returned: nc is the exact (generally non-integer) level-matching value,
+        and n = max(1, round(Int64, nc)) is the nearest physical shell.
+        Quantity: n and nc are dimensionless (quantum) labels, not an energy or a cross section.
+
+        Note: this identifies only the single *dominant* shell; the true capture probability is known to spread
+              over a range of a few adjacent n (particularly when nc falls near a half-integer), which this
+              estimate does not model. Empirical.chargeExchangeStateSelectiveCrossSection() assumes *all* capture
+              goes into this one shell -- a further, explicit simplification beyond the total-cross-section
+              estimate itself.
+"""
+function chargeExchangeCaptureShell(q::Float64, Ip::Float64)
+    if  q <= 0.    error("The projectile charge q = $q must be positive.")   end
+    if  Ip <= 0.   error("The donor's ionization potential Ip = $Ip [a.u.] must be positive.")   end
+    nc = q / sqrt(2*Ip)
+    n  = max(1, round(Int64, nc))
+
+    return( (nc = nc, n = n) )
+end
+
+
+"""
+`Empirical.chargeExchangeStateSelectiveCrossSection(q::Float64, Ip::Float64,
+                                                     approx::Empirical.AbstractEmpiricalApproximation;
+                                                     printout::Bool=false)`
+    ... to split the *total* single-electron-capture cross section (Empirical.chargeExchangeCrossSection) into a
+        state-selective (n,l) estimate: all capture is assumed to proceed into the single dominant shell
+        n = Empirical.chargeExchangeCaptureShell(q, Ip).n, distributed over its orbital substates l = 0, ..., n-1
+        by the purely statistical hydrogenic degeneracy weight,
+            sigma_l = sigma_total * (2l+1) / n^2 ,
+        with no dynamical (angular-momentum-transfer) preference among them -- the simplest defensible assumption
+        absent a detailed (e.g. Landau-Zener or close-coupling) calculation. approx selects the total-cross-section
+        formula (OverBarrierModel1980 or NiehausScaling1986) via Empirical.chargeExchangeCrossSection; any other
+        approx raises the same informative MethodError as an unsupported cross-section call. A named tuple
+        (n::Int64=, nc::Float64=, sigmaTotal::Float64=, states::Array=) is returned, where states is an array of
+        named tuples (l::Int64=, sigma::Float64=, fraction::Float64=) with sum(fraction) == 1 and
+        sum(sigma) == sigmaTotal by construction.
+        Quantity: sigmaTotal and each sigma [a.u.] are cross sections, energy-independent within the slow-collision
+            regime, exactly as Empirical.chargeExchangeCrossSection; fraction is dimensionless.
+
+        Note: the function name is deliberately explicit -- "StateSelective" -- to distinguish it from
+              Empirical.chargeExchangeCrossSection, which returns only the total, state-summed cross section. The
+              n,l-selectivity here rests on the single-dominant-shell and statistical-l simplifications described
+              above and in Empirical.chargeExchangeCaptureShell; it is considerably cruder than the total cross
+              section itself and should be read as indicative of the capture-shell order and a plausible
+              l-spread, not as a precise state-resolved prediction.
+"""
+function chargeExchangeStateSelectiveCrossSection(q::Float64, Ip::Float64,
+                                                   approx::Empirical.AbstractEmpiricalApproximation;
+                                                   printout::Bool=false)
+    (nc, n)    = Empirical.chargeExchangeCaptureShell(q, Ip)
+    sigmaTotal = Empirical.chargeExchangeCrossSection(q, Ip, approx; printout=false)
+    states     = [ (l = l, sigma = sigmaTotal * (2l+1)/n^2, fraction = (2l+1)/n^2)   for l = 0:n-1 ]
+
+    if  printout
+        unCs = Defaults.getDefaults("unit: cross section");   unEnergy = Defaults.getDefaults("unit: energy")
+        Ipx   = Defaults.convertUnits("energy: from atomic to " * unEnergy, Ip)
+        sigTx = Defaults.convertUnits("cross section: from atomic to " * unCs, sigmaTotal)
+        sb = "\n* Estimate empirically the state-selective (n,l) single-electron-capture cross section for a slow " *
+             "ion-atom/ion-ion collision, by splitting the total cross section under the following " *
+             "assumptions/simplifications: " *
+             "\n    + Total cross section from $approx (cf. Empirical.chargeExchangeCrossSection). " *
+             "\n    + ALL capture assumed into the single dominant shell n = $n (level-matching estimate nc = $(round(nc, digits=3))). " *
+             "\n    + Statistical (2l+1)/n^2 weighting over l = 0, ..., $(n-1) within that shell; no dynamical " *
+             "l-preference is modeled. " *
+             "\n    + Projectile charge q = $q;  donor ionization potential Ip [$unEnergy] = $Ipx " *
+             "\n    + Total cross section [$unCs] = $sigTx " *
+             "\n    + l-resolved cross sections [$unCs]:"
+        for  st in states
+            sigx = Defaults.convertUnits("cross section: from atomic to " * unCs, st.sigma)
+            sb = sb * "\n        l = $(st.l):  fraction = $(round(st.fraction, digits=4)),  sigma [$unCs] = $sigx"
+        end
+        sb = sb * "\n    + Quantity: sigma [$unCs] per (n,l) state -- a considerably cruder estimate than the " *
+             "total cross section; read as indicative of the capture-shell order and l-spread only. " * "\n"
+        println(sb)
+    end
+
+    return( (n = n, nc = nc, sigmaTotal = sigmaTotal, states = states) )
+end
+
+
+"""
+`Empirical.chargeExchangeStateSelectiveCrossSection(q::Float64, targetConf::Configuration, targetZ::Float64,
+                                                     approx::Empirical.AbstractEmpiricalApproximation;
+                                                     printout::Bool=false)`
+    ... convenience wrapper that determines the donor's ionization potential from targetConf via
+        Empirical.ionizationPotential(targetZ, targetConf) -- valid for any standard-filling configuration, neutral
+        atom or ion alike -- and dispatches to the direct (q, Ip, approx) method above. A named tuple
+        (n::Int64=, nc::Float64=, sigmaTotal::Float64=, states::Array=) is returned.
+"""
+function chargeExchangeStateSelectiveCrossSection(q::Float64, targetConf::Configuration, targetZ::Float64,
+                                                   approx::Empirical.AbstractEmpiricalApproximation;
+                                                   printout::Bool=false)
+    Ip = Empirical.ionizationPotential(round(Int64, targetZ), targetConf)
+    return( Empirical.chargeExchangeStateSelectiveCrossSection(q, Ip, approx; printout=printout) )
+end

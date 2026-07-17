@@ -480,6 +480,36 @@ function testModule_Empirical(; short::Bool=true)
     bEXe   = Empirical.scaledBindingEnergy(54.0, Shell("5p"), xeConf, PeriodicTable.XrayDataBooklet())
     success = success && abs(Defaults.convertUnits("energy: from atomic", bEXe) - 12.1) < 1.0e-8
     #
+    ## Test 30: chargeExchangeCaptureShell/StateSelectiveCrossSection for the classic C6+ + H(1s) system, whose
+    ##   dominant capture shell n = 6 is a well-known textbook result for this q ~ Ip-matched case. Checks: the
+    ##   level-matching identity q^2/(2 nc^2) == Ip holds to machine precision; the returned n (rounded nc) equals
+    ##   6; the l-fractions and l-resolved cross sections sum exactly to 1 and to sigmaTotal, respectively; the
+    ##   Configuration-based wrapper agrees with the direct (q, Ip) method; non-positive q or Ip are rejected; and
+    ##   a weakly-matched case (small q, large Ip) correctly floors at n = 1.
+    Defaults.setDefaults("nuclear: charge", 1.)
+    hConf30 = Configuration("1s^1");   IpH30 = Empirical.ionizationPotential(1, hConf30)
+    capShell = Empirical.chargeExchangeCaptureShell(6.0, IpH30)
+    success = success && abs(6.0^2/(2*capShell.nc^2)/IpH30 - 1.0) < 1.0e-12
+    success = success && capShell.n == 6
+    stateSel = Empirical.chargeExchangeStateSelectiveCrossSection(6.0, IpH30, Empirical.NiehausScaling1986(), printout=false)
+    success = success && stateSel.n == 6  &&  length(stateSel.states) == 6
+    success = success && abs(sum(st.fraction for st in stateSel.states) - 1.0) < 1.0e-12
+    success = success && abs(sum(st.sigma for st in stateSel.states)/stateSel.sigmaTotal - 1.0) < 1.0e-10
+    stateSelWrap = Empirical.chargeExchangeStateSelectiveCrossSection(6.0, hConf30, 1.0, Empirical.NiehausScaling1986(), printout=false)
+    success = success && stateSel.n == stateSelWrap.n  &&  stateSel.sigmaTotal == stateSelWrap.sigmaTotal
+    css30Err = 0
+    try     Empirical.chargeExchangeCaptureShell(-1.0, IpH30)
+    catch
+        css30Err = css30Err + 1
+    end
+    try     Empirical.chargeExchangeCaptureShell(6.0, -1.0)
+    catch
+        css30Err = css30Err + 1
+    end
+    success = success && css30Err == 2
+    weakShell = Empirical.chargeExchangeCaptureShell(1.0, Defaults.convertUnits("energy: from eV to atomic", 500.0))
+    success = success && weakShell.n == 1  &&  weakShell.nc < 1.0
+    #
     ## Restore the global nuclear charge for all subsequent tests.
     Defaults.setDefaults("nuclear: charge", oldZ)
     ###
