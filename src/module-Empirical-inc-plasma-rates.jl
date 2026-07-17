@@ -1423,6 +1423,161 @@ function impactExcitationPlasmaAlpha(eDist::Distribution.AbstractElectronDistrib
 end
 
 
+"""
+`Empirical.forbiddenExcitationCrossSection(energies::Array{Float64,1}, iConf::Configuration, fConf::Configuration,
+                                           approx::Empirical.ConstantCollisionStrength; printout::Bool=false,
+                                           data::PeriodicTable.AbstractEnergyData=PeriodicTable.Williams2000())`
+    ... to estimate empirically the electron-impact excitation (EIE) cross section for the optically forbidden
+        (M1 or E2) transition iConf -> fConf at the given (incident free-electron) energies, by assuming a
+        constant, energy-independent collision strength Omega = approx.Omega (of order unity by convention when
+        no detailed calculation is available), cf. Empirical.ConstantCollisionStrength. The standard
+        collision-strength cross section [e.g. D. Osterbrock & G. Ferland, Astrophysics of Gaseous Nebulae and
+        Active Galactic Nuclei, 2nd ed., University Science Books (2006)]
+            sigma^(EIE) (eps) = pi / (2 eps) * Omega / g_i,
+        with eps the incident electron energy and g_i the statistical weight of iConf, cf.
+        Basics.extractFromConfiguration(Basics.Multiplicity(), iConf). A css::Array{Float64,1} [a.u.] is returned.
+        Quantity: a cross section [a.u.] -- a property of the ion alone, independent of the plasma; fold it with the
+            electron field, or pass the configurations to Empirical.forbiddenExcitationPlasmaAlpha, to obtain a rate.
+
+        Note: the transition multipole is determined from Delta-l between the shells involved, exactly as in
+              Empirical.photoemissionEinsteinA: Delta-l = 0 -> M1, Delta-l = 2 -> E2. An optically allowed (E1,
+              Delta-l = 1) transition is rejected -- use Empirical.impactExcitationCrossSection(energies, iConf,
+              fConf, VanRegemorter1962()) instead -- and Delta-l >= 3 (E3 and higher) raises an error, since no
+              useful collision-strength estimate is attempted for those higher multipoles.
+"""
+function forbiddenExcitationCrossSection(energies::Array{Float64,1}, iConf::Configuration, fConf::Configuration,
+                                         approx::Empirical.ConstantCollisionStrength; printout::Bool=false,
+                                         data::PeriodicTable.AbstractEnergyData=PeriodicTable.Williams2000())
+    Z = Defaults.getDefaults("nuclear: charge");    iShell = fShell = Shell(0,0);    diff = 0
+
+    # Determine the initial and final shells; iConf is here the *lower* (bound) level.
+    wa = Basics.extractFromConfigurations(Basics.OccupationDifference(), iConf, fConf)
+    if length(wa) > 2   error("Incompatible initial and final configurations for a forbidden EIE cross section.")   end
+    for  (k,v) in wa
+        diff = diff + v
+        if      v == -1    fShell = k
+        elseif  v ==  1    iShell = k
+        else    error("Incompatible initial and final configurations for a forbidden EIE cross section.")
+        end
+    end
+    if  diff != 0   error("Incompatible initial and final configurations for a forbidden EIE cross section.")   end
+
+    # Determine the multipole from Delta-l, exactly as in Empirical.photoemissionEinsteinA, and restrict to M1/E2.
+    dl = abs(iShell.l - fShell.l)
+    if      dl == 1    error("The transition iConf -> fConf is optically allowed (E1); use " *
+                              "Empirical.impactExcitationCrossSection(energies, iConf, fConf, VanRegemorter1962()) instead.")
+    elseif  dl == 0    multipole = M1
+    elseif  dl == 2    multipole = E2
+    else                error("Forbidden EIE is supported for M1 and E2 transitions only (Delta-l = 0 or 2); " *
+                              "the transition iConf -> fConf has Delta-l = $dl.")
+    end
+
+    # Unlike Empirical.photoemissionEinsteinA (where iConf is the *upper*, excited level), iConf here is the *lower*
+    # (bound) level and fConf the *upper* (excited) one -- the same EIE convention as impactExcitationCrossSection --
+    # so iShell (found in iConf) is the deeper, more tightly bound shell and the subtraction order is reversed.
+    deltaE = Empirical.scaledBindingEnergy(Z, iShell, iConf, data) - Empirical.scaledBindingEnergy(Z, fShell, fConf, data)
+    if  deltaE <= 0.    error("Non-positive transition energy; fConf must lie above iConf.")   end
+
+    gi  = Basics.extractFromConfiguration(Basics.Multiplicity(), iConf)
+    css = Float64[]
+    for  eps in energies
+        if  eps > deltaE    push!(css, pi / (2*eps) * approx.Omega / gi)
+        else                push!(css, 0.)
+        end
+    end
+
+    # Report about these estimates
+    if  printout
+        unCs    = Defaults.getDefaults("unit: cross section");   unEnergy = Defaults.getDefaults("unit: energy")
+        energyx = Defaults.convertUnits("energy: from atomic to " * unEnergy, deltaE)
+        epsx    = Float64[];   cssx = Float64[]
+        for eps in energies  push!(epsx, Defaults.convertUnits("energy: from atomic to " * unEnergy, eps))   end
+        for cs  in css       push!(cssx, Defaults.convertUnits("cross section: from atomic to " * unCs, cs))   end
+        sa = "\n* Estimate empirically the electron-impact excitation cross section for a forbidden ($multipole) " *
+             "transition i -> f with the following assumptions/simplifications: " *
+             "\n    + Use a constant collision strength Omega = $(approx.Omega) (order unity by convention). " *
+             "\n    + iConf = $iConf  -->  fConf = $fConf " *
+             "\n    + Transition energy [$unEnergy] = $energyx " *
+             "\n    + Statistical weight g_i = $gi " *
+             "\n    + Electron energies [$unEnergy] = $epsx " *
+             "\n    + EIE cross sections [$unCs] = $cssx " *
+             "\n    + Quantity: cross section [$unCs] -- a property of the ion alone, independent of the plasma; fold it with the photon/electron field, or pass iConf/fConf to Empirical.forbiddenExcitationPlasmaAlpha, to obtain a rate. " * "\n"
+        println(sa)
+    end
+
+    return( css )
+end
+
+
+"""
+`Empirical.forbiddenExcitationPlasmaAlpha(eDist::Distribution.AbstractElectronDistribution,
+                                          iConf::Configuration, fConf::Configuration;
+                                          approx::Empirical.ConstantCollisionStrength=Empirical.ConstantCollisionStrength(),
+                                          printout::Bool=false,
+                                          data::PeriodicTable.AbstractEnergyData=PeriodicTable.Williams2000())`
+    ... to estimate empirically the electron-impact excitation plasma rate coefficient alpha^(EIE) for the
+        optically forbidden (M1 or E2) transition iConf -> fConf and an electron distribution eDist at the electron
+        temperature T_e, by folding Empirical.forbiddenExcitationCrossSection with the electron distribution,
+            alpha^(EIE) (T_e; i -> f) = int d(eps) f_e(eps; T_e) v(eps) sigma^(EIE)(eps).
+        For a constant collision strength Omega and a Maxwellian eDist, this reduces analytically to the textbook
+        formula alpha^(EIE) (T_e; i -> f) = 8.629e-6 / (g_i sqrt(T_e[K])) * Omega * exp(-deltaE/T_e)  [cm^3/s]
+        [e.g. D. Osterbrock & G. Ferland, Astrophysics of Gaseous Nebulae and Active Galactic Nuclei, 2nd ed.,
+        University Science Books (2006)], which served as an independent numerical cross check of the
+        Gauss-Legendre folding used here. An alpha::Float64 [a.u.] is returned.
+        Quantity: a rate coefficient [cm^3/s] -- multiply by the electron number density n_e [1/cm^3] to obtain the
+            rate per ion [1/s].
+"""
+function forbiddenExcitationPlasmaAlpha(eDist::Distribution.AbstractElectronDistribution,
+                                        iConf::Configuration, fConf::Configuration;
+                                        approx::Empirical.ConstantCollisionStrength=Empirical.ConstantCollisionStrength(),
+                                        printout::Bool=false,
+                                        data::PeriodicTable.AbstractEnergyData=PeriodicTable.Williams2000())
+    alpha = 0.
+    Z = Defaults.getDefaults("nuclear: charge");    iShell = fShell = Shell(0,0);    diff = 0
+    wa = Basics.extractFromConfigurations(Basics.OccupationDifference(), iConf, fConf)
+    if length(wa) > 2   error("Incompatible initial and final configurations for a forbidden EIE plasma rate coefficient.")   end
+    for  (k,v) in wa
+        diff = diff + v
+        if      v == -1    fShell = k
+        elseif  v ==  1    iShell = k
+        else    error("Incompatible initial and final configurations for a forbidden EIE plasma rate coefficient.")
+        end
+    end
+    if  diff != 0   error("Incompatible initial and final configurations for a forbidden EIE plasma rate coefficient.")   end
+    # iConf is the *lower* (bound) level and fConf the *upper* (excited) one; cf. the note in
+    # Empirical.forbiddenExcitationCrossSection.
+    deltaE = Empirical.scaledBindingEnergy(Z, iShell, iConf, data) - Empirical.scaledBindingEnergy(Z, fShell, fConf, data)
+
+    if      hasproperty(eDist, :T)       Te = eDist.T
+    elseif  hasproperty(eDist, :Tpar)    Te = max(eDist.Tpar, eDist.Tperp)
+    else    error("No electron temperature can be extracted from $eDist.")
+    end
+    gridGL    = Radial.GridGL(Radial.GridGaussLegendreFinite(), deltaE, deltaE + 30*Te, 96; printout=true)
+    css       = Empirical.forbiddenExcitationCrossSection(gridGL.t, iConf, fConf, approx; printout=false, data=data)
+    for  n = 1:gridGL.nt
+        alpha = alpha + css[n] * sqrt(2*gridGL.t[n]) * Distribution.electronEnergyDistribution(eDist, gridGL.t[n]) * gridGL.wt[n]
+    end
+
+    # Report about this estimate
+    if  printout
+        Tex    = Defaults.convertUnits("temperature: from atomic to Kelvin", Te)
+        factor = Defaults.convertUnits("length: from atomic to cm", 1.0)
+        factor = factor^3 / Defaults.convertUnits("time: from atomic to sec", 1.0)
+        alphax = factor * alpha
+        sa = "\n* Estimate empirically the electron-impact excitation plasma rate coefficient alpha for a forbidden " *
+             "transition i -> f with the following assumptions/simplifications: " *
+             "\n    + Electron field: $eDist,  i.e. T_e [K] = $(Tex). " *
+             "\n    + EIE cross sections follow a constant collision strength Omega = $(approx.Omega). " *
+             "\n    + iConf = $iConf  -->  fConf = $fConf " *
+             "\n    + Plasma rate coefficient alpha^(EIE) [cm^3/s] = $alphax " *
+             "\n    + Quantity: a rate coefficient [cm^3/s] -- multiply by the electron number density n_e [1/cm^3] for the rate per ion [1/s]. " * "\n"
+        println(sa)
+    end
+
+    return( alpha )
+end
+
+
 #################################################################################################################################
 ### Electron-impact ionization (EII) ############################################################################################
 

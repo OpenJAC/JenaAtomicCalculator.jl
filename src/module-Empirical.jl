@@ -28,6 +28,12 @@ using  ..AtomicState, ..Basics, ..Continuum, ..Defaults, ..Distribution, ..Radia
                                formula in Empirical.impactExcitationCrossSection/PlasmaAlpha, which take a
                                separate aSource::AbstractEmpiricalApproximation keyword (ScaledHydrogenic() or
                                GivenEinsteinA(..)) to fix how the underlying Einstein-A value is estimated.
+    + ConstantCollisionStrength ... a constant, energy-independent collision strength Omega (of order unity by
+                               convention) for electron-impact excitation of an optically forbidden (M1 or E2)
+                               transition [M. J. Seaton, Proc. Phys. Soc. 79, 1105 (1962); the Omega ~ 1 convention
+                               is also used, e.g., by C. J. Shingles et al., MNRAS 492, 2029 (2020)]; selects the
+                               formula in Empirical.forbiddenExcitationCrossSection/PlasmaAlpha. E1 transitions are
+                               rejected (use VanRegemorter1962 instead); E3 and higher multipoles are not supported.
     + Bohr1913             ... Bohr's classical stopping power of a plasma, with the Coulomb logarithm
                                ln(1.123 m v^3 / (e^2 omega_p))  [N. Bohr, Philos. Mag. 25, 10 (1913)].
     + Bethe1931            ... Bethe's quantum stopping power of a plasma, with the Coulomb logarithm
@@ -60,7 +66,7 @@ struct     ADK1986                       <:  AbstractEmpiricalApproximation  end
 
 
 export  AbstractEmpiricalApproximation, GivenEinsteinA, ScaledHydrogenic, UsingJAC,
-        Bohr1913, Bethe1931, Axelrod1980, KozmaFranson1992, Lotz1967, VanRegemorter1962, ADK1986
+        Bohr1913, Bethe1931, Axelrod1980, KozmaFranson1992, Lotz1967, VanRegemorter1962, ConstantCollisionStrength, ADK1986
 
 
 """
@@ -224,8 +230,28 @@ function Base.show(io::IO, tripleA::GivenEinsteinA)
          "and A_if [a.u.] = $(tripleA.rate) "
     print(io, sa)
 end
-   
-        
+
+
+"""
+`struct  ConstantCollisionStrength  <:  Empirical.AbstractEmpiricalApproximation`
+    ... to select the constant-collision-strength treatment of electron-impact excitation for an optically
+        forbidden (M1 or E2) transition, cf. Empirical.forbiddenExcitationCrossSection/PlasmaAlpha; Omega is the
+        (energy-independent) collision strength, by convention of order unity when no detailed calculation is
+        available [M. J. Seaton, Proc. Phys. Soc. 79, 1105 (1962)].
+
+    + Omega       ::Float64         ... Collision strength (dimensionless); defaults to 1.0.
+"""
+struct  ConstantCollisionStrength  <:  Empirical.AbstractEmpiricalApproximation
+    Omega         ::Float64
+end
+ConstantCollisionStrength() = ConstantCollisionStrength(1.0)
+
+
+# `Base.show(io::IO, ccs::ConstantCollisionStrength)`  ... provides a String notation for the variable ccs::ConstantCollisionStrength.
+function Base.show(io::IO, ccs::ConstantCollisionStrength)
+    print(io, "Constant collision strength Omega = $(ccs.Omega) ")
+end
+
 
 #################################################################################################################################
 #################################################################################################################################

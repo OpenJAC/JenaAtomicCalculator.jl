@@ -387,6 +387,40 @@ function testModule_Empirical(; short::Bool=true)
     e1au       = Empirical.bindingEnergy(10, Shell("2p"), data=PeriodicTable.Williams2000())
     success = success && abs(bENeKalpha - e1au) < 1.0e-10     ## unchanged: same tabulated 2p value as Test 1
     #
+    ## Test 27: forbiddenExcitationCrossSection/PlasmaAlpha(ConstantCollisionStrength()) for the classic H 1s -> 2s
+    ##   (M1, Delta-l = 0) and 1s -> 3d (E2, Delta-l = 2) transitions. Checks: cross section vanishes below
+    ##   threshold; an E1 transition (1s -> 2p) is rejected with a pointer to VanRegemorter1962; an E3+ transition
+    ##   (1s -> 4f) is rejected outright; and the Maxwellian-folded plasma rate coefficient for Omega = 1 reproduces
+    ##   the textbook C_ij = 8.629e-6/(g_i sqrt(T_e[K])) exp(-deltaE/T_e) [cm^3/s] formula (Osterbrock & Ferland) to
+    ##   better than 1.0e-3 relative -- an independent, literature-based cross check of the Gauss-Legendre folding.
+    Defaults.setDefaults("nuclear: charge", 1.)
+    h1s = Configuration("1s^1");   h2s = Configuration("2s^1");   h2p = Configuration("2p^1")
+    h3d = Configuration("3d^1");   h4f = Configuration("4f^1")
+    epsFb = [Defaults.convertUnits("energy: from eV to atomic", e) for e in [5.0, 10.2, 15.0]]
+    cssM1 = Empirical.forbiddenExcitationCrossSection(epsFb, h1s, h2s, Empirical.ConstantCollisionStrength(), printout=false)
+    success = success && cssM1[1] == 0.  &&  cssM1[3] > 0.
+    cssE2 = Empirical.forbiddenExcitationCrossSection(epsFb, h1s, h3d, Empirical.ConstantCollisionStrength(), printout=false)
+    success = success && cssE2[1] == 0.  &&  cssE2[2] == 0.  &&  cssE2[3] > 0.   ## E2 threshold (3d) lies above 10.2 eV
+    fbErr = 0
+    try     Empirical.forbiddenExcitationCrossSection(epsFb, h1s, h2p, Empirical.ConstantCollisionStrength())
+    catch
+        fbErr = fbErr + 1
+    end
+    try     Empirical.forbiddenExcitationCrossSection(epsFb, h1s, h4f, Empirical.ConstantCollisionStrength())
+    catch
+        fbErr = fbErr + 1
+    end
+    success = success && fbErr == 2
+    deltaEfb = Empirical.scaledBindingEnergy(1.0, Shell("1s"), h1s, PeriodicTable.Williams2000()) -
+               Empirical.scaledBindingEnergy(1.0, Shell("2s"), h2s, PeriodicTable.Williams2000())
+    giFb  = Basics.extractFromConfiguration(Basics.Multiplicity(), h1s)
+    TeFb  = Defaults.convertUnits("energy: from eV to atomic", 5.0)
+    alpFb = Empirical.forbiddenExcitationPlasmaAlpha(Distribution.ElectronMaxwell(TeFb), h1s, h2s, printout=false)
+    TeFbK = 5.0 * 11604.518;   deltaEfbK = Defaults.convertUnits("energy: from atomic to eV", deltaEfb) * 11604.518
+    textbook  = 8.629e-6 / (giFb * sqrt(TeFbK)) * exp(-deltaEfbK/TeFbK) *
+                Defaults.convertUnits("time: from atomic to sec", 1.0) / Defaults.convertUnits("length: from atomic to cm", 1.0)^3
+    success = success && abs(alpFb/textbook - 1.0) < 1.0e-3
+    #
     ## Restore the global nuclear charge for all subsequent tests.
     Defaults.setDefaults("nuclear: charge", oldZ)
     ###
