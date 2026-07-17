@@ -11,12 +11,31 @@ using  ..AtomicState, ..Basics, ..Continuum, ..Defaults, ..Distribution, ..Radia
        ..InteractionStrength, ..ImpactIonization, ..PeriodicTable, ..Semiempirical, ..SelfConsistent
 
 """
-`abstract type Empirical.AbstractEmpiricalApproximation` 
-    ... defines an abstract and a number of singleton types to deal with different line profiles, for instance,
-        in a plasma.
+`abstract type Empirical.AbstractEmpiricalApproximation`
+    ... defines an abstract and a number of singleton types to distinguish the empirical approximations that are
+        applied for estimating cross sections, rates and (plasma) rate coefficients within this module. Which
+        approximations are supported by a given function follows from its methods (multiple dispatch); an
+        unsupported combination raises an informative error.
 
-    + GaussianProfile       ... assumes a Gaussian line profile L^Gaussian (omega)
-    + LorentzianProfile     ... assumes a Lorentzian line profile L^Lorentzian (omega)
+    + ScaledHydrogenic     ... hydrogenic (Kramers-type) formulas, scaled by tabulated binding energies;
+                               cf. Empirical.scaledBindingEnergy.
+    + UsingJAC             ... simple mean-field (DFS) computations of energies and one-electron amplitudes.
+    + GivenEinsteinA       ... an externally given Einstein-A value (multipole, energy, rate); cf. below.
+    + Lotz1967             ... Lotz's (1967) formula for electron-impact ionization cross sections
+                               [W. Lotz, Z. Physik 206, 205 (1967)].
+    + VanRegemorter1962    ... Van Regemorter's (1962) formula for electron-impact excitation of optically
+                               allowed transitions [H. Van Regemorter, ApJ 136, 906 (1962)].
+    + Bohr1913             ... Bohr's classical stopping power of a plasma, with the Coulomb logarithm
+                               ln(1.123 m v^3 / (e^2 omega_p))  [N. Bohr, Philos. Mag. 25, 10 (1913)].
+    + Bethe1931            ... Bethe's quantum stopping power of a plasma, with the Coulomb logarithm
+                               ln(2 E / (hbar omega_p)) for an electron projectile
+                               [H. Bethe, Ann. Phys. (Leipzig) 397, 325 (1930)].
+    + KozmaFranson1992     ... the piecewise electron loss function of Kozma & Fransson, quantal above and
+                               classical below E = 14 eV [C. Kozma & C. Fransson, ApJ 390, 602 (1992), Eqs. (1-3);
+                               after R. Schunk & P. Hays, Planet. Space Sci. 19, 113 (1971)].
+    + Axelrod1980          ... Axelrod's relativistic plasma energy loss, i.e. the Bethe-type loss with the plasma
+                               energy hbar omega_p as effective ionization potential [T. Axelrod, PhD thesis, UC
+                               Santa Cruz (1980); as transcribed by P. Milne et al., ApJS 124, 503 (1999), Eqs. (1,3)].
 """
 abstract type  AbstractEmpiricalApproximation                                end
 struct     ScaledHydrogenic              <:  AbstractEmpiricalApproximation  end

@@ -267,6 +267,32 @@ function testModule_Empirical(; short::Bool=true)
     end
     success = success && e2Err
     #
+    ## Test 24: stopping powers of an electron due to the free electrons of a plasma (n_e = 1e20 cm^-3), for the four
+    ##   approximations Bohr1913, Bethe1931, KozmaFranson1992 and Axelrod1980. The anchors are hand-computed from the
+    ##   closed formulas; in addition, three identities knit the family together: KF92 equals Bethe1931 exactly above
+    ##   14 eV; the Bohr and KF92 logarithms differ by ln 2 below (the electron-projectile correction, since
+    ##   1.123 x 1.7811 = 2); and Axelrod1980 reduces to Bethe1931 in the nonrelativistic limit. The Coulomb
+    ##   logarithm is clamped at zero far below the validity range.
+    spNe   = 1.0e20 * Defaults.convertUnits("length: from atomic to cm", 1.0)^3
+    spE100 = [Defaults.convertUnits("energy: from eV to atomic", 100.0)]
+    spE5   = [Defaults.convertUnits("energy: from eV to atomic", 5.0)]
+    spBet  = Empirical.stoppingPower(spE100, spNe, Empirical.Bethe1931(), printout=false)[1]
+    success = success && abs(spBet - 0.00015933628333711752) / 0.00015933628333711752 < 1.0e-6
+    success = success && Empirical.stoppingPower(spE100, spNe, Empirical.KozmaFranson1992(), printout=false)[1] == spBet
+    spKF5  = Empirical.stoppingPower(spE5, spNe, Empirical.KozmaFranson1992(), printout=false)[1]
+    spBoh5 = Empirical.stoppingPower(spE5, spNe, Empirical.Bohr1913(), printout=false)[1]
+    success = success && abs(spKF5 - 0.0011226270953942747) / 0.0011226270953942747 < 1.0e-6
+    ## ln Lambda = L eps/(2 pi n_e); the Bohr-KF92 difference of the logarithms must equal ln 2 (up to the rounded
+    ## literature constants 1.123 and 1.7811).
+    lnDiff = (spBoh5 - spKF5) * spE5[1] / (2pi * spNe)
+    success = success && abs(lnDiff - log(2.0)) < 1.0e-3
+    spAx   = Empirical.stoppingPower(spE100, spNe, Empirical.Axelrod1980(), printout=false)[1]
+    success = success && abs(spAx/spBet - 1.0) < 1.0e-3
+    success = success && abs(Empirical.stoppingPower([Defaults.convertUnits("energy: from eV to atomic", 1.0e5)], spNe,
+                                                     Empirical.Axelrod1980(), printout=false)[1] - 4.238006007084985e-7) / 4.238006007084985e-7 < 1.0e-6
+    success = success && Empirical.stoppingPower([Defaults.convertUnits("energy: from eV to atomic", 0.001)], spNe,
+                                                 Empirical.KozmaFranson1992(), printout=false)[1] == 0.
+    #
     ## Restore the global nuclear charge for all subsequent tests.
     Defaults.setDefaults("nuclear: charge", oldZ)
     ###
