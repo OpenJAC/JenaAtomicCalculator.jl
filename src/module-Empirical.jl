@@ -8,7 +8,7 @@ module Empirical
 
 
 using  ..AtomicState, ..Basics, ..Continuum, ..Defaults, ..Distribution, ..Radial, ..ManyElectron, ..Nuclear,
-       ..InteractionStrength, ..ImpactIonization, ..PeriodicTable, ..Semiempirical, ..SelfConsistent
+       ..InteractionStrength, ..ImpactIonization, ..PeriodicTable, ..Semiempirical, ..SelfConsistent, SpecialFunctions
 
 """
 `abstract type Empirical.AbstractEmpiricalApproximation`
@@ -36,6 +36,10 @@ using  ..AtomicState, ..Basics, ..Continuum, ..Defaults, ..Distribution, ..Radia
     + Axelrod1980          ... Axelrod's relativistic plasma energy loss, i.e. the Bethe-type loss with the plasma
                                energy hbar omega_p as effective ionization potential [T. Axelrod, PhD thesis, UC
                                Santa Cruz (1980); as transcribed by P. Milne et al., ApJS 124, 503 (1999), Eqs. (1,3)].
+    + ADK1986              ... the (quasiclassical) tunneling ionization rate of Ammosov, Delone & Krainov for an
+                               atom or ion in a strong, quasi-static electric field [M. Ammosov, N. Delone &
+                               V. Krainov, Sov. Phys. JETP 64, 1191 (1986); as summarized, e.g., by J. Bauer &
+                               P. Mulser, Phys. Rev. A 59, 569 (1999) [arXiv:physics/9802042], Eq. (10)].
 """
 abstract type  AbstractEmpiricalApproximation                                end
 struct     ScaledHydrogenic              <:  AbstractEmpiricalApproximation  end
@@ -49,9 +53,11 @@ struct     KozmaFranson1992              <:  AbstractEmpiricalApproximation  end
 struct     Lotz1967                      <:  AbstractEmpiricalApproximation  end
 struct     VanRegemorter1962             <:  AbstractEmpiricalApproximation  end
 
+struct     ADK1986                       <:  AbstractEmpiricalApproximation  end
+
 
 export  AbstractEmpiricalApproximation, GivenEinsteinA, ScaledHydrogenic, UsingJAC,
-        Bohr1913, Bethe1931, Axelrod1980, KozmaFranson1992, Lotz1967, VanRegemorter1962
+        Bohr1913, Bethe1931, Axelrod1980, KozmaFranson1992, Lotz1967, VanRegemorter1962, ADK1986
 
 
 """
@@ -332,5 +338,6 @@ end
 include("module-Empirical-inc-energies.jl")
 include("module-Empirical-inc-plasma-rates.jl")
 include("module-Empirical-inc-stopping-powers.jl")
+include("module-Empirical-inc-tunneling-ionization.jl")
 
 end # module

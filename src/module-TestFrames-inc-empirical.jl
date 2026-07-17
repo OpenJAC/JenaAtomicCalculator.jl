@@ -331,6 +331,42 @@ function testModule_Empirical(; short::Bool=true)
     end
     success = success && spErr == 2
     #
+    ## Test 25: tunneling ionization rate (ADK 1986). The direct (Z, Ip, l) method must reproduce the exact, closed
+    ##   Landau tunneling formula for hydrogenic 1s states (Z=1, Ip=0.5 Hartree and Z=2, Ip=2.0 Hartree) to machine
+    ##   precision -- a literature-independent cross check of the Gamma-function ADK coefficient. The angular factor
+    ##   and coefficient are checked at simple integer arguments, and both the Configuration-based wrapper (which
+    ##   reproduces the direct method up to the ~2% tabulated-vs-exact Ip difference for neutral H) and the two
+    ##   error paths (non-positive Z or Ip) are exercised.
+    adkFs = [0.02, 0.05, 0.1, 0.2, 0.5]
+    function landauRate(Ip, F)
+        return 4*(2*Ip)^2.5/F * exp(-2*(2*Ip)^1.5/(3*F))
+    end
+    adkH  = Empirical.tunnelingIonizationRate(adkFs, 1.0, 0.5, 0, Empirical.ADK1986(), printout=false)
+    for  (ic, F)  in  enumerate(adkFs)
+        success = success && abs(adkH[ic]/landauRate(0.5, F) - 1.0) < 1.0e-8
+    end
+    adkHe = Empirical.tunnelingIonizationRate([0.5, 1.0, 2.0], 2.0, 2.0, 0, Empirical.ADK1986(), printout=false)
+    for  (ic, F)  in  enumerate([0.5, 1.0, 2.0])
+        success = success && abs(adkHe[ic]/landauRate(2.0, F) - 1.0) < 1.0e-8
+    end
+    success = success && Empirical.adkAngularFactor(0,0) == 1.0
+    success = success && Empirical.adkAngularFactor(1,0) == 3.0
+    success = success && Empirical.adkAngularFactor(1,1) == 3.0
+    success = success && Empirical.adkCoefficient(1.0, 0.0) == 4.0
+    Defaults.setDefaults("nuclear: charge", 1.)
+    adkWrap = Empirical.tunnelingIonizationRate([0.1], Configuration("1s^1"), Configuration("1s^0"), Empirical.ADK1986(), printout=false)
+    success = success && abs(adkWrap[1]/landauRate(0.5, 0.1) - 1.0) < 0.01
+    adkErr = 0
+    try     Empirical.tunnelingIonizationRate([0.1], -1.0, 0.5, 0, Empirical.ADK1986())
+    catch
+        adkErr = adkErr + 1
+    end
+    try     Empirical.tunnelingIonizationRate([0.1], 1.0, -0.5, 0, Empirical.ADK1986())
+    catch
+        adkErr = adkErr + 1
+    end
+    success = success && adkErr == 2
+    #
     ## Restore the global nuclear charge for all subsequent tests.
     Defaults.setDefaults("nuclear: charge", oldZ)
     ###
