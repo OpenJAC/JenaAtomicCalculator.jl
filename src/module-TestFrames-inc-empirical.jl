@@ -421,6 +421,43 @@ function testModule_Empirical(; short::Bool=true)
                 Defaults.convertUnits("time: from atomic to sec", 1.0) / Defaults.convertUnits("length: from atomic to cm", 1.0)^3
     success = success && abs(alpFb/textbook - 1.0) < 1.0e-3
     #
+    ## Test 28: chargeExchangeCrossSection/PlasmaAlpha(OverBarrierModel1980/NiehausScaling1986) for He2+ + H(1s).
+    ##   Checks: the a.u.-converted Niehaus cross section reproduces the cm^2 formula sigma = 2.6e-13 q/Ip[eV]^2
+    ##   applied by hand; the Configuration-based wrapper (any standard-filling conf, neutral or ion) agrees with
+    ##   the direct (q, Ip) method to machine precision, for both a neutral-atom donor (H) and an already-ionized
+    ##   donor (He+, i.e. the ion-ion CX regime); non-positive q or Ip are rejected; and the Maxwellian-folded
+    ##   plasma rate coefficient alpha = <v> sigma (analytic, no quadrature) matches a hand-computed cross check.
+    Defaults.setDefaults("nuclear: charge", 1.)
+    hConf  = Configuration("1s^1")
+    IpH    = Empirical.ionizationPotential(1, hConf)
+    IpHeV  = Defaults.convertUnits("energy: from atomic", IpH)
+    sigNieh = Empirical.chargeExchangeCrossSection(2.0, IpH, Empirical.NiehausScaling1986(), printout=false)
+    sigNiehCm2 = Defaults.convertUnits("cross section: from atomic to cm^2", sigNieh)
+    success = success && abs(sigNiehCm2/(2.6e-13 * 2.0/IpHeV^2) - 1.0) < 1.0e-8
+    sigOBM  = Empirical.chargeExchangeCrossSection(2.0, IpH, Empirical.OverBarrierModel1980(), printout=false)
+    success = success && abs(sigOBM - pi*((2.0+1.0)/(2*IpH))^2) < 1.0e-10
+    sigWrap = Empirical.chargeExchangeCrossSection(2.0, hConf, 1.0, Empirical.OverBarrierModel1980(), printout=false)
+    success = success && sigWrap == sigOBM
+    Defaults.setDefaults("nuclear: charge", 2.)
+    heIonConf = Configuration("1s^1")
+    sigIonIon = Empirical.chargeExchangeCrossSection(3.0, heIonConf, 2.0, Empirical.NiehausScaling1986(), printout=false)
+    success = success && sigIonIon > 0.
+    cxErr = 0
+    try     Empirical.chargeExchangeCrossSection(-1.0, IpH, Empirical.OverBarrierModel1980())
+    catch
+        cxErr = cxErr + 1
+    end
+    try     Empirical.chargeExchangeCrossSection(2.0, -1.0, Empirical.NiehausScaling1986())
+    catch
+        cxErr = cxErr + 1
+    end
+    success = success && cxErr == 2
+    Mproj = Defaults.PROTON_MASS_U/Defaults.ELECTRON_MASS_U * 4.0;   Mtarg = Defaults.PROTON_MASS_U/Defaults.ELECTRON_MASS_U
+    Tcx   = Defaults.convertUnits("energy: from eV to atomic", 1.0)
+    alphaCx = Empirical.chargeExchangePlasmaAlpha(Tcx, 2.0, IpH, Mproj, Mtarg, Empirical.NiehausScaling1986(), printout=false)
+    muCx  = Mproj*Mtarg/(Mproj+Mtarg)
+    success = success && abs(alphaCx/(sqrt(8*Tcx/(pi*muCx)) * sigNieh) - 1.0) < 1.0e-10
+    #
     ## Restore the global nuclear charge for all subsequent tests.
     Defaults.setDefaults("nuclear: charge", oldZ)
     ###

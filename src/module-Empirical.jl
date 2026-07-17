@@ -49,6 +49,20 @@ using  ..AtomicState, ..Basics, ..Continuum, ..Defaults, ..Distribution, ..Radia
                                atom or ion in a strong, quasi-static electric field [M. Ammosov, N. Delone &
                                V. Krainov, Sov. Phys. JETP 64, 1191 (1986); as summarized, e.g., by J. Bauer &
                                P. Mulser, Phys. Rev. A 59, 569 (1999) [arXiv:physics/9802042], Eq. (10)].
+    + OverBarrierModel1980 ... the classical (geometric) over-barrier model for single-electron capture in a slow
+                               ion-atom/ion-ion collision [N. Bohr & J. Lindhard, K. Dan. Vidensk. Selsk. Mat.-Fys.
+                               Medd. 28, No. 7 (1954); cast into cross-section form by H. Ryufuku & T. Watanabe,
+                               Phys. Rev. A 19, 1538 (1979); ibid. 20, 1828 (1979)]; selects the formula in
+                               Empirical.chargeExchangeCrossSection/PlasmaAlpha. Valid only for slow (adiabatic)
+                               collisions, relative velocity v << 1 a.u.; energy-independent within that regime.
+    + NiehausScaling1986   ... the empirical q/I_p^2 scaling of single-electron-capture cross sections for slow,
+                               highly charged ion-atom/ion-ion collisions [established experimentally, e.g. by
+                               M. Kimura et al., J. Phys. B 28, L643 (1995); K. Hosaka et al., Fus. Eng. Design
+                               34-35, 781 (1997); shown to be the high-q limit of an extended classical
+                               over-barrier model by A. Niehaus, J. Phys. B 19, 2925 (1986)]; selects the formula
+                               in Empirical.chargeExchangeCrossSection/PlasmaAlpha. Same regime as
+                               OverBarrierModel1980, but grows only as q (not q^2), matching experiment better at
+                               high charge states.
 """
 abstract type  AbstractEmpiricalApproximation                                end
 struct     ScaledHydrogenic              <:  AbstractEmpiricalApproximation  end
@@ -64,9 +78,13 @@ struct     VanRegemorter1962             <:  AbstractEmpiricalApproximation  end
 
 struct     ADK1986                       <:  AbstractEmpiricalApproximation  end
 
+struct     OverBarrierModel1980          <:  AbstractEmpiricalApproximation  end
+struct     NiehausScaling1986            <:  AbstractEmpiricalApproximation  end
+
 
 export  AbstractEmpiricalApproximation, GivenEinsteinA, ScaledHydrogenic, UsingJAC,
-        Bohr1913, Bethe1931, Axelrod1980, KozmaFranson1992, Lotz1967, VanRegemorter1962, ConstantCollisionStrength, ADK1986
+        Bohr1913, Bethe1931, Axelrod1980, KozmaFranson1992, Lotz1967, VanRegemorter1962, ConstantCollisionStrength, ADK1986,
+        OverBarrierModel1980, NiehausScaling1986
 
 
 """
@@ -364,6 +382,7 @@ function Basics.perform(computation::Empirical.Computation; output::Bool=false)
     return( results )
 end
 
+include("module-Empirical-inc-charge-exchange.jl")
 include("module-Empirical-inc-energies.jl")
 include("module-Empirical-inc-plasma-rates.jl")
 include("module-Empirical-inc-stopping-powers.jl")
