@@ -267,31 +267,69 @@ function testModule_Empirical(; short::Bool=true)
     end
     success = success && e2Err
     #
-    ## Test 24: stopping powers of an electron due to the free electrons of a plasma (n_e = 1e20 cm^-3), for the four
-    ##   approximations Bohr1913, Bethe1931, KozmaFranson1992 and Axelrod1980. The anchors are hand-computed from the
-    ##   closed formulas; in addition, three identities knit the family together: KF92 equals Bethe1931 exactly above
-    ##   14 eV; the Bohr and KF92 logarithms differ by ln 2 below (the electron-projectile correction, since
-    ##   1.123 x 1.7811 = 2); and Axelrod1980 reduces to Bethe1931 in the nonrelativistic limit. The Coulomb
-    ##   logarithm is clamped at zero far below the validity range.
-    spNe   = 1.0e20 * Defaults.convertUnits("length: from atomic to cm", 1.0)^3
+    ## Test 24: stopping powers of a projectile in a material, stoppingPower(energies, projectile, material, approx).
+    ##   For an electron in a free-electron gas (n_e = 1e20 cm^-3) the anchors are hand-computed from the closed
+    ##   formulas, and three identities knit the family together: KF92 equals Bethe1931 above 14 eV; the Bohr and
+    ##   KF92 logarithms differ by ln 2 below (the electron-projectile correction, since 1.123 x 1.7811 = 2); and
+    ##   Axelrod1980 reduces to Bethe1931 in the nonrelativistic limit. For a proton at the *same velocity* as a
+    ##   100 eV electron, the Bethe logarithms differ by ln 2 (kappa = 2 vs. 1) while the Bohr formula is
+    ##   velocity-only and must agree exactly. A PartiallyIonizedGas must decompose exactly into its bound and free
+    ##   populations, and the 10 MeV proton in solid Al is locked as a regression anchor (34.15 MeV cm^2/g; the
+    ##   PSTAR-type ~40 differs by the neglected shell and relativistic corrections). The Coulomb logarithm is
+    ##   clamped at zero far below the validity range, and KozmaFranson1992/Axelrod1980 must refuse unsupported
+    ##   projectile-material combinations.
+    aoCm   = Defaults.convertUnits("length: from atomic to cm", 1.0)
+    spNe   = 1.0e20 * aoCm^3
+    spEle  = Empirical.ElectronProjectile();    spFeg = Empirical.FreeElectronGas(spNe)
+    spProt = Empirical.IonProjectile(1.0, Defaults.PROTON_MASS_U / Defaults.ELECTRON_MASS_U)
     spE100 = [Defaults.convertUnits("energy: from eV to atomic", 100.0)]
     spE5   = [Defaults.convertUnits("energy: from eV to atomic", 5.0)]
-    spBet  = Empirical.stoppingPower(spE100, spNe, Empirical.Bethe1931(), printout=false)[1]
+    spBet  = Empirical.stoppingPower(spE100, spEle, spFeg, Empirical.Bethe1931(), printout=false)[1]
     success = success && abs(spBet - 0.00015933628333711752) / 0.00015933628333711752 < 1.0e-6
-    success = success && Empirical.stoppingPower(spE100, spNe, Empirical.KozmaFranson1992(), printout=false)[1] == spBet
-    spKF5  = Empirical.stoppingPower(spE5, spNe, Empirical.KozmaFranson1992(), printout=false)[1]
-    spBoh5 = Empirical.stoppingPower(spE5, spNe, Empirical.Bohr1913(), printout=false)[1]
+    success = success && isapprox(Empirical.stoppingPower(spE100, spEle, spFeg, Empirical.KozmaFranson1992(), printout=false)[1],
+                                  spBet, rtol=1.0e-12)
+    spKF5  = Empirical.stoppingPower(spE5, spEle, spFeg, Empirical.KozmaFranson1992(), printout=false)[1]
+    spBoh5 = Empirical.stoppingPower(spE5, spEle, spFeg, Empirical.Bohr1913(), printout=false)[1]
     success = success && abs(spKF5 - 0.0011226270953942747) / 0.0011226270953942747 < 1.0e-6
     ## ln Lambda = L eps/(2 pi n_e); the Bohr-KF92 difference of the logarithms must equal ln 2 (up to the rounded
     ## literature constants 1.123 and 1.7811).
     lnDiff = (spBoh5 - spKF5) * spE5[1] / (2pi * spNe)
     success = success && abs(lnDiff - log(2.0)) < 1.0e-3
-    spAx   = Empirical.stoppingPower(spE100, spNe, Empirical.Axelrod1980(), printout=false)[1]
+    spAx   = Empirical.stoppingPower(spE100, spEle, spFeg, Empirical.Axelrod1980(), printout=false)[1]
     success = success && abs(spAx/spBet - 1.0) < 1.0e-3
-    success = success && abs(Empirical.stoppingPower([Defaults.convertUnits("energy: from eV to atomic", 1.0e5)], spNe,
-                                                     Empirical.Axelrod1980(), printout=false)[1] - 4.238006007084985e-7) / 4.238006007084985e-7 < 1.0e-6
-    success = success && Empirical.stoppingPower([Defaults.convertUnits("energy: from eV to atomic", 0.001)], spNe,
-                                                 Empirical.KozmaFranson1992(), printout=false)[1] == 0.
+    success = success && abs(Empirical.stoppingPower([Defaults.convertUnits("energy: from eV to atomic", 1.0e5)], spEle,
+                                 spFeg, Empirical.Axelrod1980(), printout=false)[1] - 4.238006007084985e-7) / 4.238006007084985e-7 < 1.0e-6
+    success = success && Empirical.stoppingPower([Defaults.convertUnits("energy: from eV to atomic", 0.001)], spEle,
+                                 spFeg, Empirical.KozmaFranson1992(), printout=false)[1] == 0.
+    ## Proton at the same velocity as a 100 eV electron: E_p = M x 100 eV.
+    spEp   = [spE100[1] * spProt.M]
+    spLp   = Empirical.stoppingPower(spEp, spProt, spFeg, Empirical.Bethe1931(), printout=false)[1]
+    success = success && abs( (spLp - spBet) * 2*spE100[1]/(4pi * spNe) - log(2.0) ) < 1.0e-10
+    success = success && isapprox(Empirical.stoppingPower(spEp,   spProt, spFeg, Empirical.Bohr1913(), printout=false)[1],
+                                  Empirical.stoppingPower(spE100, spEle,  spFeg, Empirical.Bohr1913(), printout=false)[1], rtol=1.0e-10)
+    ## PartiallyIonizedGas decomposes exactly into its bound and free electron populations.
+    spNat  = 1.0e19 * aoCm^3
+    spE10k = [Defaults.convertUnits("energy: from eV to atomic", 1.0e4)]
+    spPig  = Empirical.stoppingPower(spE10k, spEle, Empirical.PartiallyIonizedGas(13, 26.98, 3.0, spNat), Empirical.Axelrod1980(), printout=false)[1]
+    spNag  = Empirical.stoppingPower(spE10k, spEle, Empirical.NeutralAtomGas(13, 26.98, spNat),           Empirical.Axelrod1980(), printout=false)[1]
+    spFrp  = Empirical.stoppingPower(spE10k, spEle, Empirical.FreeElectronGas(3.0 * spNat),               Empirical.Axelrod1980(), printout=false)[1]
+    success = success && isapprox(spPig, (10/13)*spNag + spFrp, rtol=1.0e-12)
+    ## 10 MeV proton in solid Al (rho = 2.699 g/cm^3): the bare-Bethe regression anchor in eV/cm.
+    spNAl  = 2.699 / (26.98 * Defaults.ELECTRON_MASS_IN_G / Defaults.ELECTRON_MASS_U) * aoCm^3
+    spAl   = Empirical.stoppingPower([Defaults.convertUnits("energy: from eV to atomic", 1.0e7)], spProt,
+                                     Empirical.NeutralAtomGas(13, 26.98, spNAl), Empirical.Bethe1931(), printout=false)[1]
+    success = success && abs(Defaults.convertUnits("energy: from atomic to eV", spAl)/aoCm - 9.218125319197525e7) / 9.218125319197525e7 < 1.0e-6
+    ## Unsupported combinations must refuse.
+    spErr = 0
+    try     Empirical.stoppingPower(spE100, spProt, spFeg, Empirical.KozmaFranson1992(), printout=false)
+    catch
+        spErr = spErr + 1
+    end
+    try     Empirical.stoppingPower(spE100, spProt, spFeg, Empirical.Axelrod1980(), printout=false)
+    catch
+        spErr = spErr + 1
+    end
+    success = success && spErr == 2
     #
     ## Restore the global nuclear charge for all subsequent tests.
     Defaults.setDefaults("nuclear: charge", oldZ)

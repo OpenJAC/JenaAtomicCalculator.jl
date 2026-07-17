@@ -52,6 +52,145 @@ struct     VanRegemorter1962             <:  AbstractEmpiricalApproximation  end
 
 export  AbstractEmpiricalApproximation, GivenEinsteinA, ScaledHydrogenic, UsingJAC,
         Bohr1913, Bethe1931, Axelrod1980, KozmaFranson1992, Lotz1967, VanRegemorter1962
+
+
+"""
+`abstract type Empirical.AbstractStoppingProjectile`
+    ... defines an abstract and a number of types for the projectile whose stopping power is requested. The projectile
+        enters the stopping formulas only through its charge z (as z^2 in the prefactor), its mass M (via the velocity
+        v = sqrt(2 E/M) for a given kinetic energy E) and its quantum statistics: an electron projectile is
+        indistinguishable from the target electrons, which limits the maximum energy transfer to E/2 and reduces the
+        Coulomb logarithm by ln 2 relative to a heavy projectile of the same velocity.
+
+    + ElectronProjectile   ... an electron (z = -1, M = 1).
+    + PositronProjectile   ... a positron (z = +1, M = 1); it is distinguishable from the target electrons but is
+                               treated with the same Coulomb logarithms as an electron -- the differences appear
+                               in the relativistic corrections and are beyond the accuracy of these estimates
+                               (cf. Milne et al. 1999, who sum electron and positron losses in just this way).
+    + IonProjectile        ... a bare (structureless) ion of charge z and mass M [in units of m_e]; for a proton,
+                               IonProjectile(1.0, Defaults.PROTON_MASS_U/Defaults.ELECTRON_MASS_U). Electron capture
+                               and loss of a dressed ion are not accounted for.
+"""
+abstract type  AbstractStoppingProjectile                                    end
+struct     ElectronProjectile            <:  AbstractStoppingProjectile      end
+struct     PositronProjectile            <:  AbstractStoppingProjectile      end
+
+
+"""
+`struct  Empirical.IonProjectile  <:  AbstractStoppingProjectile`
+    ... a bare (structureless) ion as projectile of a stopping-power calculation.
+
+    + z           ::Float64   ... charge of the ion [in units of e].
+    + M           ::Float64   ... mass of the ion [in units of m_e].
+"""
+struct  IonProjectile  <:  AbstractStoppingProjectile
+    z             ::Float64
+    M             ::Float64
+end
+
+
+# `Base.show(io::IO, p::ElectronProjectile)`  ... provides a String notation for the variable p::ElectronProjectile.
+function Base.show(io::IO, p::ElectronProjectile)
+    print(io, "an electron (z = -1, M = m_e)")
+end
+
+
+# `Base.show(io::IO, p::PositronProjectile)`  ... provides a String notation for the variable p::PositronProjectile.
+function Base.show(io::IO, p::PositronProjectile)
+    print(io, "a positron (z = +1, M = m_e)")
+end
+
+
+# `Base.show(io::IO, p::IonProjectile)`  ... provides a String notation for the variable p::IonProjectile.
+function Base.show(io::IO, p::IonProjectile)
+    print(io, "a bare ion (z = $(p.z), M = $(p.M) m_e)")
+end
+
+
+"""
+`abstract type Empirical.AbstractStoppingMaterial`
+    ... defines an abstract and a number of types for the material in which the projectile is stopped. In the
+        (Bohr/Bethe-type) stopping formulas of this module, a material enters only through the density of the
+        electrons that take up the energy and through one characteristic energy of these electrons: the plasma
+        energy hbar omega_p = hbar sqrt(4 pi n_e e^2/m_e) for free electrons, and the mean excitation energy
+        Ibar for bound electrons. Nuclear stopping and radiative (bremsstrahlung) losses belong to different
+        mechanisms and are *not* included in any of these materials.
+
+    + FreeElectronGas      ... the free electrons of a (fully ionized) plasma with electron density ne.
+    + NeutralAtomGas       ... the bound electrons of a neutral, monoatomic gas of atoms (Z, A) with number
+                               density natom; the mean excitation energy is estimated as
+                               Ibar = 9.1 Z (1 + 1.9 Z^(-2/3)) eV (Segre 1977; Roy & Reed 1968).
+    + PartiallyIonizedGas  ... a monoatomic gas of atoms (Z, A) with number density natom, of which chie electrons
+                               per atom are ionized: (Z - chie) natom bound electrons with Ibar plus chie natom
+                               free electrons with hbar omega_p; cf. Milne et al. (1999, Eq. 3).
+"""
+abstract type  AbstractStoppingMaterial                                      end
+
+
+"""
+`struct  Empirical.FreeElectronGas  <:  AbstractStoppingMaterial`
+    ... the free electrons of a (fully ionized) plasma.
+
+    + ne          ::Float64   ... electron density [a.u.].
+"""
+struct  FreeElectronGas  <:  AbstractStoppingMaterial
+    ne            ::Float64
+end
+
+
+"""
+`struct  Empirical.NeutralAtomGas  <:  AbstractStoppingMaterial`
+    ... the bound electrons of a neutral, monoatomic gas.
+
+    + Z           ::Int64     ... nuclear charge of the atoms.
+    + A           ::Float64   ... atomic mass number of the atoms; only used to express the mass stopping power.
+    + natom       ::Float64   ... atom density [a.u.].
+"""
+struct  NeutralAtomGas  <:  AbstractStoppingMaterial
+    Z             ::Int64
+    A             ::Float64
+    natom         ::Float64
+end
+
+
+"""
+`struct  Empirical.PartiallyIonizedGas  <:  AbstractStoppingMaterial`
+    ... a partially ionized, monoatomic gas: (Z - chie) bound electrons per atom plus chie free electrons per atom.
+
+    + Z           ::Int64     ... nuclear charge of the atoms.
+    + A           ::Float64   ... atomic mass number of the atoms; only used to express the mass stopping power.
+    + chie        ::Float64   ... number of free electrons per atom (ionization fraction), 0 <= chie <= Z.
+    + natom       ::Float64   ... atom density [a.u.].
+"""
+struct  PartiallyIonizedGas  <:  AbstractStoppingMaterial
+    Z             ::Int64
+    A             ::Float64
+    chie          ::Float64
+    natom         ::Float64
+end
+
+
+# `Base.show(io::IO, m::FreeElectronGas)`  ... provides a String notation for the variable m::FreeElectronGas.
+function Base.show(io::IO, m::FreeElectronGas)
+    print(io, "the free electrons of a plasma with n_e = $(m.ne) [a.u.]")
+end
+
+
+# `Base.show(io::IO, m::NeutralAtomGas)`  ... provides a String notation for the variable m::NeutralAtomGas.
+function Base.show(io::IO, m::NeutralAtomGas)
+    print(io, "the bound electrons of a neutral atom gas with Z = $(m.Z), A = $(m.A) and n_atom = $(m.natom) [a.u.]")
+end
+
+
+# `Base.show(io::IO, m::PartiallyIonizedGas)`  ... provides a String notation for the variable m::PartiallyIonizedGas.
+function Base.show(io::IO, m::PartiallyIonizedGas)
+    print(io, "a partially ionized atom gas with Z = $(m.Z), A = $(m.A), chi_e = $(m.chie) free electrons per atom " *
+              "and n_atom = $(m.natom) [a.u.]")
+end
+
+
+export  AbstractStoppingProjectile, ElectronProjectile, PositronProjectile, IonProjectile,
+        AbstractStoppingMaterial, FreeElectronGas, NeutralAtomGas, PartiallyIonizedGas
    
 
 """
