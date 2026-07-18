@@ -909,7 +909,7 @@ function generateIonLevelData(scheme::Plasma.SahaBoltzmannScheme, isoClass::Isot
     # Extract levels from output
     repMultiplet = Multiplet()
     for  conf in allConfigs
-        mp           = Basics.performCI([conf], orbitals, nm, grid, AsfSettings(), printout=false)
+        mp           = Hamiltonian.performCIwithFrozenOrbitals([conf], orbitals, nm, grid, AsfSettings(); printout=false)
         repMultiplet = Multiplet("append", append!(repMultiplet.levels, mp.levels) )
     end
     Basics.displayLevels(stdout, [repMultiplet], N=100)
@@ -953,6 +953,11 @@ end
 """
 function readEvaluateIonLevelData(filename::String, isoClass::IsotopeClass, NoExcitations::Int64, upperShellNo::Int64)
     found = false;  chargeStates = Int64[];   newIonClasses = Plasma.IonicClass[]
+    # No ion-level data file yet -- let the caller fall back to generating fresh data, as documented
+    if  !isfile(filename)
+        println(">>> No ion-level data file $filename found; new data will be generated." )
+        return( missing )
+    end
     # Open the file and try to read in the directory
     data    = JLD2.load(filename)
     isoData = data["isoData"]
