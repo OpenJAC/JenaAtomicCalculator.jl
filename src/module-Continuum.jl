@@ -82,7 +82,68 @@ end
 
 
 """
-`Continuum.generateOrbitalLocalPotential(energy::Float64, sh::Subshell, pot::Radial.Potential, settings::Continuum.Settings)`   
+`Continuum.generateOrbitalForLevel(energy::Float64, sh::Subshell, level::Level, nm::Nuclear.Model, grid::Radial.Grid,
+                                    settings::Continuum.Settings, plasmaModel::Basics.AbstractPlasmaModel)`
+    ... to generate a continuum orbital as Continuum.generateOrbitalForLevel(...) above, but with the combined local
+        potential (nuclear + bound-electron mean field) Debye-Hueckel-screened according to the given plasma model.
+        The WHOLE combined potential is screened, not just its nuclear part: screening only the (attractive) nuclear
+        term while leaving the (repulsive) mean-field term unscreened leaves an uncancelled repulsive tail at large r
+        once the Debye length becomes comparable to the box radius, giving an unphysical (negative) asymptotic
+        effective charge for the continuum electron. For plasmaModel = Basics.NoPlasmaModel(), this delegates
+        directly to the field-free method above, so that the computation of the standard (field-free) processes is
+        never touched by this plasma-specific code path. A tupel of a (continuum) (orbital::Orbital, phase::Float64)
+        is returned.
+"""
+function generateOrbitalForLevel(energy::Float64, sh::Subshell, level::Level, nm::Nuclear.Model, grid::Radial.Grid,
+                                  settings::Continuum.Settings, plasmaModel::Basics.AbstractPlasmaModel)
+    if  typeof(plasmaModel) == Basics.NoPlasmaModel
+        return( Continuum.generateOrbitalForLevel(energy, sh, level, nm, grid, settings) )
+    end
+    typeof(plasmaModel) == Basics.DebyeHueckelModel  ||
+        error("Unsupported plasma model = $(plasmaModel)  (only Basics.DebyeHueckelModel is currently supported " *
+              "for the plasma-screened continuum orbital).")
+    #
+    # Generate the (local) potential for the given level exactly as in the field-free case, then Debye-Hueckel
+    # screen the combined (nuclear + mean-field) potential as a whole -- see the docstring note above.
+    nuclearPotential = Nuclear.nuclearPotential(nm, grid)
+    wp  = Basics.computePotential(Basics.DFSField(1.0), grid, level)
+    pot = Basics.add(nuclearPotential, wp)
+    lambda = 1/plasmaModel.debyeLength
+    screenedZr = deepcopy(pot.Zr)
+    for  i = 1:length(screenedZr)   screenedZr[i] = screenedZr[i] * exp(-lambda * pot.grid.r[i])    end
+    pot = Radial.Potential(pot.name * "+ Debye-Hueckel screening", screenedZr, pot.grid)
+    Defaults.warn(AddWarning(), "All continuum orbitals are generated in a local (DFS) potential.")
+
+    # Generate a continuum orbital due to the given solution method
+    if      Defaults.GBL_CONT_SOLUTION  ==  ContBessel()
+        cOrbital = Continuum.generateOrbitalBessel(energy, sh, grid::Radial.Grid, settings)
+    elseif  Defaults.GBL_CONT_SOLUTION  ==  AsymptoticCoulomb()
+        cOrbital = Continuum.generateOrbitalAsymptoticCoulomb(energy, sh, pot, settings)
+    elseif  Defaults.GBL_CONT_SOLUTION  ==  NonrelativisticCoulomb()
+        cOrbital = Continuum.generateOrbitalNonrelativisticCoulomb(energy, sh, pot.grid, settings)
+    elseif  Defaults.GBL_CONT_SOLUTION  ==  BsplineGalerkin()
+        cOrbital = Continuum.generateOrbitalGalerkin(energy, sh, pot, settings)
+    else    error("stop a")
+    end
+    #
+    # Normalize the continuum orbital and determine its phase
+    if      Defaults.GBL_CONT_NORMALIZATION  ==  PureSineNorm()
+        cOrbital, phase = Continuum.normalizeOrbitalPureSine(cOrbital, pot.grid, settings)
+    elseif  Defaults.GBL_CONT_NORMALIZATION  ==  CoulombSineNorm()
+        cOrbital, phase = Continuum.normalizeOrbitalCoulombSine(cOrbital, pot, settings)
+    elseif  Defaults.GBL_CONT_NORMALIZATION  ==  OngRussekNorm()
+        cOrbital, phase = Continuum.normalizeOrbitalOngRussek(cOrbital, pot, settings)
+    elseif  Defaults.GBL_CONT_NORMALIZATION  ==  AlokNorm()
+        cOrbital, phase = Continuum.normalizeOrbitalAlok(cOrbital, pot, settings)
+    else    error("stop b")
+    end
+
+    return( cOrbital, phase )
+end
+
+
+"""
+`Continuum.generateOrbitalLocalPotential(energy::Float64, sh::Subshell, pot::Radial.Potential, settings::Continuum.Settings)`
     ... to generate a continuum orbital for the (continuum) subshell sh, the energy and the given potential. The effective 
         charge for the normalization of the continuum orbital is derived from the potential. All further specifications about 
         this generations are made by proper settings; however, the function termintates if the settings.includeExchange = true. 

@@ -7,7 +7,7 @@
 module Plasma
 
 using  Dates, JLD2, Printf
-using  ..AtomicState, ..Basics, ..Bsplines, ..Defaults, ..ManyElectron, ..Nuclear, ..Radial, ..RadialIntegrals,
+using  ..AtomicState, ..Basics, ..Bsplines, ..Defaults, ..Hamiltonian, ..ManyElectron, ..Nuclear, ..Radial, ..RadialIntegrals,
        ..Semiempirical, ..TableStrings, ..FormFactor, ..PhotoEmission, ..PhotoIonization, ..AutoIonization, ..SelfConsistent
 
 
@@ -187,9 +187,13 @@ end
 """
 `struct  Plasma.Settings`  ... defines a type for the details and parameters of computing photoionization lines.
 
-    + temperature               ::Float64     ... Plasma temperature in [K].
+    + temperature               ::Float64
+        ... Plasma temperature. Unit convention is scheme-dependent: Plasma.perform(scheme::AverageAtomScheme, ...)
+            expects temperature in [K] and converts it internally; Plasma.perform(scheme::SahaBoltzmannScheme, ...)
+            expects temperature already in atomic (Hartree) units, cf. example-Jc.jl. Watch this when re-using
+            the same Settings across different schemes.
     + density                   ::Float64     ... Plasma density in [g/cm^3].
-    + useNumberDensity          ::Bool    
+    + useNumberDensity          ::Bool
         ... true, if the density above is taken as (total ion) number density ni, and false otherwise.
 """
 struct Settings 

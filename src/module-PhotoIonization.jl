@@ -438,25 +438,30 @@ end
 
 
 """
-`PhotoIonization.computeAmplitudesPropertiesPlasma(line::PhotoIonization.Line, nm::Nuclear.Model, grid::Radial.Grid, 
-                                                   settings::PhotoIonization.PlasmaSettings)`  
-    ... to compute all amplitudes and properties of the given line but for the given plasma model; 
-        a line::PhotoIonization.Line is returned for which the amplitudes and properties are now evaluated.
+`PhotoIonization.computeAmplitudesPropertiesPlasma(line::PhotoIonization.Line, nm::Nuclear.Model, grid::Radial.Grid,
+                                                   settings::PhotoIonization.PlasmaSettings, plasmaModel::Basics.AbstractPlasmaModel)`
+    ... to compute all amplitudes and properties of the given line but for the given plasma model. The photon-electron
+        multipole operator itself carries no e-e Coulomb interaction to screen (unlike the Auger case), so the plasma
+        dependence enters here through the continuum (photoelectron) orbital only, cf.
+        Continuum.generateOrbitalForLevel(...,plasmaModel). A line::PhotoIonization.Line is returned for which the
+        amplitudes and properties are now evaluated.
 """
-function  computeAmplitudesPropertiesPlasma(line::PhotoIonization.Line, nm::Nuclear.Model, grid::Radial.Grid, settings::PhotoIonization.PlasmaSettings)
-    newChannels = PhotoIonization.Channel[];;   contSettings = Continuum.Settings(false, grid.NoPoints-50);    csC = csB = 0.
+function  computeAmplitudesPropertiesPlasma(line::PhotoIonization.Line, nm::Nuclear.Model, grid::Radial.Grid,
+                                            settings::PhotoIonization.PlasmaSettings, plasmaModel::Basics.AbstractPlasmaModel)
+    newChannels = PhotoIonization.Channel[];   contSettings = Continuum.Settings(false, grid.NoPoints-50);    csC = csB = 0.
+    subshellList = Basics.generate(OrderedSubshellList(), line.finalLevel.basis, line.initialLevel.basis)
+    Defaults.setDefaults("relativistic subshell list", subshellList; printout=false)
+    #
     for channel in line.channels
-        newiLevel = Basics.generateLevelWithSymmetryReducedBasis(line.initialLevel)
+        newiLevel = Basics.generateLevelWithSymmetryReducedBasis(line.initialLevel, subshellList)
+        newfLevel = Basics.generateLevelWithSymmetryReducedBasis(line.finalLevel, subshellList)
         newiLevel = Basics.generateLevelWithExtraSubshell(Subshell(101, channel.kappa), newiLevel)
-        newfLevel = Basics.generateLevelWithSymmetryReducedBasis(line.finalLevel)
-        @warn "Adapt a proper continuum orbital for the plasma potential"
-        cOrbital, phase  = Continuum.generateOrbitalForLevel(line.electronEnergy, Subshell(101, channel.kappa), newfLevel, nm, grid, contSettings)
+        cOrbital, phase  = Continuum.generateOrbitalForLevel(line.electronEnergy, Subshell(101, channel.kappa), newfLevel,
+                                                              nm, grid, contSettings, plasmaModel)
         newcLevel  = Basics.generateLevelWithExtraElectron(cOrbital, channel.symmetry, newfLevel)
-        newChannel = PhotoIonization.Channel(channel.multipole, channel.gauge, channel.kappa, channel.symmetry, phase, 0., 0.)
-        @warn "Adapt a proper Auger amplitude for the plasma e-e interaction"
-        amplitude = 1.0
-        # amplitude  = PhotoIonization.amplitude("photoionization", channel, line.photonEnergy, newcLevel, newiLevel, grid)
-        push!( newChannels, PhotoIonization.Channel(newChannel.multipole, newChannel.gauge, newChannel.kappa, newChannel.symmetry, 
+        newChannel = PhotoIonization.Channel(channel.multipole, channel.gauge, channel.kappa, channel.symmetry, phase, 0.)
+        amplitude  = PhotoIonization.amplitude("photoionization", newChannel, line.photonEnergy, newcLevel, newiLevel, grid)
+        push!( newChannels, PhotoIonization.Channel(newChannel.multipole, newChannel.gauge, newChannel.kappa, newChannel.symmetry,
                                                     newChannel.phase, amplitude) )
         if       channel.gauge == Basics.Coulomb     csC = csC + abs(amplitude)^2
         elseif   channel.gauge == Basics.Babushkin   csB = csB + abs(amplitude)^2
@@ -466,8 +471,7 @@ function  computeAmplitudesPropertiesPlasma(line::PhotoIonization.Line, nm::Nucl
     Ji2 = Basics.twice(line.initialLevel.J)
     csFactor     = 4 * pi^2 * Defaults.getDefaults("alpha") * line.photonEnergy / (2*(Ji2 + 1))
     crossSection = EmProperty(csFactor * csC, csFactor * csB)
-    println("plasma-photo cs = $crossSection")
-    newline = PhotoIonization.Line( line.initialLevel, line.finalLevel, line.electronEnergy, line.photonEnergy, 
+    newline = PhotoIonization.Line( line.initialLevel, line.finalLevel, line.electronEnergy, line.photonEnergy,
                                     crossSection, EmProperty(0.), EmProperty(0.), EmProperty(0.), newChannels)
     return( newline )
 end
@@ -607,35 +611,35 @@ end
 
 
 """
-`PhotoIonization.computeLinesPlasma(finalMultiplet::Multiplet, initialMultiplet::Multiplet, nm::Nuclear.Model, grid::Radial.Grid, 
-                                    settings::PhotoIonization.PlasmaSettings; output::Bool=true)`  
-    ... to compute the photoIonization transition amplitudes and all properties as requested by the given settings. 
-        A list of lines::Array{PhotoIonization.Lines} is returned.
+`PhotoIonization.computeLinesPlasma(finalMultiplet::Multiplet, initialMultiplet::Multiplet, nm::Nuclear.Model, grid::Radial.Grid,
+                                    settings::PhotoIonization.PlasmaSettings, plasmaModel::Basics.AbstractPlasmaModel; output::Bool=true)`
+    ... to compute the photoIonization transition amplitudes and all properties as requested by the given settings and
+        plasma model. A list of lines::Array{PhotoIonization.Lines} is returned.
 """
-function  computeLinesPlasma(finalMultiplet::Multiplet, initialMultiplet::Multiplet, nm::Nuclear.Model, grid::Radial.Grid, 
-                                settings::PhotoIonization.PlasmaSettings; output::Bool=true)
+function  computeLinesPlasma(finalMultiplet::Multiplet, initialMultiplet::Multiplet, nm::Nuclear.Model, grid::Radial.Grid,
+                                settings::PhotoIonization.PlasmaSettings, plasmaModel::Basics.AbstractPlasmaModel; output::Bool=true)
     println("")
     printstyled("PhotoIonization.computeLinesPlasma(): The computation of photo-ionization cross sections starts now ... \n", color=:light_green)
     printstyled("------------------------------------------------------------------------------------------------------- \n", color=:light_green)
     println("")
-    photoSettings = PhotoIonization.Settings(settings.multipoles, settings.gauges, settings.photonEnergies, settings.electronEnergies, 
-                        false, false, false, settings.printBefore, settings.selectLines, settings.selectedLines, Basics.ExpStokes() )
-    
+    photoSettings = PhotoIonization.Settings(settings.multipoles, settings.gauges, settings.photonEnergies, Float64[], Float64[],
+                        false, false, false, false, false, settings.printBefore, settings.lineSelection, Basics.ExpStokes(), 0., [0,1,2,3,4,5])
+
     lines = PhotoIonization.determineLines(finalMultiplet, initialMultiplet, photoSettings)
     # Display all selected lines before the computations start
     if  settings.printBefore    PhotoIonization.displayLines(stdout, lines)    end
     # Calculate all amplitudes and requested properties
     newLines = PhotoIonization.Line[]
     for  line in lines
-        newLine = PhotoIonization.computeAmplitudesPropertiesPlasma(line, nm, grid, settings) 
+        newLine = PhotoIonization.computeAmplitudesPropertiesPlasma(line, nm, grid, settings, plasmaModel)
         push!( newLines, newLine)
     end
     # Print all results to screen
-    PhotoIonization.displayResults(stdout, lines, photoSettings)
+    PhotoIonization.displayResults(stdout, newLines, photoSettings)
     printSummary, iostream = Defaults.getDefaults("summary flag/stream")
-    if  printSummary   PhotoIonization.displayResults(iostream, lines, photoSettings)     end
+    if  printSummary   PhotoIonization.displayResults(iostream, newLines, photoSettings)     end
     #
-    if    output    return( lines )
+    if    output    return( newLines )
     else            return( nothing )
     end
 end

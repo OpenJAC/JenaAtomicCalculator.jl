@@ -382,20 +382,24 @@ function determineIpShifts(pm::Basics.AbstractPlasmaModel, temp::Float64, ni::Fl
     elseif  typeof(pm) == Basics.WithoutAutoionizationModel
         for ionClass  in  isoClass.ionClasses   deltaIp[ionClass.q] = 0.       end
     elseif  typeof(pm) == Basics.DebyeHueckelModel
-        for ionClass  in  isoClass.ionClasses   
-            deltaIp[ionClass.q] = - (ionClass.q + 1)^2 / pm.debyeLength    
+        # Debye-Hueckel IPD, linear in the ionic charge:  Delta I(q) = -(q+1) / lambda_D   [Hartree, a_o units]
+        for ionClass  in  isoClass.ionClasses
+            deltaIp[ionClass.q] = - (ionClass.q + 1) / pm.debyeLength
         end
-    elseif  typeof(pm) == Basics.IonSphereModel 
+    elseif  typeof(pm) == Basics.IonSphereModel
         for ionClass  in  isoClass.ionClasses
             R = ( 3 * ionClass.q / (4pi * pm.electronDensity) )^(1/3)
             deltaIp[ionClass.q] = - 3/2 * ionClass.q / R
         end
     elseif  typeof(pm) == Basics.StewartPyattModel
+        # Stewart & Pyatt (1966), Astrophys. J. 144, 1203:
+        #   Delta I(q) = -[3(q+1)/(2 R0)] * { [1+(lambda_D/R0)^3]^(2/3) - (lambda_D/R0)^2 },   R0 = (3/(4 pi ni))^(1/3)
+        # R0 is the (charge-independent) ion-sphere radius from the total ion density ni; pm.lambda is the Debye
+        # length lambda_D determined together with the DebyeHueckelModel screening density in updateIpdPlasmaModel.
         for ionClass  in  isoClass.ionClasses
-            R  = ( 3 * ionClass.q / (4pi * pm.electronDensity) )^(1/3)
-            wa = ( (R / pm.lambda)^3 + 1. )^(2/3)
-            wb = - 1 / (2temp) / (pm.electronDensity / ni + 1.) 
-            deltaIp[ionClass.q] = wb * (wa - 1.) 
+            R0    = ( 3 / (4pi * ni) )^(1/3)
+            ratio = pm.lambda / R0
+            deltaIp[ionClass.q] = - 3 * (ionClass.q + 1) / (2*R0) * ( (1. + ratio^3)^(2/3) - ratio^2 )
         end
     else
         error("Undefined plasma model.")
@@ -1142,26 +1146,31 @@ end
 """
 function updateIpdPlasmaModel(pm::Basics.AbstractPlasmaModel, temp::Float64, ne::Float64, isotopeClasses::Array{IsotopeClass,1})
     
-    # Determine the ionization potential shifts that depend on the given plasma model
-    if      typeof(pm) == Basics.NoPlasmaModel                    npm = pm
-    elseif  typeof(pm) == Basics.WithoutAutoionizationModel       npm = pm
-    elseif  typeof(pm) == Basics.DebyeHueckelModel
+    # Screening (charge-weighted) density  nt = n_e + sum_z n_z z^2  that enters the (one-component) Debye length;
+    # this is the same nt for both the DebyeHueckelModel and the StewartPyattModel below, which share the same
+    # underlying Debye length -- see Stewart & Pyatt (1966), Astrophys. J. 144, 1203.
+    function screeningDensity()
         nt = ne
         for  isotopeClass in isotopeClasses
             for ionClass  in  isotopeClass.ionClasses
                 for  level in ionClass.ionLevels
                     nt = nt + level.nDensity * ionClass.q^2
-                end 
-            end 
-        end 
-        debyeLength = sqrt( nt/ temp )
-        npm = Basics.DebyeHueckelModel(debyeLength, pm.debyeRadius)
-    elseif  typeof(pm) == Basics.IonSphereModel 
+                end
+            end
+        end
+        return( nt )
+    end
+
+    # Determine the ionization potential shifts that depend on the given plasma model
+    if      typeof(pm) == Basics.NoPlasmaModel                    npm = pm
+    elseif  typeof(pm) == Basics.WithoutAutoionizationModel       npm = pm
+    elseif  typeof(pm) == Basics.DebyeHueckelModel
+        debyeLength = sqrt( temp / (4pi * screeningDensity()) )
+        npm = Basics.DebyeHueckelModel(debyeLength)
+    elseif  typeof(pm) == Basics.IonSphereModel
         npm = Basics.IonSphereModel(pm.radius, ne)
     elseif  typeof(pm) == Basics.StewartPyattModel
-        ni = 0.;    for isoClass  in  isotopeClasses    ni = ni + isoClass.isotopicDensity * isoClass.isotopicFraction.x   end 
-        lambda = 4pi / temp * ne * (ne / ni + 1.)
-        lambda = 1 / sqrt(lambda)
+        lambda = sqrt( temp / (4pi * screeningDensity()) )
         npm = Basics.StewartPyattModel(pm.radius, ne, lambda)
     else
         error("Undefined plasma model.")

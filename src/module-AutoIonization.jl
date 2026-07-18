@@ -259,7 +259,76 @@ function amplitude(kind::AbstractEeInteraction, channel::AutoIonization.Channel,
         amplitude = 0.;    error("stop a")
     else    error("stop b")
     end
-    
+
+    return( amplitude )
+end
+
+
+"""
+`AutoIonization.amplitude(kind::AbstractEeInteraction, channel::AutoIonization.Channel, continuumLevel::Level,
+                          initialLevel::Level, grid::Radial.Grid, plasmaModel::Basics.AbstractPlasmaModel; printout::Bool=true)`
+    ... to compute the Auger amplitude as AutoIonization.amplitude(...) above, but with the electron-electron Coulomb
+        interaction Debye-Hueckel-screened according to the given plasma model (InteractionStrength.XL_Coulomb_DH in
+        place of XL_Coulomb) -- the plasma parameters thereby enter the transition operator itself, not only the level
+        energies. Only kind = CoulombInteraction() is supported, consistent with Basics.compute(...,plasmaModel) which
+        also excludes the Breit interaction from plasma computations. For plasmaModel = Basics.NoPlasmaModel(), this
+        delegates directly to the field-free method above, so that the computation of the standard (field-free) Auger
+        process is never touched by this plasma-specific code path. A value::ComplexF64 is returned.
+"""
+function amplitude(kind::AbstractEeInteraction, channel::AutoIonization.Channel, continuumLevel::Level, initialLevel::Level,
+                    grid::Radial.Grid, plasmaModel::Basics.AbstractPlasmaModel; printout::Bool=true)
+    if  typeof(plasmaModel) == Basics.NoPlasmaModel
+        return( AutoIonization.amplitude(kind, channel, continuumLevel, initialLevel, grid; printout=printout) )
+    end
+    typeof(plasmaModel) == Basics.DebyeHueckelModel  ||
+        error("Unsupported plasma model = $(plasmaModel)  (only Basics.DebyeHueckelModel is currently supported " *
+              "for the plasma-screened Auger amplitude).")
+    typeof(kind) == CoulombInteraction  ||
+        error("No Breit interaction supported for plasma computations; use kind = CoulombInteraction() for the " *
+              "plasma-screened Auger amplitude.")
+
+    nt = length(continuumLevel.basis.csfs);    ni = length(initialLevel.basis.csfs);    partial = Subshell(9,channel.kappa)
+    if  printout  printstyled("Compute ($kind, Debye-Hueckel-screened) Auger matrix of dimension $nt x $ni in the " *
+                                "continuum- and initial-state bases for the transition [$(initialLevel.index)- ...] " *
+                                "and for partial wave $(string(partial)[2:end]) ... ", color=:light_green)    end
+    matrix = zeros(ComplexF64, nt, ni)
+    #
+    if  initialLevel.basis.subshells == continuumLevel.basis.subshells
+        iLevel = initialLevel;   cLevel = continuumLevel
+    else
+        subshells = Basics.merge(initialLevel.basis.subshells, continuumLevel.basis.subshells)
+        Defaults.setDefaults("relativistic subshell list", subshells; printout=false)
+        iLevel    = Level(initialLevel, subshells)
+        cLevel    = Level(continuumLevel, subshells)
+    end
+    #
+    for  r = 1:nt
+        for  s = 1:ni
+            if  iLevel.basis.csfs[s].J != iLevel.J  ||  iLevel.basis.csfs[s].parity != iLevel.parity      continue    end
+            if  Defaults.saRatip()
+                waR = compute(AngularCoeffsEeRatip2013(), continuumLevel.basis.csfs[r], initialLevel.basis.csfs[s])
+                wa  = waR
+            end
+            if  Defaults.saGG()
+                subshellList = cLevel.basis.subshells
+                opa  = SpinAngular.TwoParticleOperator(0, plus, true)
+                waG2 = SpinAngular.computeCoefficients(opa, cLevel.basis.csfs[r], iLevel.basis.csfs[s], subshellList)
+                wa   = [1.0, waG2]
+            end
+            me = 0.
+            for  coeff in wa[2]
+                me = me + coeff.V * InteractionStrength.XL_Coulomb_DH(coeff.nu,
+                                        cLevel.basis.orbitals[coeff.a], cLevel.basis.orbitals[coeff.b],
+                                        iLevel.basis.orbitals[coeff.c], iLevel.basis.orbitals[coeff.d], grid,
+                                        1/plasmaModel.debyeLength)
+            end
+            matrix[r,s] = me
+        end
+    end
+    if  printout  printstyled("done. \n", color=:light_green)    end
+    amplitude = transpose(cLevel.mc) * matrix * iLevel.mc
+    amplitude = im^Basics.subshell_l(Subshell(101, channel.kappa)) * exp( -im*channel.phase ) * amplitude
+
     return( amplitude )
 end
 
@@ -335,31 +404,37 @@ end
 
 
 """
-`AutoIonization.computeAmplitudesPropertiesPlasma(line::AutoIonization.Line, nm::Nuclear.Model, grid::Radial.Grid, nrContinuum::Int64, 
-                                                  settings::AutoIonization.PlasmaSettings; printout::Bool=true)`  
-    ... to compute all amplitudes and properties of the given line but for the given plasma model; a line::AutoIonization.Line is returned 
-        for which the amplitudes and properties are now evaluated.
+`AutoIonization.computeAmplitudesPropertiesPlasma(line::AutoIonization.Line, nm::Nuclear.Model, grid::Radial.Grid, nrContinuum::Int64,
+                                                  settings::AutoIonization.PlasmaSettings, plasmaModel::Basics.AbstractPlasmaModel;
+                                                  printout::Bool=true)`
+    ... to compute all amplitudes and properties of the given line but for the given plasma model; both the continuum
+        orbital and the Auger (e-e Coulomb) transition operator are screened according to plasmaModel, cf.
+        Continuum.generateOrbitalForLevel(...,plasmaModel) and AutoIonization.amplitude(...,plasmaModel).
+        A line::AutoIonization.Line is returned for which the amplitudes and properties are now evaluated.
 """
-function computeAmplitudesPropertiesPlasma(line::AutoIonization.Line, nm::Nuclear.Model, grid::Radial.Grid, nrContinuum::Int64, 
-                                           settings::AutoIonization.PlasmaSettings; printout::Bool=true) 
+function computeAmplitudesPropertiesPlasma(line::AutoIonization.Line, nm::Nuclear.Model, grid::Radial.Grid, nrContinuum::Int64,
+                                           settings::AutoIonization.PlasmaSettings, plasmaModel::Basics.AbstractPlasmaModel;
+                                           printout::Bool=true)
     newChannels = AutoIonization.Channel[];   contSettings = Continuum.Settings(false, nrContinuum);   rate = 0.
+    # Define a common subshell list for both multiplets, as in the field-free computeAmplitudesProperties
+    subshellList = Basics.generate(OrderedSubshellList(), line.finalLevel.basis, line.initialLevel.basis)
+    Defaults.setDefaults("relativistic subshell list", subshellList; printout=false)
+    #
     for channel in line.channels
-        newiLevel = Basics.generateLevelWithSymmetryReducedBasis(line.initialLevel, line.initialLevel.basis.subshells)
+        newiLevel = Basics.generateLevelWithSymmetryReducedBasis(line.initialLevel, subshellList)
+        newfLevel = Basics.generateLevelWithSymmetryReducedBasis(line.finalLevel, subshellList)
         newiLevel = Basics.generateLevelWithExtraSubshell(Subshell(101, channel.kappa), newiLevel)
-        newfLevel = Basics.generateLevelWithSymmetryReducedBasis(line.finalLevel, line.finalLevel.basis.subshells)
-        @warn "Adapt a proper continuum orbital for the plasma potential"
-        cOrbital, phase  = Continuum.generateOrbitalForLevel(line.electronEnergy, Subshell(101, channel.kappa), newfLevel, nm, grid, contSettings)
+        cOrbital, phase  = Continuum.generateOrbitalForLevel(line.electronEnergy, Subshell(101, channel.kappa), newfLevel,
+                                                              nm, grid, contSettings, plasmaModel)
         newcLevel  = Basics.generateLevelWithExtraElectron(cOrbital, channel.symmetry, newfLevel)
         newChannel = AutoIonization.Channel(channel.kappa, channel.symmetry, phase, 0.)
-        @warn "Adapt a proper Auger amplitude for the plasma e-e interaction"
-        amplitude = 1.0
-        # amplitude  = AutoIonization.amplitude(settings.operator, newChannel, newcLevel, newiLevel, grid)
+        amplitude  = AutoIonization.amplitude(CoulombInteraction(), newChannel, newcLevel, newiLevel, grid, plasmaModel; printout=printout)
         rate       = rate + conj(amplitude) * amplitude
         push!( newChannels, AutoIonization.Channel(newChannel.kappa, newChannel.symmetry, newChannel.phase, amplitude) )
     end
     totalRate = 2pi* rate;   angularAlpha = 0.
     newLine   = AutoIonization.Line(line.initialLevel, line.finalLevel, line.electronEnergy, totalRate, angularAlpha, newChannels)
-    
+
     return( newLine )
 end
 
@@ -536,13 +611,13 @@ end
 
 
 """
-`AutoIonization.computeLinesPlasma(finalMultiplet::Multiplet, initialMultiplet::Multiplet, nm::Nuclear.Model, grid::Radial.Grid, 
-                                   settings::AutoIonization.PlasmaSettings; output=true)`  
-    ... to compute the Auger transition amplitudes and all properties as requested by the given settings. A list of 
-        lines::Array{AutoIonization.Lines} is returned.
+`AutoIonization.computeLinesPlasma(finalMultiplet::Multiplet, initialMultiplet::Multiplet, nm::Nuclear.Model, grid::Radial.Grid,
+                                   settings::AutoIonization.PlasmaSettings, plasmaModel::Basics.AbstractPlasmaModel; output=true)`
+    ... to compute the Auger transition amplitudes and all properties as requested by the given settings and plasma
+        model. A list of lines::Array{AutoIonization.Lines} is returned.
 """
-function  computeLinesPlasma(finalMultiplet::Multiplet, initialMultiplet::Multiplet, nm::Nuclear.Model, grid::Radial.Grid, 
-                             settings::AutoIonization.PlasmaSettings; output=true)
+function  computeLinesPlasma(finalMultiplet::Multiplet, initialMultiplet::Multiplet, nm::Nuclear.Model, grid::Radial.Grid,
+                             settings::AutoIonization.PlasmaSettings, plasmaModel::Basics.AbstractPlasmaModel; output=true)
     println("")
     printstyled("AutoIonization.computeLinesPlasma(): The computation of Auger rates starts now ... \n", color=:light_green)
     printstyled("---------------------------------------------------------------------------------- \n", color=:light_green)
@@ -557,7 +632,7 @@ function  computeLinesPlasma(finalMultiplet::Multiplet, initialMultiplet::Multip
     # Calculate all amplitudes and requested properties
     newLines = AutoIonization.Line[]
     for  line in lines
-        newLine = AutoIonization.computeAmplitudesPropertiesPlasma(line, nm, grid, nrContinuum, settings) 
+        newLine = AutoIonization.computeAmplitudesPropertiesPlasma(line, nm, grid, nrContinuum, settings, plasmaModel)
         push!( newLines, newLine)
     end
     # Print all results to screen
@@ -566,7 +641,7 @@ function  computeLinesPlasma(finalMultiplet::Multiplet, initialMultiplet::Multip
     printSummary, iostream = Defaults.getDefaults("summary flag/stream")
     if  printSummary   AutoIonization.displayRates(iostream, newLines, augerSettings);   AutoIonization.displayLifetimes(iostream, newLines)     end
     #
-    if    output    return( lines )
+    if    output    return( newLines )
     else            return( nothing )
     end
 end

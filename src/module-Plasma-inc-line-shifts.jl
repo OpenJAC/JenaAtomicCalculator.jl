@@ -7,52 +7,81 @@ using Printf, ..Basics, ..Defaults, ..Nuclear, ..ManyElectron, ..Radial, ..Table
 
 
 """
-`Plasma.computeOutcomes(multiplet::Multiplet, nm::Nuclear.Model, grid::Radial.Grid, 
-                                    asfSettings::AsfSettings, settings::Plasma.Settings; output=true)` 
-    ... to compute a new multiplet from the plasma-modified Hamiltonian matrix as specified by the given 
-        settings. The diagonalization of the (plasma-modified) Hamiltonian matrix follows the asfSettings that
-        were applied before for the computation of the multiplet; warnings are issued if features were selected
-        that are not supported for plasma calculations, such as the Breit interaction, QED shifts and others.
-        The energies and plasma shifts (with regard to the unperturbed multiplet) are printed to screen 
-        and into the summary file. The generated (plasma) multiplet is returned if output=true and nothing otherwise,
+`Plasma.performCI(basis::Basis, nm::Nuclear.Model, grid::Radial.Grid, settings::AsfSettings,
+                  plasmaModel::Basics.AbstractPlasmaModel; printout::Bool=false)`
+    ... computes and diagonalizes the CI matrix for all CSF in the given basis under the given plasma model,
+        mirroring Hamiltonian.performCI but replacing the field-free Hamiltonian.setupMatrix by the plasma-screened
+        Basics.compute(JP, basis, nm, grid, settings, plasmaModel). For plasmaModel = Basics.NoPlasmaModel(), this
+        delegates directly to Hamiltonian.performCI, so that the field-free computation of the standard processes
+        is never touched by the plasma-specific code path. A multiplet::Multiplet is returned.
 """
-function computeOutcomes(multiplet::Multiplet, nm::Nuclear.Model, grid::Radial.Grid, 
-                            asfSettings::AsfSettings, settings::Plasma.Settings; output=true)
-    println("")
-    printstyled("Plasma.computeOutcomes(): The computation of plasma-shifts starts now ... \n", color=:light_green)
-    printstyled("------------------------------------------------------------------------- \n", color=:light_green)
-    #
-    basis        = multiplet.levels[1].basis
-    newMultiplet = Basics.perform("computation: CI for plasma", basis, nm, grid, asfSettings, settings)
-    # Print all results to screen
-    Plasma.displayResults(stdout, multiplet, newMultiplet, settings)
-    printSummary, iostream = Defaults.getDefaults("summary flag/stream")
-    if  printSummary    Plasma.displayResults(iostream, multiplet, newMultiplet, settings)   end
-    #
-    if    output    return( newMultiplet )
-    else            return( nothing )
+function performCI(basis::Basis, nm::Nuclear.Model, grid::Radial.Grid, settings::AsfSettings,
+                   plasmaModel::Basics.AbstractPlasmaModel; printout::Bool=false)
+    if  typeof(plasmaModel) == Basics.NoPlasmaModel
+        return( Hamiltonian.performCI(basis, nm, grid, settings; printout=printout) )
     end
+
+    # First determine the number of CSF in each J^P symmetry block
+    symmetries = Dict{LevelSymmetry,Int64}()
+    for  csf in basis.csfs
+        sym = LevelSymmetry(csf.J, csf.parity)
+        if     haskey(symmetries, sym)    symmetries[sym] = symmetries[sym] + 1
+        else                              symmetries[sym] = 1
+        end
+    end
+
+    NoCsf = 0;   for (sym,v) in symmetries   NoCsf = NoCsf + v   end
+    if  NoCsf != length(basis.csfs)   error("stop b; NoCsf = $NoCsf ")   end
+
+    # Calculate for each symmetry block the corresponding plasma-screened CI matrix, diagonalize it and append
+    # a Multiplet for this block
+    multiplets = Multiplet[]
+    for  (sym,v) in  symmetries
+        if  !Basics.selectSymmetry(sym, settings.levelSelectionCI)     continue    end
+        matrix = Basics.compute(sym, basis, nm, grid, settings, plasmaModel; printout=printout)
+        eigen  = Basics.diagonalize(MatrixWithLinearAlgebra(), matrix)
+
+        levels = Level[]
+        for  ev = 1:length(eigen.values)
+            evSym = eigen.vectors[ev];    vector = zeros( length(basis.csfs) );   ns = 0
+            for  r = 1:length(basis.csfs)
+                if LevelSymmetry(basis.csfs[r].J, basis.csfs[r].parity) == sym    ns = ns + 1;   vector[r] = evSym[ns]   end
+            end
+            newlevel = Level( sym.J, AngularM64(sym.J.num//sym.J.den), sym.parity, 0, eigen.values[ev], 0., true, basis, vector )
+            push!( levels, newlevel)
+        end
+        wa = Multiplet(string(sym) * "+ (plasma)", levels)
+        push!( multiplets, wa)
+    end
+
+    mp = Basics.merge(multiplets)
+    mp = Basics.sortByEnergy(mp)
+
+    levelNos = Int64[]
+    for (ilev, level) in  enumerate(mp.levels)
+        if  Basics.selectLevel(level, settings.levelSelectionCI)    push!(levelNos, ilev)    end
+    end
+
+    if  printout    Basics.tabulate(stdout, mp, levelNos)    end
+    printSummary, iostream = Defaults.getDefaults("summary flag/stream")
+    if  printSummary    Basics.tabulate(iostream, mp, levelNos)    end
+
+    return( mp )
 end
 
 
 """
-`Plasma.displayResults(stream::IO, multiplet::Multiplet, newMultiplet::Multiplet, settings::Plasma.Settings)`  
-    ... to display the energies, M_ms and F-parameters, etc. for the  selected levels. A neat table is printed but nothing 
+`Plasma.displayResults(stream::IO, multiplet::Multiplet, newMultiplet::Multiplet, plasmaModel::Basics.AbstractPlasmaModel)`
+    ... to display the energies, M_ms and F-parameters, etc. for the  selected levels. A neat table is printed but nothing
         is returned otherwise.
 """
-function  displayResults(stream::IO, multiplet::Multiplet, pMultiplet::Multiplet, settings::Plasma.Settings)
+function  displayResults(stream::IO, multiplet::Multiplet, pMultiplet::Multiplet, plasmaModel::Basics.AbstractPlasmaModel)
     nx = 64
     println(stream, " ")
     println(stream, " ")
-    println(stream, "  Plasma shifts for $(settings.plasmaModel):")
-    
-    # Write out the relevant plasma parameters
-    if settings.plasmaModel == Plasma.DebyeHueckel()
-        println(stream, "\n     + lambda = $(settings.lambdaDebye)")
-        println(stream,   "     + Plasma screening included perturbatively in CI matrix but not in SCF field.")
-    else  error("Unsupported plasma model = $(plasmaSettings.plasmaModel)")
-    end
-    
+    println(stream, "  Plasma shifts for $(plasmaModel):")
+    println(stream,   "     + Plasma screening included perturbatively in the CI matrix but not in the SCF field.")
+
     println(stream, " ")
     println(stream, "  ", TableStrings.hLine(nx))
     sa = "  ";   sb = "  "
@@ -91,23 +120,40 @@ end
 """
 function  perform(scheme::Plasma.LineShiftScheme, computation::Plasma.Computation; output::Bool=true)
     if  output    results = Dict{String, Any}()    else    results = nothing    end
-        
+
     nm = computation.nuclearModel
-        
-    # Use computation.grid, computation.nuclearModel, scheme.initialConfigs, scheme.finalConfigs, scheme.settings, 
-    initialMultiplet = SelfConsistent.performSCF(scheme.initialConfigs, nm, computation.grid, computation.asfSettings)
-    finalMultiplet   = SelfConsistent.performSCF(scheme.finalConfigs, nm, computation.grid, computation.asfSettings)
+    pm = scheme.plasmaModel
+
+    # Determine self-consistent (field-free) orbitals for the initial and final configurations; the orbitals
+    # themselves are not re-optimized in the plasma potential (only the CI matrix and, further downstream, the
+    # continuum orbital and transition amplitude are screened -- see AutoIonization/PhotoIonization). The CI
+    # step is then redone under the given plasma model to obtain the actual plasma-shifted multiplets.
+    initialFieldFree = SelfConsistent.performSCF(scheme.initialConfigs, nm, computation.grid, computation.asfSettings)
+    finalFieldFree   = SelfConsistent.performSCF(scheme.finalConfigs,   nm, computation.grid, computation.asfSettings)
+    initialMultiplet = Plasma.performCI(initialFieldFree.levels[1].basis, nm, computation.grid, computation.asfSettings, pm)
+    finalMultiplet   = Plasma.performCI(finalFieldFree.levels[1].basis,   nm, computation.grid, computation.asfSettings, pm)
+    #
+    # Display the plasma-induced level shifts of the initial and final multiplets, before the process-specific rates
+    println("\n  Initial-state levels:")
+    Plasma.displayResults(stdout, initialFieldFree, initialMultiplet, pm)
+    println("  Final-state levels:")
+    Plasma.displayResults(stdout, finalFieldFree, finalMultiplet, pm)
+    printSummary, iostream = Defaults.getDefaults("summary flag/stream")
+    if  printSummary
+        Plasma.displayResults(iostream, initialFieldFree, initialMultiplet, pm)
+        Plasma.displayResults(iostream, finalFieldFree, finalMultiplet, pm)
+    end
     #
     if      typeof(scheme.settings)  == AutoIonization.PlasmaSettings
-        outcome = AutoIonization.computeLinesPlasma(finalMultiplet, initialMultiplet, nm, computation.grid, scheme.settings) 
+        outcome = AutoIonization.computeLinesPlasma(finalMultiplet, initialMultiplet, nm, computation.grid, scheme.settings, pm)
         if output    results = Base.merge( results, Dict("AutoIonization lines in plasma:" => outcome) )         end
     elseif  typeof(scheme.settings)  == PhotoIonization.PlasmaSettings
-        outcome = PhotoIonization.computeLinesPlasma(finalMultiplet, initialMultiplet, nm, computation.grid, scheme.settingss) 
+        outcome = PhotoIonization.computeLinesPlasma(finalMultiplet, initialMultiplet, nm, computation.grid, scheme.settings, pm)
         if output    results = Base.merge( results, Dict("Photo lines in plasma:" => outcome) )                  end
     else
-        error("stop a")
+        error("Unsupported line-shift settings type = $(typeof(scheme.settings)).")
     end
-    
+
     println("Line-Shift computation complete ...")
     
     Defaults.warn(PrintWarnings())

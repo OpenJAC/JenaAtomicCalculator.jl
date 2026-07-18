@@ -1533,10 +1533,17 @@ export  AbstractMesh, Cartesian2DMesh, GLegenreMesh, LinearMesh, PolarMesh, Sphe
     ... defines an abstract and a number of singleton types for the the (allowed) plasma models.
 
     + NoPlasmaModel                 ... No plasma model defined.
-    + DebyeHueckelModel             ... Debye-Hueckel plasma model.
-    + IonSphereModel                ... Ion-sphere (not yet supported).
-    + StewartPyattModel             ... Stewart-Pyatt model (not yet supported).
+    + DebyeHueckelModel             ... Debye-Hueckel plasma model; supported for IPD shifts (Plasma.determineIpShifts)
+                                         and for the screened CI matrix / amplitudes (Basics.compute(...,plasmaModel)).
+    + IonSphereModel                ... Ion-sphere model; supported for IPD shifts, not yet for the screened
+                                         CI matrix / amplitudes (InteractionStrength.XL_plasma_ionSphere).
+    + StewartPyattModel             ... Stewart-Pyatt model; supported for IPD shifts only, cf. IonSphereModel.
     + WithoutAutoionizationModel    ... Just excludes all autoionizing levels; no original plasma model.
+
+    Ecker-Kröll (1963) is a further, moderate-complexity IPD model, deliberately NOT (yet) implemented here:
+    a reliable closed-form statement of its strong-coupling branch could not be confirmed from the secondary
+    literature reachable during development. Do not add an EckerKroellModel without first checking the formula
+    against the primary reference [G. Ecker & W. Kröll, Phys. Fluids 6, 62 (1963)] or an equally authoritative source.
 """
 abstract type  AbstractPlasmaModel                                    end
 struct         NoPlasmaModel                <:  AbstractPlasmaModel   end
@@ -1561,29 +1568,29 @@ end
 
 
 """
-`struct  Basics.DebyeHueckelModel   <:  AbstractPlasmaModel`  
-    ... to specify (the parameters of) a Debye-Hückel potential.
+`struct  Basics.DebyeHueckelModel   <:  AbstractPlasmaModel`
+    ... to specify (the parameters of) a Debye-Hückel potential, screened as  exp(-r/debyeLength) / r.
 
-    + debyeLength  ::Float64               ... the Debye length D [a_o].
-    + radius       ::Float64               ... the Debye radius R_D [a_o].
+    + debyeLength  ::Float64               ... the (single, independent) Debye screening length lambda_D [a_o].
+        Some references also speak of a 'Debye radius'; in Debye-Hückel theory this coincides with the Debye
+        length itself, so it is not carried here as a separate parameter.
 """
 struct  DebyeHueckelModel   <:  AbstractPlasmaModel
     debyeLength   ::Float64
-    debyeRadius   ::Float64
-end 
+end
 
 
 """
 `Basics.DebyeHueckelModel()`  ... constructor for the default settings of Basics.DebyeHueckelModel().
 """
 function DebyeHueckelModel()
-    DebyeHueckelModel( 0.1, 0. )
+    DebyeHueckelModel( 0.1 )
 end
 
 
 # `Base.show(io::IO, model::DebyeHueckelModel)`  ... prepares a proper printout of the variable model::DebyeHueckelModel.
-function Base.show(io::IO, model::DebyeHueckelModel) 
-    sa = "Debye-Hueckel plasma model with Debye length D = $(model.debyeLength) a_o and radius R_D = $(model.debyeRadius) a_o."
+function Base.show(io::IO, model::DebyeHueckelModel)
+    sa = "Debye-Hueckel plasma model with Debye length D = $(model.debyeLength) a_o."
     print(io, sa)
 end
 
@@ -1623,7 +1630,10 @@ end
 
     + radius          ::Float64               ... the Stewart-Pyatt radius R [a_o].
     + electronDensity ::Float64               ... electron density n_e (T).
-    + lambda          ::Float64               ... lambda^(ST) (T, ne, ni)
+    + lambda          ::Float64
+        ... the Debye screening length lambda_D [a_o], the same quantity as DebyeHueckelModel.debyeLength; the
+            ion-sphere radius R0 that enters the Stewart-Pyatt formula together with lambda is derived on-the-fly
+            from the total ion density (cf. Plasma.determineIpShifts), not stored here.
 """
 struct  StewartPyattModel           <:  AbstractPlasmaModel
     radius            ::Float64

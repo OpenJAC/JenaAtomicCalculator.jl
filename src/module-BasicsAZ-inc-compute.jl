@@ -178,7 +178,7 @@ function Basics.compute(JP::LevelSymmetry, basis::Basis, nuclearModel::Nuclear.M
     if  settings.qedModel != NoneQed()   error("No QED estimates supported for plasma computations; use qedModel=NoneQed()  in the asfSettings.")   end   
     
     # Now distinguis the CI matrix for different plasma models
-    if  typeof(plasmaModel) == Basics.DebyeHueckel
+    if  typeof(plasmaModel) == Basics.DebyeHueckelModel
         if printout    print("Compute DebyeHueckel-CI matrix of dimension $n x $n for the symmetry $(string(JP.J))^$(string(JP.parity)) ...")    end
 
         # Generate an effective nuclear charge Z(r) for a screened Debye-Hueckel potential on the given grid
@@ -223,7 +223,8 @@ function Basics.compute(JP::LevelSymmetry, basis::Basis, nuclearModel::Nuclear.M
             end
         end 
     else
-        error("Unsupported plasma model = $(plasmaSettings.plasmaModel)")
+        error("Unsupported plasma model = $(plasmaModel)  (only Basics.DebyeHueckelModel is currently supported " *
+              "for the screened CI matrix).")
     end
     
     if printout    println("   ... done.")    end
