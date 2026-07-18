@@ -381,15 +381,68 @@ end
 
 
 """
-`SelfConsistent.solveAverageAtomField(orbitals::Dict{Subshell, Orbital}, nuclearModel::Nuclear.Model, scField::Basics.AbstractScField, 
-                                      temp::Float64, radiusWS::Float64, primitives::Bsplines.Primitives; printout::Bool=true)` 
-    ... solves the self-consistent field for a given local average-atom potential as specified by scField 
+`SelfConsistent.determineChemicalPotential(orbitals::Dict{Subshell, Orbital}, temp::Float64, radiusWS::Float64,
+                                           nm::Nuclear.Model, grid::Radial.Grid)`
+    ... determines the chemical potential so that Sum_i f(epsilon_i, mu, temp) = Z.
+        The Newton-Raphson methods is used to iterate to the chemical potential; a chemMu::Float64 is returned.
+
+        Note: this general finite-temperature Fermi-Dirac root-finding utility was moved here from module Plasma
+              (where it originated as Plasma.determineChemicalPotential), since Plasma.perform(::AverageAtomScheme,
+              ...) needs SelfConsistent.solveAverageAtomField below, and solveAverageAtomField itself needs this
+              function internally at every SCF iteration; keeping it in Plasma would have made the two modules
+              depend on each other circularly. Nothing here is Plasma-scheme-specific.
+"""
+function determineChemicalPotential(orbitals::Dict{Subshell, Orbital}, temp::Float64, radiusWS::Float64, nm::Nuclear.Model,
+                                    grid::Radial.Grid)
+    function g(mu::Float64, orbitals::Dict{Subshell, Orbital}, temp::Float64, nm::Nuclear.Model)
+        wa = - nm.Z
+        for  (k,v)  in orbitals
+            occ = Basics.twice( Basics.subshell_j(k)) + 1
+            wb  = (v.energy - mu) /temp
+            if  wb > 300.   wb = 300.   end
+            wa  = wa + occ / (exp(wb) + 1)
+        end
+        return( wa )
+    end
+    #
+    function gprime(mu::Float64, orbitals::Dict{Subshell, Orbital}, temp::Float64, nm::Nuclear.Model)
+        wa = 0.
+        for  (k,v)  in orbitals
+            occ = Basics.twice( Basics.subshell_j(k)) + 1
+            wb  = (v.energy - mu) /temp
+            if  wb > 300.   wb = 300.   end
+            wc  = exp( wb )
+            wa  = wa + occ * wc^2 / temp / (wc+1)^2
+        end
+        return( wa )
+    end
+    # Iterate for the chemical potential
+    chemMu = -0.1;     newMu = 0.;     nx = 0
+    while true
+        nx = nx + 1
+        newMu = chemMu - g(chemMu, orbitals, temp, nm) / gprime(chemMu, orbitals, temp, nm)
+        if  abs(newMu - chemMu) < 1.0e-4  break
+        else    chemMu = newMu
+        end
+    end
+
+    chemMu = chemMu - 0.0011  ## Seems to bring better stability in the SCF computations
+
+    println(">>> Newton-Raphson: $nx)  chemMu = $chemMu  g = $(g(chemMu, orbitals, temp, nm)) ")
+    return ( chemMu )
+end
+
+
+"""
+`SelfConsistent.solveAverageAtomField(orbitals::Dict{Subshell, Orbital}, nuclearModel::Nuclear.Model, scField::Basics.AbstractScField,
+                                      temp::Float64, radiusWS::Float64, primitives::Bsplines.Primitives; printout::Bool=true)`
+    ... solves the self-consistent field for a given local average-atom potential as specified by scField
         A (new) set of orbitals::Dict{Subshell, Orbital} is returned.
 """
-function solveAverageAtomField(orbitals::Dict{Subshell, Orbital}, nuclearModel::Nuclear.Model, scField::Basics.AbstractScField, 
+function solveAverageAtomField(orbitals::Dict{Subshell, Orbital}, nuclearModel::Nuclear.Model, scField::Basics.AbstractScField,
                                temp::Float64, radiusWS::Float64, primitives::Bsplines.Primitives; printout::Bool=true)
     # Determine the chemical potential
-    chemMu    = JAC.Plasma.determineChemicalPotential(orbitals, temp, radiusWS, nuclearModel, primitives.grid);        @show chemMu
+    chemMu    = determineChemicalPotential(orbitals, temp, radiusWS, nuclearModel, primitives.grid);        @show chemMu
     
     # Extract the kappa's from orbitals
     kappas = Int64[];     for (k,v)  in  orbitals     push!(kappas, k.kappa)    end;    kappas = unique(kappas);   @show kappas
@@ -424,10 +477,7 @@ function solveAverageAtomField(orbitals::Dict{Subshell, Orbital}, nuclearModel::
         #
         for kappa in kappas
             # (1) Re-compute the local potential
-            if       scField == Basics.AaHSField()     wp = Basics.computePotentialAtomicAverageHS( grid, previousOrbitals, chemMu, temp)
-            elseif   scField == Basics.AaDFSField()    wp = Basics.computePotentialAtomicAverageDFS(grid, previousOrbitals, chemMu, temp)
-            else     error("stop potential")
-            end
+            wp  = Basics.computePotential(scField, grid, previousOrbitals, chemMu, temp)
             pot = Basics.add(nuclearPotential, wp)
             
             # (2) Set-up the diagonal part of the Hamiltonian matrix
@@ -440,7 +490,7 @@ function solveAverageAtomField(orbitals::Dict{Subshell, Orbital}, nuclearModel::
             if  wcBlock > 1.0e-6   go_on = true   end     ## accuracyScf
             for  (k,v)  in  orbitals
                 if      k.kappa == kappa
-                    newOrbital = generateOrbitalFromPrimitives(k, wc, primitives)
+                    newOrbital = Bsplines.generateOrbitalFromPrimitives(k, wc, primitives)
                     wcOrbital  = Basics.analyzeConvergence(previousOrbitals[k], newOrbital)
                     if  wcOrbital > 1.0e-6   accuracyScf = wcOrbital;   go_on = true   end     ## accuracyScf
                         sa = "  $k::  en [a.u.] = " * @sprintf("%.7e", newOrbital.energy) * ";   self-cons'cy = "  
@@ -454,7 +504,7 @@ function solveAverageAtomField(orbitals::Dict{Subshell, Orbital}, nuclearModel::
             # (5) Re-define the bsplineBlock
             bsplineBlock[kappa] = wc
         end
-        chemMu              = JAC.Plasma.determineChemicalPotential(previousOrbitals, temp, radiusWS, nuclearModel, primitives.grid)
+        chemMu              = determineChemicalPotential(previousOrbitals, temp, radiusWS, nuclearModel, primitives.grid)
         if  go_on   nothing   else   break   end
     end
     

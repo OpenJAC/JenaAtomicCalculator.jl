@@ -6,24 +6,20 @@
 """
 module Plasma
 
-using  Dates, JLD2, Printf 
-using  ..AtomicState, ..Basics, ..Bsplines, ..Defaults, ..ManyElectron, ..Nuclear, ..Radial, ..RadialIntegrals, 
-       ..Semiempirical, ..TableStrings, ..FormFactor, ..PhotoEmission, ..PhotoIonization, ..AutoIonization
+using  Dates, JLD2, Printf
+using  ..AtomicState, ..Basics, ..Bsplines, ..Defaults, ..ManyElectron, ..Nuclear, ..Radial, ..RadialIntegrals,
+       ..Semiempirical, ..TableStrings, ..FormFactor, ..PhotoEmission, ..PhotoIonization, ..AutoIonization, ..SelfConsistent
 
 
 """
-`abstract type Plasma.AbstractPlasmaScheme` 
+`abstract type Plasma.AbstractPlasmaScheme`
     ... defines an abstract type to distinguish different kinds of plasma computations; see also:
-    
-    + struct AverageAtomScheme    
+
+    + struct AverageAtomScheme
         ... to perform an average-atom computation.
-    + struct LineShiftScheme    
+    + struct LineShiftScheme
         ... to compute the energy shifts and properties of atomic/ionic lines in some selected plasma model.
-    + struct RateSchemePhotoionization    
-        ... to compute (empirical) photoionization plasma rates and rate coefficients.
-    + struct RateSchemePhotorecombination    
-        ... to compute (empirical) photorecombination plasma rates and rate coefficients.
-    + struct SahaBoltzmannScheme    
+    + struct SahaBoltzmannScheme
         ... to compute thermodynamic properties of a Saha-Boltzmann LTE mixture.
 """
 abstract type  AbstractPlasmaScheme       end
@@ -433,7 +429,6 @@ end
 
 include("module-Plasma-inc-average-atom.jl")
 include("module-Plasma-inc-line-shifts.jl")
-include("module-Plasma-inc-empirical-rates.jl")
 include("module-Plasma-inc-saha-boltzmann-mixture.jl")
 
 #######################################################################################################################

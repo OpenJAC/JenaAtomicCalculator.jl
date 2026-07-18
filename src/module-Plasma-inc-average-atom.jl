@@ -34,19 +34,25 @@ end
     ... computes the (standard) form factor F(q) for the electron density as given by the AA orbitals.
         A list of formFactors::Array{Float64,1} is returned that directly refers to the given q-values.
 """
-function computeFormFactors(qValues::Array{Float64,1}, orbitals::Dict{Subshell, Orbital}, chemMu::Float64, temp::Float64, 
+function computeFormFactors(qValues::Array{Float64,1}, orbitals::Dict{Subshell, Orbital}, chemMu::Float64, temp::Float64,
                             grid::Radial.Grid)
-    formFactors = Float64[];    wa = zeros( grid.NoPoints )
+    formFactors = Float64[]
+    # The (Fermi-Dirac occupation-weighted) electron density does not depend on q; compute it once here, and take a
+    # fresh copy for each q below -- reusing (and mutating) a single array across the q loop previously accumulated
+    # the density afresh on top of the already q-transformed values of the *previous* iteration, silently corrupting
+    # every form factor but the first.
+    density = zeros( grid.NoPoints )
+    for (k,v) in orbitals
+        occ  = Basics.FermiDirac(v.energy, chemMu, temp) * (Basics.twice(Basics.subshell_j(k)) + 1)
+        nrho = length(v.P)
+        for    i = 1:nrho   density[i] = density[i] + occ * (v.P[i]^2 + v.Q[i]^2)    end
+    end
     #
     for  q in qValues
-        for (k,v) in orbitals
-            occ  = Basics.FermiDirac(v.energy, chemMu, temp) * (Basics.twice(Basics.subshell_j(k)) + 1) 
-            nrho = length(v.P)
-            for    i = 1:nrho   wa[i] = wa[i] + occ * (v.P[i]^2 + v.Q[i]^2)    end
-        end
         # Compute the full integrant; the factor 4pi * r^2 is already in the density
         if     q == 0.    error("q = 0. is not supported for form-factor computations.")
-        else   for    i = 2:grid.NoPoints   wa[i] = wa[i] / grid.r[i] * sin(q*grid.r[i]) / q    end
+        else   wa = deepcopy(density)
+               for    i = 2:grid.NoPoints   wa[i] = wa[i] / grid.r[i] * sin(q*grid.r[i]) / q    end
         end
         sF = RadialIntegrals.V0(wa, grid.NoPoints, grid)
         push!(formFactors, sF)
@@ -85,61 +91,7 @@ end
 
 
 """
-`Plasma.determineChemicalPotential(orbitals::Dict{Subshell, Orbital}, temp::Float64, radiusWS::Float64, nm::Nuclear.Model,
-                                    grid::Radial.Grid)`  
-    ... determines the chemical potential so that Sum_i f(epsilon_i, mu, temp) = Z. 
-        The Newton-Raphson methods is used to iterate to the chemical potential; a chemMu::Float64 is returned.
-"""
-function determineChemicalPotential(orbitals::Dict{Subshell, Orbital}, temp::Float64, radiusWS::Float64, nm::Nuclear.Model,
-                                    grid::Radial.Grid)
-    function g(mu::Float64, orbitals::Dict{Subshell, Orbital}, temp::Float64, nm::Nuclear.Model)
-        wa = - nm.Z
-        for  (k,v)  in orbitals
-            occ = Basics.twice( Basics.subshell_j(k)) + 1
-            ## occ = occ * Plasma.finiteNorm(v, radiusWS, grid)
-            wb  = (v.energy - mu) /temp
-            if  wb > 300.   wb = 300.   end
-            ## @show occ, wb, wa
-            wa  = wa + occ / (exp(wb) + 1)    
-        end
-        return( wa )
-    end
-    ## for  mu = -18.1:0.005:-18.0  @show  mu, g(mu::Float64, orbitals::Dict{Subshell, Orbital}, temp::Float64, nm::Nuclear.Model)  end
-    ## error("stop x")
-    #
-    function gprime(mu::Float64, orbitals::Dict{Subshell, Orbital}, temp::Float64, nm::Nuclear.Model)
-        wa = 0.
-        for  (k,v)  in orbitals
-            occ = Basics.twice( Basics.subshell_j(k)) + 1
-            ## occ = occ # * Plasma.finiteNorm(v, radiusWS, grid)
-            wb  = (v.energy - mu) /temp
-            if  wb > 300.   wb = 300.   end
-            wc  = exp( wb )
-            wa  = wa + occ * wc^2 / temp / (wc+1)^2    
-            ## @show occ, wb, wc, wa
-        end
-        return( wa )
-    end
-    # Iterate for the chemical potential
-    chemMu = -0.1;     newMu = 0.;     nx = 0
-    while true
-        nx = nx + 1
-        newMu = chemMu - g(chemMu, orbitals, temp, nm) / gprime(chemMu, orbitals, temp, nm)
-        if  abs(newMu - chemMu) < 1.0e-4  break
-        else  ## println(">>> Newton-Raphson: $nx)  chemMu = $chemMu  g = $(g(chemMu, orbitals, temp, nm)) ")
-                chemMu = newMu
-        end
-    end
-    
-    chemMu = chemMu - 0.0011  ## Seems to bring better stability in the SCF computations
-    
-    println(">>> Newton-Raphson: $nx)  chemMu = $chemMu  g = $(g(chemMu, orbitals, temp, nm)) ")
-    return ( chemMu )
-end
-
-
-"""
-`Plasma.determineWignerSeitzRadius(rho::Float64, nm::Nuclear.Model)`  
+`Plasma.determineWignerSeitzRadius(rho::Float64, nm::Nuclear.Model)`
     ... determines the Wigner-Seitz radius R^(WS) from the plasma density rho [g/cm^3] ne and the nuclear charge Z.
 """
 function determineWignerSeitzRadius(rho::Float64, nm::Nuclear.Model)
@@ -228,11 +180,11 @@ function  perform(scheme::Plasma.AverageAtomScheme, computation::Plasma.Computat
     println(">> Subshells included into the average-atom scheme: \n   $subshells")
     # Generate hydrogenic orbitals for all subshells and display comparison
     orbitals  = Bsplines.generateOrbitalsHydrogenic(subshells, nm, wa; printout=false)
-    chemMu    = Plasma.determineChemicalPotential(orbitals, temp, RWS, nm, computation.grid)
+    chemMu    = SelfConsistent.determineChemicalPotential(orbitals, temp, RWS, nm, computation.grid)
     Basics.displayOrbitalProperties(stdout, orbitals, chemMu, temp, RWS, nm, computation.grid)
     # Solve the orbitals and chemical potential self-consistently in the average-atom model
-    orbitals  = Bsplines.solveSelfConsistentAverageAtom(wa, nm, orbitals, temp, RWS, scheme.scField, printout=true)
-    chemMu    = Plasma.determineChemicalPotential(orbitals, temp, RWS, nm, computation.grid)
+    orbitals  = SelfConsistent.solveAverageAtomField(orbitals, nm, scheme.scField, temp, RWS, wa; printout=true)
+    chemMu    = SelfConsistent.determineChemicalPotential(orbitals, temp, RWS, nm, computation.grid)
     # Diplay orbital properties
     Basics.displayOrbitalProperties(stdout, orbitals, chemMu, temp, RWS, nm, computation.grid)
     Plasma.displayElectronNumberDensity(computation.grid, orbitals, chemMu, temp, RWS)
