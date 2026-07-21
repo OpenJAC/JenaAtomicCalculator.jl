@@ -52,7 +52,7 @@ using  Dates,  Printf,  BSplineKit, LinearAlgebra, SpecialFunctions, QuadGK, Cub
 export AbstractCImethod, AbstractConfigurationRestriction, AbstractEeInteraction, AbstractPotential, AbstractQedModel, AbstractStartOrbitals,
        AbstractProcessSettings, AbstractEmpiricalSettings, AbstractPlasmaModel, AbstractPropertySettings, AbstractLineShiftSettings,
        AbstractNeutralNetwork, AbstractNeutralNetworkRequest, Application,
-       add, AlphaX, AllShells, AlphaVariation, analyze, AnapoleMoment, 
+       add, AllShells, AlphaVariation, analyze, AnapoleMoment,
        AngularJ64, AngularM64, AngularJ, AngularMomentum, AddElectrons, 
        AsfSettings, Atomic, AtomicState, AtomicStructure, Auger, AugerInPlasma, AutoIonization, AverageAtom, AtomicCompass,
        AtomicModel, AtomicFeatures,
@@ -64,16 +64,16 @@ export AbstractCImethod, AbstractConfigurationRestriction, AbstractEeInteraction
        computeBranchingFractions,  computeChargeStateDistribution,  computeCrossSections,  computeForPedestrians,  computeLevelEnergies,  computeLifetimes,  computeResonanceStrength, computeTransitionRates,  displaySpectrum,
        diagonalize, Defaults, DecayYield, DielectronicRecombination, Dierec, Djpq, DoubleAutoIonization, DoubleAuger, DeepLearning,
        DiagonalCoulomb, DefaultQuantizationAxis, displayCouplings, displayConfiguration,  displayConfigurations, Distribution,
-       Eimex, ElectronCapture, ElecCapture, estimate, ElectricDipoleMoment, Einstein, EinsteinX, EmMultipole, evaluate, ExpStokes, 
+       Eimex, ElectronCapture, ElecCapture, estimate, ElectricDipoleMoment, Einstein, EmMultipole, evaluate, ExpStokes,
        Empirical, ExciteElectrons, ExcitationLevel, ExpandShells, estimateCrossSections, extractConfiguration,  extractConfigurations,  
        extractFromConfiguration, extractFromConfigurations, EmProperty, EmPropertyC,
        E1, M1, E2, M2, E3, M3, E4, M4,
-       FormFactor, FormF, FullCIeigen, ForPedestrians, ForGivenConfigs,
+       FormFactor, FullCIeigen, ForPedestrians, ForGivenConfigs,
        ForAutoIonization, ForDielectronicCapture, ForDielectronicRecombination, ForElectronCapture, ForHollowIons, ForImpactIonization, 
        ForPhotoEmission, ForPhotoIonization, ForPhotoRecombination, ForRasExcitations, ForStepwiseDecay, FineStructure, FineStructureLS, FromBasis, 
        generate, GreenSettings, GreenChannel, GreenExpansion, getDefaults, Green, Gui, GroundConfiguration, GeneralizedConfigurations,
        GetParity, generateConfiguration, generateConfigurations,
-       Hamiltonian, Hfs, HyperfineInduced, HighHarmonic, HFS, HydrogenicIon, HarmonicQuantizationAxis, HundsRules, HyperfineStructure,
+       Hamiltonian, Hfs, HyperfineInduced, HighHarmonic, HydrogenicIon, HarmonicQuantizationAxis, HundsRules, HyperfineStructure,
        interpolate, integrate, Integral, ImpactExcAuto, ImpactExcitation, ImpactExcitationAutoion, ImpactIonization, 
        InteractionStrength, InternalConv, InternalConversion, InternalRecombination, Isotope, IsotopeShift, IsotopicFraction, IsOccupied,
        Kronecker, 
@@ -90,7 +90,7 @@ export AbstractCImethod, AbstractConfigurationRestriction, AbstractEeInteraction
        Photo, PhotoDouble, PhotoDoubleIonization, PhotoEmission, PhotoExc, PhotoExcAuto, PhotoExcFluor, 
        PhotoExcitation, PhotoExcitationAutoion, PhotoExcitationFluores, PhotoIonAuto, PhotoIonFluor, PhotoIonization, 
        PhotoIonizationAutoion, PhotoIonizationFluores, PhotoRecombination,   
-       Plasma, plus, Polarity, PrintWarnings, provide, Pulse,
+       Plasma, plus, PrintWarnings, provide, Pulse,
        QedPetersburg, QedSydney, 
        RacahAlgebra, RacahExpression, Radial, RadialIntegrals, Radiative, RadiativeAuger, RAuger, RasSettings, RasStep, 
        RasExpansion, RayleighCompton, recast, Rec, REDA, READI, Representation, ReducedDensityMatrix, RadiativeOpacity,
@@ -103,8 +103,7 @@ export AbstractCImethod, AbstractConfigurationRestriction, AbstractEeInteraction
        UseBabushkin, UseCoulomb, UseGauge,
        ValenceOccupation, ValenceShells,
        WeightedCartesian, W3j, W6j, W9j,
-       Yields, Ylm, 
-       Zeeman
+       Ylm
      
 # Basic data and data structures
 include("module-Basics.jl");            using ..Basics

@@ -13,7 +13,7 @@ function testModule_AlphaVariation(; short::Bool=true)
     wa = Atomic.Computation(Atomic.Computation(), name="xx", grid=Radial.Grid(true),
                             nuclearModel=Nuclear.Model(26.),
                             configs=[Configuration("[Ne] 3s^2 3p^5"), Configuration("[Ne] 3s 3p^6")],
-                            propertySettings = [ AlphaVariation.Settings(true, true, LevelSelection() )] )
+                            propertySettings = [ AlphaVariation.Settings(true, 0.125, true, LevelSelection() )] )
     wb = perform(wa)
     ###
     Defaults.setDefaults("print summary: close", "")

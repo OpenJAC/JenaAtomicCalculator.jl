@@ -50,8 +50,9 @@ function Basics.perform(computation::Atomic.Computation; output::Bool=false)
                 outcome = IsotopeShift.computeOutcomes(multiplet, nModel, computation.grid, settings)         
                 if output    results = Base.merge( results, Dict("Isotope parameter outcomes:" => outcome) )      end
                 #
-            elseif  typeof(settings) == AlphaVariation.Settings 
-                outcome = AlphaVariation.computeOutcomes(multiplet, nModel, computation.grid, settings)         
+            elseif  typeof(settings) == AlphaVariation.Settings
+                outcome = AlphaVariation.computeOutcomes(multiplet, nModel, computation.grid, computation.configs,
+                                                          computation.asfSettings, settings)
                 if output    results = Base.merge( results, Dict("alpha variation parameter outcomes:" => outcome) )      end
                 #
             elseif  typeof(settings) == FormFactor.Settings 

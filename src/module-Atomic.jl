@@ -72,11 +72,9 @@ end
 """
 `Atomic.Computation(comp::Atomic.Computation;`
 
-    name=..,                nuclearModel=..,            grid=..,                    configs=..,                   asfSettings=..,     
-    initialConfigs=..,      initialAsfSettings=..,      intermediateConfigs=..,     intermediateAsfSettings=.., 
-    finalConfigs=..,        finalAsfSettings=..,        alphaSettings=..,           einsteinSettings=.., 
-    formSettings=..,        hfsSettings=..,             isotopeSettings=..,         plasmaSettings=..,
-    polaritySettings=..,    yieldSettings::=..,         zeemanSettings=..,
+    name=..,                nuclearModel=..,            grid=..,                    configs=..,                   asfSettings=..,
+    initialConfigs=..,      initialAsfSettings=..,      intermediateConfigs=..,     intermediateAsfSettings=..,
+    finalConfigs=..,        finalAsfSettings=..,        propertySettings=..,
     process=..,             processSettings=..,         printout::Bool=false)
                     
     ... constructor for modifying the given Atomic.Computation by 'overwriting' the previously selected parameters.
@@ -123,17 +121,8 @@ end
         settings = AsfSettings(AsfSettings(), selectLevelsCI = true, selectedLevelsCI = [1,2, 4,5, 7,8], jjLS = LSjjSettings(false) )
         configs  = [Configuration("[Ne] 3s^2 3p^5"), Configuration("[Ne] 3s 3p^6")]
         Atomic.Computation(Atomic.Computation(), name="Example", grid=grid, nuclearModel=nuclearM, configs=configs, asfSettings=settings )
-    
-`Atomic.Computation( ... example for the computation of atomic properties)`  
 
-        grid        = Radial.Grid(true)
-        nuclearM    = Nuclear.Model(26., "Fermi", 58., 3.81, AngularJ64(5//2), 1.0, 1.0)
-        hfsSettings = Hfs.Settings(true, true, false, false, false, false, false, Int64[] )
-        configs     = [Configuration("[Ne] 3s"), Configuration("[Ne] 3p"), Configuration("[Ne] 3d")]
-        Atomic.Computation(Atomic.Computation(), name="Example", grid=grid, nuclearModel=nuclearM, configs=configs, properties=[HFS()],
-                            hfsSettings=hfsSettings )
-    
-`Atomic.Computation( ... example for the computation of one atomic process)`  
+`Atomic.Computation( ... example for the computation of one atomic process)`
 
         grid           = Radial.Grid(true)
         initialConfigs = [Configuration("[Ne] 3s 3p^6"), Configuration("[Ne] 3s^2 3p^4 3d")]
@@ -161,7 +150,7 @@ function Base.string(comp::Atomic.Computation)
         end
         sa = sa * "\nfinal configurations:         "
         for  config  in  comp.finalConfigs     sa = sa * string(config) * ",  "         end
-    else                                sa = sa * "for the properties $(comp.properties) and with the \nconfigurations:        "
+    else                                sa = sa * "for the properties $(comp.propertySettings) and with the \nconfigurations:        "
         for  config  in  comp.configs   sa = sa * string(config) * ",  "                end
     end
     return( sa )
@@ -188,22 +177,8 @@ function Base.show(io::IO, comp::Atomic.Computation)
     # For the computation of no or several atomic properties
     if  comp.asfSettings != AsfSettings()     
         println(io, "asfSettings:                  \n$(comp.asfSettings)  ")                end
-    if  AlphaX in comp.properties     &&  comp.alphaSettings    != AlphaVariation.Settings()
-        println(io, "alphaSettings:                \n$(comp.alphaSettings)  ")              end
-    if  EinsteinX in comp.properties  &&  comp.einsteinSettings != Einstein.Settings()
-        println(io, "einsteinSettings:             \n$(comp.einsteinSettings)  ")           end
-    if  FormF in comp.properties      &&  comp.formSettings     != FormFactor.Settings()
-        println(io, "formSettings:                 \n$(comp.formSettings)  ")               end
-    if  HFS in comp.properties        &&  comp.hfsSettings      != Hfs.Settings()
-        println(io, "hfsSettings:                  \n$(comp.hfsSettings)  ")                end
     if  Isotope in comp.properties    &&  comp.isotopeSettings  != IsotopeShift.Settings()
         println(io, "isotopeSettings:              \n$(comp.isotopeSettings)  ")            end
-    if  Polarity in comp.properties   &&  comp.polaritySettings != MultipolePolarizibility.Settings()
-        println(io, "polaritySettings:             \n$(comp.polaritySettings)  ")           end
-    if  Yields in comp.properties     &&  comp.yieldSettings    != DecayYield.Settings()
-        println(io, "yieldSettings:                \n$(comp.yieldSettings)  ")              end
-    if  Zeeman in comp.properties     &&  comp.zeemanSettings   != LandeZeeman.Settings()
-        println(io, "zeemanSettings:               \n$(comp.zeemanSettings)  ")             end
     end
 end
 

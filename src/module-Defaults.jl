@@ -12,8 +12,13 @@ using Dates,  JenaAtomicCalculator, ..Basics,  ..Radial,  ..Math
 export  convertUnits, getDefaults,  setDefaults
 
 # Dimensionless constants
-const FINE_STRUCTURE_CONSTANT         = 7.297_352_566_4e-3 
-const INVERSE_FINE_STRUCTURE_CONSTANT = 137.035_999_139
+# FINE_STRUCTURE_CONSTANT and INVERSE_FINE_STRUCTURE_CONSTANT are deliberately NOT const: both are
+# overwritten together by setDefaults("fine structure constant: alpha", value) to support alpha-variation
+# (q-factor) computations, which need to re-run the SCF/CI machinery at a slightly shifted alpha. Every
+# other module reads these two globals by name (Defaults.FINE_STRUCTURE_CONSTANT / .INVERSE_...), so an
+# update here propagates automatically, without touching those modules.
+FINE_STRUCTURE_CONSTANT         = 7.297_352_566_4e-3
+INVERSE_FINE_STRUCTURE_CONSTANT = 137.035_999_139
 
 # Constants in SI units
 const BOHR_RADIUS_SI                  = 0.529_177_210_67e-10
@@ -373,8 +378,14 @@ end
     ... to define a method for the normalization of the continuum orbitals as asymptotically (pure) sine or Coulomb 
         functions, or following the procedure by Ong & Russek (1978).
 
-+ `("nuclear: charge", Z::Float64)`  or  `("nuclear: model", nm::Any")`   
++ `("nuclear: charge", Z::Float64)`  or  `("nuclear: model", nm::Any")`
     ... to define the nuclear charge or nuclear model for the pedestrian approach to atomic computations.
+
++ `("fine structure constant: alpha", value::Float64)`
+    ... to (re-) define the fine-structure constant alpha used throughout JAC, together with its reciprocal
+        (the speed of light in atomic units); needed for alpha-variation (q-factor) computations, which
+        re-run the SCF/CI machinery at a slightly shifted alpha. Defaults.FINE_STRUCTURE_CONSTANT and
+        Defaults.INVERSE_FINE_STRUCTURE_CONSTANT are updated together so they never go out of sync.
 
 + `("QED model: Petersburg")`  or  `("QED model: Sydney")`   
     ... to define a model for the computation of the QED corrections following the work by Shabaev et al. (2011; Petersburg) 
@@ -491,6 +502,9 @@ end
 function setDefaults(sa::String, Z::Float64)
 
     if        sa == "nuclear: charge"      global GBL_NUCLEAR_CHARGE = Z
+    elseif    sa == "fine structure constant: alpha"
+        global FINE_STRUCTURE_CONSTANT         = Z
+        global INVERSE_FINE_STRUCTURE_CONSTANT = 1.0 / Z
     else      error("Unsupported keystring:: $sa")
     end
 
