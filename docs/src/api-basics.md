@@ -41,7 +41,7 @@ Order   = [:type, :function]
 
 ##  B-Spline basis
 ```@autodocs
-Modules = [BsplinesN]
+Modules = [Bsplines]
 Order   = [:type, :function]
 ```
 

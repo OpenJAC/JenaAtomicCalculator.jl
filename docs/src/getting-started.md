@@ -276,16 +276,7 @@ Let's first use  `? JenaAtomicCalculator` in order to obtain more information ab
 ```@docs ; canonical=false
 JenaAtomicCalculator
 ```
-H'm, this tells us a lot of details which we still need to better understand. To quickly list the atomic properties, 
-that have been (partly) considered in JAC, we can use `? Details.properties`   or some other of the listed calls:
-
-```
-? Details.properties
-```
-
-```@docs ; canonical=false
-Details.properties
-```
+H'm, this tells us a lot of details which we still need to better understand.
 
 In the design of JAC, we first of all **aim for a precise language** that (i) is simple enough for both, seldom 
 and a more frequent use of this package, (ii) highlights the underlying physics and (iii) avoids most technical 
@@ -342,20 +333,9 @@ wc2 = Configuration("[Ar] 4s^2 3d^5")
     For specific processes users can find the list of types and functions in the API Reference
 
 This input just shows three (very) simple examples and how the details of some computation can be readily specified 
-in line with our basic understanding of the atomic shell model. One can use  `? Details.datatypes`  in order to see a 
-more complete list of most data structures that are speficic to the JAC module ... and which will give you a very 
-**first impression about the size of the JAC program**.
+in line with our basic understanding of the atomic shell model.
 
-```
-? Details.datatypes
-```
-
-```@docs ; canonical=false
-Details.datatypes
-```
-
-This list gives further details why Julia (and JAC) is a very suitable and powerful framework for running 
--- many-electron -- atomic computations. 
+Julia (and JAC) is a very suitable and powerful framework for running -- many-electron -- atomic computations. 
 
 Of course, there are many other features that make Julia & JAC as powerful as it is: For example, the user may pre-define 
 and overwrite the **units** in which he wishes to communicate with JAC. These units determine how (most of) the input 

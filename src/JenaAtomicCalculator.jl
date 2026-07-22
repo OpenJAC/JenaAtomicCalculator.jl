@@ -50,7 +50,7 @@ using  Dates,  Printf,  BSplineKit, LinearAlgebra, SpecialFunctions, QuadGK, Cub
        HypergeometricFunctions  ## , Interact, GaussQuadrature, IJulia, FortranFiles
 
 export AbstractCImethod, AbstractConfigurationRestriction, AbstractEeInteraction, AbstractPotential, AbstractQedModel, AbstractStartOrbitals,
-       AbstractProcessSettings, AbstractEmpiricalSettings, AbstractPlasmaModel, AbstractPropertySettings, AbstractLineShiftSettings,
+       AbstractProcessSettings, AbstractEmpiricalSettings, AbstractPlasmaModel, AbstractPropertySettings, AbstractLineShiftSettings, AbstractPlotTheme,
        AbstractNeutralNetwork, AbstractNeutralNetworkRequest, Application,
        add, AllShells, AlphaVariation, analyze, AnapoleMoment,
        AngularJ64, AngularM64, AngularJ, AngularMomentum, AddElectrons, 
@@ -92,8 +92,9 @@ export AbstractCImethod, AbstractConfigurationRestriction, AbstractEeInteraction
        PhotoIonizationAutoion, PhotoIonizationFluores, PhotoRecombination,   
        Plasma, plus, PrintWarnings, provide, Pulse,
        QedPetersburg, QedSydney, 
-       RacahAlgebra, RacahExpression, Radial, RadialIntegrals, Radiative, RadiativeAuger, RAuger, RasSettings, RasStep, 
+       RacahAlgebra, RacahExpression, Radial, RadialIntegrals, Radiative, RadiativeAuger, RAuger, RasSettings, RasStep,
        RasExpansion, RayleighCompton, recast, Rec, REDA, READI, Representation, ReducedDensityMatrix, RadiativeOpacity,
+       RadialPotentials, RadialOrbitalsLarge, RadialOrbitalsSmall, RadialOrbitalsBoth,
        RestrictMaximumDisplacements, RestrictNoElectronsTo, RestrictParity, RestrictToShellDoubles, RequestMinimumOccupation, RequestMaximumOccupation,
        ResonantInelastic, RemoveElectrons, RestrictExcitations, RelativisticConfigurations, run,
        SchiffMoment, Semiempirical, setDefaults, Shell, ShellSelection, SolidAngle, Spectroscopy, SphericalTensor, SpinAngular, StarkShift,

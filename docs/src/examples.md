@@ -198,7 +198,7 @@ rOrb_1s = Orbital( Subshell("1s_1/2"), true, true, e1s_1, Orb_1s[1], Orb_1s[2], 
 ```
 
 ```@example hydrogenic
-plot("radial orbitals: both", Orbital[nrOrb_1s, rOrb_1s], grid; N = 230)
+plot(RadialOrbitalsBoth(), Orbital[nrOrb_1s, rOrb_1s], grid; N = 230)
 savefig("hdy-3.svg"); nothing # hide
 ```
 
@@ -245,14 +245,14 @@ is well visible for small r.
 
 ```@example hydrogenic
 nuc_orb_1s = HydrogenicIon.radialOrbital(Subshell("1s_1/2"),Nucleus, grid)
-plot("radial orbitals: both", [nuc_orb_1s,rOrb_1s], grid; N = 230)
+plot(RadialOrbitalsBoth(), Orbital[nuc_orb_1s,rOrb_1s], grid; N = 230)
 savefig("hdy-4.svg"); nothing # hide
 ```
 
 ![](hdy-4.svg)
 
 ```@example hydrogenic
-plot("radial orbitals: both", [nuc_orb_1s,rOrb_1s], grid; N = 75)
+plot(RadialOrbitalsBoth(), Orbital[nuc_orb_1s,rOrb_1s], grid; N = 75)
 savefig("hdy-2.svg"); nothing # hide
 ```
 

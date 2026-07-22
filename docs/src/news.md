@@ -4,6 +4,21 @@
 
 
 
+# 2026
+
+* **AlphaVariation (q-factors):** A working implementation now computes the sensitivity of atomic levels to a
+    hypothetical variation of the fine-structure constant, by re-running the SCF and CI at a slightly shifted
+    alpha and taking the finite difference. See `? AlphaVariation`. *(July'26)*
+
+* **Plasma computations made real:** The `SahaBoltzmannScheme`, `LineShiftScheme` and `AverageAtomScheme` of
+    `Plasma.Computation()` were fixed and completed, replacing several placeholder or broken computation chains
+    by working, typed-dispatch implementations. *(July'26)*
+
+* **More ForPedestrians functions:** `computeChargeStateDistribution`, `computeBranchingFractions` and
+    `computeLevelEnergies` (now also for isoelectronic sequences) were added to the simple-man's interface;
+    see `? ForPedestrians`. *(June'26)*
+
+
 # 2025
 
 * **Simplified language to deal with electron configurations:** A number of functions have been worked out to simplify
