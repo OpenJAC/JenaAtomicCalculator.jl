@@ -7,7 +7,7 @@
 module Empirical
 
 
-using  ..AtomicState, ..Basics, ..Continuum, ..Defaults, ..Distribution, ..Radial, ..ManyElectron, ..Nuclear,
+using  Printf, ..AtomicState, ..Basics, ..Continuum, ..Defaults, ..Distribution, ..Radial, ..ManyElectron, ..Nuclear,
        ..InteractionStrength, ..ImpactIonization, ..PeriodicTable, ..Semiempirical, ..SelfConsistent, SpecialFunctions
 
 """
@@ -63,6 +63,15 @@ using  ..AtomicState, ..Basics, ..Continuum, ..Defaults, ..Distribution, ..Radia
                                in Empirical.chargeExchangeCrossSection/PlasmaAlpha. Same regime as
                                OverBarrierModel1980, but grows only as q (not q^2), matching experiment better at
                                high charge states.
+    + BelyaevYakovleva2017 ... the simplified Landau-Zener model for inelastic (neutralization, ion-pair
+                               formation, excitation, de-excitation) rate coefficients in low-energy A^Z+/A^(Z+1)+
+                               collisions with H/H^-, important for non-LTE stellar-atmosphere modeling
+                               [A. K. Belyaev & S. A. Yakovleva, A&A 606, A147 (2017) for Z=0;
+                               A. K. Belyaev & S. A. Yakovleva, A&A 608, A33 (2017) for Z=1,2]; selects the
+                               formulas in Empirical.neutralizationCrossSection/ReducedRate and
+                               Empirical.deExcitationCrossSection/ReducedRate. Needs only the electronic bound
+                               (ionization) energies and statistical weights of the atomic/ionic states involved,
+                               not a full electronic-structure calculation.
 """
 abstract type  AbstractEmpiricalApproximation                                end
 struct     ScaledHydrogenic              <:  AbstractEmpiricalApproximation  end
@@ -81,10 +90,12 @@ struct     ADK1986                       <:  AbstractEmpiricalApproximation  end
 struct     OverBarrierModel1980          <:  AbstractEmpiricalApproximation  end
 struct     NiehausScaling1986            <:  AbstractEmpiricalApproximation  end
 
+struct     BelyaevYakovleva2017          <:  AbstractEmpiricalApproximation  end
+
 
 export  AbstractEmpiricalApproximation, GivenEinsteinA, ScaledHydrogenic, UsingJAC,
         Bohr1913, Bethe1931, Axelrod1980, KozmaFranson1992, Lotz1967, VanRegemorter1962, ConstantCollisionStrength, ADK1986,
-        OverBarrierModel1980, NiehausScaling1986
+        OverBarrierModel1980, NiehausScaling1986, BelyaevYakovleva2017
 
 
 """
@@ -384,6 +395,7 @@ end
 
 include("module-Empirical-inc-charge-exchange.jl")
 include("module-Empirical-inc-energies.jl")
+include("module-Empirical-inc-inelastic-h-collisions.jl")
 include("module-Empirical-inc-plasma-rates.jl")
 include("module-Empirical-inc-stopping-powers.jl")
 include("module-Empirical-inc-tunneling-ionization.jl")
