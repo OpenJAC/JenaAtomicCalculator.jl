@@ -199,7 +199,7 @@ end
 """
 function ClebschGordan(ja, ma, jb, mb, Jab, Mab)
     mab = - Basics.twice(Mab) / 2
-    pp  = (Basics.twice(ja) - Basics.twice(jb) + Basics.twice(Jab))/2
+    pp  = (Basics.twice(ja) - Basics.twice(jb) + Basics.twice(Mab))/2
     cg  = (-1)^pp * sqrt(Basics.twice(Jab) + 1) * AngularMomentum.Wigner_3j(ja, jb, Jab, ma, mb, mab)
     return( cg )
 end
@@ -265,7 +265,26 @@ function  CL_reduced_me_sms(suba::Subshell, L::Int64, subb::Subshell)
 end
 
 """
-`AngularMomentum.isAllowedMultipole(syma::LevelSymmetry, multipole::EmMultipole, symb::LevelSymmetry)`  
+`AngularMomentum.sigma_TtL_reduced_me(kapa::Int64, L::Int64, t::Int64, kapb::Int64)`
+    ... calculates the reduced matrix element of the vector spherical harmonic tensor <kapa || sigma . T^(tL) || kapb>,
+        following the RATIP convention (Grant's formalism); a value::Float64 is returned. L must equal t-1, t or t+1.
+"""
+function  sigma_TtL_reduced_me(kapa::Int64, L::Int64, t::Int64, kapb::Int64)
+    if      L == t + 1
+        redme = sqrt( (t+1.0)/(4pi) ) * (1.0 + (kapa+kapb)/(t+1.0)) * CL_reduced_me(Subshell(1,-kapa), t, Subshell(1,kapb))
+    elseif  L == t
+        redme = sqrt( (2t+1.0)/(4pi*t*(t+1.0)) ) * (kapb-kapa) * CL_reduced_me(Subshell(1,kapa), t, Subshell(1,kapb))
+    elseif  L == t - 1
+        redme = sqrt( t/(4pi) ) * (-1.0 + (kapa+kapb)/t) * CL_reduced_me(Subshell(1,-kapa), t, Subshell(1,kapb))
+    else
+        error("sigma_TtL_reduced_me(): L must equal t-1, t, or t+1.")
+    end
+    return( redme )
+end
+
+
+"""
+`AngularMomentum.isAllowedMultipole(syma::LevelSymmetry, multipole::EmMultipole, symb::LevelSymmetry)`
     ... evaluates to true if the given multipole may connect the two level symmetries, and false otherwise.
 """
 function  isAllowedMultipole(syma::LevelSymmetry, multipole::EmMultipole, symb::LevelSymmetry)
@@ -476,15 +495,18 @@ function  sigma_reduced_me_mb(kapa::Int64, mkapb::Int64)
 end
 
 """
-`AngularMomentum.sphericalYlm(l::Int64, m::Int64, theta::Float64, phi::Float64)`  
+`AngularMomentum.sphericalYlm(l::Int64, m::Int64, theta::Float64, phi::Float64)`
     ... calculates the spherical harmonics for low l-values explicitly. A value::Complex{Float64} is returned.
         Ylm = sqrt( (2*l+1) / (two*two*pi) ) * spherical_Clm(l,m,theta,phi).
 """
 function sphericalYlm(l::Int64, m::Int64, theta::Float64, phi::Float64)
-    one = 1.0 + 0.0im;    iphi = 0. + phi*im
-    
-    ylm = sf_legendre_sphPlm(l, abs(m), cos(theta)) * exp(iphi)
-    
+    iphi  = 0. + phi*im
+    # GSL's sf_legendre_sphPlm only accepts m >= 0; for m < 0 the standard relation
+    # Y_l^{-|m|}(theta,phi) = (-1)^|m| * conj(Y_l^{|m|}(theta,phi)) requires this extra phase,
+    # which is missing if abs(m) is used without it.
+    phase = m < 0 ? (-1.0)^m : 1.0
+    ylm   = phase * sf_legendre_sphPlm(l, abs(m), cos(theta)) * exp(iphi)
+
     return( ylm )
 end
 

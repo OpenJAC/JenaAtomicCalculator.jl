@@ -482,7 +482,7 @@
 module CoulombExcitation
 
 
-using  Printf, ..AngularMomentum, ..Basics, ..Defaults, ..ManyElectron, ..Nuclear, ..Radial, ..TableStrings
+using  Printf, ..AngularMomentum, ..Basics, ..Defaults, ..ManyElectron, ..Nuclear, ..Radial, ..RadialIntegrals, ..SpinAngular, ..TableStrings
 
 """
 `struct  CoulombExcitation.Settings  <:  AbstractProcessSettings`  
@@ -651,26 +651,87 @@ end
 
 
 """
-`CoulombExcitation.computeKjYme(finalLevel::Level, L::AngularJ64, initialLevel::Level)`  
-    ... computes the (many-electron) matrix elements <alpha_f J_f || K^(L, Coulex:jY) || alpha_f J_f>; a me::ComplexF64 is returned.
+`CoulombExcitation.computeKjYme(finalLevel::Level, L::AngularJ64, initialLevel::Level, q::Float64, grid::Radial.Grid)`
+    ... computes the (many-electron) reduced matrix element <alpha_f J_f || Sum_i j_L(q r_i) Y_L(n_i) || alpha_i J_i>,
+        following Eq. (8) of Surzhykov, Jentschura, Stohlker, Gumberidze, Fritzsche, Phys. Rev. A 77, 042722 (2008);
+        a me::ComplexF64 is returned.
 """
-function  computeKjYme(finalLevel::Level, L::AngularJ64, initialLevel::Level)
-    @warn("Not yet implemented: computeKjYme")
-    me = ComplexF64(1.0)
-    
-    return( me )
+function  computeKjYme(finalLevel::Level, L::AngularJ64, initialLevel::Level, q::Float64, grid::Radial.Grid)
+    if  initialLevel.basis.subshells == finalLevel.basis.subshells
+        iLevel = initialLevel;   fLevel = finalLevel
+    else
+        subshells = Basics.merge(initialLevel.basis.subshells, finalLevel.basis.subshells)
+        iLevel    = Level(initialLevel, subshells)
+        fLevel    = Level(finalLevel, subshells)
+    end
+
+    Lint = Int64( AngularMomentum.oneJ(L) )
+    nf   = length(fLevel.basis.csfs);    ni = length(iLevel.basis.csfs)
+    matrix = zeros(ComplexF64, nf, ni)
+    #
+    for  r = 1:nf
+        if  fLevel.basis.csfs[r].J != fLevel.J  ||  fLevel.basis.csfs[r].parity != fLevel.parity    continue    end
+        for  s = 1:ni
+            if  iLevel.basis.csfs[s].J != iLevel.J  ||  iLevel.basis.csfs[s].parity != iLevel.parity    continue    end
+            subshellList = fLevel.basis.subshells
+            opa = SpinAngular.OneParticleOperator(Lint, Basics.plus, true)
+            wa  = SpinAngular.computeCoefficients(opa, fLevel.basis.csfs[r], iLevel.basis.csfs[s], subshellList)
+            me  = 0.
+            for  coeff in wa
+                orbf = fLevel.basis.orbitals[coeff.a];   orbi = iLevel.basis.orbitals[coeff.b]
+                ja   = Basics.subshell_2j(orbf.subshell)
+                kernel = sqrt( (2Lint+1) / (4pi) ) * AngularMomentum.CL_reduced_me(orbf.subshell, Lint, orbi.subshell) *
+                         RadialIntegrals.GrantJL(Lint, q, orbf, orbi, grid) / sqrt(ja + 1)
+                me = me + coeff.T * kernel * sqrt( Basics.twice(fLevel.J) + 1 )
+            end
+            matrix[r,s] = me
+        end
+    end
+    amplitude = transpose(fLevel.mc) * matrix * iLevel.mc
+    return( amplitude )
 end
 
 
 """
-`CoulombExcitation.computeKjTme(finalLevel::Level, t::AngularJ64, initialLevel::Level)`  
-    ... computes the (many-electron) matrix elements <alpha_f J_f || K^(t, Coulex:jT) || alpha_f J_f>; a me::ComplexF64 is returned.
+`CoulombExcitation.computeKjTme(finalLevel::Level, t::AngularJ64, L::AngularJ64, initialLevel::Level, q::Float64, grid::Radial.Grid)`
+    ... computes the (many-electron) reduced matrix element <alpha_f J_f || Sum_i j_L(q r_i) alpha_i . T_tL(n_i) || alpha_i J_i>,
+        following Eq. (8) of Surzhykov, Jentschura, Stohlker, Gumberidze, Fritzsche, Phys. Rev. A 77, 042722 (2008);
+        a me::ComplexF64 is returned.
 """
-function  computeKjTme(finalLevel::Level, t::AngularJ64, initialLevel::Level)
-    @warn("Not yet implemented: computeKjTme")
-    me = ComplexF64(2.0)
-    
-    return( me )
+function  computeKjTme(finalLevel::Level, t::AngularJ64, L::AngularJ64, initialLevel::Level, q::Float64, grid::Radial.Grid)
+    if  initialLevel.basis.subshells == finalLevel.basis.subshells
+        iLevel = initialLevel;   fLevel = finalLevel
+    else
+        subshells = Basics.merge(initialLevel.basis.subshells, finalLevel.basis.subshells)
+        iLevel    = Level(initialLevel, subshells)
+        fLevel    = Level(finalLevel, subshells)
+    end
+
+    Lint = Int64( AngularMomentum.oneJ(L) );    tint = Int64( AngularMomentum.oneJ(t) )
+    nf   = length(fLevel.basis.csfs);    ni = length(iLevel.basis.csfs)
+    matrix = zeros(ComplexF64, nf, ni)
+    #
+    for  r = 1:nf
+        if  fLevel.basis.csfs[r].J != fLevel.J  ||  fLevel.basis.csfs[r].parity != fLevel.parity    continue    end
+        for  s = 1:ni
+            if  iLevel.basis.csfs[s].J != iLevel.J  ||  iLevel.basis.csfs[s].parity != iLevel.parity    continue    end
+            subshellList = fLevel.basis.subshells
+            opa = SpinAngular.OneParticleOperator(tint, Basics.plus, true)
+            wa  = SpinAngular.computeCoefficients(opa, fLevel.basis.csfs[r], iLevel.basis.csfs[s], subshellList)
+            me  = 0.
+            for  coeff in wa
+                orbf = fLevel.basis.orbitals[coeff.a];   orbi = iLevel.basis.orbitals[coeff.b]
+                kapa = orbf.subshell.kappa;   kapb = orbi.subshell.kappa
+                ja   = Basics.subshell_2j(orbf.subshell)
+                kernel = ( AngularMomentum.sigma_TtL_reduced_me(-kapa, Lint, tint,  kapb) * RadialIntegrals.GrantIL0(Lint, q, orbi, orbf, grid)  -
+                           AngularMomentum.sigma_TtL_reduced_me( kapa, Lint, tint, -kapb) * RadialIntegrals.GrantIL0(Lint, q, orbf, orbi, grid) ) / sqrt(ja + 1)
+                me = me + coeff.T * kernel * sqrt( Basics.twice(fLevel.J) + 1 )
+            end
+            matrix[r,s] = me
+        end
+    end
+    amplitude = transpose(fLevel.mc) * matrix * iLevel.mc
+    return( amplitude )
 end
 
 
@@ -696,14 +757,22 @@ function  computeAmplitude(channel::CoulombExcitation.Channel, Mi::AngularM64, M
         tx = AngularMomentum.oneJ(t)
         wa = AngularMomentum.ClebschGordan(Jix, Mix, tx, Mfx-Mix, Jfx, Mfx) / sqrt(2*Jfx + 1.0)
         Ls = AngularMomentum.j_values(t, AngularJ64(1))
+        Mval = Mfx - Mix
         wb = ComplexF64(0.)
         for  L  in Ls
-            Lx = AngularMomentum.oneJ(L);   Lint = Int64(Lx);   Mint = Int64(Mfx-Mix);   M = Int64( min(Lx, tx) )
-            wc = ComplexF64(0.)
-            if  t == L   wc = wc + CoulombExcitation.computeKjYme(line.finalLevel, L, line.initialLevel)   end 
-            wc = wc - beta * AngularMomentum.ClebschGordan(Lx, 0., 1., 0., tx, 0.) *
-                      CoulombExcitation.computeKjTme(line.finalLevel, t, line.initialLevel)
+            Lx = AngularMomentum.oneJ(L);   Lint = Int64(Lx);   Mint = Int64(Mval)
             if  abs(Mint) > Lint   continue   end
+            wc = ComplexF64(0.)
+            if  t == L   wc = wc + CoulombExcitation.computeKjYme(line.finalLevel, L, line.initialLevel, channel.q, grid)   end
+            ## RATIP's coulex_pure_matrix() multiplies every magnetic (F23-based) contribution by an explicit
+            ## cmplx(zero,-one) = -i prefactor (rabs_coulex.f90, all three of terms ii/iii/iv) that Eq. (8) of
+            ## Surzhykov et al. does not show explicitly -- this was missing here and was the confirmed root cause
+            ## of the sigma(Mi,Mf) != sigma(-Mi,-Mf) asymmetry found and diagnosed earlier: with this factor, the
+            ## L=t bracket becomes A + i*beta*CG(Mf)*B, and since CG(-Mf)=-CG(Mf), bracket(-Mf)=conj(bracket(Mf)),
+            ## so |bracket(-Mf)|=|bracket(Mf)| exactly. Confirmed both algebraically and empirically (exact
+            ## Mf<->-Mf symmetry now holds without any post-hoc symmetrization).
+            wc = wc + im * beta * AngularMomentum.ClebschGordan(Lx, Mval, 1., 0., tx, Mval) *
+                      CoulombExcitation.computeKjTme(line.finalLevel, t, L, line.initialLevel, channel.q, grid)
             wc = im^Lx * conj( AngularMomentum.sphericalYlm(Lint, Mint, acos(line.q0/channel.q), 0.) ) * wc
             wb = wb + wc
         end
@@ -728,16 +797,15 @@ function  computeAmplitudesProperties(mLine::CoulombExcitation.MagneticLine, lin
         amplitude = CoulombExcitation.computeAmplitude(channel, mLine.Mi, mLine.Mf, line, grid, settings; printout=printout)
         push!(newChannels, CoulombExcitation.Channel(channel.q, channel.w, amplitude))
     end
-    
+
     # Compute the partial cross section; collect parameters for line
-    Ji2 = Basics.twice(line.initialLevel.J);    beta = CoulombExcitation.betaProjectile(line.ionEnergy);    partialCs = 0.;    
+    Ji2 = Basics.twice(line.initialLevel.J);    beta = CoulombExcitation.betaProjectile(line.ionEnergy);    wSum = 0.;
     for ch in newChannels
         wa = (ch.q^2 - (line.q0^2 * beta^2) )
-        wa = ch.q * ch.w / (wa^2) * ch.amplitude * conj(ch.amplitude) 
-        partialCs = partialCs + wa    
-    end 
-    partialCs = 2pi * (8pi * Defaults.getDefaults("alpha") / beta)^2 / (Ji2 + 1)  
-    
+        wSum = wSum + ch.q * ch.w / (wa^2) * real( ch.amplitude * conj(ch.amplitude) )
+    end
+    partialCs = wSum * 2pi * (8pi * Defaults.getDefaults("alpha") / beta)^2 / (Ji2 + 1)
+
     newmLine = CoulombExcitation.MagneticLine(mLine.Mi, mLine.Mf, partialCs, newChannels)
     return( newmLine )
 end
@@ -756,14 +824,34 @@ function  computeAmplitudesProperties(line::CoulombExcitation.Line, grid::Radial
         newmLine = CoulombExcitation.computeAmplitudesProperties(mLine, line, grid, settings; printout=printout)
         push!(newmLines, newmLine)
     end
-    
-    # Compute the total cross section and alignment parameters
-    totalCs     = 0.;    for  mLine in newmLines    totalCs = totalCs + mLine.partialCs   end 
+
+    # Compute the total cross section
+    totalCs     = 0.;    for  mLine in newmLines    totalCs = totalCs + mLine.partialCs   end
     alignmentA2 = 0.
     alignmentA4 = 0.
-    
-    
-    newLine = CoulombExcitation.Line(line.initialLevel, line.finalLevel, line.ionEnergy, line.q0, totalCs, alignmentA2, alignmentA2, newmLines)
+
+    # Compute the alignment parameters A2, A4 following Eqs. (9)-(10) of Surzhykov et al., Phys. Rev. A 77, 042722 (2008);
+    # this requires the cross section sigma(Jf,Mf), summed over all initial sublevels Mi for a fixed final Mf.
+    if  settings.calcAlignment  &&  totalCs > 0.
+        Jf  = line.finalLevel.J;    Jfx = AngularMomentum.oneJ(Jf)
+        MfList  = AngularMomentum.m_values(Jf)
+        sigmaMf = Dict{AngularM64, Float64}( Mf => 0. for Mf in MfList )
+        for  mLine in newmLines   sigmaMf[mLine.Mf] = sigmaMf[mLine.Mf] + mLine.partialCs   end
+
+        wa2 = 0.;   wa4 = 0.
+        for  Mf in MfList
+            Mfx    = AngularMomentum.oneM(Mf)
+            phase  = (-1)^Int64( round(Jfx - Mfx) )
+            cg2    = AngularMomentum.ClebschGordan(Jfx, Mfx, Jfx, -Mfx, 2., 0.)
+            cg4    = AngularMomentum.ClebschGordan(Jfx, Mfx, Jfx, -Mfx, 4., 0.)
+            wa2    = wa2 + phase * cg2 * sigmaMf[Mf]
+            wa4    = wa4 + phase * cg4 * sigmaMf[Mf]
+        end
+        alignmentA2 = sqrt(2*Jfx + 1) * wa2 / totalCs
+        alignmentA4 = sqrt(2*Jfx + 1) * wa4 / totalCs
+    end
+
+    newLine = CoulombExcitation.Line(line.initialLevel, line.finalLevel, line.ionEnergy, line.q0, totalCs, alignmentA2, alignmentA4, newmLines)
     return( newLine )
 end
 
@@ -862,7 +950,6 @@ function  determineLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet,
                     # Determine q0 for the given transition and ion energy     
                     beta = CoulombExcitation.betaProjectile(ionEnergy)
                     q0   = (fLevel.energy - iLevel.energy) / (beta * Defaults.getDefaults("speed of light: c"))
-                    @show beta, q0
                     mLines = CoulombExcitation.determineMagneticLines(fLevel, iLevel, q0, settings)
                     if   length(mLines) == 0   continue   end
                     push!( lines, CoulombExcitation.Line(iLevel, fLevel, ionEnergy, q0, 0., 0., 0., mLines) )
