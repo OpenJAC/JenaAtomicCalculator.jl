@@ -139,45 +139,83 @@ end
 
 
 """
-`ReducedDensityMatrix.computeNaturalOrbitalExpansion(rho1p::Array{Float64,2}, level::Level)`  
+`ReducedDensityMatrix.computeNaturalOrbitalExpansion(rho1p::Array{Float64,2}, level::Level)`
     ... to perform the expansion of the natural orbitals for the given level in terms of the standard orbitals
         as defined by the basis. A tuple (naturalOcc::Array{Float64,1}, naturalExp::Dict{Subshell, Array{Float64,1}})
         is returned which provides the natural occpuation numbers and expansion coefficients with regard
-        to the given list of natural orbitals. This method makes use of the 1-particle RDM to extract and diagonalize the 
-        expansion matrix.
+        to the given list of natural orbitals. This method makes use of the 1-particle RDM to extract and diagonalize the
+        expansion matrix. Since the (rank-0) 1p RDM has no matrix elements between subshells of different relativistic
+        symmetry kappa, it is block-diagonal in kappa; each kappa-block is diagonalized separately (Eqs. 7-8 of
+        Ma et al., Atoms 12, 30 (2024)) and the resulting natural orbitals (sorted by decreasing occupation within
+        the block) are associated, in turn, with the standard subshells of that same kappa.
 """
 function  computeNaturalOrbitalExpansion(rho1p::Array{Float64,2}, level::Level)
-    naturalOcc = Float64[];      naturalExp = Dict{Subshell, Array{Float64,1}}();       lenNO = length(level.basis.subshells)
-    eigen  = Basics.diagonalize(MatrixWithLinearAlgebra(), rho1p)
-    orbIndices = Float64[]
-    for  vector in eigen.vectors    wx = findmax(vector);   push!(orbIndices, wx[2])    end
-    @show "  "
-    @show orbIndices
-    for i = 1:lenNO     
-        wx = findfirst(x->x==i, orbIndices)
+    subshellList = level.basis.subshells;    lenNO = length(subshellList)
+    naturalOcc   = zeros(Float64, lenNO);     naturalExp = Dict{Subshell, Array{Float64,1}}()
+
+    kappaGroups = Dict{Int64, Array{Int64,1}}()
+    for  (i, sh)  in  enumerate(subshellList)     push!( get!(kappaGroups, sh.kappa, Int64[]), i )     end
+
+    for  (_, idxList)  in  kappaGroups
+        subMatrix = rho1p[idxList, idxList]
+        eigen     = Basics.diagonalize(MatrixWithLinearAlgebra(), subMatrix)
+        order     = sortperm(eigen.values, rev=true)                     # decreasing natural occupation
+        for  (k, ord)  in  enumerate(order)
+            i             = idxList[k]
+            labelSubshell = subshellList[i]
+            naturalOcc[i] = eigen.values[ord]
+            fullExp       = zeros(Float64, lenNO)
+            fullExp[idxList] = eigen.vectors[ord]
+            naturalExp[labelSubshell] = fullExp
+        end
     end
-    
+
     return( naturalOcc, naturalExp )
 end
 
 
 """
-`ReducedDensityMatrix.computeNaturalOrbitals(naturalSubshells::Array{Subshell,1}, naturalExp::Dict{Subshell, Array{Float64,1}}, level::Level)`  
+`ReducedDensityMatrix.computeNaturalOrbitals(naturalSubshells::Array{Subshell,1}, naturalExp::Dict{Subshell, Array{Float64,1}}, level::Level)`
     ... to compute the natural orbitals as superposition of the standard orbitals; for each subshell in naturalExp,
-        an orbital is computed, and naturalOrbitals::Dict{Subshell, Orbital} returned
+        an orbital is computed, and naturalOrbitals::Dict{Subshell, Orbital} returned. Follows Eqs. 10-11 of
+        Ma et al., Atoms 12, 30 (2024):  P-tilde_n'kappa(r) = sum_n u^kappa_{n,n'} P_nkappa(r),  and likewise for Q.
 """
 function  computeNaturalOrbitals(naturalSubshells::Array{Subshell,1}, naturalExp::Dict{Subshell, Array{Float64,1}}, level::Level)
+    subshellList    = level.basis.subshells
     naturalOrbitals = Dict{Subshell, Orbital}()
-    println(">> computeNaturalOrbitals() ... not yet implemented !!")
+
+    for  subsh  in  naturalSubshells
+        exp = naturalExp[subsh]
+        mtp = 0
+        for  (i, s)  in  enumerate(subshellList)
+            if  exp[i] != 0.    mtp = max(mtp, length(level.basis.orbitals[s].P))    end
+        end
+        P = zeros(mtp);   Q = zeros(mtp);   Pprime = zeros(mtp);   Qprime = zeros(mtp);   energy = 0.
+
+        for  (i, s)  in  enumerate(subshellList)
+            c = exp[i];    if  c == 0.    continue    end
+            orb = level.basis.orbitals[s];   n = length(orb.P)
+            P[1:n]      = P[1:n]      + c * orb.P
+            Q[1:n]      = Q[1:n]      + c * orb.Q
+            if  !isempty(orb.Pprime)
+                Pprime[1:n] = Pprime[1:n] + c * orb.Pprime;   Qprime[1:n] = Qprime[1:n] + c * orb.Qprime
+            end
+            energy = energy + c^2 * orb.energy
+        end
+
+        parentOrb = level.basis.orbitals[subsh]
+        naturalOrbitals[subsh] = Orbital(subsh, parentOrb.isBound, parentOrb.useStandardGrid, energy, P, Q, Pprime, Qprime, parentOrb.grid)
+    end
 
     return( naturalOrbitals )
 end
 
 
 """
-`ReducedDensityMatrix.computeOrbitalInteractions(naturalSubshells::Array{Subshell,1}, naturalOrbitals::Dict{Subshell, Orbital}, level::Level)`  
-    ... to compute the natural orbitals as superposition of the standard orbitals; for each subshell in naturalExp,
-        an orbital is computed, and naturalOrbitals::Dict{Subshell, Orbital} returned
+`ReducedDensityMatrix.computeOrbitalInteractions(naturalSubshells::Array{Subshell,1}, naturalOrbitals::Dict{Subshell, Orbital}, level::Level)`
+    ... to compute the orbital interaction I_pq between pairs of natural orbitals; a matrix
+        orbitalInteraction::Array{Float64,2} is returned. Not yet implemented -- this quantity is not part of the
+        Ma et al. (2024) recipe used elsewhere in this module and still needs its own definition/derivation.
 """
 function  computeOrbitalInteractions(naturalSubshells::Array{Subshell,1}, naturalOrbitals::Dict{Subshell, Orbital}, level::Level)
     ns = length(naturalSubshells)
@@ -201,21 +239,15 @@ function  computeProperties(outcome::ReducedDensityMatrix.Outcome, nm::Nuclear.M
     electronDensity   = outcome.electronDensity;          rho1p              = outcome.rho1p;             rho2p = outcome.rho2p
     
     naturalSubshells   = copy(outcome.level.basis.subshells)
-    
-    if  settings.calcNatural
-        rho1p                                = compute1pRDM(outcome.level)
-        naturalOccupation, naturalOrbitalExp = computeNaturalOrbitalExpansion(rho1p, outcome.level)
-        naturalOrbitals                      = computeNaturalOrbitals(naturalSubshells, naturalOrbitalExp, outcome.level)
-        # For test purposes
-        naturalOccupation                    = ones( length(naturalSubshells) )
-        naturalOrbitalExp[Subshell(1,-1)]    = zeros( length(naturalSubshells) )
-        naturalOrbitalExp[Subshell(2,-1)]    = ones(  length(naturalSubshells) )
+    rho1p              = compute1pRDMClaude(outcome.level)
+    naturalOccupation, naturalOrbitalExp = computeNaturalOrbitalExpansion(rho1p, outcome.level)
+
+    if  settings.calcNatural  ||  settings.calcDensity  ||  settings.calcIpq
+        naturalOrbitals = computeNaturalOrbitals(naturalSubshells, naturalOrbitalExp, outcome.level)
     end
 
     if  settings.calcDensity
-        electronDensity = computeRadialDistribution(naturalOrbitalExp, grid, outcome.level)
-        # For test purposes
-        electronDensity = Radial.Density("Radial dist", ones(grid.NoPoints), grid)
+        electronDensity = computeRadialDistribution(naturalOccupation, naturalOrbitals, naturalSubshells, grid)
     end
 
     if  settings.calcIpq
@@ -233,16 +265,22 @@ end
 
 
 """
-`ReducedDensityMatrix.computeRadialDistribution(naturalExp::Dict{Subshell, Array{Float64,1}}, grid::Radial.Grid, level::Level)`  
-    ... to compute the radial distribution function from the given standard orbitals and natural expansion
-        coefficients. An radial disribution D::Array{Float64,1} is returned that specifies the radial distribution
-        w.r.t. the given grid.
+`ReducedDensityMatrix.computeRadialDistribution(naturalOcc::Array{Float64,1}, naturalOrbitals::Dict{Subshell, Orbital},
+                                                    naturalSubshells::Array{Subshell,1}, grid::Radial.Grid)`
+    ... to compute the total radial electron density from the (occupation-weighted) natural orbitals,
+        D(r) = sum_(n'kappa) occ_(n'kappa) [ P-tilde_(n'kappa)(r)^2 + Q-tilde_(n'kappa)(r)^2 ]. A Radial.Density
+        is returned w.r.t. the given grid.
 """
-function  computeRadialDistribution(naturalExp::Dict{Subshell, Array{Float64,1}}, grid::Radial.Grid, level::Level)
-    D = Radial.Density()
-    println(">> computeRadialDistribution() ... not yet implemented !!")
+function  computeRadialDistribution(naturalOcc::Array{Float64,1}, naturalOrbitals::Dict{Subshell, Orbital},
+                                        naturalSubshells::Array{Subshell,1}, grid::Radial.Grid)
+    Dr = zeros(grid.NoPoints)
+    for  (i, subsh)  in  enumerate(naturalSubshells)
+        occ = naturalOcc[i];    if  occ == 0.    continue    end
+        orb = naturalOrbitals[subsh];    mtp = length(orb.P)
+        for  k = 1:mtp    Dr[k] = Dr[k] + occ * (orb.P[k]^2 + orb.Q[k]^2)    end
+    end
 
-    return( D )
+    return( Radial.Density("Radial density from natural orbitals", Dr, grid) )
 end
 
 
@@ -278,7 +316,99 @@ end
 
 
 """
-`ReducedDensityMatrix.compute2pRDM(level::Level)`  
+`ReducedDensityMatrix.compute1pRDMClaude(level::Level)`
+    ... to compute the 1p RDM directly from the CI mixing coefficients and CSF occupation numbers, following
+        Eq. (7) of Ma et al., Atoms 12, 30 (2024), rho^kappa_nn' = sum_ij c_i v^ij_nn' c_j -- but derived here
+        from elementary second quantization, independently of SpinAngular.computeCoefficients.
+
+        Diagonal elements need no angular-momentum recoupling at all: the expectation value of a number operator
+        in a normalized state is just the mc-weighted sum of that CSF's own occupation number.
+
+        Off-diagonal elements are supported for the simplest, and here relevant, case only: two CSFs that differ
+        by moving ONE electron between two subshells of the SAME kappa, each holding 0 or 1 electron (e.g. a
+        single 2s->3s substitution), with all other subshells in identical coupling. For this case the transfer
+        coefficient is the universal value sqrt(2), independent of kappa/j: writing the singly-occupied pair
+        coupled to a scalar (J=0) as  |ab;0> = (1/sqrt(2j+1)) sum_m (-1)^(j-m) a+_{am} a+_{b,-m} |0>  (the standard
+        pair-coupling identity) and the closed-shell pair as  |aa;0> = (1/sqrt(2*(2j+1))) sum_m (-1)^(j-m)
+        a+_{am} a+_{a,-m} |0>  (note the extra factor of 2 under the root here, from the (m,-m) double counting
+        that only affects the same-shell case), direct evaluation of N_ab = sum_m a+_{am} a_{bm} gives
+        N_ab |ab;0> = sqrt(2) |aa;0> for ANY j. CSF pairs with a more general occupation pattern (more than one
+        electron differing per subshell) are NOT handled and raise an error -- those need the full
+        coefficient-of-fractional-parentage machinery in SpinAngular.
+"""
+function  compute1pRDMClaude(level::Level)
+    subshellList = level.basis.subshells;    lenNO = length(subshellList)
+    rho_pq       = zeros(lenNO, lenNO)
+    csfs         = level.basis.csfs
+
+    # Diagonal expectation values: mc-weighted CSF occupation numbers, no coupling needed.
+    for  (i, csf)  in  enumerate(csfs)
+        for  ip = 1:lenNO    rho_pq[ip,ip] = rho_pq[ip,ip] + level.mc[i]^2 * csf.occupation[ip]    end
+    end
+
+    # Off-diagonal (cross-CSF) contributions from single-electron substitutions between subshells of the same kappa.
+    for  (ir, rcsf)  in  enumerate(csfs)
+        for  (is, scsf)  in  enumerate(csfs)
+            if  ir == is    continue    end
+            diffSubshells = Int64[];    validSingleSubstitution = true
+            for  i = 1:lenNO
+                diff = rcsf.occupation[i] - scsf.occupation[i]
+                if       diff == 0          continue
+                elseif   abs(diff) == 1     push!(diffSubshells, i)
+                else     validSingleSubstitution = false;    break
+                end
+            end
+            if  !validSingleSubstitution  ||  length(diffSubshells) != 2    continue    end
+
+            ia, ib = diffSubshells
+            if  subshellList[ia].kappa != subshellList[ib].kappa    continue    end
+            # Determine, order-independently, whether each of the two differing subshells oscillates between
+            # {0,1} (empty-type) or {full-1,full} (full-type) across the CSF pair -- direction (which CSF is
+            # bra/ket) does not matter since the sqrt(2) transfer coefficient is accumulated symmetrically below.
+            fullA = Basics.subshell_2j(subshellList[ia]) + 1;    fullB = Basics.subshell_2j(subshellList[ib]) + 1
+            occAset = Set([rcsf.occupation[ia], scsf.occupation[ia]])
+            occBset = Set([rcsf.occupation[ib], scsf.occupation[ib]])
+            if      occAset == Set([0,1])        &&  occBset == Set([fullB-1,fullB])
+                emptySite, fullSite = ia, ib
+            elseif  occAset == Set([fullA-1,fullA])  &&  occBset == Set([0,1])
+                emptySite, fullSite = ib, ia
+            else
+                error("ReducedDensityMatrix.compute1pRDMClaude: only single substitutions between a fully-closed " *
+                        "shell (one hole created) and an empty shell (one electron added) are supported; got "     *
+                        "occupations $(rcsf.occupation[ia]),$(scsf.occupation[ia]) and $(rcsf.occupation[ib]),"    *
+                        "$(scsf.occupation[ib]).")
+            end
+            # All other subshells must be in identical coupling for the plain sqrt(2) transfer coefficient to apply.
+            samecoupling = true
+            for  i = 1:lenNO
+                if  i == ia  ||  i == ib    continue    end
+                if  rcsf.occupation[i]  != scsf.occupation[i]   ||  rcsf.subshellJ[i] != scsf.subshellJ[i]  ||
+                    rcsf.subshellX[i]   != scsf.subshellX[i]     ||  rcsf.seniorityNr[i] != scsf.seniorityNr[i]
+                    samecoupling = false;    break
+                end
+            end
+            if  !samecoupling    continue    end
+
+            # The operator a+_fullSite a_emptySite has a NONZERO matrix element in only ONE (ir,is) direction:
+            # bra (rcsf) = the closed configuration (full at fullSite, empty at emptySite), ket (scsf) = the open
+            # one. The opposite ordering is an exact zero (it would need to annihilate an electron at emptySite
+            # that the closed-shell ket does not have) and must be skipped here -- accumulating it too would
+            # double the physical value. Hermiticity/reality already mirrors this single contribution into
+            # rho_pq[emptySite,fullSite] below.
+            fullCapacity = Basics.subshell_2j(subshellList[fullSite]) + 1
+            if  rcsf.occupation[fullSite] == fullCapacity  &&  rcsf.occupation[emptySite] == 0
+                rho_pq[fullSite,emptySite] = rho_pq[emptySite,fullSite] =
+                    rho_pq[fullSite,emptySite] + level.mc[ir] * sqrt(2.) * level.mc[is]
+            end
+        end
+    end
+
+    return( rho_pq )
+end
+
+
+"""
+`ReducedDensityMatrix.compute2pRDM(level::Level)`
     ... to compute 2p RDM for all pairs (p,q;r,s) of subshells; a rdm::Array{Float64,4} is returned.
 """
 function  compute2pRDM(level::Level)
@@ -321,7 +451,6 @@ end
 """
 function  determineOutcomes(multiplet::Multiplet, settings::ReducedDensityMatrix.Settings) 
     outcomes = ReducedDensityMatrix.Outcome[]
-    @show settings.levelSelection
     for  level  in  multiplet.levels
         if  Basics.selectLevel(level, settings.levelSelection)
             push!( outcomes, ReducedDensityMatrix.Outcome(level, Subshell[], Float64[], Dict{Subshell, Array{Float64,1}}(), 
@@ -467,16 +596,15 @@ function  displayResults(stream::IO, outcomes::Array{ReducedDensityMatrix.Outcom
         end
         println(stream, "  ", TableStrings.hLine(nx))
         #
-        for  (i, subsh)  in  enumerate(outcome.naturalSubshells)
+        for  subsh  in  outcome.naturalSubshells
             sb = string(subsh)
-            if  i > 2   println(stream, "     " * sb * "    test ...");    break     end
             wa = TableStrings.floatList(10, outcome.naturalOrbitalExpansion[subsh])
             for  (j, sa)  in  enumerate(wa)
                 if       j == 1  sb = "     " * sb * "   " * sa
                 else             sb = "                  " * sa      end
                 println(stream,  sb)
             end
-            end
+        end
         println(stream, "  ", TableStrings.hLine(nx))
         #
         #
