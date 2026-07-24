@@ -72,6 +72,23 @@ using  Printf, ..AtomicState, ..Basics, ..Continuum, ..Defaults, ..Distribution,
                                Empirical.deExcitationCrossSection/ReducedRate. Needs only the electronic bound
                                (ionization) energies and statistical weights of the atomic/ionic states involved,
                                not a full electronic-structure calculation.
+    + Arnaud1985DR         ... the semi-empirical dielectronic recombination (DR) rate coefficients of M. Arnaud &
+                               R. Rothenflug, A&AS 60, 425 (1985); selects the formula in
+                               Empirical.dielectronicRecombinationPlasmaAlpha. Supported only for the H-like
+                               sequence (4 tabulated ions: O VIII, Mg XII, Ca XX, Fe XXVI, via
+                               PeriodicTable.dielectronicRecombinationParameters_Arnaud1985) and the He-like
+                               sequence (a general Z-scaling closed form, any Z); an unsupported isoelectronic
+                               sequence raises an informative error rather than silently returning zero.
+    + Arnaud1985EA         ... the semi-empirical excitation-autoionization (E-A) contribution to the electron-
+                               impact ionization rate, M. Arnaud & R. Rothenflug, A&AS 60, 425 (1985), Appendix A;
+                               selects the formula in Empirical.excitationAutoionizationPlasmaAlpha. This is an
+                               ADDITIVE contribution -- it must be summed with the existing, unmodified
+                               Empirical.impactIonizationPlasmaAlpha (Lotz, direct ionization) to obtain the
+                               total EII rate; it neither replaces nor alters that function. Supported only for
+                               the Li-like, Na-like and Mg-through-S-like sequences (general, Z-scaling closed
+                               forms; a few Z sub-ranges excluded, e.g. Z=17 for Na-like) and 4 explicit "other
+                               species" fits (Ca, Ca+, Fe3+, Fe4+); an unsupported combination raises an
+                               informative error rather than silently returning zero.
 """
 abstract type  AbstractEmpiricalApproximation                                end
 struct     ScaledHydrogenic              <:  AbstractEmpiricalApproximation  end
@@ -92,10 +109,13 @@ struct     NiehausScaling1986            <:  AbstractEmpiricalApproximation  end
 
 struct     BelyaevYakovleva2017          <:  AbstractEmpiricalApproximation  end
 
+struct     Arnaud1985DR                  <:  AbstractEmpiricalApproximation  end
+struct     Arnaud1985EA                  <:  AbstractEmpiricalApproximation  end
+
 
 export  AbstractEmpiricalApproximation, GivenEinsteinA, ScaledHydrogenic, UsingJAC,
         Bohr1913, Bethe1931, Axelrod1980, KozmaFranson1992, Lotz1967, VanRegemorter1962, ConstantCollisionStrength, ADK1986,
-        OverBarrierModel1980, NiehausScaling1986, BelyaevYakovleva2017
+        OverBarrierModel1980, NiehausScaling1986, BelyaevYakovleva2017, Arnaud1985DR, Arnaud1985EA
 
 
 """

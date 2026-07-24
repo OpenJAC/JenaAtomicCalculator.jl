@@ -38,6 +38,25 @@ export  AbstractEnergyData, Larkins1977, Nist2025, Williams2000, XrayDataBooklet
 
 
 """
+`abstract type PeriodicTable.AbstractRecombinationData`
+    ... defines an abstract and a number of singleton types to deal with different data sets of fitted
+        recombination-rate-coefficient parameters.
+
+    + Arnaud1985   ... M. Arnaud & R. Rothenflug, Astron. Astrophys. Suppl. Ser. 60, 425 (1985); their Table IIB
+                        gives the dielectronic recombination fit parameters (ADI, BDI, T0, T1) for the H-like
+                        sequence, but only for 4 specific ions: O VIII (Z=8), Mg XII (Z=12), Ca XX (Z=20),
+                        Fe XXVI (Z=26) -- not a general Z-scaling formula. Their He-like sequence rate is instead
+                        a genuine Z-scaling closed form (no table), which is implemented directly in
+                        Empirical.dielectronicRecombinationPlasmaAlpha rather than stored here.
+"""
+abstract type  AbstractRecombinationData                             end
+struct     Arnaud1985                    <:  AbstractRecombinationData end
+
+
+export  AbstractRecombinationData, Arnaud1985
+
+
+"""
 `abstract type PeriodicTable.AbstractYieldData`
     ... defines an abstract and a number of singleton types to deal with different data sets for fluorescence,
         Auger and Coster-Kronig yields. These yields are dimensionless probabilities and are kept apart from the
@@ -1306,6 +1325,38 @@ function fluorescenceYields_KrauseAdopted2016(Z::Int64)
     if  wb == -1.   error("No K-shell fluorescence yield defined for Z = $Z; a K-shell vacancy cannot decay radiatively.")  end
 
     return( wb )
+end
+
+
+"""
+`PeriodicTable.dielectronicRecombinationParameters_Arnaud1985(Z::Int64)`
+    ... to return the H-like-sequence dielectronic recombination fit parameters (ADI, T0) of M. Arnaud &
+        R. Rothenflug, Astron. Astrophys. Suppl. Ser. 60, 425 (1985), their Table IIB, for the bare, recombining
+        nucleus of nuclear charge Z; the rate coefficient follows their Eq. (3) with BDI = 0 (as stated for all
+        4 tabulated ions, so the {1 + BDI exp(-T1/T)} bracket reduces to 1):
+            alpha_d(T) [cm^3/s] = ADI * T^(-3/2) * exp(-T0/T),   T, T0 in K, ADI in cm^3/s K^(3/2).
+        Available for only 4 ions -- O VIII (Z=8), Mg XII (Z=12), Ca XX (Z=20), Fe XXVI (Z=26) -- since the
+        paper tabulates specific ions rather than a general Z-scaling formula for this sequence. A
+        (ADI, T0)::NTuple{2,Float64} is returned.
+
+        Note on transcription: Table IIB's column headers carry small unit-exponent annotations that are easy to
+        misread from a scanned 1985 paper. The values below were cross-checked by requiring T0 to scale
+        consistently with each ion's H-like ionization potential (Table I of the same paper): T0/IP works out to
+        55-60% across all 4 ions, a physically sensible and internally consistent ratio, which supports this
+        reading -- but the values should still be treated as best-effort and spot-checked against an independent
+        source before being relied on for precision work.
+"""
+function dielectronicRecombinationParameters_Arnaud1985(Z::Int64)
+    #                Z    ADI [cm^3/s K^1.5]   T0 [K]
+    if     Z ==  8   wa = (4.72e-2,            6.00e6)     ## O VIII
+    elseif Z == 12   wa = (9.28e-2,            1.45e7)     ## Mg XII
+    elseif Z == 20   wa = (2.68e-1,            3.74e7)     ## Ca XX
+    elseif Z == 26   wa = (3.69e-1,            6.00e7)     ## Fe XXVI
+    else   error("No H-like Arnaud (1985) dielectronic recombination parameters available for Z = $Z; " *
+                 "only O VIII (Z=8), Mg XII (Z=12), Ca XX (Z=20), Fe XXVI (Z=26) are tabulated.")
+    end
+
+    return( wa )
 end
 
 

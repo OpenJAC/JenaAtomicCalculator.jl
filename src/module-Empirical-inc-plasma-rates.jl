@@ -1176,6 +1176,80 @@ function threeBodyRecombinationPlasmaAlpha(eDist::Distribution.ElectronMaxwell, 
 end
 
 
+"""
+`Empirical.dielectronicRecombinationPlasmaAlpha(eDist::Distribution.ElectronMaxwell, iConf::Configuration;
+                                                approx::Empirical.AbstractEmpiricalApproximation=Arnaud1985DR(),
+                                                printout::Bool=false)`
+    ... to estimate empirically the dielectronic recombination (DR) plasma rate coefficient alpha^(DR)(T_e) for
+        the resonant-capture-plus-stabilization channel iConf + e -> (doubly-excited)* -> (radiative decay),
+        following the semi-empirical fits of M. Arnaud & R. Rothenflug, A&AS 60, 425 (1985). Only two
+        isoelectronic sequences of the recombining ion iConf are supported by that paper with self-contained,
+        reproducible parameters (everything else relies on external calculations not tabulated there):
+            + H-like  (iConf.NoElectrons == 1): a per-ion fit alpha_d(T) = ADI T^(-3/2) exp(-T0/T), tabulated for
+              only 4 ions -- O VIII, Mg XII, Ca XX, Fe XXVI -- via
+              PeriodicTable.dielectronicRecombinationParameters_Arnaud1985(Z).
+            + He-like (iConf.NoElectrons == 2): a general Z-scaling closed form (any Z >= 3), Sect. 3.2.2 of the
+              paper: alpha_d(T) = 7.6e-11 A(z) exp(-D(z)/chi) / chi^(3/2) cm^3/s, chi = kT/I_Li, z = Z-2, with
+              I_Li the ionization potential of the corresponding Li-like ion (taken here from the already-tabulated
+              PeriodicTable.ionizationPotentials_Nist2025, i.e. its (Z-2)-th successive ionization potential,
+              rather than re-transcribing further numbers from the 1985 paper).
+        Any other electron number, or approx != Arnaud1985DR(), raises an informative error rather than silently
+        returning zero. An alpha::Float64 [a.u.] is returned.
+        Quantity: a (two-body) recombination rate coefficient [cm^3/s] -- multiply by the electron number density
+            n_e [1/cm^3] to obtain the rate per ion [1/s].
+"""
+function dielectronicRecombinationPlasmaAlpha(eDist::Distribution.ElectronMaxwell, iConf::Configuration;
+                                              approx::Empirical.AbstractEmpiricalApproximation=Arnaud1985DR(),
+                                              printout::Bool=false)
+    if  typeof(approx) != Empirical.Arnaud1985DR
+        error("The DR plasma rate coefficient is presently supported only for approx = Arnaud1985DR().")
+    end
+    Z = Int64( Defaults.getDefaults("nuclear: charge") );   sequence = ""
+
+    if      iConf.NoElectrons == 1
+        sequence = "H-like"
+        ADI, T0  = PeriodicTable.dielectronicRecombinationParameters_Arnaud1985(Z)
+        TeKelvin = Defaults.convertUnits("temperature: from atomic to Kelvin", eDist.T)
+        alphaCgs = ADI * TeKelvin^(-1.5) * exp(-T0/TeKelvin)
+    elseif  iConf.NoElectrons == 2
+        sequence = "He-like"
+        z = Z - 2
+        if  z < 1   error("Empirical.dielectronicRecombinationPlasmaAlpha (Arnaud1985DR, He-like) requires " *
+                          "nuclear charge Z >= 3; got Z = $Z.")   end
+        ILi_eV = PeriodicTable.ionizationPotentials_Nist2025(Z)[Z-2]
+        ILi    = Defaults.convertUnits("energy: from eV to atomic", ILi_eV)
+        chi    = eDist.T / ILi
+        Az     = (z+1)^3 / ( z^2 * sqrt(z^2 + 13.4) * (1 + 0.16*(z+1) + 0.017*(z+1)^2) )
+        Dz     = 3.0*(z+1)^2/z^2 / (1 + 0.015*z^3/(z+1)^3)
+        alphaCgs = 7.6e-11 * Az * exp(-Dz/chi) / chi^1.5
+    else
+        error("Empirical.dielectronicRecombinationPlasmaAlpha (Arnaud1985DR) is presently supported only for the " *
+              "H-like (iConf.NoElectrons == 1) and He-like (iConf.NoElectrons == 2) sequences; got iConf = $iConf " *
+              "with NoElectrons = $(iConf.NoElectrons).")
+    end
+
+    # alphaCgs is in cm^3/s (the paper's native units); convert to a.u. for the return value, matching the
+    # convention of Empirical.photorecombinationPlasmaAlpha/threeBodyRecombinationPlasmaAlpha.
+    factor = Defaults.convertUnits("length: from atomic to cm", 1.0)^3 / Defaults.convertUnits("time: from atomic to sec", 1.0)
+    alpha  = alphaCgs / factor
+
+    # Report about this estimate
+    if  printout
+        Tex = Defaults.convertUnits("temperature: from atomic to Kelvin", eDist.T)
+        sa  = "\n* Estimate empirically the dielectronic recombination plasma rate coefficient alpha for the " *
+              "ion iConf = $iConf ($sequence sequence, Z = $Z) with the following assumptions/simplifications: " *
+              "\n    + Electron field: $eDist,  i.e. T_e [K] = $(Tex). " *
+              "\n    + Semi-empirical fit of Arnaud & Rothenflug (1985), $sequence sequence. " *
+              "\n    + Plasma rate coefficient alpha^(DR) [cm^3/s] = $alphaCgs " *
+              "\n    + Quantity: a recombination rate coefficient [cm^3/s] -- multiply by the electron number " *
+              "density n_e [1/cm^3] for the rate per ion [1/s]. " * "\n"
+        println(sa)
+    end
+
+    return( alpha )
+end
+
+
 #################################################################################################################################
 ### Autoionization (AI) #########################################################################################################
 
@@ -1701,6 +1775,147 @@ function impactIonizationPlasmaAlpha(eDist::Distribution.AbstractElectronDistrib
              "\n    + iConf = $iConf  -->  fConf = $fConf " *
              "\n    + Plasma rate coefficient alpha^(EII) [cm^3/s] = $alphax " *
              "\n    + Quantity: a rate coefficient [cm^3/s] -- multiply by the electron number density n_e [1/cm^3] for the rate per ion [1/s]. " * "\n"
+        println(sa)
+    end
+
+    return( alpha )
+end
+
+
+#################################################################################################################################
+### Excitation-autoionization (EA) ##############################################################################################
+
+
+"""
+`Empirical.exponentialIntegralF1(x::Float64)`
+    ... to evaluate f1(x) = e^x int_1^infty dt/t e^(-xt) [i.e. e^x E1(x), with E1 the standard exponential
+        integral], the special function used throughout the semi-empirical ionization and excitation-
+        autoionization rate formulas of M. Arnaud & R. Rothenflug, A&AS 60, 425 (1985), their Appendix B.1.
+        That paper gives f1(x) as three piecewise rational/logarithmic approximations (claimed accurate to
+        better than 1%); a hand-transcription of the middle (0.02 < x < 10) piece was tried here first but
+        found to be wrong throughout that range (not merely at an isolated point) when cross-checked against
+        the exact function -- e.g. it returned negative values for x in (0.02, 1) and diverged at x = 1, where
+        f1(x) is in fact smooth and positive (f1(1) = 0.596). Rather than keep guessing at the exact printed
+        form from a scanned 1985 paper, f1(x) is evaluated here EXACTLY via SpecialFunctions.expint(x) (already
+        a dependency of this module), i.e. f1(x) = exp(x) * SpecialFunctions.expint(x) -- mathematically exact
+        to floating-point precision, not an approximation, and eliminating this transcription risk entirely.
+        A Float64 is returned.
+"""
+function exponentialIntegralF1(x::Float64)
+    return( exp(x) * SpecialFunctions.expint(x) )
+end
+
+
+"""
+`Empirical.excitationAutoionizationPlasmaAlpha(eDist::Distribution.ElectronMaxwell, iConf::Configuration;
+                                               approx::Empirical.AbstractEmpiricalApproximation=Arnaud1985EA(),
+                                               printout::Bool=false)`
+    ... to estimate empirically the excitation-autoionization (E-A) contribution to the total electron-impact
+        ionization plasma rate coefficient of the ion iConf, following the semi-empirical fits of M. Arnaud &
+        R. Rothenflug, A&AS 60, 425 (1985), their Appendix A. This is an ADDITIVE contribution: the paper's own
+        total ionization rate is alpha^(EII: total) = alpha^(EII: direct) + alpha^(EA), so this function returns
+        ONLY the E-A piece and must be summed with Empirical.impactIonizationPlasmaAlpha (the existing,
+        unmodified, Lotz-based direct-ionization rate) to obtain the total -- it does not replace or alter that
+        function, nor does it need an fConf (Arnaud & Rothenflug's fits give one aggregate E-A rate per ion, not
+        a shell- or channel-resolved one).
+
+        Supported isoelectronic sequences of iConf (identified by iConf.NoElectrons, with a few further
+        (Z, NoElectrons)-specific "other species" cases checked first):
+            + Li-like  (NoElectrons ==  3): general Z formula, any Z; explicit correction factors 0.6/0.8/1.25
+              for C/N/O.
+            + Na-like  (NoElectrons == 11): general Z formula, Z <= 16 or 18 <= Z <= 28 (Z = 17 falls in a gap
+              between the paper's two fitted ranges and is not covered).
+            + Mg/Al/Si/P/S-like (NoElectrons == 12..16): general Z formula, Z >= 18 only (the paper states E-A
+              is negligible below that and gives no formula there).
+            + Ca (Z=20, NoElectrons=20 or 19) and Fe (Z=26, NoElectrons=23 or 22): 4 explicit "other species"
+              fits (Appendix A.4).
+        Any other (Z, NoElectrons) combination, or approx != Arnaud1985EA(), raises an informative error rather
+        than silently returning zero. An alpha::Float64 [a.u.] is returned.
+        Quantity: a rate coefficient [cm^3/s] -- multiply by the electron number density n_e [1/cm^3] for the
+            rate per ion [1/s].
+"""
+function excitationAutoionizationPlasmaAlpha(eDist::Distribution.ElectronMaxwell, iConf::Configuration;
+                                             approx::Empirical.AbstractEmpiricalApproximation=Arnaud1985EA(),
+                                             printout::Bool=false)
+    if  typeof(approx) != Empirical.Arnaud1985EA
+        error("The E-A plasma rate coefficient is presently supported only for approx = Arnaud1985EA().")
+    end
+    Z = Int64( Defaults.getDefaults("nuclear: charge") );   N = iConf.NoElectrons
+    kTeV = Defaults.convertUnits("energy: from atomic to eV", eDist.T)
+    sequence = "";   IEA = 0.;   alphaCgs = 0.;   f1 = Empirical.exponentialIntegralF1
+
+    if      (Z,N) == (20,20)                                  ## Ca (neutral)
+        sequence = "Ca (neutral), other species";   a = 6.0e-17;   IEA = 25.;   y = IEA/kTeV
+        alphaCgs = 6.69e7 * a*IEA / sqrt(kTeV) * exp(-y) * (1 + 1.12*f1(y))
+    elseif  (Z,N) == (20,19)                                  ## Ca+
+        sequence = "Ca+, other species";   a = 9.8e-17;   IEA = 29.;   y = IEA/kTeV
+        alphaCgs = 6.69e7 * a*IEA / sqrt(kTeV) * exp(-y) * (1 + 1.12*f1(y))
+    elseif  (Z,N) == (26,23)                                  ## Fe3+
+        sequence = "Fe3+, other species";   a = 1.8e-17;   IEA = 60.;   y = IEA/kTeV
+        alphaCgs = 6.69e7 * a*IEA / sqrt(kTeV) * exp(-y) * (1 + 1.00*f1(y))
+    elseif  (Z,N) == (26,22)                                  ## Fe4+
+        sequence = "Fe4+, other species";   a = 5.0e-18;   IEA = 73.;   y = IEA/kTeV
+        alphaCgs = 6.69e7 * a*IEA / sqrt(kTeV) * exp(-y) * (1 + 1.00*f1(y))
+    elseif  N == 3                                            ## Li-like
+        sequence = "Li-like"
+        Zeff = Z - 0.43;   b = 1.0/(1.0 + 2.0e-4*Z^3)
+        IEA  = 13.6 * ( (Z-0.835)^2 - 0.25*(Z-1.62)^2 );   y = IEA/kTeV
+        Gy   = 2.22*f1(y) + 0.67*(1-y*f1(y)) + 0.49*y*f1(y) + 1.2*y*(1-y*f1(y))
+        alphaCgs = 1.60e-7 * b * 1.2 / (Zeff^2 * sqrt(kTeV)) * exp(-y) * Gy
+        if      (Z,N) == (6,3)     alphaCgs = alphaCgs * 0.6
+        elseif  (Z,N) == (7,3)     alphaCgs = alphaCgs * 0.8
+        elseif  (Z,N) == (8,3)     alphaCgs = alphaCgs * 1.25
+        end
+    elseif  N == 11                                           ## Na-like
+        sequence = "Na-like"
+        if      Z <= 16
+            IEA = 26.0*(Z-10);   a = 2.8e-17*(Z-11.0)^(-0.7);   y = IEA/kTeV
+            alphaCgs = 6.69e7 * a*IEA / sqrt(kTeV) * exp(-y) * (1 - y*f1(y))
+        elseif  18 <= Z <= 28
+            IEA = 11.0*(Z-10)^1.5;   a = 1.3e-14*(Z-10.0)^(-3.73);   y = IEA/kTeV
+            alphaCgs = 6.69e7 * a*IEA / sqrt(kTeV) * exp(-y) * (1 - 0.5*(y - y^2 + y^3*f1(y)))
+        else
+            error("Empirical.excitationAutoionizationPlasmaAlpha (Arnaud1985EA, Na-like): Z = 17 falls in the " *
+                  "gap between the paper's two fitted ranges (Z<=16 and 18<=Z<=28) and is not covered.")
+        end
+    elseif  N in (12,13,14,15,16)  &&  Z >= 18                ## Mg/Al/Si/P/S-like
+        aIEA = 4.0e-13 / Z^2
+        if      N == 12   sequence = "Mg-like";  IEA = 10.3*(Z-10.0)^1.52
+        elseif  N == 13   sequence = "Al-like";  IEA = 18.0*(Z-11.0)^1.33
+        elseif  N == 14   sequence = "Si-like";  IEA = 18.4*(Z-12.0)^1.36
+        elseif  N == 15   sequence = "P-like";   IEA = 23.7*(Z-13.0)^1.29
+        elseif  N == 16   sequence = "S-like";   IEA = 40.1*(Z-14.0)^1.10
+        end
+        y = IEA/kTeV
+        alphaCgs = 6.69e7 * aIEA / sqrt(kTeV) * exp(-y) * (1 - 0.5*(y - y^2 + y^3*f1(y)))
+    elseif  N in (12,13,14,15,16)  &&  Z < 18
+        error("Empirical.excitationAutoionizationPlasmaAlpha (Arnaud1985EA): for the Mg/Al/Si/P/S-like " *
+              "sequences, Arnaud & Rothenflug (1985) state the E-A contribution is negligible for Z < 18 and " *
+              "give no formula there; got Z = $Z, NoElectrons = $N.")
+    else
+        error("Empirical.excitationAutoionizationPlasmaAlpha (Arnaud1985EA) is presently supported only for " *
+              "the Li-like (NoElectrons=3), Na-like (NoElectrons=11), Mg-through-S-like (NoElectrons=12-16, " *
+              "Z>=18) sequences, and 4 explicit \"other species\" (Ca, Ca+, Fe3+, Fe4+); got iConf = $iConf " *
+              "with Z = $Z, NoElectrons = $N.")
+    end
+
+    factor = Defaults.convertUnits("length: from atomic to cm", 1.0)^3 / Defaults.convertUnits("time: from atomic to sec", 1.0)
+    alpha  = alphaCgs / factor
+
+    # Report about this estimate
+    if  printout
+        Tex = Defaults.convertUnits("temperature: from atomic to Kelvin", eDist.T)
+        sa  = "\n* Estimate empirically the excitation-autoionization (E-A) contribution to the ionization " *
+              "plasma rate coefficient for iConf = $iConf ($sequence, Z = $Z) with the following " *
+              "assumptions/simplifications: " *
+              "\n    + Electron field: $eDist,  i.e. T_e [K] = $(Tex). " *
+              "\n    + Semi-empirical fit of Arnaud & Rothenflug (1985), Appendix A. " *
+              "\n    + E-A onset energy I_EA [eV] = $IEA " *
+              "\n    + Plasma rate coefficient alpha^(EA) [cm^3/s] = $alphaCgs " *
+              "\n    + This is ADDITIVE: add to Empirical.impactIonizationPlasmaAlpha (Lotz, direct ionization) " *
+              "for the total EII rate; it does not replace that function. " *
+              "\n    + Quantity: a rate coefficient [cm^3/s] -- multiply by the electron number density n_e " *
+              "[1/cm^3] for the rate per ion [1/s]. " * "\n"
         println(sa)
     end
 
