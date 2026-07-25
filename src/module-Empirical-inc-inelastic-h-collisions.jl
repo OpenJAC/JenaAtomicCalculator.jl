@@ -202,14 +202,25 @@ end
         Quantity: a cross section [a.u.] -- fold with a Maxwellian velocity distribution, or use
             Empirical.deExcitationReducedRate, to obtain a (reduced) rate coefficient.
 
-        OPEN ISSUE (not yet resolved): checked against Belyaev & Yakovleva (2017), Table 2, for the Ba+(7p) ->
-        Ba+(6d) de-excitation rate coefficient at T=6000 K, this formula (after multiplying the reduced rate by
-        p_stat_i) gives ~4.6e-10 cm^3/s vs. the paper's quoted 8.94e-10 cm^3/s -- a factor ~1.9 too small.
-        Neither dropping the (1-p_i) factor entirely nor removing the Jmax_i restriction resolves this (tested
-        explicitly), so the discrepancy is not a simple missing/extra factor of 2 that has been identified so far.
-        By contrast, Empirical.neutralizationReducedRate agrees with the paper to 3 significant figures for the
-        same system. Treat de-excitation/excitation rates from this function as order-of-magnitude/qualitative-
-        trend estimates only until this is understood; do not rely on them for a quantitative comparison.
+        OPEN ISSUE, PAUSED (not resolved -- deliberately set aside, see project_inelastic_h_collisions.md for the
+        full trail): checked against Belyaev & Yakovleva (2017), Table 2, for the Ba+(7p) -> Ba+(6d) de-excitation
+        rate coefficient at T=6000 K, this formula (after multiplying the reduced rate by p_stat_i) gives
+        ~4.6e-10 cm^3/s vs. the paper's quoted 8.94e-10 cm^3/s -- a factor ~1.9 too small, growing to ~2.6 for
+        larger energy defects (checked across all 6 de-excitation pairs from the Ba+(7p) row of Table 2). Neither
+        dropping the (1-p_i) factor entirely nor removing the Jmax_i restriction resolves this (tested explicitly).
+        The likely ROOT CAUSE, identified via Belyaev, Phys. Rev. A 48, 4299 (1993)
+        [examples/papers/a93.pra-belyaev-charge-exchange.pdf]: this function treats de-excitation as an isolated
+        3-state (i, ionic, f) problem, ignoring that the ionic curve also crosses the OTHER covalent channels of
+        the same ion along the way -- that paper's Eq. (3.8) (a general multichannel Landau-Zener branching
+        formula) and its accompanying discussion explicitly warn that neglecting such channels can inflate the
+        result by a factor of 2 (bounded, for channels beyond the target) or more (unbounded, for channels between
+        the initial and target states) -- consistent in both magnitude and trend with what is observed here. A
+        first attempt to apply Eq. (3.8) directly (treating the ionic curve as entrance, excluding state i, and
+        applying the formula to the remaining channels) made the result *worse* (2 orders of magnitude too small),
+        so the correct mapping between the two papers' formalisms is not yet understood. By contrast,
+        Empirical.neutralizationReducedRate agrees with the paper to 3 significant figures for the same system.
+        Treat de-excitation/excitation rates from this function as order-of-magnitude/qualitative-trend estimates
+        only; do not rely on them for a quantitative comparison.
 """
 function deExcitationCrossSection(E::Float64, Ei::Float64, Ef::Float64, EHminus::Float64, Z::Float64, mu::Float64;
                                   printout::Bool=false)
@@ -379,12 +390,34 @@ function inelasticHCollisionRateMatrix(T::Float64, channels::Array{Empirical.Ine
         factor = Defaults.convertUnits("length: from atomic to cm", 1.0)^3 / Defaults.convertUnits("time: from atomic to sec", 1.0)
         Tx = Defaults.convertUnits("temperature: from atomic to Kelvin", T)
         println("\n* Estimate empirically (Belyaev-Yakovleva 2017 simplified model) the rate-coefficient matrix for " *
-                "$nch atomic/ionic channels + the ionic A^($(Z+1))+ + H^- channel at T [K] = $Tx: ")
+                "$nch atomic/ionic channels + the ionic A^($(Z+1))+ + H^- channel at T [K] = $Tx: " *
+                "\n    + ionic->j  = the NEUTRALIZATION rate coefficient A^($(Z+1))+ + H^- -> A^($Z)+(j) + H " *
+                "(exothermic; well validated against Belyaev & Yakovleva 2017, agrees to 3 significant figures for " *
+                "the systems checked so far). " *
+                "\n    + j->ionic  = the (much smaller) inverse ION-PAIR-FORMATION rate coefficient A^($Z)+(j) + H " *
+                "-> A^($(Z+1))+ + H^- (endothermic; obtained from ionic->j by detailed balance, Empirical.detailedBalanceRate, " *
+                "using channel j's own statistical weight p_stat_j and its energy defect from the ionic state). " *
+                "\n    + channel[i]->channel[k] = the DE-EXCITATION rate coefficient A^($Z)+(i) + H -> A^($Z)+(k) + H " *
+                "between two of the covalent channels themselves (i more weakly bound than k), with the reverse " *
+                "(excitation) entry filled in by detailed balance; 0.0 on the diagonal and where i is NOT more " *
+                "weakly bound than k (that direction is filled by its own detailed-balance partner instead). " *
+                "\n    + KNOWN OPEN ISSUE: unlike ionic->j/j->ionic, the channel[i]->channel[k] (de-)excitation " *
+                "block is only order-of-magnitude/qualitative-trend reliable -- checked against Belyaev & Yakovleva " *
+                "(2017) Table 2, this module's values are a factor ~1.9-2.6 too small (root cause diagnosed, not yet " *
+                "fixed; see Empirical.deExcitationCrossSection's docstring and project_inelastic_h_collisions.md). " *
+                "Do not use this block quantitatively. " *
+                "\n    + Quantity: every number above is a RATE COEFFICIENT [cm^3/s], not yet a rate. Multiply " *
+                "ionic->j by the number density of H^- [cm^-3] to get the actual neutralization rate [1/s] for one " *
+                "A^($(Z+1))+ ion; multiply j->ionic and every channel[i]->channel[k] entry by the number density of " *
+                "neutral H [cm^-3] instead, since those processes collide with H, not H^-. These per-ion rates are " *
+                "exactly the input a non-LTE statistical-equilibrium (population rate-equation) calculation needs, " *
+                "which is the whole motivation behind this model (Belyaev & Yakovleva 2017, Sec. 1). ")
         println("    ionic -> channel[j]  and  channel[j] -> ionic  rate coefficients [cm^3/s]:")
         for  j = 1:nch
             println("      $(channels[j].name):   ionic->j = $(factor*ionicToChannel[j])   j->ionic = $(factor*channelToIonic[j])")
         end
-        println("    channel[i] -> channel[k] rate coefficients [cm^3/s] (0.0 on the diagonal and where not applicable):")
+        println("    channel[i] -> channel[k] rate coefficients [cm^3/s] (0.0 on the diagonal and where not applicable; " *
+                "NOT quantitatively reliable, see above):")
         for  i = 1:nch
             println("      $(channels[i].name):  " * join([ (@sprintf "%.3e" factor*channelToChannel[i,k]) for k = 1:nch ], "  "))
         end
