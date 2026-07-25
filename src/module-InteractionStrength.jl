@@ -1092,9 +1092,19 @@ end
 
 
 """
-`InteractionStrength.zeeman_Delta_n1(a::Orbital, b::Orbital, grid::Radial.Grid)`  
-    ... computes the <a|| Delta n^(1) ||b> reduced matrix element for the Zeeman-Schwinger contribution to the coupling 
+`InteractionStrength.zeeman_Delta_n1(a::Orbital, b::Orbital, grid::Radial.Grid)`
+    ... computes the <a|| Delta n^(1) ||b> reduced matrix element for the Zeeman-Schwinger contribution to the coupling
         to an external magnetic field for orbital functions a, b. A value::Float64 is returned.
+
+        Note (25-Jul-2026): the prefactor is (g_s-2)/4, not the (g_s-2)/2 of Andersson & Jonsson (2008), CPC, Eq. (26)/(52)
+        as literally printed -- found and fixed after the printed formula gave a Delta N1 contribution to g_J exactly 2x
+        too large, confirmed against two independent references: (i) the standard non-relativistic Lande g_J decomposition
+        for H(2p_1/2) and H(2p_3/2) (different kappa, opposite-sign corrections, both matched after the /4 fix to 5-6
+        significant figures), and (ii) the paper's own published He 1s2p g_J table (Fig. 10: 1.5011166/1.5011183/0.9999936
+        for 3P1/3P2/1P1), matched to 5-6 significant figures only after this fix, not before. Likely root cause (plausible,
+        not fully proven): the Sigma operator in Eq. (26) is Pauli-normalized (eigenvalue +/-1), while the physical
+        magnetic-moment operator needs S (eigenvalue +/-1/2) -- a factor-of-2 normalization slip, not a JAC transcription
+        error, since the code faithfully reproduced what Eq. (52) says.
 """
 function zeeman_Delta_n1(a::Orbital, b::Orbital, grid::Radial.Grid)
     ka = a.subshell.kappa
@@ -1103,8 +1113,8 @@ function zeeman_Delta_n1(a::Orbital, b::Orbital, grid::Radial.Grid)
     rad = RadialIntegrals.rkDiagonal(0, a.P, b.P, grid) * (ka + kb - 1) + RadialIntegrals.rkDiagonal(0, a.Q, b.Q, grid) * (ka + kb + 1)
     ang = AngularMomentum.CL_reduced_me_rb(Subshell(1, -ka), 1, b.subshell)
 
-    return ( (Defaults.getDefaults("electron g-factor") - 2)/2 * rad * ang )
-end    
+    return ( (Defaults.getDefaults("electron g-factor") - 2)/4 * rad * ang )
+end
 
 
 """
