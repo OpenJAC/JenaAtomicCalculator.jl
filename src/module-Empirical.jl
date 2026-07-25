@@ -415,9 +415,7 @@ end
 
 include("module-Empirical-inc-charge-exchange.jl")
 include("module-Empirical-inc-energies.jl")
-include("module-Empirical-inc-hydrogen-channel-correlation.jl")
 include("module-Empirical-inc-inelastic-h-collisions.jl")
-include("module-Empirical-inc-inelastic-hydrogen-reaction.jl")
 include("module-Empirical-inc-plasma-rates.jl")
 include("module-Empirical-inc-stopping-powers.jl")
 include("module-Empirical-inc-tunneling-ionization.jl")

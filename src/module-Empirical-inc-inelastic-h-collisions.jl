@@ -26,11 +26,28 @@
 ##
 ##  Limitations (see the paper for the full discussion): the model targets only rate coefficients with high and
 ##  moderate values -- those from the *dominant* long-range ionic-covalent crossings -- and deliberately ignores
-##  short-range/multichannel effects that matter for small rates. Selecting *which* atomic states A^Z+(j) actually
-##  correlate (via a one-electron transition) to the ionic ground molecular-state symmetry, and their statistical
-##  probabilities p_stat_j within that symmetry, is a separate, molecular-term-symmetry bookkeeping step (Steps 1-2
-##  of the paper) that this module does *not* automate -- the channel list and its p_stat values must be supplied
-##  by the caller (as in the paper's own worked example, cf. Empirical.InelasticHChannel below).
+##  short-range/multichannel effects that matter for small rates. De-excitation/excitation rates specifically are
+##  known to be unreliable by a factor ~1.9-2.6 (root cause diagnosed -- neglected multichannel branching among the
+##  OTHER covalent channels the ionic curve also crosses -- but not fixed; see Empirical.deExcitationCrossSection's
+##  own docstring and project_inelastic_h_collisions.md for the full trail, including a documented, unsuccessful
+##  attempt to apply Belyaev's (1993) general multichannel formula). Neutralization/ion-pair-formation rates, by
+##  contrast, are validated to 3 significant figures against the paper's own tables.
+##
+##  This one file covers three layers of interface, low-level to high-level:
+##    1. Raw physics (this section): operates directly on bound energies (Ej, Ei, Ef), Z (the COVALENT species' own
+##       charge, not the nuclear charge), and mu (reduced mass) -- no knowledge of JAC's Configuration/Nuclear.Model
+##       entities is needed here.
+##    2. Molecular-symmetry channel correlation (below): automates the Wigner-Witmer-style bookkeeping (Steps 1-2 of
+##       the 2017 paper) that decides which atomic levels A^Z+(j) even correlate to the ionic entrance term, and
+##       with what statistical weight, given just (L,S) of both sides; verified exactly against Table 1 of the paper.
+##    3. Empirical.InelasticHReaction (below): the recommended entry point for a NEW reaction -- specifies
+##       everything via JAC's own Nuclear.Model and Configuration, with reduced mass, symmetry, and statistical
+##       weights all derived internally. Level ENERGIES are the one thing this file deliberately does not compute
+##       itself -- always supplied by the caller (from a real SCF run via Atomic.Computation/perform, from
+##       literature, or otherwise), keeping this module free of a dependency on the heavier Atomic/SelfConsistent
+##       machinery, and cleanly separating "how were these energies obtained" from "how are rates computed from
+##       them." Scope is deliberately restricted to a closed-shell entrance ion and a single-active-electron
+##       transfer per final configuration; anything else raises an informative error rather than a wrong number.
 
 
 """
@@ -215,12 +232,12 @@ end
         formula) and its accompanying discussion explicitly warn that neglecting such channels can inflate the
         result by a factor of 2 (bounded, for channels beyond the target) or more (unbounded, for channels between
         the initial and target states) -- consistent in both magnitude and trend with what is observed here. A
-        first attempt to apply Eq. (3.8) directly (treating the ionic curve as entrance, excluding state i, and
-        applying the formula to the remaining channels) made the result *worse* (2 orders of magnitude too small),
-        so the correct mapping between the two papers' formalisms is not yet understood. By contrast,
-        Empirical.neutralizationReducedRate agrees with the paper to 3 significant figures for the same system.
-        Treat de-excitation/excitation rates from this function as order-of-magnitude/qualitative-trend estimates
-        only; do not rely on them for a quantitative comparison.
+        properly re-derived attempt at the correct multichannel mapping (25-Jul-2026, see the memory file for the
+        full trail) still did NOT succeed -- the correction moved the result FURTHER from the literature value, and
+        a sanity check of Eq. (3.8) itself revealed an unresolved inconsistency in even the simplest nontrivial
+        case. By contrast, Empirical.neutralizationReducedRate agrees with the paper to 3 significant figures for
+        the same system. Treat de-excitation/excitation rates from this function as order-of-magnitude/qualitative-
+        trend estimates only; do not rely on them for a quantitative comparison.
 """
 function deExcitationCrossSection(E::Float64, Ei::Float64, Ef::Float64, EHminus::Float64, Z::Float64, mu::Float64;
                                   printout::Bool=false)
@@ -313,11 +330,70 @@ function detailedBalanceRate(Kjk::Float64, pstatJ::Float64, pstatK::Float64, del
 end
 
 
+#################################################################################################################################
+### Molecular-symmetry channel correlation #######################################################################################
+##
+##  Automates Steps 1-2 of Belyaev & Yakovleva (2017): given the ionic entrance term (Lion,Sion) and a candidate channel's own
+##  term (Lj,Sj), decides whether that channel correlates to the entrance by molecular symmetry and, if so, with what
+##  statistical weight -- the p_stat_j field of Empirical.InelasticHChannel below. The paper states only that "the statistical
+##  probabilities p_stat_j can be readily calculated" (Sec. 2.1), without giving an explicit formula; the formula below is this
+##  codebase's own reconstruction, verified level-by-level to reproduce all 19 p_stat_j values in Table 1 of the Ba paper
+##  exactly (1/4 for every ^2S channel, 1/12 for ^2P, 1/20 for ^2D, 1/28 for ^2F, 1/36 for ^2G).
+##
+##  Known scope limitation: reflection parity (Sigma+/Sigma-) for Lambda=0 terms is NOT resolved separately -- exact for the
+##  Ba+H case (both partners' relevant terms are always Sigma+ there) but unverified where it could matter.
+
+
+"""
+`Empirical.molecularOrbitalFraction(Lj::Int64, Lion::Int64)`
+    ... to compute the fraction of channel j's own (2*Lj+1) orbital magnetic sublevels that fall on a molecular Lambda value
+        also reachable by the ionic entrance term (Lion combined with a partner of L=0, i.e. Lambda_ion = 0,1,...,Lion). Since
+        both Lj and Lion are combined with an L=0 partner (H or H^-), their own Lambda ranges are 0,1,...,Lj and 0,1,...,Lion
+        respectively, so the shared range is 0,1,...,min(Lj,Lion) -- always including Lambda=0. A value::Float64 in (0,1] is
+        returned.
+"""
+function molecularOrbitalFraction(Lj::Int64, Lion::Int64)
+    sharedMultiplicity = 1.0 + 2.0 * min(Lj, Lion)
+    return( sharedMultiplicity / (2*Lj + 1) )
+end
+
+
+"""
+`Empirical.molecularSpinFraction(Sj::Float64, Sion::Float64)`
+    ... to compute the fraction of channel j's own 2*(2*Sj+1) spin magnetic sublevels (from combining the atomic spin Sj with
+        neutral hydrogen's S=1/2) that fall on the molecular spin S_mol = Sion required by the ionic entrance term (combining
+        the ionic term's own spin Sion with H^-'s S=0, so the ionic side has the single, unsplit value S_mol = Sion). Returns
+        0.0 if Sion is not among {Sj+1/2, Sj-1/2} (no one-electron-transfer path conserves spin between the two terms). A
+        value::Float64 in [0,1] is returned.
+"""
+function molecularSpinFraction(Sj::Float64, Sion::Float64)
+    total = 2.0 * (2*Sj + 1)
+    if      Sion == Sj + 0.5                  matched = 2*Sion + 1
+    elseif  Sj > 0.0   &&   Sion == Sj - 0.5   matched = 2*Sion + 1
+    else                                       matched = 0.0
+    end
+    return( matched / total )
+end
+
+
+"""
+`Empirical.statisticalWeight(Lj::Int64, Sj::Float64, Lion::Int64, Sion::Float64)`
+    ... to compute the statistical probability p_stat_j (Belyaev & Yakovleva 2017, Eqs. 1-2) that channel j = A^Z+(j) + H
+        correlates, by molecular-term symmetry, to the ionic entrance state A^(Z+1)+ + H^- of term (Lion,Sion), as the product
+        of Empirical.molecularOrbitalFraction and Empirical.molecularSpinFraction. Returns 0.0 (no correlation, channel j is
+        not accessible from this ionic entrance) if the spin fraction is zero; see the section note above for the derivation
+        and its verification against Table 1 of the paper. A value::Float64 in [0,1) is returned.
+"""
+function statisticalWeight(Lj::Int64, Sj::Float64, Lion::Int64, Sion::Float64)
+    return( Empirical.molecularOrbitalFraction(Lj, Lion) * Empirical.molecularSpinFraction(Sj, Sion) )
+end
+
+
 """
 `struct  Empirical.InelasticHChannel`
     ... a single atomic/ionic scattering channel A^Z+(j) + H that correlates to the ionic ground molecular state
-        A^(Z+1)+ + H^- (Belyaev & Yakovleva 2017, Steps 1-2); this module does not derive the channel list or its
-        statistical probabilities automatically -- see the module note above.
+        A^(Z+1)+ + H^- (Belyaev & Yakovleva 2017, Steps 1-2); typically built via Empirical.statisticalWeight for the p_stat
+        field, or -- for a new reaction specified via Configuration -- automatically by Empirical.InelasticHReaction below.
 
     + name        ::String    ... a short label for the channel, e.g. "Ba+(6d 2D)", for display purposes only.
     + E           ::Float64   ... electronic bound energy Ej [a.u.], negative, measured from the ionization limit.
@@ -356,6 +432,10 @@ end
         Quantity: all rate coefficients [a.u.]; multiply by
         (Defaults.convertUnits("length: from atomic to cm",1.0)^3 / Defaults.convertUnits("time: from atomic to sec",1.0))
         for the conventional [cm^3/s] used throughout the non-LTE literature (as in the printout below).
+
+        Also available as Empirical.inelasticHCollisionRateMatrix(T, reaction::Empirical.InelasticHReaction, energies; ...)
+        below, which builds channels automatically from Nuclear.Model/Configuration input instead of requiring the caller
+        to hand-build the Empirical.InelasticHChannel list.
 """
 function inelasticHCollisionRateMatrix(T::Float64, channels::Array{Empirical.InelasticHChannel,1},
                                        pstatIonic::Float64, Z::Float64, mu::Float64; printout::Bool=false,
@@ -426,4 +506,216 @@ function inelasticHCollisionRateMatrix(T::Float64, channels::Array{Empirical.Ine
 
     return( (channels = channels, ionicToChannel = ionicToChannel, channelToIonic = channelToIonic,
              channelToChannel = channelToChannel) )
+end
+
+
+#################################################################################################################################
+### Configuration-level reaction interface (Empirical.InelasticHReaction) #######################################################
+##
+##  Specifies the reaction directly in terms of JAC's own Nuclear.Model and Configuration entities, exactly the way any other
+##  JAC structure calculation is specified -- reduced mass, molecular symmetry, and statistical weights are all DERIVED from
+##  this input (via the sections above), not supplied by the caller. Level ENERGIES remain the one piece this module does not
+##  compute itself (see the module note at the top of this file for why) -- always supplied by the caller as an
+##  Array{Pair{Configuration,Float64},1} of total energies (a plain array, not a Dict, because Configuration currently has no
+##  matching `hash` method for its working `==` -- a real, separate JAC bug found while building this interface, not fixed here
+##  since Configuration is a foundational type used throughout JAC).
+##
+##  Scope (deliberately restricted, matching the physics already validated for Ba2+ + H- -> Ba+ + H): the entrance ion must be
+##  closed-shell (so its own molecular symmetry is the trivial, unique 1S0 -- Lion=0, Sion=0.0, no term-generation needed), and
+##  every final ion configuration must differ from the entrance configuration by exactly ONE electron in exactly ONE shell (a
+##  genuine single-active-electron transfer, S=1/2 always). Configurations that don't fit this pattern raise an informative
+##  error rather than being silently mishandled or guessed at; open-shell entrance ions would need real term generation from
+##  the configuration, not yet implemented here.
+
+
+"""
+`struct  Empirical.InelasticHReaction`
+    ... specifies an inelastic ion + hydrogen reaction A^(Z+1)+ + H^- <-> A^Z+(f) + H directly in terms of JAC's own Nuclear.Model
+        and Configuration entities, for one or several final configurations at once.
+
+    + nm        ::Nuclear.Model            ... the projectile ion's nuclear model; only nm.Z is used here (for the covalent
+                                                species' charge and for looking up its standard atomic mass).
+    + iConfIon  ::Configuration             ... the (closed-shell) ground configuration of the ionic entrance species A^(Z+1)+.
+    + iConfH    ::Configuration             ... either H^-(1s^2) or H(1s^1) -- this module only ever considers hydrogen.
+    + fConfIon  ::Array{Configuration,1}    ... the final ion configurations A^Z+(f) of interest; each must differ from iConfIon
+                                                by exactly one electron in exactly one shell.
+    + fConfH    ::Configuration             ... the complementary final hydrogen configuration; derived automatically from
+                                                iConfH by electron-count conservation if not supplied explicitly.
+"""
+struct  InelasticHReaction
+    nm          ::Nuclear.Model
+    iConfIon    ::Configuration
+    iConfH      ::Configuration
+    fConfIon    ::Array{Configuration,1}
+    fConfH      ::Configuration
+end
+
+
+"""
+`Empirical.InelasticHReaction(nm::Nuclear.Model, iConfIon::Configuration, iConfH::Configuration,
+                              fConfIon::Array{Configuration,1}; fConfH::Union{Nothing,Configuration}=nothing)`
+    ... outer constructor that validates iConfH/fConfH and derives fConfH from iConfH by electron-count conservation if not
+        given explicitly. Raises an informative error if iConfH is not H(1s^1) or H^-(1s^2), or if a given fConfH is
+        inconsistent with iConfH's electron count. An Empirical.InelasticHReaction is returned.
+"""
+function InelasticHReaction(nm::Nuclear.Model, iConfIon::Configuration, iConfH::Configuration,
+                            fConfIon::Array{Configuration,1}; fConfH::Union{Nothing,Configuration}=nothing)
+    Empirical.validateHydrogenConfiguration(iConfH)
+    if  isnothing(fConfH)
+        fConfHx = iConfH.NoElectrons == 2 ? Configuration("1s^1") : Configuration("1s^2")
+    else
+        Empirical.validateHydrogenConfiguration(fConfH)
+        fConfHx = fConfH
+    end
+    if  abs(fConfHx.NoElectrons - iConfH.NoElectrons) != 1
+        error("Empirical.InelasticHReaction: iConfH ($iConfH) and fConfH ($fConfHx) must differ by exactly one electron.")
+    end
+    return( InelasticHReaction(nm, iConfIon, iConfH, fConfIon, fConfHx) )
+end
+
+
+"""
+`Empirical.validateHydrogenConfiguration(conf::Configuration)`
+    ... to check that conf is either H(1s^1) or H^-(1s^2); raises an informative error otherwise, since
+        Empirical.InelasticHReaction is restricted to hydrogen collision partners by design (see the section note above).
+"""
+function validateHydrogenConfiguration(conf::Configuration)
+    if  conf != Configuration("1s^1")  &&  conf != Configuration("1s^2")
+        error("Empirical.InelasticHReaction is restricted to hydrogen collision partners: expected H(1s^1) or H^-(1s^2), " *
+              "got $conf.")
+    end
+end
+
+
+"""
+`Empirical.isClosedShell(conf::Configuration)`
+    ... to check whether every shell of conf is fully occupied (occupation = 2*(2l+1) for each shell). A Bool is returned.
+"""
+function isClosedShell(conf::Configuration)
+    for  (sh, occ)  in  conf.shells
+        if  occ != 2*(2*sh.l + 1)   return( false )   end
+    end
+    return( true )
+end
+
+
+"""
+`Empirical.activeShell(iConf::Configuration, fConf::Configuration)`
+    ... to identify the single shell whose occupation differs between iConf and fConf, and check that it differs by exactly
+        one electron (a genuine one-electron transfer) -- the scope Empirical.InelasticHReaction is restricted to (see the
+        section note above). Raises an informative error if more than one shell differs, or if the occupation change is not
+        exactly one electron. A sh::Shell is returned.
+"""
+function activeShell(iConf::Configuration, fConf::Configuration)
+    allShells  = union(keys(iConf.shells), keys(fConf.shells))
+    diffShells = Shell[]
+    for  sh  in  allShells
+        if  get(iConf.shells, sh, 0) != get(fConf.shells, sh, 0)   push!(diffShells, sh)   end
+    end
+    if  length(diffShells) != 1
+        error("Empirical.InelasticHReaction (this version) requires iConfIon and each fConfIon to differ in exactly one " *
+              "shell (a single-active-electron transfer); found $(length(diffShells)) differing shells between " *
+              "$iConf and $fConf.")
+    end
+    sh   = diffShells[1]
+    dOcc = get(fConf.shells, sh, 0) - get(iConf.shells, sh, 0)
+    if  dOcc != 1
+        error("Empirical.InelasticHReaction (this version) requires the active shell to GAIN exactly one electron; " *
+              "shell $sh changes by $dOcc electrons between $iConf and $fConf.")
+    end
+    return( sh )
+end
+
+
+"""
+`Empirical.reducedMassH(nm::Nuclear.Model; ionMass::Union{Nothing,Float64}=nothing)`
+    ... to compute the reduced mass of the projectile ion (nuclear charge nm.Z) with a hydrogen atom, in electron-mass atomic
+        units. The projectile's mass is taken from PeriodicTable.getData("mass", nm.Z) (the standard atomic weight, in amu) by
+        default; note that nm.mass itself is NOT usable here -- it is a generic A ~ 2Z+0.005Z^2 formula used only to derive the
+        nuclear radius, not a real isotope mass. Pass ionMass [amu] explicitly to use a specific isotope instead. A
+        value::Float64 [a.u.] is returned.
+        Note: this rate model is thermally averaged over energy and summed over many partial waves, which washes out most of
+              the mass-dependence of any single collision; even a +/-20% mass error changes typical rate coefficients by well
+              under 1% (checked explicitly for Ba+ + H). Getting the mass exactly right is far less important than getting the
+              level energies right for this model.
+"""
+function reducedMassH(nm::Nuclear.Model; ionMass::Union{Nothing,Float64}=nothing)
+    Mion_amu = isnothing(ionMass) ? PeriodicTable.getData("mass", round(Int64, nm.Z)) : ionMass
+    Mion = Mion_amu / Defaults.ELECTRON_MASS_U
+    MH   = PeriodicTable.getData("mass", 1) / Defaults.ELECTRON_MASS_U
+    return( Mion * MH / (Mion + MH) )
+end
+
+
+"""
+`Empirical.energyOf(energies::Array{Pair{Configuration,Float64},1}, conf::Configuration)`
+    ... to look up conf's total energy [a.u.] in energies by VALUE equality (Configuration == is defined and reliable, but
+        Configuration currently has no matching `hash` method, so a genuine Dict{Configuration,Float64} silently drops valid
+        keys -- a real, separate JAC bug worth fixing centrally at some point, not something to route around by relying on
+        Dict here). Raises an informative error if conf is not found. A value::Float64 is returned.
+"""
+function energyOf(energies::Array{Pair{Configuration,Float64},1}, conf::Configuration)
+    idx = findfirst(p -> p.first == conf, energies)
+    if  isnothing(idx)   error("energies has no entry for configuration $conf.")   end
+    return( energies[idx].second )
+end
+
+
+"""
+`Empirical.inelasticHCollisionRateMatrix(T::Float64, reaction::Empirical.InelasticHReaction,
+                                         energies::Array{Pair{Configuration,Float64},1};
+                                         energyLabel::String="externally supplied", printout::Bool=false, zerosGL::Int64=64)`
+    ... convenience method that builds the Array{Empirical.InelasticHChannel,1} directly from reaction -- reduced mass via
+        Empirical.reducedMassH, molecular symmetry/statistical weight via Empirical.activeShell + Empirical.statisticalWeight
+        (assuming a closed-shell, Lion=0/Sion=0.0, entrance ion) -- and dispatches to
+        Empirical.inelasticHCollisionRateMatrix(T, channels, pstatIonic, Z, mu; ...). energies must contain a total-energy
+        entry [a.u.] (via Empirical.energyOf, e.g. `[Configuration("[Xe]") => 0.0, Configuration("[Xe] 6s^1") => -0.368]`)
+        for reaction.iConfIon and for every reaction.fConfIon; this module never computes these itself (see the module note
+        at the top of this file) -- energyLabel is a short caller-supplied description (e.g. "single-configuration Dirac-Fock
+        SCF" or "NIST") echoed in the printout so the origin of the numbers is never silently lost. A named tuple, as returned
+        by the low-level method, is returned.
+"""
+function inelasticHCollisionRateMatrix(T::Float64, reaction::Empirical.InelasticHReaction,
+                                       energies::Array{Pair{Configuration,Float64},1};
+                                       energyLabel::String="externally supplied", printout::Bool=false, zerosGL::Int64=64)
+    if  !Empirical.isClosedShell(reaction.iConfIon)
+        error("Empirical.InelasticHReaction (this version) requires a closed-shell entrance ion configuration; " *
+              "$(reaction.iConfIon) is not closed-shell. An open-shell entrance needs real term generation, not yet " *
+              "implemented here.")
+    end
+    Zcov = reaction.nm.Z - reaction.fConfIon[1].NoElectrons
+    for  fConf  in  reaction.fConfIon
+        if  reaction.nm.Z - fConf.NoElectrons != Zcov
+            error("All entries of reaction.fConfIon must have the same electron count; $(fConf) does not match the others.")
+        end
+    end
+
+    mu    = Empirical.reducedMassH(reaction.nm)
+    E_ion = Empirical.energyOf(energies, reaction.iConfIon)
+
+    channels = Empirical.InelasticHChannel[]
+    for  fConf  in  reaction.fConfIon
+        Ej    = Empirical.energyOf(energies, fConf) - E_ion
+        sh    = Empirical.activeShell(reaction.iConfIon, fConf)
+        pstat = Empirical.statisticalWeight(sh.l, 0.5, 0, 0.0)
+        push!(channels, Empirical.InelasticHChannel(string(fConf), Ej, pstat))
+    end
+
+    if  printout
+        println("\n* Empirical.InelasticHReaction:  A^$(round(Int64,Zcov+1))+ ($(reaction.iConfIon)) + $(reaction.iConfH)  " *
+                "->  A^$(round(Int64,Zcov))+ (f) + $(reaction.fConfH):" *
+                "\n    + Energy source: $energyLabel -- not computed by this module; supplied by the caller via `energies`." *
+                "\n    + Reduced mass: $(round(mu,digits=1)) [a.u.], from PeriodicTable's standard atomic weight for Z=" *
+                "$(round(Int64,reaction.nm.Z)) (nm.mass itself is a nuclear-radius placeholder, not used here); this rate " *
+                "model is insensitive to mass to well under 1% even for a 20% mass error, so this choice is not critical." *
+                "\n    + Statistical weights assume a closed-shell (1S0) entrance ion and a single active electron per " *
+                "final configuration -- exact for this scope, not a general open-shell treatment." *
+                "\n    + Final-state channels and their derived (energy, p_stat):")
+        for  (fConf, ch)  in  zip(reaction.fConfIon, channels)
+            println("        $fConf:  E = $(round(Defaults.convertUnits("energy: from atomic to eV",ch.E),digits=4)) eV   " *
+                    "p_stat = $(round(ch.pstat,digits=6))")
+        end
+    end
+
+    return( Empirical.inelasticHCollisionRateMatrix(T, channels, 1.0, Zcov, mu; printout=printout, zerosGL=zerosGL) )
 end
