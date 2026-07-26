@@ -462,6 +462,20 @@ end
 `Hfs.amplitude(mp::EmMultipole, rLevel::Level, sLevel::Level, grid::Radial.Grid; printout::Bool=true)`
     ... to compute the T^(M1), T^(E2) or T^(M3) hyperfine amplitude <alpha_r J_r || T^(mp) || alpha_s J_s>
         for a given pair of levels. A value::ComplexF64 is returned.
+
+        Note (26-Jul-2026): coeff.T, for rank>0 one-particle operators, is returned by
+        SpinAngular.computeCoefficientsNonScalar already in "GRASP-like" convention, i.e. with an internal
+        factor sqrt(2*j_a+1) applied (see the active "GRASP like spin-angular coefficient" step in that
+        function) -- this is NOT what the paper's Eq. (48)-type reduced-matrix-element sum
+        <leftCsf||W^(k)||rightCsf> = sum_ab d^k_ab [n_a kappa_a||w^(k)||n_b kappa_b] needs (the "pure"
+        coefficient, without that factor). By contrast, IsotopeShift.amplitude's rank-0 case uses
+        SpinAngular.computeCoefficientsScalar, where the equivalent conversion step is deliberately commented
+        out, and IsotopeShift.amplitude applies its own sqrt(2j_a+1) factor externally to match its formula.
+        This function previously used coeff.T directly with no compensating division, leaving an
+        uncorrected sqrt(2j_a+1) factor in every M1/E2/M3 hyperfine amplitude -- confirmed for H(1s) M1: the
+        A-constant was too large by ~1.42 (= sqrt(2), the j=1/2 value) after the separate missing-alpha fix
+        in InteractionStrength.hfs_tM1. Fixed by dividing each term by sqrt(2*j_a+1), undoing the internal
+        GRASP-like conversion, matching IsotopeShift's convention.
 """
 function  amplitude(mp::EmMultipole, rLevel::Level, sLevel::Level, grid::Radial.Grid; printout::Bool=true)
     if  rLevel.parity != sLevel.parity   return( ComplexF64(0.) )   end
@@ -483,7 +497,8 @@ function  amplitude(mp::EmMultipole, rLevel::Level, sLevel::Level, grid::Radial.
             wa           = SpinAngular.computeCoefficients(opa, rLevel.basis.csfs[r], sLevel.basis.csfs[s], subshellList)
             for  coeff in wa
                 tamp  = hfsFunc(rLevel.basis.orbitals[coeff.a], sLevel.basis.orbitals[coeff.b], grid)
-                me = me + coeff.T * tamp
+                ja2   = Basics.subshell_2j(coeff.a)
+                me = me + coeff.T / sqrt(ja2 + 1) * tamp
             end
             matrix[r,s] = me
         end
@@ -734,9 +749,14 @@ end
 
 
 """
-`Hfs.computeInteractionMatrix(basis::Basis, grid::Radial.Grid, settings::Hfs.Settings)` 
+`Hfs.computeInteractionMatrix(basis::Basis, grid::Radial.Grid, settings::Hfs.Settings)`
     ... to compute the T^M1 and/or T^E2 interaction matrices for the given basis, i.e. (<csf_r || T^(n)) || csf_s>).
         An im::Hfs.InteractionMatrix is returned.
+
+        Note (26-Jul-2026): each coeff.T here is divided by sqrt(2*j_a+1), undoing the "GRASP-like"
+        sqrt(2*j_a+1) factor that SpinAngular.computeCoefficientsNonScalar applies internally for rank>0
+        one-particle operators -- see the matching note on Hfs.amplitude for the full explanation. Applies
+        uniformly to the M1, E2, and M3 blocks below (all use the same rank>0 SpinAngular path).
 """
 function  computeInteractionMatrix(basis::Basis, grid::Radial.Grid, settings::Hfs.Settings)
     #
@@ -756,7 +776,7 @@ function  computeInteractionMatrix(basis::Basis, grid::Radial.Grid, settings::Hf
                     ja   = Basics.subshell_2j(basis.orbitals[coeff.a].subshell)
                     jb   = Basics.subshell_2j(basis.orbitals[coeff.b].subshell)
                     tamp = InteractionStrength.hfs_tM1(basis.orbitals[coeff.a], basis.orbitals[coeff.b], grid)
-                    matrixM1[r,s] = matrixM1[r,s] + coeff.T * tamp  
+                    matrixM1[r,s] = matrixM1[r,s] + coeff.T / sqrt(ja + 1) * tamp
                 end
             end
         end
@@ -778,7 +798,7 @@ function  computeInteractionMatrix(basis::Basis, grid::Radial.Grid, settings::Hf
                     ja   = Basics.subshell_2j(basis.orbitals[coeff.a].subshell)
                     jb   = Basics.subshell_2j(basis.orbitals[coeff.b].subshell)
                     tamp  = InteractionStrength.hfs_tE2(basis.orbitals[coeff.a], basis.orbitals[coeff.b], grid)
-                    matrixE2[r,s] = matrixE2[r,s] + coeff.T * tamp  
+                    matrixE2[r,s] = matrixE2[r,s] + coeff.T / sqrt(ja + 1) * tamp
                 end
             end
         end
@@ -800,7 +820,7 @@ function  computeInteractionMatrix(basis::Basis, grid::Radial.Grid, settings::Hf
                     ja   = Basics.subshell_2j(basis.orbitals[coeff.a].subshell)
                     jb   = Basics.subshell_2j(basis.orbitals[coeff.b].subshell)
                     tamp  = InteractionStrength.hfs_tE2(basis.orbitals[coeff.a], basis.orbitals[coeff.b], grid)
-                    matrixM3[r,s] = matrixM3[r,s] + coeff.T * tamp  
+                    matrixM3[r,s] = matrixM3[r,s] + coeff.T / sqrt(ja + 1) * tamp
                 end
             end
         end

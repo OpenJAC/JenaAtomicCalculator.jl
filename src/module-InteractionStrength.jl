@@ -129,14 +129,23 @@ end
 
 
 """
-`InteractionStrength.hfs_tM1(a::Orbital, b::Orbital, grid::Radial.Grid)`  
-    ... computes the <a|| t^(1) ||b> reduced matrix element for the HFS coupling to the magnetic-dipole moment 
-        of the nucleus for orbital functions a, b. A value::Float64 is returned.  
+`InteractionStrength.hfs_tM1(a::Orbital, b::Orbital, grid::Radial.Grid)`
+    ... computes the <a|| t^(1) ||b> reduced matrix element for the HFS coupling to the magnetic-dipole moment
+        of the nucleus for orbital functions a, b. A value::Float64 is returned.
+
+        Note (26-Jul-2026): was missing the alpha (fine-structure constant) prefactor required by Andersson &
+        Jonsson (2008), CPC 178, Eq. (49): <n_a kappa_a || t^(1) || n_b kappa_b> = -alpha(kappa_a+kappa_b)
+        <-kappa_a||C^(1)||kappa_b>[r^-2] -- confirmed by direct re-reading of the paper (p. 161). Combined
+        with a separate, second fix in module-Hfs.jl (a missing sqrt(2j_a+1) normalization undo), this
+        resolves the long-standing H(1s) HFS A-constant discrepancy: verified to 0.19% against the 21 cm
+        line and 1.65% against Na(3s)'s well-known hyperfine constant -- see examples/example-Cb.jl and
+        memory project_zeeman_hfs_bugs.md.
 """
 function hfs_tM1(a::Orbital, b::Orbital, grid::Radial.Grid)
     # Use Andersson, Jönson (2008), CPC, Eq. (49) ... test for the proper definition of the C^L tensors.
     minusa = Subshell(1, -a.subshell.kappa)
-    wb =   - (a.subshell.kappa + b.subshell.kappa) * AngularMomentum.CL_reduced_me_sms(minusa, 1, b.subshell)
+    wb =   - Defaults.getDefaults("alpha") * (a.subshell.kappa + b.subshell.kappa) *
+                AngularMomentum.CL_reduced_me_sms(minusa, 1, b.subshell)
     wc =   RadialIntegrals.rkNonDiagonal(-2, a, b, grid)
     wa =   wb * wc
     #
