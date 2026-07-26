@@ -238,17 +238,17 @@ end
     ... computes the normal mass shift radial integral int_o^infty ... A value::Float64 is returned.
 """
 function isotope_nms(a::Orbital, b::Orbital, Z::Float64, grid::Radial.Grid)
-    mtp = min(size(a.P, 1), size(b.P, 1));   lb = Basics.subshell_l(b.subshell);    jb2   = Basics.subshell_2j(b.subshell)
+    mtp = min(size(a.P, 1), size(b.P, 1));   lb = Basics.subshell_l(b.subshell);    kb = b.subshell.kappa
     alphaZ = Defaults.getDefaults("alpha") * Z
-    
+
     # Distinguish the radial integration for different grid definitions
     if  grid.meshType == Radial.MeshGrasp()
         error("stop a")
     elseif  grid.meshType == Radial.MeshGL()
         wa = 0.
-        for  i = 2:mtp   
-            wb = (a.Pprime[i] * b.Pprime[i]  +  a.Qprime[i] * b.Qprime[i])  + 
-                    (lb*(lb+1) * a.P[i] * b.P[i]  +  (jb2-1)*jb2 * a.Q[i] * b.Q[i]) / (grid.r[i]^2)
+        for  i = 2:mtp
+            wb = (a.Pprime[i] * b.Pprime[i]  +  a.Qprime[i] * b.Qprime[i])  +
+                    (lb*(lb+1) * a.P[i] * b.P[i]  +  kb*(kb-1) * a.Q[i] * b.Q[i]) / (grid.r[i]^2)
             wc = - 2 * alphaZ * (a.Q[i] * b.Pprime[i]  +  b.Q[i] * a.Pprime[i]) / grid.r[i]
             wd = - alphaZ * (b.subshell.kappa - 1) * (a.Q[i] * b.P[i]  +  b.Q[i] * a.P[i]) / (grid.r[i]^2)
             wa = wa + (wb + wc + wd) * grid.wr[i]   

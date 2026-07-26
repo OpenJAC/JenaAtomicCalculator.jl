@@ -88,7 +88,7 @@ end
 """
 function hamiltonian_nms(a::Orbital, b::Orbital, nm::Nuclear.Model, grid::Radial.Grid)
     if  a.subshell.kappa != b.subshell.kappa   return( 0. )   end
-    wa = RadialIntegrals.isotope_nms(a, b, nm.Z, grid) / 2
+    wa = RadialIntegrals.isotope_nms(a, b, nm.Z, grid)
     ## println("**  <$(a.subshell) || h^nms || $(b.subshell)>  = $wa" )
     return( wa )
 end

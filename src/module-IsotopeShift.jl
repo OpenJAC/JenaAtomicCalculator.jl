@@ -359,6 +359,7 @@ end
 function  computeAmplitudesProperties(outcome::IsotopeShift.Outcome, nm::Nuclear.Model, grid::Radial.Grid, settings::IsotopeShift.Settings)
     amplitudeKnms   = Ksms = F = Xboson = 0.
     amplitudeKsmsA  = amplitudeKsmsB = amplitudeKsmsC = amplitudeF = 0.
+    Fme             = Fdensity = 0.
     if  settings.calcNMS
         amplitudeKnms  = IsotopeShift.amplitude(NMSamplitude(),  outcome.level, outcome.level, nm, grid)
     end

@@ -266,7 +266,17 @@ function fermiDistributedNucleus(Rrms::Float64, Z::Float64, grid::Radial.Grid)
     function  rr_rho(r::Float64)  r^2 / (1.0 + exp( (r-fermiC_au)/fermiA_au ) )  end
 
     if  Z < 1.2
-        b = computeFermiBParameter(1.89);    b < 0  &&  error("Inappropriate R_rms radius.")
+        # With JAC's fixed Fermi skin-thickness parameter fermiA, the 2-parameter Fermi charge distribution
+        # cannot represent an rms radius below about 1.86 fm (computeFermiBParameter diverges to negative b
+        # for smaller targets) -- far above the physical charge radius of hydrogen (~0.88 fm). An earlier
+        # version of this code silently substituted b = computeFermiBParameter(1.89) here, ignoring whatever
+        # Rrms was actually requested; that silent substitution has been removed (25-Jul-2026) in favor of
+        # this explicit error, since it was giving quietly wrong isotope-shift/HFS results for Z=1.
+        error("The Fermi nuclear model cannot represent Z = $Z (only reachable in practice for hydrogen, " *
+              "Z=1): with JAC's fixed Fermi skin-thickness parameter (fermiA = $(round(fermiA, digits=4)) fm), " *
+              "the 2-parameter Fermi charge distribution has a minimum representable rms radius of about " *
+              "1.86 fm, far above hydrogen's physical charge radius (~0.88 fm). Use " *
+              "Nuclear.Model(Z, \"uniform\", mass, Rrms, ...) instead for Z=1.")
     else
         b = computeFermiBParameter(Rrms);    b < 0  &&  error("Inappropriate R_rms radius.")
     end
