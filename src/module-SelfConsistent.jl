@@ -68,9 +68,230 @@ function computeAngularCoefficients(scField::Basics.ALField, basis::Basis)
                 end 
             end
             push!(coeffs2px, SpinAngular.Coefficient2p(nu, a, b, c, d, V) );   V = 0.
-        end 
+        end
     end
-        
+
+    return( (coeffs1px, coeffs2px) )
+end
+
+
+"""
+`SelfConsistent.cacheCsfPairCoefficientsEOL(sym::LevelSymmetry, basis::Basis)`
+    ... caches, for every CSF pair (r,s) with symmetry sym in the given basis, the pure spin-angular
+        coefficients (independent of the orbitals/radial functions) as returned by
+        SpinAngular.computeCoefficientsScalar -- the same call Hamiltonian.setupMatrix/setupMatrixClaude
+        make internally to build the CI Hamiltonian matrix. Here the intermediate coefficient lists are
+        retained instead of being discarded, so they can be reused across the whole EOL outer SCF+CI loop
+        (they depend only on the fixed CSF list, never on the current orbitals). A tuple
+        (idxCsf::Array{Int64,1}, cache1p, cache2p) is returned, with (r,s) keys running over the LOCAL
+        index (1:length(idxCsf)) into the symmetry block.
+"""
+function cacheCsfPairCoefficientsEOL(sym::LevelSymmetry, basis::Basis)
+    idxCsf = Int64[]
+    for  idx = 1:length(basis.csfs)
+        if  basis.csfs[idx].J == sym.J   &&   basis.csfs[idx].parity == sym.parity    push!(idxCsf, idx)    end
+    end
+    n = length(idxCsf)
+
+    cache1p = Dict{Tuple{Int64,Int64}, Array{SpinAngular.Coefficient1p,1}}()
+    cache2p = Dict{Tuple{Int64,Int64}, Array{SpinAngular.Coefficient2p,1}}()
+    for  r = 1:n
+        for  s = 1:n
+            csfR = basis.csfs[idxCsf[r]];   csfS = basis.csfs[idxCsf[s]]
+            cache1p[(r,s)] = SpinAngular.computeCoefficientsScalar(SpinAngular.OneParticleOperator(0, Basics.plus, true),
+                                                                    csfR, csfS, basis.subshells)
+            cache2p[(r,s)] = SpinAngular.computeCoefficientsScalar(SpinAngular.TwoParticleOperator(0, Basics.plus, true),
+                                                                    csfR, csfS, basis.subshells)
+        end
+    end
+
+    return( (idxCsf, cache1p, cache2p) )
+end
+
+
+"""
+`SelfConsistent.buildCIMatrixEOL(idxCsf::Array{Int64,1}, cache1p, cache2p, orbitals::Dict{Subshell, Orbital},
+                                 grid::Radial.Grid, potential::Radial.Potential)`
+    ... (re-) builds the CI Hamiltonian matrix for one symmetry block from CACHED, orbital-independent
+        angular coefficients (see cacheCsfPairCoefficientsEOL) and the CURRENT radial functions in
+        orbitals -- algebraically identical to Hamiltonian.setupMatrixClaude's pure-Coulomb contribution
+        (kink-aware InteractionStrength.XL_CoulombClaude, matching the rest of the Claude2 SCF line; Breit
+        and QED are added only once, at the final Hamiltonian.performCIClaude call, exactly as for the AL
+        scheme), but without repeating the (unchanged) angular-coefficient computation on every outer
+        SCF+CI iteration. A  matrix::Array{Float64,2}  is returned.
+"""
+function buildCIMatrixEOL(idxCsf::Array{Int64,1}, cache1p, cache2p, orbitals::Dict{Subshell, Orbital},
+                          grid::Radial.Grid, potential::Radial.Potential)
+    n = length(idxCsf);   matrix = zeros(Float64, n, n)
+    for  r = 1:n
+        for  s = 1:n
+            me = 0.
+            for  cf in cache1p[(r,s)]
+                jj = Basics.subshell_2j(cf.a)
+                me = me + cf.T * sqrt( jj + 1) * RadialIntegrals.GrantIab(orbitals[cf.a], orbitals[cf.b], grid, potential)
+            end
+            for  cf in cache2p[(r,s)]
+                me = me + cf.V * InteractionStrength.XL_CoulombClaude(cf.nu, orbitals[cf.a], orbitals[cf.b],
+                                                                              orbitals[cf.c], orbitals[cf.d], grid)
+            end
+            matrix[r,s] = me
+        end
+    end
+
+    return( matrix )
+end
+
+
+"""
+`SelfConsistent.diagonalizeBlockEOL(sym::LevelSymmetry, idxCsf::Array{Int64,1}, matrix::Array{Float64,2}, basis::Basis)`
+    ... diagonalizes the (already-built) CI matrix of one symmetry block and reassigns the eigenvectors to
+        Level instances w.r.t. the full basis (zero-padded outside this block), exactly as
+        Hamiltonian.performCI/performCIClaude do internally per symmetry block -- factored out here so it
+        can be called every EOL outer iteration without their Multiplet-merge/tabulate overhead.
+        An  Array{Level,1}  is returned.
+"""
+function diagonalizeBlockEOL(sym::LevelSymmetry, idxCsf::Array{Int64,1}, matrix::Array{Float64,2}, basis::Basis)
+    eigen  = Basics.diagonalize(MatrixWithLinearAlgebra(), matrix)
+    levels = Level[]
+    for  ev = 1:length(eigen.values)
+        vector = zeros( length(basis.csfs) )
+        for  (r, idx)  in  enumerate(idxCsf)    vector[idx] = eigen.vectors[ev][r]    end
+        newlevel = Level( sym.J, AngularM64(sym.J.num//sym.J.den), sym.parity, 0, eigen.values[ev], 0., true, basis, vector )
+        push!( levels, newlevel)
+    end
+
+    return( levels )
+end
+
+
+"""
+`SelfConsistent.selectTargetLevelsEOL(mp::Multiplet, levelSelectionCI::LevelSelection)`
+    ... determines the target level(s) for the EOL functional from an (energy-sorted) multiplet mp,
+        using levelSelectionCI EXCLUSIVELY: either indices or symmetries may be given, never both.
+        If symmetries is given, the target set is the LOWEST level of each listed symmetry (the classic
+        EOL use case, e.g. the lowest of J=1/2^+ together with the lowest of J=3/2^+). If indices is
+        given, the target set is those exact levels by their (global, energy-sorted) index. If
+        levelSelectionCI is inactive or both arrays are empty, the target set defaults to the single
+        lowest level overall -- a genuine OL (one-level) computation.
+        An  Array{Level,1}  is returned.
+"""
+function selectTargetLevelsEOL(mp::Multiplet, levelSelectionCI::LevelSelection)
+    if  !levelSelectionCI.active  ||  ( isempty(levelSelectionCI.indices) && isempty(levelSelectionCI.symmetries) )
+        return( [ mp.levels[1] ] )
+    elseif  !isempty(levelSelectionCI.indices)  &&  !isempty(levelSelectionCI.symmetries)
+        error("stop a; levelSelectionCI must specify EITHER indices OR symmetries for the EOL scheme, not both.")
+    elseif  !isempty(levelSelectionCI.symmetries)
+        targetLevels = Level[]
+        for  sym  in  levelSelectionCI.symmetries
+            for  level  in  mp.levels                                   # mp.levels is energy-sorted; first match = lowest
+                if  LevelSymmetry(level.J, level.parity) == sym    push!(targetLevels, level);   break    end
+            end
+        end
+        return( targetLevels )
+    else
+        return( [ mp.levels[i]  for i in levelSelectionCI.indices ] )
+    end
+end
+
+
+"""
+`SelfConsistent.computeGeneralizedOccupationEOL(blockCaches, targetLevels::Array{Level,1}, basis::Basis)`
+    ... computes the EOL generalized occupation number per subshell,
+        q(nlj) = Σᵣ d²_r · q_r(nlj), with d²_r = Σᵢ WT_i · (c_r⁽ⁱ⁾)² the DIAGONAL (r=r) case of the same
+        statistical-(2J+1)-weighted generalized weight used in combineAngularCoefficientsEOL, and q_r(nlj)
+        the plain occupation of nlj in CSF r (basis.csfs[r].occupation). This REPLACES
+        Basics.extractMeanOccupation(basis) -- which averages FLATLY over every CSF in the whole basis,
+        appropriate only for AL's single-average-CSF philosophy -- with the occupation actually implied by
+        the current target level(s)' own CI mixing, recomputed every outer iteration since the mixing
+        coefficients change. Without this, computeFockMatrixClaude2's (1.0/occ) two-electron scaling uses a
+        basis-wide average that can be wildly wrong for a multi-configuration target level (e.g. an
+        essentially-pure 2s² level in a 2s²/2p² basis would otherwise see occ(2s) diluted by the unrelated
+        2p² CSFs, inflating its two-electron potential many-fold). A  Dict{Subshell,Float64}  is returned.
+"""
+function computeGeneralizedOccupationEOL(blockCaches, targetLevels::Array{Level,1}, basis::Basis)
+    twiceJp1(J) = ( J.den == 1 ? 2*J.num : J.num ) + 1
+    sumWeights  = sum( twiceJp1(level.J)  for level in targetLevels )
+    weights     = [ twiceJp1(level.J) / sumWeights  for level in targetLevels ]
+
+    occs = Dict{Subshell, Float64}();   for  sh in basis.subshells   occs[sh] = 0.   end
+    for  (_, (idxCsf, _, _))  in  blockCaches
+        for  r  in  idxCsf
+            drr = 0.
+            for  (i, level)  in  enumerate(targetLevels)    drr = drr + weights[i] * level.mc[r]^2    end
+            if  drr == 0.    continue    end
+            for  (is, sh)  in  enumerate(basis.subshells)   occs[sh] = occs[sh] + drr * basis.csfs[r].occupation[is]   end
+        end
+    end
+
+    return( occs )
+end
+
+
+"""
+`SelfConsistent.combineAngularCoefficientsEOL(blockCaches, targetLevels::Array{Level,1})`
+    ... generalizes SelfConsistent.computeAngularCoefficients (AL's single-CSF-average analog: loop CSFs,
+        weight 1/ncsf) to CSF PAIRS, weighted by the EOL generalized weight
+        d²_rs = Σᵢ WT_i · c_r⁽ⁱ⁾ · c_s⁽ⁱ⁾, with WT_i the normalized statistical (2Jᵢ+1) weight of each
+        target level i in targetLevels (its own mixing vector c⁽ⁱ⁾ = level.mc) -- never a user-supplied
+        weight. Reuses the cached, orbital-independent per-CSF-pair coefficients from
+        cacheCsfPairCoefficientsEOL for every relevant symmetry block in blockCaches; a level's mc vector
+        is zero outside its own block, so multiple symmetry blocks combine correctly without
+        special-casing. The dedup/condensation logic is identical to computeAngularCoefficients.
+        A Tuple  (coeffs1p::Array{Coefficient1p,1}, coeffs2p::Array{Coefficient2p,1})  is returned.
+"""
+function combineAngularCoefficientsEOL(blockCaches, targetLevels::Array{Level,1})
+    twiceJp1(J) = ( J.den == 1 ? 2*J.num : J.num ) + 1
+    sumWeights  = sum( twiceJp1(level.J)  for level in targetLevels )
+    weights     = [ twiceJp1(level.J) / sumWeights  for level in targetLevels ]
+
+    coeffs1p = SpinAngular.Coefficient1p[];   coeffs2p = SpinAngular.Coefficient2p[]
+    for  (_, (idxCsf, cache1p, cache2p))  in  blockCaches
+        n = length(idxCsf)
+        for  r = 1:n
+            for  s = 1:n
+                drs = 0.
+                for  (i, level)  in  enumerate(targetLevels)    drs = drs + weights[i] * level.mc[idxCsf[r]] * level.mc[idxCsf[s]]    end
+                if  drs == 0.    continue    end
+                for  cf in cache1p[(r,s)]   push!(coeffs1p, SpinAngular.Coefficient1p(cf.nu, cf.a, cf.b, cf.T * drs) )   end
+                for  cf in cache2p[(r,s)]   push!(coeffs2p, SpinAngular.Coefficient2p(cf.nu, cf.a, cf.b, cf.c, cf.d, cf.V * drs) )   end
+            end
+        end
+    end
+
+    # Condense angular coefficients if they refer to the same set of orbitals -- identical to
+    # SelfConsistent.computeAngularCoefficients' own condensation tail.
+    coeffs1px = SpinAngular.Coefficient1p[];     coeffs2px = SpinAngular.Coefficient2p[]
+
+    hasConsidered = falses( length(coeffs1p) );   T = 0.
+    for  (ic, cf) in enumerate(coeffs1p)
+        if    hasConsidered[ic]
+        else  nu = cf.nu;   a = cf.a;   b = cf.b
+            T = T + cf.T;    hasConsidered[ic] = true
+            for   (icx, cfx) in enumerate(coeffs1p)
+                if    hasConsidered[icx]
+                elseif  nu == cfx.nu  &&  a == cfx.a  &&  b == cf.b     T = T + cfx.T;    hasConsidered[icx] = true
+                end
+            end
+            push!(coeffs1px, SpinAngular.Coefficient1p(nu, a, b, T) );  T = 0.
+        end
+    end
+
+    hasConsidered = falses( length(coeffs2p) );   V = 0.
+    for  (ic, cf) in enumerate(coeffs2p)
+        if    hasConsidered[ic]
+        else
+            nu = cf.nu;       a = cf.a;   b = cf.b;   c = cf.c;   d = cf.d
+            V  = V + cf.V;    hasConsidered[ic] = true
+            for   (icx, cfx) in enumerate(coeffs2p)
+                if    hasConsidered[icx]
+                elseif  nu == cfx.nu &&    a == cfx.a  &&  b == cfx.b  &&  c == cfx.c &&  d == cfx.d
+                        V  = V + cfx.V;    hasConsidered[icx] = true
+                end
+            end
+            push!(coeffs2px, SpinAngular.Coefficient2p(nu, a, b, c, d, V) );   V = 0.
+        end
+    end
+
     return( (coeffs1px, coeffs2px) )
 end
 
@@ -468,13 +689,10 @@ function performSCF(configs::Array{Configuration,1}, nm::Nuclear.Model, grid::Ra
         # Return the basis as already generated.
     elseif   settings.scField in [Basics.ALField()]
         basis     = SelfConsistent.solveAverageLevelField(basis, nm, primitives, settings; printout=printout)
-        multiplet = Hamiltonian.performCI(basis, nm, primitives.grid, settings, printout=true)
     elseif   settings.scField in [Basics.ALFieldClaude()]
         basis     = SelfConsistent.solveAverageLevelFieldClaude(basis, nm, primitives, settings; printout=printout)
-        multiplet = Hamiltonian.performCIClaude(basis, nm, primitives.grid, settings, printout=true)
     elseif   settings.scField in [Basics.ALFieldClaude2()]
         basis     = SelfConsistent.solveAverageLevelFieldClaude2(basis, nm, primitives, settings; printout=printout)
-        multiplet = Hamiltonian.performCIClaude(basis, nm, primitives.grid, settings, printout=true)
     elseif   typeof(settings.scField) == Basics.EOLField
         multiplet = SelfConsistent.solveOptimizedLevelField(basis, nm, primitives, settings; printout=printout)
         basis     = multiplet.levels[1].basis
@@ -513,13 +731,10 @@ function performSCF(basis::Basis, nm::Nuclear.Model, grid::Radial.Grid,
         # Return the basis as already generated.
     elseif   settings.scField in [Basics.ALField()]
         basis     = SelfConsistent.solveAverageLevelField(basis, nm, primitives, settings; printout=printout)
-        multiplet = Hamiltonian.performCI(basis, nm, primitives.grid, settings, printout=true)
     elseif   settings.scField in [Basics.ALFieldClaude()]
         basis     = SelfConsistent.solveAverageLevelFieldClaude(basis, nm, primitives, settings; printout=printout)
-        multiplet = Hamiltonian.performCIClaude(basis, nm, primitives.grid, settings, printout=true)
     elseif   settings.scField in [Basics.ALFieldClaude2()]
         basis     = SelfConsistent.solveAverageLevelFieldClaude2(basis, nm, primitives, settings; printout=printout)
-        multiplet = Hamiltonian.performCIClaude(basis, nm, primitives.grid, settings, printout=true)
     elseif   typeof(settings.scField) == Basics.EOLField
         multiplet = SelfConsistent.solveOptimizedLevelField(basis, nm, primitives, settings; printout=printout)
         basis     = multiplet.levels[1].basis
@@ -530,7 +745,7 @@ function performSCF(basis::Basis, nm::Nuclear.Model, grid::Radial.Grid,
     if   settings.scField in [Basics.ALFieldClaude(), Basics.ALFieldClaude2()]
         mp = Hamiltonian.performCIClaude(basis, nm, grid, settings, printout=printout)
     else
-        mp = Hamiltonian.performCI(basis, nm, settings, grid, printout=printout)
+        mp = Hamiltonian.performCI(basis, nm, grid, settings, printout=printout)
     end
 
     return( mp )
@@ -966,6 +1181,18 @@ function computeTwoElectronVClaude2(subshell::Subshell, coeffs2p::Array{SpinAngu
             partner = cf.a;       pattern = :direct
         elseif  subshell == cf.b  &&  subshell == cf.c  &&  cf.a == cf.d
             partner = cf.a;       pattern = :exchange
+        elseif  subshell == cf.a  &&  subshell == cf.b  &&  cf.c == cf.d  &&  cf.c != subshell
+            # "Pair-excitation" pattern (a=b=subshell, c=d=partner, subshell!=partner): arises only from
+            # genuine cross-CSF (off-diagonal) two-particle matrix elements, e.g. an EOL coefficient
+            # combination mixing two different configurations (never produced by AL's single-CSF-average
+            # scheme, hence never needed before). Algebraically IDENTICAL to the :exchange pattern above --
+            # R^k(a,b,c,d) with (a,b,c,d)=(X,X,Y,Y) equals R^k(X,Y,Y,X) exactly, since the second
+            # integration variable's density is just a product of two scalar functions (Y(r)*X(r) times
+            # X(r)*Y(r) are the same product, whichever argument slot each factor nominally occupies) --
+            # so it is handled by the identical XL_CoulombTensorClaude call, unweighted, as :exchange.
+            partner = cf.c;       pattern = :exchange
+        elseif  subshell == cf.c  &&  subshell == cf.d  &&  cf.a == cf.b  &&  cf.a != subshell
+            partner = cf.a;       pattern = :exchange
         else
             continue
         end
@@ -1277,17 +1504,194 @@ end
     
 
 """
-`SelfConsistent.solveOptimizedLevelField(basis::Basis, nuclearModel::Nuclear.Model, primitives::Bsplines.Primitives, 
-                                         settings::AsfSettings; printout::Bool=true)` 
-    ... solves the self-consistent field for the given orbitals (from basis), the nuclear model as well as
-        for the average-level (AL) functional. In addition, the settings::AsfSettings are taken into account.
-        A (new) multiplet::Multiplet is returned.
+`SelfConsistent.solveOptimizedLevelField(basis::Basis, nuclearModel::Nuclear.Model, primitives::Bsplines.Primitives,
+                                         settings::AsfSettings; printout::Bool=true)`
+    ... solves the self-consistent field for the extended-optimal-level (EOL) functional: orbitals are
+        optimized against a statistically-(2J+1)-weighted combination of one or more target ASF levels,
+        with the combination weights coming from the levels' own CI mixing coefficients -- never a
+        user-supplied weight. The target level(s) are selected EXCLUSIVELY via settings.levelSelectionCI
+        (either indices or symmetries, never both; if inactive/empty, defaults to indices=[1], a genuine
+        OL/single-level computation). This nests a CI diagonalization inside the AL/Claude2 SCF loop
+        (GRASP rmcdhf90's scf.f90, algorithm 5.1 of Froese Fischer, Comput. Phys. Rep. 3 (1986) 290):
+        diagonalize -> build generalized coefficients from the target levels' mixing vectors -> refine
+        every orbital (reusing computeFockMatrixClaude2/computeTwoElectronVClaude2 unchanged) ->
+        re-diagonalize -> repeat, converging on both orbital self-consistency and the weighted-average
+        energy. Per-CSF-pair angular coefficients (cacheCsfPairCoefficientsEOL) are computed once and
+        reused every outer iteration, since they depend only on the fixed CSF list, never on the current
+        orbitals or mixing coefficients. A (new) multiplet::Multiplet is returned.
 """
-function solveOptimizedLevelField(basis::Basis, nuclearModel::Nuclear.Model, primitives::Bsplines.Primitives, 
+function solveOptimizedLevelField(basis::Basis, nuclearModel::Nuclear.Model, primitives::Bsplines.Primitives,
                                   settings::AsfSettings; printout::Bool=true)
-    error("Not yet implemented; this was never done so far.")
-    
-    multiplet = Multiplet()
+    nsL = primitives.grid.nsL;    nsS = primitives.grid.nsS;    grid = primitives.grid
+
+    if  !settings.levelSelectionCI.active  ||  ( isempty(settings.levelSelectionCI.indices) && isempty(settings.levelSelectionCI.symmetries) )
+        println(">> [EOL] No levelSelectionCI given; defaulting to indices = [1] -- a genuine OL (single lowest level) computation.")
+    elseif  !isempty(settings.levelSelectionCI.indices)  &&  !isempty(settings.levelSelectionCI.symmetries)
+        error("stop a; settings.levelSelectionCI must specify EITHER indices OR symmetries for the EOL scheme, not both.")
+    end
+
+    # Determine which symmetry block(s) need to be (re-) diagonalized every outer iteration: an explicit
+    # symmetries-only selection only ever needs those blocks; index-based (or default) selection needs
+    # every block present in the basis to resolve the global, energy-sorted ordering.
+    if  settings.levelSelectionCI.active  &&  !isempty(settings.levelSelectionCI.symmetries)
+        relevantSyms = unique( settings.levelSelectionCI.symmetries )
+    else
+        relevantSyms = unique( [ LevelSymmetry(csf.J, csf.parity)  for csf in basis.csfs ] )
+    end
+
+    # (1) Initialize storage and important arrays; determine nuclear potential and mean occupation once --
+    # identical to solveAverageLevelFieldClaude2
+    if  printout    println(">> [EOL] (Re-) Define a storage array for dealing with single-electron TTp B-spline matrices:")    end
+    storage = Dict{String,Array{Float64,2}}()
+    matrixB = zeros( nsL+nsS, nsL+nsS )
+    matrixB[1:nsL,1:nsL]                 = Bsplines.generateTTpMatrix!("LL-overlap", 0, primitives, storage)
+    matrixB[nsL+1:nsL+nsS,nsL+1:nsL+nsS] = Bsplines.generateTTpMatrix!("SS-overlap", 0, primitives, storage)
+
+    nucPot  = Nuclear.nuclearPotential(nuclearModel, primitives.grid)
+
+    bVectors = Dict{Subshell, Vector{Float64}}()
+    for  sh  in  basis.subshells
+        bVectors[sh] = Bsplines.fitVectorToPrimitivesClaude(basis.orbitals[sh], primitives, matrixB)
+    end
+    orbitals = basis.orbitals
+
+    # (2) Cache the (orbital-independent) per-CSF-pair angular coefficients once for every relevant block
+    if  printout    println(">> [EOL] Caching per-CSF-pair angular coefficients for symmetries $(relevantSyms) ...")    end
+    blockCaches = Dict{LevelSymmetry, Tuple{Array{Int64,1}, Dict{Tuple{Int64,Int64},Array{SpinAngular.Coefficient1p,1}},
+                                             Dict{Tuple{Int64,Int64},Array{SpinAngular.Coefficient2p,1}}}}()
+    for  sym  in  relevantSyms
+        blockCaches[sym] = SelfConsistent.cacheCsfPairCoefficientsEOL(sym, basis)
+    end
+
+    # (3) Initial CI diagonalization (starting orbitals) to get the first mixing vectors for the target level(s)
+    function diagonalizeAllBlocks(currentOrbitals::Dict{Subshell, Orbital})
+        tempBasis = Basis(true, basis.NoElectrons, basis.subshells, basis.csfs, basis.coreSubshells, currentOrbitals)
+        levels = Level[]
+        for  sym  in  relevantSyms
+            (idxCsf, cache1p, cache2p) = blockCaches[sym]
+            matrix = SelfConsistent.buildCIMatrixEOL(idxCsf, cache1p, cache2p, currentOrbitals, grid, nucPot)
+            append!( levels, SelfConsistent.diagonalizeBlockEOL(sym, idxCsf, matrix, tempBasis) )
+        end
+        mp = Basics.sortByEnergy( Multiplet("EOL", levels) )
+        return( mp )
+    end
+
+    mp           = diagonalizeAllBlocks(orbitals)
+    targetLevels = SelfConsistent.selectTargetLevelsEOL(mp, settings.levelSelectionCI)
+    previousMc   = [ copy(level.mc)  for level in targetLevels ]
+    (coeffs1p, coeffs2p) = SelfConsistent.combineAngularCoefficientsEOL(blockCaches, targetLevels)
+    genOcc = SelfConsistent.computeGeneralizedOccupationEOL(blockCaches, targetLevels, basis)
+
+    weights = let  twiceJp1(J) = ( J.den == 1 ? 2*J.num : J.num ) + 1
+        sumW = sum( twiceJp1(level.J)  for level in targetLevels )
+        [ twiceJp1(level.J) / sumW  for level in targetLevels ]
+    end
+    weightedEnergy = sum( weights[i] * targetLevels[i].energy  for i = 1:length(targetLevels) )
+
+    # (4) Precompute kink-aware Slater-moment tensor caches for every rank that occurs, exactly as
+    # solveAverageLevelFieldClaude2 does; only the exchange branches of computeTwoElectronVClaude2 use them
+    neededRanks = unique( [ cf.nu for cf in coeffs2p ] )
+    if  printout    println(">> [EOL] Precompute kink-aware Slater-moment tensor caches for ranks $(neededRanks) ...")    end
+    tensorCaches = Dict{Int64, NTuple{3,RadialIntegrals.SlaterMomentCacheClaude}}()
+    for  L  in  neededRanks
+        cacheLL = RadialIntegrals.buildSlaterMomentCacheClaude(L, primitives.bsplinesL, primitives.bsplinesL, grid; rtol=1.0e-6)
+        cacheLS = RadialIntegrals.buildSlaterMomentCacheClaude(L, primitives.bsplinesL, primitives.bsplinesS, grid; rtol=1.0e-6)
+        cacheSS = RadialIntegrals.buildSlaterMomentCacheClaude(L, primitives.bsplinesS, primitives.bsplinesS, grid; rtol=1.0e-6)
+        tensorCaches[L] = (cacheLL, cacheLS, cacheSS)
+    end
+
+    for  iter = 1:settings.maxIterationsScf
+        println("\n> SCF+CI iteration $(iter) [EOL]: ")
+        for  level  in  targetLevels
+            println("   target level  J=$(level.J)  parity=$(level.parity)  energy=$(level.energy)")
+        end
+
+        newBVectors = Dict{Subshell, Vector{Float64}}()
+        processedBVectors = Dict{Subshell, Vector{Float64}}()
+        dpm = Dict{Subshell, Float64}()
+
+        for  subshell  in  basis.subshells
+            occ = genOcc[subshell]
+            print(">> Refine $subshell orbital with generalized occ = $occ ... ")
+
+            matrix = SelfConsistent.computeFockMatrixClaude2(subshell, coeffs2p, bVectors, primitives, nucPot,
+                                                              storage, occ, tensorCaches)
+
+            count = Base.count( sh2 -> sh2.kappa == subshell.kappa, keys(processedBVectors) )
+            if  count > 0
+                matrix = Hamiltonian.projectHamiltonian(subshell, matrix, matrixB, processedBVectors)
+            end
+
+            wc = Basics.diagonalize(GeneralizedEigenvaluesWithLinearAlgebra(), matrix, matrixB)
+            l  = Basics.subshell_l(subshell)
+            ni = nsS + subshell.n - l - count
+            rawVector = wc.vectors[ni]
+
+            oldVector = bVectors[subshell]
+            if  transpose(oldVector) * matrixB * rawVector < 0    rawVector = -rawVector    end
+            damping = 0.5
+            mixed     = damping * oldVector + (1.0 - damping) * rawVector
+            newVector = mixed / sqrt( transpose(mixed) * matrixB * mixed )
+
+            newBVectors[subshell]       = newVector
+            processedBVectors[subshell] = newVector
+
+            ovlap = abs( transpose(oldVector) * matrixB * newVector )
+            dpm[subshell] = 1.0 - ovlap
+            println("     overlap = $ovlap   acc = $(1.0 - ovlap)  ... ")
+        end
+
+        bVectors = newBVectors
+        newOrbitals = Dict{Subshell, Orbital}()
+        for  sh  in  basis.subshells
+            newOrbitals[sh] = Bsplines.generateOrbitalFromVectorClaude(sh, 0.0, bVectors[sh], primitives)
+        end
+        orbitals = newOrbitals
+
+        # Re-diagonalize CI with the refined orbitals; refresh the target level(s)' mixing vectors and energies
+        mp           = diagonalizeAllBlocks(orbitals)
+        targetLevels = SelfConsistent.selectTargetLevelsEOL(mp, settings.levelSelectionCI)
+
+        # Damping (27-Jul-2026): the outer CI-mixing refresh, feeding straight back into coeffs2p/genOcc every
+        # iteration, reproduces the same kind of period-2 oscillation the inner bVector update needed damping
+        # for (see solveAverageLevelFieldClaude2/project_df_al_kink_bug.md) -- here in the mixing-vector <->
+        # orbital <-> generalized-occupation three-way loop instead of just orbitals <-> orthogonality. Same
+        # standard fix: linear mixing of the new and previous mixing vector per target level before use,
+        # aligning sign first (a CI eigensolver may return either sign) and renormalizing. The RAW (undamped)
+        # targetLevels/energies are still used for reporting and the convergence check -- only the vectors
+        # feeding coeffs2p/genOcc are damped.
+        dampedLevels = Level[]
+        for  (i, level)  in  enumerate(targetLevels)
+            newMc = level.mc
+            if  transpose(previousMc[i]) * newMc < 0    newMc = -newMc    end
+            damping = 0.5
+            mixed   = damping * previousMc[i] + (1.0 - damping) * newMc
+            mixed   = mixed / sqrt( transpose(mixed) * mixed )
+            push!( dampedLevels, Level(level.J, level.M, level.parity, level.index, level.energy,
+                                        level.relativeOcc, level.hasStateRep, level.basis, mixed) )
+            previousMc[i] = mixed
+        end
+
+        (coeffs1p, coeffs2p) = SelfConsistent.combineAngularCoefficientsEOL(blockCaches, dampedLevels)
+        genOcc = SelfConsistent.computeGeneralizedOccupationEOL(blockCaches, dampedLevels, basis)
+
+        weights = let  twiceJp1(J) = ( J.den == 1 ? 2*J.num : J.num ) + 1
+            sumW = sum( twiceJp1(level.J)  for level in targetLevels )
+            [ twiceJp1(level.J) / sumW  for level in targetLevels ]
+        end
+        newWeightedEnergy = sum( weights[i] * targetLevels[i].energy  for i = 1:length(targetLevels) )
+
+        orbitalConv = maximum( values(dpm) ) < 1.0 ? 1.0 - maximum( values(dpm) ) : 0.0
+        energyDiff  = abs( newWeightedEnergy - weightedEnergy )
+        println(">> Weighted-average energy = $newWeightedEnergy   orbital-conv = $orbitalConv   " *
+                "orbital-acc = $(1.0 - orbitalConv)   energy-diff = $energyDiff")
+
+        weightedEnergy = newWeightedEnergy
+        if  abs(1.0 - orbitalConv) < settings.accuracyScf  &&  energyDiff < settings.accuracyScf    break   end
+    end
+
+    finalBasis = Basis(true, basis.NoElectrons, basis.subshells, basis.csfs, basis.coreSubshells, orbitals)
+    multiplet  = Hamiltonian.performCIClaude(finalBasis, nuclearModel, grid, settings; printout=printout)
     return( multiplet )
 end
 
