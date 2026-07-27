@@ -135,11 +135,9 @@ end
 
         Note (26-Jul-2026): was missing the alpha (fine-structure constant) prefactor required by Andersson &
         Jonsson (2008), CPC 178, Eq. (49): <n_a kappa_a || t^(1) || n_b kappa_b> = -alpha(kappa_a+kappa_b)
-        <-kappa_a||C^(1)||kappa_b>[r^-2] -- confirmed by direct re-reading of the paper (p. 161). Combined
-        with a separate, second fix in module-Hfs.jl (a missing sqrt(2j_a+1) normalization undo), this
-        resolves the long-standing H(1s) HFS A-constant discrepancy: verified to 0.19% against the 21 cm
-        line and 1.65% against Na(3s)'s well-known hyperfine constant -- see examples/example-Cb.jl and
-        memory project_zeeman_hfs_bugs.md.
+        <-kappa_a||C^(1)||kappa_b>[r^-2] -- confirmed by direct re-reading of the paper (p. 161). This alone
+        does not fully resolve the long-standing H(1s) HFS A-constant discrepancy; see
+        examples/example-Cb.jl and memory project_zeeman_hfs_bugs.md for the residual after this fix.
 """
 function hfs_tM1(a::Orbital, b::Orbital, grid::Radial.Grid)
     # Use Andersson, Jönson (2008), CPC, Eq. (49) ... test for the proper definition of the C^L tensors.
@@ -867,12 +865,38 @@ function XL_Coulomb(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital, gr
         end
     else
         xc = AngularMomentum.CL_reduced_me(a.subshell, L, c.subshell) * AngularMomentum.CL_reduced_me(b.subshell, L, d.subshell)
-        if   rem(L,2) == 1    xc = - xc    end 
+        if   rem(L,2) == 1    xc = - xc    end
         XL_Coulomb = xc * RadialIntegrals.SlaterRk_2dim(L, a, b, c, d, grid)
-        
+
     end
-    
+
     return( XL_Coulomb )
+end
+
+
+"""
+`InteractionStrength.XL_CoulombClaude(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital, grid::Radial.Grid)`
+    ... computes the same effective Coulomb interaction strength as XL_Coulomb(L, a, b, c, d, grid), including the
+        same triangular-delta veto and angular reduced-matrix-element prefactor xc, but using the kink-aware
+        RadialIntegrals.SlaterRk_2dimClaude for the underlying radial integral instead of RadialIntegrals.
+        SlaterRk_2dim. Isolated from XL_Coulomb; only used by the ALFieldClaude code line. A value::Float64 is
+        returned.
+"""
+function XL_CoulombClaude(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital, grid::Radial.Grid)
+    la = Basics.subshell_l(a.subshell);    ja2 = Basics.subshell_2j(a.subshell)
+    lb = Basics.subshell_l(b.subshell);    jb2 = Basics.subshell_2j(b.subshell)
+    lc = Basics.subshell_l(c.subshell);    jc2 = Basics.subshell_2j(c.subshell)
+    ld = Basics.subshell_l(d.subshell);    jd2 = Basics.subshell_2j(d.subshell)
+
+    if  AngularMomentum.triangularDelta(ja2+1,jc2+1,L+L+1) * AngularMomentum.triangularDelta(jb2+1,jd2+1,L+L+1) == 0   ||
+        rem(la+lc+L,2) == 1   ||   rem(lb+ld+L,2) == 1
+        return( 0. )
+    end
+
+    xc = AngularMomentum.CL_reduced_me(a.subshell, L, c.subshell) * AngularMomentum.CL_reduced_me(b.subshell, L, d.subshell)
+    if   rem(L,2) == 1    xc = - xc    end
+
+    return( xc * RadialIntegrals.SlaterRk_2dimClaude(L, a, b, c, d, grid) )
 end
 
 
@@ -927,6 +951,78 @@ function XL_Coulomb(L::Int64, a::Subshell, b::Orbital, c::Subshell, d::Orbital, 
         end
     end
     
+    return( xc * wm )
+end
+
+
+"""
+`InteractionStrength.XL_CoulombClaude(L::Int64, a::Subshell, b::Orbital, c::Subshell, d::Orbital, primitives::Bsplines.Primitives)`
+    ... computes the same (direct) Coulomb interaction strengths X^L_Coulomb (.b.d) as
+        XL_Coulomb(L,a::Subshell,b::Orbital,c::Subshell,d::Orbital,primitives), for given rank L and orbital
+        functions as well as the given primitives, but using the kink-aware screened-potential construction
+        (RadialIntegrals.buildScreenedPotentialClaude) instead of RadialIntegrals.SlaterRkComponent_2dim's naive
+        tensor-product double sum. The screened potential V_L(r), which depends only on the fixed orbital pair
+        (b,d), is built ONCE (adaptive quadrature) and then reused cheaply -- via the existing grid quadrature
+        weights, since V_L(r) is smooth once built -- for every B-spline pair (i,k) of the L- and S-block.
+        Isolated from XL_Coulomb; only used by the ALFieldClaude code line, cf.
+        SelfConsistent.computeDirectExchangeVClaude. A (nsL+nsS) x (nsL+nsS) matrixV::Array{Float64,2} is returned.
+"""
+function XL_CoulombClaude(L::Int64, a::Subshell, b::Orbital, c::Subshell, d::Orbital, primitives::Bsplines.Primitives)
+    nsL = primitives.grid.nsL;        nsS = primitives.grid.nsS;    grid = primitives.grid
+    wm  = zeros(nsL+nsS, nsL+nsS)
+
+    # Test for the triangular-delta conditions and calculate the reduced matrix elements of the C^L tensors
+    la = Basics.subshell_l(a);             ja2 = Basics.subshell_2j(a)
+    lb = Basics.subshell_l(b.subshell);    jb2 = Basics.subshell_2j(b.subshell)
+    lc = Basics.subshell_l(c);             jc2 = Basics.subshell_2j(c)
+    ld = Basics.subshell_l(d.subshell);    jd2 = Basics.subshell_2j(d.subshell)
+
+    if  AngularMomentum.triangularDelta(ja2+1,jc2+1,L+L+1) * AngularMomentum.triangularDelta(jb2+1,jd2+1,L+L+1) == 0   ||
+        rem(la+lc+L,2) == 1   ||   rem(lb+ld+L,2) == 1
+        @warn("stop aa")  ## This should not occur.
+        return( wm )
+    end
+
+    xc = AngularMomentum.CL_reduced_me(a, L, c) * AngularMomentum.CL_reduced_me(b.subshell, L, d.subshell)
+    if   rem(L,2) == 1    xc = - xc    end
+
+    # Build the screened potential once for the fixed orbital pair (b,d); reused below for both L- and S-block.
+    # mtpOut is forced to the full grid extent: unlike SlaterRk_2dimClaude's orbital-orbital use (where the
+    # OTHER factor in the contraction is also naturally truncated to some orbital's own extent), here Vk gets
+    # contracted against B-spline ROW/COLUMN indices that span the FULL basis and can extend well past (b,d)'s
+    # own reach -- leaving mtpOut at its default silently drops that tail and was traced to a real bug (Ne's 1s
+    # orbital coming out measurably too deeply bound from a missing part of its screening by the 2p shell).
+    Vk = RadialIntegrals.buildScreenedPotentialClaude(L, b, d, grid; mtpOut=grid.NoPoints)
+
+    # Direct interaction; contract Vk against every B-spline pair of the L- and S-block
+    wm = zeros(nsL+nsS, nsL+nsS)
+    for  i = 1:nsL
+        for  k = 1:nsL
+            Ba = primitives.bsplinesL[i];    Bc = primitives.bsplinesL[k]
+            Pa = zeros(Ba.upper);   add = 1 - Ba.lower;
+            for  j = Ba.lower:Ba.upper  Pa[j] = Pa[j] + Ba.bs[j+add]   end
+            Pc = zeros(Bc.upper);   add = 1 - Bc.lower;
+            for  j = Bc.lower:Bc.upper  Pc[j] = Pc[j] + Bc.bs[j+add]   end
+            mtp = min(Ba.upper, Bc.upper, length(Vk))
+            wa  = 0.
+            for  r = 2:mtp   wa = wa + Pa[r]*Pc[r] * grid.wr[r] * Vk[r]   end
+            wm[i,k] = wa
+        end
+    end
+    for  i = 1:nsS
+        for  k = 1:nsS
+            Ba = primitives.bsplinesS[i];    Bc = primitives.bsplinesS[k]
+            Qa = zeros(Ba.upper);   add = 1 - Ba.lower;
+            for  j = Ba.lower:Ba.upper  Qa[j] = Qa[j] + Ba.bs[j+add]   end
+            Qc = zeros(Bc.upper);   add = 1 - Bc.lower;
+            for  j = Bc.lower:Bc.upper  Qc[j] = Qc[j] + Bc.bs[j+add]   end
+            mtp = min(Ba.upper, Bc.upper, length(Vk))
+            wa  = 0.
+            for  r = 2:mtp   wa = wa + Qa[r]*Qc[r] * grid.wr[r] * Vk[r]   end
+            wm[nsL+i,nsL+k] = wa
+        end
+    end
+
     return( xc * wm )
 end
 
@@ -996,13 +1092,245 @@ function XL_Coulomb(L::Int64, a::Subshell, b::Orbital, c::Orbital, d::Subshell, 
             wm[nsL+i,nsL+k] = RadialIntegrals.SlaterRkComponent_2dim(L, Qa, b.Q, c.Q, Qd, grid)
         end
     end
-    
+
     return( xc * wm )
 end
 
 
 """
-`InteractionStrength.XL_CoulombDamped(tau::Float64, L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital, grid::Radial.Grid)`  
+`InteractionStrength.XL_CoulombClaude(L::Int64, a::Subshell, b::Orbital, c::Orbital, d::Subshell, primitives::Bsplines.Primitives)`
+    ... computes the same (exchange) Coulomb interaction strengths X^L_Coulomb (.bc.) as
+        XL_Coulomb(L,a::Subshell,b::Orbital,c::Orbital,d::Subshell,primitives), for given rank L and orbital
+        functions as well as the given primitives, but using the kink-aware screened-potential construction
+        (RadialIntegrals.buildScreenedPotentialPairClaude) instead of RadialIntegrals.SlaterRkComponent_2dim's
+        naive tensor-product double sum. Unlike the "direct"-signature XL_CoulombClaude, here BOTH B-spline
+        indices (a and d) sit on OPPOSITE sides of the two-electron kernel (paired with c and b respectively),
+        so no single screened potential can be shared across the whole matrix. Instead, for each ROW index (the
+        "a" B-spline), two screened potentials are built ONCE -- from that spline's own (compact-support)
+        density combined with c.P and with c.Q respectively -- and then reused cheaply, via the existing grid
+        quadrature, across every column index (the "d" B-splines) of that row. This is O(basis size)
+        adaptive-quadrature builds instead of the O(basis size^2) naive double sum, and each build's cost
+        scales with the (typically narrow) support of the corresponding B-spline. Isolated from XL_Coulomb;
+        only used by the ALFieldClaude code line, cf. SelfConsistent.computeDirectExchangeVClaude.
+        A (nsL+nsS) x (nsL+nsS) matrixV::Array{Float64,2} is returned.
+"""
+function XL_CoulombClaude(L::Int64, a::Subshell, b::Orbital, c::Orbital, d::Subshell, primitives::Bsplines.Primitives)
+    nsL = primitives.grid.nsL;        nsS = primitives.grid.nsS;    grid = primitives.grid
+    wm  = zeros(nsL+nsS, nsL+nsS)
+
+    # Test for the triangular-delta conditions and calculate the reduced matrix elements of the C^L tensors
+    la = Basics.subshell_l(a);             ja2 = Basics.subshell_2j(a)
+    lb = Basics.subshell_l(b.subshell);    jb2 = Basics.subshell_2j(b.subshell)
+    lc = Basics.subshell_l(c.subshell);    jc2 = Basics.subshell_2j(c.subshell)
+    ld = Basics.subshell_l(d);             jd2 = Basics.subshell_2j(d)
+
+    if  AngularMomentum.triangularDelta(ja2+1,jc2+1,L+L+1) * AngularMomentum.triangularDelta(jb2+1,jd2+1,L+L+1) == 0   ||
+        rem(la+lc+L,2) == 1   ||   rem(lb+ld+L,2) == 1
+        @warn("stop ab")  ## This should not occur.
+        return( wm )
+    end
+
+    xc = AngularMomentum.CL_reduced_me(a, L, c.subshell) * AngularMomentum.CL_reduced_me(b.subshell, L, d)
+    if   rem(L,2) == 1    xc = - xc    end
+
+    # L-block rows: B-spline "a" taken from bsplinesL
+    for  i = 1:nsL
+        Ba = primitives.bsplinesL[i]
+        Pa = zeros(Ba.upper);   add = 1 - Ba.lower;
+        for  j = Ba.lower:Ba.upper  Pa[j] = Pa[j] + Ba.bs[j+add]   end
+
+        W1 = RadialIntegrals.buildScreenedPotentialPairClaude(L, Pa, c.P, grid)   # paired below with b.P, Pd
+        W2 = RadialIntegrals.buildScreenedPotentialPairClaude(L, Pa, c.Q, grid)   # paired below with b.P, Qd
+
+        for  k = 1:nsL
+            Bd = primitives.bsplinesL[k]
+            Pd = zeros(Bd.upper);   add2 = 1 - Bd.lower;
+            for  j = Bd.lower:Bd.upper  Pd[j] = Pd[j] + Bd.bs[j+add2]   end
+            mtp = min(length(W1), length(b.P), length(Pd))
+            wa  = 0.
+            for  s = 2:mtp   wa = wa + W1[s] * b.P[s] * Pd[s] * grid.wr[s]   end
+            wm[i,k] = wa
+        end
+        for  k = 1:nsS
+            Bd = primitives.bsplinesS[k]
+            Qd = zeros(Bd.upper);   add2 = 1 - Bd.lower;
+            for  j = Bd.lower:Bd.upper  Qd[j] = Qd[j] + Bd.bs[j+add2]   end
+            mtp = min(length(W2), length(b.P), length(Qd))
+            wa  = 0.
+            for  s = 2:mtp   wa = wa + W2[s] * b.P[s] * Qd[s] * grid.wr[s]   end
+            wm[i,nsL+k] = wa
+        end
+    end
+
+    # S-block rows: B-spline "a" taken from bsplinesS
+    for  i = 1:nsS
+        Ba = primitives.bsplinesS[i]
+        Qa = zeros(Ba.upper);   add = 1 - Ba.lower;
+        for  j = Ba.lower:Ba.upper  Qa[j] = Qa[j] + Ba.bs[j+add]   end
+
+        W3 = RadialIntegrals.buildScreenedPotentialPairClaude(L, Qa, c.P, grid)   # paired below with b.Q, Pd
+        W4 = RadialIntegrals.buildScreenedPotentialPairClaude(L, Qa, c.Q, grid)   # paired below with b.Q, Qd
+
+        for  k = 1:nsL
+            Bd = primitives.bsplinesL[k]
+            Pd = zeros(Bd.upper);   add2 = 1 - Bd.lower;
+            for  j = Bd.lower:Bd.upper  Pd[j] = Pd[j] + Bd.bs[j+add2]   end
+            mtp = min(length(W3), length(b.Q), length(Pd))
+            wa  = 0.
+            for  s = 2:mtp   wa = wa + W3[s] * b.Q[s] * Pd[s] * grid.wr[s]   end
+            wm[nsL+i,k] = wa
+        end
+        for  k = 1:nsS
+            Bd = primitives.bsplinesS[k]
+            Qd = zeros(Bd.upper);   add2 = 1 - Bd.lower;
+            for  j = Bd.lower:Bd.upper  Qd[j] = Qd[j] + Bd.bs[j+add2]   end
+            mtp = min(length(W4), length(b.Q), length(Qd))
+            wa  = 0.
+            for  s = 2:mtp   wa = wa + W4[s] * b.Q[s] * Qd[s] * grid.wr[s]   end
+            wm[nsL+i,nsL+k] = wa
+        end
+    end
+
+    return( xc * wm )
+end
+
+
+"""
+`InteractionStrength.XL_CoulombTensorClaude(L::Int64, a::Subshell, b::Orbital, c::Orbital, cVector::Vector{Float64},
+                                            d::Subshell, cacheLL::RadialIntegrals.SlaterMomentCacheClaude,
+                                            cacheLS::RadialIntegrals.SlaterMomentCacheClaude,
+                                            cacheSS::RadialIntegrals.SlaterMomentCacheClaude,
+                                            primitives::Bsplines.Primitives)`
+    ... computes the same (exchange) Coulomb interaction strengths X^L_Coulomb (.bc.) as
+        XL_Coulomb(L,a::Subshell,b::Orbital,c::Orbital,d::Subshell,primitives) / XL_CoulombClaude of the same
+        signature, but using PRECOMPUTED RadialIntegrals.SlaterMomentCacheClaude tensors -- built ONCE, outside
+        the SCF iteration, via RadialIntegrals.buildSlaterMomentCacheClaude for rank L -- instead of any per-call
+        adaptive quadrature. Re-deriving the original (validated) block structure carefully shows that, in each
+        block, the B-spline row index pairs with orbital c's component matching the COLUMN's type (P for an
+        L-column, Q for an S-column), while orbital b's component matching the ROW's type pairs with the column
+        B-spline index. Consequently it is orbital c -- not b -- whose OWN B-spline expansion coefficients
+        (cVector, as obtained during SCF from Bsplines.extractVectorFromPrimitives) are needed, to build, for
+        each row i, a "partial potential" Psi_i(s) = sum_m cVector[m] * Phi_(i,m)(s) as a CHEAP weighted sum of
+        already-cached, already-kink-aware Phi_(i,m) entries (only ~band terms, no quadrature at all); orbital b
+        itself stays a plain tabulated orbital, exactly like the column B-spline, entering only the final cheap
+        grid-quadrature dot product. Three caches are needed because the row/column-type combination can be
+        LL, LS, SL, or SS -- and, unlike the "direct" signature, a single screened potential cannot be shared
+        across the whole (nsL+nsS) x (nsL+nsS) matrix here, since both B-spline indices (row and column) sit on
+        opposite sides of the two-electron kernel. cacheLL and cacheSS are ordinary same-basis caches
+        (bsplinesL, bsplinesL) and (bsplinesS, bsplinesS); cacheLS is the cross-basis cache
+        (bsplinesL, bsplinesS) and is also used, with indices swapped at lookup, for the SL combination -- see
+        RadialIntegrals.buildSlaterMomentCacheClaude. This turns what used to be an expensive per-call
+        adaptive-quadrature computation into one with NO further quadrature at all, for every SCF iteration and
+        every exchange coefficient that shares this rank L, once the caches themselves have been built (see
+        SelfConsistent.solveAverageLevelFieldClaude for how they get built and cached once per SCF run).
+        Isolated from XL_Coulomb; only used by the ALFieldClaude code line, cf.
+        SelfConsistent.computeDirectExchangeVClaude. A (nsL+nsS) x (nsL+nsS) matrixV::Array{Float64,2} is returned.
+"""
+function XL_CoulombTensorClaude(L::Int64, a::Subshell, b::Orbital, c::Orbital, cVector::Vector{Float64}, d::Subshell,
+                                cacheLL::RadialIntegrals.SlaterMomentCacheClaude,
+                                cacheLS::RadialIntegrals.SlaterMomentCacheClaude,
+                                cacheSS::RadialIntegrals.SlaterMomentCacheClaude,
+                                primitives::Bsplines.Primitives)
+    nsL = primitives.grid.nsL;  nsS = primitives.grid.nsS;  grid = primitives.grid
+    wm  = zeros(nsL+nsS, nsL+nsS)
+
+    la = Basics.subshell_l(a);             ja2 = Basics.subshell_2j(a)
+    lb = Basics.subshell_l(b.subshell);    jb2 = Basics.subshell_2j(b.subshell)
+    lc = Basics.subshell_l(c.subshell);    jc2 = Basics.subshell_2j(c.subshell)
+    ld = Basics.subshell_l(d);             jd2 = Basics.subshell_2j(d)
+
+    if  AngularMomentum.triangularDelta(ja2+1,jc2+1,L+L+1) * AngularMomentum.triangularDelta(jb2+1,jd2+1,L+L+1) == 0   ||
+        rem(la+lc+L,2) == 1   ||   rem(lb+ld+L,2) == 1
+        @warn("stop ab")  ## This should not occur.
+        return( wm )
+    end
+
+    xc = AngularMomentum.CL_reduced_me(a, L, c.subshell) * AngularMomentum.CL_reduced_me(b.subshell, L, d)
+    if   rem(L,2) == 1    xc = - xc    end
+
+    if  length(cVector) != nsL+nsS    error("stop a; cVector must hold both L- and S-basis expansion coefficients")   end
+    cP = cVector[1:nsL];   cQ = cVector[nsL+1:nsL+nsS]
+
+    # L-block rows: row B-spline "i" from bsplinesL
+    for  i = 1:nsL
+        PsiLL = zeros(grid.NoPoints)   # for L-columns (contracted below against c.P's expansion, cacheLL)
+        for  m = max(1,i-cacheLL.band):min(nsL,i+cacheLL.band)
+            Phi_im = get(cacheLL.Phi, (i,m), nothing)
+            if  Phi_im === nothing || cP[m] == 0.   continue   end
+            mtp = min(length(Phi_im), length(PsiLL))
+            for  r = 1:mtp   PsiLL[r] += cP[m] * Phi_im[r]   end
+        end
+        PsiLS = zeros(grid.NoPoints)   # for S-columns (contracted below against c.Q's expansion, cacheLS)
+        for  n = 1:nsS
+            Phi_in = get(cacheLS.Phi, (i,n), nothing)
+            if  Phi_in === nothing || cQ[n] == 0.   continue   end
+            mtp = min(length(Phi_in), length(PsiLS))
+            for  r = 1:mtp   PsiLS[r] += cQ[n] * Phi_in[r]   end
+        end
+
+        for  k = 1:nsL
+            Bd = primitives.bsplinesL[k]
+            Pd = zeros(Bd.upper);   add = 1 - Bd.lower
+            for  j = Bd.lower:Bd.upper   Pd[j] = Pd[j] + Bd.bs[j+add]   end
+            mtp = min(length(PsiLL), length(b.P), length(Pd))
+            wa  = 0.
+            for  s = 2:mtp   wa += PsiLL[s] * b.P[s] * Pd[s] * grid.wr[s]   end
+            wm[i,k] = wa
+        end
+        for  k = 1:nsS
+            Bd = primitives.bsplinesS[k]
+            Qd = zeros(Bd.upper);   add = 1 - Bd.lower
+            for  j = Bd.lower:Bd.upper   Qd[j] = Qd[j] + Bd.bs[j+add]   end
+            mtp = min(length(PsiLS), length(b.P), length(Qd))
+            wa  = 0.
+            for  s = 2:mtp   wa += PsiLS[s] * b.P[s] * Qd[s] * grid.wr[s]   end
+            wm[i,nsL+k] = wa
+        end
+    end
+
+    # S-block rows: row B-spline "i" from bsplinesS
+    for  i = 1:nsS
+        PsiSL = zeros(grid.NoPoints)   # for L-columns; cacheLS was built as (bsplinesL, bsplinesS), so the
+        for  m = 1:nsL                 # row (S-basis) index is now the SECOND slot: look up (m,i), not (i,m)
+            Phi_mi = get(cacheLS.Phi, (m,i), nothing)
+            if  Phi_mi === nothing || cP[m] == 0.   continue   end
+            mtp = min(length(Phi_mi), length(PsiSL))
+            for  r = 1:mtp   PsiSL[r] += cP[m] * Phi_mi[r]   end
+        end
+        PsiSS = zeros(grid.NoPoints)   # for S-columns (cacheSS)
+        for  n = max(1,i-cacheSS.band):min(nsS,i+cacheSS.band)
+            Phi_in = get(cacheSS.Phi, (i,n), nothing)
+            if  Phi_in === nothing || cQ[n] == 0.   continue   end
+            mtp = min(length(Phi_in), length(PsiSS))
+            for  r = 1:mtp   PsiSS[r] += cQ[n] * Phi_in[r]   end
+        end
+
+        for  k = 1:nsL
+            Bd = primitives.bsplinesL[k]
+            Pd = zeros(Bd.upper);   add = 1 - Bd.lower
+            for  j = Bd.lower:Bd.upper   Pd[j] = Pd[j] + Bd.bs[j+add]   end
+            mtp = min(length(PsiSL), length(b.Q), length(Pd))
+            wa  = 0.
+            for  s = 2:mtp   wa += PsiSL[s] * b.Q[s] * Pd[s] * grid.wr[s]   end
+            wm[nsL+i,k] = wa
+        end
+        for  k = 1:nsS
+            Bd = primitives.bsplinesS[k]
+            Qd = zeros(Bd.upper);   add = 1 - Bd.lower
+            for  j = Bd.lower:Bd.upper   Qd[j] = Qd[j] + Bd.bs[j+add]   end
+            mtp = min(length(PsiSS), length(b.Q), length(Qd))
+            wa  = 0.
+            for  s = 2:mtp   wa += PsiSS[s] * b.Q[s] * Qd[s] * grid.wr[s]   end
+            wm[nsL+i,nsL+k] = wa
+        end
+    end
+
+    return( xc * wm )
+end
+
+
+"""
+`InteractionStrength.XL_CoulombDamped(tau::Float64, L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital, grid::Radial.Grid)`
     ... computes the the effective Coulomb interaction strengths X^L_Coulomb (abcd) for given rank L and orbital functions 
         a, b, c and d at the given grid. A value::Float64 is returned.
 """

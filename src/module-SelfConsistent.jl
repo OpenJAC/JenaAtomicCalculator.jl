@@ -6,7 +6,8 @@
 """
 module SelfConsistent
 
-using  Printf, ..Basics, ..Bsplines, ..Defaults, ..Hamiltonian, ..ManyElectron, ..Nuclear, ..Radial, ..SpinAngular
+using  Printf, ..Basics, ..Bsplines, ..Defaults, ..Hamiltonian, ..InteractionStrength, ..ManyElectron, ..Nuclear, ..Radial,
+       ..RadialIntegrals, ..SpinAngular
 
 
 """
@@ -117,13 +118,69 @@ function computeConvergence(aVectors::Dict{Subshell, Vector{Float64}}, bVectors:
         bVector = bVectors[asubsh]   # Deal with situations that no orbital is found
         conv    = conv * (transpose(aVector) * matrixB * bVector)
     end
-    
+
     return( abs(conv) )
 end
 
 
 """
-`SelfConsistent.computeDirectExchangeV(subshell::Subshell, coeffs2p::Array{SpinAngular.Coefficient2p,1}, 
+`SelfConsistent.orthonormalizeSameKappaClaude(newOrbitals::Dict{Subshell, Orbital}, newbVectors::Dict{Subshell, Vector{Float64}},
+                                              subshells::Array{Subshell,1}, primitives::Bsplines.Primitives,
+                                              matrixB::Array{Float64,2})`
+    ... applies a Loewdin SYMMETRIC orthogonalization to every group of subshells sharing the same kappa, treating
+        them as a SIMULTANEOUSLY-valid set rather than the sequence in which they happen to have been refined --
+        this is the explicit "orthonormalize the orbital set" step shown as its OWN, separate box (after, not
+        instead of, the per-orbital "apply projection" step) in the block diagram of Zatsarinny \\& Froese
+        Fischer, Comput. Phys. Commun. 202, 287-303 (2016), Fig. 1. The per-orbital
+        Hamiltonian.projectHamiltonian step alone does not guarantee a simultaneously-consistent same-kappa set
+        when subshells are refined one at a time with lagged (Jacobi-style) data from the previous outer
+        iteration -- this step corrects that afterwards, once per outer iteration, independent of processing
+        order.
+
+        For a kappa-group of n>1 subshells with B-spline expansion coefficient vectors b_1...b_n (columns of a
+        (nsL+nsS) x n matrix B) and S-metric overlap matrix M (M_ij = b_i' * matrixB * b_j), the orthonormalized
+        set is B_new = B * M^(-1/2), computed via an eigendecomposition of the small (n x n) matrix M. Unlike
+        Gram-Schmidt, this treats every member of the group symmetrically -- no member is privileged by
+        processing order -- matching the paper's "simultaneous" variation of same-symmetry orbitals directly.
+        Groups of size 1 (no same-kappa partner) are left untouched, already trivially orthonormal.
+        A (orbitals::Dict{Subshell,Orbital}, bVectors::Dict{Subshell,Vector{Float64}}) tuple is returned.
+"""
+function orthonormalizeSameKappaClaude(newOrbitals::Dict{Subshell, Orbital}, newbVectors::Dict{Subshell, Vector{Float64}},
+                                       subshells::Array{Subshell,1}, primitives::Bsplines.Primitives,
+                                       matrixB::Array{Float64,2})
+    orbitalsOut = deepcopy(newOrbitals)
+    bVectorsOut = deepcopy(newbVectors)
+
+    for  kappa  in  unique( [sh.kappa for sh in subshells] )
+        group = [sh for sh in subshells if sh.kappa == kappa]
+        if  length(group) < 2    continue    end
+
+        B = hcat( [newbVectors[sh] for sh in group]... )        # (nsL+nsS) x n
+        M = transpose(B) * matrixB * B                          # n x n, symmetric overlap matrix of the group
+
+        eig  = Basics.diagonalize(MatrixWithLinearAlgebra(), M)
+        n    = length(group)
+        Mm12 = zeros(n, n)
+        for  k = 1:n
+            vk    = eig.vectors[k]
+            Mm12 .+= (1.0/sqrt(eig.values[k])) .* (vk * transpose(vk))
+        end
+
+        Bnew = B * Mm12
+        for  (idx, sh)  in  enumerate(group)
+            vec             = Bnew[:,idx]
+            en              = newOrbitals[sh].energy
+            bVectorsOut[sh] = vec
+            orbitalsOut[sh] = Bsplines.generateOrbitalFromVectorClaude(sh, en, vec, primitives)
+        end
+    end
+
+    return( orbitalsOut, bVectorsOut )
+end
+
+
+"""
+`SelfConsistent.computeDirectExchangeV(subshell::Subshell, coeffs2p::Array{SpinAngular.Coefficient2p,1},
                                        primitives::Bsplines.Primitives, orbitals::Dict{Subshell, Orbital})`
     ... computes the direct and exchange contributions to the one-electron Hamiltonian matrix of the given subshelll.
         These contributions and their position in the Hamiltonian matrix can be derived from the position of subshell
@@ -173,13 +230,85 @@ function computeDirectExchangeV(subshell::Subshell, coeffs2p::Array{SpinAngular.
         else    error("No proper interpretation of coeff = $cf")
         end
     end
-    
+
     return( matrixV )
 end
 
 
 """
-`SelfConsistent.computeFunctional(coeffs1p::Array{SpinAngular.Coefficient1p,1}, coeffs2p::Array{SpinAngular.Coefficient2p,1}, 
+`SelfConsistent.computeDirectExchangeVClaude(subshell::Subshell, coeffs2p::Array{SpinAngular.Coefficient2p,1},
+                                             primitives::Bsplines.Primitives, orbitals::Dict{Subshell, Orbital},
+                                             bVectors::Dict{Subshell, Vector{Float64}},
+                                             tensorCaches::Dict{Int64, NTuple{3,RadialIntegrals.SlaterMomentCacheClaude}})`
+    ... computes the same direct and exchange contributions to the one-electron Hamiltonian matrix as
+        computeDirectExchangeV, but using InteractionStrength.XL_CoulombClaude (kink-aware, per-call) wherever
+        the refined subshell occupies the (a,c) "direct" position of the coefficient, and
+        InteractionStrength.XL_CoulombTensorClaude (kink-aware, precomputed-tensor-based, no per-call
+        quadrature) wherever it occupies the (a,d)/(b,c) "exchange" position. tensorCaches must hold, for every
+        rank cf.nu that occurs in coeffs2p, a (cacheLL,cacheLS,cacheSS) triple as built by
+        RadialIntegrals.buildSlaterMomentCacheClaude -- see solveAverageLevelFieldClaude, which builds this once
+        per SCF run, before iterating. bVectors must hold the current B-spline expansion coefficients for every
+        subshell (as obtained from Bsplines.extractVectorFromPrimitives), needed by the exchange branches (see
+        InteractionStrength.XL_CoulombTensorClaude's docstring for why it is orbital "c", not "b", whose
+        expansion coefficients are required there). Isolated from computeDirectExchangeV; only used by the
+        ALFieldClaude code line, cf. solveAverageLevelFieldClaude.
+        A (nsL+nsS) x (nsL+nsS) matrixV::Array{Float64,2} is returned.
+"""
+function computeDirectExchangeVClaude(subshell::Subshell, coeffs2p::Array{SpinAngular.Coefficient2p,1},
+                                      primitives::Bsplines.Primitives, orbitals::Dict{Subshell, Orbital},
+                                      bVectors::Dict{Subshell, Vector{Float64}},
+                                      tensorCaches::Dict{Int64, NTuple{3,RadialIntegrals.SlaterMomentCacheClaude}})
+    nsL     = primitives.grid.nsL;        nsS = primitives.grid.nsS;    grid = primitives.grid
+    matrixV = zeros( nsL+nsS, nsL+nsS )
+
+    for  cf  in  coeffs2p
+        if      subshell == cf.a  &&  subshell == cf.b  &&  subshell == cf.c  &&  subshell == cf.d
+            if     iseven( Basics.subshell_l(subshell) + Basics.subshell_l(cf.b) + cf.nu )
+                matrixV = matrixV + 2 * cf.V *
+                          InteractionStrength.XL_CoulombClaude(cf.nu, subshell, orbitals[cf.b], subshell, orbitals[cf.d], primitives)
+            else   continue  # Breit coefficient
+            end
+        elseif  subshell == cf.a  &&  subshell == cf.c  &&  cf.b == cf.d
+            if     iseven( Basics.subshell_l(subshell) + Basics.subshell_l(cf.b) + cf.nu )
+                matrixV = matrixV + cf.V *
+                          InteractionStrength.XL_CoulombClaude(cf.nu, subshell, orbitals[cf.b], subshell, orbitals[cf.d], primitives)
+             else   continue  # Breit coefficient
+            end
+        elseif  subshell == cf.a  &&  subshell == cf.d  &&  cf.b == cf.c
+            if     iseven( Basics.subshell_l(subshell) + Basics.subshell_l(cf.b) + cf.nu )
+                (cacheLL, cacheLS, cacheSS) = tensorCaches[cf.nu]
+                matrixV = matrixV + cf.V *
+                          InteractionStrength.XL_CoulombTensorClaude(cf.nu, subshell, orbitals[cf.b], orbitals[cf.c],
+                                                                      bVectors[cf.c], subshell,
+                                                                      cacheLL, cacheLS, cacheSS, primitives)
+            else   continue  # Breit coefficient
+            end
+        elseif  subshell == cf.b  &&  subshell == cf.d  &&  cf.a == cf.c
+            if     iseven( Basics.subshell_l(subshell) + Basics.subshell_l(cf.a) + cf.nu )
+                matrixV = matrixV + cf.V *
+                          InteractionStrength.XL_CoulombClaude(cf.nu, subshell, orbitals[cf.a], subshell, orbitals[cf.c], primitives)
+            else   continue  # Breit coefficient
+            end
+        elseif  subshell == cf.b  &&  subshell == cf.c  &&  cf.a == cf.d
+            if     iseven( Basics.subshell_l(subshell) + Basics.subshell_l(cf.a) + cf.nu )
+                (cacheLL, cacheLS, cacheSS) = tensorCaches[cf.nu]
+                matrixV = matrixV + cf.V *
+                          InteractionStrength.XL_CoulombTensorClaude(cf.nu, subshell, orbitals[cf.a], orbitals[cf.d],
+                                                                      bVectors[cf.d], subshell,
+                                                                      cacheLL, cacheLS, cacheSS, primitives)
+            else   continue  # Breit coefficient
+            end
+        elseif  subshell != cf.a  &&  subshell != cf.b  &&  subshell != cf.c  &&  subshell != cf.d  continue
+        else    error("No proper interpretation of coeff = $cf")
+        end
+    end
+
+    return( matrixV )
+end
+
+
+"""
+`SelfConsistent.computeFunctional(coeffs1p::Array{SpinAngular.Coefficient1p,1}, coeffs2p::Array{SpinAngular.Coefficient2p,1},
                                   orbitals::Dict{Subshell, Orbital}, grid::Radial.Grid, potential::Radial.Potential)` 
     ... computes the value of the energy functional upon which this MCDHF optimization is based on.
         The procedure assumes that this functional is simply given by the form 
@@ -202,16 +331,44 @@ function computeFunctional(coeffs1p::Array{SpinAngular.Coefficient1p,1}, coeffs2
     
     # Collect two-electron contributions
     for  cf  in  coeffs2p
-        energy = energy + cf.V * InteractionStrength.XL_Coulomb(cf.nu, orbitals[cf.a], orbitals[cf.b], 
+        energy = energy + cf.V * InteractionStrength.XL_Coulomb(cf.nu, orbitals[cf.a], orbitals[cf.b],
                                                                        orbitals[cf.c], orbitals[cf.d], grid)
-    end 
-    
+    end
+
     return( energy )
 end
 
 
 """
-`SelfConsistent.initializeBasis(configs::Array{Configuration,1}, nuclearModel::Nuclear.Model, primitives::Bsplines.Primitives, 
+`SelfConsistent.computeFunctionalClaude(coeffs1p::Array{SpinAngular.Coefficient1p,1}, coeffs2p::Array{SpinAngular.Coefficient2p,1},
+                                        orbitals::Dict{Subshell, Orbital}, grid::Radial.Grid, potential::Radial.Potential)`
+    ... computes the same MCDHF energy functional as computeFunctional, but using InteractionStrength.
+        XL_CoulombClaude (kink-aware two-electron Slater integral) instead of InteractionStrength.XL_Coulomb for
+        the two-electron term. Isolated from computeFunctional; only used by the ALFieldClaude code line, cf.
+        solveAverageLevelFieldClaude. An energy::Float64 is returned.
+"""
+function computeFunctionalClaude(coeffs1p::Array{SpinAngular.Coefficient1p,1}, coeffs2p::Array{SpinAngular.Coefficient2p,1},
+                                 orbitals::Dict{Subshell, Orbital}, grid::Radial.Grid, potential::Radial.Potential)
+    energy = 0.
+
+    # Collect one-electron contributions -- unchanged, no kink in this integral
+    for  cf  in  coeffs1p
+        jj     = Basics.subshell_2j(cf.a)
+        energy = energy + cf.T * sqrt( jj + 1) * RadialIntegrals.GrantIab(orbitals[cf.a], orbitals[cf.b], grid, potential)
+    end
+
+    # Collect two-electron contributions via the kink-aware integral
+    for  cf  in  coeffs2p
+        energy = energy + cf.V * InteractionStrength.XL_CoulombClaude(cf.nu, orbitals[cf.a], orbitals[cf.b],
+                                                                              orbitals[cf.c], orbitals[cf.d], grid)
+    end
+
+    return( energy )
+end
+
+
+"""
+`SelfConsistent.initializeBasis(configs::Array{Configuration,1}, nuclearModel::Nuclear.Model, primitives::Bsplines.Primitives,
                                 settings::AsfSettings; levelSymmetries::Array{LevelSymmetry,1}=LevelSymmetry[], printout::Bool=false)` 
     ... Initialized a many-electron basis from the given list of configurations, the nuclear model as well as ASF settings.
         It assumes that a proper set of primitives::Primitives has been initialized before. The initial set of orbitals in this
@@ -309,24 +466,34 @@ function performSCF(configs::Array{Configuration,1}, nm::Nuclear.Model, grid::Ra
         basis = SelfConsistent.solveMeanFieldBasis(basis, nm, primitives, settings; printout=printout) 
     elseif   settings.scField in [Basics.NuclearField()]  && settings.startScfFrom == StartFromHydrogenic() 
         # Return the basis as already generated.
-    elseif   settings.scField in [Basics.ALField()] 
+    elseif   settings.scField in [Basics.ALField()]
         basis     = SelfConsistent.solveAverageLevelField(basis, nm, primitives, settings; printout=printout)
         multiplet = Hamiltonian.performCI(basis, nm, primitives.grid, settings, printout=true)
-    elseif   typeof(settings.scField) == Basics.EOLField 
+    elseif   settings.scField in [Basics.ALFieldClaude()]
+        basis     = SelfConsistent.solveAverageLevelFieldClaude(basis, nm, primitives, settings; printout=printout)
+        multiplet = Hamiltonian.performCIClaude(basis, nm, primitives.grid, settings, printout=true)
+    elseif   settings.scField in [Basics.ALFieldClaude2()]
+        basis     = SelfConsistent.solveAverageLevelFieldClaude2(basis, nm, primitives, settings; printout=printout)
+        multiplet = Hamiltonian.performCIClaude(basis, nm, primitives.grid, settings, printout=true)
+    elseif   typeof(settings.scField) == Basics.EOLField
         multiplet = SelfConsistent.solveOptimizedLevelField(basis, nm, primitives, settings; printout=printout)
         basis     = multiplet.levels[1].basis
     else  error("stop a")
-    end    
-    
+    end
+
     # Setup and diagonalize the Hamiltonian matrix; assign mixing coefficients
-    mp = Hamiltonian.performCI(basis, nm, grid, settings, printout=printout)
+    if   settings.scField in [Basics.ALFieldClaude(), Basics.ALFieldClaude2()]
+        mp = Hamiltonian.performCIClaude(basis, nm, grid, settings, printout=printout)
+    else
+        mp = Hamiltonian.performCI(basis, nm, grid, settings, printout=printout)
+    end
 
     return( mp )
 end
 
 
 """
-`SelfConsistent.performSCF(basis::Basis, nm::Nuclear.Model, grid::Radial.Grid, 
+`SelfConsistent.performSCF(basis::Basis, nm::Nuclear.Model, grid::Radial.Grid,
                            settings::AsfSettings; levelSymmetries::Array{LevelSymmetry,1}=LevelSymmetry[], printout::Bool=false)` 
     ... Performs a SCF computation for the given list of configurations, the nuclear model as well as ASF settings.
         If explicit levelSymmetries are given, only these symmetries are considered. Internally, a proper set of primitives::Primitives 
@@ -344,25 +511,35 @@ function performSCF(basis::Basis, nm::Nuclear.Model, grid::Radial.Grid,
         basis = SelfConsistent.solveMeanFieldBasis(basis, nm, primitives, settings; printout=printout) 
     elseif   settings.scField in [Basics.NuclearField()]  && settings.startScfFrom == StartFromHydrogenic() 
         # Return the basis as already generated.
-    elseif   settings.scField in [Basics.ALField()] 
+    elseif   settings.scField in [Basics.ALField()]
         basis     = SelfConsistent.solveAverageLevelField(basis, nm, primitives, settings; printout=printout)
         multiplet = Hamiltonian.performCI(basis, nm, primitives.grid, settings, printout=true)
-    elseif   typeof(settings.scField) == Basics.EOLField 
+    elseif   settings.scField in [Basics.ALFieldClaude()]
+        basis     = SelfConsistent.solveAverageLevelFieldClaude(basis, nm, primitives, settings; printout=printout)
+        multiplet = Hamiltonian.performCIClaude(basis, nm, primitives.grid, settings, printout=true)
+    elseif   settings.scField in [Basics.ALFieldClaude2()]
+        basis     = SelfConsistent.solveAverageLevelFieldClaude2(basis, nm, primitives, settings; printout=printout)
+        multiplet = Hamiltonian.performCIClaude(basis, nm, primitives.grid, settings, printout=true)
+    elseif   typeof(settings.scField) == Basics.EOLField
         multiplet = SelfConsistent.solveOptimizedLevelField(basis, nm, primitives, settings; printout=printout)
         basis     = multiplet.levels[1].basis
     else  error("stop a")
-    end    
-    
+    end
+
     # Setup and diagonalize the Hamiltonian matrix; assign mixing coefficients
-    mp = Hamiltonian.performCI(basis, nm, settings, grid, printout=printout)
+    if   settings.scField in [Basics.ALFieldClaude(), Basics.ALFieldClaude2()]
+        mp = Hamiltonian.performCIClaude(basis, nm, grid, settings, printout=printout)
+    else
+        mp = Hamiltonian.performCI(basis, nm, settings, grid, printout=printout)
+    end
 
     return( mp )
 end
 
 
 """
-`SelfConsistent.rotateOrbitals(subshellList::Array{Subshell,1}, orbitals::Dict{Subshell, Orbital}, grid::Radial.Grid, 
-                               settings::AsfSettings)` 
+`SelfConsistent.rotateOrbitals(subshellList::Array{Subshell,1}, orbitals::Dict{Subshell, Orbital}, grid::Radial.Grid,
+                               settings::AsfSettings)`
     ... rotates pairwise the orbitals to enhance the covergence of the SCF procedures; it follows that 
         rotation schemes of C.F. Fischer ... . The pairwise rotation of the orbitals of the same symmetry 
         is done from the inner-to-outer subshells. A rotation is not necessary if two subshells are filled
@@ -566,9 +743,9 @@ function solveAverageLevelField(basis::Basis, nuclearModel::Nuclear.Model, primi
             matrix  = Bsplines.setupLocalMatrix(subshell.kappa, primitives, nucPot, storage)
             matrixV = SelfConsistent.computeDirectExchangeV(subshell, coeffs2p, primitives, orbitals)
             matrix  = matrix + occm1 * matrixV
-            
+
             # (7) Apply projections of matrix upon the other orbitals of the same symmetry (accounts for Langrange multipliers)
-            ## matrix = Hamiltonian.projectHamiltonian(subshell, matrix, matrixB, bVectors)
+            matrix = Hamiltonian.projectHamiltonian(subshell, matrix, matrixB, bVectors)
             
             # (8) Diagonalize the Hamiltonian matrix and refine the orbital and bVectors
             wc = Basics.diagonalize(GeneralizedEigenvaluesWithLinearAlgebra(), matrix, matrixB)
@@ -597,7 +774,415 @@ function solveAverageLevelField(basis::Basis, nuclearModel::Nuclear.Model, primi
     return( newBasis )
 end
 
-    
+
+"""
+`SelfConsistent.solveAverageLevelFieldClaude(basis::Basis, nuclearModel::Nuclear.Model, primitives::Bsplines.Primitives,
+                                             settings::AsfSettings; printout::Bool=true)`
+    ... solves the same average-level (AL) self-consistent field as solveAverageLevelField, but using the
+        kink-aware two-electron Slater-integral treatment (computeDirectExchangeVClaude, computeFunctionalClaude)
+        throughout, both for the SCF orbital-optimization matrix and for the reported energy functional. Isolated
+        from solveAverageLevelField; only reached via performSCF's scField = Basics.ALFieldClaude() dispatch.
+        A (new) basis::Basis is returned.
+"""
+function solveAverageLevelFieldClaude(basis::Basis, nuclearModel::Nuclear.Model, primitives::Bsplines.Primitives,
+                                      settings::AsfSettings; printout::Bool=true)
+    nsL    = primitives.grid.nsL;    nsS = primitives.grid.nsS;    grid = primitives.grid
+    rotate = false
+
+    # (1) Initialize storage and important arrays; determine nuclear potential and mean occupation once at the beginning
+    if  printout    println(">> (Re-) Define a storage array for dealing with single-electron TTp B-spline matrices:")    end
+    storage = Dict{String,Array{Float64,2}}()
+    matrixB = zeros( nsL+nsS, nsL+nsS )
+    matrixB[1:nsL,1:nsL]                 = Bsplines.generateTTpMatrix!("LL-overlap", 0, primitives, storage)
+    matrixB[nsL+1:nsL+nsS,nsL+1:nsL+nsS] = Bsplines.generateTTpMatrix!("SS-overlap", 0, primitives, storage)
+
+    nucPot   = Nuclear.nuclearPotential(nuclearModel, primitives.grid)
+    meanOcc  = Basics.extractMeanOccupation(basis)
+    orbitals = deepcopy( basis.orbitals )
+
+    # Claude fix (19-Jul-2026): bVectors must hold each subshell's ACTUAL initial B-spline expansion
+    # coefficients, matching orbitals -- NOT all-zero vectors. The original solveAverageLevelField zero-inits
+    # bVectors because it only ever uses them for Hamiltonian.projectHamiltonian (where an all-zero "other
+    # orbital" on iteration 1 is a harmless no-op, since there is nothing yet to project against). But this
+    # Claude line ALSO uses bVectors as the "cVector" input to InteractionStrength.XL_CoulombTensorClaude
+    # (the exchange-integral tensor contraction), where an all-zero vector on iteration 1 silently makes the
+    # ENTIRE exchange contribution zero for that iteration, not a harmless no-op.
+    #
+    # Second Claude fix (19-Jul-2026): it is not enough to just be nonzero -- bVectors must also be obtained by
+    # Bsplines.fitVectorToPrimitivesClaude (projecting the CLEANED, already-truncated tabulated orbital back onto
+    # the B-spline basis), NOT by Bsplines.extractVectorFromPrimitives (the RAW diagonalization eigenvector).
+    # generateOrbitalFromPrimitives truncates the tabulated P,Q arrays at their own mtp and zeros small values,
+    # but the raw eigenvector carries no such cleanup in its tail coefficients. Reconstructing one smooth
+    # tabulated function from those (as the original row-wise XL_CoulombClaude does, via orbitals[.].P/.Q)
+    # tolerates that noise just fine; summing the SAME coefficients directly, weighted against many separate
+    # cached Phi_(i,m) entries (as XL_CoulombTensorClaude does), does not enjoy the same cancellation, and was
+    # traced to a real SCF divergence starting from iteration 2 (initially tiny, ~1e-9-level orbital differences
+    # were amplified into an ~0.4 relative matrixV disagreement within a couple of iterations). Fitting bVectors
+    # from the already-cleaned orbitals ties their tail behaviour to the SAME, already-trusted truncation
+    # criterion used everywhere else, instead of inheriting whatever noise the diagonalization leaves behind.
+    bVectors = Dict{Subshell, Vector{Float64}}()
+    for  sh  in  basis.subshells
+        bVectors[sh] = Bsplines.fitVectorToPrimitivesClaude(orbitals[sh], primitives, matrixB)
+    end
+
+    # (2) Generate angular coefficients for all diagonal matrix elements including the division by nCSF
+    # to obtain mean energy functional; the angular-coefficient logic itself is unaffected by the kink fix,
+    # so the ALField() method is called directly rather than dispatching on settings.scField (ALFieldClaude)
+    (coeffs1p, coeffs2p) = SelfConsistent.computeAngularCoefficients(Basics.ALField(), basis::Basis)
+    for  cf in  coeffs1p   wx = Basics.twice(Basics.subshell_j(cf.a)) + 1;   @show cf, cf.T * sqrt(wx)   end
+
+    # (2a) Precompute the kink-aware Slater-moment tensor caches (RadialIntegrals.SlaterMomentCacheClaude), once
+    # per multipole rank appearing anywhere in coeffs2p -- this is the one-time, basis-only cost that lets every
+    # exchange-type Fock-matrix contraction below (InteractionStrength.XL_CoulombTensorClaude) run without any
+    # further per-call adaptive quadrature, for every subshell and every SCF iteration. Direct-type contractions
+    # (InteractionStrength.XL_CoulombClaude) do not need these caches -- a single screened potential per call is
+    # already cheap for that case -- so building a cache per rank here even though only the exchange branches use
+    # it is a modest, deliberate over-build in exchange for simplicity.
+    neededRanks = unique( [ cf.nu for cf in coeffs2p ] )
+    if  printout    println(">> Precompute kink-aware Slater-moment tensor caches for ranks $(neededRanks) ...")    end
+    tensorCaches = Dict{Int64, NTuple{3,RadialIntegrals.SlaterMomentCacheClaude}}()
+    for  L  in  neededRanks
+        cacheLL = RadialIntegrals.buildSlaterMomentCacheClaude(L, primitives.bsplinesL, primitives.bsplinesL, grid; rtol=1.0e-6)
+        cacheLS = RadialIntegrals.buildSlaterMomentCacheClaude(L, primitives.bsplinesL, primitives.bsplinesS, grid; rtol=1.0e-6)
+        cacheSS = RadialIntegrals.buildSlaterMomentCacheClaude(L, primitives.bsplinesS, primitives.bsplinesS, grid; rtol=1.0e-6)
+        tensorCaches[L] = (cacheLL, cacheLS, cacheSS)
+    end
+
+    # (3) Iterate the orbital set of the given basis until convergence is achieved; initialize bVectors in order to keep
+    # the B-spline coefficients of each orbital for the orbital projections
+
+    for iter = 1:settings.maxIterationsScf
+        println("\n> SCF interation $(iter) [Claude]: ")
+        newOrbitals = Dict{Subshell, Orbital}();   newbVectors = Dict{Subshell, Vector{Float64}}()
+
+        # (4) Rotate orbitals pairwise if required; such rotations are not needed if both subshells are filled
+        #     determine a maximum rotation parameter
+        if rotate
+            orbitals = SelfConsistent.rotateOrbitals(basis.subshells, orbitals, grid, settings)
+        end
+
+        # (5) Cycle through all subshells from the inner-to-outer subshells;
+        for subshell  in  basis.subshells
+            occ      = meanOcc[subshell];  occm1 = 1.0 / occ
+            orb      = orbitals[subshell]
+            print(">> Refine $subshell orbital with mean occ = $occ ... ")
+
+            # (6) Set-up the Hamiltonian matrix for this shell, including the Dirac Hamiltonian + direct + exchange potentials
+            matrix  = Bsplines.setupLocalMatrix(subshell.kappa, primitives, nucPot, storage)
+            matrixV = SelfConsistent.computeDirectExchangeVClaude(subshell, coeffs2p, primitives, orbitals, bVectors, tensorCaches)
+            matrix  = matrix + occm1 * matrixV
+
+            # (7) Apply projections of matrix upon the other orbitals of the same symmetry (accounts for Langrange multipliers)
+            # DISABLED again, paused for reassessment (19-Jul-2026). Progress made: bVectors not being exactly
+            # S-normalized (b'*matrixB*b == 1) -- required for the projection operator (I - S*bb') to be truly
+            # idempotent -- was a real, confirmed bug (Bsplines.fitVectorToPrimitivesClaude now re-normalizes its
+            # output, kept regardless of this flag's state). That fix reduced Be's period-2 oscillation amplitude
+            # by >100x (from an ~1 Hartree swing to ~0.004 Hartree), but did not eliminate it, and the residual
+            # oscillation still converges to the wrong energy. Leading hypothesis: the paper's projection formula
+            # assumes same-kappa orbitals are varied SIMULTANEOUSLY, which may not be numerically compatible, as
+            # implemented here, with JAC's one-subshell-at-a-time, lagged (Gauss-Seidel) iteration order. Left
+            # disabled so the tensor-exchange work (validated correct on He/Be/Ne) is not left in a regressed
+            # state; the last main() message before pausing this thread proposed a post-diagonalization
+            # Gram-Schmidt orthogonalization as a more robust alternative, not yet tried.
+            ## matrix = Hamiltonian.projectHamiltonian(subshell, matrix, matrixB, bVectors)
+
+            # (8) Diagonalize the Hamiltonian matrix and refine the orbital and bVectors
+            wc = Basics.diagonalize(GeneralizedEigenvaluesWithLinearAlgebra(), matrix, matrixB)
+            newOrb                = Bsplines.generateOrbitalFromPrimitives(subshell, wc, primitives)
+            newOrbitals[subshell] = newOrb
+            # Claude fix: fit from the CLEANED newOrb (Bsplines.fitVectorToPrimitivesClaude), not the raw
+            # eigenvector (Bsplines.extractVectorFromPrimitives) -- see the note above where bVectors is first
+            # initialized for why this matters.
+            newbVectors[subshell] = Bsplines.fitVectorToPrimitivesClaude(newOrb, primitives, matrixB)
+
+            # (9) Report about the new orbital
+            ovlap = abs( RadialIntegrals.overlap(orb, newOrb, grid) )
+            println("     overlap = $ovlap   acc = $(1.0 - ovlap)  ... ")
+        end
+
+        # (9a) Orthonormalize the just-refined orbital SET within each kappa group, treating same-kappa
+        # subshells as simultaneously valid rather than privileging whichever was processed first/last in the
+        # loop above -- the "orthonormalize the orbital set" step of Zatsarinny & Froese Fischer, Comput. Phys.
+        # Commun. 202, 287-303 (2016), Fig. 1, kept as its own step (not folded into the per-orbital
+        # Hamiltonian.projectHamiltonian call above, which remains disabled pending further study).
+        (newOrbitals, newbVectors) = SelfConsistent.orthonormalizeSameKappaClaude(newOrbitals, newbVectors, basis.subshells,
+                                                                                   primitives, matrixB)
+
+        # (10) Compute energy functional and analyze the convergence of orbitals
+        eFunctional = SelfConsistent.computeFunctionalClaude(coeffs1p, coeffs2p, newOrbitals, grid, nucPot)
+        orbitalConv = SelfConsistent.computeConvergence(orbitals, newOrbitals, grid)
+        bVectorConv = SelfConsistent.computeConvergence(bVectors, newbVectors, matrixB)
+
+        println(">> Total energy = $(eFunctional*1)   orbital-conv = $orbitalConv   orbital-acc = $(1.0 - orbitalConv)   " *
+                "B-conv = $bVectorConv")
+
+        # Claude fix: update orbitals/bVectors to the just-computed newOrbitals/newbVectors BEFORE testing for
+        # convergence, not after -- the original solveAverageLevelField skips this update when the break fires,
+        # so it returns orbitals that are one iteration stale relative to the eFunctional/orbitalConv just
+        # printed. Invisible whenever consecutive iterations are already nearly identical (as for He), but not
+        # for a system that is still changing significantly between iterations at the point of convergence.
+        orbitals = deepcopy(newOrbitals);    bVectors = newbVectors
+        if  abs(1.0 - orbitalConv) < settings.accuracyScf    break   end
+    end
+
+    newBasis = Basis(true, basis.NoElectrons, basis.subshells, basis.csfs, basis.coreSubshells, orbitals)
+    return( newBasis )
+end
+
+
+"""
+`SelfConsistent.computeTwoElectronVClaude2(subshell::Subshell, coeffs2p::Array{SpinAngular.Coefficient2p,1},
+                                           bVectors::Dict{Subshell, Vector{Float64}}, primitives::Bsplines.Primitives,
+                                           tensorCaches::Dict{Int64, NTuple{3,RadialIntegrals.SlaterMomentCacheClaude}})`
+    ... computes the direct and exchange two-electron potential matrix for the given subshell, exactly as
+        computeDirectExchangeVClaude does, but taking bVectors::Dict{Subshell,Vector{Float64}} -- B-spline
+        expansion coefficients -- as the SOLE, canonical per-subshell state, rather than a persistent
+        Dict{Subshell,Orbital}. Every coeffs2p entry relevant to subshell involves exactly one "partner"
+        subshell (the diagonal self-term is its own partner); a partner's tabulated form is built only as a
+        disposable, read-only byproduct (Bsplines.generateOrbitalFromVectorClaude), cached within this call
+        so repeated coefficients sharing the same partner do not re-evaluate it, and discarded once this
+        function returns -- never re-fit back into bVectors, since bVectors are never derived FROM a
+        tabulated form here in the first place; they come directly from diagonalization
+        (solveAverageLevelFieldClaude2). Isolated from computeDirectExchangeVClaude/computeDirectExchangeV;
+        only used by the ALFieldClaude2 code line. A (nsL+nsS) x (nsL+nsS) matrixV::Array{Float64,2} is
+        returned.
+"""
+function computeTwoElectronVClaude2(subshell::Subshell, coeffs2p::Array{SpinAngular.Coefficient2p,1},
+                                    bVectors::Dict{Subshell, Vector{Float64}}, primitives::Bsplines.Primitives,
+                                    tensorCaches::Dict{Int64, NTuple{3,RadialIntegrals.SlaterMomentCacheClaude}})
+    nsL     = primitives.grid.nsL;        nsS = primitives.grid.nsS
+    matrixV = zeros( nsL+nsS, nsL+nsS )
+    partnerOrbitals = Dict{Subshell, Orbital}()
+    partnerCVectors = Dict{Subshell, Vector{Float64}}()
+
+    for  cf  in  coeffs2p
+        if      subshell == cf.a  &&  subshell == cf.b  &&  subshell == cf.c  &&  subshell == cf.d
+            partner = subshell;   pattern = :diagonal
+        elseif  subshell == cf.a  &&  subshell == cf.c  &&  cf.b == cf.d
+            partner = cf.b;       pattern = :direct
+        elseif  subshell == cf.a  &&  subshell == cf.d  &&  cf.b == cf.c
+            partner = cf.b;       pattern = :exchange
+        elseif  subshell == cf.b  &&  subshell == cf.d  &&  cf.a == cf.c
+            partner = cf.a;       pattern = :direct
+        elseif  subshell == cf.b  &&  subshell == cf.c  &&  cf.a == cf.d
+            partner = cf.a;       pattern = :exchange
+        else
+            continue
+        end
+        # NOTE (26-Jul-2026): a previous `iseven(subshell_l + partner_l + cf.nu)` filter here, intended to
+        # drop Breit-only coefficients, was REMOVED -- it used the parity of two unrelated orbitals' l-values
+        # plus nu, which is not a real Breit/Coulomb selection rule and was silently discarding legitimate
+        # direct (nu=0) Coulomb terms between different-l shells (e.g. 1s-2p, 2s-2p). This is why Ne/Ar were
+        # wrong while He/Be (pure s-shells, where the bogus filter never triggered) validated fine. coeffs2p
+        # here comes from Basics.ALField()'s own (Coulomb-only) angular coefficients, so no Breit terms are
+        # present to filter in the first place. Confirmed: summing ALL entries reproduces Ne's literature
+        # total energy to ~3e-3 Ha (residual consistent with import precision), vs -157.6 Ha when filtered.
+
+        partnerOrb = get!(partnerOrbitals, partner) do
+            Bsplines.generateOrbitalFromVectorClaude(partner, 0.0, bVectors[partner], primitives)
+        end
+
+        if      pattern == :diagonal
+            matrixV = matrixV + 2 * cf.V *
+                      InteractionStrength.XL_CoulombClaude(cf.nu, subshell, partnerOrb, subshell, partnerOrb, primitives)
+        elseif  pattern == :direct
+            matrixV = matrixV + cf.V *
+                      InteractionStrength.XL_CoulombClaude(cf.nu, subshell, partnerOrb, subshell, partnerOrb, primitives)
+        else    # :exchange
+            # partnerOrb was built by Bsplines.generateOrbitalFromVectorClaude, which silently canonicalizes its
+            # sign so that P is positive at small r (see that function's `wSign` step) -- a convention applied
+            # to the TABULATED reconstruction only, never fed back into bVectors[partner] itself. Whenever that
+            # canonicalization actually flips the sign, partnerOrb and the raw bVectors[partner] end up
+            # oppositely signed, even though XL_CoulombTensorClaude's "b"/"c" arguments (from partnerOrb) and its
+            # "cVector" argument (from bVectors[partner]) are meant to represent the identical orbital -- an odd
+            # total power of partner's sign then leaks into the exchange matrix element (confirmed empirically
+            # this session: exchange terms flip sign in exact lockstep with this mismatch, while diagonal/direct
+            # terms -- which only ever use partnerOrb, an even number of times -- stay sign-invariant as they
+            # should). Fix: mirror generateOrbitalFromVectorClaude's own small-r wSign test on the raw bVector,
+            # and pass a sign-matched cVector so it always agrees with partnerOrb's canonical sign.
+            cVector = get!(partnerCVectors, partner) do
+                bV      = bVectors[partner]
+                wSign   = 0.0
+                for  i = 1:nsL
+                    Bi    = primitives.bsplinesL[i];   add = 1 - Bi.lower
+                    for  j = Bi.lower:min(Bi.upper,30)   wSign = wSign + bV[i] * Bi.bs[j+add]   end
+                end
+                wSign < 0.  ?  -bV  :  bV
+            end
+            (cacheLL, cacheLS, cacheSS) = tensorCaches[cf.nu]
+            matrixV = matrixV + cf.V *
+                      InteractionStrength.XL_CoulombTensorClaude(cf.nu, subshell, partnerOrb, partnerOrb,
+                                                                  cVector, subshell,
+                                                                  cacheLL, cacheLS, cacheSS, primitives)
+        end
+    end
+
+    return( matrixV )
+end
+
+
+"""
+`SelfConsistent.computeFockMatrixClaude2(subshell::Subshell, coeffs2p::Array{SpinAngular.Coefficient2p,1},
+                                         bVectors::Dict{Subshell, Vector{Float64}}, primitives::Bsplines.Primitives,
+                                         nucPot::Radial.Potential, storage::Dict{String,Array{Float64,2}},
+                                         occ::Float64, tensorCaches::Dict{Int64, NTuple{3,RadialIntegrals.SlaterMomentCacheClaude}})`
+    ... computes the full per-subshell Hamiltonian matrix (one-electron + direct + exchange), matching the
+        role of DBSR_HF's hf_matrix.f90: Bsplines.setupLocalMatrix provides the one-electron (kinetic +
+        nuclear + rest-mass) block natively in B-spline basis (reused unchanged), and
+        computeTwoElectronVClaude2 provides the two-electron block, divided by the subshell's own mean
+        occupation -- algebraically identical to DBSR_HF's own hfm=qsum(i)*dhl (one-electron scaled up)
+        followed by hfm=hfm/qsum(i) (whole matrix scaled down) once expanded, given the two-electron
+        coefficients already carry their full (not per-electron) occupation weighting (verified this
+        session against the DBSR_HF av_energy_coef reference for all of Ne's coefficients). Isolated from
+        computeDirectExchangeVClaude; only used by the ALFieldClaude2 code line. A (nsL+nsS) x (nsL+nsS)
+        matrix::Array{Float64,2} is returned.
+"""
+function computeFockMatrixClaude2(subshell::Subshell, coeffs2p::Array{SpinAngular.Coefficient2p,1},
+                                  bVectors::Dict{Subshell, Vector{Float64}}, primitives::Bsplines.Primitives,
+                                  nucPot::Radial.Potential, storage::Dict{String,Array{Float64,2}},
+                                  occ::Float64, tensorCaches::Dict{Int64, NTuple{3,RadialIntegrals.SlaterMomentCacheClaude}})
+    matrix  = Bsplines.setupLocalMatrix(subshell.kappa, primitives, nucPot, storage)
+    matrixV = computeTwoElectronVClaude2(subshell, coeffs2p, bVectors, primitives, tensorCaches)
+    return( matrix + (1.0/occ) * matrixV )
+end
+
+
+"""
+`SelfConsistent.solveAverageLevelFieldClaude2(basis::Basis, nuclearModel::Nuclear.Model, primitives::Bsplines.Primitives,
+                                              settings::AsfSettings; printout::Bool=true)`
+    ... solves the same average-level (AL) self-consistent field as solveAverageLevelField/
+        solveAverageLevelFieldClaude, but with a bVector-native architecture modeled directly on DBSR_HF
+        (Zatsarinny & Froese Fischer, CPC 202, 287 (2016)): B-spline expansion coefficients
+        (Dict{Subshell,Vector{Float64}}) are the SOLE, canonical, persistent per-iteration orbital state --
+        no Dict{Subshell,Orbital} is maintained across iterations at all, and there is no
+        Bsplines.fitVectorToPrimitivesClaude "fit back" step, since bVectors are never derived from a
+        tabulated form to begin with; they come directly from Basics.diagonalize's eigenvector for each
+        subshell, in turn. Orthogonality between same-kappa subshells (e.g. Ne's 1s/2s) is enforced by
+        projecting the Fock matrix (Hamiltonian.projectHamiltonian, reused unchanged) against each
+        ALREADY-PROCESSED lower same-kappa subshell's bVector directly inside the generalized eigenvalue
+        problem, before diagonalizing -- matching DBSR_HF's hf_solve_HF.f90/hf_eiv sequential approach --
+        rather than solveAverageLevelFieldClaude's post-hoc Löwdin symmetric orthogonalization of the whole
+        same-kappa group after the per-orbital loop. The target eigenvalue index is shifted down by one for
+        each such projection applied, mirroring hf_eiv's `mm = m + (orthogonalized-count) - 1`. A tabulated
+        Orbital is only ever built as a disposable, read-only byproduct: once per unique "partner" subshell
+        inside computeTwoElectronVClaude2 (for the two-electron potential contraction), and once per
+        subshell per iteration purely for reporting/energy-functional evaluation (reusing
+        computeFunctionalClaude unchanged) -- never stored as competing state, never refit. A final,
+        single export pass (Bsplines.generateOrbitalFromVectorClaude) produces a standard
+        Dict{Subshell,Orbital} for the returned basis::Basis, so every downstream consumer (properties,
+        processes, CI/DCB Hamiltonian construction) is unaffected by this being a bVector-native SCF.
+        Isolated from solveAverageLevelField/solveAverageLevelFieldClaude; only reached via performSCF's
+        scField = Basics.ALFieldClaude2() dispatch. A (new) basis::Basis is returned.
+"""
+function solveAverageLevelFieldClaude2(basis::Basis, nuclearModel::Nuclear.Model, primitives::Bsplines.Primitives,
+                                       settings::AsfSettings; printout::Bool=true)
+    nsL = primitives.grid.nsL;    nsS = primitives.grid.nsS;    grid = primitives.grid
+
+    # (1) Initialize storage and important arrays; determine nuclear potential and mean occupation once
+    if  printout    println(">> [Claude2] (Re-) Define a storage array for dealing with single-electron TTp B-spline matrices:")    end
+    storage = Dict{String,Array{Float64,2}}()
+    matrixB = zeros( nsL+nsS, nsL+nsS )
+    matrixB[1:nsL,1:nsL]                 = Bsplines.generateTTpMatrix!("LL-overlap", 0, primitives, storage)
+    matrixB[nsL+1:nsL+nsS,nsL+1:nsL+nsS] = Bsplines.generateTTpMatrix!("SS-overlap", 0, primitives, storage)
+
+    nucPot  = Nuclear.nuclearPotential(nuclearModel, primitives.grid)
+    meanOcc = Basics.extractMeanOccupation(basis)
+
+    # bVectors is the SOLE canonical orbital state from here on; initialized once from the starting
+    # (hydrogenic) guess, then updated ONLY from diagonalization, never re-fit from a tabulated form.
+    bVectors = Dict{Subshell, Vector{Float64}}()
+    energies = Dict{Subshell, Float64}()
+    for  sh  in  basis.subshells
+        bVectors[sh] = Bsplines.fitVectorToPrimitivesClaude(basis.orbitals[sh], primitives, matrixB)
+        energies[sh] = basis.orbitals[sh].energy
+    end
+
+    # (2) Generate angular coefficients (unaffected by the kink fix / bVector-native rebuild; ALField()
+    # is called directly, exactly as solveAverageLevelFieldClaude already does)
+    (coeffs1p, coeffs2p) = SelfConsistent.computeAngularCoefficients(Basics.ALField(), basis)
+
+    # (3) Precompute kink-aware Slater-moment tensor caches for every rank that occurs, exactly as
+    # solveAverageLevelFieldClaude does; only the exchange branches of computeTwoElectronVClaude2 use them
+    neededRanks = unique( [ cf.nu for cf in coeffs2p ] )
+    if  printout    println(">> [Claude2] Precompute kink-aware Slater-moment tensor caches for ranks $(neededRanks) ...")    end
+    tensorCaches = Dict{Int64, NTuple{3,RadialIntegrals.SlaterMomentCacheClaude}}()
+    for  L  in  neededRanks
+        cacheLL = RadialIntegrals.buildSlaterMomentCacheClaude(L, primitives.bsplinesL, primitives.bsplinesL, grid; rtol=1.0e-6)
+        cacheLS = RadialIntegrals.buildSlaterMomentCacheClaude(L, primitives.bsplinesL, primitives.bsplinesS, grid; rtol=1.0e-6)
+        cacheSS = RadialIntegrals.buildSlaterMomentCacheClaude(L, primitives.bsplinesS, primitives.bsplinesS, grid; rtol=1.0e-6)
+        tensorCaches[L] = (cacheLL, cacheLS, cacheSS)
+    end
+
+    orbitals = Dict{Subshell, Orbital}()    # only ever a disposable, per-iteration reporting byproduct
+
+    for  iter = 1:settings.maxIterationsScf
+        println("\n> SCF interation $(iter) [Claude2]: ")
+        newBVectors = Dict{Subshell, Vector{Float64}}();    newEnergies = Dict{Subshell, Float64}()
+        processedBVectors = Dict{Subshell, Vector{Float64}}()
+        dpm = Dict{Subshell, Float64}()
+
+        for  subshell  in  basis.subshells
+            occ = meanOcc[subshell]
+            print(">> Refine $subshell orbital with mean occ = $occ ... ")
+
+            matrix = SelfConsistent.computeFockMatrixClaude2(subshell, coeffs2p, bVectors, primitives, nucPot,
+                                                              storage, occ, tensorCaches)
+
+            # Orthogonality: project against every ALREADY-PROCESSED lower same-kappa subshell's bVector,
+            # directly inside the eigenvalue problem (DBSR_HF hf_eiv style), not post-hoc.
+            count = Base.count( sh2 -> sh2.kappa == subshell.kappa, keys(processedBVectors) )
+            if  count > 0
+                matrix = Hamiltonian.projectHamiltonian(subshell, matrix, matrixB, processedBVectors)
+            end
+
+            wc = Basics.diagonalize(GeneralizedEigenvaluesWithLinearAlgebra(), matrix, matrixB)
+            l  = Basics.subshell_l(subshell)
+            ni = nsS + subshell.n - l - count
+            rawVector  = wc.vectors[ni];    newEnergy = wc.values[ni]
+
+            # Damping (26-Jul-2026): sequential (Jacobi-style) per-orbital refinement combined with the
+            # in-matrix orthogonality projection above reproduces the period-2 SCF oscillation already
+            # documented for this projector when applied one-subshell-at-a-time (see memory
+            # project_df_al_kink_bug.md) -- the projection formula implicitly assumes same-kappa orbitals
+            # are varied simultaneously. Standard fix: linear mixing of the new and previous bVector before
+            # acceptance (a common SCF damping technique), aligning sign in the B-metric first since a
+            # generalized eigensolver may return either sign for an eigenvector.
+            oldVector = bVectors[subshell]
+            if  transpose(oldVector) * matrixB * rawVector < 0    rawVector = -rawVector    end
+            damping = 0.5
+            mixed     = damping * oldVector + (1.0 - damping) * rawVector
+            newVector = mixed / sqrt( transpose(mixed) * matrixB * mixed )
+
+            newBVectors[subshell]       = newVector
+            newEnergies[subshell]       = newEnergy
+            processedBVectors[subshell] = newVector
+
+            oldVector = bVectors[subshell]
+            ovlap     = abs( transpose(oldVector) * matrixB * newVector )
+            dpm[subshell] = 1.0 - ovlap
+            println("     overlap = $ovlap   acc = $(1.0 - ovlap)  ... ")
+        end
+
+        # Disposable, read-only tabulation for reporting/energy purposes only -- never refit, never stored
+        # as persistent state; rebuilt fresh from newBVectors/newEnergies every iteration.
+        newOrbitals = Dict{Subshell, Orbital}()
+        for  sh  in  basis.subshells
+            newOrbitals[sh] = Bsplines.generateOrbitalFromVectorClaude(sh, newEnergies[sh], newBVectors[sh], primitives)
+        end
+        eFunctional = SelfConsistent.computeFunctionalClaude(coeffs1p, coeffs2p, newOrbitals, grid, nucPot)
+        orbitalConv = maximum( values(dpm) ) < 1.0 ? 1.0 - maximum( values(dpm) ) : 0.0
+
+        println(">> Total energy = $(eFunctional*1)   orbital-conv = $orbitalConv   orbital-acc = $(1.0 - orbitalConv)")
+
+        bVectors = newBVectors;    energies = newEnergies;    orbitals = newOrbitals
+        if  abs(1.0 - orbitalConv) < settings.accuracyScf    break   end
+    end
+
+    newBasis = Basis(true, basis.NoElectrons, basis.subshells, basis.csfs, basis.coreSubshells, orbitals)
+    return( newBasis )
+end
+
+
 function normX(sa::String, matrix::Array{Float64,2})
     absD = absND = 0.
     for  i = 1:size(matrix,1)                    absD  = absD  + abs(matrix[i,i])   

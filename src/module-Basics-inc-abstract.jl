@@ -1961,8 +1961,20 @@ export AbstractQuantizationAxis, DefaultQuantizationAxis, StaticQuantizationAxis
 `abstract type Basics.AbstractScField` 
     ... defines an abstract and a number of singleton types to distinguish between different self-consistent fields
 
-    + struct ALField          ... to represent an average-level field.        
-    + struct EOLField         ... to represent an (extended) optimized-level field.        
+    + struct ALField          ... to represent an average-level field.
+    + struct ALFieldClaude    ... an alternative average-level field, isolated from ALField, that uses a
+                                  kink-aware (spline + split adaptive quadrature) two-electron Slater integral
+                                  in place of the naive tensor-product Gauss-Legendre one; see
+                                  SelfConsistent.solveAverageLevelFieldClaude. Does not affect ALField or any
+                                  other scField in any way.
+    + struct ALFieldClaude2   ... a second alternative average-level field, isolated from both ALField and
+                                  ALFieldClaude, built natively around B-spline expansion coefficient vectors
+                                  (no tabulated Orbital maintained during the SCF iteration at all) and an
+                                  in-matrix orthogonality projection modeled directly on DBSR_HF
+                                  (Zatsarinny & Froese Fischer, CPC 202, 287 (2016)); see
+                                  SelfConsistent.solveAverageLevelFieldClaude2. Does not affect ALField,
+                                  ALFieldClaude, or any other scField in any way.
+    + struct EOLField         ... to represent an (extended) optimized-level field.
     + struct DFSField         ... to represent an mean Dirac-Fock-Slater field.        
     + struct DFSwCPField      ... to represent an mean Dirac-Fock-Slater with core-polarization field.        
     + struct HSField          ... to represent an mean Hartree-Slater field.        
@@ -1974,6 +1986,8 @@ export AbstractQuantizationAxis, DefaultQuantizationAxis, StaticQuantizationAxis
 """
 abstract type  AbstractScField                          end
 struct     ALField              <:  AbstractScField     end
+struct     ALFieldClaude        <:  AbstractScField     end
+struct     ALFieldClaude2       <:  AbstractScField     end
 struct     EOLField             <:  AbstractScField     end
 struct     HSField              <:  AbstractScField     end
 struct     EHField              <:  AbstractScField     end
@@ -2011,7 +2025,7 @@ struct     DFSwCPField          <:  AbstractScField
     corePolarization    ::CorePolarization
 end
 
-export  AbstractScField, AaDFSField, AaHSField, ALField, EOLField, DFSField, DFSwCPField, HSField, NuclearField
+export  AbstractScField, AaDFSField, AaHSField, ALField, ALFieldClaude, ALFieldClaude2, EOLField, DFSField, DFSwCPField, HSField, NuclearField
 
 #################################################################################################################################
 #################################################################################################################################

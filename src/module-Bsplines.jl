@@ -213,8 +213,57 @@ function extractVectorFromPrimitives(sh::Subshell, wc::Basics.Eigen, primitives:
     nsL = primitives.grid.nsL;     nsS = primitives.grid.nsS
     l   = Basics.subshell_l(sh);   ni = nsS + sh.n - l;          if   sh.kappa > 0   ni = ni + 1 - 1  end
     vector = wc.vectors[ni];       if  length(vector) != nsL + nsS    error("stop a")                 end
-    
-    return( vector )   
+
+    return( vector )
+end
+
+
+"""
+`Bsplines.fitVectorToPrimitivesClaude(orb::Radial.Orbital, primitives::Bsplines.Primitives, matrixB::Array{Float64,2})`
+    ... projects the (already CLEANED/truncated) tabulated orbital orb onto the B-spline primitives basis via
+        the standard Galerkin/least-squares projection matrixB * p = rhs, rhs[i] = <B_i|orb.P-or-Q>, using the
+        existing grid quadrature. Unlike Bsplines.extractVectorFromPrimitives -- which pulls the RAW
+        diagonalization eigenvector, exactly reproducing the UNCLEANED tabulated function from BEFORE
+        generateOrbitalFromPrimitives' own truncation-at-mtp and small-value cleanup are applied -- this
+        function GUARANTEES the returned coefficient vector is fully self-consistent with orb's OWN (already
+        cleaned) tabulated P, Q arrays, inheriting orb's own well-defined truncation instead of carrying whatever
+        small numerical noise the raw eigenvector's tail coefficients happen to have.
+        This matters wherever B-spline expansion coefficients are themselves summed/weighted directly, rather
+        than only ever used to reconstruct one smooth tabulated function -- such sums do not automatically
+        benefit from the cancellation that evaluating a single, already-cleaned tabulated function enjoys. See
+        InteractionStrength.XL_CoulombTensorClaude and SelfConsistent.solveAverageLevelFieldClaude, where using
+        the raw eigenvector instead of this projection was traced to a real, non-negligible SCF discrepancy.
+        The returned vector is explicitly re-normalized so that v'*matrixB*v = 1 EXACTLY (to floating-point
+        precision), rather than trusting the least-squares fit to land there on its own -- Hamiltonian.
+        projectHamiltonian's projection operator (I - S*bb') is only truly idempotent for an exactly
+        S-normalized b; feeding it a vector off by even a small residual leaves the "projection" not quite a
+        projection, which compounds under repeated application across SCF iterations.
+        A vector::Vector{Float64}, of length nsL+nsS, is returned.
+"""
+function fitVectorToPrimitivesClaude(orb::Radial.Orbital, primitives::Bsplines.Primitives, matrixB::Array{Float64,2})
+    nsL = primitives.grid.nsL;   nsS = primitives.grid.nsS;   grid = primitives.grid
+    rhs = zeros(nsL+nsS)
+
+    for  i = 1:nsL
+        Bi = primitives.bsplinesL[i]
+        Pi = zeros(Bi.upper);   add = 1 - Bi.lower
+        for  j = Bi.lower:Bi.upper   Pi[j] = Pi[j] + Bi.bs[j+add]   end
+        mtp = min(length(Pi), length(orb.P))
+        s   = 0.;   for  r = 2:mtp   s = s + Pi[r] * orb.P[r] * grid.wr[r]   end
+        rhs[i] = s
+    end
+    for  i = 1:nsS
+        Bi = primitives.bsplinesS[i]
+        Qi = zeros(Bi.upper);   add = 1 - Bi.lower
+        for  j = Bi.lower:Bi.upper   Qi[j] = Qi[j] + Bi.bs[j+add]   end
+        mtp = min(length(Qi), length(orb.Q))
+        s   = 0.;   for  r = 2:mtp   s = s + Qi[r] * orb.Q[r] * grid.wr[r]   end
+        rhs[nsL+i] = s
+    end
+
+    vector = matrixB \ rhs
+    norm2  = transpose(vector) * matrixB * vector
+    return( vector / sqrt(norm2) )
 end
 
 
@@ -271,8 +320,63 @@ end
 
 
 """
-`Bsplines.generateOrbitalFromPrimitives(sh::Subshell, energy::Float64, mtp::Int64, ev::Array{Float64,1}, primitives::Bsplines.Primitives)`  
-    ... generates the large and small components of a (relativistic) orbital for the subshell sh from the given primitives and the 
+`Bsplines.generateOrbitalFromVectorClaude(sh::Subshell, energy::Float64, vector::Vector{Float64},
+                                          primitives::Bsplines.Primitives)`
+    ... generates a (normalized, cleaned) tabulated orbital directly from a given B-spline expansion coefficient
+        vector, rather than from an eigenvector INDEXED out of a Basics.Eigen (as
+        Bsplines.generateOrbitalFromPrimitives(sh,wc,primitives) requires). This is needed whenever the vector in
+        hand is not literally an eigenvector of anything -- e.g. after SelfConsistent.
+        orthonormalizeSameKappaClaude's Loewdin symmetric orthogonalization, which produces a LINEAR COMBINATION
+        of eigenvectors that is itself not an eigenvector of the original problem.
+        Reproduces generateOrbitalFromPrimitives(sh,wc,primitives)'s own reconstruction exactly (auto-detects
+        mtp from where the density drops below 1e-13, zeros values below 1e-10, fixes the sign convention so the
+        large component starts positive, and renormalizes to unit norm in the grid quadrature) -- just without
+        the wc/ni lookup indirection.
+        A (normalized) orbital::Orbital is returned.
+"""
+function generateOrbitalFromVectorClaude(sh::Subshell, energy::Float64, vector::Vector{Float64}, primitives::Bsplines.Primitives)
+    nsL = primitives.grid.nsL;    nsS = primitives.grid.nsS
+    if  length(vector) != nsL + nsS    error("stop a")    end
+
+    P = zeros(primitives.grid.NoPoints);    Pprime = zeros(primitives.grid.NoPoints)
+    Q = zeros(primitives.grid.NoPoints);    Qprime = zeros(primitives.grid.NoPoints)
+    for  i = 1:nsL
+        lower = primitives.bsplinesL[i].lower;   upper = primitives.bsplinesL[i].upper;   add = 1 - primitives.bsplinesL[i].lower
+        for  j = lower:upper  P[j]      = P[j] + vector[i] * primitives.bsplinesL[i].bs[j+add]           end
+        for  j = lower:upper  Pprime[j] = Pprime[j] + vector[i] * primitives.bsplinesL[i].bp[j+add]      end
+    end
+    for  i = 1:nsS
+        lower = primitives.bsplinesS[i].lower;   upper = primitives.bsplinesS[i].upper;   add = 1 - primitives.bsplinesS[i].lower
+        for  j = lower:upper  Q[j]      = Q[j] + vector[nsL+i] * primitives.bsplinesS[i].bs[j+add]       end
+        for  j = lower:upper  Qprime[j] = Qprime[j] + vector[nsL+i] * primitives.bsplinesS[i].bp[j+add]  end
+    end
+
+    mtp = 0;   for j = primitives.grid.NoPoints:-1:1    if  abs(P[j])^2 + abs(Q[j])^2 > 1.0e-13   mtp = j;   break   end     end
+
+    Px = zeros(mtp);    Px[1:mtp] = P[1:mtp];    Pprimex = zeros(mtp);    Pprimex[1:mtp] = Pprime[1:mtp]
+    Qx = zeros(mtp);    Qx[1:mtp] = Q[1:mtp];    Qprimex = zeros(mtp);    Qprimex[1:mtp] = Qprime[1:mtp]
+    for  j = 1:mtp      if  abs(Px[j])      < 1.0e-10    Px[j] = 0.       end
+                        if  abs(Qx[j])      < 1.0e-10    Qx[j] = 0.       end
+                        if  abs(Pprimex[j]) < 1.0e-10    Pprimex[j] = 0.  end
+                        if  abs(Qprimex[j]) < 1.0e-10    Qprimex[j] = 0.  end      end
+
+    wSign = sum( Px[1:min(30,mtp)] )
+    if  wSign < 0.   Px[1:mtp] = -Px[1:mtp];   Pprimex[1:mtp] = -Pprimex[1:mtp]
+                     Qx[1:mtp] = -Qx[1:mtp];   Qprimex[1:mtp] = -Qprimex[1:mtp]   end
+
+    orbital = Orbital(sh, true, true, energy, Px, Qx, Pprimex, Qprimex, Radial.Grid())
+
+    wN        = sqrt( JenaAtomicCalculator.RadialIntegrals.overlap(orbital, orbital, primitives.grid) )
+    Px[1:mtp] = Px[1:mtp] / wN;    Pprimex[1:mtp] = Pprimex[1:mtp] / wN
+    Qx[1:mtp] = Qx[1:mtp] / wN;    Qprimex[1:mtp] = Qprimex[1:mtp] / wN
+
+    return( Orbital(sh, true, true, energy, Px, Qx, Pprimex, Qprimex, Radial.Grid()) )
+end
+
+
+"""
+`Bsplines.generateOrbitalFromPrimitives(sh::Subshell, energy::Float64, mtp::Int64, ev::Array{Float64,1}, primitives::Bsplines.Primitives)`
+    ... generates the large and small components of a (relativistic) orbital for the subshell sh from the given primitives and the
         eigenvector ev. A (non-normalized) orbital::Orbital is returned.
 """
 function generateOrbitalFromPrimitives(sh::Subshell, energy::Float64, mtp::Int64, ev::Array{Float64,1}, primitives::Bsplines.Primitives)
