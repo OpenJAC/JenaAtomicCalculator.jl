@@ -454,7 +454,13 @@ end
 """
 `Basics.diagonalize(::MatrixWithLinearAlgebra, matrixA::Array{Float64,2}; range=(0:0)::UnitRange{Int64})`
     ... applies LinearAlgebra.eigen() to the symmetric matrix matrixA; only the upper-triangular part is used
-        by an explicit symmetrization; an eigen::Basics.Eigen is returned.
+        by an explicit symmetrization; an eigen::Basics.Eigen is returned. For a non-default range (e.g.
+        1:3 for the three lowest eigenpairs), LinearAlgebra.eigen(mA, range) dispatches to LAPACK's partial
+        eigensolver (syevr), which is genuinely faster than a full diagonalization when only a few eigenpairs
+        are wanted out of a large matrix (confirmed 28-Jul-2026: ~2-4x for a few eigenpairs out of a few
+        hundred, growing with matrix size, shrinking as more eigenpairs are requested) -- NOT used by
+        Hamiltonian.performCI/performCIClaude today (both always call the range=(0:0), full-diagonalization
+        form), so this speedup is not yet realized in the CI pipeline.
 """
 function Basics.diagonalize(::MatrixWithLinearAlgebra, matrixA::Array{Float64,2}; range=(0:0)::UnitRange{Int64})
     mA = LinearAlgebra.Symmetric(matrixA)
@@ -464,7 +470,14 @@ function Basics.diagonalize(::MatrixWithLinearAlgebra, matrixA::Array{Float64,2}
         for  i = 0:d-1    push!(vectors, wb[i*d+1:i*d+d])    end
     else
         wa = LinearAlgebra.eigen( mA, range )
-        vectors = Vector{Float64}[];    for  i = range   push!( vectors, wa.vectors[:,1] )   end
+        # Fix (28-Jul-2026): wa.vectors from a range-restricted eigen() has columns 1:length(range), NOT
+        # columns indexed by the ORIGINAL range values -- e.g. for range=5:7, wa.vectors has only 3 columns
+        # (1,2,3), corresponding to original indices 5,6,7 respectively. The previous code iterated `for i =
+        # range` but always pushed column 1 (`wa.vectors[:,1]`) regardless of i, so every "eigenvector"
+        # returned for a partial range was silently identical (the first one) -- eigenvalues were correct,
+        # eigenvectors were not. Confirmed via a live test (4x4 matrix, range=1:2: both returned "vectors"
+        # were bit-identical) before this fix. Now iterates the LOCAL column index instead.
+        vectors = Vector{Float64}[];    for  k = 1:length(range)   push!( vectors, wa.vectors[:,k] )   end
     end
 
     return( Basics.Eigen( wa.values, vectors ) )

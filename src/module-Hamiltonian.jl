@@ -6,8 +6,46 @@
 """
 module Hamiltonian
 
-using  Printf, ..Basics, ..Bsplines, ..Defaults, ..InteractionStrength, ..ManyElectron, ..Nuclear, ..Radial, 
+using  Printf, ..Basics, ..Bsplines, ..Defaults, ..InteractionStrength, ..ManyElectron, ..Nuclear, ..Radial,
        ..RadialIntegrals, ..SpinAngular
+
+
+"""
+`Hamiltonian.CI_PARTIAL_DIAG_MIN_DIM`
+    ... minimum symmetry-block CI matrix dimension above which Hamiltonian.diagonalizeCiMatrix considers a
+        partial (LAPACK syevr-based) diagonalization instead of a full one, when settings.levelSelectionCI
+        allows it (see diagonalizeCiMatrix). Below this size, the partial solver's own overhead can make it
+        slightly SLOWER than a full diagonalization (confirmed 28-Jul-2026: dense random matrices showed a
+        clean, monotonic crossover between not-worth-it and worth-it around n=10-20, with ~1.5x+ speedup
+        comfortably established by n=20); chosen as a round, conservative value with margin above that
+        crossover, not a hard-measured optimum.
+"""
+const  CI_PARTIAL_DIAG_MIN_DIM = 20
+
+
+"""
+`Hamiltonian.diagonalizeCiMatrix(matrix::Array{Float64,2}, levelSelectionCI::LevelSelection)`
+    ... diagonalizes a single symmetry-block CI matrix, automatically choosing between a full and a partial
+        (LAPACK syevr-based, via Basics.diagonalize's range keyword) diagonalization. Partial diagonalization
+        is used only when levelSelectionCI selects a bounded set of global level INDICES (never symmetries --
+        those already keep only whole, fully-wanted blocks via Basics.selectSymmetry, so there is no partial-
+        eigenpair opportunity within a kept block) and the matrix is at least CI_PARTIAL_DIAG_MIN_DIM large.
+        When used, only the lowest min(n, maximum(levelSelectionCI.indices)) eigenpairs are requested -- this
+        is always sufficient and safe: the GLOBAL (energy-sorted, merged-across-blocks) rank of any level can
+        never be smaller than its own LOCAL (within-block) rank, so if a level's global index is
+        <= maximum(indices), its local index must be too; the true global top-`maximum(indices)` levels are
+        therefore guaranteed to survive in the collected per-block partial spectra before the final
+        merge-and-sort in performCI/performCIClaude. An  eigen::Basics.Eigen  is returned.
+"""
+function diagonalizeCiMatrix(matrix::Array{Float64,2}, levelSelectionCI::LevelSelection)
+    n = size(matrix, 1)
+    if  levelSelectionCI.active  &&  !isempty(levelSelectionCI.indices)  &&  n >= CI_PARTIAL_DIAG_MIN_DIM
+        k = min(n, maximum(levelSelectionCI.indices))
+        return( Basics.diagonalize(MatrixWithLinearAlgebra(), matrix; range=1:k) )
+    else
+        return( Basics.diagonalize(MatrixWithLinearAlgebra(), matrix) )
+    end
+end
 
 
 """
@@ -70,8 +108,8 @@ function performCI(basis::Basis, nm::Nuclear.Model, grid::Radial.Grid, settings:
         # Skip the symmetry block if it not selected
         if  !Basics.selectSymmetry(sym, settings.levelSelectionCI)     continue    end
         matrix = Hamiltonian.setupMatrix(sym, basis, nm, grid, settings; printout=printout)
-        eigen  = Basics.diagonalize(MatrixWithLinearAlgebra(), matrix)
-        
+        eigen  = Hamiltonian.diagonalizeCiMatrix(matrix, settings.levelSelectionCI)
+
         # Reassign state vectors to levels
         levels = Level[]
         for  ev = 1:length(eigen.values)
@@ -249,9 +287,16 @@ function setupMatrix(sym::LevelSymmetry, basis::Basis, nm::Nuclear.Model, grid::
     # note. Resetting once per BLOCK here would discard cross-block-shared integrals (the same subshell
     # combination very often recurs across different symmetry blocks) for no benefit, since the cache key
     # never depends on which block is being built.
+    #
+    # Hermitian-symmetry shortcut (28-Jul-2026): only the UPPER triangle (r<=s) is ever computed below. This
+    # is not merely safe but exact -- Basics.diagonalize(MatrixWithLinearAlgebra(),...) wraps this matrix in
+    # LinearAlgebra.Symmetric(matrix), whose DEFAULT uplo=:U already reads ONLY the upper triangle and
+    # completely ignores the lower one (confirmed: Symmetric([1 2 3; 999 5 6; 999 999 9]) == the honest
+    # symmetric matrix, garbage lower-left included) -- so the lower triangle was always discarded even
+    # before this change; no mirroring step is needed, only skipping the redundant r>s work.
     matrix = zeros(Float64, n, n);      keep = true
     for  r = 1:n
-        for  s = 1:n
+        for  s = r:n
             if  settings.eeInteractionCI == DiagonalCoulomb()  &&  r != s    continue    end
             # Calculate the spin-angular coefficients
             subshellList = basis.subshells
@@ -332,7 +377,7 @@ function performCIClaude(basis::Basis, nm::Nuclear.Model, grid::Radial.Grid, set
         # Skip the symmetry block if it not selected
         if  !Basics.selectSymmetry(sym, settings.levelSelectionCI)     continue    end
         matrix = Hamiltonian.setupMatrixClaude(sym, basis, nm, grid, settings; printout=printout)
-        eigen  = Basics.diagonalize(MatrixWithLinearAlgebra(), matrix)
+        eigen  = Hamiltonian.diagonalizeCiMatrix(matrix, settings.levelSelectionCI)
 
         # Reassign state vectors to levels
         levels = Level[]
@@ -399,9 +444,13 @@ function setupMatrixClaude(sym::LevelSymmetry, basis::Basis, nm::Nuclear.Model, 
     # Compute the Coulomb-(Breit-) interaction matrix. NOTE (28-Jul-2026): the radial-integral cache
     # reset/lifetime is owned by the CALLER (Hamiltonian.performCIClaude), not here -- identical reasoning to
     # setupMatrix's own note.
+    #
+    # Hermitian-symmetry shortcut (28-Jul-2026): only the UPPER triangle (r<=s) is ever computed below --
+    # see setupMatrix's identical note for why this is exact, not just safe (Symmetric(matrix)'s default
+    # uplo=:U already discards the lower triangle in Basics.diagonalize).
     matrix = zeros(Float64, n, n);      keep = true
     for  r = 1:n
-        for  s = 1:n
+        for  s = r:n
             if  settings.eeInteractionCI == DiagonalCoulomb()  &&  r != s    continue    end
             # Calculate the spin-angular coefficients
             subshellList = basis.subshells

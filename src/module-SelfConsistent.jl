@@ -137,9 +137,14 @@ function buildCIMatrixEOL(idxCsf::Array{Int64,1}, cache1p, cache2p, orbitals::Di
     # per (r,s) occurrence. Pass the SAME cache Dicts in across every block diagonalized within one outer
     # iteration (they also depend only on the current orbitals, not on which block/CSF-pair references them);
     # a fresh empty cache per call (the default) is still correct, just without the cross-block reuse.
+    #
+    # Hermitian-symmetry shortcut (28-Jul-2026): only the UPPER triangle (r<=s) is computed -- exact, not
+    # just safe, since this matrix feeds diagonalizeBlockEOL -> Basics.diagonalize(MatrixWithLinearAlgebra(),
+    # ...), whose Symmetric(matrix) wrapper (default uplo=:U) already discards the lower triangle. See
+    # Hamiltonian.setupMatrix's identical note for the confirming test.
     n = length(idxCsf);   matrix = zeros(Float64, n, n)
     for  r = 1:n
-        for  s = 1:n
+        for  s = r:n
             me = 0.
             for  cf in cache1p[(r,s)]
                 I_ab = get!(radial1pCache, (cf.a,cf.b)) do
