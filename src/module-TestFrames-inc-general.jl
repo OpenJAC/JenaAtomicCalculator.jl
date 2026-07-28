@@ -409,29 +409,24 @@ function testRepresentation_RasExpansion(; short::Bool=true)
     success = true
     printTest, iostream = Defaults.getDefaults("test flag/stream")
 
+    # Kept deliberately small (2 layers, single EOL target level): a real per-layer EOL SCF optimization
+    # runs at every layer, and a 3-layer, multi-target-level scope was found to run for many minutes -- far
+    # too slow for a routine regression test. The 3-layer, multi-level scope is instead exercised (and
+    # independently verified) by examples/example-Ai.jl Scenario B.
     name        = "Beryllium 1s^2 2s^2 ^1S_0 ground state"
     refConfigs  = [Configuration("[He] 2s^2")]
-    rasSettings = RasSettings([1], 24, 1.0e-6, CoulombInteraction(), LevelSelection(true, indices=[1,2,3]) )
-    from        = [Shell("2s")]
-    #
-    frozen      = [Shell("1s")]
-    to          = [Shell("2s"), Shell("2p")]
-    step1       = RasStep(RasStep(), seFrom=from, seTo=deepcopy(to), deFrom=from, deTo=deepcopy(to), frozen=deepcopy(frozen))
-    #
-    append!(frozen, [Shell("2s"), Shell("2p")])
-    append!(to,     [Shell("3s"), Shell("3p"), Shell("3d")])
-    step2       = RasStep(step1; seTo=deepcopy(to), deTo=deepcopy(to), frozen=deepcopy(frozen))
-    #
-    append!(frozen, [Shell("3s"), Shell("3p"), Shell("3d")])
-    append!(to,     [Shell("4s"), Shell("4p"), Shell("4d"), Shell("4f")])
-    step3       = RasStep(step2, seTo=deepcopy(to), deTo=deepcopy(to), frozen=deepcopy(frozen))
+    rasSettings = RasSettings([1], 24, 1.0e-6, CoulombInteraction(), LevelSelection(true, indices=[1]) )
+    coreShells  = [Shell("1s")]
+    fromShells  = [Shell("2s")]
+    layers      = [ RasLayer(Shell[]; se=false, de=false),   # layer 1: reference SCF only, no correlation
+                     RasLayer([Shell("2p")]) ]               # layer 2: add 2p as a correlating shell
     #
     wa          = Representation(name, Nuclear.Model(4.), Radial.Grid(true), refConfigs,
-                                 RasExpansion([LevelSymmetry(0, Basics.plus)], 4, [step1, step2, step3], rasSettings) )
+                                 RasExpansion([LevelSymmetry(0, Basics.plus)], 4, coreShells, fromShells, layers, rasSettings) )
     wb = generate(wa, output=true)
-    if  abs(wb["step3"].levels[1].energy + 14.7540801622)  > 1.0e-3
+    if  abs(wb["step2"].levels[1].energy + 14.589901130961)  > 1.0e-3
         success = false
-        if printTest   info(iostream, "levels[1].energy $(wd["CI multiplet"].levels[1].energy) != 14.754080162")   end
+        if printTest   info(iostream, "levels[1].energy $(wb["step2"].levels[1].energy) != -14.589901130961")   end
     end
 
     testPrint("testRepresentation_RasExpansion()::", success)

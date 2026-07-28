@@ -208,21 +208,30 @@ function Basics.generate(repType::AtomicState.RasExpansion, rep::AtomicState.Rep
     startOrbitals  = Bsplines.generateOrbitals(subshellList, nuclearPot, nModel, primitives, printout=true)  ## generate a spectrum of sufficient size
     if output    results = Base.merge( results, Dict("reference multiplet" => Multiplet("Reference multiplet:", priorMultiplet.levels) ) )  end
 
-    # The asfSettings only define the CI part of the RAS steps and partly derived from the RasSettings
-    asfSettings = AsfSettings(true, CoulombInteraction(), Basics.DFSField(), StartFromHydrogenic(),    0, 0., Subshell[], Subshell[], 
-                                repType.settings.eeInteractionCI, NoneQed(), LSjjSettings(true), repType.settings.levelSelectionCI ) 
-    
-    # Now, cycle over all steps of the RasExpansion
+    # Now, cycle over all steps of the RasExpansion. Each step re-optimizes ONLY the shells newly introduced
+    # at this layer (EOL, so the SAME target level(s) specified once in repType.settings.levelSelectionCI stay
+    # the optimization target as the CSF space grows -- an AL/configuration-average functional would let
+    # higher-lying states entering the growing space dilute the correlation for the levels actually wanted),
+    # freezing every shell already present/optimized in an earlier step -- GRASP's own default behavior
+    # (LFIX(:NW)=.TRUE. unless explicitly varied).
     for (istep, step)  in  enumerate(repType.steps)
         println("")
         printstyled("++ Compute the orbitals, orbitals and multiplet for step $istep ... \n", color=:light_green)
         printstyled("--------------------------------------------------------------      \n", color=:light_green)
         basis      = Basics.generateBasis(rep.refConfigs, repType.symmetries, step)
         orbitals   = Basics.generateOrbitalsForBasis(basis, step.frozenShells, priorMultiplet.levels[1].basis, startOrbitals)
-        basis      = Basis( true, basis.NoElectrons, basis.subshells, basis.csfs, basis.coreSubshells, orbitals )  
-        multiplet  = Hamiltonian.performCI(basis,  nModel, rep.grid, asfSettings; printout=true) 
-        ## basis      = Basics.performSCF(basis, nModel, rep.grid, step.frozenShells, repType.settings; printout=true)
-        ## multiplet  = Basics.performCI(basis,  nModel, rep.grid, asfSettings; printout=true) 
+        basis      = Basis( true, basis.NoElectrons, basis.subshells, basis.csfs, basis.coreSubshells, orbitals )
+
+        # step.frozenShells is a list of non-relativistic Shell(n,l); translate to the concrete, relativistic
+        # Subshell(n,kappa) instances actually present in THIS step's basis, as AsfSettings.frozenSubshells needs.
+        frozenSubshellsThisStep = [ sh  for  shell in step.frozenShells  for sh in basis.subshells
+                                        if  sh.n == shell.n  &&  Basics.subshell_l(sh) == shell.l ]
+
+        stepSettings = AsfSettings( AsfSettings();  scField=Basics.EOLField(),  frozenSubshells=frozenSubshellsThisStep,
+                                     eeInteractionCI=repType.settings.eeInteractionCI,  levelSelectionCI=repType.settings.levelSelectionCI,
+                                     maxIterationsScf=repType.settings.maxIterationsScf,  accuracyScf=repType.settings.accuracyScf )
+
+        multiplet  = SelfConsistent.performSCF(basis, nModel, rep.grid, stepSettings; printout=true)
         if output    results = Base.merge( results, Dict("step"*string(istep) => Multiplet("Multiplet:", multiplet.levels)) )              end
         priorMultiplet = multiplet
     end

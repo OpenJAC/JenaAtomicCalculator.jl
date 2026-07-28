@@ -93,7 +93,7 @@ export AbstractCImethod, AbstractConfigurationRestriction, AbstractEeInteraction
        Plasma, plus, PrintWarnings, provide, Pulse,
        QedPetersburg, QedSydney, 
        RacahAlgebra, RacahExpression, Radial, RadialIntegrals, Radiative, RadiativeAuger, RAuger, RasSettings, RasStep,
-       RasExpansion, RayleighCompton, recast, Rec, REDA, READI, Representation, ReducedDensityMatrix, RadiativeOpacity,
+       RasLayer, RasExpansion, RayleighCompton, recast, Rec, REDA, READI, Representation, ReducedDensityMatrix, RadiativeOpacity,
        RadialPotentials, RadialOrbitalsLarge, RadialOrbitalsSmall, RadialOrbitalsBoth,
        RestrictMaximumDisplacements, RestrictNoElectronsTo, RestrictParity, RestrictToShellDoubles, RequestMinimumOccupation, RequestMaximumOccupation,
        ResonantInelastic, RemoveElectrons, RestrictExcitations, RelativisticConfigurations, run,

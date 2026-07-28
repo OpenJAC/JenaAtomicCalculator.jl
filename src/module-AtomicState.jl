@@ -9,8 +9,8 @@ module AtomicState
 ## using Interact
 using  ..Basics, ..ManyElectron, ..Nuclear, ..Radial
 
-export  MeanFieldSettings, MeanFieldBasis, MeanFieldMultiplet, OneElectronSettings, OneElectronSpectrum, CiSettings, CiExpansion, 
-        RasSettings, RasStep, RasExpansion, GreenSettings, GreenChannel, GreenExpansion, Representation
+export  MeanFieldSettings, MeanFieldBasis, MeanFieldMultiplet, OneElectronSettings, OneElectronSpectrum, CiSettings, CiExpansion,
+        RasSettings, RasStep, RasLayer, RasExpansion, GreenSettings, GreenChannel, GreenExpansion, Representation
 
 
 """
@@ -333,7 +333,49 @@ end
 
 
 """
-`struct  AtomicState.RasExpansion    <:  AbstractRepresentationType`  
+`struct  AtomicState.RasLayer`
+    ... a struct to specify a single layer of a multi-layer restricted active-space computation in a simplified,
+        non-cumulative form: only the shells that are NEW at this layer need to be given; the frozen and active
+        shell sets of the equivalent AtomicState.RasStep are derived automatically layer by layer, see
+        AtomicState.RasExpansion(..., layers::Array{RasLayer,1}, ...).
+
+    + newShells        ::Array{Shell,1}        ... Shells introduced (as virtual/correlation shells) at this layer.
+    + se               ::Bool                  ... Include single excitations from the reference into all active
+                                                    shells (up to and including this layer) if true.
+    + de               ::Bool                  ... Include double excitations from the reference into all active
+                                                    shells (up to and including this layer) if true.
+"""
+struct  RasLayer
+    newShells          ::Array{Shell,1}
+    se                 ::Bool
+    de                 ::Bool
+end
+
+"""
+`AtomicState.RasLayer(newShells::Array{Shell,1}; se::Bool=true, de::Bool=true)`
+    ... constructor for a variable::AtomicState.RasLayer with the given new shells and, by default, both single
+        and double excitations enabled.
+"""
+function RasLayer(newShells::Array{Shell,1}; se::Bool=true, de::Bool=true)
+    RasLayer(newShells, se, de)
+end
+
+
+# `Base.string(layer::AtomicState.RasLayer)`  ... provides a String notation for the variable layer::AtomicState.RasLayer.
+function Base.string(layer::AtomicState.RasLayer)
+    sa = "RAS layer, adding shells $(layer.newShells)  (single excitations = $(layer.se), double excitations = $(layer.de))"
+    return( sa )
+end
+
+
+# `Base.show(io::IO, layer::AtomicState.RasLayer)`  ... prepares a proper printout of the variable layer::AtomicState.RasLayer.
+function Base.show(io::IO, layer::AtomicState.RasLayer)
+    sa = Base.string(layer);       print(io, sa, "\n")
+end
+
+
+"""
+`struct  AtomicState.RasExpansion    <:  AbstractRepresentationType`
     ... a struct to represent (and generate) a restricted active-space representation.
 
     + symmetries       ::Array{LevelSymmetry,1}         ... Symmetries of the levels/CSF in the many-electron basis.
@@ -354,7 +396,40 @@ struct         RasExpansion    <:  AbstractRepresentationType
 `AtomicState.RasExpansion()`  ... constructor for an 'empty' instance of the a variable::AtomicState.RasExpansion
 """
 function RasExpansion()
-    RasExpansion([Basics.LevelSymmetry(0, Basics.plus)], 0, 0, AtomicState.RasStep[], AtomicState.RasSettings())
+    RasExpansion([Basics.LevelSymmetry(0, Basics.plus)], 0, AtomicState.RasStep[], AtomicState.RasSettings())
+end
+
+
+"""
+`AtomicState.RasExpansion(symmetries::Array{LevelSymmetry,1}, NoElectrons::Int64, coreShells::Array{Shell,1},
+                          fromShells::Array{Shell,1}, layers::Array{AtomicState.RasLayer,1}, settings::AtomicState.RasSettings)`
+    ... constructor for a variable::AtomicState.RasExpansion from a simplified, non-cumulative list of
+        AtomicState.RasLayer's; internally translated into the equivalent Array{AtomicState.RasStep,1}. For each
+        layer, only the newly-introduced shells need to be given: `coreShells` (always frozen, never excited from)
+        and `fromShells` (the reference valence shells that single/double excitations originate from) stay the
+        same for every layer; `seTo`/`deTo` accumulate `fromShells` plus every newShells seen so far (including
+        the current layer). `fromShells` are optimized together with the FIRST layer's new shells (their one and
+        only chance to vary, exactly as for a plain reference SCF), then frozen from the second layer onward,
+        alongside every earlier layer's own newShells (never the current layer's).
+"""
+function RasExpansion(symmetries::Array{LevelSymmetry,1}, NoElectrons::Int64, coreShells::Array{Shell,1},
+                       fromShells::Array{Shell,1}, layers::Array{AtomicState.RasLayer,1}, settings::AtomicState.RasSettings)
+    steps  = AtomicState.RasStep[]
+    frozen = deepcopy(coreShells)
+    to     = deepcopy(fromShells)
+    prior  = AtomicState.RasStep()
+    for  (i, layer)  in  enumerate(layers)
+        append!(to, layer.newShells)
+        sxFrom = layer.se ? deepcopy(fromShells) : Shell[];    sxTo = layer.se ? deepcopy(to) : Shell[]
+        dxFrom = layer.de ? deepcopy(fromShells) : Shell[];    dxTo = layer.de ? deepcopy(to) : Shell[]
+        step   = AtomicState.RasStep(prior; seFrom=sxFrom, seTo=sxTo, deFrom=dxFrom, deTo=dxTo, frozen=deepcopy(frozen))
+        push!(steps, step)
+        if  i == 1   append!(frozen, fromShells)   end
+        append!(frozen, layer.newShells)
+        prior  = step
+    end
+
+    RasExpansion(symmetries, NoElectrons, steps, settings)
 end
 
 

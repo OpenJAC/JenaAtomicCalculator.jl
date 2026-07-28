@@ -118,21 +118,41 @@ end
         (kink-aware InteractionStrength.XL_CoulombClaude, matching the rest of the Claude2 SCF line; Breit
         and QED are added only once, at the final Hamiltonian.performCIClaude call, exactly as for the AL
         scheme), but without repeating the (unchanged) angular-coefficient computation on every outer
-        SCF+CI iteration. A  matrix::Array{Float64,2}  is returned.
+        SCF+CI iteration. The trailing radial1pCache/radial2pCache arguments memoize each radial integral by
+        its bare subshell labels (never by CSF-pair index), so a radial integral shared by many different
+        CSF pairs -- e.g. the same "1s-1s" self-interaction appearing in every CSF's diagonal term -- is
+        evaluated once per outer iteration rather than once per (r,s) occurrence; pass the SAME two Dicts
+        into every block diagonalized within one outer iteration to also share the cache across blocks
+        (found by profiling to be the dominant EOL cost for multi-CSF cases -- see
+        project_eol_implementation.md). A  matrix::Array{Float64,2}  is returned.
 """
 function buildCIMatrixEOL(idxCsf::Array{Int64,1}, cache1p, cache2p, orbitals::Dict{Subshell, Orbital},
-                          grid::Radial.Grid, potential::Radial.Potential)
+                          grid::Radial.Grid, potential::Radial.Potential,
+                          radial1pCache::Dict{Tuple{Subshell,Subshell},Float64}          = Dict{Tuple{Subshell,Subshell},Float64}(),
+                          radial2pCache::Dict{Tuple{Int64,Subshell,Subshell,Subshell,Subshell},Float64} =
+                                        Dict{Tuple{Int64,Subshell,Subshell,Subshell,Subshell},Float64}())
+    # radial1pCache/radial2pCache: keyed purely by subshell labels (never by CSF-pair index), so a radial
+    # integral shared by MANY different CSF pairs -- e.g. the same "1s-1s" self-interaction appearing in
+    # every CSF's diagonal term -- is evaluated once per outer SCF+CI iteration and reused, instead of once
+    # per (r,s) occurrence. Pass the SAME cache Dicts in across every block diagonalized within one outer
+    # iteration (they also depend only on the current orbitals, not on which block/CSF-pair references them);
+    # a fresh empty cache per call (the default) is still correct, just without the cross-block reuse.
     n = length(idxCsf);   matrix = zeros(Float64, n, n)
     for  r = 1:n
         for  s = 1:n
             me = 0.
             for  cf in cache1p[(r,s)]
+                I_ab = get!(radial1pCache, (cf.a,cf.b)) do
+                    RadialIntegrals.GrantIab(orbitals[cf.a], orbitals[cf.b], grid, potential)
+                end
                 jj = Basics.subshell_2j(cf.a)
-                me = me + cf.T * sqrt( jj + 1) * RadialIntegrals.GrantIab(orbitals[cf.a], orbitals[cf.b], grid, potential)
+                me = me + cf.T * sqrt( jj + 1) * I_ab
             end
             for  cf in cache2p[(r,s)]
-                me = me + cf.V * InteractionStrength.XL_CoulombClaude(cf.nu, orbitals[cf.a], orbitals[cf.b],
-                                                                              orbitals[cf.c], orbitals[cf.d], grid)
+                R_abcd = get!(radial2pCache, (cf.nu,cf.a,cf.b,cf.c,cf.d)) do
+                    InteractionStrength.XL_CoulombClaude(cf.nu, orbitals[cf.a], orbitals[cf.b], orbitals[cf.c], orbitals[cf.d], grid)
+                end
+                me = me + cf.V * R_abcd
             end
             matrix[r,s] = me
         end
@@ -694,8 +714,12 @@ function performSCF(configs::Array{Configuration,1}, nm::Nuclear.Model, grid::Ra
     elseif   settings.scField in [Basics.ALFieldClaude2()]
         basis     = SelfConsistent.solveAverageLevelFieldClaude2(basis, nm, primitives, settings; printout=printout)
     elseif   typeof(settings.scField) == Basics.EOLField
-        multiplet = SelfConsistent.solveOptimizedLevelField(basis, nm, primitives, settings; printout=printout)
-        basis     = multiplet.levels[1].basis
+        # solveOptimizedLevelField already returns a complete, correctly-diagonalized multiplet (built via
+        # its own internal, kink-aware Hamiltonian.performCIClaude call on the converged orbitals) -- return
+        # it directly. Re-diagonalizing below would be redundant AND wrong: EOLField isn't in the
+        # ALFieldClaude/ALFieldClaude2 check just below, so it would fall through to the bare,
+        # non-kink-aware Hamiltonian.performCI, silently discarding the kink-aware result.
+        return( SelfConsistent.solveOptimizedLevelField(basis, nm, primitives, settings; printout=printout) )
     else  error("stop a")
     end
 
@@ -736,8 +760,10 @@ function performSCF(basis::Basis, nm::Nuclear.Model, grid::Radial.Grid,
     elseif   settings.scField in [Basics.ALFieldClaude2()]
         basis     = SelfConsistent.solveAverageLevelFieldClaude2(basis, nm, primitives, settings; printout=printout)
     elseif   typeof(settings.scField) == Basics.EOLField
-        multiplet = SelfConsistent.solveOptimizedLevelField(basis, nm, primitives, settings; printout=printout)
-        basis     = multiplet.levels[1].basis
+        # See the identical note in the other performSCF overload just above: solveOptimizedLevelField
+        # already returns a complete, correctly (kink-aware) diagonalized multiplet -- return it directly
+        # rather than redundantly re-diagonalizing with the wrong, non-kink-aware Hamiltonian.performCI.
+        return( SelfConsistent.solveOptimizedLevelField(basis, nm, primitives, settings; printout=printout) )
     else  error("stop a")
     end
 
@@ -1519,6 +1545,25 @@ end
         energy. Per-CSF-pair angular coefficients (cacheCsfPairCoefficientsEOL) are computed once and
         reused every outer iteration, since they depend only on the fixed CSF list, never on the current
         orbitals or mixing coefficients. A (new) multiplet::Multiplet is returned.
+
+        KNOWN LIMITATION (confirmed 28-Jul-2026, NOT yet fixed): when two or more CSFs of the SAME symmetry
+        block compete for the same correlation channel (e.g. Be's 1s^2 2p_1/2^2 vs 1s^2 2p_3/2^2, both
+        correlating with 1s^2 2s^2), this implementation can converge to a spurious, winner-take-all fixed
+        point where one competing CSF's mixing coefficient is driven to ~0 while a comparably-important
+        partner is not -- confirmed against a DFS-Field reference occupying the same CSF space, which lands
+        both more bound AND with both CSFs contributing substantially. Root cause: the off-diagonal
+        (CSF-pair) coefficients folded into computeTwoElectronVClaude2's two-electron potential scale
+        LINEARLY in a shrinking CSF's own mixing coefficient, while computeGeneralizedOccupationEOL's
+        occupation (the (1.0/occ) divisor in computeFockMatrixClaude2) scales QUADRATICALLY in it -- so the
+        ratio diverges as that coefficient shrinks, rather than settling. This is the concrete manifestation
+        of the "DA/inhomogeneous-term mechanism" gap vs. GRASP's setcof.f90 (which treats within-level
+        off-diagonal coupling as a separate inhomogeneous/source term, not folded into the same per-orbital
+        homogeneous eigenvalue division) -- see project_eol_implementation.md. Flooring `occ` before the
+        division was tried and REJECTED as a fix (non-monotonic in the floor constant). Safe for
+        single-CSF-per-block cases (validated: He, Li) and multi-CSF cases where every competing CSF's own
+        weight stays comfortably bounded away from zero; NOT yet safe/reliable for genuine near-degenerate
+        competing correlation (Be's 2p^2 case, and by extension most 3+ layer RAS scenarios). A real fix
+        needs the actual inhomogeneous-term mechanism -- deferred, substantial future work.
 """
 function solveOptimizedLevelField(basis::Basis, nuclearModel::Nuclear.Model, primitives::Bsplines.Primitives,
                                   settings::AsfSettings; printout::Bool=true)
@@ -1566,10 +1611,16 @@ function solveOptimizedLevelField(basis::Basis, nuclearModel::Nuclear.Model, pri
     # (3) Initial CI diagonalization (starting orbitals) to get the first mixing vectors for the target level(s)
     function diagonalizeAllBlocks(currentOrbitals::Dict{Subshell, Orbital})
         tempBasis = Basis(true, basis.NoElectrons, basis.subshells, basis.csfs, basis.coreSubshells, currentOrbitals)
+        # One shared radial-integral cache per outer iteration, reused across every block: the SAME
+        # subshell-labeled integral (e.g. "1s-1s") often recurs across many CSF pairs and even across
+        # different symmetry blocks, but depends only on currentOrbitals, not on which block/pair asked for it.
+        radial1pCache = Dict{Tuple{Subshell,Subshell},Float64}()
+        radial2pCache = Dict{Tuple{Int64,Subshell,Subshell,Subshell,Subshell},Float64}()
         levels = Level[]
         for  sym  in  relevantSyms
             (idxCsf, cache1p, cache2p) = blockCaches[sym]
-            matrix = SelfConsistent.buildCIMatrixEOL(idxCsf, cache1p, cache2p, currentOrbitals, grid, nucPot)
+            matrix = SelfConsistent.buildCIMatrixEOL(idxCsf, cache1p, cache2p, currentOrbitals, grid, nucPot,
+                                                      radial1pCache, radial2pCache)
             append!( levels, SelfConsistent.diagonalizeBlockEOL(sym, idxCsf, matrix, tempBasis) )
         end
         mp = Basics.sortByEnergy( Multiplet("EOL", levels) )
@@ -1607,10 +1658,22 @@ function solveOptimizedLevelField(basis::Basis, nuclearModel::Nuclear.Model, pri
         end
 
         newBVectors = Dict{Subshell, Vector{Float64}}()
-        processedBVectors = Dict{Subshell, Vector{Float64}}()
+        # Pre-seed with every FROZEN subshell's (fixed) bVector, before any active subshell is refined: this
+        # makes Hamiltonian.projectHamiltonian orthogonalize active subshells against frozen same-kappa ones
+        # (e.g. a frozen 1s vs. an active, higher-n correlation orbital of the same kappa) and keeps the
+        # `count`-based target-eigenvalue-index shift correct, exactly as if the frozen orbitals had already
+        # been "processed" this iteration -- which, since they never change, they effectively have.
+        processedBVectors = Dict{Subshell, Vector{Float64}}( sh => bVectors[sh]  for sh in settings.frozenSubshells  if  sh in basis.subshells )
         dpm = Dict{Subshell, Float64}()
 
         for  subshell  in  basis.subshells
+            if  subshell in settings.frozenSubshells
+                # Carry the frozen bVector forward unchanged into newBVectors -- required, since newBVectors
+                # is a fresh Dict every iteration and the final newOrbitals tabulation loop below reads
+                # bVectors[sh] for EVERY sh in basis.subshells, frozen or not (a KeyError otherwise).
+                newBVectors[subshell] = bVectors[subshell]
+                continue
+            end
             occ = genOcc[subshell]
             print(">> Refine $subshell orbital with generalized occ = $occ ... ")
 
