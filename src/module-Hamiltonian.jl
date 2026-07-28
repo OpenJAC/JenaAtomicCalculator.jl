@@ -56,6 +56,14 @@ function performCI(basis::Basis, nm::Nuclear.Model, grid::Radial.Grid, settings:
     NoCsf = 0;   for (sym,v) in symmetries   NoCsf = NoCsf + v   end
     if  NoCsf != length(basis.csfs)   error("stop b; NoCsf = $NoCsf ")   end
 
+    # Reset the radial-integral caches ONCE per performCI call (28-Jul-2026), not once per symmetry block as
+    # setupMatrix used to do: the cache key (rank + subshell labels) never depends on which block is being
+    # built, so an identical radial integral shared across different blocks (very common -- many blocks
+    # reference the same subshell set) is legitimately reusable across the whole CI computation. Resetting
+    # here still ensures a clean cache between independent performCI calls (e.g. successive RAS layers).
+    InteractionStrength.XL_Coulomb_reset_storage(true, printout=false)
+    InteractionStrength.XL_Breit_reset_storage(true, printout=false)
+
     # Calculate for each symmetry block the corresponding CI matrix, diagonalize it and append a Multiplet for this block
     multiplets = Multiplet[]
     for  (sym,v) in  symmetries
@@ -236,17 +244,19 @@ function setupMatrix(sym::LevelSymmetry, basis::Basis, nm::Nuclear.Model, grid::
         ## meanPot = Basics.add(potential, meanPot)   
     end   
 
-    # Compute the Coulomb-(Breit-) interaction matrix
+    # Compute the Coulomb-(Breit-) interaction matrix. NOTE (28-Jul-2026): the radial-integral cache
+    # reset/lifetime is owned by the CALLER (Hamiltonian.performCI), not here -- see that function's own
+    # note. Resetting once per BLOCK here would discard cross-block-shared integrals (the same subshell
+    # combination very often recurs across different symmetry blocks) for no benefit, since the cache key
+    # never depends on which block is being built.
     matrix = zeros(Float64, n, n);      keep = true
-    InteractionStrength.XL_Coulomb_reset_storage(keep, printout=false)
-    InteractionStrength.XL_Breit_reset_storage(keep, printout=false)
     for  r = 1:n
         for  s = 1:n
             if  settings.eeInteractionCI == DiagonalCoulomb()  &&  r != s    continue    end
             # Calculate the spin-angular coefficients
             subshellList = basis.subshells
             opa  = SpinAngular.OneParticleOperator(0, plus, true)
-            waG1 = SpinAngular.computeCoefficients(opa, basis.csfs[idx_csf[r]], basis.csfs[idx_csf[s]], subshellList) 
+            waG1 = SpinAngular.computeCoefficients(opa, basis.csfs[idx_csf[r]], basis.csfs[idx_csf[s]], subshellList)
             opa  = SpinAngular.TwoParticleOperator(0, plus, true)
             waG2 = SpinAngular.computeCoefficients(opa, basis.csfs[idx_csf[r]], basis.csfs[idx_csf[s]], subshellList)
             wa   = [waG1, waG2]
@@ -255,8 +265,8 @@ function setupMatrix(sym::LevelSymmetry, basis::Basis, nm::Nuclear.Model, grid::
             for  coeff in waG1
                 jj = Basics.subshell_2j(basis.orbitals[coeff.a].subshell)
                 me = me + coeff.T * sqrt( jj + 1) * RadialIntegrals.GrantIab(basis.orbitals[coeff.a], basis.orbitals[coeff.b], grid, potential)
-                if  settings.qedModel != NoneQed()  
-                    me = me + InteractionStrengthQED.qedLocal(basis.orbitals[coeff.a], basis.orbitals[coeff.b], nm, settings.qedModel, meanPot, grid)  
+                if  settings.qedModel != NoneQed()
+                    me = me + InteractionStrengthQED.qedLocal(basis.orbitals[coeff.a], basis.orbitals[coeff.b], nm, settings.qedModel, meanPot, grid)
                 end
             end
 
@@ -284,10 +294,11 @@ end
 """
 `Hamiltonian.performCIClaude(basis::Basis, nm::Nuclear.Model, grid::Radial.Grid, settings::AsfSettings; printout::Bool=false)
     ... computes and diagonalizes the same CI Hamiltonian matrix as performCI, but via setupMatrixClaude (kink-aware
-        two-electron Slater integral) instead of setupMatrix. Isolated from performCI; only reached from
-        SelfConsistent.performSCF when settings.scField = Basics.ALFieldClaude(), so that the FINAL reported level
-        energies reflect the same kink-aware integral used during SCF orbital optimization, not just the SCF's own
-        internal energy tracking. A  multiplet::Multiplet  is returned.
+        two-electron Slater integral) instead of setupMatrix. Isolated from performCI; reached from
+        SelfConsistent.performSCF when settings.scField = Basics.ALFieldClaude2(), and directly from
+        SelfConsistent.solveOptimizedLevelField (EOLField), so that the FINAL reported level energies reflect
+        the same kink-aware integral used during SCF orbital optimization, not just the SCF's own internal
+        energy tracking. A  multiplet::Multiplet  is returned.
 """
 function performCIClaude(basis::Basis, nm::Nuclear.Model, grid::Radial.Grid, settings::AsfSettings; printout::Bool=false)
 
@@ -303,6 +314,17 @@ function performCIClaude(basis::Basis, nm::Nuclear.Model, grid::Radial.Grid, set
     # Test the total number of CSF
     NoCsf = 0;   for (sym,v) in symmetries   NoCsf = NoCsf + v   end
     if  NoCsf != length(basis.csfs)   error("stop b; NoCsf = $NoCsf ")   end
+
+    # Reset the radial-integral caches ONCE per performCIClaude call (28-Jul-2026), not once per symmetry
+    # block as setupMatrixClaude used to do -- identical reasoning to the same fix in performCI/setupMatrix:
+    # the cache key never depends on which block is being built, so a Breit integral shared across blocks
+    # is legitimately reusable. XL_Coulomb_reset_storage is kept here too even though setupMatrixClaude's own
+    # Coulomb term (XL_CoulombClaude) now has its own SEPARATE cache (GBL_Storage_XL_CoulombClaude, reset by
+    # XL_CoulombClaude_reset_storage below) -- harmless no-op for the standard Coulomb cache, which
+    # setupMatrixClaude never reads from.
+    InteractionStrength.XL_Coulomb_reset_storage(true, printout=false)
+    InteractionStrength.XL_Breit_reset_storage(true, printout=false)
+    InteractionStrength.XL_CoulombClaude_reset_storage(true, printout=false)
 
     # Calculate for each symmetry block the corresponding CI matrix, diagonalize it and append a Multiplet for this block
     multiplets = Multiplet[]
@@ -374,10 +396,10 @@ function setupMatrixClaude(sym::LevelSymmetry, basis::Basis, nm::Nuclear.Model, 
         meanPot = potential
     end
 
-    # Compute the Coulomb-(Breit-) interaction matrix
+    # Compute the Coulomb-(Breit-) interaction matrix. NOTE (28-Jul-2026): the radial-integral cache
+    # reset/lifetime is owned by the CALLER (Hamiltonian.performCIClaude), not here -- identical reasoning to
+    # setupMatrix's own note.
     matrix = zeros(Float64, n, n);      keep = true
-    InteractionStrength.XL_Coulomb_reset_storage(keep, printout=false)
-    InteractionStrength.XL_Breit_reset_storage(keep, printout=false)
     for  r = 1:n
         for  s = 1:n
             if  settings.eeInteractionCI == DiagonalCoulomb()  &&  r != s    continue    end
@@ -401,7 +423,7 @@ function setupMatrixClaude(sym::LevelSymmetry, basis::Basis, nm::Nuclear.Model, 
             for  coeff in waG2
                 if  typeof(settings.eeInteractionCI) in [DiagonalCoulomb, CoulombInteraction, CoulombBreit, CoulombGaunt]
                     me = me + coeff.V * InteractionStrength.XL_CoulombClaude(coeff.nu, basis.orbitals[coeff.a], basis.orbitals[coeff.b],
-                                                                                        basis.orbitals[coeff.c], basis.orbitals[coeff.d], grid)
+                                                                                        basis.orbitals[coeff.c], basis.orbitals[coeff.d], grid, keep=keep)
                 end
 
                 if      typeof(settings.eeInteractionCI) in [BreitInteraction, CoulombBreit, CoulombGaunt]

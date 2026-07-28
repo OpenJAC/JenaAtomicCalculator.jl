@@ -875,14 +875,41 @@ end
 
 
 """
-`InteractionStrength.XL_CoulombClaude(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital, grid::Radial.Grid)`
+`InteractionStrength.XL_CoulombClaude_reset_storage(keep::Bool; printout::Bool=false)`
+    ... resets the global storage of XL_CoulombClaude interaction strengths (a SEPARATE cache from
+        XL_Coulomb's own GBL_Storage_XL_Coulomb, since the kink-aware and standard quadratures give
+        different numeric results for the same subshell labels and must not share a cache namespace);
+        nothing is returned.
+"""
+function XL_CoulombClaude_reset_storage(keep::Bool; printout::Bool=false)
+    if  keep
+        if printout     println(">> Reset GBL_Storage_XL_CoulombClaude storage.")     end
+        global GBL_Storage_XL_CoulombClaude = Dict{String, Float64}()
+    else
+    end
+    return( nothing )
+end
+
+
+"""
+`InteractionStrength.XL_CoulombClaude(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital, grid::Radial.Grid; keep::Bool=false)`
     ... computes the same effective Coulomb interaction strength as XL_Coulomb(L, a, b, c, d, grid), including the
         same triangular-delta veto and angular reduced-matrix-element prefactor xc, but using the kink-aware
         RadialIntegrals.SlaterRk_2dimClaude for the underlying radial integral instead of RadialIntegrals.
-        SlaterRk_2dim. Isolated from XL_Coulomb; only used by the ALFieldClaude code line. A value::Float64 is
+        SlaterRk_2dim. For keep=true, looks up (and stores into) the global GBL_Storage_XL_CoulombClaude
+        Dict, mirroring XL_Coulomb's own keep/GBL_Storage_XL_Coulomb pattern exactly -- used by
+        Hamiltonian.setupMatrixClaude (the CI-matrix Coulomb term for ALFieldClaude2/EOLField), where orbitals
+        are FIXED for the whole performCIClaude call, so caching is unconditionally safe there. NOT enabled
+        (keep=false, the default) at SelfConsistent.computeTwoElectronVClaude2's own call site: that call sits
+        inside the outer SCF iteration, where orbitals change every iteration, so a cache surviving across
+        iterations would silently return stale integrals from an earlier orbital shape -- extending caching
+        safely into that loop needs its own explicit per-iteration reset wiring, deferred as a separate item.
+        Isolated from XL_Coulomb; shared by Hamiltonian.setupMatrixClaude and
+        SelfConsistent.computeTwoElectronVClaude2 (their Fock matrix, uncached). A value::Float64 is
         returned.
 """
-function XL_CoulombClaude(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital, grid::Radial.Grid)
+function XL_CoulombClaude(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital, grid::Radial.Grid; keep::Bool=false)
+    global GBL_Storage_XL_CoulombClaude
     la = Basics.subshell_l(a.subshell);    ja2 = Basics.subshell_2j(a.subshell)
     lb = Basics.subshell_l(b.subshell);    jb2 = Basics.subshell_2j(b.subshell)
     lc = Basics.subshell_l(c.subshell);    jc2 = Basics.subshell_2j(c.subshell)
@@ -893,10 +920,24 @@ function XL_CoulombClaude(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbit
         return( 0. )
     end
 
+    if  keep
+        sa = "XL" * string(L) * " " * string(a.subshell) * string(b.subshell) * string(c.subshell) * string(d.subshell)
+        if haskey(GBL_Storage_XL_CoulombClaude, sa)
+            return( GBL_Storage_XL_CoulombClaude[sa] )
+        end
+    end
+
     xc = AngularMomentum.CL_reduced_me(a.subshell, L, c.subshell) * AngularMomentum.CL_reduced_me(b.subshell, L, d.subshell)
     if   rem(L,2) == 1    xc = - xc    end
 
-    return( xc * RadialIntegrals.SlaterRk_2dimClaude(L, a, b, c, d, grid) )
+    XL_CoulombClaudeValue = xc * RadialIntegrals.SlaterRk_2dimClaude(L, a, b, c, d, grid)
+
+    if  keep
+        sa = "XL" * string(L) * " " * string(a.subshell) * string(b.subshell) * string(c.subshell) * string(d.subshell)
+        global GBL_Storage_XL_CoulombClaude[sa] = XL_CoulombClaudeValue
+    end
+
+    return( XL_CoulombClaudeValue )
 end
 
 
@@ -964,8 +1005,8 @@ end
         tensor-product double sum. The screened potential V_L(r), which depends only on the fixed orbital pair
         (b,d), is built ONCE (adaptive quadrature) and then reused cheaply -- via the existing grid quadrature
         weights, since V_L(r) is smooth once built -- for every B-spline pair (i,k) of the L- and S-block.
-        Isolated from XL_Coulomb; only used by the ALFieldClaude code line, cf.
-        SelfConsistent.computeDirectExchangeVClaude. A (nsL+nsS) x (nsL+nsS) matrixV::Array{Float64,2} is returned.
+        Isolated from XL_Coulomb; shared by the ALFieldClaude2/EOLField code lines, cf.
+        SelfConsistent.computeTwoElectronVClaude2. A (nsL+nsS) x (nsL+nsS) matrixV::Array{Float64,2} is returned.
 """
 function XL_CoulombClaude(L::Int64, a::Subshell, b::Orbital, c::Subshell, d::Orbital, primitives::Bsplines.Primitives)
     nsL = primitives.grid.nsL;        nsS = primitives.grid.nsS;    grid = primitives.grid
@@ -1090,104 +1131,6 @@ function XL_Coulomb(L::Int64, a::Subshell, b::Orbital, c::Orbital, d::Subshell, 
             Qd = zeros(Bd.upper);   add = 1 - Bd.lower;   
             for  j = Bd.lower:Bd.upper  Qd[j] = Qd[j] + Bd.bs[j+add]   end            
             wm[nsL+i,nsL+k] = RadialIntegrals.SlaterRkComponent_2dim(L, Qa, b.Q, c.Q, Qd, grid)
-        end
-    end
-
-    return( xc * wm )
-end
-
-
-"""
-`InteractionStrength.XL_CoulombClaude(L::Int64, a::Subshell, b::Orbital, c::Orbital, d::Subshell, primitives::Bsplines.Primitives)`
-    ... computes the same (exchange) Coulomb interaction strengths X^L_Coulomb (.bc.) as
-        XL_Coulomb(L,a::Subshell,b::Orbital,c::Orbital,d::Subshell,primitives), for given rank L and orbital
-        functions as well as the given primitives, but using the kink-aware screened-potential construction
-        (RadialIntegrals.buildScreenedPotentialPairClaude) instead of RadialIntegrals.SlaterRkComponent_2dim's
-        naive tensor-product double sum. Unlike the "direct"-signature XL_CoulombClaude, here BOTH B-spline
-        indices (a and d) sit on OPPOSITE sides of the two-electron kernel (paired with c and b respectively),
-        so no single screened potential can be shared across the whole matrix. Instead, for each ROW index (the
-        "a" B-spline), two screened potentials are built ONCE -- from that spline's own (compact-support)
-        density combined with c.P and with c.Q respectively -- and then reused cheaply, via the existing grid
-        quadrature, across every column index (the "d" B-splines) of that row. This is O(basis size)
-        adaptive-quadrature builds instead of the O(basis size^2) naive double sum, and each build's cost
-        scales with the (typically narrow) support of the corresponding B-spline. Isolated from XL_Coulomb;
-        only used by the ALFieldClaude code line, cf. SelfConsistent.computeDirectExchangeVClaude.
-        A (nsL+nsS) x (nsL+nsS) matrixV::Array{Float64,2} is returned.
-"""
-function XL_CoulombClaude(L::Int64, a::Subshell, b::Orbital, c::Orbital, d::Subshell, primitives::Bsplines.Primitives)
-    nsL = primitives.grid.nsL;        nsS = primitives.grid.nsS;    grid = primitives.grid
-    wm  = zeros(nsL+nsS, nsL+nsS)
-
-    # Test for the triangular-delta conditions and calculate the reduced matrix elements of the C^L tensors
-    la = Basics.subshell_l(a);             ja2 = Basics.subshell_2j(a)
-    lb = Basics.subshell_l(b.subshell);    jb2 = Basics.subshell_2j(b.subshell)
-    lc = Basics.subshell_l(c.subshell);    jc2 = Basics.subshell_2j(c.subshell)
-    ld = Basics.subshell_l(d);             jd2 = Basics.subshell_2j(d)
-
-    if  AngularMomentum.triangularDelta(ja2+1,jc2+1,L+L+1) * AngularMomentum.triangularDelta(jb2+1,jd2+1,L+L+1) == 0   ||
-        rem(la+lc+L,2) == 1   ||   rem(lb+ld+L,2) == 1
-        @warn("stop ab")  ## This should not occur.
-        return( wm )
-    end
-
-    xc = AngularMomentum.CL_reduced_me(a, L, c.subshell) * AngularMomentum.CL_reduced_me(b.subshell, L, d)
-    if   rem(L,2) == 1    xc = - xc    end
-
-    # L-block rows: B-spline "a" taken from bsplinesL
-    for  i = 1:nsL
-        Ba = primitives.bsplinesL[i]
-        Pa = zeros(Ba.upper);   add = 1 - Ba.lower;
-        for  j = Ba.lower:Ba.upper  Pa[j] = Pa[j] + Ba.bs[j+add]   end
-
-        W1 = RadialIntegrals.buildScreenedPotentialPairClaude(L, Pa, c.P, grid)   # paired below with b.P, Pd
-        W2 = RadialIntegrals.buildScreenedPotentialPairClaude(L, Pa, c.Q, grid)   # paired below with b.P, Qd
-
-        for  k = 1:nsL
-            Bd = primitives.bsplinesL[k]
-            Pd = zeros(Bd.upper);   add2 = 1 - Bd.lower;
-            for  j = Bd.lower:Bd.upper  Pd[j] = Pd[j] + Bd.bs[j+add2]   end
-            mtp = min(length(W1), length(b.P), length(Pd))
-            wa  = 0.
-            for  s = 2:mtp   wa = wa + W1[s] * b.P[s] * Pd[s] * grid.wr[s]   end
-            wm[i,k] = wa
-        end
-        for  k = 1:nsS
-            Bd = primitives.bsplinesS[k]
-            Qd = zeros(Bd.upper);   add2 = 1 - Bd.lower;
-            for  j = Bd.lower:Bd.upper  Qd[j] = Qd[j] + Bd.bs[j+add2]   end
-            mtp = min(length(W2), length(b.P), length(Qd))
-            wa  = 0.
-            for  s = 2:mtp   wa = wa + W2[s] * b.P[s] * Qd[s] * grid.wr[s]   end
-            wm[i,nsL+k] = wa
-        end
-    end
-
-    # S-block rows: B-spline "a" taken from bsplinesS
-    for  i = 1:nsS
-        Ba = primitives.bsplinesS[i]
-        Qa = zeros(Ba.upper);   add = 1 - Ba.lower;
-        for  j = Ba.lower:Ba.upper  Qa[j] = Qa[j] + Ba.bs[j+add]   end
-
-        W3 = RadialIntegrals.buildScreenedPotentialPairClaude(L, Qa, c.P, grid)   # paired below with b.Q, Pd
-        W4 = RadialIntegrals.buildScreenedPotentialPairClaude(L, Qa, c.Q, grid)   # paired below with b.Q, Qd
-
-        for  k = 1:nsL
-            Bd = primitives.bsplinesL[k]
-            Pd = zeros(Bd.upper);   add2 = 1 - Bd.lower;
-            for  j = Bd.lower:Bd.upper  Pd[j] = Pd[j] + Bd.bs[j+add2]   end
-            mtp = min(length(W3), length(b.Q), length(Pd))
-            wa  = 0.
-            for  s = 2:mtp   wa = wa + W3[s] * b.Q[s] * Pd[s] * grid.wr[s]   end
-            wm[nsL+i,k] = wa
-        end
-        for  k = 1:nsS
-            Bd = primitives.bsplinesS[k]
-            Qd = zeros(Bd.upper);   add2 = 1 - Bd.lower;
-            for  j = Bd.lower:Bd.upper  Qd[j] = Qd[j] + Bd.bs[j+add2]   end
-            mtp = min(length(W4), length(b.Q), length(Qd))
-            wa  = 0.
-            for  s = 2:mtp   wa = wa + W4[s] * b.Q[s] * Qd[s] * grid.wr[s]   end
-            wm[nsL+i,nsL+k] = wa
         end
     end
 

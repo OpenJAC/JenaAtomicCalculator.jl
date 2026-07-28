@@ -231,7 +231,7 @@ end
         This matters wherever B-spline expansion coefficients are themselves summed/weighted directly, rather
         than only ever used to reconstruct one smooth tabulated function -- such sums do not automatically
         benefit from the cancellation that evaluating a single, already-cleaned tabulated function enjoys. See
-        InteractionStrength.XL_CoulombTensorClaude and SelfConsistent.solveAverageLevelFieldClaude, where using
+        InteractionStrength.XL_CoulombTensorClaude and SelfConsistent.solveAverageLevelFieldClaude2, where using
         the raw eigenvector instead of this projection was traced to a real, non-negligible SCF discrepancy.
         The returned vector is explicitly re-normalized so that v'*matrixB*v = 1 EXACTLY (to floating-point
         precision), rather than trusting the least-squares fit to land there on its own -- Hamiltonian.
