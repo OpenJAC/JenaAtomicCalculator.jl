@@ -185,8 +185,13 @@ function Basics.compute(JP::LevelSymmetry, basis::Basis, nuclearModel::Nuclear.M
         potential = Nuclear.nuclearPotentialDH(nuclearModel, grid, 1/plasmaModel.debyeLength)
 
         matrix = zeros(Float64, n, n)
+        # Hermitian-symmetry shortcut (28-Jul-2026): only the UPPER triangle (r<=s) is computed -- this
+        # matrix is returned to Basics.compute(JP::LevelSymmetry,...)'s own caller
+        # (Plasma-inc-line-shifts.jl), which passes it straight to
+        # Basics.diagonalize(MatrixWithLinearAlgebra(),...); Symmetric(matrix)'s default uplo=:U already
+        # discards the lower triangle. See Hamiltonian.setupMatrix's identical note for the confirming test.
         for  r = 1:n
-            for  s = 1:n
+            for  s = r:n
                 # Calculate the spin-angular coefficients
                 if  Defaults.saRatip()
                     waR = compute(AngularCoeffsEeRatip2013(), basis.csfs[idx_csf[r]], basis.csfs[idx_csf[s]])
@@ -422,13 +427,17 @@ function Basics.computeMultipletForGreenApproach(approach::AtomicState.CoreSpace
     if  asfSettings.jjLS.makeIt             println("   ++ No jj-LS transformation included for this Green function approach.")    end
     potential = Nuclear.nuclearPotential(nModel, grid)
     ncsf      = length(basis.csfs);    matrix = zeros(Float64, ncsf, ncsf)
-    for  (r, rcsf)  in enumerate(basis.csfs)
-        for  (s, scsf)  in enumerate(basis.csfs)
+    # Hermitian-symmetry shortcut (28-Jul-2026): only the UPPER triangle (r<=s) is computed -- exact, not
+    # just safe, since this matrix feeds Basics.diagonalize(MatrixWithLinearAlgebra(),...), whose
+    # Symmetric(matrix) wrapper (default uplo=:U) already discards the lower triangle. See
+    # Hamiltonian.setupMatrix's identical note for the confirming test.
+    for  r = 1:ncsf
+        for  s = r:ncsf
             # Calculate the spin-angular coefficients
             if  Defaults.saGG()
                 subshellList = basis.subshells
                 opa  = SpinAngular.OneParticleOperator(0, plus, true)
-                waG1 = SpinAngular.computeCoefficients(opa, basis.csfs[r], basis.csfs[s], subshellList) 
+                waG1 = SpinAngular.computeCoefficients(opa, basis.csfs[r], basis.csfs[s], subshellList)
                 opa  = SpinAngular.TwoParticleOperator(0, plus, true)
                 waG2 = SpinAngular.computeCoefficients(opa, basis.csfs[r], basis.csfs[s], subshellList)
                 wa   = [waG1, waG2]
@@ -443,9 +452,9 @@ function Basics.computeMultipletForGreenApproach(approach::AtomicState.CoreSpace
             end
 
             for  coeff in wa[2]
-                if  basis.orbitals[coeff.a].isBound   &&   basis.orbitals[coeff.b].isBound   && 
+                if  basis.orbitals[coeff.a].isBound   &&   basis.orbitals[coeff.b].isBound   &&
                     basis.orbitals[coeff.c].isBound   &&   basis.orbitals[coeff.d].isBound
-                    if  asfSettings.coulombCI    
+                    if  asfSettings.coulombCI
                         me = me + coeff.V * InteractionStrength.XL_Coulomb(coeff.nu, basis.orbitals[coeff.a], basis.orbitals[coeff.b],
                                                                                         basis.orbitals[coeff.c], basis.orbitals[coeff.d], grid)   end
                     if  asfSettings.breitCI
@@ -457,16 +466,16 @@ function Basics.computeMultipletForGreenApproach(approach::AtomicState.CoreSpace
             matrix[r,s] = me
         end
     end
-    
-    # (3) Diagonalize matrix with Julia;   assign a multiplet 
+
+    # (3) Diagonalize matrix with Julia;   assign a multiplet
     eigen  = Basics.diagonalize(MatrixWithLinearAlgebra(), matrix)
     levels = Level[]
     for  ev = 1:length(eigen.values)
-        level = Level( sym.J, AngularM64(sym.J.num//sym.J.den), sym.parity, 0, eigen.values[ev], 0., true, basis, eigen.vectors[ev] ) 
+        level = Level( sym.J, AngularM64(sym.J.num//sym.J.den), sym.parity, 0, eigen.values[ev], 0., true, basis, eigen.vectors[ev] )
         push!( levels, level)
     end
     println("done with $(length(levels)) levels")
-    
+
     multiplet = Multiplet("CoreSpaceCI multiplet for $sym", levels)
     return( multiplet )
 end
@@ -495,8 +504,10 @@ function Basics.computeMultipletForGreenApproach(approach::AtomicState.DampedSpa
     if  asfSettings.jjLS.makeIt             println("   ++ No jj-LS transformation included for this Green function approach.")    end
     potential = Nuclear.nuclearPotential(nModel, grid)
     ncsf      = length(basis.csfs);    matrix = zeros(Float64, ncsf, ncsf);    tau = greenSettings.dampingTau
-    for  (r, rcsf)  in enumerate(basis.csfs)
-        for  (s, scsf)  in enumerate(basis.csfs)
+    # Hermitian-symmetry shortcut (28-Jul-2026): only the UPPER triangle (r<=s) is computed -- see
+    # CoreSpaceCI's identical note above / Hamiltonian.setupMatrix's for the confirming test.
+    for  r = 1:ncsf
+        for  s = r:ncsf
             # Calculate the spin-angular coefficients
             if  Defaults.saGG()
                 subshellList = basis.subshells
