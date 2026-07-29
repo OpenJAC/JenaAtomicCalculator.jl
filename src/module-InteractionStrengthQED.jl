@@ -42,7 +42,7 @@ function qedLocal(a::Orbital, b::Orbital, nm::Nuclear.Model, qed::ManyElectron.A
 
         wp           = Bsplines.generatePrimitives(grid)
         subshellList = [Subshell("1s_1/2"), Subshell("2p_1/2"), Subshell("2p_3/2"), Subshell("3d_3/2"), Subshell("3d_5/2")]
-        orbitals     = Bsplines.generateOrbitalsHydrogenic(wp, nm, subshellList; printout=true)
+        orbitals     = Bsplines.generateOrbitalsHydrogenic(subshellList, nm, wp; printout=true)
         wc1          = wc2 = wc3 = wc4 = wc5 = 1.0
         for  subsh in subshellList
             orb = orbitals[subsh]
@@ -58,11 +58,11 @@ function qedLocal(a::Orbital, b::Orbital, nm::Nuclear.Model, qed::ManyElectron.A
     end
     
     if      qed == QedSydney()
-        wa = RadialIntegrals.qedUehlingSimple(a, b, pot, grid, qgrid) + 
-                ## RadialIntegrals.qedWichmannKrollSimple(a, b, pot, grid, qgrid) + 
-                ## RadialIntegrals.qedElectricFormFactor(a, b, pot, grid, qgrid) + 
-                ## RadialIntegrals.qedMagneticFormFactor(a, b, pot, grid, qgrid) + 
-                RadialIntegrals.qedLowFrequency(a, b, nm, grid, qgrid) 
+        wa = RadialIntegrals.qedUehlingSimple(a, b, pot, grid, qgrid) +
+                RadialIntegrals.qedWichmannKrollSimple(a, b, nm, pot, grid, qgrid) +
+                RadialIntegrals.qedElectricFormFactor(a, b, nm, grid, qgrid) +
+                RadialIntegrals.qedMagneticFormFactor(a, b, nm, grid, qgrid) +
+                RadialIntegrals.qedLowFrequency(a, b, nm, grid, qgrid)
     elseif   qed == QedPetersburg()
         ## RadialIntegrals.qedUehling(a, b, nm, grid, qgrid)
         wa = RadialIntegrals.qedUehlingSimple(a, b, pot, grid, qgrid) + 

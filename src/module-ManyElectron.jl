@@ -20,9 +20,16 @@ export  AsfSettings, CsfR, Basis, Level, Multiplet,
     + struct QedPetersburg         
     ... to estimate the QED corrections due to the model Hamiltonian by Shabaev and coworkers (2013).
         
-    + struct QedSydney                
-    ... to estimate the QED corrections by means of the radiative potential by Flambaum and Ginges (2004).
-        
+    + struct QedSydney
+    ... to estimate the QED corrections by means of the radiative potential by Flambaum and Ginges (2004),
+        completed with Kozioł's Rci-Q per-shell A(Z,n) re-fit for the s-orbital electric self-energy term
+        (arXiv:2512.01515). Empirically verified sign-correct and Z-stable for 1s over Z=30-100 (see
+        example-Ae.jl); the magnitude ratio to QedPetersburg's self-energy declines smoothly from ~0.9
+        (Z=30) to ~0.4 (Z=100) -- an expected, understood residual gap between two independent approximate
+        models, not an instability. p/d/f orbitals still use Flambaum-Ginges' original, less accurate,
+        generic fit (not yet re-derived from Rci-Q's tables) -- treat results for those orbitals, and for
+        Z<20 (outside Rci-Q's stated fit range), with more caution than 1s in the verified range.
+
     + struct NoneQed               
     ... No QED estimates are included into the computations.
 """

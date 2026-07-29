@@ -9,6 +9,17 @@ module  RadialIntegrals
 using  Dierckx, GSL, QuadGK
 using  ..AngularMomentum, ..Basics, ..Bsplines, ..Defaults,  ..Radial, ..Math, ..ManyElectron, ..Nuclear
 
+#   Fitting coefficients A(Z,n,l=0) = a0 + a1*Z + a2*Z^2 + a3*Z^3 + a4*Z^4  for the electric self-energy
+#   form-factor prefactor of s-orbitals (kappa = -1), separately for n = 1..5(and above), and for Z >= 20
+#   and Z < 20; cf. Kozioł, "Rci-Q", arXiv:2512.01515, Table I. Columns 1-5 are Z>=20; columns 6-10 are Z<20.
+#                   ---------------------- Z >= 20 ----------------------    --------------------- Z < 20 ---------------------
+#                     a0            a1            a2            a3            a4              a0            a1            a2            a3            a4
+const  rciQ_Ael0 = [  7.72308e-1   -2.40991e-4    3.48842e-5   -2.83516e-7    3.16093e-10      8.72587e-1   -1.44109e-2   -1.48436e-3    3.37161e-4   -1.34952e-5  ;   # n=1
+                      8.07899e-1    1.29047e-3    3.94430e-5   -1.64904e-7   -1.97988e-9       8.91352e-1   -1.26732e-2   -1.29823e-3    3.24461e-4   -1.32155e-5  ;   # n=2
+                      8.08505e-1    2.07848e-3    3.83122e-5   -1.64870e-7   -2.26659e-9       8.81396e-1    3.14301e-2   -1.29689e-2    1.71096e-3   -5.74309e-5  ;   # n=3
+                      8.08957e-1    2.52039e-3    3.03563e-5   -5.24535e-8   -2.92995e-9       8.83234e-1    3.17102e-2   -1.49614e-2    1.71022e-3   -5.74210e-5  ;   # n=4
+                      8.15199e-1    2.19164e-3    4.33051e-5   -2.04857e-7   -2.39770e-9       8.84127e-1    3.18795e-2   -1.49649e-2    1.71050e-3   -5.74349e-5  ]   # n>=5
+
 """
 `RadialIntegrals.GrantIab(a::Radial.Orbital, b::Radial.Orbital, grid::Radial.Grid, potential::Radial.Potential)`  
     ... computes the (radial) single-electron energy integral:
@@ -405,7 +416,7 @@ end
         A value::Float64 is returned.
 """
 function qedLowFrequency(a::Radial.Orbital, b::Radial.Orbital, nm::Nuclear.Model, grid::Radial.Grid, qgrid::Radial.GridGL)
-    alpha = Defaults.getDefaults("alpha");    BZ = 0.074 + 0.035 * nm.Z * alpha
+    alpha = Defaults.getDefaults("alpha");    BZ = 0.074 + 0.35 * nm.Z * alpha
     mtp = min(size(a.P, 1), size(b.P, 1))
     # Distinguish the radial integration for different grid definitions
     if  grid.meshType == Radial.MeshGL()
@@ -494,6 +505,133 @@ function qedUehlingSimple(a::Radial.Orbital, b::Radial.Orbital, pot::Radial.Pote
     println("QED single-electron strength <$(a.subshell)| h^(simplified Uehling) | $(b.subshell)> = $wa ")
     return( wa )
 end
+
+
+"""
+`RadialIntegrals.qedElectricFormFactor(a::Radial.Orbital, b::Radial.Orbital, nm::Nuclear.Model,
+                                        grid::Radial.Grid, qgrid::Radial.GridGL)`
+    ... computes the (radial) integral for the high-frequency electric self-energy form-factor contribution
+        (point-like nucleus) for the radial orbitals a, b on the given grid; cf. Flambaum & Ginges,
+        PRA 72, 052115 (2005), eq. (10), with the coefficient A(Z,r) taken from Kozioł's Rci-Q re-fit
+        (arXiv:2512.01515, Table I) for s-orbitals (kappa=-1), where FG's original generic fit is known
+        (per Rci-Q's own text) to be poorly suited for inner shells; p/d/f orbitals still use FG's original
+        generic fit -- a documented, narrower scope, mirroring Petersburg's own n<=4/kappa-restricted note.
+        A value::Float64 is returned.
+"""
+function qedElectricFormFactor(a::Radial.Orbital, b::Radial.Orbital, nm::Nuclear.Model, grid::Radial.Grid, qgrid::Radial.GridGL)
+    # Define the internal t-integration that is specific to the electric self-energy form factor; cf. PRA 72, 052115 (2005); eq. (10)
+    function tIntegral(r::Float64, alpha::Float64)
+        wx = 0.;
+        for  i = 1:qgrid.nt   t = qgrid.t[i];
+            wx = wx + 1.0/sqrt(t^2 - 1.) * ( (1. - 1.0/(2.0*t^2)) * (log(t^2 - 1.) + 4.0*log(1.0/(nm.Z*alpha) + 0.5)) - 1.5 + 1.0/t^2 ) *
+                        Base.MathConstants.e^(-2.0*t*r/alpha) * qgrid.wt[i]
+        end
+        return( wx )
+    end
+
+    alpha = Defaults.getDefaults("alpha");    x = (nm.Z - 80.) * alpha
+    if  a.subshell.kappa == -1
+        nn  = min(a.subshell.n, 5);   col = nm.Z >= 20.   ?   (1:5)   :   (6:10)
+        a0, a1c, a2c, a3c, a4c = rciQ_Ael0[nn, col]
+        A0Z = a0 + a1c*nm.Z + a2c*nm.Z^2 + a3c*nm.Z^3 + a4c*nm.Z^4
+    else
+        A0Z = 1.071 - 1.976*x^2 - 2.128*x^3 + 0.169*x^4
+    end
+    mtp = min(size(a.P, 1), size(b.P, 1))
+    # Distinguish the radial integration for different grid definitions
+    if  grid.meshType == Radial.MeshGL()
+        wa = 0.
+        for  i = 2:mtp
+            r  = grid.r[i]
+            # NOTE: the small-distance cutoff denominator uses alpha^3 (Rci-Q's stated exponent), not FG's
+            # own alpha^2 -- with alpha^2 the damping increasingly (and spuriously) suppresses this term at
+            # the Z ~ 70-90 range where the self-energy integral's dominant r ~ alpha; alpha^3 keeps the
+            # damping negligible there, matching the term's expected fast growth with Z.
+            AZ = A0Z * r / (r + 0.07*nm.Z^2*alpha^3)
+            # NOTE: FG's eq. (10) reads  Phi_f(r) = -A(Z,r)(alpha/pi) Phi(r) integral(),  with Phi(r) = -Z/r
+            # (the same convention as Phi(r) in qedUehlingSimple's wc); the two minus signs cancel, giving
+            # a net POSITIVE prefactor on (Z/r) -- this is the dominant, positive self-energy contribution.
+            wb = AZ * alpha/pi * (nm.Z/r) * tIntegral(r, alpha)
+            wa = wa + (a.P[i]*wb*b.P[i] + a.Q[i]*wb*b.Q[i]) * grid.wr[i]
+        end
+    else
+        error("stop a")
+    end
+
+    println("QED single-electron strength <$(a.subshell)| h^(SE, electric form factor) | $(b.subshell)> = $wa ")
+    return( wa )
+end
+
+
+"""
+`RadialIntegrals.qedMagneticFormFactor(a::Radial.Orbital, b::Radial.Orbital, nm::Nuclear.Model,
+                                        grid::Radial.Grid, qgrid::Radial.GridGL)`
+    ... computes the (radial) integral for the magnetic self-energy form-factor contribution (point-like
+        nucleus) for the radial orbitals a, b on the given grid; cf. Flambaum & Ginges, PRA 72, 052115 (2005),
+        eq. (7). Unlike the electric-type QED terms, the magnetic form factor couples the large and small
+        radial components (a P-Q cross term) rather than P*P + Q*Q. A value::Float64 is returned.
+"""
+function qedMagneticFormFactor(a::Radial.Orbital, b::Radial.Orbital, nm::Nuclear.Model, grid::Radial.Grid, qgrid::Radial.GridGL)
+    # Define the internal t-integration that is specific to the magnetic self-energy form factor; cf. PRA 72, 052115 (2005); eq. (7)
+    function tIntegrals(r::Float64, alpha::Float64)
+        wi1 = 0.;   wi2 = 0.;
+        for  i = 1:qgrid.nt   t = qgrid.t[i];
+            we  = Base.MathConstants.e^(-2.0*t*r/alpha) * qgrid.wt[i]
+            wi1 = wi1 + we / (t    * sqrt(t^2 - 1.))
+            wi2 = wi2 + we / (t^2  * sqrt(t^2 - 1.))
+        end
+        return( wi1, wi2 )
+    end
+
+    alpha = Defaults.getDefaults("alpha")
+    mtp = min(size(a.P, 1), size(b.P, 1))
+    # Distinguish the radial integration for different grid definitions
+    if  grid.meshType == Radial.MeshGL()
+        wa = 0.
+        for  i = 2:mtp
+            r        = grid.r[i]
+            wi1, wi2 = tIntegrals(r, alpha)
+            wb       = alpha^2 * nm.Z / (4pi * r^2) * ( wi2 + (2*r/alpha)*wi1 - 1. )
+            wa       = wa + (a.P[i]*wb*b.Q[i] + a.Q[i]*wb*b.P[i]) * grid.wr[i]
+        end
+    else
+        error("stop a")
+    end
+
+    println("QED single-electron strength <$(a.subshell)| h^(SE, magnetic form factor) | $(b.subshell)> = $wa ")
+    return( wa )
+end
+
+
+"""
+`RadialIntegrals.qedWichmannKrollSimple(a::Radial.Orbital, b::Radial.Orbital, nm::Nuclear.Model,
+                                        pot::Radial.Potential, grid::Radial.Grid, qgrid::Radial.GridGL)`
+    ... computes the (radial) integral for the simplified Wichmann-Kroll vacuum-polarization contribution
+        for the radial orbitals a, b on the given grid; cf. Flambaum & Ginges, PRA 72, 052115 (2005), eq. (12).
+        A closed-form (non-t-integrated) correction; qgrid is accepted only for interface consistency with
+        the other local QED terms and is not used. A value::Float64 is returned.
+"""
+function qedWichmannKrollSimple(a::Radial.Orbital, b::Radial.Orbital, nm::Nuclear.Model, pot::Radial.Potential,
+                                grid::Radial.Grid, qgrid::Radial.GridGL)
+    alpha = Defaults.getDefaults("alpha");    rc = alpha
+    mtp = min(size(a.P, 1), size(b.P, 1))
+    # Distinguish the radial integration for different grid definitions
+    if  grid.meshType == Radial.MeshGL()
+        wa = 0.
+        for  i = 2:mtp
+            r  = grid.r[i]
+            wc = (-pot.Zr[i] / r)
+            wb = - (2*alpha)/(3pi) * wc * 0.092*nm.Z^2*alpha^2 / (1. + (1.62*r/rc)^4)
+            wa = wa + (a.P[i]*wb*b.P[i] + a.Q[i]*wb*b.Q[i]) * grid.wr[i]
+        end
+    else
+        error("stop a")
+    end
+
+    println("QED single-electron strength <$(a.subshell)| h^(Wichmann-Kroll) | $(b.subshell)> = $wa ")
+    return( wa )
+end
+
 
 """
 `RadialIntegrals.rkDiagonal()`   ... computes the (radial and diagonal) integral of r^k for two radial orbital functions.

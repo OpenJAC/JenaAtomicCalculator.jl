@@ -6,8 +6,8 @@
 """
 module Hamiltonian
 
-using  Printf, ..Basics, ..Bsplines, ..Defaults, ..InteractionStrength, ..ManyElectron, ..Nuclear, ..Radial,
-       ..RadialIntegrals, ..SpinAngular
+using  Printf, ..Basics, ..Bsplines, ..Defaults, ..InteractionStrength, ..InteractionStrengthQED, ..ManyElectron,
+       ..Nuclear, ..Radial, ..RadialIntegrals, ..SpinAngular
 
 
 """
