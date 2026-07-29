@@ -60,7 +60,7 @@ export AbstractCImethod, AbstractConfigurationRestriction, AbstractEeInteraction
        CartesianVector, Cartesian2DFieldVector, Cartesian3DFieldVector, CiSettings, CiExpansion, ClebschGordan, CloseCoupling, 
        compute, convertUnits, Compton, Configuration, ConfigurationR, 
        Cascade, Continuum, CorePolarization, Coulex, CoulombExcitation, Coulion, CoulombBreit, CoulombGaunt, 
-       CoulombInteraction, CoulombIonization, CsfR, ClosedCore, ClosedShells, ClosedSubshells, ContractShells, checkConfigurations,
+       CoulombInteraction, CoulombIonization, CrystalField, CsfR, ClosedCore, ClosedShells, ClosedSubshells, ContractShells, checkConfigurations,
        computeBranchingFractions,  computeChargeStateDistribution,  computeCrossSections,  computeForPedestrians,  computeLevelEnergies,  computeLifetimes,  computeResonanceStrength, computeTransitionRates,  displaySpectrum,
        diagonalize, Defaults, DecayYield, DielectronicRecombination, Dierec, Djpq, DoubleAutoIonization, DoubleAuger, DeepLearning,
        DiagonalCoulomb, DefaultQuantizationAxis, displayCouplings, displayConfiguration,  displayConfigurations, Distribution,
@@ -154,6 +154,7 @@ include("module-ReducedDensityMatrix.jl")
 include("module-AlphaVariation.jl")
 include("module-RadiativeOpacity.jl")
 include("module-MultipolePolarizibility.jl")
+include("module-CrystalField.jl")
 end
 
 if  incBasicProcesses
