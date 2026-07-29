@@ -500,7 +500,12 @@ end
         Ylm = sqrt( (2*l+1) / (two*two*pi) ) * spherical_Clm(l,m,theta,phi).
 """
 function sphericalYlm(l::Int64, m::Int64, theta::Float64, phi::Float64)
-    iphi  = 0. + phi*im
+    # Note (28-Jul-2026): the azimuthal phase must be exp(i*m*phi), not exp(i*phi); the missing
+    # "m*" factor here previously made every m != 0 call phi-dependent in the wrong way (e.g. a
+    # perfectly octahedral point-charge lattice sum, which must vanish exactly for k=2 at every q,
+    # picked up a spurious nonzero q=+-1,+-2 residual -- caught via CrystalField.multipoleLatticeSum,
+    # see project memory). Fixed by including "m*" in the exponent.
+    iphi  = m*phi*im
     # GSL's sf_legendre_sphPlm only accepts m >= 0; for m < 0 the standard relation
     # Y_l^{-|m|}(theta,phi) = (-1)^|m| * conj(Y_l^{|m|}(theta,phi)) requires this extra phase,
     # which is missing if abs(m) is used without it.
