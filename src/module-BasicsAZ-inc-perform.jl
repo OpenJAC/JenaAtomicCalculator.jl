@@ -188,6 +188,9 @@ function Basics.perform(computation::Atomic.Computation; output::Bool=false)
         elseif  typeof(computation.processSettings) == InternalConv()   
             outcome = InternalConversion.computeLines(finalMultiplet, initialMultiplet, computation.grid, computation.processSettings) 
             if output    results = Base.merge( results, Dict("internal conversion lines:" => outcome) )        end
+        elseif  typeof(computation.processSettings) == CrystalFieldEmission.Settings
+            outcome = CrystalFieldEmission.computeLines(finalMultiplet, initialMultiplet, computation.grid, computation.processSettings)
+            if output    results = Base.merge( results, Dict("crystal-field-resolved emission lines:" => outcome) )    end
         else
             error("stop b")
         end
