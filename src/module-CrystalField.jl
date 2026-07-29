@@ -524,11 +524,97 @@ end
 
 
 """
+`CrystalField.characteristicSplitting(cfMultiplet::CrystalField.CfMultiplet)`
+    ... computes the "characteristic crystal-field splitting" (CXS) of Uldry, Vernay & Delley,
+        Phys. Rev. B 85, 125133 (2012), Sec. II F: a single scalar descriptor of the overall
+        strength of a crystal-field multiplet, defined there as the energy difference between the
+        barycenter of the group of Stark sublevels lying above the largest gap in the spectrum and
+        that of the group lying below it (their own examples use case-specific variants, e.g.
+        "two lowest vs. three highest" for Cu2+/CuO, or "highest negative vs. average of positive"
+        for Ti3+/LaTiO3; splitting the spectrum at its single largest gap generalizes both of these
+        into one algorithm, since that gap is exactly where their examples split it by hand).
+        A value::Float64 (in Hartree) is returned; 0.0 if cfMultiplet has fewer than 2 sublevels.
+
+    + cfMultiplet   ::CrystalField.CfMultiplet   ... the Stark sublevels of one crystal-field outcome.
+"""
+function characteristicSplitting(cfMultiplet::CfMultiplet)
+    energies = sort([ lev.energy  for lev in cfMultiplet.cfLevels ])
+    n = length(energies)
+    if  n < 2   return 0.0   end
+    #
+    gaps = [ energies[i+1] - energies[i]  for i = 1:n-1 ]
+    imax = argmax(gaps)
+    lowerGroup = energies[1:imax];   upperGroup = energies[imax+1:end]
+    #
+    return  sum(upperGroup)/length(upperGroup) - sum(lowerGroup)/length(lowerGroup)
+end
+
+
+"""
+`CrystalField.characteristicSplitting(outcome::CrystalField.Outcome)`
+    ... convenience method, equivalent to CrystalField.characteristicSplitting(outcome.cfMultiplet).
+"""
+function characteristicSplitting(outcome::Outcome)
+    return  characteristicSplitting(outcome.cfMultiplet)
+end
+
+
+"""
+`CrystalField.fitScaleField(levels::Array{Level,1}, lattice::CrystalField.Lattice, grid::Radial.Grid, targetSplitting::Float64, maxRank::Int64;`
+
+        tolerance::Float64=1.0e-6, maxIterations::Int64=20)
+
+    ... finds the CrystalField.PointChargeModel.scaleField value -- the S_xtal empirical rescaling
+        parameter of Uldry, Vernay & Delley, Phys. Rev. B 85, 125133 (2012), Sec. IV -- for which
+        CrystalField.characteristicSplitting(...) of the crystal-field representation of `levels`
+        matches `targetSplitting` (in Hartree). Whenever `levels` contains a single parent level
+        (no J-mixing), the interaction matrix's diagonal is a multiple of the identity (the shared
+        level energy), so only the scaleField-proportional off-diagonal part affects the eigenvalue
+        differences: CXS is then EXACTLY proportional to scaleField, and a single evaluation at
+        scaleField=1.0 already gives the exact answer. Under J-mixing this proportionality is only
+        approximate, so a short secant iteration (seeded from that exact linear estimate) refines it
+        further. A scaleField::Float64 is returned.
+
+    + levels            ::Array{Level,1}      ... the parent (unperturbed) levels to be diagonalized jointly.
+    + lattice           ::CrystalField.Lattice ... the external point-charge lattice.
+    + grid              ::Radial.Grid         ... the radial grid.
+    + targetSplitting   ::Float64             ... the target characteristic splitting, in Hartree.
+    + maxRank           ::Int64               ... maximum tensor rank k to be included.
+    + tolerance         ::Float64             ... relative convergence tolerance on targetSplitting.
+    + maxIterations     ::Int64               ... maximum number of secant iterations.
+"""
+function fitScaleField(levels::Array{Level,1}, lattice::Lattice, grid::Radial.Grid, targetSplitting::Float64, maxRank::Int64;
+                        tolerance::Float64=1.0e-6, maxIterations::Int64=20)
+    evaluate(s) = characteristicSplitting( computeRepresentation(levels, lattice, PointChargeModel(s), grid, maxRank) )
+    #
+    cxsAtUnitScale = evaluate(1.0)
+    if  cxsAtUnitScale == 0.
+        error("CrystalField.fitScaleField: characteristic splitting vanishes at scaleField=1.0 " *
+              "(no allowed multipole term for this lattice/level combination); cannot fit.")
+    end
+    #
+    s0 = targetSplitting / cxsAtUnitScale;   f0 = evaluate(s0) - targetSplitting
+    s1 = s0 * 1.01;                          f1 = evaluate(s1) - targetSplitting
+    #
+    for  _ = 1:maxIterations
+        if  abs(f1) < tolerance * abs(targetSplitting)   break    end
+        slope = (f1 - f0) / (s1 - s0)
+        sNew  = s1 - f1/slope
+        s0, f0 = s1, f1
+        s1 = sNew;   f1 = evaluate(s1) - targetSplitting
+    end
+    #
+    return  s1
+end
+
+
+"""
 `CrystalField.displayResults(stream::IO, outcomes::Array{CrystalField.Outcome,1})`
     ... prints the crystal-field (Stark) splitting pattern for every outcome to `stream`, sorted by
         increasing sublevel energy and given relative to the lowest sublevel of each outcome, both
-        in Hartree and in cm^-1 (directly comparable to Table 1 of Gaigalas & Kato). Nothing is
-        returned.
+        in Hartree and in cm^-1 (directly comparable to Table 1 of Gaigalas & Kato), followed by the
+        characteristic crystal-field splitting (CXS) of Uldry, Vernay & Delley (Sec. II F). Nothing
+        is returned.
 
     + stream     ::IO                              ... the output stream.
     + outcomes   ::Array{CrystalField.Outcome,1}    ... the computed crystal-field outcomes.
@@ -544,6 +630,9 @@ function displayResults(stream::IO, outcomes::Array{Outcome,1})
             enCm = Defaults.convertUnits("energy: from atomic to Kayser", lev.energy - e0)
             @printf(stream, "    sublevel %3i:   E - E0 = %14.6f cm^-1   (%.10f Hartree)\n", i, enCm, lev.energy)
         end
+        cxs      = characteristicSplitting(outcome)
+        cxsCm    = Defaults.convertUnits("energy: from atomic to Kayser", cxs)
+        @printf(stream, "    characteristic crystal-field splitting (CXS) = %.6f cm^-1  (%.10f Hartree)\n", cxsCm, cxs)
         println(stream, "")
     end
     return  nothing
