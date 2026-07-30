@@ -261,7 +261,7 @@ function  determinePathways(finalMultiplet::Multiplet, intermediateMultiplet::Mu
                     aEnergy = nLevel.energy - fLevel.energy
                     pEnergy = fLevel.energy - iLevel.energy
                     if  eEnergy < 0.   ||   aEnergy < 0    continue    end
-                    rSettings = PhotoEmission.Settings( settings.multipoles, settings.gauges, false, false, CorePolarization(), LineSelection(), 0., 0., 0.)
+                    rSettings = PhotoEmission.Settings( settings.multipoles, settings.gauges, false, false, CorePolarization(), LineSelection(), 0., 0., 0., false)
                     eChannels = PhotoEmission.determineChannels(nLevel, iLevel, rSettings) 
                     aSettings = AutoIonization.Settings( false, false, false, LineSelection(), 0., 0., 0., settings.maxKappa, CoulombInteraction(), Multiplet())
                     aChannels = AutoIonization.determineChannels(fLevel, nLevel, aSettings) 

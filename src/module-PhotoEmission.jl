@@ -7,7 +7,7 @@
 module PhotoEmission
 
 
-using Printf, ..AngularMomentum, ..Basics, ..Defaults, ..InteractionStrength, ..ManyElectron, ..Radial, 
+using Printf, ..AngularMomentum, ..Basics, ..BiOrthogonal, ..Defaults, ..InteractionStrength, ..ManyElectron, ..Radial,
                 ..SpinAngular, ..TableStrings
 
 
@@ -23,29 +23,35 @@ using Printf, ..AngularMomentum, ..Basics, ..Defaults, ..InteractionStrength, ..
     + corePolarization        ::CorePolarization        ... Parametrization of the core-polarization potential/contribution.
     + lineSelection           ::LineSelection           ... Specifies the selected levels, if any.
     + photonEnergyShift       ::Float64                 ... An overall energy shift for all photon energies.
-    + mimimumPhotonEnergy     ::Float64                 ... minimum transition energy for which (photon) transitions 
+    + mimimumPhotonEnergy     ::Float64                 ... minimum transition energy for which (photon) transitions
                                                             are included into the computation.
-    + maximumPhotonEnergy     ::Float64                 ... maximum transition energy for which (photon) transitions 
+    + maximumPhotonEnergy     ::Float64                 ... maximum transition energy for which (photon) transitions
                                                             are included.
+    + calcBiorthogonal        ::Bool                    ... True, if the initial- and final-state multiplets are first
+                                                            brought into a bi-orthogonal representation
+                                                            (`BiOrthogonal.computeTransformation`) before the transition
+                                                            amplitudes are evaluated, and false (the default) if the
+                                                            two multiplets are used as they are.
 """
-struct Settings  <:  AbstractProcessSettings 
+struct Settings  <:  AbstractProcessSettings
     multipoles                ::Array{EmMultipole,1}
     gauges                    ::Array{UseGauge}
-    calcAnisotropy            ::Bool         
-    printBefore               ::Bool 
+    calcAnisotropy            ::Bool
+    printBefore               ::Bool
     corePolarization          ::CorePolarization
-    lineSelection             ::LineSelection 
+    lineSelection             ::LineSelection
     photonEnergyShift         ::Float64
-    mimimumPhotonEnergy       ::Float64   
-    maximumPhotonEnergy       ::Float64     
-end 
+    mimimumPhotonEnergy       ::Float64
+    maximumPhotonEnergy       ::Float64
+    calcBiorthogonal          ::Bool
+end
 
 
 """
 `PhotoEmission.Settings()`  ... constructor for the default values of radiative line computations
 """
 function Settings()
-    Settings(EmMultipole[E1], UseGauge[Basics.UseCoulomb], false, false, CorePolarization(), LineSelection(), 0., 0., 10000.)
+    Settings(EmMultipole[E1], UseGauge[Basics.UseCoulomb], false, false, CorePolarization(), LineSelection(), 0., 0., 10000., false)
 end
 
 
@@ -53,35 +59,36 @@ end
 `PhotoEmission.Settings(set::PhotoEmission.Settings;`
 
         multipoles::=..,        gauges=..,                calcAnisotropy=..,          printBefore=..,
-        corePolarization=..,    lineSelection=..,         photonEnergyShift=..,       
-        mimimumPhotonEnergy=.., maximumPhotonEnergy=..) 
-                    
+        corePolarization=..,    lineSelection=..,         photonEnergyShift=..,
+        mimimumPhotonEnergy=.., maximumPhotonEnergy=..,   calcBiorthogonal=..)
+
     ... constructor for modifying the given PhotoEmission.Settings by 'overwriting' the previously selected parameters.
 """
-function Settings(set::PhotoEmission.Settings;    
+function Settings(set::PhotoEmission.Settings;
     multipoles::Union{Nothing,Array{EmMultipole,1}}=nothing,    gauges::Union{Nothing,Array{UseGauge}}=nothing,
     calcAnisotropy::Union{Nothing,Bool}=nothing,                printBefore::Union{Nothing,Bool}=nothing,
-    corePolarization::Union{Nothing,CorePolarization}=nothing,  lineSelection::Union{Nothing,LineSelection}=nothing, 
-    photonEnergyShift::Union{Nothing,Float64}=nothing,          mimimumPhotonEnergy::Union{Nothing,Float64}=nothing, 
-    maximumPhotonEnergy::Union{Nothing,Float64}=nothing)
-    
-    if  isnothing(multipoles)            multipolesx          = set.multipoles              else  multipolesx          = multipoles            end 
-    if  isnothing(gauges)                gaugesx              = set.gauges                  else  gaugesx              = gauges                end 
-    if  isnothing(calcAnisotropy)        calcAnisotropyx      = set.calcAnisotropy          else  calcAnisotropyx      = calcAnisotropy        end 
-    if  isnothing(printBefore)           printBeforex         = set.printBefore             else  printBeforex         = printBefore           end 
-    if  isnothing(corePolarization)      corePolarizationx    = set.corePolarization        else  corePolarizationx    = corePolarization      end 
-    if  isnothing(lineSelection)         lineSelectionx       = set.lineSelection           else  lineSelectionx       = lineSelection         end 
-    if  isnothing(photonEnergyShift)     photonEnergyShiftx   = set.photonEnergyShift       else  photonEnergyShiftx   = photonEnergyShift     end 
-    if  isnothing(mimimumPhotonEnergy)   mimimumPhotonEnergyx = set.mimimumPhotonEnergy     else  mimimumPhotonEnergyx = mimimumPhotonEnergy   end 
-    if  isnothing(maximumPhotonEnergy)   maximumPhotonEnergyx = set.maximumPhotonEnergy     else  maximumPhotonEnergyx = maximumPhotonEnergy   end 
-    
-    Settings( multipolesx, gaugesx, calcAnisotropyx, printBeforex, corePolarizationx, lineSelectionx, 
-              photonEnergyShiftx, mimimumPhotonEnergyx, maximumPhotonEnergyx)
+    corePolarization::Union{Nothing,CorePolarization}=nothing,  lineSelection::Union{Nothing,LineSelection}=nothing,
+    photonEnergyShift::Union{Nothing,Float64}=nothing,          mimimumPhotonEnergy::Union{Nothing,Float64}=nothing,
+    maximumPhotonEnergy::Union{Nothing,Float64}=nothing,        calcBiorthogonal::Union{Nothing,Bool}=nothing)
+
+    if  isnothing(multipoles)            multipolesx          = set.multipoles              else  multipolesx          = multipoles            end
+    if  isnothing(gauges)                gaugesx              = set.gauges                  else  gaugesx              = gauges                end
+    if  isnothing(calcAnisotropy)        calcAnisotropyx      = set.calcAnisotropy          else  calcAnisotropyx      = calcAnisotropy        end
+    if  isnothing(printBefore)           printBeforex         = set.printBefore             else  printBeforex         = printBefore           end
+    if  isnothing(corePolarization)      corePolarizationx    = set.corePolarization        else  corePolarizationx    = corePolarization      end
+    if  isnothing(lineSelection)         lineSelectionx       = set.lineSelection           else  lineSelectionx       = lineSelection         end
+    if  isnothing(photonEnergyShift)     photonEnergyShiftx   = set.photonEnergyShift       else  photonEnergyShiftx   = photonEnergyShift     end
+    if  isnothing(mimimumPhotonEnergy)   mimimumPhotonEnergyx = set.mimimumPhotonEnergy     else  mimimumPhotonEnergyx = mimimumPhotonEnergy   end
+    if  isnothing(maximumPhotonEnergy)   maximumPhotonEnergyx = set.maximumPhotonEnergy     else  maximumPhotonEnergyx = maximumPhotonEnergy   end
+    if  isnothing(calcBiorthogonal)      calcBiorthogonalx    = set.calcBiorthogonal        else  calcBiorthogonalx    = calcBiorthogonal      end
+
+    Settings( multipolesx, gaugesx, calcAnisotropyx, printBeforex, corePolarizationx, lineSelectionx,
+              photonEnergyShiftx, mimimumPhotonEnergyx, maximumPhotonEnergyx, calcBiorthogonalx)
 end
 
 
 # `Base.show(io::IO, settings::PhotoEmission.Settings)`  ... prepares a proper printout of the variable settings::PhotoEmissionSettings.
-function Base.show(io::IO, settings::PhotoEmission.Settings) 
+function Base.show(io::IO, settings::PhotoEmission.Settings)
     println(io, "multipoles:             $(settings.multipoles)  ")
     println(io, "gauges:                 $(settings.gauges)  ")
     println(io, "calcAnisotropy:         $(settings.calcAnisotropy)  ")
@@ -91,6 +98,7 @@ function Base.show(io::IO, settings::PhotoEmission.Settings)
     println(io, "photonEnergyShift:      $(settings.photonEnergyShift)  ")
     println(io, "mimimumPhotonEnergy:    $(settings.mimimumPhotonEnergy)  ")
     println(io, "maximumPhotonEnergy:    $(settings.maximumPhotonEnergy)  ")
+    println(io, "calcBiorthogonal:       $(settings.calcBiorthogonal)  ")
 end
 
 
@@ -409,7 +417,10 @@ end
     ... to compute the radiative transition amplitudes and all properties as requested by the given settings. A list of 
         lines::Array{PhotoEmission.Lines} is returned.
 """
-function  computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, grid::Radial.Grid, settings::PhotoEmission.Settings; output=true) 
+function  computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, grid::Radial.Grid, settings::PhotoEmission.Settings; output=true)
+    if  settings.calcBiorthogonal
+        initialMultiplet, finalMultiplet = BiOrthogonal.computeTransformation(initialMultiplet, finalMultiplet, grid)
+    end
     # Define a common subshell list for both multiplets
     subshellList = Basics.generate(OrderedSubshellList(), finalMultiplet.levels[1].basis, initialMultiplet.levels[1].basis)
     Defaults.setDefaults("relativistic subshell list", subshellList; printout=true)

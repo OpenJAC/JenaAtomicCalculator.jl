@@ -56,7 +56,7 @@ export AbstractCImethod, AbstractConfigurationRestriction, AbstractEeInteraction
        AngularJ64, AngularM64, AngularJ, AngularMomentum, AddElectrons, 
        AsfSettings, Atomic, AtomicState, AtomicStructure, Auger, AugerInPlasma, AutoIonization, AverageAtom, AtomicCompass,
        AtomicModel, AtomicFeatures,
-       Basics, Basis, Beam, BeamPhotoExcitation, BreitInteraction, Bsplines, ByMultipoles, ByNumber, ByParity,
+       Basics, Basis, Beam, BeamPhotoExcitation, BiOrthogonal, BreitInteraction, Bsplines, ByMultipoles, ByNumber, ByParity,
        CartesianVector, Cartesian2DFieldVector, Cartesian3DFieldVector, CiSettings, CiExpansion, ClebschGordan, CloseCoupling, 
        compute, convertUnits, Compton, Configuration, ConfigurationR, 
        Cascade, Continuum, CorePolarization, Coulex, CoulombExcitation, Coulion, CoulombBreit, CoulombGaunt, 
@@ -114,7 +114,6 @@ include("module-Defaults.jl");          using ..Defaults
 include("module-Distribution.jl");      using ..Defaults
 include("module-ManyElectron.jl");      using ..ManyElectron
 include("module-Nuclear.jl");           using ..Nuclear
-# include("module-BiOrthogonal.jl");      using ..BiOrthogonal
 
 
 # Specialized functions/methods to manipulate these data
@@ -136,6 +135,7 @@ include("module-TableStrings.jl")
 include("module-Tools.jl")
 include("module-AtomicState.jl");       using ..AtomicState
 include("module-LSjj.jl");              using ..LSjj
+include("module-BiOrthogonal.jl");      using ..BiOrthogonal
 
 include("module-PhotoEmission.jl")
 

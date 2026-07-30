@@ -285,7 +285,7 @@ function  determinePathways(finalMultiplet::Multiplet, intermediateMultiplet::Mu
                     eEnergy = nLevel.energy - iLevel.energy + settings.photonEnergyShift
                     fEnergy = nLevel.energy - fLevel.energy + settings.photonEnergyShift
                     if  eEnergy < 0.   ||   fEnergy < 0.    continue    end
-                    rSettings = PhotoEmission.Settings( settings.multipoles, settings.gauges, false, false, CorePolarization(), LineSelection(), 0., 0., 0.)
+                    rSettings = PhotoEmission.Settings( settings.multipoles, settings.gauges, false, false, CorePolarization(), LineSelection(), 0., 0., 0., false)
                     eChannels = PhotoEmission.determineChannels(nLevel, iLevel, rSettings) 
                     fChannels = PhotoEmission.determineChannels(fLevel, nLevel, rSettings) 
                     push!( pathways, PhotoExcitationFluores.Pathway(iLevel, nLevel, fLevel, eEnergy, fEnergy, EmProperty(0., 0.), 
