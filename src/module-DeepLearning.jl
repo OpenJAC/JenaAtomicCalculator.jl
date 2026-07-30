@@ -15,7 +15,8 @@
 module DeepLearning
 
 
-using Printf, ..AngularMomentum, ..AtomicFeatures, ..Basics, ..Defaults, ..ManyElectron, ..Radial, ..TableStrings
+using Printf, ..AngularMomentum, ..AtomicFeatures, ..AtomicState, ..Basics, ..Defaults, ..Hamiltonian, ..LSjj, ..ManyElectron,
+      ..Nuclear, ..Radial, ..TableStrings
 
 export  AbstractNeuralNetwork, AbstractNeuralNetworkRequest, LevelEstimationRequest, 
         Application
@@ -83,9 +84,9 @@ function Application(app::DeepLearning.Application;
     name::Union{Nothing,String}=nothing,                                                         
     atomicModel::Union{Nothing,AtomicFeatures.AtomicModel}=nothing,   request::Union{Nothing,AbstractNeuralNetworkRequest}=nothing)
     
-    if  isnothing(name)                   namex                 = app.name                     else  namex = name                              end 
-    if  isnothing(atomicModel)            atomicModelx          = app.nuclearModel             else  atomicModelx = atomicModel                end 
-    if  isnothing(request)                requestx              = app.request                  else  requestx = request                        end 
+    if  isnothing(name)                   namex                 = app.name                     else  namex = name                              end
+    if  isnothing(atomicModel)            atomicModelx          = app.atomicModel               else  atomicModelx = atomicModel                end
+    if  isnothing(request)                requestx              = app.request                  else  requestx = request                        end
     
     Application(namex, atomicModelx, requestx)
 end
@@ -96,9 +97,9 @@ function Base.string(applic::DeepLearning.Application)
     if     typeof(applic.request) == DeepLearning.LevelEstimationRequest     sb = "request for level estimation"
     else   error("unknown typeof(applic.request)")
     end
-    
-    sa = "Deep learning application  $(request.name)  with a $sb and the atomic model $(request.model)  as well as "
-    sa = sa * "for Z = $(request.nuclearModel.Z) and for the configurations: \n "
+
+    sa = "Deep learning application  $(applic.name)  with a $sb and the atomic model $(applic.atomicModel)  as well as "
+    sa = sa * "for Z = $(applic.atomicModel.nuclearModel.Z) and for the configurations: \n "
 
     return( sa )
 end
@@ -107,6 +108,7 @@ end
 # `Base.show(io::IO, applic::DeepLearning.Application)`  ... prepares a proper printout applic::DeepLearning.Application.
 function Base.show(io::IO, applic::DeepLearning.Application)
     sa = Base.string(applic)
+    print(io, sa, "\n")
 end
 
 
