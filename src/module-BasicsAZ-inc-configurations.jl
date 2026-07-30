@@ -987,9 +987,7 @@ function Basics.extractFromConfiguration(theme::Basics.OpenShellNumber, conf::Co
     
     if      ns == 0   return ( LSjj.ZeroOpenShell() )
     elseif  ns == 1   return ( LSjj.OneOpenShell() )
-    elseif  ns == 2   return ( LSjj.TwoOpenShells() )
-    elseif  ns == 3   return ( LSjj.ThreeOpenShells() )
-    else    error("stop a")
+    else              return ( LSjj.GeneralOpenShells(ns) )
     end
     
 end

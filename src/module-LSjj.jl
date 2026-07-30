@@ -14,8 +14,19 @@ export CsfNR, BasisNR, LevelNR, MultipletNR
 abstract type  AbstractOpenShell                        end
 struct         ZeroOpenShell    <:  AbstractOpenShell   end
 struct         OneOpenShell     <:  AbstractOpenShell   end
-struct         TwoOpenShells    <:  AbstractOpenShell   end
-struct         ThreeOpenShells  <:  AbstractOpenShell   end
+
+"""
+`struct  LSjj.GeneralOpenShells  <:  AbstractOpenShell`
+    ... marks a CSF with an arbitrary (>= 2) number of open shells, to be expanded via the general
+        recursive jj-to-LSJ recoupling formula (Gaigalas, Atoms 14, 20 (2026), Eq. 17). Carries the
+        open-shell count purely for documentation/display; the dispatch itself does not depend on
+        its value.
+
+    + nOpenShells  ::Int64   ... number of open (non-relativistic) shells in the CSF (>= 2).
+"""
+struct  GeneralOpenShells  <:  AbstractOpenShell
+    nOpenShells    ::Int64
+end
 
 
 """
@@ -424,196 +435,130 @@ end
 
 
 """
-`LSjj.expandCsfRintoNonrelativisticBasis(openShells::TwoOpenShells, csfR::CsfR, basisR::Basis, basisNR::BasisNR)`
-    ... to expand a relativistic CsfR with two nonrelativistic open shells into the given nonrelativistic basis; 
-        a mcVector::Array{Float64,1} is returned with the same lengths as length(basisNR.csfs). It is checked that the 
-        expansion is complete, and a warning is issued if this is not the case.
+`LSjj.expandCsfRintoNonrelativisticBasis(openShells::GeneralOpenShells, csfR::CsfR, basisR::Basis, basisNR::BasisNR)`
+    ... to expand a relativistic CsfR with an ARBITRARY number (>= 2) of nonrelativistic open shells into
+        the given nonrelativistic basis, using the general recursive jj-to-LSJ recoupling formula (Gaigalas,
+        Atoms 14, 20 (2026), Eq. 17): starting from the first open shell's own (L1,S1,J1=Xp1) -- no
+        recoupling needed there, exactly as in `OneOpenShell` -- every subsequent shell i=2,...,u is folded
+        in via ONE 9-j symbol (Eq. 15, "diagram A": couples the accumulated (L,S,J) of shells 1..i-1 with
+        shell i's own (L_i,S_i,T_i) into the new accumulated (L,S,J) of shells 1..i), ONE 6-j symbol (Eq. 16,
+        "diagram B": converts shell i's own jj-split (Jbar_i,Jplus_i) into its LSJ-coupled Xbar_i given the
+        accumulated J's before/after this shell) and ONE single-shell LS-jj coefficient
+        (`LSjj.getLSjjCoefficient`, Eq. 12) -- i.e. exactly the SAME three-factor step, repeated once per
+        additional shell, with no new per-shell-count formula. The accumulated total J after shells 1..i is
+        NOT a free (summed-over) quantum number for 2 <= i < u: this particular CsfR already fixes it,
+        recorded (via the sequential minus-then-plus bookkeeping convention) in shell i's own "plus"-subshell
+        X field, exactly as shell 1's Xp1 fixes T1 -- only the LAST shell's accumulated total is externally
+        fixed to `csfR.J`. A shell with l == 0 has only its "plus" (j=1/2) subshell -- there is no jbar/jplus
+        split to reconcile, so diagram B is skipped for that shell and it folds in via diagram A alone (still
+        with diagram A's own normalization prefactor). Implemented via a running Dict{AngularJ64,Float64} of
+        partial coefficients keyed by the accumulated J, extended one shell at a time (a small, explicit
+        dynamic-programming recursion, since only terms whose accumulated J after shell i matches the
+        accumulated J required for shell i+1 can combine). Validated at u=2,3,4,5 via the physical,
+        SCF/CI-mixing-weighted per-level normalization test (weight sums to exactly 1 for every level,
+        `example-Ag.jl` branches b-e), catching and fixing two real bugs in the process -- see
+        module-LSjj.jl's own development history. A mcVector::Array{Float64,1} is returned with the
+        same length as length(basisNR.csfs).
 """
-function expandCsfRintoNonrelativisticBasis(openShells::TwoOpenShells, csfR::CsfR, basisR::Basis, basisNR::BasisNR)
+function expandCsfRintoNonrelativisticBasis(openShells::GeneralOpenShells, csfR::CsfR, basisR::Basis, basisNR::BasisNR)
     mcVector      = Float64[]
-    # Find the open subshells and determine all the quantum numbers
     rQN           = Basics.extractOpenShellQNfromCsfR(csfR, basisR)
     rShells, rOCC = Basics.extractShellOccupationFromCsfR(csfR, basisR)
     rKeys         = keys(rQN)
-    
-    if  length(rKeys) != 2          error("stop a")     end
+    u             = length(rKeys)
+
+    if  u < 2                       error("stop a")     end
     if  rShells != basisNR.shells   error("stop b")     end
-    
-    # Initialize all quantum numbers that occur in loops below
-    rsh1 = rsh2 = nrsh1 = nrsh2 = Shell("9m")   
-    Nm1 = JJm1 = JJp1 = XXp1 = QQm1 = QQp1 = Nm2 = JJm2 = JJp2 = XXm2 = QQm2 = QQp2 = 0  
-    Jm1 = Jp1 = Xp1 = Jm2 = Jp2 = Xm2 = L1 = S1 = L2 = S2 = L12 = S12 = J = AngularJ64(0)
-    N1 = w1 = QQ1 = LL1 = SS1 = N2 = w2 = QQ2 = LL2 = SS2 =  0 
-    
-    # Set open-shell QN for the given csfR
-    ns = 0
-    for  rsh in rShells
-        if  rsh in rKeys
-            ns = ns + 1;    rv = rQN[rsh];    rQNm = rv[1];    rQNp = rv[2]
-            twojp = 2*rsh.l + 1;        if  rsh.l == 0  twojm = 1    else    twojm = 2*rsh.l - 1  end
-            #
-            if      ns == 1  Nm1 = rQNm[2];    JJm1 = rQNm[4];       JJp1 = rQNp[4];         XXp1 = rQNp[5];    rsh1 = rsh
-                            QQm1 = Int64( (twojm+1)/2 - rQNm[3]);   QQp1 = Int64( (twojp+1)/2 - rQNp[3])
-                            Jm1  = AngularJ64(JJm1//2);             Jp1  = AngularJ64(JJp1//2);    Xp1  = AngularJ64(XXp1//2)
-            elseif  ns == 2  Nm2 = rQNm[2];    JJm2 = rQNm[4];       JJp2 = rQNp[4];         XXm2 = rQNm[5];    rsh2 = rsh
-                            QQm2 = Int64( (twojm+1)/2 - rQNm[3]);   QQp2 = Int64( (twojp+1)/2 - rQNp[3])
-                            Jm2  = AngularJ64(JJm2//2);             Jp2  = AngularJ64(JJp2//2);    Xm2  = AngularJ64(XXm2//2)
-            else    error("stop c")     
-            end
-        end
-    end
-    
-    # Now cycle over all nonrelativistic csfNR in the given basis
+
+    # Fix a definite ORDER for the open shells (the order in which they are folded into the recursion);
+    # any order is formally valid, but it must be the SAME order used below to read csfNR's own
+    # shellLX/shellSX (which are themselves defined by the position in basisNR.shells).
+    openShellList = [ rsh  for  rsh in rShells  if  rsh in rKeys ]
+
     for  s = 1:length(basisNR.csfs)
         csfNR = basisNR.csfs[s]
-        if  csfR.J != csfNR.J   
+        if  csfR.J != csfNR.J
             push!( mcVector, 0.)
-        else
-            me = 0.
-            if  rOCC == csfNR.occupation
-                nrQN   = LSjj.extractOpenShellQNfromCsfNR(csfNR, basisNR)
-                nrKeys = keys(nrQN)
-                # Set open-shell QN for the given csfNR in the loop
-                ns = 0
-                for  rsh in rShells
-                    if  rsh in nrKeys
-                        ns = ns + 1;    nrv = nrQN[rsh]
-                        if      ns == 1     N1 = nrv[2];     w1 = nrv[3];   QQ1 = nrv[4];    LL1 = nrv[5];    SS1 = nrv[6];    nrsh1 = rsh
-                                            L1 = AngularJ64(LL1//2);        S1  = AngularJ64(SS1//2)
-                        elseif  ns == 2     N2 = nrv[2];     w2 = nrv[3];   QQ2 = nrv[4];    LL2 = nrv[5];    SS2 = nrv[6];    nrsh2 = rsh
-                                            L2 = AngularJ64(LL2//2);        S2  = AngularJ64(SS2//2)
-                                            L12 = AngularJ64(nrv[7]//2);    S12 = AngularJ64(nrv[8]//2);      J = csfR.J
-                        else    error("stop d")     
-                        end
-                    end
-                end
-                #
-                if  rsh1 != nrsh1   ||   rsh2 != nrsh2      error("stop e")     end
-                
-                # Cycle over all intermediate angular momenta T1, T2
-                T1List = oplus(L1, S1);     T2List = oplus(L2, S2)
-                for  T1 in T1List
-                    for  T2 in T2List
-                        wa1 = LSjj.getLSjjCoefficient(rsh1.l, N1, LS_jj_qn(w1, QQ1, LL1, SS1, Basics.twice(T1), Nm1, QQm1, JJm1, QQp1, JJp1) )
-                        wa2 = LSjj.getLSjjCoefficient(rsh2.l, N2, LS_jj_qn(w2, QQ2, LL2, SS2, Basics.twice(T2), Nm2, QQm2, JJm2, QQp2, JJp2) )
-                        if AngularMomentum.triangularDelta(T1,Jm1,Jp1) == 1  &&  T1 == Xp1
-                            me  = me + sqrt(AngularMomentum.bracket([T1, T2, L12, S12])) * AngularMomentum.Wigner_9j(L1,S1,T1, L2,S2,T2, L12,S12,J) *
-                                    ## phase from Valeria (2020) which seem to have no effect upon the expansion
-                                    ## AngularMomentum.phaseFactor([L1, 1, S1, -1, T1,  1, L2, 1, S2, -1, T2, 1, L12, 1, S12, -1, J]) *   ## phase from Valeria (2020)
-                                    AngularMomentum.phaseFactor([Jm2, 1, Jp2, 1, T1, 1, J]) * 
-                                    sqrt(AngularMomentum.bracket([T2, Xm2])) * AngularMomentum.Wigner_6j(T1, Jm2, Xm2, Jp2, J, T2) * wa1 * wa2
-                        end
-                    end
-                end
-            end
-            push!( mcVector, me)
+            continue
         end
-    end
-    #
-    return( mcVector )
-end
-
-
-"""
-`LSjj.expandCsfRintoNonrelativisticBasis(openShells::ThreeOpenShells, csfR::CsfR, basisR::Basis, basisNR::BasisNR)`
-    ... to expand a relativistic CsfR with three nonrelativistic open shells into the given nonrelativistic basis; 
-        a mcVector::Array{Float64,1} is returned with the same lengths as length(basisNR.csfs). It is checked that the 
-        expansion is complete, and a warning is issued if this is not the case.
-"""
-function expandCsfRintoNonrelativisticBasis(openShells::ThreeOpenShells, csfR::CsfR, basisR::Basis, basisNR::BasisNR)
-    mcVector      = Float64[]
-    # Find the open subshells and determine all the quantum numbers
-    rQN           = Basics.extractOpenShellQNfromCsfR(csfR, basisR)
-    rShells, rOCC = Basics.extractShellOccupationFromCsfR(csfR, basisR)
-    rKeys         = keys(rQN)
-    
-    if  length(rKeys) != 3          error("stop a")     end
-    if  rShells != basisNR.shells   error("stop b")     end
-    
-    # Initialize all quantum numbers that occur in loops below
-    rsh1 = rsh2 = rsh3 = nrsh1 = nrsh2 = nrsh3 = Shell("9m")   
-    Nm1 = JJm1 = JJp1 = XXp1 = QQm1 = QQp1 = Nm2 = JJm2 = JJp2 = XXm2 = QQm2 = QQp2 = Nm3 = JJm3 = JJp3 = XXm3 = QQm3 = QQp3 = 0  
-    Jm1 = Jp1 = Xp1 = Jm2 = Jp2 = Xm2 = Jm3 = Jp3 = Xm3 = L1 = S1 = L2 = S2 = L3 = S3 = L12 = S12 = T12 = L123 = S123 = J = AngularJ64(0)
-    N1 = w1 = QQ1 = LL1 = SS1 = N2 = w2 = QQ2 = LL2 = SS2 = N3 = w3 = QQ3 = LL3 = SS3 =  0 
-    
-    # Set open-shell QN for the given csfR
-    ns = 0
-    for  rsh in rShells
-        if  rsh in rKeys
-            ns = ns + 1;    rv = rQN[rsh];    rQNm = rv[1];    rQNp = rv[2]
-            twojp = 2*rsh.l + 1;        if  rsh.l == 0  twojm = 1    else    twojm = 2*rsh.l - 1  end
-            #
-            if      ns == 1  Nm1 = rQNm[2];    JJm1 = rQNm[4];       JJp1 = rQNp[4];         XXp1 = rQNp[5];    rsh1 = rsh
-                            QQm1 = Int64( (twojm+1)/2 - rQNm[3]);   QQp1 = Int64( (twojp+1)/2 - rQNp[3])
-                            Jm1  = AngularJ64(JJm1//2);             Jp1  = AngularJ64(JJp1//2);    Xp1  = AngularJ64(XXp1//2)
-            elseif  ns == 2  Nm2 = rQNm[2];    JJm2 = rQNm[4];       JJp2 = rQNp[4];         XXm2 = rQNm[5];    rsh2 = rsh
-                            QQm2 = Int64( (twojm+1)/2 - rQNm[3]);   QQp2 = Int64( (twojp+1)/2 - rQNp[3])
-                            Jm2  = AngularJ64(JJm2//2);             Jp2  = AngularJ64(JJp2//2);    Xm2  = AngularJ64(XXm2//2)
-            elseif  ns == 3  Nm3 = rQNm[2];    JJm3 = rQNm[4];       JJp3 = rQNp[4];         XXm3 = rQNm[5];    rsh3 = rsh
-                            QQm3 = Int64( (twojm+1)/2 - rQNm[3]);   QQp3 = Int64( (twojp+1)/2 - rQNp[3])
-                            Jm3  = AngularJ64(JJm3//2);             Jp3  = AngularJ64(JJp3//2);    Xm3  = AngularJ64(XXm3//2)
-            else    error("stop c")     
-            end
-        end
-    end
-    
-    # Now cycle over all nonrelativistic csfNR in the given basis
-    for  s = 1:length(basisNR.csfs)
-        csfNR = basisNR.csfs[s]
-        if  csfR.J != csfNR.J   
+        nrQN = LSjj.extractOpenShellQNfromCsfNR(csfNR, basisNR)
+        if  rOCC != csfNR.occupation   ||   keys(nrQN) != Set(openShellList)
             push!( mcVector, 0.)
-        else
-            me = 0.
-            if  rOCC == csfNR.occupation
-                nrQN   = LSjj.extractOpenShellQNfromCsfNR(csfNR, basisNR)
-                nrKeys = keys(nrQN)
-                # Set open-shell QN for the given csfNR in the loop
-                ns = 0
-                for  rsh in rShells
-                    if  rsh in nrKeys
-                        ns = ns + 1;    nrv = nrQN[rsh]
-                        if      ns == 1     N1 = nrv[2];     w1 = nrv[3];   QQ1 = nrv[4];    LL1 = nrv[5];    SS1 = nrv[6];    nrsh1 = rsh
-                                            L1 = AngularJ64(LL1//2);        S1  = AngularJ64(SS1//2)
-                        elseif  ns == 2     N2 = nrv[2];     w2 = nrv[3];   QQ2 = nrv[4];    LL2 = nrv[5];    SS2 = nrv[6];    nrsh2 = rsh
-                                            L2 = AngularJ64(LL2//2);        S2  = AngularJ64(SS2//2)
-                                            L12 = AngularJ64(nrv[7]//2);    S12 = AngularJ64(nrv[8]//2);
-                        elseif  ns == 3     N3 = nrv[2];     w3 = nrv[3];   QQ3 = nrv[4];    LL3 = nrv[5];    SS3 = nrv[6];    nrsh3 = rsh
-                                            L3 = AngularJ64(LL3//2);        S3  = AngularJ64(SS3//2)
-                                            L123 = AngularJ64(nrv[7]//2);   S123 = AngularJ64(nrv[8]//2);     J = csfR.J
-                        else    error("stop d")     
+            continue
+        end
+
+        # -- shell 1: no recoupling; T1 is forced to equal shell 1's own jj "plus" value Xp1 --
+        sh1  = openShellList[1];   rv1  = rQN[sh1];   rQNm1 = rv1[1];   rQNp1 = rv1[2]
+        twojp1 = 2*sh1.l + 1;      twojm1 = sh1.l == 0 ? 1 : 2*sh1.l - 1
+        QQm1 = Int64( (twojm1+1)/2 - rQNm1[3] );   QQp1 = Int64( (twojp1+1)/2 - rQNp1[3] )
+        Jm1  = AngularJ64(rQNm1[4]//2);   Jp1 = AngularJ64(rQNp1[4]//2);   Xp1 = AngularJ64(rQNp1[5]//2)
+        nrv1 = nrQN[sh1];   N1 = nrv1[2];   w1 = nrv1[3];   QQ1 = nrv1[4];   LL1 = nrv1[5];   SS1 = nrv1[6]
+        L_prev = AngularJ64(LL1//2);   S_prev = AngularJ64(SS1//2)
+
+        partial = Dict{AngularJ64,Float64}()
+        if  AngularMomentum.triangularDelta(Xp1, Jm1, Jp1) == 1
+            wa1 = LSjj.getLSjjCoefficient( sh1.l, N1, LS_jj_qn(w1, QQ1, LL1, SS1, Basics.twice(Xp1), rQNm1[2], QQm1, rQNm1[4], QQp1, rQNp1[4]) )
+            if  wa1 != 0.0    partial[Xp1] = wa1    end
+        end
+
+        # -- shells 2..u: fold in one 9-j x one 6-j x one single-shell coefficient per shell --
+        for  i = 2:u
+            shi  = openShellList[i];   rvi = rQN[shi];   rQNmi = rvi[1];   rQNpi = rvi[2]
+            twojpi = 2*shi.l + 1;      twojmi = shi.l == 0 ? 1 : 2*shi.l - 1
+            QQmi = Int64( (twojmi+1)/2 - rQNmi[3] );   QQpi = Int64( (twojpi+1)/2 - rQNpi[3] )
+            Jmi  = AngularJ64(rQNmi[4]//2);   Jpi = AngularJ64(rQNpi[4]//2);   Xmi = AngularJ64(rQNmi[5]//2)
+            nrvi = nrQN[shi]
+            Ni, wi, QQi, LLi, SSi, LLxi, SSxi = nrvi[2], nrvi[3], nrvi[4], nrvi[5], nrvi[6], nrvi[7], nrvi[8]
+            L_i     = AngularJ64(LLi//2);    S_i     = AngularJ64(SSi//2)
+            L_accum = AngularJ64(LLxi//2);   S_accum = AngularJ64(SSxi//2)
+
+            # The accumulated total J after shell i is NOT a free (summed-over) quantum number for
+            # 2 <= i < u: this particular CsfR already fixes it, recorded (by the sequential
+            # minus-then-plus convention) in the plus-subshell's own X field -- exactly as shell 1's
+            # Xp1 fixes T1 above. Treating it as a free sum over oplus(L_accum,S_accum) silently
+            # merges together CSFs that differ only in this intermediate coupling (e.g. two 3p^1
+            # CSFs with the same 3s/3d occupations but accumulated total X=1 vs X=2 after 3p).
+            TiList     = oplus(L_i, S_i)
+            JaccumList = i == u ? [csfR.J] : [AngularJ64(rQNpi[5]//2)]
+
+            # A shell with l == 0 has only its "plus" (j=1/2) subshell; the "minus" branch does not
+            # exist at all (not merely unoccupied), so extractOpenShellQNfromCsfR reports it as a
+            # meaningless sentinel tuple. Diagram B (the 6-j) exists to reconcile a shell's own
+            # LS-coupled total Ti with its jbar/jplus jj-split -- with no split to reconcile, that
+            # step is bypassed entirely and this shell folds in via diagram A (the 9-j) alone.
+            noMinusBranch = shi.l == 0
+
+            newPartial = Dict{AngularJ64,Float64}()
+            for  (J_prev, coefSoFar)  in  partial
+                for  Ti  in  TiList
+                    wai = LSjj.getLSjjCoefficient( shi.l, Ni, LS_jj_qn(wi, QQi, LLi, SSi, Basics.twice(Ti), rQNmi[2], QQmi, rQNmi[4], QQpi, rQNpi[4]) )
+                    if  wai == 0.0    continue    end
+                    for  J_accum  in  JaccumList
+                        if  AngularMomentum.triangularDelta(J_prev, Ti, J_accum) != 1    continue    end
+                        if  noMinusBranch  &&  Ti != Jpi    continue    end
+                        ninej = AngularMomentum.Wigner_9j(L_prev, S_prev, J_prev,  L_i, S_i, Ti,  L_accum, S_accum, J_accum)
+                        if  noMinusBranch
+                            # Diagram A's own prefactor (Eq. 15's sqrt([L12,S12,J1,J2])) still applies;
+                            # only diagram B (the jbar/jplus split, meaningless here) is dropped.
+                            normA = sqrt( AngularMomentum.bracket([J_prev, Ti, L_accum, S_accum]) )
+                            contribution = coefSoFar * normA * ninej * wai
+                        else
+                            sixj  = AngularMomentum.Wigner_6j(J_prev, Jmi, Xmi, Jpi, J_accum, Ti)
+                            phase = AngularMomentum.phaseFactor([Jmi, 1, Jpi, 1, J_prev, 1, J_accum])
+                            norm  = sqrt( AngularMomentum.bracket([Ti, Xmi]) * AngularMomentum.bracket([J_prev, Ti, L_accum, S_accum]) )
+                            contribution = coefSoFar * phase * norm * ninej * sixj * wai
                         end
-                    end
-                end
-                #
-                if  rsh1 != nrsh1   ||   rsh2 != nrsh2   ||   rsh3 != nrsh3      error("stop e")     end
-                
-                # Cycle over all intermediate angular momenta T1, T2, T12, T3
-                T1List = oplus(L1, S1);     T2List = oplus(L2, S2);     T3List = oplus(L3, S3);     T12List = oplus(L12, S12)
-                for  T1 in T1List
-                    for  T2 in T2List
-                        for  T3 in T3List
-                            wa1 = LSjj.getLSjjCoefficient(rsh1.l, N1, LS_jj_qn(w1, QQ1, LL1, SS1, Basics.twice(T1), Nm1, QQm1, JJm1, QQp1, JJp1) )
-                            wa2 = LSjj.getLSjjCoefficient(rsh2.l, N2, LS_jj_qn(w2, QQ2, LL2, SS2, Basics.twice(T2), Nm2, QQm2, JJm2, QQp2, JJp2) )
-                            wa3 = LSjj.getLSjjCoefficient(rsh3.l, N3, LS_jj_qn(w3, QQ3, LL3, SS3, Basics.twice(T3), Nm3, QQm3, JJm3, QQp3, JJp3) )
-                            for  T12 in T12List
-                                if AngularMomentum.triangularDelta(T1,Jm1,Jp1) == 1  &&  T1 == Xp1  &&
-                                AngularMomentum.triangularDelta(T2,Jm2,Jp2) == 1  &&  AngularMomentum.triangularDelta(T3,Jm3,Jp3) == 1
-                                    me  = me + sqrt(AngularMomentum.bracket([T1, T2, T3, T12, L12, L123, S12, S123])) * 
-                                            AngularMomentum.Wigner_9j(L2,L1,L12, S2,S1,S12, T2,T1,T12) * AngularMomentum.Wigner_9j(J,L123,S123, T3,L3,S3, T12,L12,S12) *
-                                            AngularMomentum.phaseFactor([L1, 1, S1, -1, T1,  1, L2, 1, S2, 1, L3, -1, L123, 1, S3, -1, S123, -1, J, -1, T12, -1, T12]) * 
-                                            AngularMomentum.phaseFactor([Xp1, 1, Xp1, 1, Jm2, 1, Jp2, 1, T2, 1, T12, 1, T12, 1, Jm3, 1, Jp3, 1, T3]) * 
-                                            sqrt(AngularMomentum.bracket([T2, Xm2, T3, Xm3])) * AngularMomentum.Wigner_6j(Jm2, Jp2, T2, T12, Xp1, Xm2) * 
-                                            AngularMomentum.Wigner_6j(Jm3, Jp3, T3, J, T12, Xm3) *  wa1 * wa2 * wa3
-                                end
-                            end
-                        end
+                        newPartial[J_accum] = get(newPartial, J_accum, 0.0) + contribution
                     end
                 end
             end
-            push!( mcVector, me)
+            partial = newPartial
+            L_prev, S_prev = L_accum, S_accum
         end
+
+        push!( mcVector, get(partial, csfR.J, 0.0) )
     end
-    #
+
     return( mcVector )
 end
 
