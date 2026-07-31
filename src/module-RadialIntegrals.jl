@@ -641,14 +641,21 @@ end
 """
 function rkDiagonal(k::Int64, a::Radial.Orbital, b::Radial.Orbital, grid::Radial.Grid)
     mtp = min(size(a.P, 1), size(b.P, 1))
-    
+
     # Distinguish the radial integration for different grid definitions
     if  grid.meshType == Radial.MeshGrasp()
         function f(i :: Int64)    return( (a.P[i] * b.P[i] + a.Q[i] * b.Q[i]) * (grid.r[i]^k) )    end
         return( Math.integrateFitTransform(f, mtp, grid) )
     elseif  grid.meshType == Radial.MeshGL()
         wa = 0.
-        if  k > -3   m0 = 2   else   m0 = 6   end    # Don't allow too small r-values
+        # Don't allow too small r-values -- graduated with how negative k is, since r^k for very negative k
+        # blows up catastrophically at the innermost grid points, amplifying any tiny residual imprecision
+        # in the tabulated P/Q there (see project_zeeman_hfs_bugs.md, 30-Jul-2026, for the kappa<=-3 case
+        # this matters most for; k<=-4 is not fully resolved even at m0=18 for kappa<=-3 orbitals -- a known,
+        # documented residual, not chased further this session).
+        if      k > -3   m0 = 2
+        elseif  k == -3  m0 = 10
+        else             m0 = 18   end
         for  i = m0:mtp   wa = wa + (a.P[i] * b.P[i] + a.Q[i] * b.Q[i]) * (grid.r[i]^k) * grid.wr[i]   end
         return( wa )
     else
@@ -657,7 +664,7 @@ function rkDiagonal(k::Int64, a::Radial.Orbital, b::Radial.Orbital, grid::Radial
 end
 
 """
-+ (k::Int64, p1List::Array{Float64,1}, p2List::Array{Float64,1}, grid::Radial.Grid)`  
++ (k::Int64, p1List::Array{Float64,1}, p2List::Array{Float64,1}, grid::Radial.Grid)`
     ... computes this integral for two non-relativistic orbitals:   < r^k >_ab = int_0^\\infty  dr  [P_a P_b]  r^k
 """
 function rkDiagonal(k::Int64, p1List::Array{Float64,1}, p2List::Array{Float64,1}, grid::Radial.Grid)
@@ -687,14 +694,26 @@ end
 """
 function rkNonDiagonal(k::Int64, a::Radial.Orbital, b::Radial.Orbital, grid::Radial.Grid)
     mtp = min(size(a.P, 1), size(b.P, 1))
-    
+
     # Distinguish the radial integration for different grid definitions
     if  grid.meshType == Radial.MeshGrasp()
         function f(i :: Int64)    return( (a.P[i] * b.Q[i] + a.Q[i] * b.P[i]) * (grid.r[i]^k) )    end
         return( Math.integrateFitTransform(f, mtp, grid) )
     elseif  grid.meshType == Radial.MeshGL()
         wa = 0.
-        for  i = 2:mtp   wa = wa + (a.P[i] * b.Q[i] + a.Q[i] * b.P[i]) * (grid.r[i]^k) * grid.wr[i]   end
+        # Don't allow too small r-values -- graduated with how negative k is (this function previously had
+        # no such guard at all, unlike rkDiagonal). k<=-4 (the Hfs M3/octupole case) remains only partially
+        # resolved even at this conservative m0: kappa<=-3 orbitals (e.g. d5/2, f7/2, ...) retain a genuine,
+        # slowly-decaying near-origin residual traced (30-Jul-2026) to the exact l+1+kappa=0 cancellation of
+        # Q(r)'s leading power for kappa=-(l+1) -- ruled out as a tabulation artifact (an equivalent bVector-
+        # space bilinear-form evaluation shows the identical residual) and as an SCF-convergence artifact
+        # (tightening accuracyScf by 6 orders of magnitude did not change it); most likely an intrinsic
+        # precision limitation of the single-diagonalization step for this delicate, cancellation-exposed
+        # quantity. A documented, NOT-fully-resolved follow-up item -- see project_zeeman_hfs_bugs.md.
+        if      k > -3   m0 = 2
+        elseif  k == -3  m0 = 10
+        else             m0 = 70   end
+        for  i = m0:mtp   wa = wa + (a.P[i] * b.Q[i] + a.Q[i] * b.P[i]) * (grid.r[i]^k) * grid.wr[i]   end
         return( wa )
     else
         error("stop a")

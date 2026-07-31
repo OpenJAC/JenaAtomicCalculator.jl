@@ -193,6 +193,26 @@ end
 `LandeZeeman.amplitude(::ZeemanN1, rLevel::Level, sLevel::Level, grid::Radial.Grid)`
     ... to compute the N^(1) Zeeman amplitude <alpha_r J_r || N^(1) || alpha_s J_s>
         for a given pair of levels. A value::ComplexF64 is returned.
+
+    KNOWN LIMITATION (confirmed 30-Jul-2026, re-verified 31-Jul-2026 after an unrelated B-spline
+    boundary-condition fix, NOT yet fixed): for any subshell with kappa <= -3 (d5/2, f7/2, g9/2, ...), the
+    resulting g_J is WRONG. Verified via a kappa-sweep in the same Ge II ion (Z=32, [Ar] 3d^10 4s^2 4d or 4f):
+    p_1/2 (kappa=+1), p_3/2 (kappa=-2), d_3/2 (kappa=+2, g_J=0.79950 vs exact 0.8000), and f_5/2 (kappa=+3,
+    g_J=0.85682 vs exact/paper 0.85680) all reproduce the expected value to <0.1%, but d_5/2 (kappa=-3) gives
+    g_J=-3.05247 vs the exact 1.2000, and f_7/2 (kappa=-4) gives g_J=-2.26367 (DFS) / -2.24247 (AL) vs the
+    exact 1.1429 -- see example-Cd.jl branches c and d. NOTE: these wrong values are NOT stable against
+    unrelated changes elsewhere in the SCF/basis machinery -- before the 30-Jul-2026 B-spline kappa-sign
+    boundary-condition fix, the SAME two cases gave smaller-magnitude, same-sign wrong values (d_5/2:
+    0.3937, f_7/2: 0.8937); after that unrelated fix, both flipped sign and grew in magnitude. This is
+    expected for a bug in the ANGULAR coefficient machinery (not the radial basis) that is being fed a
+    changed, more-correct radial orbital -- root cause narrowed to `AngularMomentum.CL_reduced_me_rb` or its
+    use in `InteractionStrength.zeeman_n1`'s `Subshell(1,-ka)` construction, but not yet isolated further,
+    and evidently sensitive to exactly which orbitals it acts on. Treat ANY g_J result involving a kappa<=-3
+    subshell as unverified, and expect its specific wrong VALUE to shift again whenever the underlying
+    B-spline/SCF machinery changes -- only the qualitative fact "kappa<=-3 is wrong" is stable, not any
+    specific number quoted here. example-Cd.jl branch d deliberately restricts itself to f_5/2 (kappa=+3)
+    to avoid this contaminating an unrelated comparison. See project_zeeman_hfs_bugs.md for the full
+    investigation.
 """
 function  amplitude(::ZeemanN1, rLevel::Level, sLevel::Level, grid::Radial.Grid)
     nr = length(rLevel.basis.csfs);    ns = length(sLevel.basis.csfs);    matrix = zeros(ComplexF64, nr, ns)

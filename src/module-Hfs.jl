@@ -819,7 +819,7 @@ function  computeInteractionMatrix(basis::Basis, grid::Radial.Grid, settings::Hf
                 for  coeff in wa
                     ja   = Basics.subshell_2j(basis.orbitals[coeff.a].subshell)
                     jb   = Basics.subshell_2j(basis.orbitals[coeff.b].subshell)
-                    tamp  = InteractionStrength.hfs_tE2(basis.orbitals[coeff.a], basis.orbitals[coeff.b], grid)
+                    tamp  = InteractionStrength.hfs_tM3(basis.orbitals[coeff.a], basis.orbitals[coeff.b], grid)
                     matrixM3[r,s] = matrixM3[r,s] + coeff.T / sqrt(ja + 1) * tamp
                 end
             end

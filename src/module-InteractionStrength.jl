@@ -166,14 +166,20 @@ function hfs_tM2(a::Orbital, b::Orbital, grid::Radial.Grid)
 end
 
 """
-`InteractionStrength.hfs_tM3(a::Orbital, b::Orbital, grid::Radial.Grid)`  
-    ... computes the <a|| t^(M3) ||b> reduced matrix element for the HFS coupling to the magnetic-dipole moment 
-        of the nucleus for orbital functions a, b. A value::Float64 is returned.  
+`InteractionStrength.hfs_tM3(a::Orbital, b::Orbital, grid::Radial.Grid)`
+    ... computes the <a|| t^(M3) ||b> reduced matrix element for the HFS coupling to the magnetic-dipole moment
+        of the nucleus for orbital functions a, b. A value::Float64 is returned.
+
+        Note (30-Jul-2026): was missing the same alpha (fine-structure constant) prefactor found missing in
+        hfs_tM1 on 26-Jul-2026 -- Andersson & Jonsson (2008), CPC 178, Eq. (49) is generic in the multipole
+        rank L, so the same alpha(kappa_a+kappa_b) prefactor applies for L=3 (M3) as for L=1 (M1). See
+        examples/example-Cb.jl and memory project_zeeman_hfs_bugs.md.
 """
 function hfs_tM3(a::Orbital, b::Orbital, grid::Radial.Grid)
     # Use Andersson, Jönson (2008), CPC, Eq. (49) ... test for the proper definition of the C^L tensors.
     minusa = Subshell(1, -a.subshell.kappa)
-    wb =   - (a.subshell.kappa + b.subshell.kappa) * AngularMomentum.CL_reduced_me_sms(minusa, 3, b.subshell)
+    wb =   - Defaults.getDefaults("alpha") * (a.subshell.kappa + b.subshell.kappa) *
+                AngularMomentum.CL_reduced_me_sms(minusa, 3, b.subshell)
     wc =   RadialIntegrals.rkNonDiagonal(-4, a, b, grid)/3
     wa =   wb * wc
     #
@@ -898,7 +904,7 @@ end
         RadialIntegrals.SlaterRk_2dimClaude for the underlying radial integral instead of RadialIntegrals.
         SlaterRk_2dim. For keep=true, looks up (and stores into) the global GBL_Storage_XL_CoulombClaude
         Dict, mirroring XL_Coulomb's own keep/GBL_Storage_XL_Coulomb pattern exactly -- used by
-        Hamiltonian.setupMatrixClaude (the CI-matrix Coulomb term for ALFieldClaude2/EOLField), where orbitals
+        Hamiltonian.setupMatrixClaude (the CI-matrix Coulomb term for ALField/EOLField), where orbitals
         are FIXED for the whole performCIClaude call, so caching is unconditionally safe there. NOT enabled
         (keep=false, the default) at SelfConsistent.computeTwoElectronVClaude2's own call site: that call sits
         inside the outer SCF iteration, where orbitals change every iteration, so a cache surviving across
@@ -1005,7 +1011,7 @@ end
         tensor-product double sum. The screened potential V_L(r), which depends only on the fixed orbital pair
         (b,d), is built ONCE (adaptive quadrature) and then reused cheaply -- via the existing grid quadrature
         weights, since V_L(r) is smooth once built -- for every B-spline pair (i,k) of the L- and S-block.
-        Isolated from XL_Coulomb; shared by the ALFieldClaude2/EOLField code lines, cf.
+        Isolated from XL_Coulomb; shared by the ALField/EOLField code lines, cf.
         SelfConsistent.computeTwoElectronVClaude2. A (nsL+nsS) x (nsL+nsS) matrixV::Array{Float64,2} is returned.
 """
 function XL_CoulombClaude(L::Int64, a::Subshell, b::Orbital, c::Subshell, d::Orbital, primitives::Bsplines.Primitives)
