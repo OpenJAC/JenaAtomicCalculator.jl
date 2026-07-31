@@ -159,8 +159,14 @@ end
             <alpha_f J_f || T^(Ek) || alpha_i J_i>  for the given final and initial level. A value::ComplexF64 is returned.
 """
 function emmStaticAmplitude(k::Int64, finalLevel::Level, initialLevel::Level, grid::Radial.Grid; display::Bool=false)
-    #
-    if     finalLevel.parity != initialLevel.parity     amplitude = 0.
+    # An electric multipole operator of rank k has parity (-1)^k: for even k, the reduced matrix
+    # element vanishes unless finalLevel/initialLevel share the SAME parity; for odd k (e.g. the E1
+    # dipole), it vanishes unless they have OPPOSITE parity. A blind "parity must differ" guard is
+    # only correct for even k; for odd k it lets a diagonal (finalLevel===initialLevel, trivially
+    # same-parity) call silently "pass through" and compute a spurious nonzero value instead of the
+    # true zero required by the parity selection rule.
+    if     iseven(k)  &&  finalLevel.parity != initialLevel.parity     amplitude = 0.
+    elseif isodd(k)   &&  finalLevel.parity == initialLevel.parity     amplitude = 0.
     else
         nf = length(finalLevel.basis.csfs);    ni = length(initialLevel.basis.csfs)
         if display   printstyled("Compute (static) EMM matrix of dimension $nf x $ni in the final- and initial-state bases " *
