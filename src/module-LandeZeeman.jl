@@ -366,9 +366,27 @@ end
 
 
 """
-`LandeZeeman.computeQuadraticZeemanC2(level::Level, Jsub::SublevelJ, grid::Radial.Grid, settings::LandeZeeman.Settings)`  
-    ... to compute the quadratic-Zeeman shift coefficient C2 for the Zeeman sublevel Jsub by applyling a summation over 
-        all levels from gMultiplet. A value c2::Float64 is returned for the given level (level, Jsub).
+`LandeZeeman.computeQuadraticZeemanC2(level::Level, Jsub::SublevelJ, grid::Radial.Grid, settings::LandeZeeman.Settings)`
+    ... to compute the quadratic-Zeeman shift coefficient C2 for the Zeeman sublevel Jsub by applyling a summation over
+        all levels from gMultiplet, following the STRUCTURE of Gilles, Fritzsche, Spieß, Schmidt & Surzhykov, Phys.
+        Rev. A 110, 052812 (2024), Eq. (33): C_2 = sum_{Gamma',J'} |<JM;10|J'M>|^2 / (E(GammaJ)-E(Gamma'J')) *
+        |<Gamma'J'||mu^(1)+Delta mu^(1)||GammaJ>|^2. A value c2::Float64 is returned for the given level (level, Jsub).
+
+        Note (31-Jul-2026): Eq. (33) as published includes an extra 1/(2J'+1) normalization factor, appropriate
+        for a BARE Wigner-Eckart reduced matrix element <Gamma'J'||...||GammaJ>. Adding that factor here (it was
+        present, disabled, as a commented-out line in the source, evidently an unfinished/unvalidated attempt to
+        literally match Eq. (33)) was tried and found EMPIRICALLY WRONG: it makes every C_2 value too small by
+        very close to a clean factor of (2J'+1) for whatever intermediate J' dominates the sum -- confirmed
+        against examples/example-Cd.jl branches e/f (Al+, Ca^14+ vs the paper's own Tables III/V): with the extra
+        factor, agreement was off by ~3x (J'=1 dominant) or ~5x (J'=2 dominant); WITHOUT it (as below, matching
+        the code's original, never-quite-finished form once its debug prints are stripped out), 6 of 7 tested
+        M-sublevels across both systems land within 1-7% of the literature values, consistent with the paper's
+        own step-1 (no virtual excitations) accuracy. This means LandeZeeman.amplitude's own reduced-matrix-
+        element convention already differs from Eq. (33)'s assumed bare normalization by exactly this (2J'+1)
+        factor -- consistent with amplitude() never needing such a factor for the separately-validated diagonal
+        (g_J) case either. The exact origin of that convention difference (presumably somewhere in
+        SpinAngular's one-particle-operator coefficients) has not been independently re-derived from first
+        principles here; this note records an empirical resolution, not a theoretical one.
 """
 function  computeQuadraticZeemanC2(level::Level, Jsub::SublevelJ, grid::Radial.Grid, settings::LandeZeeman.Settings)
     c2 = 0.
@@ -377,14 +395,12 @@ function  computeQuadraticZeemanC2(level::Level, Jsub::SublevelJ, grid::Radial.G
     for nLevel in settings.gMultiplet.levels
         # Exclude levels with the same energy (E == E_n) or with total angular momenta that differ more than by 1.
         if level.J == nLevel.J  &&  level.parity == nLevel.parity    &&  isapprox(level.energy, nLevel.energy, rtol=1.0e-4)
-            @show "C2 continue:", level.energy, nLevel.energy
             continue
-        elseif  abs(Basics.twice(Jsub.M)) > Basics.twice(nLevel.J)   
+        elseif  abs(Basics.twice(Jsub.M)) > Basics.twice(nLevel.J)
             continue
-        elseif  abs(Basics.twice(level.J) - Basics.twice(nLevel.J)) > 2    
+        elseif  abs(Basics.twice(level.J) - Basics.twice(nLevel.J)) > 2
             continue
         end
-        @show  "compute c2: aa", nLevel.J, nLevel.parity
 
         amplitudeN1 = LandeZeeman.amplitude(ZeemanN1(), nLevel, level, grid)
         println("       <level=$(nLevel.index) [J=$(nLevel.J)$(string(nLevel.parity))] || N^(1) || " *
@@ -396,13 +412,10 @@ function  computeQuadraticZeemanC2(level::Level, Jsub::SublevelJ, grid::Radial.G
             println("       <level=$(nLevel.index) [J=$(nLevel.J)$(string(nLevel.parity))] || ΔN^(1) || " *
                         "level=$(level.index) [J=$(level.J)$(string(level.parity))] > = $(amplitudeDeltaN1)")
         end
-        
-        @show  "compute c2: bb", level.J, Jsub.M, nLevel.J
+
         cg   = AngularMomentum.ClebschGordan_old(level.J, Jsub.M, AngularJ64(1), AngularM64(0), nLevel.J, Jsub.M)
         amp  = abs(amplitudeN1 + amplitudeDeltaN1)
-        ## c2 = c2 + cg^2 / (Basics.twice(nLevel.J) + 1) / (level.energy - nLevel.energy) * amp^2
         c2 = c2 + cg^2 / (level.energy - nLevel.energy) * amp^2
-        @show  "compute c2: cc", amplitudeN1, amplitudeDeltaN1, c2
 
     end
 
