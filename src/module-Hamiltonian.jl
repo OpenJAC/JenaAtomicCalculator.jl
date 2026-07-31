@@ -340,7 +340,7 @@ end
 `Hamiltonian.performCIClaude(basis::Basis, nm::Nuclear.Model, grid::Radial.Grid, settings::AsfSettings; printout::Bool=false)
     ... computes and diagonalizes the same CI Hamiltonian matrix as performCI, but via setupMatrixClaude (kink-aware
         two-electron Slater integral) instead of setupMatrix. Isolated from performCI; reached from
-        SelfConsistent.performSCF when settings.scField = Basics.ALFieldClaude2(), and directly from
+        SelfConsistent.performSCF when settings.scField = Basics.ALField(), and directly from
         SelfConsistent.solveOptimizedLevelField (EOLField), so that the FINAL reported level energies reflect
         the same kink-aware integral used during SCF orbital optimization, not just the SCF's own internal
         energy tracking. A  multiplet::Multiplet  is returned.
