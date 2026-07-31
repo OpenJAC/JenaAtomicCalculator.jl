@@ -232,7 +232,12 @@ end
         (iii)  the assignment of the matching NIST energy, if a NIST level with the same configuration
                and (L,S,J,parity) exists.
         A list levels::Array{LsjLevel,1} is returned, one entry per level in multiplet (in the same
-        order), with nistEnergy set to 0. where no matching NIST level was found.
+        order), with nistEnergy set to NaN where no matching NIST level was found. NaN (not 0.) is
+        used deliberately: the NIST excitation energy of a genuine ground level IS 0., so 0. cannot
+        double as the "no match" sentinel without silently conflating the two (this was a real bug,
+        caught when Stage 2 analysis found far fewer surviving configurations than expected --
+        every configuration's ground level, its single most reliable NIST anchor, was being
+        discarded by DeepLearning.selectFeatureVectors's old `== 0.` filter).
 """
 function extractLsjLevels(conf::Configuration, multiplet::Multiplet, nistLevels::Array{NistLevel,1})
     lsjLevels = LsjLevel[]
@@ -253,7 +258,7 @@ function extractLsjLevels(conf::Configuration, multiplet::Multiplet, nistLevels:
             L, S, _ = DeepLearning.extractLeadingLSTerm(multipletNR.levels[i])
         end
 
-        nistEnergy = 0.
+        nistEnergy = NaN
         for  rLevel in relevantLevels
             # Compare via Basics.twice(...) rather than raw AngularJ64 == : AngularJ64 is not auto-reduced
             # (e.g. J=1 could be stored as (num=1,den=1) or (num=2,den=2) depending on where it came from),
@@ -590,7 +595,7 @@ function selectFeatureVectors(xyVectors::Array{AtomicFeatures.XyVector,1}, proba
     wrn = rand( length(xyVectors) );   nw = 0
 
     for xyVector in xyVectors
-        if   xyVector.nistEnergy == 0.   continue    end
+        if   isnan(xyVector.nistEnergy)   continue    end
         nw = nw + 1
         if   wrn[nw] < probability    push!(testXyVectors, xyVector)
         else                          push!(trainXyVectors, xyVector)
@@ -604,13 +609,20 @@ end
 """
 `DeepLearning.writeFeatureVectors(xyVectors::Array{AtomicFeatures.XyVector,1}, filename::String)`
     ... writes out to a file(name) the xyVectors in a format suitable for the training and test of neural networks:
-        one row per xyVector, its xVector entries space-separated, followed by its nistEnergy. Nothing is returned.
+        one row per xyVector, its xVector entries space-separated, followed by two un-trained reference
+        columns -- the raw CI-computed (absolute, Hartree) `energy` and the NIST `nistEnergy` (the actual
+        training target, kept last). The raw `energy` column is not a training feature; it lets a downstream
+        analysis compute a baseline ("how good is JAC's own frozen-orbital computation, with no ML at all")
+        by referencing it to the lowest computed energy of the same charge state -- itself recoverable from
+        the x-vector's own leading shell-occupation block, since that is written first and already fixed-length
+        per AtomicModel. Nothing is returned.
 """
 function writeFeatureVectors(xyVectors::Array{AtomicFeatures.XyVector,1}, filename::String)
     ioFeatures = open(filename, "w")
 
     for  xyVector in  xyVectors
         line = join( [@sprintf("%.8e", v) for v in xyVector.xVector], "  " )
+        line = line * "        " * @sprintf("%.8e", xyVector.energy)
         line = line * "        " * @sprintf("%.8e", xyVector.nistEnergy) * "\n"
         write(ioFeatures, line )
     end
