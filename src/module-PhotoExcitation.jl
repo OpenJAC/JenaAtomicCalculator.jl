@@ -6,7 +6,7 @@
 """
 module PhotoExcitation
 
-using Printf, ..AngularMomentum, ..Basics,  ..Basics,  ..Defaults, ..ManyElectron, ..Radial, ..PhotoEmission, ..TableStrings
+using Printf, ..AngularMomentum, ..Basics,  ..Basics,  ..BiOrthogonal, ..Defaults, ..ManyElectron, ..Radial, ..PhotoEmission, ..TableStrings
 
 """
 `struct  PhotoExcitation.Settings  <:  AbstractProcessSettings`  ... defines a type for the details and parameters of computing photo-excitation  lines.
@@ -17,7 +17,12 @@ using Printf, ..AngularMomentum, ..Basics,  ..Basics,  ..Defaults, ..ManyElectro
                                                             for given Stokes parameter of the incident plane-wave photons.
     + calcPhotonDm            ::Bool                    ... True, if the photon density matrix of a subsequently emitted fluorescence photon 
                                                             is to be calculated and false otherwise. 
-    + calcTensors             ::Bool                    ... True, if statistical tensors of the excited atom are to be calculated, false otherwise. 
+    + calcTensors             ::Bool                    ... True, if statistical tensors of the excited atom are to be calculated, false otherwise.
+    + calcBiorthogonal        ::Bool                    ... True, if the initial- and final-state multiplets are first
+                                                            brought into a bi-orthogonal representation
+                                                            (`BiOrthogonal.computeTransformation`) before the transition
+                                                            amplitudes are evaluated, and false (the default) if the
+                                                            two multiplets are used as they are.
     + printBefore             ::Bool                    ... True, if all energies and lines are printed before their evaluation.
     + lineSelection           ::LineSelection           ... Specifies the selected levels, if any.
     + photonEnergyShift       ::Float64                 ... An overall energy shift for all photon energies.
@@ -31,8 +36,9 @@ struct Settings  <:  AbstractProcessSettings
     gauges                    ::Array{UseGauge,1}
     calcForStokes             ::Bool
     calcPhotonDm              ::Bool  
-    calcTensors               ::Bool  
-    printBefore               ::Bool 
+    calcTensors               ::Bool
+    calcBiorthogonal          ::Bool
+    printBefore               ::Bool
     lineSelection             ::LineSelection
     photonEnergyShift         ::Float64
     mimimumPhotonEnergy       ::Float64   
@@ -45,15 +51,15 @@ end
 `PhotoExcitation.Settings()`  ... 'empty' constructor for the default values of photo-excitation line computations
 """
 function Settings()
-    Settings(EmMultipole[], UseGauge[], false, false, false, false, LineSelection(), 0., 0., 1.0e6, Basics.ExpStokes())
+    Settings(EmMultipole[], UseGauge[], false, false, false, false, false, LineSelection(), 0., 0., 1.0e6, Basics.ExpStokes())
 end
 
 
 """
 `PhotoExcitation.Settings(set::PhotoExcitation.Settings;`
 
-        multipoles=..,          gauges=..,                  calcForStokes=..,           calcPhotonDm=..,    
-        calcTensors=..,         printBefore=..,             lineSelection=..,    
+        multipoles=..,          gauges=..,                  calcForStokes=..,           calcPhotonDm=..,
+        calcTensors=..,         calcBiorthogonal=..,        printBefore=..,             lineSelection=..,
         photonEnergyShift=..,   mimimumPhotonEnergy=..,     maximumPhotonEnergy=..,     stokes=..)
                     
     ... constructor for modifying the given PhotoExcitation.Settings by 'overwriting' the previously selected parameters.
@@ -61,8 +67,9 @@ end
 function Settings(set::PhotoExcitation.Settings;    
     multipoles::Union{Nothing,Array{EmMultipole,1}}=nothing,        gauges::Union{Nothing,Array{UseGauge,1}}=nothing,  
     calcForStokes::Union{Nothing,Bool}=nothing,                     calcPhotonDm::Union{Nothing,Bool}=nothing,    
-    calcTensors::Union{Nothing,Bool}=nothing,                       printBefore::Union{Nothing,Bool}=nothing,  
-    lineSelection::Union{Nothing,LineSelection}=nothing, 
+    calcTensors::Union{Nothing,Bool}=nothing,                       calcBiorthogonal::Union{Nothing,Bool}=nothing,
+    printBefore::Union{Nothing,Bool}=nothing,
+    lineSelection::Union{Nothing,LineSelection}=nothing,
     photonEnergyShift::Union{Nothing,Float64}=nothing,              mimimumPhotonEnergy::Union{Nothing,Float64}=nothing,     
     maximumPhotonEnergy::Union{Nothing,Float64}=nothing,            stokes::Union{Nothing,ExpStokes}=nothing)  
     
@@ -70,15 +77,16 @@ function Settings(set::PhotoExcitation.Settings;
     if  isnothing(gauges)                gaugesx              = set.gauges                  else  gaugesx              = gauges                end 
     if  isnothing(calcForStokes)         calcForStokesx       = set.calcForStokes           else  calcForStokesx       = calcForStokes         end 
     if  isnothing(calcPhotonDm)          calcPhotonDmx        = set.calcPhotonDm            else  calcPhotonDmx        = calcPhotonDm          end 
-    if  isnothing(calcTensors)           calcTensorsx         = set.calcTensors             else  calcTensorsx         = calcTensors           end 
-    if  isnothing(printBefore)           printBeforex         = set.printBefore             else  printBeforex         = printBefore           end 
+    if  isnothing(calcTensors)           calcTensorsx         = set.calcTensors             else  calcTensorsx         = calcTensors           end
+    if  isnothing(calcBiorthogonal)      calcBiorthogonalx    = set.calcBiorthogonal        else  calcBiorthogonalx    = calcBiorthogonal      end
+    if  isnothing(printBefore)           printBeforex         = set.printBefore             else  printBeforex         = printBefore           end
     if  isnothing(lineSelection)         lineSelectionx       = set.lineSelection           else  lineSelectionx       = lineSelection         end 
     if  isnothing(photonEnergyShift)     photonEnergyShiftx   = set.photonEnergyShift       else  photonEnergyShiftx   = photonEnergyShift     end 
     if  isnothing(mimimumPhotonEnergy)   mimimumPhotonEnergyx = set.mimimumPhotonEnergy     else  mimimumPhotonEnergyx = mimimumPhotonEnergy   end 
     if  isnothing(maximumPhotonEnergy)   maximumPhotonEnergyx = set.maximumPhotonEnergy     else  maximumPhotonEnergyx = maximumPhotonEnergy   end 
     if  isnothing(stokes)                stokesx              = set.stokes                  else  stokesx              = stokes                end 
     
-    Settings( multipolesx, gaugesx, calcForStokesx, calcPhotonDmx, calcTensorsx, printBeforex, lineSelectionx,
+    Settings( multipolesx, gaugesx, calcForStokesx, calcPhotonDmx, calcTensorsx, calcBiorthogonalx, printBeforex, lineSelectionx,
                 photonEnergyShiftx, mimimumPhotonEnergyx, maximumPhotonEnergyx, stokesx)
 end
 
@@ -90,6 +98,7 @@ function Base.show(io::IO, settings::PhotoExcitation.Settings)
     println(io, "calcForStokes:            $(settings.calcForStokes)  ")
     println(io, "calcPhotonDm:             $(settings.calcPhotonDm)  ")
     println(io, "calcTensors:              $(settings.calcTensors)  ")
+    println(io, "calcBiorthogonal:         $(settings.calcBiorthogonal)  ")
     println(io, "printBefore:              $(settings.printBefore)  ")
     println(io, "lineSelection:            $(settings.lineSelection)  ")
     println(io, "photonEnergyShift:        $(settings.photonEnergyShift)  ")
@@ -213,8 +222,11 @@ end
     ... to compute the photo-excitation amplitudes and all properties as requested by the given settings. A list 
         of lines::Array{PhotoExcitation.Lines} is returned.
 """
-function  computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, grid::Radial.Grid, 
+function  computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, grid::Radial.Grid,
                         settings::PhotoExcitation.Settings; output=true)
+    if  settings.calcBiorthogonal
+        initialMultiplet, finalMultiplet = BiOrthogonal.computeTransformation(initialMultiplet, finalMultiplet, grid)
+    end
     println("")
     printstyled("PhotoExcitation.computeLines(): The computation of the excitation cross sections, etc. starts now ... \n", color=:light_green)
     printstyled("----------------------------------------------------------------------------------------------------- \n", color=:light_green)
@@ -509,7 +521,7 @@ function  displayCrossSections(stream::IO, lines::Array{PhotoExcitation.Line,1},
     # Photoexcitation cross sections from line strength for (completely) linearly-polarized plane-wave photons
     nx = 103
     println(stream, " ")
-    println(stream, "  Photoexcitation cross sections for (completely) linearly-polarized plane-wave photons:  ... not yet correct !!")
+    println(stream, "  Photoexcitation cross sections for (completely) linearly-polarized plane-wave photons (resonance/line-profile treatment still under development):")
     println(stream, " ")
     println(stream, "  ", TableStrings.hLine(nx))
     sa = "  ";   sb = "  "
@@ -545,7 +557,7 @@ function  displayCrossSections(stream::IO, lines::Array{PhotoExcitation.Line,1},
     if  settings.calcForStokes
         stokes = settings.stokes
         println(stream, " ")
-        println(stream, "  Photoexcitation cross sections for incident plane-wave photons with given $stokes:  ... not yet correct !!")
+        println(stream, "  Photoexcitation cross sections for incident plane-wave photons with given $stokes (still under development):")
         println(stream, " ")
         println(stream, "  ", TableStrings.hLine(nx))
         sa = "  ";   sb = "  "
@@ -584,7 +596,7 @@ function  displayCrossSections(stream::IO, lines::Array{PhotoExcitation.Line,1},
         stokes = settings.stokes
         println(stream, " ")
         println(stream, "  Statistical tensors rho_kq  and alignment parameters A_kq for the excitation by incident plane-wave photons")
-        println(stream, "  with given $stokes:  ... not yet correct !!")
+        println(stream, "  with given $stokes (still under development):")
         println(stream, " ")
         println(stream, "  ", TableStrings.hLine(nx))
         sa = "  ";   sb = "  "

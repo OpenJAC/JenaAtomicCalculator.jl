@@ -170,7 +170,11 @@ function  checkClosureUnderDeexcitation(basis::Basis)
     occupationSets = Set( csf.occupation  for  csf in basis.csfs )
 
     for  csf  in  basis.csfs
-        subshells = csf.useStandardSubshells ? Defaults.GBL_STANDARD_SUBSHELL_LIST : basis.subshells
+        # basis.subshells, not Defaults.GBL_STANDARD_SUBSHELL_LIST -- the latter is mutable global state that
+        # may have since been overwritten by a later, unrelated SCF call (e.g. for a differently-sized basis
+        # on the other side of a bi-orthogonal transformation), while csf.occupation is always indexed
+        # against THIS basis's own (fixed) subshell list, regardless of csf.useStandardSubshells.
+        subshells = basis.subshells
         for  (i, shi)  in  enumerate(subshells)
             if  csf.occupation[i] == 0    continue    end
             for  (j, shj)  in  enumerate(subshells)

@@ -1,4 +1,4 @@
-Summary file opened at 2026-07-31T07:56: 
+Summary file opened at 2026-08-01T20:15: 
 ========================================   
 
 
@@ -151,7 +151,7 @@ Summary file opened at 2026-07-31T07:56:
       15 --   16      3/2 + --> 1/2 +     2.09974188e+01    M1            3.2935e-10   3.2935e-10    3.6150e-08   3.6150e-08    
   --------------------------------------------------------------------------------------------------------------------------
  
-  Photoexcitation cross sections for (completely) linearly-polarized plane-wave photons:  ... not yet correct !!
+  Photoexcitation cross sections for (completely) linearly-polarized plane-wave photons (resonance/line-profile treatment still under development):
  
   -------------------------------------------------------------------------------------------------------
        i-level-f         i--J^P--f            Energy        Multipoles   Cou -- cross section -- Bab
@@ -258,7 +258,7 @@ Summary file opened at 2026-07-31T07:56:
       15 --   16      3/2 + --> 1/2 +     2.09974188e+01    M1              8.8429e-09   8.8429e-09    
   -------------------------------------------------------------------------------------------------------
  
-  Photoexcitation cross sections for incident plane-wave photons with given exp. Stokes parameters P1 = 0.0,  P2 = 0.0,  P3 = 0.0:  ... not yet correct !!
+  Photoexcitation cross sections for incident plane-wave photons with given exp. Stokes parameters P1 = 0.0,  P2 = 0.0,  P3 = 0.0 (still under development):
  
   -------------------------------------------------------------------------------------------------------
        i-level-f         i--J^P--f            Energy        Multipoles     Cou -- Cross section -- Bab   
@@ -366,7 +366,7 @@ Summary file opened at 2026-07-31T07:56:
   -------------------------------------------------------------------------------------------------------
  
   Statistical tensors rho_kq  and alignment parameters A_kq for the excitation by incident plane-wave photons
-  with given exp. Stokes parameters P1 = 0.0,  P2 = 0.0,  P3 = 0.0:  ... not yet correct !!
+  with given exp. Stokes parameters P1 = 0.0,  P2 = 0.0,  P3 = 0.0 (still under development):
  
   -------------------------------------------------------------------------------------------------------------------------------------------------
        i-level-f         i--J^P--f            Energy        Multipoles       k    q       Cou -- rho_kq -- Bab           Cou --  A_kq  -- Bab     

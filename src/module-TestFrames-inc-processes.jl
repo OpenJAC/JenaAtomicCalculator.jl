@@ -130,7 +130,7 @@ function testModule_PhotoExcitation(; short::Bool=true)
                             nuclearModel=Nuclear.Model(36.),
                             initialConfigs=[Configuration("1s 2s^2"), Configuration("1s 2s 2p"), Configuration("1s 2p^2")],
                             finalConfigs  =[Configuration("1s 2s^2"), Configuration("1s 2s 2p"), Configuration("1s 2p^2")],
-                            processSettings=PhotoExcitation.Settings([E1, M1], [UseCoulomb, UseBabushkin], true, true, true, true,
+                            processSettings=PhotoExcitation.Settings([E1, M1], [UseCoulomb, UseBabushkin], true, true, true, false, true,
                                                                         LineSelection(), 0., 0., 1.0e6, Basics.ExpStokes(0., 0., 0.) ) )
     wb = perform(wa)
     ###

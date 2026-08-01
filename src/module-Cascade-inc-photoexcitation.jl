@@ -51,7 +51,7 @@ function determineSteps(scheme::Cascade.PhotoExcitationScheme, comp::Cascade.Com
         for  initialBlock in initialList
             for  excitedBlock in excitedList
                 if  initialBlock.NoElectrons == excitedBlock.NoElectrons
-                    settings = PhotoExcitation.Settings([E1], [UseCoulomb, UseBabushkin], false, false, false, false, LineSelection(), 
+                    settings = PhotoExcitation.Settings([E1], [UseCoulomb, UseBabushkin], false, false, false, false, false, LineSelection(),
                                                         0., 0., 1.0e6, Basics.ExpStokes() )
                     push!( stepList, Cascade.Step(Basics.PhotoExc(), settings, initialBlock.confs, excitedBlock.confs, 
                                                                                 initialBlock.multiplet, excitedBlock.multiplet) )
