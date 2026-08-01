@@ -42,9 +42,13 @@ function Basics.perform(computation::Atomic.Computation; output::Bool=false)
                 outcome = LandeZeeman.computeOutcomes(multiplet, nModel,  computation.grid, settings)      
                 if output    results = Base.merge( results, Dict("Zeeman parameter outcomes:" => outcome) )       end
                 #
-            elseif  typeof(settings) == StarkShift.Settings 
-                outcome = StarkShift.computeOutcomes(multiplet, nModel,  computation.grid, settings)      
+            elseif  typeof(settings) == StarkShift.Settings
+                outcome = StarkShift.computeOutcomes(multiplet, nModel,  computation.grid, settings)
                 if output    results = Base.merge( results, Dict("Stark-shift outcomes:" => outcome) )            end
+                #
+            elseif  typeof(settings) == StarkZeeman.Settings
+                outcome = StarkZeeman.computeOutcomes(multiplet, nModel, computation.grid, settings)
+                if output    results = Base.merge( results, Dict("Stark-Zeeman outcomes:" => outcome) )           end
                 #
             elseif  typeof(settings) == IsotopeShift.Settings 
                 outcome = IsotopeShift.computeOutcomes(multiplet, nModel, computation.grid, settings)         

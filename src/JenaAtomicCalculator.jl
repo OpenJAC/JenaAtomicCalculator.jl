@@ -98,7 +98,7 @@ export AbstractCImethod, AbstractConfigurationRestriction, AbstractEeInteraction
        RestrictMaximumDisplacements, RestrictNoElectronsTo, RestrictParity, RestrictToShellDoubles, RequestMinimumOccupation, RequestMaximumOccupation,
        ResonantInelastic, RemoveElectrons, RestrictExcitations, RelativisticConfigurations, run,
        SchiffMoment, Semiempirical, setDefaults, Shell, ShellSelection, SolidAngle, Spectroscopy, SphericalTensor, SpinAngular, StarkShift,
-       StartFromHydrogenic, StartFromPrevious, StrongField, StrongField2, Subshell, StaticQuantizationAxis, StaticField, SelfConsistent, 
+       StarkZeeman, StartFromHydrogenic, StartFromPrevious, StrongField, StrongField2, Subshell, StaticQuantizationAxis, StaticField, SelfConsistent,
        SuperConfiguration,
        tabulate, TestFrames, tools, Triangle, TwoElectronOnePhoton, TimeHarmonicField, TotalAM,
        UseBabushkin, UseCoulomb, UseGauge,
@@ -154,6 +154,7 @@ include("module-AlphaVariation.jl")
 include("module-RadiativeOpacity.jl")
 include("module-MultipolePolarizibility.jl")
 include("module-StarkShift.jl")
+include("module-StarkZeeman.jl")
 include("module-CrystalField.jl")
 include("module-CrystalFieldEmission.jl")
 end
