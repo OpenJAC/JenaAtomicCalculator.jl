@@ -1,14 +1,13 @@
 
 """
 `module  JAC.HydrogenicIon`
-... a submodel of JAC that provides closed-form (non-SCF) one-electron Schroedinger and Dirac energies,
-    radial orbitals and r^k expectation values for a point-like nucleus. It serves two roles: (i) as
-    internal infrastructure, used directly by SelfConsistent.jl (SCF starting orbitals) and
-    PhotoRecombination.jl (free-orbital approximations); and (ii) as a cheap, SCF- and Bsplines.jl-
-    independent exact benchmark for validating other JAC modules' hydrogenic limits, since its formulas
-    involve no B-spline discretization or self-consistent iteration and therefore cannot inherit any
-    numerical artifact from those procedures. It is not intended as a general-purpose, user-facing
-    entry point for ad hoc hydrogenic questions.
+... a submodel of JAC that provides one-electron Schroedinger/Dirac energies, radial orbitals and r^k
+    expectation values for a point-like nucleus. Used internally by SelfConsistent.jl (SCF starting
+    orbitals) and PhotoRecombination.jl (free-orbital approximations); not a general-purpose, user-
+    facing entry point for ad hoc hydrogenic questions. Only `energy()` and `radialOrbital(sh, Z, ...)`
+    are closed-form and independent of Bsplines.jl, making them a reliable exact benchmark; `orbital()`
+    and `radialOrbital(sh, nm::Nuclear.Model, grid)` diagonalize in the same B-spline basis as the SCF
+    and inherit its high-n/high-kappa numerical artifacts (verified 01-Aug-2026).
 """
 module HydrogenicIon 
 
