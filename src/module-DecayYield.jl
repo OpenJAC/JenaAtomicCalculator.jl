@@ -11,54 +11,63 @@ using Printf, JenaAtomicCalculator, ..Basics, ..Defaults, ..ManyElectron, ..Nucl
 """
 `struct  DecayYield.Settings  <:  AbstractPropertySettings`  ... defines a type for the details and parameters of computing fluorescence and Auger yields.
 
-    + approach                 ::String         ... Determines the applied cascade approach for the yields:
-                                                    {"AverageSCA", "SCA"}.
-    + printBefore              ::Bool           ... True if the selected levels is to be printed before the actual computations start. 
+    + approach                 ::Basics.AbstractCascadeApproach  ... Cascade approach applied for the yields:
+                                                    Basics.AverageSCA(), Basics.SCA() or Basics.UserMCA().
+    + printBefore              ::Bool           ... True if the selected levels is to be printed before the actual computations start.
     + geant4                   ::Bool           ... True, if decay probabilities for the Geant code are to be generated and printed.
     + levelSelection           ::LevelSelection ... Specifies the selected levels, if any.
+    + decayShells              ::Array{Shell,1} ... Additional shells to be included among Cascade.StepwiseDecayScheme's decayShells,
+                                                    on top of those already occurring in the initial configuration(s); needed, for
+                                                    instance, to communicate a spectator shell that is completely absent from a
+                                                    double-core-hole initial configuration (e.g. "1s^2 2p^5" needs 2s added
+                                                    explicitly so the cascade knows this shell can become populated during decay).
 """
-struct Settings  <:  AbstractPropertySettings 
-    approach                   ::String 
-    printBefore                ::Bool   
-    geant4                     ::Bool   
+struct Settings  <:  AbstractPropertySettings
+    approach                   ::Basics.AbstractCascadeApproach
+    printBefore                ::Bool
+    geant4                     ::Bool
     levelSelection             ::LevelSelection
-end 
+    decayShells                ::Array{Shell,1}
+end
 
 
 """
-`DecayYield.Settings()`  
+`DecayYield.Settings()`
     ... constructor for an `empty` instance of DecayYield.Settings for the computation of fluorescence and Auger yields.
 """
 function Settings()
-    Settings("AverageSCA", false, false, LevelSelection() )
+    Settings(Basics.AverageSCA(), false, false, LevelSelection(), Shell[] )
 end
 
 
 """
 `DecayYield.Settings(set::DecayYield.Settings;`
 
-        approach=.., printBefore=.., geant4=.., levelSelection=..)
+        approach=.., printBefore=.., geant4=.., levelSelection=.., decayShells=..)
 
     ... keyword copy-constructor for re-defining selected values of a settings::DecayYield.Settings.
 """
 function Settings(set::DecayYield.Settings;
-        approach::Union{Nothing,String}=nothing,           printBefore::Union{Nothing,Bool}=nothing,
-        geant4::Union{Nothing,Bool}=nothing,               levelSelection::Union{Nothing,LevelSelection}=nothing)
+        approach::Union{Nothing,Basics.AbstractCascadeApproach}=nothing,   printBefore::Union{Nothing,Bool}=nothing,
+        geant4::Union{Nothing,Bool}=nothing,               levelSelection::Union{Nothing,LevelSelection}=nothing,
+        decayShells::Union{Nothing,Array{Shell,1}}=nothing)
     if  isnothing(approach)         approachx       = set.approach       else   approachx       = approach       end
     if  isnothing(printBefore)      printBeforex    = set.printBefore    else   printBeforex    = printBefore    end
     if  isnothing(geant4)           geant4x         = set.geant4         else   geant4x         = geant4         end
     if  isnothing(levelSelection)   levelSelectionx = set.levelSelection else   levelSelectionx = levelSelection end
+    if  isnothing(decayShells)      decayShellsx    = set.decayShells    else   decayShellsx    = decayShells    end
 
-    Settings( approachx, printBeforex, geant4x, levelSelectionx )
+    Settings( approachx, printBeforex, geant4x, levelSelectionx, decayShellsx )
 end
 
 
 # `Base.show(io::IO, settings::DecayYield.Settings)`  ... prepares a proper printout of the variable settings::DecayYield.Settings.
-function Base.show(io::IO, settings::DecayYield.Settings) 
+function Base.show(io::IO, settings::DecayYield.Settings)
     println(io, "approach:                 $(settings.approach)  ")
     println(io, "printBefore:              $(settings.printBefore)  ")
     println(io, "geant4:                   $(settings.geant4)  ")
     println(io, "levelSelection:           $(settings.levelSelection)  ")
+    println(io, "decayShells:              $(settings.decayShells)  ")
 end
 
 
@@ -127,19 +136,32 @@ function computeOutcomes(initialConfigs::Array{Configuration,1}, asfSettings::As
     ## setDefaults("method: normalization, pure sine")
     #
     println("\nPerform a cascade computation for all radiative decay channels of the levels from the initial configurations:")
-    if      settings.approach == "AverageSCA"    cApproach = JenaAtomicCalculator.Cascade.AverageSCA()
-    elseif  settings.approach == "SCA"           cApproach = Cascade.SCA()
-    else    error("Improper (cascade) approach for yield computations; approach = $(settings.approach)")    
+    cApproach   = settings.approach
+    decayShells = union( Basics.extractNonrelativisticShellList(initialConfigs), settings.decayShells )
+    # NOTE: Cascade.StepwiseDecayScheme.decayShells (passed below) is NOT consulted by the currently-active
+    # Basics.ForStepwiseDecay-based decay-configuration generator, which decides which shells may participate
+    # purely via haskey(conf.shells, shell) on the CONFIGURATION itself (Basics.ValenceShells()). A shell that
+    # is genuinely absent from the initial configuration (e.g. a double-core-hole's missing 2s in "1s 2p^6")
+    # therefore must be injected here directly, as an explicit zero-occupation entry, or the cascade will
+    # never consider it -- exactly mirroring what Cascade's own now-superseded (Oct-2025) decay-configuration
+    # generator used to do internally.
+    decayInitialConfigs = initialConfigs
+    if  !isempty(settings.decayShells)
+        decayInitialConfigs = Configuration[]
+        for  conf  in  initialConfigs
+            nshells = copy(conf.shells)
+            for  shell  in  settings.decayShells    if  !haskey(nshells, shell)    nshells[shell] = 0    end    end
+            push!(decayInitialConfigs, Configuration(nshells, conf.NoElectrons))
+        end
     end
-    decayShells = Basics.extractNonrelativisticShellList(initialConfigs)
-    wa = JenaAtomicCalculator.Cascade.Computation(JenaAtomicCalculator.Cascade.Computation(), name="photon lines", nuclearModel=nm, grid=grid, asfSettings=asfSettings, 
+    wa = JenaAtomicCalculator.Cascade.Computation(JenaAtomicCalculator.Cascade.Computation(), name="photon lines", nuclearModel=nm, grid=grid, asfSettings=asfSettings,
                                 scheme=JenaAtomicCalculator.Cascade.StepwiseDecayScheme([Radiative()], 0, Dict{Int64,Float64}(), 0, decayShells, Shell[], Shell[]),
-                                approach=cApproach, initialConfigs=initialConfigs)
+                                approach=cApproach, initialConfigs=decayInitialConfigs)
     wb = perform(wa, output=true, outputToFile=false);   linesR = wb["photoemission lines:"]
     println("\nPerform a cascade computation for all (single-electron) Auger decay channels of the levels from the initial configurations:")
-    wa = JenaAtomicCalculator.Cascade.Computation(JenaAtomicCalculator.Cascade.Computation(), name="Auger lines", nuclearModel=nm, grid=grid, asfSettings=asfSettings, 
+    wa = JenaAtomicCalculator.Cascade.Computation(JenaAtomicCalculator.Cascade.Computation(), name="Auger lines", nuclearModel=nm, grid=grid, asfSettings=asfSettings,
                                 scheme=JenaAtomicCalculator.Cascade.StepwiseDecayScheme([Auger()], 1, Dict{Int64,Float64}(), 0, decayShells, Shell[], Shell[]),
-                                approach=cApproach, initialConfigs=initialConfigs)
+                                approach=cApproach, initialConfigs=decayInitialConfigs)
     wb = perform(wa, output=true, outputToFile=false);   linesA = wb["autoionization lines:"]
     #
     # Calculate all amplitudes and requested properties
@@ -225,7 +247,7 @@ function  displayResults(stream::IO, outcomes::Array{DecayYield.Outcome,1}, sett
     println(stream, " ")
     println(stream, "    + No_R, rate_R, omega_R  ... number of fluorescence lines, total fluorescence rate and yield. ")
     println(stream, "    + No_A, rate_A, omega_A  ... number of Auger lines, total Auger rate and Auger yield. ")
-    if    settings.approach in ["AverageSCA", "SCA"]
+    if    settings.approach isa Union{Basics.AverageSCA, Basics.SCA}
     println(stream, "    + Approach:  $(settings.approach)  ... all fluorescence rates and yields only in Babushkin gauge. ")
     end
     #

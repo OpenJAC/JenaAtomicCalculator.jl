@@ -944,25 +944,11 @@ end
 #######################################################################################################################################
 
 
-"""
-`abstract type Cascade.AbstractCascadeApproach` 
-    ... defines an abstract and a number of singleton types for the computational approach/model that is applied in order to 
-        generate and evaluate all many-electron amplitudes of a given cascade.
-
-    + struct AverageSCA         
-    ... all levels in the cascade are described in single-configuration and single-CSF approximation; this (rather crude) approach 
-        neglects all configuration-interactions and also applies just a single set of one-electron orbitals (from the least-ionized charge
-        state) for all considered charge states.
-        
-    + struct SCA                
-    ... all levels in the cascade are described in single-configuration approximation but with 'mixtures' within the configuration;
-        an individual mean-field is generated for each charge state and all continuum orbitals are generated for the correct transition
-        energy in the field of the remaining ion. Moreover, all the fine-structure transitions are calculated individually.
-"""
-abstract type  AbstractCascadeApproach                   end
-struct         AverageSCA  <:  AbstractCascadeApproach   end
-struct         SCA         <:  AbstractCascadeApproach   end
-struct         UserMCA     <:  AbstractCascadeApproach   end
+# Cascade.AbstractCascadeApproach, Cascade.AverageSCA, Cascade.SCA, Cascade.UserMCA moved to
+# Basics.AbstractCascadeApproach / Basics.AverageSCA / Basics.SCA / Basics.UserMCA (module-Basics-inc-abstract.jl),
+# to break a circular dependency with DecayYield.Settings; re-exported here via `using ..Basics` (already imported
+# above) so both bare (AverageSCA()) and self-qualified (Cascade.AverageSCA()) usage throughout this module's
+# included files keep working unchanged.
 
 
 

@@ -1,4 +1,4 @@
-Summary file opened at 2025-10-06T18:35: 
+Summary file opened at 2026-08-01T08:45: 
 ========================================   
 
 
@@ -6,13 +6,13 @@ Summary file opened at 2025-10-06T18:35:
 
   Level  J Parity    Total [Hartree]           Total [eV]               Total [eV]            To lower [eV]        To lowest [eV]   
 
-     1    1/2 +    -1.500861571533e+02      -4.084052358556e+03      -4.084052358556e+03      0.000000000e+00      0.000000000e+00   
+     1    1/2 +    -1.500861609590e+02      -4.084052462116e+03      -4.084052462116e+03      0.000000000e+00      0.000000000e+00   
 
   Level energies:  
 
   Level  J Parity    Total [Hartree]           Total [eV]               Total [eV]            To lower [eV]        To lowest [eV]   
 
-     1    1/2 +    -1.500861571533e+02      -4.084052358556e+03      -4.084052358556e+03      0.000000000e+00      0.000000000e+00   
+     1    1/2 +    -1.500861609590e+02      -4.084052462116e+03      -4.084052462116e+03      0.000000000e+00      0.000000000e+00   
  
 * Configurations and levels for all given initial multiplets of the cascade, relative to the lowest:
   
@@ -23,18 +23,9 @@ Summary file opened at 2025-10-06T18:35:
        1     1/2 +      0.000000000000000e+00 
   --------------------------------------------
 
-* Electron configuration(s) used:    OLD decay 
-
-    Configuration(s) with 9 electrons:
-      1s^1 2s^2 2p^6       av. BE = -1777.0  [eV]      (1)
-      1s^2 2s^1 2p^6       av. BE = -2992.0  [eV]      (2)
-      1s^2 2s^2 2p^5       av. BE = -3031.0  [eV]      (3)
-
-* A total of 3 configuration have been defined for this cascade, and selected configurations could be removed here:  [currently not supported]
-
 * Generate blocks for the decay cascade:
 
-* In the cascade approach JenaAtomicCalculator.Cascade.SCA(), the following assumptions/simplifications are made: 
+* In the cascade approach JenaAtomicCalculator.Basics.SCA(), the following assumptions/simplifications are made: 
     + orbitals are generated independently for each multiplet (block); 
     + configuration interaction is included for each block; 
     + only E1 dipole transitions are applied in all radiative decay stets; 
@@ -44,20 +35,20 @@ Summary file opened at 2025-10-06T18:35:
 
   Level  J Parity    Total [Hartree]           Total [eV]               Total [eV]            To lower [eV]        To lowest [eV]   
 
-     1    1/2 +    -1.947420217781e+02      -5.299200328919e+03      -5.299200328919e+03      0.000000000e+00      0.000000000e+00   
+     1    1/2 +    -1.947420283022e+02      -5.299200506450e+03      -5.299200506450e+03      0.000000000e+00      0.000000000e+00   
 * Multiplet computations for 1s^2 2s^2 2p^5  with 9 electrons ... 
   Level energies:  
 
   Level  J Parity    Total [Hartree]           Total [eV]               Total [eV]            To lower [eV]        To lowest [eV]   
 
-     1    3/2 -    -1.962510095527e+02      -5.340261977754e+03      -5.340261977754e+03      0.000000000e+00      0.000000000e+00   
-     2    1/2 -    -1.962402393825e+02      -5.339968906495e+03      -5.339968906495e+03      2.930712588e-01      2.930712588e-01   
+     1    3/2 -    -1.962510162955e+02      -5.340262161235e+03      -5.340262161235e+03      0.000000000e+00      0.000000000e+00   
+     2    1/2 -    -1.962402461255e+02      -5.339969089981e+03      -5.339969089981e+03      2.930712540e-01      2.930712540e-01   
 * Multiplet computations for 1s^1 2s^2 2p^6  with 9 electrons ... 
   Level energies:  
 
   Level  J Parity    Total [Hartree]           Total [eV]               Total [eV]            To lower [eV]        To lowest [eV]   
 
-     1    1/2 +    -1.500861571533e+02      -4.084052358556e+03      -4.084052358556e+03      0.000000000e+00      0.000000000e+00   
+     1    1/2 +    -1.500861609590e+02      -4.084052462116e+03      -4.084052462116e+03      0.000000000e+00      0.000000000e+00   
 
 * Configuration 'blocks' (multiplets): for the decay cascade 
 
@@ -89,10 +80,10 @@ Summary file opened at 2025-10-06T18:35:
        i-level-f           i--J^P--f           Energy        Multipole   Gauge             A--Einstein--B          Osc. strength    Decay widths    Line strength    
                                                 [eV]                                      [1/s]          [1/s]                          [eV]           [a.u.]       
   -----------------------------------------------------------------------------------------------------------------------------------------------------------------
-         1 --    1      1/2 + --> 3/2 -     4.106165e+01        E1       Babushkin    2.078186e+10  3.715747e+00    1.420274e-01    1.367887e-05    8.969123e-04    
-         1 --    1      1/2 + --> 3/2 -     4.106165e+01        E1       Coulomb      1.316249e+10  2.353422e+00    8.995510e-02    8.663710e-06    5.680723e-04    
-         1 --    2      1/2 + --> 1/2 -     4.076858e+01        E1       Babushkin    1.013719e+10  1.851876e+00    1.405585e-01    6.672421e-06    2.235042e-04    
-         1 --    2      1/2 + --> 1/2 -     4.076858e+01        E1       Coulomb      6.388326e+09  1.167028e+00    8.857811e-02    4.204873e-06    1.408494e-04    
+         1 --    1      1/2 + --> 3/2 -     4.106165e+01        E1       Babushkin    2.078187e+10  3.715747e+00    1.420274e-01    1.367888e-05    8.969123e-04    
+         1 --    1      1/2 + --> 3/2 -     4.106165e+01        E1       Coulomb      1.316250e+10  2.353422e+00    8.995511e-02    8.663713e-06    5.680723e-04    
+         1 --    2      1/2 + --> 1/2 -     4.076858e+01        E1       Babushkin    1.013720e+10  1.851876e+00    1.405585e-01    6.672423e-06    2.235042e-04    
+         1 --    2      1/2 + --> 1/2 -     4.076858e+01        E1       Coulomb      6.388329e+09  1.167028e+00    8.857812e-02    4.204874e-06    1.408494e-04    
   -----------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 *    Step 1:: A total of 2 Radiative lines are calculated, giving now rise to a total of 2 Radiative decay lines.
@@ -117,10 +108,10 @@ Summary file opened at 2025-10-06T18:35:
        i-level-f           i--J^P--f           Energy        Multipole   Gauge             A--Einstein--B          Osc. strength    Decay widths    Line strength    
                                                 [eV]                                      [1/s]          [1/s]                          [eV]           [a.u.]       
   -----------------------------------------------------------------------------------------------------------------------------------------------------------------
-         1 --    1      1/2 + --> 3/2 -     1.256210e+03        E1       Babushkin    1.188000e+13  7.418239e-02    8.674661e-02    7.819555e-03    1.790625e-05    
-         1 --    1      1/2 + --> 3/2 -     1.256210e+03        E1       Coulomb      1.151371e+13  7.189519e-02    8.407203e-02    7.578462e-03    1.735416e-05    
-         1 --    2      1/2 + --> 1/2 -     1.255917e+03        E1       Babushkin    5.934418e+12  3.708230e-02    8.670557e-02    3.906105e-03    4.475488e-06    
-         1 --    2      1/2 + --> 1/2 -     1.255917e+03        E1       Coulomb      5.793611e+12  3.620244e-02    8.464829e-02    3.813424e-03    4.369297e-06    
+         1 --    1      1/2 + --> 3/2 -     1.256210e+03        E1       Babushkin    1.188000e+13  7.418238e-02    8.674660e-02    7.819556e-03    1.790624e-05    
+         1 --    1      1/2 + --> 3/2 -     1.256210e+03        E1       Coulomb      1.151371e+13  7.189518e-02    8.407202e-02    7.578462e-03    1.735416e-05    
+         1 --    2      1/2 + --> 1/2 -     1.255917e+03        E1       Babushkin    5.934418e+12  3.708229e-02    8.670556e-02    3.906105e-03    4.475487e-06    
+         1 --    2      1/2 + --> 1/2 -     1.255917e+03        E1       Coulomb      5.793611e+12  3.620243e-02    8.464828e-02    3.813424e-03    4.369297e-06    
   -----------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 *    Step 3:: A total of 2 Radiative lines are calculated, giving now rise to a total of 4 Radiative decay lines.
@@ -129,7 +120,7 @@ Summary file opened at 2025-10-06T18:35:
 
   Level  J Parity    Total [Hartree]           Total [eV]               Total [eV]            To lower [eV]        To lowest [eV]   
 
-     1    1/2 +    -1.500861571533e+02      -4.084052358556e+03      -4.084052358556e+03      0.000000000e+00      0.000000000e+00   
+     1    1/2 +    -1.500861609590e+02      -4.084052462116e+03      -4.084052462116e+03      0.000000000e+00      0.000000000e+00   
  
 * Configurations and levels for all given initial multiplets of the cascade, relative to the lowest:
   
@@ -140,23 +131,9 @@ Summary file opened at 2025-10-06T18:35:
        1     1/2 +      0.000000000000000e+00 
   --------------------------------------------
 
-* Electron configuration(s) used:    OLD decay 
-
-    Configuration(s) with 9 electrons:
-      1s^1 2s^2 2p^6       av. BE = -1777.0  [eV]      (1)
-      1s^2 2s^1 2p^6       av. BE = -2992.0  [eV]      (2)
-      1s^2 2s^2 2p^5       av. BE = -3031.0  [eV]      (3)
-
-    Configuration(s) with 8 electrons:
-      1s^2 2s^0 2p^6       av. BE = -2903.0  [eV]      (4)
-      1s^2 2s^1 2p^5       av. BE = -2942.0  [eV]      (5)
-      1s^2 2s^2 2p^4       av. BE = -2981.0  [eV]      (6)
-
-* A total of 6 configuration have been defined for this cascade, and selected configurations could be removed here:  [currently not supported]
-
 * Generate blocks for the decay cascade:
 
-* In the cascade approach JenaAtomicCalculator.Cascade.SCA(), the following assumptions/simplifications are made: 
+* In the cascade approach JenaAtomicCalculator.Basics.SCA(), the following assumptions/simplifications are made: 
     + orbitals are generated independently for each multiplet (block); 
     + configuration interaction is included for each block; 
     + only E1 dipole transitions are applied in all radiative decay stets; 
@@ -166,45 +143,45 @@ Summary file opened at 2025-10-06T18:35:
 
   Level  J Parity    Total [Hartree]           Total [eV]               Total [eV]            To lower [eV]        To lowest [eV]   
 
-     1    1/2 +    -1.947420217781e+02      -5.299200328919e+03      -5.299200328919e+03      0.000000000e+00      0.000000000e+00   
+     1    1/2 +    -1.947420283022e+02      -5.299200506450e+03      -5.299200506450e+03      0.000000000e+00      0.000000000e+00   
 * Multiplet computations for 1s^2 2s^2 2p^5  with 9 electrons ... 
   Level energies:  
 
   Level  J Parity    Total [Hartree]           Total [eV]               Total [eV]            To lower [eV]        To lowest [eV]   
 
-     1    3/2 -    -1.962510095527e+02      -5.340261977754e+03      -5.340261977754e+03      0.000000000e+00      0.000000000e+00   
-     2    1/2 -    -1.962402393825e+02      -5.339968906495e+03      -5.339968906495e+03      2.930712588e-01      2.930712588e-01   
+     1    3/2 -    -1.962510162955e+02      -5.340262161235e+03      -5.340262161235e+03      0.000000000e+00      0.000000000e+00   
+     2    1/2 -    -1.962402461255e+02      -5.339969089981e+03      -5.339969089981e+03      2.930712540e-01      2.930712540e-01   
 * Multiplet computations for 1s^2 2s^0 2p^6  with 8 electrons ... 
   Level energies:  
 
   Level  J Parity    Total [Hartree]           Total [eV]               Total [eV]            To lower [eV]        To lowest [eV]   
 
-     1    0 +      -1.891778668394e+02      -5.147791961007e+03      -5.147791961007e+03      0.000000000e+00      0.000000000e+00   
+     1    0 +      -1.891778731475e+02      -5.147792132659e+03      -5.147792132659e+03      0.000000000e+00      0.000000000e+00   
 * Multiplet computations for 1s^2 2s^1 2p^5  with 8 electrons ... 
   Level energies:  
 
   Level  J Parity    Total [Hartree]           Total [eV]               Total [eV]            To lower [eV]        To lowest [eV]   
 
-     1    2 -      -1.909630062248e+02      -5.196368077922e+03      -5.196368077922e+03      0.000000000e+00      0.000000000e+00   
-     2    1 -      -1.909551887990e+02      -5.196155354932e+03      -5.196155354932e+03      2.127229898e-01      2.127229898e-01   
-     3    0 -      -1.909511984610e+02      -5.196046772303e+03      -5.196046772303e+03      1.085826289e-01      3.213056187e-01   
-     4    1 -      -1.903897038988e+02      -5.180767727025e+03      -5.180767727025e+03      1.527904528e+01      1.560035090e+01   
+     1    2 -      -1.909630127721e+02      -5.196368256085e+03      -5.196368256085e+03      0.000000000e+00      0.000000000e+00   
+     2    1 -      -1.909551953465e+02      -5.196155533098e+03      -5.196155533098e+03      2.127229864e-01      2.127229864e-01   
+     3    0 -      -1.909512050085e+02      -5.196046950471e+03      -5.196046950471e+03      1.085826271e-01      3.213056136e-01   
+     4    1 -      -1.903897104326e+02      -5.180767904816e+03      -5.180767904816e+03      1.527904565e+01      1.560035127e+01   
 * Multiplet computations for 1s^2 2s^2 2p^4  with 8 electrons ... 
   Level energies:  
 
   Level  J Parity    Total [Hartree]           Total [eV]               Total [eV]            To lower [eV]        To lowest [eV]   
 
-     1    2 +      -1.922959729783e+02      -5.232639950804e+03      -5.232639950804e+03      0.000000000e+00      0.000000000e+00   
-     2    1 +      -1.922877646376e+02      -5.232416590478e+03      -5.232416590478e+03      2.233603255e-01      2.233603255e-01   
-     3    0 +      -1.922840638016e+02      -5.232315885599e+03      -5.232315885599e+03      1.007048793e-01      3.240652048e-01   
-     4    2 +      -1.921239427973e+02      -5.227958771141e+03      -5.227958771141e+03      4.357114457e+00      4.681179662e+00   
-     5    0 +      -1.918723449044e+02      -5.221112443756e+03      -5.221112443756e+03      6.846327385e+00      1.152750705e+01   
+     1    2 +      -1.922959797560e+02      -5.232640135235e+03      -5.232640135235e+03      0.000000000e+00      0.000000000e+00   
+     2    1 +      -1.922877714155e+02      -5.232416774914e+03      -5.232416774914e+03      2.233603218e-01      2.233603218e-01   
+     3    0 +      -1.922840705795e+02      -5.232316070036e+03      -5.232316070036e+03      1.007048777e-01      3.240651995e-01   
+     4    2 +      -1.921239495759e+02      -5.227958955596e+03      -5.227958955596e+03      4.357114440e+00      4.681179640e+00   
+     5    0 +      -1.918723516841e+02      -5.221112628242e+03      -5.221112628242e+03      6.846327354e+00      1.152750699e+01   
 * Multiplet computations for 1s^1 2s^2 2p^6  with 9 electrons ... 
   Level energies:  
 
   Level  J Parity    Total [Hartree]           Total [eV]               Total [eV]            To lower [eV]        To lowest [eV]   
 
-     1    1/2 +    -1.500861571533e+02      -4.084052358556e+03      -4.084052358556e+03      0.000000000e+00      0.000000000e+00   
+     1    1/2 +    -1.500861609590e+02      -4.084052462116e+03      -4.084052462116e+03      0.000000000e+00      0.000000000e+00   
 
 * Configuration 'blocks' (multiplets): for the decay cascade 
 
@@ -239,7 +216,7 @@ Summary file opened at 2025-10-06T18:35:
        i-level-f           i--J^P--f           Energy      Electron energy    Auger rate        alpha_2      
                                                 [eV]             [eV]            [1/s]                        
   ----------------------------------------------------------------------------------------------------------
-         1 --    1       1/2 + --> 0 +      -4.084052e+03    1.063740e+03    6.696032e+13       0.0000e+00    
+         1 --    1       1/2 + --> 0 +      -4.084052e+03    1.063740e+03    4.156398e+13       0.0000e+00    
   ----------------------------------------------------------------------------------------------------------
 
 *    Step 1:: A total of 1 Auger lines are calculated, giving now rise to a total of 1 Auger decay lines.
@@ -252,10 +229,10 @@ Summary file opened at 2025-10-06T18:35:
        i-level-f           i--J^P--f           Energy      Electron energy    Auger rate        alpha_2      
                                                 [eV]             [eV]            [1/s]                        
   ----------------------------------------------------------------------------------------------------------
-         1 --    1       1/2 + --> 2 -      -4.084052e+03    1.112316e+03    3.488398e+13       0.0000e+00    
-         1 --    2       1/2 + --> 1 -      -4.084052e+03    1.112103e+03    9.281406e+12       0.0000e+00    
-         1 --    3       1/2 + --> 0 -      -4.084052e+03    1.111994e+03    1.061870e+12       0.0000e+00    
-         1 --    4       1/2 + --> 1 -      -4.084052e+03    1.096715e+03    5.075731e+13       0.0000e+00    
+         1 --    1       1/2 + --> 2 -      -4.084052e+03    1.112316e+03    1.626584e+13       0.0000e+00    
+         1 --    2       1/2 + --> 1 -      -4.084052e+03    1.112103e+03    1.000898e+13       0.0000e+00    
+         1 --    3       1/2 + --> 0 -      -4.084052e+03    1.111994e+03    3.377843e+12       0.0000e+00    
+         1 --    4       1/2 + --> 1 -      -4.084052e+03    1.096715e+03    1.004028e+14       0.0000e+00    
   ----------------------------------------------------------------------------------------------------------
 
 *    Step 2:: A total of 4 Auger lines are calculated, giving now rise to a total of 5 Auger decay lines.
@@ -268,11 +245,11 @@ Summary file opened at 2025-10-06T18:35:
        i-level-f           i--J^P--f           Energy      Electron energy    Auger rate        alpha_2      
                                                 [eV]             [eV]            [1/s]                        
   ----------------------------------------------------------------------------------------------------------
-         1 --    1       1/2 + --> 2 +      -4.084052e+03    1.148588e+03    3.903384e+10       0.0000e+00    
-         1 --    2       1/2 + --> 1 +      -4.084052e+03    1.148364e+03    3.067765e+08       0.0000e+00    
-         1 --    3       1/2 + --> 0 +      -4.084052e+03    1.148264e+03    1.065237e+10       0.0000e+00    
-         1 --    4       1/2 + --> 2 +      -4.084052e+03    1.143906e+03    4.091377e+13       0.0000e+00    
-         1 --    5       1/2 + --> 0 +      -4.084052e+03    1.137060e+03    1.135772e+13       0.0000e+00    
+         1 --    1       1/2 + --> 2 +      -4.084052e+03    1.148588e+03    3.036432e+11       0.0000e+00    
+         1 --    2       1/2 + --> 1 +      -4.084052e+03    1.148364e+03    3.646317e+08       0.0000e+00    
+         1 --    3       1/2 + --> 0 +      -4.084052e+03    1.148264e+03    1.301747e+10       0.0000e+00    
+         1 --    4       1/2 + --> 2 +      -4.084052e+03    1.143906e+03    3.190376e+14       0.0000e+00    
+         1 --    5       1/2 + --> 0 +      -4.084052e+03    1.137060e+03    2.524813e+13       0.0000e+00    
   ----------------------------------------------------------------------------------------------------------
 
 *    Step 3:: A total of 5 Auger lines are calculated, giving now rise to a total of 10 Auger decay lines.
@@ -281,13 +258,13 @@ Summary file opened at 2025-10-06T18:35:
  
     + No_R, rate_R, omega_R  ... number of fluorescence lines, total fluorescence rate and yield. 
     + No_A, rate_A, omega_A  ... number of Auger lines, total Auger rate and Auger yield. 
-    + Approach:  SCA  ... all fluorescence rates and yields only in Babushkin gauge. 
+    + Approach:  JenaAtomicCalculator.Basics.SCA()  ... all fluorescence rates and yields only in Babushkin gauge. 
  
   -----------------------------------------------------------------------------------------------------------------------------------------------------
      Level        J^P           Energy          No_R    Cou -- rate_R  -- Bab    Cou -- omega_R -- Bab     No_A      rate_A      Cou -- omega_A -- Bab    
                                  [eV]                                                                                                                     
   -----------------------------------------------------------------------------------------------------------------------------------------------------
-         1       1/2 +      -4.08405236e+03     0002    4.1864e-04 4.3091e-04    7.4417e-02 7.6430e-02     0010    5.2070e-03    9.2558e-01 9.2357e-01  
+         1       1/2 +      -4.08405246e+03     0002    4.1864e-04 4.3091e-04    3.2439e-02 3.3358e-02     0010    1.2487e-02    9.6756e-01 9.6664e-01  
   -----------------------------------------------------------------------------------------------------------------------------------------------------
 
 

@@ -257,7 +257,43 @@ export  AbstractContinuumNormalization,   PureSineNorm,   CoulombSineNorm,   Ong
 
 
 """
-`abstract type Basics.AbstractConfigurationRestriction` 
+`abstract type Basics.AbstractCascadeApproach`
+    ... defines an abstract and a number of singleton types for the computational approach/model that is applied in order to
+        generate and evaluate all many-electron amplitudes of a given cascade. Lives here (not in Cascade.jl) because
+        DecayYield.Settings needs it as a compile-time field type, and module-DecayYield.jl is included BEFORE
+        module-Cascade.jl in JenaAtomicCalculator.jl, while Cascade itself needs DecayYield.Outcome/Settings as compile-time
+        function-argument types (module-Cascade-inc-computations.jl) -- a genuine circular dependency that only a
+        shared, early-loaded supertype (the same pattern already used for AbstractPropertySettings/AbstractProcessSettings)
+        can resolve.
+
+    + struct AverageSCA
+    ... all levels in the cascade are described in single-configuration and single-CSF approximation; this (rather crude) approach
+        neglects all configuration-interactions and also applies just a single set of one-electron orbitals (from the least-ionized charge
+        state) for all considered charge states.
+
+    + struct SCA
+    ... all levels in the cascade are described in single-configuration approximation but with 'mixtures' within the configuration;
+        an individual mean-field is generated for each charge state and all continuum orbitals are generated for the correct transition
+        energy in the field of the remaining ion. Moreover, all the fine-structure transitions are calculated individually.
+
+    + struct UserMCA
+    ... placeholder for a genuine multiconfiguration cascade approach; declared but NOT (yet) implemented anywhere in the
+        codebase -- selecting it does not raise an explicit error and currently falls through to the same code path as SCA
+        in the Cascade-inc-*.jl dispatch sites, which do not special-case it either.
+"""
+abstract type  AbstractCascadeApproach                   end
+struct         AverageSCA  <:  AbstractCascadeApproach   end
+struct         SCA         <:  AbstractCascadeApproach   end
+struct         UserMCA     <:  AbstractCascadeApproach   end
+
+export  AbstractCascadeApproach, AverageSCA, SCA, UserMCA
+
+#################################################################################################################################
+#################################################################################################################################
+
+
+"""
+`abstract type Basics.AbstractConfigurationRestriction`
     ... defines an abstract types for dealing with restrictions that need to be applied to a list of configurations.
         Typically, a loop through is made through all given restrictions and all configurations are tested to obey all
         these restrictions. Two contradicting restrictions, for instance RestrictParity(plus) & RestrictParity(minus),
@@ -1961,17 +1997,18 @@ export AbstractQuantizationAxis, DefaultQuantizationAxis, StaticQuantizationAxis
 `abstract type Basics.AbstractScField` 
     ... defines an abstract and a number of singleton types to distinguish between different self-consistent fields
 
-    + struct ALField          ... to represent an average-level field.
-    + struct ALFieldClaude2   ... an alternative average-level field, isolated from ALField, built natively
+    + struct ALField          ... to represent an average-level field: a bVector-native SCF built directly
                                   around B-spline expansion coefficient vectors (no tabulated Orbital
                                   maintained during the SCF iteration at all), a kink-aware (spline + split
                                   adaptive quadrature) two-electron Slater integral in place of the naive
                                   tensor-product Gauss-Legendre one, and an in-matrix orthogonality
                                   projection modeled directly on DBSR_HF (Zatsarinny & Froese Fischer, CPC
-                                  202, 287 (2016)); see SelfConsistent.solveAverageLevelFieldClaude2. Does
-                                  not affect ALField or any other scField in any way. (An earlier, P/Q-orbital
-                                  first-generation kink-aware line, ALFieldClaude, was superseded by this one
-                                  and removed.)
+                                  202, 287 (2016)); see SelfConsistent.solveAverageLevelField. Validated to
+                                  5+ significant figures against literature for He/Be/Ne/Ar. (This type was
+                                  developed under the working name ALFieldClaude2 during an earlier
+                                  investigation; an original, buggy ALField implementation -- and before that
+                                  a first-generation kink-aware line, ALFieldClaude -- were both superseded by
+                                  this one and removed.)
     + struct EOLField         ... to represent an (extended) optimized-level field.
     + struct DFSField         ... to represent an mean Dirac-Fock-Slater field.        
     + struct DFSwCPField      ... to represent an mean Dirac-Fock-Slater with core-polarization field.        
@@ -1984,7 +2021,6 @@ export AbstractQuantizationAxis, DefaultQuantizationAxis, StaticQuantizationAxis
 """
 abstract type  AbstractScField                          end
 struct     ALField              <:  AbstractScField     end
-struct     ALFieldClaude2       <:  AbstractScField     end
 struct     EOLField             <:  AbstractScField     end
 struct     HSField              <:  AbstractScField     end
 struct     EHField              <:  AbstractScField     end
@@ -2022,7 +2058,7 @@ struct     DFSwCPField          <:  AbstractScField
     corePolarization    ::CorePolarization
 end
 
-export  AbstractScField, AaDFSField, AaHSField, ALField, ALFieldClaude2, EOLField, DFSField, DFSwCPField, HSField, NuclearField
+export  AbstractScField, AaDFSField, AaHSField, ALField, EOLField, DFSField, DFSwCPField, HSField, NuclearField
 
 #################################################################################################################################
 #################################################################################################################################

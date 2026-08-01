@@ -35,7 +35,7 @@ function testModule_DecayYield(; short::Bool=true)
     grid = Radial.Grid(Radial.Grid(false), rnt = 2.0e-5, h = 5.0e-2, hp = 2.0e-2, rbox=10.0)
     wa = Atomic.Computation(Atomic.Computation(), name="xx", grid=grid, nuclearModel=Nuclear.Model(12.),
                             configs=[Configuration("1s 2s^2 2p^6")],
-                            propertySettings = [ DecayYield.Settings("SCA", true, false, LevelSelection() )] )
+                            propertySettings = [ DecayYield.Settings(Basics.SCA(), true, false, LevelSelection(), Shell[] )] )
     wb = perform(wa)
     ###
     Defaults.setDefaults("print summary: close", "")
