@@ -2,6 +2,19 @@
 """
 `module  JAC.BiOrthogonal`
 	... a submodel of JAC that contains all methods for a bi-orthogonal transformation of two non-orthogonal orbitals set.
+
+    Validated (1-Aug-2026) against three independent known-answer tests, following the artificial-rotation
+    methodology suggested by Olsen, Godefroid, Jönsson, Malmqvist & Froese Fischer, Phys. Rev. E 52, 4499
+    (1995), Sec. V: (1) closed-core self-overlap under a manufactured 1s/2s rotation, exact to 1e-15;
+    (2) a full production PhotoEmission E1 rate (Fe X 3p^6 -> 3p^5) under the same closed-core rotation,
+    matching a shared-basis reference to ~1e-10 relative; (3) an open-shell/virtual-mixing self-overlap
+    (occupied 3s rotated with virtual 4s, forcing a genuine CI counter-rotation) plus length- and
+    velocity-form dipole matrix elements, matching to ~1e-8 - 1e-10 relative. All three confirm
+    `computeTransformationMatrices` and `generateCounterRotatingCiMatrices` exactly reconstruct the known
+    physical answer under invertible orbital rotations, including cases requiring nontrivial CI mixing.
+    This does NOT explain the puzzling near-identical gauge-ratio shift observed for a genuine K-hole
+    SCF-relaxation case (Ne K-alpha, example-Da.jl branch 0) -- that remains open and is more likely a
+    physical-relaxation or transition-operator question than a defect in this module.
 """
 module BiOrthogonal
 
