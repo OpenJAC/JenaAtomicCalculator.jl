@@ -7,7 +7,7 @@
 module PhotoIonization
 
 
-using Printf, ..AngularMomentum, ..Basics, ..Continuum, ..Defaults, ..Radial, ..Nuclear, ..ManyElectron, ..PhotoEmission, 
+using Printf, ..AngularMomentum, ..Basics, ..BiOrthogonal, ..Continuum, ..Defaults, ..Radial, ..Nuclear, ..ManyElectron, ..PhotoEmission,
               ..TableStrings
 
 """
@@ -22,7 +22,32 @@ using Printf, ..AngularMomentum, ..Basics, ..Continuum, ..Defaults, ..Radial, ..
     + calcPartialCs                 ::Bool                ... True, if partial cross sections are to be calculated and false otherwise.  
     + calcTimeDelay                 ::Bool                ... True, if time-delays are to be calculated and false otherwise.  
     + calcNonE1AngleDifferentialCS  ::Bool                ... True, if non-E1 angle-differential CS are be calculated and false otherwise.  
-    + calcTensors                   ::Bool                ... True, if statistical tensors of the excited atom are to be calculated and false o/w. 
+    + calcTensors                   ::Bool                ... True, if statistical tensors of the excited atom are to be calculated and false o/w.
+    + calcBiorthogonal              ::Bool                ... True, if the (bound) initial- and final-state multiplets are first brought into
+                                                            a bi-orthogonal representation (`BiOrthogonal.computeTransformation`) before the
+                                                            free-electron (continuum) orbital is generated and the transition amplitudes are
+                                                            evaluated, and false (the default) if the two multiplets are used as they are. This
+                                                            transforms ONLY the bound spectator orbitals shared between the N-electron neutral
+                                                            (initial) and (N-1)-electron ionic (final) multiplets -- i.e. exactly the kind of
+                                                            core relaxation upon ionization the bi-orthogonal method is designed to correct.
+                                                            The continuum orbital itself is generated afterward, per line, directly in the field
+                                                            of the (possibly now bi-orthogonally-transformed) ionic core via
+                                                            `Continuum.generateOrbitalForLevel`, and is NEVER itself passed through the
+                                                            bi-orthogonal machinery: applying it any later (after the continuum orbital and its
+                                                            placeholder counterpart on the initial side already exist) would fail, since the
+                                                            initial-side placeholder for the free-electron subshell
+                                                            (`Basics.generateLevelWithExtraSubshell`) is a dummy, all-zero orbital with no
+                                                            physical overlap to speak of -- the per-kappa overlap matrix used by
+                                                            `BiOrthogonal.computeTransformationMatrices` would be singular. Although
+                                                            `BiOrthogonal.computeTransformation`'s own docstring says the two multiplets "must
+                                                            have the same number of electrons", nothing in its actual implementation enforces
+                                                            or requires this: `computeTransformationMatrices` only needs matching per-kappa
+                                                            orbital COUNTS (not matching NoElectrons), and `generateCounterRotatingCiMatrices`
+                                                            builds its counter-rotation matrix entirely from one side's OWN CSF list, with no
+                                                            cross-reference to the other side's electron count at all -- the N-vs-(N-1) case
+                                                            used here appears mathematically sound on inspection, but (unlike the PhotoEmission/
+                                                            PhotoExcitation cases) has not yet been checked against an independent known-answer
+                                                            test; treat quantitative results with appropriate caution until such a test exists.
     + printBefore                   ::Bool                ... True, if all energies and lines are printed before their evaluation.
     + lineSelection                 ::LineSelection       ... Specifies the selected levels, if any.
     + stokes                        ::ExpStokes           ... Stokes parameters of the incident radiation.
@@ -39,7 +64,8 @@ struct Settings  <:  AbstractProcessSettings
     calcPartialCs                   ::Bool 
     calcTimeDelay                   ::Bool 
     calcNonE1AngleDifferentialCS    ::Bool  
-    calcTensors                     ::Bool 
+    calcTensors                     ::Bool
+    calcBiorthogonal                ::Bool
     printBefore                     ::Bool
     lineSelection                   ::LineSelection
     stokes                          ::ExpStokes
@@ -52,18 +78,18 @@ end
 `PhotoIonization.Settings()`  ... constructor for the default values of photoionization line computations
 """
 function Settings()
-    Settings(Basics.EmMultipole[E1], Basics.UseGauge[Basics.UseCoulomb, Basics.UseBabushkin], Float64[], Float64[], Float64[], 
-                false, false, false, false, false, false, LineSelection(), Basics.ExpStokes(), 0., [0,1,2,3,4,5])
+    Settings(Basics.EmMultipole[E1], Basics.UseGauge[Basics.UseCoulomb, Basics.UseBabushkin], Float64[], Float64[], Float64[],
+                false, false, false, false, false, false, false, LineSelection(), Basics.ExpStokes(), 0., [0,1,2,3,4,5])
 end
 
 
 """
 `PhotoIonization.Settings(set::PhotoIonization.Settings;`
 
-        multipoles=..,                      gauges=..,                  photonEnergies=..,          electronEnergies=..,     
-        thetas=..,                          calcAnisotropy=..,          calcPartialCs..,            calcTimeDelay=..,           
-        calcNonE1AngleDifferentialCS=..,    calcTensors=..,             printBefore=..,             lineSelection=..,           
-        stokes=..,                          freeElectronShift=..,       lValues=.. )
+        multipoles=..,                      gauges=..,                  photonEnergies=..,          electronEnergies=..,
+        thetas=..,                          calcAnisotropy=..,          calcPartialCs..,            calcTimeDelay=..,
+        calcNonE1AngleDifferentialCS=..,    calcTensors=..,             calcBiorthogonal=..,        printBefore=..,
+        lineSelection=..,                   stokes=..,                  freeElectronShift=..,       lValues=.. )
                     
     ... constructor for modifying the given PhotoIonization.Settings by 'overwriting' the previously selected parameters.
 """
@@ -72,8 +98,9 @@ function Settings(set::PhotoIonization.Settings;
     photonEnergies::Union{Nothing,Array{Float64,1}}=nothing,                electronEnergies::Union{Nothing,Array{Float64,1}}=nothing, 
     thetas::Union{Nothing,Array{Float64,1}}=nothing,                        calcAnisotropy::Union{Nothing,Bool}=nothing,
     calcPartialCs::Union{Nothing,Bool}=nothing,                             calcTimeDelay::Union{Nothing,Bool}=nothing,  
-    calcNonE1AngleDifferentialCS::Union{Nothing,Bool}=nothing,              calcTensors::Union{Nothing,Bool}=nothing,   
-    printBefore::Union{Nothing,Bool}=nothing,                               lineSelection::Union{Nothing,LineSelection}=nothing, 
+    calcNonE1AngleDifferentialCS::Union{Nothing,Bool}=nothing,              calcTensors::Union{Nothing,Bool}=nothing,
+    calcBiorthogonal::Union{Nothing,Bool}=nothing,                          printBefore::Union{Nothing,Bool}=nothing,
+    lineSelection::Union{Nothing,LineSelection}=nothing,
     stokes::Union{Nothing,ExpStokes}=nothing,                               freeElectronShift::Union{Nothing,Float64}=nothing,
     lValues::Union{Nothing,Array{Int64,1}}=nothing)  
     
@@ -87,15 +114,16 @@ function Settings(set::PhotoIonization.Settings;
     if  isnothing(calcTimeDelay)       calcTimeDelayx     = set.calcTimeDelay     else  calcTimeDelayx     = calcTimeDelay      end 
     if  isnothing(calcNonE1AngleDifferentialCS)     calcNonE1AngleDifferentialCSx = set.calcNonE1AngleDifferentialCS        else  
         calcNonE1AngleDifferentialCSx  = calcNonE1AngleDifferentialCS                                                           end 
-    if  isnothing(calcTensors)         calcTensorsx       = set.calcTensors       else  calcTensorsx       = calcTensors        end 
-    if  isnothing(printBefore)         printBeforex       = set.printBefore       else  printBeforex       = printBefore        end 
+    if  isnothing(calcTensors)         calcTensorsx       = set.calcTensors       else  calcTensorsx       = calcTensors        end
+    if  isnothing(calcBiorthogonal)    calcBiorthogonalx  = set.calcBiorthogonal  else  calcBiorthogonalx  = calcBiorthogonal   end
+    if  isnothing(printBefore)         printBeforex       = set.printBefore       else  printBeforex       = printBefore        end
     if  isnothing(lineSelection)       lineSelectionx     = set.lineSelection     else  lineSelectionx     = lineSelection      end 
     if  isnothing(stokes)              stokesx            = set.stokes            else  stokesx            = stokes             end 
     if  isnothing(freeElectronShift)   freeElectronShiftx = set.freeElectronShift else  freeElectronShiftx = freeElectronShift  end 
     if  isnothing(lValues)             lValuesx           = set.lValues           else  lValuesx           = lValues            end 
 
-    Settings( multipolesx, gaugesx, photonEnergiesx, electronEnergiesx, thetasx, calcAnisotropyx, calcPartialCsx, calcTimeDelayx, 
-                calcNonE1AngleDifferentialCSx, calcTensorsx, printBeforex, lineSelectionx, stokesx, freeElectronShiftx, lValuesx)
+    Settings( multipolesx, gaugesx, photonEnergiesx, electronEnergiesx, thetasx, calcAnisotropyx, calcPartialCsx, calcTimeDelayx,
+                calcNonE1AngleDifferentialCSx, calcTensorsx, calcBiorthogonalx, printBeforex, lineSelectionx, stokesx, freeElectronShiftx, lValuesx)
 end
 
 
@@ -111,6 +139,7 @@ function Base.show(io::IO, settings::PhotoIonization.Settings)
     println(io, "calcTimeDelay:                 $(settings.calcTimeDelay)  ")
     println(io, "calcNonE1AngleDifferentialCS:  $(settings.calcNonE1AngleDifferentialCS)  ")
     println(io, "calcTensors:                   $(settings.calcTensors)  ")
+    println(io, "calcBiorthogonal:              $(settings.calcBiorthogonal)  ")
     println(io, "printBefore:                   $(settings.printBefore)  ")
     println(io, "lineSelection:                 $(settings.lineSelection)  ")
     println(io, "stokes:                        $(settings.stokes)  ")
@@ -527,10 +556,13 @@ end
     ... to compute the photoIonization transition amplitudes and all properties as requested by the given settings. 
         A list of lines::Array{PhotoIonization.Lines} is returned.
 """
-function  computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, nm::Nuclear.Model, grid::Radial.Grid, 
+function  computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, nm::Nuclear.Model, grid::Radial.Grid,
                         settings::PhotoIonization.Settings; output::Bool=true)
+    if  settings.calcBiorthogonal
+        initialMultiplet, finalMultiplet = BiOrthogonal.computeTransformation(initialMultiplet, finalMultiplet, grid)
+    end
     printSummary, iostream = Defaults.getDefaults("summary flag/stream")
-    
+
     println("")
     printstyled("PhotoIonization.computeLines(): The computation of photo-ionization and properties starts now ... \n", color=:light_green)
     printstyled("------------------------------------------------------------------------------------------------- \n", color=:light_green)
