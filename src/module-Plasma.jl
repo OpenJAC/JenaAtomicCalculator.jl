@@ -7,7 +7,8 @@
 module Plasma
 
 using  Dates, JLD2, Printf
-using  ..AtomicState, ..Basics, ..Bsplines, ..Defaults, ..Hamiltonian, ..ManyElectron, ..Nuclear, ..Radial, ..RadialIntegrals,
+using  ..Atomic, ..AtomicState, ..Basics, ..Bsplines, ..Defaults, ..DielectronicRecombination, ..Hamiltonian, ..ImpactExcitation,
+       ..ManyElectron, ..Nuclear, ..Radial, ..RadialIntegrals,
        ..Semiempirical, ..TableStrings, ..FormFactor, ..PhotoEmission, ..PhotoIonization, ..AutoIonization, ..SelfConsistent
 
 
@@ -21,6 +22,8 @@ using  ..AtomicState, ..Basics, ..Bsplines, ..Defaults, ..Hamiltonian, ..ManyEle
         ... to compute the energy shifts and properties of atomic/ionic lines in some selected plasma model.
     + struct SahaBoltzmannScheme
         ... to compute thermodynamic properties of a Saha-Boltzmann LTE mixture.
+    + struct SatelliteDiagnosticScheme
+        ... to compute a dielectronic-satellite-to-parent-line intensity-ratio Te diagnostic.
 """
 abstract type  AbstractPlasmaScheme       end
 
@@ -181,6 +184,90 @@ function Base.show(io::IO, scheme::SahaBoltzmannScheme)
     println(io, "upperShellNo:      $(scheme.upperShellNo)  ")
     println(io, "isotopicMixture:   $(scheme.isotopicMixture)  ")
     println(io, "isotopeFilenames:  $(scheme.isotopeFilenames)  ")
+end
+
+
+"""
+`struct  Plasma.SatelliteDiagnosticScheme  <:  Plasma.AbstractPlasmaScheme`
+    ... dielectronic-satellite-to-parent-line intensity-ratio Te diagnostic for one recombining ion
+        (computation.refConfigs). The core promotion fromShells-->toShells drives BOTH the parent
+        line (electron-impact excited, via ieSettings) and the satellites (dielectronically captured
+        into intoShells, via drSettings) -- the same physical excitation, populated two different ways.
+
+    + fromShells   ::Array{Shell,1}   ... Core shell(s) excited; shared by the DR and impact-excitation steps.
+    + toShells     ::Array{Shell,1}   ... Core-excitation target shell(s); shared by the DR and impact-excitation steps.
+    + intoShells   ::Array{Shell,1}
+        ... Captured Rydberg shell(s) for DR; an EXPLICIT list of individually-resolved shells (e.g. n'=3: 3s,3p,3d),
+            not a generated high-n range -- only spectrally-resolvable low-n' shells belong here. Same naming AND same
+            semantics as Basics.ForDielectronicRecombination.intoShells: every shell given here is treated TOGETHER in
+            one combined doubly-excited representation/CI, exactly as ForDielectronicRecombination already works. Cost
+            grows sharply with the number of shells combined (measured: 220-665s for a single n=3 shell of F-like Ne+;
+            combining all three n=3 shells together exceeded 41 minutes). If cost becomes prohibitive, use fewer shells
+            here, or issue several separate Plasma.Computation calls (one per shell or small subset) -- the scheme does
+            not make this scoping choice automatically.
+    + decayShells  ::Array{Shell,1}   ... (Radiative) stabilization target shell(s) for DR, e.g. [Shell("2p")]. Same
+                                          role as Basics.ForDielectronicRecombination.decayShells.
+    + drSettings   ::DielectronicRecombination.Settings
+        ... Reused as-is (not re-flattened): temperatures, pathwaySelection, calcRateAlpha, corrections,
+            augerOperator, multipoles, gauges all come from here.
+    + ieSettings   ::ImpactExcitation.Settings
+        ... Reused as-is: temperatures, lineSelection, calcRateCoefficient, maxKappa, numElectronEnergies,
+            maxEnergyMultiplier, operator all come from here. printBefore is forced to false internally by
+            the driver regardless of what is set here (module-ImpactExcitation.jl displayLines() bug workaround).
+"""
+struct  SatelliteDiagnosticScheme  <:  Plasma.AbstractPlasmaScheme
+    fromShells    ::Array{Shell,1}
+    toShells      ::Array{Shell,1}
+    intoShells    ::Array{Shell,1}
+    decayShells   ::Array{Shell,1}
+    drSettings    ::DielectronicRecombination.Settings
+    ieSettings    ::ImpactExcitation.Settings
+end
+
+
+"""
+`Plasma.SatelliteDiagnosticScheme()`  ... constructor for an 'default' instance of a Plasma.SatelliteDiagnosticScheme.
+"""
+function SatelliteDiagnosticScheme()
+    SatelliteDiagnosticScheme( Shell[], Shell[], Shell[], Shell[],
+                               DielectronicRecombination.Settings(), ImpactExcitation.Settings() )
+end
+
+
+"""
+`Plasma.SatelliteDiagnosticScheme(scheme::Plasma.SatelliteDiagnosticScheme;`
+
+        fromShells=..,        toShells=..,        intoShells=..,      decayShells=..,
+        drSettings=..,        ieSettings=..)
+
+    ... constructor for modifying the given Plasma.SatelliteDiagnosticScheme by 'overwriting' the previously
+        selected parameters.
+"""
+function SatelliteDiagnosticScheme(scheme::Plasma.SatelliteDiagnosticScheme;
+    fromShells::Union{Nothing,Array{Shell,1}}=nothing,     toShells::Union{Nothing,Array{Shell,1}}=nothing,
+    intoShells::Union{Nothing,Array{Shell,1}}=nothing,     decayShells::Union{Nothing,Array{Shell,1}}=nothing,
+    drSettings::Union{Nothing,DielectronicRecombination.Settings}=nothing,
+    ieSettings::Union{Nothing,ImpactExcitation.Settings}=nothing)
+
+    if  isnothing(fromShells)    fromShellsx  = scheme.fromShells    else  fromShellsx  = fromShells    end
+    if  isnothing(toShells)      toShellsx    = scheme.toShells      else  toShellsx    = toShells      end
+    if  isnothing(intoShells)    intoShellsx  = scheme.intoShells    else  intoShellsx  = intoShells    end
+    if  isnothing(decayShells)   decayShellsx = scheme.decayShells   else  decayShellsx = decayShells   end
+    if  isnothing(drSettings)    drSettingsx  = scheme.drSettings    else  drSettingsx  = drSettings     end
+    if  isnothing(ieSettings)    ieSettingsx  = scheme.ieSettings    else  ieSettingsx  = ieSettings     end
+
+    SatelliteDiagnosticScheme( fromShellsx, toShellsx, intoShellsx, decayShellsx, drSettingsx, ieSettingsx )
+end
+
+
+# `Base.show(io::IO, scheme::SatelliteDiagnosticScheme)`  ... prepares a proper printout of the scheme::SatelliteDiagnosticScheme.
+function Base.show(io::IO, scheme::SatelliteDiagnosticScheme)
+    println(io, "fromShells:        $(scheme.fromShells)  ")
+    println(io, "toShells:          $(scheme.toShells)  ")
+    println(io, "intoShells:        $(scheme.intoShells)  ")
+    println(io, "decayShells:       $(scheme.decayShells)  ")
+    println(io, "drSettings:        $(scheme.drSettings)  ")
+    println(io, "ieSettings:        $(scheme.ieSettings)  ")
 end
 
 
@@ -434,6 +521,7 @@ end
 include("module-Plasma-inc-average-atom.jl")
 include("module-Plasma-inc-line-shifts.jl")
 include("module-Plasma-inc-saha-boltzmann-mixture.jl")
+include("module-Plasma-inc-satellite-diagnostic.jl")
 
 #######################################################################################################################
 #######################################################################################################################
