@@ -7,7 +7,7 @@
 module AutoIonization
 
 
-using  Printf, ..AngularMomentum, ..Basics, ..Continuum, ..Defaults, ..InteractionStrength, ..ManyElectron, ..Nuclear, 
+using  Printf, ..AngularMomentum, ..Basics, ..BiOrthogonal, ..Continuum, ..Defaults, ..InteractionStrength, ..ManyElectron, ..Nuclear,
                ..Radial, ..SpinAngular, ..TableStrings
 
 """
@@ -18,6 +18,21 @@ using  Printf, ..AngularMomentum, ..Basics, ..Continuum, ..Defaults, ..Interacti
     + calcTeAuger         ::Bool               
         ... True, if contributions of the two-electron Auger transitions are to be calculated, and false otherwise;
             this flag requires a proper (resonant) Green function that supports the TEA transitions.
+    + calcBiorthogonal    ::Bool
+        ... True, if the (bound) initial- and final-state multiplets are first brought into a bi-orthogonal
+            representation (`BiOrthogonal.computeTransformation`) before the free (Auger) electron orbital is
+            generated and the transition amplitudes are evaluated, and false (the default) otherwise. As for
+            PhotoIonization, this transforms ONLY the bound spectator orbitals shared between the N-electron
+            autoionizing initial multiplet and the (N-1)-electron final-ion multiplet -- the core relaxation
+            upon Auger decay -- and must be applied BEFORE the free electron is generated: the free-electron
+            partial wave is built fresh per line via `Continuum.generateOrbitalForLevel`, with the matching
+            "empty slot" on the initial side filled by `Basics.generateLevelWithExtraSubshell`'s dummy,
+            all-zero placeholder orbital; a transformation applied any later would LU-decompose a singular
+            per-kappa overlap matrix built partly from that placeholder. See PhotoIonization.Settings'
+            calcBiorthogonal docstring for the same reasoning in full, including the still-open question of
+            whether BiOrthogonal.computeTransformation is rigorously valid for the resulting N-vs-(N-1)
+            electron-count mismatch (empirically it runs and gives plausible results, but has not yet been
+            checked against an independent known-answer test).
     + printBefore         ::Bool               ... True, if all energies and lines are printed before their evaluation.
     + lineSelection       ::LineSelection      ... Specifies the selected levels, if any.
     + augerEnergyShift    ::Float64            ... An overall energy shift for all Auger (free-electron) energies.
@@ -33,9 +48,10 @@ using  Printf, ..AngularMomentum, ..Basics, ..Continuum, ..Defaults, ..Interacti
 """
 struct Settings  <:  AbstractProcessSettings
     calcAnisotropy        ::Bool         
-    calcTeAuger           ::Bool               
-    printBefore           ::Bool 
-    lineSelection         ::LineSelection 
+    calcTeAuger           ::Bool
+    calcBiorthogonal      ::Bool
+    printBefore           ::Bool
+    lineSelection         ::LineSelection
     augerEnergyShift      ::Float64
     minAugerEnergy        ::Float64
     maxAugerEnergy        ::Float64
@@ -49,39 +65,41 @@ end
 `AutoIonization.Settings()`  ... constructor for the default values of AutoIonization line computations.
 """
 function Settings()
-    Settings(false, false, false, LineSelection(), 0., 0., 10e5, 100, CoulombInteraction(), Multiplet())
+    Settings(false, false, false, false, LineSelection(), 0., 0., 10e5, 100, CoulombInteraction(), Multiplet())
 end
 
 
 """
 `AutoIonization.Settings(set::AutoIonization.Settings;`
 
-        calcAnisotropy=..,      calcTeAuger..,              printBefore=..,         augerEnergyShift=.., 
-        minAugerEnergy=..,      maxAugerEnergy=..,          maxKappa=..,            operator=..,
-        gMultiplet=.. )
+        calcAnisotropy=..,      calcTeAuger..,              calcBiorthogonal=..,    printBefore=..,
+        augerEnergyShift=..,    minAugerEnergy=..,          maxAugerEnergy=..,      maxKappa=..,
+        operator=..,            gMultiplet=.. )
                     
     ... constructor for modifying the given AutoIonization.Settings by 'overwriting' the previously selected parameters.
 """
-function Settings(set::AutoIonization.Settings;    
-    calcAnisotropy::Union{Nothing,Bool}=nothing,            calcTeAuger::Union{Nothing,Bool}=nothing,     
-    printBefore::Union{Nothing,Bool}=nothing,               lineSelection::Union{Nothing,LineSelection}=nothing,    
-    augerEnergyShift::Union{Nothing,Float64}=nothing,       
+function Settings(set::AutoIonization.Settings;
+    calcAnisotropy::Union{Nothing,Bool}=nothing,            calcTeAuger::Union{Nothing,Bool}=nothing,
+    calcBiorthogonal::Union{Nothing,Bool}=nothing,          printBefore::Union{Nothing,Bool}=nothing,
+    lineSelection::Union{Nothing,LineSelection}=nothing,
+    augerEnergyShift::Union{Nothing,Float64}=nothing,
     minAugerEnergy::Union{Nothing,Float64}=nothing,         maxAugerEnergy::Union{Nothing,Float64}=nothing,
-    maxKappa::Union{Nothing,Int64}=nothing,                 operator::Union{Nothing,String}=nothing,
-    gMultiplet::Union{Nothing,Multiplet}=nothing)  
-    
-    if  isnothing(calcAnisotropy)     calcAnisotropyx    = set.calcAnisotropy    else  calcAnisotropyx    = calcAnisotropy    end 
-    if  isnothing(calcTeAuger)        calcTeAugerx       = set.calcTeAuger       else  calcTeAugerx       = calcTeAuger       end 
-    if  isnothing(printBefore)        printBeforex       = set.printBefore       else  printBeforex       = printBefore       end 
-    if  isnothing(lineSelection)      lineSelectionx     = set.lineSelection     else  lineSelectionx     = lineSelection     end 
-    if  isnothing(augerEnergyShift)   augerEnergyShiftx  = set.augerEnergyShift  else  augerEnergyShiftx  = augerEnergyShift  end 
-    if  isnothing(minAugerEnergy)     minAugerEnergyx    = set.minAugerEnergy    else  minAugerEnergyx    = minAugerEnergy    end 
-    if  isnothing(maxAugerEnergy)     maxAugerEnergyx    = set.maxAugerEnergy    else  maxAugerEnergyx    = maxAugerEnergy    end 
-    if  isnothing(maxKappa)           maxKappax          = set.maxKappa          else  maxKappax          = maxKappa          end 
-    if  isnothing(operator)           operatorx          = set.operator          else  operatorx          = operator          end 
-    if  isnothing(gMultiplet)         gMultipletx        = set.gMultiplet        else  gMultipletx        = gMultiplet        end 
+    maxKappa::Union{Nothing,Int64}=nothing,                 operator::Union{Nothing,AbstractEeInteraction}=nothing,
+    gMultiplet::Union{Nothing,Multiplet}=nothing)
 
-    Settings( calcAnisotropyx, calcTeAugerx, printBeforex, lineSelectionx, augerEnergyShiftx, 
+    if  isnothing(calcAnisotropy)     calcAnisotropyx    = set.calcAnisotropy    else  calcAnisotropyx    = calcAnisotropy    end
+    if  isnothing(calcTeAuger)        calcTeAugerx       = set.calcTeAuger       else  calcTeAugerx       = calcTeAuger       end
+    if  isnothing(calcBiorthogonal)   calcBiorthogonalx  = set.calcBiorthogonal  else  calcBiorthogonalx  = calcBiorthogonal  end
+    if  isnothing(printBefore)        printBeforex       = set.printBefore       else  printBeforex       = printBefore       end
+    if  isnothing(lineSelection)      lineSelectionx     = set.lineSelection     else  lineSelectionx     = lineSelection     end
+    if  isnothing(augerEnergyShift)   augerEnergyShiftx  = set.augerEnergyShift  else  augerEnergyShiftx  = augerEnergyShift  end
+    if  isnothing(minAugerEnergy)     minAugerEnergyx    = set.minAugerEnergy    else  minAugerEnergyx    = minAugerEnergy    end
+    if  isnothing(maxAugerEnergy)     maxAugerEnergyx    = set.maxAugerEnergy    else  maxAugerEnergyx    = maxAugerEnergy    end
+    if  isnothing(maxKappa)           maxKappax          = set.maxKappa          else  maxKappax          = maxKappa          end
+    if  isnothing(operator)           operatorx          = set.operator          else  operatorx          = operator          end
+    if  isnothing(gMultiplet)         gMultipletx        = set.gMultiplet        else  gMultipletx        = gMultiplet        end
+
+    Settings( calcAnisotropyx, calcTeAugerx, calcBiorthogonalx, printBeforex, lineSelectionx, augerEnergyShiftx,
               minAugerEnergyx, maxAugerEnergyx, maxKappax, operatorx, gMultipletx)
 end
 
@@ -90,6 +108,7 @@ end
 function Base.show(io::IO, settings::AutoIonization.Settings) 
     println(io, "calcAnisotropy:                $(settings.calcAnisotropy)  ")
     println(io, "calcTeAuger:                   $(settings.calcTeAuger)  ")
+    println(io, "calcBiorthogonal:              $(settings.calcBiorthogonal)  ")
     println(io, "printBefore:                   $(settings.printBefore)  ")
     println(io, "lineSelection:                 $(settings.lineSelection)  ")
     println(io, "augerEnergyShift:              $(settings.augerEnergyShift)  ")
@@ -378,7 +397,7 @@ function computeAmplitudesProperties(line::AutoIonization.Line, nm::Nuclear.Mode
         amplitude  = AutoIonization.amplitude(settings.operator, newChannel, newcLevel, newiLevel, grid, printout=printout)
         # Calculate two-electron Auger (TEA) contributions if requested; write an extra note if the amplitude is non-zero
         if  settings.calcTeAuger
-            if  amplitude != ComplexF64(0.)     warn(">>> TEA contributions start from non-zero amplitude = $amplitude")    end
+            if  amplitude != ComplexF64(0.)     @warn ">>> TEA contributions start from non-zero amplitude = $amplitude"    end
             symc = channel.symmetry;    symi = LevelSymmetry(line.initialLevel.J, line.initialLevel.parity)
             println(">>> Normal Auger for ($symi --> $symc) transition with amplitude = $amplitude")    
             amp = ComplexF64(0.);               
@@ -490,8 +509,11 @@ end
     ... to compute the Auger transition amplitudes and all properties as requested by the given settings. A list of 
         lines::Array{AutoIonization.Lines} is returned.
 """
-function  computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, nm::Nuclear.Model, grid::Radial.Grid, 
+function  computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, nm::Nuclear.Model, grid::Radial.Grid,
                         settings::AutoIonization.Settings; output=true, printout::Bool=true)
+    if  settings.calcBiorthogonal
+        initialMultiplet, finalMultiplet = BiOrthogonal.computeTransformation(initialMultiplet, finalMultiplet, grid)
+    end
     println("")
     printstyled("AutoIonization.computeLines(): The computation of Auger rates and properties starts now ... \n", color=:light_green)
     printstyled("------------------------------------------------------------------------------------------- \n", color=:light_green)
