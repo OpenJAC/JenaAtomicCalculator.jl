@@ -167,8 +167,15 @@ function amplitude(::Emission, Mp::EmMultipole, gauge::EmGauge, omega::Float64, 
     nf = length(fLevel.basis.csfs);    symf = LevelSymmetry(fLevel.J, fLevel.parity)
     ni = length(iLevel.basis.csfs);    symi = LevelSymmetry(iLevel.J, iLevel.parity);    eni = iLevel.energy
     nn = length(nMultiplet.levels[1].basis.csfs)
-    
-    if  printout   printstyled("Compute TEOP $(Mp) amplitude for the transition [$(iLevel.index)-$(fLevel.index)] ... ", 
+    efinal = eni - omega
+    #
+    # Second-order perturbation theory requires the intermediate (Green-function) level n to be genuinely
+    # DIFFERENT from the initial or final level itself; a formally coincident n -- which can occur if the
+    # gMultiplet's reference configurations overlap with the initial- or final-state configurations -- would
+    # give a spurious, ill-defined 1/(eni-enn) or 1/(efinal-enn) singularity and must be excluded from the sum.
+    selfTolerance = 1.0e-8
+
+    if  printout   printstyled("Compute TEOP $(Mp) amplitude for the transition [$(iLevel.index)-$(fLevel.index)] ... ",
                                 color=:light_green)    end
     amplitude = ComplexF64(0.)
     #
@@ -177,26 +184,34 @@ function amplitude(::Emission, Mp::EmMultipole, gauge::EmGauge, omega::Float64, 
         for  s = 1:ni
             syms = LevelSymmetry(iLevel.basis.csfs[s].J, iLevel.basis.csfs[s].parity);  if  syms != symi    continue    end
             for  nLevel in nMultiplet.levels
-                symn = LevelSymmetry(nLevel.J, nLevel.parity);    enn = nLevel.energy;   @show symn
+                symn = LevelSymmetry(nLevel.J, nLevel.parity);    enn = nLevel.energy
                 #
                 #   Compute <alpha_f J_f || O^(Mp, kind) || alpha_n J_i> <alpha_n J_i || V^(e-e) || alpha_i J_i>
-                if  symn != symi     continue    end
-                for  t = 1:nn
-                    if  nLevel.mc[t] == 0.  continue    end
-                    Vee       = ManyElectron.matrixElement_Vee(CoulombInteraction(), nLevel.basis, t, iLevel.basis, s, grid)
-                    OMp       = ManyElectron.matrixElement_Mab(Mp, gauge, omega, fLevel.basis, r, nLevel.basis, t, grid)
-                    amplitude = amplitude + fLevel.mc[r] * OMp * nLevel.mc[t]^2 * Vee * iLevel.mc[s] / (eni - enn)
-                    @show  t, eni, (eni - enn), amplitude
+                #   The intermediate Green-function level is, in general, multi-configurational; the two matrix
+                #   elements therefore run over two INDEPENDENT CSF indices t, tp of that same level.
+                if  symn == symi  &&  abs(enn - eni) > selfTolerance
+                    for  t = 1:nn
+                        if  nLevel.mc[t] == 0.  continue    end
+                        OMp = ManyElectron.matrixElement_Mab(Mp, gauge, omega, fLevel.basis, r, nLevel.basis, t, grid)
+                        for  tp = 1:nn
+                            if  nLevel.mc[tp] == 0.  continue    end
+                            Vee       = ManyElectron.matrixElement_Vee(CoulombInteraction(), nLevel.basis, tp, iLevel.basis, s, grid)
+                            amplitude = amplitude + fLevel.mc[r] * OMp * nLevel.mc[t] * nLevel.mc[tp] * Vee * iLevel.mc[s] / (eni - enn)
+                        end
+                    end
                 end
                 #
                 #   Compute <alpha_f J_f || V^(e-e) || alpha_n J_f> <alpha_n J_f || O^(Mp, kind) || alpha_i J_i>
-                if  symn != symf     continue    end
-                for  t = 1:nn
-                    if  nLevel.mc[t] == 0.  continue    end
-                    OMp       = ManyElectron.matrixElement_Mab(Mp, gauge, omega, nLevel.basis, t, iLevel.basis, s, grid)
-                    Vee       = ManyElectron.matrixElement_Vee(CoulombInteraction(), fLevel.basis, r, nLevel.basis, t, grid)
-                    amplitude = amplitude + fLevel.mc[r] * Vee * nLevel.mc[t]^2 * OMp * iLevel.mc[s] / (eni - omega - enn)
-                    @show  t, eni, (eni - omega - enn), amplitude
+                if  symn == symf  &&  abs(enn - efinal) > selfTolerance
+                    for  t = 1:nn
+                        if  nLevel.mc[t] == 0.  continue    end
+                        Vee = ManyElectron.matrixElement_Vee(CoulombInteraction(), fLevel.basis, r, nLevel.basis, t, grid)
+                        for  tp = 1:nn
+                            if  nLevel.mc[tp] == 0.  continue    end
+                            OMp       = ManyElectron.matrixElement_Mab(Mp, gauge, omega, nLevel.basis, tp, iLevel.basis, s, grid)
+                            amplitude = amplitude + fLevel.mc[r] * Vee * nLevel.mc[t] * nLevel.mc[tp] * OMp * iLevel.mc[s] / (eni - omega - enn)
+                        end
+                    end
                 end
             end
         end

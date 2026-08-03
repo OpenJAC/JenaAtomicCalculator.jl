@@ -68,8 +68,8 @@ function Basics.perform(computation::Atomic.Computation; output::Bool=false)
                                                         multiplet, nModel, computation.grid, settings)     
                 if output    results = Base.merge( results, Dict("Fluorescence and AutoIonization yield outcomes:" => outcome) )   end
                 #
-            elseif  typeof(settings) == MultipolePolarizibility.Settings 
-                outcome = MultipolePolarizibility.computeOutcomes(multiplet, nModel, computation.grid, settings)         
+            elseif  typeof(settings) == MultipolePolarizibility.Settings
+                outcome = MultipolePolarizibility.computeOutcomes(multiplet, nModel, computation.grid, settings)
                 if output    results = Base.merge( results, Dict("Polarizibility outcomes:" => outcome) )         end
                 #
             elseif  typeof(settings) == ReducedDensityMatrix.Settings 
@@ -86,9 +86,9 @@ function Basics.perform(computation::Atomic.Computation; output::Bool=false)
         LSjj.expandLevelsIntoLS(finalMultiplet, computation.finalAsfSettings.jjLS)
         if  output   results["initialMultiplet"] = initialMultiplet;   results["finalMultiplet"] = finalMultiplet    end 
         #
-        if typeof(computation.processSettings) in [PhotoExcitationFluores.Settings, PhotoExcitationAutoion.Settings, PhotoIonizationFluores.Settings, 
-                                                   PhotoIonizationAutoion.Settings, ImpactExcitationAutoion.Settings, 
-                                                   DielectronicRecombination.Settings, ResonantInelastic.Settings]
+        if typeof(computation.processSettings) in [PhotoExcitationFluores.Settings, PhotoExcitationAutoion.Settings, PhotoIonizationFluores.Settings,
+                                                   PhotoIonizationAutoion.Settings, ImpactExcitationAutoion.Settings,
+                                                   DielectronicRecombination.Settings, ResonantInelastic.Settings, TwoElectronOnePhoton.Settings]
             intermediateMultiplet = SelfConsistent.performSCF(computation.intermediateConfigs, nModel, computation.grid, computation.intermediateAsfSettings)
             if  output   results["intermediateMultiplet"] = intermediateMultiplet    end 
         end
@@ -148,8 +148,9 @@ function Basics.perform(computation::Atomic.Computation; output::Bool=false)
         elseif  typeof(computation.processSettings) == InternalRecombination.Settings 
             outcome = InternalRecombination.computeLines(finalMultiplet, initialMultiplet, nModel, computation.grid, computation.processSettings) 
             if output    results = Base.merge( results, Dict("internal-recombination lines:" => outcome) )          end
-        elseif  typeof(computation.processSettings) == TwoElectronOnePhoton.Settings 
-            outcome = TwoElectronOnePhoton.computeLines(finalMultiplet, initialMultiplet, nModel, computation.grid, computation.processSettings) 
+        elseif  typeof(computation.processSettings) == TwoElectronOnePhoton.Settings
+            teopSettings = TwoElectronOnePhoton.Settings(computation.processSettings; gMultiplet=intermediateMultiplet)
+            outcome = TwoElectronOnePhoton.computeLines(finalMultiplet, initialMultiplet, nModel, computation.grid, teopSettings)
             if output    results = Base.merge( results, Dict("two-electron-one-photon lines:" => outcome) )         end
         elseif  typeof(computation.processSettings) == ParticleScattering.Settings 
             outcome = ParticleScattering.computeEvents(finalMultiplet, initialMultiplet, nModel, computation.grid, computation.processSettings) 
@@ -189,8 +190,8 @@ function Basics.perform(computation::Atomic.Computation; output::Bool=false)
         elseif  typeof(computation.processSettings) == MultiPDI()   
             outcome = MultiPhotonDoubleIon.computeLines(finalMultiplet, initialMultiplet, computation.grid, computation.processSettings) 
             if output    results = Base.merge( results, Dict("multi-photon double ionization:" => outcome) )        end
-        elseif  typeof(computation.processSettings) == InternalConv()   
-            outcome = InternalConversion.computeLines(finalMultiplet, initialMultiplet, computation.grid, computation.processSettings) 
+        elseif  typeof(computation.processSettings) == InternalConversion.Settings
+            outcome = InternalConversion.computeLines(finalMultiplet, initialMultiplet, nModel, computation.grid, computation.processSettings)
             if output    results = Base.merge( results, Dict("internal conversion lines:" => outcome) )        end
         elseif  typeof(computation.processSettings) == CrystalFieldEmission.Settings
             outcome = CrystalFieldEmission.computeLines(finalMultiplet, initialMultiplet, computation.grid, computation.processSettings)
