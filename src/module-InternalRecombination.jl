@@ -236,7 +236,14 @@ function  computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, n
     println("")
     # Generate orbitals for all rydberg-subshells
     rydbergSubshells = Basics.generateSubshellList(settings.rydbergShells)
-    meanPot          = Basics.computePotential(Basics.DFSField(1.0), grid, initialMultiplet.levels[1].basis)
+    # Basics.computePotential(DFSField(),...) returns the ELECTRONIC (mean-field screening) potential only;
+    # the nuclear attraction must be added explicitly (as module-BasicsAZ-inc-generate.jl already does for
+    # its own one-shot orbital spectra) -- without it, the Dirac-equation diagonalization below has no real
+    # attractive well, and Bsplines.findPositiveBranchStart cannot separate genuine bound states from the
+    # spurious negative-energy "Dirac sea" branch, silently returning near-threshold numerical artifacts
+    # instead of real Rydberg orbitals (see project_bsplines_spurious_dirac_sea_bug.md, 3-Aug-2026).
+    nuclearPot       = Nuclear.nuclearPotential(nm, grid)
+    meanPot          = Basics.add(nuclearPot, Basics.computePotential(Basics.DFSField(1.0), grid, initialMultiplet.levels[1].basis))
     primitives       = Bsplines.generatePrimitives(grid)
     rydbergOrbitals  = Bsplines.generateOrbitals(rydbergSubshells, meanPot, nm, primitives; printout=true)
     #

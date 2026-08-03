@@ -500,6 +500,19 @@ end
         the SAME values array -- robust to however many leading B-splines were eliminated for a given
         symmetry kappa (Bsplines.boundaryDropCounts/diagonalizeLocalMatrix), unlike a fixed index counted
         from nsL/nsS. See project_zeeman_hfs_bugs.md (30-Jul-2026).
+
+    WARNING (3-Aug-2026): this threshold-based separation silently returns garbage if `values` was
+    diagonalized against a potential with no (or a much-too-weak) attractive nuclear well -- e.g. a
+    caller that passes only `Basics.computePotential(Basics.DFSField(1.0), grid, basis)` (the ELECTRONIC
+    mean-field potential alone) without adding `Nuclear.nuclearPotential(nm, grid)` first. Without a real
+    potential well, the Dirac equation has no clean energetic gap between the unphysical Dirac-sea branch
+    and genuine atomic bound states, so this function can return an index that is STILL within (or
+    immediately adjacent to) the spurious negative-continuum branch -- e.g. eigenvalues clustering right at
+    -1.999*c^2 instead of the expected atomic scale (roughly -1 to -2000 Hartree, not ~-37500 for a typical
+    ion). This silently produces orbitals that are numerical garbage, not "slightly wrong" -- found via
+    `module-InternalRecombination.jl`, which was missing exactly this nuclear term (fixed there); always
+    add the nuclear potential to any potential passed into `Bsplines.generateOrbitals`/this function. See
+    project_bsplines_spurious_dirac_sea_bug.md for the full diagnostic.
 """
 function findPositiveBranchStart(values::Array{Float64,1})
     c  = Defaults.getDefaults("speed of light: c")
