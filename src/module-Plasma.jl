@@ -6,7 +6,7 @@
 """
 module Plasma
 
-using  Dates, JLD2, Printf
+using  Dates, JLD2, LinearAlgebra, Printf
 using  ..Atomic, ..AtomicState, ..Basics, ..Bsplines, ..Defaults, ..DielectronicRecombination, ..Hamiltonian, ..ImpactExcitation,
        ..ManyElectron, ..Nuclear, ..Radial, ..RadialIntegrals,
        ..Semiempirical, ..TableStrings, ..FormFactor, ..PhotoEmission, ..PhotoIonization, ..AutoIonization, ..SelfConsistent
@@ -24,6 +24,9 @@ using  ..Atomic, ..AtomicState, ..Basics, ..Bsplines, ..Defaults, ..Dielectronic
         ... to compute thermodynamic properties of a Saha-Boltzmann LTE mixture.
     + struct SatelliteDiagnosticScheme
         ... to compute a dielectronic-satellite-to-parent-line intensity-ratio Te diagnostic.
+    + struct CollisionalRadiativeScheme
+        ... to compute the (relative) collisional-radiative population balance among a small set of
+            levels of one ion.
 """
 abstract type  AbstractPlasmaScheme       end
 
@@ -268,6 +271,119 @@ function Base.show(io::IO, scheme::SatelliteDiagnosticScheme)
     println(io, "decayShells:       $(scheme.decayShells)  ")
     println(io, "drSettings:        $(scheme.drSettings)  ")
     println(io, "ieSettings:        $(scheme.ieSettings)  ")
+end
+
+
+"""
+`struct  Plasma.CollisionalRadiativeScheme  <:  Plasma.AbstractPlasmaScheme`
+    ... a small, closed-form (non-iterative) collisional-radiative population balance for one ion: for a
+        generated set of its levels, computes how its population is distributed among them (a set of
+        fractions summing to 1). Not a full multi-hundred-level CR code -- for N levels, the steady-state
+        balance (dn_i/dt = 0) is an N x N linear system, solved directly, once per (Te, Ne) point.
+        Answers "how is this ion's population distributed among its levels", not "how much of this ion is
+        present" -- the latter (the ionization balance across charge states) is a separate question,
+        answered separately (e.g. by Plasma.SahaBoltzmannScheme) if absolute densities are wanted.
+        The ion itself (element and charge state) is not a field of this scheme: it is set entirely by
+        the enclosing Plasma.Computation's nuclearModel (the element) and refConfigs (whose electron
+        count against nuclearModel.Z fixes the charge state), exactly as for every other scheme.
+
+    + NoExcitations     ::Int64
+        ... how many electrons may be excited at once, relative to the ion's own ground configuration,
+            when building its level set (1 = singles only, 2 = up to doubles, etc.) -- controls how rich
+            a level set is generated.
+    + upperShellNo      ::Int64
+        ... the highest principal quantum number n allowed for an excited electron when building that
+            level set -- controls how far up in energy the generated levels reach.
+    + ieSettings        ::ImpactExcitation.Settings
+        ... controls the electron-collisional (upward, excitation) rates between levels; the reverse
+            (de-excitation) direction is obtained from these by detailed balance, not computed separately.
+    + peSettings        ::PhotoEmission.Settings
+        ... controls the radiative decay (A-value) rates between levels.
+    + aiSettings        ::AutoIonization.Settings
+        ... controls the competing autoionization (electron-ejecting) decay for any generated level that
+            turns out to lie energetically above the next charge state's threshold -- a real possibility
+            once NoExcitations/upperShellNo reach far enough up in energy, and needed so such a level's
+            true (reduced) radiative contribution is used rather than assumed purely radiative.
+    + levelsFilenames   ::Array{String,1}
+        ... candidate files (tried in order) that may contain a previously-generated, still-matching level
+            set; [] (the default) means always regenerate. A fresh file is auto-written (name printed to
+            screen) whenever no candidate matches, for adoption into a later run -- same manual-reuse
+            workflow as Plasma.SahaBoltzmannScheme.isotopeFilenames.
+    + ratesFilenames    ::Array{String,1}
+        ... candidate files (tried in order) that may contain previously-computed, still-matching
+            ImpactExcitation collision data (pre-thermal-average, so any scheme.ieSettings.temperatures
+            list can reuse them); [] (the default) means always recompute. Same auto-write/manual-reuse
+            workflow as levelsFilenames.
+    + cacheDirectory    ::String
+        ... subdirectory that freshly-generated levelsFilenames/ratesFilenames files are written into
+            (created if missing); "" (the default) writes into the current directory. Only governs where
+            FRESH files go -- candidates in levelsFilenames/ratesFilenames are looked up as given, so a
+            cache file from elsewhere can always be reused directly.
+"""
+struct  CollisionalRadiativeScheme  <:  Plasma.AbstractPlasmaScheme
+    NoExcitations       ::Int64
+    upperShellNo        ::Int64
+    ieSettings          ::ImpactExcitation.Settings
+    peSettings          ::PhotoEmission.Settings
+    aiSettings          ::AutoIonization.Settings
+    levelsFilenames     ::Array{String,1}
+    ratesFilenames      ::Array{String,1}
+    cacheDirectory      ::String
+end
+
+
+"""
+`Plasma.CollisionalRadiativeScheme()`  ... constructor for an 'default' instance of a Plasma.CollisionalRadiativeScheme.
+"""
+function CollisionalRadiativeScheme()
+    CollisionalRadiativeScheme( 1, 4, ImpactExcitation.Settings(), PhotoEmission.Settings(), AutoIonization.Settings(),
+                                String[], String[], "" )
+end
+
+
+"""
+`Plasma.CollisionalRadiativeScheme(scheme::Plasma.CollisionalRadiativeScheme;`
+
+        NoExcitations=..,        upperShellNo=..,
+        ieSettings=..,           peSettings=..,           aiSettings=..,
+        levelsFilenames=..,      ratesFilenames=..,       cacheDirectory=..)
+
+    ... constructor for modifying the given Plasma.CollisionalRadiativeScheme by 'overwriting' the previously
+        selected parameters.
+"""
+function CollisionalRadiativeScheme(scheme::Plasma.CollisionalRadiativeScheme;
+    NoExcitations::Union{Nothing,Int64}=nothing,            upperShellNo::Union{Nothing,Int64}=nothing,
+    ieSettings::Union{Nothing,ImpactExcitation.Settings}=nothing,
+    peSettings::Union{Nothing,PhotoEmission.Settings}=nothing,
+    aiSettings::Union{Nothing,AutoIonization.Settings}=nothing,
+    levelsFilenames::Union{Nothing,Array{String,1}}=nothing,
+    ratesFilenames::Union{Nothing,Array{String,1}}=nothing,
+    cacheDirectory::Union{Nothing,String}=nothing)
+
+    if  isnothing(NoExcitations)     NoExcitationsx   = scheme.NoExcitations     else   NoExcitationsx   = NoExcitations     end
+    if  isnothing(upperShellNo)      upperShellNox    = scheme.upperShellNo      else   upperShellNox    = upperShellNo      end
+    if  isnothing(ieSettings)        ieSettingsx      = scheme.ieSettings        else   ieSettingsx      = ieSettings        end
+    if  isnothing(peSettings)        peSettingsx      = scheme.peSettings        else   peSettingsx      = peSettings        end
+    if  isnothing(aiSettings)        aiSettingsx      = scheme.aiSettings        else   aiSettingsx      = aiSettings        end
+    if  isnothing(levelsFilenames)   levelsFilenamesx = scheme.levelsFilenames   else   levelsFilenamesx = levelsFilenames   end
+    if  isnothing(ratesFilenames)    ratesFilenamesx  = scheme.ratesFilenames    else   ratesFilenamesx  = ratesFilenames    end
+    if  isnothing(cacheDirectory)    cacheDirectoryx  = scheme.cacheDirectory    else   cacheDirectoryx  = cacheDirectory    end
+
+    CollisionalRadiativeScheme( NoExcitationsx, upperShellNox, ieSettingsx, peSettingsx, aiSettingsx,
+                                levelsFilenamesx, ratesFilenamesx, cacheDirectoryx )
+end
+
+
+# `Base.show(io::IO, scheme::CollisionalRadiativeScheme)`  ... prepares a proper printout of the scheme::CollisionalRadiativeScheme.
+function Base.show(io::IO, scheme::CollisionalRadiativeScheme)
+    println(io, "NoExcitations:     $(scheme.NoExcitations)  ")
+    println(io, "upperShellNo:      $(scheme.upperShellNo)  ")
+    println(io, "ieSettings:        $(scheme.ieSettings)  ")
+    println(io, "peSettings:        $(scheme.peSettings)  ")
+    println(io, "aiSettings:        $(scheme.aiSettings)  ")
+    println(io, "levelsFilenames:   $(scheme.levelsFilenames)  ")
+    println(io, "ratesFilenames:    $(scheme.ratesFilenames)  ")
+    println(io, "cacheDirectory:    $(scheme.cacheDirectory)  ")
 end
 
 
@@ -522,6 +638,7 @@ include("module-Plasma-inc-average-atom.jl")
 include("module-Plasma-inc-line-shifts.jl")
 include("module-Plasma-inc-saha-boltzmann-mixture.jl")
 include("module-Plasma-inc-satellite-diagnostic.jl")
+include("module-Plasma-inc-collisional-radiative.jl")
 
 #######################################################################################################################
 #######################################################################################################################
