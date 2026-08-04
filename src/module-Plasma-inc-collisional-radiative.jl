@@ -270,16 +270,60 @@ end
     ... solves the steady-state collisional-radiative balance dn_i/dt = 0 for the given N x N rate matrix
         (matrixA[i,j] = total rate FROM level i TO level j for i != j; matrixA[i,i] = -(total loss rate
         out of level i)). Since the rows of matrixA sum to zero by construction (population conservation),
-        this system is singular; the last equation is replaced by the normalization constraint sum(n) = 1
-        to obtain a well-posed, uniquely solvable system. A relative-population vector (summing to 1) is
+        this system is singular; exactly one of the N balance equations is redundant and is replaced by the
+        normalization constraint sum(n) = 1 to obtain a well-posed, uniquely solvable system. The equation
+        that gets sacrificed is the GROUND STATE's (index 1, the lowest level, since repMultiplet is sorted
+        ascending in energy) -- see the discussion below. A relative-population vector (summing to 1) is
         returned.
 """
 function solveCollisionalRadiativeBalance(matrixA::Array{Float64,2})
     N = size(matrixA, 1)
-    fullMatrix        = collect(transpose(matrixA))
-    fullMatrix[N, :] .= 1.0
-    rhs               = zeros(N);   rhs[N] = 1.0
-    return( fullMatrix \ rhs )
+    fullMatrix = collect(transpose(matrixA))
+    ##
+    ## Which equation to sacrifice is NOT arbitrary in floating-point arithmetic, even though all N choices
+    ## are equivalent in exact arithmetic. Whichever level's equation is replaced loses its own balance
+    ## relation and is then determined only indirectly, through its appearance as a source term in the other
+    ## equations -- i.e. through a near-singular combination that amplifies roundoff. Replacing the LAST
+    ## equation is therefore the worst possible choice: level N is the highest-lying, least-populated level,
+    ## and at low temperatures it can be an inner-shell-excited level whose every feeding rate has underflowed
+    ## to exact 0.0, so that its true population is exactly zero. The indirect determination then returns
+    ## roundoff-scale noise of arbitrary sign -- the source of the (physically impossible) tiny NEGATIVE
+    ## populations, e.g. -2.89e-27, seen for the decoupled levels 11-18 of boron-like Ne5+ (example-Je.jl,
+    ## branch b) at low Te. Sacrificing the GROUND STATE's equation instead is strictly better on both counts:
+    ## it always carries an O(1) share of the total population (not necessarily the single largest share --
+    ## for Ne5+ the 2p_3/2 level 2 holds ~0.62 against the ground state's ~0.38 -- but never a roundoff-scale
+    ## one), so it is well determined by the normalization constraint alone, and every weakly-populated level
+    ## keeps its own, well-conditioned balance equation (for a decoupled level j that equation reduces to
+    ## -loss_j * n_j = 0, which returns a clean zero instead of signed noise).
+    fullMatrix[1, :] .= 1.0
+    rhs               = zeros(N);   rhs[1] = 1.0
+    populations       = fullMatrix \ rhs
+    ##
+    ## Residual cleanup, applied to NEGATIVE components ONLY. Positive populations are never touched, however
+    ## small: in a coronal-limit balance the genuinely-populated levels span many orders of magnitude (for
+    ## He-like carbon, example-Je.jl branch a, the n=2 levels sit near ~1e-16 at Te=1e5 K purely because of the
+    ## exp(-dE/kT) Boltzmann factor), and flooring on |population| would silently erase that real physics
+    ## instead of merely removing noise. A negative population, by contrast, is unphysical whatever its size.
+    ## Note the reformulation above is what actually fixes the problem -- a decoupled level now comes out of
+    ## the solve as an exact zero, so this loop is a safety net, not the mechanism. It does still do one
+    ## necessary job: that exact zero is often a NEGATIVE zero (-0.0), which compares equal to 0. but which
+    ## @sprintf("%.4e", ...) renders as "-0.0000e+00" in the results table, i.e. as an apparent negative
+    ## population. Assigning 0. normalizes the sign of zero away.
+    popFloor = 1.0e-13 * maximum(abs, populations)
+    for  i = 1:N
+        if  populations[i] < 0.  &&  abs(populations[i]) < popFloor    populations[i] = 0.    end
+        if  populations[i] == 0.                                       populations[i] = 0.    end
+    end
+    if  any(populations .< 0.)
+        @warn("Plasma.solveCollisionalRadiativeBalance: the balance returned NEGATIVE level populations well " *
+              "above the roundoff floor (most negative: $(minimum(populations))). This is unphysical and " *
+              "indicates an inconsistent rate matrix, not a numerical artefact -- treat these populations as " *
+              "invalid.")
+    end
+    ##
+    ## Renormalize: zeroing the roundoff components perturbs the sum only at the popFloor level, but the
+    ## returned vector is documented to sum to 1, so restore that exactly.
+    return( populations / sum(populations) )
 end
 
 
