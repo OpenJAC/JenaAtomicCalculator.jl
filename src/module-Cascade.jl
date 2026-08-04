@@ -982,10 +982,7 @@ end
         first (partial) implementation.
 """
 function asfSettingsForApproach(approach::Basics.AbstractCascadeApproach, settings::AsfSettings)
-    if      approach == Basics.AverageSCA()   return( AsfSettings(settings; eeInteractionCI=DiagonalCoulomb())    )
-    elseif  approach == Basics.SCA()          return( AsfSettings(settings; eeInteractionCI=CoulombInteraction()) )
-    else                                      return( settings )
-    end
+    return( Cascade.asfSettingsForConditions(Cascade.conditions(approach), settings) )
 end
 
 
@@ -1192,6 +1189,7 @@ end
 #######################################################################################################################################
 #######################################################################################################################################
 
+include("module-Cascade-inc-approaches.jl")
 include("module-Cascade-inc-simulations-structs.jl")
 include("module-Cascade-inc-computations.jl")
 include("module-Cascade-inc-dielectronic-recombination.jl")

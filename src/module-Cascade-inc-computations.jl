@@ -76,6 +76,9 @@ end
         and specifications of the cascade but can easily accessed by the keys of this dictionary.
 """
 function Basics.perform(comp::Cascade.Computation; output::Bool=false, outputToFile::Bool=true)
+    ## Reject an unrealizable cascade approach HERE, before any orbital or amplitude work is done; a cascade
+    ## that cannot succeed should say so in the first second rather than in the middle of some step.
+    Cascade.validateConditions( Cascade.conditions(comp.approach) )
     Cascade.perform(comp.scheme, comp::Cascade.Computation, output=output, outputToFile=outputToFile)
 end
 
