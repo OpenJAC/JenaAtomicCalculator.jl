@@ -1,0 +1,188 @@
+
+# Compile and print the examples (files) for developing the JAC tools  
+println("Examples, tests & development of JAC, ordered by a few main branches: \n")
+println("A)  Examples, tests & development of the electronic structure part.")
+println("B)  Examples, tests & development of atomic amplitudes")
+println("C)  Examples, tests & development of atomic properties")
+println("D)  Examples, tests & development of basic atomic processes")
+println("E)  Examples, tests & development of composed atomic processes")
+println("F)  Examples, tests & development of atomic cascades")
+println("G)  Examples, tests & development of symbolic evaluations of Racah expressions")
+println("H)  Examples, tests & development of semiempirical computations")
+println("I)  Examples, tests & development of atomic response computations")
+println("J)  Examples, tests & development of plasma computations \n")
+println("K)  Examples, tests & development of deep-learning applications \n")
+println("L)  Examples, tests & development of Liouville (time-evolution) computations")
+println("M)  Examples, tests & development of the ForPedestrians module")
+println("N)  Examples, tests & development of empirical computations (module Empirical)")
+print(  "Enter a Letter (A, B, ...) to select the associated branch of examples; ... enter Q to quit:  ")
+char = read(stdin, Char) 
+println(" ")
+
+if      char == 'A'
+    println("A)  Examples, tests & development of the electronic structure part.")
+    println("-------------------------------------------------------------------")
+    println("Aa) Apply & test several radial e-e potentials.")
+    println("Ab) Apply & test the  a SCF field: B-spline primitives and one-particle spectra in a local potential.")
+    println("Ac) Apply & test the CI part for an internally generated neon multiplet without Breit interaction.")
+    println("Ad) Apply & test for the frequency-independent Breit interaction for an internally generated neon multiplet.")
+    println("Ae) Apply & test for the QED model corrections to the level structure of atoms and ions.")
+    println("Af) Generate, normalize & test for continuum orbitals in a local potential.")
+    println("Ag) Apply & test the jj-LS transformation of levels from a given multiplet.")
+    println("Ah) Apply & test a mean-field basis, mean-field multiplets as well as a configuration-interaction (CI) expansions.")
+    println("Ai) Apply & test for restricted-active-space (RAS) expansions.")
+    println("Aj) Apply & test for a Green (-function) expansion.")
+    println("Ak) Apply & test the computation of spin-angular coefficients.")
+    println("Al) Apply & test for parallel computating methods/techniques with Julia.")
+    println("Am) Apply & test procedures to establish a configuration-based language and to deal with electron configurations.")
+    println("An) Apply & test the bi-orthogonal transformation of two independently-generated multiplets.")
+    #
+elseif  char == 'B'
+    println("B)  Examples, tests & development of atomic amplitudes")
+    println("------------------------------------------------------")
+    println("Ba) Apply & test the dipole, em multipole and momentum-transfer amplitudes.")
+    println("Bb) Apply & test the parity non-conservation, Schiff moment and anapole moment amplitudes.")
+    #
+elseif  char == 'C'
+    println("C)  Examples, tests & development of atomic properties")
+    println("------------------------------------------------------")
+    println("Ca) Apply & test the Einstein module with ASF from an internally generated multiplet.")
+    println("Cb) Apply & test the Hfs module for HFS A,B parameters and hyperfine representation with ASF from an internally generated multiplet.")
+    println("Cc) Apply & test the IsotopeShift module with ASF from an internally generated multiplet.")
+    println("Cd) Apply & test the LandeZeeman module with ASF from an internally generated multiplet.")
+    println("Ce) Apply & test the FormFactor module with ASF from an internally generated multiplet.")
+    println("Cf) Apply & test the reduced 1- and 2-particle density matrices & natural orbitals.")
+    println("Cg) Apply & test the DecayYield module with ASF from an internally generated multiplet.")
+    println("Ch) Apply & test the RadiativeOpacity module with ASF from an internally generated multiplet.")
+    println("Ci) Apply & test the AlphaVariation module with ASF from an internally generated multiplet.")
+    println("Cj) Apply & test the MultipolePolarizibility module with ASF from an internally generated multiplet.")
+    println("Ck) Apply & test the CrystalField module (point-charge Stark splitting) with ASF from an internally generated multiplet.")
+    #
+elseif  char == 'D'
+    println("D)  Examples, tests & development of basic atomic processes")
+    println("-----------------------------------------------------------")
+    println("Da) Apply & test the PhotoEmission module with ASF from an internally generated initial- and final-state multiplet.")
+    println("Db) Apply & test the PhotoExcitation module with ASF from an internally generated initial- and final-state multiplet.")
+    println("Dc) Apply & test the PhotoIonization module with ASF from an internally generated initial- and final-state multiplet.")
+    println("Dd) Apply & test the PhotoRecombination module with ASF from an internally generated initial- and final-state multiplet.")
+    println("De) Apply & test the AutoIonization module with ASF from an internally generated initial- and final-state multiplet.")
+    println("Df) Apply & test the Dielectronic module with ASF from an internally generated initial-, intermediate and final-state multiplets.")
+    println("Dg) Apply & test the RayleighCompton module with ASF from an internally generated initial- and final-state multiplets.")
+    println("Dh) Apply & test the MultiPhotonDeExcitation module with ASF from an internally generated initial- and final-state multiplet.")
+    #
+    println("Di) Apply & test the DoubleAutoIonization module with ASF from an internally generated initial- and final-state multiplet.")
+    println("Dj) Apply & test the PhotoDoubleIonization module with ASF from an internally generated initial- and final-state multiplet.")
+    println("Dk) Apply & test the RadiativeAuger module with ASF from an internally generated initial- and final-state multiplet.")
+    println("Dl) Apply & test the ImpactExcitation module with ASF from an internally generated initial- and final-state multiplet.")
+    println("Dm) Apply & test the InternalRecombination module with ASF from an internally generated initial and final-state multiplet.")
+    println("Dn) Apply & test the TwoElectronOnePhoton module with ASF from an internally generated initial and final-state multiplet.")
+    println("Dp) Apply & test the ParticleScattering module with ASF from an internally generated initial and final-state multiplet.")
+    println("Dq) Apply & test the InternalConversion module with ASF from an internally generated initial- and final-state multiplet.")
+    println("Dr) Apply & test the CoulombIonization module with ASF from an internally generated initial- and final-state multiplet.")
+    println("Ds) Apply & test the CoulombExcitation module with ASF from an internally generated initial- and final-state multiplet.")
+    println("Dt) Apply & test the CrystalFieldEmission module (crystal-field-resolved transitions) with initial- and final-state multiplets declared directly via Atomic.Computation.")
+    #
+elseif  char == 'E'
+    println("E)  Examples, tests & development of composed atomic processes")
+    println("--------------------------------------------------------------")
+    println("Ea) Apply & test the BeamPhotoExcitation module with ASF from an internally generated initial- and final-state multiplet.")
+    println("Eb) Apply & test the  PhotoExcitationFluores module with ASF from an internally generated initial-, intermediate and final-state multiplets.")
+    println("Ec) Apply & test the PhotoExcitationAutoIon module with ASF from an internally generated initial-, intermediate and final-state multiplets.")
+    println("Ed) Apply & test the Photoionization and PlasmaShift module with ASF from an internally generated initial- and final-state multiplet.")
+    println("Ef) Apply & test the Auger and PlasmaShift modules with ASF from an internally generated initial- and final-state multiplet.")
+    #
+    println("Eg) Test of the ImpactExcitationAutoion module with ASF from an internally generated initial-, intermediate and final-state multiplet.")
+    println("Ei) Test of the MultiPhotonIonization module with ASF from an internally generated initial- and final-state multiplet.")
+    println("Ej) Test of the MultiPhotonDoubleIon module with ASF from an internally generated initial- and final-state multiplet.")
+    println("Ek) Test of the PairAnnihilation1Photon.jl module with ASF from an internally generated initial- and final-state multiplet.")
+    println("El) Test of the PhotoIonizationFluores module with ASF from an internally generated initial-, intermediate and final-state multiplets.")
+    println("Em) Test of the PhotoIonizationAutoIon module with ASF from an internally generated initial-, intermediate and final-state multiplets.")
+    #
+elseif  char == 'F'
+    println("F)  Examples, tests & development of atomic cascades")
+    println("----------------------------------------------------")
+    println("Fa) Compute & test a three-step cascade model following the 1s-3p photo-excitation of Si^+.")
+    println("Fb) Simulate & test a four-step cascade model following the 1s-3p photo-excitation of Si^+.")
+    println("Fc) Three-step cascade computations and simulations for the decay of the neon 1s^-1 3p hole states: AverageSCA model.")
+    println("Fd) Photoabsorption of Ne^+: AverageSCA model.")
+    println("Fe) Compute & test a dielectronic recombination cascade and DR plasma rate coefficients.")
+    println("Ff) Compute & test a photorecombination cascade and RR plasma rate coefficients.")
+    println("Fg) Compute & test an expansion opacity (cascade, not yet).")
+    println("Fh) Compute & test a photoabsorption cascade computations.")
+    println("Fi) Compute & test an electron-impact excitation (cascade) for lithium-like Ne.")
+    #
+elseif  char == 'G'
+    println("G)  Examples, tests & development of symbolic evaluations of Racah expressions")
+    println("------------------------------------------------------------------------------")
+    println("Ga) Symbolic evaluation by means of special values & recursion relations of the Wigner n-j symbols.")
+    println("Gb) Symbolic simplification of Racah expressions by means of sum rules.")
+    println("Gc) Symbolic simplification of recoupling coefficients by means of sum rules.")
+    println("Gd) Symbolic simplification of Racah expressions including spherical harmonics and Wigner rotation matrices.")
+    println("Ge) Symbolic simplification of spherical tensor operators, matrix elements and spherical amplitudes.")
+    #
+elseif  char == 'H'
+    println("H)  Examples, tests & development of semiempirical computations")
+    println("---------------------------------------------------------------")
+    println("Hb) Compute & test (empirical) impact-ionization cross sections.")
+    println("Hc) Apply & test semiempirical binding energies, Slater Zeff, Rydberg series, and NIST ionization potentials (module Semiempirical).")
+    println("Hd) Apply & test the K-shell fluorescence and Auger yields (KrauseAdopted2016) and the empirical Auger rates.")
+    #
+elseif  char == 'I'
+    println("I)  Examples, tests & development of atomic response computations")
+    println("-----------------------------------------------------------------")
+    println("Ia) Apply & test the HighHarmonic module to compute high-harmonic spectra in single-electron approximation.")
+    println("Ib) Apply & test the StrongField module to calculate energy and momentum distributions of photoelectron in SFA.")
+    println("Ic) Apply & test the StrongField module to demonstrate the Coulomb asymmetry in ATI azimuthal angular distributions.")
+    println("Id) Apply & test the StrongField2 module to compute in ATI photoelectron momentum distributions.")
+    #
+elseif  char == 'J'
+    println("J)  Examples, tests & development of plasma computations")
+    println("--------------------------------------------------------")
+    println("Ja) Apply & test the average-atom computations.")
+    println("Jb) Apply & test the line-shift computations.")
+    println("Jc) Apply & test the Saha-Boltzmann computations for an ionic mixture in LTE.")
+    #
+elseif  char == 'K'
+    println("K)  Examples, tests & development of deep-learning applications")
+    println("--------------------------------------------------------")
+    println("Ka) Train & apply a neural network for estimating missing energies in the NIST tables.")
+    #
+elseif  char == 'L'
+    println("L)  Examples, tests & development of Liouville (time-evolution) computations")
+    println("--------------------------------------------------------")
+    println("La) Apply & test the Liouville (time-evolution) computations for the stimulated Raman scattering.")
+    #
+elseif  char == 'M'
+    println("M)  Examples, tests & development of the ForPedestrians module")
+    println("----------------------------------------------------------------")
+    println("Ma) Test  computeLevelEnergies(ForGivenConfigs/ForIsoelectronicSequence(), ...)  for several atoms and sequences.")
+    println("Mb) Test  computeTransitionRates(),  computeBranchingFractions()  and  displaySpectrum()  for ForPhotoEmission and ForAutoIonization.")
+    println("Mc) Test  computeCrossSections(ForPhotoIonization(), ...)  and  computeCrossSections(ForPhotoRecombination(), ...)  for several atoms.")
+    println("Md) Test  computeLifetimes(ForPhotoEmission(), ...)  and  computeLifetimes(ForAutoIonization(), ...)  for Ne and Ar K-holes; fluorescence yield.")
+    println("Me) Test  displayCouplings(FineStructure(), ...)  and  displayCouplings(FineStructureLS(), ...)  for Ar^2+ with two inner-shell holes.")
+    println("Mf) Test  estimateCrossSections(ForImpactIonization(), ...)  for neon and argon; relativistic BEB model for all subshells.")
+    println("Mg) Test  computeResonanceStrength(ForDielectronicRecombination(), ...)  for H-like Ne (1s->2l) and Li-like Sc (2s->2p).")
+    println("Mh) Test  computeChargeStateDistribution(ForStepwiseDecay(), ...)  for the K-hole decay cascade in Ne and Ar.")
+    #
+elseif  char == 'N'
+    println("N)  Examples, tests & development of empirical computations (module Empirical)")
+    println("-------------------------------------------------------------------------------")
+    println("Na) Apply & test Empirical.bindingEnergy (Shell & Subshell), ionizationPotential, and totalEnergy for neutral atoms and ions.")
+    println("Nb) Apply & test Empirical.photoemissionEinsteinA (ScaledHydrogenic & UsingJAC) and photoexcitation/deexcitation plasma rates.")
+    println("Nc) Apply & test Empirical.photoionizationCrossSection and photorecombinationCrossSection and the corresponding plasma rate coefficients.")
+    println("Nd) Apply & test Empirical.impactExcitationCrossSection (Van Regemorter) and impactIonizationCrossSection (Lotz) and their plasma rate coefficients.")
+    println("Ne) Apply & test Empirical.threeBodyRecombinationPlasmaAlpha and the recombination (capture) channels of an ion.")
+    println("Nf) Apply & test Empirical.stoppingPower of electrons in a plasma (Bohr1913, Bethe1931, KozmaFranson1992, Axelrod1980).")
+    println("Ng) Apply & test Empirical.tunnelingIonizationRate, the (quasiclassical) ADK1986 tunneling ionization rate.")
+    println("Nh) Apply & test Empirical.chargeExchangeCrossSection/PlasmaAlpha (OverBarrierModel1980, NiehausScaling1986).")
+    println("Ni) Apply & test Empirical.neutralizationReducedRate/deExcitationReducedRate, the Belyaev-Yakovleva (2017) model for inelastic A/H,H^- collisions.")
+    println("Nj) Apply & test Empirical.dielectronicRecombinationPlasmaAlpha (Arnaud1985DR), for H-like and He-like ions.")
+    println("Nk) Apply & test Empirical.excitationAutoionizationPlasmaAlpha (Arnaud1985EA), additive to the Lotz EII rate.")
+    println("Nl) Apply & test Empirical.generateInelasticHChannels, molecular-symmetry channel correlation for A+H(H^-) collisions.")
+    #
+elseif  char == 'Q'
+    return( nothing )
+else    
+    println("Unknown Letter; redo ...")
+end
+

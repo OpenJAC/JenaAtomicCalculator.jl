@@ -1,0 +1,270 @@
+
+
+println("Dn)  Test of the TwoElectronOnePhoton (TEOP) module: both computational strategies compared for the same transition.")
+
+setDefaults("print summary: open", "zzz-TwoElectronOnePhoton.sum")
+setDefaults("unit: energy", "eV")
+setDefaults("unit: rate", "1/s")
+
+
+grid = Radial.Grid(Radial.Grid(false), rnt = 4.0e-6, h = 5.0e-2, hp = 0.6e-2, rbox = 10.0)
+
+## Branch a) -- the method test, on a synthetic system with no literature counterpart.
+## Branch b) -- the physics test, on the Li-like O5+ case measured by Togawa et al. (2020).
+##
+## Test system for branch a): He-like Ne8+ (Z=10), doubly-excited 2s2p relaxing to the 1s^2 ground state.
+## This is the simplest genuine TEOP system: BOTH electrons must change orbital (2s->1s and 2p->1s) while a single
+## photon carries the combined energy -- a one-body E1 operator alone cannot connect these two configurations, so any
+## nonzero rate has to come from electron-electron-interaction-driven mixing with a one-hole intermediate configuration
+## (here: 1s2p / 1s2s). This is the mechanism described by Heisenberg (1925), first observed by Woelfli et al.,
+## PRL 35, 656 (1975), and shown to become STRONG (dominant over Auger/direct decay) for near-degenerate configuration
+## mixing by Togawa et al., Phys. Rev. A 102, 052831 (2020) [Li-like O, cross-checked against FAC].
+##
+## Two INDEPENDENT strategies exist for the same physics, and branch a) runs BOTH so that they can be compared:
+##
+##   (ii) EXPLICIT second-order perturbation theory -- the TwoElectronOnePhoton module proper. The initial state is
+##        the PURE 2s2p configuration; the coupling to the one-hole intermediates is carried by the second-order sum
+##        over a Green-function multiplet (settings.gMultiplet), with energy denominators (E_i - E_n) and
+##        (E_i - omega - E_n).
+##
+##   (i)  IMPLICIT, via ordinary CI mixing -- a plain PhotoEmission computation whose INITIAL multiplet already
+##        contains the one-hole configuration 1s2p alongside 2s2p. The one-body E1 operator then connects the small
+##        1s2p admixture of the (2s2p-dominated) initial level to the 1s^2 ground state. Since the two multiplets are
+##        built from different, mutually non-orthogonal orbital sets, this requires calcBiorthogonal=true.
+##
+## To leading (first) order in the configuration mixing the two must agree: the CI mixing coefficient of strategy (i)
+## is precisely c_n = <n|V^ee|i> / (E_i - E_n), i.e. the very ratio that strategy (ii) forms explicitly inside its
+## second-order sum. A comparison of the two is therefore a genuine known-answer test of the TEOP module.
+
+
+if  false
+    # Last visit:  04-Aug-2026
+    # --- The complete TEOP test: one gMultiplet, three computations, all numbers of the REPORT below reproduced
+    #     by a single run of this branch.
+    #
+    #     STEP 1  the Green-function (intermediate) multiplet
+    #     STEP 2  strategy (ii), minimal final space {1s^2}          -- the plain TEOP demonstration
+    #     STEP 3  strategy (ii), enlarged final space                -- directly comparable to STEP 4
+    #     STEP 4  strategy (i),  enlarged final space                -- the independent biorthogonal route
+    #
+    # ---------- STEP 1: the Green-function (intermediate) multiplet ----------
+    # It is NOT built inside perform(); it is generated here, by a separate and completely standard
+    # Atomic.Computation, and then handed to the TEOP settings. This keeps the choice of intermediate levels where it
+    # belongs -- with the user -- who selects exactly those configurations expected to contribute strongly to the
+    # second-order amplitude. Here these are the natural one-hole intermediates: 1s2p (odd parity, connects to 2s2p
+    # via V^ee and to 1s^2 via the E1 operator) and 1s2s (even parity, connects to 1s^2 via V^ee and to 2s2p via the
+    # E1 operator) -- i.e. one configuration for each of the two time-orderings of the second-order amplitude.
+    gComp      = Atomic.Computation(Atomic.Computation(), name="STEP 1: Green-function (intermediate) multiplet",
+                                    grid=grid, nuclearModel=Nuclear.Model(10.),
+                                    configs = [Configuration("1s 2p"), Configuration("1s 2s")] )
+    gMultiplet = perform(gComp; output=true)["multiplet:"]
+    #
+    # ---------- STEP 2: strategy (ii) with the minimal final space ----------
+    # The intermediate sum in TwoElectronOnePhoton.amplitude() explicitly skips any gMultiplet level that coincides in
+    # energy with the initial or the final level (an ill-defined self-term whenever the intermediate and initial/final
+    # configurations overlap -- not the case here, but guarded against unconditionally).
+    teopSettings2 = TwoElectronOnePhoton.Settings([E1], [UseCoulomb,UseBabushkin], true, LineSelection(), 0.,
+                                                  CoulombInteraction(), gMultiplet)
+    wa = Atomic.Computation(Atomic.Computation(), name="STEP 2: strategy (ii), minimal final space", grid=grid,
+                            nuclearModel   = Nuclear.Model(10.),
+                            initialConfigs = [Configuration("2s 2p")],
+                            finalConfigs   = [Configuration("1s^2")],
+                            processSettings = teopSettings2 )
+    perform(wa)
+    #
+    # ---------- STEPS 3 and 4: the head-to-head comparison ----------
+    # The two strategies necessarily differ in their INITIAL configuration space -- that difference IS the comparison:
+    # strategy (ii) starts from the pure 2s2p configuration and generates the 1s2p/1s2s admixture perturbatively,
+    # strategy (i) starts from the CI-mixed {2s2p, 1s2p} space and lets the diagonalization do it. What must be held
+    # fixed for the numbers to be comparable is everything else: grid, nuclear model, and above all the FINAL
+    # multiplet.
+    #
+    # That final multiplet has to be enlarged beyond 1s^2, because BiOrthogonal.computeTransformationMatrices requires
+    # the two bases to carry the SAME number of orbitals for every kappa occurring in either of them (the
+    # differing-dimension case of Olsen et al., Appendix B, is not yet implemented). The initial basis {2s2p, 1s2p}
+    # spans 1s, 2s, 2p_1/2, 2p_3/2, so the final basis must span the same four subshells: {1s^2} alone does not,
+    # {1s^2, 1s2s, 2p^2} does -- and both added configurations are the natural correlation partners of the 1s^2 ground
+    # state anyway, not arbitrary padding.
+    #
+    # Both steps select only the lines that END in the ground level (final index 1). The enlarged final space contains
+    # 2p^2 levels lying ABOVE part of the initial space, and an unselected run would attempt those upward "decays"
+    # with a negative photon energy. TwoElectronOnePhoton.determineLines is presently the ONLY emission module that
+    # does not filter omega (Einstein, PhotoEmission, CrystalFieldEmission and HyperfineInduced all do), so such a
+    # line reaches GSL's spherical Bessel function out of domain and aborts the run. The initial spaces differ in size
+    # (4 levels for 2s2p, 8 for 2s2p+1s2p), hence the two index ranges.
+    finalConfigs = [Configuration("1s^2"), Configuration("1s 2s"), Configuration("2p^2")]
+    #
+    teopSettings3 = TwoElectronOnePhoton.Settings([E1], [UseCoulomb,UseBabushkin], true,
+                                                  LineSelection(true, indexPairs=[(i,1) for i = 1:4]), 0.,
+                                                  CoulombInteraction(), gMultiplet)
+    wb = Atomic.Computation(Atomic.Computation(), name="STEP 3: strategy (ii), enlarged final space", grid=grid,
+                            nuclearModel   = Nuclear.Model(10.),
+                            initialConfigs = [Configuration("2s 2p")],
+                            finalConfigs   = finalConfigs,
+                            processSettings = teopSettings3 )
+    perform(wb)
+    #
+    photoSettings = PhotoEmission.Settings(PhotoEmission.Settings(), multipoles=[E1], gauges=[UseCoulomb,UseBabushkin],
+                                           printBefore=true, calcBiorthogonal=true,
+                                           lineSelection=LineSelection(true, indexPairs=[(i,1) for i = 1:8]) )
+    wc = Atomic.Computation(Atomic.Computation(), name="STEP 4: strategy (i), CI mixing + biorthogonal", grid=grid,
+                            nuclearModel   = Nuclear.Model(10.),
+                            initialConfigs = [Configuration("2s 2p"), Configuration("1s 2p")],
+                            finalConfigs   = finalConfigs,
+                            processSettings = photoSettings )
+    perform(wc)
+    #
+    # ============================== REPORT (04-Aug-2026) ==============================
+    #
+    # STEP 2 -- strategy (ii), minimal final space {1s^2}. Two lines, both 1- --> 0+:
+    #     2 --> 1   omega = 1.911752e+03 eV   A = 2.760831e+06 (Coulomb) / 6.997322e+06 (Babushkin) 1/s
+    #     4 --> 1   omega = 1.927578e+03 eV   A = 1.375383e+10 (Coulomb) / 5.436247e+10 (Babushkin) 1/s
+    # These agree to every digit recorded earlier (2.76e+06 / 7.00e+06 and 1.38e+10 / 5.44e+10), when perform() still
+    # generated the gMultiplet internally from intermediateConfigs -- handing the gMultiplet over explicitly changed
+    # the plumbing only, not the physics. Both rates sit far below an allowed E1 line at this Z (~1e13-1e14 1/s), as
+    # a genuine second-order process should.
+    #
+    # STEPS 3/4 -- initial levels. Strategy (ii) has 4 levels (pure 2s2p); strategy (i) has 8, the lower four being
+    # 1s2p and the upper four the 2s2p states corresponding to strategy (ii)'s. Correspondence and CI level shift:
+    #     (ii) level 2  1-  -6.455570e+02 eV   <-->   (i) level 6  1-  -6.449935e+02 eV     shift  +0.563 eV
+    #     (ii) level 4  1-  -6.297308e+02 eV   <-->   (i) level 8  1-  -6.292913e+02 eV     shift  +0.440 eV
+    # Both 2s2p levels are pushed UP by their mixing with the ~1000 eV lower 1s2p levels -- the correct sign for level
+    # repulsion, and a direct measure of the admixture: |V|^2/DeltaE = 0.44...0.56 eV over DeltaE ~ 1.0e3 eV gives
+    # |c| ~ 2.1...2.4e-2, i.e. |c|^2 ~ 4e-4...6e-4. Multiplying that by strategy (i)'s own ordinary 1s2p --> 1s^2
+    # Kalpha rate (level 4 --> 1: 9.804282e+12 1/s, Coulomb) predicts a TEOP rate of ~4e9 1/s -- the right order.
+    #
+    # STEPS 3/4 -- rates, same final multiplet in both:
+    #                              STEP 3, strategy (ii)             STEP 4, strategy (i)             ratio (i)/(ii)
+    #   line A, omega ~ 1910 eV    C  2.941112e+06                   C  3.791451e+06                     1.29
+    #    [(ii) 2-->1, (i) 6-->1]   B  8.335175e+06                   B  5.893378e+09                      707    (!)
+    #   line B, omega ~ 1926 eV    C  1.534363e+10                   C  1.453570e+10                     0.947
+    #    [(ii) 4-->1, (i) 8-->1]   B  6.066702e+10                   B  7.030514e+10                     1.16
+    #
+    # VERDICT. For line B -- the strong, dominant TEOP channel -- two genuinely independent routes to the same physics
+    # agree to 5.3% in Coulomb and 16% in Babushkin gauge. Given that strategy (ii) is first order in the mixing while
+    # strategy (i) diagonalizes it exactly, this is the expected level of agreement and constitutes a real
+    # known-answer validation of the second-order amplitude, cross-term double sum included.
+    #
+    # OPEN. Line A is ~4 orders of magnitude weaker, i.e. a near-cancellation, and there the two strategies part
+    # company: 29% apart in Coulomb, but a factor 707 in Babushkin. Strategy (i)'s Babushkin value for this line is
+    # also internally inconsistent -- its own gauge ratio B/C = 1554, against 2.8 for strategy (ii) and 4-5 for line B
+    # in either strategy. So the anomaly sits in the LENGTH-form amplitude of the weak, CI-mediated line, not in the
+    # TEOP second-order sum. Suspects, in order: the biorthogonal transformation of the length-form operator for a
+    # near-cancelling intercombination amplitude, and the genuine sensitivity of a 1e-4-suppressed amplitude to the
+    # missing damping term. NOT resolved; needs its own investigation.
+    #
+    # One further clue for that investigation, from STEP 4's anisotropy (structure) function table: the same line
+    # 6 --> 1 is the outlier there too, f_2 (Coulomb) = 2.858529e+01 against -1.35e-02, 1.679e-01 and -8.48e-01 for
+    # the other three lines -- two orders of magnitude out of family. Note the gauges do NOT line up: the rate
+    # anomaly sits in Babushkin, the f_2 anomaly in Coulomb. Both point at the same single line, which is what makes
+    # it look like one localized defect rather than general near-cancellation noise.
+    #
+    # The 3x-5x gauge spread seen throughout reflects the still-missing damping/regularization term in the
+    # second-order amplitude (deferred by explicit request). Nothing here is benchmarked against an independent
+    # literature value for this synthetic system, so this branch is dated "Last visit", not "Last successful"
+    # (Rule 7).
+    #
+elseif  true
+    # Last visit:  04-Aug-2026
+    # --- Li-like O5+: the Togawa et al. TEOP case, the first branch with a real literature counterpart.
+    #
+    # Togawa, Kuehn, Shah et al., Phys. Rev. A 102, 052831 (2020), arXiv:2003.05965. From the abstract
+    # (verbatim): "Some photoabsorption resonances of O5+ reveal strong two-electron--one-photon (TEOP)
+    # transitions. We find that for the [(1s 2s)_1 5p_3/2]_{3/2;1/2} states, TEOP relaxation is by far stronger
+    # than the radiative decay and competes with the usually much faster Auger decay path. This enhanced TEOP
+    # decay arises from a strong correlation with the near-degenerate upper states [(1s 2p_3/2)_1 4s]_{3/2;1/2}
+    # of a Li-like satellite blend of the He-like Kalpha transition."
+    #
+    # NOTE -- an earlier version of this comment had the pair as [(1s2p_3/2)_1 5p] / [(1s2p_1/2)_1 4s]. That was
+    # wrong, and wrong in a way that mattered: 1s2p5p is EVEN and 1s2p4s is ODD, so those two could not have
+    # mixed at all. The correct pair, 1s2s5p and 1s2p4s, is odd/odd -- CI mixing is allowed and the whole
+    # mechanism follows. Any numbers quoted for Auger/one-photon rates in that earlier comment were likewise
+    # never verified against the paper body and are deliberately not repeated here.
+    #
+    # MECHANISM, and why it is the same as branch a) at a heavier level scheme: the near-degenerate partner
+    # 1s2p4s carries ordinary Kalpha strength (2p --> 1s) down to 1s^2 4s. The initial 1s2s5p state reaches that
+    # same final state only by moving TWO electrons, 2s --> 1s and 5p --> 4s, with a single photon -- a genuine
+    # TEOP transition, odd --> even, E1-allowed. Its rate is carried entirely by the 1s2p4s admixture.
+    #
+    #     STEP 1  gMultiplet: 1s2p4s (time-ordering 1, the near-degenerate partner) and 1s2s4s (time-ordering 2)
+    #     STEP 2  TEOP        1s2s5p --> 1s^2 4s
+    #     STEP 3  the competing ORDINARY radiative decay 1s2s5p --> 1s^2 5p (one electron, 2s --> 1s), which is
+    #             the quantity the paper's central claim is measured against ("TEOP by far stronger than the
+    #             radiative decay").
+    #
+    # The grid is enlarged to rbox = 30 a.u.; n = 5 orbitals at Z = 8 peak near <r> ~ n^2/Z ~ 3 a.u. and are not
+    # contained by branch a)'s rbox = 10 box.
+    gridB      = Radial.Grid(Radial.Grid(false), rnt = 4.0e-6, h = 5.0e-2, hp = 0.6e-2, rbox = 30.0)
+    #
+    gCompB     = Atomic.Computation(Atomic.Computation(), name="STEP 1: gMultiplet for the O5+ TEOP case",
+                                    grid=gridB, nuclearModel=Nuclear.Model(8.),
+                                    configs = [Configuration("1s 2p 4s"), Configuration("1s 2s 4s")] )
+    gMultipletB = perform(gCompB; output=true)["multiplet:"]
+    #
+    teopSettingsB = TwoElectronOnePhoton.Settings([E1], [UseCoulomb,UseBabushkin], true, LineSelection(), 0.,
+                                                  CoulombInteraction(), gMultipletB)
+    wd = Atomic.Computation(Atomic.Computation(), name="STEP 2: TEOP  1s2s5p --> 1s^2 4s", grid=gridB,
+                            nuclearModel   = Nuclear.Model(8.),
+                            initialConfigs = [Configuration("1s 2s 5p")],
+                            finalConfigs   = [Configuration("1s^2 4s")],
+                            processSettings = teopSettingsB )
+    perform(wd)
+    #
+    photoSettingsB = PhotoEmission.Settings(PhotoEmission.Settings(), multipoles=[E1],
+                                            gauges=[UseCoulomb,UseBabushkin], printBefore=true)
+    wf = Atomic.Computation(Atomic.Computation(), name="STEP 3: K-shell-filling decay  1s2s5p --> 1s^2 5p",
+                            grid=gridB, nuclearModel = Nuclear.Model(8.),
+                            initialConfigs = [Configuration("1s 2s 5p")],
+                            finalConfigs   = [Configuration("1s^2 5p")],
+                            processSettings = photoSettingsB )
+    perform(wf)
+    #
+    # STEP 4: the one-electron radiative decay that IS allowed, 5p --> 4s within the doubly-excited manifold.
+    wg = Atomic.Computation(Atomic.Computation(), name="STEP 4: outer-electron decay  1s2s5p --> 1s2s4s",
+                            grid=gridB, nuclearModel = Nuclear.Model(8.),
+                            initialConfigs = [Configuration("1s 2s 5p")],
+                            finalConfigs   = [Configuration("1s 2s 4s")],
+                            processSettings = photoSettingsB )
+    perform(wg)
+    #
+    # ============================== REPORT (04-Aug-2026) ==============================
+    #
+    # The 1s2s5p initial multiplet has 7 levels; the paper's [(1s 2s)_1 5p_3/2]_{3/2;1/2} pair is levels 4 (3/2-,
+    # -1.069644e+03 eV) and 5 (1/2-, -1.069642e+03 eV), 0.30 eV above the {1,2,3} fine-structure group.
+    #
+    #  level  J^P     STEP 2, TEOP 1s2s5p-->1s^2 4s      STEP 4, radiative 5p-->4s      TEOP / radiative
+    #                 A(Coulomb) / A(Babushkin) [1/s]    A(Coulomb) [1/s]
+    #    1    1/2-    3.269178e+07 / 3.389466e+07        9.193920e+08                        0.036
+    #    2    3/2-    7.879110e+07 / 8.173859e+07        9.178975e+08                        0.086
+    #    4    3/2-    1.064132e+12 / 1.110085e+12        7.103460e+04                        1.5e+07
+    #    5    1/2-    1.177252e+12 / 1.227215e+12        2.762565e+04                        4.3e+07
+    #    6    1/2-    2.906786e+09 / 6.983910e+10
+    #    7    3/2-    2.922373e+09 / 6.946454e+10
+    #
+    # VERDICT -- the paper's central claim is REPRODUCED, and reproduced selectively. For levels 4 and 5, exactly the
+    # [(1s2s)_1 5p_3/2]_{3/2;1/2} pair the abstract names, the TEOP rate exceeds the ordinary one-electron radiative
+    # decay by SEVEN orders of magnitude. For levels 1 and 2 the ordering is reversed -- radiative decay wins by a
+    # factor 12-28. So this is not a blanket enhancement of everything in the multiplet; it singles out the same two
+    # levels the experiment did, which is a far stronger test than a single number would have been.
+    #
+    # Absolute magnitude: 1.06e+12 ... 1.18e+12 1/s against the ~3e+12 1/s quoted for this state in the earlier
+    # comment (a value taken from the paper BODY, which was not available here -- only the abstract was checked, and
+    # the abstract quotes no rates). Same order of magnitude, low by a factor ~2.5-3, which is what one should expect
+    # from a gMultiplet of just two reference configurations and no further correlation.
+    #
+    # Gauge agreement is 4.3% (level 4) and 4.2% (level 5) -- dramatically better than branch a)'s 3x-5x spread.
+    # That is the expected signature of a DOMINANT, non-cancelling second-order amplitude: branch a)'s poor gauge
+    # behaviour comes from its amplitudes being small and near-cancelling, not from a defect in the module.
+    #
+    # STEP 3 deliberately returns an EMPTY line table, and that emptiness is the point: 1s2s5p and 1s^2 5p are BOTH
+    # odd, so the K-shell-filling channel 2s --> 1s is E1-forbidden (s --> s). The state cannot get rid of its K-shell
+    # hole by an ordinary one-photon transition at all -- which is precisely why the two-electron channel, riding on
+    # the 1s2p4s admixture where 2p --> 1s IS allowed, becomes the dominant radiative route.
+    #
+    # Dated "Last visit": the qualitative claim and the level selectivity are reproduced, but the absolute rate has
+    # not been checked against the published number itself (paper body not consulted), so this is not yet a verified
+    # quantitative benchmark under Rule 7.
+    #
+end
+#
+setDefaults("print summary: close", "")

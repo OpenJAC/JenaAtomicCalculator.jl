@@ -1,7 +1,12 @@
 Manifest.toml
 apps
 background 
-examples
+# examples/: the example-Xx.jl scripts and their index examples.jl ARE part of the repository.
+# Nothing else in that directory is -- papers/, codes/, the *.dat caches, test-code.jl, and the
+# .sum/.csv/.pdf/.jld/.report files produced by running the examples.
+examples/*
+!examples/example-*.jl
+!examples/examples.jl
 examplesX
 internal
 work
