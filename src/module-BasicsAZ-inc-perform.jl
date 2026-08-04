@@ -88,7 +88,7 @@ function Basics.perform(computation::Atomic.Computation; output::Bool=false)
         #
         if typeof(computation.processSettings) in [PhotoExcitationFluores.Settings, PhotoExcitationAutoion.Settings, PhotoIonizationFluores.Settings,
                                                    PhotoIonizationAutoion.Settings, ImpactExcitationAutoion.Settings,
-                                                   DielectronicRecombination.Settings, ResonantInelastic.Settings, TwoElectronOnePhoton.Settings]
+                                                   DielectronicRecombination.Settings, ResonantInelastic.Settings]
             intermediateMultiplet = SelfConsistent.performSCF(computation.intermediateConfigs, nModel, computation.grid, computation.intermediateAsfSettings)
             if  output   results["intermediateMultiplet"] = intermediateMultiplet    end 
         end
@@ -149,8 +149,11 @@ function Basics.perform(computation::Atomic.Computation; output::Bool=false)
             outcome = InternalRecombination.computeLines(finalMultiplet, initialMultiplet, nModel, computation.grid, computation.processSettings) 
             if output    results = Base.merge( results, Dict("internal-recombination lines:" => outcome) )          end
         elseif  typeof(computation.processSettings) == TwoElectronOnePhoton.Settings
-            teopSettings = TwoElectronOnePhoton.Settings(computation.processSettings; gMultiplet=intermediateMultiplet)
-            outcome = TwoElectronOnePhoton.computeLines(finalMultiplet, initialMultiplet, nModel, computation.grid, teopSettings)
+            ## The Green-function (intermediate) multiplet is NOT generated here; it is prepared by the user in a
+            ## separate, standard Atomic.Computation -- whose configurations are chosen to include just those levels
+            ## that are expected to contribute strongly to the second-order amplitude -- and handed over explicitly
+            ## as settings.gMultiplet.
+            outcome = TwoElectronOnePhoton.computeLines(finalMultiplet, initialMultiplet, nModel, computation.grid, computation.processSettings)
             if output    results = Base.merge( results, Dict("two-electron-one-photon lines:" => outcome) )         end
         elseif  typeof(computation.processSettings) == ParticleScattering.Settings 
             outcome = ParticleScattering.computeEvents(finalMultiplet, initialMultiplet, nModel, computation.grid, computation.processSettings) 

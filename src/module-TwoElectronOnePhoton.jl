@@ -158,8 +158,12 @@ end
 function amplitude(::Emission, Mp::EmMultipole, gauge::EmGauge, omega::Float64, finalLevel::Level, initialLevel::Level,
                     gMultiplet::Multiplet, grid::Radial.Grid; display::Bool=false, printout::Bool=false)
     #
-    # Always ensure the same subshell list for all initial, intermediate and final levels
+    # Always ensure the same subshell list for all initial, intermediate and final levels. The gMultiplet must take
+    # part in this merge: a physically-motivated Green-function space generally introduces orbitals that occur in
+    # neither the initial nor the final configurations (e.g. the 2p of the near-degenerate 1s2p4s partner for the
+    # Li-like O5+ 1s2s5p --> 1s^2 4s transition), and merging only initial and final makes those cases unusable.
     subshells  = Basics.merge(initialLevel.basis.subshells, finalLevel.basis.subshells)
+    subshells  = Basics.merge(subshells, gMultiplet.levels[1].basis.subshells)
     iLevel     = Level(initialLevel, subshells)
     fLevel     = Level(finalLevel, subshells)
     nMultiplet = Multiplet(gMultiplet, subshells)
@@ -339,8 +343,9 @@ function  determineLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet,
         for  fLevel  in  finalMultiplet.levels
             if  Basics.selectLevelPair(iLevel, fLevel, settings.lineSelection)
                 omega = iLevel.energy - fLevel.energy   + settings.photonEnergyShift
-
-                channels = TwoElectronOnePhoton.determineChannels(fLevel, iLevel, settings) 
+                if  omega <= 0.   continue   end    # no emission line for a final level above the initial one
+                #
+                channels = TwoElectronOnePhoton.determineChannels(fLevel, iLevel, settings)
                 if   length(channels) == 0   continue   end
                 push!( lines, TwoElectronOnePhoton.Line(iLevel, fLevel, omega, EmProperty(0., 0.), channels) )
             end
