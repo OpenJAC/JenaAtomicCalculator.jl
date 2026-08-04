@@ -74,12 +74,17 @@ end
 
 
 """
-`Hamiltonian.performCI(basis::Basis, nm::Nuclear.Model, grid::Radial.Grid, settings::AsfSettings; printout::Bool=false)
+`Hamiltonian.performCI(basis::Basis, nm::Nuclear.Model, grid::Radial.Grid, settings::AsfSettings; printout::Bool=false,
+                       writeSummary::Bool=true)
     ... Computes and diagonalizes the Hamiltonian matrix for all CSF in the given basis. It also assigns the
-        mixing coefficients to the individual levels. The individual contributions from the Breit or diagonal interaction as well as 
+        mixing coefficients to the individual levels. The individual contributions from the Breit or diagonal interaction as well as
         from QED to this matrix are controlled by the settings. A  multiplet::Multiplet  is returned.
+        With writeSummary=false, the level table is not written to the summary file even when a summary file is
+        open; this is needed by callers that invoke performCI inside a per-configuration loop (Cascade, Plasma)
+        and would otherwise append one table per configuration to the .sum file.
 """
-function performCI(basis::Basis, nm::Nuclear.Model, grid::Radial.Grid, settings::AsfSettings; printout::Bool=false)
+function performCI(basis::Basis, nm::Nuclear.Model, grid::Radial.Grid, settings::AsfSettings; printout::Bool=false,
+                   writeSummary::Bool=true)
     
     # First determine the number of CSF in each J^P symmetry block
     symmetries = Dict{LevelSymmetry,Int64}()
@@ -140,7 +145,7 @@ function performCI(basis::Basis, nm::Nuclear.Model, grid::Radial.Grid, settings:
         Basics.tabulate(stdout, mp, levelNos)
     end
     printSummary, iostream = Defaults.getDefaults("summary flag/stream")
-    if  printSummary     
+    if  printSummary  &&  writeSummary
         Basics.tabulate(iostream, mp, levelNos)
     end
 
@@ -149,17 +154,19 @@ end
 
 
 """
-`Hamiltonian.performCIwithFrozenOrbitals(configs::Array{Configuration,1}, frozenOrbitals::Dict{Subshell, Orbital}, 
-                                         nuclearModel::Nuclear.Model, grid::Radial.Grid, settings::AsfSettings; printout::Bool=true)` 
-    ... to generate from the given frozen orbitals a multiplet of single-CSF levels by just using the diagonal 
-        part of the Hamiltonian matrix; a multiplet::Multiplet is returned.  
+`Hamiltonian.performCIwithFrozenOrbitals(configs::Array{Configuration,1}, frozenOrbitals::Dict{Subshell, Orbital},
+                                         nuclearModel::Nuclear.Model, grid::Radial.Grid, settings::AsfSettings; printout::Bool=true)`
+    ... to generate, from the given frozen orbitals, the CI multiplet for the given configurations: the CSF basis
+        is set up for these configurations and the frozen orbitals, and is then diagonalized by Hamiltonian.performCI
+        without any further orbital optimization. The e-e interaction that enters the CI matrix is whatever
+        settings.eeInteractionCI specifies -- CoulombInteraction() (the AsfSettings() default), CoulombBreit(),
+        ..., or DiagonalCoulomb() for the cheap, single-CSF-level approximation this function was once hard-wired
+        to. A multiplet::Multiplet, sorted by energy, is returned.
 """
-function performCIwithFrozenOrbitals(configs::Array{Configuration,1}, frozenOrbitals::Dict{Subshell, Orbital}, 
+function performCIwithFrozenOrbitals(configs::Array{Configuration,1}, frozenOrbitals::Dict{Subshell, Orbital},
                                      nuclearModel::Nuclear.Model, grid::Radial.Grid, settings::AsfSettings; printout::Bool=true)
-    if  printout    println("\n... in Hamiltonian.perform...: a mutiplet from orbitals, no CI, CSF diagonal'] ...")    end
-    
-    if  settings.eeInteractionCI == DiagonalCoulomb()   error("Not yet implemented.")   end
-    
+    if  printout    println("\n... in Hamiltonian.perform...: a multiplet from frozen orbitals, CI with $(settings.eeInteractionCI) ...")    end
+
     # Generate a list of relativistic configurations and determine an ordered list of subshells for these configurations
     relconfList = ConfigurationR[]
     for  conf in configs
@@ -191,67 +198,20 @@ function performCIwithFrozenOrbitals(configs::Array{Configuration,1}, frozenOrbi
     # Set-up a basis for calculating the Hamiltonian matrix
     basis = Basis(true, NoElectrons, subshellList, csfList, coreSubshellList, frozenOrbitals)
 
-    # Calculate the diagonal part of the Hamiltonian matrix and define a multiplet for these approximate ASf;
-    # Generate first an effective nuclear charge Z(r) on the given grid
-    potential = Nuclear.nuclearPotential(nuclearModel, grid)
-    
-    keep = true
-    InteractionStrength.XL_Coulomb_reset_storage(keep)
-    #
-    n = length(csfList);    matrix = zeros(Float64, n, n)
-    for  r = 1:n
-        subshellList = basis.subshells
-        opa  = SpinAngular.OneParticleOperator(0, plus, true)
-        waG1 = SpinAngular.computeCoefficients(opa, basis.csfs[r], basis.csfs[r], subshellList) 
-        opa  = SpinAngular.TwoParticleOperator(0, plus, true)
-        waG2 = SpinAngular.computeCoefficients(opa, basis.csfs[r], basis.csfs[r], subshellList)
-        wa   = [waG1, waG2]
-        #
-        me = 0.
-        for  coeff in wa[1]
-            jj = Basics.subshell_2j(basis.orbitals[coeff.a].subshell)
-            me = me + coeff.T * sqrt( jj + 1) * RadialIntegrals.GrantIab(basis.orbitals[coeff.a], basis.orbitals[coeff.b], grid, potential)
-        end
-
-        for  coeff in wa[2]
-            if  typeof(settings.eeInteractionCI) in [CoulombInteraction, CoulombBreit, CoulombGaunt]
-                me = me + coeff.V * InteractionStrength.XL_Coulomb(coeff.nu, basis.orbitals[coeff.a], basis.orbitals[coeff.b],
-                                                                                basis.orbitals[coeff.c], basis.orbitals[coeff.d], grid, keep=keep)  end
-            if  typeof(settings.eeInteractionCI) in [BreitInteraction, CoulombBreit]
-                me = me + coeff.V * InteractionStrength.XL_Breit(coeff.nu, basis.orbitals[coeff.a], basis.orbitals[coeff.b],
-                                                                           basis.orbitals[coeff.c], basis.orbitals[coeff.d], grid,
-                                                                           settings.eeInteractionCI)                                                end
-        end
-        matrix[r,r] = me
-    end 
-    #
-    eigen  = Basics.diagonalize(MatrixWithLinearAlgebra(), matrix)
-    levels = Level[]
-    for  ev = 1:length(eigen.values)
-        vector = eigen.vectors[ev];   ns = 0
-        for  r = 1:length(vector)   
-            if      (vector[r])^2 > 0.99    ns = r;   break    
-            elseif  (vector[r])^2 > 0.01    error("stop a; unexpected mixing coefficieint; vector = $vector ")    
-            end
-        end
-        J = csfList[ns].J
-        newlevel = Level( J, AngularM64(J.num//J.den), csfList[ns].parity, 0, eigen.values[ev], 0., true, basis, vector ) 
-        push!( levels, newlevel)
-    end
-    mp = Multiplet("noName", levels)
-    mp = Basics.sortByEnergy(mp)
-    
-    levelNos = Int64[]
-    for (ilev, level) in  enumerate(mp.levels)       push!(levelNos, ilev)   end
-    
-    # Display all level energies and energy splittings
-    if  printout
-        Basics.tabulate(stdout, mp, levelNos)
-    end
-    printSummary, iostream = Defaults.getDefaults("summary flag/stream")
-    if  printSummary  &&  printout    
-        Basics.tabulate(iostream, mp, levelNos)
-    end
+    # Hand the frozen-orbital basis to the standard CI machinery. NOTE (04-Aug-2026): this function used to
+    # build only the DIAGONAL of the Hamiltonian matrix itself and therefore always returned single-CSF levels,
+    # silently ignoring settings.eeInteractionCI (while erroring out on the one value, DiagonalCoulomb(), that
+    # actually described its behaviour). That cost the genuine CSF mixing: for He-like carbon the two J=1 odd
+    # levels came back as the bare jj CSFs (1s2p_1/2)_1 and (1s2p_3/2)_1 split by 1.330 eV, instead of the
+    # near-pure LS states 1P1/3P1 split by 3.902 eV -- so the resonance line's strength was shared 1:2 between
+    # them and the intercombination line was not reproduced at all (see examples/example-Je.jl, branch a).
+    # Hamiltonian.performCI does the same job properly: it blocks the basis by J^P symmetry, assigns each
+    # level's J and parity from its symmetry block rather than from a single dominant CSF, and honours
+    # settings.eeInteractionCI throughout. The cheap original behaviour is NOT lost -- it is now reached
+    # explicitly via settings.eeInteractionCI = DiagonalCoulomb(), which Hamiltonian.setupMatrix implements by
+    # skipping every off-diagonal element BEFORE any spin-angular or radial-integral work is done, so its cost
+    # is unchanged. Callers that need the cheap path (e.g. the Saha-Boltzmann level generation) simply say so.
+    mp = Hamiltonian.performCI(basis, nuclearModel, grid, settings; printout=printout, writeSummary=printout)
 
     return( mp )
 end
