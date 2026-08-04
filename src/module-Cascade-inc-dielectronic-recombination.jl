@@ -200,7 +200,7 @@ function generateBlocks(scheme::Cascade.DielectronicRecombinationScheme, comp::C
                 
                 basis         = Basis(true, confa.NoElectrons, subshellList, csfList, coreSubshellList, orbitals)
             end
-            multiplet = Hamiltonian.performCIwithFrozenOrbitals([confa],  basis.orbitals, comp.nuclearModel, comp.grid, comp.asfSettings; printout=false)
+            multiplet = Hamiltonian.performCIwithFrozenOrbitals([confa],  basis.orbitals, comp.nuclearModel, comp.grid, Cascade.asfSettingsForApproach(comp.approach, comp.asfSettings); printout=false)
             
             push!( blockList, Cascade.Block(confa.NoElectrons, [confa], true, multiplet) )
             println("and $(length(multiplet.levels[1].basis.csfs)) CSF done. ")
@@ -302,7 +302,13 @@ function generateCaptureConfigurations(multiplets::Array{Multiplet,1},  coreConf
                 mp      = Hamiltonian.performCI(basis, nm, grid, AsfSettings(), printout=false)
                 eLowest   = mp.levels[1].energy;     eHighest = mp.levels[end].energy;    accepted = false
             elseif true
-                mp      = Hamiltonian.performCIwithFrozenOrbitals([conf], orbitals, nm, grid, asfSettings, printout=false)
+                # Screening step only: the multiplet is used solely for its lowest/highest level energy, to decide
+                # whether this capture configuration falls into the requested window. Single-CSF levels are
+                # sufficient here (and were the behaviour before commit 7cc164b), so the cheap representation is
+                # requested explicitly rather than inherited -- this is deliberately independent of comp.approach,
+                # which is not available in this function anyway.
+                mp      = Hamiltonian.performCIwithFrozenOrbitals([conf], orbitals, nm, grid,
+                                                                  AsfSettings(asfSettings; eeInteractionCI=DiagonalCoulomb()), printout=false)
                 eLowest   = mp.levels[1].energy;     eHighest = mp.levels[end].energy;    accepted = false
             end
             if  eMin - 4.0 <= eLowest <=  eMax + 4.0   ||   eMin - 4.0 <= eHighest <=  eMax + 4.0

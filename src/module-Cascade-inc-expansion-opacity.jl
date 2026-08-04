@@ -138,7 +138,7 @@ function generateBlocks(scheme::Cascade.ExpansionOpacityScheme, comp::Cascade.Co
                 
                 basis         = Basis(true, confa.NoElectrons, subshellList, csfList, coreSubshellList, orbitals)
             end
-            multiplet = Hamiltonian.performCIwithFrozenOrbitals([confa],  basis.orbitals, comp.nuclearModel, comp.grid, comp.asfSettings; printout=false)
+            multiplet = Hamiltonian.performCIwithFrozenOrbitals([confa],  basis.orbitals, comp.nuclearModel, comp.grid, Cascade.asfSettingsForApproach(comp.approach, comp.asfSettings); printout=false)
             push!( blockList, Cascade.Block(confa.NoElectrons, [confa], true, multiplet) )
             println("and $(length(multiplet.levels[1].basis.csfs)) CSF done. ")
         end
