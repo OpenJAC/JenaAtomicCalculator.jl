@@ -8,7 +8,13 @@ module ImpactExcitation
 using   Distributed, FastGaussQuadrature, GSL, SpecialFunctions, Printf,
         ..AngularMomentum, ..Basics, ..Continuum, ..Defaults, ..InteractionStrength, ..ManyElectron, 
         ..Nuclear, ..Radial, ..SpinAngular, ..TableStrings, ..RadialIntegrals
-                
+
+## Relative change of sum |amplitude|^2 contributed by the last partial wave, below which the kappa summation
+## counts as converged. Used BOTH to terminate that summation in computeAmplitudesProperties() and to flag the
+## lines that never reached it in displayResults() -- the two must not be allowed to drift apart.
+const convergenceCriterion = 1.0e-5
+
+
 
 """
 `struct  ImpactExcitation.RateCoefficients`     ... Defines a type for the output results from excitation rate or
@@ -294,15 +300,15 @@ end
 
 
 """
-`ImpactExcitation.computeAmplitudesProperties(line::ImpactExcitation.Line, nm::Nuclear.Model, grid::Radial.Grid, 
-                                                settings::ImpactExcitation.Settings; printout::Bool=true)`  
-    ... to compute all amplitudes and properties of the given line; a line::ImpactExcitation.Line is returned for which 
+`ImpactExcitation.computeAmplitudesProperties(line::ImpactExcitation.Line, nm::Nuclear.Model, grid::Radial.Grid,
+                                                nrContinuum::Int64, settings::ImpactExcitation.Settings; printout::Bool=true)`
+    ... to compute all amplitudes and properties of the given line; a line::ImpactExcitation.Line is returned for which
     the amplitudes and properties are now evaluated.
 """
-function  computeAmplitudesProperties(line::ImpactExcitation.Line, nm::Nuclear.Model, grid::Radial.Grid, 
-                                        settings::ImpactExcitation.Settings; printout::Bool=true)
-    newChannels = ImpactExcitation.Channel[];   
-    contSettings = Continuum.Settings(false, grid.NoPoints-5);   cross = 0.;   coll = 0.; convergence = 1.
+function  computeAmplitudesProperties(line::ImpactExcitation.Line, nm::Nuclear.Model, grid::Radial.Grid,
+                                        nrContinuum::Int64, settings::ImpactExcitation.Settings; printout::Bool=true)
+    newChannels = ImpactExcitation.Channel[];
+    contSettings = Continuum.Settings(false, nrContinuum);   cross = 0.;   coll = 0.; convergence = 1.
     conv = 0.; conv0 = 0. ; n = 0
     
     # Define a common subshell list for both multiplets
@@ -378,7 +384,7 @@ function  computeAmplitudesProperties(line::ImpactExcitation.Line, nm::Nuclear.M
         
         # Checking convergence
         convergence = abs(conv - conv0)/conv
-        if convergence < 1e-5 
+        if convergence < convergenceCriterion
             printstyled("\nConvergence Achieved "; bold=true, underline=true, color=:light_red); 
             if n == 5 
                 printstyled("\nConvergence Achieved "; bold=true, underline=true, color=:light_red); break
@@ -425,13 +431,20 @@ function  computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, n
     lines = ImpactExcitation.determineLines(finalMultiplet, initialMultiplet, settings)
     # Display all selected lines before the computations start
     if  settings.printBefore    ImpactExcitation.displayLines(lines)    end
+    ## Determine the maximum (continuum) electron energy and check the grid for consistency with it. This module used to
+    ## skip this check -- alone among the continuum-based process modules -- and to normalize at grid.NoPoints-5 instead
+    ## of the nrContinuum returned here. Both were wrong: an under-resolved continuum orbital does not fail loudly, it
+    ## returns cross sections that drift by tens of percent and then diverge by 30+ orders of magnitude once the grid can
+    ## no longer represent the oscillation. Continuum.gridConsistency() refuses such a grid up front and says why.
+    maxEnergy = 0.;   for  line in lines   maxEnergy = max(maxEnergy, line.initialElectronEnergy)   end
+    nrContinuum = Continuum.gridConsistency(maxEnergy, grid)
     # Calculate all amplitudes and requested properties
     if  Distributed.nprocs() > 1
-        newLines = Distributed.pmap(line -> ImpactExcitation.computeAmplitudesProperties(line, nm, grid, settings), lines)
+        newLines = Distributed.pmap(line -> ImpactExcitation.computeAmplitudesProperties(line, nm, grid, nrContinuum, settings), lines)
     else
         newLines = Vector{ImpactExcitation.Line}(undef, length(lines))
         Threads.@threads for l in eachindex(lines)
-            newLines[l] = ImpactExcitation.computeAmplitudesProperties(lines[l], nm, grid, settings)
+            newLines[l] = ImpactExcitation.computeAmplitudesProperties(lines[l], nm, grid, nrContinuum, settings)
         end
     end
     # Print all results to screen
@@ -804,9 +817,30 @@ function  displayResults(lines::Array{ImpactExcitation.Line,1})
         sa = sa * @sprintf("%.6e", Defaults.convertUnits("cross section: from atomic", line.crossSection)*1e-8)    * "        "
         sa = sa * @sprintf("%.6e", line.collisionStrength)                                                    * "          "
         sa = sa * @sprintf("%.2e", line.convergence)                                                          * "    "
+        if  line.convergence > convergenceCriterion   sa = sa * "<== NOT CONVERGED"   end
         println(sa)
     end
     println("  ", TableStrings.hLine(nx))
+    #
+    ## Say so explicitly if the partial-wave sum was still growing when it ran into settings.maxKappa. Unlike a
+    ## too-coarse grid -- which Continuum.gridConsistency() now refuses outright -- this failure is silent: the
+    ## collision strength simply comes out too SMALL, while remaining smooth and entirely plausible-looking.
+    nNotConverged = count(line -> line.convergence > convergenceCriterion, lines)
+    if  nNotConverged > 0
+        println("")
+        printstyled(">>> WARNING: $nNotConverged of $(length(lines)) lines did NOT reach the partial-wave " *
+                    "convergence criterion ($convergenceCriterion).\n", color=:light_red)
+        println("    The `convergence` column is the relative change of sum |amplitude|^2 contributed by the last ")
+        println("    partial wave. A value above the criterion means the sum over kappa was still growing when it ")
+        println("    hit settings.maxKappa, so the collision strengths of the flagged lines are too SMALL -- by an ")
+        println("    amount this computation cannot bound. Nothing else signals this: the numbers stay smooth and ")
+        println("    look entirely plausible. For a dipole-allowed transition the tell-tale symptom is that Omega ")
+        println("    stops growing like ln(E) and flattens or even turns over at the upper end of the energy range.")
+        println("    The requirement grows with impact energy, because the Bethe logarithm is built from large ")
+        println("    impact parameters b ~ kappa/k, i.e. precisely from the highest partial waves.")
+        printstyled("    >>> Increase settings.maxKappa and re-run.\n", color=:light_red)
+        println("")
+    end
     #
     return( nothing )
 end

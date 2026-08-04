@@ -360,12 +360,35 @@ function gridConsistency(maxEnergy::Float64, grid::Radial.Grid)
     wavelgth    = 2pi / wavenb
     nrContinuum = grid.NoPoints - 200
     
-    if      grid.hp == 0.               error("Improper grid for continuum processes with grid.hp = 0.")
-    elseif  15 * grid.hp > wavelgth     error("Improper grid for continuum processes with 15*grid.hp = $(15*grid.hp) > " *
-                                                "wavelength = $wavelgth .")
-    elseif  grid.NoPoints < 600               error("Improper No of grid points for continuum processes; grid.NoPoints = $(grid.NoPoints).")
-    elseif  grid.r[nrContinuum] < 2.0   error("Improper grid extent for continuum processes; grid.r[nrContinuum] = " *
-                                                "$(grid.r[nrContinuum]) < 2.")
+    ptsPerOsc = wavelgth / grid.hp
+    #
+    if      grid.hp == 0.
+        error("\n\nContinuum.gridConsistency():  STOP -- this grid has grid.hp = 0. and therefore no asymptotic region " *
+                "with a constant step size.\n" *
+                "A continuum orbital oscillates out to the box boundary and cannot be represented on such a grid.\n" *
+                ">>> Build the grid with an explicit hp, e.g.  Radial.Grid(Radial.Grid(true), rnt=4.0e-6, h=5.0e-2, " *
+                "hp=2.5e-2, rbox=30.0).\n")
+    elseif  15 * grid.hp > wavelgth
+        error("\n\nContinuum.gridConsistency():  STOP -- the radial grid is too coarse for the requested continuum energy.\n" *
+                @sprintf("    continuum energy         = %.6e  Hartree\n", maxEnergy) *
+                @sprintf("    de Broglie wavelength    = %.6e  a.u.\n",    wavelgth)  *
+                @sprintf("    asymptotic step grid.hp  = %.6e  a.u.\n",    grid.hp)   *
+                @sprintf("    points per oscillation   = %.2f      (a minimum of 15 is required)\n", ptsPerOsc) *
+                "The continuum orbital would be sampled too sparsely to resolve its own oscillation. This does NOT fail " *
+                "loudly by itself:\ncross sections first drift by tens of percent while still looking entirely plausible, " *
+                "and then diverge by many orders of\nmagnitude once the grid can no longer follow the phase at all. " *
+                "The computation is therefore stopped here rather than\nreturning numbers that cannot be trusted.\n" *
+                @sprintf(">>> Reduce grid.hp to at most %.3e a.u., or lower the highest continuum energy.\n", wavelgth/15)  )
+    elseif  grid.NoPoints < 600
+        error("\n\nContinuum.gridConsistency():  STOP -- too few grid points for continuum processes; " *
+                "grid.NoPoints = $(grid.NoPoints) < 600.\n" *
+                "The normalization and phase of the continuum orbital are determined near the outer boundary and need a " *
+                "well-resolved\nasymptotic region.\n>>> Enlarge the grid (smaller h/hp, or a larger rbox).\n")
+    elseif  grid.r[nrContinuum] < 2.0
+        error("\n\nContinuum.gridConsistency():  STOP -- the grid does not extend far enough for continuum processes; " *
+                @sprintf("grid.r[nrContinuum] = %.4e < 2.\n", grid.r[nrContinuum]) *
+                "The normalization point (grid.NoPoints-200) still lies inside the atomic core region, where the orbital " *
+                "has not yet\nreached its asymptotic form.\n>>> Enlarge rbox.\n")
     end
     
     return( nrContinuum )
