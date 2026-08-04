@@ -75,7 +75,15 @@ function collisionalRadiativeLevelFingerprint(scheme::Plasma.CollisionalRadiativ
         "asf_eeInteractionCI" => string(typeof(asf.eeInteractionCI)),
         "asf_qedModel"        => string(typeof(asf.qedModel)),
         "asf_accuracyScf"     => asf.accuracyScf,
-        "asf_maxIterationsScf" => asf.maxIterationsScf )
+        "asf_maxIterationsScf" => asf.maxIterationsScf,
+        # Version tag for the level-generation ALGORITHM itself, which no settings-derived key can capture:
+        # the settings can be identical while the code that turns them into levels has changed, in which case
+        # every key above matches and a stale cache is silently reused -- the fix then looks like a no-op.
+        # This bit us once: until 04-Aug-2026 Hamiltonian.performCIwithFrozenOrbitals ignored eeInteractionCI
+        # and returned single-CSF levels, so "asf_eeInteractionCI" read CoulombInteraction both before and
+        # after the fix. BUMP THIS STRING whenever generateCollisionalRadiativeLevels changes how it builds
+        # levels; that invalidates every existing cache file, which is exactly what should happen.
+        "generationMethod"    => "performCI-with-frozen-orbitals-2026-08-04" )
 end
 
 

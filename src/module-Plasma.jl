@@ -300,10 +300,14 @@ end
     + peSettings        ::PhotoEmission.Settings
         ... controls the radiative decay (A-value) rates between levels.
     + aiSettings        ::AutoIonization.Settings
-        ... controls the competing autoionization (electron-ejecting) decay for any generated level that
-            turns out to lie energetically above the next charge state's threshold -- a real possibility
-            once NoExcitations/upperShellNo reach far enough up in energy, and needed so such a level's
-            true (reduced) radiative contribution is used rather than assumed purely radiative.
+        ... RESERVED, CURRENTLY UNUSED (verified 04-Aug-2026): this field is accepted and stored, but the
+            driver never reads it and NO autoionization is computed -- every generated level is treated as
+            purely bound (radiative + collisional only), as the @warn in Plasma.perform states. Setting it
+            therefore changes nothing today. It is kept because the competing autoionization (electron-
+            ejecting) decay is genuinely needed for any generated level that lies above the next charge
+            state's ionization threshold -- a real possibility once NoExcitations/upperShellNo reach far
+            enough up in energy, and the reason example-Je.jl branch b (boron-like Ne5+) cannot be trusted
+            for its inner-shell block, which sits ~720 eV above threshold.
     + levelsFilenames   ::Array{String,1}
         ... candidate files (tried in order) that may contain a previously-generated, still-matching level
             set; [] (the default) means always regenerate. A fresh file is auto-written (name printed to
