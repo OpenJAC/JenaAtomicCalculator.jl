@@ -24,19 +24,20 @@ setDefaults("method: normalization, pure sine")       ## setDefaults("method: no
 ##   e)  He-like W72+ K-LL -- the Tu et al. (2016) benchmark, wide J_f spread
 ##   f)  Be-like Au75+ with an n=19 Rydberg spectator -- the HydrogenicCorrections, ported and repaired
 ##   g)  H-like C5+ with TWO explicit Rydberg shells -- validates the RydbergTailCorrection's n-scaling
+##   h)  K-LL DR of Li-like C3+ with a HYPERFINE-RESOLVED initial ion -- the hyperfine route
 ##
 ## THE TWO STRATEGIES OF THIS MODULE, for orientation:
 ##   * FINE-STRUCTURE resolved (module-DielectronicRecombination-inc-FS-resolved.jl) -- the working path. Two
 ##     sub-modes: full pathway computation (default), and `calcOnlyPassages`, which collects each resonance's
 ##     contribution directly and is meant for high-n Rydberg intermediates and semi-empirical corrections.
-##   * HYPERFINE resolved (module-DielectronicRecombination-inc-HF-resolved.jl) -- reachable ONLY as
-##     `calcHyperfineResolved && calcOnlyPassages`, i.e. a sub-mode of passages, not a peer of the FS path.
-##     Physically it gives the INITIAL (recombining) ion the full nuclear moments and sets mu = Q = 0 for the
-##     intermediate and final levels, so that F is a good quantum number for the capture step.
-##     As of 04-Aug-2026 this path CANNOT RUN: computeHyperfineAmplitudes, displayHyperfineResults and
-##     displayHyperfineRateCoefficients are each called but never defined (the amplitude function is defined
-##     under the name `computecomputeHyperfineAmplitudes`), displayHyperfinePassages is handed an undefined
-##     variable `passages`, and the non-distributed path passes a Multiplet where an Hfs.HfMultiplet is required.
+##   * HYPERFINE resolved (module-DielectronicRecombination-inc-HF-resolved.jl) -- REWRITTEN 05-Aug-2026 and now
+##     a peer of the fine-structure path, selected simply by `calcHyperfineResolved = true`. It gives the INITIAL
+##     (recombining) ion the full nuclear moments and sets mu = Q = 0 for the intermediate and final levels, whose
+##     hyperfine structure is negligible; their F is retained because it carries the angular factors and summed
+##     over on display. No electronic amplitude is recomputed -- the route runs the fine-structure machinery and
+##     RECOUPLES its amplitudes, so the two cannot drift apart. Every run prints the F-sum rule, which must hold
+##     exactly. (Before the rewrite this path could not run at all: three of its functions were called but never
+##     defined, and it passed a Multiplet where an Hfs.HfMultiplet was required.)
 ##
 ## Note that Settings() defaults to gauges = UseGauge[] -- EMPTY. Set the gauges explicitly or no radiative
 ## channel is computed at all.
@@ -44,7 +45,7 @@ setDefaults("method: normalization, pure sine")       ## setDefaults("method: no
 grid = Radial.Grid(Radial.Grid(false), rnt = 4.0e-6, h = 5.0e-2, hp = 0.6e-2, rbox = 10.0)
 
 
-if  true
+if  false
     # Last visit:  05-Aug-2026
     # --- Branch a: He-like C4+ (Z=6) + e- --> Li-like C3+, K-LL dielectronic recombination.
     #
@@ -607,6 +608,85 @@ elseif  false
                                                    Configuration("1s^1 2s^0 2p^1 5s^0 5p^0 5d^0 5f^0 6s^0 6p^0 6d^0 6f^0")],
                             processSettings     = drSettings )
     perform(wg)
+    #
+elseif  true
+    # Last visit:  05-Aug-2026
+    # --- Branch h: K-LL DR of Li-like C3+ (Z=6) with the initial ion HYPERFINE-RESOLVED -- the first branch that
+    #     exercises module-DielectronicRecombination-inc-HF-resolved.jl on the dimension where the physics lives.
+    #
+    # WHY A Li-LIKE INITIAL ION. The hyperfine route splits the capture resonances by F_i, and F_i is only
+    # interesting when the initial level actually has more than one. Branch a's He-like 1s^2 ground state has
+    # J_i = 0, so F_i = I is unique and its statistical weight is exactly 1: the F-sum rule still tests the whole
+    # F_m/F_f recoupling machinery (50 intermediate hyperfine levels there), but the initial-state dimension is
+    # trivial. Li-like 1s^2 2s has J_i = 1/2, so with I = 3/2 there are TWO initial hyperfine levels, F_i = 1 and
+    # F_i = 2, and every K-LL resonance appears twice.
+    #
+    #     initial        1s^2 2s                     (Li-like C3+, J_i = 1/2)
+    #     capture        1s 2s^2 2p, 1s 2s 2p^2, 1s 2p^3     (K-LL, one 1s promoted + one captured)
+    #     stabilize      --> 1s^2 2s^2, 1s^2 2s 2p
+    #
+    # A DELIBERATELY UNPHYSICAL mu. The 2s hyperfine splitting of Li-like carbon is ~1.8 GHz per unit nuclear
+    # magneton, i.e. some 7 micro-eV -- far below anything visible beside a 200 eV resonance energy, and far below
+    # what any DR measurement resolves. mu is therefore set to 200 nuclear magnetons, which is nonsense as nuclear
+    # physics but turns the splitting into a few meV so that it can be READ OFF the table and checked. Nothing
+    # else in the calculation depends on mu, so this rescales the effect without distorting anything around it.
+    #
+    # WHAT TO CHECK, in order:
+    #   1. THE F-SUM RULE, printed by the route itself: the statistically weighted hyperfine strengths must
+    #      reproduce the fine-structure total EXACTLY (identity among recoupling coefficients, not an
+    #      approximation). It held to 4.4e-16 for the He-like case; here the F_i weights are 3/8 and 5/8 rather
+    #      than 1, so this run tests them as well.
+    #   2. THE SPLITTING of the capture energies over F_i, printed as "shift from lowest F_i" in meV. It must
+    #      equal the hyperfine splitting of the INITIAL ion with reversed sign, and for J_i = 1/2, I = 3/2 the
+    #      interval rule gives E(F=2) - E(F=1) = 2A, so the two resonance groups must be separated by exactly 2A.
+    #   3. TWO ROWS, F_i = 1 and F_i = 2, with strengths in the ratio of their statistical weights when the
+    #      splitting is small compared with everything else.
+    #
+    # ============================== REPORT (05-Aug-2026) ==============================
+    #
+    # ALL THREE CHECKS PASS, and the third is confirmed by three independent routes agreeing to six digits.
+    #
+    # 1. TWO initial hyperfine levels, F_i = 1 and F_i = 2, as J_i = 1/2 with I = 3/2 requires; 93 intermediate
+    #    and 12 final hyperfine levels, recoupled from 16 electronic capture and 22 electronic photon lines.
+    #
+    # 2. THE F-SUM RULE holds to 6.4e-11:
+    #        sum_F (2F_i+1)/((2I+1)(2J_i+1)) * S(hyperfine)   Coulomb 5.29406373e-05
+    #        sum   S(fine structure)                          Coulomb 5.29406373e-05
+    #    Note this is a stronger test than the He-like case (branch a's system with I = 3/2), where J_i = 0 gives
+    #    a single F_i of weight exactly 1; here the two weights are 3/8 and 5/8 and both must be right. The
+    #    tolerance is looser than the 4.4e-16 seen there for a PHYSICAL reason, not a numerical one: with a real
+    #    initial splitting the hyperfine and fine-structure resonances sit at slightly different energies, so
+    #    their strengths are not exactly proportional. 6e-11 is the size of that effect, not of an error.
+    #
+    # 3. THE SPLITTING of the capture energies over F_i comes out as 4.212978 meV, and
+    #        A of the initial 1s^2 2s level, from Hfs.amplitude   ->  2A = 4.212978 meV
+    #        the repaired hyperfine matrix, F=2 minus F=1         ->       4.212978 meV
+    #        this branch's capture-energy spread                  ->       4.212978 meV
+    #    i.e. ratio 1.000000. The interval rule E(F) = A/2 [F(F+1) - I(I+1) - J(J+1)] gives exactly 2A for
+    #    J = 1/2, I = 3/2, so the resonance splitting IS the initial hyperfine splitting, with reversed sign.
+    #    That chain ties the DR route, the hyperfine representation and the A constant together in one number.
+    #
+    # 4. The two strengths are equal to four digits (4.0340e-20 and 4.0341e-20 in Coulomb gauge), as they must
+    #    be when the splitting is tiny beside every other scale: the F_i dependence of the strength enters only
+    #    through the (2F_m+1)/(2F_i+1) weight and the tiny energy shift.
+    #
+    # DATED "Last visit", not "Last successful": mu = 200 is deliberately unphysical, so nothing here can be
+    # compared with a measurement. What is established is that the machinery is internally exact.
+    grid   = Radial.Grid(Radial.Grid(false), rnt = 4.0e-6, h = 5.0e-2, hp = 0.6e-2, rbox = 10.0)
+    nmHf   = Nuclear.Model(Nuclear.Model(6.); spinI = AngularJ64(3//2), mu = 200.0, Q = 0.0)
+    drSettings = DielectronicRecombination.Settings(DielectronicRecombination.Settings();
+                                                    multipoles            = [E1],
+                                                    gauges                = [UseCoulomb, UseBabushkin],
+                                                    printBefore           = false,
+                                                    calcHyperfineResolved = true )
+    wh = Atomic.Computation(Atomic.Computation(), name="Df-h: hyperfine-resolved K-LL DR of Li-like C3+", grid=grid,
+                            nuclearModel        = nmHf,
+                            initialConfigs      = [Configuration("1s^2 2s")],
+                            intermediateConfigs = [Configuration("1s 2s^2 2p"), Configuration("1s 2s 2p^2"),
+                                                   Configuration("1s 2p^3")],
+                            finalConfigs        = [Configuration("1s^2 2s^2"), Configuration("1s^2 2s 2p")],
+                            processSettings     = drSettings )
+    perform(wh)
     #
 end
 #

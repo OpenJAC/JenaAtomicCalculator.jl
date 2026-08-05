@@ -7,6 +7,7 @@ using JenaAtomicCalculator, ..Defaults, ..TestFrames
 
     @testset "JAC methods" begin
         @test TestFrames.testMethod_Wigner_3j()
+        @test TestFrames.testMethod_HydrogenicRates()
     end
 
     @testset "JAC structs" begin

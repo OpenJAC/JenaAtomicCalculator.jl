@@ -102,10 +102,19 @@ function Basics.perform(computation::Atomic.Computation; output::Bool=false)
         elseif  typeof(computation.processSettings) == DoubleAutoIonization.Settings   
             outcome = DoubleAutoIonization.computeLines(finalMultiplet, initialMultiplet, nModel, computation.grid, computation.processSettings) 
             if output    results = Base.merge( results, Dict("Double-Auger lines:" => outcome) )                    end
-        elseif  typeof(computation.processSettings) == DielectronicRecombination.Settings 
-            outcome = DielectronicRecombination.computeCaptureLines(finalMultiplet, intermediateMultiplet, initialMultiplet, nModel,
-                                                                    computation.grid, computation.processSettings)
-            if output    results = Base.merge( results, Dict("dielectronic recombination lines:" => outcome) )   end
+        elseif  typeof(computation.processSettings) == DielectronicRecombination.Settings
+            ## settings.calcHyperfineResolved selects the hyperfine-resolved route, which builds the hyperfine
+            ## multiplets itself from these same three ELECTRONIC multiplets and recouples the electronic
+            ## amplitudes; it is a strict analogue of the fine-structure one and needs no separate entry.
+            if  computation.processSettings.calcHyperfineResolved
+                outcome = DielectronicRecombination.computeHfCaptureLines(finalMultiplet, intermediateMultiplet, initialMultiplet,
+                                                                          nModel, computation.grid, computation.processSettings)
+                if output    results = Base.merge( results, Dict("hyperfine-resolved dielectronic recombination lines:" => outcome) )   end
+            else
+                outcome = DielectronicRecombination.computeCaptureLines(finalMultiplet, intermediateMultiplet, initialMultiplet, nModel,
+                                                                        computation.grid, computation.processSettings)
+                if output    results = Base.merge( results, Dict("dielectronic recombination lines:" => outcome) )   end
+            end
         elseif  typeof(computation.processSettings) == MultiPhotonDeExcitation.Settings
             outcome = MultiPhotonDeExcitation.computeLines(computation.processSettings.process,
                                                             finalMultiplet, initialMultiplet, computation.grid, computation.processSettings) 

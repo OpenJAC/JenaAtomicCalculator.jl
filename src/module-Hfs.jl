@@ -2,42 +2,37 @@
 """
 `module  JAC.Hfs`  
     ... a submodel of JAC that contains all methods for computing HFS A, B and C coefficients, hyperfine-level representations, etc.
-        We apply IJF-coupling throughout in this module and within JAC. While the hyperfine-interaction usually acts between 
-        electronic (CSF) basis states or, more accurately, between IJF-coupled basis vectors, all hyperfine representations
-        usually refer to the product basis of nuclear + electronic states/levels in order to keep the number of hyperfine 
-        levels moderate.
-        
-        This (clear) distinctions between a purely IJF-coupled basis and the use of hyperfine levels and multiplets in 
-        different applications makes it necessary to implement the following data types:
-        
-        + IJF_Vector = IJF_Vector(F, parity, isomer::Nuclear.Isomer, csf::CsfR, basisJ::Basis)
-          ... such a vector describes a tensor product state nuclear + electronic (state) and is appropriate to form 
-              a basis for evaluating hyperfine-interaction amplitudes. The basisJ need to be provided to have full
-              access to the definition of the electronic csfR but does not belong to the definition.
-                  
-        + IJF_Basis  = Vector{IJF_Vector}  ... Such a basis occurs in the evaluation of the hyperfine (Hamiltonian) interaction
-              matrix but does not need an own data structure.
-        
-        + HfBasisVector = HfBasisVector(F, parity, isomer, LevelJ)  ... This data structure enables one to think
-              and deal with hyperfine levels as associated with a well-define isomeric state and electronic level J.
-              
-        + HfBasis = Vector{HfBasisVector}  ... Such a basis occurs in the evaluation of physical interaction 
-              matrix elements between hyperfine levels but does not need an own data structure.
-              
-        + HfLevel = HfLevel(F, parity, hfBasis::Vector{HfBasisVector}, mc::Vector{Float64})
-          ... A hyperfine level is the pendant to a (electronic) Level/state, if hyperfine-resolved transitions are considered.
-              Each hyperfine level has a representation mc that refers to the hfBasis, and which contains all information
-              about the representation of the underlying nuclear and electronic basis states. The electronic basis is formed
-              by a selected set of ASF, typically taken from some (electronic) multiplet. In contrast to a pure (electronic)
-              CSF basis, the use of ASF simplifies the interpretation of physical findings but cannot reduce the computational 
-              effort (perhaps, even slightly increase the computational effort. This would need to analyzed deeper within
-              the Julia machinery). Formally, the computational effort should be equivalent.
-              
-        + HfMultiplet = HfMultiplet(name::String, hfLevels::Vector{HfLevel}) ... this is the pendant to an 
-              (electronic) multiplet and enables one to proceed with hyperfine-induced/hyperfine-resolved transitions
-              completely analogue as for the electronic transitions themselves. All what is needed to do is to account for 
-              the representation (mixing coefficients) of the associated hyperfine levels as well as the matrix elements
-              for the nuclear (isomeric) states and those for the associated ASF.
+        Hyperfine coupling is expressed throughout as F = I + J, i.e. the nucleus is coupled to a finished electronic
+        ASF (Level) rather than to individual CSF. Working with ASF keeps the number of hyperfine levels moderate and
+        makes the results directly interpretable; the computational effort is formally equivalent.
+
+        THE CHAIN OF DATA TYPES, from the nucleus up to a hyperfine multiplet (simplified 05-Aug-2026):
+
+        + Nuclear.Isomer ... one specific nuclear state (spinI, parity, energy, mu, Q, ...), assembled from a
+              Nuclear.Model. Setting mu = Q = 0 makes the hyperfine Hamiltonian vanish identically, which is the
+              device used to switch hyperfine structure off for levels where it is negligible.
+
+        + HfBasisVector = HfBasisVector(F, parity, isomer, levelJ)  ... ONE coupled basis vector,
+              |(I J) F M> = sum <I M_I  J M_J | F M> |I M_I> |J M_J>. Note that the Clebsch-Gordan coupling is
+              already contained here: a basis vector IS the coupled product state, not a pair of factors.
+
+        + a BASIS is simply an Array{HfBasisVector,1}. There is deliberately NO separate type for it. (Code that
+              called a non-existent `HfBasis(...)` constructor was one of the reasons defineHyperfineBasis could
+              never run before 05-Aug-2026.)
+
+        + HfLevel = HfLevel(F, M, parity, energy, hfBasisVectors, mc)
+          ... one physical hyperfine level, = sum_k mc[k] * hfBasisVectors[k]. The mixing coefficients mc are the
+              eigenvector of the hyperfine Hamiltonian in that coupled basis, i.e. they describe J-MIXING among
+              vectors of equal F -- they are NOT Clebsch-Gordan coefficients, which sit inside each basis vector.
+              mc = [.. 1.0 ..] therefore means a pure |(I J) F>, which is what mu = Q = 0 produces automatically.
+
+        + HfMultiplet = HfMultiplet(name, hfLevels) ... the pendant to an electronic Multiplet, so that
+              hyperfine-resolved transitions can be treated completely analogously to the electronic ones. What is
+              needed in addition is only the recoupling of the electronic reduced matrix elements; see
+              Hfs.reducedMeElectronic, whose header explains the normalization that must be used for that.
+
+        Build one with Hfs.computeHyperfineMultiplet(multiplet, nm, grid, settings), which chains
+        Hfs.defineHyperfineBasis and Hfs.computeHyperfineRepresentation.
 """
 module Hfs
 
@@ -55,46 +50,11 @@ struct  HfEnergiesRelative  end   ## tabulate hyperfine level energies relative 
 #################################################################################################################################
 #################################################################################################################################
 
-"""
-`struct  Hfs.IJF_Vector`  ... defines a type for a IJF-coupled basis vector, here based on an ASF. Following IJF-coupling,
-    an IJF basis vector is always the (tensor) product state of an isomeric state x electronic state. IJF-coupled basis 
-    vector are needed and obtained from the diagonalization of the (electronic) HFS Hamiltonian within a given CSF basis.
-
-    + F         ::AngularJ64        ... Total angular momentum F
-    + parity    ::Parity            ... Total parity of the basis vector = nuclear x electronic parity.
-    + isomer    ::Nuclear.Isomer    ... Isomeric state of the nucleus.
-    + csf       ::ManyElectron.CsfR ... Electronic CSF state.
-    + basisJ    ::Basis             ... Electronic CSF basis to which the csf refer to.
-    
-    There is no need to introduce a type IJF_Basis since such a ijfBasis = Hfs.IJF_Vector[...] can be readily formed at all 
-    occurrences. 
-
-"""
-struct IJF_Vector
-    F           ::AngularJ64
-    parity      ::Parity
-    isomer      ::Nuclear.Isomer
-    csf         ::ManyElectron.CsfR 
-    basisJ      ::Basis 
-end 
-
-
-"""
-`Hfs.IJF_Vector()`  ... constructor for an `empty` instance of IJF_Vector.
-"""
-function IJF_Vector()
-    IJF_Vector(AngularJ64(0), Basics.plus, Nuclear.Isomer(), CsfR("[He]"), Basis())
-end
-
-
-# `Base.show(io::IO, ijfVector::Hfs.IJF_Vector)`  ... prepares a proper printout of the variable ijfVector.
-function Base.show(io::IO, ijfVector::Hfs.IJF_Vector) 
-    println(io, "F:           $(ijfVector.F)  ")
-    println(io, "parity:      $(ijfVector.parity)  ")
-    println(io, "isomer:      $(ijfVector.isomer)  ")
-    println(io, "csf:         $(ijfVector.csf)  ")
-    println(io, "basisJ:      $(ijfVector.basisJ)  ")
-end
+## RETIRED 05-Aug-2026: Hfs.IJF_Vector, the CSF-based coupled basis vector (F, parity, isomer, csf, basisJ).
+## It was never constructed with content anywhere in src/ -- only its empty constructor existed -- and the job it
+## was meant for, the hyperfine interaction inside a CSF basis, is done directly by Hfs.computeInteractionMatrix.
+## Having two similarly-named coupled basis types in one module was itself a defect: defineHyperfineBasis reached
+## for this one when it needed the ASF-based HfBasisVector, which is one reason it could never run.
 
 
 """
@@ -109,7 +69,6 @@ end
     + LevelJ    ::Basis             ... Electronic level that is part of the electronic basis.
     
     There is no need to introduce a type HfBasis since such a hfBasis = Hfs.HfBasisVector[...] can be readily formed at all 
-    occurrences. The IJF_Vector's and     HfBasisVector's have different advantages.
 
 """
 struct HfBasisVector
@@ -142,7 +101,7 @@ end
     ASF states; the HfLevel is the pendant to a (electronic) Level/state, if hyperfine-resolved transitions are considered.
     Each hyperfine level has a representation mc that refers to the hfBasis, and which contains all information about the 
     representation of the underlying nuclear and electronic basis states. The electronic basis is formed by a selected set 
-    of ASF, typically taken from some (electronic) multiplet. In contrast to a pure (electronic) IJF_Basis, the use of 
+    of ASF, typically taken from some (electronic) multiplet. In contrast to a pure (electronic) CSF basis, the use of 
     ASF simplifies the interpretation of physical findings but cannot reduce the computational effort (perhaps, even results
     in slightly increase the computational effort). A HfLevel is defined by:
 
@@ -150,8 +109,8 @@ end
     + M              ::AngularM64               ... Total projection M, only defined if a particular magnetic sublevel is referred to.
     + parity         ::Parity                   ... Parity of the level which corresponds to the electronic system.
     + energy         ::Float64                  ... energy
-    + hfBbasis       ::Array{HfBasisVector,1}   ... the product basis nuclear (isomeric) state x selected ASF.
-    + mc             ::Vector{Float64}          ... Vector of mixing coefficients w.r.t hfBasis.
+    + hfBasisVectors ::Array{HfBasisVector,1}   ... the product basis nuclear (isomeric) state x selected ASF.
+    + mc             ::Vector{Float64}          ... Vector of mixing coefficients w.r.t hfBasisVectors.
     
     
 """
@@ -160,7 +119,7 @@ struct HfLevel
     M                ::AngularM64
     parity           ::Parity
     energy           ::Float64
-    hfBbasis         ::Array{HfBasisVector,1}
+    hfBasisVectors   ::Array{HfBasisVector,1}
     mc               ::Vector{Float64}
 end 
 
@@ -460,8 +419,16 @@ end
 
 """
 `Hfs.amplitude(mp::EmMultipole, rLevel::Level, sLevel::Level, grid::Radial.Grid; printout::Bool=true)`
-    ... to compute the T^(M1), T^(E2) or T^(M3) hyperfine amplitude <alpha_r J_r || T^(mp) || alpha_s J_s>
-        for a given pair of levels. A value::ComplexF64 is returned.
+    ... to compute the T^(M1), T^(E2) or T^(M3) hyperfine amplitude for a given pair of levels.
+        A value::ComplexF64 is returned.
+
+        CONVENTION -- read this before using the result in a recoupling formula (clarified 05-Aug-2026). What is
+        returned is the "GRASP-like" amplitude, i.e. <alpha_r J_r || T^(mp) || alpha_s J_s> / sqrt(2J_r+1), and NOT
+        the reduced matrix element in the standard Wigner-Eckart normalization. That is exactly what the A, B and C
+        constants formed in computeAmplitudesProperties expect -- A*I/mu = amplitude/sqrt(J(J+1)), verified against
+        the measured A(H 1s) to 0.06% -- but it is NOT what a Wigner-6j expression expects. Use
+        Hfs.reducedMeElectronic for the latter; building a 6-j directly on this function is what left
+        computeHyperfineRepresentation too small by sqrt(2J+1) until 05-Aug-2026.
 
         Note (26-Jul-2026): coeff.T, for rank>0 one-particle operators, is returned by
         SpinAngular.computeCoefficientsNonScalar already in "GRASP-like" convention, i.e. with an internal
@@ -510,7 +477,43 @@ end
 
 
 """
-`Hfs.computeInteractionAmplitudeM(mp::EmMultipole, leftIsomer::Nuclear.Isomer, rightIsomer::Nuclear.Isomer)` 
+`Hfs.reducedMeElectronic(mp::EmMultipole, rLevel::Level, sLevel::Level, grid::Radial.Grid)`
+    ... to return the electronic reduced matrix element <alpha_r J_r || T^(mp) || alpha_s J_s> in the STANDARD
+        (Wigner-Eckart) normalization, i.e. the quantity that may be inserted directly into a Wigner-6j recoupling
+        expression. A value::ComplexF64 is returned.
+
+        WHY THIS EXISTS (05-Aug-2026). Hfs.amplitude does NOT return that quantity, despite what its own header
+        line says: it returns the reduced element divided by sqrt(2J+1), the "GRASP-like" normalization. The two
+        differ by a factor that is invisible in every place where the same convention is used on both sides, and
+        fatal in any place that mixes them -- as Hfs.computeHyperfineRepresentation did, building a 6-j expression
+        directly out of Hfs.amplitude and coming out too small by exactly sqrt(2J+1).
+
+        HOW THIS WAS SETTLED, since the two candidate conventions cannot both be right: A(H 1s) computed in the
+        BARE NUCLEAR potential -- NuclearField(), not a DFS field, whose self-interaction on a one-electron system
+        puts the 1s orbital at -0.194 instead of -0.5 a.u. and invalidates the benchmark entirely -- gives
+        1421.21 MHz against the measured 1420.406 MHz, a ratio of 1.00057, using computeAmplitudesProperties'
+        formula A*I/mu = amplitude/sqrt(J(J+1)). Inserting a further sqrt(2J+1) would give 1004.9 MHz, i.e. 29%
+        low. So the A/B/C constants are right as they stand and it is the recoupling side that needed the factor.
+
+        Note that A*I/mu = amplitude/sqrt(J(J+1)) and A*I/mu = <J||T^1||J>/sqrt(J(J+1)(2J+1)) are the SAME
+        statement once <J||T^1||J> = amplitude*sqrt(2J+1); computeAmplitudesProperties therefore needs no change,
+        and none was made. This function only makes the convention explicit so that the next caller who needs a
+        genuine reduced matrix element does not have to rediscover it.
+
+        For J_r != J_s the factor is taken as the symmetric ((2J_r+1)(2J_s+1))^(1/4), which reduces to sqrt(2J+1)
+        on the diagonal and keeps the hyperfine matrix symmetric. The diagonal is what the H(1s) benchmark pins
+        down; the off-diagonal convention is not separately verified here, and matters only through J-mixing,
+        which is of order 1e-5 whenever the hyperfine splitting is small against the fine structure.
+"""
+function  reducedMeElectronic(mp::EmMultipole, rLevel::Level, sLevel::Level, grid::Radial.Grid)
+    Jr = AngularMomentum.oneJ(rLevel.J);    Js = AngularMomentum.oneJ(sLevel.J)
+    wa = ( (2Jr + 1) * (2Js + 1) )^0.25
+    return( Hfs.amplitude(mp, rLevel, sLevel, grid; printout=false) * wa )
+end
+
+
+"""
+`Hfs.computeInteractionAmplitudeM(mp::EmMultipole, leftIsomer::Nuclear.Isomer, rightIsomer::Nuclear.Isomer)`
     ... to compute the hyperfine interaction amplitude (<leftIsomer || M^(mp)) || rightIsomer>) for the interaction of two
         nuclear levels; this ME is geometrically fixed if the left and right isomer are the same, and it depends
         on the nuclear ME otherwise. An amplitude::ComplexF64 is returned.
@@ -696,34 +699,67 @@ end
 
 
 """
-`Hfs.computeHyperfineRepresentation(hfBasisVectors::Array{HfBasisVector,1}, nm::Nuclear.Model, grid::Radial.Grid)`  
-    ... to set-up and diagonalized the Hamiltonian matrix of H^(DFB) + H^(hfs) within the atomic hyperfine (IJF-coupled) basis;
-        a hfsMultiplet::IJF_Multiplet is returned.
+`Hfs.computeHyperfineRepresentation(hfBasisVectors::Array{HfBasisVector,1}, nm::Nuclear.Model, grid::Radial.Grid)`
+    ... to set-up and diagonalize the Hamiltonian matrix of H^(DFB) + H^(hfs) within the atomic hyperfine (IJF-coupled)
+        basis; a hfMultiplet::Hfs.HfMultiplet is returned.
+
+        REPAIRED 05-Aug-2026. This function had never run: its body addressed an undefined `hfBasis.vectors[...]`
+        instead of its own argument, it called Hfs.HfLevel(...) with seven arguments against a six-field struct, and
+        it carried `* 1.0e-6 ## fudge-factor to keep HFS interaction small` on BOTH the magnetic and the electric
+        contribution -- a debugging leftover that would have scaled every hyperfine splitting down by a million.
+        The fudge factor is removed: the splitting of the initial ion is precisely the observable this
+        representation exists to produce. Nothing can regress, since the function could not previously be called.
+
+        The matrix is block diagonal in F and parity by construction (the guards below), so the eigenvectors do not
+        mix different F; each hyperfine level is Sum_k mc[k] |(I J_k) F>, where the Clebsch-Gordan coupling already
+        sits inside each HfBasisVector and mc describes the J-mixing among vectors of equal F.
+
+        With mu = Q = 0 the hyperfine Hamiltonian vanishes identically and only the electronic energies remain on
+        the diagonal. Since those are non-degenerate, the eigenvectors come out as pure unit vectors, i.e.
+        mc = [.. 1.0 ..] on a single basis vector. The "no hyperfine mixing" case therefore needs no separate code
+        path -- it is the exact output of this same routine.
 """
 function computeHyperfineRepresentation(hfBasisVectors::Array{HfBasisVector,1}, nm::Nuclear.Model, grid::Radial.Grid)
     n = length(hfBasisVectors);   matrix = zeros(n,n)
     for  r = 1:n
         for  s = 1:n
             matrix[r,s] = 0.
-            if  r == s    matrix[r,s] = matrix[r,s] +  hfBasis.vectors[r].levelJ.energy                 end
-            if  hfBasis.vectors[r].F               !=  hfBasis.vectors[s].F                continue     end
-            if  hfBasis.vectors[r].levelJ.parity   !=  hfBasis.vectors[s].levelJ.parity    continue     end
+            if  r == s    matrix[r,s] = matrix[r,s] +  hfBasisVectors[r].levelJ.energy                 end
+            if  hfBasisVectors[r].F               !=  hfBasisVectors[s].F                continue     end
+            if  hfBasisVectors[r].levelJ.parity   !=  hfBasisVectors[s].levelJ.parity    continue     end
+            if  nm.mu == 0.  &&  nm.Q == 0.                                              continue     end
             # Now add the hyperfine matrix element for K = 1 (magnetic) and K = 2 (electric) contributions
-            spinI = nm.spinI;   Jr = hfBasis.vectors[r].levelJ.J;   Js = hfBasis.vectors[s].levelJ.J;   F = hfBasis.vectors[r].F
+            spinI = nm.spinI;   Jr = hfBasisVectors[r].levelJ.J;   Js = hfBasisVectors[s].levelJ.J;   F = hfBasisVectors[r].F
             Ix    = AngularMomentum.oneJ(spinI)
+            if  Ix == 0.                                                                 continue     end
             #
-            wa = AngularMomentum.phaseFactor([spinI, +1, Jr, +1, F])  * 
+            ## TWO repairs here, both found on 05-Aug-2026 by comparing this matrix against the Casimir formula
+            ## E(F) = A/2 * [F(F+1) - I(I+1) - J(J+1)] built from Hfs's own A constant.
+            ##
+            ## (1) The nuclear reduced matrix elements are no longer written out again. This function had its own
+            ##     copies -- mu*sqrt((I+1)/I) and Q/2*sqrt((I+1)(2I+3)/(I(2I-1))) -- and BOTH had lost a factor
+            ##     sqrt(2I+1) relative to Hfs.computeInteractionAmplitudeM, which is this module's dedicated
+            ##     routine for precisely this quantity. Calling it removes the duplication that allowed the two
+            ##     to diverge in the first place.
+            ## (2) The unit conversions are what the removed "fudge-factor 1.0e-6" was standing in for: mu is
+            ##     given in NUCLEAR MAGNETONS and Q in BARN, so each contribution needs its OWN conversion into
+            ##     atomic units -- ~2.7e-4 and ~3.6e-2 respectively, not one common factor. These are the same
+            ##     conversions computeAmplitudesProperties applies when forming A/mu and B/Q.
+            isomer = hfBasisVectors[r].isomer
+            wa = AngularMomentum.phaseFactor([spinI, +1, Jr, +1, F])  *
                     AngularMomentum.Wigner_6j(spinI, Jr, F, Js, spinI, AngularJ64(1))
-            wb = Hfs.amplitude(Basics.M1, hfBasis.vectors[r].levelJ, hfBasis.vectors[s].levelJ, grid::Radial.Grid)
-            wc = nm.mu * sqrt( (Ix+1)/Ix )
-            matrix[r,s] = matrix[r,s] + wa * wb * wc     * 1.0e-6 ## fudge-factor to keep HFS interaction small
+            wb = Hfs.reducedMeElectronic(Basics.M1, hfBasisVectors[r].levelJ, hfBasisVectors[s].levelJ, grid)
+            wc = Hfs.computeInteractionAmplitudeM(Basics.M1, isomer, isomer) *
+                    Defaults.convertUnits("moment: from nuclear magneton to atomic", 1.0)
+            matrix[r,s] = matrix[r,s] + real(wa * wb * wc)
             #
             if  spinI  in [AngularJ64(0), AngularJ64(1//2)]                                 continue     end
-            wa = AngularMomentum.phaseFactor([spinI, +1, Jr, +1, F]) * 
+            wa = AngularMomentum.phaseFactor([spinI, +1, Jr, +1, F]) *
                     AngularMomentum.Wigner_6j(spinI, Jr, F, Js, spinI, AngularJ64(2))
-            wb = Hfs.amplitude(Basics.E2, hfBasis.vectors[r].levelJ, hfBasis.vectors[s].levelJ, grid::Radial.Grid)
-            wc = nm.Q / 2. * sqrt( (Ix+1)*(2Ix+3)/ (Ix*(2Ix-1)) )
-            matrix[r,s] = matrix[r,s] + wa * wb * wc     * 1.0e-6 ## fudge-factor to keep HFS interaction small
+            wb = Hfs.reducedMeElectronic(Basics.E2, hfBasisVectors[r].levelJ, hfBasisVectors[s].levelJ, grid)
+            wc = Hfs.computeInteractionAmplitudeM(Basics.E2, isomer, isomer) *
+                    Defaults.convertUnits("cross section: from barn to atomic unit", 1.0)
+            matrix[r,s] = matrix[r,s] + real(wa * wb * wc)
         end
     end
     #
@@ -731,19 +767,29 @@ function computeHyperfineRepresentation(hfBasisVectors::Array{HfBasisVector,1}, 
     eigen    = Basics.diagonalize(MatrixWithLinearAlgebra(), matrix)
     levelFs  = Hfs.HfLevel[]
     for  ev = 1:length(eigen.values)
-        # Construct the eigenvector with regard to the given basis (not w.r.t the symmetry block)
+        # Construct the eigenvector with regard to the given basis (not w.r.t the symmetry block).
+        # F and parity are read off the DOMINANT component rather than the first one above a threshold: with
+        # J-mixing the first component need not be the leading one, and a mis-assigned F would silently corrupt
+        # every recoupling coefficient computed from this level later on.
         evector   = eigen.vectors[ev];    en = eigen.values[ev]
-        parity    = Basics.plus;    F = AngularJ64(0);     MF = AngularM64(0)
-        for  r = 1:length(hfBasis.vectors)
-            if  abs(evector[r]) > 1.0e-6    
-                parity = hfBasis.vectors[r].levelJ.parity
-                F      = hfBasis.vectors[r].F;     MF = AngularM64(hfBasis.vectors[r].F);   break    end
+        rmax      = 1;    wmax = 0.
+        for  r = 1:length(hfBasisVectors)
+            if  abs(evector[r]) > wmax    wmax = abs(evector[r]);   rmax = r    end
         end
-        newlevelF = Hfs.HfLevel(nm.spinI, F, MF, parity, en, hfBasis, evector) 
+        parity    = hfBasisVectors[rmax].levelJ.parity
+        F         = hfBasisVectors[rmax].F
+        ## M = F, not 0: a projection must share the integer/half-integer character of its F, and 0 is simply not
+        ## a valid projection of a half-integer F. M is otherwise only a label here -- in a free ion the 2F+1
+        ## sublevels are exactly degenerate, and every quantity computed from these levels (energies, rates,
+        ## strengths) is summed over final and averaged over initial M, so M cancels by the Wigner-Eckart theorem
+        ## and only reduced matrix elements survive. It becomes meaningful only once something breaks the
+        ## isotropy -- an external field, an aligned or polarized ensemble, or an angular distribution.
+        MF        = AngularM64(F)
+        newlevelF = Hfs.HfLevel(F, MF, parity, en, hfBasisVectors, evector)
         push!( levelFs, newlevelF)
     end
     hfMultiplet = Hfs.HfMultiplet("hyperfine", levelFs)
-    
+
     return( hfMultiplet )
 end
 
@@ -872,64 +918,68 @@ end
 
 
 """
-`Hfs.defineHyperfineBasis(level::Level, nm::Nuclear.Model)`  
-    ... to define/set-up an atomic hyperfine (IJF-coupled) basis for the given electronic level; 
-        a hfsBasis::IJF_Basis is returned.
+`Hfs.defineHyperfineBasis(level::Level, nm::Nuclear.Model)`
+    ... to define/set-up an atomic hyperfine (IJF-coupled) basis for the given electronic level;
+        an Array{Hfs.HfBasisVector,1} is returned.
+
+        REPAIRED 05-Aug-2026, together with the multiplet method below. Both had been written against `HfVector`
+        and `HfBasis`, neither of which exists in this module, and the multiplet method additionally called
+        `IJF_Vector(nm.spinI, F, level)` -- three arguments against a five-field struct whose first field is F and
+        whose fourth is a CsfR, not a Level. Neither method could ever be called.
+
+        The confusion behind it: the module carried TWO similarly-named coupled basis types, and these methods
+        reached for the CSF-based one when they needed the ASF-based HfBasisVector. The CSF-based IJF_Vector has
+        since been retired, so only one coupled basis type remains.
 """
 function  defineHyperfineBasis(level::Level, nm::Nuclear.Model)
-    function  display_ijfVector(i::Int64, vector::Hfs.IJF_Vector) 
-        si = string(i);   ni = length(si);    sa = repeat(" ", 5);    sa = sa[1:5-ni] * si * ")  "
-        sa = sa * "[" * string( LevelSymmetry(vector.levelJ.J, vector.levelJ.parity) ) * "] " * string(vector.F) * repeat(" ", 4)
-        return( sa )
-    end
-
-    vectors = HfVector[]
-    Flist = Basics.oplus(nm.spinI, level.J)
-    for  F in Flist     push!(vectors,  HfVector(nm.spinI, F, level) )      end
-    #
-    hfBasis = HfBasis(vectors, level.basis)
-    
-    return( hfBasis )
+    return( Hfs.defineHyperfineBasis(Multiplet("single level", [level]), nm) )
 end
 
 
 """
-`Hfs.defineHyperfineBasis(multiplet::Multiplet, nm::Nuclear.Model)`  
-    ... to define/set-up an atomic hyperfine (IJF-coupled) basis for the given electronic multipet; 
-        a hfBasis::HfBasis is returned.
+`Hfs.defineHyperfineBasis(multiplet::Multiplet, nm::Nuclear.Model)`
+    ... to define/set-up an atomic hyperfine (IJF-coupled) basis for the given electronic multiplet; an
+        Array{Hfs.HfBasisVector,1} is returned, one vector for every (electronic level, F) pair allowed by
+        F = I + J.
+
+        REPAIRED 05-Aug-2026; see the note on the single-level method above. The nuclear moments are carried into
+        each basis vector through a Nuclear.Isomer built from the given model, so that a model with mu = Q = 0
+        produces a basis whose hyperfine Hamiltonian vanishes identically -- the device used to switch the
+        hyperfine structure of intermediate and final levels off without a separate code path.
 """
-function  defineHyperfineBasis(multiplet::Multiplet, nm::Nuclear.Model)
-    function  display_ijfVector(i::Int64, vector::Hfs.IJF_Vector) 
+function  defineHyperfineBasis(multiplet::Multiplet, nm::Nuclear.Model; printout::Bool=true)
+    function  display_ijfVector(i::Int64, vector::Hfs.HfBasisVector)
         si = string(i);   ni = length(si);    sa = repeat(" ", 5);    sa = sa[1:5-ni] * si * ")  "
         sa = sa * "[" * string( LevelSymmetry(vector.levelJ.J, vector.levelJ.parity) ) * "] " * string(vector.F) * repeat(" ", 4)
         return( sa )
     end
 
-
-    vectors = HfVector[]
+    ## The nuclear parity is not carried by Nuclear.Model; it is taken as even, so that the total parity of a
+    ## basis vector reduces to the electronic one.
+    isomer  = Nuclear.Isomer( nm.spinI, Basics.plus, 0., nm.mu, nm.Q, 0., EmMultipole[], Float64[] )
+    vectors = Hfs.HfBasisVector[]
     #
-    for i = 1:length(multiplet.levels)
-        Flist = Basics.oplus(nm.spinI, multiplet.levels[i].J)
-        for  F in Flist
-            push!(vectors,  IJF_Vector(nm.spinI, F, multiplet.levels[i]) )
+    for  level in multiplet.levels
+        for  F in Basics.oplus(nm.spinI, level.J)
+            push!(vectors,  Hfs.HfBasisVector(F, level.parity, isomer, level) )
         end
     end
     #
-    hfBasis = HfBasis(vectors, multiplet.levels[1].basis)
-    #
-    println(" ")
-    println("  Construction of a atomic hyperfine (IJF-coupled) basis of dimension $(length(hfBasis.vectors)), based on " *
-            "$(length(multiplet.levels)) electronic levels and nuclear spin $(hfBasis.vectors[1].I).")
-    println("  Basis vectors are defined as [J^P] F: \n")
-    sa = "  "
-    for  k = 1:length(hfBasis.vectors)
-        if  length(sa) > 100    println(sa);   sa = "  "   end
-        sa = sa * display_ijfVector(k, hfBasis.vectors[k])
+    if  printout
+        println(" ")
+        println("  Construction of an atomic hyperfine (IJF-coupled) basis of dimension $(length(vectors)), based on " *
+                "$(length(multiplet.levels)) electronic levels and nuclear spin $(nm.spinI).")
+        println("  Basis vectors are defined as [J^P] F: \n")
+        sa = "  "
+        for  k = 1:length(vectors)
+            if  length(sa) > 100    println(sa);   sa = "  "   end
+            sa = sa * display_ijfVector(k, vectors[k])
+        end
+        if   length(sa) > 5    println(sa)   end
+        println(" ")
     end
-    if   length(sa) > 5    println(sa)   end
-    println(" ")
-    
-    return( hfBasis )
+
+    return( vectors )
 end
 
 

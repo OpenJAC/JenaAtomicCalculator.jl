@@ -416,101 +416,12 @@ end
 ## and are therefore kept until that route is rebuilt.
 
 
-"""
-`struct  DielectronicRecombination.Passage`  
-    ... defines a type for a dielectronic recombination passage, i.e. a (reduced) pathways, that include the 
-        definition of channels and their corresponding amplitudes for the individual i --> m resonances, whereas
-        the subsequent radiative stabilization is considered only later.
-
-    + initialLevel      ::Level                   ... initial-(state) level
-    + intermediateLevel ::Level                   ... intermediate-(state) level
-    + electronEnergy    ::Float64                 ... energy of the (incoming, captured) electron
-    + captureRate       ::Float64                 ... rate for the electron capture (Auger rate)
-    + photonRate        ::EmProperty              ... rate for the photon emission
-    + reducedStrength   ::EmProperty              
-        ... reduced resonance strength Sum_f S(i -> d -> f) * Gamma_d of this passage; this reduced strength does 
-            not require the knowledge of Gamma_d for the individual passage.
-    + captureChannels   ::Array{AutoIonization.Channel,1}   ... List of |i> -->  |n>   dielectronic (Auger) capture channels.
-"""
-struct  Passage
-    initialLevel        ::Level
-    intermediateLevel   ::Level
-    electronEnergy      ::Float64
-    captureRate         ::Float64
-    photonRate          ::EmProperty
-    reducedStrength     ::EmProperty
-    captureChannels     ::Array{AutoIonization.Channel,1} 
-end 
-
-
-"""
-`DielectronicRecombination.Passage()`  
-    ... constructor for an 'empty' instance of a dielectronic recombination passage between a specified 
-        initial and intermediate level.
-"""
-function Passage()
-    em = EmProperty(0., 0.)
-    Passage(Level(), Level(), 0., 0., em, em, AutoIonization.Channel[])
-end
-
-
-# `Base.show(io::IO, pathway::DielectronicRecombination.Passage)`  
-#   ... prepares a proper printout of the variable pathway::DielectronicRecombination.Passage.
-function Base.show(io::IO, pathway::DielectronicRecombination.Passage) 
-    println(io, "initialLevel:               $(pathway.initialLevel)  ")
-    println(io, "intermediateLevel:          $(pathway.intermediateLevel)  ")
-    println(io, "electronEnergy:             $(pathway.electronEnergy)  ")
-    println(io, "captureRate:                $(pathway.captureRate)  ")
-    println(io, "photonRate:                 $(pathway.photonRate)  ")
-    println(io, "reducedStrength:            $(pathway.reducedStrength)  ")
-    println(io, "captureChannels:            $(pathway.captureChannels)  ")
-end
-
-
-"""
-`struct  DielectronicRecombination.Resonance`  
-    ... defines a type for a dielectronic resonance as defined by a given initial and resonance level but by summing over all final levels
-
-    + initialLevel      ::Level             ... initial-(state) level
-    + intermediateLevel ::Level             ... intermediate-(state) level
-    + resonanceEnergy   ::Float64           ... energy of the resonance w.r.t. the inital-state
-    + resonanceStrength ::EmProperty        ... strength of this resonance due to the stabilization into any of the allowed final levels.
-    + captureRate       ::Float64           ... capture (Auger) rate to form the intermediate resonance, starting from the initial level.
-    + augerRate         ::Float64           ... total (Auger) rate for an electron emission of the intermediate resonance
-    + photonRate        ::EmProperty        ... total photon rate for a photon emission, i.e. for stabilization.
-"""
-struct  Resonance
-    initialLevel        ::Level
-    intermediateLevel   ::Level
-    resonanceEnergy     ::Float64 
-    resonanceStrength   ::EmProperty
-    captureRate         ::Float64
-    augerRate           ::Float64
-    photonRate          ::EmProperty
-end 
-
-
-"""
-`DielectronicRecombination.Resonance()`  
-    ... constructor for an 'empty' instance of a dielectronic resonance as defined by a given initial and resonance 
-        level but by summing over all final levels.
-"""
-function Resonance()
-    em = EmProperty(0., 0.)
-    Resonance(initialLevel, intermediateLevel, 0., em, 0., 0., em)
-end
-
-
-# `Base.show(io::IO, resonance::DielectronicRecombination.Resonance)`  ... prepares a proper printout of the variable resonance::DielectronicRecombination.Resonance.
-function Base.show(io::IO, resonance::DielectronicRecombination.Resonance) 
-    println(io, "initialLevel:               $(resonance.initialLevel)  ")
-    println(io, "intermediateLevel:          $(resonance.intermediateLevel)  ")
-    println(io, "resonanceEnergy:            $(resonance.resonanceEnergy)  ")
-    println(io, "resonanceStrength:          $(resonance.resonanceStrength)  ")
-    println(io, "captureRate:                $(resonance.captureRate)  ")
-    println(io, "augerRate:                  $(resonance.augerRate)  ")
-    println(io, "photonRate:                 $(resonance.photonRate)  ")
-end
+## RETIRED 05-Aug-2026: DielectronicRecombination.Passage (i,m) and .Resonance (i,m). Together with Pathway,
+## removed earlier the same day, these were the three overlapping representations of the old fine-structure route.
+## They are fully superseded by CaptureLine (i,m) + PhotonLine (m,f), which separate the two physical steps and
+## store the two total widths instead of rescanning lists for them -- the rescanning being where both of the old
+## route's aggregation bugs lived. The last reference to Passage disappeared when the hyperfine-resolved route was
+## rewritten; ResonanceSelection and ResonanceWindowCorrection are unrelated types and remain in use.
 
 
 """

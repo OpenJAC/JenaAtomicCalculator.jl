@@ -261,6 +261,105 @@ end
 
 
 """
+`TestFrames.testMethod_HydrogenicRates(; short::Bool=true)`
+    ... known-answer test of DielectronicRecombination.computeHydrogenicRate(ni, li, nf, lf, Zeff), the
+        Infeld-Hull recursion that supplies the whole physical content of the HydrogenicCorrections and of the
+        Rydberg-tail extrapolation: the radiative rate by which a captured Rydberg spectator stabilizes a DR
+        resonance through decay channels not represented in the final multiplet.
+
+        The reference values are NOT stored. They are recomputed here from an INDEPENDENT implementation --
+        the hydrogenic radial dipole integral evaluated by direct Simpson integration over the analytic
+        Schroedinger radial functions (generalized Laguerre polynomials by recursion) -- which shares nothing
+        with the Infeld-Hull scheme except the physics. That is why this test needs no approved .sum file: it
+        compares a number against a number computed on the spot, not against stored output.
+
+        Three checks: the independent sweep over all E1-allowed transitions with n <= 6; the exact Z^4 scaling
+        of a hydrogenic rate; and the guards, which must return exactly zero for an upward step, for
+        Delta l != 1 and for ni == nf rather than a small wrong number.
+"""
+function testMethod_HydrogenicRates(; short::Bool=true)
+    success = true
+    printTest, iostream = Defaults.getDefaults("test flag/stream")
+    alpha = Defaults.getDefaults("alpha")
+
+    ## --- the independent implementation -------------------------------------------------------------------
+    logfact(k::Int64) = k <= 1 ? 0.0 : sum(log, 1:k)
+    ## generalized Laguerre L_k^a(x) by the standard three-term recursion
+    function laguerreGen(k::Int64, a::Int64, x::Float64)
+        if      k == 0    return( 1.0 )
+        elseif  k == 1    return( 1.0 + a - x )
+        end
+        lm1 = 1.0;    l0 = 1.0 + a - x
+        for  j = 1:k-1
+            lp1 = ( (2j + 1 + a - x) * l0 - (j + a) * lm1 ) / (j + 1);    lm1 = l0;    l0 = lp1
+        end
+        return( l0 )
+    end
+    ## normalized hydrogenic radial function R_nl(r), nuclear charge Z, atomic units
+    function radialR(n::Int64, l::Int64, Z::Float64, r::Float64)
+        rho  = 2Z * r / n
+        logN = 3*log(2Z/n) + logfact(n-l-1) - log(2n) - logfact(n+l)
+        return( exp(0.5*logN) * exp(-rho/2) * rho^l * laguerreGen(n-l-1, 2l+1, rho) )
+    end
+    ## A(ni li --> nf lf) = 4/3 alpha^3 omega^3 max(li,lf)/(2li+1) |<r>|^2   [atomic units]
+    function rateIndependent(ni::Int64, li::Int64, nf::Int64, lf::Int64, Z::Float64)
+        if  abs(li-lf) != 1  ||  ni <= nf  ||  li >= ni  ||  lf >= nf  ||  li < 0  ||  lf < 0    return( 0.0 )   end
+        rmax = 40.0 * ni^2 / Z;    npts = 200001;    h = rmax / (npts - 1);    s = 0.0
+        for  k = 0:npts-1
+            r = k * h
+            f = radialR(ni, li, Z, r) * radialR(nf, lf, Z, r) * r^3
+            w = (k == 0 || k == npts-1) ? 1.0 : (isodd(k) ? 4.0 : 2.0)
+            s = s + w * f
+        end
+        rint  = s * h / 3
+        omega = Z^2 / 2 * (1/nf^2 - 1/ni^2)
+        return( 4/3 * alpha^3 * omega^3 * max(li, lf) / (2li + 1) * rint^2 )
+    end
+
+    ## --- (1) sweep against the independent implementation --------------------------------------------------
+    nBad = 0;   worst = 0.0;   worstLabel = ""
+    for  ni = 2:6,  li = 0:ni-1,  nf = 1:ni-1,  lf = 0:nf-1
+        if  abs(li - lf) != 1    continue    end
+        aJAC = DielectronicRecombination.computeHydrogenicRate(ni, li, nf, lf, 1.0)
+        aInd = rateIndependent(ni, li, nf, lf, 1.0)
+        if  aInd <= 0.0    continue    end
+        dev = abs(aJAC/aInd - 1.0)
+        if  dev > worst    worst = dev;    worstLabel = "($ni,$li -> $nf,$lf)"    end
+        if  dev > 1.0e-3   nBad = nBad + 1    end
+    end
+    if  nBad > 0
+        success = false
+        if printTest   info(iostream, "computeHydrogenicRate: $nBad transitions deviate by more than 0.1 % from an " *
+                                      "independent radial-dipole integration; worst $worstLabel at $(worst*100) %")   end
+    end
+
+    ## --- (2) exact Z^4 scaling ------------------------------------------------------------------------------
+    a1 = DielectronicRecombination.computeHydrogenicRate(2, 1, 1, 0, 1.0)
+    for  Z in [2.0, 6.0, 18.0, 54.0, 75.0]
+        ratio = DielectronicRecombination.computeHydrogenicRate(2, 1, 1, 0, Z) / (a1 * Z^4)
+        if  abs(ratio - 1.0) > 1.0e-10
+            success = false
+            if printTest   info(iostream, "computeHydrogenicRate: A(2p->1s) at Z = $Z is not Z^4 times its Z = 1 " *
+                                          "value; ratio = $ratio")   end
+        end
+    end
+
+    ## --- (3) the guards must return exactly zero ------------------------------------------------------------
+    for  (ni, li, nf, lf, why) in [ (2, 1, 3, 0, "upward step ni < nf"), (3, 0, 2, 0, "Delta l = 0"),
+                                    (3, 2, 2, 0, "Delta l = 2"),         (2, 1, 2, 0, "ni == nf") ]
+        wa = DielectronicRecombination.computeHydrogenicRate(ni, li, nf, lf, 1.0)
+        if  wa != 0.0
+            success = false
+            if printTest   info(iostream, "computeHydrogenicRate: the guard for '$why' returned $wa instead of 0.0")  end
+        end
+    end
+
+    testPrint("testMethod_HydrogenicRates()::", success)
+    return(success)
+end
+
+
+"""
 `TestFrames.testModule_MultipoleMoment(; short::Bool=true)`  ... tests on module MultipoleMoment.
 """
 function testModule_MultipoleMoment(; short::Bool=true)
