@@ -62,26 +62,25 @@ function  perform(scheme::Plasma.SatelliteDiagnosticScheme, computation::Plasma.
                                  intermediateConfigs=intermediateConfs, finalConfigs=finalConfs,
                                  asfSettings=computation.asfSettings, processSettings=drSettings )
     drResults  = Basics.perform(drComp; output=true)
-    pathways   = drResults["dielectronic recombination pathways:"]
-    resonances = DielectronicRecombination.computeResonances(pathways, drSettings)
+    captureLines, photonLines = drResults["dielectronic recombination lines:"]
 
-    # A resonance with BOTH augerRate==0 and photonRate==0 (no decay channel at all within the computed
-    # scope -- a real, if unusual, edge case, distinct from a resonance with only one channel zero) gives
-    # a genuine 0/0 = NaN resonanceStrength; since NaN propagates through addition, a single such
-    # resonance would otherwise poison the entire satelliteAlpha sum. Skipped here, not folded in as 0,
-    # so it is not silently misrepresented as "computed and negligible".
+    # A capture line with NO open channel at all -- neither autoionization nor a radiative transition within the
+    # computed scope -- now yields a resonance strength of exactly ZERO rather than the 0/0 = NaN the earlier
+    # implementation produced, so such a line contributes nothing and needs no special treatment. The isfinite
+    # guard is nevertheless retained: it costs nothing and a NaN entering this sum would silently poison every
+    # temperature at once, which is precisely the failure it was written to prevent.
     satelliteAlpha = Dict{Float64, EmProperty}( t => EmProperty(0., 0.) for t in temperatures )
-    for  resonance in resonances
-        if  !isfinite(resonance.resonanceStrength.Coulomb)  ||  !isfinite(resonance.resonanceStrength.Babushkin)
+    for  cLine in captureLines
+        if  !isfinite(cLine.resonanceStrength.Coulomb)  ||  !isfinite(cLine.resonanceStrength.Babushkin)
             continue
         end
         for  t in temperatures
-            satelliteAlpha[t] = satelliteAlpha[t] + DielectronicRecombination.computeRateCoefficient(resonance, t)
+            satelliteAlpha[t] = satelliteAlpha[t] + DielectronicRecombination.computeRateCoefficient(cLine, t)
         end
     end
 
-    if output    results = Base.merge( results, Dict("satellite pathways:"    => pathways,
-                                                       "satellite resonances:" => resonances,
+    if output    results = Base.merge( results, Dict("satellite photon lines:"  => photonLines,
+                                                       "satellite capture lines:" => captureLines,
                                                        "satellite alpha_DR:"   => satelliteAlpha) )   end
 
     # -------------------------------------------------------------------------------------------------------

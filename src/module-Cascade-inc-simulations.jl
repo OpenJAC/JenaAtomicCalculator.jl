@@ -1062,7 +1062,7 @@ end
 """
 function simulateDrRateCoefficients(levels::Array{Cascade.Level,1}, simulation::Cascade.Simulation)
     printSummary, iostream = Defaults.getDefaults("summary flag/stream")
-    resonances = DielectronicRecombination.Resonance[]
+    resonances = DielectronicRecombination.CaptureLine[]
     rSelection = simulation.property.resonanceSelection
     @show length(levels)
     #
@@ -1096,13 +1096,24 @@ function simulateDrRateCoefficients(levels::Array{Cascade.Level,1}, simulation::
                 # Set the strength to zero, if the initial (resonance) level of aLine is not selected explicitly
                 strength = EmProperty(0.)
             else
-                wa       = pi*pi / (wa*wa) * captureRate  * 2 * # factor 2 is not really clear.
-                            ((Basics.twice(dJ) + 1) / (Basics.twice(iJ) + 1)) /
-                            (augerRate + photonRate.Babushkin)
-                strength = EmProperty(wa * photonRate.Coulomb, wa * photonRate.Babushkin)
+                ## CORRECTED 05-Aug-2026, on two counts.
+                ## (i) The factor 2 that stood here is spurious. Tu et al., Phys. Plasmas 23, 053301 (2016), Eq. (1)
+                ##     give S = (g_d/2g_i) * pi^2 hbar^3/(m_e E_res) * A_r A_a/(sum A_r + sum A_a); with k^2 = 2E in
+                ##     atomic units, pi^2/k^2 * g_d/g_i is identically pi^2/E * g_d/(2g_i), so the 2 is ALREADY
+                ##     contained in k^2 and including it again made every Cascade DR strength twice too large. The
+                ##     DielectronicRecombination module has always had it (correctly) commented out; this copy did not.
+                ## (ii) Both gauges were divided by the BABUSHKIN total width, so the Coulomb strength used a
+                ##     mismatched denominator. Each gauge now uses its own.
+                wa       = pi*pi / (wa*wa) * captureRate *
+                            ((Basics.twice(dJ) + 1) / (Basics.twice(iJ) + 1))
+                sC       = augerRate + photonRate.Coulomb   == 0. ? 0. : wa * photonRate.Coulomb   / (augerRate + photonRate.Coulomb)
+                sB       = augerRate + photonRate.Babushkin == 0. ? 0. : wa * photonRate.Babushkin / (augerRate + photonRate.Babushkin)
+                strength = EmProperty(sC, sB)
             end
-            newResonance = DielectronicRecombination.Resonance(iLevel, dLevel, en, strength, 0., augerRate, photonRate)
-            ## newResonance = DielectronicRecombination.Resonance(iLevel, dLevel, en, strength, captureRate, augerRate, photonRate)
+            ## The captureRate of the individual (i,m) channel is not tracked by the cascade, so it is left at 0.;
+            ## the two TOTAL widths are what the strength and the printout need, and both are known here.
+            newResonance = DielectronicRecombination.CaptureLine(iLevel, dLevel, en, 0., augerRate, photonRate, strength,
+                                                                 AutoIonization.Channel[])
             push!(resonances, newResonance)
         end
     end
@@ -1149,7 +1160,8 @@ function simulateDrRateCoefficients(levels::Array{Cascade.Level,1}, simulation::
                     dLevel      = ManyElectron.Level(dJ, dM, dParity, nIndex, dEnergy, 0., false, ManyElectron.Basis(), Float64[])
                     es          = Defaults.convertUnits("energy: to atomic", simulation.property.electronEnergyShift)
                     en          = dLevel.energy-iLevel.energy + es;    if  en < 0.  continue   end
-                    newResonance = DielectronicRecombination.Resonance(iLevel, dLevel, en, nFactor * nStrength, 0., augerRate, photonRate)
+                    newResonance = DielectronicRecombination.CaptureLine(iLevel, dLevel, en, 0., augerRate, photonRate,
+                                                                         nFactor * nStrength, AutoIonization.Channel[])
                     push!(resonances, newResonance)
                     @show n, augerRate, photonRate, nStrength
                 end
@@ -1159,7 +1171,7 @@ function simulateDrRateCoefficients(levels::Array{Cascade.Level,1}, simulation::
     
     # Printout the resonance strength
     settings = DielectronicRecombination.Settings(DielectronicRecombination.Settings(), calcRateAlpha=true, temperatures=simulation.property.temperatures)
-    DielectronicRecombination.displayResults(stdout, resonances, settings)
+    DielectronicRecombination.displayResults(stdout, resonances, DielectronicRecombination.PhotonLine[], settings)
     DielectronicRecombination.displayRateCoefficients(stdout, resonances, settings)
     wb = DielectronicRecombination.extractRateCoefficients(resonances, settings)
 

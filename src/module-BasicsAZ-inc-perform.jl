@@ -103,9 +103,9 @@ function Basics.perform(computation::Atomic.Computation; output::Bool=false)
             outcome = DoubleAutoIonization.computeLines(finalMultiplet, initialMultiplet, nModel, computation.grid, computation.processSettings) 
             if output    results = Base.merge( results, Dict("Double-Auger lines:" => outcome) )                    end
         elseif  typeof(computation.processSettings) == DielectronicRecombination.Settings 
-            outcome = DielectronicRecombination.computePathways(finalMultiplet, intermediateMultiplet, initialMultiplet, nModel, 
-                                                                computation.grid, computation.processSettings) 
-            if output    results = Base.merge( results, Dict("dielectronic recombination pathways:" => outcome) )   end
+            outcome = DielectronicRecombination.computeCaptureLines(finalMultiplet, intermediateMultiplet, initialMultiplet, nModel,
+                                                                    computation.grid, computation.processSettings)
+            if output    results = Base.merge( results, Dict("dielectronic recombination lines:" => outcome) )   end
         elseif  typeof(computation.processSettings) == MultiPhotonDeExcitation.Settings
             outcome = MultiPhotonDeExcitation.computeLines(computation.processSettings.process,
                                                             finalMultiplet, initialMultiplet, computation.grid, computation.processSettings) 

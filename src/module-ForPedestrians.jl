@@ -617,11 +617,10 @@ function computeResonanceStrength(theme::Basics.ForDielectronicRecombination, in
     else  
           results = redirect_stdout(devnull) do   
                        atomic_code()  end
-          pathways   = results["dielectronic recombination pathways:"]
-          resonances = DielectronicRecombination.computeResonances(pathways, drSettings)
-          ## Pathways table (one row per i->m->f triple) is suppressed in pedestrian mode:
-          ## DielectronicRecombination.displayResults(stdout, pathways, drSettings)
-          DielectronicRecombination.displayResults(stdout, resonances, drSettings)
+          captureLines, photonLines = results["dielectronic recombination lines:"]
+          ## The CaptureLine's already carry the resonance strength, so no separate aggregation step is needed;
+          ## the per-final-level satellite table is printed only if settings.calcPhotonSpectrum is set.
+          DielectronicRecombination.displayResults(stdout, captureLines, photonLines, drSettings)
     end
     
     return( nothing )

@@ -70,7 +70,7 @@ function testModule_DielectronicRecombination(; short::Bool=true)
     # Make the comparison with approved data
     success = testCompareFiles( joinpath(@__DIR__, "..", "test", "approved", "test-DielectronicRecombination-approved.sum"),
                                 joinpath(@__DIR__, "..", "test", "test-DielectronicRecombination-new.sum"),
-                            "Partial (Auger) capture", 10)
+                            "Total Auger rates", 7)
     testPrint("testModule_DielectronicRecombination()::", success)
     return(success)
 end
