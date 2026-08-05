@@ -75,17 +75,21 @@ function generateBlocks(scheme::Cascade.PhotoExcitationScheme, comp::Cascade.Com
     blockList = Cascade.Block[]
     printSummary, iostream = Defaults.getDefaults("summary flag/stream")
     #
+    conditions = Cascade.conditions(comp.approach)
     if    comp.approach == AverageSCA()
         if  printout
         println("\n* Generate blocks for excitation computations:")
         println("\n  In the cascade approach $(comp.approach), the following assumptions/simplifications are made: ")
-        println("    + orbitals are generated independently for each block for a Dirac-Fock-Slater potential; ")
+        end
+        ## Cascade.generateBoundOrbitals prints the bound-orbital assumption itself, to stdout and to the
+        ## summary file, so that what is announced can never drift from what is done.
+        orbitals = Cascade.generateBoundOrbitals(conditions, comp, confs; printout=printout)
+        if  printout
         println("    + all blocks (multiplets) are generated from single-CSF levels and without any configuration mixing even in the SC; ")
         println("    + only E1 excitations are considered. \n")
-        if  printSummary   
+        if  printSummary
         println(iostream, "\n* Generate blocks for excitation computations:")
         println(iostream, "\n  In the cascade approach $(comp.approach), the following assumptions/simplifications are made: ")
-        println(iostream, "    + orbitals are generated independently for each block for a Dirac-Fock-Slater potential; ")
         println(iostream, "    + all blocks (multiplets) are generated from single-CSF levels and without any configuration mixing even in the SC; ")
         println(iostream, "    + only E1 excitations are considered. \n")
         end
@@ -94,9 +98,7 @@ function generateBlocks(scheme::Cascade.PhotoExcitationScheme, comp::Cascade.Com
         for  confa  in confs
             print("  Multiplet computations for $(string(confa)[1:end])   with $(confa.NoElectrons) electrons ... ")
             if  printSummary   println(iostream, "\n*  Multiplet computations for $(string(confa)[1:end])   with $(confa.NoElectrons) electrons ... ")   end
-            multiplet = SelfConsistent.performSCF([confa], comp.nuclearModel, comp.grid, comp.asfSettings; printout=false)
-            multiplet = Hamiltonian.performCIwithFrozenOrbitals([confa], multiplet.levels[1].basis.orbitals, 
-                                                                comp.nuclearModel, comp.grid,
+            multiplet = Hamiltonian.performCIwithFrozenOrbitals([confa], orbitals, comp.nuclearModel, comp.grid,
                                                                 Cascade.asfSettingsForApproach(comp.approach, comp.asfSettings); printout=false)
             push!( blockList, Cascade.Block(confa.NoElectrons, [confa], true, multiplet) )
             println("and $(length(multiplet.levels[1].basis.csfs)) CSF done. ")
@@ -165,7 +167,7 @@ end
     ... to perform the same but to return the complete output in a dictionary that is written to disk and can be used in subsequent
         cascade simulation. The particular output depends on the specifications of the cascade.
 """
-function perform(scheme::PhotoExcitationScheme, comp::Cascade.Computation; output::Bool=false, outputToFile::Bool=true)
+function perform(scheme::PhotoExcitationScheme, comp::Cascade.Computation; output::Bool=false, outputToFile::Bool=true, outputDirectory::String="")
     if  output    results = Dict{String, Any}()    else    results = nothing    end
     printSummary, iostream = Defaults.getDefaults("summary flag/stream")
     #

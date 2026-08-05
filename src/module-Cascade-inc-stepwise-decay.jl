@@ -20,7 +20,11 @@ function computeSteps(scheme::Cascade.StepwiseDecayScheme, comp::Cascade.Computa
         if  printSummary   println(iostream, "\n* $st) Perform $(string(step.process)) amplitude computations for " *
                                                 "up to $nc decay lines (without selection rules): ")   end 
                                                 
-        if      step.process == Basics.Auger()  &&   comp.approach == Cascade.AverageSCA()
+        ## Which continuum orbitals to use is the approach's CONDITION (4), not its name: StepAveragedContinuum
+        ## takes the shared set computed here at the step's mean energy, TransitionResolvedContinuum falls
+        ## through to computeLinesCascade below, which generates one orbital per fine-structure transition.
+        if      step.process == Basics.Auger()  &&
+                Cascade.conditions(comp.approach).continuum == Cascade.StepAveragedContinuum()
             # First determine the `mean' free-electron energy for this Auger block and calculate a common set of continuum orbital
             meanEn = 0.;    NoEn = 0
             for  p = 1:length(step.initialMultiplet.levels),  q = 1:length(step.finalMultiplet.levels)
@@ -193,7 +197,9 @@ end
 """
 function determineSteps(scheme::Cascade.StepwiseDecayScheme, comp::Cascade.Computation, blockList::Array{Cascade.Block,1})
     stepList = Cascade.Step[]
-    if  comp.approach  in  [Cascade.AverageSCA(), Cascade.SCA()]
+    ## Every approach determines its steps the same way; the approach only governs HOW each step is then
+    ## computed. Listing approach names here silently rejected any newly added approach (RefinedSCA).
+    if  true
         for  a = 1:length(blockList)
             for  b = 1:length(blockList)
                 minEn = 100000.;   maxEn = -100000.
@@ -319,11 +325,11 @@ end
         to the given atomic processes. The results of all individual steps are printed to screen but nothing is returned 
         otherwise.
 
-`Cascade.perform(scheme::StepwiseDecayScheme, comp::Cascade.Computation; output::Bool=false, outputToFile::Bool=true)`   
+`Cascade.perform(scheme::StepwiseDecayScheme, comp::Cascade.Computation; output::Bool=false, outputToFile::Bool=true, outputDirectory::String="")`   
     ... to perform the same but to return the complete output in a dictionary;  the particular output depends on the type 
         and specifications of the cascade but can easily accessed by the keys of this dictionary.
 """
-function perform(scheme::StepwiseDecayScheme, comp::Cascade.Computation; output::Bool=false, outputToFile::Bool=true)
+function perform(scheme::StepwiseDecayScheme, comp::Cascade.Computation; output::Bool=false, outputToFile::Bool=true, outputDirectory::String="")
     if  output    results = Dict{String, Any}()    else    results = nothing    end
     printSummary, iostream = Defaults.getDefaults("summary flag/stream")
     #
@@ -375,7 +381,11 @@ function perform(scheme::StepwiseDecayScheme, comp::Cascade.Computation; output:
         #
         #  Write out the result to file to later continue with simulations on the cascade data
         if outputToFile
-            filename = "zzz-cascade-decay-computations-" * string(Dates.now())[1:13] * ".jld"
+            ## outputDirectory keeps the cascade data out of the working directory; it is created if missing.
+            ## "" (the default) preserves the previous behaviour of writing next to wherever JAC was started.
+            if  outputDirectory != ""    mkpath(outputDirectory)    end
+            filename = joinpath(outputDirectory,
+                                "zzz-cascade-decay-computations-" * string(Dates.now())[1:13] * ".jld")
             println("\n* Write all results to disk; use:\n   JLD2.save(''$filename'', results) \n   using JLD2 " *
                     "\n   results = JLD2.load(''$filename'')    ... to load the results back from file.")
             if  printSummary   println(iostream, "\n* Write all results to disk; use:\n   JLD2.save(''$filename'', results) \n   using JLD2 " *

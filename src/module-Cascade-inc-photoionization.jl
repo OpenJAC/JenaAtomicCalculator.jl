@@ -155,7 +155,7 @@ end
     ... to perform the same but to return the complete output in a dictionary that is written to disk and can be used in subsequent
         cascade simulation. The particular output depends on the specifications of the cascade.
 """
-function perform(scheme::PhotoIonizationScheme, comp::Cascade.Computation; output::Bool=false, outputToFile::Bool=true)
+function perform(scheme::PhotoIonizationScheme, comp::Cascade.Computation; output::Bool=false, outputToFile::Bool=true, outputDirectory::String="")
     ##
     ##
     if  output    results = Dict{String, Any}()    else    results = nothing    end

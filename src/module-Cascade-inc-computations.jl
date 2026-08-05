@@ -75,11 +75,13 @@ end
     ... to perform the same but to return the complete output in a dictionary;  the particular output depends on the type 
         and specifications of the cascade but can easily accessed by the keys of this dictionary.
 """
-function Basics.perform(comp::Cascade.Computation; output::Bool=false, outputToFile::Bool=true)
+function Basics.perform(comp::Cascade.Computation; output::Bool=false, outputToFile::Bool=true,
+                        outputDirectory::String="")
     ## Reject an unrealizable cascade approach HERE, before any orbital or amplitude work is done; a cascade
     ## that cannot succeed should say so in the first second rather than in the middle of some step.
-    Cascade.validateConditions( Cascade.conditions(comp.approach) )
-    Cascade.perform(comp.scheme, comp::Cascade.Computation, output=output, outputToFile=outputToFile)
+    Cascade.validateConditions(comp.approach)
+    Cascade.perform(comp.scheme, comp::Cascade.Computation, output=output, outputToFile=outputToFile,
+                    outputDirectory=outputDirectory)
 end
 
 
@@ -348,7 +350,7 @@ function displayDecayProbabilities(stream::IO, outcome::DecayYield.Outcome, rPro
     println(stream, "    + Level:         $(outcome.level.index) with symmetry $(LevelSymmetry( outcome.level.J, outcome.level.parity)) ")
     println(stream, "    + $(outcome.NoPhotonLines)           ... number of photon lines. ")
     println(stream, "    + $(outcome.NoAugerLines )           ... number of Auger lines. ")
-    if    settings.approach in ["AverageSCA", "SCA"]
+    if    settings.approach isa Union{Basics.AverageSCA, Basics.SCA}
     println(stream, "    + Approach:  $(settings.approach)  ... all decay probabilities only in Babushkin gauge. ")
     end
     #
@@ -604,73 +606,51 @@ function generateBlocks(comp::Cascade.Computation, confs::Array{Configuration,1}
     blockList = Cascade.Block[]
     printSummary, iostream = Defaults.getDefaults("summary flag/stream")
     #
-    if    comp.approach == AverageSCA()
-        if  printout
+    ## The approach is no longer interrogated by name here. It is resolved into its conditions, and those
+    ## conditions decide what happens -- which is also what the six lines printed by Cascade.displayApproach
+    ## report. Announcing and doing therefore come from ONE source and cannot drift apart, as they had: this
+    ## block used to print "all blocks (multiplets) are generated from single-CSF levels and without any
+    ## configuration mixing" while the code below was running full configuration interaction.
+    cd = Cascade.conditions(comp.approach)
+    if  printout
         println("\n* Generate blocks " * sa)
-        println("\n  In the cascade approach $(comp.approach), the following assumptions/simplifications are made: ")
-        println("    + orbitals from the initial multiplet are applied throughout; ")
-        println("    + all blocks (multiplets) are generated from single-CSF levels and without any configuration mixing even in the SC; ")
-        println("    + only E1 dipole transitions are applied in all radiative decay stets; ")
-        println("    + for each decay step, a (single) set of continuum orbitals with an configuration averaged energy is applied " *
-                        "for all transitions of the same step. \n")
-        if  printSummary   
-        println(iostream, "\n* Generate blocks " * sa)
-        println(iostream, "\n* In the cascade approach $(comp.approach), the following assumptions/simplifications are made: ")
-        println(iostream, "    + orbitals from the initial multiplet are applied throughout; ")
-        println(iostream, "    + all blocks (multiplets) are generated from single-CSF levels and without any configuration mixing even in the SC; ")
-        println(iostream, "    + only E1 dipole transitions are applied in all radiative decay stets; ")
-        println(iostream, "    + for each decay step, a (single) set of continuum orbitals with an configuration averaged energy is applied " *
-                            "for all transitions of the same step. \n")
+        Cascade.displayApproach(stdout, comp.approach, comp.asfSettings)
+        if  printSummary
+            println(iostream, "\n* Generate blocks " * sa)
+            Cascade.displayApproach(iostream, comp.approach, comp.asfSettings)
         end
-        end     # printout
-        #
-        for  confa  in confs
-            print("  Multiplet computations for $(string(confa)[1:end]) with $(confa.NoElectrons) electrons ... ")
-            if  printSummary   println(iostream, "\n*  Multiplet computations for $(string(confa)[1:end]) with $(confa.NoElectrons) electrons ... ")   end
-            multiplet = Hamiltonian.performCIwithFrozenOrbitals([confa], initalOrbitals, comp.nuclearModel, comp.grid, Cascade.asfSettingsForApproach(comp.approach, comp.asfSettings); printout=false)
-
-            # Shift the total energies of all levels if requested for the StepwiseDecayScheme
-            if  typeof(comp.scheme) == StepwiseDecayScheme   &&   haskey(comp.scheme.chargeStateShifts, confa.NoElectrons)
-                energyShift = comp.scheme.chargeStateShifts[confa.NoElectrons]
-                multiplet   = Basics.shiftTotalEnergies(multiplet, energyShift)
-                print("shift all levels by $energyShift [a.u.] ... ")
-            end
-            push!( blockList, Cascade.Block(confa.NoElectrons, [confa], true, multiplet) )
-            println("and $(length(multiplet.levels[1].basis.csfs)) CSF done. ")
-        end
-    elseif    comp.approach == SCA()
-        if printout
-        println("\n* Generate blocks " * sa)
-        println("\n  In the cascade approach $(comp.approach), the following assumptions/simplifications are made: ")
-        println("    + orbitals are generated independently for each multiplet (block); ")
-        println("    + configuration interaction is included for each block; ")
-        println("    + only E1 dipole transitions are applied in all radiative decay stets; \n")
-        if  printSummary   
-        println(iostream, "\n* Generate blocks " * sa)
-        println(iostream, "\n* In the cascade approach $(comp.approach), the following assumptions/simplifications are made: ")
-        println(iostream, "    + orbitals are generated independently for each multiplet (block); ")
-        println(iostream, "    + configuration interaction is included for each block; ")
-        println(iostream, "    + only E1 dipole transitions are applied in all radiative decay stets; \n")
-        end
-        end     # printout
-        #
-        i = 0
-        for  confa  in confs
-            ## i = i + 1;    if   i in [1,2, 4,5,6,7,8,9,10,11,12,13,14]  ||  i > 15   println("  Block $i omitted.");    continue    end
-            ## i = i + 1;    if   i < 11  ||  i > 11   println("  Block $i omitted.");    continue    end
-            print("  Multiplet computations for $(string(confa)[1:end]) with $(confa.NoElectrons) electrons ... ")
-            if  printSummary   print(iostream, "* Multiplet computations for $(string(confa)[1:end]) with $(confa.NoElectrons) electrons ... ")   end
+    end
+    #
+    ## ChargeStateOrbitals needs one self-consistent field per charge state, prepared once for all blocks.
+    ## GlobalOrbitals uses the initial multiplet's own orbitals, which the caller has already passed in and
+    ## which are precisely "the mean field of the initial ion" that the approach asks for. MultipletOrbitals
+    ## prepares nothing here: every block runs its own self-consistent field in the loop below.
+    orbitalSets = Dict{Int64, Dict{Subshell, Orbital}}()
+    if  cd.bound == Cascade.ChargeStateOrbitals()
+        orbitalSets = Cascade.generateBoundOrbitals(comp.approach, comp, confs; printout=printout)
+    end
+    #
+    for  confa  in confs
+        print("  Multiplet computations for $(string(confa)[1:end]) with $(confa.NoElectrons) electrons ... ")
+        if  printSummary   println(iostream, "\n*  Multiplet computations for $(string(confa)[1:end]) with $(confa.NoElectrons) electrons ... ")   end
+        if      cd.bound == Cascade.MultipletOrbitals()
             multiplet = SelfConsistent.performSCF([confa], comp.nuclearModel, comp.grid, comp.asfSettings; printout=false)
-            # Shift the total energies of all levels if requested for the StepwiseDecayScheme
-            if  typeof(comp.scheme) == StepwiseDecayScheme   &&   haskey(comp.scheme.chargeStateShifts, confa.NoElectrons)
-                energyShift = comp.scheme.chargeStateShifts[confa.NoElectrons]
-                multiplet   = Basics.shiftTotalEnergies(multiplet, energyShift)
-                print("shift all levels by $energyShift [a.u.] ... ")
-            end
-            push!( blockList, Cascade.Block(confa.NoElectrons, [confa], true, multiplet) )
-            println("and $(length(multiplet.levels[1].basis.csfs)) CSF done. ")
+        elseif  cd.bound == Cascade.GlobalOrbitals()
+            multiplet = Hamiltonian.performCIwithFrozenOrbitals([confa], initalOrbitals, comp.nuclearModel, comp.grid,
+                                                                Cascade.asfSettingsForApproach(comp.approach, comp.asfSettings); printout=false)
+        else
+            multiplet = Hamiltonian.performCIwithFrozenOrbitals([confa], orbitalSets[confa.NoElectrons], comp.nuclearModel, comp.grid,
+                                                                Cascade.asfSettingsForApproach(comp.approach, comp.asfSettings); printout=false)
         end
-    else  error("Unsupported cascade approach.")
+
+        # Shift the total energies of all levels if requested for the StepwiseDecayScheme
+        if  typeof(comp.scheme) == StepwiseDecayScheme   &&   haskey(comp.scheme.chargeStateShifts, confa.NoElectrons)
+            energyShift = comp.scheme.chargeStateShifts[confa.NoElectrons]
+            multiplet   = Basics.shiftTotalEnergies(multiplet, energyShift)
+            print("shift all levels by $energyShift [a.u.] ... ")
+        end
+        push!( blockList, Cascade.Block(confa.NoElectrons, [confa], true, multiplet) )
+        println("and $(length(multiplet.levels[1].basis.csfs)) CSF done. ")
     end
 
     return( blockList )

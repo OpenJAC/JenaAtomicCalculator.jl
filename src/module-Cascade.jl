@@ -8,7 +8,7 @@ module Cascade
 
 
 using Dates, JLD2, Printf, FastGaussQuadrature, Distributed, ProgressMeter,
-        ..AngularMomentum, ..AutoIonization, ..Basics, ..Bsplines, ..Continuum, ..Defaults, 
+        ..AngularMomentum, ..AtomicState, ..AutoIonization, ..Basics, ..Bsplines, ..Continuum, ..Defaults,
         ..DecayYield, ..DielectronicRecombination, ..ElectronCapture, ..Empirical, ..Hamiltonian, ..ImpactExcitation, ..Radial, ..ManyElectron, ..Nuclear, 
         ..PeriodicTable, ..PhotoEmission, ..PhotoExcitation, ..PhotoIonization, ..PhotoRecombination, 
         ..SelfConsistent, ..Semiempirical, ..TableStrings
@@ -951,39 +951,6 @@ end
 # included files keep working unchanged.
 
 
-"""
-`Cascade.asfSettingsForApproach(approach::Basics.AbstractCascadeApproach, settings::AsfSettings)`
-    ... returns the AsfSettings with which the cascade blocks must be represented for the given cascade
-        approach; the level REPRESENTATION is a property of the approach, not a free setting, so the
-        returned settings override settings.eeInteractionCI accordingly. An  AsfSettings  is returned.
-
-        + AverageSCA ... every level is a single CSF, with no configuration mixing whatsoever
-            (Fritzsche et al., Symmetry 13, 520 (2021), Sect. 3.3(i); Eur. Phys. J. D 78, 75 (2024),
-            Sect. 2.3(a)). This is enforced by DiagonalCoulomb(), which makes Hamiltonian.setupMatrix skip
-            every off-diagonal element -- before any spin-angular or radial-integral work, so it is also the
-            cheap path the approach is meant to be.
-        + SCA        ... configuration mixing WITHIN each cascade block, i.e. intermediate coupling, but no
-            interaction between different blocks. NOTE (04-Aug-2026) this arm is currently NOT REACHED: every
-            Hamiltonian.performCIwithFrozenOrbitals call in this module sits inside an AverageSCA branch,
-            while the SCA branches either raise "Not yet implemented." (photoexcitation, photoionization,
-            impact-excitation) or build their multiplets through SelfConsistent.performSCF per block instead
-            (computations, dielectronic-recombination, expansion-opacity, hollow-ion, photorecombination).
-            Those existing SCA branches moreover generate orbitals INDEPENDENTLY per block, whereas the
-            published SCA shares one set per ionization stage, and none of them generates continuum orbitals
-            at the correct fine-structure transition energies -- the other half of the definition. The arm is
-            defined here so the approach-to-settings mapping is complete once those paths are consolidated.
-        + otherwise  ... the caller's settings are returned unchanged.
-
-        Background (04-Aug-2026): until commit 7cc164b, Hamiltonian.performCIwithFrozenOrbitals ignored
-        eeInteractionCI and always produced single-CSF levels, so AverageSCA was correct by accident and SCA
-        was unreachable. Once that routine started honouring the setting, every AverageSCA cascade silently
-        acquired intra-block mixing -- i.e. became neither AverageSCA nor SCA, since the continuum-orbital
-        half was untouched. This function restores the published meaning of AverageSCA and gives SCA its
-        first (partial) implementation.
-"""
-function asfSettingsForApproach(approach::Basics.AbstractCascadeApproach, settings::AsfSettings)
-    return( Cascade.asfSettingsForConditions(Cascade.conditions(approach), settings) )
-end
 
 
 
