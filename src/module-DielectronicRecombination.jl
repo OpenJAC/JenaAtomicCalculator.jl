@@ -255,9 +255,20 @@ end
         ... True, if the DR rate coefficients are to be calculated, and false o/w.
     + calcHyperfineResolved ::Bool                 
         ... True, if the DR resonance strength are calculated for hyperfine-resolved levels, and false o/w.
-            If true, it need to come together with calcOnlyPassages = true, and no fine-structure resolved rates 
+            If true, it need to come together with calcOnlyPassages = true, and no fine-structure resolved rates
             and strength are computed in this case.
-    + printBefore           ::Bool                 
+    + calcPhotonSpectrum    ::Bool
+        ... True, if the individual PhotonLine's (m --> f) are to be RETAINED and displayed, i.e. if the DR satellite
+            spectrum is wanted, and false o/w. Note that this flag controls RETENTION, not computation: the total
+            radiative width Gamma_r(m) = sum_f A_r(m,f) is needed for every resonance strength, so each m --> f rate
+            is evaluated in either case. Setting it false accumulates those rates into Gamma_r and discards them,
+            which saves memory (the point for large Rydberg manifolds) but essentially no computing time.
+            Only used by the FSnew route.
+    + useFsNewRoute         ::Bool
+        ... TRANSITIONAL. True, if the re-structured implementation in module-DielectronicRecombination-inc-FSnew-
+            resolved.jl (CaptureLine + PhotonLine) is to be used instead of the Pathway/Passage/Resonance route.
+            To be removed together with module-DielectronicRecombination-inc-FS-resolved.jl once that route retires.
+    + printBefore           ::Bool
         ... True, if all energies and pathways are printed before their evaluation.
     + pathwaySelection      ::PathwaySelection     ... Specifies the selected levels/pathways, if any.
     + electronEnergyShift   ::Float64              
@@ -280,8 +291,10 @@ struct Settings  <:  AbstractProcessSettings
     gauges                  ::Array{UseGauge}
     calcOnlyPassages        ::Bool
     calcRateAlpha           ::Bool
-    calcHyperfineResolved   ::Bool                 
-    printBefore             ::Bool 
+    calcHyperfineResolved   ::Bool
+    calcPhotonSpectrum      ::Bool
+    useFsNewRoute           ::Bool
+    printBefore             ::Bool
     pathwaySelection        ::PathwaySelection
     electronEnergyShift     ::Float64
     photonEnergyShift       ::Float64
@@ -297,7 +310,7 @@ end
     ... constructor for the default values of dielectronic recombination pathway computations.
 """
 function Settings()
-    Settings([E1], UseGauge[], false, false, false, false, PathwaySelection(), 0., 0., 0., Float64[],  
+    Settings([E1], UseGauge[], false, false, false, false, false, false, PathwaySelection(), 0., 0., 0., Float64[],
              DielectronicRecombination.AbstractCorrections[], CoulombInteraction())
 end
 
@@ -306,7 +319,8 @@ end
 ` (set::DielectronicRecombination.Settings;`
 
         multipoles=..,             gauges=..,                  
-        calcOnlyPassages=..,       calcRateAlpha=..,         calcHyperfineResolved=..,         
+        calcOnlyPassages=..,       calcRateAlpha=..,         calcHyperfineResolved=..,
+        calcPhotonSpectrum=..,     useFsNewRoute=..,
         printBefore=..,            pathwaySelection=..,      electronEnergyShift=..,   photonEnergyShift=..,       
         mimimumPhotonEnergy=..,    temperatures=..,          corrections=..,           augerOperator=..)
                     
@@ -316,6 +330,7 @@ function Settings(set::DielectronicRecombination.Settings;
     multipoles::Union{Nothing,Array{EmMultipole,1}}=nothing,               gauges::Union{Nothing,Array{UseGauge,1}}=nothing,  
     calcOnlyPassages::Union{Nothing,Bool}=nothing,                         calcRateAlpha::Union{Nothing,Bool}=nothing,  
     calcHyperfineResolved::Union{Nothing,Bool}=nothing,
+    calcPhotonSpectrum::Union{Nothing,Bool}=nothing,                       useFsNewRoute::Union{Nothing,Bool}=nothing,
     printBefore::Union{Nothing,Bool}=nothing,                              pathwaySelection::Union{Nothing,PathwaySelection}=nothing,
     electronEnergyShift::Union{Nothing,Float64}=nothing,                   photonEnergyShift::Union{Nothing,Float64}=nothing, 
     mimimumPhotonEnergy::Union{Nothing,Float64}=nothing,                   temperatures::Union{Nothing,Array{Float64,1}}=nothing,    
@@ -326,6 +341,8 @@ function Settings(set::DielectronicRecombination.Settings;
     if  isnothing(calcOnlyPassages)      calcOnlyPassagesx     = set.calcOnlyPassages      else  calcOnlyPassagesx     = calcOnlyPassages      end 
     if  isnothing(calcRateAlpha)         calcRateAlphax        = set.calcRateAlpha         else  calcRateAlphax        = calcRateAlpha         end 
     if  isnothing(calcHyperfineResolved) calcHyperfineResolvedx= set.calcHyperfineResolved else  calcHyperfineResolvedx= calcHyperfineResolved end
+    if  isnothing(calcPhotonSpectrum)    calcPhotonSpectrumx   = set.calcPhotonSpectrum    else  calcPhotonSpectrumx   = calcPhotonSpectrum    end 
+    if  isnothing(useFsNewRoute)         useFsNewRoutex        = set.useFsNewRoute         else  useFsNewRoutex        = useFsNewRoute         end 
     if  isnothing(printBefore)           printBeforex          = set.printBefore           else  printBeforex          = printBefore           end 
     if  isnothing(pathwaySelection)      pathwaySelectionx     = set.pathwaySelection      else  pathwaySelectionx     = pathwaySelection      end 
     if  isnothing(electronEnergyShift)   electronEnergyShiftx  = set.electronEnergyShift   else  electronEnergyShiftx  = electronEnergyShift   end 
@@ -335,7 +352,8 @@ function Settings(set::DielectronicRecombination.Settings;
     if  isnothing(corrections)           correctionsx          = set.corrections           else  correctionsx          = corrections           end 
     if  isnothing(augerOperator)         augerOperatorx        = set.augerOperator         else  augerOperatorx        = augerOperator         end 
 
-    Settings( multipolesx, gaugesx, calcOnlyPassagesx, calcRateAlphax, calcHyperfineResolvedx, printBeforex, 
+    Settings( multipolesx, gaugesx, calcOnlyPassagesx, calcRateAlphax, calcHyperfineResolvedx, calcPhotonSpectrumx,
+              useFsNewRoutex, printBeforex,
               pathwaySelectionx, electronEnergyShiftx, photonEnergyShiftx, mimimumPhotonEnergyx, temperaturesx,
               correctionsx, augerOperatorx )
 end
@@ -348,6 +366,8 @@ function Base.show(io::IO, settings::DielectronicRecombination.Settings)
     println(io, "calcOnlyPassages:           $(settings.calcOnlyPassages)  ")
     println(io, "calcRateAlpha:              $(settings.calcRateAlpha)  ")
     println(io, "calcHyperfineResolved:      $(settings.calcHyperfineResolved)  ")
+    println(io, "calcPhotonSpectrum:         $(settings.calcPhotonSpectrum)  ")
+    println(io, "useFsNewRoute:              $(settings.useFsNewRoute)  ")
     println(io, "printBefore:                $(settings.printBefore)  ")
     println(io, "pathwaySelection:           $(settings.pathwaySelection)  ")
     println(io, "electronEnergyShift:        $(settings.electronEnergyShift)  ")
@@ -552,6 +572,7 @@ end
 
 
 include("module-DielectronicRecombination-inc-FS-resolved.jl")
+include("module-DielectronicRecombination-inc-FSnew-resolved.jl")
 include("module-DielectronicRecombination-inc-HF-resolved.jl")
 
 end # module

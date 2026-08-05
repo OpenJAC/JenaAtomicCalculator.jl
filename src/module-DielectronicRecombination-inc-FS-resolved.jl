@@ -60,12 +60,19 @@ function  checkConsistentMultiplets(finalMultiplet::Multiplet, intermediateMulti
     if initialSubshells[1:end] == intermediateSubshells[1:ni]   &&
         intermediateSubshells[1:nf]  == finalSubshells
     else
-        @show initialSubshells
-        @show intermediateSubshells
-        @show finalSubshells
-        error("\nThe order of subshells must be equal for the initial-, intermediate and final states, \n"     *
-                "and the same subshells must occur in the definition of the intermediate and final states. \n" *
-                "Only the initial states can have less subshells; this limitation arises from the angular coefficients.")
+        error("\nThe order of subshells must be equal for the initial-, intermediate and final states, and the same \n"  *
+                "subshells must occur in the definition of the intermediate and final states. Only the initial states \n" *
+                "may have FEWER subshells; this limitation arises from the angular coefficients.\n\n"                     *
+                "    initial      = $initialSubshells \n"                                                                 *
+                "    intermediate = $intermediateSubshells \n"                                                            *
+                "    final        = $finalSubshells \n\n"                                                                 *
+                ">>> The remedy is to write EVERY configuration over the SAME set of subshells, giving explicit ZERO \n"  *
+                "    occupations wherever a shell is empty. For K-LL dielectronic recombination of an H-like ion: \n\n"   *
+                "        initialConfigs      = [Configuration(\"1s^1 2s^0 2p^0\")] \n"                                    *
+                "        intermediateConfigs = [Configuration(\"1s^0 2s^2 2p^0\"), Configuration(\"1s^0 2s^1 2p^1\")] \n" *
+                "        finalConfigs        = [Configuration(\"1s^2 2s^0 2p^0\"), Configuration(\"1s^1 2s^1 2p^0\")] \n\n" *
+                "    Writing Configuration(\"2s^2\") in place of Configuration(\"1s^0 2s^2 2p^0\") drops 1s from the \n"  *
+                "    subshell list of the intermediate states and produces exactly this error.\n")
     end
         
     return( nothing )
@@ -158,10 +165,13 @@ function  computeAmplitudesProperties(passage::DielectronicRecombination.Passage
             end
         end
         #
-        wa          = 8.0pi * Defaults.getDefaults("alpha") * pEnergy / (Basics.twice(intermediateLevel.J) + 1) *
-                                                                        (Basics.twice(fLevel.J) + 1)
-        wa          = wa / pi  ## modified for test with Xe^53+ (March/2024)
-        photonRate  = photonRate + EmProperty(wa * rateC, wa * rateB)  
+        ## CORRECTED 05-Aug-2026, as in the pathway route above and in the FSnew route: this is the Einstein A
+        ## coefficient. The previous expression carried a spurious (2J_f+1) and a 1/pi, together giving
+        ## A_DR / A_Einstein = (2J_f+1)/pi. This was the THIRD copy of the same formula in the module, and it was
+        ## missed when the other two were corrected -- the three-route comparison caught it immediately, which is
+        ## the argument for having a single implementation.
+        wa          = 8.0pi * Defaults.getDefaults("alpha") * pEnergy / (Basics.twice(intermediateLevel.J) + 1)
+        photonRate  = photonRate + EmProperty(wa * rateC, wa * rateB)
         #
     end
     #
@@ -268,10 +278,14 @@ function  computeAmplitudesProperties(pathway::DielectronicRecombination.Pathway
         end
     end
     captureRate     = 2pi * rateA
-    wa              = 8.0pi * Defaults.getDefaults("alpha") * pathway.photonEnergy / (Basics.twice(pathway.intermediateLevel.J) + 1) * 
-                                                                                        (Basics.twice(pathway.finalLevel.J) + 1)
-    wa              = wa / pi  ## modified for test with Xe^53+ (March/2024)
-    photonRate      = EmProperty(wa * rateC, wa * rateB)  
+    ## CORRECTED 05-Aug-2026: this is the Einstein A coefficient, with the same prefactor that
+    ## PhotoEmission.computeAmplitudesProperties uses for the same transition. The previous expression carried a
+    ## spurious (2J_f+1) together with a 1/pi ("modified for test with Xe^53+ (March/2024)"), giving
+    ## A_DR / A_Einstein = (2J_f+1)/pi -- verified to five digits over six carbon transitions. Gamma_r(m) is by
+    ## definition the sum of Einstein A's out of m, so the value below is the required one. See the extended
+    ## discussion in module-DielectronicRecombination-inc-FSnew-resolved.jl.
+    wa              = 8.0pi * Defaults.getDefaults("alpha") * pathway.photonEnergy / (Basics.twice(pathway.intermediateLevel.J) + 1)
+    photonRate      = EmProperty(wa * rateC, wa * rateB)
     angularBeta     = EmProperty(-9., -9.)
     #  Factor due to UserGuide
     wa              = Defaults.convertUnits("kinetic energy to wave number: atomic units", pathway.electronEnergy)
@@ -317,14 +331,19 @@ function  computePassages(finalMultiplet::Multiplet, intermediateMultiplet::Mult
                         DielectronicRecombination.computeAmplitudesProperties(passage, finalMultiplet, nm, grid, nrContinuum, empTreatment, settings), passages)
         newPassages = convert(Vector{DielectronicRecombination.Passage}, newPassages_)
     else
-    # Multithreading loop
-        localPassages = [DielectronicRecombination.Passage[] for _ in 1:nthreads()]
+    # Multithreading loop. Each passage is written to its OWN slot rather than pushed onto a per-thread buffer.
+    # The previous `localPassages = [Passage[] for _ in 1:nthreads()]` followed by `push!(localPassages[threadid()], ..)`
+    # was wrong on two counts. First it CRASHED: nthreads() reports the size of the :default thread pool only, while
+    # threadid() is a global index that also counts the :interactive pool, so threadid() can exceed nthreads() and
+    # the indexing then throws a BoundsError -- which is exactly what this mode did, aborting before a single
+    # resonance was produced. Second, even when it survived, `vcat(localPassages...)` returned the passages in
+    # thread-completion order, so the output ordering was not reproducible from run to run. Writing into a
+    # preallocated vector by loop index fixes both and is the idiom already used elsewhere in JAC.
+        newPassages = Vector{DielectronicRecombination.Passage}(undef, length(passages))
         @threads for  p in eachindex(passages)
-            newPassage = DielectronicRecombination.computeAmplitudesProperties(passages[p], finalMultiplet, nm, grid, nrContinuum, 
-                                                                            empTreatment, settings) 
-            push!(localPassages[threadid()], newPassage)
-        end 
-        newPassages = vcat(localPassages...)
+            newPassages[p] = DielectronicRecombination.computeAmplitudesProperties(passages[p], finalMultiplet, nm, grid, nrContinuum,
+                                                                            empTreatment, settings)
+        end
     end
     #
     # Original implementation
@@ -366,6 +385,13 @@ function  computePathways(finalMultiplet::Multiplet, intermediateMultiplet::Mult
     printstyled("------------------------------------------------------------------------------------------------------- \n", 
                 color=:light_green)
     println("")
+    ## TRANSITIONAL ROUTE SWITCH. Delegate to the re-structured CaptureLine/PhotonLine implementation in
+    ## module-DielectronicRecombination-inc-FSnew-resolved.jl. Both this guard and settings.useFsNewRoute are
+    ## removed together with this file once the new route replaces it.
+    if  settings.useFsNewRoute
+        return( DielectronicRecombination.computeCaptureLines(finalMultiplet, intermediateMultiplet, initialMultiplet,
+                                                              nm, grid, settings; output=output) )
+    end
     # First check that the initial, intermediate and final-state multiplets are consistent with each other to allow all requested computations
     DielectronicRecombination.checkConsistentMultiplets(finalMultiplet, intermediateMultiplet, initialMultiplet)
     # Second, analyze that the high nl orbitals are properly represented with the given grid
@@ -478,9 +504,16 @@ function  computeResonances(passages::Array{DielectronicRecombination.Passage,1}
         for  ps in passages   
             if  ps.intermediateLevel.index == passage.intermediateLevel.index   augerRate = augerRate + ps.captureRate   end   
         end
-        resonanceStrength = passage.reducedStrength / (augerRate + passage.photonRate)
-        #
-        if (isequal(resonanceStrength.Babushkin, NaN) || isequal(resonanceStrength.Coulomb, NaN)) continue end
+        ## Guard the 0/0 that arises for an intermediate level with no open channel at all, exactly as in the
+        ## pathway-based computeResonances above, and REPORT IT AS ZERO rather than dropping the row. The
+        ## previous code detected the resulting NaN and `continue`d, which silently removed the level from the
+        ## resonance list: the list then no longer corresponded one-to-one with the intermediate levels, and the
+        ## two computation modes disagreed on their output for the same physical case. A zero row states plainly
+        ## that the level was considered and cannot contribute; a missing row states nothing at all.
+        totalRate = augerRate + passage.photonRate
+        if  totalRate.Coulomb   == 0.   sCoulomb   = 0.   else   sCoulomb   = passage.reducedStrength.Coulomb   / totalRate.Coulomb     end
+        if  totalRate.Babushkin == 0.   sBabushkin = 0.   else   sBabushkin = passage.reducedStrength.Babushkin / totalRate.Babushkin   end
+        resonanceStrength = EmProperty(sCoulomb, sBabushkin)
         #
         push!( resonances, DielectronicRecombination.Resonance(passage.initialLevel, passage.intermediateLevel, 
                                                                passage.electronEnergy, resonanceStrength, 
@@ -525,9 +558,14 @@ function  computeResonances(pathways::Array{DielectronicRecombination.Pathway,1}
                 reducedStrength   = reducedStrength + pathway.reducedStrength
             end
         end
-        # Determine total Auger rates by summation over all idxTupels with the same m
+        # Determine total Auger rates by summation over all idxTupels with the same m. This must be a SUM: an
+        # intermediate level m can autoionize back to every initial level i that is open to it, and the total
+        # Auger width is Gamma_a = sum_i A(m --> i). The previous code assigned instead of accumulating and so
+        # kept only the LAST matching channel. With a single initial level -- the usual small test case -- each m
+        # occurs once and the result was accidentally right, which is why this survived; with a multi-level
+        # recombining ion it under-counts the width and therefore OVERESTIMATES every resonance strength.
         for  (idx, idxxTuple)  in  enumerate(idxTuples)
-            if idxTuple[2] == idxxTuple[2]   augerRate = captureRates[idx]   end
+            if idxTuple[2] == idxxTuple[2]   augerRate = augerRate + captureRates[idx]   end
         end
         #
         #== This code need to be adapted: Correct the photon rate if requested
@@ -553,7 +591,17 @@ function  computeResonances(pathways::Array{DielectronicRecombination.Pathway,1}
 
         end  ==#
         
-        resonanceStrength = reducedStrength / (augerRate + photonRate)
+        ## An intermediate level with NO open channel at all -- neither autoionization back to any initial level nor
+        ## a radiative transition to any final level -- has zero total width, and the ratio A_a*A_r/(A_a+A_r) is
+        ## then 0/0. Such a level contributes exactly nothing to dielectronic recombination and must be reported as
+        ## zero: a NaN here is not confined to its own row, it propagates through every subsequent sum over
+        ## resonances -- in particular into the rate coefficient alpha(T) -- and turns the whole result into NaN.
+        ## The two gauges are guarded separately so that a vanishing rate in one of them cannot silently zero the
+        ## other. Example: the 1s2s2p J=5/2- level of Li-like carbon, which has no capture channel from 1s^2 J=0.
+        totalRate = augerRate + photonRate
+        if  totalRate.Coulomb   == 0.   sCoulomb   = 0.   else   sCoulomb   = reducedStrength.Coulomb   / totalRate.Coulomb     end
+        if  totalRate.Babushkin == 0.   sBabushkin = 0.   else   sBabushkin = reducedStrength.Babushkin / totalRate.Babushkin   end
+        resonanceStrength = EmProperty(sCoulomb, sBabushkin)
         push!( resonances, DielectronicRecombination.Resonance( iLevel, nLevel, resonanceEnergy, resonanceStrength, captureRate, augerRate, photonRate) )
     end
     
