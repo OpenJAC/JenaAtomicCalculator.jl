@@ -942,6 +942,17 @@ end
 
 
 """
+`Cascade.simulate(property::Cascade.ParticleCoincidences, method::Cascade.ProbPropagation,
+                  simulation::Cascade.Simulation)`   ... simulates a coincidence spectrum.
+"""
+function simulate(property::Cascade.ParticleCoincidences, method::Cascade.ProbPropagation,
+                  simulation::Cascade.Simulation)
+    levels = Cascade.reviewData(simulation, ascendingOrder=true)
+    return( Cascade.simulateParticleCoincidences(levels, simulation) )
+end
+
+
+"""
 `Cascade.simulate(property::Cascade.DrRateCoefficients, method::Cascade.AbstractSimulationMethod,
                   simulation::Cascade.Simulation)`   ... simulates dielectronic-recombination rate coefficients.
 """
@@ -1019,26 +1030,28 @@ end
 
 
 """
-`Cascade.propagateProbability!(levels::Array{Cascade.Level,1}; 
-                                collectPhotonIntensities::Bool=false, collectElectronIntensities::Bool=false)` 
-    ... propagates the relative level occupation through the levels of the cascade until no further change occur in the 
-        relative level occupation. The argument levels is modified during the propagation, but nothing is returned otherwise.
+`Cascade.propagateProbability!(levels::Array{Cascade.Level,1})`
+    ... propagates the relative level occupation through the levels of the cascade until no further change
+        occurs. The argument levels is modified during the propagation.
+
+        A  fluxes::Array{Cascade.LineFlux,1}  is returned: one record per line that probability has flowed
+        through, carrying the process, the energy of the emitted particle, the flux itself, and the indices of
+        the initial and final level. Observables are NOT collected here -- each simulation property derives
+        what it needs afterwards, see Cascade.extractIntensities. Until 05-Aug-2026 this function took
+        collectPhotonIntensities/collectElectronIntensities keywords, could honour only one at a time
+        (error("stop a")), and so had to be re-run in full for a second observable; a photon-electron
+        coincidence could not be expressed at all.
 """
-function propagateProbability!(levels::Array{Cascade.Level,1}; 
-                                collectPhotonIntensities::Bool=false, collectElectronIntensities::Bool=false)
-    # Inititalize arrays to be returned
-    if      collectPhotonIntensities  && collectElectronIntensities      error("stop a")
-    elseif  collectPhotonIntensities  || collectElectronIntensities
-            energiesIntensities = Tuple{Float64,Float64}[]
-    end
-    
+function propagateProbability!(levels::Array{Cascade.Level,1})
+    fluxes = Cascade.LineFlux[]
+
     n = 0
     println("\n*  Probability propagation through $(length(levels)) levels of the cascade:")
-    while true ## n < 2  ## 
+    while true
         n = n + 1;    totalProbability = 0.
         print("    $n-th round ... ")
         relativeOcc = zeros(length(levels));    relativeLoss = zeros(length(levels))
-        for  level in levels
+        for  (li, level) in  enumerate(levels)
             if   level.relativeOcc > 0.   && length(level.daughters) > 0
                 # A level with relative occupation > 0 has still 'daughter' levels; collect all excitation/decay rates for this level
                 # Here, an excitation cross section is formally treated as a rate as it is assumed that the initial levels of
@@ -1065,15 +1078,13 @@ function propagateProbability!(levels::Array{Cascade.Level,1};
                         else    error("stop b; process = $(daughter.process) ")
                         end
                         major    = Basics.extractConfiguration(Basics.LeadingConfiguration(), line.finalLevel)
-                        newLevel = Cascade.Level( line.finalLevel.energy, line.finalLevel.J, line.finalLevel.parity, 
+                        newLevel = Cascade.Level( line.finalLevel.energy, line.finalLevel.J, line.finalLevel.parity,
                                                     line.finalLevel.basis.NoElectrons, major, 0., Cascade.LineReference[], Cascade.LineReference[] )
                         kk    = Cascade.findLevelIndex(newLevel, levels)
-                        relativeOcc[kk] = relativeOcc[kk] + prob * rates[i] / totalRate
-                        #
-                        if  collectPhotonIntensities   && daughter.process == Basics.Radiative()
-                            push!(energiesIntensities, (level.energy - levels[kk].energy, prob * rates[i] / totalRate))     end
-                        if  collectElectronIntensities && daughter.process == Basics.Auger()
-                            push!(energiesIntensities, (level.energy - levels[kk].energy, prob * rates[i] / totalRate))     end
+                        flux  = prob * rates[i] / totalRate
+                        relativeOcc[kk] = relativeOcc[kk] + flux
+                        ## Record the flux through this line, whatever its process; the properties sort it out later.
+                        push!(fluxes, Cascade.LineFlux(daughter.process, level.energy - levels[kk].energy, flux, li, kk))
                     end
                     level.relativeOcc = 0.;   totalProbability = totalProbability + prob
                 end
@@ -1085,10 +1096,204 @@ function propagateProbability!(levels::Array{Cascade.Level,1};
         if  totalProbability == 0.    break    end
     end
 
-    if  collectPhotonIntensities   ||   collectElectronIntensities   return(energiesIntensities)
-    else                                                             return( nothing )
-    end
+    return( fluxes )
 end
+
+
+"""
+`Cascade.extractIntensities(fluxes::Array{Cascade.LineFlux,1}, process::Basics.AbstractProcess)`
+    ... extracts, from the flux records of a cascade propagation, the (energy, intensity) tuples of all
+        emissions belonging to the given process -- Basics.Radiative() for the photon spectrum,
+        Basics.Auger() for the electron spectrum. An  Array{Tuple{Float64,Float64},1}  is returned.
+"""
+function extractIntensities(fluxes::Array{Cascade.LineFlux,1}, process::Basics.AbstractProcess)
+    energiesIntensities = Tuple{Float64,Float64}[]
+    for  lf in fluxes
+        if  lf.process == process    push!(energiesIntensities, (lf.energy, lf.flux))    end
+    end
+
+    return( energiesIntensities )
+end
+
+
+"""
+`Cascade.matchesGate(gate::Cascade.ElectronGate, emission::Tuple{Basics.AbstractProcess,Float64})`
+    ... true if the emission is an electron within the gate's energy window. A Bool is returned.
+"""
+function matchesGate(gate::Cascade.ElectronGate, emission::Tuple{Basics.AbstractProcess,Float64})
+    return( emission[1] == Basics.Auger()  &&  gate.minEnergy <= emission[2] <= gate.maxEnergy )
+end
+
+
+"""
+`Cascade.matchesGate(gate::Cascade.PhotonGate, emission::Tuple{Basics.AbstractProcess,Float64})`
+    ... true if the emission is a photon within the gate's energy window. A Bool is returned.
+"""
+function matchesGate(gate::Cascade.PhotonGate, emission::Tuple{Basics.AbstractProcess,Float64})
+    return( emission[1] == Basics.Radiative()  &&  gate.minEnergy <= emission[2] <= gate.maxEnergy )
+end
+
+
+"""
+`Cascade.walkPathways!(levels::Array{Cascade.Level,1}, index::Int64, prob::Float64,
+                       emissions::Array{Tuple{Basics.AbstractProcess,Float64},1}, cutoff::Float64, pathways::Array)`
+    ... walks the cascade tree from the level with the given index, follows every branch while accumulating the
+        probability along it, and records one entry per completed PATHWAY: the ordered list of emissions
+        (process and energy of each emitted particle), the index of the level the pathway ends in, and the
+        probability of the pathway as a whole. Nothing is returned; `pathways` is appended to.
+
+        This is deliberately not what Cascade.propagateProbability! does. The propagation yields the total flux
+        through each line, which is all a singles spectrum needs, but it forgets by which route the probability
+        arrived. A coincidence is a statement about routes -- the JOINT probability that one particle was
+        emitted AND then another -- so pathways have to be kept intact. Cascade.Level's `daughters` links are
+        what make this possible at all.
+
+        Branches whose probability falls below `cutoff` are terminated: pathway counts multiply with cascade
+        depth, and a deep cascade is not otherwise enumerable.
+"""
+function walkPathways!(levels::Array{Cascade.Level,1}, index::Int64, prob::Float64,
+                       emissions::Array{Tuple{Basics.AbstractProcess,Float64},1}, cutoff::Float64, pathways::Array)
+    level = levels[index]
+    if  prob < cutoff  ||  length(level.daughters) == 0
+        push!(pathways, (emissions, index, prob));    return( nothing )
+    end
+    #
+    rates = zeros(length(level.daughters))
+    for  (i,daughter) in  enumerate(level.daughters)
+        idx = daughter.index
+        if      daughter.process == Basics.Radiative()     rates[i] = daughter.lines[idx].photonRate.Coulomb
+        elseif  daughter.process == Basics.Auger()         rates[i] = daughter.lines[idx].totalRate
+        elseif  daughter.process == Basics.Photo()         rates[i] = daughter.lines[idx].crossSection.Coulomb
+        else    error("stop a; process = $(daughter.process) ")
+        end
+    end
+    totalRate = sum(rates)
+    if  totalRate <= 0.
+        push!(pathways, (emissions, index, prob));    return( nothing )
+    end
+    #
+    for  (i,daughter) in  enumerate(level.daughters)
+        idx      = daughter.index;    line = daughter.lines[idx]
+        major    = Basics.extractConfiguration(Basics.LeadingConfiguration(), line.finalLevel)
+        newLevel = Cascade.Level( line.finalLevel.energy, line.finalLevel.J, line.finalLevel.parity,
+                                  line.finalLevel.basis.NoElectrons, major, 0., Cascade.LineReference[], Cascade.LineReference[] )
+        kk       = Cascade.findLevelIndex(newLevel, levels)
+        branch   = prob * rates[i] / totalRate
+        if  branch < cutoff    continue    end
+        newEmissions = copy(emissions);    push!(newEmissions, (daughter.process, level.energy - levels[kk].energy))
+        Cascade.walkPathways!(levels, kk, branch, newEmissions, cutoff, pathways)
+    end
+
+    return( nothing )
+end
+
+
+"""
+`Cascade.simulateParticleCoincidences(levels::Array{Cascade.Level,1}, simulation::Cascade.Simulation)`
+    ... simulates a coincidence measurement: the spectrum of the observed particle, restricted to those decay
+        pathways in which every gate is satisfied. Gates are matched in emission order, and the observed
+        particle is the emission FOLLOWING the last gate; a Cascade.ChargeStateGate among the gates is instead
+        applied to the charge state that the pathway ends in. All energies are in ATOMIC UNITS, as everywhere
+        else in these properties. An  Array{Tuple{Float64,Float64},1}  of (energy, intensity) is returned.
+"""
+function simulateParticleCoincidences(levels::Array{Cascade.Level,1}, simulation::Cascade.Simulation)
+    printSummary, iostream = Defaults.getDefaults("summary flag/stream")
+    prop = simulation.property
+    if  typeof(prop.observed) == Cascade.ChargeStateGate
+        error("Cascade.ParticleCoincidences: a ChargeStateGate cannot be the OBSERVED quantity -- that is an " *
+              "ion distribution, not a spectrum. Use Cascade.IonDistribution instead.")
+    end
+    Cascade.specifyInitialOccupation!(levels, prop.initialOccupations)
+    Cascade.displayRelativeOccupation(stdout, levels)
+    #
+    cutoff   = 1.0e-10
+    pathways = Any[]
+    for  (li, level) in  enumerate(levels)
+        if  level.relativeOcc > 0.
+            Cascade.walkPathways!(levels, li, level.relativeOcc,
+                                  Tuple{Basics.AbstractProcess,Float64}[], cutoff, pathways)
+        end
+    end
+    println("\n*  Coincidence analysis: $(length(pathways)) decay pathways enumerated (probability cutoff $cutoff).")
+    #
+    seqGates    = filter(g -> typeof(g) != Cascade.ChargeStateGate, prop.gates)
+    chargeGates = filter(g -> typeof(g) == Cascade.ChargeStateGate, prop.gates)
+    #
+    energiesInts = Tuple{Float64,Float64}[];   nAccepted = 0
+    for  (emissions, finalIndex, pathProb) in pathways
+        ok = true
+        for  g in chargeGates
+            if  levels[finalIndex].NoElectrons != g.NoElectrons    ok = false    end
+        end
+        if  !ok    continue    end
+        ## The gates are matched as an ordered SUBSEQUENCE of the emissions, not against adjacent positions.
+        ## That is what a coincidence experiment actually measures: between two detected Auger electrons the
+        ## ion may well have emitted a photon, and a detector counting electrons is indifferent to it. Strict
+        ## adjacency would discard exactly those pathways. With no gates at all, every emission is therefore a
+        ## candidate, and the result reduces to the ungated singles spectrum -- which is the check that caught
+        ## this: adjacency gave only the FIRST emission and so recovered just 0.95 of the 1.91 electrons that
+        ## this cascade emits per ion.
+        pos = 0
+        for  g in seqGates
+            found = 0
+            for  j = pos+1:length(emissions)
+                if  Cascade.matchesGate(g, emissions[j])    found = j;   break    end
+            end
+            if  found == 0    ok = false;   break    end
+            pos = found
+        end
+        if  !ok    continue    end
+        ## every later emission that matches the observation window contributes
+        for  j = pos+1:length(emissions)
+            if  Cascade.matchesGate(prop.observed, emissions[j])
+                push!(energiesInts, (emissions[j][2], pathProb));    nAccepted = nAccepted + 1
+            end
+        end
+    end
+    println("*  $nAccepted pathways satisfy all gates and contribute to the coincidence spectrum.")
+    #
+    energiesInts = Cascade.truncateEnergiesIntensities(energiesInts, -1.0e10, 1.0e10)
+    Cascade.displayCoincidences(stdout, prop, energiesInts)
+    if  printSummary   Cascade.displayCoincidences(iostream, prop, energiesInts)      end
+
+    return( energiesInts )
+end
+
+
+"""
+`Cascade.displayCoincidences(stream::IO, property::Cascade.ParticleCoincidences,
+                             energiesIntensities::Array{Tuple{Float64,Float64},1})`
+    ... displays the coincidence spectrum in a neat table. Nothing is returned.
+"""
+function displayCoincidences(stream::IO, property::Cascade.ParticleCoincidences,
+                             energiesIntensities::Array{Tuple{Float64,Float64},1})
+    nx = 40
+    println(stream, " ")
+    println(stream, "* Coincidence spectrum of the observed $(typeof(property.observed)), " *
+                    "with $(length(property.gates)) gate(s):  ")
+    for  (k,g) in enumerate(property.gates)   println(stream, "    gate $k:    $g")   end
+    println(stream, "    observed:  $(property.observed)")
+    println(stream, " ")
+    println(stream, "  ", TableStrings.hLine(nx))
+    sa = "  "
+    sa = sa * TableStrings.center(16, "Energy "        * TableStrings.inUnits("energy"); na=5)
+    sa = sa * TableStrings.center(10, "Rel. Intensity"; na=2)
+    println(stream, sa)
+    println(stream, "  ", TableStrings.hLine(nx))
+    #
+    totalIntensity = 0.
+    for  enInt in  energiesIntensities
+        sa = "     " * @sprintf("%.6e", Defaults.convertUnits("energy: from atomic", enInt[1])) *
+                       "         " * @sprintf("%.3e", enInt[2])
+        totalIntensity = totalIntensity + enInt[2]
+        println(stream, sa)
+    end
+    println(stream, "  ", TableStrings.hLine(nx))
+    println(stream, "  Total (relative) coincidence intensity:  " * @sprintf("%.3e", totalIntensity))
+
+    return( nothing )
+end
+
 
 
 """
@@ -1397,7 +1602,7 @@ function simulateFinalLevelDistribution(levels::Array{Cascade.Level,1}, simulati
     end
     Cascade.displayRelativeOccupation(stdout, levels)
     #
-    Cascade.propagateProbability!(levels, collectPhotonIntensities=false)  
+    Cascade.propagateProbability!(levels)  
     #
     finalDist = Cascade.displayFinalLevelDistribution(stdout, simulation.name, levels, simulation.property.finalConfigs)     
     if  printSummary   Cascade.displayFinalLevelDistribution(iostream, simulation.name, levels, simulation.property.finalConfigs)      end
@@ -1421,7 +1626,7 @@ function simulateIonDistribution(levels::Array{Cascade.Level,1}, simulation::Cas
     end
     Cascade.displayRelativeOccupation(stdout, levels)
     #
-    Cascade.propagateProbability!(levels, collectPhotonIntensities=false)  
+    Cascade.propagateProbability!(levels)  
     #
     ionDist = Cascade.displayIonDistribution(stdout, simulation.name, levels)     
     if  printSummary   Cascade.displayIonDistribution(iostream, simulation.name, levels)      end
@@ -1690,7 +1895,8 @@ function simulatePhotonIntensities(levels::Array{Cascade.Level,1}, simulation::C
     Cascade.displayRelativeOccupation(stdout, levels)
     #
     prop = simulation.property
-    energiesInts = Cascade.propagateProbability!(levels, collectPhotonIntensities=true)
+    fluxes       = Cascade.propagateProbability!(levels)
+    energiesInts = Cascade.extractIntensities(fluxes, Basics.Radiative())
     energiesInts = Cascade.truncateEnergiesIntensities(energiesInts, prop.minPhotonEnergy, prop.maxPhotonEnergy)
     #
     Cascade.displayIntensities(stdout, simulation.property, energiesInts)
@@ -1709,10 +1915,12 @@ end
         hole in a light element the electron spectrum carries most of the decay, since the fluorescence yield
         is small, so this is usually the more informative of the two.
 
-        The propagation machinery for this already existed -- Cascade.propagateProbability! has taken a
-        collectElectronIntensities keyword all along and collects (energy, intensity) at every
+        The propagation machinery for this already existed -- Cascade.propagateProbability! had taken a
+        collectElectronIntensities keyword all along, and collected (energy, intensity) at every
         Basics.Auger() daughter -- but nothing ever called it: Cascade.perform(simulation) had no branch for
-        ElectronIntensities and there was no simulate function to reach. Only the wiring was missing.
+        ElectronIntensities and there was no simulate function to reach. Only the wiring was missing. Since
+        05-Aug-2026 the propagation records the flux through every line instead, and the Auger emissions are
+        selected from those records by Cascade.extractIntensities.
 
         An  energiesInts::Array{Tuple{Float64,Float64},1}  of (energy, relative intensity) is returned.
 """
@@ -1723,7 +1931,8 @@ function simulateElectronIntensities(levels::Array{Cascade.Level,1}, simulation:
     Cascade.displayRelativeOccupation(stdout, levels)
     #
     prop = simulation.property
-    energiesInts = Cascade.propagateProbability!(levels, collectElectronIntensities=true)
+    fluxes       = Cascade.propagateProbability!(levels)
+    energiesInts = Cascade.extractIntensities(fluxes, Basics.Auger())
     energiesInts = Cascade.truncateEnergiesIntensities(energiesInts, prop.minElectronEnergy, prop.maxElectronEnergy)
     #
     Cascade.displayIntensities(stdout, simulation.property, energiesInts)

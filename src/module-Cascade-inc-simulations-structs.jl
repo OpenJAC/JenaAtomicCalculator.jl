@@ -817,6 +817,90 @@ end
 
 
 """
+`abstract type Cascade.AbstractCoincidenceGate`
+    ... specifies one condition that an emitted particle (or the resulting ion) has to satisfy for a cascade
+        event to be counted in a coincidence measurement. The gates are named after the PARTICLE that has to
+        be detected, since that is what distinguishes them; ElectronGate and PhotonGate then differ only in
+        which of the two an experiment's analyser accepted.
+
+    + struct ElectronGate     ... an emitted electron within [minEnergy, maxEnergy].
+    + struct PhotonGate       ... an emitted photon within [minEnergy, maxEnergy].
+    + struct ChargeStateGate  ... the ion left with exactly NoElectrons electrons at the end of the cascade;
+                                  the odd one out, since it gates on the ion rather than on an emitted
+                                  particle, and therefore carries a different field.
+"""
+abstract type  AbstractCoincidenceGate                                                            end
+struct  ElectronGate     <:  Cascade.AbstractCoincidenceGate;  minEnergy::Float64;  maxEnergy::Float64   end
+struct  PhotonGate       <:  Cascade.AbstractCoincidenceGate;  minEnergy::Float64;  maxEnergy::Float64   end
+struct  ChargeStateGate  <:  Cascade.AbstractCoincidenceGate;  NoElectrons::Int64                        end
+
+
+"""
+`struct  Cascade.ParticleCoincidences   <:  Cascade.AbstractSimulationProperty`
+    ... defines a type for simulating a coincidence measurement on a cascade: the spectrum of one emitted
+        particle, recorded only for those cascade events in which a set of further conditions was met.
+
+    + gates               ::Array{Cascade.AbstractCoincidenceGate,1}
+        ... the coincidence conditions. They are matched IN EMISSION ORDER along each decay pathway: gates[1]
+            against the first emission of the pathway, gates[2] against the second, and so on. Ordered
+            matching is chosen because a cascade pathway is intrinsically ordered and the rule is then
+            unambiguous; for the usual cases it makes no difference, since the gated groups are separated far
+            beyond any analyser window (a Mg KLL electron near 1100 eV against an LMM electron of a few tens
+            of eV).
+    + observed            ::Cascade.AbstractCoincidenceGate
+        ... the particle whose spectrum is reported, together with the window it is observed in. It is matched
+            against the emission FOLLOWING the last gate. Giving a ChargeStateGate here is meaningless -- that
+            is an ion distribution, not a spectrum -- and is rejected.
+    + initialOccupations  ::Array{Tuple{Int64,Float64},1}
+        ... levels of the cascade tree together with their initial relative population.
+
+        One type covers every two- and multi-fold combination, because the gates and the observed particle are
+        described in the same way:
+
+            Auger-Auger      gates = [ElectronGate(1050., 1200.)]     observed = ElectronGate(0., 100.)
+            photon-photon    gates = [PhotonGate(...)]                observed = PhotonGate(...)
+            electron-photon  gates = [ElectronGate(...)]              observed = PhotonGate(...)
+            electron-ion     gates = [ChargeStateGate(9)]             observed = ElectronGate(0., 2000.)
+            triple           gates = [ElectronGate(...), ElectronGate(...)]  observed = ElectronGate(...)
+            singles          gates = []                               observed = ElectronGate(0., 1.0e6)
+
+        The last line reproduces Cascade.ElectronIntensities and is worth running as a check on the machinery.
+        Cascade.PhotonIntensities and Cascade.ElectronIntensities are deliberately kept as the simple ungated
+        cases: they are the common request, and having both lets each verify the other.
+
+        LIMITATION, and it is a physical one rather than an implementation gap. The intensities computed here
+        are an INCOHERENT sum over decay pathways, so they are energy correlations only. They are not angular
+        correlations between the emitted particles, and they do not describe interference between pathways
+        that reach the same final state by different routes. Fritzsche et al., Symmetry 13, 520 (2021),
+        Sect. 2.3 makes the point explicitly: once the fine-structure splitting of intermediate levels becomes
+        comparable to their natural widths, "the angular emission of the emitted Auger electrons can no longer
+        be described by an incoherent summation over individual pathways". Coincidence experiments are often
+        precisely where that matters.
+"""
+struct  ParticleCoincidences   <:  Cascade.AbstractSimulationProperty
+    gates                 ::Array{Cascade.AbstractCoincidenceGate,1}
+    observed              ::Cascade.AbstractCoincidenceGate
+    initialOccupations    ::Array{Tuple{Int64,Float64},1}
+end
+
+
+"""
+`Cascade.ParticleCoincidences()`  ... (simple) constructor for cascade ParticleCoincidences.
+"""
+function ParticleCoincidences()
+    ParticleCoincidences( Cascade.AbstractCoincidenceGate[], Cascade.ElectronGate(0., 1.0e6), [(1, 1.0)] )
+end
+
+
+# `Base.show(io::IO, prop::Cascade.ParticleCoincidences)`  ... prepares a proper printout.
+function Base.show(io::IO, prop::Cascade.ParticleCoincidences)
+    println(io, "gates:                    $(prop.gates)  ")
+    println(io, "observed:                 $(prop.observed)  ")
+    println(io, "initialOccupations:       $(prop.initialOccupations)  ")
+end
+
+
+"""
 `struct  Cascade.LineFlux`
     ... records how much probability has flowed through ONE line during a cascade propagation, together with
         everything needed to interpret it afterwards. This is what separates the propagation from the

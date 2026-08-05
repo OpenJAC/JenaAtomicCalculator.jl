@@ -137,7 +137,7 @@ elseif  false
     wd = perform(wc; output=true)
     setDefaults("print summary: close", "")
     #
-elseif  true
+elseif  false
     # Last visit:      unknown ... NOT YET RUNNABLE, see below
     # Last successful: unknown ... not yet verified
     #
@@ -163,6 +163,41 @@ elseif  true
 
     wc = Cascade.Simulation(Cascade.Simulation(), name="Mg K-hole: electron intensities",
                             property=Cascade.ElectronIntensities(0., 2000., [(1, 1.0)]),
+                            method=Cascade.ProbPropagation(),
+                            settings=Cascade.SimulationSettings(false, false, 0.), computationData=data )
+    println(wc)
+    wd = perform(wc; output=true)
+    setDefaults("print summary: close", "")
+    #
+    #
+elseif  true
+    # Last visit:      unknown ... not yet run
+    # Last successful: unknown ... not yet verified
+    #
+    # Branch g: AUGER-AUGER COINCIDENCE -- the spectrum of the SECOND Auger electron, recorded only for those
+    #   cascade events in which the FIRST Auger electron fell into the KLL window. This is the classic cascade
+    #   coincidence: gating on the K-shell Auger selects which intermediate (two-hole) state was populated, and
+    #   the second spectrum then shows how that state decayed further.
+    #
+    #   Gates are matched in EMISSION ORDER along each pathway, and all energies are in ATOMIC UNITS, as
+    #   everywhere else in these properties -- hence the explicit conversions below, which also keep the
+    #   intent readable. The Mg KLL group lies near 1080-1240 eV (see example-Fa.jl branch a), so the gate is
+    #   set around it; the second electron is an L-shell Auger of a few tens of eV.
+    #
+    #   Consistency check worth making: with gates = [] and a wide observation window, this property must
+    #   reproduce branch f's ungated electron spectrum exactly.
+    setDefaults("print summary: open", "zzz-Cascade-Fb-augerAuger.sum")
+
+    dataFilename = "example-Fb.dat/zzz-cascade-decay-computations-2026-08-05T16.jld"
+    if  !isfile(dataFilename)   error("Run branch a first and paste its printed filename here: $dataFilename")   end
+    data = [JLD2.load(dataFilename)]
+
+    gateLo = Defaults.convertUnits("energy: to atomic", 1000.);  gateHi = Defaults.convertUnits("energy: to atomic", 1300.)
+    obsLo  = Defaults.convertUnits("energy: to atomic",    0.);  obsHi  = Defaults.convertUnits("energy: to atomic",  200.)
+
+    wc = Cascade.Simulation(Cascade.Simulation(), name="Mg K-hole: Auger-Auger coincidence",
+                            property=Cascade.ParticleCoincidences([Cascade.ElectronGate(gateLo, gateHi)],
+                                                                  Cascade.ElectronGate(obsLo, obsHi), [(1, 1.0)]),
                             method=Cascade.ProbPropagation(),
                             settings=Cascade.SimulationSettings(false, false, 0.), computationData=data )
     println(wc)
