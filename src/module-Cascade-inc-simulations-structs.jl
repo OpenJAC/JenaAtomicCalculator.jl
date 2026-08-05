@@ -801,21 +801,63 @@ end
 
 
 """
-`struct  Cascade.LineIndex{T}`  ... defines a line index with regard to the various lineLists of data::Cascade.LineIndex.
+`struct  Cascade.LineReference{T}`  ... refers to one line within one of the line lists of a Cascade.Data set: it keeps
+        the list itself, the atomic process it belongs to, and the position of the line within that list. Renamed
+        from LineIndex (05-Aug-2026), which suggested a bare integer index rather than the reference it is.
 
     + lines        ::Array{T,1}              ... refers to the line list for which this index is defined.
     + process      ::Basics.AbstractProcess  ... refers to the particular lineList of cascade (data).
     + index        ::Int64                   ... index of the corresponding line.
 """
-struct  LineIndex{T}
-    lines          ::Array{T,1} 
+struct  LineReference{T}
+    lines          ::Array{T,1}
     process        ::Basics.AbstractProcess
-    index          ::Int64 
+    index          ::Int64
+end
+
+
+"""
+`struct  Cascade.LineFlux`
+    ... records how much probability has flowed through ONE line during a cascade propagation, together with
+        everything needed to interpret it afterwards. This is what separates the propagation from the
+        extraction of observables: Cascade.propagateProbability! records a LineFlux for every line it passes
+        probability through, and each simulation property then derives what it needs from that record.
+
+    + process       ::Basics.AbstractProcess  ... the process of the line (Radiative(), Auger(), Photo()).
+    + energy        ::Float64                 ... energy carried away by the emitted particle, i.e. the
+                                                  difference of the initial and final level energies.
+    + flux          ::Float64                 ... probability that has flowed through this line.
+    + initialIndex  ::Int64                   ... index of the initial level within the propagated level list.
+    + finalIndex    ::Int64                   ... index of the final level within the propagated level list.
+
+        Before 05-Aug-2026 the propagation collected observables itself, through the keywords
+        collectPhotonIntensities and collectElectronIntensities, and refused to collect both at once
+        (error("stop a")). That made a photon-electron coincidence inexpressible and forced a second full
+        propagation whenever a different observable was wanted. Recording the flux once, and keeping the level
+        indices with it, removes both restrictions -- and the indices are what a later coincidence simulation
+        needs in order to chain individual emissions into pathways.
+"""
+struct  LineFlux
+    process        ::Basics.AbstractProcess
+    energy         ::Float64
+    flux           ::Float64
+    initialIndex   ::Int64
+    finalIndex     ::Int64
+end
+
+
+# `Base.show(io::IO, lf::Cascade.LineFlux)`  ... prepares a proper printout of the variable lf::Cascade.LineFlux.
+function Base.show(io::IO, lf::Cascade.LineFlux)
+    println(io, "process:       $(lf.process)  ")
+    println(io, "energy:        $(lf.energy)  ")
+    println(io, "flux:          $(lf.flux)  ")
+    println(io, "initialIndex:  $(lf.initialIndex)  ")
+    println(io, "finalIndex:    $(lf.finalIndex)  ")
 end 
 
 
-# `Base.show(io::IO, index::Cascade.LineIndex)`  ... prepares a proper printout of the variable index::Cascade.LineIndex.
-function Base.show(io::IO, index::Cascade.LineIndex) 
+# `Base.show(io::IO, index::Cascade.LineReference)`  ... prepares a proper printout of the variable index::Cascade.LineReference.
+function Base.show(io::IO, index::Cascade.LineReference) 
     println(io, "lines (typeof):        $(typeof(lines))  ")
     println(io, "process:               $(index.process)  ")
     println(io, "index:                 $(index.index)  ")
@@ -831,8 +873,8 @@ end
     + NoElectrons  ::Int64                       ... total number of electrons of the ion to which this level belongs.
     + majorConfig  ::Configuration               ... major (dominant) configuration of this level.
     + relativeOcc  ::Float64                     ... relative occupation  
-    + parents      ::Array{Cascade.LineIndex,1}  ... list of parent lines that (may) populate the level.     
-    + daugthers    ::Array{Cascade.LineIndex,1}  ... list of daugther lines that (may) de-populate the level.     
+    + parents      ::Array{Cascade.LineReference,1}  ... list of parent lines that (may) populate the level.     
+    + daughters    ::Array{Cascade.LineReference,1}  ... list of daughter lines that (may) de-populate the level.     
 """
 mutable struct  Level
     energy         ::Float64 
@@ -841,8 +883,8 @@ mutable struct  Level
     NoElectrons    ::Int64 
     majorConfig    ::Configuration 
     relativeOcc    ::Float64 
-    parents        ::Array{Cascade.LineIndex,1} 
-    daugthers      ::Array{Cascade.LineIndex,1} 
+    parents        ::Array{Cascade.LineReference,1} 
+    daughters      ::Array{Cascade.LineReference,1} 
 end 
 
 
@@ -855,7 +897,7 @@ function Base.show(io::IO, level::Cascade.Level)
     println(io, "majorConfig:   $(level.majorConfig)  ")
     println(io, "relativeOcc:   $(level.relativeOcc)  ")
     println(io, "parents:       $(level.parents)  ")
-    println(io, "daugthers:     $(level.daugthers)  ")
+    println(io, "daughters:     $(level.daughters)  ")
 end
 
 

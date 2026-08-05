@@ -29,7 +29,7 @@
     to initalize a histogram of given kind or to fill such histograms by analyzing the evens from single shots.
     
     A Monte-Carlo tree follows the idea of well-defined parent-daughter relations: Each parent level has none, 
-    one or several daugthers, i.e. subsequent levels to which it can decay. A Monte-Carlo shop ends, if no 
+    one or several daughters, i.e. subsequent levels to which it can decay. A Monte-Carlo shop ends, if no 
     daughter occurs, or ti proceeds to one of the daughters due to some given probabilities. While each level
     can act as parent, its parents themselve remain largely unknown and do not affect the subsequent steps.
     
@@ -251,13 +251,13 @@ end
 `struct  MonteCarlo.DaughterId`  
     ... defines a type to refer to and identify the daughter levels of a given level in the Monte-Carlo tree.
 
-    + index          ::Int64       ... Index of the daugther level in the given Monte-Carlo tree.
+    + index          ::Int64       ... Index of the daughter level in the given Monte-Carlo tree.
     + kind           ::Symbol      
-        ... symbol to indicate the emission process [electron (:e), photon (:p), ...] that lead to this daugther.
+        ... symbol to indicate the emission process [electron (:e), photon (:p), ...] that lead to this daughter.
     + prob           ::Float64     
-        ... Total probability of all daugthers, including the present one; this total probability sums up
-            the probabilities of all previous daugthers and, hence, readily supports which daugther is reached
-            in the next step. For the last daugther, this probability must always be 1.
+        ... Total probability of all daughters, including the present one; this total probability sums up
+            the probabilities of all previous daughters and, hence, readily supports which daughter is reached
+            in the next step. For the last daughter, this probability must always be 1.
 """
 struct  DaughterId
     index            ::Int64 
@@ -274,11 +274,11 @@ function  DaughterId()
 end
 
 
-# `Base.show(io::IO, daugther::MonteCarlo.DaughterId)`  ... prepares a proper printout of daugther::MonteCarlo.DaughterId.
-function Base.show(io::IO, daugther::MonteCarlo.DaughterId) 
-    println(io, "indexd:            $(daugther.index)  ")
-    println(io, "kind:              $(daugther.kind)  ")
-    println(io, "prob:              $(daugther.prob)  ")
+# `Base.show(io::IO, daughter::MonteCarlo.DaughterId)`  ... prepares a proper printout of daughter::MonteCarlo.DaughterId.
+function Base.show(io::IO, daughter::MonteCarlo.DaughterId) 
+    println(io, "indexd:            $(daughter.index)  ")
+    println(io, "kind:              $(daughter.kind)  ")
+    println(io, "prob:              $(daughter.prob)  ")
 end
 
 
@@ -300,8 +300,8 @@ end
         
         The overall Monte-Carlo tree is tree::Vector{MonteCarlo.Level}. Care has to be taken that the tree is properly 
         linked internally before it can be used to follow individual shots through the cascade. The probabilities of the 
-        daugthers are always handled as partially-summed probabilities of the previous daugthers, including the present
-        daugther. This convention simplifies the use of such a cascade tree by keepig the size for its storage moderate.
+        daughters are always handled as partially-summed probabilities of the previous daughters, including the present
+        daughter. This convention simplifies the use of such a cascade tree by keepig the size for its storage moderate.
 
     + totalJ         ::AngularJ64           ... Total angular momentum J of the level
     + parity         ::Basics.Parity        ... Total parity of the level.
@@ -309,7 +309,7 @@ end
     + energy         ::Float64              ... Total energy of the level; a shift of all levels has no particular meaning.
     + rate           ::Float64              ... Total decay rate of the level, if needed.
     + prob           ::Float64              ... accumulated probability, if needed, including the current level
-    + daughters      ::Array{DaughterId,1}  ... Id's of all daugther levels, including their kind and partially-summed 
+    + daughters      ::Array{DaughterId,1}  ... Id's of all daughter levels, including their kind and partially-summed 
                                                 probabilities.
 """
 struct  Level

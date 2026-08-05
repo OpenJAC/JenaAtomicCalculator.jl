@@ -24,8 +24,8 @@ function Basics.extractConfiguration(theme::Basics.LeadingConfiguration, cLevel:
         elseif  parent.process == Basics.Radiative()   level = parent.lines[parent.index].finalLevel
         else    error("stop a")
         end
-    elseif length(cLevel.daugthers) > 0   
-        daugth = cLevel.daugthers[1]
+    elseif length(cLevel.daughters) > 0   
+        daugth = cLevel.daughters[1]
         if      daugth.process == Basics.Auger()       level = daugth.lines[daugth.index].initialLevel
         elseif  daugth.process == Basics.Radiative()   level = daugth.lines[daugth.index].initialLevel
         else    error("stop b")
@@ -255,13 +255,13 @@ end
 
 """
 `Cascade.computeTotalAugerRate(level::Cascade.Level)` 
-    ... computes the total Auger rate of level as given by its daugther levels; a rate::Float64 is returned.
+    ... computes the total Auger rate of level as given by its daughter levels; a rate::Float64 is returned.
 """
 function computeTotalAugerRate(level::Cascade.Level)
     rate = 0.
-    for daugther in level.daugthers
-        if  daugther.process != Basics.Auger();      continue   end
-        aLine   = daugther.lines[daugther.index]
+    for daughter in level.daughters
+        if  daughter.process != Basics.Auger();      continue   end
+        aLine   = daughter.lines[daughter.index]
         rate    = rate + aLine.totalRate
     end
     return( rate )
@@ -270,13 +270,13 @@ end
 
 """
 `Cascade.computeTotalPhotonRate(level::Cascade.Level)` 
-    ... computes the total photon (radiative) rate of level as given by its daugther levels; a rate::EmProperty is returned.
+    ... computes the total photon (radiative) rate of level as given by its daughter levels; a rate::EmProperty is returned.
 """
 function computeTotalPhotonRate(level::Cascade.Level)
     rate = Basics.EmProperty(0.)
-    for daugther in level.daugthers
-        if  daugther.process != Basics.Radiative();      continue   end
-        rLine   = daugther.lines[daugther.index]
+    for daughter in level.daughters
+        if  daughter.process != Basics.Radiative();      continue   end
+        rLine   = daughter.lines[daughter.index]
         rate    = rate + rLine.photonRate
     end
     

@@ -5,7 +5,7 @@
 `Cascade.addLevels(levelsA::Array{Cascade.Level,1}, levelsB::Array{Cascade.Level,1})` 
     ... adds two sets of levels so that each levels occurs only 'once' in the list; in practice, however, this 'addition' requires also 
         that the parent and daughter processes are added properly so that all information is later available for the simulations.
-        It is assumed here that all daugther and parent (processes) appear only once if levels from different data sets
+        It is assumed here that all daughter and parent (processes) appear only once if levels from different data sets
         (Cascade.DecayData, Cascade.PhotoIonData) are added to each other. A message is issued about the number of levels before and 
         after this 'addition', and how many of the levels have been modified by this method. Note that all relative occucations are 
         set to zero in this addition; a newlevels::Array{Cascade.Level,1} is returned.
@@ -13,18 +13,18 @@
 function  addLevels(levelsA::Array{Cascade.Level,1}, levelsB::Array{Cascade.Level,1})
     nA = length(levelsA);   nB = length(levelsB);    nmod = 0;    nnew = 0;    newlevels = Cascade.Level[];  appendedB = falses(nB)
     
-    # First all levels from levels A but taking additional parents and daugthers into accout
+    # First all levels from levels A but taking additional parents and daughters into accout
     for  levA in levelsA
-        parents   = deepcopy(levA.parents);     daugthers = deepcopy(levA.daugthers);   
+        parents   = deepcopy(levA.parents);     daughters = deepcopy(levA.daughters);   
         for  (i,levB) in enumerate(levelsB)
             if levA == levB     appendedB[i] = true
                 for p in levB.parents     push!(parents,   p)   end
-                for d in levB.daugthers   push!(daugthers, d)   end
-                if  length(parents) > length(levA.parents)  ||  length(daugthers) > length(levA.daugthers)  nmod = nmod + 1   end
+                for d in levB.daughters   push!(daughters, d)   end
+                if  length(parents) > length(levA.parents)  ||  length(daughters) > length(levA.daughters)  nmod = nmod + 1   end
                 break
             end
         end
-        push!(newlevels, Cascade.Level(levA.energy, levA.J, levA.parity, levA.NoElectrons, levA.majorConfig, 0., parents, daugthers) )
+        push!(newlevels, Cascade.Level(levA.energy, levA.J, levA.parity, levA.NoElectrons, levA.majorConfig, 0., parents, daughters) )
     end
     
     # Append those levels from levelsB that are not yet appended
@@ -193,7 +193,7 @@ end
 """
 `Cascade.displayLevelTree(stream::IO, levels::Array{Cascade.Level,1}; extended::Bool=false)` 
     ... displays all defined levels  in a neat table, together with their No. of electrons, symmetry, level energy, 
-        current (relative) population as well as analogue information about their parents and daugther levels. This 
+        current (relative) population as well as analogue information about their parents and daughter levels. This 
         enables one to recognize (and perhaps later add) missing parent and daughter levels. Nothing is returned.
 """
 function displayLevelTree(stream::IO, levels::Array{Cascade.Level,1}; extended::Bool=false)
@@ -241,7 +241,7 @@ function displayLevelTree(stream::IO, levels::Array{Cascade.Level,1}; extended::
                     else    error("stop a")    end
                     push!( pProcessSymmetryEnergyList, (p.process, lev.basis.NoElectrons, LevelSymmetry(lev.J, lev.parity), lev.energy) )
                 end
-                for  d in levels[en].daugthers
+                for  d in levels[en].daughters
                     idx = d.index
                     if      d.process == Basics.Auger()         lev = d.lineSet.linesA[idx].finalLevel
                     elseif  d.process == Basics.Radiative()     lev = d.lineSet.linesR[idx].finalLevel
@@ -280,6 +280,40 @@ function displayIntensities(stream::IO, property::PhotonIntensities, energiesInt
     sMaxEn = @sprintf("%.3e", Defaults.convertUnits("energy: from atomic", property.maxPhotonEnergy))
     println(stream, " ")
     println(stream, "* Energies & (relative) photon intensities between " * sMinEn * " and "  * sMaxEn * 
+                        TableStrings.inUnits("energy") * ":  ")
+    println(stream, " ")
+    println(stream, "  ", TableStrings.hLine(nx))
+    sa = "  "
+    sa = sa * TableStrings.center(16, "Energy "        * TableStrings.inUnits("energy"); na=5)
+    sa = sa * TableStrings.center(10, "Rel. Intensity"; na=2)
+    println(stream, sa)
+    println(stream, "  ", TableStrings.hLine(nx))
+    #
+    totalIntensity = 0.
+    for  enInt in  energiesIntensities
+        sa = "     "
+        sa = sa * @sprintf("%.6e", Defaults.convertUnits("energy: from atomic", enInt[1])) * "         " * @sprintf("%.3e", enInt[2])
+        totalIntensity = totalIntensity + enInt[2]
+        println(stream, sa)
+    end
+    println(stream, "  ", TableStrings.hLine(nx))
+    println(stream, "  Total (relative) intensity:  " * @sprintf("%.3e", totalIntensity))
+
+    return( nothing )
+end
+
+
+"""
+`Cascade.displayIntensities(stream::IO, property::ElectronIntensities, energiesIntensities::Array{Tuple{Float64,Float64},1})`
+    ... displays the (tuples of) energiesIntensities of the emitted electrons in a neat table. Nothing is
+        returned.
+"""
+function displayIntensities(stream::IO, property::ElectronIntensities, energiesIntensities::Array{Tuple{Float64,Float64},1})
+    nx = 40
+    sMinEn = @sprintf("%.3e", Defaults.convertUnits("energy: from atomic", property.minElectronEnergy))
+    sMaxEn = @sprintf("%.3e", Defaults.convertUnits("energy: from atomic", property.maxElectronEnergy))
+    println(stream, " ")
+    println(stream, "* Energies & (relative) electron intensities between " * sMinEn * " and "  * sMaxEn *
                         TableStrings.inUnits("energy") * ":  ")
     println(stream, " ")
     println(stream, "  ", TableStrings.hLine(nx))
@@ -549,7 +583,7 @@ end
 `Cascade.extractLevels(data::Array{Cascade.Data,1}, settings::Cascade.SimulationSettings)` 
     ... extracts and sorts all levels from the given cascade data into a new levelList::Array{Cascade.Level,1} to simplify the 
         propagation of the probabilities. In this list, every level of the overall cascade just occurs just once, together 
-        with its parent lines (which may populate the level) and the daugther lines (to which the pobability may decay). 
+        with its parent lines (which may populate the level) and the daughter lines (to which the pobability may decay). 
         A levelList::Array{Cascade.Level,1} is returned.
 """
 function extractLevels(data::Array{Cascade.Data,1}, settings::Cascade.SimulationSettings)
@@ -565,13 +599,13 @@ function extractLevels(data::Array{Cascade.Data,1}, settings::Cascade.Simulation
             for  (i,line)  in  enumerate(linesR)
                 major  = Basics.extractConfiguration(Basics.LeadingConfiguration(), line.initialLevel)
                 iLevel = Cascade.Level( line.initialLevel.energy, line.initialLevel.J, line.initialLevel.parity, line.initialLevel.basis.NoElectrons,
-                                        major, line.initialLevel.relativeOcc, Cascade.LineIndex[],
-                                        [ Cascade.LineIndex(linesR, Basics.Radiative(), i)] ) 
+                                        major, line.initialLevel.relativeOcc, Cascade.LineReference[],
+                                        [ Cascade.LineReference(linesR, Basics.Radiative(), i)] ) 
                 Cascade.pushLevels!(levels, iLevel)  
                 major  = Basics.extractConfiguration(Basics.LeadingConfiguration(), line.finalLevel)
                 fLevel = Cascade.Level( line.finalLevel.energy, line.finalLevel.J, line.finalLevel.parity, line.finalLevel.basis.NoElectrons,
-                                        major, line.finalLevel.relativeOcc, [ Cascade.LineIndex(linesR, Basics.Radiative(), i)], 
-                                        Cascade.LineIndex[] ) 
+                                        major, line.finalLevel.relativeOcc, [ Cascade.LineReference(linesR, Basics.Radiative(), i)], 
+                                        Cascade.LineReference[] ) 
                 Cascade.pushLevels!(levels, fLevel)  
             end
             #
@@ -580,12 +614,12 @@ function extractLevels(data::Array{Cascade.Data,1}, settings::Cascade.Simulation
             for  (i,line)  in  enumerate(linesA)
                 major  = Basics.extractConfiguration(Basics.LeadingConfiguration(), line.initialLevel)
                 iLevel = Cascade.Level( line.initialLevel.energy, line.initialLevel.J, line.initialLevel.parity, line.initialLevel.basis.NoElectrons,
-                                        major, line.initialLevel.relativeOcc, Cascade.LineIndex[], 
-                                        [ Cascade.LineIndex(linesA, Basics.Auger(), i)] ) 
+                                        major, line.initialLevel.relativeOcc, Cascade.LineReference[], 
+                                        [ Cascade.LineReference(linesA, Basics.Auger(), i)] ) 
                 Cascade.pushLevels!(levels, iLevel)  
                 major  = Basics.extractConfiguration(Basics.LeadingConfiguration(), line.finalLevel)
                 fLevel = Cascade.Level( line.finalLevel.energy, line.finalLevel.J, line.finalLevel.parity, line.finalLevel.basis.NoElectrons,
-                                        major, line.finalLevel.relativeOcc, [ Cascade.LineIndex(linesA, Basics.Auger(), i)], Cascade.LineIndex[] ) 
+                                        major, line.finalLevel.relativeOcc, [ Cascade.LineReference(linesA, Basics.Auger(), i)], Cascade.LineReference[] ) 
                 Cascade.pushLevels!(levels, fLevel)
             end
             #
@@ -594,11 +628,11 @@ function extractLevels(data::Array{Cascade.Data,1}, settings::Cascade.Simulation
             for  (i,line)  in  enumerate(linesP)
                 major  = Basics.extractConfiguration(Basics.LeadingConfiguration(), line.initialLevel)
                 iLevel = Cascade.Level( line.initialLevel.energy, line.initialLevel.J, line.initialLevel.parity, line.initialLevel.basis.NoElectrons,
-                                        major, line.initialLevel.relativeOcc, Cascade.LineIndex[], [ Cascade.LineIndex(linesP, Basics.Photo(), i)] ) 
+                                        major, line.initialLevel.relativeOcc, Cascade.LineReference[], [ Cascade.LineReference(linesP, Basics.Photo(), i)] ) 
                 Cascade.pushLevels!(levels, iLevel)  
                 major  = Basics.extractConfiguration(Basics.LeadingConfiguration(), line.finalLevel)
                 fLevel = Cascade.Level( line.finalLevel.energy, line.finalLevel.J, line.finalLevel.parity, line.finalLevel.basis.NoElectrons,
-                                        major, line.finalLevel.relativeOcc, [ Cascade.LineIndex(linesP, Basics.Photo(), i)], Cascade.LineIndex[] ) 
+                                        major, line.finalLevel.relativeOcc, [ Cascade.LineReference(linesP, Basics.Photo(), i)], Cascade.LineReference[] ) 
                 Cascade.pushLevels!(levels, fLevel)
             end
             #
@@ -607,10 +641,10 @@ function extractLevels(data::Array{Cascade.Data,1}, settings::Cascade.Simulation
             linesE = cData.lines
             for  (i,line)  in  enumerate(linesE)
                 iLevel = Cascade.Level( line.initialLevel.energy, line.initialLevel.J, line.initialLevel.parity, line.initialLevel.basis.NoElectrons,
-                                        line.initialLevel.relativeOcc, Cascade.LineIndex[], [ Cascade.LineIndex(linesE, Basics.Radiative(), i)] ) 
+                                        line.initialLevel.relativeOcc, Cascade.LineReference[], [ Cascade.LineReference(linesE, Basics.Radiative(), i)] ) 
                 Cascade.pushLevels!(levels, iLevel)  
                 fLevel = Cascade.Level( line.finalLevel.energy, line.finalLevel.J, line.finalLevel.parity, line.finalLevel.basis.NoElectrons,
-                                        line.finalLevel.relativeOcc, [ Cascade.LineIndex(linesE, Basics.Radiative(), i)], Cascade.LineIndex[] ) 
+                                        line.finalLevel.relativeOcc, [ Cascade.LineReference(linesE, Basics.Radiative(), i)], Cascade.LineReference[] ) 
                 Cascade.pushLevels!(levels, fLevel)  
             end
         else  error("stop a")
@@ -635,7 +669,7 @@ end
 `Cascade.extractLevels(data::Array{Cascade.Data,1}, settings::Cascade.SimulationSettings)` 
     ... extracts and sorts all levels from the given cascade data into a new levelList::Array{Cascade.Level,1} to simplify the 
         propagation of the probabilities. In this list, every level of the overall cascade just occurs just once, together 
-        with its parent lines (which may populate the level) and the daugther lines (to which the pobability may decay). 
+        with its parent lines (which may populate the level) and the daughter lines (to which the pobability may decay). 
         A levelList::Array{Cascade.Level,1} is returned.
 """
 function extractLevels(data::Array{Cascade.Data,1}, settings::Cascade.SimulationSettings)
@@ -659,7 +693,7 @@ end
 `Cascade.extractLevels(data::Array{Cascade.Data,1}, settings::Cascade.SimulationSettings)` 
     ... extracts and sorts all levels from the given cascade data into a new levelList::Array{Cascade.Level,1} to simplify the 
         propagation of the probabilities. In this list, every level of the overall cascade just occurs just once, together 
-        with its parent lines (which may populate the level) and the daugther lines (to which the pobability may decay). 
+        with its parent lines (which may populate the level) and the daughter lines (to which the pobability may decay). 
         A levelList::Array{Cascade.Level,1} is returned.
 """
 function extractLevels(data::Array{Cascade.Data,1}, settings::Cascade.SimulationSettings)
@@ -671,10 +705,10 @@ function extractLevels(data::Array{Cascade.Data,1}, settings::Cascade.Simulation
     for  i = 1:length(data.linesE)
         line = data.linesE[i]
         iLevel = Cascade.Level( line.initialLevel.energy, line.initialLevel.J, line.initialLevel.parity, line.initialLevel.basis.NoElectrons,
-                                line.initialLevel.relativeOcc, Cascade.LineIndex[], [ Cascade.LineIndex(data, Basics.Radiative(), i)] ) 
+                                line.initialLevel.relativeOcc, Cascade.LineReference[], [ Cascade.LineReference(data, Basics.Radiative(), i)] ) 
         Cascade.pushLevels!(levels, iLevel)  
         fLevel = Cascade.Level( line.finalLevel.energy, line.finalLevel.J, line.finalLevel.parity, line.finalLevel.basis.NoElectrons,
-                                line.finalLevel.relativeOcc, [ Cascade.LineIndex(data, Basics.Radiative(), i)], Cascade.LineIndex[] ) 
+                                line.finalLevel.relativeOcc, [ Cascade.LineReference(data, Basics.Radiative(), i)], Cascade.LineReference[] ) 
         Cascade.pushLevels!(levels, fLevel)  
     end
     
@@ -696,7 +730,7 @@ end
 `Cascade.extractLevels(data::Array{Cascade.Data,1}, settings::Cascade.SimulationSettings)` 
     ... extracts and sorts all levels from the given cascade data into a new levelList::Array{Cascade.Level,1} to simplify the 
         propagation of the probabilities. In this list, every level of the overall cascade just occurs just once, together 
-        with its parent lines (which may populate the level) and the daugther lines (to which the pobability may decay). 
+        with its parent lines (which may populate the level) and the daughter lines (to which the pobability may decay). 
         A levelList::Array{Cascade.Level,1} is returned.
 """
 function extractLevels(data::Array{Cascade.Data,1}, settings::Cascade.SimulationSettings)
@@ -708,10 +742,10 @@ function extractLevels(data::Array{Cascade.Data,1}, settings::Cascade.Simulation
     for  i = 1:length(data.linesP)
         line = data.linesP[i]
         iLevel = Cascade.Level( line.initialLevel.energy, line.initialLevel.J, line.initialLevel.parity, line.initialLevel.basis.NoElectrons,
-                                line.initialLevel.relativeOcc, Cascade.LineIndex[], [ Cascade.LineIndex(data, Basics.Photo(), i)] ) 
+                                line.initialLevel.relativeOcc, Cascade.LineReference[], [ Cascade.LineReference(data, Basics.Photo(), i)] ) 
         Cascade.pushLevels!(levels, iLevel)  
         fLevel = Cascade.Level( line.finalLevel.energy, line.finalLevel.J, line.finalLevel.parity, line.finalLevel.basis.NoElectrons,
-                                line.finalLevel.relativeOcc, [ Cascade.LineIndex(data, Basics.Photo(), i)], Cascade.LineIndex[] ) 
+                                line.finalLevel.relativeOcc, [ Cascade.LineReference(data, Basics.Photo(), i)], Cascade.LineReference[] ) 
         Cascade.pushLevels!(levels, fLevel)  
     end
     
@@ -785,92 +819,169 @@ end
     ... to perform the same but to return the complete output in a dictionary; the particular output depends on the method and 
         specifications of the cascade but can easily accessed by the keys of this dictionary.
 """
-function perform(simulation::Cascade.Simulation; output::Bool=false)   
-    results = Dict{String, Any}()
-    # First review and display the computation data for this simulation; this enables the reader to check the consistency of data.
-    # It also returns the level tree to be used in the simulations
-    if      typeof(simulation.property) == Cascade.PhotoAbsorptionSpectrum
-                                            # -------------------------
-        if    haskey(simulation.computationData[1]["results"], "photoionization lines:")
-                linesP = simulation.computationData[1]["results"]["photoionization lines:"]     
-        else  linesP = PhotoIonization.Line[]
-        end
-        if    haskey(simulation.computationData[1]["results"], "photoexcitation lines:")
-                linesE = simulation.computationData[1]["results"]["photoexcitation lines:"]
-        else  linesE = PhotoExcitation.Line[]
-        end
-        # Display the line data if appropriate
-        if  simulation.settings.printTree
-            PhotoIonization.displayLineData(stdout, linesP)
-            PhotoExcitation.displayLineData(stdout, linesE)
-        else
-            println(">>>> Set settings.printTree to list all line data explicitly.")
-        end
-        #
-        wa     = Cascade.simulatePhotoAbsorptionSpectrum(simulation, linesP, linesE)
-        waC    = Float64[];   waB = Float64[]
-        for cs in wa[2]  push!(waC, cs.Coulomb);  push!(waB, cs.Babushkin)      end
-        #
-        if  output    results = Base.merge( results, Dict("photonEnergies:"           => wa[1]) ) 
-                      results = Base.merge( results, Dict("crossSections(Coulomb):"   => waC) )     
-                      results = Base.merge( results, Dict("crossSections(Babushkin):" => waB) )     end
-        #
-    elseif  typeof(simulation.property) == Cascade.IonDistribution         &&   simulation.method == Cascade.ProbPropagation()
-                                            # -----------------------
-        levels = Cascade.reviewData(simulation, ascendingOrder=true)
-        wa     = Cascade.simulateIonDistribution(levels, simulation) 
-        #
-    elseif  typeof(simulation.property) == Cascade.FinalLevelDistribution  &&   simulation.method == Cascade.ProbPropagation()
-                                            # ------------------------------
-        levels = Cascade.reviewData(simulation, ascendingOrder=true)
-        wa     = Cascade.simulateFinalLevelDistribution(levels, simulation) 
-        #
-    elseif  typeof(simulation.property) == Cascade.PhotonIntensities       &&   simulation.method == Cascade.ProbPropagation()
-                                            # -------------------------
-        levels = Cascade.reviewData(simulation, ascendingOrder=true)
-        wa     = Cascade.simulatePhotonIntensities(levels, simulation) 
-        if output   results = Base.merge( results, Dict("energies/intensities:"  => wa) )   end
-        #
-    elseif  typeof(simulation.property) == Cascade.DrRateCoefficients
-                                            # --------------------------
-        levels = Cascade.reviewData(simulation, ascendingOrder=true)
-        wa     = Cascade.simulateDrRateCoefficients(levels, simulation) 
-        #
-    elseif  typeof(simulation.property) == Cascade.RrRateCoefficients
-                                            # --------------------------
-        linesR = simulation.computationData[1]["results"]["photo-recombination line data:"].linesR
-        @show typeof(linesR)
-        wa     = Cascade.simulateRrRateCoefficients(linesR, simulation) 
-        if output   results = Base.merge( results, Dict("alpha^RR:"  => wa) )   end
-        #
-    elseif  typeof(simulation.property) == Cascade.MeanRelaxationTime
-                                            # --------------------------
-        levels = Cascade.reviewData(simulation, ascendingOrder=true)
-        wa     = Cascade.simulateMeanRelaxationTime(levels, simulation) 
-        if output   results = Base.merge( results, Dict("relaxPercentage:"  => wa[1]) )   
-                    results = Base.merge( results, Dict("relaxTimes:"       => wa[2]) )   end
-        #
-    elseif  typeof(simulation.property) == Cascade.ExpansionOpacities
-                                            # --------------------------
-        photoExcData = Cascade.extractPhotoExcitationData(simulation.computationData)
-        wa           = Cascade.simulateExpansionOpacities(photoExcData, simulation.name, simulation.property, printout=true) 
-        #
-    elseif  typeof(simulation.property) == Cascade.RosselandOpacities
-                                            # --------------------------
-        photoExcData = Cascade.extractPhotoExcitationData(simulation.computationData)
-        wa           = Cascade.simulateRosselandOpacities(photoExcData, simulation) 
-        #
-    else         error("stop b")
-    end
-    
-    if  output    results = Dict{String, Any}()    
-        results = Base.merge( results, Dict("name:"         => simulation.name) ) 
+function perform(simulation::Cascade.Simulation; output::Bool=false)
+    ## The property (and, where it matters, the method) select what is simulated BY DISPATCH; this used to be a
+    ## chain of ten `typeof(simulation.property) == ...` tests ending in error("stop b"). That chain is why
+    ## Cascade.ElectronIntensities stayed dead for years: it had no branch, so a request for it fell straight
+    ## through and returned nothing, silently. Under dispatch an unsupported combination hits the explicit
+    ## fallback below and says so. Cascade.PiRateCoefficients is still in that position and now reports it.
+    wa = Cascade.simulate(simulation.property, simulation.method, simulation)
+
+    ## NOTE (05-Aug-2026): the individual branches used to merge their own keys into `results`
+    ## ("energies/intensities:", "alpha^RR:", "relaxPercentage:", ...), but the closing block then RESET
+    ## `results` to a fresh Dict before filling in name/property/data -- so none of those keys ever reached a
+    ## caller. They were aliases for `wa` in any case, and the behaviour that callers actually saw is kept
+    ## unchanged here.
+    if  output
+        results = Dict{String, Any}()
+        results = Base.merge( results, Dict("name:"         => simulation.name) )
         results = Base.merge( results, Dict("property:"     => simulation.property) )
         results = Base.merge( results, Dict("data:"         => wa) )
-    
-    else    results = nothing    end
+        return( results )
+    end
 
-    return( results )
+    return( nothing )
+end
+
+
+"""
+`Cascade.simulate(property::Cascade.AbstractSimulationProperty, method::Cascade.AbstractSimulationMethod,
+                  simulation::Cascade.Simulation)`
+    ... carries out the simulation that the given property asks for, by the given method. A method is defined
+        for every supported (property, method) combination; this fallback catches the rest and names what is
+        missing, rather than letting the request pass silently.
+"""
+function simulate(property::Cascade.AbstractSimulationProperty, method::Cascade.AbstractSimulationMethod,
+                  simulation::Cascade.Simulation)
+    error("No simulation is implemented for property $(typeof(property)) with method $(typeof(method)). " *
+          "Supported: PhotoAbsorptionSpectrum, DrRateCoefficients, RrRateCoefficients, ExpansionOpacities and " *
+          "RosselandOpacities with any method; IonDistribution, FinalLevelDistribution, PhotonIntensities, " *
+          "ElectronIntensities and MeanRelaxationTime with Cascade.ProbPropagation().")
+end
+
+
+"""
+`Cascade.simulate(property::Cascade.PhotoAbsorptionSpectrum, method::Cascade.AbstractSimulationMethod,
+                  simulation::Cascade.Simulation)`   ... simulates the photo-absorption spectrum.
+"""
+function simulate(property::Cascade.PhotoAbsorptionSpectrum, method::Cascade.AbstractSimulationMethod,
+                  simulation::Cascade.Simulation)
+    if    haskey(simulation.computationData[1]["results"], "photoionization lines:")
+            linesP = simulation.computationData[1]["results"]["photoionization lines:"]
+    else  linesP = PhotoIonization.Line[]
+    end
+    if    haskey(simulation.computationData[1]["results"], "photoexcitation lines:")
+            linesE = simulation.computationData[1]["results"]["photoexcitation lines:"]
+    else  linesE = PhotoExcitation.Line[]
+    end
+    # Display the line data if appropriate
+    if  simulation.settings.printTree
+        PhotoIonization.displayLineData(stdout, linesP)
+        PhotoExcitation.displayLineData(stdout, linesE)
+    else
+        println(">>>> Set settings.printTree to list all line data explicitly.")
+    end
+
+    return( Cascade.simulatePhotoAbsorptionSpectrum(simulation, linesP, linesE) )
+end
+
+
+"""
+`Cascade.simulate(property::Cascade.IonDistribution, method::Cascade.ProbPropagation,
+                  simulation::Cascade.Simulation)`   ... simulates the final ion (charge-state) distribution.
+"""
+function simulate(property::Cascade.IonDistribution, method::Cascade.ProbPropagation,
+                  simulation::Cascade.Simulation)
+    levels = Cascade.reviewData(simulation, ascendingOrder=true)
+    return( Cascade.simulateIonDistribution(levels, simulation) )
+end
+
+
+"""
+`Cascade.simulate(property::Cascade.FinalLevelDistribution, method::Cascade.ProbPropagation,
+                  simulation::Cascade.Simulation)`   ... simulates the final level distribution.
+"""
+function simulate(property::Cascade.FinalLevelDistribution, method::Cascade.ProbPropagation,
+                  simulation::Cascade.Simulation)
+    levels = Cascade.reviewData(simulation, ascendingOrder=true)
+    return( Cascade.simulateFinalLevelDistribution(levels, simulation) )
+end
+
+
+"""
+`Cascade.simulate(property::Cascade.PhotonIntensities, method::Cascade.ProbPropagation,
+                  simulation::Cascade.Simulation)`   ... simulates the emitted photon (fluorescence) spectrum.
+"""
+function simulate(property::Cascade.PhotonIntensities, method::Cascade.ProbPropagation,
+                  simulation::Cascade.Simulation)
+    levels = Cascade.reviewData(simulation, ascendingOrder=true)
+    return( Cascade.simulatePhotonIntensities(levels, simulation) )
+end
+
+
+"""
+`Cascade.simulate(property::Cascade.ElectronIntensities, method::Cascade.ProbPropagation,
+                  simulation::Cascade.Simulation)`   ... simulates the emitted electron (Auger) spectrum.
+"""
+function simulate(property::Cascade.ElectronIntensities, method::Cascade.ProbPropagation,
+                  simulation::Cascade.Simulation)
+    levels = Cascade.reviewData(simulation, ascendingOrder=true)
+    return( Cascade.simulateElectronIntensities(levels, simulation) )
+end
+
+
+"""
+`Cascade.simulate(property::Cascade.MeanRelaxationTime, method::Cascade.ProbPropagation,
+                  simulation::Cascade.Simulation)`   ... simulates the mean relaxation time of the cascade.
+"""
+function simulate(property::Cascade.MeanRelaxationTime, method::Cascade.ProbPropagation,
+                  simulation::Cascade.Simulation)
+    levels = Cascade.reviewData(simulation, ascendingOrder=true)
+    return( Cascade.simulateMeanRelaxationTime(levels, simulation) )
+end
+
+
+"""
+`Cascade.simulate(property::Cascade.DrRateCoefficients, method::Cascade.AbstractSimulationMethod,
+                  simulation::Cascade.Simulation)`   ... simulates dielectronic-recombination rate coefficients.
+"""
+function simulate(property::Cascade.DrRateCoefficients, method::Cascade.AbstractSimulationMethod,
+                  simulation::Cascade.Simulation)
+    levels = Cascade.reviewData(simulation, ascendingOrder=true)
+    return( Cascade.simulateDrRateCoefficients(levels, simulation) )
+end
+
+
+"""
+`Cascade.simulate(property::Cascade.RrRateCoefficients, method::Cascade.AbstractSimulationMethod,
+                  simulation::Cascade.Simulation)`   ... simulates radiative-recombination rate coefficients.
+"""
+function simulate(property::Cascade.RrRateCoefficients, method::Cascade.AbstractSimulationMethod,
+                  simulation::Cascade.Simulation)
+    linesR = simulation.computationData[1]["results"]["photo-recombination line data:"].linesR
+    return( Cascade.simulateRrRateCoefficients(linesR, simulation) )
+end
+
+
+"""
+`Cascade.simulate(property::Cascade.ExpansionOpacities, method::Cascade.AbstractSimulationMethod,
+                  simulation::Cascade.Simulation)`   ... simulates expansion opacities.
+"""
+function simulate(property::Cascade.ExpansionOpacities, method::Cascade.AbstractSimulationMethod,
+                  simulation::Cascade.Simulation)
+    photoExcData = Cascade.extractPhotoExcitationData(simulation.computationData)
+    return( Cascade.simulateExpansionOpacities(photoExcData, simulation.name, simulation.property, printout=true) )
+end
+
+
+"""
+`Cascade.simulate(property::Cascade.RosselandOpacities, method::Cascade.AbstractSimulationMethod,
+                  simulation::Cascade.Simulation)`   ... simulates Rosseland opacities.
+"""
+function simulate(property::Cascade.RosselandOpacities, method::Cascade.AbstractSimulationMethod,
+                  simulation::Cascade.Simulation)
+    photoExcData = Cascade.extractPhotoExcitationData(simulation.computationData)
+    return( Cascade.simulateRosselandOpacities(photoExcData, simulation) )
 end
 
 
@@ -882,17 +993,17 @@ function propagateOccupationInTime!(levels::Array{Cascade.Level,1}, dt::Float64)
     #
     relativeOcc = zeros(length(levels));    relativeLoss = zeros(length(levels));    down = 0.0;    loss = 0.0
     for (i, level) in  enumerate(levels)
-        # Cycle through all daugthers of level and 'shift' the part of occupation down the daugther levels
+        # Cycle through all daughters of level and 'shift' the part of occupation down the daughter levels
         lossFactor = 0.;    occ = level.relativeOcc
-        for  daugther in level.daugthers
-            idx = daugther.index
-            if      daugther.process == Basics.Radiative()     line = daugther.lineSet.linesR[idx];  rate = line.photonRate.Coulomb
-            elseif  daugther.process == Basics.Auger()         line = daugther.lineSet.linesA[idx];  rate = line.totalRate
-            else    error("stop b; process = $(daugther.process) ")
+        for  daughter in level.daughters
+            idx = daughter.index
+            if      daughter.process == Basics.Radiative()     line = daughter.lineSet.linesR[idx];  rate = line.photonRate.Coulomb
+            elseif  daughter.process == Basics.Auger()         line = daughter.lineSet.linesA[idx];  rate = line.totalRate
+            else    error("stop b; process = $(daughter.process) ")
             end
             downFactor = (1.0 - exp(-rate*dt));         
             newLevel   = Cascade.Level( line.finalLevel.energy, line.finalLevel.J, line.finalLevel.parity, 
-                                        line.finalLevel.basis.NoElectrons, 0., Cascade.LineIndex[], Cascade.LineIndex[] )
+                                        line.finalLevel.basis.NoElectrons, 0., Cascade.LineReference[], Cascade.LineReference[] )
             kk         = Cascade.findLevelIndex(newLevel, levels)
             if lossFactor + downFactor < 1.0    lossFactor = lossFactor + downFactor
             else                                downFactor = 1.0 - lossFactor;      lossFactor = 1.0
@@ -928,40 +1039,40 @@ function propagateProbability!(levels::Array{Cascade.Level,1};
         print("    $n-th round ... ")
         relativeOcc = zeros(length(levels));    relativeLoss = zeros(length(levels))
         for  level in levels
-            if   level.relativeOcc > 0.   && length(level.daugthers) > 0
-                # A level with relative occupation > 0 has still 'daugther' levels; collect all excitation/decay rates for this level
+            if   level.relativeOcc > 0.   && length(level.daughters) > 0
+                # A level with relative occupation > 0 has still 'daughter' levels; collect all excitation/decay rates for this level
                 # Here, an excitation cross section is formally treated as a rate as it is assumed that the initial levels of
                 # the photoionization process cannot decay by photon emission or autoionization processes.
-                prob  = level.relativeOcc;   rates = zeros(length(level.daugthers))
-                for  (i,daugther) in  enumerate(level.daugthers)
-                    idx = daugther.index
-                    if      daugther.process == Basics.Radiative()     rates[i] = daugther.lines[idx].photonRate.Coulomb
-                    elseif  daugther.process == Basics.Auger()         rates[i] = daugther.lines[idx].totalRate
-                    elseif  daugther.process == Basics.Photo()         rates[i] = daugther.lines[idx].crossSection.Coulomb
-                    else    error("stop a; process = $(daugther.process) ")
+                prob  = level.relativeOcc;   rates = zeros(length(level.daughters))
+                for  (i,daughter) in  enumerate(level.daughters)
+                    idx = daughter.index
+                    if      daughter.process == Basics.Radiative()     rates[i] = daughter.lines[idx].photonRate.Coulomb
+                    elseif  daughter.process == Basics.Auger()         rates[i] = daughter.lines[idx].totalRate
+                    elseif  daughter.process == Basics.Photo()         rates[i] = daughter.lines[idx].crossSection.Coulomb
+                    else    error("stop a; process = $(daughter.process) ")
                     end
                 end
                 totalRate = sum(rates)
                 if      totalRate <  0.    error("stop b")
                 elseif  totalRate == 0.    # do nothing
                 else
-                    # Shift the relative occupation to the 'daugther' levels due to the different ionization and decay pathes
-                    for  (i,daugther) in  enumerate(level.daugthers)
-                        idx = daugther.index
-                        if      daugther.process == Basics.Radiative()     line = daugther.lines[idx]
-                        elseif  daugther.process == Basics.Auger()         line = daugther.lines[idx]
-                        elseif  daugther.process == Basics.Photo()         line = daugther.lines[idx]
-                        else    error("stop b; process = $(daugther.process) ")
+                    # Shift the relative occupation to the 'daughter' levels due to the different ionization and decay pathes
+                    for  (i,daughter) in  enumerate(level.daughters)
+                        idx = daughter.index
+                        if      daughter.process == Basics.Radiative()     line = daughter.lines[idx]
+                        elseif  daughter.process == Basics.Auger()         line = daughter.lines[idx]
+                        elseif  daughter.process == Basics.Photo()         line = daughter.lines[idx]
+                        else    error("stop b; process = $(daughter.process) ")
                         end
                         major    = Basics.extractConfiguration(Basics.LeadingConfiguration(), line.finalLevel)
                         newLevel = Cascade.Level( line.finalLevel.energy, line.finalLevel.J, line.finalLevel.parity, 
-                                                    line.finalLevel.basis.NoElectrons, major, 0., Cascade.LineIndex[], Cascade.LineIndex[] )
+                                                    line.finalLevel.basis.NoElectrons, major, 0., Cascade.LineReference[], Cascade.LineReference[] )
                         kk    = Cascade.findLevelIndex(newLevel, levels)
                         relativeOcc[kk] = relativeOcc[kk] + prob * rates[i] / totalRate
                         #
-                        if  collectPhotonIntensities   && daugther.process == Basics.Radiative()
+                        if  collectPhotonIntensities   && daughter.process == Basics.Radiative()
                             push!(energiesIntensities, (level.energy - levels[kk].energy, prob * rates[i] / totalRate))     end
-                        if  collectElectronIntensities && daugther.process == Basics.Auger()
+                        if  collectElectronIntensities && daughter.process == Basics.Auger()
                             push!(energiesIntensities, (level.energy - levels[kk].energy, prob * rates[i] / totalRate))     end
                     end
                     level.relativeOcc = 0.;   totalProbability = totalProbability + prob
@@ -983,14 +1094,14 @@ end
 """
 `Cascade.pushLevels!(levels::Array{Cascade.Level,1}, newLevel::Cascade.Level)` 
     ... push's the information of newLevel of levels. This is the standard 'push!(levels, newLevel)' if newLevel is not yet 
-        including in levels, and the proper modification of the parent and daugther lines of this level otherwise. The argument 
+        including in levels, and the proper modification of the parent and daughter lines of this level otherwise. The argument 
         levels::Array{Cascade.Level,1} is modified and nothing is returned otherwise.
 """
 function pushLevels!(levels::Array{Cascade.Level,1}, newLevel::Cascade.Level)
     for  i = 1:length(levels)
         if  newLevel.energy == levels[i].energy  &&  newLevel.J == levels[i].J  &&  newLevel.parity == levels[i].parity
             append!(levels[i].parents,   newLevel.parents)
-            append!(levels[i].daugthers, newLevel.daugthers)
+            append!(levels[i].daughters, newLevel.daughters)
             return( nothing )
         end
     end
@@ -1068,9 +1179,9 @@ function simulateDrRateCoefficients(levels::Array{Cascade.Level,1}, simulation::
     #
     # Collect the information about all resonances
     for  level in levels
-        for daugther in level.daugthers
-            if  daugther.process != Basics.Auger();                            continue   end
-            aLine   = daugther.lines[daugther.index]
+        for daughter in level.daughters
+            if  daughter.process != Basics.Auger();                            continue   end
+            aLine   = daughter.lines[daughter.index]
             if  aLine.finalLevel.index != simulation.property.initialLevelNo   continue   end
             #
             dJ      = aLine.initialLevel.J;         iJ      = aLine.finalLevel.J
@@ -1118,7 +1229,7 @@ function simulateDrRateCoefficients(levels::Array{Cascade.Level,1}, simulation::
         end
     end
     
-    # Add contributions for the high-n shell if requested; in this case, each level and its daugthers are 
+    # Add contributions for the high-n shell if requested; in this case, each level and its daughters are 
     # tested for having an orbital with principal quantum number nDetailed. If this is the case, scaled resonances
     # are added for all n = nDetailed+1 : nMax, ie. resonances with scaled energies and rates.
     # At present, a simple (nDetailed/n)^beta with beta = 1.1 is applied
@@ -1127,9 +1238,9 @@ function simulateDrRateCoefficients(levels::Array{Cascade.Level,1}, simulation::
         @warn("This feature nDetailed < nMax has been implemented but never tested; first check the individual n-contributions." * 
                 "i.e. the nEnergy and nStrength below ... and how they contribute.")
         for  level in levels
-            for daugther in level.daugthers
-                if  daugther.process != Basics.Auger();                            continue   end
-                aLine   = daugther.lineSet.linesA[daugther.index]
+            for daughter in level.daughters
+                if  daughter.process != Basics.Auger();                            continue   end
+                aLine   = daughter.lineSet.linesA[daughter.index]
                 if  aLine.finalLevel.index != simulation.property.initialLevelNo   continue   end
                 #
                 dJ      = aLine.initialLevel.J;         iJ      = aLine.finalLevel.J
@@ -1362,14 +1473,14 @@ function simulateMeanRelaxationTime(levels::Array{Cascade.Level,1}, simulation::
     # Determine the smallest and largest rate for the given cascade tree
     minRate = 1.0e100;    maxRate = 0.0
     for  level in levels
-        for daugther in level.daugthers
-            if      daugther.process == Basics.Auger()
-                aLine  = daugther.lineSet.linesA[daugther.index]
+        for daughter in level.daughters
+            if      daughter.process == Basics.Auger()
+                aLine  = daughter.lineSet.linesA[daughter.index]
                 @show aLine.totalRate
                 if  minRate > aLine.totalRate > 0.  minRate = aLine.totalRate   end
                 if  maxRate < aLine.totalRate       maxRate = aLine.totalRate   end
-            elseif  daugther.process == Basics.Radiative()
-                rLine  = daugther.lineSet.linesR[daugther.index]
+            elseif  daughter.process == Basics.Radiative()
+                rLine  = daughter.lineSet.linesR[daughter.index]
                 @show rLine.photonRate.Coulomb
                 if  minRate > rLine.photonRate.Coulomb > 0.  minRate = rLine.photonRate.Coulomb   end
                 if  maxRate < rLine.photonRate.Coulomb       maxRate = rLine.photonRate.Coulomb   end
@@ -1579,8 +1690,41 @@ function simulatePhotonIntensities(levels::Array{Cascade.Level,1}, simulation::C
     Cascade.displayRelativeOccupation(stdout, levels)
     #
     prop = simulation.property
-    energiesInts = Cascade.propagateProbability!(levels, collectPhotonIntensities=true)  
+    energiesInts = Cascade.propagateProbability!(levels, collectPhotonIntensities=true)
     energiesInts = Cascade.truncateEnergiesIntensities(energiesInts, prop.minPhotonEnergy, prop.maxPhotonEnergy)
+    #
+    Cascade.displayIntensities(stdout, simulation.property, energiesInts)
+    if  printSummary   Cascade.displayIntensities(iostream, simulation.property, energiesInts)      end
+
+    return( energiesInts )
+end
+
+
+"""
+`Cascade.simulateElectronIntensities(levels::Array{Cascade.Level,1}, simulation::Cascade.Simulation)`
+    ... simulates the (relative) intensities of the ELECTRONS emitted during the cascade, i.e. the Auger
+        spectrum, as a function of the electron energy. This is the exact counterpart of
+        Cascade.simulatePhotonIntensities: the same probability propagation is run through the cascade tree,
+        but the emitted energy is collected at the Auger rather than at the radiative steps. For a K-shell
+        hole in a light element the electron spectrum carries most of the decay, since the fluorescence yield
+        is small, so this is usually the more informative of the two.
+
+        The propagation machinery for this already existed -- Cascade.propagateProbability! has taken a
+        collectElectronIntensities keyword all along and collects (energy, intensity) at every
+        Basics.Auger() daughter -- but nothing ever called it: Cascade.perform(simulation) had no branch for
+        ElectronIntensities and there was no simulate function to reach. Only the wiring was missing.
+
+        An  energiesInts::Array{Tuple{Float64,Float64},1}  of (energy, relative intensity) is returned.
+"""
+function simulateElectronIntensities(levels::Array{Cascade.Level,1}, simulation::Cascade.Simulation)
+    printSummary, iostream = Defaults.getDefaults("summary flag/stream")
+    # Specify and display the initial (relative) occupation
+    Cascade.specifyInitialOccupation!(levels, simulation.property.initialOccupations)
+    Cascade.displayRelativeOccupation(stdout, levels)
+    #
+    prop = simulation.property
+    energiesInts = Cascade.propagateProbability!(levels, collectElectronIntensities=true)
+    energiesInts = Cascade.truncateEnergiesIntensities(energiesInts, prop.minElectronEnergy, prop.maxElectronEnergy)
     #
     Cascade.displayIntensities(stdout, simulation.property, energiesInts)
     if  printSummary   Cascade.displayIntensities(iostream, simulation.property, energiesInts)      end
@@ -1762,7 +1906,6 @@ end
 """
 function truncateEnergiesIntensities(energiesInts::Array{Tuple{Float64,Float64},1}, minPhotonEnergy::Float64, maxPhotonEnergy::Float64)
     # Firt, truncate contributions to given energy range
-    @show minPhotonEnergy, maxPhotonEnergy
     w1EnergiesInts = Tuple{Float64,Float64}[];   we = Float64[]
     for  enInt in energiesInts
         if  minPhotonEnergy <= enInt[1] <= maxPhotonEnergy    push!(w1EnergiesInts, enInt);     push!(we, enInt[1])   end
