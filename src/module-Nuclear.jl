@@ -145,8 +145,17 @@ end
     + mu            ::Float64      ... magnetic dipole moment [Bohr magnetons].
     + Q             ::Float64      ... electric quadrupole moment.
     + Omega         ::Float64      ... magnetic octupole moment [Bohr magnetons x fm^2].
-    + multipoleM    ::EmMultipole  ... multipole of the <Ia || M^(multipole) || Ib > nuclear matrix element
-    + elementM      ::Float64      ... (real) value of the  <Ia || M^(multipole) || Ib > nuclear matrix element in [a.u.]
+    + multipoleM    ::Array{EmMultipole,1}
+        ... multipoles of the <Ia || M^(multipole) || Ib > nuclear matrix elements.
+    + elementM      ::Array{Float64,1}
+        ... (real) values of the <Ia || M^(multipole) || Ib > nuclear matrix elements in [a.u.], one for each entry
+            of multipoleM and IN THE SAME ORDER; the two arrays must therefore have equal length.
+
+        These last two fields carry the NUCLEAR transition data: they are what makes a hyperfine-induced nuclear
+        transition possible at all, and what mixes two nuclear levels of the same F. Use
+        Nuclear.reducedTransitionAmplitude to obtain elementM from a reduced transition probability B(multipole),
+        rather than converting by hand -- that conversion carries a Weisskopf unit and a convention factor, and
+        has already been got wrong once in an application script.
 """
 struct  Isomer
     spinI           ::AngularJ64
@@ -162,9 +171,125 @@ end
 
 """
 `Nuclear.Isomer()`  ... constructor for an `empty` instance of Nuclear.Isomer.
+
+        Note (06-Aug-2026): multipoleM and elementM are both left EMPTY. They previously read `[E1]` and
+        `Float64[]`, i.e. of unequal length, which breaks the pairing the two fields are supposed to express and
+        would give an out-of-bounds the moment anything iterated them together. An empty isomer has no known
+        nuclear transition, which is the honest default.
 """
 function Isomer()
-    Isomer( AngularJ64(0), Basics.plus, 0., 0., 0., 0., [E1], Float64[])
+    Isomer( AngularJ64(0), Basics.plus, 0., 0., 0., 0., EmMultipole[], Float64[])
+end
+
+
+"""
+`Nuclear.Isomer(isomer::Nuclear.Isomer;`
+
+            spinI=..,        parity=..,       energy=..,       mu=..,
+            Q=..,            Omega=..,        multipoleM=..,   elementM=..)
+
+    ... constructor for re-defining an isomer::Nuclear.Isomer, i.e. the standard JAC keyword copy-constructor.
+        Its absence is why every application script builds an Isomer from positional arguments, and why every one
+        of them is now wrong against the eight-field struct.
+"""
+function Isomer(isomer::Nuclear.Isomer;
+    spinI::Union{Nothing,AngularJ64}=nothing,               parity::Union{Nothing,Parity}=nothing,
+    energy::Union{Nothing,Float64}=nothing,                 mu::Union{Nothing,Float64}=nothing,
+    Q::Union{Nothing,Float64}=nothing,                      Omega::Union{Nothing,Float64}=nothing,
+    multipoleM::Union{Nothing,Array{EmMultipole,1}}=nothing, elementM::Union{Nothing,Array{Float64,1}}=nothing)
+
+    if  isnothing(spinI)        spinIx      = isomer.spinI       else   spinIx      = spinI       end
+    if  isnothing(parity)       parityx     = isomer.parity      else   parityx     = parity      end
+    if  isnothing(energy)       energyx     = isomer.energy      else   energyx     = energy      end
+    if  isnothing(mu)           mux         = isomer.mu          else   mux         = mu          end
+    if  isnothing(Q)            Qx          = isomer.Q           else   Qx          = Q           end
+    if  isnothing(Omega)        Omegax      = isomer.Omega       else   Omegax      = Omega       end
+    if  isnothing(multipoleM)   multipoleMx = isomer.multipoleM  else   multipoleMx = multipoleM  end
+    if  isnothing(elementM)     elementMx   = isomer.elementM    else   elementMx   = elementM    end
+    #
+    if  length(multipoleMx) != length(elementMx)
+        error("\n\nNuclear.Isomer():  STOP -- multipoleM and elementM must have the same length, but are \n"  *
+              "$multipoleMx  and  $elementMx.\nEach nuclear matrix element belongs to exactly one multipole.\n")
+    end
+    Isomer(spinIx, parityx, energyx, mux, Qx, Omegax, multipoleMx, elementMx)
+end
+
+
+"""
+`Nuclear.weisskopfUnit(mp::EmMultipole, A::Int64)`
+    ... to return one Weisskopf unit for the multipole mp and mass number A, in ATOMIC units, i.e. the single-particle
+        estimate against which reduced nuclear transition probabilities B(mp) are conventionally quoted. A
+        value::Float64 is returned.
+
+        With R = 1.2 A^(1/3) fm,
+
+            B_W(EL) = 1/(4 pi) * [3/(L+3)]^2 * R^(2L)      [e^2 fm^(2L)]
+            B_W(ML) = 10/pi   * [3/(L+3)]^2 * R^(2L-2)     [mu_N^2 fm^(2L-2)]
+
+        so that B_W(M1) = 1.79 mu_N^2, independent of A, as it must be. The result is converted into atomic units
+        here, so that a caller never has to mix fm with a_0 or nuclear magnetons with atomic ones -- which is
+        precisely where the factors have gone missing before.
+"""
+function  weisskopfUnit(mp::EmMultipole, A::Int64)
+    L      = mp.L
+    Rfm    = 1.2 * A^(1/3)
+    fmToAu = Defaults.convertUnits("length: from fm to atomic", 1.0)
+    if      mp.electric
+        wa = 1.0/(4pi) * (3.0/(L+3))^2 * Rfm^(2L)
+        return( wa * fmToAu^(2L) )                       ## e^2 a_0^(2L) = a.u. for EL
+    else
+        wa = 10.0/pi  * (3.0/(L+3))^2 * Rfm^(2L-2)
+        muNToAu = Defaults.convertUnits("moment: from nuclear magneton to atomic", 1.0)
+        return( wa * muNToAu^2 * fmToAu^(2L-2) )         ## mu_N^2 a_0^(2L-2)
+    end
+end
+
+
+"""
+`Nuclear.reducedTransitionAmplitude(mp::EmMultipole, B::Float64, A::Int64, spinI::AngularJ64;
+                            inWeisskopfUnits::Bool=true)`
+    ... to convert a reduced nuclear transition probability B(mp) into the reduced nuclear matrix element
+        <I_f || M^(mp) || I_i> that Nuclear.Isomer.elementM expects, in atomic units; spinI is the spin of the
+        INITIAL (decaying) nuclear state. A value::Float64 is returned. If inWeisskopfUnits, B is taken in
+        Weisskopf units and converted with Nuclear.weisskopfUnit; otherwise B is taken as already in atomic units.
+
+        THE CONVENTION, corrected 06-Aug-2026, and it is worth reading before changing anything here. The
+        reduced transition probability is DEFINED as
+
+            B(sigma L; I_i -> I_f)  =  |<I_f || M^(sigma L) || I_i>|^2 / (2 I_i + 1)
+
+        so the reduced matrix element is simply sqrt( (2 I_i + 1) * B ), which is what is implemented.
+
+        THIS IS NOT WHAT THE MANUSCRIPT SAYS. examples/papers/b26.pra-hyperfine-induced.tex gives, for the 235U
+        E3 case, <I_g || W^(E3) || I_e> = sqrt( 8 pi / 7 * B(E3) ), i.e. sqrt( 8 pi/(2L+1) * B ), and that form
+        was implemented here first. It is wrong for this purpose, and not merely by a constant: since B already
+        carries the 1/(2 I_i + 1), the manuscript's W has the initial-state degeneracy folded into it and is
+        therefore NOT a reduced matrix element. Two things then break.
+
+          * elementM is contracted with a 6-j symbol in Hfs.computeInteractionAmplitudeM, where nothing but a
+            true reduced matrix element is admissible.
+          * the radiation field factor in HyperfineInduced.amplitude acquired a spurious (2 I_i + 1) dependence
+            to compensate -- and a field factor cannot depend on the spin of the emitting state, since it
+            describes the photon, not the nucleus. That is what exposed the error.
+
+        The manuscript needs a corresponding correction; it is marked in cyan in the -claude.tex copy.
+
+        UNITS. The returned matrix element is in JAC's own moment convention, i.e. magnetic multipoles carry
+        mu_N = 5.446170e-4/2 a.u. ("moment: from nuclear magneton to atomic"), the SAME convention as
+        Nuclear.Isomer.mu and hence as the diagonal hyperfine matrix elements. It is deliberately NOT converted
+        to the Gaussian convention mu_B = alpha/2 that the multipole RADIATION formula needs: that factor of
+        alpha belongs to the 1/c of the magnetic multipole radiation operator and is applied in
+        HyperfineInduced.amplitude, not to the nuclear moment itself.
+
+        Doing this by hand has already gone wrong: apps/apps-wuwang-hfs-induced/job-a-uranium.jl computes
+        `sqrt(8/7. * 5.38e-27)` -- without the pi, and from a B value that differs from the one in the text.
+"""
+function  reducedTransitionAmplitude(mp::EmMultipole, B::Float64, A::Int64, spinI::AngularJ64;
+                                     inWeisskopfUnits::Bool=true)
+    Bau = inWeisskopfUnits  ?  B * Nuclear.weisskopfUnit(mp, A)  :  B
+    if  Bau < 0.   error("\n\nNuclear.reducedTransitionAmplitude():  STOP -- a reduced transition probability "  *
+                         "cannot be negative, but B = $B was given.\n")   end
+    return( sqrt( (Basics.twice(spinI) + 1) * Bau ) )
 end
 
 

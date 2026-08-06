@@ -164,6 +164,12 @@ function testModule_PhotoIonization(; short::Bool=true)
     # Make the comparison with approved data
     success = testCompareFiles( joinpath(@__DIR__, "..", "test", "approved", "test-PhotoIonization-approved.sum"),
                                 joinpath(@__DIR__, "..", "test", "test-PhotoIonization-new.sum"), "Total photoionization c", 3)
+    ## Check the summed (grand-total) cross sections separately: they must stay consistent with the
+    ## line-resolved table above, of which they are the sum over all final levels.
+    success = success  &&
+              testCompareFiles( joinpath(@__DIR__, "..", "test", "approved", "test-PhotoIonization-approved.sum"),
+                                joinpath(@__DIR__, "..", "test", "test-PhotoIonization-new.sum"),
+                                "Total photoionization cross sections, summed", 15)
     testPrint("testModule_PhotoIonization()::", success)
     return(success)
 end
@@ -209,5 +215,48 @@ function testModule_RayleighCompton(; short::Bool=true)
     ## success = testCompareFiles( joinpath(@__DIR__, "..", "test", "approved", "test-RayleighCompton-approved.sum"),
     ##                             joinpath(@__DIR__, "..", "test", "test-RayleighCompton-new.sum"), "xxx", 100)
     testPrint("testModule_RayleighCompton()::", success)
+    return(success)
+end
+
+
+"""
+`TestFrames.testModule_HyperfineInduced(; short::Bool=true)`  ... tests on module HyperfineInduced.
+"""
+function testModule_HyperfineInduced(; short::Bool=true)
+    Defaults.setDefaults("print summary: open", "test-HyperfineInduced-new.sum")
+    printstyled("\n\nTest the module  HyperfineInduced  ... \n", color=:cyan)
+    ### Make the tests
+    ## NUCLEAR HYPERFINE MIXING in H-like 229Th89+ -- deliberately the smallest system that exercises the whole
+    ## chain: two nuclear states in one hyperfine basis, the mixing that follows, both terms of the amplitude
+    ## (nuclear radiation and the borrowed electronic one), and the level lifetimes. One electron, one electronic
+    ## level, four hyperfine levels, five lines -- it runs in seconds.
+    ##
+    ## Basics.NuclearField() rather than the default DFS: a DFS potential self-interacts badly on a one-electron
+    ## system (H 1s comes out at -0.194 instead of -0.5 a.u.) and would corrupt exactly the hyperfine matrix
+    ## elements under test.
+    elemM = Nuclear.reducedTransitionAmplitude(M1, 0.008, 229, AngularJ64(3//2))
+    gsTh  = Nuclear.Isomer(Nuclear.Isomer(); spinI = AngularJ64(5//2), parity = Basics.plus, energy = 0.0,
+                           mu =  0.360, multipoleM = [M1], elementM = [elemM])
+    isTh  = Nuclear.Isomer(Nuclear.Isomer(); spinI = AngularJ64(3//2), parity = Basics.plus, energy = 8.356,
+                           mu = -0.378, multipoleM = [M1], elementM = [elemM])
+    asfTh = AsfSettings(AsfSettings(); scField = Basics.NuclearField())
+    grid  = Radial.Grid(Radial.Grid(false), rnt = 1.0e-7, h = 3.0e-2, hp = 1.0e-2, rbox = 6.0)
+    wa = Atomic.Computation(Atomic.Computation(), name="xx", grid=grid,
+                            nuclearModel   = Nuclear.Model(90.0, "Fermi"),
+                            initialConfigs = [Configuration("1s")],
+                            finalConfigs   = [Configuration("1s")],
+                            initialAsfSettings = asfTh, finalAsfSettings = asfTh,
+                            processSettings = HyperfineInduced.Settings(HyperfineInduced.Settings();
+                                multipoles = [M1], hfMultipoles = [M1], gauges = [UseCoulomb],
+                                isomers = Nuclear.Isomer[gsTh, isTh], calcOverview = false,
+                                lineSelection = LineSelection(), printBefore = false, calcLifetimes = true ) )
+    wb = perform(wa)
+    ###
+    Defaults.setDefaults("print summary: close", "")
+    # Make the comparison with approved data
+    success = testCompareFiles( joinpath(@__DIR__, "..", "test", "approved", "test-HyperfineInduced-approved.sum"),
+                                joinpath(@__DIR__, "..", "test", "test-HyperfineInduced-new.sum"),
+                                "Hyperfine-induced transition rates", 11)
+    testPrint("testModule_HyperfineInduced()::", success)
     return(success)
 end

@@ -20,7 +20,7 @@
               called a non-existent `HfBasis(...)` constructor was one of the reasons defineHyperfineBasis could
               never run before 05-Aug-2026.)
 
-        + HfLevel = HfLevel(F, M, parity, energy, hfBasisVectors, mc)
+        + HfLevel = HfLevel(F, M, parity, index, energy, hfBasisVectors, mc)
           ... one physical hyperfine level, = sum_k mc[k] * hfBasisVectors[k]. The mixing coefficients mc are the
               eigenvector of the hyperfine Hamiltonian in that coupled basis, i.e. they describe J-MIXING among
               vectors of equal F -- they are NOT Clebsch-Gordan coefficients, which sit inside each basis vector.
@@ -118,6 +118,7 @@ struct HfLevel
     F                ::AngularJ64
     M                ::AngularM64
     parity           ::Parity
+    index            ::Int64
     energy           ::Float64
     hfBasisVectors   ::Array{HfBasisVector,1}
     mc               ::Vector{Float64}
@@ -128,7 +129,7 @@ end
 `Hfs.HfLevel()`  ... constructor for an `empty` instance of HfLevel.
 """
 function HfLevel()
-    HfLevel(AngularJ64(0), AngularM64(0), Basics.plus, 0., HfBasisVector[], Float64[])
+    HfLevel(AngularJ64(0), AngularM64(0), Basics.plus, 0, 0., HfBasisVector[], Float64[])
 end
 
 
@@ -357,16 +358,12 @@ end
         is returned.
 """
 function Basics.sortByEnergy(multiplet::Hfs.HfMultiplet)
-    sortedLevels = Base.sort( multiplet.levelFs , lt=Base.isless)
-    newLevels = Hfs.HfLevel[];   index = 0
-    for lev in sortedLevels
-        index = index + 1
-        push!(newLevels, Hfs.IJF_Level(lev.I, lev.F, lev.M, lev.parity, lev.energy, lev.basis, lev.mc) )
-    end
-    
-    newMultiplet = Hfs.HfMultiplet(multiplet.name, newLevels)
-    
-    return( newMultiplet )  
+    ## REPAIRED 06-Aug-2026; this could not run. It read `multiplet.levelFs` where the field is `hfLevels`, and
+    ## rebuilt each level as an `Hfs.IJF_Level` -- a type that does not exist -- from `lev.I` and `lev.basis`,
+    ## neither of which is a field of Hfs.HfLevel. Since the levels are immutable and only their ORDER changes,
+    ## none of that reconstruction was needed in the first place.
+    sortedLevels = sort( multiplet.hfLevels, by = lev -> lev.energy )
+    return( Hfs.HfMultiplet(multiplet.name, sortedLevels) )
 end
 
 
@@ -445,20 +442,31 @@ end
         GRASP-like conversion, matching IsotopeShift's convention.
 """
 function  amplitude(mp::EmMultipole, rLevel::Level, sLevel::Level, grid::Radial.Grid; printout::Bool=true)
-    if  rLevel.parity != sLevel.parity   return( ComplexF64(0.) )   end
+    ## E3 ADDED 06-Aug-2026, and with it the operator-dependent parity rule below. InteractionStrength.hfs_tE3
+    ## had existed all along (Andersson & Jonsson 2008, Eq. 49) but was never dispatched here, because E3 is the
+    ## first PARITY-ODD hyperfine multipole: M1, E2 and M3 all carry parity +1 -- (-1)^L for electric, (-1)^(L+1)
+    ## for magnetic -- whereas E3 carries -1. The old guard `rLevel.parity != sLevel.parity -> 0` is correct for
+    ## the even ones and silently wrong for E3, which requires the two electronic levels to have OPPOSITE parity.
+    ##
+    ## The physical statement is that the hyperfine Hamiltonian conserves TOTAL parity: if the nuclear states it
+    ## connects have opposite parity, as in 235U (I_g = 7/2- and the 1/2+ isomer), then the electronic states it
+    ## connects must have opposite parity too. A calculation of that case therefore needs BOTH parities in its
+    ## configuration list, or every matrix element vanishes.
+    if        mp == M1    opa = SpinAngular.OneParticleOperator(1, plus,  true);  hfsFunc = InteractionStrength.hfs_tM1
+    elseif    mp == E2    opa = SpinAngular.OneParticleOperator(2, plus,  true);  hfsFunc = InteractionStrength.hfs_tE2
+    elseif    mp == M3    opa = SpinAngular.OneParticleOperator(3, plus,  true);  hfsFunc = InteractionStrength.hfs_tM3
+    elseif    mp == E3    opa = SpinAngular.OneParticleOperator(3, minus, true);  hfsFunc = InteractionStrength.hfs_tE3
+    else      error("Hfs.amplitude: unsupported nuclear multipole $mp; implemented are M1, E2, M3 and E3.")
+    end
+    opParity = (mp == E3)  ?  Basics.minus  :  Basics.plus
+    if  rLevel.parity * sLevel.parity != opParity   return( ComplexF64(0.) )   end
     nr = length(rLevel.basis.csfs);    ns = length(sLevel.basis.csfs);    matrix = zeros(ComplexF64, nr, ns)
     if  printout   printstyled("Compute hyperfine $(string(mp)) matrix of dimension $nr x $ns ... \n", color=:light_green)   end
-    #
-    if        mp == M1    opa = SpinAngular.OneParticleOperator(1, plus, true);  hfsFunc = InteractionStrength.hfs_tM1
-    elseif    mp == E2    opa = SpinAngular.OneParticleOperator(2, plus, true);  hfsFunc = InteractionStrength.hfs_tE2
-    elseif    mp == M3    opa = SpinAngular.OneParticleOperator(3, plus, true);  hfsFunc = InteractionStrength.hfs_tM3
-    else      error("Hfs.amplitude: unsupported nuclear multipole $mp.")
-    end
     for  r = 1:nr
         for  s = 1:ns
             me = 0.
-            if  rLevel.basis.csfs[r].parity  != rLevel.parity    ||  sLevel.basis.csfs[s].parity  != sLevel.parity  ||
-                rLevel.parity != sLevel.parity    continue
+            if  rLevel.basis.csfs[r].parity  != rLevel.parity    ||  sLevel.basis.csfs[s].parity  != sLevel.parity
+                continue
             end
             subshellList = sLevel.basis.subshells
             wa           = SpinAngular.computeCoefficients(opa, rLevel.basis.csfs[r], sLevel.basis.csfs[s], subshellList)
@@ -513,6 +521,63 @@ end
 
 
 """
+`Hfs.recouplingElectronicOperator(spinI::AngularJ64, Ja::AngularJ64, Fa::AngularJ64,
+                            Jb::AngularJ64, Fb::AngularJ64, L::Int64)`
+    ... to return the factor that turns an ELECTRONIC reduced matrix element of rank L into the corresponding
+        one between IJF-coupled levels, for an operator that acts on the electrons alone and leaves the nucleus
+        untouched:
+
+            <(I J_b) F_b || T^L || (I J_a) F_a>
+                = (-1)^(I+J_b+F_a+L) sqrt((2F_a+1)(2F_b+1)) {J_b F_b I; F_a J_a L} <J_b || T^L || J_a>
+
+        A value::Float64 is returned. This is the standard result for a tensor acting on one part of a coupled
+        system (Edmonds 7.1.7), with the nucleus as the spectator.
+
+        VERIFIED (work/diag-recoupling.jl, 05-Aug-2026) over 454 combinations of I, J_a, J_b, F_a and L = 1, 2:
+        the sum over F_b of the squared factor equals (2F_a+1)/(2J_a+1) to better than 1e-15, which is exactly
+        what leaves a radiative width unchanged by hyperfine coupling. For I = 0 the factor reduces to 1.
+
+        Lives here, in the property module, rather than in any one process module: both hyperfine-resolved
+        dielectronic recombination and hyperfine-induced transitions need it, and a second copy is how two
+        implementations of the same formula start to drift apart.
+"""
+function  recouplingElectronicOperator(spinI::AngularJ64, Ja::AngularJ64, Fa::AngularJ64,
+                                       Jb::AngularJ64, Fb::AngularJ64, L::Int64)
+    wa = AngularMomentum.phaseFactor([spinI, +1, Jb, +1, Fa, +1, AngularJ64(L)])
+    wb = sqrt( (Basics.twice(Fa) + 1) * (Basics.twice(Fb) + 1) )
+    wc = AngularMomentum.Wigner_6j(Jb, Fb, spinI, Fa, Ja, AngularJ64(L))
+    return( wa * wb * wc )
+end
+
+
+"""
+`Hfs.recouplingNuclearOperator(J::AngularJ64, Ia::AngularJ64, Fa::AngularJ64,
+                            Ib::AngularJ64, Fb::AngularJ64, L::Int64)`
+    ... the mirror image of Hfs.recouplingElectronicOperator: the factor that turns a NUCLEAR reduced matrix
+        element of rank L into the corresponding one between IJF-coupled levels, for an operator that acts on the
+        nucleus alone and leaves the electrons untouched:
+
+            <(I_b J) F_b || W^L || (I_a J) F_a>
+                = (-1)^(J+I_b+F_a+L) sqrt((2F_a+1)(2F_b+1)) {I_b F_b J; F_a I_a L} <I_b || W^L || I_a>
+
+        A value::Float64 is returned. It is the same expression with the roles of the nuclear and electronic
+        angular momenta interchanged, because the coupled state is symmetric in the two: whichever subsystem the
+        operator acts on, the other is the spectator that appears in the 6-j.
+
+        This is the factor that carries a hyperfine-induced NUCLEAR transition -- the isomer changes while the
+        electronic level does not -- and it is therefore what the 229Th and 205Pb cases rest on. For J = 0 it
+        reduces to 1.
+"""
+function  recouplingNuclearOperator(J::AngularJ64, Ia::AngularJ64, Fa::AngularJ64,
+                                    Ib::AngularJ64, Fb::AngularJ64, L::Int64)
+    wa = AngularMomentum.phaseFactor([J, +1, Ib, +1, Fa, +1, AngularJ64(L)])
+    wb = sqrt( (Basics.twice(Fa) + 1) * (Basics.twice(Fb) + 1) )
+    wc = AngularMomentum.Wigner_6j(Ib, Fb, J, Fa, Ia, AngularJ64(L))
+    return( wa * wb * wc )
+end
+
+
+"""
 `Hfs.computeInteractionAmplitudeM(mp::EmMultipole, leftIsomer::Nuclear.Isomer, rightIsomer::Nuclear.Isomer)`
     ... to compute the hyperfine interaction amplitude (<leftIsomer || M^(mp)) || rightIsomer>) for the interaction of two
         nuclear levels; this ME is geometrically fixed if the left and right isomer are the same, and it depends
@@ -525,7 +590,16 @@ function  computeInteractionAmplitudeM(mp::EmMultipole, leftIsomer::Nuclear.Isom
         floatI = Basics.twice(leftIsomer.spinI) / 2.
         if       mp == M1       amplitude = leftIsomer.mu * sqrt( (floatI + 1)*(2*floatI+1) / floatI)
         elseif   mp == E2       amplitude = leftIsomer.Q / 2 * sqrt( (floatI + 1)*(2*floatI+1) * (2*floatI + 3)/ (floatI * (2*floatI -1)) )
-        else   error("stop a; mp = $mp")
+        else
+            ## DIAGONAL higher multipoles are set to zero rather than raising an error (06-Aug-2026). This branch
+            ## is the STATIC hyperfine moment of one nuclear state, which Nuclear.Isomer supplies only for M1 (mu)
+            ## and E2 (Q); no octupole moment is part of its input, and the meaning of the `Omega` field is not
+            ## documented well enough to be used here silently. The omitted term is a small static shift of a
+            ## level, whereas the OFF-DIAGONAL element of the same multipole -- the one that mixes two nuclear
+            ## states and drives every rate in HyperfineInduced -- is taken from `elementM` below and is fully
+            ## included. Raising an error instead simply made every E3 case unrunnable, which is how the 235U
+            ## branch was blocked.
+            amplitude = 0.
         end
     else
         if mp in leftIsomer.multipoleM && mp in rightIsomer.multipoleM
@@ -664,7 +738,7 @@ end
 function computeHyperfineMultiplet(level::Level, nm::Nuclear.Model, grid::Radial.Grid)
     #
     hfBasis     = Hfs.defineHyperfineBasis(level, nm)
-    hfMultiplet = Hfs.computeHyperfineRepresentation(hfBasis, nm, grid)
+    hfMultiplet = Hfs.computeHyperfineRepresentation(hfBasis, grid)
 
     return( hfMultiplet )
 end
@@ -673,7 +747,7 @@ end
 """
 `Hfs.computeHyperfineMultiplet(multiplet::Multiplet, nm::Nuclear.Model, grid::Radial.Grid, settings::Hfs.Settings; output=true)`  
     ... to compute a hyperfine multiplet, i.e. a representation of hyperfine levels within a hyperfine-coupled basis as defined by the
-        given (electronic) multiplet; a hfsMultiplet::IJF_Multiplet is returned.
+        given (electronic) multiplet; an hfMultiplet::Hfs.HfMultiplet is returned.
 """
 function computeHyperfineMultiplet(multiplet::Multiplet, nm::Nuclear.Model, grid::Radial.Grid, settings::Hfs.Settings; output=true)
     println("")
@@ -681,7 +755,7 @@ function computeHyperfineMultiplet(multiplet::Multiplet, nm::Nuclear.Model, grid
     printstyled("------------------------------------------------------------------------------------------ \n", color=:light_green)
     #
     hfBasis     = Hfs.defineHyperfineBasis(multiplet, nm)
-    hfMultiplet = Hfs.computeHyperfineRepresentation(hfBasis, nm, grid)
+    hfMultiplet = Hfs.computeHyperfineRepresentation(hfBasis, grid)
     # Print all results to screen
     hfMultiplet = Basics.sortByEnergy(hfMultiplet)
     Basics.tabulate(stdout,   HfEnergies(),         hfMultiplet)
@@ -719,48 +793,77 @@ end
         mc = [.. 1.0 ..] on a single basis vector. The "no hyperfine mixing" case therefore needs no separate code
         path -- it is the exact output of this same routine.
 """
-function computeHyperfineRepresentation(hfBasisVectors::Array{HfBasisVector,1}, nm::Nuclear.Model, grid::Radial.Grid)
+function computeHyperfineRepresentation(hfBasisVectors::Array{HfBasisVector,1}, grid::Radial.Grid;
+                                        hfMultipoles::Array{EmMultipole,1}=EmMultipole[Basics.M1, Basics.E2],
+                                        printout::Bool=false)
     n = length(hfBasisVectors);   matrix = zeros(n,n)
     for  r = 1:n
         for  s = 1:n
+            vr = hfBasisVectors[r];    vs = hfBasisVectors[s]
             matrix[r,s] = 0.
-            if  r == s    matrix[r,s] = matrix[r,s] +  hfBasisVectors[r].levelJ.energy                 end
-            if  hfBasisVectors[r].F               !=  hfBasisVectors[s].F                continue     end
-            if  hfBasisVectors[r].levelJ.parity   !=  hfBasisVectors[s].levelJ.parity    continue     end
-            if  nm.mu == 0.  &&  nm.Q == 0.                                              continue     end
-            # Now add the hyperfine matrix element for K = 1 (magnetic) and K = 2 (electric) contributions
-            spinI = nm.spinI;   Jr = hfBasisVectors[r].levelJ.J;   Js = hfBasisVectors[s].levelJ.J;   F = hfBasisVectors[r].F
-            Ix    = AngularMomentum.oneJ(spinI)
-            if  Ix == 0.                                                                 continue     end
+            ## THE DIAGONAL carries the electronic energy AND the nuclear excitation energy of its isomer. The
+            ## latter was missing before 06-Aug-2026, which did not matter while a basis held one nuclear state,
+            ## and is fatal the moment it holds two: without it the ground and isomeric levels are degenerate,
+            ## and the nuclear hyperfine mixing -- which is of order V_21 / dE_nuc -- is ill-defined.
+            if  r == s
+                matrix[r,s] = matrix[r,s] + vr.levelJ.energy +
+                              Defaults.convertUnits("energy: to atomic", vr.isomer.energy)
+            end
+            if  vr.F  !=  vs.F                                                           continue     end
+            ## The TOTAL parity, nuclear x electronic, must match; with one nuclear state the nuclear factor is
+            ## common and the electronic test suffices, with two it does not.
+            if  vr.levelJ.parity * vr.isomer.parity != vs.levelJ.parity * vs.isomer.parity   continue end
             #
-            ## TWO repairs here, both found on 05-Aug-2026 by comparing this matrix against the Casimir formula
-            ## E(F) = A/2 * [F(F+1) - I(I+1) - J(J+1)] built from Hfs's own A constant.
+            Ir = vr.isomer.spinI;    Is = vs.isomer.spinI
+            Jr = vr.levelJ.J;        Js = vs.levelJ.J;      F = vr.F
+            #
+            ## The hyperfine operator is H_hfs = sum_k T^k(electronic) . W^k(nuclear), a scalar product of two
+            ## tensors acting on the two parts of the coupled system, so
             ##
-            ## (1) The nuclear reduced matrix elements are no longer written out again. This function had its own
-            ##     copies -- mu*sqrt((I+1)/I) and Q/2*sqrt((I+1)(2I+3)/(I(2I-1))) -- and BOTH had lost a factor
-            ##     sqrt(2I+1) relative to Hfs.computeInteractionAmplitudeM, which is this module's dedicated
-            ##     routine for precisely this quantity. Calling it removes the duplication that allowed the two
-            ##     to diverge in the first place.
-            ## (2) The unit conversions are what the removed "fudge-factor 1.0e-6" was standing in for: mu is
-            ##     given in NUCLEAR MAGNETONS and Q in BARN, so each contribution needs its OWN conversion into
-            ##     atomic units -- ~2.7e-4 and ~3.6e-2 respectively, not one common factor. These are the same
-            ##     conversions computeAmplitudesProperties applies when forming A/mu and B/Q.
-            isomer = hfBasisVectors[r].isomer
-            wa = AngularMomentum.phaseFactor([spinI, +1, Jr, +1, F])  *
-                    AngularMomentum.Wigner_6j(spinI, Jr, F, Js, spinI, AngularJ64(1))
-            wb = Hfs.reducedMeElectronic(Basics.M1, hfBasisVectors[r].levelJ, hfBasisVectors[s].levelJ, grid)
-            wc = Hfs.computeInteractionAmplitudeM(Basics.M1, isomer, isomer) *
-                    Defaults.convertUnits("moment: from nuclear magneton to atomic", 1.0)
-            matrix[r,s] = matrix[r,s] + real(wa * wb * wc)
-            #
-            if  spinI  in [AngularJ64(0), AngularJ64(1//2)]                                 continue     end
-            wa = AngularMomentum.phaseFactor([spinI, +1, Jr, +1, F]) *
-                    AngularMomentum.Wigner_6j(spinI, Jr, F, Js, spinI, AngularJ64(2))
-            wb = Hfs.reducedMeElectronic(Basics.E2, hfBasisVectors[r].levelJ, hfBasisVectors[s].levelJ, grid)
-            wc = Hfs.computeInteractionAmplitudeM(Basics.E2, isomer, isomer) *
-                    Defaults.convertUnits("cross section: from barn to atomic unit", 1.0)
-            matrix[r,s] = matrix[r,s] + real(wa * wb * wc)
+            ##   <(I_r J_r) F| H_hfs |(I_s J_s) F> = sum_k (-1)^(I_r+J_s+F) {F J_r I_r; k I_s J_s}
+            ##                                              <I_r||W^k||I_s> <J_r||T^k||J_s>
+            ##
+            ## For I_r = I_s = I and J_r = J_s = J this reduces to the Casimir form against which this matrix was
+            ## verified on 05-Aug-2026. The OFF-DIAGONAL-in-isomer case is new (06-Aug-2026) and is what nuclear
+            ## hyperfine mixing consists of: nothing changes but that <I_r||W^k||I_s> now connects two DIFFERENT
+            ## nuclear states. Hermiticity of the result is checked below, which is what would catch a wrong phase.
+            for  mp in hfMultipoles
+                if  AngularMomentum.oneJ(Ir) == 0.  &&  AngularMomentum.oneJ(Is) == 0.    continue    end
+                wa = AngularMomentum.phaseFactor([Ir, +1, Js, +1, F]) *
+                        AngularMomentum.Wigner_6j(F, Jr, Ir, AngularJ64(mp.L), Is, Js)
+                if  wa == 0.                                                              continue    end
+                wb = Hfs.reducedMeElectronic(mp, vr.levelJ, vs.levelJ, grid)
+                wc = Hfs.computeInteractionAmplitudeM(mp, vr.isomer, vs.isomer)
+                ## UNITS. computeInteractionAmplitudeM returns the DIAGONAL nuclear element from mu [nuclear
+                ## magnetons] or Q [barn], which must be converted; but for two DIFFERENT isomers it returns
+                ## elementM, which the Isomer docstring already defines to be in atomic units. Converting
+                ## uniformly would therefore be wrong by ~2.7e-4 or ~3.6e-2 on precisely the off-diagonal
+                ## elements that carry the mixing.
+                if  vr.isomer == vs.isomer
+                    if      mp == Basics.M1   wc = wc * Defaults.convertUnits("moment: from nuclear magneton to atomic", 1.0)
+                    elseif  mp == Basics.E2   wc = wc * Defaults.convertUnits("cross section: from barn to atomic unit", 1.0)
+                    else    wc = 0.   ## no diagonal moment is defined for the higher multipoles
+                    end
+                end
+                matrix[r,s] = matrix[r,s] + real(wa * wb * wc)
+            end
         end
+    end
+    ## Hermiticity: the matrix is built term by term for both (r,s) and (s,r), so a wrong phase convention in the
+    ## off-diagonal-in-isomer element shows up here as a SIGN difference rather than a small rounding one.
+    asym = 0.;   scale = 0.
+    for  r = 1:n, s = 1:n
+        asym  = max(asym,  abs(matrix[r,s] - matrix[s,r]));    scale = max(scale, abs(matrix[r,s]))
+    end
+    if  scale > 0.  &&  asym / scale > 1.0e-8
+        @warn("Hfs.computeHyperfineRepresentation(): the hyperfine matrix is not symmetric -- relative " *
+              "asymmetry $(asym/scale). This points at a phase convention in the off-diagonal elements, " *
+              "not at rounding; the matrix is symmetrized before diagonalization.")
+    end
+    if  printout   println(">>> hyperfine matrix of dimension $n x $n; multipoles $hfMultipoles; " *
+                           "relative asymmetry $(scale > 0. ? asym/scale : 0.)")    end
+    for  r = 1:n, s = r+1:n
+        wa = (matrix[r,s] + matrix[s,r]) / 2;    matrix[r,s] = wa;    matrix[s,r] = wa
     end
     #
     # Diagonalize the matrix and set-up the representation
@@ -785,9 +888,18 @@ function computeHyperfineRepresentation(hfBasisVectors::Array{HfBasisVector,1}, 
         ## and only reduced matrix elements survive. It becomes meaningful only once something breaks the
         ## isotropy -- an external field, an aligned or polarized ensemble, or an angular distribution.
         MF        = AngularM64(F)
-        newlevelF = Hfs.HfLevel(F, MF, parity, en, hfBasisVectors, evector)
+        newlevelF = Hfs.HfLevel(F, MF, parity, 0, en, hfBasisVectors, evector)
         push!( levelFs, newlevelF)
     end
+    ## A STABLE INDEX, assigned in order of increasing energy (added 06-Aug-2026). Hyperfine levels previously
+    ## carried none, so nothing could refer to one: Basics.selectLevelPair dispatches on ManyElectron.Level and
+    ## throws a MethodError on an HfLevel, and Hfs-based display routines had to key on the surrogate
+    ## (2F, energy) pair instead. Energy order is a safe labelling here because hyperfine multiplets of
+    ## neighbouring electronic levels essentially never interleave -- a hyperfine splitting is orders of
+    ## magnitude smaller than a fine-structure one.
+    levelFs = sort(levelFs, by = lev -> lev.energy)
+    levelFs = [ Hfs.HfLevel(lev.F, lev.M, lev.parity, i, lev.energy, lev.hfBasisVectors, lev.mc)
+                for (i, lev) in enumerate(levelFs) ]
     hfMultiplet = Hfs.HfMultiplet("hyperfine", levelFs)
 
     return( hfMultiplet )
@@ -937,15 +1049,49 @@ end
 
 
 """
-`Hfs.defineHyperfineBasis(multiplet::Multiplet, nm::Nuclear.Model)`
-    ... to define/set-up an atomic hyperfine (IJF-coupled) basis for the given electronic multiplet; an
-        Array{Hfs.HfBasisVector,1} is returned, one vector for every (electronic level, F) pair allowed by
-        F = I + J.
+`Hfs.defineHyperfineBasis(multiplet::Multiplet, isomers::Array{Nuclear.Isomer,1}; printout::Bool=true)`
+    ... to define/set-up an atomic hyperfine (IJF-coupled) basis for the given electronic multiplet and ONE OR
+        MORE nuclear states; an Array{Hfs.HfBasisVector,1} is returned, one vector for every
+        (isomer, electronic level, F) triple allowed by F = I + J.
+
+        Admitting more than one isomer (06-Aug-2026) is what makes nuclear hyperfine mixing expressible: two
+        nuclear levels of the same F, built on the same electronic level, then appear as two basis vectors, and
+        diagonalizing the hyperfine matrix over that basis mixes them. Nothing else in the machinery changes.
+        The parity stored on each vector is the TOTAL one, nuclear x electronic.
 
         REPAIRED 05-Aug-2026; see the note on the single-level method above. The nuclear moments are carried into
         each basis vector through a Nuclear.Isomer built from the given model, so that a model with mu = Q = 0
         produces a basis whose hyperfine Hamiltonian vanishes identically -- the device used to switch the
         hyperfine structure of intermediate and final levels off without a separate code path.
+"""
+function  defineHyperfineBasis(multiplet::Multiplet, isomers::Array{Nuclear.Isomer,1}; printout::Bool=true)
+    vectors = Hfs.HfBasisVector[]
+    for  isomer in isomers
+        for  level in multiplet.levels
+            for  F in Basics.oplus(isomer.spinI, level.J)
+                push!(vectors,  Hfs.HfBasisVector(F, level.parity * isomer.parity, isomer, level) )
+            end
+        end
+    end
+    if  printout
+        println(" ")
+        println("  Atomic hyperfine (IJF-coupled) basis of dimension $(length(vectors)), from " *
+                "$(length(multiplet.levels)) electronic levels and $(length(isomers)) nuclear state(s):")
+        for  isomer in isomers
+            println("    I = $(isomer.spinI)$(isomer.parity), excitation energy $(isomer.energy), " *
+                    "mu = $(isomer.mu), nuclear transition multipoles $(isomer.multipoleM)")
+        end
+        println(" ")
+    end
+    return( vectors )
+end
+
+
+"""
+`Hfs.defineHyperfineBasis(multiplet::Multiplet, nm::Nuclear.Model; printout::Bool=true)`
+    ... the single-isomer method; an Array{Hfs.HfBasisVector,1} is returned. It simply assembles one
+        Nuclear.Isomer from the given nuclear model and defers to the method above, so that the two cannot
+        diverge.
 """
 function  defineHyperfineBasis(multiplet::Multiplet, nm::Nuclear.Model; printout::Bool=true)
     function  display_ijfVector(i::Int64, vector::Hfs.HfBasisVector)
@@ -957,30 +1103,10 @@ function  defineHyperfineBasis(multiplet::Multiplet, nm::Nuclear.Model; printout
     ## The nuclear parity is not carried by Nuclear.Model; it is taken as even, so that the total parity of a
     ## basis vector reduces to the electronic one.
     isomer  = Nuclear.Isomer( nm.spinI, Basics.plus, 0., nm.mu, nm.Q, 0., EmMultipole[], Float64[] )
-    vectors = Hfs.HfBasisVector[]
-    #
-    for  level in multiplet.levels
-        for  F in Basics.oplus(nm.spinI, level.J)
-            push!(vectors,  Hfs.HfBasisVector(F, level.parity, isomer, level) )
-        end
-    end
-    #
-    if  printout
-        println(" ")
-        println("  Construction of an atomic hyperfine (IJF-coupled) basis of dimension $(length(vectors)), based on " *
-                "$(length(multiplet.levels)) electronic levels and nuclear spin $(nm.spinI).")
-        println("  Basis vectors are defined as [J^P] F: \n")
-        sa = "  "
-        for  k = 1:length(vectors)
-            if  length(sa) > 100    println(sa);   sa = "  "   end
-            sa = sa * display_ijfVector(k, vectors[k])
-        end
-        if   length(sa) > 5    println(sa)   end
-        println(" ")
-    end
-
-    return( vectors )
+    return( Hfs.defineHyperfineBasis(multiplet, Nuclear.Isomer[isomer]; printout=printout) )
 end
+
+
 
 
 """

@@ -128,10 +128,9 @@ end
 """
 function  hfPhotonRecoupling(spinI::AngularJ64, Ja::AngularJ64, Fa::AngularJ64,
                              Jb::AngularJ64, Fb::AngularJ64, L::Int64)
-    wa = AngularMomentum.phaseFactor([spinI, +1, Jb, +1, Fa, +1, AngularJ64(L)])
-    wb = sqrt( (Basics.twice(Fa) + 1) * (Basics.twice(Fb) + 1) )
-    wc = AngularMomentum.Wigner_6j(Jb, Fb, spinI, Fa, Ja, AngularJ64(L))
-    return( wa * wb * wc )
+    ## MOVED to Hfs on 06-Aug-2026 and kept here only as a name: the identical factor is needed by the
+    ## hyperfine-INDUCED transitions too, and two copies of one formula is how they begin to diverge.
+    return( Hfs.recouplingElectronicOperator(spinI, Ja, Fa, Jb, Fb, L) )
 end
 
 
@@ -451,11 +450,9 @@ function  computeHfCaptureLines(finalMultiplet::Multiplet, intermediateMultiplet
     #
     ## (2) THE HYPERFINE MULTIPLETS. Full moments for the initial ion, mu = Q = 0 for the other two.
     nmZero  = Nuclear.Model(nm; mu=0., Q=0.)
-    iHfMult = Hfs.computeHyperfineRepresentation(Hfs.defineHyperfineBasis(initialMultiplet, nm; printout=false), nm, grid)
-    mHfMult = Hfs.computeHyperfineRepresentation(Hfs.defineHyperfineBasis(intermediateMultiplet, nmZero; printout=false),
-                                                 nmZero, grid)
-    fHfMult = Hfs.computeHyperfineRepresentation(Hfs.defineHyperfineBasis(finalMultiplet, nmZero; printout=false),
-                                                 nmZero, grid)
+    iHfMult = Hfs.computeHyperfineRepresentation(Hfs.defineHyperfineBasis(initialMultiplet, nm; printout=false), grid)
+    mHfMult = Hfs.computeHyperfineRepresentation(Hfs.defineHyperfineBasis(intermediateMultiplet, nmZero; printout=false), grid)
+    fHfMult = Hfs.computeHyperfineRepresentation(Hfs.defineHyperfineBasis(finalMultiplet, nmZero; printout=false), grid)
     println(">>> hyperfine levels:  initial $(length(iHfMult.hfLevels)),  intermediate $(length(mHfMult.hfLevels)), " *
             " final $(length(fHfMult.hfLevels));   nuclear spin I = $(nm.spinI)")
     #

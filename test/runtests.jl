@@ -56,6 +56,7 @@ using JenaAtomicCalculator, ..Defaults, ..TestFrames
         @test TestFrames.testModule_PhotoRecombination()
         @test TestFrames.testModule_AutoIonization()  
         @test TestFrames.testModule_DielectronicRecombination()  
+        @test TestFrames.testModule_HyperfineInduced()
         @test TestFrames.testModule_RayleighCompton()
         @test TestFrames.testModule_MultiPhotonDeExcitation()
         @test TestFrames.testModule_CoulombExcitation()
