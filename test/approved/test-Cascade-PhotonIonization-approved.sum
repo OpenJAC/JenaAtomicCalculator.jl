@@ -1,4 +1,4 @@
-Summary file opened at 2026-06-11T12:54: 
+Summary file opened at 2026-08-06T20:35: 
 ========================================   
 
 
@@ -6,8 +6,8 @@ Summary file opened at 2026-06-11T12:54:
 
   Level  J Parity    Total [Hartree]           Total [eV]               Total [eV]            To lower [eV]        To lowest [eV]   
 
-     1    3/2 -    -1.279508695069e+02      -3.481720501748e+03      -3.481720501748e+03      0.000000000e+00      0.000000000e+00   
-     2    1/2 -    -1.279470208303e+02      -3.481615773922e+03      -3.481615773922e+03      1.047278260e-01      1.047278260e-01   
+     1    3/2 -    -1.279508700289e+02      -3.481720515951e+03      -3.481720515951e+03      0.000000000e+00      0.000000000e+00   
+     2    1/2 -    -1.279470213522e+02      -3.481615788125e+03      -3.481615788125e+03      1.047278261e-01      1.047278261e-01   
  
 * Configurations and levels for all given initial multiplets of the cascade, relative to the lowest:
   
@@ -16,7 +16,7 @@ Summary file opened at 2026-06-11T12:54:
     Level  J Parity          Energy [eV]
   --------------------------------------------
        1     3/2 -      0.000000000000000e+00 
-       2     1/2 -      1.047278260305328e-01 
+       2     1/2 -      1.047278260618552e-01 
   --------------------------------------------
 
 * Electron configuration(s) used:    (initial part of the) photoionization 
@@ -29,14 +29,13 @@ Summary file opened at 2026-06-11T12:54:
 * Electron configuration(s) used:    (generated part of the) photoionization 
 
     Configuration(s) with 8 electrons:
-      1s^2 2s^1 2p^5       av. BE = -1897.0  [eV]      (1)
-      1s^2 2s^2 2p^4       av. BE = -1924.0  [eV]      (2)
+      1s^2 2s^2 2p^4       av. BE = -1924.0  [eV]      (1)
 
-* A total of 2 configuration have been defined for this cascade, and selected configurations could be removed here:  [currently not supported]
+* A total of 1 configuration have been defined for this cascade, and selected configurations could be removed here:  [currently not supported]
 
 * Generate blocks for photoabsorption computations:
 
-  In the cascade approach JenaAtomicCalculator.Cascade.AverageSCA(), the following assumptions/simplifications are made: 
+  In the cascade approach JenaAtomicCalculator.Basics.AverageSCA(), the following assumptions/simplifications are made: 
     + orbitals are generated independently for each block for a Dirac-Fock-Slater potential; 
     + all blocks (multiplets) are generated from single-CSF levels and without any configuration mixing even in the SC; 
     + only E1 excitations are considered. 
@@ -48,19 +47,8 @@ Summary file opened at 2026-06-11T12:54:
 
   Level  J Parity    Total [Hartree]           Total [eV]               Total [eV]            To lower [eV]        To lowest [eV]   
 
-     1    3/2 -    -1.279508695069e+02      -3.481720501748e+03      -3.481720501748e+03      0.000000000e+00      0.000000000e+00   
-     2    1/2 -    -1.279470208303e+02      -3.481615773922e+03      -3.481615773922e+03      1.047278260e-01      1.047278260e-01   
-
-*  Multiplet computations for 1s^2 2s^1 2p^5    with 8 electrons ... 
-
-  Level energies:  
-
-  Level  J Parity    Total [Hartree]           Total [eV]               Total [eV]            To lower [eV]        To lowest [eV]   
-
-     1    2 -      -1.255318699900e+02      -3.415896172110e+03      -3.415896172110e+03      0.000000000e+00      0.000000000e+00   
-     2    1 -      -1.255290070514e+02      -3.415818267582e+03      -3.415818267582e+03      7.790452790e-02      7.790452790e-02   
-     3    0 -      -1.255275613007e+02      -3.415778926703e+03      -3.415778926703e+03      3.934087835e-02      1.172454063e-01   
-     4    1 -      -1.250886317306e+02      -3.403835044736e+03      -3.403835044736e+03      1.194388197e+01      1.206112737e+01   
+     1    3/2 -    -1.279508700289e+02      -3.481720515951e+03      -3.481720515951e+03      0.000000000e+00      0.000000000e+00   
+     2    1/2 -    -1.279470213522e+02      -3.481615788125e+03      -3.481615788125e+03      1.047278261e-01      1.047278261e-01   
 
 *  Multiplet computations for 1s^2 2s^2 2p^4    with 8 electrons ... 
 
@@ -68,11 +56,11 @@ Summary file opened at 2026-06-11T12:54:
 
   Level  J Parity    Total [Hartree]           Total [eV]               Total [eV]            To lower [eV]        To lowest [eV]   
 
-     1    2 +      -1.265085006970e+02      -3.442471647277e+03      -3.442471647277e+03      0.000000000e+00      0.000000000e+00   
-     2    1 +      -1.265055200392e+02      -3.442390539447e+03      -3.442390539447e+03      8.110783044e-02      8.110783044e-02   
-     3    0 +      -1.265041029566e+02      -3.442351978666e+03      -3.442351978666e+03      3.856078086e-02      1.196686113e-01   
-     4    2 +      -1.263833895725e+02      -3.439067200172e+03      -3.439067200172e+03      3.284778494e+00      3.404447105e+00   
-     5    0 +      -1.261980126319e+02      -3.434022836684e+03      -3.434022836684e+03      5.044363489e+00      8.448810594e+00   
+     1    2 +      -1.265085012209e+02      -3.442471661532e+03      -3.442471661532e+03      0.000000000e+00      0.000000000e+00   
+     2    1 +      -1.265055205630e+02      -3.442390553702e+03      -3.442390553702e+03      8.110783023e-02      8.110783023e-02   
+     3    0 +      -1.265041034805e+02      -3.442351992921e+03      -3.442351992921e+03      3.856078076e-02      1.196686110e-01   
+     4    2 +      -1.263833900964e+02      -3.439067214430e+03      -3.439067214430e+03      3.284778491e+00      3.404447102e+00   
+     5    0 +      -1.261980131560e+02      -3.434022850946e+03      -3.434022850946e+03      5.044363485e+00      8.448810587e+00   
 
 * Configuration 'blocks' (multiplets): for the (initial part of the) photoionization cascade 
 
@@ -87,8 +75,7 @@ Summary file opened at 2026-06-11T12:54:
   ------------------------------------------------------------------------------------------------------------------------------------------------------
       No.   Configurations                                                                             No. CSF        Range of total energies [eV]
   ------------------------------------------------------------------------------------------------------------------------------------------------------
-        1   [He] 2s^1 2p^5                                                                                   4        -3416.0 ... -3408.0             
-        2   [Be] 2p^4                                                                                        5        -3442.0 ... -3437.0             
+        1   [Be] 2p^4                                                                                        5        -3442.0 ... -3437.0             
   ------------------------------------------------------------------------------------------------------------------------------------------------------
  
 * Steps that are defined for the current ionized cascade due to the given approach:
@@ -96,13 +83,12 @@ Summary file opened at 2026-06-11T12:54:
   --------------------------------------------------------------------------------------------------------------------------------------------------------------------------
    Step-No   Process     Initial:  No CSF, configuration(s)                         Final:  No CSF, configuration(s)                           Energies from ... to in [eV]                
   --------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-       1     Photo-Ioniza  2, [Be] 2p^5                                               4, [He] 2s^1 2p^5                                        -74.0 ... -66.0
-       2     Photo-Ioniza  2, [Be] 2p^5                                               5, [Be] 2p^4                                             -45.0 ... -39.0
+       1     Photo-Ioniza  2, [Be] 2p^5                                               5, [Be] 2p^4                                             -45.0 ... -39.0
   --------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-* A total of 2 steps are still defined in the cascade.
+* A total of 1 steps are still defined in the cascade.
 
-* 1) Perform Photo-Ionization amplitude computations for up to 8 photoionization lines (without selection rules): 
+* 1) Perform Photo-Ionization amplitude computations for up to 10 photoionization lines (without selection rules): 
  
   Total photoionization cross sections for initially unpolarized atoms by unpolarized plane-wave photons:
  
@@ -110,23 +96,26 @@ Summary file opened at 2026-06-11T12:54:
        i-level-f         i--J^P--f       f--Energy--i        omega        Energy e_p     Multipoles   Cou -- Cross section -- Bab    
                                               [eV]            [eV]            [eV]                        [barn]          [barn]       
   ----------------------------------------------------------------------------------------------------------------------------------
+       1 --    1       3/2 - --> 1 +     3.932996e+01    8.000000e+01    4.067004e+01    E1           1.227680e+06    3.274252e+05                 
+       1 --    2       3/2 - --> 2 +     4.033026e+01    8.000000e+01    3.966974e+01    E1           2.171607e+06    4.716753e+05                 
+       1 --    3       3/2 - --> 2 +     4.157190e+01    8.000000e+01    3.842810e+01    E1           1.971897e+06    5.855077e+05                 
+       1 --    4       3/2 - --> 0 +     4.225381e+01    8.000000e+01    3.774619e+01    E1           0.000000e+00    0.000000e+00                 
+       1 --    5       3/2 - --> 0 +     4.481237e+01    8.000000e+01    3.518763e+01    E1           4.034974e+05    1.130598e+05                 
   ----------------------------------------------------------------------------------------------------------------------------------
-
-*    Step 1:: A total of 0 Photo-Ionization lines are calculated, giving now rise to a total of 0 Photo-Ionization photoionization lines.
-
-* 2) Perform Photo-Ionization amplitude computations for up to 10 photoionization lines (without selection rules): 
  
-  Total photoionization cross sections for initially unpolarized atoms by unpolarized plane-wave photons:
+  Total photoionization cross sections, summed over all final levels:
  
-  ----------------------------------------------------------------------------------------------------------------------------------
-       i-level-f         i--J^P--f       f--Energy--i        omega        Energy e_p     Multipoles   Cou -- Cross section -- Bab    
-                                              [eV]            [eV]            [eV]                        [barn]          [barn]       
-  ----------------------------------------------------------------------------------------------------------------------------------
-  ----------------------------------------------------------------------------------------------------------------------------------
+    Each row sums the line-resolved cross sections above over ALL final levels f that belong to
+    the given initial level i and photon energy, and over the partial waves of the photo-electron.
+    It is the direct (non-resonant) cross section only: no resonant excitation-autoionization, no
+    shake-off and no multiple ionization are contained.  If the lines cover more than one ionized
+    subshell, this sum runs over those subshells as well and is then the grand total.
+ 
+  ------------------------------------------------------------------------------------------------
+     i-level      i--J^P         omega        No lines     Cou -- Total cross section -- Bab   
+                                 [eV]                         [barn]          [barn]       
+  ------------------------------------------------------------------------------------------------
+        1          3/2 -     8.000000e+01         5       5.774681e+06    1.497668e+06
+  ------------------------------------------------------------------------------------------------
 
-*    Step 2:: A total of 0 Photo-Ionization lines are calculated, giving now rise to a total of 0 Photo-Ionization photoionization lines.
-
-* Write all results to disk; use:
-   JLD2.save(''zzz-cascade-photoionization-computations-2026-06-11T12.jld'', results) 
-   using JLD2 
-   results = JLD2.load(''zzz-cascade-photoionization-computations-2026-06-11T12.jld'')    ... to load the results back from file.
+*    Step 1:: A total of 5 Photo-Ionization lines are calculated, giving now rise to a total of 5 Photo-Ionization photoionization lines.
