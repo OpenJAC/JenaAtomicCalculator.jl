@@ -138,7 +138,7 @@ function testModule_PhotoExcitation(; short::Bool=true)
     # Make the comparison with approved data
     success = testCompareFiles( joinpath(@__DIR__, "..", "test", "approved", "test-PhotoExcitation-approved.sum"),
                                 joinpath(@__DIR__, "..", "test", "test-PhotoExcitation-new.sum"),
-                            "Photoexcitation cross sections for (completely)", 200)
+                            "Photoexcitation integrated cross sections", 200)
     testPrint("testModule_PhotoExcitation()::", success)
     return(success)
 end

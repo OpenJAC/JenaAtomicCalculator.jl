@@ -51,6 +51,24 @@ grid = Radial.Grid(Radial.Grid(false); rnt = 3.0e-6, h = 2.0e-2, hp = 3.0e-2, rb
 # blocks that were then set up, diagonalised and computed -- and could not yield a single line, because the
 # amplitudes were still E1. Branch c returned 0 lines for both same-parity steps. The settings now take
 # scheme.multipoles; see src/module-Cascade-inc-photoexcitation.jl:54.
+#
+# THREE FURTHER DEFECTS IN module-PhotoExcitation.jl, found 06-Aug-2026 by auditing the two tables this
+# file produces against PhotoEmission. Feeding PhotoExcitation and PhotoEmission the SAME two multiplets
+# makes  A_ki = 2 alpha^3 omega^2 (g_i/g_k) f_ik  an identity, so any deviation is a code defect:
+#   (1) computeLines() evaluated its amplitudes into `newLines` but returned `lines`, the placeholders from
+#       determineLines() with oscStrength = crossSection = 0. The printed tables were right, but every
+#       caller -- including Basics.perform() for an Atomic.Computation with a PhotoExc() process -- silently
+#       got zeros back. (The cascade path used computeLinesCascade and was never affected.)
+#   (2) f_ik carried NO statistical weight: the (2J_f+1)/(2J_i+1) introduced in `wa` was cancelled again by
+#       `oscFactor`. Measured against the Einstein rates, f was too large by exactly (2J_i+1)/2 -- a factor
+#       2 for a J_i = 3/2 initial level, 3 for J_i = 5/2, and 1 for J_i = 1/2, confirmed on every line of
+#       two independent systems. S = 109.761 f inherited the same error; the constant 109.761 = 2 pi^2 alpha
+#       in [Mb eV] is itself exact.
+#   (3) the "cross section [barn]" column was not a cross section: sigma/f was exactly pi^2/((2J_i+1) c^3),
+#       independent of omega, i.e. a fixed multiple of f with no line profile in it. A bound-bound excitation
+#       has no cross section without a width, so the table now reports the INTEGRATED cross section
+#       int sigma dE = 2 pi^2 alpha f_ik, and states how to get the peak value from the total width Gamma.
+# All three are fixed. Of the quantities this file reports, only omega was previously trustworthy.
 
 
 if  true
@@ -128,8 +146,8 @@ elseif  false
     #   11 (2p -> 3s) and 31 (2p -> 3p), 65 in total. Two independent internal checks:
     #     - the 27 pure-E1 lines are numerically the same 27 lines as branch a, i.e. adding M1 and E2 adds
     #       channels without disturbing the dipole ones;
-    #     - the strengths order as they must. Coulomb-gauge oscillator strengths reach 0.132 for E1,
-    #       1.5e-6 for E2 and 1.4e-7 for M1. The E2/E1 ratio of ~1e-5 sits at the retardation estimate
+    #     - the strengths order as they must. Coulomb-gauge oscillator strengths reach 0.0796 for E1,
+    #       1.1e-6 for E2 and 1.4e-7 for M1. The E2/E1 ratio of ~1e-5 sits at the retardation estimate
     #       (alpha*omega)^2 ~ 6e-5 for omega ~ 30 eV at Z = 10, and M1 is weaker again because its radial
     #       integral is the near-vanishing <3s|2s> overlap, non-zero only through the small components.
     #   BEFORE THE FIX this branch returned 0 lines for steps 1 and 4, which is what exposed the hard-wired

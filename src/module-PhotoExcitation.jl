@@ -181,21 +181,21 @@ function  computeAmplitudesProperties(line::PhotoExcitation.Line, grid::Radial.G
         else    error("stop a")
         end
     end
-    # Calculate the crossSection and stastistical tensors if requested
-    csCoulomb = csBabushkin = 0.;   
-    for  channel  in  newChannels
-        if      channel.gauge == Basics.Coulomb     csCoulomb   = csCoulomb    +  channel.amplitude * conj(channel.amplitude)
-        elseif  channel.gauge == Basics.Babushkin   csBabushkin = csBabushkin  +  channel.amplitude * conj(channel.amplitude)
-        elseif  channel.gauge == Basics.Magnetic    csBabushkin = csBabushkin  +  channel.amplitude * conj(channel.amplitude)
-                                                    csCoulomb   = csCoulomb    +  channel.amplitude * conj(channel.amplitude)
-        else    error("stop b")
-        end
-    end
-    oscFactor    = (Ji2 + 1) / (Jf2 + 1) / 2. * Defaults.getDefaults("speed of light: c")^3 / line.omega^2
-    ## oscFactor    = oscFactor / (Jf2 + 1)                                                            ## Schippers (Oct. 2023)
-    csFactor     = 2 * pi^3 * Defaults.getDefaults("alpha") / (line.omega * (Ji2 + 1)) ## / (Jf2 + 1)  ## Schippers (Oct. 2023)
+    ## The absorption oscillator strength must carry the statistical weight 1/(2J_i+1) of the INITIAL level.
+    ## The factor wa above already supplies (2J_f+1)/(2(2J_i+1)); an earlier oscFactor of
+    ## (Ji2+1)/(Jf2+1)/2 * c^3/omega^2 cancelled both weights again and left f without any J-dependence,
+    ## so that f came out too large by (2J_i+1)/2.  This was found by checking f_ik of this module against
+    ## the Einstein A_ki of PhotoEmission for the same pair of multiplets, where
+    ##     A_ki = 2 alpha^3 omega^2 (g_i/g_k) f_ik
+    ## is an identity: the ratio came out as exactly 2/(2J_i+1) for every line and every J_i.
+    oscFactor    = Defaults.getDefaults("speed of light: c")^3 / (line.omega^2 * (Jf2 + 1))
     oscStrength  = EmProperty(oscFactor*oscCoulomb, oscFactor*oscBabushkin)
-    crossSection = EmProperty(csFactor*csCoulomb, csFactor*csBabushkin)
+    ## The INTEGRATED cross section  int sigma dE = 2 pi^2 alpha f_ik  (in atomic units of area * energy).
+    ## This -- and not a peak value -- is what can be given without a line profile; the former expression
+    ## 2 pi^3 alpha / (omega (2J_i+1)) * sum |A|^2 was a fixed multiple of f_ik with no omega dependence
+    ## at all, and hence no cross section in any measurable sense.
+    csFactor     = 2 * pi^2 * alpha
+    crossSection = EmProperty(csFactor*oscStrength.Coulomb, csFactor*oscStrength.Babushkin)
     staTensor    = TensorComp[]
     if  settings.calcTensors    push!(staTensor, TensorComp(0, 0, 1.))      end
     
@@ -245,7 +245,11 @@ function  computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, g
     printSummary, iostream = Defaults.getDefaults("summary flag/stream")
     if  printSummary    PhotoExcitation.displayCrossSections(iostream, newLines, settings)   end
     #
-    if    output    return( lines )
+    ## Return newLines, not lines:  the latter are the lines as set up by determineLines(), i.e. before any
+    ## amplitude has been evaluated, and carry oscStrength = crossSection = EmProperty(0., 0.).  The printed
+    ## tables were always correct, but every caller -- Basics.perform() for an Atomic.Computation with a
+    ## PhotoExc() process among them -- silently received zeros.
+    if    output    return( newLines )
     else            return( nothing )
     end
 end
@@ -484,6 +488,10 @@ function  displayCrossSections(stream::IO, lines::Array{PhotoExcitation.Line,1},
     println(stream, " ")
     println(stream, "  Photoexcitation resonance strength as derived from oscillator strength:")
     println(stream, " ")
+    println(stream, "    f_ik is the PLAIN absorption oscillator strength, i.e. it carries the statistical weight")
+    println(stream, "    1/(2J_i+1) of the initial level;  multiply by (2J_i+1) to obtain the weighted g*f.")
+    println(stream, "    S = int sigma dE = 2 pi^2 alpha f_ik  is the integrated (resonance) strength.")
+    println(stream, " ")
     println(stream, "  ", TableStrings.hLine(nx))
     sa = "  ";   sb = "  "
     sa = sa * TableStrings.center(18, "i-level-f"; na=0);                         sb = sb * TableStrings.hBlank(18)
@@ -518,10 +526,16 @@ function  displayCrossSections(stream::IO, lines::Array{PhotoExcitation.Line,1},
     println(stream, "  ", TableStrings.hLine(nx))
     #
     #
-    # Photoexcitation cross sections from line strength for (completely) linearly-polarized plane-wave photons
-    nx = 103
+    # Photoexcitation integrated cross sections from the oscillator strength
+    nx = 111
     println(stream, " ")
-    println(stream, "  Photoexcitation cross sections for (completely) linearly-polarized plane-wave photons (resonance/line-profile treatment still under development):")
+    println(stream, "  Photoexcitation integrated cross sections  int sigma dE = 2 pi^2 alpha f_ik :")
+    println(stream, " ")
+    println(stream, "    A bound-bound excitation has no cross section without a line profile, so the INTEGRATED")
+    println(stream, "    cross section is quoted; it is the same quantity as the column S above, in cross-section")
+    println(stream, "    times energy units.  For a Lorentzian resonance of total width Gamma (radiative plus")
+    println(stream, "    Auger) of the upper level, the peak cross section follows as")
+    println(stream, "        sigma_peak = 2 / (pi Gamma) * int sigma dE .")
     println(stream, " ")
     println(stream, "  ", TableStrings.hLine(nx))
     sa = "  ";   sb = "  "
@@ -530,9 +544,9 @@ function  displayCrossSections(stream::IO, lines::Array{PhotoExcitation.Line,1},
     sa = sa * TableStrings.center(14, "Energy"   ; na=3);               
     sb = sb * TableStrings.center(14,TableStrings.inUnits("energy"); na=3)
     sa = sa * TableStrings.center(10, "Multipoles"; na=2);                        sb = sb * TableStrings.hBlank(14)
-    sa = sa * TableStrings.center(28, "Cou -- cross section -- Bab"; na=0);       
-    sb = sb * TableStrings.center(28, TableStrings.inUnits("cross section")*"       "*
-                                        TableStrings.inUnits("cross section"); na=1)
+    sa = sa * TableStrings.center(36, "Cou -- int sigma dE -- Bab"; na=0);
+    sb = sb * TableStrings.center(36, TableStrings.inUnits("cross section")*" "*TableStrings.inUnits("energy")*"    "*
+                                        TableStrings.inUnits("cross section")*" "*TableStrings.inUnits("energy"); na=1)
     println(stream, sa);    println(stream, sb);    println(stream, "  ", TableStrings.hLine(nx)) 
     #   
     for  line in lines
@@ -547,8 +561,10 @@ function  displayCrossSections(stream::IO, lines::Array{PhotoExcitation.Line,1},
         end
         multipoles = unique(multipoles);   mpString = TableStrings.multipoleList(multipoles) * "          "
         sa = sa * TableStrings.flushleft(11, mpString[1:10];  na=5)
-        sa = sa * @sprintf("%.4e", Defaults.convertUnits("cross section: from atomic", line.crossSection.Coulomb))     * "   "
-        sa = sa * @sprintf("%.4e", Defaults.convertUnits("cross section: from atomic", line.crossSection.Babushkin))   * "    "
+        ## crossSection is an area * energy, so BOTH unit conversions have to be applied
+        wcs = Defaults.convertUnits("energy: from atomic", 1.0)
+        sa = sa * @sprintf("%.4e", Defaults.convertUnits("cross section: from atomic", line.crossSection.Coulomb)   * wcs) * "        "
+        sa = sa * @sprintf("%.4e", Defaults.convertUnits("cross section: from atomic", line.crossSection.Babushkin) * wcs) * "    "
         println(stream, sa)
     end
     println(stream, "  ", TableStrings.hLine(nx))
