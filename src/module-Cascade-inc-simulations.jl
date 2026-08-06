@@ -231,22 +231,19 @@ function displayLevelTree(stream::IO, levels::Array{Cascade.Level,1}; extended::
                 sb = sb * @sprintf("%.5e", Defaults.convertUnits("energy: from atomic", levels[en].energy))  * "    "
                 sb = sb * @sprintf("%.4e", levels[en].relativeOcc)                                           * "  "
                 if extended
-                pProcessSymmetryEnergyList = Tuple{AtomicProcess,Int64,LevelSymmetry,Float64}[]
+                pProcessSymmetryEnergyList = Tuple{Basics.AtomicProcess,Int64,LevelSymmetry,Float64}[]
                 dProcessSymmetryEnergyList = Tuple{Basics.AtomicProcess,Int64,LevelSymmetry,Float64}[]
                 for  p in levels[en].parents
+                    ## A Cascade.LineReference already carries the line list of its OWN process, so no
+                    ## per-process selection is needed; the former p.lineSet.linesA/linesR/linesP referred to
+                    ## an earlier layout in which one reference pointed at a SET of lists.
                     idx = p.index
-                    if      p.process == Basics.Auger()         lev = p.lineSet.linesA[idx].initialLevel
-                    elseif  p.process == Basics.Radiative()     lev = p.lineSet.linesR[idx].initialLevel
-                    elseif  p.process == Basics.Photo()         lev = p.lineSet.linesP[idx].initialLevel
-                    else    error("stop a")    end
+                    lev = p.lines[idx].initialLevel
                     push!( pProcessSymmetryEnergyList, (p.process, lev.basis.NoElectrons, LevelSymmetry(lev.J, lev.parity), lev.energy) )
                 end
                 for  d in levels[en].daughters
                     idx = d.index
-                    if      d.process == Basics.Auger()         lev = d.lineSet.linesA[idx].finalLevel
-                    elseif  d.process == Basics.Radiative()     lev = d.lineSet.linesR[idx].finalLevel
-                    elseif  d.process == Basics.Photo()         lev = d.lineSet.linesP[idx].finalLevel
-                    else    error("stop b")    end
+                    lev = d.lines[idx].finalLevel
                     push!( dProcessSymmetryEnergyList, (d.process, lev.basis.NoElectrons, LevelSymmetry(lev.J, lev.parity), lev.energy) )
                 end
                 wa = TableStrings.processSymmetryEnergyTupels(120, pProcessSymmetryEnergyList, "P")
@@ -856,7 +853,7 @@ function simulate(property::Cascade.AbstractSimulationProperty, method::Cascade.
     error("No simulation is implemented for property $(typeof(property)) with method $(typeof(method)). " *
           "Supported: PhotoAbsorptionSpectrum, DrRateCoefficients, RrRateCoefficients, ExpansionOpacities and " *
           "RosselandOpacities with any method; IonDistribution, FinalLevelDistribution, PhotonIntensities, " *
-          "ElectronIntensities and MeanRelaxationTime with Cascade.ProbPropagation().")
+          "ElectronIntensities and RelaxationCurve with Cascade.ProbPropagation().")
 end
 
 
@@ -931,13 +928,13 @@ end
 
 
 """
-`Cascade.simulate(property::Cascade.MeanRelaxationTime, method::Cascade.ProbPropagation,
+`Cascade.simulate(property::Cascade.RelaxationCurve, method::Cascade.ProbPropagation,
                   simulation::Cascade.Simulation)`   ... simulates the mean relaxation time of the cascade.
 """
-function simulate(property::Cascade.MeanRelaxationTime, method::Cascade.ProbPropagation,
+function simulate(property::Cascade.RelaxationCurve, method::Cascade.ProbPropagation,
                   simulation::Cascade.Simulation)
     levels = Cascade.reviewData(simulation, ascendingOrder=true)
-    return( Cascade.simulateMeanRelaxationTime(levels, simulation) )
+    return( Cascade.simulateRelaxationCurve(levels, simulation) )
 end
 
 
@@ -1001,30 +998,42 @@ end
     ... propagates the occupation of the levels by dt in time. 
 """
 function propagateOccupationInTime!(levels::Array{Cascade.Level,1}, dt::Float64)
-    #
-    relativeOcc = zeros(length(levels));    relativeLoss = zeros(length(levels));    down = 0.0;    loss = 0.0
+    ## Exact for one time step, at ANY dt: the probability that a level has decayed at all after dt is
+    ## 1 - exp(-totalRate*dt), and that amount is shared among its daughters in proportion to their individual
+    ## rates. The previous formulation applied 1 - exp(-rate*dt) to each daughter separately and capped the
+    ## running sum at 1, which is only valid while every rate*dt << 1: for a larger step the first daughter
+    ## in the list absorbed the whole population and the remaining branches received nothing, so the branching
+    ## ratios were silently destroyed. That did not matter while the caller used a tiny fixed step, but it is
+    ## fatal on a logarithmic time grid, where dt deliberately becomes large compared with the fast rates.
+    relativeOcc = zeros(length(levels))
     for (i, level) in  enumerate(levels)
-        # Cycle through all daughters of level and 'shift' the part of occupation down the daughter levels
-        lossFactor = 0.;    occ = level.relativeOcc
-        for  daughter in level.daughters
-            idx = daughter.index
-            if      daughter.process == Basics.Radiative()     line = daughter.lineSet.linesR[idx];  rate = line.photonRate.Coulomb
-            elseif  daughter.process == Basics.Auger()         line = daughter.lineSet.linesA[idx];  rate = line.totalRate
+        occ = level.relativeOcc
+        if  occ <= 0.  ||  length(level.daughters) == 0    continue    end
+        # Total decay rate out of this level, and the rate of each individual branch
+        rates = zeros(length(level.daughters))
+        for  (k, daughter) in  enumerate(level.daughters)
+            line = daughter.lines[daughter.index]
+            if      daughter.process == Basics.Radiative()     rates[k] = line.photonRate.Coulomb
+            elseif  daughter.process == Basics.Auger()         rates[k] = line.totalRate
             else    error("stop b; process = $(daughter.process) ")
             end
-            downFactor = (1.0 - exp(-rate*dt));         
-            newLevel   = Cascade.Level( line.finalLevel.energy, line.finalLevel.J, line.finalLevel.parity, 
-                                        line.finalLevel.basis.NoElectrons, 0., Cascade.LineReference[], Cascade.LineReference[] )
-            kk         = Cascade.findLevelIndex(newLevel, levels)
-            if lossFactor + downFactor < 1.0    lossFactor = lossFactor + downFactor
-            else                                downFactor = 1.0 - lossFactor;      lossFactor = 1.0
-            end
-            relativeOcc[kk] = relativeOcc[kk] + downFactor * occ;   down = down + downFactor * occ
         end
-        levels[i].relativeOcc = levels[i].relativeOcc - lossFactor * occ;   loss = loss + lossFactor * occ
+        totalRate = sum(rates)
+        if  totalRate <= 0.    continue    end
+        pLeave = (1.0 - exp(-totalRate*dt)) * occ
+        #
+        for  (k, daughter) in  enumerate(level.daughters)
+            line       = daughter.lines[daughter.index]
+            major      = Basics.extractConfiguration(Basics.LeadingConfiguration(), line.finalLevel)
+            newLevel   = Cascade.Level( line.finalLevel.energy, line.finalLevel.J, line.finalLevel.parity,
+                                        line.finalLevel.basis.NoElectrons, major, 0., Cascade.LineReference[], Cascade.LineReference[] )
+            kk         = Cascade.findLevelIndex(newLevel, levels)
+            relativeOcc[kk] = relativeOcc[kk] + pLeave * rates[k] / totalRate
+        end
+        levels[i].relativeOcc = levels[i].relativeOcc - pLeave
     end
     for i = 1:length(levels)  levels[i].relativeOcc = levels[i].relativeOcc + relativeOcc[i]    end
-    
+
     return( nothing )
 end
 
@@ -1445,7 +1454,7 @@ function simulateDrRateCoefficients(levels::Array{Cascade.Level,1}, simulation::
         for  level in levels
             for daughter in level.daughters
                 if  daughter.process != Basics.Auger();                            continue   end
-                aLine   = daughter.lineSet.linesA[daughter.index]
+                aLine   = daughter.lines[daughter.index]
                 if  aLine.finalLevel.index != simulation.property.initialLevelNo   continue   end
                 #
                 dJ      = aLine.initialLevel.J;         iJ      = aLine.finalLevel.J
@@ -1660,19 +1669,18 @@ end
 
 
 """
-`Cascade.simulateMeanRelaxationTime(levels::Array{Cascade.Level,1}, simulation::Cascade.Simulation)` 
+`Cascade.simulateRelaxationCurve(levels::Array{Cascade.Level,1}, simulation::Cascade.Simulation)` 
     ... determine the mean relaxation time until 70%, 80%, 90%  of the initially occupied levels decay down to
         the ground configurations. An relaxTimes::Array{Float64,1} is returned that contains the
         mean relaxation times for 70%, 80%, 90%, ...
 """
-function simulateMeanRelaxationTime(levels::Array{Cascade.Level,1}, simulation::Cascade.Simulation)
+function simulateRelaxationCurve(levels::Array{Cascade.Level,1}, simulation::Cascade.Simulation)
     printSummary, iostream = Defaults.getDefaults("summary flag/stream")
-    relaxTimes = zeros(3);     relaxPercentage = [0.7, 0.8, 0.9];
-    time = 0.0;     dt = simulation.property.timeStep;   nx = 0
+    relaxPercentage = [0.7, 0.8, 0.9];    relaxTimes = zeros(length(relaxPercentage))
     # Specify and display the initial (relative) occupation
     if length(simulation.property.initialOccupations) > 0
-            Cascade.specifyInitialOccupation!(levels, simulation.property.initialOccupations) 
-    else    Cascade.specifyInitialOccupation!(levels, simulation.property.leadingConfigs) 
+            Cascade.specifyInitialOccupation!(levels, simulation.property.initialOccupations)
+    else    Cascade.specifyInitialOccupation!(levels, simulation.property.leadingConfigs)
     end
     Cascade.displayRelativeOccupation(stdout, levels)
     # Determine the smallest and largest rate for the given cascade tree
@@ -1680,41 +1688,88 @@ function simulateMeanRelaxationTime(levels::Array{Cascade.Level,1}, simulation::
     for  level in levels
         for daughter in level.daughters
             if      daughter.process == Basics.Auger()
-                aLine  = daughter.lineSet.linesA[daughter.index]
-                @show aLine.totalRate
+                aLine  = daughter.lines[daughter.index]
                 if  minRate > aLine.totalRate > 0.  minRate = aLine.totalRate   end
                 if  maxRate < aLine.totalRate       maxRate = aLine.totalRate   end
             elseif  daughter.process == Basics.Radiative()
-                rLine  = daughter.lineSet.linesR[daughter.index]
-                @show rLine.photonRate.Coulomb
+                rLine  = daughter.lines[daughter.index]
                 if  minRate > rLine.photonRate.Coulomb > 0.  minRate = rLine.photonRate.Coulomb   end
                 if  maxRate < rLine.photonRate.Coulomb       maxRate = rLine.photonRate.Coulomb   end
             else    error("stop a")
             end
         end
     end
-    println(">> Simulate cascade with time step $(dt) for minRate = $minRate and  maxRate = $maxRate; " *
-            "minRate*timeStep = $(minRate*dt) ")
-    wocc = Cascade.extractOccupation(levels, simulation.property.groundConfigs)
-    @show wocc
-    #
-    # Now propagate the occupation in time
-    goon = true;    pr70 = true;    pr80 = true;    pr90 = true
-    while  goon
-        time = time + dt;   nx = nx + 1
-        Cascade.propagateOccupationInTime!(levels, dt)
+
+    ## The time grid is LOGARITHMIC, not uniform. A cascade spans an enormous range of rates -- for the Mg
+    ## K-hole tree of example-Fb.jl the fastest channel is 4.9e-2 a.u. and the slowest 4.4e-12 a.u., a
+    ## stiffness ratio of 1e10 -- because a single metastable level decays only through a strongly forbidden
+    ## channel. Reaching the last percent of the population therefore takes ~1e11 a.u., which a fixed step of
+    ## 1e-3 a.u. would need 1e14 iterations to cover. Stepping geometrically from just below the fastest
+    ## lifetime to well beyond the slowest needs a few thousand points instead, and resolves every decade
+    ## equally well -- which is what a relaxation curve spanning ten decades actually calls for.
+    tFirst        = 0.01 / maxRate
+    tLast         = 20.0 / minRate
+    pointsPerDec  = 40
+    nSteps        = max(2, round(Int, pointsPerDec * log10(tLast/tFirst)))
+    println(">> Relaxation curve on a logarithmic time grid: minRate = $minRate, maxRate = $maxRate a.u., " *
+            "i.e. lifetimes from $(round(1/maxRate, digits=2)) to $(round(1/minRate, sigdigits=3)) a.u.")
+    println(">> $nSteps steps from t = $(round(tFirst, sigdigits=3)) to $(round(tLast, sigdigits=3)) a.u. " *
+            "($pointsPerDec per decade); property.timeStep is not used by this grid.")
+
+    times = Float64[];   occupations = Float64[]
+    tPrev = 0.0
+    for  n = 0:nSteps
+        t  = tFirst * 10.0^(n * log10(tLast/tFirst) / nSteps)
+        Cascade.propagateOccupationInTime!(levels, t - tPrev);    tPrev = t
         wocc = Cascade.extractOccupation(levels, simulation.property.groundConfigs)
-        if  rem(nx,10000) == 0     println(">>> $nx) time = $time [a.u.]   ground conf. occupation = $wocc")   end
-        for  i = 1:length(relaxPercentage) 
-            if wocc < relaxPercentage[i]    relaxTimes[i] = time    end
+        push!(times, t);    push!(occupations, wocc)
+        for  i = 1:length(relaxPercentage)
+            if  relaxTimes[i] == 0.  &&  wocc >= relaxPercentage[i]    relaxTimes[i] = t    end
         end
-        if  pr70  &&  wocc > 0.70   pr70 = false;   println("70%  at  time = $(relaxTimes[1])")   end
-        if  pr80  &&  wocc > 0.80   pr80 = false;   println("80%  at  time = $(relaxTimes[2])")   end
-        if  pr90  &&  wocc > 0.90   pr90 = false;   println("90%  at  time = $(relaxTimes[3])")   end
-        if  wocc > 0.91     goon = false    end
     end
+    #
+    Cascade.displayRelaxationCurve(stdout, relaxPercentage, relaxTimes, times, occupations)
+    if  printSummary   Cascade.displayRelaxationCurve(iostream, relaxPercentage, relaxTimes, times, occupations)   end
 
     return( relaxPercentage, relaxTimes )
+end
+
+
+"""
+`Cascade.displayRelaxationCurve(stream::IO, relaxPercentage::Array{Float64,1}, relaxTimes::Array{Float64,1},
+                                times::Array{Float64,1}, occupations::Array{Float64,1})`
+    ... displays the relaxation curve, i.e. the fraction of the initial population that has reached the ground
+        configurations as a function of time, together with the times at which the requested percentiles are
+        crossed. Nothing is returned.
+"""
+function displayRelaxationCurve(stream::IO, relaxPercentage::Array{Float64,1}, relaxTimes::Array{Float64,1},
+                                times::Array{Float64,1}, occupations::Array{Float64,1})
+    auToFs = 2.4188843265e-2      # 1 a.u. of time in femtoseconds
+    println(stream, " ")
+    println(stream, "* Relaxation curve: population that has reached the ground configuration(s) ")
+    println(stream, " ")
+    println(stream, "  ------------------------------------------------------------")
+    println(stream, "      time [a.u.]        time [fs]         rel. occupation     ")
+    println(stream, "  ------------------------------------------------------------")
+    for  (i,t) in  enumerate(times)
+        ## print a readable subset: every fourth grid point, plus the ends
+        if  i == 1  ||  i == length(times)  ||  rem(i,4) == 0
+            println(stream, "     " * @sprintf("%.4e", t) * "      " * @sprintf("%.4e", t*auToFs) *
+                            "        " * @sprintf("%.6f", occupations[i]))
+        end
+    end
+    println(stream, "  ------------------------------------------------------------")
+    println(stream, " ")
+    for  (i,p) in  enumerate(relaxPercentage)
+        if  relaxTimes[i] > 0.
+            println(stream, "  $(round(Int, 100p))% relaxed at t = " * @sprintf("%.4e", relaxTimes[i]) *
+                            " a.u. = " * @sprintf("%.4e", relaxTimes[i]*auToFs) * " fs")
+        else
+            println(stream, "  $(round(Int, 100p))% relaxed:  NOT reached within the simulated time range.")
+        end
+    end
+
+    return( nothing )
 end
 """
 `Cascade.simulatePhotoAbsorptionSpectrum(simulation::Cascade.Simulation, 

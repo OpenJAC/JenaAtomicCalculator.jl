@@ -16,9 +16,13 @@ end
     ... extract the leading configuration of the given level; a conf::Configuration is returned.
 """
 function Basics.extractConfiguration(theme::Basics.LeadingConfiguration, cLevel::Cascade.Level)
-    # First extract the right ManyElectron.Level that is to be analyzed
-    level = Level()
-    if length(cLevel.parents) > 0   
+    # First extract the right ManyElectron.Level that is to be analyzed.
+    ## The placeholder `level = Level()` that used to stand here could never work: inside module Cascade the
+    ## bare name Level resolves to Cascade.Level, which has no zero-argument constructor, whereas the comment
+    ## (and everything below) wants a ManyElectron.Level. It was pure scope declaration in any case -- every
+    ## branch below either assigns `level` or raises -- and Julia's `if` does not open a new scope, so the
+    ## assignments are visible afterwards without it.
+    if length(cLevel.parents) > 0
         parent = cLevel.parents[1]
         if      parent.process == Basics.Auger()       level = parent.lines[parent.index].finalLevel
         elseif  parent.process == Basics.Radiative()   level = parent.lines[parent.index].finalLevel

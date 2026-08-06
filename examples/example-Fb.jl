@@ -111,17 +111,27 @@ elseif  false
     wd = perform(wc; output=true)
     setDefaults("print summary: close", "")
     #
-elseif  false
+elseif  true
     # Last visit:      unknown ... not yet run
     # Last successful: unknown ... not yet verified
     #
-    # Branch e: MEAN RELAXATION TIME -- how long the ion takes to reach its ground configuration. This
-    #   property was originally designed for HOLLOW IONS, where "how long until the ion is back in its ground
-    #   configuration" is the natural question, and it has hardly been used in practice since; a single
-    #   K-shell hole is a much simpler case for it, which makes it a reasonable first test. Expect
-    #   femtoseconds: a Mg K hole decays predominantly by Auger emission at rates of order 1e14 /s, so an
-    #   answer in seconds, or one that is plainly in atomic units, would indicate a units problem rather than
-    #   physics. groundConfigs names the configuration the relaxation is measured TOWARDS.
+    # Branch e: RELAXATION CURVE -- the times by which 70%, 80% and 90% of the initial population has reached
+    #   the ground configuration. Renamed from MeanRelaxationTime on 05-Aug-2026: the property never computed
+    #   a mean, and a mean over a cascade is not an observable in any case, since the pathways take widely
+    #   different times and the distribution is broad and far from exponential. What it computes -- and what
+    #   Eur. Phys. J. D 78, 75 (2024) actually describes -- is a set of percentiles of that distribution, i.e.
+    #   a curve, and a curve IS comparable to a pump-probe measurement of a final-state yield against delay.
+    #
+    #   The property was designed for HOLLOW IONS, where "how long until the ion is back in its ground
+    #   configuration" is the natural question; a single K-shell hole is a much simpler first test.
+    #   Expect femtoseconds: a Mg K hole decays predominantly by Auger emission at rates of order 1e14 /s, so
+    #   an answer in seconds would indicate a units problem rather than physics. Note the times are reported in
+    #   ATOMIC UNITS of time (1 a.u. = 24.19 as), as is timeStep. groundConfigs names the configuration the
+    #   relaxation is measured TOWARDS -- and it must name the ground configuration of EVERY charge state the
+    #   cascade can end in, here 11, 10 and 9 electrons. Listing only the 11-electron one makes the target
+    #   unreachable: branch b shows just 1.55e-04 of the population ends there, so the propagation can never
+    #   reach the 91% it needs and runs without bound. That mistake is easy to make and the code now reports
+    #   it rather than spinning.
     setDefaults("print summary: open", "zzz-Cascade-Fb-relaxationTime.sum")
 
     dataFilename = "example-Fb.dat/zzz-cascade-decay-computations-2026-08-05T16.jld"
@@ -129,8 +139,10 @@ elseif  false
     data = [JLD2.load(dataFilename)]
 
     wc = Cascade.Simulation(Cascade.Simulation(), name="Mg K-hole: mean relaxation time",
-                            property=Cascade.MeanRelaxationTime(1.0e-3, [(1, 1.0)], Configuration[],
-                                                                [Configuration("1s^2 2s^2 2p^6 3s^1")]),
+                            property=Cascade.RelaxationCurve(1.0e-3, [(1, 1.0)], Configuration[],
+                                                             [Configuration("1s^2 2s^2 2p^6 3s^1"),
+                                                              Configuration("1s^2 2s^2 2p^6"),
+                                                              Configuration("1s^2 2s^2 2p^5")]),
                             method=Cascade.ProbPropagation(),
                             settings=Cascade.SimulationSettings(false, false, 0.), computationData=data )
     println(wc)
@@ -148,7 +160,7 @@ elseif  false
     #   BLOCKED (05-Aug-2026): Cascade.ElectronIntensities is declared, has a constructor and a Base.show, and
     #   is a perfectly ordinary AbstractSimulationProperty -- but Cascade.perform(simulation) never dispatches
     #   on it. That chain of elseif branches handles PhotoAbsorptionSpectrum, IonDistribution,
-    #   FinalLevelDistribution, PhotonIntensities, DrRateCoefficients, RrRateCoefficients, MeanRelaxationTime,
+    #   FinalLevelDistribution, PhotonIntensities, DrRateCoefficients, RrRateCoefficients, RelaxationCurve,
     #   ExpansionOpacities and RosselandOpacities, and falls through silently for this one; there is likewise
     #   no simulateElectronIntensities beside simulatePhotonIntensities. It is the same reserved-but-dead
     #   pattern already found in Plasma's aiSettings and in Continuum.Settings.includeExchange -- a type that
@@ -170,7 +182,7 @@ elseif  false
     setDefaults("print summary: close", "")
     #
     #
-elseif  true
+elseif  false
     # Last visit:      unknown ... not yet run
     # Last successful: unknown ... not yet verified
     #

@@ -174,8 +174,9 @@ end
                                             processes are completed.
     + struct IonDistribution            ... simulate the 'ion distribution' as it is found after all cascade processes are completed.
     + struct MeanLineWidths             ... simulate the mean line widths of a line near to a given energy (not yet). 
-    + struct MeanRelaxationTime         ... simulate the mean relaxation times in which 70%, 80%, of the occupied levels
-                                            decay to the ground configuration.        
+    + struct RelaxationCurve            ... simulate the relaxation CURVE, i.e. the times by which 70%, 80%, 90%
+                                            of the initially occupied levels have decayed to the ground
+                                            configuration.        
     + struct ElectronIntensities        ... simulate the electron-line intensities as function of electron energy.
     + struct PhotoAbsorptionCS          ... simulate the (total) photoabsorption cross sections for a given set of photo-excitation 
                                             and ionization processes.
@@ -560,7 +561,7 @@ end
 
 
 """
-`struct  Cascade.MeanRelaxationTime   <:  Cascade.AbstractSimulationProperty`  
+`struct  Cascade.RelaxationCurve   <:  Cascade.AbstractSimulationProperty`  
     ... defines a type for simulating the mean relaxation times in which 70%, 80%, of the occupied levels decay to the 
         ground configuration.
 
@@ -572,7 +573,7 @@ end
     + groundConfigs       ::Array{Configuration,1}   
         ... List of ground configurations into which the decay is considered.
 """  
-struct  MeanRelaxationTime   <:  Cascade.AbstractSimulationProperty
+struct  RelaxationCurve   <:  Cascade.AbstractSimulationProperty
     timeStep              ::Float64
     initialOccupations    ::Array{Tuple{Int64,Float64},1} 
     leadingConfigs        ::Array{Configuration,1}
@@ -581,15 +582,15 @@ end
 
 
 """
-`Cascade.MeanRelaxationTime()`  ... (simple) constructor for cascade MeanRelaxationTime.
+`Cascade.RelaxationCurve()`  ... (simple) constructor for cascade RelaxationCurve.
 """
-function MeanRelaxationTime()
-    MeanRelaxationTime(10., [(1, 1.0)], Configuration[], Configuration[])
+function RelaxationCurve()
+    RelaxationCurve(10., [(1, 1.0)], Configuration[], Configuration[])
 end
 
 
-# `Base.show(io::IO, dist::Cascade.MeanRelaxationTime)`  ... prepares a proper printout of the variable data::Cascade.MeanRelaxationTime.
-function Base.show(io::IO, dist::Cascade.MeanRelaxationTime) 
+# `Base.show(io::IO, dist::Cascade.RelaxationCurve)`  ... prepares a proper printout of the variable data::Cascade.RelaxationCurve.
+function Base.show(io::IO, dist::Cascade.RelaxationCurve) 
     println(io, "timeStep:                 $(dist.timeStep)  ")
     println(io, "initialOccupations:       $(dist.initialOccupations)  ")
     println(io, "leadingConfigs:           $(dist.leadingConfigs)  ")
