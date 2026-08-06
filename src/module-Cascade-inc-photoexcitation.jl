@@ -51,8 +51,11 @@ function determineSteps(scheme::Cascade.PhotoExcitationScheme, comp::Cascade.Com
         for  initialBlock in initialList
             for  excitedBlock in excitedList
                 if  initialBlock.NoElectrons == excitedBlock.NoElectrons
-                    settings = PhotoExcitation.Settings([E1], [UseCoulomb, UseBabushkin], false, false, false, false, false, LineSelection(),
-                                                        0., 0., 1.0e6, Basics.ExpStokes() )
+                    ## The multipoles must be taken from the scheme; a hard-wired [E1] made the multipole list of
+                    ## PhotoExcitationScheme act on the configuration filter (generateConfigurationsForPhotoexcitation)
+                    ## only, so that M1/E2/M2 enlarged the cascade by same-parity blocks that could never yield a line.
+                    settings = PhotoExcitation.Settings(scheme.multipoles, [UseCoulomb, UseBabushkin], false, false, false, false, false,
+                                                        LineSelection(), 0., 0., 1.0e6, Basics.ExpStokes() )
                     push!( stepList, Cascade.Step(Basics.PhotoExc(), settings, initialBlock.confs, excitedBlock.confs, 
                                                                                 initialBlock.multiplet, excitedBlock.multiplet) )
                 end
