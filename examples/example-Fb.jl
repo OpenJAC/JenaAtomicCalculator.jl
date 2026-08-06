@@ -28,7 +28,7 @@ grid = Radial.Grid(Radial.Grid(false), rnt = 4.0e-6, h = 5.0e-2, hp = 0.6e-2, rb
 
 
 if  false
-    # Last visit:      unknown ... not yet run
+    # Last visit:      06-Aug-2026
     # Last successful: unknown ... not yet verified
     #
     # Branch a: THE COMPUTATION. Everything below consumes the .jld file this branch writes; its name is
@@ -46,7 +46,7 @@ if  false
     setDefaults("print summary: close", "")
     #
 elseif  false
-    # Last visit:      unknown ... not yet run
+    # Last visit:      06-Aug-2026
     # Last successful: unknown ... not yet verified
     #
     # Branch b: ION DISTRIBUTION -- how the population is shared between charge states once the cascade has
@@ -54,7 +54,7 @@ elseif  false
     #   should come out as 1.00000.
     setDefaults("print summary: open", "zzz-Cascade-Fb-ionDistribution.sum")
 
-    dataFilename = "example-Fb.dat/zzz-cascade-decay-computations-2026-08-05T16.jld"
+    dataFilename = "example-Fb.dat/zzz-cascade-decay-computations-2026-08-06T07.jld"
     if  !isfile(dataFilename)   error("Run branch a first and paste its printed filename here: $dataFilename")   end
     data = [JLD2.load(dataFilename)]
 
@@ -67,7 +67,7 @@ elseif  false
     setDefaults("print summary: close", "")
     #
 elseif  false
-    # Last visit:      unknown ... not yet run
+    # Last visit:      06-Aug-2026
     # Last successful: unknown ... not yet verified
     #
     # Branch c: FINAL LEVEL DISTRIBUTION -- the same propagation as branch b, but resolved into the individual
@@ -76,7 +76,7 @@ elseif  false
     #   propagation and differ only in how the result is collected.
     setDefaults("print summary: open", "zzz-Cascade-Fb-finalLevels.sum")
 
-    dataFilename = "example-Fb.dat/zzz-cascade-decay-computations-2026-08-05T16.jld"
+    dataFilename = "example-Fb.dat/zzz-cascade-decay-computations-2026-08-06T07.jld"
     if  !isfile(dataFilename)   error("Run branch a first and paste its printed filename here: $dataFilename")   end
     data = [JLD2.load(dataFilename)]
 
@@ -89,7 +89,7 @@ elseif  false
     setDefaults("print summary: close", "")
     #
 elseif  false
-    # Last visit:      unknown ... not yet run
+    # Last visit:      06-Aug-2026
     # Last successful: unknown ... not yet verified
     #
     # Branch d: PHOTON INTENSITIES -- the fluorescence spectrum of the cascade, i.e. the photon lines weighted
@@ -99,7 +99,7 @@ elseif  false
     #   wide (0 ... 2000 eV) so that the L-shell lines at a few tens of eV show up alongside it.
     setDefaults("print summary: open", "zzz-Cascade-Fb-photonIntensities.sum")
 
-    dataFilename = "example-Fb.dat/zzz-cascade-decay-computations-2026-08-05T16.jld"
+    dataFilename = "example-Fb.dat/zzz-cascade-decay-computations-2026-08-06T07.jld"
     if  !isfile(dataFilename)   error("Run branch a first and paste its printed filename here: $dataFilename")   end
     data = [JLD2.load(dataFilename)]
 
@@ -111,8 +111,8 @@ elseif  false
     wd = perform(wc; output=true)
     setDefaults("print summary: close", "")
     #
-elseif  true
-    # Last visit:      unknown ... not yet run
+elseif  false
+    # Last visit:      06-Aug-2026
     # Last successful: unknown ... not yet verified
     #
     # Branch e: RELAXATION CURVE -- the times by which 70%, 80% and 90% of the initial population has reached
@@ -134,7 +134,7 @@ elseif  true
     #   it rather than spinning.
     setDefaults("print summary: open", "zzz-Cascade-Fb-relaxationTime.sum")
 
-    dataFilename = "example-Fb.dat/zzz-cascade-decay-computations-2026-08-05T16.jld"
+    dataFilename = "example-Fb.dat/zzz-cascade-decay-computations-2026-08-06T07.jld"
     if  !isfile(dataFilename)   error("Run branch a first and paste its printed filename here: $dataFilename")   end
     data = [JLD2.load(dataFilename)]
 
@@ -150,26 +150,27 @@ elseif  true
     setDefaults("print summary: close", "")
     #
 elseif  false
-    # Last visit:      unknown ... NOT YET RUNNABLE, see below
+    # Last visit:      06-Aug-2026
     # Last successful: unknown ... not yet verified
     #
     # Branch f: ELECTRON INTENSITIES -- the Auger-electron spectrum. This is the natural partner of branch d's
     #   photon spectrum and arguably the more informative of the two for a K-hole cascade, since Mg decays
     #   overwhelmingly by electron emission rather than radiatively.
     #
-    #   BLOCKED (05-Aug-2026): Cascade.ElectronIntensities is declared, has a constructor and a Base.show, and
-    #   is a perfectly ordinary AbstractSimulationProperty -- but Cascade.perform(simulation) never dispatches
-    #   on it. That chain of elseif branches handles PhotoAbsorptionSpectrum, IonDistribution,
+    #   WAS BLOCKED, RESOLVED 05-Aug-2026. Cascade.ElectronIntensities was declared, had a constructor and a
+    #   Base.show, and was a perfectly ordinary AbstractSimulationProperty -- but Cascade.perform(simulation)
+    #   never dispatched That chain of elseif branches handles PhotoAbsorptionSpectrum, IonDistribution,
     #   FinalLevelDistribution, PhotonIntensities, DrRateCoefficients, RrRateCoefficients, RelaxationCurve,
     #   ExpansionOpacities and RosselandOpacities, and falls through silently for this one; there is likewise
     #   no simulateElectronIntensities beside simulatePhotonIntensities. It is the same reserved-but-dead
     #   pattern already found in Plasma's aiSettings and in Continuum.Settings.includeExchange -- a type that
-    #   advertises a capability which does not exist.
-    #   The data it needs is already there: the AutoIonization lines sit in the .jld that branch a writes, so
-    #   implementing it means mirroring simulatePhotonIntensities onto those lines.
+    #   advertises a capability which does not exist. The propagation had in fact collected the Auger
+    #   emissions all along; only the simulate function and the dispatch entry were missing, and both are now
+    #   in place. It was the dispatch refactor that made this visible: under the former chain of
+    #   `typeof(property) == ...` tests the request simply fell through and returned nothing, silently.
     setDefaults("print summary: open", "zzz-Cascade-Fb-electronIntensities.sum")
 
-    dataFilename = "example-Fb.dat/zzz-cascade-decay-computations-2026-08-05T16.jld"
+    dataFilename = "example-Fb.dat/zzz-cascade-decay-computations-2026-08-06T07.jld"
     if  !isfile(dataFilename)   error("Run branch a first and paste its printed filename here: $dataFilename")   end
     data = [JLD2.load(dataFilename)]
 
@@ -182,8 +183,8 @@ elseif  false
     setDefaults("print summary: close", "")
     #
     #
-elseif  false
-    # Last visit:      unknown ... not yet run
+elseif  true
+    # Last visit:      06-Aug-2026
     # Last successful: unknown ... not yet verified
     #
     # Branch g: AUGER-AUGER COINCIDENCE -- the spectrum of the SECOND Auger electron, recorded only for those
@@ -200,7 +201,7 @@ elseif  false
     #   reproduce branch f's ungated electron spectrum exactly.
     setDefaults("print summary: open", "zzz-Cascade-Fb-augerAuger.sum")
 
-    dataFilename = "example-Fb.dat/zzz-cascade-decay-computations-2026-08-05T16.jld"
+    dataFilename = "example-Fb.dat/zzz-cascade-decay-computations-2026-08-06T07.jld"
     if  !isfile(dataFilename)   error("Run branch a first and paste its printed filename here: $dataFilename")   end
     data = [JLD2.load(dataFilename)]
 
