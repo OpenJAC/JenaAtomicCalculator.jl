@@ -682,8 +682,12 @@ function  estimateCrossSection(lines::Array{PhotoExcitation.Line,1}, omega::Floa
     function gaussianDistribution(omega::Float64, Er::Float64, gamma::Float64, gf::Basics.EmProperty)
         # Return zero if outside of interval
         if abs(Er - omega) > 10 * gamma    return(Basics.EmProperty(0.))   end
-        # Account for the factor to bring 109.7617 Mb / eV first back to atomic units
-        factor = 109.7617 * Defaults.convertUnits("cross section: from barn to atomic unit", 1.0e6) / 
+        ## Bring the integrated strength 109.7617 f [Mb eV] back to atomic units.  BOTH conversions have to
+        ## MULTIPLY: the second one divided instead, which inflated every simulated resonance by exactly
+        ## 1/(1 eV in a.u.)^2 = 27.2114^2 = 740.46.  The corrected factor equals 2 pi^2 alpha = 0.1440440 to
+        ## five digits, which is the same constant that underlies the 109.761 Mb eV column of
+        ## PhotoExcitation.displayCrossSections.
+        factor = 109.7617 * Defaults.convertUnits("cross section: from barn to atomic unit", 1.0e6) *
                             Defaults.convertUnits("energy: from eV to atomic", 1.0)
         wa = (Er - omega)^2  +  gamma^2/4
         wa = factor * gamma / (2pi) / wa

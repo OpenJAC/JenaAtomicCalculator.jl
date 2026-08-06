@@ -1125,8 +1125,68 @@ end
 
 
 """
-`PhotoIonization.displayResults(stream::IO, lines::Array{PhotoIonization.Line,1}, settings::PhotoIonization.Settings)`  
-    ... to list all results, energies, cross sections, etc. of the selected lines. A neat table is printed but nothing 
+`PhotoIonization.displayTotalCrossSections(stream::IO, lines::Array{PhotoIonization.Line,1}, settings::PhotoIonization.Settings)`
+    ... to list the TOTAL photoionization cross sections, i.e. the given lines summed over all final levels f for
+        each initial level i and each photon energy. This is the quantity that is usually quoted and compared with
+        experiment, whereas the line-resolved table shows the individual i --> f contributions. A neat table is
+        printed but nothing is returned otherwise.
+"""
+function  displayTotalCrossSections(stream::IO, lines::Array{PhotoIonization.Line,1}, settings::PhotoIonization.Settings)
+    if  length(lines) == 0      return( nothing )    end
+    nx = 96
+    println(stream, " ")
+    println(stream, "  Total photoionization cross sections, summed over all final levels:")
+    println(stream, " ")
+    println(stream, "    Each row sums the line-resolved cross sections above over ALL final levels f that belong to")
+    println(stream, "    the given initial level i and photon energy, and over the partial waves of the photo-electron.")
+    println(stream, "    It is the direct (non-resonant) cross section only: no resonant excitation-autoionization, no")
+    println(stream, "    shake-off and no multiple ionization are contained.  If the lines cover more than one ionized")
+    println(stream, "    subshell, this sum runs over those subshells as well and is then the grand total.")
+    println(stream, " ")
+    println(stream, "  ", TableStrings.hLine(nx))
+    sa = "  ";   sb = "  "
+    sa = sa * TableStrings.center(12, "i-level"    ; na=2);                        sb = sb * TableStrings.hBlank(14)
+    sa = sa * TableStrings.center(10, "i--J^P"     ; na=3);                        sb = sb * TableStrings.hBlank(13)
+    sa = sa * TableStrings.center(12, "omega"      ; na=4)
+    sb = sb * TableStrings.center(12, TableStrings.inUnits("energy"); na=4)
+    sa = sa * TableStrings.center(10, "No lines"   ; na=3);                        sb = sb * TableStrings.hBlank(13)
+    sa = sa * TableStrings.center(30, "Cou -- Total cross section -- Bab"; na=3)
+    sb = sb * TableStrings.center(30, TableStrings.inUnits("cross section") * "          " *
+                                            TableStrings.inUnits("cross section"); na=3)
+    println(stream, sa);    println(stream, sb);    println(stream, "  ", TableStrings.hLine(nx))
+    #
+    wx = 1.0
+    ## Collect the distinct (initial level, photon energy) pairs in the order in which they first occur
+    keys = Tuple{Int64,Float64}[]
+    for  line in lines
+        wa = (line.initialLevel.index, line.photonEnergy)
+        if  !(wa in keys)   push!(keys, wa)    end
+    end
+    for  (idx, omega)  in  keys
+        tcs = Basics.EmProperty(0.);   nl = 0;   isym = LevelSymmetry(AngularJ64(0), Basics.plus)
+        for  line in lines
+            if  line.initialLevel.index == idx  &&  line.photonEnergy == omega
+                tcs = tcs + line.crossSection;    nl = nl + 1
+                isym = LevelSymmetry( line.initialLevel.J, line.initialLevel.parity)
+            end
+        end
+        sa = "  " * TableStrings.center(12, string(idx); na=2)
+        sa = sa * TableStrings.center(10, string(isym); na=3)
+        sa = sa * @sprintf("%.6e", Defaults.convertUnits("energy: from atomic", omega))  * "    "
+        sa = sa * TableStrings.center(10, string(nl); na=3)
+        sa = sa * @sprintf("%.6e", Defaults.convertUnits("cross section: from atomic", wx * tcs.Coulomb))    * "    "
+        sa = sa * @sprintf("%.6e", Defaults.convertUnits("cross section: from atomic", wx * tcs.Babushkin))
+        println(stream, sa)
+    end
+    println(stream, "  ", TableStrings.hLine(nx))
+    #
+    return( nothing )
+end
+
+
+"""
+`PhotoIonization.displayResults(stream::IO, lines::Array{PhotoIonization.Line,1}, settings::PhotoIonization.Settings)`
+    ... to list all results, energies, cross sections, etc. of the selected lines. A neat table is printed but nothing
         is returned otherwise.
 """
 function  displayResults(stream::IO, lines::Array{PhotoIonization.Line,1}, settings::PhotoIonization.Settings)
@@ -1172,13 +1232,10 @@ function  displayResults(stream::IO, lines::Array{PhotoIonization.Line,1}, setti
     end
     println(stream, "  ", TableStrings.hLine(nx))
     #
-    #==
-    # Print, if useful, the sum of all cross sections (Schippers, August'23)
-    tcs = Basics.EmProperty(0.);    for  line in lines   tcs = tcs + line.crossSection   end 
-    sa = repeat(" ", 102)
-    sa = sa * @sprintf("%.6e", Defaults.convertUnits("cross section: from atomic", wx * tcs.Coulomb))     * "    "
-    sa = sa * @sprintf("%.6e", Defaults.convertUnits("cross section: from atomic", wx * tcs.Babushkin))   * "                 "
-    println(stream, sa)  ==#
+    #
+    # Total (summed) cross sections.  The table above is resolved into the individual final levels f, which is
+    # rarely what one wants to quote; the sum over f at a fixed initial level and photon energy is.
+    PhotoIonization.displayTotalCrossSections(stream, lines, settings)
     #
     #
     if  settings.calcAnisotropy

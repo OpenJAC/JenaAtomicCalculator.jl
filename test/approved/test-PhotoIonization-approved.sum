@@ -1,44 +1,20 @@
-Summary file opened at 2025-05-29T20:34: 
+Summary file opened at 2026-08-06T17:21: 
 ========================================   
 
 
-  Eigenenergies:
+  Level energies:  
 
-  Level  J Parity          Hartrees                    eV                   [eV]
+  Level  J Parity    Total [Hartree]           Total [eV]               Total [eV]            To lower [eV]        To lowest [eV]   
 
-     1    0 +     -2.326453565556807e+03    -6.330602602997166e+04    -6.330602602997166e+04 
+     1    0 +      -2.326453706329e+03      -6.330602986057e+04      -6.330602986057e+04      0.000000000e+00      0.000000000e+00   
 
-  Energy of each level relative to immediately lower level:
+  Level energies:  
 
-  Level  J Parity          Hartrees                    eV                   [eV]
+  Level  J Parity    Total [Hartree]           Total [eV]               Total [eV]            To lower [eV]        To lowest [eV]   
 
-
-  Energy of each level relative to lowest level:
-
-  Level  J Parity          Hartrees                    eV                   [eV]
-
-
-  Eigenenergies:
-
-  Level  J Parity          Hartrees                    eV                   [eV]
-
-     1    3/2 -     -2.218891190360889e+03    -6.037910471728745e+04    -6.037910471728745e+04 
-     2    1/2 -     -2.216822151003647e+03    -6.032280328864697e+04    -6.032280328864697e+04 
-     3    1/2 +     -2.210106672582808e+03    -6.014006581302854e+04    -6.014006581302854e+04 
-
-  Energy of each level relative to immediately lower level:
-
-  Level  J Parity          Hartrees                    eV                   [eV]
-
-     2    1/2 -     2.069039357241763e+00    5.630142864047831e+01    5.630142864047831e+01 
-     3    1/2 +     6.715478420838735e+00    1.827374756184228e+02    1.827374756184228e+02 
-
-  Energy of each level relative to lowest level:
-
-  Level  J Parity          Hartrees                    eV                   [eV]
-
-     2    1/2 -     2.069039357241763e+00    5.630142864047831e+01    5.630142864047831e+01 
-     3    1/2 +     8.784517778080499e+00    2.390389042589011e+02    2.390389042589011e+02 
+     1    3/2 -    -2.218891331537e+03      -6.037910855888e+04      -6.037910855888e+04      0.000000000e+00      0.000000000e+00   
+     2    1/2 -    -2.216822292201e+03      -6.032280713082e+04      -6.032280713082e+04      5.630142806e+01      5.630142806e+01   
+     3    1/2 +    -2.210106806664e+03      -6.014006946157e+04      -6.014006946157e+04      1.827376693e+02      2.390390973e+02   
  
   Total photoionization cross sections for initially unpolarized atoms by unpolarized plane-wave photons:
  
@@ -46,11 +22,27 @@ Summary file opened at 2025-05-29T20:34:
        i-level-f         i--J^P--f       f--Energy--i        omega        Energy e_p     Multipoles   Cou -- Cross section -- Bab    
                                               [eV]            [eV]            [eV]                        [barn]          [barn]       
   ----------------------------------------------------------------------------------------------------------------------------------
-       1 --    1       0 + --> 3/2 -     2.926921e+03    3.000000e+03    7.307869e+01    E1, M1       7.838506e+04    7.555544e+04                 
+       1 --    1       0 + --> 3/2 -     2.926921e+03    3.000000e+03    7.307870e+01    E1, M1       7.838506e+04    7.555544e+04                 
        1 --    1       0 + --> 3/2 -     2.926921e+03    4.000000e+03    1.073079e+03    E1, M1       3.388894e+04    3.287357e+04                 
-       1 --    2       0 + --> 1/2 -     2.983223e+03    3.000000e+03    1.677726e+01    E1, M1       4.184261e+04    4.002268e+04                 
+       1 --    2       0 + --> 1/2 -     2.983223e+03    3.000000e+03    1.677727e+01    E1, M1       4.184261e+04    4.002268e+04                 
        1 --    2       0 + --> 1/2 -     2.983223e+03    4.000000e+03    1.016777e+03    E1, M1       1.831381e+04    1.758001e+04                 
   ----------------------------------------------------------------------------------------------------------------------------------
+ 
+  Total photoionization cross sections, summed over all final levels:
+ 
+    Each row sums the line-resolved cross sections above over ALL final levels f that belong to
+    the given initial level i and photon energy, and over the partial waves of the photo-electron.
+    It is the direct (non-resonant) cross section only: no resonant excitation-autoionization, no
+    shake-off and no multiple ionization are contained.  If the lines cover more than one ionized
+    subshell, this sum runs over those subshells as well and is then the grand total.
+ 
+  ------------------------------------------------------------------------------------------------
+     i-level      i--J^P         omega        No lines     Cou -- Total cross section -- Bab   
+                                 [eV]                         [barn]          [barn]       
+  ------------------------------------------------------------------------------------------------
+        1           0 +      3.000000e+03         2       1.202277e+05    1.155781e+05
+        1           0 +      4.000000e+03         2       5.220275e+04    5.045358e+04
+  ------------------------------------------------------------------------------------------------
  
   Angular beta-parameters in E1 approximation for unpolarized target atoms with Ji = 0, 1/2, 1:
  
@@ -58,8 +50,8 @@ Summary file opened at 2025-05-29T20:34:
        i-level-f         i--J^P--f       f--Energy--i        omega        Energy e_p     Cou -- angular beta_2 -- Bab    
                                               [eV]            [eV]            [eV]                                        
   ------------------------------------------------------------------------------------------------------------------------
-       1 --    1       0 + --> 3/2 -     2.926921e+03    3.000000e+03    7.307869e+01    1.477229e+00    1.487717e+00   
+       1 --    1       0 + --> 3/2 -     2.926921e+03    3.000000e+03    7.307870e+01    1.477229e+00    1.487717e+00   
        1 --    1       0 + --> 3/2 -     2.926921e+03    4.000000e+03    1.073079e+03    1.469583e+00    1.475385e+00   
-       1 --    2       0 + --> 1/2 -     2.983223e+03    3.000000e+03    1.677726e+01    1.431206e+00    1.446886e+00   
+       1 --    2       0 + --> 1/2 -     2.983223e+03    3.000000e+03    1.677727e+01    1.431206e+00    1.446886e+00   
        1 --    2       0 + --> 1/2 -     2.983223e+03    4.000000e+03    1.016777e+03    1.440238e+00    1.453396e+00   
   ------------------------------------------------------------------------------------------------------------------------

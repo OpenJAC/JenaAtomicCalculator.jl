@@ -767,7 +767,11 @@ function Base.show(io::IO, scheme::PhotoIonizationScheme)
     println(io, "electronEnergyShift:        $(scheme.electronEnergyShift)  ")
     println(io, "minCrossSection:            $(scheme.minCrossSection)  ")
     #
-    if  length(photonEnergies) > 0  &&  length(electronEnergies) > 0    
+    ## These two tests referred to bare `photonEnergies` / `electronEnergies` instead of the fields of the
+    ## given scheme, so that ANY printout of a PhotoIonizationScheme -- and hence of any Cascade.Computation
+    ## carrying one -- raised an UndefVarError.  Every example does println(wa), so the scheme could not be
+    ## used in the documented way at all.
+    if  length(scheme.photonEnergies) > 0  &&  length(scheme.electronEnergies) > 0
         error("Only photon or electron energies can be specified.")
     end
 end

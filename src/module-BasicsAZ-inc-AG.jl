@@ -280,7 +280,6 @@ end
 """
 function Basics.determineNearestPoints(x0::Float64, n::Int64, values::Array{Float64,1})
     valuesx = copy(values)
-    @show n, values
     if  n > length(values)
         println(">>> Warning in Basics.determineNearestPoints():  n=$n > No of $values ")
         for  i=1:100   push!(valuesx, values[end] + i*0.1 );   if length(valuesx) == n   break   end     end
