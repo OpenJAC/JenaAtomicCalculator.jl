@@ -276,13 +276,15 @@ function displayIntensities(stream::IO, property::PhotonIntensities, energiesInt
     sMinEn = @sprintf("%.3e", Defaults.convertUnits("energy: from atomic", property.minPhotonEnergy))
     sMaxEn = @sprintf("%.3e", Defaults.convertUnits("energy: from atomic", property.maxPhotonEnergy))
     println(stream, " ")
-    println(stream, "* Energies & (relative) photon intensities between " * sMinEn * " and "  * sMaxEn * 
+    println(stream, "* Energies & photon yields between " * sMinEn * " and "  * sMaxEn *
                         TableStrings.inUnits("energy") * ":  ")
+    println(stream, "  The yield is the number of photons emitted PER INITIAL ION at that energy: an absolute,")
+    println(stream, "  dimensionless quantity, not a relative one and not a field intensity in W/cm^2.")
     println(stream, " ")
     println(stream, "  ", TableStrings.hLine(nx))
     sa = "  "
     sa = sa * TableStrings.center(16, "Energy "        * TableStrings.inUnits("energy"); na=5)
-    sa = sa * TableStrings.center(10, "Rel. Intensity"; na=2)
+    sa = sa * TableStrings.center(13, "Number / ion"; na=2)
     println(stream, sa)
     println(stream, "  ", TableStrings.hLine(nx))
     #
@@ -294,7 +296,7 @@ function displayIntensities(stream::IO, property::PhotonIntensities, energiesInt
         println(stream, sa)
     end
     println(stream, "  ", TableStrings.hLine(nx))
-    println(stream, "  Total (relative) intensity:  " * @sprintf("%.3e", totalIntensity))
+    println(stream, "  Total number emitted per ion:  " * @sprintf("%.3e", totalIntensity))
 
     return( nothing )
 end
@@ -310,13 +312,15 @@ function displayIntensities(stream::IO, property::ElectronIntensities, energiesI
     sMinEn = @sprintf("%.3e", Defaults.convertUnits("energy: from atomic", property.minElectronEnergy))
     sMaxEn = @sprintf("%.3e", Defaults.convertUnits("energy: from atomic", property.maxElectronEnergy))
     println(stream, " ")
-    println(stream, "* Energies & (relative) electron intensities between " * sMinEn * " and "  * sMaxEn *
+    println(stream, "* Energies & electron yields between " * sMinEn * " and "  * sMaxEn *
                         TableStrings.inUnits("energy") * ":  ")
+    println(stream, "  The yield is the number of electrons emitted PER INITIAL ION at that energy: an absolute,")
+    println(stream, "  dimensionless quantity, not a relative one.")
     println(stream, " ")
     println(stream, "  ", TableStrings.hLine(nx))
     sa = "  "
     sa = sa * TableStrings.center(16, "Energy "        * TableStrings.inUnits("energy"); na=5)
-    sa = sa * TableStrings.center(10, "Rel. Intensity"; na=2)
+    sa = sa * TableStrings.center(13, "Number / ion"; na=2)
     println(stream, sa)
     println(stream, "  ", TableStrings.hLine(nx))
     #
@@ -328,7 +332,7 @@ function displayIntensities(stream::IO, property::ElectronIntensities, energiesI
         println(stream, sa)
     end
     println(stream, "  ", TableStrings.hLine(nx))
-    println(stream, "  Total (relative) intensity:  " * @sprintf("%.3e", totalIntensity))
+    println(stream, "  Total number emitted per ion:  " * @sprintf("%.3e", totalIntensity))
 
     return( nothing )
 end
@@ -1286,7 +1290,7 @@ function displayCoincidences(stream::IO, property::Cascade.ParticleCoincidences,
     println(stream, "  ", TableStrings.hLine(nx))
     sa = "  "
     sa = sa * TableStrings.center(16, "Energy "        * TableStrings.inUnits("energy"); na=5)
-    sa = sa * TableStrings.center(10, "Rel. Intensity"; na=2)
+    sa = sa * TableStrings.center(13, "Number / ion"; na=2)
     println(stream, sa)
     println(stream, "  ", TableStrings.hLine(nx))
     #
@@ -1298,7 +1302,7 @@ function displayCoincidences(stream::IO, property::Cascade.ParticleCoincidences,
         println(stream, sa)
     end
     println(stream, "  ", TableStrings.hLine(nx))
-    println(stream, "  Total (relative) coincidence intensity:  " * @sprintf("%.3e", totalIntensity))
+    println(stream, "  Total coincidence counts per ion:  " * @sprintf("%.3e", totalIntensity))
 
     return( nothing )
 end
