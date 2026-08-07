@@ -1,5 +1,5 @@
 
-println("Dr)  Test of the ParticleScattering module with ASF from an internally generated initial and final-state multiplet.")
+println("Dp) Test of the ParticleScattering module with ASF from an internally generated initial and final-state multiplet.")
 
 setDefaults("print summary: open", "zzz-ParticleScattering.sum")
 setDefaults("unit: energy", "eV")

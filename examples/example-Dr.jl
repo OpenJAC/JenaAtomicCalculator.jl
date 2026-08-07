@@ -1,5 +1,5 @@
 #
-println("Du) Test of the CoulombIonization module with ASF from an internally generated initial- and final-state multiplet.")
+println("Dr) Test of the CoulombIonization module with ASF from an internally generated initial- and final-state multiplet.")
 
 setDefaults("print summary: open", "zzz-CoulombIonization.sum")
 
