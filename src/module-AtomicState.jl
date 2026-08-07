@@ -565,6 +565,17 @@ struct         DampedSpaceCI       <:  AtomicState.AbstractGreenApproach   end
                                                         interactions strength: exp( - tau * r)
     + printBefore              ::Bool             ... True if a short overview is to be printed before. 
     + levelSelection           ::LevelSelection   ... Specifies the selected levels, if any.
+    + scField                  ::AbstractScField
+        ... the self-consistent field in which the Green space is generated.
+
+        WHY THIS FIELD EXISTS (added 07-Aug-2026). A Green expansion is used as the INTERMEDIATE spectrum of a
+        second-order calculation, and gauge invariance there requires the intermediate states to be eigenstates
+        of the SAME one-body Hamiltonian as the initial and final states. Until now `generate(GreenExpansion,...)`
+        hardcoded `AsfSettings()` for the reference SCF and `Basics.DFSField(1.0)` for the mean potential, so a
+        user had NO way to match it to their own computation -- and a mismatch breaks gauge invariance
+        systematically without preventing either gauge from converging on its own, i.e. invisibly. Measured on
+        H 2s -> 1s two-photon decay, moving from a mismatched to a matched potential took the length gauge from
+        35 % error to 5.5 %.
 """
 struct GreenSettings 
     nMax                       ::Int64
@@ -572,6 +583,7 @@ struct GreenSettings
     dampingTau                 ::Float64
     printBefore                ::Bool 
     levelSelection             ::LevelSelection
+    scField                    ::AbstractScField
 end 
 
 
@@ -579,7 +591,47 @@ end
 `AtomicState.GreenSettings()`  ... constructor for an `empty` instance of AtomicState.GreenSettings.
 """
 function GreenSettings()
-    Settings( 0, Int64[], 0., false, LevelSelection() )
+    ## `GreenSettings`, not `Settings` (fixed 07-Aug-2026): this constructor called `Settings(...)`, so the
+    ## zero-argument form either raised or returned the wrong type. Every caller had to use the positional form.
+    GreenSettings( 0, Int64[], 0., false, LevelSelection(), Basics.DFSField() )
+end
+
+
+"""
+`AtomicState.GreenSettings(nMax::Int64, lValues::Array{Int64,1}, dampingTau::Float64, printBefore::Bool,
+                        levelSelection::LevelSelection)`
+    ... backward-compatible five-argument constructor; the self-consistent field defaults to Basics.DFSField(),
+        which is what `generate(GreenExpansion, ...)` used unconditionally before `scField` existed. Supply the
+        sixth argument (or use the keyword constructor) whenever the Green space must match the potential of a
+        surrounding computation -- see the note in the struct docstring.
+"""
+function GreenSettings(nMax::Int64, lValues::Array{Int64,1}, dampingTau::Float64, printBefore::Bool,
+                       levelSelection::LevelSelection)
+    GreenSettings( nMax, lValues, dampingTau, printBefore, levelSelection, Basics.DFSField() )
+end
+
+
+"""
+`AtomicState.GreenSettings(settings::AtomicState.GreenSettings;`
+
+        nMax=..,            lValues=..,         dampingTau=..,      printBefore=..,
+        levelSelection=..,  scField=..)
+
+    ... the standard JAC keyword copy-constructor.
+"""
+function GreenSettings(settings::AtomicState.GreenSettings;
+    nMax::Union{Nothing,Int64}=nothing,                     lValues::Union{Nothing,Array{Int64,1}}=nothing,
+    dampingTau::Union{Nothing,Float64}=nothing,             printBefore::Union{Nothing,Bool}=nothing,
+    levelSelection::Union{Nothing,LevelSelection}=nothing,  scField::Union{Nothing,AbstractScField}=nothing)
+
+    if  isnothing(nMax)            nMaxx           = settings.nMax            else  nMaxx           = nMax            end
+    if  isnothing(lValues)         lValuesx        = settings.lValues         else  lValuesx        = lValues         end
+    if  isnothing(dampingTau)      dampingTaux     = settings.dampingTau      else  dampingTaux     = dampingTau      end
+    if  isnothing(printBefore)     printBeforex    = settings.printBefore     else  printBeforex    = printBefore     end
+    if  isnothing(levelSelection)  levelSelectionx = settings.levelSelection  else  levelSelectionx = levelSelection  end
+    if  isnothing(scField)         scFieldx        = settings.scField         else  scFieldx        = scField         end
+
+    GreenSettings( nMaxx, lValuesx, dampingTaux, printBeforex, levelSelectionx, scFieldx )
 end
 
 

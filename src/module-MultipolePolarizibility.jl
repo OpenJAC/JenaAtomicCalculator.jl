@@ -17,7 +17,7 @@
 
     The sum over J' runs, in principle, over the complete (opposite-parity) many-electron spectrum,
     including the continuum -- literally enumerating this is out of reach. Following the same
-    approach already used by module-MultiPhotonDeExcitation.jl for its own (structurally identical)
+    approach already used by module-MultiPhotonTransition.jl for its own (structurally identical)
     sum-over-virtual-intermediate-states problem, the sum is instead carried out over a finite,
     user-supplied set of intermediate ASF -- a *local, approximate Green multiplet*
     (MultipolePolarizibility.Settings.gMultiplet) that brings in the physically relevant perturber
@@ -25,7 +25,7 @@
     INDEPENDENTLY, ahead of time, by the caller -- simply as a plain Atomic.Computation of energies
     & ASF (no properties) for the relevant opposite-parity configurations, e.g. 2p, 3p, 4p, ... (see
     examples/example-Cj.jl) -- and is simply consumed here; this module performs no SCF/CI generation
-    of its own (mirroring MultiPhotonDeExcitation.Settings.gMultiplet exactly). A high-n tail of such
+    of its own (mirroring MultiPhotonTransition.Settings.gMultiplet exactly). A high-n tail of such
     perturber configurations (e.g. up to 40p, 60p, ...) may also be included deliberately: these
     orbitals are no longer physically accurate bound Rydberg states at the default grid/basis size
     (see project notes), but remain properly normalized, mutually orthogonal ASF and so provide a
@@ -135,7 +135,7 @@ end
                                                               over -- generated INDEPENDENTLY, ahead of time, by the
                                                               caller (e.g. via AtomicState.GreenExpansion/generate(),
                                                               see examples/example-Aj.jl) and simply consumed here;
-                                                              mirrors MultiPhotonDeExcitation.Settings.gMultiplet.
+                                                              mirrors MultiPhotonTransition.Settings.gMultiplet.
     + omegas                    ::Array{Float64,1}      ... List of omegas (energies) of the dynamic polarizibility.
                                                               Stage 1 only supports the static case (omega=0);
                                                               this list is currently unused.

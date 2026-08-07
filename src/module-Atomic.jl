@@ -14,7 +14,7 @@ export  perform
 #== using  ..Einstein, ..Hfs, ..IsotopeShift, ..LandeZeeman, ..AlphaVariation, ..FormFactor, ..DecayYield,
        ..MultipolePolarizibility, ..PhotoIonization, ..PhotoExcitation, ..PhotoRecombination, 
        ..AutoIonization, ..DoubleAutoIonization, ..DielectronicRecombination, ..ImpactExcitation, ..CoulombExcitation, ..CoulombIonization,
-       ..PhotoDoubleIonization, ..PhotoExcitationFluores, ..PhotoExcitationAutoion, ..RayleighCompton, ..MultiPhotonDeExcitation,
+       ..PhotoDoubleIonization, ..PhotoExcitationFluores, ..PhotoExcitationAutoion, ..RayleighCompton, ..MultiPhotonTransition,
        ..PhotoIonizationFluores, ..PhotoIonizationAutoion, ..ImpactExcitationAutoion, ..RadiativeAuger, 
        ..MultiPhotonIonization, ..MultiPhotonDoubleIon, ..InternalConversion  ==#
 

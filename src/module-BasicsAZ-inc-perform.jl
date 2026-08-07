@@ -115,10 +115,10 @@ function Basics.perform(computation::Atomic.Computation; output::Bool=false)
                                                                         computation.grid, computation.processSettings)
                 if output    results = Base.merge( results, Dict("dielectronic recombination lines:" => outcome) )   end
             end
-        elseif  typeof(computation.processSettings) == MultiPhotonDeExcitation.Settings
-            outcome = MultiPhotonDeExcitation.computeLines(computation.processSettings.process,
+        elseif  typeof(computation.processSettings) == MultiPhotonTransition.Settings
+            outcome = MultiPhotonTransition.computeLines(computation.processSettings.scheme,
                                                             finalMultiplet, initialMultiplet, computation.grid, computation.processSettings) 
-            if output    results = Base.merge( results, Dict("multi-photon-de-excitation lines:" => outcome) )      end
+            if output    results = Base.merge( results, Dict("multi-photon transition lines:" => outcome) )         end
         elseif  typeof(computation.processSettings) == PhotoIonization.Settings   
             outcome = PhotoIonization.computeLines(finalMultiplet, initialMultiplet, nModel, computation.grid, computation.processSettings) 
             if output    results = Base.merge( results, Dict("photoionization lines:" => outcome) )                 end

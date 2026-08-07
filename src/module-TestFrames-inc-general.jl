@@ -589,7 +589,7 @@ function testStructConstructors(; short::Bool=true)
         ("ImpactExcitation.Settings()",             () -> ImpactExcitation.Settings()                  ),
         ("CoulombExcitation.Settings()",            () -> CoulombExcitation.Settings()                 ),
         # Advanced process settings
-        ("MultiPhotonDeExcitation.Settings()",      () -> MultiPhotonDeExcitation.Settings()           ),
+        ("MultiPhotonTransition.Settings()",      () -> MultiPhotonTransition.Settings()           ),
         ("MultiPhotonIonization.Settings()",        () -> MultiPhotonIonization.Settings()             ),
         ("MultiPhotonDoubleIon.Settings()",         () -> MultiPhotonDoubleIon.Settings()              ),
         ("PhotoDoubleIonization.Settings()",        () -> PhotoDoubleIonization.Settings()             ),

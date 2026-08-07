@@ -77,21 +77,48 @@ end
 
 
 """
-`TestFrames.testModule_MultiPhotonDeExcitation(; short::Bool=true)`  ... tests on module MultiPhotonDeExcitation.
+`TestFrames.testModule_MultiPhotonTransition(; short::Bool=true)`  ... tests on module MultiPhotonTransition.
 """
-function testModule_MultiPhotonDeExcitation(; short::Bool=true)
-    Defaults.setDefaults("print summary: open", "test-MultiPhotonDeExcitation-new.sum")
-    printstyled("\n\nTest the module  MultiPhotonDeExcitation  ... \n", color=:cyan)
+function testModule_MultiPhotonTransition(; short::Bool=true)
+    Defaults.setDefaults("print summary: open", "test-MultiPhotonTransition-new.sum")
+    printstyled("\n\nTest the module  MultiPhotonTransition  ... \n", color=:cyan)
     ### Make the tests
+    ## THIS TEST USED TO COMPUTE NOTHING. It set `success = true`, had its file comparison commented out, and
+    ## contained no computation at all between the two setDefaults calls -- so the suite counted a pass for a
+    ## module that had never been exercised. What follows are three real checks of the scaffold; the PHYSICS
+    ## check (H 2s -> 1s = 8.2206 /s) belongs here once the amplitudes are verified.
+    success = true
+    ## (1) every scheme must construct, copy-construct and print.
+    for  scheme in [MultiPhotonTransition.TwoPhotonEmissionScheme(), MultiPhotonTransition.TwoPhotonAbsorptionScheme(),
+                    MultiPhotonTransition.TwoPhotonAbsorptionBichromaticScheme(),
+                    MultiPhotonTransition.ThreePhotonEmissionScheme(), MultiPhotonTransition.ThreePhotonAbsorptionScheme()]
+        set = MultiPhotonTransition.Settings(MultiPhotonTransition.Settings(); scheme=scheme)
+        if  typeof(set.scheme) != typeof(scheme)    success = false;   println("** scheme not carried: $scheme")   end
+        sprint(show, scheme)      ## must not raise
+    end
+    ## (2) every property must be printable. All six of these once declared Base.show WITHOUT an io argument
+    ##     while using `io` in the body, so each raised an UndefVarError; that is what this guards against.
+    for  property in [MultiPhotonTransition.EnergyDiffCs(), MultiPhotonTransition.TotalAlpha0(),
+                      MultiPhotonTransition.TotalCsLinear(), MultiPhotonTransition.TotalCsRightCircular(),
+                      MultiPhotonTransition.TotalCsUnpolarized(), MultiPhotonTransition.TotalCsDensityMatrix()]
+        if  length(sprint(show, property)) == 0    success = false;   println("** empty show: $property")    end
+    end
+    ## (3) the three-photon schemes must FAIL, and fail informatively rather than in a bare MethodError.
+    for  scheme in [MultiPhotonTransition.ThreePhotonEmissionScheme(), MultiPhotonTransition.ThreePhotonAbsorptionScheme()]
+        set  = MultiPhotonTransition.Settings(MultiPhotonTransition.Settings(); scheme=scheme)
+        threw = false
+        try   MultiPhotonTransition.computeLines(scheme, Multiplet(), Multiplet(), Radial.Grid(true), set)
+        catch e
+            threw = true
+            if  !occursin("not yet implemented", sprint(showerror, e))
+                success = false;   println("** three-photon error is not informative: $e")
+            end
+        end
+        if  !threw    success = false;   println("** three-photon scheme did not raise: $scheme")    end
+    end
     ###
     Defaults.setDefaults("print summary: close", "")
-    # Make the comparison with approved data
-    printTest, iostream = Defaults.getDefaults("test flag/stream")
-    println(iostream, "Make the comparison with approved data for ... test-MultiPhotonDeExcitation-new.sum")
-    success = true
-    ## success = testCompareFiles( joinpath(@__DIR__, "..", "test", "approved", "test-MultiPhotonDeExcitation-approved.sum"),
-    ##                             joinpath(@__DIR__, "..", "test", "test-MultiPhotonDeExcitation-new.sum"), "xxx", 100)
-    testPrint("testModule_MultiPhotonDeExcitation()::", success)
+    testPrint("testModule_MultiPhotonTransition()::", success)
     return(success)
 end
 

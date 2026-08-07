@@ -64,7 +64,7 @@ export AbstractCImethod, AbstractConfigurationRestriction, AbstractEeInteraction
        computeBranchingFractions,  computeChargeStateDistribution,  computeCrossSections,  computeForPedestrians,  computeLevelEnergies,  computeLifetimes,  computeResonanceStrength, computeTransitionRates,  displaySpectrum,
        diagonalize, Defaults, DecayYield, DielectronicRecombination, Dierec, Djpq, DoubleAutoIonization, DoubleAuger, DeepLearning,
        DiagonalCoulomb, DefaultQuantizationAxis, displayCouplings, displayConfiguration,  displayConfigurations, Distribution,
-       Eimex, ElectronCapture, ElecCapture, estimate, ElectricDipoleMoment, Einstein, EmMultipole, evaluate, ExpStokes,
+       ElectronCapture, ElecCapture, estimate, ElectricDipoleMoment, Einstein, EmMultipole, evaluate, ExpStokes,
        Empirical, ExciteElectrons, ExcitationLevel, ExpandShells, estimateCrossSections, extractConfiguration,  extractConfigurations,  
        extractFromConfiguration, extractFromConfigurations, EmProperty, EmPropertyC,
        E1, M1, E2, M2, E3, M3, E4, M4,
@@ -74,13 +74,13 @@ export AbstractCImethod, AbstractConfigurationRestriction, AbstractEeInteraction
        generate, GreenSettings, GreenChannel, GreenExpansion, getDefaults, Green, Gui, GroundConfiguration, GeneralizedConfigurations,
        GetParity, generateConfiguration, generateConfigurations,
        Hamiltonian, Hfs, HyperfineInduced, HighHarmonic, HydrogenicIon, HarmonicQuantizationAxis, HundsRules, HyperfineStructure,
-       interpolate, integrate, Integral, ImpactExcAuto, ImpactExcitation, ImpactExcitationAutoion, ImpactIonization, 
+       interpolate, integrate, Integral, ImpactExc, ImpactExcAuto, ImpactExcitation, ImpactExcitationAutoion, ImpactIonization, 
        InteractionStrength, InternalConv, InternalConversion, InternalRecombination, Isotope, IsotopeShift, IsotopicFraction, IsOccupied,
        Kronecker, 
        LandeF, LandeJ, LandeZeeman, Level, LevelSelection, LevelSymmetry, LineSelection, LSjj, LSjjSettings, LeftCircular, 
        LeadingConfiguration, LeadingConfigurationR, Liouville,
        ManyElectron, MeanFieldSettings, MeanFieldBasis, MeanFieldMultiplet, minus, Model, modify, 
-       MultiPhotonDE, MultiPhotonDeExcitation, MultiPhotonDoubleIon, 
+       MultiPhotonDE, MultiPhotonTransition, MultiPhotonDoubleIon, 
        MultiPI, MultiPDI, MultiPhotonIonization, MultipoleMoment, MultipolePolarizibility, Multiplet, MeanConfiguration, MeanOccupation, 
        Multiplicity,
        NoAmplitude, Nuclear, NoneQed, NoProcess, NoProperty, NonrelativisticBasis, NumberOfElectrons,
@@ -181,7 +181,7 @@ end
 
 if incAdvancedProcesses
 # Functions/methods for more advanced atomic processes
-include("module-MultiPhotonDeExcitation.jl")
+include("module-MultiPhotonTransition.jl")
 include("module-CoulombIonization.jl")
 include("module-PhotoDoubleIonization.jl")
 include("module-PhotoIonizationFluores.jl")

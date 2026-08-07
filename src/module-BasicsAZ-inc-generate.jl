@@ -65,7 +65,10 @@ function Basics.generate(repType::AtomicState.MeanFieldMultiplet, rep::AtomicSta
     
     multiplet  = SelfConsistent.performSCF(rep.refConfigs, nModel, rep.grid, asfSettings; printout=true)
     if output    
-        results = Base.merge( results, Dict("mean-field basis" => multiplet.level[1].basis) )          
+        ## `levels`, not `level` (fixed 06-Aug-2026): this typo made generate(MeanFieldMultiplet, ...) raise a
+        ## FieldError for every call with output=true, i.e. the only useful call. It survived because the one
+        ## example that exercised this path -- the old branch 1 of example-Dh.jl -- had never been run.
+        results = Base.merge( results, Dict("mean-field basis" => multiplet.levels[1].basis) )
         results = Base.merge( results, Dict("mean-field multiplet" => multiplet) )          
     end
     
@@ -96,7 +99,13 @@ function Basics.generate(repType::AtomicState.OneElectronSpectrum, rep::AtomicSt
     Basics.display(stdout, refBasis.orbitals, rep.grid; longTable=false)
     nuclearPot    = Nuclear.nuclearPotential(nModel, rep.grid)
     @warn("The potential is generated for the mean-field basis but not (yetc hosen for the selected levels.")
-    electronicPot = Basics.computePotential(Basics.DFSField(1.0), rep.grid, refBasis)
+    ## A NuclearField carries no electronic part at all; adding a DFS screening term on top of it would silently
+    ## reintroduce the very mismatch this field exists to remove.
+    if  typeof(settings.scField) == Basics.NuclearField
+        electronicPot = Radial.Potential("zero", zeros(length(rep.grid.r)), rep.grid)
+    else
+        electronicPot = Basics.computePotential(Basics.DFSField(1.0), rep.grid, refBasis)
+    end
     meanPot       = Basics.add(nuclearPot, electronicPot)
     
     println("")
@@ -256,12 +265,22 @@ function Basics.generate(repType::AtomicState.GreenExpansion, rep::AtomicState.R
     nModel    = rep.nuclearModel
     settings  = repType.settings
     # First perform a SCF+CI computations for the reference configurations below to generate a spectrum of start orbitals
-    asfSettings   = AsfSettings()  ## Use default settings to define a first multiplet from the reference configurations;
-                                    ## all further details are specified for each step
+    ## THE POTENTIAL IS NOW TAKEN FROM settings.scField (07-Aug-2026), not hardcoded. Both places below used to
+    ## be fixed to DFS -- the reference AsfSettings and the mean potential -- so a Green expansion could never be
+    ## matched to the potential of the computation that consumes it. That matters because a Green expansion is
+    ## normally used as the INTERMEDIATE spectrum of a second-order calculation, where gauge invariance requires
+    ## the same one-body Hamiltonian throughout.
+    asfSettings   = AsfSettings(AsfSettings(); scField=settings.scField)
     refMultiplet  = SelfConsistent.performSCF(rep.refConfigs, nModel, rep.grid, asfSettings; printout=true)
     refBasis      = refMultiplet.levels[1].basis
     nuclearPot    = Nuclear.nuclearPotential(nModel, rep.grid)
-    electronicPot = Basics.computePotential(Basics.DFSField(1.0), rep.grid, refBasis)
+    ## A NuclearField carries no electronic part at all; adding a DFS screening term on top of it would silently
+    ## reintroduce the very mismatch this field exists to remove.
+    if  typeof(settings.scField) == Basics.NuclearField
+        electronicPot = Radial.Potential("zero", zeros(length(rep.grid.r)), rep.grid)
+    else
+        electronicPot = Basics.computePotential(Basics.DFSField(1.0), rep.grid, refBasis)
+    end
     meanPot       = Basics.add(nuclearPot, electronicPot)
     
     println("")

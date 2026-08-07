@@ -2,7 +2,7 @@
 # Two-photon absorption by monochromatic and equally-polarized photons, usually from the same beam.
 #
 """
-`struct  MultiPhotonDeExcitation.Channel_2pAbsorptionMonochromatic`  
+`struct  MultiPhotonTransition.Channel_2pAbsorptionMonochromatic`  
     ... defines a type for a two-photon absorption channel for the absorption of monochromatic light with well-defined 
         multipolarities.
 
@@ -27,7 +27,7 @@ end
 
 
 """
-`struct  MultiPhotonDeExcitation.Line_2pAbsorptionMonochromatic`  
+`struct  MultiPhotonTransition.Line_2pAbsorptionMonochromatic`  
     ... defines a type for a two-photon absorption line by monochromatic light that may include the definition of channels.
 
     + initialLevel     ::Level          ... initial-(state) level
@@ -37,8 +37,8 @@ end
     + csLinear         ::EmProperty     ... Total cross section for linearly-polarized incident light.
     + csRightCircular  ::EmProperty     ... Total cross section for right-circularly polarized incident light.
     + csUnpolarized    ::EmProperty     ... Total cross section for unpolarized incident light.
-    + channels         ::Array{MultiPhotonDeExcitation.Channel_2pAbsorptionMonochromatic,1}  
-                                        ... List of MultiPhotonDeExcitation.Channel_2pAbsorptionMonochromatic's of this line.
+    + channels         ::Array{MultiPhotonTransition.Channel_2pAbsorptionMonochromatic,1}  
+                                        ... List of MultiPhotonTransition.Channel_2pAbsorptionMonochromatic's of this line.
 """
 struct  Line_2pAbsorptionMonochromatic
     initialLevel       ::Level
@@ -48,13 +48,14 @@ struct  Line_2pAbsorptionMonochromatic
     csLinear           ::EmProperty
     csRightCircular    ::EmProperty
     csUnpolarized      ::EmProperty
-    channels           ::Array{MultiPhotonDeExcitation.Channel_2pAbsorptionMonochromatic,1}
+    csDensityMatrix    ::EmProperty
+    channels           ::Array{MultiPhotonTransition.Channel_2pAbsorptionMonochromatic,1}
 end
 
 
-# `Base.show(io::IO, line::MultiPhotonDeExcitation.Line_2pAbsorptionMonochromatic)`  
-#   ... prepares a proper printout of the variable line::MultiPhotonDeExcitation.Line_2pAbsorptionMonochromatic.
-function Base.show(io::IO, line::MultiPhotonDeExcitation.Line_2pAbsorptionMonochromatic) 
+# `Base.show(io::IO, line::MultiPhotonTransition.Line_2pAbsorptionMonochromatic)`  
+#   ... prepares a proper printout of the variable line::MultiPhotonTransition.Line_2pAbsorptionMonochromatic.
+function Base.show(io::IO, line::MultiPhotonTransition.Line_2pAbsorptionMonochromatic) 
     println(io, "initialLevel:      $(line.initialLevel)  ")
     println(io, "finalLevel:        $(line.finalLevel)  ")
     println(io, "omega:             $(line.omega)  ")
@@ -67,24 +68,24 @@ end
 
 
 """
-`MultiPhotonDeExcitation.computeChannelAmplitudes_2pAbsorptionMonochromatic(
-                            line::MultiPhotonDeExcitation.Line_2pAbsorptionMonochromatic, grid::Radial.Grid, 
-                            settings::MultiPhotonDeExcitation.Settings)` 
-    ... to compute all amplitudes and properties of the given line; a line::MultiPhotonDeExcitation.Line_2pAbsorptionMonochromatic 
+`MultiPhotonTransition.computeChannelAmplitudes_2pAbsorptionMonochromatic(
+                            line::MultiPhotonTransition.Line_2pAbsorptionMonochromatic, grid::Radial.Grid, 
+                            settings::MultiPhotonTransition.Settings)` 
+    ... to compute all amplitudes and properties of the given line; a line::MultiPhotonTransition.Line_2pAbsorptionMonochromatic 
         is returned for which the amplitudes and properties are now evaluated.
 """
-function  computeChannelAmplitudes_2pAbsorptionMonochromatic(line::MultiPhotonDeExcitation.Line_2pAbsorptionMonochromatic, 
-                                                                grid::Radial.Grid, settings::MultiPhotonDeExcitation.Settings)
-    newChannels = MultiPhotonDeExcitation.Channel_2pAbsorptionMonochromatic[]
+function  computeChannelAmplitudes_2pAbsorptionMonochromatic(line::MultiPhotonTransition.Line_2pAbsorptionMonochromatic, 
+                                                                grid::Radial.Grid, settings::MultiPhotonTransition.Settings)
+    newChannels = MultiPhotonTransition.Channel_2pAbsorptionMonochromatic[]
     for channel in line.channels
-        amplitude = MultiPhotonDeExcitation.computeReducedAmplitudeAbsorption(channel.K, line.finalLevel, channel.multipole2, 
-                            channel.Jsym, channel.omega, channel.multipole1, line.initialLevel, channel.gauge, grid, settings.gMultiplet)
-        @show channel, amplitude
-        push!( newChannels, MultiPhotonDeExcitation.Channel_2pAbsorptionMonochromatic(channel.K, channel.omega, 
+        amplitude = MultiPhotonTransition.computeReducedAmplitudeAbsorption(channel.K, line.finalLevel, channel.multipole2, 
+                            channel.Jsym, channel.omega, channel.multipole1, line.initialLevel, channel.gauge, grid, settings.intermediateStates)
+        push!( newChannels, MultiPhotonTransition.Channel_2pAbsorptionMonochromatic(channel.K, channel.omega, 
                                     channel.multipole1, channel.multipole2, channel.gauge, channel.Jsym, amplitude) )
     end
-    line = MultiPhotonDeExcitation.Line_2pAbsorptionMonochromatic( line.initialLevel, line.finalLevel, line.omega, 
-                                                                    EmProperty(0.), EmProperty(0.), EmProperty(0.), EmProperty(0.), newChannels)
+    line = MultiPhotonTransition.Line_2pAbsorptionMonochromatic( line.initialLevel, line.finalLevel, line.omega, 
+                                                                    EmProperty(0.), EmProperty(0.), EmProperty(0.), EmProperty(0.),
+                                                                    EmProperty(0.), newChannels)
     
     return( line )
 end
@@ -92,33 +93,33 @@ end
 
 
 """
-`MultiPhotonDeExcitation.computeLines(process::TwoPhotonAbsorptionMonochromatic, finalMultiplet::Multiplet, 
-                                        initialMultiplet::Multiplet, grid::Radial.Grid, settings::MultiPhotonDeExcitation.Settings; 
+`MultiPhotonTransition.computeLines(process::TwoPhotonAbsorptionMonochromatic, finalMultiplet::Multiplet, 
+                                        initialMultiplet::Multiplet, grid::Radial.Grid, settings::MultiPhotonTransition.Settings; 
                                         output=true)` 
     ... to compute the multiphoton transition amplitudes and all properties as requested by the given settings. A list of 
-        lines::Array{MultiPhotonDeExcitation.Line_2pAbsorptionMonochromatic,1} is returned.
+        lines::Array{MultiPhotonTransition.Line_2pAbsorptionMonochromatic,1} is returned.
 """
-function  computeLines(process::TwoPhotonAbsorptionMonochromatic, finalMultiplet::Multiplet, initialMultiplet::Multiplet, 
-                        grid::Radial.Grid, settings::MultiPhotonDeExcitation.Settings; output=true)
+function  computeLines(scheme::TwoPhotonAbsorptionScheme, finalMultiplet::Multiplet, initialMultiplet::Multiplet, 
+                        grid::Radial.Grid, settings::MultiPhotonTransition.Settings; output=true)
     println("")
-    printstyled("MultiPhotonDeExcitation.computeLines(::TwoPhotonAbsorptionMonochromatic): The computation of amplitudes starts now ... \n", color=:light_green)
+    printstyled("MultiPhotonTransition.computeLines(::TwoPhotonAbsorptionScheme): The computation of amplitudes starts now ... \n", color=:light_green)
     printstyled("---------------------------------------------------------------------------------------------------------------------- \n", color=:light_green)
     println("")
     #
-    lines = MultiPhotonDeExcitation.determineLines_2pAbsorptionMonochromatic(finalMultiplet, initialMultiplet, settings)
+    lines = MultiPhotonTransition.determineLines_2pAbsorptionMonochromatic(finalMultiplet, initialMultiplet, settings)
     # Display all selected lines before the computations start
-    if  settings.printBefore    MultiPhotonDeExcitation.displayLines_2pAbsorptionMonochromatic(lines)    end
+    if  settings.printBefore    MultiPhotonTransition.displayLines_2pAbsorptionMonochromatic(lines)    end
     # Calculate all amplitudes and requested properties
-    newLines = MultiPhotonDeExcitation.Line_2pAbsorptionMonochromatic[]
+    newLines = MultiPhotonTransition.Line_2pAbsorptionMonochromatic[]
     for  line in lines
-        newLine = MultiPhotonDeExcitation.computeChannelAmplitudes_2pAbsorptionMonochromatic(line, grid, settings) 
-        newLine = MultiPhotonDeExcitation.computeProperties_2pAbsorptionMonochromatic(newLine, grid, settings) 
+        newLine = MultiPhotonTransition.computeChannelAmplitudes_2pAbsorptionMonochromatic(line, grid, settings) 
+        newLine = MultiPhotonTransition.computeProperties_2pAbsorptionMonochromatic(newLine, grid, settings) 
         push!( newLines, newLine)
     end
     # Print all results to screen
-    MultiPhotonDeExcitation.displayResults_2pAbsorptionMonochromatic(stdout, settings.process.properties, newLines)
+    MultiPhotonTransition.displayResults_2pAbsorptionMonochromatic(stdout, settings.scheme.properties, newLines)
     printSummary, iostream = Defaults.getDefaults("summary flag/stream")
-    if  printSummary    MultiPhotonDeExcitation.displayResults_2pAbsorptionMonochromatic(iostream, settings.process.properties, newLines)  end
+    if  printSummary    MultiPhotonTransition.displayResults_2pAbsorptionMonochromatic(iostream, settings.scheme.properties, newLines)  end
     #
     if    output    return( newLines )
     else            return( nothing )
@@ -127,70 +128,101 @@ end
 
 
 """
-`MultiPhotonDeExcitation.computeProperties_2pAbsorptionMonochromatic(
-                            line::MultiPhotonDeExcitation.Line_2pAbsorptionMonochromatic, grid::Radial.Grid, 
-                            settings::MultiPhotonDeExcitation.Settings)` 
-    ... to compute all amplitudes and properties of the given line; a line::MultiPhotonDeExcitation.Line_2pAbsorptionMonochromatic 
+`MultiPhotonTransition.computeProperties_2pAbsorptionMonochromatic(
+                            line::MultiPhotonTransition.Line_2pAbsorptionMonochromatic, grid::Radial.Grid, 
+                            settings::MultiPhotonTransition.Settings)` 
+    ... to compute all amplitudes and properties of the given line; a line::MultiPhotonTransition.Line_2pAbsorptionMonochromatic 
         is returned for which the amplitudes and properties are now evaluated.
 """
-function  computeProperties_2pAbsorptionMonochromatic(line::MultiPhotonDeExcitation.Line_2pAbsorptionMonochromatic, 
-                                                        grid::Radial.Grid, settings::MultiPhotonDeExcitation.Settings)
+function  computeProperties_2pAbsorptionMonochromatic(line::MultiPhotonTransition.Line_2pAbsorptionMonochromatic, 
+                                                        grid::Radial.Grid, settings::MultiPhotonTransition.Settings)
     # Calculate the requested cross sections, etc.
     alpha0          = EmProperty(0., 0.)
     csLinear        = EmProperty(0., 0.)
     csRightCircular = EmProperty(0., 0.)
     csUnpolarized   = EmProperty(0., 0.)
-    for property in settings.process.properties
+    for property in settings.scheme.properties
         if      typeof(property) == TotalAlpha0          
             if  Basics.UseCoulomb  in  settings.gauges
-                    totalA0_Cou = MultiPhotonDeExcitation.computeTotalAlpha0(line, EmGauge("Coulomb"), settings)
+                    totalA0_Cou = MultiPhotonTransition.computeTotalAlpha0(line, EmGauge("Coulomb"), settings)
             else    totalA0_Cou = 0.
             end
             if  Basics.UseBabushkin  in  settings.gauges
-                    totalA0_Bab = MultiPhotonDeExcitation.computeTotalAlpha0(line, EmGauge("Babushkin"), settings)
+                    totalA0_Bab = MultiPhotonTransition.computeTotalAlpha0(line, EmGauge("Babushkin"), settings)
             else    totalA0_Bab = 0.
             end
             alpha0      = EmProperty( totalA0_Cou,  totalA0_Bab)
         elseif  typeof(property) == TotalCsLinear          
             if  Basics.UseCoulomb  in  settings.gauges
-                    totalCs_Cou = MultiPhotonDeExcitation.computeTotalCsLinear(line, EmGauge("Coulomb"), settings)
+                    totalCs_Cou = MultiPhotonTransition.computeTotalCsLinear(line, EmGauge("Coulomb"), settings)
             else    totalCs_Cou = 0.
             end
             if  Basics.UseBabushkin  in  settings.gauges
-                    totalCs_Bab = MultiPhotonDeExcitation.computeTotalCsLinear(line, EmGauge("Babushkin"), settings)
+                    totalCs_Bab = MultiPhotonTransition.computeTotalCsLinear(line, EmGauge("Babushkin"), settings)
             else    totalCs_Bab = 0.
             end
             csLinear    = EmProperty( totalCs_Cou,  totalCs_Bab)
         elseif  typeof(property) == TotalCsRightCircular   
             if  Basics.UseCoulomb  in  settings.gauges
-                    totalCs_Cou = MultiPhotonDeExcitation.computeTotalCsRightCircular(line, EmGauge("Coulomb"), settings)
+                    totalCs_Cou = MultiPhotonTransition.computeTotalCsRightCircular(line, EmGauge("Coulomb"), settings)
             else    totalCs_Cou = 0.
             end
             if  Basics.UseBabushkin  in  settings.gauges
-                    totalCs_Bab = MultiPhotonDeExcitation.computeTotalCsRightCircular(line, EmGauge("Babushkin"), settings)
+                    totalCs_Bab = MultiPhotonTransition.computeTotalCsRightCircular(line, EmGauge("Babushkin"), settings)
             else    totalCs_Bab = 0.
             end
             csRightCircular = EmProperty( totalCs_Cou,  totalCs_Bab)
         elseif  typeof(property) == TotalCsUnpolarized     
             if  Basics.UseCoulomb  in  settings.gauges
-                    totalCs_Cou = MultiPhotonDeExcitation.computeTotalCsUnpolarized(line, EmGauge("Coulomb"), settings)
+                    totalCs_Cou = MultiPhotonTransition.computeTotalCsUnpolarized(line, EmGauge("Coulomb"), settings)
             else    totalCs_Cou = 0.
             end
             if  Basics.UseBabushkin  in  settings.gauges
-                    totalCs_Bab = MultiPhotonDeExcitation.computeTotalCsUnpolarized(line, EmGauge("Babushkin"), settings)
+                    totalCs_Bab = MultiPhotonTransition.computeTotalCsUnpolarized(line, EmGauge("Babushkin"), settings)
             else    totalCs_Bab = 0.
             end
             csUnpolarized = EmProperty( totalCs_Cou,  totalCs_Bab)
         end
     end
-    line = MultiPhotonDeExcitation.Line_2pAbsorptionMonochromatic( line.initialLevel, line.finalLevel, line.omega, 
-                                                                    alpha0, csLinear, csRightCircular, csUnpolarized, line.channels)
+    ## THE DENSITY-MATRIX CROSS SECTION for arbitrary Stokes parameters (added 07-Aug-2026). It had been listed
+    ## among the properties since the module was written but was never a field, never computed and never
+    ## displayed, so requesting it did nothing at all.
+    ##
+    ## For a J = 0 -> J = 0 transition through two E1 photons the polarization dependence closes in a simple
+    ## form. Only the MIXED-helicity channel contributes: two photons of equal helicity would have to deliver
+    ## two units of angular momentum along the beam, which a 0 -> 0 transition cannot absorb. Writing the
+    ## photon density matrix in the helicity basis as rho = 1/2 [[1+P3, P1-iP2], [P1+iP2, 1-P3]] and taking the
+    ## two photons as independent draws from the same beam (rho (x) rho, which is the correct description of two
+    ## photons from ONE beam) gives
+    ##
+    ##     sigma(P1,P2,P3)  =  sigma_unpolarized * (1 + P1^2 + P2^2 - P3^2)
+    ##
+    ## and this reproduces all three special cases exactly: linear (1,0,0) -> 2*sigma_unpol = sigma_linear;
+    ## right-circular (0,0,1) -> 0; unpolarized (0,0,0) -> sigma_unpol. Those identities are checks in
+    ## themselves, fixed by angular algebra and independent of any normalisation or of the wave functions.
+    ##
+    ## LIMITATION, stated rather than hidden: the closed form above is derived for J_i = J_f = 0, where only
+    ## K = 0 contributes. For a general transition several K contribute with different polarization weights and
+    ## this expression does NOT apply; it is therefore computed only when both levels have J = 0, and left at
+    ## zero otherwise rather than silently returning a wrong number.
+    stokes = settings.stokes
+    if  Basics.twice(line.initialLevel.J) == 0  &&  Basics.twice(line.finalLevel.J) == 0
+        wp  = 1.0 + stokes.P1^2 + stokes.P2^2 - stokes.P3^2
+        csDensityMatrix = EmProperty(csUnpolarized.Coulomb * wp, csUnpolarized.Babushkin * wp)
+    else
+        csDensityMatrix = EmProperty(0., 0.)
+        @warn("TotalCsDensityMatrix is implemented only for J_i = J_f = 0 (K = 0 alone); returning zero for " *
+              "J_i = $(line.initialLevel.J), J_f = $(line.finalLevel.J).")
+    end
+    line = MultiPhotonTransition.Line_2pAbsorptionMonochromatic( line.initialLevel, line.finalLevel, line.omega, 
+                                                                    alpha0, csLinear, csRightCircular, csUnpolarized,
+                                                                    csDensityMatrix, line.channels)
     return( line )
 end
 
 
 """
-`MultiPhotonDeExcitation.computeReducedAmplitudeAbsorption(K::AngularJ64, finalLevel::Level, multipole2::EmMultipole, Jsym::LevelSymmetry, 
+`MultiPhotonTransition.computeReducedAmplitudeAbsorption(K::AngularJ64, finalLevel::Level, multipole2::EmMultipole, Jsym::LevelSymmetry, 
                                                                                 omega::Float64, multipole1::EmMultipole, initialLevel::Level,
                                                                 gauge::EmGauge, grid::Radial.Grid, gMultiplet::Multiplet)`  
     ... to compute the reduced amplitude U^{K, 2gamma emission} (K, Jf, multipole2, Jsym, omega, multipole1, Ji) by means of the
@@ -198,19 +230,26 @@ end
 """
 function computeReducedAmplitudeAbsorption(K::AngularJ64, finalLevel::Level, multipole2::EmMultipole, Jsym::LevelSymmetry, 
                                                             omega::Float64, multipole1::EmMultipole, initialLevel::Level,
-                                                            gauge::EmGauge, grid::Radial.Grid, gMultiplet::Multiplet)
-    U = Complex(0.);    found = false
-    for nuLevel in gMultiplet.levels
-        if  Jsym == LevelSymmetry(nuLevel.J, nuLevel.parity)          found = true
-            U = U + PhotoEmission.amplitude(Absorption(), multipole2, gauge, omega, finalLevel, nuLevel, grid, display=false) *
-                    PhotoEmission.amplitude(Absorption(), multipole1, gauge, omega, nuLevel, initialLevel, grid, display=false) / 
-                    (initialLevel.energy + omega - nuLevel.energy)
-        end
+                                                            gauge::EmGauge, grid::Radial.Grid,
+                                    intermediateStates::Union{Multiplet,Array{AtomicState.GreenChannel,1}},
+                                    selfTolerance::Float64=1.0e-8)
+    U = Complex(0.);    nuLevels = MultiPhotonTransition.intermediateLevels(intermediateStates, Jsym)
+    found = length(nuLevels) > 0
+    for  nuLevel in nuLevels
+        ## A vanishing denominator is a RESONANT intermediate level, where the non-resonant perturbative
+        ## expression does not apply; it is skipped rather than silently producing an enormous cross section.
+        denom = initialLevel.energy + omega - nuLevel.energy
+        if  abs(denom) < selfTolerance    continue    end
+        U = U + PhotoEmission.amplitude(Absorption(), multipole2, gauge, omega, finalLevel, nuLevel, grid,
+                                        display=false, printout=false) *
+                PhotoEmission.amplitude(Absorption(), multipole1, gauge, omega, nuLevel, initialLevel, grid,
+                                        display=false, printout=false) / denom
     end 
     
     if    found                                
             U = U * AngularMomentum.Wigner_6j(initialLevel.J, finalLevel.J, K, AngularJ64(multipole2.L), AngularJ64(multipole1.L), Jsym.J)
-    else  println("No Green function level found for amplitude U^{K, 2gamma absorption} (K, Jf, multipole2, Jsym = $Jsym, omega, multipole1, Ji) ")
+    else  @warn("No intermediate level of symmetry $Jsym for U^{K, 2gamma absorption}; " *
+                "the intermediate basis does not span this symmetry.")
     end 
     
     return( U )
@@ -218,12 +257,12 @@ end
 
 
 """
-`MultiPhotonDeExcitation.computeTotalAlpha0(line::MultiPhotonDeExcitation.Line_2pAbsorptionMonochromatic, 
-                                            gauge::EmGauge, settings::MultiPhotonDeExcitation.Settings)`  
+`MultiPhotonTransition.computeTotalAlpha0(line::MultiPhotonTransition.Line_2pAbsorptionMonochromatic, 
+                                            gauge::EmGauge, settings::MultiPhotonTransition.Settings)`  
     ... to compute the (total) alpha_0 parameter for the two-photon absorption line. A ta0::Float64 is returned.
 """
-function computeTotalAlpha0(line::MultiPhotonDeExcitation.Line_2pAbsorptionMonochromatic, 
-                            gauge::EmGauge, settings::MultiPhotonDeExcitation.Settings)
+function computeTotalAlpha0(line::MultiPhotonTransition.Line_2pAbsorptionMonochromatic, 
+                            gauge::EmGauge, settings::MultiPhotonTransition.Settings)
     ta0 = 0.;   Klist = oplus(line.finalLevel.J, line.initialLevel.J);      omega = line.omega;     amp = ComplexF64(0.)
     symi = LevelSymmetry(line.initialLevel.J, line.initialLevel.parity);    symf = LevelSymmetry(line.finalLevel.J, line.finalLevel.parity) 
     
@@ -234,16 +273,14 @@ function computeTotalAlpha0(line::MultiPhotonDeExcitation.Line_2pAbsorptionMonoc
                 if   mp2.electric   p2 = 1    else    p2 = 0    end
                 symmetries  = AngularMomentum.allowedTotalSymmetries(symf, mp2, mp1, symi)
                 for Jsym in symmetries
-                    amp = MultiPhotonDeExcitation.getReducedAmplitudeAbsorption(K, line.finalLevel, mp2, Jsym, omega, mp1, 
+                    amp = MultiPhotonTransition.getReducedAmplitudeAbsorption(K, line.finalLevel, mp2, Jsym, omega, mp1, 
                                                                                     line.initialLevel, gauge, line.channels) 
-                    println("computeTotalAlpha0: K, Jsym, ta0 = $K, $Jsym, $ta0")
                     ta0 = ta0 + abs( amp )^2
                 end
             end
         end
     end
     
-    println("computeTotalAlpha0: ta0 = $ta0")
     ta0 = ta0 * 2*pi^3 / Defaults.getDefaults("alpha")^2 / omega^3  ## / (Basics.twice(line.initialLevel.J) + 1)
     ta0 = ta0 / Defaults.getDefaults("alpha")
     
@@ -252,12 +289,12 @@ end
 
 
 """
-`MultiPhotonDeExcitation.computeTotalCsLinear(line::MultiPhotonDeExcitation.Line_2pAbsorptionMonochromatic, 
-                                                gauge::EmGauge, settings::MultiPhotonDeExcitation.Settings)`  
+`MultiPhotonTransition.computeTotalCsLinear(line::MultiPhotonTransition.Line_2pAbsorptionMonochromatic, 
+                                                gauge::EmGauge, settings::MultiPhotonTransition.Settings)`  
     ... to compute the total cross sections for linearly-polarized incident light. A tcs::Float64 is returned.
 """
-function computeTotalCsLinear(line::MultiPhotonDeExcitation.Line_2pAbsorptionMonochromatic, 
-                                gauge::EmGauge, settings::MultiPhotonDeExcitation.Settings)
+function computeTotalCsLinear(line::MultiPhotonTransition.Line_2pAbsorptionMonochromatic, 
+                                gauge::EmGauge, settings::MultiPhotonTransition.Settings)
     tcs = 0.;   Klist = oplus(line.finalLevel.J, line.initialLevel.J);      omega = line.omega
     symi = LevelSymmetry(line.initialLevel.J, line.initialLevel.parity);    symf = LevelSymmetry(line.finalLevel.J, line.finalLevel.parity) 
     
@@ -274,15 +311,15 @@ function computeTotalCsLinear(line::MultiPhotonDeExcitation.Line_2pAbsorptionMon
                             symmetries  = AngularMomentum.allowedTotalSymmetries(symf, mp2, mp1, symi)
                             for Jsym in symmetries
                                 wa = (1.0im)^(mp1.L - p1 + mp2.L - p2) * (-lambda1)^p1 * (-lambda2)^p2 
-                                wb = sqrt( (2*mp1.L + 1)*(2*mp2.L + 1) ) * (2*Basics.twice(K) + 1)
+                                wb = sqrt( (2*mp1.L + 1)*(2*mp2.L + 1) ) * (Basics.twice(K) + 1)
                                 wc = AngularMomentum.Wigner_3j(mp1.L, mp2.L, K, lambda1, lambda2, q)
-                                wd = MultiPhotonDeExcitation.getReducedAmplitudeAbsorption(K, line.finalLevel, mp2, Jsym, omega, mp1, 
+                                wd = MultiPhotonTransition.getReducedAmplitudeAbsorption(K, line.finalLevel, mp2, Jsym, omega, mp1, 
                                                                                             line.initialLevel, gauge, line.channels) 
                                                                                                         
                                 amp = amp + (1.0im)^(mp1.L - p1 + mp2.L - p2) * (-lambda1)^p1 * (-lambda2)^p2           *
-                                            sqrt( (2*mp1.L + 1)*(2*mp2.L + 1) ) * (2*Basics.twice(K) + 1)       *
+                                            sqrt( (2*mp1.L + 1)*(2*mp2.L + 1) ) * (Basics.twice(K) + 1)       *
                                             AngularMomentum.Wigner_3j(mp1.L, mp2.L, K, lambda1, lambda2, q)             *
-                                            MultiPhotonDeExcitation.getReducedAmplitudeAbsorption(K, line.finalLevel, mp2, Jsym, omega, mp1, 
+                                            MultiPhotonTransition.getReducedAmplitudeAbsorption(K, line.finalLevel, mp2, Jsym, omega, mp1, 
                                                                                                         line.initialLevel, gauge, line.channels) 
                             end
                         end
@@ -301,12 +338,12 @@ end
 
 
 """
-`MultiPhotonDeExcitation.computeTotalCsRightCircular(line::MultiPhotonDeExcitation.Line_2pAbsorptionMonochromatic, 
-                                                        gauge::EmGauge, settings::MultiPhotonDeExcitation.Settings)`  
+`MultiPhotonTransition.computeTotalCsRightCircular(line::MultiPhotonTransition.Line_2pAbsorptionMonochromatic, 
+                                                        gauge::EmGauge, settings::MultiPhotonTransition.Settings)`  
     ... to compute the total cross sections for right-cicularly polarized incident light. A tcs::Float64 is returned.
 """
-function computeTotalCsRightCircular(line::MultiPhotonDeExcitation.Line_2pAbsorptionMonochromatic, 
-                                        gauge::EmGauge, settings::MultiPhotonDeExcitation.Settings)
+function computeTotalCsRightCircular(line::MultiPhotonTransition.Line_2pAbsorptionMonochromatic, 
+                                        gauge::EmGauge, settings::MultiPhotonTransition.Settings)
     tcs = 0.;   Klist = oplus(line.finalLevel.J, line.initialLevel.J);      omega = line.omega
     symi = LevelSymmetry(line.initialLevel.J, line.initialLevel.parity);    symf = LevelSymmetry(line.finalLevel.J, line.finalLevel.parity) 
     
@@ -319,16 +356,31 @@ end
 
 
 """
-`MultiPhotonDeExcitation.computeTotalCsUnpolarized(line::MultiPhotonDeExcitation.Line_2pAbsorptionMonochromatic, 
-                                                    gauge::EmGauge, settings::MultiPhotonDeExcitation.Settings)`  
+`MultiPhotonTransition.computeTotalCsUnpolarized(line::MultiPhotonTransition.Line_2pAbsorptionMonochromatic, 
+                                                    gauge::EmGauge, settings::MultiPhotonTransition.Settings)`  
     ... to compute the total cross sections for linearly-polarized incident light. A tcs::Float64 is returned.
 """
-function computeTotalCsUnpolarized(line::MultiPhotonDeExcitation.Line_2pAbsorptionMonochromatic, 
-                                    gauge::EmGauge, settings::MultiPhotonDeExcitation.Settings)
+function computeTotalCsUnpolarized(line::MultiPhotonTransition.Line_2pAbsorptionMonochromatic, 
+                                    gauge::EmGauge, settings::MultiPhotonTransition.Settings)
     tcs = 0.;   Klist = oplus(line.finalLevel.J, line.initialLevel.J);      omega = line.omega
     symi = LevelSymmetry(line.initialLevel.J, line.initialLevel.parity);    symf = LevelSymmetry(line.finalLevel.J, line.finalLevel.parity) 
     
     for  K in Klist
+        ## ODD K IS FORBIDDEN FOR TWO PHOTONS FROM THE SAME BEAM (added 07-Aug-2026). They are identical bosons,
+        ## so the two-photon polarization state must be SYMMETRIC; exchanging the two multipoles in the 3-j
+        ## carries (-1)^(L1+L2+K), i.e. (-1)^K for E1E1, so odd K is antisymmetric and cannot contribute.
+        ##
+        ## LINEAR light got this right by accident: its helicity sum is COHERENT, so the (+,-) and (-,+) terms
+        ## cancel for odd K on their own. The UNPOLARIZED sum is incoherent -- |+-> and |-+> are accumulated as
+        ## separate states, and neither is individually symmetric -- so odd K survived spuriously there.
+        ## MEASURED: for H 1s -> 2s (J = 1/2 -> 1/2, K = {0,1}) K = 1 supplied 92 % of the unpolarized cross
+        ## section, while the K = 0 part was already correct (0.107e-27 against 0.214e-27 for linear -- exactly
+        ## the factor 2 that Mg gives, and Mg is K = 0 only).
+        ##
+        ## NOTE this restriction belongs to the MONOCHROMATIC single-beam scheme ONLY. With two distinguishable
+        ## beams the photons are not identical and every K contributes -- which is one more reason the
+        ## bichromatic case is worth completing.
+        if  isodd( Int(Basics.twice(K)/2) )    continue    end
         qList = AngularMomentum.m_values(K)
         for  q in qList
             for  lambda1  in [-1, 1]
@@ -341,9 +393,9 @@ function computeTotalCsUnpolarized(line::MultiPhotonDeExcitation.Line_2pAbsorpti
                             symmetries  = AngularMomentum.allowedTotalSymmetries(symf, mp2, mp1, symi)
                             for Jsym in symmetries
                                 amp = amp + (1.0im)^(mp1.L - p1 + mp2.L - p2) * (-lambda1)^p1 * (-lambda2)^p2 *
-                                            sqrt( (2*mp1.L + 1)*(2*mp2.L + 1) ) * (2*Basics.twice(K) + 1)       *
+                                            sqrt( (2*mp1.L + 1)*(2*mp2.L + 1) ) * (Basics.twice(K) + 1)       *
                                             AngularMomentum.Wigner_3j(mp1.L, mp2.L, K, lambda1, lambda2, q)             *
-                                            MultiPhotonDeExcitation.getReducedAmplitudeAbsorption(K, line.finalLevel, mp2, Jsym, omega, mp1, 
+                                            MultiPhotonTransition.getReducedAmplitudeAbsorption(K, line.finalLevel, mp2, Jsym, omega, mp1, 
                                                                                                         line.initialLevel, gauge, line.channels) 
                             end
                         end
@@ -361,15 +413,15 @@ end
 
 
 """
-`MultiPhotonDeExcitation.getReducedAmplitudeEmission(K::AngularJ64, finalLevel::Level, multipole2::EmMultipole, Jsym::LevelSymmetry, omega::Float64, 
+`MultiPhotonTransition.getReducedAmplitudeEmission(K::AngularJ64, finalLevel::Level, multipole2::EmMultipole, Jsym::LevelSymmetry, omega::Float64, 
                                                                                         multipole1::EmMultipole, initialLevel::Level, 
-                                                        gauge::EmGauge, channels::Array{MultiPhotonDeExcitation.Channel_2pAbsorptionMonochromatic,1})`  
+                                                        gauge::EmGauge, channels::Array{MultiPhotonTransition.Channel_2pAbsorptionMonochromatic,1})`  
     ... to get/return the reduced amplitude U^{K, 2gamma emission} (K, Jf, multipole2, Jsym, omega, multipole1, Ji) from the calculated list
         of channels. An amplitude::Complex{Float64} is returned.
 """
 function getReducedAmplitudeAbsorption(K::AngularJ64, finalLevel::Level, multipole2::EmMultipole, Jsym::LevelSymmetry, omega::Float64, 
                                                                             multipole1::EmMultipole, initialLevel::Level, 
-                                        gauge::EmGauge, channels::Array{MultiPhotonDeExcitation.Channel_2pAbsorptionMonochromatic,1})
+                                        gauge::EmGauge, channels::Array{MultiPhotonTransition.Channel_2pAbsorptionMonochromatic,1})
     U = Complex(0.);    found = false
     for channel in channels
         if  K == channel.K  &&  omega == channel.omega  &&   Jsym == channel.Jsym       &&  multipole1 == channel.multipole1  &&  
@@ -388,14 +440,14 @@ end
 
 
 """
-`MultiPhotonDeExcitation.determineChannels_2pAbsorptionMonochromatic(omega::Float64, finalLevel::Level, initialLevel::Level, 
-                                                                        settings::MultiPhotonDeExcitation.Settings)`  
-    ... to determine a list of MultiPhotonDeExcitation.Channel_2pAbsorptionMonochromatic for a transitions from the initial to 
+`MultiPhotonTransition.determineChannels_2pAbsorptionMonochromatic(omega::Float64, finalLevel::Level, initialLevel::Level, 
+                                                                        settings::MultiPhotonTransition.Settings)`  
+    ... to determine a list of MultiPhotonTransition.Channel_2pAbsorptionMonochromatic for a transitions from the initial to 
         final level and by taking into account the particular settings of for this computation; 
-        an Array{MultiPhotonDeExcitation.Channel_2pAbsorptionMonochromatic,1} is returned.
+        an Array{MultiPhotonTransition.Channel_2pAbsorptionMonochromatic,1} is returned.
 """
-function determineChannels_2pAbsorptionMonochromatic(omega::Float64, finalLevel::Level, initialLevel::Level, settings::MultiPhotonDeExcitation.Settings)
-    channels   = MultiPhotonDeExcitation.Channel_2pAbsorptionMonochromatic[];   
+function determineChannels_2pAbsorptionMonochromatic(omega::Float64, finalLevel::Level, initialLevel::Level, settings::MultiPhotonTransition.Settings)
+    channels   = MultiPhotonTransition.Channel_2pAbsorptionMonochromatic[];   
     symi       = LevelSymmetry(initialLevel.J, initialLevel.parity);    symf = LevelSymmetry(finalLevel.J, finalLevel.parity) 
     for  mp1 in settings.multipoles
         for  mp2 in settings.multipoles
@@ -405,11 +457,11 @@ function determineChannels_2pAbsorptionMonochromatic(omega::Float64, finalLevel:
                 for  gauge in settings.gauges
                     # Include further restrictions if appropriate
                     if     string(mp1)[1] == 'E' && string(mp2)[1] == 'E'  &&   gauge == Basics.UseCoulomb
-                        for K in Klist  push!(channels, MultiPhotonDeExcitation.Channel_2pAbsorptionMonochromatic(K, omega, mp1, mp2, Basics.Coulomb, symn, 0.) )     end 
+                        for K in Klist  push!(channels, MultiPhotonTransition.Channel_2pAbsorptionMonochromatic(K, omega, mp1, mp2, Basics.Coulomb, symn, 0.) )     end 
                     elseif string(mp1)[1] == 'E'  string(mp2)[1] == 'E'  &&   gauge == Basics.UseBabushkin    
-                        for K in Klist  push!(channels, MultiPhotonDeExcitation.Channel_2pAbsorptionMonochromatic(K, omega, mp1, mp2, Basics.Babushkin, symn, 0.) )   end
+                        for K in Klist  push!(channels, MultiPhotonTransition.Channel_2pAbsorptionMonochromatic(K, omega, mp1, mp2, Basics.Babushkin, symn, 0.) )   end
                     elseif string(mp1)[1] == 'M' && string(mp2)[1] == 'M'
-                        for K in Klist  push!(channels, MultiPhotonDeExcitation.Channel_2pAbsorptionMonochromatic(K, omega, mp1, mp2, Basics.Magnetic, symn, 0.) )    end
+                        for K in Klist  push!(channels, MultiPhotonTransition.Channel_2pAbsorptionMonochromatic(K, omega, mp1, mp2, Basics.Magnetic, symn, 0.) )    end
                     end
                 end 
             end
@@ -421,23 +473,24 @@ end
 
 
 """
-`MultiPhotonDeExcitation.determineLines_2pAbsorptionMonochromatic(finalMultiplet::Multiplet, initialMultiplet::Multiplet, 
-                                                                    settings::MultiPhotonDeExcitation.Settings)`
-    ... to determine a list of MultiPhotonDeExcitation.Line_2pAbsorptionMonochromatic's for transitions between the levels from the given 
+`MultiPhotonTransition.determineLines_2pAbsorptionMonochromatic(finalMultiplet::Multiplet, initialMultiplet::Multiplet, 
+                                                                    settings::MultiPhotonTransition.Settings)`
+    ... to determine a list of MultiPhotonTransition.Line_2pAbsorptionMonochromatic's for transitions between the levels from the given 
         initial- and final-state multiplets and by taking into account the particular selections and settings for this computation; 
-        an Array{MultiPhotonDeExcitation.Line_2pAbsorptionMonochromatic,1} is returned. Apart from the level specification, all physical 
+        an Array{MultiPhotonTransition.Line_2pAbsorptionMonochromatic,1} is returned. Apart from the level specification, all physical 
         properties are set to zero during this initialization process.  
 """
 function  determineLines_2pAbsorptionMonochromatic(finalMultiplet::Multiplet, initialMultiplet::Multiplet, 
-                                                    settings::MultiPhotonDeExcitation.Settings)
-    lines = MultiPhotonDeExcitation.Line_2pAbsorptionMonochromatic[]
+                                                    settings::MultiPhotonTransition.Settings)
+    lines = MultiPhotonTransition.Line_2pAbsorptionMonochromatic[]
     for  iLevel  in  initialMultiplet.levels
         for  fLevel  in  finalMultiplet.levels
             if  Basics.selectLevelPair(iLevel, fLevel, settings.lineSelection)
-                omega    = (fLevel.energy - iLevel.energy + settings.energyShift) / 2.
-                channels = MultiPhotonDeExcitation.determineChannels_2pAbsorptionMonochromatic(omega, fLevel, iLevel, settings) 
-                push!( lines, MultiPhotonDeExcitation.Line_2pAbsorptionMonochromatic(iLevel, fLevel, omega,
-                                            EmProperty(0., 0.), EmProperty(0., 0.), EmProperty(0., 0.), EmProperty(0., 0.), channels) )
+                omega    = (fLevel.energy - iLevel.energy + settings.photonEnergyShift) / 2.
+                channels = MultiPhotonTransition.determineChannels_2pAbsorptionMonochromatic(omega, fLevel, iLevel, settings) 
+                push!( lines, MultiPhotonTransition.Line_2pAbsorptionMonochromatic(iLevel, fLevel, omega,
+                                            EmProperty(0., 0.), EmProperty(0., 0.), EmProperty(0., 0.), EmProperty(0., 0.),
+                                            EmProperty(0., 0.), channels) )
             end
         end
     end
@@ -446,11 +499,11 @@ end
 
 
 """
-`MultiPhotonDeExcitation.displayLines_2pAbsorptionMonochromatic(lines::Array{MultiPhotonDeExcitation.Line_2pAbsorptionMonochromatic,1})`  
+`MultiPhotonTransition.displayLines_2pAbsorptionMonochromatic(lines::Array{MultiPhotonTransition.Line_2pAbsorptionMonochromatic,1})`  
     ... to display a list of lines and channels that have been selected due to the prior settings. A neat table of all selected 
         transitions and energies is printed but nothing is returned otherwise.
 """
-function  displayLines_2pAbsorptionMonochromatic(lines::Array{MultiPhotonDeExcitation.Line_2pAbsorptionMonochromatic,1})
+function  displayLines_2pAbsorptionMonochromatic(lines::Array{MultiPhotonTransition.Line_2pAbsorptionMonochromatic,1})
     nx = 175
     println(" ")
     println("  Selected two-photon absorption lines by monochromatic and equally-polarized photons:")
@@ -492,9 +545,9 @@ end
 
 
 """
-`MultiPhotonDeExcitation.displayTotalAlpha0_2pAbsorptionMonochromatic(stream::IO, 
-                                            properties::Array{MultiPhotonDeExcitation.AbstractMultiPhotonProperty,1},
-                                            lines::Array{MultiPhotonDeExcitation.Line_2pAbsorptionMonochromatic,1})`  
+`MultiPhotonTransition.displayTotalAlpha0_2pAbsorptionMonochromatic(stream::IO, 
+                                            properties::Array{MultiPhotonTransition.AbstractMultiPhotonProperty,1},
+                                            lines::Array{MultiPhotonTransition.Line_2pAbsorptionMonochromatic,1})`  
     ... to display all results, energies, rates, etc. of the selected lines. A neat table is printed but nothing is 
         returned otherwise.
 """
@@ -542,9 +595,9 @@ end
 
 
 """
-`MultiPhotonDeExcitation.displayResults_2pAbsorptionMonochromatic(stream::IO, 
-                                        properties::Array{MultiPhotonDeExcitation.AbstractMultiPhotonProperty,1},
-                                        lines::Array{MultiPhotonDeExcitation.Line_2pAbsorptionMonochromatic,1})`  
+`MultiPhotonTransition.displayResults_2pAbsorptionMonochromatic(stream::IO, 
+                                        properties::Array{MultiPhotonTransition.AbstractMultiPhotonProperty,1},
+                                        lines::Array{MultiPhotonTransition.Line_2pAbsorptionMonochromatic,1})`  
     ... to display all results, energies, rates, etc. of the selected lines. A neat table is printed but nothing is 
         returned otherwise.
 """
@@ -556,16 +609,23 @@ function  displayResults_2pAbsorptionMonochromatic(stream::IO, properties::Array
     println(stream, " ")
     println(stream, "  Two-photon absorption by monochromatic and equally-polarized photons (usually from the same beam):")
     println(stream, " ")
-    println(stream, "  Cross sections [cm^4/W] are given for:")
+    ## THE UNIT LABEL SAID cm^4/W WHILE wx COMPUTES cm^4/(W s) -- the header and the conversion disagreed.
+    ## Corrected to match what is actually computed. NOTE the ABSOLUTE normalisation of these cross sections has
+    ## NOT been derived or verified (unlike the emission prefactor, checked against H 2s -> 1s), so the numbers
+    ## are provisional; the POLARIZATION RATIOS below are not, being fixed by angular algebra alone.
+    println(stream, "  Cross sections [cm^4/Ws] are given for (absolute scale NOT yet verified):")
     noCs = 0  # Number of cross sections to be printed
     for property in properties
         if      typeof(property) == TotalCsLinear          
-            noCs = noCs + 1;   println(stream, "    + total cross sections for linearly-polarized incident light ($noCs); still incorrect")  
+            noCs = noCs + 1;   println(stream, "    + total cross sections for linearly-polarized incident light ($noCs)")
         elseif  typeof(property) == TotalCsRightCircular   
             noCs = noCs + 1;   println(stream, "    + total cross sections for right-circularly polarized incident " *
-                                                "light ($noCs); still incorrect") 
+                                                "light ($noCs); MUST vanish for J = 0 -> J = 0") 
         elseif  typeof(property) == TotalCsUnpolarized     
-            noCs = noCs + 1;   println(stream, "    + total cross sections for unpolarized incident light ($noCs); still incorrect") 
+            noCs = noCs + 1;   println(stream, "    + total cross sections for unpolarized incident light ($noCs)")
+        elseif  typeof(property) == TotalCsDensityMatrix
+            noCs = noCs + 1;   println(stream, "    + total cross sections for the given Stokes parameters ($noCs); " *
+                                               "J = 0 -> J = 0 only")
         end
     end
     println(stream, " ")
@@ -579,7 +639,7 @@ function  displayResults_2pAbsorptionMonochromatic(stream::IO, properties::Array
     sb = sb * TableStrings.center(10, TableStrings.inUnits("energy"); na=7)
     for no = 1:noCs
         sa = sa * TableStrings.center(28, "Cou -- cross section ($no) -- Bab"; na=4);              
-        sb = sb * TableStrings.center(28, "[cm^4/W]" * "          " * "[cm^4/W]"; na=8)
+        sb = sb * TableStrings.center(28, "[cm^4/Ws]" * "         " * "[cm^4/Ws]"; na=8)
     end
 
     println(stream, sa);    println(stream, sb);    println(stream, "  ", TableStrings.hLine(nx + 34noCs)) 
@@ -602,6 +662,9 @@ function  displayResults_2pAbsorptionMonochromatic(stream::IO, properties::Array
             elseif  typeof(property) == TotalCsUnpolarized 
                 sa = sa * @sprintf("%.4e", line.csUnpolarized.Coulomb     * wx)   * "      "
                 sa = sa * @sprintf("%.4e", line.csUnpolarized.Babushkin   * wx)   * "          "
+            elseif  typeof(property) == TotalCsDensityMatrix
+                sa = sa * @sprintf("%.4e", line.csDensityMatrix.Coulomb   * wx)   * "      "
+                sa = sa * @sprintf("%.4e", line.csDensityMatrix.Babushkin * wx)   * "          "
             end
         end
         println(stream, sa )
@@ -611,7 +674,7 @@ function  displayResults_2pAbsorptionMonochromatic(stream::IO, properties::Array
     #
     # Display the TotalAlpha0 parameters if calculated
     if  TotalAlpha0()  in   properties
-        MultiPhotonDeExcitation.displayTotalAlpha0_2pAbsorptionMonochromatic(stream, properties, lines)
+        MultiPhotonTransition.displayTotalAlpha0_2pAbsorptionMonochromatic(stream, properties, lines)
     end
     #
     return( nothing )
