@@ -92,7 +92,28 @@ grid = Radial.Grid(Radial.Grid(false), rnt = 4.0e-6, h = 5.0e-2, hp = 1.0e-2, rb
 ##  DIAGNOSTICS -- run this first on any new system
 ## =====================================================================================================
 if  false
-    # Last visit:  06-Aug-2026
+    # Last successful:  07-Aug-2026
+    #
+    # DATED for what a diagnostic can verify: that it reports the right thing, in the right order, with the
+    # right structure. Re-run 07-Aug-2026 after the emission sign fix and the exchange-phase fix:
+    #
+    #     contribution   nu   J^P     E_i - omega1 - E_nu [eV]
+    #     1.741553e-06    4   3/2 -        -2.578993          <- 3p_3/2
+    #     8.707894e-07    3   1/2 -        -2.578980          <- 3p_1/2
+    #     5.116022e-07    2   3/2 -        -0.693331          <- 2p_3/2
+    #     2.560997e-07    1   1/2 -        -0.693286          <- 2p_1/2
+    #
+    # THREE CHECKS PASS:
+    #   * EVERY DENOMINATOR IS NEGATIVE. E_i - omega1 - E_nu < 0 for every bound np, as emission requires.
+    #     Before the sign fix they were mixed and produced poles that cannot exist -- so this table is now a
+    #     third, independent confirmation of that correction.
+    #   * THE 3/2 : 1/2 RATIO IS EXACTLY 2 : 1 at every n, which is the (2j+1) statistical weight of p_3/2
+    #     against p_1/2. Free, and it comes out of the angular machinery unprompted.
+    #   * THE ORDERING IS PHYSICAL: 3p above 2p despite 2p having the smaller denominator, because the dipole
+    #     matrix elements more than compensate -- which is exactly the kind of thing this table exists to say,
+    #     and which no one could guess from a configuration list.
+    # Each level is now listed ONCE; it used to appear once per K, though the ranked quantity does not depend
+    # on K at all.
     #
     # --- Branch a: OVERVIEW of the intermediate-state sum for the H-like 2s -> 1s two-photon decay.
     #
@@ -564,7 +585,25 @@ elseif  false
 ##  rather than spontaneous; the observables are cross sections, not rates)
 ## =====================================================================================================
 elseif  true
-    # Last visit:  06-Aug-2026
+    # Last successful:  07-Aug-2026        ## for the ANGULAR structure; the absolute scale is NOT verified
+    #
+    # DATED for the polarization structure, which is exact and parameter-free, NOT for the magnitude.
+    # Re-run 07-Aug-2026 after blocker A2 (the 4K+1 typo, and odd K excluded for a single beam):
+    #
+    #     linear 2.1415e-28 (Cou) / 4.5305e-27 (Bab)      right-circular 0.0000 / 0.0000
+    #     unpolarized 1.0708e-28 / 2.2653e-27              density matrix 0 (correctly refused, J != 0)
+    #
+    # TWO EXACT CHECKS:
+    #   * sigma_linear / sigma_unpolarized = 2.0000 in BOTH gauges -- identical to Mg (branch h). That is the
+    #     right answer and a strong one: H 1s -> 2s is s -> s, so only K = 0 is physical, and it must therefore
+    #     behave exactly like a J = 0 -> J = 0 transition. Before A2 this read 0.058, with K = 1 supplying 92 %
+    #     of the unpolarized cross section.
+    #   * RIGHT-CIRCULAR VANISHES IDENTICALLY. Two E1 photons of equal helicity must deliver two units of
+    #     angular momentum along the beam, and this transition cannot absorb it.
+    # Both are fixed by angular algebra and are independent of normalisation and of the wave functions.
+    #
+    # NOT CLAIMED: the absolute cross section. The absorption normalisation has never been derived at all --
+    # it is in worse shape than emission, where the discrepancy is at least localised to a constant 6.679.
     #
     # --- Branch g: TWO-PHOTON ABSORPTION, monochromatic, with EVERY polarization from ONE calculation.
     #
@@ -608,7 +647,22 @@ elseif  true
     perform(wd)
     #
 elseif  false
-    # Last visit:  07-Aug-2026
+    # Last successful:  07-Aug-2026        ## for the ANGULAR structure; the absolute scale is NOT verified
+    #
+    # DATED on the same basis as branch g, and BIT-IDENTICAL across blocker A2 -- which is itself the check:
+    # Mg is J = 0 -> J = 0, hence K = 0 only, so excluding odd K cannot touch it, and it did not.
+    #
+    #     linear 1.1688e-26 (Cou) / 7.8197e-26 (Bab)      right-circular 0.0000 / 0.0000
+    #     unpolarized 5.8438e-27 / 3.9098e-26             density matrix 4.2075e-27 / 2.8151e-26
+    #
+    # THREE EXACT CHECKS: right-circular vanishes; linear/unpolarized = 2.0000; and the Stokes formula
+    # sigma(P) = sigma_unpol * (1 + P1^2 + P2^2 - P3^2) gives 0.72 for (0.6, 0, 0.8), predicting 4.2075e-27
+    # against the printed 4.2075e-27.
+    #
+    # THE MAGNITUDE IS NOT CLAIMED, and its uncertainty is now quantified rather than guessed: the f-value
+    # check (work/diag-ca-fvalue.jl) puts the Mg 3s^2 - 3s3p 1P_1 oscillator strength at 2.605 (Bab) / 1.360
+    # (Cou) against the measured 1.80, so a two-photon amplitude carrying two such matrix elements is uncertain
+    # by a factor ~2 from the wave functions alone -- before the underived absorption normalisation.
     #
     # --- Branch h: TWO-PHOTON ABSORPTION in MAGNESIUM, 3s^2 1S_0 -> 3s4s 1S_0, via the 3s3p 1P_1 resonance.
     #

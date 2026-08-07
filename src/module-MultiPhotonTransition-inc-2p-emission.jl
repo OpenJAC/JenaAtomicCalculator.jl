@@ -590,9 +590,17 @@ function  displayIntermediateRanking(stream::IO, lines::Array{MultiPhotonTransit
                 TableStrings.inUnits("energy") * "      multipoles      Jsym")
         println(stream, "  ", TableStrings.hLine(nx))
         entries = NamedTuple{(:c,:idx,:jsym,:dE,:mps,:sym),Tuple{Float64,Int64,String,Float64,String,String}}[]
+        ## DEDUPLICATE OVER K (07-Aug-2026): sharing.channels carries one entry per K value, but the quantity
+        ## ranked here -- <f|O|nu><nu|O|i>/denominator -- does not depend on K at all, so every intermediate
+        ## level was being listed once per K. For J_i = J_f = 1/2 that meant each line printed twice, which
+        ## reads as though two distinct channels contributed where there is only one.
+        seen = Set{Tuple{Int64,String,String,EmGauge}}()
         for  ch in sharing.channels
             nuLevels = MultiPhotonTransition.intermediateLevels(settings.intermediateStates, ch.Jsym)
             for  nuLevel in nuLevels
+                key = (nuLevel.index, "$(ch.multipole1),$(ch.multipole2)", string(ch.Jsym), ch.gauge)
+                if  key in seen    continue    end
+                push!(seen, key)
                 denom = line.initialLevel.energy - omega1 - nuLevel.energy   ## emission: see computeReducedAmplitudeEmission
                 if  abs(denom) < settings.selfTolerance    continue    end
                 wa = PhotoEmission.amplitude(Emission(), ch.multipole2, ch.gauge, omega2, line.finalLevel, nuLevel,
