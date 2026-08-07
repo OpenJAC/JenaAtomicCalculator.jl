@@ -73,6 +73,18 @@ grid = Radial.Grid(Radial.Grid(false); rnt = 3.0e-6, h = 2.0e-2, hp = 3.0e-2, rb
 #     (Babushkin), where neon data put 2s/2p near 0.2.  The ordering is inverted, not merely inaccurate.
 #   - Partial waves.  For 2p ionization the photo-electron must be s or d (E1), and d should dominate far
 #     above threshold.  Branch d finds the s wave alone carries 56% of the total.
+#   CAUSE LARGELY IDENTIFIED, 07-Aug-2026, while working on example-Fg.jl: this file uses
+#   setDefaults("method: continuum, asymptotic Coulomb"), which for valence-shell processes in low-charge ions
+#   gives erratic continuum orbitals.  Repeating the 120 eV case with Galerkin on a finer grid
+#   (rnt=4.0e-6, h=5.0e-2, hp=0.6e-2, rbox=10.0, as in example-Dd.jl) gives
+#         asymptotic Coulomb :  2p = 3.409/0.849 Mb, gauge ratio 4.01,  2s/2p = 1.652
+#         Galerkin           :  2p = 7.348/5.669 Mb, gauge ratio 1.30,  2s/2p = 0.305
+#   i.e. BOTH headline defects recorded below largely disappear -- the gauge spread drops from 300% to 30% and
+#   the inverted subshell ratio returns to ~0.3, close to the ~0.2 the neon data indicate.  The assessment
+#   below therefore attributes to AverageSCA what was in fact a continuum-method artefact.  The branches have
+#   deliberately NOT been re-run and re-dated (they are left as the record of that mistake), but any further
+#   use of this scheme should set Galerkin.  See the extended note in example-Fg.jl.
+#
 #   RULED OUT as the cause: the continuum normalization.  Repeating branch a with
 #   "method: normalization, pure sine" and "pure Coulomb" changes the total by 2.5e-5 relative
 #   (0.2062176 vs 0.2062228 a.u.), and both branches of Continuum are genuinely entered (58 orbitals each).

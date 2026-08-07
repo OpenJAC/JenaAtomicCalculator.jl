@@ -283,6 +283,44 @@ end
 
 
 """
+`struct  Cascade.EieRateCoefficients   <:  Cascade.AbstractSimulationProperty`
+    ... defines a type for simulating electron-impact excitation (EIE) plasma rate coefficients and effective
+        collision strengths from the ImpactExcitation.Line's of a previous cascade computation.
+
+        This is the simulation counterpart of Cascade.ImpactExcitationScheme.  The computation produces LINES --
+        one per (initial level, final level, incident electron energy), each carrying a cross section and a
+        collision strength; forming the effective collision strength Upsilon(T) and the rate coefficient
+        alpha(T) from them requires an interpolation over energy and an integration against a Maxwellian, and
+        that is simulation work.  Compare Cascade.DrRateCoefficients and Cascade.RrRateCoefficients.
+
+    + initialLevelNo      ::Int64             ... Level No of the initial level; 0 selects all initial levels.
+    + temperatures        ::Array{Float64,1}  ... Temperatures [K] at which the rate coefficients are formed.
+    + finalLevelSelection ::LevelSelection    ... Specifies the selected final levels, if any.
+"""
+struct  EieRateCoefficients   <:  Cascade.AbstractSimulationProperty
+    initialLevelNo        ::Int64
+    temperatures          ::Array{Float64,1}
+    finalLevelSelection   ::LevelSelection
+end
+
+
+"""
+`Cascade.EieRateCoefficients()`  ... (simple) constructor for cascade EieRateCoefficients.
+"""
+function EieRateCoefficients()
+    EieRateCoefficients(1, Float64[], LevelSelection())
+end
+
+
+# `Base.show(io::IO, dist::Cascade.EieRateCoefficients)`  ... prepares a proper printout of the variable data::Cascade.EieRateCoefficients.
+function Base.show(io::IO, dist::Cascade.EieRateCoefficients)
+    println(io, "initialLevelNo:           $(dist.initialLevelNo)  ")
+    println(io, "temperatures:             $(dist.temperatures)  ")
+    println(io, "finalLevelSelection:      $(dist.finalLevelSelection)  ")
+end
+
+
+"""
 `struct  Cascade.PiRateCoefficients   <:  Cascade.AbstractSimulationProperty`  
     ... defines a type for simulating the PI plasma rate coefficients as function of the (free) photon energy distribution and
         the plasma temperature. These coefficients included a convolution of the direct photoionization cross sections over the 

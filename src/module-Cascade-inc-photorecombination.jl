@@ -12,7 +12,6 @@ function computeContinuumOrbitals(scheme::Cascade.RadiativeRecombinationScheme, 
     # Generate potential for continuum orbitals for this step
     maxFreeElectronEnergy_au  = Defaults.convertUnits("energy: to atomic", scheme.maxFreeElectronEnergy)
     enGrid       = Radial.GridGL(Radial.GridGaussLegendreFinite(), 0.0, maxFreeElectronEnergy_au, scheme.NoFreeElectronEnergies, printout=false)
-    @show "computeContinuumOrbitals", enGrid.t
     maxKappa     = maximum(scheme.lValues) + 1
     nrContinuum  = Continuum.gridConsistency(maximum(enGrid.t) + 0.1, comp.grid)
     contSettings = Continuum.Settings(false, nrContinuum);   
@@ -26,7 +25,6 @@ function computeContinuumOrbitals(scheme::Cascade.RadiativeRecombinationScheme, 
         for  kappa = -maxKappa:maxKappa     
             if  kappa == 0      continue    end
             sh    = Subshell(100+ie, kappa)
-            @show "computeContinuumOrbitals", en
             cOrbital, phase, normF  = Continuum.generateOrbitalLocalPotential(en, sh, pot, contSettings)
             cOrbitals[sh]           = cOrbital
             println(">> New continum orbital generated for $sh and energy $en ")
@@ -49,7 +47,6 @@ function computeSteps(scheme::Cascade.RadiativeRecombinationScheme, comp::Cascad
     printSummary, iostream = Defaults.getDefaults("summary flag/stream")
     maxFreeElectronEnergy_au  = Defaults.convertUnits("energy: to atomic", scheme.maxFreeElectronEnergy)
     enGrid       = Radial.GridGL(Radial.GridGaussLegendreFinite(), 0.0, maxFreeElectronEnergy_au, scheme.NoFreeElectronEnergies, printout=false)
-    @show "computeContinuumOrbitals", enGrid.t
     nt = 0;   st = 0;   previousMeanEn = 0.
     # First compute all necessary continuum orbitals
     cOrbitals = Cascade.computeContinuumOrbitals(scheme, comp, stepList[1].initialMultiplet.levels[1])
@@ -88,9 +85,13 @@ function determineSteps(scheme::Cascade.RadiativeRecombinationScheme, comp::Casc
                         initialList::Array{Cascade.Block,1}, capturedList::Array{Cascade.Block,1})
     # Determine a (free-electron) energy grid 
     println(" ")
+    ## NB: settings.electronEnergies are in USER units -- PhotoRecombination.determineLines converts them with
+    ## convertUnits("energy: to atomic", ...).  This grid must therefore be spanned with the RAW
+    ## scheme.maxFreeElectronEnergy, not the converted one; the *_au value below is only used for the
+    ## continuum orbitals in computeSteps/computeContinuumOrbitals, which work in atomic units.
     maxFreeElectronEnergy_au  = Defaults.convertUnits("energy: to atomic", scheme.maxFreeElectronEnergy)
-    enGrid       = Radial.GridGL(Radial.GridGaussLegendreFinite(), 0.0, scheme.maxFreeElectronEnergy, scheme.NoFreeElectronEnergies, printout=true)
-    @show "determineSteps", enGrid.t
+    enGrid       = Radial.GridGL(Radial.GridGaussLegendreFinite(), 0.0, scheme.maxFreeElectronEnergy,
+                                 scheme.NoFreeElectronEnergies, printout=true)
     println(">> Energy grid points:  $(enGrid.t[1:3])  ...  $(enGrid.t[end-2:end])")
     stepList = Cascade.Step[]
     if  comp.approach  in  [Cascade.AverageSCA(), Cascade.SCA()]
@@ -234,8 +235,6 @@ function generateConfigurationsForRadiativeRecombination(multiplets::Array{Multi
     end
     fromShells = Shell[]
     captureConfList = Basics.generateConfigurationsWithElectronCapture(initialConfList, fromShells, scheme.intoShells, 0)
-    @show initialConfList
-    @show captureConfList
     #
     # Determine first a hydrogenic spectrum for all subshells of the initial and captured levels
     allConfList   = Configuration[];      
@@ -301,7 +300,6 @@ function perform(scheme::RadiativeRecombinationScheme, comp::Cascade.Computation
     wc1 = Cascade.generateBlocks(scheme, comp::Cascade.Computation, initialConfigs)
     wc2 = Cascade.generateBlocks(scheme, comp::Cascade.Computation, capturedConfigs, printout=false)
     # Shift the initial level energy by -electronEnergyShift
-    @show scheme.electronEnergyShift
     if  scheme.electronEnergyShift != 0. 
         wc1old = wc1;   wc1 = Cascade.Block[]
         for  block in wc1old

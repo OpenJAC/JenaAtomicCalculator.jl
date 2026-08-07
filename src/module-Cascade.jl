@@ -249,7 +249,7 @@ end
 `Cascade.ElectronExcitationScheme()`  ... constructor for an 'default' instance of a Cascade.ElectronExcitationScheme.
 """
 function ElectronExcitationScheme()
-    ElectronExcitationScheme([Eimex], Float64[] )
+    ElectronExcitationScheme([ImpactExc], Float64[] )
 end
 
 
@@ -290,7 +290,7 @@ end
 `Cascade.ElectronIonizationScheme()`  ... constructor for an 'default' instance of a Cascade.ElectronIonizationScheme.
 """
 function ElectronIonizationScheme()
-    ElectronIonizationScheme([Eimex], Float64[] )
+    ElectronIonizationScheme([ImpactExc], Float64[] )
 end
 
 
@@ -432,16 +432,23 @@ end
 `struct  Cascade.ImpactExcitationScheme  <:  Cascade.AbstractCascadeScheme`  
         ... to compute the (direct) electron-impact excitation spectrum for a list of impact energies (not yet).
 
-    + processes              ::Array{Basics.AbstractProcess,1} 
-        ... List of the atomic processes that are supported and should be included into the cascade.
+        This scheme always computes the DIRECT electron-impact excitation ImpactExc() and carries no list of
+        processes: there is nothing to choose from.  The resonant channel -- capture into a doubly-excited state
+        with subsequent re-autoionization into an excited level of the same ion, which yields the same final
+        state -- belongs to Cascade.ElectronExcitationScheme.
+
     + fromShells             ::Array{Shell,1}    
         ... List of shells from which impact-excitations are to be considered.
     + toShells               ::Array{Shell,1}    
         ... List of shells into which impact-excitations are to be considered, including possibly already occupied shells.
     + electronEnergies       ::Array{Float64,1}                
-        ... List of electron energies for which this electron-impact excitation scheme is to be calculated.
+        ... List of electron energies for which this electron-impact excitation scheme is to be calculated.  The
+            collision strengths are computed AT these energies; a Cascade.EieRateCoefficients simulation later
+            interpolates over them, so three or more well-spread values are needed for any rate coefficient.
     + lValues                ::Array{Int64,1}
-        ... Orbital angular momentum values of the free-electrons, for which partial waves are considered for the RR.
+        ... Orbital angular momentum values of the free electron, i.e. the partial waves that are summed over.
+            maxKappa is taken as maximum(lValues)+1.  NOTE that a truncated sum does not merely lower the collision
+            strength, it can invert its energy dependence, and it does so silently; read the `convergence` column.
     + NoFreeElectronEnergies ::Int64             
         ... Number of free-electron energies that a chosen for a Gauss-Laguerre integration.
     + maxFreeElectronEnergy  ::Float64             
@@ -456,7 +463,6 @@ end
     entries appears for these two subfields.
 """
 struct   ImpactExcitationScheme  <:  Cascade.AbstractCascadeScheme
-    processes               ::Array{Basics.AbstractProcess,1}
     fromShells              ::Array{Shell,1}
     toShells                ::Array{Shell,1}
     electronEnergies        ::Array{Float64,1}
@@ -471,7 +477,7 @@ end
 `Cascade.ImpactExcitationScheme()`  ... constructor for an 'default' instance of a Cascade.ImpactExcitationScheme.
 """
 function ImpactExcitationScheme()
-    ImpactExcitationScheme([Eimex], Shell[], Shell[], Float64[], Int64[], 0, 0., 0. )
+    ImpactExcitationScheme(Shell[], Shell[], Float64[], Int64[], 0, 0., 0. )
 end
 
 
@@ -485,7 +491,6 @@ end
 # `Base.show(io::IO, scheme::ImpactExcitationScheme)`  ... prepares a proper printout of the scheme::ImpactExcitationScheme.
 function Base.show(io::IO, scheme::ImpactExcitationScheme)
     sa = Base.string(scheme);                 print(io, sa, "\n")
-    println(io, "processes:                   $(scheme.processes)  ")
     println(io, "fromShells:                  $(scheme.fromShells)  ")
     println(io, "toShells:                    $(scheme.toShells)  ")
     println(io, "electronEnergies:            $(scheme.electronEnergies)  ")
@@ -519,7 +524,7 @@ end
 `Cascade.ImpactIonizationScheme()`  ... constructor for an 'default' instance of a Cascade.ImpactIonizationScheme.
 """
 function ImpactIonizationScheme()
-    ImpactIonizationScheme([Eimex], Float64[] )
+    ImpactIonizationScheme([ImpactExc], Float64[] )
 end
 
 
@@ -1017,8 +1022,10 @@ end
 """
 struct  Step
     process            ::Basics.AbstractProcess
-    settings           ::Union{PhotoEmission.Settings, AutoIonization.Settings, PhotoIonization.Settings, PhotoExcitation.Settings, 
-                                PhotoRecombination.Settings}
+    ## ImpactExcitation.Settings was missing from this Union, so a Cascade.Step could not even be constructed
+    ## for an electron-impact excitation cascade -- the scheme was unreachable however its steps were built.
+    settings           ::Union{PhotoEmission.Settings, AutoIonization.Settings, PhotoIonization.Settings, PhotoExcitation.Settings,
+                                PhotoRecombination.Settings, ImpactExcitation.Settings}
     initialConfigs     ::Array{Configuration,1}
     finalConfigs       ::Array{Configuration,1}
     initialMultiplet   ::Multiplet

@@ -1842,7 +1842,7 @@ export   AbstractProcessSettings
     + struct PhotoIonAuto     ... photoionization autoionization cross sections and collision strengths.
     + struct Radiative        ... Radiative (multipole) transitions between bound-state levels of the same charge state.
     + struct Rec              ... radiative electron capture, i.e. the capture of a free electron with the simultaneous emission of a photon.
-    + struct Eimex            ... electron-impact excitation cross sections and collision strengths.
+    + struct ImpactExc        ... electron-impact excitation cross sections and collision strengths.
     + struct RAuger           ... Radiative Auger rates.
 """
 abstract type  AbstractProcess                          end
@@ -1870,13 +1870,13 @@ struct    PhotoIonFluor         <:  AbstractProcess     end
 struct    PhotoIonAuto          <:  AbstractProcess     end
 struct    Radiative             <:  AbstractProcess     end
 struct    Rec                   <:  AbstractProcess     end
-struct    Eimex                 <:  AbstractProcess     end
+struct    ImpactExc             <:  AbstractProcess     end
 struct    RAuger                <:  AbstractProcess     end
 struct    PairA1P               <:  AbstractProcess     end
     
 
-export  AbstractProcess, NoProcess, Auger, AugerInPlasma, Compton, Coulex, Coulion, Dierec, DoubleAuger, Eimex, ElecCapture, 
-        ImpactExcAuto, InternalConv, MultiPhotonDE, MultiPI, MultiPDI, Photo, PhotoDouble, PhotoExc, PhotoExcAuto, PhotoExcFluor, 
+export  AbstractProcess, NoProcess, Auger, AugerInPlasma, Compton, Coulex, Coulion, Dierec, DoubleAuger, ElecCapture, 
+        ImpactExc, ImpactExcAuto, InternalConv, MultiPhotonDE, MultiPI, MultiPDI, Photo, PhotoDouble, PhotoExc, PhotoExcAuto, PhotoExcFluor, 
         PhotoInPlasma, PhotoIonAuto, PhotoIonFluor, Radiative, RAuger, Rec, PairA1P, Coulion
 
 function Base.string(propc::NoProcess)          return( "no process" )                         end

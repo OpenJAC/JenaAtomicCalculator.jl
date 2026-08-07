@@ -27,7 +27,7 @@ elseif true
     asfSettings = AsfSettings(AsfSettings(), maxIterationsScf = 36)
     fromShells  = [Shell("2s")]
     toShells    = [Shell("2p"), Shell("3s")]
-    eiScheme    = Cascade.ImpactExcitationScheme([Eimex()], fromShells, toShells, [500., 1000.], [0, 1], 0, 10., 0.)
+    eiScheme    = Cascade.ImpactExcitationScheme(fromShells, toShells, [500., 1000.], [0, 1], 0, 10., 0.)
     
     wa   = Cascade.Computation(Cascade.Computation(); name=name, nuclearModel=Nuclear.Model(10.), grid=grid, asfSettings=asfSettings,
                                approach = Cascade.AverageSCA(), scheme = eiScheme,

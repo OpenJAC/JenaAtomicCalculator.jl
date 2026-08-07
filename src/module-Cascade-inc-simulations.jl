@@ -965,12 +965,48 @@ end
 
 
 """
+`Cascade.simulate(property::Cascade.EieRateCoefficients, method::Cascade.AbstractSimulationMethod,
+                  simulation::Cascade.Simulation)`
+    ... simulates electron-impact excitation rate coefficients and effective collision strengths from the
+        ImpactExcitation.Line's of a previous cascade computation.  The lines carry a cross section and a
+        collision strength for each incident energy; this method interpolates the collision strengths over
+        energy and integrates them against a Maxwellian at the requested temperatures.  An
+        Array{ImpactExcitation.RateCoefficients,1} is returned.
+"""
+function simulate(property::Cascade.EieRateCoefficients, method::Cascade.AbstractSimulationMethod,
+                  simulation::Cascade.Simulation)
+    printSummary, iostream = Defaults.getDefaults("summary flag/stream")
+    linesE = simulation.computationData[1]["results"]["impact-excitation lines:"]
+    if  length(linesE) < 3
+        error("Cascade.EieRateCoefficients needs the collision strengths at three or more electron energies; " *
+              "the given cascade data carry only $(length(linesE)) line(s).  Widen ImpactExcitationScheme.electronEnergies.")
+    end
+    ## The aggregation itself lives in ImpactExcitation; only the temperatures are taken from the property.
+    ## numElectronEnergies must match the number of DISTINCT incident energies actually present in the lines:
+    ## ImpactExcitation.groupLines reshapes the line list into (energies x transitions) and refuses anything
+    ## that does not divide evenly.  The Settings default of 6 has nothing to do with what the cascade computed,
+    ## so it is taken from the data here.
+    nEnergies = length(unique([l.initialElectronEnergy  for l in linesE]))
+    settings  = ImpactExcitation.Settings(ImpactExcitation.Settings(), calcRateCoefficient=true,
+                                          temperatures=property.temperatures, numElectronEnergies=nEnergies)
+    rates    = ImpactExcitation.computeRateCoefficients(linesE, settings)
+    ImpactExcitation.displayResults(stdout, rates)
+    if  printSummary    ImpactExcitation.displayResults(iostream, rates)    end
+    #
+    return( rates )
+end
+
+
+"""
 `Cascade.simulate(property::Cascade.RrRateCoefficients, method::Cascade.AbstractSimulationMethod,
                   simulation::Cascade.Simulation)`   ... simulates radiative-recombination rate coefficients.
 """
 function simulate(property::Cascade.RrRateCoefficients, method::Cascade.AbstractSimulationMethod,
                   simulation::Cascade.Simulation)
-    linesR = simulation.computationData[1]["results"]["photo-recombination line data:"].linesR
+    ## Cascade.Data carries its lines in the field `lines`; `.linesR` has not existed since that struct was
+    ## generalised, so this path raised a FieldError on every call and the RR rate coefficients could never
+    ## be simulated at all.
+    linesR = simulation.computationData[1]["results"]["photo-recombination line data:"].lines
     return( Cascade.simulateRrRateCoefficients(linesR, simulation) )
 end
 
@@ -1502,6 +1538,12 @@ function simulateDrRateCoefficients(levels::Array{Cascade.Level,1}, simulation::
     settings = DielectronicRecombination.Settings(DielectronicRecombination.Settings(), calcRateAlpha=true, temperatures=simulation.property.temperatures)
     DielectronicRecombination.displayResults(stdout, resonances, DielectronicRecombination.PhotonLine[], settings)
     DielectronicRecombination.displayRateCoefficients(stdout, resonances, settings)
+    ## alpha^DR is the observable this whole scheme exists for, yet it used to go to the screen only, while the
+    ## intermediate Auger and radiative tables were written to the summary file.  Send it there as well.
+    if  printSummary
+        DielectronicRecombination.displayResults(iostream, resonances, DielectronicRecombination.PhotonLine[], settings)
+        DielectronicRecombination.displayRateCoefficients(iostream, resonances, settings)
+    end
     wb = DielectronicRecombination.extractRateCoefficients(resonances, settings)
 
     return( wb )
@@ -2043,7 +2085,7 @@ end
 function simulateRrRateCoefficients(lines::Array{PhotoRecombination.Line,1}, simulation)
     printSummary, iostream = Defaults.getDefaults("summary flag/stream")
     # Check consistency of data
-    isym = LevelSymmetry(lines[1].initialLevel.J, lines[1].initialLevel.parity);   @show isym
+    isym = LevelSymmetry(lines[1].initialLevel.J, lines[1].initialLevel.parity)
     ## for  line  in  lines
     ##     if  LevelSymmetry(line.initialLevel.J, line.initialLevel.parity) != isym   error("error a")    end
     ## end
@@ -2061,8 +2103,11 @@ function simulateRrRateCoefficients(lines::Array{PhotoRecombination.Line,1}, sim
         #
         ## @warn "Cross sections not yet properly set."
         for  line  in  lines
-            if  LevelSymmetry(line.initialLevel.J, line.initialLevel.parity) != 
-                LevelSymmetry(AngularJ64(1), Basics.plus)                                        continue    end
+            ## Select the initial symmetry from the DATA, not from a hard-wired J^P = 1+.  The 1+ was a
+            ## leftover from one particular test case and silently discarded every line of any ion whose
+            ## initial level has a different symmetry -- e.g. every closed-shell (0+) ground state, for which
+            ## the rate coefficient then came out as exactly zero.  isym is what the table header announces.
+            if  LevelSymmetry(line.initialLevel.J, line.initialLevel.parity) != isym               continue    end
             # Determine cross section of this line
             cs  = EmProperty(0., 0.)
             if   length(simulation.property.finalConfigurations) > 0
@@ -2072,7 +2117,6 @@ function simulateRrRateCoefficients(lines::Array{PhotoRecombination.Line,1}, sim
                 if  !(finalConfigurations[1]  in  simulation.property.finalConfigurations)           continue    end
                 if   simulation.property.finalLevelSelection.active  &&  
                     !(line.finalLevel.index  in  simulation.property.finalLevelSelection.indices)    continue    end
-                @show finalConfigurations
             else  println("No configuration/level selection.")
             end 
             pcs = PhotoRecombination.computeCrossSectionForMultipoles(simulation.property.multipoles, line)
@@ -2093,6 +2137,10 @@ function simulateRrRateCoefficients(lines::Array{PhotoRecombination.Line,1}, sim
     
     # Display the RR plasma rate coefficients
     PhotoRecombination.displayRateCoefficients(stdout, isym, simulation.property.temperatures, alphaRR)
+    ## ... and to the summary file, for the same reason as for alpha^DR above.
+    if  printSummary
+        PhotoRecombination.displayRateCoefficients(iostream, isym, simulation.property.temperatures, alphaRR)
+    end
 
     return( alphaRR )
 end

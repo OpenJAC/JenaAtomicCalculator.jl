@@ -486,8 +486,48 @@ end
 
 
 """
-`ImpactExcitation.determineLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, settings::ImpactExcitation.Settings)`  
-    ... to determine a list of ImpactExcitation.Line's for transitions between levels from the initial- and final-state multiplets, 
+`ImpactExcitation.computeLinesCascade(finalMultiplet::Multiplet, initialMultiplet::Multiplet, nm::Nuclear.Model,
+                                      grid::Radial.Grid, settings::ImpactExcitation.Settings;
+                                      output::Bool=true, printout::Bool=true)`
+    ... to compute the electron-impact excitation amplitudes and cross sections as requested by the given settings.
+        The computations and printout are adapted for larger cascade computations by including only lines with at
+        least one channel and by reducing the printout. A list of lines::Array{ImpactExcitation.Line,1} is returned.
+
+        This is the cascade counterpart of `ImpactExcitation.computeLines` and follows the same pattern as
+        `PhotoExcitation.computeLinesCascade` and `AutoIonization.computeLinesCascade`. It was CALLED by
+        Cascade.computeSteps(::ImpactExcitationScheme, ...) but had never been defined, so every electron-impact
+        excitation cascade raised an UndefVarError at its first step.
+"""
+function  computeLinesCascade(finalMultiplet::Multiplet, initialMultiplet::Multiplet, nm::Nuclear.Model,
+                              grid::Radial.Grid, settings::ImpactExcitation.Settings;
+                              output::Bool=true, printout::Bool=true)
+    lines = ImpactExcitation.determineLines(finalMultiplet, initialMultiplet, settings)
+    if  length(lines) == 0    return( ImpactExcitation.Line[] )    end
+    ## The grid must be able to carry the fastest continuum orbital that occurs; see the note in computeLines().
+    maxEnergy   = 0.;   for  line in lines   maxEnergy = max(maxEnergy, line.initialElectronEnergy)   end
+    nrContinuum = Continuum.gridConsistency(maxEnergy, grid)
+    #
+    newLines = ImpactExcitation.Line[]
+    for  line  in  lines
+        newLine = ImpactExcitation.computeAmplitudesProperties(line, nm, grid, nrContinuum, settings, printout=printout)
+        ## Drop lines that carry no channel at all; they contribute nothing and only lengthen the tables
+        if  length(newLine.channels) == 0    continue    end
+        push!( newLines, newLine)
+    end
+    # Print the results; ImpactExcitation.displayResults() writes to stdout only
+    if  printout   ImpactExcitation.displayResults(newLines)    end
+    ## No rate coefficients here: a cascade computation returns LINES.  Effective collision strengths and plasma
+    ## rate coefficients are formed from those lines by a cascade simulation (Cascade.EieRateCoefficients).
+    #
+    if    output    return( newLines )
+    else            return( nothing )
+    end
+end
+
+
+"""
+`ImpactExcitation.determineLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, settings::ImpactExcitation.Settings)`
+    ... to determine a list of ImpactExcitation.Line's for transitions between levels from the initial- and final-state multiplets,
         and by taking into account the particular selections and settings for this computation; an Array{ImpactExcitation.Line,1} is 
         returned. Apart from the level specification, all physical properties are set to zero during the initialization process.
 """
@@ -575,7 +615,12 @@ function groupLines(lines::Array{ImpactExcitation.Line,1}, settings::ImpactExcit
 
     n = settings.numElectronEnergies
     q, r = divrem(length(lines), n)
-    if r != 0 error("Error a") end
+    if  r != 0
+        error("ImpactExcitation.groupLines(): the $(length(lines)) lines do not divide evenly into groups of " *
+              "settings.numElectronEnergies = $n.  This list has to be a rectangular (energies x transitions) " *
+              "block; set numElectronEnergies to the number of DISTINCT incident electron energies actually " *
+              "computed.")
+    end
 
     groupLines = Array{ImpactExcitation.Line,1}[]
 
@@ -621,7 +666,17 @@ end
         Returns a Float64.
 """
 function interpolateCS(x::Float64, xa::Vector{Float64}, ya::Vector{Float64}, isE1Allowed::Bool)
-    if x <= maximum(xa)
+    ## Guard the LOWER bound as well.  Only the upper one was handled, but the Gauss-Laguerre nodes of the
+    ## thermal average are xt = t*kT with t starting near 0.137, so they reach far below the sampled energies
+    ## whenever the energy grid does not begin at threshold -- and GSL then aborts with a bare
+    ## "interpolation error at interp.c:150".  That never showed up as long as calcRateCoefficient = true
+    ## auto-generated its own grid starting AT threshold (see ImpactExcitation.determineLines), but a cascade
+    ## supplies its own energies and need not start there.  Below the sampled range the collision strength is
+    ## simply not known, so a constant extrapolation is used -- the same conservative choice already made above
+    ## the range for non-E1 transitions.  NB this makes rate coefficients at kT well below the lowest sampled
+    ## energy unreliable; sample from near threshold if the low-temperature end matters.
+    if      x < minimum(xa)     return( ya[1] )
+    elseif  x <= maximum(xa)
         n = length(xa)
         # Alloc and setup
         obj = GSL.interp_alloc(gsl_interp_linear, n)
@@ -880,11 +935,22 @@ end
         A neat table is printed but nothing is returned otherwise.
 """
 function displayResults(allRates::Array{RateCoefficients,1})
+    ImpactExcitation.displayResults(stdout, allRates)
+end
+
+
+"""
+`ImpactExcitation.displayResults(stream::IO, allRates::Array{ImpactExcitation.RateCoefficients,1})`
+    ... the same table, but written to the given stream so that a cascade can also place it into the summary
+        file.  A rate coefficient is the quantity such a computation is run for and should not go to the
+        screen alone.
+"""
+function displayResults(stream::IO, allRates::Array{RateCoefficients,1})
     nx = 115
-    println(" ")
-    println("  Electron-impact excitation rate coefficients / effective collision strengths:")
-    println(" ")
-    println("  ", TableStrings.hLine(nx))
+    println(stream, " ")
+    println(stream, "  Electron-impact excitation rate coefficients / effective collision strengths:")
+    println(stream, " ")
+    println(stream, "  ", TableStrings.hLine(nx))
     sa = "      ";   sb = "  "
     sa = sa * TableStrings.center(14, "i-level-f"; na=2);                                sb = sb * TableStrings.hBlank(20)
     sa = sa * TableStrings.center(18, "i--J^P--f"; na=3);                                sb = sb * TableStrings.hBlank(22)
@@ -895,7 +961,7 @@ function displayResults(allRates::Array{RateCoefficients,1})
     sa = sa * TableStrings.center(12, "Rate Coeffs"; na=2) 
     sb = sb * TableStrings.center(12, "[cm^3/s]"; na=5)
     sa = sa * TableStrings.center(15, "Eff Coll Strength"; na=4) 
-    println(sa);    println(sb);    println("  ", TableStrings.hLine(nx)) 
+    println(stream, sa);    println(stream, sb);    println(stream, "  ", TableStrings.hLine(nx))
 
     for rates in allRates
         for (i, temp) in enumerate(rates.temperatures)
@@ -908,11 +974,11 @@ function displayResults(allRates::Array{RateCoefficients,1})
             sa = sa * @sprintf("%.4e", temp)         * "      "
             sa = sa * @sprintf("%.4e", rates.alphas[i])         * "       "
             sa = sa * @sprintf("%.4e", rates.effOmegas[i])         * "      "
-            println(sa)
+            println(stream, sa)
         end
     end
-    
-    println("  ", TableStrings.hLine(nx))
+
+    println(stream, "  ", TableStrings.hLine(nx))
 end
 
 

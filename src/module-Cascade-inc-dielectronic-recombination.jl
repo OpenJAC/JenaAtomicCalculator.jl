@@ -113,7 +113,12 @@ function determineSteps(scheme::Cascade.DielectronicRecombinationScheme, comp::C
                 if  decayBlock.NoElectrons != capturedBlock.NoElectrons   error("stop b")     end
                 # Check that at least one energy supports radiative stabilization
                 if   Basics.determineMeanEnergy(capturedBlock.multiplet) - Basics.determineMeanEnergy(decayBlock.multiplet) > scheme.minPhotonEnergy
-                    settings = PhotoEmission.Settings(PhotoEmission.Settings(), gauges=[UseCoulomb, UseBabushkin])
+                    ## The multipoles must come from the scheme.  PhotoEmission.Settings() defaults to [E1], so the
+                    ## stabilization was always computed in E1 alone -- while generateBlocks() prints "all requested
+                    ## multipoles are considered for the stabilization".  scheme.multipoles was read nowhere in this
+                    ## file; this is the same defect that example-Fc.jl uncovered for the photo-excitation scheme.
+                    settings = PhotoEmission.Settings(PhotoEmission.Settings(), multipoles=scheme.multipoles,
+                                                      gauges=[UseCoulomb, UseBabushkin])
                     push!( stepList, Cascade.Step(Basics.Radiative(), settings, capturedBlock.confs,     decayBlock.confs,
                                                                                 capturedBlock.multiplet, decayBlock.multiplet) )
                 end
@@ -263,7 +268,6 @@ function generateCaptureConfigurations(multiplets::Array{Multiplet,1},  coreConf
     end
 
     eMax = eMin + scheme.maxExcitationEnergy
-    @show eMin, eMax, nMax, lMax
     
     # Compute a mean-field basis for coreConfList
     println(">> Generate mean-field multiplet for $(length(coreConfList)) excited core configurations \n $coreConfList \n ...  ")
@@ -352,10 +356,6 @@ function generateConfigurationsForDielectronicCapture(multiplets::Array{Multiple
         captureConfList = Basics.generateConfigurationsWithElectronCapture(coreConfList, scheme.excitationFromShells, scheme.intoShells, 0)
     end
     decayConfList   = Basics.generateConfigurationsWithElectronCapture(coreConfList, scheme.excitationFromShells, scheme.decayShells, 0)
-    @show initialConfList
-    @show coreConfList
-    @show captureConfList
-    @show decayConfList
     #
     # Determine first a hydrogenic spectrum for all subshells of the initial and doubly-excited states
     allConfList   = Configuration[];      
@@ -440,7 +440,6 @@ function perform(scheme::DielectronicRecombinationScheme, comp::Cascade.Computat
     wc2 = Cascade.generateBlocks(scheme, comp::Cascade.Computation, capturedConfigs, printout=false)
     wc3 = Cascade.generateBlocks(scheme, comp::Cascade.Computation, decayConfigs,    printout=false)
     # Shift the initial level energy by -electronEnergyShift
-    @show scheme.electronEnergyShift
     if  scheme.electronEnergyShift != 0. 
         wc1old = wc1;   wc1 = Cascade.Block[]
         for  block in wc1old
