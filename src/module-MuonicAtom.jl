@@ -53,7 +53,9 @@ module MuonicAtom
 
 
 using Base.Threads, Distributed, Printf, ProgressMeter, SpecialFunctions,
-        ..AngularMomentum, ..Defaults, ..TableStrings
+        ..AngularMomentum, ..Basics, ..Bsplines, ..Defaults, ..Nuclear, ..TableStrings
+        ## ..Basics provides Orbital, Configuration, Subshell, EmMultipole, subshell_l/_j and shellNotation;
+        ## ..Bsplines and ..Nuclear are needed for the Primitives and Model arguments below.
 
 
 
@@ -131,9 +133,9 @@ end
 
 
 # `Base.show(io::IO, level::MuonicAtom.Level)`  ... prepares a proper printout of level::MuonicAtom.Level.
-function Base.show(io::IO, level::MonteCarlo.Level) 
-    println(io, "muonSubshell:   $(level.muonSubshellJ)  ")
-    println(io, "muonOrbitaly:   $(level.muonOrbital)  ")
+function Base.show(io::IO, level::MuonicAtom.Level)
+    println(io, "muonSubshell:   $(level.muonSubshell)  ")
+    println(io, "muonOrbital:    $(level.muonOrbital)  ")
     println(io, "config:         $(level.config)  ")
     println(io, "orbitals:       $(level.orbitals)  ")
     println(io, "energy:         $(level.energy)  ")
@@ -163,12 +165,12 @@ end
 `MuonicAtom.AutoIonizationChannel()`  ... constructor for an 'empty' instance of a MuonicAtom.AutoIonizationChannel
 """
 function  AutoIonizationChannel()
-    AutoIonizationChannel( 0., ComplexF64(0.) )
+    AutoIonizationChannel( 0, ComplexF64(0.) )
 end
 
 
 # `Base.show(io::IO, channel::AutoIonizationChannel)`  ... prepares a proper printout of channel::AutoIonizationChannel.
-function Base.show(io::IO, channel::AutoIonizationChanne) 
+function Base.show(io::IO, channel::AutoIonizationChannel)
     println(io, "kappa:          $(channel.kappa)  ")
     println(io, "amplitude:      $(channel.amplitude)  ")
 end
@@ -183,15 +185,15 @@ end
     + initialLevel   ::MuonicAtom.Level                 ... initial level of the muonic atom.
     + finalLevel     ::MuonicAtom.Level                 ... final level of the muonic atom, with one electron less.
     + energy         ::Float64                          ... (Mean) free energy of the electrons.
-    + channels       ::MuonicAtom.AutoIonizationChannel 
+    + channels       ::Array{MuonicAtom.AutoIonizationChannel,1}
         ... Partial-wave channels for the autoionization of muonic atoms.
 """
 struct  AutoIonizationLine
     initialLevel     ::MuonicAtom.Level
     finalLevel       ::MuonicAtom.Level
-    energy           ::Float64  
-    channels         ::MuonicAtom.AutoIonizationChannel 
-end 
+    energy           ::Float64
+    channels         ::Array{MuonicAtom.AutoIonizationChannel,1}
+end
 
 
 """
@@ -206,13 +208,13 @@ end
 function Base.show(io::IO, line::AutoIonizationLine) 
     println(io, "initialLevel:   $(line.initialLevel)  ")
     println(io, "finalLevel:     $(line.finalLevel)  ")
-    println(io, "energyl:        $(line.energy)  ")
+    println(io, "energy:         $(line.energy)  ")
     println(io, "channels:       $(line.channels)  ")
 end
 
 
 """
-`struct  MuonicAtom.PhotoEmissionChannel`  
+`struct  MuonicAtom.PhotoEmissionChannel`
     ... defines a  Channel type to deal with the (x-ray) photo-emission of muonic atoms. Since all electrons are 
         treated only in terms of their (configuration-) averaged density, the channels are characterized by the 
         multipoles alone.
@@ -230,7 +232,7 @@ end
 `MuonicAtom.PhotoEmissionChannel()`  ... constructor for an 'empty' instance of a MuonicAtom.PhotoEmissionChannel
 """
 function  PhotoEmissionChannel()
-    PhotoEmission( E1, ComplexF64(0.) )
+    PhotoEmissionChannel( E1, ComplexF64(0.) )
 end
 
 
@@ -250,14 +252,15 @@ end
     + initialLevel   ::MuonicAtom.Level                 ... initial level of the muonic atom.
     + finalLevel     ::MuonicAtom.Level                 ... final level of the muonic atom, with one electron less.
     + energy         ::Float64                          ... Energy of the emitted photon = transition energy.
-    + channels       ::MuonicAtom.PhotoEmissionChannel  ... Multipole channels of the photoemission from muonic atoms.
+    + channels       ::Array{MuonicAtom.PhotoEmissionChannel,1}
+        ... Multipole channels of the photoemission from muonic atoms.
 """
 struct  PhotoEmissionLine
     initialLevel     ::MuonicAtom.Level
     finalLevel       ::MuonicAtom.Level
-    energy           ::Float64  
-    channels         ::MuonicAtom.PhotoEmissionChannel 
-end 
+    energy           ::Float64
+    channels         ::Array{MuonicAtom.PhotoEmissionChannel,1}
+end
 
 
 """
@@ -272,7 +275,7 @@ end
 function Base.show(io::IO, line::PhotoEmissionLine) 
     println(io, "initialLevel:   $(line.initialLevel)  ")
     println(io, "finalLevel:     $(line.finalLevel)  ")
-    println(io, "energyl:        $(line.energy)  ")
+    println(io, "energy:         $(line.energy)  ")
     println(io, "channels:       $(line.channels)  ")
 end
 
@@ -294,12 +297,12 @@ end
 
 
 """
-`MuonicAtom.computeAutoionizationnLine(line::MuonicAtom.AutoionizationLine)`  
-    ... to compute all properties of a MuonicAtom.AutoionizationLine. A newLine::MuonicAtom.AutoionizationLine is
+`MuonicAtom.computeAutoIonizationLine(line::MuonicAtom.AutoIonizationLine)`
+    ... to compute all properties of a MuonicAtom.AutoIonizationLine. A newLine::MuonicAtom.AutoIonizationLine is
         returned.
 """
-function computeAutoionizationLine(line::MuonicAtom.AutoionizationLine)
-    newLine = MuonicAtom.AutoionizationLine()
+function computeAutoIonizationLine(line::MuonicAtom.AutoIonizationLine)
+    newLine = MuonicAtom.AutoIonizationLine()
     
     return( newLine )
 end
@@ -312,7 +315,7 @@ end
         Perhaps, this can be treated together if the muonic orbitals are properly interpolated to some useful
         electronic grid.
 """
-function computePhotoEmissionnAmplitude()
+function computePhotoEmissionAmplitude()
     amplitude = ComplexF64(0.)  
     
     return( amplitude )
