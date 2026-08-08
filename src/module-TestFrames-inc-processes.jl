@@ -103,8 +103,12 @@ function testModule_MultiPhotonTransition(; short::Bool=true)
                       MultiPhotonTransition.TotalCsUnpolarized(), MultiPhotonTransition.TotalCsDensityMatrix()]
         if  length(sprint(show, property)) == 0    success = false;   println("** empty show: $property")    end
     end
-    ## (3) the three-photon schemes must FAIL, and fail informatively rather than in a bare MethodError.
-    for  scheme in [MultiPhotonTransition.ThreePhotonEmissionScheme(), MultiPhotonTransition.ThreePhotonAbsorptionScheme()]
+    ## (3) three-photon EMISSION must still FAIL, and fail informatively rather than in a bare MethodError.
+    ##     ABSORPTION was in this list until 08-Aug-2026 and has been REMOVED because it now runs: the two halves
+    ##     are deliberately in different states, since absorption fixes the three photon energies and needs no
+    ##     sharings, while emission fixes only their sum and needs the simplex. A test asserting that a working
+    ##     scheme raises would be a test of the wrong thing.
+    for  scheme in [MultiPhotonTransition.ThreePhotonEmissionScheme()]
         set  = MultiPhotonTransition.Settings(MultiPhotonTransition.Settings(); scheme=scheme)
         threw = false
         try   MultiPhotonTransition.computeLines(scheme, Multiplet(), Multiplet(), Radial.Grid(true), set)
@@ -115,6 +119,19 @@ function testModule_MultiPhotonTransition(; short::Bool=true)
             end
         end
         if  !threw    success = false;   println("** three-photon scheme did not raise: $scheme")    end
+    end
+    ## (4) the three-photon SHARINGS must reproduce the exact simplex moments; this is the sum rule that makes
+    ##     them a finished piece rather than plausible code. Four points per direction suffice for all four.
+    for  (name, exact, quad, err) in MultiPhotonTransition.checkSharings_3p(0.5, 4)
+        if  err > 1.0e-12    success = false;   println("** three-photon simplex moment '$name' off by $err")    end
+    end
+    ## (5) the three-photon ABSORPTION scheme must carry its two photon energies through Settings, and its
+    ##     monochromatic sentinel must split the transition energy into three equal parts.
+    scheme3 = MultiPhotonTransition.ThreePhotonAbsorptionScheme(
+                  MultiPhotonTransition.AbstractMultiPhotonProperty[MultiPhotonTransition.TotalCsUnpolarized()], 0., 0.)
+    omegas  = MultiPhotonTransition.determineOmegas_3pAbsorption(0.6, scheme3)
+    if  !(omegas[1] ≈ 0.2  &&  omegas[2] ≈ 0.2  &&  omegas[3] ≈ 0.2)
+        success = false;   println("** three-photon monochromatic sentinel gave $omegas, not three times 0.2")
     end
     ###
     Defaults.setDefaults("print summary: close", "")

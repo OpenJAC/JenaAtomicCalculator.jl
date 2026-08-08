@@ -70,7 +70,8 @@ elseif  char == 'D'
     println("De) Apply & test the AutoIonization module with ASF from an internally generated initial- and final-state multiplet.")
     println("Df) Apply & test the DielectronicRecombination module with ASF from internally generated initial-, intermediate and final-state multiplets.")
     println("Dg) Apply & test the RayleighCompton module with ASF from an internally generated initial- and final-state multiplets.")
-    println("Dh) Apply & test the MultiPhotonTransition module with ASF from an internally generated initial- and final-state multiplet.")
+    println("Dh) Apply & test the MultiPhotonTransition module: TWO-photon emission, absorption and bichromatic absorption.")
+    println("Du) Apply & test the MultiPhotonTransition module: THREE-photon processes (emission sharings; elementary absorption).")
     #
     println("Di) Apply & test the DoubleAutoIonization module with ASF from an internally generated initial- and final-state multiplet.")
     println("Dj) Apply & test the PhotoDoubleIonization module with ASF from an internally generated initial- and final-state multiplet.")

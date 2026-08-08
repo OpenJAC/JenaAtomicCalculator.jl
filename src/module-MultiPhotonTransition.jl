@@ -371,12 +371,37 @@ end
 
 """
 `struct  MultiPhotonTransition.ThreePhotonAbsorptionScheme  <:  MultiPhotonTransition.AbstractMultiPhotonScheme`
-    ... a scheme for three-photon absorption. NOT YET IMPLEMENTED; see ThreePhotonEmissionScheme.
+    ... a scheme for three-photon absorption between two bound levels, in an ELEMENTARY formulation; see the
+        header of module-MultiPhotonTransition-inc-3p.jl for what "elementary" means and does not mean here.
 
     + properties   ::Array{MultiPhotonTransition.AbstractMultiPhotonProperty,1}
+        ... observables to be computed; only TotalCsUnpolarized is served, and it carries the three-photon
+            transition STRENGTH rather than a cross section -- see the note below.
+    + omega1       ::Float64
+        ... energy of the first photon [in user-selected units].
+    + omega2       ::Float64
+        ... energy of the second photon [in user-selected units]; the third follows from energy conservation,
+            omega3 = (E_f - E_i) - omega1 - omega2.
+
+    THREE COLOURS RATHER THAN ONE, and deliberately so. The monochromatic case omega1 = omega2 = omega3 is the
+    common experiment, but it is also the case in which the six time orderings coincide and therefore test
+    nothing. With three different colours they are six distinct numbers whose sum must still be invariant under
+    permuting the colours -- a free, exact check on the whole ordering bookkeeping, which is what caught the
+    corresponding two-photon bug (blocker A1). Setting omega1 = omega2 = 0 selects the monochromatic case, all
+    three photons carrying (E_f - E_i)/3, and that case is then reached as the LIMIT of the general one rather
+    than being asserted separately.
+
+    WHAT IS REPORTED IS A STRENGTH, NOT A CROSS SECTION. The generalized three-photon cross section would need a
+    normalisation of order F^3 (units cm^6 s^2), and the two-photon absorption normalisation of this module has
+    never been derived either -- inventing a three-photon one would add a second undetermined constant wearing
+    the units of a measured quantity. What is computed is
+        S^(3) = 1/(2J_i+1) sum_M |A(M)|^2   [atomic units]
+    which is the quantity the angular structure and the intermediate sum actually determine.
 """
 struct   ThreePhotonAbsorptionScheme  <:  MultiPhotonTransition.AbstractMultiPhotonScheme
     properties          ::Array{MultiPhotonTransition.AbstractMultiPhotonProperty,1}
+    omega1              ::Float64
+    omega2              ::Float64
 end
 
 
@@ -384,18 +409,39 @@ end
 `MultiPhotonTransition.ThreePhotonAbsorptionScheme()`  ... constructor for the default values.
 """
 function ThreePhotonAbsorptionScheme()
-    ThreePhotonAbsorptionScheme( AbstractMultiPhotonProperty[TotalCsUnpolarized()] )
+    ThreePhotonAbsorptionScheme( AbstractMultiPhotonProperty[TotalCsUnpolarized()], 0., 0. )
+end
+
+
+"""
+`MultiPhotonTransition.ThreePhotonAbsorptionScheme(scheme::MultiPhotonTransition.ThreePhotonAbsorptionScheme;`
+
+        properties=..,      omega1=..,      omega2=..)
+
+    ... the standard JAC keyword copy-constructor.
+"""
+function ThreePhotonAbsorptionScheme(scheme::MultiPhotonTransition.ThreePhotonAbsorptionScheme;
+    properties::Union{Nothing,Array{MultiPhotonTransition.AbstractMultiPhotonProperty,1}}=nothing,
+    omega1::Union{Nothing,Float64}=nothing,                      omega2::Union{Nothing,Float64}=nothing)
+
+    if  isnothing(properties)   propertiesx = scheme.properties   else   propertiesx = properties   end
+    if  isnothing(omega1)       omega1x     = scheme.omega1       else   omega1x     = omega1       end
+    if  isnothing(omega2)       omega2x     = scheme.omega2       else   omega2x     = omega2       end
+
+    ThreePhotonAbsorptionScheme(propertiesx, omega1x, omega2x)
 end
 
 
 function Base.string(scheme::MultiPhotonTransition.ThreePhotonAbsorptionScheme)
-    return( "Three-photon absorption (NOT yet implemented):" )
+    return( "Three-photon absorption (elementary: three parallel linearly-polarized beams):" )
 end
 
 
 function Base.show(io::IO, scheme::MultiPhotonTransition.ThreePhotonAbsorptionScheme)
     println(io, Base.string(scheme))
     println(io, "properties:                 $(scheme.properties)  ")
+    println(io, "omega1:                     $(scheme.omega1)  ")
+    println(io, "omega2:                     $(scheme.omega2)  ")
 end
 
 

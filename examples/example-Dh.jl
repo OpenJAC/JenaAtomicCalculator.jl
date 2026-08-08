@@ -17,6 +17,15 @@ setDefaults("unit: rate", "1/s")
 ##  DIAGNOSTICS
 ##   a)  overview of the intermediate-state sum      -- which levels carry it, which denominators are dangerous
 ##  TWO-PHOTON EMISSION  (total energy fixed, shared between the photons -> continuous spectrum, energy sharings)
+##   b)  H 2s -> 1s                                  -- THE ANCHOR: exact rate 8.2206 /s
+##   c)  H-like Z-scan, Z = 1..54                    -- reproduces the relativistic suppression of the Z^6 law
+##   d)  energy-differential spectrum                -- symmetry + sum rule; this is what found the sign bug
+##   e)  He-like 1s2s 1S_0 -> 1s^2, He and Ar16+     -- J = 0 -> J = 0, so only K = 0
+##   f)  H 2s -> 1s via a GREEN-FUNCTION sum         -- the alternative intermediate representation
+##  TWO-PHOTON ABSORPTION  (photon energies imposed, transition driven -> cross sections, not rates)
+##   g)  H 1s -> 2s, every polarization from one run -- J = 1/2 -> 1/2, so K = {0,1}: SEE THE WARNING BELOW
+##   h)  Mg 3s^2 -> 3s4s via the 3s3p 1P_1 resonance -- a real atom; J = 0 -> J = 0, only K = 0
+##   i)  bichromatic, two beams of different colour  -- odd K REAPPEARS: blocker A2 tested from the other side
 ##
 ##  READ THIS BEFORE QUOTING ANY EMISSION TOTAL FROM THE COMMENTS BELOW. On 08-Aug-2026 the two-photon TOTAL
 ##  rate was corrected by a factor 4 and every total printed in a comment before that date is a factor 4 TOO
@@ -27,17 +36,9 @@ setDefaults("unit: rate", "1/s")
 ##      orderings and the sharings run over the FULL interval, so each physical event is counted twice.
 ##  DIFFERENTIAL rates, spectral SHAPES, gauge RATIOS and Z-TRENDS are ALL UNAFFECTED -- branch d re-runs
 ##  bit-identically in its differentials. Only the totals move, and with them the open constant, 6.679 -> 26.7.
-##   b)  H 2s -> 1s                                  -- THE ANCHOR: exact rate 8.2206 /s
-##   c)  H-like Z-scan, Z = 1..54                    -- reproduces the relativistic suppression of the Z^6 law
-##   d)  energy-differential spectrum                -- symmetry + sum rule; this is what found the sign bug
-##   e)  He-like 1s2s 1S_0 -> 1s^2, He and Ar16+     -- J = 0 -> J = 0, so only K = 0
-##   f)  H 2s -> 1s via a GREEN-FUNCTION sum         -- the alternative intermediate representation
-##  TWO-PHOTON ABSORPTION  (photon energies imposed, transition driven -> cross sections, not rates)
-##   g)  H 1s -> 2s, every polarization from one run -- J = 1/2 -> 1/2, so K = {0,1}: SEE THE WARNING BELOW
-##   h)  Mg 3s^2 -> 3s4s via the 3s3p 1P_1 resonance -- a real atom; J = 0 -> J = 0, only K = 0
-##   i)  bichromatic, two beams of different colour  -- odd K REAPPEARS: blocker A2 tested from the other side
-##  BEYOND TWO PHOTONS
-##   j)  three-photon                                -- simplex sharings done & verified; no amplitude yet
+##
+##  BEYOND TWO PHOTONS -- moved out 08-Aug-2026 to example-Du.jl, which is the agreed home for three-photon
+##  and beyond. The split is by PHOTON NUMBER, not by direction.
 ##
 ## ABSORPTION POLARIZATION OBSERVABLES -- two defects found and fixed 07-Aug-2026 (blocker A2).
 ##   (1) a typo: the K-weight read `2*Basics.twice(K) + 1`, and since twice(K) = 2K that is 4K+1, not 2K+1.
@@ -845,51 +846,6 @@ elseif  false
     perform(we)
     #
 ##
-## =====================================================================================================
-##  BEYOND TWO PHOTONS -- not implemented; the schemes exist and say so
-## =====================================================================================================
-elseif  false
-    # Last successful:  08-Aug-2026        ## for the SIMPLEX SHARINGS only; there is still no amplitude
-    #
-    # --- Branch j: THREE-PHOTON -- the energy sharings are implemented and verified; the amplitude is not.
-    #
-    # WHAT CHANGED 08-Aug-2026 (Phase C, second half). Three-photon was, and remains, unimplemented as a rate:
-    # it needs a third-order amplitude with a double sum over two intermediate sets and all 3! = 6 photon
-    # orderings. But ONE piece of it is self-contained and has an EXACT answer to check against, and that piece
-    # is now built: the ENERGY SHARINGS ON THE TWO-DIMENSIONAL SIMPLEX omega1 + omega2 + omega3 = E_i - E_f.
-    #
-    # WHY THAT PIECE, AND WHY FIRST. Get the simplex quadrature wrong and the eventual three-photon rate is
-    # wrong by a factor that no amount of checking the amplitude would ever reveal -- the silent-normalisation
-    # class of error that has already cost this module days. The moments of a simplex are known in closed form,
-    #     Int w1^a w2^b w3^c dw1 dw2  =  E^(a+b+c+2) a! b! c! / (a+b+c+2)!
-    # so the weights can be verified against exact numbers before any physics is attached to them.
-    #
-    # MEASURED (work/diag-3p-sharings.jl), relative error against the exact moments:
-    #     n = 2 (4 points):   1, w1, w1w2 exact to 1e-16;  w1w2w3 off by 1.1e-1
-    #     n = 4 (16 points):  ALL FOUR exact to 1e-15
-    #     n = 6, 8:           all four exact to 1e-15
-    # The n = 2 failure is not a defect but the confirmation: with the Jacobian the (1,1,1) integrand is degree 4
-    # in the collapsed coordinate, and a 2-point Gauss-Legendre rule is exact only to degree 3. The quadrature
-    # fails exactly where degree counting says it must, and nowhere else.
-    #
-    # HOW TO SEE IT: calcOverview = true prints the sharings and the sum-rule table, as below. A full run still
-    # REFUSES, and its message now lists what is missing AND states that the sharings are already done -- a
-    # partial capability that says exactly how far it goes.
-    ni          = Nuclear.Model(1.0, "point")   ## Fermi cannot represent Z = 1; see the note in the header
-    mpSettings  = MultiPhotonTransition.Settings(MultiPhotonTransition.Settings();
-                        scheme = MultiPhotonTransition.ThreePhotonEmissionScheme(
-                                     MultiPhotonTransition.AbstractMultiPhotonProperty[
-                                         MultiPhotonTransition.EnergyDiffCs()], 4 ),  ## points PER DIRECTION
-                        multipoles = [E1], gauges = [UseCoulomb],
-                        intermediateStates = Multiplet(), calcOverview = true,
-                        lineSelection = LineSelection() )
-    wf = Atomic.Computation(Atomic.Computation(), name="Dh-j: three-photon energy sharings on the simplex", grid=grid,
-                            nuclearModel   = ni,
-                            initialConfigs = [Configuration("3s")],
-                            finalConfigs   = [Configuration("1s")],
-                            processSettings= mpSettings )
-    perform(wf)
-    #
 end
 #
 setDefaults("print summary: close", "")
