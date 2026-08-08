@@ -20,8 +20,11 @@
 """
 module MultiPhotonTransition
 
-using Printf, QuadGK, ..AngularMomentum, ..AtomicState, ..Basics, ..Defaults, ..ManyElectron, ..Nuclear,
-                        ..PhotoEmission, ..Radial, ..TableStrings
+## GaussQuadrature is used by the three-photon simplex sharings, which build their own tensor rule rather than
+## calling Basics.determineEnergySharings -- that routine returns the sharings of ONE energy between TWO photons
+## and does not generalize to a simplex.
+using Printf, QuadGK, GaussQuadrature, ..AngularMomentum, ..AtomicState, ..Basics, ..Defaults, ..ManyElectron,
+                        ..Nuclear, ..PhotoEmission, ..Radial, ..TableStrings
 
 
 """
@@ -278,8 +281,11 @@ end
     + properties   ::Array{MultiPhotonTransition.AbstractMultiPhotonProperty,1}
         ... observables to be computed for this scheme.
     + omegaLess    ::Float64
-        ... energy of the photon with the SMALLER frequency; the larger one follows from energy conservation,
-            omegaMore = (E_f - E_i) - omegaLess.
+        ... energy of the photon with the SMALLER frequency [in user-selected units, like the photon energies of
+            the other process modules]; the larger one follows from energy conservation,
+            omegaMore = (E_f - E_i) - omegaLess. Which of the two is called the smaller one is immaterial to the
+            result: the cross section is exactly invariant under omegaLess <-> omegaMore, and that invariance is
+            one of the checks the scheme carries.
 
     THE BICHROMATIC CASE IS THE UNAMBIGUOUS ONE, and that matters beyond its own physics: with two
     distinguishable beams the rate is W = sigma^(2) * F_1 * F_2 with no combinatorial factor to argue about, so

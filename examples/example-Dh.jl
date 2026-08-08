@@ -25,9 +25,9 @@ setDefaults("unit: rate", "1/s")
 ##  TWO-PHOTON ABSORPTION  (photon energies imposed, transition driven -> cross sections, not rates)
 ##   g)  H 1s -> 2s, every polarization from one run -- J = 1/2 -> 1/2, so K = {0,1}: SEE THE WARNING BELOW
 ##   h)  Mg 3s^2 -> 3s4s via the 3s3p 1P_1 resonance -- a real atom; J = 0 -> J = 0, only K = 0
-##   i)  bichromatic, two beams of different colour  -- scaffolded; fixes the single-beam convention
+##   i)  bichromatic, two beams of different colour  -- odd K REAPPEARS: blocker A2 tested from the other side
 ##  BEYOND TWO PHOTONS
-##   j)  three-photon                                -- not implemented; fails with what would be needed
+##   j)  three-photon                                -- simplex sharings done & verified; no amplitude yet
 ##
 ## ABSORPTION POLARIZATION OBSERVABLES -- two defects found and fixed 07-Aug-2026 (blocker A2).
 ##   (1) a typo: the K-weight read `2*Basics.twice(K) + 1`, and since twice(K) = 2K that is 4K+1, not 2K+1.
@@ -584,7 +584,7 @@ elseif  false
 ##  TWO-PHOTON ABSORPTION  (excitation: the photon energies are IMPOSED, and the transition is driven
 ##  rather than spontaneous; the observables are cross sections, not rates)
 ## =====================================================================================================
-elseif  true
+elseif  false
     # Last successful:  07-Aug-2026        ## for the ANGULAR structure; the absolute scale is NOT verified
     #
     # DATED for the polarization structure, which is exact and parameter-free, NOT for the magnitude.
@@ -737,31 +737,78 @@ elseif  false
     perform(wi)
     #
 elseif  false
-    # Last visit:  06-Aug-2026
+    # Last successful:  08-Aug-2026        ## for the ANGULAR structure and the monochromatic limit
+    #
+    # DATED for what it verifies -- the odd-K selection rule, the omega1 <-> omega2 invariance and the
+    # monochromatic limit -- NOT for the magnitude, which rests on the same underived absorption normalisation
+    # as branches g and h.
     #
     # --- Branch i: TWO-PHOTON ABSORPTION, BICHROMATIC -- two beams of different frequency.
     #
-    # THE SCHEME EXISTED BUT HAD NO computeLines AT ALL until 06-Aug-2026: it was declared, documented in the
-    # abstract type and given a default constructor, yet had no `-inc-` file, so selecting it died in a bare
-    # MethodError with nothing to indicate why. It now has its own file and reports precisely what is missing.
+    # THE SCHEME HAD NO computeLines AT ALL until 06-Aug-2026 and only a scaffold until 08-Aug-2026: it was
+    # declared, documented in the abstract type and given a default constructor, yet had no `-inc-` file, so
+    # selecting it died in a bare MethodError with nothing to indicate why. It is now implemented.
     #
-    # WHY IT MATTERS BEYOND ITS OWN PHYSICS. With two distinguishable beams the rate is W = sigma^(2) * F_1 * F_2
-    # with NO combinatorial factor to argue about, whereas the single-beam case involves indistinguishable
-    # photons and therefore a convention. Requiring the two to agree in the limit omega_1 -> omega_2 is what
-    # FIXES that convention instead of leaving it to be guessed -- exactly the class of silent factor that has
-    # cost this project real time before.
+    # WHY IT MATTERS BEYOND ITS OWN PHYSICS -- it tests blocker A2 FROM THE OPPOSITE SIDE. A2 established that
+    # odd K must vanish for two photons from ONE beam, because identical bosons require a symmetric two-photon
+    # state. Two beams of different colour are not identical particles, so odd K must REAPPEAR here; if it came
+    # out suppressed anyway, the mechanism claimed in A2 would be wrong and the fix would have been right by
+    # accident. It is not: odd K carries 89 % of the unpolarized cross section at omega1 = 0.1 (E_f - E_i).
+    #
+    # WHAT WAS MEASURED (work/diag-bichromatic.jl, H 1s -> 2s, Babushkin, rbox = 20; x = omega1/(E_f - E_i)).
+    # Every entry is a RATIO taken within one basis, so the box size divides out of all of them:
+    #
+    #     x        unpolarized     linear/unpol    odd-K fraction    bichromatic/monochromatic
+    #     0.1      1.607734e-09      0.211197       8.944013e-01           145.060
+    #     0.25     3.006394e-10      0.436600       7.817002e-01            27.126
+    #     0.4      7.474408e-11      1.254942       3.725292e-01             6.744
+    #     0.49     4.462238e-11      1.988122       5.938897e-03             4.026
+    #     0.499    4.433576e-11      1.999881       5.974393e-05             4.000261
+    #     0.4999   4.433290e-11      1.999999       5.974750e-07             4.000003
+    #
+    # FOUR PARAMETER-FREE CHECKS, all passed:
+    #   * THE ODD-K FRACTION FALLS QUADRATICALLY in the detuning -- exactly 100x per decade in (0.5 - x). It must:
+    #     the odd-K amplitude is the DIFFERENCE of the two time orderings, which is linear in omega1 - omega2.
+    #   * THE MONOCHROMATIC LIMIT IS 4.000003, and the 4 is DERIVED, not fitted: as the colours merge the two
+    #     orderings coincide, so the rank-K amplitude tends to (1 + (-1)^K) U, i.e. 2U for even K, while the
+    #     monochromatic routine keeps only U. That is an amplitude-level statement; the remaining flux
+    #     convention (F_1 F_2 versus F^2 or F^2/2 for one beam) is a separate question and is NOT settled by it.
+    #   * linear/unpolarized -> 2.0000, the monochromatic value, once odd K has switched off.
+    #   * sigma IS EXACTLY INVARIANT under omega1 <-> omega2 (identical to all 10 printed digits at x = 0.2 and
+    #     0.35). Exchanging the beams exchanges the orderings and multiplies the rank-K amplitude by a phase.
+    #
+    # AND ONE FINDING ABOUT THE MONOCHROMATIC FILE, recorded rather than acted on: its
+    # computeTotalCsRightCircular has never been filled in -- the body is a comment reading "Need to be filled"
+    # and it returns zero for every input. The "right-circular vanishes identically" check reported for branches
+    # g and h is therefore VACUOUS; those branches remain dated for their OTHER checks, which are unaffected.
+    # The bichromatic routine here does compute it, and was tested where the answer is NOT zero: for H 1s -> 3d
+    # (K = 2 open) it gives right-circular/linear = 1.500000, against 0.8/0.5333 = 1.5 from the 3-j weights.
     ni          = Nuclear.Model(1.0, "point")   ## Fermi cannot represent Z = 1; see the note in the header
-    interConfs  = [Configuration("2p"), Configuration("3p"), Configuration("4p"), Configuration("5p")]
+    interConfs  = [Configuration("2p"), Configuration("3p"), Configuration("4p"), Configuration("5p"),
+                   Configuration("6p"), Configuration("7p")]
     interRep    = Representation("intermediate np levels", ni, grid, interConfs, MeanFieldMultiplet(MeanFieldSettings()))
     interMp     = generate(interRep, output=true)["mean-field multiplet"]
     #
+    ## omegaLess is in the USER-SELECTED energy units, like every other photon energy in JAC. The H 1s -> 2s
+    ## transition energy is 10.037 eV here, so 4.0 eV is a strongly asymmetric sharing (x = 0.3985), chosen
+    ## because odd K is then large and plainly visible rather than a small correction.
+    ## THIS BRANCH ITSELF PRINTS (08-Aug-2026, rbox = 80):
+    ##     omega1 4.0000 eV, omega2 6.0376 eV
+    ##     linear 9.3301e-28 (Cou) / 1.9109e-26 (Bab)     right-circular 0.0000 / 0.0000     [K <= 1, so it must]
+    ##     unpolarized 5.8527e-28 / 1.5004e-26            linear/unpolarized 1.594 (Cou) / 1.274 (Bab)
+    ##     odd-K fraction of the unpolarized cross section: 0.2029 (Cou) / 0.3632 (Bab)
+    ## The odd-K fraction is LARGE, which is the point; linear/unpolarized sits away from 2.0000 for exactly the
+    ## same reason -- odd K contributes to the unpolarized cross section but cancels for two beams of equal
+    ## linear polarization.
     mpSettings  = MultiPhotonTransition.Settings(MultiPhotonTransition.Settings();
                         scheme = MultiPhotonTransition.TwoPhotonAbsorptionBichromaticScheme(
                                      MultiPhotonTransition.AbstractMultiPhotonProperty[
-                                         MultiPhotonTransition.TotalCsUnpolarized()], 3.4 ),  ## omegaLess
-                        multipoles = [E1], gauges = [UseCoulomb],
+                                         MultiPhotonTransition.TotalCsLinear(),
+                                         MultiPhotonTransition.TotalCsRightCircular(),
+                                         MultiPhotonTransition.TotalCsUnpolarized()], 4.0 ),  ## omegaLess [eV]
+                        multipoles = [E1], gauges = [UseCoulomb, UseBabushkin],
                         intermediateStates = interMp, calcOverview = false,
-                        lineSelection = LineSelection() )
+                        lineSelection = LineSelection(), printBefore = true )
     we = Atomic.Computation(Atomic.Computation(), name="Dh-i: bichromatic two-photon absorption of H", grid=grid,
                             nuclearModel   = ni,
                             initialConfigs = [Configuration("1s")],
@@ -773,27 +820,42 @@ elseif  false
 ## =====================================================================================================
 ##  BEYOND TWO PHOTONS -- not implemented; the schemes exist and say so
 ## =====================================================================================================
-elseif  false
-    # Last visit:  06-Aug-2026
+elseif  true
+    # Last successful:  08-Aug-2026        ## for the SIMPLEX SHARINGS only; there is still no amplitude
     #
-    # --- Branch j: THREE-PHOTON -- the scheme exists and says clearly that it is not implemented.
+    # --- Branch j: THREE-PHOTON -- the energy sharings are implemented and verified; the amplitude is not.
     #
-    # This branch is deliberately kept, and deliberately expected to FAIL. A scheme that is declared but has no
-    # method behind it is exactly what branch e suffered from: `TwoPhotonAbsorptionBichromatic` existed as a
-    # type, appeared in the documentation, and died in a MethodError that named neither the scheme nor the
-    # missing piece. Here the error names the process, lists what would have to be built, and points at the
-    # scheme to use meanwhile -- so the failure is informative rather than merely a failure.
+    # WHAT CHANGED 08-Aug-2026 (Phase C, second half). Three-photon was, and remains, unimplemented as a rate:
+    # it needs a third-order amplitude with a double sum over two intermediate sets and all 3! = 6 photon
+    # orderings. But ONE piece of it is self-contained and has an EXACT answer to check against, and that piece
+    # is now built: the ENERGY SHARINGS ON THE TWO-DIMENSIONAL SIMPLEX omega1 + omega2 + omega3 = E_i - E_f.
     #
-    # What three-photon needs: a THIRD-order amplitude (a double sum over two sets of intermediate states, with
-    # all 3! = 6 photon orderings against 2! = 2 here), energy sharings on a two-dimensional simplex rather than
-    # a line, and the coupling of three multipoles, so that the rank K is no longer fixed by oplus(J_f, J_i).
+    # WHY THAT PIECE, AND WHY FIRST. Get the simplex quadrature wrong and the eventual three-photon rate is
+    # wrong by a factor that no amount of checking the amplitude would ever reveal -- the silent-normalisation
+    # class of error that has already cost this module days. The moments of a simplex are known in closed form,
+    #     Int w1^a w2^b w3^c dw1 dw2  =  E^(a+b+c+2) a! b! c! / (a+b+c+2)!
+    # so the weights can be verified against exact numbers before any physics is attached to them.
+    #
+    # MEASURED (work/diag-3p-sharings.jl), relative error against the exact moments:
+    #     n = 2 (4 points):   1, w1, w1w2 exact to 1e-16;  w1w2w3 off by 1.1e-1
+    #     n = 4 (16 points):  ALL FOUR exact to 1e-15
+    #     n = 6, 8:           all four exact to 1e-15
+    # The n = 2 failure is not a defect but the confirmation: with the Jacobian the (1,1,1) integrand is degree 4
+    # in the collapsed coordinate, and a 2-point Gauss-Legendre rule is exact only to degree 3. The quadrature
+    # fails exactly where degree counting says it must, and nowhere else.
+    #
+    # HOW TO SEE IT: calcOverview = true prints the sharings and the sum-rule table, as below. A full run still
+    # REFUSES, and its message now lists what is missing AND states that the sharings are already done -- a
+    # partial capability that says exactly how far it goes.
     ni          = Nuclear.Model(1.0, "point")   ## Fermi cannot represent Z = 1; see the note in the header
     mpSettings  = MultiPhotonTransition.Settings(MultiPhotonTransition.Settings();
-                        scheme = MultiPhotonTransition.ThreePhotonEmissionScheme(),
+                        scheme = MultiPhotonTransition.ThreePhotonEmissionScheme(
+                                     MultiPhotonTransition.AbstractMultiPhotonProperty[
+                                         MultiPhotonTransition.EnergyDiffCs()], 4 ),  ## points PER DIRECTION
                         multipoles = [E1], gauges = [UseCoulomb],
-                        intermediateStates = Multiplet(), calcOverview = false,
+                        intermediateStates = Multiplet(), calcOverview = true,
                         lineSelection = LineSelection() )
-    wf = Atomic.Computation(Atomic.Computation(), name="Dh-j: three-photon emission (expected to fail)", grid=grid,
+    wf = Atomic.Computation(Atomic.Computation(), name="Dh-j: three-photon energy sharings on the simplex", grid=grid,
                             nuclearModel   = ni,
                             initialConfigs = [Configuration("3s")],
                             finalConfigs   = [Configuration("1s")],
