@@ -270,19 +270,54 @@ end
 
 """
 `struct  Cascade.ElectronIonizationScheme  <:  Cascade.AbstractCascadeScheme`  
-        ... to compute electron ionization spectra including the direct (EII) and resonant contributions, i.e. the dielectronic
-            capture with subsequent double-autoionization. For this double autoionization, a branching factor is estimated.
-            Typical electron-ionization properties are energy-dependent EII cross sections, effective collision strengths, 
-            EII plasma rate coefficients, and others (not yet).
+        ... to compute the INDIRECT contribution to electron-impact ionization, i.e. excitation-autoionization (EA):
+            a free electron excites an inner-shell electron into a level that lies above the ionization threshold of
+            the ion, and that level then autoionizes.  The net effect is ionization, and for many ions -- notably
+            along the Li-, Na- and Mg-like sequences -- EA rivals or exceeds the direct channel.
 
-    + processes             ::Array{Basics.AbstractProcess,1} 
-        ... List of the atomic processes that are supported and should be included into the cascade.
+            The scheme is built exactly like Cascade.DielectronicRecombinationScheme, with which it is the mirror
+            image: DR captures an electron and stabilizes radiatively, EA excites an electron and stabilizes by
+            emitting one.  Both therefore generate two kinds of Cascade.Step,
+
+                DR :  Auger (capture, by detailed balance)   +  Radiative (stabilization)
+                EA :  ImpactExc (excitation)                 +  Auger (autoionization)
+
+            A cascade computation returns the ImpactExcitation.Line's and AutoIonization.Line's; combining them
+            into an EA cross section or plasma rate coefficient is the task of a Cascade.Simulation.
+
+            NOT INCLUDED, and deliberately so:
+              + the DIRECT electron-impact ionization channel.  Cascade.ImpactIonizationScheme is reserved for it
+                and is not implemented; see the note there.
+              + REDA (resonant-excitation double autoionization), which requires the electron-capture scheme that
+                is still outstanding.  EA and REDA together make up the resonant part of the ionization; only EA
+                is available here.
+
     + electronEnergies      ::Array{Float64,1}                
-        ... List of electron energies for which this electron-impact excitation scheme is to be calculated.
+        ... List of impact energies of the incoming electron, in the user-selected units.  The collision strengths
+            are computed AT these energies, so three or more well-spread values are needed if a rate coefficient
+            is to be formed from them afterwards.
+    + excitationFromShells  ::Array{Shell,1}
+        ... List of (inner) shells out of which the electron is excited.
+    + excitationToShells    ::Array{Shell,1}
+        ... List of shells into which it is excited.  Only those excited configurations are kept whose mean energy
+            lies ABOVE the ionization threshold of the ion, since only those can autoionize.
+    + lValues               ::Array{Int64,1}
+        ... Orbital angular momenta of the free electron, i.e. the partial waves summed over in the excitation.
+            maxKappa is taken as maximum(lValues)+1.  A truncated sum does not merely lower the cross section, it
+            can invert its energy dependence, and it does so silently; read the `convergence` column.
+    + NoExcitations         ::Int64
+        ... Number of displaced electrons for the generation of the excited configurations; 1 in nearly all cases.
+    + electronEnergyShift   ::Float64
+        ... Energy shift for all bound-state energies relative to the levels of the reference configuration, taken
+            in the user-defined units.
 """
 struct   ElectronIonizationScheme  <:  Cascade.AbstractCascadeScheme
-    processes               ::Array{Basics.AbstractProcess,1}
     electronEnergies        ::Array{Float64,1}
+    excitationFromShells    ::Array{Shell,1}
+    excitationToShells      ::Array{Shell,1}
+    lValues                 ::Array{Int64,1}
+    NoExcitations           ::Int64
+    electronEnergyShift     ::Float64
 end
 
 
@@ -290,7 +325,7 @@ end
 `Cascade.ElectronIonizationScheme()`  ... constructor for an 'default' instance of a Cascade.ElectronIonizationScheme.
 """
 function ElectronIonizationScheme()
-    ElectronIonizationScheme([ImpactExc], Float64[] )
+    ElectronIonizationScheme(Float64[], Shell[], Shell[], Int64[], 1, 0. )
 end
 
 
@@ -304,8 +339,12 @@ end
 # `Base.show(io::IO, scheme::ElectronIonizationScheme)`  ... prepares a proper printout of the scheme::ElectronIonizationScheme.
 function Base.show(io::IO, scheme::ElectronIonizationScheme)
     sa = Base.string(scheme);                 print(io, sa, "\n")
-    println(io, "processes:                   $(scheme.processes)  ")
     println(io, "electronEnergies:            $(scheme.electronEnergies)  ")
+    println(io, "excitationFromShells:        $(scheme.excitationFromShells)  ")
+    println(io, "excitationToShells:          $(scheme.excitationToShells)  ")
+    println(io, "lValues:                     $(scheme.lValues)  ")
+    println(io, "NoExcitations:               $(scheme.NoExcitations)  ")
+    println(io, "electronEnergyShift:         $(scheme.electronEnergyShift)  ")
 end
 
 
@@ -506,13 +545,26 @@ end
 
 
 """
-`struct  Cascade.ImpactIonizationScheme  <:  Cascade.AbstractCascadeScheme`  
-        ... to compute the (direct) electron-impact excitation spectrum for a list of impact energies (not yet).
+`struct  Cascade.ImpactIonizationScheme  <:  Cascade.AbstractCascadeScheme`    
+        ... RESERVED FOR THE DIRECT electron-impact ionization channel; NOT IMPLEMENTED, and there is no
+            Cascade.perform for it.  Recorded here so that the gap is visible rather than surprising.
+
+            The obstacle is not effort but shape.  JAC's ImpactIonization module is semi-empirical, not
+            amplitude-based: its Settings are an AbstractEmpiricalSettings, it is driven from an
+            Empirical.Computation rather than an Atomic.Computation, it takes a Basis rather than two multiplets,
+            and it has no Line type at all.  Its elementary datum is an ImpactIonization.CrossSection per
+            (subshell, impact energy), obtained from a BEB, BED or relativistic model.  A cascade built on it
+            would therefore store cross sections rather than lines, and the cascade approaches (AverageSCA, SCA)
+            would influence only the SCF basis behind the binding energies -- not what they mean elsewhere.
+
+            That is a workable design, but it is a different one, and it should be settled deliberately rather
+            than by analogy.  The INDIRECT channel, excitation-autoionization, is implemented and lives in
+            Cascade.ElectronIonizationScheme.
 
     + processes             ::Array{Basics.AbstractProcess,1} 
         ... List of the atomic processes that are supported and should be included into the cascade.
     + electronEnergies      ::Array{Float64,1}                
-        ... List of electron energies for which this electron-impact excitation scheme is to be calculated.
+        ... List of electron energies for which this scheme is to be calculated.
 """
 struct   ImpactIonizationScheme  <:  Cascade.AbstractCascadeScheme
     processes               ::Array{Basics.AbstractProcess,1}

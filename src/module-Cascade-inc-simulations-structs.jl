@@ -321,6 +321,48 @@ end
 
 
 """
+`struct  Cascade.EaCrossSections   <:  Cascade.AbstractSimulationProperty`
+    ... defines a type for simulating the excitation-autoionization (EA) contribution to the electron-impact
+        ionization cross section from the lines of a previous Cascade.ElectronIonizationScheme computation.
+
+        The EA cross section at a given impact energy is
+
+            sigma^EA(E; i) = SUM_e  sigma^exc(E; i -> e) * B_a(e)
+
+        i.e. the electron-impact excitation cross section into each autoionizing level e, weighted by the
+        branching ratio B_a(e) = A_a / (A_a + A_r) with which that level decays by autoionization rather than
+        radiatively.  The ElectronIonizationScheme computes no radiative rates, so A_r = 0 and B_a = 1 for every
+        level that carries at least one Auger line; the sum then runs over exactly those levels, which is what
+        the autoionization lines of the computation identify.  That is an upper bound on the EA cross section,
+        and a good one for inner-shell excited levels of light ions, where autoionization dominates radiative
+        decay by orders of magnitude -- but it IS an upper bound and should be read as such.
+
+    + initialLevelNo      ::Int64             ... Level No of the initial level; 0 selects all initial levels.
+    + electronEnergies    ::Array{Float64,1}  ... Impact energies at which sigma^EA is reported; these must be
+                                                  among the energies of the underlying computation.
+"""
+struct  EaCrossSections   <:  Cascade.AbstractSimulationProperty
+    initialLevelNo        ::Int64
+    electronEnergies      ::Array{Float64,1}
+end
+
+
+"""
+`Cascade.EaCrossSections()`  ... (simple) constructor for cascade EaCrossSections.
+"""
+function EaCrossSections()
+    EaCrossSections(1, Float64[])
+end
+
+
+# `Base.show(io::IO, dist::Cascade.EaCrossSections)`  ... prepares a proper printout of the variable data::Cascade.EaCrossSections.
+function Base.show(io::IO, dist::Cascade.EaCrossSections)
+    println(io, "initialLevelNo:           $(dist.initialLevelNo)  ")
+    println(io, "electronEnergies:         $(dist.electronEnergies)  ")
+end
+
+
+"""
 `struct  Cascade.PiRateCoefficients   <:  Cascade.AbstractSimulationProperty`  
     ... defines a type for simulating the PI plasma rate coefficients as function of the (free) photon energy distribution and
         the plasma temperature. These coefficients included a convolution of the direct photoionization cross sections over the 

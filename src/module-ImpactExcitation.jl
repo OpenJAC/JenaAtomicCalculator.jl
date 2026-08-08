@@ -507,13 +507,23 @@ function  computeLinesCascade(finalMultiplet::Multiplet, initialMultiplet::Multi
     maxEnergy   = 0.;   for  line in lines   maxEnergy = max(maxEnergy, line.initialElectronEnergy)   end
     nrContinuum = Continuum.gridConsistency(maxEnergy, grid)
     #
-    newLines = ImpactExcitation.Line[]
-    for  line  in  lines
-        newLine = ImpactExcitation.computeAmplitudesProperties(line, nm, grid, nrContinuum, settings, printout=printout)
-        ## Drop lines that carry no channel at all; they contribute nothing and only lengthen the tables
-        if  length(newLine.channels) == 0    continue    end
-        push!( newLines, newLine)
+    ## The per-line work is independent -- each line builds its own continuum orbital and its own amplitudes --
+    ## so it is spread over the available Julia threads.  This mirrors ImpactExcitation.computeLines() above,
+    ## which already threads the very same computeAmplitudesProperties(); the cascade variant was serial and
+    ## thereby left the expensive part of every cascade on a single thread.  Start Julia with `julia -t N` to
+    ## use it; with the default of one thread the loop below behaves exactly as the serial one did.
+    ##
+    ## NB the results are written BY INDEX into a pre-allocated vector rather than push!-ed: push! is not
+    ## thread-safe, and indexing also preserves the order of the lines, which the rate-coefficient machinery
+    ## relies on (ImpactExcitation.groupLines reshapes the list into an energies x transitions block).
+    ## Lines without a single channel are dropped afterwards rather than skipped inside the loop.
+    tmpLines = Vector{Union{Nothing, ImpactExcitation.Line}}(nothing, length(lines))
+    doPrint  = printout  &&  Threads.nthreads() == 1     ## interleaved per-line printout would be unreadable
+    Threads.@threads for  i  in  eachindex(lines)
+        newLine = ImpactExcitation.computeAmplitudesProperties(lines[i], nm, grid, nrContinuum, settings, printout=doPrint)
+        if  length(newLine.channels) > 0    tmpLines[i] = newLine    end
     end
+    newLines = ImpactExcitation.Line[ l  for l in tmpLines  if l !== nothing ]
     # Print the results; ImpactExcitation.displayResults() writes to stdout only
     if  printout   ImpactExcitation.displayResults(newLines)    end
     ## No rate coefficients here: a cascade computation returns LINES.  Effective collision strengths and plasma

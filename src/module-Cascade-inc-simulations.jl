@@ -965,6 +965,80 @@ end
 
 
 """
+`Cascade.simulate(property::Cascade.EaCrossSections, method::Cascade.AbstractSimulationMethod,
+                  simulation::Cascade.Simulation)`
+    ... simulates the excitation-autoionization contribution to the electron-impact ionization cross section from
+        the ImpactExcitation.Line's and AutoIonization.Line's of a previous ElectronIonizationScheme computation.
+        Only those excited levels that carry at least one Auger line contribute, i.e. exactly the autoionizing
+        ones.  An Array{Basics.ScalarProperty{Float64},1} of (impact energy, sigma^EA) is returned.
+"""
+function simulate(property::Cascade.EaCrossSections, method::Cascade.AbstractSimulationMethod,
+                  simulation::Cascade.Simulation)
+    printSummary, iostream = Defaults.getDefaults("summary flag/stream")
+    linesE = simulation.computationData[1]["results"]["impact-excitation lines:"]
+    linesA = simulation.computationData[1]["results"]["autoionization lines:"]
+    if  length(linesE) == 0     error("Cascade.EaCrossSections: the cascade data carry no impact-excitation lines.")   end
+    if  length(linesA) == 0
+        error("Cascade.EaCrossSections: the cascade data carry no autoionization lines, so NO excited level of " *
+              "this cascade autoionizes and the EA cross section is zero by construction.  Widen " *
+              "ElectronIonizationScheme.excitationToShells until levels above the ionization threshold are reached.")
+    end
+    ## The autoionizing levels are those that appear as the INITIAL level of an Auger line.  Their branching ratio
+    ## is taken as 1: this scheme computes no radiative rates, so the result is an upper bound (see the docstring).
+    autoIonizing = unique([ (l.initialLevel.index, l.initialLevel.energy)  for l in linesA ])
+    #
+    energies = length(property.electronEnergies) > 0 ? property.electronEnergies :
+                      sort(unique([Defaults.convertUnits("energy: from atomic", l.initialElectronEnergy) for l in linesE]))
+    results  = Basics.ScalarProperty{Float64}[]
+    for  en  in  energies
+        en_au = Defaults.convertUnits("energy: to atomic", en)
+        cs    = 0.
+        for  l  in  linesE
+            if  abs(l.initialElectronEnergy - en_au) / max(en_au, 1.0e-10) > 1.0e-6      continue    end
+            if  !( (l.finalLevel.index, l.finalLevel.energy)  in  autoIonizing )          continue    end
+            cs = cs + l.crossSection
+        end
+        push!( results, Basics.ScalarProperty(en_au, cs) )
+    end
+    #
+    Cascade.displayEaCrossSections(stdout, results, property)
+    if  printSummary   Cascade.displayEaCrossSections(iostream, results, property)    end
+    #
+    return( results )
+end
+
+
+"""
+`Cascade.displayEaCrossSections(stream::IO, results::Array{Basics.ScalarProperty{Float64},1},
+                                property::Cascade.EaCrossSections)`
+    ... displays the excitation-autoionization cross sections in a neat table; nothing is returned.
+"""
+function displayEaCrossSections(stream::IO, results::Array{Basics.ScalarProperty{Float64},1},
+                                property::Cascade.EaCrossSections)
+    nx = 64
+    println(stream, " ")
+    println(stream, "  Excitation-autoionization (EA) contribution to the electron-impact ionization:")
+    println(stream, " ")
+    println(stream, "    Summed over the excited levels that autoionize, with a branching ratio of 1;")
+    println(stream, "    this is an UPPER BOUND, since no radiative decay of those levels is computed here.")
+    println(stream, " ")
+    println(stream, "  ", TableStrings.hLine(nx))
+    println(stream, "      Impact energy         sigma^EA        ")
+    println(stream, "      " * TableStrings.inUnits("energy") * "               " *
+                    TableStrings.inUnits("cross section"))
+    println(stream, "  ", TableStrings.hLine(nx))
+    for  r  in  results
+        sa = "      " * @sprintf("%.6e", Defaults.convertUnits("energy: from atomic", r.arg)) * "        " *
+                        @sprintf("%.6e", Defaults.convertUnits("cross section: from atomic", r.value))
+        println(stream, sa)
+    end
+    println(stream, "  ", TableStrings.hLine(nx))
+    #
+    return( nothing )
+end
+
+
+"""
 `Cascade.simulate(property::Cascade.EieRateCoefficients, method::Cascade.AbstractSimulationMethod,
                   simulation::Cascade.Simulation)`
     ... simulates electron-impact excitation rate coefficients and effective collision strengths from the
