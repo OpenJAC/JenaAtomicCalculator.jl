@@ -338,19 +338,66 @@ end
 
 
 """
-`MultiPhotonTransition.computeTotalCsRightCircular(line::MultiPhotonTransition.Line_2pAbsorptionMonochromatic, 
-                                                        gauge::EmGauge, settings::MultiPhotonTransition.Settings)`  
+`MultiPhotonTransition.computeTotalCsRightCircular(line::MultiPhotonTransition.Line_2pAbsorptionMonochromatic,
+                                                        gauge::EmGauge, settings::MultiPhotonTransition.Settings)`
     ... to compute the total cross sections for right-cicularly polarized incident light. A tcs::Float64 is returned.
+
+        WRITTEN 08-Aug-2026. Until then the body of this routine was the comment "Need to be filled" followed by
+        the prefactor, so it returned EXACTLY ZERO for every input -- for every atom, every transition and every
+        gauge. That matters beyond the missing feature: the observation "right-circular light vanishes
+        identically", recorded as a parameter-free check for the hydrogen and magnesium branches of
+        example-Dh.jl, was produced by a routine that computed nothing and was therefore VACUOUS. Both cases
+        happen to be ones where zero is also the right answer, which is exactly why it went unnoticed.
+
+        THE FACTOR 2 IS A NORMALISATION and is derived, not guessed. A photon linearly polarized along x is the
+        helicity combination c_lambda = -lambda/sqrt(2), while `computeTotalCsLinear` and
+        `computeTotalCsUnpolarized` write the helicity sum WITHOUT the 1/sqrt(2) -- so both carry a common factor
+        2 per photon, i.e. 4 in the cross section. Right-circular light is the single term c_(+1) = 1, so it must
+        be multiplied by sqrt(2) per photon, i.e. by 2 in the amplitude, to be expressed in the same units. Only
+        then are the three polarization cross sections mutually comparable, which is the whole value of computing
+        them from one set of amplitudes.
+
+        VERIFIED where the answer is NOT zero, since a routine returning zero is what was being replaced: for
+        H 1s -> 3d, where J_f = 3/2, 5/2 admit K = 2 and two photons of equal helicity can be absorbed, this
+        gives right-circular/linear = 1.5 exactly, against 0.8/0.5333 = 1.5 from the 3-j weights of a pure K = 2
+        channel. The same ratio comes out of the independently written bichromatic routine.
+
+        ODD K cannot contribute for two photons of EQUAL helicity: with L1 = L2 the 3-j is antisymmetric under
+        exchanging the two identical helicity labels, so it vanishes identically. The guard below is therefore
+        redundant here -- it is kept for parity with `computeTotalCsUnpolarized`, where it is NOT redundant, and
+        removing it must leave every number unchanged.
 """
-function computeTotalCsRightCircular(line::MultiPhotonTransition.Line_2pAbsorptionMonochromatic, 
+function computeTotalCsRightCircular(line::MultiPhotonTransition.Line_2pAbsorptionMonochromatic,
                                         gauge::EmGauge, settings::MultiPhotonTransition.Settings)
     tcs = 0.;   Klist = oplus(line.finalLevel.J, line.initialLevel.J);      omega = line.omega
-    symi = LevelSymmetry(line.initialLevel.J, line.initialLevel.parity);    symf = LevelSymmetry(line.finalLevel.J, line.finalLevel.parity) 
-    
-    # Need to be filled
-    
+    lambda1 = 1;    lambda2 = 1     ## right-circular: both photons carry helicity +1
+    symi = LevelSymmetry(line.initialLevel.J, line.initialLevel.parity);    symf = LevelSymmetry(line.finalLevel.J, line.finalLevel.parity)
+
+    for  K in Klist
+        if  isodd( Int(Basics.twice(K)/2) )    continue    end
+        qList = AngularMomentum.m_values(K)
+        for  q in qList
+            amp = ComplexF64(0.)
+            for  mp1 in settings.multipoles
+                for  mp2 in settings.multipoles
+                    if   mp1.electric   p1 = 1    else    p1 = 0    end
+                    if   mp2.electric   p2 = 1    else    p2 = 0    end
+                    symmetries  = AngularMomentum.allowedTotalSymmetries(symf, mp2, mp1, symi)
+                    for Jsym in symmetries
+                        amp = amp + 2.0 * (1.0im)^(mp1.L - p1 + mp2.L - p2) * (-lambda1)^p1 * (-lambda2)^p2 *
+                                    sqrt( (2*mp1.L + 1)*(2*mp2.L + 1) ) * (Basics.twice(K) + 1)             *
+                                    AngularMomentum.Wigner_3j(mp1.L, mp2.L, K, lambda1, lambda2, q)         *
+                                    MultiPhotonTransition.getReducedAmplitudeAbsorption(K, line.finalLevel, mp2, Jsym, omega, mp1,
+                                                                                                line.initialLevel, gauge, line.channels)
+                    end
+                end
+            end
+            tcs = tcs + abs( amp )^2
+        end
+    end
+
     tcs = tcs * 8*pi^5 * Defaults.getDefaults("alpha")^2 / (Basics.twice(line.initialLevel.J) + 1) / omega^2
-    
+
     return( tcs )
 end
 
@@ -455,10 +502,17 @@ function determineChannels_2pAbsorptionMonochromatic(omega::Float64, finalLevel:
             Klist       = oplus(symf.J, symi.J)
             for  symn in symmetries
                 for  gauge in settings.gauges
+                    ## THE SECOND CONDITION WAS DEAD until 08-Aug-2026: it read
+                    ##     elseif string(mp1)[1] == 'E'  string(mp2)[1] == 'E'  &&  gauge == Basics.UseBabushkin
+                    ## without the first `&&`, which Julia parses as a condition on mp1 ALONE followed by a
+                    ## no-op expression -- so the test on mp2 and the test on the gauge were both discarded.
+                    ## Harmless for E1E1, which is all this module has ever been run with, and wrong as soon as
+                    ## mixed multipoles are requested: an (E1, M1) pair with gauge = UseCoulomb fell through to
+                    ## here and was pushed as a BABUSHKIN channel. Fixed; E1E1 results are bit-identical.
                     # Include further restrictions if appropriate
                     if     string(mp1)[1] == 'E' && string(mp2)[1] == 'E'  &&   gauge == Basics.UseCoulomb
-                        for K in Klist  push!(channels, MultiPhotonTransition.Channel_2pAbsorptionMonochromatic(K, omega, mp1, mp2, Basics.Coulomb, symn, 0.) )     end 
-                    elseif string(mp1)[1] == 'E'  string(mp2)[1] == 'E'  &&   gauge == Basics.UseBabushkin    
+                        for K in Klist  push!(channels, MultiPhotonTransition.Channel_2pAbsorptionMonochromatic(K, omega, mp1, mp2, Basics.Coulomb, symn, 0.) )     end
+                    elseif string(mp1)[1] == 'E' && string(mp2)[1] == 'E'  &&   gauge == Basics.UseBabushkin
                         for K in Klist  push!(channels, MultiPhotonTransition.Channel_2pAbsorptionMonochromatic(K, omega, mp1, mp2, Basics.Babushkin, symn, 0.) )   end
                     elseif string(mp1)[1] == 'M' && string(mp2)[1] == 'M'
                         for K in Klist  push!(channels, MultiPhotonTransition.Channel_2pAbsorptionMonochromatic(K, omega, mp1, mp2, Basics.Magnetic, symn, 0.) )    end
