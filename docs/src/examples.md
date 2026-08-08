@@ -281,8 +281,7 @@ by `AsfSettings()`:
 
 ```@example scfci
 multiplet     = SelfConsistent.performSCF([Configuration("1s^2 2s^2")], nucModel, grid, AsfSettings());
-Basics.tabulate(stdout, "multiplet: energies", multiplet, Array(1:length(multiplet.levels)) )       # hide
-Basics.tabulate(stdout, "multiplet: energy of each level relative to lowest level", multiplet, Array(1:length(multiplet.levels)) )  # hide
+Basics.tabulate(stdout, multiplet, Array(1:length(multiplet.levels)) )       # hide
 ```
 
 ... and, similarly, also for the 10 lowest levels of C$^{2+}$ ions as they arise from the
@@ -291,8 +290,7 @@ $C^{2+} 1s^2 (2s^2 + 2s2p + 2p^2)$ configurations:
 ```@example scfci
 multiplet     = SelfConsistent.performSCF([Configuration("1s^2 2s^2"), Configuration("1s^2 2s 2p"), Configuration("1s^2 2p^2")], 
                               nucModel, grid, AsfSettings());
-Basics.tabulate(stdout, "multiplet: energies", multiplet, Array(1:length(multiplet.levels)) )   # hide
-Basics.tabulate(stdout, "multiplet: energy of each level relative to lowest level", multiplet, Array(1:length(multiplet.levels)) )  # hide
+Basics.tabulate(stdout, multiplet, Array(1:length(multiplet.levels)) )   # hide
 ```
 
 
@@ -353,8 +351,7 @@ asfSettings = AsfSettings(defaultAsfSettings; generateScf=true, jjLS=LSjjSetting
 multiplet     = SelfConsistent.performSCF([Configuration("1s^2 2s^2"), Configuration("1s^2 2s 2p"), 
                                Configuration("1s^2 2p^2"), Configuration("1s^2 3s^2"), 
                                Configuration("1s^2 3p^2")],  nucModel, grid, asfSettings);
-Basics.tabulate(stdout, "multiplet: energies", multiplet, Array(1:length(multiplet.levels)) )   # hide
-Basics.tabulate(stdout, "multiplet: energy of each level relative to lowest level", multiplet, Array(1:length(multiplet.levels)) )  # hide
+Basics.tabulate(stdout, multiplet, Array(1:length(multiplet.levels)) )   # hide
 ```
 
 We finish this (simple) tutorial by enlarging the configuration basis for the low-lying levels but by restricting 

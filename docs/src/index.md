@@ -1,6 +1,6 @@
 # Jena Atomic Calculator (JAC) for the computation of atomic representations, processes and cascades
 
-*Last update:* July, 22nd, 2026
+*Last update:* August, 8th, 2026
 
 ---
 

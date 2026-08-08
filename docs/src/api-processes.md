@@ -5,9 +5,27 @@ Modules = [AutoIonization]
 Order   = [:type, :function]
 ```
 
+##  Crystal-field-resolved emission
+```@autodocs
+Modules = [CrystalFieldEmission]
+Order   = [:type, :function]
+```
+
+##  Decay yields
+```@autodocs
+Modules = [DecayYield]
+Order   = [:type, :function]
+```
+
 ##  Dielectronic Recombination
 ```@autodocs
 Modules = [DielectronicRecombination]
+Order   = [:type, :function]
+```
+
+##  Hyperfine-induced transitions
+```@autodocs
+Modules = [HyperfineInduced]
 Order   = [:type, :function]
 ```
 
@@ -38,5 +56,11 @@ Order   = [:type, :function]
 ##  Photorecombination
 ```@autodocs
 Modules = [PhotoRecombination]
+Order   = [:type, :function]
+```
+
+##  Two-electron one-photon transitions
+```@autodocs
+Modules = [TwoElectronOnePhoton]
 Order   = [:type, :function]
 ```

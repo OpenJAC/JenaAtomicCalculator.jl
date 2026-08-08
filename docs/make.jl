@@ -5,7 +5,7 @@ using Documenter, JenaAtomicCalculator
 makedocs(;
     modules=[JenaAtomicCalculator],
     format=Documenter.HTML(prettyurls=false, repolink = "https://github.com/OpenJAC/JenaAtomicCalculator.jl",
-                           size_threshold = 600 * 1024,),
+                           size_threshold = 1000 * 1024,),
     pages=[
         "Home"                          => "index.md",
         "Getting Started"               => "getting-started.md", 

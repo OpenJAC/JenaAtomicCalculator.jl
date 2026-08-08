@@ -32,7 +32,7 @@ Simply call Pluto.run() at the REPL ... and follow your Browser.
 * Estimate QED corrections:$\qquad$                                 ... demos/B7-Pluto-estimate-QED-corrections.jl *(under construction)*
 
 
-## Basic atomic structure calculations
+## Atomic representations
 
 * Restricted-active-space (RAS) computations of C$^{2+}$:$\qquad$   ... demos/C1-Pluto-compute-RAS-carbon-III.jl
 * Generate a mean-field and CI representation:$\qquad$              ... demos/C2-Pluto-generate-MeanField-CI-representation.jl *(under construction)*
@@ -51,8 +51,8 @@ Simply call Pluto.run() at the REPL ... and follow your Browser.
 
 ## Evaluation of Racah algebra expressions
 
-* Simplification of Wigner n-j symbols:$\qquad$                     ... demos/F1-Pluto-evaluate-Wigner-symbols.jl)
-* Simplify Racah expressions by sum rules:$\qquad$                  ... demos/F2-Pluto-evaluate-by-sum-rules.jl)
-* Evaluate re-coupling coefficients:$\qquad$                        ... demos/F3-Pluto-evaluate-recoupling-coefficients.jl)
+* Simplification of Wigner n-j symbols:$\qquad$                     ... demos/F1-Pluto-evaluate-Wigner-symbols.jl
+* Simplify Racah expressions by sum rules:$\qquad$                  ... demos/F2-Pluto-evaluate-by-sum-rules.jl
+* Evaluate re-coupling coefficients:$\qquad$                        ... demos/F3-Pluto-evaluate-recoupling-coefficients.jl
 * Evaluate spherical-tensor expressions:$\qquad$                    ... demos/F4-Pluto-evaluate-spherical-tensors.jl *(under construction)*
 

@@ -343,7 +343,7 @@ data are interpreted as well as output data are displayed in tabulations or to s
 for the units can be seen by typing:
 
 ```@example startJAC
-Basics.display("settings")
+Basics.display(CurrentSettings())
 ```
 
 which show that energies are taken/printed in eV, rates in 1/s, etc. Apart from modifying these defaults directly in the 
@@ -368,7 +368,7 @@ Defaults.setDefaults("unit: cross section", "a.u.")
 Here, again `nothing` is returned but the corresponding global constants are now changed.
 
 ```@example startJAC   
-Basics.display("settings")
+Basics.display(CurrentSettings())
 ```
 Apart from the default units, one can similarly *overwrite* the method that is use for the generation and normalization 
 of continuum orbitals and several others. Although called *global*, the corresponding values can be accesses just in 
