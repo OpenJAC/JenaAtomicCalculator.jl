@@ -150,13 +150,21 @@ function computeEnergyDiffCs(sharing::MultiPhotonTransition.Sharing_2pEmission, 
             end
         end
     end
-    ## THE PREFACTOR IS WRONG BY A CONSTANT FACTOR OF 6.679, MEASURED BUT NOT DERIVED -- OPEN ISSUE.
+    ## THE PREFACTOR IS WRONG BY A CONSTANT FACTOR OF 26.7, MEASURED BUT NOT DERIVED -- OPEN ISSUE.
     ##
-    ## (Updated 07-Aug-2026 after the exchange-phase fix above, which took it from 12.98 to 6.679. The history
-    ## below is kept because the earlier value appears in older notes.)
+    ## (The value has moved twice for reasons that had nothing to do with this prefactor, so the history matters:
+    ## 12.98 -> 6.679 on 07-Aug-2026 with the exchange-phase fix A1, and 6.679 -> 26.7 on 08-Aug-2026 when the
+    ## two-photon TOTAL was corrected by a factor 4 -- the quadrature weights of Basics.determineEnergySharings
+    ## had been high by 2, and the indistinguishable-photon 1/2 was missing. Neither touched the DIFFERENTIAL
+    ## rate or the amplitude, so everything said below about the prefactor still applies; only the number to be
+    ## reproduced has changed. Older notes quote 6.679 or 12.98 and are stale by exactly 4 or 2.)
     ##
-    ##     Z = 1: exact/computed = 6.67935     Z = 2: 6.68060     Z = 3: 6.68268     (constant to 0.05 %)
-    ##     gauge ratio Cou/Bab = 0.9069 at every Z (was 0.5799 before the phase fix)
+    ##     Z = 1: exact/computed = 26.717     Z = 2: 26.722     Z = 3: 26.731     (constant to 0.05 %)
+    ##     -- these follow from the measured 6.67935 / 6.68060 / 6.68268 by the EXACT factor 4; the factor was
+    ##        verified by re-running branch d of example-Dh.jl, where every differential rate is unchanged to
+    ##        all printed digits and the total is exactly 1/2 * sum(weight * differential) with the corrected
+    ##        weights, i.e. a quarter of what the same branch printed before.
+    ##     gauge ratio Cou/Bab = 0.9069 at every Z (was 0.5799 before the phase fix), UNAFFECTED by the factor 4
     ##
     ## STILL A PURE CONSTANT, so still a prefactor rather than a physics omission. NOT identified; deliberately
     ## NOT calibrated away. Candidate forms that ALMOST fit (20/3 = 6.667, 21/pi = 6.685) are within 0.2 % but
@@ -186,7 +194,8 @@ function computeEnergyDiffCs(sharing::MultiPhotonTransition.Sharing_2pEmission, 
     ##
     ## THE CORRECT DERIVATION needs the angular reduction done properly: couple the two multipoles to K, carry
     ## the 6-j through the polarisation and angle sums, do NOT factorise. Any candidate must reproduce
-    ## 12.98 +- 0.01 UNPROMPTED, and the second constant Cou/Bab = 0.5799 (also Z-independent, also unexplained)
+    ## 12.98 +- 0.01 UNPROMPTED (that acceptance figure belongs to the pre-08-Aug totals; against the corrected
+    ## ones it is 4 x 12.98), and the second constant Cou/Bab = 0.5799 (also Z-independent, also unexplained)
     ## is a further independent check on it.
     dcs = dcs * 2pi * Defaults.getDefaults("alpha")^2 / (Basics.twice(line.initialLevel.J) + 1) * omega1 * omega2
     
@@ -262,7 +271,33 @@ function  computeProperties_2pEmission(line::MultiPhotonTransition.Line_2pEmissi
         push!( newSharings, MultiPhotonTransition.Sharing_2pEmission( sharing.omega1, sharing.omega2, sharing.weight, diffRate, sharing.channels) )
         totalRate = totalRate + sharing.weight * diffRate
     end
-    # Calculate the totalRate 
+    ## THE FACTOR 1/2 IS THE INDISTINGUISHABLE-PHOTON FACTOR, applied here explicitly (08-Aug-2026) and written
+    ## down rather than left inside a quadrature weight.
+    ##
+    ## `computeEnergyDiffCs` already contains BOTH time orderings in its amplitude, so the differential rate at a
+    ## sharing (omega1, omega2) is the rate density for "one photon at omega1 and its partner at omega2" -- and
+    ## the sharings run over the FULL interval [0, E], where (omega1, omega2) and (omega2, omega1) are the SAME
+    ## physical event. Integrating over the full range therefore counts every event twice:
+    ##
+    ##     A  =  1/2 Int_0^E domega1 (dA/domega1)  =  Int_0^(E/2) domega1 (dA/domega1)
+    ##
+    ## the two being equal because the spectrum is symmetric -- which this module verifies to all printed digits
+    ## (branch d of example-Dh.jl) and which is exactly the symmetry the exchange-phase bug A1 was found through.
+    ##
+    ## TOGETHER WITH THE CORRECTED QUADRATURE WEIGHTS this changes every two-photon emission TOTAL by a factor 4
+    ## and no differential rate at all. `Basics.determineEnergySharings` used to return weights that were larger
+    ## by exactly 2 than the quadrature weights of Int_0^E (the 1/2 of the interval map was missing), so the old
+    ## totalRate was 2 * Int, where the physical answer is (1/2) * Int. The two factors are independent -- one is
+    ## arithmetic, the other is physics -- and are now separated: the arithmetic lives in Basics, the statistics
+    ## lives here.
+    ##
+    ## CONSEQUENCE FOR THE OPEN CONSTANT, stated so that nobody compares against a stale number: the deficit
+    ## measured against the exact H 2s -> 1s rate was 6.679 with the old totals, hence 4 * 6.679 = 26.7 with
+    ## these. THE DISCREPANCY IS THEREFORE LARGER, NOT SMALLER, and no factor has been introduced anywhere to
+    ## make it look better. The constant remains underived and must be derived, not fitted; see the long note at
+    ## the prefactor in computeEnergyDiffCs.
+    totalRate = 0.5 * totalRate
+    # Calculate the totalRate
     newLine = MultiPhotonTransition.Line_2pEmission( line.initialLevel, line.finalLevel, totalRate, newSharings)
     return( newLine )
 end

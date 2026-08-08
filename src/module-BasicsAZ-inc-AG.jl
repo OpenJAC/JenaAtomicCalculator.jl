@@ -202,17 +202,47 @@ end
     
 
 """
-`Basics.determineEnergySharings(energy::Float64, NoEnergySharings::Int64)`  
+`Basics.determineEnergySharings(energy::Float64, NoEnergySharings::Int64)`
     ... to determine the NoEnergySharings sharings by using the Gauss-Legendre integration points in the interval
-        [0., energy]; an Array{Tuple{Float64,Float64,Float64},1} is returned. This methods assumes that the package 
-        GaussQuadrature is 'used'.
+        [0., energy]; an Array{Tuple{Float64,Float64,Float64},1} of (x, energy-x, weight) is returned. This
+        methods assumes that the package GaussQuadrature is 'used'.
+
+        THE WEIGHTS ARE PURE QUADRATURE WEIGHTS FOR  Int_0^energy f(x) dx,  and nothing else. That is worth
+        stating because it was not true before 08-Aug-2026: the routine mapped the Gauss-Legendre nodes from
+        [-1,1] onto [0, energy] but multiplied the weights by `energy` WITHOUT the factor 1/2 of that map, so
+        sum(weights) came to 2*energy over an interval of length energy and every quadrature built on them was
+        high BY EXACTLY 2. Measured before the fix, for NoEnergySharings = 4 and 8 and for both f = 1 and
+        f = x, the ratio to the exact integral was 2.000000.
+
+        NO PARTICLE-STATISTICS FACTOR IS INCLUDED HERE, DELIBERATELY, and this is the decision that the missing
+        1/2 above had been quietly entangled with. When the two shares belong to INDISTINGUISHABLE particles --
+        the two photons of a two-photon decay, the two electrons of a double ionization -- and the differential
+        quantity is defined over the FULL range [0, energy], then each physical configuration is counted twice
+        by this integral and the total carries a further factor 1/2:
+
+            total  =  1/2 * Int_0^E d(share) [differential]        for two identical particles
+            total  =       Int_0^E d(share) [differential]         for distinguishable shares
+
+        That factor belongs to the PHYSICS of the calling process, not to a quadrature rule, and it must be
+        written at the point where the total is formed so that it can be read there. A quadrature routine that
+        silently carried a factor 2 which happened to cancel one convention in one caller is precisely how such
+        a factor stops being visible at all.
+
+        THE CONSUMERS, checked 08-Aug-2026. Only two of the four form an integral from these weights:
+          * DoubleAutoIonization  -- `trate += sharing.weight * drate`; two ELECTRONS, hence identical, so the
+                                     1/2 applies and is NOT yet applied there.
+          * MultiPhotonTransition -- two-photon emission `totalRate`; two PHOTONS, hence identical, so the 1/2
+                                     applies; see the note at its computeProperties_2pEmission.
+          * PhotoDoubleIonization and RadiativeAuger store and display the weight but never integrate with it,
+            so the correction changes a printed column there and no physical result.
 """
 function Basics.determineEnergySharings(energy::Float64, NoEnergySharings::Int64)
     xx, ww = GaussQuadrature.legendre(NoEnergySharings)
     sharings = Tuple{Float64,Float64,Float64}[]
     for  (ix, x) in enumerate(xx)
         xrel = (x+1.) / 2
-        push!(sharings, (xrel*energy, energy - xrel*energy, ww[ix]*energy) )
+        ## the 1/2 is the Jacobian of the map [-1,1] -> [0, energy]; it was missing until 08-Aug-2026
+        push!(sharings, (xrel*energy, energy - xrel*energy, ww[ix]*energy/2) )
     end
     return( sharings )
 end

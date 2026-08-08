@@ -17,6 +17,16 @@ setDefaults("unit: rate", "1/s")
 ##  DIAGNOSTICS
 ##   a)  overview of the intermediate-state sum      -- which levels carry it, which denominators are dangerous
 ##  TWO-PHOTON EMISSION  (total energy fixed, shared between the photons -> continuous spectrum, energy sharings)
+##
+##  READ THIS BEFORE QUOTING ANY EMISSION TOTAL FROM THE COMMENTS BELOW. On 08-Aug-2026 the two-photon TOTAL
+##  rate was corrected by a factor 4 and every total printed in a comment before that date is a factor 4 TOO
+##  LARGE. Two independent factors of 2, one arithmetic and one physical, had been entangled in the quadrature:
+##    * Basics.determineEnergySharings returned weights larger by exactly 2 than the quadrature weights of
+##      Int_0^E (the 1/2 of the map from [-1,1] was missing) -- measured, ratio 2.000000 on two integrands;
+##    * the indistinguishable-photon 1/2 was never applied. The differential rate already contains both photon
+##      orderings and the sharings run over the FULL interval, so each physical event is counted twice.
+##  DIFFERENTIAL rates, spectral SHAPES, gauge RATIOS and Z-TRENDS are ALL UNAFFECTED -- branch d re-runs
+##  bit-identically in its differentials. Only the totals move, and with them the open constant, 6.679 -> 26.7.
 ##   b)  H 2s -> 1s                                  -- THE ANCHOR: exact rate 8.2206 /s
 ##   c)  H-like Z-scan, Z = 1..54                    -- reproduces the relativistic suppression of the Z^6 law
 ##   d)  energy-differential spectrum                -- symmetry + sum rule; this is what found the sign bug
@@ -59,7 +69,8 @@ setDefaults("unit: rate", "1/s")
 ## identical photons. Only branch d is dated "Last successful", and only for what it verifies -- the spectral
 ## SHAPE and the photon-exchange SYMMETRY, both independent of the open overall constant.
 ##
-## THE ONE OPEN ISSUE THAT GATES EVERY EMISSION MAGNITUDE: a constant factor 6.679 (was 12.98 before A1),
+## THE ONE OPEN ISSUE THAT GATES EVERY EMISSION MAGNITUDE: a constant factor 26.7 (was 6.679 before the
+## 08-Aug-2026 total-rate correction, and 12.98 before A1),
 ## measured to 0.05 % over Z = 1..3 and therefore a prefactor, not a physics omission. It is NOT calibrated
 ## away -- see the note at the prefactor in module-MultiPhotonTransition-inc-2p-emission.jl. Until it is
 ## derived, emission MAGNITUDES from this file must not be quoted; SHAPES, SYMMETRIES, RATIOS and Z-TRENDS may
@@ -164,7 +175,7 @@ elseif  false
     # written below; the CONVERGED value (2p..45p, same box) is 1.231 /s, so this branch as configured is 19 %
     # off its own converged limit -- n_max = 8 is not enough, and the gauge ratio 0.153 here against 0.907 when
     # converged says so plainly. Against the exact 8.2206 /s the converged result is low by the open constant
-    # 6.679 documented at the prefactor in module-MultiPhotonTransition-inc-2p-emission.jl.
+    # 26.7 documented at the prefactor in module-MultiPhotonTransition-inc-2p-emission.jl.
     # NOT DATED SUCCESSFUL: neither the basis nor the absolute scale is settled. What this branch DID establish
     # is the exchange-phase bug -- K-resolving it showed K = 1 carrying 48 % of a transition where it must
     # vanish, which is how blocker A1 was found.
@@ -316,6 +327,12 @@ elseif  false
     #
     #     0.201  0.864  1.573  2.084  2.367  2.481 | 2.481  2.367  2.084  1.573  0.864  0.201
     #
+    # RE-RUN 08-Aug-2026 after the total-rate correction (weights, and the indistinguishable-photon 1/2): the
+    # DIFFERENTIAL rates above are reproduced to all six printed digits -- 0.201418, 0.863537, 1.573030,
+    # 2.083810, 2.366930, 2.481270 -- confirming that the correction touches no differential quantity. The
+    # TOTAL is now 3.65232e-01 /s (Bab) / 5.75588e-02 /s (Cou), exactly a QUARTER of what this branch printed
+    # before, and it equals 1/2 * sum(weight * differential) with the corrected weights, as it must.
+    #
     # THREE CHECKS PASS:
     #   * PHOTON-EXCHANGE SYMMETRY is exact to all printed digits -- every mirror pair identical. The two
     #     emitted photons are indistinguishable, so this is forced, and it is the check that first exposed the
@@ -325,7 +342,7 @@ elseif  false
     #     spurious spike at omega1 = 3.225 eV from poles that cannot exist.
     #   * THE INTEGRAL over the Gauss-Legendre sharings reproduces the total rate of branch b.
     #
-    # WHAT IS *NOT* CLAIMED: the absolute scale, which carries the open constant 6.679. This branch is dated for
+    # WHAT IS *NOT* CLAIMED: the absolute scale, which carries the open constant 26.7. This branch is dated for
     # the spectral shape and the symmetry, not for the magnitude -- see the prefactor note in the module.
     #
     # --- Branch d: the ENERGY-DIFFERENTIAL SPECTRUM of one two-photon line.
@@ -368,7 +385,7 @@ elseif  false
     # Last visit:  07-Aug-2026        ## NOT successful: correlation-limited, plus the open prefactor
     #
     # RE-RUN 07-Aug-2026 AFTER THE EXCHANGE-PHASE FIX: He Bab = 2.670 /s, Ar16+ Bab = 1.543e7 /s.
-    # Scaling by the open constant 6.679 gives He ~ 17.8 /s against the accepted 51.3 /s -- still a factor ~3
+    # Scaling by the open constant 26.7 gives He ~ 17.8 /s against the accepted 51.3 /s -- still a factor ~3
     # low, which is the CORRELATION deficiency this branch was built to expose, not a machinery problem: the
     # f-value check (work/diag-ca-fvalue.jl) puts Mg and Ca one-photon oscillator strengths 25-45 % from their
     # measured values at this level of CI, and a two-photon amplitude carries two such matrix elements.
@@ -584,10 +601,13 @@ elseif  false
 ##  TWO-PHOTON ABSORPTION  (excitation: the photon energies are IMPOSED, and the transition is driven
 ##  rather than spontaneous; the observables are cross sections, not rates)
 ## =====================================================================================================
-elseif  false
+elseif  true
     # Last successful:  07-Aug-2026        ## for the ANGULAR structure; the absolute scale is NOT verified
     #
     # DATED for the polarization structure, which is exact and parameter-free, NOT for the magnitude.
+    # Re-run again 08-Aug-2026, BIT-IDENTICAL, after the right-circular routine was written and a dead `&&`
+    # was repaired in determineChannels (it had discarded the tests on mp2 and on the gauge; harmless for E1E1,
+    # which is what this bit-identity confirms).
     # Re-run 07-Aug-2026 after blocker A2 (the 4K+1 typo, and odd K excluded for a single beam):
     #
     #     linear 2.1415e-28 (Cou) / 4.5305e-27 (Bab)      right-circular 0.0000 / 0.0000
@@ -600,10 +620,16 @@ elseif  false
     #     of the unpolarized cross section.
     #   * RIGHT-CIRCULAR VANISHES IDENTICALLY. Two E1 photons of equal helicity must deliver two units of
     #     angular momentum along the beam, and this transition cannot absorb it.
+    #     THIS CHECK WAS VACUOUS WHEN IT WAS WRITTEN, and is only now real. Until 08-Aug-2026
+    #     computeTotalCsRightCircular had no body at all -- a comment reading "Need to be filled" -- and
+    #     returned 0 for every atom and every transition, so its zero said nothing about this transition. The
+    #     routine is now written and re-run here: the printed zero is UNCHANGED but is now computed. It was
+    #     validated where the answer is NOT zero (H 1s -> 3d, K = 2 open), giving right-circular/linear
+    #     = 1.500000 against the 3-j prediction 0.8/0.5333 = 1.5.
     # Both are fixed by angular algebra and are independent of normalisation and of the wave functions.
     #
     # NOT CLAIMED: the absolute cross section. The absorption normalisation has never been derived at all --
-    # it is in worse shape than emission, where the discrepancy is at least localised to a constant 6.679.
+    # it is in worse shape than emission, where the discrepancy is at least localised to a constant 26.7.
     #
     # --- Branch g: TWO-PHOTON ABSORPTION, monochromatic, with EVERY polarization from ONE calculation.
     #
@@ -655,7 +681,9 @@ elseif  false
     #     linear 1.1688e-26 (Cou) / 7.8197e-26 (Bab)      right-circular 0.0000 / 0.0000
     #     unpolarized 5.8438e-27 / 3.9098e-26             density matrix 4.2075e-27 / 2.8151e-26
     #
-    # THREE EXACT CHECKS: right-circular vanishes; linear/unpolarized = 2.0000; and the Stokes formula
+    # THREE EXACT CHECKS: right-circular vanishes (see the caveat in branch g -- that routine was an empty
+    # stub until 08-Aug-2026, so this check only became real when it was written; re-run here, unchanged);
+    # linear/unpolarized = 2.0000; and the Stokes formula
     # sigma(P) = sigma_unpol * (1 + P1^2 + P2^2 - P3^2) gives 0.72 for (0.6, 0, 0.8), predicting 4.2075e-27
     # against the printed 4.2075e-27.
     #
@@ -820,7 +848,7 @@ elseif  false
 ## =====================================================================================================
 ##  BEYOND TWO PHOTONS -- not implemented; the schemes exist and say so
 ## =====================================================================================================
-elseif  true
+elseif  false
     # Last successful:  08-Aug-2026        ## for the SIMPLEX SHARINGS only; there is still no amplitude
     #
     # --- Branch j: THREE-PHOTON -- the energy sharings are implemented and verified; the amplitude is not.
