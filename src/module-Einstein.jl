@@ -130,7 +130,7 @@ end
 
 
 """
-`Einstein.Line(initialLevel::Level, finalLevel::Level, photonRate::Float64)`  
+`Einstein.Line(initialLevel::Level, finalLevel::Level, photonRate::EmProperty)`  
     ... constructor an Einstein line between a specified initial and final level.
 """
 function Line(initialLevel::Level, finalLevel::Level, photonRate::EmProperty)

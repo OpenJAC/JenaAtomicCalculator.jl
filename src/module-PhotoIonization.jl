@@ -234,7 +234,7 @@ end
 
 
 """
-`PhotoIonization.Line(initialLevel::Level, finalLevel::Level, crossSection::Float64)`  
+`PhotoIonization.Line(initialLevel::Level, finalLevel::Level, crossSection::EmProperty)`  
     ... constructor for an photoionization line between a specified initial and final level.
 """
 function Line(initialLevel::Level, finalLevel::Level, crossSection::EmProperty)

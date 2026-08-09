@@ -537,7 +537,7 @@ end
 
 
 """
-`StrongField.computeOutcome(observable::StrongField.SfaEnergyDistribution, amplitudes::Array{SphericalAmplitude,3})`  
+`StrongField.computeOutcome(obs::StrongField.SfaEnergyDistribution, amplitudes::Array{SphericalAmplitude,3})`  
     ... computes the requested photoelectron energy distribution and returns the results in the variable
         outcome::StrongField.OutcomeEnergyDistribution.
 """
@@ -559,7 +559,7 @@ end
 
 
 """
-`StrongField.computeOutcome(observable::StrongField.SfaMomentumDistribution, amplitudes::Array{SphericalAmplitude,3})`  
+`StrongField.computeOutcome(obs::StrongField.SfaMomentumDistribution, amplitudes::Array{SphericalAmplitude,3})`  
     ... computes the requested photoelectron momentum distribution and returns the results in the variable
         outcome::StrongField.OutcomeMomentumDistribution
 """
@@ -585,7 +585,7 @@ end
 
 
 """
-`StrongField.computeOutcome(observable::StrongField.SfaAzimuthalAngularDistribution, amplitudes::Array{SphericalAmplitude,3})`  
+`StrongField.computeOutcome(obs::StrongField.SfaAzimuthalAngularDistribution, amplitudes::Array{SphericalAmplitude,3})`  
     ... computes the requested photoelectron angular distribution and returns the results in the variable
         outcome::StrongField.OutcomeAzimuthalAngularDistribution
 """
@@ -607,7 +607,7 @@ end
 
 
 """
-`StrongField.computeOutcome(observable::StrongField.SfaPolarAngularDistribution, amplitudes::Array{SphericalAmplitude,3})`  
+`StrongField.computeOutcome(obs::StrongField.SfaPolarAngularDistribution, amplitudes::Array{SphericalAmplitude,3})`  
     ... computes the requested photoelectron angular distribution and returns the results in the variable
         outcome::StrongField.OutcomePolarAngularDistribution
 """

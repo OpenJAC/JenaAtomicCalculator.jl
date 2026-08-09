@@ -363,7 +363,7 @@ end
 
 
 """
-`Plasma.determineIpShifts(pm::Basics.AbstractPlasmaModel, temp::Float64, ni::Float64, isotopeClass::IsotopeClass)`  
+`Plasma.determineIpShifts(pm::Basics.AbstractPlasmaModel, temp::Float64, ni::Float64, isoClass::IsotopeClass)`  
     ... determines the ground-state energie as well as the shifts Delta I_p (q --> q+1) for all charge states q = 0 ... qmax 
         of the ions defined by isotopeClass. The procedure assumes that the plasma model pm brings in the current plasma
         parameters. In some models, the ion number density ni is required as well.
@@ -1072,7 +1072,7 @@ end
 
 
 """
-`Plasma.readUpdateIonLevelDataObsolete(filename::String, isoClass::IsotopeClass, NoExcitations::Int64, upperShellNo::Int64,
+`Plasma.readUpdateIonLevelDataObsolete(filename::String, isoClass::IsotopeClass, noExcitations::Int64, upperShellNo::Int64,
                                newIonClasses::Array{Plasma.IonicClass,1})`  
     ... reads in, if available, the ionic-level data for the given isotope class from filename.
         The ionic-level data are accepted for return, if (1) they belong to isotope (Z,A) in isoClasses

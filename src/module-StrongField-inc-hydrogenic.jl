@@ -142,7 +142,7 @@ end
 
 """
 `StrongField.pReducedMEHydrogenic(Pepsplp::Array{ComplexF64,1} , lp::Int64, jp::Float64, epsiloni::Float64, 
-                                    n::Int64, l::Int64, j::Int64, rGrid::Radial.Grid )`  
+                                    n::Int64, l::Int64, j::Float64, rGrid::Radial.Grid )`  
     ... computes the reduced matrix elements of the momentum operator <epsilonp lp jp||p||n l j> in the one-particle 
         picture for hydrogenic initial states, where the radial wave function Pepsplp of |epsilonp lp jp> needs to be 
         provided as an argument on the grid rGrid.

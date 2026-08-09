@@ -196,7 +196,7 @@ end
 
 
 """
-`Liouville.Computation( ... example for a Liouville evolution computations)`  
+`Liouville.Computation( wa::Bool)`  
 
         grid     = Radial.Grid(true)
         nuclearM = Nuclear.Model(18., "Fermi")

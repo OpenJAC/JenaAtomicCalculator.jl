@@ -93,9 +93,8 @@ end
 
 
 """
-`MultiPhotonTransition.computeLines(process::TwoPhotonAbsorptionMonochromatic, finalMultiplet::Multiplet, 
-                                        initialMultiplet::Multiplet, grid::Radial.Grid, settings::MultiPhotonTransition.Settings; 
-                                        output=true)` 
+`MultiPhotonTransition.computeLines(scheme::TwoPhotonAbsorptionScheme, finalMultiplet::Multiplet, 
+                                        initialMultiplet::Multiplet, grid::Radial.Grid, settings::MultiPhotonTransition.Settings)` 
     ... to compute the multiphoton transition amplitudes and all properties as requested by the given settings. A list of 
         lines::Array{MultiPhotonTransition.Line_2pAbsorptionMonochromatic,1} is returned.
 """

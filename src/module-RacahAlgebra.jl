@@ -759,7 +759,7 @@ end
 
 
 """
-`RacahAlgebra.evaluate(rex::RacahExpression; special::Bool=false)`  
+`RacahAlgebra.evaluate(rx::RacahExpression)`  
     ... attempts to evaluate and symbolically simplify a Racah expression by means of special values, if
         special=true, or by sum rules. A newrex::RacahExpression is returned once a (single) simplification 
         has been found, and nothing otherwise. No attempt is presently made to find further simplication, 
@@ -1116,7 +1116,7 @@ end
 
 
 """
-`RacahAlgebra.recursionW3j(ww::W3j, rule::AbstractRecursionW3j)`  
+`RacahAlgebra.recursionW3j(w3j::W3j, rule::AbstractRecursionW3j)`  
     ... applies a given recursion rules to w3j; an rexList::Array{RacahAlgebra.RacahExpression,1} is returned.
 """
 function recursionW3j(w3j::W3j, rule::AbstractRecursionW3j)

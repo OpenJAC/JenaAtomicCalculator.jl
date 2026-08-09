@@ -560,7 +560,7 @@ function Wigner_DFunction(j, p, q, alpha::Float64, beta::Float64, gamma::Float64
 end
 
 """
-`AngularMomentum.Wigner_dmatrix(j, mp, m, beta::Float64)`  
+`AngularMomentum.Wigner_dmatrix(jj, mmp, mm, beta::Float64)`  
     ... calculates the value of the small Wigner d^j_m',m (beta) for given quantum numbers and the angle beta.
         Wigner's formula is applied to evaluate the small Wigner matrix; a value::Float64 is returned.
 """
@@ -650,7 +650,7 @@ function Wigner_6j(a, b, c, d, e, f)
 end
 
 """
-`AngularMomentum.Wigner_6j_old(a::AngularJ64, b::AngularJ64, c::AngularJ64, d::AngularJ64, e::AngularJ64, f::AngularJ64)`  
+`AngularMomentum.Wigner_6j_old(a::AngularJ64, b::AngularJ64, c::AngularJ64, d::AngularJ64, ee::AngularJ64, f::AngularJ64)`  
         ... calculates the value of a Wigner 6-j symbol  for given quantum numbers by its algebraic formulae as displayed in many texts on the 
             theory of angular momentum (see R. D. Cowan, The Theory of Atomic Structure and Spectra; University of California Press, 1981, 
             p. 142); a value::Float64 is returned.
@@ -737,7 +737,7 @@ end
     end
 
 """
-`AngularMomentum.Wigner_9j_old(a::AngularJ64, b::AngularJ64, c::AngularJ64, d::AngularJ64, e::AngularJ64, f::AngularJ64,
+`AngularMomentum.Wigner_9j_old(a::AngularJ64, b::AngularJ64, c::AngularJ64, d::AngularJ64, ee::AngularJ64, f::AngularJ64,
                                 g::AngularJ64, h::AngularJ64, i::AngularJ64)`  
         ... calculates the value of a Wigner 6-j symbol  for given quantum numbers by its algebraic formulae as displayed in many texts on the 
             theory of angular momentum (see R. D. Cowan, The Theory of Atomic Structure and Spectra; University of California Press, 1981, 

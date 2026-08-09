@@ -609,7 +609,7 @@ end
 
 
 """
-`SphericalTensor.expandSphericalTensorComponent(tn::SphericalTensor.AbstractSphericalTensorComp, q::Basic)`  
+`SphericalTensor.expandSphericalTensorComponent(tn::SphericalTensor.AbstractSphericalTensor, q::Basic)`  
     ... expand a coupled product of spherical tensors into its (uncoupled) tensor components by means of a Clebsch-Gordan expansion.
         All necessary magnetic quantum numbers are 'derived' from the corresponding tensor ranks: K -> qK, 2 -> q2,  0 -> 0.
         No expansion is made for elementary spherical tensors. The tensor components of this expansion is returned by (the tuple of)

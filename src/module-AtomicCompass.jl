@@ -408,7 +408,7 @@ end
 
 
 """
-`AtomicCompass.determineObservables(simulation.AtomicCompass.Simulation)`  
+`AtomicCompass.determineObservables(simulation::AtomicCompass.Simulation)`  
     ... determine all the observables that need to be simulated. This means that the requested observables (types) and 
         the given fields and targets are brought together to understand, which detailed computations/simulations need 
         to be carried out. It is expected that every simulation results in about 1--20 individual observables which

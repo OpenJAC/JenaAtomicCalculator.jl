@@ -598,7 +598,7 @@ end
 
 
 """
-`ManyElectron.Basis("from Grasp2013", cslFilename::String, rwfFilename::String)`  
+`ManyElectron.Basis(sa::String, cslFilename::String, rwfFilename::String)`  
     ... to construct an instance::Basis from the Grasp92/Grasp2013 .csl and .rwf files.
 """
 function Basis(sa::String, cslFilename::String, rwfFilename::String)
@@ -734,7 +734,7 @@ end
 
 
 """
-`ManyElectron.Multiplet("from Ratip2012", cslFilename::String, rwfFilename::String, mixFilename::String)`  
+`ManyElectron.Multiplet(sa::String, cslFilename::String, rwfFilename::String, mixFilename::String)`  
     ... to construct an instance::Multiplet from the Grasp92/Ratip2012 .csl, .rwf and .mix files.  Some consistency 
         checks are made and the method terminates with an error message if the files don't fit together. 
     

@@ -860,7 +860,7 @@ end
 
 
 """
-`Basics.extractFromConfiguration(theme::Basics.ClosedSubshells, "[Ne]")`  
+`Basics.extractFromConfiguration(theme::Basics.ClosedSubshells, sa::String)`  
     ... to extract the list of (relativistic) subshells for the given closed-shell configuration. Allowed closed-shell strings 
         are [He], [Ne], [Mg], [Ar], [Kr] and [Xe].
 """

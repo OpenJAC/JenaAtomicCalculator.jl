@@ -13,7 +13,7 @@ end
 
 
 """
-`Basics.interpolateOnGridGrasp92((F::Array{Float64,1}, oldGrid::Radial.Grid), (G::Void, newGrid::Radial.Grid) )`  
+`Basics.interpolateOnGridGrasp92(from::Tuple{Array{Float64,1},Radial.Grid}, to::Tuple{DataType,Radial.Grid} )`  
     ... to interpolate the (radial) function F from the oldgrid to newgrid, by a call to the Grasp92 Fortran procedures; 
         an function G::Array{Float64,1} is returned. **Not yet implemented !**    
 """

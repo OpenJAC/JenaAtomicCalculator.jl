@@ -1176,7 +1176,7 @@ function recouplingCheck(leftCsf::CsfR, rightCsf::CsfR, rank::AngularJ64, ia::In
 end
 
 """
-`SpinAngular.recoupling1p(leftCsf::CsfR, rightCsf::CsfR, rank::AngularJ64, ia:Int64, nwshells::Int64)`
+`SpinAngular.recoupling1p(leftCsf::CsfR, rightCsf::CsfR, rank::AngularJ64, ia::Int64, nwshells::Int64)`
     ... computes the recoupling matrix R(ja, jb, Lambda^bra, Lambda^ket) for a non scalar operator in the case 
         of one interacting shells. See G. Gaigalas et al., 1997 J. Phys. B: At. Mol. Opt. Phys, Vol 30 3747, 
         Eq. (14) (p. 3756); a value::Float64 is returned.
@@ -1204,7 +1204,7 @@ end
 
 """
 `SpinAngular.recoupling1p(leftCsf::CsfR, rightCsf::CsfR, rank_1::AngularJ64, rank_2::AngularJ64, 
-                            rank::AngularJ64, ia:Int64, ib:Int64, nwshells::Int64)`
+                            rank::AngularJ64, ia::Int64, ib::Int64, nwshells::Int64)`
     ... computes the recoupling matrix R(ja, jb, Lambda^bra, Lambda^ket) for a non scalar operator in the case of two 
         interacting shells. See G. Gaigalas et al., 1997 J. Phys. B: At. Mol. Opt. Phys, Vol 30 3747, Eq. (19) (p. 3756);
         a value::Float64 is returned.
@@ -1242,7 +1242,7 @@ function  recoupling1p(leftCsf::CsfR, rightCsf::CsfR, rank_1::AngularJ64, rank_2
 end
 
 """
-`SpinAngular.recoupling2p(leftCsf::CsfR, rightCsf::CsfR, rank::AngularJ64, ia:Int64, ib:Int64)`  
+`SpinAngular.recoupling2p(leftCsf::CsfR, rightCsf::CsfR, rank::AngularJ64, ia::Int64, ib::Int64)`  
     ... computes the recoupling matrix R(ja, jb, Lambda^bra, Lambda^ket) for a scalar operator in the case of two 
         interacting shells. See G. Gaigalas et al., 1997 J. Phys. B: At. Mol. Opt. Phys, Vol 30 3747, Eq. (22) (p. 3756);
         a value::Float64 is returned.
@@ -1273,7 +1273,7 @@ end
 
 """
 `SpinAngular.recoupling2p(leftCsf::CsfR, rightCsf::CsfR, rank1::AngularJ64, rank2::AngularJ64, rank3::AngularJ64, 
-                            ia:Int64, ib:Int64, ic::Int64)`  
+                            ia::Int64, ib::Int64, ic::Int64)`  
     ... computes the recoupling matrix R(ja, jb, Lambda^bra, Lambda^ket) for a scalar operator in the case of three 
         interacting shells  (shells are not ordered). See G. Gaigalas et al., 1997 J. Phys. B: At. Mol. Opt. Phys,
         Vol 30 3747, Eq. (26) (p. 3756); a value::Float64 is returned.

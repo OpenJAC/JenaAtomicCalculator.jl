@@ -20,7 +20,7 @@ function Basics.compute(::AngularCoeffsEeRatip2013, csfa::CsfR, csfb::CsfR)
 end
 
 """
-`Basics.compute(::AngularCoeffs1pRatip2013, rank::Int64, csfa::CsfR, csfb::CsfR)`
+`Basics.compute(::AngularCoeffs1pRatip2013, rank, csfa::CsfR, csfb::CsfR)`
     ... to compute the angular coefficients in the decomposition of a (reduced) many-electron matrix element with a general
         single-particle operator of the given rank ``⟨csf_a ||O^rank|| csfb⟩ = \\sum_t  T(a_t, b_t) * R (a_t, b_t)``  by a call
         to the Fortran procedure `anco_calculate_csf_pair_1p` of the RATIP program; an `Array{AngularTcoeff,1}` is returned.

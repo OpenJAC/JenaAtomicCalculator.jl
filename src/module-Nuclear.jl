@@ -459,7 +459,7 @@ end
 
 
 """
-`Nuclear.nuclearPotential(model::Nuclear.Model, grid::Radial.Grid)`  
+`Nuclear.nuclearPotential(nm::Nuclear.Model, grid::Radial.Grid)`  
     ... computes the effective, radial-dependent charge Z(r) for a nucleus with radius R and nuclear charge Z. 
         The full nuclear potential is then given by V_nuc = - Z(r)/r; a potential::Radial.Potential 
         is returned.
@@ -478,7 +478,7 @@ function nuclearPotential(nm::Nuclear.Model, grid::Radial.Grid)
 
 
 """
-`Nuclear.nuclearPotentialDH(model::Nuclear.Model, grid::Radial.Grid, lambda::Float64)`  
+`Nuclear.nuclearPotentialDH(nm::Nuclear.Model, grid::Radial.Grid, lambda::Float64)`  
     ... computes the effective, radial-dependent charge Z(r) for a nucleus with radius R, nuclear charge Z 
         and for a Debye-Hueckel screening exp(-lambda r). The full Debye-Hueckel nuclear potential is then 
         given by V_nuc = - Z(r)/r; a potential::Radial.Potential is returned.

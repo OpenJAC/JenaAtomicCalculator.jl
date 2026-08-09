@@ -756,7 +756,7 @@ end
 
 
 """
-`ImpactExcitation.computeRateCoefficients(effStrengths::Vector{RateCoefficients}, settings::ImpactExcitation.Settings)`
+`ImpactExcitation.computeRateCoefficients(lines::Array{ImpactExcitation.Line,1}, settings::ImpactExcitation.Settings)`
     ... computes Exitation rate coefficients from the calculated collsion strengths at a temperature(s) [K].
         The rate coefficients are returned in [cm^3/s]. Returns an Array{ImpactExcitation.RateCoefficients,1}.
 """

@@ -509,7 +509,7 @@ end
 
 
 """
-`Plasma.Computation( ... example for plasma SCF computations)`  
+`Plasma.Computation( wa::Bool)`  
 
         grid     = Radial.Grid(true)
         nuclearM = Nuclear.Model(18., "Fermi")

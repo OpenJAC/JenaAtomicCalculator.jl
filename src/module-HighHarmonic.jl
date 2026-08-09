@@ -312,7 +312,7 @@ end
 
 
 """
-`HighHarmonic.computeTimeDipoleAmplitude(approach::HhgHydrogenicSaddlePoint, time::Float64, aField::CartesianVector{Float64},
+`HighHarmonic.computeTimeDipoleAmplitude(approach::HhgHydrogenicSaddlePoint, time::Float64, aField::Array{Float64,1},
                                             orbital::Radial.Orbital)` 
     ... to compute the dipole amplitude d(t) at time for the given approximation, vector potential (aField) and the 
         orbital wave function; a dipole amplitude::CartesianVector{ComplexF64} is returned.

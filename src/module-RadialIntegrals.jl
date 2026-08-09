@@ -1331,8 +1331,8 @@ function V0(wa::Array{Float64,1}, mtp::Int64, grid::Radial.Grid)
 end
 
 """
-`RadialIntegrals.W5_Integral(mu::Int64, nu::Int64, orbitala::Radial.Orbital, orbitalc::Radial.Orbital,  
-                                                    orbitalb::Radial.Orbital, orbitald::Radial.Orbital, grid::Radial.Grid)`  
+`RadialIntegrals.W5_Integral(mu::Int64, nu::Int64, a::Radial.Orbital, b::Radial.Orbital,  
+                                                    c::Radial.Orbital, d::Radial.Orbital, grid::Radial.Grid)`  
     ... computes the (radial) integral for four relativistic orbitals: 
                             
         W_5 [ac|bd] = int_0^infty dr   int_0^r ds   [Pa Qc]_{r}  * ( s^nu / r^(nu+1) ) * [Pb Qd]_{s}

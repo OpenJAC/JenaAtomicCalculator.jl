@@ -481,7 +481,7 @@ end
 
 
 """
-`IsotopeShift.displayResults(stream::IO, outcomes::Array{Hfs.Outcome,1}, settings::IsotopeShift.Settings)`  
+`IsotopeShift.displayResults(stream::IO, outcomes::Array{IsotopeShift.Outcome,1}, settings::IsotopeShift.Settings)`  
     ... to display the energies, M_ms and F-parameters, etc. for the selected levels. A neat table is printed but nothing 
         is returned otherwise.
 """

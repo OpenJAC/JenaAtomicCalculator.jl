@@ -458,7 +458,7 @@ end
 
 
 """
-`Plasma.displayCollisionalRadiativeResults(stream::IO, repMultiplet, temperatures, Ne, popVectors)`
+`Plasma.displayCollisionalRadiativeResults(stream::IO, repMultiplet::Multiplet, temperatures::Array{Float64,1}, Ne::Float64, popVectors::Dict)`
     ... prints a table of the relative level populations (Coulomb/Babushkin), one row per (level,
         temperature) pair, following JAC's usual table style (2-line header, truncated scientific
         notation, energies/temperatures in the usual units).

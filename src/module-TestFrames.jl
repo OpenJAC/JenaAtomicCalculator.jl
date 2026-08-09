@@ -13,7 +13,7 @@ export testDummy
 
 
 """
-`TestFrames.testCompareLines(oldLine, newLine; rtol=1.0e-6)`
+`TestFrames.testCompareLines(oldLine::String, newLine::String)`
     ... compares two output lines token by token: tokens that are parseable as Float64 are compared
         with relative tolerance rtol; all other tokens are compared exactly as strings. Returns true
         if every token agrees within tolerance, false otherwise.

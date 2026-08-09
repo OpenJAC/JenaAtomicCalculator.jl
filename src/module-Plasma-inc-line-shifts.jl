@@ -71,7 +71,7 @@ end
 
 
 """
-`Plasma.displayResults(stream::IO, multiplet::Multiplet, newMultiplet::Multiplet, plasmaModel::Basics.AbstractPlasmaModel)`
+`Plasma.displayResults(stream::IO, multiplet::Multiplet, pMultiplet::Multiplet, plasmaModel::Basics.AbstractPlasmaModel)`
     ... to display the energies, M_ms and F-parameters, etc. for the  selected levels. A neat table is printed but nothing
         is returned otherwise.
 """

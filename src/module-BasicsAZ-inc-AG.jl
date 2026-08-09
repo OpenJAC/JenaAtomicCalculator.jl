@@ -424,7 +424,7 @@ function Basics.determinePolarizationVector(q::Int64, kind::Basics.RightElliptic
 end
 
 """
-`Basics.determinePolarizationLambda(kind::Basics.AbstractPolarization)`  
+`Basics.determinePolarizationLambda(kind::Basics.LeftCircular)`  
     ... determines the (standard) lambda value for the given kind of polarization; a lambda::Int64 is returned.
 """
 function Basics.determinePolarizationLambda(kind::Basics.LeftCircular)   return(  1 )    end

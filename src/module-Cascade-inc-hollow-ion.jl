@@ -178,7 +178,7 @@ end
 
 
 """
-`Cascade.generateConfigurationsForHollowIons(initialConfigs::Array{Configurations,1}, intoShells::Array{Shell,1}, 
+`Cascade.generateConfigurationsForHollowIons(initialConfigs::Array{Configuration,1}, intoShells::Array{Shell,1}, 
                                                 decayShells::Array{Shell,1}, noElectrons::Int64)`  
     ... generates all possible configurations as obtained by the capture of noElectrons into the intoShells. 
         A confList::Array{Configuration,1} is returned.

@@ -93,7 +93,7 @@ end
 
 
 """
-`Basics.readOrbitalFileGrasp92(filename::String, grid.Radial.Grid)`  
+`Basics.readOrbitalFileGrasp92(filename::String, grid::Radial.Grid)`  
     ... reads in the orbitals list from a Grasp92 .w file; a dictionary 
         orbitals::Dict{Subshell,Radial.Orbital} is returned.
 """

@@ -236,7 +236,7 @@ end
 
 #==  October 2025, replaced by Basics.ForStepwiseDecay(), ...        
 """
-`Cascade.generateConfigurationsForStepwiseDecay(scheme::Cascade.StepwiseDecayScheme, initialConfigs::Array{Configurations,1})`  
+`Cascade.generateConfigurationsForStepwiseDecay(scheme::Cascade.StepwiseDecayScheme, initialConfigs::Array{Configuration,1})`  
     ... generates all possible configurations as obtained by a stepwise loss of maxElectronLoss electrons and by considering
         NoShakeDisplacements displacements. A confList::Array{Configuration,1} is returned.
 """

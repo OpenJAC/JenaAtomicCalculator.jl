@@ -75,7 +75,7 @@ end
 
 """
 `Cascade.determineSteps(scheme::Cascade.RadiativeRecombinationScheme, comp::Cascade.Computation, 
-                        initialList::Array{Cascade.Block,1}, captureList::Array{Cascade.Block,1})`  
+                        initialList::Array{Cascade.Block,1}, capturedList::Array{Cascade.Block,1})`  
     ... determines all step::Cascade.Step's that need to be computed for this radiative recombination cascade. It considers the 
         radiative recombination between the blocks from the initialList and captureList. It checks that at least on pair of
         levels supports such a `radiative stabilization' within the step. A stepList::Array{Cascade.Step,1} is returned, and 

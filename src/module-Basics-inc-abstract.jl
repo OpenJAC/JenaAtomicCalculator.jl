@@ -26,7 +26,7 @@ end
 
 
 """
-`Basics.AngularJ64(m::Integer)`  ... constructor for a given integer (numerator).
+`Basics.AngularJ64(j::Integer)`  ... constructor for a given integer (numerator).
 """
 function AngularJ64(j::Integer)
     j < 0   &&   error("j must be positive.")

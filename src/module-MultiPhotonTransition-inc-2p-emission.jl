@@ -205,8 +205,8 @@ end
 
 
 """
-`MultiPhotonTransition.computeLines(process::TwoPhotonEmission, finalMultiplet::Multiplet, initialMultiplet::Multiplet, 
-                                        grid::Radial.Grid, settings::MultiPhotonTransition.Settings; output=true)` 
+`MultiPhotonTransition.computeLines(scheme::TwoPhotonEmissionScheme, finalMultiplet::Multiplet, initialMultiplet::Multiplet, 
+                                        grid::Radial.Grid, settings::MultiPhotonTransition.Settings)` 
     ... to compute the multiphoton transition amplitudes and all properties as requested by the given settings. A list of 
         lines::Array{MultiPhotonTransition.Line_2pEmission,1} is returned.
 """
@@ -359,7 +359,7 @@ end
 `MultiPhotonTransition.getReducedAmplitudeEmission(K::AngularJ64, finalLevel::Level, 
                                                         omega2::Float64, multipole2::EmMultipole, Jsym::LevelSymmetry, 
                                                         omega1::Float64, multipole1::EmMultipole, initialLevel::Level, 
-                                        gauge::EmGauge, sharings:Array{MultiPhotonTransition.Sharing_2pEmission,1})`  
+                                        gauge::EmGauge, sharings::Array{MultiPhotonTransition.Sharing_2pEmission,1})`  
     ... to get/return the reduced amplitude U^{K, 2gamma emission} (K, Jf, omega2, multipole2, Jsym, omega1, multipole1, Ji) 
         from the calculated list of channels. An amplitude::Complex{Float64} is returned.
 """

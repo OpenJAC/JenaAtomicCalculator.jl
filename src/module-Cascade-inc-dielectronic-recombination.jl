@@ -87,7 +87,7 @@ end
 
 """
 `Cascade.determineSteps(scheme::Cascade.DielectronicRecombinationScheme, comp::Cascade.Computation, 
-                        initialList::Array{Cascade.Block,1}, captureList::Array{Cascade.Block,1}, decayList::Array{Cascade.Block,1})`  
+                        initialList::Array{Cascade.Block,1}, capturedList::Array{Cascade.Block,1}, decayList::Array{Cascade.Block,1})`  
     ... determines all step::Cascade.Step's that need to be computed for this dielectronic cascade. It considers the autoionization
         between the blocks from the captureList and initialList as well as the radiative stabilization between the blocks from the 
         captureList and decayList. It checks that at least on pair of levels supports either an `electron-capture' or 

@@ -771,7 +771,7 @@ end
 
 
 """
-`ForPedestrians.computeBranchingFractions(theme::Basics.ForPhotoEmission, initialConfigs, finalConfigs; ...)`
+`ForPedestrians.computeBranchingFractions(theme::Basics.ForPhotoEmission, initialConfigs::Array{Configuration,1}, finalConfigs::Array{Configuration,1})`
     ... computes branching fractions for E1 radiative decay from all levels of initialConfigs to
         finalConfigs.  Both Coulomb and Babushkin gauge fractions are shown; all other rate quantities
         are suppressed.  The results are printed to screen but nothing is returned otherwise.
@@ -852,7 +852,7 @@ end
 
 
 """
-`ForPedestrians.computeBranchingFractions(theme::Basics.ForAutoIonization, initialConfigs, finalConfigs; ...)`
+`ForPedestrians.computeBranchingFractions(theme::Basics.ForAutoIonization, initialConfigs::Array{Configuration,1}, finalConfigs::Array{Configuration,1})`
     ... computes branching fractions for Auger decay from all levels of initialConfigs to
         finalConfigs (N-1 electrons).  A single rate column is shown (Coulomb interaction).
         The results are printed to screen but nothing is returned otherwise.
@@ -941,7 +941,7 @@ end
 
 
 """
-`ForPedestrians.displaySpectrum(theme::Basics.ForPhotoEmission, initialConfigs, finalConfigs; ...)`
+`ForPedestrians.displaySpectrum(theme::Basics.ForPhotoEmission, initialConfigs::Array{Configuration,1}, finalConfigs::Array{Configuration,1})`
     ... computes E1 radiative transition rates and displays the photon emission spectrum as an
         ASCII bar chart (lines sorted by energy, bar height = relative intensity).
         If plotfile is given and Plots.jl is loaded, a figure is also saved.
@@ -1038,7 +1038,7 @@ end
 
 
 """
-`ForPedestrians.displaySpectrum(theme::Basics.ForAutoIonization, initialConfigs, finalConfigs; ...)`
+`ForPedestrians.displaySpectrum(theme::Basics.ForAutoIonization, initialConfigs::Array{Configuration,1}, finalConfigs::Array{Configuration,1})`
     ... computes Auger rates and displays the electron (Auger) emission spectrum as an
         ASCII bar chart (lines sorted by kinetic energy, bar height = relative intensity).
         If plotfile is given and Plots.jl is loaded, a figure is also saved.

@@ -249,7 +249,7 @@ end
 
 
 """
-`ImpactExcitationAutoion.displayPathways(pathways::Array{ImpactExcitationAutoion.Line,1})`  
+`ImpactExcitationAutoion.displayPathways(pathways::Array{ImpactExcitationAutoion.Pathway,1})`  
     ... to display a list of pathways and channels that have been selected due to the prior settings. A neat table of all 
         selected transitions and energies is printed but nothing is returned otherwise.
 """
@@ -305,7 +305,7 @@ end
 
 
 """
-`ImpactExcitationAutoion.displayResults(pathways::Array{ImpactExcitationAutoion.Line,1})`  
+`ImpactExcitationAutoion.displayResults(pathways::Array{ImpactExcitationAutoion.Pathway,1})`  
     ... to list all results, energies, cross sections, etc. of the selected lines. A neat table is printed but nothing is returned 
         otherwise.
 """

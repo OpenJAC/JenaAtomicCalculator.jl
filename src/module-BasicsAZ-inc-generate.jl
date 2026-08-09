@@ -79,7 +79,7 @@ end
 
 
 """
-`Basics.generate(repType::AtomicState.OneElectronSpectrum, representation::AtomicState.Representation)`  
+`Basics.generate(repType::AtomicState.OneElectronSpectrum, rep::AtomicState.Representation)`  
     ... to generate a one-electron spectrum for the atomic potential from the (given) levels, based on a set of reference 
         configurations as well as for given settings. Relevant intermediate and final results are printed to screen (stdout). 
         Nothing is returned in this case.

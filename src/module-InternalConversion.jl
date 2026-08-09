@@ -199,7 +199,7 @@ end
 
 
 """
-`InternalConversion.racahW(j1, j2, j3, j4, j5, j6)`
+`InternalConversion.racahW(j1::AngularJ64, j2::AngularJ64, j3::AngularJ64, j4::AngularJ64, j5::AngularJ64, j6::AngularJ64)`
     ... the Racah W-coefficient, related to the Wigner 6-j symbol by the standard
         (Rotenberg-Bivins-Metropolis-Wooten) relation
         W(j1 j2 j3 j4; j5 j6) = (-1)^(j1+j2+j3+j4) {j1 j2 j5; j4 j3 j6}.

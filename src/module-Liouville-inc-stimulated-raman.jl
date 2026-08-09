@@ -270,7 +270,7 @@ end
 
 
 """
-`Liouville.analyzeDensityMatrix(scheme::Liouville.StimulatedRamanScheme, ...)`  
+`Liouville.analyzeDensityMatrix(scheme::Liouville.StimulatedRamanScheme, comp::Liouville.Computation)`  
     ... to display the density matrix 
 """
 function analyzeDensityMatrix(scheme::Liouville.StimulatedRamanScheme, comp::Liouville.Computation)
