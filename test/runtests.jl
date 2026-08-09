@@ -40,16 +40,13 @@ using JenaAtomicCalculator, ..Defaults, ..TestFrames
 
     @testset "JAC properties" begin
         @test TestFrames.testModule_Einstein()
-        ## PlasmaShift: NO TEST EXISTS. Re-checked 09-Aug-2026 -- TestFrames.testModule_PlasmaShift is not merely
-        ## disabled, the function itself is gone, removed when PlasmaShift became a Plasma.Computation scheme.
-        ## Reviving it means writing a NEW test against the Plasma scheme, not re-enabling this line.
         ## @test TestFrames.testModule_Hfs()           ## disabled: runtime error "still to be done" in Hfs.computeAmplitudesProperties (calcNondiagonal path not implemented)   [re-verified 09-Aug-2026: still raises "... still to be done for a single nuclear spin/isomer"]
         @test TestFrames.testModule_LandeZeeman() 
         @test TestFrames.testModule_IsotopeShift()   
         @test TestFrames.testModule_AlphaVariation() 
         @test TestFrames.testModule_FormFactor() 
         @test TestFrames.testModule_DecayYield()
-        ## @test TestFrames.testModule_MultipolePolarizibility()  ## disabled 31-Jul-2026: module under active edit in a parallel session, results non-reproducible mid-edit   [re-verified 09-Aug-2026: the parallel edit ended, but the test now raises MethodError on Settings(::Vector) -- it predates the module's API rewrite, and that module is still blocked on the B-spline pseudo-continuum bug]
+        @test TestFrames.testModule_MultipolePolarizibility()
     end
 
     @testset "JAC processes" begin
@@ -80,9 +77,6 @@ using JenaAtomicCalculator, ..Defaults, ..TestFrames
     end
 
     @testset "JAC plasma" begin
-        ## PlasmaShift: NO TEST EXISTS. Re-checked 09-Aug-2026 -- TestFrames.testModule_PlasmaShift is not merely
-        ## disabled, the function itself is gone, removed when PlasmaShift became a Plasma.Computation scheme.
-        ## Reviving it means writing a NEW test against the Plasma scheme, not re-enabling this line.
     end
 
     @testset "JAC strongfield" begin
