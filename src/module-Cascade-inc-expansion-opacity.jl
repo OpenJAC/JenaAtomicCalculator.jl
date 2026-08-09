@@ -20,12 +20,11 @@ function computeSteps(scheme::Cascade.ExpansionOpacityScheme, comp::Cascade.Comp
         println(sa);    if  printSummary   println(iostream, sa)   end 
                                                 
         if      step.process == Basics.PhotoExc()
+            ## computeLinesCascade gained a LevelSelection argument. Here EVERY level of the lower block must be
+            ## allowed to absorb -- a Boltzmann distribution puts weight on all of them, and the metastable
+            ## levels are precisely the ones that carry the interesting lines -- so no selection is applied.
             newLines = PhotoExcitation.computeLinesCascade(step.finalMultiplet, step.initialMultiplet, comp.grid, 
-                                                            step.settings, output=true, printout=false)
-            if  scheme.printTransitions 
-                println("\n ****** Prepare a printout of the emission rates for photoexcitation lines (not yet !!). ****** \n")
-                ## PhotoExcitation.displayEmissionRates(stdout, newLines, PhotoExcitation.Settings())
-            end 
+                                                            step.settings, LevelSelection(false), output=true, printout=false)
             append!(linesE, newLines);    nt = length(linesE)
         else   error("Unsupported atomic process for cascade computations.")
         end
@@ -34,7 +33,67 @@ function computeSteps(scheme::Cascade.ExpansionOpacityScheme, comp::Cascade.Comp
         println(sa);    if  printSummary   println(iostream, sa)   end 
     end
     #
-    data = Cascade.ExcitationData(linesE)
+    ## The line list is printed here, once and sorted by wavelength, rather than step by step: it is the
+    ## bound-bound list the expansion opacity is built from, and one wants to see which lines dominate a
+    ## wavelength bin.  Previously this branch only announced itself with "(not yet !!)".
+    if  scheme.printTransitions
+        Cascade.displayExpansionOpacityTransitions(stdout, linesE)
+        if  printSummary    Cascade.displayExpansionOpacityTransitions(iostream, linesE)    end
+    end
+    #
+    ## Return the generalised Cascade.Data{T}, not the older per-scheme Cascade.ExcitationData: the rest of the
+    ## module -- Cascade.extractPhotoExcitationData in particular -- has moved to Data{T} (field `lines`), and
+    ## the half-finished migration is what broke the computation -> simulation chain of this scheme.
+    data = [ Cascade.Data{PhotoExcitation.Line}(linesE) ]
+end
+
+
+"""
+`Cascade.displayExpansionOpacityTransitions(stream::IO, lines::Array{PhotoExcitation.Line,1})`  
+    ... displays the bound-bound transitions from which the expansion opacity is built, sorted by wavelength.
+        For each line, the wavelength, the transition energy, the absorption oscillator strength in both gauges
+        and the excitation energy of the LOWER level are shown; the latter decides, together with the temperature,
+        how strongly the line is populated. Nothing is returned.
+"""
+function displayExpansionOpacityTransitions(stream::IO, lines::Array{PhotoExcitation.Line,1})
+    if  length(lines) == 0    println(stream, "\n  No bound-bound transitions have been calculated. \n");    return( nothing )    end
+    ## The lower level of the lowest-lying line is taken as the reference for the excitation energies.
+    eGround = minimum( [ line.initialLevel.energy  for line in lines ] )
+    sortedLines = sort( lines, by = line -> -line.omega )
+    #
+    nx = 116
+    println(stream, " ")
+    println(stream, "  Bound-bound transitions that enter the expansion opacity:")
+    println(stream, " ")
+    println(stream, "  ", TableStrings.hLine(nx))
+    sa = "  ";   sb = "  "
+    sa = sa * TableStrings.center(18, "i-level-f"; na=2);                         sb = sb * TableStrings.hBlank(20)
+    sa = sa * TableStrings.center(18, "i--J^P--f"; na=4);                         sb = sb * TableStrings.hBlank(22)
+    sa = sa * TableStrings.center(14, "lambda"; na=3)
+    sb = sb * TableStrings.center(14, "[Angstrom]"; na=3)
+    sa = sa * TableStrings.center(14, "omega"; na=3)
+    sb = sb * TableStrings.center(14, "[eV]"; na=3)
+    sa = sa * TableStrings.center(26, "f_ik (absorption)"; na=2)
+    sb = sb * TableStrings.center(26, "Coulomb -- Babushkin"; na=2)
+    sa = sa * TableStrings.center(14, "E(lower)"; na=2)
+    sb = sb * TableStrings.center(14, "[eV]"; na=2)
+    println(stream, sa);    println(stream, sb);    println(stream, "  ", TableStrings.hLine(nx))
+    #
+    for  line in sortedLines
+        sa  = "  ";    isym = LevelSymmetry( line.initialLevel.J, line.initialLevel.parity)
+                       fsym = LevelSymmetry( line.finalLevel.J,   line.finalLevel.parity)
+        sa = sa * TableStrings.center(18, TableStrings.levels_if(line.initialLevel.index, line.finalLevel.index); na=2)
+        sa = sa * TableStrings.center(18, TableStrings.symmetries_if(isym, fsym);  na=4)
+        sa = sa * @sprintf("%.5e", convertUnits("energy: from atomic to Angstrom", line.omega))         * "    "
+        sa = sa * @sprintf("%.5e", convertUnits("energy: from atomic to eV", line.omega))      * "    "
+        sa = sa * @sprintf("%.5e", line.oscStrength.Coulomb)                                            * "    "
+        sa = sa * @sprintf("%.5e", line.oscStrength.Babushkin)                                          * "    "
+        sa = sa * @sprintf("%.5e", convertUnits("energy: from atomic to eV", line.initialLevel.energy - eGround))
+        println(stream, sa)
+    end
+    println(stream, "  ", TableStrings.hLine(nx))
+    #
+    return( nothing )
 end
 
 
@@ -95,7 +154,10 @@ function generateBlocks(scheme::Cascade.ExpansionOpacityScheme, comp::Cascade.Co
             subshellList = Basics.generateSubshellList(relconfList)
             Defaults.setDefaults("relativistic subshell list", subshellList; printout=printout)
             wa                 = Bsplines.generatePrimitives(comp.grid)
-            hydrogenicOrbitals = Bsplines.generateOrbitalsHydrogenic(wa, comp.nuclearModel, subshellList; printout=printout)
+            ## The argument order had drifted:  Bsplines.generateOrbitalsHydrogenic takes
+            ## (subshells, nuclearModel, primitives), as the dielectronic-recombination and photorecombination
+            ## schemes call it.  This line raised a MethodError on the first block of any cascade.
+            hydrogenicOrbitals = Bsplines.generateOrbitalsHydrogenic(subshellList, comp.nuclearModel, wa; printout=printout)
         end
         
         for  (ia, confa)  in  enumerate(confs)
@@ -104,7 +166,9 @@ function generateBlocks(scheme::Cascade.ExpansionOpacityScheme, comp::Cascade.Co
             # Now distinguish between the first and all other blocks; for the first block, a SCF is generated and the occupied orbital
             # used also for all other blocks. In addition, a set of hydrogenic orbitals generated for later use
             if  ia == 1
-                basis     = SelfConsistent.performSCF([confa], comp.nuclearModel, comp.grid, comp.asfSettings; printout=false)
+                ## SelfConsistent.performSCF returns a Multiplet, not a Basis; basis.orbitals below would fail.
+                scfMultiplet  = SelfConsistent.performSCF([confa], comp.nuclearModel, comp.grid, comp.asfSettings; printout=false)
+                basis         = scfMultiplet.levels[1].basis
             else
                 # Generate a list of relativistic configurations and determine an ordered list of subshells for these configurations
                 relconfList  = ConfigurationR[]
@@ -143,12 +207,12 @@ function generateBlocks(scheme::Cascade.ExpansionOpacityScheme, comp::Cascade.Co
             println("and $(length(multiplet.levels[1].basis.csfs)) CSF done. ")
         end
     elseif    comp.approach == SCA()
-        sa = "\n* Generate blocks for electron-capture & decay cascade computations: \n" *
+        sa = "\n* Generate blocks for expansion opacity computations: \n" *
                 "\n  In the cascade approach $(comp.approach), the following assumptions/simplifications are made: " *
                 "\n    + each single configuration forms an individual cascade block; " *
                 "\n    + orbitals are generated independently for each block for a Dirac-Fock-Slater potential; " *
                 "\n    + configuration mixing is included for each block, based on H^(DC); " *
-                "\n    + all requested multipoles are considered for the stabilization. \n"
+                "\n    + all requested multipoles are considered for the bound-bound transitions. \n"
         if  printout       println(sa)              end
         if  printSummary   println(iostream, sa)    end
         #
@@ -175,6 +239,13 @@ end
 function generateConfigurationsForExpansionOpacity(initialConfigs::Array{Configuration,1}, scheme::ExpansionOpacityScheme,
                                                     nm::Nuclear.Model, grid::Radial.Grid)
     newConfigs = Basics.generateConfigurations(initialConfigs, scheme.excitationFromShells, scheme.excitationToShells, scheme.NoExcitations)  
+    ## Basics.generateConfigurations returns the EXCITED configurations only. Without the initial ones the
+    ## ground configuration never becomes a cascade block, and no line can start from the level that carries
+    ## almost the whole population -- the resonance lines, i.e. the strongest contributors to any opacity,
+    ## were therefore missing altogether.
+    for  conf in initialConfigs
+        if  !(conf in newConfigs)    push!(newConfigs, conf)    end
+    end
 
     return( newConfigs )
 end
@@ -232,7 +303,13 @@ function perform(scheme::ExpansionOpacityScheme, comp::Cascade.Computation; outp
         results = Base.merge( results, Dict("cascade scheme"                => comp.scheme) ) 
         results = Base.merge( results, Dict("initial multiplets:"           => multiplets) )    
         results = Base.merge( results, Dict("generated multiplets:"         => gMultiplets) )    
+        ## "photoexcitation lines:" is the key Cascade.extractPhotoExcitationData reads; storing only the
+        ## descriptive "photoexcitation line data:" meant the extractor returned an empty array and every
+        ## opacity simulation aborted with "No photoexcitationData provided."  Both keys are written: the raw
+        ## line list under the standard key, the Data{T} container under the descriptive one.
         results = Base.merge( results, Dict("photoexcitation line data:"    => data) )
+        results = Base.merge( results, Dict("photoexcitation lines:"        => data[1].lines) )
+        results = Base.merge( results, Dict("cascade data:"                 => data) )
         #
         #  Write out the result to file to later continue with simulations on the cascade data
         filename = "zzz-cascade-expansion-opacity-computations-" * string(Dates.now())[1:13] * ".jld"

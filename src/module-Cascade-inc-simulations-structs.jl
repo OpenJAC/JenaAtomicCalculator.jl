@@ -453,22 +453,42 @@ end
     ... defines a type for simulating the expansion opacity as function of the wavelength as well as (parametrically) the density
         and expansion time.
 
+        The expansion opacity is formed in the line-binned Sobolev picture of Eastman & Pinto (1993),
+
+            kappa_exp(lambda) = 1/(c * t_exp * rho) * SUM_l (lambda_l/Delta-lambda) * (1 - exp(-tau_l))
+
+        with the Sobolev optical depth of each bound-bound line l
+
+            tau_l = pi * alpha * n_l * lambda_l * t_exp * f_l         (atomic units; n_l = LOWER level)
+
+        NOTE THAT TWO DIFFERENT DENSITIES ENTER, and they are given as two separate fields on purpose:
+        a MASS density rho fixes the prefactor and hence the unit of kappa [cm^2/g], while a NUMBER density
+        of the absorbing level enters the optical depth.  A single "ionDensity" field previously served as
+        the first while the second was hard-wired to 1.0 in the code, which made the absolute scale of every
+        opacity meaningless.  Stating both explicitly keeps an inconsistent pair visible in the printout
+        rather than silent.
+
     + levelPopulation        ::Basics.AbstractLevelPopulation  
-        ... to specify the kind of level population that is considered for the given opacity calculations.
+        ... the level population used to obtain n_l from ionNumberDensity; BoltzmannLevelPopulation() gives
+            the LTE population of the lower level, normalised by the partition function over the levels that
+            occur in the given line list.
     + opacityDependence      ::Cascade.AbstractOpacityDependence    
         ... to specify the dependence of the opacities [omega, lambda, (temperature-normalized) u]
-    + ionDensity             ::Float64       ... ion density [in g/cm^3]
+    + ionNumberDensity       ::Float64       ... number density n of the ions [in 1/cm^3]; enters tau_l
+    + massDensity            ::Float64       ... mass density rho [in g/cm^3]; enters the 1/(rho c t) prefactor
     + temperature            ::Float64       ... temperature [in K]
     + expansionTime          ::Float64       ... (expansion/observation) time [in sec]
     + transitionEnergyShift  ::Float64     
         ... (total) energy shifts that apply to all transition energies; the amplitudes are re-scaled accordingly.
     + dependencyValues       ::Array{Float64,1}
-        ... values [in a.u.] for which the expansion opacity is to be calculated.
+        ... the bin CENTRES [in a.u.] at which the expansion opacity is reported; the bin width is taken from
+            opacityDependence.binning.
 """  
 struct  ExpansionOpacities      <:  Cascade.AbstractSimulationProperty
     levelPopulation          ::Basics.AbstractLevelPopulation
     opacityDependence        ::Cascade.AbstractOpacityDependence
-    ionDensity               ::Float64
+    ionNumberDensity         ::Float64
+    massDensity              ::Float64
     temperature              ::Float64
     expansionTime            ::Float64
     transitionEnergyShift    ::Float64
@@ -480,7 +500,7 @@ end
 `Cascade.ExpansionOpacities()`  ... (simple) constructor for expansion opacity simulations.
 """
 function ExpansionOpacities()
-    ExpansionOpacities(Basics.BoltzmannLevelPopulation(), WavelengthOpacityDependence(0.01), 1, 1000., 1.,  0., Float64[])
+    ExpansionOpacities(Basics.BoltzmannLevelPopulation(), WavelengthOpacityDependence(0.01), 1.0e10, 1.0e-13, 5000., 86400.,  0., Float64[])
 end
 
 
@@ -488,9 +508,10 @@ end
 function Base.show(io::IO, opacities::Cascade.ExpansionOpacities) 
     println(io, "levelPopulation:            $(opacities.levelPopulation)  ")
     println(io, "opacityDependence:          $(opacities.opacityDependence)  ")
-    println(io, "ionDensity:                 $(opacities.ionDensity)  ")
-    println(io, "temperature:                $(opacities.temperature)  ")
-    println(io, "expansionTime:              $(opacities.expansionTime)  ")
+    println(io, "ionNumberDensity:           $(opacities.ionNumberDensity)  [1/cm^3]")
+    println(io, "massDensity:                $(opacities.massDensity)  [g/cm^3]")
+    println(io, "temperature:                $(opacities.temperature)  [K]")
+    println(io, "expansionTime:              $(opacities.expansionTime)  [sec]")
     println(io, "transitionEnergyShift:      $(opacities.transitionEnergyShift)  ")
     println(io, "dependencyValues:           $(opacities.dependencyValues)  ")
 end

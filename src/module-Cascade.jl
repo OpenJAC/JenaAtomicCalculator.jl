@@ -362,22 +362,25 @@ end
     + maxPhotonEnergy       ::Float64                 
         ... Maximum photon (transition) energy [in a.u.] that are taken into account for all absorption lines; 
             this transition energy refers to the shortest wavelength for which the opacity is needed.
-    + meanEnergyShift       ::Float64                 
-        ... Energy shift for all excited configurations [in a.u.]; this allows to correct for missing correlation 
-            contributions.
     + NoExcitations         ::Int64                 
         ... (Maximum) Number of electron replacements in the excited configuration with regard to the initial configurations/multiplets.
     + excitationFromShells  ::Array{Shell,1}    
         ... List of shells from which excitations are to be considered.
     + excitationToShells    ::Array{Shell,1}    
         ... List of shells to which excitations are to be considered.
-    + printTransitions      ::Bool      ... Print transition data for comparison, if true.
+    + printTransitions      ::Bool      
+        ... Print the bound-bound line list that the opacity is built from -- wavelength, oscillator strength in
+            both gauges and the lower-level energy -- so that one can see which lines dominate a given bin.
+
+        NB an energy shift is deliberately NOT a field of this scheme.  It adjusts how the computed lines are
+        INTERPRETED, not which lines are computed, and therefore belongs to the simulation side, where
+        Cascade.ExpansionOpacities.transitionEnergyShift provides it.  The former meanEnergyShift here was read
+        nowhere and merely duplicated that field, inviting the two to disagree.
 """
 struct   ExpansionOpacityScheme  <:  Cascade.AbstractCascadeScheme
     multipoles              ::Array{EmMultipole}  
     minPhotonEnergy         ::Float64 
     maxPhotonEnergy         ::Float64   
-    meanEnergyShift         ::Float64                 
     NoExcitations           ::Int64
     excitationFromShells    ::Array{Shell,1}
     excitationToShells      ::Array{Shell,1}
@@ -389,7 +392,7 @@ end
 `Cascade.ExpansionOpacityScheme()`  ... constructor for an 'default' instance of a Cascade.ExpansionOpacityScheme.
 """
 function ExpansionOpacityScheme()
-    ExpansionOpacityScheme([E1], 0., 1.0, 0., 1, Shell[], Shell[], false)
+    ExpansionOpacityScheme([E1], 0., 1.0, 1, Shell[], Shell[], false)
 end
 
 
@@ -406,7 +409,6 @@ function Base.show(io::IO, scheme::ExpansionOpacityScheme)
     println(io, "multipoles:                 $(scheme.multipoles)  ")
     println(io, "minPhotonEnergy:            $(scheme.minPhotonEnergy)  ")
     println(io, "maxPhotonEnergy:            $(scheme.maxPhotonEnergy)  ")
-    println(io, "meanEnergyShift:            $(scheme.meanEnergyShift)  ")
     println(io, "NoExcitations:              $(scheme.NoExcitations)  ")
     println(io, "excitationFromShells:       $(scheme.excitationFromShells)  ")
     println(io, "excitationToShells:         $(scheme.excitationToShells)  ")

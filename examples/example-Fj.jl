@@ -1,80 +1,191 @@
 
-println("Fj) Three-step cascade computation and simulation for the photo-ionization of Si^- and its subsequent decay: AverageSCA model.")
+println("Fj) Cascade.HollowIonScheme: formation and decay of a hollow carbon ion.")
 
-# PROVENANCE (05-Aug-2026): this is the former contents of example-Fb.jl, moved here unchanged so that Fb.jl
-# could be rebuilt around the cascade SIMULATIONS. The body below is a byte-exact copy taken from git
-# (commit 077d6ca, "Track the example scripts"), not a retyping. It is kept because the PhotoIonizationScheme
-# scenario it sketches is to be picked up later; nothing here has been repaired.
+using JLD2, Printf
 #
-# KNOWN BREAKAGES, none of them fixed:
-#   * Cascade.PhotonIonizationScheme does not exist; the type is Cascade.PhotoIonizationScheme, and it takes
-#     nine fields (multipoles, photonEnergies, electronEnergies, excitationFromShells, excitationToShells,
-#     initialLevelSelection, lValues, electronEnergyShift, minCrossSection), not the three given below.
-#   * Cascade.StepwiseDecayScheme takes seven fields (processes, maxElectronLoss, chargeStateShifts,
-#     NoShakeDisplacements, decayShells, shakeFromShells, shakeToShells); branch b passes five, and passes the
-#     processes as types (Auger, Radiative) rather than as instances (Auger(), Radiative()).
-#   * The .jld files named below are hard-coded artefacts from February 2020 and no longer exist.
-#   * Cascade.Simulation now takes a single `property=`, not a `properties=` array, and
-#     Cascade.SimulationSettings carries three fields (printTree, printLongTree, initialPhotonEnergy), not the
-#     six given in branch c; the initial level occupations moved into the property itself.
-using JLD2
+setDefaults("method: continuum, Galerkin")              ## see the note in example-Fg.jl on asymptotic Coulomb
+setDefaults("method: normalization, Alok")
+setDefaults("unit: energy", "eV")
+
+grid = Radial.Grid(Radial.Grid(true); rnt = 4.0e-6, h = 5.0e-2, hp = 1.0e-2, rbox = 20.0)
+
+
+# WRITTEN 08-Aug-2026, Stage 5 of the cascade-scheme series.  The previous example-Fj.jl held the Si^-
+# photo-ionization scenario rescued from the old example-Fb.jl; example-Fd.jl covers PhotoIonizationScheme
+# properly since, so nothing was kept.
 #
-println("aa")
-setDefaults("method: continuum, asymptotic Coulomb")    ## setDefaults("method: continuum, Galerkin")
-setDefaults("method: normalization, pure sine")         ## setDefaults("method: normalization, pure Coulomb")    setDefaults("method: normalization, pure sine")
+# WHAT A HOLLOW ION IS.  An ion whose INNER shells are empty while outer ones are occupied -- the state left
+# behind when a highly charged ion captures several electrons into high nl shells, as happens at a surface or
+# in a dense plasma.  Such a configuration is far above the ground state of its own charge state and decays by
+# a cascade of two competing processes: radiative transitions that fill the inner vacancy, and autoionization
+# (Auger) that ejects an electron.  Cascade.HollowIonScheme follows both.
+#
+# The reference case below is the simplest possible: a BARE carbon nucleus that captures two electrons into
+# n = 2, giving 2s^2 / 2s2p / 2p^2 with an entirely empty K shell.  Those states lie above the 1s threshold of
+# the one-electron ion, so both channels are open -- 2p -> 1s radiative decay and Auger emission to 1s.
+#
+# SIX DEFECTS were fixed in module-Cascade-inc-hollow-ion.jl to get this far; the scheme had never run.  The
+# first five are of the classes already familiar from the other schemes:
+#   1. five stray "@show" statements, three of them appended to live code lines;
+#   2. SelfConsistent.performSCF returns a Multiplet, but generateBlocks used it as a Basis (the same stale
+#      assumption as in module-Cascade-inc-impact-excitation.jl);
+#   3. Cascade.DecayData(linesR, linesA) -- that type no longer exists, Cascade.Data{T} replaced it;
+#   4. the results were stored ONLY under "hollow-ion line data:", while every simulation reads
+#      "cascade data:" via Cascade.reviewData.  No Cascade.Simulation could consume a hollow-ion cascade at
+#      all; branch d now does.
+#   5. the configuration generator emitted a 0-electron configuration -- the fully stripped ion, produced by
+#      the repeated RemoveElectrons -- which is not a cascade block and which aborted Hamiltonian.performCI
+#      inside Basics.merge with a bare error("stop a").
+#   6. Basics.computePotentialDFS, called to build the potential for the Auger continuum, DOES NOT EXIST.  The
+#      working pattern is that of the dielectronic-recombination scheme,
+#      Basics.computePotential(comp.asfSettings.scField, grid, level), which also honours a non-DFS choice.
+#      The same dead call still sits in module-Cascade-inc-stepwise-decay.jl:174 and in
+#      module-PhotoDoubleIonization.jl:356 and is left there for those files' own tasks.
+#
+# AND ONE CHANGE OF SUBSTANCE: decayShells now means what its docstring says.  It is documented as "shells into
+# which the electrons can decay", but generateConfigurationsForHollowIons only ever REMOVED electrons from
+# those shells (two RemoveElectrons loops) and never filled them.  Starting from an empty K shell, no
+# configuration with an occupied 1s was generated at all -- so the dominant 2p -> 1s radiative channel and the
+# Auger decay into the ground state of the next ion were both unreachable, and the scheme computed only the
+# redistribution among the captured shells.  The generator now also produces the configurations reached by
+# moving an electron from an into-shell down into a decay shell.  For the case below that takes the list from
+# three configurations to nine:
+#       2 electrons :  2s^2   2s2p   2p^2        (hollow)
+#                      1s2s   1s2p   1s^2        (reached by radiative decay into the K shell)
+#       1 electron  :  2s     2p     1s          (reached by autoionization)
+# A TRAP inside that fix, worth remembering: intoShells and decayShells normally overlap, and
+# Basics.generateConfigurations then also returns configurations with an electron ADDED rather than moved.
+# Filtering those out on Configuration.NoElectrons DOES NOT WORK -- that field is not kept in step with the
+# shells by these generators, which is why the routine's own final loop recomputes it.  Counting the shell
+# occupations directly is what reduced 26 generated configurations to the 9 above.
 
 
-if true
-    # Last successful:  unknown ...
-    # Compute 
-    setDefaults("print summary: open", "zzz-Cascade-computation-photoionization.sum")
+if  true
+    # Last visit:      08-Aug-2026
+    # Last successful: 08-Aug-2026 ... 41 s.  14 steps; 38 PhotoEmission and 10 AutoIonization lines, written
+    #                  to zzz-cascade-hollow-ion-computations-<date>.jld.  Both channels are open, which is the
+    #                  whole point of the scheme and was not the case before the decayShells fix above.
+    #                  Physics checks: the radiative steps come out at 354 - 365 eV against the C VI Lyman-alpha
+    #                  of 367 eV, and the Auger electron at 269 eV.  Dated on that agreement together with the
+    #                  channel-union check of branch c.
+    #
+    # Branch a: THE REFERENCE CASCADE -- a bare carbon nucleus captures two electrons into n = 2 and decays by
+    #   both channels.  Radiative and Auger steps are requested together, which is the point of the scheme.
+    #   The lines are written to a .jld that branch d reads.
+    setDefaults("print summary: open", "zzz-Cascade-Fj-reference.sum")
 
-    name = "Photoionization of Si- "
-    grid = Radial.Grid(false)
-    wa   = Cascade.Computation(Cascade.Computation(); name=name, nuclearModel=Nuclear.Model(14.), grid=grid, approach=Cascade.AverageSCA(),
-                            scheme=Cascade.PhotonIonizationScheme([Photo], 1, [30.0, 80.0]),
-                            initialConfigs=[Configuration("1s^2 2s^2 2p^6 3s^2 3p^3")] )
+    name   = "Hollow carbon: K-shell empty, two electrons captured into n = 2"
+    scheme = Cascade.HollowIonScheme([Radiative(), Auger()], [E1], 2, [Shell("2s"), Shell("2p")],
+                                     [Shell("1s"), Shell("2s"), Shell("2p")])
+    wa     = Cascade.Computation(Cascade.Computation(); name=name, nuclearModel=Nuclear.Model(6.), grid=grid,
+                                 approach=Cascade.AverageSCA(), scheme=scheme,
+                                 initialConfigs=[Configuration("1s^0")] )
     println(wa)
-    @show name
-    wb = perform(wa; output=true)
+    wb = perform(wa; output=true, outputToFile=true)
     setDefaults("print summary: close", "")
     #
-elseif  false    ## Stepwise decay cascade
-    # Last successful:  unknown ...
-    # Compute 
-    setDefaults("print summary: open", "zzz-Cascade-computation-following-decay.sum")
+elseif  false
+    # Last visit:      08-Aug-2026
+    # Last successful: 08-Aug-2026 ... 26 s for both runs.
+    #                      decayShells            radiative lines    Auger lines
+    #                      2s, 2p (no 1s)               11                0
+    #                      1s, 2s, 2p                   38               10
+    #                  Without the 1s the K shell can never be filled, so there is no 2p -> 1s photon and no
+    #                  autoionization whatever: the cascade collapses to the redistribution among the captured
+    #                  n = 2 shells.  This is the measurement behind the generator change described above.
+    #
+    # Branch b: WHAT decayShells CONTROLS -- the same capture, run once WITHOUT the 1s among the decay shells
+    #   and once with it.  Without 1s no configuration with an occupied K shell can be generated, so the
+    #   cascade is reduced to the redistribution among the captured n = 2 shells: no 2p -> 1s photon and no
+    #   Auger decay at all.  This is the branch that shows why the generator had to be extended, and it is
+    #   also the practical warning: decayShells must list the shells the electrons are to decay INTO, not only
+    #   the ones they start in.
+    setDefaults("print summary: open", "zzz-Cascade-Fj-decayshells.sum")
 
-    using JLD2
-    JLD2.@load "zzz-cascade-ionizing-computations-2020-02-02T20.jld"
-    iniMultiplets = results["generated multiplets:"]
-
-    name = "Si- (1s^-1) decay cascade"
-    grid = Radial.Grid(false)
-    wa   = Cascade.Computation(Cascade.Computation(); name=name, nuclearModel=Nuclear.Model(14.), grid=grid, approach=Cascade.AverageSCA(),
-                            scheme=Cascade.StepwiseDecayScheme([Auger, Radiative], 1, 0, Shell[], Shell[]),
-                            initialMultiplets=iniMultiplets )
-    println(wa)
-    @show name
-    wb = perform(wa; output=true)
+    for  (sa, dec)  in  [("without 1s", [Shell("2s"), Shell("2p")]),
+                         ("with 1s",    [Shell("1s"), Shell("2s"), Shell("2p")])]
+        println("\n>>> decayShells $sa")
+        scheme = Cascade.HollowIonScheme([Radiative(), Auger()], [E1], 2, [Shell("2s"), Shell("2p")], dec)
+        wa = Cascade.Computation(Cascade.Computation(); name="Hollow C, decayShells $sa",
+                                 nuclearModel=Nuclear.Model(6.), grid=grid,
+                                 approach=Cascade.AverageSCA(), scheme=scheme,
+                                 initialConfigs=[Configuration("1s^0")] )
+        wb = perform(wa; output=true, outputToFile=false)
+        for  x  in  wb["cascade data:"]
+            println(">>>   ", eltype(x.lines), " : ", length(x.lines), " lines")
+        end
+    end
     setDefaults("print summary: close", "")
     #
-else
-    # Last successful:  unknown ...
-    # Compute 
-    setDefaults("print summary: open", "zzz-Cascade-simulation.sum")
+elseif  false
+    # Last visit:      08-Aug-2026
+    # Last successful: 08-Aug-2026 ... 48 s for the three runs.
+    #                      processes           radiative lines    Auger lines
+    #                      [Radiative()]             38                0
+    #                      [Auger()]                  0               10
+    #                      both                      38               10
+    #                  Requesting both gives EXACTLY the union of the two, 38 and 10 in each case -- so the
+    #                  step generation neither double-counts a block pair nor drops one when both processes
+    #                  are active.  That is a free internal check and it passes exactly.
+    #
+    # Branch c: THE TWO CHANNELS SEPARATELY -- the same cascade with processes = [Radiative()], [Auger()] and
+    #   both.  scheme.processes is one of the few process lists in the Cascade module that is genuinely read
+    #   (determineSteps loops over it), so this is a real switch and not decoration.  Requesting both must give
+    #   exactly the union of the two, which is the cheapest available check that the step generation is not
+    #   double-counting or dropping pairs.
+    setDefaults("print summary: open", "zzz-Cascade-Fj-channels.sum")
 
-    JLD2.@load "zzz-cascade-ionizing-computations-2020-02-02T20.jld"
-    resIon  = results
-    JLD2.@load "zzz-cascade-decay-computations-2020-02-02T20.jld"
-    resDecay = results
+    for  (sa, procs)  in  [("radiative only", [Radiative()]), ("Auger only", [Auger()]),
+                           ("both",           [Radiative(), Auger()])]
+        println("\n>>> processes: $sa")
+        scheme = Cascade.HollowIonScheme(procs, [E1], 2, [Shell("2s"), Shell("2p")],
+                                         [Shell("1s"), Shell("2s"), Shell("2p")])
+        wa = Cascade.Computation(Cascade.Computation(); name="Hollow C, $sa", nuclearModel=Nuclear.Model(6.),
+                                 grid=grid, approach=Cascade.AverageSCA(), scheme=scheme,
+                                 initialConfigs=[Configuration("1s^0")] )
+        wb = perform(wa; output=true, outputToFile=false)
+        for  x  in  wb["cascade data:"]
+            println(">>>   ", eltype(x.lines), " : ", length(x.lines), " lines")
+        end
+    end
+    setDefaults("print summary: close", "")
+    #
+elseif  false
+    # Last visit:      08-Aug-2026 ... runs, and the machinery is verified: Cascade.reviewData now finds the
+    #                  lines (it could not before defect 4 was fixed), sorts 21 levels across all charge states,
+    #                  propagates, and returns a normalised distribution summing to 1.00000.
+    #                  NOT "Last successful", and the reason is a TRAP worth knowing.  With
+    #                  initialOccupations = [(1, 1.0)] the run reported
+    #                      No. electrons   Lev-No   J^P      Energy [eV]      Rel. occ.
+    #                             1           1    3/2 -    -1.224164e+02     1.00000
+    #                  i.e. level 1 is a ONE-electron level (2p of C^5+), not a hollow two-electron state at
+    #                  all.  The cascade therefore started at a dead end and the resulting "100% at one
+    #                  electron" says nothing: we began there.  Level numbers in initialOccupations refer to the
+    #                  SORTED, CASCADE-WIDE list that spans every charge state, so the obvious choice of 1 can
+    #                  land on a FINAL state rather than an initial one.  Read the "Initial level occupation"
+    #                  table that the simulation prints and pick a level number whose electron count matches the
+    #                  hollow configuration before quoting any distribution from this branch.
+    #
+    # Branch d: THE SIMULATION -- the ion distribution that the hollow ion decays into.  This is the physical
+    #   question a hollow-ion cascade is usually asked: starting from the doubly-captured state, how is the
+    #   final charge distributed between the one- and two-electron ions?  Radiative decay keeps the electron
+    #   number, Auger decay reduces it, so the answer is set by the competition between the two channels that
+    #   branch c separates.  Requires branch a to have run.
+    #
+    #   This branch is only possible because the computation now also stores its lines under "cascade data:";
+    #   until that was fixed, Cascade.reviewData found nothing and no simulation could read a hollow-ion
+    #   cascade (see defect 4 above).
+    setDefaults("print summary: open", "zzz-Cascade-Fj-simulation.sum")
 
-    data = [resIon, resDecay]
-    name = "Simulation after Si- 1s and 2s ionization and subsequent decay"
-
-    wc   = Cascade.Simulation(Cascade.Simulation(), name=name, properties=Cascade.AbstractSimulationProperty[Cascade.IonDistribution()], ## , Cascade.FinalLevelDistribution()], 
-                            settings=Cascade.SimulationSettings(0., 0., 0., 0., 30., [(78, 2.0), (79, 1.0), (80, 0.5)]), computationData=data )
-    println(wc)
-    wd = perform(wc; output=true)
+    fn   = sort(filter(f -> startswith(f, "zzz-cascade-hollow-ion-"), readdir()), by = f -> stat(f).mtime)[end]
+    println(">>> reading the cascade data from  $fn")
+    data = [JLD2.load(fn)]
+    prop = Cascade.IonDistribution([(1, 1.0)], Configuration[])
+    simu = Cascade.Simulation(Cascade.Simulation(); name="Ion distribution after hollow-carbon decay",
+                              computationData=data, property=prop,
+                              settings=Cascade.SimulationSettings(false, false, 0.) )
+    println(simu)
+    wd = perform(simu; output=true)
     setDefaults("print summary: close", "")
     #
 end

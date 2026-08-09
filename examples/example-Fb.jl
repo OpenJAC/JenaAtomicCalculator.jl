@@ -149,7 +149,7 @@ elseif  false
     wd = perform(wc; output=true)
     setDefaults("print summary: close", "")
     #
-elseif  false
+elseif  true
     # Last visit:      06-Aug-2026
     # Last successful: unknown ... not yet verified
     #
@@ -183,7 +183,7 @@ elseif  false
     setDefaults("print summary: close", "")
     #
     #
-elseif  true
+elseif  false
     # Last visit:      06-Aug-2026
     # Last successful: unknown ... not yet verified
     #

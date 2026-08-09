@@ -75,6 +75,19 @@ end
 
 
 """
+`Cascade.binningUnit(dependence::Cascade.AbstractOpacityDependence)`  
+    ... returns the unit in which the binning of the given opacity dependence is specified; a String is returned.
+        The binning is in nm for a wavelength dependence and in Hartree otherwise, a mixture that is easily
+        mistaken and that was previously printed as [Hartree] in all three cases.
+"""
+function binningUnit(dependence::Cascade.AbstractOpacityDependence)
+    if      typeof(dependence) == Cascade.WavelengthOpacityDependence     return( "[nm]" )
+    else                                                                  return( "[Hartree]" )
+    end
+end
+
+
+"""
 `Cascade.displayExpansionOpacities(stream::IO, sc::String, property::Cascade.ExpansionOpacities, 
                                     energyInterval::Tuple{Float64, Float64}, kappas::Array{Basics.EmProperty,1})` 
     ... displays the expansion opacities in a neat table. Nothing is returned.
@@ -86,23 +99,31 @@ function displayExpansionOpacities(stream::IO, sc::String, property::Cascade.Exp
     sa = "  Expansion opacities:  $sc       ... are evaluated for the following parameters: \n" *
         "\n    + level population                   = $(property.levelPopulation)    " *
         "\n    + opacityDependence                  = $(property.opacityDependence)    " *
-        "\n    + ion density [ions/cm^3]            = $(property.ionDensity)    " *
+        "\n    + ion number density [1/cm^3]        = $(property.ionNumberDensity)    " *
+        "\n    + mass density [g/cm^3]              = $(property.massDensity)    " *
         "\n    + plasma temperature [K]             = $(property.temperature)   " *
         "\n    + expansion/observation time [sec]   = $(property.expansionTime) " *
-        "\n    + binning [Hartree]                  = $(property.opacityDependence.binning) " *
+        "\n    + binning                            = $(property.opacityDependence.binning) $(Cascade.binningUnit(property.opacityDependence)) " *
         "\n    + energy interval [Hartree]          = $(energyInterval) " *
         "\n    + energy shift  [Hartree]            = $(property.transitionEnergyShift) \n"
     println(stream, sa)
     println(stream, "  ", TableStrings.hLine(nx))
+    ## The bin centres are handed over as photon energies in all three cases, but a wavelength-dependent
+    ## opacity is read against wavelength -- printing it in eV made the standard plot of the literature
+    ## impossible to compare with. The binning likewise was labelled [Hartree] whatever the dependence.
+    isWavelength = typeof(property.opacityDependence) == Cascade.WavelengthOpacityDependence
     sb = TableStrings.inUnits("energy")
     if  typeof(property.opacityDependence) == Cascade.TemperatureOpacityDependence    sb = "[dim-less]"     end
+    if  isWavelength                                                                  sb = "[Angstrom]"    end
     sa = "  "
     sa = sa * TableStrings.center(20, "Values " * sb; na=1)        
     sa = sa * TableStrings.center(36, "Cou -- kappa^(expansion) [cm^2/g] -- Bab";      na=2)
     println(stream, sa)
     println(stream, "  ", TableStrings.hLine(nx))
     for (i,value) in enumerate(property.dependencyValues)
-        sa = "       " * @sprintf("%.6e", Defaults.convertUnits("energy: from atomic", value)) * 
+        wx = isWavelength ?  convertUnits("energy: from atomic to Angstrom", value)  :
+                             Defaults.convertUnits("energy: from atomic", value)
+        sa = "       " * @sprintf("%.6e", wx) * 
                 "         " * @sprintf("%.6e", kappas[i].Coulomb) * "        " * @sprintf("%.6e", kappas[i].Babushkin)
         println(stream, sa)
     end
@@ -1640,20 +1661,24 @@ function simulateExpansionOpacities(photoexcitationData::Array{Cascade.Data,1}, 
         # interval
         wa = 0.;  halfBinning = opacityDependence.binning / 2.
         #
+        ## The Eastman & Pinto factor is lambda/Delta-lambda, i.e. the INVERSE relative bin width. Since
+        ## |Delta-lambda|/lambda = |Delta-omega|/omega exactly, the same factor omega/Delta-omega must be used
+        ## in every dependence -- the frequency and temperature branches returned Delta-omega/omega instead,
+        ## which is wrong by (omega/Delta-omega)^2, typically four orders of magnitude.
         if     typeof(opacityDependence) == FrequencyOpacityDependence
-            # Binning, depValue and lineOmega are all in Hartree and readily to compare; ratio need to be inverted, when compared
-            # with wavelength.
-            if  depValue - halfBinning < lineOmega < depValue + halfBinning             wa = 2* halfBinning / lineOmega        end
+            # Binning, depValue and lineOmega are all in Hartree and readily to compare.
+            if  depValue - halfBinning < lineOmega < depValue + halfBinning             wa = lineOmega / (2* halfBinning)      end
         elseif typeof(opacityDependence) == WavelengthOpacityDependence
             # Binning in nm, lineOmega & depValue in Hartree are first converted into nm ... and ratio is determined in nm as well
             lineOmega_nm = convertUnits("energy: from atomic to Angstrom", lineOmega) / 10.
             depValue_nm  = convertUnits("energy: from atomic to Angstrom", depValue)  / 10.
             if  depValue_nm - halfBinning < lineOmega_nm < depValue_nm + halfBinning    wa = lineOmega_nm / (2* halfBinning)   end
         elseif typeof(opacityDependence) == TemperatureOpacityDependence
-            # Binning and lineOmega are in Hartree, depValue in [u] and need to be converted; 
-            # ratio still need to be inverted, when compared with wavelength.
-            if  depValue * kT - halfBinning < lineOmega < depValue + halfBinning * kT   wa = 2* halfBinning / lineOmega        end
-        else   error("stop a")
+            # Binning and lineOmega are in Hartree, depValue in [u = omega/kT] and is converted here. The upper bound
+            # read  depValue + halfBinning * kT,  i.e. the kT was attached to the wrong factor and the bin was not even
+            # centred on depValue * kT.
+            if  depValue * kT - halfBinning < lineOmega < depValue * kT + halfBinning   wa = lineOmega / (2* halfBinning)      end
+        else   error("Unsupported opacityDependence :: $(typeof(opacityDependence)).")
         end
         
         return( wa )
@@ -1667,9 +1692,13 @@ function simulateExpansionOpacities(photoexcitationData::Array{Cascade.Data,1}, 
     dependence = property.opacityDependence;                   
     exptime_au = exptime / convertUnits("time: from atomic to sec", 1.0)
     T          = property.temperature;                                
-    rho        = property.ionDensity
+    rho        = property.massDensity          ## [g/cm^3], enters the 1/(rho c t) prefactor
     eshift     = property.transitionEnergyShift
-    ne         = 1.0 ## number density [1/a_o^3] ?? 
+    ## The ion number density enters the Sobolev optical depth and must be in ATOMIC units there (1/a_0^3).
+    ## It used to be hard-wired as `ne = 1.0` with a "??" comment, so the input density never reached tau and
+    ## the absolute scale of every opacity was arbitrary.
+    a0_in_cm   = convertUnits("length: from atomic to fm", 1.0) * 1.0e-13
+    nion_au    = property.ionNumberDensity * a0_in_cm^3          ## [1/cm^3] -> [1/a_0^3]
     NoValues   = length(values);                                      
     kappas     = Basics.EmProperty[];    for  i = 1:NoValues     push!(kappas, Basics.EmProperty(0.))   end
     #
@@ -1683,20 +1712,44 @@ function simulateExpansionOpacities(photoexcitationData::Array{Cascade.Data,1}, 
     #
     if length(photoexcitationData) == 0     error("No photoexcitationData provided.")     end
     #
+    ## The LTE population of each LOWER level, normalised over the levels that actually occur in this line
+    ## list.  The former expression used  ge/g0 * exp(-omega/kT), which is not a population of the lower level
+    ## at all: there is no partition function, omega is the TRANSITION energy rather than the excitation energy
+    ## of the absorbing level, and the statistical-weight ratio is inverted.  property.levelPopulation is now
+    ## dispatched on, so that the field means something.
+    if  typeof(property.levelPopulation) != Basics.BoltzmannLevelPopulation
+        error("Cascade.ExpansionOpacities presently supports levelPopulation = BoltzmannLevelPopulation() only; " *
+              "got $(property.levelPopulation).")
+    end
+    levelEnergies = Float64[];    levelWeights = Float64[]
+    for  excData in photoexcitationData,  line in excData.lines
+        for  lev  in  [line.initialLevel, line.finalLevel]
+            if  !any(abs.(levelEnergies .- lev.energy) .< 1.0e-12)
+                push!(levelEnergies, lev.energy);   push!(levelWeights, Basics.twice(lev.J) + 1.0)
+            end
+        end
+    end
+    eGround      = minimum(levelEnergies)
+    partitionFct = sum( levelWeights .* exp.(-(levelEnergies .- eGround) ./ kT) )
+    nLower(lev)  = nion_au * (Basics.twice(lev.J) + 1.0) * exp(-(lev.energy - eGround)/kT) / partitionFct
+    #
     minEnergy = 1000.;   maxEnergy = 0.
     for  excData  in photoexcitationData
-        for  line  in excData.linesE
+        ## Cascade.Data{T} carries its lines in `lines`; `.linesE` belonged to the retired
+        ## Cascade.ExcitationData and raised a FieldError here (the same class as the RR `.linesR` bug).
+        for  line  in excData.lines
             if  minEnergy > line.omega     minEnergy = line.omega   end
             if  maxEnergy < line.omega     maxEnergy = line.omega   end
                 omega       = line.omega + eshift
                 fosc        = line.oscStrength
-                g0          = Basics.twice(line.initialLevel.J) + 1;   ge = Basics.twice(line.finalLevel.J) + 1
                 lambda_au   = convertUnits("energy: from atomic to Angstrom", omega) * A_au
+                nl          = nLower(line.initialLevel)
             for  ivalue = 1:NoValues
                 lmd_over_dl    = lambda_over_dlambda(dependence, omega, kT, values[ivalue])
                 if  lmd_over_dl == 0.  continue  end
-                tau_Cou        = pi * alpha * ne * lambda_au * exptime_au * ge / g0 * fosc.Coulomb   * exp(-omega/kT)
-                tau_Bab        = pi * alpha * ne * lambda_au * exptime_au * ge / g0 * fosc.Babushkin * exp(-omega/kT)
+                ## Sobolev optical depth  tau_l = pi alpha n_l lambda_l t_exp f_l   (atomic units)
+                tau_Cou        = pi * alpha * nl * lambda_au * exptime_au * fosc.Coulomb
+                tau_Bab        = pi * alpha * nl * lambda_au * exptime_au * fosc.Babushkin
                 term_Cou       = factor * lmd_over_dl * (1.0 - exp(-tau_Cou))
                 term_Bab       = factor * lmd_over_dl * (1.0 - exp(-tau_Bab))
                 kappas[ivalue] = kappas[ivalue] + Basics.EmProperty(term_Cou, term_Bab)
@@ -2128,7 +2181,11 @@ function simulateRosselandOpacities(photoexcitationData::Array{Cascade.Data,1}, 
     opacityDependence = simulation.property.opacityDependence
     for  rho in simulation.property.ionDensities
         for  T in simulation.property.temperatures
-            property=Cascade.ExpansionOpacities(Basics.BoltzmannLevelPopulation(), opacityDependence, rho, T, 
+            ## RosselandOpacities still carries a single `ionDensities` list.  It is passed here as the MASS
+            ## density, with the ion number density derived from it on the crude assumption of one ion per
+            ## nucleon-mass unit; this property has not been revisited and should be, see example-Fk.jl.
+            property=Cascade.ExpansionOpacities(Basics.BoltzmannLevelPopulation(), opacityDependence,
+                                rho / 1.6605e-24, rho, T,
                                 simulation.property.expansionTime, simulation.property.transitionEnergyShift, ulist)
                                 
             kappas = Cascade.simulateExpansionOpacities(photoexcitationData, "expansion opacity for rho = $rho & T=$T", 
