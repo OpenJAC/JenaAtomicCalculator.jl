@@ -20,6 +20,18 @@ setDefaults("unit: rate", "1/s")
 ## essentially does not arise here the way it does for a K-hole (PhotoEmission/PhotoIonization) or an excited
 ## valence-to-Rydberg jump (PhotoExcitation). No calcBiorthogonal field added to PhotoRecombination.Settings.
 
+## WHICH NUMBERS IN THIS FILE ARE CURRENT (9-Aug-2026). Two corrections landed on 9-Aug-2026 and both change
+## results here: the Racah-phase fix in AngularMomentum.JohnsonI (0bdff9f), which moves BOTH gauges, and the
+## length-form orientation fix in InteractionStrength.MabEmission (c023481), which moves Babushkin only, by a
+## factor growing as (Z*alpha)^2 and with the photon momentum q. Re-measured and re-dated on 9-Aug-2026:
+## the Z=92 2s-capture, Z=54 K-shell and Z=82 K-shell branches -- i.e. exactly those whose high-energy points
+## had been flagged "open/unconverged". They are now gauge-converged to <=1.5% everywhere, and the diagnosis
+## recorded for them in July (a continuum radial-grid/orbital-quality problem) was WRONG.
+## NOT yet re-measured: the Z=12 F-like, Z=18 K-shell and Z=18 L/M-shell branches below, which still quote
+## pre-fix Babushkin numbers. All three are low-Z and low-energy, where (Z*alpha)^2 is 0.008-0.017, so the
+## expected shift is ~1-2% and none of their stated conclusions (the ~17-19% gauge gap, the ~3% agreement, the
+## factor 2-3 against Kramers) depends on it -- but the digits themselves are stale until re-run.
+
 if  true
     # Last successful:  2-Aug-2026
     # Z=12, F-like 2p^5 -> Ne-like 2p^6 capture (electron into the 2p vacancy) at 10/30/50 eV. No specific literature
@@ -93,14 +105,15 @@ elseif  false
     wb = perform(wa)
     #
 elseif  false
-    # Last successful:  22-Jul-2026 -- both gauges now genuinely computed (previously only Babushkin was requested,
-    # which hid the true Coulomb-gauge result behind a display artifact -- see the note at the top of this file).
-    # Coulomb/Babushkin: 1234.9/1238.3 barn @1.196 keV (~0.3% gauge agreement), 109.9/118.2 barn @11.96 keV (~7%),
-    # 6.58/12.16 barn @119.6 keV (~85% -- gauge convergence clearly degrades at the highest energy). Same pattern
-    # seen in the Z=54/Z=82 K-shell branches below, and CONFIRMED there not to be a maxKappa truncation issue
-    # (increasing maxKappa 4->8 plus higher multipoles left the gap essentially unchanged) -- most likely a
-    # continuum radial-grid/orbital-quality issue at these relativistic energies rather than an angular-momentum
-    # problem; treat the 120 keV point here as open/unconverged, not a validated result, until revisited.
+    # Last successful:  9-Aug-2026 -- both gauges genuinely computed (before 22-Jul-2026 only Babushkin was
+    # requested, which hid the true Coulomb-gauge result behind a display artifact -- see the note at the top of
+    # this file).
+    # Coulomb/Babushkin: 1117.8/1120.8 barn @1.196 keV (0.3% gauge agreement), 109.24/109.30 barn @11.96 keV (0.06%),
+    # 7.076/7.037 barn @119.6 keV (0.6%). ALL THREE points are now gauge-converged; the 22-Jul-2026 reading was
+    # 1234.9/1238.3, 109.9/118.2 and 6.58/12.16 barn, i.e. a 7% gap at 12 keV and an 85% gap at 120 keV. That
+    # degradation was NOT the suspected continuum radial-grid/orbital-quality issue but the length-form orientation
+    # defect in InteractionStrength.MabEmission (c023481); the Coulomb shifts (e.g. 1234.9 -> 1117.8 barn at the
+    # lowest energy) come from the separate Racah-phase fix (0bdff9f). The 120 keV point is no longer open.
     # Cross-checked directly against the bare-ion analog (initial=bare U, capture into 2s only, same grid/energies,
     # see the standalone check below): bare gives 1286.1/1290.3, 113.9/122.7, 6.82/12.70 barn -- only ~3-5% above
     # this He-like->Li-like branch at every energy, confirming that the two K-shell electrons barely screen L-shell
@@ -111,6 +124,10 @@ elseif  false
     # substitute (it isolates the same physics Eichler's tables would let us check, even without the exact numbers).
     # Also still agrees with Empirical.photorecombinationCrossSection(ScaledHydrogenic) to ~30% (two lower-energy
     # points) and ~4x (highest energy point, where the empirical and ab-initio binding energies differ by ~30%).
+    # NOT re-verified on 9-Aug-2026: that empirical cross-check, and the bare-ion cross-check quoted above -- the
+    # latter aborts because Configuration("") is rejected, so a bare initial state needs a different spelling.
+    # The date rests on gauge convergence to <=0.6% at all three energies, which for a system whose active electron
+    # is a single 2s spectator is a necessary condition that the branch previously failed at 120 keV.
     # Z=92 (U), He-like 1s^2 -> Li-like 1s^2 2s: capture into 2s at given ion energies.
     # Comparison: Fritzsche, Phys. Rev. A 72, 012704 (2005); Ichihara & Eichler, ADNDT 2000 (bare-ion proxy, see above).
     gridDd4 = Radial.Grid(Radial.Grid(false), rnt = 4.0e-6, h = 5.0e-2, hp = 0.3e-2, rbox = 10.0)
@@ -125,14 +142,19 @@ elseif  false
     wb = perform(wa)
     #
 elseif  false
-    # Last successful:  22-Jul-2026 -- Coulomb/Babushkin: 546.9/597.2 barn @10 keV (~9% gauge agreement, fine),
-    # 20.4/36.0 barn @100 keV (~76% gap), 0.74/2.88 barn @500 keV (~3.9x gap). The 10 keV point is trustworthy; the
-    # 100/500 keV points are NOT well gauge-converged -- confirmed NOT a maxKappa truncation issue (Z=82 diagnostic
-    # below, same symptom, maxKappa 4->8 plus E3/M3 left the gap essentially unchanged), most likely a continuum
-    # radial-grid/orbital-quality issue at these relativistic energies (500 keV is comparable to the electron rest
-    # mass) rather than an angular-momentum or gauge-formalism problem. Treat the two higher-energy points here as
-    # open/unconverged, not as a validated comparison, until revisited (e.g. finer grid or the "asymptotic Coulomb"
-    # continuum method instead of Galerkin).
+    # Last successful:  9-Aug-2026 -- Coulomb/Babushkin: 545.5/538.7 barn @10 keV (1.3% gauge agreement),
+    # 21.35/21.03 barn @100 keV (1.5%), 0.9988/0.9923 barn @500 keV (0.7%). ALL THREE points are now gauge-converged.
+    # The high-energy blow-up recorded on 22-Jul-2026 (546.9/597.2, 20.4/36.0 and 0.74/2.88 barn, i.e. a 76% gap at
+    # 100 keV and a 3.9x gap at 500 keV) was NOT the suspected continuum radial-grid/orbital-quality problem, and the
+    # planned remedies -- a finer grid, or the "asymptotic Coulomb" continuum method instead of Galerkin -- are not
+    # needed. It was a code defect: the length form in InteractionStrength.MabEmission was evaluated with its two
+    # orbitals in the orientation that breaks it, and the error grows with q, which is exactly why it was invisible
+    # at low energy and 3.9x at 500 keV (c023481). Coulomb also moved, by up to +35% at 500 keV, through the
+    # separate Racah-phase fix in AngularMomentum.JohnsonI (0bdff9f).
+    # BASIS FOR THE DATE: gauge convergence to <=1.5% at every energy. For a genuinely one-electron system the two
+    # gauges must agree exactly, so this is a necessary condition that the branch previously FAILED and now passes.
+    # NOT re-verified in this session: the absolute comparison against Ichihara & Eichler (still paywalled, see the
+    # Z=92 branch above) and the Empirical.photorecombinationCrossSection cross-check.
     # Z=54 (Xe), bare H-like 1s -> He-like 1s^2: K-shell REC at 10/100/500 keV -- one of the Ichihara & Eichler
     # benchmark charges (ADNDT 2000 / angle-differential ADNDT 79, 187 (2001)).
     gridDd5 = Radial.Grid(Radial.Grid(false), rnt = 4.0e-6, h = 5.0e-2, hp = 0.15e-2, rbox = 10.0)
@@ -147,13 +169,16 @@ elseif  false
     wb = perform(wa)
     #
 elseif  false
-    # Last successful:  22-Jul-2026 -- Coulomb/Babushkin: 1337.8/1539.5 barn @10 keV (~15% gauge agreement, fine),
-    # 77.1/138.8 barn @100 keV (~80% gap), 4.54/16.67 barn @500 keV (~3.7x gap). Same pattern as the Z=54 branch
-    # above (gap grows sharply with energy, not with Z alone) -- diagnosed here directly: re-running the 500 keV
-    # point alone with maxKappa=8 and multipoles up to E3/M3 (vs. maxKappa=4, up to E2/M2 in the main branch) gave
-    # 6.12/22.02 barn, essentially the SAME ~3.6x gauge ratio -- so this is not a partial-wave truncation problem.
-    # Treat the 100/500 keV points as open/unconverged (see the Z=54 branch comment above for the likely cause);
-    # only the 10 keV point is a trustworthy comparison for now.
+    # Last successful:  9-Aug-2026 -- Coulomb/Babushkin: 1329.3/1320.6 barn @10 keV (0.7% gauge agreement),
+    # 80.72/79.98 barn @100 keV (0.9%), 6.226/6.183 barn @500 keV (0.7%). ALL THREE points are now gauge-converged.
+    # Recorded on 22-Jul-2026 as 1337.8/1539.5, 77.1/138.8 and 4.54/16.67 barn, i.e. an 80% gap at 100 keV and a 3.7x
+    # gap at 500 keV. The July diagnostic was sound as far as it went -- re-running the 500 keV point with maxKappa=8
+    # and multipoles up to E3/M3 gave 6.12/22.02 barn, the SAME ~3.6x ratio, correctly ruling out partial-wave
+    # truncation -- but the conclusion drawn from it (a continuum radial-grid/orbital-quality problem) was wrong.
+    # The cause was the length-form orientation defect in InteractionStrength.MabEmission (c023481), whose error
+    # grows with q; here qr ~ 1.7 at 500 keV against ~0.02 for a Ne K-alpha line, which is why this branch showed it
+    # most violently of anything in the test set. Coulomb moved as well (4.54 -> 6.23 barn at 500 keV) through the
+    # separate Racah-phase fix (0bdff9f). See the Z=54 branch above for the basis on which these dates are set.
     # Z=82 (Pb), bare H-like 1s -> He-like 1s^2: K-shell REC at 10/100/500 keV -- another Ichihara & Eichler
     # benchmark charge, same reference and energy grid as the Z=54 branch above.
     gridDd6 = Radial.Grid(Radial.Grid(false), rnt = 4.0e-6, h = 5.0e-2, hp = 0.15e-2, rbox = 10.0)

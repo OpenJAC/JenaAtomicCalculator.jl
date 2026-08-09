@@ -7,7 +7,7 @@ setDefaults("print summary: open", "zzz-radiative.sum")
 
 
 if  true
-    # Last successful:  1-Aug-2026
+    # Last successful:  9-Aug-2026
     # Branch 0: Ne K-alpha, 1s-hole "1s 2s^2 2p^6" -> 2p-hole "1s^2 2s^2 2p^5" (2p fills the K-hole).
     #   Set up per explicit user request/hypothesis: our SCF procedure may not produce sufficiently relaxed
     #   orbitals for shallow valence-hole cases (like the Fe X 3p-hole tested above) for a bi-orthogonal
@@ -24,9 +24,9 @@ if  true
     #   (2p_1/2 hole, "Kalpha2"):
     #     Line   Gauge       A [1/s]        Energy [eV]
     #     1->1   Coulomb     4.586e12       849.94
-    #     1->1   Babushkin   4.757e12
+    #     1->1   Babushkin   4.755e12
     #     1->2   Coulomb     2.305e12       849.84
-    #     1->2   Babushkin   2.379e12
+    #     1->2   Babushkin   2.391e12
     #   Three independent literature/physical checks, all consistent: (1) transition energy 849.9 eV vs.
     #   tabulated Ne Kalpha ~848.6-849.8 eV (X-ray Data Booklet) -- agreement <0.2%; (2) intensity ratio
     #   A(1->1)/A(1->2) = 1.99 vs. the textbook Kalpha1:Kalpha2 statistical-weight ratio 2p_3/2:2p_1/2 =
@@ -35,10 +35,18 @@ if  true
     #   omega_K ~= 1.7-1.8% (Bambynek et al., Rev. Mod. Phys. 44, 716 (1972); Krause, J. Phys. Chem. Ref.
     #   Data 8, 307 (1979)) times the tabulated total K-width Gamma_K ~= 0.24 eV, i.e. Gamma_rad ~= 4.1e-3
     #   eV -- agreement ~10-15%, good for an uncorrelated single-configuration DHF calculation. Gauge
-    #   disagreement here (~3.2-3.7%) is much SMALLER than Fe X branch 1's (~55%, see below) -- not simply
+    #   disagreement here (3.70% on BOTH lines) is much SMALLER than Fe X branch 1's (~55%, see below) -- not simply
     #   explained by "more relaxation = more gauge disagreement": a strongly-bound, deeply-relaxed K-hole
     #   transition can still be well described by a single configuration, while the shallow Fe X valence
     #   transition is more correlation-sensitive despite its much smaller absolute non-orthogonality.
+    #   RE-RUN 9-Aug-2026, after the MabEmission length-form orientation fix (c023481). Coulomb is unchanged
+    #   to every digit; the two Babushkin rates moved by +0.5% = (Z*alpha)^2 at Z=10, exactly as that fix
+    #   predicts. All three checks above are unaffected: ratio 1.9892 in BOTH gauges, widths 4.536e-3 eV
+    #   (Coulomb) / 4.704e-3 eV (Babushkin). The 3.7% gauge gap is therefore NOT the code defect -- it is
+    #   genuine correlation/relaxation, and the earlier suspicion that it was "not a module bug" was right.
+    #   What the fix DID repair is an inconsistency between the two components: the gauge gap used to read
+    #   3.7% on Kalpha1 but 3.2% on Kalpha2, and two fine-structure components of one multiplet must share
+    #   it. They now both read 3.70%.
     #   IMPORTANT: run useBiorthogonal=false and =true in SEPARATE Julia sessions, as in the branches above.
     useBiorthogonal = false
     grid = Radial.Grid(true)

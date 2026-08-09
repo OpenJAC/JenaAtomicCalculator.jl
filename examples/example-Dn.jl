@@ -38,7 +38,7 @@ grid = Radial.Grid(Radial.Grid(false), rnt = 4.0e-6, h = 5.0e-2, hp = 0.6e-2, rb
 
 
 if  false
-    # Last visit:  04-Aug-2026
+    # Last visit:  09-Aug-2026
     # --- The complete TEOP test: one gMultiplet, three computations, all numbers of the REPORT below reproduced
     #     by a single run of this branch.
     #
@@ -114,15 +114,22 @@ if  false
                             processSettings = photoSettings )
     perform(wc)
     #
-    # ============================== REPORT (04-Aug-2026) ==============================
+    # ============================== REPORT (re-run 9-Aug-2026) ==============================
+    #
+    # All numbers below were re-measured on 9-Aug-2026, after TWO corrections that both touch this branch: the
+    # Racah-phase fix in AngularMomentum.JohnsonI (0bdff9f), which moves Coulomb as well, and the length-form
+    # orientation fix in MabEmission (c023481), which moves Babushkin only. The original 04-Aug-2026 values are
+    # kept in brackets so the two can be told apart.
     #
     # STEP 2 -- strategy (ii), minimal final space {1s^2}. Two lines, both 1- --> 0+:
-    #     2 --> 1   omega = 1.911752e+03 eV   A = 2.760831e+06 (Coulomb) / 6.997322e+06 (Babushkin) 1/s
-    #     4 --> 1   omega = 1.927578e+03 eV   A = 1.375383e+10 (Coulomb) / 5.436247e+10 (Babushkin) 1/s
-    # These agree to every digit recorded earlier (2.76e+06 / 7.00e+06 and 1.38e+10 / 5.44e+10), when perform() still
-    # generated the gMultiplet internally from intermediateConfigs -- handing the gMultiplet over explicitly changed
-    # the plumbing only, not the physics. Both rates sit far below an allowed E1 line at this Z (~1e13-1e14 1/s), as
-    # a genuine second-order process should.
+    #     2 --> 1   omega = 1.911730e+03 eV   A = 2.757046e+06 (Coulomb) / 9.551948e+06 (Babushkin) 1/s
+    #                                            [04-Aug: 2.760831e+06          / 6.997322e+06 ]
+    #     4 --> 1   omega = 1.927570e+03 eV   A = 1.376205e+10 (Coulomb) / 5.453150e+10 (Babushkin) 1/s
+    #                                            [04-Aug: 1.375383e+10          / 5.436247e+10 ]
+    # Coulomb is stable to 0.14% and the strong line's Babushkin to 0.31%; only the weak line's Babushkin moves
+    # appreciably (+37%), which is the first sign of the cancellation sensitivity discussed under OPEN below.
+    # Both rates still sit far below an allowed E1 line at this Z (~1e13-1e14 1/s), as a genuine second-order
+    # process should.
     #
     # STEPS 3/4 -- initial levels. Strategy (ii) has 4 levels (pure 2s2p); strategy (i) has 8, the lower four being
     # 1s2p and the upper four the 2s2p states corresponding to strategy (ii)'s. Correspondence and CI level shift:
@@ -131,38 +138,55 @@ if  false
     # Both 2s2p levels are pushed UP by their mixing with the ~1000 eV lower 1s2p levels -- the correct sign for level
     # repulsion, and a direct measure of the admixture: |V|^2/DeltaE = 0.44...0.56 eV over DeltaE ~ 1.0e3 eV gives
     # |c| ~ 2.1...2.4e-2, i.e. |c|^2 ~ 4e-4...6e-4. Multiplying that by strategy (i)'s own ordinary 1s2p --> 1s^2
-    # Kalpha rate (level 4 --> 1: 9.804282e+12 1/s, Coulomb) predicts a TEOP rate of ~4e9 1/s -- the right order.
+    # Kalpha rate (level 4 --> 1: 9.863788e+12 1/s, Coulomb; [04-Aug: 9.804282e+12]) predicts a TEOP rate of
+    # ~4e9 1/s -- the right order.
     #
     # STEPS 3/4 -- rates, same final multiplet in both:
     #                              STEP 3, strategy (ii)             STEP 4, strategy (i)             ratio (i)/(ii)
-    #   line A, omega ~ 1910 eV    C  2.941112e+06                   C  3.791451e+06                     1.29
-    #    [(ii) 2-->1, (i) 6-->1]   B  8.335175e+06                   B  5.893378e+09                      707    (!)
-    #   line B, omega ~ 1926 eV    C  1.534363e+10                   C  1.453570e+10                     0.947
-    #    [(ii) 4-->1, (i) 8-->1]   B  6.066702e+10                   B  7.030514e+10                     1.16
+    #   line A, omega ~ 1910 eV    C  3.097219e+06                   C  3.350980e+06                     1.08
+    #    [(ii) 2-->1, (i) 6-->1]   B  1.072328e+07                   B  1.936779e+07                     1.81
+    #                              [04-Aug: C 2.941112e+06           [04-Aug: C 3.791451e+06             1.29 ]
+    #                                       B 8.335175e+06 ]                  B 5.893378e+09 ]            707  (!)
+    #   line B, omega ~ 1926 eV    C  1.535991e+10                   C  1.460522e+10                     0.951
+    #    [(ii) 4-->1, (i) 8-->1]   B  6.086998e+10                   B  1.036086e+11                     1.70
+    #                              [04-Aug: C 1.534363e+10           [04-Aug: C 1.453570e+10             0.947]
+    #                                       B 6.066702e+10 ]                  B 7.030514e+10 ]            1.16
     #
-    # VERDICT. For line B -- the strong, dominant TEOP channel -- two genuinely independent routes to the same physics
-    # agree to 5.3% in Coulomb and 16% in Babushkin gauge. Given that strategy (ii) is first order in the mixing while
-    # strategy (i) diagonalizes it exactly, this is the expected level of agreement and constitutes a real
-    # known-answer validation of the second-order amplitude, cross-term double sum included.
+    #   own gauge ratio B/C        (ii) line A 3.46, line B 3.96     (i) line A 5.78, line B 7.09
+    #                              [04-Aug:     2.8          3.95 ]  [04-Aug:      1554         4.84 ]
     #
-    # OPEN. Line A is ~4 orders of magnitude weaker, i.e. a near-cancellation, and there the two strategies part
-    # company: 29% apart in Coulomb, but a factor 707 in Babushkin. Strategy (i)'s Babushkin value for this line is
-    # also internally inconsistent -- its own gauge ratio B/C = 1554, against 2.8 for strategy (ii) and 4-5 for line B
-    # in either strategy. So the anomaly sits in the LENGTH-form amplitude of the weak, CI-mediated line, not in the
-    # TEOP second-order sum. Suspects, in order: the biorthogonal transformation of the length-form operator for a
-    # near-cancelling intercombination amplitude, and the genuine sensitivity of a 1e-4-suppressed amplitude to the
-    # missing damping term. NOT resolved; needs its own investigation.
+    # VERDICT. For line B -- the strong, dominant TEOP channel -- two genuinely independent routes agree to 4.9% in
+    # Coulomb (was 5.3%). Given that strategy (ii) is first order in the mixing while strategy (i) diagonalizes it
+    # exactly, this remains a real known-answer validation of the second-order amplitude, cross-term double sum
+    # included. In Babushkin the two now differ by 70% (was 16%) -- see the warning below before reading that as a
+    # regression.
     #
-    # One further clue for that investigation, from STEP 4's anisotropy (structure) function table: the same line
-    # 6 --> 1 is the outlier there too, f_2 (Coulomb) = 2.858529e+01 against -1.35e-02, 1.679e-01 and -8.48e-01 for
-    # the other three lines -- two orders of magnitude out of family. Note the gauges do NOT line up: the rate
-    # anomaly sits in Babushkin, the f_2 anomaly in Coulomb. Both point at the same single line, which is what makes
-    # it look like one localized defect rather than general near-cancellation noise.
+    # RESOLVED. The factor-707 anomaly on line A was a genuine CODE DEFECT, not physics: the length form in
+    # InteractionStrength.MabEmission was evaluated with its two orbitals in the orientation that breaks it, so every
+    # Babushkin amplitude in JAC carried an error growing as (Z*alpha)^2 (c023481). With that fixed, line A's
+    # (i)-vs-(ii) Babushkin disagreement falls 707 --> 1.81 and strategy (i)'s own gauge ratio for it falls
+    # 1554 --> 5.78, i.e. back into family with every other line here. The 04-Aug reading that "the anomaly sits in
+    # the LENGTH-form amplitude" was exactly right; the suspicion that it lay in the biorthogonal transformation was
+    # not.
     #
-    # The 3x-5x gauge spread seen throughout reflects the still-missing damping/regularization term in the
-    # second-order amplitude (deferred by explicit request). Nothing here is benchmarked against an independent
-    # literature value for this synthetic system, so this branch is dated "Last visit", not "Last successful"
-    # (Rule 7).
+    # DO NOT read line B's Babushkin agreement getting worse (16% --> 70%) as a regression. Strategy (ii)'s value
+    # barely moved (+0.3%) while strategy (i)'s moved +47%, off the same sub-percent shifts in the individual matrix
+    # elements: these are nominally two-electron transitions that survive only through CI mixing and near-cancellation,
+    # so the sum amplifies small changes enormously. The old 16% was two wrong numbers happening to sit close together.
+    #
+    # STILL OPEN, and now clearly separated from the code defect: gauge ratios of 3.5-7 across all four entries.
+    # These reflect the still-missing damping/regularization term in the second-order amplitude (deferred by explicit
+    # request), the incompleteness of the intermediate sum, the absence of a common orbital basis between the two
+    # strategies, and the plain fact that a second-order amplitude evaluates its intermediate steps OFF SHELL, where
+    # gauge invariance is not expected at all. Not a bug to hunt.
+    #
+    # NOT RE-CHECKED on 9-Aug-2026: STEP 4's anisotropy (structure) function table, where line 6 --> 1 had been the
+    # outlier with f_2 (Coulomb) = 2.858529e+01 against -1.35e-02, 1.679e-01 and -8.48e-01. That anomaly sat in
+    # COULOMB while the rate anomaly sat in Babushkin, so it is NOT explained by the length-form fix and should be
+    # re-measured before anything is concluded about it.
+    #
+    # Nothing here is benchmarked against an independent literature value for this synthetic system, so this branch
+    # stays dated "Last visit", not "Last successful" (Rule 7).
     #
 elseif  true
     # Last visit:  04-Aug-2026
