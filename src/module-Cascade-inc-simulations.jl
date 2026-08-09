@@ -397,88 +397,6 @@ function displayPhotoAbsorptionSpectrum(stream::IO, pEnergies::Array{Float64,1},
 end
 
 
-#==
-"""
-`Cascade.displayPhotoAbsorptionSpectrum(stream::IO, crossSections::Array{Cascade.AbsorptionCrossSection,1}, settings::Cascade.SimulationSettings)` 
-    ... displays the photoabsorption cross sections a neat table. Nothing is returned.
-"""
-function displayPhotoAbsorptionSpectrum(stream::IO, crossSections::Array{Cascade.AbsorptionCrossSection,1}, settings::Cascade.SimulationSettings)
-    nx = 83
-    println(stream, " ")
-    println(stream, "* Absorption cross sections:  ")
-    println(stream, " ")
-    sMinEn = @sprintf("%.3e", Defaults.convertUnits("energy: from atomic", settings.minPhotonEnergy))
-    sMaxEn = @sprintf("%.3e", Defaults.convertUnits("energy: from atomic", settings.maxPhotonEnergy))
-    println(stream, "  Absorption cross sections are determined for photon energies between " * sMinEn * " and "  *
-                    sMaxEn * TableStrings.inUnits("energy") * " as well as for levels \n  with the initial population " *
-                    "$(settings.initialOccupations) \n")
-    println(stream, "  ", TableStrings.hLine(nx))
-    sa = "  "
-    sa = sa * TableStrings.center(16, "Energy "        * TableStrings.inUnits("energy"); na=5)
-    sa = sa * TableStrings.center(10, "Ionization CS " * TableStrings.inUnits("cross section"); na=11)
-    sa = sa * TableStrings.center(10, "Excitation CS " * TableStrings.inUnits("cross section"); na=11)
-    println(stream, sa)
-    sa = "                      Coulomb       Babushkin         Coulomb       Babushkin"
-    println(stream, sa)
-    println(stream, "  ", TableStrings.hLine(nx))
-    #
-    for  cs in  crossSections
-        sa = "     "
-        sa = sa * @sprintf("%.6e", Defaults.convertUnits("energy: from atomic", cs.photonEnergy)) * "     "
-        if     cs.ionizationCS == Basics.EmProperty(0.)       sa = sa * "                                         "
-        else   sa = sa * @sprintf("%.4e", Defaults.convertUnits("cross section: from atomic", cs.ionizationCS.Coulomb))   * "   " 
-                sa = sa * @sprintf("%.4e", Defaults.convertUnits("cross section: from atomic", cs.ionizationCS.Babushkin)) * "         "
-        end
-        #
-        if     cs.ionizationCS == Basics.EmProperty(0.)       sa = sa * "                                         "
-        else   sa = sa * @sprintf("%.4e", Defaults.convertUnits("cross section: from atomic", cs.excitationCS.Coulomb))   * "   " 
-                sa = sa * @sprintf("%.4e", Defaults.convertUnits("cross section: from atomic", cs.excitationCS.Babushkin)) * "    "
-        end
-        println(stream, sa)
-    end
-    println(stream, "  ", TableStrings.hLine(nx))
-
-    return( nothing )
-end
-
-
-"""
-`Cascade.displayPhotoAbsorptionSpectrum(stream::IO, crossSections::Array{Basics.ScalarProperty{EmProperty},1}, 
-                                        property::Cascade.PhotoAbsorptionSpectrum)` 
-    ... displays the photoabsorption cross sections a neat table. Nothing is returned.
-"""
-function displayPhotoAbsorptionSpectrum(stream::IO, crossSections::Array{Basics.ScalarProperty{EmProperty},1}, 
-                                        property::Cascade.PhotoAbsorptionSpectrum)
-    nx = 46
-    println(stream, " ")
-    println(stream, "* Absorption cross sections:  ")
-    println(stream, " ")
-    sMinEn = @sprintf("%.3e", Defaults.convertUnits("energy: from atomic", property.photonEnergies[1]))
-    sMaxEn = @sprintf("%.3e", Defaults.convertUnits("energy: from atomic", property.photonEnergies[end]))
-    println(stream, "  Absorption cross sections are determined for photon energies between " * sMinEn * " and "  *
-                    sMaxEn * TableStrings.inUnits("energy") * " as well as for levels \n  with the initial population " *
-                    "$(property.initialOccupations) \n")
-    println(stream, "  ", TableStrings.hLine(nx))
-    sa = "  "
-    sa = sa * TableStrings.center(16, "Energy "   * TableStrings.inUnits("energy"); na=5)
-    sa = sa * TableStrings.center(10, "Total CS " * TableStrings.inUnits("cross section"); na=11)
-    println(stream, sa)
-    sa = "                      Coulomb       Babushkin"
-    println(stream, sa)
-    println(stream, "  ", TableStrings.hLine(nx))
-    #
-    for  cs in  crossSections
-        sa = "     "
-        sa = sa * @sprintf("%.6e", Defaults.convertUnits("energy: from atomic", cs.arg)) * "     "
-        sa = sa * @sprintf("%.4e", Defaults.convertUnits("cross section: from atomic", cs.value.Coulomb))   * "   " 
-        sa = sa * @sprintf("%.4e", Defaults.convertUnits("cross section: from atomic", cs.value.Babushkin)) * "         "
-        println(stream, sa)
-    end
-    println(stream, "  ", TableStrings.hLine(nx))
-
-    return( nothing )
-end
-==#
 
 
 """
@@ -686,103 +604,9 @@ function extractLevels(data::Array{Cascade.Data,1}, settings::Cascade.Simulation
 end
 
 
-#==
-"""
-`Cascade.extractLevels(data::Array{Cascade.Data,1}, settings::Cascade.SimulationSettings)` 
-    ... extracts and sorts all levels from the given cascade data into a new levelList::Array{Cascade.Level,1} to simplify the 
-        propagation of the probabilities. In this list, every level of the overall cascade just occurs just once, together 
-        with its parent lines (which may populate the level) and the daughter lines (to which the pobability may decay). 
-        A levelList::Array{Cascade.Level,1} is returned.
-"""
-function extractLevels(data::Array{Cascade.Data,1}, settings::Cascade.SimulationSettings)
-    printSummary, iostream = Defaults.getDefaults("summary flag/stream");   found = false
-    photonEnergy = settings.initialPhotonEnergy;   newlevels = Cascade.Level[]
-    for dataset in data
-        println(">>> photonEnergy = $(dataset.photonEnergy) ")
-        if  dataset.photonEnergy == photonEnergy       found     = true
-            newlevels = Cascade.extractLevels(dataset, settings);    break
-        end
-    end
-    
-    if  !found  error("No proper photo-ionizing data set (Cascade.PhotoIonData) found for the photon energy $photonEnergy ")  end
-    return( newlevels )
-end
-==#
 
 
-#==
-"""
-`Cascade.extractLevels(data::Array{Cascade.Data,1}, settings::Cascade.SimulationSettings)` 
-    ... extracts and sorts all levels from the given cascade data into a new levelList::Array{Cascade.Level,1} to simplify the 
-        propagation of the probabilities. In this list, every level of the overall cascade just occurs just once, together 
-        with its parent lines (which may populate the level) and the daughter lines (to which the pobability may decay). 
-        A levelList::Array{Cascade.Level,1} is returned.
-"""
-function extractLevels(data::Array{Cascade.Data,1}, settings::Cascade.SimulationSettings)
-    printSummary, iostream = Defaults.getDefaults("summary flag/stream")
-    levels = Cascade.Level[]
-    print("> Extract and sort the list of levels for the given excitation data ... ")
-    if printSummary     print(iostream, "> Extract and sort the list of levels for the given excitation data ... ")     end
-    
-    for  i = 1:length(data.linesE)
-        line = data.linesE[i]
-        iLevel = Cascade.Level( line.initialLevel.energy, line.initialLevel.J, line.initialLevel.parity, line.initialLevel.basis.NoElectrons,
-                                line.initialLevel.relativeOcc, Cascade.LineReference[], [ Cascade.LineReference(data, Basics.Radiative(), i)] ) 
-        Cascade.pushLevels!(levels, iLevel)  
-        fLevel = Cascade.Level( line.finalLevel.energy, line.finalLevel.J, line.finalLevel.parity, line.finalLevel.basis.NoElectrons,
-                                line.finalLevel.relativeOcc, [ Cascade.LineReference(data, Basics.Radiative(), i)], Cascade.LineReference[] ) 
-        Cascade.pushLevels!(levels, fLevel)  
-    end
-    
-    # Sort the levels by energy in reversed order
-    energies  = zeros(length(levels));       for  i = 1:length(levels)   energies[i]  = levels[i].energy   end
-    enIndices = sortperm(energies, rev=true)
-    newlevels = Cascade.Level[]
-    for i = 1:length(enIndices)   ix = enIndices[i];    push!(newlevels, levels[ix])    end
-    
-    println("a total of $(length(newlevels)) levels were found.")
-    if printSummary     println(iostream, "a total of $(length(newlevels)) levels were found.")     end
-    
-    return( newlevels )
-end
-==#
 
-#==
-"""
-`Cascade.extractLevels(data::Array{Cascade.Data,1}, settings::Cascade.SimulationSettings)` 
-    ... extracts and sorts all levels from the given cascade data into a new levelList::Array{Cascade.Level,1} to simplify the 
-        propagation of the probabilities. In this list, every level of the overall cascade just occurs just once, together 
-        with its parent lines (which may populate the level) and the daughter lines (to which the pobability may decay). 
-        A levelList::Array{Cascade.Level,1} is returned.
-"""
-function extractLevels(data::Array{Cascade.Data,1}, settings::Cascade.SimulationSettings)
-    printSummary, iostream = Defaults.getDefaults("summary flag/stream")
-    levels = Cascade.Level[]
-    print("> Extract and sort the list of levels for the given photo-ionization data ... ")
-    if printSummary     print(iostream, "> Extract and sort the list of levels for the given photo-ionization data ... ")     end
-
-    for  i = 1:length(data.linesP)
-        line = data.linesP[i]
-        iLevel = Cascade.Level( line.initialLevel.energy, line.initialLevel.J, line.initialLevel.parity, line.initialLevel.basis.NoElectrons,
-                                line.initialLevel.relativeOcc, Cascade.LineReference[], [ Cascade.LineReference(data, Basics.Photo(), i)] ) 
-        Cascade.pushLevels!(levels, iLevel)  
-        fLevel = Cascade.Level( line.finalLevel.energy, line.finalLevel.J, line.finalLevel.parity, line.finalLevel.basis.NoElectrons,
-                                line.finalLevel.relativeOcc, [ Cascade.LineReference(data, Basics.Photo(), i)], Cascade.LineReference[] ) 
-        Cascade.pushLevels!(levels, fLevel)  
-    end
-    
-    # Sort the levels by energy in reversed order
-    energies  = zeros(length(levels));       for  i = 1:length(levels)   energies[i]  = levels[i].energy   end
-    enIndices = sortperm(energies, rev=true)
-    newlevels = Cascade.Level[]
-    for i = 1:length(enIndices)   ix = enIndices[i];    push!(newlevels, levels[ix])    end
-    
-    println("a total of $(length(newlevels)) levels were found.")
-    if printSummary     println(iostream, "a total of $(length(newlevels)) levels were found.")     end
-    
-    return( newlevels )
-end
-==#
 
 
 """
@@ -1494,13 +1318,6 @@ function reviewData(simulation::Cascade.Simulation; ascendingOrder::Bool=false)
         end
         
         
-        #==
-        if      haskey(results,"decay line data:")                          lineData = results["decay line data:"]
-        elseif  haskey(results,"photo-ionizing line data:")                 lineData = results["photo-ionizing line data:"]
-        elseif  haskey(results,"photo-excited line data:")                  lineData = results["photo-excited line data:"]
-        elseif  haskey(results,"hollow-ion line data:")                     lineData = results["hollow-ion line data:"]
-        else    error("stop a")
-        end ==#
         levels = Cascade.extractLevels(lineData, settings)
         allLevels = Cascade.addLevels(allLevels, levels)
     end
@@ -2060,13 +1877,6 @@ function simulatePhotoAbsorptionSpectrum(simulation::Cascade.Simulation,
             for  (i, initialLevel)  in  enumerate(initialLevels)
                 # The selection of individual subshells has been considered above
                 cs = cs + initialWeights[i] * PhotoIonization.interpolateCrossSection(linesP, pEnergy, initialLevel)
-                #== 
-                if  length(paProperty.shells) != 0
-                    # Add cross section data only if they refer to shells
-                    error("aa: not yet implemented")
-                else
-                    cs = cs + initialWeights[i] * PhotoIonization.interpolateCrossSection(linesP, pEnergy, initialLevel)
-                end ==#
             end 
             crossSections[p] = crossSections[p] + cs
         end
@@ -2081,14 +1891,6 @@ function simulatePhotoAbsorptionSpectrum(simulation::Cascade.Simulation,
             for  (i, initialLevel)  in  enumerate(initialLevels)
                 cs = cs + initialWeights[i] * paProperty.csScaling * 
                           PhotoExcitation.estimateCrossSection(linesE, pEnergy, gam, initialLevel)
-                #==
-                if  length(paProperty.shells) != 0
-                    # Add cross section data only if they refer to shells
-                    error("bb: not yet implemented")
-                else
-                    cs = cs + initialWeights[i] * paProperty.csScaling * 
-                                PhotoExcitation.estimateCrossSection(linesE, pEnergy, gam, initialLevel)
-                end   ==#
             end 
             crossSections[p] = crossSections[p] + cs
         end
@@ -2248,14 +2050,6 @@ function simulateRrRateCoefficients(lines::Array{PhotoRecombination.Line,1}, sim
             end 
             pcs = PhotoRecombination.computeCrossSectionForMultipoles(simulation.property.multipoles, line)
             cs  = cs + pcs
-            #==
-            # Determine cross section if only one final level contributes; for test purposes
-            if   line.finalLevel.index == 1
-                    wb = PhotoRecombination.crossSectionKramers(line.electronEnergy, 26.0::Float64, (1,50))
-                    ## wb = PhotoRecombination.crossSectionStobbe(line.electronEnergy, 26.0::Float64)
-                    cs = EmProperty(wb, wb)
-            else  cs = EmProperty(0., 0.)
-            end  ==#
             wa = wa + 2*2 / sqrt(2pi) / temp_au^(3/2) * factor * line.electronEnergy * 
                         exp(-line.electronEnergy / temp_au ) * line.weight * cs
         end

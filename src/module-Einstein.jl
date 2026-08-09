@@ -63,18 +63,6 @@ function Settings()
 end
 
 
-#== """
-`Einstein.Settings(multipoles::Array{EmMultipole,1};` printBefore::Bool=false, 
-                    selectLines::Bool=false, selectedLines::Array{Tuple{Int64,Int64},1}=Tuple{Int64,Int64}[],
-                    photonEnergyShift::Float64=0., mimimumPhotonEnergy::Float64=0., maximumPhotonEnergy::Float64=0.) 
-    ... keyword constructor to overwrite selected value of Einstein line computations; DON'T use it anymore (11/2019).
-"""
-function Settings(multipoles::Array{EmMultipole,1}; printBefore::Bool=false, 
-                    selectLines::Bool=false, selectedLines::Array{Tuple{Int64,Int64},1}=Tuple{Int64,Int64}[],
-                    photonEnergyShift::Float64=0., mimimumPhotonEnergy::Float64=0., maximumPhotonEnergy::Float64=0.)
-    println("!!! UPDATE: Remove this call and use Einstein.Settings(settings::Einstein.Settings) instead.")
-    Settings(multipoles, printBefore, selectLines, selectedLines, photonEnergyShift, mimimumPhotonEnergy, maximumPhotonEnergy)
-end  ==#
 
 
 # `Base.show(io::IO, settings::Einstein.Settings)`  ... prepares a proper printout of the variable settings::Einstein.Settings.
@@ -253,33 +241,6 @@ function  determineLines(multiplet::Multiplet, settings::Einstein.Settings)
 end
 
 
-#== """
-`Einstein.determineLines(multiplet::Multiplet, settings::Einstein.Settings)`  
-    ... to determine a list of EinsteinLine's for transitions between the lines from the given multiplet and by taking 
-        into account the particular selections and settings of for this computation; an Array{Einstein.Line,1} is 
-        returned. Apart from the level specification, all physical properties are set to zero during the initialization 
-        process.
-"""
-function  determineLines(multiplet::Multiplet, settings::Einstein.Settings)
-    if    settings.selectLines    selectLines   = true
-        selectedLines = Basics.determineSelectedLines(settings.selectedLines, multiplet, multiplet)
-    else                          selectLines   = false
-    end
-
-    lines = Einstein.Line[]
-    for  i = 1:length(multiplet.levels)
-        for  f = 1:length(multiplet.levels)
-            if  selectLines  &&  !((i,f) in selectedLines )    continue   end
-            omega    = multiplet.levels[i].energy - multiplet.levels[f].energy + settings.photonEnergyShift
-            if  omega <= settings.mimimumPhotonEnergy  ||  omega > settings.maximumPhotonEnergy    continue   end  
-
-            channels = determineChannels(multiplet.levels[f], multiplet.levels[i], settings) 
-            push!( lines, Einstein.Line(multiplet.levels[i], multiplet.levels[f], omega, EmProperty(0., 0.), EmProperty(0., 0.),
-                                        true, channels) )
-        end
-    end
-    return( lines )
-end ==#
 
 
 """

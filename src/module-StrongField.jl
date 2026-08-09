@@ -1,35 +1,4 @@
 
-#== Observations at code-review, June 2023
-
-+ It will be desirable to agree about a common style ... which is easy for all three of us (Danish, Kefei, me, Fang ??)
-    to use and follow ... and without destroying/violating the existing pieces.
-+ Lets have a discussion together with (open) module-StrongField.jl, module-StrongField-inc-hydrogenic.jl,
-    module-StrongField-inc-postProcessing.jl, example-Hb.jl 
-    ... to create more understanding for each other ... and, hopefully, to prepare the code for series extensions.
-    
-
-+ The assignment of individual procedures to building blocks of the SFA is often not (really) clear;
-    it might be necessary to establish/improve parts of the JAC manual to make this assignment in
-    names and content more explicit.
-+ Names of procedures are sometimes "cryptic": What is your style of selecting names and name spaces.
-+ The header/description of routines should be improved (though, we have some basis).
-    In particular, each doc-line of a procedure should tell explicit of what::type is returned.
-    This makes it easier to identify the place of a procedure in a given hierarchy, and whether other 
-    procedures exist in different approximations, etc. ... but which lead to the same bulding block.
-+ How much in-line comments are appropriate for a good code ??
-+ Which of this or any analogue code did you realized in your own frame ?? ... At present, I assume you have
-    some dipole/non-dipole codes in the standard expansion ... but not much in the partial-wave decomposition.
-+ Shall we include Kefei into this discussion ?? ... How careful does he deal with codes ?? ...
-+ Angular momenta are treated in JAC as AngularJ64 and AngularM64-type variables. ... How do you treat them ??
-    ... Shall we adopt the code to use internal code with some given definition ... instead of ad-hoc implementations ??
-    Could this be a good starting to get the existing part running (again) ... and to prepare it for re-scattering 
-    amplitudes, etc.
-+ How shall we decide about the plot-features ?? ... Which experiences exist ... and do they belong to such an
-    atomic code ?? ... Should we prepare these plot routines in a more systematic fashion, perhaps with some 
-    astract data types ??
-+ Let's discuss the example in ... include("../examples/example-Hb.jl")
-    and conclude of what would be the right test example to make the code ready for the next steps/improvements.
-==#
 
 
 

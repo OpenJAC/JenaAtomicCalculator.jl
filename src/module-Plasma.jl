@@ -543,69 +543,6 @@ function Base.show(io::IO, comp::Plasma.Computation)
 end
 
 
-#==  ... This can be used to establish other Plasma.AbstractPlasmaScheme's
-"""
-`Plasma.perform(computation::Plasma.Computation)`  
-    ... to perform the computation as prescribed by comp. All relevant intermediate and final results are printed to screen (stdout). 
-        The procedure always performs an average-atom SCF and CI computation and generates the associated basis.
-        Nothing is returned.
-
-`Plasma.perform(scheme:Plasma.AbstractPlasmaScheme, computation::Plasma.Computation; output=true)`  
-    ... to perform the same but to return the complete output in a dictionary; the particular output depends on the type and 
-        specifications of the computations but can easily accessed by the keys of this dictionary.
-"""
-function  perform(scheme::Plasma.AbstractPlasmaScheme, computation::Plasma.Computation; output::Bool=false)
-    if  output    results = Dict{String, Any}()    else    results = nothing    end
-    nModel = computation.nuclearModel
-
-    # Perform an average-atom computation
-    if  typeof(scheme) == Plasma.AbstractPlasmaScheme
-        #
-        #
-    elseif  false 
-        # Another scheme,  not yet worked out
-        ## if  length(computation.refConfigs) != 0
-        basis     = AverageAtom.performSCF(computation.refConfigs, nModel, computation.grid, computation.asfSettings)
-        multiplet = AverageAtom.performCI( basis, nModel, computation.grid, computation.asfSettings)
-        #
-        if output    results = Base.merge( results, Dict("multiplet:" => multiplet) ) 
-                        results = Base.merge( results, Dict("grid:"      => computation.grid) )  end
-        
-        # Now compute all requested properties
-        if      typeof(computation.propertySettings) == Einstein.Settings
-            outcome = Einstein.computeLines(multiplet,        computation.grid, computation.propertySettings)    
-            if output    results = Base.merge( results, Dict("plasma Einstein lines:" => outcome) )         end
-            #
-        elseif  typeof(computation.propertySettings)) == FormFactor.Settings 
-            outcome = FormFactor.computeOutcomes(multiplet, nModel, computation.grid, settings)         
-            if output    results = Base.merge( results, Dict("plasma form factor outcomes:" => outcome) )   end
-        end
-        
-    elseif  false 
-        # Another scheme,  not yet worked out
-        if  length(computations.initialMultiplet.levels) == 0     error("Missing initialMultiplet ... ")    end
-        if  length(computations.finalMultiplet.levels)   == 0     error("Missing finalMultiplet ... ")      end
-            
-        # Calculate a small set of processes with these initial and final multiplets; the user has to make sure that
-        # these multiplets are appropriate for the given plasma environment.
-        if      typeof(computation.processSettings) == AutoIonization.Settings 
-            outcome = AutoIonization.computeLines(finalMultiplet, initialMultiplet, nModel, computation.grid, computation.processSettings) 
-            if output    results = Base.merge( results, Dict("plasma autoIonization lines:" => outcome) )   end
-        elseif  typeof(computation.processSettings) == PhotoIonization.Settings   
-            outcome = PhotoIonization.computeLines(finalMultiplet, initialMultiplet, nModel, computation.grid, computation.processSettings) 
-            if output    results = Base.merge( results, Dict("plasma photoionization lines:" => outcome) )  end
-        elseif  typeof(computation.processSettings) == PhotoEmission.Settings
-            outcome = PhotoEmission.computeLines(finalMultiplet, initialMultiplet, computation.grid, computation.processSettings) 
-            if output    results = Base.merge( results, Dict("plasma radiative lines:" => outcome) )        end
-        else
-            error("stop b")
-        end
-    end
-    
-    Defaults.warn(PrintWarnings())
-    Defaults.warn(ResetWarnings())
-    return( results )
-end  ==#
 
 
 """

@@ -266,57 +266,6 @@ function generateConfigurationsForHollowIons(initialConfigs::Array{Configuration
 end
 
 
-#==
-"""
-`Cascade.generateConfigurationsForDielectronicCapture(multiplets::Array{Multiplet,1},  scheme::HollowIonScheme, 
-                                                    nm::Nuclear.Model, grid::Radial.Grid)`  
-    ... generates all possible doubly-excited configurations due to (dielectronic) electron capture into the given multiplets.
-        The number and type of such doubly-generated configurations depend on (1) the maximum (electron) energy for capturing an electron
-        that is closely related to the (maximum) temperature of the plasma; (2) the fromShells from which (and how many displacements)
-        are accepted as well as (3) the maximum principle and orbital angular quantum number of the additional (to-) shellsthe fromShells
-        into which electrons excited and/or captured. A Tuple(initialConfList::Array{Configuration,1}, confList::Array{Configuration,1}) 
-        is returned.
-"""
-function generateConfigurationsForDielectronicCapture(multiplets::Array{Multiplet,1},  scheme::HollowIonScheme, 
-                                                    nm::Nuclear.Model, grid::Radial.Grid)
-    # Determine all (reference) configurations from multiplets and generate the 'excited' configurations due to the specificed excitations
-    initialConfList = Configuration[]
-    for mp  in  multiplets   
-        confList = Basics.extractNonrelativisticConfigurations(mp.levels[1].basis)
-        for  conf in confList   if  conf in initialConfList   nothing   else   push!(initialConfList, conf)      end      end
-    end
-    captureConfList = copy(initialConfList)
-    for nc = 1:scheme.NoCapturedElectrons
-        captureConfList = Basics.generateConfigurationsWithElectronCapture(captureConfList, Shell[], scheme.intoShells, 0)
-    end
-    shellList       = Basics.extractNonrelativisticShellList(multiplets)
-    shellList       = Basics.merge(scheme.intoShells, scheme.decayShells)
-    blockConfList   = copy(initialConfList)
-    for nc = 1:scheme.NoCapturedElectrons
-        blockConfList   = Basics.generateConfigurationsWithElectronCapture(blockConfList, Shell[], shellList, 0)
-    end
-    @warn("blockConfList does not yet support the autoionization of the high-n electrons.")
-    #
-    # Determine first a hydrogenic spectrum for all subshells of the initial and doubly-excited states
-    allConfList   = Configuration[];      append!(allConfList, initialConfList);      append!(allConfList, blockConfList)
-    allSubshells  = Basics.extractRelativisticSubshellList(allConfList)
-    primitives    = Bsplines.generatePrimitives(grid)
-    ## The argument order had drifted here as well: Bsplines.generateOrbitalsHydrogenic takes
-    ## (subshells, nuclearModel, primitives).  The same defect was found and fixed in
-    ## module-Cascade-inc-expansion-opacity.jl; this call sits in a path that example-Fj.jl does not reach,
-    ## so it would have raised a MethodError only for a hollow-ion cascade with high-n spectator shells.
-    orbitals      = Bsplines.generateOrbitalsHydrogenic(allSubshells, nm, primitives, printout=true)
-    # Exclude configurations with too high mean energies
-    en            = Float64[];   
-    for conf in initialConfList
-        wen = Basics.determineMeanEnergy(conf, orbitals, nm, grid)
-        push!(en, wen)
-    end
-    initialMean = sum(en) / length(en)
-    println(">>> initial configuration(s) have mena energies  $initialMean  [a.u.].")
-
-    return( (initialConfList, blockConfList)  )
-end  ==#
 
 
 """

@@ -836,49 +836,6 @@ function Base.show(io::IO, scheme::PhotoIonizationScheme)
 end
 
 
-#==
-"""
-`struct  Cascade.PhotoIonizationScheme  <:  Cascade.AbstractCascadeScheme`  
-    ... a struct to represent (and generate) a mean-field orbital basis.
-
-    + processes             ::Array{Basics.AbstractProcess,1} 
-        ... List of the atomic processes that are supported and should be included into the cascade.
-    + maxPhotoElectrons     ::Int64                 
-        ... (Maximum) Number of photo-electrons in which the initial-and (photo-ionized) final-state configurations can differ 
-            from each other; this affects the number of ionized multiplets in the cascade.
-    + photonEnergies        ::Array{Float64,1}      
-        ... List of photon energies for which this photo-ionization scheme is to be calculated.
-"""
-struct   PhotoIonizationScheme  <:  Cascade.AbstractCascadeScheme
-    processes               ::Array{Basics.AbstractProcess,1}
-    maxPhotoElectrons       ::Int64
-    photonEnergies          ::Array{Float64,1}
-end
-
-
-"""
-`Cascade.PhotoIonizationScheme()`  ... constructor for an 'default' instance of a Cascade.PhotoIonizationScheme.
-"""
-function PhotoIonizationScheme()
-    PhotoIonizationScheme([PhotoIonization], 0, Float64[] )
-end
-
-
-# `Base.string(scheme::PhotoIonizationScheme)`  ... provides a String notation for the variable scheme::PhotoIonizationScheme.
-function Base.string(scheme::PhotoIonizationScheme)
-    sa = "Photo-ionization (scheme) as prior part of an atomic cascade:"
-    return( sa )
-end
-
-
-# `Base.show(io::IO, scheme::PhotoIonizationScheme)`  ... prepares a proper printout of the scheme::PhotoIonizationScheme.
-function Base.show(io::IO, scheme::PhotoIonizationScheme)
-    sa = Base.string(scheme);                print(io, sa, "\n")
-    println(io, "processes:                  $(scheme.processes)  ")
-    println(io, "maxPhotoElectrons:          $(scheme.maxPhotoElectrons)  ")
-    println(io, "photonEnergies:             $(scheme.photonEnergies)  ")
-end
-==#
 
 
 """

@@ -215,51 +215,6 @@ function generateBlocks(scheme::Cascade.RadiativeRecombinationScheme, comp::Casc
 end
 
 
-#==  August 2025, replaced by Basics.ForPhotoRecombination(), ...        
-"""
-`Cascade.generateConfigurationsForRadiativeRecombination(multiplets::Array{Multiplet,1},  scheme::RadiativeRecombinationScheme, 
-                                                            nm::Nuclear.Model, grid::Radial.Grid)`  
-    ... generates all possible configurations due to radiative recombination into the given multiplets.
-        The number and type of such (singly-excited) configurations depend on the maximum principle and orbital angular quantum number 
-        of the additional intoShells, into which electrons are captured. 
-        A Tuple(initialConfList::Array{Configuration,1}, confList::Array{Configuration,1}) is returned.
-"""
-function generateConfigurationsForRadiativeRecombination(multiplets::Array{Multiplet,1},  scheme::RadiativeRecombinationScheme, 
-                                                            nm::Nuclear.Model, grid::Radial.Grid)
-    # Determine all (reference) configurations from multiplets and generate the 
-    # 'radiatively-stabilized' configurations due to the specificed excitations
-    initialConfList = Configuration[]
-    for mp  in  multiplets   
-        confList = Basics.extractConfigurations(Basics.FromBasis(), mp.levels[1].basis)
-        for  conf in confList   if  conf in initialConfList   nothing   else   push!(initialConfList, conf)      end      end
-    end
-    fromShells = Shell[]
-    captureConfList = Basics.generateConfigurationsWithElectronCapture(initialConfList, fromShells, scheme.intoShells, 0)
-    #
-    # Determine first a hydrogenic spectrum for all subshells of the initial and captured levels
-    allConfList   = Configuration[];      
-    append!(allConfList, initialConfList);      append!(allConfList, captureConfList)
-    
-    allSubshells  = Basics.extractRelativisticSubshellList(allConfList)
-    primitives    = Bsplines.generatePrimitives(grid)
-    orbitals      = Bsplines.generateOrbitalsHydrogenic(allSubshells, nm, primitives, printout=true)
-    # Exclude configurations with too high mean energies
-    en            = Float64[];   
-    for conf in initialConfList
-        wen = Basics.determineMeanEnergy(conf, orbitals, nm, grid)
-        push!(en, wen)
-    end
-    initialMean = sum(en) / length(en)
-    println(">>> initial configuration(s) have mean energies  $initialMean  [a.u.].")
-    #
-    newCaptureConfList = Configuration[];  meanEnergies = Float64[]
-    for  conf  in  captureConfList    
-        confMean = Basics.determineMeanEnergy(conf, orbitals, nm, grid)
-        if  confMean - initialMean <= scheme.maxFreeElectronEnergy     push!(newCaptureConfList, conf)     end
-    end
-
-    return( (initialConfList, newCaptureConfList) )
-end ==#
 
 
 """

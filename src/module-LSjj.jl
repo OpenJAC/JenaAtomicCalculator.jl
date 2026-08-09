@@ -563,21 +563,6 @@ function expandCsfRintoNonrelativisticBasis(openShells::GeneralOpenShells, csfR:
 end
 
 
-#== August 2025, Basics.NonrelativisticBasis()
-"""
-`LSjj.extractConfigurationFromCsfNR(csfNR::CsfNR, basisNR::BasisNR)`
-    ... to extract the nonrelativistic configuration from the given csfNR, if this is part of basisNR.
-        A nonrelativistic conf::Configuration is returned.
-"""
-function extractConfigurationFromCsfNR(csfNR::CsfNR, basisNR::BasisNR)
-    shells = Dict{Shell,Int64}()
-    for  s = 1:length(basisNR.shells)
-        shell = basisNR.shells[s];    occ = csfNR.occupation[s]
-        if  occ > 0     shells = Base.merge( shells, Dict( shell => occ))   end
-    end
-    conf   = Configuration( shells, basisNR.NoElectrons)
-    return( conf )
-end  ==#
 
 
 """

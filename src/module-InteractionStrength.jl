@@ -93,39 +93,6 @@ function hamiltonian_nms(a::Orbital, b::Orbital, nm::Nuclear.Model, grid::Radial
     return( wa )
 end
 
-#==
-"""
-`InteractionStrength.hfs_t1(a::Orbital, b::Orbital, grid::Radial.Grid)`  
-    ... computes the <a|| t^(1) ||b> reduced matrix element for the HFS coupling to the magnetic-dipole moment 
-        of the nucleus for orbital functions a, b. A value::Float64 is returned.  
-"""
-function hfs_t1(a::Orbital, b::Orbital, grid::Radial.Grid)
-    # Use Andersson, Jönson (2008), CPC, Eq. (49) ... test for the proper definition of the C^L tensors.
-    minusa = Subshell(1, -a.subshell.kappa)
-    wb =   - (a.subshell.kappa + b.subshell.kappa) * AngularMomentum.CL_reduced_me_rb(minusa, 1, b.subshell)
-    wc =   RadialIntegrals.rkNonDiagonal(-2, a, b, grid)
-    wa =   wb * wc
-    #
-    return( wa )
-end
-
-
-"""
-`InteractionStrength.hfs_t2(a::Orbital, b::Orbital, grid::Radial.Grid)`  
-    ... computes the <a|| t^(2) ||b> reduced matrix element for the HFS coupling to the electric-quadrupole moment of 
-        the nucleus for orbital functions a, b. A value::Float64 is returned.  
-    """
-function hfs_t2(a::Orbital, b::Orbital, grid::Radial.Grid)
-    # Use Andersson, Jönson (2008), CPC, Eq. (49) ... test for the proper definition of the C^L tensors.
-    wb = - AngularMomentum.CL_reduced_me_rb(a.subshell, 2, b.subshell)
-    ## wc =   RadialIntegrals.rkDiagonal(-3, a, b, grid)
-    wc =   RadialIntegrals.rkDiagonal(-3, a, b, grid)
-    wa =   wb * wc
-    #
-    ## println("**  <$(a.subshell) || t2 || $(b.subshell)>  = $wa   = $wb * $wc" )
-    return( wa )
-end
-==#
 
 
 """

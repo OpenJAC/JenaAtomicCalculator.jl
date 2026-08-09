@@ -1,11 +1,4 @@
 
-#== August 2025, the following replacements need to be made and tested properly:
-++ module-Cascade-inc-photoionization.jl:    ionConfList = Basics.generateConfigurationsWithElectronLoss(initialConfList, scheme.excitationFromShells)
-++ Basics.generateConfigurationsWithElectronLoss(confs::Array{Configuration,1}, fromShells::Array{Shell,1}) 
-   ... generates a list of non-relativistic configurations for the given (reference) confs and with one 
-       removed (ionized) electron fromShells.
-++ See Basics.generateConfigurations(RemoveElectrons(), confs)
-==#
 
 
 # Functions and methods for photoionization (cascade) computations
