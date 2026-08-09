@@ -119,7 +119,7 @@ function Settings(set::ParticleScattering.Settings;
     printBefore::Union{Nothing,Bool}=nothing, 
     lineSelection::Union{Nothing,LineSelection}=nothing,        epsPartialWave::Union{Nothing,Float64}=nothing)  
     
-    if  isnothing(processTypey)     processTypex    = set.processType       else  processTypex    = processType       end
+    if  isnothing(processType)      processTypex    = set.processType       else  processTypex    = processType       end
     if  isnothing(beamType)         beamTypex       = set.beamType          else  beamTypex       = beamType          end
     if  isnothing(polarization)     polarizationx   = set.polarization      else  polarizationx   = polarization      end
     if  isnothing(impactEnergies)   impactEnergiesx = set.impactEnergies    else  impactEnergiesx = impactEnergies    end

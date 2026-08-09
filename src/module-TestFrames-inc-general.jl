@@ -534,6 +534,70 @@ end
 
 
 """
+`TestFrames.testMethod_SettingsCopyConstructors(; short::Bool=true)`
+    ... exercises the keyword copy-constructor of EVERY submodule Settings that has one; returns success::Bool.
+"""
+function testMethod_SettingsCopyConstructors(; short::Bool=true)
+    Defaults.setDefaults("print summary: open", "test-SettingsCopyConstructors-new.sum")
+    printstyled("\n\nTest all Settings copy-constructors  ... \n", color=:cyan)
+    ### Make the tests
+    ## WHY THIS TEST EXISTS (added 09-Aug-2026). JAC has more than 400 keyword copy-constructor guards written in
+    ## the aligned form
+    ##      if  isnothing(a)   ax = set.a   else   ax = a   end
+    ## and that alignment, which makes them readable, also makes a one-character slip invisible. Four such slips
+    ## were live when this test was written, each broken in a DIFFERENT way and none caught by anything:
+    ##   * CoulombExcitation   -- the if-branch assigned the parameter `ionEnergies` rather than the local
+    ##                            `ionEnergiesx` the constructor reads: raised whenever the keyword was OMITTED.
+    ##   * ParticleScattering  -- the guard tested `processTypey`, a name defined nowhere: raised ALWAYS.
+    ##   * PhotoDoubleIonization -- one guard read `set.electronEnergies`, a field the struct does not have; a
+    ##                            second assigned `maxKappasx` where the constructor reads `maxKappax`, so it
+    ##                            raised whenever that keyword WAS given.
+    ##   * BeamPhotoExcitation -- tested `x == missing`, which evaluates to `missing` and not to a Bool, so the
+    ##                            `if` itself raised; two keyword types were copied from their neighbours as well.
+    ## A line-by-line scan found the first three; the last was found only by CALLING every constructor, which is
+    ## what this test does. Reflection is used deliberately: a hand-written list would go stale the moment a new
+    ## module is added, and this class of defect is precisely the one nobody thinks to add a test for.
+    success = true
+    JAC     = JenaAtomicCalculator
+    ## KNOWN FAILURE, EXCLUDED BY DECISION rather than skipped silently: Liouville's copy-constructor does not
+    ## convert, but that module was postponed by the user on 09-Aug-2026 and is not to be touched. If it is ever
+    ## revived, delete it from this list FIRST and let the test tell you what is wrong with it.
+    excluded = [:Liouville]
+    modules  = Module[]
+    for  nm in names(JAC, all=true, imported=false)
+        isdefined(JAC, nm) || continue
+        val = getfield(JAC, nm)
+        if  val isa Module  &&  val !== JAC  &&  !(nm in excluded)    push!(modules, val)    end
+    end
+    nTested = 0
+    for  M in sort(modules, by=string)
+        isdefined(M, :Settings) || continue
+        S = getfield(M, :Settings)
+        S isa Type || continue
+        ## only those that offer both a zero-argument and a copy-constructor
+        (hasmethod(S, Tuple{}) && hasmethod(S, Tuple{S})) || continue
+        try
+            set0 = Base.invokelatest(S)
+            Base.invokelatest(S, set0)
+            nTested = nTested + 1
+        catch e
+            success = false
+            println("** $(M).Settings copy-constructor raises: " * first(split(sprint(showerror, e), "\n")))
+        end
+    end
+    ## a floor, so that a refactor which silently stops finding the modules cannot pass unnoticed
+    if  nTested < 30
+        success = false;   println("** only $nTested Settings copy-constructors were found; expected at least 30")
+    end
+    println("    ... $nTested Settings copy-constructors exercised, $(length(excluded)) excluded by decision.")
+    ###
+    Defaults.setDefaults("print summary: close", "")
+    testPrint("testMethod_SettingsCopyConstructors()::", success)
+    return( success )
+end
+
+
+"""
 `TestFrames.testStructConstructors(; short::Bool=true)`
     ... tests that all major struct constructors and Base.show methods work without error.
         This fast structural test catches breakage caused by adding or removing struct fields

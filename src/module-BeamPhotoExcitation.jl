@@ -51,19 +51,26 @@ end
                     
     ... constructor for modifying the given PhotoExcitation.Settings by 'overwriting' the previously selected parameters.
 """
-function Settings(set::BeamPhotoExcitation.Settings;    
-    beamType::Union{Missing,Array{EmMultipole,1}}=missing,          observable::Union{Missing,Array{UseGauge,1}}=missing,  
-    multipoles::Union{Missing,Array{EmMultipole,1}}=missing,        gauges::Union{Missing,Array{UseGauge,1}}=missing,  
-    printBefore::Union{Missing,Bool}=missing,                       lineSelection::Union{Missing,LineSelection}=missing, 
-    photonEnergyShift::Union{Missing,Float64}=missing)  
+function Settings(set::BeamPhotoExcitation.Settings;
+    beamType::Union{Nothing,Beam.AbstractBeamType}=nothing,         observable::Union{Nothing,Beam.AbstractObservable}=nothing,
+    multipoles::Union{Nothing,Array{EmMultipole,1}}=nothing,        gauges::Union{Nothing,Array{UseGauge,1}}=nothing,
+    printBefore::Union{Nothing,Bool}=nothing,                       lineSelection::Union{Nothing,LineSelection}=nothing,
+    photonEnergyShift::Union{Nothing,Float64}=nothing)
 
-    if  beamType            == missing   beamTypex            = set.beamType                else  beamTypex            = beamType              end 
-    if  observable          == missing   observablex          = set.observable              else  observablex          = observable            end 
-    if  multipoles          == missing   multipolesx          = set.multipoles              else  multipolesx          = multipoles            end 
-    if  gauges              == missing   gaugesx              = set.gauges                  else  gaugesx              = gauges                end 
-    if  printBefore         == missing   printBeforex         = set.printBefore             else  printBeforex         = printBefore           end 
-    if  lineSelection       == missing   lineSelectionx       = set.lineSelection           else  lineSelectionx       = lineSelection         end 
-    if  photonEnergyShift   == missing   photonEnergyShiftx   = set.photonEnergyShift       else  photonEnergyShiftx   = photonEnergyShift     end 
+    ## REWRITTEN 09-Aug-2026. This copy-constructor raised on EVERY call, and two of its keywords could not have
+    ## been used even so. It tested `x == missing`, which in Julia evaluates to `missing` rather than to a Bool,
+    ## so the `if` died with "non-boolean (Missing) used in boolean context" whatever the caller passed. And the
+    ## declared types of the first two keywords were copied from the next two: beamType was typed
+    ## Array{EmMultipole,1} and observable Array{UseGauge,1}, where the struct holds Beam.AbstractBeamType and
+    ## Beam.AbstractObservable. Now in the house pattern -- Union{Nothing,T}=nothing with isnothing() guards --
+    ## which is also what the reflective copy-constructor test in TestFrames expects.
+    if  isnothing(beamType)              beamTypex            = set.beamType                else  beamTypex            = beamType              end
+    if  isnothing(observable)            observablex          = set.observable              else  observablex          = observable            end
+    if  isnothing(multipoles)            multipolesx          = set.multipoles              else  multipolesx          = multipoles            end
+    if  isnothing(gauges)                gaugesx              = set.gauges                  else  gaugesx              = gauges                end
+    if  isnothing(printBefore)           printBeforex         = set.printBefore             else  printBeforex         = printBefore           end
+    if  isnothing(lineSelection)         lineSelectionx       = set.lineSelection           else  lineSelectionx       = lineSelection         end
+    if  isnothing(photonEnergyShift)     photonEnergyShiftx   = set.photonEnergyShift       else  photonEnergyShiftx   = photonEnergyShift     end
     
     Settings( beamTypex, observablex, multipolesx, gaugesx, printBeforex, lineSelectionx, photonEnergyShiftx)
 end

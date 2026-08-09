@@ -77,8 +77,8 @@ function Settings(set::PhotoDoubleIonization.Settings;
     if  isnothing(gauges)               gaugesx             = set.gauges             else  gaugesx             = gauges              end 
     if  isnothing(quasiShells)          quasiShellsx        = set.quasiShells        else  quasiShellsx        = quasiShells         end 
     if  isnothing(photonEnergies)       photonEnergiesx     = set.photonEnergies     else  photonEnergiesx     = photonEnergies      end 
-    if  isnothing(NoEnergySharings)     NoEnergySharingsx   = set.electronEnergies   else  NoEnergySharingsx   = NoEnergySharings    end 
-    if  isnothing(maxKappa)             maxKappax           = set.maxKappa           else  maxKappasx          = maxKappa            end 
+    if  isnothing(NoEnergySharings)     NoEnergySharingsx   = set.NoEnergySharings   else  NoEnergySharingsx   = NoEnergySharings    end 
+    if  isnothing(maxKappa)             maxKappax           = set.maxKappa           else  maxKappax           = maxKappa            end 
     if  isnothing(calcDifferentialCs)   calcDifferentialCsx = set.calcDifferentialCs else  calcDifferentialCsx = calcDifferentialCs  end 
     if  isnothing(printBefore)          printBeforex        = set.printBefore        else  printBeforex        = printBefore         end 
     if  isnothing(lineSelection)        lineSelectionx      = set.lineSelection      else  lineSelectionx      = lineSelection       end 

@@ -12,6 +12,7 @@ using JenaAtomicCalculator, ..Defaults, ..TestFrames
 
     @testset "JAC structs" begin
         @test TestFrames.testStructConstructors()
+        @test TestFrames.testMethod_SettingsCopyConstructors()
     end
 
     @testset "JAC evaluations" begin
