@@ -287,7 +287,15 @@ function MabEmission(mp::EmMultipole, gauge::EmGauge, omega::Float64, b::Orbital
         #
     elseif   gauge == Basics.Babushkin
         JohnsonI = AngularMomentum.JohnsonI(kapa, kapb, AngularJ64(mp.L))
-        wr     = RadialIntegrals.GrantJL(mp.L, q, a, b, grid::Radial.Grid)
+        ## ORIENTATION (corrected 09-Aug-2026). Unlike the velocity form below, the length form is not
+        ## antisymmetric term by term under exchange of the two orbitals: GrantJL is symmetric, GrantILminus
+        ## is antisymmetric and (kapa-kapb) changes sign. The written expression is therefore valid for ONE
+        ## assignment only -- the one with `a` the more strongly bound orbital -- and the mirrored order needs
+        ## the GrantJL term negated, the other two flips cancelling against the required overall sign. Call
+        ## sites disagreed about the order, so the orientation is settled here from the orbital energies
+        ## instead of being left to the caller. For a == b both orders coincide and eps = +1 is the right one.
+        eps    = a.energy <= b.energy   ?   1.0   :   -1.0
+        wr     = eps * RadialIntegrals.GrantJL(mp.L, q, a, b, grid::Radial.Grid)
         wr     = wr +  (kapa-kapb)/(mp.L+1) * RadialIntegrals.GrantILplus(mp.L+1, q, a, b, grid::Radial.Grid)
         wr     = wr +  RadialIntegrals.GrantILminus(mp.L+1, q, a, b, grid::Radial.Grid)
         wa     = JohnsonI * wr
