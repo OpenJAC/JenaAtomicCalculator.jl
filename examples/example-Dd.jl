@@ -124,10 +124,21 @@ elseif  false
     # substitute (it isolates the same physics Eichler's tables would let us check, even without the exact numbers).
     # Also still agrees with Empirical.photorecombinationCrossSection(ScaledHydrogenic) to ~30% (two lower-energy
     # points) and ~4x (highest energy point, where the empirical and ab-initio binding energies differ by ~30%).
-    # NOT re-verified on 9-Aug-2026: that empirical cross-check, and the bare-ion cross-check quoted above -- the
-    # latter aborts because Configuration("") is rejected, so a bare initial state needs a different spelling.
-    # The date rests on gauge convergence to <=0.6% at all three energies, which for a system whose active electron
-    # is a single 2s spectator is a necessary condition that the branch previously failed at 120 keV.
+    # NOT re-verified on 9-Aug-2026: that empirical cross-check.
+    # The BARE-ION cross-check WAS redone, and the spelling is worth recording because it is not obvious. A bare
+    # ion is written as a zero-occupancy shell, e.g. Configuration("2s^0") -- NoElectrons = 0, and performSCF is
+    # happy with it. Configuration("") and Configuration("0") are both rejected outright ("input string is empty").
+    # The zero-occupancy shell must be the SAME shell that is being captured into: the empty shell still appears in
+    # the basis, and checkConsistentMultiplets() below demands that the initial subshells be a prefix of the final
+    # ones, so Configuration("1s^0") against a 2s final state compares [1s_1/2] with [2s_1/2] and errors out.
+    # Result, bare U capturing into 2s, Coulomb/Babushkin: 1161.0/1162.6 barn @1.196 keV, 113.19/113.24 @11.96 keV,
+    # 7.294/7.287 @119.6 keV -- i.e. 3.1-3.9% ABOVE the He-like -> Li-like numbers above at the three energies,
+    # reproducing the 22-Jul-2026 finding ("~3-5% above at every energy") and with it the physical point: the two
+    # K-shell electrons barely screen 2s capture at this Z. Gauge agreement is <=0.13% here, better than the
+    # He-like case, as it should be for a genuinely one-electron final state.
+    # The date rests on that cross-check plus gauge convergence to <=0.6% at all three energies, which for a system
+    # whose active electron is a single 2s spectator is a necessary condition that the branch previously failed
+    # at 120 keV.
     # Z=92 (U), He-like 1s^2 -> Li-like 1s^2 2s: capture into 2s at given ion energies.
     # Comparison: Fritzsche, Phys. Rev. A 72, 012704 (2005); Ichihara & Eichler, ADNDT 2000 (bare-ion proxy, see above).
     gridDd4 = Radial.Grid(Radial.Grid(false), rnt = 4.0e-6, h = 5.0e-2, hp = 0.3e-2, rbox = 10.0)
