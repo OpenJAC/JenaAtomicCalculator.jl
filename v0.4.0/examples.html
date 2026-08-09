@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Examples · JenaAtomicCalculator.jl</title><meta name="title" content="Examples · JenaAtomicCalculator.jl"/><meta property="og:title" content="Examples · JenaAtomicCalculator.jl"/><meta property="twitter:title" content="Examples · JenaAtomicCalculator.jl"/><meta name="description" content="Documentation for JenaAtomicCalculator.jl."/><meta property="og:description" content="Documentation for JenaAtomicCalculator.jl."/><meta property="twitter:description" content="Documentation for JenaAtomicCalculator.jl."/><script data-outdated-warner src="assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="assets/documenter.js"></script><script src="search_index.js"></script><script src="siteinfo.js"></script><script src="../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="index.html">JenaAtomicCalculator.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="index.html">Home</a></li><li><a class="tocitem" href="getting-started.html">Getting Started</a></li><li><a class="tocitem" href="for-pedestrians.html">For pedestrians</a></li><li><a class="tocitem" href="demos.html">Demos</a></li><li class="is-active"><a class="tocitem" href="examples.html">Examples</a><ul class="internal"><li><a class="tocitem" href="#Hydrogenic-Computation"><span>Hydrogenic Computation</span></a></li><li><a class="tocitem" href="#Compute-the-low-lying-levels-of-C{2}-1s2-(2s2-2s2p-2p2):-\\;-SCF-and-configuration-interaction-calculations"><span>Compute the low-lying levels of <span>$C^{2+} 1s^2 (2s^2 + 2s2p + 2p^2)$</span>: <span>$\;$</span> SCF and configuration interaction calculations</span></a></li></ul></li><li><a class="tocitem" href="news.html">News</a></li><li><a class="tocitem" href="api-atomic.html">API Atomic computations</a></li><li><a class="tocitem" href="api-processes.html">API Atomic processes</a></li><li><a class="tocitem" href="api-properties.html">API Atomic properties</a></li><li><a class="tocitem" href="api-basics.html">API Basics</a></li><li><a class="tocitem" href="api-cascades.html">API Cascade computations</a></li><li><a class="tocitem" href="api-empirical.html">API Empirical computations</a></li><li><a class="tocitem" href="api-plasma.html">API Plasma computations</a></li><li><a class="tocitem" href="api-racah.html">API Racah algebra</a></li><li><a class="tocitem" href="reference.html">Bibliography to JAC</a></li><li><a class="tocitem" href="getting-involved.html">Getting involved</a></li><li><a class="tocitem" href="contributors.html">Contributors</a></li><li><a class="tocitem" href="license.html">License</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li class="is-active"><a href="examples.html">Examples</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href="examples.html">Examples</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/OpenJAC/JenaAtomicCalculator.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/OpenJAC/JenaAtomicCalculator.jl" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h2 id="Hydrogenic-Computation"><a class="docs-heading-anchor" href="#Hydrogenic-Computation">Hydrogenic Computation</a><a id="Hydrogenic-Computation-1"></a><a class="docs-heading-anchor-permalink" href="#Hydrogenic-Computation" title="Permalink"></a></h2><pre><code class="language-julia hljs">using JenaAtomicCalculator</code></pre><p>Perhaps, the simplest atomic computations can be made for hydrogenic ions. If we consider, for example, hydrogen-like  argon <span>$(Z=18)$</span>, we can first determine and compare the energies of the <span>$1s$</span> and <span>$2p$</span> levels from the (non-relativistic)  Schroedinger equation with those from Dirac&#39;s relativistic equation by</p><pre><code class="language-julia hljs">Z     = 18.0
+e1s   = HydrogenicIon.energy(Shell(&quot;1s&quot;), Z)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">-162.0</code></pre><pre><code class="language-julia hljs">e2p   = HydrogenicIon.energy(Shell(&quot;2p&quot;), Z)
+e2p_1 = HydrogenicIon.energy(Subshell(&quot;2p_1/2&quot;), Z)
+e2p_3 = HydrogenicIon.energy(Subshell(&quot;2p_3/2&quot;), Z)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">-40.54376720995463</code></pre><p>While the (one-electron) energies are displayed by the function  <code>HydrogenicIon.energy()</code> in the default units  (presently eV here and as could be overwritten by the user), all <strong>computations are internally performed and  returned always in atomic units</strong>. This applies to all computations if not stated otherwise in the description of  some particular function; indeed, the user-defined units mainly in the tabulation of results but are not <em>returned</em>.  Most of these tabulations are generated by <em>display</em> method which print some table to screen but return <code>nothing</code>  otherwise.</p><p>This clear distinction between the use of <strong>atomic</strong> and <strong>(user-specified) default</strong> units can be seen  easily  from the output of the variables <code>e2p</code>, <code>e2p_1</code>, <code>e2p_3</code> above: </p><pre><code class="language-julia hljs">(e2p, e2p_1, e2p_3)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">(-40.5, -40.720363843040175, -40.54376720995463)</code></pre><p>The units of energies, rates and several other physical properties can be however quite easily converted among each  other, for instance, by:</p><pre><code class="language-julia hljs">e1s_eV = convertUnits(&quot;energy: from atomic to eV&quot;, e1s)
+e1s_au = convertUnits(&quot;energy: from eV to atomic&quot;, e1s_eV)
+(e1s, e1s_eV, e1s_au)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">(-162.0, -4408.24453524, -162.0)</code></pre><p>... and similarly also for other energy units as well as for other physical entities; cf. <code>? convertUnits()</code>.</p><p>From these energies, we can easily compute the fine-structure splitting of the <span>$2p$</span> level into the <span>$2p_{1/2}$</span> and  <span>$2p_{3/2}$</span> (fine-structure) levels for hydrogen-like argon from above:</p><pre><code class="language-julia hljs">e13 = e2p_1 - e2p_3
+e13_eV = convertUnits(&quot;energy: from atomic to eV&quot;, e13)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">-4.805439152723064</code></pre><p>Apart from the (single-electron) energies, we can generate also the radial orbitals, i.e. the <span>$P(r)$</span> in the  non-relativistic theory or  <span>$P(r)$</span> and <span>$Q(r)$</span>  in the relativistic theory. Both, the relativistic and non-relativistic  orbitals, can be calculated by using the general (and analytically well-known) solutions of either the Dirac&#39;s  or Schrödinger&#39;s equation. </p><p>However, since all (radial) orbital functions are represented on some <code>Radial.Grid</code>, special care has to be taken  in order to define a proper grid, and which affects also all subsequent numerical computations as well as the  accuracy that can be obtained. To better understand the definition of the grid, let us ask for:</p><pre><code class="nohighlight hljs">? Radial.Grid</code></pre><article><details class="docstring" open="true"><summary id="JenaAtomicCalculator.Radial.Grid-examples"><a class="docstring-binding" href="#JenaAtomicCalculator.Radial.Grid-examples"><code>JenaAtomicCalculator.Radial.Grid</code></a> — <span class="docstring-category">Type</span></summary><section><div><p><code>struct  Radial.Grid</code>  ... defines a type for the radial grid which contains all information about the grid parameters, the genration                              of the B-spline basis as well as for performing radial integrations.</p><pre><code class="language-julia hljs">** Physical grid parameter **
++ rnt        ::Float64           ... smalles grid point &gt; 0.
++ h          ::Float64           ... stepsize in the construction of the exponential grid.
++ hp         ::Float64           ... asymptotic stepsize of the log-lin grid.
++ NoPoints   ::Int64             ... No. of grid points so that r[NoPoints] coincides also 
+                                        with the largest break point of the B-spline knot.
+** B-spline grid parameters and break points **
++ tL         ::Array{Float64,1}  ... radial break points for the B-splines of the large c.
++ tS         ::Array{Float64,1}  ... radial break points for the B-splines of the small c.
++ ntL        ::Int64             ... number of break points in the t-grid of the large c.
++ ntS        ::Int64             ... number of break points in the t-grid of the small c.
++ orderL     ::Int64             ... B-spline order of large components.
++ orderS     ::Int64             ... B-spline order of small components.
++ nsL        ::Int64             ... number of B-splines for large components.
++ nsS        ::Int64             ... number of B-splines for small components.
++ orderGL    ::Int64             
+    ... order of the Gauss-Lengedre integration if mesh == Radial.MeshGL(); this order also determines
+        the (number of) break points by taking the orderGL-th point from the physical grid points.
+** Radial mesh points **
++ meshType   ::Radial.AbstractMesh
++ r          ::Array{Float64,1}  ... radial grid points
++ rp         ::Array{Float64,1}  ... derivative of the radial grid at the grid points
++ rpor       ::Array{Float64,1}  ... rp over r
++ wr         ::Array{Float64,1}  
+    ... integration weights for all grid points, for instance, GL weights.</code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/OpenJAC/JenaAtomicCalculator.jl">source</a></section></details></article><p>which shows the internal definition and the constructors to define such a grid. In practice, there are three (logical) levels that are considered and realized for each grid: </p><p>(i) The <strong>phenomenological grid</strong> definition that is based on our physics understanding and intuition of which grid is  appropriate to decribe a particular atomic property or process. Two currently implemented grid refers to an <em>exponential</em>  grid (with exponentially increasing stepsize) as appropriate for many bound-state computations and a <em>linear-logarithmic</em> grid that start exponentially but becomes linear in its stepsize for large values of <span>$r$</span>. Such a <em>linear-logarithmic</em>  grid is typically needed to describe electron ionization and capture processes as the incoming or outgoing electron waves  are <em>sinusoidal</em> and should be represented with a proper number of grid points, say 20-30, per period of the electron wave.  In JAC, the <em>phenomenologically</em> part of the grid is chosen (analogue as in GRASP) by the parameters <code>rnt</code>, <code>h</code>, <code>hp</code>  and <code>NoPoints</code> in the definition above. </p><p>(ii) The <em>phenomenological</em> definition of the grid is internally translated into a <strong>sequence of knots</strong> upon which the  B-spline primitives are defined. Here, each <code>nth</code> mesh point from the phenomenological is chosen to keep the number of  B-splines and the corresponding size of matrices (that need to be diagonalized) moderate. These knots are used to  define the B-splines and to determine the eigenvectors of all orbitals (within some given potential) but they are not  applied in order evaluate matrix elements or radial integrals.</p><p>(iii) The <em>phenomenological</em> grid and the definition of the B-splines (knots) are eventually combined into a  <strong>physical grid</strong> upon which all radial functions are represented. This physical grid resembles the phenomenological grid  but with modified grid points in between the <em>knots</em> of the B-spline grid (t-grid). Here the radial points and corresponding  weights are chosen due to a Gauss-Legendre distribution and goal to determine all radial integrals <em>exact</em> up to a  given <em>Gauss-Legendre order</em>.</p><p>The <strong>physical grid</strong> is thus defined by the three arrays <code>r</code> (the mesh points along <span>$r$</span>), <code>rp</code> (the derivatives d <code>r</code>/ dr),  <code>rpor</code> (the values rp / r) as well as <code>w</code> (the corresponding weights). All these arrays are of length  <code>nr</code> <span>$\approx$</span> <code>NoPoints</code> but not necessarely equal as the grid points <code>nr</code> are coupled to the underlying integration,  respectively, interpolation scheme. </p><p>In principle, this physical grid could chosen also on other <em>interpolation/integration</em> formulas, such as Gauss-Laguerre  or others, that have been utilized in atomic physics. All what is needed would be to adapt the intermediate grid point  and weights accordingly.</p><p>The clear distinction between the <strong>phenomenological grid</strong> and the <strong>physical grid</strong> help avoid that every new (radial)  operator as well as particular boundary condition of the radial orbital functions need to be treated independently within  the B-spline basis. Instead, a proper <em>interpolation/integration</em> formula should guarantee that all results are integrated  sufficiently accurate, and this is first of all tested by enlarging the number of grid point <code>NoPoint</code> –&gt; <code>nr</code></p><p>Here, we first apply an <em>exponential grid</em>, and which is appropriate below in order to compute various expectation values:</p><pre><code class="language-julia hljs">grid   = Radial.Grid(true, printout= true)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">Radial grid:  rnt = 2.0e-6,  h = 0.05,  hp = 0.0,  NoPoints = 392,  ntL = 69,  ntS = 71, orderL = 7,  orderS = 8,  nsL = 62,  nsS = 63,  mesh = JenaAtomicCalculator.Radial.MeshGL(), ...  
+r:    [1.780504510281598e-8, 9.042759120177923e-8, 2.0787030685460475e-7]  ...  [564.4302351890452, 595.097239730825, 614.0606632064549]
+wr:   [4.530145586285996e-8, 9.785739473901763e-8, 1.3358660616640612e-7]  ...  [34.882547080539766, 25.552825070730517, 11.829256033233948]
+tS:   [0.0, 0.0, 0.0]  ...  [618.7099715607404, 618.7099715607404, 618.7099715607404]</code></pre><p>With this grid, the non-relativistic radial orbitals <span>$P(r)$</span> can be obtained either for a single <span>$r$</span>-value, for a list of  <span>$r$</span>-values as well as for all <span>$r$</span>-values on a given radial grid:</p><pre><code class="language-julia hljs">Pnr_1s = HydrogenicIon.radialOrbital(Shell(&quot;1s&quot;), Z, grid)
+Pnr_2p = HydrogenicIon.radialOrbital(Shell(&quot;2p&quot;), Z, grid)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">392-element Vector{Float64}:
+ 8.895323125542194e-14
+ 2.2944426826828984e-12
+ 1.2124385701573003e-11
+ 3.434471347946261e-11
+ 6.787882523004707e-11
+ 1.0416489853450738e-10
+ 1.3047592028166753e-10
+ 1.4891535552172264e-10
+ 2.0078900763041305e-10
+ 3.010512642484143e-10
+ ⋮
+ 0.0
+ 0.0
+ 0.0
+ 0.0
+ 0.0
+ 0.0
+ 0.0
+ 0.0
+ 0.0</code></pre><p>Here, the exponential tails of the radial orbitals are simply set to zero if <span>$|P| &lt; 1.0e-15$</span> (and similarly for <span>$|Q|$</span>).</p><p>Of course, we could plot the two functions <code>Pnr_1s</code> and <code>Pnr_2p</code> directly by some proper call of <code>PyPlot</code>, and if we give  the correct arrays of radial mesh points from above.</p><pre><code class="language-julia hljs">using Plots
+plot(grid.r, [Pnr_1s, Pnr_2p],xlims=(0,1), xlabel = &quot;r (a.u.)&quot;, ylabel=&quot;Amplitude (a.u.)&quot;, label=[&quot;1s&quot; &quot;2p&quot;])</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">GKS: cannot open display - headless operation mode active</code></pre><p><img src="hdy-1.svg" alt/></p><p>We can also make use of this function to visualise the relativistic orbitals if we specify the total angular momentum  and generate the relativistic orbitals, which contain both the large and the small component.</p><pre><code class="language-julia hljs">setDefaults(&quot;standard grid&quot;, grid)
+PQr_1s = HydrogenicIon.radialOrbital(Subshell(&quot;1s_1/2&quot;), Z, grid)
+PQr_2p1 = HydrogenicIon.radialOrbital(Subshell(&quot;2p_1/2&quot;), Z, grid)
+PQr_2p3 = HydrogenicIon.radialOrbital(Subshell(&quot;2p_3/2&quot;), Z, grid)
+plot(grid.r, [PQr_1s,PQr_2p1, PQr_2p3],xlims=(0,1), xlabel = &quot;r (a.u.)&quot;, ylabel=&quot;Amplitude (a.u.)&quot;,
+     label=[&quot;1s - Large component&quot; &quot;1s - Small component&quot; &quot;2p_1/2 - Large component&quot; &quot;2p_1/2 - Small component&quot; &quot;2p_3/2 - Large component&quot; &quot;2p_3/2 - Small component&quot;])</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">(Re-) Define the standard grid with 392 grid points.</code></pre><p><img src="hdy-2.svg" alt/></p><p>In practice, using Pyplot is often quite tedious since all the specification of arrays, axes, labels, etc. need to  be given explicitly. To display the shape of such orbitals, a special plotting method is prepared in JAC that displays  one or several orbitals together. </p><pre><code class="nohighlight hljs">? Basics.plot</code></pre><article><details class="docstring" open="true"><summary id="JenaAtomicCalculator.Basics.plot-examples"><a class="docstring-binding" href="#JenaAtomicCalculator.Basics.plot-examples"><code>JenaAtomicCalculator.Basics.plot</code></a> — <span class="docstring-category">Function</span></summary><section><div><p><code>Basics.plot(::RadialPotentials, potentials::Array{Radial.Potential,1}, grid::Radial.Grid; N::Int64 = 0)</code>     ... to plot one or more radial potentials, where N::Int64 is the number of grid points to be considered.         call:  using Plots; pyplot()    ... to access this method by plot(...)</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/OpenJAC/JenaAtomicCalculator.jl">source</a></section><section><div><p><code>Basics.plot(::RadialOrbitalsLarge, orbitals::Array{Radial.Orbital,1}, grid::Radial.Grid; N::Int64 = 0)</code>     ... to plot the large component of one or more radial orbitals, where N::Int64 is the number of grid points.         call:  using Plots; pyplot()    ... to access this method by plot(...)</p><p><code>Basics.plot(::RadialOrbitalsSmall, orbitals::Array{Radial.Orbital,1}, grid::Radial.Grid; N::Int64 = 0)</code>     ... to plot the small component of one or more radial orbitals.</p><p><code>Basics.plot(::RadialOrbitalsBoth, orbitals::Array{Radial.Orbital,1}, grid::Radial.Grid; N::Int64 = 0)</code>     ... to plot both the large and small component of one or more radial orbitals.</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/OpenJAC/JenaAtomicCalculator.jl">source</a></section><section><div><p><code>Basics.plot(theme::AbstractPlotTheme, lines::Array{PhotoEmission.Line,1})</code>     ... to plot transition rates or oscillator strengths as function of transition energies. <strong>Not yet implemented.</strong></p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/OpenJAC/JenaAtomicCalculator.jl">source</a></section><section><div><p><code>Basics.plot(theme::AbstractPlotTheme, lines::Array{PhotoEmission.Line,1}, widths::Float64)</code>     ... to plot transition rates with Gaussian or Lorentzian broadening. <strong>Not yet implemented.</strong></p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/OpenJAC/JenaAtomicCalculator.jl">source</a></section></details></article><p>This <code>Basics.plot</code> function (from the Basics module) accepts for instance a list of (relativistic) radial <code>Orbitals</code>:</p><pre><code class="nohighlight hljs">? Orbital</code></pre><article><details class="docstring" open="true"><summary id="JenaAtomicCalculator.Radial.Orbital-examples"><a class="docstring-binding" href="#JenaAtomicCalculator.Radial.Orbital-examples"><code>JenaAtomicCalculator.Radial.Orbital</code></a> — <span class="docstring-category">Type</span></summary><section><div><p><code>struct  Radial.Orbital</code>       ... defines a type for a single-electron radial orbital function with a large and small component, and which can refer to         either the standard or an explicitly given grid due to the logical flag useStandardGrid. Bound-state orbitals with energy &lt; 0 are          distinguished from free-electron orbitals by the flag isBound.</p><pre><code class="language-julia hljs">+ subshell        ::Subshell          ... Relativistic subshell.
++ isBound         ::Bool              ... Logical flag to distinguish between bound (true) and free-electron orbitals (false).
++ useStandardGrid ::Bool              ... Logical flag for using the standard grid (true) or an explicitly given grid (false).
++ energy          ::Float64           ... Single-electron energies of bound orbitals are always negative.
++ P               ::Array{Float64,1}  ... Large and ..
++ Q               ::Array{Float64,1}  ... small component of the radial orbital.
++ Pprime          ::Array{Float64,1}  ... dP/dr.
++ Qprime          ::Array{Float64,1}  ... dQ/dr.
++ grid            ::Array{Float64,1}  ... explic. defined radial grid array for P, Q, if StandardGrid = false.</code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/OpenJAC/JenaAtomicCalculator.jl">source</a></section></details></article><p>Of course, the main purpose of this <code>plot</code> method is to display and compare a number of generated orbitals, either for  getting physical insight or just for test purposes. We can make use of the same <code>plot</code> method also for the  non-relativistic  <code>Pnr_1s</code><span>$(r)$</span>  orbital if we assign this array as large component of a relativistic orbital and  specify the additional quantum numbers. Moreover, we here first internally to define a standard grid as well as  such an (instance of the) Orbital by using its standard constructor, and by setting the small  <span>$Q(r)$</span> component  as well as <span>$dP/dr$</span> and <span>$dQ/dr$</span> simply to zero:</p><pre><code class="language-julia hljs">setDefaults(&quot;standard grid&quot;, grid)
+Qnr_1s   = Pprime = Qprime = zeros( length(Pnr_1s) )
+nrOrb_1s = Orbital( Subshell(&quot;1s_1/2&quot;), true, true, e1s, Pnr_1s, Qnr_1s, Pprime, Qprime, Radial.Grid())
+typeof(nrOrb_1s)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">Orbital</code></pre><p>We could also compute a relativistic <span>$1s_{1/2}$</span> orbital on the given grid and plot the two <span>$1s$</span>-orbitals together;  while the large components of these orbitals coincide of course, due to its special construction via the non-relativistic  orbitals, the small compoments differ. Note that one need to use the standard REPL in order to display these functions  in some separate window.</p><pre><code class="language-julia hljs">Orb_1s = HydrogenicIon.radialOrbital(Subshell(&quot;1s_1/2&quot;), Z, grid)
+e1s_1 = HydrogenicIon.energy(Subshell(&quot;1s_1/2&quot;), Z)
+rOrb_1s = Orbital( Subshell(&quot;1s_1/2&quot;), true, true, e1s_1, Orb_1s[1], Orb_1s[2], Pprime, Qprime, Radial.Grid())</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">Bound-state orbital 1s_1/2 with energy -162.70485811496013 a.u. is defined with 392 (grid) points on the standard grid: 
+Large component P: [3.094976712530428e-6, 1.5498862894779233e-5, 3.537189759693442e-5, 5.926504419660713e-5, 8.30717237172039e-5, 0.00010271653265137339, 0.00011484727355055586, 0.0001226242231422872, 0.00014220454983176329, 0.00017382034714231485  …  0.0003400832988479155, 0.0003846215960535446, 0.0004384081093685234, 0.0004921362282859167, 0.0005365367822203975, 0.0005639761006343588, 0.0005802444216048941, 0.000619152996620868, 0.0006820292546595882, 0.0007579783496550785]  ...  [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+Small component Q: [2.0415063278116693e-7, 1.0223348868983198e-6, 2.3331985820277163e-6, 3.9092366109110816e-6, 5.479571104502363e-6, 6.7753805878302265e-6, 7.5755476523015185e-6, 8.088530245621624e-6, 9.380086355732164e-6, 1.1465525319036404e-5  …  2.243255026023918e-5, 2.5370382238332118e-5, 2.8918244386660844e-5, 3.246225472790821e-5, 3.5391000894191195e-5, 3.720095125492078e-5, 3.827404108043568e-5, 4.084052572568854e-5, 4.498796496603807e-5, 4.999771374369833e-5]  ...  [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+Pprime:            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0  …  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]  ...  [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+Qprime:            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0  …  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]  ...  [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+Defined on Grid:   [1.780504510281598e-8, 9.042759120177923e-8, 2.0787030685460475e-7]  ...  [527.353759459587, 564.4302351890452, 595.097239730825, 614.0606632064549]
+</code></pre><pre><code class="language-julia hljs">plot(RadialOrbitalsBoth(), Orbital[nrOrb_1s, rOrb_1s], grid; N = 230)</code></pre><p><img src="hdy-3.svg" alt/></p><p>We can use these orbitals to quickly evaluate some overlap integrals and <span>$\langle r^k \rangle$</span> expectation values;  for this, we make use of the non-relativistic <span>$2p$</span> radial orbital <code>Pnr_2p</code> from above and compute the normalization   and <span>$\langle r \rangle$</span> expectation values:</p><pre><code class="language-julia hljs">N_1s = RadialIntegrals.overlap(Pnr_1s, Pnr_1s, grid)
+N_2p = RadialIntegrals.overlap(Pnr_2p, Pnr_2p, grid)
+r_exp_1s = RadialIntegrals.rkDiagonal(1, Pnr_1s, Pnr_1s,grid)
+r_exp_2p = RadialIntegrals.rkDiagonal(1, Pnr_2p, Pnr_2p,grid)
+println(&quot;N_1s = $(N_1s)&quot;,&quot;\n&quot;,&quot;N_2p = $(N_2p)&quot;,&quot;\n&quot;,&quot;r_exp_1s = $(r_exp_1s)&quot;,&quot;\n&quot;,&quot;r_exp_2p = $(r_exp_2p)&quot;)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">N_1s = 0.999999999999998
+N_2p = 0.9999999999999959
+r_exp_1s = 0.08333333333333318
+r_exp_2p = 0.2777777777777762</code></pre><p>As we can see the radial orbitals are already normalized by construction and the expectation values match with the  analytic values of <span>$\langle r \rangle_{nl} = \frac{1}{2Z}[3n²-l(l+1)]$</span>. </p><p>For the sake of simplicity, all hydrogenic computations are performed for a point-like nucleus. For many-electron  computations, in constrast, a more realistic nucleus can be taken into accout by selecting a proper nuclear model.  See the tutorial: Define the nuclear model parameters   or   <code>? Nuclear.Model</code>  ... for further details.</p><pre><code class="nohighlight hljs"> ? Nuclear.Model</code></pre><article><details class="docstring" open="true"><summary id="JenaAtomicCalculator.Nuclear.Model"><a class="docstring-binding" href="#JenaAtomicCalculator.Nuclear.Model"><code>JenaAtomicCalculator.Nuclear.Model</code></a> — <span class="docstring-category">Type</span></summary><section><div><p><code>struct  Nuclear.Model</code>  ... defines a type for the nuclear model, i.e. for its form and parameters.</p><pre><code class="language-julia hljs">+ Z        ::Float64         ... nuclear charge
++ model    ::String          ... identifier of the nuclear model: {&quot;Fermi&quot;, &quot;Point&quot;, &quot;Uniform&quot;}
++ mass     ::Float64         ... atomic mass
++ radius   ::Float64         ... (root-mean square) radius of a uniform or Fermi-distributed nucleus
++ spinI    ::AngularJ64      ... nuclear spin I, must be &gt;= 0
++ mu       ::Float64         ... magnetic dipole moment [nuclear magnetons]
++ Q        ::Float64         ... electric quadrupole moment [barn]
++ Omega    ::Float64         ... magnetic octupole moment [nuclear magnetons x barn]</code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/OpenJAC/JenaAtomicCalculator.jl">source</a></section></details></article><p>If we would like to compute a relativistic orbital by taking into account the type of the nucleus, we can simply  define a nuclear model: </p><pre><code class="language-julia hljs">Nucleus = Model(Z, &quot;Fermi&quot;)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">Fermi nuclear model for Z = 18.0 with mass = 37.62, radius R = 3.37121133160794 fm and nuclear spin I = 0, dipole moment mu = 0.0, quadrupole moment Q = 0.0 and octupole moment Omega = 0.0.</code></pre><p>and set it as an argument value of the radialOrbital-function. By comparing the analytic orbitals which are based on a  point like nucleus and the orbitals taking into account a fermi distributed nucleus one can see, that the influence of  the nucleus is negligible for large r. However by looking at the functions at a closer angle the influence of the nucleus  is well visible for small r. </p><pre><code class="language-julia hljs">nuc_orb_1s = HydrogenicIon.radialOrbital(Subshell(&quot;1s_1/2&quot;),Nucleus, grid)
+plot(RadialOrbitalsBoth(), Orbital[nuc_orb_1s,rOrb_1s], grid; N = 230)</code></pre><p><img src="hdy-4.svg" alt/></p><pre><code class="language-julia hljs">plot(RadialOrbitalsBoth(), Orbital[nuc_orb_1s,rOrb_1s], grid; N = 75)</code></pre><h2 id="Compute-the-low-lying-levels-of-C{2}-1s2-(2s2-2s2p-2p2):-\\;-SCF-and-configuration-interaction-calculations"><a class="docs-heading-anchor" href="#Compute-the-low-lying-levels-of-C{2}-1s2-(2s2-2s2p-2p2):-\\;-SCF-and-configuration-interaction-calculations">Compute the low-lying levels of <span>$C^{2+} 1s^2 (2s^2 + 2s2p + 2p^2)$</span>: <span>$\;$</span> SCF and configuration interaction calculations</a><a id="Compute-the-low-lying-levels-of-C{2}-1s2-(2s2-2s2p-2p2):-\\;-SCF-and-configuration-interaction-calculations-1"></a><a class="docs-heading-anchor-permalink" href="#Compute-the-low-lying-levels-of-C{2}-1s2-(2s2-2s2p-2p2):-\\;-SCF-and-configuration-interaction-calculations" title="Permalink"></a></h2><pre><code class="language-julia hljs">using JenaAtomicCalculator</code></pre><p>The low-lying levels (level structure) of beryllium-like ions, and especially of C<span>$^{2+}$</span>, has been calculated in  many case studies in the literature. While the level structure of these ions is still quite simple, it exhibits a  considerable admixture of the <span>$2s^22p^2$</span> configuration already for the <span>$1s^{2}2s^{2}$</span> <span>$^{1}S_{0}$</span> ground level.</p><p>We here show how the low-lying levels of C<span>$^{2+}$</span> can be readily calculated in JAC by either following the default  settings or by specifying further details for both, the SCF and configuration-interaction (CI) computations. As usual,  we first need to specify a radial grid as well as the nuclear model for the subsequent computations:</p><pre><code class="language-julia hljs">grid     = Radial.Grid(true)
+nucModel = Nuclear.Model(6., &quot;Fermi&quot;)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">Fermi nuclear model for Z = 6.0 with mass = 12.18, radius R = 2.4934845703596404 fm and nuclear spin I = 0, dipole moment mu = 0.0, quadrupole moment Q = 0.0 and octupole moment Omega = 0.0.</code></pre><p>For a <em>quick</em> computation of the ground level of C<span>$^{2+}$</span> ions, we can simply use the <strong>standard settings</strong> as given  by <code>AsfSettings()</code>:</p><pre><code class="language-julia hljs">multiplet     = SelfConsistent.performSCF([Configuration(&quot;1s^2 2s^2&quot;)], nucModel, grid, AsfSettings());</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">(Re-) Define the standard grid with 392 grid points.
+&gt;&gt;&gt; include Configuration: 1s_1/2^2 2s_1/2^2
+(Re-) Define a new standard subshell list.
+&gt; Start SCF process with hydrogenic orbitals.
+&gt;&gt; (Re-) Define a storage array for dealing with single-electron TTp B-spline matrices:
+  -----------------------------------------------------------------------------
+   Index    Subshell     Energies [a.u.]    Dirac-E  [a.u.]     Delta-E / |E|
+  -----------------------------------------------------------------------------
+      1      1s_1/2      -7.21147915e-01    -1.80086350e+01    +2.39721792e+01
+      2      2s_1/2      -5.32630302e-01    -4.50269857e+00    +7.45370335e+00
+      3      3s_1/2      -4.90670902e-01    -2.00095940e+00    +3.07800705e+00
+      4      4s_1/2      -3.59969174e-01    -1.12543844e+00    +2.12648561e+00
+      5      5s_1/2      -2.64669648e-01    -7.20234830e-01    +1.72125964e+00
+      6      6s_1/2      -1.92960843e-01    -5.00139888e-01    +1.59192425e+00
+      7      7s_1/2      -1.39198360e-01    -3.67436826e-01    +1.63966347e+00
+      :       :
+     53     53s_1/2      +3.77475627e+08    -6.40820299e-03    +1.00000000e+00
+     54     54s_1/2      +7.94795004e+08    -6.17305571e-03    +1.00000000e+00
+  -----------------------------------------------------------------------------
+&gt;&gt; (Re-) Define a storage array for dealing with single-electron TTp B-spline matrices:
+
+Iteration 1 for symmetries ...
+  1s_1/2::  en [a.u.] = -1.0316230e+01;   self-cons&#39;cy = 2.7158e-01  [1.0000e+02 for sym-block kappa = -1]
+  2s_1/2::  en [a.u.] = -1.2238995e+00;   self-cons&#39;cy = 5.7256e-01  [1.0000e+02 for sym-block kappa = -1]
+
+Iteration 2 for symmetries ...
+  1s_1/2::  en [a.u.] = -1.1298727e+01;   self-cons&#39;cy = 4.5455e-02  [1.4515e-01 for sym-block kappa = -1]
+  2s_1/2::  en [a.u.] = -1.4578100e+00;   self-cons&#39;cy = 8.7224e-02  [1.4515e-01 for sym-block kappa = -1]
+
+Iteration 3 for symmetries ...
+  1s_1/2::  en [a.u.] = -1.1135297e+01;   self-cons&#39;cy = 7.2849e-03  [2.9750e-02 for sym-block kappa = -1]
+  2s_1/2::  en [a.u.] = -1.4168210e+00;   self-cons&#39;cy = 1.4259e-02  [2.9750e-02 for sym-block kappa = -1]
+
+Iteration 4 for symmetries ...
+  1s_1/2::  en [a.u.] = -1.1162291e+01;   self-cons&#39;cy = 1.2106e-03  [4.6293e-03 for sym-block kappa = -1]
+  2s_1/2::  en [a.u.] = -1.4235023e+00;   self-cons&#39;cy = 2.3523e-03  [4.6293e-03 for sym-block kappa = -1]
+
+Iteration 5 for symmetries ...
+  1s_1/2::  en [a.u.] = -1.1157826e+01;   self-cons&#39;cy = 2.0004e-04  [7.7286e-04 for sym-block kappa = -1]
+  2s_1/2::  en [a.u.] = -1.4223956e+00;   self-cons&#39;cy = 3.8887e-04  [7.7286e-04 for sym-block kappa = -1]
+
+Iteration 6 for symmetries ...
+  1s_1/2::  en [a.u.] = -1.1158565e+01;   self-cons&#39;cy = 3.3083e-05  [1.2755e-04 for sym-block kappa = -1]
+  2s_1/2::  en [a.u.] = -1.4225785e+00;   self-cons&#39;cy = 6.4293e-05  [1.2755e-04 for sym-block kappa = -1]
+
+Iteration 7 for symmetries ...
+  1s_1/2::  en [a.u.] = -1.1158443e+01;   self-cons&#39;cy = 5.4705e-06  [2.1097e-05 for sym-block kappa = -1]
+  2s_1/2::  en [a.u.] = -1.4225483e+00;   self-cons&#39;cy = 1.0631e-05  [2.1097e-05 for sym-block kappa = -1]
+
+Iteration 8 for symmetries ...
+  1s_1/2::  en [a.u.] = -1.1158463e+01;   self-cons&#39;cy = 9.0462e-07  [3.4883e-06 for sym-block kappa = -1]
+  2s_1/2::  en [a.u.] = -1.4225533e+00;   self-cons&#39;cy = 1.7579e-06  [3.4883e-06 for sym-block kappa = -1]
+
+Iteration 9 for symmetries ...
+  1s_1/2::  en [a.u.] = -1.1158459e+01;   self-cons&#39;cy = 1.4959e-07  [5.7678e-07 for sym-block kappa = -1]
+  2s_1/2::  en [a.u.] = -1.4225525e+00;   self-cons&#39;cy = 2.9068e-07  [5.7678e-07 for sym-block kappa = -1]
+&gt; Compute CI matrix of dimension 1 x 1 for the symmetry 0^+ ...   ... done.
+
+  Level energies:
+
+  Level  J Parity    Total [Hartree]           Total [eV]               Total [eV]            To lower [eV]        To lowest [eV]
+
+     1    0 +      -3.641932012865e+01      -9.910201786066e+02      -9.910201786066e+02      0.000000000e+00      0.000000000e+00
+
+  Level energies:
+
+  Level  J Parity    Total [Hartree]           Total [eV]               Total [eV]            To lower [eV]        To lowest [eV]
+
+     1    0 +      -3.641932012865e+01      -9.910201786066e+02      -9.910201786066e+02      0.000000000e+00      0.000000000e+00</code></pre><p>... and, similarly, also for the 10 lowest levels of C<span>$^{2+}$</span> ions as they arise from the <span>$C^{2+} 1s^2 (2s^2 + 2s2p + 2p^2)$</span> configurations:</p><pre><code class="language-julia hljs">multiplet     = SelfConsistent.performSCF([Configuration(&quot;1s^2 2s^2&quot;), Configuration(&quot;1s^2 2s 2p&quot;), Configuration(&quot;1s^2 2p^2&quot;)],
+                              nucModel, grid, AsfSettings());</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">(Re-) Define the standard grid with 392 grid points.
+&gt;&gt;&gt; include Configuration: 1s_1/2^2 2s_1/2^2
+&gt;&gt;&gt; include Configuration: 1s_1/2^2 2s_1/2^1 2p_1/2^0 2p_3/2^1
+&gt;&gt;&gt; include Configuration: 1s_1/2^2 2s_1/2^1 2p_1/2^1 2p_3/2^0
+&gt;&gt;&gt; include Configuration: 1s_1/2^2 2p_1/2^0 2p_3/2^2
+&gt;&gt;&gt; include Configuration: 1s_1/2^2 2p_1/2^1 2p_3/2^1
+&gt;&gt;&gt; include Configuration: 1s_1/2^2 2p_1/2^2 2p_3/2^0
+(Re-) Define a new standard subshell list.
+&gt; Start SCF process with hydrogenic orbitals.
+&gt;&gt; (Re-) Define a storage array for dealing with single-electron TTp B-spline matrices:
+  -----------------------------------------------------------------------------
+   Index    Subshell     Energies [a.u.]    Dirac-E  [a.u.]     Delta-E / |E|
+  -----------------------------------------------------------------------------
+      1      1s_1/2      -7.21147915e-01    -1.80086350e+01    +2.39721792e+01
+      2      2s_1/2      -5.32630302e-01    -4.50269857e+00    +7.45370335e+00
+      3      3s_1/2      -4.90670902e-01    -2.00095940e+00    +3.07800705e+00
+      4      4s_1/2      -3.59969174e-01    -1.12543844e+00    +2.12648561e+00
+      5      5s_1/2      -2.64669648e-01    -7.20234830e-01    +1.72125964e+00
+      6      6s_1/2      -1.92960843e-01    -5.00139888e-01    +1.59192425e+00
+      7      7s_1/2      -1.39198360e-01    -3.67436826e-01    +1.63966347e+00
+      :       :
+     53     53s_1/2      +3.77475627e+08    -6.40820299e-03    +1.00000000e+00
+     54     54s_1/2      +7.94795004e+08    -6.17305571e-03    +1.00000000e+00
+  -----------------------------------------------------------------------------
+  -----------------------------------------------------------------------------
+   Index    Subshell     Energies [a.u.]    Dirac-E  [a.u.]     Delta-E / |E|
+  -----------------------------------------------------------------------------
+      1      2p_1/2      -7.20400430e-01    -4.50269857e+00    +5.25027190e+00
+      2      3p_1/2      -5.00841503e-01    -2.00095940e+00    +2.99519486e+00
+      3      4p_1/2      -3.91480695e-01    -1.12543844e+00    +1.87482488e+00
+      4      5p_1/2      -3.49593954e-01    -7.20234830e-01    +1.06020390e+00
+      5      6p_1/2      -2.61752690e-01    -5.00139888e-01    +9.10734469e-01
+      6      7p_1/2      -1.91460254e-01    -3.67436826e-01    +9.19128479e-01
+      7      8p_1/2      -1.38421066e-01    -2.81311119e-01    +1.03228546e+00
+      :       :
+     53     54p_1/2      +3.18274378e+08    -6.17305571e-03    +1.00000000e+00
+     54     55p_1/2      +6.66689593e+08    -5.95061791e-03    +1.00000000e+00
+  -----------------------------------------------------------------------------
+  -----------------------------------------------------------------------------
+   Index    Subshell     Energies [a.u.]    Dirac-E  [a.u.]     Delta-E / |E|
+  -----------------------------------------------------------------------------
+      1      2p_3/2      -4.95118823e-01    -4.50053930e+00    +8.08981660e+00
+      2      3p_3/2      -3.59326658e-01    -2.00031959e+00    +4.56685552e+00
+      3      4p_3/2      -2.63856038e-01    -1.12516853e+00    +3.26432740e+00
+      4      5p_3/2      -1.92386126e-01    -7.20096642e-01    +2.74297594e+00
+      5      6p_3/2      -1.38858976e-01    -5.00059921e-01    +2.60120705e+00
+      6      7p_3/2      -9.95133731e-02    -3.67386470e-01    +2.69183014e+00
+      7      8p_3/2      -7.10574409e-02    -2.81277385e-01    +2.95845082e+00
+      :       :
+     51     52p_3/2      +2.71954851e+08    -6.65692392e-03    +1.00000000e+00
+     52     53p_3/2      +5.17635024e+08    -6.40808699e-03    +1.00000000e+00
+  -----------------------------------------------------------------------------
+&gt;&gt; (Re-) Define a storage array for dealing with single-electron TTp B-spline matrices:
+
+Iteration 1 for symmetries ...
+  1s_1/2::  en [a.u.] = -1.0025691e+01;   self-cons&#39;cy = 2.8476e-01  [1.0000e+02 for sym-block kappa = -1]
+  2s_1/2::  en [a.u.] = -1.1510994e+00;   self-cons&#39;cy = 5.9280e-01  [1.0000e+02 for sym-block kappa = -1]
+  2p_1/2::  en [a.u.] = -9.0244500e-01;   self-cons&#39;cy = 6.6608e-01  [1.0000e+02 for sym-block kappa = 1]
+  2p_3/2::  en [a.u.] = -9.7438983e-01;   self-cons&#39;cy = 6.4405e-01  [1.0000e+02 for sym-block kappa = -2]
+
+Iteration 2 for symmetries ...
+  1s_1/2::  en [a.u.] = -1.1312283e+01;   self-cons&#39;cy = 6.0296e-02  [1.9127e-01 for sym-block kappa = -1]
+  2s_1/2::  en [a.u.] = -1.4565873e+00;   self-cons&#39;cy = 1.1715e-01  [1.9127e-01 for sym-block kappa = -1]
+  2p_1/2::  en [a.u.] = -1.1346471e+00;   self-cons&#39;cy = 1.1399e-01  [8.1940e+00 for sym-block kappa = 1]
+  2p_3/2::  en [a.u.] = -1.1175834e+00;   self-cons&#39;cy = 6.8449e-02  [7.9600e-02 for sym-block kappa = -2]
+
+Iteration 3 for symmetries ...
+  1s_1/2::  en [a.u.] = -1.1095187e+01;   self-cons&#39;cy = 9.6886e-03  [4.1685e-02 for sym-block kappa = -1]
+  2s_1/2::  en [a.u.] = -1.4000354e+00;   self-cons&#39;cy = 1.9797e-02  [4.1685e-02 for sym-block kappa = -1]
+  2p_1/2::  en [a.u.] = -1.0939225e+00;   self-cons&#39;cy = 1.8274e-02  [1.1016e-01 for sym-block kappa = 1]
+  2p_3/2::  en [a.u.] = -1.0954890e+00;   self-cons&#39;cy = 9.9836e-03  [1.8532e-02 for sym-block kappa = -2]
+
+Iteration 4 for symmetries ...
+  1s_1/2::  en [a.u.] = -1.1125825e+01;   self-cons&#39;cy = 1.3788e-03  [5.1333e-03 for sym-block kappa = -1]
+  2s_1/2::  en [a.u.] = -1.4073480e+00;   self-cons&#39;cy = 2.6048e-03  [5.1333e-03 for sym-block kappa = -1]
+  2p_1/2::  en [a.u.] = -1.0985915e+00;   self-cons&#39;cy = 2.1295e-03  [1.9212e-02 for sym-block kappa = 1]
+  2p_3/2::  en [a.u.] = -1.0978026e+00;   self-cons&#39;cy = 1.0548e-03  [1.8347e-03 for sym-block kappa = -2]
+
+Iteration 5 for symmetries ...
+  1s_1/2::  en [a.u.] = -1.1121783e+01;   self-cons&#39;cy = 1.8166e-04  [6.2383e-04 for sym-block kappa = -1]
+  2s_1/2::  en [a.u.] = -1.4064549e+00;   self-cons&#39;cy = 3.1739e-04  [6.2383e-04 for sym-block kappa = -1]
+  2p_1/2::  en [a.u.] = -1.0980772e+00;   self-cons&#39;cy = 2.3413e-04  [2.1845e-03 for sym-block kappa = 1]
+  2p_3/2::  en [a.u.] = -1.0975647e+00;   self-cons&#39;cy = 1.0834e-04  [1.9273e-04 for sym-block kappa = -2]
+
+Iteration 6 for symmetries ...
+  1s_1/2::  en [a.u.] = -1.1122289e+01;   self-cons&#39;cy = 2.2733e-05  [7.0694e-05 for sym-block kappa = -1]
+  2s_1/2::  en [a.u.] = -1.4065576e+00;   self-cons&#39;cy = 3.6480e-05  [7.0694e-05 for sym-block kappa = -1]
+  2p_1/2::  en [a.u.] = -1.0981296e+00;   self-cons&#39;cy = 2.3863e-05  [2.2378e-04 for sym-block kappa = 1]
+  2p_3/2::  en [a.u.] = -1.0975873e+00;   self-cons&#39;cy = 1.0299e-05  [1.8552e-05 for sym-block kappa = -2]
+
+Iteration 7 for symmetries ...
+  1s_1/2::  en [a.u.] = -1.1122228e+01;   self-cons&#39;cy = 2.7232e-06  [7.6014e-06 for sym-block kappa = -1]
+  2s_1/2::  en [a.u.] = -1.4065464e+00;   self-cons&#39;cy = 3.9804e-06  [7.6014e-06 for sym-block kappa = -1]
+  2p_1/2::  en [a.u.] = -1.0981247e+00;   self-cons&#39;cy = 2.2246e-06  [2.1080e-05 for sym-block kappa = 1]
+  2p_3/2::  en [a.u.] = -1.0975854e+00;   self-cons&#39;cy = 8.7244e-07  [1.6118e-06 for sym-block kappa = -2]
+
+Iteration 8 for symmetries ...
+  1s_1/2::  en [a.u.] = -1.1122235e+01;   self-cons&#39;cy = 3.1302e-07  [7.6864e-07 for sym-block kappa = -1]
+  2s_1/2::  en [a.u.] = -1.4065475e+00;   self-cons&#39;cy = 4.1031e-07  [7.6864e-07 for sym-block kappa = -1]
+  2p_1/2::  en [a.u.] = -1.0981251e+00;   self-cons&#39;cy = 1.7994e-07  [1.7367e-06 for sym-block kappa = 1]
+  2p_3/2::  en [a.u.] = -1.0975855e+00;   self-cons&#39;cy = 5.8207e-08  [1.1414e-07 for sym-block kappa = -2]
+
+Iteration 9 for symmetries ...
+  1s_1/2::  en [a.u.] = -1.1122235e+01;   self-cons&#39;cy = 3.4462e-08  [7.1679e-08 for sym-block kappa = -1]
+  2s_1/2::  en [a.u.] = -1.4065474e+00;   self-cons&#39;cy = 3.9317e-08  [7.1679e-08 for sym-block kappa = -1]
+  2p_1/2::  en [a.u.] = -1.0981251e+00;   self-cons&#39;cy = 1.0489e-08  [1.0585e-07 for sym-block kappa = 1]
+  2p_3/2::  en [a.u.] = -1.0975855e+00;   self-cons&#39;cy = 1.2928e-09  [3.9152e-09 for sym-block kappa = -2]
+&gt;&gt;&gt; Sign changed for orbital 2p_3/2
+&gt; Compute CI matrix of dimension 3 x 3 for the symmetry 0^+ ...   ... done.
+&gt; Compute CI matrix of dimension 1 x 1 for the symmetry 1^+ ...   ... done.
+&gt; Compute CI matrix of dimension 1 x 1 for the symmetry 2^- ...   ... done.
+&gt; Compute CI matrix of dimension 2 x 2 for the symmetry 2^+ ...   ... done.
+&gt; Compute CI matrix of dimension 2 x 2 for the symmetry 1^- ...   ... done.
+&gt; Compute CI matrix of dimension 1 x 1 for the symmetry 0^- ...   ... done.
+
+  Level energies:
+
+  Level  J Parity    Total [Hartree]           Total [eV]               Total [eV]            To lower [eV]        To lowest [eV]
+
+     1    0 +      -3.648596898850e+01      -9.928337864597e+02      -9.928337864597e+02      0.000000000e+00      0.000000000e+00
+     2    0 -      -3.624303140560e+01      -9.862231181127e+02      -9.862231181127e+02      6.610668347e+00      6.610668347e+00
+     3    1 -      -3.624287311921e+01      -9.862188109208e+02      -9.862188109208e+02      4.307191928e-03      6.614975539e+00
+     4    2 -      -3.624255600871e+01      -9.862101819044e+02      -9.862101819044e+02      8.629016325e-03      6.623604555e+00
+     5    1 -      -3.597168315377e+01      -9.788393560863e+02      -9.788393560863e+02      7.370825818e+00      1.399443037e+01
+     6    0 +      -3.585249811658e+01      -9.755961660315e+02      -9.755961660315e+02      3.243190055e+00      1.723762043e+01
+     7    1 +      -3.585234664444e+01      -9.755920442647e+02      -9.755920442647e+02      4.121766724e-03      1.724174219e+01
+     8    2 +      -3.585204530919e+01      -9.755838445149e+02      -9.755838445149e+02      8.199749870e-03      1.724994194e+01
+     9    2 +      -3.577601914341e+01      -9.735150671703e+02      -9.735150671703e+02      2.068777345e+00      1.931871929e+01
+    10    0 +      -3.559491148656e+01      -9.685868768086e+02      -9.685868768086e+02      4.928190362e+00      2.424690965e+01
+
+  Level energies:
+
+  Level  J Parity    Total [Hartree]           Total [eV]               Total [eV]            To lower [eV]        To lowest [eV]
+
+     1    0 +      -3.648596898850e+01      -9.928337864597e+02      -9.928337864597e+02      0.000000000e+00      0.000000000e+00
+     2    0 -      -3.624303140560e+01      -9.862231181127e+02      -9.862231181127e+02      6.610668347e+00      6.610668347e+00
+     3    1 -      -3.624287311921e+01      -9.862188109208e+02      -9.862188109208e+02      4.307191928e-03      6.614975539e+00
+     4    2 -      -3.624255600871e+01      -9.862101819044e+02      -9.862101819044e+02      8.629016325e-03      6.623604555e+00
+     5    1 -      -3.597168315377e+01      -9.788393560863e+02      -9.788393560863e+02      7.370825818e+00      1.399443037e+01
+     6    0 +      -3.585249811658e+01      -9.755961660315e+02      -9.755961660315e+02      3.243190055e+00      1.723762043e+01
+     7    1 +      -3.585234664444e+01      -9.755920442647e+02      -9.755920442647e+02      4.121766724e-03      1.724174219e+01
+     8    2 +      -3.585204530919e+01      -9.755838445149e+02      -9.755838445149e+02      8.199749870e-03      1.724994194e+01
+     9    2 +      -3.577601914341e+01      -9.735150671703e+02      -9.735150671703e+02      2.068777345e+00      1.931871929e+01
+    10    0 +      -3.559491148656e+01      -9.685868768086e+02      -9.685868768086e+02      4.928190362e+00      2.424690965e+01</code></pre><p>From the comparison of the two ground-state energies, we see that the admixture of the <span>$2p^2$</span> configuration has lowered  the (total) ground state energy by about 1.8 eV, a rather remarkable admixture, as the <span>$\: ^3P_0$</span> is just 6.6 eV above of the  ground level.</p><p>Further control about these electronic computations can be obtained by modifying the (so-called) <strong>settings</strong>.  In general, all computations of the electronic structure, properties and processes as well as all more advanced computations  can be controlled quite in details by various settings that are associated to the different computational requests.  The SCF and configuration interaction calculations are controlled by <code>AsfSettings</code> that specify all details for the  generation of the ASF. We can first have a look at the internal representation of these settings:</p><pre><code class="nohighlight hljs">? AsfSettings</code></pre><article><details class="docstring" open="true"><summary id="JenaAtomicCalculator.ManyElectron.AsfSettings-examples"><a class="docstring-binding" href="#JenaAtomicCalculator.ManyElectron.AsfSettings-examples"><code>JenaAtomicCalculator.ManyElectron.AsfSettings</code></a> — <span class="docstring-category">Type</span></summary><section><div><p><code>struct  ManyElectron.AsfSettings</code>       ... a struct for defining the settings for the atomic state functions, i.e. the self-consistent-field (SCF)          and CI computations</p><pre><code class="language-julia hljs">+ generateScf          ::Bool                   ... True, if a SCF need to be generated, and false otherwise 
+                                                    (frozen orbitals).
++ eeInteraction        ::AbstractEeInteraction  ... Specify the e-e interaction to be included into the SCF 
+                                                    computations.
++ scField              ::AbstractScField        ... Specify the self-consistent field, for instance, 
+                                                    Basics.ALField(), etc.
++ startScfFrom         ::AbstractStartOrbitals  ... Specify the orbitals to start the SCF computations
++ maxIterationsScf     ::Int64                  ... maximum number of SCF iterations
++ accuracyScf          ::Float64                ... convergence criterion for the SCF field.
++ shellSequenceScf     ::Array{Subshell,1}      ... Sequence of subshells to be optimized.
++ frozenSubshells      ::Array{Subshell,1}      ... Sequence of subshells to be kept frozen.
+
++ eeInteractionCI      ::AbstractEeInteraction  ... Specify the e-e interaction to be included into the 
+                                                    CI computations.
++ qedModel             ::AbstractQedModel       ... model for estimating QED corrections {NoneQed(), 
+                                                    QedPetersburg(), QedSydney()}.
++ jjLS                 ::LSjjSettings           ... settings to control a jj-LS transformation of atomic 
+                                                    level, if requested.
++ levelSelectionCI     ::LevelSelection         ... Specifies the selected levels, if any.</code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/OpenJAC/JenaAtomicCalculator.jl">source</a></section></details></article><p>... as well as how the standard settings are presently defined:</p><pre><code class="language-julia hljs">defaultAsfSettings = AsfSettings()</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">generateScf:          true  
+eeInteraction:        CoulombInteraction()  
+scField:              JenaAtomicCalculator.Basics.DFSField(1.0)  
+startScfFrom:         StartFromHydrogenic()  
+maxIterationsScf:     24  
+accuracyScf:          1.0e-6  
+shellSequenceScf:     Subshell[]  
+frozenSubshells:      Subshell[]  
+eeInteractionCI:      CoulombInteraction()  
+qedModel :            NoneQed()  
+jjLS:                 false  
+levelSelectionCI:     Inactive LevelSelection.  
+</code></pre><p>From this list, we easily see that the self-consistent field is by default based on a <em>(mean) Dirac-Fock-Slater</em>  potential, a choice which we could overwrite by <code>meanCH</code> or any pre-defined potential. At present, however,  no full treatment of the exchange interaction has yet been implemented in this first release of the program.  The standard settings also show that the SCF is usually based on just the lowest level (cf. <code>levelScf</code>) as well as  on the accuracy <code>1.0e-6</code> to terminate the SCF computations. Moreover, the individual orbitals are improved due  to the standard subshell order (cf. <code>shellSequenceScf</code>).</p><p>For the CI parameters, the treatment of the Breit and QED interaction is of particular interest. At present, the  defaults does not included neither Breit interactions nor QED. Such QED estimates can either be neglected (<code>NoneQed()</code>)  or estimated by using an effective Hamiltonian approach due to Shabaev and coworkers  (<code>QedPetersburg()</code>) or  effective potential approach (<code>QedSydney()</code>; Flambaum et al.) However, further tests need to be done to better  understand the reliability of these QED estimates to the level structure and state represetation of the ASF.</p><p>As seen from the settings above, moreover, there are special features in order to <em>select</em> individual levels for  the CI computations, either in terms of their (relative) level No within the given multiplet or in terms of their  <em>level symmetry</em>, i.e. their total angular momentum and parity, respectively. The  <code>levelSelectionCI::LevelSelection</code>  here tells whether (and which) selections were made; apparently, no selection of level numbers of symmetries is  made by default though this can be overwritten. The selection of individual symmetries, in particular, may considerably reduced the computational effort as the Hamiltonian matrix need then to be calculated only for the selected symmetries.</p><p>In principle, these standard settings can be easily <em>re-defined</em> within the code by simply modifying the constructor  <code>AsfSetings()</code> with no additional arguments. Alternatively, we can easily <em>overwrite</em> those parameters in some given  (instance of) <code>AsfSetting</code> which we just wish to modify. This is achieved by</p><pre><code class="language-julia hljs">asfSettings = AsfSettings(defaultAsfSettings; generateScf=true, jjLS=LSjjSettings(true),
+              levelSelectionCI=LevelSelection(true, symmetries=[LevelSymmetry(0,&quot;+&quot;), LevelSymmetry(1,&quot;-&quot;)]) )</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">generateScf:          true  
+eeInteraction:        CoulombInteraction()  
+scField:              JenaAtomicCalculator.Basics.DFSField(1.0)  
+startScfFrom:         StartFromHydrogenic()  
+maxIterationsScf:     24  
+accuracyScf:          1.0e-6  
+shellSequenceScf:     Subshell[]  
+frozenSubshells:      Subshell[]  
+eeInteractionCI:      CoulombInteraction()  
+qedModel :            NoneQed()  
+jjLS:                 true  
+levelSelectionCI:     LevelSelection:  indices = Int64[];    symmetries = LevelSymmetry[0 +, 1 -].  
+</code></pre><pre><code class="language-julia hljs">multiplet     = SelfConsistent.performSCF([Configuration(&quot;1s^2 2s^2&quot;), Configuration(&quot;1s^2 2s 2p&quot;),
+                               Configuration(&quot;1s^2 2p^2&quot;), Configuration(&quot;1s^2 3s^2&quot;),
+                               Configuration(&quot;1s^2 3p^2&quot;)],  nucModel, grid, asfSettings);</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">(Re-) Define the standard grid with 392 grid points.
+&gt;&gt;&gt; include Configuration: 1s_1/2^2 2s_1/2^2
+&gt;&gt;&gt; include Configuration: 1s_1/2^2 2s_1/2^1 2p_1/2^0 2p_3/2^1
+&gt;&gt;&gt; include Configuration: 1s_1/2^2 2s_1/2^1 2p_1/2^1 2p_3/2^0
+&gt;&gt;&gt; include Configuration: 1s_1/2^2 2p_1/2^0 2p_3/2^2
+&gt;&gt;&gt; include Configuration: 1s_1/2^2 2p_1/2^1 2p_3/2^1
+&gt;&gt;&gt; include Configuration: 1s_1/2^2 2p_1/2^2 2p_3/2^0
+&gt;&gt;&gt; include Configuration: 1s_1/2^2 3s_1/2^2
+&gt;&gt;&gt; include Configuration: 1s_1/2^2 3p_1/2^0 3p_3/2^2
+&gt;&gt;&gt; include Configuration: 1s_1/2^2 3p_1/2^1 3p_3/2^1
+&gt;&gt;&gt; include Configuration: 1s_1/2^2 3p_1/2^2 3p_3/2^0
+(Re-) Define a new standard subshell list.
+&gt; Start SCF process with hydrogenic orbitals.
+&gt;&gt; (Re-) Define a storage array for dealing with single-electron TTp B-spline matrices:
+  -----------------------------------------------------------------------------
+   Index    Subshell     Energies [a.u.]    Dirac-E  [a.u.]     Delta-E / |E|
+  -----------------------------------------------------------------------------
+      1      1s_1/2      -7.21147915e-01    -1.80086350e+01    +2.39721792e+01
+      2      2s_1/2      -5.32630302e-01    -4.50269857e+00    +7.45370335e+00
+      3      3s_1/2      -4.90670902e-01    -2.00095940e+00    +3.07800705e+00
+      4      4s_1/2      -3.59969174e-01    -1.12543844e+00    +2.12648561e+00
+      5      5s_1/2      -2.64669648e-01    -7.20234830e-01    +1.72125964e+00
+      6      6s_1/2      -1.92960843e-01    -5.00139888e-01    +1.59192425e+00
+      7      7s_1/2      -1.39198360e-01    -3.67436826e-01    +1.63966347e+00
+      :       :
+     53     53s_1/2      +3.77475627e+08    -6.40820299e-03    +1.00000000e+00
+     54     54s_1/2      +7.94795004e+08    -6.17305571e-03    +1.00000000e+00
+  -----------------------------------------------------------------------------
+  -----------------------------------------------------------------------------
+   Index    Subshell     Energies [a.u.]    Dirac-E  [a.u.]     Delta-E / |E|
+  -----------------------------------------------------------------------------
+      1      2p_1/2      -7.20400430e-01    -4.50269857e+00    +5.25027190e+00
+      2      3p_1/2      -5.00841503e-01    -2.00095940e+00    +2.99519486e+00
+      3      4p_1/2      -3.91480695e-01    -1.12543844e+00    +1.87482488e+00
+      4      5p_1/2      -3.49593954e-01    -7.20234830e-01    +1.06020390e+00
+      5      6p_1/2      -2.61752690e-01    -5.00139888e-01    +9.10734469e-01
+      6      7p_1/2      -1.91460254e-01    -3.67436826e-01    +9.19128479e-01
+      7      8p_1/2      -1.38421066e-01    -2.81311119e-01    +1.03228546e+00
+      :       :
+     53     54p_1/2      +3.18274378e+08    -6.17305571e-03    +1.00000000e+00
+     54     55p_1/2      +6.66689593e+08    -5.95061791e-03    +1.00000000e+00
+  -----------------------------------------------------------------------------
+  -----------------------------------------------------------------------------
+   Index    Subshell     Energies [a.u.]    Dirac-E  [a.u.]     Delta-E / |E|
+  -----------------------------------------------------------------------------
+      1      2p_3/2      -4.95118823e-01    -4.50053930e+00    +8.08981660e+00
+      2      3p_3/2      -3.59326658e-01    -2.00031959e+00    +4.56685552e+00
+      3      4p_3/2      -2.63856038e-01    -1.12516853e+00    +3.26432740e+00
+      4      5p_3/2      -1.92386126e-01    -7.20096642e-01    +2.74297594e+00
+      5      6p_3/2      -1.38858976e-01    -5.00059921e-01    +2.60120705e+00
+      6      7p_3/2      -9.95133731e-02    -3.67386470e-01    +2.69183014e+00
+      7      8p_3/2      -7.10574409e-02    -2.81277385e-01    +2.95845082e+00
+      :       :
+     51     52p_3/2      +2.71954851e+08    -6.65692392e-03    +1.00000000e+00
+     52     53p_3/2      +5.17635024e+08    -6.40808699e-03    +1.00000000e+00
+  -----------------------------------------------------------------------------
+&gt;&gt; (Re-) Define a storage array for dealing with single-electron TTp B-spline matrices:
+
+Iteration 1 for symmetries ...
+  1s_1/2::  en [a.u.] = -1.0558213e+01;   self-cons&#39;cy = 2.6081e-01  [1.0000e+02 for sym-block kappa = -1]
+  2s_1/2::  en [a.u.] = -1.3423610e+00;   self-cons&#39;cy = 5.4069e-01  [1.0000e+02 for sym-block kappa = -1]
+  3s_1/2::  en [a.u.] = -4.1672606e-01;   self-cons&#39;cy = 6.5527e-01  [1.0000e+02 for sym-block kappa = -1]
+  2p_1/2::  en [a.u.] = -1.0764475e+00;   self-cons&#39;cy = 6.1412e-01  [1.0000e+02 for sym-block kappa = 1]
+  3p_1/2::  en [a.u.] = -3.5366533e-01;   self-cons&#39;cy = 6.9960e-01  [1.0000e+02 for sym-block kappa = 1]
+  2p_3/2::  en [a.u.] = -1.1545033e+00;   self-cons&#39;cy = 5.9169e-01  [1.0000e+02 for sym-block kappa = -2]
+  3p_3/2::  en [a.u.] = -3.8676462e-01;   self-cons&#39;cy = 6.7595e-01  [1.0000e+02 for sym-block kappa = -2]
+
+Iteration 2 for symmetries ...
+  1s_1/2::  en [a.u.] = -1.1609809e+01;   self-cons&#39;cy = 4.7438e-02  [3.4223e-01 for sym-block kappa = -1]
+  2s_1/2::  en [a.u.] = -1.6448842e+00;   self-cons&#39;cy = 1.0127e-01  [3.4223e-01 for sym-block kappa = -1]
+  3s_1/2::  en [a.u.] = -5.1720527e-01;   self-cons&#39;cy = 1.0759e-01  [3.4223e-01 for sym-block kappa = -1]
+  2p_1/2::  en [a.u.] = -1.3383103e+00;   self-cons&#39;cy = 1.0844e-01  [2.0012e-01 for sym-block kappa = 1]
+  3p_1/2::  en [a.u.] = -4.4197606e-01;   self-cons&#39;cy = 1.1099e-01  [2.0012e-01 for sym-block kappa = 1]
+  2p_3/2::  en [a.u.] = -1.3252824e+00;   self-cons&#39;cy = 6.8868e-02  [1.8735e-01 for sym-block kappa = -2]
+  3p_3/2::  en [a.u.] = -4.3842348e-01;   self-cons&#39;cy = 6.2603e-02  [1.8735e-01 for sym-block kappa = -2]
+
+Iteration 3 for symmetries ...
+  1s_1/2::  en [a.u.] = -1.1462046e+01;   self-cons&#39;cy = 6.4045e-03  [5.7788e-02 for sym-block kappa = -1]
+  2s_1/2::  en [a.u.] = -1.6025415e+00;   self-cons&#39;cy = 1.3039e-02  [5.7788e-02 for sym-block kappa = -1]
+  3s_1/2::  en [a.u.] = -5.0586312e-01;   self-cons&#39;cy = 1.1086e-02  [5.7788e-02 for sym-block kappa = -1]
+  2p_1/2::  en [a.u.] = -1.3061646e+00;   self-cons&#39;cy = 1.2156e-02  [2.8386e-02 for sym-block kappa = 1]
+  3p_1/2::  en [a.u.] = -4.3292973e-01;   self-cons&#39;cy = 1.0340e-02  [2.8386e-02 for sym-block kappa = 1]
+  2p_3/2::  en [a.u.] = -1.3066947e+00;   self-cons&#39;cy = 7.0623e-03  [2.8866e-02 for sym-block kappa = -2]
+  3p_3/2::  en [a.u.] = -4.3313064e-01;   self-cons&#39;cy = 6.0729e-03  [2.8866e-02 for sym-block kappa = -2]
+
+Iteration 4 for symmetries ...
+  1s_1/2::  en [a.u.] = -1.1478600e+01;   self-cons&#39;cy = 7.2159e-04  [4.5541e-03 for sym-block kappa = -1]
+  2s_1/2::  en [a.u.] = -1.6064824e+00;   self-cons&#39;cy = 1.2281e-03  [4.5541e-03 for sym-block kappa = -1]
+  3s_1/2::  en [a.u.] = -5.0688857e-01;   self-cons&#39;cy = 1.0125e-03  [4.5541e-03 for sym-block kappa = -1]
+  2p_1/2::  en [a.u.] = -1.3087884e+00;   self-cons&#39;cy = 1.0034e-03  [2.0966e-03 for sym-block kappa = 1]
+  3p_1/2::  en [a.u.] = -4.3367600e-01;   self-cons&#39;cy = 8.6115e-04  [2.0966e-03 for sym-block kappa = 1]
+  2p_3/2::  en [a.u.] = -1.3080684e+00;   self-cons&#39;cy = 5.2536e-04  [1.8667e-03 for sym-block kappa = -2]
+  3p_3/2::  en [a.u.] = -4.3352379e-01;   self-cons&#39;cy = 4.5365e-04  [1.8667e-03 for sym-block kappa = -2]
+
+Iteration 5 for symmetries ...
+  1s_1/2::  en [a.u.] = -1.1476785e+01;   self-cons&#39;cy = 7.9069e-05  [4.1975e-04 for sym-block kappa = -1]
+  2s_1/2::  en [a.u.] = -1.6061173e+00;   self-cons&#39;cy = 1.1366e-04  [4.1975e-04 for sym-block kappa = -1]
+  3s_1/2::  en [a.u.] = -5.0679664e-01;   self-cons&#39;cy = 9.0692e-05  [4.1975e-04 for sym-block kappa = -1]
+  2p_1/2::  en [a.u.] = -1.3085838e+00;   self-cons&#39;cy = 7.8181e-05  [1.7888e-04 for sym-block kappa = 1]
+  3p_1/2::  en [a.u.] = -4.3361690e-01;   self-cons&#39;cy = 6.8151e-05  [1.7888e-04 for sym-block kappa = 1]
+  2p_3/2::  en [a.u.] = -1.3079677e+00;   self-cons&#39;cy = 3.8497e-05  [1.5018e-04 for sym-block kappa = -2]
+  3p_3/2::  en [a.u.] = -4.3349404e-01;   self-cons&#39;cy = 3.4317e-05  [1.5018e-04 for sym-block kappa = -2]
+
+Iteration 6 for symmetries ...
+  1s_1/2::  en [a.u.] = -1.1476977e+01;   self-cons&#39;cy = 8.3847e-06  [3.3805e-05 for sym-block kappa = -1]
+  2s_1/2::  en [a.u.] = -1.6061492e+00;   self-cons&#39;cy = 9.9258e-06  [3.3805e-05 for sym-block kappa = -1]
+  3s_1/2::  en [a.u.] = -5.0680432e-01;   self-cons&#39;cy = 7.5784e-06  [3.3805e-05 for sym-block kappa = -1]
+  2p_1/2::  en [a.u.] = -1.3085974e+00;   self-cons&#39;cy = 5.2033e-06  [1.2168e-05 for sym-block kappa = 1]
+  3p_1/2::  en [a.u.] = -4.3362093e-01;   self-cons&#39;cy = 4.6504e-06  [1.2168e-05 for sym-block kappa = 1]
+  2p_3/2::  en [a.u.] = -1.3079737e+00;   self-cons&#39;cy = 2.2951e-06  [9.2815e-06 for sym-block kappa = -2]
+  3p_3/2::  en [a.u.] = -4.3349591e-01;   self-cons&#39;cy = 2.1599e-06  [9.2815e-06 for sym-block kappa = -2]
+
+Iteration 7 for symmetries ...
+  1s_1/2::  en [a.u.] = -1.1476957e+01;   self-cons&#39;cy = 8.7367e-07  [2.6562e-06 for sym-block kappa = -1]
+  2s_1/2::  en [a.u.] = -1.6061465e+00;   self-cons&#39;cy = 8.4125e-07  [2.6562e-06 for sym-block kappa = -1]
+  3s_1/2::  en [a.u.] = -5.0680371e-01;   self-cons&#39;cy = 6.0721e-07  [2.6562e-06 for sym-block kappa = -1]
+  2p_1/2::  en [a.u.] = -1.3085967e+00;   self-cons&#39;cy = 2.6309e-07  [7.0841e-07 for sym-block kappa = 1]
+  3p_1/2::  en [a.u.] = -4.3362071e-01;   self-cons&#39;cy = 2.5598e-07  [7.0841e-07 for sym-block kappa = 1]
+  2p_3/2::  en [a.u.] = -1.3079734e+00;   self-cons&#39;cy = 8.2643e-08  [4.4257e-07 for sym-block kappa = -2]
+  3p_3/2::  en [a.u.] = -4.3349583e-01;   self-cons&#39;cy = 9.8420e-08  [4.4257e-07 for sym-block kappa = -2]
+
+Iteration 8 for symmetries ...
+  1s_1/2::  en [a.u.] = -1.1476959e+01;   self-cons&#39;cy = 8.9534e-08  [1.8560e-07 for sym-block kappa = -1]
+  2s_1/2::  en [a.u.] = -1.6061467e+00;   self-cons&#39;cy = 6.7722e-08  [1.8560e-07 for sym-block kappa = -1]
+  3s_1/2::  en [a.u.] = -5.0680375e-01;   self-cons&#39;cy = 4.4650e-08  [1.8560e-07 for sym-block kappa = -1]
+  2p_1/2::  en [a.u.] = -1.3085967e+00;   self-cons&#39;cy = 3.6225e-10  [1.7592e-08 for sym-block kappa = 1]
+  3p_1/2::  en [a.u.] = -4.3362071e-01;   self-cons&#39;cy = 4.2370e-09  [1.7592e-08 for sym-block kappa = 1]
+  2p_3/2::  en [a.u.] = -1.3079734e+00;   self-cons&#39;cy = 6.3230e-09  [6.4316e-09 for sym-block kappa = -2]
+  3p_3/2::  en [a.u.] = -4.3349582e-01;   self-cons&#39;cy = 2.0016e-09  [6.4316e-09 for sym-block kappa = -2]
+&gt; Compute CI matrix of dimension 6 x 6 for the symmetry 0^+ ...   ... done.
+&gt; Compute CI matrix of dimension 2 x 2 for the symmetry 1^- ...   ... done.
+
+  Level energies:
+
+  Level  J Parity    Total [Hartree]           Total [eV]               Total [eV]            To lower [eV]        To lowest [eV]
+
+     1    0 +      -3.648798252538e+01      -9.928885775890e+02      -9.928885775890e+02      0.000000000e+00      0.000000000e+00
+     2    1 -      -3.624410620139e+01      -9.862523647960e+02      -9.862523647960e+02      6.636212793e+00      6.636212793e+00
+     3    1 -      -3.596230473742e+01      -9.785841563789e+02      -9.785841563789e+02      7.668208417e+00      1.430442121e+01
+     4    0 +      -3.584833205844e+01      -9.754828018155e+02      -9.754828018155e+02      3.101354563e+00      1.740577577e+01
+     5    0 +      -3.557520093481e+01      -9.680505253761e+02      -9.680505253761e+02      7.432276439e+00      2.483805221e+01
+     6    0 +      -3.407634188957e+01      -9.272644933067e+02      -9.272644933067e+02      4.078603207e+01      6.562408428e+01
+     7    0 +      -3.390434927054e+01      -9.225843357576e+02      -9.225843357576e+02      4.680157549e+00      7.030424183e+01
+     8    0 +      -3.379320365118e+01      -9.195599094047e+02      -9.195599094047e+02      3.024426353e+00      7.332866818e+01
+
+  Level energies:
+
+  Level  J Parity    Total [Hartree]           Total [eV]               Total [eV]            To lower [eV]        To lowest [eV]
+
+     1    0 +      -3.648798252538e+01      -9.928885775890e+02      -9.928885775890e+02      0.000000000e+00      0.000000000e+00
+     2    1 -      -3.624410620139e+01      -9.862523647960e+02      -9.862523647960e+02      6.636212793e+00      6.636212793e+00
+     3    1 -      -3.596230473742e+01      -9.785841563789e+02      -9.785841563789e+02      7.668208417e+00      1.430442121e+01
+     4    0 +      -3.584833205844e+01      -9.754828018155e+02      -9.754828018155e+02      3.101354563e+00      1.740577577e+01
+     5    0 +      -3.557520093481e+01      -9.680505253761e+02      -9.680505253761e+02      7.432276439e+00      2.483805221e+01
+     6    0 +      -3.407634188957e+01      -9.272644933067e+02      -9.272644933067e+02      4.078603207e+01      6.562408428e+01
+     7    0 +      -3.390434927054e+01      -9.225843357576e+02      -9.225843357576e+02      4.680157549e+00      7.030424183e+01
+     8    0 +      -3.379320365118e+01      -9.195599094047e+02      -9.195599094047e+02      3.024426353e+00      7.332866818e+01</code></pre><p>We finish this (simple) tutorial by enlarging the configuration basis for the low-lying levels but by restricting  the CI computations to the level symmetries <span>$J^P = 0^+$</span> and <span>$1^-$</span>. This is achieved by specifying the settings to:</p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="demos.html">« Demos</a><a class="docs-footer-nextpage" href="news.html">News »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.17.0 on <span class="colophon-date" title="Sunday 9 August 2026 07:48">Sunday 9 August 2026</span>. Using Julia version 1.12.6.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
