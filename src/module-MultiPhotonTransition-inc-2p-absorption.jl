@@ -63,6 +63,7 @@ function Base.show(io::IO, line::MultiPhotonTransition.Line_2pAbsorptionMonochro
     println(io, "csLinear:          $(line.csLinear)  ")
     println(io, "csRightCircular:   $(line.csRightCircular)  ")
     println(io, "csUnpolarized:     $(line.csUnpolarized)  ")
+    println(io, "csDensityMatrix:   $(line.csDensityMatrix)  ")
     println(io, "channels:          $(line.channels)  ")
 end
 

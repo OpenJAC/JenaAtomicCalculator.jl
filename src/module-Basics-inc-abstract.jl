@@ -1497,7 +1497,9 @@ end
 
 # `Base.show(io::IO, lMesh::LinearMesh)`  ... prepares a proper printout of the variable lMesh::LinearMesh.
 function Base.show(io::IO, lMesh::LinearMesh) 
-    sa = "Linear mesh for the interval  [a,b] = [$(glMesh.a),$(glMesh.b)]  and with $(lMesh.NoPoints) points."
+    ## `lMesh`, not `glMesh` (fixed 09-Aug-2026): the two interpolations named the variable of the
+    ## GLegenreMesh show method just above, so displaying a LinearMesh raised an UndefVarError.
+    sa = "Linear mesh for the interval  [a,b] = [$(lMesh.a),$(lMesh.b)]  and with $(lMesh.NoPoints) points."
     print(io, sa)
 end
 
