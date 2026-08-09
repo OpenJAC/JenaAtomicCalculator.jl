@@ -31,10 +31,10 @@ function ManyElectron.matrixElement_Mab(Mp::EmMultipole, gauge::EmGauge, omega::
     opa = SpinAngular.OneParticleOperator(Mp.L, plus, true)
     wa  = SpinAngular.computeCoefficients(opa, leftBasis.csfs[r], rightBasis.csfs[s], subshellList) 
     for  coeff in wa
-        MabJohnsony = InteractionStrength.MabEmissionJohnsony(Mp, gauge, omega, leftBasis.orbitals[coeff.a],  
+        MabEm = InteractionStrength.MabEmission(Mp, gauge, omega, leftBasis.orbitals[coeff.a],  
                                                                                 rightBasis.orbitals[coeff.b], grid)
         ja = Basics.subshell_2j(leftBasis.orbitals[coeff.a].subshell)
-        me = me + coeff.T * MabJohnsony / sqrt( ja + 1) * sqrt( (Basics.twice(leftBasis.csfs[r].J) + 1)) 
+        me = me + coeff.T * MabEm / sqrt( ja + 1) * sqrt( (Basics.twice(leftBasis.csfs[r].J) + 1)) 
     end
     
     return( me )

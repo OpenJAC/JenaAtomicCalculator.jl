@@ -18,8 +18,20 @@ function  oneElectronAmplitude(fOrbital::Orbital, omega2::Float64, mp2::EmMultip
         if      gauge == UseCoulomb     gaugex = Basics.Coulomb     
         elseif  gauge == UseBabushkin   gaugex = Basics.Babushkin
         end
-        amp = amp + InteractionStrength.MbaAbsorptionCheng(mp2, gaugex, omega2, fOrbital, vOrbital, grid) *
-                    InteractionStrength.MbaAbsorptionCheng(mp1, gaugex, omega1, vOrbital, iOrbital, grid) /
+        ## MIGRATED 09-Aug-2026 from MbaAbsorptionCheng to the consolidated InteractionStrength.MabEmission.
+        ## TWO THINGS CHANGE HERE, both deliberate and both altering this module's absolute numbers.
+        ##  (1) ARGUMENT ORDER. MbaAbsorptionCheng(...,b,a) returned <b||O||a> whereas MabEmission(...,b,a)
+        ##      returns <a||O||b>, so the two orbital arguments are exchanged below to keep the same quantity.
+        ##  (2) NORMALISATION. The Cheng and Johnson families differ by exactly sqrt(2*pi/(L(2L+1))) -- measured
+        ##      1.447203, 0.792665 and 0.546991 for L = 1, 2, 3 against that formula, the L = 3 value being a
+        ##      prediction it was not fitted to. Only the Johnson normalisation is validated against data
+        ##      (Jitrik & Bunge 2004: E1, M1 and E2 rates in hydrogen to 0.05 %, 0.5 % and 0.05 %), so this
+        ##      module now uses it. Its one-electron amplitudes therefore change by sqrt(L(2L+1)/(2pi)), i.e.
+        ##      by 0.691 for E1, and are for the first time consistent with the rest of JAC.
+        ## Absorption versus emission is a complex conjugation, which is the identity now that the matrix
+        ## element is real; see the phase note in AngularMomentum.JohnsonI.
+        amp = amp + InteractionStrength.MabEmission(mp2, gaugex, omega2, vOrbital, fOrbital, grid) *
+                    InteractionStrength.MabEmission(mp1, gaugex, omega1, iOrbital, vOrbital, grid) /
                     (iOrbital.energy + omega1 - vOrbital.energy)
     end
     

@@ -275,7 +275,7 @@ function photoemissionEinsteinA(iConf::Configuration, fConf::Configuration, appr
     tEnergy = iOrbitals[iSubsh].energy - fOrbitals[fSubsh].energy
     
     if      multipole == E1
-        amp  = InteractionStrength.MabEmissionJohnsony(Basics.E1, Basics.Babushkin, tEnergy, fOrbitals[fSubsh],  
+        amp  = InteractionStrength.MabEmission(Basics.E1, Basics.Babushkin, tEnergy, fOrbitals[fSubsh],  
                                                        iOrbitals[iSubsh], grid)
         wa   = 8.0pi * Defaults.getDefaults("alpha") * tEnergy / 
                Basics.extractFromConfiguration(Basics.Multiplicity(), iConf) *
@@ -283,7 +283,7 @@ function photoemissionEinsteinA(iConf::Configuration, fConf::Configuration, appr
         rate = wa * abs(amp)^2
         triple = (multipole, tEnergy, rate)
     elseif  multipole == M1
-        amp  = InteractionStrength.MabEmissionJohnsony(Basics.M1, Basics.Magnetic, tEnergy, fOrbitals[fSubsh],  
+        amp  = InteractionStrength.MabEmission(Basics.M1, Basics.Magnetic, tEnergy, fOrbitals[fSubsh],  
                                                        iOrbitals[iSubsh], grid)
         wa   = 8.0pi * Defaults.getDefaults("alpha") * tEnergy / 
                Basics.extractFromConfiguration(Basics.Multiplicity(), iConf) *
@@ -598,7 +598,7 @@ function photoionizationCrossSection(omegas::Array{Float64,1}, iConf::Configurat
             ji2 = Basics.twice(Basics.subshell_j(subsh))
             for  kapc in e1Channels(li, ji2)
                 cOrbital, phase, norm = Continuum.generateOrbitalLocalPotential(eps, Subshell(101, kapc), localPot, contSettings)
-                amp   = InteractionStrength.MabEmissionJohnsony(Basics.E1, Basics.Babushkin, omega, cOrbital,
+                amp   = InteractionStrength.MabEmission(Basics.E1, Basics.Babushkin, omega, cOrbital,
                                                                 iBasis.orbitals[subsh], grid)
                 sigma = sigma + nShell / (2*(2li+1)) * 8 * pi^3 / (alfa * omega) * abs(amp)^2
             end

@@ -35,7 +35,7 @@
 
     Every contribution (and the total alpha_0/alpha_2) is computed and reported in BOTH the Babushkin
     (length; MultipoleMoment.emmStaticAmplitude, the standard static E1 multipole-moment operator) and
-    Coulomb (velocity; InteractionStrength.MabEmissionJohnsony's Johnson-formalism Coulomb-gauge
+    Coulomb (velocity; InteractionStrength.MabEmission's Johnson-formalism Coulomb-gauge
     reduced matrix element, evaluated at omega=0 where it is finite and well-defined even though the
     Babushkin-gauge form of that SAME finite-frequency machinery vanishes identically at omega=0) forms
     -- as an EmProperty, following the Coulomb/Babushkin bookkeeping already used throughout JAC (e.g.

@@ -311,9 +311,8 @@ function computeCrossSectionBareIon(energy_eV::Float64, subshell::Subshell, mult
                 cOrbital, phase, normFactor = Continuum.generateOrbitalLocalPotential(energy, 
                                                                         Subshell(101,kappa), potential, contSettings)
                 if multipole in  [E1, E2]  localGauge = gauge  elseif  multipole in  [M1, M2]  localGauge = Basics.Magnetic   end
-                amplitude = InteractionStrength.MabEmissionJohnsony(multipole, localGauge, omega, fOrbital, cOrbital, grid) / 
+                amplitude = InteractionStrength.MabEmission(multipole, localGauge, omega, fOrbital, cOrbital, grid) / 
                             Defaults.getDefaults("alpha")
-                ## amplitude = InteractionStrength.MbaEmissionCheng(multipole, gauge, omega, fOrbital, cOrbital, grid) 
                 csa = csa + conj(amplitude) * amplitude
             end
         end          

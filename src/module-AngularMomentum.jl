@@ -331,7 +331,20 @@ function JohnsonI(kapa::Int64, kapb::Int64, L::AngularJ64)
     # Test for parity
     if  L.den != 1   error("stop a")                end 
     if  isodd( la + lb + L.num )    return( 0. )    end
-    wa =  (-1+0im)^(jb.num+1/2)*sqrt((Basics.twice(jb)+1)*(Basics.twice(L)+1)*(Basics.twice(ja)+1)*(L.num+1) / 
+    ## THE PHASE IS REAL, and was complex only through a slip (corrected 09-Aug-2026). The Racah phase here is
+    ## (-1)^(j_b + 1/2); j_b is half-integer, so that exponent is an INTEGER and the phase is +-1, ALTERNATING
+    ## with j_b. The previous expression raised (-1+0im) to `jb.num + 1/2` -- the NUMERATOR of j_b, i.e. 1, 3,
+    ## 5, ... -- making the exponent half-integer, so it returned a CONSTANT -i for every j_b:
+    ##      j_b      1/2     3/2     5/2     7/2
+    ##      was       -i      -i      -i      -i
+    ##      correct   -1      +1      -1      +1
+    ## Two things followed. Every multipole matrix element came out purely imaginary, which is why these
+    ## routines were documented as returning Float64 while in fact returning ComplexF64; and, more seriously,
+    ## the j_b-dependent SIGN was lost, so contributions from orbitals of different j_b carried the same phase
+    ## instead of opposite ones. For a single contributing orbital that is an overall phase and rates are
+    ## unaffected -- which is why the hydrogen benchmarks never showed it -- but wherever such contributions
+    ## interfere the relative signs were wrong.
+    wa =  (-1)^Int((Basics.twice(jb)+1)/2) *sqrt((Basics.twice(jb)+1)*(Basics.twice(L)+1)*(Basics.twice(ja)+1)*(L.num+1) / 
             (4*pi*L.num ) ) *AngularMomentum.Wigner_3j(ja, L, jb, AngularM64(1//2), AngularM64(0),  AngularM64(-1//2))
     return( wa )
 end

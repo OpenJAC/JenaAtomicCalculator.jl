@@ -179,7 +179,7 @@ function testModule_MultipolePolarizibility(; short::Bool=true)
     ##       perturbers is positive, so a sum over a FINITE, BOUND-ONLY set of np states is a strict lower bound
     ##       on the exact 4.5 a.u. Hence 0 < alpha0 < 4.5, which catches both a sign error and a runaway.
     ##
-    ## WHAT IT DOES NOT CHECK, and why. The Coulomb-gauge value comes out around 1e-6 where Babushkin gives 2.2,
+    ## WHAT IT DOES NOT CHECK, and why. The Coulomb-gauge value comes out around 2e-6 where Babushkin gives 1.3,
     ## a discrepancy of six orders of magnitude. That is recorded rather than asserted: pinning it would freeze a
     ## number that is not understood, and the module is in any case still blocked on the B-spline
     ## pseudo-continuum bug, which is what keeps the perturber sum from reaching 4.5 in the first place.
@@ -191,8 +191,14 @@ function testModule_MultipolePolarizibility(; short::Bool=true)
                        MeanFieldMultiplet(MeanFieldSettings(scf))), output=true)["mean-field multiplet"]
     set   = MultipolePolarizibility.Settings(MultipolePolarizibility.Settings();
                 multipoles=[E1], gMultiplet=gMp, omegas=[0.], printBefore=false, levelSelection=LevelSelection())
+    ## `asfSettings`, NOT `initialAsfSettings` (corrected 09-Aug-2026): Atomic.Computation carries BOTH, and the
+    ## first pairs with `configs` while the second pairs with `initialConfigs`. Passing the wrong one is silent --
+    ## the scField is simply ignored and the default DFS field runs instead, which for hydrogen gives a
+    ## self-interacting 1s orbital at -0.194 a.u. against the exact -0.500. The perturbers here are built through
+    ## a Representation, which DID honour the field, so the reference level and the perturbers sat in different
+    ## potentials: exactly the mismatch the two-photon work found to be worth a factor 6.
     wa    = Atomic.Computation(Atomic.Computation(), name="H 1s static polarizibility", grid=grid, nuclearModel=ni,
-                configs=[Configuration("1s")], initialAsfSettings=asf, propertySettings=[set])
+                configs=[Configuration("1s")], asfSettings=asf, propertySettings=[set])
     outcomes = perform(wa; output=true)["Polarizibility outcomes:"]
     ###
     success = true
