@@ -317,7 +317,7 @@ function isotope_smsC(a::Orbital, c::Orbital, Z::Float64, grid::Radial.Grid)
 end
 
 """
-`RadialIntegrals.overlap()`
+`RadialIntegrals.overlap(orbital1::Radial.Orbital, orbital2::Radial.Orbital, grid::Radial.Grid)`
 
 + (orbital1::Radial.Orbital, orbital2::Radial.Orbital, grid::Radial.Grid)`  
     ... computes the (radial) overlap integral <orbital_a|orbital_b>  for two relativistic orbitals of the same 
@@ -634,7 +634,7 @@ end
 
 
 """
-`RadialIntegrals.rkDiagonal()`   ... computes the (radial and diagonal) integral of r^k for two radial orbital functions.
+`RadialIntegrals.rkDiagonal(k::Int64, a::Radial.Orbital, b::Radial.Orbital, grid::Radial.Grid)`   ... computes the (radial and diagonal) integral of r^k for two radial orbital functions.
 
 + (k::Int64, a::Radial.Orbital, b::Radial.Orbital, grid::Radial.Grid)`  
     ... computes this integral for two relativistic orbitals:   < r^k >_ab = int_0^\\infty  dr  [P_a P_b + Q_a Q_b]  r^k

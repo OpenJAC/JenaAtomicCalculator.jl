@@ -64,7 +64,7 @@ end
 
 
 """
-`Basics.integrateOnGridNewtonCotes()`  ... integrates by using a 5-point Newton-Cotes integration formula; see Basic.integrate().
+`Basics.integrateOnGridNewtonCotes(F::Array{Float64,1}, grid::Radial.Grid)`  ... integrates by using a 5-point Newton-Cotes integration formula; see Basic.integrate().
 """
 function Basics.integrateOnGridNewtonCotes(F::Array{Float64,1}, grid::Radial.Grid)
     coefficients = Array{Float64}([2 * 7, 32, 12, 32, 7]) * 2 / 45 * grid.h
@@ -92,7 +92,7 @@ end
 
 
 """
-`Basics.integrateOnGridSimpsonRule()`  ... integrates by using Simpson's rule; see Basics.integrate().
+`Basics.integrateOnGridSimpsonRule(F::Array{Float64,1}, grid::Radial.Grid)`  ... integrates by using Simpson's rule; see Basics.integrate().
 """
 function Basics.integrateOnGridSimpsonRule(F::Array{Float64,1}, grid::Radial.Grid)
     coefficients = Array{Float64}([2 * 1, 4, 1]) / 3 * grid.h
@@ -113,7 +113,7 @@ end
 
 
 """
-`Basics.integrateOnGridTrapezRule()`  ... integrates by using a simple trapez rule; see Basics.integrate().
+`Basics.integrateOnGridTrapezRule(F::Array{Float64,1}, grid::Radial.Grid)`  ... integrates by using a simple trapez rule; see Basics.integrate().
 """
 function Basics.integrateOnGridTrapezRule(F::Array{Float64,1}, grid::Radial.Grid)
     coefficients = Array{Float64}([2 * 1, 1]) / 2 * grid.h

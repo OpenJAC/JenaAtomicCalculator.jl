@@ -91,7 +91,7 @@ end
 
 
 """
-`Tools.taskGridCalculatorResults()`  ... prints the results of the grid computations
+`Tools.taskGridCalculatorResults(rnt::Float64, h::Float64, hp::Float64, rmax::Float64)`  ... prints the results of the grid computations
 """
 function taskGridCalculatorResults(rnt::Float64, h::Float64, hp::Float64, rmax::Float64)
     println("** $rnt  $h  $hp  $rmax")

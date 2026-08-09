@@ -181,7 +181,7 @@ end
 
 
 """
-`PeriodicTable.Isotope()`  ... simple constructur for an empty instance of an isotope.
+`PeriodicTable.Isotope(i::Int64)`  ... simple constructur for an empty instance of an isotope.
 """
 function Isotope(i::Int64)
     Isotope( i, NaN, AngularJ64(0), NaN, NaN)

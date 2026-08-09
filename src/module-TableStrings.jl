@@ -341,7 +341,7 @@ end
 
 
 """
-`TableStrings.symmetries_if()`  ... a string 'J^P --> J^P' is returned
+`TableStrings.symmetries_if(isym::LevelSymmetry, fsym::LevelSymmetry)`  ... a string 'J^P --> J^P' is returned
 """
 function  symmetries_if(isym::LevelSymmetry,  fsym::LevelSymmetry)
     sa = string(isym) * " --> " * string(fsym)
@@ -350,7 +350,7 @@ end
 
 
 """
-`TableStrings.symmetries_imf()`  ... a string 'J^P --> J^P --> J^P' is returned
+`TableStrings.symmetries_imf(isym::LevelSymmetry, msym::LevelSymmetry, fsym::LevelSymmetry)`  ... a string 'J^P --> J^P --> J^P' is returned
 """
 function  symmetries_imf(isym::LevelSymmetry, msym::LevelSymmetry, fsym::LevelSymmetry)
     sa = string(isym) * " --> " * string(msym) * " --> " * string(fsym)
