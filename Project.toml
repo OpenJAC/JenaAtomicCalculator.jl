@@ -1,7 +1,7 @@
 name = "JenaAtomicCalculator"
 uuid = "830ae420-d14d-11e8-2f94-6b071437414d"
 authors = ["Stephan Fritzsche <s.fritzsche@gsi.de>"]
-version = "0.3.0"
+version = "0.4.0"
 
 [deps]
 BSplineKit = "093aae92-e908-43d7-9660-e50ee39d5a0a"
