@@ -840,6 +840,15 @@ function computeFockMatrixClaude2(subshell::Subshell, coeffs2p::Array{SpinAngula
                                   bVectors::Dict{Subshell, Vector{Float64}}, primitives::Bsplines.Primitives,
                                   nucPot::Radial.Potential, storage::Dict{String,Array{Float64,2}},
                                   occ::Float64, tensorCaches::Dict{Int64, NTuple{3,RadialIntegrals.SlaterMomentCacheClaude}})
+    # occ == 0 would give 1/occ = Inf and, against the zero two-electron matrix such a subshell has,
+    # Inf * 0 = NaN in every element -- a whole Fock matrix of NaN that only surfaces much later, and
+    # then as a completely unrelated-looking complaint about the negative-energy continuum.  A subshell
+    # with no occupation has no mean field to be refined in; the caller must decide what to do with it
+    # (solveOptimizedLevelField carries it forward unchanged), so refuse here rather than return NaN.
+    if  abs(occ) < 1.0e-12
+        error("SelfConsistent.computeFockMatrixClaude2(): subshell $subshell has occupation $occ. There is no " *
+              "mean field to define for an unoccupied subshell; the caller must skip it instead.")
+    end
     matrix  = Bsplines.setupLocalMatrix(subshell.kappa, primitives, nucPot, storage)
     matrixV = computeTwoElectronVClaude2(subshell, coeffs2p, bVectors, primitives, tensorCaches)
     return( matrix + (1.0/occ) * matrixV )
@@ -1219,6 +1228,22 @@ function solveOptimizedLevelField(basis::Basis, nuclearModel::Nuclear.Model, pri
                 continue
             end
             occ = genOcc[subshell]
+            # A subshell can legitimately carry ZERO generalized occupation: the EOL functional is built from
+            # the target level(s) alone, so a subshell that no target level has any weight on (e.g. 3d when the
+            # only target is the J=0+ level of 1s^2 2s^2 + 1s^2 2p^2 + 1s^2 2s3s + 1s^2 2s3d) simply does not
+            # enter the energy at all.  The functional is then stationary with respect to that orbital and
+            # there is nothing to optimize -- so it is carried forward unchanged, exactly like a frozen one.
+            # Refining it regardless used to produce a Fock matrix of NaN (computeFockMatrixClaude2 divides by
+            # occ, and Inf * 0 = NaN), which surfaced far downstream as the thoroughly misleading
+            # "Bsplines.findPositiveBranchStart(): no eigenvalue found above the negative-continuum threshold"
+            # -- the signature of a missing nuclear well, which was not the problem at all.  AL never meets
+            # this because its MEAN occupation averages over every CSF and so is never zero.
+            if  abs(occ) < 1.0e-12
+                println(">> Subshell $subshell carries zero generalized occupation in the target level(s); " *
+                        "the EOL functional does not depend on it, so it is kept unchanged.")
+                newBVectors[subshell] = bVectors[subshell]
+                continue
+            end
             print(">> Refine $subshell orbital with generalized occ = $occ ... ")
 
             matrix = SelfConsistent.computeFockMatrixClaude2(subshell, coeffs2p, bVectors, primitives, nucPot,
