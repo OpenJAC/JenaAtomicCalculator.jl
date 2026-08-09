@@ -67,8 +67,13 @@ setDefaults("unit: rate", "1/s")
 ## STATUS, 07-Aug-2026. Two structural bugs were found and fixed (blockers A1, A2), both the same root cause --
 ## identical-boson exchange symmetry not enforced: the EMISSION exchange phase was (-1)^(K+J_f+J_i) where it
 ## must be (-1)^(L1+L2-K), and the single-beam ABSORPTION sum admitted ODD K, which is forbidden for two
-## identical photons. Only branch d is dated "Last successful", and only for what it verifies -- the spectral
-## SHAPE and the photon-exchange SYMMETRY, both independent of the open overall constant.
+## identical photons.
+##
+## FIVE BRANCHES ARE DATED "Last successful" (a, d, g, h, i), each ONLY for what it verifies and never for a
+## magnitude: a for the ranking and the exact 2:1 statistical weight, d for the spectral SHAPE and the
+## photon-exchange SYMMETRY, g and h for the polarization RATIOS, i for the odd-K rule, the omega1 <-> omega2
+## invariance and the monochromatic limit. All of these are fixed by angular algebra and are independent of the
+## open overall constant. The remaining four (b, c, e, f) carry "Last visit" with the blocking reason named.
 ##
 ## THE ONE OPEN ISSUE THAT GATES EVERY EMISSION MAGNITUDE: a constant factor 26.7 (was 6.679 before the
 ## 08-Aug-2026 total-rate correction, and 12.98 before A1),

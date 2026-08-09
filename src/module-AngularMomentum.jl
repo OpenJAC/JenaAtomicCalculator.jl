@@ -452,20 +452,36 @@ end
     
 
 """
-`AngularMomentum.sigma_reduced_me(suba::Subshell, subb::Subshell)`  
-    ... calculates the reduced matrix element of the sigma^(1) spherical tensor <suba || sigma^(1) || subb>; 
+`AngularMomentum.sigma_reduced_me(suba::Subshell, subb::Subshell)`
+    ... calculates the reduced matrix element of the sigma^(1) spherical tensor <suba || sigma^(1) || subb>;
         a value::Float64 is returned.
+
+        NOT IMPLEMENTED, and it now says so instead of returning zero (08-Aug-2026). Until then the body was a
+        commented-out formula followed by `redme = 0.`, so the routine returned 0.0 for EVERY pair of subshells
+        that passed the parity rule -- a plausible number, silently, from a core module. It has no callers today,
+        which is the only reason it never did harm; a documented routine that answers every question with zero is
+        a trap left lying in the path of whoever calls it first.
+
+        THE COMMENTED-OUT FORMULA CANNOT SIMPLY BE RE-ENABLED: it references a rank `L` that is never defined in
+        this method and appears in no argument, so it never ran in this form. Deciding what `L` was meant to be
+        is a physics question, not a repair.
+
+        WORKING SIBLINGS EXIST for the closely related magnetic-quantum-number-resolved elements,
+        `sigma_reduced_me_ma` and `sigma_reduced_me_mb`, which ARE implemented and are used by
+        `RadialIntegrals`; they are the place to look when this one is completed.
 """
-function  sigma_reduced_me(suba::Subshell, subb::Subshell)   
-    la = Basics.subshell_l(suba);    ja2 = Basics.subshell_2j(suba);    
+function  sigma_reduced_me(suba::Subshell, subb::Subshell)
+    la = Basics.subshell_l(suba);    ja2 = Basics.subshell_2j(suba);
     lb = Basics.subshell_l(subb);    jb2 = Basics.subshell_2j(subb)
+    ## the parity rule is a genuine selection rule and its zero is a real answer, not a missing one
     if rem(la + lb, 2) != 0   return 0.     end
-    
-    redme = 0.
-    ##    redme = ((-1)^((jb2-2L-1)/2)) * sqrt( (jb2+1) ) * 
-    ##         Wigner_3j(AngularJ64(ja2//2), AngularJ64(jb2//2), AngularJ64(L), AngularM64(1//2), AngularM64(-1//2), AngularM64(0) )
-            
-    return( redme )
+
+    error("\n\nAngularMomentum.sigma_reduced_me():  STOP -- <$suba || sigma^(1) || $subb> is NOT implemented.\n" *
+          ">>> This routine returned 0.0 for every allowed pair of subshells until 08-Aug-2026; it now refuses\n"  *
+          "    rather than hand back a plausible zero.\n"                                                          *
+          ">>> The formula that stood here commented out cannot be re-enabled as it is: it references a rank L\n"  *
+          "    that is defined neither in the method nor among its arguments.\n"                                   *
+          ">>> See sigma_reduced_me_ma / sigma_reduced_me_mb, which ARE implemented, for the intended structure.\n")
 end
 
 function  sigma_reduced_me_ma(mkapa::Int64, kapb::Int64) 
