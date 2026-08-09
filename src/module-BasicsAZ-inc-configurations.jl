@@ -1018,7 +1018,7 @@ function Basics.extractFromConfiguration(theme::Basics.OpenSubshells, conf::Conf
     subshells = Subshell[]
     
     for shell  in  shells
-        subshellOccupations = Basics.shellSplitOccupation(shell, conf.shells[shell]);   @show subshellOccupations
+        subshellOccupations = Basics.shellSplitOccupation(shell, conf.shells[shell]);
         #
         for subshellOcc  in  subshellOccupations
             for (subsh, occ)  in  subshellOcc
@@ -1765,7 +1765,7 @@ function Basics.generateConfigurations(theme::Basics.ForStepwiseDecay, confs::Ar
     end 
     #
     newConfs = unique(newConfs)
-    wb = Basics.extractFromConfigurations(NumberOfElectrons(), newConfs);   @show wb
+    wb = Basics.extractFromConfigurations(NumberOfElectrons(), newConfs);
     
     return( newConfs )
 end

@@ -212,7 +212,6 @@ function  computeAmplitudesProperties(line::DoubleAutoIonization.Line, nm::Nucle
     symi         = LevelSymmetry(line.initialLevel.J, line.initialLevel.parity)
     #
     for sharing in line.sharings
-        @show sharing.epsilon1, sharing.epsilon2, sharing.weight
         newChannels = DoubleAutoIonization.ReducedChannel[];    drate = 0.
         for (ich, ch)  in  enumerate(sharing.channels)
             newiLevel = Basics.generateLevelWithSymmetryReducedBasis(line.initialLevel, line.initialLevel.basis.subshells)
@@ -232,7 +231,6 @@ function  computeAmplitudesProperties(line::DoubleAutoIonization.Line, nm::Nucle
                 if   bOrb1.subshell  in  newfLevel.basis.subshells        continue    end
                 for  bOrb2  in  bOrbitals2
                     if   bOrb2.subshell  in  newfLevel.basis.subshells    continue    end
-                    @show ich, bOrb1.subshell, bOrb2.subshell
                     if   bOrb1.subshell < bOrb2.subshell
                         # Only  subshell_1 < subshell_2  need to be considered since the 'reversed' case is part of another channel 
                         # Perhaps, one needs to multiply with 2 here (??)
@@ -247,7 +245,6 @@ function  computeAmplitudesProperties(line::DoubleAutoIonization.Line, nm::Nucle
             push!( newChannels, ReducedChannel(ch.energy1, ch.kappa1, phase1, ch.xSymmetry,
                                                 ch.energy2, ch.kappa2, phase2, amplitude) )
             drate = drate  +  2pi * abs(amplitude)^2
-            @show ich, drate, "   ", amplitude
         end
         # Calculate the differential decay rates
         push!( newSharings, DoubleAutoIonization.Sharing( sharing.epsilon1, sharing.epsilon2, sharing.weight, drate, newChannels) )

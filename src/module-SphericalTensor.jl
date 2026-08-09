@@ -598,7 +598,6 @@ function expandSphericalMatrixElements(mes::Array{SphericalTensor.SphericalMatri
         wa, wb, wc, wd = SphericalTensor.expandSphericalTensorComponent(me.tensor, me.q)
         rex = rex * wa;    append!(constants, wb);    append!(fieldComps, wc)
         if  me.leftState.star  ||  me.rightState.star   error("SphericalState() assumes non-conjugated spherical states.")     end
-        @show wd
         prodMe = SphericalTensor.ProductMatrixElement( me.leftState, wd, me.rightState)
         push!(productMes, prodMe )
     end

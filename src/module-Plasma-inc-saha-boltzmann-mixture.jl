@@ -962,9 +962,6 @@ function readEvaluateIonLevelData(filename::String, isoClass::IsotopeClass, NoEx
     data    = JLD2.load(filename)
     isoData = data["isoData"]
 
-    @show trunc(isoData["Z"], digits=3), trunc(isoClass.isotopicFraction.Z, digits=3) 
-    @show trunc(isoData["A"], digits=3), trunc(isoClass.isotopicFraction.A, digits=3)
-    @show trunc(isoData["Z"], digits=3)  ==  trunc(isoClass.isotopicFraction.Z, digits=3)   &&
         trunc(isoData["A"], digits=3)  ==  trunc(isoClass.isotopicFraction.A, digits=3)   &&
         isoData["NoExcitations"]       >=  NoExcitations                                  &&                      
         isoData["upperShellNo"]        >=  upperShellNo
@@ -1087,7 +1084,6 @@ function readUpdateIonLevelDataObsolete(filename::String, isoClass::IsotopeClass
         
     # Open the file and try to read in the directory
     data = JLD2.load(filename)
-    @show data
     
     if  trunc(isoData["Z"], digits=3)  ==  trunc(isoClass.isotopicFraction.Z, digits=3)   &&
         trunc(isoData["A"], digits=3)  ==  trunc(isoClass.isotopicFraction.A, digits=3)   &&
@@ -1231,7 +1227,6 @@ function writeIonLevelDataRobin(filenameRobin::String, filenameJac::String)
     while  !eof(f)
         push!(sLines, readline(f))
     end
-    @show  length(sLines), sLines[1]
     
     # Test that all data are read-in properly
     #== for  sLine  in sLines

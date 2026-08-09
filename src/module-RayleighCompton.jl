@@ -331,13 +331,10 @@ function  computeChannelAmplitude(channel::RayleighCompton.Channel, finalLevel::
         else               poleEnergy = initialLevel.energy + channel.omega1
         end
         #
-        @show channel.isS12, poleEnergy, lowerMid, lowerEnergy, midEnergy, upperEnergy, upperMid        
     end
         
     # Sum over all terms of the Green function channel; distinghuis between S_12 and S_21 integrals
     amplitude  = 0.0im;   lowerNom = lowerDenom = upperNom = upperDenom = 0.
-    @show "  "
-    @show "  "
     for  (ig, gLevel)  in  enumerate(gChannel.gMultiplet.levels)
         if   ig != 1   continue   end
         if   channel.isS12  # for S_12
@@ -359,10 +356,8 @@ function  computeChannelAmplitude(channel::RayleighCompton.Channel, finalLevel::
                                         denominator = (initialLevel.energy - gLevel.energy + channel.omega1)
             end
         end
-        @show leftMe, rightMe, denominator
         amplitude  = amplitude + me
     end
-    @show hasPole, channel.isS12, channel.Jsym, amplitude
     # Add the contribution from the pole region
     if  hasPole   
         amplitude = amplitude + computePoleInterval(poleEnergy, lowerMid, lowerEnergy, midEnergy, upperEnergy, upperMid,

@@ -648,10 +648,10 @@ end
 function solveAverageAtomField(orbitals::Dict{Subshell, Orbital}, nuclearModel::Nuclear.Model, scField::Basics.AbstractScField,
                                temp::Float64, radiusWS::Float64, primitives::Bsplines.Primitives; printout::Bool=true)
     # Determine the chemical potential
-    chemMu    = determineChemicalPotential(orbitals, temp, radiusWS, nuclearModel, primitives.grid);        @show chemMu
+    chemMu    = determineChemicalPotential(orbitals, temp, radiusWS, nuclearModel, primitives.grid);
     
     # Extract the kappa's from orbitals
-    kappas = Int64[];     for (k,v)  in  orbitals     push!(kappas, k.kappa)    end;    kappas = unique(kappas);   @show kappas
+    kappas = Int64[];     for (k,v)  in  orbitals     push!(kappas, k.kappa)    end;    kappas = unique(kappas);
 
     ## Defaults.setDefaults("standard grid", primitives.grid; printout=printout)
     # Define the storage for the calculations of matrices
@@ -986,7 +986,6 @@ function normX(sa::String, matrix::Array{Float64,2})
     for  i = 1:size(matrix,1)                    absD  = absD  + abs(matrix[i,i])   
         for  j = 1:size(matrix,2)   if i != j    absND = absND + abs(matrix[i,j])  end   end
     end 
-    @show  sa, size(matrix), absD, absND
     return(nothing)
 end
 

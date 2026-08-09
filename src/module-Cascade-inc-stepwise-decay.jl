@@ -348,7 +348,6 @@ function perform(scheme::StepwiseDecayScheme, comp::Cascade.Computation; output:
     #
     # Generate subsequent cascade configurations as well as display and group them together
     initialConfigs  = Basics.extractConfigurations(Basics.FromMultiplet(), multiplets)
-    @show initialConfigs
     ## wax = Cascade.generateConfigurationList(multiplets, comp.scheme.maxElectronLoss, comp.scheme.NoShakeDisplacements)
     ## @show wax
     ## wbx = Basics.displayConfigurations(comp.nuclearModel.Z, wax, sa="OLD decay ")
@@ -369,7 +368,6 @@ function perform(scheme::StepwiseDecayScheme, comp::Cascade.Computation; output:
     if  printSummary   Cascade.displaySteps(iostream, wd, sa="decay ")    end      
     we   = Cascade.modifySteps(wd)
     @time data = Cascade.computeSteps(scheme, comp, we)
-    @show typeof(data)
     if output    
         results = Base.merge( results, Dict("name"                  => comp.name) ) 
         results = Base.merge( results, Dict("cascade scheme"        => comp.scheme) ) 

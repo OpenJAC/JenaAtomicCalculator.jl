@@ -147,7 +147,7 @@ end
 """
 function Basics.analyzeConvergence(a::Radial.Orbital, b::Radial.Orbital)
     if       a.subshell !=  b.subshell                                             error("stop a")   
-    elseif   a.useStandardGrid !=  b.useStandardGrid   ||  !(a.useStandardGrid)    @show a.useStandardGrid, b.useStandardGrid;   error("stop b")   
+    elseif   a.useStandardGrid !=  b.useStandardGrid   ||  !(a.useStandardGrid)   error("stop b")
     else     wa = 0.;   wa = max(wa, abs( (a.energy-b.energy) / (a.energy+b.energy) ));   nx = min(length(a.P), length(b.P))
             #=== for  i = 1:nx 
                 wp = abs(a.P[i])+abs(b.P[i]);    if  wp > 1.0e-10   wa = max(wa, abs( (a.P[i]-b.P[i]) / wp ))   end 

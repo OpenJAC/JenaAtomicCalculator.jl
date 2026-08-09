@@ -284,7 +284,6 @@ function amplitude(processType::ElasticElectronNR, beamType::Beam.BesselBeam,
                     wa * wc * AngularMomentum.sphericalYlm(l, beamType.mOAM, theta, phi) * sin(lPhase)
         amplitude = amplitude + ComplexF64(wb)
     end
-    @show processType, beamType, l, amplitude, typeof(amplitude)
     
     return( amplitude )
 end
@@ -337,7 +336,6 @@ function computeAmplitudesProperties(processType::ElasticElectronNR, event::Part
         amp1 = amp2 = amp3 = amp4 = amp5 = amp6 = amp7 = amp8 = 1.0e6;   maxamp = 0.
         totalAmp = ComplexF64(0.)
         for  l = 0:1000
-            @show  l, amp1, amp2, amp3, amp4, amp5, amp6, amp7, maxamp, settings.epsPartialWave
             kappa      = -l - 1;    
             cOrbital, lPhase  = Continuum.generateOrbitalForLevel(event.impactEnergy, Subshell(101, kappa), event.finalLevel, 
                                                                   nm, grid, contSettings)
@@ -348,7 +346,6 @@ function computeAmplitudesProperties(processType::ElasticElectronNR, event::Part
             amp8 = abs(amplitude)^2;   maxamp = max(maxamp, amp8)
             if  l > 10  &&  (amp1 + amp2 + amp3 + amp4 + amp5 + amp6 + amp7 + amp8) / maxamp < settings.epsPartialWave    break     end
         end
-        @show typeof(totalAmp)
         d2SigmaHeadon  = conj(totalAmp) * totalAmp
     end
     
@@ -363,7 +360,6 @@ function computeAmplitudesProperties(processType::ElasticElectronNR, event::Part
             totalAmp   = totalAmp + amplitude
             push!( newPws, ParticleScattering.PartialWaveNR(l, lPhase, amplitude) )
         end
-        @show typeof(totalAmp)
         d2SigmaHeadon  = conj(totalAmp) * totalAmp
     end
     
@@ -373,7 +369,6 @@ function computeAmplitudesProperties(processType::ElasticElectronNR, event::Part
         amp1 = amp2 = amp3 = amp4 = amp5 = amp6 = amp7 = amp8 = 1.0e6;   maxamp = 0.
         totalAmp = ComplexF64(0.);   k = event.beamType.kz / cos(event.beamType.openingAngle)
         for  l = 0:1000
-            @show  l, amp1, amp2, amp3, amp4, amp5, amp6, amp7, maxamp, settings.epsPartialWave
             #== Compute the lPhaseBorn by means of JAC orbitals
             kappa      = -l - 1;
             potZero = Radial.Potential("zero potential", zeros(grid.NoPoints), grid)
@@ -401,7 +396,6 @@ function computeAmplitudesProperties(processType::ElasticElectronNR, event::Part
             error("aaaa")   ==#
             #
             lPhaseBorn = atan(wint)
-            @show "*******", k, l, lPhaseBorn, mtp, wint
             amplitude  = ParticleScattering.amplitude(event.processType, event.beamType, l, lPhaseBorn, event.theta, event.phi, grid)
             totalAmp   = totalAmp + amplitude
             push!( newPws, ParticleScattering.PartialWaveNR(l, lPhaseBorn, amplitude) )
@@ -409,7 +403,6 @@ function computeAmplitudesProperties(processType::ElasticElectronNR, event::Part
             amp8 = abs(amplitude)^2;   maxamp = max(maxamp, amp8)
             if  l > 10  &&  (amp1 + amp2 + amp3 + amp4 + amp5 + amp6 + amp7 + amp8) / maxamp < settings.epsPartialWave    break     end
         end
-        @show typeof(totalAmp)
         d2SigmaBorn = conj(totalAmp) * totalAmp    
     end
     
@@ -432,7 +425,6 @@ function computeAmplitudesProperties(processType::ElasticElectronNR, event::Part
             for  nu = -5:5
                 amp1 = amp2 = amp3 = amp4 = 1.0e6;    lAmp = ComplexF64(0.)
                 for  l = 0:1000
-                    @show  l, amp1, amp2, amp3, amp4, settings.epsPartialWave
                     kappa      = -l - 1;    
                     cOrbital, lPhase  = Continuum.generateOrbitalForLevel(event.impactEnergy, Subshell(101, kappa), event.finalLevel, 
                                                                           nm, grid, contSettings)
@@ -441,7 +433,6 @@ function computeAmplitudesProperties(processType::ElasticElectronNR, event::Part
                     amp1 = amp2;   amp2 = amp3;   amp3 = amp4;   amp4 = abs(amp)^2
                     if  l > 5  &&  (amp1 + amp2 + amp3 + amp4) < settings.epsPartialWave    break     end
                 end
-                @show nu, krho*b, lAmp
                 nuAmp = nuAmp + (-1.0im)^nu * GSL.sf_bessel_Jnu(nu, krho*b) * exp( - im*nu+phib )
             end
             nuAmp = nuAmp * 2 * (-1.0im)^event.beamType.mOAM / k 

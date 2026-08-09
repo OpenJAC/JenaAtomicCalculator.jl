@@ -148,7 +148,7 @@ end
 
 
 """
-`PhotoRecombination.Line()`  
+`PhotoRecombination.Line(initialLevel::Level, finalLevel::Level)`  
     ... constructor for an `empty instance` of a photorecombination line between a specified initial 
         and final level.
 """
@@ -203,8 +203,6 @@ function  checkConsistentMultiplets(finalMultiplet::Multiplet, initialMultiplet:
     
     if initialSubshells[1:end] == finalSubshells[1:ni]
     else
-        @show initialSubshells
-        @show finalSubshells
         error("\nThe order of subshells must be equal for the initial- and final states. \n" *
                 "However, the initial states can have less subshells; this limitation arises from the angular coefficients.")
     end
@@ -267,9 +265,6 @@ function  computeAnisotropyParameter(nu::Int64, gauge::EmGauge, line::PhotoRecom
             jp = AngularMomentum.kappa_j(chp.kappa);     lp = AngularMomentum.kappa_l(chp.kappa)
             #
             if  1 + (-1)^(L + p + Lp + pp - nu) == 0    continue    end
-            @show 1.0im^(L + p - Lp - pp)
-            @show AngularMomentum.phaseFactor([Ji, -1, AngularJ64(1//2), -1, Jf])
-            @show sqrt( AngularMomentum.bracket([AngularJ64(L), AngularJ64(Lp), l, lp, j, jp, J, Jp]) )
             wa = wa + 1.0im^(L + p - Lp - pp) * AngularMomentum.phaseFactor([Ji, -1, AngularJ64(1//2), -1, Jf]) *
                                 sqrt( AngularMomentum.bracket([AngularJ64(L), AngularJ64(Lp), l, lp, j, jp, J, Jp]) ) *  
                                 AngularMomentum.ClebschGordan( l, AngularM64(0), lp, AngularM64(0),  AngularJ64(nu),  AngularM64(0)) *
@@ -299,12 +294,10 @@ function computeCrossSectionBareIon(energy_eV::Float64, subshell::Subshell, mult
     
     fOrbital = HydrogenicIon.orbital(subshell, nm, grid)
     omega    = energy - fOrbital.energy
-    @show omega, energy, fOrbital.energy
     #
     csa = 0.;       maxKappa = 4;        contSettings = Continuum.Settings(false, nrContinuum);   
     jf = Basics.subshell_j(subshell);   lf           = Basics.subshell_l(subshell)
     if   iseven(lf)   symf = LevelSymmetry( jf, Basics.plus )   else   symf = LevelSymmetry( jf, Basics.minus ) end
-    @show  energy_eV, nm.Z, omega, energy, gauge, subshell, symf, fOrbital.energy
     # Generate a Coulomb potential for the given nuclear model
     potential = Nuclear.nuclearPotential(nm, grid)
     for  multipole  in  multipoles
@@ -320,7 +313,6 @@ function computeCrossSectionBareIon(energy_eV::Float64, subshell::Subshell, mult
                 if multipole in  [E1, E2]  localGauge = gauge  elseif  multipole in  [M1, M2]  localGauge = Basics.Magnetic   end
                 amplitude = InteractionStrength.MabEmissionJohnsony(multipole, localGauge, omega, fOrbital, cOrbital, grid) / 
                             Defaults.getDefaults("alpha")
-                @show amplitude,  symc,  localGauge, multipole
                 ## amplitude = InteractionStrength.MbaEmissionCheng(multipole, gauge, omega, fOrbital, cOrbital, grid) 
                 csa = csa + conj(amplitude) * amplitude
             end

@@ -1404,7 +1404,6 @@ function Basics.generateSpectrumLorentzian(xIntensities::Array{Tuple{Float64,Flo
     for xInt in xIntensities    push!(energies, xInt[1]*wc + energyShift);    push!(intensities, xInt[2])   end
     xMin = minimum(energies) - 3.0xwidths
     xMax = maximum(energies) + 3.0xwidths
-    @show xMin, xMax
     res = 1 / resolution;   nn = resolution * Int64( floor(xMax-xMin) + 1.0 )
     x = zeros(nn);    y = zeros(nn)
     for  n = 1:nn     x[n] = xMin +n*res    end

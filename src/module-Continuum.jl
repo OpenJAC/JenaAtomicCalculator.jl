@@ -257,7 +257,6 @@ function generateOrbitalGalerkin(energy::Float64, sh::Subshell, pot::Radial.Pote
     for  i = 1:nsL+nsS    
         for  j = i+1:nsL+nsS    
             if  abs(  (wc[i,j] - wc[j,i])/(wc[i,j] + wc[j,i]) ) > 1.0e-7   nx = nx + 1    
-                @show "generateOrbitalGalerkin", i, j, wc[i,j], wc[j,i] 
             end
         end
     end

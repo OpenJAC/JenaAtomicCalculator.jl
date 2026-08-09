@@ -936,7 +936,7 @@ function  checkOrbitalRepresentation(finalMultiplet::Multiplet, intermediateMult
     
     subshells = intermediateMultiplet.levels[1].basis.subshells;     basis = intermediateMultiplet.levels[1].basis
     for sub in subshells   
-        if  basis.orbitals[sub].energy >= 0.    @show sub, basis.orbitals[sub].energy
+        if  basis.orbitals[sub].energy >= 0.
             error("$sub orbital not bound; enlarge the box size !")     end
     end
     println("  > Intermediate occupied subshells: $(subshells)")
@@ -1027,7 +1027,6 @@ function  isResonanceToBeExcluded(level::Level, refLevel, rSelection::ResonanceS
         for  (k,v) in refConfig.shells
             NoElectrons = NoElectrons + levConfig.shells[k]
         end
-        @show NoElectrons, refConfig.NoElectrons
         if  NoElectrons < refConfig.NoElectrons     fromwb = true   end
         
         wa = !(fromwb &&  towb  && intowb)

@@ -142,8 +142,6 @@ function computeDecayProbabilities(outcome::DecayYield.Outcome, linesR::Array{Ph
         end
     end
     #
-    @show subshList, relConfigs, holeSubshell
-    @show subshEnergies
     #
     # Calculate the total rate and convert the dictionaries into probabilities
     # First, identify the level key of the given level also in the lists of radiative and Auger lines
@@ -175,7 +173,6 @@ function computeDecayProbabilities(outcome::DecayYield.Outcome, linesR::Array{Ph
                                                 (line.photonRate.Babushkin + line.photonRate.Coulomb) / 2
         end
     end
-    @show rProbabilities
     #
     for  line in linesA
         if  similarKey == LevelKey( LevelSymmetry(line.initialLevel.J, line.initialLevel.parity), line.initialLevel.index, line.initialLevel.energy, 0.)
@@ -196,13 +193,11 @@ function computeDecayProbabilities(outcome::DecayYield.Outcome, linesR::Array{Ph
             aProbabilities[ (subshList[1], subshList[2]) ] = aProbabilities[ (subshList[1], subshList[2]) ] + line.totalRate
         end
     end
-    @show aProbabilities
     #
     # Add all rates, convert to probabilities and print these dictionaries into a neat table
     rate = 0.
     for (k,v) in rProbabilities   rate = rate + v   end
     for (k,v) in aProbabilities   rate = rate + v   end
-    @show outcome.rateR + outcome.rateA, rate
     #
     for (k,v) in rProbabilities   rProbabilities[k] = v/(rate + 1.0e-20)   end
     for (k,v) in aProbabilities   aProbabilities[k] = v/(rate + 1.0e-20)   end
@@ -231,11 +226,9 @@ function computeDecayYieldOutcome(outcome::DecayYield.Outcome, linesR::Array{Pho
                                     linesA::Array{AutoIonization.Line,1}, settings::DecayYield.Settings)
     # Identify the level key of the given level also in the lists of radiative and Auger lines
     level = outcome.level;    levelKey = LevelKey( LevelSymmetry(level.J, level.parity), level.index, level.energy, 0.)
-    @show levelKey
     similarKey = LevelKey();  rateR = Basics.EmProperty(0.);    rateA = 0.;   NoPhotonLines = 0;   NoAugerLines = 0
     for  line in linesR
         compareKey = LevelKey( LevelSymmetry(line.initialLevel.J, line.initialLevel.parity), line.initialLevel.index, line.initialLevel.energy, 0.)
-        @show compareKey
         if   Basics.isSimilar(levelKey, compareKey, 1.0e-3)    println("** compareKey = $compareKey");   similarKey = deepcopy(compareKey)    end
     end
     if   similarKey == LevelKey()    @warn("No similar level found !")   end
@@ -343,7 +336,6 @@ function displayDecayProbabilities(stream::IO, outcome::DecayYield.Outcome, rPro
     subshList     = Basics.extractRelativisticSubshellList(outcome.level)
     relConfigs    = Basics.extractConfigurations(Basics.RelativisticConfigurations(), outcome.level.basis, outcome.level.J)
     holeSubshells = Basics.extractFromConfiguration(Basics.OpenSubshells(), relConfigs[1]);   holeSubshell = holeSubshells[1]
-    @show subshList, relConfigs, holeSubshell
     
     nx = 28
     println(stream, " ")

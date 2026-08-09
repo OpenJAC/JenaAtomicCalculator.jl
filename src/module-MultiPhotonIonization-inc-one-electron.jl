@@ -64,7 +64,6 @@ function  oneElectronComputeTwoPhotonLine(iState::Subshell, multipoles::Array{Em
                         settings    = Continuum.Settings(false, nrContinuum)
                         fOrbitalPhs = Continuum.generateOrbitalLocalPotential(epsilon, Subshell(1001, symf), meanPot, settings)
                         fOrbital    = fOrbitalPhs[1]
-                        @show fOrbital
                         amp = MultiPhotonIonization.oneElectronAmplitude(fOrbital, omega2, mp2, symx, omega1, mp1, 
                                                                             iOrbital, gauge, orbitals, meanPot.grid)
                         println("$mp1  $mp2  $symi  $symx  $symf  $gauge  $amp")

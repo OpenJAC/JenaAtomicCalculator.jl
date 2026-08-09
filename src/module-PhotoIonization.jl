@@ -544,7 +544,6 @@ function  computeAngularBeta(iLevel::Level, fLevel::Level, channels::Array{Photo
     
     if  wnC == 0.   waC = ComplexF64(-9.0)    else    waC = sqrt(6.0) * waC / wnC      end
     if  wnB == 0.   waB = ComplexF64(-9.0)    else    waB = sqrt(6.0) * waB / wnB      end
-    @show waC, waB
         
     return( EmProperty(waC.re, waB.re) )
 end
@@ -816,8 +815,6 @@ function  computeTimeDelays(channels::Array{PhotoIonization.Channel,1}, xchannel
     ampC = ampCx = ampB = ampBx = ComplexF64(0.)
     for  (ic, ch) in  enumerate(channels)
         j  = AngularMomentum.kappa_j(ch.kappa);   l  = AngularMomentum.kappa_l(ch.kappa);   l0 = AngularJ64(2);   Jc = Jf
-        @show  "***", j, l, l0, Jc
-        @show  "***", ch.gauge, ch.amplitude, xchannels[ic].amplitude, (xchannels[ic].amplitude - ch.amplitude) / deltaE
         ## factor = (1.0im)^( Basics.twice(l)/2 ) * sqrt(3/(4pi))  * AngularMomentum.phaseFactor([j, +1, l, +1, AngularJ64(1//2)]) *
         factor = sqrt(3/(4pi))  * AngularMomentum.phaseFactor([j, +1, l, +1, AngularJ64(1//2)]) *
                  AngularMomentum.ClebschGordan( l0, AngularM64(0), AngularJ64(1), AngularM64(0), l,  AngularM64(0)) *
@@ -833,7 +830,6 @@ function  computeTimeDelays(channels::Array{PhotoIonization.Channel,1}, xchannel
     coherentTauC = (ampCx - ampC) / deltaE / ampC  
     coherentTauB = (ampBx - ampB) / deltaE / ampB
     ## phiEffB      = log(ampB);       phiEffBx = log(ampBx);    coherentTaulnB = (phiEffBx.re - phiEffB.re) / deltaE
-    @show coherentTauC, coherentTauB
     coherentDelay = EmProperty( coherentTauC.im, coherentTauB.im )
     #
     println("\n\nChannel amplitudes M_lj for photon energy: \n")
@@ -1517,7 +1513,7 @@ end
 function  extractLines(lines::Array{PhotoIonization.Line,1}, omega::Float64)
     rLines = PhotoIonization.Line[]
     for  line  in  lines    
-        if  line.photonEnergy == omega   @show  "aa", omega;    push!(rLines, line)  end  
+        if  line.photonEnergy == omega   push!(rLines, line)  end
     end
     
     return( rLines )

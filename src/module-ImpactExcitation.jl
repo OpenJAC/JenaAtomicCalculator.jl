@@ -286,7 +286,6 @@ function amplitude(kind::AbstractEeInteraction, channel::ImpactExcitation.Channe
         amplitude = transpose(fLevel.mc) * matrix * iLevel.mc 
         amplitude = im^( -1.0 * Basics.subshell_l(Subshell(102, channel.finalKappa)) )   * exp(  im*channel.finalPhase )   * 
                     im^Basics.subshell_l(Subshell(101, channel.initialKappa)) * exp(  im*channel.initialPhase ) * amplitude
-        @show amplitude
         #
         #
         elseif  kind == "H-E"

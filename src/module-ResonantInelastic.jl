@@ -200,7 +200,6 @@ function  computeAmplitudesProperties(pathway::ResonantInelastic.Pathway, grid::
         end
     end
 
-    @show ampCou, ampBab, ampEx, ampEm
     productF   = EmProperty(    ampCou.re,     ampBab.re )
     relativeCS = EmProperty(abs(ampCou)^2, abs(ampBab)^2)
     pathway    = ResonantInelastic.Pathway( pathway.initialLevel, pathway.intermediateLevel, pathway.finalLevel, 

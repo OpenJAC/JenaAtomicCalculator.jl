@@ -379,7 +379,7 @@ function  computeAmplitudesProperties(outcome::IsotopeShift.Outcome, nm::Nuclear
         nmp       = Nuclear.Model(nm; mass=nm.mass+1.0, radius=Nuclear.Rrms(nm.mass+1.0))
         deltaPot  = Nuclear.nuclearPotential(nm, grid).Zr - Nuclear.nuclearPotential(nmp, grid).Zr
         deltaPot  = deltaPot / (nm.radius^2 - nmp.radius^2)
-        lastPoint = Basics.lastPoint(deltaPot, 1.0e-9);   @show lastPoint
+        lastPoint = Basics.lastPoint(deltaPot, 1.0e-9);
         #
         Fme       = IsotopeShift.amplitude(FieldShiftAmplitude(), outcome.level, outcome.level, deltaPot, grid)
         #
@@ -439,7 +439,6 @@ end
 """
 function  determineOutcomes(multiplet::Multiplet, settings::IsotopeShift.Settings) 
     outcomes = IsotopeShift.Outcome[]
-    @show settings.levelSelection
     for  level  in  multiplet.levels
         if  Basics.selectLevel(level, settings.levelSelection)
             push!( outcomes, IsotopeShift.Outcome(level, 0., 0., 0., 0., 0.,   0., 0., 0., 0.) )

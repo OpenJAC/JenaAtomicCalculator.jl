@@ -143,12 +143,10 @@ function generateConfigurationsForImpactExcitation(multiplets::Array{Multiplet,1
     maxen  = maximum(en);    minen  = minimum(en);  
     println(">>> initial configuration(s) have energies from $minen  to  $maxen  [a.u.].")
     #
-    @show maxen
     if      scheme.NoFreeElectronEnergies > 0  mx = scheme.maxFreeElectronEnergy 
     else                                       mx = maximum( scheme.electronEnergies )
     end
     maxen = maxen + Defaults.convertUnits("energy: from predefined to atomic unit", mx) 
-    @show maxen
     #
     newBlockConfList = Configuration[]
     for  conf  in  blockConfList    meanEnergy = -Semiempirical.estimate(EstimateBindingEnergyWilliams2000(), round(Int64, nm.Z), conf)

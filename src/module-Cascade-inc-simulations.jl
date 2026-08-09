@@ -1493,7 +1493,6 @@ function reviewData(simulation::Cascade.Simulation; ascendingOrder::Bool=false)
         else    error("stop a")
         end
         
-        @show typeof(lineData)
         
         #==
         if      haskey(results,"decay line data:")                          lineData = results["decay line data:"]
@@ -1524,7 +1523,6 @@ function simulateDrRateCoefficients(levels::Array{Cascade.Level,1}, simulation::
     printSummary, iostream = Defaults.getDefaults("summary flag/stream")
     resonances = DielectronicRecombination.CaptureLine[]
     rSelection = simulation.property.resonanceSelection
-    @show length(levels)
     #
     # Collect the information about all resonances
     for  level in levels
@@ -1552,7 +1550,6 @@ function simulateDrRateCoefficients(levels::Array{Cascade.Level,1}, simulation::
             if   augerRate + photonRate.Babushkin == 0.
                 strength = EmProperty(0.)
             elseif  DielectronicRecombination.isResonanceToBeExcluded(aLine.initialLevel, aLine.finalLevel, rSelection)
-                @show DielectronicRecombination.isResonanceToBeExcluded(aLine.initialLevel, aLine.finalLevel, rSelection)
                 # Set the strength to zero, if the initial (resonance) level of aLine is not selected explicitly
                 strength = EmProperty(0.)
             else
@@ -1623,7 +1620,6 @@ function simulateDrRateCoefficients(levels::Array{Cascade.Level,1}, simulation::
                     newResonance = DielectronicRecombination.CaptureLine(iLevel, dLevel, en, 0., augerRate, photonRate,
                                                                          nFactor * nStrength, AutoIonization.Channel[])
                     push!(resonances, newResonance)
-                    @show n, augerRate, photonRate, nStrength
                 end
             end
         end

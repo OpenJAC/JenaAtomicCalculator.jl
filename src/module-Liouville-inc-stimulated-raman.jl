@@ -60,7 +60,6 @@ function determineLightField(pulses::Vector{Pulse.AbstractPulse}, t::Float64)
         end
     end
     
-    @show fieldA
     
     return( fieldA )
 end

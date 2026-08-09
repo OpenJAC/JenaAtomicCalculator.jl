@@ -169,7 +169,7 @@ function  perform(scheme::Plasma.AverageAtomScheme, computation::Plasma.Computat
     if  output    results = Dict{String, Any}()    else    results = nothing    end
         
     nm   = computation.nuclearModel
-    RWS  = Plasma.determineWignerSeitzRadius(computation.settings.density, nm);   @show RWS
+    RWS  = Plasma.determineWignerSeitzRadius(computation.settings.density, nm);
     wa   = Bsplines.generatePrimitives(computation.grid)
     temp = Defaults.convertUnits("temperature: from Kelvin to (Hartree) units", computation.settings.temperature)
     println(" ")

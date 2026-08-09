@@ -236,7 +236,6 @@ function amplitude(::Absorption, Mp::EmMultipole, gauge::EmGauge, omega::Float64
     #
     # Always ensure the same subshell list for all initial, intermediate and final levels
     subshells  = Basics.merge(initialLevel.basis.subshells, finalLevel.basis.subshells)
-    @show  initialLevel.basis.subshells, finalLevel.basis.subshells, subshells
     iLevel     = Level(initialLevel, subshells)
     fLevel     = Level(finalLevel, subshells)
     nMultiplet = Multiplet(gMultiplet, subshells)
@@ -254,7 +253,7 @@ function amplitude(::Absorption, Mp::EmMultipole, gauge::EmGauge, omega::Float64
         for  s = 1:ni
             syms = LevelSymmetry(iLevel.basis.csfs[s].J, iLevel.basis.csfs[s].parity);  if  syms != symi    continue    end
             for  nLevel in nMultiplet.levels
-                symn = LevelSymmetry(nLevel.J, nLevel.parity);    enn = nLevel.energy;   @show symn
+                symn = LevelSymmetry(nLevel.J, nLevel.parity);    enn = nLevel.energy;
                 #
                 #   Compute <alpha_f J_f || O^(Mp, kind) || alpha_n J_i> <alpha_n J_i || V^(e-e) || alpha_i J_i>
                 if  symn != symi     continue    end
@@ -263,7 +262,6 @@ function amplitude(::Absorption, Mp::EmMultipole, gauge::EmGauge, omega::Float64
                     Vee       = ManyElectron.matrixElement_Vee(CoulombInteraction(), nLevel.basis, t, iLevel.basis, s, grid)
                     OMp       = ManyElectron.matrixElement_Mab(Mp, gauge, omega, fLevel.basis, r, nLevel.basis, t, grid)
                     amplitude = amplitude + fLevel.mc[r] * OMp * nLevel.mc[t]^2 * Vee * iLevel.mc[s] / (eni - enn)
-                    @show  t, eni, (eni - enn), amplitude
                 end
                 #
                 #   Compute <alpha_f J_f || V^(e-e) || alpha_n J_f> <alpha_n J_f || O^(Mp, kind) || alpha_i J_i>
@@ -273,7 +271,6 @@ function amplitude(::Absorption, Mp::EmMultipole, gauge::EmGauge, omega::Float64
                     OMp       = ManyElectron.matrixElement_Mab(Mp, gauge, omega, nLevel.basis, t, iLevel.basis, s, grid)
                     Vee       = ManyElectron.matrixElement_Vee(CoulombInteraction(), fLevel.basis, r, nLevel.basis, t, grid)
                     amplitude = amplitude + fLevel.mc[r] * Vee * nLevel.mc[t]^2 * OMp * iLevel.mc[s] / (eni - omega - enn)
-                    @show  t, eni, (eni + omega - enn), amplitude
                 end
             end
         end
@@ -398,10 +395,8 @@ function  determineLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet,
                     # Photon energies are still in 'pre-defined' units; convert to Hartree
                     omega_au = Defaults.convertUnits("energy: to atomic", omega)
                     energy   = omega_au - (fLevel.energy - iLevel.energy)
-                    @show omega, energy
                     if  energy < 0.    continue   end  
                     sharings = PhotoDoubleIonization.determineSharingsAndChannels(fLevel, iLevel, omega, energy, settings) 
-                    @show sharings
                     push!( lines, PhotoDoubleIonization.Line(iLevel, fLevel, energy, omega_au, EmProperty(0., 0.), sharings) )
                 end
             end

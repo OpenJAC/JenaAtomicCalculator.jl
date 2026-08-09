@@ -423,7 +423,7 @@ function convertPulse(expPulse::Pulse.FelPulse)
     timeDelay    = expPulse.timeDelay * 1.0e-15 / Defaults.convertUnits("time: from atomic to sec", 1.0)
     
     if    expPulse.shape == "GaussianSimplified"     
-        compPulse = Pulse.GaussianSimplified(omega, A0, fwhm, timeDelay, energySpread);  @show compPulse
+        compPulse = Pulse.GaussianSimplified(omega, A0, fwhm, timeDelay, energySpread);
     else  error("Unknown pulse shape = $(expPulse.shape) ")
     end 
     
