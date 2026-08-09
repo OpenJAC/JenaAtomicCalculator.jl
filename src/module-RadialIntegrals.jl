@@ -834,7 +834,17 @@ end
         rho_bd(s) is represented as a cubic spline (Dierckx.Spline1D) over the tabulated grid values, and each
         piece is evaluated by adaptive Gauss-Kronrod quadrature (QuadGK.quadgk), exactly as already done
         elsewhere in JAC (cf. Nuclear.jl's nuclear-density integrals) for integrals with known problematic
-        points. mtpOut lets the caller request the FULL range actually needed (e.g. grid.NoPoints for a
+        points.
+        BOTH integrals are accumulated by a SINGLE SWEEP over the grid rather than integrated afresh at every
+        point: the inner moment grows with r and the outer moment shrinks with r, so each differs from its
+        neighbour by exactly one grid cell. An earlier version ran two full-range adaptive quadratures at each
+        of the ~1500 grid points, integrating the same material O(N) times over; profiling of both the SCF and
+        the CI paths (09-Aug-2026) put ~94% of a configuration-interaction matrix build inside this one loop.
+        The forward/backward sweeps are the standard construction (Hartree's Y_k, GRASP's YZK). Note that it is
+        the SPLIT AT THE KINK that is essential, not its repetition -- the split is retained exactly; only the
+        redundant re-integration is gone. Per-cell quadrature also keeps the same rtol while converging more
+        reliably, since one grid cell is smooth and needs no subdivision.
+        mtpOut lets the caller request the FULL range actually needed (e.g. grid.NoPoints for a
         B-spline matrix element); left unspecified, it defaults to min(size(b.P,1),size(d.P,1)) as before, which
         remains correct wherever V_k is only ever contracted against something ALSO naturally truncated to that
         same orbital-pair extent (e.g. SlaterRk_2dimClaude).
@@ -854,16 +864,39 @@ function buildScreenedPotentialClaude(k::Int64, b::Radial.Orbital, d::Radial.Orb
     r0     = grid.r[1]                     # smallest tabulated grid point, > 0; mirrors the grid's own convention
     rmaxBd = rbd[end]
 
-    fullInner = QuadGK.quadgk(s -> s^k * splBd(s), r0, rmaxBd, rtol=rtol)[1]
+    # Last output index still strictly INSIDE the source's own extent; beyond it the multipole-tail
+    # branch applies and no quadrature is needed at all.
+    iLast = 1
+    for  i = 2:mtpOutx     if  grid.r[i] < rmaxBd    iLast = i    else    break    end    end
+
+    # FORWARD sweep:  inner[i] = int_{r0}^{r_i} ds s^k rho_bd(s), accumulated ONE GRID CELL AT A TIME.
+    inner = zeros(mtpOutx);    acc = 0.
+    for  i = 2:iLast
+        acc      = acc + QuadGK.quadgk(s -> s^k * splBd(s), grid.r[i-1], grid.r[i], rtol=rtol)[1]
+        inner[i] = acc
+    end
+    # the remaining cell out to rmaxBd completes the full inner moment, so that fullInner is by
+    # construction the end value of the same sweep rather than a separately integrated quantity
+    fullInner = grid.r[iLast] < rmaxBd ?
+                acc + QuadGK.quadgk(s -> s^k * splBd(s), grid.r[iLast], rmaxBd, rtol=rtol)[1]  :  acc
+
+    # BACKWARD sweep:  outer[i] = int_{r_i}^{rmaxBd} ds s^{-(k+1)} rho_bd(s), likewise cell by cell.
+    # Accumulating from the far end inwards also adds the small contributions first, which is the
+    # numerically favourable order.
+    outer = zeros(mtpOutx)
+    if  iLast >= 2
+        acc = QuadGK.quadgk(s -> s^(-(k+1)) * splBd(s), grid.r[iLast], rmaxBd, rtol=rtol)[1]
+        outer[iLast] = acc
+        for  i = iLast-1:-1:2
+            acc      = acc + QuadGK.quadgk(s -> s^(-(k+1)) * splBd(s), grid.r[i], grid.r[i+1], rtol=rtol)[1]
+            outer[i] = acc
+        end
+    end
 
     for  i = 2:mtpOutx
         r = grid.r[i]
-        if  r >= rmaxBd
-            Vk[i] = fullInner / r^(k+1)
-        else
-            inner   = QuadGK.quadgk(s -> s^k * splBd(s), r0, r, rtol=rtol)[1]
-            outer   = QuadGK.quadgk(s -> s^(-(k+1)) * splBd(s), r, rmaxBd, rtol=rtol)[1]
-            Vk[i]   = inner / r^(k+1) + r^k * outer
+        if  r >= rmaxBd    Vk[i] = fullInner / r^(k+1)
+        else               Vk[i] = inner[i] / r^(k+1) + r^k * outer[i]
         end
     end
     return( Vk )
@@ -918,6 +951,10 @@ end
         1/r^(k+1) tail; for r beyond Ba's support this tail integral is a single r-independent constant,
         computed once and then just divided by r^(k+1) at each point -- so only the (typically few) grid points
         inside Ba's own support incur the cost of an adaptive quadrature split at the kink.
+        Within that support the two moments are accumulated by a forward and a backward SWEEP over the grid
+        cells, for the same reason as in buildScreenedPotentialClaude: consecutive points differ by one cell,
+        so re-integrating the whole sub-range at each point repeats work. fullInner and fullOuter are the end
+        values of those same sweeps, so they cannot drift away from the pointwise values.
         The optional mtpOut lets the caller request a LONGER output range explicitly -- needed, for instance, by
         RadialIntegrals.buildSlaterMomentCacheClaude, where BOTH Ba and orbComp are themselves compact B-splines
         (not a broad orbital), so size(orbComp,1) alone would be far too short for how the result is used later.
@@ -947,19 +984,42 @@ function buildScreenedPotentialPairClaude(k::Int64, Ba::Vector{Float64}, orbComp
     rStart  = grid.r[startIdx]
     rmaxSrc = rSrc[end]
 
-    fullInner = QuadGK.quadgk(s -> s^k * splBa(s), rStart, rmaxSrc, rtol=rtol)[1]
-    fullOuter = QuadGK.quadgk(s -> s^(-(k+1)) * splBa(s), rStart, rmaxSrc, rtol=rtol)[1]
+    # The output indices that fall strictly INSIDE the source's support, rStart < r < rmaxSrc; only these
+    # need quadrature, the two outer branches are O(1) each.
+    iFirst = startIdx + 1
+    iLast  = iFirst - 1
+    for  i = iFirst:mtpOutx     if  grid.r[i] < rmaxSrc    iLast = i    else    break    end    end
+
+    # FORWARD sweep:  inner[i] = int_{rStart}^{r_i} ds s^k rho(s), one grid cell at a time.
+    inner = zeros(mtpOutx);    acc = 0.
+    for  i = iFirst:iLast
+        acc      = acc + QuadGK.quadgk(s -> s^k * splBa(s), grid.r[i-1], grid.r[i], rtol=rtol)[1]
+        inner[i] = acc
+    end
+    fullInner = (iLast >= iFirst  &&  grid.r[iLast] < rmaxSrc) ?
+                acc + QuadGK.quadgk(s -> s^k * splBa(s), grid.r[iLast], rmaxSrc, rtol=rtol)[1]  :
+                QuadGK.quadgk(s -> s^k * splBa(s), rStart, rmaxSrc, rtol=rtol)[1]
+
+    # BACKWARD sweep:  outer[i] = int_{r_i}^{rmaxSrc} ds s^{-(k+1)} rho(s).  fullOuter is then the same
+    # sweep carried the last step down to rStart, so the two agree by construction.
+    outer = zeros(mtpOutx);    fullOuter = 0.
+    if  iLast >= iFirst
+        acc = QuadGK.quadgk(s -> s^(-(k+1)) * splBa(s), grid.r[iLast], rmaxSrc, rtol=rtol)[1]
+        outer[iLast] = acc
+        for  i = iLast-1:-1:iFirst
+            acc      = acc + QuadGK.quadgk(s -> s^(-(k+1)) * splBa(s), grid.r[i], grid.r[i+1], rtol=rtol)[1]
+            outer[i] = acc
+        end
+        fullOuter = acc + QuadGK.quadgk(s -> s^(-(k+1)) * splBa(s), rStart, grid.r[iFirst], rtol=rtol)[1]
+    else
+        fullOuter = QuadGK.quadgk(s -> s^(-(k+1)) * splBa(s), rStart, rmaxSrc, rtol=rtol)[1]
+    end
 
     for  i = 2:mtpOutx
         r = grid.r[i]
-        if       r >= rmaxSrc
-            Vk[i] = fullInner / r^(k+1)
-        elseif   r <= rStart
-            Vk[i] = r^k * fullOuter
-        else
-            inner = QuadGK.quadgk(s -> s^k * splBa(s), rStart, r, rtol=rtol)[1]
-            outer = QuadGK.quadgk(s -> s^(-(k+1)) * splBa(s), r, rmaxSrc, rtol=rtol)[1]
-            Vk[i] = inner / r^(k+1) + r^k * outer
+        if       r >= rmaxSrc    Vk[i] = fullInner / r^(k+1)
+        elseif   r <= rStart     Vk[i] = r^k * fullOuter
+        else                     Vk[i] = inner[i] / r^(k+1) + r^k * outer[i]
         end
     end
     return( Vk )
