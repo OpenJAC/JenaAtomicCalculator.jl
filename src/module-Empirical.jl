@@ -394,8 +394,28 @@ function Basics.perform(computation::Empirical.Computation; output::Bool=false)
     asfSettings = AsfSettings()
     
     if typeof(computation.settings)  in  [ImpactIonization.Settings]
+        ## AL-FIELD, NOT THE DEFAULT DFS FIELD (09-Aug-2026). The BEB/BED models take the orbital BINDING ENERGY
+        ## from this basis, B = -orbital.energy, and the cross section scales as 1/B^2 -- so the field chosen
+        ## here sets the absolute scale of every cross section the module returns, and it must be a field whose
+        ## eigenvalues ARE binding energies in the Koopmans sense.
+        ##
+        ## MEASURED (work/diag-eii-bindingenergy.jl), eigenvalue against the experimental binding energy:
+        ##                     He 1s              Ne 2p
+        ##     DFSField      14.07 eV (0.57x)   12.01 eV (0.56x)      <- the old default
+        ##     ALField       24.96 eV (1.02x)   23.10 eV (1.07x)
+        ##     HSField       11.45 eV (0.47x)    9.20 eV (0.43x)
+        ##     experiment    24.587 eV          21.565 eV
+        ## He's AL-Field eigenvalue is essentially the Hartree-Fock value 24.98 eV, which is what Koopmans'
+        ## theorem asks for; the DFS eigenvalue is systematically about 0.56 of the binding energy, and through
+        ## the 1/B^2 dependence that inflated every EII cross section by roughly a factor 3. For He I the peak
+        ## sat at 9.7e-17 cm^2 against a measured ~3.5e-17 cm^2, and the ionization threshold at 14 eV instead
+        ## of 24.6 eV.
+        ##
+        ## This is the same systematic underbinding of DFS orbitals found in the DF/AL work; the conclusion drawn
+        ## there -- use the AL-Field wherever INDIVIDUAL orbital energies matter -- applies to BEB exactly.
+        eiiSettings = AsfSettings(asfSettings; scField = Basics.ALField())
         # Generate an SCF basis for the given configurations to extract the one-particle energies for all shells
-        multiplet  = SelfConsistent.performSCF(computation.configs, nm, computation.grid, asfSettings)
+        multiplet  = SelfConsistent.performSCF(computation.configs, nm, computation.grid, eiiSettings)
         basis      = multiplet.levels[1].basis
         
     else
