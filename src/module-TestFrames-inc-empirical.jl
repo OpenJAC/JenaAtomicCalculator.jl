@@ -527,27 +527,68 @@ end
 function testModule_ImpactIonization(; short::Bool=true)
     Defaults.setDefaults("print summary: open", "test-ImpactIonization-new.sum")
     printstyled("\n\nTest the module  ImpactIonization  ... \n", color=:cyan)
-    ### Make the tests: total EII cross sections for He I (1s^2) with BEBmodel at 5 impact energies.
+    ### Make the tests: total EII cross sections for He I (1s^2) with the BEB model.
+    ##
+    ## THIS WAS A SMOKE TEST until 09-Aug-2026: it ran the computation and compared nothing, so it could only
+    ## fail by raising. It now asserts the three properties of a BEB curve that are fixed by the FORM of the
+    ## model and need no reference data -- a threshold, a single maximum, and a Bethe-like decay.
+    ##
+    ## WHAT IS DELIBERATELY *NOT* ASSERTED, AND WHY -- read this before adding a magnitude check. The peak of
+    ## this curve is 9.7e-17 cm^2, whereas the measured He I peak is about 3.5e-17 cm^2, i.e. the computed
+    ## cross section is roughly 3x too large. The cause is identified and is not in the BEB formula:
+    ##     bindingEnergy = - basis.orbitals[subshell].energy
+    ## takes B from the SCF eigenvalue, and with the default DFS field that is 14.07 eV for He 1s against an
+    ## ionization potential of 24.59 eV. Since sigma ~ 1/B^2, the inflation is (24.59/14.07)^2 = 3.06, which is
+    ## what is observed. It also puts the threshold at 14 eV instead of 24.6 eV.
+    ## Note this is NOT an argument against using an eigenvalue: a Hartree-Fock eigenvalue for He 1s is 24.98 eV
+    ## and would be right. It is the DFS eigenvalue that is not a binding energy -- the same systematic
+    ## underbinding recorded for DFS valence orbitals elsewhere in this project. JAC already carries tabulated
+    ## binding energies (Empirical.bindingEnergy(2, Shell("1s")) = 24.6 eV) if that route is preferred.
+    ## Encoding the present magnitude as an expected value would freeze a known 3x error into the suite, which
+    ## is exactly the failure mode this round of work exists to remove.
     grid        = Radial.Grid(Radial.Grid(false), rnt = 2.0e-5, h = 5.0e-2, hp = 1.5e-2, rbox = 9.5)
-    iEnergies   = [50.0, 100.0, 200.0, 500.0, 1000.0]
+    ## 10 eV lies below the model's own threshold (B = 14.07 eV here), so t < 1 and the cross section must vanish
+    iEnergies   = [10.0, 50.0, 100.0, 200.0, 500.0, 1000.0]
     shells      = Basics.generateShellList(1, 1, [0])
     selection   = ShellSelection(true, shells, Int64[])
     eiiSettings = ImpactIonization.Settings(ImpactIonization.BEBmodel(), 1, iEnergies, false, true, selection)
     comp        = Empirical.Computation("EII cross section for He I (BEBmodel).", Nuclear.Model(2.0), grid,
                                         [Configuration("1s^2")], eiiSettings)
-    perform(comp; output=true)
+    crossSections = perform(comp; output=true)["EII cross sections:"]
     ###
-    Defaults.setDefaults("print summary: close", "")
-    # Make the comparison with approved data
-    _, iostream = Defaults.getDefaults("test flag/stream")
-    println(iostream, "Make the comparison with approved data for ... test-ImpactIonization-new.sum")
-    ## Activate once test/approved/test-ImpactIonization-approved.sum has been verified and copied:
-    ## success = testCompareFiles( joinpath(@__DIR__, "..", "test", "approved", "test-ImpactIonization-approved.sum"),
-    ##                             joinpath(@__DIR__, "..", "test", "test-ImpactIonization-new.sum"),
-    ##                             "Total ionization cross sections", 11)
     success = true
+    sigma   = Dict( cs.impactEnergy => cs.partialCS   for cs in crossSections )
+    ## (1) BELOW THRESHOLD THE CROSS SECTION MUST VANISH EXACTLY. The BEB expression carries a (1 - 1/t) factor
+    ##     that is negative for t < 1, so a missing guard would show up here as a negative cross section.
+    if  !haskey(sigma, 10.0)  ||  sigma[10.0] != 0.
+        success = false;   println("** EII below threshold is not exactly zero: $(get(sigma, 10.0, "missing"))")
+    end
+    ## (2) EVERY CROSS SECTION ABOVE THRESHOLD MUST BE POSITIVE
+    for  en in [50.0, 100.0, 200.0, 500.0, 1000.0]
+        if  !haskey(sigma, en)  ||  sigma[en] <= 0.
+            success = false;   println("** EII cross section at $en eV is not positive")
+        end
+    end
+    ## (3) A SINGLE MAXIMUM at a few times the threshold: rising to 100 eV, falling monotonically beyond it.
+    if  sigma[100.0] <= sigma[50.0]
+        success = false;   println("** EII curve does not rise towards its maximum (100 vs 50 eV)")
+    end
+    if  !(sigma[100.0] > sigma[200.0] > sigma[500.0] > sigma[1000.0])
+        success = false;   println("** EII curve does not fall monotonically above its maximum")
+    end
+    ## (4) THE HIGH-ENERGY DECAY MUST BE BETHE-LIKE, sigma ~ ln(E)/E. That predicts
+    ##     sigma(500)/sigma(1000) = (ln 500/500)/(ln 1000/1000) = 1.80; the BEB expression carries further
+    ##     1/t terms, so the measured 1.66 is expected to sit somewhat below it. A band, not a point.
+    ratio = sigma[500.0] / sigma[1000.0]
+    if  !(1.4 < ratio < 2.0)
+        success = false;   println("** EII high-energy decay is not Bethe-like: sigma(500)/sigma(1000) = $ratio")
+    end
+    Defaults.setDefaults("print summary: close", "")
+    _, iostream = Defaults.getDefaults("test flag/stream")
+    println(iostream, "Shape checks only for ImpactIonization (threshold, single maximum, Bethe decay); " *
+                      "the MAGNITUDE is known to be ~3x high and is deliberately not asserted.")
     testPrint("testModule_ImpactIonization()::", success)
-    return(success)
+    return( success )
 end
 
 

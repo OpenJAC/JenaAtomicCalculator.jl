@@ -527,7 +527,10 @@ function Settings(set::CoulombExcitation.Settings;
     printBefore::Union{Nothing,Bool}=nothing,                       lineSelection::Union{Nothing,LineSelection}=nothing,
     zerosGL::Union{Nothing,Int64}=nothing)  
     
-    if  isnothing(ionEnergies)           ionEnergies          = set.ionEnergies             else  ionEnergiesx         = ionEnergies       end 
+    ## `ionEnergiesx`, not `ionEnergies` (fixed 08-Aug-2026): the if-branch assigned the PARAMETER instead of the
+    ## local that the constructor call below uses, so every copy-construction that did not pass ionEnergies
+    ## explicitly died in an UndefVarError -- i.e. the normal case. Found by the new structural test in TestFrames.
+    if  isnothing(ionEnergies)           ionEnergiesx         = set.ionEnergies             else  ionEnergiesx         = ionEnergies       end
     if  isnothing(calcAlignment)         calcAlignmentx       = set.calcAlignment           else  calcAlignmentx       = calcAlignment     end 
     if  isnothing(printBefore)           printBeforex         = set.printBefore             else  printBeforex         = printBefore       end 
     if  isnothing(lineSelection)         lineSelectionx       = set.lineSelection           else  lineSelectionx       = lineSelection     end 

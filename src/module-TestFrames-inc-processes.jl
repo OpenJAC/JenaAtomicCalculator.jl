@@ -35,14 +35,68 @@ function testModule_CoulombExcitation(; short::Bool=true)
     Defaults.setDefaults("print summary: open", "test-CoulombExcitation-new.sum")
     printstyled("\n\nTest the module  CoulombExcitation  ... \n", color=:cyan)
     ### Make the tests
+    ## THIS TEST USED TO ASSERT NOTHING (rewritten 08-Aug-2026). Its body between the two markers was EMPTY, its
+    ## file comparison was commented out -- and pointed at the AutoIonization approved file, a copy-paste
+    ## artifact -- and it returned success = true unconditionally. It therefore reported a pass for a module
+    ## that was never exercised, in every run of the suite.
+    ##
+    ## WHAT IS CHECKED NOW is the SCAFFOLD, not the physics: that the settings construct, copy-construct and
+    ## print. That is a deliberately modest bar, and it is not nothing -- three bug classes met this month would
+    ## have been caught by exactly these lines: a `Base.show` declared without its `io` argument while using it
+    ## (six methods at once in MultiPhotonTransition), a Settings field commented out while still referenced,
+    ## and a copy-constructor that silently fails to carry a value through. The last of those was found HERE:
+    ## the ionEnergies guard assigned the parameter instead of the local, so every copy-construction that did
+    ## not pass ionEnergies explicitly raised an UndefVarError.
+    ##
+    ## NOT COVERED: any Coulomb-excitation amplitude, cross section or alignment parameter. When an approved
+    ## reference exists, it belongs here.
+    success = true
+    settings = CoulombExcitation.Settings()
+    if  length(sprint(show, settings)) == 0     success = false;   println("** empty show for CoulombExcitation.Settings")   end
+    ## the copy-constructor must carry a changed value through AND leave the others intact
+    newSettings = CoulombExcitation.Settings(settings; printBefore=true, zerosGL=7)
+    if  !newSettings.printBefore                success = false;   println("** printBefore not carried by the copy-constructor")   end
+    if  newSettings.zerosGL != 7                success = false;   println("** zerosGL not carried by the copy-constructor")       end
+    if  newSettings.calcAlignment != settings.calcAlignment
+                                                success = false;   println("** calcAlignment altered by an unrelated keyword")     end
+    ##
+    ## THE PHYSICS CHECK, added 09-Aug-2026: sigma(Mi,Mf) = sigma(-Mi,-Mf), EXACTLY.
+    ##
+    ## This is the very symmetry whose violation exposed the root-cause bug of the July work on this module --
+    ## computeAmplitude's magnetic term was missing the -i prefactor that RATIP's coulex_pure_matrix() applies
+    ## to every magnetic contribution but which Eq. (8) of Surzhykov et al., PRA 77, 042722 (2008) does not show.
+    ## With the factor restored the equality holds to the last bit; without it, it fails visibly. It is
+    ## parameter-free, needs no reference data, and is precisely the guard that would catch a reintroduction.
+    ##
+    ## COST: about 50 s, dominated by the Z = 92 self-consistent field, not by the Coulomb-excitation quadrature
+    ## (verified -- shrinking the grid and halving zerosGL changed nothing). One impact energy is used.
+    ceSettings = CoulombExcitation.Settings(CoulombExcitation.Settings(); ionEnergies=[100.], calcAlignment=true,
+                                            printBefore=false, zerosGL=4)
+    wa = Atomic.Computation(Atomic.Computation(), name="U90+ K-L Coulomb excitation",
+                            grid = Radial.Grid(Radial.Grid(false), rnt=2.0e-5, h=5.0e-2, hp=1.5e-2, rbox=6.0),
+                            nuclearModel = Nuclear.Model(92.),
+                            initialConfigs = [Configuration("1s^2")], finalConfigs = [Configuration("1s 2p")],
+                            processSettings = ceSettings )
+    ceLines = perform(wa; output=true)["Coulomb excitation lines:"]
+    if  length(ceLines) == 0    success = false;   println("** no Coulomb-excitation lines were computed")   end
+    for  line in ceLines
+        partial = Dict( (mL.Mi, mL.Mf) => mL.partialCs   for mL in line.mLines )
+        for  ((Mi, Mf), cs) in partial
+            mMi = AngularM64(-Basics.twice(Mi)//2);    mMf = AngularM64(-Basics.twice(Mf)//2)
+            if  haskey(partial, (mMi, mMf))  &&  cs != 0.
+                if  abs(partial[(mMi, mMf)] - cs) / abs(cs) > 1.0e-10
+                    success = false
+                    println("** sigma(Mi,Mf) != sigma(-Mi,-Mf) for ($Mi,$Mf): " *
+                            "$(cs) vs $(partial[(mMi, mMf)]) -- the magnetic-term phase is the first suspect")
+                end
+            end
+        end
+    end
     ###
     Defaults.setDefaults("print summary: close", "")
-    # Make the comparison with approved data
     printTest, iostream = Defaults.getDefaults("test flag/stream")
-    println(iostream, "Make the comparison with approved data for ... test-CoulombExcitation-new.sum")
-    success = true
-    ## success = testCompareFiles( joinpath(@__DIR__, "..", "test", "approved", "test-AutoIonization-approved.sum"),
-    ##                             joinpath(@__DIR__, "..", "test", "test-AutoIonization-new.sum"), "AutoIonization rates and intrinsic angular parameters:", 25)
+    println(iostream, "CoulombExcitation: scaffold checks plus the exact sigma(Mi,Mf) = sigma(-Mi,-Mf) symmetry; " *
+                      "no cross section is compared against approved data.")
     testPrint("testModule_CoulombExcitation()::", success)
     return(success)
 end
@@ -250,14 +304,22 @@ function testModule_RayleighCompton(; short::Bool=true)
     Defaults.setDefaults("print summary: open", "test-RayleighCompton-new.sum")
     printstyled("\n\nTest the module  RayleighCompton  ... \n", color=:cyan)
     ### Make the tests
+    ## REWRITTEN 08-Aug-2026; it previously asserted nothing at all. See the note in testModule_CoulombExcitation
+    ## for what these scaffold checks do and do not cover.
+    ##
+    ## NOT COVERED: any Rayleigh or Compton scattering amplitude, cross section or Stokes parameter.
+    success = true
+    settings = RayleighCompton.Settings()
+    if  length(sprint(show, settings)) == 0     success = false;   println("** empty show for RayleighCompton.Settings")   end
+    newSettings = RayleighCompton.Settings(settings; multipoles=[E1, M1], calcStokes=true)
+    if  newSettings.multipoles != [E1, M1]      success = false;   println("** multipoles not carried by the copy-constructor")   end
+    if  !newSettings.calcStokes                 success = false;   println("** calcStokes not carried by the copy-constructor")   end
+    if  newSettings.calcAngular != settings.calcAngular
+                                                success = false;   println("** calcAngular altered by an unrelated keyword")      end
     ###
     Defaults.setDefaults("print summary: close", "")
-    # Make the comparison with approved data
     printTest, iostream = Defaults.getDefaults("test flag/stream")
-    println(iostream, "Make the comparison with approved data for ... test-RayleighCompton-new.sum")
-    success = true
-    ## success = testCompareFiles( joinpath(@__DIR__, "..", "test", "approved", "test-RayleighCompton-approved.sum"),
-    ##                             joinpath(@__DIR__, "..", "test", "test-RayleighCompton-new.sum"), "xxx", 100)
+    println(iostream, "Scaffold checks only for RayleighCompton; NO physics is compared against approved data.")
     testPrint("testModule_RayleighCompton()::", success)
     return(success)
 end
