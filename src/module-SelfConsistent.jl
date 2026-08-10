@@ -588,6 +588,59 @@ end
 
 
 """
+`SelfConsistent.projectOntoPositiveBranchClaude3(bVectors::Dict{Subshell, Vector{Float64}},
+        subshells::Array{Subshell,1}, primitives::Bsplines.Primitives, nucPot::Radial.Potential,
+        matrixB::Array{Float64,2}, storage::Dict{String,Array{Float64,2}})`  
+    ... projects every orbital onto the POSITIVE-ENERGY branch of its own kappa block, then S-orthonormalizes
+        the orbitals of each kappa among themselves, entirely in B-spline coefficient space. Returns the
+        projected (bVectors, maximum negative-branch weight removed).
+
+        This is what keeps the rotation from collapsing into the Dirac sea. The Dirac operator is unbounded
+        below, so the energy has no minimum once an orbital acquires negative-continuum character. The
+        rotation DIRECTIONS are all positive-branch by construction, but the round trip
+        b -> Bsplines.generateOrbitalFromVectorClaude -> b truncates at mtp and cleans small values, and that
+        residue carries negative-branch content. Measured for Be with 48 directions: the 2s negative-branch
+        weight jumps from 5e-12 to 1.2e-04 in one step and to 3.3e-03 in the next, at which point <h1> for 2s
+        has gone from -1.6 to -43.5 and the energy to -69.9 Ha. Projecting after every step removes the
+        residue before it can be amplified. The orthonormalization is done here, in coefficient space, rather
+        than via orthonormalizeSameKappaClaude, precisely to avoid that lossy round trip.
+"""
+function projectOntoPositiveBranchClaude3(bVectors::Dict{Subshell, Vector{Float64}}, subshells::Array{Subshell,1},
+                                          primitives::Bsplines.Primitives, nucPot::Radial.Potential,
+                                          matrixB::Array{Float64,2}, storage::Dict{String,Array{Float64,2}})
+    out    = Dict{Subshell, Vector{Float64}}()
+    worst  = 0.
+    posSet = Dict{Int64, Array{Vector{Float64},1}}()
+    for  kappa  in  unique( [sh.kappa for sh in subshells] )
+        oneEl = Bsplines.setupLocalMatrix(kappa, primitives, nucPot, storage)
+        wc    = Bsplines.diagonalizeLocalMatrix(kappa, oneEl, matrixB, primitives)
+        mm    = Bsplines.findPositiveBranchStart(wc.values)
+        posSet[kappa] = [ wc.vectors[i]  for i = mm:length(wc.values) ]
+    end
+    ## (1) project each orbital on the positive branch of its kappa
+    for  sh  in  subshells
+        b = bVectors[sh];    v = zeros( length(b) )
+        for  phi  in  posSet[sh.kappa]    v = v + (transpose(phi) * matrixB * b) * phi    end
+        nrm2Full = abs( transpose(b) * matrixB * b );    nrm2Pos = abs( transpose(v) * matrixB * v )
+        worst    = max( worst, 1.0 - nrm2Pos/max(nrm2Full,1.0e-30) )
+        out[sh]  = v / sqrt( max(nrm2Pos, 1.0e-30) )
+    end
+    ## (2) S-orthonormalize within each kappa, in coefficient space, so the positive span is preserved
+    for  kappa  in  unique( [sh.kappa for sh in subshells] )
+        done = Vector{Float64}[]
+        for  sh  in  subshells
+            if  sh.kappa != kappa    continue    end
+            v = out[sh]
+            for  u  in  done    v = v - (transpose(u) * matrixB * v) * u    end
+            nrm = sqrt( abs(transpose(v) * matrixB * v) )
+            if  nrm > 1.0e-10    v = v / nrm;    push!(done, v);    out[sh] = v    end
+        end
+    end
+    return( out, worst )
+end
+
+
+"""
 `SelfConsistent.solveOptimizedLevelFieldClaude3(basis::Basis, nuclearModel::Nuclear.Model,
         primitives::Bsplines.Primitives, settings::AsfSettings; printout::Bool=true)`  
     ... EOL by direct minimization of the energy over orbital ROTATIONS, instead of by solving a per-subshell
@@ -629,6 +682,8 @@ function solveOptimizedLevelFieldClaude3(basis::Basis, nuclearModel::Nuclear.Mod
     blockCaches = Dict()
     for  sym  in  relevantSyms    blockCaches[sym] = SelfConsistent.cacheCsfPairCoefficientsEOL(sym, basis)   end
 
+    (bVectors, _) = SelfConsistent.projectOntoPositiveBranchClaude3(bVectors, basis.subshells, primitives,
+                                                                     nucPot, matrixB, storage)
     ePrevious = 0.;   tStep = 1.0;   multiplet = Multiplet("EOL-Claude3", Level[])
     for  iter = 1:settings.maxIterationsScf
         orbitals = Dict{Subshell, Orbital}()
@@ -692,12 +747,11 @@ function solveOptimizedLevelFieldClaude3(basis::Basis, nuclearModel::Nuclear.Mod
             eTrial = SelfConsistent.energyFromBVectorsClaude3(newB, coeffs1p, coeffs2p, basis.subshells,
                                                                primitives, grid, nucPot)
             if  eTrial < e0
-                newOrbs = Dict{Subshell, Orbital}()
-                for  sh in basis.subshells
-                    newOrbs[sh] = Bsplines.generateOrbitalFromVectorClaude(sh, 0.0, newB[sh], primitives)
+                (bVectors, negW) = SelfConsistent.projectOntoPositiveBranchClaude3(newB, basis.subshells,
+                                                        primitives, nucPot, matrixB, storage)
+                if  printout  &&  negW > 1.0e-8
+                    println(">> [EOL-C3] removed negative-branch weight $negW from the step.")
                 end
-                (_, bVectors) = SelfConsistent.orthonormalizeSameKappaClaude(newOrbs, newB, basis.subshells,
-                                                                             primitives, matrixB)
                 accepted = true;    tStep = min(1.0, 1.3*tStep);    break
             end
             tStep = tStep / 2
