@@ -46,7 +46,7 @@ function computeAngularCoefficients(scField::Basics.ALField, basis::Basis)
             T = T + cf.T;    hasConsidered[ic] = true
             for   (icx, cfx) in enumerate(coeffs1p)
                 if    hasConsidered[icx]   
-                elseif  nu == cfx.nu  &&  a == cfx.a  &&  b == cf.b     T = T + cfx.T;    hasConsidered[icx] = true
+                elseif  nu == cfx.nu  &&  a == cfx.a  &&  b == cfx.b    T = T + cfx.T;    hasConsidered[icx] = true
                 end 
             end
             push!(coeffs1px, SpinAngular.Coefficient1p(nu, a, b, T) );  T = 0.
@@ -322,7 +322,7 @@ function combineAngularCoefficientsEOL(blockCaches, targetLevels::Array{Level,1}
             T = T + cf.T;    hasConsidered[ic] = true
             for   (icx, cfx) in enumerate(coeffs1p)
                 if    hasConsidered[icx]
-                elseif  nu == cfx.nu  &&  a == cfx.a  &&  b == cf.b     T = T + cfx.T;    hasConsidered[icx] = true
+                elseif  nu == cfx.nu  &&  a == cfx.a  &&  b == cfx.b    T = T + cfx.T;    hasConsidered[icx] = true
                 end
             end
             push!(coeffs1px, SpinAngular.Coefficient1p(nu, a, b, T) );  T = 0.
@@ -744,11 +744,20 @@ function solveOptimizedLevelFieldClaude3(basis::Basis, nuclearModel::Nuclear.Mod
                 for  (iv, phi)  in  enumerate(virt[sh])    v = v + tStep * step[sh][iv] * phi    end
                 newB[sh] = v / sqrt( abs(transpose(v) * matrixB * v) )
             end
-            eTrial = SelfConsistent.energyFromBVectorsClaude3(newB, coeffs1p, coeffs2p, basis.subshells,
+            ## The projection must happen BEFORE the acceptance test, not after it.  Projecting and
+            ## re-orthonormalizing moves the orbitals, so accepting `newB` on the strength of its own energy
+            ## and then storing the PROJECTED vector stores something that was never tested -- and the
+            ## projection gives a little of the gain back each step.  That broke monotonicity: on Li the
+            ## driver reduced the gradient 19-fold while the energy ROSE by 3.7e-7 Ha, which a descent
+            ## method cannot do.  Testing the projected vector restores  E(new) < E(old)  by construction,
+            ## and with it the guarantee that the CI eigenvalue falls too (it is bounded above by this
+            ## fixed-coefficient functional, and equals it at the previous orbitals).
+            (projB, negW) = SelfConsistent.projectOntoPositiveBranchClaude3(newB, basis.subshells,
+                                                    primitives, nucPot, matrixB, storage)
+            eTrial = SelfConsistent.energyFromBVectorsClaude3(projB, coeffs1p, coeffs2p, basis.subshells,
                                                                primitives, grid, nucPot)
             if  eTrial < e0
-                (bVectors, negW) = SelfConsistent.projectOntoPositiveBranchClaude3(newB, basis.subshells,
-                                                        primitives, nucPot, matrixB, storage)
+                bVectors = projB
                 if  printout  &&  negW > 1.0e-8
                     println(">> [EOL-C3] removed negative-branch weight $negW from the step.")
                 end
