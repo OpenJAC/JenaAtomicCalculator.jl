@@ -329,14 +329,18 @@ end
     ... computes the mean subshell occupation for the subshell sh and for the given CSF in the basis; a q::Float64 is returned.
 """
 function Basics.computeMeanSubshellOccupation(sh::Subshell, basis::Basis)
-    q = 0.
-    for  csf in basis.csfs
-        subshells = basis.subshells;    nsh = 0
-        for  i = 1:length(basis.subshells)    if  sh == subshells[i]   nsh = i;   break   end    end
-        if   nsh == 0   error("Subshell not found in CSF basis.")   end
-        #
-        for  i = 1:length(basis.csfs)   q = q + basis.csfs[i].occupation[nsh]    end
-    end
+    ## The loop below runs over the CSFs ONCE. An additional, outer loop over basis.csfs used to enclose it
+    ## (10-Aug-2026); since the inner loop already sums over every CSF, that outer loop repeated the full sum
+    ## length(basis.csfs) times while the division below removes only one such factor -- so this function
+    ## returned the SUM over CSFs instead of their mean, i.e. a result too large by exactly the number of
+    ## CSFs. For a 12-CSF [Ar] 4p 4d basis the subshell occupations then summed to 240 rather than 20
+    ## electrons. Only the DFS potential built from a Basis and ImpactIonization use this method; every other
+    ## caller passes an Array{Level,1} to the method above, which was never affected.
+    q = 0.;    subshells = basis.subshells;    nsh = 0
+    for  i = 1:length(basis.subshells)    if  sh == subshells[i]   nsh = i;   break   end    end
+    if   nsh == 0   error("Subshell not found in CSF basis.")   end
+    #
+    for  i = 1:length(basis.csfs)   q = q + basis.csfs[i].occupation[nsh]    end
     return( q/length(basis.csfs) )
 end
 

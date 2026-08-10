@@ -1,8 +1,36 @@
 
 """
-`module  JAC.InternalRecombination`  
-... a submodel of JAC that contains all methods for computing internal-recombination rates between some initial 
+`module  JAC.InternalRecombination`
+... a submodel of JAC that contains all methods for computing internal-recombination rates between some initial
     (Rydberg-type) and final-state multiplets.
+
+    STATUS, 10-Aug-2026:  POSTPONED BY THE MAINTAINER for a longer time.  Do not pick this module up, and do
+    not "helpfully" tune its numbers, without asking first.
+
+    What is settled.  The Rydberg orbitals this module generates are now correct: the 10g orbital of the
+    Xe^35+ K-like case comes out at -6.194 Hartree against a hydrogenic -6.129, i.e. 1%, and the mean field
+    screens by exactly Z - N.  Two earlier defects are fixed -- the missing nuclear term in the mean-field
+    potential (3-Aug-2026) and Basics.computeMeanSubshellOccupation returning a sum where it promised a mean,
+    which screened the Rydberg electron with N_csf x N electrons (10-Aug-2026).  The two-electron amplitudes
+    are ~0.013 a.u., matching an independent n^(-3/2) Rydberg estimate.  RELATIVE results -- which channels
+    and levels dominate -- are meaningful.
+
+    What is NOT settled, and why no example branch may be dated "Last successful".  The ABSOLUTE rates are
+    not determined by this code, for two reasons that are not bugs but open modelling questions.  First, at
+    resonance the rate is 2*pi*|V|^2 / (gamma/2) and therefore DIVERGES as gamma -> 0; `gamma` is a free
+    parameter with no first-principles value here, so every absolute number depends on a knob.  Second,
+    `determineLines` balances an N-electron against an (N+1)-electron level while omitting the Rydberg
+    electron's own binding energy; `resonanceEnergyShift` is a hand-set stand-in for it, and the example uses
+    -0.5 Hartree where the computed 10g energy is -6.194.  The module is left callable rather than raising,
+    because the relative picture is sound and the arbitrary absolute scale is a modelling choice that this
+    docstring now states plainly -- not a hidden defect.
+
+    What is NOT progress.  Do not read agreement, or disagreement, with the May-2024 reference numbers as a
+    test of anything: that reference was produced by a since-deleted orbital pathway, and it also contained
+    the spurious 2.2e3 display factor removed on 10-Aug-2026, so it cancels on both sides of any comparison.
+    Chasing it consumed two sessions and settled nothing; the reference-free hydrogenic check settled the
+    same question in minutes.  Likewise, the rate changes recorded in example-Dm.jl across 2-Aug, 3-Aug and
+    10-Aug are the consequences of fixing inputs, not evidence about the physics.
 """
 module InternalRecombination
 
@@ -404,7 +432,7 @@ end
         otherwise.
 """
 function  displayTotalRates(stream::IO, lines::Array{InternalRecombination.Line,1}, settings::InternalRecombination.Settings)
-    nx = 106
+    nx = 81
     println(stream, " ")
     println(stream, "  Total internal-recombination rates for initial levels without and with the resonance shift: \n")
     println(stream, "  Resonance shift [Hartree]:    $(settings.resonanceEnergyShift) ")
@@ -419,7 +447,6 @@ function  displayTotalRates(stream::IO, lines::Array{InternalRecombination.Line,
     sb = sb * TableStrings.center(22, TableStrings.inUnits("rate");  na=3)
     sa = sa * TableStrings.center(16, "Total IDE rate"; na=2);                           
     sb = sb * TableStrings.center(16, TableStrings.inUnits("rate");  na=2)
-    sa = sa * TableStrings.center(22, "A_IDE / A_radiative"; na=3);       
     println(stream, sa);    println(stream, sb);    println(stream, "  ", TableStrings.hLine(nx)) 
     #
     used = falses(length(lines))
@@ -433,14 +460,12 @@ function  displayTotalRates(stream::IO, lines::Array{InternalRecombination.Line,
             end
         end
         #
-        totalZ = 2.2e3 * totalZ;    total = 2.2e3 * total
         isym = LevelSymmetry( line.initialLevel.J, line.initialLevel.parity)
         sa = "      " * string(line.initialLevel.index);   sb = "            " * string(isym)
         sa = sa[end-6:end] * sb[end-10:end] * "  "
         sa = sa * @sprintf("%.6e", Defaults.convertUnits("energy: from atomic", line.initialLevel.energy))  * "       "
         sa = sa * @sprintf("%.6e", Defaults.convertUnits("rate: from atomic", totalZ))                      * "          "
         sa = sa * @sprintf("%.6e", Defaults.convertUnits("rate: from atomic", total))                       * "        "
-        sa = sa * @sprintf("%.6e", rand(1)[1] )                       * "      "
         println(stream, sa)
     end
     println(stream, "  ", TableStrings.hLine(nx))
