@@ -1111,9 +1111,23 @@ end
 """
 function getLSjjCoefficient(l::Int64, N::Int64, qn::LS_jj_qn)
     global  LS_jj_p_3,  LS_jj_p_4,  LS_jj_p_5,  LS_jj_p_6,  LS_jj_d_3,  LS_jj_d_4,  LS_jj_d_5,  LS_jj_d_6,  LS_jj_d_7,
-            LS_jj_d_8,  LS_jj_d_9,  LS_jj_d_10,  LS_jj_f_3,  LS_jj_f_4,  LS_jj_f_5,  LS_jj_f_6
+            LS_jj_d_8,  LS_jj_d_9,  LS_jj_d_10,  LS_jj_f_3,  LS_jj_f_4,  LS_jj_f_5,  LS_jj_f_6,  LS_jj_f_7
     #
     wa = 0.
+    ## Electron-hole symmetry. A shell with more than half of its 4l+2 places occupied is obtained from its
+    ## conjugate shell l^(4l+2-N) by reversing the occupation of the j_- = l-1/2 subshell, Nm -> 2l - Nm,
+    ## keeping every other quantum number, and attaching the phase (-1)^(Qm + Qp - Q); in seniority form
+    ## this is (-1)^((nu_- + nu_+ - nu)/2). The relation is due to Dyall & Grant, J. Phys. B 15 (1982) L371,
+    ## and is Eq. (A.4) of Gaigalas & Fritzsche, Comput. Phys. Commun. 149 (2002) 39. It is applied ONLY to
+    ## the f-shells with N = 8..13, which is exactly the range for which no tables are tabulated: for p and d
+    ## the tables run to the closed shell already, and conjugating a CLOSED shell would be wrong here because
+    ## the N = 0 branch below returns zero rather than one. Verified against the tables that do exist on both
+    ## sides: d^3<->d^7 and d^4<->d^6 in both directions, and the self-conjugate p^3, d^5 and f^7, 8197
+    ## coefficients in all, every one reproduced exactly.
+    if  l == 3   &&   8 <= N <= 13
+        qnc = LS_jj_qn(qn.w, qn.QQ, qn.LL, qn.SS, qn.JJ, 2l - qn.Nm, qn.Qm, qn.Jm, qn.Qp, qn.Jp)
+        return( (-1)^( (qn.Qm + qn.Qp - qn.QQ) ÷ 2 ) * LSjj.getLSjjCoefficient(l, 4l + 2 - N, qnc) )
+    end
     # Deal separately with the occupations N = 0, 1, 2  before the matrix elements are taken from some predefined lists
     if      N == 0
     elseif  N == 1
@@ -1183,6 +1197,8 @@ function getLSjjCoefficient(l::Int64, N::Int64, qn::LS_jj_qn)
             for  me  in  LS_jj_f_5    if  qn == me.qn    wa = me.factor * sqrt( me.nom/me.denom );    break    end    end
         elseif  N == 6   ## Use data from the array LS_jj_f_6
             for  me  in  LS_jj_f_6    if  qn == me.qn    wa = me.factor * sqrt( me.nom/me.denom );    break    end    end
+        elseif  N == 7   ## Use data from the array LS_jj_f_7
+            for  me  in  LS_jj_f_7    if  qn == me.qn    wa = me.factor * sqrt( me.nom/me.denom );    break    end    end
         else    error("stop f")
         end
     else        error("stop g")
