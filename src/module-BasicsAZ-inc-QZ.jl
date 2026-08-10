@@ -416,7 +416,7 @@ function Basics.selectLevelTriple(iLevel::Level, nLevel::Level, fLevel::Level, p
         end
         # Test for level symmetries
         for sp in  pathwaySelection.symmetryTriples
-            if      ip == (LevelSymmetry(iLevel.J, iLevel.parity),  LevelSymmetry(nLevel.J, nLevel.parity),  
+            if      sp == (LevelSymmetry(iLevel.J, iLevel.parity),  LevelSymmetry(nLevel.J, nLevel.parity),
                             LevelSymmetry(fLevel.J, fLevel.parity))                      return( true ) 
             end
         end

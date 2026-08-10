@@ -112,7 +112,7 @@ elseif false
     #
     setDefaults("print summary: close", "")
     #
-elseif true
+elseif false
     #
     # Last successful:  14-Jul-2026
     # Test DoubleExperimentModel on He I — verifies the NaN fix (c_gamma=0 guard)
@@ -151,6 +151,62 @@ elseif false
     nucModel    = Nuclear.Model(5.0)
     eiiSettings = ImpactIonization.Settings(approx, multipleN, iEnergies, false, true, selection)
     comp        = Empirical.Computation(name, nucModel, grid, configs, eiiSettings)
+    #
+    perform(comp; output=true)
+    #
+    setDefaults("print summary: close", "")
+    #
+elseif true
+    #
+    # Last visit:  10-Aug-2026
+    # Last successful:  10-Aug-2026
+    # EII of an OPEN-SHELL target: C I (1s^2 2s^2 2p^2) with the BEB model.
+    #
+    # WHY THIS BRANCH EXISTS. Every other EII test and example here uses a CLOSED shell -- He 1s^2, Ne IX
+    # 1s^2, Kr XIX [Ar] -- whose basis holds a SINGLE CSF. TestFrames.testModule_ImpactIonization uses
+    # He 1s^2 for the same reason. That is a blind spot: the BEB cross section is LINEAR in the mean
+    # subshell occupation, and Basics.computeMeanSubshellOccupation(sh, basis) is a per-CSF AVERAGE, so a
+    # defect in that averaging is exactly inert when there is only one CSF to average over. One was present
+    # until 10-Aug-2026 (commit cef7c63): a spurious outer loop made the function return the SUM over CSFs
+    # instead of their mean, i.e. a result too large by the number of CSFs. The C I basis below holds 5
+    # CSFs, and its 2p cross sections were correspondingly 5.2-7.3x too large -- ENERGY-DEPENDENTLY so, so
+    # the shape of the curve was wrong too, not merely its scale. No closed-shell case could ever have shown
+    # this.
+    #
+    # WHAT TO CHECK, and it is an EXACT invariant rather than a tolerance: the mean subshell occupations
+    # must sum to the number of electrons. That equality is what the defect violated (it gave 30.0 for the
+    # 6 electrons of C I), and it holds independently of any model, grid or measurement. The branch prints
+    # the occupations and their sum for exactly this reason. Observed 10-Aug-2026:
+    #     1s_1/2 = 2.0,  2s_1/2 = 2.0,  2p_1/2 = 0.8,  2p_3/2 = 1.2,  summing to 6.0 for 6 electrons.
+    # Note that 0.8 : 1.2 is NOT the degeneracy-weighted statistical ratio 2 : 4 (which would give
+    # 0.667 : 1.333). It should not be: Basics.computeMeanSubshellOccupation averages over the CSFs of the
+    # basis with EQUAL weight, not with the weight of each subshell's degeneracy. The 2p pair still sums to
+    # 2.0 electrons, which is the invariant that matters. Do not "correct" 0.8 : 1.2 towards 0.667 : 1.333.
+    #
+    # For the MAGNITUDE: the total cross section peaks here at 2.53e-16 cm^2 (2.527e+08 barn) near 70 eV,
+    # which is the right order for neutral carbon. Compare against Kim & Desclaux, Phys. Rev. A 66, 012708
+    # (2002), who applied BEB to exactly C, N and O, and against the measurements of Brook, Harrison &
+    # Smith, J. Phys. B 11, 3115 (1978), still the recommended data for neutral carbon. No literature number
+    # is asserted here because none was verified at first hand this session; the comparison is left explicit
+    # rather than baked into a tolerance that would then be believed.
+    approx      = ImpactIonization.BEBmodel()
+    multipleN   = 1
+    iEnergies   = [20., 30., 50., 70., 100., 150., 200., 300., 500., 1000.]   ## C I ionization potential 11.26 eV
+    shells      = [Shell("1s"), Shell("2s"), Shell("2p")]
+    selection   = ShellSelection(true, shells, Int64[])
+    configs     = [Configuration("1s^2 2s^2 2p^2")]
+    name        = "EII cross section for the open-shell target C I (BEBmodel)."
+    nucModel    = Nuclear.Model(6.0)
+    eiiSettings = ImpactIonization.Settings(approx, multipleN, iEnergies, false, true, selection)
+    comp        = Empirical.Computation(name, nucModel, grid, configs, eiiSettings)
+    #
+    ## The occupation sum rule, printed so that it is checked rather than assumed
+    wa    = Atomic.Computation(Atomic.Computation(), name="C I basis", grid=grid, nuclearModel=nucModel, configs=configs)
+    basis = perform(wa; output=true)["multiplet:"].levels[1].basis
+    println("\n>> C I basis holds $(length(basis.csfs)) CSFs and $(basis.NoElectrons) electrons.")
+    qList = [Basics.computeMeanSubshellOccupation(sh, basis)  for sh in basis.subshells]
+    for  (k, sh) in enumerate(basis.subshells)    println("     mean occupation of $sh  = $(qList[k])")    end
+    println(">> The occupations sum to $(sum(qList)) and must equal $(basis.NoElectrons) electrons exactly.")
     #
     perform(comp; output=true)
     #
