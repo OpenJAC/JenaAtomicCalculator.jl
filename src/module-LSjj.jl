@@ -1897,6 +1897,6 @@ const   LS_jj_d_10= [ LS_jj_me( LS_jj_qn(0, 5, 0, 0, 0, 4, 2, 0, 3, 0),  1, 1, 1
                         
                             
 # Include coupling matrix elements for open f-shell
-## include("../src/module-LSjj-inc.jl")
+include("module-LSjj-inc.jl")
 
 end # module			
