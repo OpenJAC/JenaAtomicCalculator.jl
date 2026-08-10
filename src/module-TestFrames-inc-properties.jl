@@ -179,12 +179,28 @@ function testModule_MultipolePolarizibility(; short::Bool=true)
     ##       perturbers is positive, so a sum over a FINITE, BOUND-ONLY set of np states is a strict lower bound
     ##       on the exact 4.5 a.u. Hence 0 < alpha0 < 4.5, which catches both a sign error and a runaway.
     ##
-    ## WHAT IT DOES NOT CHECK, and why. The Coulomb-gauge value comes out around 2e-6 where Babushkin gives 1.3,
-    ## a discrepancy of six orders of magnitude. That is recorded rather than asserted: pinning it would freeze a
-    ## number that is not understood, and the module is in any case still blocked on the B-spline
-    ## pseudo-continuum bug, which is what keeps the perturber sum from reaching 4.5 in the first place.
+    ## THE "B-SPLINE PSEUDO-CONTINUUM BUG" THAT BLOCKED THIS MODULE WAS NEVER A BUG -- it was this test's own
+    ## radial box (10-Aug-2026). With rbox = 20 a.u. the np perturbers came out at -0.12500, -0.05160 and
+    ## +0.00817 a.u.; the 4p pair is POSITIVE, which is exactly the "pseudo-continuum orbitals get near-zero
+    ## energies" symptom that was recorded as a Bsplines defect. Those Rydberg perturbers simply need a wider
+    ## box: at rbox = 80 they are -0.12500, -0.05556, -0.03125, i.e. the exact hydrogenic values, and the
+    ## result is converged (rbox = 150 and 300 reproduce it digit for digit). hp was widened 1.0e-2 -> 4.0e-2
+    ## at the same time: the linear part of a log-lin grid costs rbox/hp points, so rbox = 80 at hp = 1.0e-2
+    ## needs 8344 points and 6.6 s, while hp = 4.0e-2 gives the SAME perturber energies with 2338 points in
+    ## 0.5 s -- i.e. the wider box costs nothing once hp is matched to it. The new grid check in
+    ## Bsplines.checkGridRepresentation flags precisely this and recommends 77.4 a.u.; it was that check,
+    ## on its first run over the suite, which found it.
+    ##
+    ## WHAT IT DOES NOT CHECK, and why. The Coulomb-gauge value comes out around 1.5e-6 where Babushkin gives
+    ## 1.164, a discrepancy of six orders of magnitude, and it does NOT move with the box. It is a category
+    ## error rather than a numerical one: a STATIC polarizability has no gauge freedom, and the Coulomb column
+    ## here evaluates MabEmission -- the frequency-DEPENDENT transition operator -- at omega = 0, where the
+    ## velocity form needs the 1/omega that connects it to the length form. The frequency-independent operator
+    ## that belongs in a static polarizability (and in C_6/C_8/C_10 dispersion coefficients) is
+    ## InteractionStrength.eMultipole, assembled by MultipoleMoment.emmStaticAmplitude -- Johnson's r^k C_k,
+    ## with no omega and no gauge. Recorded rather than asserted, since fixing it is a separate task.
     ni    = Nuclear.Model(1.0, "point")
-    grid  = Radial.Grid(Radial.Grid(false), rnt=4.0e-6, h=5.0e-2, hp=1.0e-2, rbox=20.0)
+    grid  = Radial.Grid(Radial.Grid(false), rnt=4.0e-6, h=5.0e-2, hp=4.0e-2, rbox=80.0)
     scf   = Basics.NuclearField();   asf = AsfSettings(AsfSettings(); scField=scf)
     gMp   = generate(Representation("np perturbers", ni, grid,
                        [Configuration("2p"), Configuration("3p"), Configuration("4p")],

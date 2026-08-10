@@ -166,8 +166,79 @@ function generateOrbitalsHydrogenic(subshells::Array{Subshell,1}, nm::Nuclear.Mo
     else                            error("stop a")
     end
     
+    Bsplines.checkGridRepresentation(subshells, nm.Z, primitives)
     orbitals = Bsplines.generateOrbitals(subshells, pot, nm, primitives; printout=printout)
     return( orbitals )
+end
+
+
+"""
+`Bsplines.checkGridRepresentation(subshells::Array{Subshell,1}, Z::Float64, primitives::Bsplines.Primitives;
+                                  accuracy::Float64=1.0e-3, stopper::Bool=true)`
+    ... checks whether the given radial grid can represent every subshell of the list, by solving the
+        single-electron Dirac equation for a POINT nucleus of charge Z on this grid and comparing each level
+        with the closed-form point-nucleus energy Basics.computeDiracEnergy(sh, Z). Every subshell whose
+        energy deviates by more than `accuracy` is listed, and an error is raised; with stopper = false a
+        loud warning is printed instead and the computation proceeds.
+
+        WHY A POINT NUCLEUS IS THE RIGHT YARDSTICK, whatever the computation itself uses. The question asked
+        here is not "is this orbital physically accurate" but "can this GRID resolve an orbital of this size
+        and shape at all", and only the point-nucleus spectrum has closed-form energies to test against. An
+        extended nucleus, or a Dirac-Fock rather than a bare nuclear field, changes each individual orbital
+        by a modest factor -- it does not change the ORDER of the spectrum, nor the radial scale that the box
+        has to accommodate. So a grid that fails this test will fail the real computation too.
+
+        THE USUAL CAUSE IS A BOX THAT IS TOO LARGE, not one that is too small. The number of B-splines is
+        fixed, so a box much wider than the orbitals spends them on empty space and starves the physical
+        region: at Z = 10 the default box of 614 a.u. leaves 5f_7/2 wrong by 31%, while a box of 11 a.u.
+        -- matched to the orbital -- gives it to 6e-5. A hydrogenic orbital (n,l) has its outer turning
+        point at r_plus = (n^2/Z) (1 + sqrt(1 - l(l+1)/n^2)), and a box of roughly 2.5 r_plus is a good
+        choice; cf. Radial.Grid(grid; rbox=..).
+        A tuple  (isRepresentable::Bool, recommendedRbox::Float64)  is returned.
+"""
+function checkGridRepresentation(subshells::Array{Subshell,1}, Z::Float64, primitives::Bsplines.Primitives;
+                                 accuracy::Float64=1.0e-3, stopper::Bool=true)
+    grid    = primitives.grid;      nsL = grid.nsL;     nsS = grid.nsS
+    pot     = Nuclear.pointNucleus(Z, grid)
+    storage = Dict{String,Array{Float64,2}}()
+    wb      = zeros( nsL+nsS, nsL+nsS )
+    wb[1:nsL,1:nsL]                 = Bsplines.generateTTpMatrix!("LL-overlap", 0, primitives, storage)
+    wb[nsL+1:nsL+nsS,nsL+1:nsL+nsS] = Bsplines.generateTTpMatrix!("SS-overlap", 0, primitives, storage)
+    #
+    offenders = Tuple{Subshell,Float64,Float64,Float64}[];       rbox = 0.
+    for  kappa  in  unique( [sh.kappa  for sh in subshells] )
+        wa = Bsplines.setupLocalMatrix(kappa, primitives, pot, storage)
+        w2 = Bsplines.diagonalizeLocalMatrix(kappa, wa, wb, primitives)
+        mm = Bsplines.findPositiveBranchStart(w2.values)
+        for  sh  in  subshells
+            if  sh.kappa != kappa                                        continue    end
+            l  = Basics.subshell_l(sh);      ni = mm + sh.n - l - 1
+            ex = Basics.computeDiracEnergy(sh, Z)
+            if  ni < 1  ||  ni > length(w2.values)   en = NaN;   dev = Inf
+            else                                     en = w2.values[ni];   dev = abs(en/ex - 1)    end
+            if  dev > accuracy      push!(offenders, (sh, en, ex, dev))                            end
+            wr   = (sh.n^2/Z) * (1 + sqrt( max(0., 1 - l*(l+1)/sh.n^2) ));      rbox = max(rbox, 2.5*wr)
+        end
+    end
+    #
+    if  length(offenders) > 0
+        printstyled("\n>>> GRID CHECK FAILED: on this grid the following subshells are not represented to the requested " *
+                    "accuracy of $accuracy\n>>> in the pure (point-nucleus, Z = $Z) Dirac spectrum:\n", color=:light_red)
+        printstyled("      subshell      E(grid) [a.u.]      E(Dirac) [a.u.]     rel. deviation\n", color=:light_red)
+        for  (sh, en, ex, dev)  in  offenders
+            printstyled(@sprintf("    %10s    %+.8e     %+.8e      %.2e\n", string(sh), en, ex, dev), color=:light_red)
+        end
+        printstyled(@sprintf(">>> The present box is r_max = %.1f a.u.;  a box of about %.1f a.u. suits these subshells.\n",
+                             grid.r[end], rbox), color=:light_red)
+        printstyled(">>> Note that a box which is much TOO LARGE starves the basis just as badly as one that is too\n" *
+                    ">>> small, since the number of B-splines is fixed;  use Radial.Grid(grid; rbox=..) to match it.\n",
+                    color=:light_red)
+        if  stopper   error("Bsplines.checkGridRepresentation(): the grid fails to represent " *
+                            "$(length(offenders)) of $(length(subshells)) subshells to accuracy $accuracy.")   end
+        return( (false, rbox) )
+    end
+
+    return( (true, rbox) )
 end
 
 
