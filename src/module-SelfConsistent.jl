@@ -6,7 +6,7 @@
 """
 module SelfConsistent
 
-using  Printf, ..Basics, ..Bsplines, ..Defaults, ..Hamiltonian, ..InteractionStrength, ..ManyElectron, ..Nuclear, ..Radial,
+using  Printf, ..AngularMomentum, ..Basics, ..Bsplines, ..Defaults, ..Hamiltonian, ..InteractionStrength, ..ManyElectron, ..Nuclear, ..Radial,
        ..RadialIntegrals, ..SpinAngular
 
 
@@ -488,6 +488,32 @@ end
 
 
 """
+`SelfConsistent.positiveBranchSpectrumClaude3(subshells::Array{Subshell,1}, primitives::Bsplines.Primitives,
+        nucPot::Radial.Potential, matrixB::Array{Float64,2}, storage::Dict{String,Array{Float64,2}})`  
+    ... the positive-energy eigenvectors of the ONE-ELECTRON Dirac matrix of every kappa present, together
+        with their eigenvalues. It depends only on the nuclear potential and the B-spline basis, NOT on the
+        orbitals, so it is constant for a whole run and must be built once and passed in -- both
+        virtualDirectionsClaude3 and projectOntoPositiveBranchClaude3 used to rebuild it on every call,
+        i.e. twice per iteration. Measured on Be-like C^2+: an iteration cost 1.77 s of which the line
+        search was only 0.15 s, and this was the bulk of the remainder.
+        A Dict{Int64, Tuple{Array{Vector{Float64},1}, Vector{Float64}}} is returned, keyed by kappa.
+"""
+function positiveBranchSpectrumClaude3(subshells::Array{Subshell,1}, primitives::Bsplines.Primitives,
+                                       nucPot::Radial.Potential, matrixB::Array{Float64,2},
+                                       storage::Dict{String,Array{Float64,2}})
+    spectrum = Dict{Int64, Tuple{Array{Vector{Float64},1}, Vector{Float64}}}()
+    for  kappa  in  unique( [sh.kappa for sh in subshells] )
+        oneEl = Bsplines.setupLocalMatrix(kappa, primitives, nucPot, storage)
+        wc    = Bsplines.diagonalizeLocalMatrix(kappa, oneEl, matrixB, primitives)
+        mm    = Bsplines.findPositiveBranchStart(wc.values)
+        spectrum[kappa] = ( [ wc.vectors[i]  for i = mm:length(wc.values) ],
+                            [ wc.values[i]   for i = mm:length(wc.values) ] )
+    end
+    return( spectrum )
+end
+
+
+"""
 `SelfConsistent.virtualDirectionsClaude3(bVectors::Dict{Subshell, Vector{Float64}}, subshells::Array{Subshell,1},
         primitives::Bsplines.Primitives, nucPot::Radial.Potential, matrixB::Array{Float64,2},
         storage::Dict{String,Array{Float64,2}}; nVirtual::Int64=20)`  
@@ -500,7 +526,9 @@ end
 function virtualDirectionsClaude3(bVectors::Dict{Subshell, Vector{Float64}}, subshells::Array{Subshell,1},
                                   primitives::Bsplines.Primitives, nucPot::Radial.Potential,
                                   matrixB::Array{Float64,2}, storage::Dict{String,Array{Float64,2}};
-                                  nVirtual::Int64=20)
+                                  nVirtual::Int64=20, spectrum=nothing)
+    posSpec = isnothing(spectrum) ?
+              SelfConsistent.positiveBranchSpectrumClaude3(subshells, primitives, nucPot, matrixB, storage) : spectrum
     virtuals = Dict{Subshell, Array{Vector{Float64},1}}()
     for  sh  in  subshells
         ## the occupied orbitals of this kappa, S-orthonormalized so that the projection below is exact
@@ -513,12 +541,10 @@ function virtualDirectionsClaude3(bVectors::Dict{Subshell, Vector{Float64}}, sub
             if  nrm > 1.0e-10    push!(occSame, v / nrm)    end
         end
         ## a one-electron reference spectrum for this kappa; orbital-independent, hence a fixed frame
-        oneEl = Bsplines.setupLocalMatrix(sh.kappa, primitives, nucPot, storage)
-        wc    = Bsplines.diagonalizeLocalMatrix(sh.kappa, oneEl, matrixB, primitives)
-        mm    = Bsplines.findPositiveBranchStart(wc.values)
+        (posVecs, _) = posSpec[sh.kappa]
         dirs  = Vector{Float64}[]
-        for  i = mm:length(wc.values)
-            v = copy(wc.vectors[i])
+        for  i = 1:length(posVecs)
+            v = copy(posVecs[i])
             for  u in occSame    v = v - (transpose(u) * matrixB * v) * u    end
             for  u in dirs       v = v - (transpose(u) * matrixB * v) * u    end
             nrm = sqrt( abs(transpose(v) * matrixB * v) )
@@ -528,6 +554,64 @@ function virtualDirectionsClaude3(bVectors::Dict{Subshell, Vector{Float64}}, sub
         virtuals[sh] = dirs
     end
     return( virtuals )
+end
+
+
+"""
+`SelfConsistent.expandBVectorClaude3(vec::Vector{Float64}, primitives::Bsplines.Primitives)`  
+    ... expands a B-spline coefficient vector into its large and small radial components on the grid,
+        (P, Q), exactly as the matrix contraction implies -- P(r) = sum_k vec[k] B_k^L(r) and likewise for Q.
+        Deliberately NOT via Bsplines.generateOrbitalFromVectorClaude, which truncates at mtp and cleans
+        small values: that round trip is lossy, and the whole point here is to reproduce the matrix product
+        exactly. A tuple (P, Q) of Vector{Float64} over the full grid is returned.
+"""
+function expandBVectorClaude3(vec::Vector{Float64}, primitives::Bsplines.Primitives)
+    grid = primitives.grid;    nsL = grid.nsL;    nsS = grid.nsS
+    P = zeros( grid.NoPoints );    Q = zeros( grid.NoPoints )
+    for  k = 1:nsL
+        bs = primitives.bsplinesL[k];   add = 1 - bs.lower
+        for  r = bs.lower:min(bs.upper, grid.NoPoints)    P[r] = P[r] + vec[k] * bs.bs[r+add]    end
+    end
+    for  k = 1:nsS
+        bs = primitives.bsplinesS[k];   add = 1 - bs.lower
+        for  r = bs.lower:min(bs.upper, grid.NoPoints)    Q[r] = Q[r] + vec[nsL+k] * bs.bs[r+add]    end
+    end
+    return( (P, Q) )
+end
+
+
+"""
+`SelfConsistent.screenedProductClaude3(Vk::Vector{Float64}, P::Vector{Float64}, Q::Vector{Float64},
+        primitives::Bsplines.Primitives)`  
+    ... forms the vector whose i-th entry is  INT B_i(r) f(r) w_r V_k(r) dr,  with f = P on the large block
+        and Q on the small one -- i.e. the product of the screened-potential matrix with a coefficient
+        vector, WITHOUT ever building that matrix.
+
+        The matrix that InteractionStrength.XL_CoulombClaude assembles has entries
+        wm[i,k] = INT B_i B_k w_r V_k, a full double loop over roughly 110000 (i,k) pairs which re-expands
+        its B-spline arrays inside the inner loop -- and it is then contracted with a single vector.
+        Measured 10-Aug-2026 on Be-like C^2+: that assembly was 0.99 s of a 1.32 s gradient, and the
+        gradient was ~80% of a rotation iteration.  Since the matrix is symmetric within each block, both
+        products a caller needs use the same potential and differ only in the vector.
+        A Vector{Float64} of length nsL+nsS is returned.
+"""
+function screenedProductClaude3(Vk::Vector{Float64}, P::Vector{Float64}, Q::Vector{Float64},
+                                primitives::Bsplines.Primitives)
+    grid = primitives.grid;    nsL = grid.nsL;    nsS = grid.nsS
+    out  = zeros( nsL + nsS )
+    for  i = 1:nsL
+        bs  = primitives.bsplinesL[i];    add = 1 - bs.lower
+        mtp = min( bs.upper, length(Vk), length(P) );    wa = 0.
+        for  r = max(2, bs.lower):mtp    wa = wa + bs.bs[r+add] * P[r] * grid.wr[r] * Vk[r]    end
+        out[i] = wa
+    end
+    for  i = 1:nsS
+        bs  = primitives.bsplinesS[i];    add = 1 - bs.lower
+        mtp = min( bs.upper, length(Vk), length(Q) );    wa = 0.
+        for  r = max(2, bs.lower):mtp    wa = wa + bs.bs[r+add] * Q[r] * grid.wr[r] * Vk[r]    end
+        out[nsL+i] = wa
+    end
+    return( out )
 end
 
 
@@ -573,13 +657,33 @@ function computeOrbitalGradientClaude3(bVectors::Dict{Subshell, Vector{Float64}}
 
     ## two-electron:  R^k(abcd) = b_a^T M(a,orb_b;c,orb_d) b_c  and, by R^k(abcd) = R^k(badc),
     ##                          = b_b^T M(b,orb_a;d,orb_c) b_d
+    ##
+    ## MATRIX-FREE (10-Aug-2026).  M is never formed.  Its entries are INT B_i B_k w_r V_L, so
+    ## (M v)_i = INT B_i(r) f(r) w_r V_L(r) with f the expansion of v -- and M is symmetric within each
+    ## block, so the two products a coefficient needs share one potential and differ only in the vector.
+    ## Each subshell's expansion is built ONCE per gradient rather than per coefficient.
+    expanded = Dict{Subshell, Tuple{Vector{Float64},Vector{Float64}}}()
+    for  sh  in  subshells    expanded[sh] = SelfConsistent.expandBVectorClaude3(bVectors[sh], primitives)    end
+
     for  cf  in  coeffs2p
-        mac = InteractionStrength.XL_CoulombClaude(cf.nu, cf.a, orbitals[cf.b], cf.c, orbitals[cf.d], primitives)
-        grad[cf.a] = grad[cf.a] + cf.V * (mac * bVectors[cf.c])
-        grad[cf.c] = grad[cf.c] + cf.V * (transpose(mac) * bVectors[cf.a])
-        mbd = InteractionStrength.XL_CoulombClaude(cf.nu, cf.b, orbitals[cf.a], cf.d, orbitals[cf.c], primitives)
-        grad[cf.b] = grad[cf.b] + cf.V * (mbd * bVectors[cf.d])
-        grad[cf.d] = grad[cf.d] + cf.V * (transpose(mbd) * bVectors[cf.b])
+        for  (sA, sB, sC, sD)  in  [ (cf.a, cf.b, cf.c, cf.d), (cf.b, cf.a, cf.d, cf.c) ]
+            ## the same triangular-delta and parity guard XL_CoulombClaude applies before doing any work
+            lA = Basics.subshell_l(sA);   jA = Basics.subshell_2j(sA)
+            lB = Basics.subshell_l(sB);   jB = Basics.subshell_2j(sB)
+            lC = Basics.subshell_l(sC);   jC = Basics.subshell_2j(sC)
+            lD = Basics.subshell_l(sD);   jD = Basics.subshell_2j(sD)
+            if  AngularMomentum.triangularDelta(jA+1, jC+1, cf.nu+cf.nu+1) *
+                AngularMomentum.triangularDelta(jB+1, jD+1, cf.nu+cf.nu+1) == 0   ||
+                rem(lA+lC+cf.nu, 2) == 1   ||   rem(lB+lD+cf.nu, 2) == 1     continue
+            end
+            xc = AngularMomentum.CL_reduced_me(sA, cf.nu, sC) * AngularMomentum.CL_reduced_me(sB, cf.nu, sD)
+            if  rem(cf.nu, 2) == 1    xc = - xc    end
+            Vk = RadialIntegrals.buildScreenedPotentialClaude(cf.nu, orbitals[sB], orbitals[sD], primitives.grid;
+                                                              mtpOut=primitives.grid.NoPoints)
+            (pC, qC) = expanded[sC];     (pA, qA) = expanded[sA]
+            grad[sA] = grad[sA] + (cf.V * xc) * SelfConsistent.screenedProductClaude3(Vk, pC, qC, primitives)
+            grad[sC] = grad[sC] + (cf.V * xc) * SelfConsistent.screenedProductClaude3(Vk, pA, qA, primitives)
+        end
     end
     return( grad )
 end
@@ -638,16 +742,14 @@ end
 """
 function projectOntoPositiveBranchClaude3(bVectors::Dict{Subshell, Vector{Float64}}, subshells::Array{Subshell,1},
                                           primitives::Bsplines.Primitives, nucPot::Radial.Potential,
-                                          matrixB::Array{Float64,2}, storage::Dict{String,Array{Float64,2}})
+                                          matrixB::Array{Float64,2}, storage::Dict{String,Array{Float64,2}};
+                                          spectrum=nothing)
     out    = Dict{Subshell, Vector{Float64}}()
     worst  = 0.
-    posSet = Dict{Int64, Array{Vector{Float64},1}}()
-    for  kappa  in  unique( [sh.kappa for sh in subshells] )
-        oneEl = Bsplines.setupLocalMatrix(kappa, primitives, nucPot, storage)
-        wc    = Bsplines.diagonalizeLocalMatrix(kappa, oneEl, matrixB, primitives)
-        mm    = Bsplines.findPositiveBranchStart(wc.values)
-        posSet[kappa] = [ wc.vectors[i]  for i = mm:length(wc.values) ]
-    end
+    posSpec = isnothing(spectrum) ?
+              SelfConsistent.positiveBranchSpectrumClaude3(subshells, primitives, nucPot, matrixB, storage) : spectrum
+    posSet  = Dict{Int64, Array{Vector{Float64},1}}()
+    for  kappa  in  unique( [sh.kappa for sh in subshells] )    posSet[kappa] = posSpec[kappa][1]    end
     ## (1) project each orbital on the positive branch of its kappa
     for  sh  in  subshells
         b = bVectors[sh];    v = zeros( length(b) )
@@ -724,8 +826,10 @@ function solveOptimizedLevelFieldClaude3(basis::Basis, nuclearModel::Nuclear.Mod
     blockCaches = Dict()
     for  sym  in  relevantSyms    blockCaches[sym] = SelfConsistent.cacheCsfPairCoefficientsEOL(sym, basis)   end
 
+    ## Built ONCE: it depends only on the nuclear potential and the B-spline basis, never on the orbitals.
+    posSpectrum = SelfConsistent.positiveBranchSpectrumClaude3(basis.subshells, primitives, nucPot, matrixB, storage)
     (bVectors, _) = SelfConsistent.projectOntoPositiveBranchClaude3(bVectors, basis.subshells, primitives,
-                                                                     nucPot, matrixB, storage)
+                                                                     nucPot, matrixB, storage; spectrum=posSpectrum)
     ePrevious = 0.;   tStep = 1.0;   multiplet = Multiplet("EOL-Claude3", Level[])
     for  iter = 1:settings.maxIterationsScf
         orbitals = Dict{Subshell, Orbital}()
@@ -750,7 +854,7 @@ function solveOptimizedLevelFieldClaude3(basis::Basis, nuclearModel::Nuclear.Mod
         grad = SelfConsistent.computeOrbitalGradientClaude3(bVectors, coeffs1p, coeffs2p, basis.subshells,
                                                              primitives, nucPot, storage)
         virt = SelfConsistent.virtualDirectionsClaude3(bVectors, basis.subshells, primitives, nucPot,
-                                                        matrixB, storage; nVirtual=nVirtual)
+                                                        matrixB, storage; nVirtual=nVirtual, spectrum=posSpectrum)
         ## Project the gradient on the allowed rotations, and PRECONDITION each component by the
         ## orbital-energy denominator (eps_v - eps_a) -- the diagonal of the rotation Hessian, i.e. the
         ## standard first-order estimate  kappa_av = -g_av / (eps_v - eps_a).  Plain steepest descent
@@ -795,7 +899,7 @@ function solveOptimizedLevelFieldClaude3(basis::Basis, nuclearModel::Nuclear.Mod
             ## and with it the guarantee that the CI eigenvalue falls too (it is bounded above by this
             ## fixed-coefficient functional, and equals it at the previous orbitals).
             (projB, negW) = SelfConsistent.projectOntoPositiveBranchClaude3(newB, basis.subshells,
-                                                    primitives, nucPot, matrixB, storage)
+                                                    primitives, nucPot, matrixB, storage; spectrum=posSpectrum)
             eTrial = SelfConsistent.energyFromBVectorsClaude3(projB, coeffs1p, coeffs2p, basis.subshells,
                                                                primitives, grid, nucPot)
             if  eTrial < e0
@@ -806,6 +910,8 @@ function solveOptimizedLevelFieldClaude3(basis::Basis, nuclearModel::Nuclear.Mod
                 accepted = true;    tStep = min(1.0, 1.3*tStep);    break
             end
             tStep = tStep / 2
+        end
+        if  printout
         end
         if  !accepted
             if  printout    println(">> [EOL-C3] no descent found; stopping at iteration $iter.")    end
