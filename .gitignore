@@ -40,5 +40,4 @@ jac-warn.report
 src/.claude/
 
 # Claude Code project instructions -- local only, not part of the repository
-CLAUDE.md
 .claude/
