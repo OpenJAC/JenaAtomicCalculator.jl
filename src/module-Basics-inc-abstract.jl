@@ -236,7 +236,7 @@ end
 
 
 """
-`abstract type Basics.AbstractContinuumNormalization` 
+`abstract type Basics.ContinuumNormalization` 
     ... defines an abstract and a number of singleton types for dealing with the normalization of continuum orbitals.
 
     + PureSineNorm       ... normalize with regard to an (asymtotic) pure sine funtion, sin(kr).
@@ -250,7 +250,7 @@ struct     CoulombSineNorm      <:  ContinuumNormalization     end
 struct     OngRussekNorm        <:  ContinuumNormalization     end
 struct     AlokNorm             <:  ContinuumNormalization     end
 
-export  AbstractContinuumNormalization,   PureSineNorm,   CoulombSineNorm,   OngRussekNorm,   AlokNorm
+export  ContinuumNormalization,   PureSineNorm,   CoulombSineNorm,   OngRussekNorm,   AlokNorm
 
 #################################################################################################################################
 #################################################################################################################################
@@ -535,7 +535,7 @@ struct   ForIsoelectronicSequence       <:  AbstractConfigurationTheme     end
 #
 struct   MeanConfiguration              <:  AbstractConfigurationTheme     end
 struct   RelativisticConfigurations     <:  AbstractConfigurationTheme     end
-struct   SplitByEnerby                  <:  AbstractConfigurationTheme     end
+struct   SplitByEnergy                  <:  AbstractConfigurationTheme     end
 struct   SuperConfiguration             <:  AbstractConfigurationTheme     end
 #
 struct   AllShells                      <:  AbstractConfigurationTheme     end
@@ -569,10 +569,10 @@ struct   HundsRules                     <:  AbstractConfigurationTheme     end
 
 export  AbstractConfigurationTheme, AddElectrons, ExciteElectrons, RemoveElectrons, RestrictExcitations,
         ForAutoIonization, ForElectronCapture, ForDielectronicCapture, ForDielectronicRecombination, ForGivenConfigs,
-        ForHollowIons, ForImpactIonization,
+        ForHollowIons, ForImpactIonization, ForIsoelectronicSequence,
         ForPhotoEmission, ForPhotoIonization,  ForPhotoRecombination, ForRasExcitations, ForStepwiseDecay,
         GeneralizedConfigurations, GroundConfiguration, MeanConfiguration, RelativisticConfigurations, 
-        SuperConfiguration,
+        SplitByEnergy, SuperConfiguration,
         AllShells, ByMultipoles, ByNumber, ByParity, ClosedCore, ClosedShells, ClosedSubshells, ContractShells, ExcitationLevel,
         ExpandShells, FromBasis, FromMultiplet, GetParity, IsOccupied, LeadingConfiguration, LeadingConfigurationR, 
         MeanOccupation, Multiplicity, NonrelativisticBasis, NumberOfElectrons, OccupationDifference, OpenShellNumber, 
@@ -1263,7 +1263,6 @@ export  AbstractFieldValue, Cartesian2DFieldValue, Cartesian3DFieldValue, PolarF
         
     + struct Cartesian2DFieldVector{Type}    ... to specify a field vector of type T in terms of (Ax, Ay).
     + struct Cartesian3DFieldVector{Type}    ... to specify a field vector of type T in terms of (Ax, Ay, Az).
-    + struct SphericalFieldVector{Type}      ... to specify a field vector of type T in terms of (A_1, A_0, A_-1).
     
 """
 abstract type  AbstractFieldVector               end
@@ -1308,7 +1307,7 @@ function Base.show(io::IO, vector::Cartesian3DFieldVector{Type})
     sa = "Cartesian 3D field vector (Ax, Ay, Az) = ($(vector.x),$(vector.y),$(vector.z))";                print(io, sa)
 end
 
-export  AbstractFieldVector, Cartesian2DFieldVector, Cartesian3DFieldVector, SphericalFieldVector
+export  AbstractFieldVector, Cartesian2DFieldVector, Cartesian3DFieldVector
 
 
 #################################################################################################################################
@@ -1417,7 +1416,7 @@ export  AbstractLevelPopulation, BoltzmannLevelPopulation, SahaLevelPopulation
     + struct GLegenreMesh       ... to specify a Gauss-Legendre mesh in terms of [a,b] and number of zeros.
     + struct LinearMesh         ... to specify a linear mesh in terms of [a,b] and number of points.
     + struct PolarMesh          ... to specify a 2D mesh for rho and phi.
-    + struct SphercialMesh      ... to specify a 3D mesh in terms of r, theta, phi.
+    + struct SphericalMesh      ... to specify a 3D mesh in terms of r, theta, phi.
     
 """
 abstract type  AbstractMesh                     end
@@ -1561,7 +1560,7 @@ function Base.show(io::IO, sMesh::SphericalMesh)
     print(io, sa)
 end
 
-export  AbstractMesh, Cartesian2DMesh, GLegenreMesh, LinearMesh, PolarMesh, SphercialMesh
+export  AbstractMesh, Cartesian2DMesh, GLegenreMesh, LinearMesh, PolarMesh, SphericalMesh
 
 #################################################################################################################################
 #################################################################################################################################
@@ -1696,7 +1695,7 @@ function Base.show(io::IO, model::StewartPyattModel)
     print(io, sa)
 end
 
-export  AbstractPlasmaModel, NoPlasmaModel, DebyeHueckelModel, DebeyBox, IonSphereModel, StewartPyattModel
+export  AbstractPlasmaModel, NoPlasmaModel, DebyeHueckelModel, DebyeBox, IonSphereModel, StewartPyattModel
 
 #################################################################################################################################
 #################################################################################################################################
@@ -1711,6 +1710,7 @@ export  AbstractPlasmaModel, NoPlasmaModel, DebyeHueckelModel, DebeyBox, IonSphe
     + PhotoIonization.PlasmaSettings     ... Settings for photoionization-line computations.
 """
 abstract type  AbstractLineShiftSettings                end
+struct         NoLineShiftSettings   <:  AbstractLineShiftSettings   end
 
 # `Base.show(io::IO, settings::AbstractLineShiftSettings)`  ... prepares a proper printout of the variable settings::AbstractLineShiftSettings.
 function Base.show(io::IO, settings::AbstractLineShiftSettings) 
@@ -1740,8 +1740,6 @@ export  AbstractLineShiftSettings, NoLineShiftSettings
     + LeftElliptical            ... to specify an elliptically polarized pulse/beam.
     + RightElliptical           ... to specify an elliptically polarized pulse/beam.
     + NonePolarization          ... to specify an upolarized pulse/beam.
-    + DensityMatrixPolarization ... to specify the polarization of a pulse/beam by its (2x2) 
-                                    density matrix (not yet).
 """
 abstract type  AbstractPolarization  end
 
@@ -1779,8 +1777,7 @@ function Base.string(pol::LeftElliptical)       return( "left-elliptically polar
 function Base.string(pol::RightElliptical)      return( "right-elliptically polarized with ellipticity $(pol.ellipticity)" )  end
 function Base.string(pol::NonePolarization)     return( "unpolarized" )                   end
     
-export  AbstractPolarization, LinearPolarization, LeftCircular, RightCircular, LeftElliptical, RightElliptical, NonePolarization, 
-        DensityMatrixPolarization
+export  AbstractPolarization, LinearPolarization, LeftCircular, RightCircular, LeftElliptical, RightElliptical, NonePolarization
 
 #################################################################################################################################
 #################################################################################################################################

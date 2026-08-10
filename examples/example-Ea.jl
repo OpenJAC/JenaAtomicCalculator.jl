@@ -9,7 +9,7 @@ if  true
     # Test of beam-photo-excitation computatations of dominant-multipole regions and intensity pattern
     ## grid = Radial.Grid(Radial.Grid(false), rnt = 4.0e-6, h = 5.0e-2, hp = 1.0e-2, rbox = 20.0)
     grid = Radial.Grid(true)
-    ## Basics.Cartesian2DMesh, Basics.GLegenreMesh, Basics.LinearMesh, Basics.PolarMesh, Basics.SphercialMesh
+    ## Basics.Cartesian2DMesh, Basics.GLegenreMesh, Basics.LinearMesh, Basics.PolarMesh, Basics.SphericalMesh
     obsMesh    = Basics.Cartesian2DMesh(Basics.GLegenreMesh(0., 15., 20), Basics.GLegenreMesh())            
     beamType   = Beam.LaguerreGauss(2, 0, 0.4)      ## Beam.PlaneWave, Beam.BesselBeam, Beam.LaguerreGauss, Beam.Component
     observable = Beam.DominantMultipoles(obsMesh)   ## Beam.DominantMultipoles,  Beam.IntensityPattern, Beam.AnisotropyParameter

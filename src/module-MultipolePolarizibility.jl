@@ -52,6 +52,19 @@
     general multipoles beyond E1 (needs the general rank-K decomposition, not just rank-0/rank-2),
     magnetic multipoles. Stark shifts and dispersion coefficients are separate, later consumers of
     this module and are also not implemented here.
+
+    STATUS, 10-Aug-2026: PARKED BY THE MAINTAINER -- this module is explicitly NOT urgent, and nothing here
+    should be picked up as the next task without saying so. It is left in a defensible state rather than a
+    finished one:
+      * it runs, and the two blockers recorded against it are resolved. The "B-spline pseudo-continuum bug"
+        was never a bug -- its test simply built the np perturbers in a 20 a.u. box, where 4p comes out at
+        +0.008 a.u., i.e. unbound. At rbox = 80 the perturbers are the exact hydrogenic -0.12500, -0.05556,
+        -0.03125 and alpha_0 is converged. The six-order gauge gap was the wrong operator, as above.
+      * alpha_0(H 1s) = 1.164 a.u. from a bound-only 2p+3p+4p sum, against the exact 4.5. That is CORRECT as
+        far as it goes -- every term is positive, so a finite bound sum is a strict lower bound -- but it is
+        not a converged polarizability. Reaching 4.5 needs the continuum, i.e. the pseudo-continuum tail
+        described above, and nobody has yet checked that such a tail converges to the right number.
+    So: usable as a lower bound and as a structural demonstration, not yet a source of publishable values.
 """
 module MultipolePolarizibility
 
