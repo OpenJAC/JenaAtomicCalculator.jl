@@ -377,6 +377,46 @@ function performCIClaude(basis::Basis, nm::Nuclear.Model, grid::Radial.Grid, set
 end
 
 
+#
+# ===========================================================================================================
+# MEASURED 10-Aug-2026 -- why there is NO iterative (Krylov/Davidson) eigensolver here, and why the caching
+# below is already as good as it gets.  Recorded so that neither question has to be re-opened from scratch.
+#
+# Ne-like 1s^2 2s^2 2p^6, single + double excitations into n <= 5: 234 configurations, 19478 CSFs, largest
+# symmetry block J = 2+ of dimension 2037 (2075703 upper-triangle pairs):
+#
+#     BUILD           158.1 s
+#     DIAGONALIZE       1.1 s      dense LAPACK, ALL 2037 eigenvalues
+#     ratio           138 : 1
+#     memory           31.7 MB     sparsity 378903 of 4149369 nonzero (9.1%)
+#
+# 1) AN ITERATIVE EIGENSOLVER WOULD NOT HELP AT THESE SIZES, and would usually hurt.  Diagonalization is
+#    0.7% of the cost.  A matrix-free Davidson needs H*v per iteration, and the matrix ELEMENTS are exactly
+#    what is expensive: ~30 iterations touching the 9.1% nonzero elements costs roughly 2.7 builds, against
+#    one build plus a 1.1 s LAPACK call -- unless every element is cached, which is building the matrix.
+#    Build scales as n^2 (pairs), dense diagonalization as n^3; they cross only near n ~ 300000, where the
+#    matrix would need ~700 GB.  So diagonalization time never becomes the binding constraint in practice.
+#    Memory is not binding either at these sizes (31.7 MB here, ~3.2 GB at n = 20000) -- but the BUILD at
+#    n = 20000 would take ~4.2 hours, so the build wall arrives long before the memory wall.
+#    An iterative solver becomes a CAPABILITY enabler for n >~ 20000, where dense storage fails outright;
+#    it is not a speed optimization for anything JAC reaches today.  KrylovKit.jl was considered and
+#    deliberately NOT added as a dependency (user decision, 10-Aug-2026): BLAS is enough for now.
+#    Basics.AbstractDiagonalizeTheme is the seam if this is ever revisited -- a new member of that family
+#    keeps dense LAPACK available for the many JAC paths that want the WHOLE spectrum.
+#
+# 2) THE BUILD-LOCAL CACHING OF SLATER INTEGRALS IS ALREADY ~99% EFFECTIVE, so there is nothing to gain
+#    there.  Measured over one symmetry block:
+#
+#        n <= 3, dim 118:   17632 coefficient terms ->   257 distinct integrals, 98.54% hits (68.6x reuse)
+#        n <= 4, dim 684:  286452 coefficient terms ->  3259 distinct integrals, 98.86% hits (87.9x reuse)
+#
+#    The cost is therefore (number of DISTINCT integrals) x (cost of one integral), ~5.4 ms each, of which
+#    the kink-aware screened potential is the bulk.  Making the CI build faster means making ONE Slater
+#    integral cheaper -- not caching more of them, and not changing how the matrix is diagonalized.
+# ===========================================================================================================
+#
+
+
 """
 `Hamiltonian.setupMatrixClaude(sym::LevelSymmetry, basis::Basis, nm::Nuclear.Model, grid::Radial.Grid, settings::AsfSettings; printout::Bool=false)
     ... sets up the same Hamiltonian matrix as setupMatrix, but using InteractionStrength.XL_CoulombClaude (kink-aware)

@@ -6,7 +6,7 @@
 """
 module  RadialIntegrals
 
-using  Dierckx, GSL, QuadGK
+using  Dierckx, FastGaussQuadrature, GSL, QuadGK
 using  ..AngularMomentum, ..Basics, ..Bsplines, ..Defaults,  ..Radial, ..Math, ..ManyElectron, ..Nuclear
 
 #   Fitting coefficients A(Z,n,l=0) = a0 + a1*Z + a2*Z^2 + a3*Z^3 + a4*Z^4  for the electric self-energy
@@ -763,6 +763,28 @@ function SlaterRk_2dim(k::Int64, a::Radial.Orbital, b::Radial.Orbital, c::Radial
 end
 
 
+## Fixed Gauss-Legendre nodes for the per-cell quadratures of the screened-potential sweeps.  Built once.
+## 8 points integrate a polynomial of degree 15 exactly, which comfortably covers a cubic spline times
+## s^k over ONE grid cell -- the sweeps never integrate across a cell boundary, so there is nothing for
+## adaptivity to discover and QuadGK's 15-point Gauss-Kronrod rule (plus its subdivision logic and its
+## error estimate) is simply paid for nothing.
+const GBL_GaussLegendreCell = FastGaussQuadrature.gausslegendre(8)
+
+
+"""
+`RadialIntegrals.cellIntegralClaude(f, a::Float64, b::Float64)`  
+    ... integrates f over the single interval [a,b] with a fixed 8-point Gauss-Legendre rule; a Float64 is
+        returned.  Used only by the screened-potential sweeps, where each interval is one grid cell and the
+        integrand is smooth on it.
+"""
+function cellIntegralClaude(f, a::Float64, b::Float64)
+    (xg, wg) = GBL_GaussLegendreCell
+    half = 0.5*(b - a);    mid = 0.5*(b + a);    acc = 0.
+    for  j = 1:length(xg)     acc = acc + wg[j] * f( half*xg[j] + mid )     end
+    return( half * acc )
+end
+
+
 """
 `RadialIntegrals.buildScreenedPotentialClaude(k::Int64, b::Radial.Orbital, d::Radial.Orbital, grid::Radial.Grid;
                                               rtol::Float64=1.0e-9, mtpOut::Union{Nothing,Int64}=nothing)`
@@ -834,23 +856,23 @@ function buildScreenedPotentialClaude(k::Int64, b::Radial.Orbital, d::Radial.Orb
     # FORWARD sweep:  inner[i] = int_{r0}^{r_i} ds s^k rho_bd(s), accumulated ONE GRID CELL AT A TIME.
     inner = zeros(mtpOutx);    acc = 0.
     for  i = 2:iLast
-        acc      = acc + QuadGK.quadgk(s -> s^k * splBd(s), grid.r[i-1], grid.r[i], rtol=rtol)[1]
+        acc      = acc + RadialIntegrals.cellIntegralClaude(s -> s^k * splBd(s), grid.r[i-1], grid.r[i])
         inner[i] = acc
     end
     # the remaining cell out to rmaxBd completes the full inner moment, so that fullInner is by
     # construction the end value of the same sweep rather than a separately integrated quantity
     fullInner = grid.r[iLast] < rmaxBd ?
-                acc + QuadGK.quadgk(s -> s^k * splBd(s), grid.r[iLast], rmaxBd, rtol=rtol)[1]  :  acc
+                acc + RadialIntegrals.cellIntegralClaude(s -> s^k * splBd(s), grid.r[iLast], rmaxBd)  :  acc
 
     # BACKWARD sweep:  outer[i] = int_{r_i}^{rmaxBd} ds s^{-(k+1)} rho_bd(s), likewise cell by cell.
     # Accumulating from the far end inwards also adds the small contributions first, which is the
     # numerically favourable order.
     outer = zeros(mtpOutx)
     if  iLast >= 2
-        acc = QuadGK.quadgk(s -> s^(-(k+1)) * splBd(s), grid.r[iLast], rmaxBd, rtol=rtol)[1]
+        acc = RadialIntegrals.cellIntegralClaude(s -> s^(-(k+1)) * splBd(s), grid.r[iLast], rmaxBd)
         outer[iLast] = acc
         for  i = iLast-1:-1:2
-            acc      = acc + QuadGK.quadgk(s -> s^(-(k+1)) * splBd(s), grid.r[i], grid.r[i+1], rtol=rtol)[1]
+            acc      = acc + RadialIntegrals.cellIntegralClaude(s -> s^(-(k+1)) * splBd(s), grid.r[i], grid.r[i+1])
             outer[i] = acc
         end
     end
@@ -955,24 +977,24 @@ function buildScreenedPotentialPairClaude(k::Int64, Ba::Vector{Float64}, orbComp
     # FORWARD sweep:  inner[i] = int_{rStart}^{r_i} ds s^k rho(s), one grid cell at a time.
     inner = zeros(mtpOutx);    acc = 0.
     for  i = iFirst:iLast
-        acc      = acc + QuadGK.quadgk(s -> s^k * splBa(s), grid.r[i-1], grid.r[i], rtol=rtol)[1]
+        acc      = acc + RadialIntegrals.cellIntegralClaude(s -> s^k * splBa(s), grid.r[i-1], grid.r[i])
         inner[i] = acc
     end
     fullInner = (iLast >= iFirst  &&  grid.r[iLast] < rmaxSrc) ?
-                acc + QuadGK.quadgk(s -> s^k * splBa(s), grid.r[iLast], rmaxSrc, rtol=rtol)[1]  :
+                acc + RadialIntegrals.cellIntegralClaude(s -> s^k * splBa(s), grid.r[iLast], rmaxSrc)  :
                 QuadGK.quadgk(s -> s^k * splBa(s), rStart, rmaxSrc, rtol=rtol)[1]
 
     # BACKWARD sweep:  outer[i] = int_{r_i}^{rmaxSrc} ds s^{-(k+1)} rho(s).  fullOuter is then the same
     # sweep carried the last step down to rStart, so the two agree by construction.
     outer = zeros(mtpOutx);    fullOuter = 0.
     if  iLast >= iFirst
-        acc = QuadGK.quadgk(s -> s^(-(k+1)) * splBa(s), grid.r[iLast], rmaxSrc, rtol=rtol)[1]
+        acc = RadialIntegrals.cellIntegralClaude(s -> s^(-(k+1)) * splBa(s), grid.r[iLast], rmaxSrc)
         outer[iLast] = acc
         for  i = iLast-1:-1:iFirst
-            acc      = acc + QuadGK.quadgk(s -> s^(-(k+1)) * splBa(s), grid.r[i], grid.r[i+1], rtol=rtol)[1]
+            acc      = acc + RadialIntegrals.cellIntegralClaude(s -> s^(-(k+1)) * splBa(s), grid.r[i], grid.r[i+1])
             outer[i] = acc
         end
-        fullOuter = acc + QuadGK.quadgk(s -> s^(-(k+1)) * splBa(s), rStart, grid.r[iFirst], rtol=rtol)[1]
+        fullOuter = acc + RadialIntegrals.cellIntegralClaude(s -> s^(-(k+1)) * splBa(s), rStart, grid.r[iFirst])
     else
         fullOuter = QuadGK.quadgk(s -> s^(-(k+1)) * splBa(s), rStart, rmaxSrc, rtol=rtol)[1]
     end
