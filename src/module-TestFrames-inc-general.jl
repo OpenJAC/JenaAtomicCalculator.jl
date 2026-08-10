@@ -685,3 +685,48 @@ function testStructConstructors(; short::Bool=true)
     testPrint("testStructConstructors()::", success)
     return( success )
 end
+
+
+"""
+`TestFrames.testMethod_OrbitalOrthonormality(; short::Bool=true)`  
+    ... asserts that a converged self-consistent field returns an ORTHONORMAL orbital set, which the CSF
+        expansion assumes and which nothing else in the suite checks. Needs no reference data: the
+        requirement is exact, so the test is against zero rather than against a tabulated number.
+
+        This is the check that would have caught the defect found on 10-Aug-2026, where the damping step
+        `mixed = 0.5*old + 0.5*raw` destroyed the orthogonality that Hamiltonian.projectHamiltonian had
+        just enforced, and nothing restored it. Converged Li 1s^2 2s + 1s^2 3s + 1s^2 3d gave
+        <2s|3s> = -1.128e-03 while every one of the 44 approved tests passed. A same-kappa block with
+        THREE or more orbitals is what exposes it -- two orbitals only reach ~5e-05 -- so the case below
+        is chosen for its three s-orbitals, not for its physics.
+        Returns true if the worst same-kappa overlap deviates from delta_ab by less than 1.0e-08.
+"""
+function testMethod_OrbitalOrthonormality(; short::Bool=true)
+    success = true
+    printstyled("\n\nTest the orthonormality of a converged SCF orbital set: \n", color=:light_green)
+    printstyled(  "-------------------------------------------------------- \n", color=:light_green)
+
+    grid    = Radial.Grid(Radial.Grid(false); rnt = 2.0e-6, h = 5.0e-2, hp = 2.0e-2, rbox = 30.0)
+    configs = [Configuration("1s^2 2s"), Configuration("1s^2 3s"), Configuration("1s^2 3d")]
+    multiplet = SelfConsistent.performSCF(configs, Nuclear.Model(3.), grid,
+                    AsfSettings(AsfSettings(); scField=Basics.ALField(), maxIterationsScf=24); printout=false)
+    basis    = multiplet.levels[1].basis;    orbitals = basis.orbitals
+    worst    = 0.;    worstPair = ""
+    for  (i, sha)  in  enumerate(basis.subshells),  (j, shb)  in  enumerate(basis.subshells)
+        if  sha.kappa != shb.kappa   ||   j < i    continue    end
+        oa  = orbitals[sha];    ob = orbitals[shb]
+        mtp = min( size(oa.P,1), size(ob.P,1), length(grid.wr) )
+        ov  = sum( grid.wr[k] * (oa.P[k]*ob.P[k] + oa.Q[k]*ob.Q[k])  for k = 1:mtp )
+        dev = abs( ov - (i == j ? 1.0 : 0.0) )
+        if  dev > worst    worst = dev;   worstPair = "<$(string(sha)) | $(string(shb))>"    end
+    end
+    println("  Worst same-kappa deviation from orthonormality:  $worstPair = $worst ")
+    if  worst > 1.0e-8
+        success = false
+        println("  *** The converged orbitals are NOT orthonormal; the CSF expansion assumes they are, so " *
+                "the energies of this basis are not legitimate variational numbers.")
+    end
+
+    testPrint("testMethod_OrbitalOrthonormality()::", success)
+    return( success )
+end

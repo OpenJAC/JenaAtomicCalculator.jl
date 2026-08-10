@@ -262,6 +262,26 @@ end
 ## solveOptimizedLevelField's KNOWN LIMITATION.  Set with SelfConsistent.setEolUnscaledOffDiagonal(true).
 GBL_EOL_UNSCALED_OFFDIAGONAL = false
 
+## Re-orthonormalize the same-kappa orbitals after the damping step. DEFAULT TRUE since 10-Aug-2026;
+## the switch is kept only so the two behaviours can still be compared.
+##
+## Hamiltonian.projectHamiltonian makes each raw eigenvector orthogonal to the already-processed same-kappa
+## orbitals, but the damping that follows, mixed = 0.5*old + 0.5*raw, mixes it back with the PREVIOUS
+## iteration's vector, which is NOT orthogonal to them -- and nothing restored it. The CSF expansion assumes
+## an orthonormal orbital set, so the resulting energies were not legitimate variational numbers.
+## Measured on Li 1s^2 2s + 1s^2 3s + 1s^2 3d (three s-orbitals in kappa = -1), converged:
+##
+##                     <2s|3s>      <1s|2s>      E
+##     as it was      -1.128e-03   -5.558e-05   -7.4335291982
+##     re-orthonorm.  -1.373e-11   -5.358e-13   -7.4335284248
+##
+## The energy RISES by 7.7e-07 Ha, which is the honest direction: the non-orthogonal set was giving a
+## slightly-too-low number. The whole approved test suite is blind to this (44/44 either way), which is why
+## it went unnoticed -- TestFrames.testMethod_OrbitalOrthonormality now asserts it directly.
+## The fix needs no new code: orthonormalizeSameKappaClaude was written for exactly this and had never
+## been called from anywhere.
+GBL_SCF_REORTHONORMALIZE = true
+
 
 """
 `SelfConsistent.setEolUnscaledOffDiagonal(flag::Bool)`  
@@ -270,6 +290,17 @@ GBL_EOL_UNSCALED_OFFDIAGONAL = false
 """
 function setEolUnscaledOffDiagonal(flag::Bool)
     global GBL_EOL_UNSCALED_OFFDIAGONAL = flag
+    return( nothing )
+end
+
+
+"""
+`SelfConsistent.setScfReorthonormalize(flag::Bool)`  
+    ... sets the experimental switch that re-orthonormalizes same-kappa orbitals after the SCF damping
+        step; nothing is returned.
+"""
+function setScfReorthonormalize(flag::Bool)
+    global GBL_SCF_REORTHONORMALIZE = flag
     return( nothing )
 end
 
@@ -625,11 +656,22 @@ function projectOntoPositiveBranchClaude3(bVectors::Dict{Subshell, Vector{Float6
         worst    = max( worst, 1.0 - nrm2Pos/max(nrm2Full,1.0e-30) )
         out[sh]  = v / sqrt( max(nrm2Pos, 1.0e-30) )
     end
-    ## (2) S-orthonormalize within each kappa, in coefficient space, so the positive span is preserved
+    ## (2) S-orthonormalize within each kappa, in coefficient space, so the positive span is preserved --
+    ## but ONLY where it is actually needed.  Gram-Schmidt is sequential and asymmetric: it leaves the first
+    ## orbital of a kappa untouched and pushes the whole correction onto the later ones, so applying it to
+    ## an already-orthonormal set rotates the orbitals for nothing.  Measured on Li, doing it unconditionally
+    ## cost 8.5e-07 Ha while removing a negative-branch weight of only 3.4e-14 -- more than the entire
+    ## discrepancy that sent us looking.  Skip it when the block is orthonormal to tolerance.
     for  kappa  in  unique( [sh.kappa for sh in subshells] )
+        shk = [ sh for sh in subshells if sh.kappa == kappa ]
+        dev = 0.
+        for  (i, sha) in enumerate(shk),  (j, shb) in enumerate(shk)
+            ov  = transpose(out[sha]) * matrixB * out[shb]
+            dev = max( dev, abs( ov - (i == j ? 1.0 : 0.0) ) )
+        end
+        if  dev < 1.0e-9    continue    end
         done = Vector{Float64}[]
-        for  sh  in  subshells
-            if  sh.kappa != kappa    continue    end
+        for  sh  in  shk
             v = out[sh]
             for  u  in  done    v = v - (transpose(u) * matrixB * v) * u    end
             nrm = sqrt( abs(transpose(v) * matrixB * v) )
@@ -1374,6 +1416,11 @@ function solveAverageLevelField(basis::Basis, nuclearModel::Nuclear.Model, primi
         newOrbitals = Dict{Subshell, Orbital}()
         for  sh  in  basis.subshells
             newOrbitals[sh] = Bsplines.generateOrbitalFromVectorClaude(sh, newEnergies[sh], newBVectors[sh], primitives)
+        end
+        ## Under test: restore the same-kappa orthonormality that the damping step destroys.
+        if  SelfConsistent.GBL_SCF_REORTHONORMALIZE
+            (newOrbitals, newBVectors) = SelfConsistent.orthonormalizeSameKappaClaude(newOrbitals, newBVectors,
+                                                                basis.subshells, primitives, matrixB)
         end
         eFunctional = SelfConsistent.computeFunctionalClaude(coeffs1p, coeffs2p, newOrbitals, grid, nucPot)
         orbitalConv = maximum( values(dpm) ) < 1.0 ? 1.0 - maximum( values(dpm) ) : 0.0

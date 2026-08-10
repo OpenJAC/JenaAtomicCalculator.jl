@@ -8,6 +8,7 @@ using JenaAtomicCalculator, ..Defaults, ..TestFrames
     @testset "JAC methods" begin
         @test TestFrames.testMethod_Wigner_3j()
         @test TestFrames.testMethod_HydrogenicRates()
+        @test TestFrames.testMethod_OrbitalOrthonormality()
     end
 
     @testset "JAC structs" begin
