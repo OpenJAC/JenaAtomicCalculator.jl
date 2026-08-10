@@ -53,7 +53,10 @@ function amplitude(K::Integer, level::Level, grid::Radial.Grid; display::Bool=fa
     angularParts = Dict()
     for (sub1, orb1) in level.basis.orbitals, (sub2, orb2) in level.basis.orbitals
         radialParts[sub1, sub2] = RadialIntegrals.rkDiagonal(K, orb1, orb2, grid)
-        angularParts[sub1, sub2] = AngularMomentum.CL_reduced_me_rb(sub1, K, sub2)
+        ## the former CL_reduced_me_rb convention: Grant's reduced matrix element divided by
+        ## sqrt(2 j_a + 1), with j_a from the FIRST argument as passed (10-Aug-2026).
+        angularParts[sub1, sub2] = AngularMomentum.CL_reduced_me(sub1, K, sub2) /
+                                       sqrt( Basics.subshell_2j(sub1) + 1 )
     end
 
     moment = 0.0

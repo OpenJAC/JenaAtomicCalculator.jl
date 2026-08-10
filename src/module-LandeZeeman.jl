@@ -194,25 +194,19 @@ end
     ... to compute the N^(1) Zeeman amplitude <alpha_r J_r || N^(1) || alpha_s J_s>
         for a given pair of levels. A value::ComplexF64 is returned.
 
-    KNOWN LIMITATION (confirmed 30-Jul-2026, re-verified 31-Jul-2026 after an unrelated B-spline
-    boundary-condition fix, NOT yet fixed): for any subshell with kappa <= -3 (d5/2, f7/2, g9/2, ...), the
-    resulting g_J is WRONG. Verified via a kappa-sweep in the same Ge II ion (Z=32, [Ar] 3d^10 4s^2 4d or 4f):
-    p_1/2 (kappa=+1), p_3/2 (kappa=-2), d_3/2 (kappa=+2, g_J=0.79950 vs exact 0.8000), and f_5/2 (kappa=+3,
-    g_J=0.85682 vs exact/paper 0.85680) all reproduce the expected value to <0.1%, but d_5/2 (kappa=-3) gives
-    g_J=-3.05247 vs the exact 1.2000, and f_7/2 (kappa=-4) gives g_J=-2.26367 (DFS) / -2.24247 (AL) vs the
-    exact 1.1429 -- see example-Cd.jl branches c and d. NOTE: these wrong values are NOT stable against
-    unrelated changes elsewhere in the SCF/basis machinery -- before the 30-Jul-2026 B-spline kappa-sign
-    boundary-condition fix, the SAME two cases gave smaller-magnitude, same-sign wrong values (d_5/2:
-    0.3937, f_7/2: 0.8937); after that unrelated fix, both flipped sign and grew in magnitude. This is
-    expected for a bug in the ANGULAR coefficient machinery (not the radial basis) that is being fed a
-    changed, more-correct radial orbital -- root cause narrowed to `AngularMomentum.CL_reduced_me_rb` or its
-    use in `InteractionStrength.zeeman_n1`'s `Subshell(1,-ka)` construction, but not yet isolated further,
-    and evidently sensitive to exactly which orbitals it acts on. Treat ANY g_J result involving a kappa<=-3
-    subshell as unverified, and expect its specific wrong VALUE to shift again whenever the underlying
-    B-spline/SCF machinery changes -- only the qualitative fact "kappa<=-3 is wrong" is stable, not any
-    specific number quoted here. example-Cd.jl branch d deliberately restricts itself to f_5/2 (kappa=+3)
-    to avoid this contaminating an unrelated comparison. See project_zeeman_hfs_bugs.md for the full
-    investigation.
+    RESOLVED, 10-Aug-2026 (this block previously carried a KNOWN LIMITATION saying that any subshell with
+    kappa <= -3 gives a WRONG g_J). It was never a defect in this amplitude, nor in the angular machinery.
+    A one-electron scan on a matched radial box reproduces the exact Lande factor 2|kappa|/(2|kappa| -+ 1)
+    for EVERY kappa -- ratios 0.99867, 0.99947, 0.99961, 0.99975, 0.99980, 0.99985 for
+    kappa = +1, -2, +2, -3, +3, -4 -- so neither AngularMomentum.CL_reduced_me nor the Subshell(1,-ka)
+    construction in InteractionStrength.zeeman_n1 is at fault; both were named as suspects and both are
+    exonerated. The failing cases were run on a radial box far too wide for the orbitals involved, where the
+    SCF returns the WRONG STATE for the kappa < 0 partner: Ge II 4f on 614 a.u. gave E(4f_7/2) = -1.5758
+    with <r> = 5.20 against E(4f_5/2) = -0.0619 with <r> = 10.87, although the two partners of one 4f shell
+    must be nearly identical. That also explains why the wrong value was never stable against unrelated
+    changes in the basis machinery -- it was simply whichever wrong state the basis happened to return.
+    With the box matched (rbox = 30 a.u.) example-Cd.jl branch c reproduces Andersson & Jonsson to six
+    decimals on BOTH levels. Bsplines.checkOrbitalConsistency now stops this class of failure at its source.
 """
 function  amplitude(::ZeemanN1, rLevel::Level, sLevel::Level, grid::Radial.Grid)
     nr = length(rLevel.basis.csfs);    ns = length(sLevel.basis.csfs);    matrix = zeros(ComplexF64, nr, ns)

@@ -63,7 +63,10 @@ end
         A value::Float64 is returned. 
 """
 function eMultipole(k::Int64, a::Orbital, b::Orbital, grid::Radial.Grid)
-    wa = AngularMomentum.CL_reduced_me_rb(a.subshell, k, b.subshell) * RadialIntegrals.rkDiagonal(k, a, b, grid)
+    ## the former CL_reduced_me_rb convention: Grant's reduced matrix element divided by sqrt(2 j_a + 1),
+    ## with j_a from the FIRST argument as passed (10-Aug-2026).
+    wa = AngularMomentum.CL_reduced_me(a.subshell, k, b.subshell) / sqrt( Basics.subshell_2j(a.subshell) + 1 ) *
+            RadialIntegrals.rkDiagonal(k, a, b, grid)
     return( wa )
 end
 
@@ -110,7 +113,7 @@ function hfs_tM1(a::Orbital, b::Orbital, grid::Radial.Grid)
     # Use Andersson, Jönson (2008), CPC, Eq. (49) ... test for the proper definition of the C^L tensors.
     minusa = Subshell(1, -a.subshell.kappa)
     wb =   - Defaults.getDefaults("alpha") * (a.subshell.kappa + b.subshell.kappa) *
-                AngularMomentum.CL_reduced_me_sms(minusa, 1, b.subshell)
+                AngularMomentum.CL_reduced_me(minusa, 1, b.subshell)
     wc =   RadialIntegrals.rkNonDiagonal(-2, a, b, grid)
     wa =   wb * wc
     #
@@ -125,7 +128,7 @@ end
 function hfs_tM2(a::Orbital, b::Orbital, grid::Radial.Grid)
     # Use Andersson, Jönson (2008), CPC, Eq. (49) ... test for the proper definition of the C^L tensors.
     minusa = Subshell(1, -a.subshell.kappa)
-    wb =   - (a.subshell.kappa + b.subshell.kappa) * AngularMomentum.CL_reduced_me_sms(minusa, 2, b.subshell)
+    wb =   - (a.subshell.kappa + b.subshell.kappa) * AngularMomentum.CL_reduced_me(minusa, 2, b.subshell)
     wc =   RadialIntegrals.rkNonDiagonal(-3, a, b, grid)/2
     wa =   wb * wc
     #
@@ -146,7 +149,7 @@ function hfs_tM3(a::Orbital, b::Orbital, grid::Radial.Grid)
     # Use Andersson, Jönson (2008), CPC, Eq. (49) ... test for the proper definition of the C^L tensors.
     minusa = Subshell(1, -a.subshell.kappa)
     wb =   - Defaults.getDefaults("alpha") * (a.subshell.kappa + b.subshell.kappa) *
-                AngularMomentum.CL_reduced_me_sms(minusa, 3, b.subshell)
+                AngularMomentum.CL_reduced_me(minusa, 3, b.subshell)
     wc =   RadialIntegrals.rkNonDiagonal(-4, a, b, grid)/3
     wa =   wb * wc
     #
@@ -160,7 +163,7 @@ end
     """
 function hfs_tE2(a::Orbital, b::Orbital, grid::Radial.Grid)
     # Use Andersson, Jönson (2008), CPC, Eq. (49) ... test for the proper definition of the C^L tensors.
-    wb = - AngularMomentum.CL_reduced_me_sms(a.subshell, 2, b.subshell)
+    wb = - AngularMomentum.CL_reduced_me(a.subshell, 2, b.subshell)
     ## wc =   RadialIntegrals.rkDiagonal(-3, a, b, grid)
     wc =   RadialIntegrals.rkDiagonal(-3, a, b, grid)
     wa =   wb * wc
@@ -176,7 +179,7 @@ end
     """
 function hfs_tE1(a::Orbital, b::Orbital, grid::Radial.Grid)
     # Use Andersson, Jönson (2008), CPC, Eq. (49) ... test for the proper definition of the C^L tensors.
-    wb = - AngularMomentum.CL_reduced_me_sms(a.subshell, 1, b.subshell)
+    wb = - AngularMomentum.CL_reduced_me(a.subshell, 1, b.subshell)
     ## wc =   RadialIntegrals.rkDiagonal(-3, a, b, grid)
     wc =   RadialIntegrals.rkDiagonal(-2, a, b, grid)
     wa =   wb * wc
@@ -192,7 +195,7 @@ end
     """
 function hfs_tE3(a::Orbital, b::Orbital, grid::Radial.Grid)
     # Use Andersson, Jönson (2008), CPC, Eq. (49) ... test for the proper definition of the C^L tensors.
-    wb = - AngularMomentum.CL_reduced_me_sms(a.subshell, 3, b.subshell)
+    wb = - AngularMomentum.CL_reduced_me(a.subshell, 3, b.subshell)
     ## wc =   RadialIntegrals.rkDiagonal(-3, a, b, grid)
     wc =   RadialIntegrals.rkDiagonal(-4, a, b, grid)
     wa =   wb * wc
@@ -1214,8 +1217,8 @@ end
         a, b, c and d at the given grid. A value::Float64 is returned.
 """
 function X_smsA(a::Orbital, b::Orbital, c::Orbital, d::Orbital, nm::Nuclear.Model, grid::Radial.Grid)
-    wa = AngularMomentum.CL_reduced_me_sms(a.subshell, 1, c.subshell) * 
-            AngularMomentum.CL_reduced_me_sms(b.subshell, 1, d.subshell) *
+    wa = AngularMomentum.CL_reduced_me(a.subshell, 1, c.subshell) * 
+            AngularMomentum.CL_reduced_me(b.subshell, 1, d.subshell) *
             RadialIntegrals.Vinti(a, c, grid) * RadialIntegrals.Vinti(b, d, grid) / 2
     ## println("**  <$(a.subshell) || Vinti || $(c.subshell)>  = $(RadialIntegrals.Vinti(a, c, grid)) " )
     ## println("**  <$(b.subshell) || Vinti || $(d.subshell)>  = $(RadialIntegrals.Vinti(b, d, grid)) " )
@@ -1229,7 +1232,7 @@ end
         a, b, c and d at the given grid. A value::Float64 is returned.
 """
 function X_smsB(a::Orbital, b::Orbital, c::Orbital, d::Orbital, nm::Nuclear.Model, grid::Radial.Grid)
-    wa = - AngularMomentum.CL_reduced_me_sms(b.subshell, 1, d.subshell) * RadialIntegrals.Vinti(b, d, grid) *
+    wa = - AngularMomentum.CL_reduced_me(b.subshell, 1, d.subshell) * RadialIntegrals.Vinti(b, d, grid) *
             RadialIntegrals.isotope_smsB(a, c, nm.Z, grid) / 2
     return( wa )
 end
@@ -1241,8 +1244,8 @@ end
         a, b, c and d at the given grid. A value::Float64 is returned.
 """
 function X_smsC(a::Orbital, b::Orbital, c::Orbital, d::Orbital, nm::Nuclear.Model, grid::Radial.Grid)
-    wa = - AngularMomentum.CL_reduced_me_sms(b.subshell, 1, d.subshell) * 
-            AngularMomentum.CL_reduced_me_sms(a.subshell, 1, c.subshell) * 
+    wa = - AngularMomentum.CL_reduced_me(b.subshell, 1, d.subshell) * 
+            AngularMomentum.CL_reduced_me(a.subshell, 1, c.subshell) * 
             RadialIntegrals.Vinti(b, d, grid) * RadialIntegrals.isotope_smsC(a, c, nm.Z, grid) / 2
     return( wa )
 end
@@ -1268,7 +1271,10 @@ function zeeman_Delta_n1(a::Orbital, b::Orbital, grid::Radial.Grid)
     kb = b.subshell.kappa
 
     rad = RadialIntegrals.rkDiagonal(0, a.P, b.P, grid) * (ka + kb - 1) + RadialIntegrals.rkDiagonal(0, a.Q, b.Q, grid) * (ka + kb + 1)
-    ang = AngularMomentum.CL_reduced_me_rb(Subshell(1, -ka), 1, b.subshell)
+    ## the former CL_reduced_me_rb convention: divided by sqrt(2 j + 1) of the FIRST argument, which here is
+    ## the SIGN-FLIPPED kappa, i.e. j(-ka) and not j(ka) (10-Aug-2026).
+    ang = AngularMomentum.CL_reduced_me(Subshell(1, -ka), 1, b.subshell) /
+              sqrt( Basics.subshell_2j(Subshell(1, -ka)) + 1 )
 
     return ( (Defaults.getDefaults("electron g-factor") - 2)/4 * rad * ang )
 end
@@ -1284,7 +1290,10 @@ function zeeman_n1(a::Orbital, b::Orbital, grid::Radial.Grid)
     kb = b.subshell.kappa
 
     rad = RadialIntegrals.rkNonDiagonal(1, a, b, grid)
-    ang = AngularMomentum.CL_reduced_me_rb(Subshell(1, -ka), 1, b.subshell)
+    ## the former CL_reduced_me_rb convention: divided by sqrt(2 j + 1) of the FIRST argument, which here is
+    ## the SIGN-FLIPPED kappa, i.e. j(-ka) and not j(ka) (10-Aug-2026).
+    ang = AngularMomentum.CL_reduced_me(Subshell(1, -ka), 1, b.subshell) /
+              sqrt( Basics.subshell_2j(Subshell(1, -ka)) + 1 )
 
     return ( -rad * ang/(2 * Defaults.getDefaults("alpha")) * (ka + kb) )
 end

@@ -29,15 +29,17 @@
         Note on validation (28/29-Jul-2026): the B_if^(tau L) angular factor was validated by
         implementing Eq. (4) literally with JAC's own AngularMomentum.ClebschGordan/Wigner_6j and
         comparing numerically, across 92 (kappa_i,kappa_f,L) combinations, against
-        AngularMomentum.CL_reduced_me_sms: the magnitude ratio collapsed EXACTLY to 1/sqrt(L(L+1))
+        AngularMomentum.CL_reduced_me (then called CL_reduced_me_sms): the magnitude ratio collapsed
+        EXACTLY to 1/sqrt(L(L+1))
         (independent of kappa_i,kappa_f) in every case -- strong evidence the literal transcription
         (Clebsch-Gordan order, and the standard Racah W(j1j2j3j4;j5j6) = (-1)^(j1+j2+j3+j4) *
         {j1 j2 j5; j4 j3 j6} relation to the Wigner 6-j symbol) is correct. The residual per-(kappa_i,
-        kappa_f) SIGN could not be matched to any of 14 simple candidate phase formulas against
-        CL_reduced_me_sms -- but CL_reduced_me_sms's own source carries a documented, acknowledged
-        open phase ambiguity ("this factor is not clear", module-AngularMomentum.jl:232), so this
-        module uses its own literal, magnitude-validated B_if implementation directly rather than
-        forcing a match to that other function's convention.
+        kappa_f) SIGN could not be matched to any of 14 simple candidate phase formulas against it -- and at
+        the time that function's source carried an acknowledged open phase ambiguity ("this factor is not
+        clear"), so this module uses its own literal, magnitude-validated B_if implementation directly
+        rather than forcing a match to that convention. NOTE (10-Aug-2026): the three CL_reduced_me variants
+        have since been consolidated into one, the empirical phase comment removed and the missing parity
+        selection rule added, so the comparison above is worth redoing before drawing conclusions from it.
 
         STAGE 1 (implemented here): single-active-electron, closed-shell-plus-one case (Raman
         Eqs. 2-8) -- already sufficient to compare against the Rosel/Raman/Bilous literature values
@@ -213,7 +215,7 @@ end
 """
 `InternalConversion.reducedBif(mp::EmMultipole, kappaInitial::Int64, kappaFinal::Int64)`
     ... computes the angular factor B_if^(tau L) (Raman Eqs. 4/6, magnitude-validated against
-        AngularMomentum.CL_reduced_me_sms; see the module docstring) for a nuclear multipole `mp`
+        AngularMomentum.CL_reduced_me; see the module docstring) for a nuclear multipole `mp`
         between a bound orbital of kappaInitial and a continuum orbital of kappaFinal. For magnetic
         multipoles, l_f is replaced by l_bar_f = 2*j_f - l_f (Raman Eq. 6). A value::Float64 is
         returned (real; only the radial part R_if is complex).

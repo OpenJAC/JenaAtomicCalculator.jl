@@ -8,7 +8,7 @@
         The crystal-field potential is expanded in rank-k spherical tensors (Eqs. (1)-(2) of that
         paper) and its matrix elements are evaluated between the CSF/ASF representation already
         available from a JAC computation (Eq. (3)), reusing
-        AngularMomentum.CL_reduced_me_sms(...) (one-electron reduced matrix elements of C^(k),
+        AngularMomentum.CL_reduced_me(...) (one-electron reduced matrix elements of C^(k),
         with the l_a+l_b+k parity selection rule of Eq. (5) built in),
         SpinAngular.computeCoefficients(...) (many-electron spin-angular coefficients of a
         one-particle tensor operator) and RadialIntegrals.rkDiagonal(...) (the radial moment
@@ -323,7 +323,7 @@ end
 `CrystalField.electrostaticIntegral(k::Int64, orbitalA::Radial.Orbital, orbitalB::Radial.Orbital, grid::Radial.Grid)`
     ... computes the one-electron reduced matrix element  [kappa_a||C^(k)||kappa_b] * <r^k>_ab
         (Eq. (4) of Gaigalas & Kato) of the rank-k crystal-field tensor operator between two
-        relativistic orbitals, by combining AngularMomentum.CL_reduced_me_sms(...) (which already
+        relativistic orbitals, by combining AngularMomentum.CL_reduced_me(...) (which already
         enforces the l_a+l_b+k parity selection rule of Eq. (5)) with
         RadialIntegrals.rkDiagonal(k, orbitalA, orbitalB, grid). A value::Float64 is returned.
 
@@ -333,7 +333,7 @@ end
     + grid       ::Radial.Grid      ... the radial grid.
 """
 function electrostaticIntegral(k::Int64, orbitalA::Radial.Orbital, orbitalB::Radial.Orbital, grid::Radial.Grid)
-    return  AngularMomentum.CL_reduced_me_sms(orbitalA.subshell, k, orbitalB.subshell) *
+    return  AngularMomentum.CL_reduced_me(orbitalA.subshell, k, orbitalB.subshell) *
             RadialIntegrals.rkDiagonal(k, orbitalA, orbitalB, grid)
 end
 
@@ -350,7 +350,7 @@ end
         sqrt(2*j_a+1) to undo the internal "GRASP-like" normalization that
         SpinAngular.computeCoefficients applies for rank>0 one-particle operators (see the note on
         Hfs.amplitude). No same-parity restriction is imposed here: for odd k the l_a+l_b+k
-        selection rule already built into CL_reduced_me_sms allows rLevel and sLevel to belong to
+        selection rule already built into CL_reduced_me allows rLevel and sLevel to belong to
         different overall parities, which is exactly the "ASF mixing with different parities"
         capability described in the Program Summary of Gaigalas & Kato. A value::Float64 is returned.
 

@@ -218,51 +218,30 @@ end
 
 """
 `AngularMomentum.CL_reduced_me(suba::Subshell, L::Int64, subb::Subshell)`  
-    ... calculates the reduced matrix element of the C^L spherical tensor <suba || C^(L) || subb>; a value::Float64 
-        is returned.
+    ... calculates the reduced matrix element of the C^L spherical tensor <suba || C^(L) || subb> in Grant's
+        normalisation, sqrt((2j_a+1)(2j_b+1)); a value::Float64 is returned.
+
+        THIS IS THE ONE DEFINITION (10-Aug-2026). It previously lacked the PARITY SELECTION RULE: the
+        reduced matrix element of C^(L) vanishes unless l_a + l_b + L is even, and the 3-j symbol alone does
+        NOT enforce that -- it only imposes the triangle and m-sum conditions. Without the rule the function
+        returned nonzero values where the physical quantity must be zero, e.g. <2s||C^(1)||2s> = -0.816497.
+        Where a different normalisation is wanted, divide EXPLICITLY at the call site: the convention that
+        was carried by the former CL_reduced_me_rb is this quantity divided by sqrt(2j_a+1), with j_a taken
+        from the FIRST argument as passed.
 """
 function  CL_reduced_me(suba::Subshell, L::Int64, subb::Subshell)   
     la = Basics.subshell_l(suba);    ja2 = Basics.subshell_2j(suba);    
     lb = Basics.subshell_l(subb);    jb2 = Basics.subshell_2j(subb)
     rem(ja2+1, 2) != 0    &&    error("stop a")
+    if  rem(la + lb + L, 2) != 0    return( 0. )    end
 
     redme = ((-1)^((ja2+1)/2)) * sqrt( (ja2+1)*(jb2+1) ) * 
             Wigner_3j(AngularJ64(ja2//2), AngularJ64(L), AngularJ64(jb2//2),  AngularM64(1//2), AngularM64(0), AngularM64(-1//2) )
 
-    ## redme = redme * ((-1)^((jb2+ja2)/2))  ## This factor is not clear ... but help get the intercombination lines correctly
     return( redme )
 end
 
-"""
-`AngularMomentum.CL_reduced_me_rb(suba::Subshell, L::Int64, subb::Subshell)`  
-    ... calculates the reduced matrix element of the C^L spherical tensor <suba || C^(L) || subb>; a value::Float64 is returned.
-"""
-function  CL_reduced_me_rb(suba::Subshell, L::Int64, subb::Subshell)   
-    la = Basics.subshell_l(suba);    ja2 = Basics.subshell_2j(suba);    
-    lb = Basics.subshell_l(subb);    jb2 = Basics.subshell_2j(subb)
-    if rem(la + lb + L, 2) != 0   return 0.     end
-    
-    redme = ((-1)^((jb2-2L-1)/2)) * sqrt( (jb2+1) ) * 
-            Wigner_3j(AngularJ64(ja2//2), AngularJ64(jb2//2), AngularJ64(L), AngularM64(1//2), AngularM64(-1//2), AngularM64(0) )
-            
-    return( redme )
-end
 
-"""
-`AngularMomentum.CL_reduced_me_sms(suba::Subshell, L::Int64, subb::Subshell)`  
-    ... calculates the reduced matrix element of the C^L spherical tensor <suba || C^(L) || subb> for the 
-    specific MS (SMS); a value::Float64 is returned.
-"""
-function  CL_reduced_me_sms(suba::Subshell, L::Int64, subb::Subshell)   
-    la = Basics.subshell_l(suba);    ja2 = Basics.subshell_2j(suba);    
-    lb = Basics.subshell_l(subb);    jb2 = Basics.subshell_2j(subb)
-    if rem(la + lb + L, 2) != 0   return 0.     end
-    
-    redme = ((-1)^((ja2+1)/2)) * sqrt( (ja2+1)*(jb2+1) ) * 
-            Wigner_3j(AngularJ64(ja2//2), AngularJ64(L), AngularJ64(jb2//2), AngularM64(1//2), AngularM64(0), AngularM64(-1//2) )
-            
-    return( redme )
-end
 
 """
 `AngularMomentum.sigma_TtL_reduced_me(kapa::Int64, L::Int64, t::Int64, kapb::Int64)`
