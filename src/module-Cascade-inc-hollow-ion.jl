@@ -47,8 +47,9 @@ function computeSteps(scheme::Cascade.HollowIonScheme, comp::Cascade.Computation
                     ## Basics.computePotentialDFS does not exist.  The working pattern is the one of
                     ## module-Cascade-inc-dielectronic-recombination.jl: dispatch on the self-consistent field of
                     ## the settings, which also honours a non-DFS choice instead of hard-wiring one.
-                    ## The same dead call still sits in module-Cascade-inc-stepwise-decay.jl:174 and
-                    ## module-PhotoDoubleIonization.jl:356; both are left for their own tasks.
+                    ## The same dead call used to sit in module-Cascade-inc-stepwise-decay.jl and
+                    ## module-PhotoDoubleIonization.jl; both were repaired on 10-Aug-2026, the latter only in
+                    ## passing -- that module is postponed, see its own docstring.
                     wp           = Basics.computePotential(comp.asfSettings.scField, comp.grid, step.finalMultiplet.levels[1])
                     pot          = Basics.add(npot, wp)
                     cOrbital, phase, normF  = Continuum.generateOrbitalLocalPotential(meanEn, sh, pot, contSettings)

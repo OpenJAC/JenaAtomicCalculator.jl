@@ -37,9 +37,19 @@
         kappa_f) SIGN could not be matched to any of 14 simple candidate phase formulas against it -- and at
         the time that function's source carried an acknowledged open phase ambiguity ("this factor is not
         clear"), so this module uses its own literal, magnitude-validated B_if implementation directly
-        rather than forcing a match to that convention. NOTE (10-Aug-2026): the three CL_reduced_me variants
-        have since been consolidated into one, the empirical phase comment removed and the missing parity
-        selection rule added, so the comparison above is worth redoing before drawing conclusions from it.
+        rather than forcing a match to that convention.
+
+        REDONE 10-Aug-2026, after the three CL_reduced_me variants were consolidated into one, the empirical
+        phase comment removed and the missing parity selection rule added -- the premise of the comparison
+        above had changed, so it was repeated rather than merely re-flagged. Over kappa_i, kappa_f in
+        {-1,+1,-2,+2,-3,+3,-4} and L = 1..3: of the 55 non-trivial combinations the magnitude ratio is
+        EXACTLY 1/sqrt(L(L+1)) in all 55, so that conclusion stands unchanged. The comparison is now in fact
+        STRONGER: a further 92 combinations are parity-forbidden and both functions return zero for every one
+        of them, with no case where one vanishes and the other does not. Before the parity fix CL_reduced_me
+        returned spurious nonzero values on all 92, while reducedBif -- which has always applied its own
+        parity check -- returned zero, so the two disagreed there. The SIGN still matches in only 28 of the
+        55, i.e. the residual phase question is untouched by the consolidation, and this module's decision to
+        use its own literal implementation stands.
 
         STAGE 1 (implemented here): single-active-electron, closed-shell-plus-one case (Raman
         Eqs. 2-8) -- already sufficient to compare against the Rosel/Raman/Bilous literature values

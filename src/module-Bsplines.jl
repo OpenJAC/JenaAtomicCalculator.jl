@@ -113,22 +113,7 @@ function computeVlocal(bspline1::Bsplines.Bspline, bspline2::Bsplines.Bspline, p
 end
 
 
-"""
-`Bsplines.extractBsplineCoefficients(sh::Subshell, wc::Basics.Eigen, grid::Radial.Grid)`  
-    ... Here, it is assumed that the matrix wc contains the (column) eigenvectors as associated with a single-electron Dirac 
-        Hamiltonian matrix for symmetry kappa in Subshell(n, kappa). The procedure then extracts the (full) vector of B-spline
-        coefficients for the radial orbital of subshell sh by applying the standard rules of atomic physics for the principal
-        quantum number n.  A  vector::Array{Float64,1}  is returned, whose length is nsL+nsS in the original basis of B-spline 
-        functions/primitives.
-"""
-function extractBsplineCoefficients(sh::Subshell, wc::Basics.Eigen, grid::Radial.Grid)
-    nsL = grid.nsL - 2;    nsS = grid.nsS - 2
-    l   = Basics.subshell_l(sh);   ni = nsS + sh.n - l;          
-    en  = wc.values[ni];        
-    ev  = wc.vectors[ni];       if  length(ev) != nsL + nsS    error("stop a")  end
-    
-    return(ev)
-end
+
 
 
 """
@@ -287,27 +272,16 @@ function generateOrbitals(subshells::Array{Subshell,1}, pot::Radial.Potential, n
 end
 
 
-"""
-`Bsplines.extractVectorFromPrimitives(sh::Subshell, wc::Basics.Eigen, primitives::Bsplines.Primitives)`  
-    ... extracts the B-spline coefficient of the sh orbital from eigenvalues & eigenvectors. 
-        A vector::Array{Float64,1} is returned.
-"""
-function extractVectorFromPrimitives(sh::Subshell, wc::Basics.Eigen, primitives::Bsplines.Primitives)
-    nsL = primitives.grid.nsL;     nsS = primitives.grid.nsS
-    l   = Basics.subshell_l(sh);   ni = nsS + sh.n - l;          if   sh.kappa > 0   ni = ni + 1 - 1  end
-    vector = wc.vectors[ni];       if  length(vector) != nsL + nsS    error("stop a")                 end
 
-    return( vector )
-end
 
 
 """
 `Bsplines.fitVectorToPrimitivesClaude(orb::Radial.Orbital, primitives::Bsplines.Primitives, matrixB::Array{Float64,2})`
     ... projects the (already CLEANED/truncated) tabulated orbital orb onto the B-spline primitives basis via
         the standard Galerkin/least-squares projection matrixB * p = rhs, rhs[i] = <B_i|orb.P-or-Q>, using the
-        existing grid quadrature. Unlike Bsplines.extractVectorFromPrimitives -- which pulls the RAW
-        diagonalization eigenvector, exactly reproducing the UNCLEANED tabulated function from BEFORE
-        generateOrbitalFromPrimitives' own truncation-at-mtp and small-value cleanup are applied -- this
+        existing grid quadrature. Unlike pulling the RAW diagonalization eigenvector -- which reproduces the
+        UNCLEANED tabulated function from BEFORE generateOrbitalFromPrimitives' own truncation-at-mtp and
+        small-value cleanup are applied (the route the removed Bsplines.extractVectorFromPrimitives took) -- this
         function GUARANTEES the returned coefficient vector is fully self-consistent with orb's OWN (already
         cleaned) tabulated P, Q arrays, inheriting orb's own well-defined truncation instead of carrying whatever
         small numerical noise the raw eigenvector's tail coefficients happen to have.

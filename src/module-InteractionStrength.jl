@@ -1032,7 +1032,7 @@ end
         block, the B-spline row index pairs with orbital c's component matching the COLUMN's type (P for an
         L-column, Q for an S-column), while orbital b's component matching the ROW's type pairs with the column
         B-spline index. Consequently it is orbital c -- not b -- whose OWN B-spline expansion coefficients
-        (cVector, as obtained during SCF from Bsplines.extractVectorFromPrimitives) are needed, to build, for
+        (cVector, the B-spline coefficient vector carried alongside the orbital during SCF) are needed, to build, for
         each row i, a "partial potential" Psi_i(s) = sum_m cVector[m] * Phi_(i,m)(s) as a CHEAP weighted sum of
         already-cached, already-kink-aware Phi_(i,m) entries (only ~band terms, no quadrature at all); orbital b
         itself stays a plain tabulated orbital, exactly like the column B-spline, entering only the final cheap

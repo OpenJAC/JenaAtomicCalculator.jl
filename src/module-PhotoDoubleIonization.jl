@@ -7,6 +7,23 @@
     for second-order computations. From a physics viewpoint, this model becomes better as higher n is chosen and as 
     larger the number of sharings is. The use of a semi-bound electron ensures that most parts of the photo-double
     ionization is similar to the (standard) photoionization of atoms.
+
+    STATUS, 10-Aug-2026: POSTPONED BY THE MAINTAINER, and for a long time -- this module was never worked
+    out properly and would need to be restarted more or less from scratch. Do NOT pick it up as a task
+    without saying so, and do not read the state below as "nearly working".
+
+    What is known concretely. The module has evidently never been executed end to end. computeLines called
+    Basics.computePotentialDFS, a function that exists NOWHERE in JAC, so it raised UndefVarError the moment
+    it was reached; that one line is now repaired here (10-Aug-2026) only because the identical dead call sat
+    in the Cascade stepwise-decay path, which IS used, and it was cheaper to fix both together than to leave
+    a known-undefined call in the tree. Running it after that repair immediately hits a SECOND missing name,
+    PhotoDoubleIonization.displayResults, which is called twice (in computeLines) and defined nowhere. A scan
+    of the module found no further undefined callees, so those are the two -- but displayResults is a results
+    table that has to be designed and written, not a one-line repair, and nothing downstream of it has ever
+    produced a number that anyone has checked.
+
+    So the potential fix below should be read as "one dead call removed while passing through", not as
+    progress towards a working module.
 """
 module PhotoDoubleIonization
 
@@ -348,9 +365,23 @@ function  computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, n
     printstyled("PhotoDoubleIonization.computeLines(): The computation of photo-double ionization properties starts now ... \n", color=:light_green)
     printstyled("---------------------------------------------------------------------------------------------------------- \n", color=:light_green)
     println("")
+    error("\n\nPhotoDoubleIonization is POSTPONED (10-Aug-2026) and does not produce trustworthy numbers.\n" *
+          ">>> The module has never been run end to end. computeLines called Basics.computePotentialDFS, a\n"  *
+          ">>> function that exists nowhere in JAC; that one dead call was repaired in passing, and the very\n" *
+          ">>> next step then fails on PhotoDoubleIonization.displayResults, which is called twice here and\n"  *
+          ">>> defined nowhere. Nothing downstream has ever produced a number that anyone has checked.\n"       *
+          ">>> Reviving this needs a restart, not a patch -- see the module docstring. Remove this error only\n"*
+          ">>> together with that work.\n")
+
     # Generate orbitals for all quasi-subshells
     quasiSubshells = Basics.generateSubshellList(settings.quasiShells)
-    meanPot        = Basics.computePotentialDFS(grid, finalMultiplet.levels[1].basis)
+    ## Basics.computePotentialDFS does not exist anywhere in JAC -- this line raised UndefVarError whenever
+    ## computeLines was reached (fixed 10-Aug-2026). Basics.computePotential returns the ELECTRONIC screening
+    ## potential ALONE, so the nuclear potential must be added explicitly; omitting it is precisely the bug
+    ## that sent InternalRecombination's orbitals into the spurious -1.999 c^2 Dirac-sea branch and produced
+    ## silently wrong results rather than a crash (see module-InternalRecombination.jl, 3-Aug-2026).
+    meanPot        = Basics.add( Nuclear.nuclearPotential(nm, grid),
+                                 Basics.computePotential(Basics.DFSField(1.0), grid, finalMultiplet.levels[1].basis) )
     primitives     = Bsplines.generatePrimitives(grid)
     quasiOrbitals  = Bsplines.generateOrbitals(quasiSubshells, meanPot, nm, primitives; printout=true)
     #

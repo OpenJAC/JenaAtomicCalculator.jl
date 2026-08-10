@@ -171,7 +171,12 @@ function computeStepAugerAverageSCA(step::Cascade.Step, comp::Cascade.Computatio
             ## wp2 = compute("radial potential: Hartree-Slater", grid, wLevel)
             ## wp3 = compute("radial potential: Kohn-Sham", grid, wLevel)
             ## wp           = Basics.compute("radial potential: Dirac-Fock-Slater", comp.grid, step.finalMultiplet.levels[1].basis)
-            wp           = Basics.computePotentialDFS(comp.grid, step.finalMultiplet.levels[1])
+            ## Basics.computePotentialDFS does not exist anywhere in JAC -- this line raised UndefVarError
+            ## whenever it was reached (fixed 10-Aug-2026). Same repair as module-Cascade-inc-hollow-ion.jl:
+            ## dispatch on the self-consistent field of the settings, which also honours a non-DFS choice
+            ## rather than hard-wiring one. Note that Basics.computePotential returns the ELECTRONIC
+            ## screening potential only, so the nuclear term must be added -- as the next line does.
+            wp           = Basics.computePotential(comp.asfSettings.scField, comp.grid, step.finalMultiplet.levels[1])
             pot          = Basics.add(npot, wp)
             cOrbital, phase, normF  = Continuum.generateOrbitalLocalPotential(meanEn, sh, pot, contSettings)
             cOrbitals[sh] = cOrbital
