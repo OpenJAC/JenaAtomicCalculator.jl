@@ -283,53 +283,6 @@ end
 
 
 """
-`PhotoRecombination.computeCrossSectionBareIon(energy_eV::Float64, subshell::Subshell, multipoles::Array{EmMultipole,1}, 
-                                                gauge::EmGauge, nm::Nuclear.Model, grid::Radial.Grid, nrContinuum::Int64)`  
-    ... to compute the (hydrogenic) RR cross section for the capture of an electron into a single subshell; 
-        only the amplitudes for the given multipoles are taken into account; an cs::Float64 [a.u.] is returned.
-"""
-function computeCrossSectionBareIon(energy_eV::Float64, subshell::Subshell, multipoles::Array{EmMultipole,1}, 
-                                    gauge::EmGauge, nm::Nuclear.Model, grid::Radial.Grid, nrContinuum::Int64)
-    energy   = Defaults.convertUnits("energy: from eV to atomic", energy_eV)
-    
-    fOrbital = HydrogenicIon.orbital(subshell, nm, grid)
-    omega    = energy - fOrbital.energy
-    #
-    csa = 0.;       maxKappa = 4;        contSettings = Continuum.Settings(false, nrContinuum);   
-    jf = Basics.subshell_j(subshell);   lf           = Basics.subshell_l(subshell)
-    if   iseven(lf)   symf = LevelSymmetry( jf, Basics.plus )   else   symf = LevelSymmetry( jf, Basics.minus ) end
-    # Generate a Coulomb potential for the given nuclear model
-    potential = Nuclear.nuclearPotential(nm, grid)
-    for  multipole  in  multipoles
-        for  kappa = -maxKappa:maxKappa
-            if  kappa == 0    continue    end
-            jc = AngularMomentum.kappa_j(kappa);   lc = Basics.subshell_l(Subshell(101,kappa))
-            if  iseven(lc)   symc = LevelSymmetry( jc, Basics.plus )   else   symc = LevelSymmetry( jc, Basics.minus ) end
-            # Determine whether a non-zero amplitude is possible for the given multipole
-            if  AngularMomentum.isAllowedMultipole(symf, multipole, symc)
-                # Generate continuum orbital for given energy and kappa
-                cOrbital, phase, normFactor = Continuum.generateOrbitalLocalPotential(energy, 
-                                                                        Subshell(101,kappa), potential, contSettings)
-                if multipole in  [E1, E2]  localGauge = gauge  elseif  multipole in  [M1, M2]  localGauge = Basics.Magnetic   end
-                amplitude = InteractionStrength.MabEmission(multipole, localGauge, omega, fOrbital, cOrbital, grid) / 
-                            Defaults.getDefaults("alpha")
-                csa = csa + conj(amplitude) * amplitude
-            end
-        end          
-    end
-    #
-    ## cs = 160. * pi^3 * Defaults.getDefaults("alpha")^2 * omega / energy * abs(cs) / (Basics.twice(jf) +1)
-    ## cs = 8 * pi^3 * Defaults.getDefaults("alpha")^3 / omega * abs(cs)
-    cs = 8 * pi^3 * Defaults.getDefaults("alpha")^3 * omega / (Basics.twice(jf) +1) / 2. / energy * abs(csa)
-    csBarn = Defaults.convertUnits("cross section: from atomic to barn", cs)
-    
-    println("***** RR cross section for energy = $(energy_eV) eV is $csa a.u.   $csBarn  barn")
-    
-    return( cs )
-end
-
-
-"""
 `PhotoRecombination.computeCrossSectionForMultipoles(multipoles::Array{EmMultipole,1}, line::PhotoRecombination.Line)`  
     ... to compute the cross section from the channel amplitudes of a given line; only the amplitudes
         for the given multipoles are taken into account; an cs::EmProperty is returned.
@@ -452,83 +405,6 @@ function  computeLinesWithContinuumOrbital(finalMultiplet::Multiplet, initialMul
     else            return( nothing )
     end
 end
-
-
-"""
-`PhotoRecombination.compareCrossSectionEmpirical(energies::Array{Float64,1}, Z::Float64)`  
-    ... to evaluate and compare different (non-relativistic) shell-resolved and total cross section for the 
-        RR of a free electron with energy into initially bare ions with nuclear charge Z; an cs::Float64 is returned.
-"""
-function compareCrossSectionEmpirical(energies::Array{Float64,1}, Z::Float64)
-    csStobbe = Float64[];    csKramers = Float64[];     csKramersTotal = Float64[]
-    
-    nx = 110
-    println(" ")
-    println("  Comparison of different semi-empirical RR cross sections:        Z = $Z      ... all in [a.u.]")
-    println("  Note Kramers(total) and Bell(total) valid only for eta >> 1.")
-    println("  ", TableStrings.hLine(nx))
-    sa =  "  Energy         eta             Stobbe(1s)      Kramers(1s)     Kramers(1..50)  Kramers(total)  Bell(total) "
-    println(sa);    println("  ", TableStrings.hLine(nx)) 
-    #
-    for  energy in energies
-        sa =  "  " * @sprintf("%.4e", energy) * "     "
-        wa = sqrt( Z^2 / 2. / energy);                                              sa = sa * @sprintf("%.4e", wa) * "      "
-        wa = PhotoRecombination.crossSectionStobbe(energy, Z);             push!(csStobbe, wa);        sa = sa * @sprintf("%.4e", wa) * "      "
-        wa = PhotoRecombination.crossSectionKramers(energy, Z, (1,1));     push!(csKramers, wa);       sa = sa * @sprintf("%.4e", wa) * "      "
-        wa = PhotoRecombination.crossSectionKramers(energy, Z, (1,50));                                sa = sa * @sprintf("%.4e", wa) * "      "
-        wa = PhotoRecombination.crossSectionKramersTotal(energy, Z);       push!(csKramersTotal, wa);  sa = sa * @sprintf("%.4e", wa) * "      "
-        wa = PhotoRecombination.crossSectionBellTotal(energy, Z);                                      sa = sa * @sprintf("%.4e", wa) * "      "
-        println(sa)
-    end
-    # 
-    println("  ", TableStrings.hLine(nx)) 
-
-    return( nothing )
-end
-
-
-"""
-`PhotoRecombination.comparePlasmaRateEmpirical(temps::Array{Float64,1}, Z::Float64)`  
-    ... to evaluate and compare different plasma rate coefficients for the capture of a Maxwellian-distributed
-        free electron with temperature Te in temps into initially bare ions with nuclear charge Z; nothing is returned.
-"""
-function comparePlasmaRateEmpirical(temps::Array{Float64,1}, Z::Float64)
-    alphaKotelnikov = Float64[];    alphaKotelnikov1s = Float64[];    alphaSeaton = Float64[];    alphaPartialSeaton = Float64[];    
-    factor  = Defaults.convertUnits("length: from atomic to fm", 1.0)^3 * 1.0e-39 * 
-                Defaults.convertUnits("rate: from atomic to 1/s", 1.0) 
-    
-    nx = 170
-    println(" ")
-    println("  Comparison of different semi-empirical RR plasma rate coefficieints:    Z = $Z ")
-    println("  alpha(Seaton) valid for 2Te/Z^2 << 1.")
-    println(" ")
-    println("  ", TableStrings.hLine(nx))
-    sa =  "  Temperature  Temperature     2Te/Z^2   " *
-            "    Seaton        Seaton      Kotelnikov    Kotelnikov  Kotelnikov(1s) Kotelnikov(1s) partial Seaton(2*) partial Seaton(2*)   " *
-        "\n     [a.u.]        [K]                   " *
-            "    [a.u.]       [cm^3/s]       [a.u.]       [cm^3/s]       [a.u.]        [cm^3/s]        [a.u.]            [cm^3/s]     "
-    println(sa);    println("  ", TableStrings.hLine(nx)) 
-    #
-    for  temp in temps
-        sa =  "  " * @sprintf("%.4e", temp)                                                                            * "   "
-        wa = Defaults.convertUnits("temperature: from atomic to Kelvin", temp);         sa = sa * @sprintf("%.4e", wa) * "    "
-        wa = 2*temp / Z^2;                                                              sa = sa * @sprintf("%.4e", wa) * "    "
-        wa = plasmaRateSeaton(temp, Z);                 push!(alphaSeaton, wa);         sa = sa * @sprintf("%.4e", wa) * "    "
-        wa = wa * factor;                                                               sa = sa * @sprintf("%.4e", wa) * "    "
-        wa = plasmaRateKotelnikov(temp, Z);             push!(alphaKotelnikov, wa);     sa = sa * @sprintf("%.4e", wa) * "    "
-        wa = wa * factor;                                                               sa = sa * @sprintf("%.4e", wa) * "    "
-        wa = plasmaRateKotelnikov_1s(temp, Z);          push!(alphaKotelnikov1s, wa);   sa = sa * @sprintf("%.4e", wa) * "    "
-        wa = wa * factor;                                                               sa = sa * @sprintf("%.4e", wa) * "       "
-        wa = plasmaRatePartialSeaton(temp, Z, 2);       push!(alphaPartialSeaton, wa);  sa = sa * @sprintf("%.4e", wa) * "       "
-        wa = wa * factor;                                                               sa = sa * @sprintf("%.4e", wa) * "    "
-        println(sa)
-    end
-    # 
-    println("  ", TableStrings.hLine(nx)) 
-
-    return( nothing )
-end
-
 
 
 """

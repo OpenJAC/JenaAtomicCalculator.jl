@@ -803,38 +803,6 @@ end
 
 
 """
-`Radial.checkGrid(grid::Radial.Grid, shell::Shell, Z::Float64)`  
-    ... checks that the radial grid can represent the hydrogenic orbitals for the given subshell 
-        of nuclear charge Z; it simply tests that the boxSize > 4 * n^2 / Z [a_o].
-        (More accurate one could use the mean expectation values of r of this shell).
-        The program reports about this comparison and terminates if this is not the case. Nothing is returned.
-"""
-function checkGrid(grid::Radial.Grid, shell::Shell, Z::Float64)
-    wa = 4.0 * shell.n^2 / Z
-    println(">> Check radial grid for shell $shell of hydrogenic ions with Z = $Z;" *
-            "  r[NoPoints] = $(grid.r[grid.NoPoints]) ! > ! 4 * n^2 / Z = $wa")
-        
-    if  grid.r[grid.NoPoints] < wa    error("Grid with inappropriate extent; enlarge the boxSize.")   end
-    
-    return( nothing )
-end
-
-
-"""
-`Radial.checkGrid(grid::Radial.Grid, subshell::Subshell, relAccuracy::Float64)`  
-    ... checks that the radial grid can represent the hydrogenic orbitals for the given subshell with
-        a relative accuracy <= relAccuracy. The program reports about the relative accuracy and terminates with an 
-        error message if this is not the case. Nothing is returned.
-"""
-function checkGrid(grid::Radial.Grid, subshell::Subshell, relAccuracy::Float64)
-    # Generate a hydrogenic spectrum for the symmetry of the given subshell
-    error("Not yet implemented.")
-    
-    return( nothing )
-end
-
-
-"""
 `Radial.determineZbar(pot::Radial.Potential)`  
     ... determines the effective charge that is asymptotically seen by the electron in the potential pot. 
         A Zbar::Float64 is returned.

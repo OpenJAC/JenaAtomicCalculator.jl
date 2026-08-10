@@ -181,26 +181,6 @@ function GrantJL(L::Int64, q::Float64, a::Radial.Orbital, b::Radial.Orbital, gri
     end
 end
 
-"""
-`RadialIntegrals.GrantJL_cp(L::Int64, q::Float64, a::Radial.Orbital, b::Radial.Orbital, grid::Radial.Grid, cp::CorePolarization)`  
-    ... computes Grant's (radial) integral for two relativistic orbitals:  
-        J_L (q; a,b) = int_0^\\infty dr   [ P_a P_b + Q_a Q_b ] * r * [1 - coreAlpha / (r^2 + coreRadius^2)^3/2 ].
-"""
-function GrantJL_cp(L::Int64, q::Float64, a::Radial.Orbital, b::Radial.Orbital, grid::Radial.Grid, cp::CorePolarization)
-    mtp = min(size(a.P, 1), size(b.P, 1))
-    
-    # Distinguish the radial integration for different grid definitions
-    if  grid.meshType == Radial.MeshGrasp()
-        error("stop a")
-    elseif  grid.meshType == Radial.MeshGL()
-        wa = 0.
-        for  i = 2:mtp   wa = wa + (a.P[i] * b.P[i] + a.Q[i] * b.Q[i]) * grid.wr[i] * grid.r[i] * 
-                                    (1.0 - cp.coreAlpha / (grid.r[i]^2 + cp.coreRadius^2)^(3/2) )   end
-        return( wa )
-    else
-        error("stop a")
-    end
-end
 
 """
 `RadialIntegrals.isotope_boson(a::Orbital, b::Orbital, potential::Array{Float64,1}, grid::Radial.Grid)`  
@@ -374,24 +354,6 @@ function overlap(p1List::Array{Float64,1}, p2List::Array{Float64,1}, grid::Radia
     end
 end
 
-function overlap_old2022(p1List::Array{Float64,1}, p2List::Array{Float64,1}, grid::Radial.Grid)
-    
-    mtp = min( length(p1List), length(p2List))
-    
-    # Distinguish the radial integration for different grid definitions
-    if  grid.meshType == Radial.MeshGrasp()
-
-        function f(i :: Int64)
-            return( p1List[i] * p2List[i] )
-        end
-
-        return( Math.integrateTransform(f, 1, mtp, grid) )
-    elseif  grid.meshType == Radial.MeshGL()
-        error("stop a")
-    else
-        error("stop b")
-    end
-end
 
 """
 `RadialIntegrals.qedDampedOverlap(lambda::Float64, a::Radial.Orbital, b::Radial.Orbital, grid::Radial.Grid)` 
@@ -1221,67 +1183,6 @@ function SlaterRk_2dim_Damped(tau::Float64, k::Int64, a::Radial.Orbital, b::Radi
     end
 end
 
-"""
-`RadialIntegrals.SlaterRk_new(k::Int64, a::Radial.Orbital, b::Radial.Orbital, c::Radial.Orbital, d::Orbital, grid::Radial.Grid)`  
-    ... computes the (relativistic) Slater integral
-
-        R^k (abcd) = int_0^infty dr int_0^infty ds (P_a P_c + Q_a Q_c) r_<^k / r_>^(k+1) (P_b P_d + Q_b Q_d)
-
-        of rank k for the four orbitals a, b, c, d, and over the given grid by using a factorized integration scheme; a 
-        value::Float64 is returned.
-"""
-function SlaterRk_new(k::Int64, a::Radial.Orbital, b::Radial.Orbital, c::Radial.Orbital, d::Radial.Orbital, grid::Radial.Grid)
-    function ul(r :: Float64, s :: Float64) :: Float64
-        if     r <= s    return( r^k/s^(k+1) )
-        elseif r > s     return( s^k/r^(k+1) )
-        end
-    end
-    
-    function rLowUp()  
-        rtuple = Tuple{Int64,Int64}[]
-        for  n = 2:grid.orderGL:100000000
-            if   n > grid.NoPoints   break   end
-            push!( rtuple, (n, n+grid.orderGL-1))
-        end
-        return( rtuple )
-    end
-            
-    # Distinguish the radial integration for different grid definitions
-    if  grid.meshType == Radial.MeshGrasp()
-        error("stop a")
-    elseif  grid.meshType == Radial.MeshGL()
-        mtp_ac = min(size(a.P, 1), size(c.P, 1));    mtp_bd = min(size(b.P, 1), size(d.P, 1));  rtuple = rLowUp()
-        wa = 0.
-        for  (rlow, rup)  in  rtuple
-            for  (slow, sup)  in  rtuple
-                war = 0.;    was = 0.
-                if  sup < rlow
-                    for  r = rlow:rup   if r > mtp_ac   break   end
-                        war = war + (a.P[r] * c.P[r] + a.Q[r] * c.Q[r]) / grid.r[r]^(k+1) * grid.wr[r]    end
-                    for  s = slow:sup   if s > mtp_bd   break   end
-                        was = was + (b.P[s] * d.P[s] + b.Q[s] * d.Q[s]) * grid.r[s]^k     * grid.wr[s]    end
-                    wa = wa + war * was
-                elseif  rup < slow
-                    for  r = rlow:rup   if r > mtp_ac   break   end   
-                        war = war + (a.P[r] * c.P[r] + a.Q[r] * c.Q[r]) * grid.r[r]^k     * grid.wr[r]    end
-                    for  s = slow:sup   if s > mtp_bd   break   end   
-                        was = was + (b.P[s] * d.P[s] + b.Q[s] * d.Q[s]) / grid.r[s]^(k+1) * grid.wr[s]    end
-                    wa = wa + war * was
-                elseif  rlow == slow  &&  rup == sup
-                    for  r = rlow:rup       if r > mtp_ac   break   end   
-                        for  s = slow:sup   if s > mtp_bd   break   end   
-                            wa = wa + (a.P[r] * c.P[r] + a.Q[r] * c.Q[r]) * ul(grid.r[r], grid.r[s]) * 
-                                        (b.P[s] * d.P[s] + b.Q[s] * d.Q[s]) * grid.wr[r] * grid.wr[s]       end
-                    end
-                else  error("stop b")
-                end
-            end
-        end
-        return( wa )
-    else
-        error("stop a")
-    end
-end
 
 """
 `RadialIntegrals.SlaterRk_DebyeHueckel_2dim(k::Int64, a::Radial.Orbital, b::Radial.Orbital, c::Radial.Orbital, d::Orbital, 

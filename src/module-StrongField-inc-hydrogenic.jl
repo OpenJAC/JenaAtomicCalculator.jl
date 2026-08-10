@@ -45,38 +45,6 @@ end
 
 """
 `StrongField.computeScalarProdBoundContHydrogenicUncoupled(epsilonp::Float64, lp::Int64, n::Int64, l::Int64, 
-                                                            epsiloni::Float64, volkov::AbstractVolkovState)`  
-    ... computes the scalar product of the bound (hydrogenic) and continuum (Volkov) states in the 
-        one-particle picture
-"""
-function  computeScalarProdBoundContHydrogenicUncoupledOLD(epsilonp::Float64, lp::Int64, n::Int64, l::Int64, m::Int64, 
-                                                            epsiloni::Float64, volkov::AbstractVolkovState)
-    rmax  = 1000.;       orderGL = 1000;     gaussLegendre = Radial.GridGL(Radial.GridGaussLegendreFinite(),0.0,rmax,orderGL)
-    rgrid = gaussLegendre.t;                 weights = gaussLegendre.wt
-    
-    Pnl = hydrogenPnl( epsiloni, n, l, rgrid )
-    
-    if      typeof(volkov) == FreeVolkov        Pepsplp = VolkovP( epsilonp, lp, rgrid )
-    elseif  typeof(volkov) == CoulombVolkov     Pepsplp = CoulombVolkovP( epsilonp, lp, volkov.Z, rgrid )
-    end
-    
-    DPnl = hydrogenDPnlDr( epsiloni, n, l, rgrid )
-    integral = ComplexF64(0.)
-    
-    # Sum over grid and compute Gauss-Legendre sum
-    for    j = 1:orderGL
-        r = rgrid[j]
-        integrand = conj( Pepsplp[j] ) * Pnl[j]
-        # Gauss-Legendre sum
-        integral = integral + weights[j] * integrand
-    end
-    
-    return((-im)^l * integral)
-end
-
-
-"""
-`StrongField.computeScalarProdBoundContHydrogenicUncoupled(epsilonp::Float64, lp::Int64, n::Int64, l::Int64, 
                                                             epsiloni::Float64, volkov::AbstractVolkovState, grid::Radial.Grid)`  
     ... computes the scalar product of the bound (hydrogenic) and continuum (Volkov) states in the one-particle picture.
 """
@@ -195,42 +163,6 @@ function  pReducedMEHydrogenic(Pepsplp::Array{ComplexF64,1}, lp::Int64, jp::Floa
     integral = integral * (-im)^(lp+1) * (-1)^lp * GSL.sf_coupling_3j( 2*lp, 2*1, 2*l, 0, 0, 0 )
     
     return( fac * integral )
-end
-
-
-"""
-`StrongField.pReducedMEHydrogenicUncoupledOLD(epsilonp::Float64, lp::Int64, n::Int64, l::Int64, 
-                                                epsiloni::Float64, volkov::AbstractVolkovState)`  
-    ... computes the reduced matrix elements of the momentum operator <epsilonp lp ||p||n l> in the one-particle picture
-    
-        FORMULATION in l-ml-BASIS:
-"""
-function  pReducedMEHydrogenicUncoupledOLD(epsilonp::Float64, lp::Int64, n::Int64, l::Int64, epsiloni::Float64, 
-                                            volkov::AbstractVolkovState)
-    rmax  = 100.;        orderGL = 1000;     gaussLegendre = Radial.GridGL(Radial.GridGaussLegendreFinite(),0.0,rmax,orderGL)
-    rgrid = gaussLegendre.t;                 weights = gaussLegendre.wt
-    
-    Pnl = hydrogenPnl( epsiloni, n, l, rgrid )
-    if  typeof(volkov) == FreeVolkov            Pepsplp = VolkovP( epsilonp, lp, rgrid )
-    elseif  typeof(volkov) == CoulombVolkov     Pepsplp = CoulombVolkovP( epsilonp, lp, volkov.Z, rgrid )
-    end
-    
-    DPnl = HydrogenDPnlDr( epsiloni, n, l, rgrid )
-    
-    integral = ComplexF64(0.)
-    
-    # Sum over grid and compute Gauss-Legendre sum
-    for    j = 1:orderGL
-        r = rgrid[j]
-        integrand = conj( Pepsplp[j] )/r * ( r*DPnl[j] - ((lp-l)*(lp+l+1))/2 * Pnl[j] )
-        # Gauss-Legendre sum
-        integral = integral + weights[j] * integrand
-    end
-
-    # Note that GSL.sf_coupling_3j takes takes the input (2*j1,2*j2,2*j3,2*m1,2*m2,2*m3)
-    integral = integral * (-im)^(lp+1) * (-1)^lp * GSL.sf_coupling_3j( 2*lp, 2*1, 2*l, 0, 0, 0 )
-    
-    return( integral )
 end
 
 
