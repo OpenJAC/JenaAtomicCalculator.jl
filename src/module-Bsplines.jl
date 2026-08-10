@@ -166,7 +166,6 @@ function generateOrbitalsHydrogenic(subshells::Array{Subshell,1}, nm::Nuclear.Mo
     else                            error("stop a")
     end
     
-    Bsplines.checkGridRepresentation(subshells, nm.Z, primitives)
     orbitals = Bsplines.generateOrbitals(subshells, pot, nm, primitives; printout=printout)
     return( orbitals )
 end
@@ -269,7 +268,13 @@ function generateOrbitals(subshells::Array{Subshell,1}, pot::Radial.Potential, n
         # (2) Compute the local Hamiltonian matrix and diagonalize it
         wa = Bsplines.setupLocalMatrix(kappa, primitives, pot, storage)
         w2 = Bsplines.diagonalizeLocalMatrix(kappa, wa, wb, primitives)
-        nsi = nsS    
+        ## The offset handed to the tabulation is where the POSITIVE-energy branch begins, and that is not nsS
+        ## (corrected 10-Aug-2026). diagonalizeLocalMatrix eliminates dropP+dropQ B-splines for this symmetry,
+        ## so the branch starts at findPositiveBranchStart -- 46..61 on the standard grid against nsS = 63.
+        ## With nsS the table printed a slice several states too high while labelling it 4f, 5f, ...: at Z = 10
+        ## it showed 4f_5/2 = -6.03e-01 against the exact -3.13e+00, i.e. a "Delta-E/|E|" of +4.19, although the
+        ## orbital actually extracted was correct to 6e-7. Purely a display defect, but a badly misleading one.
+        nsi = Bsplines.findPositiveBranchStart(w2.values) - 1
         if  printout  Basics.tabulateKappaSymmetryEnergiesDirac(kappa, w2.values, nsi, nm)    end
         
         # (3) Collect all the requested single-electron orbitals

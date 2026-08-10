@@ -763,6 +763,12 @@ function initializeBasis(configs::Array{Configuration,1}, nuclearModel::Nuclear.
         if   is_filled    push!( coreSubshells, subshells[k])      else    break   end
     end
         
+    # Check that the radial grid is able to represent these subshells at all, BEFORE any orbital is generated.
+    # This sits here rather than inside Bsplines.generateOrbitalsHydrogenic so that it applies whichever way the
+    # orbitals are seeded -- StartFromPrevious inherits a grid just as much as StartFromHydrogenic does.
+    Bsplines.checkGridRepresentation(subshells, nuclearModel.Z, primitives;
+                                     accuracy = settings.gridAccuracy, stopper = settings.gridStopper)
+
     # Initialize the orbitals
     if  typeof(settings.startScfFrom) == StartFromHydrogenic
         if  printout   println("> Start SCF process with hydrogenic orbitals.")   end

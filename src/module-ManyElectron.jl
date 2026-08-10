@@ -124,6 +124,11 @@ end
     + accuracyScf          ::Float64                ... convergence criterion for the SCF field.
     + shellSequenceScf     ::Array{Subshell,1}      ... Sequence of subshells to be optimized.
     + frozenSubshells      ::Array{Subshell,1}      ... Sequence of subshells to be kept frozen.
+    + gridAccuracy         ::Float64                ... accuracy to which the radial grid must represent every
+                                                        subshell in the pure (point-nucleus) Dirac spectrum;
+                                                        cf. Bsplines.checkGridRepresentation.
+    + gridStopper          ::Bool                   ... True, if a grid that fails gridAccuracy shall raise an
+                                                        error, and false if it shall only warn.
     
     + eeInteractionCI      ::AbstractEeInteraction  ... Specify the e-e interaction to be included into the 
                                                         CI computations.
@@ -142,6 +147,8 @@ struct  AsfSettings
     accuracyScf            ::Float64   
     shellSequenceScf       ::Array{Subshell,1}
     frozenSubshells        ::Array{Subshell,1}
+    gridAccuracy           ::Float64
+    gridStopper            ::Bool
     #
     eeInteractionCI        ::AbstractEeInteraction
     qedModel               ::AbstractQedModel 	
@@ -155,7 +162,7 @@ struct  AsfSettings
 """
 function AsfSettings()
     AsfSettings(true, CoulombInteraction(), Basics.DFSField(), StartFromHydrogenic(), 24, 1.0e-6, Subshell[], Subshell[],  
-                CoulombInteraction(), NoneQed(), LSjjSettings(false), LevelSelection() )
+                1.0e-3, true, CoulombInteraction(), NoneQed(), LSjjSettings(false), LevelSelection() )
 end
 
 
@@ -164,7 +171,8 @@ end
     
             generateScf=..,       eeInteraction=..,       scField=..,            startScfFrom=..,           
             maxIterationsScf=..,  accuracyScf=..,         shellSequenceScf=..,   frozenSubshells=..,    
-            eeInteractionCI=..,   qedModel=..,            jjLS=..,               levelSelectionCI=..,     
+            gridAccuracy=..,      gridStopper=..,         eeInteractionCI=..,    qedModel=..,            
+            jjLS=..,              levelSelectionCI=..,     
             printout::Bool=false)
     ... constructor for re-defining a settings::AsfSettings.
 """
@@ -173,6 +181,7 @@ function AsfSettings(settings::AsfSettings;
     scField::Union{Nothing,AbstractScField}=nothing,                startScfFrom::Union{Nothing,AbstractStartOrbitals}=nothing,
     maxIterationsScf::Union{Nothing,Int64}=nothing,                 accuracyScf::Union{Nothing,Float64}=nothing,     
     shellSequenceScf::Union{Nothing,Array{Subshell,1}}=nothing,     frozenSubshells::Union{Nothing,Array{Subshell,1}}=nothing, 
+    gridAccuracy::Union{Nothing,Float64}=nothing,                   gridStopper::Union{Nothing,Bool}=nothing,
     eeInteractionCI::Union{Nothing,AbstractEeInteraction}=nothing,  qedModel::Union{Nothing,AbstractQedModel}=nothing,              
     jjLS::Union{Nothing,LSjjSettings}=nothing,  
     levelSelectionCI::Union{Nothing,LevelSelection}=nothing,        printout::Bool=false)
@@ -185,13 +194,16 @@ function AsfSettings(settings::AsfSettings;
     if  isnothing(accuracyScf)           accuracyScfx          = settings.accuracyScf           else   accuracyScfx          = accuracyScf          end 
     if  isnothing(shellSequenceScf)      shellSequenceScfx     = settings.shellSequenceScf      else   shellSequenceScfx     = shellSequenceScf     end 
     if  isnothing(frozenSubshells)       frozenSubshellsx      = settings.frozenSubshells       else   frozenSubshellsx      = frozenSubshells      end 
+    if  isnothing(gridAccuracy)          gridAccuracyx         = settings.gridAccuracy          else   gridAccuracyx         = gridAccuracy         end 
+    if  isnothing(gridStopper)           gridStopperx          = settings.gridStopper           else   gridStopperx          = gridStopper          end 
     if  isnothing(eeInteractionCI)       eeInteractionCIx      = settings.eeInteractionCI       else   eeInteractionCIx      = eeInteractionCI      end 
     if  isnothing(qedModel)              qedModelx             = settings.qedModel              else   qedModelx             = qedModel             end 
     if  isnothing(jjLS)                  jjLSx                 = settings.jjLS                  else   jjLSx                 = jjLS                 end 
     if  isnothing(levelSelectionCI)      levelSelectionCIx     = settings.levelSelectionCI      else   levelSelectionCIx     = levelSelectionCI     end 
     
     AsfSettings(generateScfx, eeInteractionx, scFieldx, startScfFromx, maxIterationsScfx, accuracyScfx, 
-                shellSequenceScfx, frozenSubshellsx, eeInteractionCIx, qedModelx, jjLSx, levelSelectionCIx)
+                shellSequenceScfx, frozenSubshellsx, gridAccuracyx, gridStopperx, 
+                eeInteractionCIx, qedModelx, jjLSx, levelSelectionCIx)
 end
 
 
@@ -205,6 +217,8 @@ function Base.show(io::IO, settings::AsfSettings)
         println(io, "accuracyScf:          $(settings.accuracyScf)  ")
         println(io, "shellSequenceScf:     $(settings.shellSequenceScf)  ")
         println(io, "frozenSubshells:      $(settings.frozenSubshells)  ")
+        println(io, "gridAccuracy:         $(settings.gridAccuracy)  ")
+        println(io, "gridStopper:          $(settings.gridStopper)  ")
         #
         println(io, "eeInteractionCI:      $(settings.eeInteractionCI)  ")
         println(io, "qedModel :            $(settings.qedModel)  ")

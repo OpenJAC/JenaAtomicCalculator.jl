@@ -33,18 +33,20 @@
     contribution -- their individual contributions can be tabulated and inspected exactly like any
     other perturber, without any change to the formula or code below.
 
-    Every contribution (and the total alpha_0/alpha_2) is computed and reported in BOTH the Babushkin
-    (length; MultipoleMoment.emmStaticAmplitude, the standard static E1 multipole-moment operator) and
-    Coulomb (velocity; InteractionStrength.MabEmission's Johnson-formalism Coulomb-gauge
-    reduced matrix element, evaluated at omega=0 where it is finite and well-defined even though the
-    Babushkin-gauge form of that SAME finite-frequency machinery vanishes identically at omega=0) forms
-    -- as an EmProperty, following the Coulomb/Babushkin bookkeeping already used throughout JAC (e.g.
-    Einstein.jl). The two are NOT calibrated onto a common scale against one another (deliberately, for
-    now -- Johnson's Coulomb-gauge reduced matrix element carries its own internal normalization
-    convention, not yet independently understood/verified against the plain static multipole-moment
-    operator); they are reported side by side purely for direct, qualitative gauge-agreement
-    monitoring, exactly the same diagnostic role gauge comparison already plays for ordinary E1
-    transition rates elsewhere in JAC.
+    Every contribution (and the total alpha_0/alpha_2) is computed from the frequency-INDEPENDENT static
+    multipole-moment operator (MultipoleMoment.emmStaticAmplitude, i.e. Johnson's r^k C_k), which is the
+    operator a static polarizability -- and a C_6/C_8/C_10 dispersion coefficient -- actually requires. There
+    is no gauge freedom in a static quantity, so the two components of the EmProperty are identical; they are
+    retained only because Outcome carries EmProperty fields throughout JAC.
+
+    Until 10-Aug-2026 the Coulomb component was instead taken from PhotoEmission.amplitude at omega = 0,
+    i.e. from InteractionStrength.MabEmission -- the frequency-DEPENDENT transition operator -- and the two
+    columns were presented side by side as a gauge-agreement diagnostic. That was a category error rather
+    than a calibration one. The velocity and length forms are connected by <f|p|i> = i (E_f - E_i) <f|r|i>,
+    so evaluating the velocity form at omega = 0 drops exactly the 1/omega that relates them; the result was
+    alpha_0(Coulomb) ~ 1.5e-6 against 1.164 in Babushkin, six orders apart and completely insensitive to the
+    radial box -- which is what identified it as the wrong operator rather than a numerical problem. There is
+    no gauge diagnostic to be had from a static quantity, and none is offered here.
 
     Stage 2 (explicitly NOT implemented here, deferred): dynamic (nonzero omega) polarizabilities,
     general multipoles beyond E1 (needs the general rank-K decomposition, not just rank-0/rank-2),
@@ -198,11 +200,9 @@ end
 `MultipolePolarizibility.computeScalarTensorPolarizability(level::Level, gMultiplet::Multiplet, grid::Radial.Grid)`
     ... computes the static E1 scalar (alpha_0) and tensor (alpha_2) polarizabilities of `level` (Angel & Sandars 1968;
         prefactors as given in the module docstring) by summing the reduced E1 matrix elements over every level
-        `nuLevel` in `gMultiplet`, in BOTH the Babushkin gauge (`MultipoleMoment.emmStaticAmplitude(1, nuLevel,
-        level, grid)`, the standard static multipole-moment operator) and the Coulomb gauge
-        (`PhotoEmission.amplitude` with `Basics.Coulomb` at omega=0., i.e. the zero-frequency limit of Johnson's
-        finite-frequency radiative reduced matrix element, which -- unlike the Babushkin-gauge form of that SAME
-        machinery -- remains finite and well-defined at omega=0; see module docstring). A tuple
+        `nuLevel` in `gMultiplet`, using `MultipoleMoment.emmStaticAmplitude(1, nuLevel, level, grid)` -- the
+        frequency-INDEPENDENT static multipole-moment operator. A static polarizability carries no gauge freedom,
+        so both components of the returned EmProperty hold the same number; see the note in the body. A tuple
         (alpha0::EmProperty, alpha2::EmProperty, contributions::Array{MultipolePolarizibility.Contribution,1})
         is returned, the latter giving each perturber level's own additive share of alpha0/alpha2 in both gauges.
 """
@@ -228,9 +228,20 @@ function computeScalarTensorPolarizability(level::Level, gMultiplet::Multiplet, 
         newNuLevel   = Basics.generateLevelWithSymmetryReducedBasis(nuLevel, subshellList)
         newLevel     = Basics.generateLevelWithSymmetryReducedBasis(level,   subshellList)
 
-        dBabushkin = MultipoleMoment.emmStaticAmplitude(1, newNuLevel, newLevel, grid)
-        dCoulomb   = PhotoEmission.amplitude(Basics.Emission(), E1, Basics.Coulomb, 0., newNuLevel, newLevel, grid)
-        S = EmProperty( abs2(dCoulomb), abs2(dBabushkin) )
+        ## A STATIC POLARIZABILITY HAS NO GAUGE FREEDOM (corrected 10-Aug-2026), so both components of the
+        ## EmProperty are filled from the same, frequency-INDEPENDENT static multipole moment. Until now the
+        ## Coulomb component came from PhotoEmission.amplitude(.., Basics.Coulomb, 0., ..), i.e. MabEmission --
+        ## the frequency-DEPENDENT transition operator -- evaluated at omega = 0. That is a category error, not
+        ## a gauge: the velocity form is related to the length form by <f|p|i> = i (E_f - E_i) <f|r|i>, so
+        ## taking it at omega = 0 drops exactly the 1/omega that connects the two. It produced alpha_0(Coulomb)
+        ## ~ 1.5e-6 against 1.164 in Babushkin -- six orders, and completely insensitive to the radial box,
+        ## which is what finally identified it as a wrong operator rather than a numerical problem.
+        ## The operator used here, InteractionStrength.eMultipole via MultipoleMoment.emmStaticAmplitude, is
+        ## Johnson's static r^k C_k: no omega, no gauge. It is also the operator that belongs in the C_6/C_8/C_10
+        ## dispersion coefficients. The two columns are therefore deliberately identical; they are kept only
+        ## because Outcome carries EmProperty fields throughout JAC.
+        dStatic = MultipoleMoment.emmStaticAmplitude(1, newNuLevel, newLevel, grid)
+        S = EmProperty( abs2(dStatic), abs2(dStatic) )
         if  S.Coulomb == 0.0  &&  S.Babushkin == 0.0   continue    end
 
         Sd = S * (1.0/deltaE)

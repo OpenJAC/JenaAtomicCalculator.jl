@@ -175,7 +175,7 @@ function Basics.generate(repType::AtomicState.CiExpansion, rep::AtomicState.Repr
 
     # The asfSettings only define the CI part and are partly derived from the CiSettings
     asfSettings = AsfSettings(true, CoulombInteraction(), Basics.DFSField(), StartFromHydrogenic(),    0, 0., Subshell[], Subshell[], 
-                                repType.settings.eeInteractionCI, NoneQed(), LSjjSettings(false), 
+                                1.0e-3, true, repType.settings.eeInteractionCI, NoneQed(), LSjjSettings(false), 
                                 repType.settings.levelSelectionCI) 
     
     basis      = Basics.generateBasis(rep.refConfigs, symmetries, repType.excitations)
@@ -303,7 +303,7 @@ function Basics.generate(repType::AtomicState.GreenExpansion, rep::AtomicState.R
 
     # The asfSettings only define the CI part of the Green channels and are partly derived from the GreenSettings
     asfSettings = AsfSettings(true, CoulombInteraction(), Basics.DFSField(), StartFromHydrogenic(),    0, 0., Subshell[], Subshell[], 
-                                CoulombInteraction(), NoneQed(), LSjjSettings(false), settings.levelSelection ) 
+                                1.0e-3, true, CoulombInteraction(), NoneQed(), LSjjSettings(false), settings.levelSelection ) 
     
     # Cycle over all selected level symmetries to generate the requested channels
     for  levelSymmetry  in  repType.levelSymmetries
