@@ -1735,6 +1735,14 @@ function solveOptimizedLevelField(basis::Basis, nuclearModel::Nuclear.Model, pri
         for  sh  in  basis.subshells
             newOrbitals[sh] = Bsplines.generateOrbitalFromVectorClaude(sh, 0.0, bVectors[sh], primitives)
         end
+        ## The EOL driver damps exactly as the AL one does, so it loses same-kappa orthogonality in exactly
+        ## the same way and needs the same repair.  Measured before this was added: Si^2+ [Ne] 3s^2 + 3p^2
+        ## gave a worst same-kappa overlap of 2.4e-06 under EOL against 9.3e-10 under AL, and Si^+ reached
+        ## 6.9e-05.  Wiring the switch into solveAverageLevelField alone was an oversight.
+        if  SelfConsistent.GBL_SCF_REORTHONORMALIZE
+            (newOrbitals, bVectors) = SelfConsistent.orthonormalizeSameKappaClaude(newOrbitals, bVectors,
+                                                        basis.subshells, primitives, matrixB)
+        end
         orbitals = newOrbitals
 
         # Re-diagonalize CI with the refined orbitals; refresh the target level(s)' mixing vectors and energies
