@@ -43,27 +43,36 @@ elseif  false
     wb = perform(wa)
     #
 elseif  false
-    # Last successful:  unknown -- deliberately left undated, see below (known bug).
+    # Last successful:  10-Aug-2026
     # Branch c: Ge II (Z=32) 4s^2 4f (2)F_5/2,7/2, the paper's own single-f-electron test case (their label
     #   "4s^2 4f^2" cannot literally mean two f-electrons -- equivalent f^2 gives only singlet/triplet terms,
     #   never a doublet; re-read here as "4s^2 4f (2)F", one f-electron on a closed 4s^2 spectator shell,
     #   which matches the paper's bare g_J numbers 0.857136/1.142850 almost exactly to the nonrelativistic
     #   Lande fractions 6/7, 8/7). Uses [Ar] 3d^10 4s^2 4f (31 electrons = Ge+); 74Ge, I=0, rms radius 4.07 fm
     #   is an estimate, not independently verified.
-    #   OPEN BUG (found 25-Jul-2026, RE-VERIFIED 31-Jul-2026 after the unrelated B-spline kappa-sign fix --
-    #   see memory project_zeeman_hfs_bugs.md): only the J=5/2 level (f_5/2, kappa=+3) is trustworthy here --
-    #   computed g_J = 0.856825 vs paper's total (with Schwinger) 0.856804, a good match (even slightly
-    #   closer than the pre-fix 0.857095). The J=7/2 level (f_7/2, kappa=-4) is WRONG (computed -2.263670 vs
-    #   paper's 1.143182) -- a newly found Zeeman N1 bug affects every kappa<=-3 subshell (d5/2, f7/2, ...),
-    #   not just this one -- confirmed via a kappa scan across p1/2,p3/2,d3/2,d5/2,f5/2,f7/2 in this same
-    #   ion, all at the same Z. NOTE: the WRONG value itself is not stable -- before the 31-Jul B-spline fix
-    #   this same J=7/2 level gave +0.893667 (smaller magnitude, same sign as the exact target); after the
-    #   fix it flipped sign and grew to -2.263670. Root cause not yet isolated (AngularMomentum.CL_reduced_me_rb
-    #   or its use in InteractionStrength.zeeman_n1, not yet narrowed further) -- evidently in the angular
-    #   coefficient machinery, since it reacts to an unrelated radial-basis change. NOT fixed in code. Left
-    #   undated on purpose (Rule 7): the J=7/2 half of this branch's output is known-wrong.
+    #   THE "kappa <= -3 ZEEMAN N1 BUG" WAS THE RADIAL BOX (resolved 10-Aug-2026). This branch used to run on
+    #   Radial.Grid(true), whose box is 614 a.u., and reported g_J(f_7/2) = -2.263670 against the exact 8/7:
+    #   wrong by a factor and even in sign, while f_5/2 was fine. It was recorded as an angular-coefficient
+    #   bug in AngularMomentum.CL_reduced_me_rb or InteractionStrength.zeeman_n1, "evidently angular, since
+    #   it reacts to an unrelated radial-basis change". That inference was backwards -- reacting to a radial
+    #   change is evidence the cause IS radial. Two measurements settle it:
+    #     (i) a ONE-ELECTRON scan of g_J over kappa = +1,-2,+2,-3,+3,-4 on a matched box reproduces the exact
+    #         Lande factors 2|kappa|/(2|kappa| -+ 1) to 2e-4 for EVERY kappa, so the angular machinery is
+    #         sound and both recorded suspects are exonerated;
+    #     (ii) in this Ge II system the 4f electron sees Z_eff ~ 2 and needs a box of ~30 a.u.; on the 614
+    #         a.u. box the SCF simply returns the WRONG STATE for kappa = -4 -- E(4f_7/2) = -1.5758 with
+    #         <r> = 5.20, against E(4f_5/2) = -0.0619 with <r> = 10.87, whereas the two spin-orbit partners
+    #         of a 4f shell must be nearly identical. On rbox = 30 they agree exactly (both -0.074629,
+    #         <r> = 9.215) and g_J comes right.
+    #   With the box matched, this branch now REPRODUCES THE PAPER TO SIX DECIMALS, both levels:
+    #     J=7/2  g_J = +1.143182   vs Andersson & Jonsson +1.143182
+    #     J=5/2  g_J = +0.856805   vs                     +0.856804
+    #   Same lesson as the B-spline f-state case: a box much TOO LARGE starves the basis exactly as badly as
+    #   one that is too small, because the number of splines is fixed. Note that the grid check added on
+    #   9-Aug-2026 (Bsplines.checkGridRepresentation) does NOT catch this: it tests hydrogenic orbitals at
+    #   the full nuclear charge, where 4f is compact, and it passes this grid.
     nm = Nuclear.Model(32., "Fermi", 74., 4.07, AngularJ64(0//1), 0.0, 0.0, 0.0)
-    wa = Atomic.Computation(Atomic.Computation(), name="Cd-c-GeII4f", grid=Radial.Grid(true),
+    wa = Atomic.Computation(Atomic.Computation(), name="Cd-c-GeII4f", grid=Radial.Grid(Radial.Grid(false); rbox=30.0),
                             nuclearModel=nm,
                             configs=[Configuration("[Ar] 3d^10 4s^2 4f")],
                             propertySettings=[ LandeZeeman.Settings(LandeZeeman.Settings(); calcLandeJ=true,
@@ -72,7 +81,8 @@ elseif  false
     wb = perform(wa)
     #
 elseif  false
-    # Last successful:  31-Jul-2026 (re-dated: the 30-Jul-2026 numbers below were stale after the same-day
+    # Last successful:  10-Aug-2026 (re-run on a matched box; the earlier numbers were taken on a 614 a.u.
+    #   box that returned the wrong f_7/2 state. Prior note, kept: re-dated 31-Jul after the same-day
     #   B-spline kappa-sign boundary-condition fix landed later that session -- see project_zeeman_hfs_bugs.md)
     # Branch d (AL-Field / Breit revisit): reuses branch c's Ge II [Ar] 3d^10 4s^2 4f system, now that
     #   AL-Field (Basics.ALField()) has been root-cause-fixed and promoted to the standard implementation
@@ -82,44 +92,47 @@ elseif  false
     #   tell an AL-Field/Breit effect apart from the pre-existing bug. Four settings combinations: DFS+
     #   Coulomb (reproduces branch c's f_5/2 baseline exactly, g_J=0.856824955), AL+Coulomb, DFS+Breit,
     #   AL+Breit.
-    #   RESULT (2), Breit: g_J(f_5/2) is EXACTLY bit-identical between the Coulomb-only and Breit-added runs
-    #   (both for DFS and for AL) -- the third and final confirmation this session of the same structural
-    #   prediction (single-CSF-per-symmetry-block system here too: each J level is its own trivial 1x1
-    #   block, no CI mixing for Breit to affect).
-    #   RESULT (1), AL-Field: g_J(f_5/2) shifts DFS->AL by only -0.0022% (0.856824955 -> 0.856806270) -- BY
-    #   FAR the smallest of the three properties tested this session (HFS: 26%, isotope shift K_nms/F:
-    #   ~0.1-0.2%, Zeeman: 0.002%). This is exactly the predicted "or nothing significant is changing" result
-    #   -- Zeeman g_J is dominated by angular/kinematic Lande structure, essentially insensitive to whether
-    #   the SCF exchange treatment is DFS (local) or AL (non-local). (For reference/curiosity only, NOT a
-    #   trustworthy data point: g_J(f_7/2) is -2.263670 (DFS) vs -2.242473 (AL) -- but f_7/2 is already wrong
-    #   from the separate, pre-existing kappa<=-3 bug, so this reflects how that bug interacts with
-    #   different orbital shapes, not a genuine AL-Field physics effect; not used for any conclusion here,
-    #   per the exclusion stated above. Also NOTE: these f_7/2 numbers themselves shifted substantially from
-    #   the 30-Jul-2026 run (then: 0.893667/1.142966) after the same-day B-spline fix -- see branch c and
-    #   the KNOWN LIMITATION docstring on LandeZeeman.amplitude(::ZeemanN1,...) for the full picture.)
+    #   RE-RUN 10-Aug-2026 on rbox = 30 a.u. The f_7/2 EXCLUSION IS NO LONGER NEEDED: the "kappa <= -3 bug"
+    #   was this branch's radial box, not a Zeeman defect (see branch c), so both levels are now usable and
+    #   the four combinations read
+    #        DFS+Coulomb   J=5/2  0.856804696    J=7/2  1.143181922
+    #        AL +Coulomb   J=5/2  0.856804428    J=7/2  1.143181632
+    #        DFS+Breit     J=5/2  0.856804696    J=7/2  1.143181922
+    #        AL +Breit     J=5/2  0.856804428    J=7/2  1.143181632
+    #   RESULT (2), Breit: g_J is EXACTLY bit-identical between the Coulomb-only and Breit-added runs, for
+    #   both fields AND now for both levels -- the same structural prediction as before (single CSF per
+    #   symmetry block, so each J level is its own trivial 1x1 block and there is no CI mixing for Breit to
+    #   affect). Confirmed on twice as much data as when it was first recorded.
+    #   RESULT (1), AL-Field: g_J shifts DFS->AL by -3.1e-5 % on f_5/2 and -2.5e-5 % on f_7/2 -- far smaller
+    #   even than the -0.0022% recorded from the old, box-starved run, and still by far the smallest of the
+    #   properties tested (HFS: 26%, isotope shift K_nms/F: ~0.1-0.2%). The conclusion is unchanged and now
+    #   better founded: Zeeman g_J is dominated by angular/kinematic Lande structure and is essentially
+    #   insensitive to whether the SCF exchange treatment is DFS (local) or AL (non-local).
+    #   The old f_7/2 numbers (-2.263670 DFS / -2.242473 AL, and 0.893667 before the July B-spline fix) were
+    #   all artefacts of the wrong state returned on the 614 a.u. box; they are not AL-Field physics.
     nm = Nuclear.Model(32., "Fermi", 74., 4.07, AngularJ64(0//1), 0.0, 0.0, 0.0)
 
-    wa1 = Atomic.Computation(Atomic.Computation(), name="Cd-d-GeII4f-DFS-Coulomb", grid=Radial.Grid(true),
+    wa1 = Atomic.Computation(Atomic.Computation(), name="Cd-d-GeII4f-DFS-Coulomb", grid=Radial.Grid(Radial.Grid(false); rbox=30.0),
                             nuclearModel=nm, configs=[Configuration("[Ar] 3d^10 4s^2 4f")],
                             propertySettings=[ LandeZeeman.Settings(LandeZeeman.Settings(); calcLandeJ=true,
                                                 includeSchwinger=true, printBefore=true) ] )
     perform(wa1)
 
-    wa2 = Atomic.Computation(Atomic.Computation(), name="Cd-d-GeII4f-AL-Coulomb", grid=Radial.Grid(true),
+    wa2 = Atomic.Computation(Atomic.Computation(), name="Cd-d-GeII4f-AL-Coulomb", grid=Radial.Grid(Radial.Grid(false); rbox=30.0),
                             nuclearModel=nm, configs=[Configuration("[Ar] 3d^10 4s^2 4f")],
                             asfSettings=ManyElectron.AsfSettings(ManyElectron.AsfSettings(); scField=Basics.ALField()),
                             propertySettings=[ LandeZeeman.Settings(LandeZeeman.Settings(); calcLandeJ=true,
                                                 includeSchwinger=true, printBefore=true) ] )
     perform(wa2)
 
-    wa3 = Atomic.Computation(Atomic.Computation(), name="Cd-d-GeII4f-DFS-Breit", grid=Radial.Grid(true),
+    wa3 = Atomic.Computation(Atomic.Computation(), name="Cd-d-GeII4f-DFS-Breit", grid=Radial.Grid(Radial.Grid(false); rbox=30.0),
                             nuclearModel=nm, configs=[Configuration("[Ar] 3d^10 4s^2 4f")],
                             asfSettings=ManyElectron.AsfSettings(ManyElectron.AsfSettings(); eeInteractionCI=Basics.CoulombBreit(0.)),
                             propertySettings=[ LandeZeeman.Settings(LandeZeeman.Settings(); calcLandeJ=true,
                                                 includeSchwinger=true, printBefore=true) ] )
     perform(wa3)
 
-    wa4 = Atomic.Computation(Atomic.Computation(), name="Cd-d-GeII4f-AL-Breit", grid=Radial.Grid(true),
+    wa4 = Atomic.Computation(Atomic.Computation(), name="Cd-d-GeII4f-AL-Breit", grid=Radial.Grid(Radial.Grid(false); rbox=30.0),
                             nuclearModel=nm, configs=[Configuration("[Ar] 3d^10 4s^2 4f")],
                             asfSettings=ManyElectron.AsfSettings(ManyElectron.AsfSettings(); scField=Basics.ALField(),
                                                                   eeInteractionCI=Basics.CoulombBreit(0.)),

@@ -731,4 +731,78 @@ function setupLocalMatrix(kappa::Int64, primitives::Bsplines.Primitives, pot::Ra
 end   
 
 
+"""
+`Bsplines.checkOrbitalConsistency(orbitals::Dict{Subshell,Orbital}, grid::Radial.Grid;
+                                  rTolerance::Float64=1.5, eTolerance::Float64=2.0, stopper::Bool=true)`
+    ... checks the generated orbitals for the one failure mode that Bsplines.checkGridRepresentation cannot
+        see: an SCF that has converged onto the WRONG STATE for some symmetry. It compares the two
+        spin-orbit partners of every subshell -- same n, same l, kappa of either sign -- which must describe
+        the same shell and therefore must be close in both mean radius and binding energy.
+
+        WHY THIS IS NEEDED IN ADDITION TO checkGridRepresentation. That function tests hydrogenic orbitals at
+        the FULL nuclear charge, so it only sees whether the grid can resolve a COMPACT orbital. It passes
+        happily on a grid that cannot represent a diffuse, screened outer orbital: Ge II [Ar] 3d^10 4s^2 4f
+        on r_max = 614 a.u. returned E(4f_7/2) = -1.5758 with <r> = 5.20 against E(4f_5/2) = -0.0619 with
+        <r> = 10.87 -- a different state entirely -- and produced a Lande factor of -2.264 against the exact
+        8/7, while the grid check reported no problem at all.
+
+        THE TOLERANCES ARE CALIBRATED, not guessed. Genuine fine structure does separate the partners, and
+        the more so the heavier the ion, so a tight criterion would fire on correct results. Measured for
+        hydrogen-like ions on matched boxes, |E_1/E_2| and <r>_1/<r>_2 are
+             Z =  10   2p  1.0013 / 0.9982      3d  1.0003 / 0.9996
+             Z =  26   2p  1.0092 / 0.9877      3d  1.0020 / 0.9969
+             Z =  54   2p  1.0426 / 0.9448      3d  1.0088 / 0.9867
+             Z =  92   2p  1.1540 / 0.8195      3d  1.0268 / 0.9601      4f  1.0097 / 0.9844
+        i.e. at worst 15% in energy and 18% in radius for a legitimate pair, against a factor 26 in energy
+        and 2.1 in radius for the broken Ge II case. The defaults of 2.0 and 1.5 sit in that gap with room
+        on both sides.
+        A value::Bool is returned -- true if every partner pair is consistent.
+"""
+function checkOrbitalConsistency(orbitals::Dict{Subshell,Orbital}, grid::Radial.Grid;
+                                 rTolerance::Float64=1.5, eTolerance::Float64=2.0, stopper::Bool=true)
+    ## group the orbitals by (n, l); only pairs with both kappa signs can be compared
+    groups = Dict{Tuple{Int64,Int64}, Array{Subshell,1}}()
+    for  sh  in  keys(orbitals)
+        key = (sh.n, Basics.subshell_l(sh));    groups[key] = push!( get(groups, key, Subshell[]), sh )
+    end
+    #
+    offenders = Tuple{Subshell,Subshell,Float64,Float64}[]
+    for  (key, shs)  in  groups
+        length(shs) == 2   ||   continue
+        a = orbitals[shs[1]];     b = orbitals[shs[2]]
+        ra = JenaAtomicCalculator.RadialIntegrals.rkDiagonal(1, a, a, grid)
+        rb = JenaAtomicCalculator.RadialIntegrals.rkDiagonal(1, b, b, grid)
+        rRatio = (ra > 0. && rb > 0.)  ?  max(ra,rb)/min(ra,rb)  :  Inf
+        eRatio = (a.energy * b.energy > 0.)  ?  max(abs(a.energy),abs(b.energy))/min(abs(a.energy),abs(b.energy))  :  Inf
+        ## The MEAN RADIUS is the criterion; the energy ratio is reported for diagnosis but does not trigger
+        ## on its own. Energies are fragile here: a nearly-unbound subshell in a highly-ionised configuration
+        ## can have its two partners straddle zero, which makes eRatio infinite while the orbitals are in
+        ## fact identical -- exactly what the Cascade stepwise-decay test does with 3p_1/2 / 3p_3/2, whose
+        ## radii agree to 0.1%. The radius alone already separates the calibration cases by a wide margin.
+        if  rRatio > rTolerance
+            push!(offenders, (shs[1], shs[2], eRatio, rRatio))
+        end
+    end
+    #
+    if  length(offenders) > 0
+        printstyled("\n>>> ORBITAL CHECK FAILED: these spin-orbit partners do not describe the same shell, which means\n" *
+                    ">>> the SCF has converged onto the wrong state for one of them (usually an ill-matched radial box):\n",
+                    color=:light_red)
+        printstyled("      partners                    E ratio     <r> ratio     (limits $eTolerance / $rTolerance)\n",
+                    color=:light_red)
+        for  (sa, sb, er, rr)  in  offenders
+            printstyled(@sprintf("    %-10s %-10s  %11.4g %13.4g\n", string(sa), string(sb), er, rr), color=:light_red)
+        end
+        printstyled(">>> Compare the two orbital energies and mean radii directly, and match the radial box to the\n" *
+                    ">>> orbitals; note that a box much TOO LARGE starves the basis just as badly as one too small.\n",
+                    color=:light_red)
+        if  stopper   error("Bsplines.checkOrbitalConsistency(): $(length(offenders)) spin-orbit partner pair(s) " *
+                            "describe different states; the orbitals are not trustworthy.")   end
+        return( false )
+    end
+
+    return( true )
+end
+
+
 end # module

@@ -884,6 +884,13 @@ function performSCF(configs::Array{Configuration,1}, nm::Nuclear.Model, grid::Ra
     else  error("stop a")
     end
 
+    # Now that the orbitals are final, check that no symmetry has converged onto the wrong state. This
+    # catches what Bsplines.checkGridRepresentation cannot: that check tests HYDROGENIC orbitals at the full
+    # nuclear charge, so it passes a grid which cannot represent a diffuse, screened outer orbital -- Ge II
+    # 4f on a 614 a.u. box being the case that motivated it. Note the EOLField branch above returns early
+    # and is therefore not covered here.
+    Bsplines.checkOrbitalConsistency(basis.orbitals, grid; stopper = settings.gridStopper)
+
     # Setup and diagonalize the Hamiltonian matrix; assign mixing coefficients
     if   settings.scField in [Basics.ALField()]
         mp = Hamiltonian.performCIClaude(basis, nm, grid, settings, printout=printout)
@@ -923,6 +930,13 @@ function performSCF(basis::Basis, nm::Nuclear.Model, grid::Radial.Grid,
         return( SelfConsistent.solveOptimizedLevelField(basis, nm, primitives, settings; printout=printout) )
     else  error("stop a")
     end
+
+    # Now that the orbitals are final, check that no symmetry has converged onto the wrong state. This
+    # catches what Bsplines.checkGridRepresentation cannot: that check tests HYDROGENIC orbitals at the full
+    # nuclear charge, so it passes a grid which cannot represent a diffuse, screened outer orbital -- Ge II
+    # 4f on a 614 a.u. box being the case that motivated it. Note the EOLField branch above returns early
+    # and is therefore not covered here.
+    Bsplines.checkOrbitalConsistency(basis.orbitals, grid; stopper = settings.gridStopper)
 
     # Setup and diagonalize the Hamiltonian matrix; assign mixing coefficients
     if   settings.scField in [Basics.ALField()]
