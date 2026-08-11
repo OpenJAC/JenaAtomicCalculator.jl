@@ -7,8 +7,8 @@
 module AutoIonization
 
 
-using  Printf, ..AngularMomentum, ..Basics, ..BiOrthogonal, ..Continuum, ..Defaults, ..InteractionStrength, ..ManyElectron, ..Nuclear,
-               ..Radial, ..SpinAngular, ..TableStrings
+using  Printf, ..AngularMomentum, ..Basics, ..BiOrthogonal, ..Bsplines, ..Continuum, ..Defaults, ..InteractionStrength,
+               ..ManyElectron, ..Nuclear, ..Radial, ..SpinAngular, ..TableStrings
 
 """
 `struct  Settings  <:  AbstractProcessSettings`  ... defines a type for the details and parameters of computing Auger lines.
@@ -381,17 +381,27 @@ end
         and properties are now evaluated.
 """
 function computeAmplitudesProperties(line::AutoIonization.Line, nm::Nuclear.Model, grid::Radial.Grid, nrContinuum::Int64, 
-                                        settings::AutoIonization.Settings; printout::Bool=true) 
+                                        settings::AutoIonization.Settings; printout::Bool=true,
+                                        nuclearPot::Union{Nothing,Radial.Potential}=nothing,
+                                        primitives::Union{Nothing,Bsplines.Primitives}=nothing)
     newChannels = AutoIonization.Channel[];   contSettings = Continuum.Settings(false, nrContinuum);   rate = 0.
     # Define a common subshell list for both multiplets
     subshellList = Basics.generate(OrderedSubshellList(), line.finalLevel.basis, line.initialLevel.basis)
     Defaults.setDefaults("relativistic subshell list", subshellList; printout=false)
-    
+    # The nuclear potential depends only on the nuclear model and the grid; it is built ONCE by computeLines
+    # and threaded in, rather than being rebuilt by Continuum.generateOrbitalForLevel for every line and
+    # every partial wave (see the note there).  Falls back to building it if a caller does not supply one.
+    nucPot = isnothing(nuclearPot) ? Nuclear.nuclearPotential(nm, grid) : nuclearPot
+    ## The two symmetry-reduced levels depend on the line but not on the partial wave, and so are formed once
+    ## for the whole line rather than once per channel.
+    redILevel = Basics.generateLevelWithSymmetryReducedBasis(line.initialLevel, subshellList)
+    newfLevel = Basics.generateLevelWithSymmetryReducedBasis(line.finalLevel,   subshellList)
+
     for channel in line.channels
-        newiLevel = Basics.generateLevelWithSymmetryReducedBasis(line.initialLevel, subshellList)
-        newfLevel = Basics.generateLevelWithSymmetryReducedBasis(line.finalLevel, subshellList)
-        newiLevel = Basics.generateLevelWithExtraSubshell(Subshell(101, channel.kappa), newiLevel)
-        cOrbital, phase  = Continuum.generateOrbitalForLevel(line.electronEnergy, Subshell(101, channel.kappa), newfLevel, nm, grid, contSettings)
+        newiLevel = Basics.generateLevelWithExtraSubshell(Subshell(101, channel.kappa), redILevel)
+        cOrbital, phase  = Continuum.generateOrbitalForLevel(line.electronEnergy, Subshell(101, channel.kappa), newfLevel,
+                                                            nm, grid, contSettings; nuclearPot=nucPot,
+                                                            primitives=primitives)
         newcLevel  = Basics.generateLevelWithExtraElectron(cOrbital, channel.symmetry, newfLevel)
         newChannel = AutoIonization.Channel(channel.kappa, channel.symmetry, phase, 0.)
         amplitude  = AutoIonization.amplitude(settings.operator, newChannel, newcLevel, newiLevel, grid, printout=printout)
@@ -526,9 +536,15 @@ function  computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, n
     nrContinuum = Continuum.gridConsistency(maxEnergy, grid)
     # Calculate all amplitudes and requested properties
     newLines = AutoIonization.Line[]
+    ## Both are built ONCE for the whole computation and handed down to every line and every partial wave: the
+    ## nuclear potential depends only on the nuclear model and the grid, the B-spline basis only on the grid --
+    ## and the grid is fixed here, since Continuum.gridConsistency above is called once for the maximum energy.
+    nuclearPot = Nuclear.nuclearPotential(nm, grid)
+    primitives = Bsplines.generatePrimitives(grid)
     for  (nl, line)  in  enumerate(lines)
         if  rem(nl,10) == 0    println("\n>> Auger computations for line No = $nl   ...")     end
-        newLine = AutoIonization.computeAmplitudesProperties(line, nm, grid, nrContinuum, settings) 
+        newLine = AutoIonization.computeAmplitudesProperties(line, nm, grid, nrContinuum, settings;
+                                                            nuclearPot=nuclearPot, primitives=primitives)
         push!( newLines, newLine)
     end
     # Print all results to screen
