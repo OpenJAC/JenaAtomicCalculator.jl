@@ -7,8 +7,8 @@
 module PhotoIonization
 
 
-using Printf, ..AngularMomentum, ..Basics, ..BiOrthogonal, ..Continuum, ..Defaults, ..Radial, ..Nuclear, ..ManyElectron, ..PhotoEmission,
-              ..TableStrings
+using Printf, ..AngularMomentum, ..Basics, ..BiOrthogonal, ..Bsplines, ..Continuum, ..Defaults, ..Radial, ..Nuclear, ..ManyElectron,
+              ..PhotoEmission, ..TableStrings
 
 """
 `struct  PhotoIonization.Settings  <:  AbstractProcessSettings`  ... defines a type for the details and parameters of computing photoionization lines.
@@ -409,20 +409,30 @@ end
 
 
 """
-`PhotoIonization.computeAmplitudesProperties(line::PhotoIonization.Line, nm::Nuclear.Model, grid::Radial.Grid, nrContinuum::Int64, 
-                                                    settings::PhotoIonization.Settings; printout::Bool=false)`  
-    ... to compute all amplitudes and properties of the given line; a line::PhotoIonization.Line is returned for which the amplitudes and 
-        properties are now evaluated.
+`PhotoIonization.computeAmplitudesProperties(line::PhotoIonization.Line, nm::Nuclear.Model, grid::Radial.Grid, nrContinuum::Int64,
+                                                    settings::PhotoIonization.Settings; printout::Bool=false,
+                                                    nuclearPot::Union{Nothing,Radial.Potential}=nothing,
+                                                    primitives::Union{Nothing,Bsplines.Primitives}=nothing)`
+    ... to compute all amplitudes and properties of the given line; a line::PhotoIonization.Line is returned for which the amplitudes and
+        properties are now evaluated. The two keywords carry quantities that are CONSTANT for a whole computation and are otherwise
+        rebuilt for every line and every partial wave: the nuclear potential depends only on the nuclear model and the grid, the
+        B-spline primitives only on the grid. Nothing is cached; omitting them reproduces the previous behaviour exactly.
 """
 function  computeAmplitudesProperties(line::PhotoIonization.Line, nm::Nuclear.Model, grid::Radial.Grid, nrContinuum::Int64, 
-                                        settings::PhotoIonization.Settings; printout::Bool=false)
-    nChannels    = PhotoIonization.Channel[];   nxChannels    = PhotoIonization.Channel[];   
+                                        settings::PhotoIonization.Settings; printout::Bool=false,
+                                        nuclearPot::Union{Nothing,Radial.Potential}=nothing,
+                                        primitives::Union{Nothing,Bsplines.Primitives}=nothing)
+    nChannels    = PhotoIonization.Channel[];   nxChannels    = PhotoIonization.Channel[];
     contSettings = Continuum.Settings(false, nrContinuum);      csC = csB = dtC = dtB = 0.
+    ## The two symmetry-reduced levels depend on the line but not on the partial wave, and so are formed once
+    ## for the whole line rather than once per channel.
+    redILevel = Basics.generateLevelWithSymmetryReducedBasis(line.initialLevel, line.initialLevel.basis.subshells)
+    newfLevel = Basics.generateLevelWithSymmetryReducedBasis(line.finalLevel, redILevel.basis.subshells)
+
     for channel in line.channels
-        newiLevel = Basics.generateLevelWithSymmetryReducedBasis(line.initialLevel, line.initialLevel.basis.subshells)
-        newfLevel = Basics.generateLevelWithSymmetryReducedBasis(line.finalLevel, newiLevel.basis.subshells)
-        newiLevel = Basics.generateLevelWithExtraSubshell(Subshell(101, channel.kappa), newiLevel)
-        cOrbital, phase  = Continuum.generateOrbitalForLevel(line.electronEnergy, Subshell(101, channel.kappa), newfLevel, nm, grid, contSettings)
+        newiLevel = Basics.generateLevelWithExtraSubshell(Subshell(101, channel.kappa), redILevel)
+        cOrbital, phase  = Continuum.generateOrbitalForLevel(line.electronEnergy, Subshell(101, channel.kappa), newfLevel, nm, grid,
+                                                            contSettings; nuclearPot=nuclearPot, primitives=primitives)
         #
         newcLevel  = Basics.generateLevelWithExtraElectron(cOrbital, channel.symmetry, newfLevel)
         nChannel   = PhotoIonization.Channel(channel.multipole, channel.gauge, channel.kappa, channel.symmetry, phase, 0.)
@@ -435,8 +445,9 @@ function  computeAmplitudesProperties(line::PhotoIonization.Line, nm::Nuclear.Mo
         end
         #
         if  settings.calcTimeDelay
-            cOrbitalx, phasex  = Continuum.generateOrbitalForLevel(line.electronEnergy+0.01, Subshell(101, channel.kappa), 
-                                                                    newfLevel, nm, grid, contSettings)
+            cOrbitalx, phasex  = Continuum.generateOrbitalForLevel(line.electronEnergy+0.01, Subshell(101, channel.kappa),
+                                                                    newfLevel, nm, grid, contSettings;
+                                                                    nuclearPot=nuclearPot, primitives=primitives)
             newcLevelx = Basics.generateLevelWithExtraElectron(cOrbitalx, channel.symmetry, newfLevel)
             nxChannel  = PhotoIonization.Channel(channel.multipole, channel.gauge, channel.kappa, channel.symmetry, phasex, 0.)
             amplitude  = PhotoIonization.amplitude("photoionization", nxChannel, line.photonEnergy+0.01, newcLevelx, newiLevel, grid)
@@ -468,7 +479,9 @@ end
 
 """
 `PhotoIonization.computeAmplitudesPropertiesPlasma(line::PhotoIonization.Line, nm::Nuclear.Model, grid::Radial.Grid,
-                                                   settings::PhotoIonization.PlasmaSettings, plasmaModel::Basics.AbstractPlasmaModel)`
+                                                   settings::PhotoIonization.PlasmaSettings, plasmaModel::Basics.AbstractPlasmaModel;
+                                                   nuclearPot::Union{Nothing,Radial.Potential}=nothing,
+                                                   primitives::Union{Nothing,Bsplines.Primitives}=nothing)`
     ... to compute all amplitudes and properties of the given line but for the given plasma model. The photon-electron
         multipole operator itself carries no e-e Coulomb interaction to screen (unlike the Auger case), so the plasma
         dependence enters here through the continuum (photoelectron) orbital only, cf.
@@ -476,17 +489,21 @@ end
         amplitudes and properties are now evaluated.
 """
 function  computeAmplitudesPropertiesPlasma(line::PhotoIonization.Line, nm::Nuclear.Model, grid::Radial.Grid,
-                                            settings::PhotoIonization.PlasmaSettings, plasmaModel::Basics.AbstractPlasmaModel)
+                                            settings::PhotoIonization.PlasmaSettings, plasmaModel::Basics.AbstractPlasmaModel;
+                                            nuclearPot::Union{Nothing,Radial.Potential}=nothing,
+                                            primitives::Union{Nothing,Bsplines.Primitives}=nothing)
     newChannels = PhotoIonization.Channel[];   contSettings = Continuum.Settings(false, grid.NoPoints-50);    csC = csB = 0.
     subshellList = Basics.generate(OrderedSubshellList(), line.finalLevel.basis, line.initialLevel.basis)
     Defaults.setDefaults("relativistic subshell list", subshellList; printout=false)
+    ## As above: the two symmetry-reduced levels do not depend on the partial wave.
+    redILevel = Basics.generateLevelWithSymmetryReducedBasis(line.initialLevel, subshellList)
+    newfLevel = Basics.generateLevelWithSymmetryReducedBasis(line.finalLevel,   subshellList)
     #
     for channel in line.channels
-        newiLevel = Basics.generateLevelWithSymmetryReducedBasis(line.initialLevel, subshellList)
-        newfLevel = Basics.generateLevelWithSymmetryReducedBasis(line.finalLevel, subshellList)
-        newiLevel = Basics.generateLevelWithExtraSubshell(Subshell(101, channel.kappa), newiLevel)
+        newiLevel = Basics.generateLevelWithExtraSubshell(Subshell(101, channel.kappa), redILevel)
         cOrbital, phase  = Continuum.generateOrbitalForLevel(line.electronEnergy, Subshell(101, channel.kappa), newfLevel,
-                                                              nm, grid, contSettings, plasmaModel)
+                                                              nm, grid, contSettings, plasmaModel;
+                                                              nuclearPot=nuclearPot, primitives=primitives)
         newcLevel  = Basics.generateLevelWithExtraElectron(cOrbital, channel.symmetry, newfLevel)
         newChannel = PhotoIonization.Channel(channel.multipole, channel.gauge, channel.kappa, channel.symmetry, phase, 0.)
         amplitude  = PhotoIonization.amplitude("photoionization", newChannel, line.photonEnergy, newcLevel, newiLevel, grid)
@@ -574,10 +591,16 @@ function  computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, n
     nrContinuum = Continuum.gridConsistency(maxEnergy, grid)
     # Calculate all amplitudes and requested properties
     newLines = PhotoIonization.Line[]
+    ## Both are built ONCE for the whole computation and handed down to every line and every partial wave: the
+    ## nuclear potential depends only on the nuclear model and the grid, the B-spline basis only on the grid --
+    ## and the grid is fixed here, since Continuum.gridConsistency above is called once for the maximum energy.
+    nuclearPot = Nuclear.nuclearPotential(nm, grid)
+    primitives = Bsplines.generatePrimitives(grid)
     for  line in lines
         println("\n>> Calculate photoionization amplitudes and properties for line: $(line.initialLevel.index) - $(line.finalLevel.index) " *
                 "for the photon energy $(Defaults.convertUnits("energy: from atomic", line.photonEnergy)) " * Defaults.GBL_ENERGY_UNIT)
-        newLine = PhotoIonization.computeAmplitudesProperties(line, nm, grid, nrContinuum, settings) 
+        newLine = PhotoIonization.computeAmplitudesProperties(line, nm, grid, nrContinuum, settings;
+                                                             nuclearPot=nuclearPot, primitives=primitives)
         push!( newLines, newLine)
     end
     # Print all results to screen
@@ -621,6 +644,9 @@ function  computeLinesCascade(finalMultiplet::Multiplet, initialMultiplet::Multi
     nrContinuum = Continuum.gridConsistency(maxEnergy, grid)
     # Calculate all amplitudes and requested properties
     newLines = PhotoIonization.Line[]
+    ## Constants of the whole computation; see the note in computeLines above.
+    nuclearPot = Nuclear.nuclearPotential(nm, grid)
+    primitives = Bsplines.generatePrimitives(grid)
     for  (i,line)  in  enumerate(lines)
         if  rem(i,10) == 0    println("> Photo line $i:  ... calculated ")    end
         # Do not compute line if initial level is not in initialLevelSelection()
@@ -628,7 +654,8 @@ function  computeLinesCascade(finalMultiplet::Multiplet, initialMultiplet::Multi
         if  !Basics.selectLevel(line.initialLevel, initialLevelSelection)   continue   ## @show "jump photoioization line";    continue  
         end
         #
-        newLine = PhotoIonization.computeAmplitudesProperties(line, nm, grid, nrContinuum, settings, printout=printout) 
+        newLine = PhotoIonization.computeAmplitudesProperties(line, nm, grid, nrContinuum, settings; printout=printout,
+                                                             nuclearPot=nuclearPot, primitives=primitives)
         push!( newLines, newLine)
     end
     # Print all results to a summary file, if requested
@@ -661,8 +688,12 @@ function  computeLinesPlasma(finalMultiplet::Multiplet, initialMultiplet::Multip
     if  settings.printBefore    PhotoIonization.displayLines(stdout, lines)    end
     # Calculate all amplitudes and requested properties
     newLines = PhotoIonization.Line[]
+    ## Constants of the whole computation; see the note in computeLines above.
+    nuclearPot = Nuclear.nuclearPotential(nm, grid)
+    primitives = Bsplines.generatePrimitives(grid)
     for  line in lines
-        newLine = PhotoIonization.computeAmplitudesPropertiesPlasma(line, nm, grid, settings, plasmaModel)
+        newLine = PhotoIonization.computeAmplitudesPropertiesPlasma(line, nm, grid, settings, plasmaModel;
+                                                                    nuclearPot=nuclearPot, primitives=primitives)
         push!( newLines, newLine)
     end
     # Print all results to screen
