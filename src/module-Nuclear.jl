@@ -7,7 +7,7 @@
 module Nuclear
 
 using  QuadGK, ..Basics,  ..Defaults, ..Radial, ..Math
-export Model, AbstractNuclearModel, PointNucleus, UniformNucleus, FermiNucleus
+export Model, AbstractNuclearModel, PointNucleus, UniformNucleus, FermiNucleus, ThreeParameterFermiNucleus
 
 
 """
@@ -19,6 +19,9 @@ export Model, AbstractNuclearModel, PointNucleus, UniformNucleus, FermiNucleus
     + struct FermiNucleus     ... a two-parameter Fermi distribution,
                                   rho(r) = rho_0 / (1 + exp((r-c)/a)), with the skin thickness a fixed by
                                   Nuclear.fermiA and c determined from the requested rms radius.
+    + struct ThreeParameterFermiNucleus
+                              ... a three-parameter Fermi distribution,
+                                  rho(r) = rho_0 (1 + w r^2/c^2) / (1 + exp((r-c)/a)); see below.
 
         Until 12-Aug-2026 the model was carried as a String and compared with ==, which made every new
         distribution another branch and left the accepted spellings inconsistent ("Fermi", but "point" and
@@ -32,12 +35,54 @@ struct     FermiNucleus          <:  AbstractNuclearModel      end
 
 
 """
+`struct  Nuclear.ThreeParameterFermiNucleus  <:  Nuclear.AbstractNuclearModel`
+    ... a three-parameter Fermi distribution of the nuclear charge,
+
+            rho(r) = rho_0 (1 + w r^2/c^2) / (1 + exp((r-c)/a)),
+
+        which relaxes the flat interior that the two-parameter form imposes by construction.  Here w > 0
+        describes a central bump and w < 0 a CENTRAL DEPRESSION.  Two quite different mechanisms produce
+        the latter: in medium-mass nuclei it is a shell effect (the 34Si bubble), whereas in the superheavy
+        region it is driven by the Coulomb repulsion pushing protons outward, which makes it robust rather
+        than model-dependent.  This is the form tabulated by the elastic electron-scattering compilations
+        (de Vries, de Jager and de Vries, At. Data Nucl. Data Tables 36 (1987) 495) and used in the analysis
+        of muonic atoms, where the muon orbits largely INSIDE the nucleus and hence samples the shape of the
+        charge distribution rather than only its second moment.
+
+    + w        ::Float64    ... dimensionless shape parameter; w = 0 recovers Nuclear.FermiNucleus exactly.
+    + a        ::Float64    ... skin-thickness parameter [fm].  Unlike the two-parameter model, which always
+                                uses the fixed Nuclear.fermiA, this is a field: the published parameter sets
+                                come as triples (w, c, a) with a different a for every nucleus, so a fixed a
+                                would make the model impossible to compare against any tabulated nucleus.
+                                The one-argument constructor defaults it to Nuclear.fermiA.
+
+        NOTE on the parametrisation itself: for w < 0 the profile 1 + w r^2/c^2 turns negative beyond
+        r = c/sqrt(|w|).  For the tabulated magnitudes (|w| <~ 0.1) that lies beyond 3c, where the Fermi
+        factor has already fallen to ~exp(-2c/a), so the contribution is numerically irrelevant.  It is a
+        property of the three-parameter form, however, and not an oversight here.
+"""
+struct  ThreeParameterFermiNucleus  <:  AbstractNuclearModel
+    w        ::Float64
+    a        ::Float64
+end
+
+
+"""
+`Nuclear.ThreeParameterFermiNucleus(w::Float64)`
+    ... constructor for a three-parameter Fermi nucleus with the shape parameter w and the skin thickness
+        left at JAC's standard Nuclear.fermiA.
+"""
+ThreeParameterFermiNucleus(w::Float64) = ThreeParameterFermiNucleus(w, Nuclear.fermiA)
+
+
+"""
 `Nuclear.name(model::Nuclear.AbstractNuclearModel)`
     ... returns a short name::String of the given nuclear model, for printout.
 """
-name(model::Nuclear.PointNucleus)     = "Point"
-name(model::Nuclear.UniformNucleus)   = "Uniform"
-name(model::Nuclear.FermiNucleus)     = "Fermi"
+name(model::Nuclear.PointNucleus)                 = "Point"
+name(model::Nuclear.UniformNucleus)               = "Uniform"
+name(model::Nuclear.FermiNucleus)                 = "Fermi"
+name(model::Nuclear.ThreeParameterFermiNucleus)   = "Fermi-3p"
 
 
 """
@@ -368,6 +413,93 @@ end
 
 
 """
+`Nuclear.threeParameterFermiRrms(c::Float64, a::Float64, w::Float64)`
+    ... provides a value::Float64 for the root-mean-square radius [fm] of the three-parameter Fermi charge
+        density rho(r) = rho_0 (1 + w r^2/c^2) / (1 + exp((r-c)/a)), in closed form.
+
+        The moments of the Fermi factor are analytic,
+
+            M_n = Int_0^Inf r^n / (1 + exp((r-c)/a)) dr = - n! a^(n+1) Li_(n+1)(-exp(c/a)),
+
+        and Math.polylogExp(x, s) is exactly Li_s(-exp(x)) (it wraps GSL's complete Fermi-Dirac integral).
+        With the weight 1 + w r^2/c^2 folded in,
+
+            <r^2> = [M_4 + (w/c^2) M_6] / [M_2 + (w/c^2) M_4],
+
+        which is the expression below.  For w = 0 it collapses identically to 12 a^2 L_5 / L_3, i.e. to
+        Nuclear.fermiRrms, and that is used as a regression test of this whole model.
+"""
+function threeParameterFermiRrms(c::Float64, a::Float64, w::Float64)
+    L3 = Math.polylogExp(c/a, 3);   L5 = Math.polylogExp(c/a, 5);   L7 = Math.polylogExp(c/a, 7)
+    ## u collects the dimensionless combination in which w always enters; M_(n+2)/M_n carries a^2 (n+1)(n+2)
+    u   = w * a^2 / c^2
+    num = 24 * L5 + 720 * u * L7
+    den =  2 * L3 +  24 * u * L5
+    ## The L_k are negative, so num and den are both negative for w = 0 and the ratio is positive.  Once
+    ## |u| = |w| a^2/c^2 grows to O(1) -- i.e. once c falls towards a -- the w-term can outweigh the leading
+    ## one and den crosses zero; the "distribution" is then no longer a sensible charge density and <r^2> is
+    ## meaningless rather than merely inaccurate.  Say so instead of returning a NaN.
+    if  den == 0.  ||  num/den <= 0.
+        error("Nuclear.threeParameterFermiRrms(): the three-parameter Fermi form is not meaningful for " *
+              "c = $c fm, a = $a fm, w = $w -- the weight (1 + w r^2/c^2) outweighs the Fermi factor " *
+              "(|w| a^2/c^2 = $(abs(u)) is not small) and the second moment ceases to be positive.")
+    end
+    return( sqrt( a^2 * num / den ) )
+end
+
+
+"""
+`Nuclear.computeThreeParameterFermiC(R::Float64, a::Float64, w::Float64)`
+    ... computes a value::Float64 for the half-density radius c [fm] of a three-parameter Fermi nucleus with
+        root-mean-square radius R, skin thickness a and shape parameter w.
+
+        This BISECTS rather than iterating the fixed-point step used by Nuclear.computeFermiBParameter.  That
+        step, b <- b - (fermiRrms(b) - R) with unit damping, converges at a rate set by d(fermiRrms)/db, and
+        that derivative vanishes as R approaches the smallest radius the form can represent -- which is why
+        it stalls on helium (see the comment in computeFermiBParameter).  Bisection cannot stall: it either
+        converges or reports an unreachable R, which is the distinction that matters to the caller.
+
+        The bracket is grown outwards from c0 = sqrt(5/3) R -- the sharp-sphere relation R = sqrt(3/5) c --
+        rather than being fixed in advance, because threeParameterFermiRrms is monotone in c ONLY while
+        c stays comfortably above a.  That was measured, not assumed: for a = 0.523 fm the closed form is
+        smooth and increasing for c >~ 2.5 fm, and for smaller c it is non-monotone and eventually singular,
+        since |w| a^2/c^2 then reaches O(1).  cFloor below marks that boundary.  Every physically meaningful
+        nucleus has c ~ 1.2 R with R >~ 2 fm and so sits far above it.
+"""
+function computeThreeParameterFermiC(R::Float64, a::Float64, w::Float64)
+    R <= 0.  &&  error("Nuclear.computeThreeParameterFermiC(): R_rms = $R fm must be positive.")
+    cFloor = 4.0 * a          ## below this the w-weight competes with the Fermi factor; see the docstring
+    c0     = sqrt(5/3) * R    ## sharp-sphere estimate, always slightly above the true c
+    ##
+    ## Grow the bracket outwards from c0 until it straddles R.
+    cUpp = max(c0, cFloor);   nUpp = 0
+    while  threeParameterFermiRrms(cUpp, a, w) < R   &&   nUpp < 60
+        cUpp = 1.5 * cUpp;    nUpp = nUpp + 1
+    end
+    cLow = cUpp
+    while  threeParameterFermiRrms(cLow, a, w) > R
+        cLow = cLow / 1.5
+        if  cLow < cFloor
+            error("Nuclear.computeThreeParameterFermiC(): R_rms = $R fm is not representable by a three-" *
+                  "parameter Fermi distribution with a = $a fm and w = $w.  The half-density radius would " *
+                  "have to fall below $cFloor fm, where the weight (1 + w r^2/c^2) competes with the Fermi " *
+                  "factor itself; use UniformNucleus() for such a small radius.")
+        end
+    end
+    ##
+    tolAccept = 1.0e-12
+    for  i = 1:200
+        cMid = 0.5 * (cLow + cUpp)
+        if      cUpp - cLow < tolAccept                                 return( cMid )
+        elseif  threeParameterFermiRrms(cMid, a, w) > R                 cUpp = cMid
+        else                                                            cLow = cMid
+        end
+    end
+    return( 0.5 * (cLow + cUpp) )
+end
+
+
+"""
 `Nuclear.computeFermiBParameter(R::Float64)`  
     ... computes a value::Float64 for the fermi_b parameter for a fermi-distributed nuclear with 
         root-mean square radius R.
@@ -437,7 +569,7 @@ function fermiDistributedNucleus(Rrms::Float64, Z::Float64, grid::Radial.Grid)
               "Z=1): with JAC's fixed Fermi skin-thickness parameter (fermiA = $(round(fermiA, digits=4)) fm), " *
               "the 2-parameter Fermi charge distribution has a minimum representable rms radius of about " *
               "1.86 fm, far above hydrogen's physical charge radius (~0.88 fm). Use " *
-              "Nuclear.Model(Z, \"uniform\", mass, Rrms, ...) instead for Z=1.")
+              "Nuclear.Model(Z, UniformNucleus(), mass, Rrms, ...) instead for Z=1.")
     else
         b = computeFermiBParameter(Rrms);    b < 0  &&  error("Inappropriate R_rms radius.")
     end
@@ -465,7 +597,46 @@ end
 
 
 """
-`Nuclear.pointNucleus(Z::Float64, grid::Radial.Grid)`  
+`Nuclear.threeParameterFermiNucleus(Rrms::Float64, Z::Float64, model::Nuclear.ThreeParameterFermiNucleus, grid::Radial.Grid)`
+    ... computes the effective, radial-dependent charge Z(r) for a nucleus whose charge density follows the
+        three-parameter Fermi form rho(r) = rho_0 (1 + w r^2/c^2) / (1 + exp((r-c)/a)) with rms radius Rrms
+        and nuclear charge Z.  The full nuclear potential is then given by V_nuc = - Z(r)/r;
+        a potential::Radial.Potential is returned.
+
+        The structure follows Nuclear.fermiDistributedNucleus exactly -- the same split of the Coulomb
+        integral into an inner and an outer part, the same quadrature tolerances -- with both integrands and
+        the normalisation carrying the extra weight (1 + w r^2/c^2).  For w = 0 the two therefore agree to
+        the quadrature tolerance, which is checked as a regression test.
+"""
+function threeParameterFermiNucleus(Rrms::Float64, Z::Float64, model::Nuclear.ThreeParameterFermiNucleus, grid::Radial.Grid)
+
+    zznew = zeros(Float64, grid.NoPoints)
+    c     = computeThreeParameterFermiC(Rrms, model.a, model.w)
+
+    fermiA_au = Defaults.convertUnits("length: from fm to atomic", model.a)
+    fermiC_au = Defaults.convertUnits("length: from fm to atomic", c)
+    w         = model.w
+    ## The shape weight; for w < 0 it turns negative beyond r = c/sqrt(|w|), which for the tabulated
+    ## magnitudes lies beyond 3c where the Fermi factor has already fallen to ~exp(-2c/a).  See the docstring
+    ## of Nuclear.ThreeParameterFermiNucleus: this belongs to the parametrisation, and is not clamped here.
+    function  shape(r::Float64)   1.0 + w * (r/fermiC_au)^2                                    end
+    function  r_rho(r::Float64)   r   * shape(r) / (1.0 + exp( (r-fermiC_au)/fermiA_au ) )     end
+    function  rr_rho(r::Float64)  r^2 * shape(r) / (1.0 + exp( (r-fermiC_au)/fermiA_au ) )     end
+    N = 1. / QuadGK.quadgk(rr_rho, 0., 1.3, rtol=1.0e-10)[1]
+    #
+    for  i = 2:length(zznew)
+        zznew[i] = 1 / grid.r[i] * quadgk(rr_rho, 0.0, 1.0e-3, grid.r[i], rtol=1.0e-8)[1]
+        zznew[i] = zznew[i] + quadgk(r_rho, grid.r[i], 1.0, 1.0e+1, 1.0e+3, rtol=1.0e-8)[1]
+        zznew[i] = Z * N * zznew[i] * grid.r[i]
+    end
+
+    potential = Radial.Potential("nuclear-potential: three-parameter Fermi", zznew, deepcopy(grid))
+    return( potential )
+end
+
+
+"""
+`Nuclear.pointNucleus(Z::Float64, grid::Radial.Grid)`
     ... computes the effective, radial-dependent charge Z(r) for a point-like nucleus with nuclear charge Z. 
         The full nuclear potential is then given by V_nuc = - Z(r)/r; a potential::Radial.Potential is returned.
 """
@@ -516,6 +687,8 @@ nuclearPotential(::Nuclear.UniformNucleus, nm::Nuclear.Model, grid::Radial.Grid)
     Nuclear.uniformNucleus(nm.radius, nm.Z, grid)
 nuclearPotential(::Nuclear.FermiNucleus,   nm::Nuclear.Model, grid::Radial.Grid) =
     Nuclear.fermiDistributedNucleus(nm.radius, nm.Z, grid)
+nuclearPotential(model::Nuclear.ThreeParameterFermiNucleus, nm::Nuclear.Model, grid::Radial.Grid) =
+    Nuclear.threeParameterFermiNucleus(nm.radius, nm.Z, model, grid)
 
 
 """

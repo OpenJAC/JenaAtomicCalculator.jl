@@ -37,6 +37,7 @@ if      char == 'A'
     println("Am) Apply & test procedures to establish a configuration-based language and to deal with electron configurations.")
     println("An) Apply & test the bi-orthogonal transformation of two independently-generated multiplets.")
     println("Ao) Apply & test the average-level (AL) and optimized-level (EOL) self-consistent fields, and where they differ.")
+    println("Ap) Apply & test the three-parameter Fermi nucleus: the shape of the nuclear charge distribution.")
     #
 elseif  char == 'B'
     println("B)  Examples, tests & development of atomic amplitudes")
