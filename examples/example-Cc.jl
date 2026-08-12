@@ -27,7 +27,7 @@ if  false
     #   involves radial derivatives P', Q' that are locally far more sensitive near r->0 than the energy
     #   itself is), not a further bug.
     wa = Atomic.Computation(Atomic.Computation(), name="Cc-a-H1s", grid=Radial.Grid(true),
-                            nuclearModel=Nuclear.Model(1., "uniform", 1., 0.8797, AngularJ64(1//2), 0.0, 0.0, 0.0),
+                            nuclearModel=Nuclear.Model(1., UniformNucleus(), 1., 0.8797, AngularJ64(1//2), 0.0, 0.0, 0.0),
                             configs=[Configuration("1s")],
                             asfSettings=ManyElectron.AsfSettings(ManyElectron.AsfSettings(); scField=Basics.NuclearField()),
                             propertySettings=[ IsotopeShift.Settings(IsotopeShift.Settings(); calcNMS=true, printBefore=true) ] )
@@ -58,7 +58,7 @@ elseif  true
     #   These attempts were sound diagnostics; they simply couldn't fix a defect that lived in the orbitals
     #   themselves, common to every configuration tried.
     wa = Atomic.Computation(Atomic.Computation(), name="Cc-b-NdLiLike", grid=Radial.Grid(true),
-                            nuclearModel=Nuclear.Model(60., "Fermi", 142., 4.9123, AngularJ64(0//1), 0.0, 0.0, 0.0),
+                            nuclearModel=Nuclear.Model(60., FermiNucleus(), 142., 4.9123, AngularJ64(0//1), 0.0, 0.0, 0.0),
                             configs=[Configuration("1s^2 2s"), Configuration("1s^2 2p")],
                             propertySettings=[ IsotopeShift.Settings(IsotopeShift.Settings(); calcNMS=true, calcSMS=true,
                                                 printBefore=true) ] )
@@ -83,7 +83,7 @@ elseif  false
     #   type the primary nuclearModel argument uses -- for Z=60 this is harmless (auto rms ~4.95 fm, well
     #   above the ~1.86 fm Fermi floor), but this same code path would hit the Z=1 Fermi-model error fixed
     #   in module-Nuclear.jl (branch a) if ever used for hydrogen's field shift; not exercised here.
-    nm = Nuclear.Model(60., "Fermi", 142., 4.9123, AngularJ64(0//1), 0.0, 0.0, 0.0)
+    nm = Nuclear.Model(60., FermiNucleus(), 142., 4.9123, AngularJ64(0//1), 0.0, 0.0, 0.0)
     wa = Atomic.Computation(Atomic.Computation(), name="Cc-c-NdFieldShift", grid=Radial.Grid(true),
                             nuclearModel=nm,
                             configs=[Configuration("1s^2 2s")],
@@ -115,7 +115,7 @@ elseif  false
     #   No comparably direct literature K_nms target exists for this single-CSF system (branch b's ~14% gap
     #   figure was for a DIFFERENT, 2-configuration reference), so no accuracy verdict is drawn for K_nms
     #   here -- only the AL-vs-DFS relative shift, which is small either way.
-    nm = Nuclear.Model(60., "Fermi", 142., 4.9123, AngularJ64(0//1), 0.0, 0.0, 0.0)
+    nm = Nuclear.Model(60., FermiNucleus(), 142., 4.9123, AngularJ64(0//1), 0.0, 0.0, 0.0)
 
     wa1 = Atomic.Computation(Atomic.Computation(), name="Cc-d-Nd2s-DFS-Coulomb", grid=Radial.Grid(true),
                             nuclearModel=nm, configs=[Configuration("1s^2 2s")],

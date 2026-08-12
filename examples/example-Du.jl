@@ -88,7 +88,7 @@ if  false
     #
     # HOW TO SEE IT: calcOverview = true prints the sharings and the sum-rule table. A full run still REFUSES,
     # and its message lists what is missing AND states that the sharings are already done.
-    ni          = Nuclear.Model(1.0, "point")   ## Fermi cannot represent Z = 1
+    ni          = Nuclear.Model(1.0, PointNucleus())   ## Fermi cannot represent Z = 1
     mpSettings  = MultiPhotonTransition.Settings(MultiPhotonTransition.Settings();
                         scheme = MultiPhotonTransition.ThreePhotonEmissionScheme(
                                      MultiPhotonTransition.AbstractMultiPhotonProperty[
@@ -150,7 +150,7 @@ elseif  true
     # ON THE POTENTIAL: NuclearField throughout, so that the initial, final and intermediate states are
     # eigenstates of the SAME one-body Hamiltonian -- the consistency requirement that was worth a factor 6 in
     # the two-photon work.
-    ni          = Nuclear.Model(1.0, "point")
+    ni          = Nuclear.Model(1.0, PointNucleus())
     scfN        = Basics.NuclearField()
     asfN        = AsfSettings(AsfSettings(); scField = scfN)
     interConfs  = [Configuration("2s"), Configuration("2p"), Configuration("3s"), Configuration("3p"),
@@ -189,7 +189,7 @@ elseif  false
     # the strength depends on how close one of the partial sums E_i + omega1 or E_i + omega1 + omega2 comes to a
     # real intermediate level. That near-resonant enhancement is the whole reason multi-colour schemes are used
     # in experiments, and it is where the non-resonant expression computed here eventually stops applying.
-    ni          = Nuclear.Model(1.0, "point")
+    ni          = Nuclear.Model(1.0, PointNucleus())
     scfN        = Basics.NuclearField()
     asfN        = AsfSettings(AsfSettings(); scField = scfN)
     interConfs  = [Configuration("2s"), Configuration("2p"), Configuration("3s"), Configuration("3p"),

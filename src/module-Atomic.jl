@@ -111,7 +111,7 @@ end
 `Atomic.Computation( ... example for SCF computations)`  
 
         grid     = Radial.Grid(true)
-        nuclearM = Nuclear.Model(18., "Fermi")
+        nuclearM = Nuclear.Model(18., FermiNucleus())
         settings = AsfSettings(AsfSettings(), selectLevelsCI = true, selectedLevelsCI = [1,2, 4,5, 7,8], jjLS = LSjjSettings(false) )
         configs  = [Configuration("[Ne] 3s^2 3p^5"), Configuration("[Ne] 3s 3p^6")]
         Atomic.Computation(Atomic.Computation(), name="Example", grid=grid, nuclearModel=nuclearM, configs=configs, asfSettings=settings )

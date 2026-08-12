@@ -17,7 +17,7 @@ if  false
     # state -- and handed to MultipolePolarizibility.Settings. The outcome now reports BOTH the Coulomb
     # and Babushkin gauge (as an EmProperty), NOT calibrated onto a common scale -- see module docstring.
     grid = Radial.Grid(true)
-    nm   = Nuclear.Model(1., "point")
+    nm   = Nuclear.Model(1., PointNucleus())
 
     wa1 = Atomic.Computation(Atomic.Computation(), name="H perturber multiplet (np, n=2..5)", grid=grid,
                             nuclearModel=nm, configs=[Configuration("2p"), Configuration("3p"), Configuration("4p"), Configuration("5p")])
@@ -68,7 +68,7 @@ elseif false
     #   in n, truncating genuine bound-like strength that a larger box would still show as bound. Not
     #   yet investigated further -- flagged here rather than presented as a settled result.
     grid = Radial.Grid(true)
-    nm   = Nuclear.Model(1., "point")
+    nm   = Nuclear.Model(1., PointNucleus())
     nMaxHighN = 45
 
     wa1 = Atomic.Computation(Atomic.Computation(), name="H perturber multiplet (np, n=2..$nMaxHighN)", grid=grid,
@@ -122,7 +122,7 @@ elseif true
     #   this modest set should already capture most of the valence sum, unlike H's much slower-converging
     #   1s case (branches a/b above).
     grid = Radial.Grid(true)
-    nm   = Nuclear.Model(3., "point")
+    nm   = Nuclear.Model(3., PointNucleus())
     nMaxLi = 10
 
     wa1 = Atomic.Computation(Atomic.Computation(), name="Li perturber multiplet ([He]np, n=2..$nMaxLi)", grid=grid,

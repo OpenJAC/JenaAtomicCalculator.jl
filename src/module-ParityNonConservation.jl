@@ -51,12 +51,12 @@ function schiffMomentAmplitude(finalLevel::Level, initialLevel::Level, nm::Nucle
     if  display
         sa = @sprintf("%.8e", amplitude.re) * @sprintf("%.8e", amplitude.im)
         println("   Schiff moment amplitude:   "                                                                               *
-                "< level=$(finalLevel.index) [J=$(finalLevel.J)$(string(finalLevel.parity))] || H^(Schiff) ($(nm.model)) ||"   *
+                "< level=$(finalLevel.index) [J=$(finalLevel.J)$(string(finalLevel.parity))] || H^(Schiff) ($(Nuclear.name(nm.model))) ||"   *
                 " $(initialLevel.index) [$(initialLevel.J)$(string(initialLevel.parity))] >  = " * sa)
         printSummary, iostream = Defaults.getDefaults("summary flag/stream")
         if  printSummary
             println(iostream, "   Schiff moment amplitude:   "                                                                               *
-                                "< level=$(finalLevel.index) [J=$(finalLevel.J)$(string(finalLevel.parity))] || H^(Schiff) ($(nm.model)) ||"   *
+                                "< level=$(finalLevel.index) [J=$(finalLevel.J)$(string(finalLevel.parity))] || H^(Schiff) ($(Nuclear.name(nm.model))) ||"   *
                                 " $(initialLevel.index) [$(initialLevel.J)$(string(initialLevel.parity))] >  = " * sa)
         end
     end
@@ -140,12 +140,12 @@ function weakChargeAmplitude(finalLevel::Level, initialLevel::Level, nm::Nuclear
     if  display
         sa = @sprintf("%.5e", amplitude.re) * "  " * @sprintf("%.5e", amplitude.im)
         println("   weak-charge amplitude:     "                                                         *
-                "< level=$(finalLevel.index) [J=$(finalLevel.J)$(string(finalLevel.parity))] || H^(weak-charge) ($(nm.model)) ||"   *
+                "< level=$(finalLevel.index) [J=$(finalLevel.J)$(string(finalLevel.parity))] || H^(weak-charge) ($(Nuclear.name(nm.model))) ||"   *
                 " $(initialLevel.index) [$(initialLevel.J)$(string(initialLevel.parity))] >  = " * sa)
         printSummary, iostream = Defaults.getDefaults("summary flag/stream")
         if  printSummary
             println(iostream, "   weak-charge amplitude:     "                                                         *
-                                "< level=$(finalLevel.index) [J=$(finalLevel.J)$(string(finalLevel.parity))] || H^(weak-charge) ($(nm.model)) ||"   *
+                                "< level=$(finalLevel.index) [J=$(finalLevel.J)$(string(finalLevel.parity))] || H^(weak-charge) ($(Nuclear.name(nm.model))) ||"   *
                                 " $(initialLevel.index) [$(initialLevel.J)$(string(initialLevel.parity))] >  = " * sa)
         end
     end

@@ -45,7 +45,7 @@ elseif  false
     #   trying to obtain).
     setDefaults("print summary: open", "zzz-FormFactor.sum")
     wa = Atomic.Computation(Atomic.Computation(), name="Ce-b-H1s-exact", grid=Radial.Grid(true),
-                            nuclearModel=Nuclear.Model(1., "uniform", 1., 0.8797, AngularJ64(1//2), 0.0, 0.0, 0.0),
+                            nuclearModel=Nuclear.Model(1., UniformNucleus(), 1., 0.8797, AngularJ64(1//2), 0.0, 0.0, 0.0),
                             configs=[Configuration("1s")],
                             asfSettings=ManyElectron.AsfSettings(ManyElectron.AsfSettings(); scField=Basics.NuclearField()),
                             propertySettings=[ FormFactor.Settings([0., 0.5, 1.0, 2.0, 4.0, 10.0], true, LevelSelection())] )

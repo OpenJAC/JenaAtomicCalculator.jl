@@ -149,7 +149,7 @@ if  false
     #     result while the non-resonant perturbative treatment has quietly stopped applying;
     #   * whether the basis is big enough. If the largest contributions sit on the highest levels included, the
     #     sum is truncated and the answer is not converged, however smooth it looks.
-    ni          = Nuclear.Model(1.0, "point")   ## Fermi cannot represent Z = 1; see the note in the header
+    ni          = Nuclear.Model(1.0, PointNucleus())   ## Fermi cannot represent Z = 1; see the note in the header
     interConfs  = [Configuration("2p"), Configuration("3p"), Configuration("4p"), Configuration("5p")]
     interRep    = Representation("intermediate np levels", ni, grid, interConfs, MeanFieldMultiplet(MeanFieldSettings()))
     interMp     = generate(interRep, output=true)["mean-field multiplet"]
@@ -242,7 +242,7 @@ elseif  false
     # NOT DATED. 5.5 % with a 75 % gauge split is an understood discrepancy, not agreement. Closing it needs a
     # genuine continuum in the intermediate spectrum (a working Green expansion -- branch g -- or explicit
     # continuum orbitals), NOT more bound states: n_max = 12, 16, 20 already agree among themselves.
-    ni          = Nuclear.Model(1.0, "point")   ## Fermi cannot represent Z = 1; see the note in the header
+    ni          = Nuclear.Model(1.0, PointNucleus())   ## Fermi cannot represent Z = 1; see the note in the header
     interConfs  = [Configuration("2p"), Configuration("3p"), Configuration("4p"), Configuration("5p"),
                    Configuration("6p"), Configuration("7p"), Configuration("8p")]
     scf         = Basics.NuclearField()          ## the SAME one-body Hamiltonian for all three; see above
@@ -301,7 +301,7 @@ elseif  false
     ## exactly what produced the bogus factor 32 at the start of this work.
     for  Z in [1.0, 2.0, 6.0, 18.0, 36.0, 54.0]
         println("\n", "="^110);   println("  H-like Z = $Z: 2s -> 1s two-photon decay");   println("="^110)
-        ni          = Nuclear.Model(Z, Z < 2.0 ? "point" : "Fermi")
+        ni          = Nuclear.Model(Z, Z < 2.0 ? PointNucleus() : FermiNucleus())
         scfZ        = Basics.NuclearField()          ## same one-body Hamiltonian for initial, final, intermediate
         asfZ        = AsfSettings(AsfSettings(); scField = scfZ)
         gridZ       = Radial.Grid(Radial.Grid(false), rnt = 4.0e-6, h = 5.0e-2, hp = 1.0e-2, rbox = 80.0/Z)
@@ -364,7 +364,7 @@ elseif  false
     #   * its INTEGRAL over the sharings must reproduce the total rate of branch a. The sharings sit at
     #     Gauss-Legendre nodes precisely so that the weighted sum performs that integral exactly.
     # Together these test the sharing machinery and the amplitude symmetry independently of any normalisation.
-    ni          = Nuclear.Model(1.0, "point")   ## Fermi cannot represent Z = 1; see the note in the header
+    ni          = Nuclear.Model(1.0, PointNucleus())   ## Fermi cannot represent Z = 1; see the note in the header
     interConfs  = [Configuration("2p"), Configuration("3p"), Configuration("4p"), Configuration("5p"),
                    Configuration("6p"), Configuration("7p"), Configuration("8p")]
     scfC        = Basics.NuclearField()
@@ -457,7 +457,7 @@ elseif  false
     # The intermediate states are 1snp 1P_1 (J = 1, odd), reached by E1 from the 1S_0.
     for  (Z, rbox, nmax) in [(2.0, 60.0, 10), (18.0, 20.0, 10)]
         println("\n", "="^110);   println("  He-like Z = $Z: 1s2s 1S_0 -> 1s^2 1S_0 two-photon decay");   println("="^110)
-        ni          = Nuclear.Model(Z, Z < 2.5 ? "point" : "Fermi")
+        ni          = Nuclear.Model(Z, Z < 2.5 ? PointNucleus() : FermiNucleus())
         gridH       = Radial.Grid(Radial.Grid(false), rnt = 4.0e-6, h = 5.0e-2, hp = 1.0e-2, rbox = rbox)
         interConfs  = [Configuration("1s $(n)p") for n = 2:nmax]
         interRep    = Representation("1snp intermediate levels", ni, gridH, interConfs,
@@ -568,7 +568,7 @@ elseif  false
     # it IS the exact method written as a sum, and completeness makes gauge invariance a pass/fail test rather
     # than a judgement call. Bsplines.generateOrbitals already takes an explicit potential and
     # Bsplines.findPositiveBranchStart already guards the Dirac negative-energy sea, which is not optional here.
-    ni          = Nuclear.Model(1.0, "point")
+    ni          = Nuclear.Model(1.0, PointNucleus())
     ## The intermediate states of a 2s -> 1s two-photon decay are p levels: E1 twice, so J^P = 1/2- and 3/2-.
     levelSyms   = [LevelSymmetry(1//2, Basics.minus), LevelSymmetry(3//2, Basics.minus)]
     ## GreenSettings(nMax, lValues, dampingTau, printBefore, levelSelection, scField). The SIXTH argument was
@@ -654,7 +654,7 @@ elseif  true
     # THEIR RATIOS ARE A CHECK IN THEMSELVES. Angular algebra alone fixes them, independently of any overall
     # normalisation -- so this branch can be tested even before an absolute two-photon absorption benchmark for
     # a general atom is available, which is the one reference still missing.
-    ni          = Nuclear.Model(1.0, "point")   ## Fermi cannot represent Z = 1; see the note in the header
+    ni          = Nuclear.Model(1.0, PointNucleus())   ## Fermi cannot represent Z = 1; see the note in the header
     interConfs  = [Configuration("2p"), Configuration("3p"), Configuration("4p"), Configuration("5p"),
                    Configuration("6p"), Configuration("7p")]
     interRep    = Representation("intermediate np levels", ni, grid, interConfs, MeanFieldMultiplet(MeanFieldSettings()))
@@ -817,7 +817,7 @@ elseif  false
     # g and h is therefore VACUOUS; those branches remain dated for their OTHER checks, which are unaffected.
     # The bichromatic routine here does compute it, and was tested where the answer is NOT zero: for H 1s -> 3d
     # (K = 2 open) it gives right-circular/linear = 1.500000, against 0.8/0.5333 = 1.5 from the 3-j weights.
-    ni          = Nuclear.Model(1.0, "point")   ## Fermi cannot represent Z = 1; see the note in the header
+    ni          = Nuclear.Model(1.0, PointNucleus())   ## Fermi cannot represent Z = 1; see the note in the header
     interConfs  = [Configuration("2p"), Configuration("3p"), Configuration("4p"), Configuration("5p"),
                    Configuration("6p"), Configuration("7p")]
     interRep    = Representation("intermediate np levels", ni, grid, interConfs, MeanFieldMultiplet(MeanFieldSettings()))
@@ -977,7 +977,7 @@ elseif  false
     # polarizations, between atoms, and against photon energy -- are trustworthy. The absolute cross section
     # is still low by about 5.4 and should be quoted only with that stated. Absolute EMISSION rates are a
     # different matter entirely; see (A) above.
-    ni          = Nuclear.Model(1.0, "point")     ## repeat with Nuclear.Model(2.0) and rbox 20.0 for He^+
+    ni          = Nuclear.Model(1.0, PointNucleus())     ## repeat with Nuclear.Model(2.0) and rbox 20.0 for He^+
     gridJ       = Radial.Grid(Radial.Grid(false), rnt = 4.0e-6, h = 5.0e-2, hp = 1.0e-2, rbox = 40.0)
     interConfs  = [Configuration("2p"), Configuration("3p")]     ## crude ON PURPOSE; see above
     interRep    = Representation("intermediate np levels", ni, gridJ, interConfs, MeanFieldMultiplet(MeanFieldSettings()))

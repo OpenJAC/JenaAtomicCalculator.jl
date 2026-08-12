@@ -33,7 +33,7 @@ if  false
     #   consistent (ratio exactly 0.2), though no independently pre-verified literature target was used
     #   for this second case (see branch b for that instead, a genuinely independent system).
     wa = Atomic.Computation(Atomic.Computation(), name="Cb-a-H1s", grid=Radial.Grid(true),
-                            nuclearModel=Nuclear.Model(1., "uniform", 1., 0.8797, AngularJ64(1//2), 2.7928, 0.0, 0.0),
+                            nuclearModel=Nuclear.Model(1., UniformNucleus(), 1., 0.8797, AngularJ64(1//2), 2.7928, 0.0, 0.0),
                             configs=[Configuration("1s")],
                             asfSettings=ManyElectron.AsfSettings(ManyElectron.AsfSettings(); scField=Basics.NuclearField()),
                             propertySettings=[ Hfs.Settings(calcM1=true, calcE2=false, printBefore=true) ] )
@@ -57,7 +57,7 @@ elseif  false
     #   second, independent confirmation (different Z, different electron count, same underlying fix)
     #   landing within ~2% using only a bare single configuration is a good result.
     wa = Atomic.Computation(Atomic.Computation(), name="Cb-b-Na3s", grid=Radial.Grid(true),
-                            nuclearModel=Nuclear.Model(11., "uniform", 23., 2.98, AngularJ64(3//2), 2.2176, 0.10, 0.0),
+                            nuclearModel=Nuclear.Model(11., UniformNucleus(), 23., 2.98, AngularJ64(3//2), 2.2176, 0.10, 0.0),
                             configs=[Configuration("[Ne] 3s")],
                             propertySettings=[ Hfs.Settings(calcM1=true, calcE2=false, printBefore=true) ] )
 
@@ -88,27 +88,27 @@ elseif  false
     #   ~1.6e10 Hz shift in the level's absolute energy -- see the "Energy [Hz]" column), but has ZERO effect
     #   on this single-CSF system's A-constant, exactly as predicted from JAC's architecture, not a surprise.
     wa1 = Atomic.Computation(Atomic.Computation(), name="Cb-c-Na3s-DFS-Coulomb", grid=Radial.Grid(true),
-                            nuclearModel=Nuclear.Model(11., "uniform", 23., 2.98, AngularJ64(3//2), 2.2176, 0.10, 0.0),
+                            nuclearModel=Nuclear.Model(11., UniformNucleus(), 23., 2.98, AngularJ64(3//2), 2.2176, 0.10, 0.0),
                             configs=[Configuration("[Ne] 3s")],
                             propertySettings=[ Hfs.Settings(calcM1=true, calcE2=false, printBefore=true) ] )
     perform(wa1)
 
     wa2 = Atomic.Computation(Atomic.Computation(), name="Cb-c-Na3s-AL-Coulomb", grid=Radial.Grid(true),
-                            nuclearModel=Nuclear.Model(11., "uniform", 23., 2.98, AngularJ64(3//2), 2.2176, 0.10, 0.0),
+                            nuclearModel=Nuclear.Model(11., UniformNucleus(), 23., 2.98, AngularJ64(3//2), 2.2176, 0.10, 0.0),
                             configs=[Configuration("[Ne] 3s")],
                             asfSettings=ManyElectron.AsfSettings(ManyElectron.AsfSettings(); scField=Basics.ALField()),
                             propertySettings=[ Hfs.Settings(calcM1=true, calcE2=false, printBefore=true) ] )
     perform(wa2)
 
     wa3 = Atomic.Computation(Atomic.Computation(), name="Cb-c-Na3s-DFS-Breit", grid=Radial.Grid(true),
-                            nuclearModel=Nuclear.Model(11., "uniform", 23., 2.98, AngularJ64(3//2), 2.2176, 0.10, 0.0),
+                            nuclearModel=Nuclear.Model(11., UniformNucleus(), 23., 2.98, AngularJ64(3//2), 2.2176, 0.10, 0.0),
                             configs=[Configuration("[Ne] 3s")],
                             asfSettings=ManyElectron.AsfSettings(ManyElectron.AsfSettings(); eeInteractionCI=Basics.CoulombBreit(0.)),
                             propertySettings=[ Hfs.Settings(calcM1=true, calcE2=false, printBefore=true) ] )
     perform(wa3)
 
     wa4 = Atomic.Computation(Atomic.Computation(), name="Cb-c-Na3s-AL-Breit", grid=Radial.Grid(true),
-                            nuclearModel=Nuclear.Model(11., "uniform", 23., 2.98, AngularJ64(3//2), 2.2176, 0.10, 0.0),
+                            nuclearModel=Nuclear.Model(11., UniformNucleus(), 23., 2.98, AngularJ64(3//2), 2.2176, 0.10, 0.0),
                             configs=[Configuration("[Ne] 3s")],
                             asfSettings=ManyElectron.AsfSettings(ManyElectron.AsfSettings(); scField=Basics.ALField(),
                                                                   eeInteractionCI=Basics.CoulombBreit(0.)),
@@ -163,7 +163,7 @@ elseif  true
     #   LandeZeeman's zeeman_n1/CL_reduced_me_rb), not investigated further per the user's explicit request
     #   to keep this pass at "runs and is reasonable", not a deep dive. Only the J=3/2 result above is dated;
     #   J=5/2's E2/M3 numbers are NOT to be trusted (Rule 7).
-    nm = Nuclear.Model(21., "Fermi", 45., 3.6, AngularJ64(7//2), 0.0, 0.0, 0.0)
+    nm = Nuclear.Model(21., FermiNucleus(), 45., 3.6, AngularJ64(7//2), 0.0, 0.0, 0.0)
     wa = Atomic.Computation(Atomic.Computation(), name="Cb-e-Sc3d4s2-DFS", grid=Radial.Grid(true),
                             nuclearModel=nm,
                             configs=[Configuration("[Ar] 3d 4s^2")],

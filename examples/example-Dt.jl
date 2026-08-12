@@ -25,7 +25,7 @@ if  true
     ceSettings = CrystalFieldEmission.Settings(CrystalFieldEmission.Settings(); multipoles=[E1], gauges=[UseCoulomb],
                                                 lattice=emptyLattice, maxRank=1, includeJmixing=false, printBefore=true)
     comp = Atomic.Computation(Atomic.Computation(), name="Dt-a-H2p-to-H1s", grid=Radial.Grid(true),
-                               nuclearModel=Nuclear.Model(1., "uniform", 1., 0.8783, AngularJ64(1//2), 2.7928473, 0.0, 0.0),
+                               nuclearModel=Nuclear.Model(1., UniformNucleus(), 1., 0.8783, AngularJ64(1//2), 2.7928473, 0.0, 0.0),
                                initialConfigs=[Configuration("2p")], finalConfigs=[Configuration("1s")],
                                processSettings=ceSettings)
     wb = perform(comp; output=true)
@@ -67,7 +67,7 @@ elseif  false
     ceSettings = CrystalFieldEmission.Settings(CrystalFieldEmission.Settings(); multipoles=[E1], gauges=[UseCoulomb],
                                                 lattice=lattice, maxRank=4, includeJmixing=false, printBefore=true)
     comp = Atomic.Computation(Atomic.Computation(), name="Dt-b-H3d-to-H2p", grid=Radial.Grid(true),
-                               nuclearModel=Nuclear.Model(1., "uniform", 1., 0.8783, AngularJ64(1//2), 2.7928473, 0.0, 0.0),
+                               nuclearModel=Nuclear.Model(1., UniformNucleus(), 1., 0.8783, AngularJ64(1//2), 2.7928473, 0.0, 0.0),
                                initialConfigs=[Configuration("3d")], finalConfigs=[Configuration("2p")],
                                processSettings=ceSettings)
     wb = perform(comp; output=true)

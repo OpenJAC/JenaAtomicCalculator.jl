@@ -18,7 +18,7 @@ if  false
     #   expected sub-0.1% relativistic correction for Z=1. This is the case that pinned down the (g_s-2)/4
     #   Schwinger-term fix (was (g_s-2)/2 in the paper's own Eq. (52), off by exactly 2x -- see memory).
     wa = Atomic.Computation(Atomic.Computation(), name="Cd-a-H2p", grid=Radial.Grid(true),
-                            nuclearModel=Nuclear.Model(1., "uniform", 1., 0.8797, AngularJ64(1//2), 2.7928, 0.0, 0.0),
+                            nuclearModel=Nuclear.Model(1., UniformNucleus(), 1., 0.8797, AngularJ64(1//2), 2.7928, 0.0, 0.0),
                             configs=[Configuration("2p")],
                             propertySettings=[ LandeZeeman.Settings(LandeZeeman.Settings(); calcLandeJ=true,
                                                 includeSchwinger=true, printBefore=true) ] )
@@ -35,7 +35,7 @@ elseif  false
     #     3P2: g_J = 1.50112266  vs paper 1.5011183   (6 sig figs)
     #     1P1: g_J = 0.99999305  vs paper 0.9999936   (6 sig figs)
     wa = Atomic.Computation(Atomic.Computation(), name="Cd-b-He1s2p", grid=Radial.Grid(true),
-                            nuclearModel=Nuclear.Model(2., "uniform", 3., 1.881, AngularJ64(1//2), -2.12749772, 0.0, 0.0),
+                            nuclearModel=Nuclear.Model(2., UniformNucleus(), 3., 1.881, AngularJ64(1//2), -2.12749772, 0.0, 0.0),
                             configs=[Configuration("1s 2p")],
                             propertySettings=[ LandeZeeman.Settings(LandeZeeman.Settings(); calcLandeJ=true,
                                                 includeSchwinger=true, printBefore=true) ] )
@@ -71,7 +71,7 @@ elseif  false
     #   one that is too small, because the number of splines is fixed. Note that the grid check added on
     #   9-Aug-2026 (Bsplines.checkGridRepresentation) does NOT catch this: it tests hydrogenic orbitals at
     #   the full nuclear charge, where 4f is compact, and it passes this grid.
-    nm = Nuclear.Model(32., "Fermi", 74., 4.07, AngularJ64(0//1), 0.0, 0.0, 0.0)
+    nm = Nuclear.Model(32., FermiNucleus(), 74., 4.07, AngularJ64(0//1), 0.0, 0.0, 0.0)
     wa = Atomic.Computation(Atomic.Computation(), name="Cd-c-GeII4f", grid=Radial.Grid(Radial.Grid(false); rbox=30.0),
                             nuclearModel=nm,
                             configs=[Configuration("[Ar] 3d^10 4s^2 4f")],
@@ -110,7 +110,7 @@ elseif  false
     #   insensitive to whether the SCF exchange treatment is DFS (local) or AL (non-local).
     #   The old f_7/2 numbers (-2.263670 DFS / -2.242473 AL, and 0.893667 before the July B-spline fix) were
     #   all artefacts of the wrong state returned on the 614 a.u. box; they are not AL-Field physics.
-    nm = Nuclear.Model(32., "Fermi", 74., 4.07, AngularJ64(0//1), 0.0, 0.0, 0.0)
+    nm = Nuclear.Model(32., FermiNucleus(), 74., 4.07, AngularJ64(0//1), 0.0, 0.0, 0.0)
 
     wa1 = Atomic.Computation(Atomic.Computation(), name="Cd-d-GeII4f-DFS-Coulomb", grid=Radial.Grid(Radial.Grid(false); rbox=30.0),
                             nuclearModel=nm, configs=[Configuration("[Ar] 3d^10 4s^2 4f")],
@@ -205,7 +205,7 @@ elseif  true
     #   as branch e). Energies used throughout are JAC's own (matches the paper's "MCDF" column, not
     #   their "MCDF+NIST ASD" column, which substitutes external NIST-tabulated energies -- out of
     #   scope here).
-    nm = Nuclear.Model(20., "Fermi")
+    nm = Nuclear.Model(20., FermiNucleus())
 
     wa0 = Atomic.Computation(Atomic.Computation(), name="Cd-f-Ca14p-2s2p2", grid=Radial.Grid(true),
                             nuclearModel=nm, configs=[Configuration("[He] 2s^2 2p^2")])

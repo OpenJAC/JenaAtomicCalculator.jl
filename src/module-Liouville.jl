@@ -199,7 +199,7 @@ end
 `Liouville.Computation( wa::Bool)`  
 
         grid     = Radial.Grid(true)
-        nuclearM = Nuclear.Model(18., "Fermi")
+        nuclearM = Nuclear.Model(18., FermiNucleus())
         ...
         refConfigs  = [Configuration("[Ne]", Configuration("1s 2s^2 2p^6 3p")]
         Liouville.Computation(Liouville.Computation(), grid=grid, nuclearModel=nuclearM, refConfigs=refConfigs, asfSettings=... )

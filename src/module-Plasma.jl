@@ -512,7 +512,7 @@ end
 `Plasma.Computation( wa::Bool)`  
 
         grid     = Radial.Grid(true)
-        nuclearM = Nuclear.Model(18., "Fermi")
+        nuclearM = Nuclear.Model(18., FermiNucleus())
         ...
         refConfigs  = [Configuration("[Ne] 3s^2 3p^5")]
         Plasma.Computation(Plasma.Computation(), grid=grid, nuclearModel=nuclearM, refConfigs=refConfigs, asfSettings=... )

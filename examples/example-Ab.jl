@@ -114,7 +114,7 @@ elseif  true
     # Compute different direct potentials for the charge density of a given level 
     grid = Radial.Grid(Radial.Grid(true), rnt = 2.0e-6,h = 3.0e-2, hp = 6.0e-2, NoPoints = 900)
     grid = Radial.Grid(true)
-    wa = Atomic.Computation(Atomic.Computation(), name="xx", grid=grid, nuclearModel=Nuclear.Model(16., "point"), 
+    wa = Atomic.Computation(Atomic.Computation(), name="xx", grid=grid, nuclearModel=Nuclear.Model(16., PointNucleus()), 
                             configs=[Configuration("[Ne] 3s^2 3p^2")],  ## , Basics.DFSField()
                             asfSettings=AsfSettings(AsfSettings(), scField=Basics.DFSField())  )
 
@@ -125,7 +125,7 @@ elseif false
     # Test for Björn, 7. Mai 2020
     ## grid=JAC.Radial.Grid(true)
     grid = Radial.Grid(Radial.Grid(true), rnt = 2.0e-5,h = 5.0e-2, hp = 5.0e-2, NoPoints = 2000)
-    wa = Atomic.Computation(Atomic.Computation(), name="xx", grid=grid, nuclearModel=Nuclear.Model(8.0, "Fermi"), 
+    wa = Atomic.Computation(Atomic.Computation(), name="xx", grid=grid, nuclearModel=Nuclear.Model(8.0, FermiNucleus()), 
                             configs=[Configuration("1s^2 2s"), Configuration("1s 2s^2"), Configuration("1s 2s 3p"), Configuration("1s 2s 4p")], 
                             ## configs=[Configuration("1s^2 2s"), Configuration("1s^2 2p"), Configuration("1s 2s 3s"), Configuration("1s 2p 3s"), 
                             ##          Configuration("1s 2s 2p")],  ## 

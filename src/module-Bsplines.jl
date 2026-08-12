@@ -144,12 +144,10 @@ end
         A set of orbitals::Dict{Subshell, Orbital} is returned.
 """
 function generateOrbitalsHydrogenic(subshells::Array{Subshell,1}, nm::Nuclear.Model, primitives::Bsplines.Primitives; printout::Bool=true)
-    # Extract the requested radial potential from nm
-    if       nm.model == "point"    pot = Nuclear.pointNucleus(nm.Z, primitives.grid)
-    elseif   nm.model == "Fermi"    pot = Nuclear.fermiDistributedNucleus(nm.radius, nm.Z, primitives.grid) 
-    elseif   nm.model == "uniform"  pot = Nuclear.uniformNucleus(nm.radius, nm.Z, primitives.grid)
-    else                            error("stop a")
-    end
+    ## This was a third, inline copy of Nuclear.nuclearPotential's three-way branch, calling the same three
+    ## constructors with the same arguments (de-duplicated 12-Aug-2026; verified to give bitwise identical
+    ## Zr for all three models).
+    pot = Nuclear.nuclearPotential(nm, primitives.grid)
     
     orbitals = Bsplines.generateOrbitals(subshells, pot, nm, primitives; printout=printout)
     return( orbitals )

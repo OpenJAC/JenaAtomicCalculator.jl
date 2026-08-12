@@ -374,7 +374,7 @@ function  computeAmplitudesProperties(outcome::IsotopeShift.Outcome, nm::Nuclear
     if  settings.calcF
         # The comparison isotope must keep the caller's actual nuclear model (Fermi/uniform), not hardcode "Fermi";
         # a point nucleus has no field shift by definition (no finite extent to vary between isotopes).
-        nm.model == "point"  &&  error("IsotopeShift.computeAmplitudesProperties(): calcF=true is not supported " *
+        nm.model isa Nuclear.PointNucleus  &&  error("IsotopeShift.computeAmplitudesProperties(): calcF=true is not supported " *
                                         "for a point nuclear model; use \"Fermi\" or \"uniform\" instead.")
         nmp       = Nuclear.Model(nm; mass=nm.mass+1.0, radius=Nuclear.rrmsRadius(nm.mass+1.0))
         deltaPot  = Nuclear.nuclearPotential(nm, grid).Zr - Nuclear.nuclearPotential(nmp, grid).Zr

@@ -46,7 +46,7 @@ if  true
     for  q = -4:4   println("     q=$q:  $(CrystalField.multipoleLatticeSum(lattice, 4, q))")   end
     #
     wa = Atomic.Computation(Atomic.Computation(), name="Ck-a-H3d", grid=Radial.Grid(true),
-                            nuclearModel=Nuclear.Model(1., "uniform", 1., 0.8783, AngularJ64(1//2), 2.7928473, 0.0, 0.0),
+                            nuclearModel=Nuclear.Model(1., UniformNucleus(), 1., 0.8783, AngularJ64(1//2), 2.7928473, 0.0, 0.0),
                             configs=[Configuration("3d")],
                             propertySettings=Basics.AbstractPropertySettings[] )
 
@@ -153,7 +153,7 @@ elseif  false
     lattice = CrystalField.Lattice(ions, "Oh")
     #
     wa = Atomic.Computation(Atomic.Computation(), name="Ck-c-H3d", grid=Radial.Grid(true),
-                            nuclearModel=Nuclear.Model(1., "uniform", 1., 0.8783, AngularJ64(1//2), 2.7928473, 0.0, 0.0),
+                            nuclearModel=Nuclear.Model(1., UniformNucleus(), 1., 0.8783, AngularJ64(1//2), 2.7928473, 0.0, 0.0),
                             configs=[Configuration("3d")],
                             propertySettings=Basics.AbstractPropertySettings[] )
     wb = perform(wa; output=true)

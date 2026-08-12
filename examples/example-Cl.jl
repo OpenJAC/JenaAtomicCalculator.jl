@@ -14,7 +14,7 @@ if  false
     #   externally checked in Cj.jl). Field strength E = 100 kV/cm is used throughout this file,
     #   matching the van Leeuwen & Hogervorst (1984) apparatus' own max field (see branches c/d).
     grid = Radial.Grid(true)
-    nm   = Nuclear.Model(1., "point")
+    nm   = Nuclear.Model(1., PointNucleus())
 
     wa1 = Atomic.Computation(Atomic.Computation(), name="H perturber multiplet (np, n=2..5)", grid=grid,
                             nuclearModel=nm, configs=[Configuration("2p"), Configuration("3p"), Configuration("4p"), Configuration("5p")])
@@ -42,7 +42,7 @@ elseif false
     #   164.0740(5) a.u. (Puchalski et al.), where JAC's frozen-core single-CSF treatment landed at
     #   ~37% of that value. J=1/2 again, so alpha_2 must be exactly 0. here too.
     grid = Radial.Grid(true)
-    nm   = Nuclear.Model(3., "point")
+    nm   = Nuclear.Model(3., PointNucleus())
     nMaxLi = 10
 
     wa1 = Atomic.Computation(Atomic.Computation(), name="Li perturber multiplet ([He]np, n=2..$nMaxLi)", grid=grid,
@@ -82,7 +82,7 @@ elseif false
     #   and converted to MHz, then divided by (E in kV/cm)^2 = 1 -- i.e. numerically the same
     #   conversion factor the paper's own units already encode.
     grid = Radial.Grid(true)
-    nm   = Nuclear.Model(56., "point")
+    nm   = Nuclear.Model(56., PointNucleus())
 
     wa1 = Atomic.Computation(Atomic.Computation(), name="Ba perturber multiplet ([Xe]6s np, n=8..10)", grid=grid,
                             nuclearModel=nm, configs=[Configuration("[Xe] 6s 8p"), Configuration("[Xe] 6s 9p"), Configuration("[Xe] 6s 10p")])
@@ -125,7 +125,7 @@ elseif true
     #   paper's own already-failing calculation, so an even larger gap is the expected, correct
     #   outcome -- not a sign anything is broken.
     grid = Radial.Grid(true)
-    nm   = Nuclear.Model(20., "point")
+    nm   = Nuclear.Model(20., PointNucleus())
 
     wa1 = Atomic.Computation(Atomic.Computation(), name="Ca perturber multiplet ([Ar]3d np, n=4..6)", grid=grid,
                             nuclearModel=nm, configs=[Configuration("[Ar] 3d 4p"), Configuration("[Ar] 3d 5p"), Configuration("[Ar] 3d 6p")])

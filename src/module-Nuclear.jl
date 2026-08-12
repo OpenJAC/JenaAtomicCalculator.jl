@@ -7,21 +7,50 @@
 module Nuclear
 
 using  QuadGK, ..Basics,  ..Defaults, ..Radial, ..Math
-export Model
+export Model, AbstractNuclearModel, PointNucleus, UniformNucleus, FermiNucleus
+
+
+"""
+`abstract type  Nuclear.AbstractNuclearModel`
+    ... defines an abstract type to distinguish the shapes of the nuclear charge distribution:
+
+    + struct PointNucleus     ... a point-like nucleus, rho(r) = Z delta(r).
+    + struct UniformNucleus   ... a homogeneously charged sphere of radius R.
+    + struct FermiNucleus     ... a two-parameter Fermi distribution,
+                                  rho(r) = rho_0 / (1 + exp((r-c)/a)), with the skin thickness a fixed by
+                                  Nuclear.fermiA and c determined from the requested rms radius.
+
+        Until 12-Aug-2026 the model was carried as a String and compared with ==, which made every new
+        distribution another branch and left the accepted spellings inconsistent ("Fermi", but "point" and
+        "uniform").  Dispatching on the type instead follows Basics.AbstractScField and its singletons, and
+        makes a further distribution one new subtype plus one new method of Nuclear.nuclearPotential.
+"""
+abstract type  AbstractNuclearModel                            end
+struct     PointNucleus          <:  AbstractNuclearModel      end
+struct     UniformNucleus        <:  AbstractNuclearModel      end
+struct     FermiNucleus          <:  AbstractNuclearModel      end
+
+
+"""
+`Nuclear.name(model::Nuclear.AbstractNuclearModel)`
+    ... returns a short name::String of the given nuclear model, for printout.
+"""
+name(model::Nuclear.PointNucleus)     = "Point"
+name(model::Nuclear.UniformNucleus)   = "Uniform"
+name(model::Nuclear.FermiNucleus)     = "Fermi"
 
 
 """
 `struct  Nuclear.Model`  ... defines a type for the nuclear model, i.e. for its form and parameters.
 
     + Z        ::Float64         ... nuclear charge
-    + model    ::String          ... identifier of the nuclear model; the accepted spellings are exactly
-                                     "Fermi", "point" and "uniform".  NOTE the capitalisation: only "Fermi"
-                                     carries a capital.  This docstring read {"Fermi", "Point", "Uniform"}
-                                     until 12-Aug-2026, so anyone following it was handed
-                                     `Inappropriate model = Point` for two of the three models.  The
-                                     spellings are left as they are here rather than widened, because the
-                                     field is to become a type (Nuclear.AbstractNuclearModel) and widening
-                                     the accepted strings first would only add a second thing to migrate.
+    + model    ::AbstractNuclearModel
+                                 ... shape of the nuclear charge distribution: PointNucleus(),
+                                     UniformNucleus() or FermiNucleus().  This was a String until
+                                     12-Aug-2026, with the spellings "Fermi", "point" and "uniform" -- a
+                                     capitalisation the docstring itself got wrong, so that
+                                     Nuclear.Model(Z, "Point") raised for anyone following the manual.
+                                     A wrong model is now a MethodError at the call site instead.
     + mass     ::Float64         ... atomic mass
     + radius   ::Float64         ... (root-mean square) radius of a uniform or Fermi-distributed nucleus
     + spinI    ::AngularJ64      ... nuclear spin I, must be >= 0
@@ -31,7 +60,7 @@ export Model
 """
 struct  Model
     Z          ::Float64
-    model      ::String
+    model      ::AbstractNuclearModel
     mass       ::Float64
     radius     ::Float64
     spinI      ::AngularJ64      
@@ -47,7 +76,7 @@ end
 """
 function Model(Z::Real)
     Z < 0.1  &&  error("Z must be >= 0.1")
-    model    = "Fermi"
+    model    = FermiNucleus()
     mass     = 2*Z + 0.005*Z^2
     radius   = Nuclear.rrmsRadius(mass)
     spinI    = AngularJ64(0)
@@ -65,7 +94,7 @@ end
 """
 function Model(Z::Real, M::Float64)
     Z < 0.1  &&  error("Z must be >= 0.1")
-    model    = "Fermi"
+    model    = FermiNucleus()
     mass     = M
     radius   = Nuclear.rrmsRadius(mass)
     spinI    = AngularJ64(0)
@@ -78,14 +107,13 @@ end
 
 
 """
-`Nuclear.Model(Z::Real, model::String)`  
-    ... to specify a nucleus with charge Z, model = {"Fermi", "point", "uniform"}, and where the nuclear spin and 
-        nuclear moments are all set to zero.
+`Nuclear.Model(Z::Real, model::Nuclear.AbstractNuclearModel)`  
+    ... to specify a nucleus with charge Z and the given model -- PointNucleus(), UniformNucleus() or
+        FermiNucleus() -- and where the nuclear spin and nuclear moments are all set to zero.
 """
-function Model(Z::Real, model::String)
-    Z < 0.1                                    &&  error("Z must be >= 0.1")
-    !(model in ["Fermi", "point", "uniform"])  && error("Inappropriate model = $model")
-    if  model == "point"
+function Model(Z::Real, model::AbstractNuclearModel)
+    Z < 0.1  &&  error("Z must be >= 0.1")
+    if  model isa PointNucleus
         mass     = 1000*Z
         radius   = 0.
     else
@@ -108,7 +136,7 @@ end
             spinI=..,     mu=..,            Q=..,           Omega=..)
     ... constructor for re-defining a nuclear model nm::Nuclear.Model.
 """
-function Model(nm::Nuclear.Model;            Z::Union{Nothing,Float64}=nothing,          model::Union{Nothing,String}=nothing,         
+function Model(nm::Nuclear.Model;            Z::Union{Nothing,Float64}=nothing,          model::Union{Nothing,AbstractNuclearModel}=nothing,         
     mass::Union{Nothing,Float64}=nothing,    radius::Union{Nothing,Float64}=nothing,     spinI::Union{Nothing,AngularJ64}=nothing,  
     mu::Union{Nothing,Float64}=nothing,      Q::Union{Nothing,Float64}=nothing,          Omega::Union{Nothing,Float64}=nothing)
 
@@ -127,17 +155,8 @@ end
 
 # `Base.show(io::IO, m::Model)`  ... prepares a proper printout of the variable  m::Model.
 function Base.show(io::IO, m::Model) 
-    if      m.model == "Fermi"   
-        print(io, "Fermi nuclear model for Z = $(m.Z) with mass = $(m.mass), radius R = $(m.radius) fm and ")
-    elseif  m.model == "point"   
-        print(io, "Point nuclear model for Z = $(m.Z) with mass = $(m.mass), radius R = $(m.radius) fm and ")
-    elseif  m.model == "uniform"   
-        print(io, "Uniform nuclear model for Z = $(m.Z) with mass = $(m.mass), radius R = $(m.radius) fm and ")
-    else
-        error("Nuclear.show(): unknown nuclear model \"$(m.model)\"; the accepted spellings are " *
-              "\"Fermi\", \"point\" and \"uniform\".")
-    end
-
+    print(io, "$(Nuclear.name(m.model)) nuclear model for Z = $(m.Z) with mass = $(m.mass), " *
+              "radius R = $(m.radius) fm and ")
     print(io, "nuclear spin I = $(m.spinI), dipole moment mu = $(m.mu), quadrupole moment Q = $(m.Q) and octupole moment Omega = $(m.Omega).")
 end
 
@@ -488,15 +507,15 @@ end
         is returned.
 """
 function nuclearPotential(nm::Nuclear.Model, grid::Radial.Grid)
-    if      nm.model == "point"      potential = Nuclear.pointNucleus(nm.Z, grid)
-    elseif  nm.model == "uniform"    potential = Nuclear.uniformNucleus(nm.radius, nm.Z, grid)
-    elseif  nm.model == "Fermi"      potential = Nuclear.fermiDistributedNucleus(nm.radius, nm.Z, grid)
-    else    error("Nuclear.nuclearPotential(): unknown nuclear model \"$(nm.model)\"; the accepted " *
-                  "spellings are \"Fermi\", \"point\" and \"uniform\".")
-    end
-
-    return( potential )
+    return( Nuclear.nuclearPotential(nm.model, nm, grid) )
 end
+
+nuclearPotential(::Nuclear.PointNucleus,   nm::Nuclear.Model, grid::Radial.Grid) =
+    Nuclear.pointNucleus(nm.Z, grid)
+nuclearPotential(::Nuclear.UniformNucleus, nm::Nuclear.Model, grid::Radial.Grid) =
+    Nuclear.uniformNucleus(nm.radius, nm.Z, grid)
+nuclearPotential(::Nuclear.FermiNucleus,   nm::Nuclear.Model, grid::Radial.Grid) =
+    Nuclear.fermiDistributedNucleus(nm.radius, nm.Z, grid)
 
 
 """

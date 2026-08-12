@@ -180,7 +180,7 @@ elseif  false
                         lineSelection = LineSelection(),      ## all five lines are wanted
                         printBefore = true, calcLifetimes = true )
     wb = Atomic.Computation(Atomic.Computation(), name="Do-b: NHM in H-like 229Th89+", grid=grid,
-                            nuclearModel        = Nuclear.Model(90.0, "Fermi"),
+                            nuclearModel        = Nuclear.Model(90.0, FermiNucleus()),
                             initialConfigs      = [Configuration("1s")],
                             finalConfigs        = [Configuration("1s")],
                             initialAsfSettings  = asfTh, finalAsfSettings = asfTh,
@@ -223,7 +223,7 @@ elseif  false
                         lineSelection = LineSelection(),
                         printBefore = false, calcLifetimes = true )
     wc = Atomic.Computation(Atomic.Computation(), name="Do-c: NHM in Li-like 229Th87+", grid=grid,
-                            nuclearModel        = Nuclear.Model(90.0, "Fermi"),
+                            nuclearModel        = Nuclear.Model(90.0, FermiNucleus()),
                             initialConfigs      = [Configuration("1s^2 2s")],
                             finalConfigs        = [Configuration("1s^2 2s")],
                             processSettings     = hiSettings )
@@ -327,7 +327,7 @@ elseif  true
                             lineSelection = LineSelection(),   ## all five: the checks need the ground-state line
                             printBefore = false, calcLifetimes = true )
         wd = Atomic.Computation(Atomic.Computation(), name="Do-d: 229Th89+ isomer lifetime", grid=grid,
-                                nuclearModel        = Nuclear.Model(90.0, "Fermi"),
+                                nuclearModel        = Nuclear.Model(90.0, FermiNucleus()),
                                 initialConfigs      = [Configuration("1s")],
                                 finalConfigs        = [Configuration("1s")],
                                 initialAsfSettings  = asfTh, finalAsfSettings = asfTh,
@@ -366,7 +366,7 @@ elseif  false
                         lineSelection = LineSelection(true, indexPairs = [(3,1), (3,2), (4,1), (4,3)]),
                         printBefore = false, calcLifetimes = true )
     we = Atomic.Computation(Atomic.Computation(), name="Do-e: NHM in B-like 205Pb77+", grid=grid,
-                            nuclearModel        = Nuclear.Model(82.0, "Fermi"),
+                            nuclearModel        = Nuclear.Model(82.0, FermiNucleus()),
                             initialConfigs      = [Configuration("1s^2 2s^2 2p")],
                             finalConfigs        = [Configuration("1s^2 2s^2 2p")],
                             processSettings     = hiSettings )
@@ -396,7 +396,7 @@ elseif  false
                             lineSelection = LineSelection(),   ## indices differ per charge state; see the header
                             printBefore = false, calcLifetimes = true )
         wf = Atomic.Computation(Atomic.Computation(), name="Do-f: NHM in 205Pb$(q)+", grid=grid,
-                                nuclearModel        = Nuclear.Model(82.0, "Fermi"),
+                                nuclearModel        = Nuclear.Model(82.0, FermiNucleus()),
                                 initialConfigs = confs, finalConfigs = confs, processSettings = hiSettings )
         perform(wf)
     end
@@ -432,7 +432,7 @@ elseif  false
                         lineSelection = LineSelection(),
                         printBefore = false, calcLifetimes = true )
     wg = Atomic.Computation(Atomic.Computation(), name="Do-g: hyperfine-induced E1 decay of the 235U isomer", grid=grid,
-                            nuclearModel        = Nuclear.Model(92.0, "Fermi"),
+                            nuclearModel        = Nuclear.Model(92.0, FermiNucleus()),
                             ## THE CONFIGURATION SPACE CANNOT BE MADE SMALL HERE, and trying taught the lesson.
                             ## An E3 hyperfine operator is rank 3, so a non-zero electronic matrix element needs
                             ## |J_r - J_s| <= 3 <= J_r + J_s, i.e. J_r + J_s >= 3, AND -- being parity-odd -- it

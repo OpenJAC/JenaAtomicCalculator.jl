@@ -348,7 +348,7 @@ function testModule_HyperfineInduced(; short::Bool=true)
     asfTh = AsfSettings(AsfSettings(); scField = Basics.NuclearField())
     grid  = Radial.Grid(Radial.Grid(false), rnt = 1.0e-7, h = 3.0e-2, hp = 1.0e-2, rbox = 6.0)
     wa = Atomic.Computation(Atomic.Computation(), name="xx", grid=grid,
-                            nuclearModel   = Nuclear.Model(90.0, "Fermi"),
+                            nuclearModel   = Nuclear.Model(90.0, FermiNucleus()),
                             initialConfigs = [Configuration("1s")],
                             finalConfigs   = [Configuration("1s")],
                             initialAsfSettings = asfTh, finalAsfSettings = asfTh,

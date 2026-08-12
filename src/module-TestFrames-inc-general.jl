@@ -611,7 +611,7 @@ function testStructConstructors(; short::Bool=true)
         # Core structs: Nuclear.Model with all simple constructors
         ("Nuclear.Model(Z)",                        () -> Nuclear.Model(26.)                            ),
         ("Nuclear.Model(Z,M)",                      () -> Nuclear.Model(26., 55.845)                    ),
-        ("Nuclear.Model(Z,model)",                  () -> Nuclear.Model(26., "Fermi")                   ),
+        ("Nuclear.Model(Z,model)",                  () -> Nuclear.Model(26., FermiNucleus())            ),
         ("Nuclear.Isomer()",                        () -> Nuclear.Isomer()                              ),
         # Radial grid
         ("Radial.Grid(false)",                      () -> Radial.Grid(false)                            ),

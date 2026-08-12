@@ -127,7 +127,7 @@ elseif  false
                                                     augerOperator = CoulombBreit(1.0),
                                                     printBefore   = false )
     wb = Atomic.Computation(Atomic.Computation(), name="Df-b: K-LL DR of H-like Xe53+", grid=grid54,
-                            nuclearModel        = Nuclear.Model(54., "Fermi"),
+                            nuclearModel        = Nuclear.Model(54., FermiNucleus()),
                             # NOTE the explicit ZERO occupations. DielectronicRecombination.checkConsistentMultiplets
                             # requires the initial, intermediate and final states to be built over the SAME ordered
                             # subshell list (the initial one may be shorter), a restriction coming from the angular
@@ -227,7 +227,7 @@ elseif  false
                                                     printBefore        = false,
                                                     calcPhotonSpectrum = true )
     wd = Atomic.Computation(Atomic.Computation(), name="Df-d: K-LL DR of H-like Xe53+, CaptureLine route", grid=grid54,
-                            nuclearModel        = Nuclear.Model(54., "Fermi"),
+                            nuclearModel        = Nuclear.Model(54., FermiNucleus()),
                             initialConfigs      = [Configuration("1s^1 2s^0 2p^0")],
                             intermediateConfigs = [Configuration("1s^0 2s^2 2p^0"), Configuration("1s^0 2s^1 2p^1"),
                                                    Configuration("1s^0 2s^0 2p^2")],
@@ -310,7 +310,7 @@ elseif  false
                                                     printBefore        = false,
                                                     calcPhotonSpectrum = true )
     we = Atomic.Computation(Atomic.Computation(), name="Df-e: K-LL DR into He-like W72+ (Tu et al. 2016)", grid=grid74,
-                            nuclearModel        = Nuclear.Model(74., "Fermi"),
+                            nuclearModel        = Nuclear.Model(74., FermiNucleus()),
                             # All configurations are written over the SAME ordered subshell list, 1s..4f, with explicit
                             # zero occupations (checkConsistentMultiplets requires it).
                             initialConfigs      = [Configuration("1s^2 2s^0 2p^0 3s^0 3p^0 3d^0 4s^0 4p^0 4d^0 4f^0")],
@@ -460,7 +460,7 @@ elseif  false
                                                     corrections        = DielectronicRecombination.AbstractCorrections[
                                                                             DielectronicRecombination.HydrogenicCorrections(22, 75., 1.0)] )
     wf = Atomic.Computation(Atomic.Computation(), name="Df-f: Delta-n=0 DR of Be-like Au75+ with n=19 spectator", grid=grid79,
-                            nuclearModel        = Nuclear.Model(79., "Fermi"),
+                            nuclearModel        = Nuclear.Model(79., FermiNucleus()),
                             # Same ordered subshell list everywhere, with explicit zero occupations.
                             initialConfigs      = [Configuration("1s^2 2s^2 2p^0 3s^0 3p^0 3d^0 19s^0 19p^0 19d^0")],
                             intermediateConfigs = [Configuration("1s^2 2s^1 2p^1 3s^0 3p^0 3d^0 19s^1 19p^0 19d^0"),

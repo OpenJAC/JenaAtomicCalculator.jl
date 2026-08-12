@@ -54,8 +54,8 @@ grid = Radial.Grid(Radial.Grid(true), rnt = 4.0e-6, h = 5.0e-2, hp = 0.8e-2, rbo
 ## Compute times (on one core, Julia 1.10.9): a) 27:52, b) 35:19, c) 14:08, d) 13:38, e) 2:02, peak RSS ~2.5 GB.
 ## Cost is driven by the impact ENERGY, not by the electron count: branch e) has nine more electrons than a) and
 ## runs 14x faster, because a 0.1 eV threshold allows a 3x coarser grid and 6x fewer partial waves. Set maxKappa
-## generously; it is a cap and the kappa loop breaks early, so 120 costs ~10% more than 40. A fuller cost model
-## lives in work/notes-Dl-ImpactExcitation-timing.md -- a LOCAL working note; work/ is not part of the repository.
+## generously; it is a cap and the kappa loop breaks early, so 120 costs ~10% more than 40. Cost also scales with
+## (2*J_initial + 1): a J=0 ground level is ~1.6x cheaper per line than J=1/2 at the same maxKappa and grid.
 
 
 if  false

@@ -20,7 +20,7 @@ if  false
     #   induced coupling is comparable to or larger than that zero-field gap -- exactly the regime
     #   module-StarkShift.jl's quadratic formula cannot handle, and this module is for.
     grid = Radial.Grid(true)
-    nm   = Nuclear.Model(1., "point")
+    nm   = Nuclear.Model(1., PointNucleus())
 
     wa = Atomic.Computation(Atomic.Computation(), name="H n=2 manifold", grid=grid, nuclearModel=nm,
                             configs=[Configuration("2s"), Configuration("2p")])
@@ -58,7 +58,7 @@ elseif false
     #   and the exact M=+-3/2 degeneracy seen at tilt=0 is lifted -- both are only possible once the
     #   q=+-1 tensor terms are active, confirming the general-direction machinery works correctly.
     grid = Radial.Grid(true)
-    nm   = Nuclear.Model(1., "point")
+    nm   = Nuclear.Model(1., PointNucleus())
 
     wa = Atomic.Computation(Atomic.Computation(), name="H n=2 manifold", grid=grid, nuclearModel=nm,
                             configs=[Configuration("2s"), Configuration("2p")])
@@ -119,7 +119,7 @@ elseif true
     #   (that would require the excluded kappa<=-2 levels too); the ~3% proximity is a meaningful,
     #   honest sanity check, not a precision benchmark.
     grid = Radial.Grid(true)
-    nm   = Nuclear.Model(1., "point")
+    nm   = Nuclear.Model(1., PointNucleus())
     n    = 6
     configs = [Configuration("$(n)s"), Configuration("$(n)p"), Configuration("$(n)d"),
                Configuration("$(n)f"), Configuration("$(n)g"), Configuration("$(n)h")]
