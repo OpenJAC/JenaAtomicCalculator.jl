@@ -41,58 +41,131 @@ struct         GridGaussLegendreFinite  <:  AbstractGridGaussLegendreScheme     
 
 
 """
-`struct  Radial.Grid`  ... defines a type for the radial grid which contains all information about the grid parameters, the genration 
-                            of the B-spline basis as well as for performing radial integrations.
+`struct  Radial.GridParameters`
+    ... the ANALYTIC DEFINITION of the radial grid: the handful of numbers a user chooses, from which
+        everything else follows.
 
-    ** Physical grid parameter **
-    + rnt        ::Float64           ... smalles grid point > 0.
-    + h          ::Float64           ... stepsize in the construction of the exponential grid.
-    + hp         ::Float64           ... asymptotic stepsize of the log-lin grid.
-    + NoPoints   ::Int64             ... No. of grid points so that r[NoPoints] coincides also 
-                                            with the largest break point of the B-spline knot.
-    ** B-spline grid parameters and break points **
-    + tL         ::Array{Float64,1}  ... radial break points for the B-splines of the large c.
-    + tS         ::Array{Float64,1}  ... radial break points for the B-splines of the small c.
-    + ntL        ::Int64             ... number of break points in the t-grid of the large c.
-    + ntS        ::Int64             ... number of break points in the t-grid of the small c.
-    + orderL     ::Int64             ... B-spline order of large components.
-    + orderS     ::Int64             ... B-spline order of small components.
-    + nsL        ::Int64             ... number of B-splines for large components.
-    + nsS        ::Int64             ... number of B-splines for small components.
-    + orderGL    ::Int64
-        ... order of the Gauss-Legendre integration; this order also determines the (number of) break points
-            by taking every orderGL-th point of the physical grid.
-    ** Radial mesh points **
-    + r          ::Array{Float64,1}  ... radial mesh points, the Gauss-Legendre points of each interval
-                                         between two break points of tL.
-    + wr         ::Array{Float64,1}  ... Gauss-Legendre integration weights belonging to r.
+    + rnt        ::Float64  ... smallest grid point > 0.
+    + h          ::Float64  ... stepsize in the construction of the exponential grid.
+    + hp         ::Float64  ... asymptotic stepsize of the log-lin grid; hp = 0 gives a purely exponential one.
+    + NoPoints   ::Int64    ... No. of points of the physical grid, chosen so that its last point coincides
+                                with the largest B-spline break point.  NOTE that this counts the PHYSICAL
+                                grid of the definition, which is a different quantity from the number of
+                                mesh points length(mesh.r), even where the two happen to coincide.
+    + orderGL    ::Int64    ... order of the Gauss-Legendre integration; it also fixes the break points, by
+                                taking every orderGL-th point of the physical grid.
 """
-struct  Grid
+struct  GridParameters
     rnt          ::Float64
     h            ::Float64
     hp           ::Float64
     NoPoints     ::Int64
-    #
+    orderGL      ::Int64
+end
+
+
+"""
+`struct  Radial.KnotSequence`
+    ... the B-SPLINE BREAK POINTS, separately for the large and the small component.
+
+    + tL         ::Array{Float64,1}  ... radial break points for the B-splines of the large component.
+    + tS         ::Array{Float64,1}  ... radial break points for the B-splines of the small component.
+    + orderL     ::Int64             ... B-spline order of the large components.
+    + orderS     ::Int64             ... B-spline order of the small components.
+
+        The counts ntL, ntS, nsL and nsS are NOT stored: they are functions of the above and are provided as
+        properties of Radial.Grid, so that they cannot fall out of step with the knots they describe.
+"""
+struct  KnotSequence
     tL           ::Array{Float64,1}
     tS           ::Array{Float64,1}
-    ntL          ::Int64 
-    ntS          ::Int64 
     orderL       ::Int64
     orderS       ::Int64
-    nsL          ::Int64
-    nsS          ::Int64
-    orderGL      ::Int64
-    #
+end
+
+
+"""
+`struct  Radial.RadialMesh`
+    ... the MESH on which radial functions are tabulated and integrated: a composite Gauss-Legendre rule
+        laid over the intervals between the break points of the knot sequence.
+
+    + r          ::Array{Float64,1}  ... mesh points, the Gauss-Legendre nodes of each interval of tL.
+    + wr         ::Array{Float64,1}  ... the Gauss-Legendre weights belonging to r.
+"""
+struct  RadialMesh
     r            ::Array{Float64,1}
     wr           ::Array{Float64,1}
 end
 
 
 """
-`Radial.Grid()` ... constructor to define an 'empty' grid.  
+`struct  Radial.Grid`
+    ... the radial grid: its analytic definition, the B-spline break points that follow from it, and the
+        mesh on which radial integrations are performed.
+
+    + parameters ::Radial.GridParameters  ... what was asked for.
+    + knots      ::Radial.KnotSequence    ... the B-spline break points.
+    + mesh       ::Radial.RadialMesh      ... the Gauss-Legendre mesh points and weights.
+
+        Until 12-Aug-2026 these seventeen numbers and arrays sat side by side in one flat struct, so that
+        nothing distinguished the definition from what was derived from it, and four of the fields (ntL, ntS,
+        nsL, nsS) duplicated information already present in the knots.
+
+        FOR COMPATIBILITY, AND BECAUSE THEY READ WELL, all the former field names remain available directly
+        on the Grid: grid.r, grid.wr, grid.rnt, grid.tL, grid.nsL and the rest all work exactly as before
+        (see Base.getproperty below).  ntL, ntS, nsL and nsS are now COMPUTED from the knot sequence rather
+        than stored, which is the one behavioural difference: they can no longer be stale.
+"""
+struct  Grid
+    parameters   ::GridParameters
+    knots        ::KnotSequence
+    mesh         ::RadialMesh
+end
+
+
+"""
+`Base.getproperty(grid::Radial.Grid, s::Symbol)`
+    ... forwards the field names of the former flat Radial.Grid to the three structs that now hold them, and
+        computes ntL, ntS, nsL and nsS from the knot sequence.  About 700 accesses across JAC read these
+        names; forwarding them is deliberate rather than transitional, since `grid.r` reads better than
+        `grid.mesh.r` at the point of use.  A literal `grid.r` is constant-folded and costs nothing.
+"""
+function Base.getproperty(grid::Radial.Grid, s::Symbol)
+    ## the analytic definition
+    s === :rnt       &&  return( getfield(grid, :parameters).rnt      )
+    s === :h         &&  return( getfield(grid, :parameters).h        )
+    s === :hp        &&  return( getfield(grid, :parameters).hp       )
+    s === :NoPoints  &&  return( getfield(grid, :parameters).NoPoints )
+    s === :orderGL   &&  return( getfield(grid, :parameters).orderGL  )
+    ## the knot sequence
+    s === :tL        &&  return( getfield(grid, :knots).tL      )
+    s === :tS        &&  return( getfield(grid, :knots).tS      )
+    s === :orderL    &&  return( getfield(grid, :knots).orderL  )
+    s === :orderS    &&  return( getfield(grid, :knots).orderS  )
+    ## ... and the four counts that used to be stored alongside it
+    s === :ntL       &&  return( length(getfield(grid, :knots).tL) )
+    s === :ntS       &&  return( length(getfield(grid, :knots).tS) )
+    s === :nsL       &&  return( length(getfield(grid, :knots).tL) - getfield(grid, :knots).orderL )
+    s === :nsS       &&  return( length(getfield(grid, :knots).tS) - getfield(grid, :knots).orderS )
+    ## the mesh
+    s === :r         &&  return( getfield(grid, :mesh).r  )
+    s === :wr        &&  return( getfield(grid, :mesh).wr )
+    return( getfield(grid, s) )
+end
+
+
+# `Base.propertynames(grid::Radial.Grid)`  ... so that the forwarded names are visible to the REPL and to tab completion.
+Base.propertynames(grid::Radial.Grid) =
+    (:parameters, :knots, :mesh, :rnt, :h, :hp, :NoPoints, :orderGL, :tL, :tS, :orderL, :orderS,
+     :ntL, :ntS, :nsL, :nsS, :r, :wr)
+
+
+"""
+`Radial.Grid()` ... constructor to define an 'empty' grid.
 """
 function Grid()
-    Radial.Grid(0., 0., 0., 0,   Float64[], Float64[], 0, 0, 0, 0, 0, 0, 0,   Float64[], Float64[] )
+    Radial.Grid( GridParameters(0., 0., 0., 0, 0), KnotSequence(Float64[], Float64[], 0, 0),
+                 RadialMesh(Float64[], Float64[]) )
 end
 
 
@@ -105,12 +178,12 @@ function Grid(exponential::Bool; printout::Bool=false)
     
     if  exponential
         NoPoints = 392;    NoPoints = NoPoints - rem(NoPoints,orderGL)
-        grid = Radial.Grid(2.0e-6, 5.0e-2,     0., NoPoints,   Float64[], Float64[], 0, 0, orderL, orderS, 0, 0, orderGL,
-                            Float64[], Float64[] )
+        grid = Radial.Grid( GridParameters(2.0e-6, 5.0e-2,     0., NoPoints, orderGL),
+                            KnotSequence(Float64[], Float64[], orderL, orderS), RadialMesh(Float64[], Float64[]) )
     else
         NoPoints = 600;    NoPoints = NoPoints - rem(NoPoints,orderGL)
-        grid = Radial.Grid(2.0e-6, 5.0e-2, 2.0e-2, NoPoints,   Float64[], Float64[], 0, 0, orderL, orderS, 0, 0, orderGL,
-                            Float64[], Float64[] )
+        grid = Radial.Grid( GridParameters(2.0e-6, 5.0e-2, 2.0e-2, NoPoints, orderGL),
+                            KnotSequence(Float64[], Float64[], orderL, orderS), RadialMesh(Float64[], Float64[]) )
     end
     return( Radial.determineGrid(grid, printout=printout) )
 end
@@ -146,8 +219,8 @@ function Grid(gr::Radial.Grid;
                  "atomic units.  Omit the keyword to keep the number of points of the given grid.")
     end
     
-    grid = Radial.Grid(rntx, hx, hpx, NoPointsx, Float64[], Float64[], 0, 0, orderLx, orderSx, 0, 0, orderGLx,
-                        Float64[], Float64[] )
+    grid = Radial.Grid( GridParameters(rntx, hx, hpx, NoPointsx, orderGLx),
+                        KnotSequence(Float64[], Float64[], orderLx, orderSx), RadialMesh(Float64[], Float64[]) )
     return( Radial.determineGrid(grid, printout=printout) )
 end
 
@@ -273,7 +346,13 @@ function determineGrid(grid::Radial.Grid; printout::Bool=false)
                 "ntL=$ntL, ntS=$ntS] ")
     end
 
-    Grid(rnt, h, hp, NoPoints,  tL, tS, ntL, ntS, orderL, orderS, nsL, nsS, orderGL,   r, wr)
+    ## ntL, ntS, nsL and nsS are no longer stored; they follow from the knots.  They are still computed
+    ## above because the printout below reports them, and they are asserted against the properties that
+    ## replace them, so that the two definitions cannot drift apart unnoticed.
+    newGrid = Grid( GridParameters(rnt, h, hp, NoPoints, orderGL), KnotSequence(tL, tS, orderL, orderS),
+                    RadialMesh(r, wr) )
+    @assert newGrid.ntL == ntL && newGrid.ntS == ntS && newGrid.nsL == nsL && newGrid.nsS == nsS
+    return( newGrid )
 end
 
 
@@ -935,8 +1014,7 @@ function generateGrid(grid::Radial.Grid; boxSize::Union{Nothing,Float64}=nothing
             end 
         end
         ## println(">>> wr = $wr   ... just to see the number of zero weights for the new grid. \n")
-        newGrid = Radial.Grid(grid.rnt, grid.h, grid.hp, grid.NoPoints, grid.tL, grid.tS, grid.ntL, grid.ntS,
-                                grid.orderL, grid.orderS, grid.nsL, grid.nsS, grid.orderGL, grid.r, wr)
+        newGrid = Radial.Grid( getfield(grid, :parameters), getfield(grid, :knots), RadialMesh(grid.r, wr) )
         println(">> Generate a new grid with boxSize = $boxSize a.u. and with all weight grid.wr[j] = 0 " * 
                 "for r_j > boxSizeWithZeroWeights (j > $iR)" *
                 "\n>> Note that the last non-zero weight at R = $R grid point r[end] is always slightly smaller than " *
