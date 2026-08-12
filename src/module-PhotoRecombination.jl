@@ -7,7 +7,7 @@
 module PhotoRecombination
 
 
-using Printf, ..AngularMomentum, ..Basics, ..Continuum, ..Defaults, ..HydrogenicIon, ..InteractionStrength,
+using Printf, ..AngularMomentum, ..Basics, ..Bsplines, ..Continuum, ..Defaults, ..HydrogenicIon, ..InteractionStrength,
                 ..ManyElectron, ..PhotoEmission, ..Radial, ..Nuclear, ..TableStrings
 
 """
@@ -212,19 +212,30 @@ end
 
 
 """
-`PhotoRecombination.computeAmplitudesProperties(line::PhotoRecombination.Line, nm::Nuclear.Model, grid::Radial.Grid, nrContinuum::Int64, 
-                                                settings::PhotoRecombination.Settings)`  
-    ... to compute all amplitudes and properties of the given line; a line::PhotoRecombination.Line is returned for 
-        which the amplitudes and properties are now evaluated.
+`PhotoRecombination.computeAmplitudesProperties(line::PhotoRecombination.Line, nm::Nuclear.Model, grid::Radial.Grid, nrContinuum::Int64,
+                                                settings::PhotoRecombination.Settings;
+                                                nuclearPot::Union{Nothing,Radial.Potential}=nothing,
+                                                primitives::Union{Nothing,Bsplines.Primitives}=nothing)`
+    ... to compute all amplitudes and properties of the given line; a line::PhotoRecombination.Line is returned for
+        which the amplitudes and properties are now evaluated. The two keywords carry quantities that are CONSTANT for a
+        whole computation and are otherwise rebuilt for every line and every partial wave: the nuclear potential depends
+        only on the nuclear model and the grid, the B-spline primitives only on the grid. Nothing is cached; omitting
+        them reproduces the previous behaviour exactly.
 """
 function  computeAmplitudesProperties(line::PhotoRecombination.Line, nm::Nuclear.Model, grid::Radial.Grid, nrContinuum::Int64,
-                                        settings::PhotoRecombination.Settings)
+                                        settings::PhotoRecombination.Settings;
+                                        nuclearPot::Union{Nothing,Radial.Potential}=nothing,
+                                        primitives::Union{Nothing,Bsplines.Primitives}=nothing)
     newChannels = PhotoRecombination.Channel[];;   contSettings = Continuum.Settings(false, nrContinuum)
+    ## The two symmetry-reduced levels depend on the line but not on the partial wave, and so are formed once
+    ## for the whole line rather than once per channel.
+    redFLevel  = Basics.generateLevelWithSymmetryReducedBasis(line.finalLevel, line.finalLevel.basis.subshells)
+    newiLevel  = Basics.generateLevelWithSymmetryReducedBasis(line.initialLevel, redFLevel.basis.subshells)
+
     for channel in line.channels
-        newfLevel  = Basics.generateLevelWithSymmetryReducedBasis(line.finalLevel, line.finalLevel.basis.subshells)
-        newiLevel  = Basics.generateLevelWithSymmetryReducedBasis(line.initialLevel, newfLevel.basis.subshells)
-        newfLevel  = Basics.generateLevelWithExtraSubshell(Subshell(101, channel.kappa), newfLevel)
-        cOrbital, phase = Continuum.generateOrbitalForLevel(line.electronEnergy, Subshell(101, channel.kappa), newiLevel, nm, grid, contSettings)
+        newfLevel  = Basics.generateLevelWithExtraSubshell(Subshell(101, channel.kappa), redFLevel)
+        cOrbital, phase = Continuum.generateOrbitalForLevel(line.electronEnergy, Subshell(101, channel.kappa), newiLevel, nm, grid,
+                                                            contSettings; nuclearPot=nuclearPot, primitives=primitives)
         newcLevel  = Basics.generateLevelWithExtraElectron(cOrbital, channel.symmetry, newiLevel)
         newChannel = PhotoRecombination.Channel(channel.multipole, channel.gauge, channel.kappa, channel.symmetry, phase, 0.)
         amplitude  = PhotoRecombination.amplitude("photorecombination", channel, line.photonEnergy, newfLevel, newcLevel, grid)
@@ -330,8 +341,14 @@ function  computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, n
     nrContinuum = Continuum.gridConsistency(maxEnergy, grid)
     # Calculate all amplitudes and requested properties
     newLines = PhotoRecombination.Line[]
+    ## Both are built ONCE for the whole computation and handed down to every line and every partial wave: the
+    ## nuclear potential depends only on the nuclear model and the grid, the B-spline basis only on the grid --
+    ## and the grid is fixed here, since Continuum.gridConsistency above is called once for the maximum energy.
+    nuclearPot = Nuclear.nuclearPotential(nm, grid)
+    primitives = Bsplines.generatePrimitives(grid)
     for  line in lines
-        newLine = PhotoRecombination.computeAmplitudesProperties(line, nm, grid, nrContinuum, settings) 
+        newLine = PhotoRecombination.computeAmplitudesProperties(line, nm, grid, nrContinuum, settings;
+                                                                 nuclearPot=nuclearPot, primitives=primitives)
         push!( newLines, newLine)
     end
     # Print all results to screen
