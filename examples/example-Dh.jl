@@ -850,6 +850,162 @@ elseif  false
                             processSettings= mpSettings )
     perform(we)
     #
+elseif  false
+    # Last visit:  11-Aug-2026
+    # Last successful:  11-Aug-2026     ## for the PHOTON-ENERGY DEPENDENCE of the absorption cross section;
+    #                                   ## the absolute scale remains unverified, see below.
+    #
+    # --- Branch j: WHAT SETS THE SCALE OF A TWO-PHOTON ABSORPTION CROSS SECTION?
+    #
+    # THE QUESTION. This module prints two-photon absorption cross sections whose absolute size nobody has
+    # ever checked. For two-photon EMISSION there is a benchmark -- hydrogen's 2s -> 1s decay rate is known
+    # exactly, 8.2206 Z^6 /s, and comparing against it shows this module low by a constant factor 26.7. For
+    # absorption there was no benchmark at all, so the printed cross sections carried no warranty whatever.
+    #
+    # WHY THE OBVIOUS ROUTE IS CLOSED. A two-photon transition proceeds through intermediate states -- here
+    # the whole np manifold, continuum included. That sum does not converge in the settings this module can
+    # reach, so an absolute cross section trustworthy enough to compare with a measurement cannot be
+    # computed at all. Adding more intermediate states does not fix this; it is not a matter of patience.
+    #
+    # THE WAY AROUND IT. Absorption 1s -> 2s and emission 2s -> 1s are the SAME TRANSITION RUN BACKWARDS:
+    # the same intermediate states, the same two-photon matrix element, the same photon energies. Whatever
+    # error the truncated intermediate sum commits, it commits IDENTICALLY IN BOTH. In their ratio the
+    # atomic structure therefore cancels completely, and what survives is pure radiation physics: how many
+    # photon modes the atom may radiate into, against how strongly a given photon flux drives the
+    # absorption. That is the two-photon counterpart of the Einstein A/B relation, and it is exact.
+    #
+    # This inverts the economics of the calculation. Because the atomic structure cancels, the basis should
+    # be made DELIBERATELY CRUDE -- 2p and 3p in a small box is enough, and it must be, since one properly
+    # converged point costs more than ten minutes. The emission rate that comes out below, 2.0e-3 /s, is
+    # four thousand times smaller than hydrogen's true rate. That is intended and does not matter here.
+    #
+    # THE RELATION. Each emitted photon may go into a number of modes proportional to omega^2/(pi^2 c^2) --
+    # the same density-of-states factor that makes the familiar one-photon Einstein relation
+    # A = (g_l/g_u) (omega^2/(pi^2 c^2)) INT sigma domega come out right. Two photons give its square, and
+    # energy conservation ties omega_2 to omega_1:
+    #
+    #       dA/domega_1  =  (g_l/g_u) * delta * omega_1^2 omega_2^2 / (pi^4 c^4),     delta = hbar * sigma
+    #
+    # Both sides must be taken at the SAME kinematics, i.e. at the symmetric sharing omega_1 = omega_2,
+    # since the absorption here is monochromatic. That is why noSharings is ODD below: with the default 4
+    # no quadrature point falls on the midpoint, and the two processes would be compared at different
+    # photon energies without any warning.
+    #
+    # ================================================================================================
+    # READ THIS FIRST: THERE ARE **TWO SEPARATE PROBLEMS** IN THIS MODULE AND THEY MUST NOT BE MIXED.
+    # Confusing them cost a full day on 11-Aug-2026, on both sides of the discussion.
+    #
+    #   (A) THE EMISSION RATE, against the exactly known H 2s -> 1s value 8.2206 /s.
+    #       Two things are wrong with it at once, and NEITHER was touched on 11-Aug-2026:
+    #         - a constant, Z-independent prefactor deficit of 26.7 (see the 2p-emission file), and
+    #         - the sum over intermediate np states, which needs n up to 35..55 before it converges.
+    #       With the tiny basis used in THIS branch the rate is nowhere near 8.2206, and it is not even
+    #       monotonic -- measured, after applying the 26.7:
+    #              2p alone   0.408 /s     =  5.0 %  of the exact rate
+    #              2p + 3p    0.054 /s     =  0.65 % of the exact rate
+    #       Adding 3p moves the answer 7.6x FURTHER AWAY. That is not slow convergence; the 2s -> 1s sum
+    #       has large destructive cancellations and is dominated by the CONTINUUM, which a handful of
+    #       bound np states in a finite box barely represents. Do not read any absolute rate from a
+    #       branch like this one.
+    #
+    #   (B) THE ABSORPTION CROSS-SECTION PREFACTOR.  This IS what was fixed on 11-Aug-2026, and it has
+    #       nothing to do with (A). The fix does not, and was never meant to, bring the rate near 8.2206.
+    # ================================================================================================
+    #
+    # WHAT WAS FOUND FOR (B). Comparing hydrogen with He^+ moves the photon energy by a factor 4 and the
+    # differential rate by 5e4:
+    #        Z = 1:  omega 0.184437 a.u.,  computed/predicted = 1.63264e+07
+    #        Z = 2:  omega 0.747040 a.u.,  computed/predicted = 1.63255e+07      ratio 0.999942
+    # So the PHOTON-ENERGY DEPENDENCE of this module's absorption cross section is exactly what radiation
+    # theory demands, to six parts in 1e5. What was wrong is a single overall CONSTANT, 1.6326e7, the same
+    # for every atom and every photon energy.
+    #
+    # WHY THE RATIO CAN BE TRUSTED WHERE THE RATES CANNOT. Adding 3p changes the absorption by 2.62815x
+    # and the emission by 2.62817x -- the two agree to 7 parts in a million. The bad sum cancels, and it
+    # cancels MEASURABLY, not by assumption. That is the whole reason a basis useless for (A) is
+    # nevertheless decisive for (B).
+    #
+    # WHERE THAT CONSTANT LIVES. It is NOT an angular factor -- 1.6e7 is far too large for one, since an
+    # angular sum over two coupled photons is O(1) to O(100). The size of a factor is itself evidence about
+    # where it can possibly live, and following that up identifies it.
+    #
+    # The two paths are coded independently, so the first thing to test was whether the amplitude really
+    # does cancel. Read side by side, computeReducedAmplitudeEmission and computeReducedAmplitudeAbsorption
+    # are STRUCTURALLY IDENTICAL: the same product of two PhotoEmission.amplitude calls over the
+    # intermediate levels, the same energy denominator (with the sign appropriate to each direction), the
+    # same Wigner_6j. Only Emission() differs from Absorption(), which is the conjugate-and-swap of the same
+    # matrix element. So the ORBITALS AND MATRIX ELEMENTS ARE SOUND and they do cancel; the whole
+    # discrepancy sits in the PREFACTORS:
+    #
+    #       emission   (differential rate)  x  2 pi alpha^2 omega1 omega2 / (2J_i+1)
+    #       absorption (cross section)      x  8 pi^5 alpha^2 / (2J_i+1) / omega^2
+    #
+    # Both multiply the same sum of |amp|^2, so the code's ratio is 4 pi^4/omega^4 and carries NO POWER OF c
+    # whatever -- alpha^2 cancels between them -- while the relation above demands omega^4/(pi^4 c^4). That
+    # accounts for the number exactly:
+    #
+    #       c^4/4 = 8.81614e7   x   0.185188   =   1.63264e7
+    #
+    # The discrepancy is therefore DOMINATED BY c^4 = alpha^-4: a missing power of alpha relating an AREA to
+    # a RATE, i.e. a dimensional error, not a subtle angular sum. The residual 0.185188 is 0.656 per
+    # single-photon amplitude, consistent with the sqrt(2J+1)-type convention difference between
+    # PhotoEmission.amplitude(Emission) and (Absorption), weighted over the 2p_1/2 and 2p_3/2 intermediates.
+    #
+    # WHICH SIDE WAS WRONG. Emission is benchmarked against the exact hydrogen rate and is low only by 26.7 --
+    # an O(10) factor, not a power of alpha -- so its prefactor is dimensionally sound. The ABSORPTION
+    # prefactor was therefore the faulty one, and it was CORRECTED on 11-Aug-2026 in all three cross-section
+    # routines of module-MultiPhotonTransition-inc-2p-absorption.jl:
+    #        8*pi^5 * alpha^2 / (2J_i+1) / omega^2    ->    2*pi^5 / alpha^2 / (2J_i+1) / omega^2
+    # Independent internal evidence, found only by looking: computeTotalAlpha0 in that same file ALREADY
+    # divided by alpha^2, so three routines multiplied where the fourth divided.
+    #
+    # STATE AFTER THE CORRECTION:
+    #    * the absorption/emission ratio now matches the radiation relation to within a factor 5.400,
+    #      instead of 1.63e7;
+    #    * that residual 5.400 is a genuine constant -- identical to five digits for a 2p-only basis, for
+    #      2p+3p, and at Z = 2, i.e. independent of BOTH the intermediate basis and the photon energy;
+    #    * 1/5.4001 = 0.18518 and 5/27 = 0.185185 agree to 1e-5, but 27/5 is DELIBERATELY NOT INSTALLED:
+    #      it is a numerical match to a measured number, which is the exact step that produced three false
+    #      conclusions in this module. Its likely home is the angular sum, set to unity in the derivation
+    #      above and never done properly -- the same piece that defeats the emission prefactor 26.7.
+    #
+    # SO WHOEVER DOES THE TWO-PHOTON ANGULAR REDUCTION PROPERLY NOW HAS **TWO** NUMBERS TO REPRODUCE
+    # UNPROMPTED -- 26.7 for emission and 27/5 for absorption -- where before there was one. Whether both
+    # are the same angular object is now a testable question, and that is the natural next attack.
+    #
+    # WHAT THIS MEANS FOR USE. Relative two-photon absorption results -- between transitions, between
+    # polarizations, between atoms, and against photon energy -- are trustworthy. The absolute cross section
+    # is still low by about 5.4 and should be quoted only with that stated. Absolute EMISSION rates are a
+    # different matter entirely; see (A) above.
+    ni          = Nuclear.Model(1.0, "point")     ## repeat with Nuclear.Model(2.0) and rbox 20.0 for He^+
+    gridJ       = Radial.Grid(Radial.Grid(false), rnt = 4.0e-6, h = 5.0e-2, hp = 1.0e-2, rbox = 40.0)
+    interConfs  = [Configuration("2p"), Configuration("3p")]     ## crude ON PURPOSE; see above
+    interRep    = Representation("intermediate np levels", ni, gridJ, interConfs, MeanFieldMultiplet(MeanFieldSettings()))
+    interMp     = generate(interRep, output=true)["mean-field multiplet"]
+    #
+    absSettings = MultiPhotonTransition.Settings(MultiPhotonTransition.Settings();
+                        scheme = MultiPhotonTransition.TwoPhotonAbsorptionScheme(
+                                     MultiPhotonTransition.AbstractMultiPhotonProperty[
+                                         MultiPhotonTransition.TotalCsLinear()] ),
+                        multipoles = [E1], gauges = [UseCoulomb], intermediateStates = interMp,
+                        calcOverview = false, lineSelection = LineSelection(), printBefore = false )
+    perform( Atomic.Computation(Atomic.Computation(), name="Dh-j: 1s -> 2s two-photon absorption", grid=gridJ,
+                                nuclearModel   = ni,
+                                initialConfigs = [Configuration("1s")],
+                                finalConfigs   = [Configuration("2s")],
+                                processSettings= absSettings) )
+    #
+    emSettings  = MultiPhotonTransition.Settings(MultiPhotonTransition.Settings();
+                        scheme = MultiPhotonTransition.TwoPhotonEmissionScheme(
+                                     MultiPhotonTransition.TwoPhotonEmissionScheme(); noSharings = 5 ),
+                        multipoles = [E1], gauges = [UseCoulomb], intermediateStates = interMp,
+                        calcOverview = false, lineSelection = LineSelection(), printBefore = false )
+    perform( Atomic.Computation(Atomic.Computation(), name="Dh-j: 2s -> 1s two-photon emission", grid=gridJ,
+                                nuclearModel   = ni,
+                                initialConfigs = [Configuration("2s")],
+                                finalConfigs   = [Configuration("1s")],
+                                processSettings= emSettings) )
+    #
 ##
 end
 #

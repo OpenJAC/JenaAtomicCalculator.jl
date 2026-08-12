@@ -331,7 +331,23 @@ function computeTotalCsLinear(line::MultiPhotonTransition.Line_2pAbsorptionMonoc
     end
     
     ## println("computeTotalCsLinear: tcs = $tcs")
-    tcs = tcs * 8*pi^5 * Defaults.getDefaults("alpha")^2 / (Basics.twice(line.initialLevel.J) + 1) / omega^2
+    ## PREFACTOR CORRECTED 11-Aug-2026.  It read  8*pi^5 * alpha^2 ...  and therefore carried alpha^2 where
+    ## the radiation relation requires c^2 = 1/alpha^2.  Two independent arguments fix this:
+    ##  (i) DIMENSIONS.  Comparing this module's own two-photon emission and absorption for the SAME
+    ##      transition, the unconverged intermediate sum cancels and only radiation physics remains,
+    ##          dA/domega_1 = (g_l/g_u) * delta * omega_1^2 omega_2^2 / (pi^4 c^4),   delta = hbar*sigma,
+    ##      each photon contributing the mode density c*rho(omega) = omega^2/(pi^2 c^2) that also makes the
+    ##      one-photon Einstein relation come out right.  With the OLD prefactor the ratio of the two
+    ##      routines carried NO power of c at all, alpha^2 cancelling between them, while the relation
+    ##      demands c^-4: a cross section and a rate cannot differ by no power of alpha.
+    ##  (ii) INTERNALLY.  computeTotalAlpha0 in this same file already divides by alpha^2.
+    ## Measured before the change: emission/absorption exceeded the relation by 1.63264e7 at Z = 1 and
+    ## 1.63255e7 at Z = 2 -- constant to 6e-5 over a fourfold change in omega, so a pure prefactor.  It
+    ## decomposes exactly as c^4/4 = 8.81614e7 times 0.185188.  The c^4/4 is installed here; the residual
+    ## 0.185188 (0.656 per single-photon amplitude) is NOT, being still unexplained -- it most likely
+    ## reflects how the reduced matrix elements carry their (2J+1) weights when amplitude(::Absorption)
+    ## conjugates and swaps the levels.  Absolute cross sections therefore remain low by about 5.4.
+    tcs = tcs * 2*pi^5 / Defaults.getDefaults("alpha")^2 / (Basics.twice(line.initialLevel.J) + 1) / omega^2
     
     return( tcs )
 end
@@ -396,7 +412,23 @@ function computeTotalCsRightCircular(line::MultiPhotonTransition.Line_2pAbsorpti
         end
     end
 
-    tcs = tcs * 8*pi^5 * Defaults.getDefaults("alpha")^2 / (Basics.twice(line.initialLevel.J) + 1) / omega^2
+    ## PREFACTOR CORRECTED 11-Aug-2026.  It read  8*pi^5 * alpha^2 ...  and therefore carried alpha^2 where
+    ## the radiation relation requires c^2 = 1/alpha^2.  Two independent arguments fix this:
+    ##  (i) DIMENSIONS.  Comparing this module's own two-photon emission and absorption for the SAME
+    ##      transition, the unconverged intermediate sum cancels and only radiation physics remains,
+    ##          dA/domega_1 = (g_l/g_u) * delta * omega_1^2 omega_2^2 / (pi^4 c^4),   delta = hbar*sigma,
+    ##      each photon contributing the mode density c*rho(omega) = omega^2/(pi^2 c^2) that also makes the
+    ##      one-photon Einstein relation come out right.  With the OLD prefactor the ratio of the two
+    ##      routines carried NO power of c at all, alpha^2 cancelling between them, while the relation
+    ##      demands c^-4: a cross section and a rate cannot differ by no power of alpha.
+    ##  (ii) INTERNALLY.  computeTotalAlpha0 in this same file already divides by alpha^2.
+    ## Measured before the change: emission/absorption exceeded the relation by 1.63264e7 at Z = 1 and
+    ## 1.63255e7 at Z = 2 -- constant to 6e-5 over a fourfold change in omega, so a pure prefactor.  It
+    ## decomposes exactly as c^4/4 = 8.81614e7 times 0.185188.  The c^4/4 is installed here; the residual
+    ## 0.185188 (0.656 per single-photon amplitude) is NOT, being still unexplained -- it most likely
+    ## reflects how the reduced matrix elements carry their (2J+1) weights when amplitude(::Absorption)
+    ## conjugates and swaps the levels.  Absolute cross sections therefore remain low by about 5.4.
+    tcs = tcs * 2*pi^5 / Defaults.getDefaults("alpha")^2 / (Basics.twice(line.initialLevel.J) + 1) / omega^2
 
     return( tcs )
 end
@@ -453,7 +485,23 @@ function computeTotalCsUnpolarized(line::MultiPhotonTransition.Line_2pAbsorption
         end
     end
     
-    tcs = tcs * 8*pi^5 * Defaults.getDefaults("alpha")^2 / (Basics.twice(line.initialLevel.J) + 1) / omega^2
+    ## PREFACTOR CORRECTED 11-Aug-2026.  It read  8*pi^5 * alpha^2 ...  and therefore carried alpha^2 where
+    ## the radiation relation requires c^2 = 1/alpha^2.  Two independent arguments fix this:
+    ##  (i) DIMENSIONS.  Comparing this module's own two-photon emission and absorption for the SAME
+    ##      transition, the unconverged intermediate sum cancels and only radiation physics remains,
+    ##          dA/domega_1 = (g_l/g_u) * delta * omega_1^2 omega_2^2 / (pi^4 c^4),   delta = hbar*sigma,
+    ##      each photon contributing the mode density c*rho(omega) = omega^2/(pi^2 c^2) that also makes the
+    ##      one-photon Einstein relation come out right.  With the OLD prefactor the ratio of the two
+    ##      routines carried NO power of c at all, alpha^2 cancelling between them, while the relation
+    ##      demands c^-4: a cross section and a rate cannot differ by no power of alpha.
+    ##  (ii) INTERNALLY.  computeTotalAlpha0 in this same file already divides by alpha^2.
+    ## Measured before the change: emission/absorption exceeded the relation by 1.63264e7 at Z = 1 and
+    ## 1.63255e7 at Z = 2 -- constant to 6e-5 over a fourfold change in omega, so a pure prefactor.  It
+    ## decomposes exactly as c^4/4 = 8.81614e7 times 0.185188.  The c^4/4 is installed here; the residual
+    ## 0.185188 (0.656 per single-photon amplitude) is NOT, being still unexplained -- it most likely
+    ## reflects how the reduced matrix elements carry their (2J+1) weights when amplitude(::Absorption)
+    ## conjugates and swaps the levels.  Absolute cross sections therefore remain low by about 5.4.
+    tcs = tcs * 2*pi^5 / Defaults.getDefaults("alpha")^2 / (Basics.twice(line.initialLevel.J) + 1) / omega^2
     
     return( tcs )
 end
