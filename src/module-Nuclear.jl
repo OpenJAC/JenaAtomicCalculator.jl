@@ -7,7 +7,8 @@
 module Nuclear
 
 using  QuadGK, ..Basics,  ..Defaults, ..Radial, ..Math
-export Model, AbstractNuclearModel, PointNucleus, UniformNucleus, FermiNucleus, ThreeParameterFermiNucleus
+export Model, AbstractNuclearModel, PointNucleus, UniformNucleus, FermiNucleus, ThreeParameterFermiNucleus,
+       DeformedFermiNucleus
 
 
 """
@@ -76,6 +77,79 @@ ThreeParameterFermiNucleus(w::Float64) = ThreeParameterFermiNucleus(w, Nuclear.f
 
 
 """
+`struct  Nuclear.DeformedFermiNucleus  <:  Nuclear.AbstractNuclearModel`
+    ... an axially-deformed Fermi distribution, in which the half-density radius depends on the polar angle,
+
+            rho(r,theta) = rho_0 (1 + w r^2/c^2) / (1 + exp((r - c(theta))/a)),
+            c(theta)     = c_0 N [1 + beta2 Y_20(theta) + beta4 Y_40(theta)].
+
+        With Y_20(0) = +0.63078 at the pole and Y_20(pi/2) = -0.31539 at the equator, the two semi-axes are
+        c_par = c_0 N (1 + 0.63078 beta2) and c_perp = c_0 N (1 - 0.31539 beta2), so that
+
+            beta2 > 0  is PROLATE  (cigar,   axis ratio c_par/c_perp > 1),
+            beta2 < 0  is OBLATE   (pancake, axis ratio < 1),
+
+        and the axis ratio is available directly through Nuclear.axisRatio / Nuclear.deformationFromAxisRatio;
+        the keyword constructor below accepts either parametrisation.
+
+        N IS A VOLUME NORMALISATION, N = <(1 + beta2 Y_20 + beta4 Y_40)^3>^(-1/3), without which the nucleus
+        would silently GROW as it deforms: the bare form gives V/V_0 = 1.022 at beta2 = 0.3, an effect as
+        large as the deformation signal itself.  Nuclear matter is nearly incompressible, so deformation at
+        constant volume is the physical case.
+
+    + beta2      ::Float64   ... quadrupole deformation; 0 recovers Nuclear.ThreeParameterFermiNucleus.
+    + beta4      ::Float64   ... hexadecapole deformation.
+    + w          ::Float64   ... the three-parameter weight, so this model generalises both Fermi models.
+    + a          ::Float64   ... skin-thickness parameter [fm].
+
+        WHAT A DEFORMED NUCLEUS DOES TO AN ATOM, and what it does not.  JAC is a central-field theory
+        throughout: Nuclear.nuclearPotential returns a radial Z(r), and the angular algebra everywhere
+        assumes it.  This model therefore contributes its MONOPOLE part, the average of rho over the polar
+        angle, which is what a spherically-symmetric electron density samples.  That part carries the whole
+        effect deformation has on the mean-square radius, and hence on the FIELD SHIFT:
+
+            <r^2> = <r^2>_sph [1 + (5/4pi) beta2^2 + ...],
+
+        good to 0.2% at beta2 = 0.3 once the volume is held fixed.  The lambda = 2 component that is dropped
+        is NOT lost physics: it is the electric quadrupole interaction, which JAC already carries separately
+        through nm.Q in the hyperfine structure.  THESE TWO MUST NOT BOTH BE COUNTED for the same effect.
+
+        NOTE FOR ANYONE FITTING beta2 TO AN ISOTOPE SHIFT: the enhancement above is EVEN in beta2, so a
+        field shift is nearly blind to the sign.  beta2 = +0.3 and -0.3 differ by 0.6% in <r^2>, the sign
+        entering only at order beta2^3.  Prolate and oblate are distinguished by the spectroscopic
+        quadrupole moment, not by an isotope shift.
+"""
+struct  DeformedFermiNucleus  <:  AbstractNuclearModel
+    beta2        ::Float64
+    beta4        ::Float64
+    w            ::Float64
+    a            ::Float64
+end
+
+
+"""
+`Nuclear.DeformedFermiNucleus(beta2::Float64)`
+    ... constructor for a purely quadrupole-deformed Fermi nucleus with beta4 = w = 0 and a = Nuclear.fermiA.
+
+`Nuclear.DeformedFermiNucleus(; beta2=nothing, axisRatio=nothing, beta4=0., w=0., a=Nuclear.fermiA)`
+    ... constructor that accepts EITHER the deformation beta2 OR the axis ratio c_par/c_perp, but not both.
+"""
+DeformedFermiNucleus(beta2::Float64) = DeformedFermiNucleus(beta2, 0., 0., Nuclear.fermiA)
+
+function DeformedFermiNucleus(; beta2::Union{Nothing,Float64}=nothing, axisRatio::Union{Nothing,Float64}=nothing,
+                                beta4::Float64=0., w::Float64=0., a::Float64=Nuclear.fermiA)
+    if       isnothing(beta2)  &&  isnothing(axisRatio)
+        error("Nuclear.DeformedFermiNucleus(): give either beta2 = ... or axisRatio = ...")
+    elseif  !isnothing(beta2)  && !isnothing(axisRatio)
+        error("Nuclear.DeformedFermiNucleus(): give either beta2 = ... or axisRatio = ..., not both; " *
+              "they describe the same quantity (see Nuclear.axisRatio).")
+    end
+    beta2x = isnothing(beta2)  ?  Nuclear.deformationFromAxisRatio(axisRatio)  :  beta2
+    return( DeformedFermiNucleus(beta2x, beta4, w, a) )
+end
+
+
+"""
 `Nuclear.name(model::Nuclear.AbstractNuclearModel)`
     ... returns a short name::String of the given nuclear model, for printout.
 """
@@ -83,6 +157,7 @@ name(model::Nuclear.PointNucleus)                 = "Point"
 name(model::Nuclear.UniformNucleus)               = "Uniform"
 name(model::Nuclear.FermiNucleus)                 = "Fermi"
 name(model::Nuclear.ThreeParameterFermiNucleus)   = "Fermi-3p"
+name(model::Nuclear.DeformedFermiNucleus)         = "Fermi-def"
 
 
 """
@@ -449,6 +524,134 @@ end
 
 
 """
+`Nuclear.axisRatio(beta2::Float64)`
+    ... returns the ratio c_parallel/c_perpendicular of the two semi-axes of an axially-deformed nucleus
+        with quadrupole deformation beta2; > 1 for a prolate and < 1 for an oblate shape.  The relation
+
+            q = (1 + 0.63078 beta2) / (1 - 0.31539 beta2)
+
+        follows from the values of Y_20 at the pole and the equator, and is exact for the half-density
+        surface of Nuclear.DeformedFermiNucleus (up to the common volume factor N, which cancels in a ratio).
+"""
+function axisRatio(beta2::Float64)
+    cPar  = 1.0 + beta2 * 0.5  * sqrt(5/pi)
+    cPerp = 1.0 - beta2 * 0.25 * sqrt(5/pi)
+    cPerp <= 0.  &&  error("Nuclear.axisRatio(): beta2 = $beta2 is too large; the equatorial semi-axis " *
+                           "would be non-positive.  The Y_20 parametrisation is meaningful only while " *
+                           "1 - 0.31539 beta2 > 0, i.e. beta2 < 3.17.")
+    return( cPar / cPerp )
+end
+
+
+"""
+`Nuclear.deformationFromAxisRatio(q::Float64)`
+    ... the inverse of Nuclear.axisRatio: returns the beta2 that produces the given ratio of semi-axes,
+
+            beta2 = (q - 1) / (0.63078 + 0.31539 q).
+
+        NOTE that this is the small-to-moderate deformation convention of the Y_20 expansion, not the
+        eccentricity of a true ellipsoid; the two agree for small beta2 and drift apart well before q = 2.
+"""
+function deformationFromAxisRatio(q::Float64)
+    q <= 0.  &&  error("Nuclear.deformationFromAxisRatio(): the axis ratio q = $q must be positive.")
+    return( (q - 1.0) / (0.5 * sqrt(5/pi) + 0.25 * sqrt(5/pi) * q) )
+end
+
+
+"""
+`Nuclear.deformedShape(x::Float64, model::Nuclear.DeformedFermiNucleus)`
+    ... returns the angular factor [1 + beta2 Y_20 + beta4 Y_40] of the half-density radius at x = cos(theta),
+        INCLUDING the volume normalisation N = <(1 + beta2 Y_20 + beta4 Y_40)^3>^(-1/3).  Without N the
+        nucleus grows as it deforms (V/V_0 = 1.022 already at beta2 = 0.3), which would show up as a
+        spurious change of size in every quantity that follows.
+"""
+function deformedShape(x::Float64, model::Nuclear.DeformedFermiNucleus)
+    return( Nuclear.deformedVolumeFactor(model) * Nuclear.deformedShapeBare(x, model) )
+end
+
+deformedShapeBare(x::Float64, model::Nuclear.DeformedFermiNucleus) =
+    1.0 + model.beta2 * 0.25 * sqrt(5/pi) * (3x^2 - 1.0) +
+          model.beta4 * (3/16) / sqrt(pi) * (35x^4 - 30x^2 + 3.0)
+
+
+"""
+`Nuclear.deformedVolumeFactor(model::Nuclear.DeformedFermiNucleus)`
+    ... returns N = <(1 + beta2 Y_20 + beta4 Y_40)^3>^(-1/3), the factor that keeps the volume enclosed by
+        the half-density surface independent of the deformation; a value::Float64 is returned.
+"""
+function deformedVolumeFactor(model::Nuclear.DeformedFermiNucleus)
+    model.beta2 == 0.  &&  model.beta4 == 0.  &&  return( 1.0 )
+    wa = QuadGK.quadgk(x -> Nuclear.deformedShapeBare(x, model)^3, -1., 1., rtol=1.0e-12)[1] / 2
+    return( wa^(-1/3) )
+end
+
+
+"""
+`Nuclear.deformedFermiRrms(c::Float64, a::Float64, model::Nuclear.DeformedFermiNucleus; noTheta::Int64=24)`
+    ... returns the root-mean-square radius [fm] of the deformed Fermi distribution with half-density radius
+        parameter c, skin thickness a and the deformation of the given model.
+
+        There is no closed form here -- the angular dependence sits inside the exponential -- so the two
+        radial moments are taken by quadrature and averaged over cos(theta) on a Gauss-Legendre grid, reusing
+        Radial.GridGL rather than a private rule.  For beta2 = beta4 = 0 this reduces to
+        Nuclear.threeParameterFermiRrms, which is used as a regression test.
+"""
+function deformedFermiRrms(c::Float64, a::Float64, model::Nuclear.DeformedFermiNucleus; noTheta::Int64=24)
+    if  model.beta2 == 0.  &&  model.beta4 == 0.
+        return( Nuclear.threeParameterFermiRrms(c, a, model.w) )
+    end
+    tGrid = Radial.GridGL(Radial.GridGaussLegendreFinite(), -1., 1., noTheta; printout=false)
+    m2 = 0.;   m4 = 0.
+    for  j = 1:tGrid.nt
+        cx  = c * Nuclear.deformedShape(tGrid.t[j], model)
+        rho = r -> (1.0 + model.w * (r/c)^2) / (1.0 + exp((r - cx)/a))
+        m2  = m2 + tGrid.wt[j] * QuadGK.quadgk(r -> r^2 * rho(r), 0., 40c, rtol=1.0e-11)[1]
+        m4  = m4 + tGrid.wt[j] * QuadGK.quadgk(r -> r^4 * rho(r), 0., 40c, rtol=1.0e-11)[1]
+    end
+    m4/m2 <= 0.  &&  error("Nuclear.deformedFermiRrms(): the second moment is not positive for c = $c fm, " *
+                           "a = $a fm, beta2 = $(model.beta2), w = $(model.w).")
+    return( sqrt(m4/m2) )
+end
+
+
+"""
+`Nuclear.computeDeformedFermiC(R::Float64, a::Float64, model::Nuclear.DeformedFermiNucleus)`
+    ... computes the half-density radius parameter c [fm] of a deformed Fermi nucleus with the given rms
+        radius R, skin thickness a and deformation.  Bisects, for the reasons given at
+        Nuclear.computeThreeParameterFermiC.
+"""
+function computeDeformedFermiC(R::Float64, a::Float64, model::Nuclear.DeformedFermiNucleus)
+    R <= 0.  &&  error("Nuclear.computeDeformedFermiC(): R_rms = $R fm must be positive.")
+    cFloor = 4.0 * a
+    c0     = sqrt(5/3) * R
+    ##
+    cUpp = max(c0, cFloor);   nUpp = 0
+    while  Nuclear.deformedFermiRrms(cUpp, a, model) < R   &&   nUpp < 60
+        cUpp = 1.5 * cUpp;    nUpp = nUpp + 1
+    end
+    cLow = cUpp
+    while  Nuclear.deformedFermiRrms(cLow, a, model) > R
+        cLow = cLow / 1.5
+        if  cLow < cFloor
+            error("Nuclear.computeDeformedFermiC(): R_rms = $R fm is not representable with a = $a fm, " *
+                  "beta2 = $(model.beta2) and w = $(model.w); the half-density radius would fall below " *
+                  "$cFloor fm.  Use UniformNucleus() for such a small radius.")
+        end
+    end
+    ##
+    tolAccept = 1.0e-10
+    for  i = 1:200
+        cMid = 0.5 * (cLow + cUpp)
+        if      cUpp - cLow < tolAccept                                 return( cMid )
+        elseif  Nuclear.deformedFermiRrms(cMid, a, model) > R           cUpp = cMid
+        else                                                            cLow = cMid
+        end
+    end
+    return( 0.5 * (cLow + cUpp) )
+end
+
+
+"""
 `Nuclear.computeThreeParameterFermiC(R::Float64, a::Float64, w::Float64)`
     ... computes a value::Float64 for the half-density radius c [fm] of a three-parameter Fermi nucleus with
         root-mean-square radius R, skin thickness a and shape parameter w.
@@ -636,6 +839,58 @@ end
 
 
 """
+`Nuclear.deformedFermiNucleus(Rrms::Float64, Z::Float64, model::Nuclear.DeformedFermiNucleus, grid::Radial.Grid)`
+    ... computes the effective, radial-dependent charge Z(r) of the MONOPOLE part of an axially-deformed
+        Fermi distribution with rms radius Rrms and nuclear charge Z; V_nuc = - Z(r)/r, and a
+        potential::Radial.Potential is returned.
+
+        The angular average is taken first,
+
+            rho_0(r) = (1/2) Int_{-1}^{+1} dcos(theta) rho(r,theta),
+
+        after which the structure is identical to Nuclear.threeParameterFermiNucleus: the same split of the
+        Coulomb integral into an inner and an outer part, with the same quadrature tolerances.  The cost is
+        the number of theta nodes, ~24; that is affordable because the Fermi potential was measured at 0.08%
+        of an Ar Auger run when the Nuclear module was profiled on 12-Aug-2026.
+
+        See the docstring of Nuclear.DeformedFermiNucleus for why only the monopole enters, and for the
+        warning against double-counting the quadrupole interaction that nm.Q already carries.
+"""
+function deformedFermiNucleus(Rrms::Float64, Z::Float64, model::Nuclear.DeformedFermiNucleus, grid::Radial.Grid)
+
+    zznew = zeros(Float64, grid.NoPoints)
+    c     = Nuclear.computeDeformedFermiC(Rrms, model.a, model)
+
+    fermiA_au = Defaults.convertUnits("length: from fm to atomic", model.a)
+    fermiC_au = Defaults.convertUnits("length: from fm to atomic", c)
+    w         = model.w
+    ## The half-density radius at each theta node, in atomic units; the volume normalisation sits inside
+    ## Nuclear.deformedShape.  These are computed ONCE, not inside the radial quadratures below.
+    tGrid = Radial.GridGL(Radial.GridGaussLegendreFinite(), -1., 1., 24; printout=false)
+    cx    = [ fermiC_au * Nuclear.deformedShape(tGrid.t[j], model)  for j = 1:tGrid.nt ]
+    ##
+    function  monopole(r::Float64)
+        wa = 0.
+        for  j = 1:tGrid.nt   wa = wa + tGrid.wt[j] / (1.0 + exp( (r - cx[j])/fermiA_au ))   end
+        return( wa / 2 )
+    end
+    function  shape(r::Float64)   1.0 + w * (r/fermiC_au)^2               end
+    function  r_rho(r::Float64)   r   * shape(r) * monopole(r)            end
+    function  rr_rho(r::Float64)  r^2 * shape(r) * monopole(r)            end
+    N = 1. / QuadGK.quadgk(rr_rho, 0., 1.3, rtol=1.0e-10)[1]
+    #
+    for  i = 2:length(zznew)
+        zznew[i] = 1 / grid.r[i] * quadgk(rr_rho, 0.0, 1.0e-3, grid.r[i], rtol=1.0e-8)[1]
+        zznew[i] = zznew[i] + quadgk(r_rho, grid.r[i], 1.0, 1.0e+1, 1.0e+3, rtol=1.0e-8)[1]
+        zznew[i] = Z * N * zznew[i] * grid.r[i]
+    end
+
+    potential = Radial.Potential("nuclear-potential: deformed Fermi (monopole)", zznew, deepcopy(grid))
+    return( potential )
+end
+
+
+"""
 `Nuclear.pointNucleus(Z::Float64, grid::Radial.Grid)`
     ... computes the effective, radial-dependent charge Z(r) for a point-like nucleus with nuclear charge Z. 
         The full nuclear potential is then given by V_nuc = - Z(r)/r; a potential::Radial.Potential is returned.
@@ -689,6 +944,8 @@ nuclearPotential(::Nuclear.FermiNucleus,   nm::Nuclear.Model, grid::Radial.Grid)
     Nuclear.fermiDistributedNucleus(nm.radius, nm.Z, grid)
 nuclearPotential(model::Nuclear.ThreeParameterFermiNucleus, nm::Nuclear.Model, grid::Radial.Grid) =
     Nuclear.threeParameterFermiNucleus(nm.radius, nm.Z, model, grid)
+nuclearPotential(model::Nuclear.DeformedFermiNucleus, nm::Nuclear.Model, grid::Radial.Grid) =
+    Nuclear.deformedFermiNucleus(nm.radius, nm.Z, model, grid)
 
 
 """
