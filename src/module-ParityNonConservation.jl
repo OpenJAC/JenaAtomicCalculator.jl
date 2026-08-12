@@ -49,7 +49,12 @@ function schiffMomentAmplitude(finalLevel::Level, initialLevel::Level, nm::Nucle
     amplitude = transpose(finalLevel.mc) * matrix * initialLevel.mc 
     #
     if  display
-        sa = @sprintf("%.8e", amplitude.re) * @sprintf("%.8e", amplitude.im)
+        ## The separator is not cosmetic.  Without it the real and imaginary parts run together into one
+        ## unparsable token ("6.05656604e-031.21131321e-02"), and TestFrames.testCompareLines can then only
+        ## compare that token as a STRING -- so a change in the last digit fails the test outright instead of
+        ## being weighed against its 1e-6 tolerance.  The weak-charge amplitude below always had the separator;
+        ## these two did not (12-Aug-2026).
+        sa = @sprintf("%.8e", amplitude.re) * "  " * @sprintf("%.8e", amplitude.im)
         println("   Schiff moment amplitude:   "                                                                               *
                 "< level=$(finalLevel.index) [J=$(finalLevel.J)$(string(finalLevel.parity))] || H^(Schiff) ($(Nuclear.name(nm.model))) ||"   *
                 " $(initialLevel.index) [$(initialLevel.J)$(string(initialLevel.parity))] >  = " * sa)
@@ -82,7 +87,7 @@ function anapoleMomentAmplitude(finalLevel::Level, initialLevel::Level, grid::Ra
     amplitude = 3.0 + 3.0*im
     #
     if  display
-            sa = @sprintf("%.8e", amplitude.re) * @sprintf("%.8e", amplitude.im)
+        sa = @sprintf("%.8e", amplitude.re) * "  " * @sprintf("%.8e", amplitude.im)   ## separator: see above
         println("   Anapole moment amplitude:  "                                                                  *
                 "< level=$(finalLevel.index) [J=$(finalLevel.J)$(string(finalLevel.parity))] || H^(anapole) ||"   *
                 " $(initialLevel.index) [$(initialLevel.J)$(string(initialLevel.parity))] >  = " * sa)
