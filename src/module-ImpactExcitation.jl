@@ -6,7 +6,7 @@
 module ImpactExcitation 
 
 using   Distributed, FastGaussQuadrature, GSL, SpecialFunctions, Printf,
-        ..AngularMomentum, ..Basics, ..Continuum, ..Defaults, ..InteractionStrength, ..ManyElectron, 
+        ..AngularMomentum, ..Basics, ..Bsplines, ..Continuum, ..Defaults, ..InteractionStrength, ..ManyElectron,
         ..Nuclear, ..Radial, ..SpinAngular, ..TableStrings, ..RadialIntegrals
 
 ## Relative change of sum |amplitude|^2 contributed by the last partial wave, below which the kappa summation
@@ -300,20 +300,30 @@ end
 
 """
 `ImpactExcitation.computeAmplitudesProperties(line::ImpactExcitation.Line, nm::Nuclear.Model, grid::Radial.Grid,
-                                                nrContinuum::Int64, settings::ImpactExcitation.Settings; printout::Bool=true)`
+                                                nrContinuum::Int64, settings::ImpactExcitation.Settings; printout::Bool=true,
+                                                nuclearPot::Union{Nothing,Radial.Potential}=nothing,
+                                                primitives::Union{Nothing,Bsplines.Primitives}=nothing)`
     ... to compute all amplitudes and properties of the given line; a line::ImpactExcitation.Line is returned for which
-    the amplitudes and properties are now evaluated.
+    the amplitudes and properties are now evaluated. The two keywords carry quantities that are CONSTANT for a whole
+    computation and are otherwise rebuilt for every line and every partial wave: the nuclear potential depends only on
+    the nuclear model and the grid, the B-spline primitives only on the grid. Nothing is cached; omitting them
+    reproduces the previous behaviour exactly.
 """
 function  computeAmplitudesProperties(line::ImpactExcitation.Line, nm::Nuclear.Model, grid::Radial.Grid,
-                                        nrContinuum::Int64, settings::ImpactExcitation.Settings; printout::Bool=true)
+                                        nrContinuum::Int64, settings::ImpactExcitation.Settings; printout::Bool=true,
+                                        nuclearPot::Union{Nothing,Radial.Potential}=nothing,
+                                        primitives::Union{Nothing,Bsplines.Primitives}=nothing)
     newChannels = ImpactExcitation.Channel[];
     contSettings = Continuum.Settings(false, nrContinuum);   cross = 0.;   coll = 0.; convergence = 1.
     conv = 0.; conv0 = 0. ; n = 0
-    
+
     # Define a common subshell list for both multiplets
     subshellList = Basics.generate(OrderedSubshellList(), line.finalLevel.basis, line.initialLevel.basis)
     Defaults.setDefaults("relativistic subshell list", subshellList; printout=false)
-    
+    ## Both symmetry-reduced levels are properties of the line alone; see the note in the innermost loop.
+    redILevel = Basics.generateLevelWithSymmetryReducedBasis(line.initialLevel, subshellList)
+    redFLevel = Basics.generateLevelWithSymmetryReducedBasis(line.finalLevel,   subshellList)
+
     # First determine a common set of continuum orbitals for the incoming and outgoing electron
     ciOrbitals = Dict{Subshell, Orbital}();     ciPhases = Dict{Subshell, Float64}()
     cfOrbitals = Dict{Subshell, Orbital}();     cfPhases = Dict{Subshell, Float64}()
@@ -334,28 +344,34 @@ function  computeAmplitudesProperties(line::ImpactExcitation.Line, nm::Nuclear.M
                         channel = ImpactExcitation.Channel( inKappa, outKappa, symt, 0., 0.,Complex(0.))
                         # Generate the continuum orbitals if they were not yet generated before
                         iSubshell  = Subshell(101, channel.initialKappa)
-                        if  !haskey(ciOrbitals, iSubshell) 
-                            newiLevel  = Basics.generateLevelWithSymmetryReducedBasis(line.initialLevel, subshellList)
-                            ciOrbital, iPhase     = Continuum.generateOrbitalForLevel(line.initialElectronEnergy, iSubshell, 
-                                                                                            newiLevel, nm, grid, contSettings)
+                        if  !haskey(ciOrbitals, iSubshell)
+                            ciOrbital, iPhase     = Continuum.generateOrbitalForLevel(line.initialElectronEnergy, iSubshell,
+                                                                                            redILevel, nm, grid, contSettings;
+                                                                                            nuclearPot=nuclearPot,
+                                                                                            primitives=primitives)
                             ciOrbitals[iSubshell] = ciOrbital;      ciPhases[iSubshell] = iPhase
                             println("\n Initial channel")
                         end
 
                         fSubshell  = Subshell(102, channel.finalKappa)
                         if  !haskey(cfOrbitals, fSubshell)
-                            newfLevel  = Basics.generateLevelWithSymmetryReducedBasis(line.finalLevel,   subshellList)
-                            cfOrbital, fPhase     = Continuum.generateOrbitalForLevel(line.finalElectronEnergy,   fSubshell, 
-                                                                                            newfLevel, nm, grid, contSettings)
+                            cfOrbital, fPhase     = Continuum.generateOrbitalForLevel(line.finalElectronEnergy,   fSubshell,
+                                                                                            redFLevel, nm, grid, contSettings;
+                                                                                            nuclearPot=nuclearPot,
+                                                                                            primitives=primitives)
                             cfOrbitals[fSubshell] = cfOrbital;      cfPhases[fSubshell] = fPhase
                             println("\n Final channel")
                         end
                     #end
                     
                     #for channel in line.channels
-                        # Generate two continuum orbitals
-                        newiLevel  = Basics.generateLevelWithSymmetryReducedBasis(line.initialLevel, subshellList)
-                        newfLevel  = Basics.generateLevelWithSymmetryReducedBasis(line.finalLevel,   subshellList)
+                        ## The two symmetry-reduced levels depend on the line but on neither partial wave nor
+                        ## total symmetry, so they are formed ONCE above rather than in this innermost loop,
+                        ## which runs O(maxKappa^3) times.  The four calls below rebind newiLevel/newfLevel to
+                        ## fresh Levels (generateLevelWithExtraElectron/-Subshell copy their argument), so
+                        ## redILevel and redFLevel are never modified.
+                        newiLevel  = redILevel
+                        newfLevel  = redFLevel
                         iSubshell  = Subshell(101, channel.initialKappa)
                         fSubshell  = Subshell(102, channel.finalKappa)
                         ciOrbital  = ciOrbitals[iSubshell];     iPhase = ciPhases[iSubshell]
@@ -439,11 +455,20 @@ function  computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, n
     nrContinuum = Continuum.gridConsistency(maxEnergy, grid)
     # Calculate all amplitudes and requested properties
     if  Distributed.nprocs() > 1
+        ## NOT given the two keywords below: pmap would have to SERIALIZE both objects to a worker process for
+        ## every line, and rebuilding the basis there costs only ~0.03 s. Omitting them is the documented
+        ## fallback, so this branch simply behaves as before. Untested against a measurement -- with one
+        ## process the threaded branch is what runs.
         newLines = Distributed.pmap(line -> ImpactExcitation.computeAmplitudesProperties(line, nm, grid, nrContinuum, settings), lines)
     else
         newLines = Vector{ImpactExcitation.Line}(undef, length(lines))
+        ## Constants of the whole computation, built once and SHARED across the threads below; both are
+        ## read-only (nothing writes into primitives.bsplinesL/bsplinesS), so sharing introduces no race.
+        nuclearPot = Nuclear.nuclearPotential(nm, grid)
+        primitives = Bsplines.generatePrimitives(grid)
         Threads.@threads for l in eachindex(lines)
-            newLines[l] = ImpactExcitation.computeAmplitudesProperties(lines[l], nm, grid, nrContinuum, settings)
+            newLines[l] = ImpactExcitation.computeAmplitudesProperties(lines[l], nm, grid, nrContinuum, settings;
+                                                                       nuclearPot=nuclearPot, primitives=primitives)
         end
     end
     # Print all results to screen
@@ -518,8 +543,12 @@ function  computeLinesCascade(finalMultiplet::Multiplet, initialMultiplet::Multi
     ## Lines without a single channel are dropped afterwards rather than skipped inside the loop.
     tmpLines = Vector{Union{Nothing, ImpactExcitation.Line}}(nothing, length(lines))
     doPrint  = printout  &&  Threads.nthreads() == 1     ## interleaved per-line printout would be unreadable
+    ## Constants of the whole computation, built once and SHARED across the threads below; see computeLines.
+    nuclearPot = Nuclear.nuclearPotential(nm, grid)
+    primitives = Bsplines.generatePrimitives(grid)
     Threads.@threads for  i  in  eachindex(lines)
-        newLine = ImpactExcitation.computeAmplitudesProperties(lines[i], nm, grid, nrContinuum, settings, printout=doPrint)
+        newLine = ImpactExcitation.computeAmplitudesProperties(lines[i], nm, grid, nrContinuum, settings; printout=doPrint,
+                                                               nuclearPot=nuclearPot, primitives=primitives)
         if  length(newLine.channels) > 0    tmpLines[i] = newLine    end
     end
     newLines = ImpactExcitation.Line[ l  for l in tmpLines  if l !== nothing ]
