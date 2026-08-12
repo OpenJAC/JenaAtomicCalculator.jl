@@ -14,7 +14,14 @@ export Model
 `struct  Nuclear.Model`  ... defines a type for the nuclear model, i.e. for its form and parameters.
 
     + Z        ::Float64         ... nuclear charge
-    + model    ::String          ... identifier of the nuclear model: {"Fermi", "Point", "Uniform"}
+    + model    ::String          ... identifier of the nuclear model; the accepted spellings are exactly
+                                     "Fermi", "point" and "uniform".  NOTE the capitalisation: only "Fermi"
+                                     carries a capital.  This docstring read {"Fermi", "Point", "Uniform"}
+                                     until 12-Aug-2026, so anyone following it was handed
+                                     `Inappropriate model = Point` for two of the three models.  The
+                                     spellings are left as they are here rather than widened, because the
+                                     field is to become a type (Nuclear.AbstractNuclearModel) and widening
+                                     the accepted strings first would only add a second thing to migrate.
     + mass     ::Float64         ... atomic mass
     + radius   ::Float64         ... (root-mean square) radius of a uniform or Fermi-distributed nucleus
     + spinI    ::AngularJ64      ... nuclear spin I, must be >= 0
@@ -42,7 +49,7 @@ function Model(Z::Real)
     Z < 0.1  &&  error("Z must be >= 0.1")
     model    = "Fermi"
     mass     = 2*Z + 0.005*Z^2
-    radius   = Nuclear.Rrms(mass)
+    radius   = Nuclear.rrmsRadius(mass)
     spinI    = AngularJ64(0)
     mu       = 0.
     Q        = 0.
@@ -60,7 +67,7 @@ function Model(Z::Real, M::Float64)
     Z < 0.1  &&  error("Z must be >= 0.1")
     model    = "Fermi"
     mass     = M
-    radius   = Nuclear.Rrms(mass)
+    radius   = Nuclear.rrmsRadius(mass)
     spinI    = AngularJ64(0)
     mu       = 0.
     Q        = 0.
@@ -83,7 +90,7 @@ function Model(Z::Real, model::String)
         radius   = 0.
     else
         mass     = 2*Z + 0.005*Z^2
-        radius   = Nuclear.Rrms(mass)
+        radius   = Nuclear.rrmsRadius(mass)
     end
     spinI    = AngularJ64(0)
     mu       = 0.
@@ -127,7 +134,8 @@ function Base.show(io::IO, m::Model)
     elseif  m.model == "uniform"   
         print(io, "Uniform nuclear model for Z = $(m.Z) with mass = $(m.mass), radius R = $(m.radius) fm and ")
     else
-        error("stop a")
+        error("Nuclear.show(): unknown nuclear model \"$(m.model)\"; the accepted spellings are " *
+              "\"Fermi\", \"point\" and \"uniform\".")
     end
 
     print(io, "nuclear spin I = $(m.spinI), dipole moment mu = $(m.mu), quadrupole moment Q = $(m.Q) and octupole moment Omega = $(m.Omega).")
@@ -314,26 +322,18 @@ end
 """
 `Nuclear.fermiA`  ... provides a value::Float64 for the fermi_a parameter.
 """
-fermiA   = 2.3/(4 * log(3))
+const fermiA = 2.3/(4 * log(3))     ## made const 12-Aug-2026: it is read inside the r_rho/rr_rho
+                                    ## integrands, where a non-const global is boxed at every call.
 
 
 """
-`Nuclear.Rrms(A)`  
-    ... provides a value::Float64 for the root-mean-squared radius R of a uniformly-distributed charge
-        density of a nuclues with mass A.
+`Nuclear.rrmsRadius(A::Float64)`  
+    ... provides a value::Float64 for the root-mean-squared radius R [fm] of a uniformly-distributed charge
+        density of a nucleus with mass number A.  Renamed from Nuclear.Rrms on 12-Aug-2026 to follow JAC's
+        camelCase rule for function names.
 """
-function Rrms(A)
+function rrmsRadius(A::Float64)
     return( 0.836 * A^(1/3) + 0.57 )
-end
-
-
-"""
-`Nuclear.fermiDensity(r, b)`  
-    ... provides a value::Float64 for a fermi-distributed charge density at r and for given fermi_a
-        and fermi_b parameters.
-"""
-function fermiDensity(r, b)
-    return( 1/(1 + exp((r-b)/fermiA)) )
 end
 
 
@@ -372,7 +372,26 @@ function computeFermiBParameter(R::Float64)
         diff = eq(b)
         count = count + 1
     end
-    # println("Found b = $b, Δ = $(eq(b)) after $count iterations")
+    ## Signal non-convergence rather than returning whatever the last iterate happened to be (12-Aug-2026).
+    ## The loop above exits on EITHER the target eps or the iteration cap, and the caller could not tell the
+    ## two apart, so a b-parameter the fixed-point step never resolved was handed back silently and used to
+    ## build a potential.  The iteration itself is unchanged.
+    ##
+    ## THE TEST IS AGAINST A PHYSICALLY MEANINGFUL RESIDUAL, NOT AGAINST eps, and the distinction is not
+    ## academic: helium (R_rms = 1.8993 fm) stalls at a residual of 5.9e-8 fm and never reaches eps = 1e-14
+    ## at all.  That was found the first time this check ran, and it is worth knowing -- the loop's stated
+    ## target has never been attainable there.  The step is b <- b - (fermiRrms(b) - R) with unit damping,
+    ## and its convergence rate follows d(fermiRrms)/db, which vanishes as R_rms approaches the smallest
+    ## radius the 2-parameter form can represent (~1.86 fm); helium sits just above that edge.  A residual
+    ## of 6e-8 fm is 3e-8 relative, far below any experimental nuclear radius, so such a result is perfectly
+    ## usable and must not be rejected.  tolAccept is what separates "stalled but fine" from "wrong".
+    tolAccept = 1.0e-6
+    if  abs(diff) > tolAccept
+        error("Nuclear.computeFermiBParameter(): no convergence for R_rms = $R fm -- the fixed-point " *
+              "iteration stopped after $count steps with a residual of $diff fm, above the acceptable " *
+              "$tolAccept fm.  The 2-parameter Fermi form cannot represent an arbitrarily small radius " *
+              "(its floor is about 1.86 fm); for a smaller R_rms use the uniform nuclear model instead.")
+    end
     
     return( b )
 end
@@ -386,9 +405,7 @@ end
 """
 function fermiDistributedNucleus(Rrms::Float64, Z::Float64, grid::Radial.Grid)
 
-    zz = zeros(Float64, grid.NoPoints);   zznew = zeros(Float64, grid.NoPoints);   dx = zeros(Float64, grid.NoPoints)
-    function  r_rho(r::Float64)  r / (1.0 + exp( (r-fermiC_au)/fermiA_au ) )   end
-    function  rr_rho(r::Float64)  r^2 / (1.0 + exp( (r-fermiC_au)/fermiA_au ) )  end
+    zznew = zeros(Float64, grid.NoPoints)
 
     if  Z < 1.2
         # With JAC's fixed Fermi skin-thickness parameter fermiA, the 2-parameter Fermi charge distribution
@@ -406,8 +423,14 @@ function fermiDistributedNucleus(Rrms::Float64, Z::Float64, grid::Radial.Grid)
         b = computeFermiBParameter(Rrms);    b < 0  &&  error("Inappropriate R_rms radius.")
     end
     
+    ## The two integrands are defined AFTER fermiA_au/fermiC_au (moved here 12-Aug-2026).  They used to be
+    ## written above, closing over variables that were only assigned thirty lines further down: legal Julia,
+    ## since a closure captures the variable rather than its value, but it boxes both captures and reads as
+    ## an error.  Same values, same order of evaluation.
     fermiA_au = Defaults.convertUnits("length: from fm to atomic", fermiA)
     fermiC_au = Defaults.convertUnits("length: from fm to atomic", b)
+    function  r_rho(r::Float64)   r   / (1.0 + exp( (r-fermiC_au)/fermiA_au ) )   end
+    function  rr_rho(r::Float64)  r^2 / (1.0 + exp( (r-fermiC_au)/fermiA_au ) )   end
     N = 1. / QuadGK.quadgk(rr_rho, 0., 1.3, rtol=1.0e-10)[1]
     #
     #
@@ -465,16 +488,15 @@ end
         is returned.
 """
 function nuclearPotential(nm::Nuclear.Model, grid::Radial.Grid)
-    zz = zeros(Float64, grid.NoPoints)
-
     if      nm.model == "point"      potential = Nuclear.pointNucleus(nm.Z, grid)
     elseif  nm.model == "uniform"    potential = Nuclear.uniformNucleus(nm.radius, nm.Z, grid)
     elseif  nm.model == "Fermi"      potential = Nuclear.fermiDistributedNucleus(nm.radius, nm.Z, grid)
-    else    error("stop a")
+    else    error("Nuclear.nuclearPotential(): unknown nuclear model \"$(nm.model)\"; the accepted " *
+                  "spellings are \"Fermi\", \"point\" and \"uniform\".")
     end
 
     return( potential )
-    end
+end
 
 
 """
@@ -490,7 +512,7 @@ function nuclearPotentialDH(nm::Nuclear.Model, grid::Radial.Grid, lambda::Float6
     
     potential = Radial.Potential(pot.name* "+ Debey-Hueckel screening", Zr, deepcopy(pot.grid))
     return( potential )
-    end  
+end
 
 end # module
 

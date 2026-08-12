@@ -128,7 +128,7 @@ elseif  true
     #   is simply absent here. This matches the paper's own narrative for why naive/energy-driven expansions
     #   converge poorly, rather than indicating a code bug; a quantitatively meaningful A value would need core
     #   CSFs like [He] 2s 2p^4 or similar single substitutions out of 1s/2s, not attempted here.
-    nm = Nuclear.Model(7., "Fermi", 14.003074, Nuclear.Rrms(14.003074), AngularJ64(1), 0.40376, 0., 0.)
+    nm = Nuclear.Model(7., "Fermi", 14.003074, Nuclear.rrmsRadius(14.003074), AngularJ64(1), 0.40376, 0., 0.)
     wa = Atomic.Computation(Atomic.Computation(), name="Cf-f", grid=Radial.Grid(true), nuclearModel=nm,
                             configs=[Configuration("[He] 2s^2 2p^3"), Configuration("[He] 2s^2 2p^2 3p")],
                             propertySettings=[ Hfs.Settings(calcM1=true, calcE2=false, printBefore=true) ] )
