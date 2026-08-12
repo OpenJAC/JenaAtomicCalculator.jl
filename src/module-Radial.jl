@@ -6,7 +6,7 @@
 module Radial
 
 
-using  QuadGK, Printf, JenaAtomicCalculator, ..Basics 
+using  QuadGK, Printf, FastGaussQuadrature, JenaAtomicCalculator, ..Basics
 
 export Grid, Potential, Orbital, SingleElecSpectrum
 
@@ -127,14 +127,19 @@ end
 """
 `Radial.Grid(gr::Radial.Grid;`
 
-        rnt=..,     h=..,       hp=..,      rbox=..,    orderL=..,  orderS=..,  orderGL=..,    
+        rnt=..,     h=..,       hp=..,      rbox=..,    orderL=..,  orderS=..,  orderGL=..,
         meshType..,  printout=..)
     ... constructor for modifying the given Radial.Grid by 'overwriting' the previously selected parameters.
+
+        The keyword nth= was removed on 12-Aug-2026.  It was accepted and then silently dropped: the spacing
+        of the B-spline break points is set by orderGL in Radial.determineGrid, and Grid(gr; nth=3) left the
+        grid unchanged.  Nothing in src/, examples/ or test/ ever passed it.  A second knob for the same
+        quantity is not restored here; use orderGL.
 """
-function Grid(gr::Radial.Grid;    
-    rnt::Union{Nothing,Float64}=nothing,        h::Union{Nothing,Float64}=nothing,      hp::Union{Nothing,Float64}=nothing, 
-    rbox::Union{Nothing,Float64}=nothing,       nth::Union{Nothing,Int64}=nothing,      orderL::Union{Nothing,Int64}=nothing,
-    orderS::Union{Nothing,Int64}=nothing,       orderGL::Union{Nothing,Int64}=nothing,  meshType::Union{Nothing,Radial.AbstractMesh}=nothing, 
+function Grid(gr::Radial.Grid;
+    rnt::Union{Nothing,Float64}=nothing,        h::Union{Nothing,Float64}=nothing,      hp::Union{Nothing,Float64}=nothing,
+    rbox::Union{Nothing,Float64}=nothing,       orderL::Union{Nothing,Int64}=nothing,
+    orderS::Union{Nothing,Int64}=nothing,       orderGL::Union{Nothing,Int64}=nothing,  meshType::Union{Nothing,Radial.AbstractMesh}=nothing,
     printout::Bool=false)
     
     if  isnothing(rnt)        rntx      = gr.rnt        else    rntx      = rnt       end 
@@ -148,7 +153,8 @@ function Grid(gr::Radial.Grid;
     
     if      isnothing(rboxx)    NoPointsx = gr.NoPoints - rem(gr.NoPoints, orderGLx)
     elseif  rboxx  > 0.         NoPointsx = Radial.determineNoPoints(rntx, hx, hpx, rboxx, orderGLx)
-    else    error("stop a")
+    else    error("Radial.Grid(): rbox = $rboxx must be positive; it is the size of the radial box in " *
+                 "atomic units.  Omit the keyword to keep the number of points of the given grid.")
     end
     
     grid = Radial.Grid(rntx, hx, hpx, NoPointsx, Float64[], Float64[], 0, 0, orderLx, orderSx, 0, 0, orderGLx, meshTypex,
@@ -199,7 +205,11 @@ function determineGrid(grid::Radial.Grid; printout::Bool=false)
     nr     = grid.NoPoints;  r      = zeros(nr);      rp      = zeros(nr);      rpor     = zeros(nr);      nsL = 0;   nsS = 0
         
     # Ensure that the largest grid points is always consistent with the largest break point of the B-splines
-    if  NoPoints != NoPoints - rem(NoPoints,orderGL)    error("stop a")     end
+    if  NoPoints != NoPoints - rem(NoPoints,orderGL)
+        error("Radial.determineGrid(): NoPoints = $NoPoints is not a multiple of orderGL = $orderGL, so the " *
+              "last grid point cannot coincide with the largest B-spline break point.  Use " *
+              "NoPoints = $(NoPoints - rem(NoPoints,orderGL)) instead.")
+    end
 
     # Now define the physical grid due to the given parameters: either an exponential or exponential-linear grid
     if  hp == 0.
@@ -244,7 +254,9 @@ function determineGrid(grid::Radial.Grid; printout::Bool=false)
             rpor[i] = rp[i] / r[i]
         end
     else
-        error("stop a")
+        ## Reachable only for hp = NaN, since every other Float64 satisfies one of the two branches above.
+        error("Radial.determineGrid(): hp = $hp is not a usable asymptotic step size; use hp = 0 for a " *
+              "purely exponential grid or hp > 0 for a log-linear one.")
     end
     
     # Define the radial break points and the number of B-splines
@@ -382,7 +394,11 @@ end
 function GridGH(orderGH::Int64; printout::Bool=false)
     t = Float64[];    wt = Float64[]
     
-    wax = gausshermite(orderGH) #this function is included in the package FastGaussQuadrature
+    ## Qualified, and FastGaussQuadrature added to the module's `using` list (12-Aug-2026).  The call read
+    ## `gausshermite(orderGH)` with the package named only in a comment, so this constructor raised an
+    ## UndefVarError every time it was reached -- it cannot ever have worked.  Three call sites in
+    ## module-Pulse.jl reach it.
+    wax = FastGaussQuadrature.gausshermite(orderGH)
     
     t = wax[1]
     wt = wax[2]
@@ -429,19 +445,24 @@ function Base.show(io::IO, density::Radial.Density)
 
     sa = Base.string(density);    print(io, sa * "\n")
 
+    ## Both the head/tail slices and the field name were wrong here (12-Aug-2026).  This method was copied
+    ## from Radial.Potential and kept its `Zr`, a field Radial.Density does not have, so printing any density
+    ## raised a FieldError; and the guard `n < 6` did not cover the [1:23] slices below it, so 6 <= n < 46
+    ## gave a BoundsError.  The window is now taken from n itself.
     n = length(density.Dr);                    if  n < 6   return( nothing )    end
-    print(io, "Dr:    ", density.Dr[1:23],    "  ...  ", density.Zr[n-22:n],    "\n") 
+    nw = min(23, div(n, 2))
+    print(io, "Dr:    ", density.Dr[1:nw],    "  ...  ", density.Dr[n-nw+1:n],    "\n")
     print(io, density.grid)
 end
 
 
 # `Base.string(density::Radial.Density)`  ... provides a String notation for the variable density::Radial.Density.
-function Base.string(density::Radial.Density) 
+function Base.string(density::Radial.Density)
     if  length(density.Dr)  == 0
         sa = "Radial density not yet defined; kind = $(density.name) ..."
     else
-        sa = "$(density.name) (radial) density ... defined on $(length(density.Zr)) grid points ..."
-    end 
+        sa = "$(density.name) (radial) density ... defined on $(length(density.Dr)) grid points ..."
+    end
 end
 
 
@@ -473,8 +494,11 @@ function Base.show(io::IO, potential::Radial.Potential)
 
     sa = Base.string(potential);    print(io, sa * "\n")
 
+    ## The guard `n < 6` did not cover the [1:23] slices, so 6 <= n < 46 gave a BoundsError (12-Aug-2026);
+    ## the window is now taken from n itself.
     n = length(potential.Zr);                    if  n < 6   return( nothing )    end
-    print(io, "Zr:    ", potential.Zr[1:23],    "  ...  ", potential.Zr[n-22:n],    "\n") 
+    nw = min(23, div(n, 2))
+    print(io, "Zr:    ", potential.Zr[1:nw],    "  ...  ", potential.Zr[n-nw+1:n],    "\n")
     print(io, potential.grid)
 end
 
@@ -504,7 +528,7 @@ end
     + Q               ::Array{Float64,1}  ... small component of the radial orbital.
     + Pprime          ::Array{Float64,1}  ... dP/dr.
     + Qprime          ::Array{Float64,1}  ... dQ/dr.
-    + grid            ::Array{Float64,1}  ... explic. defined radial grid array for P, Q, if StandardGrid = false.
+    + grid            ::Radial.Grid       ... explic. defined radial grid for P, Q, if useStandardGrid = false.
 """
 mutable struct Orbital
     subshell          ::Subshell
@@ -808,16 +832,19 @@ end
         A Zbar::Float64 is returned.
 """
 function determineZbar(pot::Radial.Potential) 
+    ## The sampling loop read pot.Zr[mtp] rather than pot.Zr[i], so all nx samples were the SAME number
+    ## (12-Aug-2026).  The mean was therefore just Zr[mtp] and the printed spread was identically zero --
+    ## a quality indicator that could never fire, whatever the potential did near the outer boundary.
     nx = 5   # Number of grid points for determining the effective charge Zbar
-    mtp = size( pot.Zr, 1);    grid = pot.grid;    meanZbar = zeros(nx);    devsZbar = zeros(nx);   ny = 0
-        for  i = mtp-nx+1:mtp
-        ny  = ny + 1;    meanZbar[ny] = pot.Zr[mtp]
+    mtp = size( pot.Zr, 1);    meanZbar = zeros(nx);    devsZbar = zeros(nx);   ny = 0
+    for  i = mtp-nx+1:mtp
+        ny  = ny + 1;    meanZbar[ny] = pot.Zr[i]
     end
     mZbar   = sum(meanZbar) / nx;   for  i = 1:nx    devsZbar[i] = (meanZbar[i] - mZbar)^2    end
     stdZbar = sqrt( sum(devsZbar) / nx )
-    if  true  println(">> Radial potential with effective charge Zbar=" * @sprintf("%.4e",mZbar) *
-                        " (Delta-Zbar=" * @sprintf("%.4e",stdZbar) * ") at r=" * @sprintf("%.4e",pot.grid.r[mtp]) * " a.u." )    end
-    
+    println(">> Radial potential with effective charge Zbar=" * @sprintf("%.4e",mZbar) *
+            " (Delta-Zbar=" * @sprintf("%.4e",stdZbar) * ") at r=" * @sprintf("%.4e",pot.grid.r[mtp]) * " a.u." )
+
     return( mZbar )
 end
 
@@ -904,7 +931,7 @@ function generateGrid(grid::Radial.Grid; boxSize::Union{Nothing,Float64}=nothing
                                             NoPointsInsideNucleus::Union{Nothing,Int64}=nothing, 
                                             NoPointsInsideFirstBohrRadius::Union{Nothing,Int64}=nothing) 
     
-    if  typeof(boxSize)                            != Nothing
+    if  !isnothing(boxSize)
         # Apply a fixed box size (in atomic units) as needed in an average-atom model and elsewhere.
         newGrid = Radial.Grid(grid; rbox=boxSize);    rnt = newGrid.rnt * boxSize / newGrid.tL[end]
         newGrid = Radial.Grid(newGrid; rnt = rnt)
@@ -913,7 +940,7 @@ function generateGrid(grid::Radial.Grid; boxSize::Union{Nothing,Float64}=nothing
                 "\n>> Note that the last grid point r[end] is always slightly smaller as it refers " *
                 "to the last GL (zero of) integration along r.")
         #
-    elseif  typeof(boxSizeWithZeroWeights)         != Nothing
+    elseif  !isnothing(boxSizeWithZeroWeights)
         # Apply a fixed box size (in atomic units) as needed in an average-atom model and elsewhere.
         # All (integration) weight are set to zero for r > boxSizeWithZeroWeights.
         # First determine true boxsize
@@ -935,19 +962,28 @@ function generateGrid(grid::Radial.Grid; boxSize::Union{Nothing,Float64}=nothing
                 "\n>> Note that the last non-zero weight at R = $R grid point r[end] is always slightly smaller than " *
                 "\n   boxSize = $boxSize as it refers to the last GL (zero of) integration point.")
         #
-    elseif  typeof(maximumFreeElectronEnergy)      != Nothing
+    elseif  !isnothing(maximumFreeElectronEnergy)
         wavenb      = sqrt( 2maximumFreeElectronEnergy + maximumFreeElectronEnergy * Defaults.getDefaults("alpha")^2 )
         wavelgth    = 2pi / wavenb;     hp = wavelgth / 20
         newGrid     = Radial.Grid(grid; hp=hp)
         println(">> Generate a new grid for the minium wavelength = $wavelgth a.u. of free electrons and  hp = $hp")
         #
-    elseif  typeof(maximumPrincipalQN)             != Nothing
-        error("stop a")
-        #
-    elseif  typeof(NoPointsInsideNucleus)          != Nothing
-        error("stop b")
-    elseif  typeof(NoPointsInsideFirstBohrRadius)  != Nothing
-        error("stop c")
+    ## The three schemes below are DOCUMENTED BUT NOT IMPLEMENTED; the docstring marks two of them
+    ## "(not yet)".  They used to raise error("stop a"/"b"/"c"), which told the caller nothing.  Following
+    ## the corePolarization.doApply precedent in module-PhotoEmission.jl, an unimplemented option now
+    ## explains itself and names what to use instead (12-Aug-2026).
+    elseif  !isnothing(maximumPrincipalQN)
+        error("Radial.generateGrid(): the maximumPrincipalQN scheme is not implemented.  It is meant to " *
+              "choose rbox = 5 <r_n> for the given n; until it exists, pass that box size directly with " *
+              "Radial.Grid(grid; rbox = ...).")
+    elseif  !isnothing(NoPointsInsideNucleus)
+        error("Radial.generateGrid(): the NoPointsInsideNucleus scheme is not implemented.  It is meant to " *
+              "set rnt and h so that the given number of points falls inside the nucleus; until it exists, " *
+              "choose rnt and h directly with Radial.Grid(grid; rnt = ..., h = ...).")
+    elseif  !isnothing(NoPointsInsideFirstBohrRadius)
+        error("Radial.generateGrid(): the NoPointsInsideFirstBohrRadius scheme is not implemented.  It is " *
+              "meant to set rnt and h from the number of points inside a_0; until it exists, choose rnt " *
+              "and h directly with Radial.Grid(grid; rnt = ..., h = ...).")
     end
         
     return( newGrid )
