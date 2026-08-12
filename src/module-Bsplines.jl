@@ -733,7 +733,8 @@ end
         A value::Bool is returned -- true if every partner pair is consistent.
 """
 function checkOrbitalConsistency(orbitals::Dict{Subshell,Orbital}, grid::Radial.Grid;
-                                 rTolerance::Float64=1.5, eTolerance::Float64=2.0, stopper::Bool=true)
+                                 rTolerance::Float64=1.5, eTolerance::Float64=2.0,
+                                 eInversion::Float64=0.05, stopper::Bool=true)
     ## group the orbitals by (n, l); only pairs with both kappa signs can be compared
     groups = Dict{Tuple{Int64,Int64}, Array{Subshell,1}}()
     for  sh  in  keys(orbitals)
@@ -748,12 +749,31 @@ function checkOrbitalConsistency(orbitals::Dict{Subshell,Orbital}, grid::Radial.
         rb = JenaAtomicCalculator.RadialIntegrals.rkDiagonal(1, b, b, grid)
         rRatio = (ra > 0. && rb > 0.)  ?  max(ra,rb)/min(ra,rb)  :  Inf
         eRatio = (a.energy * b.energy > 0.)  ?  max(abs(a.energy),abs(b.energy))/min(abs(a.energy),abs(b.energy))  :  Inf
-        ## The MEAN RADIUS is the criterion; the energy ratio is reported for diagnosis but does not trigger
+        ## The MEAN RADIUS is one criterion; the energy RATIO is reported for diagnosis but does not trigger
         ## on its own. Energies are fragile here: a nearly-unbound subshell in a highly-ionised configuration
         ## can have its two partners straddle zero, which makes eRatio infinite while the orbitals are in
         ## fact identical -- exactly what the Cascade stepwise-decay test does with 3p_1/2 / 3p_3/2, whose
         ## radii agree to 0.1%. The radius alone already separates the calibration cases by a wide margin.
-        if  rRatio > rTolerance
+        ##
+        ## THE ORDERING, however, IS a criterion, and a sharp one (added 12-Aug-2026). In a central field the
+        ## two members of a spin-orbit pair are ordered by physics, not by magnitude: j = l-1/2 (kappa > 0)
+        ## lies BELOW j = l+1/2 (kappa < 0). Hydrogen's 2p_1/2 below 2p_3/2 is the familiar case. An inverted
+        ## pair therefore means the SCF has produced something that is not a spin-orbit doublet at all, no
+        ## matter how similar the two radii happen to be.
+        ## THIS IS THE CASE THE RADIUS TEST MISSED: neutral Pr I [Xe] 4f^3 6s^2 gave E(4f_7/2) = -0.1854 below
+        ## E(4f_5/2) = -0.1154 -- inverted, and 20x too large -- while the two mean radii agreed to 6%, well
+        ## inside rTolerance. The level structure that followed had the ^4I multiplet upside down and its fine
+        ## structure collapsed by four orders of magnitude, and nothing warned.
+        ## The test is applied only when BOTH partners are bound, which is what keeps the straddling-zero
+        ## Cascade case out of it; there, one energy is positive and the ordering carries no meaning.
+        inverted = 0.
+        if  a.energy < 0.  &&  b.energy < 0.
+            shLo = shs[1].kappa > 0  ?  shs[1]  :  shs[2]      ## j = l - 1/2, must be the more bound
+            shHi = shs[1].kappa > 0  ?  shs[2]  :  shs[1]      ## j = l + 1/2
+            eLo  = orbitals[shLo].energy;      eHi = orbitals[shHi].energy
+            inverted = (eLo - eHi) / max(abs(eLo), abs(eHi))   ## > 0 means the pair is upside down
+        end
+        if  rRatio > rTolerance   ||   inverted > eInversion
             push!(offenders, (shs[1], shs[2], eRatio, rRatio))
         end
     end
@@ -762,8 +782,8 @@ function checkOrbitalConsistency(orbitals::Dict{Subshell,Orbital}, grid::Radial.
         printstyled("\n>>> ORBITAL CHECK FAILED: these spin-orbit partners do not describe the same shell, which means\n" *
                     ">>> the SCF has converged onto the wrong state for one of them (usually an ill-matched radial box):\n",
                     color=:light_red)
-        printstyled("      partners                    E ratio     <r> ratio     (limits $eTolerance / $rTolerance)\n",
-                    color=:light_red)
+        printstyled("      partners                    E ratio     <r> ratio     (limits $eTolerance / $rTolerance;\n" *
+                    "      an inverted spin-orbit pair also triggers, at $eInversion)\n", color=:light_red)
         for  (sa, sb, er, rr)  in  offenders
             printstyled(@sprintf("    %-10s %-10s  %11.4g %13.4g\n", string(sa), string(sb), er, rr), color=:light_red)
         end
