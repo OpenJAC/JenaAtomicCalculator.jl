@@ -585,6 +585,38 @@ end
         use Bsplines.findPositiveBranchStart on the returned values, NOT a fixed index counted from
         nsL/nsS -- see project_zeeman_hfs_bugs.md (30-Jul-2026). An eigen::Basics.Eigen is returned.
 """
+## A NOTE ON COST, for whoever comes back to this (measured 12-Aug-2026).  This is a FULL generalized
+## eigendecomposition, but very little of it is used: the SCF wants a short contiguous block at the bottom of
+## the positive-energy branch -- Bsplines.generateOrbitalFromPrimitives takes ni = mm + n - l - 1 -- which in
+## real bases is ONE TO FOUR eigenvectors out of ~665 (Ne, Ar, Fe and a 3s/3p/3d correlation basis were
+## counted; in all of them the highest wanted state was still bound).  About half the spectrum is the Dirac
+## sea and is discarded outright.
+##
+## Two routes were measured, and they behave quite differently:
+##
+##  (a) ASK FOR FEWER EIGENVECTORS.  LinearAlgebra.eigen(A, range) reaches LAPACK's syevr; measured against a
+##      full decomposition it gives 3.3x (n=239), 3.9x (671), 4.1x (1053), 3.5x (2005), 2.8x (4389).  The
+##      speed-up SATURATES around 3-4x and does not improve with a denser grid, because the tridiagonal
+##      reduction is O(n^3) and unavoidable -- only the back-transformation shrinks.  Note also that a
+##      two-stage scheme (all eigenvalues first, then the wanted vectors) cannot pay: eigenvalues alone
+##      already cost ~0.7 of the full solve.  Any gain must come from ONE range-restricted call.
+##
+##  (b) EXPLOIT THAT THE MATRIX IS BANDED.  It is 4.0% non-zero, and its half-bandwidth depends entirely on
+##      the ordering: 343 as stored here (large-component block, then small-component block -- effectively
+##      dense), but 15 once the large and small components are INTERLEAVED.  That 15 is set by the spline
+##      order and stays 15 however dense the grid, so banded work is O(n b^2) against dense O(n^3).  This is
+##      the only route whose advantage GROWS with grid density, which is the case that matters when a fine
+##      grid is needed for physical reasons.  Measured with LAPACK's banded routines: eigenVALUES (dsbgv,
+##      JOBZ='N') 1.2x at n=400 rising to 7.8x at n=3200, agreeing with the dense solve to 1e-14.  But
+##      dsbgvx WITH eigenvectors is SLOWER than dense and gets worse with n (0.6x at 400, 0.1x at 3200),
+##      because it accumulates the n x n reduction matrix unblocked -- so the vectors would have to come from
+##      banded INVERSE ITERATION, not from the banded driver.
+##
+## Route (b) is deliberately NOT implemented: LAPACK's banded routines are not exposed by Julia's
+## LinearAlgebra.LAPACK and would need a raw ccall, which JAC avoids at its present stage.  If a dependency
+## ever becomes acceptable, a banded-matrix package is the safer way in.  One trap worth recording because it
+## does not announce itself: passing Int32 where Julia's ILP64 LAPACK expects BlasInt returns info = 0 with
+## silently WRONG eigenvalues.
 function diagonalizeLocalMatrix(kappa::Int64, matrixA::Array{Float64,2}, matrixB::Array{Float64,2}, primitives::Bsplines.Primitives)
     nsL = primitives.grid.nsL;    nsS = primitives.grid.nsS
     dropP, dropQ, trailP, trailQ = Bsplines.boundaryDropCounts(kappa, primitives.grid)
