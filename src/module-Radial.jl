@@ -757,128 +757,25 @@ function Base.show(io::IO, spectrum::SingleElecSpectrum)
 end
 
 
-"""
-`Radial.OrbitalBunge1993(subshell::Subshell, Z::Int64)`  ... to calculate the radial orbital on the standard grid.
-"""
-function OrbitalBunge1993(subshell::Subshell, Z::Int64, grid::Radial.Grid)
-    #x grid = Defaults.getDefaults("standard grid");    
-    #x qn = SubshellQuantumNumbers( string(subshell) );    n = qn[1];    kappa = qn[2];   l = qn[3]
-    n = subshell.n;    kappa = subshell.kappa;   l = Basics.subshell_l(subshell)
-
-    wa = Basics.store("orbital functions: NR, Bunge (1993)", Z)
-    if      l == 0  &&  n > wa[5][1]+0     error("orbitals with s symmetry for Z = $Z only available up to $(wa[5][1]+0) only.")
-    elseif  l == 1  &&  n > wa[6][1]+1     error("orbitals with p symmetry for Z = $Z only available up to $(wa[6][1]+1) only.")
-    elseif  l == 2  &&  n > wa[7][1]+2     error("orbitals with d symmetry for Z = $Z only available up to $(wa[7][1]+2) only.")
-    elseif  l == 3  &&  n > wa[8][1]+3     error("orbitals with f symmetry for Z = $Z only available up to $(wa[8][1]+3) only.")
-    elseif  l == 4  &&  n > wa[9][1]+4     error("orbitals with g symmetry for Z = $Z only available up to $(wa[9][1]+4) only.")
-    end
-
-    P = Float64[]
-    for  k in 1:grid.NoPoints-5
-        Rnl = 0.; r = grid.r[k]
-        for i in 4:length(wa[5+l])
-            njl = wa[5+l][i][1] 
-            Zjl = wa[5+l][i][2]
-            Cjl = wa[5+l][i][2+n-l]
-            Njl = (2*Zjl)^(njl+0.5) / sqrt( factorial(2*njl) ) 
-            Rnl = Rnl + Cjl*Njl*r^(njl-1)*exp(-Zjl*r);
-        end
-        push!(P, Rnl*r )
-    end
-
-    # Now define small component by apllying kinetic-balance condition
-    Q = zeros(size(P, 1))
-    #x println("small component not yet defined properly; P = $P ")
-
-    dP(i) = JenaAtomicCalculator.Math.derivative(P, i)
-    for i = 2:size(Q, 1)
-        Q[i] = -1/(2 * JenaAtomicCalculator.Defaults.INVERSE_FINE_STRUCTURE_CONSTANT) * (dP(i) / grid.h / grid.rp[i] + kappa/grid.r[i]) * P[i]
-    end
-
-    o     = Orbital( subshell, true, true, -0.5, P, Q, grid)
-    norma = RadialIntegrals.overlap(o, o, grid)
-    o.P = o.P/sqrt(norma)
-    o.Q = o.Q/sqrt(norma)
-
-    normb = RadialIntegrals.overlap(o, o, grid)
-
-    return( o )
-end
+## Radial.OrbitalBunge1993, Radial.compute_McLean1981 and Radial.OrbitalPrimitiveSlater were REMOVED on
+## 12-Aug-2026.  None of the three could run, and none had a caller:
+##
+##   * the first two called Basics.store("orbital functions: NR, Bunge (1993)" / "... McLean (1981)", Z),
+##     and Basics.store is DEFINED NOWHERE IN JAC.  It was meant to hold the Roothaan-Hartree-Fock
+##     coefficient tables of Bunge et al., ADNDT 53 (1993) 113 and McLean & McLean, ADNDT 26 (1981) 197;
+##     that data has never been part of this repository, so the functions were never more than a sketch;
+##   * OrbitalBunge1993 and OrbitalPrimitiveSlater additionally read grid.rp -- an array that was empty on
+##     every grid JAC ever built and no longer exists at all -- and constructed Radial.Orbital with SEVEN
+##     arguments where it has nine fields.
+##
+## Reinstating Bunge or McLean start orbitals means importing a published data table, which is a deliberate
+## act and not a repair.  The working route to hydrogenic start orbitals is Bsplines.generateOrbitalsHydrogenic,
+## which is what AsfSettings(..., StartFromHydrogenic(), ...) already uses throughout JAC.
 
 
-"""
-`Radial.OrbitalMcLean1981(subshell::Subshell,Z::Int64)`  ... to calculate the radial orbital on the standard grid.  
-"""
-function compute_McLean1981(subshell::Subshell,Z::Int64)
-    grid = Defaults.getDefaults("standard grid");    
-    #x qn = Basics.SubshellQuantumNumbers( string(subshell) );    n = qn[1];   l = qn[3]
-    n = subshell.n;   l = Basics.subshell_l( subshell )
-
-    wa = Basics.store("orbital functions: NR, McLean (1981)", Z)
-
-    !(55 <= Z <= 92)   &&                     error("Nuclear charge must be 55 <= (Z=$Z) <= 92.")            
-    wa == Any[]        &&                     error("No data available for neutral Z = $Z.")
-
-    if      l == 0     &&  n > wa[5][1]+0     error("Orbitals with s symmetry for Z = $Z only available up to $(wa[5][1]+0) only.")
-    elseif  l == 1     &&  n > wa[6][1]+1     error("orbitals with p symmetry for Z = $Z only available up to $(wa[6][1]+1) only.")
-    elseif  l == 2     &&  n > wa[7][1]+2     error("orbitals with d symmetry for Z = $Z only available up to $(wa[7][1]+2) only.")
-    elseif  l == 3     &&  n > wa[8][1]+3     error("orbitals with f symmetry for Z = $Z only available up to $(wa[8][1]+3) only.")
-    elseif  l == 4     &&  n > wa[9][1]+4     error("orbitals with g symmetry for Z = $Z only available up to $(wa[9][1]+4) only.")
-    end
-
-    P = Float64[]
-    for  k in 1:grid.NoPoints-5
-        Rnl = 0.; r = grid.r[k]
-        for i in 4:length(wa[5+l])
-            njl = wa[5+l][i][1] 
-            Zjl = wa[5+l][i][2]
-            Cjl = wa[5+l][i][2+n-l]
-            Njl = (2*Zjl)^(njl+0.5) / sqrt( factorial(2*njl) ) 
-            Rnl = Rnl + Cjl*Njl*r^(njl-1)*exp(-Zjl*r);
-        end
-        println("k, r, Rnl = $k  $r  $Rnl ")
-        push!(P, Rnl*r )
-    end
-
-    println("small component not yet defined properly; P = $P ")
-
-    return( Orbital( subshell, -0.5) )
-end
 
 
-"""
-`Radial.OrbitalPrimitiveSlater(subshell::Subshell, N::Int64, alpha0::Float64, beta0::Float64, grid::Radial.Grid)`  
-    ... to calculate a list of (non-relativistic) radial Slater primitives::Array{Orbital,1} for the subshell-symmetry on 
-        the given grid. All orbitals have the same subshell, isBound = true, useStandardGrid = true and energy = 0. 
-        The small components are constructed by applying kinetic balance to the large component, and all the primitives are 
-        properly normalized.
-"""
-function OrbitalPrimitiveSlater(subshell::Subshell, N::Int64, alpha0::Float64, beta0::Float64, grid::Radial.Grid) 
-    function P(i::Int64, l::Int64, eta::Float64)   return( grid.r[i]^(l+1) * exp(-eta*grid.r[i]) )   end
-    dP(i) = JenaAtomicCalculator.Math.derivative(Px, i)
 
-    orbitals = Orbital[];    ll = Basics.subshell_l(subshell)
-    for  i = 1:N
-        eta = alpha0 * beta0^(i-1)
-        # Px  = [for i = 1:grid.NoPoints P(i, ll, eta)]
-        Qx  = zeros(size(Px, 1))
-        for j = 2:size(Q, 1)
-            Qx[j] = -1/(2 * JenaAtomicCalculator.Defaults.INVERSE_FINE_STRUCTURE_CONSTANT) * (dP(j) / grid.h / grid.rp[j] + kappa/grid.r[j]) * Px[j]
-        end
-
-        o     = Orbital( subshell, true, true, 0., Px, Qx, grid() )
-        norma = JenaAtomicCalculator.RadialIntegrals.overlap(o, o, grid)
-        o.P = o.P/sqrt(norma)
-        o.Q = o.Q/sqrt(norma)
-
-        normb = JenaAtomicCalculator.RadialIntegrals.overlap(o, o, grid)
-        println("OrbitalPrimitiveSlater-aa:  for i = $i : norm-before = $norma, norm-after = $normb")
-        
-        push!( orbitals, o)
-    end
-
-    return( SingleElecSpectrum() )
-end
 
 
 ###################################################################################################################

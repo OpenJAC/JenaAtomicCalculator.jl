@@ -237,41 +237,62 @@ function Basics.compute(JP::LevelSymmetry, basis::Basis, nuclearModel::Nuclear.M
     return( matrix )
 end
 
+## THE FOUR RadialOrbital* START-ORBITAL THEMES DO NOT WORK, and did not before 12-Aug-2026 either.  Each
+## called a function of Radial that either does not exist (OrbitalMcLean1981, OrbitalHydrogenic,
+## OrbitalThomasFermi were never defined) or could not run (OrbitalBunge1993 needed Basics.store, itself
+## defined nowhere, plus the empty grid.rp and a seven-argument Radial.Orbital that has nine fields).  All
+## four therefore raised UndefVarError or MethodError at the first call, and none has a caller anywhere.
+##
+## Following the corePolarization.doApply precedent in module-PhotoEmission.jl, they now raise an error that
+## EXPLAINS, rather than one that names a missing internal symbol.  The type names are kept: they are listed
+## as options in the AbstractComputeTheme docstring, and removing user-facing names is a separate decision.
+
 """
 `Basics.compute(::RadialOrbitalBunge1993, subshell::Subshell, Z::Int64)`
-    ... to compute a radial orbital::Orbital for the given subshell and nuclear charge by using the Roothaan-Hartree-Fock data by
-        Bunge et al., Atomic Data and Nuclear Data Tables 53 (1993) 113; radial orbitals for elements with 2 <= Z <= 54.
+    ... NOT AVAILABLE.  Roothaan-Hartree-Fock start orbitals from Bunge et al., Atomic Data and Nuclear Data
+        Tables 53 (1993) 113 would need that table inside JAC, and it has never been part of this repository.
 """
 function Basics.compute(::RadialOrbitalBunge1993, subshell::Subshell, Z::Int64)
-    return Radial.OrbitalBunge1993(subshell, Z)
+    error("Basics.compute(::RadialOrbitalBunge1993, ...): not available.  These Roothaan-Hartree-Fock " *
+          "start orbitals require the coefficient table of Bunge et al., ADNDT 53 (1993) 113, which is not " *
+          "part of JAC; the routine that read it (Basics.store) has never been defined.  For hydrogenic " *
+          "start orbitals use Bsplines.generateOrbitalsHydrogenic, i.e. StartFromHydrogenic() in AsfSettings.")
 end
 
 
 """
 `Basics.compute(::RadialOrbitalMcLean1981, subshell::Subshell, Z::Int64)`
-    ... to compute a radial orbital::Orbital for the given subshell and nuclear charge by using the Roothaan-Hartree-Fock data by
-        McLean and McLean, Atomic Data and Nuclear Data Tables 26 (1981) 197; radial orbitals for elements with 55 <= Z <= 92.
+    ... NOT AVAILABLE.  As for Bunge (1993), but with the table of McLean & McLean, Atomic Data and Nuclear
+        Data Tables 26 (1981) 197.
 """
 function Basics.compute(::RadialOrbitalMcLean1981, subshell::Subshell, Z::Int64)
-    return Radial.OrbitalMcLean1981(subshell, Z)
+    error("Basics.compute(::RadialOrbitalMcLean1981, ...): not available.  These Roothaan-Hartree-Fock " *
+          "start orbitals require the coefficient table of McLean & McLean, ADNDT 26 (1981) 197, which is " *
+          "not part of JAC; the routine that read it (Basics.store) has never been defined.  For hydrogenic " *
+          "start orbitals use Bsplines.generateOrbitalsHydrogenic, i.e. StartFromHydrogenic() in AsfSettings.")
 end
 
 
 """
 `Basics.compute(::RadialOrbitalHydrogenic, subshell::Subshell, Z::Int64)`
-    ... to compute a hydrogenic radial orbital::Orbital for the given subshell and nuclear charge.
+    ... NOT AVAILABLE through this interface; use Bsplines.generateOrbitalsHydrogenic, which needs a grid.
 """
 function Basics.compute(::RadialOrbitalHydrogenic, subshell::Subshell, Z::Int64)
-    return Radial.OrbitalHydrogenic(subshell, Z)
+    error("Basics.compute(::RadialOrbitalHydrogenic, ...): not available; Radial.OrbitalHydrogenic was " *
+          "never defined.  JAC does compute hydrogenic orbitals -- use Bsplines.generateOrbitalsHydrogenic" *
+          "(subshells, nm, primitives), i.e. StartFromHydrogenic() in AsfSettings.  It needs a grid and a " *
+          "nuclear model, which is why it cannot be reached from (subshell, Z) alone.")
 end
 
 
 """
 `Basics.compute(::RadialOrbitalThomasFermi, subshell::Subshell, Z::Int64)`
-    ... to compute a Thomas-Fermi radial orbital::Orbital for the given subshell and nuclear charge.
+    ... NOT AVAILABLE; Radial.OrbitalThomasFermi was never defined.
 """
 function Basics.compute(::RadialOrbitalThomasFermi, subshell::Subshell, Z::Int64)
-    return Radial.OrbitalThomasFermi(subshell, Z)
+    error("Basics.compute(::RadialOrbitalThomasFermi, ...): not available; Radial.OrbitalThomasFermi was " *
+          "never defined.  For a screened start potential use Basics.computePotential with one of the " *
+          "AbstractPotential types; for start orbitals use StartFromHydrogenic() in AsfSettings.")
 end
 
 """
