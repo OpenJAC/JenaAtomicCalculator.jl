@@ -301,7 +301,15 @@ GBL_SCF_REORTHONORMALIZE = true
 ## the usual ill-conditioning of a long Anderson history.  Note that depth 0 in the Claude driver itself is a
 ## JACOBI sweep and does NOT converge in 60 iterations -- the Gauss-Seidel ordering of the original driver is
 ## what makes the plain iteration viable at all.
-GBL_SCF_ANDERSON_DEPTH = 0
+##
+## STANDARD SINCE 12-Aug-2026 (was 0 = the plain iteration when this was first added).  Setting it to 0
+## restores the old path exactly, which is how the two were compared.  Making it the default is a deliberate
+## editorial act: both iterations reach the same self-consistent solution, but only to within accuracyScf,
+## so results can move by ~1e-6.  What that costs was measured by regenerating every approved reference with
+## it on: 27 of 29 came out BITWISE IDENTICAL, one moved by 3.0e-09, and the only large apparent change --
+## test-Cascade-StepwiseDecay -- was not numerical at all, but two DEGENERATE levels swapping index labels
+## (all 606 transition rows the same set).
+GBL_SCF_ANDERSON_DEPTH = 2
 
 
 """
