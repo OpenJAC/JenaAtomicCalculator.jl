@@ -4,6 +4,8 @@ println("    Branches follow Naze et al., CPC 184 (2013) 2187 (RIS3) and Ekman e
 println("    (examples/papers/2013.cpc-naze-gaigalas-RIS3.pdf, 2019.cpc-eckman-risc4.pdf);")
 println("    see project memory project_isotope_shift_ris3ris4.md.")
 
+using Printf
+
 setDefaults("print summary: open", "zzz-IsotopeShift.sum")
 
 if  false
@@ -144,6 +146,76 @@ elseif  false
                             propertySettings=[ IsotopeShift.Settings(IsotopeShift.Settings(); calcNMS=true, calcSMS=true,
                                                 calcF=true, printBefore=true) ] )
     perform(wa4)
+    #
+elseif  false
+    # Last visit:  12-Aug-2026
+    # Last successful:  unknown ... the decomposition OVERSHOOTS the measured shifts; see the verdict below.
+    #
+    # Branch e: NUCLEAR DEFORMATION AND THE MEAN-SQUARE RADIUS -- the nuclear side of the field shift.
+    #
+    # JAC's field shift is organised as F = dE/d<r^2> (module-IsotopeShift.jl), so the whole isotope
+    # dependence enters through <r^2>.  Today the comparison isotope takes its radius from the smooth fit
+    # Nuclear.rrmsRadius(A) = 0.836 A^(1/3) + 0.57, which knows nothing about nuclear shape.  A deformed
+    # nucleus has a LARGER <r^2> at the same volume, and along an isotope chain a change of deformation
+    # therefore shows up directly in the isotope shift.  This branch computes that contribution from
+    # Nuclear.DeformedFermiNucleus instead of assuming the textbook law.
+    #
+    # THE CLASSIC CASE is the samarium chain at N = 88 -> 90, where the ground state changes from nearly
+    # spherical to well deformed between 150Sm and 152Sm and the measured d<r^2> shows a pronounced kink:
+    # 0.423(22) fm^2 for 150->152 (laser spectroscopy) against roughly 0.10-0.15 fm^2 for the neighbouring
+    # pairs.
+    println("\n  Deformation and <r^2>:  what an axially deformed nucleus does to the mean-square radius\n")
+    aSkin = Nuclear.fermiA
+    println("   beta2   axis ratio    <r^2>/<r^2>_sph   sharp-sphere 1+(5/4pi)b^2   ratio diffuse/sharp")
+    c6 = 6.0;   r0 = Nuclear.deformedFermiRrms(c6, aSkin, DeformedFermiNucleus(0.0))
+    for b in [0.05, 0.1, 0.2, 0.3, -0.2, -0.3]
+        rb = Nuclear.deformedFermiRrms(c6, aSkin, DeformedFermiNucleus(b))
+        sharp = 1 + 5b^2/(4pi)
+        @printf("   %+5.2f  %9.4f    %15.6f   %25.6f   %19.4f\n",
+                b, Nuclear.axisRatio(b), (rb/r0)^2, sharp, ((rb/r0)^2 - 1)/(sharp - 1))
+    end
+    #
+    # THE DIFFUSE SURFACE MATTERS.  The textbook law <r^2> = <r^2>_sph (1 + (5/4pi) beta2^2) is derived for
+    # a SHARP-edged sphere.  A real nucleus has a ~0.52 fm surface, which smears the angular variation of
+    # c(theta) and removes about 20% of the effect at beta2 = 0.3.  Verified against the analytic law by
+    # letting the surface sharpen: at a = 0.005 fm this code gives 1.037940 against 1.037941 exactly.
+    #
+    println("\n  The samarium chain across the N = 88 -> 90 shape transition:\n")
+    r2of(A, b2) = Nuclear.deformedFermiRrms(
+                      Nuclear.computeDeformedFermiC(Nuclear.rrmsRadius(A), aSkin, DeformedFermiNucleus(0.0)),
+                      aSkin, DeformedFermiNucleus(b2))^2
+    println("   pair         d<r^2> size   d<r^2> shape   d<r^2> total   measured    total/measured")
+    for (nam, A1, b1, A2, b2, meas) in [("148->150", 148., 0.1423, 150., 0.1928, 0.10),
+                                        ("150->152", 150., 0.1928, 152., 0.3064, 0.423),
+                                        ("152->154", 152., 0.3064, 154., 0.3410, 0.15)]
+        dSize = r2of(A2, 0.0) - r2of(A1, 0.0);    dTot = r2of(A2, b2) - r2of(A1, b1)
+        @printf("   %-10s  %11.4f   %12.4f   %12.4f   %9.3f   %13.2f\n",
+                nam, dSize, dTot - dSize, dTot, meas, dTot/meas)
+    end
+    #
+    ## VERDICT, 12-Aug-2026 -- AN HONEST NEGATIVE RESULT, and the date above stays blank because of it.
+    ##
+    ## The machinery is right: the deformation enhancement of <r^2> reproduces the analytic sharp-sphere
+    ## law to 1e-6 in the limit where that law applies.  The DECOMPOSITION, however, overshoots every
+    ## measured pair, and by different factors -- 3.4x, 1.6x and 2.7x above.  Two separate causes, neither
+    ## of them in the deformation model:
+    ##
+    ##  (1) THE SIZE TERM IS TOO LARGE BY ITSELF.  Nuclear.rrmsRadius, an A^(1/3) droplet fit, gives
+    ##      d<r^2> = 0.197 fm^2 for every two mass units, whereas the measured shifts for the
+    ##      NON-transitional pairs are 0.10-0.15 fm^2.  The size term alone therefore already exceeds the
+    ##      measurement before any deformation is added.  This is the well-known failure of a smooth
+    ##      A^(1/3) law to describe real charge radii, and it is exactly the reason for wanting a measured
+    ##      or shape-derived radius in the first place.
+    ##  (2) THE beta2 VALUES ARE FROM B(E2) SYSTEMATICS AND ARE RECALLED, NOT VERIFIED.  They are quoted
+    ##      here from memory of Raman et al.; I could not machine-read the source table.  They also measure
+    ##      <beta^2> including zero-point motion, which is the right quantity for <r^2> but is not the same
+    ##      as a static deformation, and the distinction matters most precisely at a shape transition.
+    ##
+    ## WHAT THIS BRANCH DOES ESTABLISH: the shape contribution to d<r^2> at the transition (0.49 fm^2) is
+    ## comparable to the whole measured shift (0.42 fm^2) and several times the size term of a normal pair.
+    ## Deformation is not a correction here, it dominates -- which is the physics case for feeding a shape
+    ## rather than a fitted radius into the field shift.  Turning that into a quantitative test needs
+    ## measured radii (Angeli & Marinova) and checked beta2 values, and NOT a better nuclear model.
     #
 end
 #
