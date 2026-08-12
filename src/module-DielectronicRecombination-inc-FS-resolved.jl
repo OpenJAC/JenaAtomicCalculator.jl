@@ -200,13 +200,20 @@ end
 
 """
 `DielectronicRecombination.computeCaptureAmplitudes(captureLine::DielectronicRecombination.CaptureLine, nm::Nuclear.Model,
-                                    grid::Radial.Grid, nrContinuum::Int64, settings::DielectronicRecombination.Settings)`
+                                    grid::Radial.Grid, nrContinuum::Int64, settings::DielectronicRecombination.Settings;
+                                    nuclearPot::Union{Nothing,Radial.Potential}=nothing,
+                                    primitives::Union{Nothing,Bsplines.Primitives}=nothing)`
     ... to compute the Auger amplitudes and the capture rate A_a(m --> i) of the given capture line; a new
         captureLine::DielectronicRecombination.CaptureLine is returned in which captureRate and captureChannels are filled.
         The two total widths and the resonance strength remain zero here; they are set later by setTotalRates().
+        The two keywords carry quantities that are CONSTANT for a whole computation and are otherwise rebuilt for every
+        capture line and every partial wave: the nuclear potential depends only on the nuclear model and the grid, the
+        B-spline primitives only on the grid. Nothing is cached; omitting them reproduces the previous behaviour exactly.
 """
 function  computeCaptureAmplitudes(captureLine::DielectronicRecombination.CaptureLine, nm::Nuclear.Model, grid::Radial.Grid,
-                                   nrContinuum::Int64, settings::DielectronicRecombination.Settings)
+                                   nrContinuum::Int64, settings::DielectronicRecombination.Settings;
+                                   nuclearPot::Union{Nothing,Radial.Potential}=nothing,
+                                   primitives::Union{Nothing,Bsplines.Primitives}=nothing)
     rateA             = 0.
     newcChannels      = AutoIonization.Channel[];   contSettings = Continuum.Settings(false, nrContinuum)
     initialLevel      = deepcopy(captureLine.initialLevel)
@@ -216,12 +223,16 @@ function  computeCaptureAmplitudes(captureLine::DielectronicRecombination.Captur
     ## amplitude loops here must not be assumed safe under -t N without further work.
     Defaults.setDefaults("relativistic subshell list", intermediateLevel.basis.subshells; printout=false)
     #
+    ## The two symmetry-reduced levels depend on the capture line but not on the partial wave, and so are formed
+    ## once for the whole line rather than once per channel.
+    redNLevel = Basics.generateLevelWithSymmetryReducedBasis(intermediateLevel, intermediateLevel.basis.subshells)
+    newiLevel = Basics.generateLevelWithSymmetryReducedBasis(initialLevel, redNLevel.basis.subshells)
+
     for  cChannel in captureLine.captureChannels
-        newnLevel = Basics.generateLevelWithSymmetryReducedBasis(intermediateLevel, intermediateLevel.basis.subshells)
-        newiLevel = Basics.generateLevelWithSymmetryReducedBasis(initialLevel, newnLevel.basis.subshells)
-        newnLevel = Basics.generateLevelWithExtraSubshell(Subshell(101, cChannel.kappa), newnLevel)
+        newnLevel = Basics.generateLevelWithExtraSubshell(Subshell(101, cChannel.kappa), redNLevel)
         cOrbital, phase = Continuum.generateOrbitalForLevel(captureLine.electronEnergy, Subshell(101, cChannel.kappa),
-                                                            newiLevel, nm, grid, contSettings)
+                                                            newiLevel, nm, grid, contSettings;
+                                                            nuclearPot=nuclearPot, primitives=primitives)
         newcLevel   = Basics.generateLevelWithExtraElectron(cOrbital, cChannel.symmetry, newiLevel)
         amplitude   = AutoIonization.amplitude(settings.augerOperator, cChannel, newcLevel, newnLevel, grid)
         rateA       = rateA + conj(amplitude) * amplitude
@@ -439,8 +450,17 @@ function  computeCaptureLines(finalMultiplet::Multiplet, intermediateMultiplet::
     end
     #
     newCaptureLines = Vector{DielectronicRecombination.CaptureLine}(undef, length(captureLines))
+    ## Both are built ONCE for the whole computation and handed down to every capture line and every partial wave:
+    ## the nuclear potential depends only on the nuclear model and the grid, the B-spline basis only on the grid --
+    ## and the grid is fixed here, since Continuum.gridConsistency above is called once for the maximum energy.
+    ## Both are READ-ONLY below (nothing writes into primitives.bsplinesL/bsplinesS), so sharing them across the
+    ## threads of the following loop introduces no race; it also spares each thread its own copy of the basis.
+    nuclearPot = Nuclear.nuclearPotential(nm, grid)
+    primitives = Bsplines.generatePrimitives(grid)
     @threads for  c in eachindex(captureLines)
-        newCaptureLines[c] = DielectronicRecombination.computeCaptureAmplitudes(captureLines[c], nm, grid, nrContinuum, settings)
+        newCaptureLines[c] = DielectronicRecombination.computeCaptureAmplitudes(captureLines[c], nm, grid, nrContinuum,
+                                                                                settings; nuclearPot=nuclearPot,
+                                                                                primitives=primitives)
     end
     #
     newCaptureLines = DielectronicRecombination.setTotalRates(newCaptureLines, newPhotonLines, empTreatment)
