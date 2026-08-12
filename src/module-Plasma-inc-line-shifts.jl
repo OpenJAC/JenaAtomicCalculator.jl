@@ -39,7 +39,7 @@ function performCI(basis::Basis, nm::Nuclear.Model, grid::Radial.Grid, settings:
     for  (sym,v) in  symmetries
         if  !Basics.selectSymmetry(sym, settings.levelSelectionCI)     continue    end
         matrix = Basics.compute(sym, basis, nm, grid, settings, plasmaModel; printout=printout)
-        eigen  = Basics.diagonalize(MatrixWithLinearAlgebra(), matrix)
+        eigen  = Basics.fixEigenvectorPhase!( Basics.diagonalize(MatrixWithLinearAlgebra(), matrix) )
 
         levels = Level[]
         for  ev = 1:length(eigen.values)

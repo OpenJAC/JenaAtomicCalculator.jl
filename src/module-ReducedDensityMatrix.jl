@@ -158,7 +158,7 @@ function  computeNaturalOrbitalExpansion(rho1p::Array{Float64,2}, level::Level)
 
     for  (_, idxList)  in  kappaGroups
         subMatrix = rho1p[idxList, idxList]
-        eigen     = Basics.diagonalize(MatrixWithLinearAlgebra(), subMatrix)
+        eigen     = Basics.fixEigenvectorPhase!( Basics.diagonalize(MatrixWithLinearAlgebra(), subMatrix) )
         order     = sortperm(eigen.values, rev=true)                     # decreasing natural occupation
         for  (k, ord)  in  enumerate(order)
             i             = idxList[k]

@@ -41,9 +41,9 @@ function diagonalizeCiMatrix(matrix::Array{Float64,2}, levelSelectionCI::LevelSe
     n = size(matrix, 1)
     if  levelSelectionCI.active  &&  !isempty(levelSelectionCI.indices)  &&  n >= CI_PARTIAL_DIAG_MIN_DIM
         k = min(n, maximum(levelSelectionCI.indices))
-        return( Basics.diagonalize(MatrixWithLinearAlgebra(), matrix; range=1:k) )
+        return( Basics.fixEigenvectorPhase!(Basics.diagonalize(MatrixWithLinearAlgebra(), matrix; range=1:k)) )
     else
-        return( Basics.diagonalize(MatrixWithLinearAlgebra(), matrix) )
+        return( Basics.fixEigenvectorPhase!(Basics.diagonalize(MatrixWithLinearAlgebra(), matrix)) )
     end
 end
 

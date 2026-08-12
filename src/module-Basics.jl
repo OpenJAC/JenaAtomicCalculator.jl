@@ -71,6 +71,7 @@ function extractShellOccupationFromCsfR                         end
 function extractSubshellList                                    end
 function extractValenceShell                                    end
 function FermiDirac                                             end
+function fixEigenvectorPhase!                                   end
 function generate                                               end
 function generateBasis                                          end
 function generateConfigurations                                 end

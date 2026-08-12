@@ -531,6 +531,40 @@ end
 
 
 """
+`Basics.fixEigenvectorPhase!(eigen::Basics.Eigen)`
+    ... fixes the arbitrary overall sign of every eigenvector in eigen by the convention that its
+        largest-magnitude component be positive; the eigen is modified in place and returned.
+
+        An eigenvector of a Hermitian matrix is defined only up to an overall phase: |psi> and -|psi>
+        are the same physical state, and every observable is built from |c|^2 or from products in which
+        the sign cancels. Which of the two a diagonalizer hands back is therefore not physics -- it is
+        whatever LAPACK's normalisation happened to produce, and it can differ between machines, library
+        versions and even between two runs on matrices that differ in the last bit. The CI mixing
+        coefficients ARE printed, however, and so are transition amplitudes built linearly from them, so
+        an unfixed phase makes those outputs irreproducible for no physical reason. This convention makes
+        them deterministic without touching a single observable.
+
+        Applied to the CI (level mixing) eigenvectors only. It is deliberately NOT applied to the
+        B-spline orbitals or to the continuum waves: an orbital's sign propagates into every matrix
+        element built from it, and a continuum wave's phase is fixed by its normalisation at large r
+        rather than being free.
+"""
+function Basics.fixEigenvectorPhase!(eigen::Basics.Eigen)
+    for  vector in eigen.vectors
+        imax = 1;   vmax = 0.
+        for  i = 1:length(vector)
+            if  abs(vector[i]) > vmax    vmax = abs(vector[i]);    imax = i    end
+        end
+        if  vector[imax] < 0.
+            for  i = 1:length(vector)    vector[i] = -vector[i]    end
+        end
+    end
+
+    return( eigen )
+end
+
+
+"""
 `Basics.diracDelta(x::Float64, dx::Float64)`
     ... evaluates Dirac's function  delta(x) = 0  for abs(x) > dx/2   and   delta(x) = 1/dx    for abs(x) <= dx/2;
         a values::Float64 is returned.
