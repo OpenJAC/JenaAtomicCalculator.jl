@@ -144,17 +144,12 @@ end
 """
 function finiteNorm(a::Radial.Orbital, radiusWS::Float64, grid::Radial.Grid)
     mtp = size(a.P, 1)
-    # Distinguish the radial integration for different grid definitions
-    if  grid.meshType == Radial.MeshGL()
-        wa = 0.
-        for  i = 2:mtp  
-            if  grid.r[i] > radiusWS    break   end
-            wa = wa + (a.P[i]^2 + a.Q[i]^2) * grid.wr[i]   
-        end
-        return( wa )
-    else
-        error("stop a")
+    wa = 0.
+    for  i = 2:mtp  
+        if  grid.r[i] > radiusWS    break   end
+        wa = wa + (a.P[i]^2 + a.Q[i]^2) * grid.wr[i]   
     end
+    return( wa )
 end
 
 

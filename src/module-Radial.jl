@@ -11,19 +11,19 @@ using  QuadGK, Printf, FastGaussQuadrature, JenaAtomicCalculator, ..Basics
 export Grid, Potential, Orbital, SingleElecSpectrum
 
 
-"""
-`abstract type Radial.AbstractMesh` 
-    ... defines an abstract mesh type for the use of the radial mesh
-    
-    + struct MeshNone       ... if an empty instance of Radial.Grid() need to be used.
-    + struct MeshGrasp      ... to use a GRASP-like grid with Newton-Cortes integration rules.
-    + struct MeshGL         ... to use a Gauss-Legendre type grid where the mesh points between the break points of the t-grid
-                                are chosen to support a Gauss-Legendre integration in this potential.
-"""
-abstract type  AbstractMesh                     end
-struct   MeshNone   <:  Radial.AbstractMesh     end
-struct   MeshGrasp  <:  Radial.AbstractMesh     end
-struct   MeshGL     <:  Radial.AbstractMesh     end
+## Radial.AbstractMesh, with MeshNone, MeshGrasp and MeshGL, was REMOVED on 12-Aug-2026.
+##
+## Nothing in JAC could ever produce anything but a Gauss-Legendre mesh: meshType was assigned in exactly one
+## place, Radial.Grid(exponential::Bool), always to MeshGL(), and no file in src/, examples/ or test/ ever
+## passed the meshType= keyword.  All 26 MeshGrasp comparisons were therefore permanently false, and what
+## hung off them was substantial: 25 dead branches in module-RadialIntegrals.jl, the grid fields rp and rpor
+## (empty arrays on every grid that has ever existed), Math.integrateFit/integrateFitTransform, and the
+## Basics.integrate(::NewtonCotes/::SimpsonRule/::TrapezRule) family with its four exported type names.
+##
+## That region had been unreachable long enough for a one-character typo to sit undetected in its central
+## routine -- Math.derivative read `JenaAtomicCalculatorDefaults.weights`, so its interior-point branch, the
+## common case, raised UndefVarError.  All of it is now gone, and Radial.Grid describes one thing: a
+## Gauss-Legendre mesh laid over B-spline break points, which is what every JAC calculation has actually used.
 
 
 """
@@ -59,16 +59,13 @@ struct         GridGaussLegendreFinite  <:  AbstractGridGaussLegendreScheme     
     + orderS     ::Int64             ... B-spline order of small components.
     + nsL        ::Int64             ... number of B-splines for large components.
     + nsS        ::Int64             ... number of B-splines for small components.
-    + orderGL    ::Int64             
-        ... order of the Gauss-Lengedre integration if mesh == Radial.MeshGL(); this order also determines
-            the (number of) break points by taking the orderGL-th point from the physical grid points.
+    + orderGL    ::Int64
+        ... order of the Gauss-Legendre integration; this order also determines the (number of) break points
+            by taking every orderGL-th point of the physical grid.
     ** Radial mesh points **
-    + meshType   ::Radial.AbstractMesh
-    + r          ::Array{Float64,1}  ... radial grid points
-    + rp         ::Array{Float64,1}  ... derivative of the radial grid at the grid points
-    + rpor       ::Array{Float64,1}  ... rp over r
-    + wr         ::Array{Float64,1}  
-        ... integration weights for all grid points, for instance, GL weights.
+    + r          ::Array{Float64,1}  ... radial mesh points, the Gauss-Legendre points of each interval
+                                         between two break points of tL.
+    + wr         ::Array{Float64,1}  ... Gauss-Legendre integration weights belonging to r.
 """
 struct  Grid
     rnt          ::Float64
@@ -86,10 +83,7 @@ struct  Grid
     nsS          ::Int64
     orderGL      ::Int64
     #
-    meshType     ::Radial.AbstractMesh
     r            ::Array{Float64,1}
-    rp           ::Array{Float64,1}
-    rpor         ::Array{Float64,1}
     wr           ::Array{Float64,1}
 end
 
@@ -98,27 +92,25 @@ end
 `Radial.Grid()` ... constructor to define an 'empty' grid.  
 """
 function Grid()
-    Radial.Grid(0., 0., 0., 0,   Float64[], Float64[], 0, 0, 0, 0, 0, 0, 0,   Radial.MeshNone(), Float64[], Float64[], Float64[], Float64[] )
+    Radial.Grid(0., 0., 0., 0,   Float64[], Float64[], 0, 0, 0, 0, 0, 0, 0,   Float64[], Float64[] )
 end
 
 
 """
 `Radial.Grid(exponential::Bool; printout::Bool=false)` 
-    ... constructor to define either a standard 'exponential' mesh (true) or a 'log-lin' mesh (false). 
-        The standard mesh type is Radial.MeshGL().
+    ... constructor to define either a standard 'exponential' mesh (true) or a 'log-lin' mesh (false).
 """
 function Grid(exponential::Bool; printout::Bool=false)
-    # The standard mesh type is Radial.MeshGL() with some proper parameters
-    nth = orderL = 7;    orderS = 8;   orderGL = 7;    meshType = MeshGL()
+    orderL = 7;    orderS = 8;   orderGL = 7
     
     if  exponential
         NoPoints = 392;    NoPoints = NoPoints - rem(NoPoints,orderGL)
-        grid = Radial.Grid(2.0e-6, 5.0e-2,     0., NoPoints,   Float64[], Float64[], 0, 0, orderL, orderS, 0, 0, orderGL, meshType,
-                            Float64[], Float64[], Float64[], Float64[] )
+        grid = Radial.Grid(2.0e-6, 5.0e-2,     0., NoPoints,   Float64[], Float64[], 0, 0, orderL, orderS, 0, 0, orderGL,
+                            Float64[], Float64[] )
     else
         NoPoints = 600;    NoPoints = NoPoints - rem(NoPoints,orderGL)
-        grid = Radial.Grid(2.0e-6, 5.0e-2, 2.0e-2, NoPoints,   Float64[], Float64[], 0, 0, orderL, orderS, 0, 0, orderGL, meshType,
-                            Float64[], Float64[], Float64[], Float64[] )
+        grid = Radial.Grid(2.0e-6, 5.0e-2, 2.0e-2, NoPoints,   Float64[], Float64[], 0, 0, orderL, orderS, 0, 0, orderGL,
+                            Float64[], Float64[] )
     end
     return( Radial.determineGrid(grid, printout=printout) )
 end
@@ -127,8 +119,7 @@ end
 """
 `Radial.Grid(gr::Radial.Grid;`
 
-        rnt=..,     h=..,       hp=..,      rbox=..,    orderL=..,  orderS=..,  orderGL=..,
-        meshType..,  printout=..)
+        rnt=..,     h=..,       hp=..,      rbox=..,    orderL=..,  orderS=..,  orderGL=..,  printout=..)
     ... constructor for modifying the given Radial.Grid by 'overwriting' the previously selected parameters.
 
         The keyword nth= was removed on 12-Aug-2026.  It was accepted and then silently dropped: the spacing
@@ -139,8 +130,7 @@ end
 function Grid(gr::Radial.Grid;
     rnt::Union{Nothing,Float64}=nothing,        h::Union{Nothing,Float64}=nothing,      hp::Union{Nothing,Float64}=nothing,
     rbox::Union{Nothing,Float64}=nothing,       orderL::Union{Nothing,Int64}=nothing,
-    orderS::Union{Nothing,Int64}=nothing,       orderGL::Union{Nothing,Int64}=nothing,  meshType::Union{Nothing,Radial.AbstractMesh}=nothing,
-    printout::Bool=false)
+    orderS::Union{Nothing,Int64}=nothing,       orderGL::Union{Nothing,Int64}=nothing,  printout::Bool=false)
     
     if  isnothing(rnt)        rntx      = gr.rnt        else    rntx      = rnt       end 
     if  isnothing(h)          hx        = gr.h          else    hx        = h         end 
@@ -149,7 +139,6 @@ function Grid(gr::Radial.Grid;
     if  isnothing(orderL)     orderLx   = gr.orderL     else    orderLx   = orderL    end 
     if  isnothing(orderS)     orderSx   = gr.orderS     else    orderSx   = orderS    end 
     if  isnothing(orderGL)    orderGLx  = gr.orderGL    else    orderGLx  = orderGL   end 
-    if  isnothing(meshType)   meshTypex = gr.meshType   else    meshTypex = meshType  end 
     
     if      isnothing(rboxx)    NoPointsx = gr.NoPoints - rem(gr.NoPoints, orderGLx)
     elseif  rboxx  > 0.         NoPointsx = Radial.determineNoPoints(rntx, hx, hpx, rboxx, orderGLx)
@@ -157,8 +146,8 @@ function Grid(gr::Radial.Grid;
                  "atomic units.  Omit the keyword to keep the number of points of the given grid.")
     end
     
-    grid = Radial.Grid(rntx, hx, hpx, NoPointsx, Float64[], Float64[], 0, 0, orderLx, orderSx, 0, 0, orderGLx, meshTypex,
-                        Float64[], Float64[], Float64[], Float64[] )
+    grid = Radial.Grid(rntx, hx, hpx, NoPointsx, Float64[], Float64[], 0, 0, orderLx, orderSx, 0, 0, orderGLx,
+                        Float64[], Float64[] )
     return( Radial.determineGrid(grid, printout=printout) )
 end
 
@@ -168,12 +157,10 @@ function Base.show(io::IO, grid::Radial.Grid)
 
     sa = Base.string(grid::Radial.Grid);    print(io, sa * "\n")
 
-    nr = grid.NoPoints;    ntL = length(grid.tL);    ntS = length(grid.tS);    if  nr < 6   return( nothing )    end
-    print(io, "r:    ", grid.r[1:3],    "  ...  ", grid.r[nr-2:nr],         "\n") 
-    if  grid.meshType == Radial.MeshGrasp()
-        print(io, "rp:   ", grid.rp[1:3],   "  ...  ", grid.rp[nr-2:nr],    "\n") 
-        print(io, "rpor: ", grid.rpor[1:3], "  ...  ", grid.rpor[nr-2:nr],  "\n") 
-    end
+    ## Indexed by the length of the MESH, not by NoPoints, which counts the physical grid of the definition
+    ## and is a different quantity even where the two happen to coincide.
+    nr = length(grid.r);   ntS = length(grid.tS);    if  nr < 6   return( nothing )    end
+    print(io, "r:    ", grid.r[1:3],    "  ...  ", grid.r[nr-2:nr],         "\n")
     print(io, "wr:   ", grid.wr[1:3],   "  ...  ", grid.wr[nr-2:nr],        "\n") 
     ## print(io, "tL:   ", grid.tL[1:3],   "  ...  ", grid.tL[ntL-2:ntL],   "\n") 
     print(io, "tS:   ", grid.tS[1:3],   "  ...  ", grid.tS[ntS-2:ntS]           ) 
@@ -187,7 +174,7 @@ function Base.string(grid::Radial.Grid)
     else
         sa = "Radial grid:  rnt = $(grid.rnt),  h = $(grid.h),  hp = $(grid.hp),  NoPoints = $(grid.NoPoints),  "
         sa = sa * "ntL = $(grid.ntL),  ntS = $(grid.ntS), "
-        sa = sa * "orderL = $(grid.orderL),  orderS = $(grid.orderS),  nsL = $(grid.nsL),  nsS = $(grid.nsS),  mesh = $(grid.meshType), ...  "
+        sa = sa * "orderL = $(grid.orderL),  orderS = $(grid.orderS),  nsL = $(grid.nsL),  nsS = $(grid.nsS), ...  "
     end 
 end
 
@@ -198,11 +185,14 @@ end
 """
 function determineGrid(grid::Radial.Grid; printout::Bool=false) 
     
-    # Read the meshType and general parameters from the given grid
-    meshType = grid.meshType
+    # Read the general parameters from the given grid
     rnt    = grid.rnt;       h      = grid.h;         hp      = grid.hp;        NoPoints = grid.NoPoints
     nth    = grid.orderGL;   orderL = grid.orderL;    orderS  = grid.orderS;    orderGL  = grid.orderGL
-    nr     = grid.NoPoints;  r      = zeros(nr);      rp      = zeros(nr);      rpor     = zeros(nr);      nsL = 0;   nsS = 0
+    ## rphys is the PHYSICAL grid of the analytic definition below.  It exists only to place the B-spline
+    ## break points; the mesh that the returned Grid carries is the Gauss-Legendre one built further down.
+    ## Its derivatives rp and rpor used to be computed here and stored in the Grid, where they were then
+    ## overwritten with empty arrays for every grid JAC has ever built (12-Aug-2026).
+    nr     = grid.NoPoints;  rphys  = zeros(nr);      nsL = 0;   nsS = 0
         
     # Ensure that the largest grid points is always consistent with the largest break point of the B-splines
     if  NoPoints != NoPoints - rem(NoPoints,orderGL)
@@ -213,14 +203,12 @@ function determineGrid(grid::Radial.Grid; printout::Bool=false)
 
     # Now define the physical grid due to the given parameters: either an exponential or exponential-linear grid
     if  hp == 0.
-        r[1] = rnt;   rp[1] = rnt;   eph = exp(h);    ett = 1.0
-        
+        rphys[1] = rnt;   eph = exp(h);    ett = 1.0
+
         for  i  in 2:nr
-            ett     = eph * ett
-            ettm1   = ett - 1.0
-            r[i]    = rnt * ettm1
-            rp[i]   = rnt * ett
-            rpor[i] = ett/ettm1
+            ett      = eph * ett
+            ettm1    = ett - 1.0
+            rphys[i] = rnt * ettm1
         end 
 
     elseif  hp != 0.
@@ -236,22 +224,18 @@ function determineGrid(grid::Radial.Grid; printout::Bool=false)
             return( 1. / (r + rnt) + h/hp )
         end
     
-        r[1]    = 0.
-        rp[1]   = rprime(0.) 
-        rpor[1] = 0.
-    
+        rphys[1] = 0.
+
         rc = 0.
         rn = 0.
-    
+
         for i = 2:nr
             rn = rn + rnt
-            while ((abs((rc - rn)/rn) > 100 * eps(Float64))) 
+            while ((abs((rc - rn)/rn) > 100 * eps(Float64)))
                 rc = rn
                 rn = rc - f(rc, i) / fprime(rc)
             end
-            r[i]    = rn
-            rp[i]   = rprime(rn)
-            rpor[i] = rp[i] / r[i]
+            rphys[i] = rn
         end
     else
         ## Reachable only for hp = NaN, since every other Float64 satisfies one of the two branches above.
@@ -262,37 +246,34 @@ function determineGrid(grid::Radial.Grid; printout::Bool=false)
     # Define the radial break points and the number of B-splines
     ntL = orderL;    ntS = orderS;    tL = zeros( orderL );    tS = zeros( orderS )
     for  i = nth:nth:NoPoints
-        ntL = ntL + 1;    push!( tL, r[i]);    ntS = ntS + 1;    push!( tS, r[i])
+        ntL = ntL + 1;    push!( tL, rphys[i]);    ntS = ntS + 1;    push!( tS, rphys[i])
     end
     for   i = ntL+1:ntL+orderL-1   push!( tL, tL[ntL] )   end;    nsL = ntL - 1;   ntL = length(tL)
     for   i = ntS+1:ntS+orderS-1   push!( tS, tS[ntS] )   end;    nsS = ntS - 1;   ntS = length(tS)
     
-    # Define the radial grid due to the definition
-    wr = zeros(nr)
-    if  meshType == Radial.MeshGL()
-        nr = 0;   r = Float64[];   rp = Float64[];   rpor = Float64[];   wr = Float64[];    rlow = 0.
-        wax = gauss(orderGL);   ra = wax[1];   wa = wax[2] 
-        for  i = 1:length(tL)
-            rstep = tL[i] - rlow
-            if  rstep > 0
-                bma = tL[i] - rlow;   bpa = tL[i] + rlow 
-                for  j = 1:orderGL
-                    nr = nr + 1;    push!(r, ra[j] * bma/2. + bpa/2. );    push!(wr, wa[j] * bma/2. )
-                end
+    # Lay a Gauss-Legendre mesh over each interval between two break points; this is the mesh the Grid carries
+    nr = 0;   r = Float64[];   wr = Float64[];    rlow = 0.
+    wax = gauss(orderGL);   ra = wax[1];   wa = wax[2]
+    for  i = 1:length(tL)
+        rstep = tL[i] - rlow
+        if  rstep > 0
+            bma = tL[i] - rlow;   bpa = tL[i] + rlow
+            for  j = 1:orderGL
+                nr = nr + 1;    push!(r, ra[j] * bma/2. + bpa/2. );    push!(wr, wa[j] * bma/2. )
             end
-            rlow = tL[i]
         end
-        #
-        if  printout
-            println("Define a radial grid of type $meshType with $nr grid points")
-            println(" [rnt=" * @sprintf("%.3e",rnt) * ", h=" * @sprintf("%.3e",h) * 
-                    ", hp=" * @sprintf("%.3e",hp) * ", NoPoints=$NoPoints, r_max=" * @sprintf("%.3e",r[nr]) * ";")
-            println("  B-splines with break points at every $(nth)th point, nsL=$nsL, nsS=$nsS, orderL=$orderL, orderS=$orderS, orderGL=$orderGL,  " *
-                    "ntL=$ntL, ntS=$ntS] ")
-        end
+        rlow = tL[i]
+    end
+    #
+    if  printout
+        println("Define a radial grid with $nr Gauss-Legendre mesh points")
+        println(" [rnt=" * @sprintf("%.3e",rnt) * ", h=" * @sprintf("%.3e",h) *
+                ", hp=" * @sprintf("%.3e",hp) * ", NoPoints=$NoPoints, r_max=" * @sprintf("%.3e",r[nr]) * ";")
+        println("  B-splines with break points at every $(nth)th point, nsL=$nsL, nsS=$nsS, orderL=$orderL, orderS=$orderS, orderGL=$orderGL,  " *
+                "ntL=$ntL, ntS=$ntS] ")
     end
 
-    Grid(rnt, h, hp, NoPoints,  tL, tS, ntL, ntS, orderL, orderS, nsL, nsS, orderGL,   meshType, r, rp, rpor, wr)
+    Grid(rnt, h, hp, NoPoints,  tL, tS, ntL, ntS, orderL, orderS, nsL, nsS, orderGL,   r, wr)
 end
 
 
@@ -954,9 +935,8 @@ function generateGrid(grid::Radial.Grid; boxSize::Union{Nothing,Float64}=nothing
             end 
         end
         ## println(">>> wr = $wr   ... just to see the number of zero weights for the new grid. \n")
-        newGrid = Radial.Grid(grid.rnt, grid.h, grid.hp, grid.NoPoints, grid.tL, grid.tS, grid.ntL, grid.ntS, 
-                                grid.orderL, grid.orderS, grid.nsL, grid.nsS, grid.orderGL, grid.meshType,
-                                grid.r, grid.rp, grid.rpor, wr)
+        newGrid = Radial.Grid(grid.rnt, grid.h, grid.hp, grid.NoPoints, grid.tL, grid.tS, grid.ntL, grid.ntS,
+                                grid.orderL, grid.orderS, grid.nsL, grid.nsS, grid.orderGL, grid.r, wr)
         println(">> Generate a new grid with boxSize = $boxSize a.u. and with all weight grid.wr[j] = 0 " * 
                 "for r_j > boxSizeWithZeroWeights (j > $iR)" *
                 "\n>> Note that the last non-zero weight at R = $R grid point r[end] is always slightly smaller than " *

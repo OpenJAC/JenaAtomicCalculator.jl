@@ -273,19 +273,15 @@ end
 """
 function icRadialIntegral(kind::Int64, L::Int64, k::Float64, a::Radial.Orbital, b::Radial.Orbital, grid::Radial.Grid)
     mtp = min(size(a.P,1), size(b.P,1))
-    if  grid.meshType == Radial.MeshGL()
-        wa = ComplexF64(0)
-        for  m = 2:mtp
-            if      kind == 1   fr = a.P[m]*b.Q[m]
-            elseif  kind == 2   fr = a.Q[m]*b.P[m]
-            else                fr = a.P[m]*b.P[m] + a.Q[m]*b.Q[m]
-            end
-            wa = wa + fr * sphericalHankel1(L, k*grid.r[m]) * grid.wr[m]
+    wa = ComplexF64(0)
+    for  m = 2:mtp
+        if      kind == 1   fr = a.P[m]*b.Q[m]
+        elseif  kind == 2   fr = a.Q[m]*b.P[m]
+        else                fr = a.P[m]*b.P[m] + a.Q[m]*b.Q[m]
         end
-        return wa
-    else
-        error("InternalConversion.icRadialIntegral: only Radial.MeshGL grids are supported (Stage 1).")
+        wa = wa + fr * sphericalHankel1(L, k*grid.r[m]) * grid.wr[m]
     end
+    return wa
 end
 
 

@@ -83,11 +83,6 @@ end
 function  computeScalarProdBoundContHydrogenic(Pepsplp::Array{ComplexF64,1}, epsiloni::Float64, 
                                                 n::Int64, l::Int64, rGrid::Radial.Grid)
     
-    if rGrid.meshType != Radial.MeshGL()
-        println("StrongField module needs a radial grid of meshType Radial.MeshGL() to perform the radial integrals.")
-        return(0.)
-    end
-    
     rgrid = rGrid.r;        orderGL = size(rgrid)[1];      weights = rGrid.wr
     
     #Prepare radial wave functions
@@ -119,11 +114,6 @@ end
 """
 function  pReducedMEHydrogenic(Pepsplp::Array{ComplexF64,1}, lp::Int64, jp::Float64, epsiloni::Float64, 
                                 n::Int64, l::Int64, j::Float64, rGrid::Radial.Grid )
-
-    if rGrid.meshType != Radial.MeshGL()
-        println("StrongField module needs a radial grid of meshType Radial.MeshGL() to perform the radial integrals.")
-        return(0.)
-    end
 
     # Compute the factor in <epsilonp lp jp||p||n l j> = fac * <epsilonp lp||p||n l>
     fac = 0.

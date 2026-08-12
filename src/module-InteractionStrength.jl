@@ -334,7 +334,6 @@ function multipoleTransition(mp::EmMultipole, gauge::EmGauge, omega::Float64, b:
 
     kapa = a.subshell.kappa;   kapb = b.subshell.kappa;    q = omega / Defaults.getDefaults("speed of light: c") 
     mtp  = min(size(a.P, 1), size(b.P, 1))
-    !(grid.meshType == Radial.MeshGL())  &&  error("Only for Radial.MeshGL() implemented so far.")
     #
     if       gauge == Basics.Magnetic
         ChengI = AngularMomentum.ChengI(-kapa, kapb, AngularJ64(mp.L));   if  abs(ChengI) < 1.0e-10  return( 0. )   end
@@ -640,37 +639,33 @@ function XL_Breit_densities(xcList::Array{XLCoefficient,1}, factor::Float64, gri
         return(wx)
     end
     
-    if  grid.meshType == Radial.MeshGL()
-        wa = 0.
-        for  xc  in  xcList  ## [end:end]
-            # Use the minimal extent of any involved orbitals; this need to be improved
-            mtp_ac = min(size(xc.a.P, 1), size(xc.c.P, 1));     mtp_bd = min(size(xc.b.P, 1), size(xc.d.P, 1))
-            omg_ac = factor * abs(xc.a.energy - xc.c.energy);   omg_bd = factor * abs(xc.b.energy - xc.d.energy)
-            for  r = 2:mtp_ac
-                for  s = 2:mtp_bd
-                    if      factor  == 0.    wy = 1.0
-                    elseif  factor  == 1.    wy = 1.05
-                    elseif  xc.kind == 'S'   wy = 1.0
-                                                ## wy = (W(xc.nu, grid.r[r], grid.r[s], omg_ac) + W(xc.nu, grid.r[r], grid.r[s], omg_bd)) / 2.0
-                    elseif  xc.kind == 'T'   wy = (V(xc.nu, grid.r[r], grid.r[s], omg_ac) + V(xc.nu, grid.r[r], grid.r[s], omg_bd)) / 2.0
-                    else    error("stop a")
-                    end
-                    #
-                    wc = xc.coeff * grid.wr[r] * grid.wr[s] 
-                    #
-                    if      s > r   continue
-                    elseif  s == r
-                        wa = wa + wy * wc * (xc.a.P[r] * xc.c.Q[r]) * (grid.r[s]^xc.nu) / (grid.r[r]^(xc.nu+1)) * (xc.b.P[s] * xc.d.Q[s]) / 2.0
-                    else 
-                        wa = wa + wy * wc * (xc.a.P[r] * xc.c.Q[r]) * (grid.r[s]^xc.nu) / (grid.r[r]^(xc.nu+1)) * (xc.b.P[s] * xc.d.Q[s])
-                    end
+    wa = 0.
+    for  xc  in  xcList  ## [end:end]
+        # Use the minimal extent of any involved orbitals; this need to be improved
+        mtp_ac = min(size(xc.a.P, 1), size(xc.c.P, 1));     mtp_bd = min(size(xc.b.P, 1), size(xc.d.P, 1))
+        omg_ac = factor * abs(xc.a.energy - xc.c.energy);   omg_bd = factor * abs(xc.b.energy - xc.d.energy)
+        for  r = 2:mtp_ac
+            for  s = 2:mtp_bd
+                if      factor  == 0.    wy = 1.0
+                elseif  factor  == 1.    wy = 1.05
+                elseif  xc.kind == 'S'   wy = 1.0
+                                            ## wy = (W(xc.nu, grid.r[r], grid.r[s], omg_ac) + W(xc.nu, grid.r[r], grid.r[s], omg_bd)) / 2.0
+                elseif  xc.kind == 'T'   wy = (V(xc.nu, grid.r[r], grid.r[s], omg_ac) + V(xc.nu, grid.r[r], grid.r[s], omg_bd)) / 2.0
+                else    error("stop a")
+                end
+                #
+                wc = xc.coeff * grid.wr[r] * grid.wr[s] 
+                #
+                if      s > r   continue
+                elseif  s == r
+                    wa = wa + wy * wc * (xc.a.P[r] * xc.c.Q[r]) * (grid.r[s]^xc.nu) / (grid.r[r]^(xc.nu+1)) * (xc.b.P[s] * xc.d.Q[s]) / 2.0
+                else 
+                    wa = wa + wy * wc * (xc.a.P[r] * xc.c.Q[r]) * (grid.r[s]^xc.nu) / (grid.r[r]^(xc.nu+1)) * (xc.b.P[s] * xc.d.Q[s])
                 end
             end
         end
-        return( wa )
-    else
-        error("stop b")
     end
+    return( wa )
 end
 
 

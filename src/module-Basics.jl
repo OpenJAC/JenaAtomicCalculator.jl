@@ -91,11 +91,7 @@ function generateSubshellList                                   end
 function generateSpectrumLorentzian                             end
 function hasSubshell                                            end
 function integrate                                              end
-function integrateOnGridNewtonCotes                             end
-function integrateOnGridSimpsonRule                             end
-function integrateOnGridTrapezRule                              end
 function interpolateOnGridGrasp92                               end
-function interpolateOnGridTrapezRule                            end
 function isSimilar                                              end
 function isSymmetric                                            end
 function isStandardSubshellList                                 end

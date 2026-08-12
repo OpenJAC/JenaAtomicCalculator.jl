@@ -80,76 +80,13 @@ function derivative(input::Array{Float64}, i::Int64) :: Float64
     end
     
     for j = i - n:i+n
-        result += JenaAtomicCalculatorDefaults.weights[n + 1, j - i + n + 1] * input[j]
+        result += JenaAtomicCalculator.Defaults.weights[n + 1, j - i + n + 1] * input[j]
     end
     
     return result
 end
 
 
-"""
-`Math.integrateFitTransform(f::Function, mtp::Int64, grid::Radial.Grid)`  
-    ... to integrate a (point-wise) given function over mtp grid points on an exponential grid. The transformation of the 
-        exponential grid is automatically performed such that no modifications to the integrand are necessary; a value::Float64 
-        is returned.
-"""
-function integrateFitTransform(f::Function, mtp::Int64, grid::Radial.Grid)
-    n      = size(JenaAtomicCalculator.Defaults.newtonCotesCoefficients, 1)
-    newtonCotesCoefficientsOnGrid = copy(JenaAtomicCalculator.Defaults.newtonCotesCoefficients) * grid.h
-    i0     = 2
-    gamma  = 0.
-    result = 0.
-
-    while abs(f(i0)) == 0 || f(i0)/f(i0+1) < 0
-        i0 += 1
-    end
-    gamma = log(f(i0)/f(i0+1)) / log(grid.r[i0]/grid.r[i0+1])
-    result = 1/(gamma + 1) * grid.r[i0] * f(i0)
-
-    result += f(i0) * grid.rp[i0] * newtonCotesCoefficientsOnGrid[n]
-    for i = i0+1:mtp
-        result += newtonCotesCoefficientsOnGrid[(i - i0) % (n - 1) + 1] * f(i) * grid.rp[i]
-    end
-
-    if (mtp - i0) % (n - 1) + 1 == 1
-        result -= newtonCotesCoefficientsOnGrid[n] * f(mtp) * grid.rp[mtp]
-    end
-
-    return( result )
-end
-
-
-"""
-`Math.integrateFit(f::Function, mtp::Int64, grid::Radial.Grid)`  
-    ... to integrate a (point-wise) given function over mtp grid points on an exponential grid. This function assumes that the 
-        ingegrand was already transformed to the exponential grid by multiplying it with the derivative of the transformation 
-        function; a value::Float64 is returned.
-"""
-function integrateFit(f::Function, mtp::Int64, grid::Radial.Grid)
-    n      = size(JenaAtomicCalculator.Defaults.newtonCotesCoefficients, 1)
-    newtonCotesCoefficientsOnGrid = copy(JenaAtomicCalculator.Defaults.newtonCotesCoefficients) * grid.h
-
-    i0     = 2
-    gamma  = 0.
-    result = 0.
-
-    while abs(f(i0)) == 0 || f(i0)/f(i0+1) < 0
-        i0 += 1
-    end
-    gamma = log(f(i0)/f(i0+1) * grid.rp[i0+1] / grid.rp[i0]) / log(grid.r[i0]/grid.r[i0+1])
-    result = 1/(gamma + 1) * grid.r[i0] * f(i0) / grid.rp[i0]
-
-    result += f(i0) * newtonCotesCoefficientsOnGrid[n]
-    for i = i0+1:mtp
-        result += newtonCotesCoefficientsOnGrid[(i - i0) % (n - 1) + 1] * f(i)
-    end
-
-    if (mtp - i0) % (n - 1) + 1 == 1
-        result -= newtonCotesCoefficientsOnGrid[n] * f(mtp)
-    end
-
-    return result
-end
 
 
 

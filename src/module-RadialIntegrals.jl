@@ -34,36 +34,14 @@ function GrantIab(a::Radial.Orbital, b::Radial.Orbital, grid::Radial.Grid, poten
     kappa = a.subshell.kappa;                   Zr = potential.Zr
     mtp   = min(size(a.P, 1), size(b.P, 1));    wc = Defaults.getDefaults("speed of light: c")
     
-    # Distinguish the radial integration for different grid definitions
-    if  grid.meshType == Radial.MeshGrasp()
-
-        function f1(i::Int64)   dPb(j) = Math.derivative(b.P, j)
-                                dQb(j) = Math.derivative(b.Q, j)
-                                return( a.Q[i] * dPb(i) - a.P[i] * dQb(i) )                          end
-        function f2(i::Int64)   return( (a.Q[i] * b.P[i] + a.P[i] * b.Q[i]) / grid.r[i] )            end
-        function f3(i::Int64)   return( a.Q[i] * b.Q[i] )                                            end
-        function f4(i::Int64)   return( -Zr[i] * (a.P[i] * b.P[i] + a.Q[i] * b.Q[i]) / grid.r[i] )   end
-
-        I1 = Math.integrateFit(f1, min(size(a.P, 1), size(b.P, 1)), grid) / grid.h
-        I2 = Math.integrateFitTransform(f2, min(size(a.P, 1), size(b.P, 1)), grid)
-        I3 = Math.integrateFitTransform(f3, min(size(a.P, 1), size(b.P, 1)), grid)
-        I4 = Math.integrateFitTransform(f4, min(size(a.P, 1), size(b.P, 1)), grid)
-
-        return( Defaults.INVERSE_FINE_STRUCTURE_CONSTANT * I1 + Defaults.INVERSE_FINE_STRUCTURE_CONSTANT * kappa * I2 -
-                2 * Defaults.INVERSE_FINE_STRUCTURE_CONSTANT^2 * I3 + I4 )
-                
-    elseif  grid.meshType == Radial.MeshGL()
-        wa = 0.
-        for  i = 2:mtp   
-            wa = wa + grid.wr[i] * (  wc * a.Q[i] * (b.Pprime[i] + kappa/grid.r[i] * b.P[i])  
-                                    - wc * a.P[i] * (b.Qprime[i] - kappa/grid.r[i] * b.Q[i]) 
-                                    - 2wc^2 * a.Q[i] * b.Q[i]
-                                    - Zr[i] * (a.P[i] * b.P[i] + a.Q[i] * b.Q[i]) / grid.r[i]  ) 
-        end
-        return( wa )
-    else
-        error("stop a")
+    wa = 0.
+    for  i = 2:mtp   
+        wa = wa + grid.wr[i] * (  wc * a.Q[i] * (b.Pprime[i] + kappa/grid.r[i] * b.P[i])  
+                                - wc * a.P[i] * (b.Qprime[i] - kappa/grid.r[i] * b.Q[i]) 
+                                - 2wc^2 * a.Q[i] * b.Q[i]
+                                - Zr[i] * (a.P[i] * b.P[i] + a.Q[i] * b.Q[i]) / grid.r[i]  ) 
     end
+    return( wa )
 end
 
 """
@@ -80,21 +58,14 @@ function GrantIabDamped(tau::Float64, a::Radial.Orbital, b::Radial.Orbital, grid
     kappa = a.subshell.kappa;                   Zr = potential.Zr
     mtp   = min(size(a.P, 1), size(b.P, 1));    wc = Defaults.getDefaults("speed of light: c")
     
-    # Distinguish the radial integration for different grid definitions
-    if  grid.meshType == Radial.MeshGrasp()
-        error("stop a")
-    elseif  grid.meshType == Radial.MeshGL()
-        wa = 0.
-        for  i = 2:mtp   
-            wa = wa + grid.wr[i] * (  wc * a.Q[i] * (b.Pprime[i] + kappa/grid.r[i] * b.P[i])  
-                                    - wc * a.P[i] * (b.Qprime[i] - kappa/grid.r[i] * b.Q[i]) 
-                                    - 2wc^2 * a.Q[i] * b.Q[i]
-                                    - Zr[i] * (a.P[i] * b.P[i] + a.Q[i] * b.Q[i]) / grid.r[i]  ) * exp(-tau * grid.r[i])
-        end
-        return( wa )
-    else
-        error("stop b")
+    wa = 0.
+    for  i = 2:mtp   
+        wa = wa + grid.wr[i] * (  wc * a.Q[i] * (b.Pprime[i] + kappa/grid.r[i] * b.P[i])  
+                                - wc * a.P[i] * (b.Qprime[i] - kappa/grid.r[i] * b.Q[i]) 
+                                - 2wc^2 * a.Q[i] * b.Q[i]
+                                - Zr[i] * (a.P[i] * b.P[i] + a.Q[i] * b.Q[i]) / grid.r[i]  ) * exp(-tau * grid.r[i])
     end
+    return( wa )
 end
 
 """
@@ -105,17 +76,9 @@ end
 function GrantILminus(L::Int64, q::Float64, a::Radial.Orbital, b::Radial.Orbital, grid::Radial.Grid)
     mtp = min(size(a.P, 1), size(b.P, 1))
     
-    # Distinguish the radial integration for different grid definitions
-    if  grid.meshType == Radial.MeshGrasp()
-        function f(i :: Int64)    return( (a.P[i] * b.Q[i] - a.Q[i] * b.P[i]) * GSL.sf_bessel_jl(L, q * grid.r[i]) )       end
-        return( Math.integrateFitTransform(f, mtp, grid) )
-    elseif  grid.meshType == Radial.MeshGL()
-        wa = 0.
-        for  i = 2:mtp   wa = wa + (a.P[i] * b.Q[i] - a.Q[i] * b.P[i]) * GSL.sf_bessel_jl(L, q * grid.r[i]) * grid.wr[i]   end
-        return( wa )
-    else
-        error("stop a")
-    end
+    wa = 0.
+    for  i = 2:mtp   wa = wa + (a.P[i] * b.Q[i] - a.Q[i] * b.P[i]) * GSL.sf_bessel_jl(L, q * grid.r[i]) * grid.wr[i]   end
+    return( wa )
 end
 
 """
@@ -126,17 +89,9 @@ end
 function GrantILplus(L::Int64, q::Float64, a::Radial.Orbital, b::Radial.Orbital, grid::Radial.Grid)
     mtp = min(size(a.P, 1), size(b.P, 1))
     
-    # Distinguish the radial integration for different grid definitions
-    if  grid.meshType == Radial.MeshGrasp()
-        function f(i :: Int64)    return( (a.P[i] * b.Q[i] + a.Q[i] * b.P[i]) * GSL.sf_bessel_jl(L, q * grid.r[i]) )       end
-        return( Math.integrateFitTransform(f, mtp, grid) )
-    elseif  grid.meshType == Radial.MeshGL()
-        wa = 0.
-        for  i = 2:mtp   wa = wa + (a.P[i] * b.Q[i] + a.Q[i] * b.P[i]) * GSL.sf_bessel_jl(L, q * grid.r[i]) * grid.wr[i]   end
-        return( wa )
-    else
-        error("stop a")
-    end
+    wa = 0.
+    for  i = 2:mtp   wa = wa + (a.P[i] * b.Q[i] + a.Q[i] * b.P[i]) * GSL.sf_bessel_jl(L, q * grid.r[i]) * grid.wr[i]   end
+    return( wa )
 end
 
 """
@@ -147,17 +102,9 @@ end
 function GrantIL0(L::Int64, q::Float64, a::Radial.Orbital, b::Radial.Orbital, grid::Radial.Grid)
     mtp = min(size(a.P, 1), size(b.P, 1))
     
-    # Distinguish the radial integration for different grid definitions
-    if  grid.meshType == Radial.MeshGrasp()
-        function f(i :: Int64)    return( (a.P[i] * b.Q[i]) * GSL.sf_bessel_jl(L, q * grid.r[i]) )       end
-        return( Math.integrateFitTransform(f, mtp, grid) )
-    elseif  grid.meshType == Radial.MeshGL()
-        wa = 0.
-        for  i = 2:mtp   wa = wa + (a.P[i] * b.Q[i]) * GSL.sf_bessel_jl(L, q * grid.r[i]) * grid.wr[i]   end
-        return( wa )
-    else
-        error("stop a")
-    end
+    wa = 0.
+    for  i = 2:mtp   wa = wa + (a.P[i] * b.Q[i]) * GSL.sf_bessel_jl(L, q * grid.r[i]) * grid.wr[i]   end
+    return( wa )
 end
 
 """
@@ -168,17 +115,9 @@ end
 function GrantJL(L::Int64, q::Float64, a::Radial.Orbital, b::Radial.Orbital, grid::Radial.Grid)
     mtp = min(size(a.P, 1), size(b.P, 1))
     
-    # Distinguish the radial integration for different grid definitions
-    if  grid.meshType == Radial.MeshGrasp()
-        function f(i :: Int64)    return( (a.P[i] * b.P[i] + a.Q[i] * b.Q[i]) * GSL.sf_bessel_jl(L, q * grid.r[i]) )       end
-        return( Math.integrateFitTransform(f, mtp, grid) )
-    elseif  grid.meshType == Radial.MeshGL()
-        wa = 0.
-        for  i = 2:mtp   wa = wa + (a.P[i] * b.P[i] + a.Q[i] * b.Q[i]) * GSL.sf_bessel_jl(L, q * grid.r[i]) * grid.wr[i]   end
-        return( wa )
-    else
-        error("stop a")
-    end
+    wa = 0.
+    for  i = 2:mtp   wa = wa + (a.P[i] * b.P[i] + a.Q[i] * b.Q[i]) * GSL.sf_bessel_jl(L, q * grid.r[i]) * grid.wr[i]   end
+    return( wa )
 end
 
 
@@ -189,18 +128,11 @@ end
 function isotope_boson(a::Orbital, b::Orbital, potential::Array{Float64,1}, grid::Radial.Grid)
     mtp = min(size(a.P, 1), size(b.P, 1), size(potential, 1));   
     
-    # Distinguish the radial integration for different grid definitions
-    if  grid.meshType == Radial.MeshGrasp()
-        error("stop a")
-    elseif  grid.meshType == Radial.MeshGL()
-        wa = 0.
-        for  i = 2:mtp   
-            wa = wa + (a.P[i] * b.P[i]  +  a.Q[i] * b.Q[i]) * potential[i] * grid.wr[i]
-        end
-        return( wa )
-    else
-        error("stop b")
+    wa = 0.
+    for  i = 2:mtp   
+        wa = wa + (a.P[i] * b.P[i]  +  a.Q[i] * b.Q[i]) * potential[i] * grid.wr[i]
     end
+    return( wa )
 end
 
 """
@@ -210,18 +142,11 @@ end
 function isotope_field(a::Orbital, b::Orbital, deltaPotential::Array{Float64,1}, grid::Radial.Grid)
     mtp = min(size(a.P, 1), size(b.P, 1), size(deltaPotential, 1));   
     
-    # Distinguish the radial integration for different grid definitions
-    if  grid.meshType == Radial.MeshGrasp()
-        error("stop a")
-    elseif  grid.meshType == Radial.MeshGL()
-        wa = 0.
-        for  i = 2:mtp   
-            wa = wa - (a.P[i] * b.P[i]  +  a.Q[i] * b.Q[i]) * deltaPotential[i] / grid.r[i] * grid.wr[i]
-        end
-        return( wa )
-    else
-        error("stop b")
+    wa = 0.
+    for  i = 2:mtp   
+        wa = wa - (a.P[i] * b.P[i]  +  a.Q[i] * b.Q[i]) * deltaPotential[i] / grid.r[i] * grid.wr[i]
     end
+    return( wa )
 end
 
 """
@@ -232,22 +157,15 @@ function isotope_nms(a::Orbital, b::Orbital, Z::Float64, grid::Radial.Grid)
     mtp = min(size(a.P, 1), size(b.P, 1));   lb = Basics.subshell_l(b.subshell);    kb = b.subshell.kappa
     alphaZ = Defaults.getDefaults("alpha") * Z
 
-    # Distinguish the radial integration for different grid definitions
-    if  grid.meshType == Radial.MeshGrasp()
-        error("stop a")
-    elseif  grid.meshType == Radial.MeshGL()
-        wa = 0.
-        for  i = 2:mtp
-            wb = (a.Pprime[i] * b.Pprime[i]  +  a.Qprime[i] * b.Qprime[i])  +
-                    (lb*(lb+1) * a.P[i] * b.P[i]  +  kb*(kb-1) * a.Q[i] * b.Q[i]) / (grid.r[i]^2)
-            wc = - 2 * alphaZ * (a.Q[i] * b.Pprime[i]  +  b.Q[i] * a.Pprime[i]) / grid.r[i]
-            wd = - alphaZ * (b.subshell.kappa - 1) * (a.Q[i] * b.P[i]  +  b.Q[i] * a.P[i]) / (grid.r[i]^2)
-            wa = wa + (wb + wc + wd) * grid.wr[i]   
-        end
-        return( wa / 2. )
-    else
-        error("stop b")
+    wa = 0.
+    for  i = 2:mtp
+        wb = (a.Pprime[i] * b.Pprime[i]  +  a.Qprime[i] * b.Qprime[i])  +
+                (lb*(lb+1) * a.P[i] * b.P[i]  +  kb*(kb-1) * a.Q[i] * b.Q[i]) / (grid.r[i]^2)
+        wc = - 2 * alphaZ * (a.Q[i] * b.Pprime[i]  +  b.Q[i] * a.Pprime[i]) / grid.r[i]
+        wd = - alphaZ * (b.subshell.kappa - 1) * (a.Q[i] * b.P[i]  +  b.Q[i] * a.P[i]) / (grid.r[i]^2)
+        wa = wa + (wb + wc + wd) * grid.wr[i]   
     end
+    return( wa / 2. )
 end
 
 """
@@ -259,20 +177,13 @@ function isotope_smsB(a::Orbital, c::Orbital, Z::Float64, grid::Radial.Grid)
     kapa = a.subshell.kappa;   mkapa = -kapa;    kapc = c.subshell.kappa;   mkapc = -kapc 
     
     
-    # Distinguish the radial integration for different grid definitions
-    if  grid.meshType == Radial.MeshGrasp()
-        error("stop a")
-    elseif  grid.meshType == Radial.MeshGL()
-        wa = 0.
-        for  i = 2:mtp   
-            wb = (- a.Q[i] * c.P[i] * AngularMomentum.sigma_reduced_me_ma(mkapa, kapc)  +
-                    c.Q[i] * a.P[i] * AngularMomentum.sigma_reduced_me_mb(kapa,  mkapc)  )
-            wa = wa - alphaZ / grid.r[i] * wb * grid.wr[i]   
-        end
-        return( wa )
-    else
-        error("stop b")
+    wa = 0.
+    for  i = 2:mtp   
+        wb = (- a.Q[i] * c.P[i] * AngularMomentum.sigma_reduced_me_ma(mkapa, kapc)  +
+                c.Q[i] * a.P[i] * AngularMomentum.sigma_reduced_me_mb(kapa,  mkapc)  )
+        wa = wa - alphaZ / grid.r[i] * wb * grid.wr[i]   
     end
+    return( wa )
 end
 
 """
@@ -282,18 +193,11 @@ end
 function isotope_smsC(a::Orbital, c::Orbital, Z::Float64, grid::Radial.Grid)
     mtp = min(size(a.P, 1), size(c.P, 1));   alphaZ = Defaults.getDefaults("alpha") * Z
     
-    # Distinguish the radial integration for different grid definitions
-    if  grid.meshType == Radial.MeshGrasp()
-        error("stop a")
-    elseif  grid.meshType == Radial.MeshGL()
-        wa = 0.
-        for  i = 2:mtp   
-            wa = wa - alphaZ / grid.r[i] * (a.Q[i] * c.P[i] - c.Q[i] * a.P[i]) * grid.wr[i]   
-        end
-        return( wa )
-    else
-        error("stop b")
+    wa = 0.
+    for  i = 2:mtp   
+        wa = wa - alphaZ / grid.r[i] * (a.Q[i] * c.P[i] - c.Q[i] * a.P[i]) * grid.wr[i]   
     end
+    return( wa )
 end
 
 """
@@ -306,24 +210,12 @@ end
 function overlap(orbital1::Radial.Orbital, orbital2::Radial.Orbital, grid::Radial.Grid)
     mtp = min(size(orbital1.P, 1), size(orbital2.P, 1))
     
-    # Distinguish the radial integration for different grid definitions
-    if  grid.meshType == Radial.MeshGrasp()
-
-        function f(i :: Int64)
-            return( orbital1.P[i] * orbital2.P[i] + orbital1.Q[i] * orbital2.Q[i] )
-        end
-
-        return( Math.integrateFitTransform(f, mtp, grid) )
-    elseif  grid.meshType == Radial.MeshGL()
-        wa = 0.
-        for  i = 1:grid.NoPoints 
-            if i > mtp   break   end
-            wa = wa + ( orbital1.P[i] * orbital2.P[i] + orbital1.Q[i] * orbital2.Q[i] ) * grid.wr[i]   
-        end
-        return( wa )
-    else
-        error("stop a")
+    wa = 0.
+    for  i = 1:grid.NoPoints 
+        if i > mtp   break   end
+        wa = wa + ( orbital1.P[i] * orbital2.P[i] + orbital1.Q[i] * orbital2.Q[i] ) * grid.wr[i]   
     end
+    return( wa )
 end
 
 """
@@ -334,24 +226,12 @@ function overlap(p1List::Array{Float64,1}, p2List::Array{Float64,1}, grid::Radia
     
     mtp = min( length(p1List), length(p2List))
     
-    # Distinguish the radial integration for different grid definitions
-    if  grid.meshType == Radial.MeshGrasp()
-
-        function f(i :: Int64)
-            return( p1List[i] * p2List[i] )
-        end
-
-        return( Math.integrateTransform(f, 1, mtp, grid) )
-    elseif  grid.meshType == Radial.MeshGL()
-        wa = 0.
-        for  i = 1:grid.NoPoints 
-            if i > mtp   break   end
-            wa = wa + p1List[i] * p2List[i] * grid.wr[i]   
-        end
-        return( wa )
-    else
-        error("stop b")
+    wa = 0.
+    for  i = 1:grid.NoPoints 
+        if i > mtp   break   end
+        wa = wa + p1List[i] * p2List[i] * grid.wr[i]   
     end
+    return( wa )
 end
 
 
@@ -362,14 +242,9 @@ end
 """
 function qedDampedOverlap(lambda::Float64, a::Radial.Orbital, b::Radial.Orbital, grid::Radial.Grid)
     mtp = min(size(a.P, 1), size(b.P, 1))
-    # Distinguish the radial integration for different grid definitions
-    if  grid.meshType == Radial.MeshGL()
-        wa = 0.
-        for  i = 2:mtp   wb = Base.MathConstants.e^(- grid.r[i]/lambda);     wa = wa + (a.P[i]*wb*b.P[i] + a.Q[i]*wb*b.Q[i]) * grid.wr[i]   end
-        return( wa )
-    else
-        error("stop a")
-    end
+    wa = 0.
+    for  i = 2:mtp   wb = Base.MathConstants.e^(- grid.r[i]/lambda);     wa = wa + (a.P[i]*wb*b.P[i] + a.Q[i]*wb*b.Q[i]) * grid.wr[i]   end
+    return( wa )
 end
 
 """
@@ -380,15 +255,10 @@ end
 function qedLowFrequency(a::Radial.Orbital, b::Radial.Orbital, nm::Nuclear.Model, grid::Radial.Grid, qgrid::Radial.GridGL)
     alpha = Defaults.getDefaults("alpha");    BZ = 0.074 + 0.35 * nm.Z * alpha
     mtp = min(size(a.P, 1), size(b.P, 1))
-    # Distinguish the radial integration for different grid definitions
-    if  grid.meshType == Radial.MeshGL()
-        wa = 0.
-        for  i = 1:mtp   wb = Base.MathConstants.e^(-nm.Z * grid.r[i]) ;     wa = wa + (a.P[i]*wb*b.P[i] + a.Q[i]*wb*b.Q[i]) * grid.wr[i]   end
-        wa = -BZ * nm.Z^4 * alpha^3 * wa
-        else
-        error("stop a")
-    end
-    
+    wa = 0.
+    for  i = 1:mtp   wb = Base.MathConstants.e^(-nm.Z * grid.r[i]) ;     wa = wa + (a.P[i]*wb*b.P[i] + a.Q[i]*wb*b.Q[i]) * grid.wr[i]   end
+    wa = -BZ * nm.Z^4 * alpha^3 * wa
+
     println("QED single-electron strength <$(a.subshell)| h^(SE, low-frequency) | $(b.subshell)> = $wa ")
     return( wa )
 end
@@ -412,22 +282,17 @@ function qedUehling(a::Radial.Orbital, b::Radial.Orbital, nm::Nuclear.Model, gri
     end
     
     mtp = min(size(a.P, 1), size(b.P, 1))
-    # Distinguish the radial integration for different grid definitions
-    if  grid.meshType == Radial.MeshGL()
-        wa = 0.
-        for  i = 2:mtp   
-            wb = 0.;
-            for  ip = 2:mtp 
-                rho_rp
-                wb  = wb + tIntegral(grid.r[i],grid.r[ip]) * (4pi) * grid.r[ip] * rho_rp * grid.wr[ip]  
-            end
-            wa = wa + (a.P[i]*wb*b.P[i] + a.Q[i]*wb*b.Q[i]) * grid.wr[i]  
-            ## x@show wa
+    wa = 0.
+    for  i = 2:mtp   
+        wb = 0.;
+        for  ip = 2:mtp 
+            rho_rp
+            wb  = wb + tIntegral(grid.r[i],grid.r[ip]) * (4pi) * grid.r[ip] * rho_rp * grid.wr[ip]  
         end
-        wa = - 2. * Defaults.getDefaults("alpha")^2 / (3pi) * wa
-    else
-        error("stop a")
+        wa = wa + (a.P[i]*wb*b.P[i] + a.Q[i]*wb*b.Q[i]) * grid.wr[i]  
+        ## x@show wa
     end
+    wa = - 2. * Defaults.getDefaults("alpha")^2 / (3pi) * wa
     
     println("QED single-electron strength <$(a.subshell)| h^(Uehling) | $(b.subshell)> = $wa ")
     return( wa )
@@ -451,18 +316,13 @@ function qedUehlingSimple(a::Radial.Orbital, b::Radial.Orbital, pot::Radial.Pote
     end
 
     mtp = min(size(a.P, 1), size(b.P, 1))
-    # Distinguish the radial integration for different grid definitions
-    if  grid.meshType == Radial.MeshGL()
-        wa = 0.
-        for  i = 2:mtp   
-            wb = tIntegral(grid.r[i]) 
-            wc = (-pot.Zr[i] / grid.r[i])
-            wa = wa + (a.P[i]*wb*wc*b.P[i] + a.Q[i]*wb*wc*b.Q[i]) * grid.wr[i]   
-        end
-        wa = 2. * Defaults.getDefaults("alpha") / (3pi) * wa
-    else
-        error("stop a")
+    wa = 0.
+    for  i = 2:mtp   
+        wb = tIntegral(grid.r[i]) 
+        wc = (-pot.Zr[i] / grid.r[i])
+        wa = wa + (a.P[i]*wb*wc*b.P[i] + a.Q[i]*wb*wc*b.Q[i]) * grid.wr[i]   
     end
+    wa = 2. * Defaults.getDefaults("alpha") / (3pi) * wa
     
     println("QED single-electron strength <$(a.subshell)| h^(simplified Uehling) | $(b.subshell)> = $wa ")
     return( wa )
@@ -500,24 +360,19 @@ function qedElectricFormFactor(a::Radial.Orbital, b::Radial.Orbital, nm::Nuclear
         A0Z = 1.071 - 1.976*x^2 - 2.128*x^3 + 0.169*x^4
     end
     mtp = min(size(a.P, 1), size(b.P, 1))
-    # Distinguish the radial integration for different grid definitions
-    if  grid.meshType == Radial.MeshGL()
-        wa = 0.
-        for  i = 2:mtp
-            r  = grid.r[i]
-            # NOTE: the small-distance cutoff denominator uses alpha^3 (Rci-Q's stated exponent), not FG's
-            # own alpha^2 -- with alpha^2 the damping increasingly (and spuriously) suppresses this term at
-            # the Z ~ 70-90 range where the self-energy integral's dominant r ~ alpha; alpha^3 keeps the
-            # damping negligible there, matching the term's expected fast growth with Z.
-            AZ = A0Z * r / (r + 0.07*nm.Z^2*alpha^3)
-            # NOTE: FG's eq. (10) reads  Phi_f(r) = -A(Z,r)(alpha/pi) Phi(r) integral(),  with Phi(r) = -Z/r
-            # (the same convention as Phi(r) in qedUehlingSimple's wc); the two minus signs cancel, giving
-            # a net POSITIVE prefactor on (Z/r) -- this is the dominant, positive self-energy contribution.
-            wb = AZ * alpha/pi * (nm.Z/r) * tIntegral(r, alpha)
-            wa = wa + (a.P[i]*wb*b.P[i] + a.Q[i]*wb*b.Q[i]) * grid.wr[i]
-        end
-    else
-        error("stop a")
+    wa = 0.
+    for  i = 2:mtp
+        r  = grid.r[i]
+        # NOTE: the small-distance cutoff denominator uses alpha^3 (Rci-Q's stated exponent), not FG's
+        # own alpha^2 -- with alpha^2 the damping increasingly (and spuriously) suppresses this term at
+        # the Z ~ 70-90 range where the self-energy integral's dominant r ~ alpha; alpha^3 keeps the
+        # damping negligible there, matching the term's expected fast growth with Z.
+        AZ = A0Z * r / (r + 0.07*nm.Z^2*alpha^3)
+        # NOTE: FG's eq. (10) reads  Phi_f(r) = -A(Z,r)(alpha/pi) Phi(r) integral(),  with Phi(r) = -Z/r
+        # (the same convention as Phi(r) in qedUehlingSimple's wc); the two minus signs cancel, giving
+        # a net POSITIVE prefactor on (Z/r) -- this is the dominant, positive self-energy contribution.
+        wb = AZ * alpha/pi * (nm.Z/r) * tIntegral(r, alpha)
+        wa = wa + (a.P[i]*wb*b.P[i] + a.Q[i]*wb*b.Q[i]) * grid.wr[i]
     end
 
     println("QED single-electron strength <$(a.subshell)| h^(SE, electric form factor) | $(b.subshell)> = $wa ")
@@ -547,17 +402,12 @@ function qedMagneticFormFactor(a::Radial.Orbital, b::Radial.Orbital, nm::Nuclear
 
     alpha = Defaults.getDefaults("alpha")
     mtp = min(size(a.P, 1), size(b.P, 1))
-    # Distinguish the radial integration for different grid definitions
-    if  grid.meshType == Radial.MeshGL()
-        wa = 0.
-        for  i = 2:mtp
-            r        = grid.r[i]
-            wi1, wi2 = tIntegrals(r, alpha)
-            wb       = alpha^2 * nm.Z / (4pi * r^2) * ( wi2 + (2*r/alpha)*wi1 - 1. )
-            wa       = wa + (a.P[i]*wb*b.Q[i] + a.Q[i]*wb*b.P[i]) * grid.wr[i]
-        end
-    else
-        error("stop a")
+    wa = 0.
+    for  i = 2:mtp
+        r        = grid.r[i]
+        wi1, wi2 = tIntegrals(r, alpha)
+        wb       = alpha^2 * nm.Z / (4pi * r^2) * ( wi2 + (2*r/alpha)*wi1 - 1. )
+        wa       = wa + (a.P[i]*wb*b.Q[i] + a.Q[i]*wb*b.P[i]) * grid.wr[i]
     end
 
     println("QED single-electron strength <$(a.subshell)| h^(SE, magnetic form factor) | $(b.subshell)> = $wa ")
@@ -577,17 +427,12 @@ function qedWichmannKrollSimple(a::Radial.Orbital, b::Radial.Orbital, nm::Nuclea
                                 grid::Radial.Grid, qgrid::Radial.GridGL)
     alpha = Defaults.getDefaults("alpha");    rc = alpha
     mtp = min(size(a.P, 1), size(b.P, 1))
-    # Distinguish the radial integration for different grid definitions
-    if  grid.meshType == Radial.MeshGL()
-        wa = 0.
-        for  i = 2:mtp
-            r  = grid.r[i]
-            wc = (-pot.Zr[i] / r)
-            wb = - (2*alpha)/(3pi) * wc * 0.092*nm.Z^2*alpha^2 / (1. + (1.62*r/rc)^4)
-            wa = wa + (a.P[i]*wb*b.P[i] + a.Q[i]*wb*b.Q[i]) * grid.wr[i]
-        end
-    else
-        error("stop a")
+    wa = 0.
+    for  i = 2:mtp
+        r  = grid.r[i]
+        wc = (-pot.Zr[i] / r)
+        wb = - (2*alpha)/(3pi) * wc * 0.092*nm.Z^2*alpha^2 / (1. + (1.62*r/rc)^4)
+        wa = wa + (a.P[i]*wb*b.P[i] + a.Q[i]*wb*b.Q[i]) * grid.wr[i]
     end
 
     println("QED single-electron strength <$(a.subshell)| h^(Wichmann-Kroll) | $(b.subshell)> = $wa ")
@@ -604,25 +449,17 @@ end
 function rkDiagonal(k::Int64, a::Radial.Orbital, b::Radial.Orbital, grid::Radial.Grid)
     mtp = min(size(a.P, 1), size(b.P, 1))
 
-    # Distinguish the radial integration for different grid definitions
-    if  grid.meshType == Radial.MeshGrasp()
-        function f(i :: Int64)    return( (a.P[i] * b.P[i] + a.Q[i] * b.Q[i]) * (grid.r[i]^k) )    end
-        return( Math.integrateFitTransform(f, mtp, grid) )
-    elseif  grid.meshType == Radial.MeshGL()
-        wa = 0.
-        # Don't allow too small r-values -- graduated with how negative k is, since r^k for very negative k
-        # blows up catastrophically at the innermost grid points, amplifying any tiny residual imprecision
-        # in the tabulated P/Q there (see project_zeeman_hfs_bugs.md, 30-Jul-2026, for the kappa<=-3 case
-        # this matters most for; k<=-4 is not fully resolved even at m0=18 for kappa<=-3 orbitals -- a known,
-        # documented residual, not chased further this session).
-        if      k > -3   m0 = 2
-        elseif  k == -3  m0 = 10
-        else             m0 = 18   end
-        for  i = m0:mtp   wa = wa + (a.P[i] * b.P[i] + a.Q[i] * b.Q[i]) * (grid.r[i]^k) * grid.wr[i]   end
-        return( wa )
-    else
-        error("stop a")
-    end
+    wa = 0.
+    # Don't allow too small r-values -- graduated with how negative k is, since r^k for very negative k
+    # blows up catastrophically at the innermost grid points, amplifying any tiny residual imprecision
+    # in the tabulated P/Q there (see project_zeeman_hfs_bugs.md, 30-Jul-2026, for the kappa<=-3 case
+    # this matters most for; k<=-4 is not fully resolved even at m0=18 for kappa<=-3 orbitals -- a known,
+    # documented residual, not chased further this session).
+    if      k > -3   m0 = 2
+    elseif  k == -3  m0 = 10
+    else             m0 = 18   end
+    for  i = m0:mtp   wa = wa + (a.P[i] * b.P[i] + a.Q[i] * b.Q[i]) * (grid.r[i]^k) * grid.wr[i]   end
+    return( wa )
 end
 
 """
@@ -632,21 +469,9 @@ end
 function rkDiagonal(k::Int64, p1List::Array{Float64,1}, p2List::Array{Float64,1}, grid::Radial.Grid)
     mtp = min( length(p1List), length(p2List))
     
-    # Distinguish the radial integration for different grid definitions
-    if  grid.meshType == Radial.MeshGrasp()
-
-        function f(i :: Int64)
-            return( p1List[i] * p2List[i] * (grid.r[i]^k) )
-        end
-
-        return( Math.integrateTransform(f, 2, mtp, grid) )
-    elseif  grid.meshType == Radial.MeshGL()
-        wa = 0.
-        for  i = 2:mtp   wa = wa + p1List[i] * p2List[i] * (grid.r[i]^k) * grid.wr[i]   end
-        return( wa )
-    else
-        error("stop a")
-    end
+    wa = 0.
+    for  i = 2:mtp   wa = wa + p1List[i] * p2List[i] * (grid.r[i]^k) * grid.wr[i]   end
+    return( wa )
 end
 
 """
@@ -657,29 +482,21 @@ end
 function rkNonDiagonal(k::Int64, a::Radial.Orbital, b::Radial.Orbital, grid::Radial.Grid)
     mtp = min(size(a.P, 1), size(b.P, 1))
 
-    # Distinguish the radial integration for different grid definitions
-    if  grid.meshType == Radial.MeshGrasp()
-        function f(i :: Int64)    return( (a.P[i] * b.Q[i] + a.Q[i] * b.P[i]) * (grid.r[i]^k) )    end
-        return( Math.integrateFitTransform(f, mtp, grid) )
-    elseif  grid.meshType == Radial.MeshGL()
-        wa = 0.
-        # Don't allow too small r-values -- graduated with how negative k is (this function previously had
-        # no such guard at all, unlike rkDiagonal). k<=-4 (the Hfs M3/octupole case) remains only partially
-        # resolved even at this conservative m0: kappa<=-3 orbitals (e.g. d5/2, f7/2, ...) retain a genuine,
-        # slowly-decaying near-origin residual traced (30-Jul-2026) to the exact l+1+kappa=0 cancellation of
-        # Q(r)'s leading power for kappa=-(l+1) -- ruled out as a tabulation artifact (an equivalent bVector-
-        # space bilinear-form evaluation shows the identical residual) and as an SCF-convergence artifact
-        # (tightening accuracyScf by 6 orders of magnitude did not change it); most likely an intrinsic
-        # precision limitation of the single-diagonalization step for this delicate, cancellation-exposed
-        # quantity. A documented, NOT-fully-resolved follow-up item -- see project_zeeman_hfs_bugs.md.
-        if      k > -3   m0 = 2
-        elseif  k == -3  m0 = 10
-        else             m0 = 70   end
-        for  i = m0:mtp   wa = wa + (a.P[i] * b.Q[i] + a.Q[i] * b.P[i]) * (grid.r[i]^k) * grid.wr[i]   end
-        return( wa )
-    else
-        error("stop a")
-    end
+    wa = 0.
+    # Don't allow too small r-values -- graduated with how negative k is (this function previously had
+    # no such guard at all, unlike rkDiagonal). k<=-4 (the Hfs M3/octupole case) remains only partially
+    # resolved even at this conservative m0: kappa<=-3 orbitals (e.g. d5/2, f7/2, ...) retain a genuine,
+    # slowly-decaying near-origin residual traced (30-Jul-2026) to the exact l+1+kappa=0 cancellation of
+    # Q(r)'s leading power for kappa=-(l+1) -- ruled out as a tabulation artifact (an equivalent bVector-
+    # space bilinear-form evaluation shows the identical residual) and as an SCF-convergence artifact
+    # (tightening accuracyScf by 6 orders of magnitude did not change it); most likely an intrinsic
+    # precision limitation of the single-diagonalization step for this delicate, cancellation-exposed
+    # quantity. A documented, NOT-fully-resolved follow-up item -- see project_zeeman_hfs_bugs.md.
+    if      k > -3   m0 = 2
+    elseif  k == -3  m0 = 10
+    else             m0 = 70   end
+    for  i = m0:mtp   wa = wa + (a.P[i] * b.Q[i] + a.Q[i] * b.P[i]) * (grid.r[i]^k) * grid.wr[i]   end
+    return( wa )
 end
 
 """
@@ -700,22 +517,15 @@ function SlaterRkComponent_2dim(k::Int64, Ba::Array{Float64,1}, Bb::Array{Float6
         end
     end
 
-    # Distinguish the radial integration for different grid definitions
-    if  grid.meshType == Radial.MeshGrasp()
-        error("stop a")
-    elseif  grid.meshType == Radial.MeshGL()
-        mtp_ac = min(size(Ba, 1), size(Bc, 1));    mtp_bd = min(size(Bb, 1), size(Bd, 1))
-        wac = zeros(mtp_ac);   wbd = zeros(mtp_bd)
-        for  r = 2:mtp_ac   wac[r] = (Ba[r] * Bc[r]) * grid.wr[r]  end
-        for  s = 2:mtp_bd   wbd[s] = (Bb[s] * Bd[s]) * grid.wr[s]  end
-        wa = 0.
-        for  r = 2:mtp_ac
-            for  s = 2:mtp_bd   wa = wa + wac[r] * ul(grid.r[r], grid.r[s]) * wbd[s]   end
-        end
-        return( wa )
-    else
-        error("stop b")
+    mtp_ac = min(size(Ba, 1), size(Bc, 1));    mtp_bd = min(size(Bb, 1), size(Bd, 1))
+    wac = zeros(mtp_ac);   wbd = zeros(mtp_bd)
+    for  r = 2:mtp_ac   wac[r] = (Ba[r] * Bc[r]) * grid.wr[r]  end
+    for  s = 2:mtp_bd   wbd[s] = (Bb[s] * Bd[s]) * grid.wr[s]  end
+    wa = 0.
+    for  r = 2:mtp_ac
+        for  s = 2:mtp_bd   wa = wa + wac[r] * ul(grid.r[r], grid.r[s]) * wbd[s]   end
     end
+    return( wa )
 end
 
 """
@@ -728,51 +538,29 @@ end
     value::Float64 is returned.
 """
 function SlaterRk_2dim(k::Int64, a::Radial.Orbital, b::Radial.Orbital, c::Radial.Orbital, d::Radial.Orbital, grid::Radial.Grid)
-    function ul(r :: Float64, s :: Float64) :: Float64
-        if     r <= s    return( r^k/s^(k+1) )
-        elseif r > s     return( s^k/r^(k+1) )
+    mtp_ac = min(size(a.P, 1), size(c.P, 1));    mtp_bd = min(size(b.P, 1), size(d.P, 1))
+    wac = zeros(mtp_ac);   wbd = zeros(mtp_bd)
+    for  r = 2:mtp_ac   wac[r] = (a.P[r] * c.P[r] + a.Q[r] * c.Q[r]) * grid.wr[r]  end
+    for  s = 2:mtp_bd   wbd[s] = (b.P[s] * d.P[s] + b.Q[s] * d.Q[s]) * grid.wr[s]  end
+    ## The two powers r^k and r^(k+1) depend only on the grid point, not on the pair (r,s), yet the
+    ## closure ul() above recomputed both inside the N^2 loop -- N ~ 1000, so ~10^6 calls to ^ per
+    ## Slater integral where 2N suffice.  Hoisting them costs O(N) and leaves the arithmetic of each
+    ## term untouched: the same two numbers are formed and the same division is taken, so the result is
+    ## BITWISE identical and no approved reference can move.  Measured 4.7x / 6.5x / 9.4x on three real
+    ## cases; SlaterRk_2dim and its ul() closure were ~16 % of an Auger rate computation.
+    ## ul() itself was kept at the time because the MeshGrasp branch above still called it; that branch is
+    ## gone (12-Aug-2026) and the closure with it, since nothing in this function called it any more.
+    mtp = max(mtp_ac, mtp_bd)
+    rPk = zeros(mtp);   rPk1 = zeros(mtp)
+    for  i = 2:mtp      rPk[i] = grid.r[i]^k;    rPk1[i] = grid.r[i]^(k+1)    end
+    wa = 0.
+    for  r = 2:mtp_ac
+        for  s = 2:mtp_bd
+            uls = grid.r[r] <= grid.r[s]  ?  rPk[r] / rPk1[s]  :  rPk[s] / rPk1[r]
+            wa  = wa + wac[r] * uls * wbd[s]
         end
     end
-
-    
-    # Distinguish the radial integration for different grid definitions
-    if  grid.meshType == Radial.MeshGrasp()
-        function fs(r :: Int64, s :: Int64) :: Float64
-            return( ul(grid.r[r], grid.r[s]) * ( b.P[s] * d.P[s] + b.Q[s] * d.Q[s] ) )
-        end
-
-        function f(r :: Int64) :: Float64
-        function ff(i :: Int64) :: Float64    return( fs(r, i) )    end
-        return( (a.P[r] * c.P[r] + a.Q[r] * c.Q[r] ) * Math.integrateFitTransform(ff, min(size(b.P, 1), size(d.P, 1)), grid) )
-        end
-
-        return Math.integrateFitTransform(f, min(size(a.P, 1), size(c.P, 1)), grid)
-    elseif  grid.meshType == Radial.MeshGL()
-        mtp_ac = min(size(a.P, 1), size(c.P, 1));    mtp_bd = min(size(b.P, 1), size(d.P, 1))
-        wac = zeros(mtp_ac);   wbd = zeros(mtp_bd)
-        for  r = 2:mtp_ac   wac[r] = (a.P[r] * c.P[r] + a.Q[r] * c.Q[r]) * grid.wr[r]  end
-        for  s = 2:mtp_bd   wbd[s] = (b.P[s] * d.P[s] + b.Q[s] * d.Q[s]) * grid.wr[s]  end
-        ## The two powers r^k and r^(k+1) depend only on the grid point, not on the pair (r,s), yet the
-        ## closure ul() above recomputed both inside the N^2 loop -- N ~ 1000, so ~10^6 calls to ^ per
-        ## Slater integral where 2N suffice.  Hoisting them costs O(N) and leaves the arithmetic of each
-        ## term untouched: the same two numbers are formed and the same division is taken, so the result is
-        ## BITWISE identical and no approved reference can move.  Measured 4.7x / 6.5x / 9.4x on three real
-        ## cases; SlaterRk_2dim and its ul() closure were ~16 % of an Auger rate computation.
-        ## ul() itself is left in place: the MeshGrasp branch above still uses it.
-        mtp = max(mtp_ac, mtp_bd)
-        rPk = zeros(mtp);   rPk1 = zeros(mtp)
-        for  i = 2:mtp      rPk[i] = grid.r[i]^k;    rPk1[i] = grid.r[i]^(k+1)    end
-        wa = 0.
-        for  r = 2:mtp_ac
-            for  s = 2:mtp_bd
-                uls = grid.r[r] <= grid.r[s]  ?  rPk[r] / rPk1[s]  :  rPk[s] / rPk1[r]
-                wa  = wa + wac[r] * uls * wbd[s]
-            end
-        end
-        return( wa )
-    else
-        error("stop a")
-    end
+    return( wa )
 end
 
 
@@ -1157,30 +945,14 @@ function SlaterRk_2dim_WO(k::Int64, a::Radial.Orbital, b::Radial.Orbital, c::Rad
     end
 
     
-    # Distinguish the radial integration for different grid definitions
-    if  grid.meshType == Radial.MeshGrasp()
-        function fs(r :: Int64, s :: Int64) :: Float64
-            return( ul(grid.r[r], grid.r[s]) * ( b.P[s] * d.P[s] + b.Q[s] * d.Q[s] ) )
-        end
-
-        function f(r :: Int64) :: Float64
-        function ff(i :: Int64) :: Float64    return( fs(r, i) )    end
-        return( (a.P[r] * c.P[r] + a.Q[r] * c.Q[r] ) * Math.integrateFitTransform(ff, min(size(b.P, 1), size(d.P, 1)), grid) )
-        end
-
-        return Math.integrateFitTransform(f, min(size(a.P, 1), size(c.P, 1)), grid)
-    elseif  grid.meshType == Radial.MeshGL()
-        mtp_ac = min(size(a.P, 1), size(c.P, 1));    mtp_bd = min(size(b.P, 1), size(d.P, 1))
-        wa = 0.
-        for  r = 2:mtp_ac
-            for  s = 2:mtp_bd   wa = wa + (a.P[r] * c.P[r] + a.Q[r] * c.Q[r]) * ul(grid.r[r], grid.r[s]) * 
-                                            (b.P[s] * d.P[s] + b.Q[s] * d.Q[s]) * grid.wr[r] * grid.wr[s]   end
-        end
-        ## println("Test: SlaterRk_2dim(); wa = $wa")
-        return( wa )
-    else
-        error("stop a")
+    mtp_ac = min(size(a.P, 1), size(c.P, 1));    mtp_bd = min(size(b.P, 1), size(d.P, 1))
+    wa = 0.
+    for  r = 2:mtp_ac
+        for  s = 2:mtp_bd   wa = wa + (a.P[r] * c.P[r] + a.Q[r] * c.Q[r]) * ul(grid.r[r], grid.r[s]) * 
+                                        (b.P[s] * d.P[s] + b.Q[s] * d.Q[s]) * grid.wr[r] * grid.wr[s]   end
     end
+    ## println("Test: SlaterRk_2dim(); wa = $wa")
+    return( wa )
 end
 
 """
@@ -1200,22 +972,15 @@ function SlaterRk_2dim_Damped(tau::Float64, k::Int64, a::Radial.Orbital, b::Radi
     end
 
     
-    # Distinguish the radial integration for different grid definitions
-    if  grid.meshType == Radial.MeshGrasp()
-        error("stop a")
-    elseif  grid.meshType == Radial.MeshGL()
-        mtp_ac = min(size(a.P, 1), size(c.P, 1));    mtp_bd = min(size(b.P, 1), size(d.P, 1))
-        wa = 0.
-        for  r = 2:mtp_ac
-            for  s = 2:mtp_bd   wa = wa + (a.P[r] * c.P[r] + a.Q[r] * c.Q[r]) * ul(grid.r[r], grid.r[s]) * 
-                                            (b.P[s] * d.P[s] + b.Q[s] * d.Q[s]) * grid.wr[r] * grid.wr[s]  *
-                                            exp(- tau * grid.r[r] - tau * grid.r[s] )                         end
-        end
-        ## println("Test: SlaterRk_2dim(); wa = $wa")
-        return( wa )
-    else
-        error("stop b")
+    mtp_ac = min(size(a.P, 1), size(c.P, 1));    mtp_bd = min(size(b.P, 1), size(d.P, 1))
+    wa = 0.
+    for  r = 2:mtp_ac
+        for  s = 2:mtp_bd   wa = wa + (a.P[r] * c.P[r] + a.Q[r] * c.Q[r]) * ul(grid.r[r], grid.r[s]) * 
+                                        (b.P[s] * d.P[s] + b.Q[s] * d.Q[s]) * grid.wr[r] * grid.wr[s]  *
+                                        exp(- tau * grid.r[r] - tau * grid.r[s] )                         end
     end
+    ## println("Test: SlaterRk_2dim(); wa = $wa")
+    return( wa )
 end
 
 
@@ -1253,29 +1018,13 @@ function SlaterRk_DebyeHueckel_2dim(k::Int64, a::Radial.Orbital, b::Radial.Orbit
     end
 
     
-    # Distinguish the radial integration for different grid definitions
-    if  grid.meshType == Radial.MeshGrasp()
-        function fs(r :: Int64, s :: Int64) :: Float64
-            return( ul(grid.r[r], grid.r[s]) * ( b.P[s] * d.P[s] + b.Q[s] * d.Q[s] ) )
-        end
-
-        function f(r :: Int64) :: Float64
-        function ff(i :: Int64) :: Float64    return( fs(r, i) )    end
-        return( (a.P[r] * c.P[r] + a.Q[r] * c.Q[r] ) * Math.integrateFitTransform(ff, min(size(b.P, 1), size(d.P, 1)), grid) )
-        end
-
-        return Math.integrateFitTransform(f, min(size(a.P, 1), size(c.P, 1)), grid)
-    elseif  grid.meshType == Radial.MeshGL()
-        mtp_ac = min(size(a.P, 1), size(c.P, 1));    mtp_bd = min(size(b.P, 1), size(d.P, 1))
-        wa = 0.
-        for  r = 2:mtp_ac
-            for  s = 2:mtp_bd   wa = wa + (a.P[r] * c.P[r] + a.Q[r] * c.Q[r]) * ul(grid.r[r], grid.r[s]) * 
-                                            (b.P[s] * d.P[s] + b.Q[s] * d.Q[s]) * grid.wr[r] * grid.wr[s]   end
-        end
-        return( wa )
-    else
-        error("stop a")
+    mtp_ac = min(size(a.P, 1), size(c.P, 1));    mtp_bd = min(size(b.P, 1), size(d.P, 1))
+    wa = 0.
+    for  r = 2:mtp_ac
+        for  s = 2:mtp_bd   wa = wa + (a.P[r] * c.P[r] + a.Q[r] * c.Q[r]) * ul(grid.r[r], grid.r[s]) * 
+                                        (b.P[s] * d.P[s] + b.Q[s] * d.Q[s]) * grid.wr[r] * grid.wr[s]   end
     end
+    return( wa )
 end
 
 """
@@ -1290,21 +1039,14 @@ end
 """
 function  Vinti(a::Radial.Orbital, b::Radial.Orbital, grid::Radial.Grid)
     
-    # Distinguish the radial integration for different grid definitions
-    if  grid.meshType == Radial.MeshGrasp()
-        error("stop a")
-    elseif  grid.meshType == Radial.MeshGL()
-        mtp_ab = min(size(a.P, 1), size(b.P, 1));    kapa = a.subshell.kappa;     kapb = b.subshell.kappa
-        wa = 0.
-        for  r = 2:mtp_ab
-            wc = a.P[r] * b.Pprime[r] - a.P[r] * kapa * (kapa+1) * b.P[r] / (2grid.r[r])  + a.P[r] * kapb * (kapb+1) * b.P[r] / (2grid.r[r])
-            wd = a.Q[r] * b.Qprime[r] + a.Q[r] * kapa * (-kapa+1)* b.Q[r] / (2grid.r[r]) - a.Q[r] * kapb * (-kapb+1) * b.Q[r] / (2grid.r[r])                            
-            wa = wa +  (wc + wd) * grid.wr[r]
-        end
-        return( wa )
-    else
-        error("stop a")
+    mtp_ab = min(size(a.P, 1), size(b.P, 1));    kapa = a.subshell.kappa;     kapb = b.subshell.kappa
+    wa = 0.
+    for  r = 2:mtp_ab
+        wc = a.P[r] * b.Pprime[r] - a.P[r] * kapa * (kapa+1) * b.P[r] / (2grid.r[r])  + a.P[r] * kapb * (kapb+1) * b.P[r] / (2grid.r[r])
+        wd = a.Q[r] * b.Qprime[r] + a.Q[r] * kapa * (-kapa+1)* b.Q[r] / (2grid.r[r]) - a.Q[r] * kapb * (-kapb+1) * b.Q[r] / (2grid.r[r])                            
+        wa = wa +  (wc + wd) * grid.wr[r]
     end
+    return( wa )
 end
 
 """
@@ -1313,17 +1055,9 @@ end
 """
 function V0(wa::Array{Float64,1}, mtp::Int64, grid::Radial.Grid)
     
-    # Distinguish the radial integration for different grid definitions
-    if  grid.meshType == Radial.MeshGrasp()
-        function f(i :: Int64)    return( wa[i] )     end
-        return( Math.integrateFitTransform(f, mtp, grid) )
-    elseif  grid.meshType == Radial.MeshGL()
-        wb = 0.
-        for  i = 1:mtp   wb = wb + wa[i] * grid.wr[i]   end
-        return( wb )
-    else
-        error("stop a")
-    end
+    wb = 0.
+    for  i = 1:mtp   wb = wb + wa[i] * grid.wr[i]   end
+    return( wb )
 end
 
 """
@@ -1341,35 +1075,17 @@ function W5_Integral(mu::Int64, nu::Int64, a::Radial.Orbital, b::Radial.Orbital,
     !(mu == 5)   &&   error("mu = 5 required.")
     mtp = min(size(b.P, 1), size(d.P, 1))
     
-    # Distinguish the radial integration for different grid definitions
-    if  grid.meshType == Radial.MeshGrasp()
-        function fs(s :: Int64) :: Float64
-            return( grid.r[s]^nu * ( b.P[s] * d.Q[s] ) )
-        end
-
-        function f(r :: Int64) :: Float64
-        function ff(i :: Int64) :: Float64  return( Math.integrateFitTransform(fs, i, grid) )  end
-            if  r > mtp   return( 0. )
-            else          return(  a.P[r] * c.Q[r] * ff(r) / grid.r[r]^(nu+1) )
+    mtp_ac = min(size(a.P, 1), size(c.P, 1));    mtp_bd = min(size(b.P, 1), size(d.P, 1))
+    wa = 0.
+    for  r = 2:mtp_ac
+        for  s = 2:mtp_bd   
+            if     s > r  continue  
+            elseif s ==r  wa = wa + (a.P[r] * c.Q[r]) * (grid.r[s]^nu) / (grid.r[r]^(nu+1)) * (b.P[s] * d.Q[s]) * grid.wr[r] * grid.wr[s] / 2.0   
+            else          wa = wa + (a.P[r] * c.Q[r]) * (grid.r[s]^nu) / (grid.r[r]^(nu+1)) * (b.P[s] * d.Q[s]) * grid.wr[r] * grid.wr[s]
             end
         end
-
-        return Math.integrateFitTransform(f, min(size(a.P, 1), size(c.P, 1)), grid)
-    elseif  grid.meshType == Radial.MeshGL()
-        mtp_ac = min(size(a.P, 1), size(c.P, 1));    mtp_bd = min(size(b.P, 1), size(d.P, 1))
-        wa = 0.
-        for  r = 2:mtp_ac
-            for  s = 2:mtp_bd   
-                if     s > r  continue  
-                elseif s ==r  wa = wa + (a.P[r] * c.Q[r]) * (grid.r[s]^nu) / (grid.r[r]^(nu+1)) * (b.P[s] * d.Q[s]) * grid.wr[r] * grid.wr[s] / 2.0   
-                else          wa = wa + (a.P[r] * c.Q[r]) * (grid.r[s]^nu) / (grid.r[r]^(nu+1)) * (b.P[s] * d.Q[s]) * grid.wr[r] * grid.wr[s]
-                end
-            end
-        end
-        return( wa )
-    else
-        error("stop a")
     end
+    return( wa )
 end
 
 """
@@ -1384,20 +1100,12 @@ end
 """
 function Yk_ab(k::Int64, r::Float64, rho_ab::Array{Float64,1}, mtp::Int64, grid::Radial.Grid)
     
-    # Distinguish the radial integration for different grid definitions
-    if  grid.meshType == Radial.MeshGrasp()
-        function f(i :: Int64)    rl = min(r, grid.r[i]);   rg = max(r, grid.r[i]);   return( rho_ab[i] * rl^k / rg^(k+1) )     end
-        return( r * Math.integrateFitTransform(f, mtp, grid) )
-    elseif  grid.meshType == Radial.MeshGL()
-        wa = 0.
-        for  i = 2:mtp   
-            rl = min(r, grid.r[i]);   rg = max(r, grid.r[i])
-            wa = wa + rho_ab[i] * rl^k / rg^(k+1) * grid.wr[i]
-        end
-        return( r * wa )
-    else
-        error("stop a")
+    wa = 0.
+    for  i = 2:mtp   
+        rl = min(r, grid.r[i]);   rg = max(r, grid.r[i])
+        wa = wa + rho_ab[i] * rl^k / rg^(k+1) * grid.wr[i]
     end
+    return( r * wa )
 end
 
 end # module

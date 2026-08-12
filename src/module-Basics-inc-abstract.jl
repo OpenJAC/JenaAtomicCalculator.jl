@@ -2309,21 +2309,6 @@ struct     ResetWarnings        <:  AbstractWarning     end
 export  AbstractWarning, AddWarning, PrintWarnings, ResetWarnings
 
 
-"""
-`abstract type Basics.AbstractIntegrationRule`
-    ... defines an abstract and three singleton types to select the numerical integration rule
-        used by Basics.integrate() on a radial grid.
-
-    + NewtonCotes  ... 5-point Newton-Cotes formula.
-    + SimpsonRule  ... Simpson's rule.
-    + TrapezRule   ... simple trapezoid rule.
-"""
-abstract type  AbstractIntegrationRule                          end
-struct         NewtonCotes  <:  AbstractIntegrationRule         end
-struct         SimpsonRule  <:  AbstractIntegrationRule         end
-struct         TrapezRule   <:  AbstractIntegrationRule         end
-
-export  AbstractIntegrationRule, NewtonCotes, SimpsonRule, TrapezRule
 
 
 #################################################################################################################################

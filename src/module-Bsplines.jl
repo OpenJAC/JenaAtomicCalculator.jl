@@ -75,7 +75,7 @@ end
         genuine, tiny but nonzero grid.r[1]) had no clear derivation and differed from Zatsarinny &
         Froese Fischer's own DBSR_HF reference code (dbsr_lib_dbs.f90's ZINTYM), which applies a single,
         uniform composite Gauss-Legendre quadrature with no special-casing at any grid point, since every
-        grid.r[i] under MeshGL() is already a genuine (nonzero) Gauss-Legendre node, never literally r=0.
+        grid.r[i] is already a genuine (nonzero) Gauss-Legendre node, never literally r=0.
         Removed to match; see project_zeeman_hfs_bugs.md (30-Jul-2026).
 """
 function computeNondiagonalD(pm::Int64, kappa::Int64, bspline1::Bsplines.Bspline, bspline2::Bsplines.Bspline, grid::Radial.Grid)
