@@ -617,6 +617,23 @@ end
 ## ever becomes acceptable, a banded-matrix package is the safer way in.  One trap worth recording because it
 ## does not announce itself: passing Int32 where Julia's ILP64 LAPACK expects BlasInt returns info = 0 with
 ## silently WRONG eigenvalues.
+##
+##  (c) RESTRICT THE SOLVE TO AN ENERGY WINDOW.  Built and MEASURED on 12-Aug-2026, then WITHDRAWN -- the
+##      reasoning is kept here so that it is not attempted a third time.  LAPACK can be asked for an energy
+##      window, but only for a STANDARD problem, so the generalized one is first reduced with the Cholesky
+##      factor of the overlap matrix (B = L L', C = L^-1 A L^-T, x = L^-T y).  On Ar, order 665: the full
+##      solve 0.050 s against 0.013 s reduction + 0.014 s windowed solve, i.e. 1.7-1.8x, which is worth
+##      having since this solve is 57.5% of a real SCF.  Two facts sank it:
+##        - the window must be the BOUND states to pay at all.  Taking the whole positive branch instead
+##          (331 of 665 states) costs 0.075 s and is 0.6x, i.e. SLOWER than the full solve: the gain comes
+##          from the smallness of the bound set, not from skipping the Dirac sea;
+##        - but DURING the iteration the wanted states are not all bound.  With the screened DFS potential of
+##          the starting orbitals, neutral Ne has ONE bound state in kappa = -1 and NONE in kappa = 1 or -2 --
+##          its 2p sits at +0.0252 a.u.  A bound window therefore fails on a neutral atom in the very first
+##          iteration, even though every wanted state is bound once converged.  (An earlier count that
+##          suggested otherwise had used the bare NUCLEAR potential, which binds far more strongly.)
+##      An index window is no way out either: see the docstring below on why an eigenpair must never be
+##      picked by an index counted from nsL/nsS.
 function diagonalizeLocalMatrix(kappa::Int64, matrixA::Array{Float64,2}, matrixB::Array{Float64,2}, primitives::Bsplines.Primitives)
     nsL = primitives.grid.nsL;    nsS = primitives.grid.nsS
     dropP, dropQ, trailP, trailQ = Bsplines.boundaryDropCounts(kappa, primitives.grid)
