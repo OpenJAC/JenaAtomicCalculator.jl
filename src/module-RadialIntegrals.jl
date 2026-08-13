@@ -830,7 +830,12 @@ end
         and exchange two-electron radial integrals can afterwards be obtained CHEAPLY, by a simple grid-quadrature
         dot product against whatever B-spline or orbital density is actually needed (see
         RadialIntegrals.buildScreenedPotentialCache for how it is built, and
-        SelfConsistent.computeDirectExchangeVTensor, once written, for how it gets used). Building this cache is
+        SelfConsistent.computeTwoElectronV and SelfConsistent.computeFockMatrix for how it gets used -- these
+        are reached from solveAverageLevelField, solveOptimizedLevelField and solveAverageAtomField, each of
+        which builds the LL, LS and SS caches once per rank and then reuses them for the whole SCF run).
+        Until 13-Aug-2026 this sentence pointed instead at "SelfConsistent.computeDirectExchangeVTensor, once
+        written", a function that was never written; the real consumers had meanwhile been in place and
+        unnamed. Building this cache is
         the expensive, kink-aware step -- it uses the SAME split-quadrature technique as
         buildScreenedPotentialPair, just applied ONCE per (basis-only) B-spline pair rather than once per
         SCF call; using it afterwards, many times over, for many different orbital pairs and many SCF iterations,
