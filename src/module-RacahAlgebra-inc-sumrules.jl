@@ -2414,6 +2414,9 @@ end
 
 
 #===================================================
+DISABLED, and KEPT as a REFERENCE: this is the original Maple source of sum rules that JAC does not yet
+implement, retained so that the rules can be transcribed rather than re-derived.  It is not Julia and is
+not meant to become live as it stands.  Labelled 13-Aug-2026.
 
 Further sum rules that need to be implemented
                                 

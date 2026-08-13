@@ -756,7 +756,9 @@ function setupLocalMatrix(kappa::Int64, primitives::Bsplines.Primitives, pot::Ra
     for  i = 1:nsL,  j = 1:nsS      wa[i,nsL+j] = wa[i,nsL+j] + lsD[i,j]      end
     for  i = 1:nsS,  j = 1:nsL      wa[nsL+i,j] = wa[nsL+i,j] + slD[i,j]      end
 
-    #=====
+    #===== DISABLED, kept as a diagnostic that can be switched back on: it counts how far the local matrix
+    # departs from real-symmetric.  It is OFF because the departure is EXPECTED -- the last B-spline breaks
+    # the symmetry -- so it fires routinely and says nothing.  Labelled 13-Aug-2026.
     # Test for 'real-symmetric matrix' ... this is not fullfilled if the last B-spline is included !!
     nx = 0
     for  i = 1:nsL+nsS    

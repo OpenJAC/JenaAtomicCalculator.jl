@@ -82,6 +82,14 @@ GBL_CONT_NORMALIZATION       = AlokNorm()                ###  PureSineNorm(), Co
 GBL_QED_HYDROGENIC_LAMBDAC   = [1.0,  1.0,  1.0,  1.0,  1.0]
 GBL_QED_NUCLEAR_CHARGE       = 0.1
 GBL_WARNINGS                 = String[]
+## The warnings are collected so that a long job can be inspected AFTERWARDS -- anything printed to stdout
+## during a ten-hour cascade has scrolled away long before it ends.  Two properties are needed for that to
+## work (12-Aug-2026):  a message repeated by every line must appear ONCE, with a count, or the report is
+## unreadable; and the collector must survive Threads.@threads, since push! onto a shared Vector can lose
+## entries and can crash on a reallocation -- and the line loops of DielectronicRecombination and
+## ImpactExcitation are already threaded.
+GBL_WARNINGS_COUNT           = Dict{String,Int64}()
+const GBL_WARNINGS_LOCK      = ReentrantLock()
 
 GBL_ENERGY_UNIT              = "eV"
 GBL_CROSS_SECTION_UNIT       = "barn"
@@ -705,21 +713,31 @@ end
 + `(ResetWarnings)`  ... to reset the global array GBL_WARNINGS.
 """
 function warn(wa::AbstractWarning)
-    global GBL_WARNINGS
+    global GBL_WARNINGS, GBL_WARNINGS_COUNT
 
     if        wa == PrintWarnings()
-        iostream = open("jac-warn.report", "w") 
-        println(iostream, " ")
-        println(iostream, "\n\n",
-                        "Warnings from the present sessions or run, printed at $( string(now())[1:16] ): \n",
-                        "======================================================================= \n")
-        for sa in  GBL_WARNINGS
-            println(iostream, "++ " * sa)
+        lock(GBL_WARNINGS_LOCK)
+        try
+            iostream = open("jac-warn.report", "w")
+            println(iostream, " ")
+            println(iostream, "\n\n",
+                            "Warnings from the present sessions or run, printed at $( string(now())[1:16] ): \n",
+                            "======================================================================= \n")
+            if  length(GBL_WARNINGS) == 0    println(iostream, "++ none.")    end
+            for sa in  GBL_WARNINGS
+                nx = get(GBL_WARNINGS_COUNT, sa, 1)
+                println(iostream, "++ " * sa * (nx > 1  ?  "   [$nx times]"  :  ""))
+            end
+            close(iostream)
+        finally
+            unlock(GBL_WARNINGS_LOCK)
         end
-        close(iostream)
         #
     elseif    wa == ResetWarnings()
-        GBL_WARNINGS = String[]
+        lock(GBL_WARNINGS_LOCK)
+        try     GBL_WARNINGS = String[];    GBL_WARNINGS_COUNT = Dict{String,Int64}()
+        finally unlock(GBL_WARNINGS_LOCK)
+        end
     else      error("Unsupported Warnings:: $wa")
     end
 
@@ -728,10 +746,20 @@ end
 
 
 function warn(wa::AbstractWarning, sa::String)
-    global GBL_WARNINGS
+    global GBL_WARNINGS, GBL_WARNINGS_COUNT
 
     if        wa == AddWarning()
-        push!(GBL_WARNINGS, sa)
+        ## Recorded once, but counted every time: a condition met by 500 lines is one entry saying so, not
+        ## 500 entries.  The lock makes this safe to call from a threaded line loop; it is uncontended in
+        ## the ordinary single-threaded case and costs nothing against the work that produced the warning.
+        lock(GBL_WARNINGS_LOCK)
+        try
+            nx = get(GBL_WARNINGS_COUNT, sa, 0)
+            GBL_WARNINGS_COUNT[sa] = nx + 1
+            if  nx == 0     push!(GBL_WARNINGS, sa)     end
+        finally
+            unlock(GBL_WARNINGS_LOCK)
+        end
     else      error("Unsupported Warnings:: $wa")
     end
 

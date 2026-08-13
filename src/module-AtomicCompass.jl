@@ -1,9 +1,34 @@
 
 """
-`module  JAC.AtomicCompass`  
-	... a submodel of JAC that contains all methods to specify, set-up and simulate an "atomic compass" in terms 
-        of some time-envolved density matrix for a (quantum-optical) few-level systems, interacting with external 
+`module  JAC.AtomicCompass`
+	... a submodel of JAC that contains all methods to specify, set-up and simulate an "atomic compass" in terms
+        of some time-envolved density matrix for a (quantum-optical) few-level systems, interacting with external
         fields.
+
+        STATUS, 13-Aug-2026:  UNDER DEVELOPMENT -- THE PHYSICS IS NOT WRITTEN YET.
+
+        Decision by the maintainer, taken after an audit found the state below.  DO NOT PICK THIS UP, AND DO
+        NOT "HELPFULLY" IMPLEMENT ANY OF IT, WITHOUT ASKING FIRST: the placeholder bodies carry the
+        maintainer's own notes to a collaborator about how each piece is meant to be built, and they are
+        instructions, not oversights.
+
+        WHAT IS CONCRETELY KNOWN.  The module is linked (incAtomicCompass = true in JenaAtomicCalculator.jl)
+        and its types, constructors and show methods are complete and usable.  SEVEN of its nineteen
+        functions, however, are placeholders that emit a @warn and return a constant:
+
+            computeObservables, computeRelexationMatrix, computeTransitionME, computeTotalMagneticField,
+            convertTimeRange, determineObservables, generateIJFMbasis
+
+        Basics.perform() chains three of them -- generateIJFMbasis, determineObservables, computeObservables --
+        so before 13-Aug-2026 it returned a fully-formed results::Dict built ENTIRELY from those constants,
+        with nothing in the returned object to say so.  It now raises; see the error there.  Nothing outside
+        this module calls anything in it, which is why none of this had surfaced.
+
+        WHAT MUST NOT BE MISREAD.  checkDataConsistency() looks like a working input check but its two tests
+        are `3 == 4` and `3 == 5`, i.e. deliberate placeholders that can never fire; it is scaffolding for a
+        check still to be written, not a check that passes.  Equally, computeTotalMagneticField returns
+        Cartesian3DFieldVector(1., 0., 0.) -- a NON-ZERO field -- so a caller that ignored the warning would
+        get a plausible-looking magnetic field that was never computed.
 """
 module AtomicCompass
 
@@ -459,9 +484,24 @@ end
         A results::Dict{String,Any} is returned, if output=true, and nothing otherwise.
 """
 function Basics.perform(simulation::AtomicCompass.Simulation; output=true)
+    ## RAISES BY DECISION OF THE MAINTAINER, 13-Aug-2026; see the STATUS block in the module docstring.
+    ## Every physical step of this function is a placeholder that warns and returns a constant, so what it
+    ## used to return was a fully-formed results::Dict of fabricated numbers -- the three @warn lines were
+    ## the only indication, and nothing in the returned object carried them.  Following the
+    ## corePolarization.doApply pattern in module-PhotoEmission.jl, an untrustworthy result is refused
+    ## rather than handed back.  The individual functions still only warn, so that whoever implements them
+    ## can call and test them one at a time; comment this error out to run the plumbing end to end.
+    error("AtomicCompass.perform(): the atomic-compass simulation is NOT IMPLEMENTED and this function " *
+          "would return fabricated numbers.  Each of its three physical steps is a placeholder that warns " *
+          "and returns a constant: AtomicCompass.generateIJFMbasis (the IJFM basis), " *
+          "AtomicCompass.determineObservables (which observables to form) and " *
+          "AtomicCompass.computeObservables (the density-matrix time evolution).  Four further functions " *
+          "in this module are placeholders too.  See the STATUS block in the module docstring, and do not " *
+          "implement any of it without asking the maintainer first.")
+
     results = Dict{String,Any}()
     printSummary, iostream = Defaults.getDefaults("summary flag/stream")
-    
+
     println("")
     printstyled("The atomic-compass simulation starts now ... \n", color=:light_green)
     printstyled("-------------------------------------------- \n", color=:light_green)

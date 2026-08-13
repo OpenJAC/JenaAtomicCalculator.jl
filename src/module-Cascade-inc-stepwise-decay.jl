@@ -76,7 +76,11 @@ function computeSteps(scheme::Cascade.StepwiseDecayScheme, comp::Cascade.Computa
 end
 
 
-#=====================================================  
+#=====================================================
+    DISABLED, and KEPT deliberately: this is a collaborator's parallel-computing work (multiprocessing and
+    multithreading for the cascade steps), reserved for a separate session.  Do not delete it and do not
+    merge it into the live path without asking.  Labelled 13-Aug-2026.
+
     ... Beginning of Aloka's part ... for parallel computing via multiprocessing and multithreading
     
 """

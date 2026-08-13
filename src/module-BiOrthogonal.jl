@@ -250,6 +250,10 @@ end # module
 
 
 #========================================================
+DISABLED, and KEPT: design notes addressed to a collaborator, not code.  They record why the GRASP2018
+rbiotransform structure was not followed and what a compact Julia implementation needs instead.
+Labelled 13-Aug-2026.
+
 Comments & thoughts on the implementation of this module
 --------------------------------------------------------
 

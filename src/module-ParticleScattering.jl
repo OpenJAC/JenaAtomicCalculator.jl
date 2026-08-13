@@ -388,11 +388,6 @@ function computeAmplitudesProperties(processType::ElasticElectronNR, event::Part
             end
             wint = - RadialIntegrals.V0(wfl2, mtp, grid::Radial.Grid) / k
             #
-            #==
-            for m = 1:5:mtp
-                println("    $(grid.r[m])   $(- pot.Zr[m] / grid.r[m])  ")
-            end
-            error("aaaa")   ==#
             #
             lPhaseBorn = atan(wint)
             amplitude  = ParticleScattering.amplitude(event.processType, event.beamType, l, lPhaseBorn, event.theta, event.phi, grid)

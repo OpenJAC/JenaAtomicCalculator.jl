@@ -35,7 +35,9 @@ incAtomicCompass        = true
 incRacahAlgebra         = true
 incDeepLearning         = true
 
-#==
+#== A CONVENIENCE BLOCK, deliberately kept: uncomment to switch the optional module groups OFF in one
+   step, which cuts load and precompile time when working on the core.  It is not dead code -- it is the
+   counterpart of the assignments above, and the two must be kept in step.  Labelled 13-Aug-2026.
 incAdvancedProcesses    = false
 incCascades             = false  ## Requires: incBasicProcesses
 incPlasma               = false  ## Requires: incProperties

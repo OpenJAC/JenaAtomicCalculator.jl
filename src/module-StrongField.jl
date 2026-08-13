@@ -610,13 +610,6 @@ function computePulseShapeIntegrals(envelope::Pulse.AbstractEnvelope, beam::Abst
     fVolkovMinus   = Pulse.pulseShapeIntegral(false, envelope, beam, polarization, thetap, phip, energyp, initialEn, 0)
     fVolkovSquared = Pulse.pulseShapeQuadIntegral(envelope, beam, polarization,    thetap, phip, energyp, initialEn, 0)
     
-    #== 
-    println("> Pulse-shape integral for a $(string(envelope)) with A0=$(beam.A0), omega=$(beam.omega) [a.u.], cep=$(beam.cep)" * 
-            " and for $(string(polarization)) light are:" )
-    println("    F^(Volkov) [+; omega; f^(env); A]   = $fVolkovPlus" )
-    println("    F^(Volkov) [-; omega; f^(env); A]   = $fVolkovMinus" )
-    println("    F^(quad, Volkov) [f^(env); A]       = $fVolkovSquared" )  ==#
-    
     return( (fVolkovPlus, fVolkovMinus, fVolkovSquared) )
 end
 

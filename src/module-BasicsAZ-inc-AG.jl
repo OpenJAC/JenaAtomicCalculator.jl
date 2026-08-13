@@ -149,7 +149,10 @@ function Basics.analyzeConvergence(a::Radial.Orbital, b::Radial.Orbital)
     if       a.subshell !=  b.subshell                                             error("stop a")   
     elseif   a.useStandardGrid !=  b.useStandardGrid   ||  !(a.useStandardGrid)   error("stop b")
     else     wa = 0.;   wa = max(wa, abs( (a.energy-b.energy) / (a.energy+b.energy) ));   nx = min(length(a.P), length(b.P))
-            #=== for  i = 1:nx 
+            #=== DISABLED: an alternative, POINTWISE relative comparison of the two orbitals, kept beside the
+            #   norm-based measure actually used.  It is far stricter and fires on the outermost points where
+            #   both components are near zero.  Labelled 13-Aug-2026.
+            #   for  i = 1:nx 
                 wp = abs(a.P[i])+abs(b.P[i]);    if  wp > 1.0e-10   wa = max(wa, abs( (a.P[i]-b.P[i]) / wp ))   end 
                 wp = abs(a.Q[i])+abs(b.Q[i]);    if  wp > 1.0e-10   wa = max(wa, abs( (a.Q[i]-b.Q[i]) / wp ))   end   
             end ===#

@@ -149,7 +149,9 @@ function computeIsotopicPartitionFunction(temp::Float64, isoClass::IsotopeClass,
     return ( pf )
 end
 
-#==  20.7.24
+#==  DISABLED 20.7.24, kept as the record of an approach: an isotope-resolved number density for the
+##   Saha-Boltzmann mixture.  Superseded in practice by the ion-class treatment used below; retained
+##   because the isotopic route may be wanted again.  Labelled 13-Aug-2026.
 """
 `Plasma.computeIsotopicNumberDensity(temp::Float64, isoClass::IsotopeClass)`  
     ... computes the (number) density n (Z,A) of a given isotope class at temperature T;
