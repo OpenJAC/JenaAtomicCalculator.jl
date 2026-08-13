@@ -491,7 +491,7 @@ end
         eigensolver (syevr), which is genuinely faster than a full diagonalization when only a few eigenpairs
         are wanted out of a large matrix (confirmed 28-Jul-2026: ~2-4x for a few eigenpairs out of a few
         hundred, growing with matrix size, shrinking as more eigenpairs are requested) -- NOT used by
-        Hamiltonian.performCI/performCIClaude today (both always call the range=(0:0), full-diagonalization
+        Hamiltonian.performCI/performCIKinkAware today (both always call the range=(0:0), full-diagonalization
         form), so this speedup is not yet realized in the CI pipeline.
 """
 function Basics.diagonalize(::MatrixWithLinearAlgebra, matrixA::Array{Float64,2}; range=(0:0)::UnitRange{Int64})

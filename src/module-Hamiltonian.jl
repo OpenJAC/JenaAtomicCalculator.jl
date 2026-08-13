@@ -35,7 +35,7 @@ const  CI_PARTIAL_DIAG_MIN_DIM = 20
         never be smaller than its own LOCAL (within-block) rank, so if a level's global index is
         <= maximum(indices), its local index must be too; the true global top-`maximum(indices)` levels are
         therefore guaranteed to survive in the collected per-block partial spectra before the final
-        merge-and-sort in performCI/performCIClaude. An  eigen::Basics.Eigen  is returned.
+        merge-and-sort in performCI/performCIKinkAware. An  eigen::Basics.Eigen  is returned.
 """
 function diagonalizeCiMatrix(matrix::Array{Float64,2}, levelSelectionCI::LevelSelection)
     n = size(matrix, 1)
@@ -297,15 +297,15 @@ end
 
 
 """
-`Hamiltonian.performCIClaude(basis::Basis, nm::Nuclear.Model, grid::Radial.Grid, settings::AsfSettings; printout::Bool=false)
-    ... computes and diagonalizes the same CI Hamiltonian matrix as performCI, but via setupMatrixClaude (kink-aware
+`Hamiltonian.performCIKinkAware(basis::Basis, nm::Nuclear.Model, grid::Radial.Grid, settings::AsfSettings; printout::Bool=false)
+    ... computes and diagonalizes the same CI Hamiltonian matrix as performCI, but via setupMatrixKinkAware (kink-aware
         two-electron Slater integral) instead of setupMatrix. Isolated from performCI; reached from
         SelfConsistent.performSCF when settings.scField = Basics.ALField(), and directly from
         SelfConsistent.solveOptimizedLevelField (EOLField), so that the FINAL reported level energies reflect
         the same kink-aware integral used during SCF orbital optimization, not just the SCF's own internal
         energy tracking. A  multiplet::Multiplet  is returned.
 """
-function performCIClaude(basis::Basis, nm::Nuclear.Model, grid::Radial.Grid, settings::AsfSettings; printout::Bool=false)
+function performCIKinkAware(basis::Basis, nm::Nuclear.Model, grid::Radial.Grid, settings::AsfSettings; printout::Bool=false)
 
     # First determine the number of CSF in each J^P symmetry block
     symmetries = Dict{LevelSymmetry,Int64}()
@@ -320,23 +320,23 @@ function performCIClaude(basis::Basis, nm::Nuclear.Model, grid::Radial.Grid, set
     NoCsf = 0;   for (sym,v) in symmetries   NoCsf = NoCsf + v   end
     if  NoCsf != length(basis.csfs)   error("stop b; NoCsf = $NoCsf ")   end
 
-    # Reset the radial-integral caches ONCE per performCIClaude call (28-Jul-2026), not once per symmetry
-    # block as setupMatrixClaude used to do -- identical reasoning to the same fix in performCI/setupMatrix:
+    # Reset the radial-integral caches ONCE per performCIKinkAware call (28-Jul-2026), not once per symmetry
+    # block as setupMatrixKinkAware used to do -- identical reasoning to the same fix in performCI/setupMatrix:
     # the cache key never depends on which block is being built, so a Breit integral shared across blocks
-    # is legitimately reusable. XL_Coulomb_reset_storage is kept here too even though setupMatrixClaude's own
-    # Coulomb term (XL_CoulombClaude) now has its own SEPARATE cache (GBL_Storage_XL_CoulombClaude, reset by
-    # XL_CoulombClaude_reset_storage below) -- harmless no-op for the standard Coulomb cache, which
-    # setupMatrixClaude never reads from.
+    # is legitimately reusable. XL_Coulomb_reset_storage is kept here too even though setupMatrixKinkAware's own
+    # Coulomb term (XL_CoulombKinkAware) now has its own SEPARATE cache (GBL_Storage_XL_CoulombKinkAware, reset by
+    # XL_CoulombKinkAware_reset_storage below) -- harmless no-op for the standard Coulomb cache, which
+    # setupMatrixKinkAware never reads from.
     InteractionStrength.XL_Coulomb_reset_storage(true, printout=false)
     InteractionStrength.XL_Breit_reset_storage(true, printout=false)
-    InteractionStrength.XL_CoulombClaude_reset_storage(true, printout=false)
+    InteractionStrength.XL_CoulombKinkAware_reset_storage(true, printout=false)
 
     # Calculate for each symmetry block the corresponding CI matrix, diagonalize it and append a Multiplet for this block
     multiplets = Multiplet[]
     for  (sym,v) in  symmetries
         # Skip the symmetry block if it not selected
         if  !Basics.selectSymmetry(sym, settings.levelSelectionCI)     continue    end
-        matrix = Hamiltonian.setupMatrixClaude(sym, basis, nm, grid, settings; printout=printout)
+        matrix = Hamiltonian.setupMatrixKinkAware(sym, basis, nm, grid, settings; printout=printout)
         eigen  = Hamiltonian.diagonalizeCiMatrix(matrix, settings.levelSelectionCI)
 
         # Reassign state vectors to levels
@@ -418,14 +418,14 @@ end
 
 
 """
-`Hamiltonian.setupMatrixClaude(sym::LevelSymmetry, basis::Basis, nm::Nuclear.Model, grid::Radial.Grid, settings::AsfSettings; printout::Bool=false)
-    ... sets up the same Hamiltonian matrix as setupMatrix, but using InteractionStrength.XL_CoulombClaude (kink-aware)
+`Hamiltonian.setupMatrixKinkAware(sym::LevelSymmetry, basis::Basis, nm::Nuclear.Model, grid::Radial.Grid, settings::AsfSettings; printout::Bool=false)
+    ... sets up the same Hamiltonian matrix as setupMatrix, but using InteractionStrength.XL_CoulombKinkAware (kink-aware)
         instead of InteractionStrength.XL_Coulomb for the Coulomb two-electron contributions. The Breit contribution
         (XL_Breit) and the QED contribution are left untouched -- this bug is specific to the Coulomb Slater
-        integral's quadrature, not to those other terms. Isolated from setupMatrix; only used by performCIClaude.
+        integral's quadrature, not to those other terms. Isolated from setupMatrix; only used by performCIKinkAware.
         A  matrix::Arrays{Float64,2}  is returned.
 """
-function setupMatrixClaude(sym::LevelSymmetry, basis::Basis, nm::Nuclear.Model, grid::Radial.Grid, settings::AsfSettings; printout::Bool=false)
+function setupMatrixKinkAware(sym::LevelSymmetry, basis::Basis, nm::Nuclear.Model, grid::Radial.Grid, settings::AsfSettings; printout::Bool=false)
 
     # Determine the dimension of the CI matrix and the indices of the CSF with J^P symmetry in the basis
     idx_csf = Int64[]
@@ -442,7 +442,7 @@ function setupMatrixClaude(sym::LevelSymmetry, basis::Basis, nm::Nuclear.Model, 
     end
 
     # Compute the Coulomb-(Breit-) interaction matrix. NOTE (28-Jul-2026): the radial-integral cache
-    # reset/lifetime is owned by the CALLER (Hamiltonian.performCIClaude), not here -- identical reasoning to
+    # reset/lifetime is owned by the CALLER (Hamiltonian.performCIKinkAware), not here -- identical reasoning to
     # setupMatrix's own note.
     #
     # Hermitian-symmetry shortcut (28-Jul-2026): only the UPPER triangle (r<=s) is ever computed below --
@@ -471,7 +471,7 @@ function setupMatrixClaude(sym::LevelSymmetry, basis::Basis, nm::Nuclear.Model, 
 
             for  coeff in waG2
                 if  typeof(settings.eeInteractionCI) in [DiagonalCoulomb, CoulombInteraction, CoulombBreit, CoulombGaunt]
-                    me = me + coeff.V * InteractionStrength.XL_CoulombClaude(coeff.nu, basis.orbitals[coeff.a], basis.orbitals[coeff.b],
+                    me = me + coeff.V * InteractionStrength.XL_CoulombKinkAware(coeff.nu, basis.orbitals[coeff.a], basis.orbitals[coeff.b],
                                                                                         basis.orbitals[coeff.c], basis.orbitals[coeff.d], grid, keep=keep)
                 end
 

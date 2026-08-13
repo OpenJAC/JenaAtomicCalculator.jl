@@ -741,7 +741,7 @@ function XL_Coulomb(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital, gr
     else
         xc = AngularMomentum.CL_reduced_me(a.subshell, L, c.subshell) * AngularMomentum.CL_reduced_me(b.subshell, L, d.subshell)
         if   rem(L,2) == 1    xc = - xc    end
-        ## NOT SWITCHED to the kink-aware RadialIntegrals.SlaterRk_2dimClaude -- attempted 13-Aug-2026 and
+        ## NOT SWITCHED to the kink-aware RadialIntegrals.SlaterRk_2dimKinkAware -- attempted 13-Aug-2026 and
         ## REVERTED, with what was measured recorded here so the attempt is not simply repeated.
         ##
         ## The kink-aware integral IS the better quadrature, and that part is settled: against the analytic
@@ -768,16 +768,16 @@ end
 
 
 """
-`InteractionStrength.XL_CoulombClaude_reset_storage(keep::Bool; printout::Bool=false)`
-    ... resets the global storage of XL_CoulombClaude interaction strengths (a SEPARATE cache from
+`InteractionStrength.XL_CoulombKinkAware_reset_storage(keep::Bool; printout::Bool=false)`
+    ... resets the global storage of XL_CoulombKinkAware interaction strengths (a SEPARATE cache from
         XL_Coulomb's own GBL_Storage_XL_Coulomb, since the kink-aware and standard quadratures give
         different numeric results for the same subshell labels and must not share a cache namespace);
         nothing is returned.
 """
-function XL_CoulombClaude_reset_storage(keep::Bool; printout::Bool=false)
+function XL_CoulombKinkAware_reset_storage(keep::Bool; printout::Bool=false)
     if  keep
-        if printout     println(">> Reset GBL_Storage_XL_CoulombClaude storage.")     end
-        global GBL_Storage_XL_CoulombClaude = Dict{String, Float64}()
+        if printout     println(">> Reset GBL_Storage_XL_CoulombKinkAware storage.")     end
+        global GBL_Storage_XL_CoulombKinkAware = Dict{String, Float64}()
     else
     end
     return( nothing )
@@ -785,24 +785,24 @@ end
 
 
 """
-`InteractionStrength.XL_CoulombClaude(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital, grid::Radial.Grid; keep::Bool=false)`
+`InteractionStrength.XL_CoulombKinkAware(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital, grid::Radial.Grid; keep::Bool=false)`
     ... computes the same effective Coulomb interaction strength as XL_Coulomb(L, a, b, c, d, grid), including the
         same triangular-delta veto and angular reduced-matrix-element prefactor xc, but using the kink-aware
-        RadialIntegrals.SlaterRk_2dimClaude for the underlying radial integral instead of RadialIntegrals.
-        SlaterRk_2dim. For keep=true, looks up (and stores into) the global GBL_Storage_XL_CoulombClaude
+        RadialIntegrals.SlaterRk_2dimKinkAware for the underlying radial integral instead of RadialIntegrals.
+        SlaterRk_2dim. For keep=true, looks up (and stores into) the global GBL_Storage_XL_CoulombKinkAware
         Dict, mirroring XL_Coulomb's own keep/GBL_Storage_XL_Coulomb pattern exactly -- used by
-        Hamiltonian.setupMatrixClaude (the CI-matrix Coulomb term for ALField/EOLField), where orbitals
-        are FIXED for the whole performCIClaude call, so caching is unconditionally safe there. NOT enabled
-        (keep=false, the default) at SelfConsistent.computeTwoElectronVClaude2's own call site: that call sits
+        Hamiltonian.setupMatrixKinkAware (the CI-matrix Coulomb term for ALField/EOLField), where orbitals
+        are FIXED for the whole performCIKinkAware call, so caching is unconditionally safe there. NOT enabled
+        (keep=false, the default) at SelfConsistent.computeTwoElectronV's own call site: that call sits
         inside the outer SCF iteration, where orbitals change every iteration, so a cache surviving across
         iterations would silently return stale integrals from an earlier orbital shape -- extending caching
         safely into that loop needs its own explicit per-iteration reset wiring, deferred as a separate item.
-        Isolated from XL_Coulomb; shared by Hamiltonian.setupMatrixClaude and
-        SelfConsistent.computeTwoElectronVClaude2 (their Fock matrix, uncached). A value::Float64 is
+        Isolated from XL_Coulomb; shared by Hamiltonian.setupMatrixKinkAware and
+        SelfConsistent.computeTwoElectronV (their Fock matrix, uncached). A value::Float64 is
         returned.
 """
-function XL_CoulombClaude(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital, grid::Radial.Grid; keep::Bool=false)
-    global GBL_Storage_XL_CoulombClaude
+function XL_CoulombKinkAware(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital, grid::Radial.Grid; keep::Bool=false)
+    global GBL_Storage_XL_CoulombKinkAware
     la = Basics.subshell_l(a.subshell);    ja2 = Basics.subshell_2j(a.subshell)
     lb = Basics.subshell_l(b.subshell);    jb2 = Basics.subshell_2j(b.subshell)
     lc = Basics.subshell_l(c.subshell);    jc2 = Basics.subshell_2j(c.subshell)
@@ -815,22 +815,22 @@ function XL_CoulombClaude(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbit
 
     if  keep
         sa = "XL" * string(L) * " " * string(a.subshell) * string(b.subshell) * string(c.subshell) * string(d.subshell)
-        if haskey(GBL_Storage_XL_CoulombClaude, sa)
-            return( GBL_Storage_XL_CoulombClaude[sa] )
+        if haskey(GBL_Storage_XL_CoulombKinkAware, sa)
+            return( GBL_Storage_XL_CoulombKinkAware[sa] )
         end
     end
 
     xc = AngularMomentum.CL_reduced_me(a.subshell, L, c.subshell) * AngularMomentum.CL_reduced_me(b.subshell, L, d.subshell)
     if   rem(L,2) == 1    xc = - xc    end
 
-    XL_CoulombClaudeValue = xc * RadialIntegrals.SlaterRk_2dimClaude(L, a, b, c, d, grid)
+    XL_CoulombKinkAwareValue = xc * RadialIntegrals.SlaterRk_2dimKinkAware(L, a, b, c, d, grid)
 
     if  keep
         sa = "XL" * string(L) * " " * string(a.subshell) * string(b.subshell) * string(c.subshell) * string(d.subshell)
-        global GBL_Storage_XL_CoulombClaude[sa] = XL_CoulombClaudeValue
+        global GBL_Storage_XL_CoulombKinkAware[sa] = XL_CoulombKinkAwareValue
     end
 
-    return( XL_CoulombClaudeValue )
+    return( XL_CoulombKinkAwareValue )
 end
 
 
@@ -890,18 +890,18 @@ end
 
 
 """
-`InteractionStrength.XL_CoulombClaude(L::Int64, a::Subshell, b::Orbital, c::Subshell, d::Orbital, primitives::Bsplines.Primitives)`
+`InteractionStrength.XL_CoulombKinkAware(L::Int64, a::Subshell, b::Orbital, c::Subshell, d::Orbital, primitives::Bsplines.Primitives)`
     ... computes the same (direct) Coulomb interaction strengths X^L_Coulomb (.b.d) as
         XL_Coulomb(L,a::Subshell,b::Orbital,c::Subshell,d::Orbital,primitives), for given rank L and orbital
         functions as well as the given primitives, but using the kink-aware screened-potential construction
-        (RadialIntegrals.buildScreenedPotentialClaude) instead of RadialIntegrals.SlaterRkComponent_2dim's naive
+        (RadialIntegrals.buildScreenedPotential) instead of RadialIntegrals.SlaterRkComponent_2dim's naive
         tensor-product double sum. The screened potential V_L(r), which depends only on the fixed orbital pair
         (b,d), is built ONCE (adaptive quadrature) and then reused cheaply -- via the existing grid quadrature
         weights, since V_L(r) is smooth once built -- for every B-spline pair (i,k) of the L- and S-block.
         Isolated from XL_Coulomb; shared by the ALField/EOLField code lines, cf.
-        SelfConsistent.computeTwoElectronVClaude2. A (nsL+nsS) x (nsL+nsS) matrixV::Array{Float64,2} is returned.
+        SelfConsistent.computeTwoElectronV. A (nsL+nsS) x (nsL+nsS) matrixV::Array{Float64,2} is returned.
 """
-function XL_CoulombClaude(L::Int64, a::Subshell, b::Orbital, c::Subshell, d::Orbital, primitives::Bsplines.Primitives)
+function XL_CoulombKinkAware(L::Int64, a::Subshell, b::Orbital, c::Subshell, d::Orbital, primitives::Bsplines.Primitives)
     nsL = primitives.grid.nsL;        nsS = primitives.grid.nsS;    grid = primitives.grid
     wm  = zeros(nsL+nsS, nsL+nsS)
 
@@ -921,12 +921,12 @@ function XL_CoulombClaude(L::Int64, a::Subshell, b::Orbital, c::Subshell, d::Orb
     if   rem(L,2) == 1    xc = - xc    end
 
     # Build the screened potential once for the fixed orbital pair (b,d); reused below for both L- and S-block.
-    # mtpOut is forced to the full grid extent: unlike SlaterRk_2dimClaude's orbital-orbital use (where the
+    # mtpOut is forced to the full grid extent: unlike SlaterRk_2dimKinkAware's orbital-orbital use (where the
     # OTHER factor in the contraction is also naturally truncated to some orbital's own extent), here Vk gets
     # contracted against B-spline ROW/COLUMN indices that span the FULL basis and can extend well past (b,d)'s
     # own reach -- leaving mtpOut at its default silently drops that tail and was traced to a real bug (Ne's 1s
     # orbital coming out measurably too deeply bound from a missing part of its screening by the 2p shell).
-    Vk = RadialIntegrals.buildScreenedPotentialClaude(L, b, d, grid; mtpOut=grid.NoPoints)
+    Vk = RadialIntegrals.buildScreenedPotential(L, b, d, grid; mtpOut=grid.NoPoints)
 
     # Direct interaction; contract Vk against every B-spline pair of the L- and S-block
     wm = zeros(nsL+nsS, nsL+nsS)
@@ -1032,15 +1032,15 @@ end
 
 
 """
-`InteractionStrength.XL_CoulombTensorClaude(L::Int64, a::Subshell, b::Orbital, c::Orbital, cVector::Vector{Float64},
-                                            d::Subshell, cacheLL::RadialIntegrals.SlaterMomentCacheClaude,
-                                            cacheLS::RadialIntegrals.SlaterMomentCacheClaude,
-                                            cacheSS::RadialIntegrals.SlaterMomentCacheClaude,
+`InteractionStrength.XL_CoulombTensor(L::Int64, a::Subshell, b::Orbital, c::Orbital, cVector::Vector{Float64},
+                                            d::Subshell, cacheLL::RadialIntegrals.SlaterMomentCache,
+                                            cacheLS::RadialIntegrals.SlaterMomentCache,
+                                            cacheSS::RadialIntegrals.SlaterMomentCache,
                                             primitives::Bsplines.Primitives)`
     ... computes the same (exchange) Coulomb interaction strengths X^L_Coulomb (.bc.) as
-        XL_Coulomb(L,a::Subshell,b::Orbital,c::Orbital,d::Subshell,primitives) / XL_CoulombClaude of the same
-        signature, but using PRECOMPUTED RadialIntegrals.SlaterMomentCacheClaude tensors -- built ONCE, outside
-        the SCF iteration, via RadialIntegrals.buildSlaterMomentCacheClaude for rank L -- instead of any per-call
+        XL_Coulomb(L,a::Subshell,b::Orbital,c::Orbital,d::Subshell,primitives) / XL_CoulombKinkAware of the same
+        signature, but using PRECOMPUTED RadialIntegrals.SlaterMomentCache tensors -- built ONCE, outside
+        the SCF iteration, via RadialIntegrals.buildSlaterMomentCache for rank L -- instead of any per-call
         adaptive quadrature. Re-deriving the original (validated) block structure carefully shows that, in each
         block, the B-spline row index pairs with orbital c's component matching the COLUMN's type (P for an
         L-column, Q for an S-column), while orbital b's component matching the ROW's type pairs with the column
@@ -1055,17 +1055,16 @@ end
         opposite sides of the two-electron kernel. cacheLL and cacheSS are ordinary same-basis caches
         (bsplinesL, bsplinesL) and (bsplinesS, bsplinesS); cacheLS is the cross-basis cache
         (bsplinesL, bsplinesS) and is also used, with indices swapped at lookup, for the SL combination -- see
-        RadialIntegrals.buildSlaterMomentCacheClaude. This turns what used to be an expensive per-call
+        RadialIntegrals.buildSlaterMomentCache. This turns what used to be an expensive per-call
         adaptive-quadrature computation into one with NO further quadrature at all, for every SCF iteration and
         every exchange coefficient that shares this rank L, once the caches themselves have been built (see
-        SelfConsistent.solveAverageLevelFieldClaude for how they get built and cached once per SCF run).
-        Isolated from XL_Coulomb; only used by the ALFieldClaude code line, cf.
-        SelfConsistent.computeDirectExchangeVClaude. A (nsL+nsS) x (nsL+nsS) matrixV::Array{Float64,2} is returned.
+        SelfConsistent.solveAverageLevelField for how they get built and cached once per SCF run).
+        Isolated from XL_Coulomb; only used by the average-level (ALField) code line. A (nsL+nsS) x (nsL+nsS) matrixV::Array{Float64,2} is returned.
 """
-function XL_CoulombTensorClaude(L::Int64, a::Subshell, b::Orbital, c::Orbital, cVector::Vector{Float64}, d::Subshell,
-                                cacheLL::RadialIntegrals.SlaterMomentCacheClaude,
-                                cacheLS::RadialIntegrals.SlaterMomentCacheClaude,
-                                cacheSS::RadialIntegrals.SlaterMomentCacheClaude,
+function XL_CoulombTensor(L::Int64, a::Subshell, b::Orbital, c::Orbital, cVector::Vector{Float64}, d::Subshell,
+                                cacheLL::RadialIntegrals.SlaterMomentCache,
+                                cacheLS::RadialIntegrals.SlaterMomentCache,
+                                cacheSS::RadialIntegrals.SlaterMomentCache,
                                 primitives::Bsplines.Primitives)
     nsL = primitives.grid.nsL;  nsS = primitives.grid.nsS;  grid = primitives.grid
     wm  = zeros(nsL+nsS, nsL+nsS)

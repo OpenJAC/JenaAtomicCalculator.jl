@@ -572,12 +572,12 @@ const GBL_GaussLegendreCell = FastGaussQuadrature.gausslegendre(8)
 
 
 """
-`RadialIntegrals.cellIntegralClaude(f, a::Float64, b::Float64)`  
+`RadialIntegrals.cellIntegral(f, a::Float64, b::Float64)`  
     ... integrates f over the single interval [a,b] with a fixed 8-point Gauss-Legendre rule; a Float64 is
         returned.  Used only by the screened-potential sweeps, where each interval is one grid cell and the
         integrand is smooth on it.
 """
-function cellIntegralClaude(f, a::Float64, b::Float64)
+function cellIntegral(f, a::Float64, b::Float64)
     (xg, wg) = GBL_GaussLegendreCell
     half = 0.5*(b - a);    mid = 0.5*(b + a);    acc = 0.
     for  j = 1:length(xg)     acc = acc + wg[j] * f( half*xg[j] + mid )     end
@@ -586,7 +586,7 @@ end
 
 
 """
-`RadialIntegrals.buildScreenedPotentialClaude(k::Int64, b::Radial.Orbital, d::Radial.Orbital, grid::Radial.Grid;
+`RadialIntegrals.buildScreenedPotential(k::Int64, b::Radial.Orbital, d::Radial.Orbital, grid::Radial.Grid;
                                               rtol::Float64=1.0e-9, mtpOut::Union{Nothing,Int64}=nothing)`
     ... computes the "screened potential"
 
@@ -599,7 +599,7 @@ end
         not on whatever it is later contracted against, it only needs to be built ONCE per orbital pair and can
         then be reused cheaply (via the existing, already-tabulated grid quadrature, since V_k(r) is itself
         smooth/kink-free once built correctly) for every downstream contraction -- e.g. RadialIntegrals.
-        SlaterRk_2dimClaude below, or a B-spline matrix element as needed for SCF orbital optimization.
+        SlaterRk_2dimKinkAware below, or a B-spline matrix element as needed for SCF orbital optimization.
 
         The kink that the original r_</r_>^(k+1) kernel has at r=s is handled explicitly here: for each outer
         point r WITHIN the source density's own extent, the integral over s is split into [0,r] and [r,r_max]
@@ -631,11 +631,11 @@ end
         mtpOut lets the caller request the FULL range actually needed (e.g. grid.NoPoints for a
         B-spline matrix element); left unspecified, it defaults to min(size(b.P,1),size(d.P,1)) as before, which
         remains correct wherever V_k is only ever contracted against something ALSO naturally truncated to that
-        same orbital-pair extent (e.g. SlaterRk_2dimClaude).
+        same orbital-pair extent (e.g. SlaterRk_2dimKinkAware).
         A Vk::Vector{Float64}, of length mtpOut (or min(size(b.P,1),size(d.P,1)) if mtpOut is not given), is
         returned.
 """
-function buildScreenedPotentialClaude(k::Int64, b::Radial.Orbital, d::Radial.Orbital, grid::Radial.Grid;
+function buildScreenedPotential(k::Int64, b::Radial.Orbital, d::Radial.Orbital, grid::Radial.Grid;
                                       rtol::Float64=1.0e-9, mtpOut::Union{Nothing,Int64}=nothing)
     mtp_bd  = min(size(b.P, 1), size(d.P, 1))
     mtpOutx = isnothing(mtpOut) ? mtp_bd : mtpOut
@@ -656,23 +656,23 @@ function buildScreenedPotentialClaude(k::Int64, b::Radial.Orbital, d::Radial.Orb
     # FORWARD sweep:  inner[i] = int_{r0}^{r_i} ds s^k rho_bd(s), accumulated ONE GRID CELL AT A TIME.
     inner = zeros(mtpOutx);    acc = 0.
     for  i = 2:iLast
-        acc      = acc + RadialIntegrals.cellIntegralClaude(s -> s^k * splBd(s), grid.r[i-1], grid.r[i])
+        acc      = acc + RadialIntegrals.cellIntegral(s -> s^k * splBd(s), grid.r[i-1], grid.r[i])
         inner[i] = acc
     end
     # the remaining cell out to rmaxBd completes the full inner moment, so that fullInner is by
     # construction the end value of the same sweep rather than a separately integrated quantity
     fullInner = grid.r[iLast] < rmaxBd ?
-                acc + RadialIntegrals.cellIntegralClaude(s -> s^k * splBd(s), grid.r[iLast], rmaxBd)  :  acc
+                acc + RadialIntegrals.cellIntegral(s -> s^k * splBd(s), grid.r[iLast], rmaxBd)  :  acc
 
     # BACKWARD sweep:  outer[i] = int_{r_i}^{rmaxBd} ds s^{-(k+1)} rho_bd(s), likewise cell by cell.
     # Accumulating from the far end inwards also adds the small contributions first, which is the
     # numerically favourable order.
     outer = zeros(mtpOutx)
     if  iLast >= 2
-        acc = RadialIntegrals.cellIntegralClaude(s -> s^(-(k+1)) * splBd(s), grid.r[iLast], rmaxBd)
+        acc = RadialIntegrals.cellIntegral(s -> s^(-(k+1)) * splBd(s), grid.r[iLast], rmaxBd)
         outer[iLast] = acc
         for  i = iLast-1:-1:2
-            acc      = acc + RadialIntegrals.cellIntegralClaude(s -> s^(-(k+1)) * splBd(s), grid.r[i], grid.r[i+1])
+            acc      = acc + RadialIntegrals.cellIntegral(s -> s^(-(k+1)) * splBd(s), grid.r[i], grid.r[i+1])
             outer[i] = acc
         end
     end
@@ -688,25 +688,25 @@ end
 
 
 """
-`RadialIntegrals.SlaterRk_2dimClaude(k::Int64, a::Radial.Orbital, b::Radial.Orbital, c::Radial.Orbital, d::Radial.Orbital,
+`RadialIntegrals.SlaterRk_2dimKinkAware(k::Int64, a::Radial.Orbital, b::Radial.Orbital, c::Radial.Orbital, d::Radial.Orbital,
                                      grid::Radial.Grid; rtol::Float64=1.0e-9)`
     ... computes the same (relativistic) Slater integral as SlaterRk_2dim,
 
     R^k (abcd) = int_0^infty dr int_0^infty ds (P_a P_c + Q_a Q_c) r_<^k / r_>^(k+1) (P_b P_d + Q_b Q_d)
 
-    but via the kink-aware screened potential RadialIntegrals.buildScreenedPotentialClaude(k,b,d,grid) instead of
+    but via the kink-aware screened potential RadialIntegrals.buildScreenedPotential(k,b,d,grid) instead of
     the naive tensor-product Gauss-Legendre double sum SlaterRk_2dim uses (which is exact for smooth polynomials
     within a break-point cell, but not for a function with a first-derivative discontinuity running through the
     middle of one, as r_</r_>^(k+1) has at r=s). Since V_k(r) is smooth once built, the outer integral over r can
     safely reuse the existing grid quadrature weights -- no further adaptive treatment is needed there.
     A value::Float64 is returned.
 """
-function SlaterRk_2dimClaude(k::Int64, a::Radial.Orbital, b::Radial.Orbital, c::Radial.Orbital, d::Radial.Orbital,
+function SlaterRk_2dimKinkAware(k::Int64, a::Radial.Orbital, b::Radial.Orbital, c::Radial.Orbital, d::Radial.Orbital,
                              grid::Radial.Grid; rtol::Float64=1.0e-9)
-    ## mtpOut MUST be passed (fixed 13-Aug-2026).  Without it buildScreenedPotentialClaude tabulates V_k only
+    ## mtpOut MUST be passed (fixed 13-Aug-2026).  Without it buildScreenedPotential tabulates V_k only
     ## out to the (b,d) SOURCE's own extent, and the outer integral over r was then cut at
     ## min(mtp_ac, length(Vk)) -- dropping the whole r > r_max(bd) tail, where V_k(r) is not zero but falls off
-    ## as the multipole const/r^(k+1).  That is the exact trap the docstring of buildScreenedPotentialClaude
+    ## as the multipole const/r^(k+1).  That is the exact trap the docstring of buildScreenedPotential
     ## warns about, and this was its one caller that walked into it.
     ##
     ## IT WAS INVISIBLE FOR AS LONG AS THIS FUNCTION SERVED ONLY THE SCF, where (a,c) and (b,d) are both bound
@@ -716,7 +716,7 @@ function SlaterRk_2dimClaude(k::Int64, a::Radial.Orbital, b::Radial.Orbital, c::
     ## the stepwise-decay cascade by 150%, which is what a dropped tail looks like -- not what a 2e-4
     ## quadrature refinement looks like.
     mtp_ac = min(size(a.P, 1), size(c.P, 1))
-    Vk     = buildScreenedPotentialClaude(k, b, d, grid; rtol=rtol, mtpOut=mtp_ac)
+    Vk     = buildScreenedPotential(k, b, d, grid; rtol=rtol, mtpOut=mtp_ac)
 
     wa = 0.
     for  r = 2:mtp_ac   wa = wa + (a.P[r]*c.P[r] + a.Q[r]*c.Q[r]) * grid.wr[r] * Vk[r]   end
@@ -725,7 +725,7 @@ end
 
 
 """
-`RadialIntegrals.buildScreenedPotentialPairClaude(k::Int64, Ba::Vector{Float64}, orbComp::Vector{Float64},
+`RadialIntegrals.buildScreenedPotentialPair(k::Int64, Ba::Vector{Float64}, orbComp::Vector{Float64},
                                                   grid::Radial.Grid; rtol::Float64=1.0e-9,
                                                   mtpOut::Union{Nothing,Int64}=nothing)`
     ... computes the same kind of "screened potential"
@@ -733,10 +733,10 @@ end
         V_k(r) = (1/r^(k+1)) int_0^r ds s^k rho(s)  +  r^k int_r^r_max ds s^{-(k+1)} rho(s),
         rho(s) = Ba(s) * orbComp(s),
 
-        as RadialIntegrals.buildScreenedPotentialClaude, but for a DENSITY BUILT FROM A SINGLE B-SPLINE (Ba,
+        as RadialIntegrals.buildScreenedPotential, but for a DENSITY BUILT FROM A SINGLE B-SPLINE (Ba,
         a zero-padded array with support limited to that spline's own knot interval) times a single component
         (P or Q) of a fixed orbital, rather than a full P_bP_d+Q_bQ_d orbital-pair density. This is the
-        building block for the "exchange"-signature InteractionStrength.XL_CoulombClaude, where -- unlike the
+        building block for the "exchange"-signature InteractionStrength.XL_CoulombKinkAware, where -- unlike the
         "direct" signature -- BOTH B-spline indices sit on opposite sides of the two-electron kernel, so no
         single screened potential can be shared across the whole (nsL+nsS) x (nsL+nsS) matrix. Instead, one such
         potential is built per ROW (per "a" B-spline), using only that spline's own compact support to define
@@ -747,15 +747,15 @@ end
         computed once and then just divided by r^(k+1) at each point -- so only the (typically few) grid points
         inside Ba's own support incur the cost of an adaptive quadrature split at the kink.
         Within that support the two moments are accumulated by a forward and a backward SWEEP over the grid
-        cells, for the same reason as in buildScreenedPotentialClaude: consecutive points differ by one cell,
+        cells, for the same reason as in buildScreenedPotential: consecutive points differ by one cell,
         so re-integrating the whole sub-range at each point repeats work. fullInner and fullOuter are the end
         values of those same sweeps, so they cannot drift away from the pointwise values.
         The optional mtpOut lets the caller request a LONGER output range explicitly -- needed, for instance, by
-        RadialIntegrals.buildSlaterMomentCacheClaude, where BOTH Ba and orbComp are themselves compact B-splines
+        RadialIntegrals.buildSlaterMomentCache, where BOTH Ba and orbComp are themselves compact B-splines
         (not a broad orbital), so size(orbComp,1) alone would be far too short for how the result is used later.
         A Vk::Vector{Float64}, of length mtpOut (or size(orbComp,1) if mtpOut is not given), is returned.
 """
-function buildScreenedPotentialPairClaude(k::Int64, Ba::Vector{Float64}, orbComp::Vector{Float64}, grid::Radial.Grid;
+function buildScreenedPotentialPair(k::Int64, Ba::Vector{Float64}, orbComp::Vector{Float64}, grid::Radial.Grid;
                                           rtol::Float64=1.0e-9, mtpOut::Union{Nothing,Int64}=nothing)
     mtpSrc = min(size(Ba, 1), size(orbComp, 1))
     mtpOutx = isnothing(mtpOut) ? size(orbComp, 1) : mtpOut
@@ -765,7 +765,7 @@ function buildScreenedPotentialPairClaude(k::Int64, Ba::Vector{Float64}, orbComp
     # Restrict to the density's ACTUAL nonzero support. Ba and orbComp are zero-padded from index 1, so for a
     # "late" B-spline pair the true overlap can start far later than index 1 (e.g. a padded array of length 392
     # with a true support of only ~20 points) -- running adaptive quadrature over that leading, identically-zero
-    # stretch as well as the true support wastes most of the work for exactly the pairs buildSlaterMomentCacheClaude
+    # stretch as well as the true support wastes most of the work for exactly the pairs buildSlaterMomentCache
     # calls this with most often.
     startIdx = 0
     for  i = 1:mtpSrc   if  Ba[i]*orbComp[i] != 0.    startIdx = i;   break   end   end
@@ -788,24 +788,24 @@ function buildScreenedPotentialPairClaude(k::Int64, Ba::Vector{Float64}, orbComp
     # FORWARD sweep:  inner[i] = int_{rStart}^{r_i} ds s^k rho(s), one grid cell at a time.
     inner = zeros(mtpOutx);    acc = 0.
     for  i = iFirst:iLast
-        acc      = acc + RadialIntegrals.cellIntegralClaude(s -> s^k * splBa(s), grid.r[i-1], grid.r[i])
+        acc      = acc + RadialIntegrals.cellIntegral(s -> s^k * splBa(s), grid.r[i-1], grid.r[i])
         inner[i] = acc
     end
     fullInner = (iLast >= iFirst  &&  grid.r[iLast] < rmaxSrc) ?
-                acc + RadialIntegrals.cellIntegralClaude(s -> s^k * splBa(s), grid.r[iLast], rmaxSrc)  :
+                acc + RadialIntegrals.cellIntegral(s -> s^k * splBa(s), grid.r[iLast], rmaxSrc)  :
                 QuadGK.quadgk(s -> s^k * splBa(s), rStart, rmaxSrc, rtol=rtol)[1]
 
     # BACKWARD sweep:  outer[i] = int_{r_i}^{rmaxSrc} ds s^{-(k+1)} rho(s).  fullOuter is then the same
     # sweep carried the last step down to rStart, so the two agree by construction.
     outer = zeros(mtpOutx);    fullOuter = 0.
     if  iLast >= iFirst
-        acc = RadialIntegrals.cellIntegralClaude(s -> s^(-(k+1)) * splBa(s), grid.r[iLast], rmaxSrc)
+        acc = RadialIntegrals.cellIntegral(s -> s^(-(k+1)) * splBa(s), grid.r[iLast], rmaxSrc)
         outer[iLast] = acc
         for  i = iLast-1:-1:iFirst
-            acc      = acc + RadialIntegrals.cellIntegralClaude(s -> s^(-(k+1)) * splBa(s), grid.r[i], grid.r[i+1])
+            acc      = acc + RadialIntegrals.cellIntegral(s -> s^(-(k+1)) * splBa(s), grid.r[i], grid.r[i+1])
             outer[i] = acc
         end
-        fullOuter = acc + RadialIntegrals.cellIntegralClaude(s -> s^(-(k+1)) * splBa(s), rStart, grid.r[iFirst])
+        fullOuter = acc + RadialIntegrals.cellIntegral(s -> s^(-(k+1)) * splBa(s), rStart, grid.r[iFirst])
     else
         fullOuter = QuadGK.quadgk(s -> s^(-(k+1)) * splBa(s), rStart, rmaxSrc, rtol=rtol)[1]
     end
@@ -822,17 +822,17 @@ end
 
 
 """
-`struct  RadialIntegrals.SlaterMomentCacheClaude`
+`struct  RadialIntegrals.SlaterMomentCache`
     ... holds a precomputed cache of kink-aware "screened potentials" Phi_(i,i')(s), one for every overlapping
         pair of B-splines (i,i') from a GIVEN B-spline basis (e.g. primitives.bsplinesL or primitives.bsplinesS),
         for one fixed multipole rank k. THIS IS NOT ITSELF A PHYSICAL SLATER/RADIAL INTEGRAL -- it is an
         auxiliary, basis-only tensor (it does not reference any orbital at all) from which many different direct
         and exchange two-electron radial integrals can afterwards be obtained CHEAPLY, by a simple grid-quadrature
         dot product against whatever B-spline or orbital density is actually needed (see
-        RadialIntegrals.buildSlaterMomentCacheClaude for how it is built, and
+        RadialIntegrals.buildSlaterMomentCache for how it is built, and
         SelfConsistent.computeDirectExchangeVTensor, once written, for how it gets used). Building this cache is
         the expensive, kink-aware step -- it uses the SAME split-quadrature technique as
-        buildScreenedPotentialPairClaude, just applied ONCE per (basis-only) B-spline pair rather than once per
+        buildScreenedPotentialPair, just applied ONCE per (basis-only) B-spline pair rather than once per
         SCF call; using it afterwards, many times over, for many different orbital pairs and many SCF iterations,
         is cheap. This follows the "moment array" idea underlying Zatsarinny \\& Froese Fischer, Comput. Phys.
         Commun. 202, 287-303 (2016), their Eq. (16) -- though here the array is stored in this partially-
@@ -843,7 +843,7 @@ end
         LL and SS ("same-basis") combinations for its diagonal blocks, but ALSO an LS ("cross-basis") combination
         for its off-diagonal blocks, since the large- and small-component B-spline bases share the same
         underlying grid (just different spline orders) and therefore genuinely overlap with EACH OTHER too, not
-        only within themselves. See RadialIntegrals.buildSlaterMomentCacheClaude for how the same-basis and
+        only within themselves. See RadialIntegrals.buildSlaterMomentCache for how the same-basis and
         cross-basis cases are told apart and handled.
     + k        ::Int64                                    ... the multipole rank this cache was built for
     + sameBasis::Bool                                     ... true if this cache was built from two identical
@@ -861,7 +861,7 @@ end
                                                               (nonzero) for OVERLAPPING (i,i') pairs. i indexes
                                                               the FIRST basis, i' the SECOND.
 """
-struct SlaterMomentCacheClaude
+struct SlaterMomentCache
     k         ::Int64
     sameBasis ::Bool
     band      ::Int64
@@ -870,15 +870,15 @@ end
 
 
 """
-`RadialIntegrals.buildSlaterMomentCacheClaude(k::Int64, bsplines1::Array{<:Any,1}, bsplines2::Array{<:Any,1},
+`RadialIntegrals.buildSlaterMomentCache(k::Int64, bsplines1::Array{<:Any,1}, bsplines2::Array{<:Any,1},
                                               grid::Radial.Grid; rtol::Float64=1.0e-9)`
-    ... builds a RadialIntegrals.SlaterMomentCacheClaude for multipole rank k from TWO lists of B-splines --
+    ... builds a RadialIntegrals.SlaterMomentCache for multipole rank k from TWO lists of B-splines --
         typically primitives.bsplinesL and/or primitives.bsplinesS. For every pair (i,i'), i from bsplines1 and
         i' from bsplines2, whose supports overlap, the kink-aware screened potential
 
             Phi_(i,i')(s) = int_0^infty dr  B1_i(r) B2_i'(r) * r_<^k / r_>^(k+1)
 
-        is built ONCE, via RadialIntegrals.buildScreenedPotentialPairClaude applied to the (compact-support)
+        is built ONCE, via RadialIntegrals.buildScreenedPotentialPair applied to the (compact-support)
         density B1_i*B2_i', and cached. AGAIN: THIS IS NOT ITSELF A PHYSICAL SLATER INTEGRAL -- it is the
         reusable, basis-only building block from which any two-electron direct or exchange radial integral for
         this rank k can later be obtained cheaply, without repeating the expensive kink-aware quadrature on
@@ -897,9 +897,9 @@ end
           overlap is tested explicitly via each B-spline's own [lower,upper] range rather than assuming any
           shared ordering convention between the two lists. This is the "LS" (equivalently "SL", with the two
           lists swapped) case, needed for the off-diagonal blocks of an exchange-signature Fock matrix.
-        A RadialIntegrals.SlaterMomentCacheClaude is returned, with its sameBasis field set accordingly.
+        A RadialIntegrals.SlaterMomentCache is returned, with its sameBasis field set accordingly.
 """
-function buildSlaterMomentCacheClaude(k::Int64, bsplines1::Array{<:Any,1}, bsplines2::Array{<:Any,1},
+function buildSlaterMomentCache(k::Int64, bsplines1::Array{<:Any,1}, bsplines2::Array{<:Any,1},
                                       grid::Radial.Grid; rtol::Float64=1.0e-9)
     sameBasis = (bsplines1 === bsplines2)
     n1  = length(bsplines1);   n2 = length(bsplines2)
@@ -922,10 +922,10 @@ function buildSlaterMomentCacheClaude(k::Int64, bsplines1::Array{<:Any,1}, bspli
             for  m = Bip.lower:Bip.upper   Pip[m] = Pip[m] + Bip.bs[m+addip]   end
 
             # mtpOut is forced to the full grid extent here: unlike the exchange-integral use of
-            # buildScreenedPotentialPairClaude (where the SECOND argument is a broad orbital, "far enough" on
+            # buildScreenedPotentialPair (where the SECOND argument is a broad orbital, "far enough" on
             # its own), BOTH Pi and Pip are themselves compact B-splines, so leaving mtpOut at its default
             # (size(Pip,1)) would silently truncate Phi_(i,i') long before it is needed by later contractions.
-            V = buildScreenedPotentialPairClaude(k, Pi, Pip, grid; rtol=rtol, mtpOut=grid.NoPoints)
+            V = buildScreenedPotentialPair(k, Pi, Pip, grid; rtol=rtol, mtpOut=grid.NoPoints)
             Phi[(i,ip)] = V
             if  sameBasis && ip != i   Phi[(ip,i)] = V   end   # Phi is symmetric in (i,i') only for a same-basis cache
         end
@@ -934,7 +934,7 @@ function buildSlaterMomentCacheClaude(k::Int64, bsplines1::Array{<:Any,1}, bspli
     band = 0
     for  (i,ip)  in  keys(Phi)   band = max(band, abs(i-ip))   end
 
-    return( SlaterMomentCacheClaude(k, sameBasis, band, Phi) )
+    return( SlaterMomentCache(k, sameBasis, band, Phi) )
 end
 
 

@@ -239,7 +239,7 @@ function  computeProperties(outcome::ReducedDensityMatrix.Outcome, nm::Nuclear.M
     electronDensity   = outcome.electronDensity;          rho1p              = outcome.rho1p;             rho2p = outcome.rho2p
     
     naturalSubshells   = copy(outcome.level.basis.subshells)
-    rho1p              = compute1pRDMClaude(outcome.level)
+    rho1p              = compute1pRDMDirect(outcome.level)
     naturalOccupation, naturalOrbitalExp = computeNaturalOrbitalExpansion(rho1p, outcome.level)
 
     if  settings.calcNatural  ||  settings.calcDensity  ||  settings.calcIpq
@@ -316,7 +316,7 @@ end
 
 
 """
-`ReducedDensityMatrix.compute1pRDMClaude(level::Level)`
+`ReducedDensityMatrix.compute1pRDMDirect(level::Level)`
     ... to compute the 1p RDM directly from the CI mixing coefficients and CSF occupation numbers, following
         Eq. (7) of Ma et al., Atoms 12, 30 (2024), rho^kappa_nn' = sum_ij c_i v^ij_nn' c_j -- but derived here
         from elementary second quantization, independently of SpinAngular.computeCoefficients.
@@ -336,7 +336,7 @@ end
         electron differing per subshell) are NOT handled and raise an error -- those need the full
         coefficient-of-fractional-parentage machinery in SpinAngular.
 """
-function  compute1pRDMClaude(level::Level)
+function  compute1pRDMDirect(level::Level)
     subshellList = level.basis.subshells;    lenNO = length(subshellList)
     rho_pq       = zeros(lenNO, lenNO)
     csfs         = level.basis.csfs
@@ -373,7 +373,7 @@ function  compute1pRDMClaude(level::Level)
             elseif  occAset == Set([fullA-1,fullA])  &&  occBset == Set([0,1])
                 emptySite, fullSite = ib, ia
             else
-                error("ReducedDensityMatrix.compute1pRDMClaude: only single substitutions between a fully-closed " *
+                error("ReducedDensityMatrix.compute1pRDMDirect: only single substitutions between a fully-closed " *
                         "shell (one hole created) and an empty shell (one electron added) are supported; got "     *
                         "occupations $(rcsf.occupation[ia]),$(scsf.occupation[ia]) and $(rcsf.occupation[ib]),"    *
                         "$(scsf.occupation[ib]).")

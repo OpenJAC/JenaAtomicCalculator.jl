@@ -274,7 +274,7 @@ end
 
 
 """
-`Bsplines.fitVectorToPrimitivesClaude(orb::Radial.Orbital, primitives::Bsplines.Primitives, matrixB::Array{Float64,2})`
+`Bsplines.fitVectorToPrimitives(orb::Radial.Orbital, primitives::Bsplines.Primitives, matrixB::Array{Float64,2})`
     ... projects the (already CLEANED/truncated) tabulated orbital orb onto the B-spline primitives basis via
         the standard Galerkin/least-squares projection matrixB * p = rhs, rhs[i] = <B_i|orb.P-or-Q>, using the
         existing grid quadrature. Unlike pulling the RAW diagonalization eigenvector -- which reproduces the
@@ -286,7 +286,7 @@ end
         This matters wherever B-spline expansion coefficients are themselves summed/weighted directly, rather
         than only ever used to reconstruct one smooth tabulated function -- such sums do not automatically
         benefit from the cancellation that evaluating a single, already-cleaned tabulated function enjoys. See
-        InteractionStrength.XL_CoulombTensorClaude and SelfConsistent.solveAverageLevelField, where using
+        InteractionStrength.XL_CoulombTensor and SelfConsistent.solveAverageLevelField, where using
         the raw eigenvector instead of this projection was traced to a real, non-negligible SCF discrepancy.
         The returned vector is explicitly re-normalized so that v'*matrixB*v = 1 EXACTLY (to floating-point
         precision), rather than trusting the least-squares fit to land there on its own -- Hamiltonian.
@@ -295,7 +295,7 @@ end
         projection, which compounds under repeated application across SCF iterations.
         A vector::Vector{Float64}, of length nsL+nsS, is returned.
 """
-function fitVectorToPrimitivesClaude(orb::Radial.Orbital, primitives::Bsplines.Primitives, matrixB::Array{Float64,2})
+function fitVectorToPrimitives(orb::Radial.Orbital, primitives::Bsplines.Primitives, matrixB::Array{Float64,2})
     nsL = primitives.grid.nsL;   nsS = primitives.grid.nsS;   grid = primitives.grid
     rhs = zeros(nsL+nsS)
 
@@ -375,13 +375,13 @@ end
 
 
 """
-`Bsplines.generateOrbitalFromVectorClaude(sh::Subshell, energy::Float64, vector::Vector{Float64},
+`Bsplines.generateOrbitalFromVector(sh::Subshell, energy::Float64, vector::Vector{Float64},
                                           primitives::Bsplines.Primitives)`
     ... generates a (normalized, cleaned) tabulated orbital directly from a given B-spline expansion coefficient
         vector, rather than from an eigenvector INDEXED out of a Basics.Eigen (as
         Bsplines.generateOrbitalFromPrimitives(sh,wc,primitives) requires). This is needed whenever the vector in
         hand is not literally an eigenvector of anything -- e.g. after SelfConsistent.
-        orthonormalizeSameKappaClaude's Loewdin symmetric orthogonalization, which produces a LINEAR COMBINATION
+        orthonormalizeSameKappa's Loewdin symmetric orthogonalization, which produces a LINEAR COMBINATION
         of eigenvectors that is itself not an eigenvector of the original problem.
         Reproduces generateOrbitalFromPrimitives(sh,wc,primitives)'s own reconstruction exactly (auto-detects
         mtp from where the density drops below 1e-13, zeros values below 1e-10, fixes the sign convention so the
@@ -389,7 +389,7 @@ end
         the wc/ni lookup indirection.
         A (normalized) orbital::Orbital is returned.
 """
-function generateOrbitalFromVectorClaude(sh::Subshell, energy::Float64, vector::Vector{Float64}, primitives::Bsplines.Primitives)
+function generateOrbitalFromVector(sh::Subshell, energy::Float64, vector::Vector{Float64}, primitives::Bsplines.Primitives)
     nsL = primitives.grid.nsL;    nsS = primitives.grid.nsS
     if  length(vector) != nsL + nsS    error("stop a")    end
 
