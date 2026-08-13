@@ -123,14 +123,19 @@ function Basics.compute(::CImatrixWithSymmetryJP, JP::LevelSymmetry, basis::Basi
                 if  typeof(settings.eeInteractionCI) in [DiagonalCoulomb, CoulombInteraction, CoulombBreit, CoulombGaunt]
                     me = me + coeff.V * InteractionStrength.XL_Coulomb(coeff.nu, basis.orbitals[coeff.a], basis.orbitals[coeff.b],
                                                                                     basis.orbitals[coeff.c], basis.orbitals[coeff.d], grid, keep=keep)
+                ## The two disabled branches below are the REFERENCE CROSS-CHECK for the optimized
+                ## Coulomb strength: flip a false to true to compare XL_Coulomb against the literal,
+                ## unoptimized XL_CoulombReference, or to run the whole CI on the reference version.
+                ## The matching pair for Breit was removed on 13-Aug-2026: it called XL_Breit_WO,
+                ## which HAS NEVER EXISTED, so that half of the check could not have run at all.
                 elseif  false
                     xl1 = InteractionStrength.XL_Coulomb(coeff.nu, basis.orbitals[coeff.a], basis.orbitals[coeff.b],
                                                                                             basis.orbitals[coeff.c], basis.orbitals[coeff.d], grid, keep=false)
-                    xl2 = InteractionStrength.XL_Coulomb_WO(coeff.nu, basis.orbitals[coeff.a], basis.orbitals[coeff.b],
+                    xl2 = InteractionStrength.XL_CoulombReference(coeff.nu, basis.orbitals[coeff.a], basis.orbitals[coeff.b],
                                                                                                 basis.orbitals[coeff.c], basis.orbitals[coeff.d], grid)
                     if abs(xl1 - xl2) > 1.0e-12  println("XL_Coulomb differ: $xl1   $xl2")      end
                 elseif  false 
-                    me = me + coeff.V * InteractionStrength.XL_Coulomb_WO(coeff.nu, basis.orbitals[coeff.a], basis.orbitals[coeff.b],
+                    me = me + coeff.V * InteractionStrength.XL_CoulombReference(coeff.nu, basis.orbitals[coeff.a], basis.orbitals[coeff.b],
                                                                                     basis.orbitals[coeff.c], basis.orbitals[coeff.d], grid)   
                 end
                                                                                         
@@ -138,15 +143,6 @@ function Basics.compute(::CImatrixWithSymmetryJP, JP::LevelSymmetry, basis::Basi
                     me = me + coeff.V * InteractionStrength.XL_Breit(coeff.nu, basis.orbitals[coeff.a], basis.orbitals[coeff.b],
                                                                                 basis.orbitals[coeff.c], basis.orbitals[coeff.d], grid,
                                                                                 settings.eeInteractionCI, keep=keep)     
-                elseif  false
-                    xl1 = InteractionStrength.XL_Breit(coeff.nu, basis.orbitals[coeff.a], basis.orbitals[coeff.b],
-                                                                                            basis.orbitals[coeff.c], basis.orbitals[coeff.d], grid, keep=false)
-                    xl2 = InteractionStrength.XL_Breit_WO(coeff.nu, basis.orbitals[coeff.a], basis.orbitals[coeff.b],
-                                                                                                basis.orbitals[coeff.c], basis.orbitals[coeff.d], grid)
-                    if abs(xl1 - xl2) > 1.0e-12  println("XL_Breit differ: $xl1   $xl2")      end
-                elseif  false 
-                    me = me + coeff.V * InteractionStrength.XL_Breit_WO(coeff.nu, basis.orbitals[coeff.a], basis.orbitals[coeff.b],
-                                                                                    basis.orbitals[coeff.c], basis.orbitals[coeff.d], grid)
                 end
             end
             matrix[r,s] = me

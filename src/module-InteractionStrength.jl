@@ -670,11 +670,11 @@ end
 
 
 """
-`InteractionStrength.XL_Coulomb_WO(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital, grid::Radial.Grid)`  
+`InteractionStrength.XL_CoulombReference(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital, grid::Radial.Grid)`  
     ... computes the the effective Coulomb interaction strengths X^L_Coulomb (abcd) for given rank L and orbital functions 
         a, b, c and d at the given grid but without optimization. A value::Float64 is returned.
 """
-function XL_Coulomb_WO(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital, grid::Radial.Grid)
+function XL_CoulombReference(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital, grid::Radial.Grid)
     # Test for the triangular-delta conditions and calculate the reduced matrix elements of the C^L tensors
     la = Basics.subshell_l(a.subshell);    ja2 = Basics.subshell_2j(a.subshell)
     lb = Basics.subshell_l(b.subshell);    jb2 = Basics.subshell_2j(b.subshell)
@@ -688,7 +688,7 @@ function XL_Coulomb_WO(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital,
     xc = AngularMomentum.CL_reduced_me(a.subshell, L, c.subshell) * AngularMomentum.CL_reduced_me(b.subshell, L, d.subshell)
     if   rem(L,2) == 1    xc = - xc    end 
     
-    XL_Coulomb = xc * RadialIntegrals.SlaterRkWO(L, a, b, c, d, grid)
+    XL_Coulomb = xc * RadialIntegrals.SlaterRkReference(L, a, b, c, d, grid)
     return( XL_Coulomb )
 end
 

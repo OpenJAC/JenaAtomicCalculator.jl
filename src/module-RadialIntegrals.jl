@@ -944,7 +944,7 @@ end
 
 
 """
-`RadialIntegrals.SlaterRkWO(k::Int64, a::Radial.Orbital, b::Radial.Orbital, c::Radial.Orbital, d::Orbital, grid::Radial.Grid)`
+`RadialIntegrals.SlaterRkReference(k::Int64, a::Radial.Orbital, b::Radial.Orbital, c::Radial.Orbital, d::Orbital, grid::Radial.Grid)`
     ... computes the (relativistic) Slater integral
 
         R^k (abcd) = int_0^infty dr int_0^infty ds (P_a P_c + Q_a Q_c) r_<^k / r_>^(k+1) (P_b P_d + Q_b Q_d)
@@ -952,7 +952,7 @@ end
         of rank k for the four orbitals a, b, c, d, and over the given grid by using an explicit 2-dimensional integration scheme
         but without optimization (WO); a value::Float64 is returned.
 """
-function SlaterRkWO(k::Int64, a::Radial.Orbital, b::Radial.Orbital, c::Radial.Orbital, d::Radial.Orbital, grid::Radial.Grid)
+function SlaterRkReference(k::Int64, a::Radial.Orbital, b::Radial.Orbital, c::Radial.Orbital, d::Radial.Orbital, grid::Radial.Grid)
     function ul(r :: Float64, s :: Float64) :: Float64
         if     r <= s    return( r^k/s^(k+1) )
         elseif r > s     return( s^k/r^(k+1) )
