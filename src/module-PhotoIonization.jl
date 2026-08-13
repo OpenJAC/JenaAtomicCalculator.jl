@@ -207,6 +207,77 @@ struct  Channel
 end
 
 
+#####################################################################################################################
+## The PHYSICAL form of a channel, built beside the flat one above (13-Aug-2026).  Nothing here replaces
+## anything yet; see the three types and the ...Claude functions further down.
+##
+## WHY.  In `Channel` above, `multipole` and `gauge` sit beside `kappa` and `symmetry` as if all four
+## labelled the same thing.  They do not.  A multipole is a term in the expansion of the interaction
+## OPERATOR and a gauge is a representation of that same operator, whereas kappa and the total symmetry
+## describe the final STATE.  Two consequences were measured: the continuum orbital, which depends on
+## (energy, kappa) alone, was built once per (multipole, gauge) -- 42 channels over 21 kappa for a Ne case --
+## and 60 sites across JAC must filter channels by gauge or double-count.
+##
+## WHERE THE TOTAL J GOES.  `determineChannels` runs multipole -> allowedMultipoleSymmetries(symi, mp) ->
+## allowedKappaSymmetries(symt, symf), so ONE kappa serves SEVERAL total symmetries and one symmetry is
+## served by several kappa.  The total symmetry therefore belongs to the channel -- |J_f, (eps kappa) j; J_t>
+## is a definite asymptotic state only once J_t is fixed -- but NOT to the partial wave, whose orbital and
+## phase depend on (energy, kappa) alone.  Hence two levels rather than one.
+#####################################################################################################################
+
+
+"""
+`struct  PhotoIonization.MultipoleAmplitudeClaude`
+    ... the contribution of ONE multipole of the interaction operator to a channel's amplitude.
+
+    + multipole      ::EmMultipole      ... Multipole of the radiation field.
+    + amplitude      ::EmPropertyC      ... Amplitude in BOTH gauges; the gauge is not a label here.
+
+        The gauge is carried by the amplitude rather than by any struct, using the (previously unused)
+        Basics.EmPropertyC. Two consequences: a MAGNETIC multipole simply has equal components, so the rule
+        "add a magnetic contribution to the Coulomb AND the Babushkin sum" needs no special case; and a
+        product amplitude * conj(amplitude') is componentwise, so two gauges can never mix by construction,
+        where the flat form has to compare `ch.gauge != chp.gauge` by hand.
+"""
+struct  MultipoleAmplitudeClaude
+    multipole        ::EmMultipole
+    amplitude        ::EmPropertyC
+end
+
+
+"""
+`struct  PhotoIonization.ChannelClaude`
+    ... ONE asymptotic scattering state: the final ion plus a free electron, coupled to a total symmetry.
+
+    + symmetry       ::LevelSymmetry                            ... total J^parity of the scattering state.
+    + amplitudes     ::Array{MultipoleAmplitudeClaude,1}        ... one entry per contributing multipole.
+"""
+struct  ChannelClaude
+    symmetry         ::LevelSymmetry
+    amplitudes       ::Array{MultipoleAmplitudeClaude,1}
+end
+
+
+"""
+`struct  PhotoIonization.PartialWaveClaude`
+    ... ONE partial wave of the free electron, and the channels it serves.
+
+    + kappa          ::Int64                            ... partial wave of the free electron.
+    + energy         ::Float64                          ... energy of the free electron.
+    + phase          ::Float64                          ... scattering phase; a property of (energy, kappa).
+    + channels       ::Array{ChannelClaude,1}           ... the total symmetries this partial wave serves.
+
+        The radial orbital and the phase belong HERE, not to a channel: they do not depend on the total
+        symmetry, which is precisely why one kappa can serve several of them.
+"""
+struct  PartialWaveClaude
+    kappa            ::Int64
+    energy           ::Float64
+    phase            ::Float64
+    channels         ::Array{ChannelClaude,1}
+end
+
+
 """
 `struct  Line`  ... defines a type for a photoionization line that may include the definition of channels.
 
@@ -226,10 +297,38 @@ struct  Line
     electronEnergy   ::Float64
     photonEnergy     ::Float64
     crossSection     ::EmProperty
-    angularBeta      ::EmProperty 
-    coherentDelay    ::EmProperty  
-    incoherentDelay  ::EmProperty  
+    angularBeta      ::EmProperty
+    coherentDelay    ::EmProperty
+    incoherentDelay  ::EmProperty
     channels         ::Array{PhotoIonization.Channel,1}
+end
+
+
+"""
+`struct  PhotoIonization.LineClaude`
+    ... as PhotoIonization.Line, but carrying partial waves instead of flat channels; every other field is
+        the same, so that retiring the flat form later is a deletion and a rename rather than a rewrite.
+
+    + initialLevel   ::Level                            ... initial-(state) level
+    + finalLevel     ::Level                            ... final-(state) level
+    + electronEnergy ::Float64                          ... Energy of the (outgoing free) electron.
+    + photonEnergy   ::Float64                          ... Energy of the absorbed photon.
+    + crossSection   ::EmProperty                       ... Cross section for this photoionization.
+    + angularBeta    ::EmProperty                       ... beta_2 anisotropy parameter.
+    + coherentDelay  ::EmProperty                       ... coherent time delay.
+    + incoherentDelay::EmProperty                       ... incoherent time delay.
+    + partialWaves   ::Array{PartialWaveClaude,1}       ... partial waves, each with the channels it serves.
+"""
+struct  LineClaude
+    initialLevel     ::Level
+    finalLevel       ::Level
+    electronEnergy   ::Float64
+    photonEnergy     ::Float64
+    crossSection     ::EmProperty
+    angularBeta      ::EmProperty
+    coherentDelay    ::EmProperty
+    incoherentDelay  ::EmProperty
+    partialWaves     ::Array{PartialWaveClaude,1}
 end
 
 
@@ -968,6 +1067,197 @@ function determineChannels(finalLevel::Level, initialLevel::Level, settings::Pho
         end
     end
     return( channels )  
+end
+
+
+
+
+"""
+`PhotoIonization.computeAngularBetaClaude(iLevel::Level, fLevel::Level,
+        partialWaves::Array{PhotoIonization.PartialWaveClaude,1})`
+    ... computes the beta_2 anisotropy parameter from the given partial waves; an EmProperty is returned.
+        Valid in the E1 approximation, exactly as PhotoIonization.computeAngularBeta.
+
+        THIS IS THE FUNCTION THE NEW STRUCTURE HAS TO JUSTIFY, because it is the only consumer that needs
+        PAIRS of amplitudes rather than one at a time. In the flat form each pair must be guarded by
+        `if ch.gauge != chp.gauge continue`, since two amplitudes belonging to different gauges are two
+        different calculations and must never be multiplied together. Here that guard is GONE: the product
+        `amp * conj(ampp)` of two EmPropertyC is componentwise, so Coulomb meets Coulomb and Babushkin meets
+        Babushkin by construction. The gauge discipline moved out of the caller and into the arithmetic.
+
+        The partial wave supplies kappa -- one kappa serving several total symmetries -- and the channel
+        supplies the total symmetry, which is exactly the pairing this formula needs.
+"""
+function computeAngularBetaClaude(iLevel::Level, fLevel::Level, partialWaves::Array{PhotoIonization.PartialWaveClaude,1})
+    ## Flatten to (kappa, symmetry, E1 amplitude) once; every pair below is then a plain double loop.
+    entries = Tuple{Int64,LevelSymmetry,EmPropertyC}[]
+    for  pw in partialWaves,  ch in pw.channels,  ma in ch.amplitudes
+        ma.multipole == E1   ||   continue          # these beta parameters are valid only in E1 approximation
+        push!(entries, (pw.kappa, ch.symmetry, ma.amplitude))
+    end
+    wn = EmProperty(0., 0.)
+    for  (kappa, symt, amp) in entries    wn = wn + abs2(amp)    end
+    #
+    Ji = iLevel.J;    Jf = fLevel.J
+    waC = ComplexF64(0.);    waB = ComplexF64(0.)
+    for  (kappa, symt, amp) in entries
+        j = AngularMomentum.kappa_j(kappa);      l = AngularMomentum.kappa_l(kappa);      Jt  = symt.J
+        for  (kappap, symtp, ampp) in entries
+            jp = AngularMomentum.kappa_j(kappap);    lp = AngularMomentum.kappa_l(kappap);    Jtp = symtp.J
+            wb = AngularMomentum.phaseFactor([Jf, -1, Ji, -1, AngularJ64(1//2)]) *
+                    sqrt( AngularMomentum.bracket([Jt, Jtp, j, jp, l, lp]) ) *
+                        AngularMomentum.ClebschGordan(l, AngularM64(0), lp, AngularM64(0), AngularJ64(2), AngularM64(0)) *
+                        AngularMomentum.Wigner_6j(j, l, AngularJ64(1//2), lp, jp, AngularJ64(2)) *
+                        AngularMomentum.Wigner_6j(j, Jt, Jf, Jtp, jp, AngularJ64(2)) *
+                        AngularMomentum.Wigner_6j(AngularJ64(1), Jt, Ji, Jtp, AngularJ64(1), AngularJ64(2))
+            ## Componentwise: no gauge can leak into the other, and no guard is needed to say so.
+            wc  = (amp * conj(ampp)) * wb
+            waC = waC + wc.Coulomb;    waB = waB + wc.Babushkin
+        end
+    end
+    #
+    if  wn.Coulomb   == 0.   waC = ComplexF64(-9.0)    else    waC = sqrt(6.0) * waC / wn.Coulomb      end
+    if  wn.Babushkin == 0.   waB = ComplexF64(-9.0)    else    waB = sqrt(6.0) * waB / wn.Babushkin    end
+    return( EmProperty(waC.re, waB.re) )
+end
+
+
+"""
+`PhotoIonization.computeAmplitudesPropertiesClaude(line::PhotoIonization.LineClaude, nm::Nuclear.Model,
+        grid::Radial.Grid, nrContinuum::Int64, settings::PhotoIonization.Settings; printout::Bool=false,
+        nuclearPot::Union{Nothing,Radial.Potential}=nothing,
+        primitives::Union{Nothing,Bsplines.Primitives}=nothing)`
+    ... computes all amplitudes and properties of the given line; a LineClaude is returned in which the
+        amplitudes, the phases and the cross section are filled.
+
+        The physics is unchanged: the amplitudes come from the very same PhotoIonization.amplitude as the
+        flat path. Only the ORDER of the work differs, and that is the point -- the continuum orbital and the
+        initial level carrying the extra continuum subshell are formed ONCE PER PARTIAL WAVE, because they
+        depend on (energy, kappa) and on nothing else. The flat path had to re-derive them per channel until
+        a cache was added; here there is nothing to cache.
+
+        An electric multipole is evaluated twice, once per gauge, into one EmPropertyC; a magnetic multipole
+        once, into an EmPropertyC with equal components.
+"""
+function computeAmplitudesPropertiesClaude(line::PhotoIonization.LineClaude, nm::Nuclear.Model, grid::Radial.Grid,
+                                           nrContinuum::Int64, settings::PhotoIonization.Settings; printout::Bool=false,
+                                           nuclearPot::Union{Nothing,Radial.Potential}=nothing,
+                                           primitives::Union{Nothing,Bsplines.Primitives}=nothing)
+    contSettings = Continuum.Settings(false, nrContinuum)
+    redILevel = Basics.generateLevelWithSymmetryReducedBasis(line.initialLevel, line.initialLevel.basis.subshells)
+    newfLevel = Basics.generateLevelWithSymmetryReducedBasis(line.finalLevel, redILevel.basis.subshells)
+    newPartialWaves = PhotoIonization.PartialWaveClaude[]
+
+    for  pw in line.partialWaves
+        ## ONE orbital and ONE initial level per partial wave -- structurally, not by a cache.
+        cSubshell = Subshell(101, pw.kappa)
+        newiLevel = Basics.generateLevelWithExtraSubshell(cSubshell, redILevel)
+        cOrbital, phase = Continuum.generateOrbitalForLevel(line.electronEnergy, cSubshell, newfLevel, nm, grid,
+                                                            contSettings; nuclearPot=nuclearPot, primitives=primitives)
+        newChannels = PhotoIonization.ChannelClaude[]
+        for  ch in pw.channels
+            newcLevel = Basics.generateLevelWithExtraElectron(cOrbital, ch.symmetry, newfLevel)
+            newAmps   = PhotoIonization.MultipoleAmplitudeClaude[]
+            for  ma in ch.amplitudes
+                mp = ma.multipole
+                if  string(mp)[1] == 'E'
+                    chC  = PhotoIonization.Channel(mp, Basics.Coulomb,   pw.kappa, ch.symmetry, phase, Complex(0.))
+                    ampC = PhotoIonization.amplitude("photoionization", chC, line.photonEnergy, newcLevel, newiLevel, grid)
+                    chB  = PhotoIonization.Channel(mp, Basics.Babushkin, pw.kappa, ch.symmetry, phase, Complex(0.))
+                    ampB = PhotoIonization.amplitude("photoionization", chB, line.photonEnergy, newcLevel, newiLevel, grid)
+                    push!(newAmps, PhotoIonization.MultipoleAmplitudeClaude(mp, EmPropertyC(ampC, ampB)))
+                else
+                    ## A magnetic multipole does not depend on the gauge; one evaluation, equal components.
+                    chM  = PhotoIonization.Channel(mp, Basics.Magnetic,  pw.kappa, ch.symmetry, phase, Complex(0.))
+                    ampM = PhotoIonization.amplitude("photoionization", chM, line.photonEnergy, newcLevel, newiLevel, grid)
+                    push!(newAmps, PhotoIonization.MultipoleAmplitudeClaude(mp, EmPropertyC(ampM)))
+                end
+            end
+            push!(newChannels, PhotoIonization.ChannelClaude(ch.symmetry, newAmps))
+        end
+        push!(newPartialWaves, PhotoIonization.PartialWaveClaude(pw.kappa, line.electronEnergy, phase, newChannels))
+    end
+    #
+    crossSection = PhotoIonization.computeCrossSectionClaude(newPartialWaves, line.photonEnergy)
+    if    settings.calcAnisotropy
+          angularBeta = PhotoIonization.computeAngularBetaClaude(line.initialLevel, line.finalLevel, newPartialWaves)
+    else  angularBeta = EmProperty(0.)
+    end
+    newLine = PhotoIonization.LineClaude(line.initialLevel, line.finalLevel, line.electronEnergy, line.photonEnergy,
+                                         crossSection, angularBeta, EmProperty(0.), EmProperty(0.), newPartialWaves)
+    return( newLine )
+end
+
+
+"""
+`PhotoIonization.computeCrossSectionClaude(partialWaves::Array{PhotoIonization.PartialWaveClaude,1}, photonEnergy::Float64)`
+    ... computes the total photoionization cross section from the given partial waves; an EmProperty is returned.
+
+        THE SUMMATION IS THE SAME AS THE FLAT PATH'S, deliberately: |amplitude|^2 is summed INCOHERENTLY over
+        multipoles as well as over channels. The new structure would make a coherent multipole sum easy to
+        write, and that would be a change of physics -- a question to be settled separately against a
+        reference, not as a side effect of restructuring. What the new form buys is that the rule now lives
+        in ONE named place instead of being spelled out wherever channels are summed.
+
+        No gauge appears: abs2(::EmPropertyC) returns an EmProperty, so the two gauges are carried along
+        untouched, and a magnetic multipole -- whose two components are equal -- reproduces the flat path's
+        rule of adding it to both sums without any special case.
+"""
+function computeCrossSectionClaude(partialWaves::Array{PhotoIonization.PartialWaveClaude,1}, photonEnergy::Float64)
+    cs = EmProperty(0., 0.)
+    for  pw in partialWaves,  ch in pw.channels,  ma in ch.amplitudes
+        cs = cs + abs2(ma.amplitude)
+    end
+    csFactor = 8 * pi^3 / Defaults.getDefaults("alpha") / photonEnergy
+    return( EmProperty(csFactor * cs.Coulomb, csFactor * cs.Babushkin) )
+end
+
+
+"""
+`PhotoIonization.determineChannelsClaude(finalLevel::Level, initialLevel::Level, settings::PhotoIonization.Settings)`
+    ... determines the partial waves and, within each, the scattering channels of the given transition; an
+        Array{PartialWaveClaude,1} is returned, with every amplitude still zero.
+
+        The SELECTION RULES are exactly those of PhotoIonization.determineChannels above -- the same
+        AngularMomentum.allowedMultipoleSymmetries and allowedKappaSymmetries -- only the nesting is
+        inverted. There, multipole and gauge are outermost and the physical pair (kappa, symt) is produced
+        again for each of them; here the distinct (kappa, symt) pairs are collected first and every
+        multipole that reaches a pair is attached to it. The gauge is not iterated over at all: an electric
+        multipole yields one EmPropertyC holding both gauges, a magnetic one an EmPropertyC with equal
+        components, which is what the flat form expresses by adding Basics.Magnetic to both gauge sums.
+"""
+function determineChannelsClaude(finalLevel::Level, initialLevel::Level, settings::PhotoIonization.Settings)
+    symi = LevelSymmetry(initialLevel.J, initialLevel.parity);    symf = LevelSymmetry(finalLevel.J, finalLevel.parity)
+    ## (1) Collect, for every physical pair (kappa, symt), the multipoles that can reach it.
+    mpsFor = Dict{Tuple{Int64,LevelSymmetry}, Array{EmMultipole,1}}()
+    order  = Tuple{Int64,LevelSymmetry}[]                    ## to keep a reproducible sequence
+    for  mp in settings.multipoles
+        for  symt in AngularMomentum.allowedMultipoleSymmetries(symi, mp)
+            for  kappa in AngularMomentum.allowedKappaSymmetries(symt, symf)
+                if  !(Basics.subshell_l(Subshell(10,kappa)) in settings.lValues)    continue     end
+                key = (kappa, symt)
+                if  haskey(mpsFor, key)   push!(mpsFor[key], mp)
+                else                      mpsFor[key] = EmMultipole[mp];   push!(order, key)
+                end
+            end
+        end
+    end
+    ## (2) Group the pairs by kappa: one partial wave per kappa, carrying the symmetries it serves.
+    kappas = Int64[];   for (kappa, symt) in order    if !(kappa in kappas)   push!(kappas, kappa)   end    end
+    partialWaves = PartialWaveClaude[]
+    for  kappa in kappas
+        channels = ChannelClaude[]
+        for  (ka, symt) in order
+            ka == kappa   ||   continue
+            amps = MultipoleAmplitudeClaude[]
+            for  mp in mpsFor[(ka, symt)]
+                push!(amps, MultipoleAmplitudeClaude(mp, EmPropertyC(Complex(0.), Complex(0.))))
+            end
+            push!(channels, ChannelClaude(symt, amps))
+        end
+        push!(partialWaves, PartialWaveClaude(kappa, 0., 0., channels))
+    end
+    return( partialWaves )
 end
 
 
