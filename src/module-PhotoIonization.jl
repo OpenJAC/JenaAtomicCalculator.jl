@@ -429,10 +429,29 @@ function  computeAmplitudesProperties(line::PhotoIonization.Line, nm::Nuclear.Mo
     redILevel = Basics.generateLevelWithSymmetryReducedBasis(line.initialLevel, line.initialLevel.basis.subshells)
     newfLevel = Basics.generateLevelWithSymmetryReducedBasis(line.finalLevel, redILevel.basis.subshells)
 
+    ## The continuum orbital depends on the electron ENERGY and KAPPA only -- not on the multipole or the
+    ## gauge, which a PhotoIonization.Channel also carries.  A run with two gauges therefore asked for every
+    ## orbital twice (measured: 42 channels, 21 distinct kappa), and with E1..M3 it would be more.  They are
+    ## generated once per kappa here and reused, exactly as ImpactExcitation does with its ciOrbitals /
+    ## cfOrbitals dictionaries.  The same holds for the initial level with its extra continuum subshell.
+    ## The dictionaries live for ONE line, so nothing is cached across lines and the threading is unaffected:
+    ## every thread computes its own line and owns its own dictionaries.
+    cOrbitals  = Dict{Subshell, Orbital}();    cPhases  = Dict{Subshell, Float64}()
+    cOrbitalsX = Dict{Subshell, Orbital}();    cPhasesX = Dict{Subshell, Float64}()   ## at electronEnergy + 0.01
+    iLevels    = Dict{Subshell, Level}()
+
     for channel in line.channels
-        newiLevel = Basics.generateLevelWithExtraSubshell(Subshell(101, channel.kappa), redILevel)
-        cOrbital, phase  = Continuum.generateOrbitalForLevel(line.electronEnergy, Subshell(101, channel.kappa), newfLevel, nm, grid,
-                                                            contSettings; nuclearPot=nuclearPot, primitives=primitives)
+        cSubshell = Subshell(101, channel.kappa)
+        if  !haskey(iLevels, cSubshell)
+            iLevels[cSubshell] = Basics.generateLevelWithExtraSubshell(cSubshell, redILevel)
+        end
+        newiLevel = iLevels[cSubshell]
+        if  !haskey(cOrbitals, cSubshell)
+            orb, ph = Continuum.generateOrbitalForLevel(line.electronEnergy, cSubshell, newfLevel, nm, grid,
+                                                        contSettings; nuclearPot=nuclearPot, primitives=primitives)
+            cOrbitals[cSubshell] = orb;    cPhases[cSubshell] = ph
+        end
+        cOrbital = cOrbitals[cSubshell];   phase = cPhases[cSubshell]
         #
         newcLevel  = Basics.generateLevelWithExtraElectron(cOrbital, channel.symmetry, newfLevel)
         nChannel   = PhotoIonization.Channel(channel.multipole, channel.gauge, channel.kappa, channel.symmetry, phase, 0.)
@@ -445,9 +464,14 @@ function  computeAmplitudesProperties(line::PhotoIonization.Line, nm::Nuclear.Mo
         end
         #
         if  settings.calcTimeDelay
-            cOrbitalx, phasex  = Continuum.generateOrbitalForLevel(line.electronEnergy+0.01, Subshell(101, channel.kappa),
-                                                                    newfLevel, nm, grid, contSettings;
-                                                                    nuclearPot=nuclearPot, primitives=primitives)
+            ## A DIFFERENT energy, so it needs its own cache -- not the one above.
+            if  !haskey(cOrbitalsX, cSubshell)
+                orbx, phx = Continuum.generateOrbitalForLevel(line.electronEnergy+0.01, cSubshell,
+                                                              newfLevel, nm, grid, contSettings;
+                                                              nuclearPot=nuclearPot, primitives=primitives)
+                cOrbitalsX[cSubshell] = orbx;    cPhasesX[cSubshell] = phx
+            end
+            cOrbitalx = cOrbitalsX[cSubshell];   phasex = cPhasesX[cSubshell]
             newcLevelx = Basics.generateLevelWithExtraElectron(cOrbitalx, channel.symmetry, newfLevel)
             nxChannel  = PhotoIonization.Channel(channel.multipole, channel.gauge, channel.kappa, channel.symmetry, phasex, 0.)
             amplitude  = PhotoIonization.amplitude("photoionization", nxChannel, line.photonEnergy+0.01, newcLevelx, newiLevel, grid)
