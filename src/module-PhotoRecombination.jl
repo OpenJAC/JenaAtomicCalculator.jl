@@ -340,16 +340,28 @@ function  computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, n
     maxEnergy = 0.;   for  line in lines   maxEnergy = max(maxEnergy, line.electronEnergy)   end
     nrContinuum = Continuum.gridConsistency(maxEnergy, grid)
     # Calculate all amplitudes and requested properties
-    newLines = PhotoRecombination.Line[]
     ## Both are built ONCE for the whole computation and handed down to every line and every partial wave: the
     ## nuclear potential depends only on the nuclear model and the grid, the B-spline basis only on the grid --
     ## and the grid is fixed here, since Continuum.gridConsistency above is called once for the maximum energy.
+    ## Both are READ-ONLY below, so they are safely shared across the threads.
     nuclearPot = Nuclear.nuclearPotential(nm, grid)
     primitives = Bsplines.generatePrimitives(grid)
-    for  line in lines
-        newLine = PhotoRecombination.computeAmplitudesProperties(line, nm, grid, nrContinuum, settings;
-                                                                 nuclearPot=nuclearPot, primitives=primitives)
-        push!( newLines, newLine)
+    ## The lines are independent, so they are computed in parallel; start julia with `julia -t N` to use it,
+    ## and with the default of one thread this behaves exactly as the serial loop did.
+    ##
+    ## Results are written BY INDEX into a preallocated vector rather than push!-ed: push! is not thread-safe,
+    ## and indexing also preserves the order of the lines, which the total-cross-section and anisotropy
+    ## machinery downstream relies on.
+    ##
+    ## ONE RESIDUAL RACE, deliberately left and benign: Basics.generateLevelWithExtraElectron and
+    ## generateLevelWithExtraSubshell each assign the global standard subshell list, which is DISPLAY-ONLY --
+    ## no computation reads it (see Defaults.setStandardSubshellList).  Assigning a reference is atomic, so the
+    ## worst case is that a CSF printed from another thread carries the wrong subshell labels, and nothing
+    ## prints a CSF from inside these workers.  It disappears when that global is removed altogether.
+    newLines = Vector{PhotoRecombination.Line}(undef, length(lines))
+    Threads.@threads for  i  in  eachindex(lines)
+        newLines[i] = PhotoRecombination.computeAmplitudesProperties(lines[i], nm, grid, nrContinuum, settings;
+                                                                     nuclearPot=nuclearPot, primitives=primitives)
     end
     # Print all results to screen
     PhotoRecombination.displayResults(stdout, newLines, settings)

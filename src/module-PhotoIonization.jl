@@ -593,18 +593,28 @@ function  computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, n
     maxEnergy = 0.;   for  line in lines   maxEnergy = max(maxEnergy, line.electronEnergy)   end
     nrContinuum = Continuum.gridConsistency(maxEnergy, grid)
     # Calculate all amplitudes and requested properties
-    newLines = PhotoIonization.Line[]
     ## Both are built ONCE for the whole computation and handed down to every line and every partial wave: the
     ## nuclear potential depends only on the nuclear model and the grid, the B-spline basis only on the grid --
     ## and the grid is fixed here, since Continuum.gridConsistency above is called once for the maximum energy.
+    ## Both are READ-ONLY below and are therefore shared safely across the threads.
     nuclearPot = Nuclear.nuclearPotential(nm, grid)
     primitives = Bsplines.generatePrimitives(grid)
-    for  line in lines
-        println("\n>> Calculate photoionization amplitudes and properties for line: $(line.initialLevel.index) - $(line.finalLevel.index) " *
-                "for the photon energy $(Defaults.convertUnits("energy: from atomic", line.photonEnergy)) " * Defaults.GBL_ENERGY_UNIT)
-        newLine = PhotoIonization.computeAmplitudesProperties(line, nm, grid, nrContinuum, settings;
-                                                             nuclearPot=nuclearPot, primitives=primitives)
-        push!( newLines, newLine)
+    ## The lines are independent, so they are computed in parallel; start julia with `julia -t N` to use it,
+    ## and with one thread this behaves exactly as the serial loop did.  Results are written BY INDEX into a
+    ## preallocated vector rather than push!-ed: push! is not thread-safe, and indexing preserves the line
+    ## order that the display and the cross-section tables rely on.  For the residual, benign display-only
+    ## race, see the note in PhotoRecombination.computeLines.
+    newLines = Vector{PhotoIonization.Line}(undef, length(lines))
+    doPrint  = Threads.nthreads() == 1      ## interleaved per-line printout would be unreadable
+    Threads.@threads for  i  in  eachindex(lines)
+        if  doPrint
+            println("\n>> Calculate photoionization amplitudes and properties for line: " *
+                    "$(lines[i].initialLevel.index) - $(lines[i].finalLevel.index) " *
+                    "for the photon energy $(Defaults.convertUnits("energy: from atomic", lines[i].photonEnergy)) " *
+                    Defaults.GBL_ENERGY_UNIT)
+        end
+        newLines[i] = PhotoIonization.computeAmplitudesProperties(lines[i], nm, grid, nrContinuum, settings;
+                                                                  nuclearPot=nuclearPot, primitives=primitives)
     end
     # Print all results to screen
     PhotoIonization.displayPhases(newLines)
@@ -649,20 +659,26 @@ function  computeLinesCascade(finalMultiplet::Multiplet, initialMultiplet::Multi
                       for  en in settings.electronEnergies   maxEnergy = max(maxEnergy, Defaults.convertUnits("energy: to atomic", en))   end
     nrContinuum = Continuum.gridConsistency(maxEnergy, grid)
     # Calculate all amplitudes and requested properties
-    newLines = PhotoIonization.Line[]
     ## Constants of the whole computation; see the note in computeLines above.
     nuclearPot = Nuclear.nuclearPotential(nm, grid)
     primitives = Bsplines.generatePrimitives(grid)
-    for  (i,line)  in  enumerate(lines)
-        if  rem(i,10) == 0    println("> Photo line $i:  ... calculated ")    end
+    ## Threaded as computeLines is, but this loop SKIPS lines whose initial level is not selected, so the
+    ## results are collected into a Union{Nothing,Line} vector by index and the gaps are dropped afterwards --
+    ## the same shape ImpactExcitation.computeLinesCascade uses, and for the same reason: push! is neither
+    ## thread-safe nor order-preserving.
+    tmpLines = Vector{Union{Nothing, PhotoIonization.Line}}(nothing, length(lines))
+    doPrint  = printout  &&  Threads.nthreads() == 1
+    Threads.@threads for  i  in  eachindex(lines)
+        if  doPrint  &&  rem(i,10) == 0    println("> Photo line $i:  ... calculated ")    end
         # Do not compute line if initial level is not in initialLevelSelection()
-        if  !Basics.selectLevel(line.initialLevel, initialLevelSelection)   continue
+        if  !Basics.selectLevel(lines[i].initialLevel, initialLevelSelection)   continue
         end
         #
-        newLine = PhotoIonization.computeAmplitudesProperties(line, nm, grid, nrContinuum, settings; printout=printout,
-                                                             nuclearPot=nuclearPot, primitives=primitives)
-        push!( newLines, newLine)
+        tmpLines[i] = PhotoIonization.computeAmplitudesProperties(lines[i], nm, grid, nrContinuum, settings;
+                                                                  printout=printout, nuclearPot=nuclearPot,
+                                                                  primitives=primitives)
     end
+    newLines = PhotoIonization.Line[ l  for l in tmpLines  if l !== nothing ]
     # Print all results to a summary file, if requested
     printSummary, iostream = Defaults.getDefaults("summary flag/stream")
     if  printSummary   PhotoIonization.displayResults(iostream, newLines, settings)   end
@@ -695,14 +711,13 @@ function  computeLinesPlasma(finalMultiplet::Multiplet, initialMultiplet::Multip
     # Display all selected lines before the computations start
     if  settings.printBefore    PhotoIonization.displayLines(stdout, lines)    end
     # Calculate all amplitudes and requested properties
-    newLines = PhotoIonization.Line[]
     ## Constants of the whole computation; see the note in computeLines above.
     nuclearPot = Nuclear.nuclearPotential(nm, grid)
     primitives = Bsplines.generatePrimitives(grid)
-    for  line in lines
-        newLine = PhotoIonization.computeAmplitudesPropertiesPlasma(line, nm, grid, settings, plasmaModel;
-                                                                    nuclearPot=nuclearPot, primitives=primitives)
-        push!( newLines, newLine)
+    newLines = Vector{PhotoIonization.Line}(undef, length(lines))
+    Threads.@threads for  i  in  eachindex(lines)
+        newLines[i] = PhotoIonization.computeAmplitudesPropertiesPlasma(lines[i], nm, grid, settings, plasmaModel;
+                                                                        nuclearPot=nuclearPot, primitives=primitives)
     end
     # Print all results to screen
     PhotoIonization.displayResults(stdout, newLines, photoSettings)

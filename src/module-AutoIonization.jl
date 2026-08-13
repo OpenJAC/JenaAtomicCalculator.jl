@@ -538,17 +538,24 @@ function  computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, n
     maxEnergy = 0.;   for  line in lines   maxEnergy = max(maxEnergy, line.electronEnergy)   end
     nrContinuum = Continuum.gridConsistency(maxEnergy, grid)
     # Calculate all amplitudes and requested properties
-    newLines = AutoIonization.Line[]
     ## Both are built ONCE for the whole computation and handed down to every line and every partial wave: the
     ## nuclear potential depends only on the nuclear model and the grid, the B-spline basis only on the grid --
     ## and the grid is fixed here, since Continuum.gridConsistency above is called once for the maximum energy.
+    ## Both are READ-ONLY below and are therefore shared safely across the threads.
     nuclearPot = Nuclear.nuclearPotential(nm, grid)
     primitives = Bsplines.generatePrimitives(grid)
-    for  (nl, line)  in  enumerate(lines)
-        if  rem(nl,10) == 0    println("\n>> Auger computations for line No = $nl   ...")     end
-        newLine = AutoIonization.computeAmplitudesProperties(line, nm, grid, nrContinuum, settings;
-                                                            nuclearPot=nuclearPot, primitives=primitives)
-        push!( newLines, newLine)
+    ## The lines are independent, so they are computed in parallel; start julia with `julia -t N` to use it,
+    ## and with one thread this behaves exactly as the serial loop did.  Results are written BY INDEX into a
+    ## preallocated vector rather than push!-ed: push! is not thread-safe, and indexing preserves the line
+    ## order the rate tables rely on.  For the residual, benign display-only race see the note in
+    ## PhotoRecombination.computeLines; in this module AutoIonization.amplitude additionally assigns the same
+    ## global with a MERGED list carrying the continuum subshell, which is display-only in exactly the same way.
+    newLines = Vector{AutoIonization.Line}(undef, length(lines))
+    doPrint  = Threads.nthreads() == 1
+    Threads.@threads for  nl  in  eachindex(lines)
+        if  doPrint  &&  rem(nl,10) == 0    println("\n>> Auger computations for line No = $nl   ...")     end
+        newLines[nl] = AutoIonization.computeAmplitudesProperties(lines[nl], nm, grid, nrContinuum, settings;
+                                                                  nuclearPot=nuclearPot, primitives=primitives)
     end
     # Print all results to screen
     AutoIonization.displayRates(stdout, newLines, settings)
@@ -583,11 +590,13 @@ function  computeLinesCascade(finalMultiplet::Multiplet, initialMultiplet::Multi
     maxEnergy = 0.;   for  line in lines   maxEnergy = max(maxEnergy, line.electronEnergy)   end
     nrContinuum = Continuum.gridConsistency(maxEnergy, grid)
     # Calculate all amplitudes and requested properties
-    newLines = AutoIonization.Line[]
-    for  (i,line)  in  enumerate(lines)
-        if  rem(i,10) == 0    println("> Auger line $i:  ... calculated ")    end
-        newLine = AutoIonization.computeAmplitudesProperties(line, nm, grid, nrContinuum, settings, printout=printout) 
-        push!( newLines, newLine)
+    ## Threaded as computeLines is; see the note there.
+    newLines = Vector{AutoIonization.Line}(undef, length(lines))
+    doPrint  = printout  &&  Threads.nthreads() == 1
+    Threads.@threads for  i  in  eachindex(lines)
+        if  doPrint  &&  rem(i,10) == 0    println("> Auger line $i:  ... calculated ")    end
+        newLines[i] = AutoIonization.computeAmplitudesProperties(lines[i], nm, grid, nrContinuum, settings,
+                                                                 printout=printout)
     end
     # Print all results to a summary file, if requested
     printSummary, iostream = Defaults.getDefaults("summary flag/stream")
