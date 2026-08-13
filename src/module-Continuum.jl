@@ -404,7 +404,8 @@ function gridConsistency(maxEnergy::Float64, grid::Radial.Grid)
                 "with a constant step size.\n" *
                 "A continuum orbital oscillates out to the box boundary and cannot be represented on such a grid.\n" *
                 ">>> Build the grid with an explicit hp, e.g.  Radial.Grid(Radial.Grid(true), rnt=4.0e-6, h=5.0e-2, " *
-                "hp=2.5e-2, rbox=30.0).\n")
+                "hp=2.5e-2, rbox=30.0),\n    or let Radial.generateGrid(grid; maximumFreeElectronEnergy = ...) choose hp " *
+                "from the shortest de Broglie wavelength.\n")
     elseif  15 * grid.hp > wavelgth
         error("\n\nContinuum.gridConsistency():  STOP -- the radial grid is too coarse for the requested continuum energy.\n" *
                 @sprintf("    continuum energy         = %.6e  Hartree\n", maxEnergy) *
@@ -415,7 +416,8 @@ function gridConsistency(maxEnergy::Float64, grid::Radial.Grid)
                 "loudly by itself:\ncross sections first drift by tens of percent while still looking entirely plausible, " *
                 "and then diverge by many orders of\nmagnitude once the grid can no longer follow the phase at all. " *
                 "The computation is therefore stopped here rather than\nreturning numbers that cannot be trusted.\n" *
-                @sprintf(">>> Reduce grid.hp to at most %.3e a.u., or lower the highest continuum energy.\n", wavelgth/15)  )
+                @sprintf(">>> Reduce grid.hp to at most %.3e a.u., or lower the highest continuum energy;\n", wavelgth/15) *
+                "    Radial.generateGrid(grid; maximumFreeElectronEnergy = ...) sets hp from this same wavelength.\n" )
     elseif  grid.NoPoints < 600
         error("\n\nContinuum.gridConsistency():  STOP -- too few grid points for continuum processes; " *
                 "grid.NoPoints = $(grid.NoPoints) < 600.\n" *

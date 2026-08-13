@@ -860,45 +860,70 @@ end
 
 
 """
-`Radial.generateGrid(grid::Radial.Grid; boxSize::Union{Nothing,Float64}=nothing, 
-                                        maximumFreeElectronEnergy::Union{Nothing,Float64}=nothing, 
-                                        maximumPrincipalQN::Union{Nothing,Int64}=nothing, 
-                                        NoPointsInsideNucleus::Union{Nothing,Int64}=nothing, 
-                                        NoPointsInsideFirstBohrRadius::Union{Nothing,Int64}=nothing)
-                                        
-    ... to generate a grid that fulfills special requirements; th following schemes are supported:
-    
-        boxSize 
-            ... apply a fixed box size (in atomic units) as needed in an average-atom model and elsewhere.
-        boxSizeWithZeroWeights 
-            ... apply a fixed box size (in atomic units) as needed in an average-atom model and elsewhere.
-                Here, a standard grid is used but with all weights w [r] = 0 for r > boxSize.
+`Radial.generateGrid(grid::Radial.Grid; boxSize=nothing, boxSizeWithZeroWeights=nothing,
+                                        maximumFreeElectronEnergy=nothing, maximumPrincipalQN=nothing,
+                                        lValue::Int64=0, Zeff::Union{Nothing,Float64}=nothing)`
+    ... generates a grid that fulfills a particular physical requirement.  EXACTLY ONE of the four schemes
+        below must be selected; a grid::Radial.Grid is returned and the reasoning is printed.
+
+        boxSize
+            ... apply a fixed box size [a.u.], as an average-atom model needs.  This does more than
+                Radial.Grid(grid; rbox=...): it afterwards rescales rnt so that the LAST BREAK POINT LANDS
+                EXACTLY ON THE REQUESTED SIZE.  That is the reason this function exists -- for an average-atom
+                model the box IS the Wigner-Seitz radius, and a box that is merely close is a different
+                physical system.
+        boxSizeWithZeroWeights
+            ... keep the grid and set the integration weights to zero beyond the given radius.
+                READ THIS BEFORE USING IT: that truncates INTEGRALS, it does NOT confine ORBITALS.  The
+                B-spline basis still extends past the box, so the orbitals are entirely unchanged and only
+                their overlaps are cut short.  It is not a model of a confined atom, and using it as one gives
+                a plausible-looking wrong answer.
         maximumFreeElectronEnergy
-            ... provide a maximum free-electron energy (Hartree) and determine the linearized stepsize such,
-                that 20 points per wavelength are used asymptotically.
+            ... give a maximum free-electron energy [Hartree]; the asymptotic step hp is set so that the
+                shortest de Broglie wavelength is sampled with 20 points.  This is the constructive
+                counterpart of Continuum.gridConsistency, which checks the same quantity and requires at
+                least 15 points per oscillation.
         maximumPrincipalQN
-            ... generate an grid with a rbox-size that is suitable to represent subshell orbitals
-                with the given n; the value of rbox = 5 * <r_n> is taken, i.e. 5 times the mean hydrogenic 
-                value (not yet).
-        NoPointsInsideNucleus
-            ... generate a grid (of given type) with the given number inside the nucleus; this affects the values
-                of rnt and h (not yet).
-        NoPointsInsideFirstBohrRadius
-            ... generate a grid (of given type) with the given number inside the first Bohr radius; this affects 
-                the values of rnt and h (not yet).
-    
-    Only on of these optional parameters can be selected at a given time. A proper grid::Radial.Grid is returned,
-    along with a short reasoning of what has been selected.
+            ... give the largest principal quantum number n to be represented; the box is set from the
+                hydrogenic outer turning point,
+
+                    r_+  = (n^2/Zeff) (1 + sqrt(1 - l(l+1)/n^2)),      rbox = 2.5 r_+
+
+                A BOX THAT IS TOO LARGE STARVES THE B-SPLINE BASIS EXACTLY AS BADLY AS ONE THAT IS TOO SMALL:
+                the number of splines is fixed, so a box much wider than the orbitals spends them on empty
+                space and the high-n members of each symmetry come back as a DIFFERENT STATE rather than an
+                inaccurate one -- which looks like an angular-momentum or kappa-sign bug and is not.
+                Bsplines.checkGridRepresentation and Bsplines.checkOrbitalConsistency detect that afterwards;
+                this scheme is the only thing in JAC that avoids it beforehand.
+
+                lValue defaults to 0, which gives the LARGEST turning point for the given n and hence the
+                safe box.  Zeff must be given explicitly and is the EFFECTIVE charge: an outer electron of a
+                near-neutral system sees Zeff ~ Z - N + 1, not Z.  Passing Z here is the standard way to get
+                a box several times too small.
 """
-function generateGrid(grid::Radial.Grid; boxSize::Union{Nothing,Float64}=nothing, 
-                                            boxSizeWithZeroWeights::Union{Nothing,Float64}=nothing,
-                                            maximumFreeElectronEnergy::Union{Nothing,Float64}=nothing, 
-                                            maximumPrincipalQN::Union{Nothing,Int64}=nothing, 
-                                            NoPointsInsideNucleus::Union{Nothing,Int64}=nothing, 
-                                            NoPointsInsideFirstBohrRadius::Union{Nothing,Int64}=nothing) 
-    
+function generateGrid(grid::Radial.Grid; boxSize::Union{Nothing,Float64}=nothing,
+                                         boxSizeWithZeroWeights::Union{Nothing,Float64}=nothing,
+                                         maximumFreeElectronEnergy::Union{Nothing,Float64}=nothing,
+                                         maximumPrincipalQN::Union{Nothing,Int64}=nothing,
+                                         lValue::Int64=0, Zeff::Union{Nothing,Float64}=nothing)
+
+    ## "Only one of these may be selected" was documented but never enforced, and calling with NO scheme fell
+    ## through to an undefined newGrid.  Both are now errors that say so (13-Aug-2026).
+    schemes = [("boxSize", !isnothing(boxSize)), ("boxSizeWithZeroWeights", !isnothing(boxSizeWithZeroWeights)),
+               ("maximumFreeElectronEnergy", !isnothing(maximumFreeElectronEnergy)),
+               ("maximumPrincipalQN", !isnothing(maximumPrincipalQN))]
+    given = [nm for (nm, isSet) in schemes if isSet]
+    if      length(given) == 0
+        error("Radial.generateGrid(): no scheme selected.  Give exactly one of boxSize, " *
+              "boxSizeWithZeroWeights, maximumFreeElectronEnergy or maximumPrincipalQN.")
+    elseif  length(given) > 1
+        error("Radial.generateGrid(): $(length(given)) schemes selected at once -- $(join(given, ", ")).  " *
+              "They set different grid parameters from different physical requirements and cannot be " *
+              "combined; give exactly one.")
+    end
+    #
     if  !isnothing(boxSize)
-        # Apply a fixed box size (in atomic units) as needed in an average-atom model and elsewhere.
+        # A fixed box size [a.u.], with rnt rescaled so that the last break point lands exactly on it.
         newGrid = Radial.Grid(grid; rbox=boxSize);    rnt = newGrid.rnt * boxSize / newGrid.tL[end]
         newGrid = Radial.Grid(newGrid; rnt = rnt)
         println(">> Generate a new grid with boxSize = $boxSize a.u. and the break points " *
@@ -907,24 +932,23 @@ function generateGrid(grid::Radial.Grid; boxSize::Union{Nothing,Float64}=nothing
                 "to the last GL (zero of) integration along r.")
         #
     elseif  !isnothing(boxSizeWithZeroWeights)
-        # Apply a fixed box size (in atomic units) as needed in an average-atom model and elsewhere.
-        # All (integration) weight are set to zero for r > boxSizeWithZeroWeights.
-        # First determine true boxsize
+        # Zero the integration weights beyond the box.  This truncates INTEGRALS and does NOT confine the
+        # orbitals; see the docstring.
         boxSize = 0.;   for  t in grid.tL  if  t < boxSizeWithZeroWeights   boxSize = t   end   end
-        println(">>  Generate a new grid with zero weights for boxSize = $boxSize a.u.; " * 
+        println(">>  Generate a new grid with zero weights for boxSize = $boxSize a.u.; " *
                 "\n    modify the (grid) parameters of the given grid to bring boxSize closer to boxSizeWithZeroWeights.")
-        wr = Float64[];   R = 0.;   iR = 0    
-        for  (ir, r)  in  enumerate(grid.r)   
+        wr = Float64[];   R = 0.;   iR = 0
+        for  (ir, r)  in  enumerate(grid.r)
             if  r > boxSize      push!(wr, 0.)
             else                 push!(wr, grid.wr[ir]);   R = r;   iR = ir
-            end 
+            end
         end
-        ## println(">>> wr = $wr   ... just to see the number of zero weights for the new grid. \n")
         newGrid = Radial.Grid( getfield(grid, :parameters), getfield(grid, :knots), RadialMesh(grid.r, wr) )
-        println(">> Generate a new grid with boxSize = $boxSize a.u. and with all weight grid.wr[j] = 0 " * 
+        println(">> Generate a new grid with boxSize = $boxSize a.u. and with all weight grid.wr[j] = 0 " *
                 "for r_j > boxSizeWithZeroWeights (j > $iR)" *
-                "\n>> Note that the last non-zero weight at R = $R grid point r[end] is always slightly smaller than " *
-                "\n   boxSize = $boxSize as it refers to the last GL (zero of) integration point.")
+                "\n>> NOTE that this truncates the INTEGRALS only; the B-spline basis and hence the orbitals " *
+                "\n   extend beyond the box unchanged.  This is not a confined atom." *
+                "\n>> The last non-zero weight sits at R = $R a.u.")
         #
     elseif  !isnothing(maximumFreeElectronEnergy)
         wavenb      = sqrt( 2maximumFreeElectronEnergy + maximumFreeElectronEnergy * Defaults.getDefaults("alpha")^2 )
@@ -932,24 +956,26 @@ function generateGrid(grid::Radial.Grid; boxSize::Union{Nothing,Float64}=nothing
         newGrid     = Radial.Grid(grid; hp=hp)
         println(">> Generate a new grid for the minium wavelength = $wavelgth a.u. of free electrons and  hp = $hp")
         #
-    ## The three schemes below are DOCUMENTED BUT NOT IMPLEMENTED; the docstring marks two of them
-    ## "(not yet)".  They used to raise error("stop a"/"b"/"c"), which told the caller nothing.  Following
-    ## the corePolarization.doApply precedent in module-PhotoEmission.jl, an unimplemented option now
-    ## explains itself and names what to use instead (12-Aug-2026).
     elseif  !isnothing(maximumPrincipalQN)
-        error("Radial.generateGrid(): the maximumPrincipalQN scheme is not implemented.  It is meant to " *
-              "choose rbox = 5 <r_n> for the given n; until it exists, pass that box size directly with " *
-              "Radial.Grid(grid; rbox = ...).")
-    elseif  !isnothing(NoPointsInsideNucleus)
-        error("Radial.generateGrid(): the NoPointsInsideNucleus scheme is not implemented.  It is meant to " *
-              "set rnt and h so that the given number of points falls inside the nucleus; until it exists, " *
-              "choose rnt and h directly with Radial.Grid(grid; rnt = ..., h = ...).")
-    elseif  !isnothing(NoPointsInsideFirstBohrRadius)
-        error("Radial.generateGrid(): the NoPointsInsideFirstBohrRadius scheme is not implemented.  It is " *
-              "meant to set rnt and h from the number of points inside a_0; until it exists, choose rnt " *
-              "and h directly with Radial.Grid(grid; rnt = ..., h = ...).")
+        n = maximumPrincipalQN
+        n < 1                  &&  error("Radial.generateGrid(): maximumPrincipalQN = $n must be >= 1.")
+        lValue < 0             &&  error("Radial.generateGrid(): lValue = $lValue must be >= 0.")
+        lValue > n - 1         &&  error("Radial.generateGrid(): lValue = $lValue is not compatible with n = $n.")
+        isnothing(Zeff)        &&  error("Radial.generateGrid(): maximumPrincipalQN also needs Zeff, the " *
+                                         "EFFECTIVE charge seen by the outermost electron -- about Z - N + 1 " *
+                                         "for a near-neutral system, NOT the nuclear charge Z.  Passing Z is " *
+                                         "the standard way to end up with a box several times too small.")
+        Zeff <= 0.             &&  error("Radial.generateGrid(): Zeff = $Zeff must be positive.")
+        rPlus   = (n^2 / Zeff) * (1.0 + sqrt(1.0 - lValue*(lValue+1)/n^2))
+        rbox    = 2.5 * rPlus
+        newGrid = Radial.Grid(grid; rbox=rbox)
+        println(">> Generate a new grid for n = $n, l = $lValue and Zeff = $Zeff: the hydrogenic outer " *
+                "turning point is r_+ = " * @sprintf("%.4e", rPlus) * " a.u., so rbox = 2.5 r_+ = " *
+                @sprintf("%.4e", rbox) * " a.u." *
+                "\n>> A box much LARGER than this starves the B-spline basis and can return a different " *
+                "state, not merely a less accurate one.")
     end
-        
+
     return( newGrid )
 end
 
