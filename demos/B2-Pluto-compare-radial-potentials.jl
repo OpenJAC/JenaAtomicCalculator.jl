@@ -49,7 +49,7 @@ Perhaps the simplest radial potential is the **nuclear** potential, which depend
 # ╔═╡ d45495d5-1c16-4527-bbaf-3ec8b04f2d7e
 begin
 radial_grid = Radial.Grid(true)
-nucModel    = Nuclear.Model(6., "Fermi")
+nucModel    = Nuclear.Model(6., Nuclear.FermiNucleus())
 end
 
 # ╔═╡ 8bfe1059-c378-4abe-af2c-c3b910587629
@@ -114,8 +114,8 @@ As seen from the output, the effective charge of the total atomic potential tend
 
 # ╔═╡ 3c11b594-404e-4748-9ed2-81400b8b71bc
 begin
-nucPotential2 = Nuclear.nuclearPotential(Nuclear.Model(6., "uniform"), radial_grid)
-nucPotential3 = Nuclear.nuclearPotential(Nuclear.Model(6., "point"),   radial_grid)
+nucPotential2 = Nuclear.nuclearPotential(Nuclear.Model(6., Nuclear.UniformNucleus()), radial_grid)
+nucPotential3 = Nuclear.nuclearPotential(Nuclear.Model(6., Nuclear.PointNucleus()),   radial_grid)
 atomPotCH     = add(nucPotential2, potCH)
 atomPotKS     = add(nucPotential3, potKS)
 plot("radial potentials", [atomPotDFS, atomPotCH, atomPotKS], radial_grid; N=300)

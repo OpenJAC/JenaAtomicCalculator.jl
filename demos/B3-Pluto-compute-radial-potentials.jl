@@ -35,7 +35,7 @@ as well as the radial grid on which the potential is defined. The potential func
 # ╔═╡ 4c2b4d2a-4b34-4f6a-9690-6efc9f2d3fea
 begin
 	grid     = Radial.Grid(true)
-	nucModel = Nuclear.Model(6., "Fermi")
+	nucModel = Nuclear.Model(6., Nuclear.FermiNucleus())
 end
 
 # ╔═╡ 759da271-0adf-4ae7-9642-8620c4c34690

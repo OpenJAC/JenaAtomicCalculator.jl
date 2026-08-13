@@ -51,7 +51,7 @@ Of course, we can also specify all details about the nucleus by using the *stand
 
 # ╔═╡ 55060d8d-9af0-420b-8291-7e9e77ae0da1
 
-wb = Nuclear.Model(54., "uniform", 132., 5.75, AngularJ64(5//2), 1.0, 2.0, 0.)
+wb = Nuclear.Model(54., Nuclear.UniformNucleus(), 132., 5.75, AngularJ64(5//2), 1.0, 2.0, 0.)
 
 # ╔═╡ d029a88b-f6b4-43c1-a2f8-68a230289352
 

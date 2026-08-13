@@ -44,7 +44,7 @@ specify a radial grid as well as the nuclear model for the subsequent computatio
 # ╔═╡ 5b8c341c-4923-4146-bdb1-5b6a7cc20c17
 begin
 	grid     = Radial.Grid(true)
-	nucModel = Nuclear.Model(6., "Fermi")
+	nucModel = Nuclear.Model(6., Nuclear.FermiNucleus())
 end
 
 # ╔═╡ 1945551c-c5e1-4a75-897d-ef07205bb341
