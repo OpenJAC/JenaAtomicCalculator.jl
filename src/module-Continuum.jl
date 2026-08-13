@@ -34,6 +34,11 @@ end
         primitives only on the grid -- so that a caller which generates many continuum orbitals need not rebuild them for every
         line and every partial wave; omitting them reproduces the previous behaviour exactly. A tupel of a (continuum)
         (orbital::Orbital, phase::Float64) is returned.
+
+        NOTE ON THE POTENTIAL: all continuum orbitals are generated in a LOCAL (DFS) potential -- exchange with
+        the bound electrons is not treated. That is a property of this method, true of every run, and it is
+        stated here rather than emitted as a per-orbital warning as it was until 12-Aug-2026 (which produced
+        one identical entry in jac-warn.report for every partial wave, and said nothing about the run).
 """
 function generateOrbitalForLevel(energy::Float64, sh::Subshell, level::Level, nm::Nuclear.Model, grid::Radial.Grid,
                                  settings::Continuum.Settings; nuclearPot::Union{Nothing,Radial.Potential}=nothing,
@@ -54,7 +59,6 @@ function generateOrbitalForLevel(energy::Float64, sh::Subshell, level::Level, nm
     ## wp  = Basics.computePotential(Basics.DFSField(0.42), grid, level)   
     wp  = Basics.computePotential(Basics.DFSField(1.0), grid, level);
     pot = Basics.add(nuclearPotential, wp)
-    Defaults.warn(AddWarning(), "All continuum orbitals are generated in a local (DFS) potential.")  
     
     # Generate a continuum orbital due to the given solution method
     if      Defaults.GBL_CONT_SOLUTION  ==  ContBessel() 
@@ -129,7 +133,6 @@ function generateOrbitalForLevel(energy::Float64, sh::Subshell, level::Level, nm
     screenedZr = deepcopy(pot.Zr)
     for  i = 1:length(screenedZr)   screenedZr[i] = screenedZr[i] * exp(-lambda * pot.grid.r[i])    end
     pot = Radial.Potential(pot.name * "+ Debye-Hueckel screening", screenedZr, pot.grid)
-    Defaults.warn(AddWarning(), "All continuum orbitals are generated in a local (DFS) potential.")
 
     # Generate a continuum orbital due to the given solution method
     if      Defaults.GBL_CONT_SOLUTION  ==  ContBessel()
@@ -382,12 +385,14 @@ end
     ... to check the consistency of the given grid with the maximum energy of the required continuum electrons; 
         an error message is issued if the grid.hp = 0.   or  15 * grid.hp < wavelength(maxEnergy)   or  if the grid has 
         less than 600 grid points. The function also returns the recommended grid point where the normalization and phase 
-        is to be determined. This number is currently set to nrContinuum = grid.NoPoints - 200  ... to correct for the wrong 
+        is to be determined. This number is currently set to nrContinuum = grid.NoPoints - 200  ... to correct for the wrong
         'phase behaviour' at large r-values.
+
+        OPEN POINT, stated here rather than emitted as a per-call warning as it was until 12-Aug-2026: the grid
+        point at which the normalization and phase are fixed deserves a better choice than the present fixed
+        offset. It is a property of the method, not of any particular run.
 """
 function gridConsistency(maxEnergy::Float64, grid::Radial.Grid)
-    Defaults.warn(AddWarning(), "Continuum.gridConsistency(): Improve the grid point for normalization; currently 600.")
-    
     wavenb      = sqrt( 2maxEnergy + maxEnergy * Defaults.getDefaults("alpha")^2 )
     wavelgth    = 2pi / wavenb
     nrContinuum = grid.NoPoints - 200
