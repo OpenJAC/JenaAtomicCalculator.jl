@@ -774,8 +774,9 @@ end
 ## and McLean's half covers Z = 55-92, exactly where that matters most; neither reaches beyond Z = 92 or past
 ## neutral ground configurations, which is most of what JAC actually computes; and Anderson acceleration has
 ## since removed much of the convergence cost that a better start orbital would have bought.  Should analytic
-## start orbitals be wanted, Basics.RadialOrbitalThomasFermi is the better route -- it needs no external data
-## and works at any Z, including the superheavy region these tables cannot reach.
+## start orbitals be wanted, use ManyElectron.StartFromThomasFermi with the screened potential
+## Basics.ThomasFermiField (added 13-Aug-2026) -- it needs no external data and works at any Z, including the
+## superheavy region these tables cannot reach.
 ##
 ## The working route to hydrogenic start orbitals remains Bsplines.generateOrbitalsHydrogenic, which is what
 ## AsfSettings(..., StartFromHydrogenic(), ...) already uses throughout JAC.

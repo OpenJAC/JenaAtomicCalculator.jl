@@ -2018,6 +2018,11 @@ export AbstractQuantizationAxis, DefaultQuantizationAxis, StaticQuantizationAxis
     + struct HartreeField     ... to represent an mean Hartree field.        
     + struct CHField          ... to represent an mean core-Hartree field.        
     + struct NuclearField     ... to represent a pure nuclear (potential) field.        
+    + struct ThomasFermiField ... to represent a Thomas-Fermi screened field.  Unlike every other member of
+                                  this family it is NOT self-consistent: it needs only the nuclear charge and
+                                  the number of electrons, and no density at all, which is exactly what makes
+                                  it useful as a STARTING potential; see Basics.computePotential and
+                                  ManyElectron.StartFromThomasFermi.
 """
 abstract type  AbstractScField                          end
 struct     ALField              <:  AbstractScField     end
@@ -2028,6 +2033,7 @@ struct     KSField              <:  AbstractScField     end
 struct     HartreeField         <:  AbstractScField     end
 struct     CHField              <:  AbstractScField     end 
 struct     NuclearField         <:  AbstractScField     end
+struct     ThomasFermiField     <:  AbstractScField     end
 struct     AaDFSField           <:  AbstractScField     end   
 struct     AaHSField            <:  AbstractScField     end   
 
@@ -2058,7 +2064,8 @@ struct     DFSwCPField          <:  AbstractScField
     corePolarization    ::CorePolarization
 end
 
-export  AbstractScField, AaDFSField, AaHSField, ALField, EOLField, DFSField, DFSwCPField, HSField, NuclearField
+export  AbstractScField, AaDFSField, AaHSField, ALField, EOLField, DFSField, DFSwCPField, HSField, NuclearField,
+        ThomasFermiField
 
 #################################################################################################################################
 #################################################################################################################################
@@ -2356,27 +2363,32 @@ export  AbstractGenerateTheme, CondensedMultiplet, ConfigurationListNRFromBasis,
     + AngularCoeffs1pRatip2013    ... compute single-particle angular coefficients via the Ratip2013 interface.
     + AngularCoeffs1pGrasp92      ... compute single-particle angular coefficients via the Grasp92 interface.
     + CImatrixWithSymmetryJP      ... compute the CI Hamiltonian matrix for a given J^P symmetry block.
-    + RadialOrbitalHydrogenic     ... generate a hydrogenic start orbital.
 
-        RadialOrbitalBunge1993 and RadialOrbitalMcLean1981 were RETIRED on 13-Aug-2026.  They promised start
-        orbitals from the Roothaan-Hartree-Fock tables of Bunge et al., ADNDT 53 (1993) 113 and McLean &
-        McLean, ADNDT 26 (1981) 197, but that data has NEVER been part of JAC: they called Basics.store(),
-        which only ever existed as store_Williams2000 -- inner-shell binding energies, an entirely different
-        table -- and which was itself removed at a20163c.  Rather than keep two names that could never do
-        what they said, they are gone.  See the note in module-Radial.jl for what a reinstatement would
-        involve and why RadialOrbitalThomasFermi is the better route to the same purpose.
-    + RadialOrbitalThomasFermi    ... generate a Thomas-Fermi start orbital.
+        THE FOUR RadialOrbital* THEMES WERE RETIRED on 13-Aug-2026: RadialOrbitalBunge1993,
+        RadialOrbitalMcLean1981, RadialOrbitalHydrogenic and RadialOrbitalThomasFermi.  None of them ever
+        worked and none was ever called from anywhere.
+
+        Bunge1993 and McLean1981 went first: they promised start orbitals from the Roothaan-Hartree-Fock
+        tables of Bunge et al., ADNDT 53 (1993) 113 and McLean & McLean, ADNDT 26 (1981) 197, but that data
+        has NEVER been part of JAC -- they called Basics.store(), which only ever existed as
+        store_Williams2000, inner-shell binding energies and an entirely different table, itself removed at
+        a20163c.  See module-Radial.jl for why importing those tables was decided against.
+
+        Hydrogenic and ThomasFermi followed, because they name the wrong thing.  A start orbital is chosen
+        per COMPUTATION, through ManyElectron.AbstractStartOrbitals (StartFromHydrogenic,
+        StartFromThomasFermi, StartFromPrevious) which AsfSettings carries and SelfConsistent dispatches on --
+        not per subshell through a compute theme.  Thomas-Fermi accordingly arrived where it belongs, as the
+        screened potential Basics.ThomasFermiField, with the orbitals following from
+        Bsplines.generateOrbitals, which works in any potential.
 """
 abstract type  AbstractComputeTheme                                              end
 struct         AngularCoeffsEeRatip2013   <:  AbstractComputeTheme              end
 struct         AngularCoeffs1pRatip2013   <:  AbstractComputeTheme              end
 struct         AngularCoeffs1pGrasp92     <:  AbstractComputeTheme              end
 struct         CImatrixWithSymmetryJP     <:  AbstractComputeTheme              end
-struct         RadialOrbitalHydrogenic    <:  AbstractComputeTheme              end
-struct         RadialOrbitalThomasFermi   <:  AbstractComputeTheme              end
 
 export  AbstractComputeTheme, AngularCoeffsEeRatip2013, AngularCoeffs1pRatip2013, AngularCoeffs1pGrasp92,
-        CImatrixWithSymmetryJP, RadialOrbitalHydrogenic, RadialOrbitalThomasFermi
+        CImatrixWithSymmetryJP
 
 
 """

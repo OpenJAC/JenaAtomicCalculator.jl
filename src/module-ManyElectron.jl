@@ -44,12 +44,19 @@ struct         NoneQed        <:  AbstractQedModel   end
     ... defines an abstract and a number of singleton types to determine the orbitals from which the SCF computations start.
 
     + struct StartFromHydrogenic   ... to start the SCF procedure from hydrogenic orbitals.        
+    + struct StartFromThomasFermi  ... to start the SCF procedure from orbitals in a Thomas-Fermi potential.
     + struct StartFromPrevious     ... to start the SCF procedure from previously calculated orbitals.        
+
+        StartFromHydrogenic ignores the other electrons entirely, so for a many-electron atom its outer
+        orbitals start far too tightly bound.  StartFromThomasFermi screens the nucleus with a statistical
+        model of the electron cloud before any orbital exists, which costs nothing and starts the iteration
+        much closer to the answer; see Basics.ThomasFermiField.
 """
 abstract type  AbstractStartOrbitals                          end
 struct     StartFromHydrogenic    <:  AbstractStartOrbitals   end
+struct     StartFromThomasFermi   <:  AbstractStartOrbitals   end
 
-export  AbstractStartOrbitals, StartFromHydrogenic, StartFromPrevious
+export  AbstractStartOrbitals, StartFromHydrogenic, StartFromPrevious, StartFromThomasFermi
 
 
 """

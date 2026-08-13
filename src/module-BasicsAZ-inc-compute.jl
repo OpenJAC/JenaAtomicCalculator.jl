@@ -237,42 +237,21 @@ function Basics.compute(JP::LevelSymmetry, basis::Basis, nuclearModel::Nuclear.M
     return( matrix )
 end
 
-## THE TWO REMAINING RadialOrbital* START-ORBITAL THEMES DO NOT WORK, and did not before 12-Aug-2026 either:
-## Radial.OrbitalHydrogenic and Radial.OrbitalThomasFermi were never defined, so both raised UndefVarError at
-## the first call, and neither has a caller anywhere.  Following the corePolarization.doApply precedent in
-## module-PhotoEmission.jl, they now raise an error that EXPLAINS rather than one naming a missing symbol.
+## THE RadialOrbital* START-ORBITAL THEMES ARE GONE, retired 13-Aug-2026.
 ##
-## RadialOrbitalBunge1993 and RadialOrbitalMcLean1981 stood beside them until 13-Aug-2026 and are now RETIRED
-## ENTIRELY -- type names, exports and methods.  They promised Roothaan-Hartree-Fock start orbitals from
-## tables that have never been part of JAC, through a Basics.store() that only ever existed as
-## store_Williams2000 (inner-shell binding energies) and was itself removed at a20163c.  The decision, taken
-## by the maintainer: neither table is worth importing.  Both are NON-RELATIVISTIC, and McLean's half covers
-## Z = 55-92, exactly where that matters most; neither reaches beyond Z = 92 or past neutral ground
-## configurations, which is most of what JAC computes; and Anderson acceleration has since removed much of
-## the convergence cost that a better start orbital would have bought.  RadialOrbitalThomasFermi is the
-## better route to the same purpose -- it needs no external data and works at any Z.
+## Four of them once existed -- Bunge1993, McLean1981, Hydrogenic and ThomasFermi -- reached as
+## Basics.compute(theme, subshell, Z).  NONE ever worked and NONE ever had a caller: each called a function
+## of Radial that either was never defined or could not run.  The first two went when it emerged that their
+## data tables had never been part of JAC; these last two go because they name the wrong thing.
+##
+## A start orbital is not chosen per subshell through a compute theme.  It is chosen per computation through
+## ManyElectron.AbstractStartOrbitals -- StartFromHydrogenic, StartFromThomasFermi, StartFromPrevious -- which
+## is what AsfSettings carries and what SelfConsistent dispatches on, and the orbitals themselves come from
+## Bsplines.generateOrbitals(subshells, pot, nm, primitives), which works in ANY potential.  Thomas-Fermi
+## accordingly arrived as Basics.ThomasFermiField, a screened POTENTIAL beside DFSField and its siblings,
+## with the orbitals following from machinery that already existed.  Keeping a parallel per-subshell route
+## that had never been called would have been a third way to say the same thing.
 
-"""
-`Basics.compute(::RadialOrbitalHydrogenic, subshell::Subshell, Z::Int64)`
-    ... NOT AVAILABLE through this interface; use Bsplines.generateOrbitalsHydrogenic, which needs a grid.
-"""
-function Basics.compute(::RadialOrbitalHydrogenic, subshell::Subshell, Z::Int64)
-    error("Basics.compute(::RadialOrbitalHydrogenic, ...): not available; Radial.OrbitalHydrogenic was " *
-          "never defined.  JAC does compute hydrogenic orbitals -- use Bsplines.generateOrbitalsHydrogenic" *
-          "(subshells, nm, primitives), i.e. StartFromHydrogenic() in AsfSettings.  It needs a grid and a " *
-          "nuclear model, which is why it cannot be reached from (subshell, Z) alone.")
-end
-
-
-"""
-`Basics.compute(::RadialOrbitalThomasFermi, subshell::Subshell, Z::Int64)`
-    ... NOT AVAILABLE; Radial.OrbitalThomasFermi was never defined.
-"""
-function Basics.compute(::RadialOrbitalThomasFermi, subshell::Subshell, Z::Int64)
-    error("Basics.compute(::RadialOrbitalThomasFermi, ...): not available; Radial.OrbitalThomasFermi was " *
-          "never defined.  For a screened start potential use Basics.computePotential with one of the " *
-          "AbstractPotential types; for start orbitals use StartFromHydrogenic() in AsfSettings.")
-end
 
 """
 `Basics.computeDensity(level::Level, grid::Radial.Grid)`  
@@ -747,6 +726,54 @@ function Basics.computePotential(scField::Basics.KSField, grid::Radial.Grid, lev
     wc = Radial.Potential("Kohn-Sham", wb, grid)
     return( wc )
 end
+
+"""
+`Basics.computePotential(scField::Basics.ThomasFermiField, grid::Radial.Grid, Z::Float64, noElectrons::Int64)`
+    ... computes the electronic screening part of a Thomas-Fermi potential for nuclear charge Z and the given
+        number of electrons; a potential::Radial.Potential is returned, whose Zr is the SCREENING alone and is
+        therefore <= 0, to be added to the nuclear potential exactly as the other members of this family are.
+
+        THIS IS THE ONE MEMBER OF AbstractScField THAT NEEDS NO DENSITY.  All its siblings take a Level or a
+        Basis, because they are built from orbitals that already exist; the Thomas-Fermi field is a statistical
+        model of the electron cloud and asks only for Z and the electron number.  That is precisely why it is
+        useful as a STARTING potential, where no orbitals exist yet.
+
+        The screening function is the Moliere three-exponential fit to the solution of the Thomas-Fermi
+        equation,
+
+            phi(x) = 0.35 exp(-0.3 x) + 0.55 exp(-1.2 x) + 0.10 exp(-6.0 x),      x = r / b,
+            b      = 0.8853 Z^(-1/3)   [a.u.],
+
+        which reproduces the numerical Thomas-Fermi function to about a percent and needs no ODE solve.  Note
+        phi(0) = 0.35 + 0.55 + 0.10 = 1 exactly, so Z(r) -> Z at the origin as it must.
+
+        THE LATTER TAIL CORRECTION is applied: the effective charge is not allowed to fall below Z - N + 1,
+        the charge an electron still sees once it is outside the others.  Without it the Thomas-Fermi charge
+        decays to zero and the potential loses its asymptotic Coulomb tail, so the outer orbitals come out
+        unbound.  For a neutral atom this floor is 1; for a one-electron ion it is Z, so the screening
+        vanishes identically and the potential reduces to the bare nuclear one -- a useful check.
+"""
+function Basics.computePotential(scField::Basics.ThomasFermiField, grid::Radial.Grid, Z::Float64, noElectrons::Int64)
+    Z < 0.1              &&  error("Basics.computePotential(::ThomasFermiField, ...): Z = $Z must be >= 0.1.")
+    noElectrons < 1      &&  error("Basics.computePotential(::ThomasFermiField, ...): noElectrons = $noElectrons must be >= 1.")
+    noElectrons > Z + 1  &&  error("Basics.computePotential(::ThomasFermiField, ...): noElectrons = $noElectrons " *
+                                   "exceeds Z + 1 = $(Z+1); the Thomas-Fermi model does not describe such an ion.")
+    npoints = grid.NoPoints;    wb = zeros( npoints )
+    bTF     = 0.8853 * Z^(-1/3)                 ## Thomas-Fermi length [a.u.]
+    zFloor  = Z - noElectrons + 1.0             ## Latter tail: the charge seen from outside the electron cloud
+    #
+    for  i = 2:npoints
+        x    = grid.r[i] / bTF
+        phi  = 0.35 * exp(-0.3x) + 0.55 * exp(-1.2x) + 0.10 * exp(-6.0x)
+        zEff = max( Z * phi, zFloor )
+        wb[i] = zEff - Z                        ## the SCREENING part only; <= 0, as for the other fields
+    end
+    wb[1] = 0.
+    #
+    wc = Radial.Potential("Thomas-Fermi screening", wb, grid)
+    return( wc )
+end
+
 
 """
 `Basics.computePotential(scField::Basics.DFSField, grid::Radial.Grid, level::Level)`  

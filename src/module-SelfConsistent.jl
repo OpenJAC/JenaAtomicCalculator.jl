@@ -1024,6 +1024,15 @@ function initializeBasis(configs::Array{Configuration,1}, nuclearModel::Nuclear.
         if  printout   println("> Start SCF process with hydrogenic orbitals.")   end
         # Generate start orbitals for the SCF field by using B-splines
         orbitals  = Bsplines.generateOrbitalsHydrogenic(subshells, nuclearModel, primitives; printout=printout)
+    elseif  typeof(settings.startScfFrom) == StartFromThomasFermi
+        if  printout   println("> Start SCF process with orbitals in a Thomas-Fermi potential.")   end
+        ## The nucleus screened by a statistical model of the electron cloud.  Unlike every self-consistent
+        ## field this needs no density, so it is available before any orbital exists -- which is the point of
+        ## a start potential.  Bsplines.generateOrbitals then does what it does for any other potential.
+        tfPot     = Basics.add( Nuclear.nuclearPotential(nuclearModel, primitives.grid),
+                                Basics.computePotential(Basics.ThomasFermiField(), primitives.grid,
+                                                        nuclearModel.Z, NoElectrons) )
+        orbitals  = Bsplines.generateOrbitals(subshells, tfPot, nuclearModel, primitives; printout=printout)
     elseif  typeof(settings.startScfFrom) == StartFromPrevious
         if  printout   println("> Start SCF process from given list of orbitals.energy")    end
         # Taking starting orbitals for the given dictionary; non-relativistic orbitals with a proper nuclear charge
