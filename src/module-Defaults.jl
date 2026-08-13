@@ -536,11 +536,36 @@ end
 """
 function setDefaults(sa::String, subshells::Array{Subshell,1}; printout::Bool=true)
     if        sa == "relativistic subshell list"
-        if printout    println("(Re-) Define a new standard subshell list.")    end
-        global GBL_STANDARD_SUBSHELL_LIST = deepcopy(subshells)
+        ## DEPRECATED as a user-facing setting (12-Aug-2026); it delegates to the internal setter below.
+        ## See there for why this does not belong in a public configuration API.
+        Defaults.setStandardSubshellList(subshells; printout=printout)
     else
         error("Unsupported keystring:: $sa")
     end
+
+    nothing
+end
+
+
+"""
+`Defaults.setStandardSubshellList(subshells::Array{Subshell,1}; printout::Bool=true)`
+    ... sets the standard relativistic subshell list, which fixes the ORDER in which the subshells of a CSF are
+        named when one is printed. Nothing is returned.
+
+        THIS IS FOR DISPLAY ONLY, and it is internal. It is set in many places but read in exactly two, both of
+        which produce output: `Base.string(csf::CsfR)` and `Basics.display(stream, orbitals, grid)`. No
+        computation consults it -- every process module works from its own local subshell list, obtained from
+        `Basics.generate(OrderedSubshellList(), basisA, basisB)` and passed explicitly to whatever needs it.
+
+        IT IS NOT A USER SETTING, which is why it was demoted out of `Defaults.setDefaults` on 12-Aug-2026
+        (the string key still delegates here, so existing scripts keep working). The correspondence to a CSF is
+        POSITIONAL -- `csf.occupation[i]` belongs to `subshells[i]` -- and nothing validates the list against
+        the CSFs it will label. A list that does not match therefore mislabels every printed CSF silently. The
+        value is derived data with no physical content, so there is nothing a user answers by overriding it.
+"""
+function setStandardSubshellList(subshells::Array{Subshell,1}; printout::Bool=true)
+    if printout    println("(Re-) Define a new standard subshell list.")    end
+    global GBL_STANDARD_SUBSHELL_LIST = deepcopy(subshells)
 
     nothing
 end
