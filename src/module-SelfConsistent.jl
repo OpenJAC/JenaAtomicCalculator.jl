@@ -1035,18 +1035,25 @@ function initializeBasis(configs::Array{Configuration,1}, nuclearModel::Nuclear.
         orbitals  = Bsplines.generateOrbitals(subshells, tfPot, nuclearModel, primitives; printout=printout)
     elseif  typeof(settings.startScfFrom) == StartFromPrevious
         if  printout   println("> Start SCF process from given list of orbitals.energy")    end
-        # Taking starting orbitals for the given dictionary; non-relativistic orbitals with a proper nuclear charge
-        # are adapted if no orbital is found
+        ## Take what the given set provides and fall back to a hydrogenic orbital for anything it does not.
+        ## THE FALLBACK NEVER RAN BEFORE (fixed 13-Aug-2026): it called HydrogenicIon.radialOrbital(subsh, ...,
+        ## grid) where neither `subsh` nor `grid` exists in this method -- the loop variable is `sh` and only
+        ## `primitives` is passed -- and radialOrbital takes a Shell rather than a Subshell in any case, so the
+        ## branch could only ever have thrown.  It went unnoticed because StartFromPrevious had exactly one
+        ## caller, which always supplied a complete set.  Warm-starting one cascade block from another does
+        ## not: consecutive blocks differ in which subshells are occupied.  The missing ones are now generated
+        ## by the same B-spline routine the StartFromHydrogenic branch above uses, in ONE call.
         orbitals = Dict{Subshell, Orbital}()
+        missingSubshells = Subshell[]
         for  sh in subshells
-            if  haskey(settings.startScfFrom.orbitals, sh)  
-                orbitals[sh] = settings.startScfFrom.orbitals[sh]
-            else
-                println("Start orbitals do not contain an Orbital for subshell $sh ")
-                orb          = HydrogenicIon.radialOrbital(subsh, nuclearModel.Z, grid)
-                orb          = Orbital(orb.subshell, orb.isBound, true, orb.energy, orb.P, orb.Q, orb.Pprime, orb.Qprime, Radial.Grid())
-                orbitals[sh] = orb 
+            if  haskey(settings.startScfFrom.orbitals, sh)   orbitals[sh] = settings.startScfFrom.orbitals[sh]
+            else                                             push!(missingSubshells, sh)
             end
+        end
+        if  length(missingSubshells) > 0
+            if  printout   println("> Start orbitals do not cover $missingSubshells; these are taken hydrogenic.")   end
+            hydrogenic = Bsplines.generateOrbitalsHydrogenic(missingSubshells, nuclearModel, primitives; printout=false)
+            for  sh in missingSubshells   orbitals[sh] = hydrogenic[sh]   end
         end
     else  error("stop b")
     end
@@ -1329,7 +1336,7 @@ end
 """
 `SelfConsistent.computeTwoElectronV(subshell::Subshell, coeffs2p::Array{SpinAngular.Coefficient2p,1},
                                            bVectors::Dict{Subshell, Vector{Float64}}, primitives::Bsplines.Primitives,
-                                           tensorCaches::Dict{Int64, NTuple{3,RadialIntegrals.SlaterMomentCache}})`
+                                           tensorCaches::Dict{Int64, NTuple{3,RadialIntegrals.ScreenedPotentialCache}})`
     ... computes the direct and exchange two-electron potential matrix for the given subshell, taking
         bVectors::Dict{Subshell,Vector{Float64}} -- B-spline expansion coefficients -- as the SOLE, canonical
         per-subshell state, rather than a persistent Dict{Subshell,Orbital}. Every coeffs2p entry relevant to
@@ -1344,7 +1351,7 @@ end
 """
 function computeTwoElectronV(subshell::Subshell, coeffs2p::Array{SpinAngular.Coefficient2p,1},
                                     bVectors::Dict{Subshell, Vector{Float64}}, primitives::Bsplines.Primitives,
-                                    tensorCaches::Dict{Int64, NTuple{3,RadialIntegrals.SlaterMomentCache}})
+                                    tensorCaches::Dict{Int64, NTuple{3,RadialIntegrals.ScreenedPotentialCache}})
     nsL     = primitives.grid.nsL;        nsS = primitives.grid.nsS
     matrixV = zeros( nsL+nsS, nsL+nsS )
     partnerOrbitals = Dict{Subshell, Orbital}()
@@ -1432,7 +1439,7 @@ end
 `SelfConsistent.computeFockMatrix(subshell::Subshell, coeffs2p::Array{SpinAngular.Coefficient2p,1},
                                          bVectors::Dict{Subshell, Vector{Float64}}, primitives::Bsplines.Primitives,
                                          nucPot::Radial.Potential, storage::Dict{String,Array{Float64,2}},
-                                         occ::Float64, tensorCaches::Dict{Int64, NTuple{3,RadialIntegrals.SlaterMomentCache}})`
+                                         occ::Float64, tensorCaches::Dict{Int64, NTuple{3,RadialIntegrals.ScreenedPotentialCache}})`
     ... computes the full per-subshell Hamiltonian matrix (one-electron + direct + exchange), matching the
         role of DBSR_HF's hf_matrix.f90: Bsplines.setupLocalMatrix provides the one-electron (kinetic +
         nuclear + rest-mass) block natively in B-spline basis (reused unchanged), and
@@ -1446,7 +1453,7 @@ end
 function computeFockMatrix(subshell::Subshell, coeffs2p::Array{SpinAngular.Coefficient2p,1},
                                   bVectors::Dict{Subshell, Vector{Float64}}, primitives::Bsplines.Primitives,
                                   nucPot::Radial.Potential, storage::Dict{String,Array{Float64,2}},
-                                  occ::Float64, tensorCaches::Dict{Int64, NTuple{3,RadialIntegrals.SlaterMomentCache}};
+                                  occ::Float64, tensorCaches::Dict{Int64, NTuple{3,RadialIntegrals.ScreenedPotentialCache}};
                                   coeffs2pUnscaled::Array{SpinAngular.Coefficient2p,1}=SpinAngular.Coefficient2p[])
     # occ == 0 would give 1/occ = Inf and, against the zero two-electron matrix such a subshell has,
     # Inf * 0 = NaN in every element -- a whole Fock matrix of NaN that only surfaces much later, and
@@ -1525,11 +1532,11 @@ function solveAverageLevelField(basis::Basis, nuclearModel::Nuclear.Model, primi
     # branches of computeTwoElectronV use them
     neededRanks = unique( [ cf.nu for cf in coeffs2p ] )
     if  printout    println(">> [AL] Precompute kink-aware Slater-moment tensor caches for ranks $(neededRanks) ...")    end
-    tensorCaches = Dict{Int64, NTuple{3,RadialIntegrals.SlaterMomentCache}}()
+    tensorCaches = Dict{Int64, NTuple{3,RadialIntegrals.ScreenedPotentialCache}}()
     for  L  in  neededRanks
-        cacheLL = RadialIntegrals.buildSlaterMomentCache(L, primitives.bsplinesL, primitives.bsplinesL, grid; rtol=1.0e-6)
-        cacheLS = RadialIntegrals.buildSlaterMomentCache(L, primitives.bsplinesL, primitives.bsplinesS, grid; rtol=1.0e-6)
-        cacheSS = RadialIntegrals.buildSlaterMomentCache(L, primitives.bsplinesS, primitives.bsplinesS, grid; rtol=1.0e-6)
+        cacheLL = RadialIntegrals.buildScreenedPotentialCache(L, primitives.bsplinesL, primitives.bsplinesL, grid; rtol=1.0e-6)
+        cacheLS = RadialIntegrals.buildScreenedPotentialCache(L, primitives.bsplinesL, primitives.bsplinesS, grid; rtol=1.0e-6)
+        cacheSS = RadialIntegrals.buildScreenedPotentialCache(L, primitives.bsplinesS, primitives.bsplinesS, grid; rtol=1.0e-6)
         tensorCaches[L] = (cacheLL, cacheLS, cacheSS)
     end
 
@@ -1956,11 +1963,11 @@ function solveOptimizedLevelField(basis::Basis, nuclearModel::Nuclear.Model, pri
     # solveAverageLevelField does; only the exchange branches of computeTwoElectronV use them
     neededRanks = unique( [ cf.nu for cf in coeffs2p ] )
     if  printout    println(">> [EOL] Precompute kink-aware Slater-moment tensor caches for ranks $(neededRanks) ...")    end
-    tensorCaches = Dict{Int64, NTuple{3,RadialIntegrals.SlaterMomentCache}}()
+    tensorCaches = Dict{Int64, NTuple{3,RadialIntegrals.ScreenedPotentialCache}}()
     for  L  in  neededRanks
-        cacheLL = RadialIntegrals.buildSlaterMomentCache(L, primitives.bsplinesL, primitives.bsplinesL, grid; rtol=1.0e-6)
-        cacheLS = RadialIntegrals.buildSlaterMomentCache(L, primitives.bsplinesL, primitives.bsplinesS, grid; rtol=1.0e-6)
-        cacheSS = RadialIntegrals.buildSlaterMomentCache(L, primitives.bsplinesS, primitives.bsplinesS, grid; rtol=1.0e-6)
+        cacheLL = RadialIntegrals.buildScreenedPotentialCache(L, primitives.bsplinesL, primitives.bsplinesL, grid; rtol=1.0e-6)
+        cacheLS = RadialIntegrals.buildScreenedPotentialCache(L, primitives.bsplinesL, primitives.bsplinesS, grid; rtol=1.0e-6)
+        cacheSS = RadialIntegrals.buildScreenedPotentialCache(L, primitives.bsplinesS, primitives.bsplinesS, grid; rtol=1.0e-6)
         tensorCaches[L] = (cacheLL, cacheLS, cacheSS)
     end
 

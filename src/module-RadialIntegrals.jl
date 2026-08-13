@@ -499,7 +499,7 @@ function rkNonDiagonal(k::Int64, a::Radial.Orbital, b::Radial.Orbital, grid::Rad
 end
 
 """
-`RadialIntegrals.SlaterRkComponent_2dim(k::Int64, Ba::Array{Float64,1}, Bb::Array{Float64,1}, 
+`RadialIntegrals.SlaterRkComponent(k::Int64, Ba::Array{Float64,1}, Bb::Array{Float64,1}, 
                                                   Bc::Array{Float64,1}, Bd::Array{Float64,1}, grid::Radial.Grid)`  
     ... computes one component of the (relativistic) Slater integral
 
@@ -509,7 +509,7 @@ end
         of rank k for the four components Ba, Bb, ... above , and over the given grid by using an explicit 2-dimensional integration 
         scheme; a value::Float64 is returned.
 """
-function SlaterRkComponent_2dim(k::Int64, Ba::Array{Float64,1}, Bb::Array{Float64,1}, Bc::Array{Float64,1}, Bd::Array{Float64,1}, grid::Radial.Grid)
+function SlaterRkComponent(k::Int64, Ba::Array{Float64,1}, Bb::Array{Float64,1}, Bc::Array{Float64,1}, Bd::Array{Float64,1}, grid::Radial.Grid)
     function ul(r :: Float64, s :: Float64) :: Float64
         if     r <= s    return( r^k/s^(k+1) )
         elseif r > s     return( s^k/r^(k+1) )
@@ -528,7 +528,7 @@ function SlaterRkComponent_2dim(k::Int64, Ba::Array{Float64,1}, Bb::Array{Float6
 end
 
 """
-`RadialIntegrals.SlaterRk_2dim(k::Int64, a::Radial.Orbital, b::Radial.Orbital, c::Radial.Orbital, d::Orbital, grid::Radial.Grid)`  
+`RadialIntegrals.SlaterRk(k::Int64, a::Radial.Orbital, b::Radial.Orbital, c::Radial.Orbital, d::Orbital, grid::Radial.Grid)`  
     ... computes the (relativistic) Slater integral
 
     R^k (abcd) = int_0^infty dr int_0^infty ds (P_a P_c + Q_a Q_c) r_<^k / r_>^(k+1) (P_b P_d + Q_b Q_d)
@@ -536,7 +536,7 @@ end
     of rank k for the four orbitals a, b, c, d, and over the given grid by using an explicit 2-dimensional integration scheme; a 
     value::Float64 is returned.
 """
-function SlaterRk_2dim(k::Int64, a::Radial.Orbital, b::Radial.Orbital, c::Radial.Orbital, d::Radial.Orbital, grid::Radial.Grid)
+function SlaterRk(k::Int64, a::Radial.Orbital, b::Radial.Orbital, c::Radial.Orbital, d::Radial.Orbital, grid::Radial.Grid)
     mtp_ac = min(size(a.P, 1), size(c.P, 1));    mtp_bd = min(size(b.P, 1), size(d.P, 1))
     wac = zeros(mtp_ac);   wbd = zeros(mtp_bd)
     for  r = 2:mtp_ac   wac[r] = (a.P[r] * c.P[r] + a.Q[r] * c.Q[r]) * grid.wr[r]  end
@@ -546,7 +546,7 @@ function SlaterRk_2dim(k::Int64, a::Radial.Orbital, b::Radial.Orbital, c::Radial
     ## Slater integral where 2N suffice.  Hoisting them costs O(N) and leaves the arithmetic of each
     ## term untouched: the same two numbers are formed and the same division is taken, so the result is
     ## BITWISE identical and no approved reference can move.  Measured 4.7x / 6.5x / 9.4x on three real
-    ## cases; SlaterRk_2dim and its ul() closure were ~16 % of an Auger rate computation.
+    ## cases; SlaterRk and its ul() closure were ~16 % of an Auger rate computation.
     ## ul() itself was kept at the time because the MeshGrasp branch above still called it; that branch is
     ## gone (12-Aug-2026) and the closure with it, since nothing in this function called it any more.
     mtp = max(mtp_ac, mtp_bd)
@@ -599,12 +599,12 @@ end
         not on whatever it is later contracted against, it only needs to be built ONCE per orbital pair and can
         then be reused cheaply (via the existing, already-tabulated grid quadrature, since V_k(r) is itself
         smooth/kink-free once built correctly) for every downstream contraction -- e.g. RadialIntegrals.
-        SlaterRk_2dimKinkAware below, or a B-spline matrix element as needed for SCF orbital optimization.
+        SlaterRkKinkAware below, or a B-spline matrix element as needed for SCF orbital optimization.
 
         The kink that the original r_</r_>^(k+1) kernel has at r=s is handled explicitly here: for each outer
         point r WITHIN the source density's own extent, the integral over s is split into [0,r] and [r,r_max]
         -- each smooth on its own -- rather than integrated across the kink with a single quadrature rule as
-        SlaterRk_2dim does. For r BEYOND the source's own extent (rho_bd is by construction zero there), V_k(r)
+        SlaterRk does. For r BEYOND the source's own extent (rho_bd is by construction zero there), V_k(r)
         reduces to a single r-independent constant divided by r^(k+1) -- the standard multipole falloff of a
         localized source -- computed once and reused for every such r, no adaptive quadrature needed there.
         Getting this "beyond the source" branch right matters: it is NOT optional truncation. When V_k feeds a
@@ -631,7 +631,7 @@ end
         mtpOut lets the caller request the FULL range actually needed (e.g. grid.NoPoints for a
         B-spline matrix element); left unspecified, it defaults to min(size(b.P,1),size(d.P,1)) as before, which
         remains correct wherever V_k is only ever contracted against something ALSO naturally truncated to that
-        same orbital-pair extent (e.g. SlaterRk_2dimKinkAware).
+        same orbital-pair extent (e.g. SlaterRkKinkAware).
         A Vk::Vector{Float64}, of length mtpOut (or min(size(b.P,1),size(d.P,1)) if mtpOut is not given), is
         returned.
 """
@@ -688,20 +688,20 @@ end
 
 
 """
-`RadialIntegrals.SlaterRk_2dimKinkAware(k::Int64, a::Radial.Orbital, b::Radial.Orbital, c::Radial.Orbital, d::Radial.Orbital,
+`RadialIntegrals.SlaterRkKinkAware(k::Int64, a::Radial.Orbital, b::Radial.Orbital, c::Radial.Orbital, d::Radial.Orbital,
                                      grid::Radial.Grid; rtol::Float64=1.0e-9)`
-    ... computes the same (relativistic) Slater integral as SlaterRk_2dim,
+    ... computes the same (relativistic) Slater integral as SlaterRk,
 
     R^k (abcd) = int_0^infty dr int_0^infty ds (P_a P_c + Q_a Q_c) r_<^k / r_>^(k+1) (P_b P_d + Q_b Q_d)
 
     but via the kink-aware screened potential RadialIntegrals.buildScreenedPotential(k,b,d,grid) instead of
-    the naive tensor-product Gauss-Legendre double sum SlaterRk_2dim uses (which is exact for smooth polynomials
+    the naive tensor-product Gauss-Legendre double sum SlaterRk uses (which is exact for smooth polynomials
     within a break-point cell, but not for a function with a first-derivative discontinuity running through the
     middle of one, as r_</r_>^(k+1) has at r=s). Since V_k(r) is smooth once built, the outer integral over r can
     safely reuse the existing grid quadrature weights -- no further adaptive treatment is needed there.
     A value::Float64 is returned.
 """
-function SlaterRk_2dimKinkAware(k::Int64, a::Radial.Orbital, b::Radial.Orbital, c::Radial.Orbital, d::Radial.Orbital,
+function SlaterRkKinkAware(k::Int64, a::Radial.Orbital, b::Radial.Orbital, c::Radial.Orbital, d::Radial.Orbital,
                              grid::Radial.Grid; rtol::Float64=1.0e-9)
     ## mtpOut MUST be passed (fixed 13-Aug-2026).  Without it buildScreenedPotential tabulates V_k only
     ## out to the (b,d) SOURCE's own extent, and the outer integral over r was then cut at
@@ -751,7 +751,7 @@ end
         so re-integrating the whole sub-range at each point repeats work. fullInner and fullOuter are the end
         values of those same sweeps, so they cannot drift away from the pointwise values.
         The optional mtpOut lets the caller request a LONGER output range explicitly -- needed, for instance, by
-        RadialIntegrals.buildSlaterMomentCache, where BOTH Ba and orbComp are themselves compact B-splines
+        RadialIntegrals.buildScreenedPotentialCache, where BOTH Ba and orbComp are themselves compact B-splines
         (not a broad orbital), so size(orbComp,1) alone would be far too short for how the result is used later.
         A Vk::Vector{Float64}, of length mtpOut (or size(orbComp,1) if mtpOut is not given), is returned.
 """
@@ -765,7 +765,7 @@ function buildScreenedPotentialPair(k::Int64, Ba::Vector{Float64}, orbComp::Vect
     # Restrict to the density's ACTUAL nonzero support. Ba and orbComp are zero-padded from index 1, so for a
     # "late" B-spline pair the true overlap can start far later than index 1 (e.g. a padded array of length 392
     # with a true support of only ~20 points) -- running adaptive quadrature over that leading, identically-zero
-    # stretch as well as the true support wastes most of the work for exactly the pairs buildSlaterMomentCache
+    # stretch as well as the true support wastes most of the work for exactly the pairs buildScreenedPotentialCache
     # calls this with most often.
     startIdx = 0
     for  i = 1:mtpSrc   if  Ba[i]*orbComp[i] != 0.    startIdx = i;   break   end   end
@@ -822,14 +822,14 @@ end
 
 
 """
-`struct  RadialIntegrals.SlaterMomentCache`
+`struct  RadialIntegrals.ScreenedPotentialCache`
     ... holds a precomputed cache of kink-aware "screened potentials" Phi_(i,i')(s), one for every overlapping
         pair of B-splines (i,i') from a GIVEN B-spline basis (e.g. primitives.bsplinesL or primitives.bsplinesS),
         for one fixed multipole rank k. THIS IS NOT ITSELF A PHYSICAL SLATER/RADIAL INTEGRAL -- it is an
         auxiliary, basis-only tensor (it does not reference any orbital at all) from which many different direct
         and exchange two-electron radial integrals can afterwards be obtained CHEAPLY, by a simple grid-quadrature
         dot product against whatever B-spline or orbital density is actually needed (see
-        RadialIntegrals.buildSlaterMomentCache for how it is built, and
+        RadialIntegrals.buildScreenedPotentialCache for how it is built, and
         SelfConsistent.computeDirectExchangeVTensor, once written, for how it gets used). Building this cache is
         the expensive, kink-aware step -- it uses the SAME split-quadrature technique as
         buildScreenedPotentialPair, just applied ONCE per (basis-only) B-spline pair rather than once per
@@ -843,7 +843,7 @@ end
         LL and SS ("same-basis") combinations for its diagonal blocks, but ALSO an LS ("cross-basis") combination
         for its off-diagonal blocks, since the large- and small-component B-spline bases share the same
         underlying grid (just different spline orders) and therefore genuinely overlap with EACH OTHER too, not
-        only within themselves. See RadialIntegrals.buildSlaterMomentCache for how the same-basis and
+        only within themselves. See RadialIntegrals.buildScreenedPotentialCache for how the same-basis and
         cross-basis cases are told apart and handled.
     + k        ::Int64                                    ... the multipole rank this cache was built for
     + sameBasis::Bool                                     ... true if this cache was built from two identical
@@ -861,7 +861,7 @@ end
                                                               (nonzero) for OVERLAPPING (i,i') pairs. i indexes
                                                               the FIRST basis, i' the SECOND.
 """
-struct SlaterMomentCache
+struct ScreenedPotentialCache
     k         ::Int64
     sameBasis ::Bool
     band      ::Int64
@@ -870,9 +870,9 @@ end
 
 
 """
-`RadialIntegrals.buildSlaterMomentCache(k::Int64, bsplines1::Array{<:Any,1}, bsplines2::Array{<:Any,1},
+`RadialIntegrals.buildScreenedPotentialCache(k::Int64, bsplines1::Array{<:Any,1}, bsplines2::Array{<:Any,1},
                                               grid::Radial.Grid; rtol::Float64=1.0e-9)`
-    ... builds a RadialIntegrals.SlaterMomentCache for multipole rank k from TWO lists of B-splines --
+    ... builds a RadialIntegrals.ScreenedPotentialCache for multipole rank k from TWO lists of B-splines --
         typically primitives.bsplinesL and/or primitives.bsplinesS. For every pair (i,i'), i from bsplines1 and
         i' from bsplines2, whose supports overlap, the kink-aware screened potential
 
@@ -897,9 +897,9 @@ end
           overlap is tested explicitly via each B-spline's own [lower,upper] range rather than assuming any
           shared ordering convention between the two lists. This is the "LS" (equivalently "SL", with the two
           lists swapped) case, needed for the off-diagonal blocks of an exchange-signature Fock matrix.
-        A RadialIntegrals.SlaterMomentCache is returned, with its sameBasis field set accordingly.
+        A RadialIntegrals.ScreenedPotentialCache is returned, with its sameBasis field set accordingly.
 """
-function buildSlaterMomentCache(k::Int64, bsplines1::Array{<:Any,1}, bsplines2::Array{<:Any,1},
+function buildScreenedPotentialCache(k::Int64, bsplines1::Array{<:Any,1}, bsplines2::Array{<:Any,1},
                                       grid::Radial.Grid; rtol::Float64=1.0e-9)
     sameBasis = (bsplines1 === bsplines2)
     n1  = length(bsplines1);   n2 = length(bsplines2)
@@ -934,12 +934,12 @@ function buildSlaterMomentCache(k::Int64, bsplines1::Array{<:Any,1}, bsplines2::
     band = 0
     for  (i,ip)  in  keys(Phi)   band = max(band, abs(i-ip))   end
 
-    return( SlaterMomentCache(k, sameBasis, band, Phi) )
+    return( ScreenedPotentialCache(k, sameBasis, band, Phi) )
 end
 
 
 """
-`RadialIntegrals.SlaterRk_2dim_WO(k::Int64, a::Radial.Orbital, b::Radial.Orbital, c::Radial.Orbital, d::Orbital, grid::Radial.Grid)`
+`RadialIntegrals.SlaterRkWO(k::Int64, a::Radial.Orbital, b::Radial.Orbital, c::Radial.Orbital, d::Orbital, grid::Radial.Grid)`
     ... computes the (relativistic) Slater integral
 
         R^k (abcd) = int_0^infty dr int_0^infty ds (P_a P_c + Q_a Q_c) r_<^k / r_>^(k+1) (P_b P_d + Q_b Q_d)
@@ -947,7 +947,7 @@ end
         of rank k for the four orbitals a, b, c, d, and over the given grid by using an explicit 2-dimensional integration scheme
         but without optimization (WO); a value::Float64 is returned.
 """
-function SlaterRk_2dim_WO(k::Int64, a::Radial.Orbital, b::Radial.Orbital, c::Radial.Orbital, d::Radial.Orbital, grid::Radial.Grid)
+function SlaterRkWO(k::Int64, a::Radial.Orbital, b::Radial.Orbital, c::Radial.Orbital, d::Radial.Orbital, grid::Radial.Grid)
     function ul(r :: Float64, s :: Float64) :: Float64
         if     r <= s    return( r^k/s^(k+1) )
         elseif r > s     return( s^k/r^(k+1) )
@@ -961,12 +961,12 @@ function SlaterRk_2dim_WO(k::Int64, a::Radial.Orbital, b::Radial.Orbital, c::Rad
         for  s = 2:mtp_bd   wa = wa + (a.P[r] * c.P[r] + a.Q[r] * c.Q[r]) * ul(grid.r[r], grid.r[s]) * 
                                         (b.P[s] * d.P[s] + b.Q[s] * d.Q[s]) * grid.wr[r] * grid.wr[s]   end
     end
-    ## println("Test: SlaterRk_2dim(); wa = $wa")
+    ## println("Test: SlaterRk(); wa = $wa")
     return( wa )
 end
 
 """
-`RadialIntegrals.SlaterRk_2dim_Damped(tau::Float64, k::Int64, a::Radial.Orbital, b::Radial.Orbital, c::Radial.Orbital, d::Orbital, grid::Radial.Grid)`  
+`RadialIntegrals.SlaterRkDamped(tau::Float64, k::Int64, a::Radial.Orbital, b::Radial.Orbital, c::Radial.Orbital, d::Orbital, grid::Radial.Grid)`  
     ... computes the (relativistic) Slater integral
 
         R^k (abcd) = int_0^infty dr int_0^infty ds (P_a P_c + Q_a Q_c) r_<^k / r_>^(k+1) (P_b P_d + Q_b Q_d) * exp(-tau * r - tau*s)
@@ -974,7 +974,7 @@ end
         of rank k for the four orbitals a, b, c, d, and over the given grid by using an explicit 2-dimensional integration scheme; a 
         value::Float64 is returned.
 """
-function SlaterRk_2dim_Damped(tau::Float64, k::Int64, a::Radial.Orbital, b::Radial.Orbital, c::Radial.Orbital, d::Radial.Orbital, grid::Radial.Grid)
+function SlaterRkDamped(tau::Float64, k::Int64, a::Radial.Orbital, b::Radial.Orbital, c::Radial.Orbital, d::Radial.Orbital, grid::Radial.Grid)
     function ul(r :: Float64, s :: Float64) :: Float64
         if     r <= s    return( r^k/s^(k+1) )
         elseif r > s     return( s^k/r^(k+1) )
@@ -989,13 +989,13 @@ function SlaterRk_2dim_Damped(tau::Float64, k::Int64, a::Radial.Orbital, b::Radi
                                         (b.P[s] * d.P[s] + b.Q[s] * d.Q[s]) * grid.wr[r] * grid.wr[s]  *
                                         exp(- tau * grid.r[r] - tau * grid.r[s] )                         end
     end
-    ## println("Test: SlaterRk_2dim(); wa = $wa")
+    ## println("Test: SlaterRk(); wa = $wa")
     return( wa )
 end
 
 
 """
-`RadialIntegrals.SlaterRk_DebyeHueckel_2dim(k::Int64, a::Radial.Orbital, b::Radial.Orbital, c::Radial.Orbital, d::Orbital, 
+`RadialIntegrals.SlaterRkDebyeHueckel(k::Int64, a::Radial.Orbital, b::Radial.Orbital, c::Radial.Orbital, d::Orbital, 
                                             grid::Radial.Grid, lambda::Float64)`  
     ... computes the (relativistic) Slater-Debye-Hueckel integral
 
@@ -1004,7 +1004,7 @@ end
         of rank k for the four orbitals a, b, c, d, and over the given grid by using an explicit 2-dimensional integration 
         scheme; a value::Float64 is returned.
 """
-function SlaterRk_DebyeHueckel_2dim(k::Int64, a::Radial.Orbital, b::Radial.Orbital, c::Radial.Orbital, d::Radial.Orbital, 
+function SlaterRkDebyeHueckel(k::Int64, a::Radial.Orbital, b::Radial.Orbital, c::Radial.Orbital, d::Radial.Orbital, 
                                     grid::Radial.Grid, lambda::Float64)
                 
     function ul_DH(L::Int64, s::Float64, r::Float64) 

@@ -181,7 +181,7 @@ function extractFkIntegrals(subshells::Array{Subshell,1}, k::Int64, orbitals::Di
         for  j = i:n
             if  haskey(orbitals, subshells[i])  &&  haskey(orbitals, subshells[j])
                 a = orbitals[subshells[i]];   b = orbitals[subshells[j]]
-                push!(x, RadialIntegrals.SlaterRk_2dim(k, a, b, a, b, grid))
+                push!(x, RadialIntegrals.SlaterRk(k, a, b, a, b, grid))
             else
                 push!(x, 0.0)
             end
@@ -204,7 +204,7 @@ function extractGkIntegrals(subshells::Array{Subshell,1}, k::Int64, orbitals::Di
         for  j = i:n
             if  haskey(orbitals, subshells[i])  &&  haskey(orbitals, subshells[j])
                 a = orbitals[subshells[i]];   b = orbitals[subshells[j]]
-                push!(x, RadialIntegrals.SlaterRk_2dim(k, a, b, b, a, grid))
+                push!(x, RadialIntegrals.SlaterRk(k, a, b, b, a, grid))
             else
                 push!(x, 0.0)
             end

@@ -688,7 +688,7 @@ function XL_Coulomb_WO(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital,
     xc = AngularMomentum.CL_reduced_me(a.subshell, L, c.subshell) * AngularMomentum.CL_reduced_me(b.subshell, L, d.subshell)
     if   rem(L,2) == 1    xc = - xc    end 
     
-    XL_Coulomb = xc * RadialIntegrals.SlaterRk_2dim_WO(L, a, b, c, d, grid)
+    XL_Coulomb = xc * RadialIntegrals.SlaterRkWO(L, a, b, c, d, grid)
     return( XL_Coulomb )
 end
 
@@ -741,7 +741,7 @@ function XL_Coulomb(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital, gr
     else
         xc = AngularMomentum.CL_reduced_me(a.subshell, L, c.subshell) * AngularMomentum.CL_reduced_me(b.subshell, L, d.subshell)
         if   rem(L,2) == 1    xc = - xc    end
-        ## NOT SWITCHED to the kink-aware RadialIntegrals.SlaterRk_2dimKinkAware -- attempted 13-Aug-2026 and
+        ## NOT SWITCHED to the kink-aware RadialIntegrals.SlaterRkKinkAware -- attempted 13-Aug-2026 and
         ## REVERTED, with what was measured recorded here so the attempt is not simply repeated.
         ##
         ## The kink-aware integral IS the better quadrature, and that part is settled: against the analytic
@@ -759,7 +759,7 @@ function XL_Coulomb(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital, gr
         ## Re-approving twelve references on evidence that cannot be read would be the opposite of a
         ## deliberate editorial act.  The switch needs a comparison that matches transitions by their QUANTUM
         ## NUMBERS rather than by line position; until that exists, this stays as it is.
-        XL_Coulomb = xc * RadialIntegrals.SlaterRk_2dim(L, a, b, c, d, grid)
+        XL_Coulomb = xc * RadialIntegrals.SlaterRk(L, a, b, c, d, grid)
 
     end
 
@@ -788,8 +788,8 @@ end
 `InteractionStrength.XL_CoulombKinkAware(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital, grid::Radial.Grid; keep::Bool=false)`
     ... computes the same effective Coulomb interaction strength as XL_Coulomb(L, a, b, c, d, grid), including the
         same triangular-delta veto and angular reduced-matrix-element prefactor xc, but using the kink-aware
-        RadialIntegrals.SlaterRk_2dimKinkAware for the underlying radial integral instead of RadialIntegrals.
-        SlaterRk_2dim. For keep=true, looks up (and stores into) the global GBL_Storage_XL_CoulombKinkAware
+        RadialIntegrals.SlaterRkKinkAware for the underlying radial integral instead of RadialIntegrals.
+        SlaterRk. For keep=true, looks up (and stores into) the global GBL_Storage_XL_CoulombKinkAware
         Dict, mirroring XL_Coulomb's own keep/GBL_Storage_XL_Coulomb pattern exactly -- used by
         Hamiltonian.setupMatrixKinkAware (the CI-matrix Coulomb term for ALField/EOLField), where orbitals
         are FIXED for the whole performCIKinkAware call, so caching is unconditionally safe there. NOT enabled
@@ -823,7 +823,7 @@ function XL_CoulombKinkAware(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Or
     xc = AngularMomentum.CL_reduced_me(a.subshell, L, c.subshell) * AngularMomentum.CL_reduced_me(b.subshell, L, d.subshell)
     if   rem(L,2) == 1    xc = - xc    end
 
-    XL_CoulombKinkAwareValue = xc * RadialIntegrals.SlaterRk_2dimKinkAware(L, a, b, c, d, grid)
+    XL_CoulombKinkAwareValue = xc * RadialIntegrals.SlaterRkKinkAware(L, a, b, c, d, grid)
 
     if  keep
         sa = "XL" * string(L) * " " * string(a.subshell) * string(b.subshell) * string(c.subshell) * string(d.subshell)
@@ -868,8 +868,8 @@ function XL_Coulomb(L::Int64, a::Subshell, b::Orbital, c::Subshell, d::Orbital, 
             for  j = Ba.lower:Ba.upper  Pa[j] = Pa[j] + Ba.bs[j+add]   end
             Pc = zeros(Bc.upper);   add = 1 - Bc.lower;   
             for  j = Bc.lower:Bc.upper  Pc[j] = Pc[j] + Bc.bs[j+add]   end
-            wm[i,k] = RadialIntegrals.SlaterRkComponent_2dim(L, Pa, b.P, Pc, d.P, grid) + 
-                      RadialIntegrals.SlaterRkComponent_2dim(L, Pa, b.Q, Pc, d.Q, grid)
+            wm[i,k] = RadialIntegrals.SlaterRkComponent(L, Pa, b.P, Pc, d.P, grid) + 
+                      RadialIntegrals.SlaterRkComponent(L, Pa, b.Q, Pc, d.Q, grid)
         end
     end
     for  i = 1:nsS
@@ -880,8 +880,8 @@ function XL_Coulomb(L::Int64, a::Subshell, b::Orbital, c::Subshell, d::Orbital, 
             for  j = Ba.lower:Ba.upper  Qa[j] = Qa[j] + Ba.bs[j+add]   end
             Qc = zeros(Bc.upper);   add = 1 - Bc.lower;   
             for  j = Bc.lower:Bc.upper  Qc[j] = Qc[j] + Bc.bs[j+add]   end            
-            wm[nsL+i,nsL+k] = RadialIntegrals.SlaterRkComponent_2dim(L, Qa, b.P, Qc, d.P, grid) + 
-                              RadialIntegrals.SlaterRkComponent_2dim(L, Qa, b.Q, Qc, d.Q, grid)
+            wm[nsL+i,nsL+k] = RadialIntegrals.SlaterRkComponent(L, Qa, b.P, Qc, d.P, grid) + 
+                              RadialIntegrals.SlaterRkComponent(L, Qa, b.Q, Qc, d.Q, grid)
         end
     end
     
@@ -894,7 +894,7 @@ end
     ... computes the same (direct) Coulomb interaction strengths X^L_Coulomb (.b.d) as
         XL_Coulomb(L,a::Subshell,b::Orbital,c::Subshell,d::Orbital,primitives), for given rank L and orbital
         functions as well as the given primitives, but using the kink-aware screened-potential construction
-        (RadialIntegrals.buildScreenedPotential) instead of RadialIntegrals.SlaterRkComponent_2dim's naive
+        (RadialIntegrals.buildScreenedPotential) instead of RadialIntegrals.SlaterRkComponent's naive
         tensor-product double sum. The screened potential V_L(r), which depends only on the fixed orbital pair
         (b,d), is built ONCE (adaptive quadrature) and then reused cheaply -- via the existing grid quadrature
         weights, since V_L(r) is smooth once built -- for every B-spline pair (i,k) of the L- and S-block.
@@ -921,7 +921,7 @@ function XL_CoulombKinkAware(L::Int64, a::Subshell, b::Orbital, c::Subshell, d::
     if   rem(L,2) == 1    xc = - xc    end
 
     # Build the screened potential once for the fixed orbital pair (b,d); reused below for both L- and S-block.
-    # mtpOut is forced to the full grid extent: unlike SlaterRk_2dimKinkAware's orbital-orbital use (where the
+    # mtpOut is forced to the full grid extent: unlike SlaterRkKinkAware's orbital-orbital use (where the
     # OTHER factor in the contraction is also naturally truncated to some orbital's own extent), here Vk gets
     # contracted against B-spline ROW/COLUMN indices that span the FULL basis and can extend well past (b,d)'s
     # own reach -- leaving mtpOut at its default silently drops that tail and was traced to a real bug (Ne's 1s
@@ -994,7 +994,7 @@ function XL_Coulomb(L::Int64, a::Subshell, b::Orbital, c::Orbital, d::Subshell, 
             for  j = Ba.lower:Ba.upper  Pa[j] = Pa[j] + Ba.bs[j+add]   end
             Pd = zeros(Bd.upper);   add = 1 - Bd.lower;   
             for  j = Bd.lower:Bd.upper  Pd[j] = Pd[j] + Bd.bs[j+add]   end            
-            wm[i,k] = RadialIntegrals.SlaterRkComponent_2dim(L, Pa, b.P, c.P, Pd, grid)
+            wm[i,k] = RadialIntegrals.SlaterRkComponent(L, Pa, b.P, c.P, Pd, grid)
         end
         for  k = 1:nsS 
             ## Ba = primitives.bsplinesL[i].bs;    Bd = primitives.bsplinesS[k].bs
@@ -1003,7 +1003,7 @@ function XL_Coulomb(L::Int64, a::Subshell, b::Orbital, c::Orbital, d::Subshell, 
             for  j = Ba.lower:Ba.upper  Pa[j] = Pa[j] + Ba.bs[j+add]   end
             Qd = zeros(Bd.upper);   add = 1 - Bd.lower;   
             for  j = Bd.lower:Bd.upper  Qd[j] = Qd[j] + Bd.bs[j+add]   end            
-            wm[i,nsL+k] = RadialIntegrals.SlaterRkComponent_2dim(L, Pa, b.P, c.Q, Qd, grid)
+            wm[i,nsL+k] = RadialIntegrals.SlaterRkComponent(L, Pa, b.P, c.Q, Qd, grid)
         end
     end
     for  i = 1:nsS
@@ -1014,7 +1014,7 @@ function XL_Coulomb(L::Int64, a::Subshell, b::Orbital, c::Orbital, d::Subshell, 
             for  j = Ba.lower:Ba.upper  Qa[j] = Qa[j] + Ba.bs[j+add]   end
             Pd = zeros(Bd.upper);   add = 1 - Bd.lower;   
             for  j = Bd.lower:Bd.upper  Pd[j] = Pd[j] + Bd.bs[j+add]   end            
-            wm[nsL+i,k] = RadialIntegrals.SlaterRkComponent_2dim(L, Qa, b.Q, c.P, Pd, grid)
+            wm[nsL+i,k] = RadialIntegrals.SlaterRkComponent(L, Qa, b.Q, c.P, Pd, grid)
         end
         for  k = 1:nsS 
             ## Ba = primitives.bsplinesS[i].bs;    Bd = primitives.bsplinesS[k].bs
@@ -1023,7 +1023,7 @@ function XL_Coulomb(L::Int64, a::Subshell, b::Orbital, c::Orbital, d::Subshell, 
             for  j = Ba.lower:Ba.upper  Qa[j] = Qa[j] + Ba.bs[j+add]   end
             Qd = zeros(Bd.upper);   add = 1 - Bd.lower;   
             for  j = Bd.lower:Bd.upper  Qd[j] = Qd[j] + Bd.bs[j+add]   end            
-            wm[nsL+i,nsL+k] = RadialIntegrals.SlaterRkComponent_2dim(L, Qa, b.Q, c.Q, Qd, grid)
+            wm[nsL+i,nsL+k] = RadialIntegrals.SlaterRkComponent(L, Qa, b.Q, c.Q, Qd, grid)
         end
     end
 
@@ -1033,14 +1033,14 @@ end
 
 """
 `InteractionStrength.XL_CoulombTensor(L::Int64, a::Subshell, b::Orbital, c::Orbital, cVector::Vector{Float64},
-                                            d::Subshell, cacheLL::RadialIntegrals.SlaterMomentCache,
-                                            cacheLS::RadialIntegrals.SlaterMomentCache,
-                                            cacheSS::RadialIntegrals.SlaterMomentCache,
+                                            d::Subshell, cacheLL::RadialIntegrals.ScreenedPotentialCache,
+                                            cacheLS::RadialIntegrals.ScreenedPotentialCache,
+                                            cacheSS::RadialIntegrals.ScreenedPotentialCache,
                                             primitives::Bsplines.Primitives)`
     ... computes the same (exchange) Coulomb interaction strengths X^L_Coulomb (.bc.) as
         XL_Coulomb(L,a::Subshell,b::Orbital,c::Orbital,d::Subshell,primitives) / XL_CoulombKinkAware of the same
-        signature, but using PRECOMPUTED RadialIntegrals.SlaterMomentCache tensors -- built ONCE, outside
-        the SCF iteration, via RadialIntegrals.buildSlaterMomentCache for rank L -- instead of any per-call
+        signature, but using PRECOMPUTED RadialIntegrals.ScreenedPotentialCache tensors -- built ONCE, outside
+        the SCF iteration, via RadialIntegrals.buildScreenedPotentialCache for rank L -- instead of any per-call
         adaptive quadrature. Re-deriving the original (validated) block structure carefully shows that, in each
         block, the B-spline row index pairs with orbital c's component matching the COLUMN's type (P for an
         L-column, Q for an S-column), while orbital b's component matching the ROW's type pairs with the column
@@ -1055,16 +1055,16 @@ end
         opposite sides of the two-electron kernel. cacheLL and cacheSS are ordinary same-basis caches
         (bsplinesL, bsplinesL) and (bsplinesS, bsplinesS); cacheLS is the cross-basis cache
         (bsplinesL, bsplinesS) and is also used, with indices swapped at lookup, for the SL combination -- see
-        RadialIntegrals.buildSlaterMomentCache. This turns what used to be an expensive per-call
+        RadialIntegrals.buildScreenedPotentialCache. This turns what used to be an expensive per-call
         adaptive-quadrature computation into one with NO further quadrature at all, for every SCF iteration and
         every exchange coefficient that shares this rank L, once the caches themselves have been built (see
         SelfConsistent.solveAverageLevelField for how they get built and cached once per SCF run).
         Isolated from XL_Coulomb; only used by the average-level (ALField) code line. A (nsL+nsS) x (nsL+nsS) matrixV::Array{Float64,2} is returned.
 """
 function XL_CoulombTensor(L::Int64, a::Subshell, b::Orbital, c::Orbital, cVector::Vector{Float64}, d::Subshell,
-                                cacheLL::RadialIntegrals.SlaterMomentCache,
-                                cacheLS::RadialIntegrals.SlaterMomentCache,
-                                cacheSS::RadialIntegrals.SlaterMomentCache,
+                                cacheLL::RadialIntegrals.ScreenedPotentialCache,
+                                cacheLS::RadialIntegrals.ScreenedPotentialCache,
+                                cacheSS::RadialIntegrals.ScreenedPotentialCache,
                                 primitives::Bsplines.Primitives)
     nsL = primitives.grid.nsL;  nsS = primitives.grid.nsS;  grid = primitives.grid
     wm  = zeros(nsL+nsS, nsL+nsS)
@@ -1183,7 +1183,7 @@ function XL_CoulombDamped(tau::Float64, L::Int64, a::Orbital, b::Orbital, c::Orb
     xc = AngularMomentum.CL_reduced_me(a.subshell, L, c.subshell) * AngularMomentum.CL_reduced_me(b.subshell, L, d.subshell)
     if   rem(L,2) == 1    xc = - xc    end 
     
-    XL_Coulomb = xc * RadialIntegrals.SlaterRk_2dim_Damped(tau::Float64, L, a, b, c, d, grid)
+    XL_Coulomb = xc * RadialIntegrals.SlaterRkDamped(tau::Float64, L, a, b, c, d, grid)
     return( XL_Coulomb )
 end
 
@@ -1208,7 +1208,7 @@ function XL_Coulomb_DH(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital,
     xc = AngularMomentum.CL_reduced_me(a.subshell, L, c.subshell) * AngularMomentum.CL_reduced_me(b.subshell, L, d.subshell)
     if   rem(L,2) == 1    xc = - xc    end 
 
-    XL_Coulomb_DH = xc * RadialIntegrals.SlaterRk_DebyeHueckel_2dim(L, a, b, c, d, grid, lambda)
+    XL_Coulomb_DH = xc * RadialIntegrals.SlaterRkDebyeHueckel(L, a, b, c, d, grid, lambda)
     return( XL_Coulomb_DH )
 end
 
