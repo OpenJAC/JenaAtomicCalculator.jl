@@ -182,6 +182,18 @@ function EmPropertyC(wa::Float64)
 end
 
 
+"""
+`Basics.EmPropertyC(wa::Complex{Float64})`  ... constructor for a gauge-independent (complex) instance.
+
+    Added 13-Aug-2026 for amplitudes: a MAGNETIC multipole has no gauge dependence, so its amplitude is the
+    same number in both components. Saying that with this constructor is what removes the special case in
+    which a magnetic contribution has to be added to the Coulomb AND the Babushkin sum by hand.
+"""
+function EmPropertyC(wa::Complex{Float64})
+    EmPropertyC(wa, wa)
+end
+
+
 Base.:+(a::EmPropertyC, b::EmPropertyC) = EmPropertyC(a.Coulomb + b.Coulomb, a.Babushkin + b.Babushkin)
 Base.:+(a::EmPropertyC, b) = EmPropertyC(a.Coulomb + b, a.Babushkin + b)
 Base.:+(a, b::EmPropertyC) = b + a
@@ -191,6 +203,15 @@ Base.:*(a, b::EmPropertyC) = EmPropertyC(a * b.Coulomb, a * b.Babushkin)
 Base.:*(a::EmPropertyC, b) = EmPropertyC(a.Coulomb * b, a.Babushkin * b)
 Base.:/(a::EmPropertyC, b::EmPropertyC) = EmPropertyC(a.Coulomb / b.Coulomb, a.Babushkin / b.Babushkin)
 Base.:/(a, b::EmPropertyC) = EmPropertyC(a / b.Coulomb, a / b.Babushkin)
+
+## Completed 13-Aug-2026 so that EmPropertyC can carry an AMPLITUDE, of which EmProperty is the observable.
+## Both act componentwise, which is the point: two gauges are two parallel calculations of the same quantity
+## and must never mix.  A product amplitude * conj(amplitude') therefore keeps Coulomb with Coulomb and
+## Babushkin with Babushkin BY CONSTRUCTION -- where a code that carries the gauge as a label has to
+## remember to compare it (see PhotoIonization.computeAngularBeta, which does exactly that by hand).
+Base.conj(a::EmPropertyC) = EmPropertyC(conj(a.Coulomb), conj(a.Babushkin))
+Base.abs2(a::EmPropertyC) = EmProperty(abs2(a.Coulomb), abs2(a.Babushkin))
+Base.abs(a::EmPropertyC)  = EmProperty(abs(a.Coulomb),  abs(a.Babushkin))
 
 
 # `Base.show(io::IO, property::EmPropertyC)`  ... prepares a proper printout of the variable property::EmPropertyC.
