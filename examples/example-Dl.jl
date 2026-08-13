@@ -59,7 +59,7 @@ grid = Radial.Grid(Radial.Grid(true), rnt = 4.0e-6, h = 5.0e-2, hp = 0.8e-2, rbo
 
 
 if  false
-    # Last successful:  04-Aug-2026
+    # Last successful:  13-Aug-2026  (re-verified after c1f1d3a; see the note at the end of the REPORT)
     # --- Branch a: H-like C5+ (Z=6), 1s --> 2p, electron-impact excitation at a ladder of impact energies.
     #
     # WHY THIS FIRST. A one-electron ion is the only case where the answer is known without recourse to any
@@ -131,6 +131,14 @@ if  false
     #
     # This is the anchor for every branch below: it fixes the continuum normalization, the partial-wave sum and the
     # collision-strength definition against an analytic limit, with no literature and no correlation involved.
+    #
+    # --- RE-VERIFIED 13-Aug-2026, after c1f1d3a hoisted the symmetry-reduced levels out of the O(maxKappa^3)
+    # inner loop. That commit was gated at maxKappa = 10 and 20 only, because the full case runs for half an
+    # hour, so this branch was the outstanding check on it. ALL EIGHT COLLISION STRENGTHS CAME BACK BITWISE
+    # IDENTICAL to the table above -- 4.306630e-02, 6.776693e-02, 9.638804e-02, 1.258973e-01 for 2p_1/2 and
+    # 8.606837e-02, 1.354736e-01, 1.927089e-01, 2.517299e-01 for 2p_3/2 -- so the hoist is a pure restructuring
+    # at the full partial-wave count as well, and the ratio (1.9985 ... 1.9995) and Bethe slope (0.1239, 0.1277)
+    # reproduce exactly. The anchor holds.
     #
 elseif  false
     # Last visit:  04-Aug-2026
