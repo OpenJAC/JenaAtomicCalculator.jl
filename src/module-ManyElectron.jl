@@ -576,7 +576,6 @@ function Basis(basis::Basis, subshells::Array{Subshell,1})
     for  ny = nx:-1:1
         if basis.coreSubshells[1:ny] == subshells[1:ny]     newCoreSubshells = copy(subshells[1:ny]);   break   end
     end
-    ## x@show basis.coreSubshells, newCoreSubshells
     # Define the new CSF basis
     newCsfs = CsfR[]
     for  csf in basis.csfs

@@ -710,29 +710,52 @@ end
         The B-spline (basis) functions are defined by primitivesL for the large component and primitivesS for the small one, respectively.
 """
 function setupLocalMatrix(kappa::Int64, primitives::Bsplines.Primitives, pot::Radial.Potential, storage::Dict{String,Array{Float64,2}})
+    ## WRITTEN IN PLACE (12-Aug-2026).  This function is called once per kappa per SCF iteration, and it used
+    ## to allocate 13.9 MB each time: a SECOND full (nsL+nsS)^2 matrix for the overlap, of which only the SS
+    ## block was ever read (the LL block was fetched and never used), plus a temporary for each side of every
+    ## slice expression in steps (3) and (4).  In isolation a call looked cheap, 0.0029 s; a hundred calls in
+    ## a row averaged 0.0146 s each -- the difference being garbage collection of ~1 GB per SCF.  Only the
+    ## returned matrix is allocated now, and every step writes into it elementwise, in the same order and with
+    ## the same arithmetic, so the result is BITWISE identical to what the slice expressions produced.
     nsL = primitives.grid.nsL;    nsS = primitives.grid.nsS
-    wa  = zeros( nsL+nsS, nsL+nsS );   wb  = zeros( nsL+nsS, nsL+nsS )
-    
-    # (1) Compute or fetch the diagonal 'overlap' blocks
-    wb[1:nsL,1:nsL]                 = Bsplines.generateTTpMatrix!("LL-overlap", 0, primitives, storage)
-    wb[nsL+1:nsL+nsS,nsL+1:nsL+nsS] = Bsplines.generateTTpMatrix!("SS-overlap", 0, primitives, storage)
-    
-    # (2) Re-compute the diagonal blocks for the local potential
-    for  i = 1:nsL,  j = 1:nsL   
-        wa[i,j] = Bsplines.computeVlocal(primitives.bsplinesL[i], primitives.bsplinesL[j], pot, primitives.grid)
+    wa  = zeros( nsL+nsS, nsL+nsS )
+
+    # (1) Compute or fetch the 'SS-overlap' block; it is the only overlap block this function reads (step 3).
+    #     generateTTpMatrix! returns the cached matrix itself, which is read but never written here.
+    ssOverlap = Bsplines.generateTTpMatrix!("SS-overlap", 0, primitives, storage)
+
+    # (2) Re-compute the diagonal blocks for the local potential.  B-splines have LOCAL support, so for a
+    #     given i only a band of j overlaps -- 3.8% of the pairs, half-bandwidth 6 on a typical grid.  The
+    #     splines are ordered by support, so once bspline[j] starts beyond the end of bspline[i] no later j
+    #     can overlap either and the row is done.  computeVlocal returns exactly 0. for those, which is what
+    #     the untouched entries already hold.
+    for  i = 1:nsL
+        for  j = 1:nsL
+            if  primitives.bsplinesL[j].upper <= primitives.bsplinesL[i].lower    continue    end
+            if  primitives.bsplinesL[j].lower >= primitives.bsplinesL[i].upper    break       end
+            wa[i,j] = Bsplines.computeVlocal(primitives.bsplinesL[i], primitives.bsplinesL[j], pot, primitives.grid)
+        end
     end
-    for  i = 1:nsS,  j = 1:nsS    
-        wa[nsL+i,nsL+j] = Bsplines.computeVlocal(primitives.bsplinesS[i], primitives.bsplinesS[j], pot, primitives.grid)
+    for  i = 1:nsS
+        for  j = 1:nsS
+            if  primitives.bsplinesS[j].upper <= primitives.bsplinesS[i].lower    continue    end
+            if  primitives.bsplinesS[j].lower >= primitives.bsplinesS[i].upper    break       end
+            wa[nsL+i,nsL+j] = Bsplines.computeVlocal(primitives.bsplinesS[i], primitives.bsplinesS[j], pot, primitives.grid)
+        end
     end
-    
+
     # (3) Substract the rest mass from the 'SS' block
-    wa[nsL+1:nsL+nsS,nsL+1:nsL+nsS] = wa[nsL+1:nsL+nsS,nsL+1:nsL+nsS] - 
-                                      2 * Defaults.getDefaults("speed of light: c")^2 * wb[nsL+1:nsL+nsS,nsL+1:nsL+nsS]
-    
+    twoCsq = 2 * Defaults.getDefaults("speed of light: c")^2
+    for  i = 1:nsS,  j = 1:nsS
+        wa[nsL+i,nsL+j] = wa[nsL+i,nsL+j] - twoCsq * ssOverlap[i,j]
+    end
+
     # (4) Compute or fetch the diagonal 'D_kappa' blocks
-    wa[1:nsL,nsL+1:nsL+nsS] = wa[1:nsL,nsL+1:nsL+nsS] + Bsplines.generateTTpMatrix!("LS-D_kappa^-", kappa, primitives, storage)
-    wa[nsL+1:nsL+nsS,1:nsL] = wa[nsL+1:nsL+nsS,1:nsL] + Bsplines.generateTTpMatrix!("SL-D_kappa^+", kappa, primitives, storage)
-    
+    lsD = Bsplines.generateTTpMatrix!("LS-D_kappa^-", kappa, primitives, storage)
+    slD = Bsplines.generateTTpMatrix!("SL-D_kappa^+", kappa, primitives, storage)
+    for  i = 1:nsL,  j = 1:nsS      wa[i,nsL+j] = wa[i,nsL+j] + lsD[i,j]      end
+    for  i = 1:nsS,  j = 1:nsL      wa[nsL+i,j] = wa[nsL+i,j] + slD[i,j]      end
+
     #=====
     # Test for 'real-symmetric matrix' ... this is not fullfilled if the last B-spline is included !!
     nx = 0

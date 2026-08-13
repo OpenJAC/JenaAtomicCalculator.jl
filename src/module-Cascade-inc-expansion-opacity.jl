@@ -259,7 +259,7 @@ end
         computations are comprised into (output) data::ExcitationData, while these data are only printed during the generation and 
         nothing is returned.
 
-`Cascade.perform(scheme::ExpansionOpacityScheme, comp::Cascade.Computation; output=true, outputToFile::Bool=true)`   
+`Cascade.perform(scheme::ExpansionOpacityScheme, comp::Cascade.Computation; output::Bool=false, outputToFile::Bool=true)`   
     ... to perform the same but to return the complete output in a dictionary that is written to disk and can be used in subsequent
         cascade simulation. The particular output depends on the specifications of the cascade.
 """

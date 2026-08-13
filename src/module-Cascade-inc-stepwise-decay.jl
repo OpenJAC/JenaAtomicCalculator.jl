@@ -272,9 +272,7 @@ function perform(scheme::StepwiseDecayScheme, comp::Cascade.Computation; output:
     # Generate subsequent cascade configurations as well as display and group them together
     initialConfigs  = Basics.extractConfigurations(Basics.FromMultiplet(), multiplets)
     ## wax = Cascade.generateConfigurationList(multiplets, comp.scheme.maxElectronLoss, comp.scheme.NoShakeDisplacements)
-    ## @show wax
     ## wbx = Basics.displayConfigurations(comp.nuclearModel.Z, wax, sa="OLD decay ")
-    ## @show wax
     decayConfigs    = Basics.generateConfigurations(Basics.ForStepwiseDecay(comp.scheme.maxElectronLoss), initialConfigs)
     append!(decayConfigs, initialConfigs)
     NoElectrons     = unique( Basics.extractFromConfigurations(Basics.NumberOfElectrons(), decayConfigs) )

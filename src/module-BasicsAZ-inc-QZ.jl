@@ -215,7 +215,7 @@ end
 
 
 """
-`Basics.readMixFileRelci(filename::String)`  
+`Basics.readMixFileRelci(filename::String, basis::Basis)`  
     ... reads in the mixing coefficients from a RELCI .mix file; a multiplet::Multiplet is returned.
 """
 function Basics.readMixFileRelci(filename::String, basis::Basis)

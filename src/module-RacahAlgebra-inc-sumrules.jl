@@ -924,9 +924,6 @@ function sumRulesForThreeW6j(rex::RacahAlgebra.RacahExpression)
                                 #
                                 ## @info " "
                                 @info "sumRulesForThreeW6j: Proper set of three W6js found."
-                                ## @show wwa.c
-                                ## @show RacahAlgebra.hasNoVars([wwa.c], testPhase), testPhase
-                                ## @show RacahAlgebra.hasAllVars([wwa.c], rex.summations), rex.summations
                                 if  RacahAlgebra.hasAllVars([wwa.c], rex.summations) &&  RacahAlgebra.hasNoVars([wwa.c], testPhase)   &&  
                                     RacahAlgebra.hasNoVars([wwa.c], testWeight)      &&  RacahAlgebra.hasNoVars([wwa.c], rex.deltas)  &&  
                                     RacahAlgebra.hasNoVars([wwa.c], rex.triangles)   &&  RacahAlgebra.hasNoVars([wwa.c], rex.w3js)    &&  
@@ -939,7 +936,6 @@ function sumRulesForThreeW6j(rex::RacahAlgebra.RacahExpression)
                                                             newW6js, newW9js, rex.ylms, rex.djpqs )
                                     println(">> Apply sum rule for three W6j -- Sum(X) (-1)^2X [X] ...")
                                     wa = RacahAlgebra.rewritePhase(wa, zPhases; printout=false, from=">>> three W6j -- Sum(X) (-1)^2X [X]:")
-                                    @show wa
                                     return( (true, wa) )
                                 end
                             end

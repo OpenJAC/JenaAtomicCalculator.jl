@@ -166,7 +166,7 @@ end
         are constructed with regard to the initial configurations. The results of these impact-excitation computations 
         are comprised into (output) data::??? but nothing is returned as default.
 
-`Cascade.perform(scheme::ImpactExcitationScheme, comp::Cascade.Computation; output=true, outputToFile::Bool=true)`   
+`Cascade.perform(scheme::ImpactExcitationScheme, comp::Cascade.Computation; output::Bool=false, outputToFile::Bool=true)`   
     ... to perform the same but to return the complete output in a dictionary that is written to disk and can be used in subsequent
         cascade simulation. The particular output depends on the specifications of the cascade.
 """

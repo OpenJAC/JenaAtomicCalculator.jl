@@ -8,7 +8,7 @@ export  perform
     ... to perform the computation as prescribed by comp. All relevant intermediate and final results are printed to screen (stdout). 
         Nothing is returned.
 
-`Basics.perform(computation::Atomic.Computation; output=true)`  
+`Basics.perform(computation::Atomic.Computation; output::Bool=false)`  
     ... to perform the same but to return the complete output in a dictionary; the particular output depends on the type and 
         specifications of the computations but can easily accessed by the keys of this dictionary.
 """

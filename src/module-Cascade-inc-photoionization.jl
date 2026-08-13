@@ -144,7 +144,7 @@ end
         regard to the initial multiplets. The results of these excitation are comprised into (output) data::PhotoExcData, while these 
         data are only printed during the generation and nothing is returned.
 
-`Cascade.perform(scheme::PhotoIonizationScheme, comp::Cascade.Computation; output=true, outputToFile::Bool=true)`   
+`Cascade.perform(scheme::PhotoIonizationScheme, comp::Cascade.Computation; output::Bool=false, outputToFile::Bool=true)`   
     ... to perform the same but to return the complete output in a dictionary that is written to disk and can be used in subsequent
         cascade simulation. The particular output depends on the specifications of the cascade.
 """

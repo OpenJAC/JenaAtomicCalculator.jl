@@ -661,7 +661,7 @@ end
         performing a computation::Cascade.Computation. The results of all individual steps are printed to screen but nothing is 
         returned otherwise.
 
-`Cascade.perform(simulation::Cascade.Simulation; output=true)`   
+`Cascade.perform(simulation::Cascade.Simulation; output::Bool=false)`   
     ... to perform the same but to return the complete output in a dictionary; the particular output depends on the method and 
         specifications of the cascade but can easily accessed by the keys of this dictionary.
 """

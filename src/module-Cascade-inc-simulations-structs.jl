@@ -404,8 +404,12 @@ end
 """
 `Cascade.RosselandOpacities()`  ... (simple) constructor for RosselandOpacities opacity simulations.
 """
-function RosselandOpacitiesOpacities()
-    RosselandOpacitiesOpacities(Basics.BoltzmannLevelPopulation(), TemperatureOpacityDependence(0.01), [1.0], [1.0], 1.,  0.)
+function RosselandOpacities()
+    ## The name was doubled -- RosselandOpacitiesOpacities -- on BOTH the definition and the inner call
+    ## (corrected 12-Aug-2026).  The zero-argument constructor the docstring advertises therefore did not
+    ## exist, and the misnamed one could only have raised a MethodError on its own recursive call, since no
+    ## six-argument method of that name exists either.  Nothing called it, which is why it went unnoticed.
+    RosselandOpacities(Basics.BoltzmannLevelPopulation(), TemperatureOpacityDependence(0.01), [1.0], [1.0], 1.,  0.)
 end
 
 

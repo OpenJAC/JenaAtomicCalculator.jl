@@ -9,7 +9,7 @@
         properties are energy-dependent collision strengths, impact-excitation cross sections, effective collision strengths,
         and several others.
 
-`Cascade.perform(scheme::ElectronExcitationScheme, comp::Cascade.Computation; output=true, outputToFile::Bool=true)`   
+`Cascade.perform(scheme::ElectronExcitationScheme, comp::Cascade.Computation; output::Bool=false, outputToFile::Bool=true)`   
     ... to perform the same but to return the complete output in a dictionary that is written to disk and can be used in 
         subsequent cascade simulation. The particular output depends on the specifications of the cascade.
 """

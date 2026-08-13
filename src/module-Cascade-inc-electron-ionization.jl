@@ -167,7 +167,7 @@ end
 """
 `Cascade.perform(scheme::ElectronIonizationScheme, comp::Cascade.Computation)`
     ... to set up and perform an excitation-autoionization cascade computation for the given initial configurations
-        xor initial multiplets.  Nothing is returned unless output=true.
+        xor initial multiplets.  Nothing is returned unless output::Bool=false.
 
 `Cascade.perform(scheme::ElectronIonizationScheme, comp::Cascade.Computation; output=true, outputToFile::Bool=true)`
     ... to perform the same but to return the complete output in a dictionary; this dictionary can be saved to disk

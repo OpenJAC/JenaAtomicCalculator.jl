@@ -8,7 +8,7 @@ export  generate
     ... to generate an atomic representation as specified by the representation.repType::AbstractRepresentationType.
         All relevant intermediate and final results are printed to screen (stdout). Nothing is returned.
 
-`Basics.perform(representation::AtomicState.Representation; output=true)`  
+`Basics.generate(representation::AtomicState.Representation; output::Bool=false)`  
     ... to generate the same but to return the complete output in a dictionary; the particular output depends on the type and 
         specifications of the representation but can easily accessed by the keys of this dictionary.
 """
@@ -28,7 +28,7 @@ end
     ... to generate a mean-field basis (representation) for a set of reference configurations; all relevant intermediate 
         and final results are printed to screen (stdout). Nothing is returned.
 
-`Basics.generate(repType::AtomicState.MeanFieldBasis, representation::AtomicState.Representation; output=true)`  
+`Basics.generate(repType::AtomicState.MeanFieldBasis, representation::AtomicState.Representation; output::Bool=false)`  
     ... to generate the same but to return the complete output in a dictionary; the particular output depends on the type and 
         specifications of the representation but can easily accessed by the keys of this dictionary.
 """
@@ -52,7 +52,7 @@ end
     ... to generate a mean-field basis (representation) for a set of reference configurations; all relevant intermediate 
         and final results are printed to screen (stdout). Nothing is returned.
 
-`Basics.generate(repType::AtomicState.MeanFieldMultiplet, representation::AtomicState.Representation; output=true)`  
+`Basics.generate(repType::AtomicState.MeanFieldMultiplet, representation::AtomicState.Representation; output::Bool=false)`  
     ... to generate the same but to return the complete output in a dictionary; the particular output depends on the type and 
         specifications of the representation but can easily accessed by the keys of this dictionary.
 """
@@ -140,7 +140,7 @@ end
         and a number of pre-specified steps. All relevant intermediate and final results are printed to screen (stdout). 
         Nothing is returned.
 
-`Basics.generate(repType::AtomicState.CiExpansion, representation::AtomicState.Representation; output=true)`  
+`Basics.generate(repType::AtomicState.CiExpansion, representation::AtomicState.Representation; output::Bool=false)`  
     ... to generate the same but to return the complete output in a dictionary; the particular output depends on the type and 
         specifications of the computations but can easily accessed by the keys of this dictionary.
 """
@@ -198,7 +198,7 @@ end
         and a number of pre-specified steps. All relevant intermediate and final results are printed to screen (stdout). 
         Nothing is returned.
 
-`Basics.generate(repType::AtomicState.RasExpansion, representation::AtomicState.Representation; output=true)`  
+`Basics.generate(repType::AtomicState.RasExpansion, representation::AtomicState.Representation; output::Bool=false)`  
     ... to generate the same but to return the complete output in a dictionary; the particular output depends on the type and 
         specifications of the computations but can easily accessed by the keys of this dictionary.
 """
@@ -256,7 +256,7 @@ end
         based on a set of reference configurations, a list of level symmetries as well as for given settings.
         All relevant intermediate and final results are printed to screen (stdout). Nothing is returned.
 
-`Basics.generate(repType::AtomicState.GreenExpansion, representation::AtomicState.Representation; output=true)`  
+`Basics.generate(repType::AtomicState.GreenExpansion, representation::AtomicState.Representation; output::Bool=false)`  
     ... to generate the same but to return the complete output in a dictionary; the particular output depends on the type and 
         specifications of the representation but can easily accessed by the keys of this dictionary.
 """

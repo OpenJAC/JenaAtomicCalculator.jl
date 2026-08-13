@@ -312,7 +312,6 @@ function  computeChannelAmplitude(channel::RayleighCompton.Channel, finalLevel::
                                        hasPole = true;      leftIdx = ig - 1;   break                              # for S_21
         end
     end
-    ## @show channel.isS12, gChannel.symmetry, h asPole, channel.omega1, channel.omega2
     
     # Extract relevant parameters to (later) compute the contribution of the pole-interval
     if  hasPole

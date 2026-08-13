@@ -97,7 +97,7 @@ end
         to the given atomic processes. The results of all individual steps are printed to screen but nothing is returned 
         otherwise.
 
-`Basics.perform(comp::Cascade.Simulation; output=true)`   
+`Basics.perform(comp::Cascade.Simulation; output::Bool=false)`   
     ... to perform the same but to return the complete output in a dictionary;  the particular output depends on the type 
         and specifications of the cascade but can easily accessed by the keys of this dictionary.
 """

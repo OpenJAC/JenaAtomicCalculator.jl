@@ -290,7 +290,6 @@ function qedUehling(a::Radial.Orbital, b::Radial.Orbital, nm::Nuclear.Model, gri
             wb  = wb + tIntegral(grid.r[i],grid.r[ip]) * (4pi) * grid.r[ip] * rho_rp * grid.wr[ip]  
         end
         wa = wa + (a.P[i]*wb*b.P[i] + a.Q[i]*wb*b.Q[i]) * grid.wr[i]  
-        ## x@show wa
     end
     wa = - 2. * Defaults.getDefaults("alpha")^2 / (3pi) * wa
     

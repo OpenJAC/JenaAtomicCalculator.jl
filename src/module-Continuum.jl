@@ -52,7 +52,7 @@ function generateOrbitalForLevel(energy::Float64, sh::Subshell, level::Level, nm
     ## wp3 = compute("radial potential: Kohn-Sham", grid, wLevel)
     ## wp4 = compute("radial potential: Dirac-Fock-Slater", grid, wLevel)
     ## wp  = Basics.computePotential(Basics.DFSField(0.42), grid, level)   
-    wp  = Basics.computePotential(Basics.DFSField(1.0), grid, level); ## @show "!!! return to 1.0 in Continuum.generate..." 
+    wp  = Basics.computePotential(Basics.DFSField(1.0), grid, level);
     pot = Basics.add(nuclearPotential, wp)
     Defaults.warn(AddWarning(), "All continuum orbitals are generated in a local (DFS) potential.")  
     

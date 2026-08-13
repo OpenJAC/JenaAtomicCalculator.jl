@@ -384,7 +384,6 @@ function computeAmplitudesProperties(processType::ElasticElectronNR, event::Part
             potDFS            = Basics.computePotential(Basics.DFSField(0.7), grid, event.finalLevel) 
             pot               = Basics.add(nuclearPotential, potDFS)
             for  m = 1:mtp   kr = k * grid.r[m];    wx = kr * SpecialFunctions.sphericalbesselj(l, kr); 
-                ## @show l, k, grid.r[m], kr, SpecialFunctions.sphericalbesselj(l, kr), - wx^2 * pot.Zr[m] / grid.r[m]
                 push!(wfl2, - wx^2 * pot.Zr[m] / grid.r[m])   
             end
             wint = - RadialIntegrals.V0(wfl2, mtp, grid::Radial.Grid) / k

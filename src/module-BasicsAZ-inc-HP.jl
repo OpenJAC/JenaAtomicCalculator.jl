@@ -365,7 +365,7 @@ end
 `Basics.plot(::RadialOrbitalsSmall, orbitals::Array{Radial.Orbital,1}, grid::Radial.Grid; N::Int64 = 0)`
     ... to plot the small component of one or more radial orbitals.
 
-`Basics.plot(::RadialOrbitalsBoth, orbitals::Array{Radial.Orbital,1}, grid::Radial.Grid; N::Int64 = 0)`
+`Basics.plot(::RadialOrbitalsLarge, orbitals::Array{Radial.Orbital,1}, grid::Radial.Grid; N = 0)`
     ... to plot both the large and small component of one or more radial orbitals.
 """
 function Basics.plot(::RadialOrbitalsLarge, orbitals::Array{Radial.Orbital,1}, grid::Radial.Grid; N = 0)

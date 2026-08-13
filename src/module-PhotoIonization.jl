@@ -650,8 +650,7 @@ function  computeLinesCascade(finalMultiplet::Multiplet, initialMultiplet::Multi
     for  (i,line)  in  enumerate(lines)
         if  rem(i,10) == 0    println("> Photo line $i:  ... calculated ")    end
         # Do not compute line if initial level is not in initialLevelSelection()
-        ## @show Basics.selectLevel(line.initialLevel, initialLevelSelection), line.initialLevel.index
-        if  !Basics.selectLevel(line.initialLevel, initialLevelSelection)   continue   ## @show "jump photoioization line";    continue  
+        if  !Basics.selectLevel(line.initialLevel, initialLevelSelection)   continue
         end
         #
         newLine = PhotoIonization.computeAmplitudesProperties(line, nm, grid, nrContinuum, settings; printout=printout,
@@ -1547,7 +1546,6 @@ function  interpolateCrossSection(lines::Array{PhotoIonization.Line,1}, omega::F
     # Interpolate/extrapolate linearly with the cross section data for the two omegas
     wm         = 1 / (om2 - om1) * (cs2 - cs1)
     cs         = cs1  +  diff * wm
-    ## @show om1, om2, diff, cs1.Coulomb, cs2.Coulomb, cs.Coulomb
     
     return( cs )
 end

@@ -300,7 +300,7 @@ function isTriangle(ja::Int64, jb::Int64, jc::Int64)
 end
 
 """
-`AngularMomentum.JohnsonI(kapa::Int64, ma::AngularM64, kapb::Int64, mb::AngularM64, L::AngularJ64, M::AngularM64)` 
+`AngularMomentum.JohnsonI(kapa::Int64, kapb::Int64, L::AngularJ64)` 
     ... evaluates the angular CL (kappa m, kappa' m', L M) integral as defined in his book. A value::Float64 is returned.
 """
 function JohnsonI(kapa::Int64, kapb::Int64, L::AngularJ64)

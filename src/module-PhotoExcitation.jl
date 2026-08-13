@@ -173,7 +173,6 @@ function  computeAmplitudesProperties(line::PhotoExcitation.Line, grid::Radial.G
     oscCoulomb = oscBabushkin = 0.;   omega = line.omega;   alpha = Defaults.getDefaults("alpha")
     for  channel  in  newChannels
         wa = 8pi * alpha * line.omega / (Ji2 + 1) * (Jf2 + 1) / 2.
-        #x @show  channel
         if      channel.gauge == Basics.Coulomb     oscCoulomb   = oscCoulomb    +  channel.amplitude * conj(channel.amplitude) * wa
         elseif  channel.gauge == Basics.Babushkin   oscBabushkin = oscBabushkin  +  channel.amplitude * conj(channel.amplitude) * wa
         elseif  channel.gauge == Basics.Magnetic    oscBabushkin = oscBabushkin  +  channel.amplitude * conj(channel.amplitude) * wa
@@ -276,7 +275,6 @@ function  computeLinesCascade(finalMultiplet::Multiplet, initialMultiplet::Multi
     for  (i,line)  in  enumerate(lines)
         if  rem(i,200) == 0    println("> Excitation line $i:")   end
         if  !Basics.selectLevel(line.initialLevel, initialLevelSelection)     continue    
-        ## else @show "jump to be calculated";    continue 
         end
         newLine = PhotoExcitation.computeAmplitudesProperties(line, grid, settings, printout=printout) 
         #
