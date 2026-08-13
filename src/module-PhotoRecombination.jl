@@ -232,10 +232,27 @@ function  computeAmplitudesProperties(line::PhotoRecombination.Line, nm::Nuclear
     redFLevel  = Basics.generateLevelWithSymmetryReducedBasis(line.finalLevel, line.finalLevel.basis.subshells)
     newiLevel  = Basics.generateLevelWithSymmetryReducedBasis(line.initialLevel, redFLevel.basis.subshells)
 
+    ## The continuum orbital depends on the electron ENERGY and KAPPA only -- not on the multipole or the
+    ## gauge, which a PhotoRecombination.Channel also carries.  Measured on the branches of example-Dd.jl:
+    ## 36 channels over 18 kappa with (E1,M1), and 60 over 18 with E1..M3, i.e. every orbital was built 2 to
+    ## 3.3 times.  They are generated once per kappa here and reused, as ImpactExcitation already does; the
+    ## same holds for the final level with its extra continuum subshell.  The dictionaries live for ONE line,
+    ## so nothing is cached across lines and the threading is unaffected.
+    cOrbitals = Dict{Subshell, Orbital}();    cPhases = Dict{Subshell, Float64}()
+    fLevels   = Dict{Subshell, Level}()
+
     for channel in line.channels
-        newfLevel  = Basics.generateLevelWithExtraSubshell(Subshell(101, channel.kappa), redFLevel)
-        cOrbital, phase = Continuum.generateOrbitalForLevel(line.electronEnergy, Subshell(101, channel.kappa), newiLevel, nm, grid,
-                                                            contSettings; nuclearPot=nuclearPot, primitives=primitives)
+        cSubshell = Subshell(101, channel.kappa)
+        if  !haskey(fLevels, cSubshell)
+            fLevels[cSubshell] = Basics.generateLevelWithExtraSubshell(cSubshell, redFLevel)
+        end
+        newfLevel = fLevels[cSubshell]
+        if  !haskey(cOrbitals, cSubshell)
+            orb, ph = Continuum.generateOrbitalForLevel(line.electronEnergy, cSubshell, newiLevel, nm, grid,
+                                                        contSettings; nuclearPot=nuclearPot, primitives=primitives)
+            cOrbitals[cSubshell] = orb;    cPhases[cSubshell] = ph
+        end
+        cOrbital = cOrbitals[cSubshell];   phase = cPhases[cSubshell]
         newcLevel  = Basics.generateLevelWithExtraElectron(cOrbital, channel.symmetry, newiLevel)
         newChannel = PhotoRecombination.Channel(channel.multipole, channel.gauge, channel.kappa, channel.symmetry, phase, 0.)
         amplitude  = PhotoRecombination.amplitude("photorecombination", channel, line.photonEnergy, newfLevel, newcLevel, grid)
