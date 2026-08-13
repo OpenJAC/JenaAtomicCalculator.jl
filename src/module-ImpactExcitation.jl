@@ -319,7 +319,9 @@ function  computeAmplitudesProperties(line::ImpactExcitation.Line, nm::Nuclear.M
 
     # Define a common subshell list for both multiplets
     subshellList = Basics.generate(OrderedSubshellList(), line.finalLevel.basis, line.initialLevel.basis)
-    Defaults.setDefaults("relativistic subshell list", subshellList; printout=false)
+    ## The standard subshell list is display-only and identical for every line (verified over 50 level pairs),
+    ## so it is set once in the drivers rather than here -- this function runs inside a @threads loop, and a
+    ## write to a global from there is a race.  See Defaults.setStandardSubshellList.
     ## Both symmetry-reduced levels are properties of the line alone; see the note in the innermost loop.
     redILevel = Basics.generateLevelWithSymmetryReducedBasis(line.initialLevel, subshellList)
     redFLevel = Basics.generateLevelWithSymmetryReducedBasis(line.finalLevel,   subshellList)
@@ -464,6 +466,9 @@ function  computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, n
         newLines = Vector{ImpactExcitation.Line}(undef, length(lines))
         ## Constants of the whole computation, built once and SHARED across the threads below; both are
         ## read-only (nothing writes into primitives.bsplinesL/bsplinesS), so sharing introduces no race.
+        ## Display-only and the same for every line; set ONCE here rather than from inside the threaded loop.
+        Defaults.setStandardSubshellList(Basics.generate(OrderedSubshellList(), finalMultiplet.levels[1].basis,
+                                                         initialMultiplet.levels[1].basis); printout=false)
         nuclearPot = Nuclear.nuclearPotential(nm, grid)
         primitives = Bsplines.generatePrimitives(grid)
         Threads.@threads for l in eachindex(lines)
@@ -544,6 +549,9 @@ function  computeLinesCascade(finalMultiplet::Multiplet, initialMultiplet::Multi
     tmpLines = Vector{Union{Nothing, ImpactExcitation.Line}}(nothing, length(lines))
     doPrint  = printout  &&  Threads.nthreads() == 1     ## interleaved per-line printout would be unreadable
     ## Constants of the whole computation, built once and SHARED across the threads below; see computeLines.
+    ## Display-only and the same for every line; set ONCE here rather than from inside the threaded loop.
+    Defaults.setStandardSubshellList(Basics.generate(OrderedSubshellList(), finalMultiplet.levels[1].basis,
+                                                     initialMultiplet.levels[1].basis); printout=false)
     nuclearPot = Nuclear.nuclearPotential(nm, grid)
     primitives = Bsplines.generatePrimitives(grid)
     Threads.@threads for  i  in  eachindex(lines)

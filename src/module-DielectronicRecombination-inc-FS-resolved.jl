@@ -218,10 +218,9 @@ function  computeCaptureAmplitudes(captureLine::DielectronicRecombination.Captur
     newcChannels      = AutoIonization.Channel[];   contSettings = Continuum.Settings(false, nrContinuum)
     initialLevel      = deepcopy(captureLine.initialLevel)
     intermediateLevel = deepcopy(captureLine.intermediateLevel)
-    ## NOTE: this sets a GLOBAL default and is therefore not thread-safe; the same is true of the corresponding
-    ## loops in the old route. It is harmless as long as JAC runs single-threaded, but it is the reason why the
-    ## amplitude loops here must not be assumed safe under -t N without further work.
-    Defaults.setDefaults("relativistic subshell list", intermediateLevel.basis.subshells; printout=false)
+    ## The standard subshell list used to be set HERE, once per capture line -- a write to a global from inside
+    ## the @threads loop below.  It is display-only and identical for every line (all intermediate levels come
+    ## from one multiplet), so it is now set once in computeCaptureLines; see Defaults.setStandardSubshellList.
     #
     ## The two symmetry-reduced levels depend on the capture line but not on the partial wave, and so are formed
     ## once for the whole line rather than once per channel.
@@ -254,7 +253,7 @@ end
 function  computePhotonAmplitudes(photonLine::DielectronicRecombination.PhotonLine, grid::Radial.Grid)
     finalLevel        = deepcopy(photonLine.finalLevel)
     intermediateLevel = deepcopy(photonLine.intermediateLevel)
-    Defaults.setDefaults("relativistic subshell list", intermediateLevel.basis.subshells; printout=false)
+    ## Set once in computeCaptureLines, not here; see the note in computeCaptureAmplitudes.
     #
     newpChannels = PhotoEmission.Channel[];    rateC = 0.;    rateB = 0.
     for  pChannel in photonLine.photonChannels
@@ -438,6 +437,8 @@ function  computeCaptureLines(finalMultiplet::Multiplet, intermediateMultiplet::
     ## Determine the maximum continuum energy and check the grid against it
     maxEnergy = 0.;   for  cLine in captureLines   maxEnergy = max(maxEnergy, cLine.electronEnergy)   end
     nrContinuum = Continuum.gridConsistency(maxEnergy, grid)
+    ## Display-only, and the same for every line; set ONCE here rather than from inside the threaded loops below.
+    Defaults.setStandardSubshellList(intermediateMultiplet.levels[1].basis.subshells; printout=false)
     #
     ## The photon side is computed FIRST: Gamma_r(m) is needed for every resonance strength, whether or not the
     ## individual photon lines are afterwards retained. settings.calcPhotonSpectrum controls RETENTION, not work.

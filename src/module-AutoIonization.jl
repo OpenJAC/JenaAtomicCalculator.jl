@@ -387,7 +387,7 @@ function computeAmplitudesProperties(line::AutoIonization.Line, nm::Nuclear.Mode
     newChannels = AutoIonization.Channel[];   contSettings = Continuum.Settings(false, nrContinuum);   rate = 0.
     # Define a common subshell list for both multiplets
     subshellList = Basics.generate(OrderedSubshellList(), line.finalLevel.basis, line.initialLevel.basis)
-    Defaults.setDefaults("relativistic subshell list", subshellList; printout=false)
+    ## Display-only; set once by the driver, not here.  See Defaults.setStandardSubshellList.
     # The nuclear potential depends only on the nuclear model and the grid; it is built ONCE by computeLines
     # and threaded in, rather than being rebuilt by Continuum.generateOrbitalForLevel for every line and
     # every partial wave (see the note there).  Falls back to building it if a caller does not supply one.
@@ -447,7 +447,7 @@ function computeAmplitudesPropertiesPlasma(line::AutoIonization.Line, nm::Nuclea
     newChannels = AutoIonization.Channel[];   contSettings = Continuum.Settings(false, nrContinuum);   rate = 0.
     # Define a common subshell list for both multiplets, as in the field-free computeAmplitudesProperties
     subshellList = Basics.generate(OrderedSubshellList(), line.finalLevel.basis, line.initialLevel.basis)
-    Defaults.setDefaults("relativistic subshell list", subshellList; printout=false)
+    ## Display-only; set once by the driver, not here.  See Defaults.setStandardSubshellList.
     #
     for channel in line.channels
         newiLevel = Basics.generateLevelWithSymmetryReducedBasis(line.initialLevel, subshellList)
@@ -529,6 +529,9 @@ function  computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, n
     printstyled("------------------------------------------------------------------------------------------- \n", color=:light_green)
     println("")
     lines = AutoIonization.determineLines(finalMultiplet, initialMultiplet, settings)
+    ## Display-only and the same for every line; set ONCE per computation, never from inside the line loop.
+    Defaults.setStandardSubshellList(Basics.generate(OrderedSubshellList(), finalMultiplet.levels[1].basis,
+                                                     initialMultiplet.levels[1].basis); printout=false)
     # Display all selected lines before the computations start
     if  settings.printBefore    AutoIonization.displayLines(stdout, lines)    end  
     # Determine maximum energy and check for consistency of the grid
@@ -571,6 +574,9 @@ function  computeLinesCascade(finalMultiplet::Multiplet, initialMultiplet::Multi
                                 settings::AutoIonization.Settings; output::Bool=true, printout::Bool=true)
     
     lines = AutoIonization.determineLines(finalMultiplet, initialMultiplet, settings)
+    ## Display-only and the same for every line; set ONCE per computation, never from inside the line loop.
+    Defaults.setStandardSubshellList(Basics.generate(OrderedSubshellList(), finalMultiplet.levels[1].basis,
+                                                     initialMultiplet.levels[1].basis); printout=false)
     # Display all selected lines before the computations start
     # if  settings.printBefore    AutoIonization.displayLines(stdout, lines)    end  
     # Determine maximum energy and check for consistency of the grid
@@ -605,13 +611,16 @@ function  computeLinesFromOrbitals(finalMultiplet::Multiplet, initialMultiplet::
                                     settings::AutoIonization.Settings, contOrbitals::Dict{Subshell, Orbital}; output::Bool=true, printout::Bool=true)
 
     lines = AutoIonization.determineLines(finalMultiplet, initialMultiplet, settings)
+    ## Display-only and the same for every line; set ONCE per computation, never from inside the line loop.
+    Defaults.setStandardSubshellList(Basics.generate(OrderedSubshellList(), finalMultiplet.levels[1].basis,
+                                                     initialMultiplet.levels[1].basis); printout=false)
     # Calculate all amplitudes and requested properties
     newLines = AutoIonization.Line[]
     
     for  (i,line)  in  enumerate(lines)
         # Define a common subshell list for both multiplets
         subshellList = Basics.generate(OrderedSubshellList(), line.finalLevel.basis, line.initialLevel.basis)
-        Defaults.setDefaults("relativistic subshell list", subshellList; printout=false)
+        ## Display-only; set once by the driver, not here.  See Defaults.setStandardSubshellList.
     
         if  rem(i,500) == 0    println("> Auger line $i:  ... calculated ")    end
         # Calculate the individual channels with the given orbitals
@@ -662,6 +671,9 @@ function  computeLinesPlasma(finalMultiplet::Multiplet, initialMultiplet::Multip
     println("")
     augerSettings = AutoIonization.Settings(AutoIonization.Settings(), printBefore=settings.printBefore, lineSelection=settings.lineSelection)
     lines         = AutoIonization.determineLines(finalMultiplet, initialMultiplet, augerSettings)
+    ## Display-only and the same for every line; set ONCE per computation, never from inside the line loop.
+    Defaults.setStandardSubshellList(Basics.generate(OrderedSubshellList(), finalMultiplet.levels[1].basis,
+                                                     initialMultiplet.levels[1].basis); printout=false)
     # Display all selected lines before the computations start
     if  settings.printBefore    AutoIonization.displayLines(stdout, lines)    end
     # Determine maximum energy and check for consistency of the grid

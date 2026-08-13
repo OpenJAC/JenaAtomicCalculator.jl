@@ -494,7 +494,7 @@ function  computeAmplitudesPropertiesPlasma(line::PhotoIonization.Line, nm::Nucl
                                             primitives::Union{Nothing,Bsplines.Primitives}=nothing)
     newChannels = PhotoIonization.Channel[];   contSettings = Continuum.Settings(false, grid.NoPoints-50);    csC = csB = 0.
     subshellList = Basics.generate(OrderedSubshellList(), line.finalLevel.basis, line.initialLevel.basis)
-    Defaults.setDefaults("relativistic subshell list", subshellList; printout=false)
+    ## Display-only; set once by the driver, not here.  See Defaults.setStandardSubshellList.
     ## As above: the two symmetry-reduced levels do not depend on the partial wave.
     redILevel = Basics.generateLevelWithSymmetryReducedBasis(line.initialLevel, subshellList)
     newfLevel = Basics.generateLevelWithSymmetryReducedBasis(line.finalLevel,   subshellList)
@@ -584,6 +584,9 @@ function  computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, n
     printstyled("------------------------------------------------------------------------------------------------- \n", color=:light_green)
     println("")
     lines = PhotoIonization.determineLines(finalMultiplet, initialMultiplet, settings)
+    ## Display-only and the same for every line; set ONCE per computation, never from inside the line loop.
+    Defaults.setStandardSubshellList(Basics.generate(OrderedSubshellList(), finalMultiplet.levels[1].basis,
+                                                     initialMultiplet.levels[1].basis); printout=false)
     # Display all selected lines before the computations start
     if  settings.printBefore    PhotoIonization.displayLines(stdout, lines)    end
     # Determine maximum energy and check for consistency of the grid
@@ -636,6 +639,9 @@ function  computeLinesCascade(finalMultiplet::Multiplet, initialMultiplet::Multi
                               settings::PhotoIonization.Settings, initialLevelSelection::LevelSelection; output=true, printout::Bool=true)
     
     lines = PhotoIonization.determineLines(finalMultiplet, initialMultiplet, settings)
+    ## Display-only and the same for every line; set ONCE per computation, never from inside the line loop.
+    Defaults.setStandardSubshellList(Basics.generate(OrderedSubshellList(), finalMultiplet.levels[1].basis,
+                                                     initialMultiplet.levels[1].basis); printout=false)
     # Display all selected lines before the computations start
     # if  settings.printBefore    PhotoIonization.displayLines(stdout, lines)    end  
     # Determine maximum energy and check for consistency of the grid
@@ -683,6 +689,9 @@ function  computeLinesPlasma(finalMultiplet::Multiplet, initialMultiplet::Multip
                         false, false, false, false, false, settings.printBefore, settings.lineSelection, Basics.ExpStokes(), 0., [0,1,2,3,4,5])
 
     lines = PhotoIonization.determineLines(finalMultiplet, initialMultiplet, photoSettings)
+    ## Display-only and the same for every line; set ONCE per computation, never from inside the line loop.
+    Defaults.setStandardSubshellList(Basics.generate(OrderedSubshellList(), finalMultiplet.levels[1].basis,
+                                                     initialMultiplet.levels[1].basis); printout=false)
     # Display all selected lines before the computations start
     if  settings.printBefore    PhotoIonization.displayLines(stdout, lines)    end
     # Calculate all amplitudes and requested properties
