@@ -862,6 +862,13 @@ function checkOrbitalConsistency(orbitals::Dict{Subshell,Orbital}, grid::Radial.
         printstyled(">>> Compare the two orbital energies and mean radii directly, and match the radial box to the\n" *
                     ">>> orbitals; note that a box much TOO LARGE starves the basis just as badly as one too small.\n",
                     color=:light_red)
+        ## Collected as well, and this is the case that most needs it: with stopper = false the finding is
+        ## printed and execution continues, so in a long run it scrolls away and the untrustworthy orbitals are
+        ## used without anyone noticing afterwards.  The offending pairs are named so the report is actionable.
+        Defaults.warn(AddWarning(), "Bsplines.checkOrbitalConsistency(): $(length(offenders)) spin-orbit partner " *
+                      "pair(s) describe different states -- " *
+                      join([string(o[1]) * "/" * string(o[2]) for o in offenders], ", ") *
+                      " -- the orbitals are not trustworthy; match the radial box to the orbitals.")
         if  stopper   error("Bsplines.checkOrbitalConsistency(): $(length(offenders)) spin-orbit partner pair(s) " *
                             "describe different states; the orbitals are not trustworthy.")   end
         return( false )
