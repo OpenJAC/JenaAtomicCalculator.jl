@@ -54,7 +54,7 @@ using  Dates,  Printf,  BSplineKit, LinearAlgebra, SpecialFunctions, QuadGK, Cub
 export AbstractCImethod, AbstractComputeTheme, AbstractConfigurationRestriction, AbstractConfigurationTheme,
        AbstractDisplayTheme, AbstractEeInteraction, AbstractEmpiricalSettings, AbstractLineShiftSettings,
        AbstractNeutralNetwork, AbstractNeutralNetworkRequest, AbstractNuclearModel, AbstractPlasmaModel, AbstractPlotTheme,
-       AbstractPotential, AbstractProcessSettings, AbstractPropertySettings, AbstractQedModel, AbstractStartOrbitals,
+       AbstractProcessSettings, AbstractPropertySettings, AbstractQedModel, AbstractStartOrbitals,
        add, AddElectrons, AllShells, AlphaVariation, analyze, AnapoleMoment, AngularCoeffs1pGrasp92,
        AngularCoeffs1pRatip2013, AngularCoeffsEeRatip2013, AngularJ, AngularJ64, AngularM64, AngularMomentum,
        Application, AsfSettings, Atomic, AtomicCompass, AtomicFeatures, AtomicModel, AtomicState, AtomicStructure,

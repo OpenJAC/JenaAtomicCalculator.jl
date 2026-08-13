@@ -1783,22 +1783,15 @@ export  AbstractPolarization, LinearPolarization, LeftCircular, RightCircular, L
 #################################################################################################################################
 
 
-"""
-`abstract type Basics.AbstractPotential` 
-    ... defines an abstract and a number of singleton types to distinguish between different (electronic) atomic potentials.
-
-    + struct DFSpotential     ... to represent a Dirac-Fock-Slater potential.        
-    + struct CoreHartree      ... to represent a core-Hartree potential.        
-    + struct KohnSham         ... to represent a Kohn-Sham potential.        
-    + struct HartreeSlater    ... to represent a Hartree-Slater potential.        
-"""
-abstract type  AbstractPotential                        end
-struct    DFSpotential          <:  AbstractPotential   end
-struct    CoreHartree           <:  AbstractPotential   end
-struct    KohnSham              <:  AbstractPotential   end
-struct    HartreeSlater         <:  AbstractPotential   end
-
-export  AbstractPotential, DFSpotential, CoreHartree, KohnSham, HartreeSlater
+## Basics.AbstractPotential, with DFSpotential, CoreHartree, KohnSham and HartreeSlater, was REMOVED on
+## 13-Aug-2026.  It named the same four screened potentials a SECOND time -- DFSpotential/DFSField,
+## CoreHartree/CHField, KohnSham/KSField, HartreeSlater/HSField -- and nothing ever reached this copy: the
+## abstract type and all four singletons were exported, but not one of them appeared in any dispatch, any
+## call or any example.  The live vocabulary is Basics.AbstractScField, which has twelve members and twelve
+## Basics.computePotential methods dispatching on it.
+##
+## The one apparent survivor is not a use of these types: module-BasicsAZ-inc-compute.jl builds
+## Radial.Potential("CoreHartree", wb, grid), where "CoreHartree" is the potential's NAME string.
 
 #################################################################################################################################
 #################################################################################################################################
