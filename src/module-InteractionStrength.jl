@@ -475,6 +475,35 @@ end
 ##    placeholder with no derivation), and only factor outside {0,1} would reach V() -- which, per point 5,
 ##    would diverge.  The 'S' branch takes wy = 1 with its real formula commented out beside it.
 ##
+##
+## 7. AUDIT OF THE ANGULAR COEFFICIENTS, 13-Aug-2026.  XL_Breit_coefficients was compared TERM BY TERM against
+##    Grant & Pyper's table 2 and against GRASP2018's rci90/cxk.f90, which implements the same table.
+##    RESULT: THE ANGULAR DECOMPOSITION IS CORRECT.  Every weight, every kappa factor and every mu ordering
+##    agrees.  In GRASP's notation DK1 = kappa_c - kappa_a, DK2 = kappa_d - kappa_b, F1..F4 = DK -+ K,
+##    G1..G4 = DK -+ (K+1), H = the two CL reduced matrix elements with the odd-L sign:
+##
+##      'T', nu = L    : JAC -(ka+kc)(kb+kd)/(L(L+1)), equal for all mu   ==  GRASP S(1..4) = -(KA+KC)(KD+KB)H/(K(K+1))
+##      'T', nu = L+1  : JAC L/((L+1)(2L+1)(2L+3)), four kappa products   ==  GRASP A = H*K/((K+1)(2K+1)(2K+3)),
+##                       G1G3, G2G4, G1G4, G2G3
+##      'T', nu = L-1  : JAC (L+1)/(L(2L-1)(2L+1))                        ==  GRASP A = H*(K+1)/(K(2K+1)(2K-1)),
+##                       F2F4, F1F3, F2F3, F1F4
+##      'S', all 8 mu  : JAC 1/(2L+1)^2 times, in order,
+##                       F2G3, F4G1, F1G4, F3G2, F2G4, F3G1, F1G3, F4G2   ==  GRASP S(5), S(6), ..., S(12)
+##
+##    THE ONE STRUCTURAL DIFFERENCE, and it is deliberate rather than a defect: JAC emits each 'S' coefficient
+##    TWICE, at nu = L+1 with weight +[L]/2 and at nu = L-1 with -[L]/2, [L] = 2L+1.  That is precisely Grant's
+##    STATIC LIMIT of the retardation kernel, their equations (9)-(10),
+##
+##        W_(nu-1,nu+1,nu) -> -(1/2)[nu] ( Ubar_(nu-1) - Ubar_(nu+1) ),
+##
+##    with Ubar the one-sided kernel of equation (10) -- which the r/s loop below realises by summing only
+##    s <= r and halving the diagonal, since U = Ubar(1,2) + Ubar(2,1).  Signs included, JAC matches.
+##
+##    CONSEQUENCE FOR THE FREQUENCY-DEPENDENT RETARDATION: it CANNOT be switched on by changing a multiplier.
+##    The 'S' entries currently carry the static limit inside their coefficients, so they would have to be
+##    re-emitted as a single term in W_(L-1,L+1,L) (Grant equation 6) instead of two terms in Ubar.  That is
+##    the remaining work, and it is a change to XL_Breit_coefficients, not to the kernels.
+##
 ## ============================================================================================================
 ##
 
