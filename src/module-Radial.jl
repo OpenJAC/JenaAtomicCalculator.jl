@@ -768,9 +768,17 @@ end
 ##     every grid JAC ever built and no longer exists at all -- and constructed Radial.Orbital with SEVEN
 ##     arguments where it has nine fields.
 ##
-## Reinstating Bunge or McLean start orbitals means importing a published data table, which is a deliberate
-## act and not a repair.  The working route to hydrogenic start orbitals is Bsplines.generateOrbitalsHydrogenic,
-## which is what AsfSettings(..., StartFromHydrogenic(), ...) already uses throughout JAC.
+## DECIDED 13-Aug-2026 by the maintainer: the Bunge and McLean routes are RETIRED, not deferred, and the
+## compute themes RadialOrbitalBunge1993 and RadialOrbitalMcLean1981 have been removed with them.  Three
+## reasons, none of them the missing table itself: both sets are NON-RELATIVISTIC while JAC is a Dirac code,
+## and McLean's half covers Z = 55-92, exactly where that matters most; neither reaches beyond Z = 92 or past
+## neutral ground configurations, which is most of what JAC actually computes; and Anderson acceleration has
+## since removed much of the convergence cost that a better start orbital would have bought.  Should analytic
+## start orbitals be wanted, Basics.RadialOrbitalThomasFermi is the better route -- it needs no external data
+## and works at any Z, including the superheavy region these tables cannot reach.
+##
+## The working route to hydrogenic start orbitals remains Bsplines.generateOrbitalsHydrogenic, which is what
+## AsfSettings(..., StartFromHydrogenic(), ...) already uses throughout JAC.
 
 
 

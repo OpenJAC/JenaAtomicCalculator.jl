@@ -237,41 +237,20 @@ function Basics.compute(JP::LevelSymmetry, basis::Basis, nuclearModel::Nuclear.M
     return( matrix )
 end
 
-## THE FOUR RadialOrbital* START-ORBITAL THEMES DO NOT WORK, and did not before 12-Aug-2026 either.  Each
-## called a function of Radial that either does not exist (OrbitalMcLean1981, OrbitalHydrogenic,
-## OrbitalThomasFermi were never defined) or could not run (OrbitalBunge1993 needed Basics.store, itself
-## defined nowhere, plus the empty grid.rp and a seven-argument Radial.Orbital that has nine fields).  All
-## four therefore raised UndefVarError or MethodError at the first call, and none has a caller anywhere.
+## THE TWO REMAINING RadialOrbital* START-ORBITAL THEMES DO NOT WORK, and did not before 12-Aug-2026 either:
+## Radial.OrbitalHydrogenic and Radial.OrbitalThomasFermi were never defined, so both raised UndefVarError at
+## the first call, and neither has a caller anywhere.  Following the corePolarization.doApply precedent in
+## module-PhotoEmission.jl, they now raise an error that EXPLAINS rather than one naming a missing symbol.
 ##
-## Following the corePolarization.doApply precedent in module-PhotoEmission.jl, they now raise an error that
-## EXPLAINS, rather than one that names a missing internal symbol.  The type names are kept: they are listed
-## as options in the AbstractComputeTheme docstring, and removing user-facing names is a separate decision.
-
-"""
-`Basics.compute(::RadialOrbitalBunge1993, subshell::Subshell, Z::Int64)`
-    ... NOT AVAILABLE.  Roothaan-Hartree-Fock start orbitals from Bunge et al., Atomic Data and Nuclear Data
-        Tables 53 (1993) 113 would need that table inside JAC, and it has never been part of this repository.
-"""
-function Basics.compute(::RadialOrbitalBunge1993, subshell::Subshell, Z::Int64)
-    error("Basics.compute(::RadialOrbitalBunge1993, ...): not available.  These Roothaan-Hartree-Fock " *
-          "start orbitals require the coefficient table of Bunge et al., ADNDT 53 (1993) 113, which is not " *
-          "part of JAC; the routine that read it (Basics.store) has never been defined.  For hydrogenic " *
-          "start orbitals use Bsplines.generateOrbitalsHydrogenic, i.e. StartFromHydrogenic() in AsfSettings.")
-end
-
-
-"""
-`Basics.compute(::RadialOrbitalMcLean1981, subshell::Subshell, Z::Int64)`
-    ... NOT AVAILABLE.  As for Bunge (1993), but with the table of McLean & McLean, Atomic Data and Nuclear
-        Data Tables 26 (1981) 197.
-"""
-function Basics.compute(::RadialOrbitalMcLean1981, subshell::Subshell, Z::Int64)
-    error("Basics.compute(::RadialOrbitalMcLean1981, ...): not available.  These Roothaan-Hartree-Fock " *
-          "start orbitals require the coefficient table of McLean & McLean, ADNDT 26 (1981) 197, which is " *
-          "not part of JAC; the routine that read it (Basics.store) has never been defined.  For hydrogenic " *
-          "start orbitals use Bsplines.generateOrbitalsHydrogenic, i.e. StartFromHydrogenic() in AsfSettings.")
-end
-
+## RadialOrbitalBunge1993 and RadialOrbitalMcLean1981 stood beside them until 13-Aug-2026 and are now RETIRED
+## ENTIRELY -- type names, exports and methods.  They promised Roothaan-Hartree-Fock start orbitals from
+## tables that have never been part of JAC, through a Basics.store() that only ever existed as
+## store_Williams2000 (inner-shell binding energies) and was itself removed at a20163c.  The decision, taken
+## by the maintainer: neither table is worth importing.  Both are NON-RELATIVISTIC, and McLean's half covers
+## Z = 55-92, exactly where that matters most; neither reaches beyond Z = 92 or past neutral ground
+## configurations, which is most of what JAC computes; and Anderson acceleration has since removed much of
+## the convergence cost that a better start orbital would have bought.  RadialOrbitalThomasFermi is the
+## better route to the same purpose -- it needs no external data and works at any Z.
 
 """
 `Basics.compute(::RadialOrbitalHydrogenic, subshell::Subshell, Z::Int64)`
