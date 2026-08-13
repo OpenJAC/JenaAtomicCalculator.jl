@@ -626,11 +626,25 @@ function generateBlocks(comp::Cascade.Computation, confs::Array{Configuration,1}
         orbitalSets = Cascade.generateBoundOrbitals(comp.approach, comp, confs; printout=printout)
     end
     #
+    ## WARM START (13-Aug-2026).  With MultipletOrbitals every block solves its own field, and each one used to
+    ## begin from hydrogenic orbitals -- although consecutive blocks of a cascade differ by a single hole or a
+    ## single electron and their orbitals are therefore nearly the same.  Each block now starts from the last
+    ## converged set instead, seeded by the initial ion's own orbitals, which the caller already passes in.
+    ## The machinery for this existed and was used in exactly one place (the dielectronic-recombination
+    ## cascade): ManyElectron.StartFromPrevious, honoured by SelfConsistent.initializeBasis.  Subshells the
+    ## previous block did not have are filled hydrogenically there.
+    ##
+    ## This is where a cascade spends its time: profiling the Mg 1s-hole decay (RefinedSCA, 16 blocks) put
+    ## 77.6 % of the run inside generateBlocks and 83.0 % inside performSCF, against 0.2 % in computeSteps.
+    warmOrbitals = initalOrbitals
     for  confa  in confs
         print("  Multiplet computations for $(string(confa)[1:end]) with $(confa.NoElectrons) electrons ... ")
         if  printSummary   println(iostream, "\n*  Multiplet computations for $(string(confa)[1:end]) with $(confa.NoElectrons) electrons ... ")   end
         if      cd.bound == Cascade.MultipletOrbitals()
-            multiplet = SelfConsistent.performSCF([confa], comp.nuclearModel, comp.grid, comp.asfSettings; printout=false)
+            blockSettings = length(warmOrbitals) == 0  ?  comp.asfSettings  :
+                            AsfSettings(comp.asfSettings; startScfFrom = ManyElectron.StartFromPrevious(warmOrbitals))
+            multiplet = SelfConsistent.performSCF([confa], comp.nuclearModel, comp.grid, blockSettings; printout=false)
+            warmOrbitals = multiplet.levels[1].basis.orbitals
         elseif  cd.bound == Cascade.GlobalOrbitals()
             multiplet = Hamiltonian.performCIwithFrozenOrbitals([confa], initalOrbitals, comp.nuclearModel, comp.grid,
                                                                 Cascade.asfSettingsForApproach(comp.approach, comp.asfSettings); printout=false)
