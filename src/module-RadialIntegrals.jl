@@ -703,12 +703,23 @@ end
 """
 function SlaterRk_2dimClaude(k::Int64, a::Radial.Orbital, b::Radial.Orbital, c::Radial.Orbital, d::Radial.Orbital,
                              grid::Radial.Grid; rtol::Float64=1.0e-9)
+    ## mtpOut MUST be passed (fixed 13-Aug-2026).  Without it buildScreenedPotentialClaude tabulates V_k only
+    ## out to the (b,d) SOURCE's own extent, and the outer integral over r was then cut at
+    ## min(mtp_ac, length(Vk)) -- dropping the whole r > r_max(bd) tail, where V_k(r) is not zero but falls off
+    ## as the multipole const/r^(k+1).  That is the exact trap the docstring of buildScreenedPotentialClaude
+    ## warns about, and this was its one caller that walked into it.
+    ##
+    ## IT WAS INVISIBLE FOR AS LONG AS THIS FUNCTION SERVED ONLY THE SCF, where (a,c) and (b,d) are both bound
+    ## and of comparable extent, so the truncation removed almost nothing.  It surfaced the moment the
+    ## function was put on the Auger path, where (a,c) may contain a CONTINUUM orbital reaching the box
+    ## boundary while (b,d) are bound and short: the approved AutoIonization reference then moved by 100% and
+    ## the stepwise-decay cascade by 150%, which is what a dropped tail looks like -- not what a 2e-4
+    ## quadrature refinement looks like.
     mtp_ac = min(size(a.P, 1), size(c.P, 1))
-    Vk     = buildScreenedPotentialClaude(k, b, d, grid; rtol=rtol)
-    mtp    = min(mtp_ac, length(Vk))
+    Vk     = buildScreenedPotentialClaude(k, b, d, grid; rtol=rtol, mtpOut=mtp_ac)
 
     wa = 0.
-    for  r = 2:mtp   wa = wa + (a.P[r]*c.P[r] + a.Q[r]*c.Q[r]) * grid.wr[r] * Vk[r]   end
+    for  r = 2:mtp_ac   wa = wa + (a.P[r]*c.P[r] + a.Q[r]*c.Q[r]) * grid.wr[r] * Vk[r]   end
     return( wa )
 end
 
