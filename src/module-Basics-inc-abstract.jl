@@ -1048,9 +1048,17 @@ export  AbstractContinuumSolutions, ContBessel, ContSine, NonrelativisticCoulomb
     + struct DiagonalCoulomb                   ... to represent the Coulomb part of the e-e interaction for just diagonal ME.        
     + struct CoulombInteraction                ... to represent the Coulomb part of the electron-electron interaction.        
     + struct CoulombGaunt                      ... to represent the Coulomb part of the electron-electron interaction.        
-    + struct BreitInteraction(factor::Float64) 
-        ... to represent the (frequency-dependent) Breit part of the electron-electron interaction with factor*omega,
-            including the zero-Breit approximation (if factor=0.).
+    + struct BreitInteraction(factor::Float64)
+        ... to represent the Breit part of the electron-electron interaction, with factor scaling the photon
+            wave number omega = factor * |E_a - E_c| / c.
+            AS OF 13-Aug-2026 ONLY factor = 0 IS PHYSICALLY MEANINGFUL: the frequency-dependent radial
+            kernels exist but are not consumed by any branch, so every value of factor returns the
+            omega -> 0 (frequency-independent) interaction.  factor = 1 additionally applies a hard-coded
+            1.05, which has no derivation.  A correct frequency-dependent implementation is in progress; see
+            the reference formulation heading the Breit section of module-InteractionStrength.jl.
+            NOTE ALSO THE GAUGE: the omega -> 0 limit taken in the Coulomb gauge is the BREIT operator (this
+            type), whereas the omega -> 0 limit in the Feynman gauge is the GAUNT operator (CoulombGaunt).
+            They are different approximations, not two names for one.
     + struct CoulombBreit(factor::Float64)     ... to represent the Coulomb+Breit part of the electron-electron interaction.        
 """
 abstract type  AbstractEeInteraction                          end

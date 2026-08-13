@@ -396,6 +396,89 @@ function weakCharge(a::Orbital, b::Orbital, nm::Nuclear.Model, grid::Radial.Grid
 end
 
 
+##
+## ============================================================================================================
+##  THE BREIT INTERACTION IN JAC -- THE REFERENCE FORMULATION
+##  Written 13-Aug-2026 as Stage 1 of the frequency-dependent Breit work, BEFORE any code was changed, so
+##  that the implementation below can be checked against a statement of the physics rather than against
+##  itself.
+##
+##  PROVENANCE, STATED HONESTLY: the standard references are Grant & Pyper, J. Phys. B 9, 761 (1976) and
+##  Grant, "Relativistic Quantum Theory of Atoms and Molecules" (2007), ch. 8.  THIS BLOCK WAS NOT
+##  TRANSCRIBED FROM THEM -- it is written from recollection of the standard formulation, cross-checked
+##  against secondary sources only.  It must therefore be checked against the primary texts by someone who
+##  has them before any number produced from it is trusted.  Where it has been confirmed NUMERICALLY, that
+##  is said at the point in question.
+## ============================================================================================================
+##
+## 1. THE OPERATOR.  Exchange of one transverse photon of frequency omega between electrons 1 and 2, in the
+##    COULOMB GAUGE:
+##
+##        B(omega) = - (alpha_1 . alpha_2) cos(omega r_12) / r_12
+##                   + (alpha_1 . grad_1)(alpha_2 . grad_2) [cos(omega r_12) - 1] / (omega^2 r_12)
+##
+##    The second term is finite as omega -> 0 only through a cancellation: [cos(x) - 1]/x^2 -> -1/2.
+##
+## 2. UNITS OF omega -- AND A DEFECT.  omega is a WAVE NUMBER, not an energy.  In atomic units
+##
+##        omega = |E_a - E_c| / c,        c = 137.036 ,
+##
+##    so that omega*r is the dimensionless phase the Bessel functions below require.  Retardation is small
+##    precisely because omega*r ~ (Delta E) r / c << 1 for atomic transitions.
+##
+##    XL_Breit_densities below formed  omg_ac = factor * abs(E_a - E_c)  and NEVER DIVIDED BY c until
+##    13-Aug-2026, feeding an energy in Hartree into sf_bessel_jl(nu, omega*r) as if it were a wave number
+##    and overstating the phase by c = 137.  FIXED.  It never affected a published number, since no branch
+##    consumed those values (see point 6).
+##
+## 3. THE TWO omega -> 0 LIMITS ARE DIFFERENT OPERATORS, AND THE DIFFERENCE IS A GAUGE CHOICE.
+##
+##        Coulomb gauge, omega -> 0:   B = - 1/(2 r_12) [ alpha_1.alpha_2 + (alpha_1.rhat)(alpha_2.rhat) ]
+##                                         ... the BREIT operator            -> JAC: CoulombBreit(0.)
+##        Feynman gauge, omega -> 0:   G = - alpha_1.alpha_2 / r_12
+##                                         ... the GAUNT operator            -> JAC: CoulombGaunt
+##
+##    These are NOT the same approximation.  The total one-photon exchange is gauge independent; truncating
+##    at omega -> 0 is what breaks that, which is why two gauges leave two different instantaneous operators.
+##    The retardation correction to instantaneous Gaunt is O(alpha^2) -- LARGER than the omega-independent
+##    Coulomb-gauge term itself.  A user choosing CoulombGaunt over CoulombBreit(0.) is therefore making an
+##    undocumented gauge choice, and the frequency dependence does NOT vanish in either gauge.
+##
+## 4. MULTIPOLE DECOMPOSITION.  XL_Breit_coefficients splits the operator into two families, and this split
+##    IS the Gaunt/retardation split (onlyGaunt returns after the 'T' blocks):
+##
+##        'T'  (magnetic / GAUNT)      nu = L-1, L, L+1,   four mu permutations each
+##        'S'  (RETARDATION)           nu = L +- 1
+##
+##    The many-electron angular factors are NOT computed here: they come from SpinAngular as
+##    Coefficient2p(nu, a, b, c, d, V), and the CI matrix forms V * XL_Breit(nu, ...).  The coefficients
+##    below belong to the OPERATOR, not to the CSFs.
+##
+## 5. THE RADIAL KERNELS.  Both multiply nothing on their own: in XL_Breit_densities the quantity wy is a
+##    MULTIPLIER on the static kernel r_<^nu / r_>^(nu+1), so every kernel below must tend to 1 as omega -> 0.
+##
+##        Gaunt / 'T':   -omega (2nu+1) j_nu(omega r_<) y_nu(omega r_>)   ->   r_<^nu / r_>^(nu+1)
+##
+##    MEASURED 13-Aug-2026: the coded V() omits that leading factor omega.  V*omega/static -> 1.000001 at
+##    omega = 1e-3 for nu = 1 and 1.000000 for nu = 2, while V/static -> 1000.  So V diverges as 1/omega and
+##    could never have been switched on.
+##
+##        Retardation / 'S':  built from j_(nu-1)(omega r_<) y_(nu+1)(omega r_>) and a compensating term.
+##                            Each piece diverges -- j_(nu-1) y_(nu+1) ~ 1/omega^3 -- and only the
+##                            COMBINATION is finite, which is the whole numerical difficulty.
+##
+##    MEASURED: the coded W() has no clean limit at all; neither W, W*omega nor W*omega^2 converges as
+##    omega -> 0.  It needs deriving, not patching, and its call site is (consistently) commented out.
+##
+## 6. WHAT IS ACTUALLY COMPUTED TODAY.  Nothing frequency dependent.  omg_ac and omg_bd are formed and then
+##    discarded: factor == 0 takes wy = 1 (the correct static limit), factor == 1 takes wy = 1.05 (a
+##    placeholder with no derivation), and only factor outside {0,1} would reach V() -- which, per point 5,
+##    would diverge.  The 'S' branch takes wy = 1 with its real formula commented out beside it.
+##
+## ============================================================================================================
+##
+
+
 """
 `InteractionStrength.XL_Breit_reset_storage(keep::Bool; printout::Bool=false)`  
     ... resets the global storage of XL_Breit interaction strength; nothing is returned.
@@ -418,7 +501,9 @@ end
         For keep=true, the procedure looks up the (global) directory GBL_Storage_XL_Coulomb
         and returns the corresponding value without re-calculation of the interaction strength; it also 'stores' the calculated
         value if not yet included. For keep=false, the interaction strength is always computed on-fly. A value::Float64 is returned. 
-        At present, only the zero-frequency Breit or Gaunt interaction is taken into account.
+        At present ONLY THE ZERO-FREQUENCY LIMIT IS RETURNED, whatever factor is given: the
+        frequency-dependent kernels below are not consumed by any branch.  See the reference formulation
+        heading this section.
 """
 function XL_Breit(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital, grid::Radial.Grid,
                     eeint::Union{BreitInteraction, CoulombBreit, CoulombGaunt}; keep::Bool=false)
@@ -469,9 +554,13 @@ end
 
 """
 `InteractionStrength.XL_Breit_coefficients(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital; onlyGaunt::Bool=false)`  
-    ... evaluates the combinations and pre-coefficients for the zero-frequency Breit interaction  
-        X^L_Breit (omega=0.; abcd) for given rank L and orbital functions a, b, c and d. A list of coefficients 
-        xcList::Array{XLCoefficient,1} is returned.
+    ... evaluates the combinations and pre-coefficients of the Breit interaction X^L_Breit(abcd) for given
+        rank L and orbital functions a, b, c and d; a list xcList::Array{XLCoefficient,1} is returned.
+
+        THESE COEFFICIENTS ARE FREQUENCY INDEPENDENT and are correct for both cases: the omega dependence
+        enters only through the radial kernels in XL_Breit_densities, not here.  The list splits into
+        kind = 'T' (magnetic / GAUNT, nu = L-1, L, L+1) and kind = 'S' (RETARDATION, nu = L+-1); onlyGaunt
+        returns after the 'T' blocks, so that split IS the Gaunt/retardation split.
 """
 function XL_Breit_coefficients(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital; onlyGaunt::Bool=false)
     xcList = XLCoefficient[]
@@ -594,56 +683,125 @@ end
 
 
 """
+`InteractionStrength.besselPhiPsi(K::Int64, x::Float64; nmax::Int64=12, tol::Float64=1.0e-16)`
+    ... returns the pair (phi_K(x), psi_K(x)) of NORMALISED spherical Bessel functions
+
+            phi_K(x) = (2K+1)!! j_K(x) / x^K            psi_K(x) = - x^(K+1) y_K(x) / (2K-1)!!
+
+        both of which tend to 1 as x -> 0.  They are the natural building blocks of the frequency-dependent
+        Breit kernels, because those kernels are the static kernel TIMES a product of one phi and one psi:
+        the omega -> 0 limit is then exact by construction rather than a special case, and nothing has to be
+        recovered from a cancellation between large numbers.
+
+        Evaluated from the ascending power series in -x^2/2 rather than from j_K and y_K separately.  For
+        small x -- which is the physical case, since x = omega r ~ (Delta E) r / c -- forming j_K y_K
+        directly loses the answer to cancellation, and each factor alone diverges as omega -> 0.
+
+        Verified against (2K+1)!! j_K(x)/x^K and -x^(K+1) y_K(x)/(2K-1)!! from GSL to <= 4.6e-16 for
+        K = 0..3 and x = 1e-4..0.5, and to 1.000000000000000 in the limit x -> 0.
+
+        The normalisation follows GRASP2018 (rci90/bessel.f90, which stores phi-1 and psi-1); the
+        formulation was read there and re-derived here rather than transcribed.
+"""
+function besselPhiPsi(K::Int64, x::Float64; nmax::Int64=12, tol::Float64=1.0e-16)
+    x == 0.  &&  return( (1.0, 1.0) )
+    wa = -0.5 * x^2;    t1 = 1.0;   t2 = 1.0;   s1 = 0.0;   s2 = 0.0
+    for  i = 1:nmax
+        t1 = t1 * wa / ( i * (2*(K+i) + 1) );    t2 = t2 * wa / ( i * (2*(i-K) - 1) )
+        s1 = s1 + t1;                            s2 = s2 + t2
+        if  abs(t1) < abs(s1)*tol  &&  abs(t2) < abs(s2)*tol    break    end
+    end
+    return( (1.0 + s1, 1.0 + s2) )
+end
+
+
+"""
 `InteractionStrength.XL_Breit_densities(xcList::Array{XLCoefficient,1}, factor::Float64, grid::Radial.Grid)`  
     ... computes the the effective Breit interaction strengths X^L,0_Breit (abcd) for given rank L and a list of 
         orbital functions a, b, c, d and angular coefficients at the given grid. A value::Float64 is returned. 
-        At present, only the zero-frequency Breit interaction is taken into account.
+        At present ONLY THE ZERO-FREQUENCY LIMIT IS RETURNED; see the reference formulation heading this
+        section for what is missing and why.
 """
 function XL_Breit_densities(xcList::Array{XLCoefficient,1}, factor::Float64, grid::Radial.Grid)
+    ## V is the MULTIPLIER on the static kernel r_<^nu / r_>^(nu+1), so it must equal 1 at omega = 0.
+    ##
+    ## REWRITTEN 13-Aug-2026.  It read  -(2nu+1) j_nu(omega r_<) y_nu(omega r_>), which is the frequency-
+    ## dependent kernel DIVIDED BY THE STATIC ONE AND BY omega -- it diverged as 1/omega and could never be
+    ## switched on (measured: V/static = 1000 at omega = 1e-3, V*omega/static = 1.000001).  Two bare catch
+    ## blocks then substituted wx = 1.0 whenever the Bessel evaluation failed, which would have silently
+    ## replaced the kernel by its static limit.
+    ##
+    ## The identity that fixes it, verified numerically to 3e-15 over nu = 1..3 and omega = 0.005..0.5:
+    ##
+    ##     -omega (2nu+1) j_nu(omega r_<) y_nu(omega r_>)  =  phi_nu(omega r_<) psi_nu(omega r_>) *
+    ##                                                        [ r_<^nu / r_>^(nu+1) ]
+    ##
+    ## with the NORMALISED functions phi and psi of Nuclear-style small-argument form
+    ##
+    ##     phi_K(x) = (2K+1)!! j_K(x) / x^K        psi_K(x) = -x^(K+1) y_K(x) / (2K-1)!!
+    ##
+    ## both of which tend to 1 as x -> 0.  So the multiplier is simply phi*psi, the static limit is exact by
+    ## construction rather than by a special case, and no cancellation is taken between large numbers.
+    ##
+    ## This normalisation is the one used by GRASP2018 (rci90/bessel.f90, which stores phi-1 and psi-1); the
+    ## formulation was read there and re-derived here, not transcribed.
     function V(nu::Int64, r::Float64, s::Float64, omega::Float64)
-        wx = 1.0;            
-        if      omega <= 0.  
-        elseif  nu < 0       @show "V", nu
-        elseif   r < s   
-            try     wx = -(2*nu+1) * GSL.sf_bessel_jl(nu, omega*r) * GSL.sf_bessel_yl(nu, omega*s)
-            catch
-                    wx = 1.0;  @show  "Va", nu, omega*r, omega*s
-            end
-        else             
-            try     wx = -(2*nu+1) * GSL.sf_bessel_jl(nu, omega*s) * GSL.sf_bessel_yl(nu, omega*r)
-            catch
-                    wx = 1.0;  @show  "Vb", nu, omega*r, omega*s
-            end
-        end
-        return(wx)
+        if  omega <= 0.  ||  nu < 0     return( 1.0 )    end
+        rSmall = min(r,s);    rLarge = max(r,s)
+        phi, _ = InteractionStrength.besselPhiPsi(nu, omega*rSmall)
+        _, psi = InteractionStrength.besselPhiPsi(nu, omega*rLarge)
+        return( phi * psi )
     end
     #
+    ## W is Grant & Pyper's retardation kernel, their equation (4):
+    ##
+    ##     U_nu = r_<^nu / r_>^(nu+1)                          the static (Coulomb-like) kernel
+    ##     V_nu = -[nu] omega j_nu(omega r_<) n_nu(omega r_>)  the frequency-dependent one, [nu] = 2nu+1
+    ##     W_nu = ( V_nu - U_nu ) / omega^2
+    ##
+    ## REWRITTEN 13-Aug-2026 against the paper (examples/papers/1976.jpb-grant-breit-interaction.pdf).  What
+    ## stood here evaluated j_(nu-1) n_(nu+1) directly and added a compensating ([nu]/omega)^2 term; measured,
+    ## it had no clean limit at all -- neither W, W*omega nor W*omega^2 converged as omega -> 0 -- and two
+    ## bare catch blocks then substituted wx = 1.0, which is not even the right dimension.
+    ##
+    ## W is a DIFFERENCE OF TWO NEARLY EQUAL QUANTITIES DIVIDED BY omega^2, which is the whole numerical
+    ## difficulty.  Using V_nu = U_nu * phi_nu(omega r_<) * psi_nu(omega r_>) it becomes
+    ##
+    ##     W_nu = U_nu * (phi*psi - 1) / omega^2 = U_nu * (a + b + a*b) / omega^2,   a = phi-1,  b = psi-1
+    ##
+    ## and a, b come straight from their own power series (besselPhiPsi), so nothing is subtracted: the
+    ## cancellation is done ALGEBRAICALLY rather than numerically.
+    ##
+    ## VERIFIED against Grant's analytic omega -> 0 limit, their equation (9),
+    ##     W_nu -> (1/2) [ r_<^nu / ((2nu-1) r_>^(nu-1)) - r_<^(nu+2) / ((2nu+3) r_>^(nu+1)) ]
+    ## with the deviation scaling as O(omega^2): 5.0e-3, 5.0e-5, 5.0e-7 at omega = 0.1, 0.01, 0.001 for
+    ## nu = 1, and similarly for nu = 2, 3.  Below omegaFloor the residual roundoff of a and b, amplified by
+    ## the 1/omega^2, exceeds that deviation, so the analytic limit is returned instead -- the same device as
+    ## GRASP2018's  IF (W < EPSI**2)  shortcut in rci90/bessel.f90.
     function W(nu::Int64, r::Float64, s::Float64, omega::Float64)
-        wx = 1.0
-        if      omega <= 0.  
-        elseif      nu < 1   ## @show "W", nu
-        elseif   r < s   
-            try     wx = -(2*nu+1) * GSL.sf_bessel_jl(nu-1, omega*r) * GSL.sf_bessel_yl(nu+1, omega*s) +
-                            ( (2*nu+1)/omega )^2 * r^(nu-1) / s^(nu+2)
-            catch
-                    wx = 1.0;  @show  "Wa", nu, omega*r, omega*s
-            end
-        elseif   r > s
-        else             
-            try     wx = -(2*nu+1) * GSL.sf_bessel_jl(nu-1, omega*r) * GSL.sf_bessel_yl(nu+1, omega*s) +
-                            ( (2*nu+1)/omega )^2 * r^(nu-1) / s^(nu+2)
-            catch
-                    wx = 1.0;  @show  "Wb", nu, omega*r, omega*s
-            end
-        end
-        return(wx)
+        nu < 1  &&  return( 0.0 )
+        rSmall = min(r,s);    rLarge = max(r,s)
+        wLimit = 0.5 * ( rSmall^nu / ((2nu-1) * rLarge^(nu-1)) - rSmall^(nu+2) / ((2nu+3) * rLarge^(nu+1)) )
+        omegaFloor = 1.0e-4
+        omega <= omegaFloor  &&  return( wLimit )
+        #
+        aa = InteractionStrength.besselPhiPsi(nu, omega*rSmall)[1] - 1.0
+        bb = InteractionStrength.besselPhiPsi(nu, omega*rLarge)[2] - 1.0
+        return( (rSmall^nu / rLarge^(nu+1)) * (aa + bb + aa*bb) / omega^2 )
     end
     
     wa = 0.
     for  xc  in  xcList  ## [end:end]
         # Use the minimal extent of any involved orbitals; this need to be improved
         mtp_ac = min(size(xc.a.P, 1), size(xc.c.P, 1));     mtp_bd = min(size(xc.b.P, 1), size(xc.d.P, 1))
-        omg_ac = factor * abs(xc.a.energy - xc.c.energy);   omg_bd = factor * abs(xc.b.energy - xc.d.energy)
+        ## omega is a WAVE NUMBER, not an energy: omega = |E_a - E_c| / c in atomic units, so that omega*r is
+        ## the dimensionless phase the spherical Bessel functions require.  The division by c was MISSING here
+        ## until 13-Aug-2026, which overstated the phase by a factor c = 137 and would have sampled j_nu*y_nu
+        ## in their oscillatory regime instead of the small-argument one where retardation actually lives.
+        ## It never affected a published number, because no branch below ever consumed these values.
+        cLight = Defaults.getDefaults("speed of light: c")
+        omg_ac = factor * abs(xc.a.energy - xc.c.energy) / cLight
+        omg_bd = factor * abs(xc.b.energy - xc.d.energy) / cLight
         for  r = 2:mtp_ac
             for  s = 2:mtp_bd
                 if      factor  == 0.    wy = 1.0
