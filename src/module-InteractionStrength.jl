@@ -584,13 +584,33 @@ end
 
 
 """
-`InteractionStrength.XL_BreitDamped(tau::Float64, L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital, grid::Radial.Grid)`  
-    ... computes the the effective Breit interaction strengths X^L_Breit (abcd) for given rank L and orbital functions 
-        a, b, c and d  at the given grid. A value::Float64 is returned. At present, only the zero-frequency Breit 
-        interaction is taken into account.
+`InteractionStrength.XL_BreitDamped(tau::Float64, L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital, grid::Radial.Grid,
+                                    eeint::Union{BreitInteraction, CoulombBreit, CoulombGaunt})`
+    ... computes the effective Breit interaction strength X^L_Breit (abcd) for given rank L and orbital functions
+        a, b, c and d at the given grid, with the radial integrand damped by exp(-tau r_1 - tau r_2) as the
+        DampedSpaceCI Green function approach requires. A value::Float64 is returned. This is XL_Breit with
+        that one factor added, so it follows the same gauge, the same frequency dependence and the same
+        coefficients; see XL_Breit and the reference formulation heading this section.
+
+        UNTIL 14-Aug-2026 the body of this function was `error("stop a")`, and its signature took SEVEN
+        arguments while its only caller -- the Breit branch of Basics.computeMultipletForGreenApproach for
+        AtomicState.DampedSpaceCI -- passed EIGHT. The path therefore raised a MethodError before it could
+        even reach the stub. It had never been noticed because every use of DampedSpaceCI in the examples and
+        in the suite selects a Coulomb-only e-e interaction, so that branch was never taken.
 """
-function XL_BreitDamped(tau::Float64, L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital, grid::Radial.Grid)
-    error("stop a")
+function XL_BreitDamped(tau::Float64, L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital, grid::Radial.Grid,
+                        eeint::Union{BreitInteraction, CoulombBreit, CoulombGaunt})
+    ja2 = Basics.subshell_2j(a.subshell);    jb2 = Basics.subshell_2j(b.subshell)
+    jc2 = Basics.subshell_2j(c.subshell);    jd2 = Basics.subshell_2j(d.subshell)
+    if  AngularMomentum.triangularDelta(ja2+1,jc2+1,L+L+1) * AngularMomentum.triangularDelta(jb2+1,jd2+1,L+L+1) == 0   ||  L == 0
+        return( 0. )
+    end
+    #
+    if    typeof(eeint) == CoulombGaunt   onlyGaunt = true;    factor = 0.
+    else                                  onlyGaunt = false;   factor = eeint.factor
+    end
+    xcList = XL_Breit_coefficients(L, a, b, c, d, onlyGaunt=onlyGaunt)
+    return( XL_Breit_densities(xcList, factor, grid, tau=tau) )
 end
 
 
@@ -791,13 +811,16 @@ end
 
 
 """
-`InteractionStrength.XL_Breit_densities(xcList::Array{XLCoefficient,1}, factor::Float64, grid::Radial.Grid)`  
-    ... computes the the effective Breit interaction strengths X^L,0_Breit (abcd) for given rank L and a list of 
-        orbital functions a, b, c, d and angular coefficients at the given grid. A value::Float64 is returned. 
-        At present ONLY THE ZERO-FREQUENCY LIMIT IS RETURNED; see the reference formulation heading this
-        section for what is missing and why.
+`InteractionStrength.XL_Breit_densities(xcList::Array{XLCoefficient,1}, factor::Float64, grid::Radial.Grid; tau::Float64=0.)`
+    ... computes the the effective Breit interaction strengths X^L_Breit (abcd) for given rank L and a list of
+        orbital functions a, b, c, d and angular coefficients at the given grid. A value::Float64 is returned.
+        The argument factor scales the photon wave number omega = factor * |E_a - E_c| / c, so that factor = 0
+        gives the frequency-independent interaction as the exact limit of the same expressions; see the
+        reference formulation heading this section.
+        A positive tau damps the radial integrand by exp(-tau r_1 - tau r_2), as the DampedSpaceCI Green
+        function approach requires; tau = 0 is the undamped interaction and costs nothing extra.
 """
-function XL_Breit_densities(xcList::Array{XLCoefficient,1}, factor::Float64, grid::Radial.Grid)
+function XL_Breit_densities(xcList::Array{XLCoefficient,1}, factor::Float64, grid::Radial.Grid; tau::Float64=0.)
     ## V is the MULTIPLIER on the static kernel r_<^nu / r_>^(nu+1), so it must equal 1 at omega = 0.
     ##
     ## REWRITTEN 13-Aug-2026.  It read  -(2nu+1) j_nu(omega r_<) y_nu(omega r_>), which is the frequency-
@@ -918,7 +941,8 @@ function XL_Breit_densities(xcList::Array{XLCoefficient,1}, factor::Float64, gri
                 end
                 #
                 wc = xc.coeff * grid.wr[r] * grid.wr[s]
-                if  s == r      wc = wc / 2.0     end
+                if  s == r      wc = wc / 2.0                                          end
+                if  tau > 0.    wc = wc * exp( -tau*grid.r[r] - tau*grid.r[s] )         end
                 wa = wa + wc * wk * (xc.a.P[r] * xc.c.Q[r]) * (xc.b.P[s] * xc.d.Q[s])
             end
         end

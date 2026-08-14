@@ -57,11 +57,13 @@ if  true
     println(">> [Branch 1] Timing ratio CI-only:  Breit/Coulomb = $(round(tBreitCI/tCoulombCI,digits=2))x,  Gaunt/Coulomb = $(round(tGauntCI/tCoulombCI,digits=2))x,  Gaunt/Breit = $(round(tGauntCI/tBreitCI,digits=2))x")
 
 elseif  false
-    # Last successful:  29-Jul-2026: E1(Coulomb) = -6331.333055 Ha, nlev=31; Delta E(Breit) = 5.246673 Ha,
-    # Delta E(Gaunt) = 4.881829 Ha, Gaunt/Breit ratio = 0.93 (matches Branch 1 -- expected, correlating
-    # shells stay within n=3). Timing (CI-only): Breit/Coulomb = 1.22x, Gaunt/Coulomb = 1.14x, Gaunt/Breit
-    # = 0.93x (ratios shrink vs. Branch 1 as the shared angular-coefficient overhead grows with CSF count,
-    # diluting Breit/Gaunt's relative extra cost).
+    # Last successful:  14-Aug-2026: E1(Coulomb) = -6331.333108 Ha, nlev=31; Delta E(Breit) = 5.246673 Ha,
+    # Delta E(Gaunt) = 4.881829 Ha, Gaunt/Breit ratio = 0.930 (matches Branch 1 -- expected, correlating
+    # shells stay within n=3). Both Breit numbers reproduce the 29-Jul-2026 reading to every digit recorded
+    # then, which is how the CL_reduced_me parity repair of branch 1 was confirmed to be complete rather
+    # than merely to have restored the single case it was diagnosed on. Timing (CI-only) on 29-Jul:
+    # Breit/Coulomb = 1.22x, Gaunt/Coulomb = 1.14x, Gaunt/Breit = 0.93x (ratios shrink vs. Branch 1 as the
+    # shared angular-coefficient overhead grows with CSF count, diluting Breit/Gaunt's relative extra cost).
     # Branch 2 (medium): same Cl-like Xe ion family, with a correlating layer added (reference + 3s 3p^6 +
     # 3s^2 3p^4 3d, matching Ad.jl's own original 3-config list) -- a larger CSF space for the timing-factor
     # question at bigger scale, same Coulomb/Breit/Gaunt comparison and Gaunt-ratio check as Branch 1.
@@ -99,11 +101,14 @@ elseif  false
     println(">> [Branch 2] Timing ratio CI-only:  Breit/Coulomb = $(round(tBreitCI/tCoulombCI,digits=2))x,  Gaunt/Coulomb = $(round(tGauntCI/tCoulombCI,digits=2))x,  Gaunt/Breit = $(round(tGauntCI/tBreitCI,digits=2))x")
 
 elseif  false
-    # Last successful:  29-Jul-2026: Delta E(Breit) grows monotonically with Z as expected (5.245 -> 14.872
-    # -> 31.358 Ha for Z=54,74,92 -- roughly Z^3.3 empirically between these points, consistent with an
-    # inner-shell-dominated relativistic correction). Gaunt/Breit ratio drifts DOWN slightly with Z (0.930
-    # -> 0.925 -> 0.919) -- matches the literature nuance that the retardation term matters proportionally
-    # more for heavier atoms, even though Gaunt still dominates throughout this range.
+    # Last successful:  14-Aug-2026: Delta E(Breit) grows monotonically with Z as expected (5.245391 ->
+    # 14.872162 -> 31.357648 Ha for Z=54,74,92 -- roughly Z^3.3 empirically between these points, consistent
+    # with an inner-shell-dominated relativistic correction). Gaunt/Breit ratio drifts DOWN slightly with Z
+    # (0.930 -> 0.925 -> 0.919) -- matches the literature nuance that the retardation term matters
+    # proportionally more for heavier atoms, even though Gaunt still dominates throughout this range.
+    # All six numbers reproduce the 29-Jul-2026 reading exactly, across three widely separated Z; together
+    # with branch 2 this is what establishes that the parity repair of branch 1 restored the nu = L block
+    # generally, and not just for the one case it was diagnosed on.
     # Branch 3 (Z-scaling sanity check): same single-reference Cl-like configuration across three Z values
     # along the isoelectronic sequence (Xe Z=54, W Z=74, U Z=92) -- confirms the Breit/Gaunt correction
     # grows with Z (a physical sanity check needing no external literature reference, just internal
@@ -163,33 +168,40 @@ elseif  false
     end
 
 elseif  false
-    # Last visit:  14-Aug-2026
-    # Last successful:  unknown -- the relative correction grows with Z as it must (-0.25% at Z=26,
-    # -1.16% at Z=54), but at Z=79 it CHANGES SIGN (+12.7%) and the SCF reports sign changes for 2p_3/2
-    # and 3p_3/2. That sign change has not been run down and may be a box effect (Rule 12: a 3p orbital
-    # of a Cl-like Z=79 ion has r_+ ~ 0.27 a.u., so the standard grid is far wider than these orbitals
-    # need) rather than physics. The date stays blank until it is understood.
-    #   Re-measured 14-Aug-2026 after the CL_reduced_me parity fix of branch 1, which roughly trebled
-    # the Breit energy in the denominator; the earlier readings were -0.94%, -3.82% and +8.22%. The sign
-    # flip at Z=79 survived the fix, so it is a separate question and not a symptom of that bug.
+    # Last successful:  14-Aug-2026: the relative frequency correction is negative throughout and grows
+    # monotonically in magnitude, -0.25 % at Z=26, -1.16 % at Z=54 and -2.30 % at Z=79, i.e. roughly as
+    # Z^2, which is what omega ~ Delta E / c demands.
+    #   THIS BRANCH IS A RULE 12 CASE STUDY, and is worth reading before believing any Breit number on a
+    # default grid. Run on the standard grid the Z=79 point came out at +12.71 %, i.e. with the WRONG SIGN,
+    # and the SCF reported sign changes for 2p_3/2 and 3p_3/2. Nothing was wrong with the angular or
+    # frequency machinery: a Cl-like Z=79 ion sees Z_eff = Z - 16 = 63, so its 3p outer turning point is at
+    # r_+ = 0.27 a.u. and the standard grid is some three orders of magnitude wider than the orbitals need.
+    # Boxes of 2.0 and 5.0 a.u. agree with the matched box below to every digit, so the plateau is broad --
+    # it is only the enormous default that fails. Z=26 and Z=54 are unaffected, being far less overshot.
+    #   The earlier readings of -0.94 %, -3.82 % and +8.22 % on this branch predate the CL_reduced_me parity
+    # repair of branch 1, which roughly trebled the Breit energy in the denominator.
     # Branch 5 (frequency dependence -- Z scaling): omega = |E_a - E_c| / c grows with Z, so the frequency
     # correction to the Breit interaction must grow along an isoelectronic sequence. Note that it is fed
     # ONLY by exchange-type contributions: for a direct matrix element a = c and b = d, hence omega = 0
     # identically, which is why the correction is much smaller than the Breit energy itself.
     refConfigs = [Configuration("[Ne] 3s^2 3p^5")]
-    grid       = Radial.Grid(true)
     settingsCoulomb = AsfSettings()
     settingsBreit0  = AsfSettings(AsfSettings(); eeInteractionCI=Basics.CoulombBreit(0.))
     settingsBreit1  = AsfSettings(AsfSettings(); eeInteractionCI=Basics.CoulombBreit(1.))
 
     for  Z  in  [26., 54., 79.]
+        ## Rule 12: match the box to the 3p valence orbital, r_+ = (n^2/Z_eff)(1 + sqrt(1 - l(l+1)/n^2))
+        ## with n = 3, l = 1 and Z_eff = Z - 16 for a Cl-like ion; take rbox = 2.5 r_+.
+        rPlus     = (9.0/(Z - 16.0)) * (1.0 + sqrt(1.0 - 2.0/9.0))
+        grid      = Radial.Grid(Radial.Grid(false); rnt = 1.0e-7, h = 5.0e-2, hp = 1.0e-2, rbox = 2.5*rPlus)
         nModel    = Nuclear.Model(Z)
         mpCoulomb = SelfConsistent.performSCF(refConfigs, nModel, grid, settingsCoulomb; printout=false)
         basis     = mpCoulomb.levels[1].basis
         eCoulomb  = Hamiltonian.performCI(basis, nModel, grid, settingsCoulomb; printout=false).levels[1].energy
         d0 = Hamiltonian.performCI(basis, nModel, grid, settingsBreit0; printout=false).levels[1].energy - eCoulomb
         d1 = Hamiltonian.performCI(basis, nModel, grid, settingsBreit1; printout=false).levels[1].energy - eCoulomb
-        println(">> [Branch 5] Z=$Z:  Delta E(Breit, omega=0) = $d0 Ha,  Delta E(Breit, omega/=0) = $d1 Ha,  " *
+        println(">> [Branch 5] Z=$Z:  r_+ = $(round(rPlus,digits=3)) a.u., rbox = $(round(2.5*rPlus,digits=3)) a.u.;  " *
+                "Delta E(Breit, omega=0) = $d0 Ha,  Delta E(Breit, omega/=0) = $d1 Ha,  " *
                 "frequency correction = $(d1-d0) Ha  ($(round(100*(d1-d0)/abs(d0),digits=2)) %)")
     end
 
