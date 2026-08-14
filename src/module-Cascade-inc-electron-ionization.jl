@@ -228,7 +228,7 @@ function perform(scheme::ElectronIonizationScheme, comp::Cascade.Computation; ou
                     "\n   results = JLD2.load(''$filename'')    ... to load the results back from file.")
             if  printSummary   println(iostream, "\n* Write all results to disk; use:\n   JLD2.save(''$filename'', results) \n" *
                                                  "   using JLD2 \n   results = JLD2.load(''$filename'')    ... to load them back." )   end
-            JLD2.@save filename results
+            Cascade.writeDataFile(filename, results)
         end
     end
     #

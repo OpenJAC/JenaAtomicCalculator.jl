@@ -701,7 +701,7 @@ function simulate(property::Cascade.AbstractSimulationProperty, method::Cascade.
                   simulation::Cascade.Simulation)
     error("No simulation is implemented for property $(typeof(property)) with method $(typeof(method)). " *
           "Supported: PhotoAbsorptionSpectrum, DrRateCoefficients, RrRateCoefficients, ExpansionOpacities and " *
-          "RosselandOpacities with any method; IonDistribution, FinalLevelDistribution, PhotonIntensities, " *
+          "MeanOpacities with any method; IonDistribution, FinalLevelDistribution, PhotonIntensities, " *
           "ElectronIntensities and RelaxationCurve with Cascade.ProbPropagation().")
 end
 
@@ -942,13 +942,13 @@ end
 
 
 """
-`Cascade.simulate(property::Cascade.RosselandOpacities, method::Cascade.AbstractSimulationMethod,
-                  simulation::Cascade.Simulation)`   ... simulates Rosseland opacities.
+`Cascade.simulate(property::Cascade.MeanOpacities, method::Cascade.AbstractSimulationMethod,
+                  simulation::Cascade.Simulation)`   ... simulates mean (Rosseland or Planck) opacities.
 """
-function simulate(property::Cascade.RosselandOpacities, method::Cascade.AbstractSimulationMethod,
+function simulate(property::Cascade.MeanOpacities, method::Cascade.AbstractSimulationMethod,
                   simulation::Cascade.Simulation)
     photoExcData = Cascade.extractPhotoExcitationData(simulation.computationData)
-    return( Cascade.simulateRosselandOpacities(photoExcData, simulation) )
+    return( Cascade.simulateMeanOpacities(photoExcData, simulation) )
 end
 
 
@@ -1969,40 +1969,154 @@ end
 
 
 """
-`Cascade.simulateRosselandOpacities(photoexcitationData::Array{Cascade.Data,1}, simulation::Cascade.Simulation)` 
-    ... runs through all excitation lines, sums up their contributions and form a (list of) Rosseland opacities, based on
-        the expansion opacities, for the given parameters. Nothing is returned.
+`Cascade.simulateMeanOpacities(photoexcitationData::Array{Cascade.Data,1}, simulation::Cascade.Simulation)`
+    ... runs through all excitation lines, assembles the spectral opacity kappa(u_i) on the eight Gauss-Laguerre
+        nodes of the temperature-normalised variable u = omega/kT, and reduces it to the MEAN named by
+        simulation.property.opacityMean -- RosselandMean() or PlanckMean(). One value in [cm^2/g] is printed
+        for each (rho, T) pair, in both gauges. Nothing is returned.
 """
-function simulateRosselandOpacities(photoexcitationData::Array{Cascade.Data,1}, simulation::Cascade.Simulation)
-    ulist, wlist = FastGaussQuadrature.gausslaguerre(8);            kappaList    = Float64[]
-    
-    opacityDependence = simulation.property.opacityDependence
-    for  rho in simulation.property.ionDensities
-        for  T in simulation.property.temperatures
-            ## RosselandOpacities still carries a single `ionDensities` list.  It is passed here as the MASS
-            ## density, with the ion number density derived from it on the crude assumption of one ion per
-            ## nucleon-mass unit; this property has not been revisited and should be, see example-Fk.jl.
-            property=Cascade.ExpansionOpacities(Basics.BoltzmannLevelPopulation(), opacityDependence,
-                                rho / 1.6605e-24, rho, T,
-                                simulation.property.expansionTime, simulation.property.transitionEnergyShift, ulist)
-                                
-            kappas = Cascade.simulateExpansionOpacities(photoexcitationData, "expansion opacity for rho = $rho & T=$T", 
-                                                        property, printout=false)    
-            #
-            # Form the u-integral of the Rosseland opacity
-            rosseland = Basics.EmProperty(0.)
-            for (i,u)  in  enumerate(ulist)
-                rosseland = rosseland + 15.0/ (4*pi^4) * u^4 * wlist[i] / ( (1.0 - exp(-u))^2 ) * kappas[i]
+function simulateMeanOpacities(photoexcitationData::Array{Cascade.Data,1}, simulation::Cascade.Simulation)
+    ulist, weights = Cascade.rosselandWeights(8)
+    property       = simulation.property
+
+    if  length(property.ionNumberDensities) != length(property.massDensities)
+        error("Cascade.MeanOpacities needs one ion NUMBER density per MASS density; got " *
+              "$(length(property.ionNumberDensities)) and $(length(property.massDensities)).")
+    end
+
+    for  (id, rho)  in  enumerate(property.massDensities)
+        nion = property.ionNumberDensities[id]
+        for  T in property.temperatures
+            ## Assemble kappa_nu as the SUM over the requested contributions; each returns one value per node.
+            kappas = Basics.EmProperty[ Basics.EmProperty(0.)  for i = 1:length(ulist) ]
+            for  contribution  in  property.contributions
+                wa = Cascade.spectralOpacityContribution(contribution, photoexcitationData, property,
+                                                         nion, rho, T, ulist)
+                for  i = 1:length(ulist)     kappas[i] = kappas[i] + wa[i]     end
             end
             #
-            sa = "> Rosseland opacity for rho = " * @sprintf("%.3e",rho) * "[g/cm^3]  &  T="    * @sprintf("%.3e",T) *
-                    " [K]  is  kappa^Rosseland [cm^2/g] = " * @sprintf("%.5e",rosseland.Coulomb)   * " [Coulomb]  "  *
-                                                            @sprintf("%.5e",rosseland.Babushkin) * " [Babushkin]"
+            mean, note = Cascade.applyOpacityMean(property.opacityMean, kappas, weights)
+            sa = "> " * Cascade.nameOfOpacityMean(property.opacityMean) * " opacity for rho = " *
+                    @sprintf("%.3e",rho) * " [g/cm^3],  n_ion = " * @sprintf("%.3e",nion) * " [1/cm^3]  &  T = " *
+                    @sprintf("%.3e",T) * " [K]  is  kappa [cm^2/g] = " * @sprintf("%.5e",mean.Coulomb) *
+                    " [Coulomb]  " * @sprintf("%.5e",mean.Babushkin) * " [Babushkin]"
             println(sa)
+            if  note != ""      println("    ++ " * note)      end
         end
     end
-    
+
     return( nothing )
+end
+
+
+"""
+`Cascade.rosselandWeights(noNodes::Int64)`
+    ... returns the Gauss-Laguerre nodes u_i of the temperature-normalised variable u = omega/kT together with
+        the NORMALISED Rosseland weights
+
+            w(u) = 15/(4 pi^4) u^4 e^-u / (1 - e^-u)^2 ,        int_0^inf w(u) du = 1 .
+
+        Gauss-Laguerre supplies the factor e^-u, so only 15/(4 pi^4) u^4 / (1 - e^-u)^2 is evaluated against
+        its weights. The prefactor is EXACT rather than fitted, because
+        int_0^inf u^4 e^u/(e^u-1)^2 du = 4 int_0^inf u^3/(e^u-1) du = 4 Gamma(4) zeta(4) = 4 pi^4/15.
+        Measured 14-Aug-2026: eight nodes give sum_i w_i = 1 to 2.8e-6, sixteen to 1.8e-11. Eight is ample
+        here, and that residue is the accuracy floor of every mean built on these weights -- the grey and
+        Thomson known-answer checks in TestFrames.testMethod_Opacities reproduce their exact values to
+        precisely this 2.8e-6 and to nothing better, which is how one knows the deviation is the quadrature
+        and not the physics.
+
+        A tuple (nodes::Array{Float64,1}, weights::Array{Float64,1}) is returned.
+"""
+function rosselandWeights(noNodes::Int64)
+    ulist, wlist = FastGaussQuadrature.gausslaguerre(noNodes)
+    weights      = [ 15.0/(4*pi^4) * ulist[i]^4 * wlist[i] / (1.0 - exp(-ulist[i]))^2   for i = 1:noNodes ]
+    return( (ulist, weights) )
+end
+
+
+"""
+`Cascade.spectralOpacityContribution(contribution::Cascade.BoundBoundOpacity, photoexcitationData::Array{Cascade.Data,1},
+                                     property::Cascade.MeanOpacities, nion::Float64, rho::Float64, T::Float64,
+                                     ulist::Array{Float64,1})`
+    ... returns the bound-bound (line) contribution to the spectral opacity at the given nodes, by handing the
+        work to Cascade.simulateExpansionOpacities. An Array{Basics.EmProperty,1} in [cm^2/g] is returned.
+"""
+function spectralOpacityContribution(contribution::Cascade.BoundBoundOpacity, photoexcitationData::Array{Cascade.Data,1},
+                                     property::Cascade.MeanOpacities, nion::Float64, rho::Float64, T::Float64,
+                                     ulist::Array{Float64,1})
+    expansion = Cascade.ExpansionOpacities(contribution.levelPopulation, property.opacityDependence,
+                                           nion, rho, T, property.expansionTime,
+                                           property.transitionEnergyShift, ulist)
+    return( Cascade.simulateExpansionOpacities(photoexcitationData, "spectral opacity for rho = $rho & T = $T",
+                                               expansion, printout=false) )
+end
+
+
+"""
+`Cascade.spectralOpacityContribution(contribution::Cascade.ScatteringOpacity, photoexcitationData::Array{Cascade.Data,1},
+                                     property::Cascade.MeanOpacities, nion::Float64, rho::Float64, T::Float64,
+                                     ulist::Array{Float64,1})`
+    ... returns the Thomson-scattering contribution kappa^sc = n_e sigma_T / rho, which is INDEPENDENT of
+        frequency and therefore identical in every bin, and gauge-independent so that both components of the
+        EmProperty carry the same value. An Array{Basics.EmProperty,1} in [cm^2/g] is returned.
+"""
+function spectralOpacityContribution(contribution::Cascade.ScatteringOpacity, photoexcitationData::Array{Cascade.Data,1},
+                                     property::Cascade.MeanOpacities, nion::Float64, rho::Float64, T::Float64,
+                                     ulist::Array{Float64,1})
+    sigmaThomson = 6.6524587321e-25                              ## [cm^2]
+    kappaSc      = contribution.electronNumberDensity * sigmaThomson / rho       ## [cm^2/g]
+    return( Basics.EmProperty[ Basics.EmProperty(kappaSc, kappaSc)  for i = 1:length(ulist) ] )
+end
+
+
+"""
+`Cascade.nameOfOpacityMean(mean::Cascade.AbstractOpacityMean)`
+    ... returns the name of the given mean for printout. A String is returned.
+"""
+nameOfOpacityMean(mean::Cascade.RosselandMean)  = "Rosseland"
+nameOfOpacityMean(mean::Cascade.PlanckMean)     = "Planck"
+
+
+"""
+`Cascade.applyOpacityMean(mean::Cascade.PlanckMean, kappas::Array{Basics.EmProperty,1}, weights::Array{Float64,1})`
+    ... forms the ARITHMETIC, weight-normalised mean sum_i w_i kappa_i of the given spectral opacities.
+        A tuple (value::Basics.EmProperty, note::String) is returned; note is empty for this mean, which is
+        finite whatever the spectral opacity looks like.
+"""
+function applyOpacityMean(mean::Cascade.PlanckMean, kappas::Array{Basics.EmProperty,1}, weights::Array{Float64,1})
+    wa = Basics.EmProperty(0.)
+    for  i = 1:length(kappas)     wa = wa + weights[i] * kappas[i]     end
+    return( (wa, "") )
+end
+
+
+"""
+`Cascade.applyOpacityMean(mean::Cascade.RosselandMean, kappas::Array{Basics.EmProperty,1}, weights::Array{Float64,1})`
+    ... forms the HARMONIC, weight-normalised mean  1 / sum_i (w_i / kappa_i)  of the given spectral
+        opacities. A tuple (value::Basics.EmProperty, note::String) is returned.
+
+        An EMPTY BIN (kappa_i = 0) makes the harmonic mean vanish identically, and that is physics rather
+        than a numerical accident: the Rosseland mean is dominated by the most transparent frequencies, so a
+        single perfectly transparent window short-circuits it. Rather than silently returning zero -- or,
+        worse, substituting an arithmetic mean, as JAC did before 14-Aug-2026 -- the vanishing case is
+        reported through `note`, naming how many bins are empty and what is missing: a continuum
+        contribution (electron scattering, bound-free) that a bound-bound line list alone cannot supply.
+"""
+function applyOpacityMean(mean::Cascade.RosselandMean, kappas::Array{Basics.EmProperty,1}, weights::Array{Float64,1})
+    nEmptyCou = count(k -> k.Coulomb    <= 0., kappas)
+    nEmptyBab = count(k -> k.Babushkin  <= 0., kappas)
+    note      = ""
+    if  nEmptyCou > 0  ||  nEmptyBab > 0
+        note = "the Rosseland mean VANISHES: $(max(nEmptyCou,nEmptyBab)) of $(length(kappas)) bins carry no " *
+               "opacity at all. A harmonic mean is dominated by its most transparent bin, so this is the " *
+               "correct value for the given spectral opacity -- and it says that a bound-bound line list " *
+               "alone cannot support a Rosseland mean. Add a continuum contribution (electron scattering, " *
+               "bound-free), or ask for a PlanckMean(), which stays finite on an incomplete line list."
+        return( (Basics.EmProperty(0.), note) )
+    end
+    sumCou = sum( weights[i] / kappas[i].Coulomb    for i = 1:length(kappas) )
+    sumBab = sum( weights[i] / kappas[i].Babushkin  for i = 1:length(kappas) )
+    return( (Basics.EmProperty(1.0/sumCou, 1.0/sumBab), note) )
 end
 
 

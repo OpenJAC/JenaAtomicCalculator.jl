@@ -1175,6 +1175,135 @@ function Base.show(io::IO, comp::Cascade.Computation)
 end
 
 #######################################################################################################################################
+## STORED CASCADE DATA (.jld):  a format stamp, and a reader that fails with an explanation.
+##
+## WHAT THESE FILES ARE, stated plainly because it is easy to assume otherwise.  A cascade `.jld` is written by
+## JLD2 from the `results` dictionary, which holds the WHOLE OBJECT GRAPH -- Multiplet -> Level -> Basis -> CsfR
+## -> Orbital -> Radial.Grid, plus the process Lines.  JAC itself never reads one back: every "JLD2.load(...)"
+## in this module is help text printed for the user, who loads the file in their own session.
+##
+## THE CONSEQUENCE, measured on 14-Aug-2026 rather than assumed: a file written on 5-Aug-2026 CANNOT be loaded
+## by today's JAC.  Not because of anything in the cascade, but because Radial.Grid lost a field and
+## Radial.MeshNone ceased to exist in the Radial rework (cfc1848, d2722fe, 968d269).  JLD2 reconstructs what it
+## can and then dies with a MethodError about a ReconstructedMutable, six frames deep, saying nothing about the
+## cause.  ANY struct change anywhere in that graph does this, and there have already been several.
+##
+## So a stored cascade is tied to the JAC that wrote it.  The stamp below does not change that -- serialising an
+## object graph and then changing the objects cannot be made safe by a version number.  What it does is make the
+## failure legible: Cascade.checkDataFile says which JAC wrote the file and what is missing, instead of leaving
+## the user with a JLD2 internal error.  The durable fix would be to store DATA (indices, energies, rates)
+## rather than objects; that is a design decision about what these files are for, recorded and not taken here.
+#######################################################################################################################################
+
+
+"""
+`Cascade.GBL_CASCADE_DATA_FORMAT`
+    ... version of the layout of the `results` dictionary that Cascade writes to a .jld file. Increase it
+        whenever a KEY of that dictionary is added, removed or renamed. It says nothing about the structs
+        stored underneath, which are the part that actually breaks; see the note above.
+"""
+const GBL_CASCADE_DATA_FORMAT = 1
+
+
+"""
+`Cascade.dataFormatStamp()`
+    ... returns a Dict{String,Any} identifying the writer of a cascade .jld file; it is merged into `results`
+        by Cascade.writeDataFile below, under the key "data format:".
+"""
+function dataFormatStamp()
+    return( Dict{String,Any}("format version" => Cascade.GBL_CASCADE_DATA_FORMAT,
+                             "JAC version"    => Cascade.jacVersion(),
+                             "written"        => string(Dates.now())) )
+end
+
+
+"""
+`Cascade.jacVersion()`
+    ... returns the version of the JenaAtomicCalculator package as a String, or "unknown" if it cannot be
+        determined; used only to stamp stored cascade data.
+"""
+function jacVersion()
+    try
+        wa = pkgversion(@__MODULE__)
+        return( isnothing(wa) ? "unknown" : string(wa) )
+    catch
+        return( "unknown" )
+    end
+end
+
+
+"""
+`Cascade.writeDataFile(filename::String, results::Dict{String,Any})`
+    ... stamps `results` with Cascade.dataFormatStamp() and writes it to `filename` with JLD2; nothing is
+        returned. Every cascade that stores its results goes through here, so that the stamp cannot be
+        forgotten at one of the fourteen call sites.
+"""
+function writeDataFile(filename::String, results::Dict{String,Any})
+    results = Base.merge( results, Dict("data format:" => Cascade.dataFormatStamp()) )
+    ## jldopen rather than JLD2.save, which routes through FileIO and rejects the .jld extension; this is what
+    ## the JLD2.@save macro these call sites used before expands to, so the file layout is unchanged -- one
+    ## entry named "results".
+    JLD2.jldopen(filename, "w") do f
+        f["results"] = results
+    end
+    return( nothing )
+end
+
+
+"""
+`Cascade.checkDataFile(filename::String; stream::IO=stdout)`
+    ... reports what a stored cascade .jld file contains and whether THIS JAC can read it; true is returned if
+        the file loaded, false otherwise. Nothing is thrown: a file that cannot be read is the normal case this
+        function exists for, and it prints which JAC wrote it and which type failed, instead of leaving a JLD2
+        internal error.
+"""
+function checkDataFile(filename::String; stream::IO=stdout)
+    println(stream, "\n  Stored cascade data:  $filename")
+    if  !isfile(filename)   println(stream, "  >>> no such file.");    return( false )    end
+    println(stream, "  size: " * string(round(filesize(filename)/1024/1024, digits=2)) * " MB")
+    local results
+    try
+        ## jldopen rather than JLD2.load: the latter goes through FileIO, which prints its own "Fatal error"
+        ## banner to stdout BEFORE throwing -- which is exactly the noise this function exists to replace.
+        JLD2.jldopen(filename, "r") do f
+            results = haskey(f, "results") ? f["results"] : Dict{String,Any}(k => f[k] for k in keys(f))
+        end
+    catch  e
+        println(stream, "  >>> THIS FILE CANNOT BE READ BY THIS VERSION OF JAC.")
+        println(stream, "  >>> " * first(sprint(showerror, e), 400))
+        println(stream, "  >>> A cascade .jld stores whole objects (Multiplet, Level, Basis, Orbital, " *
+                        "Radial.Grid, ...), so it can only be\n" *
+                        "  >>> opened by a JAC whose struct definitions still match the ones that wrote it. " *
+                        "Re-run the cascade,\n  >>> or check out the JAC version named in the file's stamp " *
+                        "(if it has one; files written before 14-Aug-2026 do not).")
+        return( false )
+    end
+    wa = results
+    if  wa isa Dict
+        if  haskey(wa, "data format:")
+            st = wa["data format:"]
+            println(stream, "  written by JAC " * string(get(st, "JAC version", "?")) *
+                            " on " * string(get(st, "written", "?")) *
+                            ",  data format " * string(get(st, "format version", "?")))
+            if  get(st, "format version", 0) != Cascade.GBL_CASCADE_DATA_FORMAT
+                println(stream, "  >>> this JAC writes data format $(Cascade.GBL_CASCADE_DATA_FORMAT); the keys may differ.")
+            end
+        else
+            println(stream, "  >>> no format stamp: written before 14-Aug-2026.")
+        end
+        println(stream, "  keys:")
+        for  k in sort(collect(keys(wa)))
+            v = wa[k];   sa = v isa AbstractArray ? "$(typeof(v)), $(length(v)) entries" : string(typeof(v))
+            println(stream, "     " * rpad(k, 30) * sa)
+        end
+    else
+        println(stream, "  contents: $(typeof(wa))")
+    end
+    println(stream, "  >>> loaded successfully.")
+    return( true )
+end
+
+#######################################################################################################################################
 #######################################################################################################################################
 #######################################################################################################################################
 

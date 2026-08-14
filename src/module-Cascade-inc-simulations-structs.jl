@@ -377,50 +377,177 @@ end
 
 
 """
-`struct  Cascade.RosselandOpacities   <:  Cascade.AbstractSimulationProperty`  
-    ... defines a type for simulating the Rosseland opacity as function of the temperature or density as well as (parametrically) 
-        the expansion time. Usually, different values are given for either the temperature or density.
+`abstract type  Cascade.AbstractOpacityMean`
+    ... defines an abstract and a number of singleton types for the MEAN that is taken over a spectral
+        opacity kappa_nu. A mean is a FUNCTIONAL of kappa_nu and is applied after the spectral opacity has
+        been assembled; it is therefore kept separate from both the contributions that build kappa_nu and
+        the dependence (binning) axis on which it is reported.
 
-    + levelPopulation        ::Basics.AbstractLevelPopulation  
-        ... to specify the kind of level population that is considered for the given opacity calculations.
-    + opacityDependence      ::Cascade.TemperatureOpacityDependence    
-        ... to specify the dependence of the opacities in terms of (the temperature-normalized) u]
-    + ionDensities           ::Array{Float64,1}      ... list of ion densities [in g/cm^3]
-    + temperatures           ::Array{Float64,1}      ... list of temperatures [in K]
-    + expansionTime          ::Float64               ... (expansion/observation) time [in sec]
-    + transitionEnergyShift  ::Float64     
-        ... (total) energy shifts that apply to all transition energies; the amplitudes are re-scaled accordingly.
-"""  
-struct  RosselandOpacities      <:  Cascade.AbstractSimulationProperty
+        Both means below carry the same units as kappa_nu itself, [cm^2/g].
+
+    + struct RosselandMean   ... the HARMONIC mean weighted by dB_nu/dT; use in the optically thick,
+                                 diffusion regime.
+    + struct PlanckMean      ... the ARITHMETIC mean weighted by B_nu; use in the optically thin,
+                                 emission regime.
+"""
+abstract type  AbstractOpacityMean      end
+
+
+"""
+`struct  Cascade.RosselandMean  <:  Cascade.AbstractOpacityMean`
+    ... the Rosseland mean opacity, defined by the HARMONIC average
+
+            1 / kappa_R  =  int (1/kappa_nu) (dB_nu/dT) dnu  /  int (dB_nu/dT) dnu
+
+        In the temperature-normalised variable u = omega/kT the normalised weight is
+        w(u) = 15/(4 pi^4) u^4 e^-u / (1 - e^-u)^2, whose prefactor is exact because
+        int_0^inf u^4 e^u/(e^u-1)^2 du = 4 Gamma(4) zeta(4) = 4 pi^4/15.
+
+        BECAUSE IT IS HARMONIC, THE ROSSELAND MEAN IS DOMINATED BY THE MOST TRANSPARENT FREQUENCIES --
+        radiation leaks through the windows between the lines. One consequence must be understood before
+        the number is used: if any bin of the spectral opacity is EMPTY, kappa_nu = 0 there and the mean is
+        exactly zero. That is physically correct, not a numerical artefact, and it means a Rosseland mean of
+        a bound-bound line list ALONE is meaningless -- a continuum floor (electron scattering, bound-free)
+        is required. Cascade.simulateMeanOpacities therefore reports the empty bins rather than returning a
+        number that merely looks usable.
+"""
+struct   RosselandMean          <:  Cascade.AbstractOpacityMean   end
+
+
+"""
+`struct  Cascade.PlanckMean  <:  Cascade.AbstractOpacityMean`
+    ... the Planck (emission) mean opacity, defined by the ARITHMETIC average
+
+            kappa_P  =  int kappa_nu B_nu dnu  /  int B_nu dnu
+
+        Being arithmetic it is dominated by the most OPAQUE frequencies, i.e. by the lines, and it stays
+        finite on an incomplete line list. It is the appropriate mean for optically thin emission, and it is
+        what was computed -- under the name "Rosseland" and with the Rosseland weight -- by every JAC version
+        before 14-Aug-2026.
+"""
+struct   PlanckMean             <:  Cascade.AbstractOpacityMean   end
+
+
+"""
+`abstract type  Cascade.AbstractOpacityContribution`
+    ... defines an abstract and a number of singleton types for the CONTRIBUTIONS that build up a spectral
+        opacity. Contributions are ADDITIVE, kappa_nu = sum over contributions, and each carries its own
+        physical assumptions in its docstring, so that a user reading the type sees what is being computed.
+        All contributions are mass opacities in [cm^2/g].
+
+    + struct BoundBoundOpacity   ... lines, in the Sobolev/expansion treatment.
+    + struct ScatteringOpacity   ... Thomson scattering off free electrons; frequency-independent.
+
+        NOT provided, deliberately rather than as a stub: bound-free and free-free. Adding them is the
+        natural next step and is what would make a Rosseland mean quantitatively comparable with published
+        opacities; see Cascade.RosselandMean for why a continuum contribution is needed at all.
+"""
+abstract type  AbstractOpacityContribution      end
+
+
+"""
+`struct  Cascade.BoundBoundOpacity  <:  Cascade.AbstractOpacityContribution`
+    ... the bound-bound (line) contribution in the Sobolev/expansion treatment of Eastman & Pinto,
+
+            kappa_nu^bb = 1/(rho c t_exp) * sum_lines (lambda_l/Delta-lambda) (1 - exp(-tau_l))
+
+        with the Sobolev optical depth tau_l = pi alpha n_l lambda_l t_exp f_l.
+
+        ASSUMPTIONS: a homologously expanding medium in which each line is a sharp resonance swept through
+        by the velocity gradient (Sobolev); LTE level populations; and a line list that is complete enough
+        for the chosen binning. The last is not a formality -- an empty bin means "no line in this bin", NOT
+        "no opacity", and it is what makes a Rosseland mean of lines alone vanish.
+
+    + levelPopulation  ::Basics.AbstractLevelPopulation
+        ... the level population used to obtain n_l; BoltzmannLevelPopulation() gives the LTE population of
+            the lower level, normalised by the partition function over the levels of the given line list.
+"""
+struct   BoundBoundOpacity      <:  Cascade.AbstractOpacityContribution
     levelPopulation          ::Basics.AbstractLevelPopulation
-    opacityDependence        ::Cascade.TemperatureOpacityDependence
-    ionDensities             ::Array{Float64,1}
-    temperatures             ::Array{Float64,1}
-    expansionTime            ::Float64
-    transitionEnergyShift    ::Float64
-end 
-
-
-"""
-`Cascade.RosselandOpacities()`  ... (simple) constructor for RosselandOpacities opacity simulations.
-"""
-function RosselandOpacities()
-    ## The name was doubled -- RosselandOpacitiesOpacities -- on BOTH the definition and the inner call
-    ## (corrected 12-Aug-2026).  The zero-argument constructor the docstring advertises therefore did not
-    ## exist, and the misnamed one could only have raised a MethodError on its own recursive call, since no
-    ## six-argument method of that name exists either.  Nothing called it, which is why it went unnoticed.
-    RosselandOpacities(Basics.BoltzmannLevelPopulation(), TemperatureOpacityDependence(0.01), [1.0], [1.0], 1.,  0.)
 end
 
 
-# `Base.show(io::IO, opacities::Cascade.RosselandOpacities)`  
-#   ... prepares a proper printout of opacities::Cascade.RosselandOpacities.
-function Base.show(io::IO, opacities::Cascade.RosselandOpacities) 
-    println(io, "levelPopulation:            $(opacities.levelPopulation)  ")
+"""
+`struct  Cascade.ScatteringOpacity  <:  Cascade.AbstractOpacityContribution`
+    ... the Thomson scattering contribution of free electrons,
+
+            kappa^sc = n_e sigma_T / rho ,      sigma_T = 6.6524587321e-25 cm^2
+
+        which is INDEPENDENT of frequency and therefore contributes the same value to every bin. It is small
+        beside a strong line, but it is the CONTINUUM FLOOR that makes a Rosseland mean well defined at all:
+        without it a single empty bin sends the harmonic mean to zero.
+
+        ASSUMPTIONS: non-relativistic, unpolarised Thomson scattering (kT << m_e c^2, i.e. T << 6e9 K), and
+        scattering treated as pure extinction. For a fully ionised hydrogen plasma n_e = rho/m_H and this
+        reduces to the textbook kappa_es = 0.20 (1 + X) = 0.40 cm^2/g, which is the cleanest known-answer
+        check available for any mean-opacity implementation.
+
+    + electronNumberDensity  ::Float64      ... free-electron number density n_e [in 1/cm^3]
+"""
+struct   ScatteringOpacity      <:  Cascade.AbstractOpacityContribution
+    electronNumberDensity    ::Float64
+end
+
+
+"""
+`struct  Cascade.MeanOpacities   <:  Cascade.AbstractSimulationProperty`
+    ... defines a type for simulating a MEAN opacity as function of the temperature or density as well as
+        (parametrically) the expansion time. Usually, different values are given for either the temperature
+        or density. A value::EmProperty in [cm^2/g] is reported for each (rho, T) pair.
+
+        This type replaces the former `RosselandOpacities` (14-Aug-2026), which had never been run: it took
+        only ONE density list, documented as a mass density, and derived a number density from it as
+        rho/1.6605e-24 -- i.e. one ion per nucleon mass, A = 1 for every element, wrong by roughly A. Both
+        densities are now carried explicitly, exactly as Cascade.ExpansionOpacities already does and for the
+        same reason. It also fixed the mean to a single formula that was in fact the arithmetic one; the
+        mean is now named, and is a field.
+
+    + opacityMean            ::Cascade.AbstractOpacityMean
+        ... the mean to be taken over the spectral opacity: RosselandMean() or PlanckMean().
+    + contributions          ::Array{Cascade.AbstractOpacityContribution,1}
+        ... what the spectral opacity is made of; the contributions are summed bin by bin. A list holding
+            only BoundBoundOpacity reproduces the pre-14-Aug-2026 behaviour, and cannot support a Rosseland
+            mean; adding ScatteringOpacity supplies the continuum floor that can.
+    + opacityDependence      ::Cascade.TemperatureOpacityDependence
+        ... to specify the dependence of the opacities in terms of (the temperature-normalized) u
+    + ionNumberDensities     ::Array{Float64,1}      ... list of ion NUMBER densities [in 1/cm^3]; enters tau_l
+    + massDensities          ::Array{Float64,1}      ... list of MASS densities [in g/cm^3]; enters 1/(rho c t)
+    + temperatures           ::Array{Float64,1}      ... list of temperatures [in K]
+    + expansionTime          ::Float64               ... (expansion/observation) time [in sec]
+    + transitionEnergyShift  ::Float64
+        ... (total) energy shifts that apply to all transition energies; the amplitudes are re-scaled accordingly.
+"""
+struct  MeanOpacities           <:  Cascade.AbstractSimulationProperty
+    opacityMean              ::Cascade.AbstractOpacityMean
+    contributions            ::Array{Cascade.AbstractOpacityContribution,1}
+    opacityDependence        ::Cascade.TemperatureOpacityDependence
+    ionNumberDensities       ::Array{Float64,1}
+    massDensities            ::Array{Float64,1}
+    temperatures             ::Array{Float64,1}
+    expansionTime            ::Float64
+    transitionEnergyShift    ::Float64
+end
+
+
+"""
+`Cascade.MeanOpacities()`  ... (simple) constructor for mean-opacity simulations.
+"""
+function MeanOpacities()
+    MeanOpacities(RosselandMean(), Cascade.AbstractOpacityContribution[ BoundBoundOpacity(Basics.BoltzmannLevelPopulation()) ],
+                  TemperatureOpacityDependence(0.01), [1.0e10], [1.0e-13], [5000.], 86400.,  0.)
+end
+
+
+# `Base.show(io::IO, opacities::Cascade.MeanOpacities)`
+#   ... prepares a proper printout of opacities::Cascade.MeanOpacities.
+function Base.show(io::IO, opacities::Cascade.MeanOpacities)
+    println(io, "opacityMean:                $(opacities.opacityMean)  ")
+    println(io, "contributions:              $(opacities.contributions)  ")
     println(io, "opacityDependence:          $(opacities.opacityDependence)  ")
-    println(io, "ionDensities:               $(opacities.ionDensities)  ")
-    println(io, "temperatures:               $(opacities.temperatures)  ")
-    println(io, "expansionTime:              $(opacities.expansionTime)  ")
+    println(io, "ionNumberDensities:         $(opacities.ionNumberDensities)  [1/cm^3]")
+    println(io, "massDensities:              $(opacities.massDensities)  [g/cm^3]")
+    println(io, "temperatures:               $(opacities.temperatures)  [K]")
+    println(io, "expansionTime:              $(opacities.expansionTime)  [sec]")
     println(io, "transitionEnergyShift:      $(opacities.transitionEnergyShift)  ")
 end
 
