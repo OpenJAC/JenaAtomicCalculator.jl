@@ -661,3 +661,117 @@ function testMethod_OrbitalOrthonormality(; short::Bool=true)
     testPrint("testMethod_OrbitalOrthonormality()::", success)
     return( success )
 end
+
+
+"""
+`TestFrames.testMethod_BreitInteraction(; short::Bool=true)`
+    ... asserts that the Breit interaction is computed with all of its tensorial parts present. Nothing else
+        in the suite does: no approved test exercises InteractionStrength.XL_Breit at all, so before this
+        method the Breit interaction could be broken outright without a single test noticing. Needs no
+        reference data -- every requirement below is either exact or a selection rule.
+
+        This is the check that would have caught the defect found on 14-Aug-2026. Commit 8f0930b gave
+        AngularMomentum.CL_reduced_me the parity selection rule it had genuinely been missing -- correct in
+        itself, and needed by the Coulomb, SMS and electric-multipole call sites -- but XL_Breit_coefficients
+        handed ONE angular prefactor to all four of its blocks, and they do not all want the same parity.
+        The 'T' block at nu = L is guarded by l_a+l_c+L ODD while the shared prefactor was now non-zero only
+        for EVEN; the two are mutually exclusive, so that block became unreachable. It carries the DOMINANT
+        magnetic term, and Gaunt came out a factor 3.3 too small for four days while the whole suite stayed
+        at 45/45. Four things are asserted:
+        (1) the two parities are COMPLEMENTARY -- of <kappa_a||C^L||kappa_c> and <-kappa_a||C^L||kappa_c>
+            exactly one is non-zero, and the non-zero one carries the full magnitude. Both branches are
+            needed, because the nu = L integrand is a.P * c.Q, LARGE component against SMALL;
+        (2) besselPhiPsi, on which both radial kernels rest, reproduces the elementary closed forms
+            phi_0 = sin(x)/x, psi_0 = cos(x), phi_1 = 3(sin(x)/x - cos(x))/x^2, psi_1 = cos(x) + x sin(x);
+        (3) for four 2p_3/2 orbitals at L = 1 every other block is vetoed by its own parity guard, so
+            X^1_Breit consists of exactly eight ('T', nu = 1) coefficients and must NOT vanish. This case
+            isolates the dominant magnetic term, and it was EXACTLY ZERO during the defect above;
+        (4) the frequency correction is quadratic in the factor of CoulombBreit(factor), as an O(omega^2)
+            retardation must be. A wrong kernel, a wrong power of omega or a mis-paired coefficient each
+            break the quadratic law.
+        Returns true if all four hold.
+"""
+function testMethod_BreitInteraction(; short::Bool=true)
+    success = true
+    printstyled("\n\nTest that the Breit interaction retains all of its tensorial parts: \n", color=:light_green)
+    printstyled(  "------------------------------------------------------------------- \n", color=:light_green)
+
+    ## (1) The even- and odd-parity reduced matrix elements must be complementary; XL_Breit_coefficients
+    ##     needs BOTH, since its 'T' block at nu = L wants l_a+l_c+L odd and every other block wants it even.
+    for  (sa, sc, L)  in  [ (Subshell("2p_3/2"), Subshell("2p_3/2"), 1), (Subshell("2p_3/2"), Subshell("2p_1/2"), 1),
+                            (Subshell("3d_5/2"), Subshell("3p_3/2"), 1), (Subshell("3p_3/2"), Subshell("3p_1/2"), 2),
+                            (Subshell("2p_1/2"), Subshell("2s_1/2"), 1) ]
+        even  = AngularMomentum.CL_reduced_me(sa, L, sc)
+        odd   = AngularMomentum.CL_reduced_me(Subshell(sa.n, -sa.kappa), L, sc)
+        isOdd = isodd( Basics.subshell_l(sa) + Basics.subshell_l(sc) + L )
+        wanted, other = isOdd ? (odd, even) : (even, odd)
+        if  abs(other) > 1.0e-10
+            success = false
+            println("  *** <$(string(sa))||C^$L||$(string(sc))>: the branch that the parity rule must " *
+                    "annihilate is non-zero ($other).")
+        end
+        if  abs(wanted) < 1.0e-10
+            success = false
+            println("  *** <$(string(sa))||C^$L||$(string(sc))>: BOTH parity branches vanish, so the Breit " *
+                    "operator loses this term entirely.")
+        end
+    end
+    println("  (1) The even- and odd-parity reduced matrix elements are complementary.")
+
+    ## (2) besselPhiPsi carries both radial kernels; check it against the elementary closed forms.
+    worst = 0.
+    for  x  in  [0.05, 0.5, 1.0, 2.0]
+        p0, q0 = InteractionStrength.besselPhiPsi(0, x)
+        p1, q1 = InteractionStrength.besselPhiPsi(1, x)
+        worst  = max( worst, abs(p0 - sin(x)/x), abs(q0 - cos(x)),
+                             abs(p1 - 3*(sin(x)/x - cos(x))/x^2), abs(q1 - (cos(x) + x*sin(x))) )
+    end
+    println("  (2) besselPhiPsi against phi_0, psi_0, phi_1, psi_1:  worst deviation = $worst ")
+    if  worst > 1.0e-12
+        success = false
+        println("  *** The normalised Bessel functions are wrong; both Breit radial kernels rest on them.")
+    end
+
+    ## (3) and (4) need one converged orbital set; Ne-like Fe is small and gives a Breit term of usable size.
+    grid = Radial.Grid(Radial.Grid(false); rnt = 2.0e-6, h = 5.0e-2, hp = 2.0e-2, rbox = 10.0)
+    mp   = SelfConsistent.performSCF([Configuration("1s^2 2s^2 2p^6")], Nuclear.Model(26.), grid,
+                                     AsfSettings(); printout=false)
+    orbs = mp.levels[1].basis.orbitals
+    p32  = orbs[Subshell("2p_3/2")];    s2 = orbs[Subshell("2s_1/2")]
+
+    ## (3) Four 2p_3/2 orbitals at L = 1: l_a+l_c+L = 3 is odd, so the nu = L-1, nu = L+1 and 'S' blocks are
+    ##     all vetoed and the dominant magnetic term stands alone.
+    xcList = InteractionStrength.XL_Breit_coefficients(1, p32, p32, p32, p32)
+    kinds  = unique([ (xc.kind, xc.nu) for xc in xcList ])
+    xValue = InteractionStrength.XL_Breit(1, p32, p32, p32, p32, grid, Basics.CoulombGaunt())
+    println("  (3) (2p_3/2)^4 at L = 1:  $(length(xcList)) coefficients, kinds = $kinds,  X^1_Breit = $xValue ")
+    if  kinds != [('T',1)]  ||  length(xcList) != 8
+        success = false
+        println("  *** This case no longer isolates the nu = L block, so it no longer tests what it is for.")
+    end
+    if  abs(xValue) < 1.0e-6
+        success = false
+        println("  *** The DOMINANT magnetic term of the Breit interaction has vanished. This is exactly " *
+                "the 10-Aug-2026 defect: a parity rule applied to an angular prefactor that the nu = L " *
+                "block needs in its OTHER parity.")
+    end
+
+    ## (4) The retardation enters at O(omega^2) and CoulombBreit(factor) scales omega, so the correction
+    ##     divided by factor^2 must be constant up to an O(factor^2) remainder.
+    v0     = InteractionStrength.XL_Breit(1, p32, p32, s2, s2, grid, Basics.CoulombBreit(0.))
+    ratios = Float64[]
+    for  f  in  [0.25, 0.5, 1.0]
+        vf = InteractionStrength.XL_Breit(1, p32, p32, s2, s2, grid, Basics.CoulombBreit(f))
+        push!( ratios, (vf - v0) / f^2 )
+    end
+    spread = (maximum(ratios) - minimum(ratios)) / abs( sum(ratios)/length(ratios) )
+    println("  (4) Frequency correction / factor^2 = $(round.(ratios, sigdigits=7)),  relative spread = $spread ")
+    if  spread > 1.0e-2
+        success = false
+        println("  *** The frequency correction is not quadratic in the factor of CoulombBreit(factor), so " *
+                "the retardation kernel, its power of omega or its coefficients are wrong.")
+    end
+
+    testPrint("testMethod_BreitInteraction()::", success)
+    return( success )
+end
