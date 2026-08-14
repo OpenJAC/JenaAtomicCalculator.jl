@@ -131,7 +131,7 @@ end
 """
 `struct  InternalConversion.Channel`
     ... one nuclear-multipolarity contribution to one internal-conversion line, mirroring
-        PhotoIonization.Channel (a rank-L operator couples initialLevel's symmetry to an
+        PhotoIonization.PartialWave (a rank-L operator couples initialLevel's symmetry to an
         INTERMEDIATE symmetry `symmetry` -- the total J/parity of the final-ion-plus-continuum-
         electron coupled state -- before that intermediate symmetry connects on to finalLevel; this
         differs from AutoIonization.Channel, whose rank-0 operator makes the coupled-state symmetry

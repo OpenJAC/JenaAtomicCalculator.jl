@@ -111,7 +111,7 @@ end
     + qFano               ::EmProperty      ... Fano-q parameter of a resonance (i-e-f)
     + excitChannels       ::Array{PhotoEmission.Channel,1}      ... List of excitation channels of this pathway.
     + augerChannels       ::Array{AutoIonization.Channel,1}     ... List of Auger channels of this pathway.
-    + photoChannels       ::Array{PhotoIonization.Channel,1}    ... List of photoionization channels of this pathway.
+    + photoChannels       ::Array{PhotoIonization.PartialWave,1} ... Partial waves of the photoionization step.
 """
 struct  Pathway
     initialLevel          ::Level
@@ -123,7 +123,7 @@ struct  Pathway
     qFano                 ::EmProperty 
     excitChannels         ::Array{PhotoEmission.Channel,1}  
     augerChannels         ::Array{AutoIonization.Channel,1}
-    photoChannels         ::Array{PhotoIonization.Channel,1}
+    photoChannels         ::Array{PhotoIonization.PartialWave,1}
 end 
 
 
@@ -134,7 +134,7 @@ end
 """
 function Pathway()
     Pathway(Level(), Level(), Level(), 0., 0., EmProperty(0., 0.), EmProperty(0., 0.), PhotoEmission.Channel[], 
-            AutoIonization.Channel[], PhotoIonization.Channel[] )
+            AutoIonization.Channel[], PhotoIonization.PartialWave[] )
 end
 
 
@@ -184,12 +184,20 @@ function  computeAmplitudesProperties(pathway::PhotoExcitationAutoion.Pathway, n
         push!( newaChannels, AutoIonization.Channel( aChannel.kappa, aChannel.symmetry, phase, amplitude))
     end
     # Compute all photoionization channels
-    newpChannels = PhotoIonization.Channel[]
-    for pChannel in pathway.photoChannels
-        ## amplitude   = PhotoIonization.amplitude("absorption", eChannel.multipole, eChannel.gauge, pathway.excitEnergy, 
-        ##                                         pathway.intermediateLevel, pathway.initialLevel, grid)
-        amplitude = 1.0im
-        push!( newpChannels, PhotoIonization.Channel( pChannel.multipole, pChannel.gauge, pChannel.kappa, pChannel.symmetry, pChannel.phase, amplitude))
+    ## The photoionization step now carries PARTIAL WAVES, each holding the channels of one kappa and, in
+    ## each channel, one amplitude per multipole holding both gauges.  The amplitude here is still the stub
+    ## 1.0im that this module has always used -- the real call is commented out two lines below, as it was.
+    newpChannels = PhotoIonization.PartialWave[]
+    for  pw in pathway.photoChannels
+        ## amplitude = PhotoIonization.amplitude("photoionization", ma.multipole, gauge, pw.kappa, pw.phase,
+        ##                                       pathway.excitEnergy, pathway.intermediateLevel, pathway.initialLevel, grid)
+        newChannels = PhotoIonization.Channel[]
+        for  ch in pw.channels
+            newAmps = MultipoleAmplitude[]
+            for  ma in ch.amplitudes    push!( newAmps, MultipoleAmplitude(ma.multipole, EmPropertyC(1.0im)) )    end
+            push!( newChannels, PhotoIonization.Channel(ch.symmetry, newAmps) )
+        end
+        push!( newpChannels, PhotoIonization.PartialWave(pw.kappa, pw.energy, pw.phase, newChannels) )
     end
     #
     partialCs = EmProperty(-1., -1.)

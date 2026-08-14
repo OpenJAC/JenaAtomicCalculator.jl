@@ -185,26 +185,6 @@ function Base.show(io::IO, settings::PhotoIonization.PlasmaSettings)
 end
 
 
-"""
-`struct  PhotoIonization.Channel`  
-    ... defines a type for a photoionization channel to help characterize a single multipole and scattering (continuum) state 
-        of many electron-states with a single free electron.
-
-    + multipole      ::EmMultipole          ... Multipole of the photon absorption.
-    + gauge          ::EmGauge              ... Gauge for dealing with the (coupled) radiation field.
-    + kappa          ::Int64                ... partial-wave of the free electron
-    + symmetry       ::LevelSymmetry        ... total angular momentum and parity of the scattering state
-    + phase          ::Float64              ... phase of the partial wave
-    + amplitude      ::Complex{Float64}     ... Photoionization amplitude associated with the given channel.
-"""
-struct  Channel
-    multipole        ::EmMultipole
-    gauge            ::EmGauge
-    kappa            ::Int64
-    symmetry         ::LevelSymmetry
-    phase            ::Float64
-    amplitude        ::Complex{Float64}
-end
 
 
 #####################################################################################################################
@@ -229,66 +209,42 @@ end
 
 
 """
-`struct  PhotoIonization.ChannelClaude`
+`struct  PhotoIonization.Channel`
     ... ONE asymptotic scattering state: the final ion plus a free electron, coupled to a total symmetry.
 
     + symmetry       ::LevelSymmetry                            ... total J^parity of the scattering state.
     + amplitudes     ::Array{MultipoleAmplitude,1}        ... one entry per contributing multipole.
 """
-struct  ChannelClaude
+struct  Channel
     symmetry         ::LevelSymmetry
     amplitudes       ::Array{MultipoleAmplitude,1}
 end
 
 
 """
-`struct  PhotoIonization.PartialWaveClaude`
+`struct  PhotoIonization.PartialWave`
     ... ONE partial wave of the free electron, and the channels it serves.
 
     + kappa          ::Int64                            ... partial wave of the free electron.
     + energy         ::Float64                          ... energy of the free electron.
     + phase          ::Float64                          ... scattering phase; a property of (energy, kappa).
-    + channels       ::Array{ChannelClaude,1}           ... the total symmetries this partial wave serves.
+    + channels       ::Array{Channel,1}           ... the total symmetries this partial wave serves.
 
         The radial orbital and the phase belong HERE, not to a channel: they do not depend on the total
         symmetry, which is precisely why one kappa can serve several of them.
 """
-struct  PartialWaveClaude
+struct  PartialWave
     kappa            ::Int64
     energy           ::Float64
     phase            ::Float64
-    channels         ::Array{ChannelClaude,1}
+    channels         ::Array{Channel,1}
 end
 
 
-"""
-`struct  Line`  ... defines a type for a photoionization line that may include the definition of channels.
-
-    + initialLevel   ::Level                  ... initial-(state) level
-    + finalLevel     ::Level                  ... final-(state) level
-    + electronEnergy ::Float64                ... Energy of the (outgoing free) electron.
-    + photonEnergy   ::Float64                ... Energy of the absorbed photon.
-    + crossSection   ::EmProperty             ... Cross section for this photoionization.
-    + angularBeta    ::EmProperty             ... beta -parameter for unpolarized targets with J=0, 1/2, 1
-    + coherentDelay  ::EmProperty             ... coherent time-delay due to the selected averaging of phases.
-    + incoherentDelay::EmProperty             ... incoherent time-delay due to the selected averaging of phases.
-    + channels       ::Array{PhotoIonization.Channel,1}  ... List of PhotoIonization.Channels of this line.
-"""
-struct  Line
-    initialLevel     ::Level
-    finalLevel       ::Level
-    electronEnergy   ::Float64
-    photonEnergy     ::Float64
-    crossSection     ::EmProperty
-    angularBeta      ::EmProperty
-    coherentDelay    ::EmProperty
-    incoherentDelay  ::EmProperty
-    channels         ::Array{PhotoIonization.Channel,1}
-end
 
 
 """
-`struct  PhotoIonization.LineClaude`
+`struct  PhotoIonization.Line`
     ... as PhotoIonization.Line, but carrying partial waves instead of flat channels; every other field is
         the same, so that retiring the flat form later is a deletion and a rename rather than a rewrite.
 
@@ -300,9 +256,9 @@ end
     + angularBeta    ::EmProperty                       ... beta_2 anisotropy parameter.
     + coherentDelay  ::EmProperty                       ... coherent time delay.
     + incoherentDelay::EmProperty                       ... incoherent time delay.
-    + partialWaves   ::Array{PartialWaveClaude,1}       ... partial waves, each with the channels it serves.
+    + partialWaves   ::Array{PartialWave,1}       ... partial waves, each with the channels it serves.
 """
-struct  LineClaude
+struct  Line
     initialLevel     ::Level
     finalLevel       ::Level
     electronEnergy   ::Float64
@@ -311,22 +267,12 @@ struct  LineClaude
     angularBeta      ::EmProperty
     coherentDelay    ::EmProperty
     incoherentDelay  ::EmProperty
-    partialWaves     ::Array{PartialWaveClaude,1}
-end
-
-
-"""
-`PhotoIonization.Line(initialLevel::Level, finalLevel::Level, crossSection::EmProperty)`  
-    ... constructor for an photoionization line between a specified initial and final level.
-"""
-function Line(initialLevel::Level, finalLevel::Level, crossSection::EmProperty)
-    Line(initialLevel, finalLevel, totalRate, 0., 0., crossSection, EmProperty(0.), EmProperty(0.), EmProperty(0.), 
-            EmProperty(0.), PhotoChannel[] )
+    partialWaves     ::Array{PartialWave,1}
 end
 
 
 # `Base.show(io::IO, line::PhotoIonization.Line)`  ... prepares a proper printout of the variable line::PhotoIonization.Line.
-function Base.show(io::IO, line::PhotoIonization.Line) 
+function Base.show(io::IO, line::PhotoIonization.Line)
     println(io, "initialLevel:      $(line.initialLevel)  ")
     println(io, "finalLevel:        $(line.finalLevel)  ")
     println(io, "electronEnergy:    $(line.electronEnergy)  ")
@@ -335,23 +281,33 @@ function Base.show(io::IO, line::PhotoIonization.Line)
     println(io, "angularBeta:       $(line.angularBeta)  ")
     println(io, "coherentDelay:     $(line.coherentDelay)  ")
     println(io, "incoherentDelay:   $(line.incoherentDelay)  ")
+    println(io, "partialWaves:      $(line.partialWaves)  ")
 end
 
 
+
+
+
+
 """
-`PhotoIonization.amplitude(kind::String, channel::PhotoIonization.Channel, omega::Float64, continuumLevel::Level, 
-                                initialLevel::Level, grid::Radial.Grid)`  
+`PhotoIonization.amplitude(kind::String, mp::EmMultipole, gauge::EmGauge, kappa::Int64, phase::Float64,
+                                omega::Float64, continuumLevel::Level, initialLevel::Level, grid::Radial.Grid)`
+
+    The gauge is passed EXPLICITLY rather than read off a channel: it is a representation of the interaction
+    operator, and since the retirement of the flat channel form it is no longer a label carried by any state.
+    kappa and the phase belong to the partial wave and are handed over as the numbers they are.  
     ... to compute the kind = (photoionization) amplitude  <(alpha_f J_f, epsilon kappa) J_t || O^(photoionization) || alpha_i J_i>  
         due to the electron-photon interaction for the given final and initial level, the partial wave of the outgoing 
         electron as well as the given multipole and gauge. A value::ComplexF64 is returned.
 """
-function amplitude(kind::String, channel::PhotoIonization.Channel, omega::Float64, continuumLevel::Level, initialLevel::Level, grid::Radial.Grid)
+function amplitude(kind::String, mp::EmMultipole, gauge::EmGauge, kappa::Int64, phase::Float64, omega::Float64,
+                    continuumLevel::Level, initialLevel::Level, grid::Radial.Grid)
     if      kind in [ "photoionization"]
     #-----------------------------------
-        amp = PhotoEmission.amplitude(Absorption(), channel.multipole, channel.gauge, omega, continuumLevel, initialLevel, grid, 
+        amp = PhotoEmission.amplitude(Absorption(), mp, gauge, omega, continuumLevel, initialLevel, grid,
                                         display=false, printout=false)
-        l         = Basics.subshell_l(Subshell(101, channel.kappa))
-        amplitude = (1.0im)^(-l) * exp( -im*channel.phase ) * amp
+        l         = Basics.subshell_l(Subshell(101, kappa))
+        amplitude = (1.0im)^(-l) * exp( -im*phase ) * amp
         
     else    error("stop b")
     end
@@ -399,188 +355,8 @@ function angularFunctionW(theta::Float64, L1::Int64, L2::Int64, X::Int64, lambda
 end
 
 
-"""
-`PhotoIonization.computeDisplayNonE1AngleDifferentialCS(stream::IO, lines::Array{PhotoIonization.Line,1}, 
-                                                        settings::PhotoIonization.Settings)`  
-    ... to compute & display the non-E1 angle-differential photoionization cross sections for all PhotoIonization.Line's 
-        and at all angles theta as defined in the settings. The general formula by Nishita Hosea (2025) is applied here.
-        A neat table is printed for each line but nothing is returned otherwise. 
-"""
-function computeDisplayNonE1AngleDifferentialCS(stream::IO, lines::Array{PhotoIonization.Line,1}, settings::PhotoIonization.Settings)
-    function spinDensityMatrix(lambda1::Int64, lambda2::Int64, stokes::ExpStokes)
-        # Convert the Stokes parameters of the incoming light into a spin-density matrix on the indices lambda = +-1
-        if      lambda1 == lambda2  == 1               return( (1.0 + stokes.P3)/2. )
-        elseif  lambda1 ==  1   &&   lambda2  == -1    return( (stokes.P1 - stokes.P1*im)/2. )
-        elseif  lambda1 == -1   &&   lambda2  ==  1    return( (stokes.P1 + stokes.P1*im)/2. )
-        elseif  lambda1 == lambda2  == -1              return( (1.0 - stokes.P3)/2. )
-        else    error("stop a")
-        end
-    end
-    #
-    angCS = Tuple{Float64, ComplexF64, ComplexF64}[]  # theta, angCs.Coulomb, angCs.Babushkin
-    nx = 50
-    # Define the 2x2 spin
-    # Loop about all lines; a table is printed independently for each line
-    for  line in lines
-        # Loop over all angles theta
-        for  theta in settings.thetas
-            #
-            # Loop twice about all channels but distinguish the two gauges
-            csCoulomb = 0.;   csBabushkin = 0.
-            for  cha in line.channels, chb in line.channels
-                if  cha.gauge == Basics.Coulomb  &&   chb.gauge == Basics.Babushkin   continue    end  
-                if  chb.gauge == Basics.Coulomb  &&   cha.gauge == Basics.Babushkin   continue    end
-                s1 = Subshell(20,cha.kappa);   j1 = Basics.subshell_j(s1)
-                s2 = Subshell(20,chb.kappa);   j2 = Basics.subshell_j(s2)                
-                for  X = 0:20  # Test for triangular conditions for X and continue otherwise
-                    if  AngularMomentum.isTriangle(cha.multipole.L, chb.multipole.L, X)             &&
-                        AngularMomentum.isTriangle(cha.symmetry.J,  chb.symmetry.J, AngularJ64(X) ) &&   
-                        AngularMomentum.isTriangle(j1,  j2, AngularJ64(X) )
-                        K = PhotoIonization.angularFunctionK(cha.multipole.L, chb.multipole.L, X, line.initialLevel.J, line.finalLevel.J,
-                                                             cha.kappa, cha.symmetry.J, chb.kappa, chb.symmetry.J)
-                        # Compute the summation over lambda's and mu's
-                        W = 0.
-                        for  lambda1 = -1:2:1,   lambda2 = -1:2:1,   mu = -1//2:1: 1//2
-                            W = W + spinDensityMatrix(lambda1, lambda2, settings.stokes) *
-                                    PhotoIonization.angularFunctionW(theta, cha.multipole.L, chb.multipole.L, X, lambda1, lambda2,
-                                                                     cha.kappa, mu, chb.kappa, mu) *
-                                    (1.0im)^(chb.multipole.L - cha.multipole.L) * (lambda1*lambda2) / 2. *
-                                     AngularMomentum.phaseMultipole(1.0im*lambda1, cha.multipole) *
-                                     AngularMomentum.phaseMultipole(1.0im*lambda2, chb.multipole)    
-                        end
-                        #
-                        if  cha.gauge != Basics.Coulomb     &&   chb.gauge != Basics.Coulomb 
-                            csBabushkin =  csBabushkin + K * W * cha.amplitude * conj(chb.amplitude)      end
-                        if  cha.gauge != Basics.Babushkin   &&   chb.gauge != Basics.Babushkin 
-                            csCoulomb   =  csCoulomb   + K * W * cha.amplitude * conj(chb.amplitude)      end
-                    end
-                end 
-            end
-            push!(angCS, (theta, csCoulomb, csBabushkin) ) 
-        end 
-        #
-        # Prepare and printout a table for the angle-differential cross sections
-        nx = 69;   symi = LevelSymmetry(line.initialLevel.J, line.initialLevel.parity)
-                   symf = LevelSymmetry(line.finalLevel.J, line.finalLevel.parity)
-        println(stream, " ")
-        println(stream, "  Non-E1 angle-differential cross sections for line:" *
-                        "  $(line.initialLevel.index) [$symi] -- $(line.finalLevel.index) [$symf] "    )
-        println(stream, " ")
-        println(stream, "  + Photon energy:   $(line.photonEnergy)    [Hartree]")
-        println(stream, "  + Multipoles:      $(settings.multipoles)")
-        println(stream, " ")
-        println(stream, "  ", TableStrings.hLine(nx))
-        sa = "  ";   sb = "  "
-        sa = sa * TableStrings.center(14, "theta" ; na=6);               
-        sb = sb * TableStrings.center(14, "[rad]" ; na=6)
-        sa = sa * TableStrings.center(44, "Coulomb -- cross sections -- Babushkin"; na=3);                        
-        sb = sb * TableStrings.center(44, "    [Mb]     "; na=3)
-        println(stream, sa);    println(stream, sb);    println(stream, "  ", TableStrings.hLine(nx)) 
-        for  cs in angCS
-            sa = "     " * @sprintf("%.2e", cs[1])      * "      "
-            sa = sa      * @sprintf("%.4e", cs[2].re)   * "  " * @sprintf("%.4e", cs[2].im)   * "    "
-            sa = sa      * @sprintf("%.4e", cs[3].re)   * "  " * @sprintf("%.4e", cs[3].im)
-            println(stream, sa)
-        end
-        println(stream, "  ", TableStrings.hLine(nx)) 
-        #   
-    end 
-    
-    return( nothing )
-end
 
 
-"""
-`PhotoIonization.computeAmplitudesProperties(line::PhotoIonization.Line, nm::Nuclear.Model, grid::Radial.Grid, nrContinuum::Int64,
-                                                    settings::PhotoIonization.Settings; printout::Bool=false,
-                                                    nuclearPot::Union{Nothing,Radial.Potential}=nothing,
-                                                    primitives::Union{Nothing,Bsplines.Primitives}=nothing)`
-    ... to compute all amplitudes and properties of the given line; a line::PhotoIonization.Line is returned for which the amplitudes and
-        properties are now evaluated. The two keywords carry quantities that are CONSTANT for a whole computation and are otherwise
-        rebuilt for every line and every partial wave: the nuclear potential depends only on the nuclear model and the grid, the
-        B-spline primitives only on the grid. Nothing is cached; omitting them reproduces the previous behaviour exactly.
-"""
-function  computeAmplitudesProperties(line::PhotoIonization.Line, nm::Nuclear.Model, grid::Radial.Grid, nrContinuum::Int64, 
-                                        settings::PhotoIonization.Settings; printout::Bool=false,
-                                        nuclearPot::Union{Nothing,Radial.Potential}=nothing,
-                                        primitives::Union{Nothing,Bsplines.Primitives}=nothing)
-    nChannels    = PhotoIonization.Channel[];   nxChannels    = PhotoIonization.Channel[];
-    contSettings = Continuum.Settings(false, nrContinuum);      csC = csB = dtC = dtB = 0.
-    ## The two symmetry-reduced levels depend on the line but not on the partial wave, and so are formed once
-    ## for the whole line rather than once per channel.
-    redILevel = Basics.generateLevelWithSymmetryReducedBasis(line.initialLevel, line.initialLevel.basis.subshells)
-    newfLevel = Basics.generateLevelWithSymmetryReducedBasis(line.finalLevel, redILevel.basis.subshells)
-
-    ## The continuum orbital depends on the electron ENERGY and KAPPA only -- not on the multipole or the
-    ## gauge, which a PhotoIonization.Channel also carries.  A run with two gauges therefore asked for every
-    ## orbital twice (measured: 42 channels, 21 distinct kappa), and with E1..M3 it would be more.  They are
-    ## generated once per kappa here and reused, exactly as ImpactExcitation does with its ciOrbitals /
-    ## cfOrbitals dictionaries.  The same holds for the initial level with its extra continuum subshell.
-    ## The dictionaries live for ONE line, so nothing is cached across lines and the threading is unaffected:
-    ## every thread computes its own line and owns its own dictionaries.
-    cOrbitals  = Dict{Subshell, Orbital}();    cPhases  = Dict{Subshell, Float64}()
-    cOrbitalsX = Dict{Subshell, Orbital}();    cPhasesX = Dict{Subshell, Float64}()   ## at electronEnergy + 0.01
-    iLevels    = Dict{Subshell, Level}()
-
-    for channel in line.channels
-        cSubshell = Subshell(101, channel.kappa)
-        if  !haskey(iLevels, cSubshell)
-            iLevels[cSubshell] = Basics.generateLevelWithExtraSubshell(cSubshell, redILevel)
-        end
-        newiLevel = iLevels[cSubshell]
-        if  !haskey(cOrbitals, cSubshell)
-            orb, ph = Continuum.generateOrbitalForLevel(line.electronEnergy, cSubshell, newfLevel, nm, grid,
-                                                        contSettings; nuclearPot=nuclearPot, primitives=primitives)
-            cOrbitals[cSubshell] = orb;    cPhases[cSubshell] = ph
-        end
-        cOrbital = cOrbitals[cSubshell];   phase = cPhases[cSubshell]
-        #
-        newcLevel  = Basics.generateLevelWithExtraElectron(cOrbital, channel.symmetry, newfLevel)
-        nChannel   = PhotoIonization.Channel(channel.multipole, channel.gauge, channel.kappa, channel.symmetry, phase, 0.)
-        amplitude  = PhotoIonization.amplitude("photoionization", nChannel, line.photonEnergy, newcLevel, newiLevel, grid)
-        push!( nChannels, PhotoIonization.Channel(nChannel.multipole, nChannel.gauge, nChannel.kappa, nChannel.symmetry, 
-                                                    nChannel.phase, amplitude) )
-        if       channel.gauge == Basics.Coulomb     csC = csC + abs(amplitude)^2
-        elseif   channel.gauge == Basics.Babushkin   csB = csB + abs(amplitude)^2
-        elseif   channel.gauge == Basics.Magnetic    csB = csB + abs(amplitude)^2;   csC = csC + abs(amplitude)^2
-        end
-        #
-        if  settings.calcTimeDelay
-            ## A DIFFERENT energy, so it needs its own cache -- not the one above.
-            if  !haskey(cOrbitalsX, cSubshell)
-                orbx, phx = Continuum.generateOrbitalForLevel(line.electronEnergy+0.01, cSubshell,
-                                                              newfLevel, nm, grid, contSettings;
-                                                              nuclearPot=nuclearPot, primitives=primitives)
-                cOrbitalsX[cSubshell] = orbx;    cPhasesX[cSubshell] = phx
-            end
-            cOrbitalx = cOrbitalsX[cSubshell];   phasex = cPhasesX[cSubshell]
-            newcLevelx = Basics.generateLevelWithExtraElectron(cOrbitalx, channel.symmetry, newfLevel)
-            nxChannel  = PhotoIonization.Channel(channel.multipole, channel.gauge, channel.kappa, channel.symmetry, phasex, 0.)
-            amplitude  = PhotoIonization.amplitude("photoionization", nxChannel, line.photonEnergy+0.01, newcLevelx, newiLevel, grid)
-            push!( nxChannels, PhotoIonization.Channel(nxChannel.multipole, nxChannel.gauge, nxChannel.kappa, nxChannel.symmetry, 
-                                                       nxChannel.phase, amplitude) )
-        end
-    end
-    Ji2 = Basics.twice(line.initialLevel.J)
-    csFactor     = 8 * pi^3 / Defaults.getDefaults("alpha") / line.photonEnergy
-    ##  csFactor     = csFactor / 2.   # Not fully clear, arises likely from the Rydberg normalization
-    ##  Correct for energy normalization 
-    ##  if  line.electronEnergy < 2.0   csFactor = csFactor * (line.electronEnergy/2.0)^1.5     end
-    crossSection = EmProperty(csFactor * csC, csFactor * csB)
-    if    settings.calcAnisotropy
-            angularBeta  = PhotoIonization.computeAngularBeta(line.initialLevel, line.finalLevel, nChannels)
-    else  angularBeta  = EmProperty(0.)
-    end
-    if    settings.calcTimeDelay
-          coherentDelay, incoherentDelay = PhotoIonization.computeTimeDelays(nChannels, nxChannels, 0.01, line.finalLevel.J)
-    else  coherentDelay = EmProperty(0.);     incoherentDelay = EmProperty(0.)
-    end
-    #
-    nLine = PhotoIonization.Line( line.initialLevel, line.finalLevel, line.electronEnergy, line.photonEnergy, 
-                                    crossSection, angularBeta, coherentDelay, incoherentDelay, nChannels)
-
-    return( nLine )
-end
 
 
 """
@@ -598,148 +374,57 @@ function  computeAmplitudesPropertiesPlasma(line::PhotoIonization.Line, nm::Nucl
                                             settings::PhotoIonization.PlasmaSettings, plasmaModel::Basics.AbstractPlasmaModel;
                                             nuclearPot::Union{Nothing,Radial.Potential}=nothing,
                                             primitives::Union{Nothing,Bsplines.Primitives}=nothing)
-    newChannels = PhotoIonization.Channel[];   contSettings = Continuum.Settings(false, grid.NoPoints-50);    csC = csB = 0.
+    contSettings = Continuum.Settings(false, grid.NoPoints-50);    cs = EmProperty(0., 0.)
     subshellList = Basics.generate(OrderedSubshellList(), line.finalLevel.basis, line.initialLevel.basis)
     ## Display-only; set once by the driver, not here.  See Defaults.setStandardSubshellList.
     ## As above: the two symmetry-reduced levels do not depend on the partial wave.
     redILevel = Basics.generateLevelWithSymmetryReducedBasis(line.initialLevel, subshellList)
     newfLevel = Basics.generateLevelWithSymmetryReducedBasis(line.finalLevel,   subshellList)
+    newPartialWaves = PhotoIonization.PartialWave[]
     #
-    for channel in line.channels
-        newiLevel = Basics.generateLevelWithExtraSubshell(Subshell(101, channel.kappa), redILevel)
-        cOrbital, phase  = Continuum.generateOrbitalForLevel(line.electronEnergy, Subshell(101, channel.kappa), newfLevel,
-                                                              nm, grid, contSettings, plasmaModel;
-                                                              nuclearPot=nuclearPot, primitives=primitives)
-        newcLevel  = Basics.generateLevelWithExtraElectron(cOrbital, channel.symmetry, newfLevel)
-        newChannel = PhotoIonization.Channel(channel.multipole, channel.gauge, channel.kappa, channel.symmetry, phase, 0.)
-        amplitude  = PhotoIonization.amplitude("photoionization", newChannel, line.photonEnergy, newcLevel, newiLevel, grid)
-        push!( newChannels, PhotoIonization.Channel(newChannel.multipole, newChannel.gauge, newChannel.kappa, newChannel.symmetry,
-                                                    newChannel.phase, amplitude) )
-        if       channel.gauge == Basics.Coulomb     csC = csC + abs(amplitude)^2
-        elseif   channel.gauge == Basics.Babushkin   csB = csB + abs(amplitude)^2
-        elseif   channel.gauge == Basics.Magnetic    csB = csB + abs(amplitude)^2;   csC = csC + abs(amplitude)^2
+    ## ONE continuum orbital per PARTIAL WAVE, as in computeAmplitudesProperties; the plasma model is the only
+    ## difference between the two, and it enters Continuum.generateOrbitalForLevel.
+    for  pw in line.partialWaves
+        cSubshell = Subshell(101, pw.kappa)
+        newiLevel = Basics.generateLevelWithExtraSubshell(cSubshell, redILevel)
+        cOrbital, phase = Continuum.generateOrbitalForLevel(line.electronEnergy, cSubshell, newfLevel,
+                                                            nm, grid, contSettings, plasmaModel;
+                                                            nuclearPot=nuclearPot, primitives=primitives)
+        newChannels = PhotoIonization.Channel[]
+        for  ch in pw.channels
+            newcLevel = Basics.generateLevelWithExtraElectron(cOrbital, ch.symmetry, newfLevel)
+            newAmps   = MultipoleAmplitude[]
+            for  ma in ch.amplitudes
+                mp = ma.multipole
+                if  string(mp)[1] == 'E'
+                    ampC = PhotoIonization.amplitude("photoionization", mp, Basics.Coulomb,   pw.kappa, phase,
+                                                      line.photonEnergy, newcLevel, newiLevel, grid)
+                    ampB = PhotoIonization.amplitude("photoionization", mp, Basics.Babushkin, pw.kappa, phase,
+                                                      line.photonEnergy, newcLevel, newiLevel, grid)
+                    amp  = EmPropertyC(ampC, ampB)
+                else
+                    ampM = PhotoIonization.amplitude("photoionization", mp, Basics.Magnetic,  pw.kappa, phase,
+                                                      line.photonEnergy, newcLevel, newiLevel, grid)
+                    amp  = EmPropertyC(ampM)
+                end
+                cs = cs + abs2(amp)
+                push!(newAmps, MultipoleAmplitude(mp, amp))
+            end
+            push!(newChannels, PhotoIonization.Channel(ch.symmetry, newAmps))
         end
+        push!(newPartialWaves, PhotoIonization.PartialWave(pw.kappa, line.electronEnergy, phase, newChannels))
     end
     Ji2 = Basics.twice(line.initialLevel.J)
     csFactor     = 4 * pi^2 * Defaults.getDefaults("alpha") * line.photonEnergy / (2*(Ji2 + 1))
-    crossSection = EmProperty(csFactor * csC, csFactor * csB)
+    crossSection = csFactor * cs
     newline = PhotoIonization.Line( line.initialLevel, line.finalLevel, line.electronEnergy, line.photonEnergy,
-                                    crossSection, EmProperty(0.), EmProperty(0.), EmProperty(0.), newChannels)
+                                    crossSection, EmProperty(0.), EmProperty(0.), EmProperty(0.), newPartialWaves)
     return( newline )
 end
 
 
-"""
-`PhotoIonization.computeAngularBeta(iLevel::Level, fLevel::Level, channels::Array{PhotoIonization.Channel,1})`  
-    ... to compute the beta anisotropy parameter for the photoionization transition i -> f with the given channels;
-        here, the formula from Balashov (1994, Eq. 2.135) has been utilized. A beta::EmProperty parameter is returned.
-        These (gauge-dependent) beta parameters are set to -9., if no amplitudes are calculated for the given gauge.
-"""
-function  computeAngularBeta(iLevel::Level, fLevel::Level, channels::Array{PhotoIonization.Channel,1})
-    wnC = wnB = waC = waB = 0.
-    for  ch in channels    
-        if  ch.multipole != E1   continue    end      # These beta parameters are valid only in E1 approximation
-        if       ch.gauge == Basics.Coulomb     wnC = wnC + conj(ch.amplitude) * ch.amplitude   
-        elseif   ch.gauge == Basics.Babushkin   wnB = wnB + conj(ch.amplitude) * ch.amplitude
-        else
-        end
-    end
-    Ji = iLevel.J;    Jf = fLevel.J;
-    for  ch  in channels
-        if  ch.multipole != E1   continue    end  # These beta parameters are valid only in E1 approximation
-        j = AngularMomentum.kappa_j(ch.kappa);    l = AngularMomentum.kappa_l(ch.kappa);   Jt = ch.symmetry.J
-        for  chp  in channels 
-            if  ch.gauge !=  chp.gauge    continue     end
-            jp = AngularMomentum.kappa_j(chp.kappa);    lp = AngularMomentum.kappa_l(chp.kappa);   Jtp = chp.symmetry.J
-            wa = AngularMomentum.phaseFactor([Jf, -1, Ji, -1, AngularJ64(1//2)]) *
-                    sqrt( AngularMomentum.bracket([Jt, Jtp, j, jp, l, lp]) ) *  
-                        AngularMomentum.ClebschGordan(l, AngularM64(0), lp, AngularM64(0), AngularJ64(2), AngularM64(0)) *
-                        AngularMomentum.Wigner_6j(j, l, AngularJ64(1//2), lp, jp, AngularJ64(2)) * 
-                        AngularMomentum.Wigner_6j(j, Jt, Jf, Jtp, jp, AngularJ64(2)) * 
-                        AngularMomentum.Wigner_6j(AngularJ64(1), Jt, Ji, Jtp, AngularJ64(1), AngularJ64(2)) * 
-                        ch.amplitude * conj(chp.amplitude)
-            if      chp.gauge == Basics.Coulomb      waC = waC + wa
-            elseif  chp.gauge == Basics.Babushkin    waB = waB + wa
-            else    error("stop a")
-            end
-        end    
-    end
-    
-    if  wnC == 0.   waC = ComplexF64(-9.0)    else    waC = sqrt(6.0) * waC / wnC      end
-    if  wnB == 0.   waB = ComplexF64(-9.0)    else    waB = sqrt(6.0) * waB / wnB      end
-        
-    return( EmProperty(waC.re, waB.re) )
-end
 
 
-"""
-`PhotoIonization.computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, nm::Nuclear.Model, grid::Radial.Grid, 
-                                    settings::PhotoIonization.Settings; output::Bool=true)`  
-    ... to compute the photoIonization transition amplitudes and all properties as requested by the given settings. 
-        A list of lines::Array{PhotoIonization.Lines} is returned.
-"""
-function  computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, nm::Nuclear.Model, grid::Radial.Grid,
-                        settings::PhotoIonization.Settings; output::Bool=true)
-    if  settings.calcBiorthogonal
-        initialMultiplet, finalMultiplet = BiOrthogonal.computeTransformation(initialMultiplet, finalMultiplet, grid)
-    end
-    printSummary, iostream = Defaults.getDefaults("summary flag/stream")
-
-    println("")
-    printstyled("PhotoIonization.computeLines(): The computation of photo-ionization and properties starts now ... \n", color=:light_green)
-    printstyled("------------------------------------------------------------------------------------------------- \n", color=:light_green)
-    println("")
-    lines = PhotoIonization.determineLines(finalMultiplet, initialMultiplet, settings)
-    ## Display-only and the same for every line; set ONCE per computation, never from inside the line loop.
-    Defaults.setStandardSubshellList(Basics.generate(OrderedSubshellList(), finalMultiplet.levels[1].basis,
-                                                     initialMultiplet.levels[1].basis); printout=false)
-    # Display all selected lines before the computations start
-    if  settings.printBefore    PhotoIonization.displayLines(stdout, lines)    end
-    # Determine maximum energy and check for consistency of the grid
-    maxEnergy = 0.;   for  line in lines   maxEnergy = max(maxEnergy, line.electronEnergy)   end
-    nrContinuum = Continuum.gridConsistency(maxEnergy, grid)
-    # Calculate all amplitudes and requested properties
-    ## Both are built ONCE for the whole computation and handed down to every line and every partial wave: the
-    ## nuclear potential depends only on the nuclear model and the grid, the B-spline basis only on the grid --
-    ## and the grid is fixed here, since Continuum.gridConsistency above is called once for the maximum energy.
-    ## Both are READ-ONLY below and are therefore shared safely across the threads.
-    nuclearPot = Nuclear.nuclearPotential(nm, grid)
-    primitives = Bsplines.generatePrimitives(grid)
-    ## The lines are independent, so they are computed in parallel; start julia with `julia -t N` to use it,
-    ## and with one thread this behaves exactly as the serial loop did.  Results are written BY INDEX into a
-    ## preallocated vector rather than push!-ed: push! is not thread-safe, and indexing preserves the line
-    ## order that the display and the cross-section tables rely on.  For the residual, benign display-only
-    ## race, see the note in PhotoRecombination.computeLines.
-    newLines = Vector{PhotoIonization.Line}(undef, length(lines))
-    doPrint  = Threads.nthreads() == 1      ## interleaved per-line printout would be unreadable
-    Threads.@threads for  i  in  eachindex(lines)
-        if  doPrint
-            println("\n>> Calculate photoionization amplitudes and properties for line: " *
-                    "$(lines[i].initialLevel.index) - $(lines[i].finalLevel.index) " *
-                    "for the photon energy $(Defaults.convertUnits("energy: from atomic", lines[i].photonEnergy)) " *
-                    Defaults.GBL_ENERGY_UNIT)
-        end
-        newLines[i] = PhotoIonization.computeAmplitudesProperties(lines[i], nm, grid, nrContinuum, settings;
-                                                                  nuclearPot=nuclearPot, primitives=primitives)
-    end
-    # Print all results to screen
-    PhotoIonization.displayPhases(newLines)
-    PhotoIonization.displayResults(stdout, newLines, settings)
-    ## PhotoIonization.displayTimeDelay(stdout, newLines, settings)
-    if  printSummary   PhotoIonization.displayResults(iostream, newLines, settings)     
-                        ## PhotoIonization.displayTimeDelay(iostream, newLines, settings)    
-    end
-    #
-    # Add printout about non-E1 angle-differential cross sections, if required
-    if  settings.calcNonE1AngleDifferentialCS
-        PhotoIonization.computeDisplayNonE1AngleDifferentialCS(stdout, newLines, settings)
-    end
-    #
-    #
-    if    output    return( newLines )
-    else            return( nothing )
-    end
-end
 
 
 
@@ -837,244 +522,17 @@ end
 
 
 
-"""
-`PhotoIonization.computePartialCrossSectionUnpolarized(gauge::EmGauge, Mf::AngularM64, line::PhotoIonization.Line)`
-    ... to compute the partial photoionization cross section for initially unpolarized atoms by unpolarized plane-wave photons.
-        A value::Float64 is returned.
-
-    NOT TESTED, AND NOT TO BE TRUSTED UNTIL IT IS.  Mark set 14-Aug-2026; TEST THIS BEFORE USING IT AGAIN.
-    Two things are known to be wrong with it and neither has ever been exercised by an example or a test:
-
-      (1) It raises a DomainError on every call.  `1.0im^(L - Lp)` below parses as 1.0 * (im^n) with
-          im::Complex{Bool}, which cannot take a COMPUTED negative exponent -- a LITERAL -1 is special-cased by
-          Base.literal_pow, a computed one is not.  Writing `(1.0im)^(L - Lp)` fixes it and changes no value;
-          that was verified exhaustively when the same trap was removed from module-PhotoEmission.jl (8bf17cb).
-          So this function is probably one parenthesis away from running.
-      (2) The inner loop tests the OUTER channel's gauge: `gauge != cha.gauge` where chp is meant.  The outer
-          loop has already fixed that condition, so the test excludes nothing and Coulomb amplitudes are
-          multiplied with Babushkin ones.  computeAngularBeta has the same construction right.
-
-    Fixing (1) makes (2) measurable, at which point the function needs a physics verdict against a reference
-    rather than a repair by inspection.  computePartialCrossSectionUnpolarizedClaude reproduces the angular
-    algebra without either fault -- the gauge cannot mix there by construction -- and is the natural thing to
-    compare against once a reference exists.
-"""
-function  computePartialCrossSectionUnpolarized(gauge::EmGauge, Mf::AngularM64, line::PhotoIonization.Line)
-    # Define an internal Racah expression for the summation over t, lambda
-    function Racahexpr(kappa::Int64, Ji::AngularJ64, Jf::AngularJ64, Mf::AngularM64, J::AngularJ64, Jp::AngularJ64, 
-                        L::Int64, Lp::Int64, p::Int64, pp::Int64)
-        # Determine the allowed values of t
-        t1 = Basics.oplus( AngularJ64(Lp), Jf);    t2 = Basics.oplus( AngularJ64(L), Jf);    tList = intersect(t1, t2)
-        wb = 0.
-        for  t  in tList
-            for  lambda = -1:2:1
-                j = AngularMomentum.kappa_j(kappa);   Mf_lambda = Basics.add(AngularM64(lambda), Mf)
-                wb = wb + (1.0im * lambda)^p * (-1.0im * lambda)^pp * 
-                        AngularMomentum.ClebschGordan( AngularJ64(Lp), AngularM64(lambda), Jf, Mf, t, Mf_lambda) *
-                        AngularMomentum.ClebschGordan( AngularJ64(L),  AngularM64(lambda), Jf, Mf, t, Mf_lambda) *
-                        AngularMomentum.Wigner_9j(j, Jp, Jf, J, Ji, AngularJ64(L), Jf, AngularJ64(Lp), t)
-            end
-        end
-        
-        return( wb )
-    end
-    
-        wa = 0.0im;    Ji = line.initialLevel.J;    Jf = line.finalLevel.J;
-    kappaList = PhotoIonization.getLineKappas(line)
-    for  kappa in kappaList
-        for  cha  in line.channels
-            if  kappa != cha.kappa  ||  (gauge != cha.gauge  &&  gauge != Basics.Magnetic)   continue    end
-            J = cha.symmetry.J;    L = cha.multipole.L;    if  cha.multipole.electric   p = 1   else    p = 0   end
-            for  chp  in line.channels  
-                if  kappa != chp.kappa  ||  (gauge != cha.gauge  &&  gauge != Basics.Magnetic)    continue    end
-                Jp = chp.symmetry.J;    Lp = chp.multipole.L;    if  chp.multipole.electric   pp = 1   else    pp = 0   end
-                wa = wa + 1.0im^(L - Lp) * (-1)^(L + Lp) * AngularMomentum.bracket([AngularJ64(L), AngularJ64(Lp), J, Jp]) *  
-                        Racahexpr(kappa, Ji, Jf, Mf, J, Jp, L, Lp, p, pp) * cha.amplitude * conj(chp.amplitude)
-            end
-        end
-    end
-    csFactor = 8 * pi^3 * Defaults.getDefaults("alpha") / (2*line.photonEnergy * (Basics.twice(Ji) + 1))
-    wa       = csFactor * wa
-
-    return( wa )
-end
 
 
 
-"""
-`PhotoIonization.computeStatisticalTensorUnpolarized(k::Int64, q::Int64, gauge::EmGauge, line::PhotoIonization.Line, 
-                                                            settings::PhotoIonization.Settings)`  
-    ... to compute the statistical tensor of the photoion in its final level after the photoionization of initially unpolarized atoms
-        by plane-wave photons with given Stokes parameters (density matrix). A value::ComplexF64 is returned.
-
-    NOT TESTED, AND NOT TO BE TRUSTED UNTIL IT IS.  Mark set 14-Aug-2026; TEST THIS BEFORE USING IT AGAIN.
-    It carries EXACTLY the two faults described at computePartialCrossSectionUnpolarized above, in the same
-    order: `1.0im^(L - Lp + p - pp)` raises a DomainError for a computed negative exponent, and the inner loop
-    tests `cha.gauge` where `chp.gauge` is meant, so the two gauges are multiplied together. Neither has ever
-    been exercised by an example or a test. computeStatisticalTensorUnpolarizedClaude is the comparison to make
-    once the first is fixed and a reference exists.
-"""
-function  computeStatisticalTensorUnpolarized(k::Int64, q::Int64, gauge::EmGauge, line::PhotoIonization.Line, 
-                                                settings::PhotoIonization.Settings)
-    wa = 0.0im;    Ji = line.initialLevel.J;    Jf = line.finalLevel.J   
-    kappaList = PhotoIonization.getLineKappas(line);    P1 = settings.stokes.P1;   P2 = settings.stokes.P2;   P3 = settings.stokes.P3
-    for  kappa in kappaList
-        j = AngularMomentum.kappa_j(kappa)
-        for  cha  in line.channels
-            if  kappa != cha.kappa  ||  (gauge != cha.gauge  &&  gauge != Basics.Magnetic)   continue    end
-            J = cha.symmetry.J;    L = cha.multipole.L;    if  cha.multipole.electric   p = 1   else    p = 0   end
-            for  chp  in line.channels  
-                if  kappa != chp.kappa  ||  (gauge != cha.gauge  &&  gauge != Basics.Magnetic)    continue    end
-                Jp = chp.symmetry.J;    Lp = chp.multipole.L;    if  chp.multipole.electric   pp = 1   else    pp = 0   end
-                #
-                for  lambda = -1:2:1
-                    for  lambdap = -1:2:1
-                        if  lambda == lambdap   wb = (1.0 + 0.0im +lambda*P3)    else    wb = P1 - lambda * P2 * im    end
-                        wa = wa + wb * 1.0im^(L - Lp + p - pp) * lambda^p * lambdap^pp *
-                                sqrt( AngularMomentum.bracket([AngularJ64(L), AngularJ64(Lp), J, Jp]) ) *  
-                                AngularMomentum.phaseFactor([J, +1, Jp, +1, Jf, +1, Ji, +1, j, +1, AngularJ64(1)]) *
-                                AngularMomentum.ClebschGordan( AngularJ64(L),  AngularM64(lambda), AngularJ64(Lp),  AngularM64(-lambda), 
-                                                                AngularJ64(k),  AngularM64(q)) *
-                                AngularMomentum.Wigner_6j(Jf, j, Jp, J, AngularJ64(k), Jf) * 
-                                AngularMomentum.Wigner_6j(Jp, Ji, AngularJ64(Lp), AngularJ64(L), AngularJ64(k), J) * 
-                                cha.amplitude * conj(chp.amplitude)
-                    end
-                end
-            end
-        end
-    end
-    
-    wa = pi / (Basics.twice(Ji) + 1) * wa
-    return( wa )
-end
 
 
-"""
-`PhotoIonization.computeTimeDelays(channels::Array{PhotoIonization.Channel,1}, xchannels::Array{PhotoIonization.Channel,1}, 
-                                    deltaE::Float64, Jf::AngularJ64)`  
-    ... to compute the -- coherent and incoherent -- time delay from the channels as calculated for two neighboured photon 
-        energies (deltaE = xE - E). Two tuple of two time delays (coherentDelay::EmProperty, incoherentDelay::EmProperty)
-        is returned.
-"""
-function  computeTimeDelays(channels::Array{PhotoIonization.Channel,1}, xchannels::Array{PhotoIonization.Channel,1}, 
-                            deltaE::Float64, Jf::AngularJ64)
-    #== Calculate the coherent and incorent time delays separately; start with the coherent delays.
-    # First attempt
-    MeffC = MeffCx = MeffB = MeffBx = ComplexF64(0.)
-    for  ch in channels
-        if       ch.gauge == Basics.Coulomb     MeffC  = MeffC  + ch.amplitude
-        elseif   ch.gauge == Basics.Babushkin   MeffB  = MeffB  + ch.amplitude
-        end
-    end
-    for  ch in xchannels
-        if       ch.gauge == Basics.Coulomb     MeffCx = MeffCx + ch.amplitude
-        elseif   ch.gauge == Basics.Babushkin   MeffBx = MeffBx + ch.amplitude
-        end
-    end
-    DeffC = angle(MeffC);    DeffCx = angle(MeffCx);    DeffB = angle(MeffB);    DeffBx = angle(MeffBx)
-    coherentDelay = EmProperty( (DeffCx - DeffC) / deltaE,  - (DeffBx - DeffB) / deltaE )
-    #
-    # Calculate the coherent time delays
-    # Second attempt
-    nomTauC = denTauC = nomTauB = denTauB= ComplexF64(0.)
-    for  (ic, ch) in  enumerate(channels)
-        @show  "***", ch.gauge, ch.amplitude, xchannels[ic].amplitude, (xchannels[ic].amplitude - ch.amplitude) / deltaE
-        if       ch.gauge == Basics.Coulomb                 
-            nomTauC = nomTauC + conj(ch.amplitude) * (xchannels[ic].amplitude - ch.amplitude) / deltaE
-            denTauC = denTauC + conj(ch.amplitude) * ch.amplitude
-        elseif   ch.gauge == Basics.Babushkin
-            nomTauB = nomTauB + conj(ch.amplitude) * (xchannels[ic].amplitude - ch.amplitude) / deltaE
-            denTauB = denTauB + conj(ch.amplitude) * ch.amplitude
-        end
-    end
-    @warn "Multiply coherentTauC by 20. for mean energy calibration !!!"
-    coherentTauC = -im * nomTauC / denTauC / deltaE * 20.;   coherentTauB = im * nomTauB / denTauB
-    @show coherentTauC, coherentTauB
-    coherentDelay = EmProperty( coherentTauC.im, coherentTauB.im )    ==#
-    #
-    # Calculate the coherent time delays
-    # Third attempt, explicit derivation by Nikolay, April 2024
-    ## @warn "l0 = 1 ... for p_1/2, 3/2 splitting"
-    @warn "l0 = 2 ... for d_3/2, 5/2 splitting"
-    ampC = ampCx = ampB = ampBx = ComplexF64(0.)
-    for  (ic, ch) in  enumerate(channels)
-        j  = AngularMomentum.kappa_j(ch.kappa);   l  = AngularMomentum.kappa_l(ch.kappa);   l0 = AngularJ64(2);   Jc = Jf
-        ## factor = (1.0im)^( Basics.twice(l)/2 ) * sqrt(3/(4pi))  * AngularMomentum.phaseFactor([j, +1, l, +1, AngularJ64(1//2)]) *
-        factor = sqrt(3/(4pi))  * AngularMomentum.phaseFactor([j, +1, l, +1, AngularJ64(1//2)]) *
-                 AngularMomentum.ClebschGordan( l0, AngularM64(0), AngularJ64(1), AngularM64(0), l,  AngularM64(0)) *
-                 sqrt(Basics.twice(j)+1) * AngularMomentum.Wigner_6j(Jc, AngularJ64(1//2), l0, l, AngularJ64(1), j)
-        if       ch.gauge == Basics.Coulomb
-            ampC  = ampC  + factor * ch.amplitude
-            ampCx = ampCx + factor * xchannels[ic].amplitude
-        elseif   ch.gauge == Basics.Babushkin
-            ampB  = ampB  + factor * ch.amplitude
-            ampBx = ampBx + factor * xchannels[ic].amplitude
-        end
-    end
-    coherentTauC = (ampCx - ampC) / deltaE / ampC  
-    coherentTauB = (ampBx - ampB) / deltaE / ampB
-    ## phiEffB      = log(ampB);       phiEffBx = log(ampBx);    coherentTaulnB = (phiEffBx.re - phiEffB.re) / deltaE
-    coherentDelay = EmProperty( coherentTauC.im, coherentTauB.im )
-    #
-    println("\n\nChannel amplitudes M_lj for photon energy: \n")
-    for channel in channels
-        println("   $(Subshell(11, channel.kappa))   $(channel.gauge)     phase=$(channel.phase)    M_lj=$(channel.amplitude) ")
-    end
-    # Incoherent time delays
-    nomDeffC = nomDeffCx = nomDeffB = nomDeffBx = 0.
-    denDeffC = denDeffCx = denDeffB = denDeffBx = 0.
-    for  ch in channels
-        if       ch.gauge == Basics.Coulomb     nomDeffC  = nomDeffC  + abs(ch.amplitude)^2 * ch.phase
-                                                denDeffC  = denDeffC  + abs(ch.amplitude)^2
-        elseif   ch.gauge == Basics.Babushkin   nomDeffB  = nomDeffB  + abs(ch.amplitude)^2 * ch.phase
-                                                denDeffB  = denDeffB  + abs(ch.amplitude)^2
-        end
-    end
-    for  ch in xchannels
-        if       ch.gauge == Basics.Coulomb     nomDeffCx = nomDeffCx + abs(ch.amplitude)^2 * ch.phase
-                                                denDeffCx = denDeffCx + abs(ch.amplitude)^2
-        elseif   ch.gauge == Basics.Babushkin   nomDeffBx = nomDeffBx + abs(ch.amplitude)^2 * ch.phase
-                                                denDeffBx = denDeffBx + abs(ch.amplitude)^2
-        end
-    end
-    DeffC  = nomDeffC  / denDeffC;     DeffB  = nomDeffB  / denDeffB
-    DeffCx = nomDeffCx / denDeffCx;    DeffBx = nomDeffBx / denDeffBx
-    incoherentDelay = EmProperty( (DeffCx - DeffC) / deltaE,  (DeffBx - DeffB) / deltaE )
-    
-    return( coherentDelay, incoherentDelay)
-end
 
 
-"""
-`PhotoIonization.determineChannels(finalLevel::Level, initialLevel::Level, settings::PhotoIonization.Settings)`  
-    ... to determine a list of photoionization Channel for a transitions from the initial to final level and by taking into account 
-        the particular settings of for this computation; an Array{PhotoIonization.Channel,1} is returned.
-"""
-function determineChannels(finalLevel::Level, initialLevel::Level, settings::PhotoIonization.Settings)
-    channels = PhotoIonization.Channel[];   
-    symi = LevelSymmetry(initialLevel.J, initialLevel.parity);    symf = LevelSymmetry(finalLevel.J, finalLevel.parity) 
-    if  Basics.UseCoulomb  in  settings.gauges   gaugeM = Basics.UseCoulomb    else   gaugeM = Basics.UseBabushkin    end
-    for  mp in settings.multipoles
-        symList = AngularMomentum.allowedMultipoleSymmetries(symi, mp)
-        for  symt in symList
-            kappaList = AngularMomentum.allowedKappaSymmetries(symt, symf)
-            for  kappa in kappaList
-                if  !(Basics.subshell_l(Subshell(10,kappa)) in  settings.lValues)    continue     end
-                for  gauge in settings.gauges
-                    # Include further restrictions if appropriate
-                    if     string(mp)[1] == 'E'  &&   gauge == Basics.UseCoulomb      
-                        push!(channels, PhotoIonization.Channel(mp, Basics.Coulomb,   kappa, symt, 0., Complex(0.)) )
-                    elseif string(mp)[1] == 'E'  &&   gauge == Basics.UseBabushkin    
-                        push!(channels, PhotoIonization.Channel(mp, Basics.Babushkin, kappa, symt, 0., Complex(0.)) )  
-                    elseif string(mp)[1] == 'M'  &&   gauge == gaugeM                               
-                        push!(channels, PhotoIonization.Channel(mp, Basics.Magnetic,  kappa, symt, 0., Complex(0.)) ) 
-                    end 
-                end
-            end
-        end
-    end
-    return( channels )  
-end
+
+
+
+
 
 
 
@@ -1083,631 +541,20 @@ end
 
 
 """
-`PhotoIonization.flatChannelsClaude(partialWaves::Array{PhotoIonization.PartialWaveClaude,1})`
-    ... converts partial waves back into the flat Array{PhotoIonization.Channel,1}; the bridge that lets a
-        LineClaude be handed to anything still written against the flat form.
+`PhotoIonization.displayLineData(stream::IO, lines::Array{PhotoIonization.Line,1})`
+`PhotoIonization.displayLines(lines::Array{PhotoIonization.Line,1})`
+`PhotoIonization.displayPhases(lines::Array{PhotoIonization.Line,1})`
+`PhotoIonization.displayTotalCrossSections(stream::IO, lines::Array{PhotoIonization.Line,1}, settings)`
+`PhotoIonization.displayResults(stream::IO, lines::Array{PhotoIonization.Line,1}, settings)`
+    ... the display layer.  These are the tables that were printed before the flat channel form was retired,
+        reading partial waves instead of channels.
 
-        One physical amplitude becomes TWO flat channels for an electric multipole (one per gauge) and ONE
-        for a magnetic one -- which is exactly the redundancy the flat form carries and the reason
-        determineChannels produces 42 channels where there are 21 partial waves.
-"""
-function flatChannelsClaude(partialWaves::Array{PhotoIonization.PartialWaveClaude,1})
-    channels = PhotoIonization.Channel[]
-    for  pw in partialWaves,  ch in pw.channels,  ma in ch.amplitudes
-        if  string(ma.multipole)[1] == 'E'
-            push!(channels, PhotoIonization.Channel(ma.multipole, Basics.Coulomb,   pw.kappa, ch.symmetry,
-                                                    pw.phase, ma.amplitude.Coulomb))
-            push!(channels, PhotoIonization.Channel(ma.multipole, Basics.Babushkin, pw.kappa, ch.symmetry,
-                                                    pw.phase, ma.amplitude.Babushkin))
-        else
-            push!(channels, PhotoIonization.Channel(ma.multipole, Basics.Magnetic,  pw.kappa, ch.symmetry,
-                                                    pw.phase, ma.amplitude.Coulomb))
-        end
-    end
-    return( channels )
-end
-
-
-"""
-`PhotoIonization.flatLineClaude(line::PhotoIonization.LineClaude)`
-    ... converts a LineClaude into the flat PhotoIonization.Line, carrying every other field across unchanged.
-"""
-function flatLineClaude(line::PhotoIonization.LineClaude)
-    return( PhotoIonization.Line(line.initialLevel, line.finalLevel, line.electronEnergy, line.photonEnergy,
-                                 line.crossSection, line.angularBeta, line.coherentDelay, line.incoherentDelay,
-                                 PhotoIonization.flatChannelsClaude(line.partialWaves)) )
-end
-
-
-"""
-`PhotoIonization.displayLinesClaude(lines::Array{PhotoIonization.LineClaude,1})`
-`PhotoIonization.displayLineDataClaude(stream::IO, lines::Array{PhotoIonization.LineClaude,1})`
-`PhotoIonization.displayPhasesClaude(stream::IO, lines::Array{PhotoIonization.LineClaude,1})`
-`PhotoIonization.displayTotalCrossSectionsClaude(stream::IO, lines::Array{PhotoIonization.LineClaude,1}, settings)`
-`PhotoIonization.displayResultsClaude(stream::IO, lines::Array{PhotoIonization.LineClaude,1}, settings)`
-    ... the display layer for the physical form. Each converts through flatLineClaude and delegates to its
-        existing counterpart, so the printed output is IDENTICAL BY CONSTRUCTION rather than by inspection --
-        which is what makes an end-to-end comparison of the two paths meaningful.
-
-        This is deliberately a delegation and not a translation. A table is presentation, and rewriting five
-        of them by hand would risk differences that say nothing about the structure being tested. Native
-        versions can replace the delegation later; displayPhases is the one that would gain most, since a
-        phase belongs to a partial wave and the flat form repeats it on every channel of that kappa.
-"""
-function displayLinesClaude(lines::Array{PhotoIonization.LineClaude,1})
-    return( PhotoIonization.displayLines([PhotoIonization.flatLineClaude(l) for l in lines]) )
-end
-
-function displayLineDataClaude(stream::IO, lines::Array{PhotoIonization.LineClaude,1})
-    return( PhotoIonization.displayLineData(stream, [PhotoIonization.flatLineClaude(l) for l in lines]) )
-end
-
-function displayPhasesClaude(stream::IO, lines::Array{PhotoIonization.LineClaude,1})
-    return( PhotoIonization.displayPhases(stream, [PhotoIonization.flatLineClaude(l) for l in lines]) )
-end
-
-function displayTotalCrossSectionsClaude(stream::IO, lines::Array{PhotoIonization.LineClaude,1},
-                                         settings::PhotoIonization.Settings)
-    return( PhotoIonization.displayTotalCrossSections(stream, [PhotoIonization.flatLineClaude(l) for l in lines], settings) )
-end
-
-function displayResultsClaude(stream::IO, lines::Array{PhotoIonization.LineClaude,1}, settings::PhotoIonization.Settings)
-    return( PhotoIonization.displayResults(stream, [PhotoIonization.flatLineClaude(l) for l in lines], settings) )
-end
-
-
-"""
-`PhotoIonization.determineLinesClaude(finalMultiplet::Multiplet, initialMultiplet::Multiplet, settings::PhotoIonization.Settings)`
-    ... as PhotoIonization.determineLines, but producing LineClaude with partial waves; an
-        Array{LineClaude,1} is returned.
-"""
-function determineLinesClaude(finalMultiplet::Multiplet, initialMultiplet::Multiplet, settings::PhotoIonization.Settings)
-    lines    = PhotoIonization.LineClaude[]
-    shift_au = Defaults.convertUnits("energy: to atomic", settings.freeElectronShift)
-    for  iLevel  in  initialMultiplet.levels
-        for  fLevel  in  finalMultiplet.levels
-            if  Basics.selectLevelPair(iLevel, fLevel, settings.lineSelection)
-                for  omega in settings.photonEnergies
-                    omega_au = Defaults.convertUnits("energy: to atomic", omega)
-                    energy   = omega_au - (fLevel.energy - iLevel.energy) + shift_au
-                    if  energy < 0.    continue   end
-                    pws = PhotoIonization.determineChannelsClaude(fLevel, iLevel, settings)
-                    push!( lines, PhotoIonization.LineClaude(iLevel, fLevel, energy, omega_au, EmProperty(0.),
-                                                             EmProperty(0.), EmProperty(0.), EmProperty(0.), pws) )
-                end
-                for  en in settings.electronEnergies
-                    energy_au = Defaults.convertUnits("energy: to atomic", en) + shift_au
-                    omega     = energy_au + (fLevel.energy - iLevel.energy)
-                    if  energy_au < 0.    continue   end
-                    pws = PhotoIonization.determineChannelsClaude(fLevel, iLevel, settings)
-                    push!( lines, PhotoIonization.LineClaude(iLevel, fLevel, energy_au, omega, EmProperty(0.),
-                                                             EmProperty(0.), EmProperty(0.), EmProperty(0.), pws) )
-                end
-            end
-        end
-    end
-    return( lines )
-end
-
-
-"""
-`PhotoIonization.computeLinesClaude(finalMultiplet::Multiplet, initialMultiplet::Multiplet, nm::Nuclear.Model,
-        grid::Radial.Grid, settings::PhotoIonization.Settings; output::Bool=true)`
-    ... as PhotoIonization.computeLines, on the physical channel structure; an Array{LineClaude,1} is
-        returned. The nuclear potential and the B-spline basis are built once, and the lines are computed in
-        parallel, exactly as in the flat driver.
-"""
-function computeLinesClaude(finalMultiplet::Multiplet, initialMultiplet::Multiplet, nm::Nuclear.Model,
-                            grid::Radial.Grid, settings::PhotoIonization.Settings; output::Bool=true)
-    println("")
-    printstyled("PhotoIonization.computeLinesClaude(): The computation of photoionization amplitudes starts now ... \n", color=:light_green)
-    printstyled("-------------------------------------------------------------------------------------------------- \n", color=:light_green)
-    println("")
-    lines = PhotoIonization.determineLinesClaude(finalMultiplet, initialMultiplet, settings)
-    if  settings.printBefore    PhotoIonization.displayLinesClaude(lines)    end
-    maxEnergy = 0.;   for  line in lines   maxEnergy = max(maxEnergy, line.electronEnergy)   end
-    nrContinuum = Continuum.gridConsistency(maxEnergy, grid)
-    nuclearPot = Nuclear.nuclearPotential(nm, grid)
-    primitives = Bsplines.generatePrimitives(grid)
-    newLines = Vector{PhotoIonization.LineClaude}(undef, length(lines))
-    Threads.@threads for  i  in  eachindex(lines)
-        newLines[i] = PhotoIonization.computeAmplitudesPropertiesClaude(lines[i], nm, grid, nrContinuum, settings;
-                                                                        nuclearPot=nuclearPot, primitives=primitives)
-    end
-    PhotoIonization.displayResultsClaude(stdout, newLines, settings)
-    printSummary, iostream = Defaults.getDefaults("summary flag/stream")
-    if  printSummary   PhotoIonization.displayResultsClaude(iostream, newLines, settings)   end
-    if    output    return( newLines )
-    else            return( nothing )
-    end
-end
-
-
-"""
-`PhotoIonization.computeTimeDelaysClaude(partialWaves::Array{PhotoIonization.PartialWaveClaude,1},
-        xPartialWaves::Array{PhotoIonization.PartialWaveClaude,1}, deltaE::Float64, Jf::AngularJ64)`
-    ... computes the coherent and incoherent time delays from two sets of partial waves, computed at
-        energies differing by deltaE; a tuple (coherentDelay, incoherentDelay)::Tuple{EmProperty,EmProperty}
-        is returned.
-
-        MIRRORS THE INCOHERENT DELAY ONLY, and does so exactly: the amplitude-weighted mean of the
-        partial-wave phases, differenced over deltaE. That part of PhotoIonization.computeTimeDelays is a
-        finished formula and is reproduced here term for term.
-
-        The COHERENT delay is deliberately NOT translated, and EmProperty(0.) is returned in its place. The
-        flat function's first two attempts at it sit inside a `#== ... ==#` block (one of them carrying
-        "Multiply coherentTauC by 20. for mean energy calibration !!!"); the third is live but is not a
-        general formula -- it hard-codes `l0 = AngularJ64(2)` under a @warn reading "l0 = 2 ... for d_3/2,
-        d_5/2 splitting", i.e. it holds for one particular initial subshell only, and it prints every channel
-        amplitude as it goes. Carrying that into the new structure would give a provisional expression the
-        appearance of a general one. Nothing is repaired here: this is a translation, not a rescue, and
-        PhotoIonization.computeTimeDelays remains the place where the coherent delay is to be finished.
-
-        Note where the phase now comes from: it belongs to the PARTIAL WAVE, which is what it is a property
-        of. In the flat form the same phase is stored on every channel of that kappa and re-read per channel.
-"""
-function computeTimeDelaysClaude(partialWaves::Array{PhotoIonization.PartialWaveClaude,1},
-                                 xPartialWaves::Array{PhotoIonization.PartialWaveClaude,1},
-                                 deltaE::Float64, Jf::AngularJ64)
-    function weightedPhase(pws)
-        nom = EmProperty(0., 0.);    den = EmProperty(0., 0.)
-        for  pw in pws,  ch in pw.channels,  ma in ch.amplitudes
-            w   = abs2(ma.amplitude)                       ## an EmProperty: |amp|^2 in both gauges
-            nom = nom + w * pw.phase
-            den = den + w
-        end
-        return( EmProperty(nom.Coulomb / den.Coulomb, nom.Babushkin / den.Babushkin) )
-    end
-    Deff  = weightedPhase(partialWaves);    Deffx = weightedPhase(xPartialWaves)
-    incoherentDelay = EmProperty( (Deffx.Coulomb - Deff.Coulomb) / deltaE, (Deffx.Babushkin - Deff.Babushkin) / deltaE )
-    coherentDelay   = EmProperty(0.)       ## NOT translated; the flat form hard-codes l0 = 2 -- see above
-    return( coherentDelay, incoherentDelay )
-end
-
-
-"""
-`PhotoIonization.computePartialCrossSectionUnpolarizedClaude(Mf::AngularM64, line::PhotoIonization.LineClaude)`
-    ... computes the partial photoionization cross section for a given magnetic quantum number Mf of the
-        final level; an EmProperty is returned, holding BOTH gauges at once.
-
-        NOTE ON THE SIGNATURE. The flat PhotoIonization.computePartialCrossSectionUnpolarized takes a
-        `gauge::EmGauge` and returns one number, because a gauge there is a channel label that has to be
-        selected for. Here it is carried by the amplitude, so one call returns both -- there is nothing to
-        select and no way to select wrongly.
-
-        DIFFERENCE FROM THE FLAT VERSION, and it is not a rounding difference. In the flat function the inner
-        loop reads
-              if kappa != chp.kappa || (gauge != cha.gauge && gauge != Basics.Magnetic)  continue
-        i.e. it re-tests the OUTER channel's gauge (`cha`) instead of the inner one's (`chp`). Since the outer
-        loop has already established that condition, the inner test never excludes anything, and amplitudes
-        belonging to DIFFERENT gauges are multiplied together. The same slip appears in
-        computeStatisticalTensorUnpolarized; computeAngularBeta has it right. Here the product
-        `amp * conj(ampp)` is componentwise, so the two gauges cannot meet whatever anyone writes.
-        These two functions will therefore NOT agree with their flat counterparts -- see the note in the
-        Claude tensor function below.
-"""
-function computePartialCrossSectionUnpolarizedClaude(Mf::AngularM64, line::PhotoIonization.LineClaude)
-    function Racahexpr(kappa::Int64, Ji::AngularJ64, Jf::AngularJ64, Mf::AngularM64, J::AngularJ64, Jp::AngularJ64,
-                        L::Int64, Lp::Int64, p::Int64, pp::Int64)
-        t1 = Basics.oplus( AngularJ64(Lp), Jf);    t2 = Basics.oplus( AngularJ64(L), Jf);    tList = intersect(t1, t2)
-        wb = 0.
-        for  t  in tList
-            for  lambda = -1:2:1
-                j = AngularMomentum.kappa_j(kappa);   Mf_lambda = Basics.add(AngularM64(lambda), Mf)
-                wb = wb + (1.0im * lambda)^p * (-1.0im * lambda)^pp *
-                        AngularMomentum.ClebschGordan( AngularJ64(Lp), AngularM64(lambda), Jf, Mf, t, Mf_lambda) *
-                        AngularMomentum.ClebschGordan( AngularJ64(L),  AngularM64(lambda), Jf, Mf, t, Mf_lambda) *
-                        AngularMomentum.Wigner_9j(j, Jp, Jf, J, Ji, AngularJ64(L), Jf, AngularJ64(Lp), t)
-            end
-        end
-        return( wb )
-    end
-    #
-    Ji = line.initialLevel.J;    Jf = line.finalLevel.J
-    waC = 0.0im;    waB = 0.0im
-    ## Pairs are formed WITHIN one partial wave, which is what "kappa != chp.kappa continue" says in the
-    ## flat form -- here it is the loop structure itself.
-    for  pw in line.partialWaves
-        for  cha in pw.channels,  ma in cha.amplitudes
-            J = cha.symmetry.J;    L = ma.multipole.L;    p  = ma.multipole.electric ? 1 : 0
-            for  chp in pw.channels,  mp in chp.amplitudes
-                Jp = chp.symmetry.J;   Lp = mp.multipole.L;   pp = mp.multipole.electric ? 1 : 0
-                wc = 1.0im^(L - Lp) * (-1)^(L + Lp) * AngularMomentum.bracket([AngularJ64(L), AngularJ64(Lp), J, Jp]) *
-                        Racahexpr(pw.kappa, Ji, Jf, Mf, J, Jp, L, Lp, p, pp) * (ma.amplitude * conj(mp.amplitude))
-                waC = waC + wc.Coulomb;    waB = waB + wc.Babushkin
-            end
-        end
-    end
-    csFactor = 8 * pi^3 * Defaults.getDefaults("alpha") / (2*line.photonEnergy * (Basics.twice(Ji) + 1))
-    return( EmProperty(real(csFactor * waC), real(csFactor * waB)) )
-end
-
-
-"""
-`PhotoIonization.computeStatisticalTensorUnpolarizedClaude(k::Int64, q::Int64, line::PhotoIonization.LineClaude,
-                                                           settings::PhotoIonization.Settings)`
-    ... computes the statistical tensor rho_kq of the photoion; an EmPropertyC is returned, holding both
-        gauges. As above, no gauge argument is taken because the gauge is carried by the amplitude.
-
-        CARRIES THE SAME CORRECTION as computePartialCrossSectionUnpolarizedClaude: the flat version's inner
-        loop tests `cha.gauge` where it means `chp.gauge`, so it multiplies Coulomb amplitudes with Babushkin
-        ones. That cannot happen here. The two versions therefore differ by more than rounding, and the
-        difference is the point rather than a defect of this one.
-"""
-function computeStatisticalTensorUnpolarizedClaude(k::Int64, q::Int64, line::PhotoIonization.LineClaude,
-                                                   settings::PhotoIonization.Settings)
-    Ji = line.initialLevel.J;    Jf = line.finalLevel.J
-    P1 = settings.stokes.P1;     P2 = settings.stokes.P2;     P3 = settings.stokes.P3
-    waC = 0.0im;    waB = 0.0im
-    for  pw in line.partialWaves
-        j = AngularMomentum.kappa_j(pw.kappa)
-        for  cha in pw.channels,  ma in cha.amplitudes
-            J = cha.symmetry.J;    L = ma.multipole.L;    p  = ma.multipole.electric ? 1 : 0
-            for  chp in pw.channels,  mp in chp.amplitudes
-                Jp = chp.symmetry.J;   Lp = mp.multipole.L;   pp = mp.multipole.electric ? 1 : 0
-                for  lambda = -1:2:1
-                    for  lambdap = -1:2:1
-                        if  lambda == lambdap   wb = (1.0 + 0.0im + lambda*P3)    else    wb = P1 - lambda * P2 * im    end
-                        wc = wb * 1.0im^(L - Lp + p - pp) * lambda^p * lambdap^pp *
-                                sqrt( AngularMomentum.bracket([AngularJ64(L), AngularJ64(Lp), J, Jp]) ) *
-                                AngularMomentum.phaseFactor([J, +1, Jp, +1, Jf, +1, Ji, +1, j, +1, AngularJ64(1)]) *
-                                AngularMomentum.ClebschGordan( AngularJ64(L),  AngularM64(lambda), AngularJ64(Lp),
-                                                                AngularM64(-lambda), AngularJ64(k),  AngularM64(q)) *
-                                AngularMomentum.Wigner_6j(Jf, j, Jp, J, AngularJ64(k), Jf) *
-                                AngularMomentum.Wigner_6j(Jp, Ji, AngularJ64(Lp), AngularJ64(L), AngularJ64(k), J) *
-                                (ma.amplitude * conj(mp.amplitude))
-                        waC = waC + wc.Coulomb;    waB = waB + wc.Babushkin
-                    end
-                end
-            end
-        end
-    end
-    fc = pi / (Basics.twice(Ji) + 1)
-    return( EmPropertyC(fc * waC, fc * waB) )
-end
-
-
-"""
-`PhotoIonization.computeDisplayNonE1AngleDifferentialCSClaude(stream::IO, lines::Array{PhotoIonization.LineClaude,1},
-                                                              settings::PhotoIonization.Settings)`
-    ... computes and displays the non-E1 angle-differential photoionization cross sections for all
-        PhotoIonization.LineClaude's and at all angles theta as defined in the settings; the general formula
-        by Nishita Hosea (2025) is applied, exactly as in PhotoIonization.computeDisplayNonE1AngleDifferentialCS.
-        A table is printed for each line but nothing is returned otherwise.
-
-        THIS IS THE ONE CONSUMER THAT PAIRS AMPLITUDES ACROSS PARTIAL WAVES. computeAngularBeta and the
-        partial cross section pair only within one kappa; here kappa and kappa' are independent, and the
-        interference between two DIFFERENT partial waves is the whole content of the non-dipole terms. The
-        loop therefore runs over the flattened (kappa, symmetry, multipole, amplitude) entries of the line.
-
-        Of the three flat functions that must keep the gauges apart, this is the one that does it correctly:
-        it guards the pair from BOTH sides (`cha == Coulomb && chb == Babushkin` and the reverse) and then
-        books a pair into the Coulomb sum unless either partner is Babushkin, and vice versa -- so a magnetic
-        multipole, whose flat gauge label is Basics.Magnetic, enters both sums. Every one of those three
-        rules is reproduced here by the single product `ma.amplitude * conj(mp.amplitude)`: it is
-        componentwise, so the mixed pairs cannot form, and a magnetic amplitude has equal components, so it
-        contributes to both. Four lines of bookkeeping become none.
-
-        MIRRORED, NOT REPAIRED: `angCS` is filled once per line but never emptied between lines, so the
-        table printed for the second line repeats the rows of the first. That is a defect of the flat
-        function; it is reproduced here unchanged, so that the two paths can be compared line for line, and
-        it is to be fixed in the flat function -- where it belongs -- rather than silently here.
-"""
-function computeDisplayNonE1AngleDifferentialCSClaude(stream::IO, lines::Array{PhotoIonization.LineClaude,1},
-                                                      settings::PhotoIonization.Settings)
-    function spinDensityMatrix(lambda1::Int64, lambda2::Int64, stokes::ExpStokes)
-        # Convert the Stokes parameters of the incoming light into a spin-density matrix on the indices lambda = +-1
-        if      lambda1 == lambda2  == 1               return( (1.0 + stokes.P3)/2. )
-        elseif  lambda1 ==  1   &&   lambda2  == -1    return( (stokes.P1 - stokes.P1*im)/2. )
-        elseif  lambda1 == -1   &&   lambda2  ==  1    return( (stokes.P1 + stokes.P1*im)/2. )
-        elseif  lambda1 == lambda2  == -1              return( (1.0 - stokes.P3)/2. )
-        else    error("stop a")
-        end
-    end
-    #
-    angCS = Tuple{Float64, ComplexF64, ComplexF64}[]  # theta, angCs.Coulomb, angCs.Babushkin
-    ## Loop about all lines; a table is printed independently for each line
-    for  line in lines
-        ## Flatten once: one entry per (partial wave, total symmetry, multipole), each carrying both gauges.
-        entries = Tuple{Int64,LevelSymmetry,EmMultipole,EmPropertyC}[]
-        for  pw in line.partialWaves,  ch in pw.channels,  ma in ch.amplitudes
-            push!(entries, (pw.kappa, ch.symmetry, ma.multipole, ma.amplitude))
-        end
-        ## Loop over all angles theta
-        for  theta in settings.thetas
-            cs = EmPropertyC(0.0im)
-            for  (kapa, syma, mpa, ampa)  in entries,   (kapb, symb, mpb, ampb)  in entries
-                s1 = Subshell(20, kapa);   j1 = Basics.subshell_j(s1)
-                s2 = Subshell(20, kapb);   j2 = Basics.subshell_j(s2)
-                for  X = 0:20  # Test for triangular conditions for X and continue otherwise
-                    if  AngularMomentum.isTriangle(mpa.L, mpb.L, X)                    &&
-                        AngularMomentum.isTriangle(syma.J,  symb.J, AngularJ64(X) )    &&
-                        AngularMomentum.isTriangle(j1,  j2, AngularJ64(X) )
-                        K = PhotoIonization.angularFunctionK(mpa.L, mpb.L, X, line.initialLevel.J, line.finalLevel.J,
-                                                             kapa, syma.J, kapb, symb.J)
-                        # Compute the summation over lambda's and mu's
-                        W = 0.
-                        for  lambda1 = -1:2:1,   lambda2 = -1:2:1,   mu = -1//2:1: 1//2
-                            W = W + spinDensityMatrix(lambda1, lambda2, settings.stokes) *
-                                    PhotoIonization.angularFunctionW(theta, mpa.L, mpb.L, X, lambda1, lambda2,
-                                                                     kapa, mu, kapb, mu) *
-                                    (1.0im)^(mpb.L - mpa.L) * (lambda1*lambda2) / 2. *
-                                     AngularMomentum.phaseMultipole(1.0im*lambda1, mpa) *
-                                     AngularMomentum.phaseMultipole(1.0im*lambda2, mpb)
-                        end
-                        ## No gauge bookkeeping: the product is componentwise, and a magnetic amplitude has
-                        ## equal components and so enters both sums by itself.
-                        cs = cs + K * W * (ampa * conj(ampb))
-                    end
-                end
-            end
-            push!(angCS, (theta, cs.Coulomb, cs.Babushkin) )
-        end
-        #
-        # Prepare and printout a table for the angle-differential cross sections
-        nx = 69;   symi = LevelSymmetry(line.initialLevel.J, line.initialLevel.parity)
-                   symf = LevelSymmetry(line.finalLevel.J, line.finalLevel.parity)
-        println(stream, " ")
-        println(stream, "  Non-E1 angle-differential cross sections for line:" *
-                        "  $(line.initialLevel.index) [$symi] -- $(line.finalLevel.index) [$symf] "    )
-        println(stream, " ")
-        println(stream, "  + Photon energy:   $(line.photonEnergy)    [Hartree]")
-        println(stream, "  + Multipoles:      $(settings.multipoles)")
-        println(stream, " ")
-        println(stream, "  ", TableStrings.hLine(nx))
-        sa = "  ";   sb = "  "
-        sa = sa * TableStrings.center(14, "theta" ; na=6);
-        sb = sb * TableStrings.center(14, "[rad]" ; na=6)
-        sa = sa * TableStrings.center(44, "Coulomb -- cross sections -- Babushkin"; na=3);
-        sb = sb * TableStrings.center(44, "    [Mb]     "; na=3)
-        println(stream, sa);    println(stream, sb);    println(stream, "  ", TableStrings.hLine(nx))
-        for  cs in angCS
-            sa = "     " * @sprintf("%.2e", cs[1])      * "      "
-            sa = sa      * @sprintf("%.4e", cs[2].re)   * "  " * @sprintf("%.4e", cs[2].im)   * "    "
-            sa = sa      * @sprintf("%.4e", cs[3].re)   * "  " * @sprintf("%.4e", cs[3].im)
-            println(stream, sa)
-        end
-        println(stream, "  ", TableStrings.hLine(nx))
-        #
-    end
-
-    return( nothing )
-end
-
-
-"""
-`PhotoIonization.computeAngularBetaClaude(iLevel::Level, fLevel::Level,
-        partialWaves::Array{PhotoIonization.PartialWaveClaude,1})`
-    ... computes the beta_2 anisotropy parameter from the given partial waves; an EmProperty is returned.
-        Valid in the E1 approximation, exactly as PhotoIonization.computeAngularBeta.
-
-        THIS IS THE FUNCTION THE NEW STRUCTURE HAS TO JUSTIFY, because it is the only consumer that needs
-        PAIRS of amplitudes rather than one at a time. In the flat form each pair must be guarded by
-        `if ch.gauge != chp.gauge continue`, since two amplitudes belonging to different gauges are two
-        different calculations and must never be multiplied together. Here that guard is GONE: the product
-        `amp * conj(ampp)` of two EmPropertyC is componentwise, so Coulomb meets Coulomb and Babushkin meets
-        Babushkin by construction. The gauge discipline moved out of the caller and into the arithmetic.
-
-        The partial wave supplies kappa -- one kappa serving several total symmetries -- and the channel
-        supplies the total symmetry, which is exactly the pairing this formula needs.
-"""
-function computeAngularBetaClaude(iLevel::Level, fLevel::Level, partialWaves::Array{PhotoIonization.PartialWaveClaude,1})
-    ## Flatten to (kappa, symmetry, E1 amplitude) once; every pair below is then a plain double loop.
-    entries = Tuple{Int64,LevelSymmetry,EmPropertyC}[]
-    for  pw in partialWaves,  ch in pw.channels,  ma in ch.amplitudes
-        ma.multipole == E1   ||   continue          # these beta parameters are valid only in E1 approximation
-        push!(entries, (pw.kappa, ch.symmetry, ma.amplitude))
-    end
-    wn = EmProperty(0., 0.)
-    for  (kappa, symt, amp) in entries    wn = wn + abs2(amp)    end
-    #
-    Ji = iLevel.J;    Jf = fLevel.J
-    waC = ComplexF64(0.);    waB = ComplexF64(0.)
-    for  (kappa, symt, amp) in entries
-        j = AngularMomentum.kappa_j(kappa);      l = AngularMomentum.kappa_l(kappa);      Jt  = symt.J
-        for  (kappap, symtp, ampp) in entries
-            jp = AngularMomentum.kappa_j(kappap);    lp = AngularMomentum.kappa_l(kappap);    Jtp = symtp.J
-            wb = AngularMomentum.phaseFactor([Jf, -1, Ji, -1, AngularJ64(1//2)]) *
-                    sqrt( AngularMomentum.bracket([Jt, Jtp, j, jp, l, lp]) ) *
-                        AngularMomentum.ClebschGordan(l, AngularM64(0), lp, AngularM64(0), AngularJ64(2), AngularM64(0)) *
-                        AngularMomentum.Wigner_6j(j, l, AngularJ64(1//2), lp, jp, AngularJ64(2)) *
-                        AngularMomentum.Wigner_6j(j, Jt, Jf, Jtp, jp, AngularJ64(2)) *
-                        AngularMomentum.Wigner_6j(AngularJ64(1), Jt, Ji, Jtp, AngularJ64(1), AngularJ64(2))
-            ## Componentwise: no gauge can leak into the other, and no guard is needed to say so.
-            wc  = (amp * conj(ampp)) * wb
-            waC = waC + wc.Coulomb;    waB = waB + wc.Babushkin
-        end
-    end
-    #
-    if  wn.Coulomb   == 0.   waC = ComplexF64(-9.0)    else    waC = sqrt(6.0) * waC / wn.Coulomb      end
-    if  wn.Babushkin == 0.   waB = ComplexF64(-9.0)    else    waB = sqrt(6.0) * waB / wn.Babushkin    end
-    return( EmProperty(waC.re, waB.re) )
-end
-
-
-"""
-`PhotoIonization.computeAmplitudesPropertiesClaude(line::PhotoIonization.LineClaude, nm::Nuclear.Model,
-        grid::Radial.Grid, nrContinuum::Int64, settings::PhotoIonization.Settings; printout::Bool=false,
-        nuclearPot::Union{Nothing,Radial.Potential}=nothing,
-        primitives::Union{Nothing,Bsplines.Primitives}=nothing)`
-    ... computes all amplitudes and properties of the given line; a LineClaude is returned in which the
-        amplitudes, the phases and the cross section are filled.
-
-        The physics is unchanged: the amplitudes come from the very same PhotoIonization.amplitude as the
-        flat path. Only the ORDER of the work differs, and that is the point -- the continuum orbital and the
-        initial level carrying the extra continuum subshell are formed ONCE PER PARTIAL WAVE, because they
-        depend on (energy, kappa) and on nothing else. The flat path had to re-derive them per channel until
-        a cache was added; here there is nothing to cache.
-
-        An electric multipole is evaluated twice, once per gauge, into one EmPropertyC; a magnetic multipole
-        once, into an EmPropertyC with equal components.
-"""
-function computeAmplitudesPropertiesClaude(line::PhotoIonization.LineClaude, nm::Nuclear.Model, grid::Radial.Grid,
-                                           nrContinuum::Int64, settings::PhotoIonization.Settings; printout::Bool=false,
-                                           nuclearPot::Union{Nothing,Radial.Potential}=nothing,
-                                           primitives::Union{Nothing,Bsplines.Primitives}=nothing)
-    contSettings = Continuum.Settings(false, nrContinuum)
-    redILevel = Basics.generateLevelWithSymmetryReducedBasis(line.initialLevel, line.initialLevel.basis.subshells)
-    newfLevel = Basics.generateLevelWithSymmetryReducedBasis(line.finalLevel, redILevel.basis.subshells)
-    newPartialWaves = PhotoIonization.PartialWaveClaude[]
-
-    for  pw in line.partialWaves
-        ## ONE orbital and ONE initial level per partial wave -- structurally, not by a cache.
-        cSubshell = Subshell(101, pw.kappa)
-        newiLevel = Basics.generateLevelWithExtraSubshell(cSubshell, redILevel)
-        cOrbital, phase = Continuum.generateOrbitalForLevel(line.electronEnergy, cSubshell, newfLevel, nm, grid,
-                                                            contSettings; nuclearPot=nuclearPot, primitives=primitives)
-        newChannels = PhotoIonization.ChannelClaude[]
-        for  ch in pw.channels
-            newcLevel = Basics.generateLevelWithExtraElectron(cOrbital, ch.symmetry, newfLevel)
-            newAmps   = MultipoleAmplitude[]
-            for  ma in ch.amplitudes
-                mp = ma.multipole
-                if  string(mp)[1] == 'E'
-                    chC  = PhotoIonization.Channel(mp, Basics.Coulomb,   pw.kappa, ch.symmetry, phase, Complex(0.))
-                    ampC = PhotoIonization.amplitude("photoionization", chC, line.photonEnergy, newcLevel, newiLevel, grid)
-                    chB  = PhotoIonization.Channel(mp, Basics.Babushkin, pw.kappa, ch.symmetry, phase, Complex(0.))
-                    ampB = PhotoIonization.amplitude("photoionization", chB, line.photonEnergy, newcLevel, newiLevel, grid)
-                    push!(newAmps, MultipoleAmplitude(mp, EmPropertyC(ampC, ampB)))
-                else
-                    ## A magnetic multipole does not depend on the gauge; one evaluation, equal components.
-                    chM  = PhotoIonization.Channel(mp, Basics.Magnetic,  pw.kappa, ch.symmetry, phase, Complex(0.))
-                    ampM = PhotoIonization.amplitude("photoionization", chM, line.photonEnergy, newcLevel, newiLevel, grid)
-                    push!(newAmps, MultipoleAmplitude(mp, EmPropertyC(ampM)))
-                end
-            end
-            push!(newChannels, PhotoIonization.ChannelClaude(ch.symmetry, newAmps))
-        end
-        push!(newPartialWaves, PhotoIonization.PartialWaveClaude(pw.kappa, line.electronEnergy, phase, newChannels))
-    end
-    #
-    crossSection = PhotoIonization.computeCrossSectionClaude(newPartialWaves, line.photonEnergy)
-    if    settings.calcAnisotropy
-          angularBeta = PhotoIonization.computeAngularBetaClaude(line.initialLevel, line.finalLevel, newPartialWaves)
-    else  angularBeta = EmProperty(0.)
-    end
-    newLine = PhotoIonization.LineClaude(line.initialLevel, line.finalLevel, line.electronEnergy, line.photonEnergy,
-                                         crossSection, angularBeta, EmProperty(0.), EmProperty(0.), newPartialWaves)
-    return( newLine )
-end
-
-
-"""
-`PhotoIonization.computeCrossSectionClaude(partialWaves::Array{PhotoIonization.PartialWaveClaude,1}, photonEnergy::Float64)`
-    ... computes the total photoionization cross section from the given partial waves; an EmProperty is returned.
-
-        THE SUMMATION IS THE SAME AS THE FLAT PATH'S, deliberately: |amplitude|^2 is summed INCOHERENTLY over
-        multipoles as well as over channels. The new structure would make a coherent multipole sum easy to
-        write, and that would be a change of physics -- a question to be settled separately against a
-        reference, not as a side effect of restructuring. What the new form buys is that the rule now lives
-        in ONE named place instead of being spelled out wherever channels are summed.
-
-        No gauge appears: abs2(::EmPropertyC) returns an EmProperty, so the two gauges are carried along
-        untouched, and a magnetic multipole -- whose two components are equal -- reproduces the flat path's
-        rule of adding it to both sums without any special case.
-"""
-function computeCrossSectionClaude(partialWaves::Array{PhotoIonization.PartialWaveClaude,1}, photonEnergy::Float64)
-    cs = EmProperty(0., 0.)
-    for  pw in partialWaves,  ch in pw.channels,  ma in ch.amplitudes
-        cs = cs + abs2(ma.amplitude)
-    end
-    csFactor = 8 * pi^3 / Defaults.getDefaults("alpha") / photonEnergy
-    return( EmProperty(csFactor * cs.Coulomb, csFactor * cs.Babushkin) )
-end
-
-
-"""
-`PhotoIonization.determineChannelsClaude(finalLevel::Level, initialLevel::Level, settings::PhotoIonization.Settings)`
-    ... determines the partial waves and, within each, the scattering channels of the given transition; an
-        Array{PartialWaveClaude,1} is returned, with every amplitude still zero.
-
-        The SELECTION RULES are exactly those of PhotoIonization.determineChannels above -- the same
-        AngularMomentum.allowedMultipoleSymmetries and allowedKappaSymmetries -- only the nesting is
-        inverted. There, multipole and gauge are outermost and the physical pair (kappa, symt) is produced
-        again for each of them; here the distinct (kappa, symt) pairs are collected first and every
-        multipole that reaches a pair is attached to it. The gauge is not iterated over at all: an electric
-        multipole yields one EmPropertyC holding both gauges, a magnetic one an EmPropertyC with equal
-        components, which is what the flat form expresses by adding Basics.Magnetic to both gauge sums.
-"""
-function determineChannelsClaude(finalLevel::Level, initialLevel::Level, settings::PhotoIonization.Settings)
-    symi = LevelSymmetry(initialLevel.J, initialLevel.parity);    symf = LevelSymmetry(finalLevel.J, finalLevel.parity)
-    ## (1) Collect, for every physical pair (kappa, symt), the multipoles that can reach it.
-    mpsFor = Dict{Tuple{Int64,LevelSymmetry}, Array{EmMultipole,1}}()
-    order  = Tuple{Int64,LevelSymmetry}[]                    ## to keep a reproducible sequence
-    for  mp in settings.multipoles
-        for  symt in AngularMomentum.allowedMultipoleSymmetries(symi, mp)
-            for  kappa in AngularMomentum.allowedKappaSymmetries(symt, symf)
-                if  !(Basics.subshell_l(Subshell(10,kappa)) in settings.lValues)    continue     end
-                key = (kappa, symt)
-                if  haskey(mpsFor, key)   push!(mpsFor[key], mp)
-                else                      mpsFor[key] = EmMultipole[mp];   push!(order, key)
-                end
-            end
-        end
-    end
-    ## (2) Group the pairs by kappa: one partial wave per kappa, carrying the symmetries it serves.
-    kappas = Int64[];   for (kappa, symt) in order    if !(kappa in kappas)   push!(kappas, kappa)   end    end
-    partialWaves = PartialWaveClaude[]
-    for  kappa in kappas
-        channels = ChannelClaude[]
-        for  (ka, symt) in order
-            ka == kappa   ||   continue
-            amps = MultipoleAmplitude[]
-            for  mp in mpsFor[(ka, symt)]
-                push!(amps, MultipoleAmplitude(mp, EmPropertyC(Complex(0.), Complex(0.))))
-            end
-            push!(channels, ChannelClaude(symt, amps))
-        end
-        push!(partialWaves, PartialWaveClaude(kappa, 0., 0., channels))
-    end
-    return( partialWaves )
-end
-
-
-"""
-`PhotoIonization.determineLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, settings::PhotoIonization.Settings)`  
-    ... to determine a list of PhotoIonization.Line's for transitions between levels from the initial- and final-state multiplets, 
-        and  by taking into account the particular selections and settings for this computation; an Array{PhotoIonization.Line,1} 
-        is returned. Apart from the level specification, all physical properties are set to zero during the initialization process.
-"""
-function  determineLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, settings::PhotoIonization.Settings)
-    lines    = PhotoIonization.Line[]
-    shift_au = Defaults.convertUnits("energy: to atomic", settings.freeElectronShift)
-    for  iLevel  in  initialMultiplet.levels
-        for  fLevel  in  finalMultiplet.levels
-            if  Basics.selectLevelPair(iLevel, fLevel, settings.lineSelection)
-                # Add lines for all photon energies
-                for  omega in settings.photonEnergies
-                    # Photon energies are still in 'pre-defined' units; convert to Hartree
-                    omega_au = Defaults.convertUnits("energy: to atomic", omega)
-                    energy   = omega_au - (fLevel.energy - iLevel.energy) + shift_au
-                    if  energy < 0.    continue   end  
-                    channels = PhotoIonization.determineChannels(fLevel, iLevel, settings) 
-                    push!( lines, PhotoIonization.Line(iLevel, fLevel, energy, omega_au, EmProperty(0.), EmProperty(0.), 
-                                                        EmProperty(0.), EmProperty(0.), channels) )
-                end
-                # Add lines for all electron energies
-                for  en in settings.electronEnergies
-                    # Electron energies are still in 'pre-defined' units; convert to Hartree
-                    energy_au = Defaults.convertUnits("energy: to atomic", en) + shift_au
-                    omega     = energy_au + (fLevel.energy - iLevel.energy)
-                    if  energy_au < 0.    continue   end  
-                    channels = PhotoIonization.determineChannels(fLevel, iLevel, settings) 
-                    push!( lines, PhotoIonization.Line(iLevel, fLevel, energy_au, omega, EmProperty(0.), EmProperty(0.), 
-                                                        EmProperty(0.), EmProperty(0.), channels) )
-                end
-            end
-        end
-    end
-    return( lines )
-end
-
-
-"""
-`PhotoIonization.displayLineData(stream::IO, lines::Array{PhotoIonization.Line,1})`  
-    ... to display the calculated data, ordered by the initial levels and the photon energies involved.
-        Neat tables of all initial levels and photon energies as well as all associated cross sections are printed
-        but nothing is returned otherwise.
+        THREE OF THEM NEEDED MORE THAN A RENAME.  displayLines and displayPhases print one row per
+        (multipole, GAUGE), which is no longer how an amplitude is stored, so that expansion is written out
+        where each table is built -- the gauge is a property of the PRESENTATION here, not of the channel.
+        displayPhases now takes the phase from the PARTIAL WAVE, which is what it is a property of; the flat
+        form stored the same number on every channel of that kappa and the table re-read it per channel.
+        displayResults reads the multipole off each amplitude instead of each channel.
 """
 function  displayLineData(stream::IO, lines::Array{PhotoIonization.Line,1})
     # Extract and display all initial levels by their total energy and symmetry
@@ -1784,11 +631,6 @@ function  displayLineData(stream::IO, lines::Array{PhotoIonization.Line,1})
 end
 
 
-"""
-`PhotoIonization.displayLines(stream::IO, lines::Array{PhotoIonization.Line,1})`  
-    ... to display a list of lines and channels that have been selected due to the prior settings. A neat table of all selected 
-        transitions and energies is printed but nothing is returned otherwise.
-"""
 function  displayLines(stream::IO, lines::Array{PhotoIonization.Line,1})
     nx = 175
     println(stream, " ")
@@ -1819,10 +661,18 @@ function  displayLines(stream::IO, lines::Array{PhotoIonization.Line,1})
         sa = sa * @sprintf("%.4e", Defaults.convertUnits("energy: from atomic", line.photonEnergy))   * "   "
         sa = sa * @sprintf("%.4e", Defaults.convertUnits("energy: from atomic", line.electronEnergy)) * "    "
         kappaMultipoleSymmetryList = Tuple{Int64,EmMultipole,EmGauge,LevelSymmetry}[]
-        for  i in 1:length(line.channels)
-            push!( kappaMultipoleSymmetryList, (line.channels[i].kappa, line.channels[i].multipole, line.channels[i].gauge, 
-                                                line.channels[i].symmetry) )
-            nchannels = nchannels + 1
+        ## One row per (multipole, GAUGE), which is a property of the PRESENTATION: an electric multipole is
+        ## one amplitude holding two gauges, a magnetic one has no gauge freedom.  Expanding it here keeps the
+        ## table exactly as it was when the channel itself carried a gauge label.
+        for  pw in line.partialWaves,  ch in pw.channels,  ma in ch.amplitudes
+            if  string(ma.multipole)[1] == 'E'
+                push!( kappaMultipoleSymmetryList, (pw.kappa, ma.multipole, Basics.Coulomb,   ch.symmetry) )
+                push!( kappaMultipoleSymmetryList, (pw.kappa, ma.multipole, Basics.Babushkin, ch.symmetry) )
+                nchannels = nchannels + 2
+            else
+                push!( kappaMultipoleSymmetryList, (pw.kappa, ma.multipole, Basics.Magnetic,  ch.symmetry) )
+                nchannels = nchannels + 1
+            end
         end
         wa = TableStrings.kappaMultipoleSymmetryTupels(85, kappaMultipoleSymmetryList)
         sb = sa * wa[1];    println(stream,  sb )  
@@ -1837,11 +687,6 @@ function  displayLines(stream::IO, lines::Array{PhotoIonization.Line,1})
 end
 
 
-"""
-`PhotoIonization.displayPhases(lines::Array{PhotoIonization.Line,1})`  
-    ... to display a list of lines, channels and phases of the continuum wave that have been selected due to the prior settings.
-        A neat table of all selected transitions and energies is printed but nothing is returned otherwise.
-"""
 function  displayPhases(lines::Array{PhotoIonization.Line,1})
     nx = 185
     println(" ")
@@ -1872,10 +717,17 @@ function  displayPhases(lines::Array{PhotoIonization.Line,1})
         sa = sa * @sprintf("%.4e", Defaults.convertUnits("energy: from atomic", line.photonEnergy))   * "   "
         sa = sa * @sprintf("%.4e", Defaults.convertUnits("energy: from atomic", line.electronEnergy)) * "    "
         kappaMultipoleSymmetryPhaseList = Tuple{Int64,EmMultipole,EmGauge,LevelSymmetry,Float64}[]
-        for  i in 1:length(line.channels)
-            push!( kappaMultipoleSymmetryPhaseList, (line.channels[i].kappa, line.channels[i].multipole, line.channels[i].gauge, 
-                                                        line.channels[i].symmetry, line.channels[i].phase) )
-            nchannels = nchannels + 1
+        ## As in displayLines; the phase comes from the PARTIAL WAVE, which is what it is a property of --
+        ## the flat form stored the same number on every channel of that kappa and this table re-read it.
+        for  pw in line.partialWaves,  ch in pw.channels,  ma in ch.amplitudes
+            if  string(ma.multipole)[1] == 'E'
+                push!( kappaMultipoleSymmetryPhaseList, (pw.kappa, ma.multipole, Basics.Coulomb,   ch.symmetry, pw.phase) )
+                push!( kappaMultipoleSymmetryPhaseList, (pw.kappa, ma.multipole, Basics.Babushkin, ch.symmetry, pw.phase) )
+                nchannels = nchannels + 2
+            else
+                push!( kappaMultipoleSymmetryPhaseList, (pw.kappa, ma.multipole, Basics.Magnetic,  ch.symmetry, pw.phase) )
+                nchannels = nchannels + 1
+            end
         end
         wa = TableStrings.kappaMultipoleSymmetryPhaseTupels(85, kappaMultipoleSymmetryPhaseList)
         sb = sa * wa[1];    println( sb )  
@@ -1890,14 +742,6 @@ function  displayPhases(lines::Array{PhotoIonization.Line,1})
 end
 
 
-
-"""
-`PhotoIonization.displayTotalCrossSections(stream::IO, lines::Array{PhotoIonization.Line,1}, settings::PhotoIonization.Settings)`
-    ... to list the TOTAL photoionization cross sections, i.e. the given lines summed over all final levels f for
-        each initial level i and each photon energy. This is the quantity that is usually quoted and compared with
-        experiment, whereas the line-resolved table shows the individual i --> f contributions. A neat table is
-        printed but nothing is returned otherwise.
-"""
 function  displayTotalCrossSections(stream::IO, lines::Array{PhotoIonization.Line,1}, settings::PhotoIonization.Settings)
     if  length(lines) == 0      return( nothing )    end
     nx = 96
@@ -1951,11 +795,6 @@ function  displayTotalCrossSections(stream::IO, lines::Array{PhotoIonization.Lin
 end
 
 
-"""
-`PhotoIonization.displayResults(stream::IO, lines::Array{PhotoIonization.Line,1}, settings::PhotoIonization.Settings)`
-    ... to list all results, energies, cross sections, etc. of the selected lines. A neat table is printed but nothing
-        is returned otherwise.
-"""
 function  displayResults(stream::IO, lines::Array{PhotoIonization.Line,1}, settings::PhotoIonization.Settings)
     nx = 130
     println(stream, " ")
@@ -1988,8 +827,8 @@ function  displayResults(stream::IO, lines::Array{PhotoIonization.Line,1}, setti
         sa = sa * @sprintf("%.6e", Defaults.convertUnits("energy: from atomic", line.photonEnergy))   * "    "
         sa = sa * @sprintf("%.6e", Defaults.convertUnits("energy: from atomic", line.electronEnergy)) * "    "
         multipoles = EmMultipole[]
-        for  ch in line.channels
-            multipoles = push!( multipoles, ch.multipole)
+        for  pw in line.partialWaves,  ch in pw.channels,  ma in ch.amplitudes
+            multipoles = push!( multipoles, ma.multipole)
         end
         multipoles = unique(multipoles);   mpString = TableStrings.multipoleList(multipoles) * "          "
         sa = sa * TableStrings.flushleft(11, mpString[1:10];  na=2)
@@ -2112,8 +951,8 @@ function  displayResults(stream::IO, lines::Array{PhotoIonization.Line,1}, setti
             sa = sa * @sprintf("%.6e", Defaults.convertUnits("energy: from atomic", line.photonEnergy))   * "    "
             sa = sa * @sprintf("%.6e", Defaults.convertUnits("energy: from atomic", line.electronEnergy)) * "    "
             multipoles = EmMultipole[]
-            for  ch in line.channels
-                multipoles = push!( multipoles, ch.multipole)
+            for  pw in line.partialWaves,  ch in pw.channels,  ma in ch.amplitudes
+                multipoles = push!( multipoles, ma.multipole)
             end
             multipoles = unique(multipoles);   mpString = TableStrings.multipoleList(multipoles) * "          "
             sa = sa * TableStrings.flushleft(11, mpString[1:10];  na=2)
@@ -2166,8 +1005,8 @@ function  displayResults(stream::IO, lines::Array{PhotoIonization.Line,1}, setti
             sa = sa * @sprintf("%.6e", Defaults.convertUnits("energy: from atomic", line.photonEnergy))   * "    "
             sa = sa * @sprintf("%.6e", Defaults.convertUnits("energy: from atomic", line.electronEnergy)) * "    "
             multipoles = EmMultipole[]
-            for  ch in line.channels
-                multipoles = push!( multipoles, ch.multipole)
+            for  pw in line.partialWaves,  ch in pw.channels,  ma in ch.amplitudes
+                multipoles = push!( multipoles, ma.multipole)
             end
             multipoles = unique(multipoles);   mpString = TableStrings.multipoleList(multipoles) * "          "
             sa = sa * TableStrings.flushleft(11, mpString[1:10];  na=2)
@@ -2189,6 +1028,525 @@ function  displayResults(stream::IO, lines::Array{PhotoIonization.Line,1}, setti
     #
     return( nothing )
 end
+
+
+"""
+`PhotoIonization.determineLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, settings::PhotoIonization.Settings)`
+    ... as PhotoIonization.determineLines, but producing Line with partial waves; an
+        Array{Line,1} is returned.
+"""
+function determineLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, settings::PhotoIonization.Settings)
+    lines    = PhotoIonization.Line[]
+    shift_au = Defaults.convertUnits("energy: to atomic", settings.freeElectronShift)
+    for  iLevel  in  initialMultiplet.levels
+        for  fLevel  in  finalMultiplet.levels
+            if  Basics.selectLevelPair(iLevel, fLevel, settings.lineSelection)
+                for  omega in settings.photonEnergies
+                    omega_au = Defaults.convertUnits("energy: to atomic", omega)
+                    energy   = omega_au - (fLevel.energy - iLevel.energy) + shift_au
+                    if  energy < 0.    continue   end
+                    pws = PhotoIonization.determineChannels(fLevel, iLevel, settings)
+                    push!( lines, PhotoIonization.Line(iLevel, fLevel, energy, omega_au, EmProperty(0.),
+                                                             EmProperty(0.), EmProperty(0.), EmProperty(0.), pws) )
+                end
+                for  en in settings.electronEnergies
+                    energy_au = Defaults.convertUnits("energy: to atomic", en) + shift_au
+                    omega     = energy_au + (fLevel.energy - iLevel.energy)
+                    if  energy_au < 0.    continue   end
+                    pws = PhotoIonization.determineChannels(fLevel, iLevel, settings)
+                    push!( lines, PhotoIonization.Line(iLevel, fLevel, energy_au, omega, EmProperty(0.),
+                                                             EmProperty(0.), EmProperty(0.), EmProperty(0.), pws) )
+                end
+            end
+        end
+    end
+    return( lines )
+end
+
+
+"""
+`PhotoIonization.computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, nm::Nuclear.Model,
+        grid::Radial.Grid, settings::PhotoIonization.Settings; output::Bool=true)`
+    ... as PhotoIonization.computeLines, on the physical channel structure; an Array{Line,1} is
+        returned. The nuclear potential and the B-spline basis are built once, and the lines are computed in
+        parallel, exactly as in the flat driver.
+"""
+function computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, nm::Nuclear.Model,
+                            grid::Radial.Grid, settings::PhotoIonization.Settings; output::Bool=true)
+    println("")
+    printstyled("PhotoIonization.computeLines(): The computation of photoionization amplitudes starts now ... \n", color=:light_green)
+    printstyled("-------------------------------------------------------------------------------------------------- \n", color=:light_green)
+    println("")
+    lines = PhotoIonization.determineLines(finalMultiplet, initialMultiplet, settings)
+    if  settings.printBefore    PhotoIonization.displayLines(stdout, lines)    end
+    maxEnergy = 0.;   for  line in lines   maxEnergy = max(maxEnergy, line.electronEnergy)   end
+    nrContinuum = Continuum.gridConsistency(maxEnergy, grid)
+    nuclearPot = Nuclear.nuclearPotential(nm, grid)
+    primitives = Bsplines.generatePrimitives(grid)
+    newLines = Vector{PhotoIonization.Line}(undef, length(lines))
+    Threads.@threads for  i  in  eachindex(lines)
+        newLines[i] = PhotoIonization.computeAmplitudesProperties(lines[i], nm, grid, nrContinuum, settings;
+                                                                        nuclearPot=nuclearPot, primitives=primitives)
+    end
+    PhotoIonization.displayPhases(newLines)
+    PhotoIonization.displayResults(stdout, newLines, settings)
+    printSummary, iostream = Defaults.getDefaults("summary flag/stream")
+    if  printSummary   PhotoIonization.displayResults(iostream, newLines, settings)   end
+    if    output    return( newLines )
+    else            return( nothing )
+    end
+end
+
+
+"""
+`PhotoIonization.computeTimeDelays(partialWaves::Array{PhotoIonization.PartialWave,1},
+        xPartialWaves::Array{PhotoIonization.PartialWave,1}, deltaE::Float64, Jf::AngularJ64)`
+    ... computes the coherent and incoherent time delays from two sets of partial waves, computed at
+        energies differing by deltaE; a tuple (coherentDelay, incoherentDelay)::Tuple{EmProperty,EmProperty}
+        is returned.
+
+        MIRRORS THE INCOHERENT DELAY ONLY, and does so exactly: the amplitude-weighted mean of the
+        partial-wave phases, differenced over deltaE. That part of PhotoIonization.computeTimeDelays is a
+        finished formula and is reproduced here term for term.
+
+        The COHERENT delay is deliberately NOT translated, and EmProperty(0.) is returned in its place. The
+        flat function's first two attempts at it sit inside a `#== ... ==#` block (one of them carrying
+        "Multiply coherentTauC by 20. for mean energy calibration !!!"); the third is live but is not a
+        general formula -- it hard-codes `l0 = AngularJ64(2)` under a @warn reading "l0 = 2 ... for d_3/2,
+        d_5/2 splitting", i.e. it holds for one particular initial subshell only, and it prints every channel
+        amplitude as it goes. Carrying that into the new structure would give a provisional expression the
+        appearance of a general one. Nothing is repaired here: this is a translation, not a rescue, and
+        PhotoIonization.computeTimeDelays remains the place where the coherent delay is to be finished.
+
+        Note where the phase now comes from: it belongs to the PARTIAL WAVE, which is what it is a property
+        of. In the flat form the same phase is stored on every channel of that kappa and re-read per channel.
+"""
+function computeTimeDelays(partialWaves::Array{PhotoIonization.PartialWave,1},
+                                 xPartialWaves::Array{PhotoIonization.PartialWave,1},
+                                 deltaE::Float64, Jf::AngularJ64)
+    function weightedPhase(pws)
+        nom = EmProperty(0., 0.);    den = EmProperty(0., 0.)
+        for  pw in pws,  ch in pw.channels,  ma in ch.amplitudes
+            w   = abs2(ma.amplitude)                       ## an EmProperty: |amp|^2 in both gauges
+            nom = nom + w * pw.phase
+            den = den + w
+        end
+        return( EmProperty(nom.Coulomb / den.Coulomb, nom.Babushkin / den.Babushkin) )
+    end
+    Deff  = weightedPhase(partialWaves);    Deffx = weightedPhase(xPartialWaves)
+    incoherentDelay = EmProperty( (Deffx.Coulomb - Deff.Coulomb) / deltaE, (Deffx.Babushkin - Deff.Babushkin) / deltaE )
+    coherentDelay   = EmProperty(0.)       ## NOT translated; the flat form hard-codes l0 = 2 -- see above
+    return( coherentDelay, incoherentDelay )
+end
+
+
+"""
+`PhotoIonization.computePartialCrossSectionUnpolarized(Mf::AngularM64, line::PhotoIonization.Line)`
+    ... computes the partial photoionization cross section for a given magnetic quantum number Mf of the
+        final level; an EmProperty is returned, holding BOTH gauges at once.
+
+        NOTE ON THE SIGNATURE. The flat PhotoIonization.computePartialCrossSectionUnpolarized takes a
+        `gauge::EmGauge` and returns one number, because a gauge there is a channel label that has to be
+        selected for. Here it is carried by the amplitude, so one call returns both -- there is nothing to
+        select and no way to select wrongly.
+
+        DIFFERENCE FROM THE FLAT VERSION, and it is not a rounding difference. In the flat function the inner
+        loop reads
+              if kappa != chp.kappa || (gauge != cha.gauge && gauge != Basics.Magnetic)  continue
+        i.e. it re-tests the OUTER channel's gauge (`cha`) instead of the inner one's (`chp`). Since the outer
+        loop has already established that condition, the inner test never excludes anything, and amplitudes
+        belonging to DIFFERENT gauges are multiplied together. The same slip appears in
+        computeStatisticalTensorUnpolarized; computeAngularBeta has it right. Here the product
+        `amp * conj(ampp)` is componentwise, so the two gauges cannot meet whatever anyone writes.
+        These two functions will therefore NOT agree with their flat counterparts -- see the note in the
+        Claude tensor function below.
+"""
+function computePartialCrossSectionUnpolarized(Mf::AngularM64, line::PhotoIonization.Line)
+    function Racahexpr(kappa::Int64, Ji::AngularJ64, Jf::AngularJ64, Mf::AngularM64, J::AngularJ64, Jp::AngularJ64,
+                        L::Int64, Lp::Int64, p::Int64, pp::Int64)
+        t1 = Basics.oplus( AngularJ64(Lp), Jf);    t2 = Basics.oplus( AngularJ64(L), Jf);    tList = intersect(t1, t2)
+        wb = 0.
+        for  t  in tList
+            for  lambda = -1:2:1
+                j = AngularMomentum.kappa_j(kappa);   Mf_lambda = Basics.add(AngularM64(lambda), Mf)
+                wb = wb + (1.0im * lambda)^p * (-1.0im * lambda)^pp *
+                        AngularMomentum.ClebschGordan( AngularJ64(Lp), AngularM64(lambda), Jf, Mf, t, Mf_lambda) *
+                        AngularMomentum.ClebschGordan( AngularJ64(L),  AngularM64(lambda), Jf, Mf, t, Mf_lambda) *
+                        AngularMomentum.Wigner_9j(j, Jp, Jf, J, Ji, AngularJ64(L), Jf, AngularJ64(Lp), t)
+            end
+        end
+        return( wb )
+    end
+    #
+    Ji = line.initialLevel.J;    Jf = line.finalLevel.J
+    waC = 0.0im;    waB = 0.0im
+    ## Pairs are formed WITHIN one partial wave, which is what "kappa != chp.kappa continue" says in the
+    ## flat form -- here it is the loop structure itself.
+    for  pw in line.partialWaves
+        for  cha in pw.channels,  ma in cha.amplitudes
+            J = cha.symmetry.J;    L = ma.multipole.L;    p  = ma.multipole.electric ? 1 : 0
+            for  chp in pw.channels,  mp in chp.amplitudes
+                Jp = chp.symmetry.J;   Lp = mp.multipole.L;   pp = mp.multipole.electric ? 1 : 0
+                wc = 1.0im^(L - Lp) * (-1)^(L + Lp) * AngularMomentum.bracket([AngularJ64(L), AngularJ64(Lp), J, Jp]) *
+                        Racahexpr(pw.kappa, Ji, Jf, Mf, J, Jp, L, Lp, p, pp) * (ma.amplitude * conj(mp.amplitude))
+                waC = waC + wc.Coulomb;    waB = waB + wc.Babushkin
+            end
+        end
+    end
+    csFactor = 8 * pi^3 * Defaults.getDefaults("alpha") / (2*line.photonEnergy * (Basics.twice(Ji) + 1))
+    return( EmProperty(real(csFactor * waC), real(csFactor * waB)) )
+end
+
+
+"""
+`PhotoIonization.computeStatisticalTensorUnpolarized(k::Int64, q::Int64, line::PhotoIonization.Line,
+                                                           settings::PhotoIonization.Settings)`
+    ... computes the statistical tensor rho_kq of the photoion; an EmPropertyC is returned, holding both
+        gauges. As above, no gauge argument is taken because the gauge is carried by the amplitude.
+
+        CARRIES THE SAME CORRECTION as computePartialCrossSectionUnpolarized: the flat version's inner
+        loop tests `cha.gauge` where it means `chp.gauge`, so it multiplies Coulomb amplitudes with Babushkin
+        ones. That cannot happen here. The two versions therefore differ by more than rounding, and the
+        difference is the point rather than a defect of this one.
+"""
+function computeStatisticalTensorUnpolarized(k::Int64, q::Int64, line::PhotoIonization.Line,
+                                                   settings::PhotoIonization.Settings)
+    Ji = line.initialLevel.J;    Jf = line.finalLevel.J
+    P1 = settings.stokes.P1;     P2 = settings.stokes.P2;     P3 = settings.stokes.P3
+    waC = 0.0im;    waB = 0.0im
+    for  pw in line.partialWaves
+        j = AngularMomentum.kappa_j(pw.kappa)
+        for  cha in pw.channels,  ma in cha.amplitudes
+            J = cha.symmetry.J;    L = ma.multipole.L;    p  = ma.multipole.electric ? 1 : 0
+            for  chp in pw.channels,  mp in chp.amplitudes
+                Jp = chp.symmetry.J;   Lp = mp.multipole.L;   pp = mp.multipole.electric ? 1 : 0
+                for  lambda = -1:2:1
+                    for  lambdap = -1:2:1
+                        if  lambda == lambdap   wb = (1.0 + 0.0im + lambda*P3)    else    wb = P1 - lambda * P2 * im    end
+                        wc = wb * 1.0im^(L - Lp + p - pp) * lambda^p * lambdap^pp *
+                                sqrt( AngularMomentum.bracket([AngularJ64(L), AngularJ64(Lp), J, Jp]) ) *
+                                AngularMomentum.phaseFactor([J, +1, Jp, +1, Jf, +1, Ji, +1, j, +1, AngularJ64(1)]) *
+                                AngularMomentum.ClebschGordan( AngularJ64(L),  AngularM64(lambda), AngularJ64(Lp),
+                                                                AngularM64(-lambda), AngularJ64(k),  AngularM64(q)) *
+                                AngularMomentum.Wigner_6j(Jf, j, Jp, J, AngularJ64(k), Jf) *
+                                AngularMomentum.Wigner_6j(Jp, Ji, AngularJ64(Lp), AngularJ64(L), AngularJ64(k), J) *
+                                (ma.amplitude * conj(mp.amplitude))
+                        waC = waC + wc.Coulomb;    waB = waB + wc.Babushkin
+                    end
+                end
+            end
+        end
+    end
+    fc = pi / (Basics.twice(Ji) + 1)
+    return( EmPropertyC(fc * waC, fc * waB) )
+end
+
+
+"""
+`PhotoIonization.computeDisplayNonE1AngleDifferentialCS(stream::IO, lines::Array{PhotoIonization.Line,1},
+                                                              settings::PhotoIonization.Settings)`
+    ... computes and displays the non-E1 angle-differential photoionization cross sections for all
+        PhotoIonization.Line's and at all angles theta as defined in the settings; the general formula
+        by Nishita Hosea (2025) is applied, exactly as in PhotoIonization.computeDisplayNonE1AngleDifferentialCS.
+        A table is printed for each line but nothing is returned otherwise.
+
+        THIS IS THE ONE CONSUMER THAT PAIRS AMPLITUDES ACROSS PARTIAL WAVES. computeAngularBeta and the
+        partial cross section pair only within one kappa; here kappa and kappa' are independent, and the
+        interference between two DIFFERENT partial waves is the whole content of the non-dipole terms. The
+        loop therefore runs over the flattened (kappa, symmetry, multipole, amplitude) entries of the line.
+
+        Of the three flat functions that must keep the gauges apart, this is the one that does it correctly:
+        it guards the pair from BOTH sides (`cha == Coulomb && chb == Babushkin` and the reverse) and then
+        books a pair into the Coulomb sum unless either partner is Babushkin, and vice versa -- so a magnetic
+        multipole, whose flat gauge label is Basics.Magnetic, enters both sums. Every one of those three
+        rules is reproduced here by the single product `ma.amplitude * conj(mp.amplitude)`: it is
+        componentwise, so the mixed pairs cannot form, and a magnetic amplitude has equal components, so it
+        contributes to both. Four lines of bookkeeping become none.
+
+        MIRRORED, NOT REPAIRED: `angCS` is filled once per line but never emptied between lines, so the
+        table printed for the second line repeats the rows of the first. That is a defect of the flat
+        function; it is reproduced here unchanged, so that the two paths can be compared line for line, and
+        it is to be fixed in the flat function -- where it belongs -- rather than silently here.
+"""
+function computeDisplayNonE1AngleDifferentialCS(stream::IO, lines::Array{PhotoIonization.Line,1},
+                                                      settings::PhotoIonization.Settings)
+    function spinDensityMatrix(lambda1::Int64, lambda2::Int64, stokes::ExpStokes)
+        # Convert the Stokes parameters of the incoming light into a spin-density matrix on the indices lambda = +-1
+        if      lambda1 == lambda2  == 1               return( (1.0 + stokes.P3)/2. )
+        elseif  lambda1 ==  1   &&   lambda2  == -1    return( (stokes.P1 - stokes.P1*im)/2. )
+        elseif  lambda1 == -1   &&   lambda2  ==  1    return( (stokes.P1 + stokes.P1*im)/2. )
+        elseif  lambda1 == lambda2  == -1              return( (1.0 - stokes.P3)/2. )
+        else    error("stop a")
+        end
+    end
+    #
+    angCS = Tuple{Float64, ComplexF64, ComplexF64}[]  # theta, angCs.Coulomb, angCs.Babushkin
+    ## Loop about all lines; a table is printed independently for each line
+    for  line in lines
+        ## Flatten once: one entry per (partial wave, total symmetry, multipole), each carrying both gauges.
+        entries = Tuple{Int64,LevelSymmetry,EmMultipole,EmPropertyC}[]
+        for  pw in line.partialWaves,  ch in pw.channels,  ma in ch.amplitudes
+            push!(entries, (pw.kappa, ch.symmetry, ma.multipole, ma.amplitude))
+        end
+        ## Loop over all angles theta
+        for  theta in settings.thetas
+            cs = EmPropertyC(0.0im)
+            for  (kapa, syma, mpa, ampa)  in entries,   (kapb, symb, mpb, ampb)  in entries
+                s1 = Subshell(20, kapa);   j1 = Basics.subshell_j(s1)
+                s2 = Subshell(20, kapb);   j2 = Basics.subshell_j(s2)
+                for  X = 0:20  # Test for triangular conditions for X and continue otherwise
+                    if  AngularMomentum.isTriangle(mpa.L, mpb.L, X)                    &&
+                        AngularMomentum.isTriangle(syma.J,  symb.J, AngularJ64(X) )    &&
+                        AngularMomentum.isTriangle(j1,  j2, AngularJ64(X) )
+                        K = PhotoIonization.angularFunctionK(mpa.L, mpb.L, X, line.initialLevel.J, line.finalLevel.J,
+                                                             kapa, syma.J, kapb, symb.J)
+                        # Compute the summation over lambda's and mu's
+                        W = 0.
+                        for  lambda1 = -1:2:1,   lambda2 = -1:2:1,   mu = -1//2:1: 1//2
+                            W = W + spinDensityMatrix(lambda1, lambda2, settings.stokes) *
+                                    PhotoIonization.angularFunctionW(theta, mpa.L, mpb.L, X, lambda1, lambda2,
+                                                                     kapa, mu, kapb, mu) *
+                                    (1.0im)^(mpb.L - mpa.L) * (lambda1*lambda2) / 2. *
+                                     AngularMomentum.phaseMultipole(1.0im*lambda1, mpa) *
+                                     AngularMomentum.phaseMultipole(1.0im*lambda2, mpb)
+                        end
+                        ## No gauge bookkeeping: the product is componentwise, and a magnetic amplitude has
+                        ## equal components and so enters both sums by itself.
+                        cs = cs + K * W * (ampa * conj(ampb))
+                    end
+                end
+            end
+            push!(angCS, (theta, cs.Coulomb, cs.Babushkin) )
+        end
+        #
+        # Prepare and printout a table for the angle-differential cross sections
+        nx = 69;   symi = LevelSymmetry(line.initialLevel.J, line.initialLevel.parity)
+                   symf = LevelSymmetry(line.finalLevel.J, line.finalLevel.parity)
+        println(stream, " ")
+        println(stream, "  Non-E1 angle-differential cross sections for line:" *
+                        "  $(line.initialLevel.index) [$symi] -- $(line.finalLevel.index) [$symf] "    )
+        println(stream, " ")
+        println(stream, "  + Photon energy:   $(line.photonEnergy)    [Hartree]")
+        println(stream, "  + Multipoles:      $(settings.multipoles)")
+        println(stream, " ")
+        println(stream, "  ", TableStrings.hLine(nx))
+        sa = "  ";   sb = "  "
+        sa = sa * TableStrings.center(14, "theta" ; na=6);
+        sb = sb * TableStrings.center(14, "[rad]" ; na=6)
+        sa = sa * TableStrings.center(44, "Coulomb -- cross sections -- Babushkin"; na=3);
+        sb = sb * TableStrings.center(44, "    [Mb]     "; na=3)
+        println(stream, sa);    println(stream, sb);    println(stream, "  ", TableStrings.hLine(nx))
+        for  cs in angCS
+            sa = "     " * @sprintf("%.2e", cs[1])      * "      "
+            sa = sa      * @sprintf("%.4e", cs[2].re)   * "  " * @sprintf("%.4e", cs[2].im)   * "    "
+            sa = sa      * @sprintf("%.4e", cs[3].re)   * "  " * @sprintf("%.4e", cs[3].im)
+            println(stream, sa)
+        end
+        println(stream, "  ", TableStrings.hLine(nx))
+        #
+    end
+
+    return( nothing )
+end
+
+
+"""
+`PhotoIonization.computeAngularBeta(iLevel::Level, fLevel::Level,
+        partialWaves::Array{PhotoIonization.PartialWave,1})`
+    ... computes the beta_2 anisotropy parameter from the given partial waves; an EmProperty is returned.
+        Valid in the E1 approximation, exactly as PhotoIonization.computeAngularBeta.
+
+        THIS IS THE FUNCTION THE NEW STRUCTURE HAS TO JUSTIFY, because it is the only consumer that needs
+        PAIRS of amplitudes rather than one at a time. In the flat form each pair must be guarded by
+        `if ch.gauge != chp.gauge continue`, since two amplitudes belonging to different gauges are two
+        different calculations and must never be multiplied together. Here that guard is GONE: the product
+        `amp * conj(ampp)` of two EmPropertyC is componentwise, so Coulomb meets Coulomb and Babushkin meets
+        Babushkin by construction. The gauge discipline moved out of the caller and into the arithmetic.
+
+        The partial wave supplies kappa -- one kappa serving several total symmetries -- and the channel
+        supplies the total symmetry, which is exactly the pairing this formula needs.
+"""
+function computeAngularBeta(iLevel::Level, fLevel::Level, partialWaves::Array{PhotoIonization.PartialWave,1})
+    ## Flatten to (kappa, symmetry, E1 amplitude) once; every pair below is then a plain double loop.
+    entries = Tuple{Int64,LevelSymmetry,EmPropertyC}[]
+    for  pw in partialWaves,  ch in pw.channels,  ma in ch.amplitudes
+        ma.multipole == E1   ||   continue          # these beta parameters are valid only in E1 approximation
+        push!(entries, (pw.kappa, ch.symmetry, ma.amplitude))
+    end
+    wn = EmProperty(0., 0.)
+    for  (kappa, symt, amp) in entries    wn = wn + abs2(amp)    end
+    #
+    Ji = iLevel.J;    Jf = fLevel.J
+    waC = ComplexF64(0.);    waB = ComplexF64(0.)
+    for  (kappa, symt, amp) in entries
+        j = AngularMomentum.kappa_j(kappa);      l = AngularMomentum.kappa_l(kappa);      Jt  = symt.J
+        for  (kappap, symtp, ampp) in entries
+            jp = AngularMomentum.kappa_j(kappap);    lp = AngularMomentum.kappa_l(kappap);    Jtp = symtp.J
+            wb = AngularMomentum.phaseFactor([Jf, -1, Ji, -1, AngularJ64(1//2)]) *
+                    sqrt( AngularMomentum.bracket([Jt, Jtp, j, jp, l, lp]) ) *
+                        AngularMomentum.ClebschGordan(l, AngularM64(0), lp, AngularM64(0), AngularJ64(2), AngularM64(0)) *
+                        AngularMomentum.Wigner_6j(j, l, AngularJ64(1//2), lp, jp, AngularJ64(2)) *
+                        AngularMomentum.Wigner_6j(j, Jt, Jf, Jtp, jp, AngularJ64(2)) *
+                        AngularMomentum.Wigner_6j(AngularJ64(1), Jt, Ji, Jtp, AngularJ64(1), AngularJ64(2))
+            ## Componentwise: no gauge can leak into the other, and no guard is needed to say so.
+            wc  = (amp * conj(ampp)) * wb
+            waC = waC + wc.Coulomb;    waB = waB + wc.Babushkin
+        end
+    end
+    #
+    if  wn.Coulomb   == 0.   waC = ComplexF64(-9.0)    else    waC = sqrt(6.0) * waC / wn.Coulomb      end
+    if  wn.Babushkin == 0.   waB = ComplexF64(-9.0)    else    waB = sqrt(6.0) * waB / wn.Babushkin    end
+    return( EmProperty(waC.re, waB.re) )
+end
+
+
+"""
+`PhotoIonization.computeAmplitudesProperties(line::PhotoIonization.Line, nm::Nuclear.Model,
+        grid::Radial.Grid, nrContinuum::Int64, settings::PhotoIonization.Settings; printout::Bool=false,
+        nuclearPot::Union{Nothing,Radial.Potential}=nothing,
+        primitives::Union{Nothing,Bsplines.Primitives}=nothing)`
+    ... computes all amplitudes and properties of the given line; a Line is returned in which the
+        amplitudes, the phases and the cross section are filled.
+
+        The physics is unchanged: the amplitudes come from the very same PhotoIonization.amplitude as the
+        flat path. Only the ORDER of the work differs, and that is the point -- the continuum orbital and the
+        initial level carrying the extra continuum subshell are formed ONCE PER PARTIAL WAVE, because they
+        depend on (energy, kappa) and on nothing else. The flat path had to re-derive them per channel until
+        a cache was added; here there is nothing to cache.
+
+        An electric multipole is evaluated twice, once per gauge, into one EmPropertyC; a magnetic multipole
+        once, into an EmPropertyC with equal components.
+"""
+function computeAmplitudesProperties(line::PhotoIonization.Line, nm::Nuclear.Model, grid::Radial.Grid,
+                                           nrContinuum::Int64, settings::PhotoIonization.Settings; printout::Bool=false,
+                                           nuclearPot::Union{Nothing,Radial.Potential}=nothing,
+                                           primitives::Union{Nothing,Bsplines.Primitives}=nothing)
+    contSettings = Continuum.Settings(false, nrContinuum)
+    redILevel = Basics.generateLevelWithSymmetryReducedBasis(line.initialLevel, line.initialLevel.basis.subshells)
+    newfLevel = Basics.generateLevelWithSymmetryReducedBasis(line.finalLevel, redILevel.basis.subshells)
+    newPartialWaves = PhotoIonization.PartialWave[]
+
+    for  pw in line.partialWaves
+        ## ONE orbital and ONE initial level per partial wave -- structurally, not by a cache.
+        cSubshell = Subshell(101, pw.kappa)
+        newiLevel = Basics.generateLevelWithExtraSubshell(cSubshell, redILevel)
+        cOrbital, phase = Continuum.generateOrbitalForLevel(line.electronEnergy, cSubshell, newfLevel, nm, grid,
+                                                            contSettings; nuclearPot=nuclearPot, primitives=primitives)
+        newChannels = PhotoIonization.Channel[]
+        for  ch in pw.channels
+            newcLevel = Basics.generateLevelWithExtraElectron(cOrbital, ch.symmetry, newfLevel)
+            newAmps   = MultipoleAmplitude[]
+            for  ma in ch.amplitudes
+                mp = ma.multipole
+                if  string(mp)[1] == 'E'
+                    ampC = PhotoIonization.amplitude("photoionization", mp, Basics.Coulomb, pw.kappa, phase, line.photonEnergy, newcLevel, newiLevel, grid)
+                    ampB = PhotoIonization.amplitude("photoionization", mp, Basics.Babushkin, pw.kappa, phase, line.photonEnergy, newcLevel, newiLevel, grid)
+                    push!(newAmps, MultipoleAmplitude(mp, EmPropertyC(ampC, ampB)))
+                else
+                    ## A magnetic multipole does not depend on the gauge; one evaluation, equal components.
+                    ampM = PhotoIonization.amplitude("photoionization", mp, Basics.Magnetic, pw.kappa, phase, line.photonEnergy, newcLevel, newiLevel, grid)
+                    push!(newAmps, MultipoleAmplitude(mp, EmPropertyC(ampM)))
+                end
+            end
+            push!(newChannels, PhotoIonization.Channel(ch.symmetry, newAmps))
+        end
+        push!(newPartialWaves, PhotoIonization.PartialWave(pw.kappa, line.electronEnergy, phase, newChannels))
+    end
+    #
+    crossSection = PhotoIonization.computeCrossSection(newPartialWaves, line.photonEnergy)
+    if    settings.calcAnisotropy
+          angularBeta = PhotoIonization.computeAngularBeta(line.initialLevel, line.finalLevel, newPartialWaves)
+    else  angularBeta = EmProperty(0.)
+    end
+    newLine = PhotoIonization.Line(line.initialLevel, line.finalLevel, line.electronEnergy, line.photonEnergy,
+                                         crossSection, angularBeta, EmProperty(0.), EmProperty(0.), newPartialWaves)
+    return( newLine )
+end
+
+
+"""
+`PhotoIonization.computeCrossSection(partialWaves::Array{PhotoIonization.PartialWave,1}, photonEnergy::Float64)`
+    ... computes the total photoionization cross section from the given partial waves; an EmProperty is returned.
+
+        THE SUMMATION IS THE SAME AS THE FLAT PATH'S, deliberately: |amplitude|^2 is summed INCOHERENTLY over
+        multipoles as well as over channels. The new structure would make a coherent multipole sum easy to
+        write, and that would be a change of physics -- a question to be settled separately against a
+        reference, not as a side effect of restructuring. What the new form buys is that the rule now lives
+        in ONE named place instead of being spelled out wherever channels are summed.
+
+        No gauge appears: abs2(::EmPropertyC) returns an EmProperty, so the two gauges are carried along
+        untouched, and a magnetic multipole -- whose two components are equal -- reproduces the flat path's
+        rule of adding it to both sums without any special case.
+"""
+function computeCrossSection(partialWaves::Array{PhotoIonization.PartialWave,1}, photonEnergy::Float64)
+    cs = EmProperty(0., 0.)
+    for  pw in partialWaves,  ch in pw.channels,  ma in ch.amplitudes
+        cs = cs + abs2(ma.amplitude)
+    end
+    csFactor = 8 * pi^3 / Defaults.getDefaults("alpha") / photonEnergy
+    return( EmProperty(csFactor * cs.Coulomb, csFactor * cs.Babushkin) )
+end
+
+
+"""
+`PhotoIonization.determineChannels(finalLevel::Level, initialLevel::Level, settings::PhotoIonization.Settings)`
+    ... determines the partial waves and, within each, the scattering channels of the given transition; an
+        Array{PartialWave,1} is returned, with every amplitude still zero.
+
+        The SELECTION RULES are exactly those of PhotoIonization.determineChannels above -- the same
+        AngularMomentum.allowedMultipoleSymmetries and allowedKappaSymmetries -- only the nesting is
+        inverted. There, multipole and gauge are outermost and the physical pair (kappa, symt) is produced
+        again for each of them; here the distinct (kappa, symt) pairs are collected first and every
+        multipole that reaches a pair is attached to it. The gauge is not iterated over at all: an electric
+        multipole yields one EmPropertyC holding both gauges, a magnetic one an EmPropertyC with equal
+        components, which is what the flat form expresses by adding Basics.Magnetic to both gauge sums.
+"""
+function determineChannels(finalLevel::Level, initialLevel::Level, settings::PhotoIonization.Settings)
+    symi = LevelSymmetry(initialLevel.J, initialLevel.parity);    symf = LevelSymmetry(finalLevel.J, finalLevel.parity)
+    ## (1) Collect, for every physical pair (kappa, symt), the multipoles that can reach it.
+    mpsFor = Dict{Tuple{Int64,LevelSymmetry}, Array{EmMultipole,1}}()
+    order  = Tuple{Int64,LevelSymmetry}[]                    ## to keep a reproducible sequence
+    for  mp in settings.multipoles
+        for  symt in AngularMomentum.allowedMultipoleSymmetries(symi, mp)
+            for  kappa in AngularMomentum.allowedKappaSymmetries(symt, symf)
+                if  !(Basics.subshell_l(Subshell(10,kappa)) in settings.lValues)    continue     end
+                key = (kappa, symt)
+                if  haskey(mpsFor, key)   push!(mpsFor[key], mp)
+                else                      mpsFor[key] = EmMultipole[mp];   push!(order, key)
+                end
+            end
+        end
+    end
+    ## (2) Group the pairs by kappa: one partial wave per kappa, carrying the symmetries it serves.
+    kappas = Int64[];   for (kappa, symt) in order    if !(kappa in kappas)   push!(kappas, kappa)   end    end
+    partialWaves = PartialWave[]
+    for  kappa in kappas
+        channels = Channel[]
+        for  (ka, symt) in order
+            ka == kappa   ||   continue
+            amps = MultipoleAmplitude[]
+            for  mp in mpsFor[(ka, symt)]
+                push!(amps, MultipoleAmplitude(mp, EmPropertyC(Complex(0.), Complex(0.))))
+            end
+            push!(channels, Channel(symt, amps))
+        end
+        push!(partialWaves, PartialWave(kappa, 0., 0., channels))
+    end
+    return( partialWaves )
+end
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

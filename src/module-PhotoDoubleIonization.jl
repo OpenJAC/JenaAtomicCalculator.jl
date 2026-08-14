@@ -330,7 +330,7 @@ function  computeAmplitudesProperties(line::PhotoDoubleIonization.Line, nm::Nucl
                                                         channel.kappa, channel.tSymmetry, phase, 0.)
             amplitude  = PhotoDoubleIonization.amplitude(Absorption(), channel.multipole, channel.gauge, sharing.omega, newcLevel,
                                                             newiLevel, settings.gMultiplet, grid, display=true, printout=true)           
-            push!( newChannels, PhotoIonization.Channel(newChannel.multipole, newChannel.gauge, newChannel.quasiSubshell, newChannel.xSymmetry, 
+            push!( newChannels, PhotoDoubleIonization.Channel(newChannel.multipole, newChannel.gauge, newChannel.quasiSubshell, newChannel.xSymmetry, 
                                                         newChannel.kappa, newChannel.tSymmetry, newChannel.phase, amplitude) )
             if       channel.gauge == Basics.Coulomb     dcsC = dcsC + abs(amplitude)^2
             elseif   channel.gauge == Basics.Babushkin   dcsB = dcsB + abs(amplitude)^2
@@ -346,7 +346,7 @@ function  computeAmplitudesProperties(line::PhotoDoubleIonization.Line, nm::Nucl
     ##  Correct for energy normalization 
     ##  if  line.electronEnergy < 2.0   csFactor = csFactor * (line.electronEnergy/2.0)^1.5     end
     crossSection = EmProperty(csFactor * csC, csFactor * csB)
-    newLine = PhotoIonization.Line( line.initialLevel, line.finalLevel, line.electronEnergy, line.photonEnergy, 
+    newLine = PhotoDoubleIonization.Line( line.initialLevel, line.finalLevel, line.electronEnergy, line.photonEnergy, 
                                     crossSection, newSharings)
     return( newLine )
 end
