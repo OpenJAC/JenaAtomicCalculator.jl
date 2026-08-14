@@ -279,7 +279,7 @@ end
         the standard Galerkin/least-squares projection matrixB * p = rhs, rhs[i] = <B_i|orb.P-or-Q>, using the
         existing grid quadrature. Unlike pulling the RAW diagonalization eigenvector -- which reproduces the
         UNCLEANED tabulated function from BEFORE generateOrbitalFromPrimitives' own truncation-at-mtp and
-        small-value cleanup are applied (the route the removed Bsplines.extractVectorFromPrimitives took) -- this
+        small-value cleanup are applied (the route the removed `extractVectorFromPrimitives` took) -- this
         function GUARANTEES the returned coefficient vector is fully self-consistent with orb's OWN (already
         cleaned) tabulated P, Q arrays, inheriting orb's own well-defined truncation instead of carrying whatever
         small numerical noise the raw eigenvector's tail coefficients happen to have.

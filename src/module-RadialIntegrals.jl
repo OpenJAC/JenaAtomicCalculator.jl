@@ -833,7 +833,7 @@ end
         SelfConsistent.computeTwoElectronV and SelfConsistent.computeFockMatrix for how it gets used -- these
         are reached from solveAverageLevelField, solveOptimizedLevelField and solveAverageAtomField, each of
         which builds the LL, LS and SS caches once per rank and then reuses them for the whole SCF run).
-        Until 13-Aug-2026 this sentence pointed instead at "SelfConsistent.computeDirectExchangeVTensor, once
+        Until 13-Aug-2026 this sentence pointed instead at "`computeDirectExchangeVTensor`, once
         written", a function that was never written; the real consumers had meanwhile been in place and
         unnamed. Building this cache is
         the expensive, kink-aware step -- it uses the SAME split-quadrature technique as

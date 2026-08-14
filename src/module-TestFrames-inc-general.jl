@@ -782,7 +782,7 @@ end
         no cascade: every requirement below is exact, or a textbook constant.
 
         This is the check that would have caught the defect found on 14-Aug-2026, where
-        Cascade.simulateRosselandOpacities formed  sum_i w_i kappa_i  -- an ARITHMETIC, i.e. Planck, mean --
+        `simulateRosselandOpacities`, as it was then called, formed  sum_i w_i kappa_i  -- an ARITHMETIC, i.e. Planck, mean --
         while carrying the Rosseland weight and calling the result Rosseland. The Rosseland mean is the
         HARMONIC one, 1/kappa_R = sum_i w_i/kappa_i, and the distinction is the whole physics: a harmonic
         mean is dominated by the most TRANSPARENT frequencies, an arithmetic one by the most opaque, so on a
@@ -904,5 +904,99 @@ function testMethod_Opacities(; short::Bool=true)
     end
 
     testPrint("testMethod_Opacities()::", success)
+    return( success )
+end
+
+
+"""
+`TestFrames.testMethod_DocstringPointers(; short::Bool=true)`
+    ... asserts that every `Module.name` written in a docstring under src/ actually resolves. Needs no
+        reference data: the requirement is exact, so the test is against zero rather than a tabulated number.
+
+        A docstring that names a function which does not exist is worse than one that says nothing, because
+        it is read as a promise. Dangling pointers turned up by hand three times in two days in Aug-2026 --
+        `XL_CoulombTensor` naming two functions that had never existed, `ScreenedPotentialCache` pointing at
+        "computeDirectExchangeVTensor, once written", and `computeCImatrix` calling an `XL_Breit_WO` that was
+        never defined, which meant half a reference cross-check could not have run. Each was found by
+        accident. This method finds them on purpose.
+
+        WHAT IT DOES NOT FLAG, and why:
+        * file names. "see module-Cascade.jl" matches the same pattern and is not a pointer, so a trailing
+          `.jl` is skipped;
+        * a name whose only fault is a missing `!`. `propagateProbability` does not exist while
+          `propagateProbability!` does; that is a real defect but a mechanical one, so it is counted and
+          reported SEPARATELY, to keep it from hiding the pointers that need judgement;
+        * anything inside a `#= ... =#` block. JAC uses these to disable whole regions of code, and such a
+          region carries its own docstrings whose functions are legitimately absent -- the block is off. The
+          first version of this method flagged `computeStepAugerAverageSCA`, which sits inside the
+          disabled block of module-Cascade-inc-stepwise-decay.jl, and that would have been a false alarm.
+
+        THE CONVENTION FOR HISTORY, which this method quietly enforces: a docstring explaining what a
+        function used to be called must write the old name WITHOUT its module prefix -- "simulateRosseland-
+        Opacities, as it was then called" -- so that a deliberate historical reference is not written in the
+        same form as a live pointer. Prefixing it would make the sentence a lie the moment it is read as an
+        instruction, and this method would rightly complain.
+        Returns true if no unresolved pointer remains.
+"""
+function testMethod_DocstringPointers(; short::Bool=true)
+    success = true
+    printstyled("\n\nTest that every Module.name named in a docstring resolves: \n", color=:light_green)
+    printstyled(  "---------------------------------------------------------- \n", color=:light_green)
+
+    docPattern = r"\"\"\"(.*?)\"\"\""s
+    ## NOTE THE ABSENCE OF A TRAILING \b, and do not put one back.  Julia's `!` is not a word character, so
+    ## `name!\b` never matches: the boundary would have to fall between `!` and whatever follows, which is
+    ## usually `(`, and two non-word characters make no boundary.  The pattern then backtracks to the bangless
+    ## name and reports every mutating function as unresolved.  The first version of this method did exactly
+    ## that and produced TEN false positives -- Cascade.propagateProbability!, pushLevels!, walkPathways! and
+    ## the rest -- every one of which is written correctly in its docstring.  A negative lookahead does the
+    ## job that \b cannot.
+    refPattern = r"\b([A-Z][A-Za-z0-9]*)\.([a-z][A-Za-z0-9_]*!?)(?![A-Za-z0-9_!])"
+    dangling   = Dict{String,Vector{String}}();    missingBang = Dict{String,Vector{String}}()
+    noTokens   = 0
+
+    for  file  in  filter(x -> endswith(x, ".jl"), readdir(@__DIR__, join=true))
+        ## Strip the disabled `#= ... =#` regions first; the docstrings inside them describe code that is
+        ## deliberately switched off, so their functions are absent on purpose.
+        source = replace( read(file, String), r"#=.*?=#"s => "" )
+        for  doc  in  eachmatch(docPattern, source)
+            for  ref  in  eachmatch(refPattern, doc.captures[1])
+                modName, fnName = ref.captures[1], ref.captures[2];    noTokens = noTokens + 1
+                fnName == "jl"                                        &&  continue
+                isdefined(JenaAtomicCalculator, Symbol(modName))      ||  continue
+                theModule = getfield(JenaAtomicCalculator, Symbol(modName))
+                theModule isa Module                                  ||  continue
+                isdefined(theModule, Symbol(fnName))                  &&  continue
+                if  isdefined(theModule, Symbol(fnName * "!"))
+                    push!( get!(missingBang, basename(file), String[]), "$modName.$fnName" )
+                else
+                    push!( get!(dangling,    basename(file), String[]), "$modName.$fnName" )
+                end
+            end
+        end
+    end
+
+    noBang     = sum( length(unique(v)) for v in values(missingBang); init=0 )
+    noDangling = sum( length(unique(v)) for v in values(dangling);    init=0 )
+    println("  $noTokens Module.name tokens scanned in the docstrings of src/. ")
+    println("  Unresolved:  $noDangling dangling,  $noBang missing a `!`. ")
+    if  noBang > 0
+        success = false
+        println("  *** These name a function that exists only WITH a trailing `!`; the name as written does " *
+                "not resolve:")
+        for  (file, refs)  in  sort(collect(missingBang), by=x->x[1])
+            println("        $file:  " * join(sort(unique(refs)), ", "))
+        end
+    end
+    if  noDangling > 0
+        success = false
+        println("  *** These name a function that does not exist under any name. A docstring pointer is read " *
+                "as a promise, so each must be repaired, renamed, or rewritten as prose:")
+        for  (file, refs)  in  sort(collect(dangling), by=x->x[1])
+            println("        $file:  " * join(sort(unique(refs)), ", "))
+        end
+    end
+
+    testPrint("testMethod_DocstringPointers()::", success)
     return( success )
 end

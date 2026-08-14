@@ -659,7 +659,7 @@ end
 
 
 """
-`Basics.yesno(question::String, sa::String)`  
+`BasicsAZ.yesno(question::String, sa::String)`  
     ... Returns true if the answer 'yes' or 'y' is found, and false otherwise; sa = {"Y", "N"} determines how the zero-String 
         "" is interpreted. The given question is repeated until a proper answer is obtained.
 """

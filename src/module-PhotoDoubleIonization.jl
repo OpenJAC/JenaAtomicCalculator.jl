@@ -13,11 +13,11 @@
     without saying so, and do not read the state below as "nearly working".
 
     What is known concretely. The module has evidently never been executed end to end. computeLines called
-    Basics.computePotentialDFS, a function that exists NOWHERE in JAC, so it raised UndefVarError the moment
+    `computePotentialDFS`, a function that exists NOWHERE in JAC, so it raised UndefVarError the moment
     it was reached; that one line is now repaired here (10-Aug-2026) only because the identical dead call sat
     in the Cascade stepwise-decay path, which IS used, and it was cheaper to fix both together than to leave
     a known-undefined call in the tree. Running it after that repair immediately hits a SECOND missing name,
-    PhotoDoubleIonization.displayResults, which is called twice (in computeLines) and defined nowhere. A scan
+    `displayResults`, which is called twice (in computeLines) and defined nowhere. A scan
     of the module found no further undefined callees, so those are the two -- but displayResults is a results
     table that has to be designed and written, not a one-line repair, and nothing downstream of it has ever
     produced a number that anyone has checked.

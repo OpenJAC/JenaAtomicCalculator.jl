@@ -11,6 +11,7 @@ using JenaAtomicCalculator, ..Defaults, ..TestFrames
         @test TestFrames.testMethod_OrbitalOrthonormality()
         @test TestFrames.testMethod_BreitInteraction()
         @test TestFrames.testMethod_Opacities()
+        @test TestFrames.testMethod_DocstringPointers()
     end
 
     @testset "JAC structs" begin

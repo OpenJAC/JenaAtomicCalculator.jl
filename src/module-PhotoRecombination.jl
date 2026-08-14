@@ -937,7 +937,7 @@ end
         settings::PhotoRecombination.Settings; output::Bool=true)`
     ... as PhotoRecombination.computeLinesWithContinuumOrbital, but on the physical form; a list of
         lines::Array{PhotoRecombination.Line,1} is returned. This is the driver that
-        Cascade.computePhotoRecombinationLines uses.
+        Cascade.computeSteps(::Cascade.RadiativeRecombinationScheme, ...) uses.
 
         MIRRORED AS IT STANDS, including two things that differ from computeLines and are NOT changed here:
         the phase is set to 0. rather than obtained from the orbital, and the cross section is summed inline

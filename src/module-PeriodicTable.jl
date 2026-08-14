@@ -551,7 +551,7 @@ end
 
 
 """
-`PeriodicTable.bindingEnergies_Williams2000(Z::Int64)`  ... former  JAC.store_Williams2000(Z::Int64)
+`PeriodicTable.bindingEnergies_Williams2000(Z::Int64)`  ... former  `store_Williams2000(Z::Int64)`
     ... to return the `stored values' of Williams et al. (2000), ... for the element with nuclear charge Z.
 """
 function bindingEnergies_Williams2000(Z::Int64)

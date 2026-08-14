@@ -1202,7 +1202,7 @@ end
         The Newton-Raphson methods is used to iterate to the chemical potential; a chemMu::Float64 is returned.
 
         Note: this general finite-temperature Fermi-Dirac root-finding utility was moved here from module Plasma
-              (where it originated as Plasma.determineChemicalPotential), since Plasma.perform(::AverageAtomScheme,
+              (where it originated as `determineChemicalPotential`), since Plasma.perform(::AverageAtomScheme,
               ...) needs SelfConsistent.solveAverageAtomField below, and solveAverageAtomField itself needs this
               function internally at every SCF iteration; keeping it in Plasma would have made the two modules
               depend on each other circularly. Nothing here is Plasma-scheme-specific.

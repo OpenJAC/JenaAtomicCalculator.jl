@@ -285,7 +285,7 @@ end
 ## Distribution.ElectronFermiDirac
 
 """
-`Distribution.electronEnergyFermiDirac(dist::Distribution.ElectronFermiDirac, energy::Float64)`  
+`Distribution.electronEnergyDistribution(dist::Distribution.ElectronFermiDirac, energy::Float64)`  
     ... to provide the Fermi-Dirac electron energy distribution of given temperature at electron energy.
         A value::Float64 is returned. 
 """

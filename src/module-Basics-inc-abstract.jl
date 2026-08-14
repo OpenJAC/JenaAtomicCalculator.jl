@@ -2372,7 +2372,7 @@ export  AbstractGenerateTheme, CondensedMultiplet, ConfigurationListNRFromBasis,
 
         Bunge1993 and McLean1981 went first: they promised start orbitals from the Roothaan-Hartree-Fock
         tables of Bunge et al., ADNDT 53 (1993) 113 and McLean & McLean, ADNDT 26 (1981) 197, but that data
-        has NEVER been part of JAC -- they called Basics.store(), which only ever existed as
+        has NEVER been part of JAC -- they called `store()`, which only ever existed as
         store_Williams2000, inner-shell binding energies and an entirely different table, itself removed at
         a20163c.  See module-Radial.jl for why importing those tables was decided against.
 

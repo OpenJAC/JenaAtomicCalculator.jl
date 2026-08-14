@@ -471,7 +471,7 @@ end
                             initialMultiplet::Multiplet, nm::Nuclear.Model, grid::Radial.Grid,
                             settings::DielectronicRecombination.Settings; output::Bool=true)`
     ... to compute dielectronic recombination in the re-structured, fine-structure resolved representation. This is the
-        driver of this file and the analogue of DielectronicRecombination.computePathways of the old route.
+        driver of this file and the analogue of `computePathways` of the old route.
         A tuple (captureLines, photonLines) is returned if output = true, and nothing otherwise; photonLines is empty
         unless settings.calcPhotonSpectrum.
 """

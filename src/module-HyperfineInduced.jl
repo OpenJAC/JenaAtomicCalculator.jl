@@ -20,7 +20,7 @@
     Hfs.HfBasisVector / Hfs.HfLevel / Hfs.HfMultiplet. The previous version could not be used in any case: FIVE of
     its function bodies were dead through identical-signature duplicates that Julia resolves silently by load
     order (computeLines, determineIJFlevels, displayHfMultiplet, displayRates, amplitude), only one of its three
-    `amplitude` methods was reachable, and the two unreachable ones called PhotoEmission.amplitude_Wu with a
+    `amplitude` methods was reachable, and the two unreachable ones called `amplitude_Wu` with a
     String argument for which no method exists.
 
     The structure now mirrors PhotoEmission one-for-one -- Settings, Channel, Line, amplitude,
