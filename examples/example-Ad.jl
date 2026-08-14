@@ -2,19 +2,21 @@
 println("Ad) Apply & test for the Breit interaction, frequency-independent and frequency-dependent.")
 
 if  true
-    # Last visit:  14-Aug-2026
-    # Last successful:  unknown -- E1(Coulomb) = -6331.33287512 Ha; Delta E(Breit) = 1.82701667 Ha,
-    # Delta E(Gaunt) = 1.46225723 Ha, Gaunt/Breit ratio = 0.80. THESE ARE NOT THE 29-Jul-2026 NUMBERS
-    # BELOW, and the drift does NOT come from the frequency-dependent Breit work of 14-Aug-2026: the same
-    # values are obtained from the immediately preceding commit, so CoulombBreit(0.) is unchanged to all
-    # 16 digits. Something between 29-Jul and 14-Aug moved the ORBITALS -- the kappa-sign B-spline
-    # boundary fix and the radial-box work are the candidates -- and it has not been run down. The
-    # Gaunt/Breit ratio fell from 0.93 to 0.80, i.e. away from the ~90% the literature reports for inner
-    # shells, so this wants understanding before the date is restored.
-    #   Superseded 29-Jul-2026 reading: E1(Coulomb) = -6331.332822 Ha; Delta E(Breit) = 5.245391 Ha,
-    # Delta E(Gaunt) = 4.880632 Ha, Gaunt/Breit ratio = 0.93 (literature: ~90% for inner shells -- close
-    # match). Timing (CI-only): Breit/Coulomb = 1.38x, Gaunt/Coulomb = 1.07x, Gaunt/Breit = 0.78x (Gaunt
-    # genuinely cheaper than full Breit, as expected from skipping the retardation term).
+    # Last successful:  14-Aug-2026: E1(Coulomb) = -6331.33287512 Ha; Delta E(Breit) = 5.24539117 Ha,
+    # Delta E(Gaunt) = 4.88063173 Ha, Gaunt/Breit ratio = 0.930 (literature: ~90% for inner shells).
+    #   THIS BRANCH CAUGHT A REAL BUG, and is the reason to keep running it. Between 10-Aug and 14-Aug
+    # it read Delta E(Breit) = 1.82701667 Ha and a ratio of 0.80. Bisection put the change at 8f0930b,
+    # which gave AngularMomentum.CL_reduced_me the parity rule it had genuinely been missing -- correct
+    # in itself, but it silently zeroed the nu = L block of XL_Breit_coefficients, whose guard demands
+    # l_a+l_c+L ODD while the shared prefactor now required EVEN. That block carries the dominant
+    # magnetic term, so Gaunt came out a factor 3.3 too small; the retardation part, which wants even
+    # parity, was untouched. Fixed by giving the nu = L block its own -kappa prefactor. The whole JAC
+    # test suite stayed at 45/45 across both the breakage and the repair, so this file, not the suite,
+    # is what covers the Breit interaction.
+    #   The 29-Jul-2026 reading is reproduced to 8 significant figures (5.245391 / 4.880632 / 0.93); the
+    # residual 3e-8 tracks the 2e-8 that E1 itself has moved since, from unrelated SCF changes. Timing
+    # then (CI-only): Breit/Coulomb = 1.38x, Gaunt/Coulomb = 1.07x, Gaunt/Breit = 0.78x (Gaunt genuinely
+    # cheaper than full Breit, as expected from skipping the retardation term).
     # Branch 1 (small): Cl-like Xe^35+ (1s^2 2s^2 2p^6 3s^2 3p^5, single reference) -- Z=54, matching the
     # actual configuration this file originally used (its own comment mistakenly said "Cl-like Fe^10+";
     # the configs are Ne-core 3p^5, i.e. Cl-like Xe, not Fe -- corrected here). Compares pure Coulomb,
@@ -126,11 +128,16 @@ elseif  false
     end
 
 elseif  false
-    # Last successful:  14-Aug-2026: the correction is quadratic in `factor` to 0.03%. A two-term fit
-    # A*f^2 + B*f^4 through the five points gives A = -7.222400e-02, B = +2.4257e-03 and reproduces every
-    # one of them to ~2e-5 of the leading term, so the ratio drifts only from -0.072186 (f=0.125) to
-    # -0.069798 (f=1) over an eightfold range of f. That is the signature the implementation must have and
-    # is the sharpest check in this file.
+    # Last successful:  14-Aug-2026: the correction is quadratic in `factor` to 0.04%. A two-term fit
+    # A*f^2 + B*f^4 through the five points gives A = -6.386609e-02, B = +2.8208e-03 and reproduces every
+    # one of them to ~2e-5 of the leading term, so the ratio drifts only from -0.063822 (f=0.125) to
+    # -0.061045 (f=1) over an eightfold range of f. That is the signature the implementation must have and
+    # is the sharpest check in this file. Delta E(Breit, omega=0) = 5.24539117 Ha.
+    #   Note that these constants are NOT the ones first recorded on 14-Aug-2026 (A = -7.222400e-02):
+    # those were measured while the nu = L Gaunt block was zeroed by the CL_reduced_me parity rule, see
+    # branch 1. The quadratic LAW held in both cases -- as it must, since the retardation part was never
+    # affected -- which is worth knowing about this test: it checks the frequency machinery, not the
+    # magnitude of the Breit interaction it multiplies.
     # Branch 4 (frequency dependence -- INTERNAL consistency, no external reference needed): retardation
     # enters at O(omega^2) and CoulombBreit(factor) scales omega, so [dE(factor) - dE(0)] / factor^2 has to
     # be constant up to an O(factor^2) remainder. This tests the W kernel of Grant & Pyper eq. (6), the
@@ -157,11 +164,14 @@ elseif  false
 
 elseif  false
     # Last visit:  14-Aug-2026
-    # Last successful:  unknown -- the relative correction grows with Z as it must (-0.94% at Z=26, -3.82%
-    # at Z=54), but at Z=79 it CHANGES SIGN (+8.22%) and the SCF reports sign changes for 2p_3/2 and
-    # 3p_3/2. That sign change has not been run down and may be a box effect (Rule 12: a 3p orbital of a
-    # Cl-like Z=79 ion has r_+ ~ 0.27 a.u., so the standard grid is far wider than these orbitals need)
-    # rather than physics. The date stays blank until it is understood.
+    # Last successful:  unknown -- the relative correction grows with Z as it must (-0.25% at Z=26,
+    # -1.16% at Z=54), but at Z=79 it CHANGES SIGN (+12.7%) and the SCF reports sign changes for 2p_3/2
+    # and 3p_3/2. That sign change has not been run down and may be a box effect (Rule 12: a 3p orbital
+    # of a Cl-like Z=79 ion has r_+ ~ 0.27 a.u., so the standard grid is far wider than these orbitals
+    # need) rather than physics. The date stays blank until it is understood.
+    #   Re-measured 14-Aug-2026 after the CL_reduced_me parity fix of branch 1, which roughly trebled
+    # the Breit energy in the denominator; the earlier readings were -0.94%, -3.82% and +8.22%. The sign
+    # flip at Z=79 survived the fix, so it is a separate question and not a symptom of that bug.
     # Branch 5 (frequency dependence -- Z scaling): omega = |E_a - E_c| / c grows with Z, so the frequency
     # correction to the Breit interaction must grow along an isoelectronic sequence. Note that it is fed
     # ONLY by exchange-type contributions: for a direct matrix element a = c and b = d, hence omega = 0

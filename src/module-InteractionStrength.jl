@@ -612,9 +612,35 @@ function XL_Breit_coefficients(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::
     lc = Basics.subshell_l(c.subshell);    jc2 = Basics.subshell_2j(c.subshell)
     ld = Basics.subshell_l(d.subshell);    jd2 = Basics.subshell_2j(d.subshell)
 
-    xc = AngularMomentum.CL_reduced_me(a.subshell, L, c.subshell) * AngularMomentum.CL_reduced_me(b.subshell, L, d.subshell)
-    if   rem(L,2) == 1    xc = - xc                end 
-    if   abs(xc)  <  1.0e-10    return( xcList )   end
+    ## TWO angular prefactors are needed, because the blocks below do not all want the same parity.
+    ##
+    ##   xc      = <kappa_a || C^L || kappa_c> <kappa_b || C^L || kappa_d>,  nonzero for l_a+l_c+L EVEN.
+    ##             Used by the 'T' blocks at nu = L-1 and nu = L+1 and by the whole 'S' block.
+    ##   xcFlip  = the same with the kappa sign flipped on the first argument, nonzero for l_a+l_c+L ODD.
+    ##             Used by the 'T' block at nu = L.
+    ##
+    ## The nu = L integrand is a.P * c.Q -- LARGE component against SMALL.  The small component of kappa_c
+    ## carries lbar_c = l_c +- 1, so the angular factor there is <kappa_a || C^L || -kappa_c> and its parity
+    ## condition is the OPPOSITE of the one that governs the other blocks.  CL_reduced_me depends on kappa
+    ## only through 2j = 2|kappa|-1, so flipping the sign leaves the VALUE untouched and moves only the
+    ## selection rule; xcFlip is therefore exactly the number this code used before 8f0930b.
+    ##
+    ## THAT COMMIT (10-Aug-2026) gave CL_reduced_me the parity rule it had genuinely been missing -- correct
+    ## in itself, and needed for the Coulomb and multipole call sites -- but here it silently zeroed the
+    ## nu = L block: its guard demands l_a+l_c+L odd, which the single shared xc could no longer satisfy.
+    ## That block carries the DOMINANT magnetic term, so every Breit and Gaunt number computed between
+    ## 10-Aug-2026 and 14-Aug-2026 came out far too small (a factor 3.3 in Gaunt for Cl-like Xe), while the
+    ## retardation part, which wants even parity, was untouched.  The test suite did not notice.
+    ##
+    ## GRASP2018 keeps the same division of labour differently: its CLRX depends only on |kappa_a|, |kappa_b|
+    ## and K, vetoes on the triangle condition alone, and evaluates BOTH parity branches, leaving the parity
+    ## vetoes to callers such as rci90/cxk.f90.  Spelling the -kappa out here says the same thing explicitly.
+    xc     = AngularMomentum.CL_reduced_me(a.subshell, L, c.subshell) *
+             AngularMomentum.CL_reduced_me(b.subshell, L, d.subshell)
+    xcFlip = AngularMomentum.CL_reduced_me(Subshell(a.subshell.n, -a.subshell.kappa), L, c.subshell) *
+             AngularMomentum.CL_reduced_me(Subshell(b.subshell.n, -b.subshell.kappa), L, d.subshell)
+    if   rem(L,2) == 1    xc = - xc;   xcFlip = - xcFlip                       end
+    if   abs(xc) < 1.0e-10   &&   abs(xcFlip) < 1.0e-10      return( xcList )  end
 
     # Consider the individual contributions from sum_nu and sum_mu. First, take T^(nu,L)_mu = R^(nu,L)_mu
     nu = L - 1
@@ -642,9 +668,10 @@ function XL_Breit_coefficients(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::
     nu = L
 
     if  rem(la+lc+nu,2) == 1   &&   rem(lb+ld+nu,2) == 1   &&   L != 0
+        ## The ONLY block that wants odd parity, and hence the only consumer of xcFlip; see the note above.
         wa = - (a.subshell.kappa + c.subshell.kappa) * (b.subshell.kappa + d.subshell.kappa) / (L*(L+1))
         # mu = 1
-        xcc = xc * wa
+        xcc = xcFlip * wa
         if  abs(xcc) > 1.0e-10   push!( xcList, XLCoefficient('T', nu, a, b, c, d, xcc) )   end
         if  abs(xcc) > 1.0e-10   push!( xcList, XLCoefficient('T', nu, b, a, d, c, xcc) )   end
         # mu = 2
