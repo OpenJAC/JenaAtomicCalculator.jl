@@ -155,8 +155,68 @@ function Line(initialLevel::Level, finalLevel::Level, omega::Float64, photonRate
 end
 
 
+#####################################################################################################################
+## THE PHYSICAL FORM, built BESIDE the flat one above -- the third module, after PhotoIonization and
+## PhotoRecombination, and the one where the CHANNEL CONCEPT DISAPPEARS ALTOGETHER.
+##
+## Photo emission is BOUND-BOUND: there is no free electron, hence no kappa, no scattering phase and no total
+## symmetry of a scattering state.  A PhotoEmission.Channel is (multipole, gauge, amplitude) -- that is,
+## ENTIRELY a label of the interaction OPERATOR, with no state content whatsoever.  In the other two modules the
+## channel had to be reorganized, separating the state (kappa, symmetry) from the operator (multipole, gauge);
+## here there is nothing to separate, so the whole intermediate layer goes away and a line carries a flat list of
+## multipole amplitudes.  No PartialWave, no Channel: a struct holding exactly one field would describe nothing.
+##
+## For a line with [E1, M1, E2] and both gauges requested:
+##     flat  ->  5 Channel objects:   E1-Coulomb, E1-Babushkin, M1-Magnetic, E2-Coulomb, E2-Babushkin
+##     new   ->  3 amplitude entries: E1, M1, E2 -- each carrying BOTH gauges
+#####################################################################################################################
+
+
+"""
+`struct  PhotoEmission.MultipoleAmplitudeClaude`
+    ... the contribution of ONE multipole of the interaction operator to a line's amplitude.
+
+    + multipole      ::EmMultipole      ... Multipole of the photon emission/absorption.
+    + amplitude      ::EmPropertyC      ... Amplitude in BOTH gauges; the gauge is not a label here.
+
+        A MAGNETIC multipole simply has equal components, which is what the flat form expresses by adding
+        Basics.Magnetic to both gauge sums; and a product conj(amplitude) * amplitude' is componentwise, so
+        two gauges cannot mix however the caller is written. The three defects fixed in 8bf17cb were all of
+        that kind.
+"""
+struct  MultipoleAmplitudeClaude
+    multipole        ::EmMultipole
+    amplitude        ::EmPropertyC
+end
+
+
+"""
+`struct  PhotoEmission.LineClaude`
+    ... as PhotoEmission.Line, but carrying one entry per MULTIPOLE instead of one per (multipole, gauge).
+
+    + initialLevel   ::Level                            ... initial-(state) level
+    + finalLevel     ::Level                            ... final-(state) level
+    + omega          ::Float64                          ... Transition frequency of this line.
+    + photonRate     ::EmProperty                       ... Total rate of this line.
+    + angularBeta    ::EmProperty                       ... Angular beta_2 coefficient.
+    + amplitudes     ::Array{MultipoleAmplitudeClaude,1} ... one entry per contributing multipole.
+
+        `hasSublines` is deliberately NOT carried over. In the flat Line it is declared, stored and printed and
+        never read -- not here, not in PhotoExcitation, which is the only other survivor of the field, and not
+        in any of the sixteen modules that use PhotoEmission.Line.
+"""
+struct  LineClaude
+    initialLevel     ::Level
+    finalLevel       ::Level
+    omega            ::Float64
+    photonRate       ::EmProperty
+    angularBeta      ::EmProperty
+    amplitudes       ::Array{MultipoleAmplitudeClaude,1}
+end
+
+
 # `Base.show(io::IO, line::PhotoEmissionLine)`  ... prepares a proper printout of the variable line::PhotoEmission.Line.
-function Base.show(io::IO, line::PhotoEmission.Line) 
+function Base.show(io::IO, line::PhotoEmission.Line)
     println(io, "initialLevel:         $(line.initialLevel)  ")
     println(io, "finalLevel:           $(line.finalLevel)  ")
     println(io, "omega:                $(line.omega)  ")
@@ -689,6 +749,298 @@ function  displayRates(stream::IO, lines::Array{PhotoEmission.Line,1}, settings:
     println(stream, "  ", TableStrings.hLine(nx))
     #
     return( nothing )
+end
+
+
+#####################################################################################################################
+## STAGE A of the physical form: the core.  Everything below is ADDITIVE -- nothing above is altered.
+#####################################################################################################################
+
+
+"""
+`PhotoEmission.determineChannelsClaude(finalLevel::Level, initialLevel::Level, settings::PhotoEmission.Settings)`
+    ... as PhotoEmission.determineChannels, but returning one entry per MULTIPOLE; an
+        Array{PhotoEmission.MultipoleAmplitudeClaude,1} is returned with all amplitudes still zero.
+
+        The selection rule is the same AngularMomentum.isAllowedMultipole. What disappears is everything that
+        was only there to service the gauge: the `for gauge in settings.gauges` loop, the three-way push, and
+        the `hasMagnetic` flag that stopped a magnetic multipole being emitted once per requested gauge. The
+        flag was necessary in the flat form and is unrepresentable here -- there is no gauge loop to guard.
+"""
+function determineChannelsClaude(finalLevel::Level, initialLevel::Level, settings::PhotoEmission.Settings)
+    amplitudes = PhotoEmission.MultipoleAmplitudeClaude[]
+    symi = LevelSymmetry(initialLevel.J, initialLevel.parity);    symf = LevelSymmetry(finalLevel.J, finalLevel.parity)
+    for  mp in settings.multipoles
+        if   AngularMomentum.isAllowedMultipole(symi, mp, symf)
+            push!(amplitudes, PhotoEmission.MultipoleAmplitudeClaude(mp, EmPropertyC(Complex(0.), Complex(0.))))
+        end
+    end
+    return( amplitudes )
+end
+
+
+"""
+`PhotoEmission.computeAmplitudesPropertiesClaude(line::PhotoEmission.LineClaude, grid::Radial.Grid,
+                                                 settings::PhotoEmission.Settings; printout::Bool=true)`
+    ... as PhotoEmission.computeAmplitudesProperties, but on the physical form; a LineClaude with all
+        amplitudes and the photon rate evaluated is returned.
+
+        An electric multipole is evaluated twice, once per gauge, into one EmPropertyC; a magnetic multipole
+        once, into an EmPropertyC with equal components. The three-way gauge `if` that accumulated rateC and
+        rateB by hand becomes a single `rate = rate + abs2(ma.amplitude)`, since abs2 of an EmPropertyC is an
+        EmProperty and a magnetic amplitude enters both components by itself.
+
+        The rate is summed INCOHERENTLY over multipoles, exactly as in the flat version.
+"""
+function computeAmplitudesPropertiesClaude(line::PhotoEmission.LineClaude, grid::Radial.Grid,
+                                           settings::PhotoEmission.Settings; printout::Bool=true)
+    if  settings.corePolarization.doApply
+        ## RETIRED 09-Aug-2026, as in computeAmplitudesProperties above; refuse rather than return a number
+        ## nobody can defend.
+        error("\n\nPhotoEmission: corePolarization.doApply = true, but the core-polarization amplitude was "  *
+              "RETIRED on 09-Aug-2026.\n"                                                                     *
+              ">>> It was based on MbaEmissionMigdalek, which never worked in a useful form.\n"                *
+              ">>> Set doApply = false, or implement a new core-polarization correction from scratch.\n")
+    end
+    newAmplitudes = PhotoEmission.MultipoleAmplitudeClaude[];    rate = EmProperty(0., 0.)
+    for  ma in line.amplitudes
+        mp = ma.multipole
+        if  string(mp)[1] == 'E'
+            ampC = PhotoEmission.amplitude(Emission(), mp, Basics.Coulomb,   line.omega, line.finalLevel,
+                                            line.initialLevel, grid; printout=printout)
+            ampB = PhotoEmission.amplitude(Emission(), mp, Basics.Babushkin, line.omega, line.finalLevel,
+                                            line.initialLevel, grid; printout=printout)
+            amp  = EmPropertyC(ampC, ampB)
+        else
+            ampM = PhotoEmission.amplitude(Emission(), mp, Basics.Magnetic,  line.omega, line.finalLevel,
+                                            line.initialLevel, grid; printout=printout)
+            amp  = EmPropertyC(ampM)
+        end
+        rate = rate + abs2(amp)
+        push!(newAmplitudes, PhotoEmission.MultipoleAmplitudeClaude(mp, amp))
+    end
+    wa          = 8pi * Defaults.getDefaults("alpha") * line.omega / (Basics.twice(line.initialLevel.J) + 1)
+    photonrate  = wa * rate
+    angularBeta = EmProperty(-9., -9.)      ## the sentinel of the flat version; never computed there either
+    return( PhotoEmission.LineClaude(line.initialLevel, line.finalLevel, line.omega, photonrate, angularBeta,
+                                     newAmplitudes) )
+end
+
+
+"""
+`PhotoEmission.computeAnisotropyFunctionsClaude(line::PhotoEmission.LineClaude)`
+    ... computes the anisotropy (structure) functions f_2 and f_4 of the given line; a tuple
+        (f2, f4)::Tuple{EmPropertyC,EmPropertyC} is returned, each holding BOTH gauges.
+
+        THIS IS THE FUNCTION THAT JUSTIFIES THE NEW FORM IN THIS MODULE. In displayAnisotropies the Coulomb
+        and the Babushkin sums are written out as two blocks of twenty-two lines that differ in nothing but
+        the gauge name -- the only place in the three converted modules where the gauge branching is literally
+        duplicated code. Written once against EmPropertyC they are one block: the product
+        conj(ampa) * ampb is componentwise, so Coulomb meets Coulomb and Babushkin meets Babushkin, and a
+        magnetic amplitude has equal components and so enters both.
+
+        BOTH defects fixed in 8bf17cb lived in those blocks and neither is expressible here: there is no gauge
+        to test on either partner, and the pair is destructured into (mpa, ampa) and (mpb, ampb), so writing
+        the outer multipole where the inner is meant is a visible mistake rather than an invisible one.
+
+        The angular algebra, the phase factor and the parity factor are reproduced verbatim.
+"""
+function computeAnisotropyFunctionsClaude(line::PhotoEmission.LineClaude)
+    f2 = EmPropertyC(0.0im);   f4 = EmPropertyC(0.0im);   norm = EmProperty(0., 0.)
+    angJi = line.initialLevel.J;    angJf = line.finalLevel.J
+    for  ma in line.amplitudes    norm = norm + abs2(ma.amplitude)    end
+    #
+    for  ma in line.amplitudes
+        mpa = ma.multipole;    angL  = AngularJ64(mpa.L);   p  = Basics.multipole_p(mpa)
+        for  mb in line.amplitudes
+            mpb = mb.multipole;    angLp = AngularJ64(mpb.L);   pp = Basics.multipole_p(mpb)
+            #
+            wa = (1.0im)^(mpb.L + pp - mpa.L - p)                                                    *
+                 sqrt( (2mpa.L+1) * (2mpb.L+1) )                                                     *
+                 (1. + (-1.)^(mpa.L + p + mpb.L + pp - 2) )                                          *
+                 (conj(ma.amplitude) * mb.amplitude)
+            f2 = f2 + wa * AngularMomentum.phaseFactor([angJf, +1, angJi, +1, AngularJ64(3)])        *
+                 AngularMomentum.ClebschGordan(angL, AngularM64(1), angLp, AngularM64(-1), AngularJ64(2), AngularM64(0)) *
+                 AngularMomentum.Wigner_6j(angL, angLp, AngularJ64(2), angJi, angJi, angJf)
+            f4 = f4 + wa * AngularMomentum.phaseFactor([angJf, +1, angJi, +1, AngularJ64(5)])        *
+                 AngularMomentum.ClebschGordan(angL, AngularM64(1), angLp, AngularM64(-1), AngularJ64(4), AngularM64(0)) *
+                 AngularMomentum.Wigner_6j(angL, angLp, AngularJ64(4), angJi, angJi, angJf)
+        end
+    end
+    wn = sqrt(Basics.twice(line.initialLevel.J) + 1) / 2.
+    f2 = EmPropertyC(f2.Coulomb / norm.Coulomb * wn, f2.Babushkin / norm.Babushkin * wn)
+    f4 = EmPropertyC(f4.Coulomb / norm.Coulomb * wn, f4.Babushkin / norm.Babushkin * wn)
+    return( f2, f4 )
+end
+
+
+#####################################################################################################################
+## STAGE B: the bridge back to the flat form, and the displays.
+#####################################################################################################################
+
+
+"""
+`PhotoEmission.flatAmplitudesClaude(amplitudes::Array{PhotoEmission.MultipoleAmplitudeClaude,1})`
+    ... converts the physical amplitudes back into the flat Array{PhotoEmission.Channel,1}; the bridge that
+        lets a LineClaude be handed to anything still written against the flat form.
+
+        One physical amplitude becomes TWO flat channels for an electric multipole (one per gauge) and ONE for
+        a magnetic one -- which is exactly the redundancy the flat form carries.
+"""
+function flatAmplitudesClaude(amplitudes::Array{PhotoEmission.MultipoleAmplitudeClaude,1})
+    channels = PhotoEmission.Channel[]
+    for  ma in amplitudes
+        if  string(ma.multipole)[1] == 'E'
+            push!(channels, PhotoEmission.Channel(ma.multipole, Basics.Coulomb,   ma.amplitude.Coulomb))
+            push!(channels, PhotoEmission.Channel(ma.multipole, Basics.Babushkin, ma.amplitude.Babushkin))
+        else
+            push!(channels, PhotoEmission.Channel(ma.multipole, Basics.Magnetic,  ma.amplitude.Coulomb))
+        end
+    end
+    return( channels )
+end
+
+
+"""
+`PhotoEmission.flatLineClaude(line::PhotoEmission.LineClaude)`
+    ... converts a LineClaude into the flat PhotoEmission.Line, carrying every other field across unchanged.
+        `hasSublines` is supplied as true, which is what the flat computeAmplitudesProperties and
+        determineLines both write, so that the delegating displays below stay identical by construction.
+"""
+function flatLineClaude(line::PhotoEmission.LineClaude)
+    return( PhotoEmission.Line(line.initialLevel, line.finalLevel, line.omega, line.photonRate, line.angularBeta,
+                               true, PhotoEmission.flatAmplitudesClaude(line.amplitudes)) )
+end
+
+
+"""
+`PhotoEmission.displayLinesClaude(stream::IO, lines::Array{PhotoEmission.LineClaude,1})`
+`PhotoEmission.displayRatesClaude(stream::IO, lines::Array{PhotoEmission.LineClaude,1}, settings)`
+`PhotoEmission.displayLifetimesClaude(stream::IO, lines::Array{PhotoEmission.LineClaude,1}, settings)`
+`PhotoEmission.displayAnisotropiesClaude(stream::IO, lines::Array{PhotoEmission.LineClaude,1}, settings)`
+    ... the display layer for the physical form. Each converts through flatLineClaude and delegates to its
+        existing counterpart, so the printed output is IDENTICAL BY CONSTRUCTION rather than by inspection --
+        which is what makes an end-to-end comparison of the two paths meaningful.
+
+        As in the other two modules, displayAnisotropies computes inside itself, so the delegating version
+        exercises the FLAT anisotropy sum. computeAnisotropyFunctionsClaude is checked value by value in
+        work/diag-pe-claude.jl instead, where a disagreement is attributable to one function.
+"""
+function displayLinesClaude(stream::IO, lines::Array{PhotoEmission.LineClaude,1})
+    return( PhotoEmission.displayLines(stream, [PhotoEmission.flatLineClaude(l) for l in lines]) )
+end
+
+function displayRatesClaude(stream::IO, lines::Array{PhotoEmission.LineClaude,1}, settings::PhotoEmission.Settings)
+    return( PhotoEmission.displayRates(stream, [PhotoEmission.flatLineClaude(l) for l in lines], settings) )
+end
+
+function displayLifetimesClaude(stream::IO, lines::Array{PhotoEmission.LineClaude,1}, settings::PhotoEmission.Settings)
+    return( PhotoEmission.displayLifetimes(stream, [PhotoEmission.flatLineClaude(l) for l in lines], settings) )
+end
+
+function displayAnisotropiesClaude(stream::IO, lines::Array{PhotoEmission.LineClaude,1}, settings::PhotoEmission.Settings)
+    return( PhotoEmission.displayAnisotropies(stream, [PhotoEmission.flatLineClaude(l) for l in lines], settings) )
+end
+
+
+#####################################################################################################################
+## STAGE C: the drivers, so that a whole computation can be run either way and compared end to end.
+#####################################################################################################################
+
+
+"""
+`PhotoEmission.determineLinesClaude(finalMultiplet::Multiplet, initialMultiplet::Multiplet,
+                                    settings::PhotoEmission.Settings)`
+    ... as PhotoEmission.determineLines, but producing LineClaude; an Array{PhotoEmission.LineClaude,1}
+        is returned.
+"""
+function determineLinesClaude(finalMultiplet::Multiplet, initialMultiplet::Multiplet, settings::PhotoEmission.Settings)
+    lines = PhotoEmission.LineClaude[]
+    for  iLevel  in  initialMultiplet.levels
+        for  fLevel  in  finalMultiplet.levels
+            if  Basics.selectLevelPair(iLevel, fLevel, settings.lineSelection)
+                omega = iLevel.energy - fLevel.energy   + settings.photonEnergyShift
+                ## `mimimumPhotonEnergy` is spelled so in the Settings struct; kept verbatim.
+                if  omega <= settings.mimimumPhotonEnergy  ||  omega > settings.maximumPhotonEnergy    continue   end
+                amplitudes = PhotoEmission.determineChannelsClaude(fLevel, iLevel, settings)
+                if   length(amplitudes) == 0   continue   end
+                push!( lines, PhotoEmission.LineClaude(iLevel, fLevel, omega, EmProperty(0., 0.),
+                                                       EmProperty(0., 0.), amplitudes) )
+            end
+        end
+    end
+    return( lines )
+end
+
+
+"""
+`PhotoEmission.computeLinesClaude(finalMultiplet::Multiplet, initialMultiplet::Multiplet, grid::Radial.Grid,
+                                  settings::PhotoEmission.Settings; output=true)`
+    ... as PhotoEmission.computeLines, but on the physical form; a list of
+        lines::Array{PhotoEmission.LineClaude,1} is returned.
+"""
+function computeLinesClaude(finalMultiplet::Multiplet, initialMultiplet::Multiplet, grid::Radial.Grid,
+                            settings::PhotoEmission.Settings; output=true)
+    if  settings.calcBiorthogonal
+        initialMultiplet, finalMultiplet = BiOrthogonal.computeTransformation(initialMultiplet, finalMultiplet, grid)
+    end
+    subshellList = Basics.generate(OrderedSubshellList(), finalMultiplet.levels[1].basis, initialMultiplet.levels[1].basis)
+    Defaults.setDefaults("relativistic subshell list", subshellList; printout=true)
+    println("")
+    printstyled("PhotoEmission.computeLinesClaude(): The computation of the transition amplitudes and properties starts now ... \n", color=:light_green)
+    printstyled("-------------------------------------------------------------------------------------------------------------- \n", color=:light_green)
+    println("")
+    lines = PhotoEmission.determineLinesClaude(finalMultiplet, initialMultiplet, settings)
+    if  settings.printBefore    PhotoEmission.displayLinesClaude(stdout, lines)    end
+    newLines = PhotoEmission.LineClaude[]
+    for  line in lines
+        push!( newLines, PhotoEmission.computeAmplitudesPropertiesClaude(line, grid, settings) )
+    end
+    PhotoEmission.displayRatesClaude(stdout, newLines, settings)
+    if  settings.calcAnisotropy    PhotoEmission.displayAnisotropiesClaude(stdout, newLines, settings)    end
+    PhotoEmission.displayLifetimesClaude(stdout, newLines, settings)
+    #
+    printSummary, iostream = Defaults.getDefaults("summary flag/stream")
+    if  printSummary   PhotoEmission.displayRatesClaude(iostream, newLines, settings)
+        if  settings.calcAnisotropy    PhotoEmission.displayAnisotropiesClaude(iostream, newLines, settings)    end
+                       PhotoEmission.displayLifetimesClaude(iostream, newLines, settings)
+    end
+    #
+    if    output    return( newLines )
+    else            return( nothing )
+    end
+end
+
+
+"""
+`PhotoEmission.computeLinesCascadeClaude(finalMultiplet::Multiplet, initialMultiplet::Multiplet, grid::Radial.Grid,
+                                         settings::PhotoEmission.Settings; output=true, printout::Bool=true)`
+    ... as PhotoEmission.computeLinesCascade, but on the physical form; a list of
+        lines::Array{PhotoEmission.LineClaude,1} is returned.
+
+        The "drop a line that does not contribute" test loses its explicit loop: abs2 of an EmPropertyC is an
+        EmProperty, so summing it gives both gauges at once and either component answers the question.
+"""
+function computeLinesCascadeClaude(finalMultiplet::Multiplet, initialMultiplet::Multiplet, grid::Radial.Grid,
+                                   settings::PhotoEmission.Settings; output=true, printout::Bool=true)
+    subshellList = Basics.generate(OrderedSubshellList(), finalMultiplet.levels[1].basis, initialMultiplet.levels[1].basis)
+    Defaults.setDefaults("relativistic subshell list", subshellList; printout=false)
+    lines = PhotoEmission.determineLinesClaude(finalMultiplet, initialMultiplet, settings)
+    newLines = PhotoEmission.LineClaude[]
+    for  (i,line)  in  enumerate(lines)
+        if  rem(i,500) == 0    println("> Radiative line $i:")   end
+        newLine = PhotoEmission.computeAmplitudesPropertiesClaude(line, grid, settings, printout=printout)
+        #
+        wa = EmProperty(0., 0.);    for  ma in newLine.amplitudes    wa = wa + abs2(ma.amplitude)    end
+        if   wa.Coulomb == 0.  &&  wa.Babushkin == 0.    continue    end
+        push!( newLines, newLine)
+    end
+    printSummary, iostream = Defaults.getDefaults("summary flag/stream")
+    if  printSummary   PhotoEmission.displayRatesClaude(iostream, newLines, settings)    end
+    #
+    if    output    return( newLines )
+    else            return( nothing )
+    end
 end
 
 end # module
