@@ -157,8 +157,101 @@ function Line(initialLevel::Level, finalLevel::Level)
 end
 
 
+#####################################################################################################################
+## THE PHYSICAL CHANNEL, built BESIDE the flat one above -- the second module to carry it, after PhotoIonization.
+##
+## A PhotoRecombination.Channel labels (multipole, gauge, kappa, symmetry).  Of those four, only kappa and the
+## total symmetry describe the scattering STATE: a multipole is a term in the expansion of the interaction
+## OPERATOR and a gauge is a representation of that same operator.  Here the state is described once and the
+## operator hangs off it -- a partial wave carries kappa, the electron energy and the scattering phase, which
+## depend on nothing else; a channel carries one total J^parity; and an amplitude carries BOTH gauges in a
+## Basics.EmPropertyC, so that the gauge is never a label anywhere.
+##
+## What this module tests that PhotoIonization could not: its consumers are different.  The anisotropy
+## parameter needs PAIRS of amplitudes from DIFFERENT partial waves, and needed the same gauge guard written
+## three times -- which is where all three of them had the wrong operand until 91a91c0.
+#####################################################################################################################
+
+
+"""
+`struct  PhotoRecombination.MultipoleAmplitudeClaude`
+    ... the contribution of ONE multipole of the interaction operator to a channel's amplitude.
+
+    + multipole      ::EmMultipole      ... Multipole of the photon emission.
+    + amplitude      ::EmPropertyC      ... Amplitude in BOTH gauges; the gauge is not a label here.
+
+        A MAGNETIC multipole simply has equal components, which is what the flat form expresses by adding
+        Basics.Magnetic to both gauge sums; and a product amplitude * conj(amplitude') is componentwise, so
+        two gauges cannot mix however the caller is written.
+"""
+struct  MultipoleAmplitudeClaude
+    multipole        ::EmMultipole
+    amplitude        ::EmPropertyC
+end
+
+
+"""
+`struct  PhotoRecombination.ChannelClaude`
+    ... ONE asymptotic scattering state: the initial ion plus a free electron, coupled to a total symmetry.
+
+    + symmetry       ::LevelSymmetry                            ... total J^parity of the scattering state.
+    + amplitudes     ::Array{MultipoleAmplitudeClaude,1}        ... one entry per contributing multipole.
+"""
+struct  ChannelClaude
+    symmetry         ::LevelSymmetry
+    amplitudes       ::Array{MultipoleAmplitudeClaude,1}
+end
+
+
+"""
+`struct  PhotoRecombination.PartialWaveClaude`
+    ... ONE partial wave of the incoming free electron, and the channels it serves.
+
+    + kappa          ::Int64                            ... partial wave of the free electron.
+    + energy         ::Float64                          ... energy of the free electron.
+    + phase          ::Float64                          ... scattering phase; a property of (energy, kappa).
+    + channels       ::Array{ChannelClaude,1}           ... the total symmetries this partial wave serves.
+
+        The radial orbital and the phase belong HERE, not to a channel: they do not depend on the total
+        symmetry, which is precisely why one kappa can serve several of them. computeAmplitudesProperties
+        needed a per-kappa dictionary to exploit that; here it follows from the shape.
+"""
+struct  PartialWaveClaude
+    kappa            ::Int64
+    energy           ::Float64
+    phase            ::Float64
+    channels         ::Array{ChannelClaude,1}
+end
+
+
+"""
+`struct  PhotoRecombination.LineClaude`
+    ... as PhotoRecombination.Line, but carrying partial waves instead of flat channels; every other field is
+        the same, so that retiring the flat form later is a deletion and a rename rather than a rewrite.
+
+    + initialLevel   ::Level                            ... initial-(state) level
+    + finalLevel     ::Level                            ... final-(state) level
+    + electronEnergy ::Float64                          ... Energy of the (incoming free) electron.
+    + photonEnergy   ::Float64                          ... Energy of the emitted photon.
+    + betaGamma2     ::Float64                          ... beta^2 * gamma^2.
+    + weight         ::Float64                          ... weight of line in the integration over electron energies.
+    + crossSection   ::EmProperty                       ... Cross section for this electron capture.
+    + partialWaves   ::Array{PartialWaveClaude,1}       ... partial waves, each with the channels it serves.
+"""
+struct  LineClaude
+    initialLevel     ::Level
+    finalLevel       ::Level
+    electronEnergy   ::Float64
+    photonEnergy     ::Float64
+    betaGamma2       ::Float64
+    weight           ::Float64
+    crossSection     ::EmProperty
+    partialWaves     ::Array{PartialWaveClaude,1}
+end
+
+
 # `Base.show(io::IO, line::PhotoRecombination.Line)`  ... prepares a proper printout of the variable line::PhotoRecombination.Line.
-function Base.show(io::IO, line::PhotoRecombination.Line) 
+function Base.show(io::IO, line::PhotoRecombination.Line)
     println(io, "initialLevel:      $(line.initialLevel)  ")
     println(io, "finalLevel:        $(line.finalLevel)  ")
     println(io, "electronEnergy:    $(line.electronEnergy)  ")
@@ -255,7 +348,13 @@ function  computeAmplitudesProperties(line::PhotoRecombination.Line, nm::Nuclear
         cOrbital = cOrbitals[cSubshell];   phase = cPhases[cSubshell]
         newcLevel  = Basics.generateLevelWithExtraElectron(cOrbital, channel.symmetry, newiLevel)
         newChannel = PhotoRecombination.Channel(channel.multipole, channel.gauge, channel.kappa, channel.symmetry, phase, 0.)
-        amplitude  = PhotoRecombination.amplitude("photorecombination", channel, line.photonEnergy, newfLevel, newcLevel, grid)
+        ## newChannel, NOT channel: PhotoRecombination.amplitude multiplies by exp(im*channel.phase), and the
+        ## incoming `channel` still carries the phase 0. that determineChannels gave it, so the scattering phase
+        ## was dropped from every amplitude -- invisible in a cross section, where |exp(i phi)| = 1, and wrong in
+        ## every interference observable, i.e. in the anisotropy parameters. newChannel was built one line above
+        ## for exactly this and was then used only to be destructured again.
+        ## PhotoIonization.computeAmplitudesProperties passes its nChannel here, which is the intended form.
+        amplitude  = PhotoRecombination.amplitude("photorecombination", newChannel, line.photonEnergy, newfLevel, newcLevel, grid)
         push!( newChannels, PhotoRecombination.Channel(newChannel.multipole, newChannel.gauge, newChannel.kappa, newChannel.symmetry, 
                                                         newChannel.phase, amplitude) )
     end
@@ -523,8 +622,13 @@ end
         the particular settings of for this computation; an Array{PhotoRecombination.Channel,1} is returned.
 """
 function determineChannels(finalLevel::Level, initialLevel::Level, settings::PhotoRecombination.Settings)
-    channels = PhotoRecombination.Channel[];   
-    symi = LevelSymmetry(initialLevel.J, initialLevel.parity);    symf = LevelSymmetry(finalLevel.J, finalLevel.parity) 
+    channels = PhotoRecombination.Channel[];
+    symi = LevelSymmetry(initialLevel.J, initialLevel.parity);    symf = LevelSymmetry(finalLevel.J, finalLevel.parity)
+    ## A MAGNETIC multipole has no gauge freedom and must be emitted ONCE, not once per requested gauge; the
+    ## branch below sits inside the gauge loop, so it needs this guard exactly as PhotoIonization.determineChannels
+    ## has it.  Without it, [E1,M1] with two gauges emitted 12 channels of which only 9 were distinct, and
+    ## computeCrossSectionForMultipoles then counted every magnetic amplitude TWICE in BOTH gauge sums.
+    if  Basics.UseCoulomb  in  settings.gauges   gaugeM = Basics.UseCoulomb    else   gaugeM = Basics.UseBabushkin    end
     for  mp in settings.multipoles
         for  gauge in settings.gauges
             symList = AngularMomentum.allowedMultipoleSymmetries(symf, mp)
@@ -537,9 +641,9 @@ function determineChannels(finalLevel::Level, initialLevel::Level, settings::Pho
                         push!(channels, PhotoRecombination.Channel(mp, Basics.Coulomb,   kappa, symt, 0., Complex(0.)) )
                     elseif string(mp)[1] == 'E'  &&   gauge == Basics.UseBabushkin    
                         push!(channels, PhotoRecombination.Channel(mp, Basics.Babushkin, kappa, symt, 0., Complex(0.)) )  
-                    elseif string(mp)[1] == 'M'                                
-                        push!(channels, PhotoRecombination.Channel(mp, Basics.Magnetic,  kappa, symt, 0., Complex(0.)) ) 
-                    end 
+                    elseif string(mp)[1] == 'M'  &&   gauge == gaugeM
+                        push!(channels, PhotoRecombination.Channel(mp, Basics.Magnetic,  kappa, symt, 0., Complex(0.)) )
+                    end
                 end
             end
         end
@@ -906,8 +1010,433 @@ end
 function plasmaRateSeaton(Te::Float64, Z::Float64)
     wx    = 2*Te / Z^2
     alpha = 32 * sqrt(pi) * Defaults.getDefaults("alpha")^3 * Z / (3. * sqrt(3.))
-    alpha = alpha * sqrt(1/wx) * (log(1/wx) + 0.8576 + 0.9380 * (1/wx)^(-1/3))  
+    alpha = alpha * sqrt(1/wx) * (log(1/wx) + 0.8576 + 0.9380 * (1/wx)^(-1/3))
     return( alpha )
+end
+
+
+#####################################################################################################################
+## STAGE A of the physical channel: the core.  Everything below is ADDITIVE -- nothing above is altered, and the
+## flat path is bitwise unchanged, which work/diag-photorec-gate.jl checks.
+#####################################################################################################################
+
+
+"""
+`PhotoRecombination.determineChannelsClaude(finalLevel::Level, initialLevel::Level, settings::PhotoRecombination.Settings)`
+    ... as PhotoRecombination.determineChannels, but returning the partial waves of the physical form; an
+        Array{PhotoRecombination.PartialWaveClaude,1} is returned with all amplitudes still zero.
+
+        The SELECTION RULES are exactly those of determineChannels above -- the same
+        AngularMomentum.allowedMultipoleSymmetries(symf, mp) reaching the total symmetry from the FINAL
+        (recombined) level, then allowedKappaSymmetries(symi, symt) coupling the free electron to the INITIAL
+        ion -- and the same `abs(kappa) > settings.maxKappa` restriction. Only the nesting is inverted: there,
+        multipole and gauge are outermost and the physical pair (kappa, symt) is regenerated for each of them;
+        here the distinct pairs are collected first and every multipole reaching a pair is attached to it.
+        The gauge is not iterated over at all.
+"""
+function determineChannelsClaude(finalLevel::Level, initialLevel::Level, settings::PhotoRecombination.Settings)
+    symi = LevelSymmetry(initialLevel.J, initialLevel.parity);    symf = LevelSymmetry(finalLevel.J, finalLevel.parity)
+    ## (1) Collect, for every physical pair (kappa, symt), the multipoles that can reach it.
+    mpsFor = Dict{Tuple{Int64,LevelSymmetry}, Array{EmMultipole,1}}()
+    order  = Tuple{Int64,LevelSymmetry}[]                    ## to keep a reproducible sequence
+    for  mp in settings.multipoles
+        for  symt in AngularMomentum.allowedMultipoleSymmetries(symf, mp)
+            for  kappa in AngularMomentum.allowedKappaSymmetries(symi, symt)
+                if  abs(kappa) > settings.maxKappa      continue    end
+                key = (kappa, symt)
+                if  haskey(mpsFor, key)   push!(mpsFor[key], mp)
+                else                      mpsFor[key] = EmMultipole[mp];   push!(order, key)
+                end
+            end
+        end
+    end
+    ## (2) Group the pairs by kappa: one partial wave per kappa, carrying the symmetries it serves.
+    kappas = Int64[];   for (kappa, symt) in order    if !(kappa in kappas)   push!(kappas, kappa)   end    end
+    partialWaves = PartialWaveClaude[]
+    for  kappa in kappas
+        channels = ChannelClaude[]
+        for  (ka, symt) in order
+            ka == kappa   ||   continue
+            amps = MultipoleAmplitudeClaude[]
+            for  mp in mpsFor[(ka, symt)]
+                push!(amps, MultipoleAmplitudeClaude(mp, EmPropertyC(Complex(0.), Complex(0.))))
+            end
+            push!(channels, ChannelClaude(symt, amps))
+        end
+        push!(partialWaves, PartialWaveClaude(kappa, 0., 0., channels))
+    end
+    return( partialWaves )
+end
+
+
+"""
+`PhotoRecombination.computeAmplitudesPropertiesClaude(line::PhotoRecombination.LineClaude, nm::Nuclear.Model,
+        grid::Radial.Grid, nrContinuum::Int64, settings::PhotoRecombination.Settings;
+        nuclearPot::Union{Nothing,Radial.Potential}=nothing, primitives::Union{Nothing,Bsplines.Primitives}=nothing)`
+    ... as PhotoRecombination.computeAmplitudesProperties, but on partial waves; a LineClaude with all
+        amplitudes and the cross section evaluated is returned. The two keywords carry quantities that are
+        CONSTANT for a whole computation, exactly as in the flat version.
+
+        ONE continuum orbital and ONE extended final level per PARTIAL WAVE -- structurally, not by a
+        dictionary. The flat function needs `cOrbitals`, `cPhases` and `fLevels` keyed on the continuum
+        subshell precisely because its channels repeat kappa once per (multipole, gauge); here the loop nesting
+        says it, and there is nothing to key on.
+
+        An electric multipole is evaluated twice, once per gauge, into one EmPropertyC; a magnetic multipole
+        once, into an EmPropertyC with equal components.
+"""
+function computeAmplitudesPropertiesClaude(line::PhotoRecombination.LineClaude, nm::Nuclear.Model, grid::Radial.Grid,
+                                           nrContinuum::Int64, settings::PhotoRecombination.Settings;
+                                           nuclearPot::Union{Nothing,Radial.Potential}=nothing,
+                                           primitives::Union{Nothing,Bsplines.Primitives}=nothing)
+    contSettings = Continuum.Settings(false, nrContinuum)
+    redFLevel    = Basics.generateLevelWithSymmetryReducedBasis(line.finalLevel, line.finalLevel.basis.subshells)
+    newiLevel    = Basics.generateLevelWithSymmetryReducedBasis(line.initialLevel, redFLevel.basis.subshells)
+    newPartialWaves = PhotoRecombination.PartialWaveClaude[]
+
+    for  pw in line.partialWaves
+        cSubshell = Subshell(101, pw.kappa)
+        newfLevel = Basics.generateLevelWithExtraSubshell(cSubshell, redFLevel)
+        cOrbital, phase = Continuum.generateOrbitalForLevel(line.electronEnergy, cSubshell, newiLevel, nm, grid,
+                                                            contSettings; nuclearPot=nuclearPot, primitives=primitives)
+        newChannels = PhotoRecombination.ChannelClaude[]
+        for  ch in pw.channels
+            newcLevel = Basics.generateLevelWithExtraElectron(cOrbital, ch.symmetry, newiLevel)
+            newAmps   = PhotoRecombination.MultipoleAmplitudeClaude[]
+            for  ma in ch.amplitudes
+                mp = ma.multipole
+                if  string(mp)[1] == 'E'
+                    chC  = PhotoRecombination.Channel(mp, Basics.Coulomb,   pw.kappa, ch.symmetry, phase, Complex(0.))
+                    ampC = PhotoRecombination.amplitude("photorecombination", chC, line.photonEnergy, newfLevel, newcLevel, grid)
+                    chB  = PhotoRecombination.Channel(mp, Basics.Babushkin, pw.kappa, ch.symmetry, phase, Complex(0.))
+                    ampB = PhotoRecombination.amplitude("photorecombination", chB, line.photonEnergy, newfLevel, newcLevel, grid)
+                    push!(newAmps, PhotoRecombination.MultipoleAmplitudeClaude(mp, EmPropertyC(ampC, ampB)))
+                else
+                    chM  = PhotoRecombination.Channel(mp, Basics.Magnetic,  pw.kappa, ch.symmetry, phase, Complex(0.))
+                    ampM = PhotoRecombination.amplitude("photorecombination", chM, line.photonEnergy, newfLevel, newcLevel, grid)
+                    push!(newAmps, PhotoRecombination.MultipoleAmplitudeClaude(mp, EmPropertyC(ampM)))
+                end
+            end
+            push!(newChannels, PhotoRecombination.ChannelClaude(ch.symmetry, newAmps))
+        end
+        push!(newPartialWaves, PhotoRecombination.PartialWaveClaude(pw.kappa, line.electronEnergy, phase, newChannels))
+    end
+    newLine      = PhotoRecombination.LineClaude(line.initialLevel, line.finalLevel, line.electronEnergy, line.photonEnergy,
+                                                 line.betaGamma2, line.weight, line.crossSection, newPartialWaves)
+    crossSection = PhotoRecombination.computeCrossSectionForMultipolesClaude(settings.multipoles, newLine)
+    newLine      = PhotoRecombination.LineClaude(line.initialLevel, line.finalLevel, line.electronEnergy, line.photonEnergy,
+                                                 line.betaGamma2, line.weight, crossSection, newPartialWaves)
+    return( newLine )
+end
+
+
+"""
+`PhotoRecombination.computeCrossSectionForMultipolesClaude(multipoles::Array{EmMultipole,1},
+                                                           line::PhotoRecombination.LineClaude)`
+    ... as PhotoRecombination.computeCrossSectionForMultipoles: the cross section from the amplitudes of the
+        given line, restricted to the given multipoles; a cs::EmProperty is returned.
+
+        The three-way `if` on the gauge label is GONE. abs2 of an EmPropertyC is an EmProperty, so the sum is
+        gauge-paired by construction, and a magnetic amplitude -- equal components -- enters both gauge sums
+        by itself, which is exactly what the flat form's third branch had to say by hand.
+
+        The summation is INCOHERENT over multipoles as well as over channels, exactly as in the flat version.
+        The new form would make a coherent multipole sum easy to write; that would be a physics change and is
+        deliberately not made here.
+"""
+function computeCrossSectionForMultipolesClaude(multipoles::Array{EmMultipole,1}, line::PhotoRecombination.LineClaude)
+    cs = EmProperty(0., 0.)
+    for  pw in line.partialWaves,  ch in pw.channels,  ma in ch.amplitudes
+        if  !(ma.multipole  in  multipoles)     continue    end
+        cs = cs + abs2(ma.amplitude)
+    end
+    csFactor = 8 * pi^3 * Defaults.getDefaults("alpha")^3 * line.photonEnergy / (Basics.twice(line.finalLevel.J)+1)
+    return( 1.0 / line.betaGamma2 * (csFactor * cs) )
+end
+
+
+"""
+`PhotoRecombination.computeAnisotropyParameterClaude(nu::Int64, line::PhotoRecombination.LineClaude)`
+    ... as PhotoRecombination.computeAnisotropyParameter: the anisotropy parameter beta_nu of the emitted
+        photons for an initially unpolarized ion. An EmPropertyC is returned, holding BOTH gauges.
+
+        NOTE ON THE SIGNATURE: no `gauge` argument. In the flat form a gauge is a channel label that has to be
+        selected for, so the display calls the function eight times -- twice per nu. Here one call returns both.
+
+        THIS IS THE FUNCTION THE NEW FORM HAS TO JUSTIFY IN THIS MODULE, and the case for it is not
+        hypothetical. The flat version needs the same gauge guard written THREE times -- once for the
+        normalization wn, once for the outer channel, once for the inner -- and until 91a91c0 all three tested
+        the requested gauge instead of the channel's own, so every magnetic multipole was silently dropped and
+        the odd-nu parameters came out identically zero. Here the product conj(amp) * ampp is componentwise,
+        so Coulomb meets Coulomb and Babushkin meets Babushkin, and a magnetic amplitude has equal components
+        and so enters both. There is no guard to write and none to get wrong.
+
+        Pairs are formed ACROSS partial waves: kappa and kappa' are independent, and that interference is the
+        physical content of the anisotropy. The parity rule and every angular factor are reproduced verbatim.
+"""
+function computeAnisotropyParameterClaude(nu::Int64, line::PhotoRecombination.LineClaude)
+    Ji = line.initialLevel.J;    Jf = line.finalLevel.J
+    ## Flatten once: one entry per (partial wave, total symmetry, multipole), each carrying both gauges.
+    entries = Tuple{Int64,LevelSymmetry,EmMultipole,EmPropertyC}[]
+    for  pw in line.partialWaves,  ch in pw.channels,  ma in ch.amplitudes
+        push!(entries, (pw.kappa, ch.symmetry, ma.multipole, ma.amplitude))
+    end
+    wn = EmProperty(0., 0.)
+    for  (kapa, syma, mpa, ampa)  in entries      wn = wn + abs2(ampa)      end
+    #
+    wa = EmPropertyC(0.0im)
+    for  (kapa, syma, mpa, ampa)  in entries
+        J = syma.J;    L = mpa.L;    if  mpa.electric   p = 1   else    p = 0   end
+        j = AngularMomentum.kappa_j(kapa);    l = AngularMomentum.kappa_l(kapa)
+        #
+        for  (kapb, symb, mpb, ampb)  in entries
+            Jp = symb.J;   Lp = mpb.L;   if  mpb.electric   pp = 1   else    pp = 0   end
+            jp = AngularMomentum.kappa_j(kapb);     lp = AngularMomentum.kappa_l(kapb)
+            #
+            if  1 + (-1)^(L + p + Lp + pp - nu) == 0    continue    end
+            wa = wa + (1.0im)^(L + p - Lp - pp) * AngularMomentum.phaseFactor([Ji, -1, AngularJ64(1//2), -1, Jf]) *
+                                sqrt( AngularMomentum.bracket([AngularJ64(L), AngularJ64(Lp), l, lp, j, jp, J, Jp]) ) *
+                                AngularMomentum.ClebschGordan( l, AngularM64(0), lp, AngularM64(0),  AngularJ64(nu),  AngularM64(0)) *
+                                AngularMomentum.ClebschGordan( AngularJ64(L), AngularM64(1), AngularJ64(Lp), AngularM64(-1),
+                                                            AngularJ64(nu), AngularM64(0)) *
+                                AngularMomentum.Wigner_6j(J, Jp, AngularJ64(nu), AngularJ64(Lp), AngularJ64(L), Jf) *
+                                AngularMomentum.Wigner_6j(J, Jp, AngularJ64(nu), jp, j, Ji) *
+                                AngularMomentum.Wigner_6j(j, jp, AngularJ64(nu), lp, l, AngularJ64(1//2)) *
+                                (conj(ampa) * ampb)
+        end
+    end
+    return( EmPropertyC(- 0.5 * wa.Coulomb / wn.Coulomb, - 0.5 * wa.Babushkin / wn.Babushkin) )
+end
+
+
+#####################################################################################################################
+## STAGE B: the bridge back to the flat form, and the displays.
+#####################################################################################################################
+
+
+"""
+`PhotoRecombination.flatChannelsClaude(partialWaves::Array{PhotoRecombination.PartialWaveClaude,1})`
+    ... converts partial waves back into the flat Array{PhotoRecombination.Channel,1}; the bridge that lets a
+        LineClaude be handed to anything still written against the flat form.
+
+        One physical amplitude becomes TWO flat channels for an electric multipole (one per gauge) and ONE for
+        a magnetic one -- which is exactly the redundancy the flat form carries.
+"""
+function flatChannelsClaude(partialWaves::Array{PhotoRecombination.PartialWaveClaude,1})
+    channels = PhotoRecombination.Channel[]
+    for  pw in partialWaves,  ch in pw.channels,  ma in ch.amplitudes
+        if  string(ma.multipole)[1] == 'E'
+            push!(channels, PhotoRecombination.Channel(ma.multipole, Basics.Coulomb,   pw.kappa, ch.symmetry,
+                                                       pw.phase, ma.amplitude.Coulomb))
+            push!(channels, PhotoRecombination.Channel(ma.multipole, Basics.Babushkin, pw.kappa, ch.symmetry,
+                                                       pw.phase, ma.amplitude.Babushkin))
+        else
+            push!(channels, PhotoRecombination.Channel(ma.multipole, Basics.Magnetic,  pw.kappa, ch.symmetry,
+                                                       pw.phase, ma.amplitude.Coulomb))
+        end
+    end
+    return( channels )
+end
+
+
+"""
+`PhotoRecombination.flatLineClaude(line::PhotoRecombination.LineClaude)`
+    ... converts a LineClaude into the flat PhotoRecombination.Line, carrying every other field across unchanged.
+"""
+function flatLineClaude(line::PhotoRecombination.LineClaude)
+    return( PhotoRecombination.Line(line.initialLevel, line.finalLevel, line.electronEnergy, line.photonEnergy,
+                                    line.betaGamma2, line.weight, line.crossSection,
+                                    PhotoRecombination.flatChannelsClaude(line.partialWaves)) )
+end
+
+
+"""
+`PhotoRecombination.displayLinesClaude(stream::IO, lines::Array{PhotoRecombination.LineClaude,1})`
+`PhotoRecombination.displayResultsClaude(stream::IO, lines::Array{PhotoRecombination.LineClaude,1}, settings)`
+    ... the display layer for the physical form. Each converts through flatLineClaude and delegates to its
+        existing counterpart, so the printed output is IDENTICAL BY CONSTRUCTION rather than by inspection --
+        which is what makes an end-to-end comparison of the two paths meaningful.
+
+        ONE CONSEQUENCE TO BE EXPLICIT ABOUT. displayResults calls computeAnisotropyParameter *inside* itself,
+        so the anisotropy table printed here is produced by the FLAT function from the flattened channels, not
+        by computeAnisotropyParameterClaude. That is deliberate: it keeps the end-to-end table comparison a
+        test of the AMPLITUDES, and the Claude anisotropy is then checked value by value in
+        work/diag-prec-claude.jl, where a disagreement is attributable to one function. A native
+        displayResults is retirement-time work; displayResults is also where the new form would gain most,
+        since it calls the anisotropy eight times per line where one call now returns both gauges.
+"""
+function displayLinesClaude(stream::IO, lines::Array{PhotoRecombination.LineClaude,1})
+    return( PhotoRecombination.displayLines(stream, [PhotoRecombination.flatLineClaude(l) for l in lines]) )
+end
+
+function displayResultsClaude(stream::IO, lines::Array{PhotoRecombination.LineClaude,1},
+                              settings::PhotoRecombination.Settings)
+    return( PhotoRecombination.displayResults(stream, [PhotoRecombination.flatLineClaude(l) for l in lines], settings) )
+end
+
+
+#####################################################################################################################
+## STAGE C: the two drivers, so that a whole computation can be run either way and compared end to end.
+#####################################################################################################################
+
+
+"""
+`PhotoRecombination.determineLinesClaude(finalMultiplet::Multiplet, initialMultiplet::Multiplet,
+                                         settings::PhotoRecombination.Settings)`
+    ... as PhotoRecombination.determineLines, but producing LineClaude with partial waves; an
+        Array{PhotoRecombination.LineClaude,1} is returned.
+"""
+function determineLinesClaude(finalMultiplet::Multiplet, initialMultiplet::Multiplet, settings::PhotoRecombination.Settings)
+    lines = PhotoRecombination.LineClaude[]
+    for  iLevel  in  initialMultiplet.levels
+        for  fLevel  in  finalMultiplet.levels
+            if  Basics.selectLevelPair(iLevel, fLevel, settings.lineSelection)
+                #
+                electronEnergies = Float64[]
+                if  settings.useIonEnergies
+                    for en in settings.ionEnergies
+                        # E^(electron) [keV] = E^(projectile) [MeV/u] / 1.8228885
+                        en_au = 1000. / 1.8228885 * Defaults.convertUnits("energy: from eV to atomic", en);      push!(electronEnergies, en_au)
+                    end
+                else
+                    for en in settings.electronEnergies
+                        en_au = Defaults.convertUnits("energy: to atomic", en);      push!(electronEnergies, en_au)
+                    end
+                end
+                #
+                for  en in electronEnergies
+                    betaGamma2 = 1.0
+                    wc         = Defaults.getDefaults("speed of light: c")
+                    Gamma      = 1.0 + en / wc^2
+                    beta       = sqrt( 1.0 - 1.0/Gamma^2)
+                    betaGamma2 = beta^2 * Gamma^2
+                    #
+                    if  en < 0    continue   end
+                    omega        = en + iLevel.energy - fLevel.energy
+                    partialWaves = PhotoRecombination.determineChannelsClaude(fLevel, iLevel, settings)
+                    push!( lines, PhotoRecombination.LineClaude(iLevel, fLevel, en, omega, betaGamma2, 0.,
+                                                                EmProperty(0., 0.), partialWaves) )
+                end
+            end
+        end
+    end
+    return( lines )
+end
+
+
+"""
+`PhotoRecombination.computeLinesClaude(finalMultiplet::Multiplet, initialMultiplet::Multiplet, nm::Nuclear.Model,
+                                       grid::Radial.Grid, settings::PhotoRecombination.Settings; output::Bool=true)`
+    ... as PhotoRecombination.computeLines, but on the physical form; a list of
+        lines::Array{PhotoRecombination.LineClaude,1} is returned.
+"""
+function computeLinesClaude(finalMultiplet::Multiplet, initialMultiplet::Multiplet, nm::Nuclear.Model, grid::Radial.Grid,
+                            settings::PhotoRecombination.Settings; output::Bool=true)
+    println("")
+    printstyled("PhotoRecombination.computeLinesClaude(): The computation of photo-recombination properties starts now ... \n", color=:light_green)
+    printstyled("-------------------------------------------------------------------------------------------------------- \n", color=:light_green)
+    println("")
+    PhotoRecombination.checkConsistentMultiplets(finalMultiplet, initialMultiplet)
+    #
+    lines = PhotoRecombination.determineLinesClaude(finalMultiplet, initialMultiplet, settings)
+    if  settings.printBefore    PhotoRecombination.displayLinesClaude(stdout, lines)    end
+    maxEnergy = 0.;   for  line in lines   maxEnergy = max(maxEnergy, line.electronEnergy)   end
+    nrContinuum = Continuum.gridConsistency(maxEnergy, grid)
+    ## Both are constants of the whole computation and are READ-ONLY below, so they are safely shared.
+    nuclearPot = Nuclear.nuclearPotential(nm, grid)
+    primitives = Bsplines.generatePrimitives(grid)
+    newLines = Vector{PhotoRecombination.LineClaude}(undef, length(lines))
+    Threads.@threads for  i  in  eachindex(lines)
+        newLines[i] = PhotoRecombination.computeAmplitudesPropertiesClaude(lines[i], nm, grid, nrContinuum, settings;
+                                                                           nuclearPot=nuclearPot, primitives=primitives)
+    end
+    PhotoRecombination.displayResultsClaude(stdout, newLines, settings)
+    printSummary, iostream = Defaults.getDefaults("summary flag/stream")
+    if  printSummary   PhotoRecombination.displayResultsClaude(iostream, newLines, settings)    end
+    #
+    if    output    return( newLines )
+    else            return( nothing )
+    end
+end
+
+
+"""
+`PhotoRecombination.computeLinesWithContinuumOrbitalClaude(finalMultiplet::Multiplet, initialMultiplet::Multiplet,
+        nm::Nuclear.Model, grid::Radial.Grid, cOrbitals::Dict{Subshell, Orbital}, energyGrid::Radial.GridGL,
+        settings::PhotoRecombination.Settings; output::Bool=true)`
+    ... as PhotoRecombination.computeLinesWithContinuumOrbital, but on the physical form; a list of
+        lines::Array{PhotoRecombination.LineClaude,1} is returned. This is the driver that
+        Cascade.computePhotoRecombinationLines uses.
+
+        MIRRORED AS IT STANDS, including two things that differ from computeLines and are NOT changed here:
+        the phase is set to 0. rather than obtained from the orbital, and the cross section is summed inline
+        over ALL multipoles instead of going through computeCrossSectionForMultipoles, so `settings.multipoles`
+        does not filter it. Both are properties of the flat function; this is a translation.
+
+        The continuum orbital is looked up ONCE per partial wave rather than once per channel, which is the
+        same saving the physical form gives everywhere else -- here it also means the energy-grid index search
+        runs once per partial wave instead of once per (multipole, gauge, kappa).
+"""
+function computeLinesWithContinuumOrbitalClaude(finalMultiplet::Multiplet, initialMultiplet::Multiplet, nm::Nuclear.Model,
+                                                grid::Radial.Grid, cOrbitals::Dict{Subshell, Orbital}, energyGrid::Radial.GridGL,
+                                                settings::PhotoRecombination.Settings; output::Bool=true)
+    PhotoRecombination.checkConsistentMultiplets(finalMultiplet, initialMultiplet);     ie = 0
+    #
+    lines = PhotoRecombination.determineLinesClaude(finalMultiplet, initialMultiplet, settings)
+    if  settings.printBefore    PhotoRecombination.displayLinesClaude(stdout, lines)    end
+    newLines = PhotoRecombination.LineClaude[]
+    for  (i,line)  in  enumerate(lines)
+        if  rem(i,500) == 0    println("> PhotoRecombination line $i:  ... calculated ")    end
+        redFLevel = Basics.generateLevelWithSymmetryReducedBasis(line.finalLevel, line.finalLevel.basis.subshells)
+        newiLevel = Basics.generateLevelWithSymmetryReducedBasis(line.initialLevel, redFLevel.basis.subshells)
+        en        = line.electronEnergy
+        # Find index of en in energyGrid.t with given accuracy; terminate if nothing is found
+        ie = 0
+        for  it = 1:length(energyGrid.t)   if   abs( (energyGrid.t[it]-en)/en ) < 0.0001   ie = it;   break   end   end
+        if  ie == 0   stop("a")     end
+        #
+        newPartialWaves = PhotoRecombination.PartialWaveClaude[];    cs = EmProperty(0., 0.)
+        for  pw in line.partialWaves
+            cSubsh    = Subshell(100+ie, pw.kappa)
+            newfLevel = Basics.generateLevelWithExtraSubshell(cSubsh, redFLevel)
+            cOrbital  = cOrbitals[cSubsh];      phase = 0.
+            newChannels = PhotoRecombination.ChannelClaude[]
+            for  ch in pw.channels
+                newcLevel = Basics.generateLevelWithExtraElectron(cOrbital, ch.symmetry, newiLevel)
+                newAmps   = PhotoRecombination.MultipoleAmplitudeClaude[]
+                for  ma in ch.amplitudes
+                    mp = ma.multipole
+                    if  string(mp)[1] == 'E'
+                        chC  = PhotoRecombination.Channel(mp, Basics.Coulomb,   pw.kappa, ch.symmetry, phase, Complex(0.))
+                        ampC = PhotoRecombination.amplitude("photorecombination", chC, line.photonEnergy, newfLevel, newcLevel, grid)
+                        chB  = PhotoRecombination.Channel(mp, Basics.Babushkin, pw.kappa, ch.symmetry, phase, Complex(0.))
+                        ampB = PhotoRecombination.amplitude("photorecombination", chB, line.photonEnergy, newfLevel, newcLevel, grid)
+                        amp  = EmPropertyC(ampC, ampB)
+                    else
+                        chM  = PhotoRecombination.Channel(mp, Basics.Magnetic,  pw.kappa, ch.symmetry, phase, Complex(0.))
+                        ampM = PhotoRecombination.amplitude("photorecombination", chM, line.photonEnergy, newfLevel, newcLevel, grid)
+                        amp  = EmPropertyC(ampM)
+                    end
+                    cs = cs + abs2(amp)                     ## over ALL multipoles, as the flat version does
+                    push!(newAmps, PhotoRecombination.MultipoleAmplitudeClaude(mp, amp))
+                end
+                push!(newChannels, PhotoRecombination.ChannelClaude(ch.symmetry, newAmps))
+            end
+            push!(newPartialWaves, PhotoRecombination.PartialWaveClaude(pw.kappa, en, phase, newChannels))
+        end
+        csFactor     = 8 * pi^3 * Defaults.getDefaults("alpha")^3 * line.photonEnergy / (Basics.twice(line.finalLevel.J)+1)
+        crossSection = 1.0 / line.betaGamma2 * (csFactor * cs)
+        push!( newLines, PhotoRecombination.LineClaude(line.initialLevel, line.finalLevel, line.electronEnergy,
+                                                       line.photonEnergy, line.betaGamma2, energyGrid.wt[ie],
+                                                       crossSection, newPartialWaves) )
+    end
+    PhotoRecombination.displayResultsClaude(stdout, newLines, settings)
+    printSummary, iostream = Defaults.getDefaults("summary flag/stream")
+    if  printSummary   PhotoRecombination.displayResultsClaude(iostream, newLines, settings)    end
+    #
+    if    output    return( newLines )
+    else            return( nothing )
+    end
 end
 
 end # module

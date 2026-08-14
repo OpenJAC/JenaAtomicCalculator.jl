@@ -37,20 +37,32 @@ if  true
     # Z=12, F-like 2p^5 -> Ne-like 2p^6 capture (electron into the 2p vacancy) at 10/30/50 eV. No specific literature
     # comparison known.
     #
-    #   THE ANISOTROPY PARAMETERS CHANGED ON 14-AUG-2026, the cross sections did not. Until then
-    #   PhotoRecombination.computeAnisotropyParameter dropped every MAGNETIC channel -- its three gauge guards
-    #   tested the requested gauge instead of the channel's own, and since the requested gauge is Coulomb or
-    #   Babushkin at every call site, the test never admitted a Basics.Magnetic channel. Odd-nu parameters live
-    #   entirely on electric-magnetic interference, so beta_1 and beta_3 printed as exactly zero. Fixing the
-    #   guards immediately exposed a second, latent defect on the path they unblock: `1.0im^(L+p-Lp-pp)` parses
-    #   as 1.0 * im^n with im::Complex{Bool}, which raises DomainError for a computed negative exponent -- and
-    #   n = -1 on exactly those interference terms. Both are fixed.
-    #   Now: beta_1 = 1.3407e-03 / 1.4925e-03 (C/B) @10 eV, 5.6459e-04 / 6.0807e-04 @30 eV,
-    #   -1.0359e-03 / -1.1700e-03 @50 eV -- of order 1e-3, as an E1-M1 interference at Z=12 should be, and
-    #   changing sign between 30 and 50 eV. beta_2 moves only in its last digit (M1^2 is negligible here):
-    #   -1.1221e-01 / -1.0153e-01, -3.6705e-01 / -3.7484e-01, 3.1960e-02 / 3.9282e-02.
-    #   beta_3 and beta_4 remain exactly zero, and NOT because of the bug: two L=1 multipoles cannot couple to
-    #   nu = 3 or 4. A branch carrying E2 would show non-zero beta_3.
+    #   FOUR DEFECTS IN THE PHOTORECOMBINATION PATH WERE FIXED ON 14-AUG-2026, all found by building the
+    #   physical-channel form beside the flat one and comparing. Three of them touch ONLY interference
+    #   observables, i.e. the anisotropy parameters; the fourth moves the cross sections in their 7th digit.
+    #     (1) computeAnisotropyParameter dropped every MAGNETIC channel: its three gauge guards tested the
+    #         requested gauge instead of the channel's own, and the requested gauge is Coulomb or Babushkin at
+    #         every call site, so a Basics.Magnetic channel was admitted by neither. Odd-nu parameters live
+    #         entirely on electric-magnetic interference, so beta_1 and beta_3 printed as exactly zero.
+    #     (2) Fixing (1) exposed `1.0im^(L+p-Lp-pp)`, which parses as 1.0 * im^n with im::Complex{Bool} and
+    #         raises DomainError for a COMPUTED negative exponent -- and n = -1 on precisely those terms.
+    #     (3) determineChannels emitted every magnetic channel ONCE PER REQUESTED GAUGE (12 channels of which
+    #         only 9 distinct, here), so every M1 amplitude was counted twice in both gauge sums. This is the
+    #         one that moves the cross sections: 4911.796 -> 4911.794 barn, i.e. ~4e-7, since M1^2/E1^2 ~ 1e-6
+    #         at Z=12. PhotoIonization.determineChannels already had the guard.
+    #     (4) computeAmplitudesProperties passed the incoming `channel`, still carrying phase = 0., to
+    #         PhotoRecombination.amplitude, which multiplies by exp(im*channel.phase). The scattering phase was
+    #         therefore DROPPED from every amplitude -- invisible in a cross section, where |exp(i phi)| = 1,
+    #         and wrong in every interference observable. The correctly-phased newChannel was built one line
+    #         above and used only to be destructured again. PhotoIonization passes its nChannel here.
+    #   Now, Coulomb / Babushkin:  beta_1 = -2.2486e-04 / -2.4194e-04 @10 eV, 1.3164e-04 / 1.4854e-04 @30 eV,
+    #   -1.5016e-05 / -1.4238e-05 @50 eV;  beta_2 = -1.6201e-01 / -1.5493e-01, -3.4537e-01 / -3.5160e-01,
+    #   2.4909e-02 / 3.1738e-02. beta_1 is of order 1e-4, the right size for an E1-M1 interference at Z=12,
+    #   and changes sign between 10 and 30 eV.
+    #   beta_3 and beta_4 remain exactly zero, and NOT because of any defect: two L=1 multipoles cannot couple
+    #   to nu = 3 or 4. A branch carrying E2 would show a non-zero beta_3.
+    #   Cross sections now 4911.794 / 4073.073, 1403.824 / 1139.224, 799.1699 / 643.5854 barn -- the sentence
+    #   below quotes them to 5 figures, where they are unchanged.
     #
     #   REPORT: ab-initio (Coulomb gauge) cross sections 4911.8, 1403.8, 799.2 barn @ 10/30/50 eV -- smoothly
     #   decreasing, no sign flips or non-physical values; gauge agreement (Coulomb vs. Babushkin) is stable at
