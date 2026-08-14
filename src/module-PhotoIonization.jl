@@ -1072,6 +1072,402 @@ end
 
 
 
+
+
+
+"""
+`PhotoIonization.flatChannelsClaude(partialWaves::Array{PhotoIonization.PartialWaveClaude,1})`
+    ... converts partial waves back into the flat Array{PhotoIonization.Channel,1}; the bridge that lets a
+        LineClaude be handed to anything still written against the flat form.
+
+        One physical amplitude becomes TWO flat channels for an electric multipole (one per gauge) and ONE
+        for a magnetic one -- which is exactly the redundancy the flat form carries and the reason
+        determineChannels produces 42 channels where there are 21 partial waves.
+"""
+function flatChannelsClaude(partialWaves::Array{PhotoIonization.PartialWaveClaude,1})
+    channels = PhotoIonization.Channel[]
+    for  pw in partialWaves,  ch in pw.channels,  ma in ch.amplitudes
+        if  string(ma.multipole)[1] == 'E'
+            push!(channels, PhotoIonization.Channel(ma.multipole, Basics.Coulomb,   pw.kappa, ch.symmetry,
+                                                    pw.phase, ma.amplitude.Coulomb))
+            push!(channels, PhotoIonization.Channel(ma.multipole, Basics.Babushkin, pw.kappa, ch.symmetry,
+                                                    pw.phase, ma.amplitude.Babushkin))
+        else
+            push!(channels, PhotoIonization.Channel(ma.multipole, Basics.Magnetic,  pw.kappa, ch.symmetry,
+                                                    pw.phase, ma.amplitude.Coulomb))
+        end
+    end
+    return( channels )
+end
+
+
+"""
+`PhotoIonization.flatLineClaude(line::PhotoIonization.LineClaude)`
+    ... converts a LineClaude into the flat PhotoIonization.Line, carrying every other field across unchanged.
+"""
+function flatLineClaude(line::PhotoIonization.LineClaude)
+    return( PhotoIonization.Line(line.initialLevel, line.finalLevel, line.electronEnergy, line.photonEnergy,
+                                 line.crossSection, line.angularBeta, line.coherentDelay, line.incoherentDelay,
+                                 PhotoIonization.flatChannelsClaude(line.partialWaves)) )
+end
+
+
+"""
+`PhotoIonization.displayLinesClaude(lines::Array{PhotoIonization.LineClaude,1})`
+`PhotoIonization.displayLineDataClaude(stream::IO, lines::Array{PhotoIonization.LineClaude,1})`
+`PhotoIonization.displayPhasesClaude(stream::IO, lines::Array{PhotoIonization.LineClaude,1})`
+`PhotoIonization.displayTotalCrossSectionsClaude(stream::IO, lines::Array{PhotoIonization.LineClaude,1}, settings)`
+`PhotoIonization.displayResultsClaude(stream::IO, lines::Array{PhotoIonization.LineClaude,1}, settings)`
+    ... the display layer for the physical form. Each converts through flatLineClaude and delegates to its
+        existing counterpart, so the printed output is IDENTICAL BY CONSTRUCTION rather than by inspection --
+        which is what makes an end-to-end comparison of the two paths meaningful.
+
+        This is deliberately a delegation and not a translation. A table is presentation, and rewriting five
+        of them by hand would risk differences that say nothing about the structure being tested. Native
+        versions can replace the delegation later; displayPhases is the one that would gain most, since a
+        phase belongs to a partial wave and the flat form repeats it on every channel of that kappa.
+"""
+function displayLinesClaude(lines::Array{PhotoIonization.LineClaude,1})
+    return( PhotoIonization.displayLines([PhotoIonization.flatLineClaude(l) for l in lines]) )
+end
+
+function displayLineDataClaude(stream::IO, lines::Array{PhotoIonization.LineClaude,1})
+    return( PhotoIonization.displayLineData(stream, [PhotoIonization.flatLineClaude(l) for l in lines]) )
+end
+
+function displayPhasesClaude(stream::IO, lines::Array{PhotoIonization.LineClaude,1})
+    return( PhotoIonization.displayPhases(stream, [PhotoIonization.flatLineClaude(l) for l in lines]) )
+end
+
+function displayTotalCrossSectionsClaude(stream::IO, lines::Array{PhotoIonization.LineClaude,1},
+                                         settings::PhotoIonization.Settings)
+    return( PhotoIonization.displayTotalCrossSections(stream, [PhotoIonization.flatLineClaude(l) for l in lines], settings) )
+end
+
+function displayResultsClaude(stream::IO, lines::Array{PhotoIonization.LineClaude,1}, settings::PhotoIonization.Settings)
+    return( PhotoIonization.displayResults(stream, [PhotoIonization.flatLineClaude(l) for l in lines], settings) )
+end
+
+
+"""
+`PhotoIonization.determineLinesClaude(finalMultiplet::Multiplet, initialMultiplet::Multiplet, settings::PhotoIonization.Settings)`
+    ... as PhotoIonization.determineLines, but producing LineClaude with partial waves; an
+        Array{LineClaude,1} is returned.
+"""
+function determineLinesClaude(finalMultiplet::Multiplet, initialMultiplet::Multiplet, settings::PhotoIonization.Settings)
+    lines    = PhotoIonization.LineClaude[]
+    shift_au = Defaults.convertUnits("energy: to atomic", settings.freeElectronShift)
+    for  iLevel  in  initialMultiplet.levels
+        for  fLevel  in  finalMultiplet.levels
+            if  Basics.selectLevelPair(iLevel, fLevel, settings.lineSelection)
+                for  omega in settings.photonEnergies
+                    omega_au = Defaults.convertUnits("energy: to atomic", omega)
+                    energy   = omega_au - (fLevel.energy - iLevel.energy) + shift_au
+                    if  energy < 0.    continue   end
+                    pws = PhotoIonization.determineChannelsClaude(fLevel, iLevel, settings)
+                    push!( lines, PhotoIonization.LineClaude(iLevel, fLevel, energy, omega_au, EmProperty(0.),
+                                                             EmProperty(0.), EmProperty(0.), EmProperty(0.), pws) )
+                end
+                for  en in settings.electronEnergies
+                    energy_au = Defaults.convertUnits("energy: to atomic", en) + shift_au
+                    omega     = energy_au + (fLevel.energy - iLevel.energy)
+                    if  energy_au < 0.    continue   end
+                    pws = PhotoIonization.determineChannelsClaude(fLevel, iLevel, settings)
+                    push!( lines, PhotoIonization.LineClaude(iLevel, fLevel, energy_au, omega, EmProperty(0.),
+                                                             EmProperty(0.), EmProperty(0.), EmProperty(0.), pws) )
+                end
+            end
+        end
+    end
+    return( lines )
+end
+
+
+"""
+`PhotoIonization.computeLinesClaude(finalMultiplet::Multiplet, initialMultiplet::Multiplet, nm::Nuclear.Model,
+        grid::Radial.Grid, settings::PhotoIonization.Settings; output::Bool=true)`
+    ... as PhotoIonization.computeLines, on the physical channel structure; an Array{LineClaude,1} is
+        returned. The nuclear potential and the B-spline basis are built once, and the lines are computed in
+        parallel, exactly as in the flat driver.
+"""
+function computeLinesClaude(finalMultiplet::Multiplet, initialMultiplet::Multiplet, nm::Nuclear.Model,
+                            grid::Radial.Grid, settings::PhotoIonization.Settings; output::Bool=true)
+    println("")
+    printstyled("PhotoIonization.computeLinesClaude(): The computation of photoionization amplitudes starts now ... \n", color=:light_green)
+    printstyled("-------------------------------------------------------------------------------------------------- \n", color=:light_green)
+    println("")
+    lines = PhotoIonization.determineLinesClaude(finalMultiplet, initialMultiplet, settings)
+    if  settings.printBefore    PhotoIonization.displayLinesClaude(lines)    end
+    maxEnergy = 0.;   for  line in lines   maxEnergy = max(maxEnergy, line.electronEnergy)   end
+    nrContinuum = Continuum.gridConsistency(maxEnergy, grid)
+    nuclearPot = Nuclear.nuclearPotential(nm, grid)
+    primitives = Bsplines.generatePrimitives(grid)
+    newLines = Vector{PhotoIonization.LineClaude}(undef, length(lines))
+    Threads.@threads for  i  in  eachindex(lines)
+        newLines[i] = PhotoIonization.computeAmplitudesPropertiesClaude(lines[i], nm, grid, nrContinuum, settings;
+                                                                        nuclearPot=nuclearPot, primitives=primitives)
+    end
+    PhotoIonization.displayResultsClaude(stdout, newLines, settings)
+    printSummary, iostream = Defaults.getDefaults("summary flag/stream")
+    if  printSummary   PhotoIonization.displayResultsClaude(iostream, newLines, settings)   end
+    if    output    return( newLines )
+    else            return( nothing )
+    end
+end
+
+
+"""
+`PhotoIonization.computeTimeDelaysClaude(partialWaves::Array{PhotoIonization.PartialWaveClaude,1},
+        xPartialWaves::Array{PhotoIonization.PartialWaveClaude,1}, deltaE::Float64, Jf::AngularJ64)`
+    ... computes the coherent and incoherent time delays from two sets of partial waves, computed at
+        energies differing by deltaE; a tuple (coherentDelay, incoherentDelay)::Tuple{EmProperty,EmProperty}
+        is returned.
+
+        MIRRORS THE INCOHERENT DELAY ONLY, and does so exactly: the amplitude-weighted mean of the
+        partial-wave phases, differenced over deltaE. That part of PhotoIonization.computeTimeDelays is a
+        finished formula and is reproduced here term for term.
+
+        The COHERENT delay is deliberately NOT translated, and EmProperty(0.) is returned in its place. The
+        flat function's first two attempts at it sit inside a `#== ... ==#` block (one of them carrying
+        "Multiply coherentTauC by 20. for mean energy calibration !!!"); the third is live but is not a
+        general formula -- it hard-codes `l0 = AngularJ64(2)` under a @warn reading "l0 = 2 ... for d_3/2,
+        d_5/2 splitting", i.e. it holds for one particular initial subshell only, and it prints every channel
+        amplitude as it goes. Carrying that into the new structure would give a provisional expression the
+        appearance of a general one. Nothing is repaired here: this is a translation, not a rescue, and
+        PhotoIonization.computeTimeDelays remains the place where the coherent delay is to be finished.
+
+        Note where the phase now comes from: it belongs to the PARTIAL WAVE, which is what it is a property
+        of. In the flat form the same phase is stored on every channel of that kappa and re-read per channel.
+"""
+function computeTimeDelaysClaude(partialWaves::Array{PhotoIonization.PartialWaveClaude,1},
+                                 xPartialWaves::Array{PhotoIonization.PartialWaveClaude,1},
+                                 deltaE::Float64, Jf::AngularJ64)
+    function weightedPhase(pws)
+        nom = EmProperty(0., 0.);    den = EmProperty(0., 0.)
+        for  pw in pws,  ch in pw.channels,  ma in ch.amplitudes
+            w   = abs2(ma.amplitude)                       ## an EmProperty: |amp|^2 in both gauges
+            nom = nom + w * pw.phase
+            den = den + w
+        end
+        return( EmProperty(nom.Coulomb / den.Coulomb, nom.Babushkin / den.Babushkin) )
+    end
+    Deff  = weightedPhase(partialWaves);    Deffx = weightedPhase(xPartialWaves)
+    incoherentDelay = EmProperty( (Deffx.Coulomb - Deff.Coulomb) / deltaE, (Deffx.Babushkin - Deff.Babushkin) / deltaE )
+    coherentDelay   = EmProperty(0.)       ## NOT translated; the flat form hard-codes l0 = 2 -- see above
+    return( coherentDelay, incoherentDelay )
+end
+
+
+"""
+`PhotoIonization.computePartialCrossSectionUnpolarizedClaude(Mf::AngularM64, line::PhotoIonization.LineClaude)`
+    ... computes the partial photoionization cross section for a given magnetic quantum number Mf of the
+        final level; an EmProperty is returned, holding BOTH gauges at once.
+
+        NOTE ON THE SIGNATURE. The flat PhotoIonization.computePartialCrossSectionUnpolarized takes a
+        `gauge::EmGauge` and returns one number, because a gauge there is a channel label that has to be
+        selected for. Here it is carried by the amplitude, so one call returns both -- there is nothing to
+        select and no way to select wrongly.
+
+        DIFFERENCE FROM THE FLAT VERSION, and it is not a rounding difference. In the flat function the inner
+        loop reads
+              if kappa != chp.kappa || (gauge != cha.gauge && gauge != Basics.Magnetic)  continue
+        i.e. it re-tests the OUTER channel's gauge (`cha`) instead of the inner one's (`chp`). Since the outer
+        loop has already established that condition, the inner test never excludes anything, and amplitudes
+        belonging to DIFFERENT gauges are multiplied together. The same slip appears in
+        computeStatisticalTensorUnpolarized; computeAngularBeta has it right. Here the product
+        `amp * conj(ampp)` is componentwise, so the two gauges cannot meet whatever anyone writes.
+        These two functions will therefore NOT agree with their flat counterparts -- see the note in the
+        Claude tensor function below.
+"""
+function computePartialCrossSectionUnpolarizedClaude(Mf::AngularM64, line::PhotoIonization.LineClaude)
+    function Racahexpr(kappa::Int64, Ji::AngularJ64, Jf::AngularJ64, Mf::AngularM64, J::AngularJ64, Jp::AngularJ64,
+                        L::Int64, Lp::Int64, p::Int64, pp::Int64)
+        t1 = Basics.oplus( AngularJ64(Lp), Jf);    t2 = Basics.oplus( AngularJ64(L), Jf);    tList = intersect(t1, t2)
+        wb = 0.
+        for  t  in tList
+            for  lambda = -1:2:1
+                j = AngularMomentum.kappa_j(kappa);   Mf_lambda = Basics.add(AngularM64(lambda), Mf)
+                wb = wb + (1.0im * lambda)^p * (-1.0im * lambda)^pp *
+                        AngularMomentum.ClebschGordan( AngularJ64(Lp), AngularM64(lambda), Jf, Mf, t, Mf_lambda) *
+                        AngularMomentum.ClebschGordan( AngularJ64(L),  AngularM64(lambda), Jf, Mf, t, Mf_lambda) *
+                        AngularMomentum.Wigner_9j(j, Jp, Jf, J, Ji, AngularJ64(L), Jf, AngularJ64(Lp), t)
+            end
+        end
+        return( wb )
+    end
+    #
+    Ji = line.initialLevel.J;    Jf = line.finalLevel.J
+    waC = 0.0im;    waB = 0.0im
+    ## Pairs are formed WITHIN one partial wave, which is what "kappa != chp.kappa continue" says in the
+    ## flat form -- here it is the loop structure itself.
+    for  pw in line.partialWaves
+        for  cha in pw.channels,  ma in cha.amplitudes
+            J = cha.symmetry.J;    L = ma.multipole.L;    p  = ma.multipole.electric ? 1 : 0
+            for  chp in pw.channels,  mp in chp.amplitudes
+                Jp = chp.symmetry.J;   Lp = mp.multipole.L;   pp = mp.multipole.electric ? 1 : 0
+                wc = 1.0im^(L - Lp) * (-1)^(L + Lp) * AngularMomentum.bracket([AngularJ64(L), AngularJ64(Lp), J, Jp]) *
+                        Racahexpr(pw.kappa, Ji, Jf, Mf, J, Jp, L, Lp, p, pp) * (ma.amplitude * conj(mp.amplitude))
+                waC = waC + wc.Coulomb;    waB = waB + wc.Babushkin
+            end
+        end
+    end
+    csFactor = 8 * pi^3 * Defaults.getDefaults("alpha") / (2*line.photonEnergy * (Basics.twice(Ji) + 1))
+    return( EmProperty(real(csFactor * waC), real(csFactor * waB)) )
+end
+
+
+"""
+`PhotoIonization.computeStatisticalTensorUnpolarizedClaude(k::Int64, q::Int64, line::PhotoIonization.LineClaude,
+                                                           settings::PhotoIonization.Settings)`
+    ... computes the statistical tensor rho_kq of the photoion; an EmPropertyC is returned, holding both
+        gauges. As above, no gauge argument is taken because the gauge is carried by the amplitude.
+
+        CARRIES THE SAME CORRECTION as computePartialCrossSectionUnpolarizedClaude: the flat version's inner
+        loop tests `cha.gauge` where it means `chp.gauge`, so it multiplies Coulomb amplitudes with Babushkin
+        ones. That cannot happen here. The two versions therefore differ by more than rounding, and the
+        difference is the point rather than a defect of this one.
+"""
+function computeStatisticalTensorUnpolarizedClaude(k::Int64, q::Int64, line::PhotoIonization.LineClaude,
+                                                   settings::PhotoIonization.Settings)
+    Ji = line.initialLevel.J;    Jf = line.finalLevel.J
+    P1 = settings.stokes.P1;     P2 = settings.stokes.P2;     P3 = settings.stokes.P3
+    waC = 0.0im;    waB = 0.0im
+    for  pw in line.partialWaves
+        j = AngularMomentum.kappa_j(pw.kappa)
+        for  cha in pw.channels,  ma in cha.amplitudes
+            J = cha.symmetry.J;    L = ma.multipole.L;    p  = ma.multipole.electric ? 1 : 0
+            for  chp in pw.channels,  mp in chp.amplitudes
+                Jp = chp.symmetry.J;   Lp = mp.multipole.L;   pp = mp.multipole.electric ? 1 : 0
+                for  lambda = -1:2:1
+                    for  lambdap = -1:2:1
+                        if  lambda == lambdap   wb = (1.0 + 0.0im + lambda*P3)    else    wb = P1 - lambda * P2 * im    end
+                        wc = wb * 1.0im^(L - Lp + p - pp) * lambda^p * lambdap^pp *
+                                sqrt( AngularMomentum.bracket([AngularJ64(L), AngularJ64(Lp), J, Jp]) ) *
+                                AngularMomentum.phaseFactor([J, +1, Jp, +1, Jf, +1, Ji, +1, j, +1, AngularJ64(1)]) *
+                                AngularMomentum.ClebschGordan( AngularJ64(L),  AngularM64(lambda), AngularJ64(Lp),
+                                                                AngularM64(-lambda), AngularJ64(k),  AngularM64(q)) *
+                                AngularMomentum.Wigner_6j(Jf, j, Jp, J, AngularJ64(k), Jf) *
+                                AngularMomentum.Wigner_6j(Jp, Ji, AngularJ64(Lp), AngularJ64(L), AngularJ64(k), J) *
+                                (ma.amplitude * conj(mp.amplitude))
+                        waC = waC + wc.Coulomb;    waB = waB + wc.Babushkin
+                    end
+                end
+            end
+        end
+    end
+    fc = pi / (Basics.twice(Ji) + 1)
+    return( EmPropertyC(fc * waC, fc * waB) )
+end
+
+
+"""
+`PhotoIonization.computeDisplayNonE1AngleDifferentialCSClaude(stream::IO, lines::Array{PhotoIonization.LineClaude,1},
+                                                              settings::PhotoIonization.Settings)`
+    ... computes and displays the non-E1 angle-differential photoionization cross sections for all
+        PhotoIonization.LineClaude's and at all angles theta as defined in the settings; the general formula
+        by Nishita Hosea (2025) is applied, exactly as in PhotoIonization.computeDisplayNonE1AngleDifferentialCS.
+        A table is printed for each line but nothing is returned otherwise.
+
+        THIS IS THE ONE CONSUMER THAT PAIRS AMPLITUDES ACROSS PARTIAL WAVES. computeAngularBeta and the
+        partial cross section pair only within one kappa; here kappa and kappa' are independent, and the
+        interference between two DIFFERENT partial waves is the whole content of the non-dipole terms. The
+        loop therefore runs over the flattened (kappa, symmetry, multipole, amplitude) entries of the line.
+
+        Of the three flat functions that must keep the gauges apart, this is the one that does it correctly:
+        it guards the pair from BOTH sides (`cha == Coulomb && chb == Babushkin` and the reverse) and then
+        books a pair into the Coulomb sum unless either partner is Babushkin, and vice versa -- so a magnetic
+        multipole, whose flat gauge label is Basics.Magnetic, enters both sums. Every one of those three
+        rules is reproduced here by the single product `ma.amplitude * conj(mp.amplitude)`: it is
+        componentwise, so the mixed pairs cannot form, and a magnetic amplitude has equal components, so it
+        contributes to both. Four lines of bookkeeping become none.
+
+        MIRRORED, NOT REPAIRED: `angCS` is filled once per line but never emptied between lines, so the
+        table printed for the second line repeats the rows of the first. That is a defect of the flat
+        function; it is reproduced here unchanged, so that the two paths can be compared line for line, and
+        it is to be fixed in the flat function -- where it belongs -- rather than silently here.
+"""
+function computeDisplayNonE1AngleDifferentialCSClaude(stream::IO, lines::Array{PhotoIonization.LineClaude,1},
+                                                      settings::PhotoIonization.Settings)
+    function spinDensityMatrix(lambda1::Int64, lambda2::Int64, stokes::ExpStokes)
+        # Convert the Stokes parameters of the incoming light into a spin-density matrix on the indices lambda = +-1
+        if      lambda1 == lambda2  == 1               return( (1.0 + stokes.P3)/2. )
+        elseif  lambda1 ==  1   &&   lambda2  == -1    return( (stokes.P1 - stokes.P1*im)/2. )
+        elseif  lambda1 == -1   &&   lambda2  ==  1    return( (stokes.P1 + stokes.P1*im)/2. )
+        elseif  lambda1 == lambda2  == -1              return( (1.0 - stokes.P3)/2. )
+        else    error("stop a")
+        end
+    end
+    #
+    angCS = Tuple{Float64, ComplexF64, ComplexF64}[]  # theta, angCs.Coulomb, angCs.Babushkin
+    ## Loop about all lines; a table is printed independently for each line
+    for  line in lines
+        ## Flatten once: one entry per (partial wave, total symmetry, multipole), each carrying both gauges.
+        entries = Tuple{Int64,LevelSymmetry,EmMultipole,EmPropertyC}[]
+        for  pw in line.partialWaves,  ch in pw.channels,  ma in ch.amplitudes
+            push!(entries, (pw.kappa, ch.symmetry, ma.multipole, ma.amplitude))
+        end
+        ## Loop over all angles theta
+        for  theta in settings.thetas
+            cs = EmPropertyC(0.0im)
+            for  (kapa, syma, mpa, ampa)  in entries,   (kapb, symb, mpb, ampb)  in entries
+                s1 = Subshell(20, kapa);   j1 = Basics.subshell_j(s1)
+                s2 = Subshell(20, kapb);   j2 = Basics.subshell_j(s2)
+                for  X = 0:20  # Test for triangular conditions for X and continue otherwise
+                    if  AngularMomentum.isTriangle(mpa.L, mpb.L, X)                    &&
+                        AngularMomentum.isTriangle(syma.J,  symb.J, AngularJ64(X) )    &&
+                        AngularMomentum.isTriangle(j1,  j2, AngularJ64(X) )
+                        K = PhotoIonization.angularFunctionK(mpa.L, mpb.L, X, line.initialLevel.J, line.finalLevel.J,
+                                                             kapa, syma.J, kapb, symb.J)
+                        # Compute the summation over lambda's and mu's
+                        W = 0.
+                        for  lambda1 = -1:2:1,   lambda2 = -1:2:1,   mu = -1//2:1: 1//2
+                            W = W + spinDensityMatrix(lambda1, lambda2, settings.stokes) *
+                                    PhotoIonization.angularFunctionW(theta, mpa.L, mpb.L, X, lambda1, lambda2,
+                                                                     kapa, mu, kapb, mu) *
+                                    (1.0im)^(mpb.L - mpa.L) * (lambda1*lambda2) / 2. *
+                                     AngularMomentum.phaseMultipole(1.0im*lambda1, mpa) *
+                                     AngularMomentum.phaseMultipole(1.0im*lambda2, mpb)
+                        end
+                        ## No gauge bookkeeping: the product is componentwise, and a magnetic amplitude has
+                        ## equal components and so enters both sums by itself.
+                        cs = cs + K * W * (ampa * conj(ampb))
+                    end
+                end
+            end
+            push!(angCS, (theta, cs.Coulomb, cs.Babushkin) )
+        end
+        #
+        # Prepare and printout a table for the angle-differential cross sections
+        nx = 69;   symi = LevelSymmetry(line.initialLevel.J, line.initialLevel.parity)
+                   symf = LevelSymmetry(line.finalLevel.J, line.finalLevel.parity)
+        println(stream, " ")
+        println(stream, "  Non-E1 angle-differential cross sections for line:" *
+                        "  $(line.initialLevel.index) [$symi] -- $(line.finalLevel.index) [$symf] "    )
+        println(stream, " ")
+        println(stream, "  + Photon energy:   $(line.photonEnergy)    [Hartree]")
+        println(stream, "  + Multipoles:      $(settings.multipoles)")
+        println(stream, " ")
+        println(stream, "  ", TableStrings.hLine(nx))
+        sa = "  ";   sb = "  "
+        sa = sa * TableStrings.center(14, "theta" ; na=6);
+        sb = sb * TableStrings.center(14, "[rad]" ; na=6)
+        sa = sa * TableStrings.center(44, "Coulomb -- cross sections -- Babushkin"; na=3);
+        sb = sb * TableStrings.center(44, "    [Mb]     "; na=3)
+        println(stream, sa);    println(stream, sb);    println(stream, "  ", TableStrings.hLine(nx))
+        for  cs in angCS
+            sa = "     " * @sprintf("%.2e", cs[1])      * "      "
+            sa = sa      * @sprintf("%.4e", cs[2].re)   * "  " * @sprintf("%.4e", cs[2].im)   * "    "
+            sa = sa      * @sprintf("%.4e", cs[3].re)   * "  " * @sprintf("%.4e", cs[3].im)
+            println(stream, sa)
+        end
+        println(stream, "  ", TableStrings.hLine(nx))
+        #
+    end
+
+    return( nothing )
+end
+
+
 """
 `PhotoIonization.computeAngularBetaClaude(iLevel::Level, fLevel::Level,
         partialWaves::Array{PhotoIonization.PartialWaveClaude,1})`
