@@ -33,9 +33,24 @@ setDefaults("unit: rate", "1/s")
 ## factor 2-3 against Kramers) depends on it -- but the digits themselves are stale until re-run.
 
 if  true
-    # Last successful:  2-Aug-2026
+    # Last successful:  14-Aug-2026
     # Z=12, F-like 2p^5 -> Ne-like 2p^6 capture (electron into the 2p vacancy) at 10/30/50 eV. No specific literature
     # comparison known.
+    #
+    #   THE ANISOTROPY PARAMETERS CHANGED ON 14-AUG-2026, the cross sections did not. Until then
+    #   PhotoRecombination.computeAnisotropyParameter dropped every MAGNETIC channel -- its three gauge guards
+    #   tested the requested gauge instead of the channel's own, and since the requested gauge is Coulomb or
+    #   Babushkin at every call site, the test never admitted a Basics.Magnetic channel. Odd-nu parameters live
+    #   entirely on electric-magnetic interference, so beta_1 and beta_3 printed as exactly zero. Fixing the
+    #   guards immediately exposed a second, latent defect on the path they unblock: `1.0im^(L+p-Lp-pp)` parses
+    #   as 1.0 * im^n with im::Complex{Bool}, which raises DomainError for a computed negative exponent -- and
+    #   n = -1 on exactly those interference terms. Both are fixed.
+    #   Now: beta_1 = 1.3407e-03 / 1.4925e-03 (C/B) @10 eV, 5.6459e-04 / 6.0807e-04 @30 eV,
+    #   -1.0359e-03 / -1.1700e-03 @50 eV -- of order 1e-3, as an E1-M1 interference at Z=12 should be, and
+    #   changing sign between 30 and 50 eV. beta_2 moves only in its last digit (M1^2 is negligible here):
+    #   -1.1221e-01 / -1.0153e-01, -3.6705e-01 / -3.7484e-01, 3.1960e-02 / 3.9282e-02.
+    #   beta_3 and beta_4 remain exactly zero, and NOT because of the bug: two L=1 multipoles cannot couple to
+    #   nu = 3 or 4. A branch carrying E2 would show non-zero beta_3.
     #
     #   REPORT: ab-initio (Coulomb gauge) cross sections 4911.8, 1403.8, 799.2 barn @ 10/30/50 eV -- smoothly
     #   decreasing, no sign flips or non-physical values; gauge agreement (Coulomb vs. Babushkin) is stable at

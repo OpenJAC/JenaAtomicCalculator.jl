@@ -270,30 +270,42 @@ end
 
 
 """
-`PhotoRecombination.computeAnisotropyParameter(nu::Int64, gauge::EmGauge, line::PhotoRecombination.Line)`  
-    ... to compute the anisotropy parameter of the emitted photons for the photorecombination of an initially unpolarized ion. 
+`PhotoRecombination.computeAnisotropyParameter(nu::Int64, gauge::EmGauge, line::PhotoRecombination.Line)`
+    ... to compute the anisotropy parameter of the emitted photons for the photorecombination of an initially unpolarized ion.
         A value::ComplexF64 is returned.
+
+        A MAGNETIC multipole belongs to BOTH gauge sums, since a magnetic amplitude has no gauge freedom; this
+        is the same rule that computeCrossSectionForMultipoles applies below, and the three channel guards
+        state it as `ch.gauge != Basics.Magnetic`. Until 14-Aug-2026 they tested the requested `gauge` instead
+        of the channel's own, and since `gauge` is Coulomb or Babushkin at every call site that test was always
+        true -- so every magnetic channel was dropped, from the numerator AND from the normalization wn. The
+        odd-nu parameters live entirely on electric-magnetic interference, so they came out identically zero.
 """
 function  computeAnisotropyParameter(nu::Int64, gauge::EmGauge, line::PhotoRecombination.Line)
         wa = 0.0im;    Ji = line.initialLevel.J;    Jf = line.finalLevel.J   
     wn = 0.;    
-    for  ch in line.channels   
-        if  gauge != ch.gauge  &&  gauge != Basics.Magnetic   continue    end
-        wn = wn + conj(ch.amplitude) * ch.amplitude   
+    for  ch in line.channels
+        if  gauge != ch.gauge  &&  ch.gauge != Basics.Magnetic   continue    end
+        wn = wn + conj(ch.amplitude) * ch.amplitude
     end
-    
+
     for  cha  in line.channels
-        if  gauge != cha.gauge  &&  gauge != Basics.Magnetic   continue    end
+        if  gauge != cha.gauge  &&  cha.gauge != Basics.Magnetic   continue    end
         J = cha.symmetry.J;    L = cha.multipole.L;    if  cha.multipole.electric   p = 1   else    p = 0   end
         j = AngularMomentum.kappa_j(cha.kappa);    l = AngularMomentum.kappa_l(cha.kappa)
         #
         for  chp  in line.channels  
-            if  gauge != chp.gauge  &&  gauge != Basics.Magnetic   continue    end
+            if  gauge != chp.gauge  &&  chp.gauge != Basics.Magnetic   continue    end
             Jp = chp.symmetry.J;    Lp = chp.multipole.L;    if  chp.multipole.electric   pp = 1   else    pp = 0   end
             jp = AngularMomentum.kappa_j(chp.kappa);     lp = AngularMomentum.kappa_l(chp.kappa)
             #
             if  1 + (-1)^(L + p + Lp + pp - nu) == 0    continue    end
-            wa = wa + 1.0im^(L + p - Lp - pp) * AngularMomentum.phaseFactor([Ji, -1, AngularJ64(1//2), -1, Jf]) *
+            ## (1.0im)^n, NOT 1.0im^n: `^` binds tighter than the juxtaposition, so the latter is 1.0 * im^n
+            ## with im::Complex{Bool}, which cannot take a negative exponent -- and n = L+p-Lp-pp is -1 on
+            ## exactly the electric-magnetic interference terms.  A LITERAL -1 is special-cased by
+            ## Base.literal_pow, a computed one is not, which is why this survived until the guard above
+            ## started admitting magnetic channels.
+            wa = wa + (1.0im)^(L + p - Lp - pp) * AngularMomentum.phaseFactor([Ji, -1, AngularJ64(1//2), -1, Jf]) *
                                 sqrt( AngularMomentum.bracket([AngularJ64(L), AngularJ64(Lp), l, lp, j, jp, J, Jp]) ) *  
                                 AngularMomentum.ClebschGordan( l, AngularM64(0), lp, AngularM64(0),  AngularJ64(nu),  AngularM64(0)) *
                                 AngularMomentum.ClebschGordan( AngularJ64(L), AngularM64(1), AngularJ64(Lp), AngularM64(-1), 
