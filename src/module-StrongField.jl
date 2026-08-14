@@ -783,10 +783,10 @@ function  computeSphericalAmplitudes(comp::StrongField.Computation)
                             wplus = wplus +  
                                     KWignerEckart * (-1)^q * Basics.determinePolarizationVector(q, comp.polarization, star=false)    * 
                                         AngularMomentum.sphericalYlm(lp, floor(Int,mj-msp-q), amp.theta, amp.phi)                      *
-                                        AngularMomentum.ClebschGordan_old(  AngularJ64(Rational(lp)),   AngularM64(Rational(mj-msp-q)), 
+                                        AngularMomentum.ClebschGordan(      AngularJ64(Rational(lp)),   AngularM64(Rational(mj-msp-q)), 
                                                                             AngularJ64(1//2),           AngularM64(Rational(msp)), 
                                                                             AngularJ64(Rational(jp)),   AngularM64(Rational(mj-q)) )   *
-                                        AngularMomentum.ClebschGordan_old(  AngularJ64(Rational(j)),    AngularM64(Rational(mj)), 
+                                        AngularMomentum.ClebschGordan(      AngularJ64(Rational(j)),    AngularM64(Rational(mj)), 
                                                                             AngularJ64(1),              AngularM64(Rational(-q)), 
                                                                             AngularJ64(Rational(jp)),   AngularM64(Rational(mj-q)) )   * 
                                         reducedME
@@ -794,10 +794,10 @@ function  computeSphericalAmplitudes(comp::StrongField.Computation)
                             wminus = wminus +  
                                         KWignerEckart * Basics.determinePolarizationVector(q, comp.polarization, star=true)             * 
                                         AngularMomentum.sphericalYlm(lp, floor(Int,mj-msp+q), amp.theta, amp.phi)                       *
-                                        AngularMomentum.ClebschGordan_old(  AngularJ64(Rational(lp)),   AngularM64(Rational(mj-msp+q)), 
+                                        AngularMomentum.ClebschGordan(      AngularJ64(Rational(lp)),   AngularM64(Rational(mj-msp+q)), 
                                                                             AngularJ64(1//2),           AngularM64(Rational(msp)), 
                                                                             AngularJ64(Rational(jp)),   AngularM64(Rational(mj+q)) )    *
-                                        AngularMomentum.ClebschGordan_old(  AngularJ64(Rational(j)),    AngularM64(Rational(mj)), 
+                                        AngularMomentum.ClebschGordan(      AngularJ64(Rational(j)),    AngularM64(Rational(mj)), 
                                                                             AngularJ64(1),              AngularM64(Rational(q)), 
                                                                             AngularJ64(Rational(jp)),   AngularM64(Rational(mj+q)) )    * 
                                         reducedME
@@ -818,7 +818,7 @@ function  computeSphericalAmplitudes(comp::StrongField.Computation)
                 # Compute the total amplitude
                 wa = (fVolkovPlus * wminus + fVolkovMinus * wplus) + 
                         fVolkovSquared * AngularMomentum.sphericalYlm(l, floor(Int,mj-msp), amp.theta, amp.phi)       *
-                                        AngularMomentum.ClebschGordan_old(  AngularJ64(Rational(l)), AngularM64(Rational(mj-msp)), 
+                                        AngularMomentum.ClebschGordan(      AngularJ64(Rational(l)), AngularM64(Rational(mj-msp)), 
                                                                             AngularJ64(1//2),        AngularM64(Rational(msp)), 
                                                     AngularJ64(Rational(j)), AngularM64(Rational(mj)) )   * scalarProd
                 
@@ -913,12 +913,12 @@ function  computeSphericalAmplitudesUncoupled(comp::StrongField.Computation)
                 for  q in [-1, 0, 1]
                     wplus = wplus + KWignerEckart * AngularMomentum.sphericalYlm(lp, m-q, amp.theta, amp.phi) * (-1)^q  * 
                             Basics.determinePolarizationVector(q, comp.polarization, star=false)                        *
-                            AngularMomentum.ClebschGordan_old( AngularJ64(Rational(l)),  AngularM64(Rational(m)),  AngularJ64(1), 
+                            AngularMomentum.ClebschGordan(     AngularJ64(Rational(l)),  AngularM64(Rational(m)),  AngularJ64(1), 
                                     AngularM64(Rational(-q)), AngularJ64(Rational(lp)), AngularM64(Rational(m-q)) ) * reducedME
                             
                     wminus = wminus + KWignerEckart * AngularMomentum.sphericalYlm(lp, m+q, amp.theta, amp.phi)         * 
                             Basics.determinePolarizationVector(q, comp.polarization, star=true)                         *
-                            AngularMomentum.ClebschGordan_old( AngularJ64(Rational(l)), AngularM64(Rational(m)),  AngularJ64(1),
+                            AngularMomentum.ClebschGordan(     AngularJ64(Rational(l)), AngularM64(Rational(m)),  AngularJ64(1),
                                         AngularM64(Rational(q)), AngularJ64(Rational(lp)), AngularM64(Rational(m+q)) )  * reducedME
                 end
             end
@@ -1013,14 +1013,14 @@ function  computeSphericalAmplitudesUncoupledLengthGauge(comp::StrongField.Compu
                 for  q in [-1, 1]
                     wplus = wplus + AngularMomentum.sphericalYlm(lp, m-q, thetap, phip) * (-1)^q           * 
                                     Basics.determinePolarizationVector(q, comp.polarization, star=false)   * 
-                                    AngularMomentum.ClebschGordan_old( AngularJ64(l),  AngularM64(m),  AngularJ64(1), 
+                                    AngularMomentum.ClebschGordan(     AngularJ64(l),  AngularM64(m),  AngularJ64(1), 
                                                                         AngularM64(-q), AngularJ64(lp), AngularM64(m-q) )
                     ## (-im)^lp * (-1)   * AngularMomentum.ClebschGordan(l, m, 1, -q, lp, m-q) * (-1) *
                     ##                     AngularMomentum.ClebschGordan(lp, 0, 1, 0, l, 0)
 
                     wminus = wminus + AngularMomentum.sphericalYlm(lp, m+q, thetap, phip)                 * 
                                         Basics.determinePolarizationVector(q, comp.polarization, star=true) *
-                                        AngularMomentum.ClebschGordan_old( AngularJ64(l), AngularM64(m),  AngularJ64(1), 
+                                        AngularMomentum.ClebschGordan(     AngularJ64(l), AngularM64(m),  AngularJ64(1), 
                                                                             AngularM64(q), AngularJ64(lp), AngularM64(m+q) )
                     ## AngularMomentum.ClebschGordan(l, m, 1, q, lp, m+q)*(-im)^lp * (-1) *
                     ## AngularMomentum.ClebschGordan(lp, 0, 1, 0, l, 0) 
@@ -1162,9 +1162,9 @@ function  pReducedME(Pepsplp::Array{ComplexF64,1}, lp::Int, jp::Float64, l::Int,
             mj = ml + ms
             for    mlp = -lp:lp
                 mjp = mlp + ms
-                fac = fac + AngularMomentum.ClebschGordan_old(  AngularJ64(lp), AngularM64(mlp) , AngularJ64(1//2),           
+                fac = fac + AngularMomentum.ClebschGordan(      AngularJ64(lp), AngularM64(mlp) , AngularJ64(1//2),           
                                                                 AngularM64(ms), AngularJ64(jp),   AngularM64(mjp) )       * 
-                            AngularMomentum.ClebschGordan_old(  AngularJ64(l),  AngularM64(ml),   AngularJ64(1//2), 
+                            AngularMomentum.ClebschGordan(      AngularJ64(l),  AngularM64(ml),   AngularJ64(1//2), 
                                                                 AngularM64(ms), AngularJ64(j),    AngularM64(mj)  )
             end
         end
@@ -1339,7 +1339,7 @@ function ReducedTime(epsiloni::Float64, volkov::AbstractVolkovState, envelope::P
         # Compute the reduced matrix element of the position operator at gridpoint t
         rIntegral = RadialIntegrals.rkDiagonal(1, conj( Pepsplp), Pnl, grid)
         rIntegral = rIntegral * (-im)^lp * sqrt(2*l+1) * (-1)^(l+1-lp) * 
-                    AngularMomentum.ClebschGordan_old( AngularJ64(l), AngularM64(0),  AngularJ64(1), 
+                    AngularMomentum.ClebschGordan(     AngularJ64(l), AngularM64(0),  AngularJ64(1), 
                                                         AngularM64(0), AngularJ64(lp), AngularM64(0) )
         
         # Compute Volkov phase at gridpoint t

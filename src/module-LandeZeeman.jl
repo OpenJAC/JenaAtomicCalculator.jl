@@ -407,7 +407,7 @@ function  computeQuadraticZeemanC2(level::Level, Jsub::SublevelJ, grid::Radial.G
                         "level=$(level.index) [J=$(level.J)$(string(level.parity))] > = $(amplitudeDeltaN1)")
         end
 
-        cg   = AngularMomentum.ClebschGordan_old(level.J, Jsub.M, AngularJ64(1), AngularM64(0), nLevel.J, Jsub.M)
+        cg   = AngularMomentum.ClebschGordan(level.J, Jsub.M, AngularJ64(1), AngularM64(0), nLevel.J, Jsub.M)
         amp  = abs(amplitudeN1 + amplitudeDeltaN1)
         c2 = c2 + cg^2 / (level.energy - nLevel.energy) * amp^2
 

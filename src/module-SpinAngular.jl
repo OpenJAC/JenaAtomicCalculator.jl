@@ -529,7 +529,7 @@ function  irreducibleTensor(eta::SchemeEta_a, aIndex::Int64, aN::Int64, mq::Angu
         aMQ = qshellTermM(aT.j, aN);              bMQ = qshellTermM(bT.j, bN)
         if qspacedelta(aT.Q, aMQ) == 0 return(wa)  end
         if qspacedelta(bT.Q, bMQ) == 0 return(wa)  end
-        wa = - AngularMomentum.ClebschGordan_old(bT.Q, bMQ, AngularJ64(1//2), mq, aT.Q, aMQ)
+        wa = - AngularMomentum.ClebschGordan(bT.Q, bMQ, AngularJ64(1//2), mq, aT.Q, aMQ)
         wa = wa * completlyReducedCfpByIndices(aIndex, bIndex)/sqrt(Basics.twice(aT.Q)+1.)
     elseif aIndex > 64  &&  bIndex > 64
         aJ = Int64(round(mod(aIndex,1000)))
@@ -577,7 +577,7 @@ function  irreducibleTensor(eta::SchemeEta_W, aIndex::Int64, aN::Int64, mLeft::A
                 if AngularMomentum.triangularDelta(aT.Q, AngularJ64(2//2), bT.Q) == 0 return(wa) end
                 mtot_num = mLeft.num + mRight.num
                 mtot = AngularM64(mtot_num//mLeft.den)
-                wa = AngularMomentum.ClebschGordan_old(bT.Q, bMQ, AngularJ64(2//2), mtot, aT.Q, aMQ)
+                wa = AngularMomentum.ClebschGordan(bT.Q, bMQ, AngularJ64(2//2), mtot, aT.Q, aMQ)
                 if abs(wa) < 1.0e-11 return( wa )  end
                 wa = wa * completelyReducedWkk(aIndex, bIndex, 1, kj)
                 if abs(wa) < 1.0e-11 return( wa )  end
@@ -601,7 +601,7 @@ function  irreducibleTensor(eta::SchemeEta_W, aIndex::Int64, aN::Int64, mLeft::A
                 if AngularMomentum.triangularDelta(aT.Q, AngularJ64((2*kq)//2), bT.Q) == 0    return(wa)    end
                 mtot_num = mLeft.num + mRight.num
                 mtot = AngularM64(mtot_num//mLeft.den)
-                wa   = AngularMomentum.ClebschGordan_old(bT.Q, bMQ, AngularJ64((2*kq)//2), mtot, aT.Q, aMQ)
+                wa   = AngularMomentum.ClebschGordan(bT.Q, bMQ, AngularJ64((2*kq)//2), mtot, aT.Q, aMQ)
                 if  abs(wa) < 1.0e-11 return( wa )  end
                 wa = wa * completelyReducedWkk(aIndex, bIndex, kq, kj)
                 if abs(wa) < 1.0e-11  return( wa )  end

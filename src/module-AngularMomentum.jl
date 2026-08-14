@@ -193,27 +193,29 @@ function ChengI(kapa::Int64, kapb::Int64, L::AngularJ64)
 end
 
 """
-`AngularMomentum.ClebschGordan(ja, ma, jb, mb, Jab, Mab)`  
-    ... calculates the Clebsch-Gordan coefficient  <ja, ma, jb, mb; Jab, Mab> for given quantum numbers by 
+`AngularMomentum.ClebschGordan(ja, ma, jb, mb, Jab, Mab)`
+    ... calculates the Clebsch-Gordan coefficient  <ja, ma, jb, mb; Jab, Mab> for given quantum numbers by
         a proper call to a Wigner 3-j symbol. A value::Float64 is returned.
+
+        THIS IS THE ONE DEFINITION (14-Aug-2026). A second one, `ClebschGordan_old`, stood beside it and was
+        called from EIGHTEEN places in four modules -- StrongField (12), StrongField-inc-hydrogenic (2),
+        SpinAngular (3) and LandeZeeman (1). The two were the SAME FUNCTION written twice:
+        both form  (-1)^(ja-jb+Mab) sqrt(2 Jab + 1) * Wigner_3j(ja, jb, Jab, ma, mb, -Mab), differing only in
+        whether the phase is spelled out here or delegated to AngularMomentum.phaseFactor. Measured over
+        35728 combinations with ja, jb <= 3 and Jab <= 6 across all m: the worst difference was EXACTLY zero,
+        2348 of them non-vanishing, and both raised on precisely the same improper combinations. The twelve
+        call sites were therefore migrated with NO phase factor and no other change.
+
+        One difference did not survive, and it was the retired version's only advantage: phaseFactor RAISES
+        on an improper combination (ja - jb + Mab not an integer), whereas the exponent is formed here as a
+        Float64 and (-1)^x of a half-integer x raises a DomainError instead. Both stop; only the message
+        differs.
 """
 function ClebschGordan(ja, ma, jb, mb, Jab, Mab)
     mab = - Basics.twice(Mab) / 2
     pp  = (Basics.twice(ja) - Basics.twice(jb) + Basics.twice(Mab))/2
     cg  = (-1)^pp * sqrt(Basics.twice(Jab) + 1) * AngularMomentum.Wigner_3j(ja, jb, Jab, ma, mb, mab)
     return( cg )
-end
-
-"""
-`AngularMomentum.ClebschGordan_old(ja::AngularJ64, ma::AngularM64, jb::AngularJ64, mb::AngularM64, Jab::AngularJ64, Mab::AngularM64)`  
-    ... calculates the Clebsch-Gordan coefficient  <ja, ma, jb, mb; Jab, Mab> for given quantum numbers by 
-        a proper call to a Wigner 3-j symbol; a value::Float64 is returned.
-"""
-function ClebschGordan_old(ja::AngularJ64, ma::AngularM64, jb::AngularJ64, mb::AngularM64, Jab::AngularJ64, Mab::AngularM64)
-    cg = 0.   ## ja-jb+Mab must be integer
-    mab = AngularM64(-Mab.num, Mab.den)
-    cg = AngularMomentum.phaseFactor([ja, -1, jb, +1, Mab]) * sqrt( (Basics.twice(Jab)+1) ) * 
-            AngularMomentum.Wigner_3j(ja, jb, Jab, ma, mb, mab)
 end
 
 """

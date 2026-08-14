@@ -124,9 +124,9 @@ function  pReducedMEHydrogenic(Pepsplp::Array{ComplexF64,1}, lp::Int64, jp::Floa
             mj = ml + ms 
             for    mlp = -lp:lp
                 mjp = mlp + ms 
-                fac = fac + AngularMomentum.ClebschGordan_old(  AngularJ64(lp), AngularM64(mlp),  AngularJ64(1//2),           
+                fac = fac + AngularMomentum.ClebschGordan(      AngularJ64(lp), AngularM64(mlp),  AngularJ64(1//2),           
                                             AngularM64(Rational(ms)), AngularJ64(Rational(jp)),   AngularM64(Rational(mjp)) ) * 
-                            AngularMomentum.ClebschGordan_old(  AngularJ64(l),  AngularM64(ml),   AngularJ64(1//2),           
+                            AngularMomentum.ClebschGordan(      AngularJ64(l),  AngularM64(ml),   AngularJ64(1//2),           
                                             AngularM64(Rational(ms)), AngularJ64(Rational(j)),    AngularM64(Rational(mj)) )    
             end
         end
