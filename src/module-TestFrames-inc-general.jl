@@ -565,7 +565,6 @@ function testStructConstructors(; short::Bool=true)
         ("DecayYield.Settings()",                   () -> DecayYield.Settings()                        ),
         ("MultipolePolarizibility.Settings()",      () -> MultipolePolarizibility.Settings()           ),
         ("ReducedDensityMatrix.Settings()",         () -> ReducedDensityMatrix.Settings()              ),
-        ("RadiativeOpacity.Settings()",             () -> RadiativeOpacity.Settings()                  ),
         # Basic process settings
         ("PhotoEmission.Settings()",                () -> PhotoEmission.Settings()                     ),
         ("PhotoExcitation.Settings()",              () -> PhotoExcitation.Settings()                   ),

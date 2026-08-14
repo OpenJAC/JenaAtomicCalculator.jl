@@ -104,7 +104,7 @@ export AbstractCImethod, AbstractComputeTheme, AbstractConfigurationRestriction,
        QedPetersburg, QedSydney,
        RacahAlgebra, RacahExpression, Radial, RadialIntegrals, RadialOrbitalsBoth, RadialOrbitalsLarge,
        RadialOrbitalsSmall,
-       RadialPotentials, Radiative, RadiativeAuger, RadiativeOpacity, RasExpansion,
+       RadialPotentials, Radiative, RadiativeAuger, RasExpansion,
        RasLayer, RasSettings, RasStep, RAuger, RayleighCompton, READI, Rec, recast, REDA, ReducedDensityMatrix,
        RelativisticConfigurations, RemoveElectrons, Representation, RequestMaximumOccupation,
        RequestMinimumOccupation, ResonantInelastic, RestrictExcitations, RestrictMaximumDisplacements,
@@ -166,7 +166,6 @@ include("module-LandeZeeman.jl")
 include("module-FormFactor.jl")
 include("module-ReducedDensityMatrix.jl")
 include("module-AlphaVariation.jl")
-include("module-RadiativeOpacity.jl")
 include("module-MultipolePolarizibility.jl")
 include("module-StarkShift.jl")
 include("module-StarkZeeman.jl")
