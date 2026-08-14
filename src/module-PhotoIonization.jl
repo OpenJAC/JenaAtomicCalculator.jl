@@ -1656,12 +1656,9 @@ end
         assigned. An kappaList::Array{Int64,1} is returned.
 """
 function getLineKappas(line::PhotoIonization.Line)
-    kappaList = Int64[]
-    for  ch  in line.channels
-        kappaList = union(kappaList, ch.kappa)
-    end
-    
-    return( kappaList )
+    ## One partial wave per kappa, so the list is already distinct by construction; the flat form needed a
+    ## union because it carried one channel per (multipole, gauge, kappa).
+    return( Int64[pw.kappa  for pw in line.partialWaves] )
 end
 
 end # module
