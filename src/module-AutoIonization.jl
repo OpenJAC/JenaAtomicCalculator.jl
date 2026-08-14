@@ -197,8 +197,72 @@ function Line(initialLevel::Level, finalLevel::Level, totalRate::Float64)
 end
 
 
+#####################################################################################################################
+## THE PHYSICAL FORM, built BESIDE the flat one above -- the fourth module, and the one where the channel was
+## ALREADY physical.  AutoIonization.Channel is (kappa, symmetry, phase, amplitude): no multipole and no gauge,
+## because the Coulomb-Breit electron-electron operator has neither.  Nothing here is a repair; the point is to
+## carry the same NAMES as PhotoIonization, PhotoRecombination and PhotoEmission, so that a later retire+rename
+## is one mechanical step across all of them, and so that DielectronicRecombination -- which stores
+## Array{AutoIonization.Channel,1} and has no channel type of its own -- can be built from Claude types too.
+##
+## ONE FIELD IS DROPPED, and for a physical reason.  Every construction of an AutoIonization.Channel sets
+## `symmetry` to the symmetry of the level that AUTOIONIZES (determineChannels: symi;
+## DielectronicRecombination:988: symn).  J and parity are conserved, so the scattering state (final ion + free
+## electron) MUST couple to that one symmetry -- unlike photoionization and photorecombination, where one kappa
+## serves several.  So the symmetry is a per-line constant that was stored once per channel, one kappa maps to
+## exactly one amplitude, and the intermediate channel layer carries no information at all.
+#####################################################################################################################
+
+
+"""
+`struct  AutoIonization.PartialWaveClaude`
+    ... ONE partial wave of the emitted Auger electron, and its amplitude.
+
+    + kappa          ::Int64                ... partial wave of the free electron.
+    + energy         ::Float64              ... energy of the free electron.
+    + phase          ::Float64              ... scattering phase; a property of (energy, kappa).
+    + amplitude      ::Complex{Float64}     ... Auger amplitude of this partial wave.
+
+        `amplitude` is a plain Complex{Float64} and deliberately NOT an EmPropertyC. The Coulomb-Breit operator
+        has no gauge; `settings.operator` selects CoulombInteraction() or BreitInteraction(), which is a choice
+        of OPERATOR, not a pair of representations computed together. An EmPropertyC here would assert that two
+        gauges exist. (Measured: this module contains no occurrence of `EmProperty` or `gauge` at all.)
+"""
+struct  PartialWaveClaude
+    kappa            ::Int64
+    energy           ::Float64
+    phase            ::Float64
+    amplitude        ::Complex{Float64}
+end
+
+
+"""
+`struct  AutoIonization.LineClaude`
+    ... as AutoIonization.Line, but carrying partial waves instead of flat channels.
+
+    + initialLevel   ::Level                            ... initial-(state) level
+    + finalLevel     ::Level                            ... final-(state) level
+    + electronEnergy ::Float64                          ... Energy of the emitted Auger electron.
+    + totalRate      ::Float64                          ... Total rate of this line.
+    + angularAlpha   ::Float64                          ... Intrinsic angular parameter alpha_2.
+    + partialWaves   ::Array{PartialWaveClaude,1}       ... one entry per partial wave of the free electron.
+
+        The total symmetry of the scattering state is NOT stored: it is
+        LevelSymmetry(initialLevel.J, initialLevel.parity) for every partial wave, and
+        AutoIonization.flatChannelsClaude reconstructs it from the line.
+"""
+struct  LineClaude
+    initialLevel     ::Level
+    finalLevel       ::Level
+    electronEnergy   ::Float64
+    totalRate        ::Float64
+    angularAlpha     ::Float64
+    partialWaves     ::Array{PartialWaveClaude,1}
+end
+
+
 # `Base.show(io::IO, line::AutoIonization.Line)`  ... prepares a proper printout of the variable line::AutoIonization.Line.
-function Base.show(io::IO, line::AutoIonization.Line) 
+function Base.show(io::IO, line::AutoIonization.Line)
     println(io, "initialLevel:           $(line.initialLevel)  ")
     println(io, "finalLevel:             $(line.finalLevel)  ")
     println(io, "electronEnergy:         $(line.electronEnergy)  ")
@@ -945,6 +1009,235 @@ function  displayRates(stream::IO, lines::Array{AutoIonization.Line,1}, settings
     println(stream, "  ", TableStrings.hLine(nx))
     #
     return( nothing )
+end
+
+
+#####################################################################################################################
+## The physical form: the core, the bridge back to the flat one, the displays and the drivers.  Everything below
+## is ADDITIVE -- nothing above is altered.
+#####################################################################################################################
+
+
+"""
+`AutoIonization.determineChannelsClaude(finalLevel::Level, initialLevel::Level, settings::AutoIonization.Settings)`
+    ... as AutoIonization.determineChannels, but returning partial waves; an
+        Array{AutoIonization.PartialWaveClaude,1} is returned with all amplitudes still zero.
+
+        The selection rule is the same AngularMomentum.allowedKappaSymmetries(symi, symf) and the same
+        `abs(kappa) > settings.maxKappa` restriction. What disappears is the `symmetry` field: it was symi for
+        every channel, i.e. a per-line constant.
+"""
+function determineChannelsClaude(finalLevel::Level, initialLevel::Level, settings::AutoIonization.Settings)
+    partialWaves = AutoIonization.PartialWaveClaude[]
+    symi         = LevelSymmetry(initialLevel.J, initialLevel.parity)
+    symf         = LevelSymmetry(finalLevel.J,   finalLevel.parity)
+    for  kappa in AngularMomentum.allowedKappaSymmetries(symi, symf)
+        if  abs(kappa) > settings.maxKappa      continue    end
+        push!(partialWaves, AutoIonization.PartialWaveClaude(kappa, 0., 0., Complex(0.)))
+    end
+    return( partialWaves )
+end
+
+
+"""
+`AutoIonization.computeAmplitudesPropertiesClaude(line::AutoIonization.LineClaude, nm::Nuclear.Model,
+        grid::Radial.Grid, nrContinuum::Int64, settings::AutoIonization.Settings; printout::Bool=true,
+        nuclearPot::Union{Nothing,Radial.Potential}=nothing, primitives::Union{Nothing,Bsplines.Primitives}=nothing)`
+    ... as AutoIonization.computeAmplitudesProperties, but on partial waves; a LineClaude with all amplitudes,
+        the total rate and, if requested, the angular parameter evaluated is returned. The two keywords carry
+        quantities that are CONSTANT for a whole computation, exactly as in the flat version.
+
+        The rate is summed INCOHERENTLY over partial waves, exactly as in the flat version.
+"""
+function computeAmplitudesPropertiesClaude(line::AutoIonization.LineClaude, nm::Nuclear.Model, grid::Radial.Grid,
+                                           nrContinuum::Int64, settings::AutoIonization.Settings; printout::Bool=true,
+                                           nuclearPot::Union{Nothing,Radial.Potential}=nothing,
+                                           primitives::Union{Nothing,Bsplines.Primitives}=nothing)
+    newPartialWaves = AutoIonization.PartialWaveClaude[];   contSettings = Continuum.Settings(false, nrContinuum)
+    rate = 0.
+    subshellList = Basics.generate(OrderedSubshellList(), line.finalLevel.basis, line.initialLevel.basis)
+    nucPot    = isnothing(nuclearPot) ? Nuclear.nuclearPotential(nm, grid) : nuclearPot
+    redILevel = Basics.generateLevelWithSymmetryReducedBasis(line.initialLevel, subshellList)
+    newfLevel = Basics.generateLevelWithSymmetryReducedBasis(line.finalLevel,   subshellList)
+    ## The one total symmetry of the scattering state; see the note at PartialWaveClaude.
+    symi      = LevelSymmetry(line.initialLevel.J, line.initialLevel.parity)
+
+    for  pw in line.partialWaves
+        newiLevel = Basics.generateLevelWithExtraSubshell(Subshell(101, pw.kappa), redILevel)
+        cOrbital, phase = Continuum.generateOrbitalForLevel(line.electronEnergy, Subshell(101, pw.kappa), newfLevel,
+                                                            nm, grid, contSettings; nuclearPot=nucPot,
+                                                            primitives=primitives)
+        newcLevel  = Basics.generateLevelWithExtraElectron(cOrbital, symi, newfLevel)
+        newChannel = AutoIonization.Channel(pw.kappa, symi, phase, 0.)
+        amplitude  = AutoIonization.amplitude(settings.operator, newChannel, newcLevel, newiLevel, grid, printout=printout)
+        # Calculate two-electron Auger (TEA) contributions if requested; write an extra note if the amplitude is non-zero
+        if  settings.calcTeAuger
+            if  amplitude != ComplexF64(0.)     @warn ">>> TEA contributions start from non-zero amplitude = $amplitude"    end
+            println(">>> Normal Auger for ($symi --> $symi) transition with amplitude = $amplitude")
+            amp = AutoIonization.computeTeaAmplitude(settings.operator, newChannel, newcLevel, settings.gMultiplet,
+                                                     newiLevel, grid, printout=printout)
+            amplitude = amplitude + amp
+        end
+        #
+        rate = rate + conj(amplitude) * amplitude
+        push!(newPartialWaves, AutoIonization.PartialWaveClaude(pw.kappa, line.electronEnergy, phase, amplitude))
+    end
+    totalRate = 2pi * rate;    angularAlpha = 0.
+    newLine   = AutoIonization.LineClaude(line.initialLevel, line.finalLevel, line.electronEnergy, totalRate,
+                                          angularAlpha, newPartialWaves)
+    #
+    if  settings.calcAnisotropy    angularAlpha = AutoIonization.computeIntrinsicAlphaClaude(2, newLine)
+        newLine = AutoIonization.LineClaude(line.initialLevel, line.finalLevel, line.electronEnergy, totalRate,
+                                            real(angularAlpha), newPartialWaves)
+    end
+    return( newLine )
+end
+
+
+"""
+`AutoIonization.computeIntrinsicAlphaClaude(k::Int64, line::AutoIonization.LineClaude)`
+    ... as AutoIonization.computeIntrinsicAlpha: the intrinsic angular parameter alpha_k of the given line;
+        a value::ComplexF64 is returned.
+
+        Pairs are formed ACROSS partial waves -- kappa and kappa' are independent, and that interference is the
+        physical content of the parameter. The angular algebra, the normalization and the phase factor are
+        reproduced verbatim; the only change is that l, j come from the outer partial wave and lp, jp from the
+        inner one by name rather than by remembering which of `cha` and `chp` is which.
+
+        The `if false` block of the flat version -- an unfinished comparison against M. H. Chen, PRA 47 (1993)
+        3733, which "does not agree exactly so far" -- is NOT carried over. It is dead code with a println, and
+        the place to finish it is the flat function.
+"""
+function computeIntrinsicAlphaClaude(k::Int64, line::AutoIonization.LineClaude)
+    wn = 0.;    for  pw in line.partialWaves    wn = wn + conj(pw.amplitude) * pw.amplitude    end
+    wa = 0.;    Ji = line.initialLevel.J;    Jf = line.finalLevel.J
+    for  pwa in line.partialWaves
+        j = AngularMomentum.kappa_j(pwa.kappa);    l = AngularMomentum.kappa_l(pwa.kappa)
+        for  pwb in line.partialWaves
+            jp = AngularMomentum.kappa_j(pwb.kappa);    lp = AngularMomentum.kappa_l(pwb.kappa)
+            wa = wa + sqrt( AngularMomentum.bracket([l, lp, j, jp]) ) *
+                      AngularMomentum.ClebschGordan(l, AngularM64(0), lp, AngularM64(0), AngularJ64(k), AngularM64(0)) *
+                      AngularMomentum.Wigner_6j(Ji, j, Jf, jp, Ji, AngularJ64(k)) *
+                      AngularMomentum.Wigner_6j(l,  j, AngularJ64(1//2), jp, lp, AngularJ64(k)) *
+                        pwa.amplitude * conj(pwb.amplitude)
+        end
+    end
+    return( AngularMomentum.phaseFactor([Ji, +1, Jf, +1, AngularJ64(k), -1, AngularJ64(1//2)]) *
+            sqrt(Basics.twice(Ji) + 1) * wa / wn )
+end
+
+
+"""
+`AutoIonization.flatChannelsClaude(line::AutoIonization.LineClaude)`
+    ... converts the partial waves of a line back into the flat Array{AutoIonization.Channel,1}; the bridge
+        that lets a LineClaude be handed to anything still written against the flat form.
+
+        The line is taken rather than the partial waves alone, because the total symmetry that the flat Channel
+        carries is not stored on a partial wave -- it is the symmetry of the autoionizing level. Here the
+        mapping is ONE TO ONE: no partial wave expands into several channels, which is the check that nothing
+        was silently regrouped.
+"""
+function flatChannelsClaude(line::AutoIonization.LineClaude)
+    symi = LevelSymmetry(line.initialLevel.J, line.initialLevel.parity)
+    return( [AutoIonization.Channel(pw.kappa, symi, pw.phase, pw.amplitude)  for pw in line.partialWaves] )
+end
+
+
+"""
+`AutoIonization.flatLineClaude(line::AutoIonization.LineClaude)`
+    ... converts a LineClaude into the flat AutoIonization.Line, carrying every other field across unchanged.
+"""
+function flatLineClaude(line::AutoIonization.LineClaude)
+    return( AutoIonization.Line(line.initialLevel, line.finalLevel, line.electronEnergy, line.totalRate,
+                                line.angularAlpha, AutoIonization.flatChannelsClaude(line)) )
+end
+
+
+"""
+`AutoIonization.displayLinesClaude(stream::IO, lines::Array{AutoIonization.LineClaude,1})`
+`AutoIonization.displayRatesClaude(stream::IO, lines::Array{AutoIonization.LineClaude,1}, settings)`
+`AutoIonization.displayLifetimesClaude(stream::IO, lines::Array{AutoIonization.LineClaude,1})`
+    ... the display layer for the physical form. Each converts through flatLineClaude and delegates to its
+        existing counterpart, so the printed output is IDENTICAL BY CONSTRUCTION rather than by inspection.
+"""
+function displayLinesClaude(stream::IO, lines::Array{AutoIonization.LineClaude,1})
+    return( AutoIonization.displayLines(stream, [AutoIonization.flatLineClaude(l) for l in lines]) )
+end
+
+function displayRatesClaude(stream::IO, lines::Array{AutoIonization.LineClaude,1}, settings::AutoIonization.Settings)
+    return( AutoIonization.displayRates(stream, [AutoIonization.flatLineClaude(l) for l in lines], settings) )
+end
+
+function displayLifetimesClaude(stream::IO, lines::Array{AutoIonization.LineClaude,1})
+    return( AutoIonization.displayLifetimes(stream, [AutoIonization.flatLineClaude(l) for l in lines]) )
+end
+
+
+"""
+`AutoIonization.determineLinesClaude(finalMultiplet::Multiplet, initialMultiplet::Multiplet,
+                                     settings::AutoIonization.Settings)`
+    ... as AutoIonization.determineLines, but producing LineClaude with partial waves; an
+        Array{AutoIonization.LineClaude,1} is returned.
+"""
+function determineLinesClaude(finalMultiplet::Multiplet, initialMultiplet::Multiplet, settings::AutoIonization.Settings)
+    lines = AutoIonization.LineClaude[]
+    augerEnergyShift = Defaults.convertUnits("energy: to atomic", settings.augerEnergyShift)
+    for  iLevel  in  initialMultiplet.levels
+        for  fLevel  in  finalMultiplet.levels
+            if  Basics.selectLevelPair(iLevel, fLevel, settings.lineSelection)
+                energy = iLevel.energy - fLevel.energy + augerEnergyShift
+                if   energy < 0.01                                                             continue   end
+                if   energy < settings.minAugerEnergy  ||  energy > settings.maxAugerEnergy    continue   end
+                partialWaves = AutoIonization.determineChannelsClaude(fLevel, iLevel, settings)
+                push!( lines, AutoIonization.LineClaude(iLevel, fLevel, energy, 0., 0., partialWaves) )
+            end
+        end
+    end
+    return( lines )
+end
+
+
+"""
+`AutoIonization.computeLinesClaude(finalMultiplet::Multiplet, initialMultiplet::Multiplet, nm::Nuclear.Model,
+                                   grid::Radial.Grid, settings::AutoIonization.Settings; output=true, printout::Bool=true)`
+    ... as AutoIonization.computeLines, but on the physical form; a list of
+        lines::Array{AutoIonization.LineClaude,1} is returned.
+"""
+function computeLinesClaude(finalMultiplet::Multiplet, initialMultiplet::Multiplet, nm::Nuclear.Model, grid::Radial.Grid,
+                            settings::AutoIonization.Settings; output=true, printout::Bool=true)
+    if  settings.calcBiorthogonal
+        initialMultiplet, finalMultiplet = BiOrthogonal.computeTransformation(initialMultiplet, finalMultiplet, grid)
+    end
+    println("")
+    printstyled("AutoIonization.computeLinesClaude(): The computation of Auger rates and properties starts now ... \n", color=:light_green)
+    printstyled("-------------------------------------------------------------------------------------------------- \n", color=:light_green)
+    println("")
+    lines = AutoIonization.determineLinesClaude(finalMultiplet, initialMultiplet, settings)
+    ## Display-only and the same for every line; set ONCE per computation, never from inside the line loop.
+    Defaults.setStandardSubshellList(Basics.generate(OrderedSubshellList(), finalMultiplet.levels[1].basis,
+                                                     initialMultiplet.levels[1].basis); printout=false)
+    if  settings.printBefore    AutoIonization.displayLinesClaude(stdout, lines)    end
+    maxEnergy = 0.;   for  line in lines   maxEnergy = max(maxEnergy, line.electronEnergy)   end
+    nrContinuum = Continuum.gridConsistency(maxEnergy, grid)
+    ## Both are constants of the whole computation and are READ-ONLY below, so they are shared safely.
+    nuclearPot = Nuclear.nuclearPotential(nm, grid)
+    primitives = Bsplines.generatePrimitives(grid)
+    newLines = Vector{AutoIonization.LineClaude}(undef, length(lines))
+    doPrint  = Threads.nthreads() == 1
+    Threads.@threads for  nl  in  eachindex(lines)
+        if  doPrint  &&  rem(nl,10) == 0    println("\n>> Auger computations for line No = $nl   ...")     end
+        newLines[nl] = AutoIonization.computeAmplitudesPropertiesClaude(lines[nl], nm, grid, nrContinuum, settings;
+                                                                        nuclearPot=nuclearPot, primitives=primitives)
+    end
+    AutoIonization.displayRatesClaude(stdout, newLines, settings)
+    AutoIonization.displayLifetimesClaude(stdout, newLines)
+    printSummary, iostream = Defaults.getDefaults("summary flag/stream")
+    if  printSummary   AutoIonization.displayRatesClaude(iostream, newLines, settings)
+                       AutoIonization.displayLifetimesClaude(iostream, newLines)     end
+    #
+    if    output    return( newLines )
+    else            return( nothing )
+    end
 end
 
 end # module
