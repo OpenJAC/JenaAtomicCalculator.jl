@@ -873,6 +873,36 @@ function testMethod_Opacities(; short::Bool=true)
                 "X = 1, which is the one literature value this module can be held to without a line list.")
     end
 
+    ## (6) Bound-free: hydrogen 1s at threshold. The Gaunt-corrected Kramers cross section is 6.30 Mb, and
+    ##     with n_ion = rho/m_H the mass opacity must be exactly sigma/m_H -- which checks the whole unit
+    ##     chain a_0^2 -> cm^2 -> cm^2/g, the piece most likely to be wrong by a power of a_0.
+    rhoH      = 1.0e-7;    nH = rhoH / mHydrogen
+    boundFree = Cascade.BoundFreeOpacity(1.0, [ (Configuration("1s"), Configuration("1s^0")) ])
+    property  = Cascade.MeanOpacities(Cascade.RosselandMean(),
+                                      Cascade.AbstractOpacityContribution[ boundFree ],
+                                      Cascade.TemperatureOpacityDependence(0.05), [nH], [rhoH], [1.0e6], 1., 0.)
+    ## u kT = 0.5 Ha exactly at the first node fixes the photon energy on the H 1s threshold.
+    kTthr     = 0.5 / ulist[1] * 1.0000001
+    Tthr      = kTthr / Defaults.convertUnits("temperature: from Kelvin to (Hartree) units", 1.0)
+    kappas    = Cascade.spectralOpacityContribution(boundFree, Cascade.Data[], property, nH, rhoH, Tthr, ulist)
+    ## kappa = n sigma / rho, so sigma [cm^2] = kappa rho / n, and 1 Mb = 1.0e-18 cm^2.
+    sigmaMb    = kappas[1].Coulomb * rhoH / nH * 1.0e18
+    devKramers = abs(sigmaMb - 6.30) / 6.30
+    println("  (6) Bound-free, H 1s at threshold:  sigma = $sigmaMb Mb against the Gaunt-corrected " *
+            "Kramers value 6.30 Mb;  relative deviation = $devKramers ")
+    if  devKramers > 2.0e-3
+        success = false
+        println("  *** The bound-free contribution does not reproduce the 6.30 Mb threshold cross section " *
+                "of hydrogen 1s, so either the cross section or the a_0^2 -> cm^2/g unit chain is wrong.")
+    end
+    ## and it must vanish BELOW threshold, which is what gives a bound-free opacity its edges
+    kappasLow = Cascade.spectralOpacityContribution(boundFree, Cascade.Data[], property, nH, rhoH, 0.2*Tthr, ulist)
+    if  kappasLow[1].Coulomb != 0.
+        success = false
+        println("  *** The bound-free opacity does not vanish below the ionization threshold; it must have " *
+                "an edge there.")
+    end
+
     testPrint("testMethod_Opacities()::", success)
     return( success )
 end

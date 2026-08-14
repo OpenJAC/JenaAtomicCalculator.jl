@@ -308,4 +308,77 @@ elseif  false
     #
     setDefaults("print summary: close", "")
     #
+elseif  false
+    # Last successful:  14-Aug-2026:
+    #
+    #    contributions                    Planck [cm^2/g]     Rosseland [cm^2/g]
+    #    bound-bound only                 1.42252e-02         0            (2 of 8 bins empty)
+    #    + scattering                     1.87975e-02         8.17795e-03
+    #    + scattering + bound-free        2.80495e+01         8.18263e-03
+    #
+    #    READ THE LAST ROW TWICE.  Adding bound-free multiplies the PLANCK mean by a factor 1500 and moves
+    #    the ROSSELAND mean by 0.06 %.  That is not a bug; it is the definition doing its work.  Bound-free
+    #    opens in only two of the eight bins, so an arithmetic mean -- which is dominated by whatever is most
+    #    opaque -- is transformed by it, while a harmonic mean -- dominated by whatever is most transparent --
+    #    barely notices, because the other six bins are unchanged and they are what a Rosseland mean is
+    #    about.  Anyone who took the pre-14-Aug-2026 code at its word, where the arithmetic sum was LABELLED
+    #    Rosseland, would have concluded that bound-free raises the Rosseland opacity of Sr^+ by three orders
+    #    of magnitude.  It raises it by 0.06 %.
+    #
+    #    Checks that hold in the table: the Planck mean is exactly additive (1.42252e-02 + 4.57236e-03 =
+    #    1.87975e-02, the scattering floor being kappa_es = n_e sigma_T/rho = 4.57236e-03), the Rosseland
+    #    mean is not; and kappa_R < kappa_P in every row, as harmonic <= arithmetic requires.
+    #
+    #    CAVEAT ON THE BOUND-FREE NUMBER, which is why 2.80495e+01 is NOT a physical Sr^+ opacity.
+    #    Empirical.photoionizationCrossSection scales Kramers by a binding energy drawn from X-ray tables
+    #    compiled for NEUTRAL atoms: for Sr it returns 5.573 eV, essentially the neutral Sr I -> Sr II
+    #    potential of 5.695 eV, whereas the true edge of Sr^+ is the Sr II -> Sr III potential of 11.030 eV.
+    #    The edge is therefore placed at about half the right energy and opens inside the 0.07 - 9.85 eV band
+    #    that T = 5000 K spans, where a real Sr^+ ion cannot be ionised at all.  With the correct threshold
+    #    the bound-free contribution here would be identically zero and the last row would equal the second.
+    #    The cross section itself is sound -- hydrogen 1s gives 6.29992 Mb at threshold against the
+    #    Gaunt-corrected Kramers value of 6.30 Mb, which is what TestFrames.testMethod_Opacities asserts.
+    #    It is the THRESHOLD, not the formula, that does not know about ion stages.
+    #
+    # e) THE TWO MEAN OPACITIES, and what each contribution does to them.  Branches a-d all report the
+    #    SPECTRAL opacity kappa(lambda); this one reduces it to a single number, which is what a
+    #    radiative-transfer or light-curve model actually consumes.  Two means are available and they answer
+    #    different questions:
+    #      Rosseland, 1/kappa_R = int (1/kappa_nu)(dB/dT) / int (dB/dT)  -- HARMONIC, so dominated by the most
+    #        TRANSPARENT frequencies, because radiation leaks through the windows between lines.  This is the
+    #        mean for the optically thick, diffusion regime.
+    #      Planck,    kappa_P   = int kappa_nu B / int B                 -- ARITHMETIC, so dominated by the
+    #        most OPAQUE frequencies.  This is the mean for optically thin emission.
+    #    They are not interchangeable and on a line spectrum they differ by orders of magnitude.
+    #
+    #    THE POINT OF RUNNING IT WITH THREE DIFFERENT CONTRIBUTION LISTS: a Rosseland mean of a bound-bound
+    #    line list ALONE is exactly zero.  An empty bin means "no line", kappa_nu = 0 there, and a single
+    #    perfectly transparent window short-circuits a harmonic mean.  That is physics, not a numerical
+    #    accident, and it is why a continuum contribution is not optional for a Rosseland mean.
+    setDefaults("print summary: open", "zzz-Fk-e-mean-opacities.sum")
+    wb    = srCascade()
+    rho   = 1.455e-13                                    ## [g/cm^3], as branch b
+    nIon  = rho / (87.62 * 1.6605e-24)                   ## [1/cm^3]; A = 87.62 for Sr
+    nElec = nIon                                         ## singly ionised: one free electron per ion
+    #
+    boundBound = Cascade.BoundBoundOpacity(Basics.BoltzmannLevelPopulation())
+    scattering = Cascade.ScatteringOpacity(nElec)
+    boundFree  = Cascade.BoundFreeOpacity(38.0, [ (Configuration("[Kr] 5s"), Configuration("[Kr]")) ])
+    #
+    for  (label, contributions)  in
+            [ ("bound-bound only",             Cascade.AbstractOpacityContribution[boundBound]),
+              ("+ scattering",                 Cascade.AbstractOpacityContribution[boundBound, scattering]),
+              ("+ scattering + bound-free",    Cascade.AbstractOpacityContribution[boundBound, scattering, boundFree]) ]
+        for  mean  in  [Cascade.PlanckMean(), Cascade.RosselandMean()]
+            prop = Cascade.MeanOpacities(mean, contributions, Cascade.TemperatureOpacityDependence(0.05),
+                                         [nIon], [rho], [5000.], 86400., 0.)
+            wc   = Cascade.Simulation(Cascade.Simulation(); name="$label", property=prop,
+                                      settings=Cascade.SimulationSettings(false, false, 0.),
+                                      computationData=Dict{String,Any}[ Dict{String,Any}("results" => wb) ] )
+            println("\n***  $label:")
+            perform(wc; output=true)
+        end
+    end
+    setDefaults("print summary: close", "")
+    #
 end

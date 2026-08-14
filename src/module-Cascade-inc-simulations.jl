@@ -2053,6 +2053,46 @@ end
 
 
 """
+`Cascade.spectralOpacityContribution(contribution::Cascade.BoundFreeOpacity, photoexcitationData::Array{Cascade.Data,1},
+                                     property::Cascade.MeanOpacities, nion::Float64, rho::Float64, T::Float64,
+                                     ulist::Array{Float64,1})`
+    ... returns the bound-free contribution kappa_nu^bf = n_ion sum_shells sigma^PI(omega) / rho at the given
+        nodes, with the cross sections from Empirical.photoionizationCrossSection in the ScaledHydrogenic
+        approximation. The nodes u_i are converted to photon energies omega_i = u_i kT, and the cross
+        sections from atomic units (a_0^2) to cm^2. Being a continuum, this contribution carries NO
+        lambda/Delta-lambda bin factor. An Array{Basics.EmProperty,1} in [cm^2/g] is returned; the estimate
+        is gauge-independent, so both components carry the same value.
+
+        Empirical.photoionizationCrossSection reads the nuclear charge from the GLOBAL Defaults, which is
+        1.0 unless set. It is therefore set here from contribution.nuclearCharge and restored afterwards,
+        so that a forgotten setDefaults cannot silently produce hydrogen cross sections for another element.
+"""
+function spectralOpacityContribution(contribution::Cascade.BoundFreeOpacity, photoexcitationData::Array{Cascade.Data,1},
+                                     property::Cascade.MeanOpacities, nion::Float64, rho::Float64, T::Float64,
+                                     ulist::Array{Float64,1})
+    kT       = Defaults.convertUnits("temperature: from Kelvin to (Hartree) units", T)
+    omegas   = [ u * kT   for u in ulist ]                                          ## [Hartree]
+    a0_in_cm = Defaults.convertUnits("length: from atomic to fm", 1.0) * 1.0e-13     ## [cm]
+    kappas   = Basics.EmProperty[ Basics.EmProperty(0.)  for i = 1:length(ulist) ]
+    #
+    zOld = Defaults.getDefaults("nuclear: charge")
+    Defaults.setDefaults("nuclear: charge", contribution.nuclearCharge)
+    try
+        for  (iConf, fConf)  in  contribution.ionizationPairs
+            css = Empirical.photoionizationCrossSection(omegas, iConf, fConf, Empirical.ScaledHydrogenic())
+            for  i = 1:length(ulist)
+                wa = nion * css[i] * a0_in_cm^2 / rho                                ## [cm^2/g]
+                kappas[i] = kappas[i] + Basics.EmProperty(wa, wa)
+            end
+        end
+    finally
+        Defaults.setDefaults("nuclear: charge", zOld)
+    end
+    return( kappas )
+end
+
+
+"""
 `Cascade.spectralOpacityContribution(contribution::Cascade.ScatteringOpacity, photoexcitationData::Array{Cascade.Data,1},
                                      property::Cascade.MeanOpacities, nion::Float64, rho::Float64, T::Float64,
                                      ulist::Array{Float64,1})`

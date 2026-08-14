@@ -436,11 +436,11 @@ struct   PlanckMean             <:  Cascade.AbstractOpacityMean   end
         All contributions are mass opacities in [cm^2/g].
 
     + struct BoundBoundOpacity   ... lines, in the Sobolev/expansion treatment.
+    + struct BoundFreeOpacity    ... photoionization of the bound shells; a true continuum.
     + struct ScatteringOpacity   ... Thomson scattering off free electrons; frequency-independent.
 
-        NOT provided, deliberately rather than as a stub: bound-free and free-free. Adding them is the
-        natural next step and is what would make a Rosseland mean quantitatively comparable with published
-        opacities; see Cascade.RosselandMean for why a continuum contribution is needed at all.
+        NOT provided, deliberately rather than as a stub: free-free (bremsstrahlung). See
+        Cascade.RosselandMean for why a continuum contribution is needed at all.
 """
 abstract type  AbstractOpacityContribution      end
 
@@ -464,6 +464,50 @@ abstract type  AbstractOpacityContribution      end
 """
 struct   BoundBoundOpacity      <:  Cascade.AbstractOpacityContribution
     levelPopulation          ::Basics.AbstractLevelPopulation
+end
+
+
+"""
+`struct  Cascade.BoundFreeOpacity  <:  Cascade.AbstractOpacityContribution`
+    ... the bound-free (photoionization) contribution,
+
+            kappa_nu^bf = n_ion * sum_shells sigma^PI_shell(omega) / rho ,
+
+        with the cross sections taken from Empirical.photoionizationCrossSection in the ScaledHydrogenic
+        approximation: Kramers' (1923) formula scaled by the tabulated binding energy of the ionized shell
+        and corrected by a bound-free Gaunt factor, which for H 1s turns the Kramers 7.91 Mb at threshold
+        into the exact 6.30 Mb and steepens the tail from omega^-3 to the exact omega^-7/2.
+
+        UNLIKE the bound-bound contribution this is a genuine CONTINUUM: it is evaluated at each node
+        directly and carries no lambda/Delta-lambda bin factor, since there is no line to be smeared over a
+        bin. Each shell contributes only above its own threshold, so the bound-free opacity has edges.
+
+        ASSUMPTIONS: an independent-particle, hydrogenic-scaled description of a single active electron per
+        shell; tabulated binding energies; and every ion in the configuration given, i.e. no ionization
+        balance is solved here -- the caller states which ion stage is present through the configurations.
+
+        KNOW THIS BEFORE USING IT ON AN ION. Empirical.scaledBindingEnergy draws on X-ray tables compiled for
+        NEUTRAL atoms, so the threshold is the neutral binding energy whatever ion stage the configurations
+        describe. Measured 14-Aug-2026: for Sr it returns 5.573 eV, essentially the neutral Sr I -> Sr II
+        potential of 5.695 eV, where the true edge of Sr^+ is the Sr II -> Sr III potential of 11.030 eV --
+        low by a factor of about two. The edge is therefore placed at too LOW a photon energy for any ion,
+        which lets bound-free opacity appear in a band where the ion cannot in fact be ionized. For neutral
+        species the tables are exactly what is wanted. Where the true threshold matters, use the ab-initio
+        route (PhotoIonization.Line.crossSection) instead, or shift the configurations accordingly.
+
+    + nuclearCharge          ::Float64
+        ... the nuclear charge Z. THIS IS CARRIED EXPLICITLY ON PURPOSE. Empirical.photoionizationCrossSection
+            reads Z from the global Defaults, whose GBL_NUCLEAR_CHARGE is 1.0 unless something sets it, and
+            no JAC computation does. A contribution relying on that global would silently return HYDROGEN
+            cross sections for every element; here Z is taken from this field, set around the call and
+            restored afterwards.
+    + ionizationPairs        ::Array{Tuple{Configuration,Configuration},1}
+        ... the (initial, final) configuration pairs whose photoionization is to be summed; the two must
+            differ by exactly one electron in one shell, which is the shell that is ionized.
+"""
+struct   BoundFreeOpacity       <:  Cascade.AbstractOpacityContribution
+    nuclearCharge            ::Float64
+    ionizationPairs          ::Array{Tuple{Configuration,Configuration},1}
 end
 
 
