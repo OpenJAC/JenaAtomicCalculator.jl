@@ -316,8 +316,11 @@ function  computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, g
     PhotoEmission.displayLifetimes(stdout, newLines, settings)
     #
     printSummary, iostream = Defaults.getDefaults("summary flag/stream")
-    if  printSummary   PhotoEmission.displayRates(iostream, newLines, settings)       
-                       PhotoEmission.displayAnisotropies(stdout, newLines, settings)
+    ## iostream, not stdout, and guarded by calcAnisotropy exactly as the screen call above is.  Until
+    ## 14-Aug-2026 this line sent the anisotropy table to the SCREEN a second time, in every computation with a
+    ## summary file open, whether or not anybody had asked for it.
+    if  printSummary   PhotoEmission.displayRates(iostream, newLines, settings)
+        if  settings.calcAnisotropy    PhotoEmission.displayAnisotropies(iostream, newLines, settings)    end
                        PhotoEmission.displayLifetimes(iostream, newLines, settings)
     end
     #
@@ -450,13 +453,22 @@ function  displayAnisotropies(stream::IO, lines::Array{PhotoEmission.Line,1}, se
             if  !(ch.multipole  in  mpList)    push!(mpList, ch.multipole)    end
             for  chp  in line.channels
                 #
-                if  ch.gauge  in  [ EmGauge("Coulomb"), EmGauge("Magnetic")]
+                ## BOTH partners must be tested, not only the outer one: a magnetic multipole belongs to both
+                ## gauge sums, but a Coulomb amplitude must never meet a Babushkin one.  Until 14-Aug-2026 the
+                ## inner channel chp was not tested at all, so conj(E1_Coulomb) * E1_Babushkin entered f2Coulomb
+                ## -- which DOUBLED f_2 whenever both gauges were requested (measured: 0.5 -> 0.998), and gave
+                ## -1.8e+04 where an O(1) structure function belongs when only one gauge was.
+                if  ch.gauge  in  [ EmGauge("Coulomb"), EmGauge("Magnetic")]   &&
+                    chp.gauge in  [ EmGauge("Coulomb"), EmGauge("Magnetic")]
                     if  ch == chp    normCoulomb = normCoulomb + (abs(ch.amplitude)^2)    end
+                    ## angLp from CHP, not ch: it is the inner channel's multipole, as pp on this same line
+                    ## already is, and as the sqrt((2L+1)(2L'+1)) two lines below already is.  Wrong since
+                    ## the function was written, and invisible for a single multipole, where angL == angLp.
                     angL  = AngularJ64(ch.multipole.L);   p  = Basics.multipole_p(ch.multipole)
-                    angLp = AngularJ64(ch.multipole.L);   pp = Basics.multipole_p(chp.multipole)
+                    angLp = AngularJ64(chp.multipole.L);  pp = Basics.multipole_p(chp.multipole)
                     angJi = line.initialLevel.J;    angJf = line.finalLevel.J
                     #
-                    f2Coulomb = f2Coulomb + 1.0im^(chp.multipole.L + pp - ch.multipole.L - p + 16)                         *
+                    f2Coulomb = f2Coulomb + (1.0im)^(chp.multipole.L + pp - ch.multipole.L - p)                         *
                                             AngularMomentum.phaseFactor([angJf, +1, angJi, +1, AngularJ64(3)])         *
                                             sqrt( (2ch.multipole.L+1) * (2chp.multipole.L+1) )                             * 
                                 AngularMomentum.ClebschGordan(angL, AngularM64(1), angLp, AngularM64(-1), AngularJ64(2), AngularM64(0) ) *
@@ -464,7 +476,7 @@ function  displayAnisotropies(stream::IO, lines::Array{PhotoEmission.Line,1}, se
                                             AngularMomentum.Wigner_6j(angL, angLp, AngularJ64(2), angJi, angJi, angJf) *
                                             conj(ch.amplitude) * chp.amplitude
                     #
-                    f4Coulomb = f4Coulomb + 1.0im^(chp.multipole.L + pp - ch.multipole.L - p + 16)                         *
+                    f4Coulomb = f4Coulomb + (1.0im)^(chp.multipole.L + pp - ch.multipole.L - p)                         *
                                             AngularMomentum.phaseFactor([angJf, +1, angJi, +1, AngularJ64(5)])         *
                                             sqrt( (2ch.multipole.L+1) * (2chp.multipole.L+1) )                             * 
                                 AngularMomentum.ClebschGordan(angL, AngularM64(1), angLp, AngularM64(-1), AngularJ64(4), AngularM64(0) ) *
@@ -473,13 +485,14 @@ function  displayAnisotropies(stream::IO, lines::Array{PhotoEmission.Line,1}, se
                                             conj(ch.amplitude) * chp.amplitude
                 end
                 #
-                if  ch.gauge  in  [ EmGauge("Babushkin"), EmGauge("Magnetic")]
+                if  ch.gauge  in  [ EmGauge("Babushkin"), EmGauge("Magnetic")]   &&
+                    chp.gauge in  [ EmGauge("Babushkin"), EmGauge("Magnetic")]
                     if  ch == chp    normBabushkin = normBabushkin + (abs(ch.amplitude)^2)    end
                     angL  = AngularJ64(ch.multipole.L);   p  = Basics.multipole_p(ch.multipole)
-                    angLp = AngularJ64(ch.multipole.L);   pp = Basics.multipole_p(chp.multipole)
+                    angLp = AngularJ64(chp.multipole.L);  pp = Basics.multipole_p(chp.multipole)
                     angJi = line.initialLevel.J;    angJf = line.finalLevel.J
                     #
-                    f2Babushkin = f2Babushkin + 1.0im^(chp.multipole.L + pp - ch.multipole.L - p + 16)                         *
+                    f2Babushkin = f2Babushkin + (1.0im)^(chp.multipole.L + pp - ch.multipole.L - p)                         *
                                                 AngularMomentum.phaseFactor([angJf, +1, angJi, +1, AngularJ64(3)])         *
                                                 sqrt( (2ch.multipole.L+1) * (2chp.multipole.L+1) )                             * 
                                     AngularMomentum.ClebschGordan(angL, AngularM64(1), angLp, AngularM64(-1), AngularJ64(2), AngularM64(0) ) *
@@ -487,7 +500,7 @@ function  displayAnisotropies(stream::IO, lines::Array{PhotoEmission.Line,1}, se
                                                 AngularMomentum.Wigner_6j(angL, angLp, AngularJ64(2), angJi, angJi, angJf) *
                                                 conj(ch.amplitude) * chp.amplitude
                     #
-                    f4Babushkin = f4Babushkin + 1.0im^(chp.multipole.L + pp - ch.multipole.L - p + 16)                         *
+                    f4Babushkin = f4Babushkin + (1.0im)^(chp.multipole.L + pp - ch.multipole.L - p)                         *
                                                 AngularMomentum.phaseFactor([angJf, +1, angJi, +1, AngularJ64(5)])         *
                                                 sqrt( (2ch.multipole.L+1) * (2chp.multipole.L+1) )                             * 
                                     AngularMomentum.ClebschGordan(angL, AngularM64(1), angLp, AngularM64(-1), AngularJ64(4), AngularM64(0) ) *
