@@ -658,25 +658,9 @@ function Basics.tools(dict::Dict)
 end
 
 
-"""
-`BasicsAZ.yesno(question::String, sa::String)`  
-    ... Returns true if the answer 'yes' or 'y' is found, and false otherwise; sa = {"Y", "N"} determines how the zero-String 
-        "" is interpreted. The given question is repeated until a proper answer is obtained.
-"""
-function yesno(question::String, sa::String)
-    while  true
-        print(question * "  ");    reply = strip( readline(STDIN) )
-        if      sa == "Y"
-            if      reply in ["", "Y", "Yes", "y", "yes"]   return( true )
-            elseif  reply in [    "N", "No",  "n", "no" ]   return( false )
-                    println("... answer not recognized ... redo:")
-            end
-        elseif  sa == "N"
-            if      reply in [    "Y", "Yes", "y", "yes"]   return( true )
-            elseif  reply in ["", "N", "No",  "n", "no" ]   return( false )
-                    println("... answer not recognized ... redo:")
-            end
-        end
-    end
-end
+## RETIRED 14-Aug-2026: `yesno(question::String, sa::String)`, an interactive yes/no prompt.  It had no
+## caller anywhere in JAC, and it could not have run if it had: its body read `readline(STDIN)`, and STDIN
+## was renamed to stdin in Julia 1.0, so the first call would have raised UndefVarError.  It also carried a
+## docstring header reading `Basics.yesno` although the function was written plainly and therefore landed in
+## BasicsAZ -- which is how it was found, by the docstring-pointer check of 2c1cd5d.
 
