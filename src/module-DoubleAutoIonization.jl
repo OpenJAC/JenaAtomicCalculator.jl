@@ -181,10 +181,8 @@ function amplitude(kind::String, channel::DoubleAutoIonization.ReducedChannel,
                 println(">>> Apply Green function channel with symmetry $(greenChannel.symmetry)")
                 for  (nlev, level)  in  enumerate(greenChannel. gMultiplet.levels)
                     ## if  nlev > 2  println(">>> Skip nlev > 2 ... need to be corrected !!!!");    break     end
-                    auChannel = AutoIonization.Channel(channel.kappa1, channel.xSymmetry, channel.phase1, ComplexF64(0.))
-                    am_ni     = AutoIonization.amplitude(CoulombInteraction(), auChannel, level, initialLevel, grid; printout=false)
-                    auChannel = AutoIonization.Channel(channel.kappa2, symi, channel.phase2, ComplexF64(0.))
-                    am_fn     = AutoIonization.amplitude(CoulombInteraction(), auChannel, continuumLevel, level, grid; printout=false)
+                    am_ni     = AutoIonization.amplitude(CoulombInteraction(), channel.kappa1, channel.phase1, level, initialLevel, grid; printout=false)
+                    am_fn     = AutoIonization.amplitude(CoulombInteraction(), channel.kappa2, channel.phase2, continuumLevel, level, grid; printout=false)
                     amplitude = amplitude  +  am_fn * am_ni / (eni - level.energy)
                     println(">> DAI for level $nlev  with  am_fn(A) = $am_fn  and  am_ni(A) = $am_ni")
                 end 

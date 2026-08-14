@@ -54,11 +54,11 @@ end
         amplitudes.
 
     + excitationChannel  ::ImpactExcitation.Channel      ... Channel that describes the electron-impact excitation process.
-    + augerChannel       ::AutoIonization.Channel        ... Channel that describes the subsequent Auger/autoionization process.
+    + augerChannel       ::AutoIonization.PartialWave        ... Channel that describes the subsequent Auger/autoionization process.
 """
 struct  Channel
     excitationChannel    ::ImpactExcitation.Channel
-    augerChannel         ::AutoIonization.Channel
+    augerChannel         ::AutoIonization.PartialWave
 end 
 
 
@@ -125,7 +125,7 @@ function  computeAmplitudesProperties(pathway::ImpactExcitationAutoion.Pathway, 
         exChannel = channel.excitationChannel
         eChannel  = ImpactExcitation.Channel( exChannel.initialKappa, exChannel.finalKappa, exChannel.symmetry, 
                                                 initialPhase, finalPhase, Complex(0.))
-        aChannel  = AutoIonization.Channel( channel.augerChannel.kappa, channel.augerChannel.symmetry, augerPhase, Complex(0.))
+        aChannel  = AutoIonization.PartialWave( channel.augerChannel.kappa, channel.augerChannel.energy, augerPhase, Complex(0.))
         push!( newChannels, ImpactExcitationAutoion.Channel(eChannel, aChannel) )
     end
     # Calculate the totalRate 
@@ -230,10 +230,10 @@ function determineChannels(finalLevel::Level, intermediateLevel::Level, initialL
     end
 
     # Determine next the AutoIonization channels
-    aChannels = AutoIonization.Channel[];   
+    aChannels = AutoIonization.PartialWave[];   
     kappaList = AngularMomentum.allowedKappaSymmetries(symn, symf)
     for  kappa in kappaList
-        push!(aChannels, AutoIonization.Channel(kappa, symn, 0., Complex(0.)) )
+        push!(aChannels, AutoIonization.PartialWave(kappa, 0., 0., Complex(0.)) )
     end
 
     # Now combine all these channels

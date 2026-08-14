@@ -110,7 +110,7 @@ end
     + partialCs           ::EmProperty      ... partial cross section sigma(i-e-f) of this pathway
     + qFano               ::EmProperty      ... Fano-q parameter of a resonance (i-e-f)
     + excitChannels       ::Array{PhotoEmission.Channel,1}      ... List of excitation channels of this pathway.
-    + augerChannels       ::Array{AutoIonization.Channel,1}     ... List of Auger channels of this pathway.
+    + augerChannels       ::Array{AutoIonization.PartialWave,1}     ... List of Auger channels of this pathway.
     + photoChannels       ::Array{PhotoIonization.PartialWave,1} ... Partial waves of the photoionization step.
 """
 struct  Pathway
@@ -122,7 +122,7 @@ struct  Pathway
     partialCs             ::EmProperty
     qFano                 ::EmProperty 
     excitChannels         ::Array{PhotoEmission.Channel,1}  
-    augerChannels         ::Array{AutoIonization.Channel,1}
+    augerChannels         ::Array{AutoIonization.PartialWave,1}
     photoChannels         ::Array{PhotoIonization.PartialWave,1}
 end 
 
@@ -134,7 +134,7 @@ end
 """
 function Pathway()
     Pathway(Level(), Level(), Level(), 0., 0., EmProperty(0., 0.), EmProperty(0., 0.), PhotoEmission.Channel[], 
-            AutoIonization.Channel[], PhotoIonization.PartialWave[] )
+            AutoIonization.PartialWave[], PhotoIonization.PartialWave[] )
 end
 
 
@@ -171,17 +171,16 @@ function  computeAmplitudesProperties(pathway::PhotoExcitationAutoion.Pathway, n
         push!( neweChannels, PhotoEmission.Channel( eChannel.multipole, eChannel.gauge, amplitude))
     end
     # Compute all AutoIonization decay channels
-    newaChannels = AutoIonization.Channel[];   contSettings = Continuum.Settings(false, nrContinuum)
+    newaChannels = AutoIonization.PartialWave[];   contSettings = Continuum.Settings(false, nrContinuum)
     for aChannel in pathway.augerChannels
         newnLevel   = Basics.generateLevelWithSymmetryReducedBasis(pathway.intermediateLevel, pathway.intermediateLevel.basis.subshells)
         newnLevel   = Basics.generateLevelWithExtraSubshell(Subshell(101, aChannel.kappa), newnLevel)
         newfLevel   = Basics.generateLevelWithSymmetryReducedBasis(pathway.finalLevel, pathway.finalLevel.basis.subshells)
         cOrbital, phase  = Continuum.generateOrbitalForLevel(pathway.electronEnergy, Subshell(101, aChannel.kappa), newfLevel, nm, grid, contSettings)
         newcLevel   = Basics.generateLevelWithExtraElectron(cOrbital, aChannel.symmetry, newfLevel)
-        newcChannel = AutoIonization.Channel( aChannel.kappa, aChannel.symmetry, phase, Complex(0.))
         amplitude = 1.0
-        ## amplitude   = AutoIonization.amplitude("Coulomb", aChannel, newnLevel, newcLevel, grid)
-        push!( newaChannels, AutoIonization.Channel( aChannel.kappa, aChannel.symmetry, phase, amplitude))
+        ## amplitude = AutoIonization.amplitude(CoulombInteraction(), pw.kappa, phase, newnLevel, newcLevel, grid)
+        push!( newaChannels, AutoIonization.PartialWave( aChannel.kappa, aChannel.energy, phase, amplitude))
     end
     # Compute all photoionization channels
     ## The photoionization step now carries PARTIAL WAVES, each holding the channels of one kappa and, in

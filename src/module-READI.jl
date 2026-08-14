@@ -48,8 +48,8 @@ end
                                 all quantum numbers, phases and amplitudes.
 
     + excitationChannel  ::ImpactExcitation.Channel      ... Channel that describes the electron-impact excitation process.
-    + augerChannel1      ::AutoIonization.Channel        ... Channel that describes the first subsequent Auger/autoionization process.
-    + augerChannel2      ::AutoIonization.Channel        ... Channel that describes the second Auger/autoionization process.
+    + augerChannel1      ::AutoIonization.PartialWave        ... Channel that describes the first subsequent Auger/autoionization process.
+    + augerChannel2      ::AutoIonization.PartialWave        ... Channel that describes the second Auger/autoionization process.
 """
 struct  Channel
     excitationChannel    ::ImpactExcitation.Channel

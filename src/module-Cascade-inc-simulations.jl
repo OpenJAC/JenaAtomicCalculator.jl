@@ -1387,7 +1387,7 @@ function simulateDrRateCoefficients(levels::Array{Cascade.Level,1}, simulation::
             ## The captureRate of the individual (i,m) channel is not tracked by the cascade, so it is left at 0.;
             ## the two TOTAL widths are what the strength and the printout need, and both are known here.
             newResonance = DielectronicRecombination.CaptureLine(iLevel, dLevel, en, 0., augerRate, photonRate, strength,
-                                                                 AutoIonization.Channel[])
+                                                                 AutoIonization.PartialWave[])
             push!(resonances, newResonance)
         end
     end
@@ -1435,7 +1435,7 @@ function simulateDrRateCoefficients(levels::Array{Cascade.Level,1}, simulation::
                     es          = Defaults.convertUnits("energy: to atomic", simulation.property.electronEnergyShift)
                     en          = dLevel.energy-iLevel.energy + es;    if  en < 0.  continue   end
                     newResonance = DielectronicRecombination.CaptureLine(iLevel, dLevel, en, 0., augerRate, photonRate,
-                                                                         nFactor * nStrength, AutoIonization.Channel[])
+                                                                         nFactor * nStrength, AutoIonization.PartialWave[])
                     push!(resonances, newResonance)
                 end
             end

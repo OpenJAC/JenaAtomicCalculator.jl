@@ -41,101 +41,24 @@
 ##
 
 
-"""
-`struct  DielectronicRecombination.CaptureLine`
-    ... defines a type for a dielectronic capture line, i.e. the first step  i + e^-  -->  m  of dielectronic
-        recombination, together with the two total widths of the intermediate level m and the resonance strength
-        that follows from them.
-
-    + initialLevel      ::Level             ... initial-(state) level i of the recombining ion.
-    + intermediateLevel ::Level             ... intermediate-(state), autoionizing level m.
-    + electronEnergy    ::Float64           ... energy of the captured electron, E_m - E_i + electronEnergyShift.
-    + captureRate       ::Float64           ... Auger rate A_a(m --> i) of THIS channel alone.
-    + totalAugerRate    ::Float64           ... Gamma_a(m) = sum over ALL initial levels i.
-    + totalPhotonRate   ::EmProperty        ... Gamma_r(m) = sum over ALL final levels f.
-    + resonanceStrength ::EmProperty        ... DR resonance strength of this (i,m) resonance.
-    + captureChannels   ::Array{AutoIonization.Channel,1}  ... List of capture channels.
-"""
-struct  CaptureLine
-    initialLevel        ::Level
-    intermediateLevel   ::Level
-    electronEnergy      ::Float64
-    captureRate         ::Float64
-    totalAugerRate      ::Float64
-    totalPhotonRate     ::EmProperty
-    resonanceStrength   ::EmProperty
-    captureChannels     ::Array{AutoIonization.Channel,1}
-end
 
 
-"""
-`DielectronicRecombination.CaptureLine()`  ... constructor for an 'empty' instance of a CaptureLine.
-"""
-function CaptureLine()
-    em = EmProperty(0., 0.)
-    CaptureLine(Level(), Level(), 0., 0., 0., em, em, AutoIonization.Channel[])
-end
 
 
-# `Base.show(io::IO, line::DielectronicRecombination.CaptureLine)`  ... prepares a proper printout of a CaptureLine.
-function Base.show(io::IO, line::DielectronicRecombination.CaptureLine)
-    println(io, "initialLevel:               $(line.initialLevel)  ")
-    println(io, "intermediateLevel:          $(line.intermediateLevel)  ")
-    println(io, "electronEnergy:             $(line.electronEnergy)  ")
-    println(io, "captureRate:                $(line.captureRate)  ")
-    println(io, "totalAugerRate:             $(line.totalAugerRate)  ")
-    println(io, "totalPhotonRate:            $(line.totalPhotonRate)  ")
-    println(io, "resonanceStrength:          $(line.resonanceStrength)  ")
-    println(io, "captureChannels:            $(line.captureChannels)  ")
-end
 
 
-"""
-`struct  DielectronicRecombination.PhotonLine`
-    ... defines a type for the radiative stabilization  m  -->  f + hv,  the second step of dielectronic
-        recombination. A PhotonLine depends on (m,f) only; it knows nothing about the initial level, since the
-        radiative rate does not. The intensity with which a given photon line appears in a DR spectrum follows
-        by combination with a CaptureLine, see the header of this file.
-
-    + intermediateLevel ::Level             ... intermediate-(state), autoionizing level m.
-    + finalLevel        ::Level             ... final-(state) level f of the recombined ion.
-    + photonEnergy      ::Float64           ... energy of the emitted photon, E_m - E_f + photonEnergyShift.
-    + photonRate        ::EmProperty        ... radiative rate A_r(m --> f) of this line.
-    + photonChannels    ::Array{PhotoEmission.Channel,1}  ... List of photon channels.
-"""
-struct  PhotonLine
-    intermediateLevel   ::Level
-    finalLevel          ::Level
-    photonEnergy        ::Float64
-    photonRate          ::EmProperty
-    photonChannels      ::Array{PhotoEmission.Channel,1}
-end
 
 
-"""
-`DielectronicRecombination.PhotonLine()`  ... constructor for an 'empty' instance of a PhotonLine.
-"""
-function PhotonLine()
-    PhotonLine(Level(), Level(), 0., EmProperty(0., 0.), PhotoEmission.Channel[])
-end
 
 
-# `Base.show(io::IO, line::DielectronicRecombination.PhotonLine)`  ... prepares a proper printout of a PhotonLine.
-function Base.show(io::IO, line::DielectronicRecombination.PhotonLine)
-    println(io, "intermediateLevel:          $(line.intermediateLevel)  ")
-    println(io, "finalLevel:                 $(line.finalLevel)  ")
-    println(io, "photonEnergy:               $(line.photonEnergy)  ")
-    println(io, "photonRate:                 $(line.photonRate)  ")
-    println(io, "photonChannels:             $(line.photonChannels)  ")
-end
 
 
 #####################################################################################################################
 ## THE PHYSICAL FORM, built BESIDE the flat one above.  This module is a COMPOSITE: it has no channel type of its
 ## own, and its two line types are built entirely out of the other modules' --
-##     CaptureLine.captureChannels ::Array{AutoIonization.Channel,1}
-##     PhotonLine.photonChannels   ::Array{PhotoEmission.Channel,1}
-## so its Claude form is built from AutoIonization.PartialWaveClaude (6bfda5d) and
+##     CaptureLine.capturePartialWaves ::Array{AutoIonization.PartialWave,1}
+##     PhotonLine.photonAmplitudes     ::Array{MultipoleAmplitude,1}
+## so its line types are built from AutoIonization.PartialWave and
 ## MultipoleAmplitude (fd7e6de).
 ##
 ## WHERE EmPropertyC BELONGS HERE, AND WHERE IT DOES NOT.  The photon AMPLITUDES are complex and gauge-paired, so
@@ -153,7 +76,7 @@ end
 
 
 """
-`struct  DielectronicRecombination.CaptureLineClaude`
+`struct  DielectronicRecombination.CaptureLine`
     ... as DielectronicRecombination.CaptureLine, but carrying partial waves instead of flat Auger channels.
 
     + initialLevel        ::Level             ... initial-(state) level i of the recombining ion.
@@ -163,9 +86,9 @@ end
     + totalAugerRate      ::Float64           ... Gamma_a(m) = sum over ALL initial levels i.
     + totalPhotonRate     ::EmProperty        ... Gamma_r(m) = sum over ALL final levels f.
     + resonanceStrength   ::EmProperty        ... DR resonance strength of this (i,m) resonance.
-    + capturePartialWaves ::Array{AutoIonization.PartialWaveClaude,1}  ... partial waves of the captured electron.
+    + capturePartialWaves ::Array{AutoIonization.PartialWave,1}  ... partial waves of the captured electron.
 """
-struct  CaptureLineClaude
+struct  CaptureLine
     initialLevel        ::Level
     intermediateLevel   ::Level
     electronEnergy      ::Float64
@@ -173,12 +96,12 @@ struct  CaptureLineClaude
     totalAugerRate      ::Float64
     totalPhotonRate     ::EmProperty
     resonanceStrength   ::EmProperty
-    capturePartialWaves ::Array{AutoIonization.PartialWaveClaude,1}
+    capturePartialWaves ::Array{AutoIonization.PartialWave,1}
 end
 
 
 """
-`struct  DielectronicRecombination.PhotonLineClaude`
+`struct  DielectronicRecombination.PhotonLine`
     ... as DielectronicRecombination.PhotonLine, but carrying one entry per MULTIPOLE, each holding both gauges,
         instead of one flat channel per (multipole, gauge).
 
@@ -188,7 +111,7 @@ end
     + photonRate        ::EmProperty        ... radiative rate A_r(m --> f) of this line.
     + photonAmplitudes  ::Array{MultipoleAmplitude,1}  ... one entry per multipole.
 """
-struct  PhotonLineClaude
+struct  PhotonLine
     intermediateLevel   ::Level
     finalLevel          ::Level
     photonEnergy        ::Float64
@@ -197,180 +120,12 @@ struct  PhotonLineClaude
 end
 
 
-"""
-`DielectronicRecombination.determineCaptureLines(finalMultiplet::Multiplet, intermediateMultiplet::Multiplet,
-                                                 initialMultiplet::Multiplet, settings::DielectronicRecombination.Settings)`
-    ... to determine a list of capture lines (i,m) for which the amplitudes are subsequently computed; apart from the level
-        specification and the electron energy, all physical properties are set to zero here.
-        An Array{DielectronicRecombination.CaptureLine,1} is returned.
-
-        The finalMultiplet is required although no final level enters a CaptureLine: settings.pathwaySelection selects
-        level TRIPLES (i,m,f), and the (i,m) pair must be kept whenever SOME final level makes the triple selected.
-        Testing for existence over f reproduces the selection semantics of the old route exactly.
-"""
-function  determineCaptureLines(finalMultiplet::Multiplet, intermediateMultiplet::Multiplet, initialMultiplet::Multiplet,
-                                settings::DielectronicRecombination.Settings)
-    captureLines        = DielectronicRecombination.CaptureLine[]
-    electronEnergyShift = Defaults.convertUnits("energy: to atomic", settings.electronEnergyShift)
-    #
-    for  iLevel  in  initialMultiplet.levels
-        for  nLevel  in  intermediateMultiplet.levels
-            eEnergy = nLevel.energy - iLevel.energy + electronEnergyShift
-            if  eEnergy < 0.    continue    end
-            ## Keep the (i,m) pair if any final level makes the triple selected
-            isSelected = false
-            for  fLevel  in  finalMultiplet.levels
-                if  Basics.selectLevelTriple(iLevel, nLevel, fLevel, settings.pathwaySelection)   isSelected = true;   break   end
-            end
-            if  !isSelected     continue    end
-            cChannels = DielectronicRecombination.determineCaptureChannels(nLevel, iLevel, settings)
-            push!( captureLines, DielectronicRecombination.CaptureLine(iLevel, nLevel, eEnergy, 0., 0., EmProperty(0., 0.),
-                                                                       EmProperty(0., 0.), cChannels) )
-        end
-    end
-    return( captureLines )
-end
 
 
-"""
-`DielectronicRecombination.determinePhotonLines(finalMultiplet::Multiplet, intermediateMultiplet::Multiplet,
-                                                initialMultiplet::Multiplet, settings::DielectronicRecombination.Settings)`
-    ... to determine a list of photon lines (m,f) for which the amplitudes are subsequently computed; apart from the level
-        specification and the photon energy, all physical properties are set to zero here.
-        An Array{DielectronicRecombination.PhotonLine,1} is returned.
-
-        As in determineCaptureLines, the initialMultiplet enters only through settings.pathwaySelection, which selects
-        level triples; the (m,f) pair is kept whenever SOME initial level makes the triple selected.
-"""
-function  determinePhotonLines(finalMultiplet::Multiplet, intermediateMultiplet::Multiplet, initialMultiplet::Multiplet,
-                               settings::DielectronicRecombination.Settings)
-    photonLines       = DielectronicRecombination.PhotonLine[]
-    photonEnergyShift = Defaults.convertUnits("energy: to atomic", settings.photonEnergyShift)
-    #
-    for  nLevel  in  intermediateMultiplet.levels
-        for  fLevel  in  finalMultiplet.levels
-            pEnergy = nLevel.energy - fLevel.energy + photonEnergyShift
-            if  pEnergy < 0.    continue    end
-            isSelected = false
-            for  iLevel  in  initialMultiplet.levels
-                if  Basics.selectLevelTriple(iLevel, nLevel, fLevel, settings.pathwaySelection)   isSelected = true;   break   end
-            end
-            if  !isSelected     continue    end
-            pChannels = DielectronicRecombination.determinePhotonChannels(fLevel, nLevel, settings)
-            if  length(pChannels) == 0      continue    end
-            push!( photonLines, DielectronicRecombination.PhotonLine(nLevel, fLevel, pEnergy, EmProperty(0., 0.), pChannels) )
-        end
-    end
-    return( photonLines )
-end
 
 
-"""
-`DielectronicRecombination.computeCaptureAmplitudes(captureLine::DielectronicRecombination.CaptureLine, nm::Nuclear.Model,
-                                    grid::Radial.Grid, nrContinuum::Int64, settings::DielectronicRecombination.Settings;
-                                    nuclearPot::Union{Nothing,Radial.Potential}=nothing,
-                                    primitives::Union{Nothing,Bsplines.Primitives}=nothing)`
-    ... to compute the Auger amplitudes and the capture rate A_a(m --> i) of the given capture line; a new
-        captureLine::DielectronicRecombination.CaptureLine is returned in which captureRate and captureChannels are filled.
-        The two total widths and the resonance strength remain zero here; they are set later by setTotalRates().
-        The two keywords carry quantities that are CONSTANT for a whole computation and are otherwise rebuilt for every
-        capture line and every partial wave: the nuclear potential depends only on the nuclear model and the grid, the
-        B-spline primitives only on the grid. Nothing is cached; omitting them reproduces the previous behaviour exactly.
-"""
-function  computeCaptureAmplitudes(captureLine::DielectronicRecombination.CaptureLine, nm::Nuclear.Model, grid::Radial.Grid,
-                                   nrContinuum::Int64, settings::DielectronicRecombination.Settings;
-                                   nuclearPot::Union{Nothing,Radial.Potential}=nothing,
-                                   primitives::Union{Nothing,Bsplines.Primitives}=nothing)
-    rateA             = 0.
-    newcChannels      = AutoIonization.Channel[];   contSettings = Continuum.Settings(false, nrContinuum)
-    initialLevel      = deepcopy(captureLine.initialLevel)
-    intermediateLevel = deepcopy(captureLine.intermediateLevel)
-    ## The standard subshell list used to be set HERE, once per capture line -- a write to a global from inside
-    ## the @threads loop below.  It is display-only and identical for every line (all intermediate levels come
-    ## from one multiplet), so it is now set once in computeCaptureLines; see Defaults.setStandardSubshellList.
-    #
-    ## The two symmetry-reduced levels depend on the capture line but not on the partial wave, and so are formed
-    ## once for the whole line rather than once per channel.
-    redNLevel = Basics.generateLevelWithSymmetryReducedBasis(intermediateLevel, intermediateLevel.basis.subshells)
-    newiLevel = Basics.generateLevelWithSymmetryReducedBasis(initialLevel, redNLevel.basis.subshells)
-
-    for  cChannel in captureLine.captureChannels
-        newnLevel = Basics.generateLevelWithExtraSubshell(Subshell(101, cChannel.kappa), redNLevel)
-        cOrbital, phase = Continuum.generateOrbitalForLevel(captureLine.electronEnergy, Subshell(101, cChannel.kappa),
-                                                            newiLevel, nm, grid, contSettings;
-                                                            nuclearPot=nuclearPot, primitives=primitives)
-        newcLevel   = Basics.generateLevelWithExtraElectron(cOrbital, cChannel.symmetry, newiLevel)
-        ## newChannel, NOT cChannel: AutoIonization.amplitude multiplies by exp(-im*channel.phase), and the
-        ## cChannel handed down by determineCaptureChannels still carries the phase 0. it was created with, so
-        ## the scattering phase was dropped from every capture amplitude.  AutoIonization's own driver passes
-        ## the phased channel here, and the two modules disagreed about the same quantity.
-        ## The convention is the right one to use: exp(-im*phase) is the OUTGOING form (PhotoRecombination,
-        ## where the electron is incoming, uses exp(+im*phase)), and dielectronic capture is computed as the
-        ## Auger amplitude with initial and final level interchanged -- (continuumLevel, autoionizingLevel) are
-        ## passed in exactly the slots AutoIonization.computeAmplitudesProperties uses.
-        ## A capture RATE is 2pi * sum |amplitude|^2 and |exp(-i phi)| = 1, so no FS-resolved number moves.
-        ## The HF-resolved route, which recouples these amplitudes coherently, does move.
-        newChannel  = AutoIonization.Channel( cChannel.kappa, cChannel.symmetry, phase, Complex(0.) )
-        amplitude   = AutoIonization.amplitude(settings.augerOperator, newChannel, newcLevel, newnLevel, grid)
-        rateA       = rateA + conj(amplitude) * amplitude
-        push!( newcChannels, AutoIonization.Channel( cChannel.kappa, cChannel.symmetry, phase, amplitude) )
-    end
-    captureRate = 2pi * rateA
-    #
-    return( DielectronicRecombination.CaptureLine(captureLine.initialLevel, captureLine.intermediateLevel,
-                                                  captureLine.electronEnergy, captureRate, 0., EmProperty(0., 0.),
-                                                  EmProperty(0., 0.), newcChannels) )
-end
 
 
-"""
-`DielectronicRecombination.computePhotonAmplitudes(photonLine::DielectronicRecombination.PhotonLine, grid::Radial.Grid)`
-    ... to compute the photon amplitudes and the radiative rate A_r(m --> f) of the given photon line; a new
-        photonLine::DielectronicRecombination.PhotonLine is returned in which photonRate and photonChannels are filled.
-"""
-function  computePhotonAmplitudes(photonLine::DielectronicRecombination.PhotonLine, grid::Radial.Grid)
-    finalLevel        = deepcopy(photonLine.finalLevel)
-    intermediateLevel = deepcopy(photonLine.intermediateLevel)
-    ## Set once in computeCaptureLines, not here; see the note in computeCaptureAmplitudes.
-    #
-    newpChannels = PhotoEmission.Channel[];    rateC = 0.;    rateB = 0.
-    for  pChannel in photonLine.photonChannels
-        amplitude = PhotoEmission.amplitude(Emission(), pChannel.multipole, pChannel.gauge, photonLine.photonEnergy,
-                                            finalLevel, intermediateLevel, grid, display=false, printout=false)
-        push!( newpChannels, PhotoEmission.Channel( pChannel.multipole, pChannel.gauge, amplitude) )
-        if       pChannel.gauge == Basics.Coulomb     rateC = rateC + abs(amplitude)^2
-        elseif   pChannel.gauge == Basics.Babushkin   rateB = rateB + abs(amplitude)^2
-        elseif   pChannel.gauge == Basics.Magnetic    rateB = rateB + abs(amplitude)^2;   rateC = rateC + abs(amplitude)^2
-        end
-    end
-    ##
-    ## THE RADIATIVE RATE IS THE EINSTEIN A COEFFICIENT, with exactly the prefactor that
-    ## PhotoEmission.computeAmplitudesProperties uses for the same transition and the same sum over
-    ## |PhotoEmission.amplitude|^2:
-    ##       wa = 8pi * alpha * omega / (2J_upper + 1)      [ J_upper = J_m, the emitting level ]
-    ##
-    ## CORRECTED 05-Aug-2026. Until then both DR routes used
-    ##       wa = 8pi * alpha * omega / (2J_m + 1) * (2J_f + 1)  ;  wa = wa / pi
-    ## i.e. they carried a spurious (2J_f+1) together with a 1/pi that had been introduced while fitting one test
-    ## case ("modified for test with Xe^53+ (March/2024)"). The two together gave
-    ##       A_DR / A_Einstein = (2J_f + 1) / pi
-    ## which is never unity. Measured for Li-like carbon over six independent transitions, the ratio was 0.63661
-    ## for every J_f = 1/2 final level and 1.27322 for J_f = 3/2, against 2/pi = 0.63662 and 4/pi = 1.27324.
-    ##
-    ## Since Gamma_r(m) = sum_f A_r(m --> f) IS the total radiative width, the Einstein value is the required one.
-    ## Why this survived: the effect is suppressed exactly where the one available benchmark sits. Radiatively
-    ## dominated resonances (Gamma_r >> Gamma_a, K-LL in Xe^53+) have a branching ratio near unity and barely
-    ## respond to a rescaling of Gamma_r, and their dominant J_f = 1 final levels give 3/pi = 0.955 anyway.
-    ## Auger-dominated resonances (Gamma_a >> Gamma_r, K-LL in carbon) have S proportional to Gamma_r and took the
-    ## full error. Absolute DR strengths computed before this date are therefore unreliable in the Auger-dominated
-    ## regime, and mildly affected in the radiative one.
-    ##
-    wa = 8.0pi * Defaults.getDefaults("alpha") * photonLine.photonEnergy / (Basics.twice(photonLine.intermediateLevel.J) + 1)
-    photonRate = EmProperty(wa * rateC, wa * rateB)
-    #
-    return( DielectronicRecombination.PhotonLine(photonLine.intermediateLevel, photonLine.finalLevel,
-                                                 photonLine.photonEnergy, photonRate, newpChannels) )
-end
 
 
 """
@@ -460,7 +215,7 @@ function  setTotalRates(captureLines::Array{DielectronicRecombination.CaptureLin
         if  totB == 0.   sB = 0.   else   sB = factor * gammaR.Babushkin / totB   end
         push!( newCaptureLines, DielectronicRecombination.CaptureLine(cLine.initialLevel, cLine.intermediateLevel,
                                     cLine.electronEnergy, cLine.captureRate, gammaA, gammaR, EmProperty(sC, sB),
-                                    cLine.captureChannels) )
+                                    cLine.capturePartialWaves) )
     end
     return( newCaptureLines )
 end
@@ -606,7 +361,10 @@ function  displayCaptureLines(stream::IO, captureLines::Array{DielectronicRecomb
         sa = sa * TableStrings.center(16, TableStrings.symmetries_if(isym, msym);  na=4)
         sa = sa * @sprintf("%.4e", Defaults.convertUnits("energy: from atomic", cLine.electronEnergy))  * "     "
         kappaSymmetryList = Tuple{Int64,LevelSymmetry}[]
-        for  cChannel in cLine.captureChannels    push!( kappaSymmetryList, (cChannel.kappa, cChannel.symmetry) )    end
+        ## One entry per partial wave; the total symmetry is that of the level which autoionizes -- the
+        ## INTERMEDIATE level here -- and is the same for all of them.
+        symn = LevelSymmetry(cLine.intermediateLevel.J, cLine.intermediateLevel.parity)
+        for  pw in cLine.capturePartialWaves    push!( kappaSymmetryList, (pw.kappa, symn) )    end
         sa = sa * TableStrings.kappaSymmetryTupels(85, kappaSymmetryList)
         println(stream, sa )
     end
@@ -644,7 +402,15 @@ function  displayPhotonLines(stream::IO, photonLines::Array{DielectronicRecombin
         sa = sa * TableStrings.center(16, TableStrings.symmetries_if(msym, fsym);  na=4)
         sa = sa * @sprintf("%.4e", Defaults.convertUnits("energy: from atomic", pLine.photonEnergy))  * "     "
         mpGaugeList = Tuple{EmMultipole,EmGauge}[]
-        for  pChannel in pLine.photonChannels    push!( mpGaugeList, (pChannel.multipole, pChannel.gauge) )    end
+        ## One row per (multipole, GAUGE): an electric multipole is one amplitude holding two gauges, a
+        ## magnetic one has no gauge freedom.  The gauge is a property of this table, not of the amplitude.
+        for  ma in pLine.photonAmplitudes
+            if  string(ma.multipole)[1] == 'E'
+                push!( mpGaugeList, (ma.multipole, Basics.Coulomb) );   push!( mpGaugeList, (ma.multipole, Basics.Babushkin) )
+            else
+                push!( mpGaugeList, (ma.multipole, Basics.Magnetic) )
+            end
+        end
         sa = sa * TableStrings.multipoleGaugeTupels(65, mpGaugeList)
         println(stream, sa )
     end
@@ -1050,51 +816,8 @@ function  checkOrbitalRepresentation(finalMultiplet::Multiplet, intermediateMult
 end
 
 
-"""
-`DielectronicRecombination.determineCaptureChannels(intermediateLevel::Level, initialLevel::Level, 
-                                                    settings::DielectronicRecombination.Settings)` 
-    ... to determine a list of AutoIonization.Channel for a (Auger) capture transitions from the initial to an 
-        intermediate level, and by taking into account the particular settings of for this computation;  
-        an Array{AutoIonization.Channel,1} is returned.
-"""
-function determineCaptureChannels(intermediateLevel::Level, initialLevel::Level, settings::DielectronicRecombination.Settings)
-    channels = AutoIonization.Channel[];   
-    symi = LevelSymmetry(initialLevel.J, initialLevel.parity)
-    symn = LevelSymmetry(intermediateLevel.J, intermediateLevel.parity)
-    kappaList = AngularMomentum.allowedKappaSymmetries(symi, symn)
-    for  kappa in kappaList
-        push!( channels, AutoIonization.Channel(kappa, symn, 0., Complex(0.)) )
-    end
-
-    return( channels )  
-end
 
 
-"""
-`DielectronicRecombination.determinePhotonChannels(finalLevel::Level, intermediateLevel::Level, 
-                                                   settings::DielectronicRecombination.Settings)` 
-    ... to determine a list of PhotoEmission.Channel for the photon transitions from the intermediate and to a final level, and by 
-        taking into account the particular settings of for this computation;  an Array{PhotoEmission.Channel,1} is returned.
-"""
-function determinePhotonChannels(finalLevel::Level, intermediateLevel::Level, settings::DielectronicRecombination.Settings)
-    channels = PhotoEmission.Channel[];   
-    symn = LevelSymmetry(intermediateLevel.J, intermediateLevel.parity);    symf = LevelSymmetry(finalLevel.J, finalLevel.parity) 
-    for  mp in settings.multipoles
-        if   AngularMomentum.isAllowedMultipole(symn, mp, symf)
-            hasMagnetic = false
-            for  gauge in settings.gauges
-                # Include further restrictions if appropriate
-                if     string(mp)[1] == 'E'  &&   gauge == UseCoulomb      push!(channels, PhotoEmission.Channel(mp, Basics.Coulomb,   0.) )
-                elseif string(mp)[1] == 'E'  &&   gauge == UseBabushkin    push!(channels, PhotoEmission.Channel(mp, Basics.Babushkin, 0.) )  
-                elseif string(mp)[1] == 'M'  &&   !(hasMagnetic)           push!(channels, PhotoEmission.Channel(mp, Basics.Magnetic,  0.) );
-                                                    hasMagnetic = true; 
-                end 
-            end
-        end
-    end
-
-    return( channels )  
-end
 
 
 """
@@ -1645,7 +1368,7 @@ function  buildTailLine(refLine::DielectronicRecombination.CaptureLine, electron
     sB     = totB == 0.  ?  0.  :  factor * gammaR.Babushkin / totB
     return( DielectronicRecombination.CaptureLine(refLine.initialLevel, refLine.intermediateLevel, electronEnergy,
                                                   captureRate, gammaA, gammaR, EmProperty(sC, sB),
-                                                  AutoIonization.Channel[]) )
+                                                  AutoIonization.PartialWave[]) )
 end
 
 
@@ -1872,31 +1595,31 @@ end
 
 
 """
-`DielectronicRecombination.determineCaptureChannelsClaude(intermediateLevel::Level, initialLevel::Level,
+`DielectronicRecombination.determineCaptureChannels(intermediateLevel::Level, initialLevel::Level,
                                                           settings::DielectronicRecombination.Settings)`
     ... as determineCaptureChannels, but returning partial waves; an
-        Array{AutoIonization.PartialWaveClaude,1} is returned with all amplitudes still zero.
+        Array{AutoIonization.PartialWave,1} is returned with all amplitudes still zero.
 
-        Note that this is NOT AutoIonization.determineChannelsClaude: that one applies settings.maxKappa from an
+        Note that this is NOT AutoIonization.determineChannels: that one applies settings.maxKappa from an
         AutoIonization.Settings, which a DielectronicRecombination.Settings does not carry, and the flat
         determineCaptureChannels applies no kappa restriction at all. The selection rule itself --
         allowedKappaSymmetries(symi, symn) -- is the same, and is reproduced here unrestricted, exactly as the
         flat version has it.
 """
-function determineCaptureChannelsClaude(intermediateLevel::Level, initialLevel::Level,
+function determineCaptureChannels(intermediateLevel::Level, initialLevel::Level,
                                         settings::DielectronicRecombination.Settings)
-    partialWaves = AutoIonization.PartialWaveClaude[]
+    partialWaves = AutoIonization.PartialWave[]
     symi = LevelSymmetry(initialLevel.J, initialLevel.parity)
     symn = LevelSymmetry(intermediateLevel.J, intermediateLevel.parity)
     for  kappa in AngularMomentum.allowedKappaSymmetries(symi, symn)
-        push!( partialWaves, AutoIonization.PartialWaveClaude(kappa, 0., 0., Complex(0.)) )
+        push!( partialWaves, AutoIonization.PartialWave(kappa, 0., 0., Complex(0.)) )
     end
     return( partialWaves )
 end
 
 
 """
-`DielectronicRecombination.determinePhotonChannelsClaude(finalLevel::Level, intermediateLevel::Level,
+`DielectronicRecombination.determinePhotonChannels(finalLevel::Level, intermediateLevel::Level,
                                                          settings::DielectronicRecombination.Settings)`
     ... as determinePhotonChannels, but returning one entry per MULTIPOLE; an
         Array{MultipoleAmplitude,1} is returned with all amplitudes still zero.
@@ -1904,10 +1627,11 @@ end
         THIS IS A CALL, NOT A COPY.  The flat determinePhotonChannels reproduces PhotoEmission's gauge loop and
         its hasMagnetic flag verbatim -- a third copy of the same machinery, after PhotoEmission's own and
         PhotoRecombination's.  Here the selection rule is asked of the module that owns it. The only reason a
-        wrapper exists at all is that PhotoEmission.determineChannelsClaude expects a PhotoEmission.Settings,
+        wrapper exists at all is that PhotoEmission.determineChannelsClaude expects a PhotoEmission.Settings.
+        NOTE the Claude suffix: it survives ONLY because PhotoEmission is not retired yet, and goes when it is,
         so the multipoles have to be handed over.
 """
-function determinePhotonChannelsClaude(finalLevel::Level, intermediateLevel::Level,
+function determinePhotonChannels(finalLevel::Level, intermediateLevel::Level,
                                        settings::DielectronicRecombination.Settings)
     peSettings = PhotoEmission.Settings(PhotoEmission.Settings(), multipoles=settings.multipoles,
                                         gauges=settings.gauges)
@@ -1916,24 +1640,24 @@ end
 
 
 """
-`DielectronicRecombination.computeCaptureAmplitudesClaude(captureLine::DielectronicRecombination.CaptureLineClaude,
+`DielectronicRecombination.computeCaptureAmplitudes(captureLine::DielectronicRecombination.CaptureLine,
         nm::Nuclear.Model, grid::Radial.Grid, nrContinuum::Int64, settings::DielectronicRecombination.Settings;
         nuclearPot::Union{Nothing,Radial.Potential}=nothing, primitives::Union{Nothing,Bsplines.Primitives}=nothing)`
-    ... as computeCaptureAmplitudes, but on partial waves; a CaptureLineClaude with the Auger amplitudes and the
+    ... as computeCaptureAmplitudes, but on partial waves; a CaptureLine with the Auger amplitudes and the
         capture rate filled is returned. The two total widths and the resonance strength remain zero here.
 """
-function  computeCaptureAmplitudesClaude(captureLine::DielectronicRecombination.CaptureLineClaude, nm::Nuclear.Model,
+function  computeCaptureAmplitudes(captureLine::DielectronicRecombination.CaptureLine, nm::Nuclear.Model,
                                          grid::Radial.Grid, nrContinuum::Int64, settings::DielectronicRecombination.Settings;
                                          nuclearPot::Union{Nothing,Radial.Potential}=nothing,
                                          primitives::Union{Nothing,Bsplines.Primitives}=nothing)
     rateA             = 0.
-    newPartialWaves   = AutoIonization.PartialWaveClaude[];   contSettings = Continuum.Settings(false, nrContinuum)
+    newPartialWaves   = AutoIonization.PartialWave[];   contSettings = Continuum.Settings(false, nrContinuum)
     initialLevel      = deepcopy(captureLine.initialLevel)
     intermediateLevel = deepcopy(captureLine.intermediateLevel)
     redNLevel = Basics.generateLevelWithSymmetryReducedBasis(intermediateLevel, intermediateLevel.basis.subshells)
     newiLevel = Basics.generateLevelWithSymmetryReducedBasis(initialLevel, redNLevel.basis.subshells)
     ## The one total symmetry of the scattering state: that of the level which autoionizes, i.e. the
-    ## INTERMEDIATE level here.  See the note at AutoIonization.PartialWaveClaude.
+    ## INTERMEDIATE level here.  See the note at AutoIonization.PartialWave.
     symn      = LevelSymmetry(intermediateLevel.J, intermediateLevel.parity)
 
     for  pw in captureLine.capturePartialWaves
@@ -1942,25 +1666,24 @@ function  computeCaptureAmplitudesClaude(captureLine::DielectronicRecombination.
                                                             newiLevel, nm, grid, contSettings;
                                                             nuclearPot=nuclearPot, primitives=primitives)
         newcLevel = Basics.generateLevelWithExtraElectron(cOrbital, symn, newiLevel)
-        ## The computed phase, as in computeCaptureAmplitudes above since 14-Aug-2026 and as AutoIonization's
-        ## own driver has always done: AutoIonization.amplitude multiplies by exp(-im*channel.phase).
-        cChannel  = AutoIonization.Channel(pw.kappa, symn, phase, Complex(0.))
-        amplitude = AutoIonization.amplitude(settings.augerOperator, cChannel, newcLevel, newnLevel, grid)
+        ## The computed phase, restored on 14-Aug-2026 and as AutoIonization's own driver has always done:
+        ## AutoIonization.amplitude multiplies by exp(-im*phase), which the capture path used to drop.
+        amplitude = AutoIonization.amplitude(settings.augerOperator, pw.kappa, phase, newcLevel, newnLevel, grid)
         rateA     = rateA + conj(amplitude) * amplitude
-        push!( newPartialWaves, AutoIonization.PartialWaveClaude(pw.kappa, captureLine.electronEnergy, phase, amplitude) )
+        push!( newPartialWaves, AutoIonization.PartialWave(pw.kappa, captureLine.electronEnergy, phase, amplitude) )
     end
     captureRate = 2pi * rateA
     #
-    return( DielectronicRecombination.CaptureLineClaude(captureLine.initialLevel, captureLine.intermediateLevel,
+    return( DielectronicRecombination.CaptureLine(captureLine.initialLevel, captureLine.intermediateLevel,
                                                         captureLine.electronEnergy, captureRate, 0.,
                                                         EmProperty(0., 0.), EmProperty(0., 0.), newPartialWaves) )
 end
 
 
 """
-`DielectronicRecombination.computePhotonAmplitudesClaude(photonLine::DielectronicRecombination.PhotonLineClaude,
+`DielectronicRecombination.computePhotonAmplitudes(photonLine::DielectronicRecombination.PhotonLine,
                                                          grid::Radial.Grid)`
-    ... as computePhotonAmplitudes, but on the physical form; a PhotonLineClaude with the amplitudes and the
+    ... as computePhotonAmplitudes, but on the physical form; a PhotonLine with the amplitudes and the
         radiative rate filled is returned.
 
         THIS IS WHERE EmPropertyC EARNS ITS PLACE IN THIS MODULE.  The flat version carries a third copy of
@@ -1972,7 +1695,7 @@ end
         The Einstein-A prefactor is reproduced verbatim, including the correction of 05-Aug-2026: it is
         8pi * alpha * omega / (2J_m + 1), with NO (2J_f+1) and NO 1/pi.
 """
-function  computePhotonAmplitudesClaude(photonLine::DielectronicRecombination.PhotonLineClaude, grid::Radial.Grid)
+function  computePhotonAmplitudes(photonLine::DielectronicRecombination.PhotonLine, grid::Radial.Grid)
     finalLevel        = deepcopy(photonLine.finalLevel)
     intermediateLevel = deepcopy(photonLine.intermediateLevel)
     newAmplitudes     = MultipoleAmplitude[];    rate = EmProperty(0., 0.)
@@ -1996,49 +1719,25 @@ function  computePhotonAmplitudesClaude(photonLine::DielectronicRecombination.Ph
                  (Basics.twice(photonLine.intermediateLevel.J) + 1)
     photonRate = wa * rate
     #
-    return( DielectronicRecombination.PhotonLineClaude(photonLine.intermediateLevel, photonLine.finalLevel,
+    return( DielectronicRecombination.PhotonLine(photonLine.intermediateLevel, photonLine.finalLevel,
                                                        photonLine.photonEnergy, photonRate, newAmplitudes) )
 end
 
 
-"""
-`DielectronicRecombination.flatCaptureLineClaude(line::DielectronicRecombination.CaptureLineClaude)`
-`DielectronicRecombination.flatPhotonLineClaude(line::DielectronicRecombination.PhotonLineClaude)`
-    ... convert a Claude line back into its flat counterpart; the bridge that lets the new form be handed to
-        anything still written against the old one -- the displays, setTotalRates, the rate coefficients and the
-        Rydberg-tail machinery.
-
-        On the capture side the mapping is ONE TO ONE, and the total symmetry that the flat AutoIonization.Channel
-        carries is reconstructed from the intermediate level, which is the level that autoionizes. On the photon
-        side one amplitude becomes two flat channels for an electric multipole and one for a magnetic one.
-"""
-function flatCaptureLineClaude(line::DielectronicRecombination.CaptureLineClaude)
-    symn = LevelSymmetry(line.intermediateLevel.J, line.intermediateLevel.parity)
-    chs  = [AutoIonization.Channel(pw.kappa, symn, pw.phase, pw.amplitude)  for pw in line.capturePartialWaves]
-    return( DielectronicRecombination.CaptureLine(line.initialLevel, line.intermediateLevel, line.electronEnergy,
-                                                  line.captureRate, line.totalAugerRate, line.totalPhotonRate,
-                                                  line.resonanceStrength, chs) )
-end
-
-function flatPhotonLineClaude(line::DielectronicRecombination.PhotonLineClaude)
-    return( DielectronicRecombination.PhotonLine(line.intermediateLevel, line.finalLevel, line.photonEnergy,
-                                                 line.photonRate,
-                                                 PhotoEmission.flatAmplitudesClaude(line.photonAmplitudes)) )
-end
 
 
 """
-`DielectronicRecombination.determineCaptureLinesClaude(finalMultiplet::Multiplet, intermediateMultiplet::Multiplet,
+`DielectronicRecombination.determineCaptureLines(finalMultiplet::Multiplet, intermediateMultiplet::Multiplet,
                                     initialMultiplet::Multiplet, settings::DielectronicRecombination.Settings)`
-`DielectronicRecombination.determinePhotonLinesClaude(finalMultiplet::Multiplet, intermediateMultiplet::Multiplet,
+`DielectronicRecombination.determinePhotonLines(finalMultiplet::Multiplet, intermediateMultiplet::Multiplet,
                                     initialMultiplet::Multiplet, settings::DielectronicRecombination.Settings)`
-    ... as determineCaptureLines and determinePhotonLines, but producing the Claude line types; the selection,
+    ... to determine the capture and photon lines for which amplitudes are subsequently computed; the selection,
         the energy shifts and the "keep the pair if SOME third level makes the triple selected" rule are
         reproduced exactly.
 """
-function  determineCaptureLinesClaude(finalMultiplet::Multiplet, intermediateMultiplet::Multiplet, initialMultiplet::Multiplet,
+function  determineCaptureLines(finalMultiplet::Multiplet, intermediateMultiplet::Multiplet, initialMultiplet::Multiplet,
                                       settings::DielectronicRecombination.Settings)
-    captureLines        = DielectronicRecombination.CaptureLineClaude[]
+    captureLines        = DielectronicRecombination.CaptureLine[]
     electronEnergyShift = Defaults.convertUnits("energy: to atomic", settings.electronEnergyShift)
     #
     for  iLevel  in  initialMultiplet.levels
@@ -2050,17 +1749,17 @@ function  determineCaptureLinesClaude(finalMultiplet::Multiplet, intermediateMul
                 if  Basics.selectLevelTriple(iLevel, nLevel, fLevel, settings.pathwaySelection)   isSelected = true;   break   end
             end
             if  !isSelected     continue    end
-            pws = DielectronicRecombination.determineCaptureChannelsClaude(nLevel, iLevel, settings)
-            push!( captureLines, DielectronicRecombination.CaptureLineClaude(iLevel, nLevel, eEnergy, 0., 0.,
+            pws = DielectronicRecombination.determineCaptureChannels(nLevel, iLevel, settings)
+            push!( captureLines, DielectronicRecombination.CaptureLine(iLevel, nLevel, eEnergy, 0., 0.,
                                                                              EmProperty(0., 0.), EmProperty(0., 0.), pws) )
         end
     end
     return( captureLines )
 end
 
-function  determinePhotonLinesClaude(finalMultiplet::Multiplet, intermediateMultiplet::Multiplet, initialMultiplet::Multiplet,
+function  determinePhotonLines(finalMultiplet::Multiplet, intermediateMultiplet::Multiplet, initialMultiplet::Multiplet,
                                      settings::DielectronicRecombination.Settings)
-    photonLines       = DielectronicRecombination.PhotonLineClaude[]
+    photonLines       = DielectronicRecombination.PhotonLine[]
     photonEnergyShift = Defaults.convertUnits("energy: to atomic", settings.photonEnergyShift)
     #
     for  nLevel  in  intermediateMultiplet.levels
@@ -2072,9 +1771,9 @@ function  determinePhotonLinesClaude(finalMultiplet::Multiplet, intermediateMult
                 if  Basics.selectLevelTriple(iLevel, nLevel, fLevel, settings.pathwaySelection)   isSelected = true;   break   end
             end
             if  !isSelected     continue    end
-            amps = DielectronicRecombination.determinePhotonChannelsClaude(fLevel, nLevel, settings)
+            amps = DielectronicRecombination.determinePhotonChannels(fLevel, nLevel, settings)
             if  length(amps) == 0      continue    end
-            push!( photonLines, DielectronicRecombination.PhotonLineClaude(nLevel, fLevel, pEnergy,
+            push!( photonLines, DielectronicRecombination.PhotonLine(nLevel, fLevel, pEnergy,
                                                                            EmProperty(0., 0.), amps) )
         end
     end

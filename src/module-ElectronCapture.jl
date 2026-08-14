@@ -138,8 +138,7 @@ end
         due to the interelectronic interaction for the given final and initial level. A value::ComplexF64 is returned.
 """
 function amplitude(kind::String, channel::ElectronCapture.Channel, finalLevel::Level, continuumLevel::Level, grid::Radial.Grid; printout::Bool=true)
-    aChannel  = AutoIonization.Channel(channel.kappa, channel.symmetry, channel.phase, 0.)
-    amplitude = conj(AutoIonization.amplitude(kind, aChannel, continuumLevel::Level, finalLevel::Level, grid; printout=printout))
+    amplitude = conj(AutoIonization.amplitude(kind, channel.kappa, channel.phase, continuumLevel::Level, finalLevel::Level, grid; printout=printout))
     
     return( amplitude )
 end

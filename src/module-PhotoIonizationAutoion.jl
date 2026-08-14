@@ -57,11 +57,11 @@ end
         amplitudes.
 
     + excitationChannel  ::PhotoEmission.Channel       ... Channel that describes the photon-impact excitation process.
-    + augerChannel       ::AutoIonization.Channel      ... Channel that describes the subsequent Auger/autoionization process.
+    + augerChannel       ::AutoIonization.PartialWave      ... Channel that describes the subsequent Auger/autoionization process.
 """
 struct  Channel
     excitationChannel    ::PhotoEmission.Channel
-    augerChannel         ::AutoIonization.Channel
+    augerChannel         ::AutoIonization.PartialWave
 end 
 
 

@@ -189,7 +189,7 @@ end
 
 #####################################################################################################################
 ## The PHYSICAL form of a channel, built beside the flat one above (13-Aug-2026).  Nothing here replaces
-## anything yet; see the three types and the ...Claude functions further down.
+## anything yet; see the three types and the functions further down.
 ##
 ## WHY.  In `Channel` above, `multipole` and `gauge` sit beside `kappa` and `symmetry` as if all four
 ## labelled the same thing.  They do not.  A multipole is a term in the expansion of the interaction
@@ -1159,7 +1159,7 @@ end
         computeStatisticalTensorUnpolarized; computeAngularBeta has it right. Here the product
         `amp * conj(ampp)` is componentwise, so the two gauges cannot meet whatever anyone writes.
         These two functions will therefore NOT agree with their flat counterparts -- see the note in the
-        Claude tensor function below.
+        statistical-tensor function below.
 """
 function computePartialCrossSectionUnpolarized(Mf::AngularM64, line::PhotoIonization.Line)
     function Racahexpr(kappa::Int64, Ji::AngularJ64, Jf::AngularJ64, Mf::AngularM64, J::AngularJ64, Jp::AngularJ64,

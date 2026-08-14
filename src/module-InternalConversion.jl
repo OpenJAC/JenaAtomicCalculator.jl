@@ -134,7 +134,7 @@ end
         PhotoIonization.PartialWave (a rank-L operator couples initialLevel's symmetry to an
         INTERMEDIATE symmetry `symmetry` -- the total J/parity of the final-ion-plus-continuum-
         electron coupled state -- before that intermediate symmetry connects on to finalLevel; this
-        differs from AutoIonization.Channel, whose rank-0 operator makes the coupled-state symmetry
+        differs from AutoIonization.PartialWave, whose rank-0 operator makes the coupled-state symmetry
         trivially equal to the initial level's own symmetry).
 
     + multipole  ::EmMultipole      ... nuclear transition multipolarity (tau, L) of this contribution.
