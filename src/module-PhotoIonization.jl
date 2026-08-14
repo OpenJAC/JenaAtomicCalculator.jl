@@ -233,11 +233,11 @@ end
     ... ONE asymptotic scattering state: the final ion plus a free electron, coupled to a total symmetry.
 
     + symmetry       ::LevelSymmetry                            ... total J^parity of the scattering state.
-    + amplitudes     ::Array{MultipoleAmplitudeClaude,1}        ... one entry per contributing multipole.
+    + amplitudes     ::Array{MultipoleAmplitude,1}        ... one entry per contributing multipole.
 """
 struct  ChannelClaude
     symmetry         ::LevelSymmetry
-    amplitudes       ::Array{MultipoleAmplitudeClaude,1}
+    amplitudes       ::Array{MultipoleAmplitude,1}
 end
 
 
@@ -1560,7 +1560,7 @@ function computeAmplitudesPropertiesClaude(line::PhotoIonization.LineClaude, nm:
         newChannels = PhotoIonization.ChannelClaude[]
         for  ch in pw.channels
             newcLevel = Basics.generateLevelWithExtraElectron(cOrbital, ch.symmetry, newfLevel)
-            newAmps   = MultipoleAmplitudeClaude[]
+            newAmps   = MultipoleAmplitude[]
             for  ma in ch.amplitudes
                 mp = ma.multipole
                 if  string(mp)[1] == 'E'
@@ -1568,12 +1568,12 @@ function computeAmplitudesPropertiesClaude(line::PhotoIonization.LineClaude, nm:
                     ampC = PhotoIonization.amplitude("photoionization", chC, line.photonEnergy, newcLevel, newiLevel, grid)
                     chB  = PhotoIonization.Channel(mp, Basics.Babushkin, pw.kappa, ch.symmetry, phase, Complex(0.))
                     ampB = PhotoIonization.amplitude("photoionization", chB, line.photonEnergy, newcLevel, newiLevel, grid)
-                    push!(newAmps, MultipoleAmplitudeClaude(mp, EmPropertyC(ampC, ampB)))
+                    push!(newAmps, MultipoleAmplitude(mp, EmPropertyC(ampC, ampB)))
                 else
                     ## A magnetic multipole does not depend on the gauge; one evaluation, equal components.
                     chM  = PhotoIonization.Channel(mp, Basics.Magnetic,  pw.kappa, ch.symmetry, phase, Complex(0.))
                     ampM = PhotoIonization.amplitude("photoionization", chM, line.photonEnergy, newcLevel, newiLevel, grid)
-                    push!(newAmps, MultipoleAmplitudeClaude(mp, EmPropertyC(ampM)))
+                    push!(newAmps, MultipoleAmplitude(mp, EmPropertyC(ampM)))
                 end
             end
             push!(newChannels, PhotoIonization.ChannelClaude(ch.symmetry, newAmps))
@@ -1652,9 +1652,9 @@ function determineChannelsClaude(finalLevel::Level, initialLevel::Level, setting
         channels = ChannelClaude[]
         for  (ka, symt) in order
             ka == kappa   ||   continue
-            amps = MultipoleAmplitudeClaude[]
+            amps = MultipoleAmplitude[]
             for  mp in mpsFor[(ka, symt)]
-                push!(amps, MultipoleAmplitudeClaude(mp, EmPropertyC(Complex(0.), Complex(0.))))
+                push!(amps, MultipoleAmplitude(mp, EmPropertyC(Complex(0.), Complex(0.))))
             end
             push!(channels, ChannelClaude(symt, amps))
         end

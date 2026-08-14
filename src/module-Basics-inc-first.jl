@@ -228,7 +228,7 @@ end
 
 
 """
-`struct  Basics.MultipoleAmplitudeClaude`
+`struct  Basics.MultipoleAmplitude`
     ... the contribution of ONE multipole of the electron-photon interaction operator to an amplitude.
 
     + multipole      ::EmMultipole      ... Multipole of the photon emission/absorption.
@@ -247,17 +247,17 @@ end
         adding Basics.Magnetic to both gauge sums; and a product conj(amplitude) * amplitude' is componentwise,
         so two gauges cannot mix however the caller is written.
 """
-struct  MultipoleAmplitudeClaude
+struct  MultipoleAmplitude
     multipole        ::EmMultipole
     amplitude        ::EmPropertyC
 end
 
-export MultipoleAmplitudeClaude
+export MultipoleAmplitude
 
 
-# `Base.show(io::IO, ma::MultipoleAmplitudeClaude)`  ... prepares a proper printout of the variable ma.
-function Base.show(io::IO, ma::MultipoleAmplitudeClaude)
-    print(io, "MultipoleAmplitudeClaude($(ma.multipole), amp = $(ma.amplitude))")
+# `Base.show(io::IO, ma::MultipoleAmplitude)`  ... prepares a proper printout of the variable ma.
+function Base.show(io::IO, ma::MultipoleAmplitude)
+    print(io, "MultipoleAmplitude($(ma.multipole), amp = $(ma.amplitude))")
 end
 
 
