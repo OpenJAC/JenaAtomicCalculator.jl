@@ -136,7 +136,7 @@ end
 ##     CaptureLine.captureChannels ::Array{AutoIonization.Channel,1}
 ##     PhotonLine.photonChannels   ::Array{PhotoEmission.Channel,1}
 ## so its Claude form is built from AutoIonization.PartialWaveClaude (6bfda5d) and
-## PhotoEmission.MultipoleAmplitudeClaude (fd7e6de).
+## MultipoleAmplitudeClaude (fd7e6de).
 ##
 ## WHERE EmPropertyC BELONGS HERE, AND WHERE IT DOES NOT.  The photon AMPLITUDES are complex and gauge-paired, so
 ## they are EmPropertyC -- and they arrive already so, inside the embedded PhotoEmission type, rather than as a
@@ -186,14 +186,14 @@ end
     + finalLevel        ::Level             ... final-(state) level f of the recombined ion.
     + photonEnergy      ::Float64           ... energy of the emitted photon.
     + photonRate        ::EmProperty        ... radiative rate A_r(m --> f) of this line.
-    + photonAmplitudes  ::Array{PhotoEmission.MultipoleAmplitudeClaude,1}  ... one entry per multipole.
+    + photonAmplitudes  ::Array{MultipoleAmplitudeClaude,1}  ... one entry per multipole.
 """
 struct  PhotonLineClaude
     intermediateLevel   ::Level
     finalLevel          ::Level
     photonEnergy        ::Float64
     photonRate          ::EmProperty
-    photonAmplitudes    ::Array{PhotoEmission.MultipoleAmplitudeClaude,1}
+    photonAmplitudes    ::Array{MultipoleAmplitudeClaude,1}
 end
 
 
@@ -1899,7 +1899,7 @@ end
 `DielectronicRecombination.determinePhotonChannelsClaude(finalLevel::Level, intermediateLevel::Level,
                                                          settings::DielectronicRecombination.Settings)`
     ... as determinePhotonChannels, but returning one entry per MULTIPOLE; an
-        Array{PhotoEmission.MultipoleAmplitudeClaude,1} is returned with all amplitudes still zero.
+        Array{MultipoleAmplitudeClaude,1} is returned with all amplitudes still zero.
 
         THIS IS A CALL, NOT A COPY.  The flat determinePhotonChannels reproduces PhotoEmission's gauge loop and
         its hasMagnetic flag verbatim -- a third copy of the same machinery, after PhotoEmission's own and
@@ -1975,7 +1975,7 @@ end
 function  computePhotonAmplitudesClaude(photonLine::DielectronicRecombination.PhotonLineClaude, grid::Radial.Grid)
     finalLevel        = deepcopy(photonLine.finalLevel)
     intermediateLevel = deepcopy(photonLine.intermediateLevel)
-    newAmplitudes     = PhotoEmission.MultipoleAmplitudeClaude[];    rate = EmProperty(0., 0.)
+    newAmplitudes     = MultipoleAmplitudeClaude[];    rate = EmProperty(0., 0.)
     for  ma in photonLine.photonAmplitudes
         mp = ma.multipole
         if  string(mp)[1] == 'E'
@@ -1990,7 +1990,7 @@ function  computePhotonAmplitudesClaude(photonLine::DielectronicRecombination.Ph
             amp  = EmPropertyC(ampM)
         end
         rate = rate + abs2(amp)
-        push!( newAmplitudes, PhotoEmission.MultipoleAmplitudeClaude(mp, amp) )
+        push!( newAmplitudes, MultipoleAmplitudeClaude(mp, amp) )
     end
     wa = 8.0pi * Defaults.getDefaults("alpha") * photonLine.photonEnergy /
                  (Basics.twice(photonLine.intermediateLevel.J) + 1)

@@ -173,21 +173,6 @@ end
 #####################################################################################################################
 
 
-"""
-`struct  PhotoRecombination.MultipoleAmplitudeClaude`
-    ... the contribution of ONE multipole of the interaction operator to a channel's amplitude.
-
-    + multipole      ::EmMultipole      ... Multipole of the photon emission.
-    + amplitude      ::EmPropertyC      ... Amplitude in BOTH gauges; the gauge is not a label here.
-
-        A MAGNETIC multipole simply has equal components, which is what the flat form expresses by adding
-        Basics.Magnetic to both gauge sums; and a product amplitude * conj(amplitude') is componentwise, so
-        two gauges cannot mix however the caller is written.
-"""
-struct  MultipoleAmplitudeClaude
-    multipole        ::EmMultipole
-    amplitude        ::EmPropertyC
-end
 
 
 """
@@ -1102,7 +1087,7 @@ function computeAmplitudesPropertiesClaude(line::PhotoRecombination.LineClaude, 
         newChannels = PhotoRecombination.ChannelClaude[]
         for  ch in pw.channels
             newcLevel = Basics.generateLevelWithExtraElectron(cOrbital, ch.symmetry, newiLevel)
-            newAmps   = PhotoRecombination.MultipoleAmplitudeClaude[]
+            newAmps   = MultipoleAmplitudeClaude[]
             for  ma in ch.amplitudes
                 mp = ma.multipole
                 if  string(mp)[1] == 'E'
@@ -1110,11 +1095,11 @@ function computeAmplitudesPropertiesClaude(line::PhotoRecombination.LineClaude, 
                     ampC = PhotoRecombination.amplitude("photorecombination", chC, line.photonEnergy, newfLevel, newcLevel, grid)
                     chB  = PhotoRecombination.Channel(mp, Basics.Babushkin, pw.kappa, ch.symmetry, phase, Complex(0.))
                     ampB = PhotoRecombination.amplitude("photorecombination", chB, line.photonEnergy, newfLevel, newcLevel, grid)
-                    push!(newAmps, PhotoRecombination.MultipoleAmplitudeClaude(mp, EmPropertyC(ampC, ampB)))
+                    push!(newAmps, MultipoleAmplitudeClaude(mp, EmPropertyC(ampC, ampB)))
                 else
                     chM  = PhotoRecombination.Channel(mp, Basics.Magnetic,  pw.kappa, ch.symmetry, phase, Complex(0.))
                     ampM = PhotoRecombination.amplitude("photorecombination", chM, line.photonEnergy, newfLevel, newcLevel, grid)
-                    push!(newAmps, PhotoRecombination.MultipoleAmplitudeClaude(mp, EmPropertyC(ampM)))
+                    push!(newAmps, MultipoleAmplitudeClaude(mp, EmPropertyC(ampM)))
                 end
             end
             push!(newChannels, PhotoRecombination.ChannelClaude(ch.symmetry, newAmps))
@@ -1403,7 +1388,7 @@ function computeLinesWithContinuumOrbitalClaude(finalMultiplet::Multiplet, initi
             newChannels = PhotoRecombination.ChannelClaude[]
             for  ch in pw.channels
                 newcLevel = Basics.generateLevelWithExtraElectron(cOrbital, ch.symmetry, newiLevel)
-                newAmps   = PhotoRecombination.MultipoleAmplitudeClaude[]
+                newAmps   = MultipoleAmplitudeClaude[]
                 for  ma in ch.amplitudes
                     mp = ma.multipole
                     if  string(mp)[1] == 'E'
@@ -1418,7 +1403,7 @@ function computeLinesWithContinuumOrbitalClaude(finalMultiplet::Multiplet, initi
                         amp  = EmPropertyC(ampM)
                     end
                     cs = cs + abs2(amp)                     ## over ALL multipoles, as the flat version does
-                    push!(newAmps, PhotoRecombination.MultipoleAmplitudeClaude(mp, amp))
+                    push!(newAmps, MultipoleAmplitudeClaude(mp, amp))
                 end
                 push!(newChannels, PhotoRecombination.ChannelClaude(ch.symmetry, newAmps))
             end

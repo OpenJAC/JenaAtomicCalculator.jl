@@ -226,23 +226,6 @@ end
 #####################################################################################################################
 
 
-"""
-`struct  PhotoIonization.MultipoleAmplitudeClaude`
-    ... the contribution of ONE multipole of the interaction operator to a channel's amplitude.
-
-    + multipole      ::EmMultipole      ... Multipole of the radiation field.
-    + amplitude      ::EmPropertyC      ... Amplitude in BOTH gauges; the gauge is not a label here.
-
-        The gauge is carried by the amplitude rather than by any struct, using the (previously unused)
-        Basics.EmPropertyC. Two consequences: a MAGNETIC multipole simply has equal components, so the rule
-        "add a magnetic contribution to the Coulomb AND the Babushkin sum" needs no special case; and a
-        product amplitude * conj(amplitude') is componentwise, so two gauges can never mix by construction,
-        where the flat form has to compare `ch.gauge != chp.gauge` by hand.
-"""
-struct  MultipoleAmplitudeClaude
-    multipole        ::EmMultipole
-    amplitude        ::EmPropertyC
-end
 
 
 """
@@ -855,9 +838,26 @@ end
 
 
 """
-`PhotoIonization.computePartialCrossSectionUnpolarized(gauge::EmGauge, Mf::AngularM64, line::PhotoIonization.Line)`  
+`PhotoIonization.computePartialCrossSectionUnpolarized(gauge::EmGauge, Mf::AngularM64, line::PhotoIonization.Line)`
     ... to compute the partial photoionization cross section for initially unpolarized atoms by unpolarized plane-wave photons.
         A value::Float64 is returned.
+
+    NOT TESTED, AND NOT TO BE TRUSTED UNTIL IT IS.  Mark set 14-Aug-2026; TEST THIS BEFORE USING IT AGAIN.
+    Two things are known to be wrong with it and neither has ever been exercised by an example or a test:
+
+      (1) It raises a DomainError on every call.  `1.0im^(L - Lp)` below parses as 1.0 * (im^n) with
+          im::Complex{Bool}, which cannot take a COMPUTED negative exponent -- a LITERAL -1 is special-cased by
+          Base.literal_pow, a computed one is not.  Writing `(1.0im)^(L - Lp)` fixes it and changes no value;
+          that was verified exhaustively when the same trap was removed from module-PhotoEmission.jl (8bf17cb).
+          So this function is probably one parenthesis away from running.
+      (2) The inner loop tests the OUTER channel's gauge: `gauge != cha.gauge` where chp is meant.  The outer
+          loop has already fixed that condition, so the test excludes nothing and Coulomb amplitudes are
+          multiplied with Babushkin ones.  computeAngularBeta has the same construction right.
+
+    Fixing (1) makes (2) measurable, at which point the function needs a physics verdict against a reference
+    rather than a repair by inspection.  computePartialCrossSectionUnpolarizedClaude reproduces the angular
+    algebra without either fault -- the gauge cannot mix there by construction -- and is the natural thing to
+    compare against once a reference exists.
 """
 function  computePartialCrossSectionUnpolarized(gauge::EmGauge, Mf::AngularM64, line::PhotoIonization.Line)
     # Define an internal Racah expression for the summation over t, lambda
@@ -904,8 +904,15 @@ end
 """
 `PhotoIonization.computeStatisticalTensorUnpolarized(k::Int64, q::Int64, gauge::EmGauge, line::PhotoIonization.Line, 
                                                             settings::PhotoIonization.Settings)`  
-    ... to compute the statistical tensor of the photoion in its final level after the photoionization of initially unpolarized atoms 
+    ... to compute the statistical tensor of the photoion in its final level after the photoionization of initially unpolarized atoms
         by plane-wave photons with given Stokes parameters (density matrix). A value::ComplexF64 is returned.
+
+    NOT TESTED, AND NOT TO BE TRUSTED UNTIL IT IS.  Mark set 14-Aug-2026; TEST THIS BEFORE USING IT AGAIN.
+    It carries EXACTLY the two faults described at computePartialCrossSectionUnpolarized above, in the same
+    order: `1.0im^(L - Lp + p - pp)` raises a DomainError for a computed negative exponent, and the inner loop
+    tests `cha.gauge` where `chp.gauge` is meant, so the two gauges are multiplied together. Neither has ever
+    been exercised by an example or a test. computeStatisticalTensorUnpolarizedClaude is the comparison to make
+    once the first is fixed and a reference exists.
 """
 function  computeStatisticalTensorUnpolarized(k::Int64, q::Int64, gauge::EmGauge, line::PhotoIonization.Line, 
                                                 settings::PhotoIonization.Settings)
@@ -1553,7 +1560,7 @@ function computeAmplitudesPropertiesClaude(line::PhotoIonization.LineClaude, nm:
         newChannels = PhotoIonization.ChannelClaude[]
         for  ch in pw.channels
             newcLevel = Basics.generateLevelWithExtraElectron(cOrbital, ch.symmetry, newfLevel)
-            newAmps   = PhotoIonization.MultipoleAmplitudeClaude[]
+            newAmps   = MultipoleAmplitudeClaude[]
             for  ma in ch.amplitudes
                 mp = ma.multipole
                 if  string(mp)[1] == 'E'
@@ -1561,12 +1568,12 @@ function computeAmplitudesPropertiesClaude(line::PhotoIonization.LineClaude, nm:
                     ampC = PhotoIonization.amplitude("photoionization", chC, line.photonEnergy, newcLevel, newiLevel, grid)
                     chB  = PhotoIonization.Channel(mp, Basics.Babushkin, pw.kappa, ch.symmetry, phase, Complex(0.))
                     ampB = PhotoIonization.amplitude("photoionization", chB, line.photonEnergy, newcLevel, newiLevel, grid)
-                    push!(newAmps, PhotoIonization.MultipoleAmplitudeClaude(mp, EmPropertyC(ampC, ampB)))
+                    push!(newAmps, MultipoleAmplitudeClaude(mp, EmPropertyC(ampC, ampB)))
                 else
                     ## A magnetic multipole does not depend on the gauge; one evaluation, equal components.
                     chM  = PhotoIonization.Channel(mp, Basics.Magnetic,  pw.kappa, ch.symmetry, phase, Complex(0.))
                     ampM = PhotoIonization.amplitude("photoionization", chM, line.photonEnergy, newcLevel, newiLevel, grid)
-                    push!(newAmps, PhotoIonization.MultipoleAmplitudeClaude(mp, EmPropertyC(ampM)))
+                    push!(newAmps, MultipoleAmplitudeClaude(mp, EmPropertyC(ampM)))
                 end
             end
             push!(newChannels, PhotoIonization.ChannelClaude(ch.symmetry, newAmps))

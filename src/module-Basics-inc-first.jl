@@ -227,6 +227,40 @@ function Base.string(property::EmPropertyC)
 end
 
 
+"""
+`struct  Basics.MultipoleAmplitudeClaude`
+    ... the contribution of ONE multipole of the electron-photon interaction operator to an amplitude.
+
+    + multipole      ::EmMultipole      ... Multipole of the photon emission/absorption.
+    + amplitude      ::EmPropertyC      ... Amplitude in BOTH gauges; the gauge is not a label here.
+
+        This lives in Basics because it is the SAME type in every process that expands the electron-photon
+        interaction into multipoles -- PhotoIonization, PhotoRecombination, PhotoEmission and, through the last
+        of those, DielectronicRecombination. It was defined identically in three modules until 14-Aug-2026.
+
+        What differs BETWEEN those modules is not this container but two other things: the physical amplitude
+        itself, which each module computes in its own `amplitude(...)` function; and the structure AROUND this
+        type -- a PartialWave with kappa, energy and phase where there is a free electron, a total symmetry
+        where one kappa serves several, and nothing at all for a bound-bound transition. Those stay per-module.
+
+        A MAGNETIC multipole simply has equal components, which is what a gauge-labelled form has to express by
+        adding Basics.Magnetic to both gauge sums; and a product conj(amplitude) * amplitude' is componentwise,
+        so two gauges cannot mix however the caller is written.
+"""
+struct  MultipoleAmplitudeClaude
+    multipole        ::EmMultipole
+    amplitude        ::EmPropertyC
+end
+
+export MultipoleAmplitudeClaude
+
+
+# `Base.show(io::IO, ma::MultipoleAmplitudeClaude)`  ... prepares a proper printout of the variable ma.
+function Base.show(io::IO, ma::MultipoleAmplitudeClaude)
+    print(io, "MultipoleAmplitudeClaude($(ma.multipole), amp = $(ma.amplitude))")
+end
+
+
 #################################################################################################################################
 #################################################################################################################################
 

@@ -172,22 +172,6 @@ end
 #####################################################################################################################
 
 
-"""
-`struct  PhotoEmission.MultipoleAmplitudeClaude`
-    ... the contribution of ONE multipole of the interaction operator to a line's amplitude.
-
-    + multipole      ::EmMultipole      ... Multipole of the photon emission/absorption.
-    + amplitude      ::EmPropertyC      ... Amplitude in BOTH gauges; the gauge is not a label here.
-
-        A MAGNETIC multipole simply has equal components, which is what the flat form expresses by adding
-        Basics.Magnetic to both gauge sums; and a product conj(amplitude) * amplitude' is componentwise, so
-        two gauges cannot mix however the caller is written. The three defects fixed in 8bf17cb were all of
-        that kind.
-"""
-struct  MultipoleAmplitudeClaude
-    multipole        ::EmMultipole
-    amplitude        ::EmPropertyC
-end
 
 
 """
@@ -760,7 +744,7 @@ end
 """
 `PhotoEmission.determineChannelsClaude(finalLevel::Level, initialLevel::Level, settings::PhotoEmission.Settings)`
     ... as PhotoEmission.determineChannels, but returning one entry per MULTIPOLE; an
-        Array{PhotoEmission.MultipoleAmplitudeClaude,1} is returned with all amplitudes still zero.
+        Array{MultipoleAmplitudeClaude,1} is returned with all amplitudes still zero.
 
         The selection rule is the same AngularMomentum.isAllowedMultipole. What disappears is everything that
         was only there to service the gauge: the `for gauge in settings.gauges` loop, the three-way push, and
@@ -768,11 +752,11 @@ end
         flag was necessary in the flat form and is unrepresentable here -- there is no gauge loop to guard.
 """
 function determineChannelsClaude(finalLevel::Level, initialLevel::Level, settings::PhotoEmission.Settings)
-    amplitudes = PhotoEmission.MultipoleAmplitudeClaude[]
+    amplitudes = MultipoleAmplitudeClaude[]
     symi = LevelSymmetry(initialLevel.J, initialLevel.parity);    symf = LevelSymmetry(finalLevel.J, finalLevel.parity)
     for  mp in settings.multipoles
         if   AngularMomentum.isAllowedMultipole(symi, mp, symf)
-            push!(amplitudes, PhotoEmission.MultipoleAmplitudeClaude(mp, EmPropertyC(Complex(0.), Complex(0.))))
+            push!(amplitudes, MultipoleAmplitudeClaude(mp, EmPropertyC(Complex(0.), Complex(0.))))
         end
     end
     return( amplitudes )
@@ -802,7 +786,7 @@ function computeAmplitudesPropertiesClaude(line::PhotoEmission.LineClaude, grid:
               ">>> It was based on MbaEmissionMigdalek, which never worked in a useful form.\n"                *
               ">>> Set doApply = false, or implement a new core-polarization correction from scratch.\n")
     end
-    newAmplitudes = PhotoEmission.MultipoleAmplitudeClaude[];    rate = EmProperty(0., 0.)
+    newAmplitudes = MultipoleAmplitudeClaude[];    rate = EmProperty(0., 0.)
     for  ma in line.amplitudes
         mp = ma.multipole
         if  string(mp)[1] == 'E'
@@ -817,7 +801,7 @@ function computeAmplitudesPropertiesClaude(line::PhotoEmission.LineClaude, grid:
             amp  = EmPropertyC(ampM)
         end
         rate = rate + abs2(amp)
-        push!(newAmplitudes, PhotoEmission.MultipoleAmplitudeClaude(mp, amp))
+        push!(newAmplitudes, MultipoleAmplitudeClaude(mp, amp))
     end
     wa          = 8pi * Defaults.getDefaults("alpha") * line.omega / (Basics.twice(line.initialLevel.J) + 1)
     photonrate  = wa * rate
@@ -880,14 +864,14 @@ end
 
 
 """
-`PhotoEmission.flatAmplitudesClaude(amplitudes::Array{PhotoEmission.MultipoleAmplitudeClaude,1})`
+`PhotoEmission.flatAmplitudesClaude(amplitudes::Array{MultipoleAmplitudeClaude,1})`
     ... converts the physical amplitudes back into the flat Array{PhotoEmission.Channel,1}; the bridge that
         lets a LineClaude be handed to anything still written against the flat form.
 
         One physical amplitude becomes TWO flat channels for an electric multipole (one per gauge) and ONE for
         a magnetic one -- which is exactly the redundancy the flat form carries.
 """
-function flatAmplitudesClaude(amplitudes::Array{PhotoEmission.MultipoleAmplitudeClaude,1})
+function flatAmplitudesClaude(amplitudes::Array{MultipoleAmplitudeClaude,1})
     channels = PhotoEmission.Channel[]
     for  ma in amplitudes
         if  string(ma.multipole)[1] == 'E'
