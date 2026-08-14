@@ -217,6 +217,55 @@ elseif  false
     ## rather than a fitted radius into the field shift.  Turning that into a quantitative test needs
     ## measured radii (Angeli & Marinova) and checked beta2 values, and NOT a better nuclear model.
     #
+elseif  false
+    # Last successful:  14-Aug-2026:  Li-like Nd, Z = 60, A = 142, R_rms = 4.9123 fm held FIXED while only
+    # the nuclear SHAPE is varied, so that every difference below is a pure shape effect.
+    #
+    #   shape                      E(2s) [a.u.]      dE vs 2pF      dF/F (2s)   (2p_1/2)   (2p_3/2)
+    #   2pF Fermi (baseline)     -4204.677981022            --            --          --         --
+    #   3pF  w = +0.2            -4204.677955728     +2.53e-05      +0.0262 %   +0.0253 %  +0.0263 %
+    #   3pF  w = -0.2            -4204.677996437     -1.54e-05      -0.0381 %   -0.0389 %  -0.0381 %
+    #   deformed beta2 = 0.28    -4204.678128230     -1.47e-04      -0.0440 %   -0.0452 %  -0.0444 %
+    #
+    # TWO CONCLUSIONS, and the second is the useful one.
+    #
+    # (1) THE <r^2>-ONLY PARAMETRISATION OF THE ELECTRONIC FACTOR IS GOOD TO ABOUT 0.05 %.  JAC organises the
+    #     field shift as F = dE/d<r^2>, i.e. it assumes the whole nuclear dependence is carried by the second
+    #     radial moment.  Across a realistic range of shapes -- a 20 % central depression, a 20 % central
+    #     bump, and a well-deformed beta2 = 0.28 typical of the rare earths -- F moves by less than 0.05 %.
+    #     The signs are as they must be: a central depression pushes charge OUTWARD at fixed <r^2> and raises
+    #     F; a central bump lowers it.  So the higher Seltzer moments <r^4>, <r^6> that the parametrisation
+    #     drops are genuinely a small correction here, and that is now measured rather than assumed.
+    #
+    # (2) THE SHAPE SENSITIVITY IS THE SAME FOR EVERY LEVEL, so it CANCELS IN RATIOS.  Read the three
+    #     percentage columns across: 0.0262 / 0.0253 / 0.0263, then -0.0440 / -0.0452 / -0.0444.  The shape
+    #     acts as an overall scale on F, not as a level-dependent distortion, to within a few parts in 1e4
+    #     of itself.  A King-plot analysis, which uses RATIOS of field shifts between transitions, is
+    #     therefore almost completely insensitive to the nuclear shape -- which is why that analysis works
+    #     as well as it does.
+    #
+    # AND IT LOCATES THE PROBLEM OF BRANCH e.  Branch e found the NUCLEAR side overshooting the measured
+    # d<r^2> of the samarium chain by factors of 1.6 to 3.4.  This branch shows the ELECTRONIC side is
+    # shape-insensitive at the 0.05 % level.  The isotope-shift discrepancy therefore lives entirely on the
+    # nuclear side -- in d<r^2> itself -- and no improvement of the electronic structure can address it.
+    #
+    # NOTE ON THE DEFORMED CASE: Nuclear.deformedFermiNucleus returns a spherically averaged Z(r), which is
+    # the right object for the J = 0 ground state used here; a deformed nucleus with non-zero spin would
+    # additionally couple through its quadrupole moment, which this does NOT test.
+    println("\n  Field shift F = dE/d<r^2> for Li-like Nd at FIXED R_rms = 4.9123 fm, varying only the shape\n")
+    for  (label, model)  in  [ ("2pF  Fermi (baseline) ", FermiNucleus()),
+                               ("3pF  w = +0.2         ", ThreeParameterFermiNucleus( 0.2, Nuclear.fermiA)),
+                               ("3pF  w = -0.2         ", ThreeParameterFermiNucleus(-0.2, Nuclear.fermiA)),
+                               ("deformed  beta2 = 0.28", DeformedFermiNucleus(0.28)) ]
+        nm = Nuclear.Model(60., model, 142., 4.9123, AngularJ64(0//1), 0.0, 0.0, 0.0)
+        wa = Atomic.Computation(Atomic.Computation(), name="Cc-f-Nd-$label", grid=Radial.Grid(true), nuclearModel=nm,
+                                configs=[Configuration("1s^2 2s"), Configuration("1s^2 2p")],
+                                propertySettings=[ IsotopeShift.Settings(IsotopeShift.Settings();
+                                                   calcNMS=false, calcSMS=false, calcF=true, printBefore=false) ] )
+        println("\n***  nuclear shape: $label")
+        perform(wa)
+    end
+    #
 end
 #
 setDefaults("print summary: close", "")
