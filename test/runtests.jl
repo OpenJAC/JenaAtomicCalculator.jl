@@ -10,6 +10,7 @@ using JenaAtomicCalculator, ..Defaults, ..TestFrames
         @test TestFrames.testMethod_HydrogenicRates()
         @test TestFrames.testMethod_OrbitalOrthonormality()
         @test TestFrames.testMethod_BreitInteraction()
+        @test TestFrames.testMethod_Opacities()
     end
 
     @testset "JAC structs" begin

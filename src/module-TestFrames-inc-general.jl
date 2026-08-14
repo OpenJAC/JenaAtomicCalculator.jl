@@ -775,3 +775,105 @@ function testMethod_BreitInteraction(; short::Bool=true)
     testPrint("testMethod_BreitInteraction()::", success)
     return( success )
 end
+
+
+"""
+`TestFrames.testMethod_Opacities(; short::Bool=true)`
+    ... asserts that the two mean opacities are the functionals they claim to be. Needs no reference data and
+        no cascade: every requirement below is exact, or a textbook constant.
+
+        This is the check that would have caught the defect found on 14-Aug-2026, where
+        Cascade.simulateRosselandOpacities formed  sum_i w_i kappa_i  -- an ARITHMETIC, i.e. Planck, mean --
+        while carrying the Rosseland weight and calling the result Rosseland. The Rosseland mean is the
+        HARMONIC one, 1/kappa_R = sum_i w_i/kappa_i, and the distinction is the whole physics: a harmonic
+        mean is dominated by the most TRANSPARENT frequencies, an arithmetic one by the most opaque, so on a
+        line spectrum they differ by orders of magnitude and move in opposite directions. The property had
+        never been run, which is why it survived.
+        Five things are asserted:
+        (1) the Rosseland weights are normalised -- sum_i w_i = 1 to better than 1e-5 on eight nodes;
+        (2) the GREY limit: for a constant kappa_nu, BOTH means return that constant exactly. This is what
+            fixes the normalisation of each functional independently of the other;
+        (3) the DIRECTION: given one opaque bin among transparent ones, the Rosseland mean must lie near the
+            TRANSPARENT value and the Planck mean near the opaque one, so that kappa_R << kappa_P. An
+            arithmetic-for-harmonic swap makes the two identical and fails here;
+        (4) an EMPTY bin sends the Rosseland mean to exactly zero and returns a non-empty explanation, while
+            the Planck mean stays finite;
+        (5) Thomson scattering off a fully ionised hydrogen plasma gives kappa_es = sigma_T/m_H, the textbook
+            0.20 (1 + X) = 0.40 cm^2/g -- a literature value, not an internal one.
+        Returns true if all five hold.
+"""
+function testMethod_Opacities(; short::Bool=true)
+    success = true
+    printstyled("\n\nTest the mean opacities against their defining limits: \n", color=:light_green)
+    printstyled(  "------------------------------------------------------ \n", color=:light_green)
+
+    ## (1) the Rosseland weights must be normalised; this residue is the accuracy floor of everything below.
+    ulist, weights = Cascade.rosselandWeights(8)
+    devWeights     = abs( sum(weights) - 1.0 )
+    println("  (1) Rosseland weights on 8 nodes:  |sum w_i - 1| = $devWeights ")
+    if  devWeights > 1.0e-5
+        success = false
+        println("  *** The Rosseland weight is not normalised; every mean built on it is scaled wrongly.")
+    end
+
+    ## (2) GREY limit: a constant kappa_nu must come back unchanged from BOTH means.
+    worstGrey = 0.
+    for  kappa  in  [0.4, 7.3]
+        kappas   = Basics.EmProperty[ Basics.EmProperty(kappa, kappa)  for i = 1:8 ]
+        rMean, _ = Cascade.applyOpacityMean(Cascade.RosselandMean(), kappas, weights)
+        pMean, _ = Cascade.applyOpacityMean(Cascade.PlanckMean(),    kappas, weights)
+        worstGrey = max( worstGrey, abs(rMean.Coulomb - kappa)/kappa, abs(pMean.Coulomb - kappa)/kappa )
+    end
+    println("  (2) Grey limit, both means against a constant kappa:  worst relative deviation = $worstGrey ")
+    if  worstGrey > 1.0e-5
+        success = false
+        println("  *** A constant spectral opacity is not returned unchanged; the means are mis-normalised.")
+    end
+
+    ## (3) DIRECTION: one opaque bin among seven transparent ones must separate the two means widely, with
+    ##     the harmonic mean sitting near the TRANSPARENT value. This is what an arithmetic-for-harmonic
+    ##     substitution cannot reproduce: it would make the two means equal.
+    kappas   = Basics.EmProperty[ Basics.EmProperty(i == 4 ? 100.0 : 0.01, i == 4 ? 100.0 : 0.01)  for i = 1:8 ]
+    rMean, _ = Cascade.applyOpacityMean(Cascade.RosselandMean(), kappas, weights)
+    pMean, _ = Cascade.applyOpacityMean(Cascade.PlanckMean(),    kappas, weights)
+    println("  (3) One opaque bin (100.0) among seven transparent (0.01):  Rosseland = $(rMean.Coulomb), " *
+            "Planck = $(pMean.Coulomb) ")
+    if  !(rMean.Coulomb < 0.1)   ||   !(pMean.Coulomb > 1.0)   ||   !(pMean.Coulomb > 100*rMean.Coulomb)
+        success = false
+        println("  *** The two means no longer point in opposite directions. The Rosseland mean must be " *
+                "dominated by the TRANSPARENT bins and the Planck mean by the opaque one; if they agree, " *
+                "an arithmetic mean is being returned in place of the harmonic one.")
+    end
+
+    ## (4) an empty bin annihilates the harmonic mean, and must say so rather than return a usable-looking number.
+    kappas[6]      = Basics.EmProperty(0., 0.)
+    rMean, rNote   = Cascade.applyOpacityMean(Cascade.RosselandMean(), kappas, weights)
+    pMean, _       = Cascade.applyOpacityMean(Cascade.PlanckMean(),    kappas, weights)
+    println("  (4) With one EMPTY bin:  Rosseland = $(rMean.Coulomb),  Planck = $(pMean.Coulomb) ")
+    if  rMean.Coulomb != 0.  ||  rNote == ""  ||  pMean.Coulomb <= 0.
+        success = false
+        println("  *** An empty bin must send the Rosseland mean to exactly zero AND return an explanation, " *
+                "while leaving the Planck mean finite.")
+    end
+
+    ## (5) Thomson scattering of a fully ionised hydrogen plasma: n_e = rho/m_H, hence kappa_es = sigma_T/m_H.
+    mHydrogen = 1.6726219e-24;      sigmaThomson = 6.6524587321e-25            ## [g], [cm^2]
+    rho       = 1.0e-7;             nElectron    = rho / mHydrogen             ## [g/cm^3], [1/cm^3]
+    property  = Cascade.MeanOpacities(Cascade.RosselandMean(),
+                                      Cascade.AbstractOpacityContribution[ Cascade.ScatteringOpacity(nElectron) ],
+                                      Cascade.TemperatureOpacityDependence(0.05), [nElectron], [rho], [1.0e6], 1., 0.)
+    kappas    = Cascade.spectralOpacityContribution(property.contributions[1], Cascade.Data[], property,
+                                                    nElectron, rho, 1.0e6, ulist)
+    rMean, _  = Cascade.applyOpacityMean(Cascade.RosselandMean(), kappas, weights)
+    devThomson = abs( rMean.Coulomb - sigmaThomson/mHydrogen ) / (sigmaThomson/mHydrogen)
+    println("  (5) Fully ionised hydrogen, Thomson only:  kappa = $(rMean.Coulomb) cm^2/g  against the " *
+            "textbook sigma_T/m_H = $(sigmaThomson/mHydrogen);  relative deviation = $devThomson ")
+    if  devThomson > 1.0e-5
+        success = false
+        println("  *** The scattering opacity does not reproduce kappa_es = 0.20 (1 + X) = 0.40 cm^2/g for " *
+                "X = 1, which is the one literature value this module can be held to without a line list.")
+    end
+
+    testPrint("testMethod_Opacities()::", success)
+    return( success )
+end
