@@ -1,8 +1,17 @@
 #
-println("Ad) Apply & test for the frequency-independent Breit interaction for an internally generated neon multiplet.")
+println("Ad) Apply & test for the Breit interaction, frequency-independent and frequency-dependent.")
 
 if  true
-    # Last successful:  29-Jul-2026: E1(Coulomb) = -6331.332822 Ha; Delta E(Breit) = 5.245391 Ha,
+    # Last visit:  14-Aug-2026
+    # Last successful:  unknown -- E1(Coulomb) = -6331.33287512 Ha; Delta E(Breit) = 1.82701667 Ha,
+    # Delta E(Gaunt) = 1.46225723 Ha, Gaunt/Breit ratio = 0.80. THESE ARE NOT THE 29-Jul-2026 NUMBERS
+    # BELOW, and the drift does NOT come from the frequency-dependent Breit work of 14-Aug-2026: the same
+    # values are obtained from the immediately preceding commit, so CoulombBreit(0.) is unchanged to all
+    # 16 digits. Something between 29-Jul and 14-Aug moved the ORBITALS -- the kappa-sign B-spline
+    # boundary fix and the radial-box work are the candidates -- and it has not been run down. The
+    # Gaunt/Breit ratio fell from 0.93 to 0.80, i.e. away from the ~90% the literature reports for inner
+    # shells, so this wants understanding before the date is restored.
+    #   Superseded 29-Jul-2026 reading: E1(Coulomb) = -6331.332822 Ha; Delta E(Breit) = 5.245391 Ha,
     # Delta E(Gaunt) = 4.880632 Ha, Gaunt/Breit ratio = 0.93 (literature: ~90% for inner shells -- close
     # match). Timing (CI-only): Breit/Coulomb = 1.38x, Gaunt/Coulomb = 1.07x, Gaunt/Breit = 0.78x (Gaunt
     # genuinely cheaper than full Breit, as expected from skipping the retardation term).
@@ -114,6 +123,64 @@ elseif  false
         dGaunt = mpGauntCI.levels[1].energy - mpCoulombCI.levels[1].energy
         println(">> [Branch 3] Z=$Z:  E(Coulomb) = $(mpCoulombCI.levels[1].energy) Ha,  Delta E(Breit) = $dBreit Ha,  " *
                 "Delta E(Gaunt) = $dGaunt Ha,  Gaunt/Breit ratio = $(round(dGaunt/dBreit,digits=3))")
+    end
+
+elseif  false
+    # Last successful:  14-Aug-2026: the correction is quadratic in `factor` to 0.03%. A two-term fit
+    # A*f^2 + B*f^4 through the five points gives A = -7.222400e-02, B = +2.4257e-03 and reproduces every
+    # one of them to ~2e-5 of the leading term, so the ratio drifts only from -0.072186 (f=0.125) to
+    # -0.069798 (f=1) over an eightfold range of f. That is the signature the implementation must have and
+    # is the sharpest check in this file.
+    # Branch 4 (frequency dependence -- INTERNAL consistency, no external reference needed): retardation
+    # enters at O(omega^2) and CoulombBreit(factor) scales omega, so [dE(factor) - dE(0)] / factor^2 has to
+    # be constant up to an O(factor^2) remainder. This tests the W kernel of Grant & Pyper eq. (6), the
+    # collapse of the 'S' coefficients onto the multipole L, and the radial wiring all at once -- a wrong
+    # kernel, a wrong power of omega or a mis-paired coefficient all break the quadratic law.
+    refConfigs = [Configuration("[Ne] 3s^2 3p^5")]
+    nModel     = Nuclear.Model(54.)
+    grid       = Radial.Grid(true)
+    settingsCoulomb = AsfSettings()
+
+    mpCoulomb = SelfConsistent.performSCF(refConfigs, nModel, grid, settingsCoulomb; printout=false)
+    basis     = mpCoulomb.levels[1].basis
+    eCoulomb  = Hamiltonian.performCI(basis, nModel, grid, settingsCoulomb; printout=false).levels[1].energy
+    d0        = Hamiltonian.performCI(basis, nModel, grid,
+                    AsfSettings(AsfSettings(); eeInteractionCI=Basics.CoulombBreit(0.)); printout=false).levels[1].energy - eCoulomb
+    println(">> [Branch 4] E(Coulomb) = $eCoulomb Ha,  Delta E(Breit, omega=0) = $d0 Ha")
+
+    for  f  in  [0.125, 0.25, 0.5, 0.75, 1.0]
+        dF = Hamiltonian.performCI(basis, nModel, grid,
+                 AsfSettings(AsfSettings(); eeInteractionCI=Basics.CoulombBreit(f)); printout=false).levels[1].energy - eCoulomb
+        println(">> [Branch 4] factor = $f:  Delta E(Breit) = $dF Ha,  frequency correction = $(dF-d0) Ha,  " *
+                "correction/factor^2 = $((dF-d0)/f^2)")
+    end
+
+elseif  false
+    # Last visit:  14-Aug-2026
+    # Last successful:  unknown -- the relative correction grows with Z as it must (-0.94% at Z=26, -3.82%
+    # at Z=54), but at Z=79 it CHANGES SIGN (+8.22%) and the SCF reports sign changes for 2p_3/2 and
+    # 3p_3/2. That sign change has not been run down and may be a box effect (Rule 12: a 3p orbital of a
+    # Cl-like Z=79 ion has r_+ ~ 0.27 a.u., so the standard grid is far wider than these orbitals need)
+    # rather than physics. The date stays blank until it is understood.
+    # Branch 5 (frequency dependence -- Z scaling): omega = |E_a - E_c| / c grows with Z, so the frequency
+    # correction to the Breit interaction must grow along an isoelectronic sequence. Note that it is fed
+    # ONLY by exchange-type contributions: for a direct matrix element a = c and b = d, hence omega = 0
+    # identically, which is why the correction is much smaller than the Breit energy itself.
+    refConfigs = [Configuration("[Ne] 3s^2 3p^5")]
+    grid       = Radial.Grid(true)
+    settingsCoulomb = AsfSettings()
+    settingsBreit0  = AsfSettings(AsfSettings(); eeInteractionCI=Basics.CoulombBreit(0.))
+    settingsBreit1  = AsfSettings(AsfSettings(); eeInteractionCI=Basics.CoulombBreit(1.))
+
+    for  Z  in  [26., 54., 79.]
+        nModel    = Nuclear.Model(Z)
+        mpCoulomb = SelfConsistent.performSCF(refConfigs, nModel, grid, settingsCoulomb; printout=false)
+        basis     = mpCoulomb.levels[1].basis
+        eCoulomb  = Hamiltonian.performCI(basis, nModel, grid, settingsCoulomb; printout=false).levels[1].energy
+        d0 = Hamiltonian.performCI(basis, nModel, grid, settingsBreit0; printout=false).levels[1].energy - eCoulomb
+        d1 = Hamiltonian.performCI(basis, nModel, grid, settingsBreit1; printout=false).levels[1].energy - eCoulomb
+        println(">> [Branch 5] Z=$Z:  Delta E(Breit, omega=0) = $d0 Ha,  Delta E(Breit, omega/=0) = $d1 Ha,  " *
+                "frequency correction = $(d1-d0) Ha  ($(round(100*(d1-d0)/abs(d0),digits=2)) %)")
     end
 
 end

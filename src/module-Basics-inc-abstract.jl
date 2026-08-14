@@ -1051,11 +1051,12 @@ export  AbstractContinuumSolutions, ContBessel, ContSine, NonrelativisticCoulomb
     + struct BreitInteraction(factor::Float64)
         ... to represent the Breit part of the electron-electron interaction, with factor scaling the photon
             wave number omega = factor * |E_a - E_c| / c.
-            AS OF 13-Aug-2026 ONLY factor = 0 IS PHYSICALLY MEANINGFUL: the frequency-dependent radial
-            kernels exist but are not consumed by any branch, so every value of factor returns the
-            omega -> 0 (frequency-independent) interaction.  factor = 1 additionally applies a hard-coded
-            1.05, which has no derivation.  A correct frequency-dependent implementation is in progress; see
-            the reference formulation heading the Breit section of module-InteractionStrength.jl.
+            factor = 0 gives the standard frequency-independent Breit interaction and factor = 1 the full
+            frequency-dependent one; the former is the exact omega -> 0 limit of the latter, taken within the
+            same expressions rather than by a separate code path.  Both the Gaunt and the retardation part
+            are frequency dependent since 14-Aug-2026; before that date no JAC number contained a retardation
+            correction, and factor = 1 applied a hard-coded 1.05 that had no derivation.  See the reference
+            formulation heading the Breit section of module-InteractionStrength.jl.
             NOTE ALSO THE GAUGE: the omega -> 0 limit taken in the Coulomb gauge is the BREIT operator (this
             type), whereas the omega -> 0 limit in the Feynman gauge is the GAUNT operator (CoulombGaunt).
             They are different approximations, not two names for one.

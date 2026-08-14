@@ -454,26 +454,39 @@ end
 ##    Coefficient2p(nu, a, b, c, d, V), and the CI matrix forms V * XL_Breit(nu, ...).  The coefficients
 ##    below belong to the OPERATOR, not to the CSFs.
 ##
-## 5. THE RADIAL KERNELS.  Both multiply nothing on their own: in XL_Breit_densities the quantity wy is a
-##    MULTIPLIER on the static kernel r_<^nu / r_>^(nu+1), so every kernel below must tend to 1 as omega -> 0.
+## 5. THE RADIAL KERNELS.  The two kinds enter DIFFERENTLY, which is easy to get wrong:
 ##
-##        Gaunt / 'T':   -omega (2nu+1) j_nu(omega r_<) y_nu(omega r_>)   ->   r_<^nu / r_>^(nu+1)
+##        Gaunt / 'T':   the static kernel Ubar_nu = r_<^nu / r_>^(nu+1) times a FREQUENCY FACTOR
+##                           V_nu = -omega (2nu+1) j_nu(omega r_<) y_nu(omega r_>)  ->  1   as omega -> 0.
 ##
-##    MEASURED 13-Aug-2026: the coded V() omits that leading factor omega.  V*omega/static -> 1.000001 at
-##    omega = 1e-3 for nu = 1 and 1.000000 for nu = 2, while V/static -> 1000.  So V diverges as 1/omega and
-##    could never have been switched on.
+##        Retardation / 'S':  the kernel W_(L-1,L+1,L) of Grant & Pyper equation (6) IN FULL -- it is not a
+##                            factor on Ubar_nu, and for r_1 < r_2 it is a difference of two 1/omega^2-
+##                            divergent pieces, which is the whole numerical difficulty.
 ##
-##        Retardation / 'S':  built from j_(nu-1)(omega r_<) y_(nu+1)(omega r_>) and a compensating term.
-##                            Each piece diverges -- j_(nu-1) y_(nu+1) ~ 1/omega^3 -- and only the
-##                            COMBINATION is finite, which is the whole numerical difficulty.
+##    Both are evaluated through the normalised phi, psi of besselPhiPsi, so the cancellations are taken
+##    ALGEBRAICALLY and each kernel reaches its omega -> 0 limit by construction rather than by a special case.
+##    See the closures V() and W() in XL_Breit_densities for the derivations and their verification.
 ##
-##    MEASURED: the coded W() has no clean limit at all; neither W, W*omega nor W*omega^2 converges as
-##    omega -> 0.  It needs deriving, not patching, and its call site is (consistently) commented out.
+##    MEASURED 13-Aug-2026, on the forms that stood here before: V() omitted the leading factor omega
+##    (V*omega/static -> 1.000001 at omega = 1e-3 for nu = 1, while V/static -> 1000), and W() was equation (6)
+##    with the omega missing from its first term AND that term's sign reversed, so its cancellation failed
+##    outright -- neither W, W*omega nor W*omega^2 converged.  Neither could ever have been switched on.
 ##
-## 6. WHAT IS ACTUALLY COMPUTED TODAY.  Nothing frequency dependent.  omg_ac and omg_bd are formed and then
-##    discarded: factor == 0 takes wy = 1 (the correct static limit), factor == 1 takes wy = 1.05 (a
-##    placeholder with no derivation), and only factor outside {0,1} would reach V() -- which, per point 5,
-##    would diverge.  The 'S' branch takes wy = 1 with its real formula commented out beside it.
+## 6. WHAT IS COMPUTED.  Since 14-Aug-2026 both parts are frequency dependent, and the argument `factor` of
+##    CoulombBreit(factor) does exactly what its name says: it scales omega, so that
+##
+##        factor = 0  ->  omega = 0, the standard frequency-independent Breit interaction, recovered as the
+##                        EXACT limit of the same expressions rather than by a separate code path;
+##        factor = 1  ->  the full frequency-dependent interaction at omega = |E_a - E_c| / c.
+##
+##    Before that date nothing frequency dependent was computed at all: omg_ac and omg_bd were formed and then
+##    discarded, factor == 0 taking wy = 1 and factor == 1 taking wy = 1.05, a placeholder with no derivation
+##    that is now gone.  No JAC number published before 14-Aug-2026 contains a retardation correction.
+##
+##    NOT included: for a given 'S' permutation only the radial ordering carried by that permutation is
+##    summed, its transpose supplying the other.  This is exact at omega = 0 and drops a term of relative
+##    order omega^2 WITHIN the retardation -- O(omega^4) in the interaction -- since W's r_1 > r_2 branch is
+##    itself O(omega^2).  With omega ~ 1e-2 for the transitions of interest that is a ~1e-8 relative effect.
 ##
 ##
 ## 7. AUDIT OF THE ANGULAR COEFFICIENTS, 13-Aug-2026.  XL_Breit_coefficients was compared TERM BY TERM against
@@ -670,41 +683,47 @@ function XL_Breit_coefficients(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::
     # Return here if onlyGaunt = true
     if   onlyGaunt     return( xcList )     end
 
-    # Add contributions of the S^k_mu integrals
+    ## Add contributions of the S^k_mu integrals -- the RETARDATION part, Grant & Pyper's B^(2), their eq (8).
+    ##
+    ## Each mu carries the multipole L itself and the bare coefficient xcc; the whole radial kernel is then
+    ## W_(L-1,L+1,L) of their equation (6), supplied by XL_Breit_densities.  The eight mu terms form four
+    ## TRANSPOSED PAIRS (1<->2, 3<->4, 5<->6, 7<->8), which is exactly the two-term W(1,2) / W(2,1) structure
+    ## of equation (8): each partner is supported on one of the two radial orderings.
+    ##
+    ## UNTIL 14-Aug-2026 each mu emitted a PAIR of entries instead,
+    ##     ('S', L+1, perm, +[L]/2 xcc)  and  ('S', L-1, perm, -[L]/2 xcc),   [L] = 2L+1,
+    ## whose sum against the static kernels Ubar_(L+1), Ubar_(L-1) is  -[L]/2 xcc (Ubar_(L-1) - Ubar_(L+1)),
+    ## i.e. precisely xcc * W_(L-1,L+1,L) in the limit omega -> 0 of their equations (9)-(10).  That is a
+    ## correct static Breit interaction, but it FORECLOSES omega /= 0 in the coefficient list, where no factor
+    ## applied later in the radial loop can restore it.  The collapse to a single entry is therefore the whole
+    ## of what makes the retardation frequency-dependent; the angular algebra is untouched and needs no extra
+    ## prefactor, since the omega -> 0 value above is reproduced by coefficient xcc and nothing else.
     if  rem(la+lc+L-1,2) == 1   &&   rem(lb+ld+L+1,2) == 1
         # mu = 1
         wb =  1 / ( (L+L+1)*(L+L+1) )
         xcc = xc * wb * (c.subshell.kappa - a.subshell.kappa + L) * (d.subshell.kappa - b.subshell.kappa - L - 1)
-        if  abs(xcc) > 1.0e-10   push!( xcList, XLCoefficient('S', L+1, b, a, d, c,   (L+L+1) / 2 * xcc) )   end
-        if  abs(xcc) > 1.0e-10   push!( xcList, XLCoefficient('S', L-1, b, a, d, c,  -(L+L+1) / 2 * xcc) )   end
+        if  abs(xcc) > 1.0e-10   push!( xcList, XLCoefficient('S', L,   b, a, d, c,   xcc) )   end
         # mu = 2
         xcc = xc * wb * (d.subshell.kappa - b.subshell.kappa + L) * (c.subshell.kappa - a.subshell.kappa - L - 1)
-        if  abs(xcc) > 1.0e-10   push!( xcList, XLCoefficient('S', L+1, a, b, c, d,   (L+L+1) / 2 * xcc) )   end
-        if  abs(xcc) > 1.0e-10   push!( xcList, XLCoefficient('S', L-1, a, b, c, d,  -(L+L+1) / 2 * xcc) )   end
+        if  abs(xcc) > 1.0e-10   push!( xcList, XLCoefficient('S', L,   a, b, c, d,   xcc) )   end
         # mu = 3
         xcc = xc * wb * (d.subshell.kappa - b.subshell.kappa + L + 1) * (c.subshell.kappa - a.subshell.kappa - L)
-        if  abs(xcc) > 1.0e-10   push!( xcList, XLCoefficient('S', L+1, d, c, b, a,   (L+L+1) / 2 * xcc) )   end
-        if  abs(xcc) > 1.0e-10   push!( xcList, XLCoefficient('S', L-1, d, c, b, a,  -(L+L+1) / 2 * xcc) )   end
+        if  abs(xcc) > 1.0e-10   push!( xcList, XLCoefficient('S', L,   d, c, b, a,   xcc) )   end
         # mu = 4
         xcc = xc * wb * (d.subshell.kappa - b.subshell.kappa - L) * (c.subshell.kappa - a.subshell.kappa + L + 1)
-        if  abs(xcc) > 1.0e-10   push!( xcList, XLCoefficient('S', L+1, c, d, a, b,   (L+L+1) / 2 * xcc) )   end
-        if  abs(xcc) > 1.0e-10   push!( xcList, XLCoefficient('S', L-1, c, d, a, b,  -(L+L+1) / 2 * xcc) )   end
+        if  abs(xcc) > 1.0e-10   push!( xcList, XLCoefficient('S', L,   c, d, a, b,   xcc) )   end
         # mu = 5
         xcc = xc * wb * (d.subshell.kappa - b.subshell.kappa + L + 1) * (c.subshell.kappa - a.subshell.kappa + L)
-        if  abs(xcc) > 1.0e-10   push!( xcList, XLCoefficient('S', L+1, d, a, b, c,   (L+L+1) / 2 * xcc) )   end
-        if  abs(xcc) > 1.0e-10   push!( xcList, XLCoefficient('S', L-1, d, a, b, c,  -(L+L+1) / 2 * xcc) )   end
+        if  abs(xcc) > 1.0e-10   push!( xcList, XLCoefficient('S', L,   d, a, b, c,   xcc) )   end
         # mu = 6
         xcc = xc * wb * (d.subshell.kappa - b.subshell.kappa - L) * (c.subshell.kappa - a.subshell.kappa - L - 1)
-        if  abs(xcc) > 1.0e-10   push!( xcList, XLCoefficient('S', L+1, a, d, c, b,   (L+L+1) / 2 * xcc) )   end
-        if  abs(xcc) > 1.0e-10   push!( xcList, XLCoefficient('S', L-1, a, d, c, b,  -(L+L+1) / 2 * xcc) )   end
+        if  abs(xcc) > 1.0e-10   push!( xcList, XLCoefficient('S', L,   a, d, c, b,   xcc) )   end
         # mu = 7
         xcc = xc * wb * (d.subshell.kappa - b.subshell.kappa - L - 1) * (c.subshell.kappa - a.subshell.kappa - L)
-        if  abs(xcc) > 1.0e-10   push!( xcList, XLCoefficient('S', L+1, b, c, d, a,   (L+L+1) / 2 * xcc) )   end
-        if  abs(xcc) > 1.0e-10   push!( xcList, XLCoefficient('S', L-1, b, c, d, a,  -(L+L+1) / 2 * xcc) )   end
+        if  abs(xcc) > 1.0e-10   push!( xcList, XLCoefficient('S', L,   b, c, d, a,   xcc) )   end
         # mu = 8
         xcc = xc * wb * (d.subshell.kappa - b.subshell.kappa + L) * (c.subshell.kappa - a.subshell.kappa + L + 1)
-        if  abs(xcc) > 1.0e-10   push!( xcList, XLCoefficient('S', L+1, c, b, a, d,   (L+L+1) / 2 * xcc) )   end
-        if  abs(xcc) > 1.0e-10   push!( xcList, XLCoefficient('S', L-1, c, b, a, d,  -(L+L+1) / 2 * xcc) )   end
+        if  abs(xcc) > 1.0e-10   push!( xcList, XLCoefficient('S', L,   c, b, a, d,   xcc) )   end
     end
 
     return( xcList )
@@ -782,41 +801,64 @@ function XL_Breit_densities(xcList::Array{XLCoefficient,1}, factor::Float64, gri
         return( phi * psi )
     end
     #
-    ## W is Grant & Pyper's retardation kernel, their equation (4):
+    ## W is Grant & Pyper's RETARDATION kernel.  Their paper carries two objects both written W, and it matters
+    ## which one is meant here:
     ##
-    ##     U_nu = r_<^nu / r_>^(nu+1)                          the static (Coulomb-like) kernel
-    ##     V_nu = -[nu] omega j_nu(omega r_<) n_nu(omega r_>)  the frequency-dependent one, [nu] = 2nu+1
-    ##     W_nu = ( V_nu - U_nu ) / omega^2
+    ##   * equation (4)  W_nu = ( V_nu - U_nu ) / omega^2  -- an auxiliary of the general equation (5); and
+    ##   * equation (6)  W_(nu-1,nu+1,nu)(1,2)             -- the one that actually appears in the B^(2) term
+    ##                                                        of their equation (8), and hence the one needed.
     ##
-    ## REWRITTEN 13-Aug-2026 against the paper (examples/papers/1976.jpb-grant-breit-interaction.pdf).  What
-    ## stood here evaluated j_(nu-1) n_(nu+1) directly and added a compensating ([nu]/omega)^2 term; measured,
-    ## it had no clean limit at all -- neither W, W*omega nor W*omega^2 converged as omega -> 0 -- and two
-    ## bare catch blocks then substituted wx = 1.0, which is not even the right dimension.
+    ## It is equation (6) that this closure implements:
     ##
-    ## W is a DIFFERENCE OF TWO NEARLY EQUAL QUANTITIES DIVIDED BY omega^2, which is the whole numerical
-    ## difficulty.  Using V_nu = U_nu * phi_nu(omega r_<) * psi_nu(omega r_>) it becomes
+    ##     W_(nu-1,nu+1,nu)(1,2) = [nu] omega j_(nu-1)(omega r_1) n_(nu+1)(omega r_2)
+    ##                             + ([nu]^2/omega^2) r_1^(nu-1) / r_2^(nu+2)              for r_1 < r_2
+    ##                           = [nu] omega n_(nu-1)(omega r_1) j_(nu+1)(omega r_2)      for r_1 > r_2
     ##
-    ##     W_nu = U_nu * (phi*psi - 1) / omega^2 = U_nu * (a + b + a*b) / omega^2,   a = phi-1,  b = psi-1
+    ## with [nu] = 2nu+1, and W_(nu+1,nu-1,nu)(1,2) = W_(nu-1,nu+1,nu)(2,1).  The two orderings are DIFFERENT
+    ## functions, not one function of r_< and r_>, which is why equation (8) carries both of them.
     ##
-    ## and a, b come straight from their own power series (besselPhiPsi), so nothing is subtracted: the
-    ## cancellation is done ALGEBRAICALLY rather than numerically.
+    ## For r_1 < r_2 this is a DIFFERENCE OF TWO 1/omega^2-DIVERGENT QUANTITIES, which is the whole numerical
+    ## difficulty.  Substituting the normalised phi, psi of besselPhiPsi,
+    ##     j_(nu-1)(x) = phi_(nu-1)(x) x^(nu-1)/(2nu-1)!!      n_(nu+1)(x) = -psi_(nu+1)(x) (2nu+1)!!/x^(nu+2)
+    ## the first term becomes exactly -([nu]^2/omega^2) phi psi r_1^(nu-1)/r_2^(nu+2), so the divergence
+    ## cancels ALGEBRAICALLY against the second and what remains is
     ##
-    ## VERIFIED against Grant's analytic omega -> 0 limit, their equation (9),
-    ##     W_nu -> (1/2) [ r_<^nu / ((2nu-1) r_>^(nu-1)) - r_<^(nu+2) / ((2nu+3) r_>^(nu+1)) ]
-    ## with the deviation scaling as O(omega^2): 5.0e-3, 5.0e-5, 5.0e-7 at omega = 0.1, 0.01, 0.001 for
-    ## nu = 1, and similarly for nu = 2, 3.  Below omegaFloor the residual roundoff of a and b, amplified by
-    ## the 1/omega^2, exceeds that deviation, so the analytic limit is returned instead -- the same device as
-    ## GRASP2018's  IF (W < EPSI**2)  shortcut in rci90/bessel.f90.
-    function W(nu::Int64, r::Float64, s::Float64, omega::Float64)
+    ##     W = -([nu]^2/omega^2) (r_1^(nu-1)/r_2^(nu+2)) (a + b + a*b),   a = phi_(nu-1)-1,  b = psi_(nu+1)-1
+    ##
+    ## in which nothing is subtracted numerically: a and b come straight from their own power series.
+    ## For r_1 > r_2 no cancellation arises and the same substitution gives an O(omega^2) expression.
+    ##
+    ## VERIFIED against Grant's analytic omega -> 0 limit, their equations (9)-(10),
+    ##     W_(nu-1,nu+1,nu) -> -(1/2) [nu] ( Ubar_(nu-1) - Ubar_(nu+1) ),   Ubar_k = r_1^k/r_2^(k+1), r_1 < r_2
+    ##                      -> 0                                                                     r_1 > r_2
+    ## the deviation scaling as O(omega^2): 4.9e-3, 4.9e-5, 4.9e-7 at omega = 0.1, 0.01, 0.001 for nu = 1, and
+    ## likewise for nu = 2, 3.  That limit is precisely what the 'S' coefficients of XL_Breit_coefficients
+    ## already encode in their +-[nu]/2 weights, so at omega = 0 kernel and coefficients agree by construction.
+    ##
+    ## Below omegaFloor the residual roundoff of a and b, amplified by 1/omega^2, exceeds that deviation, so
+    ## the analytic limit is returned instead -- the device of GRASP2018's IF (W < EPSI**2) in rci90/bessel.f90.
+    ##
+    ## HISTORY.  What stood here before 13-Aug-2026 was equation (6) with the factor omega missing from its
+    ## first term and that term's sign reversed, so the cancellation failed outright; measured, neither W,
+    ## W*omega nor W*omega^2 converged, and two bare catch blocks then substituted wx = 1.0.  The rewrite of
+    ## bd0e9fb replaced it with equation (4) instead, which is a different function -- corrected here.
+    function W(nu::Int64, r1::Float64, r2::Float64, omega::Float64)
         nu < 1  &&  return( 0.0 )
-        rSmall = min(r,s);    rLarge = max(r,s)
-        wLimit = 0.5 * ( rSmall^nu / ((2nu-1) * rLarge^(nu-1)) - rSmall^(nu+2) / ((2nu+3) * rLarge^(nu+1)) )
+        nn = 2nu + 1
         omegaFloor = 1.0e-4
-        omega <= omegaFloor  &&  return( wLimit )
-        #
-        aa = InteractionStrength.besselPhiPsi(nu, omega*rSmall)[1] - 1.0
-        bb = InteractionStrength.besselPhiPsi(nu, omega*rLarge)[2] - 1.0
-        return( (rSmall^nu / rLarge^(nu+1)) * (aa + bb + aa*bb) / omega^2 )
+        if  r1 < r2
+            if  omega <= omegaFloor
+                return( -0.5 * nn * ( r1^(nu-1) / r2^nu - r1^(nu+1) / r2^(nu+2) ) )
+            end
+            aa = InteractionStrength.besselPhiPsi(nu-1, omega*r1)[1] - 1.0
+            bb = InteractionStrength.besselPhiPsi(nu+1, omega*r2)[2] - 1.0
+            return( -(nn^2 / omega^2) * (r1^(nu-1) / r2^(nu+2)) * (aa + bb + aa*bb) )
+        else
+            omega <= omegaFloor  &&  return( 0.0 )
+            psi = InteractionStrength.besselPhiPsi(nu-1, omega*r1)[2]
+            phi = InteractionStrength.besselPhiPsi(nu+1, omega*r2)[1]
+            return( -omega^2 * psi * phi * r2^(nu+1) / ((2nu-1) * (2nu+3) * r1^nu) )
+        end
     end
     
     wa = 0.
@@ -831,24 +873,26 @@ function XL_Breit_densities(xcList::Array{XLCoefficient,1}, factor::Float64, gri
         cLight = Defaults.getDefaults("speed of light: c")
         omg_ac = factor * abs(xc.a.energy - xc.c.energy) / cLight
         omg_bd = factor * abs(xc.b.energy - xc.d.energy) / cLight
+        ## Only s <= r contributes: every permutation is emitted together with its TRANSPOSE, and the transposed
+        ## partner covers the other radial ordering.  Grant's coordinate 1 is then always the SMALLER radius --
+        ## his Ubar_nu(1,2) vanishes for r_1 > r_2, and the static factor here is r_s^nu / r_r^(nu+1) -- so both
+        ## kernels are called with grid.r[s] first.  The two frequencies omg_ac, omg_bd coincide when energy is
+        ## conserved; their mean is used where it does not, as GRASP2018 likewise works with a single omega.
         for  r = 2:mtp_ac
-            for  s = 2:mtp_bd
-                if      factor  == 0.    wy = 1.0
-                elseif  factor  == 1.    wy = 1.05
-                elseif  xc.kind == 'S'   wy = 1.0
-                                            ## wy = (W(xc.nu, grid.r[r], grid.r[s], omg_ac) + W(xc.nu, grid.r[r], grid.r[s], omg_bd)) / 2.0
-                elseif  xc.kind == 'T'   wy = (V(xc.nu, grid.r[r], grid.r[s], omg_ac) + V(xc.nu, grid.r[r], grid.r[s], omg_bd)) / 2.0
+            for  s = 2:min(r, mtp_bd)
+                if      xc.kind == 'T'
+                    ## Gaunt (magnetic) part: the static kernel Ubar_nu times the frequency factor V_nu -> 1.
+                    wk = ( V(xc.nu, grid.r[s], grid.r[r], omg_ac) + V(xc.nu, grid.r[s], grid.r[r], omg_bd) ) / 2.0 *
+                         (grid.r[s]^xc.nu) / (grid.r[r]^(xc.nu+1))
+                elseif  xc.kind == 'S'
+                    ## Retardation: W_(L-1,L+1,L) is the COMPLETE kernel, not a factor multiplying Ubar_nu.
+                    wk = ( W(xc.nu, grid.r[s], grid.r[r], omg_ac) + W(xc.nu, grid.r[s], grid.r[r], omg_bd) ) / 2.0
                 else    error("stop a")
                 end
                 #
-                wc = xc.coeff * grid.wr[r] * grid.wr[s] 
-                #
-                if      s > r   continue
-                elseif  s == r
-                    wa = wa + wy * wc * (xc.a.P[r] * xc.c.Q[r]) * (grid.r[s]^xc.nu) / (grid.r[r]^(xc.nu+1)) * (xc.b.P[s] * xc.d.Q[s]) / 2.0
-                else 
-                    wa = wa + wy * wc * (xc.a.P[r] * xc.c.Q[r]) * (grid.r[s]^xc.nu) / (grid.r[r]^(xc.nu+1)) * (xc.b.P[s] * xc.d.Q[s])
-                end
+                wc = xc.coeff * grid.wr[r] * grid.wr[s]
+                if  s == r      wc = wc / 2.0     end
+                wa = wa + wc * wk * (xc.a.P[r] * xc.c.Q[r]) * (xc.b.P[s] * xc.d.Q[s])
             end
         end
     end
