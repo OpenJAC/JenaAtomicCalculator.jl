@@ -309,7 +309,14 @@ elseif  false
     setDefaults("print summary: close", "")
     #
 elseif  false
-    # Last successful:  14-Aug-2026:
+    # Last visit:  14-Aug-2026
+    # Last successful:  unknown -- and deliberately so.  Two of the three rows below ARE verified: the
+    # bound-bound and scattering rows reproduce their contributions exactly, the Planck mean is additive to
+    # every digit, and kappa_es agrees with sigma_T n_e/rho.  The THIRD row is not a physical Sr^+ opacity,
+    # because the bound-free threshold is wrong for an ion (see the caveat below), so 2.80495e+01 cm^2/g is
+    # a demonstration and not a result.  Under Rule 7 a knowingly wrong magnitude keeps the date blank, even
+    # though what this branch is FOR -- the contrast between the two means -- is sound whatever the
+    # threshold.  The date can be set once the bound-free edge is computed rather than looked up.
     #
     #    contributions                    Planck [cm^2/g]     Rosseland [cm^2/g]
     #    bound-bound only                 1.42252e-02         0            (2 of 8 bins empty)

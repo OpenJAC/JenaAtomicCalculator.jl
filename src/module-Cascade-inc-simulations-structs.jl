@@ -492,8 +492,17 @@ end
         potential of 5.695 eV, where the true edge of Sr^+ is the Sr II -> Sr III potential of 11.030 eV --
         low by a factor of about two. The edge is therefore placed at too LOW a photon energy for any ion,
         which lets bound-free opacity appear in a band where the ion cannot in fact be ionized. For neutral
-        species the tables are exactly what is wanted. Where the true threshold matters, use the ab-initio
-        route (PhotoIonization.Line.crossSection) instead, or shift the configurations accordingly.
+        species the tables are exactly what is wanted.
+
+        AND THE OBVIOUS ESCAPE DOES NOT WORK. Empirical.photoionizationCrossSection has a second
+        approximation, UsingJAC, which computes the cross section ab initio from mean-field orbitals and E1
+        amplitudes -- but its own docstring records that ITS thresholds are the DFS orbital energies and
+        likewise lie below the true ionization potentials (Ne 2p at 12.0 eV against the true 21.6 eV). Both
+        routes therefore open their edge too early, for different reasons: a table that ignores the ion
+        stage, and a Koopmans-like eigenvalue that is not an ionization energy. A threshold that is right
+        for an ion needs the DIFFERENCE of two total energies, E(ion^q+1) - E(ion^q), which JAC can compute
+        but neither cross-section route uses. Until then, treat the position of a bound-free edge here as
+        approximate and the opacity within one edge-width of it as unreliable.
 
     + nuclearCharge          ::Float64
         ... the nuclear charge Z. THIS IS CARRIED EXPLICITLY ON PURPOSE. Empirical.photoionizationCrossSection
