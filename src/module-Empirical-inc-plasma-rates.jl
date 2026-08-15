@@ -433,6 +433,48 @@ end
 
 
 """
+`Empirical.ionizationThreshold(Z::Float64, sh::Shell, conf::Configuration, data::PeriodicTable.AbstractEnergyData)`
+    ... returns the photoionization threshold of shell sh for the ion described by conf, i.e. the energy that has to be supplied to remove
+        one electron from that shell; an energy::Float64 > 0. [a.u.] is returned.
+
+        FOR THE OUTERMOST OCCUPIED SHELL OF AN ION this is E(q+1) - E(q), the (q+1)-th successive ionization potential of the element, and it is taken
+        from PeriodicTable.ionizationPotentials_Nist2025. That is the quantity the threshold IS, and it is what an X-ray tabulation cannot
+        give: Empirical.bindingEnergy is indexed by Z alone and returns the NEUTRAL value whatever the charge state, so for Sr+ it yields
+        5.573 eV -- essentially the Sr I -> Sr II potential of 5.695 eV -- where the true edge is the Sr II -> Sr III potential of
+        11.030 eV, low by about a factor of two. An edge in the wrong place opens the continuum at photon energies at which the ion cannot
+        in fact be ionized at all.
+
+        The shell is identified as the outermost OCCUPIED one -- largest n, then largest l -- and deliberately not through
+        Basics.ValenceShells, which lists the OPEN shells only and would therefore return nothing for a closed-shell ion such as
+        Sr^2+ = [Kr], leaving every noble-gas-like stage on the neutral threshold.
+
+        Everything else falls through to Empirical.scaledBindingEnergy unchanged: inner shells, for which the X-ray value is the right
+        starting point and the charge-state shift is a small correction to a large number; neutral atoms, where the tabulation is already
+        the neutral value; and any case NIST does not cover.
+"""
+function ionizationThreshold(Z::Float64, sh::Shell, conf::Configuration, data::PeriodicTable.AbstractEnergyData)
+    Zint = round(Int64, Z);    q = Zint - conf.NoElectrons
+    ## The OUTERMOST OCCUPIED shell, not the valence shell: Basics.ValenceShells returns the OPEN shells only,
+    ## so a closed-shell ion such as Sr^2+ = [Kr] -- and every noble-gas-like stage, which is just what a plasma
+    ## is full of -- would return an empty list and silently keep the neutral threshold.
+    outer = Shell(0,0)
+    for  (shell, occ)  in  conf.shells
+        occ < 1  &&  continue
+        if  shell.n > outer.n   ||   (shell.n == outer.n  &&  shell.l > outer.l)    outer = shell    end
+    end
+
+    if  q >= 1   &&   sh == outer
+        ips = try   PeriodicTable.ionizationPotentials_Nist2025(Zint)   catch;   Float64[]   end
+        if  length(ips) >= q + 1   &&   ips[q+1] > 0.
+            return( Defaults.convertUnits("energy: to atomic", ips[q+1]) )
+        end
+    end
+
+    return( Empirical.scaledBindingEnergy(Z, sh, conf, data) )
+end
+
+
+"""
 `Empirical.photoionizationCrossSection(omega::Float64, iConf::Configuration, fConf::Configuration; 
                                        approx::Empirical.AbstractEmpiricalApproximation=ScaledHydrogenic(), printout::Bool=false)` 
                                      
@@ -477,7 +519,10 @@ function photoionizationCrossSection(omegas::Array{Float64,1}, iConf::Configurat
     if  diff != 1   error("Incompatible initial and final configurations for a photoionization cross section.")   end
 
     # Scale the hydrogenic formula by the binding energy (photoionization threshold) of the ionized shell.
-    bEnergy = Empirical.scaledBindingEnergy(Z, iShell, iConf, data)
+    # For the valence shell of an ion this is the successive ionization potential E(q+1) - E(q) and NOT the
+    # neutral-atom X-ray value, which would put the edge at roughly half the right energy; cf.
+    # Empirical.ionizationThreshold.
+    bEnergy = Empirical.ionizationThreshold(Z, iShell, iConf, data)
 
     # Kramers' (1923) bound-free cross section, sigma = 32 pi alpha N_e / (3 sqrt(3) n) * bE^2 / omega^3 * g^(bf),
     # where N_e is the number of equivalent electrons in iShell: the photon may eject any one of them and, in an

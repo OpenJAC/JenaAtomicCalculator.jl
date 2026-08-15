@@ -309,43 +309,42 @@ elseif  false
     setDefaults("print summary: close", "")
     #
 elseif  false
-    # Last visit:  14-Aug-2026
-    # Last successful:  unknown -- and deliberately so.  Two of the three rows below ARE verified: the
-    # bound-bound and scattering rows reproduce their contributions exactly, the Planck mean is additive to
-    # every digit, and kappa_es agrees with sigma_T n_e/rho.  The THIRD row is not a physical Sr^+ opacity,
-    # because the bound-free threshold is wrong for an ion (see the caveat below), so 2.80495e+01 cm^2/g is
-    # a demonstration and not a result.  Under Rule 7 a knowingly wrong magnitude keeps the date blank, even
-    # though what this branch is FOR -- the contrast between the two means -- is sound whatever the
-    # threshold.  The date can be set once the bound-free edge is computed rather than looked up.
+    # Last successful:  15-Aug-2026
     #
-    #    contributions                    Planck [cm^2/g]     Rosseland [cm^2/g]
-    #    bound-bound only                 1.42252e-02         0            (2 of 8 bins empty)
-    #    + scattering                     1.87975e-02         8.17795e-03
-    #    + scattering + bound-free        2.80495e+01         8.18263e-03
+    #    contributions                    Planck [cm^2/g]     Rosseland [cm^2/g]     (Coulomb gauge)
+    #    bound-bound only                 1.19908e-02         0            (4 of 8 bins empty)
+    #    + scattering                     1.65632e-02         1.00270e-02
+    #    + scattering + bound-free        1.65632e-02         1.00270e-02
     #
-    #    READ THE LAST ROW TWICE.  Adding bound-free multiplies the PLANCK mean by a factor 1500 and moves
-    #    the ROSSELAND mean by 0.06 %.  That is not a bug; it is the definition doing its work.  Bound-free
-    #    opens in only two of the eight bins, so an arithmetic mean -- which is dominated by whatever is most
-    #    opaque -- is transformed by it, while a harmonic mean -- dominated by whatever is most transparent --
-    #    barely notices, because the other six bins are unchanged and they are what a Rosseland mean is
-    #    about.  Anyone who took the pre-14-Aug-2026 code at its word, where the arithmetic sum was LABELLED
-    #    Rosseland, would have concluded that bound-free raises the Rosseland opacity of Sr^+ by three orders
-    #    of magnitude.  It raises it by 0.06 %.
+    #    THE LAST TWO ROWS ARE IDENTICAL, and that is the result.  With the bound-free edge of Sr^+ at its
+    #    true 11.030 eV, the continuum does not open anywhere inside the 0.07 - 9.85 eV band that T = 5000 K
+    #    spans, so bound-free contributes exactly nothing -- which is what it means for an ion that these
+    #    photons cannot ionise.  Until 15-Aug-2026 this row read 2.80495e+01 in the Planck column, a factor
+    #    1500 above the second row, because the threshold was taken from X-ray tables compiled for NEUTRAL
+    #    atoms: 5.573 eV for Sr, essentially the Sr I -> Sr II potential of 5.695 eV, where the edge of Sr^+
+    #    is the Sr II -> Sr III potential.  Empirical.ionizationThreshold now takes E(q+1) - E(q) from
+    #    PeriodicTable.ionizationPotentials_Nist2025 for the outermost occupied shell of an ion.
     #
-    #    Checks that hold in the table: the Planck mean is exactly additive (1.42252e-02 + 4.57236e-03 =
-    #    1.87975e-02, the scattering floor being kappa_es = n_e sigma_T/rho = 4.57236e-03), the Rosseland
+    #    WHAT THE BRANCH IS FOR is the contrast between the two means, and it survives the correction: a
+    #    Planck (arithmetic) mean is dominated by whatever is most opaque, a Rosseland (harmonic) mean by
+    #    whatever is most transparent.  With 4 of 8 bins carrying no bound-bound opacity at all, the
+    #    bound-bound Rosseland mean VANISHES while its Planck mean is finite; adding a grey continuum
+    #    (scattering) is what makes the harmonic mean exist.  Anyone using the pre-14-Aug-2026 code, where
+    #    the arithmetic sum was LABELLED Rosseland, would have read the first row as a Rosseland mean of
+    #    1.2e-02 rather than zero.
+    #
+    #    Checks that hold in the table: the Planck mean is exactly additive (1.19908e-02 + 4.57236e-03 =
+    #    1.65632e-02, the scattering floor being kappa_es = n_e sigma_T/rho = 4.57236e-03), the Rosseland
     #    mean is not; and kappa_R < kappa_P in every row, as harmonic <= arithmetic requires.
     #
-    #    CAVEAT ON THE BOUND-FREE NUMBER, which is why 2.80495e+01 is NOT a physical Sr^+ opacity.
-    #    Empirical.photoionizationCrossSection scales Kramers by a binding energy drawn from X-ray tables
-    #    compiled for NEUTRAL atoms: for Sr it returns 5.573 eV, essentially the neutral Sr I -> Sr II
-    #    potential of 5.695 eV, whereas the true edge of Sr^+ is the Sr II -> Sr III potential of 11.030 eV.
-    #    The edge is therefore placed at about half the right energy and opens inside the 0.07 - 9.85 eV band
-    #    that T = 5000 K spans, where a real Sr^+ ion cannot be ionised at all.  With the correct threshold
-    #    the bound-free contribution here would be identically zero and the last row would equal the second.
-    #    The cross section itself is sound -- hydrogen 1s gives 6.29992 Mb at threshold against the
-    #    Gaunt-corrected Kramers value of 6.30 Mb, which is what TestFrames.testMethod_Opacities asserts.
-    #    It is the THRESHOLD, not the formula, that does not know about ion stages.
+    #    NOTE ON THE FIRST TWO ROWS, which moved on 15-Aug-2026 (1.42252e-02 -> 1.19908e-02 and
+    #    8.17795e-03 -> 1.00270e-02) although the threshold cannot touch them: BoundBoundOpacity and
+    #    ScatteringOpacity make no call to it.  They moved because the kink-aware Slater integral became the
+    #    standard (4cc94eb), which shifts the transition energies and rates and hence the line list itself.
+    #
+    #    The cross section was never in doubt -- hydrogen 1s gives 6.29992 Mb at threshold against the
+    #    Gaunt-corrected Kramers value of 6.30 Mb, which TestFrames.testMethod_Opacities asserts.  It was
+    #    the THRESHOLD that did not know about ion stages.
     #
     # e) THE TWO MEAN OPACITIES, and what each contribution does to them.  Branches a-d all report the
     #    SPECTRAL opacity kappa(lambda); this one reduces it to a single number, which is what a
