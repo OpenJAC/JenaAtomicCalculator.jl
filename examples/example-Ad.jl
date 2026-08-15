@@ -168,7 +168,7 @@ elseif  false
     end
 
 elseif  false
-    # Last successful:  14-Aug-2026: the relative frequency correction is negative throughout and grows
+    # Last successful:  15-Aug-2026: the relative frequency correction is negative throughout and grows
     # monotonically in magnitude, -0.25 % at Z=26, -1.16 % at Z=54 and -2.30 % at Z=79, i.e. roughly as
     # Z^2, which is what omega ~ Delta E / c demands.
     #   THIS BRANCH IS A RULE 12 CASE STUDY, and is worth reading before believing any Breit number on a
