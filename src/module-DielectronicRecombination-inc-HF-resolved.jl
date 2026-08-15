@@ -249,7 +249,7 @@ function  computeHfCaptureAmplitudes(hfLine::DielectronicRecombination.HfCapture
     for  (mci, iLev) in iComps,  (mcm, mLev) in mComps
         eLine = get(eCaptureLines, (iLev.index, mLev.index), nothing)
         if  eLine === nothing    continue    end
-        for  ch in eLine.captureChannels    if  !(ch.kappa in kappas)    push!(kappas, ch.kappa)    end    end
+        for  pw in eLine.capturePartialWaves    if  !(pw.kappa in kappas)    push!(kappas, pw.kappa)    end    end
     end
     #
     rateA = 0.
@@ -261,9 +261,9 @@ function  computeHfCaptureAmplitudes(hfLine::DielectronicRecombination.HfCapture
             if  eLine === nothing    continue    end
             wa = DielectronicRecombination.hfCaptureRecoupling(spinI, iLev.J, Fi, je, mLev.J, Fm)
             if  wa == 0.    continue    end
-            for  ch in eLine.captureChannels
-                if  ch.kappa != kappa    continue    end
-                amp = amp + mci * mcm * wa * ch.amplitude
+            for  pw in eLine.capturePartialWaves
+                if  pw.kappa != kappa    continue    end
+                amp = amp + mci * mcm * wa * pw.amplitude
             end
         end
         rateA = rateA + abs(amp)^2
@@ -299,38 +299,40 @@ function  computeHfPhotonAmplitudes(hfLine::DielectronicRecombination.HfPhotonLi
     fComps = DielectronicRecombination.electronicComponents(hfLine.finalLevel)
     Fm     = hfLine.intermediateLevel.F;    Ff = hfLine.finalLevel.F
     ## Collect the (multipole, gauge) channels that occur
-    mpGauges = Tuple{EmMultipole,EmGauge}[]
+    ## Multipoles only: the gauge is no longer a label on an amplitude, it rides inside it.  The recoupling
+    ## below depends on mp.L alone, so it was never a function of the gauge -- the flat form simply had to
+    ## enumerate the pairs because that was how amplitudes were stored.
+    multipoles = EmMultipole[]
     for  (mcm, mLev) in mComps,  (mcf, fLev) in fComps
         eLine = get(ePhotonLines, (mLev.index, fLev.index), nothing)
         if  eLine === nothing    continue    end
-        for  ch in eLine.photonChannels
-            if  !((ch.multipole, ch.gauge) in mpGauges)    push!(mpGauges, (ch.multipole, ch.gauge))    end
+        for  ma in eLine.photonAmplitudes
+            if  !(ma.multipole in multipoles)    push!(multipoles, ma.multipole)    end
         end
     end
     #
-    rateC = 0.;    rateB = 0.
-    for  (mp, gauge) in mpGauges
-        amp = ComplexF64(0.)
+    rate = EmProperty(0., 0.)
+    for  mp in multipoles
+        amp = EmPropertyC(0.0im)
         for  (mcm, mLev) in mComps,  (mcf, fLev) in fComps
             eLine = get(ePhotonLines, (mLev.index, fLev.index), nothing)
             if  eLine === nothing    continue    end
             wa = DielectronicRecombination.hfPhotonRecoupling(spinI, mLev.J, Fm, fLev.J, Ff, mp.L)
             if  wa == 0.    continue    end
-            for  ch in eLine.photonChannels
-                if  ch.multipole != mp  ||  ch.gauge != gauge    continue    end
-                amp = amp + mcm * mcf * wa * ch.amplitude
+            for  ma in eLine.photonAmplitudes
+                if  ma.multipole != mp    continue    end
+                amp = amp + mcm * mcf * wa * ma.amplitude
             end
         end
-        if       gauge == Basics.Coulomb     rateC = rateC + abs(amp)^2
-        elseif   gauge == Basics.Babushkin   rateB = rateB + abs(amp)^2
-        elseif   gauge == Basics.Magnetic    rateB = rateB + abs(amp)^2;   rateC = rateC + abs(amp)^2
-        end
+        ## abs2 of an EmPropertyC is an EmProperty, and a magnetic amplitude has equal components, so it
+        ## enters both sums by itself -- which is what the three-way `if` here used to say by hand.
+        rate = rate + abs2(amp)
     end
     #
     wa = 8.0pi * Defaults.getDefaults("alpha") * hfLine.photonEnergy / (Basics.twice(Fm) + 1)
     #
     return( DielectronicRecombination.HfPhotonLine(hfLine.intermediateLevel, hfLine.finalLevel,
-                                                  hfLine.photonEnergy, EmProperty(wa * rateC, wa * rateB)) )
+                                                  hfLine.photonEnergy, wa * rate) )
 end
 
 
