@@ -9,7 +9,7 @@ println("    the nuclear matrix element cancels in the alpha = (IC rate)/(gamma 
 println("    nuclear transition energy (settings.gammaEnergy) is the only externally-given quantity.")
 
 if  true
-    # Last successful:  29-Jul-2026 -- verified: ICC identical (to all printed digits) across
+    # Last successful:  15-Aug-2026 -- verified: ICC identical (to all printed digits) across
     #   maxKappa=2,3,5; ICC strictly monotonically decreasing over gammaEnergy=35,40,60,100 Hartree.
     # Branch a: internal-consistency checks -- run FIRST, before any literature comparison, mirroring
     #   how CrystalField's own textbook/group-theory checks preceded its literature comparisons. No
@@ -25,6 +25,9 @@ if  true
     #       published (a sign of a wrong radial integral would be a flat, oscillating, or increasing
     #       trend instead).
     #   System: Ne(1s^2 2s^2 2p^6) -> Ne+(1s 2s^2 2p^6), M1, K-shell.
+    #   acceptUnvalidated=true is required because the module's ABSOLUTE coefficients are wrong (see its
+    #   STATUS note). Nothing here compares against a table: both checks are internal, and both remain
+    #   meaningful whatever overall factor the absolute values carry.
     setDefaults("print summary: open", "zzz-InternalConversion.sum")
     #
     grid = Radial.Grid(Radial.Grid(false), rnt=4.0e-6, h=5.0e-2, hp=1.0e-2, rbox=10.0)
@@ -34,7 +37,8 @@ if  true
     println(">> (i) maxKappa convergence, M1, gammaEnergy = 40. Hartree:")
     iccByMaxKappa = Float64[]
     for  mk in [1, 2, 3, 5]
-        icSettings = InternalConversion.Settings(InternalConversion.Settings(); multipoles=[M1], gammaEnergy=40.0, maxKappa=mk)
+        icSettings = InternalConversion.Settings(InternalConversion.Settings(); multipoles=[M1], gammaEnergy=40.0, maxKappa=mk,
+                                                 acceptUnvalidated=true)
         comp = Atomic.Computation(Atomic.Computation(), name="Dq-a-mk$mk", grid=grid, nuclearModel=nm,
                                    initialConfigs=initialConfigs, finalConfigs=finalConfigs, processSettings=icSettings)
         wb = perform(comp; output=true)
@@ -49,7 +53,8 @@ if  true
     println(">> (ii) energy scaling, M1, maxKappa = 3:")
     iccByEnergy = Float64[]
     for  ge in [35.0, 40.0, 60.0, 100.0]
-        icSettings = InternalConversion.Settings(InternalConversion.Settings(); multipoles=[M1], gammaEnergy=ge, maxKappa=3)
+        icSettings = InternalConversion.Settings(InternalConversion.Settings(); multipoles=[M1], gammaEnergy=ge, maxKappa=3,
+                                                 acceptUnvalidated=true)
         comp = Atomic.Computation(Atomic.Computation(), name="Dq-a-ge$ge", grid=grid, nuclearModel=nm,
                                    initialConfigs=initialConfigs, finalConfigs=finalConfigs, processSettings=icSettings)
         wb = perform(comp; output=true)
@@ -74,7 +79,8 @@ elseif  false
     grid = Radial.Grid(Radial.Grid(false), rnt=4.0e-6, h=5.0e-2, hp=2.0e-3, rbox=6.0)
     nm   = Nuclear.Model(82.)
     #
-    icSettings = InternalConversion.Settings(InternalConversion.Settings(); multipoles=[M4], gammaEnergy=gammaEnergy_Ha, maxKappa=6, printBefore=true)
+    icSettings = InternalConversion.Settings(InternalConversion.Settings(); multipoles=[M4], gammaEnergy=gammaEnergy_Ha, maxKappa=6, printBefore=true,
+                                             acceptUnvalidated=true)
     comp = Atomic.Computation(Atomic.Computation(), name="Dq-b-Pb207-K", grid=grid, nuclearModel=nm,
                                initialConfigs=[Configuration("1s^2 2s^2 2p^6 3s^2 3p^6 3d^10 4s^2 4p^6 4d^10 4f^14 5s^2 5p^6 5d^10 6s^2 6p^2")],
                                finalConfigs  =[Configuration("1s 2s^2 2p^6 3s^2 3p^6 3d^10 4s^2 4p^6 4d^10 4f^14 5s^2 5p^6 5d^10 6s^2 6p^2")],

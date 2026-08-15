@@ -56,6 +56,26 @@
         used in examples/example-Dq.jl. STAGE 2 (explicitly NOT implemented): open-shell
         multi-electron spectator coupling (an extra 6-j recoupling factor, needed only for IC from
         excited/open-shell configurations as in Bilous et al., Phys. Rev. A 95, 032503 (2017)).
+
+        STATUS, 15-Aug-2026: PAUSED BY THE MAINTAINER -- do not pick this up as the next task without
+        saying so. The module runs and is committed, but its ABSOLUTE coefficients are wrong and it now
+        refuses to produce them unless `settings.acceptUnvalidated` is set.
+
+        What is known:
+          * for 207Pb K-shell M4 at 1063.6 keV the computed alpha_K is off by a factor of ~27000 against
+            the measured 0.0945(22) of Raman et al., Phys. Rev. C 66, 044312 (2002), Table VII. The root
+            cause is an open formula question and has not been located.
+          * the INTERNAL consistency does hold, and example-Dq.jl branch a demonstrates it: the sum over
+            partial waves is unchanged once the allowed-channel list is exhausted (maxKappa = 2, 3, 5 agree
+            to all printed digits), and the coefficient falls monotonically over gammaEnergy = 35, 40, 60,
+            100 Hartree. That branch uses NO external table, so its date says nothing about absolute values.
+          * the B_if angular factor is magnitude-validated against AngularMomentum.CL_reduced_me, twice, as
+            described above; the residual per-(kappa_i,kappa_f) SIGN is still unmatched.
+
+        WHAT IS NOT PROGRESS: the angular-factor validation above is thorough and easy to mistake for a
+        clean bill of health. It constrains only the magnitude of B_if. The 27000x is far too large to be a
+        phase or a geometric factor at all, so the next attempt should look at R_if -- the radial integral
+        and the normalisation of the continuum orbital -- rather than repeating the angular comparison.
 """
 module InternalConversion
 
@@ -79,6 +99,8 @@ using Printf, GSL, ..AngularMomentum, ..Basics, ..Continuum, ..Defaults, ..ManyE
                                                    sum over.
     + printBefore    ::Bool                   ... True if all lines are printed before evaluation.
     + lineSelection  ::LineSelection          ... Specifies the selected levels, if any.
+    + acceptUnvalidated ::Bool                ... must be set true to obtain any result at all; see the
+                                                   STATUS note in this module's docstring.
 """
 struct Settings  <:  Basics.AbstractProcessSettings
     multipoles      ::Array{EmMultipole,1}
@@ -86,6 +108,7 @@ struct Settings  <:  Basics.AbstractProcessSettings
     maxKappa        ::Int64
     printBefore     ::Bool
     lineSelection   ::LineSelection
+    acceptUnvalidated ::Bool
 end
 
 
@@ -93,28 +116,30 @@ end
 `InternalConversion.Settings()`  ... constructor for the default values of internal-conversion computations.
 """
 function Settings()
-    Settings(EmMultipole[], 0., 100, false, LineSelection())
+    Settings(EmMultipole[], 0., 100, false, LineSelection(), false)
 end
 
 
 """
 `InternalConversion.Settings(set::InternalConversion.Settings;`
 
-        multipoles=.., gammaEnergy=.., maxKappa=.., printBefore=.., lineSelection=..)
+        multipoles=.., gammaEnergy=.., maxKappa=.., printBefore=.., lineSelection=..,
+        acceptUnvalidated=..)
 
     ... keyword copy-constructor for re-defining selected values of a settings::InternalConversion.Settings.
 """
 function Settings(set::InternalConversion.Settings;
         multipoles::Union{Nothing,Array{EmMultipole,1}}=nothing,   gammaEnergy::Union{Nothing,Float64}=nothing,
         maxKappa::Union{Nothing,Int64}=nothing,                    printBefore::Union{Nothing,Bool}=nothing,
-        lineSelection::Union{Nothing,LineSelection}=nothing)
+        lineSelection::Union{Nothing,LineSelection}=nothing,       acceptUnvalidated::Union{Nothing,Bool}=nothing)
     if  isnothing(multipoles)      multipolesx     = set.multipoles     else   multipolesx     = multipoles     end
     if  isnothing(gammaEnergy)     gammaEnergyx    = set.gammaEnergy    else   gammaEnergyx    = gammaEnergy    end
     if  isnothing(maxKappa)        maxKappax       = set.maxKappa       else   maxKappax       = maxKappa       end
     if  isnothing(printBefore)     printBeforex    = set.printBefore    else   printBeforex    = printBefore    end
     if  isnothing(lineSelection)   lineSelectionx  = set.lineSelection  else   lineSelectionx  = lineSelection  end
+    if  isnothing(acceptUnvalidated)  acceptUnvalidatedx = set.acceptUnvalidated  else  acceptUnvalidatedx = acceptUnvalidated  end
 
-    Settings( multipolesx, gammaEnergyx, maxKappax, printBeforex, lineSelectionx )
+    Settings( multipolesx, gammaEnergyx, maxKappax, printBeforex, lineSelectionx, acceptUnvalidatedx )
 end
 
 
@@ -125,6 +150,7 @@ function Base.show(io::IO, settings::InternalConversion.Settings)
     println(io, "maxKappa:                 $(settings.maxKappa)  ")
     println(io, "printBefore:              $(settings.printBefore)  ")
     println(io, "lineSelection:            $(settings.lineSelection)  ")
+    println(io, "acceptUnvalidated:        $(settings.acceptUnvalidated)  ")
 end
 
 
@@ -456,6 +482,19 @@ end
         An Array{InternalConversion.Line,1} is returned.
 """
 function computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, nm::Nuclear.Model, grid::Radial.Grid, settings::InternalConversion.Settings)
+    if  !settings.acceptUnvalidated
+        # Refuse rather than return a coefficient nobody can defend; see the STATUS note in the module docstring.
+        error("\n\nInternalConversion: this module's ABSOLUTE coefficients are not validated and must not be "  *
+              "used as results.\n"                                                                              *
+              ">>> For 207Pb K-shell M4 it gives alpha_K off by a factor of ~27000 against Raman et al., "       *
+              "Phys. Rev. C 66, 044312 (2002),\n"                                                               *
+              "    whose measured value is 0.0945(22). The root cause is an open formula question, not a "       *
+              "convergence or grid problem.\n"                                                                   *
+              ">>> Its INTERNAL consistency does hold: the sum over partial waves converges in maxKappa and "    *
+              "the coefficient falls\n"                                                                          *
+              "    monotonically with the electron energy, so the module remains useful for that kind of check.\n" *
+              ">>> Set  acceptUnvalidated = true  to obtain numbers on that understanding.\n")
+    end
     println("")
     printstyled("InternalConversion.computeLines(): The computation of internal conversion coefficients starts now ... \n", color=:light_green)
     printstyled("----------------------------------------------------------------------------------------------------- \n", color=:light_green)
