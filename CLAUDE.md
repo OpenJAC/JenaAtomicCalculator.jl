@@ -195,6 +195,62 @@ The working record that *does* hold such things -- findings in progress, wrong t
 unpublished plans -- lives outside the repository in the assistant's own memory directory, and stays there.
 Keep the two separate: this file is the curated, normative document; that one is the notebook.
 
+## Code hygiene for a source module (Rule 15)
+
+The layout rules a `src/module-*.jl` file should satisfy. They are applied by the `/hygiene` command below;
+`/audit` reports on them without changing anything. None of this is about being perfect -- it is about a
+reader finding what they expect where they expect it.
+
+**Order within the file**
+
+1. **Structs and their associated methods come first** -- each struct together with its constructors and its
+   `Base.show` -- and only then the compute-, determine- and display-methods.
+2. **Those methods appear in alphabetical order**, and each is separated from the next by **two blank lines**.
+
+**Docstrings**
+
+3. **Every function and method has its OWN docstring**, even where two of them look nearly alike. A shared
+   docstring covering several methods is not acceptable: a reader arriving at one method must find its
+   description attached to it.
+4. Each docstring opens with the signature -- `` `Module.functionName(argument::Type, ...)` `` -- character
+   for character as the `function` line below it, then a line starting with `...` that says what the function
+   is **good for**, and it makes the **return value explicit**: "a `value::Type` is returned".
+5. **140 characters is the line width to USE, not merely a ceiling not to exceed.** It applies to docstrings,
+   comments and code alike. Prose that wraps at 100 or 110 wastes a third of the line and reads worse for it, so
+   a paragraph is re-flowed to fill the width; a sentence that fits on one line is never split; and a wrapped
+   signature is put back on one line whenever the whole of it fits.
+
+   This applies to the `+ field ::Type   ... description` argument tables too, and they are the main reason for
+   the rule: the `+ name ::Type` part is an aligned table and stays exactly as it is, but the description after
+   the `...` is ordinary prose that must run to 140 before wrapping, with any continuation indented to the same
+   column as the `...`. A one-line description broken over two lines is precisely what this rule exists to stop.
+
+   Only two things keep their own layout, because there the line breaks carry meaning: the keyword list in a
+   copy-constructor docstring, and indented example or code blocks.
+
+**Comments**
+
+6. Inline comments start with a single `#`. Never `##`, `###` or deeper.
+7. **No banner blocks** of `#####...#####`. If such a block carries real content, it belongs in a docstring.
+8. **No empty `#` lines.** A blank line separates blocks of code better than a bare comment marker.
+9. Comments are for a reader who knows Julia and atomic physics but not this file's history. **Remove
+   historical remarks that can no longer be checked** -- references to code that has since been deleted, to
+   an older variant, or to a commit. A docstring says what the code does, not what it once differed from.
+   (The `#== ... ==#` form for a large deliberately-disabled block stays; it is a different thing.)
+
+**Bodies**
+
+10. Every compute-method **ends with a clear `return( ... )` line, separated from the body by a blank line**,
+    so the result and its type are visible without reading upwards. Very short functions may omit the blank
+    line.
+11. Top-level `function` lines and their docstrings start at column 1; 4-space indent inside.
+12. Existing column alignment in copy-constructors is preserved exactly (see the style section above).
+
+**A hygiene pass changes no behaviour.** That is what makes it verifiable, and the verification is not
+optional: the printed output of a real case must be **byte-identical** before and after, and the test suite
+must be unchanged with no approved reference re-approved. If a number moves, the pass did something it should
+not have.
+
 ## Commands
 
 A **command** is a named sequence of steps I execute and then summarize. The leading `/` is optional —
@@ -237,6 +293,40 @@ Read `src/module-<Name>.jl` and report anomalies as a bullet list (no changes ma
 missing or malformed docstrings, functions not at column 1, misaligned copy-constructor columns,
 `##x` dead-code markers, naming violations, missing `Settings()` zero-arg constructor,
 `field == nothing` guards instead of `isnothing(field)`.
+
+### /hygiene ModuleName
+**Apply the Rule 15 code-hygiene rules to ONE source module.**
+The acting counterpart of `/audit`, which only reports. One module per invocation, as always.
+
+1. Capture a **behaviour baseline** first: run one real case through the module and save its printed output.
+   Without this the pass cannot be verified, so it is not optional.
+2. Reorder: structs and their methods first, then the remaining methods alphabetically, two blank lines apart.
+3. Fix comments (`##` -> `#`, drop `#####` banners and empty `#` lines), then **re-flow docstring prose and
+   comment blocks to USE the 140-column width** (Rule 15.5) -- filling the line, not just staying under it --
+   including the descriptions in the `+ field ::Type ... text` tables, and leaving only copy-constructor keyword
+   lists and indented examples alone. A re-flow is verified by
+   comparing the **word sequence** before and after: it must be identical, since a re-flow may change only where
+   the line breaks fall. That check is what separates re-flowing from rewriting.
+4. Give every method its own docstring with signature, purpose and explicit return type; **remove historical
+   remarks that can no longer be checked**. Two shapes are worth grepping for, because both are left behind by
+   a retirement and both survive as text that no longer says anything: a docstring that describes itself --
+   `... as Module.thisSameFunction, but ...`, which was a real contrast only while the other version existed --
+   and a paragraph explaining what an earlier form *used to* do.
+5. Add the trailing blank line before each `return( ... )` where the function is long enough to warrant it.
+6. Verify: the saved output must be reproduced **byte for byte**, and `/test JAC` must be unchanged with no
+   approved reference re-approved. Report both.
+7. Report what was changed as counts (comments, banners, docstrings added, methods reordered) plus any
+   historical remark removed, since that last one is a judgement and the maintainer may disagree.
+
+Steps 2-5 are mechanical and are shown as a representative diff before being applied broadly, per the
+collaboration rule on bulk changes.
+
+**Before starting, switch the session to auto-accept** (shift+tab in the CLI and in the VSCode extension).
+A hygiene pass is dozens of small scripted steps -- reorder, re-flow, re-measure, re-run the baseline -- and
+confirming each one individually costs more attention than reading the final diff does. This is safe here for
+a specific reason, not as a general habit: the pass is verified by a byte-identical baseline and an unchanged
+test suite, so a wrong step is caught by the verification rather than by the confirmation prompt. The two
+prompts still worth keeping are the ones the collaboration rules protect -- the commit and the push.
 
 ### /diff
 **Summarize recent changes.**
