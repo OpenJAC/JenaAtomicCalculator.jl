@@ -383,6 +383,13 @@ end
         of Empirical.molecularOrbitalFraction and Empirical.molecularSpinFraction. Returns 0.0 (no correlation, channel j is
         not accessible from this ionic entrance) if the spin fraction is zero; see the section note above for the derivation
         and its verification against Table 1 of the paper. A value::Float64 in [0,1) is returned.
+
+        SCOPE. The counting is carried out in L and S, so it presumes LS coupling on both sides. That is genuinely valid for
+        the one-valence-electron systems the model was formulated on -- Ba+ in the paper -- but NOT for an open-shell or
+        heavy ion in intermediate coupling, where L and S are not good quantum numbers while J and parity still are. There
+        the weights returned here are approximate in a way this function cannot detect or report. A J-primary formulation,
+        combining J_j with H's fixed J = 1/2 by the same Omega-projection counting, would remove the assumption; it should
+        reproduce these numbers wherever LS coupling is in fact valid.
 """
 function statisticalWeight(Lj::Int64, Sj::Float64, Lion::Int64, Sion::Float64)
     return( Empirical.molecularOrbitalFraction(Lj, Lion) * Empirical.molecularSpinFraction(Sj, Sion) )
