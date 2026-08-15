@@ -626,25 +626,44 @@ function generateBlocks(comp::Cascade.Computation, confs::Array{Configuration,1}
         orbitalSets = Cascade.generateBoundOrbitals(comp.approach, comp, confs; printout=printout)
     end
     #
-    ## WARM START (13-Aug-2026).  With MultipletOrbitals every block solves its own field, and each one used to
-    ## begin from hydrogenic orbitals -- although consecutive blocks of a cascade differ by a single hole or a
-    ## single electron and their orbitals are therefore nearly the same.  Each block now starts from the last
-    ## converged set instead, seeded by the initial ion's own orbitals, which the caller already passes in.
-    ## The machinery for this existed and was used in exactly one place (the dielectronic-recombination
-    ## cascade): ManyElectron.StartFromPrevious, honoured by SelfConsistent.initializeBasis.  Subshells the
-    ## previous block did not have are filled hydrogenically there.
+    ## WARM START (13-Aug-2026), BROADCAST RATHER THAN CHAINED (15-Aug-2026).  With MultipletOrbitals every
+    ## block solves its own field, and each one used to begin from hydrogenic orbitals -- although every block
+    ## of a cascade differs from the initial ion by only a few holes or electrons, so their orbitals are
+    ## nearly the same.  Each block therefore starts from the INITIAL ion's converged orbitals, which the
+    ## caller already passes in.  The machinery existed and was used in exactly one place (the
+    ## dielectronic-recombination cascade): ManyElectron.StartFromPrevious, honoured by
+    ## SelfConsistent.initializeBasis, which fills any subshell the seed lacks hydrogenically.
     ##
-    ## This is where a cascade spends its time: profiling the Mg 1s-hole decay (RefinedSCA, 16 blocks) put
-    ## 77.6 % of the run inside generateBlocks and 83.0 % inside performSCF, against 0.2 % in computeSteps.
-    warmOrbitals = initalOrbitals
+    ## WHY BROADCAST AND NOT A CHAIN.  Until 15-Aug each block was seeded from the PREVIOUS block's converged
+    ## set.  That looks like the better guess -- adjacent blocks resemble each other more than either
+    ## resembles the initial ion -- but it makes the loop CARRY A DEPENDENCE, so the blocks cannot be run
+    ## concurrently.  Measured, the chain is not even faster.  Two cascades, RefinedSCA, MINIMUM OF FOUR runs
+    ## after a warm-up (total wall clock):
+    ##
+    ##      case          chained     broadcast
+    ##      Mg 1s-hole    36.46 s      33.31 s     broadcast 9 % faster
+    ##      Ar 2p-hole    14.94 s      13.63 s     broadcast 9 % faster
+    ##
+    ## Both give IDENTICAL line counts (Mg 99 Auger / 236 photon, Ar 21 / 55); the summed rates differ by
+    ## 3e-8 relative, i.e. two starting guesses landing at different points inside the same SCF convergence
+    ## tolerance.  Suite 48/48.
+    ## The chain probably loses because it DRIFTS: every block seeds the next, so a late block starts from a
+    ## guess that has wandered several charge states from its own solution, whereas the broadcast keeps every
+    ## block anchored to one converged reference.
+    ## MEASUREMENT NOTE: single readings are worthless here.  The Ar case spreads 33 % between repeats
+    ## (13.63 - 18.14 s), and a first two-run comparison made the broadcast look 17 % SLOWER.  Take the
+    ## minimum of at least four.
+    ##
+    ## Against no warm start at all (Mg): generateBlocks 25.61 s, total 45.18 s -- so the warm start is worth
+    ## about 1.28x on the whole cascade and has pulled generateBlocks from the 77.6 % of the 13-Aug profile
+    ## down to 48.5 %, which also caps what THREADING it could ever buy at roughly 2x.
     for  confa  in confs
         print("  Multiplet computations for $(string(confa)[1:end]) with $(confa.NoElectrons) electrons ... ")
         if  printSummary   println(iostream, "\n*  Multiplet computations for $(string(confa)[1:end]) with $(confa.NoElectrons) electrons ... ")   end
         if      cd.bound == Cascade.MultipletOrbitals()
-            blockSettings = length(warmOrbitals) == 0  ?  comp.asfSettings  :
-                            AsfSettings(comp.asfSettings; startScfFrom = ManyElectron.StartFromPrevious(warmOrbitals))
+            blockSettings = length(initalOrbitals) == 0  ?  comp.asfSettings  :
+                            AsfSettings(comp.asfSettings; startScfFrom = ManyElectron.StartFromPrevious(initalOrbitals))
             multiplet = SelfConsistent.performSCF([confa], comp.nuclearModel, comp.grid, blockSettings; printout=false)
-            warmOrbitals = multiplet.levels[1].basis.orbitals
         elseif  cd.bound == Cascade.GlobalOrbitals()
             multiplet = Hamiltonian.performCIwithFrozenOrbitals([confa], initalOrbitals, comp.nuclearModel, comp.grid,
                                                                 Cascade.asfSettingsForApproach(comp.approach, comp.asfSettings); printout=false)
