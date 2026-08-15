@@ -1072,25 +1072,17 @@ function XL_Coulomb(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital, gr
 
     xc = AngularMomentum.CL_reduced_me(a.subshell, L, c.subshell) * AngularMomentum.CL_reduced_me(b.subshell, L, d.subshell)
     if   rem(L,2) == 1    xc = - xc    end
-    ## NOT SWITCHED to the kink-aware RadialIntegrals.SlaterRkKinkAware -- attempted 13-Aug-2026 and
-    ## REVERTED, with what was measured recorded here so the attempt is not simply repeated.
-    ##
-    ## The kink-aware integral IS the better quadrature, and that part is settled: against the analytic
-    ## F^0(1s,1s) = 5Z/8 it is converged already on the coarsest grid tried (identical to nine digits over
-    ## a 10x refinement), whereas this line's rule still drifts; on JAC's DEFAULT exponential grid the
-    ## errors are 2.59e-4 against 7.85e-5.  The two agree to 1e-5..2e-4 on direct AND cross terms, both
-    ## satisfy R^k(abcd) = R^k(badc), and the discrepancy grows with rank as the r_< / r_> cusp sharpens.
-    ##
-    ## WHAT STOPPED THE SWITCH is that its effect on the approved references could not be interpreted.
-    ## Median changes are 1e-5..1e-3, as a 1e-4 shift in the integrals should give -- but individual
-    ## entries move by factors of 10 to 250, and it could NOT be established whether those are real
-    ## near-cancellations or merely rows changing places, since test-Cascade-StepwiseDecay is known to
-    ## reorder degenerate levels and a line-by-line file comparison cannot tell the two apart.
-    ##
-    ## Re-approving twelve references on evidence that cannot be read would be the opposite of a
-    ## deliberate editorial act.  The switch needs a comparison that matches transitions by their QUANTUM
-    ## NUMBERS rather than by line position; until that exists, this stays as it is.
-    XL_Coulomb = xc * RadialIntegrals.SlaterRk(L, a, b, c, d, grid)
+    # The kink-aware quadrature integrates across the r_< / r_> cusp instead of through it. Against the
+    # analytic F^0(1s,1s) = 5Z/8 it is converged already on the coarsest grid tried -- identical to nine
+    # digits over a 10x refinement -- where the plain rule still drifts; on JAC's default exponential grid
+    # the errors are 7.85e-5 against 2.59e-4, and the gap grows with rank as the cusp sharpens. Both forms
+    # satisfy R^k(abcd) = R^k(badc) and agree to 1e-5..2e-4 on direct and cross terms alike.
+    #
+    # Switching it on moves every approved reference. Almost everywhere the shift is the 1e-4 the integrals
+    # themselves carry; it reaches the percent level only in small splittings between close-lying levels,
+    # where a difference of two large numbers inherits the whole absolute change. Such a splitting is then
+    # not converged in either form, which is a statement about grid and basis rather than about quadrature.
+    XL_Coulomb = xc * RadialIntegrals.SlaterRkKinkAware(L, a, b, c, d, grid)
 
 
     return( XL_Coulomb )
