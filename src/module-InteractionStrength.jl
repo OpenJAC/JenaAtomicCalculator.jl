@@ -21,15 +21,69 @@ using  GSL, ..AngularMomentum, ..Basics, ..Bsplines, ..Defaults, ..ManyElectron,
     + d         ::Orbital
     + coeff     ::Float64    ... corresponding coefficient.
 """
-struct XLCoefficient 
+struct XLCoefficient
     kind        ::Char
     nu          ::Int64
     a           ::Orbital
     b           ::Orbital
     c           ::Orbital
     d           ::Orbital
-    coeff       ::Float64 
-end 
+    coeff       ::Float64
+end
+
+
+"""
+`const  InteractionStrength.XLKey`
+    ... the key under which one interaction strength is memoised: (route, L, a, b, c, d, factor), where the
+        four Subshells are those of the orbitals a, b, c, d.
+
+        THE ROUTE IS PART OF THE KEY, which is why ONE cache serves every X^L. `XL_Coulomb`,
+        `XL_CoulombKinkAware` and `XL_Breit` all answer the same kind of question -- a strength for rank L
+        and four orbitals, asked for by a spin-angular coefficient -- so what separates them belongs here
+        rather than in three separate dictionaries. `route` is one of :Coulomb, :CoulombKinkAware, :Gaunt
+        or :Breit, and `factor` carries the photon-frequency scaling of CoulombBreit(factor); it is 0. for
+        every route that has none.
+
+        `Subshell` is a plain immutable struct of two Int64 fields, so Julia hashes it structurally and it
+        enters the key directly -- there is no string to build, and none to read back when debugging.
+"""
+const XLKey = Tuple{Symbol, Int64, Subshell, Subshell, Subshell, Subshell, Float64}
+
+
+"""
+`struct  InteractionStrength.XLCache`
+    ... memoises the effective interaction strengths X^L(abcd) of ONE matrix.
+
+        WHY THIS IS A PARAMETER AND NOT A GLOBAL.  Within a single CI matrix the same rank and subshell
+        quadruple recur across many CSF pairs, so the double radial integral is worth doing once.  But the
+        key holds subshell LABELS, and labels identify orbitals only within one basis: two bases can both
+        contain a "2s_1/2" whose radial functions differ entirely.  Until 15-Aug-2026 the store was a module
+        global wiped by whoever built a matrix -- `Hamiltonian.performCI`, `performCIKinkAware` and
+        `Basics.compute(::CImatrixWithSymmetryJP)` each called an `XL_*_reset_storage` some 200 lines from
+        the fill -- so the key was unambiguous only because of a promise made in another module, which
+        nothing checked and no signature mentioned.
+
+        Handing the cache to the function that fills it makes that promise a fact: the cache is created by
+        the matrix builder and goes out of scope when the matrix is finished, so it CANNOT outlive the basis
+        whose labels it uses.  It also makes concurrent matrix builds safe by construction, since two
+        matrices cannot share a cache that neither of them owns.
+
+        This is the pattern JAC already uses elsewhere -- `Bsplines.setupLocalMatrix` and
+        `generateTTpMatrix!` take a `storage::Dict`, `RadialIntegrals.ScreenedPotentialCache` is built and
+        passed, and the EOL solver threads its own `cache1p`/`cache2p` -- so the XL_* strengths were the one
+        remaining place that kept its memo out of sight.
+
+    + values    ::Dict{XLKey, Float64}   ... the memoised strengths.
+"""
+struct  XLCache
+    values      ::Dict{XLKey, Float64}
+end
+
+
+"""
+`InteractionStrength.XLCache()`  ... constructor for an empty cache of interaction strengths.
+"""
+XLCache() = XLCache( Dict{XLKey, Float64}() )
 
 
 """
@@ -522,64 +576,73 @@ end
 
 
 """
-`InteractionStrength.XL_Breit_reset_storage(keep::Bool; printout::Bool=false)`  
-    ... resets the global storage of XL_Breit interaction strength; nothing is returned.
+`InteractionStrength.XL_Breit(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital, grid::Radial.Grid,
+                              eeint::Union{BreitInteraction, CoulombBreit, CoulombGaunt})`
+    ... computes the effective Breit interaction strength X^L_Breit (abcd), or the Gaunt strength
+        X^L_Gaunt (abcd) for eeint = CoulombGaunt(), for given rank L and orbital functions a, b, c and d at
+        the given grid. A value::Float64 is returned.
+        The factor of CoulombBreit(factor) scales the photon wave number omega = factor |E_a - E_c| / c, so
+        factor = 0 gives the frequency-independent interaction as the exact limit of the same expressions;
+        see the reference formulation heading this section.
+        To memoise the result, use the method that additionally takes an InteractionStrength.XLCache.
 """
-function XL_Breit_reset_storage(keep::Bool; printout::Bool=false)
-    if  keep
-        if  printout   println("  reset GBL_Storage_XL_Breit storage ...")    end
-        global GBL_Storage_XL_Breit = Dict{String, Float64}()
-    else
+function XL_Breit(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital, grid::Radial.Grid,
+                    eeint::Union{BreitInteraction, CoulombBreit, CoulombGaunt})
+    ja2 = Basics.subshell_2j(a.subshell)
+    jb2 = Basics.subshell_2j(b.subshell)
+    jc2 = Basics.subshell_2j(c.subshell)
+    jd2 = Basics.subshell_2j(d.subshell)
+    if  AngularMomentum.triangularDelta(ja2+1,jc2+1,L+L+1) * AngularMomentum.triangularDelta(jb2+1,jd2+1,L+L+1) == 0   ||  L == 0
+        return( 0. )
     end
-    return( nothing )      
+
+    # Calculate a reduced number of cofficients for the CoulombGaunt() interaction
+    onlyGaunt, factor = InteractionStrength.breitRouteOf(eeint)
+    xcList = XL_Breit_coefficients(L, a, b, c, d, onlyGaunt=onlyGaunt)
+
+    return( XL_Breit_densities(xcList, factor, grid) )
+end
+
+
+"""
+`InteractionStrength.breitRouteOf(eeint::Union{BreitInteraction, CoulombBreit, CoulombGaunt})`
+    ... resolves an e-e interaction into the two things the Breit strength actually depends on: whether only
+        the Gaunt (magnetic) part is wanted, and the factor that scales the photon wave number. A tuple
+        (onlyGaunt::Bool, factor::Float64) is returned.
+
+        These two ALSO identify the route for caching purposes, which is why they are resolved in one place:
+        CoulombGaunt() and CoulombBreit(0.) give the same coefficients but NOT the same strength, and a memo
+        keyed only on rank and subshells would confuse them. See InteractionStrength.XLCache.
+"""
+function breitRouteOf(eeint::Union{BreitInteraction, CoulombBreit, CoulombGaunt})
+    if    typeof(eeint) == CoulombGaunt   return( (true,  0.) )
+    else                                  return( (false, eeint.factor) )
+    end
 end
 
 
 """
 `InteractionStrength.XL_Breit(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital, grid::Radial.Grid,
-                                eeint::Union{BreitInteraction, CoulombBreit, CoulombGaunt}; keep::Bool=false)`  
-    ... computes the the effective Breit interaction strengths X^L_Breit (abcd) or Gaunt interaction strengths 
-        X^L_Gaunt (abcd) for given rank L and orbital functions a, b, c and d  at the given grid. 
-        For keep=true, the procedure looks up the (global) directory GBL_Storage_XL_Coulomb
-        and returns the corresponding value without re-calculation of the interaction strength; it also 'stores' the calculated
-        value if not yet included. For keep=false, the interaction strength is always computed on-fly. A value::Float64 is returned. 
-        At present ONLY THE ZERO-FREQUENCY LIMIT IS RETURNED, whatever factor is given: the
-        frequency-dependent kernels below are not consumed by any branch.  See the reference formulation
-        heading this section.
+                               eeint::Union{BreitInteraction, CoulombBreit, CoulombGaunt},
+                               cache::InteractionStrength.XLCache)`
+    ... as XL_Breit without a cache, but memoising the result in the given cache. A value::Float64 is
+        returned.
+
+        THE KEY CARRIES THE ROUTE AND THE FACTOR, which the former global store did not: it was keyed on
+        rank and subshells alone, so a CoulombGaunt() strength and a CoulombBreit(1.) strength for the same
+        four orbitals would have collided. That was latent rather than live, since one matrix build uses a
+        single settings.eeInteractionCI -- but it is exactly the kind of promise this cache no longer needs
+        to make. See InteractionStrength.XLCache.
 """
 function XL_Breit(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital, grid::Radial.Grid,
-                    eeint::Union{BreitInteraction, CoulombBreit, CoulombGaunt}; keep::Bool=false)
-    global GBL_Storage_XL_Breit
-    ja2 = Basics.subshell_2j(a.subshell)
-    jb2 = Basics.subshell_2j(b.subshell)
-    jc2 = Basics.subshell_2j(c.subshell)
-    jd2 = Basics.subshell_2j(d.subshell)
-    if  AngularMomentum.triangularDelta(ja2+1,jc2+1,L+L+1) * AngularMomentum.triangularDelta(jb2+1,jd2+1,L+L+1) == 0   ||  L == 0  
-        return( 0. )
-    end
-    
-    # Calculate a reduced number of cofficients for the CoulombGaunt() interaction
-    if    typeof(eeint) == CoulombGaunt   onlyGaunt = true;    factor = 0.
-    else                                  onlyGaunt = false;   factor = eeint.factor   
-    end
-    
-    # Now distiguish due to the optional argument keep
-    if  keep
-        sa = "XL" * string(L) * " " * string(a.subshell) * string(b.subshell) * string(c.subshell) * string(d.subshell)
-        if haskey(GBL_Storage_XL_Breit, sa )
-            XL_Breit = GBL_Storage_XL_Breit[sa]
-        else
-            xcList   = XL_Breit_coefficients(L,a,b,c,d, onlyGaunt=onlyGaunt)
-            XL_Breit = XL_Breit_densities(xcList, factor, grid)
-            global GBL_Storage_XL_Breit = Base.merge(GBL_Storage_XL_Breit, Dict( sa => XL_Breit))
-        end
-    else
-        xcList   = XL_Breit_coefficients(L,a,b,c,d, onlyGaunt=onlyGaunt)
-        XL_Breit = XL_Breit_densities(xcList, factor, grid)
-    end
-    #
-
-    return( XL_Breit )
+                    eeint::Union{BreitInteraction, CoulombBreit, CoulombGaunt}, cache::XLCache)
+    onlyGaunt, factor = InteractionStrength.breitRouteOf(eeint)
+    route = onlyGaunt ? :Gaunt : :Breit
+    key   = (route, L, a.subshell, b.subshell, c.subshell, d.subshell, factor)
+    haskey(cache.values, key)   &&   return( cache.values[key] )
+    value = InteractionStrength.XL_Breit(L, a, b, c, d, grid, eeint)
+    cache.values[key] = value
+    return( value )
 end
 
 
@@ -606,9 +669,7 @@ function XL_BreitDamped(tau::Float64, L::Int64, a::Orbital, b::Orbital, c::Orbit
         return( 0. )
     end
     #
-    if    typeof(eeint) == CoulombGaunt   onlyGaunt = true;    factor = 0.
-    else                                  onlyGaunt = false;   factor = eeint.factor
-    end
+    onlyGaunt, factor = InteractionStrength.breitRouteOf(eeint)
     xcList = XL_Breit_coefficients(L, a, b, c, d, onlyGaunt=onlyGaunt)
     return( XL_Breit_densities(xcList, factor, grid, tau=tau) )
 end
@@ -976,115 +1037,29 @@ end
 
 
 """
-`InteractionStrength.XL_Coulomb_reset_storage(keep::Bool; printout::Bool=false)`  
-    ... resets the global storage of XL_Coulomb interaction strength; nothing is returned.
+`InteractionStrength.XL_Coulomb(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital, grid::Radial.Grid,
+                                cache::InteractionStrength.XLCache)`
+    ... as XL_Coulomb without a cache, but memoising the result in the given cache and returning the stored
+        value when the same rank and subshells are asked for again. A value::Float64 is returned.
+        See InteractionStrength.XLCache for why the cache is a parameter rather than a global.
 """
-function XL_Coulomb_reset_storage(keep::Bool; printout::Bool=false)
-    if  keep
-        if printout     println(">> Reset GBL_Storage_XL_Coulomb storage.")     end
-        global GBL_Storage_XL_Coulomb = Dict{String, Float64}()
-    else
-    end
-    return( nothing )      
+function XL_Coulomb(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital, grid::Radial.Grid, cache::XLCache)
+    key = (:Coulomb, L, a.subshell, b.subshell, c.subshell, d.subshell, 0.)
+    haskey(cache.values, key)   &&   return( cache.values[key] )
+    value = InteractionStrength.XL_Coulomb(L, a, b, c, d, grid)
+    cache.values[key] = value
+    return( value )
 end
 
 
 """
-`InteractionStrength.XL_Coulomb(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital, grid::Radial.Grid; keep::Bool=false)`  
-    ... computes the the effective Coulomb interaction strengths X^L_Coulomb (abcd) for given rank L and orbital functions 
-        a, b, c and d at the given grid. For keep=true, the procedure looks up the (global) directory GBL_Storage_XL_Coulomb
-        and returns the corresponding value without re-calculation of the interaction strength; it also 'stores' the calculated
-        value if not yet included. For keep=false, the interaction strength is always computed on-fly. A value::Float64 is 
-        returned.
+`InteractionStrength.XL_Coulomb(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital, grid::Radial.Grid)`
+    ... computes the effective Coulomb interaction strength X^L_Coulomb (abcd) for given rank L and orbital
+        functions a, b, c and d at the given grid. A value::Float64 is returned.
+        To memoise the result, use the method that additionally takes an InteractionStrength.XLCache.
 """
-function XL_Coulomb(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital, grid::Radial.Grid; keep::Bool=false)
-    global GBL_Storage_XL_Coulomb
+function XL_Coulomb(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital, grid::Radial.Grid)
     # Test for the triangular-delta conditions and calculate the reduced matrix elements of the C^L tensors
-    la = Basics.subshell_l(a.subshell);    ja2 = Basics.subshell_2j(a.subshell)
-    lb = Basics.subshell_l(b.subshell);    jb2 = Basics.subshell_2j(b.subshell)
-    lc = Basics.subshell_l(c.subshell);    jc2 = Basics.subshell_2j(c.subshell)
-    ld = Basics.subshell_l(d.subshell);    jd2 = Basics.subshell_2j(d.subshell)
-
-    if  AngularMomentum.triangularDelta(ja2+1,jc2+1,L+L+1) * AngularMomentum.triangularDelta(jb2+1,jd2+1,L+L+1) == 0   ||   
-        rem(la+lc+L,2) == 1   ||   rem(lb+ld+L,2) == 1
-        return( 0. )
-    end
-    
-    # Now distiguish due to the optional argument keep
-    if  keep
-        sa = "XL" * string(L) * " " * string(a.subshell) * string(b.subshell) * string(c.subshell) * string(d.subshell)
-        if haskey(GBL_Storage_XL_Coulomb, sa )
-            XL_Coulomb = GBL_Storage_XL_Coulomb[sa]
-        else
-            XL_Coulomb = InteractionStrength.XL_Coulomb(L::Int64, a, b, c, d, grid)
-            ## global GBL_Storage_XL_Coulomb = Base.merge(GBL_Storage_XL_Coulomb, Dict( sa => XL_Coulomb))
-            global GBL_Storage_XL_Coulomb[sa] = XL_Coulomb
-        end
-    else
-        xc = AngularMomentum.CL_reduced_me(a.subshell, L, c.subshell) * AngularMomentum.CL_reduced_me(b.subshell, L, d.subshell)
-        if   rem(L,2) == 1    xc = - xc    end
-        ## NOT SWITCHED to the kink-aware RadialIntegrals.SlaterRkKinkAware -- attempted 13-Aug-2026 and
-        ## REVERTED, with what was measured recorded here so the attempt is not simply repeated.
-        ##
-        ## The kink-aware integral IS the better quadrature, and that part is settled: against the analytic
-        ## F^0(1s,1s) = 5Z/8 it is converged already on the coarsest grid tried (identical to nine digits over
-        ## a 10x refinement), whereas this line's rule still drifts; on JAC's DEFAULT exponential grid the
-        ## errors are 2.59e-4 against 7.85e-5.  The two agree to 1e-5..2e-4 on direct AND cross terms, both
-        ## satisfy R^k(abcd) = R^k(badc), and the discrepancy grows with rank as the r_< / r_> cusp sharpens.
-        ##
-        ## WHAT STOPPED THE SWITCH is that its effect on the approved references could not be interpreted.
-        ## Median changes are 1e-5..1e-3, as a 1e-4 shift in the integrals should give -- but individual
-        ## entries move by factors of 10 to 250, and it could NOT be established whether those are real
-        ## near-cancellations or merely rows changing places, since test-Cascade-StepwiseDecay is known to
-        ## reorder degenerate levels and a line-by-line file comparison cannot tell the two apart.
-        ##
-        ## Re-approving twelve references on evidence that cannot be read would be the opposite of a
-        ## deliberate editorial act.  The switch needs a comparison that matches transitions by their QUANTUM
-        ## NUMBERS rather than by line position; until that exists, this stays as it is.
-        XL_Coulomb = xc * RadialIntegrals.SlaterRk(L, a, b, c, d, grid)
-
-    end
-
-    return( XL_Coulomb )
-end
-
-
-"""
-`InteractionStrength.XL_CoulombKinkAware_reset_storage(keep::Bool; printout::Bool=false)`
-    ... resets the global storage of XL_CoulombKinkAware interaction strengths (a SEPARATE cache from
-        XL_Coulomb's own GBL_Storage_XL_Coulomb, since the kink-aware and standard quadratures give
-        different numeric results for the same subshell labels and must not share a cache namespace);
-        nothing is returned.
-"""
-function XL_CoulombKinkAware_reset_storage(keep::Bool; printout::Bool=false)
-    if  keep
-        if printout     println(">> Reset GBL_Storage_XL_CoulombKinkAware storage.")     end
-        global GBL_Storage_XL_CoulombKinkAware = Dict{String, Float64}()
-    else
-    end
-    return( nothing )
-end
-
-
-"""
-`InteractionStrength.XL_CoulombKinkAware(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital, grid::Radial.Grid; keep::Bool=false)`
-    ... computes the same effective Coulomb interaction strength as XL_Coulomb(L, a, b, c, d, grid), including the
-        same triangular-delta veto and angular reduced-matrix-element prefactor xc, but using the kink-aware
-        RadialIntegrals.SlaterRkKinkAware for the underlying radial integral instead of RadialIntegrals.
-        SlaterRk. For keep=true, looks up (and stores into) the global GBL_Storage_XL_CoulombKinkAware
-        Dict, mirroring XL_Coulomb's own keep/GBL_Storage_XL_Coulomb pattern exactly -- used by
-        Hamiltonian.setupMatrixKinkAware (the CI-matrix Coulomb term for ALField/EOLField), where orbitals
-        are FIXED for the whole performCIKinkAware call, so caching is unconditionally safe there. NOT enabled
-        (keep=false, the default) at SelfConsistent.computeTwoElectronV's own call site: that call sits
-        inside the outer SCF iteration, where orbitals change every iteration, so a cache surviving across
-        iterations would silently return stale integrals from an earlier orbital shape -- extending caching
-        safely into that loop needs its own explicit per-iteration reset wiring, deferred as a separate item.
-        Isolated from XL_Coulomb; shared by Hamiltonian.setupMatrixKinkAware and
-        SelfConsistent.computeTwoElectronV (their Fock matrix, uncached). A value::Float64 is
-        returned.
-"""
-function XL_CoulombKinkAware(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital, grid::Radial.Grid; keep::Bool=false)
-    global GBL_Storage_XL_CoulombKinkAware
     la = Basics.subshell_l(a.subshell);    ja2 = Basics.subshell_2j(a.subshell)
     lb = Basics.subshell_l(b.subshell);    jb2 = Basics.subshell_2j(b.subshell)
     lc = Basics.subshell_l(c.subshell);    jc2 = Basics.subshell_2j(c.subshell)
@@ -1095,24 +1070,82 @@ function XL_CoulombKinkAware(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Or
         return( 0. )
     end
 
-    if  keep
-        sa = "XL" * string(L) * " " * string(a.subshell) * string(b.subshell) * string(c.subshell) * string(d.subshell)
-        if haskey(GBL_Storage_XL_CoulombKinkAware, sa)
-            return( GBL_Storage_XL_CoulombKinkAware[sa] )
-        end
+    xc = AngularMomentum.CL_reduced_me(a.subshell, L, c.subshell) * AngularMomentum.CL_reduced_me(b.subshell, L, d.subshell)
+    if   rem(L,2) == 1    xc = - xc    end
+    ## NOT SWITCHED to the kink-aware RadialIntegrals.SlaterRkKinkAware -- attempted 13-Aug-2026 and
+    ## REVERTED, with what was measured recorded here so the attempt is not simply repeated.
+    ##
+    ## The kink-aware integral IS the better quadrature, and that part is settled: against the analytic
+    ## F^0(1s,1s) = 5Z/8 it is converged already on the coarsest grid tried (identical to nine digits over
+    ## a 10x refinement), whereas this line's rule still drifts; on JAC's DEFAULT exponential grid the
+    ## errors are 2.59e-4 against 7.85e-5.  The two agree to 1e-5..2e-4 on direct AND cross terms, both
+    ## satisfy R^k(abcd) = R^k(badc), and the discrepancy grows with rank as the r_< / r_> cusp sharpens.
+    ##
+    ## WHAT STOPPED THE SWITCH is that its effect on the approved references could not be interpreted.
+    ## Median changes are 1e-5..1e-3, as a 1e-4 shift in the integrals should give -- but individual
+    ## entries move by factors of 10 to 250, and it could NOT be established whether those are real
+    ## near-cancellations or merely rows changing places, since test-Cascade-StepwiseDecay is known to
+    ## reorder degenerate levels and a line-by-line file comparison cannot tell the two apart.
+    ##
+    ## Re-approving twelve references on evidence that cannot be read would be the opposite of a
+    ## deliberate editorial act.  The switch needs a comparison that matches transitions by their QUANTUM
+    ## NUMBERS rather than by line position; until that exists, this stays as it is.
+    XL_Coulomb = xc * RadialIntegrals.SlaterRk(L, a, b, c, d, grid)
+
+
+    return( XL_Coulomb )
+end
+
+
+"""
+`InteractionStrength.XL_CoulombKinkAware(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital, grid::Radial.Grid)`
+    ... computes the same effective Coulomb interaction strength as XL_Coulomb(L, a, b, c, d, grid),
+        including the same triangular-delta veto and angular reduced-matrix-element prefactor xc, but using
+        the kink-aware RadialIntegrals.SlaterRkKinkAware for the underlying radial integral instead of
+        RadialIntegrals.SlaterRk. A value::Float64 is returned.
+        Shared by Hamiltonian.setupMatrixKinkAware (the CI-matrix Coulomb term for ALField/EOLField) and by
+        SelfConsistent.computeTwoElectronV (their Fock matrix).
+        To memoise the result, use the method that additionally takes an InteractionStrength.XLCache -- and
+        see there for why SelfConsistent.computeTwoElectronV must NOT create one.
+"""
+function XL_CoulombKinkAware(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital, grid::Radial.Grid)
+    la = Basics.subshell_l(a.subshell);    ja2 = Basics.subshell_2j(a.subshell)
+    lb = Basics.subshell_l(b.subshell);    jb2 = Basics.subshell_2j(b.subshell)
+    lc = Basics.subshell_l(c.subshell);    jc2 = Basics.subshell_2j(c.subshell)
+    ld = Basics.subshell_l(d.subshell);    jd2 = Basics.subshell_2j(d.subshell)
+
+    if  AngularMomentum.triangularDelta(ja2+1,jc2+1,L+L+1) * AngularMomentum.triangularDelta(jb2+1,jd2+1,L+L+1) == 0   ||
+        rem(la+lc+L,2) == 1   ||   rem(lb+ld+L,2) == 1
+        return( 0. )
     end
 
     xc = AngularMomentum.CL_reduced_me(a.subshell, L, c.subshell) * AngularMomentum.CL_reduced_me(b.subshell, L, d.subshell)
     if   rem(L,2) == 1    xc = - xc    end
 
-    XL_CoulombKinkAwareValue = xc * RadialIntegrals.SlaterRkKinkAware(L, a, b, c, d, grid)
+    return( xc * RadialIntegrals.SlaterRkKinkAware(L, a, b, c, d, grid) )
+end
 
-    if  keep
-        sa = "XL" * string(L) * " " * string(a.subshell) * string(b.subshell) * string(c.subshell) * string(d.subshell)
-        global GBL_Storage_XL_CoulombKinkAware[sa] = XL_CoulombKinkAwareValue
-    end
 
-    return( XL_CoulombKinkAwareValue )
+"""
+`InteractionStrength.XL_CoulombKinkAware(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital,
+                                          grid::Radial.Grid, cache::InteractionStrength.XLCache)`
+    ... as XL_CoulombKinkAware without a cache, but memoising the result in the given cache. A value::Float64
+        is returned.
+
+        THE OLD DOCSTRING WARNED IN PROSE about the very thing the cache parameter now settles: caching had
+        to be left off (keep=false) at SelfConsistent.computeTwoElectronV's call site, because that call sits
+        INSIDE the SCF iteration, where the orbitals change from one iteration to the next and a store keyed
+        on subshell labels would hand back an integral computed for an earlier orbital shape. With the cache
+        owned by its caller, that is no longer a rule to remember: a caller inside an SCF iteration simply
+        does not create one. See InteractionStrength.XLCache.
+"""
+function XL_CoulombKinkAware(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital, grid::Radial.Grid,
+                              cache::XLCache)
+    key = (:CoulombKinkAware, L, a.subshell, b.subshell, c.subshell, d.subshell, 0.)
+    haskey(cache.values, key)   &&   return( cache.values[key] )
+    value = InteractionStrength.XL_CoulombKinkAware(L, a, b, c, d, grid)
+    cache.values[key] = value
+    return( value )
 end
 
 

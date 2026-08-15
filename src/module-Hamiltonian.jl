@@ -99,20 +99,23 @@ function performCI(basis::Basis, nm::Nuclear.Model, grid::Radial.Grid, settings:
     NoCsf = 0;   for (sym,v) in symmetries   NoCsf = NoCsf + v   end
     if  NoCsf != length(basis.csfs)   error("stop b; NoCsf = $NoCsf ")   end
 
-    # Reset the radial-integral caches ONCE per performCI call (28-Jul-2026), not once per symmetry block as
-    # setupMatrix used to do: the cache key (rank + subshell labels) never depends on which block is being
-    # built, so an identical radial integral shared across different blocks (very common -- many blocks
-    # reference the same subshell set) is legitimately reusable across the whole CI computation. Resetting
-    # here still ensures a clean cache between independent performCI calls (e.g. successive RAS layers).
-    InteractionStrength.XL_Coulomb_reset_storage(true, printout=false)
-    InteractionStrength.XL_Breit_reset_storage(true, printout=false)
+    # The radial-integral cache is created ONCE per performCI call and handed to every symmetry block, not
+    # once per block as setupMatrix used to do (28-Jul-2026): its key is rank + subshell labels, which does
+    # not depend on which block is being built, so an integral shared across blocks -- very common, since
+    # many blocks reference the same subshell set -- is legitimately reusable across the whole computation.
+    # OWNING IT HERE is what makes the labels-only key safe (15-Aug-2026): every block of this call shares
+    # one BASIS, so a label identifies one orbital throughout, and the cache goes out of scope with the
+    # call, so it cannot leak into the next performCI (a successive RAS layer, say) or into another task.
+    # Until 15-Aug this was a module global wiped by an XL_*_reset_storage call here, and its correctness
+    # rested on that wipe rather than on anything a reader of setupMatrix could see.
+    xlCache = InteractionStrength.XLCache()
 
     # Calculate for each symmetry block the corresponding CI matrix, diagonalize it and append a Multiplet for this block
     multiplets = Multiplet[]
     for  (sym,v) in  symmetries
         # Skip the symmetry block if it not selected
         if  !Basics.selectSymmetry(sym, settings.levelSelectionCI)     continue    end
-        matrix = Hamiltonian.setupMatrix(sym, basis, nm, grid, settings; printout=printout)
+        matrix = Hamiltonian.setupMatrix(sym, basis, nm, grid, settings, xlCache; printout=printout)
         eigen  = Hamiltonian.diagonalizeCiMatrix(matrix, settings.levelSelectionCI)
 
         # Reassign state vectors to levels
@@ -219,12 +222,14 @@ end
 
 
 """
-`Hamiltonian.setupMatrix(sym::LevelSymmetry, basis::Basis, nm::Nuclear.Model, grid::Radial.Grid, settings::AsfSettings; printout::Bool=false)
+`Hamiltonian.setupMatrix(sym::LevelSymmetry, basis::Basis, nm::Nuclear.Model, grid::Radial.Grid, settings::AsfSettings,
+                          cache::InteractionStrength.XLCache; printout::Bool=false)
     ... Set-up (computes) the Hamiltonian matrix for all CSF with symmetry sym in the given basis. The individual contributions
         from the Breit or diagonal interaction as well as from QED to this matrix are controlled by the settings.
         A  matrix::Arrays{Float64,2}  is returned.
 """
-function setupMatrix(sym::LevelSymmetry, basis::Basis, nm::Nuclear.Model, grid::Radial.Grid, settings::AsfSettings; printout::Bool=false)
+function setupMatrix(sym::LevelSymmetry, basis::Basis, nm::Nuclear.Model, grid::Radial.Grid, settings::AsfSettings,
+                      cache::InteractionStrength.XLCache; printout::Bool=false)
 
     # Determine the dimension of the CI matrix and the indices of the CSF with J^P symmetry in the basis
     idx_csf = Int64[]
@@ -254,7 +259,7 @@ function setupMatrix(sym::LevelSymmetry, basis::Basis, nm::Nuclear.Model, grid::
     # completely ignores the lower one (confirmed: Symmetric([1 2 3; 999 5 6; 999 999 9]) == the honest
     # symmetric matrix, garbage lower-left included) -- so the lower triangle was always discarded even
     # before this change; no mirroring step is needed, only skipping the redundant r>s work.
-    matrix = zeros(Float64, n, n);      keep = true
+    matrix = zeros(Float64, n, n)
     for  r = 1:n
         for  s = r:n
             if  settings.eeInteractionCI == DiagonalCoulomb()  &&  r != s    continue    end
@@ -278,13 +283,13 @@ function setupMatrix(sym::LevelSymmetry, basis::Basis, nm::Nuclear.Model, grid::
             for  coeff in waG2
                 if  typeof(settings.eeInteractionCI) in [DiagonalCoulomb, CoulombInteraction, CoulombBreit, CoulombGaunt]
                     me = me + coeff.V * InteractionStrength.XL_Coulomb(coeff.nu, basis.orbitals[coeff.a], basis.orbitals[coeff.b],
-                                                                                 basis.orbitals[coeff.c], basis.orbitals[coeff.d], grid, keep=keep)
+                                                                                 basis.orbitals[coeff.c], basis.orbitals[coeff.d], grid, cache)
                 end
                                                                                         
                 if      typeof(settings.eeInteractionCI) in [BreitInteraction, CoulombBreit, CoulombGaunt]
                     me = me + coeff.V * InteractionStrength.XL_Breit(coeff.nu, basis.orbitals[coeff.a], basis.orbitals[coeff.b],
                                                                                basis.orbitals[coeff.c], basis.orbitals[coeff.d], grid,
-                                                                               settings.eeInteractionCI, keep=keep)     
+                                                                               settings.eeInteractionCI, cache)     
                 end
             end
             matrix[r,s] = me
@@ -320,23 +325,17 @@ function performCIKinkAware(basis::Basis, nm::Nuclear.Model, grid::Radial.Grid, 
     NoCsf = 0;   for (sym,v) in symmetries   NoCsf = NoCsf + v   end
     if  NoCsf != length(basis.csfs)   error("stop b; NoCsf = $NoCsf ")   end
 
-    # Reset the radial-integral caches ONCE per performCIKinkAware call (28-Jul-2026), not once per symmetry
-    # block as setupMatrixKinkAware used to do -- identical reasoning to the same fix in performCI/setupMatrix:
-    # the cache key never depends on which block is being built, so a Breit integral shared across blocks
-    # is legitimately reusable. XL_Coulomb_reset_storage is kept here too even though setupMatrixKinkAware's own
-    # Coulomb term (XL_CoulombKinkAware) now has its own SEPARATE cache (GBL_Storage_XL_CoulombKinkAware, reset by
-    # XL_CoulombKinkAware_reset_storage below) -- harmless no-op for the standard Coulomb cache, which
-    # setupMatrixKinkAware never reads from.
-    InteractionStrength.XL_Coulomb_reset_storage(true, printout=false)
-    InteractionStrength.XL_Breit_reset_storage(true, printout=false)
-    InteractionStrength.XL_CoulombKinkAware_reset_storage(true, printout=false)
+    # One cache for the whole call, shared by every symmetry block; see performCI for why owning it here
+    # is what makes a key of rank + subshell labels legitimate.  All three routes share it, the route being
+    # part of the key.
+    xlCache = InteractionStrength.XLCache()
 
     # Calculate for each symmetry block the corresponding CI matrix, diagonalize it and append a Multiplet for this block
     multiplets = Multiplet[]
     for  (sym,v) in  symmetries
         # Skip the symmetry block if it not selected
         if  !Basics.selectSymmetry(sym, settings.levelSelectionCI)     continue    end
-        matrix = Hamiltonian.setupMatrixKinkAware(sym, basis, nm, grid, settings; printout=printout)
+        matrix = Hamiltonian.setupMatrixKinkAware(sym, basis, nm, grid, settings, xlCache; printout=printout)
         eigen  = Hamiltonian.diagonalizeCiMatrix(matrix, settings.levelSelectionCI)
 
         # Reassign state vectors to levels
@@ -418,14 +417,16 @@ end
 
 
 """
-`Hamiltonian.setupMatrixKinkAware(sym::LevelSymmetry, basis::Basis, nm::Nuclear.Model, grid::Radial.Grid, settings::AsfSettings; printout::Bool=false)
+`Hamiltonian.setupMatrixKinkAware(sym::LevelSymmetry, basis::Basis, nm::Nuclear.Model, grid::Radial.Grid,
+                                   settings::AsfSettings, cache::InteractionStrength.XLCache; printout::Bool=false)
     ... sets up the same Hamiltonian matrix as setupMatrix, but using InteractionStrength.XL_CoulombKinkAware (kink-aware)
         instead of InteractionStrength.XL_Coulomb for the Coulomb two-electron contributions. The Breit contribution
         (XL_Breit) and the QED contribution are left untouched -- this bug is specific to the Coulomb Slater
         integral's quadrature, not to those other terms. Isolated from setupMatrix; only used by performCIKinkAware.
         A  matrix::Arrays{Float64,2}  is returned.
 """
-function setupMatrixKinkAware(sym::LevelSymmetry, basis::Basis, nm::Nuclear.Model, grid::Radial.Grid, settings::AsfSettings; printout::Bool=false)
+function setupMatrixKinkAware(sym::LevelSymmetry, basis::Basis, nm::Nuclear.Model, grid::Radial.Grid,
+                               settings::AsfSettings, cache::InteractionStrength.XLCache; printout::Bool=false)
 
     # Determine the dimension of the CI matrix and the indices of the CSF with J^P symmetry in the basis
     idx_csf = Int64[]
@@ -448,7 +449,7 @@ function setupMatrixKinkAware(sym::LevelSymmetry, basis::Basis, nm::Nuclear.Mode
     # Hermitian-symmetry shortcut (28-Jul-2026): only the UPPER triangle (r<=s) is ever computed below --
     # see setupMatrix's identical note for why this is exact, not just safe (Symmetric(matrix)'s default
     # uplo=:U already discards the lower triangle in Basics.diagonalize).
-    matrix = zeros(Float64, n, n);      keep = true
+    matrix = zeros(Float64, n, n)
     for  r = 1:n
         for  s = r:n
             if  settings.eeInteractionCI == DiagonalCoulomb()  &&  r != s    continue    end
@@ -472,13 +473,13 @@ function setupMatrixKinkAware(sym::LevelSymmetry, basis::Basis, nm::Nuclear.Mode
             for  coeff in waG2
                 if  typeof(settings.eeInteractionCI) in [DiagonalCoulomb, CoulombInteraction, CoulombBreit, CoulombGaunt]
                     me = me + coeff.V * InteractionStrength.XL_CoulombKinkAware(coeff.nu, basis.orbitals[coeff.a], basis.orbitals[coeff.b],
-                                                                                        basis.orbitals[coeff.c], basis.orbitals[coeff.d], grid, keep=keep)
+                                                                                        basis.orbitals[coeff.c], basis.orbitals[coeff.d], grid, cache)
                 end
 
                 if      typeof(settings.eeInteractionCI) in [BreitInteraction, CoulombBreit, CoulombGaunt]
                     me = me + coeff.V * InteractionStrength.XL_Breit(coeff.nu, basis.orbitals[coeff.a], basis.orbitals[coeff.b],
                                                                                basis.orbitals[coeff.c], basis.orbitals[coeff.d], grid,
-                                                                               settings.eeInteractionCI, keep=keep)
+                                                                               settings.eeInteractionCI, cache)
                 end
             end
             matrix[r,s] = me

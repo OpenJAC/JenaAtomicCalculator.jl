@@ -82,9 +82,9 @@ function Basics.compute(::CImatrixWithSymmetryJP, JP::LevelSymmetry, basis::Basi
     end   
 
     matrix = zeros(Float64, n, n)
-    keep = true
-    InteractionStrength.XL_Coulomb_reset_storage(keep, printout=false)
-    InteractionStrength.XL_Breit_reset_storage(keep, printout=false)
+    # One radial-integral cache for this matrix, created here and gone when the function returns; see
+    # InteractionStrength.XLCache for why owning it beats the module global this replaced (15-Aug-2026).
+    xlCache = InteractionStrength.XLCache()
     for  r = 1:n
         for  s = 1:n
             #
@@ -122,7 +122,7 @@ function Basics.compute(::CImatrixWithSymmetryJP, JP::LevelSymmetry, basis::Basi
             for  coeff in wa[2]
                 if  typeof(settings.eeInteractionCI) in [DiagonalCoulomb, CoulombInteraction, CoulombBreit, CoulombGaunt]
                     me = me + coeff.V * InteractionStrength.XL_Coulomb(coeff.nu, basis.orbitals[coeff.a], basis.orbitals[coeff.b],
-                                                                                    basis.orbitals[coeff.c], basis.orbitals[coeff.d], grid, keep=keep)
+                                                                                    basis.orbitals[coeff.c], basis.orbitals[coeff.d], grid, xlCache)
                 ## The two disabled branches below are the REFERENCE CROSS-CHECK for the optimized
                 ## Coulomb strength: flip a false to true to compare XL_Coulomb against the literal,
                 ## unoptimized XL_CoulombReference, or to run the whole CI on the reference version.
@@ -130,7 +130,7 @@ function Basics.compute(::CImatrixWithSymmetryJP, JP::LevelSymmetry, basis::Basi
                 ## which HAS NEVER EXISTED, so that half of the check could not have run at all.
                 elseif  false
                     xl1 = InteractionStrength.XL_Coulomb(coeff.nu, basis.orbitals[coeff.a], basis.orbitals[coeff.b],
-                                                                                            basis.orbitals[coeff.c], basis.orbitals[coeff.d], grid, keep=false)
+                                                                                            basis.orbitals[coeff.c], basis.orbitals[coeff.d], grid)
                     xl2 = InteractionStrength.XL_CoulombReference(coeff.nu, basis.orbitals[coeff.a], basis.orbitals[coeff.b],
                                                                                                 basis.orbitals[coeff.c], basis.orbitals[coeff.d], grid)
                     if abs(xl1 - xl2) > 1.0e-12  println("XL_Coulomb differ: $xl1   $xl2")      end
@@ -142,7 +142,7 @@ function Basics.compute(::CImatrixWithSymmetryJP, JP::LevelSymmetry, basis::Basi
                 if      typeof(settings.eeInteractionCI) in [BreitInteraction, CoulombBreit, CoulombGaunt]
                     me = me + coeff.V * InteractionStrength.XL_Breit(coeff.nu, basis.orbitals[coeff.a], basis.orbitals[coeff.b],
                                                                                 basis.orbitals[coeff.c], basis.orbitals[coeff.d], grid,
-                                                                                settings.eeInteractionCI, keep=keep)     
+                                                                                settings.eeInteractionCI, xlCache)     
                 end
             end
             matrix[r,s] = me
