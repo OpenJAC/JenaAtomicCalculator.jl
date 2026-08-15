@@ -359,11 +359,14 @@ The list itself is not kept here — it names collaborators and unpublished work
 this file — but lives in the assistant's memory directory as the single file that the command reads and
 rewrites.
 
-1. Read the priority list and print it **in full**, in its stored order, numbered.
+1. Read the priority list and print it **in full**, in its stored order, with each item's stored number.
 2. For each item, judge whether it is still open. An item is **closed** when the defect is fixed in `src/`,
    the validation has been done, or the maintainer has said it is done — not when it merely looks stale.
-3. **Remove every closed item from the stored list** and renumber, so the list shrinks as work lands and
-   never has to be pruned by hand. Say which items were removed and why, in one line each.
+3. **Remove every closed item from the stored list, and NEVER RENUMBER.** The numbers are permanent
+   identifiers: a closed item's number is retired and the list is left with a gap, which is correct and must
+   not be tidied away. Renumbering makes "item 8" mean something different from one day to the next, so that
+   neither side can refer to an item reliably. Record each closure in the list's CLOSED section, by number,
+   and say which items were removed and why, in one line each.
 4. Items carrying a `verify` or `memory only` marker have not been re-checked against `src/`. Do not remove
    one on the strength of the marker alone; either check it or leave it, and say which.
 5. Never silently reintroduce an item the maintainer has dropped. The list carries its own dropped-register
