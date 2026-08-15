@@ -17,6 +17,13 @@
         + Length       ... Length gauge (Johnson, 2007).
 """
 @enum   EmGauge    NoGauge    Coulomb   Babushkin   Magnetic   Velocity   Length
+
+@doc "... No gauge define (yet)."                                                                                                              NoGauge
+@doc "... Coulomb gauge (= velocity gauge in the non-relativistic limit; Grant, 1974)."                                                        Coulomb
+@doc "... Babushkin gauge (= length gauge in the non-relativistic limit; Grant, 1974)."                                                      Babushkin
+@doc "... Magnetic gauge (transverse velocity gauge)."                                                                                        Magnetic
+@doc "... Transverse velocity gauge (Johnson, 2007)."                                                                                         Velocity
+@doc "... Length gauge (Johnson, 2007)."                                                                                                        Length
 export  EmGauge,   NoGauge,   Coulomb,  Babushkin,  Magnetic,  Velocity,  Length
 
 

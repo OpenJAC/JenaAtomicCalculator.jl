@@ -250,6 +250,11 @@ struct     CoulombSineNorm      <:  ContinuumNormalization     end
 struct     OngRussekNorm        <:  ContinuumNormalization     end
 struct     AlokNorm             <:  ContinuumNormalization     end
 
+@doc "... normalize with regard to an (asymtotic) pure sine funtion, sin(kr)."                                                            PureSineNorm
+@doc "... normalize with regard to an (asymtotic) Coulombic-sine funtion, sin(kr + ...)."                                              CoulombSineNorm
+@doc "... normalize by following Ong & Russek (1973)."                                                                                   OngRussekNorm
+@doc "... normalize following Salvats Radial code"                                                                                            AlokNorm
+
 export  ContinuumNormalization,   PureSineNorm,   CoulombSineNorm,   OngRussekNorm,   AlokNorm
 
 #################################################################################################################################
@@ -530,13 +535,24 @@ struct   ForImpactIonization            <:  AbstractConfigurationTheme     end
 struct   ForPhotoEmission               <:  AbstractConfigurationTheme     end
 struct   ForPhotoIonization             <:  AbstractConfigurationTheme     end
 
+@doc "... to generate configurations that are related by autoionization (deexcitation + single remove)."                             ForAutoIonization
+@doc "... to estimate electron impact-ionization cross sections (for pedestrians only)"                                            ForImpactIonization
+@doc "... to generate configurations that are related by photoemission (single replacement of electrons)."                            ForPhotoEmission
+@doc "... to generate configurations that are related by photoionization (single removement of electrons)."                         ForPhotoIonization
+
 struct   ForGivenConfigs                <:  AbstractConfigurationTheme     end
 struct   ForIsoelectronicSequence       <:  AbstractConfigurationTheme     end
+
+@doc "... to perform computations for given configurations."                                                                           ForGivenConfigs
+@doc "... to compute configuration-averaged energies along an isoelectronic sequence."                                        ForIsoelectronicSequence
 #
 struct   MeanConfiguration              <:  AbstractConfigurationTheme     end
 struct   RelativisticConfigurations     <:  AbstractConfigurationTheme     end
 struct   SplitByEnergy                  <:  AbstractConfigurationTheme     end
 struct   SuperConfiguration             <:  AbstractConfigurationTheme     end
+
+@doc "... to generate the mean configuration, i.e. a configuration with mean occupation numbers."                                    MeanConfiguration
+@doc "... to generate configurations from a given super-configuration."                                                             SuperConfiguration
 #
 struct   AllShells                      <:  AbstractConfigurationTheme     end
 struct   ByMultipoles                   <:  AbstractConfigurationTheme     end
@@ -562,10 +578,35 @@ struct   OpenShells                     <:  AbstractConfigurationTheme     end
 struct   OpenSubshells                  <:  AbstractConfigurationTheme     end
 struct   ValenceOccupation              <:  AbstractConfigurationTheme     end
 struct   ValenceShells                  <:  AbstractConfigurationTheme     end
+
+@doc "... to extract all occupied shells from a set of configurations."                                                                      AllShells
+@doc "... to extract the configurations due to multipole selection themes."                                                               ByMultipoles
+@doc "... to extract the closed core from the given configuration."                                                                         ClosedCore
+@doc "... to extract the closed shells from given configurations."                                                                        ClosedShells
+@doc "... to extract the closed subshells from given configurations."                                                                  ClosedSubshells
+@doc "... to extract the configurations without empty shell occupation (contracted shells)."                                            ContractShells
+@doc "... to determine the excitation level of a configuration."                                                                       ExcitationLevel
+@doc "... to extract the configuration from the basis."                                                                                      FromBasis
+@doc "... to extract the configuration from the multiplet(s)."                                                                           FromMultiplet
+@doc "... to extract the parity of a configurations."                                                                                        GetParity
+@doc "... to extract where a shell or subshell is occupied in the given configuration."                                                     IsOccupied
+@doc "... to extract the leading configuration."                                                                                  LeadingConfiguration
+@doc "... to extract the leading relativistic configuration."                                                                    LeadingConfigurationR
+@doc "... to extract occupation numbers from given configurations."                                                                     MeanOccupation
+@doc "... to extract the multiplicity of a configuration."                                                                                Multiplicity
+@doc "... to extract the configurations from a non-relativistic basis."                                                           NonrelativisticBasis
+@doc "... to extract the number of electrons from a set of configurations."                                                          NumberOfElectrons
+@doc "... to extract differences of occupation numbers from given configurations."                                                OccupationDifference
+@doc "... to extract the open shells from the given configurations."                                                                        OpenShells
+@doc "... to extract the open subshells from the given configurations."                                                                  OpenSubshells
+@doc "... to extract the remaining configuration beyond a given (closed) core configuration."                                        ValenceOccupation
 #
 struct   FineStructure                  <:  AbstractConfigurationTheme     end
 struct   FineStructureLS                <:  AbstractConfigurationTheme     end
 struct   HundsRules                     <:  AbstractConfigurationTheme     end
+
+@doc "... to display the total J fine-structure levels of a configuration (without energies)."                                           FineStructure
+@doc "... to display the total LSJ fine-structure levels of a configuration (without energies)."                                       FineStructureLS
 
 export  AbstractConfigurationTheme, AddElectrons, ExciteElectrons, RemoveElectrons, RestrictExcitations,
         ForAutoIonization, ForElectronCapture, ForDielectronicCapture, ForDielectronicRecombination, ForGivenConfigs,
@@ -1035,6 +1076,12 @@ struct     NonrelativisticCoulomb <:  AbstractContinuumSolutions     end
 struct     AsymptoticCoulomb      <:  AbstractContinuumSolutions     end
 struct     BsplineGalerkin        <:  AbstractContinuumSolutions     end
 
+@doc "... generate a pure Bessel function for the large component together with kinetic balance."                                           ContBessel
+@doc "... generate a pure Sine function for the large component together with kinetic balance."                                               ContSine
+@doc "... generate a non-relativistic Coulomb function for the large component together with kinetic balance."                  NonrelativisticCoulomb
+@doc "... generate a pure (asymptotic) Coulombic function for both components."                                                      AsymptoticCoulomb
+@doc "... generate a continuum orbital with the Galerkin method.dealing with warnings that are made during a run or REPL session."     BsplineGalerkin
+
 export  AbstractContinuumSolutions, ContBessel, ContSine, NonrelativisticCoulomb, AsymptoticCoulomb, BsplineGalerkin 
 
 #################################################################################################################################
@@ -1067,6 +1114,10 @@ struct     DiagonalCoulomb      <:  AbstractEeInteraction     end
 struct     CoulombInteraction   <:  AbstractEeInteraction     end
 struct     CoulombGaunt         <:  AbstractEeInteraction     end
 struct     BreitInteraction     <:  AbstractEeInteraction     
+
+@doc "... to represent the Coulomb part of the e-e interaction for just diagonal ME."                                                  DiagonalCoulomb
+@doc "... to represent the Coulomb part of the electron-electron interaction."                                                      CoulombInteraction
+@doc "... to represent the Coulomb part of the electron-electron interaction."                                                            CoulombGaunt
     factor ::Float64
 end
 struct     CoulombBreit         <:  AbstractEeInteraction     
@@ -1096,6 +1147,10 @@ end
 abstract type  AbstractEmissionKind                      end
 struct         Emission    <:  AbstractEmissionKind      end
 struct         Absorption  <:  AbstractEmissionKind      end
+
+@doc "... to compute the photon-emission amplitude  <f || O^(Mp) || i>."                                                                      Emission
+@doc "... to compute the photon-absorption amplitude <f || O^(Mp) || i>; equal to the conjugate of the emission amplitude with" *
+     "initial and final levels interchanged."   Absorption
 
 export  AbstractEmissionKind, Emission, Absorption
 
@@ -1336,6 +1391,8 @@ export  AbstractFieldVector, Cartesian2DFieldVector, Cartesian3DFieldVector
 abstract type  AbstractEmField                    end
 struct         NoEmField    <:  AbstractEmField   end
 
+@doc "... No electric and magnetic field is defined."                                                                                        NoEmField
+
 
 # `Base.show(io::IO, field::AbstractEmField)`  ... prepares a proper printout of the variable field::AbstractEmField.
 function Base.show(io::IO, field::AbstractEmField) 
@@ -1408,6 +1465,9 @@ export AbstractEmField, NoEmField, StaticField, TimeHarmonicField
 abstract type  AbstractLevelPopulation                                end
 struct    BoltzmannLevelPopulation      <:  AbstractLevelPopulation   end
 struct    SahaLevelPopulation           <:  AbstractLevelPopulation   end
+
+@doc "... to represent a Boltzmann level population."                                                                         BoltzmannLevelPopulation
+@doc "... to represent a Saha level population."                                                                                   SahaLevelPopulation
 
 export  AbstractLevelPopulation, BoltzmannLevelPopulation, SahaLevelPopulation
 
@@ -1597,6 +1657,8 @@ struct         NoPlasmaModel                <:  AbstractPlasmaModel   end
 struct         DebyeBox                     <:  AbstractPlasmaModel   end
 struct         WithoutAutoionizationModel   <:  AbstractPlasmaModel   end
 
+@doc "... No plasma model defined."                                                                                                      NoPlasmaModel
+
 
 # `Base.show(io::IO, model::AbstractPlasmaModel)`  ... prepares a proper printout of the variable model::AbstractPlasmaModel.
 function Base.show(io::IO, model::AbstractPlasmaModel) 
@@ -1756,6 +1818,10 @@ struct         LinearPolarization      <:  AbstractPolarization   end
 struct         LeftCircular            <:  AbstractPolarization   end
 struct         RightCircular           <:  AbstractPolarization   end
 
+@doc "... to specify a linearly-polarized pulse/beam."                                                                              LinearPolarization
+@doc "... to specify a left-circularly polarized pulse/beam."                                                                             LeftCircular
+@doc "... to specify a right-circularly polarized pulse/beam."                                                                           RightCircular
+
 
 """
 `struct     Basics.LeftElliptical          <:  Basics.AbstractPolarization`   
@@ -1778,6 +1844,8 @@ end
 
 
 struct         NonePolarization        <:  AbstractPolarization   end
+
+@doc "... to specify an upolarized pulse/beam."                                                                                       NonePolarization
 
 function Base.string(pol::LinearPolarization)   return( "linearly-polarized" )            end
 function Base.string(pol::LeftCircular)         return( "left-circularly polarized" )     end
@@ -1875,6 +1943,30 @@ struct    Rec                   <:  AbstractProcess     end
 struct    ImpactExc             <:  AbstractProcess     end
 struct    RAuger                <:  AbstractProcess     end
 struct    PairA1P               <:  AbstractProcess     end
+
+@doc "... Auger transitions, i.e. single autoionization or the emission of a single free electron into the continuum."                           Auger
+@doc "... Auger transitions but calculated for a specified plasma model."                                                                AugerInPlasma
+@doc "... Rayleigh-Compton scattering cross sections."                                                                                         Compton
+@doc "... Coulomb-excitation of target or projeticle electrons by fast, heavy ions."                                                            Coulex
+@doc "... Coulomb-ionization of target or projeticle electrons by fast, heavy ions."                                                           Coulion
+@doc "... di-electronic recombination, i.e. the dielectronic capture of a free electron and the subsequent emission of a photon."               Dierec
+@doc "... Double Auger rates."                                                                                                             DoubleAuger
+@doc "... di-electronic recombination, i.e. the dielectronic capture of a free electron and the subsequent emission of a photon."        ImpactExcAuto
+@doc "... multi-photon excitation and decay rates, including 2-photon, etc. processes."                                                  MultiPhotonDE
+@doc "... multi-photon (single-electron) ionization."                                                                                          MultiPI
+@doc "... multi-photon (single-electron) double ionization."                                                                                  MultiPDI
+@doc "... Photoionization processes, i.e. the emission of a single free electron into the continuum due to an external light field."             Photo
+@doc "... Photo-double ionization rates."                                                                                                  PhotoDouble
+@doc "... Photoexcitation rates."                                                                                                             PhotoExc
+@doc "... photoexcitation fluorescence rates and cross sections."                                                                        PhotoExcFluor
+@doc "... photoexcitation autoionization cross sections and collision strengths."                                                         PhotoExcAuto
+@doc "... Photoionization processes but calculated for a specified plasma model."                                                        PhotoInPlasma
+@doc "... photoionization fluorescence rates and cross sections."                                                                        PhotoIonFluor
+@doc "... photoionization autoionization cross sections and collision strengths."                                                         PhotoIonAuto
+@doc "... Radiative (multipole) transitions between bound-state levels of the same charge state."                                            Radiative
+@doc "... radiative electron capture, i.e. the capture of a free electron with the simultaneous emission of a photon."                             Rec
+@doc "... electron-impact excitation cross sections and collision strengths."                                                                ImpactExc
+@doc "... Radiative Auger rates."                                                                                                               RAuger
     
 
 export  AbstractProcess, NoProcess, Auger, AugerInPlasma, Compton, Coulex, Coulion, Dierec, DoubleAuger, ElecCapture, 
@@ -1930,6 +2022,8 @@ export AbstractPropertySettings
 """
 abstract type  AbstractQuantizationAxis                 end
 struct         DefaultQuantizationAxis  <:  AbstractQuantizationAxis   end
+
+@doc "... Use the (default) z-axis for quantization of atomic levels."                                                         DefaultQuantizationAxis
 
 
 # `Base.show(io::IO, axis::AbstractQuantizationAxis)`  ... prepares a proper printout of the variable axis::AbstractQuantizationAxis.
@@ -2038,6 +2132,20 @@ struct     NuclearField         <:  AbstractScField     end
 struct     ThomasFermiField     <:  AbstractScField     end
 struct     AaDFSField           <:  AbstractScField     end   
 struct     AaHSField            <:  AbstractScField     end   
+
+@doc "... to represent an average-level field: a bVector-native SCF built directly around B-spline expansion coefficient vectors (no" *
+     "tabulated Orbital maintained during the SCF iteration at all), a kink-aware (spline + split adaptive quadrature) two-electron" *
+     "Slater integral in place of the naive tensor-product Gauss-Legendre one, and an in-matrix orthogonality projection modeled" *
+     "directly on DBSR_HF (Zatsarinny & Froese Fischer, CPC 202, 287 (2016)); see SelfConsistent.solveAverageLevelField. Validated" *
+     "to 5+ significant figures against literature for He/Be/Ne/Ar. (This type was developed under the working name ALFieldClaude2" *
+     "during an earlier investigation; an original, buggy ALField implementation -- and before that a first-generation kink-aware" *
+     "line, ALFieldClaude -- were both superseded by this one and removed.)"   ALField
+@doc "... to represent an (extended) optimized-level field."                                                                                  EOLField
+@doc "... to represent an mean Hartree-Slater field."                                                                                          HSField
+@doc "... to represent a pure nuclear (potential) field."                                                                                 NuclearField
+@doc "... to represent a Thomas-Fermi screened field. Unlike every other member of this family it is NOT self-consistent: it needs" *
+     "only the nuclear charge and the number of electrons, and no density at all, which is exactly what makes it useful as a" *
+     "STARTING potential; see Basics.computePotential and ManyElectron.StartFromThomasFermi."   ThomasFermiField
 
     
 """
@@ -2315,6 +2423,10 @@ struct     AddWarning           <:  AbstractWarning     end
 struct     PrintWarnings        <:  AbstractWarning     end
 struct     ResetWarnings        <:  AbstractWarning     end
 
+@doc "... add a Warning to a warningList."                                                                                                  AddWarning
+@doc "... print all warnings into a jac-warn.report file."                                                                               PrintWarnings
+@doc "... reset (empty) the warningList, usually at the beginning of a new run.to distinguish between different warnings"                ResetWarnings
+
 export  AbstractWarning, AddWarning, PrintWarnings, ResetWarnings
 
 
@@ -2347,6 +2459,15 @@ struct         OrderedShellList                <:  AbstractGenerateTheme        
 struct         OrderedSubshellList             <:  AbstractGenerateTheme          end
 struct         SlaterTypeSpectrum              <:  AbstractGenerateTheme          end
 struct         SlaterTypeSpectrumPositive      <:  AbstractGenerateTheme          end
+
+@doc "... condense/reduce the CSF basis of a multiplet by a single weight."                                                         CondensedMultiplet
+@doc "... generate the NR configuration list from a given basis."                                                         ConfigurationListNRFromBasis
+@doc "... generate an NR configuration list from a reference configuration with excitations."                     ConfigurationListNRFromConfiguration
+@doc "... construct the CSF list from a single relativistic configuration."                                                                    CsfList
+@doc "... generate an ordered NR shell list from a set of configurations."                                                            OrderedShellList
+@doc "... generate an ordered relativistic subshell list from configurations or two bases."                                        OrderedSubshellList
+@doc "... generate a complete single-electron STO spectrum (positive and negative states)."                                         SlaterTypeSpectrum
+@doc "... generate the same but return only the positive states."                                                           SlaterTypeSpectrumPositive
 
 export  AbstractGenerateTheme, CondensedMultiplet, ConfigurationListNRFromBasis, ConfigurationListNRFromConfiguration,
         CsfList, OrderedShellList, OrderedSubshellList, SlaterTypeSpectrum, SlaterTypeSpectrumPositive
@@ -2389,6 +2510,11 @@ struct         AngularCoeffs1pRatip2013   <:  AbstractComputeTheme              
 struct         AngularCoeffs1pGrasp92     <:  AbstractComputeTheme              end
 struct         CImatrixWithSymmetryJP     <:  AbstractComputeTheme              end
 
+@doc "... compute electron-electron angular coefficients via the Ratip2013 interface."                                        AngularCoeffsEeRatip2013
+@doc "... compute single-particle angular coefficients via the Ratip2013 interface."                                          AngularCoeffs1pRatip2013
+@doc "... compute single-particle angular coefficients via the Grasp92 interface."                                              AngularCoeffs1pGrasp92
+@doc "... compute the CI Hamiltonian matrix for a given J^P symmetry block."                                                    CImatrixWithSymmetryJP
+
 export  AbstractComputeTheme, AngularCoeffsEeRatip2013, AngularCoeffs1pRatip2013, AngularCoeffs1pGrasp92,
         CImatrixWithSymmetryJP
 
@@ -2404,6 +2530,9 @@ export  AbstractComputeTheme, AngularCoeffsEeRatip2013, AngularCoeffs1pRatip2013
 abstract type  AbstractDisplayTheme                                end
 struct         PhysicalConstants   <:  AbstractDisplayTheme       end
 struct         CurrentSettings     <:  AbstractDisplayTheme       end
+
+@doc "... display all currently defined physical constants."                                                                         PhysicalConstants
+@doc "... display all currently defined settings of the JAC module."                                                                   CurrentSettings
 
 export  AbstractDisplayTheme, PhysicalConstants, CurrentSettings
 
@@ -2423,6 +2552,11 @@ struct         RadialPotentials    <:  AbstractPlotTheme           end
 struct         RadialOrbitalsLarge <:  AbstractPlotTheme           end
 struct         RadialOrbitalsSmall <:  AbstractPlotTheme           end
 struct         RadialOrbitalsBoth  <:  AbstractPlotTheme           end
+
+@doc "... plot one or more radial potentials."                                                                                        RadialPotentials
+@doc "... plot the large component of one or more radial orbitals."                                                                RadialOrbitalsLarge
+@doc "... plot the small component of one or more radial orbitals."                                                                RadialOrbitalsSmall
+@doc "... plot both components of one or more radial orbitals."                                                                     RadialOrbitalsBoth
 
 export  AbstractPlotTheme, RadialPotentials, RadialOrbitalsLarge, RadialOrbitalsSmall, RadialOrbitalsBoth
 
@@ -2447,6 +2581,13 @@ struct         RecastRateToOscillatorGf  <:  AbstractRecastTheme             end
 struct         RecastRateToOscillatorF   <:  AbstractRecastTheme             end
 struct         RecastRateToLineStrengthS <:  AbstractRecastTheme             end
 
+@doc "... recast a radiative rate (Einstein A, a.u.) to a decay width."                                                         RecastRateToDecayWidth
+@doc "... recast a radiative rate (Einstein A, a.u.) to Einstein A in selected units."                                           RecastRateToEinsteinA
+@doc "... recast a radiative rate (Einstein A, a.u.) to Einstein B-coefficient."                                                 RecastRateToEinsteinB
+@doc "... recast a radiative rate (Einstein A, a.u.) to oscillator strength g_f."                                             RecastRateToOscillatorGf
+@doc "... recast a radiative rate (Einstein A, a.u.) to oscillator strength f."                                                RecastRateToOscillatorF
+@doc "... recast a radiative rate (Einstein A, a.u.) to line strength S."                                                    RecastRateToLineStrengthS
+
 export  AbstractRecastTheme, RecastRateToDecayWidth, RecastRateToEinsteinA, RecastRateToEinsteinB,
         RecastRateToOscillatorGf, RecastRateToOscillatorF, RecastRateToLineStrengthS
 
@@ -2462,6 +2603,9 @@ abstract type  AbstractAnalyzeTheme                                             
 struct         LevelDecompositionOfNRconfigurations  <:  AbstractAnalyzeTheme            end
 struct         LevelDecompositionOfCsfR              <:  AbstractAnalyzeTheme            end
 
+@doc "... analyze and list the NR configurations with weight > 5 %."                                              LevelDecompositionOfNRconfigurations
+@doc "... analyze and list (up to N) jj-coupled CSF and their weights."                                                       LevelDecompositionOfCsfR
+
 export  AbstractAnalyzeTheme, LevelDecompositionOfNRconfigurations, LevelDecompositionOfCsfR
 
 
@@ -2475,6 +2619,9 @@ export  AbstractAnalyzeTheme, LevelDecompositionOfNRconfigurations, LevelDecompo
 abstract type  AbstractDiagonalizeTheme                                                       end
 struct         MatrixWithLinearAlgebra                 <:  AbstractDiagonalizeTheme            end
 struct         GeneralizedEigenvaluesWithLinearAlgebra <:  AbstractDiagonalizeTheme            end
+
+@doc "... diagonalize a single symmetric matrix using LinearAlgebra.eigen()."                                                  MatrixWithLinearAlgebra
+@doc "... solve a generalized eigenvalue problem using LinearAlgebra.eigen()."                                 GeneralizedEigenvaluesWithLinearAlgebra
 
 export  AbstractDiagonalizeTheme, MatrixWithLinearAlgebra, GeneralizedEigenvaluesWithLinearAlgebra
 
@@ -2497,6 +2644,12 @@ struct         EstimateBindingEnergyLarkins1977        <:  AbstractEstimateTheme
 struct         EstimateBindingEnergyXrayDataBooklet    <:  AbstractEstimateTheme                  end
 struct         EstimateBindingEnergyNist2025           <:  AbstractEstimateTheme                  end
 
+@doc "... estimate the ionization potential of an inner-shell electron."                                         EstimateIonizationPotentialInnerShell
+@doc "... estimate binding energies from Williams et al. (2000) tabulation."                                         EstimateBindingEnergyWilliams2000
+@doc "... estimate binding energies from Larkins (1977) tabulation."                                                  EstimateBindingEnergyLarkins1977
+@doc "... estimate binding energies from X-ray Data Booklet tabulation."                                          EstimateBindingEnergyXrayDataBooklet
+@doc "... estimate successive ionization potentials from NIST (2025) database."                                          EstimateBindingEnergyNist2025
+
 export  AbstractEstimateTheme, EstimateIonizationPotentialInnerShell,
         EstimateBindingEnergyWilliams2000, EstimateBindingEnergyLarkins1977, EstimateBindingEnergyXrayDataBooklet,
         EstimateBindingEnergyNist2025
@@ -2515,5 +2668,9 @@ abstract type  AbstractReadFileTheme                                           e
 struct         ReadCslFileGrasp92     <:  AbstractReadFileTheme                end
 struct         ReadOrbitalFileGrasp92 <:  AbstractReadFileTheme                end
 struct         ReadMixingFileGrasp18  <:  AbstractReadFileTheme                end
+
+@doc "... read a CSF list from a Grasp92 .csl / GRASP18 .c file."                                                                   ReadCslFileGrasp92
+@doc "... read orbitals from a (formatted) Grasp92 .rwf file."                                                                  ReadOrbitalFileGrasp92
+@doc "... read energies & mixing coefficients from a Grasp18 mixing file."                                                       ReadMixingFileGrasp18
 
 export  AbstractReadFileTheme, ReadCslFileGrasp92, ReadOrbitalFileGrasp92, ReadMixingFileGrasp18

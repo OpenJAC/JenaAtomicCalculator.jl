@@ -15,7 +15,7 @@ include("module-Basics-inc-first.jl")
 include("module-Basics-inc-abstract.jl")
 include("module-Basics-inc-second.jl")
 
-export  add, analyze, compute, diagonalize, generate, interpolate, integrate, perform, recast, run,
+export  add, analyze, compute, diagonalize, generate, integrate, perform, recast, run,
         tabulate       
 
 export  checkConfigurations,  displayConfiguration,  displayConfigurations,  extractConfiguration,  extractConfigurations,  
