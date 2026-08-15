@@ -90,6 +90,11 @@ function generateShellList                                      end
 function generateSubshellList                                   end
 function generateSpectrumLorentzian                             end
 function hasSubshell                                            end
+"""
+`Basics.integrate()`
+    ... generic function for the numerical integration of a (radial) function on a grid; see the methods of
+        Basics.integrate for the integration rules that are available.
+"""
 function integrate                                              end
 function interpolateOnGridGrasp92                               end
 function isSimilar                                              end

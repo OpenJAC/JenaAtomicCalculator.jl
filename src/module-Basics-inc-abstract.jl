@@ -291,6 +291,17 @@ struct         AverageSCA  <:  AbstractCascadeApproach   end
 struct         SCA         <:  AbstractCascadeApproach   end
 struct         UserMCA     <:  AbstractCascadeApproach   end
 
+@doc "... all levels in the cascade are described in single-configuration and single-CSF approximation; this (rather crude) approach " *
+     "neglects all configuration-interactions and also applies just a single set of one-electron orbitals (from the least-ionized " *
+     "charge state) for all considered charge states."   AverageSCA
+@doc "... all levels in the cascade are described in single-configuration approximation but with 'mixtures' within the " *
+     "configuration; an individual mean-field is generated for each charge state and all continuum orbitals are generated for the " *
+     "correct transition energy in the field of the remaining ion. Moreover, all the fine-structure transitions are calculated " *
+     "individually."   SCA
+@doc "... placeholder for a genuine multiconfiguration cascade approach; declared but NOT (yet) implemented anywhere in the codebase " *
+     "-- selecting it does not raise an explicit error and currently falls through to the same code path as SCA in the " *
+     "Cascade-inc-*.jl dispatch sites, which do not special-case it either."   UserMCA
+
 export  AbstractCascadeApproach, AverageSCA, SCA, UserMCA
 
 #################################################################################################################################
@@ -551,6 +562,11 @@ struct   RelativisticConfigurations     <:  AbstractConfigurationTheme     end
 struct   SplitByEnergy                  <:  AbstractConfigurationTheme     end
 struct   SuperConfiguration             <:  AbstractConfigurationTheme     end
 
+@doc "... theme for splitting a set of configurations by energy. NOTE: no call site of this theme could be found beyond its " *
+     "declaration and export."   SplitByEnergy
+
+@doc "... to generate/deal with relativistic configurations."                                                               RelativisticConfigurations
+
 @doc "... to generate the mean configuration, i.e. a configuration with mean occupation numbers."                                    MeanConfiguration
 @doc "... to generate configurations from a given super-configuration."                                                             SuperConfiguration
 #
@@ -579,6 +595,12 @@ struct   OpenSubshells                  <:  AbstractConfigurationTheme     end
 struct   ValenceOccupation              <:  AbstractConfigurationTheme     end
 struct   ValenceShells                  <:  AbstractConfigurationTheme     end
 
+@doc "... theme for Basics.generateConfigurations, to generate generalized configurations in which shell occupations may be given as " *
+     "ranges."   GeneralizedConfigurations
+@doc "... theme for Basics.extractFromConfiguration, to extract the NUMBER of open shells of a configuration."                         OpenShellNumber
+@doc "... theme for Basics.extractFromConfiguration, to extract the valence shells of a configuration, decided on the configuration " *
+     "itself."   ValenceShells
+
 @doc "... to extract all occupied shells from a set of configurations."                                                                      AllShells
 @doc "... to extract the configurations due to multipole selection themes."                                                               ByMultipoles
 @doc "... to extract the closed core from the given configuration."                                                                         ClosedCore
@@ -604,6 +626,8 @@ struct   ValenceShells                  <:  AbstractConfigurationTheme     end
 struct   FineStructure                  <:  AbstractConfigurationTheme     end
 struct   FineStructureLS                <:  AbstractConfigurationTheme     end
 struct   HundsRules                     <:  AbstractConfigurationTheme     end
+
+@doc "... to display the total LSJ fine-structure levels, ordered by Hund's rules (not yet)."                                               HundsRules
 
 @doc "... to display the total J fine-structure levels of a configuration (without energies)."                                           FineStructure
 @doc "... to display the total LSJ fine-structure levels of a configuration (without energies)."                                       FineStructureLS
@@ -1114,15 +1138,25 @@ struct     DiagonalCoulomb      <:  AbstractEeInteraction     end
 struct     CoulombInteraction   <:  AbstractEeInteraction     end
 struct     CoulombGaunt         <:  AbstractEeInteraction     end
 struct     BreitInteraction     <:  AbstractEeInteraction     
+    factor ::Float64
+end
 
+@doc "... to represent the Breit part of the electron-electron interaction, with factor scaling the photon wave number omega = " *
+     "factor * |E_a - E_c| / c. factor = 0 gives the standard frequency-independent Breit interaction and factor = 1 the full " *
+     "frequency-dependent one; the former is the exact omega -> 0 limit of the latter, taken within the same expressions rather than " *
+     "by a separate code path. Both the Gaunt and the retardation part are frequency dependent since 14-Aug-2026; before that date " *
+     "no JAC number contained a retardation correction, and factor = 1 applied a hard-coded 1.05 that had no derivation. See the " *
+     "reference formulation heading the Breit section of module-InteractionStrength.jl. NOTE ALSO THE GAUGE: the omega -> 0 limit " *
+     "taken in the Coulomb gauge is the BREIT operator (this type), whereas the omega -> 0 limit in the Feynman gauge is the GAUNT " *
+     "operator (CoulombGaunt). They are different approximations, not two names for one."   BreitInteraction
 @doc "... to represent the Coulomb part of the e-e interaction for just diagonal ME."                                                  DiagonalCoulomb
 @doc "... to represent the Coulomb part of the electron-electron interaction."                                                      CoulombInteraction
 @doc "... to represent the Coulomb part of the electron-electron interaction."                                                            CoulombGaunt
-    factor ::Float64
-end
 struct     CoulombBreit         <:  AbstractEeInteraction     
     factor ::Float64
 end
+
+@doc "... to represent the Coulomb+Breit part of the electron-electron interaction."                                                      CoulombBreit
 
 export  AbstractEeInteraction, DiagonalCoulomb, CoulombInteraction, CoulombGaunt, BreitInteraction, CoulombBreit
 
@@ -1149,7 +1183,7 @@ struct         Emission    <:  AbstractEmissionKind      end
 struct         Absorption  <:  AbstractEmissionKind      end
 
 @doc "... to compute the photon-emission amplitude  <f || O^(Mp) || i>."                                                                      Emission
-@doc "... to compute the photon-absorption amplitude <f || O^(Mp) || i>; equal to the conjugate of the emission amplitude with" *
+@doc "... to compute the photon-absorption amplitude <f || O^(Mp) || i>; equal to the conjugate of the emission amplitude with " *
      "initial and final levels interchanged."   Absorption
 
 export  AbstractEmissionKind, Emission, Absorption
@@ -1192,6 +1226,16 @@ struct         DeExciteSingleElectron  <:  AbstractExcitationScheme   end
 struct         DeExciteTwoElectrons    <:  AbstractExcitationScheme   end
 struct         AddSingleElectron       <:  AbstractExcitationScheme   end
 struct         ExciteByCapture         <:  AbstractExcitationScheme   end
+
+@doc "... dummy scheme for (unsupported) initialization of this abstract tpye."                                                     NoExcitationScheme
+@doc "... generates all excitations and de-excitations of a single electron from a given list of bound electron configurations. The " *
+     "number of electrons of the generated configurations is the same as for the given bound configurations."   DeExciteSingleElectron
+@doc "... generates all excitations and de-excitations of one or two electrons from a given list of bound electron configurations. " *
+     "The number of electrons of the generated configurations is the same as for the given bound configurations."   DeExciteTwoElectrons
+@doc "... generates configurations by just adding a single electrons to a given list of bound electron configurations. The number of " *
+     "electrons of the generated configurations is N+1."   AddSingleElectron
+@doc "... generates all excitations and de-excitations of one or more electron from a given list of bound electron configurations, " *
+     "together with an capture of an additional electron. The number of electrons of the generated configurations is N+1."   ExciteByCapture
     
 export  AbstractExcitationScheme, NoExcitationScheme, DeExciteSingleElectron, DeExciteTwoElectrons, AddSingleElectron, ExciteByCapture
 
@@ -1657,6 +1701,8 @@ struct         NoPlasmaModel                <:  AbstractPlasmaModel   end
 struct         DebyeBox                     <:  AbstractPlasmaModel   end
 struct         WithoutAutoionizationModel   <:  AbstractPlasmaModel   end
 
+@doc "... to apply the Debye-box plasma model."                                                                                               DebyeBox
+
 @doc "... No plasma model defined."                                                                                                      NoPlasmaModel
 
 
@@ -1782,6 +1828,8 @@ export  AbstractPlasmaModel, NoPlasmaModel, DebyeHueckelModel, DebyeBox, IonSphe
 """
 abstract type  AbstractLineShiftSettings                end
 struct         NoLineShiftSettings   <:  AbstractLineShiftSettings   end
+
+@doc "... No line-shift settings are defined."                                                                                     NoLineShiftSettings
 
 # `Base.show(io::IO, settings::AbstractLineShiftSettings)`  ... prepares a proper printout of the variable settings::AbstractLineShiftSettings.
 function Base.show(io::IO, settings::AbstractLineShiftSettings) 
@@ -1943,6 +1991,12 @@ struct    Rec                   <:  AbstractProcess     end
 struct    ImpactExc             <:  AbstractProcess     end
 struct    RAuger                <:  AbstractProcess     end
 struct    PairA1P               <:  AbstractProcess     end
+
+@doc "... dummy process for the initialization of a Cascade.Step or an atomic computation; it denotes the ABSENCE of a process and " *
+     "is never computed."   NoProcess
+@doc "... to denote the (dielectronic) electron-capture process, i.e. the capture of a free electron into a bound shell."                  ElecCapture
+@doc "... to denote internal conversion, i.e. the transfer of nuclear excitation energy to a bound electron which is thereby ejected."    InternalConv
+@doc "... to denote one-photon pair annihilation, in which a bound electron and a positron annihilate under emission of a single photon."      PairA1P
 
 @doc "... Auger transitions, i.e. single autoionization or the emission of a single free electron into the continuum."                           Auger
 @doc "... Auger transitions but calculated for a specified plasma model."                                                                AugerInPlasma
@@ -2133,18 +2187,23 @@ struct     ThomasFermiField     <:  AbstractScField     end
 struct     AaDFSField           <:  AbstractScField     end   
 struct     AaHSField            <:  AbstractScField     end   
 
-@doc "... to represent an average-level field: a bVector-native SCF built directly around B-spline expansion coefficient vectors (no" *
-     "tabulated Orbital maintained during the SCF iteration at all), a kink-aware (spline + split adaptive quadrature) two-electron" *
-     "Slater integral in place of the naive tensor-product Gauss-Legendre one, and an in-matrix orthogonality projection modeled" *
-     "directly on DBSR_HF (Zatsarinny & Froese Fischer, CPC 202, 287 (2016)); see SelfConsistent.solveAverageLevelField. Validated" *
-     "to 5+ significant figures against literature for He/Be/Ne/Ar. (This type was developed under the working name ALFieldClaude2" *
-     "during an earlier investigation; an original, buggy ALField implementation -- and before that a first-generation kink-aware" *
+@doc "... to apply the average-atom Dirac-Fock-Slater field, i.e. the relativistic counterpart of AaHSField for the same plasma " *
+     "conditions; cf. Basics.computePotential(::AaDFSField, grid, orbitals, mu, temp)."   AaDFSField
+@doc "... to apply the average-atom Hartree-Slater field, i.e. a mean-field potential for a plasma of given chemical potential mu " *
+     "and temperature; cf. Basics.computePotential(::AaHSField, grid, orbitals, mu, temp)."   AaHSField
+
+@doc "... to represent an average-level field: a bVector-native SCF built directly around B-spline expansion coefficient vectors (no " *
+     "tabulated Orbital maintained during the SCF iteration at all), a kink-aware (spline + split adaptive quadrature) two-electron " *
+     "Slater integral in place of the naive tensor-product Gauss-Legendre one, and an in-matrix orthogonality projection modeled " *
+     "directly on DBSR_HF (Zatsarinny & Froese Fischer, CPC 202, 287 (2016)); see SelfConsistent.solveAverageLevelField. Validated " *
+     "to 5+ significant figures against literature for He/Be/Ne/Ar. (This type was developed under the working name ALFieldClaude2 " *
+     "during an earlier investigation; an original, buggy ALField implementation -- and before that a first-generation kink-aware " *
      "line, ALFieldClaude -- were both superseded by this one and removed.)"   ALField
 @doc "... to represent an (extended) optimized-level field."                                                                                  EOLField
 @doc "... to represent an mean Hartree-Slater field."                                                                                          HSField
 @doc "... to represent a pure nuclear (potential) field."                                                                                 NuclearField
-@doc "... to represent a Thomas-Fermi screened field. Unlike every other member of this family it is NOT self-consistent: it needs" *
-     "only the nuclear charge and the number of electrons, and no density at all, which is exactly what makes it useful as a" *
+@doc "... to represent a Thomas-Fermi screened field. Unlike every other member of this family it is NOT self-consistent: it needs " *
+     "only the nuclear charge and the number of electrons, and no density at all, which is exactly what makes it useful as a " *
      "STARTING potential; see Basics.computePotential and ManyElectron.StartFromThomasFermi."   ThomasFermiField
 
     
@@ -2402,6 +2461,12 @@ struct     DiscreteLines                        <:  AbstractSpectrumKind     end
 struct     DiscretePoints                       <:  AbstractSpectrumKind     end
 struct     LorentzianIntensitiesConstantWidths  <:  AbstractSpectrumKind     end
 struct     LorentzianIntensities                <:  AbstractSpectrumKind     end
+
+@doc "... to display just intensity-bars at given x-positions."                                                                         BarIntensities
+@doc "... to display lines (for guiding the eyes) but which are only defined at discrete x-points."                                      DiscreteLines
+@doc "... to display discrete points that are defined at discrete x-points."                                                            DiscretePoints
+@doc "... to display the superposition of Lorentzians with given position and intensity but constant widths."      LorentzianIntensitiesConstantWidths
+@doc "... to display the superposition of Lorentzians with given position, intensity and individual widths."                     LorentzianIntensities
 
 export  AbstractSpectrumKind, BarIntensities, DiscreteLines, DiscretePoints, LorentzianIntensitiesConstantWidths, LorentzianIntensities
 

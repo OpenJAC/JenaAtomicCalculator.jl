@@ -75,6 +75,15 @@ const  E2 = EmMultipole(2, true);     const  M2 = EmMultipole(2, false)
 const  E3 = EmMultipole(3, true);     const  M3 = EmMultipole(3, false)
 const  E4 = EmMultipole(4, true);     const  M4 = EmMultipole(4, false)
 
+@doc "... the electric dipole (E1) multipole of the radiation field."                                                                               E1
+@doc "... the magnetic dipole (M1) multipole of the radiation field."                                                                               M1
+@doc "... the electric quadrupole (E2) multipole of the radiation field."                                                                           E2
+@doc "... the magnetic quadrupole (M2) multipole of the radiation field."                                                                           M2
+@doc "... the electric octupole (E3) multipole of the radiation field."                                                                             E3
+@doc "... the magnetic octupole (M3) multipole of the radiation field."                                                                             M3
+@doc "... the electric hexadecapole (E4) multipole of the radiation field."                                                                         E4
+@doc "... the magnetic hexadecapole (M4) multipole of the radiation field."                                                                         M4
+
 
 """
 `Basics.EmMultipole(sa::String)`  ... constructor for a given String.
@@ -319,6 +328,9 @@ end
     + plus, minus               ... with obvious meaning
 """
 @enum   Parity    plus   minus
+
+@doc "... even parity of an atomic level or configuration."                                                                                       plus
+@doc "... odd parity of an atomic level or configuration."                                                                                       minus
 export  Parity,   plus,  minus
 
 
@@ -619,6 +631,9 @@ end
 `@enum   Basics.UseGauge`  ... defines a enumeration for the (allowed) gauges to be selected in explicit computations
 """
 @enum   UseGauge    UseCoulomb   UseBabushkin
+
+@doc "... to select the Coulomb gauge in an explicit computation."                                                                          UseCoulomb
+@doc "... to select the Babushkin gauge in an explicit computation."                                                                      UseBabushkin
 export  UseGauge,   UseCoulomb,  UseBabushkin
 
 
