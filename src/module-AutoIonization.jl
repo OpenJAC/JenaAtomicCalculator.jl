@@ -543,13 +543,17 @@ end
 
 """
 `AutoIonization.computeLinesFromOrbitals(finalMultiplet::Multiplet, initialMultiplet::Multiplet, nm::Nuclear.Model, grid::Radial.Grid, 
-                                            settings::AutoIonization.Settings, contOrbitals::Dict{Subshell, Orbital}; output::Bool=true, printout::Bool=true)`  
+                                            settings::AutoIonization.Settings, contOrbitals::Dict{Subshell, Orbital},
+                                            contPhases::Dict{Subshell, Float64}; output::Bool=true, printout::Bool=true)`  
     ... to compute the Auger transition amplitudes and all properties as requested by the given settings but by using the given set of
-        continuum orbitals. The computations and printout is adapted for large cascade computations by including only lines with at least
-        one channel and by sending all printout to a summary file only. A list of lines::Array{AutoIonization.Lines} is returned.
+        continuum orbitals and their scattering phases, both keyed on the continuum subshell. The computations and printout is adapted for
+        large cascade computations by including only lines with at least one channel and by sending all printout to a summary file only.
+        The phase cancels in the total rate, which is an incoherent sum over the partial waves, but NOT in the intrinsic angular
+        parameter, where amplitudes of different kappa interfere. A list of lines::Array{AutoIonization.Line,1} is returned.
 """
 function  computeLinesFromOrbitals(finalMultiplet::Multiplet, initialMultiplet::Multiplet, nm::Nuclear.Model, grid::Radial.Grid, 
-                                    settings::AutoIonization.Settings, contOrbitals::Dict{Subshell, Orbital}; output::Bool=true, printout::Bool=true)
+                                    settings::AutoIonization.Settings, contOrbitals::Dict{Subshell, Orbital},
+                                    contPhases::Dict{Subshell, Float64}; output::Bool=true, printout::Bool=true)
 
     lines = AutoIonization.determineLines(finalMultiplet, initialMultiplet, settings)
     # Display-only and the same for every line; set ONCE per computation, never from inside the line loop.
@@ -574,12 +578,12 @@ function  computeLinesFromOrbitals(finalMultiplet::Multiplet, initialMultiplet::
             newfLevel  = Basics.generateLevelWithSymmetryReducedBasis(line.finalLevel, subshellList)
             sh         = Subshell(101, pw.kappa)
             if haskey(contOrbitals, sh)   cOrbital = contOrbitals[sh]      else    println(">>> skip Auger channel for $sh");   continue    end
+            phase      = contPhases[sh]
             newiLevel  = Basics.generateLevelWithExtraSubshell(sh, newiLevel)
             newcLevel  = Basics.generateLevelWithExtraElectron(cOrbital, symi, newfLevel)
-            # The phase is 0. here, as it always was on this path: the orbitals are handed in ready-made and no phase comes with them.
-            amplitude  = AutoIonization.amplitude(settings.operator, pw.kappa, 0., newcLevel, newiLevel, grid, printout=printout)
+            amplitude  = AutoIonization.amplitude(settings.operator, pw.kappa, phase, newcLevel, newiLevel, grid, printout=printout)
             rate       = rate + conj(amplitude) * amplitude
-            push!( newPartialWaves, AutoIonization.PartialWave(pw.kappa, line.electronEnergy, 0., amplitude) )
+            push!( newPartialWaves, AutoIonization.PartialWave(pw.kappa, line.electronEnergy, phase, amplitude) )
         end
         totalRate = 2pi* rate;   angularAlpha = 0.
         newLine   = AutoIonization.Line(line.initialLevel, line.finalLevel, line.electronEnergy, totalRate, angularAlpha, newPartialWaves)

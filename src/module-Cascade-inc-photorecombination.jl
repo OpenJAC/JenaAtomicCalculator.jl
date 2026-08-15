@@ -4,11 +4,12 @@
 
 """
 `Cascade.computeContinuumOrbitals(scheme::Cascade.RadiativeRecombinationScheme, comp::Cascade.Computation, level::ManyElectron.Level)` 
-    ... computes in turn all the necessary continuum orbitals for the given energy grid and maxKappa value; a set of orbitals
-        cOrbitals::Dict{Subshell, Orbital} is returned.
+    ... computes in turn all the necessary continuum orbitals for the given energy grid and maxKappa value; a tuple
+        (cOrbitals, cPhases)::Tuple{Dict{Subshell, Orbital}, Dict{Subshell, Float64}} is returned. The scattering phase is kept
+        alongside each orbital because it is needed by the amplitudes: it cancels in a cross section but not in an angular parameter.
 """
 function computeContinuumOrbitals(scheme::Cascade.RadiativeRecombinationScheme, comp::Cascade.Computation, level::ManyElectron.Level)
-    cOrbitals = Dict{Subshell, Orbital}()
+    cOrbitals = Dict{Subshell, Orbital}();    cPhases = Dict{Subshell, Float64}()
     # Generate potential for continuum orbitals for this step
     maxFreeElectronEnergy_au  = Defaults.convertUnits("energy: to atomic", scheme.maxFreeElectronEnergy)
     enGrid       = Radial.GridGL(Radial.GridGaussLegendreFinite(), 0.0, maxFreeElectronEnergy_au, scheme.NoFreeElectronEnergies, printout=false)
@@ -26,12 +27,12 @@ function computeContinuumOrbitals(scheme::Cascade.RadiativeRecombinationScheme, 
             if  kappa == 0      continue    end
             sh    = Subshell(100+ie, kappa)
             cOrbital, phase, normF  = Continuum.generateOrbitalLocalPotential(en, sh, pot, contSettings)
-            cOrbitals[sh]           = cOrbital
+            cOrbitals[sh]           = cOrbital;      cPhases[sh] = phase
             println(">> New continum orbital generated for $sh and energy $en ")
         end
     end
     
-    return( cOrbitals )
+    return( cOrbitals, cPhases )
 end
 
 
@@ -49,7 +50,7 @@ function computeSteps(scheme::Cascade.RadiativeRecombinationScheme, comp::Cascad
     enGrid       = Radial.GridGL(Radial.GridGaussLegendreFinite(), 0.0, maxFreeElectronEnergy_au, scheme.NoFreeElectronEnergies, printout=false)
     nt = 0;   st = 0;   previousMeanEn = 0.
     # First compute all necessary continuum orbitals
-    cOrbitals = Cascade.computeContinuumOrbitals(scheme, comp, stepList[1].initialMultiplet.levels[1])
+    cOrbitals, cPhases = Cascade.computeContinuumOrbitals(scheme, comp, stepList[1].initialMultiplet.levels[1])
     
     for  step  in  stepList
         st = st + 1
@@ -59,7 +60,7 @@ function computeSteps(scheme::Cascade.RadiativeRecombinationScheme, comp::Cascad
                                                 
         if      step.process == Basics.Rec()
             newLines = PhotoRecombination.computeLinesWithContinuumOrbital(step.finalMultiplet, step.initialMultiplet, comp.nuclearModel, 
-                                                                            comp.grid, cOrbitals, enGrid, step.settings, output=true) 
+                                                                            comp.grid, cOrbitals, cPhases, enGrid, step.settings, output=true) 
             append!(linesRR, newLines);    nt = length(linesRR)
         else   error("Unsupported atomic process for cascade computations.")
         end

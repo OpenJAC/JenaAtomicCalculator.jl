@@ -10,7 +10,7 @@
         A set of  data::Array{Cascade.Data,1}  is returned.
 """
 function computeSteps(scheme::Cascade.HollowIonScheme, comp::Cascade.Computation, stepList::Array{Cascade.Step,1})
-    linesA = AutoIonization.Line[];    linesR = PhotoEmission.Line[];    linesC = ElectronCapture.Line[];    cOrbitals = Dict{Subshell, Orbital}()
+    linesA = AutoIonization.Line[];    linesR = PhotoEmission.Line[];    linesC = ElectronCapture.Line[];    cOrbitals = Dict{Subshell, Orbital}();    cPhases = Dict{Subshell, Float64}()
     printSummary, iostream = Defaults.getDefaults("summary flag/stream")
     nt = 0;   st = 0;   previousMeanEn = 0.
     for  step  in  stepList
@@ -35,7 +35,7 @@ function computeSteps(scheme::Cascade.HollowIonScheme, comp::Cascade.Computation
             if  abs(meanEn - previousMeanEn) / meanEn  < 0.15   # no new continuum orbitals
                 println(">> No new continum orbitals are generated for $(keys(cOrbitals)) and for the energy $meanEn ")
             else
-                previousMeanEn = meanEn;    cOrbitals = Dict{Subshell, Orbital}()
+                previousMeanEn = meanEn;    cOrbitals = Dict{Subshell, Orbital}();    cPhases = Dict{Subshell, Float64}()
                 for kappa = -step.settings.maxKappa-1:step.settings.maxKappa        if   kappa == 0     continue    end
                     sh           = Subshell(101, kappa);     nrContinuum = Continuum.gridConsistency(meanEn, comp.grid)
                     contSettings = Continuum.Settings(false, nrContinuum);   
@@ -53,13 +53,13 @@ function computeSteps(scheme::Cascade.HollowIonScheme, comp::Cascade.Computation
                     wp           = Basics.computePotential(comp.asfSettings.scField, comp.grid, step.finalMultiplet.levels[1])
                     pot          = Basics.add(npot, wp)
                     cOrbital, phase, normF  = Continuum.generateOrbitalLocalPotential(meanEn, sh, pot, contSettings)
-                    cOrbitals[sh] = cOrbital
+                    cOrbitals[sh] = cOrbital;    cPhases[sh] = phase
                 end
                 println(">> Generate continum orbitals in DFS potential for $(keys(cOrbitals)) and for the energy $meanEn ")
             end
         
             newLines = AutoIonization.computeLinesFromOrbitals(step.finalMultiplet, step.initialMultiplet, comp.nuclearModel, comp.grid, 
-                                                                step.settings, cOrbitals, output=true, printout=false) 
+                                                                step.settings, cOrbitals, cPhases, output=true, printout=false) 
             append!(linesA, newLines);    nt = length(linesA)
         elseif  step.process == Basics.Auger() 
             # Compute continuum orbitals independently for all transitions in the given block.

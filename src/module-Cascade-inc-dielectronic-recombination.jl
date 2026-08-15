@@ -10,7 +10,7 @@
         A set of  data::Cascade.CaptureData  is returned.
 """
 function computeSteps(scheme::Cascade.DielectronicRecombinationScheme, comp::Cascade.Computation, stepList::Array{Cascade.Step,1})
-    linesA = AutoIonization.Line[];    linesR = PhotoEmission.Line[];    cOrbitals = Dict{Subshell, Orbital}()
+    linesA = AutoIonization.Line[];    linesR = PhotoEmission.Line[];    cOrbitals = Dict{Subshell, Orbital}();    cPhases = Dict{Subshell, Float64}()
     printSummary, iostream = Defaults.getDefaults("summary flag/stream")
     nt = st = 0;   previousMeanEn = 0.
     for  step  in  stepList
@@ -56,7 +56,7 @@ function computeSteps(scheme::Cascade.DielectronicRecombinationScheme, comp::Cas
                         else                                                                      ## generate new continuum orbital
                             push!(generatedKappas, kappa)
                             cOrbital, phase, normF  = Continuum.generateOrbitalLocalPotential(en, sh, pot, contSettings)
-                            cOrbitals[sh]           = cOrbital
+                            cOrbitals[sh]           = cOrbital;    cPhases[sh] = phase
                             println(">> New continum orbital generated for $sh and energy $en ")
                         end
                     end
@@ -64,7 +64,7 @@ function computeSteps(scheme::Cascade.DielectronicRecombinationScheme, comp::Cas
             end
         
             newLines = AutoIonization.computeLinesFromOrbitals(step.finalMultiplet, step.initialMultiplet, comp.nuclearModel, comp.grid, 
-                                                                step.settings, cOrbitals, output=true, printout=false) 
+                                                                step.settings, cOrbitals, cPhases, output=true, printout=false) 
             append!(linesA, newLines);    nt = length(linesA)
         elseif  step.process == Basics.Auger() 
             # Compute continuum orbitals independently for all transitions in the given block.

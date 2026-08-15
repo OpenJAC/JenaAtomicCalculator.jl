@@ -380,20 +380,24 @@ end
 
 """
 `PhotoRecombination.computeLinesWithContinuumOrbital(finalMultiplet::Multiplet, initialMultiplet::Multiplet,
-        nm::Nuclear.Model, grid::Radial.Grid, cOrbitals::Dict{Subshell, Orbital}, energyGrid::Radial.GridGL,
-        settings::PhotoRecombination.Settings; output::Bool=true)`
+        nm::Nuclear.Model, grid::Radial.Grid, cOrbitals::Dict{Subshell, Orbital}, cPhases::Dict{Subshell, Float64},
+        energyGrid::Radial.GridGL, settings::PhotoRecombination.Settings; output::Bool=true)`
     ... computes the photo-recombination lines from continuum orbitals that have been generated beforehand and are handed over in cOrbitals,
         which avoids regenerating them per line; this is the driver used by Cascade.computeSteps(::Cascade.RadiativeRecombinationScheme,
         ...). A list of lines::Array{PhotoRecombination.Line,1} is returned if output=true, and nothing otherwise. The continuum orbital is
         looked up once per partial wave, so that the energy-grid index search runs once per partial wave as well.
 
-        TWO LIMITATIONS distinguish this driver from PhotoRecombination.computeLines and must be kept in mind when its numbers are used. The
-        phase is set to 0. instead of being taken from the orbital. And the cross section is summed inline over ALL multipoles rather than
-        through PhotoRecombination.computeCrossSectionForMultipoles, so that settings.multipoles does NOT restrict it here.
+        The scattering phase of each partial wave is taken from cPhases, which must be keyed on the same continuum subshells as cOrbitals;
+        Cascade.computeContinuumOrbitals produces both together. The phase cancels in the cross section, which is an incoherent sum of
+        abs2, but NOT in the anisotropy parameters, where amplitudes of different kappa interfere.
+
+        ONE LIMITATION distinguishes this driver from PhotoRecombination.computeLines: the cross section is summed inline over ALL
+        multipoles rather than through PhotoRecombination.computeCrossSectionForMultipoles, so that settings.multipoles does NOT restrict
+        it here.
 """
 function computeLinesWithContinuumOrbital(finalMultiplet::Multiplet, initialMultiplet::Multiplet, nm::Nuclear.Model,
-                                                grid::Radial.Grid, cOrbitals::Dict{Subshell, Orbital}, energyGrid::Radial.GridGL,
-                                                settings::PhotoRecombination.Settings; output::Bool=true)
+                                                grid::Radial.Grid, cOrbitals::Dict{Subshell, Orbital}, cPhases::Dict{Subshell, Float64},
+                                                energyGrid::Radial.GridGL, settings::PhotoRecombination.Settings; output::Bool=true)
     PhotoRecombination.checkConsistentMultiplets(finalMultiplet, initialMultiplet);     ie = 0
 
     lines = PhotoRecombination.determineLines(finalMultiplet, initialMultiplet, settings)
@@ -413,7 +417,7 @@ function computeLinesWithContinuumOrbital(finalMultiplet::Multiplet, initialMult
         for  pw in line.partialWaves
             cSubsh    = Subshell(100+ie, pw.kappa)
             newfLevel = Basics.generateLevelWithExtraSubshell(cSubsh, redFLevel)
-            cOrbital  = cOrbitals[cSubsh];      phase = 0.
+            cOrbital  = cOrbitals[cSubsh];      phase = cPhases[cSubsh]
             newChannels = PhotoRecombination.Channel[]
             for  ch in pw.channels
                 newcLevel = Basics.generateLevelWithExtraElectron(cOrbital, ch.symmetry, newiLevel)

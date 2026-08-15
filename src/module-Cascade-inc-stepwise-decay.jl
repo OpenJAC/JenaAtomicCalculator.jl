@@ -9,7 +9,7 @@
         A set of  data::Cascade.DecayData  is returned.
 """
 function computeSteps(scheme::Cascade.StepwiseDecayScheme, comp::Cascade.Computation, stepList::Array{Cascade.Step,1})
-    linesA = AutoIonization.Line[];    linesR = PhotoEmission.Line[];    cOrbitals = Dict{Subshell, Orbital}()    
+    linesA = AutoIonization.Line[];    linesR = PhotoEmission.Line[];    cOrbitals = Dict{Subshell, Orbital}();    cPhases = Dict{Subshell, Float64}()
     printSummary, iostream = Defaults.getDefaults("summary flag/stream")
                                                         
     nt = 0;   st = 0;   previousMeanEn = 0.
@@ -35,7 +35,7 @@ function computeSteps(scheme::Cascade.StepwiseDecayScheme, comp::Cascade.Computa
             if  abs(meanEn - previousMeanEn) / meanEn  < 0.15   # no new continuum orbitals
                 println(">> No new continum orbitals are generated for $(keys(cOrbitals)) and for the energy $meanEn ")
             else
-                previousMeanEn = meanEn;    cOrbitals = Dict{Subshell, Orbital}()
+                previousMeanEn = meanEn;    cOrbitals = Dict{Subshell, Orbital}();    cPhases = Dict{Subshell, Float64}()
                 for kappa = -step.settings.maxKappa-1:step.settings.maxKappa        if   kappa == 0     continue    end
                     sh           = Subshell(101, kappa);     nrContinuum = Continuum.gridConsistency(meanEn, comp.grid)
                     contSettings = Continuum.Settings(false, nrContinuum);   
@@ -47,13 +47,13 @@ function computeSteps(scheme::Cascade.StepwiseDecayScheme, comp::Cascade.Computa
                     wp           = Basics.computePotential(Basics.DFSField(), comp.grid, step.finalMultiplet.levels[1])
                     pot          = Basics.add(npot, wp)
                     cOrbital, phase, normF  = Continuum.generateOrbitalLocalPotential(meanEn, sh, pot, contSettings)
-                    cOrbitals[sh] = cOrbital
+                    cOrbitals[sh] = cOrbital;    cPhases[sh] = phase
                 end
                 println(">> Generate continum orbitals in DFS potential for $(keys(cOrbitals)) and for the energy $meanEn ")
             end
         
             newLines = AutoIonization.computeLinesFromOrbitals(step.finalMultiplet, step.initialMultiplet, comp.nuclearModel, comp.grid, 
-                                                                step.settings, cOrbitals, output=true, printout=false) 
+                                                                step.settings, cOrbitals, cPhases, output=true, printout=false) 
             append!(linesA, newLines);    nt = length(linesA)
         elseif  step.process == Basics.Auger() 
             # Compute continuum orbitals independently for all transitions in the given block.
@@ -91,7 +91,7 @@ end
         A set of  data::Cascade.DecayData  is returned.
 """
 function computeSteps(scheme::Cascade.StepwiseDecayScheme, comp::Cascade.Computation, stepList::Array{Cascade.Step,1})
-    #linesA = AutoIonization.Line[];    #linesR = PhotoEmission.Line[];    cOrbitals = Dict{Subshell, Orbital}()    
+    #linesA = AutoIonization.Line[];    #linesR = PhotoEmission.Line[];    cOrbitals = Dict{Subshell, Orbital}()
     printSummary, iostream = Defaults.getDefaults("summary flag/stream")
 
     stepsA = [ step for step in stepList if step.process ==  Basics.Auger() ]
@@ -166,7 +166,7 @@ function computeStepAugerAverageSCA(step::Cascade.Step, comp::Cascade.Computatio
     #if  abs(meanEn - previousMeanEn) / meanEn  < 0.15   # no new continuum orbitals
     #    println(">> No new continum orbitals are generated for $(keys(cOrbitals)) and for the energy $meanEn ")
     #else
-        previousMeanEn = meanEn;    cOrbitals = Dict{Subshell, Orbital}()
+        previousMeanEn = meanEn;    cOrbitals = Dict{Subshell, Orbital}();    cPhases = Dict{Subshell, Float64}()
         for kappa = -step.settings.maxKappa-1:step.settings.maxKappa        if   kappa == 0     continue    end
             sh           = Subshell(101, kappa);     nrContinuum = Continuum.gridConsistency(meanEn, comp.grid)
             contSettings = Continuum.Settings(false, nrContinuum);   
@@ -183,15 +183,15 @@ function computeStepAugerAverageSCA(step::Cascade.Step, comp::Cascade.Computatio
             wp           = Basics.computePotential(comp.asfSettings.scField, comp.grid, step.finalMultiplet.levels[1])
             pot          = Basics.add(npot, wp)
             cOrbital, phase, normF  = Continuum.generateOrbitalLocalPotential(meanEn, sh, pot, contSettings)
-            cOrbitals[sh] = cOrbital
+            cOrbitals[sh] = cOrbital;    cPhases[sh] = phase
         end
         #println(">> Generate continum orbitals in DFS potential for $(keys(cOrbitals)) and for the energy $meanEn ")
     #end
 
     newLines = AutoIonization.computeLinesFromOrbitals(step.finalMultiplet, step.initialMultiplet, comp.nuclearModel, comp.grid, 
-                                                        step.settings, cOrbitals, output=true, printout=false)
+                                                        step.settings, cOrbitals, cPhases, output=true, printout=false)
     # Deallocating
-    cOrbitals = Dict{Subshell, Orbital}()
+    cOrbitals = Dict{Subshell, Orbital}();    cPhases = Dict{Subshell, Float64}()
     return newLines
 end
 ... End of Aloka's part   ===============================================================#  
