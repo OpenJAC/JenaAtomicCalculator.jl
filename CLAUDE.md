@@ -353,6 +353,24 @@ Walk every `src/module-*.jl` file and report: non-source content (data, examples
 modules missing a `Settings` struct, functions not starting at column 1, missing `##` section separators.
 Produces a short checklist only — no changes made.
 
+### /priority
+**Display the working priority list, and drop from it whatever has been closed.**
+The list itself is not kept here — it names collaborators and unpublished work, which Rule 14 keeps out of
+this file — but lives in the assistant's memory directory as the single file that the command reads and
+rewrites.
+
+1. Read the priority list and print it **in full**, in its stored order, numbered.
+2. For each item, judge whether it is still open. An item is **closed** when the defect is fixed in `src/`,
+   the validation has been done, or the maintainer has said it is done — not when it merely looks stale.
+3. **Remove every closed item from the stored list** and renumber, so the list shrinks as work lands and
+   never has to be pruned by hand. Say which items were removed and why, in one line each.
+4. Items carrying a `verify` or `memory only` marker have not been re-checked against `src/`. Do not remove
+   one on the strength of the marker alone; either check it or leave it, and say which.
+5. Never silently reintroduce an item the maintainer has dropped. The list carries its own dropped-register
+   for exactly this.
+
+The command only reads, prints and prunes. It never starts work on an item.
+
 ### /summarize
 **End-of-session structured summary.**
 Lists: modules changed (and what kind of change), example branches tested (with dates),
