@@ -66,6 +66,198 @@ function testCompareFiles(fold::String, fnew::String, sa::String, noLines::Int64
 end
 
 
+"""
+`TestFrames.testCompareValues(oldValues::Array{Float64,1}, newValues::Array{Float64,1})`
+    ... compares two lists of numbers with the same relative-tolerance rule that TestFrames.testCompareLines
+        applies to its numeric tokens. Returns true if every entry agrees within rtol, false otherwise.
+"""
+function testCompareValues(oldValues::Array{Float64,1}, newValues::Array{Float64,1}; rtol::Float64=1.0e-6)
+    length(oldValues) != length(newValues)  &&  return( false )
+    for (ov, nv) in zip(oldValues, newValues)
+        denom = max(abs(ov), abs(nv), 1.0e-100)
+        abs(ov - nv) / denom > rtol  &&  return( false )
+    end
+    return( true )
+end
+
+
+"""
+`TestFrames.testParseSummaryRow(line::String)`
+    ... parses one data row of the two table families that JAC's summary files are built from:
+
+        transition row      3 --   1     1 - --> 0 +    3.512378e+01   E1   Babushkin   <values>
+        level row           1    1/2 +   -9.711504e+02  <further energies>
+        continuation row                               Coulomb        <values>
+
+        Returns a tuple (identity, labels, indices, values). The identity is what fixes the row PHYSICALLY:
+        the angular symmetries. The labels are the non-numeric fields that follow them -- multipole and
+        gauge, where present -- and join the identity to form the key under which rows are grouped. The
+        printed level numbers are returned separately as `indices` and are deliberately kept OUT of both,
+        since they are precisely what a reordering of (near-)degenerate levels changes.
+
+        A continuation row carries no identity of its own -- JAC prints the second gauge of a transition
+        this way -- and is returned with an empty identity for the caller to fill in from the row above.
+        Returns nothing if the row belongs to none of these shapes.
+"""
+function testParseSummaryRow(line::String)
+    tokens  = string.(split(strip(line)))
+    isJ(sa) = occursin(r"^[0-9]+(/2)?$", sa)
+    isP(sa) = sa in ["+", "-"]
+    numbersOf(tokenList) = Float64[ tryparse(Float64, ta)  for ta in tokenList  if !isnothing(tryparse(Float64, ta)) ]
+    labelsOf(tokenList)  = String[ ta  for ta in tokenList  if isnothing(tryparse(Float64, ta)) ]
+    ##
+    ## A transition row:  i  --  f   J^P  -->  J^P   <energy> [<multipole> <gauge>] <values>
+    if  length(tokens) > 8   &&   tokens[2] == "--"   &&   tokens[6] == "-->"   &&
+        isJ(tokens[4])  &&  isP(tokens[5])  &&  isJ(tokens[7])  &&  isP(tokens[8])
+        iIndex = tryparse(Int64, tokens[1]);    fIndex = tryparse(Int64, tokens[3])
+        (isnothing(iIndex)  ||  isnothing(fIndex))   &&   return( nothing )
+        rest   = tokens[9:end];    values = numbersOf(rest)
+        length(values) == 0   &&   return( nothing )
+        identity = "transition  " * tokens[4] * tokens[5] * " --> " * tokens[7] * tokens[8]
+        return( (identity=identity, labels=labelsOf(rest), indices=[iIndex, fIndex], values=values) )
+    end
+    ##
+    ## A level row:  level   J  parity   <energies> [<gauge>] <values>
+    if  length(tokens) > 3   &&   isJ(tokens[2])   &&   isP(tokens[3])
+        lIndex = tryparse(Int64, tokens[1])
+        isnothing(lIndex)   &&   return( nothing )
+        rest   = tokens[4:end];    values = numbersOf(rest)
+        length(values) == 0   &&   return( nothing )
+        return( (identity="level  " * tokens[2] * tokens[3], labels=labelsOf(rest), indices=[lIndex], values=values) )
+    end
+    ##
+    ## A continuation row:  <labels> <values>, with the identity inherited from the row above
+    if  length(tokens) > 1   &&   isnothing(tryparse(Float64, tokens[1]))
+        ifirst = findfirst(ta -> !isnothing(tryparse(Float64, ta)), tokens)
+        (isnothing(ifirst)  ||  ifirst == 1)                                        &&   return( nothing )
+        all(ta -> !isnothing(tryparse(Float64, ta)), tokens[ifirst:end])            ||   return( nothing )
+        return( (identity="", labels=tokens[1:ifirst-1], indices=Int64[], values=numbersOf(tokens[ifirst:end])) )
+    end
+    ##
+    return( nothing )
+end
+
+
+"""
+`TestFrames.testCollectSummaryRows(lines::Array{String,1}, ianchor::Int64, noLines::Int64, fname::String)`
+    ... collects the parsed data rows of the noLines-block that follows the anchor line ianchor, and returns
+        them as tuples (key, indices, values). Blank lines, ruler lines and header/unit lines -- recognized by
+        carrying no number at all -- are skipped silently.
+
+        A continuation row inherits from the row above: its identity, its level numbers, and those leading
+        values that it does not print itself, so that the inherited transition energy remains available for
+        the ordering. It is accepted only if the row above has the same number of labels and more values,
+        which keeps an ordinary line of prose from being mistaken for one.
+
+        A line that does carry numbers but belongs to none of the supported shapes is REFUSED loudly and makes
+        the method return nothing; a comparator that quietly does something plausible on a table it does not
+        understand would be worse than none.
+"""
+function testCollectSummaryRows(lines::Array{String,1}, ianchor::Int64, noLines::Int64, fname::String)
+    printTest, iostream = Defaults.getDefaults("test flag/stream")
+    keyOf(identity, labels) = identity * (isempty(labels) ? "" : "  " * join(labels, " "))
+    rows = Any[];    previous = nothing
+    for  i = ianchor+2:min(ianchor+noLines, length(lines))
+        line = lines[i]
+        length(strip(line)) < 5                                      &&   continue
+        occursin(r"^[\s\-=]+$", line)                                &&   continue
+        all(ta -> isnothing(tryparse(Float64, ta)), split(line))     &&   continue
+        row  = TestFrames.testParseSummaryRow(line)
+        ##
+        ## Resolve a continuation row against the row above, or refuse the line
+        if  !isnothing(row)  &&  row.identity == ""
+            if  isnothing(previous)                             ||   isempty(previous.labels)  ||
+                length(row.labels) != length(previous.labels)   ||   length(row.values) >= length(previous.values)
+                row = nothing
+            else
+                nInherited = length(previous.values) - length(row.values)
+                row = (identity=previous.identity, labels=row.labels, indices=previous.indices,
+                       values=vcat(previous.values[1:nInherited], row.values))
+            end
+        end
+        if  isnothing(row)
+            sa = "*** Unsupported table shape in $(fname), line $i;  no comparison by key is attempted:"
+            println(stdout, sa);   println(stdout, "    " * line)
+            if printTest   println(iostream, sa);   println(iostream, "    " * line)   end
+            return( nothing )
+        end
+        previous = row
+        push!(rows, (key=keyOf(row.identity, row.labels), indices=row.indices, values=row.values))
+    end
+    return( rows )
+end
+
+
+"""
+`TestFrames.testCompareFilesByKey(fold::String, fnew::String, sa::String, noLines::Int64)`
+    ... compares the noLines-block that follows the anchor string sa in the two files by the PHYSICAL identity
+        of each row rather than by its line position, as TestFrames.testCompareFiles does. Rows are grouped by
+        their key (symmetries, multipole, gauge) and, within a group, paired in order of ascending energy; the
+        printed level numbers enter nowhere. A physics change that shifts two near-degenerate levels past each
+        other therefore no longer appears as hundreds of differences -- it appears as an exchange of labels,
+        which is reported as information. Returns true if every paired row agrees within rtol.
+
+        Three things are reported: rows whose values differ, groups whose row count differs (rows present in
+        only one of the files), and the level-label exchanges. With printout=true the report also goes to
+        stdout, which is how it is used outside the test suite.
+"""
+function testCompareFilesByKey(fold::String, fnew::String, sa::String, noLines::Int64; rtol::Float64=1.0e-6,
+                               printout::Bool=false)
+    success = true
+    printTest, iostream = Defaults.getDefaults("test flag/stream")
+    report(sb) = begin  if printout  println(stdout, sb)  end;   if printTest  println(iostream, sb)  end  end
+    #
+    oldLines = readlines(fold);    newLines = readlines(fnew)
+    iold = 0;  for i=1:length(oldLines)   if  occursin(sa, oldLines[i])   iold = i;   break   end   end
+    inew = 0;  for i=1:length(newLines)   if  occursin(sa, newLines[i])   inew = i;   break   end   end
+    if  iold == 0   ||   inew == 0
+        println(stdout, "Tries to compare two inappropriate files fold = $(fold); fnew =$(fnew) on string $sa  ($iold, $inew)")
+        if printTest   println(iostream, "Tries to compare two inappropriate files fold = $(fold); fnew =$(fnew) on string $sa  ($iold, $inew)")  end
+        return( false )
+    end
+    #
+    oldRows = TestFrames.testCollectSummaryRows(oldLines, iold, noLines, fold)
+    newRows = TestFrames.testCollectSummaryRows(newLines, inew, noLines, fnew)
+    (isnothing(oldRows)  ||  isnothing(newRows))   &&   return( false )
+    #
+    ## Group the rows of either file by their physical key
+    oldGroups = Dict{String, Array{Any,1}}();    newGroups = Dict{String, Array{Any,1}}()
+    for  row in oldRows    push!( get!(oldGroups, row.key, Any[]), row )    end
+    for  row in newRows    push!( get!(newGroups, row.key, Any[]), row )    end
+    #
+    noMatched = 0;    exchanges = Tuple{Int64,Int64}[]
+    for  key in sort( collect( union(keys(oldGroups), keys(newGroups)) ) )
+        ## Within a group the energy ordering is stable: a physics shift is far smaller than the spacing of
+        ## distinct transitions, and where two rows are truly degenerate either pairing gives the same verdict
+        oldGroup = sort( get(oldGroups, key, Any[]), by = row -> row.values[1] )
+        newGroup = sort( get(newGroups, key, Any[]), by = row -> row.values[1] )
+        if  length(oldGroup) != length(newGroup)
+            success = false
+            report("    *** Row count differs for  $key ::  $(length(oldGroup)) old, $(length(newGroup)) new")
+            continue
+        end
+        for  (oldRow, newRow) in zip(oldGroup, newGroup)
+            if  TestFrames.testCompareValues(oldRow.values, newRow.values; rtol=rtol)   noMatched = noMatched + 1
+            else
+                success = false
+                report("    *** Differs for  $key  at  $(oldRow.indices) :")
+                report("        Old::  " * join([@sprintf("%.6e", va)  for va in oldRow.values], "  "))
+                report("        New::  " * join([@sprintf("%.6e", va)  for va in newRow.values], "  "))
+            end
+            for  (oldIndex, newIndex) in zip(oldRow.indices, newRow.indices)
+                oldIndex != newIndex   &&   push!(exchanges, (oldIndex, newIndex))
+            end
+        end
+    end
+    #
+    report("    Compared by key:  $noMatched rows matched, " *
+           "$(length(oldRows) - noMatched) differing or unpaired, $(length(unique(exchanges))) level labels exchanged.")
+    for  ex in unique(exchanges)   report("    Level label exchanged:  $(ex[1]) --> $(ex[2])  (not a failure)")   end
+
+    return( success )
+end
+
+
 function testPrint(sa::String, success::Bool)
     printTest, iostream = Defaults.getDefaults("test flag/stream")
     ok(succ) =  succ ? "[OK]" : "[Fail]"
