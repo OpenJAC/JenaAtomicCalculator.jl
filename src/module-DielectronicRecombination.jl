@@ -4,7 +4,7 @@
 ... a submodel of JAC that contains all methods for computing dielectronic recombination strength & rate coefficients 
     for some given initial, intermediate and final-state multiplets. Special code has been implemented to account for
     the capture into high-n Rydberg shells by incorporating, in addition to the explicitly calculated Auger and radiative
-    rates, also several hyrogenic and empirical corrections to the DR resonance strength. Further corrections can be
+    rates, also several hydrogenic and empirical corrections to the DR resonance strength. Further corrections can be
     readily added if the needs arise.
 
     DR is represented by the two physical steps it consists of: a CaptureLine holds the capture i + e- --> m together
@@ -114,7 +114,10 @@ struct   RydbergTailCorrection               <:  DielectronicRecombination.Abstr
 end
 
 
-# `Base.show(io::IO, corr::RydbergTailCorrection)`  ... prepares a proper printout of the corr::RydbergTailCorrection.
+"""
+`Base.show(io::IO, corr::RydbergTailCorrection)`
+    ... prepares a proper printout of the corr::RydbergTailCorrection; nothing is returned.
+"""
 function Base.show(io::IO, corr::RydbergTailCorrection)
     println(io, "RydbergTailCorrection() with: ")
     println(io, "nMax:            $(corr.nMax)  ")
@@ -131,7 +134,7 @@ end
         account for all shells with n^{final}+1 <= n <= nHydrogenic
 
     + nHydrogenic       ::Union{Int64,Missing}   
-        ... upper principal quantum number nHydrogenic for which hydrogenic correctios to the radiative photon rates are 
+        ... upper principal quantum number nHydrogenic for which hydrogenic corrections to the radiative photon rates are 
             calculated explicitly; the photon rates are further scaled if some proper effectiveZ and/or rateScaling
             is provided.
     + effectiveZ      ::Union{Float64,Missing}   ... effective charge Z_eff for the hydrogenic correction.
@@ -144,7 +147,10 @@ struct   HydrogenicCorrections               <:  DielectronicRecombination.Abstr
 end
 
 
-# `Base.show(io::IO, corr::HydrogenicCorrections)`  ... prepares a proper printout of the corr::HydrogenicCorrections.
+"""
+`Base.show(io::IO, corr::HydrogenicCorrections)`
+    ... prepares a proper printout of the corr::HydrogenicCorrections; nothing is returned.
+"""
 function Base.show(io::IO, corr::HydrogenicCorrections)
     println(io, "HydrogenicCorrections() with: ")
     println(io, "nHydrogenic:     $(corr.nHydrogenic)  ")
@@ -167,7 +173,10 @@ struct   MaximumlCorrection                  <:  DielectronicRecombination.Abstr
 end
 
 
-# `Base.show(io::IO, corr::MaximumlCorrection)`  ... prepares a proper printout of the corr::MaximumlCorrection.
+"""
+`Base.show(io::IO, corr::MaximumlCorrection)`
+    ... prepares a proper printout of the corr::MaximumlCorrection; nothing is returned.
+"""
 function Base.show(io::IO, corr::MaximumlCorrection)
     println(io, "MaximumlCorrection(lmax = $(corr.maximum_l)): ")
 end     
@@ -187,7 +196,10 @@ struct   ResonanceWindowCorrection           <:  DielectronicRecombination.Abstr
 end
 
 
-# `Base.show(io::IO, corr::ResonanceWindowCorrection)`  ... prepares a proper printout of the corr::ResonanceWindowCorrection.
+"""
+`Base.show(io::IO, corr::ResonanceWindowCorrection)`
+    ... prepares a proper printout of the corr::ResonanceWindowCorrection; nothing is returned.
+"""
 function Base.show(io::IO, corr::ResonanceWindowCorrection)
     println(io, "ResonanceWindowCorrection() with: ")
     println(io, "energyMin:  $(corr.energyMin)  ")
@@ -255,7 +267,10 @@ struct   EmpiricalTreatment
 end
 
 
-# `Base.show(io::IO, tr::EmpiricalTreatment)`  ... prepares a proper printout of the tr::EmpiricalTreatment.
+"""
+`Base.show(io::IO, tr::EmpiricalTreatment)`
+    ... prepares a proper printout of the tr::EmpiricalTreatment; nothing is returned.
+"""
 function Base.show(io::IO, tr::EmpiricalTreatment)
     println(io, "doRydbergTailCorrection:  $(tr.doRydbergTailCorrection)  ")
     println(io, "doHydrogenicCorrections:  $(tr.doHydrogenicCorrections)  ")
@@ -287,7 +302,7 @@ end
         ... Only compute resonance strength but without making all the pathways explicit. This option is useful
             for the capture into high-n shells or if the photons are not considered explicit. It also treats the 
             shells differently due to the given core shells < final-state shells < hydrogenically-scaled shells <
-            capture-shells < asymptotic-shells. Various correction and multi-threading techiques can be applied
+            capture-shells < asymptotic-shells. Various correction and multi-threading techniques can be applied
             to deal with or omit different classes of these shells.
     + calcRateAlpha         ::Bool                 
         ... True, if the DR rate coefficients are to be calculated, and false o/w.
@@ -313,7 +328,7 @@ end
         ... minimum transition energy for which photon transitions are  included into the evaluation.
     + temperatures          ::Array{Float64,1}     
         ... list of temperatures for which plasma rate coefficients are displayed; however, these rate coefficients
-            only include the contributions from those pathsways that are calculated here explicitly.
+            only include the contributions from those pathways that are calculated here explicitly.
     + corrections           ::Array{DielectronicRecombination.AbstractCorrections,1}
         ... Specify, if appropriate, the inclusion of additional corrections to the rates and DR strengths.
     + augerOperator         ::AbstractEeInteraction 
@@ -390,7 +405,10 @@ function Settings(set::DielectronicRecombination.Settings;
 end
 
 
-# `Base.show(io::IO, settings::DielectronicRecombination.Settings)`  ... prepares a proper printout of the variable settings::DielectronicRecombination.Settings.
+"""
+`Base.show(io::IO, settings::DielectronicRecombination.Settings)`
+    ... prepares a proper printout of the variable settings::DielectronicRecombination.Settings; nothing is returned.
+"""
 function Base.show(io::IO, settings::DielectronicRecombination.Settings) 
     println(io, "multipoles:                 $(settings.multipoles)  ")
     println(io, "use-gauges:                 $(settings.gauges)  ")
@@ -408,20 +426,6 @@ function Base.show(io::IO, settings::DielectronicRecombination.Settings)
     println(io, "augerOperator:              $(settings.augerOperator)  ")
 end
 
-
-## The Pathway (i,m,f) representation was DELETED on 05-Aug-2026 together with
-## module-DielectronicRecombination-inc-FS-resolved.jl. It is fully superseded by CaptureLine (i,m) plus
-## PhotonLine (m,f), which separate the two physical steps instead of carrying their product, and it had no
-## remaining reference anywhere in src/. Passage and Resonance are still named by the hyperfine-resolved file
-## and are therefore kept until that route is rebuilt.
-
-
-## RETIRED 05-Aug-2026: DielectronicRecombination.Passage (i,m) and .Resonance (i,m). Together with Pathway,
-## removed earlier the same day, these were the three overlapping representations of the old fine-structure route.
-## They are fully superseded by CaptureLine (i,m) + PhotonLine (m,f), which separate the two physical steps and
-## store the two total widths instead of rescanning lists for them -- the rescanning being where both of the old
-## route's aggregation bugs lived. The last reference to Passage disappeared when the hyperfine-resolved route was
-## rewritten; ResonanceSelection and ResonanceWindowCorrection are unrelated types and remain in use.
 
 
 """
@@ -450,7 +454,10 @@ function ResonanceSelection()
 end
 
 
-# `Base.show(io::IO, resonance::DielectronicRecombination.ResonanceSelection)`  ... prepares a proper printout of resonance::DielectronicRecombination.ResonanceSelection.
+"""
+`Base.show(io::IO, rSelection::DielectronicRecombination.ResonanceSelection)`
+    ... prepares a proper printout of resonance::DielectronicRecombination.ResonanceSelection; nothing is returned.
+"""
 function Base.show(io::IO, rSelection::DielectronicRecombination.ResonanceSelection) 
     println(io, "active:           $(rSelection.active)  ")
     println(io, "fromShells:       $(rSelection.fromShells)  ")
@@ -459,17 +466,6 @@ function Base.show(io::IO, rSelection::DielectronicRecombination.ResonanceSelect
 end
 
 
-## module-DielectronicRecombination-inc-FS-resolved.jl was REWRITTEN on 05-Aug-2026; `git log --follow` on it shows
-## both the old contents and this one. The previous version carried the Pathway/Passage/Resonance representation and
-## TWO parallel implementations of the same aggregation, which had drifted apart and were broken in complementary
-## ways -- one assigned the Auger width where it had to sum, the other crashed on a threadid()/nthreads() mismatch,
-## and neither failure was visible because nobody ran both. The present file replaces all three types by CaptureLine
-## (i,m) and PhotonLine (m,f), which separate the two physical steps rather than carrying their product, and it
-## reproduced the old results bit-identically for He-like C4+, H-like Xe53+ and the test case before the old one was
-## removed. The corrections machinery was carried over and REPAIRED rather than copied: HydrogenicCorrections and
-## MaximumlCorrection with their summation range corrected (it had run upward from the wrong shell and was therefore
-## identically zero), ResonanceWindowCorrection reimplemented, and EmpiricalCorrections replaced by
-## RydbergTailCorrection, whose n^(-3) scaling can be stated and checked where the old n^(-0.8) could not.
 include("module-DielectronicRecombination-inc-FS-resolved.jl")
 include("module-DielectronicRecombination-inc-HF-resolved.jl")
 
