@@ -114,8 +114,9 @@ end
 
 """
 `struct  CrystalFieldEmission.Channel`
-    ... a single multipole/gauge transition channel between two Stark sublevels, mirroring
-        PhotoEmission.Channel.
+    ... a single multipole/gauge transition channel between two Stark sublevels.  It mirrors what
+        PhotoEmission.Channel was before that module was retired; this one is CrystalFieldEmission's own and
+        is unaffected.
 
     + multipole   ::EmMultipole   ... multipole of the photon emission/absorption.
     + gauge       ::EmGauge       ... gauge used for the radiation field.

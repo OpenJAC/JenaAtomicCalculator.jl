@@ -103,8 +103,8 @@ end
     + excitEnergy         ::Float64                ... photon excitation energy of this pathway
     + fluorEnergy         ::Float64                ... photon fluorescence energy of this pathway
     + crossSection        ::EmProperty             ... total cross section of this pathway
-    + excitChannels       ::Array{PhotoEmission.Channel,1}  ... List of excitation channels of this pathway.
-    + fluorChannels       ::Array{PhotoEmission.Channel,1}  ... List of fluorescence channels of this pathway.
+    + excitChannels       ::Array{MultipoleAmplitude,1}     ... excitation amplitudes, one per multipole, both gauges.
+    + fluorChannels       ::Array{MultipoleAmplitude,1}     ... fluorescence amplitudes, one per multipole, both gauges.
 """
 struct  Pathway
     initialLevel          ::Level
@@ -113,8 +113,8 @@ struct  Pathway
     excitEnergy           ::Float64
     fluorEnergy           ::Float64
     crossSection          ::EmProperty
-    excitChannels         ::Array{PhotoEmission.Channel,1}
-    fluorChannels         ::Array{PhotoEmission.Channel,1}
+    excitChannels         ::Array{MultipoleAmplitude,1}
+    fluorChannels         ::Array{MultipoleAmplitude,1}
 end 
 
 
@@ -150,18 +150,38 @@ end
 """
 function  computeAmplitudesProperties(pathway::PhotoExcitationFluores.Pathway, grid::Radial.Grid, settings::PhotoExcitationFluores.Settings)
     # Compute all excitation channels
-    neweChannels = PhotoEmission.Channel[]
-    for eChannel in pathway.excitChannels
-        amplitude   = PhotoEmission.amplitude(Absorption(), eChannel.multipole, eChannel.gauge, pathway.excitEnergy, 
-                                                pathway.intermediateLevel, pathway.initialLevel, grid)
-        push!( neweChannels, PhotoEmission.Channel( eChannel.multipole, eChannel.gauge, amplitude))
+    neweChannels = MultipoleAmplitude[]
+    for  ma in pathway.excitChannels
+        mp = ma.multipole
+        if  string(mp)[1] == 'E'
+            ampC = PhotoEmission.amplitude(Absorption(), mp, Basics.Coulomb,   pathway.excitEnergy,
+                                            pathway.intermediateLevel, pathway.initialLevel, grid)
+            ampB = PhotoEmission.amplitude(Absorption(), mp, Basics.Babushkin, pathway.excitEnergy,
+                                            pathway.intermediateLevel, pathway.initialLevel, grid)
+            amp  = EmPropertyC(ampC, ampB)
+        else
+            ampM = PhotoEmission.amplitude(Absorption(), mp, Basics.Magnetic,  pathway.excitEnergy,
+                                            pathway.intermediateLevel, pathway.initialLevel, grid)
+            amp  = EmPropertyC(ampM)
+        end
+        push!( neweChannels, MultipoleAmplitude(mp, amp))
     end
     # Compute all fluorescence channels
-    newfChannels = PhotoEmission.Channel[]
-    for fChannel in pathway.fluorChannels
-        amplitude   = PhotoEmission.amplitude(Emission(), fChannel.multipole, fChannel.gauge, pathway.fluorEnergy, 
-                                                pathway.finalLevel, pathway.intermediateLevel, grid)
-        push!( newfChannels, PhotoEmission.Channel( fChannel.multipole, fChannel.gauge, amplitude))
+    newfChannels = MultipoleAmplitude[]
+    for  ma in pathway.fluorChannels
+        mp = ma.multipole
+        if  string(mp)[1] == 'E'
+            ampC = PhotoEmission.amplitude(Emission(), mp, Basics.Coulomb,   pathway.fluorEnergy,
+                                            pathway.finalLevel, pathway.intermediateLevel, grid)
+            ampB = PhotoEmission.amplitude(Emission(), mp, Basics.Babushkin, pathway.fluorEnergy,
+                                            pathway.finalLevel, pathway.intermediateLevel, grid)
+            amp  = EmPropertyC(ampC, ampB)
+        else
+            ampM = PhotoEmission.amplitude(Emission(), mp, Basics.Magnetic,  pathway.fluorEnergy,
+                                            pathway.finalLevel, pathway.intermediateLevel, grid)
+            amp  = EmPropertyC(ampM)
+        end
+        push!( newfChannels, MultipoleAmplitude(mp, amp))
     end
     crossSection = EmProperty(-1., -1.)
     pathway = PhotoExcitationFluores.Pathway( pathway.initialLevel, pathway.intermediateLevel, pathway.finalLevel, pathway.excitEnergy, 
@@ -187,7 +207,9 @@ function  computePhotonDm(pathway::PhotoExcitationFluores.Pathway, settings::Pho
                 Lp = chp.multipole.L;   if  chp.multipole.electric  pp = 1   else   pp = 0   end
                 for  k = 0:10
                     if  !AngularMomentum.isTriangle(L, Lp, k)  ||   !AngularMomentum.isTriangle(Je, Je, AngularJ64(k))    continue    end
-                    if  ch.gauge == Basics.Babushkin  ||    chp.gauge == Basics.Babushkin                                 continue    end 
+                    ## COULOMB ONLY, exactly as before: this function computes meCoulomb and never had a
+                    ## Babushkin counterpart, so the amplitudes' Coulomb component is taken and the
+                    ## Babushkin one deliberately left unused rather than silently starting to print it.
                     for  q = 0:10
                         for  qp = 0:10
                             if  lambda - lambdap  != -qp    continue    end
@@ -196,7 +218,7 @@ function  computePhotonDm(pathway::PhotoExcitationFluores.Pathway, settings::Pho
                                                     (-1)^(Basics.twice(Jf)/2 + Basics.twice(Je)/2 + k+q+1)                                    *
                                                     AngularMomentum.ClebschGordan(L, lambda, Lp, -lambdap, k, -qp)                            * 
                                                     AngularMomentum.Wigner_6j(L, Lp, k, Je, Je, Jf)                                           *
-                                                    ch.amplitude * conj(chp.amplitude)
+                                                    ch.amplitude.Coulomb * conj(chp.amplitude.Coulomb)
                         end
                     end
                 end

@@ -56,11 +56,15 @@ end
     ... defines a type for a photon-impact excitaton & autoionization channel that specifies all quantum numbers, phases 
         and amplitudes.
 
-    + excitationChannel  ::PhotoEmission.Channel       ... Channel that describes the photon-impact excitation process.
+    + excitationChannel  ::MultipoleAmplitude          ... the photon-impact excitation amplitude, one multipole
+                                                            carrying both gauges.  NOTHING IN JAC EVER FILLS THIS
+                                                            FIELD: the module is a scaffold, and the type was
+                                                            changed with PhotoEmission's retirement only so that
+                                                            it names something that still exists.
     + augerChannel       ::AutoIonization.PartialWave      ... Channel that describes the subsequent Auger/autoionization process.
 """
 struct  Channel
-    excitationChannel    ::PhotoEmission.Channel
+    excitationChannel    ::MultipoleAmplitude
     augerChannel         ::AutoIonization.PartialWave
 end 
 

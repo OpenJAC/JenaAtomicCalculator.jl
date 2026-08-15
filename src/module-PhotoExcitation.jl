@@ -120,8 +120,8 @@ end
     + crossSection   ::EmProperty                  ... Total cross section of this line.
     + staTensor      ::Array{TensorComp,1}         ... Array of statistical tensor components rho_kq
     + hasSublines    ::Bool                        ... Determines whether the individual sublines are defined in terms of their 
-                                                        multipolarity, amplitude, or not; cf. PhotoEmission.Channel
-    + channels       ::Array{PhotoEmission.Channel,1}  ... List of radiative (photon) channels
+                                                        multipolarity, amplitude, or not
+    + channels       ::Array{MultipoleAmplitude,1}     ... one entry per multipole, each carrying BOTH gauges
 """
 struct  Line
     initialLevel     ::Level
@@ -131,7 +131,7 @@ struct  Line
     crossSection     ::EmProperty
     staTensor        ::Array{TensorComp,1}
     hasSublines      ::Bool
-    channels         ::Array{PhotoEmission.Channel,1}
+    channels         ::Array{MultipoleAmplitude,1}
 end 
 
 
@@ -140,7 +140,7 @@ end
     ... constructor an photo-excitation line between a specified initial and final level.
 """
 function Line(initialLevel::Level, finalLevel::Level, omega::Float64, crossSection::EmProperty)
-    Line(initialLevel, finalLevel, omega, EmProperty(0., 0.), crossSection, false, PhotoEmission.Channel[])
+    Line(initialLevel, finalLevel, omega, EmProperty(0., 0.), crossSection, false, MultipoleAmplitude[])
 end
 
 
@@ -163,23 +163,32 @@ end
         the amplitudes and properties have now been evaluated.
 """
 function  computeAmplitudesProperties(line::PhotoExcitation.Line, grid::Radial.Grid, settings::PhotoExcitation.Settings; printout::Bool=true)
-    newChannels = PhotoEmission.Channel[];    Ji2 = Basics.twice(line.initialLevel.J);    Jf2 = Basics.twice(line.finalLevel.J)
-    for  channel  in  line.channels
-        amplitude = PhotoEmission.amplitude(Absorption(), channel.multipole, channel.gauge, line.omega, 
+    newChannels = MultipoleAmplitude[];    Ji2 = Basics.twice(line.initialLevel.J);    Jf2 = Basics.twice(line.finalLevel.J)
+    for  ma  in  line.channels
+        mp = ma.multipole
+        if  string(mp)[1] == 'E'
+            ampC = PhotoEmission.amplitude(Absorption(), mp, Basics.Coulomb,   line.omega,
                                             line.finalLevel, line.initialLevel, grid, printout=printout)
-        push!( newChannels, PhotoEmission.Channel(channel.multipole, channel.gauge, amplitude) )
+            ampB = PhotoEmission.amplitude(Absorption(), mp, Basics.Babushkin, line.omega,
+                                            line.finalLevel, line.initialLevel, grid, printout=printout)
+            amp  = EmPropertyC(ampC, ampB)
+        else
+            ampM = PhotoEmission.amplitude(Absorption(), mp, Basics.Magnetic,  line.omega,
+                                            line.finalLevel, line.initialLevel, grid, printout=printout)
+            amp  = EmPropertyC(ampM)
+        end
+        push!( newChannels, MultipoleAmplitude(mp, amp) )
     end
     # Calculate the absorption oscillator strength
-    oscCoulomb = oscBabushkin = 0.;   omega = line.omega;   alpha = Defaults.getDefaults("alpha")
-    for  channel  in  newChannels
-        wa = 8pi * alpha * line.omega / (Ji2 + 1) * (Jf2 + 1) / 2.
-        if      channel.gauge == Basics.Coulomb     oscCoulomb   = oscCoulomb    +  channel.amplitude * conj(channel.amplitude) * wa
-        elseif  channel.gauge == Basics.Babushkin   oscBabushkin = oscBabushkin  +  channel.amplitude * conj(channel.amplitude) * wa
-        elseif  channel.gauge == Basics.Magnetic    oscBabushkin = oscBabushkin  +  channel.amplitude * conj(channel.amplitude) * wa
-                                                    oscCoulomb   = oscCoulomb    +  channel.amplitude * conj(channel.amplitude) * wa
-        else    error("stop a")
-        end
+    ## The three-way gauge branch is gone: abs2 of an EmPropertyC is an EmProperty, and a magnetic amplitude
+    ## has equal components, so it enters BOTH sums by itself -- which is exactly what the Magnetic branch
+    ## used to say in two lines.
+    osc = EmProperty(0., 0.);   omega = line.omega;   alpha = Defaults.getDefaults("alpha")
+    for  ma  in  newChannels
+        wa  = 8pi * alpha * line.omega / (Ji2 + 1) * (Jf2 + 1) / 2.
+        osc = osc + wa * abs2(ma.amplitude)
     end
+    oscCoulomb = osc.Coulomb;    oscBabushkin = osc.Babushkin
     ## The absorption oscillator strength must carry the statistical weight 1/(2J_i+1) of the INITIAL level.
     ## The factor wa above already supplies (2J_f+1)/(2(2J_i+1)); an earlier oscFactor of
     ## (Ji2+1)/(Jf2+1)/2 * c^3/omega^2 cancelled both weights again and left f without any J-dependence,
@@ -279,9 +288,11 @@ function  computeLinesCascade(finalMultiplet::Multiplet, initialMultiplet::Multi
         newLine = PhotoExcitation.computeAmplitudesProperties(line, grid, settings, printout=printout) 
         #
         # Don't add this line if it does not contribute to the decay
-        wa = 0.
-        for  ch in newLine.channels   wa = wa + abs(ch.amplitude)^2    end
-        if   wa == 0.    continue    end
+        ## abs2 of an EmPropertyC is an EmProperty, so the sum is gauge-paired; either component answers the
+        ## question "did this line contribute at all".
+        wa = EmProperty(0., 0.)
+        for  ma in newLine.channels   wa = wa + abs2(ma.amplitude)    end
+        if   wa.Coulomb == 0.  &&  wa.Babushkin == 0.    continue    end
         push!( newLines, newLine)
     end
     # Print all results to a summary file, if requested
@@ -313,19 +324,14 @@ end
         into account the particular settings of for this computation; an Array{PhotoExcitation.Channel,1} is returned.
 """
 function determineChannels(finalLevel::Level, initialLevel::Level, settings::PhotoExcitation.Settings)
-    channels = PhotoEmission.Channel[];   
+    channels = MultipoleAmplitude[];   
     symi = LevelSymmetry(initialLevel.J, initialLevel.parity);    symf = LevelSymmetry(finalLevel.J, finalLevel.parity) 
+    ## The gauge loop and its hasMagnetic flag are gone: one entry per multipole, carrying both gauges.  The
+    ## flag existed only to stop a magnetic multipole being emitted once per requested gauge, and there is no
+    ## gauge loop left for it to guard.
     for  mp in settings.multipoles
         if   AngularMomentum.isAllowedMultipole(symi, mp, symf)
-            hasMagnetic = false
-            for  gauge in settings.gauges
-                # Include further restrictions if appropriate
-                if     string(mp)[1] == 'E'  &&   gauge == Basics.UseCoulomb      push!(channels, PhotoEmission.Channel(mp, Basics.Coulomb,   0.) )
-                elseif string(mp)[1] == 'E'  &&   gauge == Basics.UseBabushkin    push!(channels, PhotoEmission.Channel(mp, Basics.Babushkin, 0.) )  
-                elseif string(mp)[1] == 'M'  &&   !(hasMagnetic)               push!(channels, PhotoEmission.Channel(mp, Basics.Magnetic,  0.) );
-                                                    hasMagnetic = true; 
-                end 
-            end
+            push!(channels, MultipoleAmplitude(mp, EmPropertyC(Complex(0.), Complex(0.))))
         end
     end
     return( channels )  
@@ -461,9 +467,15 @@ function  displayLines(stream::IO, lines::Array{PhotoExcitation.Line,1})
         sa = sa * TableStrings.center(18, TableStrings.levels_if(line.initialLevel.index, line.finalLevel.index); na=2)
         sa = sa * TableStrings.center(18, TableStrings.symmetries_if(isym, fsym); na=4)
         sa = sa * @sprintf("%.8e", Defaults.convertUnits("energy: from atomic", line.omega)) * "    "
+        ## One entry per (multipole, GAUGE): an electric multipole is one amplitude holding two gauges, a
+        ## magnetic one has no gauge freedom.  The gauge belongs to this table, not to the amplitude.
         mpGaugeList = Tuple{Basics.EmMultipole,Basics.EmGauge}[]
-        for  i in 1:length(line.channels)
-            push!( mpGaugeList, (line.channels[i].multipole, line.channels[i].gauge) )
+        for  ma in line.channels
+            if  string(ma.multipole)[1] == 'E'
+                push!( mpGaugeList, (ma.multipole, Basics.Coulomb) );   push!( mpGaugeList, (ma.multipole, Basics.Babushkin) )
+            else
+                push!( mpGaugeList, (ma.multipole, Basics.Magnetic) )
+            end
         end
         sa = sa * TableStrings.multipoleGaugeTupels(50, mpGaugeList)
         println(stream, sa )

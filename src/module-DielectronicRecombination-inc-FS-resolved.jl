@@ -1627,15 +1627,14 @@ end
         THIS IS A CALL, NOT A COPY.  The flat determinePhotonChannels reproduces PhotoEmission's gauge loop and
         its hasMagnetic flag verbatim -- a third copy of the same machinery, after PhotoEmission's own and
         PhotoRecombination's.  Here the selection rule is asked of the module that owns it. The only reason a
-        wrapper exists at all is that PhotoEmission.determineChannelsClaude expects a PhotoEmission.Settings.
-        NOTE the Claude suffix: it survives ONLY because PhotoEmission is not retired yet, and goes when it is,
+        wrapper exists at all is that PhotoEmission.determineChannels expects a PhotoEmission.Settings,
         so the multipoles have to be handed over.
 """
 function determinePhotonChannels(finalLevel::Level, intermediateLevel::Level,
                                        settings::DielectronicRecombination.Settings)
     peSettings = PhotoEmission.Settings(PhotoEmission.Settings(), multipoles=settings.multipoles,
                                         gauges=settings.gauges)
-    return( PhotoEmission.determineChannelsClaude(finalLevel, intermediateLevel, peSettings) )
+    return( PhotoEmission.determineChannels(finalLevel, intermediateLevel, peSettings) )
 end
 
 
