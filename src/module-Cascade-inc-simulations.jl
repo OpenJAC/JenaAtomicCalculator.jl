@@ -580,14 +580,44 @@ function extractLevels(data::Array{Cascade.Data,1}, settings::Cascade.Simulation
         elseif  typeof(cData) == Cascade.Data{PhotoExcitation.Line}
             linesE = cData.lines
             for  (i,line)  in  enumerate(linesE)
+                major  = Basics.extractConfiguration(Basics.LeadingConfiguration(), line.initialLevel)
                 iLevel = Cascade.Level( line.initialLevel.energy, line.initialLevel.J, line.initialLevel.parity, line.initialLevel.basis.NoElectrons,
-                                        line.initialLevel.relativeOcc, Cascade.LineReference[], [ Cascade.LineReference(linesE, Basics.Radiative(), i)] ) 
+                                        major, line.initialLevel.relativeOcc, Cascade.LineReference[], [ Cascade.LineReference(linesE, Basics.PhotoExc(), i)] ) 
                 Cascade.pushLevels!(levels, iLevel)  
+                major  = Basics.extractConfiguration(Basics.LeadingConfiguration(), line.finalLevel)
                 fLevel = Cascade.Level( line.finalLevel.energy, line.finalLevel.J, line.finalLevel.parity, line.finalLevel.basis.NoElectrons,
-                                        line.finalLevel.relativeOcc, [ Cascade.LineReference(linesE, Basics.Radiative(), i)], Cascade.LineReference[] ) 
+                                        major, line.finalLevel.relativeOcc, [ Cascade.LineReference(linesE, Basics.PhotoExc(), i)], Cascade.LineReference[] ) 
                 Cascade.pushLevels!(levels, fLevel)  
             end
-        else  error("stop a")
+        elseif  typeof(cData) == Cascade.Data{PhotoRecombination.Line}
+            linesR = cData.lines
+            for  (i,line)  in  enumerate(linesR)
+                major  = Basics.extractConfiguration(Basics.LeadingConfiguration(), line.initialLevel)
+                iLevel = Cascade.Level( line.initialLevel.energy, line.initialLevel.J, line.initialLevel.parity, line.initialLevel.basis.NoElectrons,
+                                        major, line.initialLevel.relativeOcc, Cascade.LineReference[], [ Cascade.LineReference(linesR, Basics.Rec(), i)] ) 
+                Cascade.pushLevels!(levels, iLevel)  
+                major  = Basics.extractConfiguration(Basics.LeadingConfiguration(), line.finalLevel)
+                fLevel = Cascade.Level( line.finalLevel.energy, line.finalLevel.J, line.finalLevel.parity, line.finalLevel.basis.NoElectrons,
+                                        major, line.finalLevel.relativeOcc, [ Cascade.LineReference(linesR, Basics.Rec(), i)], Cascade.LineReference[] ) 
+                Cascade.pushLevels!(levels, fLevel)  
+            end
+        elseif  typeof(cData) == Cascade.Data{ImpactExcitation.Line}
+            linesI = cData.lines
+            for  (i,line)  in  enumerate(linesI)
+                major  = Basics.extractConfiguration(Basics.LeadingConfiguration(), line.initialLevel)
+                iLevel = Cascade.Level( line.initialLevel.energy, line.initialLevel.J, line.initialLevel.parity, line.initialLevel.basis.NoElectrons,
+                                        major, line.initialLevel.relativeOcc, Cascade.LineReference[], [ Cascade.LineReference(linesI, Basics.ImpactExc(), i)] ) 
+                Cascade.pushLevels!(levels, iLevel)  
+                major  = Basics.extractConfiguration(Basics.LeadingConfiguration(), line.finalLevel)
+                fLevel = Cascade.Level( line.finalLevel.energy, line.finalLevel.J, line.finalLevel.parity, line.finalLevel.basis.NoElectrons,
+                                        major, line.finalLevel.relativeOcc, [ Cascade.LineReference(linesI, Basics.ImpactExc(), i)], Cascade.LineReference[] ) 
+                Cascade.pushLevels!(levels, fLevel)  
+            end
+        else
+            error("Cascade.extractLevels(): no branch for $(typeof(cData)).  A Cascade.Data{T} is built for " *
+                  "PhotoEmission, AutoIonization, PhotoIonization, PhotoExcitation, PhotoRecombination and " *
+                  "ImpactExcitation lines; any other T has to be given its own branch here before a simulation " *
+                  "can use it.  Silently dropping the lines would leave the level list incomplete.")
         end
     end
     
