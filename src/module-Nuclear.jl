@@ -752,6 +752,42 @@ end
 
 
 """
+`Nuclear.innerBreakPoints(r::Float64)`
+    ... returns the integration limits and break points for the INNER part of the nuclear Coulomb integral, which runs from the origin out
+        to r; a tuple::Tuple{Vararg{Float64}} is returned, always in increasing order.
+
+        The break point at 1.0e-3 a.u. is there to resolve the nuclear surface, and it is CLAMPED into the interval rather than being
+        dropped, so that the tuple always has the same length and the quadrature is not recompiled for each of several tuple types. A
+        clamped break point yields a zero-width segment, which contributes exactly nothing.
+        Passing it unconditionally makes the segment list non-monotonic for every grid point with r < 1.0e-3, so that quadgk integrates
+        out to 1.0e-3 -- straight across the surface -- and back again. That is right in exact arithmetic but ruinous in floating point:
+        for a heavy nucleus the intermediate segment is about 1.6e9 times the integral being asked for, so the result is formed by
+        cancelling two numbers nine orders of magnitude apart. Measured at the innermost grid point, that cost up to 1.7 s for a SINGLE
+        point and returned a relative error of 1.2e-5 where the call asks for 1.0e-8.
+"""
+function innerBreakPoints(r::Float64)
+
+    return( (0.0, min(1.0e-3, r), r) )
+end
+
+
+"""
+`Nuclear.outerBreakPoints(r::Float64)`
+    ... returns the integration limits and break points for the OUTER part of the nuclear Coulomb integral, which runs from r out to the
+        practical infinity of 1.0e+3 a.u.; a tuple::Tuple{Vararg{Float64}} is returned, always in increasing order.
+
+        As for Nuclear.innerBreakPoints, the break points at 1.0 and 1.0e+1 a.u. are CLAMPED into the interval, so that the segment list
+        never runs backwards and the tuple keeps a fixed length; a clamped break point gives a zero-width segment. A grid point beyond the
+        outer limit yields an empty interval rather than a negatively oriented one.
+"""
+function outerBreakPoints(r::Float64)
+    rUpp = max(r, 1.0e+3)
+
+    return( (r, max(r, 1.0), max(r, 1.0e+1), rUpp) )
+end
+
+
+"""
 `Nuclear.fermiDistributedNucleus(Rrms::Float64, Z::Float64, grid::Radial.Grid)`  
     ... computes the effective, radial-dependent charge Z(r) for a Fermi-distributed nucleus with rms 
         radius R and nuclear charge Z. The full nuclear potential is then given by V_nuc = - Z(r)/r; 
@@ -789,8 +825,8 @@ function fermiDistributedNucleus(Rrms::Float64, Z::Float64, grid::Radial.Grid)
     #
     #
     for  i = 2:length(zznew)   
-        zznew[i] = 1 / grid.r[i] * quadgk(rr_rho, 0.0, 1.0e-3, grid.r[i], rtol=1.0e-8)[1] 
-        zznew[i] = zznew[i] + quadgk(r_rho, grid.r[i], 1.0, 1.0e+1, 1.0e+3, rtol=1.0e-8)[1]
+        zznew[i] = 1 / grid.r[i] * quadgk(rr_rho, Nuclear.innerBreakPoints(grid.r[i])..., rtol=1.0e-8)[1] 
+        zznew[i] = zznew[i] + quadgk(r_rho, Nuclear.outerBreakPoints(grid.r[i])..., rtol=1.0e-8)[1]
         zznew[i] = Z * N * zznew[i] * grid.r[i]
     end 
 
@@ -828,8 +864,8 @@ function threeParameterFermiNucleus(Rrms::Float64, Z::Float64, model::Nuclear.Th
     N = 1. / QuadGK.quadgk(rr_rho, 0., 1.3, rtol=1.0e-10)[1]
     #
     for  i = 2:length(zznew)
-        zznew[i] = 1 / grid.r[i] * quadgk(rr_rho, 0.0, 1.0e-3, grid.r[i], rtol=1.0e-8)[1]
-        zznew[i] = zznew[i] + quadgk(r_rho, grid.r[i], 1.0, 1.0e+1, 1.0e+3, rtol=1.0e-8)[1]
+        zznew[i] = 1 / grid.r[i] * quadgk(rr_rho, Nuclear.innerBreakPoints(grid.r[i])..., rtol=1.0e-8)[1]
+        zznew[i] = zznew[i] + quadgk(r_rho, Nuclear.outerBreakPoints(grid.r[i])..., rtol=1.0e-8)[1]
         zznew[i] = Z * N * zznew[i] * grid.r[i]
     end
 
@@ -880,8 +916,8 @@ function deformedFermiNucleus(Rrms::Float64, Z::Float64, model::Nuclear.Deformed
     N = 1. / QuadGK.quadgk(rr_rho, 0., 1.3, rtol=1.0e-10)[1]
     #
     for  i = 2:length(zznew)
-        zznew[i] = 1 / grid.r[i] * quadgk(rr_rho, 0.0, 1.0e-3, grid.r[i], rtol=1.0e-8)[1]
-        zznew[i] = zznew[i] + quadgk(r_rho, grid.r[i], 1.0, 1.0e+1, 1.0e+3, rtol=1.0e-8)[1]
+        zznew[i] = 1 / grid.r[i] * quadgk(rr_rho, Nuclear.innerBreakPoints(grid.r[i])..., rtol=1.0e-8)[1]
+        zznew[i] = zznew[i] + quadgk(r_rho, Nuclear.outerBreakPoints(grid.r[i])..., rtol=1.0e-8)[1]
         zznew[i] = Z * N * zznew[i] * grid.r[i]
     end
 
