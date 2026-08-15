@@ -648,14 +648,14 @@ function Basics.tabulateKappaSymmetryEnergiesDirac(kappa::Int64, evalues::Array{
 end
 
 
-"""
-`Basics.tools(dict::Dict)`  
-    ... select different tools from a menu if proper results::dict are given in terms of a dictionary as obtained
-        usually from an Atomic.Computation.
-"""
-function Basics.tools(dict::Dict)
-    println("Tools.select(): A menu if a dict comes in; $dict ")
-end
+## RETIRED 15-Aug-2026: `Basics.tools(dict::Dict)`, together with the whole `module-Tools.jl` it was the
+## entry point to.  The intention, recoverable from the stubs: hand it the results dictionary of a
+## computation and get a MENU of small interactive helpers -- `module-Tools.jl` carried a commented-out
+## `using Interact`, i.e. the Julia widget package for Jupyter/Pluto, so this was to be a notebook toolbox.
+## The one concrete task ever sketched was `taskGridCalculatorResults(rnt, h, hp, rmax)`, a calculator for
+## radial-grid parameters -- and THAT idea now exists properly as Radial.generateGrid(grid;
+## maximumPrincipalQN=..), which derives the box from the orbital's turning point (Rule 12).  Interact was
+## never added as a dependency, the menu was never written, and the only method printed a placeholder.
 
 
 ## RETIRED 14-Aug-2026: `yesno(question::String, sa::String)`, an interactive yes/no prompt.  It had no

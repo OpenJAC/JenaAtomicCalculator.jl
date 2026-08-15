@@ -113,7 +113,7 @@ export AbstractCImethod, AbstractComputeTheme, AbstractConfigurationRestriction,
        SphericalMesh, SphericalTensor, SpinAngular, SplitByEnergy, StarkShift, StarkZeeman, StartFromHydrogenic,
        StartFromPrevious, StartFromThomasFermi, StaticField,
        StaticQuantizationAxis, StrongField, StrongField2, Subshell, SuperConfiguration,
-       tabulate, TestFrames, ThomasFermiField, ThreeParameterFermiNucleus, TimeHarmonicField, tools, TotalAM,
+       tabulate, TestFrames, ThomasFermiField, ThreeParameterFermiNucleus, TimeHarmonicField, TotalAM,
        Triangle,
        TwoElectronOnePhoton,
        UniformNucleus, UseBabushkin, UseCoulomb, UseGauge,
@@ -147,7 +147,6 @@ include("module-Hamiltonian.jl");       using ..Hamiltonian
 include("module-SelfConsistent.jl");    using ..SelfConsistent
 include("module-PeriodicTable.jl")
 include("module-TableStrings.jl")
-include("module-Tools.jl")
 include("module-AtomicState.jl");       using ..AtomicState
 include("module-LSjj.jl");              using ..LSjj
 include("module-BiOrthogonal.jl");      using ..BiOrthogonal

@@ -16,7 +16,7 @@ include("module-Basics-inc-abstract.jl")
 include("module-Basics-inc-second.jl")
 
 export  add, analyze, compute, diagonalize, generate, interpolate, integrate, perform, recast, run,
-        tabulate, tools       
+        tabulate       
 
 export  checkConfigurations,  displayConfiguration,  displayConfigurations,  extractConfiguration,  extractConfigurations,  
         extractFromConfiguration,  extractFromConfigurations,  generateConfigurations
@@ -121,6 +121,5 @@ function sortByEnergy                                           end
 function subshellStateString                                    end
 function tabulate                                               end
 function tabulateKappaSymmetryEnergiesDirac                     end
-function tools                                                  end
 
 end  ## module
