@@ -161,7 +161,7 @@ function testModule_Cascade_StepwiseDecay(; short::Bool=true)
     Defaults.setDefaults("print summary: close", "")
     # Make the comparison with approved data
     success = testCompareFiles( joinpath(@__DIR__, "..", "test", "approved", "test-Cascade-StepwiseDecay-approved.sum"),
-                                joinpath(@__DIR__, "..", "test", "test-Cascade-StepwiseDecay-new.sum"), "Steps that are defined for the curren", 10)
+                                joinpath(@__DIR__, "..", "test", "test-Cascade-StepwiseDecay-new.sum"), "Steps that are defined for the curren", 20)
     testPrint("testModule_Cascade-StepwiseDecay()::", success)
     return(success)
 end

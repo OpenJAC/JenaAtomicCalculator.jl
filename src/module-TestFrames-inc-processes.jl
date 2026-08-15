@@ -22,7 +22,7 @@ function testModule_AutoIonization(; short::Bool=true)
     Defaults.setDefaults("print summary: close", "")
     # Make the comparison with approved data
     success = testCompareFiles( joinpath(@__DIR__, "..", "test", "approved", "test-AutoIonization-approved.sum"),
-                                joinpath(@__DIR__, "..", "test", "test-AutoIonization-new.sum"), "Auger rates and intrinsic", 5)
+                                joinpath(@__DIR__, "..", "test", "test-AutoIonization-new.sum"), "Auger rates and intrinsic", 10)
     testPrint("testModule_AutoIonization()::", success)
     return(success)
 end
@@ -261,7 +261,7 @@ function testModule_PhotoIonization(; short::Bool=true)
     Defaults.setDefaults("print summary: close", "")
     # Make the comparison with approved data
     success = testCompareFiles( joinpath(@__DIR__, "..", "test", "approved", "test-PhotoIonization-approved.sum"),
-                                joinpath(@__DIR__, "..", "test", "test-PhotoIonization-new.sum"), "Total photoionization c", 3)
+                                joinpath(@__DIR__, "..", "test", "test-PhotoIonization-new.sum"), "Total photoionization c", 10)
     ## Check the summed (grand-total) cross sections separately: they must stay consistent with the
     ## line-resolved table above, of which they are the sum over all final levels.
     success = success  &&
