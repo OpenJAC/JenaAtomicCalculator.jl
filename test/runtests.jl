@@ -71,7 +71,7 @@ using JenaAtomicCalculator, ..Defaults, ..TestFrames
         @test TestFrames.testModule_Cascade_PhotonIonization()
         @test TestFrames.testModule_Cascade_PhotonExcitation()
         @test TestFrames.testModule_Cascade_PhotoAbsorption()
-        ## @test TestFrames.testModule_Cascade_Simulation()  ## disabled: test-Cascade-StepwiseDecay-data.jld predates CsfR.seniorityNr field; needs data file regeneration   [re-verified 09-Aug-2026: still raises JLD2.ReconstructedMutable{:CsfR}; regenerating the reference data is an editorial act, not a repair]
+        @test  TestFrames.testModule_Cascade_Simulation()   ## re-enabled 16-Aug-2026; data file regenerated and the Simulation API call brought up to date
     end
 
     @testset "JAC empirical" begin

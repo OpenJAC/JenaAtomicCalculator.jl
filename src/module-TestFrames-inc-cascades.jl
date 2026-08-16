@@ -127,14 +127,18 @@ function testModule_Cascade_Simulation(; short::Bool=true)
     data = [JLD2.load(datafile)]
     name = "Simulation of the neon 1s^-1 3p decay"
 
-    wc   = Cascade.Simulation(Cascade.Simulation(), name=name, property=Cascade.IonDistribution(),
-                                settings=Cascade.SimulationSettings(0., 0., 0., 0., 0., [(1, 2.0), (2, 1.0), (3, 0.5)]), computationData=data )
+    ## The initial occupations moved from Cascade.SimulationSettings onto Cascade.IonDistribution itself;
+    ## SimulationSettings now carries only (printTree, printLongTree, initialPhotonEnergy).  The six-argument
+    ## form this test used no longer exists, which is one of the three reasons it had stopped running.
+    wc   = Cascade.Simulation(Cascade.Simulation(), name=name,
+                                property=Cascade.IonDistribution([(1, 2.0), (2, 1.0), (3, 0.5)], Configuration[]),
+                                settings=Cascade.SimulationSettings(false, false, 0.), computationData=data )
     wd = perform(wc; output=true)
     ###
     Defaults.setDefaults("print summary: close", "")
     # Make the comparison with approved data
     success = testCompareFiles( joinpath(@__DIR__, "..", "test", "approved", "test-Cascade-Simulation-approved.sum"),
-                                joinpath(@__DIR__, "..", "test", "test-Cascade-Simulation-new.sum"), "(Final) Ion distribution for", 7)
+                                joinpath(@__DIR__, "..", "test", "test-Cascade-Simulation-new.sum"), "(Final) Ion distribution for", 8)
     testPrint("testModule_Cascade-Simulation()::", success)
     return(success)
 end
