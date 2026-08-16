@@ -101,16 +101,24 @@ function testModule_Hfs(; short::Bool=true)
     wa = Atomic.Computation(Atomic.Computation(), name="xx", grid=Radial.Grid(true),
                             nuclearModel=Nuclear.Model(26., FermiNucleus(), 58., 3.81, AngularJ64(5//2), 1.0, 1.0, 0.),
                             configs=[Configuration("[Ne] 3s^2 3p^5"), Configuration("[Ne] 3s 3p^6")],
-                            propertySettings = [ Hfs.Settings(true, true, true, true, true, false, LevelSelection() )] )
+                            propertySettings = [ Hfs.Settings(true, true, true, true, false, false, LevelSelection() )] )
+                            ## calcHfMultiplet = false: that path raises "... still to be done for a single
+                            ## nuclear spin/isomer" and is what kept this test disabled.  Everything else --
+                            ## the M1/E2/M3 amplitudes, the A/B/C factors and the non-diagonal table -- runs.
 
     wb = perform(wa)
     ###
     Defaults.setDefaults("print summary: close", "")
     println("aaa  ")
     # Make the comparison with approved data
+    ## Anchor on what this test is FOR.  Until 16-Aug-2026 it compared "Level  J Parity  Hartrees", the
+    ## level-energy table, so it would have verified no hyperfine quantity at all even once re-enabled.
     success = testCompareFiles( joinpath(@__DIR__, "..", "test", "approved", "test-Hfs-b-approved.sum"),
-                                joinpath(@__DIR__, "..", "test", "test-Hfs-b-new.sum"), "Level  J Parity          Hartrees", 20)
-    println("bbb  success = $success")
+                                joinpath(@__DIR__, "..", "test", "test-Hfs-b-new.sum"), "HFS parameters:", 9)
+    success = success  &&
+              testCompareFiles( joinpath(@__DIR__, "..", "test", "approved", "test-Hfs-b-approved.sum"),
+                                joinpath(@__DIR__, "..", "test", "test-Hfs-b-new.sum"),
+                                "Selected (non-) diagonal hyperfine amplitudes:", 15)
     testPrint("testModule_Hfs()::", success)
     return(success)
 end

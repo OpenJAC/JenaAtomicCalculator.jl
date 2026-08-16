@@ -44,7 +44,7 @@ using JenaAtomicCalculator, ..Defaults, ..TestFrames
 
     @testset "JAC properties" begin
         @test TestFrames.testModule_Einstein()
-        ## @test TestFrames.testModule_Hfs()           ## disabled: runtime error "still to be done" in Hfs.computeAmplitudesProperties (calcNondiagonal path not implemented)   [re-verified 09-Aug-2026: still raises "... still to be done for a single nuclear spin/isomer"]
+        @test  TestFrames.testModule_Hfs()             ## re-enabled 16-Aug-2026; the blocker was calcHfMultiplet, not calcNondiagonal
         @test TestFrames.testModule_LandeZeeman() 
         @test TestFrames.testModule_IsotopeShift()   
         @test TestFrames.testModule_AlphaVariation() 
