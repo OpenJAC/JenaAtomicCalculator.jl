@@ -1383,6 +1383,17 @@ function computeTwoElectronV(subshell::Subshell, coeffs2p::Array{SpinAngular.Coe
         else
             continue
         end
+        # SpinAngular does not pre-filter its coefficients on the C^L parity rule, so combinations whose
+        # reduced matrix element <a||C^nu||c> vanishes arrive here carrying a NONZERO V -- seven of them even
+        # for Be 1s^2 2s^2 + 1s^2 2p^2. The radial kernels annihilate them, so skipping is numerically inert;
+        # it only avoids building a matrix already known to be zero, and stops the kernels' own guards from
+        # firing thousands of times per SCF. The rule depends on the pattern, which is exactly what the
+        # 26-Jul note below got wrong: the direct call passes a = c and b = d, so it collapses to `nu even`,
+        # whereas the exchange call pairs (subshell, partner) and needs l_sh + l_partner + nu even.
+        if      pattern in [:diagonal, :direct]   &&   isodd(cf.nu)                                     continue
+        elseif  pattern == :exchange              &&
+                isodd( Basics.subshell_l(subshell) + Basics.subshell_l(partner) + cf.nu )               continue
+        end
         # NOTE (26-Jul-2026): a previous `iseven(subshell_l + partner_l + cf.nu)` filter here, intended to
         # drop Breit-only coefficients, was REMOVED -- it used the parity of two unrelated orbitals' l-values
         # plus nu, which is not a real Breit/Coulomb selection rule and was silently discarding legitimate
