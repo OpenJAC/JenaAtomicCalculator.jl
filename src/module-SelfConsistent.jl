@@ -960,11 +960,15 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
         ## better where the basis is stable -- Be 1s^2 2s^2 + 1s^2 2p^2 at 12 iterations reaches -14.618710
         ## against conjugacy's -14.616507, i.e. it does change the RATE and not merely the constant -- but it
         ## LOSES on the harder Be RAS step-2 case, -14.617374 against -14.619313, and there it discards its
-        ## own curvature history at iterations 8, 15, 21 and 23.  The cause is not the quasi-Newton idea: it
-        ## is that virtualDirections is rebuilt EVERY iteration, so y = g_k - g_{k-1} mixes vectors living in
-        ## different subspaces and the stored pairs go stale within about six steps.  Conjugacy survives that
-        ## because it carries ONE previous direction and restarts every ten.  Stabilizing the virtual space
-        ## is the prerequisite for L-BFGS here, and would help conjugacy too.
+        ## own curvature history at iterations 8, 15, 21 and 23.  WHY IT FAILS IS NOT KNOWN.  Two candidates
+        ## were proposed and BOTH MEASURED SMALL, so neither should be repeated as an explanation:
+        ##   * the virtual space is NOT churning -- successive frames overlap to |1-<new,old>| = 1e-4..3e-3
+        ##     with no change in the number of directions, one 0.67 rotation excepted, and that one does not
+        ##     coincide with any of the four history discards;
+        ##   * the objective DOES drift, since coeffs1p/coeffs2p are rebuilt from the re-diagonalized mixing
+        ##     vector every iteration, but only by max|dV| ~ 1e-4..3e-3 against max|V| ~ 1.8.
+        ## Conjugacy tolerates whatever this is because it carries ONE previous direction and restarts every
+        ## ten; L-BFGS accumulates five pairs and does not.  Anyone picking this up should measure first.
         dotAll(u, v) = sum( sum(u[sh] .* v[sh])  for sh in basis.subshells )
         ## H_0 is the DIAGONAL PRECONDITIONER, not the usual gamma*I: the (eps_v - eps_a) denominators carry
         ## real physics and throwing them away for a scalar would be a step backwards.  applyPrecond is what
