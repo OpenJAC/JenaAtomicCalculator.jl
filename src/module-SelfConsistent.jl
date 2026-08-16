@@ -863,7 +863,7 @@ end
 """
 function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.Model, primitives::Bsplines.Primitives,
                                          settings::AsfSettings; printout::Bool=true, nVirtual::Int64=16,
-                                         conjugate::Bool=true, cgRestart::Int64=10)
+                                         method::Symbol=:conjugate, cgRestart::Int64=10, lbfgsMemory::Int64=5)
     nsL = primitives.grid.nsL;    nsS = primitives.grid.nsS;    grid = primitives.grid
     storage = Dict{String,Array{Float64,2}}()
     matrixB = zeros( nsL+nsS, nsL+nsS )
@@ -889,10 +889,13 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
     (bVectors, _) = SelfConsistent.projectOntoPositiveBranch(bVectors, basis.subshells, primitives,
                                                                      nucPot, matrixB, storage; spectrum=posSpectrum)
     ePrevious = 0.;   tStep = 1.0;   multiplet = Multiplet("EOL-ByRotation", Level[])
-    ## Conjugate-gradient state, all held in b-space: the virtual directions are rebuilt every iteration,
-    ## so a direction stored in THAT basis would not survive to the next step.
+    ## Direction state, all held in b-space: the virtual directions are rebuilt every iteration, so anything
+    ## stored in THAT basis would be meaningless one step later.
     dirPrev = Dict{Subshell, Vector{Float64}}();   gPrev = Dict{Subshell, Vector{Float64}}()
     sgPrev  = 0.;    iterSinceRestart = 0
+    bPrev   = Dict{Subshell, Vector{Float64}}()
+    sHist   = Vector{Dict{Subshell, Vector{Float64}}}();   yHist = Vector{Dict{Subshell, Vector{Float64}}}()
+    rhoHist = Float64[]
     for  iter = 1:settings.maxIterationsScf
         orbitals = Dict{Subshell, Orbital}()
         for  sh  in  basis.subshells
@@ -923,17 +926,19 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
         ## converges far too slowly here: it left the Li control 1.8e-6 Ha short after 60 steps.
         ## The denominator is floored, since a near-degenerate pair would otherwise produce a huge step.
         gProj = Dict{Subshell, Vector{Float64}}();   step = Dict{Subshell, Vector{Float64}}()
+        denom = Dict{Subshell, Vector{Float64}}()
         gNorm = 0.;    sNorm = 0.
         for  sh  in  basis.subshells
             h1k  = Bsplines.setupLocalMatrix(sh.kappa, primitives, nucPot, storage)
             epsA = transpose(bVectors[sh]) * h1k * bVectors[sh]
             gv   = [ transpose(phi) * grad[sh]  for phi in virt[sh] ]
-            sv   = zeros( length(gv) )
+            sv   = zeros( length(gv) );    dv = zeros( length(gv) )
             for  (iv, phi)  in  enumerate(virt[sh])
                 epsV    = transpose(phi) * h1k * phi
-                sv[iv]  = - gv[iv] / max( epsV - epsA, 0.05 )
+                dv[iv]  = max( epsV - epsA, 0.05 )
+                sv[iv]  = - gv[iv] / dv[iv]
             end
-            gProj[sh] = gv;    step[sh] = sv
+            gProj[sh] = gv;    step[sh] = sv;    denom[sh] = dv
             gNorm = gNorm + sum( gv.^2 );    sNorm = sNorm + sum( sv.^2 )
         end
         gNorm = sqrt(gNorm);    sNorm = sqrt(sNorm)
@@ -951,15 +956,73 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
             end
             sVec[sh] = sv;    gVec[sh] = gv
         end
-        beta = 0.
-        if  conjugate  &&  !isempty(dirPrev)  &&  iterSinceRestart < cgRestart  &&  abs(sgPrev) > 1.0e-30
-            num = 0.
-            for  sh  in  basis.subshells    num = num + sum( (gVec[sh] - gPrev[sh]) .* sVec[sh] )    end
-            beta = max( 0., num / sgPrev )                       ## Polak-Ribiere+, i.e. restart on beta < 0
+        ## method = :conjugate is the DEFAULT and the one to use.  :lbfgs is kept because it is measurably
+        ## better where the basis is stable -- Be 1s^2 2s^2 + 1s^2 2p^2 at 12 iterations reaches -14.618710
+        ## against conjugacy's -14.616507, i.e. it does change the RATE and not merely the constant -- but it
+        ## LOSES on the harder Be RAS step-2 case, -14.617374 against -14.619313, and there it discards its
+        ## own curvature history at iterations 8, 15, 21 and 23.  The cause is not the quasi-Newton idea: it
+        ## is that virtualDirections is rebuilt EVERY iteration, so y = g_k - g_{k-1} mixes vectors living in
+        ## different subspaces and the stored pairs go stale within about six steps.  Conjugacy survives that
+        ## because it carries ONE previous direction and restarts every ten.  Stabilizing the virtual space
+        ## is the prerequisite for L-BFGS here, and would help conjugacy too.
+        dotAll(u, v) = sum( sum(u[sh] .* v[sh])  for sh in basis.subshells )
+        ## H_0 is the DIAGONAL PRECONDITIONER, not the usual gamma*I: the (eps_v - eps_a) denominators carry
+        ## real physics and throwing them away for a scalar would be a step backwards.  applyPrecond is what
+        ## turns gVec into -sVec, so it is exactly the operator already in use.
+        applyPrecond = function(q)
+            r = Dict{Subshell, Vector{Float64}}()
+            for  sh  in  basis.subshells
+                rv = zeros(nsL+nsS)
+                for  (iv, phi)  in  enumerate(virt[sh])
+                    rv = rv + ( (transpose(phi) * q[sh]) / denom[sh][iv] ) * phi
+                end
+                r[sh] = rv
+            end
+            return( r )
         end
-        dir = Dict{Subshell, Vector{Float64}}()
-        for  sh  in  basis.subshells
-            dir[sh] = beta == 0. ? sVec[sh] : sVec[sh] + beta * dirPrev[sh]
+        ## Record the curvature pair (s,y) of the step just taken.  Only pairs with <y,s> > 0 are kept, which
+        ## is what keeps the implicit inverse Hessian positive definite -- and hence the direction a descent
+        ## direction -- on a surface that is not convex.
+        if  method == :lbfgs  &&  !isempty(bPrev)
+            sPair = Dict{Subshell, Vector{Float64}}();   yPair = Dict{Subshell, Vector{Float64}}()
+            for  sh  in  basis.subshells
+                sPair[sh] = bVectors[sh] - bPrev[sh];    yPair[sh] = gVec[sh] - gPrev[sh]
+            end
+            ys = dotAll(yPair, sPair)
+            if  ys > 1.0e-14
+                push!(sHist, sPair);    push!(yHist, yPair);    push!(rhoHist, 1.0/ys)
+                while  length(sHist) > lbfgsMemory
+                    popfirst!(sHist);   popfirst!(yHist);   popfirst!(rhoHist)
+                end
+            end
+        end
+        beta = 0.
+        dir  = Dict{Subshell, Vector{Float64}}()
+        if      method == :lbfgs  &&  !isempty(sHist)
+            ## two-loop recursion, giving d = -H grad with H built from the stored pairs around H_0
+            q = Dict{Subshell, Vector{Float64}}( sh => copy(gVec[sh])  for sh in basis.subshells )
+            alphas = zeros( length(sHist) )
+            for  i = length(sHist):-1:1
+                alphas[i] = rhoHist[i] * dotAll(sHist[i], q)
+                for  sh  in  basis.subshells    q[sh] = q[sh] - alphas[i] * yHist[i][sh]    end
+            end
+            r = applyPrecond(q)
+            for  i = 1:length(sHist)
+                bb = rhoHist[i] * dotAll(yHist[i], r)
+                for  sh  in  basis.subshells    r[sh] = r[sh] + (alphas[i] - bb) * sHist[i][sh]    end
+            end
+            for  sh  in  basis.subshells    dir[sh] = -r[sh]    end
+        elseif  method == :conjugate
+            if  !isempty(dirPrev)  &&  iterSinceRestart < cgRestart  &&  abs(sgPrev) > 1.0e-30
+                num = 0.
+                for  sh  in  basis.subshells    num = num + sum( (gVec[sh] - gPrev[sh]) .* sVec[sh] )    end
+                beta = max( 0., num / sgPrev )                   ## Polak-Ribiere+, i.e. restart on beta < 0
+            end
+            for  sh  in  basis.subshells
+                dir[sh] = beta == 0. ? sVec[sh] : sVec[sh] + beta * dirPrev[sh]
+            end
+        else
+            for  sh  in  basis.subshells    dir[sh] = sVec[sh]    end
         end
         ## Guard: a conjugate direction must still descend.  If it does not, fall back to steepest descent.
         dg = 0.;   for sh in basis.subshells   dg = dg + sum( gVec[sh] .* dir[sh] )   end
@@ -970,6 +1033,7 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
         iterSinceRestart = beta == 0. ? 0 : iterSinceRestart + 1
         sgPrev = 0.;   for sh in basis.subshells   sgPrev = sgPrev + sum( gVec[sh] .* sVec[sh] )   end
         gPrev  = gVec;    dirPrev = dir
+        bPrev  = Dict{Subshell, Vector{Float64}}( sh => copy(bVectors[sh])  for sh in basis.subshells )
         if  sNorm < 1.0e-14    break    end
         if  printout
             println(">> [EOL-C3] iter $iter:  E = $(multiplet.levels[1].energy)   |grad| = $gNorm   step = $tStep")
@@ -1015,6 +1079,27 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
             tStep = tStep / 2
         end
         if  printout
+        end
+        if  !accepted  &&  method == :lbfgs  &&  !isempty(sHist)
+            ## A line search that finds no descent along an L-BFGS direction means the stored curvature is
+            ## no longer describing this surface -- unsurprising, since virtualDirections is rebuilt every
+            ## iteration and the pairs then mix vectors from different subspaces. Discard the history and
+            ## retry from the preconditioned gradient rather than giving up.
+            if  printout    println(">> [EOL-C3] L-BFGS history discarded at iteration $iter; retrying.")   end
+            empty!(sHist);   empty!(yHist);   empty!(rhoHist);   tStep = 1.0
+            for  trial = 1:24
+                newB = Dict{Subshell, Vector{Float64}}()
+                for  sh  in  basis.subshells
+                    v = bVectors[sh] + tStep * sVec[sh]
+                    newB[sh] = v / sqrt( abs(transpose(v) * matrixB * v) )
+                end
+                (projB, negW) = SelfConsistent.projectOntoPositiveBranch(newB, basis.subshells,
+                                                    primitives, nucPot, matrixB, storage; spectrum=posSpectrum)
+                eTrial = SelfConsistent.energyFromBVectors(projB, coeffs1p, coeffs2p, basis.subshells,
+                                                                   primitives, grid, nucPot)
+                if  eTrial < e0    bVectors = projB;   accepted = true;   break    end
+                tStep = tStep / 2
+            end
         end
         if  !accepted
             if  printout    println(">> [EOL-C3] no descent found; stopping at iteration $iter.")    end
