@@ -2257,7 +2257,7 @@ struct     CHField              <:  AbstractScField     end
 struct     NuclearField         <:  AbstractScField     end
 struct     ThomasFermiField     <:  AbstractScField     end
 struct     AaDFSField           <:  AbstractScField     end   
-struct     AaHSField            <:  AbstractScField     end   
+struct     AaHSField            <:  AbstractScField     end
 
 @doc "... to apply the average-atom Dirac-Fock-Slater field, i.e. the relativistic counterpart of AaHSField for the same plasma " *
      "conditions; cf. Basics.computePotential(::AaDFSField, grid, orbitals, mu, temp)."   AaDFSField
@@ -2295,9 +2295,57 @@ function DFSField()
     DFSField(1.0)
 end
 
+
+"""
+`Basics.providesScfDriver(scField::Basics.AbstractScField)`
+    ... answers whether SelfConsistent.performSCF can ITERATE this field, i.e. whether it owns a
+        self-consistent driver. False by default, so a newly added field is treated as unsupported until it
+        says otherwise -- the safe direction. A value::Bool is returned.
+"""
+function providesScfDriver end
+
+providesScfDriver(::AbstractScField)  = false
+providesScfDriver(::ALField)          = true
+providesScfDriver(::EOLField)         = true
+providesScfDriver(::DFSField)         = true
+providesScfDriver(::HSField)          = true
+providesScfDriver(::NuclearField)     = true
+
+
+"""
+`Basics.providesPotential(scField::Basics.AbstractScField)`
+    ... answers whether Basics.computePotential can build a radial potential for this field. False by
+        default. Note that the two predicates are INDEPENDENT rather than complementary: DFSField and
+        HSField answer true to both, since a mean field is a potential one can also iterate, while ALField
+        and EOLField answer false here -- they are variational procedures that build a Fock matrix and name
+        no local potential at all. A value::Bool is returned.
+"""
+function providesPotential end
+
+providesPotential(::AbstractScField)  = false
+providesPotential(::DFSField)         = true
+providesPotential(::HSField)          = true
+providesPotential(::KSField)          = true
+providesPotential(::CHField)          = true
+providesPotential(::ThomasFermiField) = true
+providesPotential(::AaDFSField)       = true
+providesPotential(::AaHSField)        = true   
+
+
+"""
+`Basics.scfDriverFields()`
+    ... names the fields that SelfConsistent.performSCF can iterate, i.e. exactly those for which
+        Basics.providesScfDriver is true. Kept beside the predicates themselves so the two cannot drift
+        apart, and used by performSCF's own refusal message. An Array{String,1} is returned.
+"""
+function scfDriverFields()
+    return( ["ALField", "DFSField", "EOLField", "HSField", "NuclearField"] )
+end
+
     
 
 export  AbstractScField, AaDFSField, AaHSField, ALField, EOLField, DFSField, HSField, NuclearField,
+        providesPotential, providesScfDriver, scfDriverFields,
         ThomasFermiField
 
 #################################################################################################################################

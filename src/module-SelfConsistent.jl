@@ -1067,15 +1067,13 @@ end
 `SelfConsistent.checkScFieldIsSupported(scField::Basics.AbstractScField)`
     ... verifies that the given field is one that performSCF can actually iterate, and raises an explanatory
         error if it is not. Several members of Basics.AbstractScField are POTENTIALS rather than fields: they
-        own a Basics.computePotential method but no self-consistent driver, and one of them is not
+        answer Basics.providesPotential but not Basics.providesScfDriver, and one of them is not
         self-consistent even in principle. Checked HERE, before a grid, a set of primitives and a many-electron
         basis have been built, so that an unsupported choice costs nothing and says what to do instead.
         Nothing is returned.
 """
 function checkScFieldIsSupported(scField::Basics.AbstractScField)
-    if  typeof(scField) in [Basics.ALField, Basics.EOLField, Basics.DFSField, Basics.HSField, Basics.NuclearField]
-        return( nothing )
-    end
+    Basics.providesScfDriver(scField)   &&   return( nothing )
     sa = "\n\nSelfConsistent.performSCF(): $(nameof(typeof(scField))) is not a self-consistent field that " *
          "this driver can iterate.\n"
     if      typeof(scField) == Basics.ThomasFermiField
@@ -1093,8 +1091,8 @@ function checkScFieldIsSupported(scField::Basics.AbstractScField)
                   "no SCF driver of its own.\n    Use Basics.computePotential(...) to obtain it, or choose "  *
                   "one of the fields listed below.\n"
     end
-    sa = sa * ">>> The fields performSCF iterates are:  ALField, EOLField, DFSField, HSField, and "            *
-              "NuclearField (hydrogenic start only).\n"
+    sa = sa * ">>> The fields performSCF iterates are:  " * join(Basics.scfDriverFields(), ", ") *
+              "  (NuclearField with a hydrogenic start only).\n"
     error(sa)
 end
 
