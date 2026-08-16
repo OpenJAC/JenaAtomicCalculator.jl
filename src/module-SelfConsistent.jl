@@ -862,7 +862,8 @@ end
         A multiplet::Multiplet of the target block(s) is returned.
 """
 function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.Model, primitives::Bsplines.Primitives,
-                                         settings::AsfSettings; printout::Bool=true, nVirtual::Int64=16)
+                                         settings::AsfSettings; printout::Bool=true, nVirtual::Int64=16,
+                                         conjugate::Bool=true, cgRestart::Int64=10)
     nsL = primitives.grid.nsL;    nsS = primitives.grid.nsS;    grid = primitives.grid
     storage = Dict{String,Array{Float64,2}}()
     matrixB = zeros( nsL+nsS, nsL+nsS )
@@ -888,6 +889,10 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
     (bVectors, _) = SelfConsistent.projectOntoPositiveBranch(bVectors, basis.subshells, primitives,
                                                                      nucPot, matrixB, storage; spectrum=posSpectrum)
     ePrevious = 0.;   tStep = 1.0;   multiplet = Multiplet("EOL-ByRotation", Level[])
+    ## Conjugate-gradient state, all held in b-space: the virtual directions are rebuilt every iteration,
+    ## so a direction stored in THAT basis would not survive to the next step.
+    dirPrev = Dict{Subshell, Vector{Float64}}();   gPrev = Dict{Subshell, Vector{Float64}}()
+    sgPrev  = 0.;    iterSinceRestart = 0
     for  iter = 1:settings.maxIterationsScf
         orbitals = Dict{Subshell, Orbital}()
         for  sh  in  basis.subshells
@@ -932,6 +937,39 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
             gNorm = gNorm + sum( gv.^2 );    sNorm = sNorm + sum( sv.^2 )
         end
         gNorm = sqrt(gNorm);    sNorm = sqrt(sNorm)
+
+        ## Assemble the search direction in b-space.  Plain preconditioned steepest descent zigzags here:
+        ## the energy falls steadily while |grad| merely oscillates, each step undoing part of the previous
+        ## one.  Polak-Ribiere conjugacy reuses the previous direction to cancel that, at the cost of two
+        ## dot products and one stored vector per subshell.
+        sVec = Dict{Subshell, Vector{Float64}}();   gVec = Dict{Subshell, Vector{Float64}}()
+        for  sh  in  basis.subshells
+            sv = zeros(nsL+nsS);    gv = zeros(nsL+nsS)
+            for  (iv, phi)  in  enumerate(virt[sh])
+                sv = sv + step[sh][iv]  * phi
+                gv = gv + gProj[sh][iv] * phi
+            end
+            sVec[sh] = sv;    gVec[sh] = gv
+        end
+        beta = 0.
+        if  conjugate  &&  !isempty(dirPrev)  &&  iterSinceRestart < cgRestart  &&  abs(sgPrev) > 1.0e-30
+            num = 0.
+            for  sh  in  basis.subshells    num = num + sum( (gVec[sh] - gPrev[sh]) .* sVec[sh] )    end
+            beta = max( 0., num / sgPrev )                       ## Polak-Ribiere+, i.e. restart on beta < 0
+        end
+        dir = Dict{Subshell, Vector{Float64}}()
+        for  sh  in  basis.subshells
+            dir[sh] = beta == 0. ? sVec[sh] : sVec[sh] + beta * dirPrev[sh]
+        end
+        ## Guard: a conjugate direction must still descend.  If it does not, fall back to steepest descent.
+        dg = 0.;   for sh in basis.subshells   dg = dg + sum( gVec[sh] .* dir[sh] )   end
+        if  dg >= 0.
+            for  sh  in  basis.subshells    dir[sh] = sVec[sh]    end
+            beta = 0.
+        end
+        iterSinceRestart = beta == 0. ? 0 : iterSinceRestart + 1
+        sgPrev = 0.;   for sh in basis.subshells   sgPrev = sgPrev + sum( gVec[sh] .* sVec[sh] )   end
+        gPrev  = gVec;    dirPrev = dir
         if  sNorm < 1.0e-14    break    end
         if  printout
             println(">> [EOL-C3] iter $iter:  E = $(multiplet.levels[1].energy)   |grad| = $gNorm   step = $tStep")
@@ -943,8 +981,7 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
         for  trial = 1:24
             newB = Dict{Subshell, Vector{Float64}}()
             for  sh  in  basis.subshells
-                v = copy(bVectors[sh])
-                for  (iv, phi)  in  enumerate(virt[sh])    v = v + tStep * step[sh][iv] * phi    end
+                v = bVectors[sh] + tStep * dir[sh]
                 newB[sh] = v / sqrt( abs(transpose(v) * matrixB * v) )
             end
             ## The projection must happen BEFORE the acceptance test, not after it.  Projecting and
