@@ -174,6 +174,9 @@ function Base.show(io::IO, line::PhotoRecombination.Line)
 end
 
 
+#################################################################################################################################
+#################################################################################################################################
+
 """
 `PhotoRecombination.amplitude(kind::String, mp::EmMultipole, gauge::EmGauge, kappa::Int64, phase::Float64,
                                 energy::Float64, finalLevel::Level, continuumLevel::Level, grid::Radial.Grid)`
@@ -595,6 +598,9 @@ function determineLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, 
     return( lines )
 end
 
+
+#################################################################################################################################
+#################################################################################################################################
 
 """
 `PhotoRecombination.displayLines(stream::IO, lines::Array{PhotoRecombination.Line,1})`

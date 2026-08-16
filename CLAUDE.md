@@ -231,7 +231,14 @@ reader finding what they expect where they expect it.
 **Comments**
 
 6. Inline comments start with a single `#`. Never `##`, `###` or deeper.
-7. **No banner blocks** of `#####...#####`. If such a block carries real content, it belongs in a docstring.
+7. **A `#####...#####` rule that is nothing but hashes is an OPTICAL SEPARATOR and is KEPT.** JAC uses it,
+   usually two lines of 129 hashes together, to divide a file into blocks, and that is worth having. What must
+   go is a `#####` line that CARRIES TEXT -- `### The display section ####...` -- or a banner block whose
+   delimiters enclose comment lines: if such a block says something real it belongs in a docstring, and if it
+   only labels the code below it, the code should be findable without it. A detector for this rule must
+   therefore test whether the line contains anything besides `#` and whitespace, and must not simply count
+   `#####`. Getting this backwards deletes exactly the separators the maintainer wants: on 15-Aug-2026 a
+   hygiene pass removed 22 pure separators and zero text-carrying banners.
 8. **No empty `#` lines.** A blank line separates blocks of code better than a bare comment marker.
 9. Comments are for a reader who knows Julia and atomic physics but not this file's history. **Remove
    historical remarks that can no longer be checked** -- references to code that has since been deleted, to
@@ -301,7 +308,8 @@ The acting counterpart of `/audit`, which only reports. One module per invocatio
 1. Capture a **behaviour baseline** first: run one real case through the module and save its printed output.
    Without this the pass cannot be verified, so it is not optional.
 2. Reorder: structs and their methods first, then the remaining methods alphabetically, two blank lines apart.
-3. Fix comments (`##` -> `#`, drop `#####` banners and empty `#` lines), then **re-flow docstring prose and
+3. Fix comments (`##` -> `#`, drop TEXT-CARRYING `#####` banners but KEEP the pure hash-only separators, and
+   drop empty `#` lines), then **re-flow docstring prose and
    comment blocks to USE the 140-column width** (Rule 15.5) -- filling the line, not just staying under it --
    including the descriptions in the `+ field ::Type ... text` tables, and leaving only copy-constructor keyword
    lists and indented examples alone. A re-flow is verified by

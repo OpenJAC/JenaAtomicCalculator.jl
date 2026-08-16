@@ -195,6 +195,9 @@ struct  Line
 end
 
 
+#################################################################################################################################
+#################################################################################################################################
+
 """
 `AutoIonization.amplitude(kind::AbstractEeInteraction, kappa::Int64, phase::Float64, continuumLevel::Level, initialLevel::Level, 
                             grid::Radial.Grid; printout::Bool=true)`  
@@ -759,6 +762,9 @@ function determineLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, 
     return( lines )
 end
 
+
+#################################################################################################################################
+#################################################################################################################################
 
 """
 `AutoIonization.displayLifetimes(stream::IO, lines::Array{AutoIonization.Line,1})`

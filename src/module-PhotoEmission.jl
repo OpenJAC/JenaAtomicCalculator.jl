@@ -126,6 +126,9 @@ struct  Line
 end
 
 
+#################################################################################################################################
+#################################################################################################################################
+
 """
 `PhotoEmission.amplitude(::Emission, Mp::EmMultipole, gauge::EmGauge, omega::Float64, finalLevel::Level, initialLevel::Level,
                             grid::Radial.Grid; display::Bool=false, printout::Bool=false)`
@@ -405,6 +408,9 @@ function determineLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, 
     return( lines )
 end
 
+
+#################################################################################################################################
+#################################################################################################################################
 
 """
 `PhotoEmission.displayAnisotropies(stream::IO, lines::Array{PhotoEmission.Line,1}, settings::PhotoEmission.Settings)`

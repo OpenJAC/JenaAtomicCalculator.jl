@@ -269,6 +269,9 @@ function Base.show(io::IO, line::PhotoIonization.Line)
 end
 
 
+#################################################################################################################################
+#################################################################################################################################
+
 """
 `PhotoIonization.amplitude(kind::String, mp::EmMultipole, gauge::EmGauge, kappa::Int64, phase::Float64,
                                 omega::Float64, continuumLevel::Level, initialLevel::Level, grid::Radial.Grid)`
@@ -964,6 +967,9 @@ function determineLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, 
     return( lines )
 end
 
+
+#################################################################################################################################
+#################################################################################################################################
 
 """
 `PhotoIonization.displayLineData(stream::IO, lines::Array{PhotoIonization.Line,1})`
