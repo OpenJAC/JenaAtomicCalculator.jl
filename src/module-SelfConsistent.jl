@@ -974,7 +974,16 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
         if  printout
             println(">> [EOL-C3] iter $iter:  E = $(multiplet.levels[1].energy)   |grad| = $gNorm   step = $tStep")
         end
-        if  gNorm < 1.0e-8    break    end
+        ## Converged when the GRADIENT is small. settings.accuracyScf is its tolerance, which is the honest
+        ## test: the old sole criterion, |E - E_prev| < accuracyScf, halts when PROGRESS is slow, which is a
+        ## statement about the optimizer and not about the solution -- and it is why every EOL value quoted
+        ## before 16-Aug-2026 was an upper bound. It cannot stand ALONE, though: |grad| PLATEAUS at a floor
+        ## set by the basis and the projection, so on Li a pure gradient test ran 48 further iterations after
+        ## the energy had stopped moving, for nothing. Both tests are kept, and the driver says which fired.
+        if  gNorm < settings.accuracyScf
+            if  printout   println(">> [EOL-C3] converged: |grad| = $gNorm < $(settings.accuracyScf).")   end
+            break
+        end
 
         ## backtracking line search along -gProj; halve until the energy actually falls
         accepted = false
@@ -1011,7 +1020,13 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
             if  printout    println(">> [EOL-C3] no descent found; stopping at iteration $iter.")    end
             break
         end
-        if  iter > 1  &&  abs(multiplet.levels[1].energy - ePrevious) < settings.accuracyScf    break    end
+        if  iter > 1  &&  abs(multiplet.levels[1].energy - ePrevious) < 1.0e-11
+            if  printout
+                println(">> [EOL-C3] stopped on a stagnant energy (|dE| < 1.0e-11) with |grad| = $gNorm; " *
+                        "this is a converging UPPER BOUND, not a converged gradient.")
+            end
+            break
+        end
         ePrevious = multiplet.levels[1].energy
     end
     return( multiplet )
