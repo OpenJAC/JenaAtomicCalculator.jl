@@ -922,14 +922,31 @@ end
 
     + maximallyReleased   ::Int64   ... Maximum number of electrons that can be released from the 
                                         given configurations.
+    + decayShells         ::Array{Shell,1}
+        ... Shells that are to take part in the decay even though they do not occur in the given configurations.
+            The generator decides which shells may participate from the CONFIGURATION itself, so a shell that is
+            simply absent can never contribute: Configuration("1s^2 2p^4") offers only 2p and therefore yields NO
+            decay configuration at all, silently, although such an ion plainly decays via its 2s. Listing 2s here
+            makes it available. A shell already present in a configuration need not be listed.
 """
 struct   ForStepwiseDecay               <:  AbstractConfigurationTheme
     maximallyReleased     ::Int64
+    decayShells           ::Array{Shell,1}
+end
+
+
+"""
+`Basics.ForStepwiseDecay(maximallyReleased::Int64)`
+    ... constructor for a stepwise-decay theme that adds no shells of its own; an theme::Basics.ForStepwiseDecay is returned.
+"""
+function ForStepwiseDecay(maximallyReleased::Int64)
+    ForStepwiseDecay(maximallyReleased, Shell[])
 end
 
 
 function Base.string(theme::Basics.ForStepwiseDecay)
-    sa = "ForStepwiseDecay theme with the maximum number of released electrons $(theme.maximallyReleased)."
+    sa = "ForStepwiseDecay theme with the maximum number of released electrons $(theme.maximallyReleased) " *
+         "and the additional decay shells $(theme.decayShells)."
     return( sa )
 end
 

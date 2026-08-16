@@ -277,7 +277,10 @@ function perform(scheme::StepwiseDecayScheme, comp::Cascade.Computation; output:
     initialConfigs  = Basics.extractConfigurations(Basics.FromMultiplet(), multiplets)
     ## wax = Cascade.generateConfigurationList(multiplets, comp.scheme.maxElectronLoss, comp.scheme.NoShakeDisplacements)
     ## wbx = Basics.displayConfigurations(comp.nuclearModel.Z, wax, sa="OLD decay ")
-    decayConfigs    = Basics.generateConfigurations(Basics.ForStepwiseDecay(comp.scheme.maxElectronLoss), initialConfigs)
+    # scheme.decayShells is handed over here; until 16-Aug-2026 the field was stored, documented and printed
+    # but never read, so naming a shell that the initial configurations lacked had no effect whatsoever.
+    decayConfigs    = Basics.generateConfigurations(Basics.ForStepwiseDecay(comp.scheme.maxElectronLoss,
+                                                                           comp.scheme.decayShells), initialConfigs)
     append!(decayConfigs, initialConfigs)
     NoElectrons     = unique( Basics.extractFromConfigurations(Basics.NumberOfElectrons(), decayConfigs) )
     Basics.displayConfigurations(stdout, Basics.ByNumber(NoElectrons), decayConfigs, details="decay configurations")

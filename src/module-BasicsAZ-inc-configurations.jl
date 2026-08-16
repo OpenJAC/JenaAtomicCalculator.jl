@@ -1737,6 +1737,20 @@ end
         can occur. Intra-shell processes can be considered but are not reflected in the generated configurations. A list of possible newConfs::Array{Configuration,1} is returned.
 """
 function Basics.generateConfigurations(theme::Basics.ForStepwiseDecay, confs::Array{Configuration,1})
+    ## A shell that does not occur in a configuration cannot take part in its decay, because the shells that may
+    ## participate are read off the configuration below.  theme.decayShells are therefore inserted here with ZERO
+    ## occupation, which is what makes them visible without adding an electron: Configuration("1s^2 2p^4") alone
+    ## offers only 2p and yields no decay configuration at all, silently, whereas with 2s listed it yields five.
+    confs = deepcopy(confs)
+    if  !isempty(theme.decayShells)
+        newList = Configuration[]
+        for  conf in confs
+            nshells = copy(conf.shells)
+            for  shell in theme.decayShells    haskey(nshells, shell)  ||  (nshells[shell] = 0)    end
+            push!(newList, Configuration(nshells, conf.NoElectrons))
+        end
+        confs = newList
+    end
     newConfs = Configuration[];   currentConfs = deepcopy(confs)
     # Test for equal number of electrons
     wa = Basics.extractFromConfigurations(NumberOfElectrons(), confs)
