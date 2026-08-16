@@ -282,6 +282,11 @@ GBL_EOL_UNSCALED_OFFDIAGONAL = false
 ## been called from anywhere.
 GBL_SCF_REORTHONORMALIZE = true
 
+## Anderson depth for the AVERAGE-LEVEL field, separate from the mean-field one above because the iterate is
+## different: there it is the screening potential, here the orbitals themselves.  0 = the plain damped
+## iteration exactly as before.
+GBL_AL_ANDERSON_DEPTH = 0
+
 ## Anderson depth for the mean-field (DFS/HS) SCF.  0 = the plain iteration exactly as before; a positive
 ## value routes performSCF to SelfConsistent.solveMeanFieldBasisAnderson, which reaches the SAME self-consistent
 ## solution in fewer iterations.  DEFAULT 0 so that nothing changes unless it is asked for.
@@ -1723,8 +1728,11 @@ end
         Reached via performSCF's scField = Basics.ALField() dispatch. A (new) basis::Basis is returned.
 """
 function solveAverageLevelField(basis::Basis, nuclearModel::Nuclear.Model, primitives::Bsplines.Primitives,
-                                settings::AsfSettings; printout::Bool=true)
+                                settings::AsfSettings; printout::Bool=true, andersonDepth::Int64=GBL_AL_ANDERSON_DEPTH)
     nsL = primitives.grid.nsL;    nsS = primitives.grid.nsS;    grid = primitives.grid
+    ## Anderson history over the CONCATENATED b-vectors. One full Gauss-Seidel sweep is the fixed-point map
+    ## g(x); the 0.5 damping already inside it stays, so depth 0 reproduces the previous behaviour exactly.
+    xHistAL = Vector{Vector{Float64}}();    fHistAL = Vector{Vector{Float64}}()
 
     # (1) Initialize storage and important arrays; determine nuclear potential and mean occupation once
     if  printout    println(">> [AL] (Re-) Define a storage array for dealing with single-electron TTp B-spline matrices:")    end
@@ -1817,10 +1825,56 @@ function solveAverageLevelField(basis::Basis, nuclearModel::Nuclear.Model, primi
         for  sh  in  basis.subshells
             newOrbitals[sh] = Bsplines.generateOrbitalFromVector(sh, newEnergies[sh], newBVectors[sh], primitives)
         end
+        ## ANDERSON ACCELERATION on the orbitals themselves.  The mean-field driver already accelerates its
+        ## screening potential this way, with 1.6-2.6x fewer iterations and the same solution to ~1e-7; here
+        ## the iterate is the concatenated b-vector set and g(x) is one full sweep.  The sweep sign-aligns
+        ## each eigenvector against the previous one, so g is sign-consistent with x and the residual means
+        ## what it should.  depth <= 0 leaves the plain damped iteration untouched.
+        if  andersonDepth > 0
+            xNow = vcat( [ bVectors[sh]     for sh in basis.subshells ]... )
+            gNow = vcat( [ newBVectors[sh]  for sh in basis.subshells ]... )
+            fNow = gNow - xNow
+            push!(xHistAL, copy(xNow));    push!(fHistAL, fNow)
+            if  length(xHistAL) > andersonDepth + 1    popfirst!(xHistAL);   popfirst!(fHistAL)    end
+            m = length(xHistAL) - 1
+            if  m >= 1
+                dF = zeros( length(fNow), m );    dX = zeros( length(fNow), m )
+                for  j = 1:m
+                    dF[:,j] = fHistAL[j+1] - fHistAL[j];    dX[:,j] = xHistAL[j+1] - xHistAL[j]
+                end
+                local gamma
+                try
+                    gamma = dF \ fNow
+                catch
+                    gamma = zeros(m)              ## a rank-deficient window: fall back to the plain step
+                end
+                if  any(!isfinite, gamma)   gamma = zeros(m)   end
+                xNew = xNow + fNow - (dX + dF) * gamma
+                if  all(isfinite, xNew)
+                    i0 = 0
+                    for  sh  in  basis.subshells
+                        v = xNew[i0+1 : i0+nsL+nsS];    i0 = i0 + nsL + nsS
+                        nrm = sqrt( abs(transpose(v) * matrixB * v) )
+                        if  nrm > 1.0e-12    newBVectors[sh] = v / nrm    end
+                    end
+                    for  sh  in  basis.subshells
+                        newOrbitals[sh] = Bsplines.generateOrbitalFromVector(sh, newEnergies[sh],
+                                                                            newBVectors[sh], primitives)
+                    end
+                end
+            end
+        end
         ## Under test: restore the same-kappa orthonormality that the damping step destroys.
         if  SelfConsistent.GBL_SCF_REORTHONORMALIZE
             (newOrbitals, newBVectors) = SelfConsistent.orthonormalizeSameKappa(newOrbitals, newBVectors,
                                                                 basis.subshells, primitives, matrixB)
+        end
+        ## Convergence is measured against what is ACTUALLY accepted, which Anderson may have moved. Only
+        ## when it is active, so that depth 0 remains a bit-for-bit control on the previous behaviour.
+        if  andersonDepth > 0
+            for  sh  in  basis.subshells
+                dpm[sh] = 1.0 - abs( transpose(bVectors[sh]) * matrixB * newBVectors[sh] )
+            end
         end
         eFunctional = SelfConsistent.computeFunctional(coeffs1p, coeffs2p, newOrbitals, grid, nucPot)
         orbitalConv = maximum( values(dpm) ) < 1.0 ? 1.0 - maximum( values(dpm) ) : 0.0
