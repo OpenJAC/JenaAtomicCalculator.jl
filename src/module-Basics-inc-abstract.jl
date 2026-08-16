@@ -2297,19 +2297,39 @@ end
 
 
 """
+`Basics.scfProcedure(scField::Basics.AbstractScField)`
+    ... names the procedure by which SelfConsistent.performSCF determines the orbitals for this field. This
+        is the second of the two axes the AbstractScField family mixes: the first is WHAT the effective
+        potential is, this one is HOW the orbitals follow from it.
+
+        :meanFieldIteration   ... iterate a local screened potential to self-consistency
+        :averageLevel         ... the average-level variational procedure (a Fock matrix, no local potential)
+        :optimizedLevel       ... the optimized-level variational procedure, by orbital rotation
+        :hydrogenicStartOnly  ... no iteration at all; the generated basis is returned unchanged
+        :none                 ... no driver; the field is a potential only
+
+        :none is the default, so a newly added field is treated as unsupported until it says otherwise --
+        the safe direction. A value::Symbol is returned.
+"""
+function scfProcedure end
+
+scfProcedure(::AbstractScField)   = :none
+scfProcedure(::DFSField)          = :meanFieldIteration
+scfProcedure(::HSField)           = :meanFieldIteration
+scfProcedure(::ALField)           = :averageLevel
+scfProcedure(::EOLField)          = :optimizedLevel
+scfProcedure(::NuclearField)      = :hydrogenicStartOnly
+
+
+"""
 `Basics.providesScfDriver(scField::Basics.AbstractScField)`
     ... answers whether SelfConsistent.performSCF can ITERATE this field, i.e. whether it owns a
-        self-consistent driver. False by default, so a newly added field is treated as unsupported until it
-        says otherwise -- the safe direction. A value::Bool is returned.
+        self-consistent driver. Derived from Basics.scfProcedure, so the two cannot disagree.
+        A value::Bool is returned.
 """
 function providesScfDriver end
 
-providesScfDriver(::AbstractScField)  = false
-providesScfDriver(::ALField)          = true
-providesScfDriver(::EOLField)         = true
-providesScfDriver(::DFSField)         = true
-providesScfDriver(::HSField)          = true
-providesScfDriver(::NuclearField)     = true
+providesScfDriver(scField::AbstractScField) = scfProcedure(scField) != :none
 
 
 """
@@ -2345,7 +2365,7 @@ end
     
 
 export  AbstractScField, AaDFSField, AaHSField, ALField, EOLField, DFSField, HSField, NuclearField,
-        providesPotential, providesScfDriver, scfDriverFields,
+        providesPotential, providesScfDriver, scfDriverFields, scfProcedure,
         ThomasFermiField
 
 #################################################################################################################################

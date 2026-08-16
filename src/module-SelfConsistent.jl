@@ -1116,7 +1116,8 @@ function performSCF(configs::Array{Configuration,1}, nm::Nuclear.Model, grid::Ra
     basis      = SelfConsistent.initializeBasis(configs, nm, primitives, settings; levelSymmetries, printout)
     
     # Solve a self-consistent field for this basis
-    if   typeof(settings.scField)  in  [Basics.DFSField, Basics.HSField]
+    scfProc = Basics.scfProcedure(settings.scField)
+    if   scfProc == :meanFieldIteration
         ## GBL_SCF_ANDERSON_DEPTH = 0 keeps the plain iteration; a positive depth reaches the SAME
         ## self-consistent solution in fewer iterations (see the note at the switch).
         if  GBL_SCF_ANDERSON_DEPTH > 0
@@ -1125,11 +1126,11 @@ function performSCF(configs::Array{Configuration,1}, nm::Nuclear.Model, grid::Ra
         else
             basis = SelfConsistent.solveMeanFieldBasis(basis, nm, primitives, settings; printout=printout)
         end 
-    elseif   settings.scField in [Basics.NuclearField()]  && settings.startScfFrom == StartFromHydrogenic() 
+    elseif   scfProc == :hydrogenicStartOnly  &&  settings.startScfFrom == StartFromHydrogenic()
         # Return the basis as already generated.
-    elseif   settings.scField in [Basics.ALField()]
+    elseif   scfProc == :averageLevel
         basis     = SelfConsistent.solveAverageLevelField(basis, nm, primitives, settings; printout=printout)
-    elseif   typeof(settings.scField) == Basics.EOLField
+    elseif   scfProc == :optimizedLevel
         # EOL is done by ORBITAL ROTATION.  The older solveOptimizedLevelField, which folds the off-diagonal
         # CSF-pair terms into the same (1/occ)-scaled Fock matrix, converges to a DEGENERATE stationary point
         # whenever two near-degenerate CSFs compete for one correlation channel: the correlating weight runs
@@ -1156,7 +1157,7 @@ function performSCF(configs::Array{Configuration,1}, nm::Nuclear.Model, grid::Ra
     Bsplines.checkOrbitalConsistency(basis.orbitals, grid; stopper = settings.gridStopper)
 
     # Setup and diagonalize the Hamiltonian matrix; assign mixing coefficients
-    if   settings.scField in [Basics.ALField()]
+    if   scfProc == :averageLevel
         mp = Hamiltonian.performCIKinkAware(basis, nm, grid, settings, printout=printout)
     else
         mp = Hamiltonian.performCI(basis, nm, grid, settings, printout=printout)
@@ -1183,7 +1184,8 @@ function performSCF(basis::Basis, nm::Nuclear.Model, grid::Radial.Grid,
     primitives = Bsplines.generatePrimitives(grid)    
     
     # Solve a self-consistent field for this basis
-    if   typeof(settings.scField)  in  [Basics.DFSField, Basics.HSField]
+    scfProc = Basics.scfProcedure(settings.scField)
+    if   scfProc == :meanFieldIteration
         ## GBL_SCF_ANDERSON_DEPTH = 0 keeps the plain iteration; a positive depth reaches the SAME
         ## self-consistent solution in fewer iterations (see the note at the switch).
         if  GBL_SCF_ANDERSON_DEPTH > 0
@@ -1192,11 +1194,11 @@ function performSCF(basis::Basis, nm::Nuclear.Model, grid::Radial.Grid,
         else
             basis = SelfConsistent.solveMeanFieldBasis(basis, nm, primitives, settings; printout=printout)
         end 
-    elseif   settings.scField in [Basics.NuclearField()]  && settings.startScfFrom == StartFromHydrogenic() 
+    elseif   scfProc == :hydrogenicStartOnly  &&  settings.startScfFrom == StartFromHydrogenic()
         # Return the basis as already generated.
-    elseif   settings.scField in [Basics.ALField()]
+    elseif   scfProc == :averageLevel
         basis     = SelfConsistent.solveAverageLevelField(basis, nm, primitives, settings; printout=printout)
-    elseif   typeof(settings.scField) == Basics.EOLField
+    elseif   scfProc == :optimizedLevel
         # See the note in the other performSCF overload just above: EOL is done by orbital rotation, started
         # from an average-level basis, and returns a complete, correctly (kink-aware) diagonalized multiplet.
         alSettings = AsfSettings(settings; scField = Basics.ALField())
@@ -1213,7 +1215,7 @@ function performSCF(basis::Basis, nm::Nuclear.Model, grid::Radial.Grid,
     Bsplines.checkOrbitalConsistency(basis.orbitals, grid; stopper = settings.gridStopper)
 
     # Setup and diagonalize the Hamiltonian matrix; assign mixing coefficients
-    if   settings.scField in [Basics.ALField()]
+    if   scfProc == :averageLevel
         mp = Hamiltonian.performCIKinkAware(basis, nm, grid, settings, printout=printout)
     else
         mp = Hamiltonian.performCI(basis, nm, grid, settings, printout=printout)
