@@ -101,10 +101,12 @@ function testModule_Hfs(; short::Bool=true)
     wa = Atomic.Computation(Atomic.Computation(), name="xx", grid=Radial.Grid(true),
                             nuclearModel=Nuclear.Model(26., FermiNucleus(), 58., 3.81, AngularJ64(5//2), 1.0, 1.0, 0.),
                             configs=[Configuration("[Ne] 3s^2 3p^5"), Configuration("[Ne] 3s 3p^6")],
-                            propertySettings = [ Hfs.Settings(true, true, true, true, false, false, LevelSelection() )] )
-                            ## calcHfMultiplet = false: that path raises "... still to be done for a single
-                            ## nuclear spin/isomer" and is what kept this test disabled.  Everything else --
-                            ## the M1/E2/M3 amplitudes, the A/B/C factors and the non-diagonal table -- runs.
+                            propertySettings = [ Hfs.Settings(true, true, true, true, true, false, LevelSelection() )] )
+                            ## calcHfMultiplet = TRUE since 16-Aug-2026.  It had been false because that path
+                            ## raised "... still to be done for a single nuclear spin/isomer"; the error stood
+                            ## in front of a computation that works, and three display sites behind it still
+                            ## used the field names of a retired type.  All four are repaired, so the test now
+                            ## covers the F-resolved multiplet as well.
 
     wb = perform(wa)
     ###

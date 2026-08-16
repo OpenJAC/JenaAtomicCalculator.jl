@@ -454,9 +454,12 @@ function  computeAmplitudesProperties(outcome::Hfs.Outcome, nm::Nuclear.Model, g
 
     hfMultiplet = Hfs.HfMultiplet()
     if  settings.calcHfMultiplet
-        # Determine a HfMultiplet for the given Jlevel/outcome
-        error("... still to be done for a single nuclear spin/isomer")
-        hfsMultiplet = Hfs.computeHyperfineMultiplet(outcome.Jlevel, nm, grid)
+        # The F-resolved multiplet of this fine-structure level, for the single nuclear spin of nm.  Until
+        # 16-Aug-2026 an error("... still to be done for a single nuclear spin/isomer") stood in front of this
+        # call and made settings.calcHfMultiplet unusable -- while the call itself works: for Fe with I = 5/2 a
+        # J = 3/2 level yields F = 1..4, split over ~7e-5 eV.  The result was also assigned to `hfsMultiplet`,
+        # a name nothing reads, so the empty HfMultiplet above would have reached the Outcome regardless.
+        hfMultiplet = Hfs.computeHyperfineMultiplet(outcome.Jlevel, nm, grid)
     end
     newOutcome = Hfs.Outcome( outcome.Jlevel, 1., AIoverMu, BoverQ, CoverOmega, amplitudeM1, amplitudeE2, amplitudeM3, 
                               nm.spinI, hfMultiplet)
@@ -876,8 +879,8 @@ function  computeModifiedEinsteinRates(upperOutcome::Outcome, lowerOutcome::Outc
     
     println(stream, sa);    println(stream, sb);    println(stream, "  ", TableStrings.hLine(nx)) 
 
-    for  upperLevF in  upperOutcome.hfMultiplet.levelFs
-        for  lowerLevF in  lowerOutcome.hfMultiplet.levelFs
+    for  upperLevF in  upperOutcome.hfsMultiplet.hfLevels
+        for  lowerLevF in  lowerOutcome.hfsMultiplet.hfLevels
             for  (m, mp)  in  enumerate(multipoles)
                 Ji = upperOutcome.Jlevel.J;   Fi = upperLevF.F
                 Jf = lowerOutcome.Jlevel.J;   Ff = lowerLevF.F
@@ -1274,14 +1277,18 @@ function  displayResults(stream::IO, outcomes::Array{Hfs.Outcome,1}, nm::Nuclear
             sa = sa * TableStrings.center(10, TableStrings.level(outcome.Jlevel.index); na=2)
             sa = sa * TableStrings.center(10, string(sym); na=6);    na = length(sa)
             sa = sa * "        "
-            if   length(outcome.hfsMultiplet.levelFs) == 0  sa = sa * "No IJF levels";   println(stream, sa);    continue    end
-            nvecs = min( length(outcome.hfsMultiplet.levelFs[1].basis.vectors), 6)
+            ## The field names here were those of an older HfMultiplet/HfLevel: a multiplet carries `hfLevels`
+            ## and not `levelFs`, and a level carries `hfBasisVectors` and not `basis.vectors`.  This block
+            ## therefore raised a FieldError the moment it was reached -- which never happened, because
+            ## computeAmplitudesProperties raised first (repaired 16-Aug-2026).
+            if   length(outcome.hfsMultiplet.hfLevels) == 0  sa = sa * "No IJF levels";   println(stream, sa);    continue    end
+            nvecs = min( length(outcome.hfsMultiplet.hfLevels[1].hfBasisVectors), 6)
             for  nvec = 1:nvecs
-                sa = sa * "[" * string(outcome.hfsMultiplet.levelFs[1].basis.vectors[nvec].levelJ.J) * "] " *
-                                string(outcome.hfsMultiplet.levelFs[1].basis.vectors[nvec].F) * "       "
+                sa = sa * "[" * string(outcome.hfsMultiplet.hfLevels[1].hfBasisVectors[nvec].levelJ.J) * "] " *
+                                string(outcome.hfsMultiplet.hfLevels[1].hfBasisVectors[nvec].F) * "       "
             end
             println(stream, sa)
-            for  levelF in outcome.hfsMultiplet.levelFs
+            for  levelF in outcome.hfsMultiplet.hfLevels
                 sa = repeat(" ", na)
                 sa = sa * string(levelF.F) * "       "
                 for  nvec = 1:nvecs
@@ -1393,7 +1400,7 @@ end
     ... to sort all hyperfine levels in the multiplet into a sequence of increasing energy; a (new) multiplet::Hfs.HfMultiplet is returned.
 """
 function Basics.sortByEnergy(multiplet::Hfs.HfMultiplet)
-    # REPAIRED 06-Aug-2026; this could not run. It read `multiplet.levelFs` where the field is `hfLevels`, and rebuilt each level as an
+    # REPAIRED 06-Aug-2026; this could not run. It read `multiplet.hfLevels` where the field is `hfLevels`, and rebuilt each level as an
     # `Hfs.IJF_Level` -- a type that does not exist -- from `lev.I` and `lev.basis`, neither of which is a field of Hfs.HfLevel. Since the
     # levels are immutable and only their ORDER changes, none of that reconstruction was needed in the first place.
     sortedLevels = sort( multiplet.hfLevels, by = lev -> lev.energy )
@@ -1406,11 +1413,14 @@ end
     ... tabulates the energies of all hyperfine levels of the given multiplet; nothing is returned.
 """
 function Basics.tabulate(stream::IO, ::HfEnergies, multiplet::Hfs.HfMultiplet)
-    println(stream, "\n  Eigenenergies for nuclear spin I = $(multiplet.levelFs[1].I):")
+    ## `.levelFs` and `.I` are fields of a type that no longer exists; a multiplet carries `hfLevels` and the
+    ## nuclear spin is reached through the isomer of a basis vector (repaired 16-Aug-2026, with the same
+    ## defect as Basics.sortByEnergy carried until 06-Aug).
+    println(stream, "\n  Eigenenergies for nuclear spin I = $(multiplet.hfLevels[1].hfBasisVectors[1].isomer.spinI):")
     sb = "  Level  F Parity          Hartrees       " * "             eV                   " * TableStrings.inUnits("energy")
     println(stream, "\n", sb, "\n")
-    for  i = 1:length(multiplet.levelFs)
-        lev          = multiplet.levelFs[i]
+    for  i = 1:length(multiplet.hfLevels)
+        lev          = multiplet.hfLevels[i]
         en           = lev.energy
         en_eV        = Defaults.convertUnits("energy: from atomic to eV", en)
         en_requested = Defaults.convertUnits("energy: from atomic",       en)
@@ -1427,12 +1437,12 @@ end
     ... tabulates the hyperfine level energies relative to the lowest level of the multiplet; nothing is returned.
 """
 function Basics.tabulate(stream::IO, ::HfEnergiesRelative, multiplet::Hfs.HfMultiplet)
-    println(stream, "\n  Energy of each level relative to lowest level for nuclear spin I = $(multiplet.levelFs[1].I):")
+    println(stream, "\n  Energy of each level relative to lowest level for nuclear spin I = $(multiplet.hfLevels[1].hfBasisVectors[1].isomer.spinI):")
     sb = "  Level  F Parity          Hartrees       " * "             eV                   " * TableStrings.inUnits("energy")
     println(stream, "\n", sb, "\n")
-    for  i = 2:length(multiplet.levelFs)
-        lev          = multiplet.levelFs[i]
-        en           = lev.energy - multiplet.levelFs[1].energy
+    for  i = 2:length(multiplet.hfLevels)
+        lev          = multiplet.hfLevels[i]
+        en           = lev.energy - multiplet.hfLevels[1].energy
         en_eV        = Defaults.convertUnits("energy: from atomic to eV", en)
         en_requested = Defaults.convertUnits("energy: from atomic",       en)
         sc    = " " * TableStrings.level(i) * "    " * string(LevelSymmetry(lev.F, lev.parity)) * "    "
