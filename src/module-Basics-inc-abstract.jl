@@ -2239,11 +2239,8 @@ export AbstractQuantizationAxis, DefaultQuantizationAxis, StaticQuantizationAxis
                                   that a first-generation kink-aware line, ALFieldClaude -- were both superseded by this one and removed.)
     + struct EOLField         ... to represent an (extended) optimized-level field.
     + struct DFSField         ... to represent an mean Dirac-Fock-Slater field.
-    + struct DFSwCPField      ... to represent an mean Dirac-Fock-Slater with core-polarization field.
     + struct HSField          ... to represent an mean Hartree-Slater field.
-    + struct EHField          ... to represent an mean extended-Hartree field.
     + struct KSField          ... to represent an mean Kohn-Sham field.
-    + struct HartreeField     ... to represent an mean Hartree field.
     + struct CHField          ... to represent an mean core-Hartree field.
     + struct NuclearField     ... to represent a pure nuclear (potential) field.
     + struct ThomasFermiField ... to represent a Thomas-Fermi screened field.  Unlike every other member of this family it is NOT
@@ -2255,9 +2252,7 @@ abstract type  AbstractScField                          end
 struct     ALField              <:  AbstractScField     end
 struct     EOLField             <:  AbstractScField     end
 struct     HSField              <:  AbstractScField     end
-struct     EHField              <:  AbstractScField     end
 struct     KSField              <:  AbstractScField     end
-struct     HartreeField         <:  AbstractScField     end
 struct     CHField              <:  AbstractScField     end 
 struct     NuclearField         <:  AbstractScField     end
 struct     ThomasFermiField     <:  AbstractScField     end
@@ -2301,17 +2296,8 @@ function DFSField()
 end
 
     
-"""
-`struct  Basics.DFSwCPField          <:  AbstractScField`  
-    ... defines a type to describe a mean Dirac-Fock-Slater field with core-polarization.
 
-    + corePolarization  ::CorePolarization   ... Parametrization of the core-polarization potential/contribution.
-"""
-struct     DFSwCPField          <:  AbstractScField   
-    corePolarization    ::CorePolarization
-end
-
-export  AbstractScField, AaDFSField, AaHSField, ALField, EOLField, DFSField, DFSwCPField, HSField, NuclearField,
+export  AbstractScField, AaDFSField, AaHSField, ALField, EOLField, DFSField, HSField, NuclearField,
         ThomasFermiField
 
 #################################################################################################################################

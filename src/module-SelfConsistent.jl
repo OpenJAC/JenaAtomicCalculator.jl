@@ -1064,6 +1064,42 @@ end
 
 
 """
+`SelfConsistent.checkScFieldIsSupported(scField::Basics.AbstractScField)`
+    ... verifies that the given field is one that performSCF can actually iterate, and raises an explanatory
+        error if it is not. Several members of Basics.AbstractScField are POTENTIALS rather than fields: they
+        own a Basics.computePotential method but no self-consistent driver, and one of them is not
+        self-consistent even in principle. Checked HERE, before a grid, a set of primitives and a many-electron
+        basis have been built, so that an unsupported choice costs nothing and says what to do instead.
+        Nothing is returned.
+"""
+function checkScFieldIsSupported(scField::Basics.AbstractScField)
+    if  typeof(scField) in [Basics.ALField, Basics.EOLField, Basics.DFSField, Basics.HSField, Basics.NuclearField]
+        return( nothing )
+    end
+    sa = "\n\nSelfConsistent.performSCF(): $(nameof(typeof(scField))) is not a self-consistent field that " *
+         "this driver can iterate.\n"
+    if      typeof(scField) == Basics.ThomasFermiField
+        sa = sa * ">>> It is not self-consistent even in principle: it needs the nuclear charge and the "     *
+                  "electron number only, and no\n    density at all. That is exactly what makes it useful "   *
+                  "as a STARTING potential -- use ManyElectron.StartFromThomasFermi,\n    or ask for the "    *
+                  "potential itself with Basics.computePotential.\n"
+    elseif  typeof(scField) in [Basics.AaDFSField, Basics.AaHSField]
+        sa = sa * ">>> It is an AVERAGE-ATOM potential for finite temperature: its Basics.computePotential "  *
+                  "takes a chemical potential\n    and a temperature, so it belongs to the plasma line "      *
+                  "rather than to this bound-state SCF. Use Plasma.AverageAtomScheme\n    (see "              *
+                  "examples/example-Ja.jl).\n"
+    else
+        sa = sa * ">>> It is a screened POTENTIAL, not a field: it owns a Basics.computePotential method but " *
+                  "no SCF driver of its own.\n    Use Basics.computePotential(...) to obtain it, or choose "  *
+                  "one of the fields listed below.\n"
+    end
+    sa = sa * ">>> The fields performSCF iterates are:  ALField, EOLField, DFSField, HSField, and "            *
+              "NuclearField (hydrogenic start only).\n"
+    error(sa)
+end
+
+
+"""
 `SelfConsistent.performSCF(configs::Array{Configuration,1}, nm::Nuclear.Model, grid::Radial.Grid, 
                            settings::AsfSettings; levelSymmetries::Array{LevelSymmetry,1}=LevelSymmetry[], printout::Bool=false)` 
     ... Performs a SCF computation for the given list of configurations, the nuclear model as well as ASF settings.
@@ -1074,13 +1110,15 @@ end
 function performSCF(configs::Array{Configuration,1}, nm::Nuclear.Model, grid::Radial.Grid, 
                     settings::AsfSettings; levelSymmetries::Array{LevelSymmetry,1}=LevelSymmetry[], printout::Bool=true)
     
+    SelfConsistent.checkScFieldIsSupported(settings.scField)
+
     # Generate primitives and initialize the many-electron basis
     Defaults.setDefaults("standard grid", grid)
     primitives = Bsplines.generatePrimitives(grid)    
     basis      = SelfConsistent.initializeBasis(configs, nm, primitives, settings; levelSymmetries, printout)
     
     # Solve a self-consistent field for this basis
-    if   typeof(settings.scField)  in  [Basics.DFSField, Basics.DFSwCPField, Basics.HSField]
+    if   typeof(settings.scField)  in  [Basics.DFSField, Basics.HSField]
         ## GBL_SCF_ANDERSON_DEPTH = 0 keeps the plain iteration; a positive depth reaches the SAME
         ## self-consistent solution in fewer iterations (see the note at the switch).
         if  GBL_SCF_ANDERSON_DEPTH > 0
@@ -1141,11 +1179,13 @@ end
 function performSCF(basis::Basis, nm::Nuclear.Model, grid::Radial.Grid, 
                     settings::AsfSettings; levelSymmetries::Array{LevelSymmetry,1}=LevelSymmetry[], printout::Bool=false)
     
+    SelfConsistent.checkScFieldIsSupported(settings.scField)
+
     # Generate primitives
     primitives = Bsplines.generatePrimitives(grid)    
     
     # Solve a self-consistent field for this basis
-    if   typeof(settings.scField)  in  [Basics.DFSField, Basics.DFSwCPField, Basics.HSField]
+    if   typeof(settings.scField)  in  [Basics.DFSField, Basics.HSField]
         ## GBL_SCF_ANDERSON_DEPTH = 0 keeps the plain iteration; a positive depth reaches the SAME
         ## self-consistent solution in fewer iterations (see the note at the switch).
         if  GBL_SCF_ANDERSON_DEPTH > 0
