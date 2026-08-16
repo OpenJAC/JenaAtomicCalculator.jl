@@ -21,6 +21,7 @@ elseif  true
     DeepLearning.writeFeatureVectors(testXy,  "nn.test-data-$(today()).txt")
     #
 elseif  true
+    # Last visit:  16-Aug-2026
     # Last successful:  unknown ...
     # Run the network for one or several configurations and compared with predicted excitation energies
     # with the data available from the NIST tables.
@@ -29,7 +30,7 @@ elseif  true
     application  = DeepLearning.Application(Application(), name="Ar-NN with nMax=4", atomicModel=atomicModel,
                                             request=request)
                                            
-    run(application)
+    Basics.run(application)
     #
 end
     
