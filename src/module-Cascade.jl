@@ -116,10 +116,10 @@ end
 
 
 """
-`Cascade.DielectronicCaptureScheme()`  ... constructor for an 'default' instance of a Cascade.DielectronicCaptureScheme.
+`Cascade.DielectronicCaptureScheme()`  ... constructor for a 'default' instance of a Cascade.DielectronicCaptureScheme.
 """
 function DielectronicCaptureScheme()
-    DielectronicCaptureScheme(1.0, 0., 1, Shell[], Shell[], Shell[], Shell[] )
+    DielectronicCaptureScheme(0., 0., 0, Shell[], Shell[], Shell[] )
 end
 
 
@@ -265,6 +265,11 @@ struct   ElectronExcitationScheme  <:  Cascade.AbstractCascadeScheme
     NoFreeElectronEnergies  ::Int64
     maxFreeElectronEnergy   ::Float64
     electronEnergyShift     ::Float64
+    maxExcitationEnergy     ::Float64
+    NoExcitations           ::Int64
+    excitationFromShells    ::Array{Shell,1}
+    excitationToShells      ::Array{Shell,1}
+    intoShells              ::Array{Shell,1}
 end
 
 
@@ -272,7 +277,7 @@ end
 `Cascade.ElectronExcitationScheme()`  ... constructor for an 'default' instance of a Cascade.ElectronExcitationScheme.
 """
 function ElectronExcitationScheme()
-    ElectronExcitationScheme([ImpactExc()], Shell[], Shell[], Float64[], Int64[], 0, 0., 0. )
+    ElectronExcitationScheme([ImpactExc()], Shell[], Shell[], Float64[], Int64[], 0, 0., 0., 0., 0, Shell[], Shell[], Shell[] )
 end
 
 

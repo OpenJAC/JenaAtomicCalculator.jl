@@ -421,3 +421,192 @@ function perform(scheme::DielectronicRecombinationScheme, comp::Cascade.Computat
     ## return( results )
     return( results )
 end
+
+
+"""
+`Cascade.perform(scheme::Cascade.DielectronicCaptureScheme, comp::Cascade.Computation; output::Bool=false,
+                 outputToFile::Bool=true, outputDirectory::String="")`
+    ... sets up and performs a dielectronic-CAPTURE cascade: the capture of a free electron into doubly-excited levels, together with the
+        autoionization of those levels back into the target -- both into its GROUND state, which is the capture channel itself, and into
+        its EXCITED states, which is what turns a capture into a contribution to electron-impact EXCITATION. No radiative stabilization is
+        computed; that path is dielectronic recombination and belongs to Cascade.DielectronicRecombinationScheme. A
+        results::Dict{String,Any} is returned if output=true, and nothing otherwise.
+
+        THREE GROUPS OF CONFIGURATIONS are built, and the third is what distinguishes this from a plain capture calculation:
+          * the initial target, N electrons, from comp.initialConfigs;
+          * the EXCITED target, also N electrons, by exciting one electron from scheme.excitationFromShells into
+            scheme.excitationToShells.  These are the exit channels of a resonant excitation;
+          * the doubly-excited resonances, N+1 electrons, from Basics.ForDielectronicRecombination.
+        Auger steps are then generated from every resonance block to every N-electron block, ground and excited alike, so that each
+        resonance carries both its capture width (the channel back to the ground state) and its excitation widths. A TOTAL
+        impact-excitation cross section still has to be assembled from these: the resonant contribution is the capture strength times the
+        branching ratio into the excited exit channel, and it adds to the direct cross section of Cascade.ImpactExcitationScheme.
+
+        WHICH RESONANCES CONTRIBUTE TO EXCITATION, and this is easy to get wrong. A resonance can only autoionize into a target state that
+        lies BELOW it, and the 1s 2l nl' series converges to the 1s2l threshold FROM BELOW however large n is taken. Capturing into ever
+        higher n therefore never opens the 1s->2l excitation channel. What opens it is a resonance built on the SAME core excitation as the
+        capture: 1s 3l 3l' lies above 1s2l and autoionizes into it. In practice scheme.intoShells must reach the same principal quantum
+        number as scheme.excitationToShells.
+
+        Measured for He-like carbon, which is the case to reason from. With excitationToShells = 2l and intoShells = 2l, all 16 K-LL
+        resonances (229-255 eV) autoionize ONLY to 1s^2: pure dielectronic capture, no excitation. With excitationToShells = {2l,3l} and
+        intoShells = 3l, the 507 lines split into 129 back to 1s^2 (268-335 eV) and 378 into 1s2s and 1s2p, the latter ejecting electrons
+        of 12-37 eV. The 1s2s and 1s2p ejection energies differ by the 2s-2p separation of the target, which is a free consistency check.
+
+        The capture and excitation lines are AutoIonization.Line's -- a capture is the time reverse of an Auger transition -- and are
+        returned under "dielectronic-capture lines:" as well as in a Cascade.Data{AutoIonization.Line}.
+"""
+function perform(scheme::Cascade.DielectronicCaptureScheme, comp::Cascade.Computation; output::Bool=false,
+                 outputToFile::Bool=true, outputDirectory::String="")
+    if  output    results = Dict{String, Any}()    else    results = nothing    end
+    printSummary, iostream = Defaults.getDefaults("summary flag/stream")
+    #
+    if  comp.initialConfigs != Configuration[]
+        multiplet  = SelfConsistent.performSCF(comp.initialConfigs, comp.nuclearModel, comp.grid, comp.asfSettings; printout=false)
+        multiplets = [Multiplet("initial states", multiplet.levels)]
+    else
+        multiplets = comp.initialMultiplets
+    end
+    Cascade.displayLevels(stdout, multiplets, sa="initial ")
+    #
+    initialConfigs = Basics.extractConfigurations(Basics.FromMultiplet(), multiplets)
+    Basics.displayConfigurations(stdout, initialConfigs, details="initial configurations of the capture cascade ")
+    # The EXCITED target: the exit channels of a resonant excitation, same electron number as the initial target.
+    excitedConfigs = Basics.generateConfigurations(Basics.ExciteElectrons(1, scheme.excitationFromShells,
+                                                                         scheme.excitationToShells), initialConfigs)
+    excitedConfigs = setdiff(excitedConfigs, initialConfigs)
+    Basics.displayConfigurations(stdout, excitedConfigs, details="excited target configurations (excitation exit channels) ")
+    # The doubly-excited resonances, one electron more.
+    theme = Basics.ForDielectronicRecombination(scheme.excitationFromShells, scheme.excitationToShells,
+                                                scheme.intoShells, Shell[])
+    capturedConfigs, _ = Basics.generateConfigurations(theme, initialConfigs)
+    Basics.displayConfigurations(stdout, capturedConfigs, details="doubly-excited capture configurations ")
+    #
+    drScheme = Cascade.DielectronicRecombinationScheme([E1], false, Shell(0,0), scheme.maxExcitationEnergy,
+                                                        scheme.electronEnergyShift, 0., scheme.NoExcitations,
+                                                        scheme.excitationFromShells, scheme.excitationToShells,
+                                                        scheme.intoShells, Shell[])
+    wc1 = Cascade.generateBlocks(drScheme, comp, initialConfigs)
+    wc1x = isempty(excitedConfigs) ? Cascade.Block[] :
+           Cascade.generateBlocks(drScheme, comp, excitedConfigs, printout=false)
+    wc2 = Cascade.generateBlocks(drScheme, comp, capturedConfigs, printout=false)
+    if  scheme.electronEnergyShift != 0.
+        wc1old = wc1;   wc1 = Cascade.Block[]
+        for  block in wc1old
+            newMultiplet = Basics.shiftTotalEnergies(block.multiplet,
+                                Defaults.convertUnits("energy: to atomic", -scheme.electronEnergyShift))
+            push!(wc1, Cascade.Block(block.NoElectrons, block.confs, block.hasMultiplet, newMultiplet))
+        end
+    end
+    Cascade.displayBlocks(stdout, wc1,  sa="from the initial configurations ")
+    Cascade.displayBlocks(stdout, wc1x, sa="from the excited target configurations ")
+    Cascade.displayBlocks(stdout, wc2,  sa="from the doubly-excited capture configurations ")
+    #
+    gMultiplets = Multiplet[]
+    for block in wc1   push!(gMultiplets, block.multiplet)    end
+    for block in wc1x  push!(gMultiplets, block.multiplet)    end
+    for block in wc2   push!(gMultiplets, block.multiplet)    end
+    # Every resonance autoionizes into every N-electron block: the ground one gives the capture width, the
+    # excited ones the resonant-excitation widths.
+    we = Cascade.determineSteps(drScheme, comp, vcat(wc1, wc1x), wc2, Cascade.Block[])
+    Cascade.displaySteps(stdout, we, sa="electron capture and re-autoionization ")
+    wf   = Cascade.modifySteps(we)
+    data = Cascade.computeSteps(drScheme, comp, wf)
+    #
+    if  output
+        linesC = AutoIonization.Line[]
+        for  cData in data
+            if  typeof(cData) == Cascade.Data{AutoIonization.Line}   append!(linesC, cData.lines)    end
+        end
+        results = Base.merge( results, Dict("name"                          => comp.name) )
+        results = Base.merge( results, Dict("cascade scheme"                => comp.scheme) )
+        results = Base.merge( results, Dict("initial multiplets:"           => multiplets) )
+        results = Base.merge( results, Dict("generated multiplets:"         => gMultiplets) )
+        results = Base.merge( results, Dict("dielectronic-capture lines:"   => linesC) )
+        results = Base.merge( results, Dict("cascade data:"                 => data) )
+    end
+    #
+    if  outputToFile
+        filename = "zzz-cascade-dielectronic-capture-" * string(Dates.now())[1:13] * ".jld"
+        println("\n* Write all results to disk; use:  JLD2.load(''$filename'')")
+        Cascade.writeDataFile(filename, results)
+    end
+
+    return( results )
+end
+
+
+"""
+`Cascade.resonantExcitationStrengths(lines::Array{AutoIonization.Line,1}; totalPhotonRates::Dict{Int64,Float64}=Dict{Int64,Float64}())`
+    ... assembles the RESONANT contribution to electron-impact excitation from the autoionization lines of a dielectronic-capture cascade,
+        i.e. from the output of Cascade.perform(::Cascade.DielectronicCaptureScheme). Each doubly-excited resonance m is formed by capture
+        from the ground level i and then decays; the part that ends on an EXCITED target level f is an excitation that went through a
+        resonance. Its integrated cross section (resonance strength) follows JAC's dielectronic-recombination convention,
+
+            C(i,m) = pi^2 / k^2 * A_a(m->i) * (2J_m+1)/(2J_i+1),      k^2 = 2 E_res
+            S(i->m->f) = C(i,m) * A_a(m->f) / (Gamma_a + Gamma_r),    Gamma_a = sum_k A_a(m->k)
+
+        which is the same expression the DR strength uses with the radiative width Gamma_r in the numerator replaced by the Auger width
+        into the excited channel. A vector of named tuples (resonance, finalLevel, energy, strength) is returned, with the energy in atomic
+        units and the strength in a_0^2 * Hartree.
+
+        Gamma_r DEFAULTS TO ZERO, because a capture cascade computes no radiative rates. Neglecting it OVERESTIMATES every branching ratio,
+        and the error grows with the nuclear charge, where radiative stabilization competes with autoionization. Pass totalPhotonRates,
+        keyed on the resonance level index, whenever those rates are available.
+
+        The ground level is identified as the target level of LOWEST energy among the lines, so the capture channel is the line that ends
+        on it; every other final level is treated as an excitation channel.
+"""
+function resonantExcitationStrengths(lines::Array{AutoIonization.Line,1};
+                                     totalPhotonRates::Dict{Int64,Float64}=Dict{Int64,Float64}())
+    isempty(lines)  &&  return( NamedTuple[] )
+    groundEnergy = minimum(l.finalLevel.energy for l in lines)
+
+    # Group the lines by the resonance they decay from; a resonance is identified by its level energy.
+    byRes = Dict{Float64, Vector{AutoIonization.Line}}()
+    for  l in lines    push!( get!(byRes, l.initialLevel.energy, AutoIonization.Line[]), l )    end
+
+    strengths = NamedTuple[]
+    for  (enRes, ls) in byRes
+        gammaA = sum(l.totalRate for l in ls)
+        gammaR = get(totalPhotonRates, ls[1].initialLevel.index, 0.)
+        gammaA + gammaR <= 0.  &&  continue
+        capture = ls[findmin([abs(l.finalLevel.energy - groundEnergy) for l in ls])[2]]
+        eRes    = capture.electronEnergy
+        eRes <= 0.  &&  continue
+        cFactor = pi*pi / (2 * eRes) * capture.totalRate *
+                  ((Basics.twice(capture.initialLevel.J) + 1) / (Basics.twice(capture.finalLevel.J) + 1))
+        for  l in ls
+            l === capture  &&  continue                      # the capture channel itself is not an excitation
+            push!(strengths, (resonance = l.initialLevel, finalLevel = l.finalLevel, energy = eRes,
+                              strength = cFactor * l.totalRate / (gammaA + gammaR)))
+        end
+    end
+
+    return( sort(strengths, by = x -> x.energy) )
+end
+
+
+"""
+`Cascade.resonantExcitationRateCoefficient(strengths::Array{<:NamedTuple,1}, temp::Float64)`
+    ... converts the resonance strengths of Cascade.resonantExcitationStrengths into a plasma rate coefficient at the electron temperature
+        temp [K], in the isolated-resonance (delta-like) approximation and with the same prefactor that
+        DielectronicRecombination.computeRateCoefficient uses,
+
+            alpha(T) = 4/sqrt(2 pi) * T^(-3/2) * sum_d E_d * exp(-E_d/T) * S_d
+
+        An alpha::Float64 is returned in cm^3/s. Summing over all entries gives the total resonant contribution; filter the vector by
+        finalLevel first to obtain the contribution to one excitation channel.
+"""
+function resonantExcitationRateCoefficient(strengths::Array{<:NamedTuple,1}, temp::Float64)
+    temp_au = Defaults.convertUnits("temperature: from Kelvin to (Hartree) units", temp)
+    alpha   = 0.
+    for  s in strengths
+        alpha = alpha + 4 / sqrt(2pi) * temp_au^(-3/2) * s.energy * exp(-s.energy/temp_au) * s.strength
+    end
+    # atomic units -> cm^3/s, exactly as in DielectronicRecombination.computeRateCoefficient
+    factor = Defaults.convertUnits("length: from atomic to fm", 1.0)^3 * 1.0e-39 *
+             Defaults.convertUnits("rate: from atomic to 1/s", 1.0)
+
+    return( factor * alpha )
+end
