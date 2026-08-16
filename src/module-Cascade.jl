@@ -235,13 +235,36 @@ end
             EIE cross sections, effective collision strengths, EIE plasma rate coefficients, and others.
 
     + processes             ::Array{Basics.AbstractProcess,1} 
-        ... List of the atomic processes that are supported and should be included into the cascade.
+        ... List of the atomic processes that are supported and should be included into the cascade; Basics.ImpactExc()
+            selects the DIRECT channel and Basics.ImpactExcAuto() the RESONANT one.
+    + fromShells            ::Array{Shell,1}
+        ... List of shells from which the impact excitation proceeds.
+    + toShells              ::Array{Shell,1}
+        ... List of shells into which the impact excitation proceeds.
     + electronEnergies      ::Array{Float64,1}                
         ... List of electron energies for which this electron-impact excitation scheme is to be calculated.
+    + lValues               ::Array{Int64,1}
+        ... Orbital angular momenta of the incoming/outgoing free electron to be included.
+    + NoFreeElectronEnergies ::Int64
+        ... Number of free-electron energies of the internal (Gauss-Legendre) grid.
+    + maxFreeElectronEnergy ::Float64
+        ... Maximum free-electron energy [in a.u.] of that grid.
+    + electronEnergyShift   ::Float64
+        ... Energy shift of all electron energies, in the user-selected units.
+
+        These are the same configuration data that a Cascade.ImpactExcitationScheme carries, because the direct channel IS
+        an impact excitation and delegates to that scheme. Until 16-Aug-2026 this struct held only `processes` and
+        `electronEnergies`, which left the direct channel with no shells to excite between and therefore unusable.
 """
 struct   ElectronExcitationScheme  <:  Cascade.AbstractCascadeScheme
     processes               ::Array{Basics.AbstractProcess,1}
+    fromShells              ::Array{Shell,1}
+    toShells                ::Array{Shell,1}
     electronEnergies        ::Array{Float64,1}
+    lValues                 ::Array{Int64,1}
+    NoFreeElectronEnergies  ::Int64
+    maxFreeElectronEnergy   ::Float64
+    electronEnergyShift     ::Float64
 end
 
 
@@ -249,7 +272,7 @@ end
 `Cascade.ElectronExcitationScheme()`  ... constructor for an 'default' instance of a Cascade.ElectronExcitationScheme.
 """
 function ElectronExcitationScheme()
-    ElectronExcitationScheme([ImpactExc], Float64[] )
+    ElectronExcitationScheme([ImpactExc()], Shell[], Shell[], Float64[], Int64[], 0, 0., 0. )
 end
 
 
@@ -264,7 +287,13 @@ end
 function Base.show(io::IO, scheme::ElectronExcitationScheme)
     sa = Base.string(scheme);                 print(io, sa, "\n")
     println(io, "processes:                   $(scheme.processes)  ")
+    println(io, "fromShells:                  $(scheme.fromShells)  ")
+    println(io, "toShells:                    $(scheme.toShells)  ")
     println(io, "electronEnergies:            $(scheme.electronEnergies)  ")
+    println(io, "lValues:                     $(scheme.lValues)  ")
+    println(io, "NoFreeElectronEnergies:      $(scheme.NoFreeElectronEnergies)  ")
+    println(io, "maxFreeElectronEnergy:       $(scheme.maxFreeElectronEnergy)  ")
+    println(io, "electronEnergyShift:         $(scheme.electronEnergyShift)  ")
 end
 
 
@@ -578,7 +607,11 @@ end
 `Cascade.ImpactIonizationScheme()`  ... constructor for an 'default' instance of a Cascade.ImpactIonizationScheme.
 """
 function ImpactIonizationScheme()
-    ImpactIonizationScheme([ImpactExc], Float64[] )
+    ## ImpactExc is what this constructor has always named; only the missing () is repaired here, which is what
+    ## made it raise.  Whether an IONIZATION scheme should default to the impact-EXCITATION process is a
+    ## separate question: Basics has no impact-ionization tag at all (the nearest is Coulion, i.e. Coulomb
+    ## ionization by ion impact), so choosing one is a decision for the maintainer and not a repair.
+    ImpactIonizationScheme([ImpactExc()], Float64[] )
 end
 
 
@@ -593,7 +626,13 @@ end
 function Base.show(io::IO, scheme::ImpactIonizationScheme)
     sa = Base.string(scheme);                 print(io, sa, "\n")
     println(io, "processes:                   $(scheme.processes)  ")
+    println(io, "fromShells:                  $(scheme.fromShells)  ")
+    println(io, "toShells:                    $(scheme.toShells)  ")
     println(io, "electronEnergies:            $(scheme.electronEnergies)  ")
+    println(io, "lValues:                     $(scheme.lValues)  ")
+    println(io, "NoFreeElectronEnergies:      $(scheme.NoFreeElectronEnergies)  ")
+    println(io, "maxFreeElectronEnergy:       $(scheme.maxFreeElectronEnergy)  ")
+    println(io, "electronEnergyShift:         $(scheme.electronEnergyShift)  ")
 end
 
 
