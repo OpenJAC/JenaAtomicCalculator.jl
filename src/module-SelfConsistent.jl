@@ -1094,12 +1094,21 @@ function performSCF(configs::Array{Configuration,1}, nm::Nuclear.Model, grid::Ra
     elseif   settings.scField in [Basics.ALField()]
         basis     = SelfConsistent.solveAverageLevelField(basis, nm, primitives, settings; printout=printout)
     elseif   typeof(settings.scField) == Basics.EOLField
-        # solveOptimizedLevelField already returns a complete, correctly-diagonalized multiplet (built via
-        # its own internal, kink-aware Hamiltonian.performCIKinkAware call on the converged orbitals) -- return
-        # it directly. Re-diagonalizing below would be redundant AND wrong: EOLField isn't in the
-        # ALField check just below, so it would fall through to the bare,
-        # non-kink-aware Hamiltonian.performCI, silently discarding the kink-aware result.
-        return( SelfConsistent.solveOptimizedLevelField(basis, nm, primitives, settings; printout=printout) )
+        # EOL is done by ORBITAL ROTATION.  The older solveOptimizedLevelField, which folds the off-diagonal
+        # CSF-pair terms into the same (1/occ)-scaled Fock matrix, converges to a DEGENERATE stationary point
+        # whenever two near-degenerate CSFs compete for one correlation channel: the correlating weight runs
+        # to zero, the correlation orbital then no longer enters the energy, and its gradient vanishes for a
+        # trivial reason.  Measured on Be 1s^2 2s^2 + 1s^2 2p^2 it lands 19.4 mHa ABOVE the average-level
+        # field on the very level it is asked to optimize, with the 2p weight collapsed from 0.25 to 0.0001.
+        # Rotating the orbitals instead escapes that point and reaches 5.3 mHa BELOW AL.  See example-Ao.jl.
+        #
+        # The rotation is a LOCAL optimizer, so it starts from an average-level basis rather than from the
+        # initial guess -- that is how it was validated, and a hydrogenic start has no reason to lie in its
+        # basin.  Both solvers return a complete, correctly (kink-aware) diagonalized multiplet, so return it
+        # directly; falling through would re-diagonalize with the bare, non-kink-aware Hamiltonian.performCI.
+        alSettings = AsfSettings(settings; scField = Basics.ALField())
+        basis      = SelfConsistent.solveAverageLevelField(basis, nm, primitives, alSettings; printout=printout)
+        return( SelfConsistent.solveOptimizedLevelFieldByRotation(basis, nm, primitives, settings; printout=printout) )
     else  error("stop a")
     end
 
@@ -1150,10 +1159,11 @@ function performSCF(basis::Basis, nm::Nuclear.Model, grid::Radial.Grid,
     elseif   settings.scField in [Basics.ALField()]
         basis     = SelfConsistent.solveAverageLevelField(basis, nm, primitives, settings; printout=printout)
     elseif   typeof(settings.scField) == Basics.EOLField
-        # See the identical note in the other performSCF overload just above: solveOptimizedLevelField
-        # already returns a complete, correctly (kink-aware) diagonalized multiplet -- return it directly
-        # rather than redundantly re-diagonalizing with the wrong, non-kink-aware Hamiltonian.performCI.
-        return( SelfConsistent.solveOptimizedLevelField(basis, nm, primitives, settings; printout=printout) )
+        # See the note in the other performSCF overload just above: EOL is done by orbital rotation, started
+        # from an average-level basis, and returns a complete, correctly (kink-aware) diagonalized multiplet.
+        alSettings = AsfSettings(settings; scField = Basics.ALField())
+        basis      = SelfConsistent.solveAverageLevelField(basis, nm, primitives, alSettings; printout=printout)
+        return( SelfConsistent.solveOptimizedLevelFieldByRotation(basis, nm, primitives, settings; printout=printout) )
     else  error("stop a")
     end
 

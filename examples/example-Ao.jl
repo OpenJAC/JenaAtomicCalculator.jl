@@ -3,11 +3,17 @@ println("Ao) Apply & test the average-level (AL) and optimized-level (EOL) self-
 
 using Printf
 
-# WRITTEN 10-Aug-2026.  The AL field optimizes a configuration AVERAGE; the EOL field optimizes the energy
-# of one chosen target level.  For the level it targets, EOL therefore ought to come out at or below AL --
-# and for a genuinely mixed level it usually does not.  These branches show exactly when.
+# WRITTEN 10-Aug-2026; REWRITTEN 16-Aug-2026, when EOLField was wired to the orbital-rotation solver.
+# The AL field optimizes a configuration AVERAGE; the EOL field optimizes the (2J+1)-weighted energy of the
+# SELECTED target level(s).  For those levels EOL must therefore come out at or below AL, and these branches
+# check exactly that.
 #
-# THE PATTERN, measured across four cases spanning Z = 6 to 14 and 3 to 13 electrons:
+# WHY THE SOLVER WAS CHANGED.  Until 16-Aug-2026 EOLField reached SelfConsistent.solveOptimizedLevelField,
+# which folds the off-diagonal CSF-pair terms into the same (1/occ)-scaled Fock matrix.  That converges to a
+# DEGENERATE stationary point whenever two near-degenerate CSFs compete for one correlation channel: the
+# correlating weight runs away to zero, the correlation orbital then no longer enters the energy at all, and
+# its gradient vanishes for a trivial reason -- it looks converged because it IS stationary, at the wrong
+# critical point.  Measured with that solver, and the reason it was replaced:
 #
 #     case                          AL            EOL          EOL - AL     correlating weight
 #     Be-like C^2+  2s^2 + 2p^2   -36.49373010  -36.45536243   +0.038       0.2258 -> 0.0002
@@ -15,18 +21,18 @@ using Printf
 #     Si^+  3s^2 3p + 3p^3       -289.22410301 -289.22455590   -0.00045     no competition
 #     Si^2+ 3s^2 + 3p^2          -288.66107449 -288.64011958   +0.021       0.1825 -> -0.0000
 #
-# EOL fails precisely where TWO NEAR-DEGENERATE CSFs COMPETE FOR ONE CORRELATION CHANNEL (2s^2 vs 2p^2,
-# 3s^2 vs 3p^2) and succeeds where a single CSF dominates.  It is not about system size, nuclear charge or
-# the presence of a core: the light two-electron-valence case and the Ne-core one behave identically, and
-# the two charge states of the SAME element disagree with each other.
+# It failed precisely where TWO NEAR-DEGENERATE CSFs COMPETE FOR ONE CORRELATION CHANNEL (2s^2 vs 2p^2,
+# 3s^2 vs 3p^2) and succeeded where a single CSF dominates -- not a matter of system size, nuclear charge or
+# the presence of a core: the light two-electron-valence case and the Ne-core one behaved identically, and
+# the two charge states of the SAME element disagreed with each other.  That solver remains callable
+# directly, so the comparison can still be made.
 #
-# WHY IT FAILS -- diagnosed 09/10-Aug-2026.  The converged EOL solution is a DEGENERATE stationary point.
-# The correlating CSF's weight runs away to zero, at which point the correlation orbital no longer enters
-# the energy at all, so its gradient vanishes for a trivial reason and nothing can push it back.  The
-# projected orbital gradient at such a solution is ~5e-05 while the correlating orbital's own component is
-# ~9e-07: it looks converged because it IS stationary, just at the wrong critical point.  Minimizing the
-# energy over orbital ROTATIONS instead escapes it (SelfConsistent.solveOptimizedLevelFieldClaude3, not
-# wired into performSCF -- Basics.EOLField still reaches the present scheme).
+# Minimizing over orbital ROTATIONS escapes the degenerate point, and that is what EOLField now does
+# (SelfConsistent.solveOptimizedLevelFieldByRotation, started from an average-level basis, since a rotation
+# is a LOCAL optimizer).  On Be 1s^2 2s^2 + 1s^2 2p^2 it reaches 5.3 mHa BELOW AL where the old solver sat
+# 19.4 mHa above it; on Ne^2+ 2p^4 + 2p^2 3s^2 + 2p^2 3p^2, optimizing the lowest four levels, it gains
+# 178 mHa over AL and -- the sharper test -- puts the 2p^4 3P multiplet in its correct INVERTED order
+# (3P_2 lowest, as a more-than-half-filled shell requires), where AL has it the wrong way round.
 #
 # ORTHONORMALITY.  Each branch also reports the worst same-kappa overlap, which the CSF expansion requires
 # to vanish.  Until 10-Aug-2026 it did not: the SCF damping step, mixed = 0.5*old + 0.5*raw, destroyed the
@@ -77,7 +83,7 @@ end
 
 
 if  true
-    # Last visit:  10-Aug-2026
+    # Last visit:  16-Aug-2026
     # Last successful:  unknown ... absolute energies not yet checked against literature
     #
     # a) Be-like C^2+, 1s^2 2s^2 + 1s^2 2p^2.  The canonical failure: two CSFs of the same J = 0+ block
@@ -89,7 +95,7 @@ if  true
                   [Configuration("1s^2 2s^2"), Configuration("1s^2 2p^2")], grid)
     #
 elseif  false
-    # Last visit:  10-Aug-2026
+    # Last visit:  16-Aug-2026
     # Last successful:  unknown ... absolute energies not yet checked against literature
     #
     # b) Li-like C^3+, 1s^2 2s + 1s^2 3s + 1s^2 3d.  A single valence electron, so no two CSFs compete and
@@ -101,7 +107,7 @@ elseif  false
                   [Configuration("1s^2 2s"), Configuration("1s^2 3s"), Configuration("1s^2 3d")], grid)
     #
 elseif  false
-    # Last visit:  10-Aug-2026
+    # Last visit:  16-Aug-2026
     # Last successful:  unknown ... absolute energies not yet checked against literature
     #
     # c) Al-like Si^+, [Ne] 3s^2 3p + [Ne] 3p^3.  An OPEN valence shell with J != 0, a real Ne core, and one
@@ -113,7 +119,7 @@ elseif  false
                   [Configuration("1s^2 2s^2 2p^6 3s^2 3p"), Configuration("1s^2 2s^2 2p^6 3p^3")], grid)
     #
 elseif  false
-    # Last visit:  10-Aug-2026
+    # Last visit:  16-Aug-2026
     # Last successful:  unknown ... absolute energies not yet checked against literature
     #
     # d) Mg-like Si^2+, [Ne] 3s^2 + [Ne] 3p^2.  Branch (a) again, now with a real Ne core beneath it: the
