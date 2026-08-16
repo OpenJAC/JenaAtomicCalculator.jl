@@ -701,8 +701,26 @@ function computeOrbitalGradient(bVectors::Dict{Subshell, Vector{Float64}},
     ## (M v)_i = INT B_i(r) f(r) w_r V_L(r) with f the expansion of v -- and M is symmetric within each
     ## block, so the two products a coefficient needs share one potential and differ only in the vector.
     ## Each subshell's expansion is built ONCE per gradient rather than per coefficient.
+    ## The expansions must carry the SAME sign convention as the orbitals the energy is built from.
+    ## Bsplines.generateOrbitalFromVector canonicalizes each orbital so that P > 0 at small r, and does NOT
+    ## feed that back into bVectors -- so a raw expansion and its own orbital can be oppositely signed. The
+    ## screened potential Vk below comes from the ORBITALS (b,d) while the contracted vector came from the
+    ## RAW b-vector (a,c), and an off-diagonal CSF pair carries an ODD power of a correlating orbital's sign,
+    ## so the mismatch survives instead of cancelling. Measured on the Be RAS step-2 case, where 2p_1/2 and
+    ## 2p_3/2 are canonicalized against their raw vectors in every iteration: the analytic gradient agreed
+    ## with a finite difference to five digits while only s-orbitals were involved, then went 2.5x, 19x and
+    ## finally SIGN-WRONG as the 2p weight grew -- which is what stalled the line search. Same defect, and
+    ## the same remedy, as the cVector sign-matching in computeTwoElectronV.
     expanded = Dict{Subshell, Tuple{Vector{Float64},Vector{Float64}}}()
-    for  sh  in  subshells    expanded[sh] = SelfConsistent.expandBVector(bVectors[sh], primitives)    end
+    scale    = Dict{Subshell, Float64}()
+    for  sh  in  subshells
+        (pR, qR) = SelfConsistent.expandBVector(bVectors[sh], primitives)
+        np = min(length(pR), length(orbitals[sh].P));    nq = min(length(qR), length(orbitals[sh].Q))
+        num = sum( orbitals[sh].P[1:np] .* pR[1:np] ) + sum( orbitals[sh].Q[1:nq] .* qR[1:nq] )
+        den = sum( pR[1:np] .* pR[1:np] )             + sum( qR[1:nq] .* qR[1:nq] )
+        scale[sh]    = den > 0. ? num/den : 1.0
+        expanded[sh] = (orbitals[sh].P, orbitals[sh].Q)
+    end
 
     for  cf  in  coeffs2p
         for  (sA, sB, sC, sD)  in  [ (cf.a, cf.b, cf.c, cf.d), (cf.b, cf.a, cf.d, cf.c) ]
@@ -720,8 +738,8 @@ function computeOrbitalGradient(bVectors::Dict{Subshell, Vector{Float64}},
             Vk = RadialIntegrals.buildScreenedPotential(cf.nu, orbitals[sB], orbitals[sD], primitives.grid;
                                                               mtpOut=primitives.grid.NoPoints)
             (pC, qC) = expanded[sC];     (pA, qA) = expanded[sA]
-            grad[sA] = grad[sA] + (cf.V * xc) * SelfConsistent.screenedProduct(Vk, pC, qC, primitives)
-            grad[sC] = grad[sC] + (cf.V * xc) * SelfConsistent.screenedProduct(Vk, pA, qA, primitives)
+            grad[sA] = grad[sA] + (cf.V * xc * scale[sA]) * SelfConsistent.screenedProduct(Vk, pC, qC, primitives)
+            grad[sC] = grad[sC] + (cf.V * xc * scale[sC]) * SelfConsistent.screenedProduct(Vk, pA, qA, primitives)
         end
     end
     return( grad )

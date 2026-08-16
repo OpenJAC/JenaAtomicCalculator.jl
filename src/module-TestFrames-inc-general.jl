@@ -454,16 +454,21 @@ function testRepresentation_RasExpansion(; short::Bool=true)
     wa          = Representation(name, Nuclear.Model(4.), Radial.Grid(true), refConfigs,
                                  RasExpansion([LevelSymmetry(0, Basics.plus)], 4, coreShells, fromShells, layers, rasSettings) )
     wb = generate(wa, output=true)
-    # The expected value CHANGED on 16-Aug-2026, when Basics.EOLField was wired to the orbital-rotation
-    # solver.  The former -14.589901130961 was the COLLAPSED answer: with the old solver this very case
+    # The expected value changed TWICE on 16-Aug-2026. First when Basics.EOLField was wired to the
+    # orbital-rotation solver, and again when computeOrbitalGradient was corrected: it contracted a screened
+    # potential built from the sign-canonicalized ORBITALS with a RAW b-vector, so an off-diagonal CSF pair
+    # carried an odd power of a correlating orbital's sign and the gradient drifted from the functional --
+    # 2.5x, then 19x, then SIGN-WRONG as the 2p weight grew, which stalled the line search at iteration 3 of
+    # 24.  With the full s/wN factor on every slot the analytic slope matches a finite difference to five
+    # digits, the driver runs to its iteration limit, and this case reaches -14.617216 instead of -14.612567.  The former -14.589901130961 was the COLLAPSED answer: with the old solver this very case
     # converged cleanly, to its own 1e-8, onto a degenerate stationary point whose mixing vector was
     # [0.971, -0.0000482, 0.238] -- the 2p_3/2 correlation channel eliminated outright.  An independent
     # DFS-Field run of the identical layer structure gave -14.605300 Ha with both channels contributing.
     # The rotation solver reaches -14.612567, i.e. BELOW that reference, so this test previously asserted
     # the defect.  Do not restore the old number.
-    if  abs(wb["step2"].levels[1].energy + 14.612567197430)  > 1.0e-3
+    if  abs(wb["step2"].levels[1].energy + 14.617216447357)  > 1.0e-3
         success = false
-        if printTest   info(iostream, "levels[1].energy $(wb["step2"].levels[1].energy) != -14.612567197430")   end
+        if printTest   info(iostream, "levels[1].energy $(wb["step2"].levels[1].energy) != -14.617216447357")   end
     end
 
     testPrint("testRepresentation_RasExpansion()::", success)
