@@ -116,12 +116,14 @@ function readOrbitalFileGrasp92                                 end
 function readMixFileRelci                                       end
 function readMixingFileGrasp18                                  end
 function recast                                                 end
+function recommendedGrid                                        end
 function run                                                    end
 function selectLevel                                            end
 function selectLevelPair                                        end
 function selectLevelTriple                                      end
 function selectSymmetry                                         end
 function shiftTotalEnergies                                     end
+function slaterScreening                                        end
 function sortByEnergy                                           end
 function subshellStateString                                    end
 function tabulate                                               end

@@ -355,8 +355,129 @@ end
 
 
 """
-`Basics.selectLevel(level::Level, levelSelection::LevelSelection)`  
-    ... returns true::Bool if the levelSelection is inactive or if the level has been selected due to its 
+`Basics.recommendedGrid(occupations::Dict{Shell,Int64}, Z::Float64;
+                        tailFactor::Float64=16., rbox::Union{Nothing,Float64}=nothing, rnt::Float64=2.0e-6,
+                        h::Float64=5.0e-2, hp::Union{Nothing,Float64}=nothing, printout::Bool=false)`
+    ... derives a radial grid whose box is matched to the shells that are to be represented on it, so that a user
+        need not know Rule 12 in order to obtain a grid which can carry the orbitals asked for; a grid::Radial.Grid
+        is returned.
+
+        THE SCREENING IS WHAT MAKES THIS WORK, and it is where the obvious recipe fails.  The charge an outer
+        electron sees at INFINITY is `Z - NoElectrons + 1`, which is 1 for any neutral atom; used in the hydrogenic
+        turning point it puts the box for neutral thorium beyond 200 a.u., and a box far too LARGE starves the
+        B-spline basis exactly as badly as one too small -- measured at 249 a.u. on ~100 splines, a compact orbital
+        came out misrepresented by 28%.  What the orbital feels at its own MAXIMUM is much larger than the
+        asymptotic charge, and `Basics.slaterScreening` supplies it: 3.15 rather than 1 for the thorium 7s, which
+        brings the box back to 67 a.u. and that 28% down to 4e-3.
+
+        THE INNER REGION IS NOT SACRIFICED FOR THIS.  Solving the point-nucleus Dirac problem in the resulting
+        basis and comparing with Basics.computeDiracEnergy, the 1s agrees to 1e-9 or better for every system from
+        helium to uranium, and everything below Z = 50 agrees to 1e-7 throughout.  What remains is the outermost
+        s orbital at high Z (2e-3 for the thorium 7s), and that check is over-strict there by construction: it
+        tests hydrogenic orbitals at the FULL nuclear charge, which are some thirty times more compact than the
+        screened orbitals the box was sized for.  It is a bound, not the error of a real calculation.
+
+        The box then covers the classical turning point plus the exponential tail beyond it,
+
+            rbox = max over shells of  r_+ + tailFactor * n/Zeff,    r_+ = (n^2/Zeff)(1 + sqrt(1 - l(l+1)/n^2)),
+
+        since a hydrogenic orbital decays as exp(-Zeff r/n) and `tailFactor` therefore counts decay lengths.  The
+        `2.5 r_+` of Rule 12 agrees with this for n = 3-4, where that rule was calibrated, but is too tight for
+        light systems (2.9 a.u. for helium) and too generous for heavy ones.
+
+        THE DEFAULT tailFactor = 16 WAS MEASURED, not chosen.  The AL energy is a variational bound at fixed
+        basis, so it falls as the box grows and rises again once the fixed number of splines is spread too thin,
+        and the best value sits at the bottom of that curve.  Scanned over He, Ne, Ar and Ti+ at
+        tailFactor = 8, 10, 13, 16, 20, 26, the two ends genuinely disagree -- Ti+ is best at 8 and has lost
+        1.7e-5 Ha by 26, while Ne is still gaining at 20 -- and 16 is where the worst deviation from any single
+        system's own optimum is smallest, at 1.2e-5 Ha (Ne).  At that value the box beats JAC's hand-chosen
+        default grid for every one of the four, by 3.4e-5 Ha for He, 9.9e-5 for Ne, 2.9e-3 for Ar and 2.3e-2 for
+        Ti+, the last two because the default box of 5.95 a.u. is simply too small for them.
+
+        The step `hp` of the outer, linear part of the log-linear mesh is scaled with the box unless given
+        explicitly, and that is what keeps the cost from following the box: the mesh holds `log(rbox/rnt)/h +
+        rbox/hp` points, so a fixed `hp` makes a large box expensive, while `hp = rbox/300` holds the count near 600
+        whatever the box -- measured, 602 points at rbox = 5.1 and 679 at rbox = 249.  This is not a new convention
+        but JAC's own default written as a rule: that grid (`rnt = 2e-6, h = 0.05, hp = 0.02`, 595 points) reaches
+        rbox = 5.95, and 5.95/300 = 0.0198.  The spacing is the harmonic blend of `h*r` and `hp` and so remains ~5%
+        of r near the nucleus whatever the box, which is why scaling `hp` does not degrade the inner region.
+
+    + occupations  ::Dict{Shell,Int64}       ... shells to be represented, with their occupation, which fixes the screening.
+    + Z            ::Float64                 ... nuclear charge.
+    + tailFactor   ::Float64                 ... number of decay lengths to be covered beyond the classical turning point.
+    + rbox         ::Union{Nothing,Float64}  ... explicit box, which overrides the estimate and is the user's way in.
+    + hp           ::Union{Nothing,Float64}  ... explicit outer step; if omitted it is scaled with the box as above.
+"""
+function Basics.recommendedGrid(occupations::Dict{Shell,Int64}, Z::Float64;
+                                tailFactor::Float64=16., rbox::Union{Nothing,Float64}=nothing, rnt::Float64=2.0e-6,
+                                h::Float64=5.0e-2, hp::Union{Nothing,Float64}=nothing, printout::Bool=false)
+    if  length(occupations) == 0    error("Basics.recommendedGrid(): no shell is given, so there is nothing the box " *
+                                          "could be matched to.  Pass the shells that the orbitals will occupy.")   end
+    if  Z <= 0.                     error("Basics.recommendedGrid(): Z = $Z must be positive.")                      end
+
+    NoElectrons = sum( values(occupations) )
+    rMax = 0.;   outer = first(keys(occupations));   ZeffOuter = Z
+    for  (sh, occ)  in occupations
+        if  occ <= 0    continue    end
+        n = sh.n;   l = sh.l
+        ## the charge felt at the orbital's own maximum, but never less than the charge felt at infinity
+        Zeff = max( Z - NoElectrons + 1., Z - Basics.slaterScreening(sh, occupations), 1.0 )
+        wa   = (n*n/Zeff) * (1.0 + sqrt( max(0., 1.0 - l*(l+1)/(n*n)) ))  +  tailFactor * n / Zeff
+        if  wa > rMax   rMax = wa;   outer = sh;   ZeffOuter = Zeff    end
+    end
+
+    if  isnothing(rbox)     rboxx = rMax                   else    rboxx = rbox     end
+    if  rboxx <= 0.         error("Basics.recommendedGrid(): rbox = $rboxx must be positive.")   end
+    if  isnothing(hp)       hpx   = rboxx / 300.           else    hpx   = hp       end
+
+    grid = Radial.Grid(Radial.Grid(false); rnt=rnt, h=h, hp=hpx, rbox=rboxx)
+
+    if  printout
+        println("> Basics.recommendedGrid(): Z = $Z with $NoElectrons electrons; the box is set by $outer, which " *
+                "sees Zeff = $(round(ZeffOuter, digits=2)).")
+        println(">   rbox = $(round(rboxx, digits=2)) a.u.,  hp = $(round(hpx, sigdigits=3)),  " *
+                "$(grid.NoPoints) mesh points,  $(grid.nsL) large-component splines.")
+    end
+
+    return( grid )
+end
+
+
+"""
+`Basics.recommendedGrid(configs::Array{Configuration,1}, nm::Nuclear.Model;
+                        tailFactor::Float64=16., rbox::Union{Nothing,Float64}=nothing, rnt::Float64=2.0e-6,
+                        h::Float64=5.0e-2, hp::Union{Nothing,Float64}=nothing, printout::Bool=false)`
+    ... derives a radial grid that is matched to the orbitals which the given configurations require, so that the
+        grid need not be chosen by hand; a grid::Radial.Grid is returned.
+
+        Every shell occurring in any of the configurations is taken into account with its LARGEST occupation across
+        them, since a correlation configuration may reach further out than the reference one and must still be
+        representable.  Where the configurations differ, that slightly overcounts the screening and so errs towards
+        a larger box; the floor `Zeff >= Z - NoElectrons + 1` bounds how far it can go.
+
+    + configs      ::Array{Configuration,1}  ... configurations whose shells are to be representable on the grid.
+    + nm           ::Nuclear.Model           ... nuclear model, which supplies the charge Z.
+"""
+function Basics.recommendedGrid(configs::Array{Configuration,1}, nm::Nuclear.Model;
+                                tailFactor::Float64=16., rbox::Union{Nothing,Float64}=nothing, rnt::Float64=2.0e-6,
+                                h::Float64=5.0e-2, hp::Union{Nothing,Float64}=nothing, printout::Bool=false)
+    if  length(configs) == 0    error("Basics.recommendedGrid(): no configuration is given, so there is nothing " *
+                                      "the box could be matched to.")     end
+    occupations = Dict{Shell,Int64}()
+    for  conf in configs
+        for  (sh, occ)  in conf.shells
+            if  occ > 0     occupations[sh] = max( get(occupations, sh, 0), occ )    end
+        end
+    end
+
+    return( Basics.recommendedGrid(occupations, nm.Z, tailFactor=tailFactor, rbox=rbox,
+                                   rnt=rnt, h=h, hp=hp, printout=printout) )
+end
+
+
+"""
+`Basics.selectLevel(level::Level, levelSelection::LevelSelection)`
+    ... returns true::Bool if the levelSelection is inactive or if the level has been selected due to its
         indices or symmetries; in all other case, false::Bool is returned.
 """
 function Basics.selectLevel(level::Level, levelSelection::LevelSelection)
@@ -457,6 +578,49 @@ function Basics.shiftTotalEnergies(multiplet::Multiplet, energyShift::Float64)
     return( newMultiplet )  
 end
 
+
+"""
+`Basics.slaterScreening(sh::Shell, occupations::Dict{Shell,Int64})`
+    ... computes the screening constant of Slater's rules for an electron in the shell sh, given the occupation of
+        all shells; a screening::Float64 is returned, so that the effective charge is `Z - screening`.
+
+        Slater's grouping is used unchanged: [1s], [2s,2p], [3s,3p], [3d], [4s,4p], [4d], [4f], ...  An electron in
+        an s or p shell is screened by 0.35 for each other electron of the same n with l <= 1 (0.30 within 1s), by
+        0.85 for each electron of principal quantum number n-1, and by 1.00 for each electron below that.  An
+        electron in a d or f shell is screened by 0.35 for each other electron of the same shell and by 1.00 for
+        every electron in a group to its left, which includes the s and p shells of the same n.  The electron
+        itself never screens.
+
+        The rules are crude, and for d and f shells notoriously so, but they are cheap, standard and citable, and
+        they are used here only to size a radial box -- a purpose for which the difference between Zeff = 3.15 and
+        the asymptotic 1 decides whether the box is usable, while the difference between 3.15 and 3.5 does not.
+
+    + sh           ::Shell                   ... shell whose electron is screened.
+    + occupations  ::Dict{Shell,Int64}       ... occupation of every shell, including sh itself.
+"""
+function Basics.slaterScreening(sh::Shell, occupations::Dict{Shell,Int64})
+    n = sh.n;   l = sh.l;   screening = 0.
+    for  (osh, occ)  in occupations
+        if  occ <= 0    continue    end
+        ## the electron under consideration does not screen itself
+        no = (osh == sh) ? occ - 1 : occ
+        if  no <= 0     continue    end
+        if      l <= 1
+            if      osh.n == n   &&  osh.l <= 1     screening = screening + (n == 1 ? 0.30 : 0.35) * no
+            elseif  osh.n == n                      ## d and f of the same n lie to the RIGHT and do not screen
+            elseif  osh.n == n - 1                  screening = screening + 0.85 * no
+            elseif  osh.n <= n - 2                  screening = screening + 1.00 * no
+            end
+        else
+            if      osh.n == n   &&  osh.l == l     screening = screening + 0.35 * no
+            elseif  osh.n == n   &&  osh.l <  l     screening = screening + 1.00 * no
+            elseif  osh.n <  n                      screening = screening + 1.00 * no
+            end
+        end
+    end
+
+    return( screening )
+end
 
 
 """

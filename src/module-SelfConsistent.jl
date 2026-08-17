@@ -1194,8 +1194,17 @@ function initializeBasis(configs::Array{Configuration,1}, nuclearModel::Nuclear.
         
     # Check that the radial grid is able to represent these subshells at all, BEFORE any orbital is generated.
     # This sits here rather than inside Bsplines.generateOrbitalsHydrogenic so that it applies whichever way the
-    # orbitals are seeded -- StartFromPrevious inherits a grid just as much as StartFromHydrogenic does.
-    Bsplines.checkGridRepresentation(subshells, nuclearModel.Z, primitives;
+    # orbitals are seeded -- StartFromPrevious inherits a grid just as much as StartFromHydrogenic does. The
+    # occupations are handed over so that each subshell is tested at the charge it actually feels; at the bare
+    # charge the check rejects the valence orbital of any heavy near-neutral system, whose box must be matched
+    # to a screened orbital some thirty times more extended than the bare-Z one.
+    occupations = Dict{Shell,Int64}()
+    for  conf in configs
+        for  (sh, occ)  in conf.shells
+            if  occ > 0     occupations[sh] = max( get(occupations, sh, 0), occ )    end
+        end
+    end
+    Bsplines.checkGridRepresentation(subshells, nuclearModel.Z, primitives; occupations = occupations,
                                      accuracy = settings.gridAccuracy, stopper = settings.gridStopper)
 
     # Initialize the orbitals
@@ -1277,8 +1286,36 @@ end
 
 
 """
-`SelfConsistent.performSCF(configs::Array{Configuration,1}, nm::Nuclear.Model, grid::Radial.Grid, 
-                           settings::AsfSettings; levelSymmetries::Array{LevelSymmetry,1}=LevelSymmetry[], printout::Bool=false)` 
+`SelfConsistent.performSCF(configs::Array{Configuration,1}, nm::Nuclear.Model,
+                           settings::AsfSettings; levelSymmetries::Array{LevelSymmetry,1}=LevelSymmetry[], printout::Bool=true)`
+    ... performs a SCF computation for which NO grid is given, so that the radial box is derived from the
+        configurations themselves by Basics.recommendedGrid; a multiplet::Multiplet is returned.
+
+        This exists because choosing the box is the step most likely to be got wrong, and getting it wrong
+        does not look like a grid problem: the record attributes four separate "bugs" -- an E3 rate 1000x too
+        small, a Zeeman kappa <= -3 failure, a MultipolePolarizibility defect and a Breit sign flip -- to a
+        box that did not match the orbitals, and each was first blamed on the angular machinery.  The derived
+        box beats JAC's hand-chosen default grid for every system it has been measured on (see
+        Basics.recommendedGrid), by 2.9e-3 Ha for argon and 2.3e-2 Ha for Ti+.
+
+        ONE CASE NEEDS THE GRID GIVEN BY HAND.  The estimate cannot tell a spectroscopic Rydberg shell from a
+        CORRELATION shell of the same n and l, and reads both as diffuse: a beryllium basis carrying 3s and 3d
+        for correlation is given 67 a.u., which is right for a real 1s^2 2s 3s state and far too generous for
+        a correlation orbital that contracts onto the valence region.  Where the high-n shells are there to
+        correlate rather than to be occupied, pass a grid, or pass `rbox` to Basics.recommendedGrid.
+"""
+function performSCF(configs::Array{Configuration,1}, nm::Nuclear.Model,
+                    settings::AsfSettings; levelSymmetries::Array{LevelSymmetry,1}=LevelSymmetry[], printout::Bool=true)
+    grid = Basics.recommendedGrid(configs, nm, printout=printout)
+
+    return( SelfConsistent.performSCF(configs, nm, grid, settings,
+                                      levelSymmetries=levelSymmetries, printout=printout) )
+end
+
+
+"""
+`SelfConsistent.performSCF(configs::Array{Configuration,1}, nm::Nuclear.Model, grid::Radial.Grid,
+                           settings::AsfSettings; levelSymmetries::Array{LevelSymmetry,1}=LevelSymmetry[], printout::Bool=false)`
     ... Performs a SCF computation for the given list of configurations, the nuclear model as well as ASF settings.
         If explicit levelSymmetries are given, only these symmetries are considered. Internally, a proper set of primitives::Primitives 
         is initialized and used in the computations. The generated SCF field is controlled by the settings::AsfSettings.  
@@ -1329,10 +1366,11 @@ function performSCF(configs::Array{Configuration,1}, nm::Nuclear.Model, grid::Ra
     end
 
     # Now that the orbitals are final, check that no symmetry has converged onto the wrong state. This
-    # catches what Bsplines.checkGridRepresentation cannot: that check tests HYDROGENIC orbitals at the full
-    # nuclear charge, so it passes a grid which cannot represent a diffuse, screened outer orbital -- Ge II
-    # 4f on a 614 a.u. box being the case that motivated it. Note the EOLField branch above returns early
-    # and is therefore not covered here.
+    # catches what Bsplines.checkGridRepresentation cannot: that check tests HYDROGENIC orbitals -- since
+    # 17-Aug-2026 at the SCREENED charge rather than the bare one, which is what lets a heavy near-neutral
+    # system through at all -- and a hydrogenic test can never see a symmetry that has converged onto a
+    # different state, Ge II 4f on a 614 a.u. box being the case that motivated it. Note the EOLField branch
+    # above returns early and is therefore not covered here.
     Bsplines.checkOrbitalConsistency(basis.orbitals, grid; stopper = settings.gridStopper)
 
     # Setup and diagonalize the Hamiltonian matrix; assign mixing coefficients
@@ -1387,10 +1425,11 @@ function performSCF(basis::Basis, nm::Nuclear.Model, grid::Radial.Grid,
     end
 
     # Now that the orbitals are final, check that no symmetry has converged onto the wrong state. This
-    # catches what Bsplines.checkGridRepresentation cannot: that check tests HYDROGENIC orbitals at the full
-    # nuclear charge, so it passes a grid which cannot represent a diffuse, screened outer orbital -- Ge II
-    # 4f on a 614 a.u. box being the case that motivated it. Note the EOLField branch above returns early
-    # and is therefore not covered here.
+    # catches what Bsplines.checkGridRepresentation cannot: that check tests HYDROGENIC orbitals -- since
+    # 17-Aug-2026 at the SCREENED charge rather than the bare one, which is what lets a heavy near-neutral
+    # system through at all -- and a hydrogenic test can never see a symmetry that has converged onto a
+    # different state, Ge II 4f on a 614 a.u. box being the case that motivated it. Note the EOLField branch
+    # above returns early and is therefore not covered here.
     Bsplines.checkOrbitalConsistency(basis.orbitals, grid; stopper = settings.gridStopper)
 
     # Setup and diagonalize the Hamiltonian matrix; assign mixing coefficients

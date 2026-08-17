@@ -156,68 +156,144 @@ end
 
 """
 `Bsplines.checkGridRepresentation(subshells::Array{Subshell,1}, Z::Float64, primitives::Bsplines.Primitives;
-                                  accuracy::Float64=1.0e-3, stopper::Bool=true)`
+                                  occupations::Dict{Shell,Int64}=Dict{Shell,Int64}(), accuracy::Float64=1.0e-3,
+                                  stopper::Bool=true)`
     ... checks whether the given radial grid can represent every subshell of the list, by solving the
-        single-electron Dirac equation for a POINT nucleus of charge Z on this grid and comparing each level
-        with the closed-form point-nucleus energy Basics.computeDiracEnergy(sh, Z). Every subshell whose
-        energy deviates by more than `accuracy` is listed, and an error is raised; with stopper = false a
-        loud warning is printed instead and the computation proceeds.
+        single-electron Dirac equation for a POINT nucleus on this grid and comparing each level with the
+        closed-form point-nucleus energy Basics.computeDiracEnergy. Every subshell whose energy deviates by
+        more than `accuracy` is listed, and an error is raised; with stopper = false a loud warning is printed
+        instead and the computation proceeds.
+        A tuple  (isRepresentable::Bool, recommendedRbox::Float64)  is returned.
+
+        A SUBSHELL FAILS ONLY WHEN THE GRID REPRESENTS NEITHER OF TWO HYDROGENIC PROXIES, when `occupations`
+        is given: the orbital at the BARE charge Z, and the orbital at the Slater screened charge of
+        Basics.slaterScreening (floored at the asymptotic Z - NoElectrons + 1). That is not a way of being
+        lenient; it is because NEITHER proxy is the real orbital and the real one lies between them, so a grid
+        which carries either end is not demonstrably wrong. Measured against the known answers:
+
+            Na 3s   bare Zeff 11.0  r_+ = 1.64  |  Slater Zeff 2.20  r_+ = 8.18  |  real r_max ~ 3.2
+            Mg 3s   bare Zeff 12.0  r_+ = 1.50  |  Slater Zeff 2.85  r_+ = 6.32  |  real r_max ~ 2.9
+            K  4s   bare Zeff 19.0  r_+ = 1.68  |  Slater Zeff 2.20  r_+ = 14.6  |  real r_max ~ 4.2
+
+        The bare charge understates an outer orbital by about a factor of two and the screened charge overstates
+        it by two to three, so EITHER used alone over-rejects, in opposite directions. Until 17-Aug-2026 only
+        the bare charge was used, and it rejected the valence orbital of every heavy near-neutral system: on
+        Th+ [Rn] 6d 7s^2, on its own recommended box of 52.7 a.u., it refused the 7s at 1.93e-3 and advised a
+        box of 2.3 a.u. for an 89-electron ion, while with `gridStopper = false` that very run converged in ten
+        iterations and passed Bsplines.checkOrbitalConsistency, the test that actually catches a wrong state.
+        Screening alone is no better: it rejects three cases of the JAC test suite at up to 1.5e-1, demanding a
+        38.8 a.u. box for a system that computes correctly on 11.1.
+
+        Inner shells are unaffected either way, since there is almost nothing to screen -- the thorium 1s sees
+        89.7 rather than 90 -- so the check stays exactly as strict where the bare-Z yardstick was already right.
+
+        WITHOUT `occupations` the bare charge alone is used, which reproduces the behaviour before 17-Aug-2026.
+        That is all a caller holding no occupation numbers can do, but it is NOT appropriate for a neutral or
+        near-neutral heavy system; pass the occupations there.
 
         WHY A POINT NUCLEUS IS THE RIGHT YARDSTICK, whatever the computation itself uses. The question asked
         here is not "is this orbital physically accurate" but "can this GRID resolve an orbital of this size
         and shape at all", and only the point-nucleus spectrum has closed-form energies to test against. An
         extended nucleus, or a Dirac-Fock rather than a bare nuclear field, changes each individual orbital
         by a modest factor -- it does not change the ORDER of the spectrum, nor the radial scale that the box
-        has to accommodate. So a grid that fails this test will fail the real computation too.
+        has to accommodate.
 
         THE USUAL CAUSE IS A BOX THAT IS TOO LARGE, not one that is too small. The number of B-splines is
         fixed, so a box much wider than the orbitals spends them on empty space and starves the physical
         region: at Z = 10 the default box of 614 a.u. leaves 5f_7/2 wrong by 31%, while a box of 11 a.u.
-        -- matched to the orbital -- gives it to 6e-5. A hydrogenic orbital (n,l) has its outer turning
-        point at r_plus = (n^2/Z) (1 + sqrt(1 - l(l+1)/n^2)), and a box of roughly 2.5 r_plus is a good
-        choice; cf. Radial.Grid(grid; rbox=..).
-        A tuple  (isRepresentable::Bool, recommendedRbox::Float64)  is returned.
+        -- matched to the orbital -- gives it to 6e-5. The box recommended here is the one of
+        Basics.recommendedGrid, `r_plus + 16 n/Zeff`, so that the two cannot contradict each other.
+
+    + subshells    ::Array{Subshell,1}   ... subshells that the grid must be able to carry.
+    + Z            ::Float64             ... nuclear charge.
+    + occupations  ::Dict{Shell,Int64}   ... shell occupations; if empty, every subshell is tested at the bare charge.
+    + accuracy     ::Float64             ... largest tolerated relative deviation from the closed-form energy.
+    + stopper      ::Bool                ... true, if a failure shall raise rather than warn.
 """
 function checkGridRepresentation(subshells::Array{Subshell,1}, Z::Float64, primitives::Bsplines.Primitives;
-                                 accuracy::Float64=1.0e-3, stopper::Bool=true)
+                                 occupations::Dict{Shell,Int64}=Dict{Shell,Int64}(), accuracy::Float64=1.0e-3,
+                                 stopper::Bool=true)
     grid    = primitives.grid;      nsL = grid.nsL;     nsS = grid.nsS
-    pot     = Nuclear.pointNucleus(Z, grid)
     storage = Dict{String,Array{Float64,2}}()
     wb      = zeros( nsL+nsS, nsL+nsS )
     wb[1:nsL,1:nsL]                 = Bsplines.generateTTpMatrix!("LL-overlap", 0, primitives, storage)
     wb[nsL+1:nsL+nsS,nsL+1:nsL+nsS] = Bsplines.generateTTpMatrix!("SS-overlap", 0, primitives, storage)
+    NoElectrons = length(occupations) == 0  ?  0  :  sum( values(occupations) )
     #
-    offenders = Tuple{Subshell,Float64,Float64,Float64}[];       rbox = 0.
-    for  kappa  in  unique( [sh.kappa  for sh in subshells] )
-        wa = Bsplines.setupLocalMatrix(kappa, primitives, pot, storage)
-        w2 = Bsplines.diagonalizeLocalMatrix(kappa, wa, wb, primitives)
-        mm = Bsplines.findPositiveBranchStart(w2.values)
-        for  sh  in  subshells
-            if  sh.kappa != kappa                                        continue    end
-            l  = Basics.subshell_l(sh);      ni = mm + sh.n - l - 1
-            ex = Basics.computeDiracEnergy(sh, Z)
-            if  ni < 1  ||  ni > length(w2.values)   en = NaN;   dev = Inf
-            else                                     en = w2.values[ni];   dev = abs(en/ex - 1)    end
-            if  dev > accuracy      push!(offenders, (sh, en, ex, dev))                            end
-            wr   = (sh.n^2/Z) * (1 + sqrt( max(0., 1 - l*(l+1)/sh.n^2) ));      rbox = max(rbox, 2.5*wr)
+    ## The screened charge differs from subshell to subshell, so the local matrix can no longer be shared by
+    ## all subshells of one kappa; it is cached on (kappa, Zeff) instead, which still shares it wherever the
+    ## screening happens to agree.
+    spectra    = Dict{Tuple{Int64,Float64}, Tuple{Vector{Float64},Int64}}()
+    offenders  = Tuple{Subshell,Float64,Float64,Float64,Float64}[];     rbox = 0.
+    borderline = Tuple{Subshell,Float64,Float64}[]
+
+    ## the relative deviation of one subshell from its closed-form energy, at a given charge
+    function deviationAt(sh::Subshell, l::Int64, Zx::Float64)
+        key = (sh.kappa, round(Zx, digits=8))
+        if  !haskey(spectra, key)
+            pot = Nuclear.pointNucleus(Zx, grid)
+            wa  = Bsplines.setupLocalMatrix(sh.kappa, primitives, pot, storage)
+            w2  = Bsplines.diagonalizeLocalMatrix(sh.kappa, wa, wb, primitives)
+            spectra[key] = (w2.values, Bsplines.findPositiveBranchStart(w2.values))
         end
+        (values2, mm) = spectra[key]
+        ni = mm + sh.n - l - 1
+        ex = Basics.computeDiracEnergy(sh, Zx)
+        if  ni < 1  ||  ni > length(values2)    return( (NaN, ex, Inf) )    end
+        return( (values2[ni], ex, abs(values2[ni]/ex - 1)) )
+    end
+
+    for  sh  in  subshells
+        l = Basics.subshell_l(sh)
+        (enB, exB, devB) = deviationAt(sh, l, Z)
+        Zeff = Z;   enS = enB;   exS = exB;   devS = devB
+        if  length(occupations) > 0
+            Zeff = max( Z - NoElectrons + 1., Z - Basics.slaterScreening(Shell(sh.n, l), occupations), 1.0 )
+            if  Zeff != Z
+                (enS, exS, devS) = deviationAt(sh, l, Zeff)
+            end
+        end
+        ## The true orbital is BRACKETED by the two hydrogenic proxies, so only a grid that represents NEITHER
+        ## end is demonstrably wrong; see the docstring for why either alone over-rejects.  Where just one of
+        ## them fails the grid is not condemned, but it is not silently passed either.
+        if      min(devB, devS) > accuracy      push!(offenders,  (sh, enS, exS, devS, Zeff))
+        elseif  max(devB, devS) > accuracy      push!(borderline, (sh, devB, devS))
+        end
+        wr   = (sh.n^2/Zeff) * (1 + sqrt( max(0., 1 - l*(l+1)/sh.n^2) )) + 16. * sh.n / Zeff
+        rbox = max(rbox, wr)
     end
     #
     if  length(offenders) > 0
         printstyled("\n>>> GRID CHECK FAILED: on this grid the following subshells are not represented to the requested " *
-                    "accuracy of $accuracy\n>>> in the pure (point-nucleus, Z = $Z) Dirac spectrum:\n", color=:light_red)
-        printstyled("      subshell      E(grid) [a.u.]      E(Dirac) [a.u.]     rel. deviation\n", color=:light_red)
-        for  (sh, en, ex, dev)  in  offenders
-            printstyled(@sprintf("    %10s    %+.8e     %+.8e      %.2e\n", string(sh), en, ex, dev), color=:light_red)
+                    "accuracy of $accuracy\n>>> in the point-nucleus Dirac spectrum at EITHER the bare or the screened " *
+                    "charge (Z = $Z):\n", color=:light_red)
+        printstyled("      subshell      Zeff      E(grid) [a.u.]      E(Dirac) [a.u.]     rel. deviation\n", color=:light_red)
+        for  (sh, en, ex, dev, Zeff)  in  offenders
+            printstyled(@sprintf("    %10s   %7.2f    %+.8e     %+.8e      %.2e\n",
+                                 string(sh), Zeff, en, ex, dev), color=:light_red)
         end
         printstyled(@sprintf(">>> The present box is r_max = %.1f a.u.;  a box of about %.1f a.u. suits these subshells.\n",
                              grid.r[end], rbox), color=:light_red)
         printstyled(">>> Note that a box which is much TOO LARGE starves the basis just as badly as one that is too\n" *
-                    ">>> small, since the number of B-splines is fixed;  use Radial.Grid(grid; rbox=..) to match it.\n",
-                    color=:light_red)
+                    ">>> small, since the number of B-splines is fixed;  use Radial.Grid(grid; rbox=..) to match it,\n" *
+                    ">>> or Basics.recommendedGrid(configs, nm) to have it matched automatically.\n", color=:light_red)
         if  stopper   error("Bsplines.checkGridRepresentation(): the grid fails to represent " *
                             "$(length(offenders)) of $(length(subshells)) subshells to accuracy $accuracy.")   end
         return( (false, rbox) )
+    end
+
+    ## A subshell that one proxy carries and the other does not says the grid sits near the edge for that
+    ## orbital. It is not grounds for refusing the computation -- the real orbital lies between the two -- but
+    ## it is the only warning that will be given, so it is not dropped.
+    if  length(borderline) > 0
+        sa = ""
+        for  (sh, devB, devS)  in borderline
+            sa = sa * @sprintf("%s (bare %.1e, screened %.1e)  ", string(sh), devB, devS)
+        end
+        printstyled(">>> Grid check: these subshells are carried at one of the two hydrogenic charges but not the\n" *
+                    ">>> other, so the box is near its limit for them:  " * sa * "\n" *
+                    @sprintf(">>> The present box is r_max = %.1f a.u.;  about %.1f a.u. would suit them comfortably.\n",
+                             grid.r[end], rbox), color=:yellow)
     end
 
     return( (true, rbox) )
