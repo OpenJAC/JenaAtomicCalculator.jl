@@ -1780,6 +1780,16 @@ end
         Dict{Subshell,Orbital} for the returned basis::Basis, so every downstream consumer (properties,
         processes, CI/DCB Hamiltonian construction) is unaffected by this being a bVector-native SCF.
         Reached via performSCF's scField = Basics.ALField() dispatch. A (new) basis::Basis is returned.
+
+        WHAT accuracyScf MEANS HERE, and what it does not.  The iteration stops when the overlap defect
+        `1 - |<b_old|b_new>|` of the worst subshell falls below settings.accuracyScf.  That defect is QUADRATIC
+        in the orbital change: the change itself is `|| b_new - b_old ||_B = sqrt(2 * defect)`, so the default
+        accuracyScf = 1e-6 accepts orbitals that are still moving by 1.4e-3, and leaves the argon energy 6.2e-5
+        Ha short of the converged value.  A user quoting an AL energy at the default is therefore quoting ~1e-4
+        and not ~1e-6.  Both numbers are printed each iteration, and the driver states at the end whether the
+        field CONVERGED or merely STOPPED at maxIterationsScf -- the latter used to end in silence, so that a
+        field which never converged printed exactly what a converged one printed.  Nothing about the criterion
+        itself was changed, since that would move every number JAC has ever produced with it.
 """
 function solveAverageLevelField(basis::Basis, nuclearModel::Nuclear.Model, primitives::Bsplines.Primitives,
                                 settings::AsfSettings; printout::Bool=true, andersonDepth::Int64=GBL_AL_ANDERSON_DEPTH)
@@ -1823,6 +1833,8 @@ function solveAverageLevelField(basis::Basis, nuclearModel::Nuclear.Model, primi
     end
 
     orbitals = Dict{Subshell, Orbital}()    # only ever a disposable, per-iteration reporting byproduct
+
+    isConverged = false;    NoIterations = 0;    lastDefect = 1.0;    lastStep = 1.0;    lastShell = basis.subshells[1]
 
     for  iter = 1:settings.maxIterationsScf
         println("\n> SCF interation $(iter) [AL]: ")
@@ -1931,12 +1943,33 @@ function solveAverageLevelField(basis::Basis, nuclearModel::Nuclear.Model, primi
             end
         end
         eFunctional = SelfConsistent.computeFunctional(coeffs1p, coeffs2p, newOrbitals, grid, nucPot)
-        orbitalConv = maximum( values(dpm) ) < 1.0 ? 1.0 - maximum( values(dpm) ) : 0.0
+        ## The overlap defect 1 - |<b_old|b_new>| is QUADRATIC in the orbital change; the change itself is
+        ## || b_new - b_old ||_B = sqrt(2 * defect), and that is what a user means by "the orbitals still move
+        ## by".  Both are reported so that the tolerance cannot be misread by a factor of its own square root.
+        overlapDefect = 0.;    worstShell = basis.subshells[1]
+        for  (sh, d)  in dpm    if  d > overlapDefect   overlapDefect = d;   worstShell = sh   end    end
+        orbitalConv = overlapDefect < 1.0 ? 1.0 - overlapDefect : 0.0
+        orbitalStep = sqrt( 2.0 * max(0., overlapDefect) )
+        lastStep    = orbitalStep;    lastDefect = overlapDefect;    lastShell = worstShell;    NoIterations = iter
 
-        println(">> Total energy = $(eFunctional*1)   orbital-conv = $orbitalConv   orbital-acc = $(1.0 - orbitalConv)")
+        println(">> Total energy = $(eFunctional*1)   orbital-conv = $orbitalConv   orbital-acc = $(1.0 - orbitalConv)" *
+                "   orbital-step = " * @sprintf("%.3e", orbitalStep) * " ($worstShell)")
 
         bVectors = newBVectors;    energies = newEnergies;    orbitals = newOrbitals
-        if  abs(1.0 - orbitalConv) < settings.accuracyScf    break   end
+        if  overlapDefect < settings.accuracyScf    isConverged = true;    break    end
+    end
+
+    ## Say which of the two happened.  An iteration that merely runs out of steps used to end in silence, so
+    ## that a stopped field and a converged one printed the same thing and were quoted the same way.
+    if      isConverged
+        println(">> [AL] converged after $NoIterations iterations: overlap defect " *
+                @sprintf("%.2e", lastDefect) * " < accuracyScf = " * @sprintf("%.2e", settings.accuracyScf) *
+                ", with the orbitals still moving by " * @sprintf("%.2e", lastStep) * " ($lastShell).")
+    else
+        println(">> [AL] STOPPED, NOT CONVERGED, after $NoIterations iterations (maxIterationsScf): overlap defect " *
+                @sprintf("%.2e", lastDefect) * " has not reached accuracyScf = " *
+                @sprintf("%.2e", settings.accuracyScf) * "; the orbitals are still moving by " *
+                @sprintf("%.2e", lastStep) * " ($lastShell).  The energies below are NOT self-consistent.")
     end
 
     newBasis = Basis(true, basis.NoElectrons, basis.subshells, basis.csfs, basis.coreSubshells, orbitals)
