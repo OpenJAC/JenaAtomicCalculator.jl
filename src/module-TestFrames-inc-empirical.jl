@@ -514,6 +514,38 @@ function testModule_Empirical(; short::Bool=true)
     weakShell = Empirical.chargeExchangeCaptureShell(1.0, Defaults.convertUnits("energy: from eV to atomic", 500.0))
     success = success && weakShell.n == 1  &&  weakShell.nc < 1.0
     #
+    ## Test 31: the VALENCE bound-free threshold of a neutral atom. The X-ray compilations are core-level tables and
+    ##   carry no valence shell, so scaledBindingEnergy falls back on a Slater-screened hydrogenic estimate there --
+    ##   which errs by tens of percent and in BOTH directions. It now consults the tabulated first ionization
+    ##   potential first, but ONLY for the ground configuration of a neutral atom. The checks below pin all three
+    ##   parts: the ground configurations themselves (Madelung order, which a strict n,l filling gets wrong), the
+    ##   valence thresholds against NIST, and -- the one that matters most -- that an EXCITED neutral does NOT get
+    ##   the ionization potential. That last case is a real trap: H in 1s^0 3d^1 is neutral and 3d IS its outermost
+    ##   occupied shell, so a rule phrased as "outermost shell of a neutral atom" returns 13.598 eV for an electron
+    ##   whose binding energy is 13.6/9 = 1.51 eV. Nothing in the printed summary moves when that happens.
+    Defaults.setDefaults("nuclear: charge", 1.)
+    xBook   = PeriodicTable.XrayDataBooklet()
+    ## (a) Madelung ground configurations: Ca is [Ar] 4s^2 and NOT 3d^2, Fe fills 4s before 3d, Sr is [Kr] 5s^2.
+    success = success && Empirical.groundConfiguration(20) == Configuration("1s^2 2s^2 2p^6 3s^2 3p^6 4s^2")
+    success = success && Empirical.groundConfiguration(26) == Configuration("1s^2 2s^2 2p^6 3s^2 3p^6 3d^6 4s^2")
+    success = success && Empirical.groundConfiguration(38) == Configuration("[Kr] 5s^2")
+    ## (b) the outermost occupied shell: largest n and, among those, largest l.
+    success = success && Empirical.outermostShell(Configuration("1s^2 2s^2 2p^2"))    == Shell("2p")
+    success = success && Empirical.outermostShell(Configuration("[Ar] 3d^6 4s^2"))    == Shell("4s")
+    success = success && Empirical.outermostShell(Configuration("[Kr] 4d^10 5s^2 5p^6")) == Shell("5p")
+    ## (c) the valence thresholds themselves, against the NIST first ionization potentials [eV].
+    for  (Z, sh, nist) in ((11., Shell("3s"), 5.13907696), (20., Shell("4s"), 6.113154921), (38., Shell("5s"), 5.69486745))
+        bE = Empirical.scaledBindingEnergy(Z, sh, Empirical.groundConfiguration(round(Int64, Z)), xBook)
+        success = success && abs(Defaults.convertUnits("energy: from atomic", bE) - nist) < 1.0e-6
+    end
+    ## (d) THE REGRESSION GUARD: an excited neutral must keep the hydrogenic estimate, which is exact for a Rydberg
+    ##     electron. H in 3d must give 1/(2*3^2) = 0.0555.. a.u., not the 0.4998 a.u. of the ionization potential.
+    bEexc   = Empirical.scaledBindingEnergy(1., Shell("3d"), Configuration("1s^0 3d^1"), xBook)
+    success = success && abs(bEexc - 1/(2*9)) < 1.0e-10
+    ## (e) where a shell-resolved value IS tabulated it still wins, so these must not have moved.
+    bEXe31  = Empirical.scaledBindingEnergy(54., Shell("5p"), Configuration("[Kr] 4d^10 5s^2 5p^6"), xBook)
+    success = success && abs(Defaults.convertUnits("energy: from atomic", bEXe31) - 12.1) < 1.0e-8
+    #
     ## Restore the global nuclear charge for all subsequent tests.
     Defaults.setDefaults("nuclear: charge", oldZ)
     ###

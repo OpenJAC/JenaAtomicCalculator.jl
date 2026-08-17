@@ -31,14 +31,66 @@ end
 
 
 """
+`Empirical.groundConfiguration(Z::Int64)`
+    ... to build the ground configuration of the NEUTRAL atom with nuclear charge Z by filling the shells in Madelung
+        (aufbau) order, i.e. by increasing n+l and, for equal n+l, by increasing n. This reproduces [Ar] 4s^2 for Ca,
+        [Kr] 5s^2 for Sr and [Kr] 4d^10 5s^2 5p^6 for Xe, none of which follow from a strict (n,l) ordering. It is used
+        only to recognise a ground configuration, never to construct one for a computation, and the half-filled-shell
+        anomalies (Cr, Cu, Nb, Mo, Pd, Ag, ...) are therefore acceptable: for those the recognition simply fails and
+        the caller falls back on its own estimate. A conf::Configuration is returned.
+"""
+function groundConfiguration(Z::Int64)
+    wShells = Shell[]
+    for  n = 1:9,  l = 0:n-1     push!(wShells, Shell(n, l))     end
+    sort!(wShells, by = sh -> (sh.n + sh.l, sh.n))
+
+    shells = Dict{Shell,Int64}();   ne = Z
+    for  sh in wShells
+        ne <= 0   &&   break
+        occ = min(ne, 2*(2*sh.l + 1));    shells[sh] = occ;    ne = ne - occ
+    end
+
+    return( Configuration(shells, Z) )
+end
+
+
+"""
+`Empirical.outermostShell(conf::Configuration)`
+    ... to determine the outermost occupied shell of the given configuration, i.e. the occupied shell of largest n and,
+        among those, of largest l. For the ground configuration of a neutral atom this is the valence shell, the one
+        from which the first ionization potential removes an electron; it is 3p for Ar, 4s for Ca, 4s for Fe (not 3d),
+        5s for Sr and 6s for Ce. A shell::Shell is returned; an empty configuration raises an error.
+"""
+function outermostShell(conf::Configuration)
+    isempty(conf.shells)  &&  error("No occupied shell in conf = $conf")
+    wShell = nothing
+    for  (sh, occ)  in  conf.shells
+        occ < 1  &&  continue
+        if  isnothing(wShell)  ||  sh.n > wShell.n  ||  (sh.n == wShell.n  &&  sh.l > wShell.l)    wShell = sh    end
+    end
+    isnothing(wShell)  &&  error("No occupied shell in conf = $conf")
+
+    return( wShell )
+end
+
+
+"""
 `Empirical.scaledBindingEnergy(Z::Float64, sh::Shell, conf::Configuration, data::PeriodicTable.AbstractEnergyData)`
     ... to provide the binding energy of an electron in shell sh of the given configuration conf; this energy scales all
         hydrogenic (Kramers) estimates below and, hence, fixes the photoionization threshold as well as the transition
         energies. The semi-empirical binding energies of the *neutral* atom are taken from the tabulation data whenever
-        this data set covers Z and sh *and* conf is not itself a genuine few-electron ion (see below). If no tabulated
-        value applies, a Slater-screened hydrogenic estimate bE = Z^(eff)^2 / (2 n^2) is applied instead and a warning
-        is issued; Z^(eff) then follows from Slater's (1930) rules for the remaining electrons of conf. An
-        energy::Float64 > 0. [a.u.] is returned.
+        this data set covers Z and sh *and* conf is not itself a genuine few-electron ion (see below). Failing that, and
+        if sh is the OUTERMOST occupied shell of a NEUTRAL atom, the tabulated first ionization potential is used, since
+        it *is* that shell's binding energy by definition. Only if neither applies is a Slater-screened hydrogenic
+        estimate bE = Z^(eff)^2 / (2 n^2) used and a warning issued; Z^(eff) then follows from Slater's (1930) rules for
+        the remaining electrons of conf. An energy::Float64 > 0. [a.u.] is returned.
+
+        Note: The middle step matters because the X-ray compilations are CORE-level tables and carry no valence shell at
+              all. Without it the valence threshold of every atom whose outermost shell is an s shell fell through to the
+              Slater estimate, which is poor there and errs in BOTH directions: Sr 5s came out at 4.421 eV against the
+              true 5.695 eV (-22%), Na 3s at 7.317 against 5.139 (+42%), Ca 4s at 6.907 against 6.113 (+13%). All three
+              are now exact. Where a shell-resolved tabulated value does exist it is still preferred, and those cases
+              were already sub-percent (Ar 3p -0.4%, Kr 4p +0.7%, Xe 5p -0.2%), so nothing that worked has moved.
 
         Note: A pure hydrogenic estimate is quite unreliable for valence shells; for neutral Ne, for instance, it places
               the 2p threshold near 85 eV, while the tabulated (true) binding energy is 21.6 eV. The tabulated values
@@ -72,6 +124,25 @@ function scaledBindingEnergy(Z::Float64, sh::Shell, conf::Configuration, data::P
         if  bEnergy > 0.    return( bEnergy )    end
     end
 
+    ## No shell-resolved value applies. If sh is the OUTERMOST occupied shell of a NEUTRAL atom, its binding energy is
+    ## the first ionization potential by definition, and NIST tabulates that for every element. The X-ray compilations
+    ## above are core-level tables and carry no valence shell at all, so without this the valence threshold of every
+    ## atom whose outermost shell is an s shell fell through to the Slater estimate below -- which errs by tens of
+    ## percent there, and in BOTH directions: Sr 5s 4.421 eV against the true 5.695, Na 3s 7.317 against 5.139.
+    ## The test is GROUND configuration, not merely "neutral": the ionization potential refers to the outermost shell
+    ## of the ground state. An EXCITED neutral has an outermost shell too -- H in 1s^0 3d^1 is neutral and its
+    ## outermost shell is 3d -- and taking 13.598 eV for a 3d electron whose true binding energy is 13.6/9 = 1.51 eV
+    ## would be wrong by a factor of 9, and by 100 for 10d. That Rydberg case is precisely where the Slater estimate
+    ## below is exact, so it must keep it.
+    if  !fewElectronIon  &&  conf.NoElectrons == round(Int64, Z)  &&
+        conf == Empirical.groundConfiguration(round(Int64, Z))  &&  sh == Empirical.outermostShell(conf)
+        try
+            wa = PeriodicTable.ionizationPotentials_Nist2025(round(Int64, Z))
+            if  length(wa) > 0  &&  wa[1] > 0.    return( Defaults.convertUnits("energy: from eV to atomic", wa[1]) )   end
+        catch
+        end
+    end
+
     ## No tabulated value applies: screen the nuclear charge by all *other* electrons of conf with Slater's rules.
     shells = deepcopy(conf.shells)
     if      haskey(shells, sh)  &&  shells[sh] > 1    shells[sh] = shells[sh] - 1
@@ -93,8 +164,10 @@ function scaledBindingEnergy(Z::Float64, sh::Shell, conf::Configuration, data::P
         ## For (Rydberg) shells outside the tabulation this estimate is the designed behavior -- for a Rydberg electron
         ## it is even exact -- so the warning is limited; a summation over many capture channels would otherwise flood
         ## the output with one warning per shell.
-        sa = "No tabulated binding energy for Z = $Z and $sh in $data; a Slater-screened hydrogenic estimate is used " *
-             "(exact for Rydberg shells; this warning is shown at most 5 times)."
+        sa = "No tabulated binding energy for Z = $Z and $sh in $data, and $sh is not the outermost shell of a neutral " *
+             "atom either, so the first ionization potential does not apply; a Slater-screened hydrogenic estimate is " *
+             "used (exact for Rydberg shells, but it can err by tens of percent for a VALENCE shell, in either " *
+             "direction; this warning is shown at most 5 times)."
     end
     @warn sa maxlog=5
 
