@@ -512,10 +512,22 @@ function computeFunctional(coeffs1p::Array{SpinAngular.Coefficient1p,1}, coeffs2
         energy = energy + cf.T * sqrt( jj + 1) * RadialIntegrals.GrantIab(orbitals[cf.a], orbitals[cf.b], grid, potential)
     end
 
-    # Collect two-electron contributions via the kink-aware integral
+    # Collect two-electron contributions via the kink-aware integral.  The integral depends only on the rank and
+    # the four SUBSHELLS, while distinct angular coefficients -- one per contributing CSF pair -- repeatedly ask
+    # for the same one with a different weight, so it is memoised for the duration of this call.  The orbitals
+    # are fixed here by construction, which is what makes that exact rather than approximate.  The gain is modest
+    # and confined to MULTI-configuration bases, which is where cross-CSF coefficients repeat a quadruple: 4.3%
+    # on a four-configuration beryllium EOL (429.9 s against 449.3 s) and nothing measurable on single-
+    # configuration Ti+ or W+, whose quadruples are nearly all distinct.  It is kept because the RAS line is
+    # multi-configuration by construction, and because the memo is demonstrably exact -- both runs returned
+    # E = -14.6142687294, identical to every digit.
+    rkCache = Dict{NTuple{5,Any}, Float64}()
     for  cf  in  coeffs2p
-        energy = energy + cf.V * InteractionStrength.XL_CoulombKinkAware(cf.nu, orbitals[cf.a], orbitals[cf.b],
-                                                                              orbitals[cf.c], orbitals[cf.d], grid)
+        rk = get!(rkCache, (cf.nu, cf.a, cf.b, cf.c, cf.d)) do
+                 InteractionStrength.XL_CoulombKinkAware(cf.nu, orbitals[cf.a], orbitals[cf.b],
+                                                               orbitals[cf.c], orbitals[cf.d], grid)
+             end
+        energy = energy + cf.V * rk
     end
 
     return( energy )
@@ -742,6 +754,13 @@ function computeOrbitalGradient(bVectors::Dict{Subshell, Vector{Float64}},
         expanded[sh] = (orbitals[sh].P, orbitals[sh].Q)
     end
 
+    ## The screened potential depends only on the rank and the ORBITAL PAIR (b,d), not on the slot being
+    ## differentiated, and many angular coefficients share the same triple.  The orbitals are fixed for the
+    ## whole of one gradient evaluation, so the memo is local to this call and cannot go stale.  This is the
+    ## same redundancy that dominates the average-level Fock build (3.5x for argon, 9.1x for Th+), and after
+    ## the average-level field was memoised the rotation became the larger part of EOL: 66% of it for W+.
+    vkCache = Dict{Tuple{Int64,Subshell,Subshell}, Vector{Float64}}()
+
     for  cf  in  coeffs2p
         for  (sA, sB, sC, sD)  in  [ (cf.a, cf.b, cf.c, cf.d), (cf.b, cf.a, cf.d, cf.c) ]
             ## the same triangular-delta and parity guard XL_CoulombKinkAware applies before doing any work
@@ -755,8 +774,10 @@ function computeOrbitalGradient(bVectors::Dict{Subshell, Vector{Float64}},
             end
             xc = AngularMomentum.CL_reduced_me(sA, cf.nu, sC) * AngularMomentum.CL_reduced_me(sB, cf.nu, sD)
             if  rem(cf.nu, 2) == 1    xc = - xc    end
-            Vk = RadialIntegrals.buildScreenedPotential(cf.nu, orbitals[sB], orbitals[sD], primitives.grid;
-                                                              mtpOut=primitives.grid.NoPoints)
+            Vk = get!(vkCache, (cf.nu, sB, sD)) do
+                     RadialIntegrals.buildScreenedPotential(cf.nu, orbitals[sB], orbitals[sD], primitives.grid;
+                                                                  mtpOut=primitives.grid.NoPoints)
+                 end
             (pC, qC) = expanded[sC];     (pA, qA) = expanded[sA]
             grad[sA] = grad[sA] + (cf.V * xc * scale[sA]) * SelfConsistent.screenedProduct(Vk, pC, qC, primitives)
             grad[sC] = grad[sC] + (cf.V * xc * scale[sC]) * SelfConsistent.screenedProduct(Vk, pA, qA, primitives)
@@ -1629,7 +1650,11 @@ end
 """
 function computeTwoElectronV(subshell::Subshell, coeffs2p::Array{SpinAngular.Coefficient2p,1},
                                     bVectors::Dict{Subshell, Vector{Float64}}, primitives::Bsplines.Primitives,
-                                    tensorCaches::Dict{Int64, NTuple{3,RadialIntegrals.ScreenedPotentialCache}})
+                                    tensorCaches::Dict{Int64, NTuple{3,RadialIntegrals.ScreenedPotentialCache}};
+                                    directKernels::Dict{Tuple{Int64,Subshell,Subshell},Array{Float64,2}} =
+                                                   Dict{Tuple{Int64,Subshell,Subshell},Array{Float64,2}}(),
+                                    exchangeKernels::Dict{Tuple{Int64,Subshell},Array{Float64,2}} =
+                                                     Dict{Tuple{Int64,Subshell},Array{Float64,2}}())
     nsL     = primitives.grid.nsL;        nsS = primitives.grid.nsS
     matrixV = zeros( nsL+nsS, nsL+nsS )
     partnerOrbitals = Dict{Subshell, Orbital}()
@@ -1687,10 +1712,12 @@ function computeTwoElectronV(subshell::Subshell, coeffs2p::Array{SpinAngular.Coe
 
         if      pattern == :diagonal
             matrixV = matrixV + 2 * cf.V *
-                      InteractionStrength.XL_CoulombKinkAware(cf.nu, subshell, partnerOrb, subshell, partnerOrb, primitives)
+                      InteractionStrength.XL_CoulombKinkAware(cf.nu, subshell, partnerOrb, subshell, partnerOrb,
+                                                              primitives, directKernels)
         elseif  pattern == :direct
             matrixV = matrixV + cf.V *
-                      InteractionStrength.XL_CoulombKinkAware(cf.nu, subshell, partnerOrb, subshell, partnerOrb, primitives)
+                      InteractionStrength.XL_CoulombKinkAware(cf.nu, subshell, partnerOrb, subshell, partnerOrb,
+                                                              primitives, directKernels)
         else    # :exchange
             # partnerOrb was built by Bsplines.generateOrbitalFromVector, which silently canonicalizes its
             # sign so that P is positive at small r (see that function's `wSign` step) -- a convention applied
@@ -1716,7 +1743,8 @@ function computeTwoElectronV(subshell::Subshell, coeffs2p::Array{SpinAngular.Coe
             matrixV = matrixV + cf.V *
                       InteractionStrength.XL_CoulombTensor(cf.nu, subshell, partnerOrb, partnerOrb,
                                                                   cVector, subshell,
-                                                                  cacheLL, cacheLS, cacheSS, primitives)
+                                                                  cacheLL, cacheLS, cacheSS, primitives,
+                                                                  exchangeKernels)
         end
     end
 
@@ -1743,7 +1771,11 @@ function computeFockMatrix(subshell::Subshell, coeffs2p::Array{SpinAngular.Coeff
                                   bVectors::Dict{Subshell, Vector{Float64}}, primitives::Bsplines.Primitives,
                                   nucPot::Radial.Potential, storage::Dict{String,Array{Float64,2}},
                                   occ::Float64, tensorCaches::Dict{Int64, NTuple{3,RadialIntegrals.ScreenedPotentialCache}};
-                                  coeffs2pUnscaled::Array{SpinAngular.Coefficient2p,1}=SpinAngular.Coefficient2p[])
+                                  coeffs2pUnscaled::Array{SpinAngular.Coefficient2p,1}=SpinAngular.Coefficient2p[],
+                                  directKernels::Dict{Tuple{Int64,Subshell,Subshell},Array{Float64,2}} =
+                                                 Dict{Tuple{Int64,Subshell,Subshell},Array{Float64,2}}(),
+                                  exchangeKernels::Dict{Tuple{Int64,Subshell},Array{Float64,2}} =
+                                                   Dict{Tuple{Int64,Subshell},Array{Float64,2}}())
     # occ == 0 would give 1/occ = Inf and, against the zero two-electron matrix such a subshell has,
     # Inf * 0 = NaN in every element -- a whole Fock matrix of NaN that only surfaces much later, and
     # then as a completely unrelated-looking complaint about the negative-energy continuum.  A subshell
@@ -1754,11 +1786,13 @@ function computeFockMatrix(subshell::Subshell, coeffs2p::Array{SpinAngular.Coeff
               "mean field to define for an unoccupied subshell; the caller must skip it instead.")
     end
     matrix  = Bsplines.setupLocalMatrix(subshell.kappa, primitives, nucPot, storage)
-    matrixV = computeTwoElectronV(subshell, coeffs2p, bVectors, primitives, tensorCaches)
+    matrixV = computeTwoElectronV(subshell, coeffs2p, bVectors, primitives, tensorCaches;
+                                  directKernels=directKernels, exchangeKernels=exchangeKernels)
     ## coeffs2pUnscaled, when given, contributes WITHOUT the 1/occ scaling. Empty by default, so the
     ## returned matrix is bit-for-bit what it always was unless a caller opts in.
     if  length(coeffs2pUnscaled) > 0
-        matrixU = computeTwoElectronV(subshell, coeffs2pUnscaled, bVectors, primitives, tensorCaches)
+        matrixU = computeTwoElectronV(subshell, coeffs2pUnscaled, bVectors, primitives, tensorCaches;
+                                      directKernels=directKernels, exchangeKernels=exchangeKernels)
         return( matrix + (1.0/occ) * matrixV + matrixU )
     end
     return( matrix + (1.0/occ) * matrixV )
@@ -1852,12 +1886,21 @@ function solveAverageLevelField(basis::Basis, nuclearModel::Nuclear.Model, primi
         processedBVectors = Dict{Subshell, Vector{Float64}}()
         dpm = Dict{Subshell, Float64}()
 
+        ## The subshell-independent part of every two-electron matrix is reused across this sweep and ONLY
+        ## across this sweep: bVectors is reassigned at the END of the iteration, so the partner orbitals are
+        ## fixed here but not between iterations, and a cache carried over would serve stale matrices.  Built
+        ## fresh each iteration for exactly that reason.  Measured redundancy: 3.5x for argon, 9.1x for Th+.
+        directKernels   = Dict{Tuple{Int64,Subshell,Subshell},Array{Float64,2}}()
+        exchangeKernels = Dict{Tuple{Int64,Subshell},Array{Float64,2}}()
+
         for  subshell  in  basis.subshells
             occ = meanOcc[subshell]
             print(">> Refine $subshell orbital with mean occ = $occ ... ")
 
             matrix = SelfConsistent.computeFockMatrix(subshell, coeffs2p, bVectors, primitives, nucPot,
-                                                              storage, occ, tensorCaches)
+                                                              storage, occ, tensorCaches;
+                                                              directKernels=directKernels,
+                                                              exchangeKernels=exchangeKernels)
 
             # Orthogonality: project against every ALREADY-PROCESSED lower same-kappa subshell's bVector,
             # directly inside the eigenvalue problem (DBSR_HF hf_eiv style), not post-hoc.
@@ -2356,6 +2399,10 @@ function solveOptimizedLevelField(basis::Basis, nuclearModel::Nuclear.Model, pri
         # been "processed" this iteration -- which, since they never change, they effectively have.
         processedBVectors = Dict{Subshell, Vector{Float64}}( sh => bVectors[sh]  for sh in settings.frozenSubshells  if  sh in basis.subshells )
         dpm = Dict{Subshell, Float64}()
+        ## fresh each sweep, for the reason given in solveAverageLevelField: the partner orbitals are fixed
+        ## within a sweep but not between sweeps, so a cache carried over would serve stale matrices
+        directKernels   = Dict{Tuple{Int64,Subshell,Subshell},Array{Float64,2}}()
+        exchangeKernels = Dict{Tuple{Int64,Subshell},Array{Float64,2}}()
 
         for  subshell  in  basis.subshells
             if  subshell in settings.frozenSubshells
@@ -2385,7 +2432,9 @@ function solveOptimizedLevelField(basis::Basis, nuclearModel::Nuclear.Model, pri
             print(">> Refine $subshell orbital with generalized occ = $occ ... ")
 
             matrix = SelfConsistent.computeFockMatrix(subshell, coeffs2p, bVectors, primitives, nucPot,
-                                                              storage, occ, tensorCaches; coeffs2pUnscaled=coeffs2pOff)
+                                                              storage, occ, tensorCaches; coeffs2pUnscaled=coeffs2pOff,
+                                                              directKernels=directKernels,
+                                                              exchangeKernels=exchangeKernels)
 
             count = Base.count( sh2 -> sh2.kappa == subshell.kappa, keys(processedBVectors) )
             if  count > 0
