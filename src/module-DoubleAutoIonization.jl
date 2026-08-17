@@ -6,7 +6,8 @@
 module DoubleAutoIonization
 
 
-using Printf, ..AngularMomentum, ..AtomicState, ..AutoIonization, ..Basics, ..ManyElectron, ..Nuclear, ..Radial,  ..TableStrings
+using Printf, ..AngularMomentum, ..AtomicState, ..AutoIonization, ..Basics, ..Bsplines, ..ManyElectron, ..Nuclear, ..Radial,
+      ..TableStrings
 
 
 """
@@ -207,6 +208,10 @@ function  computeAmplitudesProperties(line::DoubleAutoIonization.Line, nm::Nucle
                                         settings::DoubleAutoIonization.Settings)
     newSharings  = DoubleAutoIonization.Sharing[]
     contSettings = Continuum.Settings(false, grid.NoPoints-50);    trate = 0.
+    # The nuclear potential and the B-spline primitives depend only on (nm, grid) and are constant here, while the loop
+    # below generates TWO continuum orbitals per channel and per sharing; building them once keeps that work out of it.
+    nucPot       = Nuclear.nuclearPotential(nm, grid)
+    primitives   = Bsplines.generatePrimitives(grid)
     symi         = LevelSymmetry(line.initialLevel.J, line.initialLevel.parity)
     #
     for sharing in line.sharings
@@ -215,8 +220,10 @@ function  computeAmplitudesProperties(line::DoubleAutoIonization.Line, nm::Nucle
             newiLevel = Basics.generateLevelWithSymmetryReducedBasis(line.initialLevel, line.initialLevel.basis.subshells)
             newfLevel = Basics.generateLevelWithSymmetryReducedBasis(line.finalLevel, newiLevel.basis.subshells)
             # Generate two continuum orbitals as associated with this sharing; these orbitals move each in the potential of the final level
-            cOrbital1, phase1 = Continuum.generateOrbitalForLevel(ch.energy1, Subshell(101, ch.kappa1), newfLevel, nm, grid, contSettings)
-            cOrbital2, phase2 = Continuum.generateOrbitalForLevel(ch.energy2, Subshell(102, ch.kappa2), newfLevel, nm, grid, contSettings)
+            cOrbital1, phase1 = Continuum.generateOrbitalForLevel(ch.energy1, Subshell(101, ch.kappa1), newfLevel, nm, grid, contSettings;
+                                                                   nuclearPot=nucPot, primitives=primitives)
+            cOrbital2, phase2 = Continuum.generateOrbitalForLevel(ch.energy2, Subshell(102, ch.kappa2), newfLevel, nm, grid, contSettings;
+                                                                   nuclearPot=nucPot, primitives=primitives)
             # Expand these continuum orbitals in the orbital set as given by the Green function
             greenOrbs  = settings.green[1].gMultiplet.levels[1].basis.orbitals
             bOrbitals1 = Basics.expandOrbital(cOrbital1, greenOrbs, 3.0e-5, grid, printout=true)

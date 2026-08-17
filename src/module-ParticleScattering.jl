@@ -11,8 +11,8 @@ module ParticleScattering
 
 
 using  Printf, GSL, SpecialFunctions,
-        ..AngularMomentum, ..Basics, ..Beam, ..Continuum, ..Defaults, ..InteractionStrength, ..ManyElectron, ..Nuclear, 
-        ..Radial, ..RadialIntegrals, ..SpinAngular, ..TableStrings
+        ..AngularMomentum, ..Basics, ..Beam, ..Bsplines, ..Continuum, ..Defaults, ..InteractionStrength, ..ManyElectron,
+        ..Nuclear, ..Radial, ..RadialIntegrals, ..SpinAngular, ..TableStrings
 
 
 """
@@ -330,6 +330,12 @@ function computeAmplitudesProperties(processType::ElasticElectronNR, event::Part
                                      grid::Radial.Grid, nrContinuum::Int64, settings::ParticleScattering.Settings; printout::Bool=true) 
     newPws   = ParticleScattering.PartialWaveNR[];   contSettings = Continuum.Settings(false, nrContinuum)
     d2SigmaHeadon = 0.;   d2SigmaBorn = 0.;   d2SigmaMacros = 0.
+    # The nuclear potential and the B-spline primitives depend only on (nm, grid), which are constant here, while the
+    # partial-wave loops below call for one continuum orbital each -- 31 for the head-on cross sections and, where the
+    # b-dependent amplitudes are switched on, 11 x 1001 of them. Building both once and passing them keeps that work
+    # out of the loops; omitting the keywords would reproduce the same numbers, only more slowly.
+    nucPot     = Nuclear.nuclearPotential(nm, grid)
+    primitives = Bsplines.generatePrimitives(grid)
     
     if  false  ## processType.calcd2SigmaHeadon
         # Compute the head-on scattering cross sections
@@ -337,8 +343,9 @@ function computeAmplitudesProperties(processType::ElasticElectronNR, event::Part
         totalAmp = ComplexF64(0.)
         for  l = 0:1000
             kappa      = -l - 1;    
-            cOrbital, lPhase  = Continuum.generateOrbitalForLevel(event.impactEnergy, Subshell(101, kappa), event.finalLevel, 
-                                                                  nm, grid, contSettings)
+            cOrbital, lPhase  = Continuum.generateOrbitalForLevel(event.impactEnergy, Subshell(101, kappa), event.finalLevel,
+                                                                  nm, grid, contSettings; nuclearPot=nucPot,
+                                                                  primitives=primitives)
             amplitude  = ParticleScattering.amplitude(event.processType, event.beamType, l, lPhase, event.theta, event.phi, grid)
             totalAmp   = totalAmp + amplitude
             push!( newPws, ParticleScattering.PartialWaveNR(l, lPhase, amplitude) )
@@ -354,8 +361,9 @@ function computeAmplitudesProperties(processType::ElasticElectronNR, event::Part
         totalAmp = ComplexF64(0.)
         for  l = 0:30
             kappa      = -l - 1;    
-            cOrbital, lPhase  = Continuum.generateOrbitalForLevel(event.impactEnergy, Subshell(101, kappa), event.finalLevel, 
-                                                                  nm, grid, contSettings)
+            cOrbital, lPhase  = Continuum.generateOrbitalForLevel(event.impactEnergy, Subshell(101, kappa), event.finalLevel,
+                                                                  nm, grid, contSettings; nuclearPot=nucPot,
+                                                                  primitives=primitives)
             amplitude  = ParticleScattering.amplitude(event.processType, event.beamType, l, lPhase, event.theta, event.phi, grid)
             totalAmp   = totalAmp + amplitude
             push!( newPws, ParticleScattering.PartialWaveNR(l, lPhase, amplitude) )
@@ -420,8 +428,9 @@ function computeAmplitudesProperties(processType::ElasticElectronNR, event::Part
                 amp1 = amp2 = amp3 = amp4 = 1.0e6;    lAmp = ComplexF64(0.)
                 for  l = 0:1000
                     kappa      = -l - 1;    
-                    cOrbital, lPhase  = Continuum.generateOrbitalForLevel(event.impactEnergy, Subshell(101, kappa), event.finalLevel, 
-                                                                          nm, grid, contSettings)
+                    cOrbital, lPhase  = Continuum.generateOrbitalForLevel(event.impactEnergy, Subshell(101, kappa), event.finalLevel,
+                                                                          nm, grid, contSettings; nuclearPot=nucPot,
+                                                                          primitives=primitives)
                     amp  = ParticleScattering.amplitude(event.processType, event.beamType, nu, l, lPhase, event.theta, event.phi, grid)
                     lAmp = lAmp + amp
                     amp1 = amp2;   amp2 = amp3;   amp3 = amp4;   amp4 = abs(amp)^2
