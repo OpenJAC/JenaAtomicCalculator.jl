@@ -2114,12 +2114,18 @@ function Base.string(propc::NoProcess)          return( "no process" )          
 function Base.string(propc::Auger)              return( "Auger" )                              end
 function Base.string(propc::AugerInPlasma)      return( "Auger in plasma" )                    end
 function Base.string(propc::Compton)            return( "Rayleigh-Compton" )                   end
+function Base.string(propc::Coulex)             return( "Coulomb excitation" )                 end
+function Base.string(propc::Coulion)            return( "Coulomb ionization" )                 end
 function Base.string(propc::Dierec)             return( "Dielectronic recombination" )         end
 function Base.string(propc::DoubleAuger)        return( "Double Auger" )                       end
 function Base.string(propc::ElecCapture)        return( "Electron capture" )                   end
+function Base.string(propc::ImpactExc)          return( "Electron-impact excitation" )         end
 function Base.string(propc::ImpactExcAuto)      return( "ImpactExcAuto" )                      end
 function Base.string(propc::InternalConv)       return( "InternalConv" )                       end
+function Base.string(propc::MultiPDI)           return( "multi-photon double ionization" )     end
 function Base.string(propc::MultiPhotonDE)      return( "multi-photon excitation & decay" )    end
+function Base.string(propc::MultiPI)            return( "multi-photon ionization" )            end
+function Base.string(propc::PairA1P)            return( "one-photon pair annihilation" )       end
 function Base.string(propc::Photo)              return( "Photo-Ionization" )                   end
 function Base.string(propc::PhotoExc)           return( "Photo-Excitation" )                   end
 function Base.string(propc::PhotoDouble)        return( "single-photon double ionization" )    end
