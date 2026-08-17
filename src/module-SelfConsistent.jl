@@ -904,7 +904,7 @@ end
 """
 function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.Model, primitives::Bsplines.Primitives,
                                          settings::AsfSettings; printout::Bool=true, nVirtual::Int64=16,
-                                         method::Symbol=:conjugate, cgRestart::Int64=10, lbfgsMemory::Int64=5)
+                                         method::Symbol=:lbfgs, cgRestart::Int64=10, lbfgsMemory::Int64=12)
     nsL = primitives.grid.nsL;    nsS = primitives.grid.nsS;    grid = primitives.grid
     storage = Dict{String,Array{Float64,2}}()
     matrixB = zeros( nsL+nsS, nsL+nsS )

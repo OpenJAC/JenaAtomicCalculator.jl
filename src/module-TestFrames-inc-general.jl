@@ -451,7 +451,12 @@ function testRepresentation_RasExpansion(; short::Bool=true)
     layers      = [ RasLayer(Shell[]; se=false, de=false),   # layer 1: reference SCF only, no correlation
                      RasLayer([Shell("2p")]) ]               # layer 2: add 2p as a correlating shell
     #
-    wa          = Representation(name, Nuclear.Model(4.), Radial.Grid(true), refConfigs,
+    # NO grid is given: the box is derived from refConfigs by Basics.recommendedGrid, which is the point.  Until
+    # 17-Aug-2026 this ran on Radial.Grid(true) -- 614 a.u. and 62 splines for a FOUR-ELECTRON atom -- and on
+    # that grid a correlation layer RAISES the energy, which is not physics.  The reference box is 20.9 a.u.
+    # with 96 splines; the uncorrelated first layer agrees to eight digits between the two, so nothing about
+    # the reference SCF is traded away.
+    wa          = Representation(name, Nuclear.Model(4.), refConfigs,
                                  RasExpansion([LevelSymmetry(0, Basics.plus)], 4, coreShells, fromShells, layers, rasSettings) )
     wb = generate(wa, output=true)
     # The expected value changed TWICE on 16-Aug-2026. First when Basics.EOLField was wired to the
@@ -471,9 +476,20 @@ function testRepresentation_RasExpansion(; short::Bool=true)
     # DFS-Field run of the identical layer structure gave -14.605300 Ha with both channels contributing.
     # The rotation solver reaches -14.612567, i.e. BELOW that reference, so this test previously asserted
     # the defect.  Do not restore the old number.
-    if  abs(wb["step2"].levels[1].energy + 14.619313375588)  > 1.0e-3
+    # 17-Aug-2026, the FOURTH change and the reason for the two above: the box now comes from refConfigs and the
+    # EOL default became L-BFGS.  Those are connected.  L-BFGS had been rejected for "losing to conjugate
+    # gradients" in every earlier RAS test, and every earlier RAS test ran on the 614 a.u. grid, where it does
+    # lose -- by 1.46 mHa.  On the reference-sized box it WINS by 0.26 mHa and runs three times faster (8 s
+    # against 23 s), and with the iteration budget varied it wins at every budget: 24 iterations reach what
+    # conjugacy needs about 70 to reach.  A quasi-Newton method builds its curvature model from gradient
+    # DIFFERENCES, so it was punished twice over, first by the gradient defect fixed the day before and then by
+    # a basis too starved to be worth modelling.  Benchmarking an optimiser on a basis that cannot represent
+    # the problem measures the basis.
+    #
+    # Do not restore any earlier number: each was obtained on a grid or a gradient that no longer exists here.
+    if  abs(wb["step2"].levels[1].energy + 14.619381695146)  > 1.0e-3
         success = false
-        if printTest   info(iostream, "levels[1].energy $(wb["step2"].levels[1].energy) != -14.619313375588")   end
+        if printTest   info(iostream, "levels[1].energy $(wb["step2"].levels[1].energy) != -14.619381695146")   end
     end
 
     testPrint("testRepresentation_RasExpansion()::", success)
