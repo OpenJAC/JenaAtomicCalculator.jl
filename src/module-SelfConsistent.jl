@@ -285,7 +285,22 @@ GBL_SCF_REORTHONORMALIZE = true
 ## Anderson depth for the AVERAGE-LEVEL field, separate from the mean-field one above because the iterate is
 ## different: there it is the screening potential, here the orbitals themselves.  0 = the plain damped
 ## iteration exactly as before.
-GBL_AL_ANDERSON_DEPTH = 0
+##
+## ON since 17-Aug-2026, at the same depth 2 the mean-field driver uses.  It reaches the SAME solution --
+## Ar 3s^2 3p^6 agrees to 4.3e-9 once accuracyScf is tight enough to converge at all -- and is 1.4x to 1.9x
+## faster, the gain GROWING with the accuracy demanded (1.47x at 1e-6, 1.79x at 1e-9, 1.89x at 1e-12).
+## On Be 4-config it is also the more STABLE of the two: across accuracyScf = 1e-6, 1e-9, 1e-12 it drifts by
+## 1e-5 where the plain iteration swings 6.5e-5 NON-MONOTONICALLY, and it gets there in 211 s against 1093 s.
+##
+## It could not be switched on until 18aaf5f.  Anderson perturbs the orbital tails just enough to move the
+## old mtp cut, which made TestFrames.testMethod_OrbitalOrthonormality report 6.5e-08 where the plain
+## iteration gave 6.8e-10 -- an artefact of the truncated integral, not of the orbitals, which were
+## orthonormal to 1e-17 throughout.  With the tails kept, both give ~1e-16.
+##
+## STILL OPEN, and NOT fixed by any of this: plain AL does not converge for a multi-configuration basis with
+## near-degenerate CSFs (Be 4-config), and the default accuracyScf = 1e-6 hides it by stopping early.
+## Tightening the tolerance is therefore not a general cure -- right for Ar-like cases, worse for Be.
+GBL_AL_ANDERSON_DEPTH = 2
 
 ## Anderson depth for the mean-field (DFS/HS) SCF.  0 = the plain iteration exactly as before; a positive
 ## value routes performSCF to SelfConsistent.solveMeanFieldBasisAnderson, which reaches the SAME self-consistent
