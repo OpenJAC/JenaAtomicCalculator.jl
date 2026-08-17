@@ -64,6 +64,8 @@ using JenaAtomicCalculator, ..Defaults, ..TestFrames
         @test TestFrames.testModule_RayleighCompton()
         @test TestFrames.testModule_MultiPhotonTransition()
         @test TestFrames.testModule_CoulombExcitation()
+        @test TestFrames.testModule_ParticleScattering()   ## added 17-Aug-2026 with the Dirac rebuild; replaces a
+                                                           ## Settings() constructor entry that could not fail
     end
 
     @testset "JAC cascades" begin

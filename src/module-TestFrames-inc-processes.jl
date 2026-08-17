@@ -366,3 +366,90 @@ function testModule_HyperfineInduced(; short::Bool=true)
     testPrint("testModule_HyperfineInduced()::", success)
     return(success)
 end
+
+
+"""
+`TestFrames.testModule_ParticleScattering(; short::Bool=true)`  ... tests on module ParticleScattering.
+"""
+function testModule_ParticleScattering(; short::Bool=true)
+    Defaults.setDefaults("print summary: open", "test-ParticleScattering-new.sum")
+    printstyled("\n\nTest the module  ParticleScattering  ... \n", color=:cyan)
+    ## The module was rebuilt onto Dirac partial waves on 17-Aug-2026; before that its only coverage was a
+    ## ParticleScattering.Settings() entry in testStructConstructors, i.e. a test that could not fail. The checks below
+    ## are cheap and each of them was verified to FAIL under a matching perturbation of the source.
+    success = true
+    oldEnergyUnit = Defaults.getDefaults("unit: energy")
+    Defaults.setDefaults("unit: energy", "eV")
+    #
+    ## Test 1: kappa is the only quantum number stored in a PartialWave, and l and j must follow from it.
+    for  kappa in [-6, -5, -4, -3, -2, -1, 1, 2, 3, 4, 5]
+        sh = Subshell(101, kappa)
+        l  = (kappa < 0) ? -kappa - 1 : kappa
+        success = success && Basics.subshell_l(sh) == l
+        success = success && Basics.subshell_j(sh) == AngularJ64( (2*abs(kappa) - 1)//2 )
+    end
+    #
+    ## Test 2: e-He elastic scattering at 300 eV, plane wave, static field with local exchange.
+    grid   = Radial.Grid(Radial.Grid(false), rnt = 4.0e-6, h = 5.0e-2, hp = 0.6e-2, rbox = 10.0)
+    thetas = [0.3, 1.0, 2.0, 3.0]
+    psSet  = ParticleScattering.Settings(ParticleScattering.Settings(), impactEnergies=[300.0], polarThetas=thetas,
+                                         polarPhis=[0.0], printBefore=false, epsPartialWave=1.0e-6, maxL=60)
+    wc     = Atomic.Computation(Atomic.Computation(), name="e-He elastic", grid=grid, nuclearModel=Nuclear.Model(2.0),
+                                initialConfigs = [Configuration("1s^2")], finalConfigs = [Configuration("1s^2")],
+                                processSettings = psSet )
+    wd     = redirect_stdout(devnull) do
+        perform(wc, output=true)
+    end
+    event  = wd["particle-scattering events:"][1]
+    pws    = event.partialWaves
+    #
+    ## Test 3: the series must have converged well inside maxL, i.e. the epsPartialWave criterion ended it, not the
+    ##   backstop. This is the check the earlier hard-coded l = 0:30 loop made impossible.
+    lMax    = maximum( Basics.subshell_l(Subshell(101, pw.kappa)) for pw in pws )
+    success = success && 0 < lMax < 60
+    ## ... and BOTH spin-orbit partners must be present for every l >= 1; a single-kappa treatment carries no spin.
+    success = success && length(pws) == 2*lMax + 1
+    #
+    ## Test 4: the total elastic cross section computed two independent ways -- by Gauss-Legendre quadrature of
+    ##   |f|^2 + |g|^2 over the scattering angle, and from the partial-wave sum of sin^2(delta) -- must agree.
+    sigmaQuad  = event.integrated.sigmaElastic
+    sigmaPhase = ParticleScattering.elasticCrossSectionFromPhases(pws, event.impactEnergy)
+    success = success && sigmaQuad > 0.  &&  abs(sigmaQuad/sigmaPhase - 1.0) < 1.0e-8
+    #
+    ## Test 5: the transport cross sections are positive and ordered sigma_1 < sigma_el for forward-peaked scattering.
+    success = success && event.integrated.sigmaMomentumTransfer > 0.
+    success = success && event.integrated.sigmaViscosity        > 0.
+    success = success && event.integrated.sigmaMomentumTransfer < event.integrated.sigmaElastic
+    #
+    ## Test 6: the Sherman function is bounded by unity at every angle, and it is NOT identically zero -- a non-zero S
+    ##   is only possible because the two kappa branches carry different phase shifts.
+    success = success && all( abs(obs.sherman) <= 1.0 + 1.0e-10  for obs in event.angular )
+    success = success && any( abs(obs.sherman) >  1.0e-12        for obs in event.angular )
+    ## ... and it vanishes in the forward direction, where the spin-flip amplitude has no P_l^1 to build on.
+    success = success && abs( ParticleScattering.angularObservables(pws, event.impactEnergy, 0., 0.).sherman ) < 1.0e-10
+    #
+    ## Test 7: the f/g projection must REFUSE a target that it does not describe. It rests on a spinless target, so an
+    ##   initial level with J /= 0 has to raise rather than return a plausible-looking number.
+    psErr = 0
+    badEvent = ParticleScattering.Event(ParticleScattering.Electron(), ParticleScattering.ElasticScattering(),
+                                        ParticleScattering.StaticFieldExchange(), Beam.PlaneWave(),
+                                        Level(AngularJ64(1), AngularM64(0), Basics.plus, 0, 0., 0., false, Basis(), Float64[]),
+                                        Level(), 1.0, pws, ParticleScattering.ScatteringChannel[],
+                                        ParticleScattering.AngularObservables[], ParticleScattering.IntegratedObservables())
+    try     ParticleScattering.assertSpinlessTarget(badEvent)
+    catch;  psErr = psErr + 1
+    end
+    ## ... and a twisted beam must raise too, rather than fall back on the plane-wave superposition.
+    try     ParticleScattering.beamObservables(Beam.BesselBeam(), pws, event.impactEnergy, 1.0, 0.)
+    catch;  psErr = psErr + 1
+    end
+    success = success && psErr == 2
+    #
+    Defaults.setDefaults("unit: energy", oldEnergyUnit)
+    Defaults.setDefaults("print summary: close", "")
+    _, iostream = Defaults.getDefaults("test flag/stream")
+    println(iostream, "ParticleScattering: kappa bookkeeping, partial-wave convergence, the two routes to sigma_el, " *
+                      "the transport cross sections, the Sherman function, and the two guards.")
+    testPrint("testModule_ParticleScattering()::", success)
+    return(success)
+end

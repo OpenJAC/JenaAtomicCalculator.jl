@@ -81,7 +81,6 @@ elseif  char == 'D'
     println("Dm) Apply & test the InternalRecombination module with ASF from an internally generated initial and final-state multiplet.")
     println("Dn) Apply & test the TwoElectronOnePhoton (TEOP) module: both computational strategies compared for the same transition.")
     println("Do) Apply & test the HyperfineInduced module: electronic quenching, nuclear hyperfine mixing, and mixed cases.")
-    println("Dp) Apply & test the ParticleScattering module with ASF from an internally generated initial and final-state multiplet.")
     println("Dq) Apply & test the InternalConversion module with ASF from an internally generated initial- and final-state multiplet.")
     println("Dr) Apply & test the CoulombIonization module with ASF from an internally generated initial- and final-state multiplet.")
     println("Ds) Apply & test the CoulombExcitation module with ASF from an internally generated initial- and final-state multiplet.")
@@ -163,6 +162,7 @@ elseif  char == 'L'
 elseif  char == 'M'
     println("M)  Examples, tests & development of the ForPedestrians module")
     println("----------------------------------------------------------------")
+    println("Oa) Elastic scattering of electrons at atoms: Dirac partial waves, DCS, Sherman function, transport cross sections.")
     println("Ma) Test  computeLevelEnergies(ForGivenConfigs/ForIsoelectronicSequence(), ...)  for several atoms and sequences.")
     println("Mb) Test  computeTransitionRates(),  computeBranchingFractions()  and  displaySpectrum()  for ForPhotoEmission and ForAutoIonization.")
     println("Mc) Test  computeCrossSections(ForPhotoIonization(), ...)  and  computeCrossSections(ForPhotoRecombination(), ...)  for several atoms.")
