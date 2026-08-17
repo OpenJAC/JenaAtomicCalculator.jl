@@ -811,6 +811,52 @@ function Representation(wa::Bool)
 end
 
 
+"""
+`AtomicState.Representation(name::String, nuclearModel::Nuclear.Model, refConfigs::Array{Configuration,1},
+                            repType::AbstractRepresentationType; printout::Bool=true)`
+    ... constructor for which NO grid is given, so that the radial box is derived from the REFERENCE
+        configurations by Basics.recommendedGrid; a rep::AtomicState.Representation is returned.
+
+        THE REFERENCE CONFIGURATIONS ARE THE RIGHT THING TO SIZE THE BOX FROM, and the alternative -- handing
+        the estimate every configuration the expansion will contain -- is actively wrong.  The estimate reads a
+        shell by its (n,l) and cannot see the ROLE it plays: a spectroscopic 3s, occupied in a real 1s^2 2s 3s
+        state, is diffuse and is bound by its own ionization potential, whereas a CORRELATION 3s added to
+        1s^2 2s^2 is never occupied, describes the short-range correlation hole, and contracts onto the valence
+        region.  Same quantum numbers, extent differing by an order of magnitude.  Fed the correlation layers of
+        a beryllium RAS expansion, the estimate returns 66 a.u. where the reference alone asks 20.5, and a box
+        that large starves the fixed B-spline basis precisely on the high-n orbitals the layers introduce.
+
+        MEASURED on a three-layer beryllium expansion (reference, +2p, +3s3p3d) with a full EOL optimisation per
+        layer, one grid per run:
+
+            box sized from   rbox     final energy      dE(layer 3 - layer 2)
+            refConfigs       20.9     -14.61925410      -0.000135
+            all shells       66.7     -14.61911933      -0.001730
+            Radial.Grid(true) 614     -14.61805822      +0.001205
+
+        The reference-sized box gives the LOWEST energy, which at fixed layer structure is the variational
+        criterion that decides this.  The uncorrelated first layer is box-independent to eight digits across
+        that whole range, so nothing is being traded away.  And the layer-to-layer differences are not
+        comparable across grids at all -- the last column changes sign, and a correlation layer that RAISES the
+        energy is not physics -- so a layer difference should never be quoted without stating the grid.
+
+        The correlation orbitals are still checked, not merely assumed to fit: Bsplines.checkOrbitalBox runs on
+        the converged orbitals of every layer and reports if any of them reaches the wall.
+
+    + name          ::String                             ... name of the representation.
+    + nuclearModel  ::Nuclear.Model                      ... nuclear model.
+    + refConfigs    ::Array{Configuration,1}             ... reference configurations, which set the box.
+    + repType       ::AbstractRepresentationType         ... the expansion to be generated.
+"""
+function Representation(name::String, nuclearModel::Nuclear.Model, refConfigs::Array{Configuration,1},
+                        repType::AbstractRepresentationType; printout::Bool=true)
+    grid = Basics.recommendedGrid(refConfigs, nuclearModel, printout=printout)
+
+    return( AtomicState.Representation(name, nuclearModel, grid, refConfigs, repType) )
+end
+
+
+
 # `Base.string(rep::Representation)`  ... provides a String notation for the variable rep::AtomicState.Representation
 function Base.string(rep::Representation)
     sa = "Atomic representation:   $(rep.name) for Z = $(rep.nuclearModel.Z) and with reference configurations: \n   "
