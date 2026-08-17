@@ -34,6 +34,12 @@ struct     PointNucleus          <:  AbstractNuclearModel      end
 struct     UniformNucleus        <:  AbstractNuclearModel      end
 struct     FermiNucleus          <:  AbstractNuclearModel      end
 
+@doc "... a point-like nucleus, rho(r) = Z delta(r); the potential is the bare Coulomb -Z/r at every grid point."                         PointNucleus
+@doc "... a homogeneously charged sphere of radius R = Model.radius [in fm]; the potential is harmonic inside, " *
+     "-Z/(2R) (3 - r^2/R^2), and Coulombic -Z/r outside."   UniformNucleus
+@doc "... a two-parameter Fermi distribution, rho(r) = rho_0 / (1 + exp((r-c)/a)), with the skin thickness a fixed by " *
+     "Nuclear.fermiA and the half-density radius c determined from the requested rms radius."   FermiNucleus
+
 
 """
 `struct  Nuclear.ThreeParameterFermiNucleus  <:  Nuclear.AbstractNuclearModel`

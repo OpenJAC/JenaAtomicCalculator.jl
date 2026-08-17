@@ -38,6 +38,11 @@ struct         QedPetersburg  <:  AbstractQedModel   end
 struct         QedSydney      <:  AbstractQedModel   end
 struct         NoneQed        <:  AbstractQedModel   end
 
+@doc "... to estimate the QED corrections from the model Hamiltonian of Shabaev and coworkers (2013)."                                   QedPetersburg
+@doc "... to estimate the QED corrections from the radiative potential of Flambaum and Ginges (2004), " *
+     "completed with Kozioł's Rci-Q per-shell A(Z,n) re-fit of the s-orbital electric self-energy."   QedSydney
+@doc "... no QED estimates are included into the computations."                                                                                NoneQed
+
 
 """
 `abstract type ManyElectron.AbstractStartOrbitals` 
@@ -55,6 +60,11 @@ struct         NoneQed        <:  AbstractQedModel   end
 abstract type  AbstractStartOrbitals                          end
 struct     StartFromHydrogenic    <:  AbstractStartOrbitals   end
 struct     StartFromThomasFermi   <:  AbstractStartOrbitals   end
+
+@doc "... to start the SCF procedure from hydrogenic orbitals; this ignores the other electrons entirely, " *
+     "so the outer orbitals of a many-electron atom start far too tightly bound."   StartFromHydrogenic
+@doc "... to start the SCF procedure from orbitals in a Thomas-Fermi potential, which screens the nucleus " *
+     "with a statistical model of the electron cloud before any orbital exists; see Basics.ThomasFermiField."   StartFromThomasFermi
 
 export  AbstractStartOrbitals, StartFromHydrogenic, StartFromPrevious, StartFromThomasFermi
 
