@@ -576,11 +576,7 @@ struct   ForIsoelectronicSequence       <:  AbstractConfigurationTheme     end
 
 struct   MeanConfiguration              <:  AbstractConfigurationTheme     end
 struct   RelativisticConfigurations     <:  AbstractConfigurationTheme     end
-struct   SplitByEnergy                  <:  AbstractConfigurationTheme     end
 struct   SuperConfiguration             <:  AbstractConfigurationTheme     end
-
-@doc "... theme for splitting a set of configurations by energy. NOTE: no call site of this theme could be found beyond its " *
-     "declaration and export."   SplitByEnergy
 
 @doc "... to generate/deal with relativistic configurations."                                                               RelativisticConfigurations
 
@@ -654,7 +650,7 @@ export  AbstractConfigurationTheme, AddElectrons, ExciteElectrons, RemoveElectro
         ForHollowIons, ForImpactIonization, ForIsoelectronicSequence,
         ForPhotoEmission, ForPhotoIonization,  ForPhotoRecombination, ForRasExcitations, ForStepwiseDecay,
         GeneralizedConfigurations, GroundConfiguration, MeanConfiguration, RelativisticConfigurations, 
-        SplitByEnergy, SuperConfiguration,
+        SuperConfiguration,
         AllShells, ByMultipoles, ByNumber, ByParity, ClosedCore, ClosedShells, ClosedSubshells, ContractShells, ExcitationLevel,
         ExpandShells, FromBasis, FromMultiplet, GetParity, IsOccupied, LeadingConfiguration, LeadingConfigurationR, 
         MeanOccupation, Multiplicity, NonrelativisticBasis, NumberOfElectrons, OccupationDifference, OpenShellNumber, 
