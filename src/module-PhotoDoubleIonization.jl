@@ -719,11 +719,11 @@ end
 
 
 """
-`PhotoDoubleIonization.displayLines(iostream::IO, lines::Array{PhotoDoubleIonization.Line,1})`  
+`PhotoDoubleIonization.displayLines(stream::IO, lines::Array{PhotoDoubleIonization.Line,1})`
     ... to display a list of lines, sharings and channels that have been selected due to the prior settings. A neat table 
         of all selected transitions and energies is printed but nothing is returned otherwise.
 """
-function  displayLines(iostream::IO, lines::Array{PhotoDoubleIonization.Line,1})
+function  displayLines(stream::IO, lines::Array{PhotoDoubleIonization.Line,1})
     #
     # First, print lines and sharings
     nx = 94
