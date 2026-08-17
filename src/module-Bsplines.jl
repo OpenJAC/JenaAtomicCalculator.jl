@@ -347,14 +347,14 @@ function generateOrbitalFromPrimitives(sh::Subshell, wc::Basics.Eigen, primitive
     end 
     
     # Determine the maximum number of grid points for this orbital and normalized it propery
-    mtp = 0;   for j = primitives.grid.NoPoints:-1:1    if  abs(P[j])^2 + abs(Q[j])^2 > 1.0e-13   mtp = j;   break   end     end
+    mtp = 0;   for j = primitives.grid.NoPoints:-1:1    if  abs(P[j])^2 + abs(Q[j])^2 > 1.0e-30   mtp = j;   break   end     end
     
     Px = zeros(mtp);    Px[1:mtp] = P[1:mtp];    Pprimex = zeros(mtp);    Pprimex[1:mtp] = Pprime[1:mtp]  
     Qx = zeros(mtp);    Qx[1:mtp] = Q[1:mtp];    Qprimex = zeros(mtp);    Qprimex[1:mtp] = Qprime[1:mtp]    
-    for  j = 1:mtp      if  abs(Px[j])      < 1.0e-10    Px[j] = 0.       end
-                        if  abs(Qx[j])      < 1.0e-10    Qx[j] = 0.       end 
-                        if  abs(Pprimex[j]) < 1.0e-10    Pprimex[j] = 0.  end
-                        if  abs(Qprimex[j]) < 1.0e-10    Qprimex[j] = 0.  end      end
+    for  j = 1:mtp      if  abs(Px[j])      < 1.0e-16    Px[j] = 0.       end
+                        if  abs(Qx[j])      < 1.0e-16    Qx[j] = 0.       end 
+                        if  abs(Pprimex[j]) < 1.0e-16    Pprimex[j] = 0.  end
+                        if  abs(Qprimex[j]) < 1.0e-16    Qprimex[j] = 0.  end      end
                         
     # Ensure that the large component of all orbitals start 'positive'
     wSign     = sum( Px[1:30] )
@@ -406,14 +406,14 @@ function generateOrbitalFromVector(sh::Subshell, energy::Float64, vector::Vector
         for  j = lower:upper  Qprime[j] = Qprime[j] + vector[nsL+i] * primitives.bsplinesS[i].bp[j+add]  end
     end
 
-    mtp = 0;   for j = primitives.grid.NoPoints:-1:1    if  abs(P[j])^2 + abs(Q[j])^2 > 1.0e-13   mtp = j;   break   end     end
+    mtp = 0;   for j = primitives.grid.NoPoints:-1:1    if  abs(P[j])^2 + abs(Q[j])^2 > 1.0e-30   mtp = j;   break   end     end
 
     Px = zeros(mtp);    Px[1:mtp] = P[1:mtp];    Pprimex = zeros(mtp);    Pprimex[1:mtp] = Pprime[1:mtp]
     Qx = zeros(mtp);    Qx[1:mtp] = Q[1:mtp];    Qprimex = zeros(mtp);    Qprimex[1:mtp] = Qprime[1:mtp]
-    for  j = 1:mtp      if  abs(Px[j])      < 1.0e-10    Px[j] = 0.       end
-                        if  abs(Qx[j])      < 1.0e-10    Qx[j] = 0.       end
-                        if  abs(Pprimex[j]) < 1.0e-10    Pprimex[j] = 0.  end
-                        if  abs(Qprimex[j]) < 1.0e-10    Qprimex[j] = 0.  end      end
+    for  j = 1:mtp      if  abs(Px[j])      < 1.0e-16    Px[j] = 0.       end
+                        if  abs(Qx[j])      < 1.0e-16    Qx[j] = 0.       end
+                        if  abs(Pprimex[j]) < 1.0e-16    Pprimex[j] = 0.  end
+                        if  abs(Qprimex[j]) < 1.0e-16    Qprimex[j] = 0.  end      end
 
     wSign = sum( Px[1:min(30,mtp)] )
     if  wSign < 0.   Px[1:mtp] = -Px[1:mtp];   Pprimex[1:mtp] = -Pprimex[1:mtp]

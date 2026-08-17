@@ -166,14 +166,18 @@ function testModule_Empirical(; short::Bool=true)
     ##   decrease from 1 to 10 eV (the 1/eps divergence towards threshold).
     ##   The UsingJAC amplitudes depend on the continuum method; earlier testsets (cascades) switch it and do not
     ##   restore, so the JAC defaults are pinned here explicitly to keep this test independent of the testset order.
+    ##   The two 1e-6 pins below are JAC REGRESSION values, not measurements: they were re-set on 17-Aug-2026
+    ##   when the orbital tabulation stopped truncating its tails, which moved them by 1e-6 and 9e-6.  In Mb
+    ##   nothing happened -- 6.2617 -> 6.2618 and 0.3174 -> 0.3174 -- so the 15 % agreement with experiment
+    ##   that this test is really about is untouched.
     Defaults.setDefaults("method: continuum, Galerkin")
     Defaults.setDefaults("method: normalization, Alok")
     Defaults.setDefaults("nuclear: charge", 2.)
     ujOms = [Defaults.convertUnits("energy: from eV to atomic", e) for e in [26.0, 100.0]]
     ujCss = Empirical.photoionizationCrossSection(ujOms, Configuration("1s^2"), Configuration("1s^1"),
                                                   Empirical.UsingJAC(), printout=false)
-    success = success && abs(ujCss[1] - 0.22361086741886252) / 0.22361086741886252 < 1.0e-6
-    success = success && abs(ujCss[2] - 0.01133283305665921) / 0.01133283305665921 < 1.0e-6
+    success = success && abs(ujCss[1] - 0.22361116521314983) / 0.22361116521314983 < 1.0e-6
+    success = success && abs(ujCss[2] - 0.01133294101927608) / 0.01133294101927608 < 1.0e-6
     ujEks = [Defaults.convertUnits("energy: from eV to atomic", e) for e in [1.0, 10.0]]
     ujPrs = Empirical.photorecombinationCrossSection(ujEks, Configuration("1s^1"), Configuration("1s^2"),
                                                      Empirical.UsingJAC(), printout=false)
