@@ -955,6 +955,17 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
         targetLevels = SelfConsistent.selectTargetLevelsEOL(multiplet, settings.levelSelectionCI)
         (coeffs1p, coeffs2p) = SelfConsistent.combineAngularCoefficientsEOL(blockCaches, targetLevels)
 
+        ## e0 MUST be the energy of the point the line search starts from, measured the way the line search
+        ## measures its trials -- on the POSITIVE-BRANCH-PROJECTED vectors.  Taking it from the raw bVectors
+        ## instead made the comparison `eTrial < e0` a comparison between two different functions, and once
+        ## the two drifted apart no step could ever win: traced on a three-layer Be RAS, the driver reported
+        ## "no descent found" at iteration 61 while e0 sat 5.42 mHa BELOW the energy of its own starting
+        ## point, and the trial energy was flat in t across five decades because every t was being measured
+        ## against that offset.  The direction was never at fault -- dg = -0.047 there, and its tangential
+        ## part -0.046.  Re-projecting here is a no-op whenever the iterate is already on the manifold, which
+        ## is what makes it safe: it costs one projection per iteration and removes a whole class of stall.
+        (bVectors, _) = SelfConsistent.projectOntoPositiveBranch(bVectors, basis.subshells, primitives,
+                                                        nucPot, matrixB, storage; spectrum=posSpectrum)
         e0   = SelfConsistent.energyFromBVectors(bVectors, coeffs1p, coeffs2p, basis.subshells,
                                                          primitives, grid, nucPot)
         grad = SelfConsistent.computeOrbitalGradient(bVectors, coeffs1p, coeffs2p, basis.subshells,
