@@ -445,6 +445,26 @@ function testModule_ParticleScattering(; short::Bool=true)
     end
     success = success && psErr == 2
     #
+    ## Test 8: an ABSOLUTE check against an exact analytic limit, and the only one here that is not internal. At a large
+    ##   scattering angle and a high impact energy the projectile probes inside the electron cloud, where the potential is
+    ##   the bare nuclear one, so the backward cross section must approach Rutherford for the full nuclear charge,
+    ##   d sigma/d Omega -> Z^2 / (16 E^2 sin^4(theta/2)). Measured for e + He at 1 keV and theta = 180 deg, the ratio is
+    ##   1.069: above unity because screening, exchange and the finite electron cloud all still raise it there, and by a
+    ##   margin that shrinks with energy (1.355 at 200 eV, 1.003 at 2 keV; see examples/example-Ob.jl). Both bounds below
+    ##   are physical, and together they pin the absolute normalisation of the amplitudes, which no internal check can do.
+    ruthSet = ParticleScattering.Settings(ParticleScattering.Settings(), impactEnergies=[1000.0],
+                                          polarThetas=[Float64(pi)], polarPhis=[0.0], printBefore=false,
+                                          epsPartialWave=1.0e-7, maxL=150)
+    wcr = Atomic.Computation(Atomic.Computation(), name="Rutherford limit", grid=grid, nuclearModel=Nuclear.Model(2.0),
+                             initialConfigs = [Configuration("1s^2")], finalConfigs = [Configuration("1s^2")],
+                             processSettings = ruthSet )
+    wdr = redirect_stdout(devnull) do
+        perform(wcr, output=true)
+    end
+    evr   = wdr["particle-scattering events:"][1]
+    ratio = evr.angular[1].dcs / ( 4.0 / (16 * evr.impactEnergy^2) )
+    success = success && 1.0 < ratio < 1.15
+    #
     Defaults.setDefaults("unit: energy", oldEnergyUnit)
     Defaults.setDefaults("print summary: close", "")
     _, iostream = Defaults.getDefaults("test flag/stream")

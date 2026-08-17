@@ -163,6 +163,7 @@ elseif  char == 'M'
     println("M)  Examples, tests & development of the ForPedestrians module")
     println("----------------------------------------------------------------")
     println("Oa) Elastic scattering of electrons at atoms: Dirac partial waves, DCS, Sherman function, transport cross sections.")
+    println("Ob) Elastic electron scattering: the high-energy Rutherford limit as an absolute check of the cross sections.")
     println("Ma) Test  computeLevelEnergies(ForGivenConfigs/ForIsoelectronicSequence(), ...)  for several atoms and sequences.")
     println("Mb) Test  computeTransitionRates(),  computeBranchingFractions()  and  displaySpectrum()  for ForPhotoEmission and ForAutoIonization.")
     println("Mc) Test  computeCrossSections(ForPhotoIonization(), ...)  and  computeCrossSections(ForPhotoRecombination(), ...)  for several atoms.")
