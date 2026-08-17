@@ -96,3 +96,16 @@ using JenaAtomicCalculator, ..Defaults, ..TestFrames
     end
 
 end
+
+## Clean the run debris.  Each cascade computation dumps its results to a zzz-*.jld file whose name carries the date and the
+## hour, so the suite leaves one file behind per scheme and per hour it is run in, without bound -- 109 files and 51 MB had
+## accumulated since 5-Aug-2026.  The dumps exist so that a single cascade can be reloaded by hand (the schemes print the
+## JLD2.load call for it); nothing reads them back, and least of all this suite.  The glob is anchored on the zzz- prefix and
+## the .jld suffix and does not descend, so test/approved/ -- which holds a .jld reference -- is out of its reach.
+let  dir = @__DIR__
+    debris = filter(f -> startswith(f, "zzz-") && endswith(f, ".jld"), readdir(dir))
+    bytes  = sum(f -> filesize(joinpath(dir, f)), debris; init = 0)
+    for  f in debris   rm(joinpath(dir, f), force = true)   end
+    printstyled("\nRemoved $(length(debris)) cascade dump file(s), $(round(bytes / 2^20, digits = 1)) MB, from $(dir) \n",
+                color = :cyan)
+end
