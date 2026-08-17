@@ -1372,6 +1372,11 @@ function performSCF(configs::Array{Configuration,1}, nm::Nuclear.Model, grid::Ra
     # different state, Ge II 4f on a 614 a.u. box being the case that motivated it. Note the EOLField branch
     # above returns early and is therefore not covered here.
     Bsplines.checkOrbitalConsistency(basis.orbitals, grid; stopper = settings.gridStopper)
+    ## ... and that the box was in fact large enough for them.  This is the only test made on the CONVERGED
+    ## orbitals rather than on a hydrogenic stand-in, so it is the one that says whether the estimate the
+    ## grid was built from turned out to be right.
+    (boxOk, boxReport) = Bsplines.checkOrbitalBox(basis.orbitals, grid; stopper = false)
+    if  printout   println(">> Radial box: " * boxReport * (boxOk ? "  -- adequate." : "  -- NOT adequate."))   end
 
     # Setup and diagonalize the Hamiltonian matrix; assign mixing coefficients
     if   scfProc == :averageLevel
@@ -1431,6 +1436,11 @@ function performSCF(basis::Basis, nm::Nuclear.Model, grid::Radial.Grid,
     # different state, Ge II 4f on a 614 a.u. box being the case that motivated it. Note the EOLField branch
     # above returns early and is therefore not covered here.
     Bsplines.checkOrbitalConsistency(basis.orbitals, grid; stopper = settings.gridStopper)
+    ## ... and that the box was in fact large enough for them.  This is the only test made on the CONVERGED
+    ## orbitals rather than on a hydrogenic stand-in, so it is the one that says whether the estimate the
+    ## grid was built from turned out to be right.
+    (boxOk, boxReport) = Bsplines.checkOrbitalBox(basis.orbitals, grid; stopper = false)
+    if  printout   println(">> Radial box: " * boxReport * (boxOk ? "  -- adequate." : "  -- NOT adequate."))   end
 
     # Setup and diagonalize the Hamiltonian matrix; assign mixing coefficients
     if   scfProc == :averageLevel

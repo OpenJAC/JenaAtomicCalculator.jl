@@ -954,4 +954,92 @@ function checkOrbitalConsistency(orbitals::Dict{Subshell,Orbital}, grid::Radial.
 end
 
 
+"""
+`Bsplines.checkOrbitalBox(orbitals::Dict{Subshell,Orbital}, grid::Radial.Grid;
+                          extentTolerance::Float64=0.9, densityFloor::Float64=1.0e-5, stopper::Bool=false)`
+    ... checks, on the CONVERGED orbitals rather than on a hydrogenic stand-in, whether the radial box was in
+        fact large enough for them, and reports what it measured; a tuple (isAdequate::Bool, report::String) is
+        returned, the report being a single line fit to be written into a summary file.
+
+        THE BOX IS AN ESTIMATE UNTIL SOMETHING CHECKS IT.  Basics.recommendedGrid derives it from Slater's
+        rules, a 1930s empirical recipe, and nothing downstream ever asked whether the answer was right -- so
+        every result carried an unquantified box error.  The measure used here is the orbital's own EXTENT,
+        `rEnd`, the radius beyond which its density has fallen below `densityFloor` of its maximum: if
+        `rEnd/rbox` approaches 1 the orbital is still substantial where the box ends and has been cut off.
+
+        WHY NOT THE AMPLITUDE AT THE WALL, which is the obvious choice: the B-spline basis imposes P(rbox) = 0,
+        so the density at the wall is zero BY CONSTRUCTION and measures the boundary condition rather than the
+        orbital.  Measured on argon in a 3 a.u. box -- an error of 37 Ha in the total energy -- the wall density
+        came to 9.2e-10, i.e. the most badly truncated case available scored better than the correct one.
+
+        THE DEFAULT densityFloor = 1e-5 WAS CALIBRATED, not chosen, against argon boxes whose harm is known:
+        3.0 a.u. is wrong by 37 Ha and 6.0 a.u. by 2.3e-3 Ha, both of which must be flagged, while 10.2 a.u.
+        gives the right answer and 61 a.u. costs 5e-9 Ha, neither of which may be.  On an uncut 61 a.u. box the
+        outermost argon orbital ends at 6.92, 8.10 and 9.26 a.u. for floors of 1e-4, 1e-5 and 1e-6, so 1e-5 puts
+        the correct box at extent/box = 0.80 against the 0.90 limit while both bad boxes reach 1.0.  A floor of
+        1e-10 fails outright: the tail is then still alive at 13 a.u. and the CORRECT box is condemned.
+
+        WHAT THIS DOES NOT DO, and it is half the problem: it does not detect a box that is too LARGE.  That
+        failure has cost this codebase more than truncation ever did, but it leaves no signature in the outer
+        orbital's shape, only in its energy, and it is strongly n-dependent.  Measured on thorium at the full
+        nuclear charge with hp = rbox/300 throughout, the 1s is unmoved (3e-9) across boxes from 10 to 600 a.u.
+        while the 7s degrades 1.0e-7 -> 2.0e-3 -> 1.1e-1 -> 2.4e-1; yet argon, whose outermost orbital has one
+        node instead of six, loses only 1.0e-9 on a box 25 times too large.  Counting B-spline break points
+        inside the orbital does not see it either: over that same thorium range the count falls only from 60 to
+        47 while the error grows by six orders, because with hp scaled to the box the mesh holds
+        `log(R/rnt)/h` points below any radius R independently of rbox.  No threshold in the single-run data was
+        defensible, so none is imposed.  Bsplines.checkOrbitalConsistency remains the guard for that side: a
+        starved subshell shows up as its two spin-orbit partners ceasing to describe the same shell.
+
+    + orbitals         ::Dict{Subshell,Orbital}  ... the CONVERGED orbitals.
+    + grid             ::Radial.Grid             ... the grid they were computed on.
+    + extentTolerance  ::Float64                 ... largest tolerated rEnd/rbox before the orbital counts as cut off.
+    + densityFloor     ::Float64                 ... fraction of the peak density that defines where an orbital ends.
+    + stopper          ::Bool                    ... true, if a truncated orbital shall raise rather than report.
+"""
+function checkOrbitalBox(orbitals::Dict{Subshell,Orbital}, grid::Radial.Grid;
+                         extentTolerance::Float64=0.9, densityFloor::Float64=1.0e-5, stopper::Bool=false)
+    rbox = grid.r[end];      offenders = Tuple{Subshell,Float64,Float64}[]
+    worstRatio = 0.;         worstShell = first(keys(orbitals));      outerExtent = 0.
+
+    for  (sh, orb)  in  orbitals
+        np = min(length(orb.P), length(grid.r));     if  np < 3   continue    end
+        peak = 0.
+        for  i = 1:np    peak = max(peak, orb.P[i]^2 + orb.Q[i]^2)    end
+        if  peak <= 0.    continue    end
+
+        ## where the orbital effectively ends, and how that compares with where the box ends
+        rEnd = grid.r[1]
+        for  i = np:-1:1
+            if  orb.P[i]^2 + orb.Q[i]^2 > densityFloor * peak    rEnd = grid.r[i];   break    end
+        end
+        ratio = rEnd / rbox
+        if  ratio > extentTolerance    push!(offenders, (sh, rEnd, ratio))    end
+        if  ratio > worstRatio         worstRatio = ratio;   worstShell = sh   end
+        outerExtent = max(outerExtent, rEnd)
+    end
+
+    report = @sprintf("box %.1f a.u.; outermost orbital reaches %.2f a.u., ", rbox, outerExtent) *
+             @sprintf("largest extent/box = %.3f (%s, limit %.2f)", worstRatio, string(worstShell), extentTolerance)
+
+    if  length(offenders) > 0
+        printstyled("\n>>> BOX TOO SMALL: these converged orbitals still carry density where the box ends, so they are\n" *
+                    ">>> cut off rather than decayed:\n", color=:light_red)
+        for  (sh, rEnd, ratio)  in offenders
+            printstyled(@sprintf("    %10s   reaches %.2f a.u. of a %.1f a.u. box   (extent/box = %.3f)\n",
+                                 string(sh), rEnd, rbox, ratio), color=:light_red)
+        end
+        printstyled(">>> Use Basics.recommendedGrid(configs, nm) to have the box matched, or Radial.Grid(grid; rbox=..)\n",
+                    color=:light_red)
+        Defaults.warn(AddWarning(), "Bsplines.checkOrbitalBox(): the radial box cuts off " *
+                      join([string(o[1]) for o in offenders], ", ") * "; the orbitals are truncated.  " * report)
+        if  stopper   error("Bsplines.checkOrbitalBox(): the radial box cuts off " *
+                            "$(length(offenders)) of $(length(orbitals)) orbitals.")   end
+        return( (false, report) )
+    end
+
+    return( (true, report) )
+end
+
+
 end # module
