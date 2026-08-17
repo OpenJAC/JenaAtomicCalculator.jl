@@ -374,7 +374,7 @@ function computeAmplitudesProperties(line::AutoIonization.Line, nm::Nuclear.Mode
         if  settings.calcTeAuger
             if  amplitude != ComplexF64(0.)     @warn ">>> TEA contributions start from non-zero amplitude = $amplitude"    end
             println(">>> Normal Auger for ($symi --> $symi) transition with amplitude = $amplitude")
-            amp = AutoIonization.computeTeaAmplitude(settings.operator, newcLevel, settings.gMultiplet,
+            amp = AutoIonization.computeTeaAmplitude(settings.operator, pw.kappa, phase, newcLevel, settings.gMultiplet,
                                                      newiLevel, grid, printout=printout)
             amplitude = amplitude + amp
         end
@@ -647,8 +647,8 @@ end
 
 
 """
-`AutoIonization.computeTeaAmplitude(kind::AbstractEeInteraction, continuumLevel::Level, 
-                                    gMultiplet::Multiplet, initialLevel::Level, grid::Radial.Grid; printout::Bool=true)`  
+`AutoIonization.computeTeaAmplitude(kind::AbstractEeInteraction, kappa::Int64, phase::Float64, continuumLevel::Level,
+                                    gMultiplet::Multiplet, initialLevel::Level, grid::Radial.Grid; printout::Bool=true)`
     ... to compute the kind in  CoulombInteraction(), BreitInteraction(), CoulombBreit() total Auger amplitude for the two-electron Auger
         transitions via the gMultiplet as the resonant Green function:
         
@@ -659,13 +659,20 @@ end
                                                                     E_i  -  E_n
                                                                     
         due to the interelectronic interaction as well as the given initial, intermediate (gMultiplet), and final (continuum) levels and the
-        given kind of interaction. A value::ComplexF64 is returned.
+        given kind of interaction. The outgoing-electron factor i^l exp(-i*phase) is applied to the total, exactly as in
+        AutoIonization.amplitude, so that the two may be added coherently; it is a pure phase and does not affect a rate on its own.
+        A value::ComplexF64 is returned.
 """
-function computeTeaAmplitude(kind::AbstractEeInteraction, continuumLevel::Level,
+function computeTeaAmplitude(kind::AbstractEeInteraction, kappa::Int64, phase::Float64, continuumLevel::Level,
                                 gMultiplet::Multiplet, initialLevel::Level, grid::Radial.Grid; printout::Bool=true)
 
-    # Always ensure the same subshell list for all initial, intermediate and final (continuum) levels
+    # Always ensure the same subshell list for all initial, intermediate and final (continuum) levels. The
+    # INTERMEDIATE list has to enter the merge as well: a Green multiplet that carries an orbital the initial and
+    # final states do not have -- any Rydberg member above the valence shell -- otherwise cannot be re-expressed,
+    # and Basis(basis, subshells) raises "Improper subshell order". That silently limited the intermediate space
+    # to the initial state's own orbitals, which is precisely the space too small to converge the second-order sum.
     subshells  = Basics.merge(initialLevel.basis.subshells, continuumLevel.basis.subshells)
+    subshells  = Basics.merge(subshells, gMultiplet.levels[1].basis.subshells)
     iLevel     = Level(initialLevel, subshells)
     fLevel     = Level(continuumLevel, subshells)
     nMultiplet = Multiplet(gMultiplet, subshells)
@@ -674,7 +681,12 @@ function computeTeaAmplitude(kind::AbstractEeInteraction, continuumLevel::Level,
     ni = length(iLevel.basis.csfs);    symi = LevelSymmetry(iLevel.J, iLevel.parity);    eni = iLevel.energy
     nn = length(nMultiplet.levels[1].basis.csfs)
     
-    if  printout   printstyled("Compute two-electron Auger amplitude for the transition [$(iLevel.index)-$(fLevel.index)] ... \n", 
+    # The sum over intermediate levels must run over levels that are DIFFERENT from the initial one; a formally
+    # coincident n -- which occurs whenever the gMultiplet's reference configurations overlap with the initial-state
+    # configurations -- would give a spurious, ill-defined 1/(eni-enn) singularity and must be excluded.
+    selfTolerance = 1.0e-8
+
+    if  printout   printstyled("Compute two-electron Auger amplitude for the transition [$(iLevel.index)-$(fLevel.index)] ... \n",
                                 color=:light_green)    end
     amplitude = ComplexF64(0.)
 
@@ -682,6 +694,7 @@ function computeTeaAmplitude(kind::AbstractEeInteraction, continuumLevel::Level,
         amp  = ComplexF64(0.)
         symn = LevelSymmetry(nLevel.J, nLevel.parity);    enn = nLevel.energy
         if  symf != symn  ||  symn != symi     continue    end
+        if  abs(enn - eni) <= selfTolerance    continue    end
 
         for  r = 1:nf
             symr = LevelSymmetry(fLevel.basis.csfs[r].J, fLevel.basis.csfs[r].parity);      if  symr != symf    continue    end
@@ -689,16 +702,21 @@ function computeTeaAmplitude(kind::AbstractEeInteraction, continuumLevel::Level,
                 syms = LevelSymmetry(iLevel.basis.csfs[s].J, iLevel.basis.csfs[s].parity);  if  syms != symi    continue    end
 
                 #   Compute <alpha_f J_i || V^(e-e) || alpha_n J_i> <alpha_n J_i || V^(e-e) || alpha_i J_i>
+                #   The intermediate Green-function level is, in general, multi-configurational; the two matrix
+                #   elements therefore run over two INDEPENDENT CSF indices t, tp of that same level.
                 for  t = 1:nn
                     if  nLevel.mc[t] == 0.  continue    end
-                    Vee = ManyElectron.matrixElement_Vee(kind, nLevel.basis, t, iLevel.basis, s, grid)
                     Vae = ManyElectron.matrixElement_Vee(kind, fLevel.basis, r, nLevel.basis, t, grid)
-                    amp = amp + fLevel.mc[r] * Vae * nLevel.mc[t]^2 * Vee * iLevel.mc[s] / (eni - enn) / 4.
+                    for  tp = 1:nn
+                        if  nLevel.mc[tp] == 0.  continue    end
+                        Vee = ManyElectron.matrixElement_Vee(kind, nLevel.basis, tp, iLevel.basis, s, grid)
+                        amp = amp + fLevel.mc[r] * Vae * nLevel.mc[t] * nLevel.mc[tp] * Vee * iLevel.mc[s] / (eni - enn)
+                    end
                 end
             end
         end
         # Display the amplitude for nLevel, if desired
-        if  true   
+        if  printout
             println(">>>> TEA amplitude < fLevel=$(continuumLevel.index) [J=$(continuumLevel.J)$(string(continuumLevel.parity))] ||" *
                     " { nLevel=$(nLevel.index) [J=$(nLevel.J)$(string(nLevel.parity))] } ||" *
                     " iLevel=$(initialLevel.index) [$(initialLevel.J)$(string(initialLevel.parity))] >  = $(amp.re)  " *
@@ -706,9 +724,11 @@ function computeTeaAmplitude(kind::AbstractEeInteraction, continuumLevel::Level,
         end
         amplitude = amplitude + amp
     end
-    # if  printout   printstyled("done. \n", color=:light_green)    end
-    
-    if  printout  
+    # Carry the outgoing electron's own factor, as AutoIonization.amplitude does, so that the first- and second-order
+    # amplitudes are in one convention and may be added.
+    amplitude = im^Basics.subshell_l(Subshell(101, kappa)) * exp( -im*phase ) * amplitude
+
+    if  printout
         println(">>>  Total TEA amplitude < fLevel=$(continuumLevel.index) [J=$(continuumLevel.J)$(string(continuumLevel.parity))] ||" *
                 " TAE^($kind) ||" *
                 " iLevel=$(initialLevel.index) [$(initialLevel.J)$(string(initialLevel.parity))] >  = $amplitude  ")
