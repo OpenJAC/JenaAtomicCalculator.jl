@@ -40,3 +40,16 @@ Order   = [:type, :function]
 Modules = [ReducedDensityMatrix]
 Order   = [:type, :function]
 ```
+
+##  Stark-Zeeman effect
+```@autodocs
+Modules = [StarkZeeman]
+Order   = [:type, :function]
+```
+
+##  Stark shift
+```@autodocs
+Modules = [StarkShift]
+Order   = [:type, :function]
+```
+

@@ -64,3 +64,30 @@ Order   = [:type, :function]
 Modules = [TwoElectronOnePhoton]
 Order   = [:type, :function]
 ```
+
+##  Multi-photon transitions
+```@autodocs
+Modules = [MultiPhotonTransition]
+Order   = [:type, :function]
+```
+
+
+##  Particle scattering
+```@autodocs
+Modules = [ParticleScattering]
+Order   = [:type, :function]
+```
+
+
+##  Rayleigh-Compton scattering
+```@autodocs
+Modules = [RayleighCompton]
+Order   = [:type, :function]
+```
+
+##  Electron-impact ionization
+```@autodocs
+Modules = [ImpactIonization]
+Order   = [:type, :function]
+```
+

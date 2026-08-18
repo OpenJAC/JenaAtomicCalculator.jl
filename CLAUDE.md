@@ -258,6 +258,49 @@ optional: the printed output of a real case must be **byte-identical** before an
 must be unchanged with no approved reference re-approved. If a number moves, the pass did something it should
 not have.
 
+## What gets published in the documentation (Rule 16)
+
+Agreed 18-Aug-2026, after measuring several candidate rules against the actual code. The problem it solves: the
+`@autodocs` blocks in `docs/src/api-*.md` selected content with hand-maintained `Pages` allowlists, so a source
+file nobody added was simply absent — and `warnonly = Documenter.except()` in `docs/make.jl` downgraded every
+Documenter check to a warning, so the build could not complain. Whole modules were missing from the published
+API and nothing said so.
+
+**1. `TestFrames` is never published.** It is the test suite.
+
+**2. Infrastructure modules are published IN FULL**, minus a small name-pattern exclusion for internals:
+`*Kernel`, `*Reference`, `*_coefficients`, `*_densities`, `*RouteOf`, plus the primitives `bracket`, `oneJ`,
+`oneM`, `j_values`, `m_values`. Measured: this removes **12 functions of 653, 1.8 %**.
+
+   Two rules were tried and REJECTED, and are recorded so they are not retried. *Exported names only* fails
+   because JAC's convention is the qualified call: `AngularMomentum` exports 1 name of 70, `InteractionStrength`
+   1 of 88, so almost everything would vanish. *Used in an example* fails at function level for the same reason
+   — users call `perform(...)`, not internals, so `AngularMomentum` scores 0 of 32.
+
+   The asymmetry decides it: a stray helper in the docs costs a reader one line, a missing main function costs
+   them the feature.
+
+**3. A physics module is published if it is USED IN THE CODE of an example file carrying at least TWO
+`Last successful` dates.** "Used in the code" means a real `Module.` call with comments stripped — a mention in
+a comment does not count, and neither does an `examples.jl` description, which under-counted by more than half
+when tested (`DielectronicRecombination` scored 0 by description and 16 by usage). A module with no dated
+example is not published.
+
+**4. The `-inc-` split is an authoring convention, not a user-facing boundary**, so it is NOT used for
+inclusion: once a module qualifies, ALL of its files are documented and the `Pages` allowlists disappear —
+which is what removes the silent-loss bug. The one exception is a file whose own types appear ONLY in UNDATED
+example branches: that file has never been used for successful work and is excluded. Measured at branch
+granularity (244 dated branches against 168 undated), this excludes **two** files today.
+
+   Applying rule 3 at `-inc-` granularity was tried and REJECTED: only 6 of 67 files would have qualified,
+   because examples name the scheme (`Cascade.PhotoAbsorptionScheme`) while the work sits in files whose own
+   types are never mentioned.
+
+**The filter is self-correcting, and that is the point.** Nothing is excluded by a hand-maintained list. The day
+someone verifies a branch and writes the date, the file publishes itself with no change to `docs/`. Equally, a
+module that loses its dated examples drops out. **Re-derive the sets rather than editing them by hand**; a
+stale allowlist is the defect this rule exists to remove.
+
 ## Commands
 
 A **command** is a named sequence of steps I execute and then summarize. The leading `/` is optional —

@@ -14,7 +14,7 @@ Order   = [:type, :function]
 ##  Basics: data types
 ```@autodocs ; canonical=false
 Modules = [Basics]
-Pages   = ["module-Basics-inc-abstract.jl", "module-Basics-inc-first.jl", "module-Basics-inc-second.jl"]
+Pages   = ["module-Basics.jl", "module-Basics-inc-abstract.jl", "module-Basics-inc-first.jl", "module-Basics-inc-second.jl"]
 Order   = [:type, :function]
 ```
 
@@ -28,7 +28,7 @@ Order   = [:type, :function]
 ##  Basics: functions
 ```@autodocs ; canonical=false
 Modules = [JenaAtomicCalculator.BasicsAZ]
-Pages   = ["module-BasicsAZ-inc-AG.jl", "module-BasicsAZ-inc-HP.jl", "module-BasicsAZ-inc-QZ.jl"]
+Pages   = ["module-BasicsAZ.jl", "module-BasicsAZ-inc-AG.jl", "module-BasicsAZ-inc-HP.jl", "module-BasicsAZ-inc-QZ.jl"]
 Order   = [:function]
 ```
 
@@ -80,5 +80,74 @@ Order   = [:type, :function]
 ```@autodocs
 Modules = [SpinAngular]
 Order   = [:type]
+```
+
+##  Atomic states and bases
+```@autodocs ; canonical=false
+Modules = [AtomicState]
+Order   = [:type, :function]
+```
+
+
+##  Default settings and units
+```@autodocs ; canonical=false
+Modules = [Defaults]
+Order   = [:type, :function]
+```
+
+
+##  Distributions
+```@autodocs ; canonical=false
+Modules = [Distribution]
+Order   = [:type, :function]
+```
+
+
+##  Hamiltonian matrices
+```@autodocs ; canonical=false
+Modules = [Hamiltonian]
+Order   = [:type, :function]
+```
+
+
+##  Many-electron bases and levels
+```@autodocs ; canonical=false
+Modules = [ManyElectron]
+Order   = [:type, :function]
+```
+
+
+##  Nuclear models
+```@autodocs ; canonical=false
+Modules = [Nuclear]
+Order   = [:type, :function]
+```
+
+
+##  Periodic table data
+```@autodocs ; canonical=false
+Modules = [PeriodicTable]
+Order   = [:type, :function]
+```
+
+
+##  Radial grids and orbitals
+```@autodocs ; canonical=false
+Modules = [Radial]
+Order   = [:type, :function]
+```
+
+
+##  Radial integrals
+```@autodocs ; canonical=false
+Modules = [RadialIntegrals]
+Order   = [:type, :function]
+```
+
+
+##  Self-consistent field
+```@autodocs ; canonical=false
+Modules = [SelfConsistent]
+Order   = [:type, :function]
 ```
 

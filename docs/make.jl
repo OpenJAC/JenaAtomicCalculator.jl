@@ -29,7 +29,12 @@ makedocs(;
     repo     = "https://github.com/OpenJAC/JenaAtomicCalculator.jl",
     sitename = "JenaAtomicCalculator.jl",
     authors  = "Stephan Fritzsche",
-    warnonly = Documenter.except(),
+    # `warnonly = Documenter.except()` downgraded EVERY Documenter check to a warning, so the build could not
+    # fail whatever was missing -- which is why whole modules were absent from the published API and nothing
+    # said so.  The checks below are the ones worth having; the remaining classes stay warn-only so that an
+    # incomplete cross-reference does not block a release.
+    checkdocs = :exports,
+    warnonly  = [:cross_references, :linkcheck, :missing_docs],
 )
 
 deploydocs(;

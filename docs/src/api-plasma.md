@@ -34,3 +34,9 @@ Pages   = ["module-Plasma-inc-saha-boltzmann-mixture.jl"]
 Order   = [:type, :function]
 ```
 
+##  Plasma: satellite diagnostics
+```@autodocs
+Modules = [Plasma]
+Pages   = ["module-Plasma-inc-satellite-diagnostic.jl"]
+Order   = [:type, :function]
+```
