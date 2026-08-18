@@ -23,7 +23,7 @@ if  true
     psSettings = ParticleScattering.Settings(ParticleScattering.Settings(),
                                              projectile     = ParticleScattering.Electron(),
                                              process        = ParticleScattering.ElasticScattering(),
-                                             interaction    = ParticleScattering.StaticFieldExchange(),
+                                             interaction    = ParticleScattering.StaticFieldFurnessMcCarthy(),
                                              beamType       = Beam.PlaneWave(),
                                              impactEnergies = [300.0], polarThetas = thetas, polarPhis = [0.0],
                                              printBefore    = true, epsPartialWave = 1.0e-6, maxL = 80)

@@ -37,7 +37,7 @@ function computePartialWaves(projectile::ParticleScattering.AbstractProjectile,
                              impactEnergy::Float64, nm::Nuclear.Model, grid::Radial.Grid,
                              contSettings::Continuum.Settings, settings::ParticleScattering.Settings;
                              nuclearPot::Union{Nothing,Radial.Potential}=nothing, printout::Bool=true)
-    pot = ParticleScattering.scatteringPotential(projectile, interaction, level, nm, grid; nuclearPot=nuclearPot)
+    pot = ParticleScattering.scatteringPotential(projectile, interaction, level, impactEnergy, nm, grid; nuclearPot=nuclearPot)
     pws = ParticleScattering.PartialWave[];    total = 0.;    quiet = 0;    lReached = 0
 
     for  l = 0:settings.maxL

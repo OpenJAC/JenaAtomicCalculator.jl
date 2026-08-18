@@ -47,14 +47,22 @@ struct     InelasticScattering  <:  AbstractScatteringProcess      end
         new subtype plus one new method of ParticleScattering.scatteringPotential.
 
     + struct StaticField           ... the electrostatic interaction with the target density alone.
-    + struct StaticFieldExchange   ... the static field plus a local (Furness-McCarthy) exchange term for electrons.
+    + struct StaticFieldSlaterExchange  ... the static field plus JAC's Slater exchange term (not recommended).
+    + struct StaticFieldFurnessMcCarthy ... the static field plus the energy-dependent Furness-McCarthy exchange.
 """
-abstract type  AbstractInteractionModel                                 end
-struct     StaticField              <:  AbstractInteractionModel        end
-struct     StaticFieldExchange      <:  AbstractInteractionModel        end
+abstract type  AbstractInteractionModel                                        end
+struct     StaticField                     <:  AbstractInteractionModel        end
+struct     StaticFieldSlaterExchange       <:  AbstractInteractionModel        end
+struct     StaticFieldFurnessMcCarthy      <:  AbstractInteractionModel        end
 
 @doc "... the electrostatic interaction of the projectile with the nuclear and electronic charge density alone."       StaticField
-@doc "... the static field plus a local Furness-McCarthy exchange term; applies to electrons only."            StaticFieldExchange
+@doc "... the static field plus the SLATER exchange term carried by JAC's DFS field. That term is designed for a " *
+     "BOUND electron and is too strong for a continuum projectile: at 100 eV on He it raises the transport cross " *
+     "section to 1.157 a0^2 against 0.826 without it, where the reference calculations give 0.834 (TFD) and 0.928 " *
+     "(DHF). Kept because it is what the module used before 17-Aug-2026, not because it is recommended."     StaticFieldSlaterExchange
+@doc "... the static field plus the energy-dependent local exchange potential of Furness and McCarthy, J. Phys. B 6, " *
+     "2280 (1973), which is the term ELSEPA and the NIST database use. This is the recommended model for electrons " *
+     "and the default."                                                                              StaticFieldFurnessMcCarthy
 
 
 """
@@ -229,7 +237,7 @@ end
 `ParticleScattering.Event()`  ... constructor for a default ParticleScattering.Event.
 """
 function Event()
-    Event( Electron(), ElasticScattering(), StaticFieldExchange(), Beam.PlaneWave(), Level(), Level(), 0.,
+    Event( Electron(), ElasticScattering(), StaticFieldFurnessMcCarthy(), Beam.PlaneWave(), Level(), Level(), 0.,
            PartialWave[], ScatteringChannel[], AngularObservables[], IntegratedObservables() )
 end
 

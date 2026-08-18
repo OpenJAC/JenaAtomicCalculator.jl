@@ -6,7 +6,7 @@
     orthogonal axes, so that none of them has to be widened when another one is:
 
     + the PROJECTILE       ... Electron, Positron, Proton;
-    + the INTERACTION MODEL ... how the target is represented, StaticField, StaticFieldExchange, ...;
+    + the INTERACTION MODEL ... how the target is represented, StaticField, StaticFieldSlaterExchange, StaticFieldFurnessMcCarthy, ...;
     + the BEAM             ... how the projectile is prepared, Beam.PlaneWave, Beam.BesselBeam, ...
 
     The scattering amplitudes are computed as Dirac partial waves for BOTH spin-orbit partners of each orbital angular
@@ -73,7 +73,7 @@ end
 """
 function Settings()
     Settings( ParticleScattering.Electron(), ParticleScattering.ElasticScattering(),
-              ParticleScattering.StaticFieldExchange(), Beam.PlaneWave(), Basics.LinearPolarization(),
+              ParticleScattering.StaticFieldFurnessMcCarthy(), Beam.PlaneWave(), Basics.LinearPolarization(),
               Float64[], Float64[], Float64[], false, LineSelection(), 1.0e-6, 200 )
 end
 

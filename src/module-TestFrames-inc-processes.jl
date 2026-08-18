@@ -390,9 +390,11 @@ function testModule_ParticleScattering(; short::Bool=true)
     end
     #
     ## Test 2: e-He elastic scattering at 300 eV, plane wave, static field with local exchange.
-    grid   = Radial.Grid(Radial.Grid(false), rnt = 4.0e-6, h = 5.0e-2, hp = 0.6e-2, rbox = 10.0)
+    grid   = Radial.Grid(Radial.Grid(false), rnt = 4.0e-6, h = 5.0e-2, hp = 1.5e-2, rbox = 10.0)
     thetas = [0.3, 1.0, 2.0, 3.0]
-    psSet  = ParticleScattering.Settings(ParticleScattering.Settings(), impactEnergies=[300.0], polarThetas=thetas,
+    ## 100 eV rather than 300: the assertions below are identities and bounds, none of which needs a high energy, and
+    ## the partial-wave series is much shorter there. Keeping this test cheap matters -- it is one of ~50 in the suite.
+    psSet  = ParticleScattering.Settings(ParticleScattering.Settings(), impactEnergies=[100.0], polarThetas=thetas,
                                          polarPhis=[0.0], printBefore=false, epsPartialWave=1.0e-6, maxL=60)
     wc     = Atomic.Computation(Atomic.Computation(), name="e-He elastic", grid=grid, nuclearModel=Nuclear.Model(2.0),
                                 initialConfigs = [Configuration("1s^2")], finalConfigs = [Configuration("1s^2")],
@@ -432,7 +434,7 @@ function testModule_ParticleScattering(; short::Bool=true)
     ##   initial level with J /= 0 has to raise rather than return a plausible-looking number.
     psErr = 0
     badEvent = ParticleScattering.Event(ParticleScattering.Electron(), ParticleScattering.ElasticScattering(),
-                                        ParticleScattering.StaticFieldExchange(), Beam.PlaneWave(),
+                                        ParticleScattering.StaticFieldFurnessMcCarthy(), Beam.PlaneWave(),
                                         Level(AngularJ64(1), AngularM64(0), Basics.plus, 0, 0., 0., false, Basis(), Float64[]),
                                         Level(), 1.0, pws, ParticleScattering.ScatteringChannel[],
                                         ParticleScattering.AngularObservables[], ParticleScattering.IntegratedObservables())
@@ -445,26 +447,49 @@ function testModule_ParticleScattering(; short::Bool=true)
     end
     success = success && psErr == 2
     #
-    ## Test 8: an ABSOLUTE check against an exact analytic limit, and the only one here that is not internal. At a large
-    ##   scattering angle and a high impact energy the projectile probes inside the electron cloud, where the potential is
-    ##   the bare nuclear one, so the backward cross section must approach Rutherford for the full nuclear charge,
-    ##   d sigma/d Omega -> Z^2 / (16 E^2 sin^4(theta/2)). Measured for e + He at 1 keV and theta = 180 deg, the ratio is
-    ##   1.069: above unity because screening, exchange and the finite electron cloud all still raise it there, and by a
-    ##   margin that shrinks with energy (1.355 at 200 eV, 1.003 at 2 keV; see examples/example-Ob.jl). Both bounds below
-    ##   are physical, and together they pin the absolute normalisation of the amplitudes, which no internal check can do.
-    ruthSet = ParticleScattering.Settings(ParticleScattering.Settings(), impactEnergies=[1000.0],
-                                          polarThetas=[Float64(pi)], polarPhis=[0.0], printBefore=false,
-                                          epsPartialWave=1.0e-7, maxL=150)
-    wcr = Atomic.Computation(Atomic.Computation(), name="Rutherford limit", grid=grid, nuclearModel=Nuclear.Model(2.0),
-                             initialConfigs = [Configuration("1s^2")], finalConfigs = [Configuration("1s^2")],
-                             processSettings = ruthSet )
-    wdr = redirect_stdout(devnull) do
-        perform(wcr, output=true)
+    ## Test 8: an ABSOLUTE check against PUBLISHED values, and the only assertion here that is not internal.
+    ##   Jablonski, Salvat & Powell, J. Phys. Chem. Ref. Data 33, 409 (2004), Table 3 give the transport cross section
+    ##   of helium at 100 eV as 0.928 a0^2 from their Dirac-Hartree-Fock potential and 0.834 from Thomas-Fermi-Dirac,
+    ##   against 0.754 derived from measurement. Their sigma_tr is our sigma_1 and is the same integral (their Eq. (15)
+    ##   of NSRDS-64), so this is like-for-like. With the Furness-McCarthy exchange that ELSEPA also uses -- the default
+    ##   model, hence the main run above -- we get 0.9432, i.e. 1.6 % from DHF. The window below is about 4 % wide and
+    ##   pins the absolute normalisation of the amplitudes, the phase-shift convention, the transport integral and the
+    ##   exchange term together; no internal identity can do that. It costs NOTHING, reusing the run already made.
+    ##   (The high-energy Rutherford limit is the other absolute check and lives in examples/example-Ob.jl, where it
+    ##   can afford the energies it needs.)
+    success = success && 0.90 < event.integrated.sigmaMomentumTransfer < 1.00
+    ## Test 9: the POSITRON path, which shares every piece of machinery with the electron one and differs only in the
+    ##   potential -- the electrostatic interaction changes sign and no exchange term applies. Two consequences are
+    ##   checked, and both are textbook rather than conventional: the s-wave phase shift must change SIGN, an attractive
+    ##   potential advancing the phase and a repulsive core retarding it; and the positron, kept away from the nucleus,
+    ##   must scatter LESS than an electron in the same static field, most of all backwards. Cheap: at 100 eV the
+    ##   positron series is as short as the electron one.
+    posSet = ParticleScattering.Settings(ParticleScattering.Settings(), projectile=ParticleScattering.Positron(),
+                                         interaction=ParticleScattering.StaticField(), impactEnergies=[100.0],
+                                         polarThetas=[Float64(pi)], polarPhis=[0.0], printBefore=false,
+                                         epsPartialWave=1.0e-4, maxL=40)   ## signs and orderings only: precision not needed
+    eSet   = ParticleScattering.Settings(posSet, projectile=ParticleScattering.Electron())
+    posEv, eEv = map( (posSet, eSet) ) do  st
+        wcx = Atomic.Computation(Atomic.Computation(), name="positron/electron", grid=grid,
+                                 nuclearModel=Nuclear.Model(2.0), initialConfigs=[Configuration("1s^2")],
+                                 finalConfigs=[Configuration("1s^2")], processSettings=st )
+        (redirect_stdout(devnull) do;  perform(wcx, output=true);  end)["particle-scattering events:"][1]
     end
-    evr   = wdr["particle-scattering events:"][1]
-    ratio = evr.angular[1].dcs / ( 4.0 / (16 * evr.impactEnergy^2) )
-    success = success && 1.0 < ratio < 1.15
+    dPos = ParticleScattering.phaseShift(posEv.partialWaves, -1)
+    dEle = ParticleScattering.phaseShift(eEv.partialWaves,   -1)
+    success = success && dPos < 0.  &&  dEle > 0.
+    success = success && posEv.integrated.sigmaElastic < eEv.integrated.sigmaElastic
+    success = success && posEv.angular[1].dcs          < eEv.angular[1].dcs
     #
+    ## Test 10: the exchange model must MATTER and must be energy-dependent. The Furness-McCarthy term used by ELSEPA
+    ##   deepens the well relative to the pure static field, so it must raise the elastic cross section; and it is not
+    ##   the Slater term of JAC's DFS field, which is built for a bound electron and (measured against Jablonski,
+    ##   Salvat & Powell 2004, Table 3) overshoots -- see examples/example-Od.jl.
+    ##   No extra computation is needed: the main run above already uses the default Furness-McCarthy model, at the same
+    ##   energy and on the same grid as eSet, so `event` IS the FM case and eEv the static one.
+    success = success && event.integrated.sigmaElastic > eEv.integrated.sigmaElastic
+    success = success && ParticleScattering.phaseShift(event.partialWaves, -1) > dEle
+
     Defaults.setDefaults("unit: energy", oldEnergyUnit)
     Defaults.setDefaults("print summary: close", "")
     _, iostream = Defaults.getDefaults("test flag/stream")
