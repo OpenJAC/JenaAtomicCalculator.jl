@@ -27,6 +27,8 @@ For reference to (using) this code, please, use the Computer Physics Communicati
      [European Physical Journal A 61, 63 (2025)](https://doi.org/10.1140/epja/s10050-025-01535-3)
 * S. Fritzsche, A.K. Sahoo, L. Sharma and S. Schippers, Simulated photoabsorption spectra for singly and multiply charged ions.
      [Atoms 13, 77 (2025)](https://doi.org/10.3390/atoms13090077)
+* S. Fritzsche, N.M. Hosea, H. Huang, T. Luo and A.K. Sahoo; Modeling atomic structure & behavior through electron configurations.
+     [Atoms 14, 46 (2026)](https://doi.org/10.3390/atoms14070046)
 
 
 See also [`citations.bib`](https://github.com/OpenJAC/JenaAtomicCalculator.jl/blob/master/docs/src/citations.bib) for the relevant references(s).

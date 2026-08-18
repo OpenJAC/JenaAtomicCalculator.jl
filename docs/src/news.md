@@ -6,6 +6,14 @@
 
 # 2026
 
+!!! note "The EOL path is under active development"
+    The optimized-level field is being worked on continuously, and 0.5.0 is a snapshot of it rather than a
+    finished state. It converges and reports honestly whether it did -- that reporting is itself part of the
+    current work -- but the optimizer, its preconditioning and its exit criteria are still changing between
+    releases. **Use `Basics.EOLField()` with care for production numbers, and prefer `Basics.ALField()` where an
+    individual orbital energy matters**; check the printed convergence line rather than assuming it. The
+    average-level field is settled by comparison.
+
 * **Elastic scattering of electrons and positrons, on Dirac partial waves:** The `ParticleScattering` module has
     been rebuilt around a relativistic partial-wave analysis that solves for BOTH spin-orbit partners, `kappa = -l-1`
     and `kappa = +l`. It now yields the direct and spin-flip amplitudes, the differential cross section, the Sherman
@@ -26,14 +34,6 @@
     it CONVERGED or merely stopped moving, and two real defects were found on the way -- an orbital gradient that was
     not the gradient of the energy being minimized, and a line search comparing two different functions. The
     average-level field gained Anderson acceleration. *(August'26)*
-
-!!! note "The EOL path is under active development"
-    The optimized-level field is being worked on continuously, and 0.5.0 is a snapshot of it rather than a
-    finished state. It converges and reports honestly whether it did -- that reporting is itself part of the
-    current work -- but the optimizer, its preconditioning and its exit criteria are still changing between
-    releases. **Use `Basics.EOLField()` with care for production numbers, and prefer `Basics.ALField()` where an
-    individual orbital energy matters**; check the printed convergence line rather than assuming it. The
-    average-level field is settled by comparison.
 
 * **Resonant electron-impact excitation, end to end:** `Cascade.ElectronExcitationScheme` now accounts for the
     resonant contribution -- dielectronic capture followed by radiative or Auger decay -- alongside the direct one,
