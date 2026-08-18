@@ -820,7 +820,11 @@ end
 """
 function ionizationPotentials_Nist2025(Z::Int64)
     # This procedure 'stores' the 1st, 2nd, 3rd, ... ionization potentials from NIST database 
-    # (2025; http://physics.nist.gov/PhysRefData/ASD/ionEnergy.html) for all elements from Z = 1, ..., 92;
+    # (2025; http://physics.nist.gov/PhysRefData/ASD/ionEnergy.html) for all elements from Z = 1, ..., 90, each of
+    # them COMPLETE, i.e. carrying all Z successive potentials, so that every charge state of those elements is
+    # covered; Z >= 91 is NOT tabulated at all and raises "Data not available".  Callers that fall back on a
+    # neutral binding energy for a missing entry are therefore wrong only for the actinides from Pa upwards,
+    # and Empirical.ionizationThreshold warns there rather than degrading silently.
     # the q-th ionization potential leads from A^(q-1)+ --> A^q+; all ionization potentials are given in eV
     # 
     #       

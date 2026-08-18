@@ -523,7 +523,9 @@ end
 
         Everything else falls through to Empirical.scaledBindingEnergy unchanged: inner shells, for which the X-ray value is the right
         starting point and the charge-state shift is a small correction to a large number; neutral atoms, where the tabulation is already
-        the neutral value; and any case NIST does not cover.
+        the neutral value; and any case NIST does not cover. The first two are correct by construction and stay silent. The third is not:
+        the table holds every charge state up to Z = 90 and nothing above, so an ION of Z >= 91 falls back on a NEUTRAL threshold, and that
+        case now WARNS rather than degrading silently.
 """
 function ionizationThreshold(Z::Float64, sh::Shell, conf::Configuration, data::PeriodicTable.AbstractEnergyData)
     Zint = round(Int64, Z);    q = Zint - conf.NoElectrons
@@ -541,6 +543,17 @@ function ionizationThreshold(Z::Float64, sh::Shell, conf::Configuration, data::P
         if  length(ips) >= q + 1   &&   ips[q+1] > 0.
             return( Defaults.convertUnits("energy: to atomic", ips[q+1]) )
         end
+        ## Reaching here means the successive potential is not tabulated. The NIST 2025 table carries EVERY
+        ## charge state of every element up to Z = 90 and nothing at all above it, so in practice this is the
+        ## actinides from Pa upwards. The fall-through then hands back the NEUTRAL binding energy for an ION,
+        ## which is precisely the error this function exists to remove -- about a factor two in the edge for
+        ## Sr^+, and a factor of order 1e3 in a Planck mean built on it. Degrading silently is what made that
+        ## error survive, so it is announced.
+        sa = "Empirical.ionizationThreshold: no successive ionization potential for Z = $Zint at charge " *
+             "state q = $q; the NIST 2025 table ends at Z = 90. Falling back on the NEUTRAL binding energy " *
+             "of $sh, which UNDERESTIMATES the threshold of an ion, for Sr^+ by about a factor of two. " *
+             "Any bound-free edge or opacity built on it is unreliable for this ion."
+        @warn sa maxlog=5
     end
 
     return( Empirical.scaledBindingEnergy(Z, sh, conf, data) )
