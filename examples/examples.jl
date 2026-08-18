@@ -110,11 +110,12 @@ elseif  char == 'F'
     println("Fc) Cascade.PhotoExcitationScheme: photo-excitation cascades and the configuration pre-filter.")
     println("Fd) Cascade.PhotoIonizationScheme: photo-ionization cross sections of Ne^+.")
     println("Fe) Cascade.PhotoAbsorptionScheme: photoabsorption of C^+ near the 1s -> 2p resonances.")
-    println("Ff) Compute & test a photorecombination cascade and RR plasma rate coefficients.")
-    println("Fg) Compute & test an expansion opacity (cascade, not yet).")
-    println("Fh) Compute & test photoabsorption cascade computations.")
-    println("Fi) Compute & test an electron-impact excitation (cascade) for lithium-like Ne.")
-    println("Fj) Three-step cascade computation and simulation for the photo-ionization of Si^- and its subsequent decay: AverageSCA model.")
+    println("Ff) Cascade.DielectronicRecombinationScheme: KLL dielectronic recombination of helium-like carbon.")
+    println("Fg) Cascade.RadiativeRecombinationScheme: radiative recombination of helium-like carbon.")
+    println("Fh) Cascade.ImpactExcitationScheme: electron-impact excitation of hydrogen-like carbon, direct and resonant.")
+    println("Fi) Cascade.ElectronIonizationScheme: excitation-autoionization of lithium-like carbon.")
+    println("Fj) Cascade.HollowIonScheme: formation and decay of a hollow carbon ion.")
+    println("Fk) Cascade.ExpansionOpacityScheme: bound-bound expansion opacities of Sr^+ in kilonova ejecta.")
     #
 elseif  char == 'G'
     println("G)  Examples, tests & development of symbolic evaluations of Racah expressions")

@@ -74,14 +74,16 @@ grid = Radial.Grid(Radial.Grid(true); rnt = 4.0e-6, h = 5.0e-2, hp = 0.8e-2, rbo
 #     with the module's own `convergence` field reporting 10.7%. ALWAYS read that column: JAC flags any line
 #     whose convergence exceeds 1e-5, and the failure is silent otherwise.
 #
-# WHAT IS STILL BLOCKED: Cascade.ElectronExcitationScheme, i.e. the RESONANT half.
-# Its perform() is a dispatcher that refers to scheme.calcDirect, scheme.calcResonant and scheme.multipoles --
-# and the struct has only two fields, `processes` and `electronEnergies`. It therefore fails on its very first
-# line, before it can reach the two further problems the plan already recorded: it constructs a
-# Cascade.DielectronicCaptureScheme, a type that does not exist (module-ElectronCapture.jl provides
-# ElectronCapture instead), and it references DielectronicCapture.Line, a module that does not exist either.
-# Making it work needs a decision on the scheme's own field list AND the electron-capture scheme that the plan
-# defers to Stage 6, so it is documented here rather than repaired.
+# THE RESONANT HALF WAS UNBLOCKED on 16-Aug-2026 (commit 97dde0b) and is exercised by branch e below. The
+# description of the blockage is kept because this file carried it for nine days and it explains the shape of
+# the fix: perform() read scheme.calcDirect, scheme.calcResonant and scheme.multipoles, none of which were
+# fields of Cascade.ElectronExcitationScheme, so it raised on its very first line. The decision was to add NO
+# fields. The two channels are selected from the scheme's own `processes` list -- Basics.ImpactExc() for the
+# direct part and Basics.ImpactExcAuto() for the resonant one -- and `multipoles` is not needed at all, since
+# a capture-only cascade has no radiative step to select multipoles for. The separately deferred
+# ElectronCaptureScheme turned out never to be required either: a dielectronic capture is the time reverse of
+# an Auger transition, so the resonant channel delegates to Cascade.DielectronicCaptureScheme and collects
+# AutoIonization.Line's, and no ElectronCapture module is involved.
 
 
 if  true
@@ -266,6 +268,74 @@ elseif  false
                                 T, T*8.617333e-5, aCas, aEmp, aCas/aEmp))
     end
     println("  ---------------------------------------------------------------------------------")
+    setDefaults("print summary: close", "")
+    #
+elseif  false
+    # Last visit:      18-Aug-2026
+    # Last successful: 18-Aug-2026 ... 75 s; 35 capture resonances from 6 of the 24 defined steps.
+    #                      E_res         389.7 ... 396.6 eV        (predicted window 367.4 ... 435.4 eV)
+    #                      A_a           5.27e+03 ... 1.02e+13 1/s,  summing to 5.03e+13 1/s
+    #                  THREE INTERNAL CHECKS, there being no external reference for this system -- the same
+    #                  standard example-Ff.jl is dated on, where the KLL energies are argued from the ion.
+    #                  + THE RESONANCE POSITION was predicted BEFORE the run and from two hydrogenic numbers.
+    #                    E(1s) = -Z^2/2 = -489.8 eV against the computed -490.0, and 3l3l' at 2 x (-Z^2/18)
+    #                    = -108.8 eV before the electron-electron repulsion, which pushes it to the computed
+    #                    -98.3 ... -93.3 eV. That puts E_res at 381 eV bare and ~391 eV with repulsion; the
+    #                    computation gives 389.7 ... 396.6 eV, and every one of the 35 lies inside the
+    #                    367.4 ... 435.4 eV window the two thresholds define.
+    #                  + THE OPEN/CLOSED PATTERN is the same physics reached independently, and it is the
+    #                    check worth trusting most because JAC decides it per step without being told. Of the
+    #                    24 steps the code defines, the 6 ending on 1s^1 carry 390 ... 397 eV and are computed;
+    #                    the 18 ending on 1s^0 3l^1 carry -39 ... -46 eV and are rejected with "No transition
+    #                    with positive energy". That is exactly right: 3l3l' at -98 eV lies ABOVE the n = 2
+    #                    threshold (-122.4 eV) and so is open to it, but BELOW the n = 3 threshold (-54.4 eV)
+    #                    and so is closed there.
+    #                  + THE RATE MAGNITUDE. The strongest channels reach 1.0e+13 1/s, the ordinary scale for
+    #                    an allowed KMM-type Auger transition. The nine-order spread down to 5.3e+03 1/s is
+    #                    not suspicious: those are the high-J levels of 3p3d and 3d^2 whose coupling to the
+    #                    single 1s eps-l continuum is weak.
+    #                  WHAT THIS BRANCH DOES NOT DO, and it is a real gap rather than a formality: it does not
+    #                  add the resonant contribution to the direct cross section of branch a. It cannot, as
+    #                  the two do not overlap -- these resonances sit at ~392 eV while branch a starts at
+    #                  735 eV, twice the 367.4 eV threshold. That is the physically interesting part rather
+    #                  than an inconvenience: resonant excitation matters exactly near threshold, where the
+    #                  direct cross section is still small, and branch a is deliberately placed in the Bethe
+    #                  regime where the direct term dominates. Assembling a total would mean re-running
+    #                  branch a down to ~380 eV and convolving these strengths with the electron distribution.
+    #
+    # Branch e: THE RESONANT HALF -- dielectronic capture as the resonant contribution to 1s -> 2p excitation.
+    #   Branches a-d are the DIRECT channel throughout. This one exercises Cascade.ElectronExcitationScheme
+    #   with Basics.ImpactExcAuto() alone, i.e. the path unblocked on 16-Aug-2026, on the same C^5+ system.
+    #
+    #   WHY n = 3 AND NOT n = 2, which is the choice that makes this a resonant EXCITATION rather than a
+    #   dielectronic recombination. A captured electron forms a doubly excited state that contributes to
+    #   1s -> 2p excitation only if it can AUTOIONIZE INTO THE n = 2 CHANNEL, i.e. only if it lies ABOVE the
+    #   2p threshold. For H-like carbon those thresholds are hydrogenic to better than a percent:
+    #       1s -> n=2   13.606 * 36 * (1 - 1/4) = 367.4 eV      1s -> n=3   13.606 * 36 * (1 - 1/9) = 435.4 eV
+    #   The 2l n'l' series converges to 367.4 eV FROM BELOW, so every one of its members is closed to the
+    #   n = 2 continuum and can only stabilize radiatively -- that is dielectronic recombination, and it is
+    #   what example-Ff.jl computes (KLL, He-like C, 229-255 eV). The 3l3l' resonances instead sit BETWEEN
+    #   the two thresholds and are open to n = 2. So excitationToShells and intoShells are both n = 3 here,
+    #   and the resonance energies are the check: they must fall inside 367.4 - 435.4 eV.
+    #
+    #   WHAT IS AND IS NOT COMPUTED. The scheme computes the CAPTURE only. Assembling a total cross section
+    #   means adding these resonant strengths to the direct result of branch a, which this branch does not do.
+    #   The known approximation is stated in the module docstring rather than left implicit: with no radiative
+    #   rates available Gamma_r defaults to zero, which OVERESTIMATES every branching ratio, increasingly so
+    #   with nuclear charge. For C^5+ 3l3l' the autoionization rate dominates anyway, so the overestimate is
+    #   small here; it would not be for a heavy ion.
+    setDefaults("print summary: open", "zzz-Cascade-Fh-resonant.sum")
+
+    name   = "Resonant contribution to electron-impact excitation of H-like C"
+    scheme = Cascade.ElectronExcitationScheme([Basics.ImpactExcAuto()], Shell[], Shell[], Float64[], Int64[],
+                                              0, 0., 0., 500.0, 1,
+                                              [Shell("1s")], [Shell("3s"), Shell("3p"), Shell("3d")],
+                                              [Shell("3s"), Shell("3p"), Shell("3d")] )
+    wa     = Cascade.Computation(Cascade.Computation(); name=name, nuclearModel=Nuclear.Model(6.), grid=grid,
+                                 approach=Cascade.AverageSCA(), scheme=scheme,
+                                 initialConfigs=[Configuration("1s")] )
+    println(wa)
+    wb = perform(wa; output=true, outputToFile=false)
     setDefaults("print summary: close", "")
     #
 end
