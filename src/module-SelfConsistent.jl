@@ -713,6 +713,24 @@ function computeOrbitalGradient(bVectors::Dict{Subshell, Vector{Float64}},
     grad = Dict{Subshell, Vector{Float64}}()
     for  sh  in  subshells    grad[sh] = zeros(nsL+nsS)    end
 
+    expanded = Dict{Subshell, Tuple{Vector{Float64},Vector{Float64}}}()
+    scale    = Dict{Subshell, Float64}()
+    for  sh  in  subshells
+        (pR, qR) = SelfConsistent.expandBVector(bVectors[sh], primitives)
+        np = min(length(pR), length(orbitals[sh].P));    nq = min(length(qR), length(orbitals[sh].Q))
+        num = sum( orbitals[sh].P[1:np] .* pR[1:np] ) + sum( orbitals[sh].Q[1:nq] .* qR[1:nq] )
+        den = sum( pR[1:np] .* pR[1:np] )             + sum( qR[1:nq] .* qR[1:nq] )
+        scale[sh]    = den > 0. ? num/den : 1.0
+        expanded[sh] = (orbitals[sh].P, orbitals[sh].Q)
+    end
+
+    ## The screened potential depends only on the rank and the ORBITAL PAIR (b,d), not on the slot being
+    ## differentiated, and many angular coefficients share the same triple.  The orbitals are fixed for the
+    ## whole of one gradient evaluation, so the memo is local to this call and cannot go stale.  This is the
+    ## same redundancy that dominates the average-level Fock build (3.5x for argon, 9.1x for Th+), and after
+    ## the average-level field was memoised the rotation became the larger part of EOL: 66% of it for W+.
+    vkCache = Dict{Tuple{Int64,Subshell,Subshell}, Vector{Float64}}()
+
     ## one-electron:  d/db_a [ w * b_a^T H1 b_b ]  contributes to BOTH slots
     h1 = Dict{Int64, Array{Float64,2}}()
     for  kappa  in  unique( [sh.kappa for sh in subshells] )
@@ -720,7 +738,17 @@ function computeOrbitalGradient(bVectors::Dict{Subshell, Vector{Float64}},
     end
     for  cf  in  coeffs1p
         if  cf.a.kappa != cf.b.kappa    continue    end          ## no one-electron element between kappas
-        w = cf.T * sqrt( Basics.subshell_2j(cf.a) + 1 )
+        ## The SAME chain-rule factor the two-electron part applies, and for the same reason.  The energy's
+        ## one-electron term is built from the ORBITALS, and an orbital is scale*expand(b) -- so
+        ## GrantIab(orb_a, orb_b) = scale_a * scale_b * (b_a^T H1 b_b) and the derivative carries that product.
+        ## Omitting it is harmless whenever a and b share a sign, which is why it went unnoticed: a DIAGONAL
+        ## term has scale^2 = +1 always, and a kappa whose subshells happen to be canonicalized alike gives +1
+        ## too.  It bites only on an OFF-DIAGONAL element between two subshells of OPPOSITE sign, and then it
+        ## flips the sign of that contribution outright.  Measured on a three-layer Be RAS, validating the
+        ## gradient along guaranteed-tangent directions: every kappa came out exact to 1.0000 except kappa = -2,
+        ## the single kappa holding an off-diagonal pair -- 2p_3/2 with scale +1 and 3p_3/2 with scale -1 --
+        ## where the ratio of finite difference to prediction ran -0.10, -0.56, -0.024.
+        w  = cf.T * sqrt( Basics.subshell_2j(cf.a) + 1 ) * scale[cf.a] * scale[cf.b]
         hh = h1[cf.a.kappa]
         grad[cf.a] = grad[cf.a] + w * (hh * bVectors[cf.b])
         grad[cf.b] = grad[cf.b] + w * (transpose(hh) * bVectors[cf.a])
@@ -743,24 +771,6 @@ function computeOrbitalGradient(bVectors::Dict{Subshell, Vector{Float64}},
     ## with a finite difference to five digits while only s-orbitals were involved, then went 2.5x, 19x and
     ## finally SIGN-WRONG as the 2p weight grew -- which is what stalled the line search. Same defect, and
     ## the same remedy, as the cVector sign-matching in computeTwoElectronV.
-    expanded = Dict{Subshell, Tuple{Vector{Float64},Vector{Float64}}}()
-    scale    = Dict{Subshell, Float64}()
-    for  sh  in  subshells
-        (pR, qR) = SelfConsistent.expandBVector(bVectors[sh], primitives)
-        np = min(length(pR), length(orbitals[sh].P));    nq = min(length(qR), length(orbitals[sh].Q))
-        num = sum( orbitals[sh].P[1:np] .* pR[1:np] ) + sum( orbitals[sh].Q[1:nq] .* qR[1:nq] )
-        den = sum( pR[1:np] .* pR[1:np] )             + sum( qR[1:nq] .* qR[1:nq] )
-        scale[sh]    = den > 0. ? num/den : 1.0
-        expanded[sh] = (orbitals[sh].P, orbitals[sh].Q)
-    end
-
-    ## The screened potential depends only on the rank and the ORBITAL PAIR (b,d), not on the slot being
-    ## differentiated, and many angular coefficients share the same triple.  The orbitals are fixed for the
-    ## whole of one gradient evaluation, so the memo is local to this call and cannot go stale.  This is the
-    ## same redundancy that dominates the average-level Fock build (3.5x for argon, 9.1x for Th+), and after
-    ## the average-level field was memoised the rotation became the larger part of EOL: 66% of it for W+.
-    vkCache = Dict{Tuple{Int64,Subshell,Subshell}, Vector{Float64}}()
-
     for  cf  in  coeffs2p
         for  (sA, sB, sC, sD)  in  [ (cf.a, cf.b, cf.c, cf.d), (cf.b, cf.a, cf.d, cf.c) ]
             ## the same triangular-delta and parity guard XL_CoulombKinkAware applies before doing any work
