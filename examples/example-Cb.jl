@@ -115,7 +115,7 @@ elseif  false
                             propertySettings=[ Hfs.Settings(calcM1=true, calcE2=false, printBefore=true) ] )
     perform(wa4)
     #
-elseif  true
+elseif  false
     # Last successful:  30-Jul-2026 (J=3/2/kappa=+2 level ONLY -- see OPEN BUG below for J=5/2/kappa=-3)
     # Branch e (M3 fix verification): Sc (Z=21) [Ar] 3d 4s^2 ^2D_3/2,5/2 -- a single-open-subshell (3d^1)
     #   system, same structural class as branch b/c's Na 3s, chosen specifically to verify TWO bugs just
@@ -170,6 +170,74 @@ elseif  true
                             propertySettings=[ Hfs.Settings(calcM1=true, calcE2=true, calcM3=true, printBefore=true) ] )
 
     wb = perform(wa)
+    #
+elseif  true
+    # Last successful:  18-Aug-2026 (Ho I; the Pr I comparison is NOT dated -- see the citation caveat)
+    # Branch f (open f shell): the hyperfine constants of two NEUTRAL lanthanides, Ho I [Xe] 4f^11 6s^2
+    #   ^4I_15/2 and Pr I [Xe] 4f^3 6s^2 ^4I_9/2.  These are the branches that were blocked from 11-Aug-2026
+    #   until 18-Aug-2026, and it is worth recording why, because the reason was not what it looked like.
+    #
+    #   WHAT BLOCKED THEM.  Both atoms came out with an INVERTED 4f spin-orbit splitting -- 4f_7/2 more
+    #   bound than 4f_5/2 -- which inverts the level ordering directly, so Ho I gave a J = 9/2 ground level
+    #   where it must be 15/2, and Pr I gave 15/2 where it must be 9/2.  Comparing A and B with measurement
+    #   is meaningless while the ground level is the wrong one, so the HFS work was postponed with it.
+    #   Re-measured on 18-Aug the inversion is GONE: Pr I gives J = 9/2 and Ho I J = 15/2, both correct, and
+    #   with the right multiplet DIRECTION -- regular (ascending) for the less-than-half-filled 4f^3, and
+    #   inverted (descending) for the more-than-half-filled 4f^11, which is what Hund's third rule requires.
+    #   The 4f_5/2 - 4f_7/2 splitting is now normal at 2714.65 cm^-1, i.e. zeta_4f = 776 cm^-1 against the
+    #   ~750 cm^-1 expected.  NOTE the trap that made this look worse than it was: the splitting is
+    #   zeta*(l+1/2) = 3.5 zeta for l = 3, so comparing 2715 cm^-1 against zeta itself suggests a 4x error
+    #   where there is none.  It was NOT the radial box either -- rbox = 25 gives the same normal ordering
+    #   today, so the fix is in the SCF; which commit fixed it has not been established.
+    #
+    #   NUCLEAR DATA.  165Ho: I = 7/2, mu = +4.173 mu_N, Q = +3.49 b, rms radius 5.21 fm.
+    #                  141Pr: I = 5/2, mu = +4.2754 mu_N, Q = -0.0589 b, rms radius 4.99 fm.
+    #   The box is taken from Basics.recommendedGrid, which sizes it from the configuration (58.95 a.u. for
+    #   neutral Pr I, set by the 6s seeing Zeff = 2.85).  Neither atom is expensive: 41 CSFs over 9 J^P
+    #   symmetries, largest block 7x7, with the runtime almost entirely SCF.
+    #
+    #   RESULT, ground level of each:
+    #                        JAC            measured        deviation
+    #       Ho I  A       895.75 MHz       800.583 MHz       +11.9 %
+    #       Ho I  B      -951.6  MHz     -1668     MHz       43 % low in magnitude
+    #       Pr I  A       930.14 MHz     (see caveat)
+    #       Pr I  B        -5.85 MHz     (see caveat)
+    #
+    #   The Ho I values are Dankwort et al. (1974), the ABMR ground-state measurement.  THE Pr I COMPARISON
+    #   IS DELIBERATELY NOT QUOTED and this branch is not dated on it: the value ~926 MHz that comes to mind
+    #   for a Pr ground state belongs, as far as can be checked here, to Pr II 4f^3 6s ^5I_4 and not to
+    #   neutral Pr I, and Ginibre, Physica Scripta 39, 694 / 39, 710 (1989) -- the obvious source -- is Pr II
+    #   in its first part.  A 0.4 % "agreement" with a value taken from the wrong charge state would be worse
+    #   than no comparison at all.  The neutral Pr I ground-state constants need the ABMR literature and a
+    #   verified citation before this half means anything.
+    #
+    #   WHY A IS GOOD AND B IS NOT, which is the physics of this branch rather than a defect.  A and B are
+    #   built from the SAME 4f orbital, so a simple error in its radial extent would move both the same way
+    #   by a similar factor.  Instead A is ~12 % HIGH and B is ~43 % LOW -- opposite directions -- so this is
+    #   not a bad <r^-3>.  It is a many-body contribution missing from B specifically: a single-configuration
+    #   calculation has no core polarization at all, and for an f electron the polarized core ANTISHIELDS the
+    #   field gradient, enhancing |B|.  Leaving it out must make |B| too small, which is the sign obtained.
+    #   The magnetic constant, dominated by the 4f orbital itself, survives the same omission far better.
+    #   So ~12 % on A from a bare single configuration on an open-f-shell neutral is a respectable result,
+    #   and B needs correlation before it can be compared at all -- the standard situation for lanthanide
+    #   quadrupole constants, not a fault of this calculation.
+    #
+    #   DEFECT FOUND WHILE RUNNING THIS, not fixed here (a different module):  the "g_J" column of Hfs's
+    #   "HFS amplitudes and g_J factors" table is never computed.  Hfs.Outcome is constructed with its gJ
+    #   field hard-wired to 1. (module-Hfs.jl:464) and nothing ever assigns it, so every HFS table JAC has
+    #   printed shows g_J = 1.00000000 for every level, as if computed.  The correct route exists and is
+    #   validated -- LandeZeeman, cf. example-Cd.jl -- so this is a routing fix, not new physics.
+    for  (label, Z, A, rad, I, mu, Q, conf)  in
+            [ ("Ho I 4f^11 6s^2", 67., 165., 5.21, 7//2, 4.173,  3.49,    Configuration("[Xe] 4f^11 6s^2")),
+              ("Pr I 4f^3  6s^2", 59., 141., 4.99, 5//2, 4.2754, -0.0589, Configuration("[Xe] 4f^3 6s^2")) ]
+        println("\n\n***  $label  ***\n")
+        nm   = Nuclear.Model(Z, UniformNucleus(), A, rad, AngularJ64(I), mu, Q, 0.0)
+        grid = Basics.recommendedGrid([conf], nm; printout=true)
+        wa   = Atomic.Computation(Atomic.Computation(), name="Cb-f-$label", grid=grid, nuclearModel=nm,
+                                  configs=[conf],
+                                  propertySettings=[ Hfs.Settings(calcM1=true, calcE2=true, printBefore=false) ] )
+        perform(wa)
+    end
     #
 end
 #
