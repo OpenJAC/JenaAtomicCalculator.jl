@@ -6,7 +6,7 @@ setDefaults("unit: rate", "1/s")
 setDefaults("print summary: open", "zzz-radiative.sum")
 
 
-if  true
+if  false
     # Last successful:  9-Aug-2026
     # Branch 0: Ne K-alpha, 1s-hole "1s 2s^2 2p^6" -> 2p-hole "1s^2 2s^2 2p^5" (2p fills the K-hole).
     #   Set up per explicit user request/hypothesis: our SCF procedure may not produce sufficiently relaxed
@@ -198,6 +198,53 @@ elseif false
                             finalConfigs   = [Configuration("1s^2 2s"), Configuration("1s^2 2p")], 
                             processSettings = pSettings );
     wb = @time( perform(wa) )
+    #
+elseif true
+    # Last visit:  18-Aug-2026
+    # Last successful:  18-Aug-2026
+    # THE QUALITY INDICATORS, on a case chosen so that the two of them disagree.
+    #
+    # Every rate this module prints carries two cheap indicators of how far it may be trusted, and they are
+    # cheap because both are by-products of numbers already computed:
+    #
+    #   * Cowan's CANCELLATION FACTOR, CF = |SUM_rs c_f(r) M(r,s) c_i(s)| / SUM_rs |c_f(r) M(r,s) c_i(s)| --
+    #     the coherent sum that IS the amplitude, over the sum of the magnitudes of its terms.  CF = 1 means
+    #     nothing cancels; CF near 0 means the amplitude is a small residue of large opposing contributions, so
+    #     a small error in any mixing coefficient moves it by a large factor.  Cowan's rule of thumb: below
+    #     0.10 unreliable, below 0.05 no information.  It falls out of the very sum that forms the amplitude.
+    #
+    #   * The BABUSHKIN/COULOMB RATE RATIO.  Length and velocity forms agree exactly only for exact wave
+    #     functions, so a ratio far from 1 says the description is incomplete.
+    #
+    # WHY BOTH, and this branch is the demonstration.  They fail independently: CF is a property of ONE gauge's
+    # amplitude and says nothing about the orbitals; the ratio is a property of the orbitals and says nothing
+    # about cancellation.  Be-like Fe shows one of each in a single run.
+    #
+    #   REPORT (Fe XXIII, 1s^2 2s 2p -> 1s^2 2s^2 + 1s^2 2p^2, so the even J=0 levels are genuine 2s^2/2p^2
+    #   mixtures and the sums really do cancel):
+    #
+    #     transition                    CF Coulomb   CF Babushkin   B/C ratio   verdict
+    #     2 -> 1  (1- -> 0+)  E1          0.0672        0.1911        4.4895    CF low
+    #     4 -> 1  (1- -> 0+)  E1          1.0000        1.0000        1.9169    gauges 50%+
+    #
+    #   Line 2 is the INTERCOMBINATION line, 2s2p 3P_1 -> 2s^2 1S_0: it is weak precisely because it is a small
+    #   residue -- CF = 0.067 says that 93 % of the amplitude has cancelled -- and the two gauges then differ by
+    #   a factor 4.5, which is what such a residue does.
+    #
+    #   Line 4 is the RESONANCE line, 2s2p 1P_1 -> 2s^2 1S_0: CF = 1.0000 in BOTH gauges, i.e. nothing cancels
+    #   at all, and the rates still differ by 92 %.  Nothing about the cancellation factor could have predicted
+    #   that; it is the orbitals, not the sum.  This is why one indicator is not enough.
+    #
+    #   NOT claimed: that either flag is an error bar.  A high CF and a ratio near 1 do not prove a rate right;
+    #   they only remove two known ways for it to be wrong.
+    pSettings = PhotoEmission.Settings(PhotoEmission.Settings(), multipoles=[E1, M1, E2], printBefore=false)
+    grid = Radial.Grid(Radial.Grid(false), rnt = 2.0e-5, h = 5.0e-2, hp = 1.5e-2, rbox = 9.5)
+    wa = Atomic.Computation(Atomic.Computation(), name="Be-like Fe: quality indicators", grid=grid,
+                            nuclearModel = Nuclear.Model(26.),
+                            initialConfigs = [Configuration("1s^2 2s 2p")],
+                            finalConfigs   = [Configuration("1s^2 2s^2"), Configuration("1s^2 2p^2")],
+                            processSettings = pSettings );
+    wb = perform(wa)
     #
 end
 #

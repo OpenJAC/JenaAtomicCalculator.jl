@@ -102,6 +102,39 @@ end
 
 
 """
+`struct  PhotoEmission.LineQuality`
+    ... carries the two cheap quality indicators of ONE multipole contribution to a line. Neither is a physical
+        observable: both say how far the computed amplitude may be trusted, and both are free -- the cancellation
+        factor falls out of the sum that already forms the amplitude, and the gauge ratio out of two rates that are
+        already computed.
+
+    + multipole      ::EmMultipole   ... the multipole this refers to.
+    + cancellation   ::EmProperty
+        ... Cowan's cancellation factor CF, one value per gauge,
+
+                CF  =  | SUM_rs  c_f(r) M(r,s) c_i(s) |  /  SUM_rs | c_f(r) M(r,s) c_i(s) |
+
+            i.e. the coherent sum that IS the amplitude, divided by the sum of the magnitudes of its terms. CF = 1
+            means every CSF pair contributes with the same sign and nothing cancels; CF near 0 means the amplitude
+            is a small residue of large opposing contributions, so that a small error in any mixing coefficient
+            moves the result by a large factor. Cowan's rule of thumb: a transition with CF < 0.10 should be
+            treated as unreliable, and below 0.05 the value carries essentially no information.
+
+            A magnetic multipole has no second gauge, so both components hold the same number.
+"""
+struct  LineQuality
+    multipole        ::EmMultipole
+    cancellation     ::EmProperty
+end
+
+
+# `Base.show(io::IO, lq::PhotoEmission.LineQuality)`  ... prepares a proper printout of lq::PhotoEmission.LineQuality.
+function Base.show(io::IO, lq::PhotoEmission.LineQuality)
+    println(io, "$(lq.multipole):  cancellation factor = $(lq.cancellation)")
+end
+
+
+"""
 `struct  PhotoEmission.Line`
     ... defines a type for a radiative transition between two fine-structure levels, and carries one amplitude entry per contributing
         MULTIPOLE; since every amplitude holds both gauges, no separate entry per gauge is needed.
@@ -112,6 +145,12 @@ end
     + photonRate     ::EmProperty                       ... Total rate of this line.
     + angularBeta    ::EmProperty                       ... Angular beta_2 coefficient.
     + amplitudes     ::Array{MultipoleAmplitude,1}      ... one entry per contributing multipole.
+
+        The cancellation factors are deliberately NOT a field here. A `Line` records the TRANSITION, whereas the cancellation factor
+        records how well-conditioned the particular CSF expansion was that produced it: the same line computed in a larger basis has a
+        different factor and the same rate. It is a diagnostic of a calculation, not a property of a line, and so it travels beside the
+        lines rather than inside them -- see PhotoEmission.computeAmplitudesProperties, which returns the two together. Keeping `Line`
+        at six fields also leaves the stored-cascade contract untouched; see the note on .jld files in Cascade.
 
         A photo emission is bound-bound, so there is no free electron and hence no partial wave: a line simply carries one amplitude per
         multipole, and each amplitude holds both gauges.
@@ -130,14 +169,15 @@ end
 #################################################################################################################################
 
 """
-`PhotoEmission.amplitude(::Emission, Mp::EmMultipole, gauge::EmGauge, omega::Float64, finalLevel::Level, initialLevel::Level,
-                            grid::Radial.Grid; display::Bool=false, printout::Bool=false)`
+`PhotoEmission.amplitudeAndCancellation(::Emission, Mp::EmMultipole, gauge::EmGauge, omega::Float64, finalLevel::Level,
+                                        initialLevel::Level, grid::Radial.Grid; display::Bool=false, printout::Bool=false)`
     ... to compute the photon emission amplitude  <alpha_f J_f || O^(Mp) || alpha_i J_i> for the interaction with a photon of multipolarity
-        Mp and for the given transition energy and gauge. A value::ComplexF64 is returned. The amplitude value is printed to screen if
+        Mp and for the given transition energy and gauge, TOGETHER with Cowan's cancellation factor of that same sum.
+        A tuple (amplitude::ComplexF64, cancellation::Float64) is returned. The amplitude value is printed to screen if
         display=true.
 """
-function amplitude(::Emission, Mp::EmMultipole, gauge::EmGauge, omega::Float64, finalLevel::Level, initialLevel::Level,
-                    grid::Radial.Grid; display::Bool=false, printout::Bool=false)
+function amplitudeAndCancellation(::Emission, Mp::EmMultipole, gauge::EmGauge, omega::Float64, finalLevel::Level,
+                                  initialLevel::Level, grid::Radial.Grid; display::Bool=false, printout::Bool=false)
     if  initialLevel.basis.subshells == finalLevel.basis.subshells
         iLevel = initialLevel;   fLevel = finalLevel
     else
@@ -171,6 +211,13 @@ function amplitude(::Emission, Mp::EmMultipole, gauge::EmGauge, omega::Float64, 
     end
     if  printout   printstyled("done. \n", color=:light_green)    end
     amplitude = transpose(fLevel.mc) * matrix * iLevel.mc
+    # Cowan's cancellation factor, from the very sum that just produced the amplitude: the coherent sum divided by
+    # the sum of the magnitudes of its terms. It costs one more pass over a matrix already in hand.
+    coherent = abs(amplitude);    incoherent = 0.
+    for  r = 1:nf,  s = 1:ni
+        incoherent = incoherent + abs( fLevel.mc[r] * matrix[r,s] * iLevel.mc[s] )
+    end
+    cancellation = incoherent > 0. ? coherent / incoherent : 0.
     # Multiply with the multipolarity factors to keep different multipoles on the same footings; this factor need to be better understood
     # amplitude = amplitude * sqrt( (2Mp.L+1)*(Mp.L+1)/Mp.L )
 
@@ -180,7 +227,21 @@ function amplitude(::Emission, Mp::EmMultipole, gauge::EmGauge, omega::Float64, 
                 " $(initialLevel.index) [$(initialLevel.J)$(string(initialLevel.parity))] >  = $amplitude  ")
     end
 
-    return( amplitude )
+    return( (amplitude, cancellation) )
+end
+
+
+"""
+`PhotoEmission.amplitude(::Emission, Mp::EmMultipole, gauge::EmGauge, omega::Float64, finalLevel::Level,
+                            initialLevel::Level, grid::Radial.Grid; display::Bool=false, printout::Bool=false)`
+    ... to compute the photon emission amplitude alone, discarding the cancellation factor that
+        PhotoEmission.amplitudeAndCancellation returns beside it. Kept so that every caller which wants only the
+        amplitude reads as it always did. A value::ComplexF64 is returned.
+"""
+function amplitude(kind::Emission, Mp::EmMultipole, gauge::EmGauge, omega::Float64, finalLevel::Level,
+                   initialLevel::Level, grid::Radial.Grid; display::Bool=false, printout::Bool=false)
+    return( PhotoEmission.amplitudeAndCancellation(kind, Mp, gauge, omega, finalLevel, initialLevel, grid;
+                                                   display=display, printout=printout)[1] )
 end
 
 
@@ -223,29 +284,32 @@ function computeAmplitudesProperties(line::PhotoEmission.Line, grid::Radial.Grid
               ">>> It was based on MbaEmissionMigdalek, which never worked in a useful form.\n"                *
               ">>> Set doApply = false, or implement a new core-polarization correction from scratch.\n")
     end
-    newAmplitudes = MultipoleAmplitude[];    rate = EmProperty(0., 0.)
+    newAmplitudes = MultipoleAmplitude[];    newQualities = PhotoEmission.LineQuality[];    rate = EmProperty(0., 0.)
     for  ma in line.amplitudes
         mp = ma.multipole
         if  string(mp)[1] == 'E'
-            ampC = PhotoEmission.amplitude(Emission(), mp, Basics.Coulomb,   line.omega, line.finalLevel,
-                                            line.initialLevel, grid; printout=printout)
-            ampB = PhotoEmission.amplitude(Emission(), mp, Basics.Babushkin, line.omega, line.finalLevel,
-                                            line.initialLevel, grid; printout=printout)
-            amp  = EmPropertyC(ampC, ampB)
+            ampC, cfC = PhotoEmission.amplitudeAndCancellation(Emission(), mp, Basics.Coulomb,   line.omega,
+                                            line.finalLevel, line.initialLevel, grid; printout=printout)
+            ampB, cfB = PhotoEmission.amplitudeAndCancellation(Emission(), mp, Basics.Babushkin, line.omega,
+                                            line.finalLevel, line.initialLevel, grid; printout=printout)
+            amp  = EmPropertyC(ampC, ampB);     cancellation = EmProperty(cfC, cfB)
         else
-            ampM = PhotoEmission.amplitude(Emission(), mp, Basics.Magnetic,  line.omega, line.finalLevel,
-                                            line.initialLevel, grid; printout=printout)
-            amp  = EmPropertyC(ampM)
+            ampM, cfM = PhotoEmission.amplitudeAndCancellation(Emission(), mp, Basics.Magnetic,  line.omega,
+                                            line.finalLevel, line.initialLevel, grid; printout=printout)
+            # A magnetic multipole has no second gauge, so both components carry the same number.
+            amp  = EmPropertyC(ampM);           cancellation = EmProperty(cfM, cfM)
         end
         rate = rate + abs2(amp)
         push!(newAmplitudes, MultipoleAmplitude(mp, amp))
+        push!(newQualities,  PhotoEmission.LineQuality(mp, cancellation))
     end
     wa          = 8pi * Defaults.getDefaults("alpha") * line.omega / (Basics.twice(line.initialLevel.J) + 1)
     photonrate  = wa * rate
     angularBeta = EmProperty(-9., -9.)      # a sentinel: the beta_2 coefficient is not computed here
 
-    return( PhotoEmission.Line(line.initialLevel, line.finalLevel, line.omega, photonrate, angularBeta,
-                                     newAmplitudes) )
+    newLine = PhotoEmission.Line(line.initialLevel, line.finalLevel, line.omega, photonrate, angularBeta, newAmplitudes)
+
+    return( (newLine, newQualities) )
 end
 
 
@@ -310,16 +374,19 @@ function computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, gr
     println("")
     lines = PhotoEmission.determineLines(finalMultiplet, initialMultiplet, settings)
     if  settings.printBefore    PhotoEmission.displayLines(stdout, lines)    end
-    newLines = PhotoEmission.Line[]
+    newLines = PhotoEmission.Line[];    newQualities = Array{PhotoEmission.LineQuality,1}[]
     for  line in lines
-        push!( newLines, PhotoEmission.computeAmplitudesProperties(line, grid, settings) )
+        newLine, qualities = PhotoEmission.computeAmplitudesProperties(line, grid, settings)
+        push!( newLines, newLine);    push!( newQualities, qualities)
     end
     PhotoEmission.displayRates(stdout, newLines, settings)
+    PhotoEmission.displayQualityFlags(stdout, newLines, newQualities, settings)
     if  settings.calcAnisotropy    PhotoEmission.displayAnisotropies(stdout, newLines, settings)    end
     PhotoEmission.displayLifetimes(stdout, newLines, settings)
 
     printSummary, iostream = Defaults.getDefaults("summary flag/stream")
     if  printSummary   PhotoEmission.displayRates(iostream, newLines, settings)
+                       PhotoEmission.displayQualityFlags(iostream, newLines, newQualities, settings)
         if  settings.calcAnisotropy    PhotoEmission.displayAnisotropies(iostream, newLines, settings)    end
                        PhotoEmission.displayLifetimes(iostream, newLines, settings)
     end
@@ -348,7 +415,7 @@ function computeLinesCascade(finalMultiplet::Multiplet, initialMultiplet::Multip
     newLines = PhotoEmission.Line[]
     for  (i,line)  in  enumerate(lines)
         if  rem(i,500) == 0    println("> Radiative line $i:")   end
-        newLine = PhotoEmission.computeAmplitudesProperties(line, grid, settings, printout=printout)
+        newLine, _ = PhotoEmission.computeAmplitudesProperties(line, grid, settings, printout=printout)
 
         wa = EmProperty(0., 0.);    for  ma in newLine.amplitudes    wa = wa + abs2(ma.amplitude)    end
         if   wa.Coulomb == 0.  &&  wa.Babushkin == 0.    continue    end
@@ -399,8 +466,7 @@ function determineLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, 
                 if  omega <= settings.mimimumPhotonEnergy  ||  omega > settings.maximumPhotonEnergy    continue   end
                 amplitudes = PhotoEmission.determineChannels(fLevel, iLevel, settings)
                 if   length(amplitudes) == 0   continue   end
-                push!( lines, PhotoEmission.Line(iLevel, fLevel, omega, EmProperty(0., 0.),
-                                                       EmProperty(0., 0.), amplitudes) )
+                push!( lines, PhotoEmission.Line(iLevel, fLevel, omega, EmProperty(0., 0.), EmProperty(0., 0.), amplitudes) )
             end
         end
     end
@@ -571,6 +637,82 @@ function  displayLines(stream::IO, lines::Array{PhotoEmission.Line,1})
     end
     println(stream, "  ", TableStrings.hLine(nx))
     println(stream, " ")
+
+    return( nothing )
+end
+
+
+"""
+`PhotoEmission.displayQualityFlags(stream::IO, lines::Array{PhotoEmission.Line,1}, qualities::Array{Array{PhotoEmission.LineQuality,1},1}, settings::PhotoEmission.Settings)`
+    ... to display, for every line and every contributing multipole, the two cheap indicators of how far the computed
+        rate may be trusted: Cowan's cancellation factor in each gauge, and the Babushkin/Coulomb rate ratio. Neither
+        is an observable, and neither costs anything -- the cancellation factor comes from the sum that already forms
+        the amplitude, and the ratio from two rates that are already computed. A neat table is printed but nothing is
+        returned otherwise.
+
+        HOW TO READ THE TWO COLUMNS, since they fail in different ways and a line can be bad in one and fine in the
+        other:
+
+        + CF is about the AMPLITUDE OF ONE GAUGE. It is the coherent sum divided by the sum of the magnitudes of its
+          terms, so CF = 1 means nothing cancels and CF near 0 means the amplitude is a small residue of large
+          opposing contributions. Cowan's rule of thumb: below 0.10 treat the transition as unreliable, below 0.05 as
+          carrying no information. A SMALL CF does not mean the number is wrong -- it means a small error in any
+          mixing coefficient moves it by a large factor.
+
+        + The GAUGE RATIO is about the ORBITALS AND THE CORRELATION. Length and velocity forms agree exactly only for
+          exact wave functions, so a ratio far from 1 says the description is incomplete. It says nothing about
+          cancellation: a transition can have CF = 1 in both gauges and still disagree by a factor of two.
+
+        The verdict column flags whichever is worse. Neither test can prove a number right; both can show one that
+        should not be quoted without saying so.
+"""
+function  displayQualityFlags(stream::IO, lines::Array{PhotoEmission.Line,1}, qualities::Array{Array{PhotoEmission.LineQuality,1},1},
+                              settings::PhotoEmission.Settings)
+    nx = 130
+    println(stream, " ")
+    println(stream, "  Quality indicators:  Cowan cancellation factor per gauge, and the Babushkin/Coulomb rate ratio")
+    println(stream, " ")
+    println(stream, "  ", TableStrings.hLine(nx))
+    sa = "  ";   sb = "  "
+    sa = sa * TableStrings.center(18, "i-level-f"; na=2);                        sb = sb * TableStrings.hBlank(20)
+    sa = sa * TableStrings.center(18, "i--J^P--f"; na=4);                        sb = sb * TableStrings.hBlank(22)
+    sa = sa * TableStrings.center(12, "Energy"; na=3)
+    sb = sb * TableStrings.center(12, TableStrings.inUnits("energy"); na=3)
+    sa = sa * TableStrings.center( 8, "Multipole"; na=2);                        sb = sb * TableStrings.hBlank(10)
+    sa = sa * TableStrings.center(12, "CF Coulomb"; na=2);                       sb = sb * TableStrings.hBlank(14)
+    sa = sa * TableStrings.center(12, "CF Babushkin"; na=2);                     sb = sb * TableStrings.hBlank(14)
+    sa = sa * TableStrings.center(12, "B/C ratio"; na=2);                        sb = sb * TableStrings.hBlank(14)
+    sa = sa * TableStrings.center(14, "Verdict"; na=2);                          sb = sb * TableStrings.hBlank(16)
+    println(stream, sa);    println(stream, sb);    println(stream, "  ", TableStrings.hLine(nx))
+    #
+    for  (i, line)  in  enumerate(lines)
+        ratio = line.photonRate.Coulomb != 0. ? line.photonRate.Babushkin / line.photonRate.Coulomb : NaN
+        for  lq in qualities[i]
+            cf = min(lq.cancellation.Coulomb, lq.cancellation.Babushkin)
+            # The verdict names whichever indicator is worse; a line can be sound in one and not the other.
+            dev = isnan(ratio) ? NaN : abs(ratio - 1.0)
+            if      cf < 0.05                               verdict = "CF critical"
+            elseif  cf < 0.10                               verdict = "CF low"
+            elseif  isnan(ratio)                            verdict = "no rate"
+            elseif  dev > 1.0                               verdict = "gauges x2+"
+            elseif  dev > 0.5                               verdict = "gauges 50%+"
+            elseif  dev > 0.2                               verdict = "gauges 20-50%"
+            else                                            verdict = "ok"
+            end
+            sa = "  "
+            sa = sa * TableStrings.center(18, TableStrings.levels_if(line.initialLevel.index, line.finalLevel.index); na=2)
+            sa = sa * TableStrings.center(18, TableStrings.symmetries_if(LevelSymmetry(line.initialLevel.J, line.initialLevel.parity),
+                                                LevelSymmetry(line.finalLevel.J, line.finalLevel.parity)); na=3)
+            sa = sa * @sprintf("%.4e", Defaults.convertUnits("energy: from atomic", line.omega)) * "   "
+            sa = sa * TableStrings.center(8, string(lq.multipole); na=3)
+            sa = sa * @sprintf("%10.4f", lq.cancellation.Coulomb)   * "    "
+            sa = sa * @sprintf("%10.4f", lq.cancellation.Babushkin) * "    "
+            sa = sa * (isnan(ratio) ? TableStrings.center(10, "--"; na=0) : @sprintf("%10.4f", ratio)) * "    "
+            sa = sa * TableStrings.center(14, verdict; na=2)
+            println(stream, sa)
+        end
+    end
+    println(stream, "  ", TableStrings.hLine(nx))
 
     return( nothing )
 end
