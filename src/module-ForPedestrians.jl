@@ -14,11 +14,11 @@ module ForPedestrians
 
 
 using  Printf, ..AngularMomentum, ..Atomic, ..AutoIonization, ..Basics, ..Cascade, ..Defaults, ..DielectronicRecombination,
-               ..Empirical, ..ImpactIonization, ..ManyElectron,  ..Nuclear, ..PhotoEmission, ..PhotoIonization,
+               ..Empirical, ..Hfs, ..ImpactIonization, ..LandeZeeman, ..ManyElectron,  ..Nuclear, ..PhotoEmission, ..PhotoIonization,
                ..PhotoRecombination, ..Radial
 
 export computeBranchingFractions,  computeChargeStateDistribution,  computeCrossSections,  computeForPedestrians,  computeLevelEnergies,
-       computeLifetimes,  computeResonanceStrength,  computeTransitionRates,
+       computeLifetimes,  computeProperties,  computeResonanceStrength,  computeTransitionRates,
        displayCouplings,  displaySpectrum,  estimateCrossSections
 
 
@@ -543,6 +543,186 @@ function computeLifetimes(theme::Basics.ForAutoIonization, configs::Array{Config
     
     return( nothing )
 end 
+
+#################################################################################################################################
+#################################################################################################################################
+
+
+"""
+`ForPedestrians.computeProperties(theme::Basics.HyperfineStructure, configs::Array{Configuration,1};
+                                  nuclearModel::Union{Nothing,Nuclear.Model}=nothing,
+                                  grid::Radial.Grid=Radial.Grid(true), asfSettings::AsfSettings=AsfSettings(),
+                                  printout::Bool=false)`
+    ... computes the hyperfine A and B constants of all levels that are defined by the given configurations.
+        The nuclear spin is taken from the theme; the magnetic dipole moment mu and the electric quadrupole
+        moment Q must come with the nuclear model, since A scales with mu/I and B with Q and NEITHER can be
+        inferred from the charge.  For a ONE-ELECTRON system the bare Basics.NuclearField() is chosen instead of
+        a screened potential, since there is nothing to screen against and a screened field would contribute
+        only self-interaction -- on hydrogen 1s that is the difference between 1464.20 MHz (3.1% high) and
+        1421.22 MHz (0.057%) against the measured 21-cm value.  The default values of the grid and asfSettings
+        are otherwise used but can be overwritten on demand.  The results are printed to screen but nothing is
+        returned otherwise.
+
+        Simplified call:   setDefaults("nuclear: charge", 11.0)
+                           setDefaults("unit: energy", "Hz")
+                           configs = [Configuration("[Ne] 3s")]
+                           nm      = Nuclear.Model(11., Nuclear.UniformNucleus(), 23., 2.98,
+                                                   AngularJ64(3//2), 2.2176, 0.10, 0.0)
+                           computeProperties(Basics.HyperfineStructure(AngularJ64(3//2)), configs, nuclearModel=nm)
+"""
+function computeProperties(theme::Basics.HyperfineStructure, configs::Array{Configuration,1};
+                           nuclearModel::Union{Nothing,Nuclear.Model}=nothing,
+                           grid::Radial.Grid=Radial.Grid(true), asfSettings::Union{Nothing,AsfSettings}=nothing,
+                           printout::Bool=false)
+    Basics.checkConfigurations(Basics.NumberOfElectrons(), configs)
+    # Collect explanations
+    Basics.displayConfigurations(stdout, configs, details = "hyperfine structure computations")
+
+    sa =    "\n* Compute the hyperfine A and B constants for all levels of the configurations above; " *
+            "the following assumptions/simplifications are made: " *
+            "\n    + A is the magnetic-dipole and B the electric-quadrupole hyperfine constant. " *
+            "\n    + A scales with mu/I and B with Q, so BOTH come from the nuclear model and NOT from the charge. " *
+            "\n    + Supply them with  nuclearModel = Nuclear.Model(Z, model, A, Rrms, spinI, mu, Q, Omega). " *
+            "\n    + With mu = Q = 0, which is what Nuclear.Model(Z) gives, every constant is zero by construction. " *
+            "\n    + The nuclear spin of the theme is used, and overrides the spin of the nuclear model. " *
+            "\n    + Use  setDefaults(\"unit: energy\", \"Hz\")  to obtain the constants in the usual units. " *
+            "\n    + Use the optional argument  printout = true  to generate intermediate printout." *
+            "\n    + Use the optional argument  grid = Radial.Grid(...)  to refine the radial grid, if needed." *
+            "\n    + For more elaborate computations, make use of perform(comp::Atomic.Computation) " *
+            "\n    + Call ? Atomic.Computation for further details. " *
+            "\n    + Call ? setDefaults ... to define user-specified units for the computations. \n"
+    println(sa)
+
+    # Build the nuclear model, and say so plainly when it cannot give a non-zero answer
+    Z = Defaults.getDefaults("nuclear: charge")
+    if  isnothing(nuclearModel)   nm = Nuclear.Model(Z)   else   nm = nuclearModel   end
+    nm = Nuclear.Model(nm; spinI = theme.spinI)
+    if  nm.mu == 0.  &&  nm.Q == 0.
+        println("* NOTE: the nuclear model carries mu = Q = 0, so every A and B below is zero by construction; " *
+                "pass  nuclearModel = Nuclear.Model(Z, model, A, Rrms, spinI, mu, Q, Omega)  for a real isotope.")
+    end
+
+    ## A ONE-ELECTRON SYSTEM MUST NOT BE GIVEN A SCREENED FIELD.  There is no other electron to screen against,
+    ## so a DFS potential contributes a pure self-interaction error, and the hyperfine constant -- which samples
+    ## the orbital right at the nucleus -- feels it directly.  Measured on hydrogen 1s with everything else held
+    ## the same: the default DFS field gives A = 1464.20 MHz against the measured 21-cm value of 1420.406, i.e.
+    ## 3.1% high, while Basics.NuclearField() gives 1421.22 MHz, i.e. 0.057%.  A pedestrian should not have to
+    ## know that, so it is chosen here and announced; passing asfSettings explicitly overrides it.
+    if  isnothing(asfSettings)
+        if  configs[1].NoElectrons == 1
+            settingsx = AsfSettings(AsfSettings(); scField=Basics.NuclearField())
+            println("* A one-electron system: the bare NuclearField is used instead of a screened potential, " *
+                    "since a screened field would contribute only self-interaction.  Pass asfSettings to override.")
+        else
+            settingsx = AsfSettings()
+        end
+    else
+        settingsx = asfSettings
+    end
+
+    hfsSettings = Hfs.Settings(Hfs.Settings(), calcM1=true, calcE2=true, printBefore=false)
+
+    # Specify the atomic computations
+    function atomic_code()
+        Defaults.setDefaults("standard grid", grid)
+        comp = Atomic.Computation(Atomic.Computation(), name="Hyperfine A and B constants",
+                                  grid=grid, nuclearModel=nm;
+                                  configs = configs, asfSettings = settingsx,
+                                  propertySettings = [ hfsSettings ] )
+        results = perform(comp, output=true)
+        return( results )
+    end
+
+    # Print or suppress the standard output
+    if    printout  atomic_code()
+    else
+          results = redirect_stdout(devnull) do
+                        atomic_code()  end
+          outcomes = results["HFS outcomes:"]
+          Hfs.displayResults(stdout, outcomes, nm, hfsSettings)
+    end
+
+    return( nothing )
+end
+
+
+"""
+`ForPedestrians.computeProperties(theme::Basics.ZeemanStructure, configs::Array{Configuration,1};
+                                  grid::Union{Nothing,Radial.Grid}=nothing, asfSettings::Union{Nothing,AsfSettings}=nothing,
+                                  printout::Bool=false)`
+    ... computes the Lande g_J factors of all levels that are defined by the given configurations, together with
+        the Zeeman splittings if the theme carries a non-zero magnetic flux density.  Unless a grid is given, the
+        radial box is derived from the configurations by Basics.recommendedGrid, and that is not a convenience:
+        the Lande factor of a high-|kappa| level is the property most sensitive to a badly matched box.  The
+        results are printed to screen but nothing is returned otherwise.
+
+        Simplified call:   setDefaults("nuclear: charge", 32.0)
+                           configs = [Configuration("[Ar] 3d^10 4s^2 4f")]
+                           computeProperties(Basics.ZeemanStructure(0.0), configs)
+"""
+function computeProperties(theme::Basics.ZeemanStructure, configs::Array{Configuration,1};
+                           grid::Union{Nothing,Radial.Grid}=nothing, asfSettings::Union{Nothing,AsfSettings}=nothing,
+                           printout::Bool=false)
+    Basics.checkConfigurations(Basics.NumberOfElectrons(), configs)
+    # Collect explanations
+    Basics.displayConfigurations(stdout, configs, details = "Lande g_J and Zeeman computations")
+
+    sa =    "\n* Compute the Lande g_J factors for all levels of the configurations above; " *
+            "the following assumptions/simplifications are made: " *
+            "\n    + g_J is computed with Schwinger's QED correction to the electron g-factor included. " *
+            "\n    + Zeeman splittings are added only if the theme carries a non-zero field, ZeemanStructure(B). " *
+            "\n    + The radial box is matched to the configurations unless a grid is given explicitly. " *
+            "\n    + THAT MATTERS HERE MORE THAN ANYWHERE: on a box far too large the SCF can return the wrong " *
+            "state for a high-|kappa| subshell, and g_J then comes out wrong in magnitude and even in sign. " *
+            "\n    + Use the optional argument  printout = true  to generate intermediate printout." *
+            "\n    + Use the optional argument  grid = Radial.Grid(...)  to override the matched box." *
+            "\n    + For more elaborate computations, make use of perform(comp::Atomic.Computation) " *
+            "\n    + Call ? Atomic.Computation for further details. " *
+            "\n    + Call ? setDefaults ... to define user-specified units for the computations. \n"
+    println(sa)
+
+    Z = Defaults.getDefaults("nuclear: charge")
+    nm = Nuclear.Model(Z)
+
+    ## A BADLY MATCHED BOX IS THE KNOWN FAILURE OF THIS PROPERTY, so the box is matched rather than defaulted.
+    ## Ge II 4s^2 4f on Radial.Grid(true) -- a 614 a.u. box -- returned g_J(4f_7/2) = -2.263670 against the
+    ## exact 8/7, wrong by a factor and in sign, because the SCF converged onto the wrong state for kappa = -4;
+    ## on a matched box the two spin-orbit partners agree and the paper is reproduced to six decimals
+    ## (examples/example-Cd.jl, branch c).  For years that was recorded as an angular-coefficient defect.
+    if  isnothing(grid)   currentGrid = Basics.recommendedGrid(configs, nm)   else   currentGrid = grid   end
+    if  isnothing(asfSettings)
+        if  configs[1].NoElectrons == 1   settingsx = AsfSettings(AsfSettings(); scField=Basics.NuclearField())
+        else                              settingsx = AsfSettings()
+        end
+    else                                  settingsx = asfSettings
+    end
+
+    zeemanSettings = LandeZeeman.Settings(LandeZeeman.Settings(); calcLandeJ=true, includeSchwinger=true,
+                                          calcZeeman = theme.BField != 0., BField = theme.BField, printBefore=false)
+
+    # Specify the atomic computations
+    function atomic_code()
+        Defaults.setDefaults("standard grid", currentGrid)
+        comp = Atomic.Computation(Atomic.Computation(), name="Lande g_J and Zeeman splittings",
+                                  grid=currentGrid, nuclearModel=nm;
+                                  configs = configs, asfSettings = settingsx,
+                                  propertySettings = [ zeemanSettings ] )
+        results = perform(comp, output=true)
+        return( results )
+    end
+
+    # Print or suppress the standard output
+    if    printout  atomic_code()
+    else
+          results = redirect_stdout(devnull) do
+                        atomic_code()  end
+          outcomes = results["Zeeman parameter outcomes:"]
+          LandeZeeman.displayResults(stdout, outcomes, nm, zeemanSettings)
+    end
+
+    return( nothing )
+end
+
 
 #################################################################################################################################
 #################################################################################################################################

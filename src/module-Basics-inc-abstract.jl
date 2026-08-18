@@ -655,7 +655,7 @@ export  AbstractConfigurationTheme, AddElectrons, ExciteElectrons, RemoveElectro
         ExpandShells, FromBasis, FromMultiplet, GetParity, IsOccupied, LeadingConfiguration, LeadingConfigurationR, 
         MeanOccupation, Multiplicity, NonrelativisticBasis, NumberOfElectrons, OccupationDifference, OpenShellNumber, 
         OpenShells, OpenSubshells, TotalAM, ValenceOccupation, ValenceShells,
-        FineStructure, FineStructureLS, HundsRules, HyperfineStructure
+        FineStructure, FineStructureLS, HundsRules, HyperfineStructure, ZeemanStructure
 
         
 """
@@ -1022,6 +1022,31 @@ end
 
 # `Base.show(io::IO, theme::Basics.HyperfineStructure)`  ... prepares a proper printout of the variable theme::Basics.HyperfineStructure.
 function Base.show(io::IO, theme::Basics.HyperfineStructure)
+    sa = string(theme);       print(io, sa)
+end
+
+
+        
+"""
+`struct  Basics.ZeemanStructure        <:  AbstractConfigurationTheme`   
+    ... to compute the Lande g_J factors of a configuration, and the Zeeman splittings if a field is given.
+
+    + BField       ::Float64      ... Magnetic flux density in Tesla; g_J alone needs none, so 0. is the usual value.
+"""
+struct   ZeemanStructure                <:  AbstractConfigurationTheme
+    BField         ::Float64
+end
+
+
+# `Base.string(theme::Basics.ZeemanStructure)`  ... provides a proper printout of the variable theme::Basics.ZeemanStructure.
+function Base.string(theme::Basics.ZeemanStructure)
+    sa = "ZeemanStructure theme with a magnetic flux density of $(theme.BField) Tesla."
+    return( sa )
+end
+
+
+# `Base.show(io::IO, theme::Basics.ZeemanStructure)`  ... prepares a proper printout of the variable theme::Basics.ZeemanStructure.
+function Base.show(io::IO, theme::Basics.ZeemanStructure)
     sa = string(theme);       print(io, sa)
 end
 

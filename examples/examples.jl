@@ -175,6 +175,7 @@ elseif  char == 'M'
     println("Mf) Test  estimateCrossSections(ForImpactIonization(), ...)  for neon and argon; relativistic BEB model for all subshells.")
     println("Mg) Test  computeResonanceStrength(ForDielectronicRecombination(), ...)  for H-like Ne (1s->2l) and Li-like Sc (2s->2p).")
     println("Mh) Test  computeChargeStateDistribution(ForStepwiseDecay(), ...)  for the K-hole decay cascade in Ne and Ar.")
+    println("Mi) Test  computeProperties(HyperfineStructure(), ZeemanStructure(), ...)  for HFS A,B and Lande g_J.")
     #
 elseif  char == 'N'
     println("N)  Examples, tests & development of empirical computations (module Empirical)")
