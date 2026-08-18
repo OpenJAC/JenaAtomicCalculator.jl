@@ -382,6 +382,30 @@ rewrites.
 
 The command only reads, prints and prunes. It never starts work on an item.
 
+### /application
+**Display the application list, and drop from it whatever has been delivered.**
+The third of the three working lists, beside `/priority` (defects and open work in `src/`) and the competition
+list (capability other codes have). Like the priority list it is not kept here — it names collaborators,
+unpublished work and correspondence, which Rule 14 keeps out of this file — but lives in the assistant's memory
+directory as the single file the command reads and rewrites.
+
+**What belongs on it.** Physics that is driven from OUTSIDE the code: a colleague is waiting, a paper is in
+preparation, a reply is owed, a measurement has appeared that we said we would compare against. The
+distinguishing test is that neither of the other two lists' questions decides anything — such an item can be
+scientifically minor and still be the most urgent thing here because someone is blocked on it, and it can be
+fine physics and wait a year because nobody is. It is therefore ordered by **the strength of the outside
+obligation**, not by severity, and the field that matters is *who is waiting, and since when*.
+
+1. Read the application list and print it **in full**, in its stored order, with each item's stored number.
+2. For each item, judge whether the obligation is discharged — the run made, the reply sent, the collaborator
+   answered — not merely whether the physics still interests us.
+3. **Remove every discharged item, and NEVER RENUMBER.** Its number is retired and the list keeps the gap.
+4. Its numbers carry an **`A` prefix (A1, A2, …), deliberately not integers**, so that "item 8" always means the
+   priority list and "A3" always means this one. The five items it started with arrived from the priority list
+   as 36–40, and those integers stay retired there rather than being reused.
+
+The command only reads, prints and prunes. It never starts work on an item.
+
 ### /summarize
 **End-of-session structured summary.**
 Lists: modules changed (and what kind of change), example branches tested (with dates),
