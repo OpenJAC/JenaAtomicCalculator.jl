@@ -6,7 +6,7 @@
 """
 module SelfConsistent
 
-using  Printf, ..AngularMomentum, ..Basics, ..Bsplines, ..Defaults, ..Hamiltonian, ..InteractionStrength, ..ManyElectron, ..Nuclear, ..Radial,
+using  Printf, LinearAlgebra, ..AngularMomentum, ..Basics, ..Bsplines, ..Defaults, ..Hamiltonian, ..InteractionStrength, ..ManyElectron, ..Nuclear, ..Radial,
        ..RadialIntegrals, ..SpinAngular
 
 
@@ -880,12 +880,28 @@ function projectOntoPositiveBranch(bVectors::Dict{Subshell, Vector{Float64}}, su
             dev = max( dev, abs( ov - (i == j ? 1.0 : 0.0) ) )
         end
         if  dev < 1.0e-9    continue    end
-        done = Vector{Float64}[]
-        for  sh  in  shk
-            v = out[sh]
-            for  u  in  done    v = v - (transpose(u) * matrixB * v) * u    end
-            nrm = sqrt( abs(transpose(v) * matrixB * v) )
-            if  nrm > 1.0e-10    v = v / nrm;    push!(done, v);    out[sh] = v    end
+        ## SYMMETRIC (Loewdin) orthogonalisation, S^(-1/2), in place of Gram-Schmidt.  Gram-Schmidt is
+        ## sequential and asymmetric: it leaves the FIRST orbital of a kappa untouched and pushes the whole
+        ## correction onto the later ones, so perturbing an earlier orbital of a kappa silently moves the later
+        ## ones as well.  Loewdin treats every orbital of the block alike and is the orthonormal set CLOSEST to
+        ## the input in a least-squares sense, so it introduces no ordering of its own.
+        nk  = length(shk)
+        ovl = zeros(nk, nk)
+        for  (i, sha) in enumerate(shk),  (j, shb) in enumerate(shk)
+            ovl[i,j] = transpose(out[sha]) * matrixB * out[shb]
+        end
+        ovl = 0.5 * (ovl + transpose(ovl))          ## exact symmetry before the eigendecomposition
+        wa  = LinearAlgebra.eigen(ovl)
+        sinv = zeros(nk, nk)
+        for  k = 1:nk
+            if  wa.values[k] < 1.0e-12    continue    end     ## a linearly dependent block keeps its input
+            sinv = sinv + (wa.vectors[:,k] * transpose(wa.vectors[:,k])) / sqrt(wa.values[k])
+        end
+        newv = [ zeros(length(out[shk[1]]))  for i = 1:nk ]
+        for  i = 1:nk,  j = 1:nk    newv[i] = newv[i] + sinv[j,i] * out[shk[j]]    end
+        for  (i, sh) in enumerate(shk)
+            nrm = sqrt( abs(transpose(newv[i]) * matrixB * newv[i]) )
+            if  nrm > 1.0e-10    out[sh] = newv[i] / nrm    end
         end
     end
     return( out, worst )
