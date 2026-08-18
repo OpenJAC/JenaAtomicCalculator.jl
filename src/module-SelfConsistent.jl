@@ -956,6 +956,9 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
     (bVectors, _) = SelfConsistent.projectOntoPositiveBranch(bVectors, basis.subshells, primitives,
                                                                      nucPot, matrixB, storage; spectrum=posSpectrum)
     ePrevious = 0.;   tStep = 1.0;   multiplet = Multiplet("EOL-ByRotation", Level[])
+    ## Set by every exit below.  A loop that simply runs out of iterations used to end in silence, which was the
+    ## fifth of five ways this driver can stop and the only one left unreported.
+    stopReason = "";   gNorm = 0.;   iterDone = 0
     ## Direction state, all held in b-space: the virtual directions are rebuilt every iteration, so anything
     ## stored in THAT basis would be meaningless one step later.
     dirPrev = Dict{Subshell, Vector{Float64}}();   gPrev = Dict{Subshell, Vector{Float64}}()
@@ -1019,7 +1022,7 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
             gProj[sh] = gv;    step[sh] = sv;    denom[sh] = dv
             gNorm = gNorm + sum( gv.^2 );    sNorm = sNorm + sum( sv.^2 )
         end
-        gNorm = sqrt(gNorm);    sNorm = sqrt(sNorm)
+        gNorm = sqrt(gNorm);    sNorm = sqrt(sNorm);    iterDone = iter
 
         ## Assemble the search direction in b-space.  Plain preconditioned steepest descent zigzags here:
         ## the energy falls steadily while |grad| merely oscillates, each step undoing part of the previous
@@ -1116,7 +1119,14 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
         sgPrev = 0.;   for sh in basis.subshells   sgPrev = sgPrev + sum( gVec[sh] .* sVec[sh] )   end
         gPrev  = gVec;    dirPrev = dir
         bPrev  = Dict{Subshell, Vector{Float64}}( sh => copy(bVectors[sh])  for sh in basis.subshells )
-        if  sNorm < 1.0e-14    break    end
+        if  sNorm < 1.0e-14
+            ## Until 18-Aug-2026 this was the one exit of four that said NOTHING, so a run could end here and
+            ## be read as a completed optimisation.  It means the PRECONDITIONED direction has collapsed, which
+            ## is not the same as a converged gradient and must not be reported as one.
+            stopReason = "direction collapsed";   println(">> [EOL-C3] STOPPED at iteration $iter: the preconditioned direction has collapsed " *
+                    "(|s| = $sNorm), with |grad| = $gNorm.  This is NOT convergence.")
+            break
+        end
         if  printout
             println(">> [EOL-C3] iter $iter:  E = $(multiplet.levels[1].energy)   |grad| = $gNorm   step = $tStep")
         end
@@ -1127,7 +1137,8 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
         ## set by the basis and the projection, so on Li a pure gradient test ran 48 further iterations after
         ## the energy had stopped moving, for nothing. Both tests are kept, and the driver says which fired.
         if  gNorm < settings.accuracyScf
-            if  printout   println(">> [EOL-C3] converged: |grad| = $gNorm < $(settings.accuracyScf).")   end
+            stopReason = "converged";   println(">> [EOL-C3] CONVERGED at iteration $iter: |grad| = $gNorm < accuracyScf = " *
+                    "$(settings.accuracyScf), tStep = $tStep.")
             break
         end
 
@@ -1184,18 +1195,35 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
             end
         end
         if  !accepted
-            if  printout    println(">> [EOL-C3] no descent found; stopping at iteration $iter.")    end
+            stopReason = "no descent";   println(">> [EOL-C3] STOPPED at iteration $iter: no descent found along the search direction " *
+                    "(tStep fell to $tStep), with |grad| = $gNorm.  This is NOT convergence.")
             break
         end
-        if  iter > 1  &&  abs(multiplet.levels[1].energy - ePrevious) < 1.0e-11
-            if  printout
-                println(">> [EOL-C3] stopped on a stagnant energy (|dE| < 1.0e-11) with |grad| = $gNorm; " *
-                        "this is a converging UPPER BOUND, not a converged gradient.")
-            end
+        ## A STAGNANT ENERGY IS ONLY CONVERGENCE IF THE STEP IS STILL HEALTHY.  The test compares successive
+        ## CI eigenvalues, and a variational energy is STATIONARY at a minimum: |dE| falls as the SQUARE of the
+        ## orbital error while |grad| falls linearly, so |dE| < 1e-11 is reached long before convergence
+        ## whenever the steps have become small -- and then it reports a collapsed line search as a converged
+        ## calculation.  Measured at the moment it used to fire: tStep = 4.1e-9 on a Be RAS correlation layer
+        ## and 3.5e-11 on a carbon one, i.e. down eight to eleven orders from unity, with |grad| still 0.037
+        ## and 0.998.  The collapse is TEMPORARY -- allowed to continue, carbon recovers a step of 0.125 and
+        ## converges at |grad| = 4.7e-6, sixty-five mHa BELOW where it used to stop.  So the remedy is not a
+        ## smaller threshold but the extra condition: stagnation ends the iteration only when the step that
+        ## produced it was of usable size.
+        stepFloor = 1.0e-6
+        if  iter > 1  &&  abs(multiplet.levels[1].energy - ePrevious) < 1.0e-11  &&  tStep > stepFloor
+            stopReason = "stationary energy";   println(">> [EOL-C3] stopped at iteration $iter on a stationary energy: |dE| = " *
+                    "$(abs(multiplet.levels[1].energy - ePrevious)) < 1.0e-11 with a healthy step " *
+                    "tStep = $tStep and |grad| = $gNorm.  A converging UPPER BOUND, not a converged gradient.")
             break
         end
         ePrevious = multiplet.levels[1].energy
     end
+    if  stopReason == ""
+        println(">> [EOL-C3] STOPPED after $iterDone iterations: the limit maxIterationsScf = " *
+                "$(settings.maxIterationsScf) was reached with |grad| = $gNorm and tStep = $tStep.  " *
+                "This is NOT convergence; raise maxIterationsScf to see where it goes.")
+    end
+
     return( multiplet )
 end
 
