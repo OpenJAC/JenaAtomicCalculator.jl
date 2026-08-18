@@ -27,6 +27,14 @@
     not the gradient of the energy being minimized, and a line search comparing two different functions. The
     average-level field gained Anderson acceleration. *(August'26)*
 
+!!! note "The EOL path is under active development"
+    The optimized-level field is being worked on continuously, and 0.5.0 is a snapshot of it rather than a
+    finished state. It converges and reports honestly whether it did -- that reporting is itself part of the
+    current work -- but the optimizer, its preconditioning and its exit criteria are still changing between
+    releases. **Use `Basics.EOLField()` with care for production numbers, and prefer `Basics.ALField()` where an
+    individual orbital energy matters**; check the printed convergence line rather than assuming it. The
+    average-level field is settled by comparison.
+
 * **Resonant electron-impact excitation, end to end:** `Cascade.ElectronExcitationScheme` now accounts for the
     resonant contribution -- dielectronic capture followed by radiative or Auger decay -- alongside the direct one,
     with the capture step delegated to `Cascade.DielectronicCaptureScheme`. *(August'26)*
