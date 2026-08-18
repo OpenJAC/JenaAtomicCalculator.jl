@@ -309,6 +309,15 @@ elseif  false
     setDefaults("print summary: close", "")
     #
 elseif  false
+    # Last visit:       18-Aug-2026 ... the numbers below NO LONGER REPRODUCE.  Under 6694e27, which
+    #                   restructured PhotoEmission.amplitude into amplitudeAndCancellation and so moved every
+    #                   oscillator strength, this branch gives bound-bound Planck 1.42255e-02 and the
+    #                   "+ scattering" pair 1.87978e-02 / 8.17802e-03 -- the Planck means ~19% high and the
+    #                   Rosseland ~18% low against the table below.  Branch b is UNAFFECTED, and the reason is
+    #                   the saturation finding of branch f: its lines are all optically thick, so f drops out
+    #                   of kappa and only the f-dependent means moved.  The 15-Aug date STANDS as the record of
+    #                   what this calculation gave on that date, on that code; the branch is to be re-analyzed
+    #                   if and when this physics is wanted again, not repaired on sight.
     # Last successful:  15-Aug-2026
     #
     #    contributions                    Planck [cm^2/g]     Rosseland [cm^2/g]     (Coulomb gauge)

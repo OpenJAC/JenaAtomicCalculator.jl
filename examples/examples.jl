@@ -93,7 +93,7 @@ elseif  char == 'E'
     println("Eb) Apply & test the  PhotoExcitationFluores module with ASF from an internally generated initial-, intermediate and final-state multiplets.")
     println("Ec) Apply & test the PhotoExcitationAutoIon module with ASF from an internally generated initial-, intermediate and final-state multiplets.")
     println("Ed) Apply & test the Photoionization and PlasmaShift module with ASF from an internally generated initial- and final-state multiplet.")
-    println("Ef) Apply & test the AutoIonization and PlasmaShift modules with ASF from an internally generated initial- and final-state multiplet.")
+    println("Ef) RETIRED -- plasma-shifted Auger rates moved to Plasma.LineShiftScheme; see example-Jb.jl branch 1.")
     #
     println("Eg) Test of the ImpactExcitationAutoion module with ASF from an internally generated initial-, intermediate and final-state multiplets.")
     println("Ei) Test of the MultiPhotonIonization module with ASF from an internally generated initial- and final-state multiplet.")
