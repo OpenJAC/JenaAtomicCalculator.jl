@@ -228,17 +228,25 @@ end
 
 """
 `LSjj.expandLevelsIntoLS(multiplet::Multiplet, settings::ManyElectron.LSjjSettings)  
-    ... expand and print all (selected) levels from the multiplet into their LS representation. The request is controlled
-        by settings.makeIt  and the details of this expansion by further parameters given in these settings.
-        nothing is returned.
+    ... expand and print all (selected) levels from the multiplet into their LS representation, i.e. the composition table a
+        spectroscopist reads. The whole transformation happens ONLY on request: settings.makeIt is false by default, and this
+        function then returns at once, so nothing is computed and nothing is printed unless it is asked for.
+
+        Of the further settings, settings.levelSelection chooses which levels are transformed (an inactive LevelSelection(), the
+        default, takes all of them) and settings.printWeight is the FRACTION below which an LS component is left out of the table
+        -- 0.1, i.e. 10 %, from the LSjjSettings(makeIt) constructor. settings.minWeight is NOT honoured: it belongs to the
+        expansion rather than to its display, and no CSF is skipped today. nothing is returned.
 """
 function expandLevelsIntoLS(multiplet::Multiplet, settings::ManyElectron.LSjjSettings)
     # Return immediately if not expansion is to be made.
     if  !(settings.makeIt)   return( nothing )    end
     
-    # Determine all selected levels by their indiced; at present, simply all levels are transformed at present
+    # The levels to be transformed; settings.levelSelection selects them, and an inactive LevelSelection() -- the default -- takes all
     indexList = Int64[]
-    for  levelR in multiplet.levels    push!(indexList, levelR.index)     end
+    for  levelR in multiplet.levels
+        if  Basics.selectLevel(levelR, settings.levelSelection)    push!(indexList, levelR.index)    end
+    end
+    if  length(indexList) == 0    @warn "LSjj.expandLevelsIntoLS():: levelSelection selects no level; nothing is expanded.";  return( nothing )    end
     
     # Make the jj-LS expansion of all selected levels
     if  Basics.isStandardSubshellList(multiplet.levels[1].basis)
@@ -285,9 +293,9 @@ function expandLevelsIntoLS(multiplet::Multiplet, settings::ManyElectron.LSjjSet
         LSjj.checkLSexpansion(multipletNR)
         
         # Print the results to screen and elsewhere
-        LSjj.displayLSexpansion(stdout, multiplet, multipletNR)
+        LSjj.displayLSexpansion(stdout, multiplet, multipletNR, settings)
         printSummary, iostream = Defaults.getDefaults("summary flag/stream")
-        if  printSummary   LSjj.displayLSexpansion(iostream, multiplet, multipletNR)    end
+        if  printSummary   LSjj.displayLSexpansion(iostream, multiplet, multipletNR, settings)    end
         
     else  
         @warn "LSjj.expandLevelsIntoLS():: Inappropriate basis without a standard list of subshells;" *
@@ -321,49 +329,74 @@ end
 
 
 """
-`LSjj.displayLSexpansion(stream::IO, multiplet::Multiplet, multipletNR::MultipletNR)`
-    ... to display the LS expansion of the selected (relativistic) levels from multiplet in a neat format;
-        nothing is returned.
+`LSjj.openShellString(conf::String)`
+    ... reduces a nonrelativistic configuration string such as "1s^2 2s^2 2p^6 3s^2 3p^6 3d^10 4s^2 4p^6 4d^10 4f^9" to its OPEN
+        shells alone, here "4f^9". The closed shells carry no LS structure and are the same for every level of a multiplet, so
+        printing them costs the width that the open shells need -- and truncating the full string instead would hide precisely the
+        shell that determines the term. If every shell is closed, the string "closed shells" is returned. A string::String is returned.
 """
-function displayLSexpansion(stream::IO, multiplet::Multiplet, multipletNR::MultipletNR)
-    
+function openShellString(conf::String)
+    lOf = Dict('s' => 0, 'p' => 1, 'd' => 2, 'f' => 3, 'g' => 4, 'h' => 5, 'i' => 6, 'k' => 7)
+    sa  = ""
+    for  token in split(conf)
+        wa = split(token, "^")
+        if  length(wa) == 2  &&  haskey(lOf, wa[1][end])
+            l = lOf[ wa[1][end] ];    occ = parse(Int64, wa[2])
+            if  occ == 2(2l + 1)     continue    end
+        end
+        sa = sa * token * " "
+    end
+
+    return( strip(sa) == "" ? "closed shells" : String(strip(sa)) )
+end
+
+
+"""
+`LSjj.displayLSexpansion(stream::IO, multiplet::Multiplet, multipletNR::MultipletNR, settings::ManyElectron.LSjjSettings)`
+    ... to display, for the selected levels, the leading LS components as PERCENTAGES in a neat table, together with the leading
+        nonrelativistic configuration and its own percentage. This is the composition a spectroscopist reads: a level of an
+        intermediate-coupling system has no good LSJ label, only a leading one, and the percentage says how far that label may be
+        trusted. Terms below settings.printWeight (a fraction, 0.1 by default) are omitted, and the components of one level are listed
+        in decreasing order, the first beside the level and the remainder on continuation lines. nothing is returned.
+"""
+function displayLSexpansion(stream::IO, multiplet::Multiplet, multipletNR::MultipletNR, settings::ManyElectron.LSjjSettings)
+    nx = 142
     println(stream, " ")
-    println(stream, "  LS-expansion of selected atomic levels:")
+    println(stream, "  LS composition of the atomic levels:")
     println(stream, " ")
-    
-    # Determine all selected levels by their indiced; at present, simply all levels are transformed at present
-    indexList = Int64[]
-    for  levelR in multiplet.levels    push!(indexList, levelR.index)     end
-    
+    println(stream, "  ", TableStrings.hLine(nx))
+    sa = "  " * TableStrings.center( 8, "Level";  na=1) * TableStrings.center( 8, "J^P";  na=2)  *
+                TableStrings.center(16, "Energy " * TableStrings.inUnits("energy");  na=3)       *
+                TableStrings.center(44, "Leading conf. (open shells)";  na=3) * TableStrings.center(50, "LS composition";  na=0)
+    println(stream, sa)
+    println(stream, "  ", TableStrings.hLine(nx))
+
     for  levelR  in  multiplet.levels
-        if  levelR.index in indexList
-            # First, find the levelR in multipletNR.levels
-            for  levelNR in multipletNR.levels
-                if  levelNR.index == levelR.index
-                    # Extract the weights of all (nonrelativistic) configurations for the selected level
-                    weights = LSjj.extractConfigurationWeightsOfLevelNR(levelNR)
-                    # Find the configuration with the largest weight
-                    wa = 0.;    conf = Configuration("1s")
-                    for (k,v) in  weights
-                        if  v > wa      wa = v;     conf = k    end
-                    end
-                    # Print the level details and the weight of the 'most important' nonrelativistic configuration
-                    println(stream, "    Level   $(levelNR.index)      $(LevelSymmetry(levelNR.J,levelNR.parity))   " *
-                                    @sprintf("%.8e", Defaults.convertUnits("energy: from atomic", levelNR.energy))  * "  " *
-                                    TableStrings.inUnits("energy") * "  has weight " * @sprintf("%.4e", wa) * " of $conf" )
-                    # Next, print also the contribution of the major nonrelativistic csf
-                    wb = abs.(levelNR.mc);   wb = wb.^2;   idx = sortperm(wb, rev = true)
-                    for  ix = 1:min(3, length(idx))
-                        wx = wb[ idx[ix] ]
-                        if   wx > 1.0e-4    println(stream, "       $(ix))   " * @sprintf("%.4e", wx) * "   of  " *
-                                                    LSjj.shortString(levelNR.basis.csfs[ idx[ix] ], levelNR.basis) )    end
-                    end
-                    println("")
-                end
+        if  !Basics.selectLevel(levelR, settings.levelSelection)    continue    end
+        for  levelNR in multipletNR.levels
+            if  levelNR.index != levelR.index    continue    end
+            # The leading NONRELATIVISTIC CONFIGURATION and its weight; extractConfigurationWeightsOfLevelNR sums the CSFs of each
+            wa = 0.;    conf = "";    weights = LSjj.extractConfigurationWeightsOfLevelNR(levelNR)
+            for  (k,v) in weights    if  v > wa      wa = v;     conf = k    end    end
+            # The LS COMPONENTS of this level, largest first, cut at settings.printWeight
+            wb  = abs.(levelNR.mc).^2;    idx = sortperm(wb, rev = true)
+            idx = filter(ix -> wb[ix] >= settings.printWeight, idx)
+            if  length(idx) == 0    idx = [ sortperm(wb, rev = true)[1] ]    end
+            sa  = "  " * TableStrings.center(8, TableStrings.level(levelNR.index); na=1)                                       *
+                         TableStrings.center(8, string(LevelSymmetry(levelNR.J, levelNR.parity)); na=2)                        *
+                         TableStrings.flushright(16, @sprintf("%.6e", Defaults.convertUnits("energy: from atomic", levelNR.energy)))  *
+                         "   " * TableStrings.flushleft(36, LSjj.openShellString(conf)) * @sprintf("%7.2f", 100wa) * " %  "
+            for  (n, ix)  in  enumerate(idx)
+                # The first component stands beside the level; the further ones are aligned underneath it, since a label of several
+                # open shells is far too long to place them all on one line.
+                if  n > 1    sa = "  " * TableStrings.hBlank(85)    end
+                println(stream, sa * @sprintf("%7.2f", 100wb[ix]) * " %   " *
+                                LSjj.shortString(levelNR.basis.csfs[ix], levelNR.basis) )
             end
         end
     end
-    
+    println(stream, "  ", TableStrings.hLine(nx))
+
     return( nothing )
 end
 
@@ -1021,8 +1054,10 @@ end
 
 """
 `LSjj.shortString(csfNR::CsfNR, basisNR::BasisNR)`
-    ... to compose a single-line string of the nonrelativistic csfNR, if this is part of basisNR.
-        Only the open shells are printed out explicity; an sa::String is returned.
+    ... to compose a single-line string of the nonrelativistic csfNR, if this is part of basisNR. Only the OPEN shells are printed
+        explicitly, each as [nl^occ ^(2S+1)L] followed by the term accumulated up to and including that shell, and the total term
+        ^(2S+1)L_J closes the string. The accumulated terms are what distinguishes two CSFs that carry the same total term, which is
+        the common case: they cannot be told apart from the total alone. An sa::String is returned.
 """
 function shortString(csfNR::CsfNR, basisNR::BasisNR)
     function  letter(La::AngularJ64) 
@@ -1042,7 +1077,8 @@ function shortString(csfNR::CsfNR, basisNR::BasisNR)
     sa = "  "
     for  s = 1:length(basisNR.shells)
         shell = basisNR.shells[s];    occ = csfNR.occupation[s]
-        if  occ == 0  ||  occ == 2(shell.l + 1)     break   end
+        # A shell nl is closed at 2(2l+1) electrons; a closed or empty shell carries no term and is SKIPPED, not stopped at.
+        if  occ == 0  ||  occ == 2(2shell.l + 1)     continue   end
         sa = sa * "[" * string(shell) * "^" * string(occ) * " ^" * multiplicity(csfNR.shellS[s]) * letter(csfNR.shellL[s]) * 
                 "] " * " ^" * multiplicity(csfNR.shellSX[s]) * letter(csfNR.shellLX[s])
     end

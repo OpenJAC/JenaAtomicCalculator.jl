@@ -2,16 +2,16 @@
 println("Ag) Apply & test the jj-LS transformation of levels from a given multiplet.")
 
 if  false
-    # Last successful:  30-Jul-2026
+    # Last successful:  18-Aug-2026
     # Branch a: ONE open shell -- baseline, uses the existing (trusted) LSjj.OneOpenShell code path;
     #   no recoupling coefficient needed at all.
     wa = Atomic.Computation(Atomic.Computation(), name="jj-LS: one open shell", grid=Radial.Grid(true), nuclearModel=Nuclear.Model(10.),
                             configs=[Configuration("[Ne] 3p")],
-                            asfSettings=AsfSettings(AsfSettings(); jjLS=LSjjSettings(true, 0.05, 0.1, LevelSelection())) )
+                            asfSettings=AsfSettings(AsfSettings(); jjLS=LSjjSettings(true, 0.05, 0.001, LevelSelection())) )
     wb = perform(wa)
     #
 elseif  false
-    # Last successful:  30-Jul-2026
+    # Last successful:  18-Aug-2026
     # Branch b: TWO open shells -- exercises LSjj.GeneralOpenShells(2) (Gaigalas, Atoms 14, 20 (2026),
     #   Eq. 17), routed to by Basics.extractFromConfiguration(Basics.OpenShellNumber(),...). Verified
     #   to reproduce the formerly-trusted, now-retired LSjj.TwoOpenShells code exactly (max|old-new| =
@@ -19,11 +19,11 @@ elseif  false
     #   regression reference the 3-, 4- and 5-open-shell branches below build confidence from.
     wa = Atomic.Computation(Atomic.Computation(), name="jj-LS: two open shells", grid=Radial.Grid(true), nuclearModel=Nuclear.Model(10.),
                             configs=[Configuration("[Ne] 3s 3p")],
-                            asfSettings=AsfSettings(AsfSettings(); jjLS=LSjjSettings(true, 0.05, 0.1, LevelSelection())) )
+                            asfSettings=AsfSettings(AsfSettings(); jjLS=LSjjSettings(true, 0.05, 0.001, LevelSelection())) )
     wb = perform(wa)
     #
 elseif  false
-    # Last successful:  30-Jul-2026
+    # Last successful:  18-Aug-2026
     # Branch c: THREE open shells -- exercises LSjj.GeneralOpenShells(3). The formerly-existing
     #   LSjj.ThreeOpenShells code (never independently validated before -- present in the file for years
     #   but never exercised past the 2-open-shell case; now removed) turned out to have a real bug: for CSFs whose
@@ -36,11 +36,11 @@ elseif  false
     #   of [Ne] 3s 3p 3d.
     wa = Atomic.Computation(Atomic.Computation(), name="jj-LS: three open shells", grid=Radial.Grid(true), nuclearModel=Nuclear.Model(26.),
                             configs=[Configuration("[Ne] 3s 3p 3d")],
-                            asfSettings=AsfSettings(AsfSettings(); jjLS=LSjjSettings(true, 0.05, 0.1, LevelSelection())) )
+                            asfSettings=AsfSettings(AsfSettings(); jjLS=LSjjSettings(true, 0.05, 0.001, LevelSelection())) )
     wb = perform(wa)
     #
 elseif  false
-    # Last successful:  30-Jul-2026
+    # Last successful:  18-Aug-2026
     # Branch d: FOUR open shells -- exercises LSjj.GeneralOpenShells(4); no prior hand-derived code
     #   exists for this shell count, so this is the first-ever 4-open-shell jj-LS transformation in JAC.
     #   Adding the outer 4s shell after the 3s/3p/3d holes surfaced a second real bug: an l=0 shell (only
@@ -52,22 +52,22 @@ elseif  false
     #   exactly weight=1.0 for all 46 physical levels of [Ne] 3s 3p 3d 4s.
     wa = Atomic.Computation(Atomic.Computation(), name="jj-LS: four open shells", grid=Radial.Grid(true), nuclearModel=Nuclear.Model(26.),
                             configs=[Configuration("[Ne] 3s 3p 3d 4s")],
-                            asfSettings=AsfSettings(AsfSettings(); jjLS=LSjjSettings(true, 0.05, 0.1, LevelSelection())) )
+                            asfSettings=AsfSettings(AsfSettings(); jjLS=LSjjSettings(true, 0.05, 0.001, LevelSelection())) )
     wb = perform(wa)
     #
 elseif  false
-    # Last successful:  30-Jul-2026
+    # Last successful:  18-Aug-2026
     # Branch e: FIVE open shells -- exercises LSjj.GeneralOpenShells(5), representative of the kind of
     #   configuration that can arise from inner-shell holes in a cascade (multiple simultaneously open
     #   subshells across several n). Confirms the fixes from branches c/d generalize: exactly weight=1.0
     #   for all 249 physical levels of [Ne] 3s 3p 3d 4s 4p.
     wa = Atomic.Computation(Atomic.Computation(), name="jj-LS: five open shells", grid=Radial.Grid(true), nuclearModel=Nuclear.Model(26.),
                             configs=[Configuration("[Ne] 3s 3p 3d 4s 4p")],
-                            asfSettings=AsfSettings(AsfSettings(); jjLS=LSjjSettings(true, 0.05, 0.1, LevelSelection())) )
+                            asfSettings=AsfSettings(AsfSettings(); jjLS=LSjjSettings(true, 0.05, 0.001, LevelSelection())) )
     wb = perform(wa)
     #
 elseif  false
-    # Last successful:  10-Aug-2026
+    # Last successful:  18-Aug-2026
     # Branch f: GROUND-LEVEL CLASSIFICATION of an open d-shell, Co^2+ (Co III) 3d^7, against NIST ASD.
     #   A d^7 shell is a control case: it is covered by the LS_jj_d_7 table that JAC has always carried, so
     #   this branch tests the CLASSIFICATION itself, not the f-shell machinery added on 10-Aug-2026. It is
@@ -90,11 +90,11 @@ elseif  false
     grid = Radial.Grid(Radial.Grid(false), rnt=2.0e-6, h=5.0e-2, hp=1.0e-2, rbox=12.0)
     wa   = Atomic.Computation(Atomic.Computation(), name="jj-LS: Co^2+ 3d^7 ground level", grid=grid,
                               nuclearModel=Nuclear.Model(27.0), configs=[Configuration("[Ar] 3d^7")],
-                              asfSettings=AsfSettings(AsfSettings(); jjLS=LSjjSettings(true, 0.05, 0.1, LevelSelection())) )
+                              asfSettings=AsfSettings(AsfSettings(); jjLS=LSjjSettings(true, 0.05, 0.001, LevelSelection())) )
     wb = perform(wa)
     #
 elseif  true
-    # Last successful:  10-Aug-2026
+    # Last successful:  18-Aug-2026
     # Branch g: GROUND-LEVEL CLASSIFICATION of an open f-shell, Dy^3+ (Dy IV) 4f^9, against NIST ASD.
     #   THIS BRANCH EXERCISES THE WORK OF 10-Aug-2026 and could not have been run before it. Two things had
     #   to be in place. First, the f-shell LS-jj coefficient tables were present in the repository but their
@@ -116,10 +116,21 @@ elseif  true
     #   3d^7 case above is NOT a defect: 4f^9 in a heavy lanthanide is a strongly spin-orbit-coupled,
     #   genuinely intermediate-coupling system, and the LSJ label is a leading component rather than a good
     #   quantum number. Reporting that weight alongside the label is the point of the expansion.
+    #   The composition now prints as an aligned table of PERCENTAGES (competition item C7, 18-Aug-2026); the
+    #   weights above are the same numbers, checked component by component -- 1583 of them across branches a-g,
+    #   zero moved.  Each branch passes printWeight = 0.001, i.e. a 0.1 % cut, because the default from
+    #   LSjjSettings(makeIt) is 0.1 = 10 % and would drop the very admixtures these branches document.
+    #
+    #   The two 4.5 % / 1.2 % components above are both ^4I_15/2, and that is NOT a misprint: they are two
+    #   different antisymmetric 4f^9 states carrying the same total term, distinguished by their seniority.
+    #   LSjj.shortString labels a level by its open shells and their accumulated terms, which separates CSFs
+    #   that differ in the COUPLING (510 of 541 levels across these branches were ambiguous before 18-Aug and
+    #   200 remain), but it does not print the seniority, which is what these two would need.  CsfNR carries
+    #   the quasispin QQ and the classification number w, so the information is available if it is ever wanted.
     grid = Radial.Grid(Radial.Grid(false), rnt=2.0e-6, h=5.0e-2, hp=1.0e-2, rbox=8.0)
     wa   = Atomic.Computation(Atomic.Computation(), name="jj-LS: Dy^3+ 4f^9 ground level", grid=grid,
                               nuclearModel=Nuclear.Model(66.0), configs=[Configuration("[Xe] 4f^9")],
-                              asfSettings=AsfSettings(AsfSettings(); jjLS=LSjjSettings(true, 0.05, 0.1, LevelSelection())) )
+                              asfSettings=AsfSettings(AsfSettings(); jjLS=LSjjSettings(true, 0.05, 0.001, LevelSelection())) )
     wb = perform(wa)
     #
 end
