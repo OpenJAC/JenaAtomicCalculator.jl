@@ -6,6 +6,52 @@
 
 # 2026
 
+* **Elastic scattering of electrons and positrons, on Dirac partial waves:** The `ParticleScattering` module has
+    been rebuilt around a relativistic partial-wave analysis that solves for BOTH spin-orbit partners, `kappa = -l-1`
+    and `kappa = +l`. It now yields the direct and spin-flip amplitudes, the differential cross section, the Sherman
+    function and the elastic, momentum-transfer and viscosity cross sections, for electrons and positrons and for
+    several interaction models -- static field, Slater exchange and the energy-dependent Furness-McCarthy exchange
+    used by ELSEPA. The amplitudes reproduce Eqs. (1)-(3) and (13) of the NIST Electron Elastic-Scattering
+    Cross-Section Database expression for expression; the transport cross section of helium agrees with the published
+    Dirac-Hartree-Fock values to 1.6 %, and the backward cross section joins the exact Rutherford limit to 0.3 % at
+    2 keV. See `? ParticleScattering` and `examples/example-Ob.jl` .. `Oe.jl`. *(August'26)*
+
+* **The radial box chooses itself:** `Basics.recommendedGrid` sizes the radial grid from the configurations under
+    study rather than from a fixed default, and `Bsplines.checkOrbitalBox` judges the result from the CONVERGED
+    orbitals instead of a hydrogenic stand-in. A box far too large starves the B-spline basis exactly as badly as one
+    too small, and had previously been mis-diagnosed as an angular-momentum defect. *(August'26)*
+
+* **The optimized-level (EOL) field is solved by orbital rotation:** The former solver optimized a degenerate
+    stationary point. The rotation now searches conjugate directions and, since `fcbb9eb`, L-BFGS; it reports whether
+    it CONVERGED or merely stopped moving, and two real defects were found on the way -- an orbital gradient that was
+    not the gradient of the energy being minimized, and a line search comparing two different functions. The
+    average-level field gained Anderson acceleration. *(August'26)*
+
+* **Resonant electron-impact excitation, end to end:** `Cascade.ElectronExcitationScheme` now accounts for the
+    resonant contribution -- dielectronic capture followed by radiative or Auger decay -- alongside the direct one,
+    with the capture step delegated to `Cascade.DielectronicCaptureScheme`. *(August'26)*
+
+* **Bound-free thresholds of neutral atoms:** The X-ray compilations behind `Empirical.scaledBindingEnergy` are
+    core-level tables and carry no valence shell, so the threshold of every atom whose outermost shell is an s shell
+    fell back on a Slater-screened estimate -- which errs in BOTH directions: Na 3s +42 %, Ca 4s +13 %, Sr 5s -22 %.
+    For the ground-state valence shell of a neutral atom the binding energy IS the first ionization potential, which
+    is now used and makes all three exact. *(August'26)*
+
+* **Two-electron Auger amplitudes:** Five defects were repaired in `AutoIonization.computeTeaAmplitude`, of which the
+    decisive one confined every possible intermediate space to the initial state's own orbitals -- so the feature
+    threw the moment anyone tried to converge it. The rate is now computable and is being validated against the
+    argon L23^2-M^3 measurement; it is not yet quantitative. *(August'26)*
+
+* **Hyperfine multiplets are reachable again:** `Hfs` computed the hyperfine structure correctly but an `error(...)`
+    stood in front of the working code, and four call sites still read field names of a type retired long ago.
+    *(August'26)*
+
+* **What the documentation publishes is now a rule, and it is checked:** The API pages selected content with
+    hand-maintained allowlists and the build downgraded every consistency check to a warning, so whole modules were
+    absent and nothing said so. Rule 16 of `CLAUDE.md` states what is published -- a physics module qualifies when an
+    example file that uses it carries at least two verified `Last successful` dates -- and `docs/checkCoverage.jl`
+    re-derives the sets rather than reading a list. Modules in the published API: 35 -> 51. *(August'26)*
+
 * **Crystal-field splittings and crystal-field-resolved emission:** Two new modules `CrystalField` and
     `CrystalFieldEmission` support the (point-charge) splitting of atomic levels in a crystalline environment
     as well as the transitions between the split sublevels; see `? CrystalField`. *(August'26)*

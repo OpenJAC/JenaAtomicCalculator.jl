@@ -17,6 +17,7 @@ makedocs(;
         "API Atomic processes"          => "api-processes.md",
         "API Atomic properties"         => "api-properties.md",
         "API Basics"                    => "api-basics.md",
+        "API Infrastructure"            => "api-infrastructure.md",
         "API Cascade computations"      => "api-cascades.md",
         "API Empirical computations"    => "api-empirical.md",
         "API Plasma computations"       => "api-plasma.md",

@@ -235,7 +235,7 @@ If we would like to compute a relativistic orbital by taking into account the ty
 define a nuclear model: 
 
 ```@example hydrogenic
-Nucleus = Model(Z, "Fermi")
+Nucleus = Nuclear.Model(Z, Nuclear.FermiNucleus())
 ```
 
 and set it as an argument value of the radialOrbital-function. By comparing the analytic orbitals which are based on a 
@@ -273,7 +273,7 @@ we first need to specify a radial grid as well as the nuclear model for the subs
 
 ```@example scfci
 grid     = Radial.Grid(true)
-nucModel = Nuclear.Model(6., "Fermi")
+nucModel = Nuclear.Model(6., Nuclear.FermiNucleus())
 ```
 
 For a *quick* computation of the ground level of C$^{2+}$ ions, we can simply use the **standard settings** as given 
