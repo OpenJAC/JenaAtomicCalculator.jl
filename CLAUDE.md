@@ -301,6 +301,46 @@ someone verifies a branch and writes the date, the file publishes itself with no
 module that loses its dated examples drops out. **Re-derive the sets rather than editing them by hand**; a
 stale allowlist is the defect this rule exists to remove.
 
+## Releasing a new version (Rule 17)
+
+Written 18-Aug-2026 while doing 0.5.0. It lives here rather than in `docs/NewDocumentationRelease.txt`, which is
+gitignored and therefore reaches nobody.
+
+1. **A release is a SNAPSHOT.** Run `git status` and see who else is mid-edit. Work left uncommitted is not in
+   the release, and that must be a decision rather than an accident — if a topic is in flight and cannot wait,
+   say so in `docs/src/news.md`. A caveat in the release notes is honest; silence is not.
+2. **`julia --project=. docs/checkCoverage.jl`** must print OK. It re-derives what Rule 16 says to publish and
+   what the API pages actually reference, reading no stored list. If a module qualifies but is undocumented, ADD
+   it; do not edit the rule to silence the message.
+3. **`julia --project=docs docs/make.jl`** must exit 0. Two failures are worth expecting: a `@example` block
+   breaking through ordinary API drift — the blocks are CHAINED, so one break cascades and Documenter stops at
+   the first — and `HTMLSizeThresholdError`, where a page passed 1 MB and should be split rather than have the
+   threshold raised. Deployment cannot happen locally; Documenter detects it is not in CI and skips.
+4. **`docs/src/news.md`**, newest first, selecting what a USER would notice over what the repository noticed —
+   0.5.0 drew eight entries from about 220 commits.
+5. **Bump `version` in `Project.toml`**, then run the suite from `test/` (Rule 11). No approved reference may be
+   re-approved to make it pass.
+6. **Commit as `Release X.Y.Z: <one line>`** and push. `documentation.yml` then rebuilds and deploys the site
+   automatically, so the docs go live at push, before the registry step.
+7. **Register — the maintainer's step.** Comment on the release commit:
+
+       @JuliaRegistrator register
+
+   **WITH RELEASE NOTES IN THE SAME COMMENT.** While the version is 0.x, every MINOR bump is BREAKING by Julia's
+   rules, and AutoMerge refuses a breaking release whose notes do not explain the break. This caught 0.4.0 and
+   then 0.5.0 again. Derive the list mechanically —
+
+       git log v<PREVIOUS>..HEAD --oneline | grep -iE "retire|un-export|remove|rename|no longer"
+
+   — then keep what a CALLER would notice and drop the internal churn.
+
+   **Re-posting the trigger on an already-registered commit does NOTHING**: on 18-Aug the bot answered the first
+   request in 14 seconds and ignored the second for 44 minutes, because version and commit were unchanged. To add
+   notes afterwards, register a NEW commit. Do not create the tag by hand — `TagBot.yml` does it once the General
+   registry merges, and doing both yields two tags for one release.
+8. **Afterwards**, read WHICH CI job failed before reacting: JAC's CI has historically failed on the coverage
+   step rather than on the tests.
+
 ## Commands
 
 A **command** is a named sequence of steps I execute and then summarize. The leading `/` is optional —
