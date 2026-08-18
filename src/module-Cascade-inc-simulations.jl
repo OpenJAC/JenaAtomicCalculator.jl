@@ -1492,7 +1492,8 @@ end
 `Cascade.simulateExpansionOpacities(photoexcitationData::Array{Cascade.Data,1}, name::String, 
                                     property::Cascade.ExpansionOpacities; printout::Bool=true)` 
     ... runs through all excitation lines, sums up their contributions and form a (list of) expansion opacities for the given 
-        parameters. Nothing is returned.
+        parameters; `printout` decides whether the result is also displayed, but never whether it is returned. An 
+        `Array{Basics.EmProperty,1}` in [cm^2/g], one entry per `property.dependencyValues`, is returned.
 """
 function simulateExpansionOpacities(photoexcitationData::Array{Cascade.Data,1}, name::String, 
                                     property::Cascade.ExpansionOpacities; printout::Bool=true)
@@ -1600,15 +1601,16 @@ function simulateExpansionOpacities(photoexcitationData::Array{Cascade.Data,1}, 
         end
     end
     #
+    ## `printout` controls PRINTING only. It used to control the return value as well, so the printing path
+    ## handed back nothing and perform(::Simulation) filled results["data:"] with nothing -- the opacities
+    ## could be read on screen but not retrieved, unlike every other simulation property.
     if  printout
-        Cascade.displayExpansionOpacities(stdout, name, property, (minEnergy,maxEnergy), kappas)     
-        if  printSummary   
+        Cascade.displayExpansionOpacities(stdout, name, property, (minEnergy,maxEnergy), kappas)
+        if  printSummary
             Cascade.displayExpansionOpacities(iostream, name, property, (minEnergy,maxEnergy), kappas)      end
-            
-            return( nothing )
-    else  return( kappas )
     end
 
+    return( kappas )
 end
 
 
@@ -2003,7 +2005,8 @@ end
     ... runs through all excitation lines, assembles the spectral opacity kappa(u_i) on the eight Gauss-Laguerre
         nodes of the temperature-normalised variable u = omega/kT, and reduces it to the MEAN named by
         simulation.property.opacityMean -- RosselandMean() or PlanckMean(). One value in [cm^2/g] is printed
-        for each (rho, T) pair, in both gauges. Nothing is returned.
+        for each (rho, T) pair, in both gauges. An `Array{Basics.EmProperty,1}` carrying those means, in the order
+        printed -- mass densities outermost, temperatures innermost -- is returned.
 """
 function simulateMeanOpacities(photoexcitationData::Array{Cascade.Data,1}, simulation::Cascade.Simulation)
     ulist, weights = Cascade.rosselandWeights(8)
@@ -2014,6 +2017,7 @@ function simulateMeanOpacities(photoexcitationData::Array{Cascade.Data,1}, simul
               "$(length(property.ionNumberDensities)) and $(length(property.massDensities)).")
     end
 
+    means = Basics.EmProperty[]
     for  (id, rho)  in  enumerate(property.massDensities)
         nion = property.ionNumberDensities[id]
         for  T in property.temperatures
@@ -2032,10 +2036,11 @@ function simulateMeanOpacities(photoexcitationData::Array{Cascade.Data,1}, simul
                     " [Coulomb]  " * @sprintf("%.5e",mean.Babushkin) * " [Babushkin]"
             println(sa)
             if  note != ""      println("    ++ " * note)      end
+            push!(means, mean)
         end
     end
 
-    return( nothing )
+    return( means )
 end
 
 

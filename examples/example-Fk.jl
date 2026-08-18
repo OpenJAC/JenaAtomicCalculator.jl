@@ -387,4 +387,166 @@ elseif  false
     end
     setDefaults("print summary: close", "")
     #
+elseif  false
+    # Last visit:      18-Aug-2026
+    # Last successful: 18-Aug-2026 ... 4 min.  The hand arithmetic and JAC agree to every digit printed:
+    #                      kappa BY HAND   3.29632e+00 cm^2/g        ratio hand/JAC = 1.00000000
+    #                      kappa FROM JAC  3.29632e+00 cm^2/g
+    #                  so the implementation is the formula in the header of this file, with no hidden factor.
+    #                  The intermediate quantities, for a bin of 1 nm centred on the line:
+    #                      lambda 12423.02 A,  f = 1.06206,  lower level 5.4643 eV above the ground level
+    #                      Z = 2.11142 over 10 levels,  n_l = 2.94238e+03 /cm^3  out of n_ion = 1e9 /cm^3
+    #                      tau = 8.90209e+02,  1 - exp(-tau) = 1.00000,  lambda/Delta-lambda = 1242.30
+    #
+    #                  TWO THINGS WORTH MORE THAN THE CHECK ITSELF.
+    #                  + THE STRONGEST LINE IS NOT THE RESONANCE DOUBLET.  argmax over f picks 12423 A with
+    #                    f = 1.062, not the 4451/4585 A pair with f = 0.827/0.396 that the header calls the
+    #                    dominant one.  Both statements are true, and the reason is the next point.
+    #                  + f AND n_l DROP OUT OF THE ANSWER.  This line's lower level lies 5.46 eV up and holds
+    #                    2942 of every 1e9 ions, i.e. 3e-6 of the population -- and it is STILL saturated,
+    #                    tau = 890.  Where tau >> 1, (1 - exp(-tau)) = 1 exactly and the contribution reduces
+    #                    to  kappa_l = lambda_l / (Delta-lambda c t rho):  the oscillator strength and the
+    #                    population have left the expression, and only the WAVELENGTH and the BIN decide the
+    #                    opacity.  That is the most counter-intuitive feature of an expansion opacity, and it
+    #                    is the same fact branch d meets from the other side when a temperature scan turns out
+    #                    invisible at kilonova density -- a saturated line is population-blind.  It is also why
+    #                    the weak long-wavelength lines of branch b are not negligible against the resonance
+    #                    doublet.  Only far below astrophysical densities, in the thin limit of branch c, do f
+    #                    and n_l matter again.
+    #
+    # f) THE FORMULA ON ONE LINE -- the arithmetic that branches b-e hide inside a sum.
+    #    Branch c checks the two LIMITS of (1 - exp(-tau)) and is exact, but nothing so far checks the
+    #    ABSOLUTE value of kappa against the two formulas quoted in the header of this file. This branch does
+    #    that in the most elementary way available: it takes the single strongest line, works tau and kappa
+    #    out step by step in the open, and then asks the simulation for a bin so narrow that ONLY that line
+    #    falls inside it. The two numbers must agree to round-off, and if they ever stop agreeing, the
+    #    implementation has drifted from the documented formula.
+    #
+    #    WORTH KNOWING BEFORE READING THE OUTPUT. The lower-level population is not simply the ion density:
+    #    it is n_ion * g_l * exp(-DeltaE/kT) / Z, with Z summed over the levels that OCCUR IN THIS LINE LIST,
+    #    so it depends on which transitions were computed. That is a real limitation of any opacity built
+    #    from a truncated line list, and writing the partition function out here is the point of the branch.
+    setDefaults("print summary: open", "zzz-Fk-f-one-line.sum")
+
+    wb    = srCascade()
+    lines = wb["photoexcitation lines:"]
+    ip    = argmax([ line.oscStrength.Coulomb  for line in lines ])
+    line  = lines[ip]
+    #
+    ## The LTE population of the LOWER level, normalised over the levels that occur in this line list.
+    kT    = convertUnits("temperature: from Kelvin to (Hartree) units", 5000.)
+    eLev  = Float64[];   gLev = Float64[]
+    for  ln  in lines,  lev  in [ln.initialLevel, ln.finalLevel]
+        if  !any(abs.(eLev .- lev.energy) .< 1.0e-12)
+            push!(eLev, lev.energy);    push!(gLev, Basics.twice(lev.J) + 1.0)
+        end
+    end
+    eGround  = minimum(eLev)
+    partFct  = sum( gLev .* exp.(-(eLev .- eGround) ./ kT) )
+    #
+    nIon     = 1.0e9                                              ## [1/cm^3], as in branch b
+    rho      = 1.455e-13                                          ## [g/cm^3], the consistent pure-Sr value
+    tExp     = 86400.                                             ## [s], one day
+    a0_in_cm = convertUnits("length: from atomic to fm", 1.0) * 1.0e-13
+    nl_au    = nIon * a0_in_cm^3 * (Basics.twice(line.initialLevel.J) + 1.0) *
+               exp(-(line.initialLevel.energy - eGround)/kT) / partFct
+    #
+    alpha    = Defaults.getDefaults("alpha")
+    lambda_A = convertUnits("energy: from atomic to Angstrom", line.omega)
+    lambda_au= lambda_A * convertUnits("length: from fm to atomic", 1.0e5)
+    tExp_au  = tExp / convertUnits("time: from atomic to sec", 1.0)
+    c_in_cgs = Defaults.getDefaults("speed of light: c") * convertUnits("length: from atomic to fm", 1.0) *
+               1.0e-13 / convertUnits("time: from atomic to sec", 1.0)
+    #
+    ## tau_l = pi alpha n_l lambda_l t_exp f_l,  everything in atomic units
+    tau      = pi * alpha * nl_au * lambda_au * tExp_au * line.oscStrength.Coulomb
+    binning  = 1.0                                                ## [nm]; 10 A isolates a single line here
+    kappaHand= 1.0/(rho * c_in_cgs * tExp) * (lambda_A/10.0)/binning * (1.0 - exp(-tau))
+    #
+    println("\n  The strongest line of the list, worked through by hand")
+    println("  ------------------------------------------------------------------------------------")
+    println("    lambda                     ", @sprintf("%12.2f A", lambda_A))
+    println("    oscillator strength f      ", @sprintf("%12.5f", line.oscStrength.Coulomb))
+    println("    lower level                ", @sprintf("%12s", string(line.initialLevel.J)),
+            @sprintf("   at %8.4f eV above the ground level",
+                     convertUnits("energy: from atomic to eV", line.initialLevel.energy - eGround)))
+    println("    partition function Z       ", @sprintf("%12.5f  over %d levels", partFct, length(eLev)))
+    println("    n_l                        ", @sprintf("%12.5e /cm^3", nl_au / a0_in_cm^3))
+    println("    tau = pi alpha n l t f     ", @sprintf("%12.5e", tau))
+    println("    1 - exp(-tau)              ", @sprintf("%12.5e", 1.0 - exp(-tau)))
+    println("    lambda / Delta-lambda      ", @sprintf("%12.5f", (lambda_A/10.0)/binning))
+    println("    1/(rho c t)                ", @sprintf("%12.5e cm^2/g", 1.0/(rho*c_in_cgs*tExp)))
+    println("    kappa BY HAND              ", @sprintf("%12.5e cm^2/g", kappaHand))
+    #
+    ## Now the same number from JAC, with the bin centred on this very line.  perform(::Simulation) PRINTS the
+    ## opacities and returns nothing for this property, so the simulation function is called directly with
+    ## printout=false, which hands back the kappa vector itself.
+    prop = Cascade.ExpansionOpacities(Basics.BoltzmannLevelPopulation(),
+                                      Cascade.WavelengthOpacityDependence(binning),
+                                      nIon, rho, 5000., tExp, 0., [line.omega])
+    data = Cascade.extractPhotoExcitationData(Dict{String,Any}[ Dict{String,Any}("results" => wb) ])
+    kappaJac = Cascade.simulateExpansionOpacities(data, "single-line bin", prop, printout=false)[1].Coulomb
+    println("    kappa FROM JAC             ", @sprintf("%12.5e cm^2/g", kappaJac))
+    println("    ratio hand / JAC           ", @sprintf("%12.8f", kappaHand/kappaJac))
+    println("  ------------------------------------------------------------------------------------")
+    setDefaults("print summary: close", "")
+    #
+elseif  false
+    # Last visit:      18-Aug-2026
+    # Last successful: 18-Aug-2026 ... 4 min.  One bin centred at 4500 A, on the resonance doublet:
+    #                      Delta-lambda [nm]     kappa [cm^2/g]      kappa * Delta-lambda
+    #                             10.0            2.37271e-01           2.37271e+00
+    #                             30.0            1.60587e-01           4.81761e+00
+    #                            100.0            4.81761e-02           4.81761e+00
+    #                            300.0            2.58550e-02           7.75650e+00
+    #                           1000.0            1.09545e-02           1.09545e+01
+    #                  BOTH PREDICTED BEHAVIOURS APPEAR, and the last column separates them.  From 30 to
+    #                  100 nm it is CONSTANT to six digits, 4.81761 twice: no line entered the bin as it
+    #                  widened threefold, so kappa fell by exactly the factor 3.33 that 1/Delta-lambda
+    #                  demands.  At the other three steps it rises -- 2.37 -> 4.82, then 4.82 -> 7.76 ->
+    #                  10.95 -- because each wider bin caught a further line.
+    #                  THE NUMBER TO TAKE AWAY IS 21.7:  that is the factor by which kappa at one and the
+    #                  same wavelength moves between the narrowest and widest binning a modeller might
+    #                  reasonably choose.  An expansion opacity from a truncated line list is NOT converged
+    #                  in the bin width, and a kappa quoted without its binning is not a number.  Branch b's
+    #                  100 nm is a choice, not a property of Sr^+.  What removes the ambiguity in published
+    #                  work is line-list density, not a better binning rule: with 1e5-1e7 lines the two
+    #                  effects seen above cancel, since a wider bin catches proportionally more lines.
+    #
+    # g) THE BIN WIDTH IS PHYSICS, NOT COSMETICS -- the one free parameter of an expansion opacity.
+    #    Every kappa printed by branches b and e depends on a binning that branch b simply sets to 100 nm
+    #    without saying why, and a reader is entitled to ask what happens if it is chosen differently. The
+    #    answer follows from the formula and is worth seeing measured:
+    #
+    #        kappa(bin) = 1/(c t rho) * SUM over the lines IN THE BIN of (lambda_l/Delta-lambda)(1 - e^-tau)
+    #
+    #    A SATURATED line contributes lambda_l/Delta-lambda exactly, so a bin holding a fixed set of saturated
+    #    lines gives kappa proportional to 1/Delta-lambda -- halve the bin and kappa doubles. What stops that
+    #    divergence in a real calculation is that a WIDER bin also catches MORE lines, and for a dense list the
+    #    two effects cancel and kappa converges. With 17 lines from one ion there is nothing to catch, so the
+    #    1/Delta-lambda behaviour should be visible almost undiluted, with steps where a bin edge crosses a
+    #    line. THAT IS THE LESSON: the expansion opacity of a truncated line list is not converged in the bin
+    #    width, and a number quoted without its binning is not a number. Published kilonova opacities use
+    #    1e5-1e7 lines precisely so that this cancellation works.
+    setDefaults("print summary: open", "zzz-Fk-g-binwidth.sum")
+
+    wb       = srCascade()
+    data     = Cascade.extractPhotoExcitationData(Dict{String,Any}[ Dict{String,Any}("results" => wb) ])
+    nIon     = 1.0e9;   rho = 1.455e-13;   tExp = 86400.
+    lambdaC  = 4500.                                              ## [A] bin centre, on the resonance doublet
+    println("\n  kappa_exp in one bin centred at $lambdaC A, against the bin width")
+    println("  ------------------------------------------------------------------------------------")
+    println("      Delta-lambda [nm]      kappa [cm^2/g]        kappa * Delta-lambda")
+    for  binning  in [10., 30., 100., 300., 1000.]
+        prop = Cascade.ExpansionOpacities(Basics.BoltzmannLevelPopulation(),
+                                          Cascade.WavelengthOpacityDependence(binning),
+                                          nIon, rho, 5000., tExp, 0., [omegaOfLambda(lambdaC)])
+        kap  = Cascade.simulateExpansionOpacities(data, "binning $binning nm", prop, printout=false)[1].Coulomb
+        println("   ", @sprintf("%12.1f        %14.5e        %14.5e", binning, kap, kap*binning))
+    end
+    println("  ------------------------------------------------------------------------------------")
+    println("  A constant LAST column means kappa is proportional to 1/Delta-lambda, i.e. no new line entered")
+    println("  the bin as it widened; a falling one means the bin caught something.")
+    setDefaults("print summary: close", "")
+    #
 end
