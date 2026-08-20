@@ -220,8 +220,14 @@ end
 `struct  Hfs.Outcome`  
     ... defines a type to keep the outcome of a HFS computation, such as the HFS A and B coefficients as well other results.
 
+        NO g_J FACTOR IS CARRIED HERE, and that is deliberate. A `gJ` field existed until 18-Aug-2026 but nothing ever
+        assigned it: `computeAmplitudesProperties` constructed the outcome with the literal `1.`, so every HFS table JAC
+        printed showed g_J = 1.00000000 for every level, as though computed. Hfs CANNOT supply it -- the Lande factor comes
+        from the Zeeman N^(1) operator, not from the hyperfine T^(1), whose radial weight is different -- and it cannot
+        borrow it either, since `LandeZeeman` already calls `Hfs.amplitude` and the dependency would be circular. Use
+        `LandeZeeman` for g_J; it is validated to six decimals against Andersson & Jonsson, cf. `example-Cd.jl`.
+
     + Jlevel                    ::Level            ... Atomic level to which the outcome refers to.
-    + gJ                        ::Float64          ... Lande's g_J factor of the level.
     + AIoverMu                  ::Float64          ... HFS A * I / mu value.
     + BoverQ                    ::Float64          ... HFS B / Q value
     + CoverOmega                ::Float64          ... HFS C / Omega value
@@ -233,7 +239,6 @@ end
 """
 struct Outcome 
     Jlevel                      ::Level 
-    gJ                          ::Float64 
     AIoverMu                    ::Float64
     BoverQ                      ::Float64
     CoverOmega                  ::Float64
@@ -249,14 +254,13 @@ end
 `Hfs.Outcome()`  ... constructor for an `empty` instance of Hfs.Outcome for the computation of HFS properties.
 """
 function Outcome()
-    Outcome(Level(), 0., 0., 0., 0., 0., 0., 0., AngularJ64(0), HfMultiplet() )
+    Outcome(Level(), 0., 0., 0., 0., 0., 0., AngularJ64(0), HfMultiplet() )
 end
 
 
 # `Base.show(io::IO, outcome::Hfs.Outcome)`  ... prepares a proper printout of the variable outcome::Hfs.Outcome.
 function Base.show(io::IO, outcome::Hfs.Outcome) 
     println(io, "Jlevel:                    $(outcome.Jlevel)  ")
-    println(io, "gJ:                        $(outcome.gJ)  ")
     println(io, "AIoverMu:                  $(outcome.AIoverMu)  ")
     println(io, "BoverQ:                    $(outcome.BoverQ)  ")
     println(io, "CoverOmega:                $(outcome.CoverOmega)  ")
@@ -461,7 +465,7 @@ function  computeAmplitudesProperties(outcome::Hfs.Outcome, nm::Nuclear.Model, g
         # a name nothing reads, so the empty HfMultiplet above would have reached the Outcome regardless.
         hfMultiplet = Hfs.computeHyperfineMultiplet(outcome.Jlevel, nm, grid)
     end
-    newOutcome = Hfs.Outcome( outcome.Jlevel, 1., AIoverMu, BoverQ, CoverOmega, amplitudeM1, amplitudeE2, amplitudeM3, 
+    newOutcome = Hfs.Outcome( outcome.Jlevel, AIoverMu, BoverQ, CoverOmega, amplitudeM1, amplitudeE2, amplitudeM3,
                               nm.spinI, hfMultiplet)
 
     return( newOutcome )
@@ -1041,7 +1045,7 @@ function  determineOutcomes(multiplet::Multiplet, settings::Hfs.Settings)
     outcomes = Hfs.Outcome[]
     for  level  in  multiplet.levels
         if  Basics.selectLevel(level, settings.levelSelection)
-            push!( outcomes, Hfs.Outcome(level, 0., 0., 0., 0., 0., 0., 0., AngularJ64(0), Hfs.HfMultiplet() ) )
+            push!( outcomes, Hfs.Outcome(level, 0., 0., 0., 0., 0., 0., AngularJ64(0), Hfs.HfMultiplet() ) )
         end
     end
     return( outcomes )
@@ -1141,7 +1145,7 @@ end
 function  displayResults(stream::IO, outcomes::Array{Hfs.Outcome,1}, nm::Nuclear.Model, settings::Hfs.Settings)
     nx = 128
     println(stream, " ")
-    println(stream, "  HFS amplitudes and g_J factors:")
+    println(stream, "  HFS amplitudes:")
     println(stream, " ")
     println(stream, "  ", TableStrings.hLine(nx))
     sa = "  ";   sb = "  "
@@ -1151,7 +1155,6 @@ function  displayResults(stream::IO, outcomes::Array{Hfs.Outcome,1}, nm::Nuclear
     sb = sb * TableStrings.center(14, TableStrings.inUnits("energy"); na=10)
     sa = sa * TableStrings.center(54, "M1  -- Amplitudes --   E2  -- Amplitudes --   M3"    ; na=8);        
     sb = sb * TableStrings.hBlank(66)
-    sa = sa * TableStrings.center(12, "g_J"; na=2);              
     sb = sb * TableStrings.center(12, "   "; na=2); 
     println(stream, sa);    println(stream, sb);    println(stream, "  ", TableStrings.hLine(nx)) 
 
@@ -1163,7 +1166,6 @@ function  displayResults(stream::IO, outcomes::Array{Hfs.Outcome,1}, nm::Nuclear
         sa = sa * @sprintf("%.8e", Defaults.convertUnits("energy: from atomic", energy))                        * "      "
         sa = sa * @sprintf("% .8e %s % .8e %s % .8e", outcome.amplitudeM1.re, "      ", outcome.amplitudeE2.re, 
                                                                               "      ", outcome.amplitudeM3.re) * "      "
-        sa = sa * @sprintf("%.8e", outcome.gJ)                                                                  * "    " 
         println(stream, sa )
     end
     println(stream, "  ", TableStrings.hLine(nx))
