@@ -85,6 +85,7 @@ elseif  char == 'D'
     println("Dr) Apply & test the CoulombIonization module with ASF from an internally generated initial- and final-state multiplet.")
     println("Ds) Apply & test the CoulombExcitation module with ASF from an internally generated initial- and final-state multiplet.")
     println("Dt) Apply & test the CrystalFieldEmission module (crystal-field-resolved transitions) with initial- and final-state multiplets declared directly via Atomic.Computation.")
+    println("Dpnew) Apply & test the GeneralizedOscillatorStrength module: generalized oscillator strengths f_n(K) of the Bethe theory, for bound-bound transitions.")
     #
 elseif  char == 'E'
     println("E)  Examples, tests & development of composed atomic processes")
