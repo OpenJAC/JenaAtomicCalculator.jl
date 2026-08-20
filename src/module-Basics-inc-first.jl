@@ -730,18 +730,26 @@ export  Configuration
 
 
 """
-`Basics.Configuration(NoElectrons::Int64)`  
-    ... constructor for a given number of electrons which are just "filled" according to the standard order of
-        the shells and subshells. A conf::Configuration is returned.
+`Basics.Configuration(NoElectrons::Int64)`
+    ... constructor for a given number of electrons which are filled into the shells in the MADELUNG order, i.e. by
+        increasing n+l and, at equal n+l, by increasing n. A conf::Configuration is returned.
+
+        This is the (n+l, n) rule and not the strict (n, l) order that was used until 18-Aug-2026, which placed the
+        electrons of calcium into 3d instead of 4s and gave `1s^2 2s^2 2p^6 3s^2 3p^6 3d^2`; strontium came out as
+        4d^2 and xenon as 4f^8. Madelung reproduces the ground configuration of most elements, but NOT of the roughly
+        twenty exceptions -- Cr, Cu, Nb, Mo, Ru, Rh, Pd, Ag, La, Ce, Gd, Pt, Au, Ac, Th, Pa, U, Np, Cm -- where a
+        d or f shell is filled at the expense of the outer s. A caller that needs the true ground configuration of a
+        specific element must therefore not rely on this constructor alone.
 """
 function Configuration(NoElectrons::Int64)
     shellDict = Dict{Shell,Int64}();  N = NoElectrons
     shellList = Basics.generateShellList(1, 8, 7)
+    sort!(shellList, by = sh -> (sh.n + sh.l, sh.n))
     for  sh in shellList
         maxocc = 2 * (2*sh.l + 1);    occ    = min(maxocc, N);    shellDict[sh] = occ
         N      = N - occ;             if  N == 0   break   end
     end
-    
+
     return ( Configuration(shellDict, NoElectrons) )
 end
 
