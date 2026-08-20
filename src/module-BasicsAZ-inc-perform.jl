@@ -88,7 +88,8 @@ function Basics.perform(computation::Atomic.Computation; output::Bool=false)
         #
         if typeof(computation.processSettings) in [PhotoExcitationFluores.Settings, PhotoExcitationAutoion.Settings, PhotoIonizationFluores.Settings,
                                                    PhotoIonizationAutoion.Settings, ImpactExcitationAutoion.Settings,
-                                                   DielectronicRecombination.Settings, ResonantInelastic.Settings]
+                                                   DielectronicRecombination.Settings, ResonantInelastic.Settings,
+                                                   PhotoRecombinationInterference.Settings]
             intermediateMultiplet = SelfConsistent.performSCF(computation.intermediateConfigs, nModel, computation.grid, computation.intermediateAsfSettings)
             if  output   results["intermediateMultiplet"] = intermediateMultiplet    end 
         end
@@ -208,6 +209,10 @@ function Basics.perform(computation::Atomic.Computation; output::Bool=false)
         elseif  typeof(computation.processSettings) == CrystalFieldEmission.Settings
             outcome = CrystalFieldEmission.computeLines(finalMultiplet, initialMultiplet, computation.grid, computation.processSettings)
             if output    results = Base.merge( results, Dict("crystal-field-resolved emission lines:" => outcome) )    end
+        elseif  typeof(computation.processSettings) == PhotoRecombinationInterference.Settings
+            outcome = PhotoRecombinationInterference.computePathways(finalMultiplet, intermediateMultiplet, initialMultiplet, nModel,
+                                                                     computation.grid, computation.processSettings)
+            if output    results = Base.merge( results, Dict("photorecombination-interference pathways:" => outcome) )    end
         else
             error("stop b")
         end
