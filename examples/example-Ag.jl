@@ -7,7 +7,7 @@ if  false
     #   no recoupling coefficient needed at all.
     wa = Atomic.Computation(Atomic.Computation(), name="jj-LS: one open shell", grid=Radial.Grid(true), nuclearModel=Nuclear.Model(10.),
                             configs=[Configuration("[Ne] 3p")],
-                            asfSettings=AsfSettings(AsfSettings(); jjLS=LSjjSettings(true, 0.05, 0.1, LevelSelection())) )
+                            asfSettings=AsfSettings(AsfSettings(); jjLS=LSjjSettings(true, 0.05, 0.001, LevelSelection())) )
     wb = perform(wa)
     #
 elseif  false
@@ -19,7 +19,7 @@ elseif  false
     #   regression reference the 3-, 4- and 5-open-shell branches below build confidence from.
     wa = Atomic.Computation(Atomic.Computation(), name="jj-LS: two open shells", grid=Radial.Grid(true), nuclearModel=Nuclear.Model(10.),
                             configs=[Configuration("[Ne] 3s 3p")],
-                            asfSettings=AsfSettings(AsfSettings(); jjLS=LSjjSettings(true, 0.05, 0.1, LevelSelection())) )
+                            asfSettings=AsfSettings(AsfSettings(); jjLS=LSjjSettings(true, 0.05, 0.001, LevelSelection())) )
     wb = perform(wa)
     #
 elseif  false
@@ -36,7 +36,7 @@ elseif  false
     #   of [Ne] 3s 3p 3d.
     wa = Atomic.Computation(Atomic.Computation(), name="jj-LS: three open shells", grid=Radial.Grid(true), nuclearModel=Nuclear.Model(26.),
                             configs=[Configuration("[Ne] 3s 3p 3d")],
-                            asfSettings=AsfSettings(AsfSettings(); jjLS=LSjjSettings(true, 0.05, 0.1, LevelSelection())) )
+                            asfSettings=AsfSettings(AsfSettings(); jjLS=LSjjSettings(true, 0.05, 0.001, LevelSelection())) )
     wb = perform(wa)
     #
 elseif  false
@@ -52,7 +52,7 @@ elseif  false
     #   exactly weight=1.0 for all 46 physical levels of [Ne] 3s 3p 3d 4s.
     wa = Atomic.Computation(Atomic.Computation(), name="jj-LS: four open shells", grid=Radial.Grid(true), nuclearModel=Nuclear.Model(26.),
                             configs=[Configuration("[Ne] 3s 3p 3d 4s")],
-                            asfSettings=AsfSettings(AsfSettings(); jjLS=LSjjSettings(true, 0.05, 0.1, LevelSelection())) )
+                            asfSettings=AsfSettings(AsfSettings(); jjLS=LSjjSettings(true, 0.05, 0.001, LevelSelection())) )
     wb = perform(wa)
     #
 elseif  false
@@ -63,7 +63,7 @@ elseif  false
     #   for all 249 physical levels of [Ne] 3s 3p 3d 4s 4p.
     wa = Atomic.Computation(Atomic.Computation(), name="jj-LS: five open shells", grid=Radial.Grid(true), nuclearModel=Nuclear.Model(26.),
                             configs=[Configuration("[Ne] 3s 3p 3d 4s 4p")],
-                            asfSettings=AsfSettings(AsfSettings(); jjLS=LSjjSettings(true, 0.05, 0.1, LevelSelection())) )
+                            asfSettings=AsfSettings(AsfSettings(); jjLS=LSjjSettings(true, 0.05, 0.001, LevelSelection())) )
     wb = perform(wa)
     #
 elseif  false
@@ -90,7 +90,7 @@ elseif  false
     grid = Radial.Grid(Radial.Grid(false), rnt=2.0e-6, h=5.0e-2, hp=1.0e-2, rbox=12.0)
     wa   = Atomic.Computation(Atomic.Computation(), name="jj-LS: Co^2+ 3d^7 ground level", grid=grid,
                               nuclearModel=Nuclear.Model(27.0), configs=[Configuration("[Ar] 3d^7")],
-                              asfSettings=AsfSettings(AsfSettings(); jjLS=LSjjSettings(true, 0.05, 0.1, LevelSelection())) )
+                              asfSettings=AsfSettings(AsfSettings(); jjLS=LSjjSettings(true, 0.05, 0.001, LevelSelection())) )
     wb = perform(wa)
     #
 elseif  true
@@ -119,7 +119,7 @@ elseif  true
     grid = Radial.Grid(Radial.Grid(false), rnt=2.0e-6, h=5.0e-2, hp=1.0e-2, rbox=8.0)
     wa   = Atomic.Computation(Atomic.Computation(), name="jj-LS: Dy^3+ 4f^9 ground level", grid=grid,
                               nuclearModel=Nuclear.Model(66.0), configs=[Configuration("[Xe] 4f^9")],
-                              asfSettings=AsfSettings(AsfSettings(); jjLS=LSjjSettings(true, 0.05, 0.1, LevelSelection())) )
+                              asfSettings=AsfSettings(AsfSettings(); jjLS=LSjjSettings(true, 0.05, 0.001, LevelSelection())) )
     wb = perform(wa)
     #
 end
