@@ -6,7 +6,10 @@ setDefaults("unit: energy", "eV")
 
 if  true
     # Last visit:      21-Aug-2026
-    # Last successful:  unknown ... first run of a new implementation; see the report below.
+    # Last successful:  unknown ... the omega^4 law IS reproduced in both gauges and the basis is exonerated, but the
+    #                              ABSOLUTE cross sections rest on an underived prefactor and nothing here constrains a
+    #                              PHASE.  A date on a cross-section branch would read as "these cross sections are
+    #                              right", which is more than has been shown.  See the report below.
     #
     # Branch a (the omega^4 law): elastic Rayleigh scattering on the ground level of BERYLLIUM-LIKE NEON,
     #   1s^2 2s^2 ^1S_0, at three photon energies well below the 2s -> 2p excitation.
@@ -112,8 +115,48 @@ if  true
     #   an afternoon to an anapole that passed selection rules, reality and plausible magnitudes and was caught
     #   only by exchanging two levels and finding -3 where -1 was required.
     #
-    #   The branch is NOT dated.  One gauge reproducing a known law is a genuine result and is recorded as such,
-    #   but an implementation in which the two gauges obey different power laws is not verified.
+    #   FIXED 21-Aug-2026, and the fix is confirmed four ways.  PhotonScattering.offShellFactor rescales each
+    #   BABUSHKIN vertex by dE/omega, returning it to the point where the length-velocity identity holds, while
+    #   the energy denominator keeps the true photon energy.  Re-running the same scan:
+    #
+    #       omega [eV]     Coulomb          Babushkin        exp(Cou)   exp(Bab)   Bab/Cou
+    #          1.0         2.592621e-25     8.720013e-25         -          -       3.3634
+    #          2.0         4.188359e-24     1.408711e-23       4.014      4.014     3.3634
+    #          4.0         6.967999e-23     2.343618e-22       4.056      4.056     3.3634
+    #
+    #     (1) BOTH gauges now obey the omega^4 law, with identical exponents.
+    #     (2) Coulomb is BIT-IDENTICAL to the pre-fix run -- checked, not assumed -- so the correction touched
+    #         only Babushkin, which is what offShellFactor was written to do.
+    #     (3) The gauge ratio is CONSTANT to five digits, varying by a factor 1.0000 across the scan where it
+    #         previously varied by 256.  The power-law difference is gone entirely.
+    #     (4) The check that was NOT designed in, and the most convincing: the residual 3.3634 sits BETWEEN the
+    #         two independently measured on-shell ratios, 1/0.191 = 5.228 for 1^- #1 and 1/0.738 = 1.354 for
+    #         1^- #2 -- exactly where a weighted combination of the two levels' contributions belongs.  Those
+    #         numbers came from a separate calculation made for another purpose, so the agreement is not
+    #         something the fix could have manufactured.
+    #
+    #   The gauge comparison has thereby become what a gauge check is meant to be: a measure of WAVE-FUNCTION
+    #   QUALITY.  The residual 3.36 is correlation-limited -- single-configuration Dirac-Fock, a 2x2 CI, and one
+    #   of the two intermediate levels an intercombination line -- and is NOT a defect.
+    #
+    #   THE BASIS WAS EXONERATED ALONG THE WAY, by a three-point comparison worth keeping:
+    #
+    #       separate DFS         ratios 0.191 / 0.738      good states, DIFFERENT one-body Hamiltonians
+    #       common mean field    ratios 0.168 / 0.726      good states, SHARED Hamiltonian
+    #       common nuclear field ratios 0.0155 / 0.0293    BAD states,  shared Hamiltonian
+    #
+    #   Sharing the Hamiltonian changes essentially nothing; destroying state quality changes everything.  So the
+    #   on-shell disagreement is correlation, not the non-orthogonality it was first blamed on, and no
+    #   biorthogonal transformation is called for.  Both runs used scField = DFSField() -- checked, since a
+    #   different default would have varied two things at once.  Note that Basics.NuclearField() is a DIAGNOSTIC
+    #   ONLY and a CONFOUNDED one: it shares the Hamiltonian but also removes all screening, so it varies state
+    #   quality too, which is why it made the ratio worse rather than better.
+    #
+    #   STILL NOT DATED, and the reason is now narrow.  The SHAPE is verified in both gauges; the ABSOLUTE
+    #   MAGNITUDE is not, rayleighCrossSection's prefactor never having been derived.  And no test used here
+    #   constrains a PHASE: a sign error in one time ordering would survive every check above.  The Raman
+    #   Hermiticity check -- exchange initial and final levels, swap omega_in and omega_out, require the amplitude
+    #   to relate to its own conjugate with the two orderings swapping -- is the missing instrument.
     #
     grid       = Radial.Grid(Radial.Grid(true), rnt = 4.0e-6, h = 5.0e-2, rbox = 10.0)
     nm         = Nuclear.Model(10.)

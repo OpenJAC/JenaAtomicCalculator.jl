@@ -266,22 +266,65 @@ function rayleighAmplitude(channel::PhotonScattering.Channel, finalLevel::Level,
             denom = initialLevel.energy + inOmega - nuLevel.energy
             if  abs(denom) < settings.selfTolerance    continue    end
             wa = PhotoEmission.amplitude(Basics.Emission(),   channel.outMultipole, channel.gauge, outOmega,
-                                         finalLevel, nuLevel, grid; display=false, printout=printout)
+                                         finalLevel, nuLevel, grid; display=false, printout=printout) *
+                 PhotonScattering.offShellFactor(channel.gauge, outOmega, nuLevel, finalLevel)
             wb = PhotoEmission.amplitude(Basics.Absorption(), channel.inMultipole,  channel.gauge, inOmega,
-                                         nuLevel, initialLevel, grid; display=false, printout=printout)
+                                         nuLevel, initialLevel, grid; display=false, printout=printout) *
+                 PhotonScattering.offShellFactor(channel.gauge, inOmega, nuLevel, initialLevel)
         else
             # |i> emits omega_out to reach |nu>, which then absorbs omega_in to reach |f>
             denom = initialLevel.energy - outOmega - nuLevel.energy
             if  abs(denom) < settings.selfTolerance    continue    end
             wa = PhotoEmission.amplitude(Basics.Absorption(), channel.inMultipole,  channel.gauge, inOmega,
-                                         finalLevel, nuLevel, grid; display=false, printout=printout)
+                                         finalLevel, nuLevel, grid; display=false, printout=printout) *
+                 PhotonScattering.offShellFactor(channel.gauge, inOmega, finalLevel, nuLevel)
             wb = PhotoEmission.amplitude(Basics.Emission(),   channel.outMultipole, channel.gauge, outOmega,
-                                         nuLevel, initialLevel, grid; display=false, printout=printout)
+                                         nuLevel, initialLevel, grid; display=false, printout=printout) *
+                 PhotonScattering.offShellFactor(channel.gauge, outOmega, initialLevel, nuLevel)
         end
         U = U + wa * wb / denom
     end
 
     return( U )
+end
+
+
+"""
+`PhotonScattering.offShellFactor(gauge::EmGauge, omega::Float64, levelA::Level, levelB::Level)`
+    ... to correct a photon vertex that is evaluated OFF SHELL, i.e. at a photon energy other than the transition energy of the two
+        levels it connects. A factor::Float64 is returned, to multiply the amplitude by; it is exactly 1 for the Coulomb and
+        Magnetic gauges and for an on-shell vertex.
+
+        WHY THIS IS NEEDED AT ALL. Length-velocity equivalence is an ON-SHELL identity: the forms are related through
+        [H, r] = -i p / m, and turning <f|p|i> into omega <f|r|i> uses (E_f - E_i) = omega. In a second-order sum the photon energy
+        is a FREE parameter and the intermediate level is virtual, so both vertices are evaluated off shell, where that step is
+        false. Measurement makes the consequence exact: over omega = 0.5 ... 4 eV the Coulomb amplitude is flat to four digits
+        while the BABUSHKIN one is strictly proportional to omega, the ratio falling by 0.5000 per doubling. The structural source
+        is InteractionStrength.multipoleTransition, whose length branch carries j_L(qr) against the velocity branch's j_L(qr)/(qr)
+        and j'_L(qr): for small argument j_1(x) ~ x/3 against j_1(x)/x ~ 1/3.
+
+        WHAT IS DONE. The length vertex is proportional to the photon energy, so evaluating it at omega rather than at its own
+        transition energy dE scales it by omega/dE. Multiplying by dE/omega therefore returns it to the point where the identity
+        holds, while the energy DENOMINATOR of the sum keeps the true photon energy, which is where the physics of the virtual
+        intermediate state lives.
+
+        THE APPROXIMATION IS THE LONG-WAVELENGTH LIMIT: it assumes retardation across the orbital is negligible, so that the vertex
+        depends on omega only through that overall factor and not through the shape of j_L(qr). For E1 at a few eV that is amply
+        true; it would NOT be for the ~1 MeV photons of the pair-creation and annihilation modules, where q a_0 ~ 274 and the
+        Bessel functions oscillate across the orbital. This correction is therefore local to Rayleigh/Raman and must not be copied
+        to those files without rederivation.
+
+        A CONSEQUENCE WORTH KNOWING: after this correction the two gauges no longer differ by a power of omega, so the
+        Coulomb/Babushkin comparison becomes what a gauge check is supposed to be -- a measure of WAVE-FUNCTION QUALITY. For the
+        test system it should reproduce the on-shell disagreement, which was measured as 0.191 and 0.738 and is correlation-limited
+        rather than a defect.
+"""
+function offShellFactor(gauge::EmGauge, omega::Float64, levelA::Level, levelB::Level)
+    if  gauge != Basics.Babushkin    return( 1.0 )    end
+    dE = abs(levelA.energy - levelB.energy)
+    if  omega < 1.0e-12  ||  dE < 1.0e-12    return( 1.0 )    end
+
+    return( dE / omega )
 end
 
 
@@ -346,9 +389,24 @@ end
               singlet-triplet mixing, i.e. a small difference of large numbers. Strong cancellation is where gauge agreement fails
               first, which is why JAC computes a cancellation factor at all.
 
-        CONSEQUENCE, stated plainly: NO ABSOLUTE RAYLEIGH NUMBER FROM THAT TEST SYSTEM SHOULD BE TRUSTED YET. The omega^4 EXPONENT
-        survives, a scaling exponent being insensitive to overall wave-function quality -- which is precisely why a ratio test was
-        the right instrument -- but the magnitudes are not evidence of anything.
+        BOTH ARE NOW RESOLVED, and neither the way it first looked.
+
+        Fault (1) is FIXED by PhotonScattering.offShellFactor, and confirmed four ways: both gauges now give the omega^4 exponents
+        4.014 and 4.056 identically; the Coulomb numbers are BIT-IDENTICAL to the pre-fix run, so only Babushkin moved; the gauge
+        ratio is constant to five digits at 3.3634 where it previously varied by 256 across the scan; and that residual falls
+        BETWEEN the two independently measured on-shell ratios, 5.228 and 1.354, which is where a weighted combination of the two
+        intermediate levels belongs. The fourth was not designed in and came from a calculation made for another purpose.
+
+        Fault (2) is EXONERATED. A three-point comparison -- separate DFS 0.191/0.738, common mean field 0.168/0.726, common
+        nuclear field 0.0155/0.0293 -- shows that sharing the one-body Hamiltonian changes essentially nothing while destroying
+        state quality changes everything. Both DFS runs used scField = DFSField(), checked rather than assumed. The on-shell
+        disagreement is therefore CORRELATION, not the non-orthogonality it was blamed on, and no biorthogonal transformation is
+        called for. Note also that Basics.NuclearField() is a confounded diagnostic: it shares the Hamiltonian but removes all
+        screening, varying two things at once, which is why it made the ratio ten times worse instead of better.
+
+        WHAT REMAINS. The SHAPE is verified in both gauges; the ABSOLUTE MAGNITUDE is not, this function's prefactor never having
+        been derived. And nothing tested here constrains a PHASE -- a sign error in one time ordering would survive every check
+        above. The Raman Hermiticity test is the missing instrument.
 """
 function rayleighCrossSection(channels::Array{PhotonScattering.Channel,1}, inOmega::Float64, outOmega::Float64,
                               initialLevel::Level)
