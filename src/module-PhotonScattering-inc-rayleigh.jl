@@ -39,7 +39,7 @@
 function computeRayleighAmplitudesProperties(line::PhotonScattering.Line, nm::Nuclear.Model, grid::Radial.Grid,
                                              settings::PhotonScattering.Settings; printout::Bool=true)
     newChannels = PhotonScattering.Channel[]
-    for  channel in PhotonScattering.determineRayleighChannels(line.finalLevel, line.initialLevel, settings)
+    for  channel in PhotonScattering.determineSecondOrderChannels(line.finalLevel, line.initialLevel, settings)
         amplitude = PhotonScattering.rayleighAmplitude(channel, line.finalLevel, line.initialLevel, line.inPhotonEnergy,
                                                         line.outPhotonEnergy, grid, settings; printout=printout)
         push!( newChannels, PhotonScattering.Channel(channel.kappa, channel.inMultipole, channel.outMultipole, channel.gauge,
@@ -100,7 +100,7 @@ end
 function checkIntermediateBasis(lines::Array{PhotonScattering.Line,1}, settings::PhotonScattering.Settings)
     wanted = LevelSymmetry[]
     for  line in lines
-        for  channel in PhotonScattering.determineRayleighChannels(line.finalLevel, line.initialLevel, settings)
+        for  channel in PhotonScattering.determineSecondOrderChannels(line.finalLevel, line.initialLevel, settings)
             if  !(channel.totalSymmetry in wanted)    push!(wanted, channel.totalSymmetry)    end
         end
     end
@@ -121,14 +121,14 @@ end
 
 
 """
-`PhotonScattering.determineRayleighChannels(finalLevel::Level, initialLevel::Level, settings::PhotonScattering.Settings)`
+`PhotonScattering.determineSecondOrderChannels(finalLevel::Level, initialLevel::Level, settings::PhotonScattering.Settings)`
     ... to determine the allowed (incoming multipole, outgoing multipole, intermediate symmetry, gauge, time ordering) channels of
-        one Rayleigh/Raman line. The intermediate symmetries are those reachable from the initial symmetry by the incoming
+        one SECOND-ORDER line -- Rayleigh, Raman and resonant inelastic scattering alike, which share this construction exactly. The intermediate symmetries are those reachable from the initial symmetry by the incoming
         multipole AND from which the final symmetry is reachable by the outgoing one, which is what
         AngularMomentum.allowedTotalSymmetries computes. Both time orderings are generated for every such combination. An
         Array{PhotonScattering.Channel,1} is returned with the amplitudes not yet evaluated.
 """
-function determineRayleighChannels(finalLevel::Level, initialLevel::Level, settings::PhotonScattering.Settings)
+function determineSecondOrderChannels(finalLevel::Level, initialLevel::Level, settings::PhotonScattering.Settings)
     channels = PhotonScattering.Channel[]
     symi = LevelSymmetry(initialLevel.J, initialLevel.parity);    symf = LevelSymmetry(finalLevel.J, finalLevel.parity)
     orderings = PhotonScattering.AbstractTimeOrdering[ PhotonScattering.AbsorbThenEmit(), PhotonScattering.EmitThenAbsorb() ]

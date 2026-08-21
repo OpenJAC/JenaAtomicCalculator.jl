@@ -10,8 +10,11 @@
     the third one is worth having.
 
     IMPLEMENTED TODAY: bound-free pair creation, gamma + |i(N)> --> |f(N+1)> + e^+, in
-    module-PhotonScattering-inc-pair-creation.jl; and Rayleigh/Raman scattering in
-    module-PhotonScattering-inc-rayleigh.jl.
+    module-PhotonScattering-inc-pair-creation.jl; Rayleigh/Raman scattering in
+    module-PhotonScattering-inc-rayleigh.jl; and resonant inelastic scattering (RIXS) in
+    module-PhotonScattering-inc-resonant.jl. The last two share their channel construction
+    (determineSecondOrderChannels) and differ in one physical respect: Rayleigh SKIPS a resonant intermediate level, RIXS keeps it
+    and regularises the denominator with settings.width.
 
     ON RAYLEIGH: it is a FRESH implementation, not the older module JAC.RayleighCompton moved here. That module was found on
     21-Aug-2026 not to compute -- its sum over intermediate states runs for the first level only (`if ig != 1 continue end` at
@@ -27,9 +30,13 @@
     line carries one outgoing energy fixed by energy conservation. The token is kept so that the eventual implementation has
     its place named; what is not kept is the silent over-promise.
 
-    PLANNED: resonant inelastic scattering (RIXS), which exists today as the separate module ResonantInelastic and whose working
-    state has not been established, it carrying no example file at all; and scattering of TWISTED (Bessel) photon beams, for
-    which Beam.BesselBeam already provides the beam side. Neither is done.
+    ON RIXS: it is likewise a FRESH implementation and is LINE-shaped, not pathway-shaped. The older module ResonantInelastic
+    carries a Pathway type and takes its intermediate levels from the intermediateMultiplet that Basics.perform builds from
+    intermediateConfigs; here they come from settings.gMultiplet like every other second-order process, so the module keeps ONE
+    result type and ONE entry point. PhotonScattering.Settings is therefore deliberately NOT added to the intermediateMultiplet
+    list in module-BasicsAZ-inc-perform.jl.
+
+    PLANNED: scattering of TWISTED (Bessel) photon beams, for which Beam.BesselBeam already provides the beam side. Not done.
 """
 module PhotonScattering
 
@@ -63,6 +70,11 @@ include("module-PhotonScattering-inc-structs.jl")
         ... the intermediate levels over which a SECOND-order amplitude is summed, needed by every SecondOrderGreen process and
             ignored by a first-order one. Either a plain Multiplet -- typically a short, explicitly chosen list of 2-4 levels,
             which is what makes the sum inspectable -- or a Green expansion, exactly as MultiPhotonTransition accepts both.
+    + width               ::Float64
+        ... resonance width Gamma of the intermediate levels [a.u.], read ONLY by ResonantScattering(). It regularises the
+            resonant denominator as E_i + omega_in - E_nu + i*Gamma/2, which is what lets RIXS be evaluated ON resonance where
+            Rayleigh must skip. It is zero by default, and the resonant pipeline refuses to run with a zero width rather than
+            dividing by something arbitrarily small.
     + selfTolerance       ::Float64
         ... a resonant intermediate level, where the energy denominator vanishes, is SKIPPED once |denominator| falls below this
             value. That is the boundary between non-resonant and resonant scattering, and it is guarded rather than hidden: the
@@ -82,6 +94,7 @@ struct Settings  <:  AbstractProcessSettings
     incidentStokes        ::ExpStokes
     maxKappa              ::Int64
     gMultiplet            ::Union{Multiplet, Array{AtomicState.GreenChannel,1}}
+    width                 ::Float64
     selfTolerance         ::Float64
     printBefore           ::Bool
     lineSelection         ::LineSelection
@@ -94,7 +107,7 @@ end
 function Settings()
     Settings( PhotonScattering.BoundFreePairCreation(), PhotonScattering.FirstOrderVertex(), Beam.PlaneWave(),
               Float64[], EmMultipole[E1], UseGauge[Basics.UseCoulomb, Basics.UseBabushkin], Float64[], Float64[],
-              Basics.ExpStokes(), 4, Multiplet(), 1.0e-8, false, LineSelection() )
+              Basics.ExpStokes(), 4, Multiplet(), 0., 1.0e-8, false, LineSelection() )
 end
 
 
@@ -103,7 +116,8 @@ end
 
         process=..,             approximation=..,           beamType=..,            photonEnergies=..,
         multipoles=..,          gauges=..,                  polarThetas=..,         polarPhis=..,
-        incidentStokes=..,      maxKappa=..,                gMultiplet=..,          selfTolerance=..,
+        incidentStokes=..,      maxKappa=..,                gMultiplet=..,          width=..,
+        selfTolerance=..,
         printBefore=..,         lineSelection=.. )
 
     ... constructor for modifying the given PhotonScattering.Settings by 'overwriting' the previously selected parameters.
@@ -116,7 +130,7 @@ function Settings(set::PhotonScattering.Settings;
     polarThetas::Union{Nothing,Array{Float64,1}}=nothing,        polarPhis::Union{Nothing,Array{Float64,1}}=nothing,
     incidentStokes::Union{Nothing,ExpStokes}=nothing,            maxKappa::Union{Nothing,Int64}=nothing,
     gMultiplet::Union{Nothing,Multiplet,Array{AtomicState.GreenChannel,1}}=nothing,
-    selfTolerance::Union{Nothing,Float64}=nothing,
+    width::Union{Nothing,Float64}=nothing,                       selfTolerance::Union{Nothing,Float64}=nothing,
     printBefore::Union{Nothing,Bool}=nothing,                    lineSelection::Union{Nothing,LineSelection}=nothing)
 
     if  isnothing(process)          processx        = set.process         else  processx        = process         end
@@ -130,12 +144,13 @@ function Settings(set::PhotonScattering.Settings;
     if  isnothing(incidentStokes)   incidentStokesx = set.incidentStokes  else  incidentStokesx = incidentStokes  end
     if  isnothing(maxKappa)         maxKappax       = set.maxKappa        else  maxKappax       = maxKappa        end
     if  isnothing(gMultiplet)       gMultipletx     = set.gMultiplet      else  gMultipletx     = gMultiplet      end
+    if  isnothing(width)            widthx          = set.width           else  widthx          = width           end
     if  isnothing(selfTolerance)    selfTolerancex  = set.selfTolerance   else  selfTolerancex  = selfTolerance   end
     if  isnothing(printBefore)      printBeforex    = set.printBefore     else  printBeforex    = printBefore     end
     if  isnothing(lineSelection)    lineSelectionx  = set.lineSelection   else  lineSelectionx  = lineSelection   end
 
     Settings( processx, approximationx, beamTypex, photonEnergiesx, multipolesx, gaugesx, polarThetasx, polarPhisx,
-              incidentStokesx, maxKappax, gMultipletx, selfTolerancex, printBeforex, lineSelectionx )
+              incidentStokesx, maxKappax, gMultipletx, widthx, selfTolerancex, printBeforex, lineSelectionx )
 end
 
 
@@ -152,6 +167,7 @@ function Base.show(io::IO, settings::PhotonScattering.Settings)
     println(io, "incidentStokes:        $(settings.incidentStokes)  ")
     println(io, "maxKappa:              $(settings.maxKappa)  ")
     println(io, "gMultiplet:            $(typeof(settings.gMultiplet))  ")
+    println(io, "width:                 $(settings.width)  ")
     println(io, "selfTolerance:         $(settings.selfTolerance)  ")
     println(io, "printBefore:           $(settings.printBefore)  ")
     println(io, "lineSelection:         $(settings.lineSelection)  ")
@@ -173,8 +189,7 @@ function computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, nm
                                  PhotonScattering.RamanScattering()]
         return( PhotonScattering.computeRayleighLines(finalMultiplet, initialMultiplet, nm, grid, settings; output=output) )
     elseif  settings.process == PhotonScattering.ResonantScattering()
-        error("PhotonScattering: resonant inelastic scattering is not yet part of this module -- it is still the separate " *
-              "module ResonantInelastic, whose working state has not been established (it carries no example file).")
+        return( PhotonScattering.computeResonantLines(finalMultiplet, initialMultiplet, nm, grid, settings; output=output) )
     else
         error("PhotonScattering: no pipeline for process $(settings.process).")
     end
@@ -213,5 +228,6 @@ end
 
 include("module-PhotonScattering-inc-pair-creation.jl")
 include("module-PhotonScattering-inc-rayleigh.jl")
+include("module-PhotonScattering-inc-resonant.jl")
 
 end # module
