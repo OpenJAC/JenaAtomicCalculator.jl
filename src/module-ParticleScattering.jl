@@ -23,7 +23,7 @@ module ParticleScattering
 
 using  Printf, GSL, QuadGK, SpecialFunctions,
         ..AngularMomentum, ..Basics, ..Beam, ..Bsplines, ..Continuum, ..Defaults, ..InteractionStrength, ..ManyElectron,
-        ..Nuclear, ..Radial, ..RadialIntegrals, ..SpinAngular, ..TableStrings
+        ..Nuclear, ..PhotoEmission, ..Radial, ..RadialIntegrals, ..SpinAngular, ..TableStrings
 
 
 # The data structures come first: Settings below refers to them in its field types, and a struct cannot name a type
@@ -51,6 +51,14 @@ include("module-ParticleScattering-inc-structs.jl")
     + maxL                ::Int64
         ... hard upper bound on the orbital angular momentum, a backstop rather than the normal way of ending the series;
             a computation that reaches it says so.
+    + multipoles          ::Array{EmMultipole,1}
+        ... photon multipoles to be included; read ONLY by process = Annihilation1Photon() and ignored by the elastic and
+            inelastic processes, which emit no photon. The annihilation photon carries omega ~ 2 m c^2, i.e. q a_0 ~ 274, so
+            the multipole series is long wherever the electron is not close to the nucleus; see the file
+            module-ParticleScattering-inc-annihilation.jl for what that costs.
+    + gauges              ::Array{UseGauge,1}
+        ... gauges in which the annihilation amplitude is evaluated, again read only by Annihilation1Photon(). Two gauges that
+            disagree are the standard internal check on a photon amplitude, so both are the default.
 """
 struct Settings  <:  AbstractProcessSettings
     projectile            ::ParticleScattering.AbstractProjectile
@@ -65,6 +73,8 @@ struct Settings  <:  AbstractProcessSettings
     lineSelection         ::LineSelection
     epsPartialWave        ::Float64
     maxL                  ::Int64
+    multipoles            ::Array{EmMultipole,1}
+    gauges                ::Array{UseGauge,1}
 end
 
 
@@ -74,7 +84,8 @@ end
 function Settings()
     Settings( ParticleScattering.Electron(), ParticleScattering.ElasticScattering(),
               ParticleScattering.StaticFieldFurnessMcCarthy(), Beam.PlaneWave(), Basics.LinearPolarization(),
-              Float64[], Float64[], Float64[], false, LineSelection(), 1.0e-6, 200 )
+              Float64[], Float64[], Float64[], false, LineSelection(), 1.0e-6, 200,
+              EmMultipole[E1], UseGauge[Basics.UseCoulomb, Basics.UseBabushkin] )
 end
 
 
@@ -83,7 +94,8 @@ end
 
         projectile=..,          process=..,                 interaction=..,         beamType=..,
         polarization=..,        impactEnergies=..,          polarThetas=..,         polarPhis=..,
-        printBefore=..,         lineSelection=..,           epsPartialWave=..,      maxL=.. )
+        printBefore=..,         lineSelection=..,           epsPartialWave=..,      maxL=..,
+        multipoles=..,          gauges=.. )
 
     ... constructor for modifying the given ParticleScattering.Settings by 'overwriting' the previously selected parameters.
 """
@@ -96,7 +108,8 @@ function Settings(set::ParticleScattering.Settings;
     impactEnergies::Union{Nothing,Array{Float64,1}}=nothing,     polarThetas::Union{Nothing,Array{Float64,1}}=nothing,
     polarPhis::Union{Nothing,Array{Float64,1}}=nothing,          printBefore::Union{Nothing,Bool}=nothing,
     lineSelection::Union{Nothing,LineSelection}=nothing,         epsPartialWave::Union{Nothing,Float64}=nothing,
-    maxL::Union{Nothing,Int64}=nothing)
+    maxL::Union{Nothing,Int64}=nothing,                         multipoles::Union{Nothing,Array{EmMultipole,1}}=nothing,
+    gauges::Union{Nothing,Array{UseGauge,1}}=nothing)
 
     if  isnothing(projectile)       projectilex     = set.projectile      else  projectilex     = projectile      end
     if  isnothing(process)          processx        = set.process         else  processx        = process         end
@@ -110,9 +123,11 @@ function Settings(set::ParticleScattering.Settings;
     if  isnothing(lineSelection)    lineSelectionx  = set.lineSelection   else  lineSelectionx  = lineSelection   end
     if  isnothing(epsPartialWave)   epsPartialWavex = set.epsPartialWave  else  epsPartialWavex = epsPartialWave  end
     if  isnothing(maxL)             maxLx           = set.maxL            else  maxLx           = maxL            end
+    if  isnothing(multipoles)       multipolesx     = set.multipoles      else  multipolesx     = multipoles      end
+    if  isnothing(gauges)           gaugesx         = set.gauges          else  gaugesx         = gauges          end
 
     Settings( projectilex, processx, interactionx, beamTypex, polarizationx, impactEnergiesx, polarThetasx, polarPhisx,
-              printBeforex, lineSelectionx, epsPartialWavex, maxLx )
+              printBeforex, lineSelectionx, epsPartialWavex, maxLx, multipolesx, gaugesx )
 end
 
 
@@ -131,6 +146,8 @@ function Base.show(io::IO, settings::ParticleScattering.Settings)
     println(io, "lineSelection:         $(settings.lineSelection)  ")
     println(io, "epsPartialWave:        $(settings.epsPartialWave)  ")
     println(io, "maxL:                  $(settings.maxL)  ")
+    println(io, "multipoles:            $(settings.multipoles)  ")
+    println(io, "gauges:                $(settings.gauges)  ")
 end
 
 
@@ -203,6 +220,12 @@ end
 """
 function  computeEvents(finalMultiplet::Multiplet, initialMultiplet::Multiplet, nm::Nuclear.Model, grid::Radial.Grid,
                         settings::ParticleScattering.Settings; output=true)
+    # One-photon annihilation is a different kind of computation -- an outgoing PHOTON rather than an outgoing particle, hence no
+    # phase-shift observables -- and is driven by its own pipeline in module-ParticleScattering-inc-annihilation.jl. It is reached
+    # through this same entry point so that Basics.perform needs no second dispatch branch on a second Settings type.
+    if  settings.process == ParticleScattering.Annihilation1Photon()
+        return( ParticleScattering.computeAnnihilationLines(finalMultiplet, initialMultiplet, nm, grid, settings; output=output) )
+    end
     println("")
     printstyled("ParticleScattering.computeEvents(): The computation of scattering amplitudes starts now ... \n", color=:light_green)
     printstyled("------------------------------------------------------------------------------------------ \n", color=:light_green)
@@ -238,6 +261,7 @@ include("module-ParticleScattering-inc-interaction.jl")
 include("module-ParticleScattering-inc-electron-dirac.jl")
 include("module-ParticleScattering-inc-beams.jl")
 include("module-ParticleScattering-inc-observables.jl")
+include("module-ParticleScattering-inc-annihilation.jl")
 include("module-ParticleScattering-inc-display.jl")
 
 end # module

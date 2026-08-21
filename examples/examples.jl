@@ -169,6 +169,7 @@ elseif  char == 'M'
     println("Oc) Elastic electron scattering: the Sherman function and its growth with the nuclear charge.")
     println("Od) Elastic electron scattering: the transport cross section of He against measured values.")
     println("Oe) POSITRON elastic scattering at He beside the electron case.")
+    println("Of) ONE-PHOTON annihilation of a positron with a bound electron: e^+ + |i(N)> --> |f(N-1)> + photon.")
     println("Ma) Test  computeLevelEnergies(ForGivenConfigs/ForIsoelectronicSequence(), ...)  for several atoms and sequences.")
     println("Mb) Test  computeTransitionRates(),  computeBranchingFractions()  and  displaySpectrum()  for ForPhotoEmission and ForAutoIonization.")
     println("Mc) Test  computeCrossSections(ForPhotoIonization(), ...)  and  computeCrossSections(ForPhotoRecombination(), ...)  for several atoms.")
