@@ -176,9 +176,6 @@ function Basics.perform(computation::Atomic.Computation; output::Bool=false)
             if output    results = Base.merge( results, Dict("hyperfine-induced transitions:" => outcome) )         end
             #
             #
-        elseif  typeof(computation.processSettings) == PairA1P()  
-            outcome = PairAnnihilation1Photon.computeLines(finalMultiplet, initialMultiplet, computation.grid, computation.processSettings) 
-            if output    results = Base.merge( results, Dict("pair-annihilation-1-photon lines:" => outcome) )       end
         elseif  typeof(computation.processSettings) == Coulex()
             outcome = CoulombExcitation.computeLines(finalMultiplet, initialMultiplet, computation.grid, computation.processSettings) 
             if output    results = Base.merge( results, Dict("Coulomb excitation lines:" => outcome) )               end
