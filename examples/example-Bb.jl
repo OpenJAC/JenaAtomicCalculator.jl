@@ -19,8 +19,8 @@ if  true
         for  initialLevel in wma.levels
             if  flow <= finalLevel.index <= fup   &&    ilow <= initialLevel.index <= iup
                 ##x println("Levels with indices f = $(finalLevel.index) and i = $(initialLevel.index)")
-                ParityNonConservation.weakChargeAmplitude(finalLevel, initialLevel, nModel, grid; display=true)
-                ParityNonConservation.schiffMomentAmplitude(finalLevel, initialLevel, nModel, grid; display=true)
+                WeakInteractionMoment.weakChargeAmplitude(finalLevel, initialLevel, nModel, grid; display=true)
+                WeakInteractionMoment.schiffMomentAmplitude(finalLevel, initialLevel, nModel, grid; display=true)
             end
         end
     end

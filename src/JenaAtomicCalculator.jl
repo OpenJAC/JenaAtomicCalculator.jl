@@ -97,7 +97,7 @@ export AbstractCImethod, AbstractComputeTheme, AbstractConfigurationRestriction,
        NoAmplitude, NoneQed, NonrelativisticBasis, NoProcess, NoProperty, Nuclear, NumberOfElectrons,
        OccupationDifference, OneElectronSettings, OneElectronSpectrum, OpenShellNumber, OpenShells, OpenSubshells, oplus,
        Orbital,
-       PairA1P, PairProduction, Parity, ParityNonConservation,
+       PairA1P, PairProduction, Parity,
        ParticleScattering, PathwaySelection, perform, PeriodicTable, Photo, PhotoDouble, PhotoDoubleIonization,
        PhotoEmission, PhotoExc, PhotoExcAuto, PhotoExcFluor, PhotoExcitation, PhotoExcitationAutoion,
        PhotoExcitationFluores, PhotoIonAuto, PhotoIonFluor, PhotoIonization, PhotoIonizationAutoion,
@@ -119,7 +119,7 @@ export AbstractCImethod, AbstractComputeTheme, AbstractConfigurationRestriction,
        TwoElectronOnePhoton,
        UniformNucleus, UseBabushkin, UseCoulomb, UseGauge,
        ValenceOccupation, ValenceShells,
-       W3j, W6j, W9j, WeightedCartesian,
+       W3j, W6j, W9j, WeakInteractionMoment, WeightedCartesian,
        Ylm
      
 # Basic data and data structures
@@ -157,7 +157,7 @@ include("module-PhotoEmission.jl")
 if  incProperties
 # Functions/methods for atomic amplitudes
 include("module-MultipoleMoment.jl")
-include("module-ParityNonConservation.jl")
+include("module-WeakInteractionMoment.jl")
 # Functions/methods for atomic properties
 include("module-Einstein.jl")    
 include("module-Hfs.jl")

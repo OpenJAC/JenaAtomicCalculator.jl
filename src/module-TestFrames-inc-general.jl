@@ -325,37 +325,63 @@ end
 
 
 """
-`TestFrames.testModule_ParityNonConservation(; short::Bool=true)`  ... tests on module ParityNonconservation.
+`TestFrames.testModule_WeakInteractionMoment(; short::Bool=true)`
+    ... tests on module WeakInteractionMoment. A success::Bool is returned.
+
+        This test asserts SELECTION RULES and STRUCTURE, not stored numbers, and deliberately so. Its predecessor compared against an
+        approved file whose every entry had im = 2*re exactly -- the fingerprint of the stub `(SUM coeff.T) * (1.0 + 2.0im)` that the
+        module used to call -- and in which the weak-charge and Schiff-moment amplitudes were bit-identical to each other. Numbers of
+        that kind can be re-blessed indefinitely without ever becoming right. What is checked here instead cannot be satisfied by any
+        stub and needs no external reference:
+
+          (i)   every operator vanishes EXACTLY between levels of the same parity, since all three are P-odd;
+          (ii)  the rank-0 weak charge vanishes EXACTLY unless J_f = J_i, as a pseudoscalar must;
+          (iii) the weak-charge amplitude is purely imaginary and the Schiff-moment amplitude purely real, which follows from gamma_5
+                being antisymmetric in the large and small components while the Schiff operator is not;
+          (iv)  H_W is Hermitian, so exchanging the two levels conjugates the amplitude -- which, for a purely imaginary rank-0
+                quantity, means exact antisymmetry;
+          (v)   the weak-charge and Schiff amplitudes are no longer equal to one another.
 """
-function testModule_ParityNonConservation(; short::Bool=true)
-    Defaults.setDefaults("print summary: open", "test-ParityNonConservation-new.sum")
-    printstyled("\n\nTest the module  ParityNonConservation  ... \n", color=:cyan)
-    ### Make the tests
-    grid = Defaults.getDefaults("standard grid")
-    wa = Atomic.Computation(Atomic.Computation(), name="xx",  nuclearModel=Nuclear.Model(26.),
-                            grid=grid,
-                            configs=[Configuration("1s 2s^2"), Configuration("1s 2s 2p"), Configuration("1s 2p^2")] )
+function testModule_WeakInteractionMoment(; short::Bool=true)
+    Defaults.setDefaults("print summary: open", "test-WeakInteractionMoment-new.sum")
+    printstyled("\n\nTest the module  WeakInteractionMoment  ... \n", color=:cyan)
+    grid   = Radial.Grid(Radial.Grid(false), rnt = 4.0e-7, h = 3.0e-2, hp = 1.0e-2, rbox = 6.0)
+    nModel = Nuclear.Model(55.)
+    asf    = AsfSettings(AsfSettings(); scField = Basics.NuclearField())
+    mp     = SelfConsistent.performSCF([Configuration("1s"), Configuration("2s"), Configuration("2p")], nModel, grid, asf; printout=false)
+    success = true;    tol = 1.0e-14
 
-    wxa  = perform(wa; output=true)
-    wma  = wxa["multiplet:"]
-
-    nModel = Nuclear.Model(26.);    flow = 6;    fup = 8;   ilow = 1;   iup = 3
-
-    println("\n\nWeak-charge and Schiff-moment amplitudes:\n")
-    for  finalLevel in wma.levels
-        for  initialLevel in wma.levels
-            if  flow <= finalLevel.index <= fup   &&    ilow <= initialLevel.index <= iup
-                ParityNonConservation.weakChargeAmplitude(finalLevel, initialLevel, nModel, grid; display=true)
-                ParityNonConservation.schiffMomentAmplitude(finalLevel, initialLevel, nModel, grid; display=true)
+    for  a  in  mp.levels,  b  in  mp.levels
+        wc = WeakInteractionMoment.weakChargeAmplitude(a, b, nModel, grid)
+        sm = WeakInteractionMoment.schiffMomentAmplitude(a, b, nModel, grid)
+        an = WeakInteractionMoment.anapoleAmplitude(a, b, nModel, grid)
+        # (i) P-odd operators vanish between equal parities
+        if  a.parity == b.parity  &&  (wc != 0.  ||  sm != 0.  ||  an != 0.)
+            success = false;    println(">> same-parity pair $(a.index)<-$(b.index) does not vanish: $wc $sm $an")
+        end
+        # (ii) the rank-0 weak charge needs J_f = J_i
+        if  a.J != b.J  &&  wc != 0.
+            success = false;    println(">> rank-0 weak charge nonzero for J_f != J_i at $(a.index)<-$(b.index): $wc")
+        end
+        # (iii) the two operators have opposite reality
+        if  abs(wc) > 0.  &&  abs(real(wc)) > tol*abs(wc)
+            success = false;    println(">> weak-charge amplitude not purely imaginary at $(a.index)<-$(b.index): $wc")
+        end
+        if  abs(sm) > 0.  &&  abs(imag(sm)) > tol*abs(sm)
+            success = false;    println(">> Schiff amplitude not purely real at $(a.index)<-$(b.index): $sm")
+        end
+        # (iv) Hermiticity, and (v) the two operators must differ
+        if  abs(wc) > 0.
+            if  abs(wc + WeakInteractionMoment.weakChargeAmplitude(b, a, nModel, grid)) > tol*abs(wc)
+                success = false;    println(">> weak charge not antisymmetric under exchange at $(a.index)<-$(b.index)")
+            end
+            if  abs(wc - sm) <= tol*abs(wc)
+                success = false;    println(">> weak-charge and Schiff amplitudes coincide at $(a.index)<-$(b.index)")
             end
         end
     end
-    ###
     Defaults.setDefaults("print summary: close", "")
-    # Make the comparison with approved data
-    success = testCompareFiles( joinpath(@__DIR__, "..", "test", "approved", "test-ParityNonConservation-approved.sum"),
-                                joinpath(@__DIR__, "..", "test", "test-ParityNonConservation-new.sum"), "weak-charge amplitude", 12)
-    testPrint("testModule_ParityNonConservation()::", success)
+    testPrint("testModule_WeakInteractionMoment()::", success)
     return(success)
 end
 

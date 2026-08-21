@@ -39,7 +39,7 @@ using JenaAtomicCalculator, ..Defaults, ..TestFrames
 
     @testset "JAC amplitudes" begin
         @test TestFrames.testModule_MultipoleMoment() 
-        @test TestFrames.testModule_ParityNonConservation() 
+        @test TestFrames.testModule_WeakInteractionMoment() 
     end
 
     @testset "JAC properties" begin
