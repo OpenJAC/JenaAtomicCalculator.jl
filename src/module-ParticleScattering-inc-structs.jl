@@ -33,9 +33,9 @@ struct     Proton              <:  AbstractProjectile              end
     + struct InelasticScattering   ... the target is left excited (not yet implemented).
     + struct Annihilation1Photon   ... the projectile POSITRON annihilates with one bound electron under emission of a single photon.
 
-        There is deliberately no Annihilation2Photon. The two-photon channel is second order and needs the same sum-over-states
-        machinery as the two-photon (2E1) decay that JAC also lacks; see the header of module-ParticleScattering-inc-annihilation.jl
-        for why it is not placed here.
+        There is deliberately no Annihilation2Photon. The two-photon channel is second order and would need MultiPhotonTransition's
+        Green-function sum over intermediate states adapted to a positron continuum; see the header of
+        module-ParticleScattering-inc-annihilation.jl for why it is not placed here.
 """
 abstract type  AbstractScatteringProcess                           end
 struct     ElasticScattering    <:  AbstractScatteringProcess      end

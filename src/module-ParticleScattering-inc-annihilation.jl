@@ -29,15 +29,19 @@
 # without asking him; it is a postponement, not an oversight.
 #
 # e^+ + |i(N)> --> |f(N-1)> + photon + photon is the dominant channel in nature -- it needs no nucleus, so it does not carry the
-# Z^5 suppression of the one-photon case -- but it is SECOND order, two vertices with a sum over intermediate states, and JAC has
-# no machinery for that today. The point that decided the placement is that this is the SAME missing machinery as two-photon
-# (2E1) DECAY, whose absence is already a recorded defect: example-Je.jl branch a shows 1s2s ^1S_0 of helium-like carbon getting
-# a 513 s lifetime from its M1 channel alone, against a true ~2.7e-5 s, i.e. wrong by ~2e7, and notes that at low density this
-# would dominate. Whoever builds the second-order two-photon machinery therefore enables BOTH, and putting the annihilation half
-# of it inside a particle-scattering file would hide that connection from the person who comes to fix the decay half.
+# Z^5 suppression of the one-photon case -- but it is SECOND order: two vertices with a sum over intermediate states.
 #
-# The relevant existing ingredient is AtomicState.GreenExpansion, the sum-over-states machinery that MultipolePolarizibility
-# uses; note that that module is itself paused on a B-spline question, so the dependency is not free ground.
+# CORRECTED 21-Aug-2026, having first been written down wrongly here. The second-order machinery is NOT missing from JAC. It is
+# MultiPhotonTransition, whose -inc-2p-emission, -inc-2p-absorption and -inc-2p-bichromatic files build exactly such amplitudes
+# over AtomicState.GreenChannel sums, and it is exercised and dated -- example-Dh.jl carries six dated branches and example-Du.jl
+# two. What IS true is narrower and worth keeping straight: Plasma.CollisionalRadiativeScheme does not call it, which is why
+# example-Je.jl's helium-like carbon gets a 513 s lifetime for 1s2s ^1S_0 from its M1 channel alone against a true ~2.7e-5 s.
+# That is a gap in the CR scheme, not in JAC.
+#
+# So the reason for deferring two-photon annihilation is the ADAPTATION rather than an absence: MultiPhotonTransition sums over
+# bound intermediate states between two bound levels, whereas the annihilation case needs the charge-conjugate positron continuum
+# on one side. That is real work and a real design decision -- whether it belongs beside the one-photon case here or as a further
+# -inc- file of MultiPhotonTransition -- and it is the maintainer's to take.
 #
 # What was retired to get here: src/module-PairAnnihilation1Photon.jl and src/module-PairAnnihilation2Photon.jl, two stubs that
 # had never been compiled -- they sat inside the "#= Further processes, not yet included =#" block of JenaAtomicCalculator.jl --
@@ -221,10 +225,32 @@ end
 
         with k_+ the relativistic positron momentum. A crossSection::EmProperty [a.u.] is returned.
 
-        THE PREFACTOR IS THE ONE PIECE OF THIS FILE NOT INDEPENDENTLY CHECKED. The channel structure, the coherent sum within a total
-        symmetry and the k_+^-2 flux factor are standard, but the numerical constant multiplying them has been written down rather
-        than derived against a known case. Any RATIO of cross sections -- the Z-dependence above all -- is insensitive to it, which is
-        why the isoelectronic scan is the meaningful first test and an absolute comparison is not.
+        THE PREFACTOR IS THE ONE PIECE OF THIS FILE NOT INDEPENDENTLY CHECKED, and it is now known to be inconsistent with its
+        crossing partner, PhotonScattering.pairCreationCrossSection. The channel structure, the coherent sum within a total symmetry
+        and the k_+^-2 flux factor are standard; the numerical constant multiplying them was written down rather than derived.
+
+        DETAILED BALANCE AGAINST THE CROSSING PARTNER FAILS, and the failure is not yet reduced to one cause. Running the
+        time-reverse -- helium-like against hydrogen-like uranium at omega = 894.556 keV -- detailed balance requires
+        sigma_ann / sigma_pc = 573.97 and JAC gives 3.1327e+05 (Coulomb) and 3.2065e+05 (Babushkin), i.e. violation factors of
+        545.8 and 558.6.
+
+        WHAT THAT DOES AND DOES NOT SHOW. It was first read here as a constant of about 4c = 548.14; that reading is WITHDRAWN,
+        having rested on a single energy point. Comparing the two prefactors directly refutes it: were the amplitudes equal in
+        both directions, the coded prefactors alone would give a violation of c^2/p_+ = 1326 at this point -- energy-DEPENDENT,
+        going as 1/p_+, and not 548. The observed 546-559 is 0.41 of that, so the amplitudes are not equal in the two directions
+        either, and BOTH the prefactor and the amplitude are implicated.
+
+        THE SECOND-ENERGY TEST HAS NOW BEEN RUN, and it rules out both simple explanations. Doubling p_+ (T_+ = 100 -> 400 a.u.,
+        p_+ = 14.1610 -> 28.4345) moves the violation from 545.8/558.6 to 448.3/462.0, i.e. by 0.821 and 0.827. A pure prefactor
+        error would have given 0.498, a constant one 1.000; it is neither, the implied exponent being about p_+^(-0.28).
+
+        The useful part is that the energy dependence is the SAME in both gauges to within half a percent, hence GAUGE-INDEPENDENT,
+        while the gauge disagreement itself is nearly energy-independent (17.5 -> 17.2 across the same factor of four). So there are
+        TWO separable faults: a gauge-independent, energy-dependent inconsistency between the two directions -- for which a continuum
+        NORMALIZATION convention, per unit energy against per unit momentum, is the natural suspect, sitting in how each module uses
+        the orbital from Continuum.generateOrbitalLocalPotential rather than in the prefactor expressions -- and a gauge-dependent,
+        energy-independent amplitude defect common to both modules, which example-Of.jl already showed is not a truncation. Suspect
+        the first one first. See example-Pa.jl branch b, which carries both energy points.
 """
 function annihilationCrossSection(channels::Array{ParticleScattering.AnnihilationChannel,1}, positronEnergy::Float64,
                                   photonEnergy::Float64, initialLevel::Level)

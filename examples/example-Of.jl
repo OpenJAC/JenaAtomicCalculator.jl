@@ -46,6 +46,15 @@ if  true
     #       cm^2.  That is about twelve orders of magnitude, so this is a normalization defect rather than a small
     #       inaccuracy.  ParticleScattering.annihilationCrossSection carries the prefactor and its docstring already
     #       says it was written down rather than derived against a known case; that is where to look first.
+    #       UPDATE 21-Aug-2026: the crossing partner now CONSTRAINS it, though it does not yet localize it.  Bound-free pair
+    #       creation (example-Pa.jl branch b) is the time-reverse of this process, and detailed balance between the two
+    #       requires sigma_ann / sigma_pc = 573.97 where JAC gives 3.1327e+05 (Coulomb) and 3.2065e+05 (Babushkin) --
+    #       violation factors of 545.8 and 558.6.  A first reading of that as a constant 4c = 548.14 was WRONG and is
+    #       withdrawn: it rested on one energy point, and comparing the two prefactors directly refutes it.  Were the
+    #       amplitudes equal in both directions, the coded prefactors alone would give c^2/p_+ = 1326 here -- energy-
+    #       dependent, going as 1/p_+, not 548.  Since 546-559 is 0.41 of that, the amplitudes differ between the two
+    #       directions as well, and both the prefactor and the amplitude are implicated.  The decisive test is cheap and
+    #       unrun: repeat at a second positron energy, a 1/p_+ scaling being the prefactor alone.
     #
     #   A BUG FOUND AND FIXED WHILE WRITING THIS, recorded because it is silent and would recur.  The kappa stored in
     #   an AnnihilationChannel is the kappa of the CHARGE-CONJUGATED orbital, i.e. of the one that enters the CSF and

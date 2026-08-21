@@ -164,12 +164,6 @@ elseif  char == 'L'
 elseif  char == 'M'
     println("M)  Examples, tests & development of the ForPedestrians module")
     println("----------------------------------------------------------------")
-    println("Oa) Elastic scattering of electrons at atoms: Dirac partial waves, DCS, Sherman function, transport cross sections.")
-    println("Ob) Elastic electron scattering: the high-energy Rutherford limit as an absolute check of the cross sections.")
-    println("Oc) Elastic electron scattering: the Sherman function and its growth with the nuclear charge.")
-    println("Od) Elastic electron scattering: the transport cross section of He against measured values.")
-    println("Oe) POSITRON elastic scattering at He beside the electron case.")
-    println("Of) ONE-PHOTON annihilation of a positron with a bound electron: e^+ + |i(N)> --> |f(N-1)> + photon.")
     println("Ma) Test  computeLevelEnergies(ForGivenConfigs/ForIsoelectronicSequence(), ...)  for several atoms and sequences.")
     println("Mb) Test  computeTransitionRates(),  computeBranchingFractions()  and  displaySpectrum()  for ForPhotoEmission and ForAutoIonization.")
     println("Mc) Test  computeCrossSections(ForPhotoIonization(), ...)  and  computeCrossSections(ForPhotoRecombination(), ...)  for several atoms.")
@@ -195,6 +189,21 @@ elseif  char == 'N'
     println("Nj) Apply & test Empirical.dielectronicRecombinationPlasmaAlpha (Arnaud1985DR), for H-like and He-like ions.")
     println("Nk) Apply & test Empirical.excitationAutoionizationPlasmaAlpha (Arnaud1985EA), additive to the Lotz EII rate.")
     println("Nl) Apply & test Empirical.generateInelasticHChannels, molecular-symmetry channel correlation for A+H(H^-) collisions.")
+    #
+elseif  char == 'O'
+    println("O)  Examples, tests & development of particle-scattering computations (module ParticleScattering)")
+    println("------------------------------------------------------------------------------------------------")
+    println("Oa) Elastic scattering of electrons at atoms: Dirac partial waves, DCS, Sherman function, transport cross sections.")
+    println("Ob) Elastic electron scattering: the high-energy Rutherford limit as an absolute check of the cross sections.")
+    println("Oc) Elastic electron scattering: the Sherman function and its growth with the nuclear charge.")
+    println("Od) Elastic electron scattering: the transport cross section of He against measured values.")
+    println("Oe) POSITRON elastic scattering at He beside the electron case.")
+    println("Of) ONE-PHOTON annihilation of a positron with a bound electron: e^+ + |i(N)> --> |f(N-1)> + photon.")
+    #
+elseif  char == 'P'
+    println("P)  Examples, tests & development of photon-scattering computations (module PhotonScattering)")
+    println("----------------------------------------------------------------------------------------------")
+    println("Pa) BOUND-FREE PAIR CREATION: gamma + |i(N)> --> |f(N+1)> + e^+, the created electron being captured into a bound orbital.")
     #
 elseif  char == 'Q'
     return( nothing )
