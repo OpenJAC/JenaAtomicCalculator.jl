@@ -33,10 +33,24 @@ if  true
     nModel = Nuclear.Model(26.)
     energies = [2000.0, 4000.0]
     #
+    # ---- THE INPUT, spelled out ---------------------------------------------------------------------------------
+    #   INITIAL       Li-like Fe23+, ground configuration     1s^2 2s      N = 3 electrons, one level, J^P = 1/2+
+    #   INTERMEDIATE  Be-like Fe22+, KLL doubly excited       1s 2s^2 2p   N = 4, a 1s hole plus a 2p electron;
+    #                                                                     four levels, J^P = 0-, 1-, 2-, 1-
+    #   FINAL         Be-like Fe22+, ground configuration     1s^2 2s^2    N = 4, one level, J^P = 0+
+    #   The captured electron is the fourth: Li-like + e --> Be-like, and the KLL label says that a K-shell electron
+    #   is promoted to L while the free electron is captured into L as well.
+    initialConfigs      = [Configuration("1s^2 2s")]
+    intermediateConfigs = [Configuration("1s 2s^2 2p")]
+    finalConfigs        = [Configuration("1s^2 2s^2")]
+    Basics.displayConfigurations(26., initialConfigs;      sa="INITIAL, Li-like Fe23+:        ")
+    Basics.displayConfigurations(26., intermediateConfigs; sa="INTERMEDIATE, Be-like KLL:     ")
+    Basics.displayConfigurations(26., finalConfigs;        sa="FINAL, Be-like Fe22+:          ")
+    #
     prSet = PhotoRecombination.Settings(PhotoRecombination.Settings(); multipoles=[E1], gauges=[UseCoulomb, UseBabushkin],
                 electronEnergies=energies, maxKappa=2, calcAnisotropy=true, printBefore=false)
     cRR = Atomic.Computation(Atomic.Computation(), name="RR reference", grid=grid, nuclearModel=nModel,
-              initialConfigs = [Configuration("1s^2 2s")], finalConfigs = [Configuration("1s^2 2s^2")],
+              initialConfigs = initialConfigs, finalConfigs = finalConfigs,
               processSettings = prSet)
     rrLines = perform(cRR; output=true)["photo recombination lines:"]
     #
@@ -44,9 +58,9 @@ if  true
                 multipoles=[E1], gauges=[UseCoulomb, UseBabushkin], electronEnergies=energies, maxKappa=2,
                 includeRR=true, includeDR=false, calcAnisotropy=true, calcPolarization=true, printBefore=false)
     cPRI = Atomic.Computation(Atomic.Computation(), name="RR limit of the interference module", grid=grid, nuclearModel=nModel,
-               initialConfigs      = [Configuration("1s^2 2s")],
-               intermediateConfigs = [Configuration("1s 2s^2 2p")],
-               finalConfigs        = [Configuration("1s^2 2s^2")],
+               initialConfigs      = initialConfigs,
+               intermediateConfigs = intermediateConfigs,
+               finalConfigs        = finalConfigs,
                processSettings = priSet)
     priPaths = perform(cPRI; output=true)["photorecombination-interference pathways:"]
     #
@@ -108,6 +122,20 @@ elseif  false
     setDefaults("standard grid", grid)
     nModel = Nuclear.Model(26.)
     #
+    # ---- THE INPUT, spelled out ---------------------------------------------------------------------------------
+    #   INITIAL       Li-like Fe23+, ground configuration     1s^2 2s      N = 3 electrons, one level, J^P = 1/2+
+    #   INTERMEDIATE  Be-like Fe22+, KLL doubly excited       1s 2s^2 2p   N = 4, a 1s hole plus a 2p electron;
+    #                                                                     four levels, J^P = 0-, 1-, 2-, 1-
+    #   FINAL         Be-like Fe22+, ground configuration     1s^2 2s^2    N = 4, one level, J^P = 0+
+    #   The captured electron is the fourth: Li-like + e --> Be-like, and the KLL label says that a K-shell electron
+    #   is promoted to L while the free electron is captured into L as well.
+    initialConfigs      = [Configuration("1s^2 2s")]
+    intermediateConfigs = [Configuration("1s 2s^2 2p")]
+    finalConfigs        = [Configuration("1s^2 2s^2")]
+    Basics.displayConfigurations(26., initialConfigs;      sa="INITIAL, Li-like Fe23+:        ")
+    Basics.displayConfigurations(26., intermediateConfigs; sa="INTERMEDIATE, Be-like KLL:     ")
+    Basics.displayConfigurations(26., finalConfigs;        sa="FINAL, Be-like Fe22+:          ")
+    #
     dIndex = 4;    E_res = 172.464625                       # a.u., from the level structure printed by this same run
     gammaA = 1.392415e-4;   A_r = 1.082293e-2               # a.u., Coulomb gauge
     gammaD = gammaA + A_r
@@ -122,9 +150,9 @@ elseif  false
                 includeRR=false, includeDR=true, calcAnisotropy=true, calcPolarization=false, printBefore=true,
                 pathwaySelection = PathwaySelection(true; indexTriples=[(1, dIndex, 1)]))
     comp = Atomic.Computation(Atomic.Computation(), name="DR limit, calibration of N", grid=grid, nuclearModel=nModel,
-               initialConfigs      = [Configuration("1s^2 2s")],
-               intermediateConfigs = [Configuration("1s 2s^2 2p")],
-               finalConfigs        = [Configuration("1s^2 2s^2")],
+               initialConfigs      = initialConfigs,
+               intermediateConfigs = intermediateConfigs,
+               finalConfigs        = finalConfigs,
                processSettings = priSet)
     paths = perform(comp; output=true)["photorecombination-interference pathways:"]
     #
@@ -186,6 +214,20 @@ elseif  false
     setDefaults("standard grid", grid)
     nModel = Nuclear.Model(26.)
     #
+    # ---- THE INPUT, spelled out ---------------------------------------------------------------------------------
+    #   INITIAL       Li-like Fe23+, ground configuration     1s^2 2s      N = 3 electrons, one level, J^P = 1/2+
+    #   INTERMEDIATE  Be-like Fe22+, KLL doubly excited       1s 2s^2 2p   N = 4, a 1s hole plus a 2p electron;
+    #                                                                     four levels, J^P = 0-, 1-, 2-, 1-
+    #   FINAL         Be-like Fe22+, ground configuration     1s^2 2s^2    N = 4, one level, J^P = 0+
+    #   The captured electron is the fourth: Li-like + e --> Be-like, and the KLL label says that a K-shell electron
+    #   is promoted to L while the free electron is captured into L as well.
+    initialConfigs      = [Configuration("1s^2 2s")]
+    intermediateConfigs = [Configuration("1s 2s^2 2p")]
+    finalConfigs        = [Configuration("1s^2 2s^2")]
+    Basics.displayConfigurations(26., initialConfigs;      sa="INITIAL, Li-like Fe23+:        ")
+    Basics.displayConfigurations(26., intermediateConfigs; sa="INTERMEDIATE, Be-like KLL:     ")
+    Basics.displayConfigurations(26., finalConfigs;        sa="FINAL, Be-like Fe22+:          ")
+    #
     E_res_eV  = 4693.0014857
     gammaD_eV = Defaults.convertUnits("energy: from atomic", 1.096217e-2)
     detunings = [-40.0, -20.0, -8.0, -4.0, -2.0, -1.0, -0.5, 0.0, 0.5, 1.0, 2.0, 4.0, 8.0, 20.0, 40.0]
@@ -196,9 +238,9 @@ elseif  false
                 includeRR=true, includeDR=true, calcAnisotropy=true, calcPolarization=true, printBefore=false,
                 pathwaySelection = PathwaySelection(true; indexTriples=[(1, 4, 1)]))
     comp = Atomic.Computation(Atomic.Computation(), name="RR + DR interference, Fe23+ KLL", grid=grid, nuclearModel=nModel,
-               initialConfigs      = [Configuration("1s^2 2s")],
-               intermediateConfigs = [Configuration("1s 2s^2 2p")],
-               finalConfigs        = [Configuration("1s^2 2s^2")],
+               initialConfigs      = initialConfigs,
+               intermediateConfigs = intermediateConfigs,
+               finalConfigs        = finalConfigs,
                processSettings = priSet)
     paths = perform(comp; output=true)["photorecombination-interference pathways:"]
     #
@@ -249,6 +291,20 @@ elseif  false
     setDefaults("standard grid", grid)
     nModel = Nuclear.Model(54.)
     #
+    # ---- THE INPUT, spelled out ---------------------------------------------------------------------------------
+    #   INITIAL       Li-like Xe51+, ground configuration     1s^2 2s      N = 3 electrons, one level, J^P = 1/2+
+    #   INTERMEDIATE  Be-like Xe50+, KLL doubly excited       1s 2s^2 2p   N = 4, a 1s hole plus a 2p electron;
+    #                                                                     four levels, J^P = 0-, 1-, 2-, 1-
+    #   FINAL         Be-like Xe50+, ground configuration     1s^2 2s^2    N = 4, one level, J^P = 0+
+    #   The captured electron is the fourth: Li-like + e --> Be-like, and the KLL label says that a K-shell electron
+    #   is promoted to L while the free electron is captured into L as well.
+    initialConfigs      = [Configuration("1s^2 2s")]
+    intermediateConfigs = [Configuration("1s 2s^2 2p")]
+    finalConfigs        = [Configuration("1s^2 2s^2")]
+    Basics.displayConfigurations(54., initialConfigs;      sa="INITIAL, Li-like Xe51+:        ")
+    Basics.displayConfigurations(54., intermediateConfigs; sa="INTERMEDIATE, Be-like KLL:     ")
+    Basics.displayConfigurations(54., finalConfigs;        sa="FINAL, Be-like Xe50+:          ")
+    #
     E_res_eV  = 20551.48
     gammaD_eV = Defaults.convertUnits("energy: from atomic", 7.13171e-2)
     detunings = [-40.0, -20.0, -8.0, -4.0, -2.0, -1.0, -0.5, 0.0, 0.5, 1.0, 2.0, 4.0, 8.0, 20.0, 40.0]
@@ -259,9 +315,9 @@ elseif  false
                 includeRR=true, includeDR=true, calcAnisotropy=true, calcPolarization=true, printBefore=false,
                 pathwaySelection = PathwaySelection(true; indexTriples=[(1, 2, 1)]))
     comp = Atomic.Computation(Atomic.Computation(), name="RR + DR interference, Xe51+ KLL", grid=grid, nuclearModel=nModel,
-               initialConfigs      = [Configuration("1s^2 2s")],
-               intermediateConfigs = [Configuration("1s 2s^2 2p")],
-               finalConfigs        = [Configuration("1s^2 2s^2")],
+               initialConfigs      = initialConfigs,
+               intermediateConfigs = intermediateConfigs,
+               finalConfigs        = finalConfigs,
                processSettings = priSet)
     paths = perform(comp; output=true)["photorecombination-interference pathways:"]
     #

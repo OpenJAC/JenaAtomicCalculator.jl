@@ -15,11 +15,12 @@
     electron interaction is a scalar, so only J_d = J_t contributes.  The direct term A_RR is the one of `PhotoRecombination`, the capture
     amplitude is built from the Auger amplitude of `AutoIonization`, and the stabilizing amplitude is the one of `PhotoEmission`.
 
-    THE CAPTURE AMPLITUDE IS NOT conj(Auger), even though `ElectronCapture.amplitude` forms it that way.  The two source modules attach
-    DIFFERENT phase conventions to the continuum state -- `PhotoRecombination` uses i^l exp(+i phi) and `AutoIonization` i^l exp(-i phi) --
-    so the amplitude that belongs to PhotoRecombination's state is `AutoIonization.amplitude * exp(2 i phi)`, which differs from the
-    conjugate by (-1)^l.  `ElectronCapture` is not wrong for its own purpose, since it only ever squares the result; but a coherent sum
-    does not square first, and (-1)^l depends on the partial wave, so the difference is not even an overall sign.  See `amplitudeDR`.
+    THE CAPTURE AMPLITUDE IS NOT conj(Auger).  `PhotoRecombination` and `AutoIonization` attach different phase conventions to the
+    continuum state, i^l exp(+i phi) against i^l exp(-i phi), so the amplitude belonging to PhotoRecombination's state is the INCOMING-WAVE
+    variant `AutoIonization.captureAmplitude`, which differs from the conjugate by (-1)^l.  That factor cancels in anything that squares the
+    amplitude -- which is why it went unnoticed -- but not in a coherent sum, where it reweights the partial waves against one another.  The
+    convention now lives in `AutoIonization.captureAmplitude`, so that the next module to add a capture amplitude to something meets it
+    there rather than rediscovering it here.
 
     Both terms are evaluated at ONE AND THE SAME photon energy, omega = E + E_i - E_f, which is what energy conservation for the overall
     process requires and what makes the two amplitudes coherent at all.  It is NOT E_d - E_f; the two coincide only at exact resonance.
@@ -377,18 +378,9 @@ end
         without the overall normalization, which `dielectronicNormalization` supplies once per pathway.  The stabilizing amplitude is
         evaluated at the photon energy of the overall process rather than at E_d - E_f.  A value::EmPropertyC is returned.
 
-        THE CAPTURE PHASE IS NOT conj(Auger), and this is the one place where the two source modules cannot simply be combined.  Both carry
-        a factor for the continuum state, but not the same one: `PhotoRecombination.amplitude` multiplies by i^l exp(+i phi), so the
-        state it uses is |c> = i^l exp(+i phi) |real orbital>, whereas `AutoIonization.amplitude` multiplies by i^l exp(-i phi) and returns
-        i^l exp(-i phi) M_A with M_A REAL (its matrix is filled from real interaction strengths and real spin-angular coefficients).  The
-        capture amplitude that belongs to PhotoRecombination's state is therefore
-
-            <d|V|c> = i^l exp(+i phi) M_A = AutoIonization.amplitude * exp(2 i phi) ,
-
-        while conj(AutoIonization.amplitude) = (-i)^l exp(+i phi) M_A differs from it by (-1)^l.  `ElectronCapture.amplitude` does take the
-        conjugate, and is right to for its own purpose -- it only ever feeds |amplitude|^2, in which any such factor cancels -- but that
-        makes it no guide here.  Since (-1)^l depends on the PARTIAL WAVE, using it would not even be an overall sign: it would reweight the
-        partial waves against each other inside a coherent sum, and so change the interference itself.
+        The capture amplitude comes from `AutoIonization.captureAmplitude`, which is the incoming-wave variant of the Auger amplitude and
+        NOT its complex conjugate; that distinction is a property of the two continuum-state conventions rather than of this module, so it
+        is documented there.  It matters here because a coherent sum does not square the amplitude first.
 """
 function amplitudeDR(mp::EmMultipole, kappa::Int64, phase::Float64, dLevel::Level, newfLevel::Level, newcLevel::Level,
                      redFLevel::Level, totalEnergy::Float64, omega::Float64, gammaD::Float64, grid::Radial.Grid,
@@ -396,8 +388,7 @@ function amplitudeDR(mp::EmMultipole, kappa::Int64, phase::Float64, dLevel::Leve
     denominator = Complex(totalEnergy - dLevel.energy, 0.5 * gammaD)
     if  abs(denominator) < 1.0e-30    return( EmPropertyC(0.0im) )    end
     #
-    ampCapture = AutoIonization.amplitude(settings.augerOperator, kappa, phase, newcLevel, dLevel, grid; printout=false) *
-                 exp( 2im * phase )
+    ampCapture = AutoIonization.captureAmplitude(settings.augerOperator, kappa, phase, newcLevel, dLevel, grid; printout=false)
     if  ampCapture == ComplexF64(0.)    return( EmPropertyC(0.0im) )    end
     #
     if  string(mp)[1] == 'E'
