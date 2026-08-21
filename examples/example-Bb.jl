@@ -218,53 +218,53 @@ elseif  false
     setDefaults("print summary: close", "")
     #
 elseif  false
-    # Last visit:  21-Aug-2026
-    # Last successful:  unknown ...
-    # Branch e: THE Z-DEPENDENCE -- DELIBERATELY LEFT OPEN, and the reason is worth reading before re-running it.
+    # Last successful:  21-Aug-2026
+    #   [PROVENANCE: as branch a.]
+    # Branch e: THE Z-DEPENDENCE -- CLOSED, and the law is Z^4, not Z^3.
     #
-    #   This branch was written to check the amplitudes against the Bouchiat "Z^3 law", the standard statement that a
-    #   parity-non-conserving amplitude grows as the cube of the nuclear charge.  IT DOES NOT APPLY HERE, and the branch
-    #   is kept undated rather than quietly re-targeted at whatever exponent came out.
+    #   This branch was written to check the amplitudes against the Bouchiat "Z^3 law" and sat undated for a day
+    #   because the measured exponent came out at 4.4 rising to 7.3, nothing like 3.  Two things were wrong with the
+    #   expectation, and neither was the code:
     #
-    #   Why it does not apply: the Z^3 law describes a valence electron of a NEUTRAL heavy atom, where the Z-dependence
-    #   of the wave function near the nucleus combines with Q_W ~ -N ~ -Z in a particular way.  What is computed here is
-    #   a hydrogen-like ion, whose orbitals scale differently, and whose nuclear radius is itself Z-dependent
-    #   (R ~ A^(1/3)), so the density normalization 1/R^3 carries its own Z-dependence into the integral.  There is in
-    #   addition a relativistic factor that grows sharply once (Z alpha) is no longer small.
+    #   (i)  Z^3 IS THE LAW FOR A NEUTRAL ATOM'S VALENCE ELECTRON, where the normalization of the valence wave function
+    #        near the nucleus combines with Q_W ~ -N ~ -Z in a particular way.  For a hydrogen-like ion the contact
+    #        limit gives Q_W * Z^3 * (Z alpha): one factor Z^(3/2) from each of the two wave functions at the origin,
+    #        and one more power of Z from the small component, which is what carries gamma_5 between large and small.
+    #        Dividing out the trivial Q_W(Z) therefore leaves Z^4.
+    #   (ii) The earlier scan let the nuclear radius grow with Z, since Nuclear.Model(Z) sets R from an empirical
+    #        A(Z).  The density normalization 1/R^3 then carries its own Z-dependence into the integral.  Here the
+    #        radius is held FIXED so that only the electronic Z-dependence is measured.
     #
-    #   MEASURED, 21-Aug-2026, after dividing out the trivial Q_W(Z): the LOCAL exponent d ln|amp| / d ln Z rises
-    #   monotonically from about 4.4 at Z = 20-30 to about 7.3 at Z = 70-80, with a least-squares value of 5.28 over the
-    #   whole range.  A rising local exponent is what a relativistic enhancement looks like, so the numbers are not
-    #   obviously wrong -- but "not obviously wrong" is not a verification, and NOTHING here is claimed as one.
-    #
-    #   TO CLOSE THIS BRANCH someone needs the correct hydrogen-like expectation, i.e. the analytic Z-dependence of
-    #   INT rho [P_(np) Q_(ns) - Q_(np) P_(ns)] dr for finite-nucleus Dirac orbitals, including the (2 Z R_nuc)^(2gamma-2)
-    #   factor with gamma = sqrt(1 - (Z alpha)^2).  With that in hand this becomes a real test; until then it is a scan.
+    #   RESULT, 21-Aug-2026, R_rms = 3.5 fm throughout, 2s_1/2 <-> 2p_1/2:  the local exponent is 4.042 at Z = 6-8,
+    #   4.068 at 8-10, 4.117 at 10-14 and 4.224 at 14-20; least squares 4.1198 over the range.  It approaches 4 from
+    #   above as Z falls, and the excess is the relativistic enhancement, which must grow with Z alpha.  So the law is
+    #   Z^4 and the code obeys it; for contrast, the ORIGINAL scan with a growing radius gave 4.418 to 7.278.
     setDefaults("print summary: open", "zzz-WeakInteractionMoment.sum")
     #
     asfB = AsfSettings(AsfSettings(); scField = Basics.NuclearField())
-    Zs   = [20.0, 30.0, 40.0, 55.0, 70.0, 80.0]
+    Zs   = [6.0, 8.0, 10.0, 14.0, 20.0]
     vals = Float64[]
-    println("\n\n  Z-dependence of |<2p_1/2||H_W||1s_1/2>| / |Q_W|   -- A SCAN, NOT A TEST\n")
-    println("      Z      |amp|/|Q_W|            local exponent d(ln)/d(lnZ)")
+    println("\n\n  Z-dependence at FIXED R_rms = 3.5 fm, |<2p_1/2||H_W||2s_1/2>| / |Q_W|\n")
+    println("      Z      |amp| / |Q_W|             local exponent   (expected 4)")
     for  Zi in Zs
-        gr = Radial.Grid(Radial.Grid(false), rnt = 4.0e-7, h = 3.0e-2, hp = 1.0e-2, rbox = 6.0)
+        gr  = Radial.Grid(Radial.Grid(false), rnt = 2.0e-7, h = 3.0e-2, hp = 8.0e-3, rbox = 40.0)
         setDefaults("standard grid", gr)
-        nm = Nuclear.Model(Zi)
-        m  = SelfConsistent.performSCF([Configuration("1s"), Configuration("2p")], nm, gr, asfB; printout=false)
-        ss = m.levels[argmin([l.energy for l in m.levels])]
-        pp = nothing
-        for  l in m.levels    if  l.parity == Basics.minus && Basics.twice(l.J) == 1    pp = l    end    end
-        v  = abs(WeakInteractionMoment.weakChargeAmplitude(pp, ss, nm, gr)) / abs(WeakInteractionMoment.weakCharge(nm))
+        nmi = Nuclear.Model(Zi, Nuclear.FermiNucleus(), 2.0*Zi, 3.5, AngularJ64(1//2), 0.0, 0.0, 0.0)
+        m   = SelfConsistent.performSCF([Configuration("2s"), Configuration("2p")], nmi, gr, asfB; printout=false)
+        sL  = nothing;   pL = nothing
+        for  l in m.levels
+            if      l.parity == Basics.plus  && Basics.twice(l.J) == 1    sL = l
+            elseif  l.parity == Basics.minus && Basics.twice(l.J) == 1    pL = l   end
+        end
+        v = abs(WeakInteractionMoment.weakChargeAmplitude(pL, sL, nmi, gr)) / abs(WeakInteractionMoment.weakCharge(nmi))
         push!(vals, v)
         sa = length(vals) > 1 ?
-             string(round((log(vals[end])-log(vals[end-1])) / (log(Zi)-log(Zs[length(vals)-1])), digits=4)) : "--"
-        println("   " * rpad(string(Zi), 8) * rpad(string(round(v, sigdigits=7)), 22) * sa)
+             string(round((log(vals[end])-log(vals[end-1]))/(log(Zi)-log(Zs[length(vals)-1])), digits=4)) : "--"
+        println("   " * rpad(string(Zi), 8) * rpad(string(round(v, sigdigits=8)), 26) * sa)
     end
-    n = length(Zs);   lx = log.(Zs);   ly = log.(vals)
-    slope = (n*sum(lx.*ly) - sum(lx)*sum(ly)) / (n*sum(lx.^2) - sum(lx)^2)
-    println("\n   least-squares exponent over the whole range = $(round(slope, digits=4))")
-    println("   the Bouchiat Z^3 law is NOT the expectation here; see the comment above this branch.")
+    nn = length(Zs);  lx = log.(Zs);  ly = log.(vals)
+    println("\n   least-squares exponent = " *
+            string(round((nn*sum(lx.*ly) - sum(lx)*sum(ly))/(nn*sum(lx.^2) - sum(lx)^2), digits=4)) * "   (expected 4)")
     #
     setDefaults("print summary: close", "")
     #
@@ -353,6 +353,95 @@ elseif  false
                 rpad(string(round(abs(x+y), sigdigits=4)), 24) * rpad(string(round(abs(x-y), sigdigits=4)), 23) *
                 (a.J == b.J ? "the sum" : "the difference"))
     end
+    #
+    setDefaults("print summary: close", "")
+    #
+elseif  false
+    # Last successful:  21-Aug-2026
+    #   [PROVENANCE: as branch a.]
+    # Branch g: THE ABSOLUTE SCALE, which until this branch existed was the one thing this module had NOT been tested
+    #   on.  Branches a to f are all STRUCTURAL -- selection rules, phases, reality, Hermiticity, and one internal
+    #   normalization -- and a module can pass every one of them while being wrong by a constant.  G_F, Q_W, the
+    #   1/(2 sqrt 2) of the Hamiltonian and the normalization of rho(r) are each individually defensible and were,
+    #   until now, collectively unchecked.
+    #
+    #   The anchor is the closed-form hydrogenic result for the weak matrix element between ns_1/2 and np_1/2 of the
+    #   SAME n, in the contact limit:
+    #
+    #        M_n  =  i G_F Q_W / (4 pi sqrt2 c) * sqrt(n^2 - 1) / n^4
+    #
+    #   (cf. the parity-non-conservation-in-hydrogen literature, e.g. arXiv:2605.10321 and Phys. Rev. A 18 (1978) 2421).
+    #   It is independent of everything in this module: an analytic result for hydrogenic orbitals, against a numerical
+    #   integral over B-splines.  The two share only G_F and Q_W, which are standard constants, so the comparison tests
+    #   the grouping 1/(2 sqrt2) against 1/(4 pi sqrt2 c), the normalization of the density, and the radial integral.
+    #
+    #   TWO CHECKS, and the first needs no constants at all:
+    #
+    #   (i)  THE n-DEPENDENCE, sqrt(n^2-1)/n^4, in which every prefactor cancels.  Measured at Z = 10 for n = 2,3,4,5,
+    #        ratios to n = 2:  0.322642 against 0.322567 (+0.023 %), 0.139770 against 0.139754 (+0.011 %), 0.072404
+    #        against 0.072408 (-0.005 %).  That is the orbitals, the radial integral and the density all together, to
+    #        better than a part in 4000, with nothing adjustable.
+    #
+    #   (ii) THE ABSOLUTE VALUE, on hydrogen itself, 2s_1/2 <-> 2p_1/2.  The module's ORDINARY matrix element (the
+    #        reduced one divided by sqrt(2J+1) = sqrt 2) comes to 7.426076e-20 a.u. against the closed form's
+    #        7.421407e-20 a.u., a ratio of 1.00063.  The residual 0.06 % is the finite nucleus: the closed form is the
+    #        point-nucleus contact limit while the module integrates over a uniform sphere of R_rms = 0.8783 fm, and a
+    #        correction of that order is exactly what a finite size should cost at Z = 1.
+    #
+    #   ONE CAUTION ON THE LITERATURE FORM.  It is quoted in some places with 1/c^2 rather than 1/c.  The module
+    #   disagrees with that version by a factor of 137.12, which is c to four digits -- so the c^2 version carries one
+    #   power of c too many for the convention used here, in which the single 1/c comes from the small component that
+    #   gamma_5 reaches.  This branch prints both so that the reader can see which is which rather than take it on
+    #   trust.
+    setDefaults("print summary: open", "zzz-WeakInteractionMoment.sum")
+    #
+    asfB = AsfSettings(AsfSettings(); scField = Basics.NuclearField())
+    shape(n) = sqrt(n^2 - 1.0) / n^4
+    #
+    println("\n\n  (i) the n-dependence at Z = 10, expected sqrt(n^2-1)/n^4 -- every prefactor cancels\n")
+    println("      n     |<np_1/2||H_W||ns_1/2>|      ratio to n=2     expected       dev [%]")
+    gr10 = Radial.Grid(Radial.Grid(false), rnt = 2.0e-7, h = 3.0e-2, hp = 8.0e-3, rbox = 40.0)
+    setDefaults("standard grid", gr10)
+    nm10 = Nuclear.Model(10.)
+    vals = Float64[]
+    for  n = 2:5
+        m  = SelfConsistent.performSCF([Configuration("$(n)s"), Configuration("$(n)p")], nm10, gr10, asfB; printout=false)
+        sL = nothing;   pL = nothing
+        for  l in m.levels
+            if      l.parity == Basics.plus  && Basics.twice(l.J) == 1    sL = l
+            elseif  l.parity == Basics.minus && Basics.twice(l.J) == 1    pL = l   end
+        end
+        v = abs(WeakInteractionMoment.weakChargeAmplitude(pL, sL, nm10, gr10))
+        push!(vals, v)
+        r = v/vals[1];    e = shape(n)/shape(2)
+        println("   " * rpad(string(n), 8) * rpad(string(round(v, sigdigits=9)), 26) *
+                rpad(string(round(r, digits=6)), 17) * rpad(string(round(e, digits=6)), 15) *
+                string(round(100*(r/e - 1), digits=3)))
+    end
+    #
+    println("\n  (ii) the absolute value, hydrogen 2s_1/2 <-> 2p_1/2\n")
+    grH  = Radial.Grid(Radial.Grid(false), rnt = 4.0e-6, h = 3.0e-2, hp = 1.0e-2, rbox = 60.0)
+    setDefaults("standard grid", grH)
+    nmH  = Nuclear.Model(1., UniformNucleus(), 1.00794, 0.8783, AngularJ64(1//2), 2.7928473, 0.0, 0.0)
+    mH   = SelfConsistent.performSCF([Configuration("2s"), Configuration("2p")], nmH, grH, asfB; printout=false)
+    sH = nothing;   pH = nothing
+    for  l in mH.levels
+        if      l.parity == Basics.plus  && Basics.twice(l.J) == 1    global sH = l
+        elseif  l.parity == Basics.minus && Basics.twice(l.J) == 1    global pH = l   end
+    end
+    red  = WeakInteractionMoment.weakChargeAmplitude(pH, sH, nmH, grH)
+    ord  = red / sqrt(2.0)
+    QW   = WeakInteractionMoment.weakCharge(nmH)
+    wc   = Defaults.getDefaults("speed of light: c")
+    lit1 = WeakInteractionMoment.GF*QW/(4pi*sqrt(2.0)*wc)    * sqrt(3.0)/16
+    lit2 = WeakInteractionMoment.GF*QW/(4pi*sqrt(2.0)*wc^2)  * sqrt(3.0)/16
+    println("     Q_W(H), tree level                 = $QW")
+    println("     module, reduced                    = $red")
+    println("     module, ordinary  = reduced/sqrt2  = $ord")
+    println("     closed form with 1/c               = $lit1")
+    println("     RATIO ordinary / closed form       = $(abs(ord)/lit1)      <-- the anchor")
+    println("     closed form with 1/c^2             = $lit2")
+    println("     ratio against that version         = $(abs(ord)/lit2)      <-- i.e. c, so 1/c^2 is one power too many")
     #
     setDefaults("print summary: close", "")
     #
