@@ -204,6 +204,7 @@ elseif  char == 'P'
     println("P)  Examples, tests & development of photon-scattering computations (module PhotonScattering)")
     println("----------------------------------------------------------------------------------------------")
     println("Pa) BOUND-FREE PAIR CREATION: gamma + |i(N)> --> |f(N+1)> + e^+, the created electron being captured into a bound orbital.")
+    println("Pb) RAYLEIGH scattering: gamma + |i> --> |i> + gamma, second order over an explicit gMultiplet of intermediate levels.")
     #
 elseif  char == 'Q'
     return( nothing )

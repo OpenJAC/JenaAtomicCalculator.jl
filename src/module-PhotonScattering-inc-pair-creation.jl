@@ -58,7 +58,7 @@ function computePairCreationAmplitudesProperties(line::PhotonScattering.Line, nm
         l         = Basics.subshell_l( Subshell(101, pKappa) )
         amplitude = amplitude * (1im)^l * exp(1im * phase)
         push!( newChannels, PhotonScattering.Channel(channel.kappa, channel.inMultipole, channel.outMultipole, channel.gauge,
-                                                      channel.totalSymmetry, amplitude) )
+                                                      channel.timeOrdering, channel.totalSymmetry, amplitude) )
     end
 
     crossSection = PhotonScattering.pairCreationCrossSection(newChannels, line.inPhotonEnergy, line.particleEnergy, line.initialLevel)
@@ -121,11 +121,11 @@ function determinePairCreationChannels(finalLevel::Level, initialLevel::Level, s
                 if  abs(kappa) > settings.maxKappa    continue    end
                 for  gauge in settings.gauges
                     if      mp.electric  &&  gauge == Basics.UseCoulomb
-                        push!( channels, PhotonScattering.Channel(kappa, mp, mp, Basics.Coulomb,   symt, ComplexF64(0.)) )
+                        push!( channels, PhotonScattering.Channel(kappa, mp, mp, Basics.Coulomb,   PhotonScattering.NoTimeOrdering(), symt, ComplexF64(0.)) )
                     elseif  mp.electric  &&  gauge == Basics.UseBabushkin
-                        push!( channels, PhotonScattering.Channel(kappa, mp, mp, Basics.Babushkin, symt, ComplexF64(0.)) )
+                        push!( channels, PhotonScattering.Channel(kappa, mp, mp, Basics.Babushkin, PhotonScattering.NoTimeOrdering(), symt, ComplexF64(0.)) )
                     elseif  !mp.electric &&  gauge == settings.gauges[1]
-                        push!( channels, PhotonScattering.Channel(kappa, mp, mp, Basics.Magnetic,  symt, ComplexF64(0.)) )
+                        push!( channels, PhotonScattering.Channel(kappa, mp, mp, Basics.Magnetic,  PhotonScattering.NoTimeOrdering(), symt, ComplexF64(0.)) )
                     end
                 end
             end

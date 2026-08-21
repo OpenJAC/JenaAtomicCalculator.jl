@@ -65,6 +65,27 @@ struct     FirstOrderVertex        <:  AbstractScatteringApproximation  end
 
 
 """
+`abstract type PhotonScattering.AbstractTimeOrdering`
+    ... defines an abstract type to distinguish the two time-orderings of a second-order amplitude. They are NOT a bookkeeping
+        convenience: the orderings carry DIFFERENT energy denominators, so they must be evaluated and kept apart rather than
+        folded into one term.
+
+    + struct AbsorbThenEmit   ... the incoming photon is absorbed first; the denominator is E_i + omega_in - E_nu.
+    + struct EmitThenAbsorb   ... the outgoing photon is emitted first; the denominator is E_i - omega_out - E_nu.
+    + struct NoTimeOrdering   ... for a FIRST-order process, which has one vertex and therefore no ordering at all.
+"""
+abstract type  AbstractTimeOrdering                             end
+struct     AbsorbThenEmit    <:  AbstractTimeOrdering           end
+struct     EmitThenAbsorb    <:  AbstractTimeOrdering           end
+struct     NoTimeOrdering    <:  AbstractTimeOrdering           end
+
+@doc "... the incoming photon is absorbed first, the denominator being E_i + omega_in - E_nu."               AbsorbThenEmit
+@doc "... the outgoing photon is emitted first, the denominator being E_i - omega_out - E_nu."               EmitThenAbsorb
+@doc "... no time ordering applies; a first-order process has a single vertex. This is the honest value for " *
+     "bound-free pair creation, rather than an arbitrary choice between the other two."                      NoTimeOrdering
+
+
+"""
 `struct  PhotonScattering.Channel`
     ... defines a type for one reduced amplitude of a photon-scattering event, i.e. for one combination of the quantum numbers over
         which the amplitude is decomposed. Not every field is meaningful for every process: a one-vertex process such as bound-free
@@ -74,6 +95,8 @@ struct     FirstOrderVertex        <:  AbstractScatteringApproximation  end
     + inMultipole     ::EmMultipole      ... multipole of the incoming photon.
     + outMultipole    ::EmMultipole      ... multipole of the outgoing photon; equal to inMultipole where there is none.
     + gauge           ::EmGauge          ... gauge in which this amplitude was evaluated.
+    + timeOrdering    ::AbstractTimeOrdering  ... which time-ordering of a second-order amplitude this channel is;
+                                              NoTimeOrdering() for a first-order process.
     + totalSymmetry   ::LevelSymmetry    ... J^pi of the coupled system; amplitudes sharing it interfere and are summed coherently.
     + amplitude       ::ComplexF64       ... the reduced amplitude itself.
 """
@@ -82,6 +105,7 @@ struct  Channel
     inMultipole       ::EmMultipole
     outMultipole      ::EmMultipole
     gauge             ::EmGauge
+    timeOrdering      ::PhotonScattering.AbstractTimeOrdering
     totalSymmetry     ::LevelSymmetry
     amplitude         ::ComplexF64
 end
@@ -91,14 +115,15 @@ end
 `PhotonScattering.Channel()`  ... constructor for a default PhotonScattering.Channel.
 """
 function Channel()
-    Channel(-1, E1, E1, Basics.Coulomb, LevelSymmetry(AngularJ64(0), Basics.plus), ComplexF64(0.))
+    Channel(-1, E1, E1, Basics.Coulomb, PhotonScattering.NoTimeOrdering(),
+            LevelSymmetry(AngularJ64(0), Basics.plus), ComplexF64(0.))
 end
 
 
 # `Base.show(io::IO, ch::PhotonScattering.Channel)`  ... prepares a proper printout of the variable ch::PhotonScattering.Channel.
 function Base.show(io::IO, ch::PhotonScattering.Channel)
     println(io, "kappa = $(ch.kappa),  in = $(ch.inMultipole),  out = $(ch.outMultipole),  gauge = $(ch.gauge),  " *
-                "J^pi = $(ch.totalSymmetry),  amplitude = $(ch.amplitude)")
+                "ordering = $(ch.timeOrdering),  J^pi = $(ch.totalSymmetry),  amplitude = $(ch.amplitude)")
 end
 
 
