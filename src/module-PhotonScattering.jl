@@ -175,6 +175,57 @@ end
 
 
 """
+`PhotonScattering.checkCombination(settings::PhotonScattering.Settings)`
+    ... to check, BEFORE anything is computed, that the requested (beamType, process, approximation) triple is one the module can
+        actually evaluate. Nothing is returned if it can; otherwise this raises. The three axes are orthogonal by design, which
+        means most of the grid is EMPTY, and a Settings object can be constructed for any point on it -- so without this check a
+        request for a Bessel beam or a form-factor amplitude would be accepted and silently answered with plane-wave second-order
+        numbers. That is the failure mode this exists to prevent, and it follows the fallback pattern of
+        ParticleScattering.scatteringPotential.
+
+        TWO KINDS OF REFUSAL, deliberately worded differently, because they tell the user to do different things. A combination
+        that is NOT YET IMPLEMENTED is a feature to wait for. A combination that is MEANINGLESS is a request to rethink: bound-free
+        pair creation has ONE vertex, so SecondOrderGreen is not a more expensive version of it but a category error, and a
+        second-order process cannot be evaluated with FirstOrderVertex for the same reason in reverse.
+"""
+function checkCombination(settings::PhotonScattering.Settings)
+    secondOrder = [PhotonScattering.RayleighScattering(), PhotonScattering.ComptonScattering(),
+                   PhotonScattering.RamanScattering(),    PhotonScattering.ResonantScattering()]
+    firstOrder  = [PhotonScattering.BoundFreePairCreation()]
+
+    # (a) meaningless combinations -- the order of the process and the order of the approximation disagree
+    if      settings.process in firstOrder   &&  !(settings.approximation == PhotonScattering.FirstOrderVertex())
+        error("\n\nThe combination\n    process       = $(settings.process)\n" *
+              "    approximation = $(settings.approximation)\n\n" *
+              "does not describe anything. Bound-free pair creation has a SINGLE photon vertex, so FirstOrderVertex() is not an " *
+              "approximation to it -- it is exact, and is the only setting that means anything. SecondOrderGreen() and " *
+              "FormFactorApproximation() both presuppose two vertices. Use FirstOrderVertex().")
+    elseif  settings.process in secondOrder  &&  settings.approximation == PhotonScattering.FirstOrderVertex()
+        error("\n\nThe combination\n    process       = $(settings.process)\n" *
+              "    approximation = $(settings.approximation)\n\n" *
+              "does not describe anything. A scattering process has TWO photon vertices -- one for the incoming photon and one " *
+              "for the outgoing -- so it cannot be evaluated with a single-vertex amplitude. Use SecondOrderGreen().")
+    end
+
+    # (b) not yet implemented
+    if      !(settings.beamType isa Beam.PlaneWave)
+        error("\n\nNo photon-scattering process is implemented yet for\n    beamType = $(settings.beamType)\n\n" *
+              "Only Beam.PlaneWave() is available today. Scattering of TWISTED beams -- Beam.BesselBeam and " *
+              "Beam.LaguerreGauss -- is a planned stage of this module and the beam side already exists in the Beam module, but " *
+              "no amplitude here uses it: settings.beamType is not yet read by any pipeline. Ask for a plane wave, or wait.")
+    elseif  settings.approximation == PhotonScattering.FormFactorApproximation()
+        error("\n\nThe form-factor approximation is not implemented yet for\n    process = $(settings.process)\n\n" *
+              "Only SecondOrderGreen() is available for a scattering process today. The form-factor route -- the Rayleigh " *
+              "amplitude from the atomic form factor and the Compton one from the incoherent scattering function -- is planned " *
+              "as the cheap counterpart to the full sum, and JAC's FormFactor module already supplies the ingredient; nothing " *
+              "here calls it. Use SecondOrderGreen().")
+    end
+
+    return( nothing )
+end
+
+
+"""
 `PhotonScattering.computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, nm::Nuclear.Model, grid::Radial.Grid,
                                settings::PhotonScattering.Settings; output=true)`
     ... the single entry point of the module, reached from Basics.perform(::Atomic.Computation). It dispatches on settings.process,
@@ -183,6 +234,7 @@ end
 """
 function computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, nm::Nuclear.Model, grid::Radial.Grid,
                       settings::PhotonScattering.Settings; output=true)
+    PhotonScattering.checkCombination(settings)
     if      settings.process == PhotonScattering.BoundFreePairCreation()
         return( PhotonScattering.computePairCreationLines(finalMultiplet, initialMultiplet, nm, grid, settings; output=output) )
     elseif  settings.process in [PhotonScattering.RayleighScattering(), PhotonScattering.ComptonScattering(),
@@ -194,6 +246,48 @@ function computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, nm
         error("PhotonScattering: no pipeline for process $(settings.process).")
     end
 end
+
+
+"""
+`PhotonScattering.displaySupportedCombinations(stream::IO)`
+    ... to print which (beamType, process, approximation) combinations this module can evaluate and which it cannot, so that a user
+        can ask BEFORE running rather than discover it by being refused. A neat table is printed but nothing is returned otherwise.
+
+        The three axes are orthogonal by design and most of the grid is therefore empty. That is a feature -- the empty places are
+        named so the intended scope is visible -- but it does mean the supported set is much smaller than the type system allows,
+        and it is worth being able to see it at a glance.
+"""
+function displaySupportedCombinations(stream::IO)
+    nx = 118
+    println(stream, " ")
+    println(stream, "  PhotonScattering: which combinations can be computed today")
+    println(stream, " ")
+    println(stream, "  ", TableStrings.hLine(nx))
+    println(stream, "    beamType        process                  approximation             state")
+    println(stream, "  ", TableStrings.hLine(nx))
+    println(stream, "    PlaneWave       BoundFreePairCreation    FirstOrderVertex          YES")
+    println(stream, "    PlaneWave       RayleighScattering       SecondOrderGreen          YES")
+    println(stream, "    PlaneWave       RamanScattering          SecondOrderGreen          YES")
+    println(stream, "    PlaneWave       ResonantScattering       SecondOrderGreen          YES  (needs settings.width > 0)")
+    println(stream, "    PlaneWave       ComptonScattering        SecondOrderGreen          PARTLY -- see the note below")
+    println(stream, "  ", TableStrings.hLine(nx))
+    println(stream, "    PlaneWave       any scattering process   FormFactorApproximation   not implemented")
+    println(stream, "    BesselBeam      any                      any                       not implemented")
+    println(stream, "    LaguerreGauss   any                      any                       not implemented")
+    println(stream, "  ", TableStrings.hLine(nx))
+    println(stream, "    any             BoundFreePairCreation    SecondOrderGreen          MEANINGLESS -- one vertex only")
+    println(stream, "    any             any scattering process   FirstOrderVertex          MEANINGLESS -- two vertices")
+    println(stream, "  ", TableStrings.hLine(nx))
+    println(stream, " ")
+    println(stream, "  ComptonScattering presently means RAMAN-type inelastic scattering into DISCRETE final levels, which is what")
+    println(stream, "  a final-state Multiplet can express. The CONTINUUM Compton profile -- an ejected electron and the doubly")
+    println(stream, "  differential d^2 sigma / dOmega dOmega_out -- is not implemented in JAC under any name, and no Line can carry")
+    println(stream, "  it, a line holding one outgoing energy fixed by energy conservation.")
+    println(stream, " ")
+
+    return( nothing )
+end
+
 
 
 """
