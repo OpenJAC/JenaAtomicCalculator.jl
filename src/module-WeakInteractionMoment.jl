@@ -11,13 +11,14 @@
 
     THE THREE OPERATORS, and why each takes the radial form it does.  The Dirac matrices gamma_5 and alpha both MIX the large and small
     components, so the weak-charge and anapole integrands are of the P*Q type; the Schiff operator is a function of position only and so
-    keeps the P*P + Q*Q type of an ordinary electric multipole:
+    keeps the P*P + Q*Q type of an ordinary electric multipole.  TWO of the three are implemented and verified; the anapole is not, and
+    says so by raising rather than by returning a number:
 
         weak charge   H_W = (G_F/2sqrt2) Q_W rho(r) gamma_5                  rank 0, P-odd
                       one-electron ME  =  i (G_F/2sqrt2) Q_W  INT rho(r) [P_a Q_b - Q_a P_b] dr,   kappa_b = -kappa_a
 
         anapole       H_A = (G_F/sqrt2) kappa_anapole alpha.I rho(r)         rank 1, P-odd
-                      magnetic-multipole structure: <-kappa_a||C^1||kappa_b> (kappa_a+kappa_b)/2 INT rho [P_a Q_b + Q_a P_b] dr
+                      NOT IMPLEMENTED -- `anapoleAmplitude` raises; see its docstring for what is missing and why
 
         Schiff        H_S = 4 pi S . grad rho(r)                             rank 1, P-odd AND T-odd
                       electric-multipole structure: <kappa_a||C^1||kappa_b> INT (d rho/dr) [P_a P_b + Q_a Q_b] dr
@@ -49,36 +50,38 @@ const sinThetaW2  = 0.23122
 """
 `WeakInteractionMoment.anapoleAmplitude(finalLevel::Level, initialLevel::Level, nm::Nuclear.Model, grid::Radial.Grid;`
                                         `kappaAnapole::Float64=1.0, display::Bool=false)`
-    ... to compute the anapole-moment amplitude <alpha_f J_f || H^(anapole) || alpha_i J_i> for the given final and initial level and for
-        the nuclear density of the given nuclear model.  The operator is `alpha . I rho(r)`, of rank 1 and odd parity, and its one-electron
-        reduced matrix element carries the MAGNETIC-multipole structure, i.e. the factor (kappa_a + kappa_b) and the P*Q + Q*P radial
-        combination, exactly as `InteractionStrength.multipoleTransition` does for a magnetic multipole.
+    ... NOT IMPLEMENTED.  This function RAISES, and does so deliberately, following the pattern of `corePolarization.doApply` in
+        `module-PhotoEmission.jl`: an error that explains beats either a wrong result or a crash at a random undefined name.
 
-        `kappaAnapole` is the dimensionless nuclear anapole constant, left at 1.0 so that the returned amplitude may be scaled by whatever
-        value the user wishes to adopt.  A value::ComplexF64 is returned.
+        A first implementation gave the Dirac alpha matrix the MAGNETIC-multipole angular structure, i.e.
+        <-kappa_a||C^1||kappa_b> (kappa_a + kappa_b).  That is parity-EVEN and therefore exactly backwards: it survives for
+        p_1/2 <- p_3/2 and vanishes for both s_1/2 <- p_1/2 and s_1/2 <- p_3/2, whereas the P-odd anapole interaction must connect
+        s_1/2 with p_1/2 -- that mixing is how the nuclear anapole moment shows up in a measured PNC transition beside the weak
+        charge.  It was caught by branch a of `examples/example-Bb.jl`, where the anapole column came out identically zero for every
+        one of sixteen level pairs, a pattern that reads like a selection rule and is not one.
+
+        `kappaAnapole` is the dimensionless nuclear anapole constant, kept in the signature so that the eventual implementation can be
+        scaled by whatever value the user adopts.  The radial part is already settled and correct: `radialIntegralPQplus`.
 """
 function anapoleAmplitude(finalLevel::Level, initialLevel::Level, nm::Nuclear.Model, grid::Radial.Grid;
                           kappaAnapole::Float64=1.0, display::Bool=false)
-    # rank 1 and odd parity: the triangular rule and a parity change are both required, and both zeros are still displayed
-    if      finalLevel.parity == initialLevel.parity                               amplitude = ComplexF64(0.)
-    elseif  !AngularMomentum.isTriangle(finalLevel.J, AngularJ64(1), initialLevel.J)  amplitude = ComplexF64(0.)
-    else
-        rho     = WeakInteractionMoment.nuclearDensity(nm, grid)
-        prefac  = WeakInteractionMoment.GF / sqrt(2.0) * kappaAnapole
-        kernel  = (orba, orbb) -> begin
-            kapa = orba.subshell.kappa;    kapb = orbb.subshell.kappa
-            cl   = AngularMomentum.CL_reduced_me(Subshell(1, -kapa), 1, Subshell(1, kapb))
-            if  cl == 0.    return( 0. )    end
-            cl / sqrt(Basics.subshell_2j(orba.subshell) + 1.0) * (kapa + kapb) / 2.0 *
-                WeakInteractionMoment.radialIntegralPQplus(rho, orba, orbb, grid)
-        end
-        amplitude = prefac * WeakInteractionMoment.oneParticleAmplitude(1, kernel, finalLevel, initialLevel)
-    end
-    #
-    if  display   WeakInteractionMoment.displayAmplitude("Anapole moment amplitude:  ", "H^(anapole)", nm,
-                                                          finalLevel, initialLevel, amplitude)    end
+    error("WeakInteractionMoment.anapoleAmplitude() is NOT IMPLEMENTED, and raises rather than returning a number.\n\n" *
+          "The angular structure of the Dirac alpha matrix is NOT the magnetic-multipole one, and a first implementation " *
+          "that assumed it was has been withdrawn.  The magnetic template <-kappa_a||C^1||kappa_b> (kappa_a+kappa_b) is " *
+          "parity-EVEN: it is non-zero for p_1/2 <- p_3/2 and vanishes for BOTH s_1/2 <- p_1/2 (kappa_a+kappa_b = 0) and " *
+          "s_1/2 <- p_3/2 (the C^1 parity test fails).  That is exactly backwards for the P-ODD anapole interaction, which " *
+          "must connect s_1/2 with p_1/2 -- it is through that mixing that the nuclear anapole moment enters a measured PNC " *
+          "transition beside the weak charge.  Returning zero everywhere would have looked like a selection rule rather " *
+          "than a defect, which is why this raises instead.\n\n" *
+          "WHAT IS NEEDED: alpha = [[0, sigma], [sigma, 0]] connects the LARGE component of one orbital with the SMALL " *
+          "component of the other, so its angular factor is the reduced matrix element of sigma between Omega_(kappa_a) and " *
+          "Omega_(-kappa_b), NOT between Omega_(-kappa_a) and Omega_(kappa_b).  Omega_(-kappa) carries orbital parity l+-1 " *
+          "while sigma is parity-even, so that combination does change parity, as required.  " *
+          "AngularMomentum.sigma_TtL_reduced_me is the nearest existing machinery.  The radial part is settled: it is " *
+          "radialIntegralPQplus, i.e. INT rho(r) [P_a Q_b + Q_a P_b] dr.\n\n" *
+          "The weak-charge and Schiff-moment amplitudes of this module ARE implemented and verified; only this one is not.")
 
-    return( amplitude )
+    return( ComplexF64(0.) )
 end
 
 
@@ -188,6 +191,20 @@ end
 
 
 """
+`WeakInteractionMoment.radialDerivative(f::Array{Float64,1}, grid::Radial.Grid)`
+    ... to compute df/dr on the given grid by central differences, with one-sided differences at the two ends; an Array{Float64,1} is
+        returned.  The grid is not uniform in r, so the spacing is taken from `grid.r` itself rather than assumed.
+"""
+function radialDerivative(f::Array{Float64,1}, grid::Radial.Grid)
+    n  = min(length(f), grid.NoPoints);    df = zeros(n)
+    for  i = 2:n-1    df[i] = (f[i+1] - f[i-1]) / (grid.r[i+1] - grid.r[i-1])    end
+    if  n >= 2    df[1] = (f[2] - f[1]) / (grid.r[2] - grid.r[1]);    df[n] = (f[n] - f[n-1]) / (grid.r[n] - grid.r[n-1])    end
+
+    return( df )
+end
+
+
+"""
 `WeakInteractionMoment.radialIntegralPPplus(weight::Array{Float64,1}, a::Orbital, b::Orbital, grid::Radial.Grid)`
     ... to compute INT weight(r) [P_a P_b + Q_a Q_b] dr, the combination of an operator that does not mix the large and small components;
         a value::Float64 is returned.
@@ -261,20 +278,6 @@ function schiffMomentAmplitude(finalLevel::Level, initialLevel::Level, nm::Nucle
                                                           finalLevel, initialLevel, amplitude)    end
 
     return( amplitude )
-end
-
-
-"""
-`WeakInteractionMoment.radialDerivative(f::Array{Float64,1}, grid::Radial.Grid)`
-    ... to compute df/dr on the given grid by central differences, with one-sided differences at the two ends; an Array{Float64,1} is
-        returned.  The grid is not uniform in r, so the spacing is taken from `grid.r` itself rather than assumed.
-"""
-function radialDerivative(f::Array{Float64,1}, grid::Radial.Grid)
-    n  = min(length(f), grid.NoPoints);    df = zeros(n)
-    for  i = 2:n-1    df[i] = (f[i+1] - f[i-1]) / (grid.r[i+1] - grid.r[i-1])    end
-    if  n >= 2    df[1] = (f[2] - f[1]) / (grid.r[2] - grid.r[1]);    df[n] = (f[n] - f[n-1]) / (grid.r[n] - grid.r[n-1])    end
-
-    return( df )
 end
 
 

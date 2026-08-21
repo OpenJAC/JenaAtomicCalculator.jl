@@ -334,7 +334,7 @@ end
         that kind can be re-blessed indefinitely without ever becoming right. What is checked here instead cannot be satisfied by any
         stub and needs no external reference:
 
-          (i)   every operator vanishes EXACTLY between levels of the same parity, since all three are P-odd;
+          (i)   both implemented operators vanish EXACTLY between levels of the same parity, since they are P-odd;
           (ii)  the rank-0 weak charge vanishes EXACTLY unless J_f = J_i, as a pseudoscalar must;
           (iii) the weak-charge amplitude is purely imaginary and the Schiff-moment amplitude purely real, which follows from gamma_5
                 being antisymmetric in the large and small components while the Schiff operator is not;
@@ -354,10 +354,11 @@ function testModule_WeakInteractionMoment(; short::Bool=true)
     for  a  in  mp.levels,  b  in  mp.levels
         wc = WeakInteractionMoment.weakChargeAmplitude(a, b, nModel, grid)
         sm = WeakInteractionMoment.schiffMomentAmplitude(a, b, nModel, grid)
-        an = WeakInteractionMoment.anapoleAmplitude(a, b, nModel, grid)
+        # the anapole is deliberately NOT exercised: WeakInteractionMoment.anapoleAmplitude raises, because its angular
+        # structure is not yet settled, and a test must not depend on an unimplemented operator
         # (i) P-odd operators vanish between equal parities
-        if  a.parity == b.parity  &&  (wc != 0.  ||  sm != 0.  ||  an != 0.)
-            success = false;    println(">> same-parity pair $(a.index)<-$(b.index) does not vanish: $wc $sm $an")
+        if  a.parity == b.parity  &&  (wc != 0.  ||  sm != 0.)
+            success = false;    println(">> same-parity pair $(a.index)<-$(b.index) does not vanish: $wc $sm")
         end
         # (ii) the rank-0 weak charge needs J_f = J_i
         if  a.J != b.J  &&  wc != 0.
