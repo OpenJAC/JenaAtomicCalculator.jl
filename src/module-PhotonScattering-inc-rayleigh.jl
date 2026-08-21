@@ -320,16 +320,35 @@ end
         InteractionStrength.multipoleTransition: the length form carries j_L(qr) while the velocity form carries j_L(qr)/(qr) and
         j'_L(qr), and for small argument j_1(x) ~ x/3 against j_1(x)/x ~ 1/3.
 
-        THE OPEN QUESTION, which is NOT answered here and reaches well beyond this module: are JAC's two gauge amplitudes meant to
-        be EQUAL at the same omega? PhotoEmission.computeAmplitudesProperties forms its rate as 8 pi alpha omega |amp|^2 / (2J_i+1)
-        with ONE gauge-independent omega, which would require them to be. If they are, then the fault is local -- this file uses a
-        real-photon amplitude off shell and must supply the missing weighting itself. If they are not, and Babushkin is
-        conventionally omega times Coulomb with the compensation living elsewhere, the question belongs to PhotoEmission and to
-        every module that multiplies two such amplitudes, MultiPhotonTransition among them. For a real transition omega is pinned
-        at the transition energy, so PhotoEmission never varies it and this never shows there; a second-order sum varies omega
-        freely, which is why it surfaced here first. Two candidate explanations were tried and BOTH refuted by measurement -- the
-        gauges cross at 2.058 eV, which matches neither the 10.816 eV nor the 25.003 eV transition energy of this system, so the
-        crossing is not an on-shell point. No third explanation is offered without a measurement behind it.
+        THE QUESTION THIS RAISED IS ANSWERED, and the answer puts the fault here rather than in PhotoEmission. Length-velocity
+        equivalence is an ON-SHELL IDENTITY: the two forms are related through the commutator [H, r] = -i p / m, and turning
+        <f|p|i> into omega <f|r|i> uses (E_f - E_i) = omega. OFF SHELL that step is false, so the two amplitudes have no reason to
+        agree, and the Bessel asymmetry above is exactly how the discrepancy appears -- the length form picks up the power of omega
+        that the commutator identity would have supplied. Nothing is wrong in InteractionStrength or PhotoEmission; this file uses
+        a real-photon amplitude at a FREE omega and must supply the weighting itself. Two on-shell facts settle the direction:
+        helium 1s^2 -> 1s2p at its true transition energy gives f_Coulomb = 0.378 against f_Babushkin = 0.421, a ratio of 0.897
+        and nowhere near omega or 1/omega; and the GeneralizedOscillatorStrength module, which computes the LENGTH form by
+        construction, reproduces PhotoExcitation's BABUSHKIN oscillator strength to 1.000035 in the K -> 0 limit.
+
+        SO THERE ARE TWO INDEPENDENT FAULTS, and they were conflated until measured apart:
+
+          (1) THE OFF-SHELL WEIGHTING, above: structural, understood, and belonging to this file.
+          (2) BASIS QUALITY, exposed by measuring the gauge ratio AT the on-shell points of the test system rather than assuming
+              it would be unity there:
+
+                  1^- #1   dE = 10.816 eV   |A_Cou| = 7.560e-07   |A_Bab| = 3.953e-06   ratio 0.191
+                  1^- #2   dE = 25.003 eV   |A_Cou| = 1.059e-03   |A_Bab| = 1.434e-03   ratio 0.738
+
+              Neither is near unity. The initial and intermediate multiplets come from two SEPARATELY CONVERGED SCF runs, so the
+              orbitals are non-orthogonal and no biorthogonal transformation is applied -- which is what PhotoEmission's
+              calcBiorthogonal exists for. The two levels also differ by three orders of magnitude in amplitude, and it is the WEAK
+              one whose gauges disagree worst: #1 is an intercombination line whose E1 amplitude survives only through
+              singlet-triplet mixing, i.e. a small difference of large numbers. Strong cancellation is where gauge agreement fails
+              first, which is why JAC computes a cancellation factor at all.
+
+        CONSEQUENCE, stated plainly: NO ABSOLUTE RAYLEIGH NUMBER FROM THAT TEST SYSTEM SHOULD BE TRUSTED YET. The omega^4 EXPONENT
+        survives, a scaling exponent being insensitive to overall wave-function quality -- which is precisely why a ratio test was
+        the right instrument -- but the magnitudes are not evidence of anything.
 """
 function rayleighCrossSection(channels::Array{PhotonScattering.Channel,1}, inOmega::Float64, outOmega::Float64,
                               initialLevel::Level)

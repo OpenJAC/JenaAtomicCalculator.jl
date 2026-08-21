@@ -74,15 +74,43 @@ if  true
     #   Babushkin that carries it.  Second: that the gauges cross at the on-shell point -- refuted, they cross at
     #   2.058 eV while this system's 1^- transition energies are 10.816 eV and 25.003 eV, matching neither.
     #
-    #   THE OPEN QUESTION, deliberately left open.  Are JAC's two gauge amplitudes meant to be EQUAL at the same
-    #   omega?  PhotoEmission.computeAmplitudesProperties forms its rate as 8 pi alpha omega |amp|^2 / (2J_i+1),
-    #   with ONE gauge-independent omega, which would require them to be.  If they are, the fault is local: this
-    #   file uses a real-photon amplitude off shell and must supply the missing weighting.  If they are not, the
-    #   question belongs to PhotoEmission and to every module forming a product of two such amplitudes --
-    #   MultiPhotonTransition among them, which carries six dated branches.  For a real transition omega is pinned
-    #   at the transition energy, so PhotoEmission never varies it and this cannot show there; a second-order sum
-    #   varies omega freely, which is why it surfaced here first.  ONE RUN WOULD SETTLE IT: compute a real E1 rate
-    #   for a known transition in both gauges and see whether they agree.
+    #   THE QUESTION IS ANSWERED, and the answer puts the fault here.  Length-velocity equivalence is an ON-SHELL
+    #   IDENTITY: the forms are related by [H,r] = -i p/m, and turning <f|p|i> into omega <f|r|i> uses
+    #   (E_f - E_i) = omega.  Off shell that step is FALSE, so the amplitudes have no reason to agree, and the
+    #   Bessel asymmetry is exactly how it shows.  Nothing is wrong in InteractionStrength or PhotoEmission.
+    #   Two on-shell facts fix the direction: helium 1s^2 -> 1s2p at its true energy gives f_Cou = 0.378 against
+    #   f_Bab = 0.421, ratio 0.897, nowhere near omega or 1/omega; and GeneralizedOscillatorStrength, which is a
+    #   LENGTH-form calculation by construction, reproduces PhotoExcitation's BABUSHKIN f to 1.000035 as K -> 0.
+    #
+    #   AND MEASURING THE ON-SHELL RATIO IN *THIS* SYSTEM EXPOSED A SECOND, INDEPENDENT FAULT.  The identity says
+    #   the gauges should agree at each level's own transition energy.  They do not:
+    #
+    #       1^- #1   dE = 10.816 eV   |A_Cou| = 7.560e-07   |A_Bab| = 3.953e-06   ratio 0.191
+    #       1^- #2   dE = 25.003 eV   |A_Cou| = 1.059e-03   |A_Bab| = 1.434e-03   ratio 0.738
+    #
+    #   Neither is near unity, against 0.897 for helium.  The initial 1s^2 2s^2 and intermediate 1s^2 2s 2p
+    #   multiplets come from two SEPARATELY CONVERGED SCF runs, so the orbitals are non-orthogonal and no
+    #   biorthogonal transformation is applied -- which is what PhotoEmission's calcBiorthogonal exists for.  Note
+    #   also that the two levels differ by THREE ORDERS OF MAGNITUDE in amplitude and that it is the WEAK one whose
+    #   gauges disagree worst: #1 is an intercombination line, its E1 amplitude surviving only through
+    #   singlet-triplet mixing, i.e. a small difference of large numbers.  Strong cancellation is where gauge
+    #   agreement fails first, which is why JAC computes a cancellation factor at all.
+    #
+    #   SO TWO FAULTS, conflated until they were measured apart:
+    #     (1) the off-shell omega weighting -- structural, understood, belongs to rayleighAmplitude;
+    #     (2) basis quality -- non-orthogonal orbitals, compounded by an intercombination level.
+    #
+    #   CONSEQUENCE, stated plainly: NO ABSOLUTE NUMBER IN THIS BRANCH SHOULD BE TRUSTED YET.  The omega^4
+    #   EXPONENT survives, a scaling exponent being insensitive to overall wave-function quality -- which is
+    #   exactly why a ratio test was the right first instrument -- but the magnitudes are not evidence of anything.
+    #
+    #   NOT YET DONE, and the sharpest test still missing: a HERMITICITY check.  Everything used today --
+    #   omega^4 here, Z^5 for annihilation, detailed balance for pair creation -- constrains a MAGNITUDE, and every
+    #   one of them would pass with a sign error in one time ordering.  For RAMAN, exchanging initial and final
+    #   levels while swapping omega_in and omega_out must relate the amplitude to its own conjugate in a definite
+    #   way, with the two orderings swapping into each other.  That constrains a PHASE.  A parallel session lost
+    #   an afternoon to an anapole that passed selection rules, reality and plausible magnitudes and was caught
+    #   only by exchanging two levels and finding -3 where -1 was required.
     #
     #   The branch is NOT dated.  One gauge reproducing a known law is a genuine result and is recorded as such,
     #   but an implementation in which the two gauges obey different power laws is not verified.
