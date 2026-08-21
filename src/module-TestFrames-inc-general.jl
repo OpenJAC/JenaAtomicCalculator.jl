@@ -334,7 +334,7 @@ end
         that kind can be re-blessed indefinitely without ever becoming right. What is checked here instead cannot be satisfied by any
         stub and needs no external reference:
 
-          (i)   both implemented operators vanish EXACTLY between levels of the same parity, since they are P-odd;
+          (i)   all three operators vanish EXACTLY between levels of the same parity, since all three are P-odd;
           (ii)  the rank-0 weak charge vanishes EXACTLY unless J_f = J_i, as a pseudoscalar must;
           (iii) the weak-charge amplitude is purely imaginary and the Schiff-moment amplitude purely real, which follows from gamma_5
                 being antisymmetric in the large and small components while the Schiff operator is not;
@@ -354,11 +354,10 @@ function testModule_WeakInteractionMoment(; short::Bool=true)
     for  a  in  mp.levels,  b  in  mp.levels
         wc = WeakInteractionMoment.weakChargeAmplitude(a, b, nModel, grid)
         sm = WeakInteractionMoment.schiffMomentAmplitude(a, b, nModel, grid)
-        # the anapole is deliberately NOT exercised: WeakInteractionMoment.anapoleAmplitude raises, because its angular
-        # structure is not yet settled, and a test must not depend on an unimplemented operator
+        an = WeakInteractionMoment.anapoleAmplitude(a, b, nModel, grid)
         # (i) P-odd operators vanish between equal parities
-        if  a.parity == b.parity  &&  (wc != 0.  ||  sm != 0.)
-            success = false;    println(">> same-parity pair $(a.index)<-$(b.index) does not vanish: $wc $sm")
+        if  a.parity == b.parity  &&  (wc != 0.  ||  sm != 0.  ||  an != 0.)
+            success = false;    println(">> same-parity pair $(a.index)<-$(b.index) does not vanish: $wc $sm $an")
         end
         # (ii) the rank-0 weak charge needs J_f = J_i
         if  a.J != b.J  &&  wc != 0.
@@ -370,6 +369,18 @@ function testModule_WeakInteractionMoment(; short::Bool=true)
         end
         if  abs(sm) > 0.  &&  abs(imag(sm)) > tol*abs(sm)
             success = false;    println(">> Schiff amplitude not purely real at $(a.index)<-$(b.index): $sm")
+        end
+        # (iv-bis) the anapole is purely imaginary too, and Hermitian
+        if  abs(an) > 0.
+            if  abs(real(an)) > tol*abs(an)
+                success = false;    println(">> anapole amplitude not purely imaginary at $(a.index)<-$(b.index): $an")
+            end
+            anR = WeakInteractionMoment.anapoleAmplitude(b, a, nModel, grid)
+            # Hermiticity: antisymmetric for J_f = J_i, symmetric otherwise -- both are exact
+            dev = a.J == b.J ? abs(an + anR) : abs(an - anR)
+            if  dev > tol*abs(an)
+                success = false;    println(">> anapole fails Hermiticity under exchange at $(a.index)<-$(b.index)")
+            end
         end
         # (iv) Hermiticity, and (v) the two operators must differ
         if  abs(wc) > 0.

@@ -18,21 +18,18 @@ if  true
     #   addition vanish unless J_f = J_i.  The predecessor of this module enforced neither, and its approved test file
     #   asserted non-zero values for three same-parity pairs.
     #
-    #   THIS BRANCH EARNED ITS KEEP ON THE DAY IT WAS WRITTEN.  It originally printed a third column for the anapole,
-    #   which came out identically 0.0 for all sixteen pairs -- a pattern that reads like a selection rule and is not
-    #   one.  The cause was a wrong angular structure (the magnetic-multipole template, which is parity-EVEN and so
-    #   forbids exactly the s_1/2 <-> p_1/2 mixing through which the anapole reaches a measured PNC transition).
-    #   `anapoleAmplitude` now RAISES rather than returning that silent zero, and the column is gone from this table.
-    #   See branch d, where the raise is exercised.
+    #   THIS BRANCH EARNED ITS KEEP ON THE DAY IT WAS WRITTEN.  Its anapole column originally came out identically 0.0
+    #   for all sixteen pairs -- a pattern that reads like a selection rule and is not one -- which is how a wrong
+    #   angular structure in `anapoleAmplitude` was caught.  See branch f, which now covers the anapole in detail.
     #
     #   The test bed is deliberately small and has both parities and two J values: a one-electron ion at Z = 55 in the
     #   BARE nuclear field, giving 1s_1/2+, 2s_1/2+, 2p_1/2- and 2p_3/2-.  Basics.NuclearField() is used rather than the
     #   default DFS so that a one-electron system does not acquire a self-interaction.
     #
-    #   RESULT, 21-Aug-2026:  16 ordered pairs, of which 8 have equal parity.  All 8 give exactly 0.0 for both operators.
-    #   Of the 8 opposite-parity pairs, the weak charge is non-zero for exactly the 4 with J_f = J_i and exactly zero for
-    #   the 4 with J_f != J_i, while the rank-1 Schiff amplitude survives the J change.  Every zero here is a hard 0.0,
-    #   not a small number.
+    #   RESULT, 21-Aug-2026:  16 ordered pairs, of which 8 have equal parity.  All 8 give exactly 0.0 for all three
+    #   operators.  Of the 8 opposite-parity pairs, the weak charge is non-zero for exactly the 4 with J_f = J_i and
+    #   exactly zero for the 4 with J_f != J_i, while the rank-1 Schiff and anapole amplitudes survive the J change.
+    #   Every zero here is a hard 0.0, not a small number.
     setDefaults("print summary: open", "zzz-WeakInteractionMoment.sum")
     #
     grid   = Radial.Grid(Radial.Grid(false), rnt = 4.0e-7, h = 3.0e-2, hp = 1.0e-2, rbox = 6.0)
@@ -43,22 +40,23 @@ if  true
                                 configs=[Configuration("1s"), Configuration("2s"), Configuration("2p")], asfSettings=asfB)
     mp     = perform(comp; output=true)["multiplet:"]
     #
-    println("\n\n  Selection rules of the P-odd operators (Z = 55, bare nuclear field)\n")
-    println("   f <- i     J^P f     J^P i    same par?   dJ?      weak charge        Schiff")
+    println("\n\n  Selection rules of the three P-odd operators (Z = 55, bare nuclear field)\n")
+    println("   f <- i     J^P f     J^P i    same par?   dJ?      weak charge        Schiff           anapole")
     nSame = 0;   nViol = 0;   nWeak = 0
     for  a in mp.levels,  b in mp.levels
         wc = WeakInteractionMoment.weakChargeAmplitude(a, b, nModel, grid)
         sm = WeakInteractionMoment.schiffMomentAmplitude(a, b, nModel, grid)
+        an = WeakInteractionMoment.anapoleAmplitude(a, b, nModel, grid)
         samePar = (a.parity == b.parity);    sameJ = (a.J == b.J)
         if  samePar
             global nSame += 1
-            if  wc != 0. || sm != 0.    global nViol += 1    end
+            if  wc != 0. || sm != 0. || an != 0.    global nViol += 1    end
         end
         if  wc != 0.    global nWeak += 1    end
         println("   " * rpad("$(a.index) <- $(b.index)", 10) * rpad(string(LevelSymmetry(a.J,a.parity)), 10) *
                 rpad(string(LevelSymmetry(b.J,b.parity)), 9) * rpad(samePar ? "yes" : "no", 12) *
                 rpad(sameJ ? "no" : "yes", 9) * rpad(string(round(abs(wc), sigdigits=4)), 18) *
-                string(round(abs(sm), sigdigits=4)))
+                rpad(string(round(abs(sm), sigdigits=4)), 17) * string(round(abs(an), sigdigits=4)))
     end
     println("\n  same-parity pairs: $nSame,  of which non-vanishing: $nViol   (must be 0)")
     println("  pairs with a non-zero weak charge: $nWeak   (must be the opposite-parity, equal-J ones only)")
@@ -208,16 +206,6 @@ elseif  false
                 rpad(string(round(a, sigdigits=8)), 24) * string(round(a/ref, digits=6)))
     end
     #
-    println("\n  the anapole amplitude, which is not implemented and must say so rather than return a number:")
-    try
-        nmA = Nuclear.Model(55.)
-        mA  = SelfConsistent.performSCF([Configuration("1s"), Configuration("2p")], nmA, grid, asfB; printout=false)
-        WeakInteractionMoment.anapoleAmplitude(mA.levels[1], mA.levels[2], nmA, grid)
-        println("     NO ERROR RAISED -- that is a defect")
-    catch e
-        println("     raised, as intended:  ", first(sprint(showerror, e), 150), " ...")
-    end
-    #
     println("\n  and the point nucleus, which must be refused rather than approximated:")
     try
         nmPt = Nuclear.Model(55., Nuclear.PointNucleus(), 125.125, 4.75, AngularJ64(1//2), 0.0, 0.0, 0.0)
@@ -277,6 +265,94 @@ elseif  false
     slope = (n*sum(lx.*ly) - sum(lx)*sum(ly)) / (n*sum(lx.^2) - sum(lx)^2)
     println("\n   least-squares exponent over the whole range = $(round(slope, digits=4))")
     println("   the Bouchiat Z^3 law is NOT the expectation here; see the comment above this branch.")
+    #
+    setDefaults("print summary: close", "")
+    #
+elseif  false
+    # Last successful:  21-Aug-2026
+    #   [PROVENANCE: as branch a.]
+    # Branch f: THE ANAPOLE, and the mistake that only Hermiticity could catch.  Written last, because the anapole was
+    #   the hardest of the three and got its angular structure wrong TWICE before this branch was dated.
+    #
+    #   The operator is (G_F/sqrt2) kappa_a alpha.I rho(r), rank 1 and P-odd.  alpha = [[0, sigma], [sigma, 0]] connects
+    #   the LARGE component of one orbital with the SMALL component of the other, so with Omega_(-kappa) = -(sigma.rhat)
+    #   Omega_(kappa) the one-electron reduced matrix element is
+    #
+    #       <k_a||alpha rho||k_b> = i [ <Om(k_a)||sigma||Om(-k_b)> INT rho P_a Q_b dr
+    #                                 - <Om(-k_a)||sigma||Om(k_b)> INT rho Q_a P_b dr ]
+    #
+    #   FIRST MISTAKE, caught by branch a: giving alpha the MAGNETIC-multipole template
+    #   <-k_a||C^1||k_b> (k_a + k_b).  That is parity-EVEN, so it survived for p_1/2 <- p_3/2 and vanished for BOTH
+    #   s_1/2 <- p_1/2 and s_1/2 <- p_3/2 -- the anapole column came out identically zero for all sixteen pairs.
+    #
+    #   SECOND MISTAKE, caught ONLY by Hermiticity: combining the two cross terms above into the symmetric
+    #   P_a Q_b + Q_a P_b, on the assumption that their angular factors differ merely by a sign.  That holds for gamma_5,
+    #   whose two factors are both delta(k_a, -k_b), and fails here: for s_1/2 <-> p_1/2 they are <s||sigma||s> = sqrt(6)
+    #   and <p_1/2||sigma||p_1/2> = -sqrt(6)/3, a ratio of -3.  The wrong version passed the selection rules, passed the
+    #   reality check, and gave amplitudes of an entirely plausible size; exchanging the two levels multiplied the
+    #   amplitude by -3 instead of -1, and nothing else in this file would have noticed.
+    #
+    #   RESULT, 21-Aug-2026, Z = 55:
+    #     - reachability, from the sigma reduced matrix element: s_1/2 <-> p_1/2 YES (2.44949), p_1/2 <-> d_3/2 YES
+    #       (-2.30940), p_3/2 <-> d_3/2 YES (2.58199); the parity-CONSERVING p_1/2 <-> p_3/2 is 0, as it must be;
+    #     - the module against the exact one-electron reduced matrix element built from the orbitals: ratio
+    #       1.0000000000000002;
+    #     - all 8 same-parity pairs exactly 0.0, every amplitude purely imaginary (re/|amp| = 0.0);
+    #     - Hermiticity exact: |<f|H|i> + <i|H|f>| = 0.000e+00 for the J_f = J_i pairs and |<f|H|i> - <i|H|f>| = 0.000e+00
+    #       for the J = 1/2 <-> 3/2 pairs.
+    setDefaults("print summary: open", "zzz-WeakInteractionMoment.sum")
+    #
+    grid   = Radial.Grid(Radial.Grid(false), rnt = 4.0e-7, h = 3.0e-2, hp = 1.0e-2, rbox = 6.0)
+    setDefaults("standard grid", grid)
+    nModel = Nuclear.Model(55.)
+    asfB   = AsfSettings(AsfSettings(); scField = Basics.NuclearField())
+    #
+    println("\n\n  (i) which kappa pairs the anapole can reach, from <Om(k_a)||sigma||Om(-k_b)>\n")
+    println("   a  <- b            l(k_a)  l(-k_b)   sigma red. m.e.    reachable?")
+    for  (ka, kb, nam)  in  [(-1, 1,"s_1/2 <- p_1/2"), (-1,-2,"s_1/2 <- p_3/2"), ( 1,-2,"p_1/2 <- p_3/2"),
+                             ( 1, 2,"p_1/2 <- d_3/2"), (-2, 2,"p_3/2 <- d_3/2"), (-2,-3,"p_3/2 <- d_5/2")]
+        la = Basics.subshell_l(Subshell(9, ka));    lb = Basics.subshell_l(Subshell(9, -kb))
+        sg = WeakInteractionMoment.sigmaReducedMe(ka, -kb)
+        println("   " * rpad(nam, 19) * rpad(string(la), 8) * rpad(string(lb), 10) *
+                rpad(string(round(sg, digits=6)), 19) * (sg != 0. ? "YES" : "no"))
+    end
+    println("\n   s_1/2 <-> p_1/2 MUST be reachable: that mixing is how an anapole moment enters a measured")
+    println("   PNC transition.  The withdrawn magnetic template gave exactly 0 there.")
+    #
+    mp   = SelfConsistent.performSCF([Configuration("1s"), Configuration("2p")], nModel, grid, asfB; printout=false)
+    s12  = mp.levels[argmin([l.energy for l in mp.levels])]
+    p12  = nothing
+    for  l in mp.levels    if  l.parity == Basics.minus && Basics.twice(l.J) == 1    global p12 = l    end    end
+    rho  = WeakInteractionMoment.nuclearDensity(nModel, grid)
+    subS = first(filter(sh -> sh.kappa == -1, collect(keys(s12.basis.orbitals))))
+    subP = first(filter(sh -> sh.kappa == +1, collect(keys(p12.basis.orbitals))))
+    oP   = p12.basis.orbitals[subP];    oS = s12.basis.orbitals[subS]
+    mod  = WeakInteractionMoment.anapoleAmplitude(p12, s12, nModel, grid)
+    sgA  = WeakInteractionMoment.sigmaReducedMe( oP.subshell.kappa, -oS.subshell.kappa)
+    sgB  = WeakInteractionMoment.sigmaReducedMe(-oP.subshell.kappa,  oS.subshell.kappa)
+    r1   = WeakInteractionMoment.radialIntegralPQ(rho, oP, oS, grid)
+    r2   = WeakInteractionMoment.radialIntegralPQ(rho, oS, oP, grid)
+    hand = WeakInteractionMoment.GF/sqrt(2.0) * im * (sgA*r1 - sgB*r2)
+    println("\n  (ii) the module against the exact one-electron reduced matrix element\n")
+    println("     subshells used                  : a = $subP,  b = $subS")
+    println("     <Om(k_a)||sigma||Om(-k_b)> = $sgA   weights INT rho P_a Q_b = $r1")
+    println("     <Om(-k_a)||sigma||Om(k_b)> = $sgB   weights INT rho Q_a P_b = $r2")
+    println("     module                          = $mod")
+    println("     exact                           = $hand")
+    println("     RATIO (must be exactly 1)       = $(mod/hand)")
+    #
+    println("\n  (iii) Hermiticity -- the check that caught the second mistake\n")
+    mp2 = SelfConsistent.performSCF([Configuration("1s"), Configuration("2s"), Configuration("2p")], nModel, grid, asfB; printout=false)
+    println("   pair     J_f vs J_i    |<f|H|i> + <i|H|f>|     |<f|H|i> - <i|H|f>|    which must vanish")
+    for  a in mp2.levels,  b in mp2.levels
+        a.index >= b.index  &&  continue
+        x = WeakInteractionMoment.anapoleAmplitude(a, b, nModel, grid)
+        y = WeakInteractionMoment.anapoleAmplitude(b, a, nModel, grid)
+        abs(x) == 0.  &&  continue
+        println("   " * rpad("$(a.index)<->$(b.index)", 9) * rpad(a.J == b.J ? "equal" : "differ", 14) *
+                rpad(string(round(abs(x+y), sigdigits=4)), 24) * rpad(string(round(abs(x-y), sigdigits=4)), 23) *
+                (a.J == b.J ? "the sum" : "the difference"))
+    end
     #
     setDefaults("print summary: close", "")
     #

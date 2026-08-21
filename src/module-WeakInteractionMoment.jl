@@ -11,14 +11,14 @@
 
     THE THREE OPERATORS, and why each takes the radial form it does.  The Dirac matrices gamma_5 and alpha both MIX the large and small
     components, so the weak-charge and anapole integrands are of the P*Q type; the Schiff operator is a function of position only and so
-    keeps the P*P + Q*Q type of an ordinary electric multipole.  TWO of the three are implemented and verified; the anapole is not, and
-    says so by raising rather than by returning a number:
+    keeps the P*P + Q*Q type of an ordinary electric multipole:
 
         weak charge   H_W = (G_F/2sqrt2) Q_W rho(r) gamma_5                  rank 0, P-odd
                       one-electron ME  =  i (G_F/2sqrt2) Q_W  INT rho(r) [P_a Q_b - Q_a P_b] dr,   kappa_b = -kappa_a
 
         anapole       H_A = (G_F/sqrt2) kappa_anapole alpha.I rho(r)         rank 1, P-odd
-                      NOT IMPLEMENTED -- `anapoleAmplitude` raises; see its docstring for what is missing and why
+                      one-electron ME  =  i [ <Om(k_a)||sigma||Om(-k_b)> INT rho P_a Q_b dr
+                                             - <Om(-k_a)||sigma||Om(k_b)> INT rho Q_a P_b dr ]
 
         Schiff        H_S = 4 pi S . grad rho(r)                             rank 1, P-odd AND T-odd
                       electric-multipole structure: <kappa_a||C^1||kappa_b> INT (d rho/dr) [P_a P_b + Q_a Q_b] dr
@@ -50,38 +50,58 @@ const sinThetaW2  = 0.23122
 """
 `WeakInteractionMoment.anapoleAmplitude(finalLevel::Level, initialLevel::Level, nm::Nuclear.Model, grid::Radial.Grid;`
                                         `kappaAnapole::Float64=1.0, display::Bool=false)`
-    ... NOT IMPLEMENTED.  This function RAISES, and does so deliberately, following the pattern of `corePolarization.doApply` in
-        `module-PhotoEmission.jl`: an error that explains beats either a wrong result or a crash at a random undefined name.
+    ... to compute the anapole-moment amplitude <alpha_f J_f || H^(anapole) || alpha_i J_i> for the given final and initial level and for
+        the nuclear density of the given nuclear model.  The operator is `(G_F/sqrt2) kappa_anapole alpha.I rho(r)`, of rank 1 and odd
+        parity.  A value::ComplexF64 is returned, purely imaginary for real radial orbitals.
 
-        A first implementation gave the Dirac alpha matrix the MAGNETIC-multipole angular structure, i.e.
-        <-kappa_a||C^1||kappa_b> (kappa_a + kappa_b).  That is parity-EVEN and therefore exactly backwards: it survives for
-        p_1/2 <- p_3/2 and vanishes for both s_1/2 <- p_1/2 and s_1/2 <- p_3/2, whereas the P-odd anapole interaction must connect
-        s_1/2 with p_1/2 -- that mixing is how the nuclear anapole moment shows up in a measured PNC transition beside the weak
-        charge.  It was caught by branch a of `examples/example-Bb.jl`, where the anapole column came out identically zero for every
-        one of sixteen level pairs, a pattern that reads like a selection rule and is not one.
+        THE ANGULAR STRUCTURE IS NOT THE MAGNETIC-MULTIPOLE ONE, and a first implementation that assumed it was had to be withdrawn: the
+        template <-kappa_a||C^1||kappa_b> (kappa_a + kappa_b) is parity-EVEN, so it survived for p_1/2 <- p_3/2 and vanished for BOTH
+        s_1/2 <- p_1/2 and s_1/2 <- p_3/2 -- exactly backwards for a P-odd operator, and it forbade precisely the s_1/2 <-> p_1/2 mixing
+        through which an anapole moment reaches a measured PNC transition.  Branch a of `examples/example-Bb.jl` caught it as a column of
+        sixteen identical zeros.
 
-        `kappaAnapole` is the dimensionless nuclear anapole constant, kept in the signature so that the eventual implementation can be
-        scaled by whatever value the user adopts.  The radial part is already settled and correct: `radialIntegralPQplus`.
+        What is correct follows from alpha = [[0, sigma], [sigma, 0]], which connects the LARGE component of one orbital with the SMALL
+        component of the other.  With `Omega_(-kappa) = -(sigma.rhat) Omega_(kappa)` the two cross terms combine, and
+
+            <kappa_a || alpha rho || kappa_b>  =  i [ <Omega_(kappa_a)||sigma||Omega_(-kappa_b)>  INT rho P_a Q_b dr
+                                                    - <Omega_(-kappa_a)||sigma||Omega_(kappa_b)>  INT rho Q_a P_b dr ] .
+
+        Since sigma acts only on spin it cannot change the orbital angular momentum, so a term vanishes unless the two kappa it couples
+        share the same l -- which is what makes the operator parity-odd, Omega_(-kappa) carrying orbital parity l+-1.
+
+        THE TWO CROSS TERMS MUST BE KEPT APART.  A first version combined them into the symmetric P_a Q_b + Q_a P_b, assuming their angular
+        factors differ only by a sign.  That is true for gamma_5, whose angular factors are both simply delta(kappa_a, -kappa_b), and FALSE
+        here: for s_1/2 <-> p_1/2 the two are <s||sigma||s> = sqrt(6) and <p_1/2||sigma||p_1/2> = -sqrt(6)/3, a ratio of -3 and not -1.  The
+        error was invisible in the selection rules and in the reality of the amplitude, and showed up only in the HERMITICITY check, where
+        exchanging the two levels multiplied the amplitude by -3 instead of -1.
+
+        `kappaAnapole` is the dimensionless nuclear anapole constant, left at 1.0 so that the amplitude may be scaled by whatever value the
+        user adopts.
 """
 function anapoleAmplitude(finalLevel::Level, initialLevel::Level, nm::Nuclear.Model, grid::Radial.Grid;
                           kappaAnapole::Float64=1.0, display::Bool=false)
-    error("WeakInteractionMoment.anapoleAmplitude() is NOT IMPLEMENTED, and raises rather than returning a number.\n\n" *
-          "The angular structure of the Dirac alpha matrix is NOT the magnetic-multipole one, and a first implementation " *
-          "that assumed it was has been withdrawn.  The magnetic template <-kappa_a||C^1||kappa_b> (kappa_a+kappa_b) is " *
-          "parity-EVEN: it is non-zero for p_1/2 <- p_3/2 and vanishes for BOTH s_1/2 <- p_1/2 (kappa_a+kappa_b = 0) and " *
-          "s_1/2 <- p_3/2 (the C^1 parity test fails).  That is exactly backwards for the P-ODD anapole interaction, which " *
-          "must connect s_1/2 with p_1/2 -- it is through that mixing that the nuclear anapole moment enters a measured PNC " *
-          "transition beside the weak charge.  Returning zero everywhere would have looked like a selection rule rather " *
-          "than a defect, which is why this raises instead.\n\n" *
-          "WHAT IS NEEDED: alpha = [[0, sigma], [sigma, 0]] connects the LARGE component of one orbital with the SMALL " *
-          "component of the other, so its angular factor is the reduced matrix element of sigma between Omega_(kappa_a) and " *
-          "Omega_(-kappa_b), NOT between Omega_(-kappa_a) and Omega_(kappa_b).  Omega_(-kappa) carries orbital parity l+-1 " *
-          "while sigma is parity-even, so that combination does change parity, as required.  " *
-          "AngularMomentum.sigma_TtL_reduced_me is the nearest existing machinery.  The radial part is settled: it is " *
-          "radialIntegralPQplus, i.e. INT rho(r) [P_a Q_b + Q_a P_b] dr.\n\n" *
-          "The weak-charge and Schiff-moment amplitudes of this module ARE implemented and verified; only this one is not.")
+    # rank 1 and odd parity: the triangular rule and a parity change are both required, and both zeros are still displayed
+    if      finalLevel.parity == initialLevel.parity                                 amplitude = ComplexF64(0.)
+    elseif  !AngularMomentum.isTriangle(finalLevel.J, AngularJ64(1), initialLevel.J)  amplitude = ComplexF64(0.)
+    else
+        rho     = WeakInteractionMoment.nuclearDensity(nm, grid)
+        prefac  = WeakInteractionMoment.GF / sqrt(2.0) * kappaAnapole
+        kernel  = (orba, orbb) -> begin
+            kapa = orba.subshell.kappa;    kapb = orbb.subshell.kappa
+            sgA  = WeakInteractionMoment.sigmaReducedMe( kapa, -kapb)    # weights P_a Q_b
+            sgB  = WeakInteractionMoment.sigmaReducedMe(-kapa,  kapb)    # weights Q_a P_b
+            if  sgA == 0.  &&  sgB == 0.    return( ComplexF64(0.) )    end
+            im / sqrt(Basics.subshell_2j(orba.subshell) + 1.0) *
+                ( sgA * WeakInteractionMoment.radialIntegralPQ(rho, orba, orbb, grid) -
+                  sgB * WeakInteractionMoment.radialIntegralPQ(rho, orbb, orba, grid) )
+        end
+        amplitude = prefac * WeakInteractionMoment.oneParticleAmplitude(1, kernel, finalLevel, initialLevel)
+    end
+    #
+    if  display   WeakInteractionMoment.displayAmplitude("Anapole moment amplitude:  ", "H^(anapole)", nm,
+                                                          finalLevel, initialLevel, amplitude)    end
 
-    return( ComplexF64(0.) )
+    return( amplitude )
 end
 
 
@@ -234,15 +254,20 @@ end
 
 
 """
-`WeakInteractionMoment.radialIntegralPQplus(weight::Array{Float64,1}, a::Orbital, b::Orbital, grid::Radial.Grid)`
-    ... to compute INT weight(r) [P_a Q_b + Q_a P_b] dr, the symmetric large/small combination that the Dirac alpha matrix produces; a
-        value::Float64 is returned.  It is the same shape as `RadialIntegrals.GrantILplus`, with a nuclear density in place of a spherical
+`WeakInteractionMoment.radialIntegralPQ(weight::Array{Float64,1}, a::Orbital, b::Orbital, grid::Radial.Grid)`
+    ... to compute INT weight(r) P_a(r) Q_b(r) dr, i.e. the LARGE component of the first orbital against the SMALL component of the second;
+        a value::Float64 is returned.  It is the same shape as `RadialIntegrals.GrantIL0`, with a nuclear density in place of a spherical
         Bessel function.
+
+        This deliberately does NOT symmetrize.  An operator built from the Dirac alpha matrix produces two cross terms, P_a Q_b and Q_a P_b,
+        and they carry DIFFERENT angular factors; combining them into P_a Q_b + Q_a P_b is legitimate only when those factors happen to be
+        equal up to a sign, which is true for gamma_5 but false for alpha.  Assuming it for the anapole cost a factor of -3 in the
+        Hermiticity check.  The caller therefore weights the two terms itself; `radialIntegralPQ(w, b, a, grid)` supplies the second.
 """
-function radialIntegralPQplus(weight::Array{Float64,1}, a::Orbital, b::Orbital, grid::Radial.Grid)
+function radialIntegralPQ(weight::Array{Float64,1}, a::Orbital, b::Orbital, grid::Radial.Grid)
     mtp = min( size(a.P, 1), size(b.P, 1), length(weight) )
     wa  = 0.
-    for  i = 2:mtp   wa = wa + weight[i] * (a.P[i]*b.Q[i] + a.Q[i]*b.P[i]) * grid.wr[i]    end
+    for  i = 2:mtp   wa = wa + weight[i] * a.P[i] * b.Q[i] * grid.wr[i]    end
 
     return( wa )
 end
@@ -278,6 +303,34 @@ function schiffMomentAmplitude(finalLevel::Level, initialLevel::Level, nm::Nucle
                                                           finalLevel, initialLevel, amplitude)    end
 
     return( amplitude )
+end
+
+
+"""
+`WeakInteractionMoment.sigmaReducedMe(kappaA::Int64, kappaB::Int64)`
+    ... to compute the reduced matrix element <Omega_(kappaA) || sigma || Omega_(kappaB)> of the Pauli spin operator between two
+        spin-angular functions; a value::Float64 is returned.
+
+        sigma acts on the spin alone, so it cannot change the orbital angular momentum and the result vanishes unless l_A = l_B.  With that
+        understood, the two functions are just |(l 1/2) j> couplings and the Wigner-Eckart theorem for an operator acting on the second
+        factor gives
+
+            <(l 1/2)j_A || sigma || (l 1/2)j_B> = (-1)^(l + 1/2 + j_B + 1) sqrt((2j_A+1)(2j_B+1)) {1/2  j_A  l ; j_B  1/2  1} sqrt(6),
+
+        the sqrt(6) being <1/2||sigma||1/2>.  Note that j_A and j_B need NOT be equal: for a given l the two values l +- 1/2 are connected,
+        which is why the anapole amplitude reaches p_1/2 <-> d_3/2 as well as s_1/2 <-> p_1/2 once the -kappa_B of the small component is
+        taken into account.
+"""
+function sigmaReducedMe(kappaA::Int64, kappaB::Int64)
+    shA = Subshell(9, kappaA);    shB = Subshell(9, kappaB)
+    lA  = Basics.subshell_l(shA);    lB = Basics.subshell_l(shB)
+    if  lA != lB    return( 0. )    end
+    jA  = Basics.subshell_j(shA);    jB = Basics.subshell_j(shB)
+    wa  = AngularMomentum.phaseFactor([AngularJ64(lA), +1, AngularJ64(1//2), +1, jB, +1, AngularJ64(1)]) *
+          sqrt( (Basics.twice(jA) + 1.0) * (Basics.twice(jB) + 1.0) ) * sqrt(6.0) *
+          AngularMomentum.Wigner_6j(AngularJ64(1//2), jA, AngularJ64(lA), jB, AngularJ64(1//2), AngularJ64(1))
+
+    return( wa )
 end
 
 
