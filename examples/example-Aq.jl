@@ -168,5 +168,70 @@ elseif  true
         end
     end
     #
+elseif  true
+    # Last visit:      22-Aug-2026
+    # Last successful:  22-Aug-2026
+    #
+    # Branch d (GENUINELY OPEN SHELLS, and the bug it found): carbon-like 1s^2 2s^2 2p^2, whose five CSFs carry two
+    #   electrons in an open shell and so exercise seniority and the coefficients of fractional parentage.
+    #
+    #   WHY THIS BRANCH EXISTS.  Branches a-c run on 1s^2 2s and 1s^2 2p, where every CSF is closed shells plus ONE
+    #   electron.  On that set EVERY rank > 0 coefficient GRASP produces is 1.0, so an implementation that returned 1.0
+    #   for every allowed pair would score perfectly -- the set cannot discriminate.  On 2p^2 the GRASP values spread
+    #   over sqrt(1/10), sqrt(1/6), sqrt(3/10), sqrt(1/5), sqrt(4/3), sqrt(8/5) and their negatives, which is a set that
+    #   can fail.  Building it is what found the defect below.
+    #
+    #   THE DEFECT, in this module and now fixed.  A one-body operator changes the occupation of at most TWO subshells,
+    #   by exactly ONE electron each.  Any other pattern is an EXACT ZERO -- producing it would take a two-body operator.
+    #   computeCoefficientsScalar originally classified such a pattern as UNSUPPORTED and raised.  The CSF pair
+    #   2p^2 (J=0) against (2p-)^2 (J=0) is exactly that case: it differs in two subshells by two electrons each, and
+    #   the right answer is an empty list.  GRASP emits nothing for it.  Confusing "identically zero" with "not
+    #   implemented" is a real error, and only a set with two-electron open shells could expose it.
+    #
+    #   REPORT (22-Aug-2026).  Five CSFs, matching GRASP's five.
+    #
+    #       occupation identity, all 5 CSFs               max deviation = 0.0     (exactly, not to rounding)
+    #       off-diagonal coefficients, SpinAngularNew     0                       (GRASP: 0)
+    #       pairs that raised                             0                       (before the fix: non-zero)
+    #       off-diagonal coefficients, SpinAngular        0                       (GRASP: 0)
+    #
+    #   Two paths are exercised on the way, and both return empty for the right reason rather than by accident: the pair
+    #   2p^2 <-> (2p-)^2 by the two-electron rule above, and the pair 2p^2 <-> 2p- 2p by the triangle condition, since a
+    #   scalar operator cannot connect j = 1/2 to j = 3/2.  The present module agrees here; the two spurious
+    #   coefficients of branch c needed OPPOSITE PARITY to appear, which this single configuration does not provide.
+    #
+    localConfigs = [Configuration("1s^2 2s^2 2p^2")]
+    localRel     = ConfigurationR[]
+    for  conf in localConfigs
+        append!(localRel, Basics.generateConfigurations(Basics.RelativisticConfigurations(), conf))
+    end
+    localSubshells = Basics.generateSubshellList(localRel)
+    Defaults.setDefaults("relativistic subshell list", localSubshells; printout=false)
+    localCsfs = CsfR[]
+    for  relconf in localRel    append!(localCsfs, Basics.generateCsfRs(relconf, localSubshells))    end
+
+    op = SpinAngularNew.OneParticleOperator(0, Basics.plus)
+    println("\n  $(length(localCsfs)) CSFs of 1s^2 2s^2 2p^2:")
+    for  (i,c) in enumerate(localCsfs)   println("    CSF $i:  J = $(c.J)$(string(c.parity))   occ = $(c.occupation)")   end
+
+    maxDeviation = 0.0
+    for  (i,c) in enumerate(localCsfs)
+        coeffs = SpinAngularNew.computeCoefficients(op, c, c, localSubshells)
+        global maxDeviation = max(maxDeviation, SpinAngularNew.checkOccupationIdentity(coeffs, c, localSubshells))
+    end
+    println("\n  occupation identity, max deviation = $maxDeviation      (must be 0)")
+
+    nOff = 0;   nRaised = 0
+    for  (i,l) in enumerate(localCsfs),  (j,r) in enumerate(localCsfs)
+        i == j  &&  continue
+        try
+            global nOff    = nOff + length( SpinAngularNew.computeCoefficients(op, l, r, localSubshells) )
+        catch  ex
+            global nRaised = nRaised + 1
+        end
+    end
+    println("  off-diagonal coefficients emitted   = $nOff        (GRASP2018: 0)")
+    println("  CSF pairs that raised               = $nRaised        (must be 0: an exact zero is not 'unsupported')")
+    #
 end
 #

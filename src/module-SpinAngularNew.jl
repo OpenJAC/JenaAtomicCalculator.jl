@@ -230,13 +230,17 @@ function computeCoefficientsScalar(op::SpinAngularNew.OneParticleOperator, leftC
         if  leftCsf.occupation[i] != rightCsf.occupation[i]    push!(diffs, i)    end
     end
 
-    if       length(diffs) == 0     coeffs = scalarDiagonal(op, leftCsf, rightCsf, subshells)
-    elseif   length(diffs) == 2     coeffs = scalarSingleSubstitution(op, leftCsf, rightCsf, subshells, diffs)
-    else
-        error("\n\nSpinAngularNew.computeCoefficientsScalar: the two CSFs differ in $(length(diffs)) subshells.\n" *
-              ">>> Stage 1a supports a diagonal pair and a single-electron substitution only; a more general\n"    *
-              ">>> occupation pattern needs the coefficient-of-fractional-parentage machinery, which is not yet\n" *
-              ">>> re-implemented here. Use SpinAngular.computeCoefficients for such a pair.\n")
+    # A ONE-BODY operator changes the occupation of at most TWO subshells, by exactly one electron each. Any other
+    # occupation pattern gives an EXACT ZERO -- it would take a two-body operator to produce it -- so an empty list is
+    # the right answer and not an unsupported case. Getting this wrong is easy: a pair such as 2p^2 <-> (2p-)^2 differs
+    # in two subshells by two electrons each, and must return nothing rather than raise.
+    if       length(diffs) >  2                                            return( coeffs )
+    elseif   length(diffs) == 1                                            return( coeffs )
+    elseif   length(diffs) == 2
+        if  abs(leftCsf.occupation[diffs[1]] - rightCsf.occupation[diffs[1]]) != 1  ||
+            abs(leftCsf.occupation[diffs[2]] - rightCsf.occupation[diffs[2]]) != 1  return( coeffs )   end
+        coeffs = scalarSingleSubstitution(op, leftCsf, rightCsf, subshells, diffs)
+    else                                coeffs = scalarDiagonal(op, leftCsf, rightCsf, subshells)
     end
 
     return( coeffs )
