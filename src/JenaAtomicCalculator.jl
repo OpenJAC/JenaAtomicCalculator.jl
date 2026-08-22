@@ -108,6 +108,7 @@ export AbstractCImethod, AbstractComputeTheme, AbstractConfigurationRestriction,
        RadialOrbitalsSmall,
        RadialPotentials, Radiative, RadiativeAuger, RasExpansion,
        RasLayer, RasSettings, RasStep, RAuger, RayleighCompton, Rec, recast, ReducedDensityMatrix,
+       ResonantImpactIonization,
        RelativisticConfigurations, RemoveElectrons, Representation, RequestMaximumOccupation,
        RequestMinimumOccupation, ResonantInelastic, RestrictExcitations, RestrictMaximumDisplacements,
        RestrictNoElectronsTo, RestrictParity, RestrictToShellDoubles,
@@ -212,6 +213,7 @@ include("module-InternalConversion.jl")
 include("module-InternalRecombination.jl") 
 include("module-TwoElectronOnePhoton.jl") 
 include("module-DoubleAutoIonization.jl")
+include("module-ResonantImpactIonization.jl")
 #= Further processes, not yet included into the code
 include("module-PairProduction.jl")  =#
 end
