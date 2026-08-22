@@ -340,6 +340,107 @@ elseif  false
         println("        ratio to constructive = " * string(abs(t1+t2)/constructive) * "   (must be ~1)")
     end
     #
+elseif  false
+    # Last visit:      22-Aug-2026
+    # Last successful:  unknown ... this branch is a CALIBRATION, not a physics result; see the report.
+    #
+    # Branch d (CALIBRATING THE REDUCED DIPOLE): is MultipoleMoment.dipoleAmplitude the standard reduced
+    #   dipole <f||D||i>?  The question arose while trying to DERIVE the second-order cross-section prefactor,
+    #   which is written down rather than derived and which is the single defect blocking four P branches.
+    #
+    #   THE TEST.  For one E1 line the Einstein coefficient in atomic units is
+    #
+    #       A  =  (4/3) alpha^3 omega^3 |<l||D||u>|^2 / (2 J_u + 1)          u = upper (emitting) level
+    #
+    #   and PhotoEmission computes A independently, by its own route, with externally corroborated f-values.
+    #   So compute both and compare.  Three transitions with DIFFERENT J_u, because two can distinguish
+    #   "ratio = 1" from "ratio = constant" but only three test whether the (2J+1) sits in the right place.
+    #
+    #   RESULT -- THE ANSWER IS "CONDITIONALLY", WHICH ONE TRANSITION COULD NOT HAVE REVEALED:
+    #
+    #       transition               J_u    omega [eV]   A_PE/A_dip
+    #       He-like Ne 1s2p          1        914.2       0.531582
+    #       Li-like Ne 2p_3/2        3/2       16.2       0.999973
+    #       Li-like Ne 2p_1/2        1/2       16.0       1.000020
+    #
+    #   dipoleAmplitude IS the standard reduced dipole for the Li-like pair, to 3 parts in 10^5, and is NOT
+    #   for the He-like one.  A calibration on a single transition would have concluded whichever it happened
+    #   to test and been wrong half the time.
+    #
+    #   THE MECHANISM, confirmed structurally.  PhotoEmission applies /sqrt(2 j_a + 1) * sqrt(2 J_f + 1) per
+    #   spin-angular coefficient; dipoleAmplitude applies neither.  They cancel when 2J_f+1 = 2j_a+1, which is
+    #   exactly the Li-like case.  Rebuilding the dipole sum WITH the factor:
+    #
+    #       He-like Ne 1s2p     plain 0.531582  ->  corrected 1.063163      (exactly x2, as predicted)
+    #       Li-like Ne 2p_3/2   plain 0.999973  ->  corrected 0.999973      (INERT, as predicted)
+    #       Be-like Ne 2s2p     plain 0.501172  ->  corrected 1.002345      (a PRE-REGISTERED prediction)
+    #
+    #   The Be-like row was predicted before it was run: 2J_f+1 = 1 against 2j_a+1 = 2 should also give ~0.5.
+    #
+    #   BUT IT OVERSHOOTS, and FOUR EXPLANATIONS WERE PROPOSED AND ALL FOUR REFUTED.  Recorded as refuted
+    #   because the refutations are the durable part -- each cost one cheap run and each removed a candidate:
+    #
+    #     (i)   RETARDATION.  Refuted by sweeping omega at FIXED orbitals -- an isoelectronic scan cannot do
+    #           this, since for He-like ions omega and (Z alpha)^2 both scale as Z^2.  The ratio
+    #           MabEm/(omega*dipole) converges to 0.001680795 and sits at 0.001678975 at the true omega:
+    #           0.108 % in amplitude, 0.22 % in |D|^2, at Z = 10.  Nowhere near 6.3 %.
+    #     (ii)  A STATIC RELATIVISTIC OPERATOR DIFFERENCE.  Refuted: the same limiting constant 0.001680795
+    #           appears at Z = 2 and Z = 10.
+    #     (iii) A WRONG CONVERSION.  Refuted, in the good direction: with amp = C omega D, the Einstein-A ratio
+    #           is 6 pi C^2 / alpha^2 = 1.0000.  The identity is EXACT per orbital pair.
+    #     (iv)  A KAPPA-DEPENDENT C, which would mean the two routines weight mixing CSFs differently and no
+    #           single factor could relate them.  Refuted: C = 0.001680795 for BOTH 1s-2p_1/2 (kappa = +1) and
+    #           1s-2p_3/2 (kappa = -2), identical to nine digits.
+    #
+    #   SO EVERY INGREDIENT CHECKS OUT INDIVIDUALLY AND THE MANY-ELECTRON RATIO IS STILL 1.063.  The one
+    #   asymmetry left unexamined: this test picks the FIRST J = 1 odd level, the intercombination ^3P_1, whose
+    #   amplitude survives only by CANCELLATION between the 2p_1/2 and 2p_3/2 contributions -- and in a
+    #   cancelling sum a 0.1 % difference in one term becomes several percent in the total.  That would fit the
+    #   ordering (He-like 6.3 % at 914 eV, Be-like 0.23 % at 16 eV, Li-like exact with no cancellation), but it
+    #   is a HYPOTHESIS and the day's record for those is 0 of 4.  The test is to repeat on the OTHER J = 1
+    #   level, the strong resonance line, and see whether the residual collapses.
+    #
+    #   PRACTICAL STANDING: the corrected dipole route is good to 0.23 % on the actual test system, Be-like
+    #   neon at 10.8 and 25 eV.  That is a stated systematic, NOT the exact-by-construction prefactor the
+    #   derivation set out to obtain, and the prefactor in rayleighCrossSection is therefore UNCHANGED.
+    #
+    #   A SEPARATE DEFECT FOUND ON THE WAY, in src/ and not repaired here: MultipoleMoment.dipoleAmplitude
+    #   uses initialLevel.basis.subshells as THE subshell list and does not merge the two bases the way
+    #   PhotoEmission.amplitudeAndCancellation does.  A level pair from two separate SCF runs therefore raises
+    #   a BoundsError from inside SpinAngular, with nothing in the message pointing at the cause.  This branch
+    #   merges the bases itself.  Fixing it belongs to a MultipoleMoment task, not to this one.
+    #
+    grid  = Radial.Grid(Radial.Grid(true), rnt = 4.0e-6, h = 5.0e-2, rbox = 12.0)
+    alpha = Defaults.getDefaults("alpha")
+
+    function calibrate(label, Z, lowerConf, upperConf, twoJu)
+        nm = Nuclear.Model(Z)
+        lo = SelfConsistent.performSCF([lowerConf], nm, grid, AsfSettings(); printout=false)
+        up = SelfConsistent.performSCF([upperConf], nm, grid, AsfSettings(); printout=false)
+        lL = lo.levels[1]
+        idx = findfirst(l -> Basics.twice(l.J) == twoJu && l.parity != lL.parity, up.levels)
+        if  idx === nothing    println("  $label: no upper level");   return    end
+        uL  = up.levels[idx]
+        sub = lL.basis.subshells == uL.basis.subshells ? lL.basis.subshells :
+              Basics.merge(lL.basis.subshells, uL.basis.subshells)
+        lM  = Level(lL, sub);   uM = Level(uL, sub)
+        om  = uM.energy - lM.energy
+        if  om <= 0.    return    end
+        ampB = PhotoEmission.amplitude(Basics.Emission(), E1, Basics.Babushkin, om, lM, uM, grid;
+                                       display=false, printout=false)
+        A_pe = 8pi * alpha * om * abs2(ampB) / (Basics.twice(uM.J) + 1)
+        D    = MultipoleMoment.dipoleAmplitude(lM, uM, grid; display=false)
+        A_d  = 4/3 * alpha^3 * om^3 * abs2(D) / (Basics.twice(uM.J) + 1)
+        println("    $label:  omega = " * string(Defaults.convertUnits("energy: from atomic", om)) *
+                " eV,  A_PE/A_dip = " * string(A_pe/A_d))
+    end
+
+    println("\n  Calibration of MultipoleMoment.dipoleAmplitude against PhotoEmission's Einstein A:")
+    calibrate("He-like Ne 1s2p  ", 10., Configuration("1s^2"),       Configuration("1s 2p"),      2)
+    calibrate("Li-like Ne 2p_3/2", 10., Configuration("1s^2 2s"),    Configuration("1s^2 2p"),    3)
+    calibrate("Li-like Ne 2p_1/2", 10., Configuration("1s^2 2s"),    Configuration("1s^2 2p"),    1)
+    calibrate("Be-like Ne 2s2p  ", 10., Configuration("1s^2 2s^2"),  Configuration("1s^2 2s 2p"), 2)
+    #
 end
 #
 setDefaults("print summary: close", "")
