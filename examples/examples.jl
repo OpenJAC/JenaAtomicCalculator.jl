@@ -207,6 +207,7 @@ elseif  char == 'P'
     println("Pa) BOUND-FREE PAIR CREATION: gamma + |i(N)> --> |f(N+1)> + e^+, the created electron being captured into a bound orbital.")
     println("Pb) RAYLEIGH scattering: gamma + |i> --> |i> + gamma, second order over an explicit gMultiplet of intermediate levels.")
     println("Pc) RESONANT INELASTIC scattering (RIXS): the same second order, tuned ONTO an intermediate level with a width.")
+    println("Pd) FORM-FACTOR approximation for Rayleigh and Compton: the cheap limit, and the Thomson absolute check.")
     #
 elseif  char == 'Q'
     return( nothing )

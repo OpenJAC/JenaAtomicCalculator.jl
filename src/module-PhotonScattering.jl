@@ -42,7 +42,7 @@ module PhotonScattering
 
 using  Printf,
         ..AngularMomentum, ..AtomicState, ..Basics, ..Beam, ..Continuum, ..Defaults, ..ManyElectron, ..Nuclear,
-        ..ParticleScattering, ..PhotoEmission, ..Radial, ..TableStrings
+        ..FormFactor, ..ParticleScattering, ..PhotoEmission, ..Radial, ..TableStrings
 
 
 include("module-PhotonScattering-inc-structs.jl")
@@ -213,12 +213,13 @@ function checkCombination(settings::PhotonScattering.Settings)
               "Only Beam.PlaneWave() is available today. Scattering of TWISTED beams -- Beam.BesselBeam and " *
               "Beam.LaguerreGauss -- is a planned stage of this module and the beam side already exists in the Beam module, but " *
               "no amplitude here uses it: settings.beamType is not yet read by any pipeline. Ask for a plane wave, or wait.")
-    elseif  settings.approximation == PhotonScattering.FormFactorApproximation()
-        error("\n\nThe form-factor approximation is not implemented yet for\n    process = $(settings.process)\n\n" *
-              "Only SecondOrderGreen() is available for a scattering process today. The form-factor route -- the Rayleigh " *
-              "amplitude from the atomic form factor and the Compton one from the incoherent scattering function -- is planned " *
-              "as the cheap counterpart to the full sum, and JAC's FormFactor module already supplies the ingredient; nothing " *
-              "here calls it. Use SecondOrderGreen().")
+    elseif  settings.approximation == PhotonScattering.FormFactorApproximation()  &&
+            !(settings.process in [PhotonScattering.RayleighScattering(), PhotonScattering.ComptonScattering()])
+        error("\n\nThe form-factor approximation does not apply to\n    process = $(settings.process)\n\n" *
+              "It is available for RayleighScattering() and ComptonScattering() only, and that is a limit of the physics " *
+              "rather than of the implementation: the form factor describes a target that returns to its initial state and " *
+              "carries no intermediate levels at all, so it cannot express a RAMAN transition into a different discrete level " *
+              "nor a RESONANT amplitude, both of which live entirely in the sum over intermediates. Use SecondOrderGreen().")
     end
 
     return( nothing )
@@ -235,7 +236,11 @@ end
 function computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, nm::Nuclear.Model, grid::Radial.Grid,
                       settings::PhotonScattering.Settings; output=true)
     PhotonScattering.checkCombination(settings)
-    if      settings.process == PhotonScattering.BoundFreePairCreation()
+    # The APPROXIMATION axis is consulted before the process axis: a form-factor request is answered by one pipeline for
+    # every process it supports, there being no sum over intermediate states to specialise.
+    if      settings.approximation == PhotonScattering.FormFactorApproximation()
+        return( PhotonScattering.computeFormFactorLines(finalMultiplet, initialMultiplet, nm, grid, settings; output=output) )
+    elseif  settings.process == PhotonScattering.BoundFreePairCreation()
         return( PhotonScattering.computePairCreationLines(finalMultiplet, initialMultiplet, nm, grid, settings; output=output) )
     elseif  settings.process in [PhotonScattering.RayleighScattering(), PhotonScattering.ComptonScattering(),
                                  PhotonScattering.RamanScattering()]
@@ -270,13 +275,15 @@ function displaySupportedCombinations(stream::IO)
     println(stream, "    PlaneWave       RamanScattering          SecondOrderGreen          YES")
     println(stream, "    PlaneWave       ResonantScattering       SecondOrderGreen          YES  (needs settings.width > 0)")
     println(stream, "    PlaneWave       ComptonScattering        SecondOrderGreen          PARTLY -- see the note below")
+    println(stream, "    PlaneWave       RayleighScattering       FormFactorApproximation   YES  (elastic only; carries the")
+    println(stream, "    PlaneWave       ComptonScattering        FormFactorApproximation   YES   Thomson absolute check)")
     println(stream, "  ", TableStrings.hLine(nx))
-    println(stream, "    PlaneWave       any scattering process   FormFactorApproximation   not implemented")
     println(stream, "    BesselBeam      any                      any                       not implemented")
     println(stream, "    LaguerreGauss   any                      any                       not implemented")
     println(stream, "  ", TableStrings.hLine(nx))
     println(stream, "    any             BoundFreePairCreation    SecondOrderGreen          MEANINGLESS -- one vertex only")
     println(stream, "    any             any scattering process   FirstOrderVertex          MEANINGLESS -- two vertices")
+    println(stream, "    any             Raman / Resonant         FormFactorApproximation   MEANINGLESS -- no intermediates")
     println(stream, "  ", TableStrings.hLine(nx))
     println(stream, " ")
     println(stream, "  ComptonScattering presently means RAMAN-type inelastic scattering into DISCRETE final levels, which is what")
@@ -323,5 +330,6 @@ end
 include("module-PhotonScattering-inc-pair-creation.jl")
 include("module-PhotonScattering-inc-rayleigh.jl")
 include("module-PhotonScattering-inc-resonant.jl")
+include("module-PhotonScattering-inc-formfactor.jl")
 
 end # module
