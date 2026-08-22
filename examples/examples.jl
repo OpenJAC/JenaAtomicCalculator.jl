@@ -60,6 +60,7 @@ elseif  char == 'C'
     println("Ck) Apply & test the CrystalField module (point-charge Stark splitting) with ASF from an internally generated multiplet.")
     println("Cl) Apply & test the StarkShift module with ASF from an internally generated multiplet.")
     println("Cm) Apply & test the StarkZeeman module (exact ASF-basis diagonalization of level mixing in static E and/or B fields of arbitrary relative direction).")
+    println("Cn) Apply & test the WeakInteractionEnhancement module: the parity-non-conserving E1 amplitude and the electron-EDM enhancement factor, both as sums over caller-supplied intermediate states.")
     #
 elseif  char == 'D'
     println("D)  Examples, tests & development of basic atomic processes")

@@ -72,9 +72,13 @@ function Basics.perform(computation::Atomic.Computation; output::Bool=false)
                 outcome = MultipolePolarizibility.computeOutcomes(multiplet, nModel, computation.grid, settings)
                 if output    results = Base.merge( results, Dict("Polarizibility outcomes:" => outcome) )         end
                 #
-            elseif  typeof(settings) == ReducedDensityMatrix.Settings 
-                outcome = ReducedDensityMatrix.computeOutcomes(multiplet, nModel, computation.grid, settings)         
+            elseif  typeof(settings) == ReducedDensityMatrix.Settings
+                outcome = ReducedDensityMatrix.computeOutcomes(multiplet, nModel, computation.grid, settings)
                 if output    results = Base.merge( results, Dict("RDM outcomes:" => outcome) )         end
+                #
+            elseif  typeof(settings) == WeakInteractionEnhancement.Settings
+                outcome = WeakInteractionEnhancement.computeOutcomes(multiplet, nModel, computation.grid, settings)
+                if output    results = Base.merge( results, Dict("Weak-interaction enhancement outcomes:" => outcome) )   end
                 #
             end
         end

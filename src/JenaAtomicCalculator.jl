@@ -120,7 +120,7 @@ export AbstractCImethod, AbstractComputeTheme, AbstractConfigurationRestriction,
        TwoElectronOnePhoton,
        UniformNucleus, UseBabushkin, UseCoulomb, UseGauge,
        ValenceOccupation, ValenceShells,
-       W3j, W6j, W9j, WeakInteractionMoment, WeightedCartesian,
+       W3j, W6j, W9j, WeakInteractionEnhancement, WeakInteractionMoment, WeightedCartesian,
        Ylm
      
 # Basic data and data structures
@@ -172,6 +172,7 @@ include("module-StarkShift.jl")
 include("module-StarkZeeman.jl")
 include("module-CrystalField.jl")
 include("module-CrystalFieldEmission.jl")
+include("module-WeakInteractionEnhancement.jl")
 end
 
 if  incBasicProcesses
