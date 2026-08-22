@@ -157,6 +157,11 @@ elseif  false
     #   the true one, taken from the measured hydrogen 2s-2p_1/2 Lamb shift of 1057.845 MHz scaled as Z^4.  It then shows
     #   how much of E1_PNC rides on that one denominator.
     #
+    #   [SUPERSEDED IN PART BY BRANCH h, 22-Aug-2026: the factor 379 below comes from scaling the hydrogen Lamb shift
+    #    as Z^4, which OVERSHOOTS the model Hamiltonian by three to eight times; and this branch inspects only ONE of the
+    #    sum's two denominators, so it UNDERSTATES the damage.  Branch h puts QedPetersburg in and finds the amplitude
+    #    too large by a factor of 110 at Z = 20.  The conclusion below stands; the number does not.]
+    #
     #   THE CONCLUSION IS NEGATIVE AND IS THE USEFUL PART: E1_PNC from this module is NOT quantitative for hydrogen-like
     #   ions, and no amount of enlarging the gMultiplet repairs it, because the defect is in an energy the multiplet does
     #   not contain.  A many-electron system, where screening does the splitting, is the regime in which the module can
@@ -523,6 +528,100 @@ elseif  false
     println("       channels behave as the contact nature of the weak interaction requires.  A competitive Ba+ number")
     println("       needs correlation, and should be compared against the published coupled-cluster values rather than")
     println("       against anything in this file.")
+    #
+    setDefaults("print summary: close", "")
+    #
+elseif  false
+    # Last successful:  22-Aug-2026
+    #   [PROVENANCE: as branch a.]
+    # Branch h: THE MISSING LAMB SHIFT, PUT IN WITH JAC'S OWN QED MODEL -- and branch c turns out to have understated
+    #   the problem rather than overstated it.
+    #
+    #   Branch c estimated the missing 2s-2p_1/2 splitting by scaling the measured hydrogen Lamb shift as Z^4, and
+    #   reported a factor of 379 at Z = 20.  Two things are done better here.  FIRST, the splitting is no longer
+    #   estimated at all: `AsfSettings(...; qedModel = QedPetersburg())` puts the Shabaev et al. (2013) model
+    #   Hamiltonian into the CI, and the corrected level energies flow into the denominators of the sum by themselves.
+    #   SECOND, and this is the correction, branch c looked at ONE denominator of a sum that has TWO.
+    #
+    #   EVERY ns - np_1/2 PAIR OF THE SAME n IS DEGENERATE IN DIRAC THEORY, not only 2s - 2p_1/2.  The PNC sum runs
+    #      E1_PNC = SUM_n [ <f||D||n> <n|H_W|i>/(E_i - E_n)  +  <f|H_W|n> <n||D||i>/(E_f - E_n) ]
+    #   so an intermediate np_1/2 is near-degenerate with the INITIAL ns through the first denominator and with the
+    #   FINAL n's through the second.  For 3s <- 2s the 2p_1/2 term is pathological through E_i - E_n and the 3p_1/2
+    #   term is pathological through E_f - E_n -- and those two carry -39 % and +139 % of the total between them.  The
+    #   whole amplitude rests on denominators a Dirac calculation gets wrong, not merely one contribution to it.
+    #
+    #   THE QED OUTPUT IS SUPPRESSED with redirect_stdout(devnull): the model prints every single-electron QED strength
+    #   it forms, some five hundred lines per call, which would bury the result.
+    #
+    setDefaults("print summary: open", "zzz-WeakInteractionEnhancement.sum")
+    #
+    cfgQ = [Configuration("2s"), Configuration("3s"), Configuration("2p"), Configuration("3p"), Configuration("4p")]
+    runQ = function(Z, useQed)
+        nmQ = Nuclear.Model(Z)
+        stQ = AsfSettings(AsfSettings(); scField = Basics.NuclearField())
+        useQed  &&  (stQ = AsfSettings(stQ; qedModel = QedPetersburg()))
+        grQ = Basics.recommendedGrid(cfgQ, nmQ; rnt = 2.0e-7);   setDefaults("standard grid", grQ)
+        mpQ = redirect_stdout(devnull) do
+            SelfConsistent.performSCF(cfgQ, nmQ, grQ, stQ; printout=false)
+        end
+        evQ = filter(l -> l.parity == Basics.plus,  mpQ.levels)
+        odQ = filter(l -> l.parity == Basics.minus, mpQ.levels)
+        ( evQ[argmin([l.energy for l in evQ])], evQ[argmax([l.energy for l in evQ])], odQ, mpQ, nmQ, grQ )
+    end
+    #
+    println("\n  (i)  the 2s - 2p_1/2 splitting, three ways")
+    println("       Z      Dirac only [a.u.]   QedPetersburg [a.u.]   ratio     1.6083e-7 Z^4     scaling/Qed")
+    for Z in [20.0, 30.0, 50.0, 70.0, 92.0]
+        (sN, _, odN, _, _, _) = runQ(Z, false);   pN = odN[argmin([l.energy for l in odN])]
+        (sQ, _, odQ, _, _, _) = runQ(Z, true);    pQ = odQ[argmin([l.energy for l in odQ])]
+        dN  = abs(sN.energy - pN.energy);   dQ = abs(sQ.energy - pQ.energy);   est = 1.6083e-7 * Z^4
+        println("       " * @sprintf("%5.1f    %.6e        %.6e      %7.1f    %.6e      %7.2f",
+                                     Z, dN, dQ, dQ/dN, est, est/dQ))
+    end
+    println("\n       The hydrogen-scaled estimate of branch c EXCEEDS the model Hamiltonian by three to eight times, and")
+    println("       that is expected rather than alarming: the 2s Lamb shift carries a Bethe logarithm which is large at")
+    println("       Z = 1 and falls steadily with Z, so a pure Z^4 extrapolation from hydrogen must overshoot.  The two")
+    println("       independent estimates bracket the truth; neither is the truth.")
+    #
+    println("\n  (ii) BOTH denominators at Z = 20 -- the correction to branch c")
+    for useQed in [false, true]
+        (s2, s3, od, mp, nm, gr) = runQ(20.0, useQed)
+        tot = imag(WeakInteractionEnhancement.computePncE1Amplitude(s3, s2, mp, nm, gr))
+        println("       " * (useQed ? "QedPetersburg" : "Dirac only   ") * @sprintf("     TOTAL = %+.6e i", tot))
+        println("         n              E_i - E_n       E_f - E_n      contribution         share")
+        for n in od
+            a = imag(WeakInteractionEnhancement.computePncE1Amplitude(s3, s2, Multiplet("one",[n]), nm, gr))
+            a == 0. && continue
+            println("         " * @sprintf("%d [%-7s]   %+.4e    %+.4e    %+.6e    %8.2f %%", n.index,
+                                           string(LevelSymmetry(n.J,n.parity)), s2.energy-n.energy, s3.energy-n.energy,
+                                           a, 100*a/tot))
+        end
+    end
+    println("\n       Read the two denominator columns together.  Without QED the 2p_1/2 row has 6.8e-05 in the FIRST")
+    println("       column and the 3p_1/2 row has 2.0e-05 in the SECOND -- two different near-degeneracies, one per term")
+    println("       of the sum, carrying -39 % and +139 % of the total.  QED lifts both by about 110.")
+    #
+    println("\n  (iii) WHAT IT DOES TO THE AMPLITUDE, which is the error bar branch c could not state")
+    println("       Z      E1_PNC, Dirac only     E1_PNC with QED       shift")
+    for Z in [20.0, 30.0, 50.0, 70.0, 92.0]
+        (sN, tN, _, mN, nN, gN) = runQ(Z, false)
+        (sQ, tQ, _, mQ, nQ, gQ) = runQ(Z, true)
+        aN = imag(WeakInteractionEnhancement.computePncE1Amplitude(tN, sN, mN, nN, gN))
+        aQ = imag(WeakInteractionEnhancement.computePncE1Amplitude(tQ, sQ, mQ, nQ, gQ))
+        println("       " * @sprintf("%5.1f    %+.8e       %+.8e      %+8.2f %%", Z, aN, aQ, 100*(aQ/aN - 1)))
+    end
+    println("\n       A PLAIN DIRAC CALCULATION OF H-LIKE PNC IS TOO LARGE BY A FACTOR OF 110 AT Z = 20, not by a")
+    println("       percentage.  The error falls with Z as the finite-nuclear-size part of the splitting grows to")
+    println("       compete with the QED part, reaching -42 % at Z = 92, where the nucleus does much of the splitting")
+    println("       by itself.  Branch c called the hydrogen-like case not quantitative; it is worse than that at low Z")
+    println("       and merely bad at high Z.")
+    println("\n       AND THE CORRECTED NUMBER IS NOT A RESULT EITHER.  QedPetersburg is a MODEL HAMILTONIAN, not a")
+    println("       rigorous bound-state QED evaluation, and the two estimates of the same splitting used above differ")
+    println("       by three to eight times.  What may honestly be said is a DIRECTION and an ORDER: the Dirac amplitude")
+    println("       is far too large, by about two orders of magnitude at Z = 20 and a factor of two at Z = 92.  A")
+    println("       hydrogen-like PNC amplitude worth quoting needs the Lamb shift taken from a dedicated QED")
+    println("       calculation for the specific ion, and the Li-like route of branch f -- where screening does the")
+    println("       splitting and QED is a correction rather than the whole effect -- remains the better one.")
     #
     setDefaults("print summary: close", "")
     #
