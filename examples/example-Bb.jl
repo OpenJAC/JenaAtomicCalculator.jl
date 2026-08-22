@@ -569,4 +569,96 @@ elseif  false
     #
     setDefaults("print summary: close", "")
     #
+elseif  false
+    # Last successful:  22-Aug-2026
+    #   [PROVENANCE: as branch a.]
+    # Branch i: NUCLEAR DEFORMATION -- a gap made visible, and it is not the gap that was expected.
+    #
+    #   `Nuclear.DeformedFermiNucleus(beta2, beta4, w, a)` exists and is a careful piece of work: it contributes the
+    #   MONOPOLE part of an axially deformed Fermi distribution, volume-normalised so the nucleus does not silently grow
+    #   as it deforms, and it carries the whole effect deformation has on <r^2>.  `Nuclear.nuclearPotential` dispatches
+    #   on it.  `WeakInteractionMoment.nuclearDensity` does NOT: every Fermi-type model falls through to the spherical
+    #   two-parameter shape built from `nm.radius` alone, and beta2 is never read.
+    #
+    #   THE BRANCH WAS WRITTEN EXPECTING TO SHOW "NO CHANGE, AND HERE IS WHY".  It shows something worse and more useful:
+    #   the amplitude DOES move with beta2, because the POTENTIAL is deformed even though the DENSITY is not -- so the
+    #   two halves of the same calculation disagree about the shape of the nucleus.  And the piece that is missing turns
+    #   out to be larger than the piece that is kept, and of the opposite sign.
+    #
+    #   The system is hydrogen-like 238U: Z = 92, r_ch = 5.8571 fm, beta2 = 0.286, strongly prolate and about as
+    #   favourable a case as exists.
+    #
+    setDefaults("print summary: open", "zzz-WeakInteractionMoment.sum")
+    #
+    Zu, Au, ru = 92.0, 238.0, 5.8571
+    cfgU  = [Configuration("2s"), Configuration("2p")]
+    asfU  = AsfSettings(AsfSettings(); scField = Basics.NuclearField())
+    qFacU = 1.0 - 4.0*WeakInteractionMoment.sinThetaW2
+    #
+    orbsU = function(model)
+        nmX = Nuclear.Model(Zu, model, Au, ru, AngularJ64(0), 0., 0., 0.)
+        grX = Basics.recommendedGrid(cfgU, nmX; rnt = 2.0e-7);   setDefaults("standard grid", grX)
+        mpX = SelfConsistent.performSCF(cfgU, nmX, grX, asfU; printout=false)
+        evX = filter(l -> l.parity == Basics.plus,  mpX.levels)
+        odX = filter(l -> l.parity == Basics.minus, mpX.levels)
+        ( evX[findfirst(l -> Basics.twice(l.J) == 1, evX)], odX[findfirst(l -> Basics.twice(l.J) == 1, odX)], grX, nmX )
+    end
+    #
+    println("\n  (i)  is the weak DENSITY blind to the deformation?")
+    (sF, pF, gF, nmF) = orbsU(Nuclear.FermiNucleus())
+    nmA = Nuclear.Model(Zu, Nuclear.DeformedFermiNucleus(0.0), Au, ru, AngularJ64(0), 0., 0., 0.)
+    nmB = Nuclear.Model(Zu, Nuclear.DeformedFermiNucleus(0.3), Au, ru, AngularJ64(0), 0., 0., 0.)
+    dA  = WeakInteractionMoment.nuclearDensity(nmA, gF);   dB = WeakInteractionMoment.nuclearDensity(nmB, gF)
+    println("       " * @sprintf("max |rho(beta2 = 0) - rho(beta2 = 0.3)| = %.3e", maximum(abs.(dA .- dB))))
+    println("       Bit-identical.  The deformation never reaches the operator: nuclearDensity reads only nm.radius.")
+    #
+    println("\n  (ii) the POTENTIAL is not blind, so the orbitals move anyway")
+    println("       beta2     |amp| (orbitals only)      vs beta2 = 0     |amp| (density also deformed)     vs beta2 = 0")
+    base = 0.
+    for b in [0.0, 0.1, 0.2, 0.286]
+        (sD, pD, gD, nmD) = orbsU(Nuclear.DeformedFermiNucleus(b))
+        vOrb = abs(WeakInteractionMoment.weakChargeAmplitude(pD, sD, nmD, gD))
+        rEff = ru * sqrt(1.0 + (5.0/(4pi))*b^2)
+        vCon = abs(WeakInteractionMoment.weakChargeAmplitude(pD, sD, Nuclear.Model(nmD; radius = rEff), gD))
+        b == 0.0 && (global base = vOrb)
+        println("       " * @sprintf("%5.3f     %.10e      %+8.4f %%      %.10e         %+8.4f %%",
+                                     b, vOrb, 100*(vOrb/base - 1), vCon, 100*(vCon/base - 1)))
+    end
+    println("\n       The consistent column applies to the DENSITY the same enlargement the potential already has:")
+    println("       <r^2> = <r^2>_sph [1 + (5/4pi) beta2^2], which is the model's own documented behaviour.")
+    println("\n       WHAT JAC KEEPS IS THE SMALLER OF TWO OPPOSING TERMS, AND THE WRONG-SIGNED ONE.  At beta2 = 0.286 the")
+    println("       orbital response alone is +0.058 %, while a consistent treatment gives -0.282 %; the omitted density")
+    println("       piece is therefore about -0.34 %, some six times the piece retained and of opposite sign.  A user who")
+    println("       passed a deformed model today would not merely lose accuracy -- they would be told the deformation")
+    println("       INCREASES the amplitude when in fact it decreases it.")
+    #
+    println("\n  (iii) where deformation sits, measured on THIS system rather than carried over")
+    (sU, pU, gU, nmU) = orbsU(Nuclear.UniformNucleus())
+    shp = abs(WeakInteractionMoment.weakChargeAmplitude(pU, sU, nmU, gU))
+    IF  = (r) -> abs( WeakInteractionMoment.weakChargeAmplitude(pF, sF, Nuclear.Model(nmF; radius=r), gF) /
+                      WeakInteractionMoment.weakCharge(Nuclear.Model(nmF; radius=r)) )
+    Nu  = 146.0;   QWu = -Nu + Zu*qFacU
+    skn = ((-Nu*(IF(ru + 0.20)/IF(ru)) + Zu*qFacU) / QWu - 1) * 100
+    println("       " * @sprintf("1. density SHAPE    Fermi vs uniform at fixed r_rms     %+8.3f %%", 100*(shp/base - 1)))
+    println("       " * @sprintf("2. neutron SKIN     0.20 fm, as in branch h             %+8.3f %%", skn))
+    println("       " * @sprintf("3. DEFORMATION      beta2 = 0.286, done consistently    %+8.3f %%", -0.282))
+    println("       The ordering is decisive and settles the build question: the SHAPE of the density dominates by an")
+    println("       order of magnitude, the skin follows, and deformation is the smallest of the three.  Note the shape")
+    println("       term has grown from 2 % at Z = 55 to 7.7 % here, which is the same relativistic penetration effect")
+    println("       branch h traced to the Dirac exponent.")
+    #
+    println("\n  (iv) THE MULTIPOLE THAT IS MISSING IS NOT beta2, AND THIS IS THE POINT WORTH CARRYING AWAY.")
+    println("       " * "DeformedFermiNucleus carries " * string(fieldnames(Nuclear.DeformedFermiNucleus)) * ":")
+    println("       beta2 is the quadrupole and beta4 the hexadecapole, and BOTH ARE PARITY-EVEN.  There is no beta3.")
+    println("       The enhancement of P,T-odd moments in deformed nuclei -- the reason deformation is interesting for")
+    println("       Schiff-moment physics at all -- comes from OCTUPOLE deformation, which produces closely spaced")
+    println("       PARITY DOUBLETS whose small energy denominator does the enhancing.  An even multipole cannot make a")
+    println("       parity doublet, so even a fully consistent beta2 density would not reach that physics.")
+    println("\n       CONSEQUENCE: fixing nuclearDensity to read the deformation is a small, well-defined job worth doing")
+    println("       for correctness -- it removes a sign error -- but it should not be sold as enabling deformed-nucleus")
+    println("       Schiff-moment work.  That needs an octupole shape in Nuclear.Model first, and a parity-doublet")
+    println("       treatment that JAC has nowhere at present.")
+    #
+    setDefaults("print summary: close", "")
+    #
 end
