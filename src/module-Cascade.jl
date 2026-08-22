@@ -10,7 +10,7 @@ module Cascade
 using Dates, JLD2, Printf, FastGaussQuadrature, Distributed, ProgressMeter,
         ..AngularMomentum, ..AtomicState, ..AutoIonization, ..Basics, ..Bsplines, ..Continuum, ..Defaults,
         ..DecayYield, ..DielectronicRecombination, ..ElectronCapture, ..Empirical, ..Hamiltonian, ..ImpactExcitation, ..Radial, ..ManyElectron, ..Nuclear, 
-        ..PeriodicTable, ..PhotoEmission, ..PhotoExcitation, ..PhotoIonization, ..PhotoRecombination, 
+        ..PeriodicTable, ..PhotoEmission, ..PhotoExcitation, ..PhotoIonization, ..PhotoRecombination, ..ResonantImpactIonization,
         ..SelfConsistent, ..Semiempirical, ..TableStrings
 
 
@@ -352,6 +352,55 @@ end
     + electronEnergyShift   ::Float64
         ... Energy shift for all bound-state energies relative to the levels of the reference configuration, taken
             in the user-defined units.
+    + processes             ::Array{Basics.AbstractProcess,1}
+        ... The channels to be computed, selected exactly as Cascade.ElectronExcitationScheme selects its own.  Any
+            combination may be given, and the cost of the selection varies by three orders of magnitude:
+
+              Basics.ImpactExcAuto()                            impact-excitation with subsequent autoionization
+                  ... the inner-shell excitation channel described above.  EXPENSIVE: it needs a partial-wave sum
+                      over the free electron at every impact energy; ~2800 s for the Li-like carbon of example-Fi.jl.
+              ResonantImpactIonization.SequentialAuger()        resonant-electron-capture-with-sequential-
+                                                                double-autoionization  (REDA in older literature)
+                  ... CHEAP, seconds rather than hours: a capture is the time reverse of an Auger and needs no
+                      partial-wave sum over impact energies at all.
+              ResonantImpactIonization.SimultaneousAuger()      resonant-electron-capture-with-simultaneous-
+                                                                double-autoionization  (READI)
+                  ... rides on the resonances of the sequential channel and adds almost nothing to the cost.
+
+    + intoShells            ::Array{Shell,1}
+        ... Shells into which the incident electron is CAPTURED, for the two resonant channels only; ignored by the
+            impact-excitation channel.  The doubly-excited resonances are built by capturing into these shells while
+            exciting from excitationFromShells into excitationToShells.
+    + dblAugerOverride      ::Float64
+        ... Optional replacement for the computed double-Auger probability of the simultaneous channel.  0. means
+            "not set", in which case the shake-off estimate of ResonantImpactIonization is used; a positive value
+            replaces it and is reported as having done so.
+
+    APPROXIMATIONS, so that it is clear what a computation of this scheme actually delivers:
+
+    + the DIRECT channel is absent
+        ... Cascade.ImpactIonizationScheme is reserved for it and is not implemented, so a total ionization cross
+            section CANNOT be obtained from this scheme alone.  What it gives is the indirect and resonant parts.
+    + single-CSF blocks, no configuration mixing
+        ... in Cascade.AverageSCA() every block is generated from single-CSF levels with orbitals from a
+            Dirac-Fock-Slater potential, computed independently per block.  Level energies are therefore of
+            cascade quality, not of spectroscopic quality.
+    + only the Coulomb interaction in the autoionization
+        ... the Breit interaction is not included in any Auger rate here.
+    + a partial-wave truncation that is silent
+        ... lValues fixes maxKappa for BOTH the impact excitation and the Auger rates.  Too small a value does not
+            merely lower a cross section, it can invert its energy dependence; example-Fi.jl branch b measures that
+            crossover explicitly.  The capture rates of the resonant channels inherit the same truncation.
+    + isolated resonances, for the resonant channels
+        ... resonance strengths are ADDED, with no interference between resonances and no overlap of their widths.
+            Sound while the resonances are narrow against their spacing; it degrades for high capture shells.
+    + branchings that sum to one BY CONSTRUCTION
+        ... every branching ratio is formed from the total rates of the decay steps the cascade actually generated.
+            A decay route left out of the configuration lists is absent from the denominator too, so the branchings
+            still sum to one.  That sum checks the arithmetic; it can never reveal a missing channel.
+    + the simultaneous channel is an ESTIMATE, not a computed rate
+        ... its double-Auger width comes from shake-off in the sudden approximation, whose error has BOTH SIGNS.
+            See ResonantImpactIonization.shakeProbability before quoting anything from it.
 """
 struct   ElectronIonizationScheme  <:  Cascade.AbstractCascadeScheme
     electronEnergies        ::Array{Float64,1}
@@ -360,6 +409,9 @@ struct   ElectronIonizationScheme  <:  Cascade.AbstractCascadeScheme
     lValues                 ::Array{Int64,1}
     NoExcitations           ::Int64
     electronEnergyShift     ::Float64
+    processes               ::Array{Basics.AbstractProcess,1}
+    intoShells              ::Array{Shell,1}
+    dblAugerOverride        ::Float64
 end
 
 
@@ -367,7 +419,24 @@ end
 `Cascade.ElectronIonizationScheme()`  ... constructor for an 'default' instance of a Cascade.ElectronIonizationScheme.
 """
 function ElectronIonizationScheme()
-    ElectronIonizationScheme(Float64[], Shell[], Shell[], Int64[], 1, 0. )
+    ElectronIonizationScheme(Float64[], Shell[], Shell[], Int64[], 1, 0., Basics.AbstractProcess[Basics.ImpactExcAuto()], Shell[], 0. )
+end
+
+
+"""
+`Cascade.ElectronIonizationScheme(electronEnergies::Array{Float64,1}, excitationFromShells::Array{Shell,1},`
+                                  `excitationToShells::Array{Shell,1}, lValues::Array{Int64,1}, NoExcitations::Int64,`
+                                  `electronEnergyShift::Float64)`
+    ... constructor for the impact-excitation channel alone, i.e. the six arguments this scheme had before the two
+        resonant channels were added; processes defaults to [Basics.ImpactExcAuto()], intoShells to empty and
+        dblAugerOverride to 0.  It exists so that computations written against the earlier six-field struct -- such
+        as the dated branches of example-Fi.jl -- keep running unchanged.
+"""
+function ElectronIonizationScheme(electronEnergies::Array{Float64,1}, excitationFromShells::Array{Shell,1},
+                                  excitationToShells::Array{Shell,1}, lValues::Array{Int64,1}, NoExcitations::Int64,
+                                  electronEnergyShift::Float64)
+    ElectronIonizationScheme(electronEnergies, excitationFromShells, excitationToShells, lValues, NoExcitations,
+                             electronEnergyShift, Basics.AbstractProcess[Basics.ImpactExcAuto()], Shell[], 0. )
 end
 
 
@@ -387,6 +456,9 @@ function Base.show(io::IO, scheme::ElectronIonizationScheme)
     println(io, "lValues:                     $(scheme.lValues)  ")
     println(io, "NoExcitations:               $(scheme.NoExcitations)  ")
     println(io, "electronEnergyShift:         $(scheme.electronEnergyShift)  ")
+    println(io, "processes:                   $(scheme.processes)  ")
+    println(io, "intoShells:                  $(scheme.intoShells)  ")
+    println(io, "dblAugerOverride:            $(scheme.dblAugerOverride)  ")
 end
 
 
@@ -1373,6 +1445,7 @@ include("module-Cascade-inc-photoabsorption.jl")
 include("module-Cascade-inc-photoexcitation.jl")
 include("module-Cascade-inc-photoionization.jl")
 include("module-Cascade-inc-photorecombination.jl")
+include("module-Cascade-inc-resonant-ionization.jl")
 include("module-Cascade-inc-stepwise-decay.jl")
 include("module-Cascade-inc-simulations.jl")
 

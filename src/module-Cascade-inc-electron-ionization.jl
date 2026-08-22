@@ -18,13 +18,15 @@
 
 """
 `Cascade.computeSteps(scheme::Cascade.ElectronIonizationScheme, comp::Cascade.Computation, stepList::Array{Cascade.Step,1})`
-    ... computes in turn all the requested transition amplitudes, i.e. the ImpactExcitation.Line's of the excitation
-        and the AutoIonization.Line's of the subsequent autoionization, for all pre-specified steps of the cascade.
-        As for the other cascade schemes, the amount of printout is reduced and sent to the summary file.
-        A set of data::Array{Cascade.Data,1} is returned.
+    ... computes in turn all the requested transition amplitudes for all pre-specified steps of the cascade, i.e. the
+        ImpactExcitation.Line's of an impact excitation, the AutoIonization.Line's of an autoionization or a capture, and
+        the PhotoEmission.Line's of a radiative stabilization.  As for the other cascade schemes, the amount of printout
+        is reduced and sent to the summary file.  A set of data::Array{Cascade.Data,1} is returned, always of length three
+        and always in the order (impact-excitation, autoionization, radiative), so that a caller may index it without
+        first asking which channels were requested; an unrequested channel contributes an empty list.
 """
 function computeSteps(scheme::Cascade.ElectronIonizationScheme, comp::Cascade.Computation, stepList::Array{Cascade.Step,1})
-    linesE = ImpactExcitation.Line[];    linesA = AutoIonization.Line[]
+    linesE = ImpactExcitation.Line[];    linesA = AutoIonization.Line[];    linesR = PhotoEmission.Line[]
     printSummary, iostream = Defaults.getDefaults("summary flag/stream")
     nt = 0;   st = 0
     for  step  in  stepList
@@ -41,6 +43,10 @@ function computeSteps(scheme::Cascade.ElectronIonizationScheme, comp::Cascade.Co
             newLines = AutoIonization.computeLinesCascade(step.finalMultiplet, step.initialMultiplet, comp.nuclearModel,
                                                           comp.grid, step.settings, output=true, printout=false)
             append!(linesA, newLines);    nt = length(linesA)
+        elseif  step.process == Basics.Radiative()
+            newLines = PhotoEmission.computeLinesCascade(step.finalMultiplet, step.initialMultiplet, comp.grid,
+                                                         step.settings, output=true, printout=false)
+            append!(linesR, newLines);    nt = length(linesR)
         else    error("Unsupported atomic process for electron-ionization computations.")
         end
         sa = "     Step $st:: A total of $(length(newLines)) $(string(step.process)) lines are calculated, giving now rise " *
@@ -48,7 +54,8 @@ function computeSteps(scheme::Cascade.ElectronIonizationScheme, comp::Cascade.Co
         println(sa);    if  printSummary   println(iostream, sa)   end
     end
     #
-    data = [ Cascade.Data{ImpactExcitation.Line}(linesE), Cascade.Data{AutoIonization.Line}(linesA) ]
+    data = [ Cascade.Data{ImpactExcitation.Line}(linesE), Cascade.Data{AutoIonization.Line}(linesA),
+             Cascade.Data{PhotoEmission.Line}(linesR) ]
     return( data )
 end
 
@@ -181,6 +188,16 @@ function perform(scheme::ElectronIonizationScheme, comp::Cascade.Computation; ou
     if  output    results = Dict{String, Any}()    else    results = nothing    end
     printSummary, iostream = Defaults.getDefaults("summary flag/stream")
     #
+    # Which channels were requested?  Tested FIRST, before any SCF, so that an empty request costs nothing.
+    calcImpact   = Basics.ImpactExcAuto()  in  scheme.processes
+    calcResonant = Cascade.hasResonantChannel(scheme)
+    if  !calcImpact  &&  !calcResonant
+        error("Cascade.perform(::ElectronIonizationScheme): the scheme requests no channel at all.  Put " *
+              "Basics.ImpactExcAuto() into its processes for impact-excitation with subsequent autoionization, " *
+              "and/or ResonantImpactIonization.SequentialAuger() / .SimultaneousAuger() for the resonant capture " *
+              "channels.")
+    end
+    #
     # Perform the SCF and CI computation for the initial-state multiplets if initial configurations are given
     if  comp.initialConfigs != Configuration[]
         multiplet  = SelfConsistent.performSCF(comp.initialConfigs, comp.nuclearModel, comp.grid, comp.asfSettings; printout=false)
@@ -201,18 +218,42 @@ function perform(scheme::ElectronIonizationScheme, comp::Cascade.Computation; ou
     wc1 = Cascade.generateBlocks(scheme, comp, wb1)
     wc2 = Cascade.generateBlocks(scheme, comp, wb2, printout=false)
     wc3 = Cascade.generateBlocks(scheme, comp, wb3, printout=false)
-    Cascade.displayBlocks(stdout, wc1, sa="from the initial configurations of the EA cascade ")
-    Cascade.displayBlocks(stdout, wc2, sa="from the inner-shell excited configurations of the EA cascade ")
-    Cascade.displayBlocks(stdout, wc3, sa="from the ionized configurations of the EA cascade ")
-    if  printSummary   Cascade.displayBlocks(iostream, wc1, sa="from the initial configurations of the EA cascade ")
-                       Cascade.displayBlocks(iostream, wc2, sa="from the inner-shell excited configurations of the EA cascade ")
-                       Cascade.displayBlocks(iostream, wc3, sa="from the ionized configurations of the EA cascade ")     end
+    Cascade.displayBlocks(stdout, wc1, sa="from the initial configurations of the electron-ionization cascade ")
+    Cascade.displayBlocks(stdout, wc2, sa="from the inner-shell excited configurations of the electron-ionization cascade ")
+    Cascade.displayBlocks(stdout, wc3, sa="from the ionized configurations of the electron-ionization cascade ")
+    if  printSummary
+        Cascade.displayBlocks(iostream, wc1, sa="from the initial configurations of the electron-ionization cascade ")
+        Cascade.displayBlocks(iostream, wc2, sa="from the inner-shell excited configurations of the electron-ionization cascade ")
+        Cascade.displayBlocks(iostream, wc3, sa="from the ionized configurations of the electron-ionization cascade ")
+    end
     #
     gMultiplets = Multiplet[];     for block in wc2   push!(gMultiplets, block.multiplet)    end
     #
-    we = Cascade.determineSteps(scheme, comp, wc1, wc2, wc3)
-    Cascade.displaySteps(stdout, we, sa="excitation and autoionization ")
-    if  printSummary   Cascade.displaySteps(iostream, we, sa="excitation and autoionization ")    end
+    we = Cascade.Step[]
+    if  calcImpact      append!(we, Cascade.determineSteps(scheme, comp, wc1, wc2, wc3))     end
+    #
+    # The resonant channels need one further configuration set -- the doubly-excited resonances, with one electron MORE
+    # than the initial ones -- and the (N+1)-electron configurations they radiate into.  The intermediate and final sets
+    # are the very same excited and ionized blocks the impact-excitation channel uses, which is what lets both channels
+    # live in one scheme.
+    wc4 = Cascade.Block[];   wc5 = Cascade.Block[]
+    if  calcResonant
+        wr  = Cascade.generateConfigurationsForResonantIonization(multiplets, scheme, comp.nuclearModel)
+        wb4 = Basics.displayConfigurations(comp.nuclearModel.Z, wr[1], sa="(doubly-excited resonances of the) electron-ionization ")
+        wb5 = Basics.displayConfigurations(comp.nuclearModel.Z, wr[2], sa="(radiative-stabilization part of the) electron-ionization ")
+        wc4 = Cascade.generateBlocks(scheme, comp, wb4, printout=false)
+        wc5 = isempty(wb5) ? Cascade.Block[] : Cascade.generateBlocks(scheme, comp, wb5, printout=false)
+        Cascade.displayBlocks(stdout, wc4, sa="from the doubly-excited resonances of the electron-ionization cascade ")
+        if  printSummary
+            Cascade.displayBlocks(iostream, wc4, sa="from the doubly-excited resonances of the electron-ionization cascade ")
+        end
+        for block in wc4   push!(gMultiplets, block.multiplet)    end
+        append!(we, Cascade.determineResonantSteps(scheme, comp, wc1, wc4, wc2, wc3, wc5;
+                                                   withSecondAuger = !calcImpact))
+    end
+    #
+    Cascade.displaySteps(stdout, we, sa="electron-ionization ")
+    if  printSummary   Cascade.displaySteps(iostream, we, sa="electron-ionization ")    end
     wf   = Cascade.modifySteps(we)
     data = Cascade.computeSteps(scheme, comp, wf)
     #
@@ -223,6 +264,7 @@ function perform(scheme::ElectronIonizationScheme, comp::Cascade.Computation; ou
         results = Base.merge( results, Dict("generated multiplets:"         => gMultiplets) )
         results = Base.merge( results, Dict("impact-excitation lines:"      => data[1].lines) )
         results = Base.merge( results, Dict("autoionization lines:"         => data[2].lines) )
+        results = Base.merge( results, Dict("radiative lines:"              => data[3].lines) )
         results = Base.merge( results, Dict("cascade data:"                 => data) )
         #
         if  outputToFile
