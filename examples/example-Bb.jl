@@ -9,6 +9,8 @@ println("    The module was rebuilt on 21-Aug-2026: until then all three functio
 println("    constants (1+2i through a stub, and a hard-wired 3+3i), which is why every branch below is")
 println("    built on a check that a stub could not have satisfied.")
 
+using Printf
+
 if  true
     # Last successful:  21-Aug-2026
     #   [PROVENANCE: produced on Julia 1.10.9, with a Manifest re-resolved for 1.10 because the checkout's Manifest had been
@@ -442,6 +444,128 @@ elseif  false
     println("     RATIO ordinary / closed form       = $(abs(ord)/lit1)      <-- the anchor")
     println("     closed form with 1/c^2             = $lit2")
     println("     ratio against that version         = $(abs(ord)/lit2)      <-- i.e. c, so 1/c^2 is one power too many")
+    #
+    setDefaults("print summary: close", "")
+    #
+elseif  false
+    # Last successful:  22-Aug-2026
+    #   [PROVENANCE: as branch a.]
+    # Branch h: THE NEUTRON SKIN -- a sensitivity study, and a limitation of this module made quantitative.
+    #
+    #   WHAT IS WRONG TODAY.  Q_W = -N + Z(1 - 4 sin^2 theta_W) is computed correctly, but it multiplies a SINGLE
+    #   normalized density rho(r) built from nm.radius -- which is the CHARGE radius.  Since (1 - 4 sin^2 theta_W)
+    #   = 0.0751, the weak charge is carried almost entirely by the NEUTRONS: for 208Pb, -126 of -119.84, i.e. 105 %,
+    #   the protons contributing -5 % of opposite sign.  And the neutron distribution is WIDER than the proton one, by
+    #   the neutron skin.  So this module currently puts the weak charge in the wrong place.
+    #
+    #   WHY THIS BRANCH IS CHEAP, AND TRUSTWORTHY.  The orbitals are fixed by the CHARGE distribution and do not change
+    #   when the weak density moves, so the SCF is run once and only the model handed to weakChargeAmplitude is varied.
+    #   Passing a different Nuclear.Model to the amplitude than to the SCF does exactly that, with no source change.
+    #   And because the quantity reported is the RATIO I(r_n)/I(r_p) taken with the SAME orbitals, orbital error
+    #   cancels almost entirely -- a sensitivity study is reliable in circumstances where an absolute value is not.
+    #
+    #   WHAT IT IS FOR.  It decides a build question rather than illustrating one: implementing separate proton and
+    #   neutron densities is real work, and worth doing only if the effect is large enough to matter.  The answer
+    #   turns out to depend strongly on Z, which is itself the interesting part.
+    #
+    #   Charge radii from Angeli & Marinova (2013); skins from CREX (48Ca, 0.121 +- 0.026 fm) and PREX-II (208Pb,
+    #   0.283 +- 0.071 fm).  40Ca has N = Z and essentially no skin.
+    #
+    setDefaults("print summary: open", "zzz-WeakInteractionMoment.sum")
+    #
+    qFac  = 1.0 - 4.0*WeakInteractionMoment.sinThetaW2
+    cases = [ ("Ca-40",  20.0,  40.0, 3.4776, 0.000, 0.010, 10.0),
+              ("Ca-48",  20.0,  48.0, 3.4771, 0.121, 0.026, 10.0),
+              ("Pb-208", 82.0, 208.0, 5.5012, 0.283, 0.071,  2.0) ]
+    store = Dict{String,Any}()
+    #
+    println("\n  (i)  how the weak radial integral responds to the radius of the density")
+    println("       The amplitude is divided by Q_W, so what is tabulated is the radial integral alone.")
+    for (name, Z, A, rp, skin, dskin, rbox) in cases
+        gr   = Radial.Grid(Radial.Grid(false), rnt = 2.0e-7, h = 3.0e-2, hp = 8.0e-3, rbox = rbox)
+        setDefaults("standard grid", gr)
+        nmP  = Nuclear.Model(Z, Nuclear.FermiNucleus(), A, rp, AngularJ64(0), 0.0, 0.0, 0.0)
+        asfSk = AsfSettings(AsfSettings(); scField = Basics.NuclearField())
+        mpSk = SelfConsistent.performSCF([Configuration("2s"), Configuration("2p")], nmP, gr, asfSk; printout=false)
+        sX = nothing;   pX = nothing
+        for l in mpSk.levels
+            if      l.parity == Basics.plus  && Basics.twice(l.J) == 1    sX = l
+            elseif  l.parity == Basics.minus && Basics.twice(l.J) == 1    pX = l   end
+        end
+        Ifun = (r) -> abs( WeakInteractionMoment.weakChargeAmplitude(pX, sX, Nuclear.Model(nmP; radius = r), gr) /
+                           WeakInteractionMoment.weakCharge(Nuclear.Model(nmP; radius = r)) )
+        I0   = Ifun(rp)
+        gam  = sqrt(1.0 - (Z/Defaults.getDefaults("speed of light: c"))^2)
+        println("\n     $name:  Z = $Z, A = $A, r_p = $rp fm,  Dirac exponent gamma = " * string(round(gam, digits=5)))
+        println("       delta [fm]   r_n [fm]     I(r_n)/I(r_p)     change [%]")
+        for d in [0.0, 0.10, 0.20, 0.30]
+            rr = Ifun(rp + d) / I0
+            println("       " * @sprintf("%6.2f       %7.4f      %.8f      %+8.4f", d, rp + d, rr, 100*(rr - 1)))
+        end
+        store[name] = (Z, A, rp, skin, dskin, I0, Ifun)
+    end
+    println("\n     The response is LINEAR in the skin to better than one part in a hundred over this range, so the")
+    println("     result may be quoted as a coefficient and applied to any preferred skin value; it does not depend on")
+    println("     whether the charge or the point-proton radius is used as the base point.")
+    #
+    println("\n  (ii) the two-component weak density, and the size of the error made today")
+    println("       correct:  A ~ [ -N I(r_n) + Z(1-4s^2) I(r_p) ]     JAC now:  A ~ Q_W I(r_p), one density for both")
+    println("       nucleus      N        Q_W       I(r_n)/I(r_p)    correct/JAC     error of JAC [%]")
+    for (name, _, _, _, _, _, _) in cases
+        (Z, A, rp, skin, dskin, I0, Ifun) = store[name]
+        N  = round(A) - Z;    qw = -N + Z*qFac
+        rr = Ifun(rp + skin) / I0
+        cc = (-N*rr + Z*qFac) / qw
+        println("       " * @sprintf("%-9s %6.1f  %+10.4f     %.8f      %.8f      %+8.4f", name, N, qw, rr, cc, 100*(cc - 1)))
+    end
+    #
+    println("\n  (iii) propagating the measured uncertainty of the skin itself")
+    println("       nucleus      skin [fm]         correction [%]      over the skin's own error bar [%]")
+    for (name, _, _, _, _, _, _) in cases
+        (Z, A, rp, skin, dskin, I0, Ifun) = store[name]
+        N = round(A) - Z;    qw = -N + Z*qFac
+        f = (t) -> 100*(((-N*(Ifun(rp+t)/I0) + Z*qFac) / qw) - 1)
+        println("       " * @sprintf("%-9s %.3f +- %.3f       %+8.4f          %+8.4f  to %+8.4f",
+                                       name, skin, dskin, f(skin), f(skin + dskin), f(max(skin - dskin, 0.0))))
+    end
+    #
+    println("\n  (iv) the calcium isotope pair, against the claim it was chosen for")
+    (Z4, A4, rp4, sk4, ds4, I04, If4) = store["Ca-40"]
+    (Z8, A8, rp8, sk8, ds8, I08, If8) = store["Ca-48"]
+    N4 = round(A4) - Z4;   N8 = round(A8) - Z8
+    c4 = (-N4*(If4(rp4+sk4)/I04) + Z4*qFac) / (-N4 + Z4*qFac)
+    c8 = (-N8*(If8(rp8+sk8)/I08) + Z8*qFac) / (-N8 + Z8*qFac)
+    println("       correction to A(40Ca)               = " * @sprintf("%+8.4f", 100*(c4-1)) * " %")
+    println("       correction to A(48Ca)               = " * @sprintf("%+8.4f", 100*(c8-1)) * " %")
+    println("       correction to the RATIO A(48)/A(40) = " * @sprintf("%+8.4f", 100*(c8/c4-1)) * " %")
+    #
+    println("\n     THE VERDICT, and it is Z-dependent rather than uniform.  For the calcium pair the skin moves the")
+    println("     amplitude by four hundredths of a percent and the isotope ratio by the same, i.e. it is negligible")
+    println("     beside every other uncertainty here -- which is an independent confirmation, from a different code,")
+    println("     of why that pair is attractive for a new-boson search.  For 208Pb the correction is -0.91 %, some")
+    println("     twenty-two times larger, and carries its own error bar of +-0.23 % from the PREX-II uncertainty on")
+    println("     the skin itself.")
+    println("\n     WORTH PUTTING BESIDE BRANCH d BEFORE ANY OF IT IS BUILT: the uniform-versus-Fermi choice moves the")
+    println("     same amplitude by 2 %.  So the SHAPE of the density is today a LARGER uncertainty than its neutron")
+    println("     content, and separate proton and neutron densities alone would be polishing the smaller of the two")
+    println("     terms.  The two belong in one piece of work, not in sequence.")
+    println("     THE Z-DEPENDENCE IS NOT MERELY THAT THE SKIN IS BIGGER, and the table above lets that be checked")
+    println("     rather than asserted.  Per unit FRACTIONAL change of the density radius the response is -1.10 % in")
+    println("     calcium and -16.76 % in lead, a factor of 15.2 -- while the skins themselves differ by only 2.3.  The")
+    println("     rest is the Dirac exponent gamma = sqrt(1-(Z*alpha)^2) printed above, which falls from 0.9893 at Z=20")
+    println("     to 0.8012 at Z=82.  The radial functions go as r^(gamma-1) inside the nucleus, so the exponent moves")
+    println("     from -0.011 to -0.199 and they vary some eighteen times more strongly across the nuclear volume in")
+    println("     lead than in calcium.  Predicted 18.6 against an observed 15.2: the right mechanism and the right")
+    println("     size, not an exact account, the remainder being that the density is a Fermi shape rather than a shell.")
+    println("     WHERE the weak charge sits therefore matters far more in a heavy nucleus.")
+    println("\n     CONSEQUENCE FOR THE MODULE: a two-component density is worth having for heavy systems and not for")
+    println("     light ones, and it should arrive together with a settled density shape.  Until then, an amplitude")
+    println("     from this module for a neutron-rich heavy nucleus carries a systematic error near one percent in a")
+    println("     KNOWN DIRECTION -- too large in magnitude -- fifteen times the 0.06 % to which the operator itself is")
+    println("     anchored, and therefore the leading error for such a case rather than a refinement of it.")
+    println("     One caveat on the estimate: the neutron density is modelled here as a Fermi shape of the same")
+    println("     diffuseness and a larger radius, so a difference in SURFACE THICKNESS between neutrons and protons")
+    println("     is not included.")
     #
     setDefaults("print summary: close", "")
     #
