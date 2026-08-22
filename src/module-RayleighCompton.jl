@@ -3,8 +3,11 @@
 `module  JAC.RayleighCompton`  
 ... a submodel of JAC that contains all methods for computing elastic Rayleigh and inelastic Compton photon scattering cross sections.
 
-    STATUS, 22-Aug-2026:  PARKED BY THE MAINTAINER.  RayleighCompton.computeLines() now raises instead of returning
-    a number.  Do not pick this module up, and do not repair it, without asking the maintainer first.
+    STATUS, 22-Aug-2026:  PARKED PROVISIONALLY, AWAITING THE MAINTAINER'S ENDORSEMENT.  The defect set out below was
+    diagnosed by the assistant, and RayleighCompton.computeLines() was made to raise on that basis; the maintainer has
+    NOT yet endorsed either the diagnosis or the parking.  Read this as a claim to be checked rather than as a settled
+    decision -- but not as an oversight either: the refusal is deliberate.  Do not pick this module up, and do not
+    repair it, without asking the maintainer first.
 
     WHAT IS WRONG, concretely.  In computeChannelAmplitude the loop over the Green-function levels opens with
     `for (ig, gLevel) in enumerate(gChannel.gMultiplet.levels)` and immediately does `if ig != 1  continue  end`,
@@ -252,8 +255,10 @@ end
         lines::Array{RayleighCompton.Lines} is returned.
 """
 function  computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, grid::Radial.Grid, settings::RayleighCompton.Settings; output=true)
-    # PARKED 22-Aug-2026; refuse rather than return a second-order amplitude that is missing all but its first term.
-    error("\n\nRayleighCompton: this module was PARKED on 22-Aug-2026 and does NOT compute a trustworthy amplitude.\n"  *
+    # PARKED PROVISIONALLY 22-Aug-2026; refuse rather than return a second-order amplitude missing all but its first term.
+    error("\n\nRayleighCompton: this module was PARKED PROVISIONALLY on 22-Aug-2026 and does NOT compute a\n"           *
+          ">>> trustworthy amplitude. The diagnosis below is the assistant's and awaits the maintainer's\n"             *
+          ">>> endorsement; it is a claim to be checked, not a settled decision.\n"                                     *
           ">>> Its sum over the intermediate states runs for ig == 1 only -- `if ig != 1  continue  end` in\n"          *
           ">>> computeChannelAmplitude, under a comment reading 'Sum over all terms' -- so a second-order amplitude\n"  *
           ">>> collapses to its FIRST TERM, silently and without an error; the pole branch raises a MethodError\n"      *
