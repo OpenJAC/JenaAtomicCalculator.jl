@@ -2,6 +2,25 @@
 """
 `module  JAC.RayleighCompton`  
 ... a submodel of JAC that contains all methods for computing elastic Rayleigh and inelastic Compton photon scattering cross sections.
+
+    STATUS, 22-Aug-2026:  PARKED BY THE MAINTAINER.  RayleighCompton.computeLines() now raises instead of returning
+    a number.  Do not pick this module up, and do not repair it, without asking the maintainer first.
+
+    WHAT IS WRONG, concretely.  In computeChannelAmplitude the loop over the Green-function levels opens with
+    `for (ig, gLevel) in enumerate(gChannel.gMultiplet.levels)` and immediately does `if ig != 1  continue  end`,
+    directly beneath a comment reading "Sum over all terms of the Green function channel".  A second-order
+    amplitude therefore collapses to its first term.  Nothing signals this: the run completes and prints a cross
+    section.  Separately, the pole branch (the leftIdx / lowerMid / upperMid arithmetic above it) raises a
+    MethodError, so that path was never exercised either.
+
+    DO NOT MISREAD THE `13May2024` DATES.  They are real, but they were obtained on paths that never reached the
+    intermediate sum; they are not evidence that the second-order amplitude ever worked.
+
+    WHERE THE WORKING CODE IS.  PhotonScattering supersedes this module -- RayleighScattering(), ComptonScattering()
+    and RamanScattering() there carry the full intermediate sum over a user-supplied gMultiplet, with a capability
+    guard over (beamType, process, approximation).  See examples/example-Pa.jl ... example-Pe.jl.  Note that only
+    the form-factor path is absolutely normalised so far (example-Pd.jl branch a); the second-order prefactor there
+    is still underived, which is a different and much smaller defect than the one parked here.
 """
 module RayleighCompton
 
@@ -233,6 +252,15 @@ end
         lines::Array{RayleighCompton.Lines} is returned.
 """
 function  computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, grid::Radial.Grid, settings::RayleighCompton.Settings; output=true)
+    # PARKED 22-Aug-2026; refuse rather than return a second-order amplitude that is missing all but its first term.
+    error("\n\nRayleighCompton: this module was PARKED on 22-Aug-2026 and does NOT compute a trustworthy amplitude.\n"  *
+          ">>> Its sum over the intermediate states runs for ig == 1 only -- `if ig != 1  continue  end` in\n"          *
+          ">>> computeChannelAmplitude, under a comment reading 'Sum over all terms' -- so a second-order amplitude\n"  *
+          ">>> collapses to its FIRST TERM, silently and without an error; the pole branch raises a MethodError\n"      *
+          ">>> besides. The 13May2024 dates it carries were obtained on paths that never reached this one.\n"           *
+          ">>> Use PhotonScattering instead: RayleighScattering(), ComptonScattering() and RamanScattering() there\n"   *
+          ">>> carry the full intermediate sum. See examples/example-Pa.jl ... example-Pe.jl.\n"                        *
+          ">>> Do NOT repair this module without asking the maintainer first.\n")
     println("")
     printstyled("RayleighCompton.computeLines(): The computation of Rayleigh-Compton reduced amplitudes starts now ... \n", color=:light_green)
     printstyled("----------------------------------------------------------------------------------------------------- \n", color=:light_green)
