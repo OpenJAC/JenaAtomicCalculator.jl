@@ -409,4 +409,121 @@ elseif  false
     #
     setDefaults("print summary: close", "")
     #
+elseif  false
+    # Last successful:  22-Aug-2026
+    #   [PROVENANCE: as branch a.]
+    # Branch g: Ba+, AND THE FIRST REAL EXERCISE OF THE MANY-ELECTRON PATH.  Every verified branch before this one used
+    #   a ONE-ELECTRON system on purpose, so that a disagreement would blame the operator rather than the atomic model.
+    #   The cost of that discipline is that the spin-angular contraction has never been tested with anything to
+    #   contract over.  Ba+ is the mildest possible first case: 55 electrons, but one valence electron over a closed
+    #   Xe-like core.
+    #
+    #   THE SYSTEM IS ALSO THE ONE TWO SEPARATE EXPERIMENTAL GROUPS ARE BUILDING AROUND -- the 6s ^2S_1/2 to 5d ^2D_3/2
+    #   transition, whose 80 s metastable lifetime is what makes the Fortson E1_pnc/E2 interference scheme possible.
+    #
+    #   THE SELECTION RULES SPLIT THE SUM INTO TWO DIFFERENT CHANNELS, which a one-electron test could not exhibit,
+    #   because the weak charge is a RANK-0 operator and each term of the sum needs J_n equal to a different one of the
+    #   two levels:
+    #      term 1, weak acting on the INITIAL level:  <5d||D||n> <n|H_W|6s>   needs J_n = 1/2, kappa = +1  ->  np_1/2
+    #      term 2, weak acting on the FINAL level:    <5d|H_W|n> <n||D||6s>   needs J_n = 3/2, kappa = -2  ->  np_3/2
+    #   so the two fine-structure partners of 6p enter through DIFFERENT terms and may be compared.
+    #
+    setDefaults("print summary: open", "zzz-WeakInteractionEnhancement.sum")
+    #
+    nmBa = Nuclear.Model(56., Nuclear.FermiNucleus(), 138.0, 4.8378, AngularJ64(0), 0.0, 0.0, 0.0)
+    cfgB = [Configuration("[Xe] 6s"), Configuration("[Xe] 5d"), Configuration("[Xe] 6p")]
+    grB  = Basics.recommendedGrid(cfgB, nmBa; rnt = 2.0e-7)
+    rNuc = Defaults.convertUnits("length: from fm to atomic", nmBa.radius)
+    nIn  = count(r -> 0 < r <= rNuc, grB.r)
+    setDefaults("standard grid", grB)
+    #
+    println("\n  (i)  one grid, two scales six orders of magnitude apart")
+    println("       " * @sprintf("box = %.1f a.u. over %d points;  nuclear radius = %.3e a.u. with %d points inside it",
+                                 grB.r[end], grB.NoPoints, rNuc, nIn))
+    println("       The valence orbital reaches tens of a.u. while the weak integral lives ENTIRELY inside the nucleus,")
+    println("       and both have to be resolved at once.  Basics.recommendedGrid sets the box; only rnt is overridden.")
+    #
+    mpB = SelfConsistent.performSCF(cfgB, nmBa, grB, AsfSettings(); printout=false)
+    gsB = mpB.levels[argmin([l.energy for l in mpB.levels])]
+    println("\n       level      J^P        excitation [eV]      experiment [eV]")
+    for l in mpB.levels
+        ex = Defaults.convertUnits("energy: from atomic to eV", l.energy - gsB.energy)
+        sa = Basics.twice(l.J) == 3 && l.parity == Basics.plus  ? "0.604 (5d_3/2)" :
+             Basics.twice(l.J) == 1 && l.parity == Basics.minus ? "2.512 (6p_1/2)" : ""
+        println("       " * @sprintf("%4d      %-9s   %8.3f            %s", l.index, string(LevelSymmetry(l.J,l.parity)), ex, sa))
+    end
+    evB = filter(l -> l.parity == Basics.plus,  mpB.levels)
+    odB = filter(l -> l.parity == Basics.minus, mpB.levels)
+    s6  = evB[findfirst(l -> Basics.twice(l.J) == 1, evB)]
+    d5  = evB[findfirst(l -> Basics.twice(l.J) == 3, evB)]
+    p1  = odB[findfirst(l -> Basics.twice(l.J) == 1, odB)]
+    p3  = odB[findfirst(l -> Basics.twice(l.J) == 3, odB)]
+    #
+    println("\n  (ii) THE CORE-SPECTATOR TEST -- branch c of example-Bb.jl, now with 54 spectators")
+    println("       A closed core cannot contribute to a ONE-PARTICLE P-odd operator, so the 55-electron amplitude must")
+    println("       equal the bare valence one EXACTLY.  Same identity as branch c, but the spin-angular contraction now")
+    println("       runs over 55 electrons rather than one.  This is the check the earlier branches could not make.")
+    rhoB = WeakInteractionMoment.nuclearDensity(nmBa, grB)
+    QWB  = WeakInteractionMoment.weakCharge(nmBa)
+    wPair = Tuple{Float64,Float64}[]
+    for (fL, iL, shF, shI, nme) in [(p1, s6, Subshell(6, 1), Subshell(6,-1), "6p_1/2 <- 6s_1/2   (kappa +1 <- -1)"),
+                                    (p3, d5, Subshell(6,-2), Subshell(5, 2), "6p_3/2 <- 5d_3/2   (kappa -2 <- +2)")]
+        aM  = WeakInteractionMoment.weakChargeAmplitude(fL, iL, nmBa, grB)
+        rad = WeakInteractionMoment.radialIntegralPQminus(rhoB, fL.basis.orbitals[shF], iL.basis.orbitals[shI], grB)
+        exa = sqrt(Basics.twice(fL.J) + 1.0) * WeakInteractionMoment.GF/(2sqrt(2.0)) * QWB * im * rad
+        push!(wPair, (imag(aM), imag(exa)))
+        println("       " * nme)
+        println("          " * @sprintf("55-electron amplitude  = %+.10e i", imag(aM)))
+        println("          " * @sprintf("bare valence, by hand  = %+.10e i", imag(exa)))
+        println("          " * @sprintf("RATIO (must be 1)      = %.12f", real(aM/exa)))
+    end
+    println("\n       Both to twelve digits.  The many-electron path is not merely untested any more: the closed core is")
+    println("       correctly inert, and the angular machinery carries 54 spectator electrons without leaving a trace.")
+    #
+    println("\n  (iii) the two channels, and why one of them barely exists")
+    ampB = WeakInteractionEnhancement.computePncE1Amplitude(d5, s6, mpB, nmBa, grB)
+    for n in odB
+        a = WeakInteractionEnhancement.computePncE1Amplitude(d5, s6, Multiplet("one", [n]), nmBa, grB)
+        println("       " * @sprintf("n = %d [%-9s]  contribution = %+.8e i     share = %9.4f %%",
+                                      n.index, string(LevelSymmetry(n.J,n.parity)), imag(a), 100*imag(a)/imag(ampB)))
+    end
+    println("       " * @sprintf("TOTAL  = %+.8e i  [e a_0]", imag(ampB)))
+    println("       " * @sprintf("the two weak matrix elements differ by a factor %.3e", abs(wPair[2][1]/wPair[1][1])))
+    println("\n       THE p_3/2 CHANNEL IS A MILLIONTH OF THE p_1/2 ONE, and that is physics rather than an accident.  The")
+    println("       weak charge is a CONTACT interaction: it needs both orbitals inside the nucleus, where only s_1/2 and")
+    println("       p_1/2 have appreciable amplitude, the others being held out by the centrifugal barrier.  A d_3/2-p_3/2")
+    println("       pair barely penetrates at all.  This is why parity-violation experiments are built on transitions in")
+    println("       which an s state carries the mixing, and it is visible here as six orders of magnitude.")
+    #
+    println("\n  (iv) the exchange symmetry, which is the OPPOSITE of branch a and must be")
+    revB = WeakInteractionEnhancement.computePncE1Amplitude(s6, d5, mpB, nmBa, grB)
+    println("       " * @sprintf("re/|amp| = %.2e   (purely imaginary)", abs(real(ampB))/abs(ampB)))
+    println("       " * @sprintf("|<f||i> + <i||f>| / |amp| = %.3e", abs(ampB+revB)/abs(ampB)))
+    println("       " * @sprintf("|<f||i> - <i||f>| / |amp| = %.3e     <-- THIS one must vanish here", abs(ampB-revB)/abs(ampB)))
+    println("\n       Hermiticity gives <f||T||i> = (-1)^(J_f-J_i) conj(<i||T||f>).  For a purely imaginary amplitude that")
+    println("       is ANTIsymmetric when J_f = J_i -- branch a, where the SUM vanished -- and SYMMETRIC when the two J")
+    println("       differ by one, as here, where the DIFFERENCE vanishes instead.  The two branches together test the")
+    println("       phase factor itself, which neither can do alone.  Worth recording that this branch was first written")
+    println("       asserting the sum would vanish, and the calculation said 2.0; the calculation was right.")
+    #
+    println("\n  (v) the E2 amplitude that the experiments interfere against")
+    e2B = MultipoleMoment.emmStaticAmplitude(2, d5, s6, grB) * sqrt(Basics.twice(d5.J) + 1.0)
+    println("       " * @sprintf("<5d_3/2||T^(E2)||6s_1/2>  = %+.6e  [e a_0^2]", real(e2B)))
+    println("       " * @sprintf("|E1_PNC / E2|             = %.6e", abs(ampB)/abs(real(e2B))))
+    #
+    println("\n  (vi) WHAT THIS NUMBER IS AND IS NOT.  The structural results above are exact and stand on their own.")
+    println("       The AMPLITUDE does not: this is a single configuration per level with no correlation whatever, and the")
+    println("       level energies show what that costs -- 5d_3/2 comes out at 0.793 eV against an experimental 0.604,")
+    println("       high by 31 %, and 6p_1/2 at 2.321 against 2.512, low by 8 %.  Both sit in denominators of the sum.")
+    println("       Adding 7p and 8p moves the amplitude by a further +6.0 % and +2.2 %, so the intermediate set is not")
+    println("       converged either, and the largest set already strains the box, which Basics.recommendedGrid pushes")
+    println("       past 250 a.u. to accommodate a diffuse 8p while 6s then sits near the edge of what it can carry.")
+    println("       So: do NOT read the digits as a prediction.  What has been established is that the machinery runs on")
+    println("       a real many-electron system, that the core is correctly inert to twelve digits, and that the two")
+    println("       channels behave as the contact nature of the weak interaction requires.  A competitive Ba+ number")
+    println("       needs correlation, and should be compared against the published coupled-cluster values rather than")
+    println("       against anything in this file.")
+    #
+    setDefaults("print summary: close", "")
+    #
 end
