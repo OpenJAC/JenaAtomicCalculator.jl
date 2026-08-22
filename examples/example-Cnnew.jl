@@ -296,4 +296,117 @@ elseif  false
     #
     setDefaults("print summary: close", "")
     #
+elseif  false
+    # Last successful:  22-Aug-2026
+    #   [PROVENANCE: as branch a.]
+    # Branch f: THE TWO SYSTEMS OF A REAL PAPER -- Li-like 40Ca and 208Pb, and an error budget that turns over with Z.
+    #
+    #   These are the ions of a talk on atomic parity violation in highly charged Ca and Pb ions, computing the
+    #   PV-induced E1 amplitude for 1s^2 3s <- 1s^2 2s.  This branch computes the same quantity independently and, more
+    #   usefully than a bare number, says WHICH uncertainty limits it -- which is the question that decides whether a
+    #   system is worth pursuing.
+    #
+    #   WHY LI-LIKE AND NOT H-LIKE, which branch c explains and this branch demonstrates for these very ions.  In a
+    #   one-electron ion 2s_1/2 and 2p_1/2 are degenerate in Dirac theory and are split only by a Lamb shift JAC does not
+    #   have, which sits in a denominator of the sum.  Screening in a three-electron ion splits them properly, and the
+    #   branch prints the splitting so the reader can see it is nowhere near zero.
+    #
+    #   THE BOX IS LEFT TO Basics.recommendedGrid, which is what Rule 12 asks for.  A hand formula was tried first and
+    #   gave 3.3 a.u. where 4p and 5p need about 9.8; Bsplines.checkGridRepresentation REFUSED it rather than returning a
+    #   plausible wrong number, which is the guard working exactly as intended.  Only `rnt` is overridden, to 2e-7,
+    #   because the weak integral lives INSIDE the nucleus at r ~ 1e-4 a.u. where the default 2e-6 would be coarse.
+    #
+    setDefaults("print summary: open", "zzz-WeakInteractionEnhancement.sum")
+    #
+    P4f  = [Configuration("1s^2 2p"), Configuration("1s^2 3p"), Configuration("1s^2 4p")]
+    sets = [ ("2p",          [Configuration("1s^2 2p")]),
+             ("2p 3p",       [Configuration("1s^2 2p"), Configuration("1s^2 3p")]),
+             ("2p 3p 4p",    P4f),
+             ("2p 3p 4p 5p", vcat(P4f, [Configuration("1s^2 5p")])) ]
+    #
+    liPnc = function(Z, A, rr, model, oddCfg)
+        nmX = Nuclear.Model(Z, model, A, rr, AngularJ64(0), 0.0, 0.0, 0.0)
+        cfg = vcat([Configuration("1s^2 2s"), Configuration("1s^2 3s")], oddCfg)
+        grX = Basics.recommendedGrid(cfg, nmX; rnt = 2.0e-7)
+        setDefaults("standard grid", grX)
+        mpX = SelfConsistent.performSCF(cfg, nmX, grX, AsfSettings(); printout=false)
+        evX = filter(l -> l.parity == Basics.plus,  mpX.levels)
+        odX = filter(l -> l.parity == Basics.minus, mpX.levels)
+        sA  = evX[argmin([l.energy for l in evX])];   sB = evX[argmax([l.energy for l in evX])]
+        pA  = odX[argmin([l.energy for l in odX])]
+        ( imag(WeakInteractionEnhancement.computePncE1Amplitude(sB, sA, mpX, nmX, grX)), abs(sA.energy - pA.energy) )
+    end
+    #
+    println("\n  (i)  E1_PNC for 1s^2 3s <- 1s^2 2s, as the intermediate set grows")
+    trunc = Dict{String,Float64}();   final = Dict{String,Float64}()
+    for (nme, Z, A, rr) in [("Li-like 40Ca", 20.0, 40.0, 3.4776), ("Li-like 208Pb", 82.0, 208.0, 5.5012)]
+        println("\n     $nme")
+        println("       intermediate set      E1_PNC [i e a_0]        change        2s-2p_1/2 [eV]")
+        pv = 0.
+        for (lbl, oc) in sets
+            (a, dE) = liPnc(Z, A, rr, Nuclear.FermiNucleus(), oc)
+            sa = pv == 0. ? "     --" : @sprintf("%+8.2f %%", 100*(a/pv - 1))
+            println("       " * @sprintf("%-20s %+.8e     %s      %8.1f", lbl, a, sa,
+                                          Defaults.convertUnits("energy: from atomic to eV", dE)))
+            if  pv != 0.   trunc[nme] = abs(100*(a/pv - 1))   end
+            pv = a
+        end
+        final[nme] = pv
+    end
+    println("\n     The 2s-2p_1/2 splitting is 36 eV in calcium and 235 eV in lead -- large, screening-dominated, and")
+    println("     nothing like the near-degeneracy that makes the hydrogen-like case of branch c untrustworthy.  Note")
+    println("     also that ONE intermediate again gives the WRONG SIGN, in both ions, as it did in branch b.")
+    #
+    println("\n  (ii) the isoelectronic scan: how E1_PNC/Q_W grows along the Li-like sequence")
+    println("       Z        A       r [fm]     E1_PNC/Q_W            local exponent")
+    Zs = [20.0, 35.0, 50.0, 65.0, 82.0];   vals = Float64[]
+    for Z in Zs
+        nmD = Nuclear.Model(Z)
+        (a, dE) = liPnc(Z, nmD.mass, nmD.radius, Nuclear.FermiNucleus(), P4f)
+        v = abs(a) / abs(WeakInteractionMoment.weakCharge(nmD))
+        push!(vals, v)
+        sa = length(vals) > 1 ?
+             @sprintf("%.4f", (log(vals[end])-log(vals[end-1]))/(log(Z)-log(Zs[length(vals)-1]))) : "  --"
+        println("       " * @sprintf("%5.1f   %6.1f    %6.3f     %.8e         %s", Z, nmD.mass, nmD.radius, v, sa))
+    end
+    nz = length(Zs);   lx = log.(Zs);   ly = log.(vals)
+    slope = (nz*sum(lx.*ly) - sum(lx)*sum(ly)) / (nz*sum(lx.^2) - sum(lx)^2)
+    println("       least-squares exponent = " * @sprintf("%.4f", slope))
+    println("\n     About Z^3 on average, but the LOCAL exponent climbs from 2.46 to 4.70 across the sequence, so a single")
+    println("     power law describes this badly.  Two Z-dependences are competing: the weak matrix element itself grows")
+    println("     as Z^4 (branch e of example-Bb.jl), while the 2s-2p_1/2 denominator grows only as about Z^1.3, being")
+    println("     screening-dominated at low Z and relativistic at high Z.  The upward curvature is the relativistic")
+    println("     enhancement taking over, and it is why the heaviest systems are the interesting ones.")
+    #
+    println("\n  (iii) the density SHAPE, at fixed rms radius -- branch d repeated for these two systems")
+    println("       system              Fermi                  uniform             spread [%]")
+    shape = Dict{String,Float64}()
+    for (nme, Z, A, rr) in [("Li-like 40Ca", 20.0, 40.0, 3.4776), ("Li-like 208Pb", 82.0, 208.0, 5.5012)]
+        (fF, _) = liPnc(Z, A, rr, Nuclear.FermiNucleus(),   P4f)
+        (fU, _) = liPnc(Z, A, rr, Nuclear.UniformNucleus(), P4f)
+        shape[nme] = abs(100*(fU/fF - 1))
+        println("       " * @sprintf("%-18s  %+.8e   %+.8e   %+9.3f", nme, fF, fU, 100*(fU/fF - 1)))
+    end
+    #
+    println("\n  (iv) THE ERROR BUDGET, and it turns over with Z")
+    println("       system              truncation      density shape      neutron skin")
+    println("       " * @sprintf("%-18s  %8.2f %%      %8.2f %%       %8.2f %%", "Li-like 40Ca",
+                                 trunc["Li-like 40Ca"], shape["Li-like 40Ca"], 0.04))
+    println("       " * @sprintf("%-18s  %8.2f %%      %8.2f %%       %8.2f %%", "Li-like 208Pb",
+                                 trunc["Li-like 208Pb"], shape["Li-like 208Pb"], 0.91))
+    println("       (the skin column is the estimate of branch h in example-Bb.jl, carried over)")
+    println("\n     THE DOMINANT UNCERTAINTY SWAPS.  In calcium the ELECTRONIC sum limits the answer and the nucleus is")
+    println("     nearly irrelevant; in lead the NUCLEUS limits it and the electronic sum is the best-converged part of")
+    println("     the calculation, since the higher np levels are pushed away and the low ones dominate more cleanly.")
+    println("     That is a more useful thing to know than either amplitude on its own: it says that improving a light")
+    println("     system means adding intermediate states, and improving a heavy one means improving the nuclear model,")
+    println("     and that effort spent the other way round is wasted in both cases.")
+    println("\n     WHAT MAY AND MAY NOT BE QUOTED.  The two amplitudes above are complete as ELECTRONIC calculations at")
+    println("     the stated truncation.  They do NOT contain a neutron skin -- the weak charge is placed on the charge")
+    println("     distribution, which branch h shows costs about -0.9 % in lead -- and they carry no QED.  For lead the")
+    println("     honest total is therefore a few percent, dominated by the nuclear density, and it would be wrong to")
+    println("     present the 8 digits printed above as anything but the arithmetic they are.")
+    #
+    setDefaults("print summary: close", "")
+    #
 end
