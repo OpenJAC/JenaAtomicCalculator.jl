@@ -37,6 +37,31 @@
     list in module-BasicsAZ-inc-perform.jl.
 
     PLANNED: scattering of TWISTED (Bessel) photon beams, for which Beam.BesselBeam already provides the beam side. Not done.
+
+    VERIFICATION STATUS, 22-Aug-2026 -- collected here because each example branch reports only itself, and the DIFFERENCE
+    between the entries is the useful part:
+
+      FORM-FACTOR RAYLEIGH        magnitude ABSOLUTE, one part in 10^5 against N^2 sigma_Thomson, a closed form with no
+                                  free prefactor; the departure at q a_0 = 1.07 shown PHYSICAL by grid refinement (four
+                                  parts in 10^6 over 301 -> 1183 points). DATED. example-Pd.jl branch a.
+      FORM-FACTOR COMPTON         both LIMITS verified -- sigma ~ omega^2 at small q from S(q) ~ N q^2 <r^2>/3, and
+                                  sigma/N sigma_T rising toward 1 -- the middle resting on the closure approximation.
+                                  Undated. example-Pd.jl branch b.
+      RAYLEIGH / RAMAN, 2nd order SHAPE verified: omega^4 in BOTH gauges (4.014, 4.056) after the off-shell correction,
+                                  and the RELATIVE SIGN of the two time orderings, by low-frequency additivity at a
+                                  discrimination of 140. Magnitude rests on an underived prefactor. Undated.
+      RESONANT (RIXS)             SHAPE verified: Lorentzian to 0.6 %, FWHM equal to the width supplied. The profile comes
+                                  from the DENOMINATOR and is gauge-blind, so it tests the resonance machinery and says
+                                  nothing about the amplitude. Undated. example-Pc.jl.
+      BOUND-FREE PAIR CREATION    energy conservation and the lowered threshold verified; detailed balance against the
+                                  annihilation crossing partner FAILS, with prefactor and amplitude both implicated.
+                                  Undated. example-Pa.jl.
+
+    WHAT NO TEST HERE CONSTRAINS. An overall PHASE. The exchange (Hermiticity) test of example-Pb.jl branch c returns
+    exactly zero for every channel and the result is VACUOUS: bound-bound E1 amplitudes over real non-resonant denominators
+    are purely real, so conjugation is the identity and A = A. The repair is impossible in principle -- making the
+    amplitude complex requires a width, and a width breaks the relation, a decaying state genuinely violating time
+    reversal. Only the RELATIVE sign between orderings is established, by the additivity test.
 """
 module PhotonScattering
 
@@ -75,6 +100,10 @@ include("module-PhotonScattering-inc-structs.jl")
             resonant denominator as E_i + omega_in - E_nu + i*Gamma/2, which is what lets RIXS be evaluated ON resonance where
             Rayleigh must skip. It is zero by default, and the resonant pipeline refuses to run with a zero width rather than
             dividing by something arbitrarily small.
+    + impactParameters    ::Array{Float64,1}
+        ... impact parameters [a.u.] of the atom from the beam axis, read ONLY by a twisted beam. A vortex beam is not
+            translationally invariant, so where the atom sits relative to the axis is a physical variable rather than a
+            convention, and scanning it is how the vortex structure is seen. Ignored for a plane wave.
     + selfTolerance       ::Float64
         ... a resonant intermediate level, where the energy denominator vanishes, is SKIPPED once |denominator| falls below this
             value. That is the boundary between non-resonant and resonant scattering, and it is guarded rather than hidden: the
@@ -94,6 +123,7 @@ struct Settings  <:  AbstractProcessSettings
     incidentStokes        ::ExpStokes
     maxKappa              ::Int64
     gMultiplet            ::Union{Multiplet, Array{AtomicState.GreenChannel,1}}
+    impactParameters      ::Array{Float64,1}
     width                 ::Float64
     selfTolerance         ::Float64
     printBefore           ::Bool
@@ -107,7 +137,7 @@ end
 function Settings()
     Settings( PhotonScattering.BoundFreePairCreation(), PhotonScattering.FirstOrderVertex(), Beam.PlaneWave(),
               Float64[], EmMultipole[E1], UseGauge[Basics.UseCoulomb, Basics.UseBabushkin], Float64[], Float64[],
-              Basics.ExpStokes(), 4, Multiplet(), 0., 1.0e-8, false, LineSelection() )
+              Basics.ExpStokes(), 4, Multiplet(), Float64[0.], 0., 1.0e-8, false, LineSelection() )
 end
 
 
@@ -116,7 +146,7 @@ end
 
         process=..,             approximation=..,           beamType=..,            photonEnergies=..,
         multipoles=..,          gauges=..,                  polarThetas=..,         polarPhis=..,
-        incidentStokes=..,      maxKappa=..,                gMultiplet=..,          width=..,
+        incidentStokes=..,      maxKappa=..,                gMultiplet=..,          impactParameters=..,   width=..,
         selfTolerance=..,
         printBefore=..,         lineSelection=.. )
 
@@ -130,6 +160,7 @@ function Settings(set::PhotonScattering.Settings;
     polarThetas::Union{Nothing,Array{Float64,1}}=nothing,        polarPhis::Union{Nothing,Array{Float64,1}}=nothing,
     incidentStokes::Union{Nothing,ExpStokes}=nothing,            maxKappa::Union{Nothing,Int64}=nothing,
     gMultiplet::Union{Nothing,Multiplet,Array{AtomicState.GreenChannel,1}}=nothing,
+    impactParameters::Union{Nothing,Array{Float64,1}}=nothing,
     width::Union{Nothing,Float64}=nothing,                       selfTolerance::Union{Nothing,Float64}=nothing,
     printBefore::Union{Nothing,Bool}=nothing,                    lineSelection::Union{Nothing,LineSelection}=nothing)
 
@@ -144,13 +175,15 @@ function Settings(set::PhotonScattering.Settings;
     if  isnothing(incidentStokes)   incidentStokesx = set.incidentStokes  else  incidentStokesx = incidentStokes  end
     if  isnothing(maxKappa)         maxKappax       = set.maxKappa        else  maxKappax       = maxKappa        end
     if  isnothing(gMultiplet)       gMultipletx     = set.gMultiplet      else  gMultipletx     = gMultiplet      end
+    if  isnothing(impactParameters) impactParametersx = set.impactParameters else impactParametersx = impactParameters end
     if  isnothing(width)            widthx          = set.width           else  widthx          = width           end
     if  isnothing(selfTolerance)    selfTolerancex  = set.selfTolerance   else  selfTolerancex  = selfTolerance   end
     if  isnothing(printBefore)      printBeforex    = set.printBefore     else  printBeforex    = printBefore     end
     if  isnothing(lineSelection)    lineSelectionx  = set.lineSelection   else  lineSelectionx  = lineSelection   end
 
     Settings( processx, approximationx, beamTypex, photonEnergiesx, multipolesx, gaugesx, polarThetasx, polarPhisx,
-              incidentStokesx, maxKappax, gMultipletx, widthx, selfTolerancex, printBeforex, lineSelectionx )
+              incidentStokesx, maxKappax, gMultipletx, impactParametersx, widthx, selfTolerancex, printBeforex,
+              lineSelectionx )
 end
 
 
@@ -167,6 +200,7 @@ function Base.show(io::IO, settings::PhotonScattering.Settings)
     println(io, "incidentStokes:        $(settings.incidentStokes)  ")
     println(io, "maxKappa:              $(settings.maxKappa)  ")
     println(io, "gMultiplet:            $(typeof(settings.gMultiplet))  ")
+    println(io, "impactParameters:      $(settings.impactParameters)  ")
     println(io, "width:                 $(settings.width)  ")
     println(io, "selfTolerance:         $(settings.selfTolerance)  ")
     println(io, "printBefore:           $(settings.printBefore)  ")
@@ -208,11 +242,20 @@ function checkCombination(settings::PhotonScattering.Settings)
     end
 
     # (b) not yet implemented
-    if      !(settings.beamType isa Beam.PlaneWave)
-        error("\n\nNo photon-scattering process is implemented yet for\n    beamType = $(settings.beamType)\n\n" *
-              "Only Beam.PlaneWave() is available today. Scattering of TWISTED beams -- Beam.BesselBeam and " *
-              "Beam.LaguerreGauss -- is a planned stage of this module and the beam side already exists in the Beam module, but " *
-              "no amplitude here uses it: settings.beamType is not yet read by any pipeline. Ask for a plane wave, or wait.")
+    if      settings.beamType isa Beam.BesselBeam  &&
+            !(settings.approximation == PhotonScattering.FormFactorApproximation()  &&
+              settings.process in [PhotonScattering.RayleighScattering(), PhotonScattering.ComptonScattering()])
+        error("\n\nA Bessel beam is implemented only in the FORM-FACTOR approximation, and only for Rayleigh and Compton.\n" *
+              "    process       = $(settings.process)\n    approximation = $(settings.approximation)\n\n" *
+              "The reason is structural rather than incidental: a twisted beam is a coherent superposition of plane waves on a " *
+              "cone, and superposing a SECOND-ORDER amplitude over that cone needs the partial-wave/OAM coupling that " *
+              "ParticleScattering also declined to re-derive. In the form-factor approximation the amplitude depends only on " *
+              "the momentum transfer q, so the superposition collapses to a one-dimensional integral. Use " *
+              "FormFactorApproximation() with RayleighScattering() or ComptonScattering().")
+    elseif  !(settings.beamType isa Beam.PlaneWave)  &&  !(settings.beamType isa Beam.BesselBeam)
+        error("\n\nNo photon-scattering process is implemented for\n    beamType = $(settings.beamType)\n\n" *
+              "Implemented today: Beam.PlaneWave() for every supported process, and Beam.BesselBeam() in the form-factor " *
+              "approximation for Rayleigh and Compton. Beam.LaguerreGauss awaits the same treatment.")
     elseif  settings.approximation == PhotonScattering.FormFactorApproximation()  &&
             !(settings.process in [PhotonScattering.RayleighScattering(), PhotonScattering.ComptonScattering()])
         error("\n\nThe form-factor approximation does not apply to\n    process = $(settings.process)\n\n" *
@@ -238,7 +281,9 @@ function computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, nm
     PhotonScattering.checkCombination(settings)
     # The APPROXIMATION axis is consulted before the process axis: a form-factor request is answered by one pipeline for
     # every process it supports, there being no sum over intermediate states to specialise.
-    if      settings.approximation == PhotonScattering.FormFactorApproximation()
+    if      settings.beamType isa Beam.BesselBeam
+        return( PhotonScattering.computeTwistedLines(finalMultiplet, initialMultiplet, nm, grid, settings; output=output) )
+    elseif  settings.approximation == PhotonScattering.FormFactorApproximation()
         return( PhotonScattering.computeFormFactorLines(finalMultiplet, initialMultiplet, nm, grid, settings; output=output) )
     elseif  settings.process == PhotonScattering.BoundFreePairCreation()
         return( PhotonScattering.computePairCreationLines(finalMultiplet, initialMultiplet, nm, grid, settings; output=output) )
@@ -331,5 +376,6 @@ include("module-PhotonScattering-inc-pair-creation.jl")
 include("module-PhotonScattering-inc-rayleigh.jl")
 include("module-PhotonScattering-inc-resonant.jl")
 include("module-PhotonScattering-inc-formfactor.jl")
+include("module-PhotonScattering-inc-twisted.jl")
 
 end # module
