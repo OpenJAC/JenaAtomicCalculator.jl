@@ -10,7 +10,10 @@
 #      EA :  ImpactExc (excitation)                +  Auger (autoionization)         ... net ionization
 #
 # NOT covered here: the DIRECT channel (Cascade.ImpactIonizationScheme, not implemented -- see the note at that
-# struct) and REDA, which needs the electron-capture scheme that is still outstanding.
+# struct) and the two resonant-electron-capture channels, in which the incident electron is CAPTURED into a
+# doubly-excited resonance that then sheds two electrons, sequentially or simultaneously.  The electron-capture
+# scheme they need is NOT outstanding -- it has run since 16-Aug-2026; what is missing is the second Auger
+# generation and the strengths.  See the note at Cascade.ElectronIonizationScheme.
 
 
 """

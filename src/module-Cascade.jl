@@ -322,9 +322,17 @@ end
             NOT INCLUDED, and deliberately so:
               + the DIRECT electron-impact ionization channel.  Cascade.ImpactIonizationScheme is reserved for it
                 and is not implemented; see the note there.
-              + REDA (resonant-excitation double autoionization), which requires the electron-capture scheme that
-                is still outstanding.  EA and REDA together make up the resonant part of the ionization; only EA
-                is available here.
+              + the two RESONANT-ELECTRON-CAPTURE channels, in which the incident electron is CAPTURED into a
+                doubly-excited resonance which then sheds two electrons, either one after the other
+                (resonant-electron-capture-with-sequential-double-autoionization, the REDA of the older
+                literature) or both at once (...-with-simultaneous-double-autoionization, READI).  Together with
+                the impact-excitation channel above they make up the resonant part of the ionization; only the
+                impact-excitation one is available here.
+
+                THE OLD NOTE HERE SAID THESE "require the electron-capture scheme that is still outstanding".
+                That has not been true since 16-Aug-2026: Cascade.perform(::DielectronicCaptureScheme) exists and
+                runs, and Cascade.perform(::ElectronExcitationScheme) already delegates to it for its own resonant
+                channel.  What is still missing is the second Auger generation and the strengths, not the capture.
 
     + electronEnergies      ::Array{Float64,1}                
         ... List of impact energies of the incoming electron, in the user-selected units.  The collision strengths

@@ -45,9 +45,10 @@ grid = Radial.Grid(Radial.Grid(true); rnt = 4.0e-6, h = 5.0e-2, hp = 0.8e-2, rbo
 # rather than two multiplets, and it has no Line type at all), so a cascade built on it would store
 # ImpactIonization.CrossSection's per (subshell, impact energy) rather than lines, and the cascade approaches
 # would influence only the SCF basis behind the binding energies.  That is a workable design but a different
-# one, and it is recorded at the struct rather than guessed at here.  REDA -- resonant-excitation double
-# autoionization -- is the other indirect channel and needs the electron-capture scheme that is still
-# outstanding.  So of the three contributions to electron-impact ionization, this file covers one.
+# one, and it is recorded at the struct rather than guessed at here.  The other indirect contributions are the
+# two RESONANT-ELECTRON-CAPTURE channels, in which the incident electron is captured into a doubly-excited
+# resonance that then sheds two electrons, sequentially or simultaneously (the REDA and READI of the older
+# literature).  So of the contributions to electron-impact ionization, this file covers one.
 #
 # COMPUTATION AND SIMULATION.  The computation returns LINES: ImpactExcitation.Line's for the excitation and
 # AutoIonization.Line's for the decay.  Forming a cross section from them is the job of the simulation

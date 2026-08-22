@@ -107,7 +107,7 @@ export AbstractCImethod, AbstractComputeTheme, AbstractConfigurationRestriction,
        RacahAlgebra, RacahExpression, Radial, RadialIntegrals, RadialOrbitalsBoth, RadialOrbitalsLarge,
        RadialOrbitalsSmall,
        RadialPotentials, Radiative, RadiativeAuger, RasExpansion,
-       RasLayer, RasSettings, RasStep, RAuger, RayleighCompton, READI, Rec, recast, REDA, ReducedDensityMatrix,
+       RasLayer, RasSettings, RasStep, RAuger, RayleighCompton, Rec, recast, ReducedDensityMatrix,
        RelativisticConfigurations, RemoveElectrons, Representation, RequestMaximumOccupation,
        RequestMinimumOccupation, ResonantInelastic, RestrictExcitations, RestrictMaximumDisplacements,
        RestrictNoElectronsTo, RestrictParity, RestrictToShellDoubles,
@@ -213,8 +213,6 @@ include("module-InternalRecombination.jl")
 include("module-TwoElectronOnePhoton.jl") 
 include("module-DoubleAutoIonization.jl")
 #= Further processes, not yet included into the code
-include("module-REDA.jl")
-include("module-READI.jl")
 include("module-PairProduction.jl")  =#
 end
 
