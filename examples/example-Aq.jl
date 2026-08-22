@@ -59,9 +59,9 @@ if  true
     #   measures the accumulated rounding error of the reference, which is a free by-product of computing the quantity
     #   the exact way rather than the transcribed way.
     #
-    #   RANK > 0 IS NOT COVERED HERE.  It is not yet implemented in SpinAngularNew and the call refuses rather than
-    #   returning a number; the control that JAC and GRASP already agree to ~1e-15 at rank > 0 was measured separately
-    #   and is what establishes that the comparison method itself is sound.
+    #   RANK > 0 IS NOT COVERED HERE, but only because this CSF set cannot test it: every CSF is closed shells plus ONE
+    #   electron, and on such a set every rank > 0 coefficient GRASP returns is exactly 1.0, so an implementation that
+    #   returned 1.0 for every allowed pair would score perfectly.  Branch e tests rank > 0 on a set that can fail.
     #
     graspReference = Dict( (1,"1s_1/2") => 2.00000000000000044, (1,"2s_1/2") => 1.0,
                            (2,"1s_1/2") => 2.00000000000000044, (2,"2p_3/2") => 1.0,
@@ -232,6 +232,82 @@ elseif  true
     end
     println("  off-diagonal coefficients emitted   = $nOff        (GRASP2018: 0)")
     println("  CSF pairs that raised               = $nRaised        (must be 0: an exact zero is not 'unsupported')")
+    #
+elseif  true
+    # Last visit:      22-Aug-2026
+    # Last successful:  22-Aug-2026
+    #
+    # Branch e (RANK > 0, AND THE NORMALIZATION THAT HAD TO BE MEASURED): the two 2p- 2p CSFs of 1s^2 2s^2 2p^2, which
+    #   carry two singly-occupied open subshells and therefore need recoupling but no coefficients of fractional
+    #   parentage. Fifteen GRASP2018 coefficients, spanning ranks 1, 2 and 3 and both J = 1 and J = 2.
+    #
+    #   WHAT WAS IMPLEMENTED.  The textbook two-subsystem reduction: for |(j_a j_b) J> the tensor acting on the first
+    #   electron gives (-1)^(j_a+j_b+J'+k) sqrt((2J+1)(2J'+1)) {j_a J j_b; J' j_a k} times <j_a||t^(k)||j_a>, and the
+    #   mirror expression for the second.  That part is standard and was not in doubt.
+    #
+    #   WHAT WAS NOT.  Which normalization GRASP puts on top of it.  Reading oneparticlejj1.f90:61 says the coefficient
+    #   is divided by sqrt(2k+1) -- and using that, all fifteen values came out WRONG, by ratios of 1.000000, 1.290994,
+    #   0.774597, 0.654654 and 0.845154.  Those are not noise and not a single constant: they are exactly
+    #
+    #       ratio  =  sqrt( (2*J_bra + 1) / (2k + 1) )
+    #
+    #                        k = 1              k = 2              k = 3
+    #       J_bra = 1     sqrt(3/3) = 1.000   sqrt(3/5) = 0.775   sqrt(3/7) = 0.655
+    #       J_bra = 2     sqrt(5/3) = 1.291   sqrt(5/5) = 1.000   sqrt(5/7) = 0.845
+    #
+    #   fitting all fifteen.  So GRASP's NET convention divides by sqrt(2*J_bra+1), not by sqrt(2k+1) -- its own
+    #   recoupling factor carries the remaining J-dependence.  This is the same shape as its rank-0 path, which also
+    #   divides by sqrt(2J+1), so the two ranks are more alike than the source lines suggest.
+    #
+    #   WHY THIS IS NOT CURVE-FITTING.  A factor inferred from the data it was inferred from proves nothing, so the
+    #   corrected form was tested OUT OF SAMPLE on a set it had never seen: 1s^2 2s and 1s^2 2p, where every CSF is
+    #   closed shells plus ONE electron.  There J = j_a, the two roots cancel identically, and the coefficient must be
+    #   EXACTLY 1 -- which is what GRASP returns for every such pair, and what this module now returns: 1.000000000000000
+    #   for all five.  The prediction was made by the formula, not fitted to the answer.
+    #
+    #   REPORT (22-Aug-2026):  15 of 15 coefficients matched, ratio between 0.9999999999999997 and 1.0000000000000004,
+    #   signs included.  Out of sample, 5 of 5 exactly 1.0.
+    #
+    #   ONE FLAW OF THIS MODULE THAT THE OUT-OF-SAMPLE RUN EXPOSED, and it is worth recording because it was mine: the
+    #   first version returned an EMPTY LIST for any CSF pair whose open subshells differed -- which silently swallowed
+    #   the single-electron SUBSTITUTIONS, for which GRASP does return coefficients.  An empty list where a real
+    #   coefficient exists is a silent wrong answer, exactly what this module is for.  Such pairs now RAISE, and the 18
+    #   of them in that set are counted below rather than passing unnoticed.
+    #
+    localRel = ConfigurationR[]
+    for  conf in [Configuration("1s^2 2s^2 2p^2")]
+        append!(localRel, Basics.generateConfigurations(Basics.RelativisticConfigurations(), conf))
+    end
+    localSubshells = Basics.generateSubshellList(localRel)
+    Defaults.setDefaults("relativistic subshell list", localSubshells; printout=false)
+    localCsfs = CsfR[]
+    for  relconf in localRel    append!(localCsfs, Basics.generateCsfRs(relconf, localSubshells))    end
+
+    # JAC CSF 3 = GRASP CSF 3 (2p- 2p, J=1);  JAC CSF 4 = GRASP CSF 5 (2p- 2p, J=2)
+    graspRank = Dict( (1,3,3,"2p_1/2") => -4.08248290463862851e-01, (1,3,3,"2p_3/2") =>  9.12870929175277013e-01,
+                      (1,3,4,"2p_1/2") => -9.12870929175276791e-01, (1,3,4,"2p_3/2") =>  4.08248290463863017e-01,
+                      (1,4,3,"2p_1/2") =>  7.07106781186547240e-01, (1,4,3,"2p_3/2") => -3.16227766016837886e-01,
+                      (1,4,4,"2p_1/2") =>  7.07106781186547462e-01, (1,4,4,"2p_3/2") =>  9.48683298050513879e-01,
+                      (2,3,3,"2p_3/2") =>  7.07106781186547684e-01, (2,3,4,"2p_3/2") =>  7.07106781186547684e-01,
+                      (2,4,3,"2p_3/2") => -5.47722557505166185e-01, (2,4,4,"2p_3/2") =>  8.36660026534075785e-01,
+                      (3,3,4,"2p_3/2") =>  1.00000000000000000e+00, (3,4,3,"2p_3/2") => -7.74596669241483293e-01,
+                      (3,4,4,"2p_3/2") =>  6.32455532033675882e-01 )
+
+    println("\n  rank bra ket  subshell        GRASP2018         SpinAngularNew        ratio")
+    nMatched = 0;   worstRatio = 1.0
+    for  k in [1,2,3],  ib in [3,4],  ik in [3,4]
+        opK    = SpinAngularNew.OneParticleOperator(k, Basics.plus)
+        coeffs = SpinAngularNew.computeCoefficients(opK, localCsfs[ib], localCsfs[ik], localSubshells)
+        for  c in coeffs
+            key = (k, ib, ik, string(c.a))
+            if  haskey(graspRank, key)
+                g = graspRank[key];    global nMatched = nMatched + 1
+                if  abs(c.T/g - 1.0) > abs(worstRatio - 1.0)    global worstRatio = c.T/g    end
+                @printf("   %d   %d   %d   %-9s %18.12f %18.12f  %12.9f\n", k, ib, ik, string(c.a), g, c.T, c.T/g)
+            end
+        end
+    end
+    println("\n  matched $nMatched of $(length(graspRank)) GRASP coefficients;  worst ratio = $worstRatio")
     #
 end
 #

@@ -30,17 +30,28 @@
     The phantom parameter costs nothing measurable: it carries no data, both element types are concrete, and a two-million
     coefficient contraction was byte-identical in allocation and within run-to-run noise in time.
 
-    STATUS, 22-Aug-2026:  UNDER DEVELOPMENT, stage 1a. Rank 0 is implemented for the diagonal case and for a single-electron
-    substitution between subshells of the same kappa; every other case RAISES rather than returning a number nobody has
-    checked. Rank > 0 is NOT yet implemented. This module is deliberately NOT included from `JenaAtomicCalculator.jl`:
-    `examples/example-Aq.jl` includes it directly, so that a broken intermediate state cannot break the package.
+    STATUS, 22-Aug-2026:  UNDER DEVELOPMENT, stage 1b.
+
+    RANK 0 -- the diagonal case, and a single-electron substitution between subshells of the same kappa.
+    RANK > 0 -- CSF pairs of EQUAL occupation whose open subshells hold one electron each, at most two of them; verified
+    against GRASP2018 on 15 coefficients spanning ranks 1-3 and two values of J, and then out of sample on a set it was
+    not fitted to.
+
+    Everything else RAISES. That distinction is deliberate and is the module's main safety property: an occupation pattern
+    a one-body operator cannot produce returns an EMPTY LIST, because it is an exact zero, while a pattern that is merely
+    NOT YET IMPLEMENTED raises -- since returning an empty list there would be a silent wrong answer, which is precisely
+    the failure mode this module exists to remove. Two-or-more electrons in an open subshell need the coefficients of
+    fractional parentage and are not yet re-implemented.
+
+    This module is deliberately NOT included from `JenaAtomicCalculator.jl`: `examples/example-Aq.jl` includes it
+    directly, so that a broken intermediate state cannot break the package.
 """
 module SpinAngularNew
 
 # NOTE: this module is included DIRECTLY by examples/example-Aq.jl and not from JenaAtomicCalculator.jl, so the imports are
 # absolute rather than relative. They become `..Basics, ..ManyElectron` on the day it moves inside the package.
 using  Printf, JenaAtomicCalculator
-using  JenaAtomicCalculator.Basics, JenaAtomicCalculator.ManyElectron
+using  JenaAtomicCalculator.Basics, JenaAtomicCalculator.ManyElectron, JenaAtomicCalculator.AngularMomentum
 
 
 """
@@ -200,13 +211,10 @@ end
 """
 function computeCoefficients(op::SpinAngularNew.OneParticleOperator, leftCsf::CsfR, rightCsf::CsfR,
                              subshells::Array{Subshell,1})
-    if  op.rank != 0
-        error("\n\nSpinAngularNew.computeCoefficients: rank $(op.rank) is NOT yet implemented (stage 1a covers rank 0 only).\n" *
-              ">>> Use SpinAngular.computeCoefficients for rank > 0, remembering that it returns the coefficient in the\n"      *
-              ">>> same GRASP convention this module uses, so no conversion is needed for that rank.\n")
-    end
+    if  op.rank <  0     error("SpinAngularNew.computeCoefficients: negative rank $(op.rank).")            end
+    if  op.rank == 0     return( computeCoefficientsScalar(op, leftCsf, rightCsf, subshells) )              end
 
-    return( computeCoefficientsScalar(op, leftCsf, rightCsf, subshells) )
+    return( computeCoefficientsNonScalar(op, leftCsf, rightCsf, subshells) )
 end
 
 
@@ -353,5 +361,7 @@ function checkOccupationIdentity(coeffs::Array{Coefficient1p{OrdinaryKind},1}, c
 
     return( deviation )
 end
+
+include("module-SpinAngularNew-inc-recoupling.jl")
 
 end # module
