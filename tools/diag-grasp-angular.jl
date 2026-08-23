@@ -155,10 +155,22 @@ end
 
 """
 `GraspAngular.rkKey(k, a, b, c, d)`
-    ... the canonical key of R^k(abcd), which is invariant under (ab) <-> (cd) and under a <-> b together with
-        c <-> d. Returns a tuple usable as a Dict key.
+    ... the canonical key of R^k(abcd). Since a and c both belong to electron 1 and b and d both to electron 2,
+        the integral is invariant under a <-> c, under b <-> d, and under exchanging the two electrons -- an orbit
+        of EIGHT index patterns, not four.
+
+        GETTING THIS WRONG MANUFACTURES A DISAGREEMENT. With only the four patterns of the electron swap, terms
+        that GRASP writes as (c,b,a,d) and JAC as (a,b,c,d) land on different keys, and the same physical integral
+        is then counted as "missing on one side" and "disagreeing on the other". Returns a tuple usable as a key.
 """
-rkKey(k::Int, a::Int, b::Int, c::Int, d::Int) = (k, minimum([(a,b,c,d),(b,a,d,c),(c,d,a,b),(d,c,b,a)]))
+function rkKey(k::Int, a::Int, b::Int, c::Int, d::Int)
+    # a and c both sit on electron 1, b and d both on electron 2, so R^k is symmetric under a<->c, under
+    # b<->d, AND under the electron swap (ab)<->(cd). That is an EIGHT-element orbit, not four.
+    orbit = [(a,b,c,d), (c,b,a,d), (a,d,c,b), (c,d,a,b),
+             (b,a,d,c), (d,a,b,c), (b,c,d,a), (d,c,b,a)]
+
+    return( (k, minimum(orbit)) )
+end
 
 
 
