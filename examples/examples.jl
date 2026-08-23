@@ -111,7 +111,7 @@ elseif  char == 'F'
     println("Fa) Stepwise decay cascades: a fast Mg K-hole reference case, and the larger Si^- 1s-3p case.")
     println("Fb) Cascade SIMULATIONS: one computation, several properties derived from the same cascade data.")
     println("Fc) Cascade.PhotoExcitationScheme: photo-excitation cascades and the configuration pre-filter.")
-    println("Fd) Cascade.PhotoIonizationScheme: photo-ionization cross sections of Ne^+.")
+    println("Fd) Cascade.PhotoIonizationScheme: photo-ionization cross sections of Ne^+, calibrated on neutral Ne.")
     println("Fe) Cascade.PhotoAbsorptionScheme: photoabsorption of C^+ near the 1s -> 2p resonances.")
     println("Ff) Cascade.DielectronicRecombinationScheme: KLL dielectronic recombination of helium-like carbon.")
     println("Fg) Cascade.RadiativeRecombinationScheme: radiative recombination of helium-like carbon.")
