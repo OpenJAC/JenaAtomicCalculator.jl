@@ -398,5 +398,82 @@ elseif  true
                 c.occupation[isub])
     end
     #
+elseif  true
+    # Last visit:      23-Aug-2026
+    # Last successful:  23-Aug-2026
+    #
+    # Branch g (THE GENERAL CASE): several open subshells, one of which holds more than one electron -- the last gap in
+    #   the one-particle problem, and the case every earlier branch raised on. 1s^2 2p^2 3s, where 2p_3/2 carries two
+    #   electrons and 3s one, so BOTH subshells contribute and the coupling tree is no longer trivial.
+    #
+    #   WHAT WAS ADDED.  SpinAngularNew.chainRecoupling: the tensor is peeled outwards one subshell at a time. For every
+    #   subshell beyond the acting one it sits in the FIRST subsystem with J_q as spectator; at the acting subshell it
+    #   sits in the SECOND with X_{ip-1} as spectator. The coefficient is then the same expression as before,
+    #
+    #       T^(k)(a,a) = - R_chain * <j^N v J_a || W^(k) || j^N v' J'_a> * sqrt(2j_a+1) / ( sqrt(2k+1) sqrt(2J_bra+1) )
+    #
+    #   only with R_chain no longer equal to one.
+    #
+    #   WHY IT REPLACED THE TWO SPECIAL CASES INSTEAD OF JOINING THEM.  Both earlier results fall out of it as limits:
+    #   with every other subshell closed each factor collapses to 1 and the single-subshell formula returns; with two
+    #   singly-occupied subshells the two expressions reduce term for term to the Edmonds two-subsystem formulae. That
+    #   was checked BEFORE the new method was used anywhere -- it reproduced 15 of 15 and 12 of 12 on the already
+    #   verified sets -- and only then did it take over the dispatch. A general method that cannot reproduce the special
+    #   cases it subsumes has not earned them.
+    #
+    #   REPORT (23-Aug-2026), against GRASP2018: 17 of 17, worst ratio 0.9999999999999997.
+    #
+    #     rank 1:  (1,1) 3s 1.000000    (4,4) 2p 1.200000 / 3s -0.447214    (4,7) 2p -0.400000 / 3s 0.894427
+    #              (7,4) 2p 0.326599 / 3s -0.730297                          (7,7) 2p 1.222020 / 3s 0.683130
+    #     rank 2:  (1,4) 2p 1.264911    (1,7) 2p 1.549193    (4,1) 2p -0.894427    (7,1) 2p 0.894427
+    #     rank 3:  (4,4) 2p -0.800000   (4,7) 2p 0.979796    (7,4) 2p -0.800000    (7,7) 2p -0.979796
+    #
+    #   These are not a column of one repeated number, which matters: the values spread over 0.33 to 1.55 with both
+    #   signs, and (4,7) differs from (7,4), so the bra/ket asymmetry is being tested and not averaged away.
+    #
+    #   TOTAL COVERAGE of the one-particle rank > 0 problem: 48 GRASP coefficients across three configurations.
+    #
+    localRel = ConfigurationR[]
+    for  conf in [Configuration("1s^2 2p^2 3s")]
+        append!(localRel, Basics.generateConfigurations(Basics.RelativisticConfigurations(), conf))
+    end
+    localSubshells = Basics.generateSubshellList(localRel)
+    Defaults.setDefaults("relativistic subshell list", localSubshells; printout=false)
+    localCsfs = CsfR[]
+    for  relconf in localRel    append!(localCsfs, Basics.generateCsfRs(relconf, localSubshells))    end
+
+    i2p = findfirst(sh -> Basics.subshell_2j(sh) == 3 && Basics.subshell_l(sh) == 1, localSubshells)
+    i3s = findfirst(sh -> string(sh) == "3s_1/2", localSubshells)
+    findG(twoJ) = findfirst(c -> c.occupation[i2p] == 2 && c.occupation[i3s] == 1 &&
+                                 Basics.twice(c.J) == twoJ, localCsfs)
+    gToJac = Dict( 1 => findG(1), 4 => findG(3), 7 => findG(5) )
+    subOf  = Dict( 3 => i2p, 4 => i3s )
+
+    graspGen = [ (1,1,1,4,  9.99999999999999889e-01), (1,4,4,3,  1.20000000000000018e+00),
+                 (1,4,4,4, -4.47213595499957983e-01), (1,4,7,3, -3.99999999999999967e-01),
+                 (1,4,7,4,  8.94427190999915522e-01), (1,7,4,3,  3.26598632371090436e-01),
+                 (1,7,4,4, -7.30296743340221433e-01), (1,7,7,3,  1.22202018532155754e+00),
+                 (1,7,7,4,  6.83130051063973176e-01), (2,1,4,3,  1.26491106406735176e+00),
+                 (2,1,7,3,  1.54919333848296659e+00), (2,4,1,3, -8.94427190999915633e-01),
+                 (2,7,1,3,  8.94427190999915633e-01), (3,4,4,3, -7.99999999999999822e-01),
+                 (3,4,7,3,  9.79795897113271086e-01), (3,7,4,3, -7.99999999999999822e-01),
+                 (3,7,7,3, -9.79795897113271086e-01) ]
+
+    println("\n  rank bra ket  subshell        GRASP2018        SpinAngularNew        ratio")
+    nMatched = 0;   worstRatio = 1.0
+    for  (k, gb, gk, gs, g) in graspGen
+        ib = gToJac[gb];   ik = gToJac[gk]
+        (ib === nothing || ik === nothing)  &&  continue
+        coeffs = SpinAngularNew.computeCoefficients(SpinAngularNew.OneParticleOperator(k, Basics.plus),
+                                                    localCsfs[ib], localCsfs[ik], localSubshells)
+        idx = findfirst(c -> c.a == localSubshells[subOf[gs]], coeffs)
+        idx === nothing  &&  continue
+        v = coeffs[idx].T;    global nMatched = nMatched + 1
+        if  abs(v/g - 1.0) > abs(worstRatio - 1.0)    global worstRatio = v/g    end
+        @printf("   %d    %d   %d   %-9s %16.12f %16.12f  %12.9f\n", k, gb, gk,
+                string(localSubshells[subOf[gs]]), g, v, v/g)
+    end
+    println("\n  matched $nMatched of $(length(graspGen));   worst ratio = $worstRatio")
+    #
 end
 #

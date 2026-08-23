@@ -49,81 +49,17 @@ function computeCoefficientsNonScalar(op::SpinAngularNew.OneParticleOperator, le
         if  abs(leftCsf.occupation[diffs[1]] - rightCsf.occupation[diffs[1]]) != 1  ||
             abs(leftCsf.occupation[diffs[2]] - rightCsf.occupation[diffs[2]]) != 1  return( coeffs )   end
         error("\n\nSpinAngularNew.computeCoefficientsNonScalar: a single-electron SUBSTITUTION at rank $(op.rank).\n" *
-              ">>> Stage 1b computes rank > 0 for CSF pairs of equal occupation only. This pair moves one electron\n"   *
+              ">>> Rank > 0 is computed for CSF pairs of EQUAL OCCUPATION only. This pair moves one electron\n"   *
               ">>> between $(subshells[diffs[1]]) and $(subshells[diffs[2]]), for which GRASP does return a coefficient,\n" *
               ">>> so an empty list would be a silent wrong answer. Use SpinAngular.computeCoefficients for this pair.\n")
     end
 
-    lOpen = openShells(leftCsf,  subshells);     rOpen = openShells(rightCsf, subshells)
-    # A closed-shell-only CSF carries no rank-k > 0 one-particle coefficient at all.
-    if  length(lOpen) == 0  ||  length(rOpen) == 0                        return( coeffs )   end
-    if  length(lOpen) > 2
-        error("\n\nSpinAngularNew.computeCoefficientsNonScalar: $(length(lOpen)) open subshells.\n" *
-              ">>> Stage 1b handles at most two. Use SpinAngular.computeCoefficients.\n")
-    end
-    for  i in (length(lOpen) == 1 ? Int64[] : lOpen)
-        if  leftCsf.occupation[i] != 1  ||  rightCsf.occupation[i] != 1
-            error("\n\nSpinAngularNew.computeCoefficientsNonScalar: a subshell holds more than one electron.\n" *
-                  ">>> Stage 1b handles singly-occupied open subshells only; two or more electrons in one\n"     *
-                  ">>> subshell need the coefficients of fractional parentage, which are not yet re-implemented\n" *
-                  ">>> here. Use SpinAngular.computeCoefficients for such a CSF.\n")
-        end
-    end
+    # The occupations are equal from here on, so both CSFs have the same open subshells. A CSF of closed subshells only
+    # carries no rank-k > 0 one-particle coefficient at all.
+    lOpen = openShells(leftCsf, subshells)
+    if  length(lOpen) == 0                                                return( coeffs )   end
 
-    if       length(lOpen) == 1   coeffs = nonScalarSingleOpenShell(op, leftCsf, rightCsf, subshells, lOpen[1])
-    elseif   length(lOpen) == 2   coeffs = nonScalarTwoOpenShells(op, leftCsf, rightCsf, subshells, lOpen)
-    end
-
-    return( coeffs )
-end
-
-
-"""
-`SpinAngularNew.nonScalarTwoOpenShells(op::SpinAngularNew.OneParticleOperator, leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, open::Array{Int64,1})`
-    ... to compute the rank-k coefficients of a CSF with two singly-occupied open subshells, coupled as |(j_a j_b) J>. The
-        operator acts on one electron at a time, and the standard two-subsystem reduction of Edmonds gives, for the tensor
-        acting on the FIRST subsystem,
-
-            <(j_a j_b) J || T^(k)(1) || (j_a j_b) J'> = (-1)^(j_a+j_b+J'+k) sqrt((2J+1)(2J'+1)) {j_a J j_b; J' j_a k}
-                                                        * <j_a || t^(k) || j_a>
-
-        and the corresponding expression with j_a and j_b exchanged, and the phase carrying J rather than J', for the
-        second. The coefficient returned is everything except the one-electron reduced matrix element, multiplied by the
-        GRASP normalization sqrt(2j_a+1)/sqrt(2J_bra+1).
-
-        THAT NORMALIZATION WAS MEASURED, NOT READ OFF. `oneparticlejj1.f90:61` divides by sqrt(2k+1), but GRASP's own
-        recoupling factor carries a further J-dependence, so the NET convention is the one above. Calibrating the textbook
-        two-subsystem formula against GRASP gave a ratio sqrt((2J_bra+1)/(2k+1)) that fitted 15 of 15 coefficients across
-        ranks 1, 2 and 3 and two values of J -- and the corrected form then predicted, out of sample, the exact 1.0 that
-        GRASP returns for every single-open-shell pair. A convention confirmed on one case is a coincidence; this one is
-        confirmed on fifteen and then tested on a set it was not fitted to. A list coeffs::Array{Coefficient1p{ReducedKind},1}
-        is returned.
-"""
-function nonScalarTwoOpenShells(op::SpinAngularNew.OneParticleOperator, leftCsf::CsfR, rightCsf::CsfR,
-                                subshells::Array{Subshell,1}, open::Array{Int64,1})
-    coeffs = Coefficient1p{ReducedKind}[]
-    ia, ib = open[1], open[2]
-    sha, shb = subshells[ia], subshells[ib]
-    ja  = AngularJ64( Basics.subshell_2j(sha)//2 );    jb = AngularJ64( Basics.subshell_2j(shb)//2 )
-    Jf  = leftCsf.J;                                   Ji = rightCsf.J
-    k   = op.rank
-    wJf = Basics.twice(Jf) + 1.0;                      wJi = Basics.twice(Ji) + 1.0
-
-    # ... the operator acting on the electron in subshell ia
-    if  isAllowed1p(op, sha, sha)
-        phase = (-1)^Int64( (Basics.twice(ja) + Basics.twice(jb) + Basics.twice(Ji))//2 + k )
-        wa    = phase * sqrt(wJf * wJi) * AngularMomentum.Wigner_6j(ja, Jf, jb, Ji, ja, AngularJ64(k))
-        wa    = wa * sqrt(Basics.twice(ja) + 1.0) / sqrt(wJf)
-        if  abs(wa) > 0.0    push!( coeffs, Coefficient1p{ReducedKind}(k, sha, sha, wa) )    end
-    end
-
-    # ... and on the electron in subshell ib
-    if  isAllowed1p(op, shb, shb)
-        phase = (-1)^Int64( (Basics.twice(ja) + Basics.twice(jb) + Basics.twice(Jf))//2 + k )
-        wa    = phase * sqrt(wJf * wJi) * AngularMomentum.Wigner_6j(jb, Jf, ja, Ji, jb, AngularJ64(k))
-        wa    = wa * sqrt(Basics.twice(jb) + 1.0) / sqrt(wJf)
-        if  abs(wa) > 0.0    push!( coeffs, Coefficient1p{ReducedKind}(k, shb, shb, wa) )    end
-    end
+    coeffs = nonScalarGeneral(op, leftCsf, rightCsf, subshells, lOpen)
 
     return( coeffs )
 end
@@ -171,36 +107,95 @@ end
 
 
 """
-`SpinAngularNew.nonScalarSingleOpenShell(op::SpinAngularNew.OneParticleOperator, leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, ia::Int64)`
-    ... to compute the rank-k coefficient of a CSF with exactly ONE open subshell, holding any number N of electrons, all
-        other subshells closed. The total angular momentum is then that of the shell, so the coupling tree contributes a
-        single factor and the whole coefficient is
+`SpinAngularNew.chainRecoupling(leftCsf::CsfR, rightCsf::CsfR, ip::Int64, k::Int64)`
+    ... to compute the recoupling factor for a one-particle tensor of rank k acting on the subshell `ip` of a CSF whose
+        subshells are coupled as a chain X_1 = J_1, X_q = X_{q-1} x J_q, X_n = J.
 
-            T^(k)(a,a)  =  - <j^N v J || W^(k) || j^N v' J'> * sqrt(2j+1) / ( sqrt(2k+1) * sqrt(2J_bra+1) )
+        The tensor is peeled outwards, one subshell at a time. For every q > ip the operator sits in the FIRST subsystem
+        with J_q as spectator,
 
-        in GRASP's convention. THE NORMALIZATION WAS MEASURED rather than read off, as at rank > 0 elsewhere in this file:
-        with the shell matrix element independently confirmed, the outer factor was solved for on four GRASP coefficients
-        of 2p^2 spanning ranks 1, 2 and 3 and both J = 0 and J = 2, and came out 1/sqrt(2J_bra+1) on every one.
+            (-1)^(X_{q-1}+J_q+X'_q+k) sqrt((2X_q+1)(2X'_q+1)) { X_{q-1} X_q J_q ; X'_q X'_{q-1} k }
 
-        THIS ONE EXPRESSION ALSO COVERS RANK 0, which is the point of the exercise: for k = 0 the shell element is
-        -N sqrt((2J+1)/(2j+1)) and the formula collapses to exactly N, the occupation number. One expression for every
-        rank is what goal (1) asked for. A list coeffs::Array{Coefficient1p{ReducedKind},1} is returned.
+        and at q = ip it sits in the SECOND subsystem with X_{ip-1} as spectator,
+
+            (-1)^(X_{ip-1}+J'_ip+X_ip+k) sqrt((2X_ip+1)(2X'_ip+1)) { J_ip X_ip X_{ip-1} ; X'_ip J'_ip k }
+
+        with X_0 = 0. Both limits that were already verified fall out of this, which is why it replaces them rather than
+        sitting beside them: with every other subshell closed each factor collapses to 1, giving the single-open-subshell
+        result; and with two singly-occupied subshells the two expressions above reduce term for term to the Edmonds
+        two-subsystem formulae. A value::Float64 is returned.
 """
-function nonScalarSingleOpenShell(op::SpinAngularNew.OneParticleOperator, leftCsf::CsfR, rightCsf::CsfR,
-                                  subshells::Array{Subshell,1}, ia::Int64)
+function chainRecoupling(leftCsf::CsfR, rightCsf::CsfR, ip::Int64, k::Int64)
+    nw = length(leftCsf.occupation)
+    wa = 1.0
+    kJ = AngularJ64(k)
+
+    # ... the outer subshells, q > ip, operator in the first subsystem
+    for  q = ip+1:nw
+        Xqm = (q == 1) ? AngularJ64(0) : leftCsf.subshellX[q-1]
+        Ypm = (q == 1) ? AngularJ64(0) : rightCsf.subshellX[q-1]
+        Xq  = leftCsf.subshellX[q];              Yq = rightCsf.subshellX[q]
+        Jq  = leftCsf.subshellJ[q]
+        if  Jq != rightCsf.subshellJ[q]          return( 0.0 )   end
+        ph  = Int64( (Basics.twice(Xqm) + Basics.twice(Jq) + Basics.twice(Yq))//2 ) + k
+        wa  = wa * (-1)^ph * sqrt((Basics.twice(Xq)+1.0)*(Basics.twice(Yq)+1.0)) *
+                   AngularMomentum.Wigner_6j(Xqm, Xq, Jq, Yq, Ypm, kJ)
+        if  wa == 0.0    return( 0.0 )   end
+    end
+
+    # ... and the acting subshell itself, operator in the second subsystem
+    Xpm = (ip == 1) ? AngularJ64(0) : leftCsf.subshellX[ip-1]
+    Xp  = leftCsf.subshellX[ip];             Yp  = rightCsf.subshellX[ip]
+    Jp  = leftCsf.subshellJ[ip];             Jpp = rightCsf.subshellJ[ip]
+    ph  = Int64( (Basics.twice(Xpm) + Basics.twice(Jpp) + Basics.twice(Xp))//2 ) + k
+    wa  = wa * (-1)^ph * sqrt((Basics.twice(Xp)+1.0)*(Basics.twice(Yp)+1.0)) *
+               AngularMomentum.Wigner_6j(Jp, Xp, Xpm, Yp, Jpp, kJ)
+
+    return( wa )
+end
+
+
+"""
+`SpinAngularNew.nonScalarGeneral(op::SpinAngularNew.OneParticleOperator, leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, openList::Array{Int64,1})`
+    ... to compute the rank-k coefficients of a CSF pair of equal occupation with ANY number of open subshells, each
+        holding any number of electrons. Each open subshell contributes in turn, its own shell matrix element from
+        `SpinAngularNew.shellReducedW` and its place in the coupling tree from `SpinAngularNew.chainRecoupling`:
+
+            T^(k)(a,a)  =  - R_chain * <j^N v J_a || W^(k) || j^N v' J'_a> * sqrt(2j_a+1) / ( sqrt(2k+1) sqrt(2J_bra+1) )
+
+        This is the same expression as for a single open subshell, with the recoupling factor no longer equal to one. A
+        list coeffs::Array{Coefficient1p{ReducedKind},1} is returned.
+"""
+function nonScalarGeneral(op::SpinAngularNew.OneParticleOperator, leftCsf::CsfR, rightCsf::CsfR,
+                          subshells::Array{Subshell,1}, openList::Array{Int64,1})
     coeffs = Coefficient1p{ReducedKind}[]
-    sh     = subshells[ia]
-    if  !isAllowed1p(op, sh, sh)                                          return( coeffs )   end
+    k      = op.rank
 
-    j  = AngularJ64( Basics.subshell_2j(sh)//2 )
-    N  = leftCsf.occupation[ia]
-    wa = shellReducedW(j, N, leftCsf.seniorityNr[ia], leftCsf.subshellJ[ia],
-                             rightCsf.seniorityNr[ia], rightCsf.subshellJ[ia], op.rank)
-    if  wa == 0.0                                                         return( coeffs )   end
+    for  ip in openList
+        sh = subshells[ip]
+        if  !isAllowed1p(op, sh, sh)    continue    end
+        # every OTHER subshell must be unchanged in its own coupling, or the two CSFs are orthogonal
+        ok = true
+        for  i = 1:length(subshells)
+            if  i == ip    continue    end
+            if  leftCsf.subshellJ[i] != rightCsf.subshellJ[i]  ||  leftCsf.seniorityNr[i] != rightCsf.seniorityNr[i]
+                ok = false;    break
+            end
+        end
+        if  !ok    continue    end
 
-    value = -wa * sqrt(Basics.twice(j) + 1.0) /
-                  ( sqrt(2.0*op.rank + 1.0) * sqrt(Basics.twice(leftCsf.J) + 1.0) )
-    push!( coeffs, Coefficient1p{ReducedKind}(op.rank, sh, sh, value) )
+        j  = AngularJ64( Basics.subshell_2j(sh)//2 )
+        N  = leftCsf.occupation[ip]
+        wS = shellReducedW(j, N, leftCsf.seniorityNr[ip], leftCsf.subshellJ[ip],
+                                 rightCsf.seniorityNr[ip], rightCsf.subshellJ[ip], k)
+        if  wS == 0.0    continue    end
+        wR = chainRecoupling(leftCsf, rightCsf, ip, k)
+        if  wR == 0.0    continue    end
+
+        value = -wR * wS * sqrt(Basics.twice(j) + 1.0) /
+                     ( sqrt(2.0*k + 1.0) * sqrt(Basics.twice(leftCsf.J) + 1.0) )
+        if  value != 0.0    push!( coeffs, Coefficient1p{ReducedKind}(k, sh, sh, value) )    end
+    end
 
     return( coeffs )
 end

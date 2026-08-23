@@ -33,10 +33,12 @@
     STATUS, 22-Aug-2026:  UNDER DEVELOPMENT, stage 1b.
 
     RANK 0 -- the diagonal case, and a single-electron substitution between subshells of the same kappa.
-    RANK > 0 -- (i) a SINGLE open subshell holding any number of electrons, through the coefficients of fractional
-    parentage, verified against GRASP2018 on 16 coefficients of 3d^2 including twelve at j = 5/2 with seniority 2; and
-    (ii) TWO open subshells holding one electron each, verified on 15 coefficients of 2p^2 and then out of sample on a
-    set it was not fitted to.
+    RANK > 0 -- ANY number of open subshells, each holding ANY number of electrons, for CSF pairs of equal occupation.
+    The shell matrix element comes from the coefficients of fractional parentage (`shellReducedW`) and its place in the
+    coupling tree from a chain recoupling (`chainRecoupling`); one method, `nonScalarGeneral`, covers every case and
+    replaced the two special-case methods that preceded it rather than sitting beside them. Verified against GRASP2018
+    on 48 coefficients: 15 for two singly-occupied subshells, 16 for a single subshell with N = 2 (twelve of them at
+    j = 5/2 with seniority 2), and 17 for two open subshells one of which holds N = 2.
 
     For a single open subshell ONE EXPRESSION covers every rank, which is what goal (1) asked for:
     T^(k)(a,a) = -<j^N v J||W^(k)||j^N v' J'> sqrt(2j+1) / (sqrt(2k+1) sqrt(2J_bra+1)), and at k = 0 the shell element is
