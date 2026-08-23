@@ -30,7 +30,7 @@
     The phantom parameter costs nothing measurable: it carries no data, both element types are concrete, and a two-million
     coefficient contraction was byte-identical in allocation and within run-to-run noise in time.
 
-    STATUS, 22-Aug-2026:  UNDER DEVELOPMENT, stage 1b.
+    STATUS, 23-Aug-2026:  UNDER DEVELOPMENT. The ONE-PARTICLE problem is complete; the two-particle one is not.
 
     RANK 0 -- the diagonal case, and a single-electron substitution between subshells of the same kappa.
     RANK > 0 -- ANY number of open subshells, each holding ANY number of electrons, for CSF pairs of equal occupation
@@ -43,8 +43,14 @@
     adjacent subshells and 14 between subshells separated by two others, where the Jordan-Wigner string spans three
     subshells and so is actually tested.
 
-    The one-particle problem is therefore COMPLETE for one- and rank-k operators; what remains is the TWO-PARTICLE
-    (electron-electron) operator, which this module does not attempt.
+    TWO-PARTICLE (electron-electron) -- NOT implemented; `computeCoefficients` for a `TwoParticleOperator` RAISES. What
+    exists is the groundwork, and it is worth having: the `Coefficient2p{K}` type, which encodes a hazard discovered the
+    hard way -- JAC's coefficient multiplies the effective strength X^L, and the SAME coefficient serves Coulomb, Breit and
+    Gaunt because the structure distinguishing them lives in X^L; GRASP's COULOMB coefficient instead multiplies the
+    plain Slater integral R^k, while its Breit coefficients multiply one of six integral kinds chosen by a type tag, so
+    that convention does not generalise -- plus `toGraspCoulomb`, a numerical bridge built here (NOT a relation either
+    code states) so the oracle comparison can be expressed, verified on six direct terms. A first closed-form attempt at the diagonal case was WITHDRAWN: its
+    exchange term was fitted on closed-shell data and misses a coupling dependence that only open subshells reveal.
 
     For a single open subshell ONE EXPRESSION covers every rank, which is what goal (1) asked for:
     T^(k)(a,a) = -<j^N v J||W^(k)||j^N v' J'> sqrt(2j+1) / (sqrt(2k+1) sqrt(2J_bra+1)), and at k = 0 the shell element is
@@ -115,6 +121,27 @@ end
 # `Base.show(io::IO, op::SpinAngularNew.OneParticleOperator)`  ... prepares a proper printout of op.
 function Base.show(io::IO, op::SpinAngularNew.OneParticleOperator)
     print(io, "one-particle operator O^($(op.rank)) [$(string(op.parity))]")
+end
+
+
+"""
+`struct  SpinAngularNew.TwoParticleOperator`
+    ... a struct for defining a (scalar) two-particle operator, i.e. the electron-electron interaction.
+
+    + rank     ::Int64      ... Rank of the two-particle operator; only 0 is defined.
+    + parity   ::Parity     ... Parity of the operator, plus or minus.
+"""
+struct  TwoParticleOperator
+    rank       ::Int64
+    parity     ::Parity
+end
+
+
+"""
+`SpinAngularNew.TwoParticleOperator()`  ... constructor for the scalar, parity-even two-particle operator.
+"""
+function TwoParticleOperator()
+    TwoParticleOperator( 0, Basics.plus )
 end
 
 
@@ -376,5 +403,6 @@ function checkOccupationIdentity(coeffs::Array{Coefficient1p{OrdinaryKind},1}, c
 end
 
 include("module-SpinAngularNew-inc-recoupling.jl")
+include("module-SpinAngularNew-inc-twoparticle.jl")
 
 end # module

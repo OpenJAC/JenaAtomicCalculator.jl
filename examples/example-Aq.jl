@@ -609,5 +609,164 @@ elseif  true
                 k, tOld*1e3, tNew*1e3, tNew/tOld, aOld/1024, aNew/1024, aNew/aOld)
     end
     #
+elseif  true
+    # Last visit:      23-Aug-2026
+    # Last successful:  23-Aug-2026
+    #
+    # Branch j (THE TWO-PARTICLE COMPARISON, MADE EXPLICIT): JAC's electron-electron coefficients against GRASP2018,
+    #   for all 25 CSF pairs of 1s^2 2s^2 2p^2. This is the first direct check of SpinAngular's e-e coefficients against
+    #   an independent implementation -- the module has no test coverage of its own at all.
+    #
+    #   WHY A CONVERSION IS NEEDED, and what it is NOT.  The two codes decompose the interaction onto DIFFERENT
+    #   quantities. JAC's coefficient multiplies the effective strength X^L; GRASP's Coulomb coefficient multiplies the
+    #   plain Slater integral R^k (its own RKINTC header says so). The bridge is read from JAC's source, from
+    #   InteractionStrength.XL_CoulombReference, which forms
+    #
+    #       X^L(abcd)  =  (-1)^L <a||C^L||c> <b||C^L||d> R^L(abcd)
+    #
+    #   so the coefficient of R^k follows by multiplying JAC's by exactly that prefactor. This is NOT a relation either
+    #   code states as theory -- GRASP has no effective strength at all -- it is a bridge built here so the two can be
+    #   compared, and its (-1)^L was read off the source rather than fitted. An earlier attempt omitted it and left
+    #   precisely the 14 odd-k EXCHANGE terms disagreeing by a sign and nothing else.
+    #
+    #   THE RESULT THAT MATTERS IS NOT ONLY THAT THEY AGREE.  It is WHICH terms survive.
+    #
+    #       JAC emits, over the 25 CSF pairs, non-zero X^L coefficients          103
+    #       the C^k factors ANNIHILATE                                            42
+    #       surviving after conversion                                            61
+    #       GRASP2018 emits                                                       61
+    #
+    #   The 42 that vanish are the terms whose tensorial structure forbids them -- X^L itself returns zero on the
+    #   triangle condition and on rem(l_a+l_c+L,2) == 1, a few lines above the formula quoted. So the effective strength
+    #   is not merely a repackaging: it CARRIES the selection rules, and a coefficient that looks non-zero in JAC's list
+    #   contributes nothing because the strength it multiplies is zero. That is the argument for building operators on
+    #   effective strengths rather than on radial integrals, and here it is visible as a count.
+    #
+    #   AND IT IS WHY THE SAME COEFFICIENTS SERVE BREIT.  module-Hamiltonian.jl:282-292 uses ONE coeff.V with both
+    #   XL_Coulomb and XL_Breit. GRASP cannot: its Breit path takes a different callback (BREID), carries a sixth label
+    #   ITYPE in 1..6, and multiplies one of six integral routines BRINT1..BRINT6 chosen by that tag. So the R^k
+    #   convention does not generalise beyond Coulomb, while the effective-strength one does.
+    #
+    #   REPORT (23-Aug-2026): 61 keys on each side, none missing, ZERO disagreements, worst ratio 1.000000000000001.
+    #   Coefficients are compared as a multiset on the canonical key of R^k -- invariant under (ab)<->(cd) and under
+    #   a<->b together with c<->d -- with duplicates summed first. The two codes do not emit the same orderings, and
+    #   comparing positionally would have manufactured differences that are not there.
+    #
+    localRel = ConfigurationR[]
+    for  conf in [Configuration("1s^2 2s^2 2p^2")]
+        append!(localRel, Basics.generateConfigurations(Basics.RelativisticConfigurations(), conf))
+    end
+    localSubshells = Basics.generateSubshellList(localRel)
+    Defaults.setDefaults("relativistic subshell list", localSubshells; printout=false)
+    localCsfs = CsfR[]
+    for  relconf in localRel    append!(localCsfs, Basics.generateCsfRs(relconf, localSubshells))    end
+    localIdx = Dict(sh => i for (i,sh) in enumerate(localSubshells))
+
+    # ... the canonical key of R^k(abcd), and the JAC -> GRASP CSF ordering for this configuration
+    rkKey(k,a,b,c,d) = (k, minimum([(a,b,c,d), (b,a,d,c), (c,d,a,b), (d,c,b,a)]))
+    jacToGrasp = Dict(1=>1, 2=>4, 3=>3, 4=>5, 5=>2)
+
+    graspTwo = [
+        (1,1,1,1,1,1,0, 1.000000000000000e+00),
+        (1,1,1,2,1,2,0, 4.000000000000000e+00),
+        (1,1,1,2,2,1,0, -2.000000000000000e+00),
+        (1,1,1,4,1,4,0, 4.000000000000000e+00),
+        (1,1,2,2,2,2,0, 1.000000000000000e+00),
+        (1,1,2,4,2,4,0, 4.000000000000000e+00),
+        (1,1,4,4,4,4,0, 1.000000000000000e+00),
+        (1,1,1,4,4,1,1, -6.666666666666665e-01),
+        (1,1,2,4,4,2,1, -6.666666666666665e-01),
+        (1,1,4,4,4,4,2, 1.999999999999999e-01),
+        (1,2,3,3,4,4,2, 2.828427124746190e-01),
+        (2,1,3,3,4,4,2, 2.828427124746190e-01),
+        (2,2,1,1,1,1,0, 1.000000000000000e+00),
+        (2,2,1,2,1,2,0, 4.000000000000000e+00),
+        (2,2,1,2,2,1,0, -2.000000000000000e+00),
+        (2,2,1,3,1,3,0, 4.000000000000000e+00),
+        (2,2,2,2,2,2,0, 1.000000000000000e+00),
+        (2,2,2,3,2,3,0, 4.000000000000000e+00),
+        (2,2,3,3,3,3,0, 1.000000000000000e+00),
+        (2,2,1,3,3,1,1, -6.666666666666669e-01),
+        (2,2,2,3,3,2,1, -6.666666666666669e-01),
+        (3,3,1,1,1,1,0, 1.000000000000000e+00),
+        (3,3,1,2,1,2,0, 4.000000000000000e+00),
+        (3,3,1,2,2,1,0, -2.000000000000000e+00),
+        (3,3,1,3,1,3,0, 2.000000000000000e+00),
+        (3,3,1,4,1,4,0, 2.000000000000000e+00),
+        (3,3,2,2,2,2,0, 1.000000000000000e+00),
+        (3,3,2,3,2,3,0, 2.000000000000000e+00),
+        (3,3,2,4,2,4,0, 2.000000000000000e+00),
+        (3,3,3,4,3,4,0, 9.999999999999998e-01),
+        (3,3,1,3,3,1,1, -3.333333333333334e-01),
+        (3,3,1,4,4,1,1, -3.333333333333333e-01),
+        (3,3,2,3,3,2,1, -3.333333333333334e-01),
+        (3,3,2,4,4,2,1, -3.333333333333333e-01),
+        (3,3,3,4,4,3,2, -1.999999999999999e-01),
+        (4,4,1,1,1,1,0, 1.000000000000000e+00),
+        (4,4,1,2,1,2,0, 4.000000000000000e+00),
+        (4,4,1,2,2,1,0, -2.000000000000000e+00),
+        (4,4,1,4,1,4,0, 4.000000000000000e+00),
+        (4,4,2,2,2,2,0, 1.000000000000000e+00),
+        (4,4,2,4,2,4,0, 4.000000000000000e+00),
+        (4,4,4,4,4,4,0, 9.999999999999996e-01),
+        (4,4,1,4,4,1,1, -6.666666666666665e-01),
+        (4,4,2,4,4,2,1, -6.666666666666665e-01),
+        (4,4,4,4,4,4,2, -1.199999999999999e-01),
+        (4,5,3,4,4,4,2, -1.131370849898476e-01),
+        (5,4,3,4,4,4,2, -1.131370849898475e-01),
+        (5,5,1,1,1,1,0, 1.000000000000000e+00),
+        (5,5,1,2,1,2,0, 4.000000000000000e+00),
+        (5,5,1,2,2,1,0, -2.000000000000000e+00),
+        (5,5,1,3,1,3,0, 2.000000000000000e+00),
+        (5,5,1,4,1,4,0, 2.000000000000000e+00),
+        (5,5,2,2,2,2,0, 1.000000000000000e+00),
+        (5,5,2,3,2,3,0, 2.000000000000000e+00),
+        (5,5,2,4,2,4,0, 2.000000000000000e+00),
+        (5,5,3,4,3,4,0, 9.999999999999998e-01),
+        (5,5,1,3,3,1,1, -3.333333333333334e-01),
+        (5,5,1,4,4,1,1, -3.333333333333333e-01),
+        (5,5,2,3,3,2,1, -3.333333333333334e-01),
+        (5,5,2,4,4,2,1, -3.333333333333333e-01),
+        (5,5,3,4,4,3,2, -4.000000000000000e-02)
+    ]
+
+    opTwo   = SpinAngular.TwoParticleOperator(0, Basics.plus, true)
+    jacConv = Dict{Any,Float64}();   nRaw = 0;   nAnnihilated = 0
+    for  (ic,l) in enumerate(localCsfs),  (ir,r) in enumerate(localCsfs)
+        for  c in SpinAngular.computeCoefficients(opTwo, l, r, localSubshells)
+            abs(c.V) < 1.0e-14  &&  continue
+            global nRaw = nRaw + 1
+            f = AngularMomentum.CL_reduced_me(c.a, c.nu, c.c) * AngularMomentum.CL_reduced_me(c.b, c.nu, c.d)
+            if  isodd(c.nu)    f = -f    end
+            if  abs(f) < 1.0e-14    global nAnnihilated = nAnnihilated + 1    end
+            kk = (jacToGrasp[ic], jacToGrasp[ir],
+                  rkKey(c.nu, localIdx[c.a], localIdx[c.b], localIdx[c.c], localIdx[c.d]))
+            jacConv[kk] = get(jacConv, kk, 0.0) + c.V * f
+        end
+    end
+    surviving = filter(p -> abs(p[2]) > 1.0e-10, jacConv)
+
+    println("")
+    println("  JAC raw X^L coefficients (non-zero)   : ", nRaw)
+    println("  annihilated by the C^k factors        : ", nAnnihilated)
+    println("  surviving after conversion            : ", length(surviving))
+    println("  GRASP2018 emits                       : ", length(graspTwo))
+
+    nMatched = 0;   nDisagree = 0;   worstRatio = 1.0
+    for  (ic, ir, a, b, c, d, k, g) in graspTwo
+        kk = (ic, ir, rkKey(k, a, b, c, d))
+        if  haskey(surviving, kk)
+            v = surviving[kk];   global nMatched = nMatched + 1
+            if  abs(v/g - 1.0) > 1.0e-9                    global nDisagree  = nDisagree + 1   end
+            if  abs(v/g - 1.0) > abs(worstRatio - 1.0)     global worstRatio = v/g             end
+        else
+            println("  MISSING from JAC: CSF(", ic, ",", ir, ") [", a, " ", b, " ; ", c, " ", d, "] k=", k, " = ", g)
+        end
+    end
+    println("")
+    println("  matched           : ", nMatched, " of ", length(graspTwo))
+    println("  disagreeing >1e-9 : ", nDisagree)
+    println("  worst ratio       : ", worstRatio)
+    #
 end
 #
