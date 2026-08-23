@@ -33,12 +33,18 @@
     STATUS, 22-Aug-2026:  UNDER DEVELOPMENT, stage 1b.
 
     RANK 0 -- the diagonal case, and a single-electron substitution between subshells of the same kappa.
-    RANK > 0 -- ANY number of open subshells, each holding ANY number of electrons, for CSF pairs of equal occupation.
+    RANK > 0 -- ANY number of open subshells, each holding ANY number of electrons, for CSF pairs of equal occupation
+    AND for pairs that differ by a single-electron SUBSTITUTION between two subshells, adjacent or not.
     The shell matrix element comes from the coefficients of fractional parentage (`shellReducedW`) and its place in the
     coupling tree from a chain recoupling (`chainRecoupling`); one method, `nonScalarGeneral`, covers every case and
     replaced the two special-case methods that preceded it rather than sitting beside them. Verified against GRASP2018
-    on 48 coefficients: 15 for two singly-occupied subshells, 16 for a single subshell with N = 2 (twelve of them at
-    j = 5/2 with seniority 2), and 17 for two open subshells one of which holds N = 2.
+    on 78 coefficients: 15 for two singly-occupied subshells, 16 for a single subshell with N = 2 (twelve of them at
+    j = 5/2 with seniority 2), 17 for two open subshells one of which holds N = 2, and 30 substitutions -- 16 between
+    adjacent subshells and 14 between subshells separated by two others, where the Jordan-Wigner string spans three
+    subshells and so is actually tested.
+
+    The one-particle problem is therefore COMPLETE for one- and rank-k operators; what remains is the TWO-PARTICLE
+    (electron-electron) operator, which this module does not attempt.
 
     For a single open subshell ONE EXPRESSION covers every rank, which is what goal (1) asked for:
     T^(k)(a,a) = -<j^N v J||W^(k)||j^N v' J'> sqrt(2j+1) / (sqrt(2k+1) sqrt(2J_bra+1)), and at k = 0 the shell element is

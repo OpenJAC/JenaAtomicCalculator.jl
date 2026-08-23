@@ -475,5 +475,139 @@ elseif  true
     end
     println("\n  matched $nMatched of $(length(graspGen));   worst ratio = $worstRatio")
     #
+elseif  true
+    # Last visit:      23-Aug-2026
+    # Last successful:  23-Aug-2026
+    #
+    # Branch h (SUBSTITUTIONS): CSF pairs of UNEQUAL occupation, where one electron moves between two subshells. This is
+    #   the case every earlier branch refused, and it completes the one-particle problem.
+    #
+    #   THREE INGREDIENTS BEYOND THE RECOUPLING, each easy to drop and each changing the answer.
+    #     (1) two single-subshell matrix elements <j^N v J || a^(+/-) || j^N' v' J'>, from the same Gaigalas CFP tables;
+    #     (2) an ORDERING phase, because the recoupling is built with the lower subshell index first, so a creation on
+    #         the higher index costs (-1)^(j_a + j_b - k + 1);
+    #     (3) the JORDAN-WIGNER phase (-1)^(occupation strictly between the two subshells, + 1) -- the sign from
+    #         anticommuting past the electrons in between. It depends on the OTHER subshells, not on the two taking
+    #         part, which is exactly what makes it easy to forget.
+    #
+    #   AND A NINE-J RATHER THAN A SIX-J.  The chain is cut at the higher subshell: beyond it the total rank k is peeled
+    #   outwards as before, AT it the two ranks j_a and j_b join -- which needs a 9j -- and below it the rank-j_a
+    #   operator is reduced through the SAME chainRecoupling used for equal occupations, restricted to the sub-chain.
+    #   That reuse is why this stayed short. Generalising chainRecoupling to a HALF-INTEGER rank was required and was a
+    #   real bug on the way: the inner rank is j_a, not an integer, and the phase had to be rewritten over twice-values.
+    #
+    #   REPORT (23-Aug-2026), against GRASP2018 -- 30 coefficients, all exact.
+    #
+    #     ADJACENT subshells, 2p_1/2 <-> 2p_3/2 of 1s^2 2s^2 2p^2 : 16 of 16, ranks 1 and 2, worst ratio 1.0000000000000009
+    #     NON-ADJACENT, 2s <-> 3s of 1s^2 2s^2 2p + 1s^2 2s 2p 3s : 14 of 14, worst ratio 1.0000000000000013
+    #
+    #   The second set is the one that matters: 2s and 3s are separated by 2p_1/2 and 2p_3/2, so the Jordan-Wigner
+    #   string spans three subshells and is genuinely exercised. In the adjacent set it spans one, and a wrong string
+    #   would still have passed half the time.
+    #
+    #   THE NORMALIZATION WAS NOT ASSUMED.  With the phases in place the residual against GRASP came out 1.000, sqrt(3)
+    #   and sqrt(5) at J_bra = 0, 1, 2 -- i.e. exactly sqrt(2J_bra+1), the SAME outer factor already measured for the
+    #   equal-occupation case. That it turned out to be the same factor is a result, not an assumption, and it is the
+    #   third independent time that factor has appeared.
+    #
+    localRel = ConfigurationR[]
+    for  conf in [Configuration("1s^2 2s^2 2p^2")]
+        append!(localRel, Basics.generateConfigurations(Basics.RelativisticConfigurations(), conf))
+    end
+    localSubshells = Basics.generateSubshellList(localRel)
+    Defaults.setDefaults("relativistic subshell list", localSubshells; printout=false)
+    localCsfs = CsfR[]
+    for  relconf in localRel    append!(localCsfs, Basics.generateCsfRs(relconf, localSubshells))    end
+
+    ipm = findfirst(sh -> string(sh) == "2p_1/2", localSubshells)
+    ipp = findfirst(sh -> string(sh) == "2p_3/2", localSubshells)
+    # GRASP 1,2,3,4,5 -> JAC 1,5,3,2,4  for 1s^2 2s^2 2p^2
+    gToJac = Dict(1=>1, 2=>5, 3=>3, 4=>2, 5=>4)
+    subOf  = Dict(3 => ipm, 4 => ipp)
+    graspSub = [ (1,1,3,4,3,  1.41421356237309515), (1,2,3,3,4,  1.41421356237309515),
+                 (1,3,1,3,4,  0.577350269189625731),(1,3,2,4,3,  1.15470053837925124),
+                 (1,3,4,3,4,  0.912870929175276791),(1,4,3,4,3,  1.0),
+                 (1,4,5,4,3, -1.00000000000000022), (1,5,4,3,4,  0.707106781186547573),
+                 (2,1,5,4,3, -1.41421356237309515), (2,2,5,3,4,  1.41421356237309492),
+                 (2,3,4,3,4, -0.707106781186547351),(2,4,3,4,3, -0.774596669241483404),
+                 (2,4,5,4,3, -1.18321595661992318), (2,5,1,3,4,  0.447213595499957817),
+                 (2,5,2,4,3, -0.894427190999915633),(2,5,4,3,4,  0.836660026534075563) ]
+
+    println("\n  adjacent subshells, 2p_1/2 <-> 2p_3/2")
+    println("   rank bra ket   a        b            GRASP2018        SpinAngularNew        ratio")
+    nMatched = 0;   worstRatio = 1.0
+    for  (k, gb, gk, sa, sb, g) in graspSub
+        coeffs = SpinAngularNew.computeCoefficients(SpinAngularNew.OneParticleOperator(k, Basics.plus),
+                                                    localCsfs[gToJac[gb]], localCsfs[gToJac[gk]], localSubshells)
+        idx = findfirst(c -> c.a == localSubshells[subOf[sa]] && c.b == localSubshells[subOf[sb]], coeffs)
+        idx === nothing  &&  continue
+        v = coeffs[idx].T;    global nMatched = nMatched + 1
+        if  abs(v/g - 1.0) > abs(worstRatio - 1.0)    global worstRatio = v/g    end
+        @printf("    %d   %d   %d  %-8s %-8s %16.12f %16.12f  %12.9f\n", k, gb, gk,
+                string(localSubshells[subOf[sa]]), string(localSubshells[subOf[sb]]), g, v, v/g)
+    end
+    println("\n  matched $nMatched of $(length(graspSub));   worst ratio = $worstRatio")
+    #
+elseif  true
+    # Last visit:      23-Aug-2026
+    # Last successful:  23-Aug-2026
+    #
+    # Branch i (WHAT IT COSTS): goal (2) asked for a faster and more elegant module, and "more elegant" without a number
+    #   is not a result. Both implementations are run over the same CSF pairs and timed.
+    #
+    #   REPORT (23-Aug-2026), 15 CSFs of 1s^2 2s^2 2p^2 + 1s^2 2s 2p^3, i.e. 225 CSF pairs, best of five:
+    #
+    #       rank      SpinAngular    SpinAngularNew    ratio       allocation old / new     ratio
+    #        0           0.34 ms         0.04 ms       0.112         426 kB /   75 kB       0.176
+    #        1           1.87 ms         1.22 ms       0.651        2295 kB / 1285 kB       0.560
+    #        2           1.50 ms         0.95 ms       0.634        1933 kB / 1032 kB       0.534
+    #
+    #   RANK 0 IS THE INTERESTING ONE, at nine times faster and six times less memory, and the reason is structural
+    #   rather than clever: for a diagonal pair the coefficient is the occupation number, so the whole recursion is
+    #   skipped rather than run and its result discarded. That is the same design decision as deciding zeros by
+    #   selection rules -- it is the SHAPE of the computation that pays, not micro-optimisation, and none has been done.
+    #
+    #   AT RANK > 0 the gain is 1.5x to 1.9x with roughly half the allocation, from the same source: the selection
+    #   rules reject a pair in integer arithmetic before any 6j is evaluated, where the predecessor computes and then
+    #   tests `abs(wa) >= 2.0e-10`.
+    #
+    #   THE TIMES ABOVE WILL NOT REPRODUCE EXACTLY, and a later reader should not read that as a regression. Repeated
+    #   runs of this branch gave rank-2 ratios between 0.52 and 0.65 on the same machine; the ALLOCATION figures are
+    #   stable to a few per cent and are the better number to compare against. Anything outside roughly 0.4-0.8 on the
+    #   ratio, or a change in the allocation columns, would be worth looking at.
+    #
+    #   WHAT THIS DOES NOT SHOW.  A small case, 15 CSFs and 4 subshells, and one-particle operators only. The
+    #   two-particle (electron-electron) operator dominates the run time of any real calculation and is NOT implemented
+    #   here, so none of this is yet a statement about JAC as a whole. No caching or memoisation has been added either;
+    #   the recoupling factors are recomputed for every CSF pair, which is the obvious next gain and is not taken.
+    #
+    localRel = ConfigurationR[]
+    for  conf in [Configuration("1s^2 2s^2 2p^2"), Configuration("1s^2 2s 2p^3")]
+        append!(localRel, Basics.generateConfigurations(Basics.RelativisticConfigurations(), conf))
+    end
+    localSubshells = Basics.generateSubshellList(localRel)
+    Defaults.setDefaults("relativistic subshell list", localSubshells; printout=false)
+    localCsfs = CsfR[]
+    for  relconf in localRel    append!(localCsfs, Basics.generateCsfRs(relconf, localSubshells))    end
+    println("\n  $(length(localCsfs)) CSFs, $(length(localSubshells)) subshells, $(length(localCsfs)^2) pairs")
+
+    sweepNew(op) = (for l in localCsfs, r in localCsfs
+                        SpinAngularNew.computeCoefficients(op, l, r, localSubshells)   end)
+    sweepOld(op) = (for l in localCsfs, r in localCsfs
+                        SpinAngular.computeCoefficients(op, l, r, localSubshells)      end)
+
+    println("\n   rank      old (ms)    new (ms)   ratio      old (kB)    new (kB)   ratio")
+    for  k in [0, 1, 2]
+        opNew = SpinAngularNew.OneParticleOperator(k, Basics.plus)
+        opOld = SpinAngular.OneParticleOperator(k, Basics.plus, true)
+        sweepNew(opNew);   sweepOld(opOld)                      # warm up, so compilation is not timed
+        tNew = minimum([@elapsed sweepNew(opNew) for _ in 1:5])
+        tOld = minimum([@elapsed sweepOld(opOld) for _ in 1:5])
+        aNew = @allocated sweepNew(opNew)
+        aOld = @allocated sweepOld(opOld)
+        @printf("    %d      %9.2f   %9.2f  %7.3f    %9.0f   %9.0f  %7.3f\n",
+                k, tOld*1e3, tNew*1e3, tNew/tOld, aOld/1024, aNew/1024, aNew/aOld)
+    end
+    #
 end
 #

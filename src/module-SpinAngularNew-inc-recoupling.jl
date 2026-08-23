@@ -48,10 +48,9 @@ function computeCoefficientsNonScalar(op::SpinAngularNew.OneParticleOperator, le
     if  length(diffs) == 2
         if  abs(leftCsf.occupation[diffs[1]] - rightCsf.occupation[diffs[1]]) != 1  ||
             abs(leftCsf.occupation[diffs[2]] - rightCsf.occupation[diffs[2]]) != 1  return( coeffs )   end
-        error("\n\nSpinAngularNew.computeCoefficientsNonScalar: a single-electron SUBSTITUTION at rank $(op.rank).\n" *
-              ">>> Rank > 0 is computed for CSF pairs of EQUAL OCCUPATION only. This pair moves one electron\n"   *
-              ">>> between $(subshells[diffs[1]]) and $(subshells[diffs[2]]), for which GRASP does return a coefficient,\n" *
-              ">>> so an empty list would be a silent wrong answer. Use SpinAngular.computeCoefficients for this pair.\n")
+        iCre = leftCsf.occupation[diffs[1]] > rightCsf.occupation[diffs[1]] ? diffs[1] : diffs[2]
+        iAnn = (iCre == diffs[1]) ? diffs[2] : diffs[1]
+        return( nonScalarSubstitution(op, leftCsf, rightCsf, subshells, iCre, iAnn) )
     end
 
     # The occupations are equal from here on, so both CSFs have the same open subshells. A CSF of closed subshells only
@@ -107,7 +106,7 @@ end
 
 
 """
-`SpinAngularNew.chainRecoupling(leftCsf::CsfR, rightCsf::CsfR, ip::Int64, k::Int64)`
+`SpinAngularNew.chainRecoupling(leftCsf::CsfR, rightCsf::CsfR, ip::Int64, kJ::AngularJ64; top::Int64 = 0)`
     ... to compute the recoupling factor for a one-particle tensor of rank k acting on the subshell `ip` of a CSF whose
         subshells are coupled as a chain X_1 = J_1, X_q = X_{q-1} x J_q, X_n = J.
 
@@ -125,10 +124,10 @@ end
         result; and with two singly-occupied subshells the two expressions above reduce term for term to the Edmonds
         two-subsystem formulae. A value::Float64 is returned.
 """
-function chainRecoupling(leftCsf::CsfR, rightCsf::CsfR, ip::Int64, k::Int64)
-    nw = length(leftCsf.occupation)
+function chainRecoupling(leftCsf::CsfR, rightCsf::CsfR, ip::Int64, kJ::AngularJ64; top::Int64 = 0)
+    nw = (top == 0) ? length(leftCsf.occupation) : top
     wa = 1.0
-    kJ = AngularJ64(k)
+    k2 = Basics.twice(kJ)
 
     # ... the outer subshells, q > ip, operator in the first subsystem
     for  q = ip+1:nw
@@ -137,7 +136,7 @@ function chainRecoupling(leftCsf::CsfR, rightCsf::CsfR, ip::Int64, k::Int64)
         Xq  = leftCsf.subshellX[q];              Yq = rightCsf.subshellX[q]
         Jq  = leftCsf.subshellJ[q]
         if  Jq != rightCsf.subshellJ[q]          return( 0.0 )   end
-        ph  = Int64( (Basics.twice(Xqm) + Basics.twice(Jq) + Basics.twice(Yq))//2 ) + k
+        ph  = Int64( (Basics.twice(Xqm) + Basics.twice(Jq) + Basics.twice(Yq) + k2)//2 )
         wa  = wa * (-1)^ph * sqrt((Basics.twice(Xq)+1.0)*(Basics.twice(Yq)+1.0)) *
                    AngularMomentum.Wigner_6j(Xqm, Xq, Jq, Yq, Ypm, kJ)
         if  wa == 0.0    return( 0.0 )   end
@@ -147,7 +146,7 @@ function chainRecoupling(leftCsf::CsfR, rightCsf::CsfR, ip::Int64, k::Int64)
     Xpm = (ip == 1) ? AngularJ64(0) : leftCsf.subshellX[ip-1]
     Xp  = leftCsf.subshellX[ip];             Yp  = rightCsf.subshellX[ip]
     Jp  = leftCsf.subshellJ[ip];             Jpp = rightCsf.subshellJ[ip]
-    ph  = Int64( (Basics.twice(Xpm) + Basics.twice(Jpp) + Basics.twice(Xp))//2 ) + k
+    ph  = Int64( (Basics.twice(Xpm) + Basics.twice(Jpp) + Basics.twice(Xp) + k2)//2 )
     wa  = wa * (-1)^ph * sqrt((Basics.twice(Xp)+1.0)*(Basics.twice(Yp)+1.0)) *
                AngularMomentum.Wigner_6j(Jp, Xp, Xpm, Yp, Jpp, kJ)
 
@@ -189,13 +188,152 @@ function nonScalarGeneral(op::SpinAngularNew.OneParticleOperator, leftCsf::CsfR,
         wS = shellReducedW(j, N, leftCsf.seniorityNr[ip], leftCsf.subshellJ[ip],
                                  rightCsf.seniorityNr[ip], rightCsf.subshellJ[ip], k)
         if  wS == 0.0    continue    end
-        wR = chainRecoupling(leftCsf, rightCsf, ip, k)
+        wR = chainRecoupling(leftCsf, rightCsf, ip, AngularJ64(k))
         if  wR == 0.0    continue    end
 
         value = -wR * wS * sqrt(Basics.twice(j) + 1.0) /
                      ( sqrt(2.0*k + 1.0) * sqrt(Basics.twice(leftCsf.J) + 1.0) )
         if  value != 0.0    push!( coeffs, Coefficient1p{ReducedKind}(k, sh, sh, value) )    end
     end
+
+    return( coeffs )
+end
+
+
+"""
+`SpinAngularNew.shellReducedA(j::AngularJ64, Nbra::Int64, senBra::Int64, Jbra::AngularJ64, Nket::Int64, senKet::Int64, Jket::AngularJ64, mq::AngularM64)`
+    ... to compute the reduced matrix element of a single creation or annihilation operator within one subshell,
+        <j^Nbra v J || a^(+/-) || j^Nket v' J'>, from the quasispin representation. As with `shellReducedW`, the
+        coefficients of fractional parentage are reused as DATA -- `SpinAngular.completlyReducedCfpByIndices` -- and only
+        the assembly is re-implemented. `mq` is +1/2 for creation and -1/2 for annihilation. A value::Float64 is returned.
+"""
+function shellReducedA(j::AngularJ64, Nbra::Int64, senBra::Int64, Jbra::AngularJ64,
+                       Nket::Int64, senKet::Int64, Jket::AngularJ64, mq::AngularM64)
+    SA = JenaAtomicCalculator.SpinAngular
+    Qb = SA.qshellTermQ(j, senBra);            Qk = SA.qshellTermQ(j, senKet)
+    if  AngularMomentum.triangularDelta(Qb, AngularJ64(1//2), Qk) == 0        return( 0.0 )   end
+    if  AngularMomentum.triangularDelta(Jbra, j, Jket) == 0                   return( 0.0 )   end
+    bMQ = SA.qshellTermM(j, Nket);             aMQ = SA.qshellTermM(j, Nbra)
+    ib  = SA.getTermNumber(j, Nbra, Qb, Jbra); ik = SA.getTermNumber(j, Nket, Qk, Jket)
+
+    wa = - AngularMomentum.ClebschGordan(Qk, bMQ, AngularJ64(1//2), mq, Qb, aMQ)
+    wa = wa * SA.completlyReducedCfpByIndices(ib, ik) / sqrt(Basics.twice(Qb) + 1.0)
+
+    return( wa )
+end
+
+
+"""
+`SpinAngularNew.substitutionRecoupling(leftCsf::CsfR, rightCsf::CsfR, ia::Int64, ib::Int64, ja::AngularJ64, jb::AngularJ64, k::Int64)`
+    ... to compute the recoupling factor for the two-subshell operator (A^(ja)(ia) x B^(jb)(ib))^(k) with ia < ib, i.e.
+        for a CSF pair that differs by moving one electron between two subshells.
+
+        The chain is cut at `ib`. Beyond it the operator of total rank k is peeled outwards exactly as for a
+        single-subshell tensor. AT `ib` the two ranks join, which is where a NINE-j appears rather than a six-j:
+
+            sqrt((2X_ib+1)(2X'_ib+1)(2k+1)) * { X_{ib-1}  X'_{ib-1}  ja ;  J_ib  J'_ib  jb ;  X_ib  X'_ib  k }
+
+        and below it the operator of rank ja acting on subshell ia is reduced through the SAME `chainRecoupling` used for
+        the equal-occupation case, restricted to the sub-chain 1 ... ib-1. Reusing it there rather than writing a second
+        peeling loop is the reason this stays short. A value::Float64 is returned.
+"""
+function substitutionRecoupling(leftCsf::CsfR, rightCsf::CsfR, ia::Int64, ib::Int64, ja::AngularJ64, jb::AngularJ64,
+                                k::Int64)
+    nw = length(leftCsf.occupation)
+    wa = 1.0
+    kJ = AngularJ64(k)
+
+    # ... beyond ib: the same first-subsystem peeling as for one subshell
+    for  q = ib+1:nw
+        Xqm = leftCsf.subshellX[q-1];        Ypm = rightCsf.subshellX[q-1]
+        Xq  = leftCsf.subshellX[q];          Yq  = rightCsf.subshellX[q]
+        Jq  = leftCsf.subshellJ[q]
+        if  Jq != rightCsf.subshellJ[q]      return( 0.0 )   end
+        ph  = Int64( (Basics.twice(Xqm) + Basics.twice(Jq) + Basics.twice(Yq))//2 ) + k
+        wa  = wa * (-1)^ph * sqrt((Basics.twice(Xq)+1.0)*(Basics.twice(Yq)+1.0)) *
+                   AngularMomentum.Wigner_6j(Xqm, Xq, Jq, Yq, Ypm, kJ)
+        if  wa == 0.0    return( 0.0 )   end
+    end
+
+    # ... at ib the two ranks couple, so a nine-j
+    Xbm = (ib == 1) ? AngularJ64(0) : leftCsf.subshellX[ib-1]
+    Ybm = (ib == 1) ? AngularJ64(0) : rightCsf.subshellX[ib-1]
+    Xb  = leftCsf.subshellX[ib];         Yb  = rightCsf.subshellX[ib]
+    Jb  = leftCsf.subshellJ[ib];         Jbp = rightCsf.subshellJ[ib]
+    wa  = wa * sqrt((Basics.twice(Xb)+1.0)*(Basics.twice(Yb)+1.0)*(2.0*k+1.0)) *
+               AngularMomentum.Wigner_9j(Xbm, Ybm, ja,  Jb, Jbp, jb,  Xb, Yb, kJ)
+    if  wa == 0.0                                                         return( 0.0 )   end
+
+    # ... and below it, the rank-ja operator on subshell ia through the sub-chain 1 ... ib-1
+    if  ib > 1    wa = wa * chainRecoupling(leftCsf, rightCsf, ia, ja; top = ib-1)    end
+
+    return( wa )
+end
+
+
+"""
+`SpinAngularNew.nonScalarSubstitution(op::SpinAngularNew.OneParticleOperator, leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, iCre::Int64, iAnn::Int64)`
+    ... to compute the rank-k coefficient of a CSF pair that differs by moving ONE electron: created in subshell `iCre`
+        of the bra, annihilated in subshell `iAnn` of the ket. Three ingredients beyond the recoupling, each of which is
+        easy to drop and each of which changes the answer:
+
+        (1) the two single-subshell matrix elements, `shellReducedA` with mq = +1/2 and -1/2;
+        (2) an ORDERING phase, since the recoupling is set up with the lower subshell index first, so a creation on the
+            HIGHER index costs (-1)^(j_a + j_b - k + 1);
+        (3) the JORDAN-WIGNER phase (-1)^(occupation between the two subshells, + 1) -- the sign from anticommuting the
+            operator past the electrons that sit between them in the subshell ordering. It depends on the OTHER
+            subshells' occupations, not on the two taking part, which is what makes it easy to forget.
+
+        A list coeffs::Array{Coefficient1p{ReducedKind},1} is returned.
+"""
+function nonScalarSubstitution(op::SpinAngularNew.OneParticleOperator, leftCsf::CsfR, rightCsf::CsfR,
+                               subshells::Array{Subshell,1}, iCre::Int64, iAnn::Int64)
+    coeffs = Coefficient1p{ReducedKind}[]
+    shC    = subshells[iCre];                 shA = subshells[iAnn]
+    if  !isAllowed1p(op, shC, shA)                                        return( coeffs )   end
+
+    k    = op.rank
+    jC   = AngularJ64( Basics.subshell_2j(shC)//2 );    jA = AngularJ64( Basics.subshell_2j(shA)//2 )
+    ia   = min(iCre, iAnn);                   ib = max(iCre, iAnn)
+    ja   = AngularJ64( Basics.subshell_2j(subshells[ia])//2 )
+    jb   = AngularJ64( Basics.subshell_2j(subshells[ib])//2 )
+
+    # every subshell other than the two taking part must be unchanged, or the two CSFs are orthogonal
+    for  i = 1:length(subshells)
+        if  i == ia  ||  i == ib    continue    end
+        if  leftCsf.subshellJ[i] != rightCsf.subshellJ[i]  ||  leftCsf.seniorityNr[i] != rightCsf.seniorityNr[i]
+            return( coeffs )
+        end
+    end
+
+    wR = substitutionRecoupling(leftCsf, rightCsf, ia, ib, ja, jb, k)
+    if  wR == 0.0                                                         return( coeffs )   end
+
+    wC = shellReducedA(jC, leftCsf.occupation[iCre],  leftCsf.seniorityNr[iCre],  leftCsf.subshellJ[iCre],
+                           rightCsf.occupation[iCre], rightCsf.seniorityNr[iCre], rightCsf.subshellJ[iCre],
+                           AngularM64(1//2))
+    if  wC == 0.0                                                         return( coeffs )   end
+    wA = shellReducedA(jA, leftCsf.occupation[iAnn],  leftCsf.seniorityNr[iAnn],  leftCsf.subshellJ[iAnn],
+                           rightCsf.occupation[iAnn], rightCsf.seniorityNr[iAnn], rightCsf.subshellJ[iAnn],
+                           AngularM64(-1//2))
+    if  wA == 0.0                                                         return( coeffs )   end
+
+    wa = wR * wC * wA
+    # ... (2) ordering, when the creation sits on the higher subshell index
+    if  iCre == ib
+        wa = wa * (-1)^Int64( (Basics.twice(ja) + Basics.twice(jb) - 2*k + 2)//2 )
+    end
+    # ... (3) Jordan-Wigner string over the subshells strictly between the two
+    occup = 0
+    for  i = ia:ib-1    occup = occup + leftCsf.occupation[i]    end
+    wa = (-1)^(occup + 1) * wa
+
+    # ... and the SAME outer normalization as the equal-occupation case, which is a result rather than an assumption:
+    # with the phases right, the residual against GRASP came out 1.000, sqrt(3), sqrt(5) on sixteen coefficients, i.e.
+    # exactly sqrt(2J_bra+1) at J_bra = 0, 1, 2.
+    value = -wa * sqrt(Basics.twice(jC) + 1.0) /
+                  ( sqrt(2.0*k + 1.0) * sqrt(Basics.twice(leftCsf.J) + 1.0) )
+    if  value != 0.0    push!( coeffs, Coefficient1p{ReducedKind}(k, shC, shA, value) )    end
 
     return( coeffs )
 end
