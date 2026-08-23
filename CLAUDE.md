@@ -85,7 +85,13 @@ Keyword parameters in the signature use `Union{Nothing,T}=nothing` (e.g. `calcK:
 | `examples/` | Example scripts `example-Xx.jl` | Yes |
 | `demos/` | Pluto notebooks | Yes |
 | `work/` | Running JAC; `.sum` output files | Yes |
+| `tools/` | Assistant-maintained diagnostics and cross-code comparison harnesses | Yes |
 | Any other project directory | Reference only | **Never** |
+
+`work/` is **gitignored**: it is scratch, and anything left there is lost on the next clean. `tools/` is
+**tracked** and is the assistant's own -- diagnostics, harnesses, and the small Fortran drivers that let JAC's
+results be compared against another code. The maintainer is not expected to read or maintain it; its point is
+that such a harness survives a move between machines, which a `work/` file does not.
 
 Files outside the JAC project root are **read-only**.
 Information exchange between projects is always read-only.
