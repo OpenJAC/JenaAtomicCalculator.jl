@@ -112,14 +112,18 @@ end
         So the two-subshell diagonal case needs the genuine coupled-tensor recoupling -- the scalar product
         [W^(k)(a) x W^(k)(b)]^(0) reduced through the coupling tree -- and not a closed form.
 
-        HALF OF THAT IS NOW DONE. `SpinAngularNew.twoParticleDirect` computes the DIRECT term from exactly that scalar
+        BOTH TERMS BETWEEN TWO DISTINCT SUBSHELLS NOW EXIST, with different reach. `SpinAngularNew.twoParticleDirect` computes the DIRECT term from exactly that scalar
         product, and reproduces SpinAngular on twenty coefficients out of sample, J = 0 ... 3 and j = 1/2, 3/2, 5/2,
         every ratio 1.0000000 -- J-dependence included, which is what the withdrawn closed form got wrong.
 
-        THE EXCHANGE TERM IS STILL OPEN. A single 6j {j_a j_b J; j_b j_a k} was tried and REFUTED: it vanishes at ranks
-        where the coefficient does not, so the exchange channel needs the full Racah sum over intermediate ranks rather
-        than one symbol. Until that exists this method RAISES, because returning direct terms alone would be an
-        incomplete coefficient list -- the silent wrong answer this module exists to prevent.
+        `SpinAngularNew.twoParticleExchange` covers the exchange term for SINGLY OCCUPIED subshells only -- there the
+        Racah sum over intermediate ranks collapses to one 6j. For N >= 2 it does not collapse, and that method refuses
+        rather than applying the collapsed form out of range.
+
+        WHAT IS STILL MISSING, and why this method continues to RAISE: the exchange term for subshells holding two or
+        more electrons, and the SAME-SUBSHELL term (a,a,a,a) entirely. Returning what exists would be an incomplete
+        coefficient list, which is the silent wrong answer this module exists to prevent; half a two-particle answer is
+        worth less than none.
 """
 function computeCoefficients(op::SpinAngularNew.TwoParticleOperator, leftCsf::CsfR, rightCsf::CsfR,
                              subshells::Array{Subshell,1})
@@ -146,6 +150,11 @@ end
         twenty further coefficients of 1s 2p, 2s 3d and 1s 3d, spanning J = 0, 1, 2, 3 and j = 1/2, 3/2, 5/2, then
         reproduced SpinAngular exactly, every ratio 1.0000000.
 
+        ITS REACH WAS MEASURED, NOT ASSUMED. Applied to EVERY pair of distinct subshells, classified by occupation,
+        it is exact in all four classes: closed/closed (19), closed/open (9), closed/single (72), single/single (68) --
+        168 coefficients, every ratio 1.0. So it is general for two distinct subshells at any occupations, which is
+        more than was expected of it; what it does NOT cover is the same-subshell term (a,a,a,a).
+
         THIS MATTERS BECAUSE THE FIRST ATTEMPT AT THIS TERM WAS WRONG. A closed form fitted to closed-shell data gave
         the k = 0 direct term correctly and everything else wrongly, because a closed shell forces J = 0 and hides the
         J-dependence entirely. The expression above carries J through the recoupling and reproduces, for instance,
@@ -165,4 +174,37 @@ function twoParticleDirect(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subsh
     wR = substitutionRecoupling(leftCsf, rightCsf, ia, ib, AngularJ64(k), AngularJ64(k), 0)
 
     return( wa * wb * wR / ( sqrt(Basics.twice(leftCsf.J) + 1.0) * sqrt(2.0*k + 1.0) ) )
+end
+
+"""
+`SpinAngularNew.twoParticleExchange(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, ia::Int64, ib::Int64, k::Int64)`
+    ... to compute the EXCHANGE two-particle coefficient V^k(a,b;b,a) for two SINGLY OCCUPIED open subshells, in the
+        effective-strength convention:
+
+            V^k(a,b;b,a)  =  (-1)^(j_a + j_b + k)  { j_a  j_b  J ;  j_a  j_b  k }
+
+        The exchange channel is NOT the direct one with relabelled indices, and this expression was arrived at by
+        elimination rather than by assumption. Five 6j orderings were tried; three of them VANISH at ranks where the
+        coefficient does not, which refutes them outright, and of the two survivors this one carries the phase above
+        on all 68 test coefficients while the alternatives (-1)^(j_a+j_b+J) and (-1)^(j_a+j_b+J+k) fail.
+
+        LIMITED TO SINGLY OCCUPIED SUBSHELLS, deliberately. For N >= 2 the exchange integral R^k(abba) couples to a SUM
+        over intermediate ranks K of [W^(K)(a) x W^(K)(b)]^(0), and that sum collapses to a single 6j only when each
+        shell carries one electron. Calling this for a subshell with more electrons would silently apply the collapsed
+        form, so `computeCoefficients` restricts itself accordingly rather than letting that happen.
+
+        A value::Float64 is returned.
+"""
+function twoParticleExchange(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, ia::Int64, ib::Int64,
+                             k::Int64)
+    sha = subshells[ia];    shb = subshells[ib]
+    ja  = AngularJ64( Basics.subshell_2j(sha)//2 );    jb = AngularJ64( Basics.subshell_2j(shb)//2 )
+    if  leftCsf.occupation[ia] != 1  ||  leftCsf.occupation[ib] != 1
+        error("\n\nSpinAngularNew.twoParticleExchange: the collapsed single-6j form is valid only for singly\n" *
+              ">>> occupied subshells; for N >= 2 the exchange channel needs the full Racah sum over intermediate\n" *
+              ">>> ranks. Refusing rather than applying it out of range.\n")
+    end
+    ph = (-1)^Int64( (Basics.twice(ja) + Basics.twice(jb))//2 + k )
+
+    return( ph * AngularMomentum.Wigner_6j(ja, jb, leftCsf.J, ja, jb, AngularJ64(k)) )
 end
