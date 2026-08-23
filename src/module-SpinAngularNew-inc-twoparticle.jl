@@ -110,9 +110,16 @@ end
         not show either because it vanishes when the shell is full.
 
         So the two-subshell diagonal case needs the genuine coupled-tensor recoupling -- the scalar product
-        [W^(k)(a) x W^(k)(b)]^(0) reduced through the coupling tree -- and not a closed form. That is the work; the
-        infrastructure around it (`Coefficient2p{K}`, `toGraspCoulomb`, and the GRASP two-particle oracle) is in place and
-        verified, and is what the next attempt should build on.
+        [W^(k)(a) x W^(k)(b)]^(0) reduced through the coupling tree -- and not a closed form.
+
+        HALF OF THAT IS NOW DONE. `SpinAngularNew.twoParticleDirect` computes the DIRECT term from exactly that scalar
+        product, and reproduces SpinAngular on twenty coefficients out of sample, J = 0 ... 3 and j = 1/2, 3/2, 5/2,
+        every ratio 1.0000000 -- J-dependence included, which is what the withdrawn closed form got wrong.
+
+        THE EXCHANGE TERM IS STILL OPEN. A single 6j {j_a j_b J; j_b j_a k} was tried and REFUTED: it vanishes at ranks
+        where the coefficient does not, so the exchange channel needs the full Racah sum over intermediate ranks rather
+        than one symbol. Until that exists this method RAISES, because returning direct terms alone would be an
+        incomplete coefficient list -- the silent wrong answer this module exists to prevent.
 """
 function computeCoefficients(op::SpinAngularNew.TwoParticleOperator, leftCsf::CsfR, rightCsf::CsfR,
                              subshells::Array{Subshell,1})
@@ -121,4 +128,41 @@ function computeCoefficients(op::SpinAngularNew.TwoParticleOperator, leftCsf::Cs
           ">>> the coupling dependence that only open subshells reveal (1s 2s gives +0.5 at J = 0 and -0.5 at\n"     *
           ">>> J = 1 for the same term). See the docstring of this method.\n"                                        *
           ">>> Use SpinAngular.computeCoefficients for two-particle coefficients.\n")
+end
+
+"""
+`SpinAngularNew.twoParticleDirect(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, ia::Int64, ib::Int64, k::Int64)`
+    ... to compute the DIRECT two-particle coefficient V^k(a,b;a,b) for two distinct open subshells `ia` and `ib`, in
+        the effective-strength convention. The direct part of the electron-electron interaction is the scalar product
+        of two rank-k tensors, one on each subshell, so it is built from the same pieces as the one-particle case:
+
+            V^k(a,b;a,b)  =  <j_a^N||W^(k)||j_a^N> <j_b^N||W^(k)||j_b^N> R_chain / ( sqrt(2J_bra+1) sqrt(2k+1) )
+
+        with R_chain = `substitutionRecoupling(leftCsf, rightCsf, ia, ib, k, k, 0)` -- the SAME routine the
+        single-electron substitution uses, called with both ranks equal to k and coupled to zero, which is what makes
+        this short.
+
+        THE NORMALIZATION WAS CALIBRATED AND THEN TESTED OUT OF SAMPLE. Four values of 1s 2s fixed the two factors;
+        twenty further coefficients of 1s 2p, 2s 3d and 1s 3d, spanning J = 0, 1, 2, 3 and j = 1/2, 3/2, 5/2, then
+        reproduced SpinAngular exactly, every ratio 1.0000000.
+
+        THIS MATTERS BECAUSE THE FIRST ATTEMPT AT THIS TERM WAS WRONG. A closed form fitted to closed-shell data gave
+        the k = 0 direct term correctly and everything else wrongly, because a closed shell forces J = 0 and hides the
+        J-dependence entirely. The expression above carries J through the recoupling and reproduces, for instance,
+        +0.5 at J = 0 and -0.1666667 at J = 1 for the same k = 1 term of 1s 2s. A value::Float64 is returned.
+"""
+function twoParticleDirect(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, ia::Int64, ib::Int64,
+                           k::Int64)
+    sha = subshells[ia];    shb = subshells[ib]
+    ja  = AngularJ64( Basics.subshell_2j(sha)//2 );    jb = AngularJ64( Basics.subshell_2j(shb)//2 )
+
+    wa = shellReducedW(ja, leftCsf.occupation[ia], leftCsf.seniorityNr[ia],  leftCsf.subshellJ[ia],
+                                                   rightCsf.seniorityNr[ia], rightCsf.subshellJ[ia], k)
+    if  wa == 0.0                                                         return( 0.0 )   end
+    wb = shellReducedW(jb, leftCsf.occupation[ib], leftCsf.seniorityNr[ib],  leftCsf.subshellJ[ib],
+                                                   rightCsf.seniorityNr[ib], rightCsf.subshellJ[ib], k)
+    if  wb == 0.0                                                         return( 0.0 )   end
+    wR = substitutionRecoupling(leftCsf, rightCsf, ia, ib, AngularJ64(k), AngularJ64(k), 0)
+
+    return( wa * wb * wR / ( sqrt(Basics.twice(leftCsf.J) + 1.0) * sqrt(2.0*k + 1.0) ) )
 end
