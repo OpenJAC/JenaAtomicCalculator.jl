@@ -730,7 +730,8 @@ end
 function simulate(property::Cascade.AbstractSimulationProperty, method::Cascade.AbstractSimulationMethod,
                   simulation::Cascade.Simulation)
     error("No simulation is implemented for property $(typeof(property)) with method $(typeof(method)). " *
-          "Supported: PhotoAbsorptionSpectrum, DrRateCoefficients, RrRateCoefficients, ExpansionOpacities and " *
+          "Supported: PhotoAbsorptionSpectrum, DrRateCoefficients, RrRateCoefficients, EaCrossSections, " *
+          "ResonantIonizationStrengths, ExpansionOpacities and " *
           "MeanOpacities with any method; IonDistribution, FinalLevelDistribution, PhotonIntensities, " *
           "ElectronIntensities and RelaxationCurve with Cascade.ProbPropagation().")
 end
@@ -836,6 +837,17 @@ function simulate(property::Cascade.DrRateCoefficients, method::Cascade.Abstract
                   simulation::Cascade.Simulation)
     levels = Cascade.reviewData(simulation, ascendingOrder=true)
     return( Cascade.simulateDrRateCoefficients(levels, simulation) )
+end
+
+
+"""
+`Cascade.simulate(property::Cascade.ResonantIonizationStrengths, method::Cascade.AbstractSimulationMethod,
+                  simulation::Cascade.Simulation)`   ... simulates the resonant contribution to electron-impact ionization.
+"""
+function simulate(property::Cascade.ResonantIonizationStrengths, method::Cascade.AbstractSimulationMethod,
+                  simulation::Cascade.Simulation)
+    levels = Cascade.reviewData(simulation, ascendingOrder=true)
+    return( Cascade.simulateResonantIonizationStrengths(levels, simulation) )
 end
 
 
@@ -1358,6 +1370,135 @@ function reviewData(simulation::Cascade.Simulation; ascendingOrder::Bool=false)
     if  simulation.settings.printLongTree  Cascade.displayLevelTree(stdout, allLevels, extended=true)      end
     
     return( allLevels )
+end
+
+
+"""
+`Cascade.findCascadeLevel(levels::Array{Cascade.Level,1}, mLevel::ManyElectron.Level, NoElectrons::Int64)`
+    ... finds, among `levels`, the cascade level that corresponds to the many-electron level `mLevel` of an ion with
+        `NoElectrons` electrons; a level::Union{Cascade.Level,Nothing} is returned, and nothing if there is no match.
+
+        The match is on the electron number together with the energy, J and parity, since a Cascade.Level carries no
+        reference back to the ManyElectron.Level it was built from.  The energy tolerance is relative and loose
+        (1e-10), because both sides come from the same computation and differ only by round-trip through the data file.
+"""
+function findCascadeLevel(levels::Array{Cascade.Level,1}, mLevel::ManyElectron.Level, NoElectrons::Int64)
+    for  level in levels
+        if  level.NoElectrons == NoElectrons   &&   level.J == mLevel.J   &&   level.parity == mLevel.parity   &&
+            abs(level.energy - mLevel.energy) <= 1.0e-10 * max(abs(mLevel.energy), 1.0)
+            return( level )
+        end
+    end
+
+    return( nothing )
+end
+
+
+"""
+`Cascade.simulateResonantIonizationStrengths(levels::Array{Cascade.Level,1}, simulation::Cascade.Simulation)`
+    ... determines and prints the resonance strengths of the two resonant electron-capture channels of electron-impact
+        ionization, together with the recombination strength of the SAME resonances so that the competition between the
+        two is visible.  Nothing is returned.
+
+        A resonance is any level with one electron MORE than the initial one that has an Auger line back to the initial
+        level; that Auger rate is the capture rate, by detailed balance.  An intermediate of the sequential route is
+        admitted when it has the initial electron number AND carries at least one Auger line of its own, i.e. when the
+        computation itself found it to be autoionizing.
+"""
+function simulateResonantIonizationStrengths(levels::Array{Cascade.Level,1}, simulation::Cascade.Simulation)
+    printSummary, iostream = Defaults.getDefaults("summary flag/stream")
+    property = simulation.property
+    es       = Defaults.convertUnits("energy: to atomic", property.electronEnergyShift)
+    #
+    # IDENTIFY THE INITIAL LEVEL BY ELECTRON NUMBER AND ENERGY, NOT BY ITS INDEX ALONE.  A ManyElectron.Level's index
+    # counts within ITS OWN multiplet, so level 1 of the excited block carries the same index as level 1 of the initial
+    # block; testing the index alone made every ordinary Auger to an excited level look like a capture, and produced a
+    # set of spurious "resonances" at the wrong energies entirely.  The resonances are the levels with the LARGEST
+    # electron number, and the initial ion is one electron below them; its ground level is the lowest of those.
+    nRes = 0
+    if  length(levels) == 0    return( nothing )    end
+    nMax  = maximum( level.NoElectrons  for level in levels )
+    nIni  = nMax - 1
+    iniLs = filter(level -> level.NoElectrons == nIni, levels)
+    if  length(iniLs) == 0
+        error("Cascade.simulateResonantIonizationStrengths(): no level with $nIni electrons was found, so the ion the " *
+              "capture starts from is not in the data.  This property needs a computation that requested one of the " *
+              "resonant channels of Cascade.ElectronIonizationScheme.")
+    end
+    iniLevel = iniLs[ argmin([level.energy for level in iniLs]) ]
+    #
+    sumSeq = 0.;   sumSim = 0.;   sumDr = Basics.EmProperty(0.)
+    println("\n  Resonance strengths of the resonant electron-capture channels of electron-impact ionization:")
+    println("\n    resonance         E(res) [eV]     S(sequential)     S(simultaneous)    S(recombination)   sum of branchings")
+    println("  " * "-"^116)
+    for  level in levels
+        if  level.NoElectrons != nMax                                          continue   end
+        # find the Auger line back to the initial GROUND level; its rate is the capture rate, by detailed balance
+        captureRate = 0.;   twoJi = 0
+        for  daughter in level.daughters
+            if  daughter.process != Basics.Auger()                             continue   end
+            aLine = daughter.lines[daughter.index]
+            if  aLine.finalLevel.J      != iniLevel.J                          continue   end
+            if  aLine.finalLevel.parity != iniLevel.parity                     continue   end
+            if  abs(aLine.finalLevel.energy - iniLevel.energy) > 1.0e-8 * max(abs(iniLevel.energy), 1.0)  continue  end
+            captureRate = captureRate + aLine.totalRate;    twoJi = Basics.twice(aLine.finalLevel.J)
+        end
+        if  captureRate == 0.                                                  continue   end
+        en = level.energy - iniLevel.energy + es
+        if  en <= 0.                                                           continue   end
+        #
+        augerD  = Cascade.computeTotalAugerRate(level)
+        photonD = Cascade.computeTotalPhotonRate(level)
+        gammaD  = augerD + photonD.Babushkin
+        if  gammaD <= 0.                                                       continue   end
+        twoJd   = Basics.twice(level.J)
+        #
+        # the SEQUENTIAL route: every Auger daughter that lands on a level which itself autoionizes
+        sSeq = 0.
+        for  daughter in level.daughters
+            if  daughter.process != Basics.Auger()                             continue   end
+            aLine = daughter.lines[daughter.index]
+            nLevel = Cascade.findCascadeLevel(levels, aLine.finalLevel, level.NoElectrons - 1)
+            if  nLevel === iniLevel                                            continue   end
+            if  nLevel === nothing                                             continue   end
+            augerN  = Cascade.computeTotalAugerRate(nLevel)
+            photonN = Cascade.computeTotalPhotonRate(nLevel)
+            gammaN  = augerN + photonN.Babushkin
+            if  augerN <= 0.  ||  gammaN <= 0.                                 continue   end
+            sSeq = sSeq + ResonantImpactIonization.sequentialStrength(en, captureRate, twoJd, twoJi,
+                                                                      aLine.totalRate, gammaD, augerN, gammaN)
+        end
+        # the SIMULTANEOUS route, only if a double-Auger probability was supplied
+        sSim = property.dblAugerProbability <= 0. ? 0. :
+               ResonantImpactIonization.simultaneousStrength(en, captureRate, twoJd, twoJi,
+                                                             property.dblAugerProbability * augerD, gammaD)
+        # the RECOMBINATION strength of the same resonance, for comparison
+        s0   = ResonantImpactIonization.resonanceStrength(en, captureRate, twoJd, twoJi)
+        sDr  = Basics.EmProperty(s0 * photonD.Coulomb/(augerD + photonD.Coulomb), s0 * photonD.Babushkin/gammaD)
+        #
+        sumSeq = sumSeq + sSeq;   sumSim = sumSim + sSim;   sumDr = sumDr + sDr;   nRes = nRes + 1
+        sa = "    " * TableStrings.level(nRes) * "  " * string(LevelSymmetry(level.J, level.parity)) * "  "
+        println(sa * "    " * @sprintf("%10.4f", Defaults.convertUnits("energy: from atomic to eV", en)) *
+                "     " * @sprintf("%.6e", sSeq) * "      " * @sprintf("%.6e", sSim) *
+                "      " * @sprintf("%.6e", sDr.Babushkin) * "        " * @sprintf("%.8f", (augerD + photonD.Babushkin)/gammaD))
+    end
+    println("  " * "-"^116)
+    println("    TOTAL over $nRes resonances        " * @sprintf("%.6e", sumSeq) * "      " * @sprintf("%.6e", sumSim) *
+            "      " * @sprintf("%.6e", sumDr.Babushkin))
+    println("\n    Strengths are energy-integrated, in atomic units.  The last column is the sum of ALL branchings of the")
+    println("    resonance and must be 1 to machine precision: it checks the arithmetic, NOT that every decay route was")
+    println("    generated.  S(recombination) is the dielectronic-recombination strength of the SAME resonances, on the")
+    println("    same footing, so that the competition between recombination and ionization can be read off directly.")
+    if  property.dblAugerProbability <= 0.
+        println("    S(simultaneous) is identically zero because dblAugerProbability was left at 0.; see the property's")
+        println("    docstring on why the cascade does not choose that number for you.")
+    end
+    if  printSummary
+        println(iostream, "\n  Resonant-ionization strengths: sequential $sumSeq, simultaneous $sumSim, " *
+                          "recombination $(sumDr.Babushkin), over $nRes resonances.")
+    end
+
+    return( nothing )
 end
 
 

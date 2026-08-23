@@ -222,6 +222,74 @@ end
 
 
 """
+`struct  Cascade.ResonantIonizationStrengths   <:  Cascade.AbstractSimulationProperty`
+    ... defines a type for simulating the RESONANT contribution to electron-impact ionization from the lines of a
+        previous Cascade.ElectronIonizationScheme computation that requested one or both of the resonant capture
+        channels.
+
+        An incident electron is CAPTURED into a doubly-excited resonance d, which then sheds two electrons, so that
+        the ion ends one charge state HIGHER than it began.  What is reported is the energy-integrated RESONANCE
+        STRENGTH of each resonance, the natural quantity for an isolated resonance, together with its sum:
+
+            S_0(d)   = pi^2/k^2 * A(capture) * (2J_d+1)/(2J_i+1)              formation alone
+            S_seq(d) = S_0 * SUM_n [A(d->n)/Gamma(d)] * [A_a(n)/Gamma(n)]     sequential, through each autoionizing n
+            S_sim(d) = S_0 * [P_dbl * A_a(d)/Gamma(d)]                        simultaneous, one double-Auger step
+
+        with Gamma the total width, Auger plus radiative.  The prefactor and the relativistic wave number are those
+        of Cascade.simulateDrRateCoefficients, deliberately and identically, so that the RECOMBINATION and IONIZATION
+        strengths of the same resonance may be placed side by side without a conversion between them -- which is the
+        main thing this property is good for, since the two are competing decays of one resonance.
+
+    APPROXIMATIONS, so that it is clear what these numbers are:
+
+    + isolated resonances
+        ... strengths are ADDED over resonances, with no interference and no overlap of widths.  Sound while the
+            resonances stay narrow against their spacing; it degrades for high capture shells.
+    + branchings from the rates that were generated
+        ... every Gamma is a sum over the decay steps the cascade actually built.  A decay route absent from the
+            configuration lists is absent from Gamma too, so the branchings still sum to one.  That checks the
+            arithmetic, never the completeness.
+    + an autoionizing intermediate is one that HAS an Auger line
+        ... the sequential route needs the intermediate n to autoionize in its turn, and n is admitted exactly when
+            the computation produced at least one Auger line out of it.  A level that would autoionize into a final
+            configuration nobody generated therefore does not count, and its route is missing rather than wrong.
+    + the simultaneous route is NOT computed here
+        ... its double-Auger probability is supplied by the user through `dblAugerProbability`, because the choice of
+            which subshells count as PASSIVE is a physics judgement the cascade cannot make for itself: the two
+            electrons that participate in the Auger transition must be excluded, and which those are depends on the
+            transition.  Use ResonantImpactIonization.doubleAugerProbability to obtain a value, read its docstring on
+            the two-sided error first, and leave this at 0. to omit the channel entirely rather than guess.
+
+    + initialLevelNo        ::Int64             ... Level No of the initial level from which the capture starts.
+    + electronEnergyShift   ::Float64           ... Shift applied to every resonance energy, in the user-selected
+                                                     units; the initial level is shifted by the negative amount.
+    + dblAugerProbability   ::Float64           ... Probability that a resonance sheds BOTH electrons at once rather
+                                                     than one at a time; 0. omits the simultaneous channel.
+"""
+struct  ResonantIonizationStrengths   <:  Cascade.AbstractSimulationProperty
+    initialLevelNo        ::Int64
+    electronEnergyShift   ::Float64
+    dblAugerProbability   ::Float64
+end
+
+
+"""
+`Cascade.ResonantIonizationStrengths()`  ... (simple) constructor for cascade ResonantIonizationStrengths.
+"""
+function ResonantIonizationStrengths()
+    ResonantIonizationStrengths(1, 0., 0.)
+end
+
+
+# `Base.show(io::IO, dist::Cascade.ResonantIonizationStrengths)`  ... prepares a proper printout of the variable dist.
+function Base.show(io::IO, dist::Cascade.ResonantIonizationStrengths)
+    println(io, "initialLevelNo:           $(dist.initialLevelNo)  ")
+    println(io, "electronEnergyShift:      $(dist.electronEnergyShift)  ")
+    println(io, "dblAugerProbability:      $(dist.dblAugerProbability)  ")
+end
+
+
+"""
 `struct  Cascade.PiRateCoefficients   <:  Cascade.AbstractSimulationProperty`  
     ... defines a type for simulating the PI plasma rate coefficients as function of the (free) photon energy distribution and
         the plasma temperature. These coefficients included a convolution of the direct photoionization cross sections over the 
