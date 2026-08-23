@@ -85,10 +85,18 @@ if  true
     #                  branch produces amplitudes rather than a comparable observable; it is verified through
     #                  branches b-d, which consume exactly this file.
     #
-    # Branch a: THE COMPUTATION (Figure 3, upper panel, with the constructor brought up to date). Three
-    #   discrete photon energies are enough for the DIRECT part, which varies slowly; the RESONANT part is
-    #   taken at the calculated resonance positions, so it does not need a fine grid here. The amplitudes are
-    #   written to a .jld file that branches b-d read back.
+    # Last visit:      23-Aug-2026
+    # Last successful: 23-Aug-2026 ... 18.9 s warm.  Both halves of the photoabsorption scheme run: the DIRECT
+    #                  part gives 12 photoionization lines in two steps, the RESONANT part 26 photoexcitation
+    #                  lines in two more, written to zzz-cascade-photoabsorption-computations-<date>.jld.
+    #
+    #                  DATED ON THE STRENGTH OF ITS CONSUMERS, which is the honest ground here.  This branch
+    #                  produces amplitudes and asserts nothing about them, so there is little in it to check
+    #                  directly.  What makes it verified is that branches b, c and d ALL read this file and
+    #                  are all dated: b reproduces the paper's Figure 4 peak at 287.6 eV, c the initial-level
+    #                  admixture, and d confirms the additivity of Eq. (1) to 3.1e-5.  A fault in the
+    #                  amplitudes written here would have to survive all three of those, and the additivity
+    #                  check in particular ties the direct and resonant halves together.
     setDefaults("print summary: open", "zzz-Cascade-Fe-computation.sum")
 
     fromShells = [Shell("1s"), Shell("2s")]

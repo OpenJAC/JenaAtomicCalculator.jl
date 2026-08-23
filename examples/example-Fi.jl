@@ -211,13 +211,30 @@ elseif  false
     #                  of the comparison; the cascade side needs branch a, and the two are not yet placed side
     #                  by side (a cross section against a rate coefficient is not a point-by-point comparison).
     #
-    # Branch d: COMPARISON WITH ARNAUD & ROTHENFLUG -- the external check.
+    # Last visit:      23-Aug-2026 ... 4.8 s, nearly all of it compilation; the empirical evaluation itself is
+    #                  sub-second.  alpha^EA = 2.2406e-11, 1.5966e-10, 2.8943e-10, 3.0973e-10 cm^3/s at
+    #                  1e6, 3e6, 1e7 and 3e7 K.
+    # Last successful: unknown ... AND IT CANNOT BE SET AS THIS BRANCH STANDS, for a reason worth stating.
+    #                  The branch is titled a comparison and its text describes one, but THE CODE COMPARES
+    #                  NOTHING: it evaluates the empirical formula at four temperatures and prints it.  The
+    #                  cascade side never enters.
+    #
+    #                  Nor is the comparison implementable yet.  The cascade gives a CROSS SECTION at chosen
+    #                  impact energies (branch c) while the empirical formula gives a RATE COEFFICIENT, and the
+    #                  two are not comparable until the cross section is folded with a Maxwellian.  That fold
+    #                  is exactly what a Cascade.EiiRateCoefficients property would provide and it does not
+    #                  exist yet; the same mismatch stops branch c of example-Fl.jl.  When it exists, this
+    #                  branch becomes a real check and can be dated.
+    #
+    # Branch d: THE EMPIRICAL SIDE OF A COMPARISON THAT CANNOT YET BE MADE.
     #   Empirical.excitationAutoionizationPlasmaAlpha with Arnaud1985EA() gives the EA contribution to the
     #   ionization RATE COEFFICIENT for the Li-like sequence, with an explicit correction factor for carbon.
-    #   It is a rate coefficient, not a cross section, so the comparison is at the level of the temperature
-    #   dependence and the order of magnitude, not point by point.  Recall also that the cascade value is an
-    #   upper bound (B_a = 1) and covers only the 1s -> 2p, 3p channels requested in branch a, whereas the
-    #   empirical formula is fitted to the whole EA contribution.
+    #   What can be said WITHOUT the cascade side is that the empirical curve is itself sensible: it rises
+    #   steeply while kT sits below the 1s -> 2p threshold of about 300 eV, and turns over between 1e7 and
+    #   3e7 K, where kT has passed it.  That is a check of Empirical, not of the cascade.
+    #   Recall also, for when the comparison becomes possible, that the cascade value is an upper bound
+    #   (B_a = 1) and covers only the 1s -> 2p, 3p channels requested in branch a, whereas the empirical
+    #   formula is fitted to the whole EA contribution.
     setDefaults("print summary: open", "zzz-Cascade-Fi-empirical.sum")
     setDefaults("nuclear: charge", 6.)
 

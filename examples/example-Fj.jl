@@ -166,26 +166,51 @@ elseif  false
     #                  table that the simulation prints and pick a level number whose electron count matches the
     #                  hollow configuration before quoting any distribution from this branch.
     #
+    # Last visit:      23-Aug-2026
+    # Last successful: 23-Aug-2026 ... 4.6 s for the three simulations, after branch a (60 s warm) has written
+    #                  the data file.  Ion distribution, per starting level:
+    #                      level  4  (0+, -213.6 eV)   2 electrons 1.72e-02   1 electron 9.83e-01
+    #                      level  9  (1+, -218.9 eV)   2 electrons 1.00e+00   1 electron 5.62e-05
+    #                      level 13  (0-, -223.8 eV)   2 electrons 6.14e-02   1 electron 9.39e-01
+    #                  Each column sums to 1 to five digits, which is the internal check.
+    #
     # Branch d: THE SIMULATION -- the ion distribution that the hollow ion decays into.  This is the physical
     #   question a hollow-ion cascade is usually asked: starting from the doubly-captured state, how is the
     #   final charge distributed between the one- and two-electron ions?  Radiative decay keeps the electron
-    #   number, Auger decay reduces it, so the answer is set by the competition between the two channels that
-    #   branch c separates.  Requires branch a to have run.
+    #   number, Auger decay reduces it, so the answer is set by the competition that branch c separates.
+    #   Requires branch a to have run.
     #
-    #   This branch is only possible because the computation now also stores its lines under "cascade data:";
-    #   until that was fixed, Cascade.reviewData found nothing and no simulation could read a hollow-ion
-    #   cascade (see defect 4 above).
+    #   A DEFECT FOUND ON 23-Aug-2026, WHICH IS WHY THIS BRANCH WAS NEVER DATED.  It used to start the
+    #   propagation from Cascade.IonDistribution([(1, 1.0)], ...), i.e. from level 1 -- and the level numbers
+    #   of a simulation run over the SORTED list of all levels of all charge states together, where level 1 is
+    #   a ONE-ELECTRON level at -122 eV.  The cascade therefore began where it should have ended, propagated
+    #   nothing, and reported "1 electron: 1.0" -- a result that is perfectly self-consistent and answers no
+    #   question at all.  The same trap as any level index that means something different from what the caller
+    #   assumes.
+    #
+    #   WHICH LEVELS ARE THE HOLLOW ONES.  Sorted, the 21 generated levels fall out as: 1-3 and 14 with ONE
+    #   electron; 4-13 with two, and these are exactly the 2l2l' manifold (2s^2 gives one level, 2s2p four,
+    #   2p^2 five); 15-20 the 1s2l states; 21 the 1s^2 ground state.  The doubly-captured hollow ion is the
+    #   2l2l' manifold, i.e. levels 4-13.
+    #
+    #   AND THE ANSWER DEPENDS STRONGLY ON WHICH OF THEM IS POPULATED, which is why three are run rather than
+    #   one being chosen.  Level 9 keeps 99.99 % of its population at two electrons -- its Auger channel is
+    #   all but shut -- while levels 4 and 13 lose 98 % and 94 % to Auger.  A single representative level
+    #   would have made the hollow ion look either almost entirely Auger-decaying or almost entirely
+    #   radiative, depending only on which was picked.
     setDefaults("print summary: open", "zzz-Cascade-Fj-simulation.sum")
 
     fn   = sort(filter(f -> startswith(f, "zzz-cascade-hollow-ion-"), readdir()), by = f -> stat(f).mtime)[end]
     println(">>> reading the cascade data from  $fn")
     data = [JLD2.load(fn)]
-    prop = Cascade.IonDistribution([(1, 1.0)], Configuration[])
-    simu = Cascade.Simulation(Cascade.Simulation(); name="Ion distribution after hollow-carbon decay",
-                              computationData=data, property=prop,
-                              settings=Cascade.SimulationSettings(false, false, 0.) )
-    println(simu)
-    wd = perform(simu; output=true)
+    for  levelNo  in  [4, 9, 13]
+        println("\n>>> starting the propagation from level $levelNo of the 2l2l' hollow manifold")
+        prop = Cascade.IonDistribution([(levelNo, 1.0)], Configuration[])
+        simu = Cascade.Simulation(Cascade.Simulation(); name="Hollow-carbon decay from level $levelNo",
+                                  computationData=data, property=prop,
+                                  settings=Cascade.SimulationSettings(false, false, 0.) )
+        wd = perform(simu; output=true)
+    end
     setDefaults("print summary: close", "")
     #
 end

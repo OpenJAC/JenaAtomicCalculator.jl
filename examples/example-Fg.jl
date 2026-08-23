@@ -87,9 +87,30 @@ if  true
     #                  costs more than the ~0.6 s it took with asymptotic Coulomb, but it is the setting that
     #                  gives correct cross sections; see the note above.
     #
+    # Last visit:      23-Aug-2026
+    # Last successful: 23-Aug-2026 ... 3.9 s WARM (40 s cold, the first cascade of a session paying the
+    #                  compilation of the whole path).  Two steps, 12 Rec lines, as claimed.  The cross
+    #                  sections fall with electron energy as radiative recombination must:
+    #                      capture into 2s   94.8 -> 15.4 -> 6.22 -> 3.96  at 99, 229, 399, 530 eV
+    #
+    #                  TWO CORRECTIONS TO WHAT THIS BRANCH USED TO CLAIM, both found on dating it.
+    #                  (i)  "~0.6 s warm" is wrong by a factor of six; the measured warm cost is 3.9 s.  It is
+    #                       still the cheapest branch of the file, so the conclusion drawn from it stands, but
+    #                       the number did not.
+    #                  (ii) THE GAUGE AGREEMENT IS NOT UNIFORM AND WAS NOT MENTIONED AT ALL.  Coulomb against
+    #                       Babushkin, over the twelve lines:
+    #                           capture into 2s      2.1, 6.5, 10.2, 10.4 %
+    #                           capture into 2p     31.9, 20.5, 32.5, 35.0 %   and  39.8, 3.3, 14.1, 15.7 %
+    #                       The 2s channel is converged to ten per cent or better; the 2p channels are not,
+    #                       reaching 40 %.  That is a property of the continuum orbital rather than of this
+    #                       branch, and branch c is the one that measures whether the free-electron grid is
+    #                       responsible.  Dated with the residual quantified rather than left blank, in the
+    #                       manner of branch a of example-Fi.jl -- but a number taken from the 2p channels
+    #                       here carries a 40 % gauge uncertainty and should not be quoted without it.
+    #
     # Branch a: REFERENCE AND SMOKE CASE -- radiative recombination of He-like C (1s^2) into the n = 2 shells,
-    #   giving Li-like C. Two steps and 12 Rec lines. At ~0.6 s warm this is the cheapest branch of the whole
-    #   series and an obvious smoke-test candidate.
+    #   giving Li-like C. Two steps and 12 Rec lines; the cheapest branch of the whole series and an obvious
+    #   smoke-test candidate.
     setDefaults("print summary: open", "zzz-Cascade-Fg-reference.sum")
 
     name   = "Radiative recombination of He-like C into n = 2"
@@ -142,6 +163,31 @@ elseif  false
     #                  -- it wanders over 5.1e-16 to 8.3e-16 with no trend, because a Gauss-Legendre grid on
     #                  [0, 5000 eV] simply has too few nodes near 8.6 eV.  Only the 1e6 K column looks
     #                  converged, and branch d shows even that is suspect.
+    #
+    # Last visit:      23-Aug-2026
+    # Last successful: 23-Aug-2026 ... 92 s for the five grids.  alpha^RR [cm^3/s], kT = 8.6, 86 and 862 eV:
+    #                      points  E_max     T = 1e5       T = 1e6       T = 1e7
+    #                         4     500     3.7307e-14    5.7168e-14    5.5986e-15
+    #                        16     500     3.3324e-13    6.2644e-14    5.7797e-15
+    #                        24    2000     3.0283e-13    6.1291e-14    7.5374e-15
+    #                        32    5000     2.8333e-13    6.0825e-14    7.6587e-15
+    #                        48    5000     3.2262e-13    6.1772e-14    7.6880e-15
+    #
+    #                  BOTH PREDICTED FAILURES ARE VISIBLE, and they are of quite different size.
+    #                    * TOO FEW POINTS: at T = 1e5 the four-point grid gives 3.73e-14 against ~3e-13 for
+    #                      every larger one -- LOW BY A FACTOR OF NINE.  Four Gauss-Legendre points spread
+    #                      over 500 eV cannot resolve a Maxwellian peaked at 8.6 eV; the integrand is missed
+    #                      rather than approximated.
+    #                    * TOO SHORT A REACH: at T = 1e7 the two 500 eV grids give 5.6-5.8e-15 against
+    #                      7.5-7.7e-15 once E_max reaches 2000 eV -- 30 % low, the truncated exponential tail.
+    #                  They pull opposite ways, and no single grid here serves all three temperatures: at
+    #                  48 points and 5000 eV the two higher temperatures are converged to about 1 %, while
+    #                  T = 1e5 still scatters by +-8 % between the last three rows.
+    #
+    #                  IT ALSO VALIDATES BRANCH b RETROSPECTIVELY, which is the point of running it.  Branch b
+    #                  quotes 6.08e-14 at 1e6 K and 7.66e-15 at 1e7 K; those are the 32-point, 5000 eV row to
+    #                  the last digit printed.  So branch b's grid was an adequate choice for the temperatures
+    #                  it reports, and it is this branch rather than that one which establishes it.
     #
     # Branch c: THE FREE-ELECTRON ENERGY GRID -- the branch that decides whether any number above is worth
     #   quoting. The same rate coefficients are recomputed on a sequence of Gauss-Legendre grids of growing
