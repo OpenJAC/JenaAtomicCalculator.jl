@@ -768,5 +768,116 @@ elseif  true
     println("  disagreeing >1e-9 : ", nDisagree)
     println("  worst ratio       : ", worstRatio)
     #
+elseif  true
+    # Last visit:      23-Aug-2026
+    # Last successful:  23-Aug-2026
+    #
+    # Branch k (A DEFECT IN GRASP2018, NOT IN JAC): the one place where JAC's two-particle coefficients and
+    #   GRASP2018's disagree, and the argument that JAC is the one that is right.
+    #
+    #   WHERE IT SHOWS.  With at most TWO open subshells the two codes agree exactly -- 2p^2 61/61, 3d^2 82/82,
+    #   4f^2 152/152, 3d^3 309/309, i.e. 604 coefficients.  With THREE singly-occupied open subshells (1s^2 2p^2 3d)
+    #   six CSF pairs disagree, and not marginally: assembling the matrix element with ARBITRARY radial integrals --
+    #   legitimate because it is LINEAR in them, so agreement decides equivalence of the coefficient sets whatever the
+    #   split -- gives JAC 0.056399383 against GRASP -4.874986331 on the worst pair.
+    #
+    #   THE PAIR.  GRASP CSFs 19 and 20 of that configuration are
+    #
+    #       CSF 19:  1s ( 2)  2p-( 1)  2p ( 1)  3d-( 1)      1/2  3/2  3/2      coupling 1  ->  5/2+
+    #       CSF 20:  1s ( 2)  2p-( 1)  2p ( 1)  3d-( 1)      1/2  3/2  3/2      coupling 2  ->  5/2+
+    #
+    #   Same subshells, same J in every subshell, same total J and parity; they differ ONLY in the intermediate
+    #   coupling of 2p- with 2p.  Distinct, orthogonal CSFs of one symmetry.
+    #
+    #   THREE INDEPENDENT ARGUMENTS, none of which requires trusting either code.
+    #
+    #   (1) AN EXACT IDENTITY.  A k = 0 DIRECT term (a,b,a,b) carries C^0, which is the identity, so the operator is
+    #       n_a n_b.  Number operators are diagonal in the occupations, CSFs are orthonormal eigenstates of the
+    #       occupations, so  <i| n_a n_b |j>  =  N_a N_b delta_ij  and MUST vanish for i /= j, whatever the coupling
+    #       differs by.  GRASP emits, for the pair (20,19),
+    #
+    #           (2p- , 3d- ; 2p- , 3d-)  k=0   0.99999999999999978        = N(2p-) * N(3d-) = 1
+    #           (2p  , 3d- ; 2p  , 3d-)  k=0   0.99999999999999956        = N(2p)  * N(3d-) = 1
+    #           (1s  , 3d- ; 1s  , 3d-)  k=0   2.00000000000000000        = N(1s)  * N(3d-) = 2
+    #
+    #       -- the DIAGONAL occupation products, on an OFF-DIAGONAL pair.  JAC emits none of them, and produces a
+    #       strict subset of GRASP's terms with no extras anywhere.
+    #
+    #   (2) GRASP CONTRADICTS ITSELF, with JAC nowhere in the argument.  For that same pair its own ONESCALAR returns
+    #       NOTHING, i.e. <20| n_a |19> = 0, exactly as orthogonality requires -- while its RKCO_GG returns n_a n_b.
+    #       The one-particle and two-particle outputs of a single code disagree.
+    #
+    #   (3) THE AUTHOR DOCUMENTED THIS BUG CLASS IN 2009.  src/lib/librang90/ReadMe, in Lithuanian, opens
+    #       "Orginalioje programoje Grasp2K yra klaidu !!!!" -- there are errors in the original Grasp2K -- prescribes
+    #       inserting IF(JA.NE.JB) RETURN in rkco_gg.f, and closes: "The program computes wrongly when the calculation
+    #       contained two or more configurations whose difference reduced only to the value of the SENIORITY quantum
+    #       number."  Dated 2009.11.22, G.G.  CSFs 19 and 20 differ only in a coupling quantum number: exactly that.
+    #
+    #   WHY THE FIX DOES NOT COVER IT.  In rkco_gg.f90 the guard sits at about line 356, AFTER "IF (INCOR .LT. 1)
+    #   RETURN" and "IF (NCORE .EQ. 0) RETURN", so it protects only the CORE section.  The offending terms survive with
+    #   INCOR = 0, so they come from the MAIN path above that line, which the guard never reaches.  The onescalar half
+    #   of the same 2009 fix IS effective, which is precisely why argument (2) works.
+    #
+    #   WHY THIS SURVIVED DECADES OF USE.  The defect is narrow: it bites only CSF pairs differing solely in a
+    #   coupling or seniority label.  That is why it does not corrupt ordinary calculations, why it took a systematic
+    #   comparison to surface, and why the author had to leave a note about it at all.
+    #
+    #   WHAT THIS BRANCH CHECKS, since the GRASP numbers cannot be recomputed without the harness in tools/: that JAC
+    #   obeys the identity.  Note what the identity does and does not forbid -- and the first version of this branch
+    #   got it wrong, which is why the check is stated carefully now.  A two-body operator MAY connect two CSFs that
+    #   differ in their coupling, through exchange and through higher multipoles; JAC returns ten such coefficients
+    #   for this pair, and that is correct.  What must vanish is only the k = 0 DIRECT term, because that one alone
+    #   reduces to n_a n_b.  So the branch counts k = 0 direct terms specifically.
+    #
+    #   REPORT (23-Aug-2026): JAC returns 0 rank-0 one-particle coefficients and 0 k=0 DIRECT two-particle
+    #   coefficients for the pair, in both orderings, out of ten two-particle coefficients in total.  GRASP returns
+    #   three k=0 direct terms, equal to the occupation products.  The harness that produced the GRASP side is
+    #   tools/diag-grasp-angular.jl.
+    #
+    localRel = ConfigurationR[]
+    for  conf in [Configuration("1s^2 2p^2 3d")]
+        append!(localRel, Basics.generateConfigurations(Basics.RelativisticConfigurations(), conf))
+    end
+    localSubshells = Basics.generateSubshellList(localRel)
+    Defaults.setDefaults("relativistic subshell list", localSubshells; printout=false)
+    localCsfs = CsfR[]
+    for  relconf in localRel    append!(localCsfs, Basics.generateCsfRs(relconf, localSubshells))    end
+
+    i2pm = findfirst(sh -> string(sh) == "2p_1/2", localSubshells)
+    i2p  = findfirst(sh -> string(sh) == "2p_3/2", localSubshells)
+    i3dm = findfirst(sh -> string(sh) == "3d_3/2", localSubshells)
+
+    # ... the two CSFs that differ ONLY in the intermediate coupling of 2p- with 2p
+    cand = [i for (i,c) in enumerate(localCsfs)
+                if c.occupation[i2pm] == 1 && c.occupation[i2p] == 1 && c.occupation[i3dm] == 1 &&
+                   Basics.twice(c.J) == 5]
+    println("\n  CSFs of 1s^2 2p_1/2 2p_3/2 3d_3/2 with J = 5/2:")
+    for  i in cand
+        c = localCsfs[i]
+        println("    JAC CSF $i:  subshellX = ", Basics.twice.(c.subshellX) .// 2, "   J = $(c.J)$(string(c.parity))")
+    end
+
+    if  length(cand) >= 2
+        i, j = cand[1], cand[2]
+        n1a  = SpinAngularNew.computeCoefficients(SpinAngularNew.OneParticleOperator(0, Basics.plus),
+                                                  localCsfs[i], localCsfs[j], localSubshells)
+        n1b  = SpinAngularNew.computeCoefficients(SpinAngularNew.OneParticleOperator(0, Basics.plus),
+                                                  localCsfs[j], localCsfs[i], localSubshells)
+        o2a  = SpinAngular.computeCoefficients(SpinAngular.TwoParticleOperator(0, Basics.plus, true),
+                                               localCsfs[i], localCsfs[j], localSubshells)
+        o2b  = SpinAngular.computeCoefficients(SpinAngular.TwoParticleOperator(0, Basics.plus, true),
+                                               localCsfs[j], localCsfs[i], localSubshells)
+        nz(v)     = count(c -> abs(c.V) > 1.0e-14, v)
+        direct0(v)= count(c -> c.nu == 0 && c.a == c.c && c.b == c.d && abs(c.V) > 1.0e-14, v)
+        println("\n  JAC, for the pair (", i, ",", j, ") and its transpose:")
+        println("    rank-0 one-particle coefficients        : ", length(n1a), " and ", length(n1b),
+                "      (must be 0 -- orthogonality)")
+        println("    two-particle coefficients, all told     : ", nz(o2a), " and ", nz(o2b),
+                "    (may be non-zero: exchange and higher multipoles)")
+        println("    of those, k=0 DIRECT terms (a,b;a,b)    : ", direct0(o2a), " and ", direct0(o2b),
+                "      (must be 0 -- these reduce to n_a n_b)")
+        println("\n  GRASP2018, same pair, returns THREE k=0 direct terms: 1.0, 1.0, 2.0 -- the occupation products.")
+    end
+    #
 end
 #
