@@ -1428,9 +1428,14 @@ function simulateResonantIonizationStrengths(levels::Array{Cascade.Level,1}, sim
     iniLevel = iniLs[ argmin([level.energy for level in iniLs]) ]
     #
     sumSeq = 0.;   sumSim = 0.;   sumDr = Basics.EmProperty(0.)
-    println("\n  Resonance strengths of the resonant electron-capture channels of electron-impact ionization:")
-    println("\n    resonance         E(res) [eV]     S(sequential)     S(simultaneous)    S(recombination)   sum of branchings")
-    println("  " * "-"^116)
+    ## Every line goes to BOTH streams: the summary file is what the test suite compares against, so a table that
+    ## reached only stdout could not be regression-tested at all.
+    sayBoth = function(line::String)
+        println(line);   if  printSummary   println(iostream, line)   end
+    end
+    sayBoth("\n  Resonance strengths of the resonant electron-capture channels of electron-impact ionization:")
+    sayBoth("\n    resonance         E(res) [eV]     S(sequential)     S(simultaneous)    S(recombination)   sum of branchings")
+    sayBoth("  " * "-"^116)
     for  level in levels
         if  level.NoElectrons != nMax                                          continue   end
         # find the Auger line back to the initial GROUND level; its rate is the capture rate, by detailed balance
@@ -1478,24 +1483,20 @@ function simulateResonantIonizationStrengths(levels::Array{Cascade.Level,1}, sim
         #
         sumSeq = sumSeq + sSeq;   sumSim = sumSim + sSim;   sumDr = sumDr + sDr;   nRes = nRes + 1
         sa = "    " * TableStrings.level(nRes) * "  " * string(LevelSymmetry(level.J, level.parity)) * "  "
-        println(sa * "    " * @sprintf("%10.4f", Defaults.convertUnits("energy: from atomic to eV", en)) *
+        sayBoth(sa * "    " * @sprintf("%10.4f", Defaults.convertUnits("energy: from atomic to eV", en)) *
                 "     " * @sprintf("%.6e", sSeq) * "      " * @sprintf("%.6e", sSim) *
                 "      " * @sprintf("%.6e", sDr.Babushkin) * "        " * @sprintf("%.8f", (augerD + photonD.Babushkin)/gammaD))
     end
-    println("  " * "-"^116)
-    println("    TOTAL over $nRes resonances        " * @sprintf("%.6e", sumSeq) * "      " * @sprintf("%.6e", sumSim) *
+    sayBoth("  " * "-"^116)
+    sayBoth("    TOTAL over $nRes resonances        " * @sprintf("%.6e", sumSeq) * "      " * @sprintf("%.6e", sumSim) *
             "      " * @sprintf("%.6e", sumDr.Babushkin))
-    println("\n    Strengths are energy-integrated, in atomic units.  The last column is the sum of ALL branchings of the")
-    println("    resonance and must be 1 to machine precision: it checks the arithmetic, NOT that every decay route was")
-    println("    generated.  S(recombination) is the dielectronic-recombination strength of the SAME resonances, on the")
-    println("    same footing, so that the competition between recombination and ionization can be read off directly.")
+    sayBoth("\n    Strengths are energy-integrated, in atomic units.  The last column is the sum of ALL branchings of the")
+    sayBoth("    resonance and must be 1 to machine precision: it checks the arithmetic, NOT that every decay route was")
+    sayBoth("    generated.  S(recombination) is the dielectronic-recombination strength of the SAME resonances, on the")
+    sayBoth("    same footing, so that the competition between recombination and ionization can be read off directly.")
     if  property.dblAugerProbability <= 0.
-        println("    S(simultaneous) is identically zero because dblAugerProbability was left at 0.; see the property's")
-        println("    docstring on why the cascade does not choose that number for you.")
-    end
-    if  printSummary
-        println(iostream, "\n  Resonant-ionization strengths: sequential $sumSeq, simultaneous $sumSim, " *
-                          "recombination $(sumDr.Babushkin), over $nRes resonances.")
+        sayBoth("    S(simultaneous) is identically zero because dblAugerProbability was left at 0.; see the property's")
+        sayBoth("    docstring on why the cascade does not choose that number for you.")
     end
 
     return( nothing )

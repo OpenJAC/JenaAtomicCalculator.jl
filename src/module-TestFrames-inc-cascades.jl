@@ -119,6 +119,61 @@ end
 """
 `TestFrames.testModule_Cascade_Simulation(; short::Bool=true)`  ... tests on module Cascade.
 """
+function testModule_Cascade_ResonantIonization(; short::Bool=true)
+    Defaults.setDefaults("method: continuum, asymptotic Coulomb")    ## setDefaults("method: continuum, Galerkin")
+    Defaults.setDefaults("method: normalization, pure sine")         ## setDefaults("method: normalization, pure Coulomb")
+    Defaults.setDefaults("unit: energy", "eV")
+    Defaults.setDefaults("print summary: open", "test-Cascade-ResonantIonization-new.sum")
+    printstyled("\n\nTest the module  Cascade for the RESONANT channels of the ElectronIonizationScheme ... \n", color=:cyan)
+    ### Make the tests
+    ## Lithium-like carbon: an incident electron is CAPTURED into a doubly-excited resonance, which then sheds two
+    ## electrons and leaves the ion one charge state higher.  A cut-down version of examples/example-Fl.jl -- one
+    ## capture shell instead of two -- which brings it to ~10 s, the same order as the photo-absorption test.
+    ##
+    ## THIS IS A SANITY TEST, NOT A TEST OF THE PHYSICS, and the distinction matters here more than usual.  What it
+    ## pins down is that the scheme still runs end to end, that the resonances are still FOUND and still lie at the
+    ## same energies, and that the strengths and branchings do not move.  It does NOT establish that the numbers are
+    ## right: nothing in the suite compares them against an independent source.
+    ##
+    ## THE SHELL LISTS ARE NOT ARBITRARY.  A resonance converges to the threshold it was built on FROM BELOW, so it
+    ## can never autoionize into that same threshold; capture into 2s/2p while exciting 1s -> 2p closes the
+    ## sequential route entirely and every strength comes out zero.  The excitation list therefore spans 2p AND 3s
+    ## while the capture goes into 3s, so that the resonances sit on the 1s2s3s threshold and can reach 1s2s2p,
+    ## which still carries the K hole and autoionizes again.  A test on the closed configuration would pass just as
+    ## happily on a column of zeros, which is exactly the kind of check this file should not contain.
+    ##
+    ## Both steps are exercised, the computation and the simulation, and the results are handed over IN MEMORY,
+    ## wrapped as JLD2.load() would return them, so that no file with a run-date in its name enters the comparison.
+    grid = Radial.Grid(Radial.Grid(false); rnt = 2.0e-5, h = 5.0e-2, hp = 2.0e-2, rbox = 10.0)
+    scheme = Cascade.ElectronIonizationScheme(Float64[], [Shell("1s")], [Shell("2p"), Shell("3s")], collect(0:3), 1, 0.,
+                                              Basics.AbstractProcess[ResonantImpactIonization.SequentialAuger(),
+                                                                     ResonantImpactIonization.SimultaneousAuger()],
+                                              [Shell("3s")], 0.)
+    wa   = Cascade.Computation(Cascade.Computation(); name="Resonant ionization of Li-like C", grid=grid,
+                                nuclearModel=Nuclear.Model(6.), approach=Cascade.AverageSCA(), scheme=scheme,
+                                initialConfigs=[Configuration("1s^2 2s")] )
+    println(wa)     ## printing the computation is part of the test, see testModule_Cascade_PhotonIonization
+    wb = perform(wa; output=true, outputToFile=false)
+    #
+    ## dblAugerProbability is set to a definite 0.05 rather than left at its 0. default, so that the simultaneous
+    ## column carries numbers and a regression in it would be visible; the value itself is arbitrary and the
+    ## property's docstring says why the cascade will not choose one for you.
+    property = Cascade.ResonantIonizationStrengths(1, 0., 0.05)
+    wc = Cascade.Simulation(Cascade.Simulation(); name="Resonant ionization of Li-like C: Simulation",
+                            computationData=Dict{String,Any}[ Dict{String,Any}("results" => wb) ],
+                            property=property, settings=Cascade.SimulationSettings(false, false, 0.) )
+    wd = perform(wc; output=true)
+    ###
+    Defaults.setDefaults("print summary: close", "")
+    # Make the comparison with approved data
+    success = testCompareFiles( joinpath(@__DIR__, "..", "test", "approved", "test-Cascade-ResonantIonization-approved.sum"),
+                                joinpath(@__DIR__, "..", "test", "test-Cascade-ResonantIonization-new.sum"),
+                                "Resonance strengths of the resonant electron-capture channels", 22)
+    testPrint("testModule_Cascade_ResonantIonization()::", success)
+    return(success)
+end
+
+
 function testModule_Cascade_Simulation(; short::Bool=true)
     Defaults.setDefaults("print summary: open", "test-Cascade-Simulation-new.sum")
     printstyled("\n\nTest the module  Cascade for Simulations ... \n", color=:cyan)

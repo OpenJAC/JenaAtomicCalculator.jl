@@ -73,6 +73,7 @@ using JenaAtomicCalculator, ..Defaults, ..TestFrames
         @test TestFrames.testModule_Cascade_PhotonIonization()
         @test TestFrames.testModule_Cascade_PhotonExcitation()
         @test TestFrames.testModule_Cascade_PhotoAbsorption()
+        @test TestFrames.testModule_Cascade_ResonantIonization()
         @test  TestFrames.testModule_Cascade_Simulation()   ## re-enabled 16-Aug-2026; data file regenerated and the Simulation API call brought up to date
     end
 
