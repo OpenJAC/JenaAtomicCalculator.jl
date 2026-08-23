@@ -119,6 +119,79 @@ end
 """
 `TestFrames.testModule_Cascade_Simulation(; short::Bool=true)`  ... tests on module Cascade.
 """
+function testModule_Cascade_DielectronicCapture(; short::Bool=true)
+    Defaults.setDefaults("method: continuum, asymptotic Coulomb")    ## setDefaults("method: continuum, Galerkin")
+    Defaults.setDefaults("method: normalization, pure sine")         ## setDefaults("method: normalization, pure Coulomb")
+    Defaults.setDefaults("unit: energy", "eV")
+    Defaults.setDefaults("print summary: open", "test-Cascade-DielectronicCapture-new.sum")
+    printstyled("\n\nTest the module  Cascade for the DielectronicCaptureScheme ... \n", color=:cyan)
+    ### Make the tests
+    ## The KLL group of helium-like carbon, as in examples/example-Fm.jl.  ~1.3 s warm, the cheapest cascade
+    ## test in the file.
+    ##
+    ## THIS ONE CARRIES AN EXACT INTERNAL CHECK, which is unusual here and is the reason to prefer it over a
+    ## plain smoke run.  Dielectronic recombination IS capture followed by radiative stabilization, so the two
+    ## schemes must produce the SAME resonances with the SAME Auger widths; they differ only in what happens
+    ## afterwards.  Both are run and the rates compared one by one, and the two reach that point along
+    ## genuinely different paths through the code -- the capture scheme builds three configuration groups and
+    ## nine Auger steps, the recombination scheme a different block set with three Auger and nine radiative
+    ## steps.  Agreement to the last bit therefore constrains the resonance identification, the block
+    ## generation and the continuum orbitals at once.
+    ##
+    ## The approved comparison remains a photograph of this code's own output and establishes no physics; the
+    ## capture-against-recombination identity above is the part that could actually fail for a real reason.
+    grid   = Radial.Grid(Radial.Grid(false); rnt = 2.0e-5, h = 5.0e-2, hp = 2.0e-2, rbox = 8.0)
+    scheme = Cascade.DielectronicCaptureScheme(500.0, 0., 1, [Shell("1s")], [Shell("2s"), Shell("2p")],
+                                                [Shell("2s"), Shell("2p")])
+    wa     = Cascade.Computation(Cascade.Computation(); name="KLL dielectronic capture of He-like C", grid=grid,
+                                  nuclearModel=Nuclear.Model(6.), approach=Cascade.AverageSCA(), scheme=scheme,
+                                  initialConfigs=[Configuration("1s^2")] )
+    println(wa)     ## printing the computation is part of the test, see testModule_Cascade_PhotonIonization
+    wb = perform(wa; output=true, outputToFile=false)
+    #
+    drScheme = Cascade.DielectronicRecombinationScheme([E1], false, Shell("2p"), 500.0, 0., 0., 1, [Shell("1s")],
+                                                       [Shell("2s"), Shell("2p")], [Shell("2s"), Shell("2p")],
+                                                       [Shell("1s"), Shell("2s"), Shell("2p")])
+    wc = Cascade.Computation(Cascade.Computation(); name="KLL dielectronic recombination of He-like C", grid=grid,
+                              nuclearModel=Nuclear.Model(6.), approach=Cascade.AverageSCA(), scheme=drScheme,
+                              initialConfigs=[Configuration("1s^2")] )
+    wd = perform(wc; output=true, outputToFile=false)
+    #
+    linesC = wb["dielectronic-capture lines:"]
+    linesD = [d for d in wd["cascade data:"] if eltype(d.lines) == AutoIonization.Line][1].lines
+    ## THE LAYOUT HERE IS DICTATED BY testCompareFiles, which compares lines iold+2 ... iold+noLines: it SKIPS
+    ## the first line after the anchor and needs noLines lines to exist beyond it.  An anchor that carries the
+    ## result itself therefore has nothing to index and walks off the end of the file, which is what it did.
+    ## So the anchor is a bare header, a rule follows (skipped anyway, being under five characters of content),
+    ## and the four comparable numbers come after it.
+    printSummary, iostream = Defaults.getDefaults("summary flag/stream")
+    nFinal = length(unique([l.finalLevel.index  for l in linesC]))
+    if  length(linesC) == length(linesD)  &&  length(linesC) > 0
+        rc = sort([l.totalRate for l in linesC]);   rd = sort([l.totalRate for l in linesD])
+        sd = "    max |rate difference| / max rate:  $(maximum(abs.(rc .- rd)) / maximum(rd))"
+    else
+        sd = "    DIFFERENT COUNTS -- the two schemes disagree about which resonances exist."
+    end
+    for  line  in  [ "\n  Capture against recombination",
+                     "  ----------------------------------------------------------",
+                     "    Auger lines from the capture scheme:        $(length(linesC))",
+                     "    Auger lines from the recombination scheme:  $(length(linesD))",
+                     sd,
+                     "    distinct final levels of the capture lines: $nFinal",
+                     "    summed capture rate [a.u.]:  $(sum([l.totalRate  for l in linesC]))" ]
+        println(line);   if  printSummary   println(iostream, line)   end
+    end
+    ###
+    Defaults.setDefaults("print summary: close", "")
+    # Make the comparison with approved data
+    success = testCompareFiles( joinpath(@__DIR__, "..", "test", "approved", "test-Cascade-DielectronicCapture-approved.sum"),
+                                joinpath(@__DIR__, "..", "test", "test-Cascade-DielectronicCapture-new.sum"),
+                                "Capture against recombination", 6)
+    testPrint("testModule_Cascade_DielectronicCapture()::", success)
+    return(success)
+end
+
+
 function testModule_Cascade_ResonantIonization(; short::Bool=true)
     Defaults.setDefaults("method: continuum, asymptotic Coulomb")    ## setDefaults("method: continuum, Galerkin")
     Defaults.setDefaults("method: normalization, pure sine")         ## setDefaults("method: normalization, pure Coulomb")

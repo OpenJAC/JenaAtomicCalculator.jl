@@ -120,6 +120,7 @@ elseif  char == 'F'
     println("Fj) Cascade.HollowIonScheme: formation and decay of a hollow carbon ion.")
     println("Fk) Cascade.ExpansionOpacityScheme: bound-bound expansion opacities of Sr^+ in kilonova ejecta.")
     println("Fl) Cascade.ElectronIonizationScheme, resonant channels: resonant electron capture with sequential or simultaneous double autoionization, for lithium-like carbon.")
+    println("Fm) Cascade.DielectronicCaptureScheme: resonant capture of a free electron into doubly-excited levels, for the KLL group of helium-like carbon.")
     #
 elseif  char == 'G'
     println("G)  Examples, tests & development of symbolic evaluations of Racah expressions")
