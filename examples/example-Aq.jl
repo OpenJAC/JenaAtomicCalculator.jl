@@ -309,5 +309,94 @@ elseif  true
     end
     println("\n  matched $nMatched of $(length(graspRank)) GRASP coefficients;  worst ratio = $worstRatio")
     #
+elseif  true
+    # Last visit:      23-Aug-2026
+    # Last successful:  23-Aug-2026
+    #
+    # Branch f (COEFFICIENTS OF FRACTIONAL PARENTAGE): a subshell holding TWO electrons, which is the case branches a-e
+    #   all raise on, and the last substantial piece of the one-particle problem.
+    #
+    #   WHAT IS AND IS NOT RE-IMPLEMENTED.  G. Gaigalas's completely reduced (j Q J ||| W^(kq kj) ||| j Q' J') tables live
+    #   in module-SpinAngular-inc-reducedcoeffs.jl, stored EXACTLY as [sign, num, den] and returned as sign*sqrt(num/den).
+    #   They are data, they are his, and they are not in doubt, so they are reused rather than re-typed -- re-typing a
+    #   correct table adds risk and nothing else.  What is re-implemented is the ASSEMBLY: the quasispin Wigner-Eckart step
+    #   that turns a completely reduced element into the one for a shell of N electrons, with kq = 1 for even kj and 0 for
+    #   odd kj, and M_Q equal on both sides because the operator conserves particle number.
+    #
+    #   THE ASSEMBLY WAS ISOLATED BEFORE IT WAS TRUSTED.  Comparing SpinAngularNew.shellReducedW against
+    #   SpinAngular.irreducibleTensor(SchemeEta_W(), ...) gave ratio 1.000000 on every case -- which separates "is the
+    #   shell matrix element right?" from "is the outer normalization right?".  It was the second that was wrong, and
+    #   knowing which half to look at is most of the work.  Solving for the outer factor on four GRASP coefficients gave
+    #   1/sqrt(2J_bra+1) on all four, so
+    #
+    #       T^(k)(a,a)  =  - <j^N v J || W^(k) || j^N v' J'> * sqrt(2j+1) / ( sqrt(2k+1) * sqrt(2J_bra+1) )
+    #
+    #   REPORT (23-Aug-2026), 1s^2 3d^2 against GRASP2018 -- 16 of 16 matched, worst ratio 1.0000000000000002:
+    #
+    #     j = 5/2 (3d_5/2), TWELVE values, seniority 2 at both J = 2 and J = 4, so the CFP tables are genuinely exercised
+    #       rank 1: (2,2) 0.828078671211   (4,4) 1.511857892037
+    #       rank 2: (0,2) 2.000000000000   (2,0) 0.894427191000   (2,2) -0.638876565000   (2,4) 0.995910003310
+    #               (4,2) 0.742307488958   (4,4) 0.670059394260
+    #       rank 3: (2,2) -0.995910003310  (2,4) 1.355261854358   (4,2) 1.010152544552   (4,4) -0.273550602216
+    #     j = 3/2 (3d_3/2), FOUR values, reproducing the 2p^2 numbers exactly as a consistency check
+    #       rank 1: (2,2) 1.264911064067   rank 2: (0,2) 2.0, (2,0) 0.894427191   rank 3: (2,2) -1.264911064067
+    #
+    #   AND THE POINT OF THE WHOLE EXERCISE.  That one expression also covers RANK 0: for k = 0 the shell element is
+    #   -N sqrt((2J+1)/(2j+1)), the roots cancel, and it collapses to exactly N.  Checked here on every 3d^2 CSF, for
+    #   both j values and both seniorities: 2.000000000000000 against an occupation of 2, every time.  A single formula
+    #   for every rank is what goal (1) asked for, and this is it demonstrated rather than asserted.
+    #
+    localRel = ConfigurationR[]
+    for  conf in [Configuration("1s^2 3d^2")]
+        append!(localRel, Basics.generateConfigurations(Basics.RelativisticConfigurations(), conf))
+    end
+    localSubshells = Basics.generateSubshellList(localRel)
+    Defaults.setDefaults("relativistic subshell list", localSubshells; printout=false)
+    localCsfs = CsfR[]
+    for  relconf in localRel    append!(localCsfs, Basics.generateCsfRs(relconf, localSubshells))    end
+
+    i52 = findfirst(sh -> Basics.subshell_2j(sh) == 5, localSubshells)
+    ref52 = Dict( (1,4,4)=> 8.28078671210824901e-01, (1,8,8)=> 1.51185789203690879e+00,
+                  (2,0,4)=> 1.99999999999999956e+00, (2,4,0)=> 8.94427190999915744e-01,
+                  (2,4,4)=>-6.38876564999939944e-01, (2,4,8)=> 9.95910003310478631e-01,
+                  (2,8,4)=> 7.42307488958090178e-01, (2,8,8)=> 6.70059394260489882e-01,
+                  (3,4,4)=>-9.95910003310478409e-01, (3,4,8)=> 1.35526185435787672e+00,
+                  (3,8,4)=> 1.01015254455221060e+00, (3,8,8)=>-2.73550602216096561e-01 )
+
+    findCsf(twoJ) = findfirst(c -> c.occupation[i52] == 2  &&  Basics.twice(c.J) == twoJ  &&
+                              all(k -> k == i52 || c.occupation[k] == 0 ||
+                                       c.occupation[k] == Basics.subshell_2j(localSubshells[k])+1,
+                                  1:length(localSubshells)), localCsfs)
+
+    println("\n  3d_5/2 with two electrons, against GRASP2018")
+    println("   rank 2Jb 2Jk       GRASP2018        SpinAngularNew        ratio")
+    nMatched = 0;   worstRatio = 1.0
+    for  ((k, jb, jk), g) in sort(collect(ref52), by = x -> x[1])
+        ib = findCsf(jb);    ik = findCsf(jk)
+        (ib === nothing || ik === nothing)  &&  continue
+        coeffs = SpinAngularNew.computeCoefficients(SpinAngularNew.OneParticleOperator(k, Basics.plus),
+                                                    localCsfs[ib], localCsfs[ik], localSubshells)
+        idx = findfirst(c -> c.a == localSubshells[i52], coeffs)
+        idx === nothing  &&  continue
+        v = coeffs[idx].T;    global nMatched = nMatched + 1
+        if  abs(v/g - 1.0) > abs(worstRatio - 1.0)    global worstRatio = v/g    end
+        @printf("    %d   %d   %d   %16.12f %16.12f  %12.9f\n", k, jb, jk, g, v, v/g)
+    end
+    println("\n  matched $nMatched of $(length(ref52));   worst ratio = $worstRatio")
+
+    println("\n  and the same formula at k = 0 must give the occupation number:")
+    for  (i,c) in enumerate(localCsfs)
+        isub = findfirst(kk -> c.occupation[kk] != 0  &&
+                               c.occupation[kk] != Basics.subshell_2j(localSubshells[kk])+1, 1:length(localSubshells))
+        isub === nothing  &&  continue
+        c.occupation[isub] != 2  &&  continue
+        jj = AngularJ64( Basics.subshell_2j(localSubshells[isub])//2 )
+        w  = SpinAngularNew.shellReducedW(jj, 2, c.seniorityNr[isub], c.subshellJ[isub],
+                                                 c.seniorityNr[isub], c.subshellJ[isub], 0)
+        v  = -w * sqrt(Basics.twice(jj)+1.0) / sqrt(Basics.twice(c.J)+1.0)
+        @printf("    CSF %d  %-9s  formula = %18.15f   occupation = %d\n", i, string(localSubshells[isub]), v,
+                c.occupation[isub])
+    end
+    #
 end
 #

@@ -61,7 +61,7 @@ function computeCoefficientsNonScalar(op::SpinAngularNew.OneParticleOperator, le
         error("\n\nSpinAngularNew.computeCoefficientsNonScalar: $(length(lOpen)) open subshells.\n" *
               ">>> Stage 1b handles at most two. Use SpinAngular.computeCoefficients.\n")
     end
-    for  i in lOpen
+    for  i in (length(lOpen) == 1 ? Int64[] : lOpen)
         if  leftCsf.occupation[i] != 1  ||  rightCsf.occupation[i] != 1
             error("\n\nSpinAngularNew.computeCoefficientsNonScalar: a subshell holds more than one electron.\n" *
                   ">>> Stage 1b handles singly-occupied open subshells only; two or more electrons in one\n"     *
@@ -70,33 +70,9 @@ function computeCoefficientsNonScalar(op::SpinAngularNew.OneParticleOperator, le
         end
     end
 
-    if       length(lOpen) == 1   coeffs = nonScalarOneOpenShell( op, leftCsf, rightCsf, subshells, lOpen[1])
+    if       length(lOpen) == 1   coeffs = nonScalarSingleOpenShell(op, leftCsf, rightCsf, subshells, lOpen[1])
     elseif   length(lOpen) == 2   coeffs = nonScalarTwoOpenShells(op, leftCsf, rightCsf, subshells, lOpen)
     end
-
-    return( coeffs )
-end
-
-
-"""
-`SpinAngularNew.nonScalarOneOpenShell(op::SpinAngularNew.OneParticleOperator, leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, ia::Int64)`
-    ... to compute the rank-k coefficient of a CSF with a single, singly-occupied open subshell. The total angular momentum
-        is then that of the one electron, so the coupling tree is trivial. In GRASP's convention the coefficient is
-        sqrt(2j_a+1)/sqrt(2J+1), and since J = j_a here the two roots cancel and the value is EXACTLY 1 -- which is what
-        GRASP returns for every such pair. A list coeffs::Array{Coefficient1p{ReducedKind},1} is returned.
-"""
-function nonScalarOneOpenShell(op::SpinAngularNew.OneParticleOperator, leftCsf::CsfR, rightCsf::CsfR,
-                               subshells::Array{Subshell,1}, ia::Int64)
-    coeffs = Coefficient1p{ReducedKind}[]
-    sh     = subshells[ia]
-    if  !isAllowed1p(op, sh, sh)                                          return( coeffs )   end
-    if  leftCsf.J != rightCsf.J                                           return( coeffs )   end
-
-    # GRASP normalises by sqrt(2J_bra+1), not by sqrt(2k+1) -- MEASURED, see the header note. With a single open
-    # subshell J is j_a itself, so the two roots cancel and the coefficient is exactly 1.
-    ja2   = Basics.subshell_2j(sh)
-    value = sqrt(ja2 + 1.0) / sqrt(Basics.twice(leftCsf.J) + 1.0)
-    push!( coeffs, Coefficient1p{ReducedKind}(op.rank, sh, sh, value) )
 
     return( coeffs )
 end
@@ -148,6 +124,83 @@ function nonScalarTwoOpenShells(op::SpinAngularNew.OneParticleOperator, leftCsf:
         wa    = wa * sqrt(Basics.twice(jb) + 1.0) / sqrt(wJf)
         if  abs(wa) > 0.0    push!( coeffs, Coefficient1p{ReducedKind}(k, shb, shb, wa) )    end
     end
+
+    return( coeffs )
+end
+
+
+"""
+`SpinAngularNew.shellReducedW(j::AngularJ64, N::Int64, senBra::Int64, Jbra::AngularJ64, senKet::Int64, Jket::AngularJ64, kj::Int64)`
+    ... to compute the reduced matrix element of the shell operator W^(kj) = (a^+ x a~)^(kj) within a single subshell j^N,
+
+            <j^N v J || W^(kj) || j^N v' J'>
+
+        assembled from the quasispin representation. The coefficients of fractional parentage themselves are NOT
+        re-derived here: `SpinAngular.completelyReducedWkk` holds G. Gaigalas's completely reduced (j Q J ||| W^(kq kj) |||
+        j Q' J') as exact data -- stored as [sign, num, den] and returned as sign*sqrt(num/den) -- and re-typing a correct
+        table would add risk and nothing else. What is re-implemented is the ASSEMBLY: the quasispin Wigner-Eckart step
+        that turns the completely reduced element into the one for a shell of N electrons.
+
+        The quasispin rank follows from the angular rank, kq = 1 for even kj and kq = 0 for odd kj, and the projection is
+        M_Q = (N - (2j+1)/2)/2 on both sides since the operator conserves particle number. For kj = 0 the result is the
+        closed form -N sqrt((2J+1)/(2j+1)).
+
+        VERIFIED against `SpinAngular.irreducibleTensor(SchemeEta_W(), ...)` to ratio 1.000000 on every case tested, which
+        isolates this step from the outer normalization. A value::Float64 is returned.
+"""
+function shellReducedW(j::AngularJ64, N::Int64, senBra::Int64, Jbra::AngularJ64, senKet::Int64, Jket::AngularJ64,
+                       kj::Int64)
+    SA = JenaAtomicCalculator.SpinAngular
+    Qb = SA.qshellTermQ(j, senBra);           Qk = SA.qshellTermQ(j, senKet)
+    MQ = SA.qshellTermM(j, N)
+    ib = SA.getTermNumber(j, N, Qb, Jbra);    ik = SA.getTermNumber(j, N, Qk, Jket)
+
+    if  kj == 0
+        if  ib != ik    return( 0.0 )    end
+        return( -N * sqrt( (Basics.twice(Jbra) + 1.0) / (Basics.twice(j) + 1.0) ) )
+    end
+
+    kq = iseven(kj) ? 1 : 0
+    if  AngularMomentum.triangularDelta(Qb, AngularJ64(kq), Qk) == 0     return( 0.0 )   end
+    wa = AngularMomentum.ClebschGordan(Qk, MQ, AngularJ64(kq), AngularM64(0), Qb, MQ)
+    wa = wa * SA.completelyReducedWkk(ib, ik, kq, kj)
+    wa = wa / sqrt( (Basics.twice(Qb) + 1.0) * 2.0 )
+
+    return( wa )
+end
+
+
+"""
+`SpinAngularNew.nonScalarSingleOpenShell(op::SpinAngularNew.OneParticleOperator, leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, ia::Int64)`
+    ... to compute the rank-k coefficient of a CSF with exactly ONE open subshell, holding any number N of electrons, all
+        other subshells closed. The total angular momentum is then that of the shell, so the coupling tree contributes a
+        single factor and the whole coefficient is
+
+            T^(k)(a,a)  =  - <j^N v J || W^(k) || j^N v' J'> * sqrt(2j+1) / ( sqrt(2k+1) * sqrt(2J_bra+1) )
+
+        in GRASP's convention. THE NORMALIZATION WAS MEASURED rather than read off, as at rank > 0 elsewhere in this file:
+        with the shell matrix element independently confirmed, the outer factor was solved for on four GRASP coefficients
+        of 2p^2 spanning ranks 1, 2 and 3 and both J = 0 and J = 2, and came out 1/sqrt(2J_bra+1) on every one.
+
+        THIS ONE EXPRESSION ALSO COVERS RANK 0, which is the point of the exercise: for k = 0 the shell element is
+        -N sqrt((2J+1)/(2j+1)) and the formula collapses to exactly N, the occupation number. One expression for every
+        rank is what goal (1) asked for. A list coeffs::Array{Coefficient1p{ReducedKind},1} is returned.
+"""
+function nonScalarSingleOpenShell(op::SpinAngularNew.OneParticleOperator, leftCsf::CsfR, rightCsf::CsfR,
+                                  subshells::Array{Subshell,1}, ia::Int64)
+    coeffs = Coefficient1p{ReducedKind}[]
+    sh     = subshells[ia]
+    if  !isAllowed1p(op, sh, sh)                                          return( coeffs )   end
+
+    j  = AngularJ64( Basics.subshell_2j(sh)//2 )
+    N  = leftCsf.occupation[ia]
+    wa = shellReducedW(j, N, leftCsf.seniorityNr[ia], leftCsf.subshellJ[ia],
+                             rightCsf.seniorityNr[ia], rightCsf.subshellJ[ia], op.rank)
+    if  wa == 0.0                                                         return( coeffs )   end
+
+    value = -wa * sqrt(Basics.twice(j) + 1.0) /
+                  ( sqrt(2.0*op.rank + 1.0) * sqrt(Basics.twice(leftCsf.J) + 1.0) )
+    push!( coeffs, Coefficient1p{ReducedKind}(op.rank, sh, sh, value) )
 
     return( coeffs )
 end

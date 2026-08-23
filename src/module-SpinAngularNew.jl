@@ -33,9 +33,14 @@
     STATUS, 22-Aug-2026:  UNDER DEVELOPMENT, stage 1b.
 
     RANK 0 -- the diagonal case, and a single-electron substitution between subshells of the same kappa.
-    RANK > 0 -- CSF pairs of EQUAL occupation whose open subshells hold one electron each, at most two of them; verified
-    against GRASP2018 on 15 coefficients spanning ranks 1-3 and two values of J, and then out of sample on a set it was
-    not fitted to.
+    RANK > 0 -- (i) a SINGLE open subshell holding any number of electrons, through the coefficients of fractional
+    parentage, verified against GRASP2018 on 16 coefficients of 3d^2 including twelve at j = 5/2 with seniority 2; and
+    (ii) TWO open subshells holding one electron each, verified on 15 coefficients of 2p^2 and then out of sample on a
+    set it was not fitted to.
+
+    For a single open subshell ONE EXPRESSION covers every rank, which is what goal (1) asked for:
+    T^(k)(a,a) = -<j^N v J||W^(k)||j^N v' J'> sqrt(2j+1) / (sqrt(2k+1) sqrt(2J_bra+1)), and at k = 0 the shell element is
+    -N sqrt((2J+1)/(2j+1)), the roots cancel, and it collapses to exactly the occupation number N.
 
     Everything else RAISES. That distinction is deliberate and is the module's main safety property: an occupation pattern
     a one-body operator cannot produce returns an EMPTY LIST, because it is an exact zero, while a pattern that is merely
