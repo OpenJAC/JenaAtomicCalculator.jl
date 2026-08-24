@@ -66,8 +66,11 @@ grid = Radial.Grid(Radial.Grid(true); rnt = 4.0e-6, h = 5.0e-2, hp = 0.8e-2, rbo
 
 
 if  true
-    # Last visit:      08-Aug-2026
-    # Last successful: 08-Aug-2026 ... 2836 s at maxKappa = 20.  4 steps (2 ImpactExc + 2 Auger); 42 excitation
+    # Last visit:      24-Aug-2026
+    # Last successful: 24-Aug-2026 ... see the REPORT below; the record that follows is the 08-Aug run, whose
+    #                  numbers all still stand.
+    #
+    # Earlier record (08-Aug-2026) ... 2836 s at maxKappa = 20.  4 steps (2 ImpactExc + 2 Auger); 42 excitation
     #                  lines (3 energies x 7 level pairs x 2 excited blocks) and 14 Auger lines, written to
     #                  zzz-cascade-electron-ionization-computations-<date>.jld.  Both excited blocks are admitted
     #                  by the energetic filter, i.e. 1s2s2p and 1s2s3p both autoionize to He-like C.
@@ -84,6 +87,14 @@ if  true
     #                  Converging that point needs maxKappa well beyond 40 and hours of compute; the trend is
     #                  correct and the residual is known, which is what this ansatz is for.
     #
+    # REPORT (24-Aug-2026): re-run with six impact energies, 4063 s at maxKappa = 20.  77 excitation lines and
+    #   14 Auger lines.  Not 84 excitation lines: the 320 eV point lies BELOW the 1s -> 3p threshold, so that
+    #   block contributes only from 400 eV upwards and gives 5 x 7 lines rather than 6 x 7.  The energetic filter
+    #   admits both excited blocks as before.  Branch c confirms that the three original energies reproduce their
+    #   08-Aug cross sections to five digits, so this is an extension of the dated result and not a replacement
+    #   of it.  A pleasant incidental: the computed 1s -> 2p excitation energy is 297.3 eV against the 297.6 eV
+    #   that Arnaud & Rothenflug's fitted I_EA gives for this ion -- 0.1%, from two entirely unrelated routes.
+    #
     # Branch a: THE COMPUTATION -- excitation-autoionization of Li-like carbon.  A 1s electron is excited into
     #   2p and 3p; the resulting 1s 2s 2p and 1s 2s 3p levels lie above the He-like C limit and autoionize to
     #   1s^2.  The lines are written to a .jld file that branch c reads.  Li-like carbon is chosen because the
@@ -97,7 +108,13 @@ if  true
     ## cannot do.  At 20 the 1000 eV point is converged to 0.3%, while the 4000 eV point is still ~35% low --
     ## converging it would need maxKappa well beyond 40 and hours of compute.  Semi-converged on purpose: the
     ## trend is correct and the residual is quantified in branch b, which is what this ansatz is for.
-    scheme = Cascade.ElectronIonizationScheme([1000.0, 2000.0, 4000.0], [Shell("1s")], [Shell("2p"), Shell("3p")],
+    ## SIX energies since 24-Aug-2026, not three.  The three original points all lie at 1000 eV and above, i.e.
+    ## at 3.4x the ~297 eV threshold and beyond -- and branch d, which folds these cross sections into a rate
+    ## coefficient, then integrates over an unsampled rise.  Worse, the MAXIMUM of sigma^EA turns out to sit at
+    ## 400 eV, outside the old range altogether, 32% above the 1000 eV value.  Restoring the three original
+    ## energies reproduces the 08-Aug results exactly (see branch c), so nothing is lost by carrying all six.
+    scheme = Cascade.ElectronIonizationScheme([320.0, 400.0, 600.0, 1000.0, 2000.0, 4000.0],
+                                              [Shell("1s")], [Shell("2p"), Shell("3p")],
                                               collect(0:19), 1, 0.)
     wa     = Cascade.Computation(Cascade.Computation(); name=name, nuclearModel=Nuclear.Model(6.), grid=grid,
                                  approach=Cascade.AverageSCA(), scheme=scheme,
@@ -165,8 +182,23 @@ elseif  false
     setDefaults("print summary: close", "")
     #
 elseif  false
-    # Last visit:      08-Aug-2026
-    # Last successful: 08-Aug-2026 ... seconds, since no amplitude is recomputed.
+    # Last visit:      24-Aug-2026
+    # Last successful: 24-Aug-2026 ... seconds, since no amplitude is recomputed.  With branch a's six energies:
+    #                      E [eV]         320         400         600        1000        2000        4000
+    #                      sigma^EA    2.8220e5    2.9691e5    2.6031e5    2.2459e5    1.5557e5    7.8347e4   barn
+    #                  A REGRESSION CHECK ACROSS SIXTEEN DAYS, and it passes: the three energies that were
+    #                  computed on 08-Aug come back as 2.2459e5, 1.5557e5 and 7.8347e4 against the recorded
+    #                  2.2460e5, 1.5557e5 and 7.8350e4 -- five digits, after a full re-run of branch a on a
+    #                  different day with three extra energies in the list.
+    #                  AND THE NEW POINTS CHANGE THE PICTURE.  sigma^EA has its MAXIMUM at 400 eV, about 100 eV
+    #                  above the 297 eV threshold, and the peak value is 32% above the 1000 eV one.  Every
+    #                  energy in the original list lay on the falling side, so the maximum of the cross section
+    #                  was outside the sampled range -- invisible in the old table, and precisely what a
+    #                  Maxwellian fold needs most.  The delayed maximum itself is expected: the channel opens at
+    #                  threshold with vanishing phase space and the dipole-allowed 1s -> 2p excitation then
+    #                  carries it to a peak before the 1/E fall sets in.
+    #
+    # Superseded record (08-Aug-2026), three energies only:
     #                      E [eV]        1000        2000        4000
     #                      sigma^EA    2.2460e5    1.5557e5    7.8350e4     barn
     #                  TWO checks pass.  (i) The machinery: the simulation identifies 14 distinct autoionizing
@@ -214,42 +246,84 @@ elseif  false
     # Last visit:      23-Aug-2026 ... 4.8 s, nearly all of it compilation; the empirical evaluation itself is
     #                  sub-second.  alpha^EA = 2.2406e-11, 1.5966e-10, 2.8943e-10, 3.0973e-10 cm^3/s at
     #                  1e6, 3e6, 1e7 and 3e7 K.
-    # Last successful: unknown ... AND IT CANNOT BE SET AS THIS BRANCH STANDS, for a reason worth stating.
-    #                  The branch is titled a comparison and its text describes one, but THE CODE COMPARES
-    #                  NOTHING: it evaluates the empirical formula at four temperatures and prints it.  The
-    #                  cascade side never enters.
+    # Last visit:      24-Aug-2026
+    # Last successful: 24-Aug-2026 ... THE COMPARISON IS NOW MADE.  Cascade.EiiRateCoefficients supplies the
+    #                  Maxwellian fold that was missing, so the cascade's sigma^EA(E) becomes a rate coefficient
+    #                  and can be put beside Arnaud & Rothenflug directly.  All in cm^3/s:
     #
-    #                  Nor is the comparison implementable yet.  The cascade gives a CROSS SECTION at chosen
-    #                  impact energies (branch c) while the empirical formula gives a RATE COEFFICIENT, and the
-    #                  two are not comparable until the cross section is folded with a Maxwellian.  That fold
-    #                  is exactly what a Cascade.EiiRateCoefficients property would provide and it does not
-    #                  exist yet; the same mismatch stops branch c of example-Fl.jl.  When it exists, this
-    #                  branch becomes a real check and can be dated.
+    #                      T [K]      kT [eV]    alpha^EA(JAC)   alpha^EA(A&R)   ratio   weight above E_max
+    #                      1.0e+06      86.17     2.46119e-11     2.24060e-11    1.098        0.0000
+    #                      3.0e+06     258.52     2.04088e-10     1.59657e-10    1.278        0.0000
+    #                      1.0e+07     861.73     3.55579e-10     2.89426e-10    1.229        0.0544
+    #                      3.0e+07    2585.20     2.25738e-10     3.09731e-10    0.729        0.5421
     #
-    # Branch d: THE EMPIRICAL SIDE OF A COMPARISON THAT CANNOT YET BE MADE.
+    #                  AGREEMENT TO 10-28% WHERE THE INTEGRAL IS COMPLETE, and the one point that goes the
+    #                  other way is explained by the last column rather than by physics.  That column is the
+    #                  share of the Maxwellian weight lying above the largest impact energy computed, which the
+    #                  property prints for exactly this purpose: at 3e7 K, 54% of the weight sits beyond 4000 eV
+    #                  where sigma^EA is taken as zero, so the cascade value there is a LOWER bound and the
+    #                  property says so unprompted.  At 1e6 and 3e6 K the truncation is nil.
+    #                  THE SIGN OF THE RESIDUAL IS ALSO RIGHT.  Where the integral is complete the cascade lies
+    #                  ABOVE the fit, which is what B_a = 1 predicts: this scheme computes no radiative rates,
+    #                  so every autoionizing level is given branching ratio 1 and sigma^EA is an upper bound.
+    #                  Working against that, the cascade covers only the 1s -> 2p and 1s -> 3p channels
+    #                  requested in branch a while the fit is to the whole EA contribution -- so the two errors
+    #                  have opposite signs and 10-28% is the residual of their competition, not of either alone.
+    #                  A regression check came free: the four A&R values reproduce those recorded on 23-Aug-2026
+    #                  to every printed digit, so Empirical has not drifted under the Cascade work.
+    #
+    #                  WHAT THE COMPARISON COST.  Branch a had to be re-run with SIX impact energies rather
+    #                  than three -- 320, 400, 600, 1000, 2000, 4000 eV -- because a rate coefficient is an
+    #                  integral over energy and A&R's own threshold for this ion is I_EA = 297.6 eV, so the
+    #                  three original points at 1000 eV and above sat at 3.4x threshold or higher and left the
+    #                  entire rise unsampled.  4063 s at maxKappa = 20; 77 excitation lines, not 84, because
+    #                  the 320 eV point lies BELOW the 1s -> 3p threshold and that block is closed there.
+    #                  Incidentally the computed 1s -> 2p excitation energy comes out at 297.3 eV against
+    #                  A&R's fitted I_EA of 297.6 eV, agreeing to 0.1%.
+    #
+    # Branch d: THE CASCADE AGAINST THE SEMI-EMPIRICAL FIT, on the same quantity and in the same units.
     #   Empirical.excitationAutoionizationPlasmaAlpha with Arnaud1985EA() gives the EA contribution to the
-    #   ionization RATE COEFFICIENT for the Li-like sequence, with an explicit correction factor for carbon.
-    #   What can be said WITHOUT the cascade side is that the empirical curve is itself sensible: it rises
-    #   steeply while kT sits below the 1s -> 2p threshold of about 300 eV, and turns over between 1e7 and
-    #   3e7 K, where kT has passed it.  That is a check of Empirical, not of the cascade.
-    #   Recall also, for when the comparison becomes possible, that the cascade value is an upper bound
-    #   (B_a = 1) and covers only the 1s -> 2p, 3p channels requested in branch a, whereas the empirical
-    #   formula is fitted to the whole EA contribution.
+    #   ionization RATE COEFFICIENT for the Li-like sequence, with an explicit correction factor for carbon;
+    #   Cascade.EiiRateCoefficients folds this file's own sigma^EA(E) into the same quantity.  Both are
+    #   printed side by side, with the truncation diagnostic that says where the fold may be trusted.
+    #   READ THE TWO CAVEATS BEFORE THE RATIO.  The cascade value is an UPPER bound, since this scheme
+    #   computes no radiative rates and every autoionizing level is therefore given B_a = 1; and it covers
+    #   only the 1s -> 2p and 1s -> 3p channels requested in branch a, where the fit is to the whole EA
+    #   contribution.  Those two pull in opposite directions, so the residual is the net of them.
+    #   Branch a must have been run with the six-energy list before this branch will say anything useful; with
+    #   the original three energies at 1000 eV and above, the integral misses everything below 1000 eV.
     setDefaults("print summary: open", "zzz-Cascade-Fi-empirical.sum")
     setDefaults("nuclear: charge", 6.)
 
     fac   = Defaults.convertUnits("length: from atomic to cm", 1.0)^3 / Defaults.convertUnits("time: from atomic to sec", 1.0)
     temps = [1.0e6, 3.0e6, 1.0e7, 3.0e7]
-    println("\n  Excitation-autoionization of Li-like C: empirical rate coefficient [cm^3/s]")
-    println("  ------------------------------------------------------------------")
-    println("      T [K]         kT [eV]        alpha^EA (Arnaud & Rothenflug 1985)")
-    for  T  in  temps
-        Tau  = Defaults.convertUnits("temperature: from Kelvin to (Hartree) units", T)
+
+    ## The cascade side.  perform() wraps what the property returns under the key "data:".
+    fn  = filter(f -> startswith(f, "zzz-cascade-electron-ionization"), readdir("."))
+    if  isempty(fn)   error("Run branch a first; no cascade .jld file found in the working directory.")   end
+    fn  = joinpath(".", sort(fn, by = f -> mtime(f))[end])
+    println(">> reading cascade data from  $fn")
+    sim = Cascade.Simulation(Cascade.Simulation(); name="EA rate coefficients of Li-like C",
+                             property=Cascade.EiiRateCoefficients(1, temps, 0., 0.),
+                             method=Cascade.ProbPropagation(), computationData=[JLD2.load(fn)] )
+    aJac = perform(sim; output=true)["data:"]
+
+    println("\n  Excitation-autoionization of Li-like C: cascade against Arnaud & Rothenflug [cm^3/s]")
+    println("  ----------------------------------------------------------------------------------")
+    println("      T [K]      kT [eV]     alpha^EA (cascade)   alpha^EA (A&R 1985)    ratio")
+    for  i = 1:length(temps)
+        Tau  = Defaults.convertUnits("temperature: from Kelvin to (Hartree) units", temps[i])
         aEmp = Empirical.excitationAutoionizationPlasmaAlpha(Distribution.ElectronMaxwell(Tau),
                                                              Configuration("1s^2 2s")) * fac
-        println("   ", @sprintf("%9.1e     %8.1f        %12.4e", T, T*8.617333e-5, aEmp))
+        aCas = aJac[i].Babushkin
+        println("   ", @sprintf("%9.1e   %8.1f       %12.5e        %12.5e     %7.3f",
+                                temps[i], Defaults.convertUnits("energy: from atomic to eV", Tau), aCas, aEmp,
+                                aEmp == 0. ? 0. : aCas/aEmp))
     end
-    println("  ------------------------------------------------------------------")
+    println("  ----------------------------------------------------------------------------------")
+    println("    The TRUNCATION table printed by the property above says where this may be read: where the")
+    println("    share of the Maxwellian weight above the largest computed impact energy is not small, the")
+    println("    cascade column is a lower bound and the ratio must not be quoted.")
     setDefaults("print summary: close", "")
     #
 end

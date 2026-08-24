@@ -94,46 +94,108 @@ elseif  false
     setDefaults("print summary: close", "")
     #
 elseif  false
-    # Last visit:  23-Aug-2026
-    # Last successful:  unknown ... (this branch QUOTES example-Fi.jl's dated result rather than re-running it;
-    #                   a date is not set because nothing here is verified by running it.  To make it a real
-    #                   comparison, run Fi branch a on this same grid and put its number in by hand.)
+    # Last visit:  24-Aug-2026
+    # Last successful:  24-Aug-2026 ... seconds, once both computations exist.  THE COMPARISON IS NOW A REAL ONE:
+    #   Cascade.EiiRateCoefficients turns both channels into the same quantity, so they can simply be divided.
+    #   All in cm^3/s, Babushkin:
     #
-    # Branch c: AGAINST THE OTHER INDIRECT CHANNEL.  Of the three contributions to electron-impact ionization,
-    #   this scheme now computes two and the direct one is not implemented at all:
+    #       T [K]     kT [eV]    alpha^res      alpha^EA      res/EA     alpha^DI (Lotz)   indirect/total
+    #       1.0e+06     86.17   2.09908e-13   2.46119e-11   0.008528      1.88454e-08         0.0013
+    #       3.0e+06    258.52   4.74611e-13   2.04088e-10   0.002326      2.01413e-08         0.0101
+    #       1.0e+07    861.73   1.84744e-13   3.55579e-10   0.000520      1.71275e-08         0.0203
+    #       3.0e+07   2585.20   4.54890e-14   2.25738e-10   0.000201      1.31974e-08         0.0168
+    #
+    #   THE CONCLUSION THIS BRANCH USED TO DRAW IS WRONG, and the reason is worth more than the numbers.  It
+    #   argued that the resonances "lie between 275 and 324 eV, i.e. far below the 1000 eV at which the
+    #   impact-excitation channel was evaluated, so in a plasma cool enough to populate the resonances and not
+    #   the excitation, the resonant channel is the only one of the two that contributes at all."  That confuses
+    #   THE ENERGY AT WHICH A CROSS SECTION HAPPENED TO BE SAMPLED with THE THRESHOLD OF THE CHANNEL.  1000 eV
+    #   was merely the lowest impact energy example-Fi.jl branch a used to carry; the EA channel's threshold is
+    #   the 1s -> 2p excitation energy, 297.3 eV, which is INSIDE the resonance band of 275-324 eV.  The two
+    #   channels therefore switch on at essentially the same temperature and there is no window in which only
+    #   the resonant one contributes.  Once folded, the resonant channel is 0.85% of the EA channel at
+    #   kT = 86 eV and falls to 0.02% by kT = 2585 eV.
+    #     What survives of the old intuition is only the TREND: the ratio does fall with temperature by a factor
+    #     of 42 across this range, so the resonant channel is relatively more important in a cool plasma.  It is
+    #     never the dominant one.  Isolated resonances give alpha ~ T^(-3/2) exp(-E/T), which decays once kT
+    #     passes 2E/3, while the EA channel keeps integrating a cross section that extends to high energy -- so
+    #     the resonant channel is the one that dies away, and it dies from its own T^(-3/2), not from a threshold.
+    #
+    #   AND THE DIRECT CHANNEL DWARFS BOTH.  Empirical's Lotz rate is added above purely to give the two
+    #   indirect channels a scale, and it settles what "the total is a lower bound" is worth for this ion: the
+    #   indirect channels together are 0.13% of the total ionization rate at 1e6 K and at most 2% anywhere in
+    #   this range.  For Li-like CARBON the indirect contributions are a correction, not a rival.  That is a
+    #   statement about Z and not about the method: the EA share of the Li-like sequence grows with nuclear
+    #   charge, which is why Arnaud & Rothenflug fit it at all, and carbon sits at the bottom of that sequence.
+    #
+    # Branch c: AGAINST THE OTHER INDIRECT CHANNEL, on a common footing at last.  Of the three contributions to
+    #   electron-impact ionization, this scheme computes two and the direct one is not implemented:
     #
     #     direct                                              Cascade.ImpactIonizationScheme, NOT implemented
-    #     impact-excitation with subsequent autoionization     example-Fi.jl, 2836 s at maxKappa = 20
-    #     resonant electron capture, sequential/simultaneous   this file, 72 s
+    #     impact-excitation with subsequent autoionization     example-Fi.jl branch a, 4063 s at maxKappa = 20
+    #     resonant electron capture, sequential/simultaneous   this file branch a, ~90 s
     #
-    #   WHAT THIS BRANCH DOES NOT DO is put the two on a common footing.  Fi reports a CROSS SECTION at chosen
-    #   impact energies; this file reports ENERGY-INTEGRATED RESONANCE STRENGTHS.  The two are different
-    #   quantities and cannot be compared without folding the resonances with an electron energy distribution,
-    #   which nothing here does.  Setting them side by side would be exactly the kind of comparison that looks
-    #   quantitative and is not, so the branch prints the two numbers with their units and stops.
+    #   The branch needs BOTH .jld files present in the working directory -- example-Fi.jl branch a for the EA
+    #   channel and branch a of this file for the resonant one -- and sorts out which is which by looking for
+    #   impact-excitation lines rather than by trusting a file name.  Files that can no longer be loaded are
+    #   named and skipped rather than silently ignored: a cascade .jld written before the Radial.Grid refactor
+    #   cannot be deserialized at all, and there are usually several of those lying about.
     #
-    setDefaults("print summary: open", "zzz-Cascade-Fl-simulation.sum")
+    setDefaults("print summary: open", "zzz-Cascade-Fl-channelComparison.sum")
+    setDefaults("nuclear: charge", 6.)
     #
-    println("\n  The two indirect channels of electron-impact ionization for Li-like carbon:\n")
-    println("    impact-excitation with subsequent autoionization")
-    println("       Omega (summed collision strength) = 0.376 / 0.521 / 0.526 at 1000 / 2000 / 4000 eV")
-    println("       from example-Fi.jl branch a, dated 08-Aug-2026, at maxKappa = 20; QUOTED, not re-run here.")
-    println("    resonant electron capture, sequential")
-    println("       S = 4.164e-04 a.u., energy-integrated over the 31 resonances at 313 - 324 eV that ionize")
-    println("       from branch b of this file.")
-    println("\n    THESE ARE DIFFERENT QUANTITIES.  A collision strength at an impact energy and an")
-    println("    energy-integrated resonance strength are not comparable until the resonances are folded with an")
-    println("    electron energy distribution -- a Maxwellian, say -- which would turn both into a rate")
-    println("    coefficient.  THAT FOLD NOW EXISTS -- Cascade.EiiRateCoefficients, branch e -- but it cannot")
-    println("    close this comparison by itself: alpha^EA and alpha^res must come from ONE computation carrying")
-    println("    BOTH channels, and that costs the 47 minutes of example-Fi.jl branch a on top of this file's 90 s.")
-    println("    What CAN be said without it: the resonances lie between 275 and 324 eV, i.e. far below the")
-    println("    1000 eV at which the impact-excitation channel was evaluated, so in a plasma cool enough to")
-    println("    populate the resonances and not the excitation, the resonant channel is the only one of the two")
-    println("    that contributes at all.")
+    temperatures = [1.0e6, 3.0e6, 1.0e7, 3.0e7]
+    cands = sort(filter(f -> startswith(f, "zzz-cascade-electron-ionization"), readdir(".")),
+                 by = f -> mtime(f), rev = true)
+    ## Collected by PUSHING into an array rather than by assigning to variables declared above the loop: at top
+    ## level a `for` body that assigns to an outer name creates a new local instead, so the outer one stays
+    ## undefined.  push! mutates the container and never rebinds, so it is safe in that scope.
+    loaded = Tuple{String,Any}[]
+    for  f  in  cands
+        try     push!(loaded, (f, JLD2.load(f)))
+        catch e
+            println(">> skipping $f -- it cannot be loaded: ", first(split(sprint(showerror, e), "\n")))
+        end
+    end
+    hasExc(d) = haskey(d["results"], "impact-excitation lines:")  &&  length(d["results"]["impact-excitation lines:"]) > 0
+    iEA  = findfirst(p ->  hasExc(p[2]), loaded)
+    iRes = findfirst(p -> !hasExc(p[2]), loaded)
+    if  iEA  === nothing  error("No loadable cascade file with impact-excitation lines: run example-Fi.jl branch a.")  end
+    if  iRes === nothing  error("No loadable cascade file with resonances: run branch a of this file.")                end
+    dEA  = loaded[iEA];    println(">> EA channel from        $(dEA[1])")
+    dRes = loaded[iRes];   println(">> resonant channel from  $(dRes[1])")
+    #
+    simEA  = Cascade.Simulation(Cascade.Simulation(); name="EA channel",
+                                property=Cascade.EiiRateCoefficients(1, temperatures, 0., 0.),
+                                method=Cascade.ProbPropagation(), computationData=[dEA[2]] )
+    aEA    = perform(simEA;  output=true)["data:"]
+    simRes = Cascade.Simulation(Cascade.Simulation(); name="resonant channel",
+                                property=Cascade.EiiRateCoefficients(1, temperatures, 0., 0.),
+                                method=Cascade.ProbPropagation(), computationData=[dRes[2]] )
+    aRes   = perform(simRes; output=true)["data:"]
+    #
+    fac   = Defaults.convertUnits("length: from atomic to cm", 1.0)^3 / Defaults.convertUnits("time: from atomic to sec", 1.0)
+    iConf = Configuration("1s^2 2s");   fConf = Configuration("1s^2")
+    println("\n  The three channels of electron-impact ionization for Li-like carbon [cm^3/s]:\n")
+    println("      T [K]     kT [eV]     alpha^res       alpha^EA      res/EA     alpha^DI(Lotz)   indirect/total")
+    for  i = 1:length(temperatures)
+        Tau = Defaults.convertUnits("temperature: from Kelvin to (Hartree) units", temperatures[i])
+        ## the Lotz rate announces its Gauss-Legendre grid on every call, which would interleave with the table
+        aDI = redirect_stdout(devnull) do
+                  Empirical.impactIonizationPlasmaAlpha(Distribution.ElectronMaxwell(Tau), iConf, fConf) * fac
+              end
+        r   = aRes[i].Babushkin;   e = aEA[i].Babushkin
+        println("   ", @sprintf("%9.1e   %8.2f   %.5e   %.5e   %8.6f     %.5e      %8.4f",
+                temperatures[i], Defaults.convertUnits("energy: from atomic to eV", Tau), r, e,
+                e == 0. ? 0. : r/e, aDI, (r + e)/(r + e + aDI)))
+    end
+    println("\n    alpha^DI is the DIRECT channel from Empirical (Lotz), which the cascade cannot supply; it is")
+    println("    shown only to give the two indirect channels a scale.  Read the truncation table printed above")
+    println("    for alpha^EA before quoting any ratio at the highest temperature.")
     #
     setDefaults("print summary: close", "")
     #
+
 elseif  false
     # Last successful:  23-Aug-2026
     #   [PROVENANCE: as branch a.]
