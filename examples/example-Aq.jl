@@ -879,5 +879,98 @@ elseif  true
         println("\n  GRASP2018, same pair, returns THREE k=0 direct terms: 1.0, 1.0, 2.0 -- the occupation products.")
     end
     #
+elseif  true
+    # Last visit:      24-Aug-2026
+    # Last successful:  24-Aug-2026
+    #
+    # Branch l (THE TWO-PARTICLE DIAGONAL CASE, COMPLETE): the electron-electron coefficients from SpinAngularNew
+    #   against SpinAngular's, compared as complete LISTS rather than term by term -- so that a coefficient present on
+    #   one side and absent on the other counts as a failure rather than going unnoticed.
+    #
+    #   THREE TERMS, EACH SETTLED SEPARATELY AND EACH THE SUBJECT OF A WRONG TURN WORTH RECORDING.
+    #
+    #   (1) DIRECT, between two distinct subshells. The scalar product of two rank-k tensors, one on each subshell, so
+    #       it reuses shellReducedW and substitutionRecoupling with both ranks equal to k coupled to zero. Its reach was
+    #       MEASURED rather than assumed -- exact in all four occupation classes, closed/closed, closed/open,
+    #       closed/single, single/single.
+    #
+    #       THE WRONG TURN: a closed form fitted to CLOSED-SHELL data, which gave this term right at k = 0 and wrong
+    #       everywhere else. A closed shell forces J = 0 and hides the J-dependence entirely, so the set it was fitted
+    #       on could not discriminate. It was withdrawn rather than shipped.
+    #
+    #   (2) EXCHANGE, between two distinct subshells. Not the direct term relabelled: it expands over the direct
+    #       channel at intermediate ranks by the Racah transformation,
+    #
+    #           V^k(a,b;b,a) = sum_K (2K+1) { j_a j_b k ; j_b j_a K } V^K(a,b;a,b)
+    #
+    #       arrived at BY ELIMINATION. Of five candidate 6j orderings three VANISH at ranks where the coefficient does
+    #       not, which refutes them outright; of the two survivors only the phase (-1)^(j_a+j_b+k) holds. The general
+    #       sum then had to reproduce that collapsed case before replacing it.
+    #
+    #   (3) SAME-SUBSHELL. The two-body quasispin object, LESS a normal-ordering correction:
+    #
+    #           V^k(a,a;a,a) = 0.5 * ( WW(k)/sqrt(2k+1) - (-1)^(2j+k) W(0)/sqrt(2j+1) ) / sqrt(2J+1)
+    #
+    #       THE WRONG TURN HERE IS THE INSTRUCTIVE ONE. Two attempts computed WW and compared it DIRECTLY against the
+    #       coefficient. It disagrees everywhere -- for j = 3/2, N = 2, J = 0 the coefficient is 0.25 at every rank
+    #       while WW gives 1.0, 0, 2.236, 0 -- and I recorded that as refuting the closure ROUTE. That was wrong twice
+    #       over: the route is what SpinAngular itself uses, and the object was already correct. What was missing was
+    #       the factor of one half and the subtraction. A route wrongly marked dead does not get revisited, which is
+    #       why the withdrawal was worth its own commit.
+    #
+    #       Physically the subtraction is not decoration: both operators act on one shell, so the two-body object
+    #       counts each electron with itself, and that self-interaction is removed by the rank-0 one-body element --
+    #       not by anything rank-dependent.
+    #
+    #   REPORT (24-Aug-2026), complete lists over nine configurations:
+    #
+    #       configuration        CSFs   matched   missing   extra
+    #       1s^2 2s^2 2p^2          5        95         0       0
+    #       1s^2 3d^2               9       115         0       0
+    #       1s^2 3d^3              19       345         0       0
+    #       1s^2 2s^2 2p^4          5       127         0       0
+    #       1s^2 2s 2p              4        48         0       0
+    #       1s^2 2p^2 3s            8       151         0       0
+    #       1s^2 3d^2 4s           16       350         0       0
+    #       1s^2 2s^2 2p 3d        12       308         0       0
+    #       1s^2 4f^2              13       205         0       0
+    #       TOTAL                          1744         0       0     worst ratio 1.000000000000
+    #
+    #   OFF-DIAGONAL CSF PAIRS STILL RAISE, and that is the remaining gap. Such a pair needs recoupling this code does
+    #   not do, and returning the diagonal answer for it would be a wrong number rather than a missing one.
+    #
+    localCfgs = ["1s^2 2s^2 2p^2", "1s^2 3d^2", "1s^2 3d^3", "1s^2 2s^2 2p^4", "1s^2 2s 2p",
+                 "1s^2 2p^2 3s", "1s^2 3d^2 4s", "1s^2 2s^2 2p 3d", "1s^2 4f^2"]
+    tMatched = 0;   tMissing = 0;   tExtra = 0;   tWorst = 1.0
+    println("\n  configuration        CSFs  matched  missing  extra   worst ratio")
+    for  cfg in localCfgs
+        localRel = Basics.generateConfigurations(Basics.RelativisticConfigurations(), Configuration(cfg))
+        localSub = Basics.generateSubshellList(localRel)
+        Defaults.setDefaults("relativistic subshell list", localSub; printout=false)
+        local localCsfs = CsfR[]
+        for  relconf in localRel    append!(localCsfs, Basics.generateCsfRs(relconf, localSub))    end
+        local nm = 0;  local nn = 0;  local nx = 0;  local wr = 1.0
+        for  c in localCsfs
+            old = [x for x in SpinAngular.computeCoefficients(SpinAngular.TwoParticleOperator(0, Basics.plus, true),
+                                                              c, c, localSub)   if abs(x.V) > 1.0e-14]
+            new = SpinAngularNew.computeCoefficients(SpinAngularNew.TwoParticleOperator(), c, c, localSub)
+            kk(x) = (x.nu, string(x.a), string(x.b), string(x.c), string(x.d))
+            dOld = Dict{Any,Float64}();   for x in old   dOld[kk(x)] = get(dOld,kk(x),0.0) + x.V   end
+            dNew = Dict{Any,Float64}();   for x in new   dNew[kk(x)] = get(dNew,kk(x),0.0) + x.V   end
+            for  (k,v) in dOld
+                if  haskey(dNew,k)
+                    nm += 1;   r = v/dNew[k];   abs(r-1) > abs(wr-1) && (wr = r)
+                else    nn += 1
+                end
+            end
+            for  k in keys(dNew)    haskey(dOld,k) || (nx += 1)    end
+        end
+        @printf("  %-18s %4d %8d %8d %6d   %.12f\n", cfg, length(localCsfs), nm, nn, nx, wr)
+        global tMatched += nm;  global tMissing += nn;  global tExtra += nx
+        abs(wr-1) > abs(tWorst-1) && (global tWorst = wr)
+    end
+    println("")
+    @printf("  TOTAL matched %d   missing %d   extra %d   worst ratio %.12f\n", tMatched, tMissing, tExtra, tWorst)
+    #
 end
 #

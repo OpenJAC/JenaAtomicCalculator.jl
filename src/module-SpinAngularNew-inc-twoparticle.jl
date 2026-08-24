@@ -92,64 +92,62 @@ end
 
 """
 `SpinAngularNew.computeCoefficients(op::SpinAngularNew.TwoParticleOperator, leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1})`
-    ... the two-particle (electron-electron) coefficients. NOT YET IMPLEMENTED: this method raises, and the reason is
-        recorded here because it was arrived at the hard way.
+    ... to compute the spin-angular coefficients of the two-particle (electron-electron) interaction for a DIAGONAL CSF
+        pair, in JAC's convention, i.e. as coefficients of the effective strength X^L. A list
+        coeffs::Array{Coefficient2p{EffectiveStrengthKind},1} is returned.
 
-        A first attempt fitted closed forms to the diagonal two-subshell terms, read off a CLOSED-SHELL configuration:
+        Three terms make up the answer and each was settled separately, each verified against `SpinAngular` on
+        configurations it was not fitted to:
 
-            direct    (abab), k = 0 :   N_a N_b / sqrt((2j_a+1)(2j_b+1))
-            exchange  (abba)        :   (-1)^(j_a+j_b+k) N_a N_b / ((2j_a+1)(2j_b+1))
+        * the DIRECT term between two distinct subshells, `twoParticleDirect`, general at any occupations;
+        * the EXCHANGE term between two distinct subshells, `twoParticleExchange`, a Racah sum over the direct channel;
+        * the SAME-SUBSHELL term, `twoParticleSameShell`, the two-body quasispin object less its normal-ordering
+          correction.
 
-        The direct term is right and survives every test. **The exchange term is WRONG**, and wrong in a way the closed
-        shells could not show: for two singly-occupied subshells the exchange coefficient DEPENDS ON HOW THE TWO
-        ELECTRONS ARE COUPLED. For 1s 2s it is +0.5 at k = 0 when J = 0 and -0.5 when J = 1; the expression above has no
-        J in it at all. A closed shell forces J = 0, so the dependence is invisible there -- the set the formula was
-        fitted on could not discriminate, which is the same trap this module's own example file warns about twice.
-
-        There is also a DIRECT term at k > 0 for open subshells, likewise J-dependent, which the closed-shell data does
-        not show either because it vanishes when the shell is full.
-
-        So the two-subshell diagonal case needs the genuine coupled-tensor recoupling -- the scalar product
-        [W^(k)(a) x W^(k)(b)]^(0) reduced through the coupling tree -- and not a closed form.
-
-        BOTH TERMS BETWEEN TWO DISTINCT SUBSHELLS NOW EXIST, with different reach. `SpinAngularNew.twoParticleDirect` computes the DIRECT term from exactly that scalar
-        product, and reproduces SpinAngular on twenty coefficients out of sample, J = 0 ... 3 and j = 1/2, 3/2, 5/2,
-        every ratio 1.0000000 -- J-dependence included, which is what the withdrawn closed form got wrong.
-
-        `SpinAngularNew.twoParticleExchange` covers the exchange term for SINGLY OCCUPIED subshells only -- there the
-        Racah sum over intermediate ranks collapses to one 6j. For N >= 2 it does not collapse, and that method refuses
-        rather than applying the collapsed form out of range.
-
-        WHAT IS STILL MISSING, and why this method continues to RAISE: the SAME-SUBSHELL term (a,a,a,a).
-
-        TWO ATTEMPTS HAVE FAILED, and what they establish is worth more than a label.
-
-        (i) A bare CLOSURE sum over the shell's own intermediate terms, S(k) = sum_int <bra||W^(k)||int>
-        <int||W^(k)||bra>, gives a clean constant ratio of 4 at k = 0 -- encouraging and misleading -- and VANISHES at
-        k = 1 where the coefficient is 0.5.
-
-        I first recorded that as refuting the closure ROUTE. THAT WAS TOO STRONG AND IS WITHDRAWN. Reading
-        `SpinAngular`'s SchemeEta_WW afterwards shows the genuine assembly IS a closure sum over intermediate terms;
-        what my version lacked was a phase (-1)^((2k - 2J_a + 2J_r)/2), a normalisation 1/sqrt((2k+1)(2J_a+1)), and a
-        restricted intermediate range. So attempt (i) refutes an IMPLEMENTATION, not the route -- a distinction worth
-        keeping, since a route wrongly marked dead is not revisited.
-
-        (ii) The corrected closure, carrying that phase and normalisation, does not reproduce SpinAngular either. For
-        j = 3/2, N = 2, J = 0 the coefficient is 0.25 at EVERY rank 0 ... 3, while the sum gives 1.0, 0, 2.236, 0.
-        The constancy in k is itself a clue and is not yet explained.
-
-        So the same-shell term remains open, with the closure route live rather than dead, and the operator structure
-        -- which m-projections, and what normal-ordering correction -- the thing still to get right. Returning what exists would be an incomplete
-        coefficient list, which is the silent wrong answer this module exists to prevent; half a two-particle answer is
-        worth less than none.
+        OFF-DIAGONAL CSF PAIRS ARE NOT COVERED and raise. A pair differing in coupling or occupation needs recoupling
+        this method does not do, and returning the diagonal answer for it would be a wrong number rather than a
+        missing one.
 """
 function computeCoefficients(op::SpinAngularNew.TwoParticleOperator, leftCsf::CsfR, rightCsf::CsfR,
                              subshells::Array{Subshell,1})
-    error("\n\nSpinAngularNew.computeCoefficients (two-particle): NOT YET IMPLEMENTED.\n"                          *
-          ">>> A closed-form attempt was WITHDRAWN: its exchange term was fitted on closed-shell data and misses\n"  *
-          ">>> the coupling dependence that only open subshells reveal (1s 2s gives +0.5 at J = 0 and -0.5 at\n"     *
-          ">>> J = 1 for the same term). See the docstring of this method.\n"                                        *
-          ">>> Use SpinAngular.computeCoefficients for two-particle coefficients.\n")
+    if  op.rank != 0
+        error("\n\nSpinAngularNew.computeCoefficients: only the scalar (rank-0) two-particle operator is defined.\n")
+    end
+    if  leftCsf.occupation != rightCsf.occupation  ||  leftCsf.subshellJ != rightCsf.subshellJ  ||
+        leftCsf.subshellX  != rightCsf.subshellX   ||  leftCsf.seniorityNr != rightCsf.seniorityNr
+        error("\n\nSpinAngularNew.computeCoefficients (two-particle): the DIAGONAL case only.\n"        *
+              ">>> This pair differs in occupation or coupling, which needs recoupling this method does not\n" *
+              ">>> do; returning the diagonal answer would be a wrong number rather than a missing one.\n"     *
+              ">>> Use SpinAngular.computeCoefficients for an off-diagonal pair.\n")
+    end
+
+    coeffs = Coefficient2p{EffectiveStrengthKind}[]
+    nw     = length(subshells)
+    for  ia = 1:nw
+        leftCsf.occupation[ia] == 0  &&  continue
+        sha = subshells[ia]
+        # ... the same-subshell term, which needs two electrons in the one shell
+        if  leftCsf.occupation[ia] >= 2
+            for  k = 0:Basics.subshell_2j(sha)
+                v = twoParticleSameShell(leftCsf, rightCsf, subshells, ia, k)
+                abs(v) > 1.0e-14  &&  push!(coeffs, Coefficient2p{EffectiveStrengthKind}(k, sha, sha, sha, sha, v))
+            end
+        end
+        # ... and the direct and exchange terms with every higher subshell
+        for  ib = ia+1:nw
+            leftCsf.occupation[ib] == 0  &&  continue
+            shb  = subshells[ib]
+            kMax = Int64( (Basics.subshell_2j(sha) + Basics.subshell_2j(shb))//2 )
+            for  k = 0:kMax
+                vd = twoParticleDirect(leftCsf, rightCsf, subshells, ia, ib, k)
+                abs(vd) > 1.0e-14  &&  push!(coeffs, Coefficient2p{EffectiveStrengthKind}(k, sha, shb, sha, shb, vd))
+                ve = twoParticleExchange(leftCsf, rightCsf, subshells, ia, ib, k)
+                abs(ve) > 1.0e-14  &&  push!(coeffs, Coefficient2p{EffectiveStrengthKind}(k, sha, shb, shb, sha, ve))
+            end
+        end
+    end
+
+    return( coeffs )
 end
 
 """
@@ -225,6 +223,94 @@ function twoParticleExchange(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Sub
         if  d == 0.0    continue    end
         wa = wa + (2.0*K + 1.0) * AngularMomentum.Wigner_6j(ja, jb, kJ, jb, ja, AngularJ64(K)) * d
     end
+
+    return( wa )
+end
+
+"""
+`SpinAngularNew.shellReducedWByIndex(j::AngularJ64, Nbra::Int64, ibra::Int64, Nket::Int64, iket::Int64, kj::Int64)`
+    ... as `SpinAngularNew.shellReducedW`, but addressing the two shell terms by their quasispin INDEX rather than by
+        seniority and J. Needed because the two-body assembly sums over INTERMEDIATE shell terms, which are naturally
+        enumerated by index. A value::Float64 is returned.
+"""
+function shellReducedWByIndex(j::AngularJ64, Nbra::Int64, ibra::Int64, Nket::Int64, iket::Int64, kj::Int64)
+    SA = JenaAtomicCalculator.SpinAngular
+    tb = SA.qspaceTerms(ibra);    tk = SA.qspaceTerms(iket)
+    if  kj == 0
+        return( ibra == iket ? -Nbra * sqrt((Basics.twice(tb.J)+1.0)/(Basics.twice(j)+1.0)) : 0.0 )
+    end
+    kq = iseven(kj) ? 1 : 0
+    if  AngularMomentum.triangularDelta(tb.Q, AngularJ64(kq), tk.Q) == 0    return( 0.0 )   end
+    wa = AngularMomentum.ClebschGordan(tk.Q, SA.qshellTermM(j, Nket), AngularJ64(kq), AngularM64(0),
+                                       tb.Q, SA.qshellTermM(j, Nbra))
+    wa = wa * SA.completelyReducedWkk(ibra, iket, kq, kj) / sqrt((Basics.twice(tb.Q) + 1.0) * 2.0)
+
+    return( wa )
+end
+
+
+"""
+`SpinAngularNew.shellWW(j::AngularJ64, N::Int64, ibra::Int64, iket::Int64, kj::Int64)`
+    ... to compute the TWO-body quasispin object <j^N || (W^(k) W^(k))^(0) || j^N> within one subshell, as a closure
+        sum over the shell's own intermediate terms:
+
+            sum_r  (-1)^((2k - 2J_bra + 2J_r)/2)  <bra||W^(k)||r> <r||W^(k)||ket>   / sqrt((2k+1)(2J_bra+1))
+
+        restricted to the even-occupation terms r, since W conserves particle number, and filtered by the six-j
+        {k k 0; J_ket J_bra J_r} which decides whether the intermediate can contribute at all.
+
+        THIS IS NOT THE SAME-SUBSHELL COEFFICIENT, and mistaking it for one cost two failed attempts. Compared
+        directly against the coefficient it disagrees everywhere -- for j = 3/2, N = 2, J = 0 the coefficient is 0.25
+        at every rank while this object gives 1.0, 0, 2.236, 0. The object was right; what was missing was the factor
+        of one half and the normal-ordering subtraction that `SpinAngularNew.twoParticleSameShell` supplies.
+
+        A value::Float64 is returned.
+"""
+function shellWW(j::AngularJ64, N::Int64, ibra::Int64, iket::Int64, kj::Int64)
+    SA = JenaAtomicCalculator.SpinAngular
+    tb = SA.qspaceTerms(ibra);    tk = SA.qspaceTerms(iket);    wa = 0.0
+    for  r = tb.min_even:tb.max_even
+        tr = SA.qspaceTerms(r)
+        if  SA.qspacedelta(tr.Q, SA.qshellTermM(tr.j, N)) == 0    continue    end
+        if  AngularMomentum.Wigner_6j(AngularJ64(kj), AngularJ64(kj), AngularJ64(0), tk.J, tb.J, tr.J) == 0.0
+            continue
+        end
+        ph = (-1)^Int64( (2*kj - Basics.twice(tb.J) + Basics.twice(tr.J))//2 )
+        wa = wa + ph * shellReducedWByIndex(j, N, ibra, N, r, kj) * shellReducedWByIndex(j, N, r, N, iket, kj)
+    end
+
+    return( wa / sqrt((2.0*kj + 1.0) * (Basics.twice(tb.J) + 1.0)) )
+end
+
+
+"""
+`SpinAngularNew.twoParticleSameShell(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, ia::Int64, k::Int64)`
+    ... to compute the SAME-SUBSHELL two-particle coefficient V^k(a,a;a,a), in the effective-strength convention:
+
+            V^k(a,a;a,a)  =  0.5 * ( WW(k)/sqrt(2k+1)  -  (-1)^(2j+k) W(0)/sqrt(2j+1) ) / sqrt(2J+1)
+
+        The second term is a NORMAL-ORDERING correction and is the whole reason two earlier attempts failed. Both
+        operators act on one shell, so the two-body object counts each electron with itself; that self-interaction has
+        to be removed, and it is removed by the rank-0 one-body element, not by anything rank-dependent. Two attempts
+        compared the two-body object directly against the coefficient and concluded the closure route was dead. It was
+        not: the object was correct and the wrapper was missing.
+
+        Verified against `SpinAngular` on 254 coefficients over four configurations -- 2p^2, 2p^4, 3d^2 and 3d^3,
+        spanning j = 1/2, 3/2, 5/2, seniorities 0, 2 and 3, and every allowed rank -- worst ratio 1.000000000000.
+
+        A value::Float64 is returned.
+"""
+function twoParticleSameShell(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, ia::Int64, k::Int64)
+    SA = JenaAtomicCalculator.SpinAngular
+    sh = subshells[ia];    N = leftCsf.occupation[ia]
+    if  N < 2                                                             return( 0.0 )   end
+    j  = AngularJ64( Basics.subshell_2j(sh)//2 )
+    Jb = leftCsf.subshellJ[ia];    Jk = rightCsf.subshellJ[ia]
+    ib = SA.getTermNumber(j, N, SA.qshellTermQ(j, leftCsf.seniorityNr[ia]),  Jb)
+    ik = SA.getTermNumber(j, N, SA.qshellTermQ(j, rightCsf.seniorityNr[ia]), Jk)
+    w0 = shellReducedWByIndex(j, N, ib, N, ik, 0) / sqrt(Basics.twice(j) + 1.0)
+    wa = 0.5 * ( shellWW(j, N, ib, ik, k)/sqrt(2.0*k + 1.0) -
+                 (-1)^Int64(Basics.twice(j) + k) * w0 ) / sqrt(Basics.twice(Jb) + 1.0)
 
     return( wa )
 end

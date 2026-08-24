@@ -43,9 +43,13 @@
     adjacent subshells and 14 between subshells separated by two others, where the Jordan-Wigner string spans three
     subshells and so is actually tested.
 
-    TWO-PARTICLE (electron-electron) -- NOT implemented; `computeCoefficients` for a `TwoParticleOperator` RAISES. What
-    exists is the groundwork, and it is worth having: the `Coefficient2p{K}` type, which encodes a hazard discovered the
-    hard way -- JAC's coefficient multiplies the effective strength X^L, and the SAME coefficient serves Coulomb, Breit and
+    TWO-PARTICLE (electron-electron) -- the DIAGONAL case is COMPLETE. Three terms, each settled and verified
+    separately: the direct and exchange terms between two distinct subshells at any occupations, and the same-subshell
+    term. Checked against `SpinAngular` on 1744 coefficients over nine configurations, term for term, with NOTHING
+    missing and NOTHING extra on either side and a worst ratio of 1.000000000000. Off-diagonal CSF pairs still raise.
+
+    Also part of the groundwork, and worth having on its own: the `Coefficient2p{K}` type, which encodes a hazard
+    discovered the hard way -- JAC's coefficient multiplies the effective strength X^L, and the SAME coefficient serves Coulomb, Breit and
     Gaunt because the structure distinguishing them lives in X^L; GRASP's COULOMB coefficient instead multiplies the
     plain Slater integral R^k, while its Breit coefficients multiply one of six integral kinds chosen by a type tag, so
     that convention does not generalise -- plus `toGraspCoulomb`, a numerical bridge built here (NOT a relation either
