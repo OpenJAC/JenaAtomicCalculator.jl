@@ -99,8 +99,16 @@ function testModule_Cascade_PhotonIonization(; short::Bool=true)
     name = "Ne^+ 2p photo-ionization at 80 eV"
     grid = Radial.Grid(Radial.Grid(false); rnt = 3.0e-6, h = 2.0e-2, hp = 3.0e-2, rbox = 11.0)
     wa   = Cascade.Computation(Cascade.Computation(); name=name, nuclearModel=Nuclear.Model(10.), grid=grid, approach=Cascade.AverageSCA(),
+                                ## LevelSelection(true, indices=[1]) EXPLICITLY, since 24-Aug-2026.  This test asked for
+                                ## LevelSelection(), i.e. an INACTIVE selection meaning every initial level -- and its
+                                ## approved file records five lines, the ground level alone.  It got that only because
+                                ## Cascade.computeSteps ignored the field and hard-wired index 1; when the field was
+                                ## honoured again the test computed both levels of the 2p^5 hole, ten lines, and failed.
+                                ## The reference is right and the request was wrong: the ground-level computation is
+                                ## what has always been compared here, so it is now asked for rather than obtained by
+                                ## accident.  No approved file is re-approved.
                                 scheme=Cascade.PhotoIonizationScheme([E1], [80.0], Float64[], [Shell("2p")], Shell[],
-                                                                     LevelSelection(), [0,1,2], 0., 0.),
+                                                                     LevelSelection(true, indices=[1]), [0,1,2], 0., 0.),
                                 initialConfigs=[Configuration("1s^2 2s^2 2p^5")] )
     println(wa)     ## printing the computation is part of the test, see above
     wb = perform(wa; output=true, outputToFile=false)

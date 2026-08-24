@@ -14,6 +14,30 @@ setDefaults("standard grid", grid)
 ## Radial.Grid(true) must NOT be used here: it carries hp = 0, and the continuum orbitals of an Auger step
 ## then cannot be generated at all.
 
+
+## PICKING THE RIGHT .jld MATTERS HERE, and it did not use to.  Every branch of this file wants the RESONANT data
+## that branch a writes -- but example-Fi.jl writes files with the SAME prefix into the SAME directory, and
+## readdir(".")[end] sorts ALPHABETICALLY, so as soon as both exist it silently returns whichever name happens to
+## sort last.  On 24-Aug-2026 that was Fi's, and branch e duly folded the excitation-autoionization data while
+## reporting them as resonant.  Nothing in the output said so.  Choose by CONTENT instead: the resonant data are the
+## ones carrying no impact-excitation lines.  Files that no longer load are named and skipped rather than ignored.
+function resonantCascadeFile()
+    cands = sort(filter(f -> startswith(f, "zzz-cascade-electron-ionization"), readdir(".")), by = f -> mtime(f), rev = true)
+    for  f  in  cands
+        local d
+        try     d = JLD2.load(f)
+        catch e println(">> skipping $f -- it cannot be loaded: ", first(split(sprint(showerror, e), "\n")));   continue
+        end
+        res = d["results"]
+        if  !( haskey(res, "impact-excitation lines:")  &&  length(res["impact-excitation lines:"]) > 0 )
+            println(">> resonant cascade data from  $f");    return( (f, d) )
+        end
+    end
+    error("No loadable cascade file WITHOUT impact-excitation lines was found in the working directory; " *
+          "run branch a of this file first.")
+end
+
+
 if  true
     # Last successful:  23-Aug-2026
     #   [PROVENANCE: produced on Julia 1.10.9, with a Manifest re-resolved for 1.10 because the checkout's Manifest had
@@ -72,11 +96,10 @@ elseif  false
     #
     setDefaults("print summary: open", "zzz-Cascade-Fl-simulation.sum")
     #
-    fn = filter(f -> startswith(f, "zzz-cascade-electron-ionization"), readdir("."))[end]
-    println(">> reading $fn")
+    fn, dat = resonantCascadeFile()
     sim = Cascade.Simulation(Cascade.Simulation(); name="Resonant ionization, strengths",
                              property=Cascade.ResonantIonizationStrengths(1, 0., 0.),
-                             method=Cascade.ProbPropagation(), computationData=[JLD2.load(fn)] )
+                             method=Cascade.ProbPropagation(), computationData=[dat] )
     perform(sim; output=false)
     println("\n     CORRECTED 24-Aug-2026.  The two totals differ by a factor of about two, and reading that as")
     println("     the competition between the two fates of a resonance is WRONG: they are sums over almost")
@@ -236,12 +259,12 @@ elseif  false
     println("       charges is the wrong setup and inflates this several-fold; it gave 0.21 when tried.")
     #
     println("\n  (ii) what that does to the simultaneous channel")
-    fn = filter(f -> startswith(f, "zzz-cascade-electron-ionization"), readdir("."))[end]
+    fn, dat = resonantCascadeFile()
     for p in [0.0, pDbl]
         println("\n       ---- dblAugerProbability = " * string(round(p, digits=5)) * " ----")
         sim = Cascade.Simulation(Cascade.Simulation(); name="Resonant ionization, strengths",
                                  property=Cascade.ResonantIonizationStrengths(1, 0., p),
-                                 method=Cascade.ProbPropagation(), computationData=[JLD2.load(fn)] )
+                                 method=Cascade.ProbPropagation(), computationData=[dat] )
         perform(sim; output=false)
     end
     println("\n     At P = 0.062 the simultaneous route reaches about three quarters of the sequential one.")
@@ -274,7 +297,26 @@ elseif  false
     #     + alpha^DR of the SAME resonances, free of charge, since recombination is the competing fate of the same
     #                              capture and one computation gives both.
     #
-    # REPORT (24-Aug-2026).  alpha in cm^3/s, Babushkin:
+    # REPORT (24-Aug-2026, second visit): the DIRECT channel is now IN the table rather than named as absent -- a
+    #   semi-empirical Lotz estimate summed over the occupied subshells of 1s^2 2s at Z = 6.  The resonant column is
+    #   unchanged to every digit, so nothing about the computed channel moved:
+    #        T [K]      kT [eV]     alpha(res)     alpha(direct)    alpha(TOTAL)     res/total
+    #       1.0e+05        8.617   2.498263e-26    1.835123e-09    1.835123e-09      1.4e-17
+    #       3.0e+05       25.852   2.307238e-16    1.038287e-08    1.038287e-08      2.2e-08
+    #       1.0e+06       86.173   2.099078e-13    1.886584e-08    1.886605e-08      1.1e-05
+    #       2.5e+06      215.434   4.876418e-13    2.047767e-08    2.047815e-08      2.4e-05
+    #       5.0e+06      430.867   3.610688e-13    1.961617e-08    1.961653e-08      1.8e-05
+    #       1.0e+07      861.734   1.847436e-13    1.773149e-08    1.773167e-08      1.0e-05
+    #       3.0e+07     2585.203   4.548903e-14    1.392171e-08    1.392176e-08      3.3e-06
+    #       1.0e+08     8617.344   8.147902e-15    9.888258e-09    9.888266e-09      8.2e-07
+    #   WHY A FIT SITS BESIDE COMPUTED COLUMNS.  Without it the TOTAL read 2.1e-13 where the answer is 1.9e-08 --
+    #   wrong by a factor of ninety thousand, not by ninety per cent.  An estimate good to tens of per cent is a
+    #   strictly better thing to publish than a total that omits the dominant channel, and the printout says at
+    #   length which column is which so that nobody mistakes the Lotz number for cascade output.  Its own shape is
+    #   right: it peaks near kT = 215 eV, and the 1s subshell contributes 0.1% of it at kT = 86 eV rising to 5.5% at
+    #   2585 eV, as kT approaches the ~490 eV K-shell binding energy.
+    #
+    # REPORT (24-Aug-2026, first visit).  alpha in cm^3/s, Babushkin, WITHOUT the direct channel:
     #        T [K]      kT [eV]     alpha(res)      alpha^DR      ratio
     #       1.0e+05        8.617    2.498e-26      6.539e-25      0.0382
     #       3.0e+05       25.852    2.307e-16      3.724e-16      0.6195
@@ -310,12 +352,15 @@ elseif  false
     #
     setDefaults("print summary: open", "zzz-Cascade-Fl-rateCoefficients.sum")
     #
-    fn = filter(f -> startswith(f, "zzz-cascade-electron-ionization"), readdir("."))[end]
-    println(">> reading $fn")
+    fn, dat = resonantCascadeFile()
     temperatures = [1.0e5, 3.0e5, 1.0e6, 2.5e6, 5.0e6, 1.0e7, 3.0e7, 1.0e8]
+    ## directCharge = 6 and directConfig = 1s^2 2s add the SEMI-EMPIRICAL Lotz estimate of the direct channel.  It is
+    ## not of the same kind as the two computed channels and the printout says so at length -- but without it the
+    ## TOTAL column omits 98% or more of the ionization rate for this ion, and a total wrong by a factor of 100 is a
+    ## worse thing to publish than an estimate wrong by 30%.
     sim = Cascade.Simulation(Cascade.Simulation(); name="EII rate coefficients, Li-like C",
-                             property=Cascade.EiiRateCoefficients(1, temperatures, 0., 0.),
-                             method=Cascade.ProbPropagation(), computationData=[JLD2.load(fn)] )
+                             property=Cascade.EiiRateCoefficients(1, temperatures, 0., 0., 6., Configuration("1s^2 2s")),
+                             method=Cascade.ProbPropagation(), computationData=[dat] )
     perform(sim; output=true)
     #
     setDefaults("print summary: close", "")

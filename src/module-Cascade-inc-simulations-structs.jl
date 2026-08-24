@@ -345,12 +345,32 @@ end
     + electronEnergyShift   ::Float64           ... Shift applied to every resonance energy, in the user-selected units.
     + dblAugerProbability   ::Float64           ... Probability that a resonance sheds BOTH electrons at once rather than
                                                      one at a time; 0. omits the simultaneous channel.
+    + directCharge          ::Float64           ... Nuclear charge Z for the SEMI-EMPIRICAL estimate of the direct channel;
+                                                     0. omits that channel and reports it as absent.
+    + directConfig          ::Configuration     ... Configuration of the ion being ionized, for that same estimate; it is
+                                                     asked for rather than derived from the cascade data, because which ion
+                                                     a mixed data set belongs to is precisely the kind of thing that is
+                                                     easy to infer wrongly and impossible to notice afterwards.
 """
 struct  EiiRateCoefficients   <:  Cascade.AbstractSimulationProperty
     initialLevelNo        ::Int64
     temperatures          ::Array{Float64,1}
     electronEnergyShift   ::Float64
     dblAugerProbability   ::Float64
+    directCharge          ::Float64
+    directConfig          ::Configuration
+end
+
+
+"""
+`Cascade.EiiRateCoefficients(initialLevelNo::Int64, temperatures::Array{Float64,1}, electronEnergyShift::Float64,
+                             dblAugerProbability::Float64)`
+    ... convenience constructor that omits the direct channel, i.e. sets directCharge = 0.; it keeps the four-argument
+        calls that predate the direct estimate working unchanged.  An EiiRateCoefficients is returned.
+"""
+function EiiRateCoefficients(initialLevelNo::Int64, temperatures::Array{Float64,1}, electronEnergyShift::Float64,
+                             dblAugerProbability::Float64)
+    EiiRateCoefficients(initialLevelNo, temperatures, electronEnergyShift, dblAugerProbability, 0., Configuration("1s^2"))
 end
 
 
@@ -358,7 +378,7 @@ end
 `Cascade.EiiRateCoefficients()`  ... (simple) constructor for cascade EiiRateCoefficients.
 """
 function EiiRateCoefficients()
-    EiiRateCoefficients(1, Float64[], 0., 0.)
+    EiiRateCoefficients(1, Float64[], 0., 0., 0., Configuration("1s^2"))
 end
 
 
@@ -368,54 +388,56 @@ function Base.show(io::IO, dist::Cascade.EiiRateCoefficients)
     println(io, "temperatures:             $(dist.temperatures)  ")
     println(io, "electronEnergyShift:      $(dist.electronEnergyShift)  ")
     println(io, "dblAugerProbability:      $(dist.dblAugerProbability)  ")
+    println(io, "directCharge:             $(dist.directCharge)  ")
+    println(io, "directConfig:             $(dist.directConfig)  ")
 end
 
 
 """
-`struct  Cascade.PiRateCoefficients   <:  Cascade.AbstractSimulationProperty`  
-    ... defines a type for simulating the PI plasma rate coefficients as function of the (free) photon energy distribution and
-        the plasma temperature. These coefficients included a convolution of the direct photoionization cross sections over the 
-        Maxwell distribution of electron and (if requested) add the pre-evaluated resonant parts afterwards.
-        
-        For the implementation: (1) Perform GL integration over free-electron contributions analog to the photoabsorption;
-        (2) for the resonant part, simply add convoluted summation terms for all final states (to be worked out in detail);
-        (3) use a electronEnergies grid ... instead of the photonEnergies grid.
-        (4) in the direct part, sum over the final states before convolution
+`struct  Cascade.PiRateCoefficients   <:  Cascade.AbstractSimulationProperty`
+    ... defines a type for folding the PHOTOIONIZATION cross sections of a previous Cascade.PhotoIonizationScheme
+        computation with a photon field, giving the photoionization rate per ion
 
-    + includeResonantPart ::Bool        ... True, if the resonant contributions are to be included.
-    + initialLevelNo      ::Int64       ... Level No of initial level for which rate coefficients are to be computed.
-    + temperatures        ::Array{Float64,1}
-        ... temperatures [K] for which the DR plasma rate coefficieints to be calculated.
-    + multipoles          ::Array{EmMultipole}           
-        ... Multipoles of the radiation field that are to be included into the photoionization processes.
-    + finalConfigurations ::Array{Configuration,1}
-    
+            R^PI (per ion)  =  INT d(omega)  n(omega) * c * sigma^PI(omega)
 
-"""  
+        for each of the given photon distributions.  The convention follows
+        Empirical.photoionizationPlasmaRatePerIon exactly, and the distinction it draws is the one to keep in mind:
+        THIS IS A RATE [1/s] AND NOT A RATE COEFFICIENT.  The convolution already contains the photon number density
+        of the field, so it needs no further multiplication by a density; multiply by the ION number density for a
+        volumetric rate.  The free-electron density does not enter photoionization at all.
+
+        AN APPETIZER, AND DELIBERATELY SO.  What it does is fold the cross sections the cascade actually computed,
+        by the trapezoidal rule, over the photon energies the cascade actually used -- and nothing else.  In
+        particular sigma^PI is taken as ZERO outside that range, there is no extrapolation to threshold and none to
+        high energy, and the share of the result contributed by the outermost intervals is printed so that a range
+        too narrow for the chosen field announces itself.  Widening the range means recomputing the cascade with
+        more photonEnergies; it cannot be repaired here.  The resonant contributions to photoabsorption are NOT
+        included: Cascade.PhotoAbsorptionSpectrum is the property for those.
+
+    + initialLevelNo      ::Int64    ... Level No of the initial level whose photoionization is folded; 0 sums over
+                                          every initial level present in the data.
+    + photonDistributions ::Array{Distribution.AbstractPhotonDistribution,1}
+        ... the photon fields to fold with, e.g. Distribution.PhotonPlanck(T), PhotonDilute, PhotonPowerLaw or
+            PhotonBremsstrahlungThin; one rate is reported per field.
+"""
 struct  PiRateCoefficients   <:  Cascade.AbstractSimulationProperty
-    includeResonantPart   ::Bool
-    initialLevelNo        ::Int64 
-    temperatures          ::Array{Float64,1}
-    multipoles            ::Array{EmMultipole} 
-    finalConfigurations   ::Array{Configuration,1}
-end 
+    initialLevelNo        ::Int64
+    photonDistributions   ::Array{Distribution.AbstractPhotonDistribution,1}
+end
 
 
 """
 `Cascade.PiRateCoefficients()`  ... (simple) constructor for cascade PiRateCoefficients.
 """
 function PiRateCoefficients()
-    PiRateCoefficients(false, 1, Float64[], EmMultipole[], Configuration[])
+    PiRateCoefficients(1, Distribution.AbstractPhotonDistribution[])
 end
 
 
-# `Base.show(io::IO, dist::Cascade.PiRateCoefficients)`  ... prepares a proper printout of the variable data::Cascade.PiRateCoefficients.
-function Base.show(io::IO, dist::Cascade.PiRateCoefficients) 
-    println(io, "includeResonantPart:      $(dist.includeResonantPart)  ")
+# `Base.show(io::IO, dist::Cascade.PiRateCoefficients)`  ... prepares a proper printout of the variable dist.
+function Base.show(io::IO, dist::Cascade.PiRateCoefficients)
     println(io, "initialLevelNo:           $(dist.initialLevelNo)  ")
-    println(io, "temperatures:             $(dist.temperatures)  ")
-    println(io, "multipoles:               $(dist.multipoles)  ")
-    println(io, "finalConfigurations:      $(dist.finalConfigurations)  ")
+    println(io, "photonDistributions:      $(dist.photonDistributions)  ")
 end
 
 

@@ -72,9 +72,25 @@ if  false
     #   * It is NOT the continuum normalization. Re-running with "pure Coulomb" in place of "pure sine"
     #     moves the total Auger rate from 2.9308e14 to 2.9339e14 /s -- 0.1%. That candidate is excluded.
     #   * It is NOT the orbital relaxation either. Branches d and e climb the approach ladder and the yield
-    #     gets WORSE, not better: 0.050 -> 0.062 -> 0.065 against the measured 0.030. All three tiers carry
-    #     at most five CSFs per block and so almost no configuration mixing, which leaves the missing
-    #     CORRELATION as the remaining suspect -- exactly what a CI-enabled approach would test.
+    #     gets WORSE, not better: 0.050 -> 0.062 -> 0.065 against the measured 0.030.
+    #   TWO SUSPECTS REMAIN, and the first version of this note named only one.
+    #     (i) MISSING CORRELATION. All three tiers carry at most five CSFs per block and so almost no
+    #         configuration mixing -- exactly what a CI-enabled approach would test.
+    #     (ii) THE TWO-PARTICLE ANGULAR COEFFICIENTS THEMSELVES. An Auger matrix element moves two bound
+    #         electrons, so it is built from spin-angular coefficients for CSF pairs differing in two shells.
+    #         Note the shape of what is measured: the ONE-particle quantity here, the radiative width, is right
+    #         to 6%, while the TWO-particle one is low by 1.8x with its internal branching pattern wrong.
+    #     WHAT HAS BEEN CHECKED, 24-Aug-2026, and what that check cannot do. A reference-free structural test --
+    #     for two CSFs of equal J the orbit invariant of the two-particle coefficients must be identical for
+    #     (A,B) and (B,A) -- was run over SpinAngular across eight configurations: 9050 equal-occupation, 18580
+    #     one-electron-move and 7685 TWO-OR-MORE-ELECTRON-MOVE invariants, zero asymmetric, worst deviation
+    #     0.0e+00. That removes one class of defect and NOTHING MORE. Hermiticity is necessary and not
+    #     sufficient: it sees only errors that are asymmetric under exchanging bra and ket, and is blind to a
+    #     uniform scale error on a family of coefficients or to a family missing from both directions -- which
+    #     are precisely the two shapes that would produce what is measured here. "Not asymmetric" is a much
+    #     weaker statement than "verified" and must not be recorded as one.
+    #     Separating (i) from (ii) needs an INDEPENDENT RECONSTRUCTION of those coefficients, which does not
+    #     exist for the two-electron-move case. Until it does, neither suspect is excluded.
     #   Dated on the energies, which are verified against the literature. A YIELD OR A LIFETIME MUST NOT BE
     #   QUOTED FROM THIS BRANCH: omega_K is about twice the measured value and tau is 1.8x too long.
     #

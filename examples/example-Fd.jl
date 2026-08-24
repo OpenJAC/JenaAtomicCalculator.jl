@@ -38,13 +38,18 @@ grid = Radial.Grid(Radial.Grid(false); rnt = 4.0e-6, h = 5.0e-2, hp = 0.6e-2, rb
 #   - electronEnergyShift     DEAD; never read
 #   - minCrossSection         DEAD; never read, so no weak lines are suppressed
 #   - excitationToShells      DEAD; it occurs only inside a docstring
-#   - initialLevelSelection   BYPASSED; it survives only in the commented-out line 32, while line 33
-#                             hard-codes LevelSelection(true, indices=[1]).  ONLY the ground level is
-#                             ionized, whatever the user asks for.
-# The last point matters to anyone building a photo-ionization cascade from an excited or metastable initial
-# level: the request is accepted silently and ignored. It is the same class of defect as the hard-wired [E1]
-# that example-Fc.jl uncovered in the photo-excitation scheme, and deserves the same fix -- but that is a
-# second module, so it is recorded here rather than changed.
+#   + initialLevelSelection   FIXED 24-Aug-2026; it is read again.  It had been commented out in
+#                             Cascade.computeSteps and replaced by a hard-wired LevelSelection(true,
+#                             indices=[1]), so that ONLY the ground level was ever ionized however the field
+#                             was set -- accepted by the constructor, printed back by Base.show, and ignored.
+#                             That was the same class of defect as the hard-wired [E1] which example-Fc.jl
+#                             uncovered in the photo-excitation scheme.
+# NOTE WHAT THE DEFAULT NOW MEANS.  LevelSelection() is INACTIVE, and Basics.selectLevel returns true for every
+# level of an inactive selection, so a scheme left at its default ionizes ALL initial levels and not merely the
+# first.  Every branch below therefore asks for LevelSelection(true, indices=[1]) EXPLICITLY: that reproduces
+# what the branches computed while the bypass was in force, so their dated numbers are unchanged by the repair,
+# and it states on the face of the branch which level is being ionized instead of leaving it to a default.
+# Branch f exercises the field itself.
 #
 # Two further observations on the implementation, neither of them changed here:
 #   + Cascade.perform(::PhotoIonizationScheme, ...) accepts an outputDirectory argument and never uses it;
@@ -116,7 +121,7 @@ if  true
 
     name   = "Ne^+ 2p photo-ionization at 80 eV"
     scheme = Cascade.PhotoIonizationScheme([E1], [80.0], Float64[], [Shell("2p")], Shell[],
-                                           LevelSelection(), [0,1,2], 0., 0.)
+                                           LevelSelection(true, indices=[1]), [0,1,2], 0., 0.)
     wa     = Cascade.Computation(Cascade.Computation(); name=name, nuclearModel=Nuclear.Model(10.), grid=grid,
                                  approach=Cascade.AverageSCA(), scheme=scheme,
                                  initialConfigs=[Configuration("1s^2 2s^2 2p^5")] )
@@ -153,7 +158,7 @@ elseif  false
 
     name   = "Ne^+ 2p photo-ionization, 50 - 300 eV"
     scheme = Cascade.PhotoIonizationScheme([E1], [50.0, 80.0, 120.0, 200.0, 300.0], Float64[],
-                                           [Shell("2p")], Shell[], LevelSelection(), [0,1,2], 0., 0.)
+                                           [Shell("2p")], Shell[], LevelSelection(true, indices=[1]), [0,1,2], 0., 0.)
     wa     = Cascade.Computation(Cascade.Computation(); name=name, nuclearModel=Nuclear.Model(10.), grid=grid,
                                  approach=Cascade.AverageSCA(), scheme=scheme,
                                  initialConfigs=[Configuration("1s^2 2s^2 2p^5")] )
@@ -182,7 +187,7 @@ elseif  false
 
     name   = "Ne^+ 2s and 2p photo-ionization at 120 eV"
     scheme = Cascade.PhotoIonizationScheme([E1], [120.0], Float64[], [Shell("2s"), Shell("2p")], Shell[],
-                                           LevelSelection(), [0,1,2], 0., 0.)
+                                           LevelSelection(true, indices=[1]), [0,1,2], 0., 0.)
     wa     = Cascade.Computation(Cascade.Computation(); name=name, nuclearModel=Nuclear.Model(10.), grid=grid,
                                  approach=Cascade.AverageSCA(), scheme=scheme,
                                  initialConfigs=[Configuration("1s^2 2s^2 2p^5")] )
@@ -212,7 +217,7 @@ elseif  false
 
     name   = "Ne^+ 2p photo-ionization at 80 eV, s and p waves only"
     scheme = Cascade.PhotoIonizationScheme([E1], [80.0], Float64[], [Shell("2p")], Shell[],
-                                           LevelSelection(), [0,1], 0., 0.)
+                                           LevelSelection(true, indices=[1]), [0,1], 0., 0.)
     wa     = Cascade.Computation(Cascade.Computation(); name=name, nuclearModel=Nuclear.Model(10.), grid=grid,
                                  approach=Cascade.AverageSCA(), scheme=scheme,
                                  initialConfigs=[Configuration("1s^2 2s^2 2p^5")] )
@@ -251,12 +256,109 @@ elseif  false
 
     name   = "NEUTRAL Ne 2p photo-ionization, calibration against measurement"
     scheme = Cascade.PhotoIonizationScheme([E1], [25.0, 30.0, 40.0, 50.0, 60.0, 80.0, 120.0], Float64[],
-                                           [Shell("2p")], Shell[], LevelSelection(), [0,1,2], 0., 0.)
+                                           [Shell("2p")], Shell[], LevelSelection(true, indices=[1]), [0,1,2], 0., 0.)
     wa     = Cascade.Computation(Cascade.Computation(); name=name, nuclearModel=Nuclear.Model(10.), grid=grid,
                                  approach=Cascade.AverageSCA(), scheme=scheme,
                                  initialConfigs=[Configuration("1s^2 2s^2 2p^6")] )
     println(wa)
     wb = perform(wa; output=true, outputToFile=false)
+    setDefaults("print summary: close", "")
+    #
+elseif  false
+    # Last visit:      24-Aug-2026
+    # Last successful: 24-Aug-2026
+    #
+    # Branch f: DOES initialLevelSelection DO ANYTHING?  Until 24-Aug-2026 the honest answer was no: the field was
+    #   accepted, printed back, and then replaced inside Cascade.computeSteps by a hard-wired
+    #   LevelSelection(true, indices=[1]).  A branch that merely SET the field could never have revealed that --
+    #   asking for level 1 and getting level 1 looks like success whatever the code does.  This branch therefore
+    #   asks for something the bypass could not have produced: an INACTIVE selection, which means every initial
+    #   level, where Ne^+ 1s^2 2s^2 2p^5 has two -- 3/2- and 1/2-.
+    #
+    #   THE CHECK IS AN IDENTITY, not a magnitude.  Two initial-level rows must appear where branch a produces
+    #   one, and the 3/2- row must reproduce branch a's total EXACTLY, since it is the same computation on the
+    #   same level; only the extra 1/2- row is new.  Had the field still been ignored, this branch would have
+    #   printed a single row identical to branch a and the difference would have been invisible.
+    #
+    # REPORT (24-Aug-2026): two rows, as required.
+    #        i-level   J^P        omega [eV]    No lines    Coulomb          Babushkin
+    #           1      3/2 -      8.00e+01         5      1.814794e+07     1.368568e+07
+    #           2      1/2 -      8.00e+01         5      9.066914e+06     6.831246e+06
+    #   THE IDENTITY HOLDS: the 3/2- row is branch a's 1.814794e+07 / 1.368568e+07 barn to every printed digit,
+    #   so restoring the field moved nothing about the ground-level computation, and the second row is purely an
+    #   addition.  Five lines per initial level, several of them exactly zero by the E1 selection rules.
+    #   THE TWO ROWS STAND IN THE RATIO 2.0016 (Coulomb) and 2.0033 (Babushkin), i.e. the ratio of their
+    #   statistical weights, 4 : 2, to better than 0.2%.  That is worth a warning rather than a shrug.  A total
+    #   cross section per initial LEVEL that scales as (2J_i+1) is not the per-atom quantity one may simply
+    #   population-average; whether the (2J_i+1) here is physics -- both fine-structure levels of one 2p hole
+    #   sharing a single reduced matrix element -- or a normalisation carried in the tabulated total is NOT
+    #   settled by this branch, and anyone averaging these two rows should establish which first.
+    #   A NOTE ON HOW THE BYPASS SURVIVED SO LONG: for this system it cost only the second row, and the second
+    #   row is proportional to the first.  It would not be so harmless for a metastable initial level with a
+    #   different orbital structure, which is the case the field exists for.
+    setDefaults("print summary: open", "zzz-Cascade-Fd-levelSelection.sum")
+
+    name   = "Ne^+ 2p photo-ionization at 80 eV, ALL initial levels"
+    scheme = Cascade.PhotoIonizationScheme([E1], [80.0], Float64[], [Shell("2p")], Shell[],
+                                           LevelSelection(), [0,1,2], 0., 0.)
+    wa     = Cascade.Computation(Cascade.Computation(); name=name, nuclearModel=Nuclear.Model(10.), grid=grid,
+                                 approach=Cascade.AverageSCA(), scheme=scheme,
+                                 initialConfigs=[Configuration("1s^2 2s^2 2p^5")] )
+    println(wa)
+    wb = perform(wa; output=true, outputToFile=false)
+    setDefaults("print summary: close", "")
+    #
+elseif  false
+    # Last visit:      24-Aug-2026
+    # Last successful: 24-Aug-2026
+    #
+    # Branch g: FROM A CROSS SECTION TO A RATE -- Cascade.PiRateCoefficients folds the cross sections computed above
+    #   with a PHOTON FIELD, giving the photoionization rate per ion in a radiation field rather than a cross section
+    #   at chosen photon energies.  The convention is that of Empirical.photoionizationPlasmaRatePerIon:
+    #
+    #         R^PI (per ion)  =  INT d(omega)  n(omega) * c * sigma^PI(omega)          [1/s]
+    #
+    #   AND IT IS A RATE, NOT A RATE COEFFICIENT.  The convolution already carries the photon number density of the
+    #   field, so it takes no further multiplication by a density -- multiply by the ION density for a volumetric
+    #   rate.  The electron density does not enter photoionization at all.  Confusing the two is the easiest mistake
+    #   available here, which is why the printout says it twice.
+    #
+    #   The branch computes and folds in one go rather than reading a .jld, because the branches of this file are all
+    #   written with outputToFile=false and there is no file to read.
+    # REPORT (24-Aug-2026): 39.6 s, the computation being nearly all of it.  Folding the five cross sections of
+    #   branch b over three fields:
+    #       photon field                              R^PI Coulomb    R^PI Babushkin   edge share
+    #       PhotonPlanck  kT =  50.0 eV               1.168473e+12    9.038400e+11       0.5657
+    #       PhotonPlanck  kT = 100.0 eV               4.125615e+12    3.206413e+12       0.5058
+    #       PhotonDilute  kT = 100.0 eV, w = 1.0e-03  4.125615e+09    3.206413e+09       0.5058
+    #   TWO THINGS TO READ HERE, and the second matters more than the first.
+    #     + The dilute field returns EXACTLY 1.0e-03 times the Planck field at the same temperature, which is what a
+    #       dilution factor must do, and is a free check that the field enters the fold linearly and nowhere else.
+    #     - THE EDGE SHARE IS 0.5, AND THAT IS A WARNING, not a detail.  It is the fraction of the integral carried
+    #       by the two outermost intervals: half the answer is coming from the ends of the tabulated range, so the
+    #       integrand is still large where the cross sections stop and the true rate is LARGER than these numbers.
+    #       They are lower bounds, and the fix is not here -- it is to recompute branch a/b with photon energies
+    #       reaching further, both towards the 41 eV threshold and well above 300 eV.  The branch is dated because
+    #       the fold, the units and the field handling are verified, NOT because these three rates may be quoted.
+    #   That is the whole point of printing the diagnostic beside the number rather than in a docstring.
+    setDefaults("print summary: open", "zzz-Cascade-Fd-piRates.sum")
+
+    name   = "Ne^+ 2p photo-ionization, folded with photon fields"
+    scheme = Cascade.PhotoIonizationScheme([E1], [50.0, 80.0, 120.0, 200.0, 300.0], Float64[], [Shell("2p")], Shell[],
+                                           LevelSelection(true, indices=[1]), [0,1,2], 0., 0.)
+    wa     = Cascade.Computation(Cascade.Computation(); name=name, nuclearModel=Nuclear.Model(10.), grid=grid,
+                                 approach=Cascade.AverageSCA(), scheme=scheme,
+                                 initialConfigs=[Configuration("1s^2 2s^2 2p^5")] )
+    wb     = perform(wa; output=true, outputToFile=false)
+    #
+    kT(e)  = Defaults.convertUnits("energy: to atomic", e)
+    sim    = Cascade.Simulation(Cascade.Simulation(); name="Ne^+ photoionization rates",
+                 computationData=Dict{String,Any}[ Dict{String,Any}("results" => wb) ],
+                 property=Cascade.PiRateCoefficients(1, Distribution.AbstractPhotonDistribution[
+                              Distribution.PhotonPlanck(kT(50.0)), Distribution.PhotonPlanck(kT(100.0)),
+                              Distribution.PhotonDilute(kT(100.0), 1.0e-3) ]),
+                 settings=Cascade.SimulationSettings(false, false, 0.) )
+    perform(sim; output=true)
     setDefaults("print summary: close", "")
     #
 end
