@@ -133,15 +133,19 @@ function computeCoefficients(op::SpinAngularNew.TwoParticleOperator, leftCsf::Cs
                 abs(v) > 1.0e-14  &&  push!(coeffs, Coefficient2p{EffectiveStrengthKind}(k, sha, sha, sha, sha, v))
             end
         end
-        # ... and the direct and exchange terms with every higher subshell
+        # ... and the direct and exchange terms with every higher subshell. The direct vector is formed ONCE per
+        #     subshell pair and both families are read off it: every exchange coefficient is a Racah sum over the
+        #     whole vector, so computing them rank by rank would re-evaluate it kMax + 2 times over.
         for  ib = ia+1:nw
             leftCsf.occupation[ib] == 0  &&  continue
             shb  = subshells[ib]
+            ja   = AngularJ64( Basics.subshell_2j(sha)//2 );   jb = AngularJ64( Basics.subshell_2j(shb)//2 )
             kMax = Int64( (Basics.subshell_2j(sha) + Basics.subshell_2j(shb))//2 )
+            dvec = twoParticleDirectVector(leftCsf, rightCsf, subshells, ia, ib, kMax)
             for  k = 0:kMax
-                vd = twoParticleDirect(leftCsf, rightCsf, subshells, ia, ib, k)
+                vd = dvec[k+1]
                 abs(vd) > 1.0e-14  &&  push!(coeffs, Coefficient2p{EffectiveStrengthKind}(k, sha, shb, sha, shb, vd))
-                ve = twoParticleExchange(leftCsf, rightCsf, subshells, ia, ib, k)
+                ve = exchangeFromDirect(dvec, ja, jb, k)
                 abs(ve) > 1.0e-14  &&  push!(coeffs, Coefficient2p{EffectiveStrengthKind}(k, sha, shb, shb, sha, ve))
             end
         end
@@ -311,6 +315,41 @@ function twoParticleSameShell(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Su
     w0 = shellReducedWByIndex(j, N, ib, N, ik, 0) / sqrt(Basics.twice(j) + 1.0)
     wa = 0.5 * ( shellWW(j, N, ib, ik, k)/sqrt(2.0*k + 1.0) -
                  (-1)^Int64(Basics.twice(j) + k) * w0 ) / sqrt(Basics.twice(Jb) + 1.0)
+
+    return( wa )
+end
+
+"""
+`SpinAngularNew.twoParticleDirectVector(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, ia::Int64, ib::Int64, kMax::Int64)`
+    ... to compute the direct coefficients V^K(a,b;a,b) for every rank K = 0 ... kMax at once. A
+        vector::Array{Float64,1} indexed as K+1 is returned.
+
+        WHY THIS EXISTS. Every exchange coefficient is a Racah sum over the WHOLE direct vector, so computing the
+        exchange rank by rank re-evaluates the same direct terms once per rank: for one subshell pair with kMax = 3
+        that is 20 evaluations of which 4 are distinct, and for kMax = 4 it is 30 of which 5 are distinct. The
+        redundancy is a factor kMax + 2 and grows with j. Forming the vector once removes it.
+"""
+function twoParticleDirectVector(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, ia::Int64, ib::Int64,
+                                 kMax::Int64)
+    return( [twoParticleDirect(leftCsf, rightCsf, subshells, ia, ib, K)  for K = 0:kMax] )
+end
+
+
+"""
+`SpinAngularNew.exchangeFromDirect(direct::Array{Float64,1}, ja::AngularJ64, jb::AngularJ64, k::Int64)`
+    ... to form the exchange coefficient at rank k from a direct vector already computed, by the Racah transformation
+
+            V^k(a,b;b,a)  =  SUM_K  (2K+1) { j_a  j_b  k ;  j_b  j_a  K }  V^K(a,b;a,b)
+
+        This is the same expression `SpinAngularNew.twoParticleExchange` evaluates; the difference is only that the
+        direct vector is supplied rather than recomputed. A value::Float64 is returned.
+"""
+function exchangeFromDirect(direct::Array{Float64,1}, ja::AngularJ64, jb::AngularJ64, k::Int64)
+    wa = 0.0;    kJ = AngularJ64(k)
+    for  K = 0:length(direct)-1
+        direct[K+1] == 0.0  &&  continue
+        wa = wa + (2.0*K + 1.0) * AngularMomentum.Wigner_6j(ja, jb, kJ, jb, ja, AngularJ64(K)) * direct[K+1]
+    end
 
     return( wa )
 end
