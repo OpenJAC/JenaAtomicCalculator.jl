@@ -120,8 +120,16 @@ end
         Racah sum over intermediate ranks collapses to one 6j. For N >= 2 it does not collapse, and that method refuses
         rather than applying the collapsed form out of range.
 
-        WHAT IS STILL MISSING, and why this method continues to RAISE: the exchange term for subshells holding two or
-        more electrons, and the SAME-SUBSHELL term (a,a,a,a) entirely. Returning what exists would be an incomplete
+        WHAT IS STILL MISSING, and why this method continues to RAISE: the SAME-SUBSHELL term (a,a,a,a).
+
+        ONE ROUTE TO IT IS ALREADY REFUTED, recorded so the next attempt does not repeat it. Since the two-body
+        same-shell operator looks like a product of two one-body ones, the obvious try is a CLOSURE sum over the
+        shell's own intermediate terms, S(k) = sum_int <bra||W^(k)||int> <int||W^(k)||bra>. At k = 0 that gives a
+        clean constant ratio of 4, which is encouraging and misleading; at k = 1 the sum VANISHES while the
+        coefficient is 0.5, so it is refuted outright. In hindsight it must fail: [W^(k) x W^(k)]^(0) built from two
+        IDENTICAL operators has the wrong symmetry for odd k, and the genuine two-body operator also carries a
+        normal-ordering correction that a plain product does not. The same-shell term needs the two-body quasispin
+        object -- `SpinAngular`'s SchemeEta_WW -- and not a product of one-body ones. Returning what exists would be an incomplete
         coefficient list, which is the silent wrong answer this module exists to prevent; half a two-particle answer is
         worth less than none.
 """
@@ -178,33 +186,35 @@ end
 
 """
 `SpinAngularNew.twoParticleExchange(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, ia::Int64, ib::Int64, k::Int64)`
-    ... to compute the EXCHANGE two-particle coefficient V^k(a,b;b,a) for two SINGLY OCCUPIED open subshells, in the
-        effective-strength convention:
+    ... to compute the EXCHANGE two-particle coefficient V^k(a,b;b,a) for two distinct subshells at ANY occupations,
+        in the effective-strength convention. The exchange channel is not the direct one relabelled: it expands over
+        the direct channel at intermediate ranks, by the Racah transformation between the two coupling schemes,
 
-            V^k(a,b;b,a)  =  (-1)^(j_a + j_b + k)  { j_a  j_b  J ;  j_a  j_b  k }
+            V^k(a,b;b,a)  =  SUM_K  (2K+1) { j_a  j_b  k ;  j_b  j_a  K }  V^K(a,b;a,b)
 
-        The exchange channel is NOT the direct one with relabelled indices, and this expression was arrived at by
-        elimination rather than by assumption. Five 6j orderings were tried; three of them VANISH at ranks where the
-        coefficient does not, which refutes them outright, and of the two survivors this one carries the phase above
-        on all 68 test coefficients while the alternatives (-1)^(j_a+j_b+J) and (-1)^(j_a+j_b+J+k) fail.
+        so it needs no machinery of its own -- `SpinAngularNew.twoParticleDirect` supplies every term of the sum.
 
-        LIMITED TO SINGLY OCCUPIED SUBSHELLS, deliberately. For N >= 2 the exchange integral R^k(abba) couples to a SUM
-        over intermediate ranks K of [W^(K)(a) x W^(K)(b)]^(0), and that sum collapses to a single 6j only when each
-        shell carries one electron. Calling this for a subshell with more electrons would silently apply the collapsed
-        form, so `computeCoefficients` restricts itself accordingly rather than letting that happen.
+        HOW THE FORM WAS ARRIVED AT, since a fitted 6j would be worth little. For singly occupied subshells the sum
+        collapses to one symbol, and that collapsed case was settled first BY ELIMINATION: of five candidate 6j
+        orderings, three VANISH at ranks where the coefficient does not, which refutes them outright, and of the two
+        survivors only the phase (-1)^(j_a+j_b+k) holds across 68 coefficients. The general sum above was then written
+        and required to REPRODUCE that collapsed case before replacing it, which it does.
 
         A value::Float64 is returned.
 """
 function twoParticleExchange(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, ia::Int64, ib::Int64,
                              k::Int64)
-    sha = subshells[ia];    shb = subshells[ib]
-    ja  = AngularJ64( Basics.subshell_2j(sha)//2 );    jb = AngularJ64( Basics.subshell_2j(shb)//2 )
-    if  leftCsf.occupation[ia] != 1  ||  leftCsf.occupation[ib] != 1
-        error("\n\nSpinAngularNew.twoParticleExchange: the collapsed single-6j form is valid only for singly\n" *
-              ">>> occupied subshells; for N >= 2 the exchange channel needs the full Racah sum over intermediate\n" *
-              ">>> ranks. Refusing rather than applying it out of range.\n")
+    ja = AngularJ64( Basics.subshell_2j(subshells[ia])//2 )
+    jb = AngularJ64( Basics.subshell_2j(subshells[ib])//2 )
+    kJ = AngularJ64(k)
+    wa = 0.0
+    # ... the intermediate rank cannot exceed either subshell's own triangle
+    kMax = Int64( (Basics.twice(ja) + Basics.twice(jb))//2 )
+    for  K = 0:kMax
+        d = twoParticleDirect(leftCsf, rightCsf, subshells, ia, ib, K)
+        if  d == 0.0    continue    end
+        wa = wa + (2.0*K + 1.0) * AngularMomentum.Wigner_6j(ja, jb, kJ, jb, ja, AngularJ64(K)) * d
     end
-    ph = (-1)^Int64( (Basics.twice(ja) + Basics.twice(jb))//2 + k )
 
-    return( ph * AngularMomentum.Wigner_6j(ja, jb, leftCsf.J, ja, jb, AngularJ64(k)) )
+    return( wa )
 end
