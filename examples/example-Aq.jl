@@ -1104,15 +1104,25 @@ elseif  true
     #       spectator between     20 718 coefficients    0 differing   0 missing   0 extra
     #       TOTAL                 82 188 coefficients    0 differing   0 missing   0 extra
     #
-    #   and, below, as COMPLETE lists -- every coefficient SpinAngular emits for the pair, no topology set aside -- for
-    #   the pairs the guard admits: 384 pairs, 1974 coefficients, nothing missing, nothing extra, worst ratio 1.000000000000.
+    #   and, below, as COMPLETE lists -- every coefficient SpinAngular emits for the pair, no topology set aside and
+    #   NOTHING REFUSED: every one-electron-move pair is now handled. Measured over eleven configuration sets,
+    #   8574 pairs and 46 020 coefficients agree, nothing missing, nothing extra, worst ratio 1.000000000000.
     #
-    #   WHAT STILL RAISES, AND WHY IT RAISES.  A spectator that COINCIDES with the acceptor or the donor puts three of the
-    #   four one-electron operators on a single subshell and needs a coupled a x W^(k) tensor, which is not written yet.
-    #   Such a pair therefore raises. It would be easy, and wrong, to return the terms that ARE implemented: that is a
-    #   wrong Hamiltonian matrix element rather than a missing one, and it is the same defect this file documents in
-    #   GRASP2018 in branch k and found in its own same-subshell term in branch m. The "raised" column below is large, and
-    #   is meant to be read: it is the size of the next step, not a result.
+    #   THE SAME-SUBSHELL SPECTATOR, ADDED 24-Aug-2026, COMPLETES THIS CASE.  When the spectator coincides with the
+    #   acceptor or the donor, three of the four one-electron operators fall on one subshell and the shell matrix element
+    #   becomes a coupled tensor, built by CLOSURE over intermediate subshell terms from pieces already here. Both
+    #   orderings were needed and each reproduces the predecessor's own tensor exactly, 8897 of 8897 values apiece over
+    #   every j up to 9/2.
+    #
+    #   WHICH ORDERING GOES WHERE IS PHYSICS, NOT A PHASE, and getting it wrong is invisible almost everywhere. W belongs
+    #   on the side holding FEWER electrons: (a x W) when the spectator is the acceptor, (W x a) when it is the donor.
+    #   Taking (a x W) for both agrees with the predecessor on 2621 of 2621 coefficients of 3d^4 4p and on every case in
+    #   five other configurations -- and is WRONG, because a and W on one subshell do not commute, so the two orderings
+    #   are different operators rather than one with a sign. The error surfaces only when the donor subshell is CLOSED in
+    #   the ket: W^(k>0) on a closed shell vanishes, so a rank-1 coefficient that physically exists is silently dropped.
+    #   ONE configuration of the thirteen below, 1s^2 2s^2 3s against 1s 2s^2 3s^2, showed it -- two coefficients wrong by
+    #   a factor of two and two missing. A calibration over thousands of values on the wrong side of a structural
+    #   distinction is not evidence, and this is the clearest example of it in this file.
     #
     localCfgs = [(["1s^2 2s 3d","1s^2 2p 3d"],        "1s^2 2s 3d / 2p 3d"),
                  (["2p^2 3d","2p 3d^2"],              "2p^2 3d / 2p 3d^2"),
@@ -1120,7 +1130,11 @@ elseif  true
                  (["3p^3 3d","3p^2 3d^2"],            "3p^3 3d / 3p^2 3d^2"),
                  (["1s^2 2s 4f","1s^2 2p 4f"],        "1s^2 2s 4f / 2p 4f"),
                  (["1s^2 2s 3d 4s","1s^2 2p 3d 4s"],  "two spectators at once"),
-                 (["3d^3 4s","3d^2 4s^2"],            "3d^3 4s / 3d^2 4s^2")]
+                 (["3d^3 4s","3d^2 4s^2"],            "3d^3 4s / 3d^2 4s^2"),
+                 (["3d^4 4p","3d^3 4p^2"],            "3d^4 4p / 3d^3 4p^2"),
+                 (["1s^2 2s^2 3s","1s 2s^2 3s^2"],    "closed 2s BETWEEN"),
+                 (["1s^2 2s^2 2p^4","1s^2 2s 2p^5"],  "closed 2p^4"),
+                 (["4f^2 5s","4f 5s^2"],              "4f^2 5s / 4f 5s^2")]
     hT = 0;  rT = 0;  mT = 0;  nT = 0;  xT = 0;  wT = 1.0
     println("\n  configuration            handled  raised   matched  missing  extra   worst ratio")
     for  (cfgs, tag) in localCfgs
@@ -1138,8 +1152,6 @@ elseif  true
             count(!=(0), dd) == 2  &&  sum(abs, dd) == 2   ||  continue
             local mv = findall(!=(0), dd)
             local iC = dd[mv[1]] > 0 ? mv[1] : mv[2];     local iA = dd[mv[1]] > 0 ? mv[2] : mv[1]
-            # ... the guard of twoParticleMoveOne, tested here rather than caught, so that a real error stays an error
-            if  r.occupation[iC] >= 1  ||  r.occupation[iA] >= 2    nr += 1;   continue    end
             nh += 1
             old = [x for x in SpinAngular.computeCoefficients(SpinAngular.TwoParticleOperator(0,Basics.plus,true),
                                                              l, r, lSub)   if abs(x.V) > 1.0e-14]

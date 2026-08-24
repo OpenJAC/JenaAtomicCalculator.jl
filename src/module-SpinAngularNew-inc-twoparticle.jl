@@ -504,24 +504,36 @@ end
         turn as the spectator on which the operator's second index pair sits, contributing two coefficients per rank --
         the primary from `SpinAngularNew.moveOnePrimary` and its partner from `SpinAngularNew.moveOnePartner`.
 
-        WHAT IS NOT COVERED RAISES RATHER THAN RETURNING A SHORT LIST. A spectator that COINCIDES with the acceptor or
-        the donor puts three of the four one-electron operators on a single subshell, which needs a coupled a x W^(k)
-        tensor this module does not yet have. Such a pair therefore raises: a list that silently omitted those terms
-        would be a wrong Hamiltonian matrix element rather than a missing one, and is exactly the defect this module
-        documents in GRASP2018 (see `examples/example-Aq.jl`, branch k).
+        A spectator that COINCIDES with the acceptor or the donor is included too, through
+        `SpinAngularNew.moveOneSameShell`: three of the four one-electron operators then fall on a single subshell and
+        the shell matrix element becomes the coupled `shellReducedAW` or `shellReducedWA`. So this method covers the
+        one-electron-move case COMPLETELY, and nothing about it raises.
 
         A list coeffs::Array{Coefficient2p{EffectiveStrengthKind},1} is returned.
 """
 function twoParticleMoveOne(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, iCre::Int64, iAnn::Int64)
-    if  rightCsf.occupation[iCre] >= 1  ||  rightCsf.occupation[iAnn] >= 2
-        error("\n\nSpinAngularNew.twoParticleMoveOne: the acceptor subshell $(subshells[iCre]) or the donor "        *
-              "$(subshells[iAnn])\n>>> holds a further electron, so the two-body operator can act twice within it. "  *
-              "That term needs the coupled\n>>> a x W^(k) tensor on one subshell, which is not yet implemented, and "  *
-              "omitting it would return a short\n>>> list rather than an error. Use SpinAngular.computeCoefficients "  *
-              "for such a pair.\n")
+    coeffs = Coefficient2p{EffectiveStrengthKind}[]
+
+    # ... the two SAME-SUBSHELL terms, where the spectator coincides with the acceptor or with the donor and three of
+    #     the four one-electron operators fall on one subshell
+    for  iSpec in [iCre, iAnn]
+        if  iSpec == iCre  &&  rightCsf.occupation[iCre] < 1                continue    end
+        if  iSpec == iAnn  &&  rightCsf.occupation[iAnn] < 2                continue    end
+        ok = true
+        for  i = 1:length(subshells)
+            if  i == iCre  ||  i == iAnn    continue    end
+            if  leftCsf.subshellJ[i] != rightCsf.subshellJ[i]  ||  leftCsf.seniorityNr[i] != rightCsf.seniorityNr[i]
+                ok = false;    break
+            end
+        end
+        if  !ok    continue    end
+        q = moveOneSameShellQuad(subshells, iCre, iAnn, iSpec)
+        for  k = 0:Basics.subshell_2j(subshells[iSpec])
+            v = moveOneSameShell(leftCsf, rightCsf, subshells, iCre, iAnn, iSpec, k)
+            abs(v) > 1.0e-14  &&  push!(coeffs, Coefficient2p{EffectiveStrengthKind}(k, q[1], q[2], q[3], q[4], v))
+        end
     end
 
-    coeffs = Coefficient2p{EffectiveStrengthKind}[]
     for  iSpec = 1:length(subshells)
         if  iSpec == iCre  ||  iSpec == iAnn                                        continue    end
         if  rightCsf.occupation[iSpec] < 1                                          continue    end
@@ -555,4 +567,188 @@ function twoParticleMoveOne(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subs
     end
 
     return( coeffs )
+end
+
+
+"""
+`SpinAngularNew.shellReducedAW(j::AngularJ64, Nbra::Int64, senBra::Int64, Jbra::AngularJ64, Nket::Int64, senKet::Int64, Jket::AngularJ64, kW::Int64, K::AngularJ64, mq::AngularM64)`
+    ... to compute the reduced matrix element of the COUPLED product of a single creation or annihilation operator with
+        a rank-kW tensor acting on the SAME subshell, <j^Nbra v J || (a^(j) x W^(kW))^(K) || j^Nket v' J'>. This is the
+        object needed whenever three of a two-body operator's four one-electron operators fall on one subshell, i.e.
+        when the spectator subshell coincides with the acceptor or the donor.
+
+        It is built by CLOSURE over the intermediate subshell terms rather than from a new table: `a` carries the
+        subshell from Nbra to Nket electrons, `W^(kW)` preserves that number, and the intermediate terms are exactly the
+        ones the Gaigalas tables already enumerate -- `SpinAngular.qspaceTerms` gives each term its own index range
+        `min_odd ... max_odd` for precisely this purpose. So the coefficients of fractional parentage are reused as DATA
+        once more, and only the assembly is re-implemented:
+
+            <bra||(a x W^(kW))^(K)||ket>  =  (-1)^(J_bra + J_ket + K) sqrt(2K+1)
+                                             sum_r { j kW K ; J_ket J_bra J_r } <bra||a||r> <r||W^(kW)||ket>
+
+        `mq` is +1/2 for creation and -1/2 for annihilation. A value::Float64 is returned.
+"""
+function shellReducedAW(j::AngularJ64, Nbra::Int64, senBra::Int64, Jbra::AngularJ64, Nket::Int64, senKet::Int64,
+                        Jket::AngularJ64, kW::Int64, K::AngularJ64, mq::AngularM64)
+    SA   = JenaAtomicCalculator.SpinAngular
+    Qbra = SA.qshellTermQ(j, senBra)
+    if  AngularMomentum.triangularDelta(Jbra, K, Jket) == 0                return( 0.0 )   end
+    # ... the triangle INEQUALITIES are not the whole rule: the three ranks must also sum to an integer, which
+    #     `AngularMomentum.triangularDelta` does not test, so j = 5/2 with kW = 2 and K = 1 passes it and is
+    #     nonetheless impossible.
+    if  AngularMomentum.triangularDelta(j, AngularJ64(kW), K) == 0         return( 0.0 )   end
+    if  isodd(Basics.twice(j) + 2*kW + Basics.twice(K))                    return( 0.0 )   end
+    if  isodd(Basics.twice(Jbra) + Basics.twice(K) + Basics.twice(Jket))   return( 0.0 )   end
+    ibra = SA.getTermNumber(j, Nbra, Qbra, Jbra)
+    if  ibra >= 64                                                        return( 0.0 )   end
+    bT   = SA.qspaceTerms(ibra)
+    nu0  = Int64((Basics.twice(j) + 1)//2)
+    # ... a term is only reachable at a given electron number when its quasispin PROJECTION fits inside its quasispin,
+    #     |M_Q| <= Q; without that test the enumeration offers states that do not exist and the 3-j throws.
+    if  SA.qspacedelta(Qbra, SA.qshellTermM(j, Nbra)) == 0                return( 0.0 )   end
+
+    wa = 0.0
+    for  ir = bT.min_odd:bT.max_odd
+        rT  = SA.qspaceTerms(ir)
+        if  Basics.twice(rT.j) != Basics.twice(j)                         continue        end
+        senR = nu0 - Basics.twice(rT.Q)
+        if  senR < 0  ||  senR > Nket                                     continue        end
+        if  SA.qspacedelta(rT.Q, SA.qshellTermM(j, Nket)) == 0            continue        end
+        w6 = AngularMomentum.Wigner_6j(j, AngularJ64(kW), K, Jket, Jbra, rT.J)
+        if  w6 == 0.0                                                     continue        end
+        wA = shellReducedA(j, Nbra, senBra, Jbra, Nket, senR, rT.J, mq)
+        if  wA == 0.0                                                     continue        end
+        wW = shellReducedW(j, Nket, senR, rT.J, senKet, Jket, kW)
+        if  wW == 0.0                                                     continue        end
+        wa = wa + w6 * wA * wW
+    end
+    # ... the phase is GLOBAL, (-1)^(J_bra + J_ket + K), and not one per intermediate term. Putting it inside the sum
+    #     instead reproduced 4879 of 9043 values and corrupted the rest, since a wrong sign per term changes the sum by
+    #     an amount that is not a constant factor -- which is exactly how it showed up: a tail of ratios like -2.14
+    #     and -5.72 beside the correct ones, rather than a uniform -1.
+    ph = Int64( (Basics.twice(Jbra) + Basics.twice(Jket) + Basics.twice(K))//2 )
+
+    return( (-1)^ph * wa * sqrt(Basics.twice(K) + 1.0) )
+end
+
+
+"""
+`SpinAngularNew.shellReducedWA(j::AngularJ64, Nbra::Int64, senBra::Int64, Jbra::AngularJ64, Nket::Int64, senKet::Int64, Jket::AngularJ64, kW::Int64, K::AngularJ64, mq::AngularM64)`
+    ... to compute the reduced matrix element of the coupled product taken in the OTHER order,
+        <j^Nbra v J || (W^(kW) x a^(j))^(K) || j^Nket v' J'>, where the single operator acts FIRST and the rank-kW tensor
+        second, so that the intermediate subshell terms carry `Nbra` electrons rather than `Nket`.
+
+        THIS IS NOT THE SAME OPERATOR AS `SpinAngularNew.shellReducedAW` WITH A PHASE. The reordering identity
+        (A x B)^K = (-1)^(k_A + k_B - K) (B x A)^K holds for tensors that commute, and `a` and `W = (a^+ a)` on the SAME
+        subshell do not. The two are genuinely different objects, which is why the predecessor carries two schemes for
+        them, and the difference is invisible until the subshell is FULL on one side: with a filled j = 1/2 donor shell
+        in the ket, W^(1) on it vanishes because a closed shell is a scalar, so the ket-side intermediate kills a rank-1
+        term that physically exists. That is exactly how the need for this routine showed up.
+
+        A value::Float64 is returned.
+"""
+function shellReducedWA(j::AngularJ64, Nbra::Int64, senBra::Int64, Jbra::AngularJ64, Nket::Int64, senKet::Int64,
+                        Jket::AngularJ64, kW::Int64, K::AngularJ64, mq::AngularM64)
+    SA   = JenaAtomicCalculator.SpinAngular
+    Qket = SA.qshellTermQ(j, senKet)
+    if  AngularMomentum.triangularDelta(Jbra, K, Jket) == 0                return( 0.0 )   end
+    if  AngularMomentum.triangularDelta(j, AngularJ64(kW), K) == 0         return( 0.0 )   end
+    if  isodd(Basics.twice(j) + 2*kW + Basics.twice(K))                    return( 0.0 )   end
+    if  isodd(Basics.twice(Jbra) + Basics.twice(K) + Basics.twice(Jket))   return( 0.0 )   end
+    iket = SA.getTermNumber(j, Nket, Qket, Jket)
+    if  iket >= 64                                                        return( 0.0 )   end
+    kT   = SA.qspaceTerms(iket)
+    nu0  = Int64((Basics.twice(j) + 1)//2)
+    if  SA.qspacedelta(Qket, SA.qshellTermM(j, Nket)) == 0                return( 0.0 )   end
+
+    wa = 0.0
+    for  ir = kT.min_odd:kT.max_odd
+        rT  = SA.qspaceTerms(ir)
+        if  Basics.twice(rT.j) != Basics.twice(j)                         continue        end
+        senR = nu0 - Basics.twice(rT.Q)
+        if  senR < 0  ||  senR > Nbra                                     continue        end
+        if  SA.qspacedelta(rT.Q, SA.qshellTermM(j, Nbra)) == 0            continue        end
+        w6 = AngularMomentum.Wigner_6j(AngularJ64(kW), j, K, Jket, Jbra, rT.J)
+        if  w6 == 0.0                                                     continue        end
+        wW = shellReducedW(j, Nbra, senBra, Jbra, senR, rT.J, kW)
+        if  wW == 0.0                                                     continue        end
+        wA = shellReducedA(j, Nbra, senR, rT.J, Nket, senKet, Jket, mq)
+        if  wA == 0.0                                                     continue        end
+        wa = wa + w6 * wW * wA
+    end
+    ph = Int64( (Basics.twice(Jbra) + Basics.twice(Jket) + Basics.twice(K))//2 )
+
+    return( (-1)^ph * wa * sqrt(Basics.twice(K) + 1.0) )
+end
+
+
+"""
+`SpinAngularNew.moveOneSameShell(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, iCre::Int64, iAnn::Int64, iSpec::Int64, k::Int64)`
+    ... to compute, at rank `k`, the two-particle coefficient of a CSF pair differing by ONE electron in the case where
+        the spectator subshell COINCIDES with the acceptor `iCre` or the donor `iAnn`. Three of the operator's four
+        one-electron operators then fall on that one subshell -- two creations and an annihilation when it is the
+        acceptor, a creation and two annihilations when it is the donor -- so the shell matrix element is the coupled
+        `SpinAngularNew.shellReducedAW` rather than a plain creation, and only TWO subshells act in total.
+
+        Because the two site ranks must couple to zero, the coupled rank K is fixed to the OTHER subshell's j, and there
+        is no sum. Two phases beyond the Jordan-Wigner string, both established on data:
+
+        (1) the Jordan-Wigner string over the occupations between the two subshells;
+        (2) the reordering phase (-1)^(j_spec + k - K), carried in BOTH cases.
+
+        A value::Float64 is returned.
+"""
+function moveOneSameShell(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, iCre::Int64, iAnn::Int64,
+                          iSpec::Int64, k::Int64)
+    iOth = (iSpec == iCre) ? iAnn : iCre
+    jS   = AngularJ64( Basics.subshell_2j(subshells[iSpec])//2 )
+    jO   = AngularJ64( Basics.subshell_2j(subshells[iOth])//2 )
+    K    = jO
+    mqS  = (iSpec == iCre) ? AngularM64(1//2)  : AngularM64(-1//2)
+    mqO  = (iOth  == iCre) ? AngularM64(1//2)  : AngularM64(-1//2)
+
+    # ... W GOES ON THE SIDE THAT HOLDS FEWER ELECTRONS, which decides the ordering: (a x W) when the spectator is the
+    #     acceptor, (W x a) when it is the donor. The two are different operators, not one with a phase, and taking
+    #     (a x W) for the donor is right until the donor subshell is CLOSED in the ket -- W^(k>0) on a closed shell
+    #     vanishes, so a rank-1 term that physically exists is silently dropped.
+    wS = (iSpec == iCre) ?
+         shellReducedAW(jS, leftCsf.occupation[iSpec],  leftCsf.seniorityNr[iSpec],  leftCsf.subshellJ[iSpec],
+                            rightCsf.occupation[iSpec], rightCsf.seniorityNr[iSpec], rightCsf.subshellJ[iSpec],
+                            k, K, mqS) :
+         shellReducedWA(jS, leftCsf.occupation[iSpec],  leftCsf.seniorityNr[iSpec],  leftCsf.subshellJ[iSpec],
+                            rightCsf.occupation[iSpec], rightCsf.seniorityNr[iSpec], rightCsf.subshellJ[iSpec],
+                            k, K, mqS)
+    if  wS == 0.0                                                                        return( 0.0 )   end
+    wO = shellReducedA(jO, leftCsf.occupation[iOth],  leftCsf.seniorityNr[iOth],  leftCsf.subshellJ[iOth],
+                           rightCsf.occupation[iOth], rightCsf.seniorityNr[iOth], rightCsf.subshellJ[iOth],
+                           mqO);                                           if  wO == 0.0   return( 0.0 )   end
+
+    lo, hi = minmax(iSpec, iOth)
+    ranks  = (lo == iSpec) ? [K, jO] : [jO, K]
+    wR     = treeRecoupling(leftCsf, rightCsf, [lo,hi], ranks, [ranks[1], AngularJ64(0)])
+    if  wR == 0.0                                                                        return( 0.0 )   end
+
+    occup = 0
+    for  i = lo:hi-1    occup = occup + leftCsf.occupation[i]    end
+    ph = (-1)^(occup + 1) * (-1)^Int64( (Basics.twice(jS) + 2*k - Basics.twice(K))//2 )
+
+    return( ph * wR * wS * wO / ( sqrt(2.0*k + 1.0) * sqrt(Basics.twice(leftCsf.J) + 1.0) ) )
+end
+
+
+"""
+`SpinAngularNew.moveOneSameShellQuad(subshells::Array{Subshell,1}, iCre::Int64, iAnn::Int64, iSpec::Int64)`
+    ... to determine the index quadruple (a,b,c,d) under which the same-subshell one-electron-move term is emitted. The
+        rule is the one every other topology in this module follows: `a` and `b` are the two CREATIONS in subshell-index
+        order and `c` and `d` the two ANNIHILATIONS in index order. With the spectator on the acceptor the creations are
+        (S,S) and the annihilations (S,O); with it on the donor the creations are (O,S) and the annihilations (S,S). The
+        two orders of `c` and `d` are the SAME integral here, since X^k(abcd) = X^k(badc) and a equals b, so there is one
+        family and not two. A tuple (a,b,c,d)::NTuple{4,Subshell} is returned.
+"""
+function moveOneSameShellQuad(subshells::Array{Subshell,1}, iCre::Int64, iAnn::Int64, iSpec::Int64)
+    iOth = (iSpec == iCre) ? iAnn : iCre
+    sS   = subshells[iSpec];    sO = subshells[iOth]
+    if  iSpec == iCre    return( iSpec < iOth ? (sS, sS, sS, sO) : (sS, sS, sO, sS) )
+    else                 return( iOth  < iSpec ? (sO, sS, sS, sS) : (sS, sO, sS, sS) )
+    end
 end
