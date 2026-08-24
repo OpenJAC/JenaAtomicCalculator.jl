@@ -43,7 +43,9 @@
     adjacent subshells and 14 between subshells separated by two others, where the Jordan-Wigner string spans three
     subshells and so is actually tested.
 
-    TWO-PARTICLE (electron-electron) -- the DIAGONAL case is COMPLETE. Three terms, each settled and verified
+    TWO-PARTICLE (electron-electron) -- EQUAL-OCCUPATION pairs are COMPLETE, diagonal and off-diagonal in the
+    coupling alike: 1836 coefficients over 407 CSF pairs and nine configurations, matched 1836, missing 0, extra 0,
+    worst ratio 1.000000000000. Pairs that MOVE electrons between subshells still raise. Three terms, each settled and verified
     separately: the direct and exchange terms between two distinct subshells at any occupations, and the same-subshell
     term. Checked against `SpinAngular` on 1744 coefficients over nine configurations, term for term, with NOTHING
     missing and NOTHING extra on either side and a worst ratio of 1.000000000000. Off-diagonal CSF pairs still raise.

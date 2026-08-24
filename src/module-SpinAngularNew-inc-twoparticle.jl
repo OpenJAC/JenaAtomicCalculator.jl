@@ -108,17 +108,24 @@ end
         this method does not do, and returning the diagonal answer for it would be a wrong number rather than a
         missing one.
 """
+coeffs2pEmpty() = Coefficient2p{EffectiveStrengthKind}[]
+
+
 function computeCoefficients(op::SpinAngularNew.TwoParticleOperator, leftCsf::CsfR, rightCsf::CsfR,
                              subshells::Array{Subshell,1})
     if  op.rank != 0
         error("\n\nSpinAngularNew.computeCoefficients: only the scalar (rank-0) two-particle operator is defined.\n")
     end
-    if  leftCsf.occupation != rightCsf.occupation  ||  leftCsf.subshellJ != rightCsf.subshellJ  ||
-        leftCsf.subshellX  != rightCsf.subshellX   ||  leftCsf.seniorityNr != rightCsf.seniorityNr
-        error("\n\nSpinAngularNew.computeCoefficients (two-particle): the DIAGONAL case only.\n"        *
-              ">>> This pair differs in occupation or coupling, which needs recoupling this method does not\n" *
-              ">>> do; returning the diagonal answer would be a wrong number rather than a missing one.\n"     *
-              ">>> Use SpinAngular.computeCoefficients for an off-diagonal pair.\n")
+    # EQUAL OCCUPATIONS are required; the couplings may differ. Each term is bra/ket aware -- the direct and
+    # exchange terms through `substitutionRecoupling`, the same-subshell term through its own orthogonality guard --
+    # so a pair differing only in coupling is handled rather than refused, and gives zero where it should.
+    if  leftCsf.J != rightCsf.J  ||  leftCsf.parity != rightCsf.parity     return( coeffs2pEmpty() )   end
+    if  leftCsf.occupation != rightCsf.occupation
+        error("\n\nSpinAngularNew.computeCoefficients (two-particle): the occupations differ.\n"             *
+              ">>> Equal-occupation pairs are handled, whatever their coupling. A pair that MOVES electrons\n"  *
+              ">>> between subshells needs the creation/annihilation machinery this method does not have, and\n" *
+              ">>> returning the equal-occupation answer for it would be a wrong number rather than a missing\n" *
+              ">>> one. Use SpinAngular.computeCoefficients for such a pair.\n")
     end
 
     coeffs = Coefficient2p{EffectiveStrengthKind}[]
@@ -308,6 +315,17 @@ function twoParticleSameShell(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Su
     SA = JenaAtomicCalculator.SpinAngular
     sh = subshells[ia];    N = leftCsf.occupation[ia]
     if  N < 2                                                             return( 0.0 )   end
+    # (W^(k) x W^(k))^(0) is a SCALAR on the subshell it acts in, so it cannot change any coupling: every other
+    # subshell must be in an identical state, and the running couplings X must agree throughout, or the two CSFs are
+    # orthogonal and the element vanishes. Without this the routine returns the DIAGONAL value on a pair that differs
+    # only in another subshell's coupling -- which is exactly the defect this module documents in GRASP2018 at
+    # example-Aq.jl branch k, and it was present here until measured against SpinAngular on off-diagonal pairs.
+    if  leftCsf.subshellX != rightCsf.subshellX  ||  leftCsf.subshellJ != rightCsf.subshellJ
+        return( 0.0 )
+    end
+    for  i = 1:length(subshells)
+        if  i != ia  &&  leftCsf.seniorityNr[i] != rightCsf.seniorityNr[i]     return( 0.0 )   end
+    end
     j  = AngularJ64( Basics.subshell_2j(sh)//2 )
     Jb = leftCsf.subshellJ[ia];    Jk = rightCsf.subshellJ[ia]
     ib = SA.getTermNumber(j, N, SA.qshellTermQ(j, leftCsf.seniorityNr[ia]),  Jb)

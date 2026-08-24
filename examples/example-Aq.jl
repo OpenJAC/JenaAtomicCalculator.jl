@@ -972,5 +972,87 @@ elseif  true
     println("")
     @printf("  TOTAL matched %d   missing %d   extra %d   worst ratio %.12f\n", tMatched, tMissing, tExtra, tWorst)
     #
+elseif  true
+    # Last visit:      24-Aug-2026
+    # Last successful:  24-Aug-2026
+    #
+    # Branch m (OFF-DIAGONAL IN THE COUPLING): CSF pairs of equal occupation but different coupling, which branch l
+    #   refused. They turn out to need almost nothing new -- and finding that out exposed a defect of exactly the kind
+    #   this file criticises GRASP2018 for in branch k.
+    #
+    #   WHY ALMOST NOTHING WAS NEEDED.  The direct and exchange terms already go through substitutionRecoupling, which
+    #   takes bra and ket separately and returns zero when their couplings cannot be connected. So 56 of 56 coefficients
+    #   on coupling-off-diagonal pairs were already exactly right the first time they were asked for.
+    #
+    #   THE DEFECT.  Twenty coefficients were also produced that SpinAngular does not produce, and every one of them was
+    #   the same-subshell term of the CLOSED 1s^2 shell, valued 0.5 -- its DIAGONAL value -- on a pair that differs only
+    #   in the coupling of some OTHER subshell.  That is the same shape as the eighteen spurious terms GRASP emits in
+    #   branch k: a diagonal formula applied to an off-diagonal pair.  Having spent the morning arguing that GRASP was
+    #   wrong to do it, I had it in my own same-subshell routine within the hour.
+    #
+    #   WHY IT HAPPENED, AND THE FIX.  twoParticleSameShell read only its own subshell's quantum numbers. For a closed
+    #   1s^2 the bra and ket shell terms are identical whatever the rest of the CSF does, so it returned the diagonal
+    #   value.  But (W^(k) x W^(k))^(0) is a SCALAR in the subshell it acts in: it cannot change any coupling, so every
+    #   other subshell must be in an identical state and the running couplings X must agree throughout, or the two CSFs
+    #   are orthogonal and the element vanishes.  The routine now checks that.  The direct and exchange terms never had
+    #   the problem because their recoupling factor enforces it for them -- the same-subshell term was the one place
+    #   where nothing did.
+    #
+    #   THE LESSON IS ABOUT WHERE TO LOOK, not about the sign of a 6j.  A routine that consults only the object it acts
+    #   on cannot know whether the rest of the state permits it to act at all, and it will happily return the diagonal
+    #   answer for an off-diagonal pair. Both codes made that mistake in the same week, in the same term.
+    #
+    #   REPORT (24-Aug-2026), ALL equal-occupation pairs, diagonal and coupling-off-diagonal, as complete lists:
+    #
+    #       configuration        pairs   matched   missing   extra
+    #       1s^2 2s^2 2p^2           9        95         0       0
+    #       1s^2 3d^2               29       115         0       0
+    #       1s^2 3d^3              127       389         0       0
+    #       1s^2 2s^2 2p^4           9       127         0       0
+    #       1s^2 2s 2p               8        48         0       0
+    #       1s^2 2p^2 3s            26       163         0       0
+    #       1s^2 3d^2 4s            98       386         0       0
+    #       1s^2 2s^2 2p 3d         40       308         0       0
+    #       1s^2 4f^2               61       205         0       0
+    #       TOTAL                  407      1836         0       0    worst ratio 1.000000000000
+    #
+    #   WHAT STILL RAISES: pairs that MOVE electrons between subshells. Those need creation and annihilation on two
+    #   shells at once -- SpinAngular's twoParticleDiffOcc2, twoParticle6, twoParticle15to18 and twoParticle19to42 --
+    #   and none of it is written here. Returning the equal-occupation answer for such a pair would be a wrong number.
+    #
+    localCfgs = ["1s^2 2s^2 2p^2","1s^2 3d^2","1s^2 3d^3","1s^2 2s^2 2p^4","1s^2 2s 2p",
+                 "1s^2 2p^2 3s","1s^2 3d^2 4s","1s^2 2s^2 2p 3d","1s^2 4f^2"]
+    tP = 0;  tM = 0;  tN = 0;  tX = 0;  tW = 1.0
+    println("\n  configuration        pairs   matched  missing  extra   worst ratio")
+    for  cfg in localCfgs
+        local lRel = Basics.generateConfigurations(Basics.RelativisticConfigurations(), Configuration(cfg))
+        local lSub = Basics.generateSubshellList(lRel)
+        Defaults.setDefaults("relativistic subshell list", lSub; printout=false)
+        local lCsfs = CsfR[]
+        for  rc in lRel    append!(lCsfs, Basics.generateCsfRs(rc, lSub))    end
+        local np = 0;  local nm = 0;  local nn = 0;  local nx = 0;  local wr = 1.0
+        for  (i,l) in enumerate(lCsfs),  (j,r) in enumerate(lCsfs)
+            l.occupation == r.occupation  ||  continue
+            np += 1
+            old = [x for x in SpinAngular.computeCoefficients(SpinAngular.TwoParticleOperator(0,Basics.plus,true),
+                                                              l, r, lSub)   if abs(x.V) > 1.0e-14]
+            new = SpinAngularNew.computeCoefficients(SpinAngularNew.TwoParticleOperator(), l, r, lSub)
+            kk(x) = (x.nu, string(x.a), string(x.b), string(x.c), string(x.d))
+            dO = Dict{Any,Float64}();   for x in old   dO[kk(x)] = get(dO,kk(x),0.0) + x.V   end
+            dN = Dict{Any,Float64}();   for x in new   dN[kk(x)] = get(dN,kk(x),0.0) + x.V   end
+            for  (k,v) in dO
+                if  haskey(dN,k);   nm += 1;  rr = v/dN[k];  abs(rr-1) > abs(wr-1) && (wr = rr)
+                else   nn += 1
+                end
+            end
+            for  k in keys(dN)    haskey(dO,k) || (nx += 1)    end
+        end
+        @printf("  %-18s %5d %9d %8d %6d   %.12f\n", cfg, np, nm, nn, nx, wr)
+        global tP += np;  global tM += nm;  global tN += nn;  global tX += nx
+        abs(wr-1) > abs(tW-1) && (global tW = wr)
+    end
+    println("")
+    @printf("  TOTAL %d pairs: matched %d, missing %d, extra %d, worst ratio %.12f\n", tP, tM, tN, tX, tW)
+    #
 end
 #
