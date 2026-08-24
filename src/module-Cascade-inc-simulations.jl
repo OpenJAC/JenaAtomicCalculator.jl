@@ -852,6 +852,20 @@ end
 
 
 """
+`Cascade.simulate(property::Cascade.EiiRateCoefficients, method::Cascade.AbstractSimulationMethod,
+                  simulation::Cascade.Simulation)`
+    ... simulates the electron-impact ionization plasma rate coefficients, summed over whichever of the resonant and
+        excitation-autoionization channels the cascade data contain.  An Array{Basics.EmProperty,1} in cm^3/s is
+        returned.
+"""
+function simulate(property::Cascade.EiiRateCoefficients, method::Cascade.AbstractSimulationMethod,
+                  simulation::Cascade.Simulation)
+    levels = Cascade.reviewData(simulation, ascendingOrder=true)
+    return( Cascade.simulateEiiRateCoefficients(levels, simulation) )
+end
+
+
+"""
 `Cascade.simulate(property::Cascade.EaCrossSections, method::Cascade.AbstractSimulationMethod,
                   simulation::Cascade.Simulation)`
     ... simulates the excitation-autoionization contribution to the electron-impact ionization cross section from
@@ -1395,7 +1409,7 @@ end
 
 
 """
-`Cascade.simulateResonantIonizationStrengths(levels::Array{Cascade.Level,1}, simulation::Cascade.Simulation)`
+`Cascade.extractIonizingResonances(levels::Array{Cascade.Level,1}, property::Cascade.AbstractSimulationProperty)`
     ... determines and prints the resonance strengths of the two resonant electron-capture channels of electron-impact
         ionization, together with the recombination strength of the SAME resonances so that the competition between the
         two is visible.  Nothing is returned.
@@ -1405,37 +1419,28 @@ end
         admitted when it has the initial electron number AND carries at least one Auger line of its own, i.e. when the
         computation itself found it to be autoionizing.
 """
-function simulateResonantIonizationStrengths(levels::Array{Cascade.Level,1}, simulation::Cascade.Simulation)
-    printSummary, iostream = Defaults.getDefaults("summary flag/stream")
-    property = simulation.property
-    es       = Defaults.convertUnits("energy: to atomic", property.electronEnergyShift)
+function extractIonizingResonances(levels::Array{Cascade.Level,1}, property::Cascade.AbstractSimulationProperty;
+                                   strict::Bool=true)
+    resonances = Cascade.IonizingResonance[]
+    if  length(levels) == 0    return( resonances )    end
+    es    = Defaults.convertUnits("energy: to atomic", property.electronEnergyShift)
     #
     # IDENTIFY THE INITIAL LEVEL BY ELECTRON NUMBER AND ENERGY, NOT BY ITS INDEX ALONE.  A ManyElectron.Level's index
     # counts within ITS OWN multiplet, so level 1 of the excited block carries the same index as level 1 of the initial
     # block; testing the index alone made every ordinary Auger to an excited level look like a capture, and produced a
     # set of spurious "resonances" at the wrong energies entirely.  The resonances are the levels with the LARGEST
     # electron number, and the initial ion is one electron below them; its ground level is the lowest of those.
-    nRes = 0
-    if  length(levels) == 0    return( nothing )    end
     nMax  = maximum( level.NoElectrons  for level in levels )
     nIni  = nMax - 1
     iniLs = filter(level -> level.NoElectrons == nIni, levels)
     if  length(iniLs) == 0
-        error("Cascade.simulateResonantIonizationStrengths(): no level with $nIni electrons was found, so the ion the " *
+        if  !strict    return( resonances )    end
+        error("Cascade.extractIonizingResonances(): no level with $nIni electrons was found, so the ion the " *
               "capture starts from is not in the data.  This property needs a computation that requested one of the " *
               "resonant channels of Cascade.ElectronIonizationScheme.")
     end
     iniLevel = iniLs[ argmin([level.energy for level in iniLs]) ]
     #
-    sumSeq = 0.;   sumSim = 0.;   sumDr = Basics.EmProperty(0.)
-    ## Every line goes to BOTH streams: the summary file is what the test suite compares against, so a table that
-    ## reached only stdout could not be regression-tested at all.
-    sayBoth = function(line::String)
-        println(line);   if  printSummary   println(iostream, line)   end
-    end
-    sayBoth("\n  Resonance strengths of the resonant electron-capture channels of electron-impact ionization:")
-    sayBoth("\n    resonance         E(res) [eV]     S(sequential)     S(simultaneous)    S(recombination)   sum of branchings")
-    sayBoth("  " * "-"^116)
     for  level in levels
         if  level.NoElectrons != nMax                                          continue   end
         # find the Auger line back to the initial GROUND level; its rate is the capture rate, by detailed balance
@@ -1454,12 +1459,13 @@ function simulateResonantIonizationStrengths(levels::Array{Cascade.Level,1}, sim
         #
         augerD  = Cascade.computeTotalAugerRate(level)
         photonD = Cascade.computeTotalPhotonRate(level)
-        gammaD  = augerD + photonD.Babushkin
-        if  gammaD <= 0.                                                       continue   end
+        gammaDb = augerD + photonD.Babushkin;      gammaDc = augerD + photonD.Coulomb
+        if  gammaDb <= 0.                                                      continue   end
         twoJd   = Basics.twice(level.J)
         #
-        # the SEQUENTIAL route: every Auger daughter that lands on a level which itself autoionizes
-        sSeq = 0.
+        # the SEQUENTIAL route: every Auger daughter that lands on a level which itself autoionizes.  Each gauge is
+        # carried through with its OWN total width, since the widths sit in the denominators of the branching ratios.
+        sSeqB = 0.;   sSeqC = 0.
         for  daughter in level.daughters
             if  daughter.process != Basics.Auger()                             continue   end
             aLine = daughter.lines[daughter.index]
@@ -1468,24 +1474,63 @@ function simulateResonantIonizationStrengths(levels::Array{Cascade.Level,1}, sim
             if  nLevel === nothing                                             continue   end
             augerN  = Cascade.computeTotalAugerRate(nLevel)
             photonN = Cascade.computeTotalPhotonRate(nLevel)
-            gammaN  = augerN + photonN.Babushkin
-            if  augerN <= 0.  ||  gammaN <= 0.                                 continue   end
-            sSeq = sSeq + ResonantImpactIonization.sequentialStrength(en, captureRate, twoJd, twoJi,
-                                                                      aLine.totalRate, gammaD, augerN, gammaN)
+            gammaNb = augerN + photonN.Babushkin;  gammaNc = augerN + photonN.Coulomb
+            if  augerN <= 0.  ||  gammaNb <= 0.                                continue   end
+            sSeqB = sSeqB + ResonantImpactIonization.sequentialStrength(en, captureRate, twoJd, twoJi,
+                                                                        aLine.totalRate, gammaDb, augerN, gammaNb)
+            sSeqC = sSeqC + ResonantImpactIonization.sequentialStrength(en, captureRate, twoJd, twoJi,
+                                                                        aLine.totalRate, gammaDc, augerN, gammaNc)
         end
         # the SIMULTANEOUS route, only if a double-Auger probability was supplied
-        sSim = property.dblAugerProbability <= 0. ? 0. :
-               ResonantImpactIonization.simultaneousStrength(en, captureRate, twoJd, twoJi,
-                                                             property.dblAugerProbability * augerD, gammaD)
+        if  property.dblAugerProbability <= 0.
+            sSim = Basics.EmProperty(0.)
+        else
+            sSim = Basics.EmProperty(ResonantImpactIonization.simultaneousStrength(en, captureRate, twoJd, twoJi,
+                                            property.dblAugerProbability * augerD, gammaDc),
+                                     ResonantImpactIonization.simultaneousStrength(en, captureRate, twoJd, twoJi,
+                                            property.dblAugerProbability * augerD, gammaDb))
+        end
         # the RECOMBINATION strength of the same resonance, for comparison
         s0   = ResonantImpactIonization.resonanceStrength(en, captureRate, twoJd, twoJi)
-        sDr  = Basics.EmProperty(s0 * photonD.Coulomb/(augerD + photonD.Coulomb), s0 * photonD.Babushkin/gammaD)
+        sDr  = Basics.EmProperty(s0 * photonD.Coulomb / gammaDc, s0 * photonD.Babushkin / gammaDb)
         #
-        sumSeq = sumSeq + sSeq;   sumSim = sumSim + sSim;   sumDr = sumDr + sDr;   nRes = nRes + 1
-        sa = "    " * TableStrings.level(nRes) * "  " * string(LevelSymmetry(level.J, level.parity)) * "  "
-        sayBoth(sa * "    " * @sprintf("%10.4f", Defaults.convertUnits("energy: from atomic to eV", en)) *
-                "     " * @sprintf("%.6e", sSeq) * "      " * @sprintf("%.6e", sSim) *
-                "      " * @sprintf("%.6e", sDr.Babushkin) * "        " * @sprintf("%.8f", (augerD + photonD.Babushkin)/gammaD))
+        push!( resonances, Cascade.IonizingResonance(level, en, captureRate, augerD, photonD,
+                                                     Basics.EmProperty(sSeqC, sSeqB), sSim, sDr) )
+    end
+
+    return( resonances )
+end
+
+
+"""
+`Cascade.simulateResonantIonizationStrengths(levels::Array{Cascade.Level,1}, simulation::Cascade.Simulation)`
+    ... displays the resonance strengths of the resonant electron-capture channels of electron-impact ionization,
+        beside the dielectronic-recombination strength of the same resonances.  Nothing is returned.
+"""
+function simulateResonantIonizationStrengths(levels::Array{Cascade.Level,1}, simulation::Cascade.Simulation)
+    printSummary, iostream = Defaults.getDefaults("summary flag/stream")
+    property   = simulation.property
+    resonances = Cascade.extractIonizingResonances(levels, property)
+    #
+    nRes   = 0
+    sumSeq = 0.;   sumSim = 0.;   sumDr = Basics.EmProperty(0.)
+    ## Every line goes to BOTH streams: the summary file is what the test suite compares against, so a table that
+    ## reached only stdout could not be regression-tested at all.
+    sayBoth = function(line::String)
+        println(line);   if  printSummary   println(iostream, line)   end
+    end
+    sayBoth("\n  Resonance strengths of the resonant electron-capture channels of electron-impact ionization:")
+    sayBoth("\n    resonance         E(res) [eV]     S(sequential)     S(simultaneous)    S(recombination)   sum of branchings")
+    sayBoth("  " * "-"^116)
+    for  r  in  resonances
+        sumSeq = sumSeq + r.sequential.Babushkin;   sumSim = sumSim + r.simultaneous.Babushkin
+        sumDr  = sumDr + r.recombination;           nRes   = nRes + 1
+        gammaD = r.augerRate + r.photonRate.Babushkin
+        sa = "    " * TableStrings.level(nRes) * "  " * string(LevelSymmetry(r.level.J, r.level.parity)) * "  "
+        sayBoth(sa * "    " * @sprintf("%10.4f", Defaults.convertUnits("energy: from atomic to eV", r.electronEnergy)) *
+                "     " * @sprintf("%.6e", r.sequential.Babushkin) * "      " * @sprintf("%.6e", r.simultaneous.Babushkin) *
+                "      " * @sprintf("%.6e", r.recombination.Babushkin) * "        " *
+                @sprintf("%.8f", (r.augerRate + r.photonRate.Babushkin)/gammaD))
     end
     sayBoth("  " * "-"^116)
     sayBoth("    TOTAL over $nRes resonances        " * @sprintf("%.6e", sumSeq) * "      " * @sprintf("%.6e", sumSim) *
@@ -1500,6 +1545,267 @@ function simulateResonantIonizationStrengths(levels::Array{Cascade.Level,1}, sim
     end
 
     return( nothing )
+end
+
+
+"""
+`Cascade.simulateEiiRateCoefficients(levels::Array{Cascade.Level,1}, simulation::Cascade.Simulation)`
+    ... forms the electron-impact ionization plasma rate coefficient alpha^EII (T) by adding whichever of its channels
+        the given cascade data contain, and reports the breakdown rather than only the sum.  An
+        Array{Basics.EmProperty,1} of length length(property.temperatures) is returned, in cm^3/s.
+"""
+function simulateEiiRateCoefficients(levels::Array{Cascade.Level,1}, simulation::Cascade.Simulation)
+    printSummary, iostream = Defaults.getDefaults("summary flag/stream")
+    property = simulation.property
+    temps    = property.temperatures
+    if  length(temps) == 0
+        error("Cascade.EiiRateCoefficients: no temperature was given, so there is nothing to form.  alpha^EII is a " *
+              "function of temperature; set the `temperatures` field of the property.")
+    end
+    #
+    # ---- the RESONANT half ---------------------------------------------------------------------------------------
+    # The Boltzmann factor and the conversion to cm^3/s are taken from DielectronicRecombination.computeRateCoefficient
+    # itself, rather than written out again here, so that the IONIZATION and the RECOMBINATION rate coefficients of the
+    # same resonances cannot drift apart.  Only the STRENGTH differs between the two: it is the double-autoionization
+    # strength here and the radiative one there.  The dummy levels below are inert -- that function reads only the
+    # resonance energy and the strength.
+    ## strict=false: a cascade that computed ONLY the impact-excitation channel carries no resonance at all, and for
+    ## this property that is a legitimate input rather than an error -- it sums whichever channels are present.  The
+    ## alternative, wrapping the call in a bare `catch` that substitutes an empty list, would also have swallowed a
+    ## genuine failure and reported "no resonances" for it.
+    resonances = Cascade.extractIonizingResonances(levels, property, strict=false)
+    dummy    = ManyElectron.Level(AngularJ64(0), AngularM64(0), Basics.plus, 0, 0., 0., false, ManyElectron.Basis(), Float64[])
+    alphaRes = Basics.EmProperty[];    alphaDr = Basics.EmProperty[]
+    for  temp  in  temps
+        wa = Basics.EmProperty(0.);    wb = Basics.EmProperty(0.)
+        for  r  in  resonances
+            sIon  = r.sequential + r.simultaneous
+            cIon  = DielectronicRecombination.CaptureLine(dummy, dummy, r.electronEnergy, 0., r.augerRate, r.photonRate,
+                                                          sIon, AutoIonization.PartialWave[])
+            cRec  = DielectronicRecombination.CaptureLine(dummy, dummy, r.electronEnergy, 0., r.augerRate, r.photonRate,
+                                                          r.recombination, AutoIonization.PartialWave[])
+            wa = wa + DielectronicRecombination.computeRateCoefficient(cIon, temp)
+            wb = wb + DielectronicRecombination.computeRateCoefficient(cRec, temp)
+        end
+        push!(alphaRes, wa);    push!(alphaDr, wb)
+    end
+    #
+    # ---- the EXCITATION-AUTOIONIZATION half ----------------------------------------------------------------------
+    csEnergies, csValues = Cascade.extractEaCrossSections(simulation)
+    alphaEa, weightAbove = Cascade.foldWithMaxwellian(csEnergies, csValues, temps)
+    #
+    total = Basics.EmProperty[ alphaRes[i] + Basics.EmProperty(alphaEa[i])  for i = 1:length(temps) ]
+    #
+    Cascade.displayEiiRateCoefficients(stdout, temps, alphaRes, alphaEa, alphaDr, total, weightAbove,
+                                       resonances, csEnergies, property)
+    if  printSummary
+        Cascade.displayEiiRateCoefficients(iostream, temps, alphaRes, alphaEa, alphaDr, total, weightAbove,
+                                           resonances, csEnergies, property)
+    end
+
+    return( total )
+end
+
+
+"""
+`Cascade.displayEiiRateCoefficients(stream::IO, temperatures::Array{Float64,1}, alphaRes::Array{Basics.EmProperty,1},
+                                    alphaEa::Array{Float64,1}, alphaDr::Array{Basics.EmProperty,1},
+                                    total::Array{Basics.EmProperty,1}, weightAbove::Array{Float64,1},
+                                    resonances::Array{Cascade.IonizingResonance,1}, csEnergies::Array{Float64,1},
+                                    property::Cascade.EiiRateCoefficients)`
+    ... displays the electron-impact ionization rate coefficients channel by channel, together with the two diagnostics
+        that say whether the numbers may be used: the position of the maximum of alpha^res(T), which is fixed
+        analytically by the resonance energies, and the share of the Maxwellian weight lying above the last computed
+        impact energy.  Nothing is returned.
+"""
+function displayEiiRateCoefficients(stream::IO, temperatures::Array{Float64,1}, alphaRes::Array{Basics.EmProperty,1},
+                                    alphaEa::Array{Float64,1}, alphaDr::Array{Basics.EmProperty,1},
+                                    total::Array{Basics.EmProperty,1}, weightAbove::Array{Float64,1},
+                                    resonances::Array{Cascade.IonizingResonance,1}, csEnergies::Array{Float64,1},
+                                    property::Cascade.EiiRateCoefficients)
+    nx = 118
+    println(stream, " ")
+    println(stream, "  Electron-impact ionization plasma rate coefficients  alpha^EII (T),  Babushkin gauge:")
+    println(stream, " ")
+    println(stream, "  ", "-"^nx)
+    println(stream, "        T [K]        kT [eV]        alpha(resonant)     alpha(exc-autoion)     alpha(direct)" *
+                    "        alpha(TOTAL)   ")
+    println(stream, "                                       [cm^3/s]             [cm^3/s]             [cm^3/s]  " *
+                    "          [cm^3/s]     ")
+    println(stream, "  ", "-"^nx)
+    for  i = 1:length(temperatures)
+        kT = Defaults.convertUnits("energy: from atomic to eV",
+                                   Defaults.convertUnits("temperature: from Kelvin to (Hartree) units", temperatures[i]))
+        sa = "     " * @sprintf("%.4e", temperatures[i]) * "    " * @sprintf("%10.3f", kT) *
+             "       " * @sprintf("%.6e", alphaRes[i].Babushkin) * "        " * @sprintf("%.6e", alphaEa[i]) *
+             "          not avail.      " * @sprintf("%.6e", total[i].Babushkin)
+        println(stream, sa)
+    end
+    println(stream, "  ", "-"^nx)
+    println(stream, " ")
+    println(stream, "    alpha(direct) is NOT AVAILABLE and is shown as absent rather than as zero.  There is no")
+    println(stream, "    Cascade.perform for ImpactIonizationScheme, so no cascade produces the direct lines; for a")
+    println(stream, "    neutral or near-neutral target the direct channel is normally the LARGEST of the three, and")
+    println(stream, "    the TOTAL above is therefore a lower bound on the ionization rate, not the ionization rate.")
+    println(stream, " ")
+    #
+    # ---- the DR comparison, free of charge: it is the other fate of the very same resonances -------------------
+    if  length(resonances) > 0
+        println(stream, "    For comparison, the DIELECTRONIC RECOMBINATION rate coefficient of the SAME resonances,")
+        println(stream, "    i.e. the competing fate of each capture, on the same footing:")
+        println(stream, " ")
+        println(stream, "          T [K]          alpha^DR [cm^3/s]      alpha^res(ion) / alpha^DR")
+        for  i = 1:length(temperatures)
+            ratio = alphaDr[i].Babushkin == 0. ? 0. : alphaRes[i].Babushkin / alphaDr[i].Babushkin
+            println(stream, "       " * @sprintf("%.4e", temperatures[i]) * "        " *
+                            @sprintf("%.6e", alphaDr[i].Babushkin) * "            " * @sprintf("%12.4f", ratio))
+        end
+        println(stream, " ")
+    end
+    #
+    # ---- diagnostic 1: WHERE THE MAXIMUM MUST LIE.  alpha^res(T) ~ T^(-3/2) exp(-E/T) has d(ln alpha)/dT = 0 at
+    # kT = 2E/3 exactly.  BE CLEAR ABOUT WHAT THIS TESTS.  It tests the FOLD -- the exponent, the sign of the
+    # exponential and the Kelvin-to-Hartree conversion -- and it is falsifiable there: a T^(-1/2) in place of
+    # T^(-3/2) moves the true maximum to kT = 2E and the bracket test fails at once.  It does NOT test that the
+    # resonances were correctly identified, because both sides of the comparison are built from the SAME energies:
+    # had the level-index collision of 22-Aug-2026 put the resonances at 24 eV instead of 320, E would have been
+    # 24 eV, the prediction 16 eV, and the curve would have peaked obediently at 16 eV.  What guards against THAT
+    # is the line below printing E in eV beside the temperature grid, where a reader who knows the ionization
+    # threshold of the ion will see 24 eV and stop.  That is a reporting virtue, not an automatic check.
+    if  length(resonances) > 0
+        sTot = sum(r.sequential.Babushkin + r.simultaneous.Babushkin  for r in resonances)
+        eBar = sTot > 0. ? sum((r.sequential.Babushkin + r.simultaneous.Babushkin) * r.electronEnergy
+                                for r in resonances) / sTot :
+                           sum(r.electronEnergy for r in resonances) / length(resonances)
+        kTpk = Defaults.convertUnits("energy: from atomic to eV", 2*eBar/3)
+        eBev = Defaults.convertUnits("energy: from atomic to eV", eBar)
+        kTs  = [Defaults.convertUnits("energy: from atomic to eV",
+                    Defaults.convertUnits("temperature: from Kelvin to (Hartree) units", t))  for t in temperatures]
+        imax = argmax([a.Babushkin for a in alphaRes])
+        println(stream, "    SHAPE CHECK on alpha^res(T).  With alpha ~ T^(-3/2) E exp(-E/T) the maximum sits at kT = 2E/3")
+        println(stream, "    exactly.  This checks the FOLD, not the resonances: it fails if the exponent, the sign of the")
+        println(stream, "    exponential or the temperature conversion is wrong, but NOT if the resonances sit at the wrong")
+        println(stream, "    energies, since prediction and curve are built from the same ones.  Read E below against the")
+        println(stream, "    ionization threshold you expect -- that comparison is yours to make, not the code's.")
+        println(stream, "      strength-weighted mean resonance energy   E     = " * @sprintf("%10.3f", eBev) * " eV")
+        println(stream, "      predicted maximum at                      kT    = " * @sprintf("%10.3f", kTpk) * " eV")
+        println(stream, "      largest tabulated value falls at          kT    = " * @sprintf("%10.3f", kTs[imax]) * " eV")
+        ## The test is that the tabulated maximum is one of the two grid points BRACKETING the predicted one, and
+        ## not that it lies numerically close to it.  alpha(T) is unimodal, so it is monotone on either side of the
+        ## true maximum; no grid point can then exceed the bracketing point on its own side, and the discrete
+        ## argmax must be one of the two.  That statement is exact and holds on ANY grid, whereas comparing
+        ## |kT_max - kT_predicted| against a tolerance merely measures how coarse the grid is: the first version of
+        ## this check used a 50% tolerance and reported INCONSISTENT for a perfectly sound four-point grid whose
+        ## neighbouring points sat at 86 and 431 eV around a predicted 204 eV.
+        if      kTpk < kTs[1]
+            println(stream, "      -> the predicted maximum lies BELOW the whole temperature grid; widen it downwards.")
+            if  imax != 1                     println(stream, "         INCONSISTENT: the tabulated maximum is not at the lowest temperature.")   end
+        elseif  kTpk > kTs[end]
+            println(stream, "      -> the predicted maximum lies ABOVE the whole temperature grid; widen it upwards.")
+            if  imax != length(kTs)           println(stream, "         INCONSISTENT: the tabulated maximum is not at the highest temperature.")   end
+        else
+            lo = findlast(k -> k <= kTpk, kTs);     hi = findfirst(k -> k >= kTpk, kTs)
+            println(stream, "      bracketing grid points                          " * @sprintf("%10.3f", kTs[lo]) *
+                            " and " * @sprintf("%10.3f", kTs[hi]) * " eV")
+            if  imax == lo  ||  imax == hi
+                println(stream, "      -> consistent: the tabulated maximum is one of the two points bracketing kT = 2E/3.")
+            else
+                println(stream, "      -> INCONSISTENT: the tabulated maximum lies outside the bracket, which alpha(T) being")
+                println(stream, "         unimodal forbids.  Check the resonance energies before using these numbers; the")
+                println(stream, "         strengths may belong to the wrong levels.")
+            end
+        end
+        println(stream, " ")
+    end
+    #
+    # ---- diagnostic 2: how much of the Maxwellian the computed impact energies actually cover -------------------
+    if  length(csEnergies) > 0
+        eMax = Defaults.convertUnits("energy: from atomic to eV", csEnergies[end])
+        println(stream, "    TRUNCATION of the excitation-autoionization integral.  sigma^EA was computed at " *
+                        "$(length(csEnergies)) impact")
+        println(stream, "    energies, the largest being " * @sprintf("%.3f", eMax) * " eV, and is taken as zero above it.  " *
+                        "The share of the Maxwellian")
+        println(stream, "    weight lying beyond that energy, (1+x)exp(-x) with x = E_max/kT, is:")
+        for  i = 1:length(temperatures)
+            flag = weightAbove[i] > 0.1 ? "   <-- alpha(exc-autoion) is a LOWER BOUND here; compute more energies" : ""
+            println(stream, "       T = " * @sprintf("%.4e", temperatures[i]) * " K :  " *
+                            @sprintf("%8.4f", weightAbove[i]) * flag)
+        end
+    else
+        println(stream, "    No impact-excitation lines are present in these cascade data, so alpha(exc-autoion) is")
+        println(stream, "    structurally zero rather than small.  Add Basics.ImpactExcAuto() to the scheme's processes")
+        println(stream, "    to compute that channel.")
+    end
+    println(stream, "  ", "-"^nx)
+
+    return( nothing )
+end
+
+
+"""
+`Cascade.extractEaCrossSections(simulation::Cascade.Simulation)`
+    ... collects the excitation-autoionization cross section sigma^EA(E) from the impact-excitation and autoionization
+        lines of the cascade data, summing over those excited levels that actually autoionize.  A tuple
+        (energies::Array{Float64,1}, values::Array{Float64,1}) in ATOMIC UNITS is returned, sorted by energy and empty
+        if the data carry no impact-excitation lines at all -- which is the normal case for a purely resonant
+        computation and is not an error.
+"""
+function extractEaCrossSections(simulation::Cascade.Simulation)
+    results = simulation.computationData[1]["results"]
+    if  !haskey(results, "impact-excitation lines:")     return( (Float64[], Float64[]) )   end
+    linesE = results["impact-excitation lines:"]
+    linesA = haskey(results, "autoionization lines:") ? results["autoionization lines:"] : AutoIonization.Line[]
+    if  length(linesE) == 0  ||  length(linesA) == 0     return( (Float64[], Float64[]) )   end
+    ## An excited level counts as autoionizing exactly if it appears as the INITIAL level of an Auger line; its
+    ## branching ratio is taken as 1, as in Cascade.EaCrossSections, so this half is an UPPER BOUND.
+    autoIonizing = unique([ (l.initialLevel.index, l.initialLevel.energy)  for l in linesA ])
+    energies     = sort(unique([l.initialElectronEnergy  for l in linesE]))
+    values       = Float64[]
+    for  en  in  energies
+        cs = 0.
+        for  l  in  linesE
+            if  abs(l.initialElectronEnergy - en) / max(en, 1.0e-10) > 1.0e-6           continue    end
+            if  !( (l.finalLevel.index, l.finalLevel.energy)  in  autoIonizing )         continue    end
+            cs = cs + l.crossSection
+        end
+        push!(values, cs)
+    end
+
+    return( (energies, values) )
+end
+
+
+"""
+`Cascade.foldWithMaxwellian(energies::Array{Float64,1}, values::Array{Float64,1}, temperatures::Array{Float64,1})`
+    ... folds a tabulated cross section sigma(E) with a Maxwellian electron distribution at each temperature,
+
+            alpha(T)  =  4/sqrt(2pi) * T^(-3/2) * INT sigma(E) * E * exp(-E/T) dE ,
+
+        the SAME prefactor that DielectronicRecombination.computeRateCoefficient carries, since sqrt(8/pi) and
+        4/sqrt(2pi) are identically equal; a delta-like sigma therefore reproduces the isolated-resonance formula
+        exactly.  The integral is a trapezoidal sum over the tabulated energies and is TRUNCATED above the largest of
+        them.  A tuple (alphas::Array{Float64,1} in cm^3/s, weightAbove::Array{Float64,1}) is returned, where
+        weightAbove[i] = (1 + x) exp(-x) with x = E_max/T_i is the exact share of the Maxwellian weight lying beyond
+        the last tabulated energy -- the number that says whether the truncation matters at that temperature.
+"""
+function foldWithMaxwellian(energies::Array{Float64,1}, values::Array{Float64,1}, temperatures::Array{Float64,1})
+    alphas = Float64[];    weightAbove = Float64[]
+    conv   = Defaults.convertUnits("length: from atomic to fm", 1.0)^3 * 1.0e-39 *
+             Defaults.convertUnits("rate: from atomic to 1/s", 1.0)
+    for  temp  in  temperatures
+        tAu = Defaults.convertUnits("temperature: from Kelvin to (Hartree) units", temp)
+        if  length(energies) < 2   push!(alphas, 0.);   push!(weightAbove, length(energies) == 0 ? 1. : 0.);  continue  end
+        wa = 0.
+        for  i = 1:length(energies)-1
+            f1 = values[i]   * energies[i]   * exp(-energies[i]/tAu)
+            f2 = values[i+1] * energies[i+1] * exp(-energies[i+1]/tAu)
+            wa = wa + 0.5 * (f1 + f2) * (energies[i+1] - energies[i])
+        end
+        push!(alphas, conv * 4/sqrt(2pi) * tAu^(-3/2) * wa)
+        x = energies[end]/tAu;     push!(weightAbove, (1. + x) * exp(-x))
+    end
+
+    return( (alphas, weightAbove) )
 end
 
 

@@ -247,6 +247,64 @@ function testModule_Cascade_ResonantIonization(; short::Bool=true)
 end
 
 
+"""
+`TestFrames.testModule_Cascade_EiiRateCoefficients(; short::Bool=true)`
+    ... tests the Cascade.EiiRateCoefficients simulation property, i.e. the fold of the resonant ionization strengths
+        with a Maxwellian.  A success::Bool is returned.
+"""
+function testModule_Cascade_EiiRateCoefficients(; short::Bool=true)
+    Defaults.setDefaults("method: continuum, asymptotic Coulomb")
+    Defaults.setDefaults("method: normalization, pure sine")
+    Defaults.setDefaults("unit: energy", "eV")
+    Defaults.setDefaults("print summary: open", "test-Cascade-EiiRateCoefficients-new.sum")
+    printstyled("\n\nTest the module  Cascade for the EII rate coefficients of the ElectronIonizationScheme ... \n", color=:cyan)
+    ### Make the tests
+    ## The same cut-down Li-like carbon case as testModule_Cascade_ResonantIonization -- see the notes there on why
+    ## the shell lists are what they are -- but carried one step further: the energy-integrated strengths are folded
+    ## with a Maxwellian to give the plasma rate coefficient alpha^EII (T), which is the quantity an ionization
+    ## balance consumes and the one that can be compared with other codes.
+    ##
+    ## WHAT THIS ADDS OVER THE STRENGTH TEST, stated narrowly because it is easy to overclaim, and this comment has
+    ## already been wrong twice.  It pins the Maxwellian FOLD -- the exponent, the sign of the exponential, the
+    ## Kelvin-to-Hartree conversion -- and it does so through the APPROVED NUMBERS, which change wholesale if any of
+    ## those is wrong.  That is where the regression power lives.
+    ##
+    ## It does NOT check that the resonances were correctly identified: prediction and curve are built from the same
+    ## energies, so a misplaced set moves both together and passes.
+    ##
+    ## THE SIX TEMPERATURES ARE CHOSEN, NOT ROUNDED OFF.  The printed bracket check -- is the tabulated maximum one
+    ## of the two grid points around kT = 2E/3? -- can only discriminate if the grid resolves the peak.  Measured on
+    ## this system, E = 306.6 eV and the maximum sits at 204.4 eV: with the four temperatures this test first used,
+    ## replacing T^(-3/2) by T^(-1/2) left the argmax at 430.9 eV, still inside the bracket, so the diagnostic
+    ## passed on broken arithmetic.  With 2.0e6 K added the argmax moves to 172.3 eV for the correct exponent and to
+    ## 861.7 eV for the wrong one, which is outside the bracket and fails.  A diagnostic that cannot fail on the grid
+    ## it is printed for is not worth printing.
+    grid = Radial.Grid(Radial.Grid(false); rnt = 2.0e-5, h = 5.0e-2, hp = 2.0e-2, rbox = 10.0)
+    scheme = Cascade.ElectronIonizationScheme(Float64[], [Shell("1s")], [Shell("2p"), Shell("3s")], collect(0:3), 1, 0.,
+                                              Basics.AbstractProcess[ResonantImpactIonization.SequentialAuger(),
+                                                                     ResonantImpactIonization.SimultaneousAuger()],
+                                              [Shell("3s")], 0.)
+    wa   = Cascade.Computation(Cascade.Computation(); name="Resonant ionization of Li-like C", grid=grid,
+                                nuclearModel=Nuclear.Model(6.), approach=Cascade.AverageSCA(), scheme=scheme,
+                                initialConfigs=[Configuration("1s^2 2s")] )
+    wb = perform(wa; output=true, outputToFile=false)
+    #
+    property = Cascade.EiiRateCoefficients(1, [3.0e5, 1.0e6, 2.0e6, 5.0e6, 1.0e7, 3.0e7], 0., 0.05)
+    wc = Cascade.Simulation(Cascade.Simulation(); name="Resonant ionization of Li-like C: rate coefficients",
+                            computationData=Dict{String,Any}[ Dict{String,Any}("results" => wb) ],
+                            property=property, settings=Cascade.SimulationSettings(false, false, 0.) )
+    wd = perform(wc; output=true)
+    ###
+    Defaults.setDefaults("print summary: close", "")
+    # Make the comparison with approved data
+    success = testCompareFiles( joinpath(@__DIR__, "..", "test", "approved", "test-Cascade-EiiRateCoefficients-approved.sum"),
+                                joinpath(@__DIR__, "..", "test", "test-Cascade-EiiRateCoefficients-new.sum"),
+                                "Electron-impact ionization plasma rate coefficients", 10)
+    testPrint("testModule_Cascade_EiiRateCoefficients()::", success)
+    return(success)
+end
+
+
 function testModule_Cascade_Simulation(; short::Bool=true)
     Defaults.setDefaults("print summary: open", "test-Cascade-Simulation-new.sum")
     printstyled("\n\nTest the module  Cascade for Simulations ... \n", color=:cyan)
