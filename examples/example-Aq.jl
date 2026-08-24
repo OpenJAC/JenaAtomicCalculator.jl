@@ -1054,5 +1054,114 @@ elseif  true
     println("")
     @printf("  TOTAL %d pairs: matched %d, missing %d, extra %d, worst ratio %.12f\n", tP, tM, tN, tX, tW)
     #
+elseif  true
+    # Last visit:      24-Aug-2026
+    # Last successful:  24-Aug-2026
+    #
+    # Branch n (MOVING ONE ELECTRON BETWEEN SUBSHELLS): the first two-particle case in which the two CSFs do NOT have the
+    #   same occupations. Branch m closed the equal-occupation problem; this one opens the occupation-changing one, where
+    #   the two-body operator creates an electron in one subshell, annihilates one in another, and acts a second time on a
+    #   spectator subshell. SpinAngular spends four routines and a forty-branch index tree on this case
+    #   (twoParticleDiffOcc2 -> twoParticle7to14 -> twoParticle7to8 / 9to10 / 11to14).
+    #
+    #   ONE RECOUPLING ROUTINE REPLACES THE CASE TREE, and that is the substantial part. An operator acting on any number
+    #   of subshells, its shell tensors coupled along the subshell chain, needs only three kinds of factor: a peel between
+    #   acting subshells, a nine-j junction at each acting subshell above the lowest, and the acting factor at the lowest
+    #   one. `treeRecoupling` is those three in a loop, and it is not an alternative to the two routines already validated
+    #   here -- it CONTAINS them. Checked rather than claimed: on 33 CSFs over five configurations it reproduces
+    #   `chainRecoupling` on 1476 comparisons and `substitutionRecoupling` on 164, worst difference 2.2e-16, one ulp.
+    #
+    #   THREE PHASES DECIDE THE SIGN, and each was established on data rather than assumed:
+    #     (1) the Jordan-Wigner string over the occupations between the two changing subshells, taken UNCONDITIONALLY;
+    #     (2) (-1)^(j_a + j_d - k + 1) when the creation sits on the higher subshell index -- the same phase the
+    #         one-particle substitution already carried;
+    #     (3) (-1)^(j_a + j_d + k + 1) when the spectator lies BETWEEN the two changing subshells, because the coupling
+    #         tree then joins the acceptor with the spectator instead of with the donor.
+    #
+    #   HOW (3) WAS FOUND, AND WHY THE FIRST TWO ATTEMPTS AT IT WERE WRONG.  With the spectator OUTSIDE, the assembly was
+    #   exact on 1136 coefficients the first time it was run. With it BETWEEN, every magnitude was still exact -- 518 of
+    #   518 -- and only the sign was wrong, so a phase was all that was missing. Two guesses failed and are recorded
+    #   because each looked convincing: excluding the spectator from the Jordan-Wigner string (partially right, hence
+    #   misleading), and the sign (-1)^(sum of the nine arguments) of the middle junction's nine-j, which matched 234 of
+    #   518, i.e. nothing. A parity search then returned an exact rule -- but only after the search BASIS was corrected:
+    #   the first search ranged over 2j_a, 2j_d, 2j_s and found nothing, because a re-pairing phase such as
+    #   (-1)^(j_a+j_d-k) is not a parity of the doubled values. The rule it found, (-1)^(k + j_a + j_d + N_s + 1), then
+    #   simplified: N_s only undid the wrong Jordan-Wigner exclusion, leaving a phase in the three RANKS alone -- which is
+    #   what a re-pairing of three tensors coupled to zero must be, so the rule is not merely a fit.
+    #   IT WAS THEN TESTED OUT OF SAMPLE: 8820 further coefficients from six configuration sets not used to find it, all
+    #   exact.
+    #
+    #   THE PARTNER TERM RUNS IN THE OPPOSITE DIRECTION.  Each spectator contributes two coefficients per rank, one for
+    #   each of the two pairings, and the second follows from the first by the same Racah sum the equal-occupation
+    #   exchange term uses. But the sum has a direction: with the spectator outside, the assembly yields the DIRECT
+    #   pairing and the transform produces the crossed one; with it between, the assembly yields the CROSSED pairing and
+    #   the transform must run back. Reading the six-j's bottom row on the primary quadruple's own c and d gets this
+    #   right; using one direction for both leaves 214 of 872 coefficients wrong.
+    #
+    #   REPORT (24-Aug-2026).  Term by term against SpinAngular over ten configuration sets, split by arrangement:
+    #
+    #       spectator outside     61 470 coefficients    0 differing   0 missing   0 extra
+    #       spectator between     20 718 coefficients    0 differing   0 missing   0 extra
+    #       TOTAL                 82 188 coefficients    0 differing   0 missing   0 extra
+    #
+    #   and, below, as COMPLETE lists -- every coefficient SpinAngular emits for the pair, no topology set aside -- for
+    #   the pairs the guard admits: 384 pairs, 1974 coefficients, nothing missing, nothing extra, worst ratio 1.000000000000.
+    #
+    #   WHAT STILL RAISES, AND WHY IT RAISES.  A spectator that COINCIDES with the acceptor or the donor puts three of the
+    #   four one-electron operators on a single subshell and needs a coupled a x W^(k) tensor, which is not written yet.
+    #   Such a pair therefore raises. It would be easy, and wrong, to return the terms that ARE implemented: that is a
+    #   wrong Hamiltonian matrix element rather than a missing one, and it is the same defect this file documents in
+    #   GRASP2018 in branch k and found in its own same-subshell term in branch m. The "raised" column below is large, and
+    #   is meant to be read: it is the size of the next step, not a result.
+    #
+    localCfgs = [(["1s^2 2s 3d","1s^2 2p 3d"],        "1s^2 2s 3d / 2p 3d"),
+                 (["2p^2 3d","2p 3d^2"],              "2p^2 3d / 2p 3d^2"),
+                 (["4d^2 5p","4d 5p^2"],              "4d^2 5p / 4d 5p^2"),
+                 (["3p^3 3d","3p^2 3d^2"],            "3p^3 3d / 3p^2 3d^2"),
+                 (["1s^2 2s 4f","1s^2 2p 4f"],        "1s^2 2s 4f / 2p 4f"),
+                 (["1s^2 2s 3d 4s","1s^2 2p 3d 4s"],  "two spectators at once"),
+                 (["3d^3 4s","3d^2 4s^2"],            "3d^3 4s / 3d^2 4s^2")]
+    hT = 0;  rT = 0;  mT = 0;  nT = 0;  xT = 0;  wT = 1.0
+    println("\n  configuration            handled  raised   matched  missing  extra   worst ratio")
+    for  (cfgs, tag) in localCfgs
+        local lRel = ConfigurationR[]
+        for  c in cfgs    append!(lRel, Basics.generateConfigurations(Basics.RelativisticConfigurations(),
+                                                                     Configuration(c)))    end
+        local lSub = Basics.generateSubshellList(lRel)
+        Defaults.setDefaults("relativistic subshell list", lSub; printout=false)
+        local lCsfs = CsfR[]
+        for  rc in lRel    append!(lCsfs, Basics.generateCsfRs(rc, lSub))    end
+        local nh = 0;  local nr = 0;  local nm = 0;  local nn = 0;  local nx = 0;  local wr = 1.0
+        for  l in lCsfs,  r in lCsfs
+            l.J == r.J  &&  l.parity == r.parity  ||  continue
+            local dd = l.occupation - r.occupation
+            count(!=(0), dd) == 2  &&  sum(abs, dd) == 2   ||  continue
+            local mv = findall(!=(0), dd)
+            local iC = dd[mv[1]] > 0 ? mv[1] : mv[2];     local iA = dd[mv[1]] > 0 ? mv[2] : mv[1]
+            # ... the guard of twoParticleMoveOne, tested here rather than caught, so that a real error stays an error
+            if  r.occupation[iC] >= 1  ||  r.occupation[iA] >= 2    nr += 1;   continue    end
+            nh += 1
+            old = [x for x in SpinAngular.computeCoefficients(SpinAngular.TwoParticleOperator(0,Basics.plus,true),
+                                                             l, r, lSub)   if abs(x.V) > 1.0e-14]
+            new = SpinAngularNew.computeCoefficients(SpinAngularNew.TwoParticleOperator(), l, r, lSub)
+            kk(x) = (x.nu, string(x.a), string(x.b), string(x.c), string(x.d))
+            dO = Dict{Any,Float64}();   for x in old   dO[kk(x)] = get(dO,kk(x),0.0) + x.V   end
+            dN = Dict{Any,Float64}();   for x in new   dN[kk(x)] = get(dN,kk(x),0.0) + x.V   end
+            for  (k,v) in dO
+                if  haskey(dN,k);   nm += 1;  rr = v/dN[k];  abs(rr-1) > abs(wr-1) && (wr = rr)
+                else   nn += 1
+                end
+            end
+            for  k in keys(dN)    haskey(dO,k) || (nx += 1)    end
+        end
+        @printf("  %-22s %7d %7d %9d %8d %6d   %.12f\n", tag, nh, nr, nm, nn, nx, wr)
+        global hT += nh;  global rT += nr;  global mT += nm;  global nT += nn;  global xT += nx
+        abs(wr-1) > abs(wT-1) && (global wT = wr)
+    end
+    println("")
+    @printf("  TOTAL: %d pairs handled, %d raised | matched %d, missing %d, extra %d, worst ratio %.12f\n",
+            hT, rT, mT, nT, xT, wT)
+    #
+
 end
 #

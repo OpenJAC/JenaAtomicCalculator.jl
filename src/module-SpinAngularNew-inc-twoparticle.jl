@@ -120,12 +120,22 @@ function computeCoefficients(op::SpinAngularNew.TwoParticleOperator, leftCsf::Cs
     # exchange terms through `substitutionRecoupling`, the same-subshell term through its own orthogonality guard --
     # so a pair differing only in coupling is handled rather than refused, and gives zero where it should.
     if  leftCsf.J != rightCsf.J  ||  leftCsf.parity != rightCsf.parity     return( coeffs2pEmpty() )   end
+    # ... a pair that MOVES ONE electron between two subshells has its own assembly; anything further apart is
+    #     orthogonal for a two-body operator, and returning the equal-occupation answer for it would be a wrong
+    #     number rather than a missing one.
     if  leftCsf.occupation != rightCsf.occupation
-        error("\n\nSpinAngularNew.computeCoefficients (two-particle): the occupations differ.\n"             *
-              ">>> Equal-occupation pairs are handled, whatever their coupling. A pair that MOVES electrons\n"  *
-              ">>> between subshells needs the creation/annihilation machinery this method does not have, and\n" *
-              ">>> returning the equal-occupation answer for it would be a wrong number rather than a missing\n" *
-              ">>> one. Use SpinAngular.computeCoefficients for such a pair.\n")
+        diff = leftCsf.occupation - rightCsf.occupation
+        if  count(!=(0), diff) == 2  &&  sum(abs, diff) == 2
+            mv   = findall(!=(0), diff)
+            iCre = diff[mv[1]] > 0 ? mv[1] : mv[2];      iAnn = diff[mv[1]] > 0 ? mv[2] : mv[1]
+            return( twoParticleMoveOne(leftCsf, rightCsf, subshells, iCre, iAnn) )
+        elseif  count(!=(0), diff) > 4  ||  sum(abs, diff) > 4
+            return( coeffs2pEmpty() )
+        end
+        error("\n\nSpinAngularNew.computeCoefficients (two-particle): this pair moves TWO electrons between\n"    *
+              ">>> subshells, which needs two creations and two annihilations on different subshells at once. That\n" *
+              ">>> assembly is not yet implemented, and returning a short list for it would be a wrong Hamiltonian\n" *
+              ">>> matrix element rather than a missing one. Use SpinAngular.computeCoefficients for such a pair.\n")
     end
 
     coeffs = Coefficient2p{EffectiveStrengthKind}[]
@@ -370,4 +380,179 @@ function exchangeFromDirect(direct::Array{Float64,1}, ja::AngularJ64, jb::Angula
     end
 
     return( wa )
+end
+
+
+"""
+`SpinAngularNew.moveOneQuads(subshells::Array{Subshell,1}, iCre::Int64, iAnn::Int64, iSpec::Int64)`
+    ... to determine the two index quadruples (a,b,c,d) under which the one-electron-move terms of a given spectator
+        subshell are emitted, together with their four subshell angular momenta and whether the spectator lies BETWEEN
+        the two subshells that change occupation.
+
+        The rank of a two-particle coefficient couples (a,c) and (b,d), so the quadruple says which pairing a value
+        belongs to, and there are two of them for each spectator: the DIRECT pairing, spectator with spectator and
+        acceptor with donor, and the CROSSED one, acceptor with spectator and spectator with donor. Which of the two the
+        assembly of `SpinAngularNew.moveOnePrimary` yields is decided by the arrangement, and that is the whole reason
+        this small routine exists rather than being inlined: with the spectator outside it yields the direct pairing,
+        with the spectator between it yields the crossed one. A tuple (qPrimary, qPartner, js, between) is returned.
+"""
+function moveOneQuads(subshells::Array{Subshell,1}, iCre::Int64, iAnn::Int64, iSpec::Int64)
+    shA = subshells[iCre];    shD = subshells[iAnn];    shS = subshells[iSpec]
+    between = min(iCre,iAnn) < iSpec < max(iCre,iAnn)
+    aIsS    = iSpec < iCre
+    (a, b)  = aIsS ? (shS, shA) : (shA, shS)
+    firstSD = between ? !aIsS : aIsS
+    (c, d)  = firstSD ? (shS, shD) : (shD, shS)
+    js      = ( AngularJ64(Basics.subshell_2j(a)//2), AngularJ64(Basics.subshell_2j(b)//2),
+                AngularJ64(Basics.subshell_2j(c)//2), AngularJ64(Basics.subshell_2j(d)//2) )
+
+    return( ((a,b,c,d), (a,b,d,c), js, between) )
+end
+
+
+"""
+`SpinAngularNew.moveOnePrimary(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, iCre::Int64, iAnn::Int64, iSpec::Int64, k::Int64)`
+    ... to compute the primary two-particle coefficient, at rank `k`, of a CSF pair that differs by ONE electron -- created
+        in subshell `iCre` of the bra, annihilated in `iAnn` of the ket -- with the two-body operator's second index pair
+        acting on the distinct spectator subshell `iSpec`. Three subshells act at once, and the operator is assembled from
+        pieces that already exist rather than from a new case tree:
+
+            a creation `shellReducedA(+1/2)` on iCre, an annihilation `shellReducedA(-1/2)` on iAnn, a spectator tensor
+            `shellReducedW` of rank k on iSpec, and ONE call to `treeRecoupling` over the three sites,
+
+        divided by sqrt(2k+1) sqrt(2J_bra+1) as in the equal-occupation case. Three phases decide the sign, and each was
+        established on data rather than assumed:
+
+        (1) the JORDAN-WIGNER string (-1)^(occupation between the two changing subshells, + 1), taken unconditionally --
+            the spectator's own electrons included when it lies between them;
+        (2) an ORDERING phase (-1)^(j_a + j_d - k + 1) when the creation sits on the HIGHER subshell index, the same
+            phase the one-particle substitution carries;
+        (3) a RE-PAIRING phase (-1)^(j_a + j_d + k + 1) when the spectator lies BETWEEN the two, because the coupling
+            tree then joins the acceptor with the spectator instead of with the donor. It is a function of the three
+            ranks alone, as a re-pairing of three tensors coupled to zero must be; it was found as a parity rule exact
+            on 518 coefficients and then held on 8820 further ones from six configuration sets not used to find it.
+
+        A value::Float64 is returned.
+"""
+function moveOnePrimary(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, iCre::Int64, iAnn::Int64,
+                        iSpec::Int64, k::Int64)
+    jA = AngularJ64( Basics.subshell_2j(subshells[iCre])//2 )
+    jD = AngularJ64( Basics.subshell_2j(subshells[iAnn])//2 )
+    jS = AngularJ64( Basics.subshell_2j(subshells[iSpec])//2 )
+
+    ord   = sortperm( [iCre, iAnn, iSpec] )
+    sites = [iCre, iAnn, iSpec][ord];        ranks = [jA, jD, AngularJ64(k)][ord]
+    inter = [ranks[1], ranks[3], AngularJ64(0)]
+    if  AngularMomentum.triangularDelta(inter[1], ranks[2], inter[2]) == 0            return( 0.0 )   end
+
+    wR = treeRecoupling(leftCsf, rightCsf, sites, ranks, inter);   if  wR == 0.0      return( 0.0 )   end
+    wA = shellReducedA(jA, leftCsf.occupation[iCre],  leftCsf.seniorityNr[iCre],  leftCsf.subshellJ[iCre],
+                           rightCsf.occupation[iCre], rightCsf.seniorityNr[iCre], rightCsf.subshellJ[iCre],
+                           AngularM64(1//2));                      if  wA == 0.0      return( 0.0 )   end
+    wD = shellReducedA(jD, leftCsf.occupation[iAnn],  leftCsf.seniorityNr[iAnn],  leftCsf.subshellJ[iAnn],
+                           rightCsf.occupation[iAnn], rightCsf.seniorityNr[iAnn], rightCsf.subshellJ[iAnn],
+                           AngularM64(-1//2));                     if  wD == 0.0      return( 0.0 )   end
+    wS = shellReducedW(jS, leftCsf.occupation[iSpec], leftCsf.seniorityNr[iSpec], leftCsf.subshellJ[iSpec],
+                           rightCsf.seniorityNr[iSpec], rightCsf.subshellJ[iSpec], k)
+    if  wS == 0.0                                                                    return( 0.0 )   end
+
+    occup = 0
+    for  i = min(iCre,iAnn):max(iCre,iAnn)-1    occup = occup + leftCsf.occupation[i]    end
+    ph = (-1)^(occup + 1)
+    if  iAnn < iCre
+        ph = ph * (-1)^Int64( (Basics.twice(jA) + Basics.twice(jD) - 2*k + 2)//2 )
+    end
+    if  min(iCre,iAnn) < iSpec < max(iCre,iAnn)
+        ph = ph * (-1)^Int64( (Basics.twice(jA) + Basics.twice(jD) + 2*k + 2)//2 )
+    end
+
+    return( ph * wR * wA * wD * wS / ( sqrt(2.0*k + 1.0) * sqrt(Basics.twice(leftCsf.J) + 1.0) ) )
+end
+
+
+"""
+`SpinAngularNew.moveOnePartner(prim::Array{Float64,1}, js::NTuple{4,AngularJ64}, k::Int64, between::Bool)`
+    ... to compute, at rank `k`, the coefficient of the OTHER of the two pairings of a one-electron-move term from the whole
+        vector `prim` of primary coefficients, by the Racah sum that relates the two,
+
+            V^k(a,b;d,c)  =  sum_K (2K+1) { j_a j_b k ; j_d j_c K } V^K(a,b;c,d) ,
+
+        the same relation the equal-occupation exchange term uses. The bottom row is read on the PRIMARY quadruple's own
+        c and d, so that the sum runs in the correct direction: with the spectator outside the primary is the direct
+        pairing and the transform produces the crossed one, with the spectator between it is the other way round, and
+        taking the two directions to be the same sum leaves 214 of 872 coefficients wrong. A value::Float64 is returned.
+"""
+function moveOnePartner(prim::Array{Float64,1}, js::NTuple{4,AngularJ64}, k::Int64, between::Bool)
+    ja, jb, jc, jd = js
+    wa = 0.0
+    for  K = 0:length(prim)-1
+        prim[K+1] == 0.0  &&  continue
+        w6 = between ? AngularMomentum.Wigner_6j(ja, jb, AngularJ64(k), jc, jd, AngularJ64(K)) :
+                       AngularMomentum.Wigner_6j(ja, jb, AngularJ64(k), jd, jc, AngularJ64(K))
+        w6 == 0.0  &&  continue
+        wa = wa + (2.0*K + 1.0) * w6 * prim[K+1]
+    end
+
+    return( wa )
+end
+
+
+"""
+`SpinAngularNew.twoParticleMoveOne(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, iCre::Int64, iAnn::Int64)`
+    ... to compute all two-particle coefficients of a CSF pair that differs by ONE electron, moved from subshell `iAnn`
+        of the ket to subshell `iCre` of the bra. Every subshell that keeps its occupation and holds an electron acts in
+        turn as the spectator on which the operator's second index pair sits, contributing two coefficients per rank --
+        the primary from `SpinAngularNew.moveOnePrimary` and its partner from `SpinAngularNew.moveOnePartner`.
+
+        WHAT IS NOT COVERED RAISES RATHER THAN RETURNING A SHORT LIST. A spectator that COINCIDES with the acceptor or
+        the donor puts three of the four one-electron operators on a single subshell, which needs a coupled a x W^(k)
+        tensor this module does not yet have. Such a pair therefore raises: a list that silently omitted those terms
+        would be a wrong Hamiltonian matrix element rather than a missing one, and is exactly the defect this module
+        documents in GRASP2018 (see `examples/example-Aq.jl`, branch k).
+
+        A list coeffs::Array{Coefficient2p{EffectiveStrengthKind},1} is returned.
+"""
+function twoParticleMoveOne(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, iCre::Int64, iAnn::Int64)
+    if  rightCsf.occupation[iCre] >= 1  ||  rightCsf.occupation[iAnn] >= 2
+        error("\n\nSpinAngularNew.twoParticleMoveOne: the acceptor subshell $(subshells[iCre]) or the donor "        *
+              "$(subshells[iAnn])\n>>> holds a further electron, so the two-body operator can act twice within it. "  *
+              "That term needs the coupled\n>>> a x W^(k) tensor on one subshell, which is not yet implemented, and "  *
+              "omitting it would return a short\n>>> list rather than an error. Use SpinAngular.computeCoefficients "  *
+              "for such a pair.\n")
+    end
+
+    coeffs = Coefficient2p{EffectiveStrengthKind}[]
+    for  iSpec = 1:length(subshells)
+        if  iSpec == iCre  ||  iSpec == iAnn                                        continue    end
+        if  rightCsf.occupation[iSpec] < 1                                          continue    end
+        if  leftCsf.occupation[iSpec] != rightCsf.occupation[iSpec]                  continue    end
+        # ... every subshell that neither changes occupation nor is the spectator must keep its own coupling
+        ok = true
+        for  i = 1:length(subshells)
+            if  i == iCre  ||  i == iAnn  ||  i == iSpec    continue    end
+            if  leftCsf.subshellJ[i] != rightCsf.subshellJ[i]  ||  leftCsf.seniorityNr[i] != rightCsf.seniorityNr[i]
+                ok = false;    break
+            end
+        end
+        if  !ok    continue    end
+
+        qP, qX, js, between = moveOneQuads(subshells, iCre, iAnn, iSpec)
+        # ... the spectator tensor of rank k needs k <= 2 j_spec, and the pairing it joins bounds it by j_spec + j of
+        #     the further subshell; the larger of the two is a safe upper limit and the triangle tests do the rest.
+        kMax = Int64( ( Basics.subshell_2j(subshells[iSpec]) +
+                        max(Basics.subshell_2j(subshells[iCre]), Basics.subshell_2j(subshells[iAnn])) )//2 )
+        prim = zeros(Float64, kMax+1)
+        for  k = 0:kMax    prim[k+1] = moveOnePrimary(leftCsf, rightCsf, subshells, iCre, iAnn, iSpec, k)    end
+        if  all(iszero, prim)    continue    end
+
+        for  k = 0:kMax
+            abs(prim[k+1]) > 1.0e-14  &&
+                push!(coeffs, Coefficient2p{EffectiveStrengthKind}(k, qP[1], qP[2], qP[3], qP[4], prim[k+1]))
+            vx = moveOnePartner(prim, js, k, between)
+            abs(vx) > 1.0e-14  &&
+                push!(coeffs, Coefficient2p{EffectiveStrengthKind}(k, qX[1], qX[2], qX[3], qX[4], vx))
+        end
+    end
+
+    return( coeffs )
 end

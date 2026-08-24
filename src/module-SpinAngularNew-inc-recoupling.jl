@@ -404,3 +404,122 @@ function nonScalarSubstitution(op::SpinAngularNew.OneParticleOperator, leftCsf::
 
     return( coeffs )
 end
+
+
+"""
+`SpinAngularNew.peelRange(leftCsf::CsfR, rightCsf::CsfR, from::Int64, to::Int64, kJ::AngularJ64)`
+    ... to peel a tensor of total rank `kJ` outwards through the subshells `from` ... `to`, each of which carries NO
+        operator and therefore enters as a spectator in the first subsystem,
+
+            (-1)^(X_{q-1}+J_q+X'_q+k) sqrt((2X_q+1)(2X'_q+1)) { X_{q-1} X_q J_q ; X'_q X'_{q-1} k } .
+
+        This is the outer loop of `SpinAngularNew.chainRecoupling` lifted out unchanged, so that the same peeling serves
+        an operator acting on one subshell and one acting on several. An empty range returns 1. A value::Float64 is
+        returned.
+"""
+function peelRange(leftCsf::CsfR, rightCsf::CsfR, from::Int64, to::Int64, kJ::AngularJ64)
+    wa = 1.0
+    k2 = Basics.twice(kJ)
+
+    for  q = from:to
+        Xqm = (q == 1) ? AngularJ64(0) : leftCsf.subshellX[q-1]
+        Ypm = (q == 1) ? AngularJ64(0) : rightCsf.subshellX[q-1]
+        Xq  = leftCsf.subshellX[q];              Yq = rightCsf.subshellX[q]
+        Jq  = leftCsf.subshellJ[q]
+        if  Jq != rightCsf.subshellJ[q]          return( 0.0 )   end
+        ph  = Int64( (Basics.twice(Xqm) + Basics.twice(Jq) + Basics.twice(Yq) + k2)//2 )
+        wa  = wa * (-1)^ph * sqrt((Basics.twice(Xq)+1.0)*(Basics.twice(Yq)+1.0)) *
+                   AngularMomentum.Wigner_6j(Xqm, Xq, Jq, Yq, Ypm, kJ)
+        if  wa == 0.0    return( 0.0 )   end
+    end
+
+    return( wa )
+end
+
+
+"""
+`SpinAngularNew.actingFactor(leftCsf::CsfR, rightCsf::CsfR, ip::Int64, kJ::AngularJ64)`
+    ... to compute the factor contributed by the LOWEST subshell that carries an operator, where the tensor sits in the
+        second subsystem with X_{ip-1} as spectator,
+
+            (-1)^(X_{ip-1}+J'_ip+X_ip+k) sqrt((2X_ip+1)(2X'_ip+1)) { J_ip X_ip X_{ip-1} ; X'_ip J'_ip k } .
+
+        Lifted out of `SpinAngularNew.chainRecoupling` unchanged, for the same reason as `SpinAngularNew.peelRange`. A
+        value::Float64 is returned.
+"""
+function actingFactor(leftCsf::CsfR, rightCsf::CsfR, ip::Int64, kJ::AngularJ64)
+    Xpm = (ip == 1) ? AngularJ64(0) : leftCsf.subshellX[ip-1]
+    Xp  = leftCsf.subshellX[ip];             Yp  = rightCsf.subshellX[ip]
+    Jp  = leftCsf.subshellJ[ip];             Jpp = rightCsf.subshellJ[ip]
+    ph  = Int64( (Basics.twice(Xpm) + Basics.twice(Jpp) + Basics.twice(Xp) + Basics.twice(kJ))//2 )
+
+    return( (-1)^ph * sqrt((Basics.twice(Xp)+1.0)*(Basics.twice(Yp)+1.0)) *
+                      AngularMomentum.Wigner_6j(Jp, Xp, Xpm, Yp, Jpp, kJ) )
+end
+
+
+"""
+`SpinAngularNew.junctionFactor(leftCsf::CsfR, rightCsf::CsfR, ip::Int64, below::AngularJ64, here::AngularJ64, above::AngularJ64)`
+    ... to compute the factor contributed by a subshell at which a rank JOINS the chain: the accumulated rank `below`
+        coming up from the subshells 1 ... ip-1 couples with the rank `here` of the operator acting on subshell ip to the
+        accumulated rank `above`. This is where a NINE-j appears rather than a six-j,
+
+            sqrt((2X_ip+1)(2X'_ip+1)(2above+1)) * { X_{ip-1} X'_{ip-1} below ; J_ip J'_ip here ; X_ip X'_ip above } ,
+
+        with the degenerate collapse to a six-j taken whenever `above` is zero -- which is every junction of a two-body
+        operator at its outermost acting subshell, and 28 times cheaper. A value::Float64 is returned.
+"""
+function junctionFactor(leftCsf::CsfR, rightCsf::CsfR, ip::Int64, below::AngularJ64, here::AngularJ64,
+                        above::AngularJ64)
+    Xbm = (ip == 1) ? AngularJ64(0) : leftCsf.subshellX[ip-1]
+    Ybm = (ip == 1) ? AngularJ64(0) : rightCsf.subshellX[ip-1]
+    Xb  = leftCsf.subshellX[ip];         Yb  = rightCsf.subshellX[ip]
+    Jb  = leftCsf.subshellJ[ip];         Jbp = rightCsf.subshellJ[ip]
+
+    if  Basics.twice(above) == 0  &&  Basics.twice(below) == Basics.twice(here)  &&
+        Basics.twice(Xb)    == Basics.twice(Yb)
+        ph9 = Basics.twice(Ybm) + Basics.twice(below) + Basics.twice(Jb) + Basics.twice(Xb)
+        if  iseven(ph9)
+            nine = (-1)^Int64(ph9//2) * AngularMomentum.Wigner_6j(Xbm, Ybm, below, Jbp, Jb, Xb) /
+                   sqrt((Basics.twice(below) + 1.0) * (Basics.twice(Xb) + 1.0))
+        else
+            nine = AngularMomentum.Wigner_9j(Xbm, Ybm, below,  Jb, Jbp, here,  Xb, Yb, above)
+        end
+    else
+        nine = AngularMomentum.Wigner_9j(Xbm, Ybm, below,  Jb, Jbp, here,  Xb, Yb, above)
+    end
+
+    return( sqrt((Basics.twice(Xb)+1.0)*(Basics.twice(Yb)+1.0)*(Basics.twice(above)+1.0)) * nine )
+end
+
+
+"""
+`SpinAngularNew.treeRecoupling(leftCsf::CsfR, rightCsf::CsfR, sites::Array{Int64,1}, ranks::Array{AngularJ64,1}, inter::Array{AngularJ64,1})`
+    ... to compute the recoupling factor for an operator that acts on ANY number of subshells, whose shell tensors are
+        coupled ALONG THE SUBSHELL CHAIN itself: `sites` holds the acting subshell indices in increasing order, `ranks[m]`
+        the rank of the tensor on `sites[m]`, and `inter[m]` the accumulated rank after that site, so that `inter[1]`
+        equals `ranks[1]` and `inter[end]` is the total rank of the operator.
+
+        The whole chain is then three kinds of factor and nothing else: `SpinAngularNew.peelRange` between acting
+        subshells, `SpinAngularNew.junctionFactor` at each acting subshell above the first, and
+        `SpinAngularNew.actingFactor` at the lowest one. That is what makes this ONE routine instead of a case tree:
+        `chainRecoupling(ip, k)` is the single site `[ip]`, and `substitutionRecoupling(ia, ib, ja, jb, k)` is the two
+        sites `[ia, ib]` -- both are checked against it rather than assumed. A value::Float64 is returned.
+"""
+function treeRecoupling(leftCsf::CsfR, rightCsf::CsfR, sites::Array{Int64,1}, ranks::Array{AngularJ64,1},
+                        inter::Array{AngularJ64,1})
+    nw = length(leftCsf.occupation)
+    ns = length(sites)
+
+    wa = peelRange(leftCsf, rightCsf, sites[ns]+1, nw, inter[ns])
+    if  wa == 0.0                                                         return( 0.0 )   end
+
+    for  m = ns:-1:2
+        wa = wa * junctionFactor(leftCsf, rightCsf, sites[m], inter[m-1], ranks[m], inter[m])
+        if  wa == 0.0                                                     return( 0.0 )   end
+        wa = wa * peelRange(leftCsf, rightCsf, sites[m-1]+1, sites[m]-1, inter[m-1])
+        if  wa == 0.0                                                     return( 0.0 )   end
+    end
+
+    return( wa * actingFactor(leftCsf, rightCsf, sites[1], ranks[1]) )
+end
