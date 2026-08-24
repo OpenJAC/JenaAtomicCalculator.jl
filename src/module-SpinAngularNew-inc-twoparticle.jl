@@ -122,14 +122,24 @@ end
 
         WHAT IS STILL MISSING, and why this method continues to RAISE: the SAME-SUBSHELL term (a,a,a,a).
 
-        ONE ROUTE TO IT IS ALREADY REFUTED, recorded so the next attempt does not repeat it. Since the two-body
-        same-shell operator looks like a product of two one-body ones, the obvious try is a CLOSURE sum over the
-        shell's own intermediate terms, S(k) = sum_int <bra||W^(k)||int> <int||W^(k)||bra>. At k = 0 that gives a
-        clean constant ratio of 4, which is encouraging and misleading; at k = 1 the sum VANISHES while the
-        coefficient is 0.5, so it is refuted outright. In hindsight it must fail: [W^(k) x W^(k)]^(0) built from two
-        IDENTICAL operators has the wrong symmetry for odd k, and the genuine two-body operator also carries a
-        normal-ordering correction that a plain product does not. The same-shell term needs the two-body quasispin
-        object -- `SpinAngular`'s SchemeEta_WW -- and not a product of one-body ones. Returning what exists would be an incomplete
+        TWO ATTEMPTS HAVE FAILED, and what they establish is worth more than a label.
+
+        (i) A bare CLOSURE sum over the shell's own intermediate terms, S(k) = sum_int <bra||W^(k)||int>
+        <int||W^(k)||bra>, gives a clean constant ratio of 4 at k = 0 -- encouraging and misleading -- and VANISHES at
+        k = 1 where the coefficient is 0.5.
+
+        I first recorded that as refuting the closure ROUTE. THAT WAS TOO STRONG AND IS WITHDRAWN. Reading
+        `SpinAngular`'s SchemeEta_WW afterwards shows the genuine assembly IS a closure sum over intermediate terms;
+        what my version lacked was a phase (-1)^((2k - 2J_a + 2J_r)/2), a normalisation 1/sqrt((2k+1)(2J_a+1)), and a
+        restricted intermediate range. So attempt (i) refutes an IMPLEMENTATION, not the route -- a distinction worth
+        keeping, since a route wrongly marked dead is not revisited.
+
+        (ii) The corrected closure, carrying that phase and normalisation, does not reproduce SpinAngular either. For
+        j = 3/2, N = 2, J = 0 the coefficient is 0.25 at EVERY rank 0 ... 3, while the sum gives 1.0, 0, 2.236, 0.
+        The constancy in k is itself a clue and is not yet explained.
+
+        So the same-shell term remains open, with the closure route live rather than dead, and the operator structure
+        -- which m-projections, and what normal-ordering correction -- the thing still to get right. Returning what exists would be an incomplete
         coefficient list, which is the silent wrong answer this module exists to prevent; half a two-particle answer is
         worth less than none.
 """
