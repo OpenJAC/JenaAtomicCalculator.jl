@@ -89,6 +89,23 @@ if  false
     #     uniform scale error on a family of coefficients or to a family missing from both directions -- which
     #     are precisely the two shapes that would produce what is measured here. "Not asymmetric" is a much
     #     weaker statement than "verified" and must not be recorded as one.
+    #     NARROWED, later on 24-Aug-2026, and narrowed AGAINST suspect (ii) rather than for it. A candidate
+    #     mechanism had been named: a rank-1 coefficient silently DROPPED when the donor subshell is closed in the
+    #     ket -- which describes this K hole exactly, since 2s and 2p are both closed here. It is a real failure
+    #     mode, found in a reconstruction being built beside this work. But SpinAngular was then tested for it in
+    #     the ONE-electron-move region, on two configurations that meet precisely that condition
+    #     (1s^2 2s^2 3s vs 1s 2s^2 3s^2, and 1s^2 2s^2 2p^4 vs 1s^2 2s 2p^5), and does NOT have it: 14 and 8
+    #     coefficients, worst ratio 1.000000000000, against an implementation that carried the bug an hour earlier
+    #     and had been corrected -- so the agreement is mutual corroboration and not a shared convention.
+    #     If suspect (ii) exists at all it must therefore live specifically in the TWO-electron-move machinery,
+    #     which is the one region still unreached.
+    #     AND THE STEP FROM A COEFFICIENT TO A RATE IS NOT ONE-TO-ONE, which is worth stating before anyone
+    #     reasons from ratios. A rate goes as the SQUARE of an amplitude, and that amplitude is a SUM over many
+    #     coefficients: a single dropped term can shift it by anything from nothing to a factor of four depending
+    #     on its weight and its sign against the others, and it does not scale a group uniformly, which is what
+    #     the branching pattern here would require. "A factor of two in a coefficient" and "1.8 in a total width"
+    #     are different claims and their numerical closeness is not an argument. If a discrepancy is ever found,
+    #     the rate must be RECOMPUTED from the corrected coefficients, not inferred from the ratio.
     #     Separating (i) from (ii) needs an INDEPENDENT RECONSTRUCTION of those coefficients, which does not
     #     exist for the two-electron-move case. Until it does, neither suspect is excluded.
     #   Dated on the energies, which are verified against the literature. A YIELD OR A LIFETIME MUST NOT BE
