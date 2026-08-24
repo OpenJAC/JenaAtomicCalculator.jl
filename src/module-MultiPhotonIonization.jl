@@ -19,7 +19,7 @@ using  ..AngularMomentum, ..Basics, ..Continuum, ..InteractionStrength, ..ManyEl
     + lineSelection           ::LineSelection                ... Specifies the selected levels, if any.
 
 """
-struct Settings 
+struct Settings  <:  Basics.AbstractProcessSettings 
     multipoles                ::Array{EmMultipole}
     gauges                    ::Array{UseGauge}
     photonEnergies            ::Array{Float64,1} 

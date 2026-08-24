@@ -183,28 +183,43 @@ function Basics.perform(computation::Atomic.Computation; output::Bool=false)
             if output    results = Base.merge( results, Dict("hyperfine-induced transitions:" => outcome) )         end
             #
             #
-        elseif  typeof(computation.processSettings) == Coulex()
+        ## THE SEVEN TESTS BELOW USED TO COMPARE A TYPE WITH AN INSTANCE -- `typeof(x) == Coulex()` and its six
+        ## siblings -- which is false for every x, so all seven processes fell through to error("stop b") and were
+        ## unreachable.  They also tested the wrong THING: computation.processSettings is declared
+        ## ::Basics.AbstractProcessSettings, so it is a Settings object and never one of the AbstractProcess
+        ## singletons.  Each now tests the Settings type of the module whose function the branch calls, which is
+        ## the form the rest of this chain already uses.  Fixed 24-Aug-2026.
+        elseif  typeof(computation.processSettings) == CoulombExcitation.Settings
             outcome = CoulombExcitation.computeLines(finalMultiplet, initialMultiplet, computation.grid, computation.processSettings) 
             if output    results = Base.merge( results, Dict("Coulomb excitation lines:" => outcome) )               end
-        elseif  typeof(computation.processSettings) == Coulion()
-            outcome = CoulombIonization.computeLines(finalMultiplet, initialMultiplet, computation.grid, computation.processSettings) 
-            if output    results = Base.merge( results, Dict("Coulomb ionization lines:" => outcome) )               end
-        elseif  typeof(computation.processSettings) == PhotoIonAuto()   
+        elseif  typeof(computation.processSettings) == CoulombIonization.Settings
+            ## NOT merely re-pointed like its six siblings, because CoulombIonization has no computation to reach:
+            ## the module declares Settings, Channel and Line with their show-methods and NOTHING ELSE -- there is
+            ## no computeLines, so the call this branch used to make names a function that does not exist.  While
+            ## the test was inoperative that never showed; repairing the test would have turned a silent
+            ## fall-through into an UndefVarError at a random name.  It raises here instead, and says why.
+            error("Atomic.Computation with CoulombIonization.Settings: the CoulombIonization module is a shell.  " *
+                  "It defines Settings, Channel and Line but no computeLines, so there is nothing to perform.  " *
+                  "Use CoulombExcitation for the excitation channel, or implement CoulombIonization.computeLines " *
+                  "first; this branch is reserved for it.  Note that its Settings is also the only one of the seven " *
+                  "still declared with no supertype, so it cannot even be stored in Computation.processSettings " *
+                  "until it is made <: Basics.AbstractProcessSettings -- both are needed, not one.")
+        elseif  typeof(computation.processSettings) == PhotoIonizationAutoion.Settings
             outcome = PhotoIonizationAutoion.computePathways(finalMultiplet, intermediateMultiplet, initialMultiplet, 
                                                                 computation.grid, computation.processSettings) 
             if output    results = Base.merge( results, Dict("photo-ionization-autoionization pathways:" => outcome) )      end
-        elseif  typeof(computation.processSettings) == PhotoIonFluor()  
+        elseif  typeof(computation.processSettings) == PhotoIonizationFluores.Settings
             outcome = PhotoIonizationFluores.computePathways(finalMultiplet, intermediateMultiplet, initialMultiplet, 
                                                                 computation.grid, computation.processSettings) 
             if output    results = Base.merge( results, Dict("photo-ionizatiton-fluorescence pathways:" => outcome) )        end
-        elseif  typeof(computation.processSettings) == ImpactExcAuto()  
+        elseif  typeof(computation.processSettings) == ImpactExcitationAutoion.Settings
             outcome = ImpactExcitationAutoion.computePathways(finalMultiplet, intermediateMultiplet, initialMultiplet, 
                                                                 computation.grid, computation.processSettings) 
             if output    results = Base.merge( results, Dict("impact-excitation-autoionization pathways:" => outcome) )     end
-        elseif  typeof(computation.processSettings) == MultiPI()   
+        elseif  typeof(computation.processSettings) == MultiPhotonIonization.Settings
             outcome = MultiPhotonIonization.computeLines(finalMultiplet, initialMultiplet, computation.grid, computation.processSettings) 
             if output    results = Base.merge( results, Dict("multi-photon single ionization:" => outcome) )        end
-        elseif  typeof(computation.processSettings) == MultiPDI()   
+        elseif  typeof(computation.processSettings) == MultiPhotonDoubleIon.Settings
             outcome = MultiPhotonDoubleIon.computeLines(finalMultiplet, initialMultiplet, computation.grid, computation.processSettings) 
             if output    results = Base.merge( results, Dict("multi-photon double ionization:" => outcome) )        end
         elseif  typeof(computation.processSettings) == InternalConversion.Settings

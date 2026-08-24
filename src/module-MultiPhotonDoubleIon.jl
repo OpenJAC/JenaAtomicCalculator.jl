@@ -21,7 +21,7 @@ using ..Basics, ..ManyElectron, ..Radial
     + lineSelection           ::LineSelection                ... Specifies the selected levels, if any.
 
 """
-struct Settings 
+struct Settings  <:  Basics.AbstractProcessSettings 
     multipoles                ::Array{EmMultipole}
     gauges                    ::Array{UseGauge}
     NoPhotons                 ::Int64

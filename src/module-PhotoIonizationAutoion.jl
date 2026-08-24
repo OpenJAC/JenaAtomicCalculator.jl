@@ -20,7 +20,7 @@ using ..AutoIonization, ..Basics, ..ManyElectron, ..Radial, ..PhotoEmission, ..T
     + selectedPathways        ::Array{Tuple{Int64,Int64,Int64},1}  ... List of list of pathways, given by tupels (inital, inmediate, final).
     + maxKappa                ::Int64                              ... Maximum kappa value of partial waves to be included.
 """
-struct Settings
+struct Settings  <:  Basics.AbstractProcessSettings
     multipoles                ::Array{EmMultipole,1}
     gauges                    ::Array{UseGauge,1} 
     printBefore    ::Bool

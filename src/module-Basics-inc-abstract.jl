@@ -2042,13 +2042,20 @@ export   AbstractProcessSettings
                                   continuum.
     + struct AugerInPlasma    ... Auger transitions but calculated for a specified plasma model.
     + struct Compton          ... Rayleigh-Compton scattering cross sections.
+    + struct ElecCapture      ... the (dielectronic) electron-capture process, i.e. the capture of a free electron into a bound shell.
     + struct Coulex           ... Coulomb-excitation of target or projeticle electrons by fast, heavy ions.
     + struct Coulion          ... Coulomb-ionization of target or projeticle electrons by fast, heavy ions.
     + struct Dierec           ... di-electronic recombination, i.e. the dielectronic capture of a free electron and the subsequent emission
                                   of a photon.
     + struct DoubleAuger      ... Double Auger rates.
-    + struct ImpactExcAuto    ... di-electronic recombination, i.e. the dielectronic capture of a free electron and the subsequent emission
-                                  of a photon.
+    + struct ImpactExcAuto    ... electron-impact excitation with subsequent autoionization, i.e. an inner-shell electron is raised by
+                                  electron impact to a level above the ionization threshold, which then autoionizes.
+    + struct InternalConv     ... internal conversion, i.e. the transfer of nuclear excitation energy to a bound electron which is thereby
+                                  ejected.
+    + struct NoProcess        ... dummy process for the initialization of a Cascade.Step or an atomic computation; it denotes the ABSENCE
+                                  of a process and is never computed.
+    + struct PairA1P          ... one-photon pair annihilation, in which a bound electron and a positron annihilate under emission of a
+                                  single photon.
     + struct MultiPhotonDE    ... multi-photon excitation and decay rates, including 2-photon, etc. processes.
     + struct MultiPI          ... multi-photon (single-electron) ionization.
     + struct MultiPDI         ... multi-photon (single-electron) double ionization.
@@ -2109,7 +2116,8 @@ struct    PairA1P               <:  AbstractProcess     end
 @doc "... Coulomb-ionization of target or projeticle electrons by fast, heavy ions."                                                           Coulion
 @doc "... di-electronic recombination, i.e. the dielectronic capture of a free electron and the subsequent emission of a photon."               Dierec
 @doc "... Double Auger rates."                                                                                                             DoubleAuger
-@doc "... di-electronic recombination, i.e. the dielectronic capture of a free electron and the subsequent emission of a photon."        ImpactExcAuto
+@doc "... electron-impact excitation with subsequent autoionization, i.e. an inner-shell electron is raised by electron impact to a " *
+     "level above the ionization threshold, which then autoionizes."                                                                    ImpactExcAuto
 @doc "... multi-photon excitation and decay rates, including 2-photon, etc. processes."                                                  MultiPhotonDE
 @doc "... multi-photon (single-electron) ionization."                                                                                          MultiPI
 @doc "... multi-photon (single-electron) double ionization."                                                                                  MultiPDI
