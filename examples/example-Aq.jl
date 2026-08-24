@@ -1163,5 +1163,135 @@ elseif  true
             hT, rT, mT, nT, xT, wT)
     #
 
+elseif  true
+    # Last visit:      24-Aug-2026
+    # Last successful:  24-Aug-2026
+    #
+    # Branch o (THE COMPLETE DIFFERENCE INVENTORY): the question this branch answers is the one that decides whether
+    #   SpinAngularNew may ever replace SpinAngular -- do the two return the SAME set of coefficients, and where they do
+    #   not, exactly why? Every other branch compares selected cases and reports agreement. This one takes EVERY key
+    #   either module emits, over twelve configurations and ranks 0 to 3, and forces each into a named class. A key that
+    #   fell into no class would be an unexplained difference, and the count of those is printed.
+    #
+    #   THERE ARE EXACTLY TWO CLASSES OF DIFFERENCE, and both are deliberate:
+    #
+    #   (1) THE RANK-0 NORMALIZATION, ratio exactly sqrt(2 j_a + 1). This is the convention change branch c documents:
+    #       SpinAngularNew carries the factor at EVERY rank, SpinAngular has it commented out at rank 0 and its callers
+    #       compensate (module-Hamiltonian.jl:277 re-applies it, Hfs.amplitude divides it out). A migration must delete
+    #       those compensating lines, and that is the one edit that carries real risk.
+    #
+    #   (2) THE PARITY SELECTION RULE. SpinAngularNew's `isAllowed1p` refuses a pair whose l_a + l_b does not match the
+    #       operator's parity; SpinAngular does not, and returns everything the triangle condition allows. That is not a
+    #       guess about its intent: given the SAME CSFs and ranks, SpinAngular returns BIT-IDENTICAL lists for
+    #       Basics.plus and Basics.minus, so it ignores the parity it is handed and leaves it to the caller's radial
+    #       integral, which vanishes anyway. Every one of the 5648 keys in this class was checked individually, and all
+    #       5648 have odd l_a + l_b against an even-parity operator -- none unexplained.
+    #
+    #       THIS ONE IS BENIGN IN THE HAMILTONIAN AND NOT BENIGN IN GENERAL. The products are zero either way, so no
+    #       matrix element changes. But a caller that passes the WRONG parity gets a silently shorter list from the new
+    #       module and the full list from the old, and a caller that counts terms sees different numbers. Anyone
+    #       migrating a module must check which parity it passes.
+    #
+    #   AND ONE REAL BUG, FOUND BY THIS BRANCH AND FIXED (24-Aug-2026), which is why the branch exists rather than being
+    #   a formality. Before the fix the inventory showed 949 keys EXTRA in the new module at ranks 1 to 3. They were
+    #   spurious: for two CSFs of 1s^2 3d^2 4s with identical occupations, identical subshellJ and identical seniority,
+    #   differing ONLY in the intermediate coupling X_3 (1 against 2), the new module returned a 4s_1/2 coefficient where
+    #   the old correctly returned none. A rank-1 operator acting on subshell 4 cannot change X_3.
+    #     THE GIVE-AWAY WAS A SYMMETRY, NOT A REFERENCE VALUE: the pairs (7,8) and (8,7) have equal J, so a Hermitian
+    #   operator must give equal magnitudes, and it gave +0.745 against -0.447.
+    #     THE CAUSE: `nonScalarGeneral` guarded the OTHER subshells' subshellJ and seniority but not their intermediate
+    #   couplings, and `chainRecoupling` takes X_{ip-1} from the BRA alone -- so for a pair differing below the acting
+    #   subshell it returned the diagonal answer instead of zero. The guard now sits in `actingFactor`, where the
+    #   operator is the identity below the lowest acting subshell, and `chainRecoupling` was made to delegate to
+    #   `peelRange` and `actingFactor` so that the guard cannot be half-applied.
+    #     THIS IS THE FOURTH TIME THIS EXACT DEFECT HAS APPEARED HERE: in GRASP2018 (branch k), in this module's
+    #   same-subshell two-particle term (branch m), and now in its one-particle term. Each time the shape is identical --
+    #   a routine that consults only the subshell it acts on, returning the diagonal answer for an off-diagonal pair.
+    #   A new method in this module should be assumed to have it until a coupling-off-diagonal pair says otherwise.
+    #
+    #   REPORT (24-Aug-2026), twelve configurations, 12055 CSF pairs at each rank:
+    #
+    #       operator          identical   sqrt(2j+1)   parity-only-in-old   num.zero-new   EXTRA   DISAGREE   unexplained
+    #       1-particle k=0            0          684                  156              0       0          0             0
+    #       1-particle k=1         3112            0                 1324              3       0          0             0
+    #       1-particle k=2         4073            0                 2308              1       0          0             0
+    #       1-particle k=3         3626            0                 1860              1       0          0             0
+    #       2-particle (scalar)    6603            0                    0              0       0          0             0
+    #
+    #   (3) A THIRD CLASS, five keys in all and harmless, but listed rather than folded into another column. The new
+    #       module decides zeros by SELECTION RULE and not by magnitude, so it has no `abs(wa) >= 2.0e-10` cutoff and
+    #       will occasionally emit a coefficient of order 1e-17 that the old module's cutoff removes. Nothing downstream
+    #       can notice a 1e-17, but a comparison that counted it as a disagreement would be wrong and one that hid it in
+    #       another column would be worse.
+    #
+    #   Neither module ever emitted a duplicate key, so no summing is needed before comparing -- which is worth knowing,
+    #   since example-Ak.jl compared totals precisely because it assumed otherwise.
+    #
+    localSets = [["1s^2 2s"], ["1s^2 2p"], ["1s^2 2s^2 2p^2"], ["1s^2 3d^2"], ["1s^2 3d^3"], ["1s^2 4f^2"],
+                 ["1s^2 2s^2 2p 3d"], ["1s^2 3d^2 4s"], ["1s^2 2s 3d","1s^2 2p 3d"], ["2p^2 3d","2p 3d^2"],
+                 ["1s^2 2s^2 2p","1s^2 2s 2p^2"], ["4d^2 5p","4d 5p^2"]]
+    println("\n  operator            identical  sqrt(2j+1)  parity-old-only  num.zero-new   EXTRA  DISAGREE  unexplained  dup.keys")
+    for  rank in [0, 1, 2, 3, -1]
+        nId = 0; nCv = 0; nPa = 0; nEx = 0; nDs = 0; nUn = 0; nDp = 0; nZr = 0
+        for  cfgSet in localSets
+            local lRel = ConfigurationR[]
+            for  c in cfgSet    append!(lRel, Basics.generateConfigurations(Basics.RelativisticConfigurations(),
+                                                                           Configuration(c)))    end
+            local lSub = Basics.generateSubshellList(lRel)
+            Defaults.setDefaults("relativistic subshell list", lSub; printout=false)
+            local lCsfs = CsfR[]
+            for  rc in lRel    append!(lCsfs, Basics.generateCsfRs(rc, lSub))    end
+            for  l in lCsfs,  r in lCsfs
+                local old = [];   local new = []
+                if  rank >= 0
+                    old = [x for x in SpinAngular.computeCoefficients(
+                              SpinAngular.OneParticleOperator(rank, Basics.plus, true), l, r, lSub) if abs(x.T) > 1.0e-14]
+                    new = SpinAngularNew.computeCoefficients(SpinAngularNew.OneParticleOperator(rank, Basics.plus),
+                                                             l, r, lSub)
+                else
+                    local dd = l.occupation - r.occupation
+                    local reach = false
+                    if      all(==(0), dd)                          reach = (l.J == r.J && l.parity == r.parity)
+                    elseif  count(!=(0), dd) == 2 && sum(abs, dd) == 2
+                        local mv = findall(!=(0), dd)
+                        local iC = dd[mv[1]] > 0 ? mv[1] : mv[2];   local iAn = dd[mv[1]] > 0 ? mv[2] : mv[1]
+                        reach = !(r.occupation[iC] >= 1 || r.occupation[iAn] >= 2) && l.J == r.J && l.parity == r.parity
+                    end
+                    reach  ||  continue
+                    old = [x for x in SpinAngular.computeCoefficients(
+                              SpinAngular.TwoParticleOperator(0, Basics.plus, true), l, r, lSub) if abs(x.V) > 1.0e-14]
+                    new = SpinAngularNew.computeCoefficients(SpinAngularNew.TwoParticleOperator(), l, r, lSub)
+                end
+                kk(x)  = rank >= 0 ? (x.nu, string(x.a), string(x.b)) :
+                                     (x.nu, string(x.a), string(x.b), string(x.c), string(x.d))
+                vv(x)  = rank >= 0 ? x.T : x.V
+                dO = Dict{Any,Float64}();  for x in old   haskey(dO,kk(x)) && (nDp += 1);  dO[kk(x)] = vv(x)   end
+                dN = Dict{Any,Float64}();  for x in new   haskey(dN,kk(x)) && (nDp += 1);  dN[kk(x)] = vv(x)   end
+                for  (k,vO) in dO
+                    if  haskey(dN,k)
+                        local rr = dN[k]/vO
+                        local cv = rank == 0 ? sqrt(Basics.subshell_2j(Subshell(k[2])) + 1.0) : 1.0
+                        if      abs(rr - 1.0) < 1.0e-10    nId += 1
+                        elseif  abs(rr - cv)  < 1.0e-9     nCv += 1
+                        else                               nDs += 1
+                        end
+                    else
+                        # ... only in the old module: the parity rule the new one applies is the whole explanation
+                        local la = Basics.subshell_l(Subshell(k[2]));   local lb = Basics.subshell_l(Subshell(k[3]))
+                        iseven(la + lb) ? (nUn += 1) : (nPa += 1)
+                    end
+                end
+                for  (k,vN) in dN
+                    if  !haskey(dO,k)
+                        abs(vN) < 1.0e-14 ? (nZr += 1) : (nEx += 1)
+                    end
+                end
+            end
+        end
+        @printf("  %-18s %9d %11d %16d %13d %7d %9d %12d %9d\n",
+                rank >= 0 ? "1-particle k=$rank" : "2-particle scalar", nId, nCv, nPa, nZr, nEx, nDs, nUn, nDp)
+    end
+    #
+
 end
 #

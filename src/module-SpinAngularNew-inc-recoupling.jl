@@ -175,31 +175,10 @@ end
 """
 function chainRecoupling(leftCsf::CsfR, rightCsf::CsfR, ip::Int64, kJ::AngularJ64; top::Int64 = 0)
     nw = (top == 0) ? length(leftCsf.occupation) : top
-    wa = 1.0
-    k2 = Basics.twice(kJ)
+    wa = peelRange(leftCsf, rightCsf, ip+1, nw, kJ)
+    if  wa == 0.0                                                         return( 0.0 )   end
 
-    # ... the outer subshells, q > ip, operator in the first subsystem
-    for  q = ip+1:nw
-        Xqm = (q == 1) ? AngularJ64(0) : leftCsf.subshellX[q-1]
-        Ypm = (q == 1) ? AngularJ64(0) : rightCsf.subshellX[q-1]
-        Xq  = leftCsf.subshellX[q];              Yq = rightCsf.subshellX[q]
-        Jq  = leftCsf.subshellJ[q]
-        if  Jq != rightCsf.subshellJ[q]          return( 0.0 )   end
-        ph  = Int64( (Basics.twice(Xqm) + Basics.twice(Jq) + Basics.twice(Yq) + k2)//2 )
-        wa  = wa * (-1)^ph * sqrt((Basics.twice(Xq)+1.0)*(Basics.twice(Yq)+1.0)) *
-                   AngularMomentum.Wigner_6j(Xqm, Xq, Jq, Yq, Ypm, kJ)
-        if  wa == 0.0    return( 0.0 )   end
-    end
-
-    # ... and the acting subshell itself, operator in the second subsystem
-    Xpm = (ip == 1) ? AngularJ64(0) : leftCsf.subshellX[ip-1]
-    Xp  = leftCsf.subshellX[ip];             Yp  = rightCsf.subshellX[ip]
-    Jp  = leftCsf.subshellJ[ip];             Jpp = rightCsf.subshellJ[ip]
-    ph  = Int64( (Basics.twice(Xpm) + Basics.twice(Jpp) + Basics.twice(Xp) + k2)//2 )
-    wa  = wa * (-1)^ph * sqrt((Basics.twice(Xp)+1.0)*(Basics.twice(Yp)+1.0)) *
-               AngularMomentum.Wigner_6j(Jp, Xp, Xpm, Yp, Jpp, kJ)
-
-    return( wa )
+    return( wa * actingFactor(leftCsf, rightCsf, ip, kJ) )
 end
 
 
@@ -448,6 +427,16 @@ end
         value::Float64 is returned.
 """
 function actingFactor(leftCsf::CsfR, rightCsf::CsfR, ip::Int64, kJ::AngularJ64)
+    # BELOW THE LOWEST ACTING SUBSHELL THE OPERATOR IS THE IDENTITY, so bra and ket must agree there -- in their
+    # intermediate couplings X_q as well as in J_q. Nothing in the algebra below enforces it: the expression takes
+    # X_{ip-1} from the BRA alone, and silently returns the diagonal answer for a pair whose couplings differ further
+    # down. That produced a spurious 4s_1/2 coefficient for two CSFs of 1s^2 3d^2 4s that differ only in X_3, and the
+    # give-away was that it was not symmetric under exchanging bra and ket (+0.745 against -0.447 at equal J).
+    for  q = 1:ip-1
+        if  leftCsf.subshellX[q] != rightCsf.subshellX[q]  ||  leftCsf.subshellJ[q] != rightCsf.subshellJ[q]
+            return( 0.0 )
+        end
+    end
     Xpm = (ip == 1) ? AngularJ64(0) : leftCsf.subshellX[ip-1]
     Xp  = leftCsf.subshellX[ip];             Yp  = rightCsf.subshellX[ip]
     Jp  = leftCsf.subshellJ[ip];             Jpp = rightCsf.subshellJ[ip]
