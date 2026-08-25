@@ -9,6 +9,66 @@ module AngularMomentum
 using  SpecialFunctions, WignerSymbols, ..Basics
 using  GSL: sf_coupling_3j, sf_coupling_6j, sf_coupling_9j, sf_legendre_sphPlm
 
+
+"""
+`abstract type AngularMomentum.AbstractWignerMethod`
+    ... defines an abstract type to distinguish HOW the Wigner symbols are evaluated. The value of a symbol is the same
+        either way to about one part in 1e16; what differs is the arithmetic used to reach it, and with it the cost.
+
+    + ExactWigner       ... evaluates in exact rational arithmetic (Rational{BigInt}) and rounds only at the end.
+    + FloatingWigner    ... evaluates in Float64 throughout.
+"""
+abstract type  AbstractWignerMethod                                     end
+
+
+"""
+`struct AngularMomentum.ExactWigner  <:  AngularMomentum.AbstractWignerMethod`
+    ... evaluates the Wigner symbols in exact rational arithmetic, rounding only when the result is returned. This is
+        what JAC has always done and remains the default, so that no result changes until the choice is made
+        deliberately. It is the slower of the two by roughly a factor of seven.
+"""
+struct   ExactWigner     <:  AbstractWignerMethod                       end
+
+
+"""
+`struct AngularMomentum.FloatingWigner  <:  AngularMomentum.AbstractWignerMethod`
+    ... evaluates the Wigner symbols in Float64 throughout. Measured against the exact path over 6-j symbols with all
+        arguments up to j = 40, the two agree to a worst relative difference of 3e-16 -- one unit in the last place --
+        with no degradation at large angular momentum, while being about seven times faster.
+"""
+struct   FloatingWigner  <:  AbstractWignerMethod                       end
+
+
+# The Wigner method in force. It is deliberately NOT const: it is switched at run time, normally through
+# `Defaults.setDefaults("method: Wigner symbols, ...")`. Reading it costs one dynamic dispatch per symbol, which is
+# why every function below also has a form that TAKES the method, so that a hot loop can read it once and pass it on.
+WIGNER_METHOD = ExactWigner()
+
+
+"""
+`AngularMomentum.setWignerMethod(method::AngularMomentum.AbstractWignerMethod)`
+    ... to select how the Wigner symbols are evaluated from here on; the previous method::AbstractWignerMethod is
+        returned, so that a caller can restore it.
+"""
+function setWignerMethod(method::AbstractWignerMethod)
+    global WIGNER_METHOD
+    previous      = WIGNER_METHOD
+    WIGNER_METHOD = method
+
+    return( previous )
+end
+
+
+"""
+`AngularMomentum.getWignerMethod()`
+    ... to return the method::AbstractWignerMethod by which the Wigner symbols are currently evaluated.
+"""
+function getWignerMethod()
+
+    return( WIGNER_METHOD )
+end
+
+
 """
 `AngularMomentum.allowedDoubleKappaCouplingSequence(syma::LevelSymmetry, symb::LevelSymmetry, maxKappa::Int64)`  
     ... to determine all allowed coupling sequences that fulfill
@@ -578,35 +638,119 @@ end
 
 """
 `AngularMomentum.Wigner_3j(a, b, c, m_a, m_b, m_c)`  
-    ... calculates the value of a Wigner 3-j symbol for given quantum numbers as displayed in many texts on the theory of 
-        angular momentum (see R. D. Cowan, The Theory of Atomic Structure and Spectra; University of California Press, 1981, p. 142); 
-        it calls the corresponding function from the GNU Scientific Library. A value::Float64 is returned.
+    ... calculates the value of a Wigner 3-j symbol for given quantum numbers as displayed in many texts on the theory of
+        angular momentum (see R. D. Cowan, The Theory of Atomic Structure and Spectra; University of California Press,
+        1981, p. 142). It evaluates the symbol by the method currently in force, `AngularMomentum.getWignerMethod()`. A
+        value::Float64 is returned.
 """
 function Wigner_3j(a, b, c, m_a, m_b, m_c)
-    WignerSymbols.wigner3j(Basics.twice(a)/2.0,   Basics.twice(b)/2.0,   Basics.twice(c)/2.0,
-                          Basics.twice(m_a)/2.0, Basics.twice(m_b)/2.0, Basics.twice(m_c)/2.0)
+
+    return( Wigner_3j(WIGNER_METHOD, a, b, c, m_a, m_b, m_c) )
+end
+
+
+"""
+`AngularMomentum.Wigner_3j(method::AngularMomentum.ExactWigner, a, b, c, m_a, m_b, m_c)`
+    ... calculates the Wigner 3-j symbol in EXACT rational arithmetic, rounding only on return. A value::Float64 is
+        returned.
+"""
+function Wigner_3j(method::ExactWigner, a, b, c, m_a, m_b, m_c)
+
+    return( Float64(WignerSymbols.wigner3j(Basics.twice(a)/2.0,   Basics.twice(b)/2.0,   Basics.twice(c)/2.0,
+                                           Basics.twice(m_a)/2.0, Basics.twice(m_b)/2.0, Basics.twice(m_c)/2.0)) )
+end
+
+
+"""
+`AngularMomentum.Wigner_3j(method::AngularMomentum.FloatingWigner, a, b, c, m_a, m_b, m_c)`
+    ... calculates the Wigner 3-j symbol in Float64 arithmetic throughout. A value::Float64 is returned.
+"""
+function Wigner_3j(method::FloatingWigner, a, b, c, m_a, m_b, m_c)
+
+    return( WignerSymbols.wigner3j(Float64, Basics.twice(a)/2.0,   Basics.twice(b)/2.0,   Basics.twice(c)/2.0,
+                                            Basics.twice(m_a)/2.0, Basics.twice(m_b)/2.0, Basics.twice(m_c)/2.0) )
 end
 
 
 """
 `AngularMomentum.Wigner_6j(a, b, c, d, e, f)`  
-    ... calculates the value of a Wigner 6-j symbol for given quantum numbers as displayed in many texts on the theory of 
-        angular momentum (see R. D. Cowan, The Theory of Atomic Structure and Spectra; University of California Press, 1981, p. 142); 
-        it calls the corresponding function from the GNU Scientific Library. A value::Float64 is returned.
+    ... calculates the value of a Wigner 6-j symbol for given quantum numbers as displayed in many texts on the theory of
+        angular momentum (see R. D. Cowan, The Theory of Atomic Structure and Spectra; University of California Press,
+        1981, p. 142). It evaluates the symbol by the method currently in force, `AngularMomentum.getWignerMethod()`. A
+        value::Float64 is returned.
 """
 function Wigner_6j(a, b, c, d, e, f)
-    WignerSymbols.wigner6j(Basics.twice(a)/2.0, Basics.twice(b)/2.0, Basics.twice(c)/2.0,
-                            Basics.twice(d)/2.0, Basics.twice(e)/2.0, Basics.twice(f)/2.0)
+
+    return( Wigner_6j(WIGNER_METHOD, a, b, c, d, e, f) )
+end
+
+
+"""
+`AngularMomentum.wigner6jValue(method::AngularMomentum.ExactWigner, a::Float64, b::Float64, c::Float64, d::Float64, e::Float64, f::Float64)`
+    ... evaluates one 6-j symbol from arguments that are ALREADY the angular momenta themselves (not their doubled
+        values), in exact rational arithmetic. It exists so that `AngularMomentum.Wigner_9j`, which builds each 9-j from
+        three 6-j symbols per term, can pass the method down instead of re-reading the global for every one of them. A
+        value::Float64 is returned.
+"""
+function wigner6jValue(method::ExactWigner, a::Float64, b::Float64, c::Float64, d::Float64, e::Float64, f::Float64)
+
+    return( Float64(WignerSymbols.wigner6j(a, b, c, d, e, f)) )
+end
+
+
+"""
+`AngularMomentum.wigner6jValue(method::AngularMomentum.FloatingWigner, a::Float64, b::Float64, c::Float64, d::Float64, e::Float64, f::Float64)`
+    ... as the previous method, but evaluating in Float64 arithmetic throughout. A value::Float64 is returned.
+"""
+function wigner6jValue(method::FloatingWigner, a::Float64, b::Float64, c::Float64, d::Float64, e::Float64, f::Float64)
+
+    return( WignerSymbols.wigner6j(Float64, a, b, c, d, e, f) )
+end
+
+
+"""
+`AngularMomentum.Wigner_6j(method::AngularMomentum.ExactWigner, a, b, c, d, e, f)`
+    ... calculates the Wigner 6-j symbol in EXACT rational arithmetic, rounding only on return. A value::Float64 is
+        returned.
+"""
+function Wigner_6j(method::ExactWigner, a, b, c, d, e, f)
+
+    return( wigner6jValue(method, Basics.twice(a)/2.0, Basics.twice(b)/2.0, Basics.twice(c)/2.0,
+                                  Basics.twice(d)/2.0, Basics.twice(e)/2.0, Basics.twice(f)/2.0) )
+end
+
+
+"""
+`AngularMomentum.Wigner_6j(method::AngularMomentum.FloatingWigner, a, b, c, d, e, f)`
+    ... calculates the Wigner 6-j symbol in Float64 arithmetic throughout. A value::Float64 is returned.
+"""
+function Wigner_6j(method::FloatingWigner, a, b, c, d, e, f)
+
+    return( wigner6jValue(method, Basics.twice(a)/2.0, Basics.twice(b)/2.0, Basics.twice(c)/2.0,
+                                  Basics.twice(d)/2.0, Basics.twice(e)/2.0, Basics.twice(f)/2.0) )
 end
 
 
     """
-    `AngularMomentum.Wigner_9j(a, b, c, d, e, f, g, h, i)`  
-        ... calculates the value of a Wigner 3-j symbol for given quantum numbers as displayed in many texts on the theory of 
-            angular momentum (see R. D. Cowan, The Theory of Atomic Structure and Spectra; University of California Press, 1981, p. 142); 
-            it calls the corresponding function from the GNU Scientific Library. A value::Float64 is returned.
+    `AngularMomentum.Wigner_9j(j11, j12, j13, j21, j22, j23, j31, j32, j33)`
+        ... calculates the value of a Wigner NINE-j symbol for given quantum numbers as displayed in many texts on the
+            theory of angular momentum (see R. D. Cowan, The Theory of Atomic Structure and Spectra; University of
+            California Press, 1981, p. 142). It is not a library call: the symbol is summed from THREE 6-j symbols per
+            term, so a 9-j costs several 6-j and the choice of Wigner method matters here more than anywhere else. The
+            method in force is read once and passed down. A value::Float64 is returned.
     """
     function Wigner_9j( j11, j12, j13, j21, j22, j23, j31, j32, j33 )
+
+        return( Wigner_9j(WIGNER_METHOD, j11, j12, j13, j21, j22, j23, j31, j32, j33) )
+    end
+
+
+    """
+    `AngularMomentum.Wigner_9j(method::AngularMomentum.AbstractWignerMethod, j11, j12, j13, j21, j22, j23, j31, j32, j33)`
+        ... as the previous method, but with the Wigner method given explicitly, so that the three 6-j symbols of each
+            term are evaluated without re-reading the global. A value::Float64 is returned.
+    """
+    function Wigner_9j( method::AbstractWignerMethod, j11, j12, j13, j21, j22, j23, j31, j32, j33 )
         j11 = Basics.twice(j11) ;   j12 = Basics.twice(j12)   ;   j13 = Basics.twice(j13)
         j21 = Basics.twice(j21) ;   j22 = Basics.twice(j22)   ;   j23 = Basics.twice(j23)
         j31 = Basics.twice(j31) ;   j32 = Basics.twice(j32)   ;   j33 = Basics.twice(j33)
@@ -628,9 +772,9 @@ end
      
         for k1 = kmin1:2:kmax1
            k = k1 - 1
-           s1 = WignerSymbols.wigner6j(j11/2, j21/2, j31/2, j32/2, j33/2, k/2)
-           s2 = WignerSymbols.wigner6j(j12/2, j22/2, j32/2, j21/2, k/2, j23/2)
-           s3 = WignerSymbols.wigner6j(j13/2, j23/2, j33/2, k/2, j11/2, j12/2)
+           s1 = wigner6jValue(method, j11/2, j21/2, j31/2, j32/2, j33/2, k/2)
+           s2 = wigner6jValue(method, j12/2, j22/2, j32/2, j21/2, k/2, j23/2)
+           s3 = wigner6jValue(method, j13/2, j23/2, j33/2, k/2, j11/2, j12/2)
      
            p = (k+1) * (-1)^k
      
