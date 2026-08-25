@@ -9,7 +9,7 @@
 # configuration" from an afternoon into one call, and prints reference tables ready to paste into an example.
 #
 # USAGE, from the JAC root:
-#     include("work/diag-grasp-angular.jl")
+#     include("tools/diag-grasp-angular.jl")
 #     g = GraspAngular.build()                                  # copies + builds GRASP2018 and the two drivers
 #     GraspAngular.compare1p(g, ["1s^2 2s^2 2p^2"])             # one-particle, all ranks
 #     GraspAngular.compare2p(g, ["1s^2 2s^2 2p^2"])             # two-particle (Coulomb)
@@ -239,6 +239,20 @@ end
 
 
 """
+`GraspAngular.defaultCoefficients2p(l::CsfR, r::CsfR, sub::Array{Subshell,1})`
+    ... the two-particle coefficients of the PRODUCTION module, which is what `GraspAngular.compare2p` compares unless
+        a caller passes something else. Supplying `coefficients=` lets the same calibrated comparison be pointed at a
+        second implementation -- the point being that a new module can be checked against GRASP through EXACTLY the
+        bookkeeping that was validated for the old one, rather than through a fresh harness whose own scoping is
+        unproven. A list of coefficients is returned.
+"""
+function defaultCoefficients2p(l::CsfR, r::CsfR, sub::Array{Subshell,1})
+
+    return( SpinAngular.computeCoefficients(SpinAngular.TwoParticleOperator(0, Basics.plus, true), l, r, sub) )
+end
+
+
+"""
 `GraspAngular.compare2p(runDir, jacConfig; incor)`
     ... to compare JAC's two-particle coefficients with GRASP's for the given JAC configuration, matching the two
         CSF orderings automatically and converting JAC's X^L coefficients into GRASP's Coulomb convention. Prints
@@ -252,12 +266,32 @@ end
         The conversion is  V_grasp = V_jac * (-1)^k * <a||C^k||c> * <b||C^k||d>, the prefactor of
         `InteractionStrength.XL_CoulombReference`. Coefficients are compared as a multiset on the canonical R^k key.
 """
-function compare2p(runDir::String, jacConfig::String; incor::Int = 1)
+function compare2p(runDir::String, jacConfig::String; incor::Int = 1,
+                   coefficients::Function = defaultCoefficients2p, label::String = "SpinAngular")
+
+    return( compare2p(runDir, [jacConfig]; incor = incor, coefficients = coefficients, label = label) )
+end
+
+
+"""
+`GraspAngular.compare2p(runDir::String, jacConfigs::Array{String,1}; incor, coefficients, label)`
+    ... as the single-configuration method, but building the JAC side from SEVERAL configurations at once. That is what
+        it takes to reach the CSF pairs which MOVE ELECTRONS BETWEEN DIFFERENT SHELLS: within one configuration the only
+        occupation changes available are between the two j-components of a split shell, so a single-configuration
+        comparison can never exercise the four-distinct-subshell case. The GRASP side must have been generated from the
+        SAME list. A named tuple of counts is returned.
+"""
+function compare2p(runDir::String, jacConfigs::Array{String,1}; incor::Int = 1,
+                   coefficients::Function = defaultCoefficients2p, label::String = "SpinAngular")
+    jacConfig = join(jacConfigs, " + ")
     gsub, gsig = signatures(runDir)
     gfp        = fingerprints(runDir)
     grasp      = dump2p(runDir, incor = incor)
 
-    rel = Basics.generateConfigurations(Basics.RelativisticConfigurations(), Configuration(jacConfig))
+    rel = ConfigurationR[]
+    for  cfg in jacConfigs
+        append!(rel, Basics.generateConfigurations(Basics.RelativisticConfigurations(), Configuration(cfg)))
+    end
     sub = Basics.generateSubshellList(rel)
     Defaults.setDefaults("relativistic subshell list", sub; printout = false)
     cs  = CsfR[];   for r in rel   append!(cs, Basics.generateCsfRs(r, sub))   end
@@ -292,11 +326,10 @@ function compare2p(runDir::String, jacConfig::String; incor::Int = 1)
     matchedG = Set(values(jacToGrasp))
 
     idx  = Dict(sh => i for (i,sh) in enumerate(sub))
-    op   = SpinAngular.TwoParticleOperator(0, Basics.plus, true)
     conv = Dict{Any,Float64}();   nRaw = 0;   nAnn = 0
     for (ic,l) in enumerate(cs), (ir,r) in enumerate(cs)
         (haskey(jacToGrasp,ic) && haskey(jacToGrasp,ir)) || continue
-        for c in SpinAngular.computeCoefficients(op, l, r, sub)
+        for c in coefficients(l, r, sub)
             abs(c.V) < 1.0e-14 && continue
             nRaw += 1
             f = AngularMomentum.CL_reduced_me(c.a, c.nu, c.c) * AngularMomentum.CL_reduced_me(c.b, c.nu, c.d)
@@ -322,7 +355,7 @@ function compare2p(runDir::String, jacConfig::String; incor::Int = 1)
     end
     nExtra = length(surv) - nMatched
 
-    println("  ", jacConfig)
+    println("  ", jacConfig, "     [", label, "]")
     @printf("    CSFs                : JAC %d, GRASP %d;  matched %d;  UNMATCHED %d\n",
             length(cs), length(gsig), length(jacToGrasp), length(unmatched))
     @printf("    CSF pairs compared  : %d of %d\n", length(jacToGrasp)^2, length(cs)^2)
