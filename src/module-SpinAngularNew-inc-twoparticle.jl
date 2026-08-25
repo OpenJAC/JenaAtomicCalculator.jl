@@ -133,6 +133,12 @@ function computeCoefficients(op::SpinAngularNew.TwoParticleOperator, leftCsf::Cs
             cre = sort([i for i in findall(!=(0), diff) if diff[i] > 0])
             ann = sort([i for i in findall(!=(0), diff) if diff[i] < 0])
             return( twoParticleMoveTwo(leftCsf, rightCsf, subshells, cre, ann) )
+        elseif  count(!=(0), diff) == 3  &&  sum(abs, diff) == 4
+            dbl = findfirst(i -> abs(diff[i]) == 2, 1:length(diff))
+            sgl = sort([i for i in findall(!=(0), diff) if abs(diff[i]) == 1])
+            if  !isnothing(dbl)  &&  length(sgl) == 2
+                return( twoParticleMoveTwoSameShell(leftCsf, rightCsf, subshells, dbl, sgl, diff) )
+            end
         elseif  count(!=(0), diff) > 4  ||  sum(abs, diff) > 4
             return( coeffs2pEmpty() )
         end
@@ -1055,4 +1061,88 @@ function shellReducedAA(j::AngularJ64, Nbra::Int64, senBra::Int64, Jbra::Angular
     ph = Int64( (Basics.twice(Jbra) + Basics.twice(Jket) + Basics.twice(K))//2 )
 
     return( (-1)^ph * wa * sqrt(Basics.twice(K) + 1.0) )
+end
+
+
+"""
+`SpinAngularNew.twoParticleMoveTwoSameShell(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, dbl::Int64, sgl::Array{Int64,1}, diff::Array{Int64,1})`
+    ... to compute all two-particle coefficients of a CSF pair that differs by TWO electrons where BOTH of them leave, or
+        both arrive in, the SAME subshell `dbl`, the other two operators sitting on the single subshells `sgl`. The
+        doubled subshell then carries the coupled two-creation or two-annihilation tensor `shellReducedAA`, and only
+        three subshells act.
+
+        THE WEIGHT IS THE SAME ONE AS THE FOUR-SUBSHELL cross13 CASE, and that is a derivation rather than a
+        coincidence: the physical pairing (S,x1),(S,x2) occupies slots (1,3),(2,4) of the quadruple (S,S,x1,x2), which
+        is exactly the pattern that transformation was derived for. It gives the exact MAGNITUDE of every coefficient
+        immediately.
+
+        Three signs complete it, and each was found by reading what the predecessor does rather than by fitting:
+
+        (1) the JORDAN-WIGNER string runs BETWEEN THE TWO SINGLE SUBSHELLS only -- not over all three acting subshells,
+            which is what a prefix count would give and is what the four-subshell case needs;
+        (2) which single subshell enters the weight's phase depends on WHICH KIND of operator is doubled: the first when
+            the doubled subshell creates, the second when it annihilates. This is the `irez` distinction of
+            `SpinAngular.twoParticle15to18order`, and without it half of the doubled-annihilation coefficients come out
+            with the wrong sign while every doubled-creation one is right;
+        (3) a RE-PAIRING phase (-1)^(j_x1 + j_x2 + 1) when the doubled subshell lies BETWEEN the two single ones,
+            because the coupling chain then joins it to a single subshell first where the operator couples the two
+            singles together. It depends on the two single subshells' j alone, as a re-pairing of three ranks coupled to
+            zero must, and it was verified on 1210 coefficients.
+
+        A list coeffs::Array{Coefficient2p{EffectiveStrengthKind},1} is returned.
+"""
+function twoParticleMoveTwoSameShell(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, dbl::Int64,
+                                     sgl::Array{Int64,1}, diff::Array{Int64,1})
+    coeffs = Coefficient2p{EffectiveStrengthKind}[]
+    jS     = AngularJ64( Basics.subshell_2j(subshells[dbl])//2 )
+    jx     = [ AngularJ64( Basics.subshell_2j(subshells[i])//2 )  for i in sgl ]
+    isCre  = diff[dbl] > 0
+    mqD    = isCre ? AngularM64(1//2) : AngularM64(-1//2)
+    sites  = sort( vcat([dbl], sgl) )
+
+    # ... the one-electron matrix elements on the two single subshells do not depend on the rank, so they come first
+    wSingle = 1.0
+    for  i in sgl
+        wSingle = wSingle *
+            shellReducedA(AngularJ64(Basics.subshell_2j(subshells[i])//2),
+                          leftCsf.occupation[i],  leftCsf.seniorityNr[i],  leftCsf.subshellJ[i],
+                          rightCsf.occupation[i], rightCsf.seniorityNr[i], rightCsf.subshellJ[i],
+                          diff[i] > 0 ? AngularM64(1//2) : AngularM64(-1//2))
+        if  wSingle == 0.0                                                return( coeffs )   end
+    end
+
+    jw = sum(leftCsf.occupation[min(sgl[1],sgl[2]) : max(sgl[1],sgl[2])-1]; init = 0)
+    ph = (-1)^(jw + 1)
+    if  min(sgl[1],sgl[2]) < dbl < max(sgl[1],sgl[2])
+        ph = ph * (-1)^Int64( (Basics.twice(jx[1]) + Basics.twice(jx[2]) + 2)//2 )
+    end
+    jPh  = isCre ? jx[1] : jx[2]
+    cre  = isCre ? (subshells[dbl], subshells[dbl]) : (subshells[sgl[1]], subshells[sgl[2]])
+    ann  = isCre ? (subshells[sgl[1]], subshells[sgl[2]]) : (subshells[dbl], subshells[dbl])
+    kMax = Int64( min(Basics.subshell_2j(cre[1]) + Basics.subshell_2j(ann[1]),
+                      Basics.subshell_2j(cre[2]) + Basics.subshell_2j(ann[2]))//2 )
+
+    for  k = 0:kMax
+        tot = 0.0
+        for  t = 0:2*Basics.twice(jS)
+            if  isodd(t)                                                  continue   end
+            K = AngularJ64(t//2)
+            if  AngularMomentum.triangularDelta(jS, jS, K) == 0           continue   end
+            ranks = [ i == dbl ? K : AngularJ64(Basics.subshell_2j(subshells[i])//2)  for i in sites ]
+            inter = [ ranks[1], ranks[3], AngularJ64(0) ]
+            if  AngularMomentum.triangularDelta(inter[1], ranks[2], inter[2]) == 0    continue   end
+            wR = treeRecoupling(leftCsf, rightCsf, sites, ranks, inter);   if  wR == 0.0   continue   end
+            wD = shellReducedAA(jS, leftCsf.occupation[dbl],  leftCsf.seniorityNr[dbl],  leftCsf.subshellJ[dbl],
+                                    rightCsf.occupation[dbl], rightCsf.seniorityNr[dbl], rightCsf.subshellJ[dbl],
+                                    K, mqD);                               if  wD == 0.0   continue   end
+            w6 = AngularMomentum.Wigner_6j(jS, jS, K, jx[2], jx[1], AngularJ64(k))
+            if  w6 == 0.0                                                             continue   end
+            phK = Int64( (Basics.twice(jS) + Basics.twice(jPh) + Basics.twice(K) + 2*k + 2)//2 )
+            tot = tot + (-1)^phK * sqrt(Basics.twice(K) + 1.0) * w6 * wR * wD
+        end
+        v = ph * wSingle * tot / sqrt(Basics.twice(leftCsf.J) + 1.0)
+        abs(v) > 1.0e-14  &&  push!(coeffs, Coefficient2p{EffectiveStrengthKind}(k, cre[1], cre[2], ann[1], ann[2], v))
+    end
+
+    return( coeffs )
 end
