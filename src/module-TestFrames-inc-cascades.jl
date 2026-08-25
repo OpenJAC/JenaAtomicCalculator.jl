@@ -125,7 +125,8 @@ end
 
 
 """
-`TestFrames.testModule_Cascade_Simulation(; short::Bool=true)`  ... tests on module Cascade.
+`TestFrames.testModule_Cascade_DielectronicCapture(; short::Bool=true)`  ... tests the Cascade module for the
+    DielectronicCaptureScheme.
 """
 function testModule_Cascade_DielectronicCapture(; short::Bool=true)
     Defaults.setDefaults("method: continuum, asymptotic Coulomb")    ## setDefaults("method: continuum, Galerkin")
@@ -200,6 +201,11 @@ function testModule_Cascade_DielectronicCapture(; short::Bool=true)
 end
 
 
+"""
+`TestFrames.testModule_Cascade_ResonantIonization(; short::Bool=true)`  ... tests the Cascade module for the RESONANT
+    channels of the ElectronIonizationScheme, comparing the computed data with `test-Cascade-ResonantIonization-approved.sum`.
+    A success::Bool is returned.
+"""
 function testModule_Cascade_ResonantIonization(; short::Bool=true)
     Defaults.setDefaults("method: continuum, asymptotic Coulomb")    ## setDefaults("method: continuum, Galerkin")
     Defaults.setDefaults("method: normalization, pure sine")         ## setDefaults("method: normalization, pure Coulomb")
@@ -313,6 +319,11 @@ function testModule_Cascade_EiiRateCoefficients(; short::Bool=true)
 end
 
 
+"""
+`TestFrames.testModule_Cascade_Simulation(; short::Bool=true)`  ... tests the Cascade module for SIMULATIONS, deriving
+    the properties from stored stepwise-decay data (`test/approved/test-Cascade-StepwiseDecay-data.jld`) rather than
+    recomputing the cascade. A success::Bool is returned.
+"""
 function testModule_Cascade_Simulation(; short::Bool=true)
     Defaults.setDefaults("print summary: open", "test-Cascade-Simulation-new.sum")
     printstyled("\n\nTest the module  Cascade for Simulations ... \n", color=:cyan)

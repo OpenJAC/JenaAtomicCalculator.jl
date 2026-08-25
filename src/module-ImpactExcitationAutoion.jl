@@ -93,7 +93,7 @@ end
     ... constructor for an electron-impact excitation-autoionization pathway between a specified initial, intermediate and 
         final level.
 """
-function Line()
+function Pathway()
     Pathway(Level(), Level(), Level(), 0., 0., 0., 0., false, ImpactExcitationAutoion.Channel[] )
 end
 
@@ -115,8 +115,8 @@ end
 """
 `ImpactExcitationAutoion.computeAmplitudesProperties(pathway::ImpactExcitationAutoion.Pathway, grid::Radial.Grid, 
                                                         settings::ImpactExcitationAutoion.Settings)`  
-    ... to compute all amplitudes and properties of the given line; a line::ImpactExcitationAutoion.Line is returned for 
-        which the amplitudes and properties have now been evaluated.
+    ... to compute all amplitudes and properties of the given pathway; a pathway::ImpactExcitationAutoion.Pathway is
+        returned for which the amplitudes and properties have now been evaluated.
 """
 function  computeAmplitudesProperties(pathway::ImpactExcitationAutoion.Pathway, grid::Radial.Grid, settings::ImpactExcitationAutoion.Settings)
     newChannels = ImpactExcitationAutoion.Channel[]
@@ -141,7 +141,7 @@ end
 `ImpactExcitationAutoion.computePathways(finalMultiplet::Multiplet, intermediateMultiplet::Multiplet, initialMultiplet::Multiplet, 
                                             grid::Radial.Grid, settings::ImpactExcitationAutoion.Settings; output=true)`  
     ... to compute the electron-impact-excitation-autoionization amplitudes and all properties as requested by the given settings. 
-        A list of lines::Array{ImpactExcitationAutoion.Lines} is returned.
+        A list of pathways::Array{ImpactExcitationAutoion.Pathway,1} is returned.
 """
 function  computePathways(finalMultiplet::Multiplet, intermediateMultiplet::Multiplet, initialMultiplet::Multiplet, grid::Radial.Grid, 
                             settings::ImpactExcitationAutoion.Settings; output=true)
@@ -173,7 +173,7 @@ end
                                             settings::ImpactExcitationAutoion.Settings)`  
     ... to determine a list of electron-impact excitation-autoionization pathways between the levels from the given initial-, 
         intermediate- and final-state multiplets and by taking into account the particular selections and settings for this 
-        computation; an Array{ImpactExcitationAutoion.Line,1} is returned. Apart from the level specification, all physical 
+        computation; an Array{ImpactExcitationAutoion.Pathway,1} is returned. Apart from the level specification, all physical 
         properties are set to zero during the initialization process.  
 """
 function  determinePathways(finalMultiplet::Multiplet, intermediateMultiplet::Multiplet, initialMultiplet::Multiplet, 
