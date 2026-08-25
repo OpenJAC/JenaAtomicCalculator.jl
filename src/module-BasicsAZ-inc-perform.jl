@@ -193,17 +193,11 @@ function Basics.perform(computation::Atomic.Computation; output::Bool=false)
             outcome = CoulombExcitation.computeLines(finalMultiplet, initialMultiplet, computation.grid, computation.processSettings) 
             if output    results = Base.merge( results, Dict("Coulomb excitation lines:" => outcome) )               end
         elseif  typeof(computation.processSettings) == CoulombIonization.Settings
-            ## NOT merely re-pointed like its six siblings, because CoulombIonization has no computation to reach:
-            ## the module declares Settings, Channel and Line with their show-methods and NOTHING ELSE -- there is
-            ## no computeLines, so the call this branch used to make names a function that does not exist.  While
-            ## the test was inoperative that never showed; repairing the test would have turned a silent
-            ## fall-through into an UndefVarError at a random name.  It raises here instead, and says why.
-            error("Atomic.Computation with CoulombIonization.Settings: the CoulombIonization module is a shell.  " *
-                  "It defines Settings, Channel and Line but no computeLines, so there is nothing to perform.  " *
-                  "Use CoulombExcitation for the excitation channel, or implement CoulombIonization.computeLines " *
-                  "first; this branch is reserved for it.  Note that its Settings is also the only one of the seven " *
-                  "still declared with no supertype, so it cannot even be stored in Computation.processSettings " *
-                  "until it is made <: Basics.AbstractProcessSettings -- both are needed, not one.")
+            ## Reserved and empty until 25-Aug-2026, when the module was written; this branch used to raise and say
+            ## that CoulombIonization held no computation to reach.  It now does.
+            outcome = CoulombIonization.computeLines(finalMultiplet, initialMultiplet, nModel, computation.grid,
+                                                     computation.processSettings)
+            if output    results = Base.merge( results, Dict("Coulomb ionization lines:" => outcome) )           end
         elseif  typeof(computation.processSettings) == ImpactExcitationAutoion.Settings
             outcome = ImpactExcitationAutoion.computePathways(finalMultiplet, intermediateMultiplet, initialMultiplet, 
                                                                 computation.grid, computation.processSettings) 
