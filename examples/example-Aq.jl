@@ -922,8 +922,8 @@ elseif  true
     tMatched = 0;   tMissing = 0;   tExtra = 0;   tWorst = 1.0
     println("\n  configuration        CSFs  matched  missing  extra   worst ratio")
     for  cfg in localCfgs
-        localRel = Basics.generateConfigurations(Basics.RelativisticConfigurations(), Configuration(cfg))
-        localSub = Basics.generateSubshellList(localRel)
+        local localRel = Basics.generateConfigurations(Basics.RelativisticConfigurations(), Configuration(cfg))
+        local localSub = Basics.generateSubshellList(localRel)
         Defaults.setDefaults("relativistic subshell list", localSub; printout=false)
         local localCsfs = CsfR[]
         for  relconf in localRel    append!(localCsfs, Basics.generateCsfRs(relconf, localSub))    end
