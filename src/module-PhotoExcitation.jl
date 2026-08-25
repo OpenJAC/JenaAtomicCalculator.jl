@@ -6,7 +6,7 @@
 """
 module PhotoExcitation
 
-using Printf, ..AngularMomentum, ..Basics,  ..Basics,  ..BiOrthogonal, ..Defaults, ..ManyElectron, ..Radial, ..PhotoEmission, ..TableStrings
+using Printf, ..AngularMomentum, ..Basics,  ..BiOrthogonal, ..Defaults, ..ManyElectron, ..Radial, ..PhotoEmission, ..Statistical, ..TableStrings
 
 """
 `struct  PhotoExcitation.Settings  <:  AbstractProcessSettings`  ... defines a type for the details and parameters of computing photo-excitation  lines.
@@ -307,14 +307,77 @@ end
 
 """
 `PhotoExcitation.computeStatisticalTensor(k::Int64, q::Int64, line::PhotoExcitation.Line, stokes::ExpStokes)`  
-    ... to compute the statistical tensor (component) rho_{k,q} of the final level for the excitation of unpolarized atoms by 
-        plane-wave photons, whose polarization is described by the given (experimental) Stokes parameters. 
-        A rho_kq::EmProperty is returned.
+    ... computes the statistical tensor component rho_kq of the EXCITED level for the excitation of unpolarized atoms by
+        plane-wave photons whose polarization is given by the (experimental) Stokes parameters; the quantization axis is
+        the photon beam.  A `rho::EmPropertyC` is returned, holding both gauges, and it is COMPLEX: for linearly
+        polarized light the excited ensemble carries coherence between sublevels differing by two units, so the q = +-2
+        components are genuinely complex whenever P2 does not vanish.
+
+        HOW IT IS BUILT, and deliberately without Racah algebra.  The sublevel density matrix of the excited level is
+        formed directly from the Wigner-Eckart decomposition,
+
+            rho(M_f,M_f')  =  1/(2J_i+1) SUM_(M_i) SUM_(lambda,lambda') rho^gamma_(lambda lambda')
+                              SUM_(L,L')  <J_i M_i, L lambda | J_f M_f> <J_i M_i, L' lambda' | J_f M_f'>
+                              i^(L-L'+p-p') lambda^p lambda'^p'  A_L conj(A_L')
+
+        and the tensor is then taken by `Statistical.computeTensors`, which owns the definition of rho_kq for the whole
+        code.  Summing over M_i, M_f and M_f' explicitly costs nothing at these angular momenta and avoids a reduction
+        whose 6j phases cannot be checked independently; the reduced form is an optimization, not a requirement.
+
+        THE PHOTON DENSITY MATRIX FOLLOWS THE CONVENTION ALREADY IN USE in `PhotoIonization`: in the helicity basis
+        rho^gamma_(lambda lambda) = 1 + lambda P3 and rho^gamma_(lambda != lambda') = P1 - i lambda P2, with the factor
+        lambda^p attached to each amplitude and p = 1 for an electric multipole.  Using the same convention as the one
+        module that already computes this quantity is the point: the two are meant to be comparable.
+
+        WHAT THAT CONVENTION MEANS FOR P1 AND P2 was measured rather than assumed.  Linearly polarized light exciting
+        J_i = 0 -> J_f = 1 must leave a PURE M = 0 state about the polarization direction, for which A_20 = -sqrt(2);
+        rotating the computed tensor there reproduces that number to 2e-16 at beta = pi/2 with alpha = 0 for P1 and
+        alpha = pi/4 for P2.  So P1 is linear polarization along x and P2 linear at 45 degrees, and the geometry
+        forces the check to fail if the photon density matrix, the multipole phase or the rotation is wrong.
 """
 function  computeStatisticalTensor(k::Int64, q::Int64, line::PhotoExcitation.Line, stokes::ExpStokes)
-    if  k == q  ||  k == -q   rhoCoulomb = -3.;    rhoBabushkin = -3.    else   rhoCoulomb = 0.;    rhoBabushkin = 0.    end
-    rho = EmProperty( rhoCoulomb, rhoBabushkin )
-    return( rho )
+    Ji  = line.initialLevel.J;                    Jf  = line.finalLevel.J
+    Jix = AngularMomentum.oneJ(Ji);               Jfx = AngularMomentum.oneJ(Jf)
+    MiList = AngularMomentum.m_values(Ji);        MfList = AngularMomentum.m_values(Jf)
+    rhoGamma(l::Int64, lp::Int64) = l == lp ? ComplexF64(1.0 + l*stokes.P3, 0.) : ComplexF64(stokes.P1, -l*stokes.P2)
+    wgt = 1.0 / (Basics.twice(Ji) + 1)
+
+    dmC = Dict{Tuple{AngularM64,AngularM64},ComplexF64}();    dmB = Dict{Tuple{AngularM64,AngularM64},ComplexF64}()
+    for  Mf in MfList
+        for  Mfp in MfList
+            if  abs( AngularMomentum.oneM(Mf) - AngularMomentum.oneM(Mfp) - 1.0*q ) > 1.0e-10    continue    end
+            waC = ComplexF64(0.);    waB = ComplexF64(0.)
+            for  Mi in MiList
+                for  lambda in [-1, 1]
+                    for  lambdap in [-1, 1]
+                        rg = rhoGamma(lambda, lambdap);    if  abs(rg) == 0.    continue    end
+                        for  cha in line.channels
+                            L = cha.multipole.L;    p = cha.multipole.electric ? 1 : 0
+                            cg1 = AngularMomentum.ClebschGordan(Jix, AngularMomentum.oneM(Mi), 1.0*L, 1.0*lambda,
+                                                                Jfx, AngularMomentum.oneM(Mf))
+                            if  cg1 == 0.    continue    end
+                            for  chp in line.channels
+                                Lp = chp.multipole.L;    pp = chp.multipole.electric ? 1 : 0
+                                cg2 = AngularMomentum.ClebschGordan(Jix, AngularMomentum.oneM(Mi), 1.0*Lp, 1.0*lambdap,
+                                                                    Jfx, AngularMomentum.oneM(Mfp))
+                                if  cg2 == 0.    continue    end
+                                ph  = (1.0im)^(L - Lp + p - pp) * lambda^p * lambdap^pp * cg1 * cg2 * rg * wgt
+                                waC = waC + ph * cha.amplitude.Coulomb   * conj(chp.amplitude.Coulomb)
+                                waB = waB + ph * cha.amplitude.Babushkin * conj(chp.amplitude.Babushkin)
+                            end
+                        end
+                    end
+                end
+            end
+            if  abs(waC) > 0.  ||  abs(waB) > 0.    dmC[(Mf,Mfp)] = waC;    dmB[(Mf,Mfp)] = waB    end
+        end
+    end
+
+    fKey = Basics.LevelKey( LevelSymmetry(Jf, line.finalLevel.parity), line.finalLevel.index, line.finalLevel.energy, 1.)
+    rhoC = Statistical.tensorValue(k, q, Statistical.computeTensors(k, dmC, fKey); withZeros=true)
+    rhoB = Statistical.tensorValue(k, q, Statistical.computeTensors(k, dmB, fKey); withZeros=true)
+
+    return( EmPropertyC(rhoC, rhoB) )
 end
 
 
@@ -618,11 +681,11 @@ function  displayCrossSections(stream::IO, lines::Array{PhotoExcitation.Line,1},
     #
     #
     if  settings.calcTensors
-        nx = 145
+        nx = 195
         stokes = settings.stokes
         println(stream, " ")
         println(stream, "  Statistical tensors rho_kq  and alignment parameters A_kq for the excitation by incident plane-wave photons")
-        println(stream, "  with given $stokes (still under development):")
+        println(stream, "  with given $stokes:")
         println(stream, " ")
         println(stream, "  ", TableStrings.hLine(nx))
         sa = "  ";   sb = "  "
@@ -632,8 +695,8 @@ function  displayCrossSections(stream::IO, lines::Array{PhotoExcitation.Line,1},
         sb = sb * TableStrings.center(14,TableStrings.inUnits("energy"); na=3)
         sa = sa * TableStrings.center(10, "Multipoles"; na=1);                        sb = sb * TableStrings.hBlank(12)
         sa = sa * TableStrings.center(12, "     k    q    "; na=0);                   sb = sb * TableStrings.hBlank(14)
-        sa = sa * TableStrings.center(26, "Cou -- rho_kq -- Bab"; na=5);              sb = sb * TableStrings.hBlank(14)   
-        sa = sa * TableStrings.center(26, "Cou --  A_kq  -- Bab"; na=2);              sb = sb * TableStrings.hBlank(14)   
+        sa = sa * TableStrings.center(48, "Cou -- rho_kq (re, im) -- Bab"; na=5);    sb = sb * TableStrings.hBlank(14)   
+        sa = sa * TableStrings.center(48, "Cou --  A_kq  (re, im) -- Bab"; na=2);    sb = sb * TableStrings.hBlank(14)   
         println(stream, sa);    println(stream, sb);    println(stream, "  ", TableStrings.hLine(nx)) 
         for  line in lines
             sa  = "";    isym = LevelSymmetry( line.initialLevel.J, line.initialLevel.parity)
@@ -649,17 +712,22 @@ function  displayCrossSections(stream::IO, lines::Array{PhotoExcitation.Line,1},
             sa = sa * TableStrings.flushleft(11, mpString[1:10];  na=3)
             println(stream, sa);   sc = TableStrings.hBlank( length(sa)-1 )
             tc00   = PhotoExcitation.computeStatisticalTensor(0, 0, line, stokes)
-            for  k = 2:2
+            for  k = 1:2
                 for  q = -k:k
                     tc = PhotoExcitation.computeStatisticalTensor(k, q, line, stokes)
                     if  abs(tc.Coulomb) == abs(tc.Babushkin) == 0.    continue    end
-                    #
-                    aCoulomb = tc.Coulomb / tc00.Coulomb;    aBabushkin = tc.Babushkin / tc00.Babushkin
+                    # The components are complex in general, since linearly polarized light leaves the excited
+                    # ensemble with coherence between sublevels two units apart; both parts are printed.
+                    if  abs(tc00.Coulomb) == 0.  ||  abs(tc00.Babushkin) == 0.
+                        aCoulomb = ComplexF64(0.);   aBabushkin = ComplexF64(0.)
+                    else
+                        aCoulomb = tc.Coulomb / tc00.Coulomb;    aBabushkin = tc.Babushkin / tc00.Babushkin
+                    end
                     sd = sc * TableStrings.level(k) * TableStrings.level(q) * "   "
-                    sd = sd * @sprintf("%.6e", tc.Coulomb)     * "  "
-                    sd = sd * @sprintf("%.6e", tc.Babushkin)   * "    "
-                    sd = sd * @sprintf("%.6e", aCoulomb)       * "  "
-                    sd = sd * @sprintf("%.6e", aBabushkin)     * "    "
+                    sd = sd * @sprintf("%.4e %+.4e", real(tc.Coulomb),   imag(tc.Coulomb))     * "  "
+                    sd = sd * @sprintf("%.4e %+.4e", real(tc.Babushkin), imag(tc.Babushkin))   * "    "
+                    sd = sd * @sprintf("%.4e %+.4e", real(aCoulomb),     imag(aCoulomb))       * "  "
+                    sd = sd * @sprintf("%.4e %+.4e", real(aBabushkin),   imag(aBabushkin))     * "    "
                     println(stream, sd)
                 end
             end

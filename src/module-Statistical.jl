@@ -177,6 +177,38 @@ end
 
 
 """
+`Statistical.computeTensors(kmax::Int64, densityMatrix::Dict{Tuple{AngularM64,AngularM64},ComplexF64}, a::LevelKey;`
+                            `axis::Basics.AbstractQuantizationAxis=Basics.DefaultQuantizationAxis())`  
+    ... computes the statistical tensors rho_kq of ranks k = 0..kmax from the GENERAL density matrix rho(M,M') of the
+        ensemble in the given level, which is the definition itself and of which the population and amplitude forms
+        below are special cases.  A pair (M,M') that is absent from the dictionary is taken as zero, so only the
+        non-vanishing elements need be supplied.  A `tensors::Array{Statistical.Tensor,1}` is returned.
+"""
+function computeTensors(kmax::Int64, densityMatrix::Dict{Tuple{AngularM64,AngularM64},ComplexF64}, a::LevelKey;
+                        axis::Basics.AbstractQuantizationAxis=Basics.DefaultQuantizationAxis())
+    J   = a.sym.J;    Jx = AngularMomentum.oneJ(J);    MList = AngularMomentum.m_values(J)
+    tensors = Statistical.Tensor[]
+    for  k = 0:kmax
+        for  q = -k:k
+            wa = ComplexF64(0.)
+            for  M in MList
+                for  Mp in MList
+                    if  AngularMomentum.oneM(M) - AngularMomentum.oneM(Mp) != 1.0*q          continue    end
+                    if  !haskey(densityMatrix, (M,Mp))                                       continue    end
+                    Mx = AngularMomentum.oneM(M);    Mpx = AngularMomentum.oneM(Mp)
+                    wa = wa + (-1)^Int64(round(Jx - Mpx)) * AngularMomentum.ClebschGordan(Jx, Mx, Jx, -Mpx, 1.0*k, 1.0*q) *
+                              densityMatrix[(M,Mp)]
+                end
+            end
+            if  abs(wa) > 0.   push!( tensors, Tensor(k, q, a, wa; axis=axis) )   end
+        end
+    end
+
+    return( tensors )
+end
+
+
+"""
 `Statistical.computeTensors(kmax::Int64, populations::Dict{AngularM64,Float64}, a::LevelKey;`
                             `axis::Basics.AbstractQuantizationAxis=Basics.DefaultQuantizationAxis())`  
     ... computes the statistical tensors rho_kq of ranks k = 0..kmax for an ensemble given by its sublevel POPULATIONS

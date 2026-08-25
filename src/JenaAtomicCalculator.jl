@@ -148,6 +148,8 @@ include("module-InteractionStrengthQED.jl")
 include("module-Hamiltonian.jl");       using ..Hamiltonian
 include("module-SelfConsistent.jl");    using ..SelfConsistent
 include("module-PeriodicTable.jl")
+# Statistical tensors of an atomic ensemble; needed by the process modules that report an alignment
+include("module-Statistical.jl")
 include("module-TableStrings.jl")
 include("module-AtomicState.jl");       using ..AtomicState
 include("module-LSjj.jl");              using ..LSjj
@@ -213,8 +215,6 @@ include("module-DoubleAutoIonization.jl")
 include("module-ResonantImpactIonization.jl")
 end
 
-# Functions/methods for atomic responses and time evolutions
-include("module-Statistical.jl")
 
 if incStrongField
 # Functions/methods for the computation of atomic responses
