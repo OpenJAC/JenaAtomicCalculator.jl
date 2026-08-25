@@ -1330,11 +1330,17 @@ elseif  true
     #
     #   and as complete lists below: 118 728 pairs, 383 812 coefficients, worst ratio 1.000000000000.
     #
-    #   WHAT STILL RAISES.  A two-electron move in which two of the four one-electron operators fall on ONE subshell --
-    #   both electrons leaving the same subshell, or both arriving in it. That needs `shellReducedAA`, the coupled
-    #   two-creation tensor, which IS written and follows the same closure that worked twice already; what is missing is
-    #   its assembly's weight, and a first attempt discriminated only 18 of 24 non-trivial cases, which is not enough to
-    #   adopt. It raises rather than returning the terms that are implemented.
+    #   NOTHING RAISES ANY MORE, as of 25-Aug-2026: the two remaining topologies -- two electrons moved with ONE
+    #   subshell doubled, and with BOTH doubled -- were finished the same day and the module now covers every occupation
+    #   pattern a two-body operator can connect. Measured over sixteen configuration sets, all five classes together:
+    #
+    #       class                          coefficients   differing   missing   extra
+    #       equal occupation                    105 283           0         0       0
+    #       one electron moved                  127 872           0         0       0
+    #       two moved, both doubled               2 828           0         0       0
+    #       two moved, one doubled                  526           0         0       0
+    #       two moved, four subshells            64 494           0         0       0
+    #       TOTAL                               301 003           0         0       0
     #
     localSets = [(["1s^2 2s 2p","1s^2 3s 3p"],        "1s^2 2s2p / 3s3p"),
                  (["2p^2 3d^2","2p 3d 4s 4p"],        "2p^2 3d^2 / 2p3d4s4p"),

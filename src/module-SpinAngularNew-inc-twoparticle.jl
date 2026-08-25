@@ -133,6 +133,10 @@ function computeCoefficients(op::SpinAngularNew.TwoParticleOperator, leftCsf::Cs
             cre = sort([i for i in findall(!=(0), diff) if diff[i] > 0])
             ann = sort([i for i in findall(!=(0), diff) if diff[i] < 0])
             return( twoParticleMoveTwo(leftCsf, rightCsf, subshells, cre, ann) )
+        elseif  count(!=(0), diff) == 2  &&  sum(abs, diff) == 4
+            mv   = findall(!=(0), diff)
+            iCre = diff[mv[1]] > 0 ? mv[1] : mv[2];      iAnn = diff[mv[1]] > 0 ? mv[2] : mv[1]
+            return( twoParticleMoveTwoBothDoubled(leftCsf, rightCsf, subshells, iCre, iAnn) )
         elseif  count(!=(0), diff) == 3  &&  sum(abs, diff) == 4
             dbl = findfirst(i -> abs(diff[i]) == 2, 1:length(diff))
             sgl = sort([i for i in findall(!=(0), diff) if abs(diff[i]) == 1])
@@ -142,12 +146,11 @@ function computeCoefficients(op::SpinAngularNew.TwoParticleOperator, leftCsf::Cs
         elseif  count(!=(0), diff) > 4  ||  sum(abs, diff) > 4
             return( coeffs2pEmpty() )
         end
-        error("\n\nSpinAngularNew.computeCoefficients (two-particle): this pair moves TWO electrons, but NOT between\n"  *
-              ">>> four distinct subshells -- two of the four one-electron operators fall on one subshell, so it needs\n" *
-              ">>> the coupled two-creation or two-annihilation tensor `shellReducedAA` together with an assembly that\n" *
-              ">>> is not yet calibrated. The four-distinct-subshell case IS handled. Returning a short list here would\n" *
-              ">>> be a wrong Hamiltonian matrix element rather than a missing one, so it raises instead. Use\n"          *
-              ">>> SpinAngular.computeCoefficients for such a pair.\n")
+        # ... every occupation pattern a two-body operator can connect is handled above; anything reaching here is a
+        #     pattern that should not exist, so it raises rather than returning an empty list that would look like a
+        #     legitimate zero.
+        error("\n\nSpinAngularNew.computeCoefficients (two-particle): unreachable occupation pattern, "  *
+              "count = $(count(!=(0), diff)), sum = $(sum(abs, diff)).\n")
     end
 
     coeffs = Coefficient2p{EffectiveStrengthKind}[]
@@ -1142,6 +1145,61 @@ function twoParticleMoveTwoSameShell(leftCsf::CsfR, rightCsf::CsfR, subshells::A
         end
         v = ph * wSingle * tot / sqrt(Basics.twice(leftCsf.J) + 1.0)
         abs(v) > 1.0e-14  &&  push!(coeffs, Coefficient2p{EffectiveStrengthKind}(k, cre[1], cre[2], ann[1], ann[2], v))
+    end
+
+    return( coeffs )
+end
+
+
+"""
+`SpinAngularNew.twoParticleMoveTwoBothDoubled(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, iCre::Int64, iAnn::Int64)`
+    ... to compute all two-particle coefficients of a CSF pair in which TWO electrons leave one subshell `iAnn` and TWO
+        arrive in another `iCre`, so that only TWO subshells act and each carries a coupled pair tensor: `shellReducedAA`
+        with two creations on one and two annihilations on the other. Their ranks must be equal, since the operator is a
+        scalar, so there is one sum over that common rank K and no free intermediate.
+
+        The weight is once more the transformation already derived for the four-subshell cross13 case -- the physical
+        pairing (S1,S2),(S1,S2) occupies slots (1,3),(2,4) of the quadruple (S1,S1,S2,S2) -- so nothing new is fitted.
+
+        THE ONE THING THIS CASE NEEDS THAT NO OTHER DOES IS A FACTOR OF ONE HALF, and it is not a fudge. The two-body
+        operator carries a 1/2, which in every other topology is cancelled because the two Wick contractions are DISTINCT
+        and contribute equally. Here both physical pairs are (S1,S2): the two contractions COINCIDE, nothing cancels the
+        1/2, and it survives into the coefficient. Leaving it out makes every coefficient of this class exactly twice too
+        large with the sign already right, which is how it was found.
+
+        A list coeffs::Array{Coefficient2p{EffectiveStrengthKind},1} is returned.
+"""
+function twoParticleMoveTwoBothDoubled(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, iCre::Int64,
+                                       iAnn::Int64)
+    coeffs = Coefficient2p{EffectiveStrengthKind}[]
+    jC     = AngularJ64( Basics.subshell_2j(subshells[iCre])//2 )
+    jA     = AngularJ64( Basics.subshell_2j(subshells[iAnn])//2 )
+    lo, hi = minmax(iCre, iAnn);        sites = [lo, hi]
+    kMax   = Int64( (Basics.subshell_2j(subshells[iCre]) + Basics.subshell_2j(subshells[iAnn]))//2 )
+
+    for  k = 0:kMax
+        tot = 0.0
+        for  t = 0:2*min(Basics.twice(jC), Basics.twice(jA))
+            if  isodd(t)                                                  continue   end
+            K = AngularJ64(t//2)
+            if  AngularMomentum.triangularDelta(jC, jC, K) == 0           continue   end
+            if  AngularMomentum.triangularDelta(jA, jA, K) == 0           continue   end
+            wR = treeRecoupling(leftCsf, rightCsf, sites, [K, K], [K, AngularJ64(0)])
+            if  wR == 0.0                                                 continue   end
+            wC = shellReducedAA(jC, leftCsf.occupation[iCre],  leftCsf.seniorityNr[iCre],  leftCsf.subshellJ[iCre],
+                                    rightCsf.occupation[iCre], rightCsf.seniorityNr[iCre], rightCsf.subshellJ[iCre],
+                                    K, AngularM64(1//2));                  if  wC == 0.0   continue   end
+            wA = shellReducedAA(jA, leftCsf.occupation[iAnn],  leftCsf.seniorityNr[iAnn],  leftCsf.subshellJ[iAnn],
+                                    rightCsf.occupation[iAnn], rightCsf.seniorityNr[iAnn], rightCsf.subshellJ[iAnn],
+                                    K, AngularM64(-1//2));                 if  wA == 0.0   continue   end
+            w6 = AngularMomentum.Wigner_6j(jC, jC, K, jA, jA, AngularJ64(k))
+            if  w6 == 0.0                                                 continue   end
+            ph  = Int64( (Basics.twice(jC) + Basics.twice(jA) + Basics.twice(K) + 2*k + 2)//2 )
+            tot = tot + (-1)^ph * sqrt(Basics.twice(K) + 1.0) * w6 * wR * wC * wA
+        end
+        v = 0.5 * tot / sqrt(Basics.twice(leftCsf.J) + 1.0)
+        abs(v) > 1.0e-14  &&  push!(coeffs, Coefficient2p{EffectiveStrengthKind}(k, subshells[iCre], subshells[iCre],
+                                                                                subshells[iAnn], subshells[iAnn], v))
     end
 
     return( coeffs )
