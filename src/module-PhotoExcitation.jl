@@ -313,16 +313,9 @@ end
         polarized light the excited ensemble carries coherence between sublevels differing by two units, so the q = +-2
         components are genuinely complex whenever P2 does not vanish.
 
-        HOW IT IS BUILT, and deliberately without Racah algebra.  The sublevel density matrix of the excited level is
-        formed directly from the Wigner-Eckart decomposition,
-
-            rho(M_f,M_f')  =  1/(2J_i+1) SUM_(M_i) SUM_(lambda,lambda') rho^gamma_(lambda lambda')
-                              SUM_(L,L')  <J_i M_i, L lambda | J_f M_f> <J_i M_i, L' lambda' | J_f M_f'>
-                              i^(L-L'+p-p') lambda^p lambda'^p'  A_L conj(A_L')
-
-        and the tensor is then taken by `Statistical.computeTensors`, which owns the definition of rho_kq for the whole
-        code.  Summing over M_i, M_f and M_f' explicitly costs nothing at these angular momenta and avoids a reduction
-        whose 6j phases cannot be checked independently; the reduced form is an optimization, not a requirement.
+        THE WORK IS DONE BY `Statistical.computeTensorsPhotoExcitation`, which owns both the sublevel density matrix of
+        a level excited from an unpolarized one and the definition of rho_kq, so that this module and
+        `PhotoExcitationFluores` cannot drift apart in either.
 
         THE PHOTON DENSITY MATRIX FOLLOWS THE CONVENTION ALREADY IN USE in `PhotoIonization`: in the helicity basis
         rho^gamma_(lambda lambda) = 1 + lambda P3 and rho^gamma_(lambda != lambda') = P1 - i lambda P2, with the factor
@@ -336,46 +329,12 @@ end
         forces the check to fail if the photon density matrix, the multipole phase or the rotation is wrong.
 """
 function  computeStatisticalTensor(k::Int64, q::Int64, line::PhotoExcitation.Line, stokes::ExpStokes)
-    Ji  = line.initialLevel.J;                    Jf  = line.finalLevel.J
-    Jix = AngularMomentum.oneJ(Ji);               Jfx = AngularMomentum.oneJ(Jf)
-    MiList = AngularMomentum.m_values(Ji);        MfList = AngularMomentum.m_values(Jf)
-    rhoGamma(l::Int64, lp::Int64) = l == lp ? ComplexF64(1.0 + l*stokes.P3, 0.) : ComplexF64(stokes.P1, -l*stokes.P2)
-    wgt = 1.0 / (Basics.twice(Ji) + 1)
-
-    dmC = Dict{Tuple{AngularM64,AngularM64},ComplexF64}();    dmB = Dict{Tuple{AngularM64,AngularM64},ComplexF64}()
-    for  Mf in MfList
-        for  Mfp in MfList
-            if  abs( AngularMomentum.oneM(Mf) - AngularMomentum.oneM(Mfp) - 1.0*q ) > 1.0e-10    continue    end
-            waC = ComplexF64(0.);    waB = ComplexF64(0.)
-            for  Mi in MiList
-                for  lambda in [-1, 1]
-                    for  lambdap in [-1, 1]
-                        rg = rhoGamma(lambda, lambdap);    if  abs(rg) == 0.    continue    end
-                        for  cha in line.channels
-                            L = cha.multipole.L;    p = cha.multipole.electric ? 1 : 0
-                            cg1 = AngularMomentum.ClebschGordan(Jix, AngularMomentum.oneM(Mi), 1.0*L, 1.0*lambda,
-                                                                Jfx, AngularMomentum.oneM(Mf))
-                            if  cg1 == 0.    continue    end
-                            for  chp in line.channels
-                                Lp = chp.multipole.L;    pp = chp.multipole.electric ? 1 : 0
-                                cg2 = AngularMomentum.ClebschGordan(Jix, AngularMomentum.oneM(Mi), 1.0*Lp, 1.0*lambdap,
-                                                                    Jfx, AngularMomentum.oneM(Mfp))
-                                if  cg2 == 0.    continue    end
-                                ph  = (1.0im)^(L - Lp + p - pp) * lambda^p * lambdap^pp * cg1 * cg2 * rg * wgt
-                                waC = waC + ph * cha.amplitude.Coulomb   * conj(chp.amplitude.Coulomb)
-                                waB = waB + ph * cha.amplitude.Babushkin * conj(chp.amplitude.Babushkin)
-                            end
-                        end
-                    end
-                end
-            end
-            if  abs(waC) > 0.  ||  abs(waB) > 0.    dmC[(Mf,Mfp)] = waC;    dmB[(Mf,Mfp)] = waB    end
-        end
-    end
-
-    fKey = Basics.LevelKey( LevelSymmetry(Jf, line.finalLevel.parity), line.finalLevel.index, line.finalLevel.energy, 1.)
-    rhoC = Statistical.tensorValue(k, q, Statistical.computeTensors(k, dmC, fKey); withZeros=true)
-    rhoB = Statistical.tensorValue(k, q, Statistical.computeTensors(k, dmB, fKey); withZeros=true)
+    fKey = Basics.LevelKey( LevelSymmetry(line.finalLevel.J, line.finalLevel.parity), line.finalLevel.index,
+                            line.finalLevel.energy, 1.)
+    tsC  = Statistical.computeTensorsPhotoExcitation(k, line.initialLevel.J, fKey, line.channels, stokes, Basics.Coulomb)
+    tsB  = Statistical.computeTensorsPhotoExcitation(k, line.initialLevel.J, fKey, line.channels, stokes, Basics.Babushkin)
+    rhoC = Statistical.tensorValue(k, q, tsC; withZeros=true)
+    rhoB = Statistical.tensorValue(k, q, tsB; withZeros=true)
 
     return( EmPropertyC(rhoC, rhoB) )
 end

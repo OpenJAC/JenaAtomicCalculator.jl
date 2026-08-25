@@ -177,6 +177,72 @@ end
 
 
 """
+`Statistical.computeTensorsPhotoExcitation(kmax::Int64, Ji::AngularJ64, fKey::LevelKey,`
+                            `channels::Array{MultipoleAmplitude,1}, stokes::ExpStokes, gauge::Basics.EmGauge;`
+                            `axis::Basics.AbstractQuantizationAxis=Basics.DefaultQuantizationAxis())`  
+    ... computes the statistical tensors of a level that has been EXCITED FROM AN UNPOLARIZED LEVEL Ji by plane-wave
+        photons whose polarization is given by the Stokes parameters, with the photon beam as the quantization axis.
+        The sublevel density matrix is formed directly from the Wigner-Eckart decomposition,
+
+            rho(M_f,M_f')  =  1/(2J_i+1) SUM_(M_i) SUM_(lambda,lambda') rho^gamma_(lambda lambda')
+                              SUM_(L,L')  <J_i M_i, L lambda | J_f M_f> <J_i M_i, L' lambda' | J_f M_f'>
+                              i^(L-L'+p-p') lambda^p lambda'^p'  A_L conj(A_L')
+
+        and passed to `computeTensors`.  Summing over M_i, M_f and M_f' explicitly costs nothing at these angular
+        momenta and avoids a Racah reduction whose 6j phases cannot be checked independently.
+
+        THE PHOTON DENSITY MATRIX FOLLOWS THE CONVENTION ALREADY IN USE in `PhotoIonization`: in the helicity basis
+        rho^gamma_(lambda lambda) = 1 + lambda P3 and rho^gamma_(lambda != lambda') = P1 - i lambda P2, with the factor
+        lambda^p on each amplitude and p = 1 for an electric multipole.  What that means for P1 and P2 was MEASURED,
+        not assumed: linearly polarized light on J_i = 0 -> J_f = 1 must leave a pure M = 0 state about the
+        polarization direction, for which A_20 = -sqrt(2), and rotating the computed tensor there reproduces that to
+        2e-16 at beta = pi/2 with alpha = 0 for P1 and alpha = pi/4 for P2.  So P1 is linear along x and P2 linear at
+        45 degrees.  A `tensors::Array{Statistical.Tensor,1}` is returned.
+"""
+function computeTensorsPhotoExcitation(kmax::Int64, Ji::AngularJ64, fKey::LevelKey,
+                            channels::Array{MultipoleAmplitude,1}, stokes::ExpStokes, gauge::Basics.EmGauge;
+                            axis::Basics.AbstractQuantizationAxis=Basics.DefaultQuantizationAxis())
+    Jf  = fKey.sym.J
+    Jix = AngularMomentum.oneJ(Ji);               Jfx = AngularMomentum.oneJ(Jf)
+    MiList = AngularMomentum.m_values(Ji);        MfList = AngularMomentum.m_values(Jf)
+    rhoGamma(l::Int64, lp::Int64) = l == lp ? ComplexF64(1.0 + l*stokes.P3, 0.) : ComplexF64(stokes.P1, -l*stokes.P2)
+    amp(ma::MultipoleAmplitude) = gauge == Basics.Babushkin ? ma.amplitude.Babushkin : ma.amplitude.Coulomb
+    wgt = 1.0 / (Basics.twice(Ji) + 1)
+
+    dm = Dict{Tuple{AngularM64,AngularM64},ComplexF64}()
+    for  Mf in MfList
+        for  Mfp in MfList
+            wa = ComplexF64(0.)
+            for  Mi in MiList
+                for  lambda in [-1, 1]
+                    for  lambdap in [-1, 1]
+                        rg = rhoGamma(lambda, lambdap);    if  abs(rg) == 0.    continue    end
+                        for  cha in channels
+                            L = cha.multipole.L;    p = cha.multipole.electric ? 1 : 0
+                            cg1 = AngularMomentum.ClebschGordan(Jix, AngularMomentum.oneM(Mi), 1.0*L, 1.0*lambda,
+                                                                Jfx, AngularMomentum.oneM(Mf))
+                            if  cg1 == 0.    continue    end
+                            for  chp in channels
+                                Lp = chp.multipole.L;    pp = chp.multipole.electric ? 1 : 0
+                                cg2 = AngularMomentum.ClebschGordan(Jix, AngularMomentum.oneM(Mi), 1.0*Lp, 1.0*lambdap,
+                                                                    Jfx, AngularMomentum.oneM(Mfp))
+                                if  cg2 == 0.    continue    end
+                                wa = wa + (1.0im)^(L - Lp + p - pp) * lambda^p * lambdap^pp * cg1 * cg2 * rg * wgt *
+                                          amp(cha) * conj(amp(chp))
+                            end
+                        end
+                    end
+                end
+            end
+            if  abs(wa) > 0.    dm[(Mf,Mfp)] = wa    end
+        end
+    end
+
+    return( computeTensors(kmax, dm, fKey; axis=axis) )
+end
+
+
+"""
 `Statistical.computeTensors(kmax::Int64, densityMatrix::Dict{Tuple{AngularM64,AngularM64},ComplexF64}, a::LevelKey;`
                             `axis::Basics.AbstractQuantizationAxis=Basics.DefaultQuantizationAxis())`  
     ... computes the statistical tensors rho_kq of ranks k = 0..kmax from the GENERAL density matrix rho(M,M') of the
@@ -231,6 +297,35 @@ function computeTensors(kmax::Int64, populations::Dict{AngularM64,Float64}, a::L
     end
 
     return( tensors )
+end
+
+
+"""
+`Statistical.densityMatrix(tensors::Array{Statistical.Tensor,1})`  
+    ... reconstructs the sublevel density matrix rho(M,M') from a COMPLETE set of statistical tensors, i.e. inverts
+        `computeTensors`.  The Clebsch-Gordan coefficients connecting the two form an orthogonal matrix, so the inverse
+        is the same sum read the other way; it is exact rather than approximate, and a round trip through both returns
+        the original matrix.  All ranks k = 0..2J must be present for the result to be complete, since a truncated set
+        describes a different ensemble.  A `dm::Dict{Tuple{AngularM64,AngularM64},ComplexF64}` is returned.
+"""
+function densityMatrix(tensors::Array{Statistical.Tensor,1})
+    if  length(tensors) == 0    error("Statistical.densityMatrix(): the given list of tensors is empty.")    end
+    J   = tensors[1].a.sym.J;    Jx = AngularMomentum.oneJ(J);    MList = AngularMomentum.m_values(J)
+    kmax = Int64(round(2*Jx))
+    dm  = Dict{Tuple{AngularM64,AngularM64},ComplexF64}()
+    for  M in MList
+        for  Mp in MList
+            Mx = AngularMomentum.oneM(M);    Mpx = AngularMomentum.oneM(Mp);    q = Int64(round(Mx - Mpx))
+            wa = ComplexF64(0.)
+            for  k = abs(q):kmax
+                value = tensorValue(k, q, tensors; withZeros=true);    if  abs(value) == 0.    continue    end
+                wa = wa + (-1)^Int64(round(Jx - Mpx)) * AngularMomentum.ClebschGordan(Jx, Mx, Jx, -Mpx, 1.0*k, 1.0*q) * value
+            end
+            if  abs(wa) > 0.    dm[(M,Mp)] = wa    end
+        end
+    end
+
+    return( dm )
 end
 
 
