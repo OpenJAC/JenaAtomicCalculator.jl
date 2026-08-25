@@ -645,17 +645,24 @@ end
 """
 function Wigner_dmatrix(jj, mmp, mm, beta::Float64)
     j = Float64(jj);      mp = Float64(mmp);    m = Float64(mm)  
-    if     mod(j+j + mp+mp + m+m, 2.0) != 0.       error("Inappropriate quantum numbers j=$j, mp=$mp, m=$m")   
+    # The valid combinations are those with j-mp and j-m integer; this admits the half-integer d^j, for which
+    # j+mp+m is a half-integer and an earlier test on that sum refused every such element.
+    if     mod(j-mp, 1.0) != 0.  ||  mod(j-m, 1.0) != 0.    error("Inappropriate quantum numbers j=$j, mp=$mp, m=$m")   
     elseif abs(mp) > j    ||   abs(m) > j          return( 0. )
     end
-    #
-    factor = sqrt( factorial(j+mp) * factorial(j-mp) * factorial(j+m) * factorial(j-m) )
+    # All arguments below are non-negative integers even for half-integer j, since j+-m and j+-mp are integers
+    # then as well; gamma(x+1) evaluates them exactly and, unlike factorial, accepts the Float64 they arrive as.
+    fac(x) = SpecialFunctions.gamma(x + 1.0)
+    factor = sqrt( fac(j+mp) * fac(j-mp) * fac(j+m) * fac(j-m) )
     wa = 0.
     for  s = 0:100
         if  j+m-s < 0  ||  j-mp-s < 0   break       end
         if  mp - m + s < 0              continue    end
-        wa = wa + (-1)^(mp-m+s) * cos(beta/2.)^(2j+m-mp-2s) * sin(beta/2.)^(mp-m+2s) / 
-                    ( factorial(j+m-s) * factorial(s) * factorial(mp-m+s) * factorial(j-mp-s) )
+        # The exponents are integers and are taken as such: a Float64 exponent on the negative base that
+        # cos(beta/2) becomes for beta > pi has no real value, and the power would fail rather than turn negative.
+        wa = wa + (-1.0)^Int64(round(mp-m+s)) * cos(beta/2.)^Int64(round(2j+m-mp-2s)) * 
+                  sin(beta/2.)^Int64(round(mp-m+2s)) / 
+                    ( fac(j+m-s) * fac(s) * fac(mp-m+s) * fac(j-mp-s) )
     end
 
     return( factor*wa )
