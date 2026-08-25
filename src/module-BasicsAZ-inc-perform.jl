@@ -90,8 +90,8 @@ function Basics.perform(computation::Atomic.Computation; output::Bool=false)
         LSjj.expandLevelsIntoLS(finalMultiplet, computation.finalAsfSettings.jjLS)
         if  output   results["initialMultiplet"] = initialMultiplet;   results["finalMultiplet"] = finalMultiplet    end 
         #
-        if typeof(computation.processSettings) in [PhotoExcitationFluores.Settings, PhotoExcitationAutoion.Settings, PhotoIonizationFluores.Settings,
-                                                   PhotoIonizationAutoion.Settings, ImpactExcitationAutoion.Settings,
+        if typeof(computation.processSettings) in [PhotoExcitationFluores.Settings, PhotoExcitationAutoion.Settings,
+                                                   ImpactExcitationAutoion.Settings,
                                                    DielectronicRecombination.Settings, ResonantInelastic.Settings,
                                                    PhotoRecombinationInterference.Settings]
             intermediateMultiplet = SelfConsistent.performSCF(computation.intermediateConfigs, nModel, computation.grid, computation.intermediateAsfSettings)
@@ -204,14 +204,6 @@ function Basics.perform(computation::Atomic.Computation; output::Bool=false)
                   "first; this branch is reserved for it.  Note that its Settings is also the only one of the seven " *
                   "still declared with no supertype, so it cannot even be stored in Computation.processSettings " *
                   "until it is made <: Basics.AbstractProcessSettings -- both are needed, not one.")
-        elseif  typeof(computation.processSettings) == PhotoIonizationAutoion.Settings
-            outcome = PhotoIonizationAutoion.computePathways(finalMultiplet, intermediateMultiplet, initialMultiplet, 
-                                                                computation.grid, computation.processSettings) 
-            if output    results = Base.merge( results, Dict("photo-ionization-autoionization pathways:" => outcome) )      end
-        elseif  typeof(computation.processSettings) == PhotoIonizationFluores.Settings
-            outcome = PhotoIonizationFluores.computePathways(finalMultiplet, intermediateMultiplet, initialMultiplet, 
-                                                                computation.grid, computation.processSettings) 
-            if output    results = Base.merge( results, Dict("photo-ionizatiton-fluorescence pathways:" => outcome) )        end
         elseif  typeof(computation.processSettings) == ImpactExcitationAutoion.Settings
             outcome = ImpactExcitationAutoion.computePathways(finalMultiplet, intermediateMultiplet, initialMultiplet, 
                                                                 computation.grid, computation.processSettings) 
@@ -219,9 +211,6 @@ function Basics.perform(computation::Atomic.Computation; output::Bool=false)
         elseif  typeof(computation.processSettings) == MultiPhotonIonization.Settings
             outcome = MultiPhotonIonization.computeLines(finalMultiplet, initialMultiplet, computation.grid, computation.processSettings) 
             if output    results = Base.merge( results, Dict("multi-photon single ionization:" => outcome) )        end
-        elseif  typeof(computation.processSettings) == MultiPhotonDoubleIon.Settings
-            outcome = MultiPhotonDoubleIon.computeLines(finalMultiplet, initialMultiplet, computation.grid, computation.processSettings) 
-            if output    results = Base.merge( results, Dict("multi-photon double ionization:" => outcome) )        end
         elseif  typeof(computation.processSettings) == InternalConversion.Settings
             outcome = InternalConversion.computeLines(finalMultiplet, initialMultiplet, nModel, computation.grid, computation.processSettings)
             if output    results = Base.merge( results, Dict("internal conversion lines:" => outcome) )        end

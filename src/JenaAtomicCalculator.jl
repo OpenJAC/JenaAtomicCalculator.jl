@@ -91,7 +91,7 @@ export AbstractCImethod, AbstractComputeTheme, AbstractConfigurationRestriction,
        LandeF, LandeJ, LandeZeeman, LeadingConfiguration, LeadingConfigurationR, LeftCircular, Level, LevelSelection,
        LevelSymmetry, LineSelection, Liouville, LSjj, LSjjSettings,
        M1, M2, M3, M4, ManyElectron, MeanConfiguration, MeanFieldBasis, MeanFieldMultiplet, MeanFieldSettings,
-       MeanOccupation, minus, Model, MultiPDI, MultiPhotonDE, MultiPhotonDoubleIon, MultiPhotonIonization,
+       MeanOccupation, minus, Model, MultiPhotonDE, MultiPhotonIonization,
        MultiPhotonTransition, MultiPI, Multiplet, Multiplicity, MultipoleAmplitude, MultipoleMoment,
        MultipolePolarizibility,
        NoAmplitude, NoneQed, NonrelativisticBasis, NoProcess, NoProperty, Nuclear, NumberOfElectrons,
@@ -100,8 +100,7 @@ export AbstractCImethod, AbstractComputeTheme, AbstractConfigurationRestriction,
        PairA1P, PairProduction, Parity,
        ParticleScattering, PathwaySelection, perform, PeriodicTable, Photo, PhotoDouble, PhotoDoubleIonization,
        PhotoEmission, PhotoExc, PhotoExcAuto, PhotoExcFluor, PhotoExcitation, PhotoExcitationAutoion,
-       PhotoExcitationFluores, PhotoIonAuto, PhotoIonFluor, PhotoIonization, PhotoIonizationAutoion,
-       PhotoIonizationFluores, PhotonScattering, PhotoRecombination, PhotoRecombinationInterference, PhysicalConstants, Plasma, plus,
+       PhotoExcitationFluores, PhotoIonization, PhotonScattering, PhotoRecombination, PhotoRecombinationInterference, PhysicalConstants, Plasma, plus,
        PointNucleus, PrintWarnings, Pulse,
        QedPetersburg, QedSydney,
        RacahAlgebra, RacahExpression, Radial, RadialIntegrals, RadialOrbitalsBoth, RadialOrbitalsLarge,
@@ -203,12 +202,9 @@ if incAdvancedProcesses
 include("module-MultiPhotonTransition.jl")
 include("module-CoulombIonization.jl")
 include("module-PhotoDoubleIonization.jl")
-include("module-PhotoIonizationFluores.jl")
-include("module-PhotoIonizationAutoion.jl")
 include("module-ImpactExcitationAutoion.jl")
 include("module-RadiativeAuger.jl")
 include("module-MultiPhotonIonization.jl")
-include("module-MultiPhotonDoubleIon.jl")
 include("module-InternalConversion.jl") 
 include("module-InternalRecombination.jl") 
 include("module-TwoElectronOnePhoton.jl") 

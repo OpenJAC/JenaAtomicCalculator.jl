@@ -100,9 +100,7 @@ elseif  char == 'E'
     #
     println("Eg) Test of the ImpactExcitationAutoion module with ASF from an internally generated initial-, intermediate and final-state multiplets.")
     println("Ei) Test of the MultiPhotonIonization module with ASF from an internally generated initial- and final-state multiplet.")
-    println("Ej) Test of the MultiPhotonDoubleIon module with ASF from an internally generated initial- and final-state multiplet.")
     println("Ek) Test of the PairAnnihilation1Photon module with ASF from an internally generated initial- and final-state multiplet.")
-    println("El) Test of the PhotoIonizationFluores module with ASF from an internally generated initial-, intermediate and final-state multiplets.")
     println("Em) Test of the PhotoIonizationAutoIon module with ASF from an internally generated initial-, intermediate and final-state multiplets.")
     #
 elseif  char == 'F'

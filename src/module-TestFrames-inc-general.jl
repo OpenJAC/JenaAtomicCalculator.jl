@@ -656,10 +656,7 @@ function testStructConstructors(; short::Bool=true)
         # Advanced process settings
         ("MultiPhotonTransition.Settings()",      () -> MultiPhotonTransition.Settings()           ),
         ("MultiPhotonIonization.Settings()",        () -> MultiPhotonIonization.Settings()             ),
-        ("MultiPhotonDoubleIon.Settings()",         () -> MultiPhotonDoubleIon.Settings()              ),
         ("PhotoDoubleIonization.Settings()",        () -> PhotoDoubleIonization.Settings()             ),
-        ("PhotoIonizationFluores.Settings()",       () -> PhotoIonizationFluores.Settings()            ),
-        ("PhotoIonizationAutoion.Settings()",       () -> PhotoIonizationAutoion.Settings()            ),
         ("ImpactExcitationAutoion.Settings()",      () -> ImpactExcitationAutoion.Settings()           ),
         ("RadiativeAuger.Settings()",               () -> RadiativeAuger.Settings()                    ),
         ("InternalConversion.Settings()",           () -> InternalConversion.Settings()                ),
