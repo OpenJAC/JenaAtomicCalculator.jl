@@ -70,6 +70,41 @@
 
     This module is deliberately NOT included from `JenaAtomicCalculator.jl`: `examples/example-Aq.jl` includes it
     directly, so that a broken intermediate state cannot break the package.
+
+    ## THE MIGRATION INVENTORY, verified 25-Aug-2026 -- read this before swapping the modules
+
+    Adopting this module means adopting GRASP's convention, `sqrt(2j_a+1)` INSIDE the coefficient at every rank. The
+    callers of `SpinAngular` compensate for the present convention in TWO opposite directions, and EVERY one of them has
+    to change IN THE SAME COMMIT as the swap. A missed site is a silently wrong number, not an error.
+
+    RANK 0 -- these MULTIPLY by sqrt(2j+1) and must lose the factor (12 sites, 5 modules):
+        module-BasicsAZ-inc-compute.jl   115, 214, 364, 435, 509
+        module-Hamiltonian.jl            277, 467
+        module-IsotopeShift.jl           175, 309, 341
+        module-BiOrthogonal.jl           215
+        module-ReducedDensityMatrix.jl   306
+
+    RANK > 0 -- these DIVIDE by sqrt(2j+1) and must lose the division (6 sites, 4 modules):
+        module-Hfs.jl                    412, 778, 800, 822
+        module-CrystalField.jl           374
+        module-InternalConversion.jl     386
+
+    THE COMPENSATION IS NOT ALWAYS AT THE CALL SITE, and this is the trap that would break a careful migration.
+    `module-LandeZeeman.jl:227` uses `coeff.T` BARE with a rank-1 operator and is nonetheless CORRECT, because
+    `InteractionStrength.zeeman_n1` carries the 1/sqrt(2j_a+1) inside the integral itself -- "the former
+    CL_reduced_me_rb convention". Editing only the sites with a visible `sqrt` would leave that one wrong. A further
+    twenty-one uses of `coeff.T` carry no visible factor and must each be checked the same way, by reading what the
+    integral beside them returns rather than what the line looks like. `module-Hfs.jl:739` is another such: its division
+    is folded into a longer expression.
+
+    ## THE CACHES ARE PROCESS-WIDE STATE
+
+    `SHELL_A_CACHE`, `SHELL_W_CACHE` and `PARTNER_CACHE` are unbounded and live as long as the session. They are pure
+    memoisation on complete keys and change no result -- every verification in `examples/example-Aq.jl` was re-run after
+    they were added -- but two properties belong in an interface decision rather than in a comment: memory grows with the
+    number of distinct subshell terms encountered, and NONE of them is thread-safe. If JAC is ever threaded over CSF
+    pairs these must be made task-local or locked. `SpinAngularNew.clearCaches()` empties them and returns how many
+    entries were held.
 """
 module SpinAngularNew
 
