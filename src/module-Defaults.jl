@@ -388,10 +388,10 @@ end
 + `("method: Wigner symbols, exact")`  or  `("method: Wigner symbols, floating-point")`  or
     `("method: Wigner symbols, GSL")`
     ... to (pre-) define HOW the Wigner 3-j, 6-j and 9-j symbols are evaluated. All three agree to about one part in
-        1e15, so this is a choice of cost and not of physics: `exact` evaluates in Rational{BigInt} and is the default,
-        `floating-point` evaluates in Float64 and is measured at 4.2x faster on a mid-size cascade with BIT-IDENTICAL
-        results, and `GSL` is faster again but differs in the ninth digit, which would put approved reference data in
-        question. See `AngularMomentum.AbstractWignerMethod`.
+        1e15, so this is a choice of cost and not of physics: `floating-point` evaluates in Float64, is 4.2x faster on a
+        mid-size cascade with BIT-IDENTICAL results, and is the DEFAULT; `exact` evaluates in Rational{BigInt} and is
+        what JAC used until 25-Aug-2026; and `GSL` is faster again but differs in the ninth digit, which would put
+        approved reference data in question. See `AngularMomentum.AbstractWignerMethod`.
 
 + `("nuclear: charge", Z::Float64)`  or  `("nuclear: model", nm::Any")`
     ... to define the nuclear charge or nuclear model for the pedestrian approach to atomic computations.

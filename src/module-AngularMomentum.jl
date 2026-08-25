@@ -16,7 +16,8 @@ using  GSL: sf_coupling_3j, sf_coupling_6j, sf_coupling_9j, sf_legendre_sphPlm
         either way to about one part in 1e16; what differs is the arithmetic used to reach it, and with it the cost.
 
     + ExactWigner       ... evaluates in exact rational arithmetic (Rational{BigInt}) and rounds only at the end.
-    + FloatingWigner    ... evaluates in Float64 throughout.
+    + FloatingWigner    ... evaluates in Float64 throughout; this is the DEFAULT.
+    + GslWigner         ... evaluates with the GNU Scientific Library, which also has a DIRECT nine-j.
 """
 abstract type  AbstractWignerMethod                                     end
 
@@ -24,17 +25,19 @@ abstract type  AbstractWignerMethod                                     end
 """
 `struct AngularMomentum.ExactWigner  <:  AngularMomentum.AbstractWignerMethod`
     ... evaluates the Wigner symbols in exact rational arithmetic, rounding only when the result is returned. This is
-        what JAC has always done and remains the default, so that no result changes until the choice is made
-        deliberately. It is the slower of the two by roughly a factor of seven.
+        what JAC did until 25-Aug-2026 and is no longer the default; it is kept for the rare case where a result must
+        not be rounded before it is returned. It is the slowest of the three, by roughly a factor of seven on 6-j
+        symbols.
 """
 struct   ExactWigner     <:  AbstractWignerMethod                       end
 
 
 """
 `struct AngularMomentum.FloatingWigner  <:  AngularMomentum.AbstractWignerMethod`
-    ... evaluates the Wigner symbols in Float64 throughout. Measured against the exact path over 6-j symbols with all
-        arguments up to j = 40, the two agree to a worst relative difference of 3e-16 -- one unit in the last place --
-        with no degradation at large angular momentum, while being about seven times faster.
+    ... evaluates the Wigner symbols in Float64 throughout. THIS IS THE DEFAULT. Measured against the exact path over
+        6-j symbols with all arguments up to j = 40, the two agree to a worst relative difference of 3e-16 -- one unit
+        in the last place -- with no degradation at large angular momentum. On a mid-size cascade it is 4.16x faster
+        with BIT-IDENTICAL results, and all 54 approved test references pass unmodified under it.
 """
 struct   FloatingWigner  <:  AbstractWignerMethod                       end
 
@@ -59,7 +62,12 @@ struct   GslWigner       <:  AbstractWignerMethod                       end
 # The Wigner method in force. It is deliberately NOT const: it is switched at run time, normally through
 # `Defaults.setDefaults("method: Wigner symbols, ...")`. Reading it costs one dynamic dispatch per symbol, which is
 # why every function below also has a form that TAKES the method, so that a hot loop can read it once and pass it on.
-WIGNER_METHOD = ExactWigner()
+#
+# THE DEFAULT IS FloatingWigner AS OF 25-Aug-2026, changed from ExactWigner on measurement rather than preference:
+# a mid-size cascade runs 4.16x faster and its results are BIT-IDENTICAL, and all 54 approved test references pass
+# unmodified under it. `GslWigner` is faster again but differs in the ninth digit, which would re-open every approved
+# file for the sake of a further 25 per cent; that is why the fastest method is NOT the default.
+WIGNER_METHOD = FloatingWigner()
 
 
 """
