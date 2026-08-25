@@ -1,127 +1,143 @@
 
 """
-`module  JAC.MultiPhotonIonization`  
-... a submodel of JAC that contains all methods for computing multi-photon (single-electron) ionization cross sections.
+`module  JenaAtomicCalculator.MultiPhotonIonization`  
+    ... a submodel of JAC for the ionization of an atom or ion by the absorption of SEVERAL photons in a single
+        process, i.e. for those multi-photon transitions whose final state carries a FREE ELECTRON.
+
+        THE BOUNDARY, and it is drawn from the other side as well.  MultiPhotonTransition is exclusively
+        BOUND-BOUND and says so in its own docstring: "As soon as the final state carries a free electron the
+        process belongs to MultiPhotonIonization."  PhotonScattering is for processes with a photon on BOTH sides
+        of the reaction.  Here the photons go in and an electron comes out, which is neither.
+
+        WHAT THE ESCAPING ELECTRON CHANGES, relative to two-photon absorption between bound levels:
+        + the final state is a continuum partial wave, so there is a PARTIAL-WAVE SUM to truncate, and the
+          different final waves are distinct states and add INCOHERENTLY;
+        + the ejected-electron energy is NOT free: at one photon energy, energy conservation fixes it at
+          epsilon = 2*omega - I_P.  There is therefore no energy-sharing scan of the kind a two-photon EMISSION
+          line needs, and omega is the variable to scan instead.  (Sharing returns for two-electron processes,
+          and differently for their sequential and simultaneous routes.)
+
+        UNITS.  A two-photon process needs two photons at once, so its rate goes as the SQUARE of the photon flux,
+        W [1/s] = sigma^(2) F^2 with F in photons cm^-2 s^-1.  A two-photon cross section is therefore NOT an
+        area: it carries cm^4 s, and is quoted in GM (1 GM = 1e-50 cm^4 s), after Maria Goeppert-Mayer, who
+        predicted two-photon absorption in her 1931 thesis.  One atomic unit, a0^4 t_au, is 1.8966 GM.  The
+        single-beam factor is a convention and is pinned as in MultiPhotonTransition, by requiring the
+        monochromatic result to agree with the bichromatic one as omega_1 -> omega_2; every table says so.
+
+        STRUCTURE.  Every process is selected by a scheme <: AbstractMultiPhotonIonizationScheme, following
+        MultiPhotonTransition and Cascade: the scheme types live in this file and the algorithms one-per-file in
+        the `-inc-` includes.  Two-photon one-electron ionization is implemented; three-photon and two-electron
+        processes have a place in the hierarchy and no code.
 """
 module MultiPhotonIonization
 
-
-using  ..AngularMomentum, ..Basics, ..Continuum, ..InteractionStrength, ..ManyElectron, ..Radial
-
-"""
-`struct  MultiPhotonIonization.Settings`  
-    ... defines a type for the settings in estimating multi-photon (single-electron) ionization cross sections
-
-    + multipoles              ::Array{EmMultipole}           ... Specifies the multipoles of the radiation field that are to be included.
-    + gauges                  ::Array{UseGauge}              ... Specifies the gauges to be included into the computations.
-    + photonEnergies          ::Array{Float64,1}             ... List of photon energies.
-    + printBefore             ::Bool                         ... True, if all energies and lines are printed before their evaluation.
-    + lineSelection           ::LineSelection                ... Specifies the selected levels, if any.
-
-"""
-struct Settings  <:  Basics.AbstractProcessSettings 
-    multipoles                ::Array{EmMultipole}
-    gauges                    ::Array{UseGauge}
-    photonEnergies            ::Array{Float64,1} 
-    printBefore               ::Bool  
-    lineSelection             ::LineSelection  
-end 
+using  Printf, ..AngularMomentum, ..Basics, ..Continuum, ..Defaults, ..InteractionStrength, ..ManyElectron,
+       ..Nuclear, ..Radial, ..TableStrings
 
 
 """
-`MultiPhotonIonization.Settings()`  ... constructor for the default values of multi-photon (single-electron) ionization estimates.
+`abstract type  MultiPhotonIonization.AbstractMultiPhotonIonizationScheme`  
+    ... defines an abstract type to distinguish the multi-photon ionization processes.
+
+    + struct TwoPhotonOneElectronScheme    ... two photons absorbed, ONE electron ejected.
 """
-function Settings()
-    Settings(EmMultipole[], UseGauge[], Float64[], false, LineSelection() )
+abstract type  AbstractMultiPhotonIonizationScheme       end
+
+
+"""
+`struct  MultiPhotonIonization.TwoPhotonOneElectronScheme  <:  AbstractMultiPhotonIonizationScheme`  
+    ... two photons of the same energy are absorbed and one electron is ejected; the electron energy follows from
+        energy conservation, epsilon = 2*omega - I_P, so omega is the variable to scan.
+
+    + omegas             ::Array{Float64,1}   ... photon energies to be computed [in the selected energy unit].
+    + multipoles         ::Array{EmMultipole,1}  ... multipoles of the radiation field to be included.
+    + resonanceTolerance ::Float64            ... a computation is REFUSED if an intermediate state comes this
+                                                   close to the energy shell; see below.
+"""
+struct   TwoPhotonOneElectronScheme  <:  MultiPhotonIonization.AbstractMultiPhotonIonizationScheme
+    omegas               ::Array{Float64,1}
+    multipoles           ::Array{EmMultipole,1}
+    resonanceTolerance   ::Float64
 end
 
 
-# `Base.show(io::IO, settings::MultiPhotonIonization.Settings)`  
-# 	... prepares a proper printout of the variable settings::MultiPhotonIonization.Settings.
-function Base.show(io::IO, settings::MultiPhotonIonization.Settings) 
-    println(io, "multipoles:               $(settings.multipoles)  ")
+"""
+`MultiPhotonIonization.TwoPhotonOneElectronScheme()`  ... constructor for a default TwoPhotonOneElectronScheme.
+"""
+function TwoPhotonOneElectronScheme()
+    TwoPhotonOneElectronScheme(Float64[], [E1], 1.0e-3)
+end
+
+
+# `Base.show(io::IO, scheme::MultiPhotonIonization.TwoPhotonOneElectronScheme)`  ... prepares a proper printout.
+function Base.show(io::IO, scheme::MultiPhotonIonization.TwoPhotonOneElectronScheme)
+    println(io, "omegas:                   $(scheme.omegas)  ")
+    println(io, "multipoles:               $(scheme.multipoles)  ")
+    println(io, "resonanceTolerance:       $(scheme.resonanceTolerance)  ")
+end
+
+
+"""
+`struct  MultiPhotonIonization.Settings  <:  AbstractProcessSettings`  
+    ... defines a type for the details and parameters of a multi-photon ionization computation.  The PROCESS itself is
+        chosen by the scheme, so that a further process is added by adding a scheme rather than by adding fields here.
+
+    + scheme          ::MultiPhotonIonization.AbstractMultiPhotonIonizationScheme   ... which process is computed.
+    + gauges          ::Array{UseGauge,1}   ... gauges to be included; the agreement between them is the only internal
+                          check a second-order amplitude has, so both are computed by default.
+    + printBefore     ::Bool                ... print all selected lines before the computation starts.
+    + lineSelection   ::LineSelection       ... specifies the selected levels, if any.
+"""
+struct Settings  <:  AbstractProcessSettings
+    scheme            ::MultiPhotonIonization.AbstractMultiPhotonIonizationScheme
+    gauges            ::Array{UseGauge,1}
+    printBefore       ::Bool
+    lineSelection     ::LineSelection
+end
+
+
+"""
+`MultiPhotonIonization.Settings()`  
+    ... constructor for a default set of multi-photon ionization settings; a `settings::MultiPhotonIonization.Settings`
+        is returned, which selects two-photon one-electron ionization in both gauges.
+"""
+function Settings()
+    Settings( TwoPhotonOneElectronScheme(), [UseCoulomb, UseBabushkin], false, LineSelection() )
+end
+
+
+"""
+`MultiPhotonIonization.Settings(set::MultiPhotonIonization.Settings;`
+    
+        scheme=..,              gauges=..,              printBefore=..,         lineSelection=..)
+                    
+    ... constructor for modifying the given MultiPhotonIonization.Settings by 'overwriting' the previously selected
+        parameters; a `settings::MultiPhotonIonization.Settings` is returned.
+"""
+function Settings(set::MultiPhotonIonization.Settings;
+    scheme::Union{Nothing,MultiPhotonIonization.AbstractMultiPhotonIonizationScheme}=nothing,
+    gauges::Union{Nothing,Array{UseGauge,1}}=nothing,
+    printBefore::Union{Nothing,Bool}=nothing,
+    lineSelection::Union{Nothing,LineSelection}=nothing)
+
+    if  isnothing(scheme)           schemex         = set.scheme         else   schemex         = scheme         end
+    if  isnothing(gauges)           gaugesx         = set.gauges         else   gaugesx         = gauges         end
+    if  isnothing(printBefore)      printBeforex    = set.printBefore    else   printBeforex    = printBefore    end
+    if  isnothing(lineSelection)    lineSelectionx  = set.lineSelection  else   lineSelectionx  = lineSelection  end
+
+    Settings( schemex, gaugesx, printBeforex, lineSelectionx)
+end
+
+
+# `Base.show(io::IO, settings::MultiPhotonIonization.Settings)`  ... prepares a proper printout of the settings.
+function Base.show(io::IO, settings::MultiPhotonIonization.Settings)
+    println(io, "scheme:                   $(settings.scheme)  ")
     println(io, "gauges:                   $(settings.gauges)  ")
-    println(io, "photonEnergies:           $(settings.photonEnergies)  ")
     println(io, "printBefore:              $(settings.printBefore)  ")
     println(io, "lineSelection:            $(settings.lineSelection)  ")
 end
 
 
-"""
-`struct  MultiPhotonIonization.Channel`  
-    ... defines a type for a multi-photon channel to help characterize multi-photon (single-electron)ionization with 
-        well-defined multipolarities.
-
-    + NoPhotons      ::EmMultipole            ... Number of photons in the multi-photon ionization
-    + multipoles     ::Array{EmMultipole,1}   ... Multipoles of all N incoming photons.
-    + gauge          ::EmGauge                ... Gauge for dealing with the (coupled) radiation field.
-    + kappa          ::Int64                  ... partial-wave of the free electron
-    + symmetry       ::LevelSymmetry          ... total angular momentum and parity of the scattering state
-    + phase          ::Float64                ... phase of the partial wave
-    + amplitude      ::Complex{Float64}       ... multi-photon ionization amplitude associated with the given channel.
-"""
-struct  Channel
-    NoPhotons        ::EmMultipole 
-    multipoles       ::Array{EmMultipole,1}
-    gauge            ::EmGauge 
-    kappa            ::Int64
-    symmetry         ::LevelSymmetry 
-    phase            ::Float64
-    amplitude        ::Complex{Float64}
-end
-
-
-"""
-`struct  MultiPhotonIonization.Line`  ... defines a type for a multi-photon ionization line that may include the definition of channels.
-
-    + initialLevel     ::Level                  ... initial-(state) level
-    + finalLevel       ::Level                  ... final-(state) level
-    + photonEnergy     ::Float64                ... Energy of the incoming photons; all photons are assumed to have equal energy.
-    + crossSection     ::EmProperty             ... Cross section for this multi-photon ionization.
-    + channels         ::Array{MultiPhotonIonization.Channel,1}  ... List of MultiPhotonIonization.Channels of this line.
-"""
-struct  Line
-    initialLevel       ::Level
-    finalLevel         ::Level
-    photonEnergy       ::Float64
-    crossSection       ::EmProperty
-    channels           ::Array{MultiPhotonIonization.Channel,1}
-end
-
-
-# `Base.show(io::IO, line::MultiPhotonIonization.Line)`  ... prepares a proper printout of the variable line::MultiPhotonIonization.Line.
-function Base.show(io::IO, line::MultiPhotonIonization.Line) 
-    println(io, "initialLevel:      $(line.initialLevel)  ")
-    println(io, "finalLevel:        $(line.finalLevel)  ")
-    println(io, "photonEnergy:      $(line.photonEnergy)  ")
-    println(io, "crossSection:      $(line.crossSection)  ")
-    println(io, "channels:          $(line.channels)  ")
-end
-
-
-
-"""
-`MultiPhotonIonization.computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, grid::Radial.Grid, 
-                                            settings::MultiPhotonIonization.Settings; output=true)` 
-    ... to compute the multiphoton transition amplitudes and all properties as requested by the given settings. 
-        A list of lines::Array{MultiPhotonIonization.Lines} is returned.
-"""
-function  computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, grid::Radial.Grid, 
-                        settings::MultiPhotonIonization.Settings; output=true)
-    println("")
-    printstyled("MultiPhotonIonization.computeLines(): The computation of multi-photon ionization amplitudes starts now ... \n", color=:light_green)
-    printstyled("---------------------------------------------------- ----------------------------------------------------- \n", color=:light_green)
-    println("")
-    #
-    #
-    pathways = "Not yet implemented !"
-    #
-    if    output    return( pathways )
-    else            return( nothing )
-    end
-end
-
-# Inlcude one-electron code
-include("module-MultiPhotonIonization-inc-one-electron.jl")
+include("module-MultiPhotonIonization-inc-2p-one-electron-hydrogenic.jl")
 
 end # module

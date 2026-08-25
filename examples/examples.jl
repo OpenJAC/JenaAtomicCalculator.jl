@@ -88,6 +88,7 @@ elseif  char == 'D'
     println("Dr) Apply & test the CoulombIonization module with ASF from an internally generated initial- and final-state multiplet.")
     println("Ds) Apply & test the CoulombExcitation module with ASF from an internally generated initial- and final-state multiplet.")
     println("Dt) Apply & test the CrystalFieldEmission module (crystal-field-resolved transitions) with initial- and final-state multiplets declared directly via Atomic.Computation.")
+    println("Dv) Two-photon IONIZATION of a one-electron system: generalized cross sections in GM, the convergence of the bound intermediate sum, and the resonance guard.")
     println("Dvnew) Apply & test the PhotoRecombinationInterference module: RR and DR amplitudes added coherently; interference in the cross section, beta_2 and the photon polarization.")
     #
 elseif  char == 'E'
