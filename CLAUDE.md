@@ -163,6 +163,19 @@ out 1000x too small, the Zeeman N1 `kappa <= -3` failure open since July, the `M
 perturbers that were blamed on a B-spline defect, and three successive wrong diagnoses of my own. Before
 attributing anything to the angular machinery, **re-run on a box matched to the orbitals**.
 
+**A box that is merely TOO SMALL fails in the opposite and more dangerous way: it corrupts progressively, so the
+artifact impersonates a physics conclusion.** On 25-Aug-2026 a second-order convergence study of two-photon ionization
+gave gauge ratios marching monotonically AWAY from unity as bound intermediates were added -- 0.775, 0.553, 0.396,
+0.198 in a 60 a.u. box -- which reads as "the bound intermediate sum does not converge", and was half written up as
+exactly that. The same study in a 90 a.u. box converges instead: 0.793, 0.803, 0.873, 0.908. The corrupted continuum
+orbital grew worse as the sum grew, so the artifact and the physics carried the SAME signature, and the DIRECTION of
+the march is what made it convincing -- a single bad ratio invites suspicion, four in a monotone sequence look like a
+trend with a cause.
+
+**Note which failure is loud.** Near threshold `Continuum` REFUSES outright with "enlarge box-size", so the unusable
+case announces itself, while the merely-too-small case runs clean and returns numbers. A too-large box produces a
+wrong NUMBER; a too-small one produces a wrong CONCLUSION.
+
 Two guards now exist, and neither is sufficient alone:
 - `Bsplines.checkGridRepresentation` -- solves the point-nucleus Dirac problem on the given grid and
   compares with `Basics.computeDiracEnergy`. It tests orbitals at the FULL nuclear charge, so it is
