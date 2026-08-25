@@ -267,18 +267,24 @@ function Basics.computeDensity(level::Level, grid::Radial.Grid)
 end
 
 """
-`Basics.computeDiracEnergy(sh::Subshell, Z::Float64)`  
+`Basics.computeDiracEnergy(sh::Subshell, Z::Float64; mass::Float64=1.0)`  
     ... computes the Dirac energy for the hydrogenic subshell sh and for a point-like nucleus with nuclear charge Z; 
-        a energy::Float64 in atomic units and without the rest energy of the electron is returned. That is the binding 
+        a energy::Float64 in atomic units and without the rest energy of the particle is returned. That is the binding 
         energy of a 1s_1/2 electron for Z=1 is -0.50000665.
+
+        `mass` is the mass of the bound particle in units of the electron mass, so mass = 1.0 (the default) is an
+        electron and Defaults.getDefaults("mass: muon") = 206.7683 is a muon.  It enters ONLY as an overall factor:
+        the expression below is m c^2 f(Z alpha), and the fine-structure constant does not depend on which particle
+        is bound.  So for a POINT nucleus a muon level is exactly 206.7683 times the corresponding electron level,
+        which is a known-answer test of any mass-dependent machinery and is used as such in example-Ta.jl.
 """
-function Basics.computeDiracEnergy(sh::Subshell, Z::Float64)
+function Basics.computeDiracEnergy(sh::Subshell, Z::Float64; mass::Float64=1.0)
     if  Z <= 0.1    error("Requires nuclear charge Z >= 0.1")    end
     # Compute the energy from the Dirac formula
     jPlusHalf = (Basics.subshell_2j(sh) + 1) / 2;   nr = sh.n - jPlusHalf;    alpha = Defaults.getDefaults("alpha") 
     wa = sqrt(jPlusHalf^2 - Z^2 * alpha^2 )  
     wa = sqrt(1.0 + Z^2 * alpha^2 / (nr + wa)^2)
-    wa = Defaults.getDefaults("speed of light: c")^2 * (1/wa - 1.0)
+    wa = mass * Defaults.getDefaults("speed of light: c")^2 * (1/wa - 1.0)
     return( wa )
 end
 

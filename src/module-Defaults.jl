@@ -24,6 +24,9 @@ INVERSE_FINE_STRUCTURE_CONSTANT = 137.035_999_139
 const BOHR_RADIUS_SI                  = 0.529_177_210_67e-10
 const BOLTZMANN_CONSTANT_SI           = 1.380_648_52e-23
 const ELECTRON_MA_SI                  = 9.109_383_56e-31
+## The muon is 206.77 times heavier than the electron and is otherwise the same particle: same charge, same
+## spin, same Dirac equation.  In atomic units the electron mass is 1, so this ratio IS the muon mass.
+const MUON_ELECTRON_MASS_RATIO        = 206.768_2830
 const ELEMENTARY_CHARGE_SI            = 1.602_176_620_8e-19
 const HARTREE_ENERGY_SI               = 4.359_744_650e-18
 const PLANCK_CONSTANT_SI              = 6.626_070_040e-34
@@ -653,6 +656,7 @@ end
     ... to get the (current standard) grid::Array{Float64,1} to which all radial orbital functions usually refer.
 
 + `("speed of light: c")`  ... to get the speed of light in atomic units.
++ `("mass: muon")`  ... to get the muon mass in atomic units, i.e. in units of the electron mass.
 
 + `("summary flag/stream")`  
     ... to get the logical flag and stream for printing a summary file; a tupel (flag, iostream) is returned.
@@ -679,6 +683,7 @@ function getDefaults(sa::String)
     elseif    sa == "unit: time"                                        return (GBL_TIME_UNIT)
     elseif    sa == "standard grid"                                     return (GBL_STANDARD_GRID)
     elseif    sa == "speed of light: c"                                 return (1.0/FINE_STRUCTURE_CONSTANT)
+    elseif    sa == "mass: muon"                                        return (MUON_ELECTRON_MASS_RATIO)
     elseif    sa == "data flag/stream"                                  return ( (GBL_PRINT_DATA, GBL_DATA_IOSTREAM) )
     elseif    sa == "data-X flag/stream"                                return ( (GBL_PRINT_DATAX, GBL_DATAX_IOSTREAM) )
     elseif    sa == "data-Y flag/stream"                                return ( (GBL_PRINT_DATAY, GBL_DATAY_IOSTREAM) )

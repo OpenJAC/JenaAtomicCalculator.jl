@@ -120,7 +120,8 @@ end
 `Bsplines.generateGalerkinMatrix(sh::Subshell, energy::Float64, pot::Radial.Potential, primitives::Bsplines.Primitives)`  
     ... generates the Galerkin-A matrix for the given potential and B-spline primitives; a matrix::Array{Float64,2} is returned.
 """
-function generateGalerkinMatrix(sh::Subshell, energy::Float64, pot::Radial.Potential, primitives::Bsplines.Primitives)
+function generateGalerkinMatrix(sh::Subshell, energy::Float64, pot::Radial.Potential, primitives::Bsplines.Primitives;
+                                mass::Float64=1.0)
     nsL      = primitives.grid.nsL;    nsS = primitives.grid.nsS
 
     # Define the storage for the calculations of matrices; this is necessary to use the Bsplines.generateMatrix!() function
@@ -131,7 +132,7 @@ function generateGalerkinMatrix(sh::Subshell, energy::Float64, pot::Radial.Poten
     wb[1:nsL,1:nsL]                 = Bsplines.generateTTpMatrix!("LL-overlap", 0, primitives, storage)
     wb[nsL+1:nsL+nsS,nsL+1:nsL+nsS] = Bsplines.generateTTpMatrix!("SS-overlap", 0, primitives, storage)
     # Set-up the local Hamiltonian matrix
-    wa = Bsplines.setupLocalMatrix(sh.kappa, primitives, pot::Radial.Potential, storage::Dict{String,Array{Float64,2}})
+    wa = Bsplines.setupLocalMatrix(sh.kappa, primitives, pot::Radial.Potential, storage::Dict{String,Array{Float64,2}}; mass=mass)
     wa[1:end,1:end] = wa[1:end,1:end] - energy * wb[1:end,1:end]
 
     return( wa )
@@ -143,13 +144,14 @@ end
     ... generates all single-electron orbitals from subshell list for the nuclear potential as specified by nm.
         A set of orbitals::Dict{Subshell, Orbital} is returned.
 """
-function generateOrbitalsHydrogenic(subshells::Array{Subshell,1}, nm::Nuclear.Model, primitives::Bsplines.Primitives; printout::Bool=true)
+function generateOrbitalsHydrogenic(subshells::Array{Subshell,1}, nm::Nuclear.Model, primitives::Bsplines.Primitives; printout::Bool=true,
+                                    mass::Float64=1.0)
     ## This was a third, inline copy of Nuclear.nuclearPotential's three-way branch, calling the same three
     ## constructors with the same arguments (de-duplicated 12-Aug-2026; verified to give bitwise identical
     ## Zr for all three models).
     pot = Nuclear.nuclearPotential(nm, primitives.grid)
     
-    orbitals = Bsplines.generateOrbitals(subshells, pot, nm, primitives; printout=printout)
+    orbitals = Bsplines.generateOrbitals(subshells, pot, nm, primitives; printout=printout, mass=mass)
     return( orbitals )
 end
 
@@ -212,7 +214,7 @@ end
 """
 function checkGridRepresentation(subshells::Array{Subshell,1}, Z::Float64, primitives::Bsplines.Primitives;
                                  occupations::Dict{Shell,Int64}=Dict{Shell,Int64}(), accuracy::Float64=1.0e-3,
-                                 stopper::Bool=true)
+                                 stopper::Bool=true, mass::Float64=1.0)
     grid    = primitives.grid;      nsL = grid.nsL;     nsS = grid.nsS
     storage = Dict{String,Array{Float64,2}}()
     wb      = zeros( nsL+nsS, nsL+nsS )
@@ -232,13 +234,13 @@ function checkGridRepresentation(subshells::Array{Subshell,1}, Z::Float64, primi
         key = (sh.kappa, round(Zx, digits=8))
         if  !haskey(spectra, key)
             pot = Nuclear.pointNucleus(Zx, grid)
-            wa  = Bsplines.setupLocalMatrix(sh.kappa, primitives, pot, storage)
+            wa  = Bsplines.setupLocalMatrix(sh.kappa, primitives, pot, storage; mass=mass)
             w2  = Bsplines.diagonalizeLocalMatrix(sh.kappa, wa, wb, primitives)
-            spectra[key] = (w2.values, Bsplines.findPositiveBranchStart(w2.values))
+            spectra[key] = (w2.values, Bsplines.findPositiveBranchStart(w2.values; mass=mass))
         end
         (values2, mm) = spectra[key]
         ni = mm + sh.n - l - 1
-        ex = Basics.computeDiracEnergy(sh, Zx)
+        ex = Basics.computeDiracEnergy(sh, Zx; mass=mass)
         if  ni < 1  ||  ni > length(values2)    return( (NaN, ex, Inf) )    end
         return( (values2[ni], ex, abs(values2[ni]/ex - 1)) )
     end
@@ -307,7 +309,7 @@ end
         A set of orbitals::Dict{Subshell, Orbital} is returned.
 """
 function generateOrbitals(subshells::Array{Subshell,1}, pot::Radial.Potential, nm::Nuclear.Model, 
-                          primitives::Bsplines.Primitives; printout::Bool=true)
+                          primitives::Bsplines.Primitives; printout::Bool=true, mass::Float64=1.0)
     orbitals = Dict{Subshell, Orbital}()
     kappas   = Int64[];   for sh in subshells  push!(kappas, sh.kappa)   end;   kappas = unique(kappas)
     nsL      = primitives.grid.nsL;    nsS = primitives.grid.nsS
@@ -325,7 +327,7 @@ function generateOrbitals(subshells::Array{Subshell,1}, pot::Radial.Potential, n
         wb[nsL+1:nsL+nsS,nsL+1:nsL+nsS] = Bsplines.generateTTpMatrix!("SS-overlap", 0, primitives, storage)
         
         # (2) Compute the local Hamiltonian matrix and diagonalize it
-        wa = Bsplines.setupLocalMatrix(kappa, primitives, pot, storage)
+        wa = Bsplines.setupLocalMatrix(kappa, primitives, pot, storage; mass=mass)
         w2 = Bsplines.diagonalizeLocalMatrix(kappa, wa, wb, primitives)
         ## The offset handed to the tabulation is where the POSITIVE-energy branch begins, and that is not nsS
         ## (corrected 10-Aug-2026). diagonalizeLocalMatrix eliminates dropP+dropQ B-splines for this symmetry,
@@ -333,12 +335,12 @@ function generateOrbitals(subshells::Array{Subshell,1}, pot::Radial.Potential, n
         ## With nsS the table printed a slice several states too high while labelling it 4f, 5f, ...: at Z = 10
         ## it showed 4f_5/2 = -6.03e-01 against the exact -3.13e+00, i.e. a "Delta-E/|E|" of +4.19, although the
         ## orbital actually extracted was correct to 6e-7. Purely a display defect, but a badly misleading one.
-        nsi = Bsplines.findPositiveBranchStart(w2.values) - 1
+        nsi = Bsplines.findPositiveBranchStart(w2.values; mass=mass) - 1
         if  printout  Basics.tabulateKappaSymmetryEnergiesDirac(kappa, w2.values, nsi, nm)    end
         
         # (3) Collect all the requested single-electron orbitals
         for  sh in subshells
-            if  sh.kappa == kappa    orbitals[sh] = Bsplines.generateOrbitalFromPrimitives(sh, w2, primitives)    end
+            if  sh.kappa == kappa    orbitals[sh] = Bsplines.generateOrbitalFromPrimitives(sh, w2, primitives; mass=mass)    end
         end
     end
     
@@ -403,9 +405,9 @@ end
     ... generates the large and small components for the subshell sh from the primitives and their eigenvalues & eigenvectors. 
         A (normalized) orbital::Orbital is returned.
 """
-function generateOrbitalFromPrimitives(sh::Subshell, wc::Basics.Eigen, primitives::Bsplines.Primitives)
+function generateOrbitalFromPrimitives(sh::Subshell, wc::Basics.Eigen, primitives::Bsplines.Primitives; mass::Float64=1.0)
     nsL = primitives.grid.nsL;    nsS = primitives.grid.nsS
-    l  = Basics.subshell_l(sh);   mm = Bsplines.findPositiveBranchStart(wc.values);   ni = mm + sh.n - l - 1
+    l  = Basics.subshell_l(sh);   mm = Bsplines.findPositiveBranchStart(wc.values; mass=mass);   ni = mm + sh.n - l - 1
     en = wc.values[ni];        if  en < 0.    isBound = true  else   isBound = false                 end
     ev = wc.vectors[ni];       if  length(ev) != nsL + nsS    error("stop a")                        end
     
@@ -638,9 +640,14 @@ end
     add the nuclear potential to any potential passed into `Bsplines.generateOrbitals`/this function. See
     project_bsplines_spurious_dirac_sea_bug.md for the full diagnostic.
 """
-function findPositiveBranchStart(values::Array{Float64,1})
+function findPositiveBranchStart(values::Array{Float64,1}; mass::Float64=1.0)
+    ## The negative-energy continuum starts at -2 m c^2, so the threshold SCALES WITH THE MASS and a fixed
+    ## -1.999 c^2 is an electron-only value.  It matters: a muon 1s level in lead lies near 10 MeV = 3.7e5
+    ## Hartree, far BELOW the electron threshold of 3.75e4, so every muon bound state of a heavy atom would be
+    ## rejected here as a spurious Dirac-sea state -- silently, since this function returns an index and not an
+    ## error.  That is the same failure that module-InternalRecombination.jl hit from the other direction.
     c  = Defaults.getDefaults("speed of light: c")
-    zz = -1.999 * c^2
+    zz = -1.999 * mass * c^2
     for  (i,v)  in  enumerate(values)
         if  v > zz   return( i )   end
     end
@@ -785,7 +792,8 @@ end
         ...set-up the local parts of the generalized eigenvalue problem for the symmetry block kappa and the given (local) potential pot. 
         The B-spline (basis) functions are defined by primitivesL for the large component and primitivesS for the small one, respectively.
 """
-function setupLocalMatrix(kappa::Int64, primitives::Bsplines.Primitives, pot::Radial.Potential, storage::Dict{String,Array{Float64,2}})
+function setupLocalMatrix(kappa::Int64, primitives::Bsplines.Primitives, pot::Radial.Potential, storage::Dict{String,Array{Float64,2}};
+                          mass::Float64=1.0)
     ## WRITTEN IN PLACE (12-Aug-2026).  This function is called once per kappa per SCF iteration, and it used
     ## to allocate 13.9 MB each time: a SECOND full (nsL+nsS)^2 matrix for the overlap, of which only the SS
     ## block was ever read (the LL block was fetched and never used), plus a temporary for each side of every
@@ -820,8 +828,10 @@ function setupLocalMatrix(kappa::Int64, primitives::Bsplines.Primitives, pot::Ra
         end
     end
 
-    # (3) Substract the rest mass from the 'SS' block
-    twoCsq = 2 * Defaults.getDefaults("speed of light: c")^2
+    # (3) Substract the rest mass from the 'SS' block.  This is the ONLY place the particle mass enters the
+    #     Dirac matrix: the kinetic blocks below carry the speed of light but not the mass, so a muon differs
+    #     from an electron here and nowhere else.  mass = 1.0 is an electron.
+    twoCsq = 2 * mass * Defaults.getDefaults("speed of light: c")^2
     for  i = 1:nsS,  j = 1:nsS
         wa[nsL+i,nsL+j] = wa[nsL+i,nsL+j] - twoCsq * ssOverlap[i,j]
     end

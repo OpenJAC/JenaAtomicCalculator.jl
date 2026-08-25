@@ -91,7 +91,7 @@ export AbstractCImethod, AbstractComputeTheme, AbstractConfigurationRestriction,
        LandeF, LandeJ, LandeZeeman, LeadingConfiguration, LeadingConfigurationR, LeftCircular, Level, LevelSelection,
        LevelSymmetry, LineSelection, Liouville, LSjj, LSjjSettings,
        M1, M2, M3, M4, ManyElectron, MeanConfiguration, MeanFieldBasis, MeanFieldMultiplet, MeanFieldSettings,
-       MeanOccupation, minus, Model, MultiPhotonDE, MultiPhotonIonization,
+       MeanOccupation, MuonicAtom, minus, Model, MultiPhotonDE, MultiPhotonIonization,
        MultiPhotonTransition, MultiPI, Multiplet, Multiplicity, MultipoleAmplitude, MultipoleMoment,
        MultipolePolarizibility,
        NoAmplitude, NoneQed, NonrelativisticBasis, NoProcess, NoProperty, Nuclear, NumberOfElectrons,
@@ -206,6 +206,7 @@ include("module-ImpactExcitationAutoion.jl")
 include("module-RadiativeAuger.jl")
 include("module-MultiPhotonIonization.jl")
 include("module-InternalConversion.jl") 
+include("module-MuonicAtom.jl")
 include("module-InternalRecombination.jl") 
 include("module-TwoElectronOnePhoton.jl") 
 include("module-DoubleAutoIonization.jl")
