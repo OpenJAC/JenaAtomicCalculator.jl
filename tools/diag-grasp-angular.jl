@@ -15,22 +15,26 @@
 #     GraspAngular.compare2p(g, ["1s^2 2s^2 2p^2"])             # two-particle (Coulomb)
 #     GraspAngular.reference2p(g, ["1s^2 3d^2"])                # emit a paste-ready reference table
 #
-# A LIMIT ON WHAT THIS FILE CAN COMPARE, measured 25-Aug-2026 and worth knowing before reading a disagreement as
-# a defect. JAC and GRASP CSFs are matched by SIGNATURE -- occupation, 2J, parity -- and, where that is ambiguous,
-# by a FINGERPRINT of diagonal one-particle coefficients. When two CSFs of a list share a signature they differ only
-# in their INTERMEDIATE COUPLING, and neither test establishes which of the two GRASP states corresponds to which of
-# the two JAC states; the two codes may simply carry different bases of the same subspace, in which case comparing
-# coefficient by coefficient is not a well-posed question.
+# MATCHING CSFs WHEN THE SIGNATURE IS DEGENERATE, settled 25-Aug-2026. JAC and GRASP CSFs are matched by SIGNATURE --
+# occupation, 2J, parity -- which is unique for most lists. Where two CSFs share one they differ only in their
+# INTERMEDIATE COUPLING, and a fingerprint of diagonal ONE-particle coefficients is too weak to tell them apart: it
+# returns [1.0, 1.0, 1.0] for several distinct states.
 #
-# The correlation is exact over the cases tried: FOUR configuration lists with no signature-degenerate CSF gave ZERO
-# disagreements, and the ONE list with a degenerate pair (1s^2 2s^2 2p + 1s^2 2s 2p^2) gave six. A trace over that
-# pair -- which is basis-independent -- agrees on 11 of its 13 R^k orbits, so it is not a plain two-by-two rotation
-# either, and the correspondence remains unestablished rather than wrong.
+# The DIAGONAL TWO-PARTICLE coefficients settle it, scored on the keys the two sides SHARE rather than by equality --
+# GRASP emits fewer keys than JAC, so demanding equal key sets fails even for pairs known to correspond. On the one
+# degenerate list tried, 1s^2 2s^2 2p + 1s^2 2s 2p^2, every CSF with a unique candidate scored perfectly (4/4, 3/3,
+# 4/4, 6/6, 6/6), and of the degenerate pair one scored 6/6 against a single GRASP state -- which fixes the other by
+# elimination.
 #
-# THE FIX, when someone needs it: match by the COUPLINGS themselves. GRASP's rcsf.c carries each CSF's subshell J and
-# intermediate X values, so the correspondence can be read rather than inferred from coefficients. Until then, prefer
-# configuration lists whose CSFs are uniquely determined by (occupation, J, parity), and treat a disagreement in a
-# degenerate list as a question about the matching first.
+# WHAT REMAINS AFTER THE MATCHING IS FIXED IS A REAL DISAGREEMENT, AND IT IS GRASP'S. Two coefficients of ONE CSF's
+# diagonal differ, both EXCHANGE terms:
+#     k=1  R^1(2s, 2s, 2p_3/2, 2p_3/2)     JAC -0.16666667   GRASP -0.04244067
+#     k=2  R^2(2p_1/2, 2p_1/2, 2p_3/2, 2p_3/2)   JAC -0.10000000   GRASP -0.14472136
+# Its partner state agrees with GRASP on all six of its shared coefficients, which rules out a basis rotation: were
+# the two codes carrying different bases of that subspace, one basis vector coinciding exactly would force the other
+# to coincide too. Both JAC modules -- SpinAngular and the independently derived SpinAngularNew -- give the same
+# values, and the condition (two CSFs differing only in seniority) is exactly the one librang90's own ReadMe names
+# and that branch k of examples/example-Aq.jl documents. This is that defect, in a second configuration.
 #
 # WHAT IT NEEDS: gfortran, and a readable GRASP2018 source tree. Nothing is written into that tree -- it is copied
 # first -- so a read-only reference installation is fine and Rule 6 is respected.
