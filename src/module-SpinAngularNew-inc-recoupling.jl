@@ -104,13 +104,22 @@ end
 const SHELL_W_CACHE = Dict{NTuple{7,Int64}, Float64}()
 
 
+# The single-operator matrix elements are memoised for the same reason as the rank-k ones, and it matters more: a
+# profile of the one-electron-move sweep is dominated not by the recoupling but by EXACT RATIONAL ARITHMETIC -- BigInt
+# allocation inside the Wigner-symbol package, reached through the Clebsch-Gordan in `shellReducedA`. The arguments are
+# a handful of small quantum numbers and the same ones recur across every CSF pair of a calculation.
+const SHELL_A_CACHE = Dict{NTuple{8,Int64}, Float64}()
+
+
 """
 `SpinAngularNew.clearCaches()`
     ... to empty the memo of `SpinAngularNew.shellReducedW`. Not needed for correctness -- the cached quantities are
         basis-independent -- but useful for timing a cold run. Returns the number of entries discarded.
 """
 function clearCaches()
-    n = length(SHELL_W_CACHE);    empty!(SHELL_W_CACHE)
+    n = length(SHELL_W_CACHE) + length(PARTNER_CACHE) + length(SHELL_A_CACHE)
+    empty!(SHELL_W_CACHE);    empty!(PARTNER_CACHE);    empty!(SHELL_A_CACHE)
+    empty!(PARTNER_CACHE)
 
     return( n )
 end
@@ -237,6 +246,22 @@ end
 """
 function shellReducedA(j::AngularJ64, Nbra::Int64, senBra::Int64, Jbra::AngularJ64,
                        Nket::Int64, senKet::Int64, Jket::AngularJ64, mq::AngularM64)
+    key = (Basics.twice(j), Nbra, senBra, Basics.twice(Jbra), Nket, senKet, Basics.twice(Jket), Basics.twice(mq))
+    haskey(SHELL_A_CACHE, key)  &&  return( SHELL_A_CACHE[key] )
+    wa = shellReducedAUncached(j, Nbra, senBra, Jbra, Nket, senKet, Jket, mq)
+    SHELL_A_CACHE[key] = wa
+
+    return( wa )
+end
+
+
+"""
+`SpinAngularNew.shellReducedAUncached(j::AngularJ64, Nbra::Int64, senBra::Int64, Jbra::AngularJ64, Nket::Int64, senKet::Int64, Jket::AngularJ64, mq::AngularM64)`
+    ... the body of `SpinAngularNew.shellReducedA`, evaluated without consulting the cache. Kept separate so that the
+        cache is a wrapper and the physics is in one place. A value::Float64 is returned.
+"""
+function shellReducedAUncached(j::AngularJ64, Nbra::Int64, senBra::Int64, Jbra::AngularJ64,
+                               Nket::Int64, senKet::Int64, Jket::AngularJ64, mq::AngularM64)
     SA = JenaAtomicCalculator.SpinAngular
     Qb = SA.qshellTermQ(j, senBra);            Qk = SA.qshellTermQ(j, senKet)
     if  AngularMomentum.triangularDelta(Qb, AngularJ64(1//2), Qk) == 0        return( 0.0 )   end

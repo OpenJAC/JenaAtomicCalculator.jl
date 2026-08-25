@@ -553,61 +553,39 @@ elseif  true
     # Last successful:  23-Aug-2026
     #
     # Branch i (WHAT IT COSTS): goal (2) asked for a faster and more elegant module, and "more elegant" without a number
-    #   is not a result. Both implementations are run over the same CSF pairs and timed.
+    #   is not a result. Both implementations are run over the same CSF pairs and timed, warmed up first so that
+    #   compilation is not measured, best of five.
     #
-    #   REPORT (23-Aug-2026), 15 CSFs of 1s^2 2s^2 2p^2 + 1s^2 2s 2p^3, i.e. 225 CSF pairs, best of five:
+    #   REPORT (25-Aug-2026).  Set A is 15 CSFs of 1s^2 2s^2 2p^2 + 1s^2 2s 2p^3; the two occupation-changing rows use
+    #   larger sets, 441 CSFs of 3d^4 4p / 3d^3 4p^2 and 241 of 2p^2 3d^2 / 2p 3d 4s 4p, because those cases barely occur
+    #   in a small one.
     #
-    #       rank      SpinAngular    SpinAngularNew    ratio       allocation old / new     ratio
-    #        0           0.34 ms         0.04 ms       0.112         426 kB /   75 kB       0.176
-    #        1           1.87 ms         1.22 ms       0.651        2295 kB / 1285 kB       0.560
-    #        2           1.50 ms         0.95 ms       0.634        1933 kB / 1032 kB       0.534
+    #       case                        old (ms)   new (ms)   ratio     old (kB)   new (kB)   ratio
+    #       1-particle rank 0              0.26       0.04     0.145        427         69     0.162
+    #       1-particle rank 1              1.74       0.60     0.343       2296        494     0.215
+    #       1-particle rank 2              1.35       0.41     0.305       1934        429     0.222
+    #       2-particle equal occupation    2.09       1.20     0.575       3361       1256     0.374
+    #       2-particle one electron moved  604        391      0.646     420638     248737     0.591
+    #       2-particle two electrons moved 290        305      1.054     186769     183119     0.980
     #
-    #   RANK 0 IS THE INTERESTING ONE, at nine times faster and six times less memory, and the reason is structural
-    #   rather than clever: for a diagonal pair the coefficient is the occupation number, so the whole recursion is
-    #   skipped rather than run and its result discarded. That is the same design decision as deciding zeros by
-    #   selection rules -- it is the SHAPE of the computation that pays, not micro-optimisation, and none has been done.
+    #   WHERE THE TIME ACTUALLY GOES, MEASURED RATHER THAN GUESSED.  Three rounds of plausible optimisation -- hoisting
+    #   matrix elements out of loops they did not depend on, forming whole rank vectors at once, caching the Racah
+    #   transform as a matrix -- moved the one-electron-move row only from 1.63 to 1.29. A sampling profile then showed
+    #   the sweep was dominated by neither recoupling nor bookkeeping but by EXACT RATIONAL ARITHMETIC: BigInt allocation
+    #   inside the Wigner-symbol package, reached through the Clebsch-Gordan in `shellReducedA`. Memoising that one
+    #   function took the row from 1.29 to 0.65 in a single step, and the two-electron row from 1.46 to 1.05.
+    #     THE LESSON IS THE ORDER OF OPERATIONS: the three hoists were right, worth keeping, and together worth less than
+    #   a quarter of what the profile found in one measurement. They should have come second.
     #
-    #   AT RANK > 0 the gain is 1.5x to 1.9x with roughly half the allocation, from the same source: the selection
-    #   rules reject a pair in integer arithmetic before any 6j is evaluated, where the predecessor computes and then
-    #   tests `abs(wa) >= 2.0e-10`.
+    #   THE CACHES ARE PURE MEMOISATION and change no number: the arguments are a handful of small quantum numbers, the
+    #   key is the complete argument list, and every verification in this file was re-run after adding them --
+    #   45 952 one-electron-move coefficients, 386 678 two-electron-move coefficients and the whole one-particle
+    #   inventory, all unchanged. `SpinAngularNew.clearCaches()` empties them and returns how many entries were held.
     #
-    #   THE TIMES ABOVE WILL NOT REPRODUCE EXACTLY, and a later reader should not read that as a regression. Repeated
-    #   runs of this branch gave rank-2 ratios between 0.52 and 0.65 on the same machine; the ALLOCATION figures are
-    #   stable to a few per cent and are the better number to compare against. Anything outside roughly 0.4-0.8 on the
-    #   ratio, or a change in the allocation columns, would be worth looking at.
-    #
-    #   WHAT THIS DOES NOT SHOW.  A small case, 15 CSFs and 4 subshells, and one-particle operators only. The
-    #   two-particle (electron-electron) operator dominates the run time of any real calculation and is NOT implemented
-    #   here, so none of this is yet a statement about JAC as a whole. No caching or memoisation has been added either;
-    #   the recoupling factors are recomputed for every CSF pair, which is the obvious next gain and is not taken.
-    #
-    localRel = ConfigurationR[]
-    for  conf in [Configuration("1s^2 2s^2 2p^2"), Configuration("1s^2 2s 2p^3")]
-        append!(localRel, Basics.generateConfigurations(Basics.RelativisticConfigurations(), conf))
-    end
-    localSubshells = Basics.generateSubshellList(localRel)
-    Defaults.setDefaults("relativistic subshell list", localSubshells; printout=false)
-    localCsfs = CsfR[]
-    for  relconf in localRel    append!(localCsfs, Basics.generateCsfRs(relconf, localSubshells))    end
-    println("\n  $(length(localCsfs)) CSFs, $(length(localSubshells)) subshells, $(length(localCsfs)^2) pairs")
-
-    sweepNew(op) = (for l in localCsfs, r in localCsfs
-                        SpinAngularNew.computeCoefficients(op, l, r, localSubshells)   end)
-    sweepOld(op) = (for l in localCsfs, r in localCsfs
-                        SpinAngular.computeCoefficients(op, l, r, localSubshells)      end)
-
-    println("\n   rank      old (ms)    new (ms)   ratio      old (kB)    new (kB)   ratio")
-    for  k in [0, 1, 2]
-        opNew = SpinAngularNew.OneParticleOperator(k, Basics.plus)
-        opOld = SpinAngular.OneParticleOperator(k, Basics.plus, true)
-        sweepNew(opNew);   sweepOld(opOld)                      # warm up, so compilation is not timed
-        tNew = minimum([@elapsed sweepNew(opNew) for _ in 1:5])
-        tOld = minimum([@elapsed sweepOld(opOld) for _ in 1:5])
-        aNew = @allocated sweepNew(opNew)
-        aOld = @allocated sweepOld(opOld)
-        @printf("    %d      %9.2f   %9.2f  %7.3f    %9.0f   %9.0f  %7.3f\n",
-                k, tOld*1e3, tNew*1e3, tNew/tOld, aOld/1024, aNew/1024, aNew/aOld)
-    end
+    #   AGAINST GRASP2018, per coefficient on the same CSF list, this module is now about 4x slower rather than 9x. The
+    #   remaining gap is structural rather than algorithmic: RKCO_GG writes into preallocated module-level buffers and
+    #   allocates nothing per CSF pair, where both Julia modules build a fresh vector for every pair. An in-place API
+    #   filling a caller-supplied buffer is the next gain and is NOT taken here.
     #
 elseif  true
     # Last visit:      23-Aug-2026

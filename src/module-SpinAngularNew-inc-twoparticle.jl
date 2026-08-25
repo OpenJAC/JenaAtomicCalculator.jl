@@ -390,6 +390,56 @@ end
 
 
 """
+`SpinAngularNew.moveOnePrimaryVector(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, iCre::Int64, iAnn::Int64, iSpec::Int64, kMax::Int64, wCre::Float64, wAnn::Float64)`
+    ... to compute the primary one-electron-move coefficients for ALL ranks 0 ... kMax of one spectator subshell at once,
+        returning them as a vector. Only the spectator's own rank changes with k: the ordering of the three acting
+        subshells along the chain, and their places in it, do not -- so they are formed once and the rank vectors are
+        REUSED rather than rebuilt for every rank. This is the same reason `SpinAngularNew.twoParticleDirectVector`
+        exists for the equal-occupation case, and it is worth doing for the same reason: the work is unchanged and the
+        allocation is not. A vector prim::Array{Float64,1} is returned.
+"""
+function moveOnePrimaryVector(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, iCre::Int64, iAnn::Int64,
+                              iSpec::Int64, kMax::Int64, wCre::Float64, wAnn::Float64)
+    prim = zeros(Float64, kMax+1)
+    if  wCre == 0.0  ||  wAnn == 0.0                                      return( prim )   end
+    jA  = AngularJ64( Basics.subshell_2j(subshells[iCre])//2 )
+    jD  = AngularJ64( Basics.subshell_2j(subshells[iAnn])//2 )
+    jS  = AngularJ64( Basics.subshell_2j(subshells[iSpec])//2 )
+
+    ord   = sortperm( [iCre, iAnn, iSpec] )
+    sites = [iCre, iAnn, iSpec][ord]
+    base  = AngularJ64[ jA, jD, AngularJ64(0) ]
+    ranks = Vector{AngularJ64}(undef, 3);      inter = Vector{AngularJ64}(undef, 3)
+    between = min(iCre,iAnn) < iSpec < max(iCre,iAnn)
+    occup   = 0
+    for  i = min(iCre,iAnn):max(iCre,iAnn)-1   occup = occup + leftCsf.occupation[i]   end
+
+    for  k = 0:kMax
+        base[3] = AngularJ64(k)
+        for  m = 1:3    ranks[m] = base[ord[m]]    end
+        inter[1] = ranks[1];    inter[2] = ranks[3];    inter[3] = AngularJ64(0)
+        if  AngularMomentum.triangularDelta(inter[1], ranks[2], inter[2]) == 0    continue    end
+        wS = shellReducedW(jS, leftCsf.occupation[iSpec], leftCsf.seniorityNr[iSpec], leftCsf.subshellJ[iSpec],
+                               rightCsf.seniorityNr[iSpec], rightCsf.subshellJ[iSpec], k)
+        if  wS == 0.0                                                             continue    end
+        wR = treeRecoupling(leftCsf, rightCsf, sites, ranks, inter)
+        if  wR == 0.0                                                             continue    end
+
+        ph = (-1)^(occup + 1)
+        if  iAnn < iCre
+            ph = ph * (-1)^Int64( (Basics.twice(jA) + Basics.twice(jD) - 2*k + 2)//2 )
+        end
+        if  between
+            ph = ph * (-1)^Int64( (Basics.twice(jA) + Basics.twice(jD) + 2*k + 2)//2 )
+        end
+        prim[k+1] = ph * wR * wCre * wAnn * wS / ( sqrt(2.0*k + 1.0) * sqrt(Basics.twice(leftCsf.J) + 1.0) )
+    end
+
+    return( prim )
+end
+
+
+"""
 `SpinAngularNew.moveOneQuads(subshells::Array{Subshell,1}, iCre::Int64, iAnn::Int64, iSpec::Int64)`
     ... to determine the two index quadruples (a,b,c,d) under which the one-electron-move terms of a given spectator
         subshell are emitted, together with their four subshell angular momenta and whether the spectator lies BETWEEN
@@ -444,6 +494,28 @@ function moveOnePrimary(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell
                         iSpec::Int64, k::Int64)
     jA = AngularJ64( Basics.subshell_2j(subshells[iCre])//2 )
     jD = AngularJ64( Basics.subshell_2j(subshells[iAnn])//2 )
+    wCre = shellReducedA(jA, leftCsf.occupation[iCre],  leftCsf.seniorityNr[iCre],  leftCsf.subshellJ[iCre],
+                             rightCsf.occupation[iCre], rightCsf.seniorityNr[iCre], rightCsf.subshellJ[iCre],
+                             AngularM64(1//2))
+    wAnn = shellReducedA(jD, leftCsf.occupation[iAnn],  leftCsf.seniorityNr[iAnn],  leftCsf.subshellJ[iAnn],
+                             rightCsf.occupation[iAnn], rightCsf.seniorityNr[iAnn], rightCsf.subshellJ[iAnn],
+                             AngularM64(-1//2))
+
+    return( moveOnePrimaryFrom(leftCsf, rightCsf, subshells, iCre, iAnn, iSpec, k, wCre, wAnn) )
+end
+
+
+"""
+`SpinAngularNew.moveOnePrimaryFrom(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, iCre::Int64, iAnn::Int64, iSpec::Int64, k::Int64, wCre::Float64, wAnn::Float64)`
+    ... as `SpinAngularNew.moveOnePrimary`, but taking the creation and annihilation matrix elements ALREADY FORMED.
+        They depend on neither the spectator subshell nor the rank, so a caller sweeping over both computes them once
+        and passes them in; `moveOnePrimary` itself is the convenience entry that forms them and delegates here. A
+        value::Float64 is returned.
+"""
+function moveOnePrimaryFrom(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, iCre::Int64, iAnn::Int64,
+                            iSpec::Int64, k::Int64, wCre::Float64, wAnn::Float64)
+    jA = AngularJ64( Basics.subshell_2j(subshells[iCre])//2 )
+    jD = AngularJ64( Basics.subshell_2j(subshells[iAnn])//2 )
     jS = AngularJ64( Basics.subshell_2j(subshells[iSpec])//2 )
 
     ord   = sortperm( [iCre, iAnn, iSpec] )
@@ -452,12 +524,8 @@ function moveOnePrimary(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell
     if  AngularMomentum.triangularDelta(inter[1], ranks[2], inter[2]) == 0            return( 0.0 )   end
 
     wR = treeRecoupling(leftCsf, rightCsf, sites, ranks, inter);   if  wR == 0.0      return( 0.0 )   end
-    wA = shellReducedA(jA, leftCsf.occupation[iCre],  leftCsf.seniorityNr[iCre],  leftCsf.subshellJ[iCre],
-                           rightCsf.occupation[iCre], rightCsf.seniorityNr[iCre], rightCsf.subshellJ[iCre],
-                           AngularM64(1//2));                      if  wA == 0.0      return( 0.0 )   end
-    wD = shellReducedA(jD, leftCsf.occupation[iAnn],  leftCsf.seniorityNr[iAnn],  leftCsf.subshellJ[iAnn],
-                           rightCsf.occupation[iAnn], rightCsf.seniorityNr[iAnn], rightCsf.subshellJ[iAnn],
-                           AngularM64(-1//2));                     if  wD == 0.0      return( 0.0 )   end
+    wA = wCre;                                                     if  wA == 0.0      return( 0.0 )   end
+    wD = wAnn;                                                     if  wD == 0.0      return( 0.0 )   end
     wS = shellReducedW(jS, leftCsf.occupation[iSpec], leftCsf.seniorityNr[iSpec], leftCsf.subshellJ[iSpec],
                            rightCsf.seniorityNr[iSpec], rightCsf.subshellJ[iSpec], k)
     if  wS == 0.0                                                                    return( 0.0 )   end
@@ -476,6 +544,35 @@ function moveOnePrimary(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell
 end
 
 
+const PARTNER_CACHE = Dict{NTuple{6,Int64}, Matrix{Float64}}()
+
+
+"""
+`SpinAngularNew.partnerMatrix(js::NTuple{4,AngularJ64}, nk::Int64, between::Bool)`
+    ... to return the matrix M with M[k+1, K+1] = (2K+1) { j_a j_b k ; ... K } that turns a whole family of coefficients
+        into its partner, so that the partner follows by ONE matrix-vector product instead of a six-j per (k, K).
+
+        The point of caching it is that the matrix depends only on the FOUR SUBSHELL ANGULAR MOMENTA and not on the CSF
+        pair, so the same one serves every pair of a calculation; a six-j costs about a microsecond and this family of
+        them was being re-evaluated for each of thousands of pairs. A matrix::Matrix{Float64} is returned.
+"""
+function partnerMatrix(js::NTuple{4,AngularJ64}, nk::Int64, between::Bool)
+    ja, jb, jc, jd = js
+    key = (Basics.twice(ja), Basics.twice(jb), Basics.twice(jc), Basics.twice(jd), nk, between ? 1 : 0)
+    haskey(PARTNER_CACHE, key)  &&  return( PARTNER_CACHE[key] )
+
+    M = zeros(Float64, nk, nk)
+    for  k = 0:nk-1,  K = 0:nk-1
+        w6 = between ? AngularMomentum.Wigner_6j(ja, jb, AngularJ64(k), jc, jd, AngularJ64(K)) :
+                       AngularMomentum.Wigner_6j(ja, jb, AngularJ64(k), jd, jc, AngularJ64(K))
+        M[k+1, K+1] = (2.0*K + 1.0) * w6
+    end
+    PARTNER_CACHE[key] = M
+
+    return( M )
+end
+
+
 """
 `SpinAngularNew.moveOnePartner(prim::Array{Float64,1}, js::NTuple{4,AngularJ64}, k::Int64, between::Bool)`
     ... to compute, at rank `k`, the coefficient of the OTHER of the two pairings of a one-electron-move term from the whole
@@ -489,15 +586,16 @@ end
         taking the two directions to be the same sum leaves 214 of 872 coefficients wrong. A value::Float64 is returned.
 """
 function moveOnePartner(prim::Array{Float64,1}, js::NTuple{4,AngularJ64}, k::Int64, between::Bool)
-    ja, jb, jc, jd = js
-    wa = 0.0
-    for  K = 0:length(prim)-1
-        prim[K+1] == 0.0  &&  continue
-        w6 = between ? AngularMomentum.Wigner_6j(ja, jb, AngularJ64(k), jc, jd, AngularJ64(K)) :
-                       AngularMomentum.Wigner_6j(ja, jb, AngularJ64(k), jd, jc, AngularJ64(K))
-        w6 == 0.0  &&  continue
-        wa = wa + (2.0*K + 1.0) * w6 * prim[K+1]
+    nk = length(prim)
+    if  k >= nk
+        M = partnerMatrix(js, k+1, between)
+        wa = 0.0
+        for  K = 0:nk-1    prim[K+1] != 0.0  &&  (wa = wa + M[k+1, K+1] * prim[K+1])    end
+        return( wa )
     end
+    M  = partnerMatrix(js, nk, between)
+    wa = 0.0
+    for  K = 0:nk-1    prim[K+1] != 0.0  &&  (wa = wa + M[k+1, K+1] * prim[K+1])    end
 
     return( wa )
 end
@@ -519,6 +617,16 @@ end
 """
 function twoParticleMoveOne(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, iCre::Int64, iAnn::Int64)
     coeffs = Coefficient2p{EffectiveStrengthKind}[]
+    # ... the creation on the acceptor and the annihilation on the donor depend on NEITHER the spectator NOR the rank,
+    #     so they are formed once here rather than once per spectator and rank.
+    jCre = AngularJ64( Basics.subshell_2j(subshells[iCre])//2 )
+    jAnn = AngularJ64( Basics.subshell_2j(subshells[iAnn])//2 )
+    wCre = shellReducedA(jCre, leftCsf.occupation[iCre],  leftCsf.seniorityNr[iCre],  leftCsf.subshellJ[iCre],
+                               rightCsf.occupation[iCre], rightCsf.seniorityNr[iCre], rightCsf.subshellJ[iCre],
+                               AngularM64(1//2))
+    wAnn = shellReducedA(jAnn, leftCsf.occupation[iAnn],  leftCsf.seniorityNr[iAnn],  leftCsf.subshellJ[iAnn],
+                               rightCsf.occupation[iAnn], rightCsf.seniorityNr[iAnn], rightCsf.subshellJ[iAnn],
+                               AngularM64(-1//2))
 
     # ... the two SAME-SUBSHELL terms, where the spectator coincides with the acceptor or with the donor and three of
     #     the four one-electron operators fall on one subshell
@@ -559,8 +667,7 @@ function twoParticleMoveOne(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subs
         #     the further subshell; the larger of the two is a safe upper limit and the triangle tests do the rest.
         kMax = Int64( ( Basics.subshell_2j(subshells[iSpec]) +
                         max(Basics.subshell_2j(subshells[iCre]), Basics.subshell_2j(subshells[iAnn])) )//2 )
-        prim = zeros(Float64, kMax+1)
-        for  k = 0:kMax    prim[k+1] = moveOnePrimary(leftCsf, rightCsf, subshells, iCre, iAnn, iSpec, k)    end
+        prim = moveOnePrimaryVector(leftCsf, rightCsf, subshells, iCre, iAnn, iSpec, kMax, wCre, wAnn)
         if  all(iszero, prim)    continue    end
 
         for  k = 0:kMax
@@ -810,33 +917,22 @@ end
 
 
 """
-`SpinAngularNew.moveTwoChain(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, sites::Array{Int64,1}, mqs::Array{AngularM64,1}, R::AngularJ64)`
-    ... to compute the chain assembly of a four-subshell two-electron move at one value `R` of the free intermediate
-        rank: one `SpinAngularNew.treeRecoupling` over the four acting subshells, four `SpinAngularNew.shellReducedA`
-        matrix elements, and the JORDAN-WIGNER string. For four operators that string is a PREFIX count -- the
-        occupations lying before each acting subshell -- and not a count of the gaps between them; the two differ as
-        soon as the creations and annihilations interleave, which they do in half of the arrangements. A value::Float64
-        is returned.
+`SpinAngularNew.moveTwoRecoupling(leftCsf::CsfR, rightCsf::CsfR, sites::Array{Int64,1}, jsite::NTuple{4,AngularJ64}, R::AngularJ64)`
+    ... to compute the RECOUPLING alone of a four-subshell two-electron move at one value `R` of the free intermediate
+        rank. Only this factor depends on R; the four one-electron matrix elements and the Jordan-Wigner string do not,
+        and `SpinAngularNew.twoParticleMoveTwo` forms them once rather than once per R. For four operators that string
+        is a PREFIX count -- the occupations lying before each acting subshell -- and not a count of the gaps between
+        them; the two differ as soon as the creations and annihilations interleave, which they do in half of the
+        arrangements. A value::Float64 is returned.
 """
-function moveTwoChain(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, sites::Array{Int64,1},
-                      mqs::Array{AngularM64,1}, R::AngularJ64)
-    ranks = [ AngularJ64( Basics.subshell_2j(subshells[i])//2 )  for i in sites ]
-    inter = [ ranks[1], R, ranks[4], AngularJ64(0) ]
-    if  AngularMomentum.triangularDelta(ranks[1], ranks[2], R) == 0        return( 0.0 )   end
-    if  AngularMomentum.triangularDelta(R, ranks[3], ranks[4]) == 0        return( 0.0 )   end
+function moveTwoRecoupling(leftCsf::CsfR, rightCsf::CsfR, sites::Array{Int64,1}, jsite::NTuple{4,AngularJ64},
+                          R::AngularJ64)
+    if  AngularMomentum.triangularDelta(jsite[1], jsite[2], R) == 0        return( 0.0 )   end
+    if  AngularMomentum.triangularDelta(R, jsite[3], jsite[4]) == 0        return( 0.0 )   end
+    ranks = [ jsite[1], jsite[2], jsite[3], jsite[4] ]
+    inter = [ jsite[1], R, jsite[4], AngularJ64(0) ]
 
-    wa = treeRecoupling(leftCsf, rightCsf, sites, ranks, inter)
-    if  wa == 0.0                                                         return( 0.0 )   end
-    for  (n,i) in enumerate(sites)
-        wa = wa * shellReducedA(ranks[n], leftCsf.occupation[i],  leftCsf.seniorityNr[i],  leftCsf.subshellJ[i],
-                                          rightCsf.occupation[i], rightCsf.seniorityNr[i], rightCsf.subshellJ[i], mqs[n])
-        if  wa == 0.0                                                     return( 0.0 )   end
-    end
-
-    jw = 0
-    for  i in sites    jw = jw + sum(leftCsf.occupation[1:i-1]; init = 0)    end
-
-    return( (-1)^jw * wa / sqrt(Basics.twice(leftCsf.J) + 1.0) )
+    return( treeRecoupling(leftCsf, rightCsf, sites, ranks, inter) )
 end
 
 
@@ -869,7 +965,20 @@ function twoParticleMoveTwo(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subs
             AngularMomentum.triangularDelta(R, jsite[3], jsite[4]) != 0     push!(Rs, R)   end
     end
     if  isempty(Rs)                                                       return( coeffs )   end
-    chain = [ moveTwoChain(leftCsf, rightCsf, subshells, sites, mqs, R)  for R in Rs ]
+    # ... the four one-electron matrix elements and the Jordan-Wigner string do NOT depend on R, so they are formed
+    #     ONCE here instead of inside the loop over the intermediate rank, where they were being recomputed nR times.
+    shell = 1.0
+    for  (n,i) in enumerate(sites)
+        shell = shell * shellReducedA(jsite[n], leftCsf.occupation[i],  leftCsf.seniorityNr[i],  leftCsf.subshellJ[i],
+                                                rightCsf.occupation[i], rightCsf.seniorityNr[i], rightCsf.subshellJ[i],
+                                                mqs[n])
+        if  shell == 0.0                                                  return( coeffs )   end
+    end
+    jw = 0
+    for  i in sites    jw = jw + sum(leftCsf.occupation[1:i-1]; init = 0)    end
+    shell = (-1)^jw * shell / sqrt(Basics.twice(leftCsf.J) + 1.0)
+
+    chain = [ moveTwoRecoupling(leftCsf, rightCsf, sites, jsite, R) * shell  for R in Rs ]
     if  all(iszero, chain)                                                return( coeffs )   end
 
     # ... the two families are INDEPENDENT contractions, not an exchange-related pair: with four distinct subshells
