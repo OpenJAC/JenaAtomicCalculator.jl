@@ -386,6 +386,40 @@ docstring, or the next migration will edit the visible sites and silently break 
 from those whose is not. Re-derive it rather than trusting the list -- `grep -n "coeff.T" src/*.jl` is the whole method,
 and a coefficient used with no visible factor is a question, not an answer.
 
+## Migrating the spin-angular convention: one commit, or none (Rule 19)
+
+Written 25-Aug-2026, with the migration itself deliberately POSTPONED. The plan is recorded here rather than in a
+message because the danger is not that it is hard but that it is done PARTIALLY, and a half-done convention change
+produces wrong numbers with nothing failing.
+
+**Why it cannot be staged.** Eighteen sites across nine modules compensate for the present convention, in two OPPOSITE
+directions (see the inventory in the module docstring of `src/module-SpinAngularNew.jl`). Any intermediate state has
+some callers on the old convention and some on the new, and every result computed in between is wrong. This is the one
+place where the one-module-per-task rule is suspended DELIBERATELY, and it must be said out loud in the commit rather
+than worked around.
+
+**The order, and none of it is optional:**
+
+1. **Capture a physical baseline FIRST** -- the full suite plus one real case per affected module: a hyperfine
+   constant, an isotope shift, a Lande factor, a crystal-field splitting, with the numbers written down. Without this,
+   "nothing changed" cannot be checked, and the suite alone will not do it: the 54 tests do not cover every affected
+   module.
+2. **Show the complete diff before applying it.** Eighteen near-identical deletions of a `sqrt(...)` factor is exactly
+   the shape an eye slides over. The bulk-change rule applies with full force.
+3. **Handle the INVISIBLE compensations explicitly, and expect them to be the failure.** `module-LandeZeeman.jl:227`
+   uses `coeff.T` bare with a rank-1 operator and is CORRECT, because `InteractionStrength.zeeman_n1` carries the
+   `1/sqrt(2j_a+1)` inside the integral. It needs NO call-site edit and DOES need the integral changed -- the exact
+   inverse of every other site. A further twenty-one bare uses of `coeff.T` each need the same reading of what the
+   integral beside them returns.
+4. **Flip the module last**, only once the callers are consistent.
+5. **Verify against the BASELINE, not against a green suite.** A suite pass here is necessary and nowhere near
+   sufficient.
+
+**Two decisions to take before starting, because they change the work:** whether the memoisation caches
+(`SHELL_A_CACHE`, `SHELL_W_CACHE`, `PARTNER_CACHE`) are scoped or made task-local at the same time -- they are
+unbounded, session-lived and not thread-safe -- and whether `SpinAngular` is retired immediately or kept beside the new
+module for a release. Keeping both is safest and doubles the surface.
+
 ## Commands
 
 A **command** is a named sequence of steps I execute and then summarize. The leading `/` is optional —
