@@ -139,7 +139,6 @@ elseif  char == 'H'
 elseif  char == 'I'
     println("I)  Examples, tests & development of atomic response computations")
     println("-----------------------------------------------------------------")
-    println("Ia) Apply & test the HighHarmonic module to compute high-harmonic spectra in single-electron approximation.")
     println("Ib) Apply & test the StrongField module to calculate ATI energy distributions in the SFA with hydrogen-like initial states.")
     println("Ic) Apply & test the StrongField module to demonstrate the Coulomb asymmetry in ATI azimuthal angular distributions.")
     println("Id) Apply & test the StrongField2 module to compute in ATI photoelectron momentum distributions.")

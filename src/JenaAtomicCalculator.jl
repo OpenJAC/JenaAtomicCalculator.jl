@@ -81,7 +81,7 @@ export AbstractCImethod, AbstractComputeTheme, AbstractConfigurationRestriction,
        FromMultiplet, FullCIeigen,
        GeneralizedConfigurations, generate, generateConfigurations, getDefaults, GetParity, Green,
        GreenChannel, GreenExpansion, GreenSettings, GroundConfiguration, Gui,
-       Hamiltonian, HarmonicQuantizationAxis, Hfs, HighHarmonic, HundsRules, HydrogenicIon, HyperfineInduced,
+       Hamiltonian, HarmonicQuantizationAxis, Hfs, HundsRules, HydrogenicIon, HyperfineInduced,
        HyperfineStructure,
        ZeemanStructure,
        ImpactExc, ImpactExcAuto, ImpactExcitation, ImpactExcitationAutoion, ImpactIonization, Integral, integrate,
@@ -217,7 +217,6 @@ end
 
 if incStrongField
 # Functions/methods for the computation of atomic responses
-## include("module-HighHarmonic.jl")
 include("module-StrongField.jl") 
 end
 
