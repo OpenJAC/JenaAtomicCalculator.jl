@@ -97,7 +97,7 @@ export AbstractCImethod, AbstractComputeTheme, AbstractConfigurationRestriction,
        NoAmplitude, NoneQed, NonrelativisticBasis, NoProcess, NoProperty, Nuclear, NumberOfElectrons,
        OccupationDifference, OneElectronSettings, OneElectronSpectrum, OpenShellNumber, OpenShells, OpenSubshells, oplus,
        Orbital,
-       PairA1P, PairProduction, Parity,
+       PairA1P, Parity,
        ParticleScattering, PathwaySelection, perform, PeriodicTable, Photo, PhotoDouble, PhotoDoubleIonization,
        PhotoEmission, PhotoExc, PhotoExcAuto, PhotoExcFluor, PhotoExcitation, PhotoExcitationAutoion,
        PhotoExcitationFluores, PhotoIonization, PhotonScattering, PhotoRecombination, PhotoRecombinationInterference, PhysicalConstants, Plasma, plus,
@@ -210,8 +210,6 @@ include("module-InternalRecombination.jl")
 include("module-TwoElectronOnePhoton.jl") 
 include("module-DoubleAutoIonization.jl")
 include("module-ResonantImpactIonization.jl")
-#= Further processes, not yet included into the code
-include("module-PairProduction.jl")  =#
 end
 
 # Functions/methods for atomic responses and time evolutions

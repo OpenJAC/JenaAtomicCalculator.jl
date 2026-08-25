@@ -19,8 +19,11 @@ if  true
     #   frame the photon would need zero momentum and 2 m c^2 of energy at once.  Binding the electron lifts that,
     #   the nucleus taking up the recoil, so the amplitude is controlled by the part of the electron's momentum
     #   distribution reaching p ~ m c -- which lives close to the nucleus.  Hence a K-shell, high-Z process, with
-    #   sigma ~ Z^5 for K-shell annihilation, vanishing in the free limit.  It is the crossing partner of the
-    #   bound-electron pair production that module-PairProduction.jl is reserved for.
+    #   sigma ~ Z^5 for K-shell annihilation, vanishing in the free limit.  It is the crossing partner of
+    #   BOUND-FREE PAIR CREATION, which is computed by PhotonScattering.BoundFreePairCreation() -- see
+    #   example-Pa.jl, whose branch a obtains the same 130.17 keV binding energy from the other side of the
+    #   crossing.  (It used to point here at module-PairProduction.jl, which never held any computation and was
+    #   retired on 25-Aug-2026.)
     #
     #   WHAT PASSES.
     #     * ENERGY CONSERVATION, which is the one thing in this process that has no adjustable content.  The photon
