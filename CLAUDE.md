@@ -347,6 +347,45 @@ gitignored and therefore reaches nobody.
 8. **Afterwards**, read WHICH CI job failed before reacting: JAC's CI has historically failed on the coverage
    step rather than on the tests.
 
+## Where the sqrt(2j+1) sits: one Wigner-Eckart convention for the whole code (Rule 18)
+
+Agreed 25-Aug-2026, after an inventory found **eighteen** places compensating for this factor across **nine** modules,
+in two opposite directions, plus one more where the compensation hides inside an integral.
+
+**First, what is NOT a convention and cannot be normalized away.** A rank-0 coefficient multiplies an ORDINARY matrix
+element `<a| o |b>`; a rank-k coefficient multiplies a REDUCED one `<a|| o^(k) ||b>`. Those are different objects. No
+choice of factors makes them the same, and any code that treats them alike is wrong rather than unconventional.
+
+**Second, what IS a convention.** `sqrt(2j_a+1)` is exactly the Wigner-Eckart factor between those two objects, so it
+may be carried either by the coefficient or by the matrix element. **JAC's choice is GRASP's: the factor sits INSIDE
+the coefficient, at EVERY rank.** Three reasons, in order: the rank-0 diagonal coefficient is then literally the
+occupation number, so a wrong convention is visible by eye instead of invisible; it matches the published tables and
+twenty years of GRASP results; and it is the smaller migration from where the code stands.
+
+**Third, and this is the part that makes it hold. A NEW OPERATOR DECLARES ITS KIND IN THE TYPE, NOT IN A COMMENT.**
+The coefficient carries the distinction -- `Coefficient1p{OrdinaryKind}` against `Coefficient1p{ReducedKind}` -- and the
+contraction is defined only for a matching pair, so pairing the wrong things raises a `MethodError` naming both types
+instead of returning a wrong number. Do not add a coefficient type that omits the kind, and do not "fix" a mismatch by
+inserting a compensating factor at the call site: that is the drift this rule exists to stop.
+
+**Why documentation alone was tried and failed.** A careful note ALREADY existed at `module-Hfs.jl:370` describing this
+very factor -- and the defect shipped in that same module, putting an uncorrected `sqrt(2j_a+1)` into every M1, E2 and
+M3 hyperfine amplitude. Four further modules were bitten independently. The reason is worth stating plainly, because it
+is the real lesson: **two quantities that differ by a factor obvious to whoever derived them get written with the same
+symbol, and the factor then migrates to wherever it is convenient.** The similarity of the notation, not the difficulty
+of the physics, is what has made every re-implementation of this machinery hard. A type cannot be talked into
+forgetting; a convention in prose can.
+
+**Fourth, if a compensation must live inside an integral, say so AT the integral.** `module-LandeZeeman.jl:227` uses
+`coeff.T` bare with a rank-1 operator and is CORRECT, because `InteractionStrength.zeeman_n1` carries the
+`1/sqrt(2j_a+1)` within itself. Nothing at the call site shows this. Any such integral must carry the factor in its own
+docstring, or the next migration will edit the visible sites and silently break the invisible one.
+
+**The worked example, kept current rather than described here:** the migration inventory in the module docstring of
+`src/module-SpinAngularNew.jl` lists all eighteen sites by file and line, and separates those whose factor is visible
+from those whose is not. Re-derive it rather than trusting the list -- `grep -n "coeff.T" src/*.jl` is the whole method,
+and a coefficient used with no visible factor is a question, not an answer.
+
 ## Commands
 
 A **command** is a named sequence of steps I execute and then summarize. The leading `/` is optional —
