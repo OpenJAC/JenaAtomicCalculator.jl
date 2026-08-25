@@ -114,7 +114,7 @@ export AbstractCImethod, AbstractComputeTheme, AbstractConfigurationRestriction,
        SchiffMoment, SelfConsistent, Semiempirical, setDefaults, Shell, ShellSelection, SolidAngle, Spectroscopy,
        SphericalMesh, SphericalTensor, SpinAngular, StarkShift, StarkZeeman, StartFromHydrogenic,
        StartFromPrevious, StartFromThomasFermi, StaticField,
-       StaticQuantizationAxis, StrongField, StrongField2, Subshell, SuperConfiguration,
+       StaticQuantizationAxis, Statistical, StrongField, StrongField2, Subshell, SuperConfiguration,
        tabulate, TestFrames, ThomasFermiField, ThreeParameterFermiNucleus, TimeHarmonicField, TotalAM,
        Triangle,
        TwoElectronOnePhoton,
@@ -214,7 +214,7 @@ include("module-ResonantImpactIonization.jl")
 end
 
 # Functions/methods for atomic responses and time evolutions
-# include("module-Statistical.jl")
+include("module-Statistical.jl")
 
 if incStrongField
 # Functions/methods for the computation of atomic responses
