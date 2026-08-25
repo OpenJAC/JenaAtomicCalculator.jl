@@ -1305,5 +1305,102 @@ elseif  true
     end
     #
 
+elseif  true
+    # Last visit:      25-Aug-2026
+    # Last successful:  25-Aug-2026
+    #
+    # Branch p (MOVING TWO ELECTRONS BETWEEN FOUR DISTINCT SUBSHELLS): the last large topology, and the one whose shape
+    #   differs from everything before it. SpinAngular spends twenty-four numbered sub-cases on it
+    #   (twoParticle19to42 -> 19to26 / 27to34 / 35to42, each twice).
+    #
+    #   WHY A SUM APPEARS HERE AND NOWHERE ELSE.  The two-body operator pairs each creation with its own annihilation,
+    #   and with four subshells that pairing generally CROSSES the subshell chain -- the two pairs straddle each other.
+    #   The CSF's coupling tree runs along the chain, so the operator has to be re-expressed in it, and that costs a SUM
+    #   over the chain's one free intermediate rank rather than the phase that sufficed for one electron. Only three
+    #   pairing patterns are possible, and only two of them occur for any one family:
+    #
+    #       :chain    pairs (1,2) and (3,4)   already the chain's own pairing, R forced to k, weight 1/sqrt(2k+1)
+    #       :cross13  pairs (1,3) and (2,4)   (-1)^(j2+j3+R+k+1) sqrt(2R+1) { j1 j2 R ; j4 j3 k }
+    #       :cross14  pairs (1,4) and (2,3)   (-1)^(j2+j3+k+1)   sqrt(2R+1) { j1 j2 R ; j3 j4 k }
+    #
+    #   THE THIRD ONE HAS NO R IN ITS PHASE, and that is not a fitted quirk: exchanging j3 and j4 in the :cross13 form
+    #   brings a factor (-1)^(j3+j4-R) whose R CANCELS the R already there. Every candidate tried with an R in that
+    #   phase failed, including the one symmetry alone would suggest; the algebra says why, and the measurement then
+    #   agreed on 43180 of 43180 non-trivial cases.
+    #
+    #   THE TWO FAMILIES ARE INDEPENDENT CONTRACTIONS, NOT AN EXCHANGE PAIR, and assuming otherwise cost a full cycle.
+    #   For the equal-occupation and one-electron cases the second family follows from the first by a Racah sum, because
+    #   there both belong to the same pair of subshells. Here R^k(c1,c2,a1,a2) and R^k(c1,c2,a2,a1) are DIFFERENT
+    #   integrals over four distinct orbitals, related by no symmetry, and each must be assembled with its own pairing.
+    #   Taking the Racah transform left thousands of coefficients wrong and thousands more missing -- and the give-away
+    #   was the MISSING count, not the wrong values: the partner has its own rank range, bounded by different j's.
+    #
+    #   THE JORDAN-WIGNER STRING IS A PREFIX COUNT for four operators -- the occupations lying BEFORE each acting
+    #   subshell -- and not the count of gaps between them that the one-electron move uses. The two differ exactly when
+    #   the creations and annihilations interleave, which they do in half the arrangements. Carrying the gap form
+    #   instead leaves whole classes of pair wrong while leaving others untouched, which is the hardest kind of error to
+    #   read from a total.
+    #
+    #   REPORT (25-Aug-2026), against SpinAngular over eight configuration sets, split by family and pattern:
+    #
+    #       family    pattern     coefficients   differing   missing   extra
+    #       direct    :chain            96 950           0         0       0
+    #       direct    :cross13          81 796           0         0       0
+    #       crossed   :cross13          61 936           0         0       0
+    #       crossed   :cross14         145 996           0         0       0
+    #       TOTAL                      386 678           0         0       0
+    #
+    #   and as complete lists below: 118 728 pairs, 383 812 coefficients, worst ratio 1.000000000000.
+    #
+    #   WHAT STILL RAISES.  A two-electron move in which two of the four one-electron operators fall on ONE subshell --
+    #   both electrons leaving the same subshell, or both arriving in it. That needs `shellReducedAA`, the coupled
+    #   two-creation tensor, which IS written and follows the same closure that worked twice already; what is missing is
+    #   its assembly's weight, and a first attempt discriminated only 18 of 24 non-trivial cases, which is not enough to
+    #   adopt. It raises rather than returning the terms that are implemented.
+    #
+    localSets = [(["1s^2 2s 2p","1s^2 3s 3p"],        "1s^2 2s2p / 3s3p"),
+                 (["2p^2 3d^2","2p 3d 4s 4p"],        "2p^2 3d^2 / 2p3d4s4p"),
+                 (["2s^2 3d^2","2s 2p 3d 4f"],        "2s^2 3d^2 / 2s2p3d4f"),
+                 (["3s^2 3d^2","3s 3p 3d 4s"],        "3s^2 3d^2 / 3s3p3d4s"),
+                 (["3d^2 4f^2","3d 4f 5s 5p"],        "3d^2 4f^2 / 3d4f5s5p"),
+                 (["3p^2 4d^2","3p 4d 4f 5s"],        "3p^2 4d^2 / 3p4d4f5s"),
+                 (["4d^2 5p^2","4d 5p 5d 5f"],        "4d^2 5p^2 / 4d5p5d5f")]
+    tP = 0;  tM = 0;  tN = 0;  tX = 0;  tW = 1.0
+    println("\n  configuration            pairs   matched  missing  extra   worst ratio")
+    for  (cfgs, tag) in localSets
+        local lRel = ConfigurationR[]
+        for  c in cfgs   append!(lRel, Basics.generateConfigurations(Basics.RelativisticConfigurations(),
+                                                                    Configuration(c)))   end
+        local lSub = Basics.generateSubshellList(lRel)
+        Defaults.setDefaults("relativistic subshell list", lSub; printout=false)
+        local lCsfs = CsfR[]
+        for  rc in lRel    append!(lCsfs, Basics.generateCsfRs(rc, lSub))    end
+        local np = 0;  local nm = 0;  local nn = 0;  local nx = 0;  local wr = 1.0
+        for  l in lCsfs,  r in lCsfs
+            l.J == r.J  &&  l.parity == r.parity   ||  continue
+            local dd = l.occupation - r.occupation
+            count(!=(0), dd) == 4  &&  sum(abs, dd) == 4   ||  continue
+            np += 1
+            old = [x for x in SpinAngular.computeCoefficients(SpinAngular.TwoParticleOperator(0,Basics.plus,true),
+                                                              l, r, lSub)   if abs(x.V) > 1.0e-14]
+            new = SpinAngularNew.computeCoefficients(SpinAngularNew.TwoParticleOperator(), l, r, lSub)
+            kk(x) = (x.nu, string(x.a), string(x.b), string(x.c), string(x.d))
+            dO = Dict{Any,Float64}();   for x in old   dO[kk(x)] = get(dO,kk(x),0.0) + x.V   end
+            dN = Dict{Any,Float64}();   for x in new   dN[kk(x)] = get(dN,kk(x),0.0) + x.V   end
+            for  (k,v) in dO
+                if  haskey(dN,k);   nm += 1;  rr = v/dN[k];  abs(rr-1) > abs(wr-1) && (wr = rr)
+                else   nn += 1
+                end
+            end
+            for  k in keys(dN)    haskey(dO,k) || (nx += 1)    end
+        end
+        @printf("  %-22s %7d %9d %8d %6d   %.12f\n", tag, np, nm, nn, nx, wr)
+        global tP += np;  global tM += nm;  global tN += nn;  global tX += nx
+        abs(wr-1) > abs(tW-1) && (global tW = wr)
+    end
+    println("")
+    @printf("  TOTAL %d pairs: matched %d, missing %d, extra %d, worst ratio %.12f\n", tP, tM, tN, tX, tW)
+    #
+
 end
 #

@@ -129,13 +129,19 @@ function computeCoefficients(op::SpinAngularNew.TwoParticleOperator, leftCsf::Cs
             mv   = findall(!=(0), diff)
             iCre = diff[mv[1]] > 0 ? mv[1] : mv[2];      iAnn = diff[mv[1]] > 0 ? mv[2] : mv[1]
             return( twoParticleMoveOne(leftCsf, rightCsf, subshells, iCre, iAnn) )
+        elseif  count(!=(0), diff) == 4  &&  sum(abs, diff) == 4
+            cre = sort([i for i in findall(!=(0), diff) if diff[i] > 0])
+            ann = sort([i for i in findall(!=(0), diff) if diff[i] < 0])
+            return( twoParticleMoveTwo(leftCsf, rightCsf, subshells, cre, ann) )
         elseif  count(!=(0), diff) > 4  ||  sum(abs, diff) > 4
             return( coeffs2pEmpty() )
         end
-        error("\n\nSpinAngularNew.computeCoefficients (two-particle): this pair moves TWO electrons between\n"    *
-              ">>> subshells, which needs two creations and two annihilations on different subshells at once. That\n" *
-              ">>> assembly is not yet implemented, and returning a short list for it would be a wrong Hamiltonian\n" *
-              ">>> matrix element rather than a missing one. Use SpinAngular.computeCoefficients for such a pair.\n")
+        error("\n\nSpinAngularNew.computeCoefficients (two-particle): this pair moves TWO electrons, but NOT between\n"  *
+              ">>> four distinct subshells -- two of the four one-electron operators fall on one subshell, so it needs\n" *
+              ">>> the coupled two-creation or two-annihilation tensor `shellReducedAA` together with an assembly that\n" *
+              ">>> is not yet calibrated. The four-distinct-subshell case IS handled. Returning a short list here would\n" *
+              ">>> be a wrong Hamiltonian matrix element rather than a missing one, so it raises instead. Use\n"          *
+              ">>> SpinAngular.computeCoefficients for such a pair.\n")
     end
 
     coeffs = Coefficient2p{EffectiveStrengthKind}[]
@@ -751,4 +757,193 @@ function moveOneSameShellQuad(subshells::Array{Subshell,1}, iCre::Int64, iAnn::I
     if  iSpec == iCre    return( iSpec < iOth ? (sS, sS, sS, sO) : (sS, sS, sO, sS) )
     else                 return( iOth  < iSpec ? (sO, sS, sS, sS) : (sS, sO, sS, sS) )
     end
+end
+
+
+"""
+`SpinAngularNew.moveTwoWeight(jc::NTuple{2,AngularJ64}, ja::NTuple{2,AngularJ64}, jsite::NTuple{4,AngularJ64}, swapped::NTuple{2,Bool}, crossPair::Bool, R::AngularJ64, k::Int64)`
+    ... to compute the weight with which one value `R` of the chain's free intermediate rank enters a four-subshell
+        two-electron-move coefficient of rank `k`. Four subshells act, each with one operator, and the physical operator
+        pairs each creation with its own annihilation -- a pairing that in general CROSSES the subshell chain, which is
+        why a sum over `R` appears here where the one-electron cases needed only a phase.
+
+        Only TWO patterns can occur for a given family, decided by where the two physical pairs sit among the four
+        subshells in index order:
+
+        + `:chain`   ... the pairs are (1,2) and (3,4), already the chain's own pairing, so R is forced to k and the
+                         weight is 1/sqrt(2k+1);
+        + `:cross13` ... the pairs are (1,3) and (2,4); the nine-j with a zero column collapses to
+                         (-1)^(j_2 + j_3 + R + k + 1) sqrt(2R+1) { j_1 j_2 R ; j_4 j_3 k };
+        + `:cross14` ... the pairs are (1,4) and (2,3), giving (-1)^(j_2 + j_3 + k + 1) sqrt(2R+1) { j_1 j_2 R ; j_3 j_4 k },
+                         whose phase carries NO R, because exchanging j_3 and j_4 in the previous line cancels it.
+
+        On top of that each physical pair whose ANNIHILATION sits on the lower subshell index contributes the ordering
+        phase (-1)^(j_cre + j_ann + k + 1) -- the same phase the one-particle substitution and the one-electron move
+        already carry, so it is one rule across the module rather than three. A value::Float64 is returned.
+"""
+function moveTwoWeight(jc::NTuple{2,AngularJ64}, ja::NTuple{2,AngularJ64}, jsite::NTuple{4,AngularJ64},
+                       swapped::NTuple{2,Bool}, pattern::Symbol, R::AngularJ64, k::Int64)
+    wa = if      pattern == :chain
+                 Basics.twice(R) == 2*k ? 1.0/sqrt(2.0*k + 1.0) : 0.0
+         elseif  pattern == :cross13
+                 (-1)^Int64( (Basics.twice(jsite[2]) + Basics.twice(jsite[3]) + Basics.twice(R) + 2*k + 2)//2 ) *
+                 sqrt(Basics.twice(R) + 1.0) *
+                 AngularMomentum.Wigner_6j(jsite[1], jsite[2], R, jsite[4], jsite[3], AngularJ64(k))
+         else
+                 # ... exchanging j_3 and j_4 in the :cross13 form brings a factor (-1)^(j_3 + j_4 - R), and the R in it
+                 #     CANCELS the R in that form's phase -- so this one alone has no R in its sign. Every candidate I
+                 #     tried with an R there failed; the algebra says why.
+                 (-1)^Int64( (Basics.twice(jsite[2]) + Basics.twice(jsite[3]) + 2*k + 2)//2 ) *
+                 sqrt(Basics.twice(R) + 1.0) *
+                 AngularMomentum.Wigner_6j(jsite[1], jsite[2], R, jsite[3], jsite[4], AngularJ64(k))
+         end
+    if  wa == 0.0                                                         return( 0.0 )   end
+
+    for  m = 1:2
+        if  swapped[m]
+            wa = wa * (-1)^Int64( (Basics.twice(jc[m]) + Basics.twice(ja[m]) + 2*k + 2)//2 )
+        end
+    end
+
+    return( wa )
+end
+
+
+"""
+`SpinAngularNew.moveTwoChain(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, sites::Array{Int64,1}, mqs::Array{AngularM64,1}, R::AngularJ64)`
+    ... to compute the chain assembly of a four-subshell two-electron move at one value `R` of the free intermediate
+        rank: one `SpinAngularNew.treeRecoupling` over the four acting subshells, four `SpinAngularNew.shellReducedA`
+        matrix elements, and the JORDAN-WIGNER string. For four operators that string is a PREFIX count -- the
+        occupations lying before each acting subshell -- and not a count of the gaps between them; the two differ as
+        soon as the creations and annihilations interleave, which they do in half of the arrangements. A value::Float64
+        is returned.
+"""
+function moveTwoChain(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, sites::Array{Int64,1},
+                      mqs::Array{AngularM64,1}, R::AngularJ64)
+    ranks = [ AngularJ64( Basics.subshell_2j(subshells[i])//2 )  for i in sites ]
+    inter = [ ranks[1], R, ranks[4], AngularJ64(0) ]
+    if  AngularMomentum.triangularDelta(ranks[1], ranks[2], R) == 0        return( 0.0 )   end
+    if  AngularMomentum.triangularDelta(R, ranks[3], ranks[4]) == 0        return( 0.0 )   end
+
+    wa = treeRecoupling(leftCsf, rightCsf, sites, ranks, inter)
+    if  wa == 0.0                                                         return( 0.0 )   end
+    for  (n,i) in enumerate(sites)
+        wa = wa * shellReducedA(ranks[n], leftCsf.occupation[i],  leftCsf.seniorityNr[i],  leftCsf.subshellJ[i],
+                                          rightCsf.occupation[i], rightCsf.seniorityNr[i], rightCsf.subshellJ[i], mqs[n])
+        if  wa == 0.0                                                     return( 0.0 )   end
+    end
+
+    jw = 0
+    for  i in sites    jw = jw + sum(leftCsf.occupation[1:i-1]; init = 0)    end
+
+    return( (-1)^jw * wa / sqrt(Basics.twice(leftCsf.J) + 1.0) )
+end
+
+
+"""
+`SpinAngularNew.twoParticleMoveTwo(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, cre::Array{Int64,1}, ann::Array{Int64,1})`
+    ... to compute all two-particle coefficients of a CSF pair that differs by TWO electrons moved between FOUR distinct
+        subshells, `cre` holding the two that gain an electron and `ann` the two that lose one, each in increasing
+        subshell order. Every subshell carries exactly one operator, so no coupled shell tensor is needed and the whole
+        assembly is `SpinAngularNew.moveTwoChain` summed over the chain's free intermediate rank with the weights of
+        `SpinAngularNew.moveTwoWeight`.
+
+        The DIRECT family pairs each creation with the annihilation of the same rank order and is built directly; its
+        partner, with the two annihilations exchanged, follows by the same Racah sum the equal-occupation exchange term
+        and the one-electron move already use, so the third possible pairing pattern never has to be derived.
+
+        A list coeffs::Array{Coefficient2p{EffectiveStrengthKind},1} is returned.
+"""
+function twoParticleMoveTwo(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, cre::Array{Int64,1},
+                            ann::Array{Int64,1})
+    coeffs = Coefficient2p{EffectiveStrengthKind}[]
+    sites  = sort( vcat(cre, ann) )
+    mqs    = [ (i in cre) ? AngularM64(1//2) : AngularM64(-1//2)  for i in sites ]
+    posOf  = Dict(s => n for (n,s) in enumerate(sites))
+    jsite  = Tuple( AngularJ64( Basics.subshell_2j(subshells[i])//2 )  for i in sites )
+
+    Rs = AngularJ64[]
+    for  t = 0:Basics.twice(jsite[1]) + Basics.twice(jsite[2])
+        R = AngularJ64(t//2)
+        if  AngularMomentum.triangularDelta(jsite[1], jsite[2], R) != 0  &&
+            AngularMomentum.triangularDelta(R, jsite[3], jsite[4]) != 0     push!(Rs, R)   end
+    end
+    if  isempty(Rs)                                                       return( coeffs )   end
+    chain = [ moveTwoChain(leftCsf, rightCsf, subshells, sites, mqs, R)  for R in Rs ]
+    if  all(iszero, chain)                                                return( coeffs )   end
+
+    # ... the two families are INDEPENDENT contractions, not an exchange-related pair: with four distinct subshells
+    #     R^k(c1,c2,a1,a2) and R^k(c1,c2,a2,a1) are different integrals. Each is assembled with its own pairing of
+    #     creations to annihilations, and its own pattern against the subshell chain.
+    for  (aOrder, qd) in [ ([ann[1], ann[2]], (subshells[cre[1]], subshells[cre[2]], subshells[ann[1]], subshells[ann[2]])),
+                           ([ann[2], ann[1]], (subshells[cre[1]], subshells[cre[2]], subshells[ann[2]], subshells[ann[1]])) ]
+        jc = ( AngularJ64(Basics.subshell_2j(subshells[cre[1]])//2), AngularJ64(Basics.subshell_2j(subshells[cre[2]])//2) )
+        ja = ( AngularJ64(Basics.subshell_2j(subshells[aOrder[1]])//2), AngularJ64(Basics.subshell_2j(subshells[aOrder[2]])//2) )
+        p1 = Set([posOf[cre[1]], posOf[aOrder[1]]]);   p2 = Set([posOf[cre[2]], posOf[aOrder[2]]])
+        pattern = Set([p1,p2]) == Set([Set([1,2]),Set([3,4])]) ? :chain :
+                  Set([p1,p2]) == Set([Set([1,3]),Set([2,4])]) ? :cross13 : :cross14
+        swapped = ( posOf[aOrder[1]] < posOf[cre[1]], posOf[aOrder[2]] < posOf[cre[2]] )
+        kMax = Int64( min(Basics.subshell_2j(subshells[cre[1]]) + Basics.subshell_2j(subshells[aOrder[1]]),
+                          Basics.subshell_2j(subshells[cre[2]]) + Basics.subshell_2j(subshells[aOrder[2]]))//2 )
+        for  k = 0:kMax
+            v = 0.0
+            for  (n,R) in enumerate(Rs)
+                chain[n] == 0.0  &&  continue
+                v = v + moveTwoWeight(jc, ja, jsite, swapped, pattern, R, k) * chain[n]
+            end
+            abs(v) > 1.0e-14  &&  push!(coeffs, Coefficient2p{EffectiveStrengthKind}(k, qd[1], qd[2], qd[3], qd[4], v))
+        end
+    end
+
+    return( coeffs )
+end
+
+
+"""
+`SpinAngularNew.shellReducedAA(j::AngularJ64, Nbra::Int64, senBra::Int64, Jbra::AngularJ64, Nket::Int64, senKet::Int64, Jket::AngularJ64, K::AngularJ64, mq::AngularM64)`
+    ... to compute the reduced matrix element of TWO creation or TWO annihilation operators coupled on one subshell,
+        <j^Nbra v J || (a^(j) x a^(j))^(K) || j^Nket v' J'>, with `mq` = +1/2 for two creations and -1/2 for two
+        annihilations, so that Nbra and Nket differ by two. This is the object a two-electron move needs whenever BOTH
+        electrons leave, or both arrive in, the same subshell.
+
+        Built by the same closure as `SpinAngularNew.shellReducedAW`, over the intermediate subshell terms of j^(Nket+2mq)
+        that the Gaigalas tables already enumerate:
+
+            <bra||(a x a)^(K)||ket>  =  (-1)^(J_bra + J_ket + K) sqrt(2K+1)
+                                        sum_r { j j K ; J_ket J_bra J_r } <bra||a||r> <r||a||ket>
+
+        A value::Float64 is returned.
+"""
+function shellReducedAA(j::AngularJ64, Nbra::Int64, senBra::Int64, Jbra::AngularJ64, Nket::Int64, senKet::Int64,
+                        Jket::AngularJ64, K::AngularJ64, mq::AngularM64)
+    SA   = JenaAtomicCalculator.SpinAngular
+    if  AngularMomentum.triangularDelta(Jbra, K, Jket) == 0                return( 0.0 )   end
+    if  AngularMomentum.triangularDelta(j, j, K) == 0                      return( 0.0 )   end
+    if  isodd(Basics.twice(Jbra) + Basics.twice(K) + Basics.twice(Jket))   return( 0.0 )   end
+    Qbra = SA.qshellTermQ(j, senBra)
+    if  SA.qspacedelta(Qbra, SA.qshellTermM(j, Nbra)) == 0                 return( 0.0 )   end
+    ibra = SA.getTermNumber(j, Nbra, Qbra, Jbra)
+    if  ibra >= 64                                                         return( 0.0 )   end
+    bT   = SA.qspaceTerms(ibra)
+    nu0  = Int64((Basics.twice(j) + 1)//2)
+    Nmid = Nket + Basics.twice(mq)
+
+    wa = 0.0
+    for  ir = bT.min_odd:bT.max_odd
+        rT = SA.qspaceTerms(ir)
+        if  Basics.twice(rT.j) != Basics.twice(j)                          continue        end
+        senR = nu0 - Basics.twice(rT.Q)
+        if  senR < 0  ||  senR > Nmid                                      continue        end
+        if  SA.qspacedelta(rT.Q, SA.qshellTermM(j, Nmid)) == 0             continue        end
+        w6 = AngularMomentum.Wigner_6j(j, j, K, Jket, Jbra, rT.J)
+        if  w6 == 0.0                                                      continue        end
+        w1 = shellReducedA(j, Nbra, senBra, Jbra, Nmid, senR, rT.J, mq)
+        if  w1 == 0.0                                                      continue        end
+        w2 = shellReducedA(j, Nmid, senR, rT.J, Nket, senKet, Jket, mq)
+        if  w2 == 0.0                                                      continue        end
+        wa = wa + w6 * w1 * w2
+    end
+    ph = Int64( (Basics.twice(Jbra) + Basics.twice(Jket) + Basics.twice(K))//2 )
+
+    return( (-1)^ph * wa * sqrt(Basics.twice(K) + 1.0) )
 end
