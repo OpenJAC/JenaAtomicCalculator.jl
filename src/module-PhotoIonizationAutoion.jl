@@ -1,141 +1,92 @@
 
 """
-`module  JAC.PhotoIonizationAutoion`  
-... a submodel of JAC that contains all methods for computing photo-excitation-autoionization cross sections and rates.
+`module  JAC.PhotoIonizationAutoion`
+... a submodule of JAC that was intended for photo-ionization followed by autoionization,
+    |i(N)>  -->  |m(N-1)> + e_p  -->  |f(N-2)> + e_p + e_a.
+
+    STATUS, 18-Aug-2026:  NOT IMPLEMENTED, AND NEVER HAS BEEN.  This is a declaration of intent and nothing more.
+    The decision to leave it so is the maintainer's; do not begin an implementation here without asking.
+
+    What was removed on that date, because it was dead rather than unfinished: a `Channel` type that nothing ever
+    constructed -- carrying an `excitationChannel ::MultipoleAmplitude` field that was never written and never read --
+    together with a `Pathway` type, its constructor and its `Base.show`, none of which any code path reached.  The
+    `Settings` docstring also advertised an `incidentStokes ::ExpStokes` field that the struct did not have.
+
+    What was NOT removed, and why: `Settings` is constructed by `TestFrames`, by `examples/example-Em.jl` and by the
+    type list in `perform(::Atomic.Computation)`, and `computePathways` is called from that same dispatch chain.  Both
+    therefore stay, but `computePathways` now RAISES instead of pretending.  Until 18-Aug-2026 it printed a green
+    "The computation ... starts now" banner, then "Not yet implemented", and returned the STRING
+    "Not yet implemented !" as its list of pathways -- which `perform` merged into its results under the ordinary key
+    "photo-ionization-autoionization pathways:".  A caller got success-shaped output for a computation that had not
+    happened, which is worse than a failure; cf. the `corePolarization.doApply` pattern of `module-PhotoEmission.jl`.
+
+    Where the physics can be done today: the CASCADE route.  `Cascade.PhotoIonizationScheme` populates the ionic
+    states and `Cascade.StepwiseDecayScheme` with `Auger()` carries the autoionization; both are implemented and
+    exercised by examples.  See also `PhotoExcitationAutoion` for the excitation analogue.
 """
-module PhotoIonizationAutoion 
+module PhotoIonizationAutoion
 
-using ..AutoIonization, ..Basics, ..ManyElectron, ..Radial, ..PhotoEmission, ..TableStrings
+using ..Basics, ..ManyElectron, ..Radial
+
 
 """
-`struct  PhotoIonizationAutoion.Settings`  
-    ... defines a type for the details and parameters of computing photon-impact excitation-autoionization pathways 
-        |i(N)>  --> |m(N)>  --> |f(N-1)>.
+`struct  PhotoIonizationAutoion.Settings`
+    ... defines a type for the details and parameters of computing photo-ionization-autoionization pathways
+        |i(N)>  -->  |m(N-1)>  -->  |f(N-2)>.  KEPT ONLY so that the dispatch chain, the struct tests and
+        `examples/example-Em.jl` continue to resolve; no field of it is read by any computation.
 
-    + multipoles              ::Array{EmMultipole,1}               ... Specifies the multipoles of the radiation field that are to be included.
-    + gauges                  ::Array{UseGauge,1}                  ... Specifies the gauges to be included into the computations.
-    + printBefore             ::Bool                               ... True, if all energies and lines are printed before their evaluation.
+    + multipoles              ::Array{EmMultipole,1}               ... Multipoles of the radiation field to be included.
+    + gauges                  ::Array{UseGauge,1}                  ... Gauges to be included into the computations.
+    + printBefore             ::Bool                               ... True, if all energies and lines are printed before evaluation.
     + selectPathways          ::Bool                               ... True if particular pathways are selected for the computations.
-    + incidentStokes          ::ExpStokes               ... Stokes parameters of the incident radiation.
-    + selectedPathways        ::Array{Tuple{Int64,Int64,Int64},1}  ... List of list of pathways, given by tupels (inital, inmediate, final).
+    + selectedPathways        ::Array{Tuple{Int64,Int64,Int64},1}  ... Selected pathways, as tuples (initial, intermediate, final).
     + maxKappa                ::Int64                              ... Maximum kappa value of partial waves to be included.
 """
 struct Settings
     multipoles                ::Array{EmMultipole,1}
-    gauges                    ::Array{UseGauge,1} 
-    printBefore    ::Bool
+    gauges                    ::Array{UseGauge,1}
+    printBefore               ::Bool
     selectPathways            ::Bool
     selectedPathways          ::Array{Tuple{Int64,Int64,Int64},1}
-    maxKappa                  ::Int64 
-end 
-
-
-"""
-`PhotoIonizationAutoion.Settings()`  ... constructor for the default values of photon-impact excitation-autoionizaton settings.
-"""
-function Settings()
-    Settings( Basics.EmMultipole[], Basics.UseGauge[], false,  false, Tuple{Int64,Int64,Int64}[], 0)
+    maxKappa                  ::Int64
 end
 
 
-# `Base.show(io::IO, settings::PhotoIonizationAutoion.Settings)` 
-#		 ... prepares a proper printout of the variable settings::PhotoIonizationAutoion.Settings.  
-function Base.show(io::IO, settings::PhotoIonizationAutoion.Settings) 
+"""
+`PhotoIonizationAutoion.Settings()`  ... constructor for the default values of photo-ionization-autoionization settings.
+"""
+function Settings()
+    Settings( Basics.EmMultipole[], Basics.UseGauge[], false, false, Tuple{Int64,Int64,Int64}[], 0)
+end
+
+
+# `Base.show(io::IO, settings::PhotoIonizationAutoion.Settings)`
+#        ... prepares a proper printout of the variable settings::PhotoIonizationAutoion.Settings.
+function Base.show(io::IO, settings::PhotoIonizationAutoion.Settings)
     println(io, "multipoles:              $(settings.multipoles)  ")
     println(io, "gauges:                  $(settings.gauges)  ")
-    println(io, "printBefore:  $(settings.printBefore)  ")
+    println(io, "printBefore:             $(settings.printBefore)  ")
     println(io, "selectPathways:          $(settings.selectPathways)  ")
     println(io, "selectedPathways:        $(settings.selectedPathways)  ")
     println(io, "maxKappa:                $(settings.maxKappa)  ")
 end
 
 
-
 """
-`struct  PhotoIonizationAutoion.Channel`  
-    ... defines a type for a photon-impact excitaton & autoionization channel that specifies all quantum numbers, phases and 
-        amplitudes.
-
-    + excitationChannel  ::MultipoleAmplitude          ... the photon-impact excitation amplitude, one multipole
-                                                            carrying both gauges.  NOTHING IN JAC EVER FILLS THIS
-                                                            FIELD: the module is a scaffold, and the type was
-                                                            changed with PhotoEmission's retirement only so that
-                                                            it names something that still exists.
-    + augerChannel       ::AutoIonization.PartialWave      ... Channel that describes the subsequent Auger/autoionization process.
+`PhotoIonizationAutoion.computePathways(finalMultiplet::Multiplet, intermediateMultiplet::Multiplet, initialMultiplet::Multiplet,
+                                        grid::Radial.Grid, settings::PhotoIonizationAutoion.Settings; output=true)`
+    ... this module is not implemented; the call raises an error that says so. Nothing is returned.
 """
-struct  Channel
-    excitationChannel    ::MultipoleAmplitude
-    augerChannel         ::AutoIonization.PartialWave
-end 
-
-
-"""
-`struct  PhotoIonizationAutoion.Pathway`  ... defines a type for a photon-impact excitation pathway that may include the definition 
-                                                    of different excitation and autoionization channels and their corresponding amplitudes.
-
-    + initialLevel        ::Level           ... initial-(state) level
-    + intermediateLevel   ::Level           ... intermediate-(state) level
-    + finalLevel          ::Level           ... final-(state) level
-    + photonEnergy        ::Float64         ... energy of the (incoming) electron
-    + electronEnergy      ::Float64         ... energy of the (finally outgoing, scattered) electron
-    + crossSection        ::EmProperty      ... total cross section of this pathway
-    + channels            ::Array{PhotoIonizationAutoion.Channel,1}     ... List of channels of this pathway.
-"""
-struct  Pathway
-    initialLevel          ::Level
-    intermediateLevel     ::Level
-    finalLevel            ::Level
-    photonEnergy          ::Float64
-    electronEnergy        ::Float64
-    crossSection          ::EmProperty
-    channels              ::Array{PhotoIonizationAutoion.Channel,1}
-end 
-
-
-"""
-`PhotoIonizationAutoion.Pathway()`  
-    ... 'empty' constructor for an photon-impact excitation-autoionization pathway between a specified initial, intermediate and 
-        final level.
-"""
-function Pathway()
-    Pathway(Level(), Level(), Level(), 0., 0., 0., false, PhotoIonizationAutoion.Channel[] )
-end
-
-
-# `Base.show(io::IO, pathway::PhotoIonizationAutoion.Pathway)` 
-#		 ... prepares a proper printout of the variable pathway::PhotoIonizationAutoion.Pathway.
-function Base.show(io::IO, pathway::PhotoIonizationAutoion.Pathway) 
-    println(io, "initialLevel:               $(pathway.initialLevel)  ")
-    println(io, "intermediateLevel:          $(pathway.intermediateLevel)  ")
-    println(io, "finalLevel:                 $(pathway.finalLevel)  ")
-    println(io, "photonEnergy                $(pathway.photonEnergy)  ") 
-    println(io, "electronEnergy              $(pathway.electronEnergy)  ")
-    println(io, "crossSection:               $(pathway.crossSection)  ")
-    println(io, "channels:                   $(pathway.channels)  ")
-end
-
-
-
-"""
-`PhotoIonizationAutoion.computePathways(finalMultiplet::Multiplet, intermediateMultiplet::Multiplet, initialMultiplet::Multiplet, 
-                                        grid::Radial.Grid, settings::PhotoIonizationAutoion.Settings; output=true)`  
-    ... to compute the photo-excitation-fluorescence amplitudes and all properties as requested by the given settings. A list of 
-        lines::Array{PhotoIonizationAutoion.Lines} is returned.
-"""
-function  computePathways(finalMultiplet::Multiplet, intermediateMultiplet::Multiplet, initialMultiplet::Multiplet, grid::Radial.Grid, 
+function  computePathways(finalMultiplet::Multiplet, intermediateMultiplet::Multiplet, initialMultiplet::Multiplet, grid::Radial.Grid,
                             settings::PhotoIonizationAutoion.Settings; output=true)
-    println("")
-    printstyled("PhotoIonizationAutoion.computePathways(): The computation of photo-excitation-fluorescence amplitudes starts now ... \n", color=:light_green)
-    printstyled("-------------------------------------------------------------------------------------------------------------------- \n", color=:light_green)
-    println("")
-    #
-    println("Not yet implemented: Data structures and properties still need to be worked out.")
-    #
-    pathways = "Not yet implemented !"
-    #
-    if    output    return( pathways )
-    else            return( nothing )
-    end
+    error("\n\nPhotoIonizationAutoion.computePathways() is NOT implemented and never has been.\n"                     *
+          ">>> The module holds a Settings type and nothing else; no photo-ionization or autoionization\n"            *
+          ">>> amplitude is computed for the pathway.  Until 18-Aug-2026 this function returned the STRING\n"          *
+          ">>> \"Not yet implemented !\" as its pathway list, which reached the results dictionary looking\n"          *
+          ">>> like an ordinary result.\n"                                                                            *
+          ">>> For photo-ionization followed by autoionization, use the CASCADE route instead:\n"                     *
+          ">>> Cascade.PhotoIonizationScheme to populate the ionic states, then Cascade.StepwiseDecayScheme\n"         *
+          ">>> with Auger() for the autoionization -- both are implemented and exercised by examples.\n")
 end
 
 end # module

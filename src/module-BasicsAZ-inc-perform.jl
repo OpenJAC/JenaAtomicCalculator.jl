@@ -188,9 +188,15 @@ function Basics.perform(computation::Atomic.Computation; output::Bool=false)
             outcome = PhotoIonizationAutoion.computePathways(finalMultiplet, intermediateMultiplet, initialMultiplet, 
                                                                 computation.grid, computation.processSettings) 
             if output    results = Base.merge( results, Dict("photo-ionization-autoionization pathways:" => outcome) )      end
-        elseif  typeof(computation.processSettings) == PhotoIonFluor()  
-            outcome = PhotoIonizationFluores.computePathways(finalMultiplet, intermediateMultiplet, initialMultiplet, 
-                                                                computation.grid, computation.processSettings) 
+        ## The test reads the SETTINGS type, not the process singleton PhotoIonFluor(): `typeof(x) == PhotoIonFluor()`
+        ## compares a DataType with an instance and is therefore never true, so this branch was unreachable and every
+        ## such computation fell through to the `error("stop b")` below. The same slip stands in seven sibling
+        ## branches (PairA1P, Coulex, Coulion, PhotoIonAuto, ImpactExcAuto, MultiPI, MultiPDI), deliberately NOT
+        ## touched here because none of them has been tested. `nModel` is passed because PhotoIonization.computeLines
+        ## needs it, exactly as the DielectronicRecombination branch above does.
+        elseif  typeof(computation.processSettings) == PhotoIonizationFluores.Settings
+            outcome = PhotoIonizationFluores.computePathways(finalMultiplet, intermediateMultiplet, initialMultiplet,
+                                                                nModel, computation.grid, computation.processSettings)
             if output    results = Base.merge( results, Dict("photo-ionizatiton-fluorescence pathways:" => outcome) )        end
         elseif  typeof(computation.processSettings) == ImpactExcAuto()  
             outcome = ImpactExcitationAutoion.computePathways(finalMultiplet, intermediateMultiplet, initialMultiplet, 

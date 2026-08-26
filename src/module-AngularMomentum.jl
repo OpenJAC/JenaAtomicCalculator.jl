@@ -544,33 +544,51 @@ function triangularDelta(ja::AngularJ64, jb::AngularJ64, jc::AngularJ64)
 end
 
 """
-`AngularMomentum.Wigner_DFunction(j, p, q, alpha::Float64, beta::Float64, gamma::Float64)`  
-    ... calculates the value of a Wigner D^j_pq (alpha, beta, gamma) for given quantum numbers and (Euler) angles 
+`AngularMomentum.Wigner_DFunction(j, p, q, alpha::Float64, beta::Float64, gamma::Float64)`
+    ... calculates the value of a Wigner D^j_pq (alpha, beta, gamma) for given quantum numbers and (Euler) angles
         (alpha, beta, gamma). It makes use of the small Wigner d(beta) matrix as the key part.
-        A value::Float64 is returned.
+        A value::ComplexF64 is returned; the D-function is complex whenever alpha or gamma is non-zero, and the
+        docstring claimed a Float64 until 19-Aug-2026.
 """
 function Wigner_DFunction(j, p, q, alpha::Float64, beta::Float64, gamma::Float64)
     wa = exp(-im*p*alpha -im*q*gamma) * AngularMomentum.Wigner_dmatrix(j, p, q, beta)
 end
 
 """
-`AngularMomentum.Wigner_dmatrix(jj, mmp, mm, beta::Float64)`  
+`AngularMomentum.Wigner_dmatrix(jj, mmp, mm, beta::Float64)`
     ... calculates the value of the small Wigner d^j_m',m (beta) for given quantum numbers and the angle beta.
-        Wigner's formula is applied to evaluate the small Wigner matrix; a value::Float64 is returned.
+        Wigner's formula is applied; a value::Float64 is returned. The arguments are accepted in any of the forms
+        that `Basics.twice` understands -- AngularJ64, AngularM64, Integer or Rational -- exactly as Wigner_3j and
+        Wigner_6j accept them.
+
+        THE ARITHMETIC IS DONE IN DOUBLED INTEGERS, and that is the whole point. Until 19-Aug-2026 this function
+        converted j, m' and m to Float64 and then called `factorial` on the results, so EVERY call raised
+        `MethodError: no method matching factorial(::Float64)` -- Julia defines no factorial for floats. The
+        function had therefore never returned a number, and neither had Wigner_DFunction, which wraps it.
+        Since j, m' and m are all integer or all half-integer, the combinations j+-m', j+-m, j+m-s, m'-m+s and
+        j-m'-s are ALWAYS whole numbers, so they are formed here as integers and no float factorial arises.
 """
 function Wigner_dmatrix(jj, mmp, mm, beta::Float64)
-    j = Float64(jj);      mp = Float64(mmp);    m = Float64(mm)  
-    if     mod(j+j + mp+mp + m+m, 2.0) != 0.       error("Inappropriate quantum numbers j=$j, mp=$mp, m=$m")   
-    elseif abs(mp) > j    ||   abs(m) > j          return( 0. )
+    ## Factorials of the arguments occurring here stay small in atomic physics, but big() is used beyond 20!
+    ## so that an overflow cannot pass silently.
+    fac(n::Int64) = n <= 20  ?  Float64(factorial(n))  :  Float64(factorial(big(n)))
+    #
+    j2 = Basics.twice(jj);    mp2 = Basics.twice(mmp);    m2 = Basics.twice(mm)
+    if      isodd(j2 + mp2)  ||  isodd(j2 + m2)
+            error("Inappropriate quantum numbers j=$(j2/2), mp=$(mp2/2), m=$(m2/2)")
+    elseif  abs(mp2) > j2    ||  abs(m2) > j2       return( 0. )
     end
     #
-    factor = sqrt( factorial(j+mp) * factorial(j-mp) * factorial(j+m) * factorial(j-m) )
-    wa = 0.
-    for  s = 0:100
-        if  j+m-s < 0  ||  j-mp-s < 0   break       end
-        if  mp - m + s < 0              continue    end
-        wa = wa + (-1)^(mp-m+s) * cos(beta/2.)^(2j+m-mp-2s) * sin(beta/2.)^(mp-m+2s) / 
-                    ( factorial(j+m-s) * factorial(s) * factorial(mp-m+s) * factorial(j-mp-s) )
+    a = div(j2 + mp2, 2);    b = div(j2 - mp2, 2)      ## j+m',  j-m'
+    c = div(j2 + m2,  2);    d = div(j2 - m2,  2)      ## j+m,   j-m
+    e = div(mp2 - m2, 2)                               ## m'-m
+    #
+    factor = sqrt( fac(a) * fac(b) * fac(c) * fac(d) )
+    wa     = 0.
+    for  s = max(0, -e):min(b, c)
+        ## The cosine exponent 2j+m-m'-2s equals (j+m) + (j-m') - 2s = c + b - 2s.
+        wa = wa + (-1)^(e+s) * cos(beta/2.)^(c + b - 2s) * sin(beta/2.)^(e + 2s) /
+                    ( fac(c-s) * fac(s) * fac(e+s) * fac(b-s) )
     end
 
     return( factor*wa )
