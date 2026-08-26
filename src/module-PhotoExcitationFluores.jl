@@ -6,7 +6,8 @@
 module PhotoExcitationFluores 
 
 
-using Printf, ..AngularMomentum, ..AutoIonization, ..Basics, ..Defaults, ..ManyElectron, ..Radial, ..PhotoEmission, ..Statistical, ..TableStrings
+using Printf, ..AngularMomentum, ..AutoIonization, ..Basics, ..Defaults, ..ManyElectron, ..Radial, ..PhotoEmission, ..PhotoExcitation,
+      ..Statistical, ..TableStrings
 
 """
 `struct  PhotoExcitationFluores.Settings  <:  AbstractProcessSettings`  
@@ -198,7 +199,7 @@ end
 
         THE EXCITED ENSEMBLE IS NOW COMPUTED rather than assumed.  What decides the polarization of the fluorescence is
         the alignment left behind by the excitation step, and that is taken from
-        `Statistical.computeTensorsPhotoExcitation` on the pathway's excitation channels, so this module and
+        `PhotoExcitation.computeExcitedLevelTensors` on the pathway's excitation channels, so this module and
         `PhotoExcitation` describe the same excited atom.  Its sublevel density matrix is recovered with
         `Statistical.densityMatrix`.
 
@@ -222,7 +223,7 @@ function  computePhotonDm(pathway::PhotoExcitationFluores.Pathway, settings::Pho
     # The alignment left by the excitation step, and the sublevel density matrix it stands for
     eKey    = Basics.LevelKey( LevelSymmetry(Je, pathway.intermediateLevel.parity), pathway.intermediateLevel.index,
                                pathway.intermediateLevel.energy, 1.)
-    tensors = Statistical.computeTensorsPhotoExcitation( Int64(round(2*Jex)), pathway.initialLevel.J, eKey,
+    tensors = PhotoExcitation.computeExcitedLevelTensors( Int64(round(2*Jex)), pathway.initialLevel.J, eKey,
                                                          pathway.excitChannels, settings.incidentStokes, Basics.Coulomb)
     rhoE    = length(tensors) == 0 ? Dict{Tuple{AngularM64,AngularM64},ComplexF64}() : Statistical.densityMatrix(tensors)
 
