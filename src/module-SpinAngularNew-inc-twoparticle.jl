@@ -950,7 +950,7 @@ end
     ... to compute all two-particle coefficients of a CSF pair that differs by TWO electrons moved between FOUR distinct
         subshells, `cre` holding the two that gain an electron and `ann` the two that lose one, each in increasing
         subshell order. Every subshell carries exactly one operator, so no coupled shell tensor is needed and the whole
-        assembly is `SpinAngularNew.moveTwoChain` summed over the chain's free intermediate rank with the weights of
+        assembly is `SpinAngularNew.moveTwoRecoupling` summed over the chain's free intermediate rank with the weights of
         `SpinAngularNew.moveTwoWeight`.
 
         The DIRECT family pairs each creation with the annihilation of the same rank order and is built directly; its

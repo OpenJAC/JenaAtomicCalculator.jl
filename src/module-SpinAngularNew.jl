@@ -108,10 +108,7 @@
 """
 module SpinAngularNew
 
-# NOTE: this module is included DIRECTLY by examples/example-Aq.jl and not from JenaAtomicCalculator.jl, so the imports are
-# absolute rather than relative. They become `..Basics, ..ManyElectron` on the day it moves inside the package.
-using  Printf, JenaAtomicCalculator
-using  JenaAtomicCalculator.Basics, JenaAtomicCalculator.ManyElectron, JenaAtomicCalculator.AngularMomentum
+using  Printf, ..AngularMomentum, ..Basics, ..ManyElectron, ..SpinAngular
 
 
 """

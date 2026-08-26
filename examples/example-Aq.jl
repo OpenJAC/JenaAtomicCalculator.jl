@@ -2,11 +2,9 @@
 println("Aq) Compare the spin-angular coefficients of SpinAngularNew against SpinAngular and against GRASP2018.")
 
 #
-# SpinAngularNew is deliberately NOT included from JenaAtomicCalculator.jl while it is under development, so that a broken
-# intermediate state cannot break the package. It is included here directly.
+# SpinAngularNew is part of the package and is reached through it; it was included directly here only while it was
+# under development, so that a broken intermediate state could not break the package.
 #
-include("../src/module-SpinAngularNew.jl")
-
 configs = [Configuration("1s^2 2s"), Configuration("1s^2 2p")]
 
 relconfList = ConfigurationR[]
