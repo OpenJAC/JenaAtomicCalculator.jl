@@ -22,9 +22,3 @@ Order   = [:type, :function]
 Modules = [SpinAngular]
 Order   = [:type]
 ```
-
-##  Spin angular coefficients, second implementation
-```@autodocs
-Modules = [SpinAngularNew]
-Order   = [:type, :function]
-```

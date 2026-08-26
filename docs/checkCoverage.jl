@@ -96,9 +96,19 @@ function documentedModules()
 end
 
 
+## Modules the MAINTAINER has decided not to publish yet, each with its reason and the condition that releases it.
+## This is NOT a way of silencing the check: a withheld module is PRINTED on every run, and the reason is carried here
+## rather than in anyone's memory, so the decision stays visible and can be revisited. Adding an entry to make a message
+## go away, rather than because the maintainer decided it, is the misuse this comment exists to name.
+const WITHHELD = Dict(
+    "SpinAngularNew" => "maintainer, 26-Aug-2026: not published before the sqrt(2j+1) convention migration (Rule 19) " *
+                        "is done, and then only the functions other modules actually call -- today nothing in src/ " *
+                        "calls it, so the published set would be empty in any case." )
+
 qual              = qualifyingModules()
 (documented, pgs) = documentedModules()
-missing           = sort(collect(setdiff(qual, documented)))
+withheld          = sort(collect(intersect(qual, keys(WITHHELD))))
+missing           = sort(collect(setdiff(qual, documented, keys(WITHHELD))))
 
 println("\n", "="^96)
 println("  Documentation coverage against Rule 16 of CLAUDE.md")
@@ -107,6 +117,8 @@ println("="^96)
 @printf("  modules referenced by docs/src/api-*.md                 : %3d\n", length(documented))
 @printf("  QUALIFYING BUT NOT DOCUMENTED                           : %3d\n", length(missing))
 for m in missing    println("       * ", m)    end
+@printf("  deliberately WITHHELD by the maintainer                  : %3d\n", length(withheld))
+for m in withheld   println("       * ", m, "\n           ", WITHHELD[m])   end
 
 ## A module documented through a Pages allowlist must have ALL of its files listed, or the rest vanish silently.
 holes = String[]
