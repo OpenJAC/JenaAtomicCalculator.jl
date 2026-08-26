@@ -143,7 +143,7 @@ elseif  char == 'I'
     println("-----------------------------------------------------------------")
     println("Ib) Apply & test the StrongField module to calculate ATI energy distributions in the SFA with hydrogen-like initial states.")
     println("Ic) Apply & test the StrongField module to demonstrate the Coulomb asymmetry in ATI azimuthal angular distributions.")
-    println("Id) Apply & test the StrongField2 module to compute in ATI photoelectron momentum distributions.")
+    println("Id) Apply & test the StrongField module to compute in ATI photoelectron momentum distributions.   [POSTPONED until 2027]")
     #
 elseif  char == 'J'
     println("J)  Examples, tests & development of plasma computations")
