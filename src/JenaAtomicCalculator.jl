@@ -81,7 +81,7 @@ export AbstractCImethod, AbstractComputeTheme, AbstractConfigurationRestriction,
        FromMultiplet, FullCIeigen,
        GeneralizedConfigurations, generate, generateConfigurations, getDefaults, GetParity, Green,
        GreenChannel, GreenExpansion, GreenSettings, GroundConfiguration, Gui,
-       Hamiltonian, HarmonicQuantizationAxis, Hfs, HighHarmonic, HundsRules, HydrogenicIon, HyperfineInduced,
+       Hamiltonian, HarmonicQuantizationAxis, Hfs, HundsRules, HydrogenicIon, HyperfineInduced,
        HyperfineStructure,
        ZeemanStructure,
        ImpactExc, ImpactExcAuto, ImpactExcitation, ImpactExcitationAutoion, ImpactIonization, Integral, integrate,
@@ -91,35 +91,36 @@ export AbstractCImethod, AbstractComputeTheme, AbstractConfigurationRestriction,
        LandeF, LandeJ, LandeZeeman, LeadingConfiguration, LeadingConfigurationR, LeftCircular, Level, LevelSelection,
        LevelSymmetry, LineSelection, Liouville, LSjj, LSjjSettings,
        M1, M2, M3, M4, ManyElectron, MeanConfiguration, MeanFieldBasis, MeanFieldMultiplet, MeanFieldSettings,
-       MeanOccupation, minus, Model, MultiPDI, MultiPhotonDE, MultiPhotonDoubleIon, MultiPhotonIonization,
+       MeanOccupation, MuonicAtom, minus, Model, MultiPhotonDE, MultiPhotonIonization,
        MultiPhotonTransition, MultiPI, Multiplet, Multiplicity, MultipoleAmplitude, MultipoleMoment,
        MultipolePolarizibility,
        NoAmplitude, NoneQed, NonrelativisticBasis, NoProcess, NoProperty, Nuclear, NumberOfElectrons,
        OccupationDifference, OneElectronSettings, OneElectronSpectrum, OpenShellNumber, OpenShells, OpenSubshells, oplus,
        Orbital,
-       PairA1P, PairAnnihilation1Photon, PairAnnihilation2Photon, PairProduction, Parity, ParityNonConservation,
+       PairA1P, Parity,
        ParticleScattering, PathwaySelection, perform, PeriodicTable, Photo, PhotoDouble, PhotoDoubleIonization,
        PhotoEmission, PhotoExc, PhotoExcAuto, PhotoExcFluor, PhotoExcitation, PhotoExcitationAutoion,
-       PhotoExcitationFluores, PhotoIonAuto, PhotoIonFluor, PhotoIonization, PhotoIonizationAutoion,
-       PhotoIonizationFluores, PhotoRecombination, PhysicalConstants, Plasma, plus, PointNucleus, PrintWarnings, Pulse,
+       PhotoExcitationFluores, PhotoIonization, PhotonScattering, PhotoRecombination, PhotoRecombinationInterference, PhysicalConstants, Plasma, plus,
+       PointNucleus, PrintWarnings, Pulse,
        QedPetersburg, QedSydney,
        RacahAlgebra, RacahExpression, Radial, RadialIntegrals, RadialOrbitalsBoth, RadialOrbitalsLarge,
        RadialOrbitalsSmall,
        RadialPotentials, Radiative, RadiativeAuger, RasExpansion,
-       RasLayer, RasSettings, RasStep, RAuger, RayleighCompton, READI, Rec, recast, REDA, ReducedDensityMatrix,
+       RasLayer, RasSettings, RasStep, RAuger, RayleighCompton, Rec, recast, ReducedDensityMatrix,
+       ResonantImpactIonization,
        RelativisticConfigurations, RemoveElectrons, Representation, RequestMaximumOccupation,
        RequestMinimumOccupation, ResonantInelastic, RestrictExcitations, RestrictMaximumDisplacements,
        RestrictNoElectronsTo, RestrictParity, RestrictToShellDoubles,
        SchiffMoment, SelfConsistent, Semiempirical, setDefaults, Shell, ShellSelection, SolidAngle, Spectroscopy,
-       SphericalMesh, SphericalTensor, SpinAngular, StarkShift, StarkZeeman, StartFromHydrogenic,
+       SphericalMesh, SphericalTensor, SpinAngular, SpinAngularNew, StarkShift, StarkZeeman, StartFromHydrogenic,
        StartFromPrevious, StartFromThomasFermi, StaticField,
-       StaticQuantizationAxis, StrongField, StrongField2, Subshell, SuperConfiguration,
+       StaticQuantizationAxis, Statistical, StrongField, Subshell, SuperConfiguration,
        tabulate, TestFrames, ThomasFermiField, ThreeParameterFermiNucleus, TimeHarmonicField, TotalAM,
        Triangle,
        TwoElectronOnePhoton,
        UniformNucleus, UseBabushkin, UseCoulomb, UseGauge,
        ValenceOccupation, ValenceShells,
-       W3j, W6j, W9j, WeightedCartesian,
+       W3j, W6j, W9j, WeakInteractionEnhancement, WeakInteractionMoment, WeightedCartesian,
        Ylm
      
 # Basic data and data structures
@@ -136,6 +137,7 @@ include("module-Nuclear.jl");           using ..Nuclear
 include("module-AngularMomentum.jl")
 ## include("module-AngularCoefficients-Ratip2013.jl")  ## keep for internal test purposes only
 include("module-SpinAngular.jl");       using ..SpinAngular
+include("module-SpinAngularNew.jl");    using ..SpinAngularNew
 include("module-Bsplines.jl");          using ..Bsplines
 include("module-Pulse.jl");             using ..Pulse
 include("module-Beam.jl")
@@ -147,6 +149,8 @@ include("module-InteractionStrengthQED.jl")
 include("module-Hamiltonian.jl");       using ..Hamiltonian
 include("module-SelfConsistent.jl");    using ..SelfConsistent
 include("module-PeriodicTable.jl")
+# Statistical tensors of an atomic ensemble; needed by the process modules that report an alignment
+include("module-Statistical.jl")
 include("module-TableStrings.jl")
 include("module-AtomicState.jl");       using ..AtomicState
 include("module-LSjj.jl");              using ..LSjj
@@ -157,7 +161,7 @@ include("module-PhotoEmission.jl")
 if  incProperties
 # Functions/methods for atomic amplitudes
 include("module-MultipoleMoment.jl")
-include("module-ParityNonConservation.jl")
+include("module-WeakInteractionMoment.jl")
 # Functions/methods for atomic properties
 include("module-Einstein.jl")    
 include("module-Hfs.jl")
@@ -171,6 +175,7 @@ include("module-StarkShift.jl")
 include("module-StarkZeeman.jl")
 include("module-CrystalField.jl")
 include("module-CrystalFieldEmission.jl")
+include("module-WeakInteractionEnhancement.jl")
 end
 
 if  incBasicProcesses
@@ -185,12 +190,14 @@ include("module-PhotoExcitationFluores.jl")
 include("module-PhotoExcitationAutoion.jl")
 include("module-RayleighCompton.jl")
 include("module-ParticleScattering.jl")
+include("module-PhotonScattering.jl")
 include("module-BeamPhotoExcitation.jl") 
 include("module-HyperfineInduced.jl") 
 include("module-ResonantInelastic.jl") 
 include("module-DecayYield.jl")
 include("module-ImpactExcitation.jl")
 include("module-CoulombExcitation.jl")
+include("module-PhotoRecombinationInterference.jl")
 end
 
 if incAdvancedProcesses
@@ -198,30 +205,20 @@ if incAdvancedProcesses
 include("module-MultiPhotonTransition.jl")
 include("module-CoulombIonization.jl")
 include("module-PhotoDoubleIonization.jl")
-include("module-PhotoIonizationFluores.jl")
-include("module-PhotoIonizationAutoion.jl")
 include("module-ImpactExcitationAutoion.jl")
 include("module-RadiativeAuger.jl")
 include("module-MultiPhotonIonization.jl")
-include("module-MultiPhotonDoubleIon.jl")
 include("module-InternalConversion.jl") 
+include("module-MuonicAtom.jl")
 include("module-InternalRecombination.jl") 
 include("module-TwoElectronOnePhoton.jl") 
 include("module-DoubleAutoIonization.jl")
-#= Further processes, not yet included into the code
-include("module-REDA.jl")
-include("module-READI.jl")
-include("module-PairProduction.jl")
-include("module-PairAnnihilation1Photon.jl")
-include("module-PairAnnihilation2Photon.jl")  =#
+include("module-ResonantImpactIonization.jl")
 end
 
-# Functions/methods for atomic responses and time evolutions
-# include("module-Statistical.jl")
 
 if incStrongField
 # Functions/methods for the computation of atomic responses
-## include("module-HighHarmonic.jl")
 include("module-StrongField.jl") 
 end
 

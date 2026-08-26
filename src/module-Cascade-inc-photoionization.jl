@@ -21,9 +21,15 @@ function computeSteps(scheme::Cascade.PhotoIonizationScheme, comp::Cascade.Compu
                                                 "up to $nc photoionization lines (without selection rules): ")   end 
                                                 
         if  step.process == Basics.Photo() 
+            ## scheme.initialLevelSelection is HONOURED again.  It used to be commented out here and replaced by a
+            ## hard-wired LevelSelection(true, indices=[1]), so that ONLY the ground level was ever ionized however
+            ## the user had set the field -- accepted in the constructor, printed back by Base.show, and then
+            ## ignored.  Note what the default now means: LevelSelection(false) is INACTIVE, and Basics.selectLevel
+            ## returns true for every level of an inactive selection, so a scheme left at its default ionizes ALL
+            ## initial levels rather than only the first.  A computation that wants the old behaviour must ask for
+            ## it, which is the right way round.
             newLines = PhotoIonization.computeLinesCascade(step.finalMultiplet, step.initialMultiplet, comp.nuclearModel, comp.grid, 
-                                                           ## step.settings, scheme.initialLevelSelection, output=true, printout=false) 
-                                                           step.settings, LevelSelection(true, indices=[1]), output=true, printout=false) 
+                                                           step.settings, scheme.initialLevelSelection, output=true, printout=false) 
             append!(linesP, newLines);    nt = length(linesP)
         else   error("Unsupported atomic process for photoionization computations.")
         end

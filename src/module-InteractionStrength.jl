@@ -426,29 +426,6 @@ function multipoleTransition(mp::EmMultipole, gauge::EmGauge, omega::Float64, b:
 end
 
 
-"""
-`InteractionStrength.schiffMoment(a::Orbital, b::Orbital, nm::Nuclear.Model, grid::Radial.Grid)`  
-    ... computes the  <a|| h^(Schiff-moment) ||b>  reduced matrix element of the Schiff-moment Hamiltonian for orbital 
-        functions a, b and for the nuclear density as given by the nuclear model. A value::Float64 is returned.  
-"""
-function schiffMoment(a::Orbital, b::Orbital, nm::Nuclear.Model, grid::Radial.Grid)
-    printstyled("\nWarning -- InteractionStrength.schiffMoment():: Not yet implemented.", color=:cyan)
-    wb = 1.0 + 2.0im
-    return( wb )
-end
-
-
-"""
-`InteractionStrength.weakCharge(a::Orbital, b::Orbital, nm::Nuclear.Model, grid::Radial.Grid)`  
-    ... computes the  <a|| h^(weak-charge) ||b>  reduced matrix element of the weak-charge Hamiltonian for orbital functions 
-        a, b and for the nuclear density as given by the nuclear model. A value::Float64 is returned.  
-"""
-function weakCharge(a::Orbital, b::Orbital, nm::Nuclear.Model, grid::Radial.Grid)
-    printstyled("\nWarning -- InteractionStrength.weakCharge():: Not yet implemented.", color=:cyan)
-    wb = 1.0 + 2.0im
-    return( wb )
-end
-
 
 ##
 ## ============================================================================================================

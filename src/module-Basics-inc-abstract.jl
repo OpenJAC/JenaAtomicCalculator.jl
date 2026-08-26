@@ -2042,16 +2042,22 @@ export   AbstractProcessSettings
                                   continuum.
     + struct AugerInPlasma    ... Auger transitions but calculated for a specified plasma model.
     + struct Compton          ... Rayleigh-Compton scattering cross sections.
+    + struct ElecCapture      ... the (dielectronic) electron-capture process, i.e. the capture of a free electron into a bound shell.
     + struct Coulex           ... Coulomb-excitation of target or projeticle electrons by fast, heavy ions.
     + struct Coulion          ... Coulomb-ionization of target or projeticle electrons by fast, heavy ions.
     + struct Dierec           ... di-electronic recombination, i.e. the dielectronic capture of a free electron and the subsequent emission
                                   of a photon.
     + struct DoubleAuger      ... Double Auger rates.
-    + struct ImpactExcAuto    ... di-electronic recombination, i.e. the dielectronic capture of a free electron and the subsequent emission
-                                  of a photon.
+    + struct ImpactExcAuto    ... electron-impact excitation with subsequent autoionization, i.e. an inner-shell electron is raised by
+                                  electron impact to a level above the ionization threshold, which then autoionizes.
+    + struct InternalConv     ... internal conversion, i.e. the transfer of nuclear excitation energy to a bound electron which is thereby
+                                  ejected.
+    + struct NoProcess        ... dummy process for the initialization of a Cascade.Step or an atomic computation; it denotes the ABSENCE
+                                  of a process and is never computed.
+    + struct PairA1P          ... one-photon pair annihilation, in which a bound electron and a positron annihilate under emission of a
+                                  single photon.
     + struct MultiPhotonDE    ... multi-photon excitation and decay rates, including 2-photon, etc. processes.
     + struct MultiPI          ... multi-photon (single-electron) ionization.
-    + struct MultiPDI         ... multi-photon (single-electron) double ionization.
     + struct Photo            ... Photoionization processes, i.e. the emission of a single free electron into the continuum due to an
                                   external light field.
     + struct PhotoDouble      ... Photo-double ionization rates.
@@ -2059,8 +2065,6 @@ export   AbstractProcessSettings
     + struct PhotoExcFluor    ... photoexcitation fluorescence rates and cross sections.
     + struct PhotoExcAuto     ... photoexcitation autoionization cross sections and collision strengths.
     + struct PhotoInPlasma    ... Photoionization processes but calculated for a specified plasma model.
-    + struct PhotoIonFluor    ... photoionization fluorescence rates and cross sections.
-    + struct PhotoIonAuto     ... photoionization autoionization cross sections and collision strengths.
     + struct Radiative        ... Radiative (multipole) transitions between bound-state levels of the same charge state.
     + struct Rec              ... radiative electron capture, i.e. the capture of a free electron with the simultaneous emission of a
                                   photon.
@@ -2081,15 +2085,12 @@ struct    ImpactExcAuto         <:  AbstractProcess     end
 struct    InternalConv          <:  AbstractProcess     end
 struct    MultiPhotonDE         <:  AbstractProcess     end
 struct    MultiPI               <:  AbstractProcess     end
-struct    MultiPDI              <:  AbstractProcess     end
 struct    Photo                 <:  AbstractProcess     end
 struct    PhotoDouble           <:  AbstractProcess     end
 struct    PhotoExc              <:  AbstractProcess     end
 struct    PhotoExcFluor         <:  AbstractProcess     end
 struct    PhotoExcAuto          <:  AbstractProcess     end
 struct    PhotoInPlasma         <:  AbstractProcess     end
-struct    PhotoIonFluor         <:  AbstractProcess     end
-struct    PhotoIonAuto          <:  AbstractProcess     end
 struct    Radiative             <:  AbstractProcess     end
 struct    Rec                   <:  AbstractProcess     end
 struct    ImpactExc             <:  AbstractProcess     end
@@ -2109,18 +2110,16 @@ struct    PairA1P               <:  AbstractProcess     end
 @doc "... Coulomb-ionization of target or projeticle electrons by fast, heavy ions."                                                           Coulion
 @doc "... di-electronic recombination, i.e. the dielectronic capture of a free electron and the subsequent emission of a photon."               Dierec
 @doc "... Double Auger rates."                                                                                                             DoubleAuger
-@doc "... di-electronic recombination, i.e. the dielectronic capture of a free electron and the subsequent emission of a photon."        ImpactExcAuto
+@doc "... electron-impact excitation with subsequent autoionization, i.e. an inner-shell electron is raised by electron impact to a " *
+     "level above the ionization threshold, which then autoionizes."                                                                    ImpactExcAuto
 @doc "... multi-photon excitation and decay rates, including 2-photon, etc. processes."                                                  MultiPhotonDE
 @doc "... multi-photon (single-electron) ionization."                                                                                          MultiPI
-@doc "... multi-photon (single-electron) double ionization."                                                                                  MultiPDI
 @doc "... Photoionization processes, i.e. the emission of a single free electron into the continuum due to an external light field."             Photo
 @doc "... Photo-double ionization rates."                                                                                                  PhotoDouble
 @doc "... Photoexcitation rates."                                                                                                             PhotoExc
 @doc "... photoexcitation fluorescence rates and cross sections."                                                                        PhotoExcFluor
 @doc "... photoexcitation autoionization cross sections and collision strengths."                                                         PhotoExcAuto
 @doc "... Photoionization processes but calculated for a specified plasma model."                                                        PhotoInPlasma
-@doc "... photoionization fluorescence rates and cross sections."                                                                        PhotoIonFluor
-@doc "... photoionization autoionization cross sections and collision strengths."                                                         PhotoIonAuto
 @doc "... Radiative (multipole) transitions between bound-state levels of the same charge state."                                            Radiative
 @doc "... radiative electron capture, i.e. the capture of a free electron with the simultaneous emission of a photon."                             Rec
 @doc "... electron-impact excitation cross sections and collision strengths."                                                                ImpactExc
@@ -2128,8 +2127,8 @@ struct    PairA1P               <:  AbstractProcess     end
     
 
 export  AbstractProcess, NoProcess, Auger, AugerInPlasma, Compton, Coulex, Coulion, Dierec, DoubleAuger, ElecCapture, 
-        ImpactExc, ImpactExcAuto, InternalConv, MultiPhotonDE, MultiPI, MultiPDI, Photo, PhotoDouble, PhotoExc, PhotoExcAuto, PhotoExcFluor, 
-        PhotoInPlasma, PhotoIonAuto, PhotoIonFluor, Radiative, RAuger, Rec, PairA1P, Coulion
+        ImpactExc, ImpactExcAuto, InternalConv, MultiPhotonDE, MultiPI, Photo, PhotoDouble, PhotoExc, PhotoExcAuto, PhotoExcFluor, 
+        PhotoInPlasma, Radiative, RAuger, Rec, PairA1P
 
 function Base.string(propc::NoProcess)          return( "no process" )                         end
 function Base.string(propc::Auger)              return( "Auger" )                              end
@@ -2143,7 +2142,6 @@ function Base.string(propc::ElecCapture)        return( "Electron capture" )    
 function Base.string(propc::ImpactExc)          return( "Electron-impact excitation" )         end
 function Base.string(propc::ImpactExcAuto)      return( "ImpactExcAuto" )                      end
 function Base.string(propc::InternalConv)       return( "InternalConv" )                       end
-function Base.string(propc::MultiPDI)           return( "multi-photon double ionization" )     end
 function Base.string(propc::MultiPhotonDE)      return( "multi-photon excitation & decay" )    end
 function Base.string(propc::MultiPI)            return( "multi-photon ionization" )            end
 function Base.string(propc::PairA1P)            return( "one-photon pair annihilation" )       end
@@ -2153,8 +2151,6 @@ function Base.string(propc::PhotoDouble)        return( "single-photon double io
 function Base.string(propc::PhotoExcFluor)      return( "Photo-Excitation-Fluoresence" )       end
 function Base.string(propc::PhotoExcAuto)       return( "Photo-Excitation-Autoionization" )    end
 function Base.string(propc::PhotoInPlasma)      return( "Photo in plasma" )                    end
-function Base.string(propc::PhotoIonFluor)      return( "Photo-Ionization-Fluoresence" )       end
-function Base.string(propc::PhotoIonAuto)       return( "Photo-Ionization-Autoionization" )    end
 function Base.string(propc::Radiative)          return( "Radiative" )                          end
 function Base.string(propc::RAuger)             return( "Radiative Auger" )                    end
 function Base.string(propc::Rec)                return( "Rec" )                                end

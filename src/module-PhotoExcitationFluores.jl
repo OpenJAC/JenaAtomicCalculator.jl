@@ -6,7 +6,8 @@
 module PhotoExcitationFluores 
 
 
-using Printf, ..AngularMomentum, ..AutoIonization, ..Basics, ..Defaults, ..ManyElectron, ..Radial, ..PhotoEmission, ..TableStrings
+using Printf, ..AngularMomentum, ..AutoIonization, ..Basics, ..Defaults, ..ManyElectron, ..Radial, ..PhotoEmission, ..PhotoExcitation,
+      ..Statistical, ..TableStrings
 
 """
 `struct  PhotoExcitationFluores.Settings  <:  AbstractProcessSettings`  
@@ -192,56 +193,78 @@ end
 
 """
 `PhotoExcitationFluores.computePhotonDm(pathway::PhotoExcitationFluores.Pathway, settings::PhotoExcitationFluores.Settings)`  
-    ... to compute the photon density matrix of the fluorescence photon in Coulomb gauge for the given pathway as well as 
-        for all the selected solid angles. An Float64 array A(n_solidAngles, 6) is returned with the following meaning:
-            (theta_1, phi_1, rho(1,1),  rho(1,-1),  rho(-1,1),  rho(-1,-1),         for array elements (n, 1..6)
-                theta_2, phi_2, rho(1,1),  rho(1,-1),  rho(-1,1),  rho(-1,-1), ... )
+    ... computes the density matrix of the fluorescence photon, in Coulomb gauge, for the given pathway and for all
+        selected solid angles.  An `dmArray::Array{ComplexF64,2}` of shape (n_solidAngles, 6) is returned, each row
+        holding (theta, phi, rho(1,1), rho(1,-1), rho(-1,1), rho(-1,-1)).
+
+        THE EXCITED ENSEMBLE IS NOW COMPUTED rather than assumed.  What decides the polarization of the fluorescence is
+        the alignment left behind by the excitation step, and that is taken from
+        `PhotoExcitation.computeExcitedLevelTensors` on the pathway's excitation channels, so this module and
+        `PhotoExcitation` describe the same excited atom.  Its sublevel density matrix is recovered with
+        `Statistical.densityMatrix`.
+
+        THE PHOTON AMPLITUDE IS ASSEMBLED EXPLICITLY, with no Racah reduction, for the same reason as in the excitation
+        step: at these angular momenta the sums cost nothing and their phases can be checked.  A photon emitted into
+        (theta,phi) with helicity lambda is described by rotating the multipole operator out of the beam frame,
+
+            M(M_e -> M_f, lambda)  =  SUM_(L)  i^(L+p) lambda^p A_L  conj(D^L_(M_e-M_f, lambda)(phi,theta,0))
+                                                <J_f M_f, L (M_e-M_f) | J_e M_e>
+
+        the projection being fixed at mu = M_e - M_f by the Clebsch-Gordan coefficient, and the photon density matrix
+        follows by summing over the unobserved final sublevels,
+
+            rho^gamma_(lambda lambda')  =  SUM_(M_f) SUM_(M_e,M_e') rho_e(M_e,M_e') M(M_e,M_f,lambda) conj(M(M_e',M_f,lambda')) .
 """
 function  computePhotonDm(pathway::PhotoExcitationFluores.Pathway, settings::PhotoExcitationFluores.Settings)
-    # Calculate an individual element of the photon density matrix at a given angle
-    function computePhotonDmElement(pathway, rho_kq::Float64, solidAngle::SolidAngle, lambda::Int64, lambdap::Int64)
-        meCoulomb = 0.0+0.0im;      meBabushkin = 0.0+0.0im;    Je = pathway.intermediateLevel.J;    Jf = pathway.finalLevel.J
+    Je = pathway.intermediateLevel.J;             Jf = pathway.finalLevel.J
+    Jex = AngularMomentum.oneJ(Je);               Jfx = AngularMomentum.oneJ(Jf)
+    MeList = AngularMomentum.m_values(Je);        MfList = AngularMomentum.m_values(Jf)
+
+    # The alignment left by the excitation step, and the sublevel density matrix it stands for
+    eKey    = Basics.LevelKey( LevelSymmetry(Je, pathway.intermediateLevel.parity), pathway.intermediateLevel.index,
+                               pathway.intermediateLevel.energy, 1.)
+    tensors = PhotoExcitation.computeExcitedLevelTensors( Int64(round(2*Jex)), pathway.initialLevel.J, eKey,
+                                                         pathway.excitChannels, settings.incidentStokes, Basics.Coulomb)
+    rhoE    = length(tensors) == 0 ? Dict{Tuple{AngularM64,AngularM64},ComplexF64}() : Statistical.densityMatrix(tensors)
+
+    # The emission amplitude into (theta,phi) with helicity lambda
+    function emissionAmplitude(Me::AngularM64, Mf::AngularM64, lambda::Int64, solidAngle::SolidAngle)
+        mu = AngularMomentum.oneM(Me) - AngularMomentum.oneM(Mf)
+        wa = ComplexF64(0.)
         for  ch in pathway.fluorChannels
-            L = ch.multipole.L;   if  ch.multipole.electric  p = 1   else   p = 0   end
-            for  chp in pathway.fluorChannels
-                Lp = chp.multipole.L;   if  chp.multipole.electric  pp = 1   else   pp = 0   end
-                for  k = 0:10
-                    if  !AngularMomentum.isTriangle(L, Lp, k)  ||   !AngularMomentum.isTriangle(Je, Je, AngularJ64(k))    continue    end
-                    ## COULOMB ONLY, exactly as before: this function computes meCoulomb and never had a
-                    ## Babushkin counterpart, so the amplitudes' Coulomb component is taken and the
-                    ## Babushkin one deliberately left unused rather than silently starting to print it.
-                    for  q = 0:10
-                        for  qp = 0:10
-                            if  lambda - lambdap  != -qp    continue    end
-                            meCoulomb = meCoulomb + AngularMomentum.Wigner_DFunction(k,-q,qp, solidAngle.phi, solidAngle.theta, 0.0) * rho_kq *
-                                                    im^(Lp + pp  - L - p) * lambda^p * lambdap^pp * sqrt((2L+1)*(2Lp+1))                      *
-                                                    (-1)^(Basics.twice(Jf)/2 + Basics.twice(Je)/2 + k+q+1)                                    *
-                                                    AngularMomentum.ClebschGordan(L, lambda, Lp, -lambdap, k, -qp)                            * 
-                                                    AngularMomentum.Wigner_6j(L, Lp, k, Je, Je, Jf)                                           *
-                                                    ch.amplitude.Coulomb * conj(chp.amplitude.Coulomb)
-                        end
-                    end
+            L = ch.multipole.L;    p = ch.multipole.electric ? 1 : 0
+            if  abs(mu) > L    continue    end
+            cg = AngularMomentum.ClebschGordan(Jfx, AngularMomentum.oneM(Mf), 1.0*L, mu, Jex, AngularMomentum.oneM(Me))
+            if  cg == 0.    continue    end
+            wa = wa + (1.0im)^(L + p) * lambda^p * ch.amplitude.Coulomb * cg *
+                      conj( AngularMomentum.Wigner_DFunction(L, mu, 1.0*lambda, solidAngle.phi, solidAngle.theta, 0.0) )
+        end
+
+        return( wa )
+    end
+
+    function photonDmElement(solidAngle::SolidAngle, lambda::Int64, lambdap::Int64)
+        wa = ComplexF64(0.)
+        for  Mf in MfList
+            for  Me in MeList
+                for  Mep in MeList
+                    if  !haskey(rhoE, (Me,Mep))    continue    end
+                    wa = wa + rhoE[(Me,Mep)] * emissionAmplitude(Me, Mf, lambda, solidAngle) *
+                              conj( emissionAmplitude(Mep, Mf, lambdap, solidAngle) )
                 end
             end
         end
-        meCoulomb = 2*pi * meCoulomb
-        
-        return( meCoulomb, meBabushkin )
+
+        return( 2pi * wa )
     end
-    
+
     dmArray = zeros(ComplexF64, length(settings.solidAngles), 6)
-    # Calculate rho_kq (alpha_e, J_e) of the excited level
-    @warn("Statistical tensors of the excited atoms are not yet implemeneted here.")
-    rho_kq = 2.0
-    # Compute in turn all the corresponding photon density matrix elements
     for  (s, solidAngle) in enumerate(settings.solidAngles)
-        dmArray[s,1] = solidAngle.theta;    dmArray[s,2] = solidAngle.phi    
-        dmArray[s,3] = computePhotonDmElement(pathway, rho_kq, solidAngle, 1, 1)[1]   
-        dmArray[s,4] = computePhotonDmElement(pathway, rho_kq, solidAngle, 1,-1)[1]   
-        dmArray[s,5] = computePhotonDmElement(pathway, rho_kq, solidAngle,-1, 1)[1]  
-        dmArray[s,6] = computePhotonDmElement(pathway, rho_kq, solidAngle,-1,-1)[1]   
+        dmArray[s,1] = solidAngle.theta;                    dmArray[s,2] = solidAngle.phi
+        dmArray[s,3] = photonDmElement(solidAngle,  1,  1); dmArray[s,4] = photonDmElement(solidAngle,  1, -1)
+        dmArray[s,5] = photonDmElement(solidAngle, -1,  1); dmArray[s,6] = photonDmElement(solidAngle, -1, -1)
     end
-    
+
     return( dmArray )
 end
 
@@ -275,7 +298,6 @@ function  computePathways(finalMultiplet::Multiplet, intermediateMultiplet::Mult
     # Calculate the photon density matrix of the fluorescence photon if needed and display all requested properties
     # These calculations are done in turn for all selected pathways
     if  settings.calcPhotonDm  ||  settings.calcAngular  ||  settings.calcStokes
-        @warn("Statistical tensors of the excited atoms are not yet implemeneted here.")
         for  pathway in newPathways
             dmArray = PhotoExcitationFluores.computePhotonDm(pathway, settings) 
             PhotoExcitationFluores.displayPhotonDm(stdout, pathway, dmArray, settings)

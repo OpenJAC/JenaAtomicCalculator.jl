@@ -199,11 +199,16 @@ end
 #################################################################################################################################
 
 """
-`AutoIonization.amplitude(kind::AbstractEeInteraction, kappa::Int64, phase::Float64, continuumLevel::Level, initialLevel::Level, 
-                            grid::Radial.Grid; printout::Bool=true)`  
+`AutoIonization.amplitude(kind::AbstractEeInteraction, kappa::Int64, phase::Float64, continuumLevel::Level, initialLevel::Level,
+                            grid::Radial.Grid; printout::Bool=true)`
     ... to compute the kind in  CoulombInteraction(), BreitInteraction(), CoulombBreit(), CoulombGaunt()   Auger amplitude <(alpha_f J_f,
         kappa) J_i || O^(Auger, kind) || alpha_i J_i>  due to the interelectronic interaction for the given final and initial level. A
         value::ComplexF64 is returned.
+
+        THIS IS THE OUTGOING-WAVE (decay) amplitude, and its phase convention belongs to that direction: the real reduced matrix element is
+        multiplied by i^l exp(-i phase).  For the reverse, i.e. for the DIELECTRONIC CAPTURE of a free electron, do NOT take the complex
+        conjugate of this value -- use `AutoIonization.captureAmplitude`, whose docstring explains why the two differ by (-1)^l and when
+        that matters.
 """
 function amplitude(kind::AbstractEeInteraction, kappa::Int64, phase::Float64, continuumLevel::Level, initialLevel::Level, grid::Radial.Grid; 
                     printout::Bool=true)
@@ -270,6 +275,41 @@ function amplitude(kind::AbstractEeInteraction, kappa::Int64, phase::Float64, co
     end
 
     return( amplitude )
+end
+
+
+"""
+`AutoIonization.captureAmplitude(kind::AbstractEeInteraction, kappa::Int64, phase::Float64, continuumLevel::Level, initialLevel::Level,`
+                                 `grid::Radial.Grid; printout::Bool=true)`
+    ... to compute the DIELECTRONIC-CAPTURE amplitude <alpha_i J_i || O^(capture, kind) || (alpha_f J_f, kappa) J_i>, i.e. the amplitude for
+        the reverse of the Auger decay computed by `AutoIonization.amplitude`, in the INCOMING-WAVE convention.  A value::ComplexF64 is
+        returned.
+
+        WHY THIS EXISTS, AND WHY conj(amplitude) IS NOT IT.  A continuum orbital in JAC is real; the physics of a given direction sits in
+        the phase factor that each caller attaches to it, and JAC does not use one convention throughout:
+
+            AutoIonization.amplitude       multiplies the real reduced matrix element by  i^l exp(-i phase)   (outgoing wave)
+            PhotoRecombination.amplitude   multiplies its own reduced matrix element by   i^l exp(+i phase)   (incoming wave)
+
+        The capture amplitude has to describe the SAME scattering state |c> = i^l exp(+i phase)|real orbital> that a recombination amplitude
+        describes, so it is the Auger amplitude with its phase factor turned round,
+
+            captureAmplitude = amplitude * exp(2 i phase)  =  i^l exp(+i phase) * M   with M real,
+
+        whereas  conj(amplitude) = (-i)^l exp(+i phase) * M  differs from it by (-1)^l.
+
+        That factor is harmless in any quantity that squares the amplitude, which is why `ElectronCapture.amplitude` may take the conjugate
+        and still obtain correct capture RATES, and why the discrepancy went unnoticed.  It is NOT harmless when a capture amplitude is
+        added COHERENTLY to another amplitude -- as in the interference of dielectronic with radiative recombination -- because (-1)^l
+        depends on the partial wave and therefore reweights the partial waves against one another inside the coherent sum rather than
+        producing an overall sign.  Use this function, and not a conjugate, whenever the result is to be added to something rather than
+        squared.
+"""
+function captureAmplitude(kind::AbstractEeInteraction, kappa::Int64, phase::Float64, continuumLevel::Level, initialLevel::Level,
+                          grid::Radial.Grid; printout::Bool=true)
+    wa = AutoIonization.amplitude(kind, kappa, phase, continuumLevel, initialLevel, grid; printout=printout) * exp( 2im * phase )
+
+    return( wa )
 end
 
 

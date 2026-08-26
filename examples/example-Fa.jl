@@ -17,11 +17,18 @@ grid = Radial.Grid(Radial.Grid(false), rnt = 4.0e-6, h = 5.0e-2, hp = 0.6e-2, rb
 # approaches and should be re-run. Cascade.RefinedSCA() is now also defined (block CI + per-charge-state
 # orbitals + continuum orbitals resolved per fine-structure transition) but its continuum half is not yet
 # implemented, so it currently behaves as SCA.
+#
+# STORED CASCADE DATA GOES STALE. Branch c reads the .jld that branch a or b wrote, and on 23-Aug-2026 the
+# file it had been pointed at (from 04-Aug) could no longer be loaded at all: Radial.Grid has since been
+# restructured into three sub-structs with a Base.getproperty shim, which keeps the old field names working
+# in SOURCE but not in a serialized file, so JLD2 rebuilds the stored grid as a ReconstructedMutable and
+# cannot convert it to an Orbital. Branch c therefore no longer carries a pasted file name; it takes the
+# newest .jld in example-Fa.dat, and re-running branch a or b is the whole of the repair.
 
 
 if  false
-    # Last visit:      04-Aug-2026
-    # Last successful: unknown ... not yet verified against literature
+    # Last visit:      23-Aug-2026
+    # Last successful: 23-Aug-2026
     #
     # Branch a: FAST reference case -- the K-shell hole of Mg^+ (1s^1 2s^2 2p^6 3s^2, 11 electrons), decaying
     #   by a SINGLE electron emission (maxElectronLoss = 1). This is deliberately the same physical system as
@@ -43,9 +50,66 @@ if  false
     #   * The Auger groups are ordered correctly and consistently ~0.5% low: KL1L1 1083, KL1L2,3 1123-1133,
     #     KL2,3L2,3 1163-1170, KL1M1 1187, KL2,3M1 1231, KM1M1 1271 eV. The ordering is the physical one --
     #     the further out the two final holes sit, the less binding energy is released to the electron.
-    #   * Not yet dated "Last successful": the K-alpha agreement is a genuine literature check, but the Auger
-    #     energies have only been checked for ordering and internal consistency, not against measured KLL
-    #     values, and no rate or yield has been compared with anything.
+    #
+    # REPORT (23-Aug-2026): the rate check that was missing above has now been made, and it is the one thing
+    # here that does NOT come out well. Warm cost 9.1 s; the 40 s above was a COLD first run of a session,
+    # which pays the compilation of the whole cascade path and is not comparable with a warm number.
+    #   Summing the rates OUT OF the K-hole block gives the K fluorescence yield and the K level width
+    #   directly, and both of those are measured quantities:
+    #       A_r(K-alpha) = 1.545e13 /s (Babushkin), 1.676e13 /s (Coulomb)
+    #       A_a(total)   = 2.931e14 /s over all six Auger groups
+    #       omega_K      = 0.050 (Bab), 0.054 (Coul)     against a measured 0.030
+    #       Gamma_K      = 0.203 eV, tau = 3.24 fs       against a measured 0.36 eV, 1.83 fs
+    #   * The RADIATIVE side is right: Gamma_r = 0.0102 eV against omega_K * Gamma_K = 0.030 * 0.36 =
+    #     0.0108 eV, i.e. 6% low. The E1 amplitude and the K-alpha energy are both sound.
+    #   * The AUGER side is short by a factor ~1.8, and that one deficit is the whole of the yield error.
+    #     The channel set is complete, and the INTERNAL pattern of KL2,3L2,3 is right: its two J=2 lines
+    #     carry 6.2e13 while the J=0 and J=1 lines are down by 10^3 and 10^5, which is the 1D dominance one
+    #     expects. What is wrong is the SIZE of that group. The computed KLL split is
+    #     KL1L1 : KL1L2,3 : KL2,3L2,3 = 0.27 : 0.50 : 0.23, whereas the measured low-Z pattern has
+    #     KL2,3L2,3 DOMINANT at about 0.6. Giving that group its experimental share would also close the
+    #     factor-1.8 gap in the total, so both discrepancies are consistent with a single cause there.
+    #   * It is NOT the continuum normalization. Re-running with "pure Coulomb" in place of "pure sine"
+    #     moves the total Auger rate from 2.9308e14 to 2.9339e14 /s -- 0.1%. That candidate is excluded.
+    #   * It is NOT the orbital relaxation either. Branches d and e climb the approach ladder and the yield
+    #     gets WORSE, not better: 0.050 -> 0.062 -> 0.065 against the measured 0.030.
+    #   TWO SUSPECTS REMAIN, and the first version of this note named only one.
+    #     (i) MISSING CORRELATION. All three tiers carry at most five CSFs per block and so almost no
+    #         configuration mixing -- exactly what a CI-enabled approach would test.
+    #     (ii) THE TWO-PARTICLE ANGULAR COEFFICIENTS THEMSELVES. An Auger matrix element moves two bound
+    #         electrons, so it is built from spin-angular coefficients for CSF pairs differing in two shells.
+    #         Note the shape of what is measured: the ONE-particle quantity here, the radiative width, is right
+    #         to 6%, while the TWO-particle one is low by 1.8x with its internal branching pattern wrong.
+    #     WHAT HAS BEEN CHECKED, 24-Aug-2026, and what that check cannot do. A reference-free structural test --
+    #     for two CSFs of equal J the orbit invariant of the two-particle coefficients must be identical for
+    #     (A,B) and (B,A) -- was run over SpinAngular across eight configurations: 9050 equal-occupation, 18580
+    #     one-electron-move and 7685 TWO-OR-MORE-ELECTRON-MOVE invariants, zero asymmetric, worst deviation
+    #     0.0e+00. That removes one class of defect and NOTHING MORE. Hermiticity is necessary and not
+    #     sufficient: it sees only errors that are asymmetric under exchanging bra and ket, and is blind to a
+    #     uniform scale error on a family of coefficients or to a family missing from both directions -- which
+    #     are precisely the two shapes that would produce what is measured here. "Not asymmetric" is a much
+    #     weaker statement than "verified" and must not be recorded as one.
+    #     NARROWED, later on 24-Aug-2026, and narrowed AGAINST suspect (ii) rather than for it. A candidate
+    #     mechanism had been named: a rank-1 coefficient silently DROPPED when the donor subshell is closed in the
+    #     ket -- which describes this K hole exactly, since 2s and 2p are both closed here. It is a real failure
+    #     mode, found in a reconstruction being built beside this work. But SpinAngular was then tested for it in
+    #     the ONE-electron-move region, on two configurations that meet precisely that condition
+    #     (1s^2 2s^2 3s vs 1s 2s^2 3s^2, and 1s^2 2s^2 2p^4 vs 1s^2 2s 2p^5), and does NOT have it: 14 and 8
+    #     coefficients, worst ratio 1.000000000000, against an implementation that carried the bug an hour earlier
+    #     and had been corrected -- so the agreement is mutual corroboration and not a shared convention.
+    #     If suspect (ii) exists at all it must therefore live specifically in the TWO-electron-move machinery,
+    #     which is the one region still unreached.
+    #     AND THE STEP FROM A COEFFICIENT TO A RATE IS NOT ONE-TO-ONE, which is worth stating before anyone
+    #     reasons from ratios. A rate goes as the SQUARE of an amplitude, and that amplitude is a SUM over many
+    #     coefficients: a single dropped term can shift it by anything from nothing to a factor of four depending
+    #     on its weight and its sign against the others, and it does not scale a group uniformly, which is what
+    #     the branching pattern here would require. "A factor of two in a coefficient" and "1.8 in a total width"
+    #     are different claims and their numerical closeness is not an argument. If a discrepancy is ever found,
+    #     the rate must be RECOMPUTED from the corrected coefficients, not inferred from the ratio.
+    #     Separating (i) from (ii) needs an INDEPENDENT RECONSTRUCTION of those coefficients, which does not
+    #     exist for the two-electron-move case. Until it does, neither suspect is excluded.
+    #   Dated on the energies, which are verified against the literature. A YIELD OR A LIFETIME MUST NOT BE
+    #   QUOTED FROM THIS BRANCH: omega_K is about twice the measured value and tau is 1.8x too long.
     #
     # EFFICIENCY FINDING worth acting on: steps 22 and 24 decay the 1s hole to the 2s-hole and 3s-hole
     # configurations, i.e. they are one-electron 2s -> 1s and 3s -> 1s transitions. Both are E1-forbidden
@@ -70,8 +134,8 @@ if  false
     setDefaults("print summary: close", "")
     #
 elseif  false
-    # Last visit:      04-Aug-2026
-    # Last successful: unknown ... never verified; see the cost note below
+    # Last visit:      23-Aug-2026
+    # Last successful: unknown ... deliberately not re-run; see the cost note below
     #
     # Branch b: 1s INNER-SHELL IONIZED Si^-, decaying with up to TWO emitted electrons.
     #
@@ -91,6 +155,14 @@ elseif  false
     # 3p shell (3p^3 rather than 3p^4), which cuts the number of CSFs sharply, and AverageSCA is again the
     # single-CSF approximation it is defined to be rather than the CI hybrid it had drifted into.
     # The .jld written by this branch feeds branch c.
+    #
+    # NOT RE-RUN on 23-Aug-2026, deliberately. Two reasons, and the second is the binding one. Its stored
+    # output from 04-Aug can no longer be loaded at all (the Radial.Grid refactor; see the head of this
+    # file), so the 19 minutes would have to be paid again from scratch. And 233 steps over 946 levels with
+    # 44000 lines needs several GB, which this machine does not have free -- a much smaller run was
+    # OOM-killed the same afternoon while writing its results. Branch c was therefore run against branch a's
+    # data instead, which is what its own text already allows. This branch remains the file's occasional
+    # benchmark, and it needs a machine with room.
     setDefaults("print summary: open", "zzz-Cascade-Si-1s-ionized.sum")
 
     name   = "Stepwise decay after Si- 1s ionization"
@@ -104,8 +176,8 @@ elseif  false
     setDefaults("print summary: close", "")
     #
 elseif  false
-    # Last visit:      04-Aug-2026
-    # Last successful: unknown ... not yet run
+    # Last visit:      23-Aug-2026
+    # Last successful: 23-Aug-2026
     #
     # Branch c: the SIMULATION half -- take the amplitudes computed by branch a (or b) and derive the final
     #   ion distribution from them. This is the separation the concept papers insist on: the expensive
@@ -132,15 +204,39 @@ elseif  false
     #   long since disappeared. The filename is now a variable that has to be set to the file branch a
     #   actually wrote; a cascade computation prints that name at the end of its run, in the form
     #   zzz-cascade-decay-computations-<YYYY-MM-DDTHH>.jld.
+    #
+    # REPORT (23-Aug-2026): 4.3 s. Run against branch a/d/e's Mg data rather than branch b's Si^- data,
+    # since the 04-Aug file no longer loads and branch b is too large for this machine; the branch takes
+    # whichever computation ran last, and prints the file it chose. On the Mg K hole with
+    # maxElectronLoss = 1 (RefinedSCA orbitals) the propagation converges in 6 rounds and gives
+    #       11 electrons  7.30642e-05          10 electrons  9.99927e-01      total  1.00000
+    # and that first number is worth more than it looks. With only one electron allowed to leave, an ion
+    # can still hold 11 electrons ONLY if the K hole radiated AND the 2p hole it left behind radiated too,
+    # so the answer must factorise into two branchings that are computable from the rate tables alone.
+    # It does, EXACTLY, but only when the fine structure is kept:
+    #       2p-hole J=3/2 :  b_K = 0.041655   omega_L = 6.1480e-04   product 2.5609e-05
+    #       2p-hole J=1/2 :  b_K = 0.020963   omega_L = 2.2637e-03   product 4.7455e-05
+    #                                                          sum   7.306409e-05   vs  7.30642e-05
+    # i.e. agreement to 1e-6. The product of the TOTALS gives 6.07e-05 and is simply the wrong quantity:
+    # the J=1/2 hole takes only a third of the K-alpha intensity but contributes two thirds of the
+    # survivors, because its Auger rate is 3.7x smaller than the J=3/2 one. So this branch checks that the
+    # propagation resolves fine structure correctly and not merely that probabilities sum to one -- and it
+    # also settles which gauge the simulation uses, since the identity holds in Coulomb and not Babushkin.
+    #
+    # The Si^- numbers recorded below are from 04-Aug and are kept for reference; they cannot be
+    # reproduced without re-running branch b.
     setDefaults("print summary: open", "zzz-Cascade-simulation.sum")
 
-    dataFilename = "example-Fa.dat/zzz-cascade-decay-computations-2026-08-04T16.jld"   ## <-- from branch b
-    if  !isfile(dataFilename)
-        error("Branch c needs the .jld file written by branch a (or b); set dataFilename to the name that " *
-              "the cascade computation printed at the end of its run. Looked for: $dataFilename")
-    end
+    # The .jld file written by branch a or b. Its name carries the run time, so it is LOOKED UP here rather
+    # than pasted in: a hand-copied name goes stale silently, and a file written before the Radial.Grid
+    # refactor cannot be deserialized at all -- see the note at the head of this file.
+    dataDir      = "example-Fa.dat"
+    dataFiles    = isdir(dataDir) ? filter(f -> startswith(f, "zzz-cascade-decay-computations"), readdir(dataDir)) : String[]
+    if  isempty(dataFiles)   error("Run branch a or b first; no cascade .jld file found in $dataDir")   end
+    dataFilename = joinpath(dataDir, sort(dataFiles, by = f -> mtime(joinpath(dataDir, f)))[end])
+    println(">> reading cascade data from  $dataFilename")
     data = [JLD2.load(dataFilename)]
-    name = "Simulation of the Si- K-hole decay"
+    name = "Simulation of the K-hole decay computed above"
 
     # The API had drifted twice since this branch was written, on top of the JLD/JLD2 breakage:
     #   * Cascade.Simulation takes a SINGLE `property`, not a `properties` array;
@@ -159,8 +255,8 @@ elseif  false
     #
     #
 elseif  false
-    # Last visit:      04-Aug-2026
-    # Last successful: unknown ... not yet verified against literature
+    # Last visit:      23-Aug-2026
+    # Last successful: 23-Aug-2026
     #
     # Branch d: THE SAME Mg K-hole system as branch a, but one tier up the approach hierarchy --
     #   Basics.SCA() instead of Cascade.AverageSCA(). Everything else is held fixed on purpose: same nucleus,
@@ -179,8 +275,30 @@ elseif  false
     #   "AverageSCA vs SCA-as-implemented", not "vs SCA-as-defined", and it changes two axes at once (level
     #   representation AND bound orbitals) rather than one. That is a property of the current code, not of the
     #   comparison, and it is exactly the inconsistency the bound-orbital work is meant to remove.
-    # REPORT (04-Aug-2026): 66.6 s against branch a's 40 s, i.e. SCA costs ~1.7x here. It is the first time
-    # SCA has ever been executed in JAC.
+    # REPORT (23-Aug-2026): THE 04-AUG REPORT BELOW NO LONGER HOLDS, and the change is real rather than a
+    # mis-reading. Warm, in one session, the ladder costs 9.1 s (AverageSCA), 16.1 s (SCA), 25-30 s
+    # (RefinedSCA) -- so the 1.7x factor recorded below is CONFIRMED as a ratio (16.1/9.1 = 1.77), and only
+    # the absolute seconds were wrong, having been measured cold.
+    #   The K-alpha, however, has moved. Today:
+    #       AverageSCA  1247.72 / 1247.49 eV      -5.9 eV against the measured 1253.69 / 1253.44
+    #       SCA         1264.01 / 1263.72 eV     +10.4 eV
+    #       RefinedSCA  1255.28 / 1254.99 eV      +1.6 eV
+    #   so the ladder is NOT monotonic, and SCA now OVERSHOOTS by more than AverageSCA undershoots. The
+    #   block energies say exactly what changed:
+    #       block 10, the initial 1s hole   : -4129 (AverageSCA)   -4120 (SCA)   -4129 (RefinedSCA)
+    #       block  2, the 2p-hole final st. : -5376 (AverageSCA)   -5384 (SCA)   -5384 (RefinedSCA)
+    #   The 04-Aug note below states that the initial block is "-4129 eV in BOTH branches, unchanged", and
+    #   that is no longer true of SCA: it now moves that block up by 9 eV on top of the 8 eV the final state
+    #   relaxes, and the two add rather than cancel. RefinedSCA is what leaves the initial block alone and
+    #   relaxes only the final one -- so the clean relaxation mechanism described below is now delivered by
+    #   branch e, and the credit belongs there. The cause is not in the cascade code: a dozen SCF commits
+    #   land between 04-Aug and today, among them a missing chain-rule factor in the one-electron gradient,
+    #   Loewdin in place of Gram-Schmidt for the same-kappa orthogonalisation, and a corrected convergence
+    #   test -- and SCA is the tier that runs a separate self-consistent field per block, so it is precisely
+    #   the tier they act on. Rates do NOT improve up the ladder; see branch a.
+    #
+    # REPORT (04-Aug-2026, SUPERSEDED): 66.6 s against branch a's 40 s, i.e. SCA costs ~1.7x here. It is the
+    # first time SCA has ever been executed in JAC.
     #   * K-alpha moves from 1247-1248 eV (branch a) to 1255 eV, against the measured 1253.6 eV. The error
     #     drops from about -6 eV to +1.4 eV, a factor ~4. So the hierarchy's central claim -- that the next
     #     tier up is genuinely better -- holds here, and is now measured rather than asserted.
@@ -216,8 +334,8 @@ elseif  false
     #
     #
 elseif  true
-    # Last visit:      05-Aug-2026
-    # Last successful: unknown ... not yet verified against literature
+    # Last visit:      23-Aug-2026
+    # Last successful: 23-Aug-2026
     #
     # Branch e: the SAME Mg K-hole system again, one further tier up -- Cascade.RefinedSCA(). Together with
     #   branches a (AverageSCA) and d (SCA) this gives the whole implemented ladder on identical physics, so
@@ -228,6 +346,18 @@ elseif  true
     #   fine-structure transition, is NOT implemented; the run warns and proceeds with one set per step. That
     #   missing half affects Auger RATES only -- no level energy depends on the continuum orbital -- so the
     #   transition energies compared below are unaffected by the omission.
+    #
+    # REPORT (23-Aug-2026): 25-30 s warm, i.e. ~3x branch a. THIS IS THE BEST OF THE THREE TIERS ON THE ONE
+    # quantity that has a measurement: K-alpha comes out at 1255.28 / 1254.99 eV against 1253.69 / 1253.44,
+    # i.e. +1.6 eV or 0.13%, where AverageSCA is -5.9 eV and SCA +10.4 eV. The block energies show why, and
+    # it is the mechanism branch d's 04-Aug note describes and no longer achieves: RefinedSCA leaves the
+    # initial 1s-hole block at -4129 eV, exactly where AverageSCA has it, and relaxes the 2p-hole final
+    # state from -5376 to -5384 eV. Final-state relaxation alone, cleanly isolated, with nothing added to
+    # the initial state -- which is what a K-alpha energy should be sensitive to.
+    #   The RATES do not follow. omega_K comes out at 0.065 (Bab) against a measured 0.030, the WORST of the
+    #   three tiers, because the total Auger width falls to 2.56e14 /s while the radiative width rises only
+    #   to 1.76e13 /s. So relaxing the bound orbitals buys the transition ENERGY and not the transition
+    #   PROBABILITY, and the Auger deficit analysed in branch a survives the whole ladder untouched.
     setDefaults("print summary: open", "zzz-Cascade-Mg-Khole-RefinedSCA.sum")
 
     name   = "Stepwise decay after Mg 1s ionization (RefinedSCA)"

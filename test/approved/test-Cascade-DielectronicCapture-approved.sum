@@ -1,0 +1,525 @@
+Summary file opened at 2026-08-23T15:55: 
+========================================   
+
+
+  Level energies:  
+
+  Level  J Parity    Total [Hartree]           Total [eV]               Total [eV]            To lower [eV]        To lowest [eV]   
+
+     1    0 +      -3.237281999253e+01      -8.809093013727e+02      -8.809093013727e+02      0.000000000e+00      0.000000000e+00   
+
+* Generate blocks for DR plasma rate coefficient computations: 
+
+  In the cascade approach JenaAtomicCalculator.Basics.AverageSCA(), the following assumptions/simplifications are made: 
+    + orbitals are generated independently for the first block in a Dirac-Fock-Slater potential; 
+    + these orbitals are re-used for all other block, together with hydrogenic orbitals for the outer part; 
+    + all blocks (multiplets) are generated from single-CSF levels and without any configuration mixing even in the SC; 
+    + only the Coulomb interaction is considered for the electron capture. 
+    + only E1 excitations are considered for the stabilization. 
+
+  Multiplet computations for 1s^2    with 2 electrons ... 
+
+  Level energies:  
+
+  Level  J Parity    Total [Hartree]           Total [eV]               Total [eV]            To lower [eV]        To lowest [eV]   
+
+     1    0 +      -3.237281999253e+01      -8.809093013727e+02      -8.809093013727e+02      0.000000000e+00      0.000000000e+00   
+
+* Generate blocks for DR plasma rate coefficient computations: 
+
+  In the cascade approach JenaAtomicCalculator.Basics.AverageSCA(), the following assumptions/simplifications are made: 
+    + orbitals are generated independently for the first block in a Dirac-Fock-Slater potential; 
+    + these orbitals are re-used for all other block, together with hydrogenic orbitals for the outer part; 
+    + all blocks (multiplets) are generated from single-CSF levels and without any configuration mixing even in the SC; 
+    + only the Coulomb interaction is considered for the electron capture. 
+    + only E1 excitations are considered for the stabilization. 
+
+  Multiplet computations for 1s^1 2s^1    with 2 electrons ... 
+
+  Level energies:  
+
+  Level  J Parity    Total [Hartree]           Total [eV]               Total [eV]            To lower [eV]        To lowest [eV]   
+
+     1    1 +      -2.142130015864e+01      -5.829032676672e+02      -5.829032676672e+02      0.000000000e+00      0.000000000e+00   
+     2    0 +      -2.120793798394e+01      -5.770973871693e+02      -5.770973871693e+02      5.805880498e+00      5.805880498e+00   
+  Multiplet computations for 1s^1 2p^1    with 2 electrons ... 
+
+* Generate blocks for DR plasma rate coefficient computations: 
+
+  In the cascade approach JenaAtomicCalculator.Basics.AverageSCA(), the following assumptions/simplifications are made: 
+    + orbitals are generated independently for the first block in a Dirac-Fock-Slater potential; 
+    + these orbitals are re-used for all other block, together with hydrogenic orbitals for the outer part; 
+    + all blocks (multiplets) are generated from single-CSF levels and without any configuration mixing even in the SC; 
+    + only the Coulomb interaction is considered for the electron capture. 
+    + only E1 excitations are considered for the stabilization. 
+
+  Multiplet computations for 1s^1 2s^2    with 3 electrons ... 
+
+  Level energies:  
+
+  Level  J Parity    Total [Hartree]           Total [eV]               Total [eV]            To lower [eV]        To lowest [eV]   
+
+     1    1/2 +    -2.394907285221e+01      -6.516874662027e+02      -6.516874662027e+02      0.000000000e+00      0.000000000e+00   
+  Multiplet computations for 1s^1 2s^1 2p^1    with 3 electrons ... 
+  Multiplet computations for 1s^1 2p^2    with 3 electrons ... 
+
+* A total of 9 steps are still defined in the cascade.
+
+  1) Perform Auger amplitude computations for up to 1 decay lines (without selection rules): 
+ 
+  Auger rates (without angular parameters): 
+
+  ----------------------------------------------------------------------------------------------------------
+       i-level-f           i--J^P--f           Energy      Electron energy    Auger rate        alpha_2      
+                                                [eV]             [eV]            [1/s]                        
+  ----------------------------------------------------------------------------------------------------------
+         1 --    1       1/2 + --> 0 +      -6.516875e+02    2.292218e+02    7.285983e+13       0.0000e+00    
+  ----------------------------------------------------------------------------------------------------------
+     Step 1:: A total of 1 Auger lines are calculated, giving now rise to a total of 1 Auger decay lines.
+
+  2) Perform Auger amplitude computations for up to 2 decay lines (without selection rules): 
+
+  3) Perform Auger amplitude computations for up to 4 decay lines (without selection rules): 
+
+  4) Perform Auger amplitude computations for up to 7 decay lines (without selection rules): 
+ 
+  Auger rates (without angular parameters): 
+
+  ----------------------------------------------------------------------------------------------------------
+       i-level-f           i--J^P--f           Energy      Electron energy    Auger rate        alpha_2      
+                                                [eV]             [eV]            [1/s]                        
+  ----------------------------------------------------------------------------------------------------------
+         1 --    1       5/2 - --> 0 +      -6.483781e+02    2.325312e+02    0.000000e+00       0.0000e+00    
+         2 --    1       1/2 - --> 0 +      -6.472549e+02    2.336545e+02    8.875815e+12       0.0000e+00    
+         3 --    1       3/2 - --> 0 +      -6.438140e+02    2.370953e+02    3.581108e+12       0.0000e+00    
+         4 --    1       3/2 - --> 0 +      -6.426433e+02    2.382660e+02    4.468262e+12       0.0000e+00    
+         5 --    1       1/2 - --> 0 +      -6.396825e+02    2.412268e+02    8.303085e+11       0.0000e+00    
+         6 --    1       3/2 - --> 0 +      -6.396589e+02    2.412504e+02    1.594950e+13       0.0000e+00    
+         7 --    1       1/2 - --> 0 +      -6.392025e+02    2.417068e+02    7.094859e+13       0.0000e+00    
+  ----------------------------------------------------------------------------------------------------------
+     Step 4:: A total of 7 Auger lines are calculated, giving now rise to a total of 8 Auger decay lines.
+
+  5) Perform Auger amplitude computations for up to 14 decay lines (without selection rules): 
+
+  6) Perform Auger amplitude computations for up to 28 decay lines (without selection rules): 
+
+  7) Perform Auger amplitude computations for up to 8 decay lines (without selection rules): 
+ 
+  Auger rates (without angular parameters): 
+
+  ----------------------------------------------------------------------------------------------------------
+       i-level-f           i--J^P--f           Energy      Electron energy    Auger rate        alpha_2      
+                                                [eV]             [eV]            [1/s]                        
+  ----------------------------------------------------------------------------------------------------------
+         1 --    1       5/2 + --> 0 +      -6.324902e+02    2.484191e+02    1.484311e+12       0.0000e+00    
+         2 --    1       3/2 + --> 0 +      -6.317327e+02    2.491766e+02    2.602179e+13       0.0000e+00    
+         3 --    1       5/2 + --> 0 +      -6.303797e+02    2.505296e+02    2.976759e+12       0.0000e+00    
+         4 --    1       3/2 + --> 0 +      -6.293611e+02    2.515482e+02    1.561935e+13       0.0000e+00    
+         5 --    1       1/2 + --> 0 +      -6.288441e+02    2.520652e+02    3.413591e+13       0.0000e+00    
+         6 --    1       1/2 + --> 0 +      -6.287499e+02    2.521594e+02    2.523303e+07       0.0000e+00    
+         7 --    1       3/2 + --> 0 +      -6.275830e+02    2.533263e+02    2.079123e+13       0.0000e+00    
+         8 --    1       1/2 + --> 0 +      -6.259347e+02    2.549746e+02    6.835819e+13       0.0000e+00    
+  ----------------------------------------------------------------------------------------------------------
+     Step 7:: A total of 8 Auger lines are calculated, giving now rise to a total of 16 Auger decay lines.
+
+  8) Perform Auger amplitude computations for up to 16 decay lines (without selection rules): 
+
+  9) Perform Auger amplitude computations for up to 32 decay lines (without selection rules): 
+
+  Level energies:  
+
+  Level  J Parity    Total [Hartree]           Total [eV]               Total [eV]            To lower [eV]        To lowest [eV]   
+
+     1    0 +      -3.237281999253e+01      -8.809093013727e+02      -8.809093013727e+02      0.000000000e+00      0.000000000e+00   
+ 
+* Configurations and levels for all given initial multiplets of the cascade, relative to the lowest:
+  
+  Configuration: 1s^2 
+  --------------------------------------------
+    Level  J Parity          Energy [eV]
+  --------------------------------------------
+       1     0 +      0.000000000000000e+00 
+  --------------------------------------------
+
+* Generate blocks for DR plasma rate coefficient computations: 
+
+  In the cascade approach JenaAtomicCalculator.Basics.AverageSCA(), the following assumptions/simplifications are made: 
+    + orbitals are generated independently for the first block in a Dirac-Fock-Slater potential; 
+    + these orbitals are re-used for all other block, together with hydrogenic orbitals for the outer part; 
+    + all blocks (multiplets) are generated from single-CSF levels and without any configuration mixing even in the SC; 
+    + only the Coulomb interaction is considered for the electron capture. 
+    + only E1 excitations are considered for the stabilization. 
+
+  Multiplet computations for 1s^2    with 2 electrons ... 
+
+  Level energies:  
+
+  Level  J Parity    Total [Hartree]           Total [eV]               Total [eV]            To lower [eV]        To lowest [eV]   
+
+     1    0 +      -3.237281999253e+01      -8.809093013727e+02      -8.809093013727e+02      0.000000000e+00      0.000000000e+00   
+
+* Generate blocks for DR plasma rate coefficient computations: 
+
+  In the cascade approach JenaAtomicCalculator.Basics.AverageSCA(), the following assumptions/simplifications are made: 
+    + orbitals are generated independently for the first block in a Dirac-Fock-Slater potential; 
+    + these orbitals are re-used for all other block, together with hydrogenic orbitals for the outer part; 
+    + all blocks (multiplets) are generated from single-CSF levels and without any configuration mixing even in the SC; 
+    + only the Coulomb interaction is considered for the electron capture. 
+    + only E1 excitations are considered for the stabilization. 
+
+  Multiplet computations for 1s^1 2s^2    with 3 electrons ... 
+
+  Level energies:  
+
+  Level  J Parity    Total [Hartree]           Total [eV]               Total [eV]            To lower [eV]        To lowest [eV]   
+
+     1    1/2 +    -2.394907285221e+01      -6.516874662027e+02      -6.516874662027e+02      0.000000000e+00      0.000000000e+00   
+  Multiplet computations for 1s^1 2s^1 2p^1    with 3 electrons ... 
+  Multiplet computations for 1s^1 2p^2    with 3 electrons ... 
+
+* Generate blocks for DR plasma rate coefficient computations: 
+
+  In the cascade approach JenaAtomicCalculator.Basics.AverageSCA(), the following assumptions/simplifications are made: 
+    + orbitals are generated independently for the first block in a Dirac-Fock-Slater potential; 
+    + these orbitals are re-used for all other block, together with hydrogenic orbitals for the outer part; 
+    + all blocks (multiplets) are generated from single-CSF levels and without any configuration mixing even in the SC; 
+    + only the Coulomb interaction is considered for the electron capture. 
+    + only E1 excitations are considered for the stabilization. 
+
+  Multiplet computations for 1s^2 2s^1    with 3 electrons ... 
+
+  Level energies:  
+
+  Level  J Parity    Total [Hartree]           Total [eV]               Total [eV]            To lower [eV]        To lowest [eV]   
+
+     1    1/2 +    -3.473718287576e+01      -9.452468924797e+02      -9.452468924797e+02      0.000000000e+00      0.000000000e+00   
+  Multiplet computations for 1s^2 2p^1    with 3 electrons ... 
+  Multiplet computations for 1s^1 2s^2    with 3 electrons ... 
+  Multiplet computations for 1s^1 2s^1 2p^1    with 3 electrons ... 
+  Multiplet computations for 1s^1 2p^2    with 3 electrons ... 
+
+* Configuration 'blocks' (multiplets): from the initial configurations of the DR cascade 
+
+  ------------------------------------------------------------------------------------------------------------------------------------------------------
+      No.   Configurations                                                                             No. CSF        Range of total energies [eV]
+  ------------------------------------------------------------------------------------------------------------------------------------------------------
+        1   [He]                                                                                             1        -881.0 ... -881.0               
+  ------------------------------------------------------------------------------------------------------------------------------------------------------
+
+* Configuration 'blocks' (multiplets): from the doubly-excited capture configurations of the DR cascade 
+
+  ------------------------------------------------------------------------------------------------------------------------------------------------------
+      No.   Configurations                                                                             No. CSF        Range of total energies [eV]
+  ------------------------------------------------------------------------------------------------------------------------------------------------------
+        1   [Core] 1s^1 2s^2                                                                                 1        -652.0 ... -652.0               
+        2   [Core] 1s^1 2s^1 2p^1                                                                            7        -648.0 ... -639.0               
+        3   [Core] 1s^1 2p^2                                                                                 8        -632.0 ... -626.0               
+  ------------------------------------------------------------------------------------------------------------------------------------------------------
+
+* Configuration 'blocks' (multiplets): from the decay configurations of the DR cascade 
+
+  ------------------------------------------------------------------------------------------------------------------------------------------------------
+      No.   Configurations                                                                             No. CSF        Range of total energies [eV]
+  ------------------------------------------------------------------------------------------------------------------------------------------------------
+        1   [He] 2s^1                                                                                        1        -945.0 ... -945.0               
+        2   [He] 2p^1                                                                                        2        -928.0 ... -928.0               
+        3   [Core] 1s^1 2s^2                                                                                 1        -649.0 ... -649.0               
+        4   [Core] 1s^1 2s^1 2p^1                                                                            7        -646.0 ... -637.0               
+        5   [Core] 1s^1 2p^2                                                                                 8        -631.0 ... -625.0               
+  ------------------------------------------------------------------------------------------------------------------------------------------------------
+ 
+* Steps that are defined for the current electron capture and stabilization cascade due to the given approach:
+ 
+  --------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+   Step-No   Process     Initial:  No CSF, configuration(s)                         Final:  No CSF, configuration(s)                           Energies from ... to in [eV]                
+  --------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+       1     Auger         1, [Core] 1s^1 2s^2                                        1, [He]                                                  229.0 ... 229.0
+       2     Auger         7, [Core] 1s^1 2s^1 2p^1                                   1, [He]                                                  233.0 ... 242.0
+       3     Auger         8, [Core] 1s^1 2p^2                                        1, [He]                                                  248.0 ... 255.0
+       4     Radiative     1, [Core] 1s^1 2s^2                                        1, [He] 2s^1                                             294.0 ... 294.0
+       5     Radiative     1, [Core] 1s^1 2s^2                                        2, [He] 2p^1                                             276.0 ... 276.0
+       6     Radiative     7, [Core] 1s^1 2s^1 2p^1                                   1, [He] 2s^1                                             297.0 ... 306.0
+       7     Radiative     7, [Core] 1s^1 2s^1 2p^1                                   2, [He] 2p^1                                             279.0 ... 289.0
+       8     Radiative     7, [Core] 1s^1 2s^1 2p^1                                   1, [Core] 1s^1 2s^2                                      0.0 ... 9.0
+       9     Radiative     8, [Core] 1s^1 2p^2                                        1, [He] 2s^1                                             313.0 ... 319.0
+      10     Radiative     8, [Core] 1s^1 2p^2                                        2, [He] 2p^1                                             295.0 ... 302.0
+      11     Radiative     8, [Core] 1s^1 2p^2                                        1, [Core] 1s^1 2s^2                                      16.0 ... 23.0
+      12     Radiative     8, [Core] 1s^1 2p^2                                        7, [Core] 1s^1 2s^1 2p^1                                 5.0 ... 20.0
+  --------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+* A total of 12 steps are still defined in the cascade.
+
+  1) Perform Auger amplitude computations for up to 1 decay lines (without selection rules): 
+ 
+  Auger rates (without angular parameters): 
+
+  ----------------------------------------------------------------------------------------------------------
+       i-level-f           i--J^P--f           Energy      Electron energy    Auger rate        alpha_2      
+                                                [eV]             [eV]            [1/s]                        
+  ----------------------------------------------------------------------------------------------------------
+         1 --    1       1/2 + --> 0 +      -6.516875e+02    2.292218e+02    7.285983e+13       0.0000e+00    
+  ----------------------------------------------------------------------------------------------------------
+     Step 1:: A total of 1 Auger lines are calculated, giving now rise to a total of 1 Auger decay lines.
+
+  2) Perform Auger amplitude computations for up to 7 decay lines (without selection rules): 
+ 
+  Auger rates (without angular parameters): 
+
+  ----------------------------------------------------------------------------------------------------------
+       i-level-f           i--J^P--f           Energy      Electron energy    Auger rate        alpha_2      
+                                                [eV]             [eV]            [1/s]                        
+  ----------------------------------------------------------------------------------------------------------
+         1 --    1       5/2 - --> 0 +      -6.483781e+02    2.325312e+02    0.000000e+00       0.0000e+00    
+         2 --    1       1/2 - --> 0 +      -6.472549e+02    2.336545e+02    8.875815e+12       0.0000e+00    
+         3 --    1       3/2 - --> 0 +      -6.438140e+02    2.370953e+02    3.581108e+12       0.0000e+00    
+         4 --    1       3/2 - --> 0 +      -6.426433e+02    2.382660e+02    4.468262e+12       0.0000e+00    
+         5 --    1       1/2 - --> 0 +      -6.396825e+02    2.412268e+02    8.303085e+11       0.0000e+00    
+         6 --    1       3/2 - --> 0 +      -6.396589e+02    2.412504e+02    1.594950e+13       0.0000e+00    
+         7 --    1       1/2 - --> 0 +      -6.392025e+02    2.417068e+02    7.094859e+13       0.0000e+00    
+  ----------------------------------------------------------------------------------------------------------
+     Step 2:: A total of 7 Auger lines are calculated, giving now rise to a total of 8 Auger decay lines.
+
+  3) Perform Auger amplitude computations for up to 8 decay lines (without selection rules): 
+ 
+  Auger rates (without angular parameters): 
+
+  ----------------------------------------------------------------------------------------------------------
+       i-level-f           i--J^P--f           Energy      Electron energy    Auger rate        alpha_2      
+                                                [eV]             [eV]            [1/s]                        
+  ----------------------------------------------------------------------------------------------------------
+         1 --    1       5/2 + --> 0 +      -6.324902e+02    2.484191e+02    1.484311e+12       0.0000e+00    
+         2 --    1       3/2 + --> 0 +      -6.317327e+02    2.491766e+02    2.602179e+13       0.0000e+00    
+         3 --    1       5/2 + --> 0 +      -6.303797e+02    2.505296e+02    2.976759e+12       0.0000e+00    
+         4 --    1       3/2 + --> 0 +      -6.293611e+02    2.515482e+02    1.561935e+13       0.0000e+00    
+         5 --    1       1/2 + --> 0 +      -6.288441e+02    2.520652e+02    3.413591e+13       0.0000e+00    
+         6 --    1       1/2 + --> 0 +      -6.287499e+02    2.521594e+02    2.523303e+07       0.0000e+00    
+         7 --    1       3/2 + --> 0 +      -6.275830e+02    2.533263e+02    2.079123e+13       0.0000e+00    
+         8 --    1       1/2 + --> 0 +      -6.259347e+02    2.549746e+02    6.835819e+13       0.0000e+00    
+  ----------------------------------------------------------------------------------------------------------
+     Step 3:: A total of 8 Auger lines are calculated, giving now rise to a total of 16 Auger decay lines.
+
+  4) Perform Radiative amplitude computations for up to 1 decay lines (without selection rules): 
+ 
+  Einstein coefficients, transition rates and oscillator strengths:
+ 
+  -----------------------------------------------------------------------------------------------------------------------------------------------------------------
+       i-level-f           i--J^P--f           Energy        Multipole   Gauge             A--Einstein--B          Osc. strength    Decay widths    Line strength    
+                                                [eV]                                      [1/s]          [1/s]                          [eV]           [a.u.]       
+  -----------------------------------------------------------------------------------------------------------------------------------------------------------------
+  -----------------------------------------------------------------------------------------------------------------------------------------------------------------
+     Step 4:: A total of 0 Radiative lines are calculated, giving now rise to a total of 0 Radiative decay lines.
+
+  5) Perform Radiative amplitude computations for up to 2 decay lines (without selection rules): 
+ 
+  Einstein coefficients, transition rates and oscillator strengths:
+ 
+  -----------------------------------------------------------------------------------------------------------------------------------------------------------------
+       i-level-f           i--J^P--f           Energy        Multipole   Gauge             A--Einstein--B          Osc. strength    Decay widths    Line strength    
+                                                [eV]                                      [1/s]          [1/s]                          [eV]           [a.u.]       
+  -----------------------------------------------------------------------------------------------------------------------------------------------------------------
+  -----------------------------------------------------------------------------------------------------------------------------------------------------------------
+     Step 5:: A total of 0 Radiative lines are calculated, giving now rise to a total of 0 Radiative decay lines.
+
+  6) Perform Radiative amplitude computations for up to 7 decay lines (without selection rules): 
+ 
+  Einstein coefficients, transition rates and oscillator strengths:
+ 
+  -----------------------------------------------------------------------------------------------------------------------------------------------------------------
+       i-level-f           i--J^P--f           Energy        Multipole   Gauge             A--Einstein--B          Osc. strength    Decay widths    Line strength    
+                                                [eV]                                      [1/s]          [1/s]                          [eV]           [a.u.]       
+  -----------------------------------------------------------------------------------------------------------------------------------------------------------------
+         2 --    1      1/2 - --> 1/2 +     2.979920e+02        E1       Coulomb      1.117369e+11  5.227011e-02    2.899864e-02    7.354655e-05    6.308516e-06    
+         2 --    1      1/2 - --> 1/2 +     2.979920e+02        E1       Babushkin    1.030275e+11  4.819591e-02    2.673834e-02    6.781396e-05    5.816798e-06    
+         3 --    1      3/2 - --> 1/2 +     3.014329e+02        E1       Coulomb      4.521106e+11  2.043353e-01    2.293420e-01    2.975846e-04    2.466137e-05    
+         3 --    1      3/2 - --> 1/2 +     3.014329e+02        E1       Babushkin    4.265496e+11  1.927828e-01    2.163758e-01    2.807601e-04    2.326709e-05    
+         4 --    1      3/2 - --> 1/2 +     3.026035e+02        E1       Coulomb      5.669952e+11  2.532959e-01    2.853986e-01    3.732030e-04    3.057046e-05    
+         4 --    1      3/2 - --> 1/2 +     3.026035e+02        E1       Babushkin    5.389316e+11  2.407589e-01    2.712727e-01    3.547312e-04    2.905736e-05    
+         5 --    1      1/2 - --> 1/2 +     3.055644e+02        E1       Coulomb      3.437323e+11  1.491362e-01    8.484093e-02    2.262487e-04    1.799935e-05    
+         5 --    1      1/2 - --> 1/2 +     3.055644e+02        E1       Babushkin    3.332457e+11  1.445863e-01    8.225258e-02    2.193463e-04    1.745022e-05    
+         6 --    1      3/2 - --> 1/2 +     3.055880e+02        E1       Coulomb      3.435479e+11  1.490216e-01    1.695646e-01    2.261273e-04    1.798552e-05    
+         6 --    1      3/2 - --> 1/2 +     3.055880e+02        E1       Babushkin    3.330169e+11  1.444535e-01    1.643668e-01    2.191957e-04    1.743420e-05    
+         7 --    1      1/2 - --> 1/2 +     3.060444e+02        E1       Coulomb      9.174941e+11  3.962057e-01    2.257485e-01    6.039056e-04    4.781834e-05    
+         7 --    1      1/2 - --> 1/2 +     3.060444e+02        E1       Babushkin    8.920283e+11  3.852086e-01    2.194826e-01    5.871437e-04    4.649110e-05    
+  -----------------------------------------------------------------------------------------------------------------------------------------------------------------
+     Step 6:: A total of 6 Radiative lines are calculated, giving now rise to a total of 6 Radiative decay lines.
+
+  7) Perform Radiative amplitude computations for up to 14 decay lines (without selection rules): 
+ 
+  Einstein coefficients, transition rates and oscillator strengths:
+ 
+  -----------------------------------------------------------------------------------------------------------------------------------------------------------------
+       i-level-f           i--J^P--f           Energy        Multipole   Gauge             A--Einstein--B          Osc. strength    Decay widths    Line strength    
+                                                [eV]                                      [1/s]          [1/s]                          [eV]           [a.u.]       
+  -----------------------------------------------------------------------------------------------------------------------------------------------------------------
+  -----------------------------------------------------------------------------------------------------------------------------------------------------------------
+     Step 7:: A total of 0 Radiative lines are calculated, giving now rise to a total of 6 Radiative decay lines.
+
+  8) Perform Radiative amplitude computations for up to 7 decay lines (without selection rules): 
+ 
+  Einstein coefficients, transition rates and oscillator strengths:
+ 
+  -----------------------------------------------------------------------------------------------------------------------------------------------------------------
+       i-level-f           i--J^P--f           Energy        Multipole   Gauge             A--Einstein--B          Osc. strength    Decay widths    Line strength    
+                                                [eV]                                      [1/s]          [1/s]                          [eV]           [a.u.]       
+  -----------------------------------------------------------------------------------------------------------------------------------------------------------------
+         2 --    1      1/2 - --> 1/2 +     1.278671e+00        E1       Coulomb      5.304135e+06  3.140572e+01    7.476309e-02    3.491245e-09    3.790378e-03    
+         2 --    1      1/2 - --> 1/2 +     1.278671e+00        E1       Babushkin    9.322706e+04  5.519963e-01    1.314058e-03    6.136317e-11    6.662082e-05    
+         3 --    1      3/2 - --> 1/2 +     4.719569e+00        E1       Coulomb      7.830990e+07  9.221053e+00    1.620438e-01    5.154451e-08    1.112895e-03    
+         3 --    1      3/2 - --> 1/2 +     4.719569e+00        E1       Babushkin    1.875127e+07  2.207977e+00    3.880132e-02    1.234231e-08    2.664823e-04    
+         4 --    1      3/2 - --> 1/2 +     5.890179e+00        E1       Coulomb      1.211344e+08  7.337582e+00    1.609278e-01    7.973214e-08    8.855779e-04    
+         4 --    1      3/2 - --> 1/2 +     5.890179e+00        E1       Babushkin    4.562467e+07  2.763663e+00    6.061263e-02    3.003070e-08    3.335484e-04    
+         5 --    1      1/2 - --> 1/2 +     8.851000e+00        E1       Coulomb      1.101449e+08  1.966337e+00    3.240186e-02    7.249866e-08    2.373186e-04    
+         5 --    1      1/2 - --> 1/2 +     8.851000e+00        E1       Babushkin    9.275977e+07  1.655974e+00    2.728760e-02    6.105559e-08    1.998606e-04    
+         6 --    1      3/2 - --> 1/2 +     8.874656e+00        E1       Coulomb      1.095078e+08  1.939372e+00    6.408586e-02    7.207931e-08    2.340641e-04    
+         6 --    1      3/2 - --> 1/2 +     8.874656e+00        E1       Babushkin    9.363154e+07  1.658206e+00    5.479482e-02    6.162940e-08    2.001300e-04    
+         7 --    1      1/2 - --> 1/2 +     9.331059e+00        E1       Coulomb      3.070390e+08  4.678122e+00    8.126847e-02    2.020967e-07    5.646058e-04    
+         7 --    1      1/2 - --> 1/2 +     9.331059e+00        E1       Babushkin    2.902213e+08  4.421885e+00    7.681710e-02    1.910272e-07    5.336803e-04    
+  -----------------------------------------------------------------------------------------------------------------------------------------------------------------
+     Step 8:: A total of 6 Radiative lines are calculated, giving now rise to a total of 12 Radiative decay lines.
+
+  9) Perform Radiative amplitude computations for up to 8 decay lines (without selection rules): 
+ 
+  Einstein coefficients, transition rates and oscillator strengths:
+ 
+  -----------------------------------------------------------------------------------------------------------------------------------------------------------------
+       i-level-f           i--J^P--f           Energy        Multipole   Gauge             A--Einstein--B          Osc. strength    Decay widths    Line strength    
+                                                [eV]                                      [1/s]          [1/s]                          [eV]           [a.u.]       
+  -----------------------------------------------------------------------------------------------------------------------------------------------------------------
+  -----------------------------------------------------------------------------------------------------------------------------------------------------------------
+     Step 9:: A total of 0 Radiative lines are calculated, giving now rise to a total of 12 Radiative decay lines.
+
+  10) Perform Radiative amplitude computations for up to 16 decay lines (without selection rules): 
+ 
+  Einstein coefficients, transition rates and oscillator strengths:
+ 
+  -----------------------------------------------------------------------------------------------------------------------------------------------------------------
+       i-level-f           i--J^P--f           Energy        Multipole   Gauge             A--Einstein--B          Osc. strength    Decay widths    Line strength    
+                                                [eV]                                      [1/s]          [1/s]                          [eV]           [a.u.]       
+  -----------------------------------------------------------------------------------------------------------------------------------------------------------------
+         1 --    2      5/2 + --> 3/2 -     2.952424e+02        E1       Coulomb      2.212880e+11  1.064370e-01    8.775707e-02    1.456544e-04    2.569191e-05    
+         1 --    2      5/2 + --> 3/2 -     2.952424e+02        E1       Babushkin    2.002262e+11  9.630654e-02    7.940454e-02    1.317913e-04    2.324661e-05    
+         2 --    1      3/2 + --> 1/2 -     2.960011e+02        E1       Coulomb      3.327839e+11  1.588375e-01    1.750637e-01    2.190424e-04    1.917021e-05    
+         2 --    1      3/2 + --> 1/2 -     2.960011e+02        E1       Babushkin    3.026600e+11  1.444594e-01    1.592167e-01    1.992144e-04    1.743490e-05    
+         3 --    2      5/2 + --> 3/2 -     2.973528e+02        E1       Coulomb      4.459884e+11  2.099801e-01    1.743657e-01    2.935549e-04    5.068530e-05    
+         3 --    2      5/2 + --> 3/2 -     2.973528e+02        E1       Babushkin    4.094642e+11  1.927838e-01    1.600860e-01    2.695142e-04    4.653442e-05    
+         4 --    1      3/2 + --> 1/2 -     2.983728e+02        E1       Coulomb      5.590781e+11  2.605349e-01    2.894507e-01    3.679919e-04    3.144413e-05    
+         4 --    1      3/2 + --> 1/2 -     2.983728e+02        E1       Babushkin    5.166504e+11  2.407632e-01    2.674847e-01    3.400655e-04    2.905788e-05    
+         4 --    2      3/2 + --> 3/2 -     2.983715e+02        E1       Coulomb      4.475168e+11  2.085491e-01    1.158471e-01    2.945609e-04    5.033988e-05    
+         4 --    2      3/2 + --> 3/2 -     2.983715e+02        E1       Babushkin    4.136861e+11  1.927836e-01    1.070895e-01    2.722932e-04    4.653436e-05    
+         5 --    1      1/2 + --> 1/2 -     2.988897e+02        E1       Coulomb      6.724417e+11  3.117401e-01    1.734695e-01    4.426092e-04    3.762413e-05    
+         5 --    1      1/2 + --> 1/2 -     2.988897e+02        E1       Babushkin    6.237678e+11  2.891751e-01    1.609131e-01    4.105714e-04    3.490075e-05    
+         6 --    1      1/2 + --> 1/2 -     2.989839e+02        E1       Coulomb      8.963549e+11  4.151522e-01    2.310866e-01    5.899915e-04    5.010500e-05    
+         6 --    1      1/2 + --> 1/2 -     2.989839e+02        E1       Babushkin    8.317287e+11  3.852202e-01    2.144255e-01    5.474538e-04    4.649249e-05    
+         6 --    2      1/2 + --> 3/2 -     2.989826e+02        E1       Coulomb      4.484339e+11  2.076976e-01    5.780521e-02    2.951646e-04    5.013433e-05    
+         6 --    2      1/2 + --> 3/2 -     2.989826e+02        E1       Babushkin    4.162332e+11  1.927834e-01    5.365438e-02    2.739696e-04    4.653433e-05    
+         7 --    2      3/2 + --> 3/2 -     3.001495e+02        E1       Coulomb      1.349767e+12  6.178978e-01    3.452820e-01    8.884330e-04    1.491490e-04    
+         7 --    2      3/2 + --> 3/2 -     3.001495e+02        E1       Babushkin    1.262236e+12  5.778274e-01    3.228906e-01    8.308185e-04    1.394768e-04    
+         8 --    2      1/2 + --> 3/2 -     3.017978e+02        E1       Coulomb      6.785850e+11  3.055813e-01    8.584845e-02    4.466528e-04    7.376163e-05    
+         8 --    2      1/2 + --> 3/2 -     3.017978e+02        E1       Babushkin    6.415679e+11  2.889117e-01    8.116539e-02    4.222877e-04    6.973791e-05    
+  -----------------------------------------------------------------------------------------------------------------------------------------------------------------
+     Step 10:: A total of 10 Radiative lines are calculated, giving now rise to a total of 22 Radiative decay lines.
+
+  11) Perform Radiative amplitude computations for up to 8 decay lines (without selection rules): 
+ 
+  Einstein coefficients, transition rates and oscillator strengths:
+ 
+  -----------------------------------------------------------------------------------------------------------------------------------------------------------------
+       i-level-f           i--J^P--f           Energy        Multipole   Gauge             A--Einstein--B          Osc. strength    Decay widths    Line strength    
+                                                [eV]                                      [1/s]          [1/s]                          [eV]           [a.u.]       
+  -----------------------------------------------------------------------------------------------------------------------------------------------------------------
+  -----------------------------------------------------------------------------------------------------------------------------------------------------------------
+     Step 11:: A total of 0 Radiative lines are calculated, giving now rise to a total of 22 Radiative decay lines.
+
+  12) Perform Radiative amplitude computations for up to 56 decay lines (without selection rules): 
+ 
+  Einstein coefficients, transition rates and oscillator strengths:
+ 
+  -----------------------------------------------------------------------------------------------------------------------------------------------------------------
+       i-level-f           i--J^P--f           Energy        Multipole   Gauge             A--Einstein--B          Osc. strength    Decay widths    Line strength    
+                                                [eV]                                      [1/s]          [1/s]                          [eV]           [a.u.]       
+  -----------------------------------------------------------------------------------------------------------------------------------------------------------------
+         1 --    1      5/2 + --> 5/2 -     1.359749e+01        E1       Coulomb      3.132029e+08  1.542128e+00    3.903901e-02    2.061539e-07    5.583616e-04    
+         1 --    1      5/2 + --> 5/2 -     1.359749e+01        E1       Babushkin    6.286563e+08  3.095338e+00    7.835854e-02    4.137891e-07    1.120735e-03    
+         1 --    4      5/2 + --> 3/2 -     8.152546e+00        E1       Coulomb      1.810749e+08  4.136656e+00    9.417887e-02    1.191857e-07    9.985117e-04    
+         1 --    4      5/2 + --> 3/2 -     8.152546e+00        E1       Babushkin    1.306530e+08  2.984767e+00    6.795392e-02    8.599735e-08    7.204671e-04    
+         1 --    6      5/2 + --> 3/2 -     5.692685e+00        E1       Coulomb      2.341457e+07  1.571106e+00    2.497661e-02    1.541175e-08    3.792358e-04    
+         1 --    6      5/2 + --> 3/2 -     5.692685e+00        E1       Babushkin    8.237501e+06  5.527324e-01    8.787046e-03    5.422022e-09    1.334193e-04    
+         2 --    1      3/2 + --> 5/2 -     1.435496e+01        E1       Coulomb      1.786346e+08  7.475322e-01    1.331866e-02    1.175794e-07    2.706606e-04    
+         2 --    1      3/2 + --> 5/2 -     1.435496e+01        E1       Babushkin    3.957175e+08  1.655960e+00    2.950395e-02    2.604660e-07    5.995768e-04    
+         2 --    2      3/2 + --> 1/2 -     1.329117e+01        E1       Coulomb      2.460109e+08  1.296986e+00    6.418715e-02    1.619273e-07    1.565341e-04    
+         2 --    2      3/2 + --> 1/2 -     1.329117e+01        E1       Babushkin    4.717930e+08  2.487324e+00    1.230964e-01    3.105398e-07    3.001968e-04    
+         2 --    4      3/2 + --> 3/2 -     8.910022e+00        E1       Coulomb      7.391954e+07  1.293582e+00    2.145815e-02    4.865473e-08    3.122465e-04    
+         2 --    4      3/2 + --> 3/2 -     8.910022e+00        E1       Babushkin    6.308522e+07  1.103982e+00    1.831304e-02    4.152344e-08    2.664808e-04    
+         2 --    5      3/2 + --> 1/2 -     6.475341e+00        E1       Coulomb      3.995062e+07  1.821405e+00    4.391559e-02    2.629597e-08    2.198266e-04    
+         2 --    5      3/2 + --> 1/2 -     6.475341e+00        E1       Babushkin    1.818544e+07  8.290996e-01    1.999028e-02    1.196987e-08    1.000646e-04    
+         2 --    7      3/2 + --> 1/2 -     5.643056e+00        E1       Coulomb      2.340820e+07  1.612486e+00    3.388128e-02    1.540756e-08    1.946120e-04    
+         2 --    7      3/2 + --> 1/2 -     5.643056e+00        E1       Babushkin    8.013205e+06  5.519936e-01    1.159840e-02    5.274387e-09    6.662049e-05    
+         3 --    1      5/2 + --> 5/2 -     1.570795e+01        E1       Coulomb      1.824386e+08  5.826792e-01    1.703996e-02    1.200833e-07    2.109719e-04    
+         3 --    1      5/2 + --> 5/2 -     1.570795e+01        E1       Babushkin    4.839192e+08  1.545559e+00    4.519855e-02    3.185214e-07    5.596037e-04    
+         3 --    3      5/2 + --> 3/2 -     1.137716e+01        E1       Coulomb      2.807764e+08  2.360096e+00    7.498500e-02    1.848104e-07    5.696832e-04    
+         3 --    3      5/2 + --> 3/2 -     1.137716e+01        E1       Babushkin    3.945490e+08  3.316423e+00    1.053695e-01    2.596968e-07    8.005229e-04    
+         3 --    4      5/2 + --> 3/2 -     1.026300e+01        E1       Coulomb      5.108630e+07  5.849948e-01    1.676630e-02    3.362561e-08    1.412069e-04    
+         3 --    4      5/2 + --> 3/2 -     1.026300e+01        E1       Babushkin    5.784489e+07  6.623882e-01    1.898444e-02    3.807420e-08    1.598882e-04    
+         3 --    6      5/2 + --> 3/2 -     7.803142e+00        E1       Coulomb      6.473680e+07  1.686606e+00    3.675310e-02    4.261054e-08    4.071153e-04    
+         3 --    6      5/2 + --> 3/2 -     7.803142e+00        E1       Babushkin    4.237410e+07  1.103984e+00    2.405709e-02    2.789114e-08    2.664812e-04    
+         4 --    1      3/2 + --> 5/2 -     1.672657e+01        E1       Coulomb      1.248868e+08  3.303442e-01    6.858071e-03    8.220199e-08    1.196084e-04    
+         4 --    1      3/2 + --> 5/2 -     1.672657e+01        E1       Babushkin    3.756203e+08  9.935716e-01    2.062692e-02    2.472378e-07    3.597446e-04    
+         4 --    2      3/2 + --> 1/2 -     1.566278e+01        E1       Coulomb      5.368718e+07  1.729557e-01    1.008680e-02    3.533755e-08    2.087415e-05    
+         4 --    2      3/2 + --> 1/2 -     1.566278e+01        E1       Babushkin    1.429801e+08  4.606169e-01    2.686323e-02    9.411120e-08    5.559217e-05    
+         4 --    3      3/2 + --> 3/2 -     1.239579e+01        E1       Coulomb      1.359627e+08  8.836257e-01    2.039210e-02    8.949228e-08    2.132908e-04    
+         4 --    3      3/2 + --> 3/2 -     1.239579e+01        E1       Babushkin    2.267982e+08  1.473968e+00    3.401588e-02    1.492813e-07    3.557884e-04    
+         4 --    4      3/2 + --> 3/2 -     1.128163e+01        E1       Coulomb      2.495846e+07  2.151659e-01    4.519233e-03    1.642796e-08    5.193704e-05    
+         4 --    4      3/2 + --> 3/2 -     1.128163e+01        E1       Babushkin    3.414867e+07  2.943943e-01    6.183306e-03    2.247706e-08    7.106130e-05    
+         4 --    5      3/2 + --> 1/2 -     8.846947e+00        E1       Coulomb      9.097152e+07  1.626283e+00    5.357215e-02    5.987854e-08    1.962772e-04    
+         4 --    5      3/2 + --> 1/2 -     8.846947e+00        E1       Babushkin    7.729769e+07  1.381838e+00    4.551977e-02    5.087826e-08    1.667750e-04    
+         4 --    6      3/2 + --> 3/2 -     8.821767e+00        E1       Coulomb      7.318738e+07  1.319594e+00    2.167282e-02    4.817281e-08    3.185254e-04    
+         4 --    6      3/2 + --> 3/2 -     8.821767e+00        E1       Babushkin    6.122913e+07  1.103983e+00    1.813165e-02    4.030175e-08    2.664808e-04    
+         4 --    7      3/2 + --> 1/2 -     8.014662e+00        E1       Coulomb      5.540966e+07  1.332296e+00    3.975901e-02    3.647130e-08    1.607957e-04    
+         4 --    7      3/2 + --> 1/2 -     8.014662e+00        E1       Babushkin    3.826187e+07  9.199865e-01    2.745467e-02    2.518442e-08    1.110338e-04    
+         5 --    2      1/2 + --> 1/2 -     1.617973e+01        E1       Coulomb      6.711347e+07  1.961402e-01    5.908232e-03    4.417489e-08    2.367230e-05    
+         5 --    2      1/2 + --> 1/2 -     1.617973e+01        E1       Babushkin    1.888731e+08  5.519848e-01    1.662716e-02    1.243186e-07    6.661943e-05    
+         5 --    3      1/2 + --> 3/2 -     1.291274e+01        E1       Coulomb      4.285022e+08  2.463592e+00    2.961262e-02    2.820453e-07    5.946653e-04    
+         5 --    3      1/2 + --> 3/2 -     1.291274e+01        E1       Babushkin    7.680752e+08  4.415903e+00    5.307958e-02    5.055563e-07    1.065917e-03    
+         5 --    5      1/2 + --> 1/2 -     9.363898e+00        E1       Coulomb      1.165274e+08  1.756826e+00    3.062704e-02    7.669970e-08    2.120325e-04    
+         5 --    5      1/2 + --> 1/2 -     9.363898e+00        E1       Babushkin    1.098379e+08  1.655973e+00    2.886885e-02    7.229664e-08    1.998605e-04    
+         6 --    2      1/2 + --> 1/2 -     1.627396e+01        E1       Coulomb      8.925163e+07  2.563349e-01    7.766411e-03    5.874649e-08    3.093723e-05    
+         6 --    2      1/2 + --> 1/2 -     1.627396e+01        E1       Babushkin    2.566071e+08  7.369875e-01    2.232918e-02    1.689018e-07    8.894754e-05    
+         6 --    3      1/2 + --> 3/2 -     1.300696e+01        E1       Coulomb      3.566668e+07  2.006346e-01    2.429245e-03    2.347623e-08    4.842946e-05    
+         6 --    3      1/2 + --> 3/2 -     1.300696e+01        E1       Babushkin    6.550662e+07  3.684923e-01    4.461633e-03    4.311724e-08    8.894718e-05    
+         6 --    4      1/2 + --> 3/2 -     1.189280e+01        E1       Coulomb      1.644407e+08  1.210118e+00    1.339681e-02    1.082368e-07    2.920998e-04    
+         6 --    4      1/2 + --> 3/2 -     1.189280e+01        E1       Babushkin    2.500292e+08  1.839963e+00    2.036961e-02    1.645722e-07    4.441327e-04    
+         6 --    5      1/2 + --> 1/2 -     9.458122e+00        E1       Coulomb      1.556101e+08  2.276637e+00    4.008836e-02    1.024244e-07    2.747689e-04    
+         6 --    5      1/2 + --> 1/2 -     9.458122e+00        E1       Babushkin    1.511198e+08  2.210943e+00    3.893158e-02    9.946886e-08    2.668402e-04    
+         6 --    6      1/2 + --> 3/2 -     9.432942e+00        E1       Coulomb      7.825769e+07  1.154134e+00    1.013429e-02    5.151015e-08    2.785866e-04    
+         6 --    6      1/2 + --> 3/2 -     9.432942e+00        E1       Babushkin    7.485701e+07  1.103982e+00    9.693901e-03    4.927178e-08    2.664806e-04    
+         6 --    7      1/2 + --> 1/2 -     8.625837e+00        E1       Coulomb      2.385398e+07  4.600743e-01    7.388373e-03    1.570097e-08    5.552668e-05    
+         6 --    7      1/2 + --> 1/2 -     8.625837e+00        E1       Babushkin    1.907981e+07  3.679943e-01    5.909652e-03    1.255856e-08    4.441349e-05    
+         7 --    1      3/2 + --> 5/2 -     1.850467e+01        E1       Coulomb      4.566904e+07  8.921729e-02    2.049079e-03    3.005991e-08    3.230309e-05    
+         7 --    1      3/2 + --> 5/2 -     1.850467e+01        E1       Babushkin    1.697644e+08  3.316452e-01    7.616988e-03    1.117409e-07    1.200795e-04    
+         7 --    4      3/2 + --> 3/2 -     1.305972e+01        E1       Coulomb      2.148681e+07  1.194101e-01    2.903318e-03    1.414288e-08    2.882338e-05    
+         7 --    4      3/2 + --> 3/2 -     1.305972e+01        E1       Babushkin    3.978420e+07  2.210954e-01    5.375678e-03    2.618644e-08    5.336831e-05    
+         7 --    6      3/2 + --> 3/2 -     1.059986e+01        E1       Coulomb      2.615928e+08  2.718917e+00    5.365569e-02    1.721835e-07    6.562960e-04    
+         7 --    6      3/2 + --> 3/2 -     1.059986e+01        E1       Babushkin    3.190797e+08  3.316420e+00    6.544693e-02    2.100221e-07    8.005220e-04    
+         7 --    7      3/2 + --> 1/2 -     9.792756e+00        E1       Coulomb      2.013947e+08  2.654631e+00    9.679628e-02    1.325604e-07    3.203892e-04    
+         7 --    7      3/2 + --> 1/2 -     9.792756e+00        E1       Babushkin    2.096678e+08  2.763680e+00    1.007726e-01    1.380058e-07    3.335504e-04    
+         8 --    4      1/2 + --> 3/2 -     1.470801e+01        E1       Coulomb      3.024857e+08  1.176832e+00    1.611231e-02    1.990997e-07    2.840653e-04    
+         8 --    4      1/2 + --> 3/2 -     1.470801e+01        E1       Babushkin    7.103642e+08  2.763698e+00    3.783850e-02    4.675702e-07    6.671053e-04    
+         8 --    6      1/2 + --> 3/2 -     1.224814e+01        E1       Coulomb      1.511361e+08  1.018189e+00    1.160882e-02    9.947961e-08    2.457718e-04    
+         8 --    6      1/2 + --> 3/2 -     1.224814e+01        E1       Babushkin    2.461390e+08  1.658214e+00    1.890603e-02    1.620117e-07    4.002619e-04    
+         8 --    7      1/2 + --> 1/2 -     1.144104e+01        E1       Coulomb      1.882353e+08  1.555877e+00    3.314061e-02    1.238987e-07    1.877799e-04    
+         8 --    7      1/2 + --> 1/2 -     1.144104e+01        E1       Babushkin    2.674880e+08  2.210949e+00    4.709381e-02    1.760638e-07    2.668410e-04    
+  -----------------------------------------------------------------------------------------------------------------------------------------------------------------
+     Step 12:: A total of 35 Radiative lines are calculated, giving now rise to a total of 57 Radiative decay lines.
+
+* Write all results to disk; use:
+   JLD2.save(''zzz-cascade-dr-rate-computations-2026-08-23T15.jld'', results) 
+   using JLD2 
+   results = JLD2.load(''zzz-cascade-dr-rate-computations-2026-08-23T15.jld'')    ... to load the results back from file.
+
+  Capture against recombination
+  ----------------------------------------------------------
+    Auger lines from the capture scheme:        16
+    Auger lines from the recombination scheme:  16
+    max |rate difference| / max rate:  0.0
+    distinct final levels of the capture lines: 1
+    summed capture rate [a.u.]:  0.008391133416448386

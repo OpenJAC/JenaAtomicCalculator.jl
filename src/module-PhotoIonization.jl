@@ -820,6 +820,14 @@ end
         CARRIES THE SAME CORRECTION as computePartialCrossSectionUnpolarized: the flat version's inner loop tests `cha.gauge` where it means
         `chp.gauge`, so it multiplies Coulomb amplitudes with Babushkin ones. That cannot happen here. The two versions therefore differ by
         more than rounding, and the difference is the point rather than a defect of this one.
+
+        A GREEN SUITE SAYS NOTHING ABOUT THIS FUNCTION UNDER LINEARLY POLARIZED LIGHT, and that is worth knowing before trusting it. The
+        Clebsch-Gordan coupling the two helicities carried the projection -lambda where it needs -lambdap, so both projections summed to zero
+        and every lambda /= lambda' term -- exactly the terms carrying LINEAR polarization -- was deposited at q = 0 rather than at
+        q = +-2. Under P1 that cancelled the alignment exactly, A_20 coming out 0.000000 instead of 0.128571; under P2 it produced an
+        imaginary orientation that Hermiticity forbids; and q = +-2 was always zero. For UNPOLARIZED and CIRCULAR light those terms vanish
+        outright, so the wrong expression was RIGHT there -- which is why every approved case passed throughout. The defect lived precisely
+        in the configurations nobody had approved, so the next reader should not take a green suite as coverage of this one.
 """
 function computeStatisticalTensorUnpolarized(k::Int64, q::Int64, line::PhotoIonization.Line,
                                                    settings::PhotoIonization.Settings)
@@ -839,7 +847,7 @@ function computeStatisticalTensorUnpolarized(k::Int64, q::Int64, line::PhotoIoni
                                 sqrt( AngularMomentum.bracket([AngularJ64(L), AngularJ64(Lp), J, Jp]) ) *
                                 AngularMomentum.phaseFactor([J, +1, Jp, +1, Jf, +1, Ji, +1, j, +1, AngularJ64(1)]) *
                                 AngularMomentum.ClebschGordan( AngularJ64(L),  AngularM64(lambda), AngularJ64(Lp),
-                                                                AngularM64(-lambda), AngularJ64(k),  AngularM64(q)) *
+                                                                AngularM64(-lambdap), AngularJ64(k),  AngularM64(q)) *
                                 AngularMomentum.Wigner_6j(Jf, j, Jp, J, AngularJ64(k), Jf) *
                                 AngularMomentum.Wigner_6j(Jp, Ji, AngularJ64(Lp), AngularJ64(L), AngularJ64(k), J) *
                                 (ma.amplitude * conj(mp.amplitude))
@@ -1360,7 +1368,7 @@ function  displayResults(stream::IO, lines::Array{PhotoIonization.Line,1}, setti
 
 
     if  settings.calcTensors  
-        nx = 144 
+        nx = 178 
         println(stream, " ")
         println(stream, "  Reduced statistical tensors of the photoion in its final level after the photoionization ")
         println(stream, "  of initially unpolarized atoms by plane-wave photons with given Stokes parameters (density matrix):")
@@ -1379,7 +1387,7 @@ function  displayResults(stream::IO, lines::Array{PhotoIonization.Line,1}, setti
         sb = sb * TableStrings.center(12, TableStrings.inUnits("energy"); na=3)
         sa = sa * TableStrings.center(10, "Multipoles"; na=1);                              sb = sb * TableStrings.hBlank(13)
         sa = sa * TableStrings.center(10, "k    q"; na=4);                                  sb = sb * TableStrings.hBlank(11)
-        sa = sa * TableStrings.center(30, "Cou --  rho_kq (J_f)  -- Bab"; na=3)      
+        sa = sa * TableStrings.center(52, "Cou --  rho_kq (J_f)  (re, im)  -- Bab"; na=3)      
         println(stream, sa);    println(stream, sb);    println(stream, "  ", TableStrings.hLine(nx)) 
 
         for  line in lines
@@ -1401,11 +1409,15 @@ function  displayResults(stream::IO, lines::Array{PhotoIonization.Line,1}, setti
             for  k = 0:2
                 for q = -k:k
                     sb   = TableStrings.hBlank(102)
-                    rhoc = PhotoIonization.computeStatisticalTensorUnpolarized(k, q, Basics.Coulomb,   line, settings)
-                    rhob = PhotoIonization.computeStatisticalTensorUnpolarized(k, q, Basics.Babushkin, line, settings)
+                    # One call returns both gauges, and the component is COMPLEX: with linearly polarized light the
+                    # photoion carries coherence between sublevels two units apart, so q = +-2 has an imaginary part
+                    # whenever P2 does not vanish.  Both parts are printed.
+                    rho  = PhotoIonization.computeStatisticalTensorUnpolarized(k, q, line, settings)
+                    if  abs(rho.Coulomb) == abs(rho.Babushkin) == 0.    continue    end
+                    cnv(x) = Defaults.convertUnits("cross section: from atomic", x)
                     sb   = sb * string(k) * " " * TableStrings.flushright( 4, string(q))             * "       "
-                    sb   = sb * @sprintf("%.6e", Defaults.convertUnits("cross section: from atomic", rhoc.re))     * "    "
-                    sb   = sb * @sprintf("%.6e", Defaults.convertUnits("cross section: from atomic", rhob.re))     * "    "
+                    sb   = sb * @sprintf("%.5e %+.5e", cnv(real(rho.Coulomb)),   cnv(imag(rho.Coulomb)))    * "    "
+                    sb   = sb * @sprintf("%.5e %+.5e", cnv(real(rho.Babushkin)), cnv(imag(rho.Babushkin)))  * "    "
                     println(stream, sb)
                 end
             end

@@ -91,3 +91,27 @@ Modules = [ImpactIonization]
 Order   = [:type, :function]
 ```
 
+
+##  Coulomb ionization by ion impact
+```@autodocs
+Modules = [CoulombIonization]
+Order   = [:type, :function]
+```
+
+##  Multi-photon ionization
+```@autodocs
+Modules = [MultiPhotonIonization]
+Order   = [:type, :function]
+```
+
+##  Photorecombination with RR-DR interference
+```@autodocs
+Modules = [PhotoRecombinationInterference]
+Order   = [:type, :function]
+```
+
+##  Resonant electron-impact ionization
+```@autodocs
+Modules = [ResonantImpactIonization]
+Order   = [:type, :function]
+```

@@ -1,14 +1,14 @@
 
-println("Fd) Cascade.PhotoIonizationScheme: photo-ionization cross sections of Ne^+.")
+println("Fd) Cascade.PhotoIonizationScheme: photo-ionization cross sections of Ne^+, calibrated on neutral Ne.")
 
 using JLD2
 #
-setDefaults("method: continuum, asymptotic Coulomb")    ## setDefaults("method: continuum, Galerkin")
+setDefaults("method: continuum, Galerkin")              ## setDefaults("method: continuum, asymptotic Coulomb")
 setDefaults("method: normalization, pure sine")         ## setDefaults("method: normalization, pure Coulomb")
 setDefaults("unit: energy", "eV")                       ## the scheme's photonEnergies are read in THIS unit
 setDefaults("unit: cross section", "barn")              ## set explicitly; see the unit note below
 
-grid = Radial.Grid(Radial.Grid(false); rnt = 3.0e-6, h = 2.0e-2, hp = 3.0e-2, rbox = 11.0)
+grid = Radial.Grid(Radial.Grid(false); rnt = 4.0e-6, h = 5.0e-2, hp = 0.6e-2, rbox = 10.0)
 
 
 # REWRITTEN 06-Aug-2026, second file of the scheme series (see the cascade-schemes plan). Two earlier files
@@ -38,13 +38,18 @@ grid = Radial.Grid(Radial.Grid(false); rnt = 3.0e-6, h = 2.0e-2, hp = 3.0e-2, rb
 #   - electronEnergyShift     DEAD; never read
 #   - minCrossSection         DEAD; never read, so no weak lines are suppressed
 #   - excitationToShells      DEAD; it occurs only inside a docstring
-#   - initialLevelSelection   BYPASSED; it survives only in the commented-out line 32, while line 33
-#                             hard-codes LevelSelection(true, indices=[1]).  ONLY the ground level is
-#                             ionized, whatever the user asks for.
-# The last point matters to anyone building a photo-ionization cascade from an excited or metastable initial
-# level: the request is accepted silently and ignored. It is the same class of defect as the hard-wired [E1]
-# that example-Fc.jl uncovered in the photo-excitation scheme, and deserves the same fix -- but that is a
-# second module, so it is recorded here rather than changed.
+#   + initialLevelSelection   FIXED 24-Aug-2026; it is read again.  It had been commented out in
+#                             Cascade.computeSteps and replaced by a hard-wired LevelSelection(true,
+#                             indices=[1]), so that ONLY the ground level was ever ionized however the field
+#                             was set -- accepted by the constructor, printed back by Base.show, and ignored.
+#                             That was the same class of defect as the hard-wired [E1] which example-Fc.jl
+#                             uncovered in the photo-excitation scheme.
+# NOTE WHAT THE DEFAULT NOW MEANS.  LevelSelection() is INACTIVE, and Basics.selectLevel returns true for every
+# level of an inactive selection, so a scheme left at its default ionizes ALL initial levels and not merely the
+# first.  Every branch below therefore asks for LevelSelection(true, indices=[1]) EXPLICITLY: that reproduces
+# what the branches computed while the bypass was in force, so their dated numbers are unchanged by the repair,
+# and it states on the face of the branch which level is being ionized instead of leaving it to a default.
+# Branch f exercises the field itself.
 #
 # Two further observations on the implementation, neither of them changed here:
 #   + Cascade.perform(::PhotoIonizationScheme, ...) accepts an outputDirectory argument and never uses it;
@@ -61,46 +66,53 @@ grid = Radial.Grid(Radial.Grid(false); rnt = 3.0e-6, h = 2.0e-2, hp = 3.0e-2, rb
 # every example does println(wa), the scheme could not be used in the documented way at all; a smoke test
 # that skips the printout runs fine, which is why this survived.  See src/module-Cascade.jl.
 #
-# HOW GOOD ARE THE NUMBERS?  Honest answer, 06-Aug-2026: the thresholds are right, the overall magnitude is
-# plausible, and the finer structure is NOT trustworthy.  No branch below is therefore marked
-# "Last successful".  What was established:
-#   + Thresholds.  The five Ne^2+ (2p^4) levels come out at 39.3 - 44.8 eV against a measured Ne^+ ionization
-#     potential of 40.96 eV, and the 2s-hole levels at 65.8 - 73.8 eV.  Good.
-#   + Magnitude.  5.8 Mb (Coulomb) for 2p at 80 eV is the right order for a neon 2p subshell.
-#   - Gauge.  Coulomb and Babushkin disagree by factors of 1.5 to 4.5 depending on energy and subshell.  That
-#     is an internal inconsistency, not a matter of taste, and it alone rules out quoting these numbers.
-#   - Subshell ratio.  At 120 eV the computed 2s cross section EXCEEDS the 2p one by 1.65 (Coulomb) or 3.05
-#     (Babushkin), where neon data put 2s/2p near 0.2.  The ordering is inverted, not merely inaccurate.
-#   - Partial waves.  For 2p ionization the photo-electron must be s or d (E1), and d should dominate far
-#     above threshold.  Branch d finds the s wave alone carries 56% of the total.
-#   CAUSE LARGELY IDENTIFIED, 07-Aug-2026, while working on example-Fg.jl: this file uses
-#   setDefaults("method: continuum, asymptotic Coulomb"), which for valence-shell processes in low-charge ions
-#   gives erratic continuum orbitals.  Repeating the 120 eV case with Galerkin on a finer grid
-#   (rnt=4.0e-6, h=5.0e-2, hp=0.6e-2, rbox=10.0, as in example-Dd.jl) gives
-#         asymptotic Coulomb :  2p = 3.409/0.849 Mb, gauge ratio 4.01,  2s/2p = 1.652
-#         Galerkin           :  2p = 7.348/5.669 Mb, gauge ratio 1.30,  2s/2p = 0.305
-#   i.e. BOTH headline defects recorded below largely disappear -- the gauge spread drops from 300% to 30% and
-#   the inverted subshell ratio returns to ~0.3, close to the ~0.2 the neon data indicate.  The assessment
-#   below therefore attributes to AverageSCA what was in fact a continuum-method artefact.  The branches have
-#   deliberately NOT been re-run and re-dated (they are left as the record of that mistake), but any further
-#   use of this scheme should set Galerkin.  See the extended note in example-Fg.jl.
+# HOW GOOD ARE THE NUMBERS?  Answered 23-Aug-2026, and the answer is now split by ENERGY rather than left
+# open.  The file was switched to Galerkin above, which is what its own 07-Aug note recommended, and all four
+# branches were re-run on the finer grid.  ALL THREE defects recorded in August disappear:
+#         gauge ratio      1.5 - 4.5   ->   1.15 - 1.33  at every energy
+#         2s/2p at 120 eV  1.65        ->   0.305        (neon data indicate ~0.2)
+#         d-wave share     44%         ->   96.8%        (the s wave had carried 56%)
+# so all three were artefacts of setDefaults("method: continuum, asymptotic Coulomb"), which gives erratic
+# continuum orbitals for valence-shell processes in low-charge ions.  The old numbers are kept in the branch
+# texts below, marked SUPERSEDED, because the mistake is worth being able to recognise again.
+#
+# THE EXTERNAL REFERENCE, which this file previously said it needed.  Branch e ionizes NEUTRAL neon, whose 2p
+# cross section is among the best measured in the periodic table, so the calculation can be held against a
+# number rather than against an expectation.  Computed (Coulomb / Babushkin, Mb) against the measured curve:
+#         25 eV   21.0 / 16.0     vs ~5        40 eV   13.4 /  9.6     vs ~8   (near the measured maximum)
+#         30 eV   18.2 / 13.3     vs ~6.5      60 eV    6.87 /  4.92   vs ~6.3
+#         50 eV    9.16 /  6.46   vs ~7.5      80 eV    4.14 /  3.06   vs ~4.0
+#                                             120 eV    1.82 /  1.44   vs ~2.0
+#   + WELL ABOVE THRESHOLD the scheme is now good: within 10-20% at 80 and 120 eV, with the two gauges 1.3
+#     apart.  Numbers from this region can be used, with that spread quoted.
+#   - NEAR THRESHOLD it is wrong, and wrong in SHAPE and not merely in size.  Neon's measured cross section
+#     RISES from about 4 Mb at the 21.56 eV threshold to a delayed maximum near 45 eV; the computed curve
+#     falls MONOTONICALLY from 21 Mb at 25 eV.  The overshoot is 1.7x at 40 eV, 2.7x at 30 eV and ~4x at
+#     25 eV.  The delayed maximum is a centrifugal-barrier effect -- the 2p -> eps_d channel cannot penetrate
+#     the barrier just above threshold -- and its absence says the outgoing d wave carries too much amplitude
+#     at low energy.  That is what a frozen-core DFS continuum without polarisation or interchannel coupling
+#     would give, and it is a property of AverageSCA rather than of the continuum method: switching to
+#     Galerkin fixed the gauge, the subshell ratio and the partial waves, and did NOT fix this.
+#   The practical rule: TRUST THIS SCHEME MORE THAN ABOUT 40 eV ABOVE THRESHOLD, AND NOT BELOW.  For Ne^+
+#   (threshold ~41 eV) that puts branch b's 50 eV point, only ~9 eV above threshold, in the untrustworthy
+#   region while its 120-300 eV points are in the good one.
 #
 #   RULED OUT as the cause: the continuum normalization.  Repeating branch a with
 #   "method: normalization, pure sine" and "pure Coulomb" changes the total by 2.5e-5 relative
 #   (0.2062176 vs 0.2062228 a.u.), and both branches of Continuum are genuinely entered (58 orbitals each).
 #   At a 40 eV photo-electron energy the Coulomb correction to the asymptotic normalization is simply
 #   negligible, so this knob cannot explain anything here.
-#   The remaining suspect is the AverageSCA treatment itself -- single-CSF blocks with no configuration
-#   mixing, bound orbitals from a DFS field of the initial configuration, the continuum orbital in the field
-#   of the final ion, and no interchannel coupling.  Photoionization is far more sensitive to all four than
-#   the decay rates that this approach was designed for.  Establishing that needs an external reference or a
-#   better approach, and SCA() is not implemented, so it is left open here.
 
 
 if  true
-    # Last visit:      06-Aug-2026 ... runs; 5 lines, total 5.775 Mb (Coulomb) / 1.498 Mb (Babushkin).
-    #                  Warm cost ~7 s, so it fits the smoke budget.  NOT "Last successful": the two gauges
-    #                  disagree by 3.9, see the assessment above.
+    # Last visit:      23-Aug-2026
+    # Last successful: 23-Aug-2026
+    #
+    # REPORT (23-Aug-2026, Galerkin): 5 lines, total 18.148 Mb (Coulomb) / 13.686 Mb (Babushkin), i.e. a
+    #   gauge ratio of 1.33 where the asymptotic-Coulomb run of 06-Aug gave 3.9 on the same case. 52.6 s as
+    #   the cold first run of a session; the smaller branch d runs warm in 14.3 s. At 80 eV the photo-electron
+    #   carries ~38 eV, which is just inside the region branch e certifies, so this number is usable with its
+    #   33% gauge spread quoted alongside. SUPERSEDED reading of 06-Aug: 5.775 / 1.498 Mb.
     #
     # Branch a: REFERENCE AND SMOKE CASE -- Ne^+ (1s^2 2s^2 2p^5) ionized out of the 2p subshell at a single
     #   photon energy of 80 eV, with s, p and d partial waves for the photo-electron. This is the branch
@@ -109,7 +121,7 @@ if  true
 
     name   = "Ne^+ 2p photo-ionization at 80 eV"
     scheme = Cascade.PhotoIonizationScheme([E1], [80.0], Float64[], [Shell("2p")], Shell[],
-                                           LevelSelection(), [0,1,2], 0., 0.)
+                                           LevelSelection(true, indices=[1]), [0,1,2], 0., 0.)
     wa     = Cascade.Computation(Cascade.Computation(); name=name, nuclearModel=Nuclear.Model(10.), grid=grid,
                                  approach=Cascade.AverageSCA(), scheme=scheme,
                                  initialConfigs=[Configuration("1s^2 2s^2 2p^5")] )
@@ -118,13 +130,23 @@ if  true
     setDefaults("print summary: close", "")
     #
 elseif  false
-    # Last visit:      06-Aug-2026 ... 25 lines, ~24 s.  Totals in Mb (Coulomb / Babushkin):
-    #                      50 eV  1.148 / 0.496      80 eV  5.775 / 1.498     120 eV  3.409 / 0.849
-    #                     200 eV  0.965 / 0.409     300 eV  0.314 / 0.214
-    #                  The curve peaks at 80 eV, i.e. ~40 eV above threshold, and falls by a factor 18 out
-    #                  to 300 eV.  A delayed maximum is not by itself wrong for an l -> l+1 channel with a
-    #                  centrifugal barrier, so this shape is NOT being called an error -- but neither is it
-    #                  confirmed, and the gauge spread over the range (1.5 to 4.0) prevents dating it.
+    # Last visit:      23-Aug-2026
+    # Last successful: 23-Aug-2026
+    #
+    # REPORT (23-Aug-2026, Galerkin): 21.6 s warm, 25 lines. Totals in Mb (Coulomb / Babushkin):
+    #        50 eV  52.46 / 41.22     80 eV  18.15 / 13.69     120 eV  7.348 / 5.667
+    #       200 eV   2.100 /  1.725  300 eV   0.705 / 0.611
+    #   with gauge ratios of 1.27, 1.33, 1.30, 1.22, 1.15 -- uniform and modest, against the 1.5 to 4.0 of
+    #   the superseded run below. The SHAPE has also changed: the old curve peaked at 80 eV, and this one
+    #   falls monotonically from 50 eV onwards. That is not automatically the better answer, and branch e is
+    #   what decides it: neon really does have a delayed maximum, and the computed neutral-neon curve does
+    #   NOT reproduce it either, falling monotonically where the measurement rises. So the 06-Aug curve had
+    #   a maximum for the wrong reason and this one lacks a maximum for a real one.
+    #   READ THIS TABLE FROM 120 eV UPWARDS. The 50 eV point sits only ~9 eV above the Ne^+ threshold, deep
+    #   in the region where branch e shows the calculation overshooting by up to 4x, and 52 Mb should not be
+    #   quoted. Dated for the 120-300 eV points and for the gauge behaviour, not for the near-threshold end.
+    #   SUPERSEDED (06-Aug, asymptotic Coulomb): 1.148/0.496, 5.775/1.498, 3.409/0.849, 0.965/0.409,
+    #   0.314/0.214 Mb at the same five energies.
     #
     # Branch b: PHOTON-ENERGY DEPENDENCE -- the same 2p ionization over a range of photon energies from just
     #   above threshold to well above it. This is the branch that can be checked against something external:
@@ -136,7 +158,7 @@ elseif  false
 
     name   = "Ne^+ 2p photo-ionization, 50 - 300 eV"
     scheme = Cascade.PhotoIonizationScheme([E1], [50.0, 80.0, 120.0, 200.0, 300.0], Float64[],
-                                           [Shell("2p")], Shell[], LevelSelection(), [0,1,2], 0., 0.)
+                                           [Shell("2p")], Shell[], LevelSelection(true, indices=[1]), [0,1,2], 0., 0.)
     wa     = Cascade.Computation(Cascade.Computation(); name=name, nuclearModel=Nuclear.Model(10.), grid=grid,
                                  approach=Cascade.AverageSCA(), scheme=scheme,
                                  initialConfigs=[Configuration("1s^2 2s^2 2p^5")] )
@@ -145,11 +167,17 @@ elseif  false
     setDefaults("print summary: close", "")
     #
 elseif  false
-    # Last visit:      06-Aug-2026 ... two steps, 9 lines, ~12 s.  At 120 eV the 2s block gives 5.63 Mb and
-    #                  the 2p block 3.41 Mb (Coulomb), i.e. 2s/2p = 1.65 where neon data put it near 0.2 --
-    #                  the ordering is inverted.  One useful internal check does pass: the 2p part here
-    #                  reproduces branch b's 120 eV numbers line by line, so adding the 2s block does not
-    #                  disturb the 2p one.  NOT "Last successful".
+    # Last visit:      23-Aug-2026
+    # Last successful: 23-Aug-2026
+    #
+    # REPORT (23-Aug-2026, Galerkin): 23.1 s warm, two steps, 9 lines. At 120 eV
+    #        2s block  2.240 / 2.180 Mb        2p block  7.348 / 5.667 Mb        2s/2p = 0.305 (Coulomb)
+    #   THE INVERSION IS GONE. The superseded run below put 2s/2p at 1.65, i.e. the 2s subshell ionizing
+    #   more readily than the 2p one, which is not what neon does; the ratio is now 0.305 against the ~0.2
+    #   the neon data indicate -- the right side of unity and the right order of magnitude.
+    #   The internal check also still passes, and passes exactly: the 2p total here, 7.347569e+06 barn,
+    #   reproduces branch b's 120 eV entry to all seven printed digits, so adding a second ionized block
+    #   leaves the first one numerically untouched. SUPERSEDED (06-Aug): 5.63 Mb and 3.41 Mb, ratio 1.65.
     #
     # Branch c: SUBSHELL DECOMPOSITION -- ionization out of 2s AND 2p in one computation. Two ionized blocks
     #   are generated, so the two subshells appear as separate steps and their cross sections can be compared
@@ -159,7 +187,7 @@ elseif  false
 
     name   = "Ne^+ 2s and 2p photo-ionization at 120 eV"
     scheme = Cascade.PhotoIonizationScheme([E1], [120.0], Float64[], [Shell("2s"), Shell("2p")], Shell[],
-                                           LevelSelection(), [0,1,2], 0., 0.)
+                                           LevelSelection(true, indices=[1]), [0,1,2], 0., 0.)
     wa     = Cascade.Computation(Cascade.Computation(); name=name, nuclearModel=Nuclear.Model(10.), grid=grid,
                                  approach=Cascade.AverageSCA(), scheme=scheme,
                                  initialConfigs=[Configuration("1s^2 2s^2 2p^5")] )
@@ -168,10 +196,18 @@ elseif  false
     setDefaults("print summary: close", "")
     #
 elseif  false
-    # Last visit:      06-Aug-2026 ... 5 lines, ~5 s, total 3.243 Mb (Coulomb) against 5.775 Mb for branch a.
-    #                  lValues IS honoured -- the number changes -- but the result says the s wave alone
-    #                  carries 56% of the 2p cross section, whereas the d wave should dominate at a 40 eV
-    #                  photo-electron energy.  Reported as a finding, not as a convergence success.
+    # Last visit:      23-Aug-2026
+    # Last successful: 23-Aug-2026
+    #
+    # REPORT (23-Aug-2026, Galerkin): 14.3 s warm, 5 lines, total 0.585 / 0.504 Mb against branch a's
+    #   18.148 / 13.686 Mb with the d wave included. So dropping l = 2 removes 96.8% of the cross section,
+    #   which is what an E1 ionization out of 2p must do well above threshold: the photo-electron can only
+    #   be s or d, and at a ~38 eV photo-electron energy the d wave carries essentially all of it.
+    #   This is the check that changed most. The superseded run below had the s wave alone carrying 56% of
+    #   the total, which was reported at the time as a finding about the partial-wave sum; it was in fact a
+    #   third symptom of the asymptotic-Coulomb continuum, and it disappears with the rest. lValues is
+    #   honoured, the partial-wave sum is not silently truncated, and the hierarchy is now the physical one.
+    #   SUPERSEDED (06-Aug): 3.243 Mb against 5.775 Mb, i.e. an s wave carrying 56%.
     #
     # Branch d: PARTIAL-WAVE CONVERGENCE -- branch a repeated with only s and p partial waves. For an E1
     #   ionization out of 2p the photo-electron must be s or d, and the d wave dominates well above
@@ -181,12 +217,148 @@ elseif  false
 
     name   = "Ne^+ 2p photo-ionization at 80 eV, s and p waves only"
     scheme = Cascade.PhotoIonizationScheme([E1], [80.0], Float64[], [Shell("2p")], Shell[],
-                                           LevelSelection(), [0,1], 0., 0.)
+                                           LevelSelection(true, indices=[1]), [0,1], 0., 0.)
     wa     = Cascade.Computation(Cascade.Computation(); name=name, nuclearModel=Nuclear.Model(10.), grid=grid,
                                  approach=Cascade.AverageSCA(), scheme=scheme,
                                  initialConfigs=[Configuration("1s^2 2s^2 2p^5")] )
     println(wa)
     wb = perform(wa; output=true, outputToFile=false)
+    setDefaults("print summary: close", "")
+    #
+elseif  false
+    # Last visit:      23-Aug-2026
+    # Last successful: 23-Aug-2026
+    #
+    # Branch e: THE EXTERNAL CALIBRATION -- the same scheme applied to NEUTRAL neon, whose 2p photo-ionization
+    #   cross section is among the best measured in the periodic table. Everything above computes Ne^+, for
+    #   which no comparable measurement exists, so this branch is what turns the file from internally
+    #   consistent into externally checked. Seven photon energies from just above the 21.56 eV threshold out
+    #   to well beyond it, so that the SHAPE of the curve is tested and not merely one magnitude.
+    #
+    # REPORT (23-Aug-2026): 51.0 s cold. Two final levels per energy, since Ne^+ 2p^5 is 3/2- and 1/2-.
+    #   Computed totals in Mb, Coulomb / Babushkin, against the measured curve:
+    #         25 eV   21.0  / 16.0     vs ~5           60 eV    6.87 / 4.92    vs ~6.3
+    #         30 eV   18.2  / 13.3     vs ~6.5         80 eV    4.14 / 3.06    vs ~4.0
+    #         40 eV   13.4  /  9.6     vs ~8          120 eV    1.82 / 1.44    vs ~2.0
+    #         50 eV    9.16 /  6.46    vs ~7.5
+    #   The verdict is a BOUNDARY rather than a single number, and it is stated in full at the head of this
+    #   file: good to 10-20% above about 60 eV, too large by up to 4x below it, and wrong in SHAPE there --
+    #   the measured neon cross section RISES from ~4 Mb at threshold to a delayed maximum near 45 eV, while
+    #   the computed one falls monotonically from 21 Mb at 25 eV. The delayed maximum is the centrifugal
+    #   barrier keeping the eps_d wave out at low photo-electron energy, and its absence says that wave
+    #   carries too much amplitude near threshold -- a frozen-core DFS continuum without polarisation or
+    #   interchannel coupling, i.e. a property of AverageSCA and not of the continuum method, since Galerkin
+    #   repaired the gauge, the subshell ratio and the partial waves and did not repair this.
+    #   Worth keeping methodologically: the gauge ratio is a uniform ~1.3 over the WHOLE range, including
+    #   the energies where the result is four times the measurement. The two gauges agree with each other
+    #   where both disagree with nature, so gauge consistency is a necessary check and not a sufficient one.
+    setDefaults("print summary: open", "zzz-Cascade-Fd-neutralNe.sum")
+
+    name   = "NEUTRAL Ne 2p photo-ionization, calibration against measurement"
+    scheme = Cascade.PhotoIonizationScheme([E1], [25.0, 30.0, 40.0, 50.0, 60.0, 80.0, 120.0], Float64[],
+                                           [Shell("2p")], Shell[], LevelSelection(true, indices=[1]), [0,1,2], 0., 0.)
+    wa     = Cascade.Computation(Cascade.Computation(); name=name, nuclearModel=Nuclear.Model(10.), grid=grid,
+                                 approach=Cascade.AverageSCA(), scheme=scheme,
+                                 initialConfigs=[Configuration("1s^2 2s^2 2p^6")] )
+    println(wa)
+    wb = perform(wa; output=true, outputToFile=false)
+    setDefaults("print summary: close", "")
+    #
+elseif  false
+    # Last visit:      24-Aug-2026
+    # Last successful: 24-Aug-2026
+    #
+    # Branch f: DOES initialLevelSelection DO ANYTHING?  Until 24-Aug-2026 the honest answer was no: the field was
+    #   accepted, printed back, and then replaced inside Cascade.computeSteps by a hard-wired
+    #   LevelSelection(true, indices=[1]).  A branch that merely SET the field could never have revealed that --
+    #   asking for level 1 and getting level 1 looks like success whatever the code does.  This branch therefore
+    #   asks for something the bypass could not have produced: an INACTIVE selection, which means every initial
+    #   level, where Ne^+ 1s^2 2s^2 2p^5 has two -- 3/2- and 1/2-.
+    #
+    #   THE CHECK IS AN IDENTITY, not a magnitude.  Two initial-level rows must appear where branch a produces
+    #   one, and the 3/2- row must reproduce branch a's total EXACTLY, since it is the same computation on the
+    #   same level; only the extra 1/2- row is new.  Had the field still been ignored, this branch would have
+    #   printed a single row identical to branch a and the difference would have been invisible.
+    #
+    # REPORT (24-Aug-2026): two rows, as required.
+    #        i-level   J^P        omega [eV]    No lines    Coulomb          Babushkin
+    #           1      3/2 -      8.00e+01         5      1.814794e+07     1.368568e+07
+    #           2      1/2 -      8.00e+01         5      9.066914e+06     6.831246e+06
+    #   THE IDENTITY HOLDS: the 3/2- row is branch a's 1.814794e+07 / 1.368568e+07 barn to every printed digit,
+    #   so restoring the field moved nothing about the ground-level computation, and the second row is purely an
+    #   addition.  Five lines per initial level, several of them exactly zero by the E1 selection rules.
+    #   THE TWO ROWS STAND IN THE RATIO 2.0016 (Coulomb) and 2.0033 (Babushkin), i.e. the ratio of their
+    #   statistical weights, 4 : 2, to better than 0.2%.  That is worth a warning rather than a shrug.  A total
+    #   cross section per initial LEVEL that scales as (2J_i+1) is not the per-atom quantity one may simply
+    #   population-average; whether the (2J_i+1) here is physics -- both fine-structure levels of one 2p hole
+    #   sharing a single reduced matrix element -- or a normalisation carried in the tabulated total is NOT
+    #   settled by this branch, and anyone averaging these two rows should establish which first.
+    #   A NOTE ON HOW THE BYPASS SURVIVED SO LONG: for this system it cost only the second row, and the second
+    #   row is proportional to the first.  It would not be so harmless for a metastable initial level with a
+    #   different orbital structure, which is the case the field exists for.
+    setDefaults("print summary: open", "zzz-Cascade-Fd-levelSelection.sum")
+
+    name   = "Ne^+ 2p photo-ionization at 80 eV, ALL initial levels"
+    scheme = Cascade.PhotoIonizationScheme([E1], [80.0], Float64[], [Shell("2p")], Shell[],
+                                           LevelSelection(), [0,1,2], 0., 0.)
+    wa     = Cascade.Computation(Cascade.Computation(); name=name, nuclearModel=Nuclear.Model(10.), grid=grid,
+                                 approach=Cascade.AverageSCA(), scheme=scheme,
+                                 initialConfigs=[Configuration("1s^2 2s^2 2p^5")] )
+    println(wa)
+    wb = perform(wa; output=true, outputToFile=false)
+    setDefaults("print summary: close", "")
+    #
+elseif  false
+    # Last visit:      24-Aug-2026
+    # Last successful: 24-Aug-2026
+    #
+    # Branch g: FROM A CROSS SECTION TO A RATE -- Cascade.PiRateCoefficients folds the cross sections computed above
+    #   with a PHOTON FIELD, giving the photoionization rate per ion in a radiation field rather than a cross section
+    #   at chosen photon energies.  The convention is that of Empirical.photoionizationPlasmaRatePerIon:
+    #
+    #         R^PI (per ion)  =  INT d(omega)  n(omega) * c * sigma^PI(omega)          [1/s]
+    #
+    #   AND IT IS A RATE, NOT A RATE COEFFICIENT.  The convolution already carries the photon number density of the
+    #   field, so it takes no further multiplication by a density -- multiply by the ION density for a volumetric
+    #   rate.  The electron density does not enter photoionization at all.  Confusing the two is the easiest mistake
+    #   available here, which is why the printout says it twice.
+    #
+    #   The branch computes and folds in one go rather than reading a .jld, because the branches of this file are all
+    #   written with outputToFile=false and there is no file to read.
+    # REPORT (24-Aug-2026): 39.6 s, the computation being nearly all of it.  Folding the five cross sections of
+    #   branch b over three fields:
+    #       photon field                              R^PI Coulomb    R^PI Babushkin   edge share
+    #       PhotonPlanck  kT =  50.0 eV               1.168473e+12    9.038400e+11       0.5657
+    #       PhotonPlanck  kT = 100.0 eV               4.125615e+12    3.206413e+12       0.5058
+    #       PhotonDilute  kT = 100.0 eV, w = 1.0e-03  4.125615e+09    3.206413e+09       0.5058
+    #   TWO THINGS TO READ HERE, and the second matters more than the first.
+    #     + The dilute field returns EXACTLY 1.0e-03 times the Planck field at the same temperature, which is what a
+    #       dilution factor must do, and is a free check that the field enters the fold linearly and nowhere else.
+    #     - THE EDGE SHARE IS 0.5, AND THAT IS A WARNING, not a detail.  It is the fraction of the integral carried
+    #       by the two outermost intervals: half the answer is coming from the ends of the tabulated range, so the
+    #       integrand is still large where the cross sections stop and the true rate is LARGER than these numbers.
+    #       They are lower bounds, and the fix is not here -- it is to recompute branch a/b with photon energies
+    #       reaching further, both towards the 41 eV threshold and well above 300 eV.  The branch is dated because
+    #       the fold, the units and the field handling are verified, NOT because these three rates may be quoted.
+    #   That is the whole point of printing the diagnostic beside the number rather than in a docstring.
+    setDefaults("print summary: open", "zzz-Cascade-Fd-piRates.sum")
+
+    name   = "Ne^+ 2p photo-ionization, folded with photon fields"
+    scheme = Cascade.PhotoIonizationScheme([E1], [50.0, 80.0, 120.0, 200.0, 300.0], Float64[], [Shell("2p")], Shell[],
+                                           LevelSelection(true, indices=[1]), [0,1,2], 0., 0.)
+    wa     = Cascade.Computation(Cascade.Computation(); name=name, nuclearModel=Nuclear.Model(10.), grid=grid,
+                                 approach=Cascade.AverageSCA(), scheme=scheme,
+                                 initialConfigs=[Configuration("1s^2 2s^2 2p^5")] )
+    wb     = perform(wa; output=true, outputToFile=false)
+    #
+    kT(e)  = Defaults.convertUnits("energy: to atomic", e)
+    sim    = Cascade.Simulation(Cascade.Simulation(); name="Ne^+ photoionization rates",
+                 computationData=Dict{String,Any}[ Dict{String,Any}("results" => wb) ],
+                 property=Cascade.PiRateCoefficients(1, Distribution.AbstractPhotonDistribution[
+                              Distribution.PhotonPlanck(kT(50.0)), Distribution.PhotonPlanck(kT(100.0)),
+                              Distribution.PhotonDilute(kT(100.0), 1.0e-3) ]),
+                 settings=Cascade.SimulationSettings(false, false, 0.) )
+    perform(sim; output=true)
     setDefaults("print summary: close", "")
     #
 end

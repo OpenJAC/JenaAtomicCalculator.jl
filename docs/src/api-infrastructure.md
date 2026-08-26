@@ -64,3 +64,9 @@ Order   = [:type, :function]
 Modules = [SelfConsistent]
 Order   = [:type, :function]
 ```
+
+##  Statistical tensors of an ensemble
+```@autodocs ; canonical=false
+Modules = [Statistical]
+Order   = [:type, :function]
+```

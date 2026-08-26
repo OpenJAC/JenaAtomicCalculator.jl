@@ -1,5 +1,11 @@
 # push!(LOAD_PATH,"../src/")
 
+# Build the plots WITHOUT opening a window. Six @example blocks in docs/src/examples.md call `plot(...)`, and Documenter
+# EVALUATES them, so on a machine with a display the GR backend pops up a window for each one on every build. CI never
+# noticed because a build server has no display. GKSwstype = "100" is GR's headless mode: savefig still writes the .svg
+# files the pages embed, nothing appears on screen. Must be set BEFORE Plots/GR is first loaded.
+ENV["GKSwstype"] = "100"
+
 using Documenter, JenaAtomicCalculator
 
 makedocs(;

@@ -1,399 +1,184 @@
 
-#== September 2025
-
-This code/module has been written without any tests so far; apart from syntax errors, a number of
-logical errors need to be expected. Nonetheless, it provides a first set of functions in order to deal with the 
-autoionization and (x-ray) photon emission decay of muonic atoms. Not all the functions have been realized in 
-full details yet.
-
-At present, this module is not (yet) included into the JAC code.
-We need to think and discuss more carefully which of the properties and spectra can be predicted
-for muonic atoms, and how they should be implemented as a new cascade scheme.
-
-We also need to implement the two cascade schemes: Cascade.MuonicDecayScheme
-together with the associated parameters and -inc- files. In the first instance, these computations are based
-on pre-calculated muonic and electronic orbitals, from which all other orbitals are obtained. --- In this
-scheme allow different decay processes (Auger(), Photo()) and the maximum number of released electrons ... follow
-StepwiseDecay. 
-
-Report properly about the basic assumptions/limitations in this scheme;
-split Cascade-inc-Simulations  into   
-Cascade-inc-Simulations-ions
-Cascade-inc-Simulations-electrons
-Cascade-inc-Simulations-photons
-Cascade-inc-Simulations-coincidences   ... to better separate different topics, together with the associated
-                                        data types.
-                                        
-New SimulationProperties:  MuonicXrays, ElectronicXraysAfterMuonCapture, IonDistributionAfterMuonCapture.
-
-Likely, we need to introduce a Cascade.MuonLevel (energy, configuration, muonSubshell) to deal with full cascades
-of the muon-decay.
-
-Introduce a function  Basics.interpolate(orbital::Orbital, newGrid::Radial.Grid) to interpolate an orbital to 
-a new grid.
-
-==#
-
-
 """
-`module  JAC.MuonicAtom`  
-    ... a submodel of JAC that contains all methods for modeling the levels and decay of muonic atoms and ions.
-    In contrast to the (purely) electronic case, MuonicLevel's are characterized by a full electronic configuration
-    and a muon ins an subshell::MuonSubshell. Moreover, the electronic processes associated with the decay
-    of such muonic levels are described by MuonicAtom.PhotoEmissionLine's and MuonicAtom.AutoIonizationLine's,
-    which will contain a free electron in a particular partial-wave (subshell).
-    
-    This modules mainly provides data structures and functions that are needed to deal with muonic atoms
-    in a Cascade.MuonicXrayScheme and Cascade.MuonicAugerScheme. The decay of muonic atoms assumes that muon has
-    a binding energy similar or larger than the most inner (1s) electrons. The hydrogenic muon subshells, for which 
-    this condition is fullfilled, can be readily estimated as is indicated during the modeling of the photon
-    and electron spectra.
+`module  JenaAtomicCalculator.MuonicAtom`  
+    ... a submodel of JAC that computes the bound states of a MUON in an atom, and the muonic X-ray energies that
+        follow from them.
+
+        THE PHYSICAL PICTURE, and it is what makes this module small.  A muon is an electron with 206.77 times the
+        mass: same charge, same spin, the same Dirac equation.  It is treated here as a SINGLE PARTICLE moving in
+        the field of the nucleus plus, optionally, the mean field of the electrons.  It never enters an amplitude
+        together with the electrons, and there is no muon-electron exchange: the two systems see each other only
+        through their average charge distributions.  That is an approximation, and a good one, because the muon
+        orbits some two hundred times closer to the nucleus than any electron.
+
+        WHY THE NUCLEUS MATTERS MORE THAN ANYTHING ELSE HERE.  The muon's innermost orbit has a radius of roughly
+        256/Z fm, so for a heavy atom it lies INSIDE the nuclear charge distribution:
+
+              Z = 6  (C)     muon 1s ~ 43 fm     nucleus ~ 2.8 fm     outside
+              Z = 26 (Fe)    muon 1s ~ 9.8 fm    nucleus ~ 4.6 fm     outside
+              Z = 82 (Pb)    muon 1s ~ 3.1 fm    nucleus ~ 7.1 fm     INSIDE
+
+        The finite size of the nucleus is therefore not a small correction but the dominant effect above Z ~ 40:
+        measured here, it shifts the muon 1s level by 0.4% in carbon and by 50% in lead.  That is precisely why
+        muonic X-rays are a classical way of measuring nuclear charge radii, and it is the reason this module takes
+        a Nuclear.Model seriously rather than assuming a point charge.
+
+        WHAT IS NOT INCLUDED, and the first two matter at the per-cent level for heavy elements:
+        + VACUUM POLARISATION, the dominant QED correction in muonic atoms, which increases the binding.  Its
+          absence is visible: the 2p -> 1s energies computed here come out about 1% BELOW the measured ones for
+          heavy elements, which is the right size and the right sign for this omission.
+        + NUCLEAR POLARISATION and the finer nuclear-structure corrections.
+        + transition RATES.  Only transition ENERGIES are formed; the muonic X-ray intensities need a
+          one-particle multipole operator that is not written yet.
+        + the muon CASCADE.  A muon is captured into a high orbit and cascades down; that belongs in a cascade
+          scheme of its own and is deliberately not attempted here.
 """
 module MuonicAtom
 
-
-using Base.Threads, Distributed, Printf, ProgressMeter, SpecialFunctions,
-        ..AngularMomentum, ..Basics, ..Bsplines, ..Defaults, ..Nuclear, ..TableStrings
-        ## ..Basics provides Orbital, Configuration, Subshell, EmMultipole, subshell_l/_j and shellNotation;
-        ## ..Bsplines and ..Nuclear are needed for the Primitives and Model arguments below.
-
+using  Printf, ..Basics, ..Bsplines, ..Defaults, ..ManyElectron, ..Nuclear, ..Radial, ..TableStrings
 
 
 """
-`struct  MuonicAtom.MuonSubshell`  ... defines a type for the allowed values of relativistic muon subhells.  
+`MuonicAtom.recommendedGrid(Z::Float64, nMax::Int64)`  
+    ... returns a Radial.Grid suited to the MUON's orbitals of an atom with nuclear charge Z, up to principal
+        quantum number nMax.  A grid::Radial.Grid is returned.
 
-    + n        ::Int64  ... principal quantum number 
-    + kappa    ::Int64  ... relativistic angular quantum number
+        This exists because Rule 12 -- the box must be matched to the orbitals -- bites twice as hard for a muon.
+        A muon orbit is ~207 times smaller than the corresponding electron orbit, so an electron grid is both far
+        too coarse near the nucleus and enormously too wide; the B-spline basis then spends its splines on empty
+        space and misrepresents exactly the innermost orbital one is after.  The outer turning point of a
+        hydrogenic (n,l) orbit is r+ = (n^2/Z)(1 + sqrt(1 - l(l+1)/n^2)) / m, and the box is taken as 2.5 r+ for
+        the l = n-1 member of the highest shell requested.
 """
-struct  MuonSubshell
-    n          ::Int64 
-    kappa      ::Int64 
+function recommendedGrid(Z::Float64, nMax::Int64)
+    mass = Defaults.getDefaults("mass: muon")
+    rPlus = (nMax^2 / Z) * (1.0 + sqrt(max(0., 1.0 - (nMax-1)*nMax / nMax^2))) / mass
+    return( Radial.Grid(Radial.Grid(false); rnt = 1.0e-9, h = 4.0e-2, hp = 0., rbox = 2.5*rPlus) )
 end
 
 
 """
-`MuonicAtom.MuonSubshell(sa::String)`  ... constructor for a given String, such as 1s_1/2, 2s_1/2, 2p_3/2, ... .
+`MuonicAtom.computeOrbitals(subshells::Array{Subshell,1}, nm::Nuclear.Model, grid::Radial.Grid;
+                            electronPotential::Union{Nothing,Radial.Potential}=nothing, printout::Bool=false)`  
+    ... solves the one-particle Dirac equation for a MUON in the potential of the nucleus nm, optionally with the
+        mean field of the electrons added.  A dictionary orbitals::Dict{Subshell,Orbital} is returned.
+
+        `electronPotential` is the electrons' contribution in the Zr convention of Radial.Potential and is simply
+        ADDED to the nuclear one; passing `nothing` leaves the muon in the bare nuclear field.  The screening it
+        provides is small -- the muon sits far inside the electron cloud and sees almost the whole nuclear charge
+        -- but it is what makes the muon levels depend on the charge state of the ion.
 """
-function MuonSubshell(sa::String) 
-    wa = strip( sa );   
-    wb = findnext("_", wa, 1);    if  isnothing(wb)   error("No underscore in sa = $sa")           else   wb = wb[1]   end
-    wc = findnext("/", wa, wb);   if  isnothing(wc)   error("No / in wa[] = $(wa[wb[1]+1:end])")   else   wc = wc[1]   end
-    wd = string( wa[wb+1:wc-1] )
-    n  = parse(Int64, wa[1:wb-2]);                  l  = shellNotation( string(wa[ wb-1 ]) )
-    j2 = parse(Int64, wd );                         !(string(wa[end]) == "2")    &&  error("Unrecognized subshell string sa = $sa") 
-    if  l - j2/2 > 0     kappa = Int64( (j2+1)/2 )    else    kappa = Int64( -(j2+1)/2 )   end
-    MuonSubshell(n, kappa)   
-end
+function computeOrbitals(subshells::Array{Subshell,1}, nm::Nuclear.Model, grid::Radial.Grid;
+                         electronPotential::Union{Nothing,Radial.Potential}=nothing, printout::Bool=false)
+    mass = Defaults.getDefaults("mass: muon")
+    pot  = Nuclear.nuclearPotential(nm, grid)
+    if  !isnothing(electronPotential)
+        if  length(electronPotential.Zr) != length(pot.Zr)
+            error("MuonicAtom.computeOrbitals(): the electron potential is given on a different grid than the " *
+                  "nuclear one; both must use the muon grid.")
+        end
+        pot = Radial.Potential(pot.name * " + electron mean field", pot.Zr + electronPotential.Zr, grid)
+    end
+    primitives = Bsplines.generatePrimitives(grid)
 
-
-# `Base.show(io::IO, sh::MuonSubshell)`  ... prepares a proper printout of the variable sh::MuonSubshell.
-function Base.show(io::IO, sh::MuonSubshell) 
-    print(io, string(sh) )
-end
-
-
-# `Base.string(sh::MuonSubshell)`  ... provides a proper printout of the variable sh::MuonSubshell.
-function Base.string(sh::MuonSubshell) 
-    sa = "muon:" * string(sh.n) * shellNotation( Basics.subshell_l(sh) ) * "_" * string( Basics.subshell_j(sh) )
-    return( sa )
-end
-
-#######################################################################################################################
-#######################################################################################################################
-
-
-"""
-`struct  MuonicAtom.Level`  
-    ... defines a Level type for muonic atoms and ions; such levels are simply modeled by the subshell::MuonicSubshell
-        of the muon and the configuration for the occupation of the electrons.
-
-    + muonSubshell   ::MuonSubshell                 ... Subshell of the muon.
-    + muonOrbital    ::Orbital                      ... Orbital of the muon but with a grid, scaled by the muon mass.
-    + config         ::Configuration                ... Configuration to model the electronic shell structure.
-    + orbitals       ::Dict{Subshell, Orbital}      ... Orbitals of the bound electrons
-    + energy         ::Float64                      ... Total mean energy of the electron configuration.
-    + totalenergy    ::Float64                      ... (Estimated) total energy of the muonic atom.
-"""
-struct  Level
-    muonSubshell   ::MuonSubshell 
-    muonOrbital    ::Orbital 
-    config         ::Configuration 
-    orbitals       ::Dict{Subshell, Orbital} 
-    energy         ::Float64 
-    totalenergy    ::Float64       
-end 
-
-
-"""
-`MuonicAtom.Level()`  ... constructor for an 'empty' instance of a MuonicAtom.Level
-"""
-function  Level()
-    Level( MuonSubshell(1,-1), Orbital(), Configuration("[He]"), Dict{Subshell, Orbital}(), 0., 0. )
-end
-
-
-# `Base.show(io::IO, level::MuonicAtom.Level)`  ... prepares a proper printout of level::MuonicAtom.Level.
-function Base.show(io::IO, level::MuonicAtom.Level)
-    println(io, "muonSubshell:   $(level.muonSubshell)  ")
-    println(io, "muonOrbital:    $(level.muonOrbital)  ")
-    println(io, "config:         $(level.config)  ")
-    println(io, "orbitals:       $(level.orbitals)  ")
-    println(io, "energy:         $(level.energy)  ")
-    println(io, "totalenergy:    $(level.totalenergy)  ")
-end
-
-
-#######################################################################################################################
-#######################################################################################################################
-
-"""
-`struct  MuonicAtom.AutoIonizationChannel`  
-    ... defines a  Channel type to deal with the (electronic) autoionization of muonic atoms. Since all electrons are 
-        treated only in terms of their (configuration-) averaged density, the partial waves alone characterize the 
-        individual autoionization channels.
-
-    + kappa          ::Int64                 ... partial wave of the emitted electron.
-    + amplitude      ::Complex{Float64}      ... associated two-particle matrix element/amplitude of the channel.
-"""
-struct  AutoIonizationChannel
-    kappa            ::Int64  
-    amplitude        ::Complex{Float64} 
-end 
-
-
-"""
-`MuonicAtom.AutoIonizationChannel()`  ... constructor for an 'empty' instance of a MuonicAtom.AutoIonizationChannel
-"""
-function  AutoIonizationChannel()
-    AutoIonizationChannel( 0, ComplexF64(0.) )
-end
-
-
-# `Base.show(io::IO, channel::AutoIonizationChannel)`  ... prepares a proper printout of channel::AutoIonizationChannel.
-function Base.show(io::IO, channel::AutoIonizationChannel)
-    println(io, "kappa:          $(channel.kappa)  ")
-    println(io, "amplitude:      $(channel.amplitude)  ")
+    return( Bsplines.generateOrbitals(subshells, pot, nm, primitives; printout=printout, mass=mass) )
 end
 
 
 """
-`struct  MuonicAtom.AutoIonizationLine`  
-    ... defines a  Line type to deal with the (electronic) autoionization of muonic atoms, once the muon occupies
-        a shell "inside" of the bound electron density. While the muon can then be described by Dirac solutions,
-        the electrons are treated in terms of configurations.
+`MuonicAtom.screeningPotential(orbital::Orbital, grid::Radial.Grid)`  
+    ... forms the potential that the bound MUON presents to the electrons, in the Zr convention of
+        Radial.Potential.  A potential::Radial.Potential is returned, to be ADDED to the nuclear one when the
+        electronic structure of a muonic atom is computed.
 
-    + initialLevel   ::MuonicAtom.Level                 ... initial level of the muonic atom.
-    + finalLevel     ::MuonicAtom.Level                 ... final level of the muonic atom, with one electron less.
-    + energy         ::Float64                          ... (Mean) free energy of the electrons.
-    + channels       ::Array{MuonicAtom.AutoIonizationChannel,1}
-        ... Partial-wave channels for the autoionization of muonic atoms.
+        The classical statement about muonic atoms falls out of this: because the muon orbits some two hundred
+        times closer than any electron, the electrons cannot resolve it from the nucleus and see one unit of
+        charge glued on.  Zr tends to 1 at electron distances, so a muonic atom of charge Z behaves chemically
+        like an ordinary atom of charge Z-1 -- and that limit is the natural check on this function.
 """
-struct  AutoIonizationLine
-    initialLevel     ::MuonicAtom.Level
-    finalLevel       ::MuonicAtom.Level
-    energy           ::Float64
-    channels         ::Array{MuonicAtom.AutoIonizationChannel,1}
+function screeningPotential(orbital::Orbital, grid::Radial.Grid)
+    nr = min(length(orbital.P), length(grid.r))
+    D  = [ orbital.P[i]^2 + orbital.Q[i]^2  for i = 1:nr ]      # radial density of the muon
+    Zr = zeros( length(grid.r) )
+    ## Zr(r) = INT_0^r D dr'  +  r INT_r^inf (D/r') dr'   -- the standard Hartree screening of one particle.
+    ## The integrals use the grid's OWN Gauss-Legendre weights, grid.wr, and not a hand-rolled trapezoidal rule:
+    ## on the exponential mesh a trapezoid left the large-r limit at 1.000374 instead of 1, i.e. it broke the one
+    ## exact statement this function has to satisfy.  A quadrature error is indistinguishable from a physics error
+    ## in the answer, and only the exact limit tells them apart.
+    tail = zeros(nr)
+    outer = 0.
+    for  i = nr:-1:2
+        outer     = outer + D[i]/grid.r[i] * grid.wr[i]
+        tail[i-1] = outer
+    end
+    inner = 0.
+    for  i = 2:nr
+        inner  = inner + D[i] * grid.wr[i]
+        Zr[i]  = inner + grid.r[i] * tail[i]
+    end
+    for  i = nr+1:length(grid.r)    Zr[i] = Zr[nr]    end
+
+    return( Radial.Potential("muon screening", Zr, grid) )
 end
 
 
 """
-`MuonicAtom.AutoIonizationLine()`  ... constructor for an 'empty' instance of a MuonicAtom.AutoIonizationLine
+`MuonicAtom.displayLevels(stream::IO, orbitals::Dict{Subshell,Orbital}, nm::Nuclear.Model)`  
+    ... displays the muon binding energies of the given orbitals, beside the point-nucleus values they would have
+        if the nuclear charge were concentrated at the origin.  Nothing is returned.
 """
-function  AutoIonizationLine()
-    AutoIonizationLine( MuonicAtom.Level(), MuonicAtom.Level(), 0., AutoIonizationChannel[] )
-end
+function displayLevels(stream::IO, orbitals::Dict{Subshell,Orbital}, nm::Nuclear.Model)
+    mass = Defaults.getDefaults("mass: muon");    nx = 96
+    shs  = sort(collect(keys(orbitals)), by = sh -> (sh.n, sh.kappa))
+    println(stream, " ")
+    println(stream, "  Muon binding energies for Z = $(nm.Z), nuclear model $(nm.model):")
+    println(stream, " ")
+    println(stream, "  ", "-"^nx)
+    println(stream, "     subshell        energy [keV]      point nucleus [keV]     finite-size shift")
+    println(stream, "  ", "-"^nx)
+    for  sh  in  shs
+        en = Defaults.convertUnits("energy: from atomic to eV", orbitals[sh].energy) * 1.0e-3
+        ep = Defaults.convertUnits("energy: from atomic to eV",
+                                   Basics.computeDiracEnergy(sh, nm.Z; mass=mass)) * 1.0e-3
+        println(stream, "     " * rpad(string(sh), 12) * @sprintf("%16.4f", en) * @sprintf("%20.4f", ep) *
+                        @sprintf("%18.2f", 100*(en-ep)/abs(ep)) * " %")
+    end
+    println(stream, "  ", "-"^nx)
+    println(stream, "    The finite-size shift is the whole of the physics here for a heavy nucleus: the muon 1s")
+    println(stream, "    orbit has a radius of about 256/Z fm and so lies INSIDE the nuclear charge above Z ~ 40.")
 
-
-# `Base.show(io::IO, line::AutoIonizationLine)`  ... prepares a proper printout of line::AutoIonizationLine.
-function Base.show(io::IO, line::AutoIonizationLine) 
-    println(io, "initialLevel:   $(line.initialLevel)  ")
-    println(io, "finalLevel:     $(line.finalLevel)  ")
-    println(io, "energy:         $(line.energy)  ")
-    println(io, "channels:       $(line.channels)  ")
-end
-
-
-"""
-`struct  MuonicAtom.PhotoEmissionChannel`
-    ... defines a  Channel type to deal with the (x-ray) photo-emission of muonic atoms. Since all electrons are 
-        treated only in terms of their (configuration-) averaged density, the channels are characterized by the 
-        multipoles alone.
-
-    + multipole      ::EmMultipole           ... multipole of the emitted photon.
-    + amplitude      ::Complex{Float64}      ... associated two-particle matrix element/amplitude of the channel.
-"""
-struct  PhotoEmissionChannel
-    multipole        ::EmMultipole 
-    amplitude        ::Complex{Float64} 
-end 
-
-
-"""
-`MuonicAtom.PhotoEmissionChannel()`  ... constructor for an 'empty' instance of a MuonicAtom.PhotoEmissionChannel
-"""
-function  PhotoEmissionChannel()
-    PhotoEmissionChannel( E1, ComplexF64(0.) )
-end
-
-
-# `Base.show(io::IO, channel::PhotoEmissionChannel)`  ... prepares a proper printout of channel::PhotoEmissionChannel.
-function Base.show(io::IO, channel::PhotoEmissionChannel) 
-    println(io, "multipole:      $(channel.multipole)  ")
-    println(io, "amplitude:      $(channel.amplitude)  ")
-end
-
-
-"""
-`struct  MuonicAtom.PhotoEmissionLine`  
-    ... defines a  Line type to deal with the (x-ray) photoemission of muonic atoms, once the muon occupies
-        a shell "inside" of the bound electron density. While the muon can then be described by Dirac solutions,
-        the electrons are treated in terms of configurations only.
-
-    + initialLevel   ::MuonicAtom.Level                 ... initial level of the muonic atom.
-    + finalLevel     ::MuonicAtom.Level                 ... final level of the muonic atom, with one electron less.
-    + energy         ::Float64                          ... Energy of the emitted photon = transition energy.
-    + channels       ::Array{MuonicAtom.PhotoEmissionChannel,1}
-        ... Multipole channels of the photoemission from muonic atoms.
-"""
-struct  PhotoEmissionLine
-    initialLevel     ::MuonicAtom.Level
-    finalLevel       ::MuonicAtom.Level
-    energy           ::Float64
-    channels         ::Array{MuonicAtom.PhotoEmissionChannel,1}
-end
-
-
-"""
-`MuonicAtom.PhotoEmissionLine()`  ... constructor for an 'empty' instance of a MuonicAtom.PhotoEmissionLine
-"""
-function  PhotoEmissionLine()
-    PhotoEmissionLine( MuonicAtom.Level(), MuonicAtom.Level(), 0., PhotoEmissionChannel[]   )
-end
-
-
-# `Base.show(io::IO, line::PhotoEmissionLine)`  ... prepares a proper printout of line::PhotoEmissionLine.
-function Base.show(io::IO, line::PhotoEmissionLine) 
-    println(io, "initialLevel:   $(line.initialLevel)  ")
-    println(io, "finalLevel:     $(line.finalLevel)  ")
-    println(io, "energy:         $(line.energy)  ")
-    println(io, "channels:       $(line.channels)  ")
-end
-
-
-#######################################################################################################################
-#######################################################################################################################
-
-
-"""
-`MuonicAtom.computeAutoionizationAmplitude(... provide orbitals for the matrix element )`  
-    ... to compute the autoionization amplitude from the interacting two muonic and two electron orbitals by taking 
-        their Coulomb interaction into account. One of the electron describe the free (outgoing) electron.
-"""
-function computeAutoionizationAmplitude()
-    amplitude = ComplexF64(0.)  
-    
-    return( amplitude )
-end
-
-
-"""
-`MuonicAtom.computeAutoIonizationLine(line::MuonicAtom.AutoIonizationLine)`
-    ... to compute all properties of a MuonicAtom.AutoIonizationLine. A newLine::MuonicAtom.AutoIonizationLine is
-        returned.
-"""
-function computeAutoIonizationLine(line::MuonicAtom.AutoIonizationLine)
-    newLine = MuonicAtom.AutoIonizationLine()
-    
-    return( newLine )
-end
-
-
-"""
-`MuonicAtom.computePhotoEmissionAmplitude(... provide orbitals for the matrix element )`  
-    ... to compute the photoemission amplitude from the interacting two muonic or electron orbitals. Likely, we need 
-        to distinguish between two cases, a photo emission from the muonic transitions and from electronic transitions.
-        Perhaps, this can be treated together if the muonic orbitals are properly interpolated to some useful
-        electronic grid.
-"""
-function computePhotoEmissionAmplitude()
-    amplitude = ComplexF64(0.)  
-    
-    return( amplitude )
-end
-
-
-"""
-`MuonicAtom.computePhotoEmissionLine(line::MuonicAtom.PhotoEmissionLine)`  
-    ... to compute all properties of a MuonicAtom.PhotoEmissionLine. A newLine::MuonicAtom.PhotoEmissionLine is
-        returned.
-"""
-function computePhotoEmissionLine(line::MuonicAtom.PhotoEmissionLine)
-    newLine = MuonicAtom.PhotoEmissionLine()
-    
-    return( newLine )
-end
-
-
-"""
-`MuonicAtom.estimateEnergy(subshell::MuonicAtom.MuonSubshell)`  
-    ... to estimate the binding energy of a muon in the subshell::MuonicAtom.MuonSubshell. An energy::Float64 
-        [in Hartree] is returned. Dirac's energy formula is applied with the proper mass of muons.
-"""
-function estimateEnergy(subshell::MuonicAtom.MuonSubshell)
-    energy = 0.
-                
-    return( energy )
-end
-
-
-"""
-`MuonicAtom.estimateRkExpectation(subshell::MuonicAtom.MuonSubshell, k::Int64)`  
-    ... to estimate the r^k expectation values of a muon in the subshell::MuonicAtom.MuonSubshell. An value::Float64 
-        is returned. Dirac's expectation values is applied with the proper mass of muons.
-"""
-function estimateRkExpectation(subshell::MuonicAtom.MuonSubshell, k::Int64)
-    value = 0.
-                
-    return( value )
-end
-
-
-"""
-`MuonicAtom.generateDiracOrbitals(subshells::Array{MuonSubshell,1}, nm::Nuclear.Model, 
-                                  primitives::Bsplines.Primitives; printout::Bool=true)`
-    ... generates all muonic (Dirac) orbitals from subshells for the nuclear potential as specified by nm. A set of 
-        orbitals::Dict{Subshell, Orbital} is returned, for which the proper muon mass is taken into account for the 
-        given nuclear model. Note that a properly chosen grid is essential to model the muonic solutions, which 
-        can later be interpolated upon a suitable (electronic) grid.
-"""
-function generateDiracOrbitals(subshells::Array{MuonSubshell,1}, nm::Nuclear.Model, 
-                               primitives::Bsplines.Primitives; printout::Bool=true)
-                
     return( nothing )
 end
 
 
 """
-`MuonicAtom.generateMuonSpektrum(...)`
-    ... generates all muonic (Dirac) orbitals from subshells ... which are kept troughout the computations.
-        ... there is no need to make these orbitals too good.
+`MuonicAtom.displayTransitions(stream::IO, orbitals::Dict{Subshell,Orbital})`  
+    ... displays the muonic X-ray energies, i.e. the differences of the muon binding energies, for every pair of
+        the given subshells with a lower final level.  Nothing is returned.
+
+        ENERGIES ONLY.  No rate or intensity is formed, so nothing here says which of these lines is strong; the
+        multipole selection rules are not applied either, and a pair that E1 cannot connect is still listed.
 """
-function generateMuonSpektrum()
-                
+function displayTransitions(stream::IO, orbitals::Dict{Subshell,Orbital})
+    nx  = 96
+    shs = sort(collect(keys(orbitals)), by = sh -> orbitals[sh].energy)
+    println(stream, " ")
+    println(stream, "  Muonic X-ray energies (differences of the levels above):")
+    println(stream, " ")
+    println(stream, "  ", "-"^nx)
+    println(stream, "     transition                 energy [keV]        energy [MeV]")
+    println(stream, "  ", "-"^nx)
+    for  i = 1:length(shs),  f = 1:length(shs)
+        if  orbitals[shs[i]].energy <= orbitals[shs[f]].energy    continue    end
+        en = Defaults.convertUnits("energy: from atomic to eV", orbitals[shs[i]].energy - orbitals[shs[f]].energy) * 1.0e-3
+        println(stream, "     " * rpad(string(shs[i]) * " --> " * string(shs[f]), 24) *
+                        @sprintf("%16.4f", en) * @sprintf("%20.6f", en*1.0e-3))
+    end
+    println(stream, "  ", "-"^nx)
+    println(stream, "    Energies only: no rates, no intensities, and the multipole selection rules are NOT")
+    println(stream, "    applied, so a pair that no E1 photon can connect is still listed above.")
+
     return( nothing )
 end
-
-
-"""
-`MuonicAtom.runx()`  
-    ... to run 
-"""
-function runx()
-    events = Float64[]
-                
-    return( events )
-end
-
-
 
 end # module

@@ -39,7 +39,7 @@ using JenaAtomicCalculator, ..Defaults, ..TestFrames
 
     @testset "JAC amplitudes" begin
         @test TestFrames.testModule_MultipoleMoment() 
-        @test TestFrames.testModule_ParityNonConservation() 
+        @test TestFrames.testModule_WeakInteractionMoment() 
     end
 
     @testset "JAC properties" begin
@@ -73,6 +73,9 @@ using JenaAtomicCalculator, ..Defaults, ..TestFrames
         @test TestFrames.testModule_Cascade_PhotonIonization()
         @test TestFrames.testModule_Cascade_PhotonExcitation()
         @test TestFrames.testModule_Cascade_PhotoAbsorption()
+        @test TestFrames.testModule_Cascade_DielectronicCapture()
+        @test TestFrames.testModule_Cascade_ResonantIonization()
+        @test TestFrames.testModule_Cascade_EiiRateCoefficients()
         @test  TestFrames.testModule_Cascade_Simulation()   ## re-enabled 16-Aug-2026; data file regenerated and the Simulation API call brought up to date
     end
 

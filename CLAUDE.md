@@ -85,7 +85,13 @@ Keyword parameters in the signature use `Union{Nothing,T}=nothing` (e.g. `calcK:
 | `examples/` | Example scripts `example-Xx.jl` | Yes |
 | `demos/` | Pluto notebooks | Yes |
 | `work/` | Running JAC; `.sum` output files | Yes |
+| `tools/` | Assistant-maintained diagnostics and cross-code comparison harnesses | Yes |
 | Any other project directory | Reference only | **Never** |
+
+`work/` is **gitignored**: it is scratch, and anything left there is lost on the next clean. `tools/` is
+**tracked** and is the assistant's own -- diagnostics, harnesses, and the small Fortran drivers that let JAC's
+results be compared against another code. The maintainer is not expected to read or maintain it; its point is
+that such a harness survives a move between machines, which a `work/` file does not.
 
 Files outside the JAC project root are **read-only**.
 Information exchange between projects is always read-only.
@@ -156,6 +162,19 @@ Between 9 and 10-Aug-2026 this single fact explained four separate "bugs": the E
 out 1000x too small, the Zeeman N1 `kappa <= -3` failure open since July, the `MultipolePolarizibility`
 perturbers that were blamed on a B-spline defect, and three successive wrong diagnoses of my own. Before
 attributing anything to the angular machinery, **re-run on a box matched to the orbitals**.
+
+**A box that is merely TOO SMALL fails in the opposite and more dangerous way: it corrupts progressively, so the
+artifact impersonates a physics conclusion.** On 25-Aug-2026 a second-order convergence study of two-photon ionization
+gave gauge ratios marching monotonically AWAY from unity as bound intermediates were added -- 0.775, 0.553, 0.396,
+0.198 in a 60 a.u. box -- which reads as "the bound intermediate sum does not converge", and was half written up as
+exactly that. The same study in a 90 a.u. box converges instead: 0.793, 0.803, 0.873, 0.908. The corrupted continuum
+orbital grew worse as the sum grew, so the artifact and the physics carried the SAME signature, and the DIRECTION of
+the march is what made it convincing -- a single bad ratio invites suspicion, four in a monotone sequence look like a
+trend with a cause.
+
+**Note which failure is loud.** Near threshold `Continuum` REFUSES outright with "enlarge box-size", so the unusable
+case announces itself, while the merely-too-small case runs clean and returns numbers. A too-large box produces a
+wrong NUMBER; a too-small one produces a wrong CONCLUSION.
 
 Two guards now exist, and neither is sufficient alone:
 - `Bsplines.checkGridRepresentation` -- solves the point-nucleus Dirac problem on the given grid and
@@ -340,6 +359,79 @@ gitignored and therefore reaches nobody.
    registry merges, and doing both yields two tags for one release.
 8. **Afterwards**, read WHICH CI job failed before reacting: JAC's CI has historically failed on the coverage
    step rather than on the tests.
+
+## Where the sqrt(2j+1) sits: one Wigner-Eckart convention for the whole code (Rule 18)
+
+Agreed 25-Aug-2026, after an inventory found **eighteen** places compensating for this factor across **nine** modules,
+in two opposite directions, plus one more where the compensation hides inside an integral.
+
+**First, what is NOT a convention and cannot be normalized away.** A rank-0 coefficient multiplies an ORDINARY matrix
+element `<a| o |b>`; a rank-k coefficient multiplies a REDUCED one `<a|| o^(k) ||b>`. Those are different objects. No
+choice of factors makes them the same, and any code that treats them alike is wrong rather than unconventional.
+
+**Second, what IS a convention.** `sqrt(2j_a+1)` is exactly the Wigner-Eckart factor between those two objects, so it
+may be carried either by the coefficient or by the matrix element. **JAC's choice is GRASP's: the factor sits INSIDE
+the coefficient, at EVERY rank.** Three reasons, in order: the rank-0 diagonal coefficient is then literally the
+occupation number, so a wrong convention is visible by eye instead of invisible; it matches the published tables and
+twenty years of GRASP results; and it is the smaller migration from where the code stands.
+
+**Third, and this is the part that makes it hold. A NEW OPERATOR DECLARES ITS KIND IN THE TYPE, NOT IN A COMMENT.**
+The coefficient carries the distinction -- `Coefficient1p{OrdinaryKind}` against `Coefficient1p{ReducedKind}` -- and the
+contraction is defined only for a matching pair, so pairing the wrong things raises a `MethodError` naming both types
+instead of returning a wrong number. Do not add a coefficient type that omits the kind, and do not "fix" a mismatch by
+inserting a compensating factor at the call site: that is the drift this rule exists to stop.
+
+**Why documentation alone was tried and failed.** A careful note ALREADY existed at `module-Hfs.jl:370` describing this
+very factor -- and the defect shipped in that same module, putting an uncorrected `sqrt(2j_a+1)` into every M1, E2 and
+M3 hyperfine amplitude. Four further modules were bitten independently. The reason is worth stating plainly, because it
+is the real lesson: **two quantities that differ by a factor obvious to whoever derived them get written with the same
+symbol, and the factor then migrates to wherever it is convenient.** The similarity of the notation, not the difficulty
+of the physics, is what has made every re-implementation of this machinery hard. A type cannot be talked into
+forgetting; a convention in prose can.
+
+**Fourth, if a compensation must live inside an integral, say so AT the integral.** `module-LandeZeeman.jl:227` uses
+`coeff.T` bare with a rank-1 operator and is CORRECT, because `InteractionStrength.zeeman_n1` carries the
+`1/sqrt(2j_a+1)` within itself. Nothing at the call site shows this. Any such integral must carry the factor in its own
+docstring, or the next migration will edit the visible sites and silently break the invisible one.
+
+**The worked example, kept current rather than described here:** the migration inventory in the module docstring of
+`src/module-SpinAngularNew.jl` lists all eighteen sites by file and line, and separates those whose factor is visible
+from those whose is not. Re-derive it rather than trusting the list -- `grep -n "coeff.T" src/*.jl` is the whole method,
+and a coefficient used with no visible factor is a question, not an answer.
+
+## Migrating the spin-angular convention: one commit, or none (Rule 19)
+
+Written 25-Aug-2026, with the migration itself deliberately POSTPONED. The plan is recorded here rather than in a
+message because the danger is not that it is hard but that it is done PARTIALLY, and a half-done convention change
+produces wrong numbers with nothing failing.
+
+**Why it cannot be staged.** Eighteen sites across nine modules compensate for the present convention, in two OPPOSITE
+directions (see the inventory in the module docstring of `src/module-SpinAngularNew.jl`). Any intermediate state has
+some callers on the old convention and some on the new, and every result computed in between is wrong. This is the one
+place where the one-module-per-task rule is suspended DELIBERATELY, and it must be said out loud in the commit rather
+than worked around.
+
+**The order, and none of it is optional:**
+
+1. **Capture a physical baseline FIRST** -- the full suite plus one real case per affected module: a hyperfine
+   constant, an isotope shift, a Lande factor, a crystal-field splitting, with the numbers written down. Without this,
+   "nothing changed" cannot be checked, and the suite alone will not do it: the 54 tests do not cover every affected
+   module.
+2. **Show the complete diff before applying it.** Eighteen near-identical deletions of a `sqrt(...)` factor is exactly
+   the shape an eye slides over. The bulk-change rule applies with full force.
+3. **Handle the INVISIBLE compensations explicitly, and expect them to be the failure.** `module-LandeZeeman.jl:227`
+   uses `coeff.T` bare with a rank-1 operator and is CORRECT, because `InteractionStrength.zeeman_n1` carries the
+   `1/sqrt(2j_a+1)` inside the integral. It needs NO call-site edit and DOES need the integral changed -- the exact
+   inverse of every other site. A further twenty-one bare uses of `coeff.T` each need the same reading of what the
+   integral beside them returns.
+4. **Flip the module last**, only once the callers are consistent.
+5. **Verify against the BASELINE, not against a green suite.** A suite pass here is necessary and nowhere near
+   sufficient.
+
+**Two decisions to take before starting, because they change the work:** whether the memoisation caches
+(`SHELL_A_CACHE`, `SHELL_W_CACHE`, `PARTNER_CACHE`) are scoped or made task-local at the same time -- they are
+unbounded, session-lived and not thread-safe -- and whether `SpinAngular` is retired immediately or kept beside the new
+module for a release. Keeping both is safest and doubles the surface.
 
 ## Commands
 

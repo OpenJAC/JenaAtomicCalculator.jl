@@ -72,9 +72,13 @@ function Basics.perform(computation::Atomic.Computation; output::Bool=false)
                 outcome = MultipolePolarizibility.computeOutcomes(multiplet, nModel, computation.grid, settings)
                 if output    results = Base.merge( results, Dict("Polarizibility outcomes:" => outcome) )         end
                 #
-            elseif  typeof(settings) == ReducedDensityMatrix.Settings 
-                outcome = ReducedDensityMatrix.computeOutcomes(multiplet, nModel, computation.grid, settings)         
+            elseif  typeof(settings) == ReducedDensityMatrix.Settings
+                outcome = ReducedDensityMatrix.computeOutcomes(multiplet, nModel, computation.grid, settings)
                 if output    results = Base.merge( results, Dict("RDM outcomes:" => outcome) )         end
+                #
+            elseif  typeof(settings) == WeakInteractionEnhancement.Settings
+                outcome = WeakInteractionEnhancement.computeOutcomes(multiplet, nModel, computation.grid, settings)
+                if output    results = Base.merge( results, Dict("Weak-interaction enhancement outcomes:" => outcome) )   end
                 #
             end
         end
@@ -86,9 +90,10 @@ function Basics.perform(computation::Atomic.Computation; output::Bool=false)
         LSjj.expandLevelsIntoLS(finalMultiplet, computation.finalAsfSettings.jjLS)
         if  output   results["initialMultiplet"] = initialMultiplet;   results["finalMultiplet"] = finalMultiplet    end 
         #
-        if typeof(computation.processSettings) in [PhotoExcitationFluores.Settings, PhotoExcitationAutoion.Settings, PhotoIonizationFluores.Settings,
-                                                   PhotoIonizationAutoion.Settings, ImpactExcitationAutoion.Settings,
-                                                   DielectronicRecombination.Settings, ResonantInelastic.Settings]
+        if typeof(computation.processSettings) in [PhotoExcitationFluores.Settings, PhotoExcitationAutoion.Settings,
+                                                   ImpactExcitationAutoion.Settings,
+                                                   DielectronicRecombination.Settings, ResonantInelastic.Settings,
+                                                   PhotoRecombinationInterference.Settings]
             intermediateMultiplet = SelfConsistent.performSCF(computation.intermediateConfigs, nModel, computation.grid, computation.intermediateAsfSettings)
             if  output   results["intermediateMultiplet"] = intermediateMultiplet    end 
         end
@@ -167,6 +172,9 @@ function Basics.perform(computation::Atomic.Computation; output::Bool=false)
         elseif  typeof(computation.processSettings) == ParticleScattering.Settings 
             outcome = ParticleScattering.computeEvents(finalMultiplet, initialMultiplet, nModel, computation.grid, computation.processSettings) 
             if output    results = Base.merge( results, Dict("particle-scattering events:" => outcome) )         end
+        elseif  typeof(computation.processSettings) == PhotonScattering.Settings
+            outcome = PhotonScattering.computeLines(finalMultiplet, initialMultiplet, nModel, computation.grid, computation.processSettings)
+            if output    results = Base.merge( results, Dict("photon-scattering lines:" => outcome) )               end
         elseif  typeof(computation.processSettings) == BeamPhotoExcitation.Settings 
             outcome = BeamPhotoExcitation.computeOutcomes(finalMultiplet, initialMultiplet, nModel, computation.grid, computation.processSettings) 
             if output    results = Base.merge( results, Dict("beam-assisted photo-excitation:" => outcome) )         end
@@ -175,39 +183,38 @@ function Basics.perform(computation::Atomic.Computation; output::Bool=false)
             if output    results = Base.merge( results, Dict("hyperfine-induced transitions:" => outcome) )         end
             #
             #
-        elseif  typeof(computation.processSettings) == PairA1P()  
-            outcome = PairAnnihilation1Photon.computeLines(finalMultiplet, initialMultiplet, computation.grid, computation.processSettings) 
-            if output    results = Base.merge( results, Dict("pair-annihilation-1-photon lines:" => outcome) )       end
-        elseif  typeof(computation.processSettings) == Coulex()
+        ## THE SEVEN TESTS BELOW USED TO COMPARE A TYPE WITH AN INSTANCE -- `typeof(x) == Coulex()` and its six
+        ## siblings -- which is false for every x, so all seven processes fell through to error("stop b") and were
+        ## unreachable.  They also tested the wrong THING: computation.processSettings is declared
+        ## ::Basics.AbstractProcessSettings, so it is a Settings object and never one of the AbstractProcess
+        ## singletons.  Each now tests the Settings type of the module whose function the branch calls, which is
+        ## the form the rest of this chain already uses.  Fixed 24-Aug-2026.
+        elseif  typeof(computation.processSettings) == CoulombExcitation.Settings
             outcome = CoulombExcitation.computeLines(finalMultiplet, initialMultiplet, computation.grid, computation.processSettings) 
             if output    results = Base.merge( results, Dict("Coulomb excitation lines:" => outcome) )               end
-        elseif  typeof(computation.processSettings) == Coulion()
-            outcome = CoulombIonization.computeLines(finalMultiplet, initialMultiplet, computation.grid, computation.processSettings) 
-            if output    results = Base.merge( results, Dict("Coulomb ionization lines:" => outcome) )               end
-        elseif  typeof(computation.processSettings) == PhotoIonAuto()   
-            outcome = PhotoIonizationAutoion.computePathways(finalMultiplet, intermediateMultiplet, initialMultiplet, 
-                                                                computation.grid, computation.processSettings) 
-            if output    results = Base.merge( results, Dict("photo-ionization-autoionization pathways:" => outcome) )      end
-        elseif  typeof(computation.processSettings) == PhotoIonFluor()  
-            outcome = PhotoIonizationFluores.computePathways(finalMultiplet, intermediateMultiplet, initialMultiplet, 
-                                                                computation.grid, computation.processSettings) 
-            if output    results = Base.merge( results, Dict("photo-ionizatiton-fluorescence pathways:" => outcome) )        end
-        elseif  typeof(computation.processSettings) == ImpactExcAuto()  
+        elseif  typeof(computation.processSettings) == CoulombIonization.Settings
+            ## Reserved and empty until 25-Aug-2026, when the module was written; this branch used to raise and say
+            ## that CoulombIonization held no computation to reach.  It now does.
+            outcome = CoulombIonization.computeLines(finalMultiplet, initialMultiplet, nModel, computation.grid,
+                                                     computation.processSettings)
+            if output    results = Base.merge( results, Dict("Coulomb ionization lines:" => outcome) )           end
+        elseif  typeof(computation.processSettings) == ImpactExcitationAutoion.Settings
             outcome = ImpactExcitationAutoion.computePathways(finalMultiplet, intermediateMultiplet, initialMultiplet, 
                                                                 computation.grid, computation.processSettings) 
             if output    results = Base.merge( results, Dict("impact-excitation-autoionization pathways:" => outcome) )     end
-        elseif  typeof(computation.processSettings) == MultiPI()   
+        elseif  typeof(computation.processSettings) == MultiPhotonIonization.Settings
             outcome = MultiPhotonIonization.computeLines(finalMultiplet, initialMultiplet, computation.grid, computation.processSettings) 
             if output    results = Base.merge( results, Dict("multi-photon single ionization:" => outcome) )        end
-        elseif  typeof(computation.processSettings) == MultiPDI()   
-            outcome = MultiPhotonDoubleIon.computeLines(finalMultiplet, initialMultiplet, computation.grid, computation.processSettings) 
-            if output    results = Base.merge( results, Dict("multi-photon double ionization:" => outcome) )        end
         elseif  typeof(computation.processSettings) == InternalConversion.Settings
             outcome = InternalConversion.computeLines(finalMultiplet, initialMultiplet, nModel, computation.grid, computation.processSettings)
             if output    results = Base.merge( results, Dict("internal conversion lines:" => outcome) )        end
         elseif  typeof(computation.processSettings) == CrystalFieldEmission.Settings
             outcome = CrystalFieldEmission.computeLines(finalMultiplet, initialMultiplet, computation.grid, computation.processSettings)
             if output    results = Base.merge( results, Dict("crystal-field-resolved emission lines:" => outcome) )    end
+        elseif  typeof(computation.processSettings) == PhotoRecombinationInterference.Settings
+            outcome = PhotoRecombinationInterference.computePathways(finalMultiplet, intermediateMultiplet, initialMultiplet, nModel,
+                                                                     computation.grid, computation.processSettings)
+            if output    results = Base.merge( results, Dict("photorecombination-interference pathways:" => outcome) )    end
         else
             error("stop b")
         end

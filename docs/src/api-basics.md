@@ -1,10 +1,4 @@
 
-##  Angular momentum
-```@autodocs ; canonical=false
-Modules = [AngularMomentum]
-Order   = [:type, :function]
-```
-
 ##  Atomic interaction strength
 ```@autodocs
 Modules = [InteractionStrength]
@@ -70,14 +64,8 @@ Modules = [HydrogenicIon]
 Order   = [:type, :function]
 ```
 
-##  LS-jj transformation of atomic levels
+##  Multipole moments
 ```@autodocs
-Modules = [LSjj]
+Modules = [MultipoleMoment]
 Order   = [:type, :function]
-```
-
-##  Spin angular coefficients
-```@autodocs
-Modules = [SpinAngular]
-Order   = [:type]
 ```

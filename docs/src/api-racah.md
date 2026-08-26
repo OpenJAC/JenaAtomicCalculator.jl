@@ -4,3 +4,21 @@
 Modules = [RacahAlgebra]
 Order   = [:type, :function]
 ```
+
+##  Angular momentum
+```@autodocs ; canonical=false
+Modules = [AngularMomentum]
+Order   = [:type, :function]
+```
+
+##  LS-jj transformation of atomic levels
+```@autodocs
+Modules = [LSjj]
+Order   = [:type, :function]
+```
+
+##  Spin angular coefficients
+```@autodocs
+Modules = [SpinAngular]
+Order   = [:type]
+```

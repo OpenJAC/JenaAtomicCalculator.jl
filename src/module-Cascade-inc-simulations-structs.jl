@@ -28,6 +28,8 @@ end
 
     + struct DecayPathes                ... determine the major 'decay pathes' of the cascade.
     + struct DrRateCoefficients         ... simulate the DR (plasma) rate coefficients for given plasma temperatures. 
+    + struct EiiRateCoefficients        ... simulate the electron-impact ionization (plasma) rate coefficients,
+                                            summed over the resonant and excitation-autoionization channels.
     + struct ElectronCoincidence        ... simulate electron-coincidence spectra (not yet).
     + struct FinalLevelDistribution     ... simulate the 'final-level distribution' as it is found after all cascade 
                                             processes are completed.
@@ -222,50 +224,220 @@ end
 
 
 """
-`struct  Cascade.PiRateCoefficients   <:  Cascade.AbstractSimulationProperty`  
-    ... defines a type for simulating the PI plasma rate coefficients as function of the (free) photon energy distribution and
-        the plasma temperature. These coefficients included a convolution of the direct photoionization cross sections over the 
-        Maxwell distribution of electron and (if requested) add the pre-evaluated resonant parts afterwards.
-        
-        For the implementation: (1) Perform GL integration over free-electron contributions analog to the photoabsorption;
-        (2) for the resonant part, simply add convoluted summation terms for all final states (to be worked out in detail);
-        (3) use a electronEnergies grid ... instead of the photonEnergies grid.
-        (4) in the direct part, sum over the final states before convolution
+`struct  Cascade.ResonantIonizationStrengths   <:  Cascade.AbstractSimulationProperty`
+    ... defines a type for simulating the RESONANT contribution to electron-impact ionization from the lines of a
+        previous Cascade.ElectronIonizationScheme computation that requested one or both of the resonant capture
+        channels.
 
-    + includeResonantPart ::Bool        ... True, if the resonant contributions are to be included.
-    + initialLevelNo      ::Int64       ... Level No of initial level for which rate coefficients are to be computed.
-    + temperatures        ::Array{Float64,1}
-        ... temperatures [K] for which the DR plasma rate coefficieints to be calculated.
-    + multipoles          ::Array{EmMultipole}           
-        ... Multipoles of the radiation field that are to be included into the photoionization processes.
-    + finalConfigurations ::Array{Configuration,1}
-    
+        An incident electron is CAPTURED into a doubly-excited resonance d, which then sheds two electrons, so that
+        the ion ends one charge state HIGHER than it began.  What is reported is the energy-integrated RESONANCE
+        STRENGTH of each resonance, the natural quantity for an isolated resonance, together with its sum:
 
-"""  
-struct  PiRateCoefficients   <:  Cascade.AbstractSimulationProperty
-    includeResonantPart   ::Bool
-    initialLevelNo        ::Int64 
+            S_0(d)   = pi^2/k^2 * A(capture) * (2J_d+1)/(2J_i+1)              formation alone
+            S_seq(d) = S_0 * SUM_n [A(d->n)/Gamma(d)] * [A_a(n)/Gamma(n)]     sequential, through each autoionizing n
+            S_sim(d) = S_0 * [P_dbl * A_a(d)/Gamma(d)]                        simultaneous, one double-Auger step
+
+        with Gamma the total width, Auger plus radiative.  The prefactor and the relativistic wave number are those
+        of Cascade.simulateDrRateCoefficients, deliberately and identically, so that the RECOMBINATION and IONIZATION
+        strengths of the same resonance may be placed side by side without a conversion between them -- which is the
+        main thing this property is good for, since the two are competing decays of one resonance.
+
+    APPROXIMATIONS, so that it is clear what these numbers are:
+
+    + isolated resonances
+        ... strengths are ADDED over resonances, with no interference and no overlap of widths.  Sound while the
+            resonances stay narrow against their spacing; it degrades for high capture shells.
+    + branchings from the rates that were generated
+        ... every Gamma is a sum over the decay steps the cascade actually built.  A decay route absent from the
+            configuration lists is absent from Gamma too, so the branchings still sum to one.  That checks the
+            arithmetic, never the completeness.
+    + an autoionizing intermediate is one that HAS an Auger line
+        ... the sequential route needs the intermediate n to autoionize in its turn, and n is admitted exactly when
+            the computation produced at least one Auger line out of it.  A level that would autoionize into a final
+            configuration nobody generated therefore does not count, and its route is missing rather than wrong.
+    + the simultaneous route is NOT computed here
+        ... its double-Auger probability is supplied by the user through `dblAugerProbability`, because the choice of
+            which subshells count as PASSIVE is a physics judgement the cascade cannot make for itself: the two
+            electrons that participate in the Auger transition must be excluded, and which those are depends on the
+            transition.  Use ResonantImpactIonization.doubleAugerProbability to obtain a value, read its docstring on
+            the two-sided error first, and leave this at 0. to omit the channel entirely rather than guess.
+
+    + initialLevelNo        ::Int64             ... Level No of the initial level from which the capture starts.
+    + electronEnergyShift   ::Float64           ... Shift applied to every resonance energy, in the user-selected
+                                                     units; the initial level is shifted by the negative amount.
+    + dblAugerProbability   ::Float64           ... Probability that a resonance sheds BOTH electrons at once rather
+                                                     than one at a time; 0. omits the simultaneous channel.
+"""
+struct  ResonantIonizationStrengths   <:  Cascade.AbstractSimulationProperty
+    initialLevelNo        ::Int64
+    electronEnergyShift   ::Float64
+    dblAugerProbability   ::Float64
+end
+
+
+"""
+`Cascade.ResonantIonizationStrengths()`  ... (simple) constructor for cascade ResonantIonizationStrengths.
+"""
+function ResonantIonizationStrengths()
+    ResonantIonizationStrengths(1, 0., 0.)
+end
+
+
+# `Base.show(io::IO, dist::Cascade.ResonantIonizationStrengths)`  ... prepares a proper printout of the variable dist.
+function Base.show(io::IO, dist::Cascade.ResonantIonizationStrengths)
+    println(io, "initialLevelNo:           $(dist.initialLevelNo)  ")
+    println(io, "electronEnergyShift:      $(dist.electronEnergyShift)  ")
+    println(io, "dblAugerProbability:      $(dist.dblAugerProbability)  ")
+end
+
+
+"""
+`struct  Cascade.EiiRateCoefficients   <:  Cascade.AbstractSimulationProperty`
+    ... defines a type for simulating the electron-impact IONIZATION (EII) plasma rate coefficient alpha^EII (T) from the
+        lines of a previous Cascade.ElectronIonizationScheme computation.  It is the rate-coefficient counterpart of
+        Cascade.ResonantIonizationStrengths, which reports the same physics as energy-integrated strengths, and it is
+        what an ionization balance actually needs.
+
+        THE POINT OF THIS PROPERTY IS THAT IT ADDS THE CHANNELS UP.  Electron-impact ionization proceeds by three
+        routes, and a cascade computation may carry the data for any subset of them:
+
+        + resonant   ... capture into a doubly-excited resonance, which then sheds two electrons either one after the
+                         other (sequential) or together (simultaneous).  Taken from the resonances in the cascade data
+                         exactly as Cascade.ResonantIonizationStrengths forms them.
+        + excitation-autoionization
+                     ... impact excitation into a level above the ionization threshold, which then autoionizes.  Taken
+                         from the same impact-excitation lines that Cascade.EaCrossSections uses.
+        + direct     ... the incident electron knocks a bound electron out in one step.  NOT AVAILABLE: there is no
+                         Cascade.perform for ImpactIonizationScheme, so no cascade produces these lines.  The channel is
+                         REPORTED AS ABSENT in the table rather than silently omitted, because a total that quietly
+                         leaves out the largest contribution is worse than no total at all.
+
+        BOTH AVAILABLE HALVES USE THE SAME MAXWELLIAN PREFACTOR, which is what makes adding them legitimate.  The
+        resonant half is a sum over isolated resonances,
+
+            alpha^res(T)  =  4/sqrt(2pi) * T^(-3/2) * SUM_d  E_d * exp(-E_d/T) * S_d
+
+        identical to DielectronicRecombination.computeRateCoefficient, so the ionization and recombination rate
+        coefficients of the SAME resonances are directly comparable.  The excitation-autoionization half is an integral
+        over the computed cross sections,
+
+            alpha^EA(T)   =  sqrt(8/pi) * T^(-3/2) * INT sigma^EA(E) * E * exp(-E/T) dE
+
+        and sqrt(8/pi) = 4/sqrt(2pi) identically, so the second reduces to the first when sigma is a delta function.
+        Everything is in atomic units until the final conversion to cm^3/s.
+
+        THE TEMPERATURE DEPENDENCE IS ITS OWN CHECK, within limits worth stating.  alpha^res ~ T^(-3/2) E exp(-E/T)
+        has its maximum at kT = 2E/3 exactly, and the printout tests that the tabulated maximum is one of the two grid
+        points bracketing it.  That is falsifiable against a mistake in the FOLD -- a wrong exponent, a wrong sign, a
+        wrong temperature conversion -- and not against a mistake in the RESONANCES, since the prediction and the curve
+        are formed from the same energies.  The mean resonance energy is therefore printed in eV beside the grid, for a
+        reader who knows what threshold to expect.
+
+        WHAT LIMITS THE ACCURACY, in the order that matters.  The excitation-autoionization integral is evaluated by the
+        trapezoidal rule over the impact energies the cascade happened to compute -- usually a handful -- and the cross
+        section is TRUNCATED above the largest of them.  The share of the Maxwellian weight lying above that last energy
+        is therefore printed at every temperature: where it is not small, alpha^EA is a lower bound and the answer is to
+        compute more energies, not to trust the number.  Beyond that, every approximation of
+        ResonantImpactIonization applies to the resonant half unchanged.
+
+    + initialLevelNo        ::Int64             ... Level No of the initial level from which the ionization starts.
+    + temperatures          ::Array{Float64,1}  ... Temperatures [K] at which the rate coefficients are formed.
+    + electronEnergyShift   ::Float64           ... Shift applied to every resonance energy, in the user-selected units.
+    + dblAugerProbability   ::Float64           ... Probability that a resonance sheds BOTH electrons at once rather than
+                                                     one at a time; 0. omits the simultaneous channel.
+    + directCharge          ::Float64           ... Nuclear charge Z for the SEMI-EMPIRICAL estimate of the direct channel;
+                                                     0. omits that channel and reports it as absent.
+    + directConfig          ::Configuration     ... Configuration of the ion being ionized, for that same estimate; it is
+                                                     asked for rather than derived from the cascade data, because which ion
+                                                     a mixed data set belongs to is precisely the kind of thing that is
+                                                     easy to infer wrongly and impossible to notice afterwards.
+"""
+struct  EiiRateCoefficients   <:  Cascade.AbstractSimulationProperty
+    initialLevelNo        ::Int64
     temperatures          ::Array{Float64,1}
-    multipoles            ::Array{EmMultipole} 
-    finalConfigurations   ::Array{Configuration,1}
-end 
+    electronEnergyShift   ::Float64
+    dblAugerProbability   ::Float64
+    directCharge          ::Float64
+    directConfig          ::Configuration
+end
+
+
+"""
+`Cascade.EiiRateCoefficients(initialLevelNo::Int64, temperatures::Array{Float64,1}, electronEnergyShift::Float64,
+                             dblAugerProbability::Float64)`
+    ... convenience constructor that omits the direct channel, i.e. sets directCharge = 0.; it keeps the four-argument
+        calls that predate the direct estimate working unchanged.  An EiiRateCoefficients is returned.
+"""
+function EiiRateCoefficients(initialLevelNo::Int64, temperatures::Array{Float64,1}, electronEnergyShift::Float64,
+                             dblAugerProbability::Float64)
+    EiiRateCoefficients(initialLevelNo, temperatures, electronEnergyShift, dblAugerProbability, 0., Configuration("1s^2"))
+end
+
+
+"""
+`Cascade.EiiRateCoefficients()`  ... (simple) constructor for cascade EiiRateCoefficients.
+"""
+function EiiRateCoefficients()
+    EiiRateCoefficients(1, Float64[], 0., 0., 0., Configuration("1s^2"))
+end
+
+
+# `Base.show(io::IO, dist::Cascade.EiiRateCoefficients)`  ... prepares a proper printout of the variable dist.
+function Base.show(io::IO, dist::Cascade.EiiRateCoefficients)
+    println(io, "initialLevelNo:           $(dist.initialLevelNo)  ")
+    println(io, "temperatures:             $(dist.temperatures)  ")
+    println(io, "electronEnergyShift:      $(dist.electronEnergyShift)  ")
+    println(io, "dblAugerProbability:      $(dist.dblAugerProbability)  ")
+    println(io, "directCharge:             $(dist.directCharge)  ")
+    println(io, "directConfig:             $(dist.directConfig)  ")
+end
+
+
+"""
+`struct  Cascade.PiRateCoefficients   <:  Cascade.AbstractSimulationProperty`
+    ... defines a type for folding the PHOTOIONIZATION cross sections of a previous Cascade.PhotoIonizationScheme
+        computation with a photon field, giving the photoionization rate per ion
+
+            R^PI (per ion)  =  INT d(omega)  n(omega) * c * sigma^PI(omega)
+
+        for each of the given photon distributions.  The convention follows
+        Empirical.photoionizationPlasmaRatePerIon exactly, and the distinction it draws is the one to keep in mind:
+        THIS IS A RATE [1/s] AND NOT A RATE COEFFICIENT.  The convolution already contains the photon number density
+        of the field, so it needs no further multiplication by a density; multiply by the ION number density for a
+        volumetric rate.  The free-electron density does not enter photoionization at all.
+
+        AN APPETIZER, AND DELIBERATELY SO.  What it does is fold the cross sections the cascade actually computed,
+        by the trapezoidal rule, over the photon energies the cascade actually used -- and nothing else.  In
+        particular sigma^PI is taken as ZERO outside that range, there is no extrapolation to threshold and none to
+        high energy, and the share of the result contributed by the outermost intervals is printed so that a range
+        too narrow for the chosen field announces itself.  Widening the range means recomputing the cascade with
+        more photonEnergies; it cannot be repaired here.  The resonant contributions to photoabsorption are NOT
+        included: Cascade.PhotoAbsorptionSpectrum is the property for those.
+
+    + initialLevelNo      ::Int64    ... Level No of the initial level whose photoionization is folded; 0 sums over
+                                          every initial level present in the data.
+    + photonDistributions ::Array{Distribution.AbstractPhotonDistribution,1}
+        ... the photon fields to fold with, e.g. Distribution.PhotonPlanck(T), PhotonDilute, PhotonPowerLaw or
+            PhotonBremsstrahlungThin; one rate is reported per field.
+"""
+struct  PiRateCoefficients   <:  Cascade.AbstractSimulationProperty
+    initialLevelNo        ::Int64
+    photonDistributions   ::Array{Distribution.AbstractPhotonDistribution,1}
+end
 
 
 """
 `Cascade.PiRateCoefficients()`  ... (simple) constructor for cascade PiRateCoefficients.
 """
 function PiRateCoefficients()
-    PiRateCoefficients(false, 1, Float64[], EmMultipole[], Configuration[])
+    PiRateCoefficients(1, Distribution.AbstractPhotonDistribution[])
 end
 
 
-# `Base.show(io::IO, dist::Cascade.PiRateCoefficients)`  ... prepares a proper printout of the variable data::Cascade.PiRateCoefficients.
-function Base.show(io::IO, dist::Cascade.PiRateCoefficients) 
-    println(io, "includeResonantPart:      $(dist.includeResonantPart)  ")
+# `Base.show(io::IO, dist::Cascade.PiRateCoefficients)`  ... prepares a proper printout of the variable dist.
+function Base.show(io::IO, dist::Cascade.PiRateCoefficients)
     println(io, "initialLevelNo:           $(dist.initialLevelNo)  ")
-    println(io, "temperatures:             $(dist.temperatures)  ")
-    println(io, "multipoles:               $(dist.multipoles)  ")
-    println(io, "finalConfigurations:      $(dist.finalConfigurations)  ")
+    println(io, "photonDistributions:      $(dist.photonDistributions)  ")
 end
 
 
@@ -1139,6 +1311,47 @@ function  Base.:(==)(leva::Cascade.Level, levb::Cascade.Level)
     else    return( false )
     end
 end
+
+## Cascade.IonizingResonance is defined HERE, and not beside the simulation properties above, for a reason that only
+## shows itself at load time: its `level` field is a Cascade.Level, and Cascade also does `using ManyElectron`, which
+## exports a Level of its own.  Naming Cascade.Level ANYWHERE ABOVE the definition below resolves the name `Level`
+## inside Cascade to the imported one, and the definition then fails with "cannot assign a value to imported variable
+## ManyElectron.Level".  The package does not load at all -- loudly, and on every use.  A forward reference to a type
+## defined later in the same module is what to look for if that message ever returns.
+
+"""
+`struct  Cascade.IonizingResonance`
+    ... carries everything that one doubly-excited resonance contributes to electron-impact ionization, so that the two
+        properties which need it -- Cascade.ResonantIonizationStrengths, which reports energy-integrated strengths, and
+        Cascade.EiiRateCoefficients, which folds them with a Maxwellian -- read the SAME numbers from the SAME place
+        instead of each forming them for itself.  Two implementations of one formula drift apart silently; one does not.
+
+        The strengths are energy-integrated and in atomic units.  Each is an EmProperty because the branching ratios
+        carry a radiative width in their denominator, and each gauge uses its own, following the correction made to
+        Cascade.simulateDrRateCoefficients on 05-Aug-2026.
+
+    + level             ::Cascade.Level     ... the resonance itself.
+    + electronEnergy    ::Float64           ... resonance position, i.e. the energy of the captured electron [a.u.].
+    + captureRate       ::Float64           ... capture rate, from the Auger rate of the time-reversed transition.
+    + augerRate         ::Float64           ... total Auger width of the resonance.
+    + photonRate        ::Basics.EmProperty ... total radiative width of the resonance.
+    + sequential        ::Basics.EmProperty ... strength of the sequential double-autoionization route.
+    + simultaneous      ::Basics.EmProperty ... strength of the simultaneous route; zero unless a double-Auger
+                                                 probability was supplied.
+    + recombination     ::Basics.EmProperty ... dielectronic-recombination strength of the SAME resonance, so that the
+                                                 competition between the two fates can be read off directly.
+"""
+struct  IonizingResonance
+    level               ::Cascade.Level
+    electronEnergy      ::Float64
+    captureRate         ::Float64
+    augerRate           ::Float64
+    photonRate          ::Basics.EmProperty
+    sequential          ::Basics.EmProperty
+    simultaneous        ::Basics.EmProperty
+    recombination       ::Basics.EmProperty
+end
+
 
 """
 `struct  Cascade.AbsorptionCrossSection`  

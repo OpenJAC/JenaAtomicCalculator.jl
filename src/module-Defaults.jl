@@ -24,6 +24,9 @@ INVERSE_FINE_STRUCTURE_CONSTANT = 137.035_999_139
 const BOHR_RADIUS_SI                  = 0.529_177_210_67e-10
 const BOLTZMANN_CONSTANT_SI           = 1.380_648_52e-23
 const ELECTRON_MA_SI                  = 9.109_383_56e-31
+## The muon is 206.77 times heavier than the electron and is otherwise the same particle: same charge, same
+## spin, same Dirac equation.  In atomic units the electron mass is 1, so this ratio IS the muon mass.
+const MUON_ELECTRON_MASS_RATIO        = 206.768_2830
 const ELEMENTARY_CHARGE_SI            = 1.602_176_620_8e-19
 const HARTREE_ENERGY_SI               = 4.359_744_650e-18
 const PLANCK_CONSTANT_SI              = 6.626_070_040e-34
@@ -382,6 +385,14 @@ end
     ... to define a method for the normalization of the continuum orbitals as asymptotically (pure) sine or Coulomb 
         functions, or following the procedure by Ong & Russek (1978).
 
++ `("method: Wigner symbols, exact")`  or  `("method: Wigner symbols, floating-point")`  or
+    `("method: Wigner symbols, GSL")`
+    ... to (pre-) define HOW the Wigner 3-j, 6-j and 9-j symbols are evaluated. All three agree to about one part in
+        1e15, so this is a choice of cost and not of physics: `floating-point` evaluates in Float64, is 4.2x faster on a
+        mid-size cascade with BIT-IDENTICAL results, and is the DEFAULT; `exact` evaluates in Rational{BigInt} and is
+        what JAC used until 25-Aug-2026; and `GSL` is faster again but differs in the ninth digit, which would put
+        approved reference data in question. See `AngularMomentum.AbstractWignerMethod`.
+
 + `("nuclear: charge", Z::Float64)`  or  `("nuclear: model", nm::Any")`
     ... to define the nuclear charge or nuclear model for the pedestrian approach to atomic computations.
 
@@ -424,10 +435,32 @@ function setDefaults(sa::String)
     elseif    sa == "method: normalization, pure Coulomb"                GBL_CONT_NORMALIZATION  = CoulombSineNorm()  
     elseif    sa == "method: normalization, Ong-Russek"                  GBL_CONT_NORMALIZATION  = OngRussekNorm()
     elseif    sa == "method: normalization, Alok"                        GBL_CONT_NORMALIZATION  = AlokNorm()
+    elseif    sa == "method: Wigner symbols, exact"                      selectWignerMethod(:exact)
+    elseif    sa == "method: Wigner symbols, floating-point"             selectWignerMethod(:floating)
+    elseif    sa == "method: Wigner symbols, GSL"                        selectWignerMethod(:gsl)
     else      error("Unsupported keystring:: $sa")
     end
     nothing
 end
+
+
+"""
+`Defaults.selectWignerMethod(name::Symbol)`
+    ... to switch how the Wigner symbols are evaluated, from the short name used by the `setDefaults` keystrings:
+        `:exact`, `:floating` or `:gsl`. The choice itself is DISPATCHED on a singleton type inside
+        `AngularMomentum`; this routine only turns a keystring into that type. Nothing is returned.
+"""
+function selectWignerMethod(name::Symbol)
+    AM = JenaAtomicCalculator.AngularMomentum
+    if        name == :exact      AM.setWignerMethod(AM.ExactWigner())
+    elseif    name == :floating   AM.setWignerMethod(AM.FloatingWigner())
+    elseif    name == :gsl        AM.setWignerMethod(AM.GslWigner())
+    else      error("Unsupported Wigner method:: $name")
+    end
+    nothing
+end
+
+
 
 
 function setDefaults(sa::String, sb::String)
@@ -653,6 +686,7 @@ end
     ... to get the (current standard) grid::Array{Float64,1} to which all radial orbital functions usually refer.
 
 + `("speed of light: c")`  ... to get the speed of light in atomic units.
++ `("mass: muon")`  ... to get the muon mass in atomic units, i.e. in units of the electron mass.
 
 + `("summary flag/stream")`  
     ... to get the logical flag and stream for printing a summary file; a tupel (flag, iostream) is returned.
@@ -679,6 +713,7 @@ function getDefaults(sa::String)
     elseif    sa == "unit: time"                                        return (GBL_TIME_UNIT)
     elseif    sa == "standard grid"                                     return (GBL_STANDARD_GRID)
     elseif    sa == "speed of light: c"                                 return (1.0/FINE_STRUCTURE_CONSTANT)
+    elseif    sa == "mass: muon"                                        return (MUON_ELECTRON_MASS_RATIO)
     elseif    sa == "data flag/stream"                                  return ( (GBL_PRINT_DATA, GBL_DATA_IOSTREAM) )
     elseif    sa == "data-X flag/stream"                                return ( (GBL_PRINT_DATAX, GBL_DATAX_IOSTREAM) )
     elseif    sa == "data-Y flag/stream"                                return ( (GBL_PRINT_DATAY, GBL_DATAY_IOSTREAM) )

@@ -31,13 +31,23 @@ struct     Proton              <:  AbstractProjectile              end
 
     + struct ElasticScattering     ... the target is left in its initial level.
     + struct InelasticScattering   ... the target is left excited (not yet implemented).
+    + struct Annihilation1Photon   ... the projectile POSITRON annihilates with one bound electron under emission of a single photon.
+
+        There is deliberately no Annihilation2Photon. The two-photon channel is second order and would need MultiPhotonTransition's
+        Green-function sum over intermediate states adapted to a positron continuum; see the header of
+        module-ParticleScattering-inc-annihilation.jl for why it is not placed here.
 """
 abstract type  AbstractScatteringProcess                           end
 struct     ElasticScattering    <:  AbstractScatteringProcess      end
 struct     InelasticScattering  <:  AbstractScatteringProcess      end
+struct     Annihilation1Photon  <:  AbstractScatteringProcess      end
 
 @doc "... elastic scattering, i.e. the target is left in its initial level."                                       ElasticScattering
 @doc "... inelastic scattering, i.e. the target is left excited; not yet implemented."                           InelasticScattering
+@doc "... one-photon annihilation of the projectile positron with a BOUND electron, leaving the ion with one " *
+     "electron less: e^+ + |i(N)> --> |f(N-1)> + photon. Impossible for a free electron, since a single photon " *
+     "cannot balance energy and momentum at once; it is the nucleus taking up the recoil that opens the channel, " *
+     "which is why the process lives only in a bound system and why its cross section rises steeply with Z."   Annihilation1Photon
 
 
 """

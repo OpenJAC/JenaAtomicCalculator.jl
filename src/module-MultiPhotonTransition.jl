@@ -11,7 +11,7 @@
     THE BOUNDARY, which must not be blurred. This module is exclusively BOUND-BOUND: initial and final states
     are levels of a `Multiplet`, the total transition energy is fixed by `E_i - E_f`, and an emission line is
     resolved by energy SHARINGS between the photons rather than by scanning a photon energy. As soon as the
-    final state carries a free electron the process belongs to `MultiPhotonIonization`, `MultiPhotonDoubleIon`
+    final state carries a free electron the process belongs to `MultiPhotonIonization`
     or the two-colour modules; and one photon with TWO electrons jumping is `TwoElectronOnePhoton`.
 
     STRUCTURE. Every process is selected by a scheme <: AbstractMultiPhotonScheme, following the same pattern as

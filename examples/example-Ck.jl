@@ -5,6 +5,8 @@ println("    (examples/papers/2021.cpc-gaigalas-crystal-field.pdf); see also Uld
 println("    Phys. Rev. B 85, 125133 (2012) (examples/papers/2012.cpc-uldry.crystal-field.pdf) for a")
 println("    complementary (non-CSF, ab-initio point-charge + Dirac-DFT determinantal) approach.")
 
+using Printf
+
 if  true
     # Last successful:  28-Jul-2026
     # Branch a: pure symmetry/group-theory sanity check, no external reference numbers needed.
@@ -173,6 +175,175 @@ elseif  false
     cxs2         = CrystalField.characteristicSplitting(cfMultiplet2)
     println(">> CXS at the fitted scaleField:  $(Defaults.convertUnits("energy: from atomic to Kayser", cxs2)) cm^-1  " *
              "(should equal 2x the branch-a value = $(Defaults.convertUnits("energy: from atomic to Kayser", target)) cm^-1)")
+    #
+    setDefaults("print summary: close", "")
+    #
+elseif  false
+    # Last successful:  22-Aug-2026
+    #   [PROVENANCE: produced on Julia 1.10.9, with a Manifest re-resolved for 1.10 because the checkout's Manifest had
+    #    been resolved under 1.12.6 on the maintainer machine.  Re-run there to confirm.]
+    # Branch d: WHICH MULTIPOLE COMPONENTS SURVIVE IN WHICH SITE SYMMETRY -- and why this, and not a level splitting,
+    #   is what this module has to offer the thorium-229 nuclear-clock community.
+    #
+    #   THE REFRAMING, WHICH IS THE POINT OF THE BRANCH.  In the solid-state clock the ion is Th(4+) = [Rn]: a CLOSED
+    #   SHELL with J = 0.  A J = 0 level has exactly one magnetic sublevel, so a crystal field cannot split it, and the
+    #   electronic-splitting half of this module -- everything branches a to c exercise -- has nothing whatever to act
+    #   on.  Asking for "the Stark-split sublevel pattern of Th(4+) in two candidate hosts" is asking for something that
+    #   is identically zero.
+    #
+    #   WHAT DOES REACH THAT PHYSICS is CrystalField.multipoleLatticeSum, which is PURELY GEOMETRIC and independent of
+    #   the atomic system entirely.  Its k = 2 component is the lattice ELECTRIC-FIELD GRADIENT at the nuclear site --
+    #   what couples to the 229Th nuclear quadrupole moment, and therefore what splits the clock transition and, when
+    #   the site varies from ion to ion, inhomogeneously broadens it.  That half uses no orbitals, so it side-steps
+    #   every one of the three limitations recorded in branch b: the r < R validity condition, the k = 6 numerical
+    #   blow-up on B-spline tails, and the absence of a GRASP mixing-file reader.  All three come from orbitals it does
+    #   not use.
+    #
+    #   THREE PREDICTIONS, ALL EXACT AND ALL STATED BEFORE RUNNING:
+    #     (i)   the CaF2 Ca site -- 8 F- at the corners of a cube -- gives k = 2 EXACTLY ZERO for every q, by cubic
+    #           symmetry.  A nucleus there feels no quadrupole interaction at all.
+    #     (ii)  the same cube against branch a's OCTAHEDRON at matched charge and distance must give a k = 4 ratio of
+    #           exactly -8/9, since SUM P_4 = -28/9 over the eight cube corners against +7/2 over the six octahedral
+    #           vertices.  This is the valuable one: it checks the new geometry against ALREADY DATED work, so a slip in
+    #           the new coordinates cannot pass silently.
+    #     (iii) an idealized square antiprism (D4d) admits q = 0 mod 4, and |q| <= 2 at rank 2, so only q = 0 survives:
+    #           the EFG is non-zero but AXIALLY SYMMETRIC.
+    #
+    #   THE ANTIPRISM IS IDEALIZED AND IS LABELLED SO.  There is no ThF4 structure in examples/papers/; thorium is
+    #   8-coordinate there but the precise angles are not to hand.  The comparison below is therefore CUBIC AGAINST
+    #   ANTIPRISMATIC 8-COORDINATION -- a real and checkable symmetry statement -- and not a claim about CaF2 against
+    #   ThF4 as literal structures.  The CaF2 geometry, by contrast, is exact standard crystallography.
+    #
+    setDefaults("print summary: open", "zzz-CrystalField.sum")
+    #
+    angToBohr = 1.8897259886
+    aCaF2     = 5.4626                          # fluorite lattice constant [Angstrom]
+    rCaF      = aCaF2*sqrt(3)/4*angToBohr       # Ca-F distance = a sqrt(3)/4 = 2.3654 Ang = 4.4699 bohr
+    pcOf      = function(q, x, y, z)
+        r = sqrt(x^2 + y^2 + z^2)
+        CrystalField.PointCharge(q, r, acos(z/r), atan(y, x))
+    end
+    #
+    hh    = aCaF2/4*angToBohr
+    cube  = CrystalField.Lattice([pcOf(-1.0, sx*hh, sy*hh, sz*hh) for sx in (1,-1) for sy in (1,-1) for sz in (1,-1)],
+                                  "CaF2 Ca site, 8 F- cube, Oh")
+    octa  = CrystalField.Lattice([pcOf(-1.0,  rCaF,0,0), pcOf(-1.0, -rCaF,0,0), pcOf(-1.0, 0, rCaF,0),
+                                  pcOf(-1.0, 0,-rCaF,0), pcOf(-1.0, 0,0, rCaF), pcOf(-1.0, 0,0,-rCaF)],
+                                  "octahedron, Oh, matched charge and distance")
+    th0   = 59.26*pi/180
+    anti  = CrystalField.Lattice(vcat([CrystalField.PointCharge(-1.0, rCaF, th0,      k*pi/2)        for k = 0:3],
+                                      [CrystalField.PointCharge(-1.0, rCaF, pi - th0, k*pi/2 + pi/4) for k = 0:3]),
+                                  "idealized square antiprism, D4d")
+    #
+    println("\n  (i)  which components survive, at matched charge (-1 e) and distance (", round(rCaF, digits=4), " bohr)")
+    for (lat, nme) in [(cube, "CaF2 Ca site, 8 F- cube (Oh)"), (octa, "octahedron (Oh)"),
+                       (anti, "square antiprism (D4d), theta0 = 59.26 deg")]
+        println("     " * nme)
+        # the threshold is set by the lattice's OVERALL scale across all ranks, not by the maximum within one
+        # rank -- otherwise a rank whose components are ALL numerical noise reports every q as surviving
+        scale = maximum( abs(CrystalField.multipoleLatticeSum(lat, kk, qq)) for kk in (2,4,6) for qq = -kk:kk )
+        for k in (2, 4, 6)
+            vals = [ CrystalField.multipoleLatticeSum(lat, k, q) for q = -k:k ]
+            mx   = maximum(abs.(vals))
+            keep = [ q for q = -k:k if abs(vals[q+k+1]) > 1.0e-10 * scale ]
+            println("       " * @sprintf("k = %d:  max|A_kq| = %.6e     surviving q = %s", k, mx,
+                                         isempty(keep) ? "none, all vanish" : string(keep)))
+        end
+    end
+    #
+    println("\n  (ii) the three predictions")
+    p1 = maximum(abs(CrystalField.multipoleLatticeSum(cube, 2, q)) for q = -2:2)
+    p2 = real(CrystalField.multipoleLatticeSum(cube, 4, 0) / CrystalField.multipoleLatticeSum(octa, 4, 0))
+    p3 = maximum(abs(CrystalField.multipoleLatticeSum(anti, 2, q)) for q in (-2,-1,1,2))
+    println("     " * @sprintf("cube, k = 2, max over q         = %.3e          (must be 0)", p1))
+    println("     " * @sprintf("cube k=4 / octahedron k=4       = %.10f     (must be -8/9 = %.10f)", p2, -8/9))
+    println("     " * @sprintf("antiprism, k = 2, q = 0         = %.6e", real(CrystalField.multipoleLatticeSum(anti,2,0))))
+    println("     " * @sprintf("antiprism, k = 2, max over q!=0 = %.3e          (must be 0)", p3))
+    #
+    println("\n     WHAT THIS SAYS FOR A NUCLEAR CLOCK.  A cubic site gives NO quadrupole interaction at the nucleus at")
+    println("     all: the clock line is not quadrupole-split there, whatever the nuclear moment.  An antiprismatic site")
+    println("     gives a non-zero but purely AXIAL gradient, so the line splits cleanly with asymmetry parameter eta = 0.")
+    println("     Neither statement needs an atomic-structure calculation, a nuclear moment, or a shielding factor --")
+    println("     they are symmetry, and they are exact.")
+    println("\n     WHAT MAY NOT BE READ OFF: an absolute field gradient or a frequency shift.  The physical EFG is the")
+    println("     lattice sum multiplied by the Sternheimer antishielding factor of the closed Th(4+) shell, which is")
+    println("     large -- of order a hundred -- and is not in JAC.  It cancels in a RATIO between two sites of the same")
+    println("     ion, and ratios are therefore the only magnitudes quoted here.")
+    #
+    setDefaults("print summary: close", "")
+    #
+elseif  false
+    # Last successful:  22-Aug-2026
+    #   [PROVENANCE: as branch d.]
+    # Branch e: CHARGE COMPENSATION, which is where the inhomogeneous broadening actually comes from.
+    #
+    #   Branch d showed that a PERFECT cubic site gives no quadrupole interaction.  Real CaF2:Th is not a perfect cubic
+    #   site: Th(4+) substituting for Ca(2+) carries two extra positive charges and must be compensated by interstitial
+    #   F- ions, and WHERE THOSE SIT SETS THE LOCAL SYMMETRY.  The three single-compensator geometries below are the
+    #   standard reference case, long established for rare-earth-doped CaF2:
+    #       O_h    remote compensation, the cube left intact
+    #       C_4v   an F- interstitial at the nearest <100> site
+    #       C_3v   an F- interstitial at the next-nearest <111> site
+    #   A real doped crystal contains a MIXTURE of these, each with its own quadrupole splitting -- which is precisely
+    #   the inhomogeneous broadening that growing a native ThF4 crystal is meant to escape.
+    #
+    #   ONE TRAP, WORTH THE BRANCH ON ITS OWN.  A_20 is NOT a frame-independent measure of the gradient: it is defined
+    #   about z, and neither interstitial lies on z.  Taken alone it says the C_3v site has NO quadrupole interaction,
+    #   which is false -- the gradient is simply carried by the other q there.  What is invariant under rotation is the
+    #   rank-2 norm sqrt(SUM_q |A_2q|^2), and that is what is tabulated.  Both columns are printed so the trap is
+    #   visible rather than described.
+    #
+    #   TWO EXACT CHECKS, again stated before running.  Since the cube contributes NOTHING at k = 2, the invariant for a
+    #   singly-compensated site is just that of one point charge, which is |q|/R^3 in closed form:
+    #     (i)  the C_4v invariant must equal |q|/R^3 with R = a/2, to full precision;
+    #     (ii) the C_3v/C_4v ratio must be exactly 3^(-3/2) = 0.19245, the two interstitials being at a/2 and a sqrt(3)/2.
+    #
+    #   NOT A CLAIM ABOUT 229Th:CaF2 SPECIFICALLY.  Th(4+) needs TWO compensators, not one, so the real site zoo is
+    #   richer than these three; what is computed here is the documented single-compensator reference, which is what
+    #   makes the mechanism visible.
+    #
+    setDefaults("print summary: open", "zzz-CrystalField.sum")
+    #
+    angToBohr = 1.8897259886
+    aCaF2     = 5.4626
+    pcOf      = function(q, x, y, z)
+        r = sqrt(x^2 + y^2 + z^2)
+        CrystalField.PointCharge(q, r, acos(z/r), atan(y, x))
+    end
+    hh    = aCaF2/4*angToBohr
+    cube  = CrystalField.Lattice([pcOf(-1.0, sx*hh, sy*hh, sz*hh) for sx in (1,-1) for sy in (1,-1) for sz in (1,-1)], "Oh")
+    f100  = pcOf(-1.0, aCaF2/2*angToBohr, 0.0, 0.0)
+    f111  = pcOf(-1.0, aCaF2/2*angToBohr, aCaF2/2*angToBohr, aCaF2/2*angToBohr)
+    sites = [ ("O_h    perfect cube, remote compensation", cube),
+              ("C_4v   + F- interstitial at <100>",        CrystalField.Lattice(vcat(cube.ions, [f100]), "C4v")),
+              ("C_3v   + F- interstitial at <111>",        CrystalField.Lattice(vcat(cube.ions, [f111]), "C3v")) ]
+    inv2  = (lat) -> sqrt(sum(abs2(CrystalField.multipoleLatticeSum(lat, 2, q)) for q = -2:2))
+    #
+    println("\n  (i)  the rank-2 lattice sum at the three standard compensation sites")
+    println("       site                                        invariant            |A_20|, frame-dependent")
+    for (nme, lat) in sites
+        println("       " * @sprintf("%-42s  %.6e         %.6e", nme, inv2(lat),
+                                       abs(CrystalField.multipoleLatticeSum(lat, 2, 0))))
+    end
+    println("\n       Compare the two columns for C_3v: the invariant is 1.4e-03 while A_20 is 2.5e-17.  A reader taking")
+    println("       A_20 for the gradient would conclude that site has no quadrupole interaction.  It has one; it is")
+    println("       simply not aligned with z.")
+    #
+    println("\n  (ii) the two exact checks")
+    r43 = inv2(sites[3][2]) / inv2(sites[2][2])
+    cf  = inv2(sites[2][2]) / (1/(aCaF2/2*angToBohr)^3)
+    println("       " * @sprintf("C_4v invariant / (|q|/R^3)   = %.10f     (must be 1: the cube adds nothing at k = 2)", cf))
+    println("       " * @sprintf("C_3v / C_4v                  = %.10f     (must be 3^(-3/2) = %.10f)", r43, 3.0^-1.5))
+    #
+    println("\n     THE CONCLUSION, AND IT IS A MECHANISM RATHER THAN A NUMBER.  The perfect site gives zero; the two")
+    println("     compensated sites give gradients differing by a factor of five, about different axes.  A crystal")
+    println("     containing all three -- which a doped crystal does -- therefore presents the nucleus with several")
+    println("     distinct quadrupole splittings at once, and the clock line is the sum of them.  That is a SYMMETRY")
+    println("     contribution to the linewidth, entirely separate from microstrain, and it does not anneal away.  It is")
+    println("     removed only by putting the thorium on a site it does not have to be charge-compensated into, which is")
+    println("     the argument for growing a native thorium fluoride rather than doping calcium fluoride.")
+    println("\n     As in branch d: ratios and zeros only.  The absolute gradient needs the Sternheimer antishielding")
+    println("     factor of the closed Th(4+) shell, which JAC does not have, and which cancels in these ratios.")
     #
     setDefaults("print summary: close", "")
     #

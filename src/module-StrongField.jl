@@ -6,6 +6,37 @@
 """
 `module  JAC.StrongField
 ... a submodel of JAC that contains all methods to set-up and perform strong-field computations. 
+
+    STATUS, 26-Aug-2026:  POSTPONED BY THE MAINTAINER UNTIL 2027, together with examples/example-Id.jl.  This is a
+    decision, not an oversight, and it repeats one already taken some weeks earlier.  DO NOT PICK THIS MODULE UP, and do
+    not "helpfully" repair what is described below, without asking the maintainer first.
+
+    WHAT IS CONCRETELY KNOWN, so that the work can be resumed rather than re-discovered:
+
+    The SFA amplitude path does not run.  `StrongField.perform` gets as far as building its continuum orbitals and
+    printing "Computing SFA amplitudes...", then fails with
+
+        MethodError: no method matching AngularM64(::Float64)        module-StrongField.jl:1165
+
+    The immediate cause is `ms = 1/2 + kms` at line 1160, which is FLOAT division and so yields 0.5 rather than 1//2.
+    It is NOT a one-character fix.  Neither `AngularJ64(::Float64)` nor `AngularM64(::Float64)` exists -- both were
+    checked -- and the defect is systematic rather than local:  `pReducedME` is declared `jp::Float64, j::Float64` and
+    hands both to `AngularJ64`, and line 768 computes `jp = 1/2 * (2*kjp + 1)`.  The whole SFA path therefore carries
+    half-integer angular momenta as `Float64` while the constructors accept only `Integer` and `Rational{Int64}`.
+    Resuming means converting that convention to `Rational` through `pReducedME` and every caller that feeds it, not
+    patching line 1160.
+
+    WHAT IS NOT PROGRESS, and must not be read as any:  on 26-Aug-2026 `examples/example-Id.jl` was changed from
+    `StrongField2.` to `StrongField.` throughout, and the name `StrongField2` -- which is EXPORTED but has never been
+    defined -- was removed from the export list in `JenaAtomicCalculator.jl`.  That was housekeeping on a dangling name,
+    nothing more.  Its only effect on the physics is that the example now REACHES the defect above instead of failing
+    earlier on a module that does not exist.  No amplitude has been computed and no result verified;  both branches of
+    example-Id.jl remain undated and carry `# Last visit:  26-Aug-2026`.
+
+    A CAUTION ON THE FAILURE MODE.  What is known to fail is a crash, which is loud.  It has NOT been established that
+    the rest of the module is sound -- nothing here has been run to completion in a long time, precisely because the
+    example named a module that does not exist -- so a number obtained from this module before the conversion above is
+    finished should not be trusted merely because it appeared.
 """
 module StrongField
 

@@ -38,6 +38,7 @@ if      char == 'A'
     println("An) Apply & test the bi-orthogonal transformation of two independently-generated multiplets.")
     println("Ao) Apply & test the average-level (AL) and optimized-level (EOL) self-consistent fields, and where they differ.")
     println("Ap) Apply & test the three-parameter Fermi nucleus: the shape of the nuclear charge distribution.")
+    println("Aq) Compare the spin-angular coefficients of SpinAngularNew against SpinAngular and against GRASP2018.")
     #
 elseif  char == 'B'
     println("B)  Examples, tests & development of atomic amplitudes")
@@ -60,6 +61,8 @@ elseif  char == 'C'
     println("Ck) Apply & test the CrystalField module (point-charge Stark splitting) with ASF from an internally generated multiplet.")
     println("Cl) Apply & test the StarkShift module with ASF from an internally generated multiplet.")
     println("Cm) Apply & test the StarkZeeman module (exact ASF-basis diagonalization of level mixing in static E and/or B fields of arbitrary relative direction).")
+    println("Cn) Apply & test the WeakInteractionEnhancement module: the parity-non-conserving E1 amplitude and the electron-EDM enhancement factor, both as sums over caller-supplied intermediate states.")
+    println("Co) Statistical tensors of an atomic ensemble: alignment and orientation from photoexcitation, the axis they are stated about, and the tensor machinery itself.")
     #
 elseif  char == 'D'
     println("D)  Examples, tests & development of basic atomic processes")
@@ -81,10 +84,13 @@ elseif  char == 'D'
     println("Dm) Apply & test the InternalRecombination module with ASF from an internally generated initial and final-state multiplet.")
     println("Dn) Apply & test the TwoElectronOnePhoton (TEOP) module: both computational strategies compared for the same transition.")
     println("Do) Apply & test the HyperfineInduced module: electronic quenching, nuclear hyperfine mixing, and mixed cases.")
+    println("Dp) Coulomb IONIZATION of ions by fast ion impact: energy-differential cross sections and the alignment of the residual ion.")
     println("Dq) Apply & test the InternalConversion module with ASF from an internally generated initial- and final-state multiplet.")
     println("Dr) Apply & test the CoulombIonization module with ASF from an internally generated initial- and final-state multiplet.")
     println("Ds) Apply & test the CoulombExcitation module with ASF from an internally generated initial- and final-state multiplet.")
     println("Dt) Apply & test the CrystalFieldEmission module (crystal-field-resolved transitions) with initial- and final-state multiplets declared directly via Atomic.Computation.")
+    println("Dv) Two-photon IONIZATION of a one-electron system: generalized cross sections in GM, the convergence of the bound intermediate sum, and the resonance guard.")
+    println("Dvnew) Apply & test the PhotoRecombinationInterference module: RR and DR amplitudes added coherently; interference in the cross section, beta_2 and the photon polarization.")
     #
 elseif  char == 'E'
     println("E)  Examples, tests & development of composed atomic processes")
@@ -97,9 +103,7 @@ elseif  char == 'E'
     #
     println("Eg) Test of the ImpactExcitationAutoion module with ASF from an internally generated initial-, intermediate and final-state multiplets.")
     println("Ei) Test of the MultiPhotonIonization module with ASF from an internally generated initial- and final-state multiplet.")
-    println("Ej) Test of the MultiPhotonDoubleIon module with ASF from an internally generated initial- and final-state multiplet.")
     println("Ek) Test of the PairAnnihilation1Photon module with ASF from an internally generated initial- and final-state multiplet.")
-    println("El) Test of the PhotoIonizationFluores module with ASF from an internally generated initial-, intermediate and final-state multiplets.")
     println("Em) Test of the PhotoIonizationAutoIon module with ASF from an internally generated initial-, intermediate and final-state multiplets.")
     #
 elseif  char == 'F'
@@ -108,7 +112,7 @@ elseif  char == 'F'
     println("Fa) Stepwise decay cascades: a fast Mg K-hole reference case, and the larger Si^- 1s-3p case.")
     println("Fb) Cascade SIMULATIONS: one computation, several properties derived from the same cascade data.")
     println("Fc) Cascade.PhotoExcitationScheme: photo-excitation cascades and the configuration pre-filter.")
-    println("Fd) Cascade.PhotoIonizationScheme: photo-ionization cross sections of Ne^+.")
+    println("Fd) Cascade.PhotoIonizationScheme: photo-ionization cross sections of Ne^+, calibrated on neutral Ne.")
     println("Fe) Cascade.PhotoAbsorptionScheme: photoabsorption of C^+ near the 1s -> 2p resonances.")
     println("Ff) Cascade.DielectronicRecombinationScheme: KLL dielectronic recombination of helium-like carbon.")
     println("Fg) Cascade.RadiativeRecombinationScheme: radiative recombination of helium-like carbon.")
@@ -116,6 +120,8 @@ elseif  char == 'F'
     println("Fi) Cascade.ElectronIonizationScheme: excitation-autoionization of lithium-like carbon.")
     println("Fj) Cascade.HollowIonScheme: formation and decay of a hollow carbon ion.")
     println("Fk) Cascade.ExpansionOpacityScheme: bound-bound expansion opacities of Sr^+ in kilonova ejecta.")
+    println("Fl) Cascade.ElectronIonizationScheme, resonant channels: resonant electron capture with sequential or simultaneous double autoionization, for lithium-like carbon.")
+    println("Fm) Cascade.DielectronicCaptureScheme: resonant capture of a free electron into doubly-excited levels, for the KLL group of helium-like carbon.")
     #
 elseif  char == 'G'
     println("G)  Examples, tests & development of symbolic evaluations of Racah expressions")
@@ -136,10 +142,9 @@ elseif  char == 'H'
 elseif  char == 'I'
     println("I)  Examples, tests & development of atomic response computations")
     println("-----------------------------------------------------------------")
-    println("Ia) Apply & test the HighHarmonic module to compute high-harmonic spectra in single-electron approximation.")
     println("Ib) Apply & test the StrongField module to calculate ATI energy distributions in the SFA with hydrogen-like initial states.")
     println("Ic) Apply & test the StrongField module to demonstrate the Coulomb asymmetry in ATI azimuthal angular distributions.")
-    println("Id) Apply & test the StrongField2 module to compute in ATI photoelectron momentum distributions.")
+    println("Id) Apply & test the StrongField module to compute in ATI photoelectron momentum distributions.   [POSTPONED until 2027]")
     #
 elseif  char == 'J'
     println("J)  Examples, tests & development of plasma computations")
@@ -163,11 +168,6 @@ elseif  char == 'L'
 elseif  char == 'M'
     println("M)  Examples, tests & development of the ForPedestrians module")
     println("----------------------------------------------------------------")
-    println("Oa) Elastic scattering of electrons at atoms: Dirac partial waves, DCS, Sherman function, transport cross sections.")
-    println("Ob) Elastic electron scattering: the high-energy Rutherford limit as an absolute check of the cross sections.")
-    println("Oc) Elastic electron scattering: the Sherman function and its growth with the nuclear charge.")
-    println("Od) Elastic electron scattering: the transport cross section of He against measured values.")
-    println("Oe) POSITRON elastic scattering at He beside the electron case.")
     println("Ma) Test  computeLevelEnergies(ForGivenConfigs/ForIsoelectronicSequence(), ...)  for several atoms and sequences.")
     println("Mb) Test  computeTransitionRates(),  computeBranchingFractions()  and  displaySpectrum()  for ForPhotoEmission and ForAutoIonization.")
     println("Mc) Test  computeCrossSections(ForPhotoIonization(), ...)  and  computeCrossSections(ForPhotoRecombination(), ...)  for several atoms.")
@@ -193,6 +193,26 @@ elseif  char == 'N'
     println("Nj) Apply & test Empirical.dielectronicRecombinationPlasmaAlpha (Arnaud1985DR), for H-like and He-like ions.")
     println("Nk) Apply & test Empirical.excitationAutoionizationPlasmaAlpha (Arnaud1985EA), additive to the Lotz EII rate.")
     println("Nl) Apply & test Empirical.generateInelasticHChannels, molecular-symmetry channel correlation for A+H(H^-) collisions.")
+    #
+elseif  char == 'O'
+    println("O)  Examples, tests & development of particle-scattering computations (module ParticleScattering)")
+    println("------------------------------------------------------------------------------------------------")
+    println("Oa) Elastic scattering of electrons at atoms: Dirac partial waves, DCS, Sherman function, transport cross sections.")
+    println("Ob) Elastic electron scattering: the high-energy Rutherford limit as an absolute check of the cross sections.")
+    println("Oc) Elastic electron scattering: the Sherman function and its growth with the nuclear charge.")
+    println("Od) Elastic electron scattering: the transport cross section of He against measured values.")
+    println("Oe) POSITRON elastic scattering at He beside the electron case.")
+    println("Of) ONE-PHOTON annihilation of a positron with a bound electron: e^+ + |i(N)> --> |f(N-1)> + photon.")
+    #
+elseif  char == 'P'
+    println("P)  Examples, tests & development of photon-scattering computations (module PhotonScattering)")
+    println("----------------------------------------------------------------------------------------------")
+    println("Pa) BOUND-FREE PAIR CREATION: gamma + |i(N)> --> |f(N+1)> + e^+, the created electron being captured into a bound orbital.")
+    println("Qa) Muonic atoms: muon binding energies, muonic X-rays, and the two screenings.")
+    println("Pb) RAYLEIGH scattering: gamma + |i> --> |i> + gamma, second order over an explicit gMultiplet of intermediate levels.")
+    println("Pc) RESONANT INELASTIC scattering (RIXS): the same second order, tuned ONTO an intermediate level with a width.")
+    println("Pd) FORM-FACTOR approximation for Rayleigh and Compton: the cheap limit, and the Thomson absolute check.")
+    println("Pe) TWISTED (Bessel) beams: the vortex node on axis, and the plane-wave limit, at finite impact parameter.")
     #
 elseif  char == 'Q'
     return( nothing )
