@@ -115,3 +115,9 @@ Order   = [:type, :function]
 Modules = [ResonantImpactIonization]
 Order   = [:type, :function]
 ```
+
+##  Generalized oscillator strengths
+```@autodocs ; canonical=false
+Modules = [GeneralizedOscillatorStrength]
+Order   = [:type, :function]
+```

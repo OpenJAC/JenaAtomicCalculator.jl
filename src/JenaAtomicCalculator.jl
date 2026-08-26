@@ -79,7 +79,7 @@ export AbstractCImethod, AbstractComputeTheme, AbstractConfigurationRestriction,
        FormFactor, ForPedestrians,
        ForPhotoEmission, ForPhotoIonization, ForPhotoRecombination, ForRasExcitations, ForStepwiseDecay, FromBasis,
        FromMultiplet, FullCIeigen,
-       GeneralizedConfigurations, generate, generateConfigurations, getDefaults, GetParity, Green,
+       GeneralizedConfigurations, GeneralizedOscillatorStrength, generate, generateConfigurations, getDefaults, GetParity, Green,
        GreenChannel, GreenExpansion, GreenSettings, GroundConfiguration, Gui,
        Hamiltonian, HarmonicQuantizationAxis, Hfs, HundsRules, HydrogenicIon, HyperfineInduced,
        HyperfineStructure,
@@ -198,6 +198,7 @@ include("module-DecayYield.jl")
 include("module-ImpactExcitation.jl")
 include("module-CoulombExcitation.jl")
 include("module-PhotoRecombinationInterference.jl")
+include("module-GeneralizedOscillatorStrength.jl")
 end
 
 if incAdvancedProcesses

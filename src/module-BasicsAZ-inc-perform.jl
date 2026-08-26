@@ -215,6 +215,9 @@ function Basics.perform(computation::Atomic.Computation; output::Bool=false)
             outcome = PhotoRecombinationInterference.computePathways(finalMultiplet, intermediateMultiplet, initialMultiplet, nModel,
                                                                      computation.grid, computation.processSettings)
             if output    results = Base.merge( results, Dict("photorecombination-interference pathways:" => outcome) )    end
+        elseif  typeof(computation.processSettings) == GeneralizedOscillatorStrength.Settings
+            outcome = GeneralizedOscillatorStrength.computeLines(finalMultiplet, initialMultiplet, computation.grid, computation.processSettings)
+            if output    results = Base.merge( results, Dict("generalized oscillator strengths:" => outcome) )    end
         else
             error("stop b")
         end
