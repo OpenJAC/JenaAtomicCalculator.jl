@@ -820,6 +820,14 @@ end
         CARRIES THE SAME CORRECTION as computePartialCrossSectionUnpolarized: the flat version's inner loop tests `cha.gauge` where it means
         `chp.gauge`, so it multiplies Coulomb amplitudes with Babushkin ones. That cannot happen here. The two versions therefore differ by
         more than rounding, and the difference is the point rather than a defect of this one.
+
+        A GREEN SUITE SAYS NOTHING ABOUT THIS FUNCTION UNDER LINEARLY POLARIZED LIGHT, and that is worth knowing before trusting it. The
+        Clebsch-Gordan coupling the two helicities carried the projection -lambda where it needs -lambdap, so both projections summed to zero
+        and every lambda /= lambda' term -- exactly the terms carrying LINEAR polarization -- was deposited at q = 0 rather than at
+        q = +-2. Under P1 that cancelled the alignment exactly, A_20 coming out 0.000000 instead of 0.128571; under P2 it produced an
+        imaginary orientation that Hermiticity forbids; and q = +-2 was always zero. For UNPOLARIZED and CIRCULAR light those terms vanish
+        outright, so the wrong expression was RIGHT there -- which is why every approved case passed throughout. The defect lived precisely
+        in the configurations nobody had approved, so the next reader should not take a green suite as coverage of this one.
 """
 function computeStatisticalTensorUnpolarized(k::Int64, q::Int64, line::PhotoIonization.Line,
                                                    settings::PhotoIonization.Settings)
