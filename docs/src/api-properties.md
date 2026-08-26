@@ -53,3 +53,21 @@ Modules = [StarkShift]
 Order   = [:type, :function]
 ```
 
+
+##  Muonic atoms
+```@autodocs
+Modules = [MuonicAtom]
+Order   = [:type, :function]
+```
+
+##  Weak-interaction moments
+```@autodocs
+Modules = [WeakInteractionMoment]
+Order   = [:type, :function]
+```
+
+##  Weak-interaction enhancement factors
+```@autodocs
+Modules = [WeakInteractionEnhancement]
+Order   = [:type, :function]
+```

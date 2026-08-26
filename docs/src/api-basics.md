@@ -81,3 +81,15 @@ Order   = [:type, :function]
 Modules = [SpinAngular]
 Order   = [:type]
 ```
+
+##  Multipole moments
+```@autodocs
+Modules = [MultipoleMoment]
+Order   = [:type, :function]
+```
+
+##  Spin angular coefficients, second implementation
+```@autodocs
+Modules = [SpinAngularNew]
+Order   = [:type, :function]
+```
