@@ -401,7 +401,7 @@ function  computeCoefficientsScalar(op::SpinAngular.OneParticleOperator, leftCsf
                         # Pure one-particle spin-angular coefficient
                         wa = -wa/sqrt(Basics.twice(Ji) + 1.)
                         # GRASP like spin-angular coefficient
-                        # wa = wa * sqrt(Basics.twice(ji) + 1.)
+                        wa = wa * sqrt(Basics.twice(ji) + 1.)
                         push!(coeffs1p, Coefficient1p(op.rank, shi, shi, wa))
                     end
                 end
@@ -438,7 +438,7 @@ function  computeCoefficientsScalar(op::SpinAngular.OneParticleOperator, leftCsf
                             #  Purer_one-particle spin-angular coefficient
                             wa = -wa
                             #  GRASP like spin-angular coefficient
-                            # wa = wa * sqrt(Basics.twice(ja) + 1.)
+                            wa = wa * sqrt(Basics.twice(ja) + 1.)
                             push!(coeffs1p, Coefficient1p(op.rank, shii, shjj, wa))
                         end
                     end

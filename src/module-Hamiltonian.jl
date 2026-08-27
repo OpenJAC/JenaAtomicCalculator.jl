@@ -273,8 +273,7 @@ function setupMatrix(sym::LevelSymmetry, basis::Basis, nm::Nuclear.Model, grid::
             #
             me = 0.
             for  coeff in waG1
-                jj = Basics.subshell_2j(basis.orbitals[coeff.a].subshell)
-                me = me + coeff.T * sqrt( jj + 1) * RadialIntegrals.GrantIab(basis.orbitals[coeff.a], basis.orbitals[coeff.b], grid, potential)
+                me = me + coeff.T * RadialIntegrals.GrantIab(basis.orbitals[coeff.a], basis.orbitals[coeff.b], grid, potential)
                 if  settings.qedModel != NoneQed()
                     me = me + InteractionStrengthQED.qedLocal(basis.orbitals[coeff.a], basis.orbitals[coeff.b], nm, settings.qedModel, meanPot, grid)
                 end
@@ -463,8 +462,7 @@ function setupMatrixKinkAware(sym::LevelSymmetry, basis::Basis, nm::Nuclear.Mode
             #
             me = 0.
             for  coeff in waG1
-                jj = Basics.subshell_2j(basis.orbitals[coeff.a].subshell)
-                me = me + coeff.T * sqrt( jj + 1) * RadialIntegrals.GrantIab(basis.orbitals[coeff.a], basis.orbitals[coeff.b], grid, potential)
+                me = me + coeff.T * RadialIntegrals.GrantIab(basis.orbitals[coeff.a], basis.orbitals[coeff.b], grid, potential)
                 if  settings.qedModel != NoneQed()
                     me = me + InteractionStrengthQED.qedLocal(basis.orbitals[coeff.a], basis.orbitals[coeff.b], nm, settings.qedModel, meanPot, grid)
                 end

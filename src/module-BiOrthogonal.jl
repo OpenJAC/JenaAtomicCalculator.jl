@@ -238,7 +238,7 @@ function  generateCounterRotatingCiMatrices(basis::Basis, transformation::Dict, 
         coeffs = SpinAngular.computeCoefficients(opa, basis.csfs[mu], basis.csfs[nu], basis.subshells)
         for  c  in  coeffs
             if  haskey(Gmap, (c.a, c.b))
-                Ghat[mu,nu] += c.T * sqrt( Basics.subshell_2j(c.b) + 1 ) * Gmap[(c.a, c.b)]
+                Ghat[mu,nu] += c.T * Gmap[(c.a, c.b)]
             end
         end
     end

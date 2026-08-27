@@ -134,8 +134,7 @@ function  compute1pRDM(level::Level)
                 for (iq,q)  in  enumerate(subshellList)
                     for  coeff in wa
                         if  (p == coeff.a   &&  q == coeff.b)  ||  (p == coeff.b   &&  q == coeff.a)
-                            jj = Basics.subshell_2j(level.basis.orbitals[coeff.a].subshell)
-                            rho_pq[ip,iq] = rho_pq[iq,ip] = rho_pq[ip,iq] + level.mc[ir] * coeff.T * sqrt( jj + 1) * level.mc[is]
+                            rho_pq[ip,iq] = rho_pq[iq,ip] = rho_pq[ip,iq] + level.mc[ir] * coeff.T * level.mc[is]
                         end
                     end
                 end

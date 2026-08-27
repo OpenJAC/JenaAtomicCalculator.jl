@@ -72,8 +72,7 @@ function computeFunctional(coeffs1p::Array{SpinAngular.Coefficient1p,1}, coeffs2
 
     # Collect one-electron contributions -- unchanged, no kink in this integral
     for  cf  in  coeffs1p
-        jj     = Basics.subshell_2j(cf.a)
-        energy = energy + cf.T * sqrt( jj + 1) * RadialIntegrals.GrantIab(orbitals[cf.a], orbitals[cf.b], grid, potential)
+        energy = energy + cf.T * RadialIntegrals.GrantIab(orbitals[cf.a], orbitals[cf.b], grid, potential)
     end
 
     # Collect two-electron contributions via the kink-aware integral.  The integral depends only on the rank and

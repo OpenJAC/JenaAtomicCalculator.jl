@@ -78,8 +78,7 @@ function buildCIMatrixEOL(idxCsf::Array{Int64,1}, cache1p, cache2p, orbitals::Di
                 I_ab = get!(radial1pCache, (cf.a,cf.b)) do
                     RadialIntegrals.GrantIab(orbitals[cf.a], orbitals[cf.b], grid, potential)
                 end
-                jj = Basics.subshell_2j(cf.a)
-                me = me + cf.T * sqrt( jj + 1) * I_ab
+                me = me + cf.T * I_ab
             end
             for  cf in cache2p[(r,s)]
                 R_abcd = get!(radial2pCache, (cf.nu,cf.a,cf.b,cf.c,cf.d)) do
@@ -469,7 +468,7 @@ function computeOrbitalGradient(bVectors::Dict{Subshell, Vector{Float64}},
         ## gradient along guaranteed-tangent directions: every kappa came out exact to 1.0000 except kappa = -2,
         ## the single kappa holding an off-diagonal pair -- 2p_3/2 with scale +1 and 3p_3/2 with scale -1 --
         ## where the ratio of finite difference to prediction ran -0.10, -0.56, -0.024.
-        w  = cf.T * sqrt( Basics.subshell_2j(cf.a) + 1 ) * scale[cf.a] * scale[cf.b]
+        w  = cf.T * scale[cf.a] * scale[cf.b]
         hh = h1[cf.a.kappa]
         grad[cf.a] = grad[cf.a] + w * (hh * bVectors[cf.b])
         grad[cf.b] = grad[cf.b] + w * (transpose(hh) * bVectors[cf.a])

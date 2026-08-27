@@ -170,9 +170,8 @@ function  amplitude(::NMSamplitude, rLevel::Level, sLevel::Level, nm::Nuclear.Mo
             op = SpinAngular.OneParticleOperator(0, plus, true)
             wa = SpinAngular.computeCoefficients(op, rLevel.basis.csfs[r], sLevel.basis.csfs[s], subshellList)
             for  coeff in wa
-                ja   = Basics.subshell_2j(rLevel.basis.orbitals[coeff.a].subshell)
                 tamp = InteractionStrength.hamiltonian_nms(rLevel.basis.orbitals[coeff.a], sLevel.basis.orbitals[coeff.b], nm, grid)
-                me   = me + coeff.T  * sqrt( ja + 1) * tamp
+                me   = me + coeff.T * tamp
             end
             matrix[r,s] = me
         end
@@ -304,9 +303,8 @@ function  amplitude(::FieldShiftAmplitude, rLevel::Level, sLevel::Level, potenti
             op = SpinAngular.OneParticleOperator(0, plus, true)
             wa = SpinAngular.computeCoefficients(op, rLevel.basis.csfs[r], sLevel.basis.csfs[s], subshellList)
             for  coeff in wa
-                ja   = Basics.subshell_2j(rLevel.basis.orbitals[coeff.a].subshell)
                 tamp = InteractionStrength.fieldShift(rLevel.basis.orbitals[coeff.a], sLevel.basis.orbitals[coeff.b], potential, grid)
-                me   = me + coeff.T  * sqrt( ja + 1) * tamp
+                me   = me + coeff.T * tamp
             end
             matrix[r,s] = me
         end
@@ -336,9 +334,8 @@ function  amplitude(::BosonFieldAmplitude, rLevel::Level, sLevel::Level, potenti
             op = SpinAngular.OneParticleOperator(0, plus, true)
             wa = SpinAngular.computeCoefficients(op, rLevel.basis.csfs[r], sLevel.basis.csfs[s], subshellList)
             for  coeff in wa
-                ja   = Basics.subshell_2j(rLevel.basis.orbitals[coeff.a].subshell)
                 tamp = InteractionStrength.bosonShift(rLevel.basis.orbitals[coeff.a], sLevel.basis.orbitals[coeff.b], potential, grid)
-                me   = me + coeff.T  * sqrt( ja + 1) * tamp
+                me   = me + coeff.T * tamp
             end
             matrix[r,s] = me
         end

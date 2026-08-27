@@ -111,8 +111,7 @@ function Basics.compute(::CImatrixWithSymmetryJP, JP::LevelSymmetry, basis::Basi
             #
             me = 0.
             for  coeff in wa[1]
-                jj = Basics.subshell_2j(basis.orbitals[coeff.a].subshell)
-                me = me + coeff.T * sqrt( jj + 1) * RadialIntegrals.GrantIab(basis.orbitals[coeff.a], basis.orbitals[coeff.b], grid, potential)
+                me = me + coeff.T * RadialIntegrals.GrantIab(basis.orbitals[coeff.a], basis.orbitals[coeff.b], grid, potential)
                 if  settings.qedModel != NoneQed()  
                     me = me + InteractionStrengthQED.qedLocal(basis.orbitals[coeff.a], basis.orbitals[coeff.b], nuclearModel, 
                                                                 settings.qedModel, meanPot, grid)  
@@ -210,8 +209,7 @@ function Basics.compute(JP::LevelSymmetry, basis::Basis, nuclearModel::Nuclear.M
                 #
                 me = 0.
                 for  coeff in wa[1]
-                    jj = Basics.subshell_2j(basis.orbitals[coeff.a].subshell)
-                    me = me + coeff.T * sqrt( jj + 1) * RadialIntegrals.GrantIab(basis.orbitals[coeff.a], basis.orbitals[coeff.b], grid, potential)
+                    me = me + coeff.T * RadialIntegrals.GrantIab(basis.orbitals[coeff.a], basis.orbitals[coeff.b], grid, potential)
                 end
 
                 for  coeff in wa[2]
@@ -360,8 +358,7 @@ function Basics.computeMultipletForGreenApproach(approach::AtomicState.SingleCSF
         #
         me = 0.
         for  coeff in wa[1]
-            jj = Basics.subshell_2j(basis.orbitals[coeff.a].subshell)
-            me = me + coeff.T * sqrt( jj + 1) * RadialIntegrals.GrantIab(basis.orbitals[coeff.a], basis.orbitals[coeff.b], grid, potential)
+            me = me + coeff.T * RadialIntegrals.GrantIab(basis.orbitals[coeff.a], basis.orbitals[coeff.b], grid, potential)
         end
 
         for  coeff in wa[2]
@@ -430,9 +427,8 @@ function Basics.computeMultipletForGreenApproach(approach::AtomicState.CoreSpace
             #
             me = 0.
             for  coeff in wa[1]
-                jj = Basics.subshell_2j(basis.orbitals[coeff.a].subshell)
                 if  basis.orbitals[coeff.a].isBound   &&   basis.orbitals[coeff.b].isBound
-                    me = me + coeff.T * sqrt( jj + 1) * RadialIntegrals.GrantIab(basis.orbitals[coeff.a], basis.orbitals[coeff.b], grid, potential)
+                    me = me + coeff.T * RadialIntegrals.GrantIab(basis.orbitals[coeff.a], basis.orbitals[coeff.b], grid, potential)
                 end
             end
 
@@ -505,8 +501,7 @@ function Basics.computeMultipletForGreenApproach(approach::AtomicState.DampedSpa
             #
             me = 0.
             for  coeff in wa[1]
-                jj = Basics.subshell_2j(basis.orbitals[coeff.a].subshell)
-                me = me + coeff.T * sqrt( jj + 1) * RadialIntegrals.GrantIabDamped(tau, basis.orbitals[coeff.a], basis.orbitals[coeff.b], grid, potential)
+                me = me + coeff.T * RadialIntegrals.GrantIabDamped(tau, basis.orbitals[coeff.a], basis.orbitals[coeff.b], grid, potential)
             end
 
             for  coeff in wa[2]
