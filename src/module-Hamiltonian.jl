@@ -7,7 +7,7 @@
 module Hamiltonian
 
 using  Printf, ..Basics, ..Bsplines, ..Defaults, ..InteractionStrength, ..InteractionStrengthQED, ..ManyElectron,
-       ..Nuclear, ..Radial, ..RadialIntegrals, ..SpinAngular
+       ..Nuclear, ..Radial, ..RadialIntegrals, ..SpinAngularNew
 
 
 """
@@ -265,10 +265,10 @@ function setupMatrix(sym::LevelSymmetry, basis::Basis, nm::Nuclear.Model, grid::
             if  settings.eeInteractionCI == DiagonalCoulomb()  &&  r != s    continue    end
             # Calculate the spin-angular coefficients
             subshellList = basis.subshells
-            opa  = SpinAngular.OneParticleOperator(0, plus, true)
-            waG1 = SpinAngular.computeCoefficients(opa, basis.csfs[idx_csf[r]], basis.csfs[idx_csf[s]], subshellList)
-            opa  = SpinAngular.TwoParticleOperator(0, plus, true)
-            waG2 = SpinAngular.computeCoefficients(opa, basis.csfs[idx_csf[r]], basis.csfs[idx_csf[s]], subshellList)
+            opa  = SpinAngularNew.OneParticleOperator(0, plus)
+            waG1 = SpinAngularNew.computeCoefficients(opa, basis.csfs[idx_csf[r]], basis.csfs[idx_csf[s]], subshellList)
+            opa  = SpinAngularNew.TwoParticleOperator(0, plus)
+            waG2 = SpinAngularNew.computeCoefficients(opa, basis.csfs[idx_csf[r]], basis.csfs[idx_csf[s]], subshellList)
             wa   = [waG1, waG2]
             #
             me = 0.
@@ -454,10 +454,10 @@ function setupMatrixKinkAware(sym::LevelSymmetry, basis::Basis, nm::Nuclear.Mode
             if  settings.eeInteractionCI == DiagonalCoulomb()  &&  r != s    continue    end
             # Calculate the spin-angular coefficients
             subshellList = basis.subshells
-            opa  = SpinAngular.OneParticleOperator(0, plus, true)
-            waG1 = SpinAngular.computeCoefficients(opa, basis.csfs[idx_csf[r]], basis.csfs[idx_csf[s]], subshellList)
-            opa  = SpinAngular.TwoParticleOperator(0, plus, true)
-            waG2 = SpinAngular.computeCoefficients(opa, basis.csfs[idx_csf[r]], basis.csfs[idx_csf[s]], subshellList)
+            opa  = SpinAngularNew.OneParticleOperator(0, plus)
+            waG1 = SpinAngularNew.computeCoefficients(opa, basis.csfs[idx_csf[r]], basis.csfs[idx_csf[s]], subshellList)
+            opa  = SpinAngularNew.TwoParticleOperator(0, plus)
+            waG2 = SpinAngularNew.computeCoefficients(opa, basis.csfs[idx_csf[r]], basis.csfs[idx_csf[s]], subshellList)
             wa   = [waG1, waG2]
             #
             me = 0.
