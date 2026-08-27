@@ -263,6 +263,28 @@ end
 function shellReducedAUncached(j::AngularJ64, Nbra::Int64, senBra::Int64, Jbra::AngularJ64,
                                Nket::Int64, senKet::Int64, Jket::AngularJ64, mq::AngularM64)
     SA = SpinAngular
+    # AN EMPTY SUBSHELL AGAINST A SINGLY OCCUPIED ONE NEEDS NO COEFFICIENT OF FRACTIONAL PARENTAGE: there is only
+    # one state on each side, and the reduced matrix element is -/+ sqrt(2j+1) in closed form, + for the
+    # annihilation j^1 -> j^0 and - for the creation j^0 -> j^1.
+    #
+    # Taking it here is not an optimisation. The quasispin tables consulted below -- qshellTermQ, qshellTermM,
+    # getTermNumber, completlyReducedCfpByIndices -- cover j <= 9/2 ONLY, while a continuum partial wave reaches
+    # j = 21/2. Until 27-Aug-2026 the lookup ran off the end of those tables and this routine returned 0, so every
+    # two-particle coefficient moving an electron into or out of a high-j subshell was silently dropped: the
+    # electron-impact excitation cross section of H-like C5+ came out 27 % low with nothing failing.
+    if  (Nbra == 0  &&  Nket == 1)  ||  (Nbra == 1  &&  Nket == 0)
+        nilBra = Nbra == 0
+        if  nilBra  &&  (senBra != 0  ||  Basics.twice(Jbra) != 0  ||  senKet != 1  ||  Jket != j)   return( 0.0 )   end
+        if !nilBra  &&  (senKet != 0  ||  Basics.twice(Jket) != 0  ||  senBra != 1  ||  Jbra != j)   return( 0.0 )   end
+        return( (Basics.twice(mq) > 0  ?  -1.0  :  1.0) * sqrt(Basics.twice(j) + 1.0) )
+    end
+    # Beyond that closed form the tables are needed, and outside their reach the honest answer is to say so rather
+    # than to return a zero that cannot be told from a selection rule.
+    if  Basics.twice(j) > 9
+        error("\n\nSpinAngularNew.shellReducedA: the quasispin/CFP tables reach j <= 9/2 and j = $(j) was asked "  *
+              "for,\n>>> with occupations $Nket -> $Nbra, which is beyond the closed form for an empty against a "  *
+              "singly\n>>> occupied subshell. Returning 0 here would be indistinguishable from a selection rule.\n")
+    end
     Qb = SA.qshellTermQ(j, senBra);            Qk = SA.qshellTermQ(j, senKet)
     if  AngularMomentum.triangularDelta(Qb, AngularJ64(1//2), Qk) == 0        return( 0.0 )   end
     if  AngularMomentum.triangularDelta(Jbra, j, Jket) == 0                   return( 0.0 )   end

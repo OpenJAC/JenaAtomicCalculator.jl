@@ -7,7 +7,7 @@ module ImpactExcitation
 
 using   Distributed, FastGaussQuadrature, GSL, SpecialFunctions, Printf,
         ..AngularMomentum, ..Basics, ..Bsplines, ..Continuum, ..Defaults, ..InteractionStrength, ..ManyElectron,
-        ..Nuclear, ..Radial, ..SpinAngular, ..TableStrings, ..RadialIntegrals
+        ..Nuclear, ..Radial, ..SpinAngularNew, ..TableStrings, ..RadialIntegrals
 
 ## Relative change of sum |amplitude|^2 contributed by the last partial wave, below which the kappa summation
 ## counts as converged. Used BOTH to terminate that summation in computeAmplitudesProperties() and to flag the
@@ -260,8 +260,8 @@ function amplitude(kind::AbstractEeInteraction, channel::ImpactExcitation.Channe
                 #if ( fLevel.mc[r] == 0.0 && iLevel.mc[s] == 0.0 ) continue end
                 if  iLevel.basis.csfs[s].J != iLevel.J  ||  iLevel.basis.csfs[s].parity != iLevel.parity      continue    end 
                 subshellList = fLevel.basis.subshells
-                op2  = SpinAngular.TwoParticleOperator(0, plus, true)
-                wa   = SpinAngular.computeCoefficients(op2, fLevel.basis.csfs[r], iLevel.basis.csfs[s], subshellList)
+                op2  = SpinAngularNew.TwoParticleOperator(0, plus)
+                wa   = SpinAngularNew.computeCoefficients(op2, fLevel.basis.csfs[r], iLevel.basis.csfs[s], subshellList)
                 #
                 me = 0.
 
