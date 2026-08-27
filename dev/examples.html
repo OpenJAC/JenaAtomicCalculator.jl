@@ -241,11 +241,11 @@ Iteration 7 for symmetries ...
 &gt;&gt;&gt; Sign changed for orbital 2p_3/2
 &gt;&gt; Radial box: box 614.1 a.u.; outermost orbital reaches 6.61 a.u., largest extent/box = 0.011 (2p_3/2, limit 0.90)  -- adequate.
 &gt; Compute CI matrix of dimension 3 x 3 for the symmetry 0^+ ...   ... done.
-&gt; Compute CI matrix of dimension 1 x 1 for the symmetry 2^- ...   ... done.
-&gt; Compute CI matrix of dimension 2 x 2 for the symmetry 2^+ ...   ... done.
 &gt; Compute CI matrix of dimension 1 x 1 for the symmetry 0^- ...   ... done.
-&gt; Compute CI matrix of dimension 2 x 2 for the symmetry 1^- ...   ... done.
+&gt; Compute CI matrix of dimension 1 x 1 for the symmetry 2^- ...   ... done.
 &gt; Compute CI matrix of dimension 1 x 1 for the symmetry 1^+ ...   ... done.
+&gt; Compute CI matrix of dimension 2 x 2 for the symmetry 2^+ ...   ... done.
+&gt; Compute CI matrix of dimension 2 x 2 for the symmetry 1^- ...   ... done.
 
   Level energies:
 
@@ -257,8 +257,8 @@ Iteration 7 for symmetries ...
      4    2 -      -3.624323775300e+01      -9.862287331116e+02      -9.862287331116e+02      8.631792896e-03      6.624766555e+00
      5    1 -      -3.597266125036e+01      -9.788659714503e+02      -9.788659714503e+02      7.362761661e+00      1.398752822e+01
      6    0 +      -3.585318446223e+01      -9.756148424481e+02      -9.756148424481e+02      3.251129002e+00      1.723865722e+01
-     7    1 +      -3.585303293141e+01      -9.756107190845e+02      -9.756107190845e+02      4.123363559e-03      1.724278058e+01
-     8    2 +      -3.585273148464e+01      -9.756025162999e+02      -9.756025162999e+02      8.202784572e-03      1.725098337e+01
+     7    1 +      -3.585303293141e+01      -9.756107190845e+02      -9.756107190845e+02      4.123363558e-03      1.724278058e+01
+     8    2 +      -3.585273148464e+01      -9.756025162999e+02      -9.756025162999e+02      8.202784573e-03      1.725098337e+01
      9    2 +      -3.577687905362e+01      -9.735384665190e+02      -9.735384665190e+02      2.064049781e+00      1.931503315e+01
     10    0 +      -3.559614593173e+01      -9.686204677725e+02      -9.686204677725e+02      4.917998747e+00      2.423303189e+01
 
@@ -272,8 +272,8 @@ Iteration 7 for symmetries ...
      4    2 -      -3.624323775300e+01      -9.862287331116e+02      -9.862287331116e+02      8.631792896e-03      6.624766555e+00
      5    1 -      -3.597266125036e+01      -9.788659714503e+02      -9.788659714503e+02      7.362761661e+00      1.398752822e+01
      6    0 +      -3.585318446223e+01      -9.756148424481e+02      -9.756148424481e+02      3.251129002e+00      1.723865722e+01
-     7    1 +      -3.585303293141e+01      -9.756107190845e+02      -9.756107190845e+02      4.123363559e-03      1.724278058e+01
-     8    2 +      -3.585273148464e+01      -9.756025162999e+02      -9.756025162999e+02      8.202784572e-03      1.725098337e+01
+     7    1 +      -3.585303293141e+01      -9.756107190845e+02      -9.756107190845e+02      4.123363558e-03      1.724278058e+01
+     8    2 +      -3.585273148464e+01      -9.756025162999e+02      -9.756025162999e+02      8.202784573e-03      1.725098337e+01
      9    2 +      -3.577687905362e+01      -9.735384665190e+02      -9.735384665190e+02      2.064049781e+00      1.931503315e+01
     10    0 +      -3.559614593173e+01      -9.686204677725e+02      -9.686204677725e+02      4.917998747e+00      2.423303189e+01</code></pre><p>From the comparison of the two ground-state energies, we see that the admixture of the <span>$2p^2$</span> configuration has lowered  the (total) ground state energy by about 1.8 eV, a rather remarkable admixture, as the <span>$\: ^3P_0$</span> is just 6.6 eV above of the  ground level.</p><p>Further control about these electronic computations can be obtained by modifying the (so-called) <strong>settings</strong>.  In general, all computations of the electronic structure, properties and processes as well as all more advanced computations  can be controlled quite in details by various settings that are associated to the different computational requests.  The SCF and configuration interaction calculations are controlled by <code>AsfSettings</code> that specify all details for the  generation of the ASF. We can first have a look at the internal representation of these settings:</p><pre><code class="nohighlight hljs">? AsfSettings</code></pre><article><details class="docstring" open="true"><summary id="JenaAtomicCalculator.ManyElectron.AsfSettings-examples"><a class="docstring-binding" href="#JenaAtomicCalculator.ManyElectron.AsfSettings-examples"><code>JenaAtomicCalculator.ManyElectron.AsfSettings</code></a> — <span class="docstring-category">Type</span></summary><section><div><p><code>struct  ManyElectron.AsfSettings</code>       ... a struct for defining the settings for the atomic state functions, i.e. the self-consistent-field (SCF)          and CI computations</p><pre><code class="language-julia hljs">+ generateScf          ::Bool                   ... True, if a SCF need to be generated, and false otherwise 
                                                     (frozen orbitals).
@@ -448,7 +448,7 @@ Iteration 7 for symmetries ...
   3p_1/2::  en [a.u.] = -4.3362071e-01;   self-cons&#39;cy = 1.1992e-07  [3.3271e-07 for sym-block kappa = 1]
   2p_3/2::  en [a.u.] = -1.3079734e+00;   self-cons&#39;cy = 1.7685e-07  [5.2193e-07 for sym-block kappa = -2]
   3p_3/2::  en [a.u.] = -4.3349583e-01;   self-cons&#39;cy = 1.1990e-07  [5.2193e-07 for sym-block kappa = -2]
-&gt;&gt; Radial box: box 614.1 a.u.; outermost orbital reaches 13.07 a.u., largest extent/box = 0.021 (3p_1/2, limit 0.90)  -- adequate.
+&gt;&gt; Radial box: box 614.1 a.u.; outermost orbital reaches 13.07 a.u., largest extent/box = 0.021 (3p_3/2, limit 0.90)  -- adequate.
 &gt; Compute CI matrix of dimension 6 x 6 for the symmetry 0^+ ...   ... done.
 &gt; Compute CI matrix of dimension 2 x 2 for the symmetry 1^- ...   ... done.
 
@@ -476,4 +476,4 @@ Iteration 7 for symmetries ...
      5    0 +      -3.557647982097e+01      -9.680853256413e+02      -9.680853256413e+02      7.416458024e+00      2.482318196e+01
      6    0 +      -3.407698084346e+01      -9.272818801274e+02      -9.272818801274e+02      4.080344551e+01      6.562662747e+01
      7    0 +      -3.390498178526e+01      -9.226015473597e+02      -9.226015473597e+02      4.680332768e+00      7.030696024e+01
-     8    0 +      -3.379410497531e+01      -9.195844356836e+02      -9.195844356836e+02      3.017111676e+00      7.332407192e+01</code></pre><p>We finish this (simple) tutorial by enlarging the configuration basis for the low-lying levels but by restricting  the CI computations to the level symmetries <span>$J^P = 0^+$</span> and <span>$1^-$</span>. This is achieved by specifying the settings to:</p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="demos.html">« Demos</a><a class="docs-footer-nextpage" href="news.html">News »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.17.0 on <span class="colophon-date" title="Thursday 27 August 2026 10:38">Thursday 27 August 2026</span>. Using Julia version 1.12.7.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+     8    0 +      -3.379410497531e+01      -9.195844356836e+02      -9.195844356836e+02      3.017111676e+00      7.332407192e+01</code></pre><p>We finish this (simple) tutorial by enlarging the configuration basis for the low-lying levels but by restricting  the CI computations to the level symmetries <span>$J^P = 0^+$</span> and <span>$1^-$</span>. This is achieved by specifying the settings to:</p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="demos.html">« Demos</a><a class="docs-footer-nextpage" href="news.html">News »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.17.0 on <span class="colophon-date" title="Thursday 27 August 2026 14:01">Thursday 27 August 2026</span>. Using Julia version 1.12.7.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
