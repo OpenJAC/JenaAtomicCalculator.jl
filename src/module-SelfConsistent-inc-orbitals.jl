@@ -282,12 +282,3 @@ function computeFockMatrix(subshell::Subshell, coeffs2p::Array{SpinAngular.Coeff
     end
     return( matrix + (1.0/occ) * matrixV )
 end
-
-
-function normX(sa::String, matrix::Array{Float64,2})
-    absD = absND = 0.
-    for  i = 1:size(matrix,1)                    absD  = absD  + abs(matrix[i,i])   
-        for  j = 1:size(matrix,2)   if i != j    absND = absND + abs(matrix[i,j])  end   end
-    end 
-    return(nothing)
-end

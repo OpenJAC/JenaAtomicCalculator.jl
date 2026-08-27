@@ -31,7 +31,6 @@ incCascades             = true  ## Requires: incBasicProcesses
 incPlasma               = true  ## Requires: incProperties
 incLiouville            = true  ## Requires: incProperties
 incStrongField          = true
-incAtomicCompass        = true
 incRacahAlgebra         = true
 incDeepLearning         = true
 
@@ -43,7 +42,6 @@ incCascades             = false  ## Requires: incBasicProcesses
 incPlasma               = false  ## Requires: incProperties
 incLiouville            = false  ## Requires: incProperties
 incStrongField          = false
-incAtomicCompass        = false
 incRacahAlgebra         = false  ==#
 
 
@@ -57,7 +55,7 @@ export AbstractCImethod, AbstractComputeTheme, AbstractConfigurationRestriction,
        AbstractProcessSettings, AbstractPropertySettings, AbstractQedModel, AbstractStartOrbitals,
        add, AddElectrons, AllShells, AlphaVariation, analyze, AnapoleMoment, AngularCoeffs1pGrasp92,
        AngularCoeffs1pRatip2013, AngularCoeffsEeRatip2013, AngularJ, AngularJ64, AngularM64, AngularMomentum,
-       Application, AsfSettings, Atomic, AtomicCompass, AtomicFeatures, AtomicModel, AtomicState, AtomicStructure,
+       Application, AsfSettings, Atomic, AtomicFeatures, AtomicModel, AtomicState, AtomicStructure,
        Auger, AugerInPlasma, AutoIonization, AverageAtom,
        Basics, Basis, Beam, BeamPhotoExcitation, BiOrthogonal, BreitInteraction, Bsplines, ByMultipoles, ByNumber, ByParity,
        Cartesian2DFieldVector, Cartesian3DFieldVector, CartesianVector, Cascade, checkConfigurations, CiExpansion,
@@ -221,11 +219,6 @@ end
 if incStrongField
 # Functions/methods for the computation of atomic responses
 include("module-StrongField.jl") 
-end
-
-if incAtomicCompass
-# Functions/methods for the computation of atomic-compass simulations
-include("module-AtomicCompass.jl") 
 end
 
 # Functions/methods for semi-empirical estimations

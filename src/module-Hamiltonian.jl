@@ -112,7 +112,11 @@ function performCI(basis::Basis, nm::Nuclear.Model, grid::Radial.Grid, settings:
 
     # Calculate for each symmetry block the corresponding CI matrix, diagonalize it and append a Multiplet for this block
     multiplets = Multiplet[]
-    for  (sym,v) in  symmetries
+    # Sorted rather than taken in Dict order.  The symmetry blocks are independent, so no NUMBER depends on
+    # this, but their order fixes both the progress messages and the order in which the levels below are
+    # appended -- and a Dict iterates differently from one process to the next, so two runs of one
+    # calculation could not be compared line by line.  The value v is not used in the loop.
+    for  sym  in  sort( collect(keys(symmetries)), by = s -> (Basics.twice(s.J), string(s.parity)) )
         # Skip the symmetry block if it not selected
         if  !Basics.selectSymmetry(sym, settings.levelSelectionCI)     continue    end
         matrix = Hamiltonian.setupMatrix(sym, basis, nm, grid, settings, xlCache; printout=printout)
@@ -331,7 +335,11 @@ function performCIKinkAware(basis::Basis, nm::Nuclear.Model, grid::Radial.Grid, 
 
     # Calculate for each symmetry block the corresponding CI matrix, diagonalize it and append a Multiplet for this block
     multiplets = Multiplet[]
-    for  (sym,v) in  symmetries
+    # Sorted rather than taken in Dict order.  The symmetry blocks are independent, so no NUMBER depends on
+    # this, but their order fixes both the progress messages and the order in which the levels below are
+    # appended -- and a Dict iterates differently from one process to the next, so two runs of one
+    # calculation could not be compared line by line.  The value v is not used in the loop.
+    for  sym  in  sort( collect(keys(symmetries)), by = s -> (Basics.twice(s.J), string(s.parity)) )
         # Skip the symmetry block if it not selected
         if  !Basics.selectSymmetry(sym, settings.levelSelectionCI)     continue    end
         matrix = Hamiltonian.setupMatrixKinkAware(sym, basis, nm, grid, settings, xlCache; printout=printout)
