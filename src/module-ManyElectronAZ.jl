@@ -28,7 +28,7 @@ function ManyElectron.matrixElement_Mab(Mp::EmMultipole, gauge::EmGauge, omega::
     me  = 0.
         
     subshellList = leftBasis.subshells
-    opa = SpinAngular.OneParticleOperator(Mp.L, plus, true)
+    opa = SpinAngular.OneParticleOperator(Mp.L, Basics.multipoleParity(Mp), true)
     wa  = SpinAngular.computeCoefficients(opa, leftBasis.csfs[r], rightBasis.csfs[s], subshellList) 
     for  coeff in wa
         MabEm = InteractionStrength.MabEmission(Mp, gauge, omega, leftBasis.orbitals[coeff.a],  

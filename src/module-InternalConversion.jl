@@ -365,7 +365,7 @@ end
 function amplitude(mp::EmMultipole, gammaEnergy::Float64, finalLevel::Level, initialLevel::Level, grid::Radial.Grid)
     nf = length(finalLevel.basis.csfs);   ni = length(initialLevel.basis.csfs)
     matrix = zeros(ComplexF64, nf, ni)
-    opa    = SpinAngular.OneParticleOperator(mp.L, Basics.plus, true)
+    opa    = SpinAngular.OneParticleOperator(mp.L, Basics.multipoleParity(mp), true)
     for  r = 1:nf
         for  s = 1:ni
             if  initialLevel.basis.csfs[s].J != initialLevel.J  ||  initialLevel.basis.csfs[s].parity != initialLevel.parity   continue    end

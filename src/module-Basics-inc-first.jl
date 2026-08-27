@@ -67,7 +67,7 @@ struct  EmMultipole
     electric      ::Bool   
 end
 
-export  EmMultipole, E1, M1, E2, M2, E3, M3, E4, M4
+export  EmMultipole, E1, M1, E2, M2, E3, M3, E4, M4, multipoleParity
 
 
 const  E1 = EmMultipole(1, true);     const  M1 = EmMultipole(1, false)
@@ -116,6 +116,25 @@ function Base.string(mp::EmMultipole)
     mp.L < 1    &&    error("Improper multipolarity L = $(mp.L)") 
     if  mp.electric   sa = "E"*string(mp.L)    else    sa = "M"*string(mp.L)   end
     return( sa )
+end
+
+
+"""
+`Basics.multipoleParity(mp::EmMultipole)`  
+    ... returns the PARITY of the one-particle tensor operator that belongs to the given multipole: an electric
+        2^L-pole carries parity (-1)^L and a magnetic one (-1)^(L+1), so E1 and E3 are odd while M1, E2 and M3 are
+        even. This is the parity that a spin-angular operator must be constructed with, and it decides which
+        coefficients survive the parity selection rule -- an even operator connects orbitals with l_a + l_b even,
+        an odd one those with l_a + l_b odd. A value::Basics.Parity is returned.
+
+        IT EXISTS BECAUSE HARD-CODING `plus` IS WRONG AND USED TO BE HARMLESS. `SpinAngular.computeCoefficients`
+        ignores the parity it is given and returns both sets, leaving the radial integral to kill the wrong half;
+        `SpinAngularNew` applies the rule, so a caller that passes `plus` for an E1 operator now silently loses
+        exactly the coefficients E1 needs. Measured on 2s <-> 2p at rank 1: SpinAngular returns 9 coefficients for
+        either parity, SpinAngularNew returns 5 for plus and 4 for minus.
+"""
+function multipoleParity(mp::EmMultipole)
+    return( iseven(mp.L) == mp.electric  ?  Basics.plus  :  Basics.minus )
 end
 
 

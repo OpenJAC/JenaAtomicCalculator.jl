@@ -707,7 +707,7 @@ function  computeInteractionAmplitudeT(mp::EmMultipole, aLevel::Level, bLevel, g
             if  abs(aLevel.mc[ia] * bLevel.mc[ib]) > 1.0e-10
                 subshellList = aLevel.basis.subshells
                 orbitals     = aLevel.basis.orbitals
-                opa = SpinAngular.OneParticleOperator(mp.L, plus, true)
+                opa = SpinAngular.OneParticleOperator(mp.L, Basics.multipoleParity(mp), true)
                 wa  = SpinAngular.computeCoefficients(opa, aLevel.basis.csfs[ia], bLevel.basis.csfs[ib], subshellList)
                     for  coeff in wa
                         ja   = Basics.subshell_2j(orbitals[coeff.a].subshell)

@@ -196,7 +196,7 @@ function amplitudeAndCancellation(::Emission, Mp::EmMultipole, gauge::EmGauge, o
         for  s = 1:ni
             if  iLevel.basis.csfs[s].J != iLevel.J  ||  iLevel.basis.csfs[s].parity  != iLevel.parity    continue    end
             subshellList = fLevel.basis.subshells
-            opa = SpinAngular.OneParticleOperator(Mp.L, plus, true)
+            opa = SpinAngular.OneParticleOperator(Mp.L, Basics.multipoleParity(Mp), true)
             wa  = SpinAngular.computeCoefficients(opa, fLevel.basis.csfs[r], iLevel.basis.csfs[s], subshellList)
             me = 0.
             for  coeff in wa
