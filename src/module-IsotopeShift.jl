@@ -7,7 +7,7 @@ module IsotopeShift
 
 
 using Printf, ..Basics, ..Defaults, ..InteractionStrength, ..ManyElectron, ..Nuclear, ..Radial, ..RadialIntegrals,
-                ..SpinAngular, ..TableStrings
+                ..SpinAngularNew, ..TableStrings
 
 """
 `struct  IsotopeShift.Settings  <:  AbstractPropertySettings`  
@@ -167,8 +167,8 @@ function  amplitude(::NMSamplitude, rLevel::Level, sLevel::Level, nm::Nuclear.Mo
                 rLevel.parity != sLevel.parity    continue
             end
             subshellList = rLevel.basis.subshells
-            op = SpinAngular.OneParticleOperator(0, plus, true)
-            wa = SpinAngular.computeCoefficients(op, rLevel.basis.csfs[r], sLevel.basis.csfs[s], subshellList)
+            op = SpinAngularNew.OneParticleOperator(0, plus)
+            wa = SpinAngularNew.computeCoefficients(op, rLevel.basis.csfs[r], sLevel.basis.csfs[s], subshellList)
             for  coeff in wa
                 tamp = InteractionStrength.hamiltonian_nms(rLevel.basis.orbitals[coeff.a], sLevel.basis.orbitals[coeff.b], nm, grid)
                 me   = me + coeff.T * tamp
@@ -198,8 +198,8 @@ function  amplitude(::SMSamplitudeA, rLevel::Level, sLevel::Level, nm::Nuclear.M
                 rLevel.parity != sLevel.parity    continue
             end
             subshellList = rLevel.basis.subshells
-            op = SpinAngular.TwoParticleOperator(0, plus, true)
-            wa = SpinAngular.computeCoefficients(op, rLevel.basis.csfs[r], sLevel.basis.csfs[s], subshellList)
+            op = SpinAngularNew.TwoParticleOperator(0, plus)
+            wa = SpinAngularNew.computeCoefficients(op, rLevel.basis.csfs[r], sLevel.basis.csfs[s], subshellList)
             for  coeff in wa
                 if  coeff.nu != 1  continue   end
                 ja   = Basics.subshell_2j(rLevel.basis.orbitals[coeff.a].subshell)
@@ -232,8 +232,8 @@ function  amplitude(::SMSamplitudeB, rLevel::Level, sLevel::Level, nm::Nuclear.M
                 rLevel.parity != sLevel.parity    continue
             end
             subshellList = rLevel.basis.subshells
-            op = SpinAngular.TwoParticleOperator(0, plus, true)
-            wa = SpinAngular.computeCoefficients(op, rLevel.basis.csfs[r], sLevel.basis.csfs[s], subshellList)
+            op = SpinAngularNew.TwoParticleOperator(0, plus)
+            wa = SpinAngularNew.computeCoefficients(op, rLevel.basis.csfs[r], sLevel.basis.csfs[s], subshellList)
             for  coeff in wa
                 if  coeff.nu != 1  continue   end
                 ja   = Basics.subshell_2j(rLevel.basis.orbitals[coeff.a].subshell)
@@ -266,8 +266,8 @@ function  amplitude(::SMSamplitudeC, rLevel::Level, sLevel::Level, nm::Nuclear.M
                 rLevel.parity != sLevel.parity    continue
             end
             subshellList = rLevel.basis.subshells
-            op = SpinAngular.TwoParticleOperator(0, plus, true)
-            wa = SpinAngular.computeCoefficients(op, rLevel.basis.csfs[r], sLevel.basis.csfs[s], subshellList)
+            op = SpinAngularNew.TwoParticleOperator(0, plus)
+            wa = SpinAngularNew.computeCoefficients(op, rLevel.basis.csfs[r], sLevel.basis.csfs[s], subshellList)
             for  coeff in wa
                 if  coeff.nu != 1  continue   end
                 ja   = Basics.subshell_2j(rLevel.basis.orbitals[coeff.a].subshell)
@@ -300,8 +300,8 @@ function  amplitude(::FieldShiftAmplitude, rLevel::Level, sLevel::Level, potenti
                 rLevel.parity != sLevel.parity    continue
             end
             subshellList = rLevel.basis.subshells
-            op = SpinAngular.OneParticleOperator(0, plus, true)
-            wa = SpinAngular.computeCoefficients(op, rLevel.basis.csfs[r], sLevel.basis.csfs[s], subshellList)
+            op = SpinAngularNew.OneParticleOperator(0, plus)
+            wa = SpinAngularNew.computeCoefficients(op, rLevel.basis.csfs[r], sLevel.basis.csfs[s], subshellList)
             for  coeff in wa
                 tamp = InteractionStrength.fieldShift(rLevel.basis.orbitals[coeff.a], sLevel.basis.orbitals[coeff.b], potential, grid)
                 me   = me + coeff.T * tamp
@@ -331,8 +331,8 @@ function  amplitude(::BosonFieldAmplitude, rLevel::Level, sLevel::Level, potenti
                 rLevel.parity != sLevel.parity    continue
             end
             subshellList = rLevel.basis.subshells
-            op = SpinAngular.OneParticleOperator(0, plus, true)
-            wa = SpinAngular.computeCoefficients(op, rLevel.basis.csfs[r], sLevel.basis.csfs[s], subshellList)
+            op = SpinAngularNew.OneParticleOperator(0, plus)
+            wa = SpinAngularNew.computeCoefficients(op, rLevel.basis.csfs[r], sLevel.basis.csfs[s], subshellList)
             for  coeff in wa
                 tamp = InteractionStrength.bosonShift(rLevel.basis.orbitals[coeff.a], sLevel.basis.orbitals[coeff.b], potential, grid)
                 me   = me + coeff.T * tamp
