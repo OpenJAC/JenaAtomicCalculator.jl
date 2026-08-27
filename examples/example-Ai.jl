@@ -2,9 +2,24 @@
 println("Ai) Apply & test for restricted-active-space (RAS) expansions.")
 
 if  true
-    # Last successful:  27-Jul-2026: -14.57047 (ref) -> -14.57133 (step1, EOL reproduces reference) ->
+    # Last visit:  27-Aug-2026
+    # Last successful:  unknown -- the numbers below have moved since the date was written, and the branch has
+    #                   not been re-verified.  See the survey note.
+    # 27-Jul-2026 (the last verified run): -14.57047 (ref) -> -14.57133 (step1, EOL reproduces reference) ->
     #                   -14.58990 (step2, 2p correlation) Hartree; monotonic lowering, ~0.017 Ha 2p-correlation
-    #                   contribution is the right order of magnitude for Be's dominant 2s^2<->2p^2 channel.
+    #                   contribution called the right order of magnitude for Be's dominant 2s^2<->2p^2 channel.
+    # SURVEY, 27-Aug-2026 (priority item 50).  Re-run on current code this branch gives step1 -14.575891726 and
+    # step2 -14.618826816, i.e. 4.6 mHa and 28.9 mHa BELOW the recorded values, and the 2p-correlation
+    # contribution is now 0.043 Ha rather than 0.017.  The direction is right -- every change since July was a
+    # convergence fix, and a variational energy that falls has found more correlation, not less -- but the
+    # branch is NOT re-dated, for two reasons.  Step 2 still ends on "STOPPED after 24 iterations" with
+    # |grad| = 1.7e-03, so it is an upper bound and not a converged number; and it runs on Radial.Grid(true),
+    # 614 a.u. for a four-electron atom, the very grid on which testRepresentation_RasExpansion records that a
+    # correlation layer can RAISE the energy.  Re-dating wants a matched box and a larger iteration budget
+    # first.  The same physical case on the reference-sized box, at 24/60/120 iterations, is converged to
+    # 6.7e-09 Ha -- see the value recorded in TestFrames.testRepresentation_RasExpansion.
+    #   Part of the move is the frozen-orbital fix of the same day: until then no RAS layer froze anything,
+    # despite the description below, so BOTH layers here re-optimized every orbital.
     # Scenario A: 2-layer Be RAS. Reference 1s^2 2s^2, core 1s always frozen. Layer 1 = reference SCF only
     # (no correlation shells, no excitations -- just re-optimizes 1s/2s on the single reference CSF). Layer 2
     # adds 2p as a single+double-excitation correlating shell; 1s and 2s stay frozen (already optimized in

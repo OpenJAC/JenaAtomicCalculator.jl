@@ -261,9 +261,16 @@ end
 function checkOrbitalBox(orbitals::Dict{Subshell,Orbital}, grid::Radial.Grid;
                          extentTolerance::Float64=0.9, densityFloor::Float64=1.0e-5, stopper::Bool=false)
     rbox = grid.r[end];      offenders = Tuple{Subshell,Float64,Float64}[]
-    worstRatio = 0.;         worstShell = first(keys(orbitals));      outerExtent = 0.
+    # A Dict iterates in an order that is not fixed from one run to the next, so where two orbitals TIE this
+    # loop named one or the other as the worst, and listed the offenders in a different order each time -- two
+    # runs of one calculation could then not be compared line by line.  Base.isless orders a Subshell by
+    # (n, |kappa|, kappa), which is a total order, so sorting the keys makes the report reproducible.  Nothing
+    # numerical depends on it: every orbital is measured, and only the naming of a tie was ever at stake.
+    shList = sort( collect(keys(orbitals)) )
+    worstRatio = 0.;         worstShell = first(shList);      outerExtent = 0.
 
-    for  (sh, orb)  in  orbitals
+    for  sh  in  shList
+        orb = orbitals[sh]
         np = min(length(orb.P), length(grid.r));     if  np < 3   continue    end
         peak = 0.
         for  i = 1:np    peak = max(peak, orb.P[i]^2 + orb.Q[i]^2)    end
@@ -332,11 +339,14 @@ function checkOrbitalConsistency(orbitals::Dict{Subshell,Orbital}, grid::Radial.
                                  eInversion::Float64=0.05, stopper::Bool=true)
     # group the orbitals by (n, l); only pairs with both kappa signs can be compared
     groups = Dict{Tuple{Int64,Int64}, Array{Subshell,1}}()
-    for  sh  in  keys(orbitals)
+    # Sorted for the same reason as in Bsplines.checkOrbitalBox: taken in Dict order, the two partners of a
+    # pair could arrive either way round and the offending pairs be reported in a different order each run.
+    for  sh  in  sort( collect(keys(orbitals)) )
         key = (sh.n, Basics.subshell_l(sh));    groups[key] = push!( get(groups, key, Subshell[]), sh )
     end
     offenders = Tuple{Subshell,Subshell,Float64,Float64}[]
-    for  (key, shs)  in  groups
+    for  key  in  sort( collect(keys(groups)) )
+        shs = groups[key]
         length(shs) == 2   ||   continue
         a = orbitals[shs[1]];     b = orbitals[shs[2]]
         ra = JenaAtomicCalculator.RadialIntegrals.rkDiagonal(1, a, a, grid)
