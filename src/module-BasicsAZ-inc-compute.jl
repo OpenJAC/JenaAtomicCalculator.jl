@@ -96,17 +96,17 @@ function Basics.compute(::CImatrixWithSymmetryJP, JP::LevelSymmetry, basis::Basi
             end
             if  Defaults.saGG()
                 subshellList = basis.subshells
-                opa  = SpinAngular.OneParticleOperator(0, plus, true)
-                waG1 = SpinAngular.computeCoefficients(opa, basis.csfs[idx_csf[r]], basis.csfs[idx_csf[s]], subshellList) 
-                opa  = SpinAngular.TwoParticleOperator(0, plus, true)
-                waG2 = SpinAngular.computeCoefficients(opa, basis.csfs[idx_csf[r]], basis.csfs[idx_csf[s]], subshellList)
+                opa  = SpinAngularNew.OneParticleOperator(0, plus)
+                waG1 = SpinAngularNew.computeCoefficients(opa, basis.csfs[idx_csf[r]], basis.csfs[idx_csf[s]], subshellList) 
+                opa  = SpinAngularNew.TwoParticleOperator(0, plus)
+                waG2 = SpinAngularNew.computeCoefficients(opa, basis.csfs[idx_csf[r]], basis.csfs[idx_csf[s]], subshellList)
                 wa   = [waG1, waG2]
             end
             if  Defaults.saRatip() && Defaults.saGG() && true
                 if  length(waR[1]) != 0     println(  ">> Angular coeffients from Ratip2013   = $(waR[1]) ")    end
-                if  length(waG1)   != 0     println("\n>> Angular coeffients from SpinAngular = $waG1 ")        end
+                if  length(waG1)   != 0     println("\n>> Angular coeffients from SpinAngularNew = $waG1 ")        end
                 if  length(waR[2]) != 0     println(  ">> Angular coeffients from Ratip2013   = $(waR[2]) ")    end
-                if  length(waG2)   != 0     println("\n>> Angular coeffients from SpinAngular = $waG2 ")        end
+                if  length(waG2)   != 0     println("\n>> Angular coeffients from SpinAngularNew = $waG2 ")        end
             end
             #
             me = 0.
@@ -194,17 +194,17 @@ function Basics.compute(JP::LevelSymmetry, basis::Basis, nuclearModel::Nuclear.M
                 end
                 if  Defaults.saGG()
                     subshellList = basis.subshells
-                    opa  = SpinAngular.OneParticleOperator(0, plus, true)
-                    waG1 = SpinAngular.computeCoefficients(opa, basis.csfs[idx_csf[r]], basis.csfs[idx_csf[s]], subshellList) 
-                    opa  = SpinAngular.TwoParticleOperator(0, plus, true)
-                    waG2 = SpinAngular.computeCoefficients(opa, basis.csfs[idx_csf[r]], basis.csfs[idx_csf[s]], subshellList)
+                    opa  = SpinAngularNew.OneParticleOperator(0, plus)
+                    waG1 = SpinAngularNew.computeCoefficients(opa, basis.csfs[idx_csf[r]], basis.csfs[idx_csf[s]], subshellList) 
+                    opa  = SpinAngularNew.TwoParticleOperator(0, plus)
+                    waG2 = SpinAngularNew.computeCoefficients(opa, basis.csfs[idx_csf[r]], basis.csfs[idx_csf[s]], subshellList)
                     wa   = [waG1, waG2]
                 end
                 if  Defaults.saRatip() && Defaults.saGG() && true
                     if  length(waR[1]) != 0     println(  ">> Angular coeffients from Ratip2013   = $(waR[1]) ")    end
-                    if  length(waG1)   != 0     println("\n>> Angular coeffients from SpinAngular = $waG1 ")        end
+                    if  length(waG1)   != 0     println("\n>> Angular coeffients from SpinAngularNew = $waG1 ")        end
                     if  length(waR[2]) != 0     println(  ">> Angular coeffients from Ratip2013   = $(waR[2]) ")    end
-                    if  length(waG2)   != 0     println("\n>> Angular coeffients from SpinAngular = $waG2 ")        end
+                    if  length(waG2)   != 0     println("\n>> Angular coeffients from SpinAngularNew = $waG2 ")        end
                 end
                 #
                 me = 0.
@@ -349,10 +349,10 @@ function Basics.computeMultipletForGreenApproach(approach::AtomicState.SingleCSF
         # Calculate the spin-angular coefficients
         if  Defaults.saGG()
             subshellList = basis.subshells
-            opa  = SpinAngular.OneParticleOperator(0, plus, true)
-            waG1 = SpinAngular.computeCoefficients(opa, basis.csfs[r], basis.csfs[r], subshellList) 
-            opa  = SpinAngular.TwoParticleOperator(0, plus, true)
-            waG2 = SpinAngular.computeCoefficients(opa, basis.csfs[r], basis.csfs[r], subshellList)
+            opa  = SpinAngularNew.OneParticleOperator(0, plus)
+            waG1 = SpinAngularNew.computeCoefficients(opa, basis.csfs[r], basis.csfs[r], subshellList) 
+            opa  = SpinAngularNew.TwoParticleOperator(0, plus)
+            waG2 = SpinAngularNew.computeCoefficients(opa, basis.csfs[r], basis.csfs[r], subshellList)
             wa   = [waG1, waG2]
         end
         #
@@ -418,10 +418,10 @@ function Basics.computeMultipletForGreenApproach(approach::AtomicState.CoreSpace
             # Calculate the spin-angular coefficients
             if  Defaults.saGG()
                 subshellList = basis.subshells
-                opa  = SpinAngular.OneParticleOperator(0, plus, true)
-                waG1 = SpinAngular.computeCoefficients(opa, basis.csfs[r], basis.csfs[s], subshellList)
-                opa  = SpinAngular.TwoParticleOperator(0, plus, true)
-                waG2 = SpinAngular.computeCoefficients(opa, basis.csfs[r], basis.csfs[s], subshellList)
+                opa  = SpinAngularNew.OneParticleOperator(0, plus)
+                waG1 = SpinAngularNew.computeCoefficients(opa, basis.csfs[r], basis.csfs[s], subshellList)
+                opa  = SpinAngularNew.TwoParticleOperator(0, plus)
+                waG2 = SpinAngularNew.computeCoefficients(opa, basis.csfs[r], basis.csfs[s], subshellList)
                 wa   = [waG1, waG2]
             end
             #
@@ -492,10 +492,10 @@ function Basics.computeMultipletForGreenApproach(approach::AtomicState.DampedSpa
             # Calculate the spin-angular coefficients
             if  Defaults.saGG()
                 subshellList = basis.subshells
-                opa  = SpinAngular.OneParticleOperator(0, plus, true)
-                waG1 = SpinAngular.computeCoefficients(opa, basis.csfs[r], basis.csfs[s], subshellList) 
-                opa  = SpinAngular.TwoParticleOperator(0, plus, true)
-                waG2 = SpinAngular.computeCoefficients(opa, basis.csfs[r], basis.csfs[s], subshellList)
+                opa  = SpinAngularNew.OneParticleOperator(0, plus)
+                waG1 = SpinAngularNew.computeCoefficients(opa, basis.csfs[r], basis.csfs[s], subshellList) 
+                opa  = SpinAngularNew.TwoParticleOperator(0, plus)
+                waG2 = SpinAngularNew.computeCoefficients(opa, basis.csfs[r], basis.csfs[s], subshellList)
                 wa   = [waG1, waG2]
             end
             #
@@ -841,10 +841,10 @@ function Basics.computeScfCoefficients(field::Basics.ALField, basis::Basis, subs
         # Calculate the spin-angular coefficients
         if  Defaults.saGG()
             subshellList = basis.subshells
-            opa  = SpinAngular.OneParticleOperator(0, plus, true)
-            waG1 = SpinAngular.computeCoefficients(opa, csf, csf, subshellList) 
-            opa  = SpinAngular.TwoParticleOperator(0, plus, true)
-            waG2 = SpinAngular.computeCoefficients(opa, csf, csf, subshellList)
+            opa  = SpinAngularNew.OneParticleOperator(0, plus)
+            waG1 = SpinAngularNew.computeCoefficients(opa, csf, csf, subshellList) 
+            opa  = SpinAngularNew.TwoParticleOperator(0, plus)
+            waG2 = SpinAngularNew.computeCoefficients(opa, csf, csf, subshellList)
             wa   = [waG1, waG2]
         end
         #
