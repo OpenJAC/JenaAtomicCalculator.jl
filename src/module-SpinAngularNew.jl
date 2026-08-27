@@ -375,49 +375,24 @@ end
 """
 function scalarSingleSubstitution(op::SpinAngularNew.OneParticleOperator, leftCsf::CsfR, rightCsf::CsfR,
                                   subshells::Array{Subshell,1}, diffs::Array{Int64,1})
-    coeffs = Coefficient1p{OrdinaryKind}[]
-    ia, ib = diffs[1], diffs[2]
-
-    if  abs(leftCsf.occupation[ia] - rightCsf.occupation[ia]) != 1  ||
-        abs(leftCsf.occupation[ib] - rightCsf.occupation[ib]) != 1
+    if  abs(leftCsf.occupation[diffs[1]] - rightCsf.occupation[diffs[1]]) != 1  ||
+        abs(leftCsf.occupation[diffs[2]] - rightCsf.occupation[diffs[2]]) != 1
         error("\n\nSpinAngularNew.scalarSingleSubstitution: the two CSFs differ by more than one electron in a subshell.\n" *
-              ">>> Stage 1a supports a single-electron substitution only.\n")
-    end
-    if  !isAllowed1p(op, subshells[ia], subshells[ib])      return( coeffs )   end
-
-    # All remaining subshells must be in identical coupling, or the two CSFs are orthogonal.
-    for  i = 1:length(subshells)
-        if  i == ia  ||  i == ib    continue    end
-        if  leftCsf.subshellJ[i] != rightCsf.subshellJ[i]  ||  leftCsf.subshellX[i] != rightCsf.subshellX[i]  ||
-            leftCsf.seniorityNr[i] != rightCsf.seniorityNr[i]
-            return( coeffs )
-        end
+              ">>> A single-electron substitution is required here.\n")
     end
 
-    naL = leftCsf.occupation[ia];    nbL = leftCsf.occupation[ib]
-    naR = rightCsf.occupation[ia];   nbR = rightCsf.occupation[ib]
-    # Orient the substitution so that the electron is annihilated in the ket and created in the bra.
-    if       naL == naR + 1  &&  nbL == nbR - 1     iCre, iAnn = ia, ib
-    elseif   nbL == nbR + 1  &&  naL == naR - 1     iCre, iAnn = ib, ia
-    else
-        error("\n\nSpinAngularNew.scalarSingleSubstitution: the occupations do not describe a single transfer.\n")
+    # The work is done by the general one-particle machinery, called at rank 0, and NOT by a closed form.
+    # A closed form was used here until 27-Aug-2026 and was wrong: it demanded that every spectator subshell carry an
+    # identical running coupling subshellX, and returned an EMPTY LIST when one did not. For a substitution between
+    # subshells ia < ib, the running X of every spectator BETWEEN them necessarily differs, since it accumulates the
+    # occupation of ia -- so the coefficient was dropped for exactly the cases that need a recoupling factor, silently,
+    # which is the one behaviour this module exists to rule out. It was invisible for l = 0 only because two s subshells
+    # of different n have no subshell between them in the standard ordering.
+    coeffs  = Coefficient1p{OrdinaryKind}[]
+    reduced = computeCoefficientsNonScalar(op, leftCsf, rightCsf, subshells)
+    for  c in reduced
+        push!( coeffs, Coefficient1p{OrdinaryKind}(c.nu, c.a, c.b, c.T) )
     end
-
-    # For a substitution between two subshells of the same kappa, whose occupations are 0/1 on one side and full/full-1
-    # on the other, the transfer coefficient is sqrt(N_full) in GRASP convention. The general open-shell case needs the
-    # fractional-parentage machinery and is refused rather than guessed.
-    fullCre = Basics.subshell_2j(subshells[iCre]) + 1
-    fullAnn = Basics.subshell_2j(subshells[iAnn]) + 1
-    nCre    = max(leftCsf.occupation[iCre], rightCsf.occupation[iCre])
-    nAnn    = max(leftCsf.occupation[iAnn], rightCsf.occupation[iAnn])
-    if  !( (nCre == 1 || nCre == fullCre)  &&  (nAnn == 1 || nAnn == fullAnn) )
-        error("\n\nSpinAngularNew.scalarSingleSubstitution: a general open-shell substitution is NOT yet supported.\n" *
-              ">>> Stage 1a handles a transfer between subshells that are singly occupied or closed; the two here\n"   *
-              ">>> hold $nCre of $fullCre and $nAnn of $fullAnn electrons. Use SpinAngular.computeCoefficients.\n")
-    end
-
-    value = sqrt( Float64(nCre) ) * sqrt( Float64(nAnn) )
-    push!( coeffs, Coefficient1p{OrdinaryKind}(op.rank, subshells[iCre], subshells[iAnn], value) )
 
     return( coeffs )
 end
