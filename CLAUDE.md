@@ -631,15 +631,21 @@ and these two commands push in that direction. `jac-fetch`/`jac-send` and the me
 missing and delete nothing, so a mistaken direction is recoverable -- but running them the wrong way round can carry
 a stale file over a fresh one, so follow the labels.
 
-**Starting a SECOND session.** Long jobs are worth running beside other work, but two sessions must never share one
-working tree: a shared git index means one session's commit can sweep up the other's staged files, which has
-happened. Give the second session its own checkout:
+**Starting a SECOND session.** Both sessions work in the **same directory, on the same branch**. No worktrees, no
+second branch, no merging between sessions, and nothing for the maintainer to remember or run.
 
-    git worktree add ../JAC-<topic> -b <topic> master
+What makes that safe is a discipline that belongs to the SESSIONS, not to him. Each session:
 
-That is a complete second checkout on its own branch, sharing one repository and one history. Then partition the
-work explicitly -- the two sessions must not touch the same modules -- and say in each session which files are its
-own. Remove it with `git worktree remove ../JAC-<topic>` when the branch has been merged.
+- **never uses `git add -A`, and never commits without an explicit pathspec** -- `git commit -F <msg> -- <only the
+  files this session changed>`. A commit without a pathspec on a shared tree sweeps up the other session's staged
+  work; this has happened, twice in one week, and the pathspec is what stopped it;
+- **never runs `git checkout`, `git stash`, `git pull` or `git merge` without saying so first**, since all four
+  change files under the other session;
+- **states at the start which modules are its own**, and stays off the others'. A module assigned to neither session
+  belongs to neither;
+- **does not run the test suite while the other session is running it** -- they write the same files under `test/`.
+
+If a session cannot say which files are its own, it must not commit.
 
 
 ### recall commands
