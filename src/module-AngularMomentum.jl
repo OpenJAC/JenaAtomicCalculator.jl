@@ -6,7 +6,7 @@
 """
 module AngularMomentum
 
-using  SpecialFunctions, WignerSymbols, ..Basics
+using  WignerSymbols, ..Basics
 using  GSL: sf_coupling_3j, sf_coupling_6j, sf_coupling_9j, sf_legendre_sphPlm
 
 
@@ -630,39 +630,48 @@ end
 
 """
 `AngularMomentum.Wigner_DFunction(j, p, q, alpha::Float64, beta::Float64, gamma::Float64)`  
-    ... calculates the value of a Wigner D^j_pq (alpha, beta, gamma) for given quantum numbers and (Euler) angles 
-        (alpha, beta, gamma). It makes use of the small Wigner d(beta) matrix as the key part.
-        A value::Float64 is returned.
+    ... calculates the value of a Wigner D^j_pq (alpha, beta, gamma) for given quantum numbers and (Euler) angles (alpha, beta, gamma). 
+        It makes use of the small Wigner d(beta) matrix as the key part. A value::ComplexF64 is returned; the D-function is complex 
+        whenever alpha or gamma is non-zero.
 """
 function Wigner_DFunction(j, p, q, alpha::Float64, beta::Float64, gamma::Float64)
     wa = exp(-im*p*alpha -im*q*gamma) * AngularMomentum.Wigner_dmatrix(j, p, q, beta)
 end
 
+
 """
 `AngularMomentum.Wigner_dmatrix(jj, mmp, mm, beta::Float64)`  
-    ... calculates the value of the small Wigner d^j_m',m (beta) for given quantum numbers and the angle beta.
-        Wigner's formula is applied to evaluate the small Wigner matrix; a value::Float64 is returned.
+    ... calculates the value of the small Wigner d^j_m',m (beta) for given quantum numbers and the angle beta. Wigner's formula is 
+        applied; a value::Float64 is returned. The quantum numbers are accepted in any of the forms that `Basics.twice` understands 
+        -- AngularJ64, AngularM64, Integer, Rational or Float64 -- exactly as Wigner_3j and Wigner_6j accept them.
+
+        THE ARITHMETIC IS DONE IN DOUBLED INTEGERS. Since j, m' and m are all integer or all half-integer, the combinations j+-m', 
+        j+-m, j+m-s, m'-m+s and j-m'-s are always whole numbers; they are formed here as integers, so that every factorial is exact 
+        and the powers of cos(beta/2) and sin(beta/2) carry integer exponents -- a Float64 exponent on the negative base that 
+        cos(beta/2) becomes for beta > pi has no real value, and the power would fail rather than turn negative.
 """
 function Wigner_dmatrix(jj, mmp, mm, beta::Float64)
-    j = Float64(jj);      mp = Float64(mmp);    m = Float64(mm)  
-    # The valid combinations are those with j-mp and j-m integer; this admits the half-integer d^j, for which
-    # j+mp+m is a half-integer and an earlier test on that sum refused every such element.
-    if     mod(j-mp, 1.0) != 0.  ||  mod(j-m, 1.0) != 0.    error("Inappropriate quantum numbers j=$j, mp=$mp, m=$m")   
-    elseif abs(mp) > j    ||   abs(m) > j          return( 0. )
+    # Factorials of the arguments occurring here stay small in atomic physics, but big() is used beyond 20! so that an overflow
+    # cannot pass silently.
+    fac(n::Int64) = n <= 20  ?  Float64(factorial(n))  :  Float64(factorial(big(n)))
+    tj = Basics.twice(jj);    tmp = Basics.twice(mmp);    tm = Basics.twice(mm)
+    if  !isinteger(tj)  ||  !isinteger(tmp)  ||  !isinteger(tm)
+        error("Inappropriate quantum numbers j=$jj, mp=$mmp, m=$mm; each must be integer or half-integer.")
     end
-    # All arguments below are non-negative integers even for half-integer j, since j+-m and j+-mp are integers
-    # then as well; gamma(x+1) evaluates them exactly and, unlike factorial, accepts the Float64 they arrive as.
-    fac(x) = SpecialFunctions.gamma(x + 1.0)
-    factor = sqrt( fac(j+mp) * fac(j-mp) * fac(j+m) * fac(j-m) )
-    wa = 0.
-    for  s = 0:100
-        if  j+m-s < 0  ||  j-mp-s < 0   break       end
-        if  mp - m + s < 0              continue    end
-        # The exponents are integers and are taken as such: a Float64 exponent on the negative base that
-        # cos(beta/2) becomes for beta > pi has no real value, and the power would fail rather than turn negative.
-        wa = wa + (-1.0)^Int64(round(mp-m+s)) * cos(beta/2.)^Int64(round(2j+m-mp-2s)) * 
-                  sin(beta/2.)^Int64(round(mp-m+2s)) / 
-                    ( fac(j+m-s) * fac(s) * fac(mp-m+s) * fac(j-mp-s) )
+    j2 = round(Int64, tj);    mp2 = round(Int64, tmp);    m2 = round(Int64, tm)
+    if      isodd(j2 + mp2)  ||  isodd(j2 + m2)
+            error("Inappropriate quantum numbers j=$(j2/2), mp=$(mp2/2), m=$(m2/2)")
+    elseif  abs(mp2) > j2    ||  abs(m2) > j2       return( 0. )
+    end
+    a = div(j2 + mp2, 2);    b = div(j2 - mp2, 2)      # j+m',  j-m'
+    c = div(j2 + m2,  2);    d = div(j2 - m2,  2)      # j+m,   j-m
+    e = div(mp2 - m2, 2)                               # m'-m
+    factor = sqrt( fac(a) * fac(b) * fac(c) * fac(d) )
+    wa     = 0.
+    for  s = max(0, -e):min(b, c)
+        # The cosine exponent 2j+m-m'-2s equals (j+m) + (j-m') - 2s = c + b - 2s.
+        wa = wa + (-1)^(e+s) * cos(beta/2.)^(c + b - 2s) * sin(beta/2.)^(e + 2s) /
+                    ( fac(c-s) * fac(s) * fac(e+s) * fac(b-s) )
     end
 
     return( factor*wa )
