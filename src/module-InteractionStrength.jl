@@ -150,6 +150,11 @@ end
 `InteractionStrength.dipole(a::Orbital, b::Orbital, grid::Radial.Grid)`  
     ... computes the <a|| d ||b> reduced matrix element of the dipole operator for orbital functions a, b.
         A value::Float64 is returned. 
+
+        NO CALLER, AND NOT THE ONE TO REACH FOR. This returns Grant's reduced matrix element WITHOUT the 1/sqrt(2 j_a + 1)
+        that JAC's convention requires, so it must never be paired with a bare spin-angular coeff.T -- doing so is too
+        large by exactly sqrt(2 j_a + 1), which is what module-MultipoleMoment.jl did until 27-Aug-2026. It is the k = 1
+        case of InteractionStrength.eMultipole, which carries that factor; use eMultipole(1, a, b, grid) instead.
 """
 function dipole(a::Orbital, b::Orbital, grid::Radial.Grid)
     wa = AngularMomentum.CL_reduced_me(a.subshell, 1, b.subshell) * RadialIntegrals.rkDiagonal(1, a, b, grid)

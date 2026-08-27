@@ -130,9 +130,11 @@ function dipoleAmplitude(finalLevel::Level, initialLevel::Level, grid::Radial.Gr
                 end
                 #
                 for  coeff in wa
-                    ja = Basics.subshell_2j(finalLevel.basis.orbitals[coeff.a].subshell)
-                    jb = Basics.subshell_2j(initialLevel.basis.orbitals[coeff.b].subshell)
-                    tamp  = InteractionStrength.dipole(finalLevel.basis.orbitals[coeff.a], initialLevel.basis.orbitals[coeff.b], grid)
+                    # eMultipole at k = 1, not InteractionStrength.dipole: the two compute the same electric-dipole reduced
+                    # matrix element and differ by exactly sqrt(2 j_a + 1), which eMultipole divides out and dipole does not.
+                    # coeff.T arrives GRASP-dressed, so only the eMultipole form pairs correctly with it -- the same pairing
+                    # the rank-k branch below already uses.
+                    tamp  = InteractionStrength.eMultipole(1, finalLevel.basis.orbitals[coeff.a], initialLevel.basis.orbitals[coeff.b], grid)
                     matrix[r,s] = matrix[r,s] + coeff.T * tamp  
                 end
             end
@@ -185,8 +187,6 @@ function emmStaticAmplitude(k::Int64, finalLevel::Level, initialLevel::Level, gr
                 wa  = SpinAngular.computeCoefficients(opa, finalLevel.basis.csfs[r], initialLevel.basis.csfs[s], subshellList) 
                 #
                 for  coeff in wa
-                    ja   = Basics.subshell_2j(finalLevel.basis.orbitals[coeff.a].subshell)
-                    jb   = Basics.subshell_2j(initialLevel.basis.orbitals[coeff.b].subshell)
                     tamp = InteractionStrength.eMultipole(k, finalLevel.basis.orbitals[coeff.a], initialLevel.basis.orbitals[coeff.b], grid)
                     matrix[r,s] = matrix[r,s] + coeff.T * tamp  
                 end
