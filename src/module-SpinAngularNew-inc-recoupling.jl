@@ -144,6 +144,23 @@ end
 function shellReducedWUncached(j::AngularJ64, N::Int64, senBra::Int64, Jbra::AngularJ64, senKet::Int64,
                                Jket::AngularJ64, kj::Int64)
     SA = SpinAngular
+    # AN EMPTY OR SINGLY OCCUPIED SUBSHELL NEEDS NO COEFFICIENT OF FRACTIONAL PARENTAGE, and taking those two cases
+    # here is what lets this routine work above j = 9/2, where the quasispin tables it otherwise consults stop.
+    # A singly occupied subshell has exactly one state, seniority 1 with J = j, and measured against the tables
+    # wherever they do reach -- j = 1/2 ... 9/2, kj = 0 ... 3 -- the element is -sqrt(2 kj + 1), INDEPENDENT of j:
+    # -1, -sqrt(3), -sqrt(5), -sqrt(7). See the companion closed form in shellReducedA.
+    if  N == 0                                                                          return( 0.0 )   end
+    if  N == 1
+        if  senBra != 1  ||  senKet != 1  ||  Jbra != j  ||  Jket != j                   return( 0.0 )   end
+        return( -sqrt(2.0*kj + 1.0) )
+    end
+    # Beyond those, the tables are needed and their reach must be stated rather than silently returned as a zero
+    # or thrown as a BoundsError from inside SpinAngular.
+    if  Basics.twice(j) > 9
+        error("\n\nSpinAngularNew.shellReducedW: the quasispin/CFP tables reach j <= 9/2 and j = $(j) was asked "   *
+              "for\n>>> with occupation N = $N, which is beyond the closed forms for an empty or singly occupied "  *
+              "subshell.\n")
+    end
     Qb = SA.qshellTermQ(j, senBra);           Qk = SA.qshellTermQ(j, senKet)
     MQ = SA.qshellTermM(j, N)
     ib = SA.getTermNumber(j, N, Qb, Jbra);    ik = SA.getTermNumber(j, N, Qk, Jket)
