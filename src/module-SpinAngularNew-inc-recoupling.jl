@@ -143,7 +143,7 @@ end
 """
 function shellReducedWUncached(j::AngularJ64, N::Int64, senBra::Int64, Jbra::AngularJ64, senKet::Int64,
                                Jket::AngularJ64, kj::Int64)
-    SA = JenaAtomicCalculator.SpinAngular
+    SA = SpinAngular
     Qb = SA.qshellTermQ(j, senBra);           Qk = SA.qshellTermQ(j, senKet)
     MQ = SA.qshellTermM(j, N)
     ib = SA.getTermNumber(j, N, Qb, Jbra);    ik = SA.getTermNumber(j, N, Qk, Jket)
@@ -262,7 +262,7 @@ end
 """
 function shellReducedAUncached(j::AngularJ64, Nbra::Int64, senBra::Int64, Jbra::AngularJ64,
                                Nket::Int64, senKet::Int64, Jket::AngularJ64, mq::AngularM64)
-    SA = JenaAtomicCalculator.SpinAngular
+    SA = SpinAngular
     Qb = SA.qshellTermQ(j, senBra);            Qk = SA.qshellTermQ(j, senKet)
     if  AngularMomentum.triangularDelta(Qb, AngularJ64(1//2), Qk) == 0        return( 0.0 )   end
     if  AngularMomentum.triangularDelta(Jbra, j, Jket) == 0                   return( 0.0 )   end

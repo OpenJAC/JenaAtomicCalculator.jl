@@ -68,8 +68,11 @@
     the failure mode this module exists to remove. Two-or-more electrons in an open subshell need the coefficients of
     fractional parentage and are not yet re-implemented.
 
-    This module is deliberately NOT included from `JenaAtomicCalculator.jl`: `examples/example-Aq.jl` includes it
-    directly, so that a broken intermediate state cannot break the package.
+    This module IS included from `JenaAtomicCalculator.jl` and reaches `SpinAngular` through the `using ..SpinAngular`
+    clause above, like every other JAC module. It began outside the package, included directly by
+    `examples/example-Aq.jl` so that a broken intermediate state could not break the build, and while that was so it
+    named the package absolutely -- `JenaAtomicCalculator.SpinAngular`. That name does not resolve from INSIDE the
+    package, so every rank > 0 and every two-particle call raised `UndefVarError` for as long as both states overlapped.
 
     ## THE MIGRATION INVENTORY, verified 25-Aug-2026 -- read this before swapping the modules
 
