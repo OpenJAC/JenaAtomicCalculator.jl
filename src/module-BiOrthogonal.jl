@@ -19,7 +19,7 @@
 module BiOrthogonal
 
 
-using Printf, LinearAlgebra, ..Basics,  ..Defaults, ..ManyElectron, ..Radial, ..RadialIntegrals, ..SpinAngular
+using Printf, LinearAlgebra, ..Basics,  ..Defaults, ..ManyElectron, ..Radial, ..RadialIntegrals, ..SpinAngularNew
 
 
 """
@@ -210,9 +210,9 @@ end
         (i) per kappa symmetry, factor G = log(C) (upper triangular, since C is upper triangular with
         nonzero diagonal); (ii) build the one-electron operator matrix Ghat over the full CSF list using
         the SAME reduced one-body coupling coefficients JAC already uses for one-body Hamiltonian terms
-        (`SpinAngular.computeCoefficients(OneParticleOperator(0,plus,true), csfR, csfS, subshells)`,
-        weighted by G_ab instead of a radial integral, matching module-BasicsAZ-inc-compute.jl's own
-        `coeff.T * sqrt(subshell_2j(coeff.b)+1)` convention). A one-particle toy-model check (N=1,
+        (`SpinAngularNew.computeCoefficients(OneParticleOperator(0,plus), csfR, csfS, subshells)`,
+        weighted by G_ab instead of a radial integral). The coefficient is used BARE: since 27-Aug-2026 the
+        rank-0 coefficient carries sqrt(2 j_a + 1) itself, so no factor belongs at the call site. A one-particle toy-model check (N=1,
         two orbitals) shows the OLD and NEW expansion coefficients are related by c_old = C * c_new
         (not c_new = C * c_old) -- i.e. the CI vector transforms with the INVERSE of the orbital
         transformation -- so (iii) M = exp(-Ghat) is returned. The transformed CI vector for a level is
@@ -232,10 +232,10 @@ function  generateCounterRotatingCiMatrices(basis::Basis, transformation::Dict, 
         end
     end
 
-    opa   = SpinAngular.OneParticleOperator(0, Basics.plus, true)
+    opa   = SpinAngularNew.OneParticleOperator(0, Basics.plus)
     Ghat  = zeros(nCSF, nCSF)
     for  mu = 1:nCSF,  nu = 1:nCSF
-        coeffs = SpinAngular.computeCoefficients(opa, basis.csfs[mu], basis.csfs[nu], basis.subshells)
+        coeffs = SpinAngularNew.computeCoefficients(opa, basis.csfs[mu], basis.csfs[nu], basis.subshells)
         for  c  in  coeffs
             if  haskey(Gmap, (c.a, c.b))
                 Ghat[mu,nu] += c.T * Gmap[(c.a, c.b)]
