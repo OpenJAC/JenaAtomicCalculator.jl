@@ -587,6 +587,61 @@ Lists: modules changed (and what kind of change), example branches tested (with 
 open items (blank dates, known bugs, planned next steps).
 Important findings are saved to the memory system.
 
+### /preparetravel
+**Prepare both machines before leaving. Steps are labelled with the machine they run on.**
+
+The aim is that the laptop carries everything needed and the desktop is left in a state that can be returned to
+without archaeology. The whole reason this command exists: work left uncommitted on a machine you are flying away
+from cost an evening once, and the fix is thirty seconds.
+
+**ON THE DESKTOP** — leave nothing behind:
+1. `git status`. If it is not clean, decide file by file. Anything worth keeping is committed and pushed; anything
+   unfinished goes to a branch rather than staying loose:
+   `git checkout -b wip/desktop-<date> && git add -A && git commit -m "WIP" && git push -u origin HEAD`
+2. `git push` whatever is on the current branch, so the laptop can reach it.
+3. Note what is still RUNNING. Long jobs continue while you travel only if they were started under `tmux` or
+   `screen`; a job started in a plain ssh window dies when the link drops.
+
+**ON THE LAPTOP** — take copies:
+4. `git pull` on every branch you may want to touch while away.
+5. `jac-fetch` — brings `apps/` across. `jac-results` — brings `work/` output if you want to read it en route.
+6. `jac-memory-pull` — brings the assistant's memory across, so nothing has to be re-explained.
+7. **Test the VPN before leaving.** The desktop sits at a private address: it is reachable from the institute
+   network, and NOT from a hotel without the VPN. That is much better discovered at home than in a departure lounge.
+
+**What NOT to copy:** `Manifest.toml` is machine- and Julia-specific. If an environment misbehaves on either
+machine, the fix is `rm Manifest.toml` and `Pkg.instantiate()`, never a copy from the other side.
+
+
+### /returntravel
+**Come home: fold the trip's work back and start again on the desktop.**
+
+**ON THE LAPTOP** — hand everything over:
+1. `git status`, then commit and push everything, including any branch made while away.
+2. `jac-send` — returns `apps/` with whatever changed while travelling.
+3. `jac-memory-push` — returns the memory, so the desktop sessions know what happened on the trip.
+
+**ON THE DESKTOP** — take it up again:
+4. `git pull`, and merge any travel branch into the line it belongs to.
+5. `rm Manifest.toml && julia --project=. -e 'using Pkg; Pkg.instantiate()'` if Julia has moved on either side.
+6. Run the suite from `test/` (Rule 11). It is the proof the desktop is ready, not a formality.
+
+**Which machine wins.** For `apps/` and for the memory the rule is simply: **the machine you were working on wins**,
+and these two commands push in that direction. `jac-fetch`/`jac-send` and the memory pair copy only what is newer or
+missing and delete nothing, so a mistaken direction is recoverable -- but running them the wrong way round can carry
+a stale file over a fresh one, so follow the labels.
+
+**Starting a SECOND session.** Long jobs are worth running beside other work, but two sessions must never share one
+working tree: a shared git index means one session's commit can sweep up the other's staged files, which has
+happened. Give the second session its own checkout:
+
+    git worktree add ../JAC-<topic> -b <topic> master
+
+That is a complete second checkout on its own branch, sharing one repository and one history. Then partition the
+work explicitly -- the two sessions must not touch the same modules -- and say in each session which files are its
+own. Remove it with `git worktree remove ../JAC-<topic>` when the branch has been merged.
+
+
 ### recall commands
 Print the command list above (this section). No steps performed.
 
