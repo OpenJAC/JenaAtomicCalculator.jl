@@ -94,7 +94,7 @@ end
         An outcome::ReducedDensityMatrix.Outcome is returned.
 """
 function Outcome()
-    Outcome(Level(), Subshell[], Float64[], Dict{Subshell, Array{Float64,1}}, Dict{Subshell, Orbital}(), 
+    Outcome(Level(), Subshell[], Float64[], Dict{Subshell, Array{Float64,1}}(), Dict{Subshell, Orbital}(), 
             zeros(1,1), zeros(1,1), zeros(1,1,1,1), Radial.Density() )
 end
 
@@ -696,7 +696,7 @@ function  displayResults(stream::IO, outcomes::Array{ReducedDensityMatrix.Outcom
 
             for  (i, subsh)  in  enumerate(outcome.level.basis.subshells)
                 sb = string(subsh)
-                wa = TableStrings.floatList(10, outcome.orbitalInteraction[i,:])
+                wa = TableStrings.floatList(10, rho_pprr[i,:])
                 for  (j, sa)  in  enumerate(wa)
                     if       j == 1  sb = "     " * sb * "     " * sa
                     else             sb = "                    " * sa      end
