@@ -632,8 +632,9 @@ end
 `SelfConsistent.solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.Model,
         primitives::Bsplines.Primitives, settings::AsfSettings; printout::Bool=true)`  
     ... EOL by direct minimization of the energy over orbital ROTATIONS, instead of by solving a per-subshell
-        generalized eigenvalue problem. Built beside solveOptimizedLevelField, which is left untouched and is
-        still what Basics.EOLField dispatches to; this one is called explicitly.
+        generalized eigenvalue problem. It sits beside the older solveOptimizedLevelField, which is left
+        untouched; this one is what SelfConsistent.performSCF dispatches to for Basics.EOLField, and hence
+        what every layer of a RasExpansion runs.
 
         Why: the eigenvalue formulation is ill-posed exactly when a correlating CSF's weight becomes small.
         Measured (09-Aug-2026) for Be 1s^2 2s^2 + 1s^2 2p^2, the present scheme converges to a DEGENERATE
@@ -647,6 +648,13 @@ end
         and takes one backtracking-line-search step along the negative gradient projected on the
         active-virtual rotations. Occupied-occupied rotations are excluded as redundant.
         A multiplet::Multiplet of the target block(s) is returned.
+
+        settings.frozenSubshells IS HONOURED: the orbitals it names are held exactly fixed and take no part in
+        the gradient, the search direction, the curvature history or the line search, while still entering the
+        energy and the CI matrix and still being orthogonalized against. That distinction is what a RAS layer
+        means by freezing an orbital, and Basics.generate sets the field for every step of a RasExpansion.
+        Freezing everything is allowed and is reported as such: the returned multiplet is then the CI result on
+        the orbitals as given.
 """
 function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.Model, primitives::Bsplines.Primitives,
                                          settings::AsfSettings; printout::Bool=true, nVirtual::Int64=16,
@@ -675,6 +683,28 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
     posSpectrum = SelfConsistent.positiveBranchSpectrum(basis.subshells, primitives, nucPot, matrixB, storage)
     (bVectors, _) = SelfConsistent.projectOntoPositiveBranch(bVectors, basis.subshells, primitives,
                                                                      nucPot, matrixB, storage; spectrum=posSpectrum)
+    # FROZEN SUBSHELLS.  settings.frozenSubshells names orbitals that must NOT be varied, which is what a RAS
+    # layer means by "frozen" -- Basics.generate sets it for every step of a RasExpansion, so this is the
+    # ordinary case for this driver and not an exotic one.  The optimizer below therefore runs over
+    # activeSubshells alone, while the ENERGY, the CI matrix, the virtual directions and the positive-branch
+    # projection continue to see EVERY subshell: a frozen orbital still contributes to the energy and still
+    # has to be orthogonalized against.  Nothing has to be re-imposed afterwards, because virtualDirections
+    # builds each subshell's directions orthogonal to all occupied orbitals of the same kappa, frozen ones
+    # included -- so a step taken by an active orbital leaves the kappa block orthonormal by construction.
+    # The pinned vectors are taken AFTER the initial projection, so that they sit on the positive branch like
+    # everything else, and are written back after every later projection: projectOntoPositiveBranch
+    # renormalizes, and its Gram-Schmidt would rotate them on the occasions it fires.
+    frozenSubshells = [ sh  for sh in basis.subshells  if    sh in settings.frozenSubshells ]
+    activeSubshells = [ sh  for sh in basis.subshells  if  !(sh in settings.frozenSubshells) ]
+    pinnedB         = Dict{Subshell, Vector{Float64}}( sh => copy(bVectors[sh])  for sh in frozenSubshells )
+    restoreFrozen!  = function(bs)
+        for  sh  in  frozenSubshells    bs[sh] = copy(pinnedB[sh])    end
+        return( bs )
+    end
+    if  printout  &&  !isempty(frozenSubshells)
+        println(">> [EOL-C3] frozen and NOT optimized: " * join(string.(frozenSubshells), ", ") *
+                ";  $(length(activeSubshells)) of $(length(basis.subshells)) subshells are varied.")
+    end
     ePrevious = 0.;   tStep = 1.0;   multiplet = Multiplet("EOL-ByRotation", Level[])
     ## Set by every exit below.  A loop that simply runs out of iterations used to end in silence, which was the
     ## fifth of five ways this driver can stop and the only one left unreported.
@@ -715,6 +745,7 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
         ## is what makes it safe: it costs one projection per iteration and removes a whole class of stall.
         (bVectors, _) = SelfConsistent.projectOntoPositiveBranch(bVectors, basis.subshells, primitives,
                                                         nucPot, matrixB, storage; spectrum=posSpectrum)
+        restoreFrozen!(bVectors)
         e0   = SelfConsistent.energyFromBVectors(bVectors, coeffs1p, coeffs2p, basis.subshells,
                                                          primitives, grid, nucPot)
         grad = SelfConsistent.computeOrbitalGradient(bVectors, coeffs1p, coeffs2p, basis.subshells,
@@ -729,7 +760,7 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
         gProj = Dict{Subshell, Vector{Float64}}();   step = Dict{Subshell, Vector{Float64}}()
         denom = Dict{Subshell, Vector{Float64}}()
         gNorm = 0.;    sNorm = 0.
-        for  sh  in  basis.subshells
+        for  sh  in  activeSubshells
             h1k  = Bsplines.setupLocalMatrix(sh.kappa, primitives, nucPot, storage)
             epsA = transpose(bVectors[sh]) * h1k * bVectors[sh]
             gv   = [ transpose(phi) * grad[sh]  for phi in virt[sh] ]
@@ -743,13 +774,22 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
             gNorm = gNorm + sum( gv.^2 );    sNorm = sNorm + sum( sv.^2 )
         end
         gNorm = sqrt(gNorm);    sNorm = sqrt(sNorm);    iterDone = iter
+        # Every subshell frozen is a legitimate request, not an error: the multiplet built at the top of this
+        # iteration IS the answer, being the CI result on the given orbitals.  Reported separately because the
+        # collapsed-direction exit below would otherwise fire and call it a failure.
+        if  isempty(activeSubshells)
+            stopReason = "all subshells frozen";   println(">> [EOL-C3] every subshell of this basis is listed in " *
+                    "settings.frozenSubshells, so there is nothing to optimize;  the multiplet is the CI result " *
+                    "on the orbitals as given.")
+            break
+        end
 
         ## Assemble the search direction in b-space.  Plain preconditioned steepest descent zigzags here:
         ## the energy falls steadily while |grad| merely oscillates, each step undoing part of the previous
         ## one.  Polak-Ribiere conjugacy reuses the previous direction to cancel that, at the cost of two
         ## dot products and one stored vector per subshell.
         sVec = Dict{Subshell, Vector{Float64}}();   gVec = Dict{Subshell, Vector{Float64}}()
-        for  sh  in  basis.subshells
+        for  sh  in  activeSubshells
             sv = zeros(nsL+nsS);    gv = zeros(nsL+nsS)
             for  (iv, phi)  in  enumerate(virt[sh])
                 sv = sv + step[sh][iv]  * phi
@@ -770,13 +810,13 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
         ##     vector every iteration, but only by max|dV| ~ 1e-4..3e-3 against max|V| ~ 1.8.
         ## Conjugacy tolerates whatever this is because it carries ONE previous direction and restarts every
         ## ten; L-BFGS accumulates five pairs and does not.  Anyone picking this up should measure first.
-        dotAll(u, v) = sum( sum(u[sh] .* v[sh])  for sh in basis.subshells )
+        dotAll(u, v) = sum( sum(u[sh] .* v[sh])  for sh in activeSubshells )
         ## H_0 is the DIAGONAL PRECONDITIONER, not the usual gamma*I: the (eps_v - eps_a) denominators carry
         ## real physics and throwing them away for a scalar would be a step backwards.  applyPrecond is what
         ## turns gVec into -sVec, so it is exactly the operator already in use.
         applyPrecond = function(q)
             r = Dict{Subshell, Vector{Float64}}()
-            for  sh  in  basis.subshells
+            for  sh  in  activeSubshells
                 rv = zeros(nsL+nsS)
                 for  (iv, phi)  in  enumerate(virt[sh])
                     rv = rv + ( (transpose(phi) * q[sh]) / denom[sh][iv] ) * phi
@@ -790,7 +830,7 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
         ## direction -- on a surface that is not convex.
         if  method == :lbfgs  &&  !isempty(bPrev)
             sPair = Dict{Subshell, Vector{Float64}}();   yPair = Dict{Subshell, Vector{Float64}}()
-            for  sh  in  basis.subshells
+            for  sh  in  activeSubshells
                 sPair[sh] = bVectors[sh] - bPrev[sh];    yPair[sh] = gVec[sh] - gPrev[sh]
             end
             ys = dotAll(yPair, sPair)
@@ -805,40 +845,40 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
         dir  = Dict{Subshell, Vector{Float64}}()
         if      method == :lbfgs  &&  !isempty(sHist)
             ## two-loop recursion, giving d = -H grad with H built from the stored pairs around H_0
-            q = Dict{Subshell, Vector{Float64}}( sh => copy(gVec[sh])  for sh in basis.subshells )
+            q = Dict{Subshell, Vector{Float64}}( sh => copy(gVec[sh])  for sh in activeSubshells )
             alphas = zeros( length(sHist) )
             for  i = length(sHist):-1:1
                 alphas[i] = rhoHist[i] * dotAll(sHist[i], q)
-                for  sh  in  basis.subshells    q[sh] = q[sh] - alphas[i] * yHist[i][sh]    end
+                for  sh  in  activeSubshells    q[sh] = q[sh] - alphas[i] * yHist[i][sh]    end
             end
             r = applyPrecond(q)
             for  i = 1:length(sHist)
                 bb = rhoHist[i] * dotAll(yHist[i], r)
-                for  sh  in  basis.subshells    r[sh] = r[sh] + (alphas[i] - bb) * sHist[i][sh]    end
+                for  sh  in  activeSubshells    r[sh] = r[sh] + (alphas[i] - bb) * sHist[i][sh]    end
             end
-            for  sh  in  basis.subshells    dir[sh] = -r[sh]    end
+            for  sh  in  activeSubshells    dir[sh] = -r[sh]    end
         elseif  method == :conjugate
             if  !isempty(dirPrev)  &&  iterSinceRestart < cgRestart  &&  abs(sgPrev) > 1.0e-30
                 num = 0.
-                for  sh  in  basis.subshells    num = num + sum( (gVec[sh] - gPrev[sh]) .* sVec[sh] )    end
+                for  sh  in  activeSubshells    num = num + sum( (gVec[sh] - gPrev[sh]) .* sVec[sh] )    end
                 beta = max( 0., num / sgPrev )                   ## Polak-Ribiere+, i.e. restart on beta < 0
             end
-            for  sh  in  basis.subshells
+            for  sh  in  activeSubshells
                 dir[sh] = beta == 0. ? sVec[sh] : sVec[sh] + beta * dirPrev[sh]
             end
         else
-            for  sh  in  basis.subshells    dir[sh] = sVec[sh]    end
+            for  sh  in  activeSubshells    dir[sh] = sVec[sh]    end
         end
         ## Guard: a conjugate direction must still descend.  If it does not, fall back to steepest descent.
-        dg = 0.;   for sh in basis.subshells   dg = dg + sum( gVec[sh] .* dir[sh] )   end
+        dg = 0.;   for sh in activeSubshells   dg = dg + sum( gVec[sh] .* dir[sh] )   end
         if  dg >= 0.
-            for  sh  in  basis.subshells    dir[sh] = sVec[sh]    end
+            for  sh  in  activeSubshells    dir[sh] = sVec[sh]    end
             beta = 0.
         end
         iterSinceRestart = beta == 0. ? 0 : iterSinceRestart + 1
-        sgPrev = 0.;   for sh in basis.subshells   sgPrev = sgPrev + sum( gVec[sh] .* sVec[sh] )   end
+        sgPrev = 0.;   for sh in activeSubshells   sgPrev = sgPrev + sum( gVec[sh] .* sVec[sh] )   end
         gPrev  = gVec;    dirPrev = dir
-        bPrev  = Dict{Subshell, Vector{Float64}}( sh => copy(bVectors[sh])  for sh in basis.subshells )
+        bPrev  = Dict{Subshell, Vector{Float64}}( sh => copy(bVectors[sh])  for sh in activeSubshells )
         if  sNorm < 1.0e-14
             ## Until 18-Aug-2026 this was the one exit of four that said NOTHING, so a run could end here and
             ## be read as a completed optimisation.  It means the PRECONDITIONED direction has collapsed, which
@@ -865,8 +905,8 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
         ## backtracking line search along -gProj; halve until the energy actually falls
         accepted = false
         for  trial = 1:24
-            newB = Dict{Subshell, Vector{Float64}}()
-            for  sh  in  basis.subshells
+            newB = Dict{Subshell, Vector{Float64}}( sh => bVectors[sh]  for sh in basis.subshells )
+            for  sh  in  activeSubshells
                 v = bVectors[sh] + tStep * dir[sh]
                 newB[sh] = v / sqrt( abs(transpose(v) * matrixB * v) )
             end
@@ -883,7 +923,7 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
             eTrial = SelfConsistent.energyFromBVectors(projB, coeffs1p, coeffs2p, basis.subshells,
                                                                primitives, grid, nucPot)
             if  eTrial < e0
-                bVectors = projB
+                bVectors = restoreFrozen!(projB)
                 if  printout  &&  negW > 1.0e-8
                     println(">> [EOL-C3] removed negative-branch weight $negW from the step.")
                 end
@@ -901,8 +941,8 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
             if  printout    println(">> [EOL-C3] L-BFGS history discarded at iteration $iter; retrying.")   end
             empty!(sHist);   empty!(yHist);   empty!(rhoHist);   tStep = 1.0
             for  trial = 1:24
-                newB = Dict{Subshell, Vector{Float64}}()
-                for  sh  in  basis.subshells
+                newB = Dict{Subshell, Vector{Float64}}( sh => bVectors[sh]  for sh in basis.subshells )
+                for  sh  in  activeSubshells
                     v = bVectors[sh] + tStep * sVec[sh]
                     newB[sh] = v / sqrt( abs(transpose(v) * matrixB * v) )
                 end
@@ -910,7 +950,7 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
                                                     primitives, nucPot, matrixB, storage; spectrum=posSpectrum)
                 eTrial = SelfConsistent.energyFromBVectors(projB, coeffs1p, coeffs2p, basis.subshells,
                                                                    primitives, grid, nucPot)
-                if  eTrial < e0    bVectors = projB;   accepted = true;   break    end
+                if  eTrial < e0    bVectors = restoreFrozen!(projB);   accepted = true;   break    end
                 tStep = tStep / 2
             end
         end

@@ -506,9 +506,9 @@ function testRepresentation_RasExpansion(; short::Bool=true)
     # digits, the driver runs to its iteration limit, and this case reached -14.617216 instead of -14.612567.
     #   THIRD change, same day: the search direction became conjugate (Polak-Ribiere+).  Plain preconditioned
     # steepest descent zigzagged -- |grad| stayed flat near 0.057 over 40 iterations while the energy crept
-    # down -- and conjugacy drives it to 0.013 for the same cost, reaching -14.619313 here.  The value below
-    # is therefore a converging upper bound, not a converged number; it will move again if the iteration
-    # limit or the line search changes.  The former -14.589901130961 was the COLLAPSED answer: with the old solver this very case
+    # down -- and conjugacy drives it to 0.013 for the same cost, reaching -14.619313 here.  That value was a
+    # converging upper bound rather than a converged number, and moved with the iteration limit; see the FIFTH
+    # change below, after which it no longer does.  The former -14.589901130961 was the COLLAPSED answer: with the old solver this very case
     # converged cleanly, to its own 1e-8, onto a degenerate stationary point whose mixing vector was
     # [0.971, -0.0000482, 0.238] -- the 2p_3/2 correlation channel eliminated outright.  An independent
     # DFS-Field run of the identical layer structure gave -14.605300 Ha with both channels contributing.
@@ -524,10 +524,24 @@ function testRepresentation_RasExpansion(; short::Bool=true)
     # a basis too starved to be worth modelling.  Benchmarking an optimiser on a basis that cannot represent
     # the problem measures the basis.
     #
-    # Do not restore any earlier number: each was obtained on a grid or a gradient that no longer exists here.
-    if  abs(wb["step2"].levels[1].energy + 14.619381695146)  > 1.0e-3
+    # 27-Aug-2026, the FIFTH change, and the first that alters WHICH PROBLEM is being solved rather than how
+    # well it is solved: solveOptimizedLevelFieldByRotation now honours AsfSettings.frozenSubshells, which it
+    # had ignored entirely.  Every layer of this expansion sets it -- step 1 freezes 1s, step 2 freezes 1s and
+    # 2s -- so until now no layer froze anything and each re-optimized every orbital, which is not what a RAS
+    # layer means.  The energy therefore RISES, as a constrained minimum must: -14.619380954693 -> -14.618871269,
+    # i.e. +5.10e-04 Ha, while |grad| at the iteration limit falls from 2.99e-02 to 4.45e-05, a factor of 670.
+    #   THE NEW VALUE IS CONVERGED, which the old one was not, and that is the reason for preferring it rather
+    # than mere novelty.  Run at 24, 60 and 120 iterations it gives -14.618871268972836, -14.618871275673818
+    # and -14.618871275673818 -- identical at the last two, so the residual iteration-limit dependence is
+    # 6.7e-09 Ha, five orders below the shift itself.  Step 1 is unmoved across all three budgets and now exits
+    # on a stationary energy at iteration 15 instead of running out at 24.  The tolerance below is left at
+    # 1.0e-3, which is now very loose for a number stable to 6.7e-09; tightening it is a separate decision.
+    #
+    # Do not restore any earlier number: each was obtained on a grid, a gradient or an unconstrained layer that
+    # no longer exists here.
+    if  abs(wb["step2"].levels[1].energy + 14.618871268972836)  > 1.0e-3
         success = false
-        if printTest   info(iostream, "levels[1].energy $(wb["step2"].levels[1].energy) != -14.619381695146")   end
+        if printTest   info(iostream, "levels[1].energy $(wb["step2"].levels[1].energy) != -14.618871268972836")   end
     end
 
     testPrint("testRepresentation_RasExpansion()::", success)
