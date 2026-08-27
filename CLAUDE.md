@@ -96,6 +96,26 @@ that such a harness survives a move between machines, which a `work/` file does 
 Files outside the JAC project root are **read-only**.
 Information exchange between projects is always read-only.
 
+## One application at a time (Rule 6a)
+
+`apps/` holds the work done FOR PEOPLE -- one subdirectory per collaboration, and inside them job scripts, results,
+correspondence, contact details and drafts. It is gitignored and it is not the assistant's to browse. The
+subdirectories are separate because the people are.
+
+**A session works in the ONE subdirectory it has been told to work in.** It reads, runs and writes there. It does not
+open another `apps/` subdirectory -- not to look for a similar calculation, not for a script that would save time, not
+to check how something was done before -- and it carries nothing between them: no numbers, no text, no file, and above
+all no name. If material from another application would genuinely help, the assistant ASKS FIRST and says exactly
+which directory and what it wants from it.
+
+The point is not tidiness. Each directory belongs to a different collaborator, and information that moves between
+them without being asked for is a small breach of their confidence rather than a filing error.
+
+The maintainer names the directory in ordinary words -- "today we work in apps/<name>" -- and nothing else is needed.
+The session should still be started on the JAC root rather than on the subdirectory, since application work usually
+touches `src/` as well.
+
+
 ## "Last successful" health contract (Rule 7)
 
 A `# Last successful:  DD-Mon-YYYY` date is written into an example file **only** after the output
