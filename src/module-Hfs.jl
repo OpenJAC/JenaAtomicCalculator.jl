@@ -38,7 +38,7 @@ module Hfs
 
 
 using Printf, ..AngularMomentum, ..Basics,  ..Defaults, ..InteractionStrength, ..ManyElectron, ..Radial, ..Nuclear,
-              ..SpinAngular, ..TableStrings, ..PhotoEmission
+              ..SpinAngularNew, ..TableStrings, ..PhotoEmission
 
 
 # Tabulate-theme sentinel types for Basics.tabulate dispatch on Hfs.HfMultiplet.
@@ -367,11 +367,11 @@ end
         expects. Use Hfs.reducedMeElectronic for the latter; building a 6-j directly on this function is what left
         computeHyperfineRepresentation too small by sqrt(2J+1) until 05-Aug-2026.
 
-        Note (26-Jul-2026): coeff.T, for rank>0 one-particle operators, is returned by SpinAngular.computeCoefficientsNonScalar already in
+        Note (26-Jul-2026): coeff.T, for rank>0 one-particle operators, is returned by SpinAngularNew.computeCoefficientsNonScalar already in
         "GRASP-like" convention, i.e. with an internal factor sqrt(2*j_a+1) applied (see the active "GRASP like spin-angular coefficient"
         step in that function) -- this is NOT what the paper's Eq. (48)-type reduced-matrix-element sum <leftCsf||W^(k)||rightCsf> = sum_ab
         d^k_ab [n_a kappa_a||w^(k)||n_b kappa_b] needs (the "pure" coefficient, without that factor). By contrast, IsotopeShift.amplitude's
-        rank-0 case uses SpinAngular.computeCoefficientsScalar, where the equivalent conversion step is deliberately commented out, and
+        rank-0 case uses SpinAngularNew.computeCoefficientsScalar, where the equivalent conversion step is deliberately commented out, and
         IsotopeShift.amplitude applies its own sqrt(2j_a+1) factor externally to match its formula. This function previously used coeff.T
         directly with no compensating division, leaving an uncorrected sqrt(2j_a+1) factor in every M1/E2/M3 hyperfine amplitude --
         confirmed for H(1s) M1: the A-constant was too large by ~1.42 (= sqrt(2), the j=1/2 value) after the separate missing-alpha fix in
@@ -388,10 +388,10 @@ function  amplitude(mp::EmMultipole, rLevel::Level, sLevel::Level, grid::Radial.
     # The physical statement is that the hyperfine Hamiltonian conserves TOTAL parity: if the nuclear states it connects have opposite
     # parity, as in 235U (I_g = 7/2- and the 1/2+ isomer), then the electronic states it connects must have opposite parity too. A
     # calculation of that case therefore needs BOTH parities in its configuration list, or every matrix element vanishes.
-    if        mp == M1    opa = SpinAngular.OneParticleOperator(1, plus,  true);  hfsFunc = InteractionStrength.hfs_tM1
-    elseif    mp == E2    opa = SpinAngular.OneParticleOperator(2, plus,  true);  hfsFunc = InteractionStrength.hfs_tE2
-    elseif    mp == M3    opa = SpinAngular.OneParticleOperator(3, plus,  true);  hfsFunc = InteractionStrength.hfs_tM3
-    elseif    mp == E3    opa = SpinAngular.OneParticleOperator(3, minus, true);  hfsFunc = InteractionStrength.hfs_tE3
+    if        mp == M1    opa = SpinAngularNew.OneParticleOperator(1, plus);  hfsFunc = InteractionStrength.hfs_tM1
+    elseif    mp == E2    opa = SpinAngularNew.OneParticleOperator(2, plus);  hfsFunc = InteractionStrength.hfs_tE2
+    elseif    mp == M3    opa = SpinAngularNew.OneParticleOperator(3, plus);  hfsFunc = InteractionStrength.hfs_tM3
+    elseif    mp == E3    opa = SpinAngularNew.OneParticleOperator(3, minus);  hfsFunc = InteractionStrength.hfs_tE3
     else      error("Hfs.amplitude: unsupported nuclear multipole $mp; implemented are M1, E2, M3 and E3.")
     end
     opParity = (mp == E3)  ?  Basics.minus  :  Basics.plus
@@ -405,7 +405,7 @@ function  amplitude(mp::EmMultipole, rLevel::Level, sLevel::Level, grid::Radial.
                 continue
             end
             subshellList = sLevel.basis.subshells
-            wa           = SpinAngular.computeCoefficients(opa, rLevel.basis.csfs[r], sLevel.basis.csfs[s], subshellList)
+            wa           = SpinAngularNew.computeCoefficients(opa, rLevel.basis.csfs[r], sLevel.basis.csfs[s], subshellList)
             for  coeff in wa
                 tamp  = hfsFunc(rLevel.basis.orbitals[coeff.a], sLevel.basis.orbitals[coeff.b], grid)
                 ja2   = Basics.subshell_2j(coeff.a)
@@ -707,8 +707,8 @@ function  computeInteractionAmplitudeT(mp::EmMultipole, aLevel::Level, bLevel, g
             if  abs(aLevel.mc[ia] * bLevel.mc[ib]) > 1.0e-10
                 subshellList = aLevel.basis.subshells
                 orbitals     = aLevel.basis.orbitals
-                opa = SpinAngular.OneParticleOperator(mp.L, Basics.multipoleParity(mp), true)
-                wa  = SpinAngular.computeCoefficients(opa, aLevel.basis.csfs[ia], bLevel.basis.csfs[ib], subshellList)
+                opa = SpinAngularNew.OneParticleOperator(mp.L, Basics.multipoleParity(mp))
+                wa  = SpinAngularNew.computeCoefficients(opa, aLevel.basis.csfs[ia], bLevel.basis.csfs[ib], subshellList)
                     for  coeff in wa
                         ja   = Basics.subshell_2j(orbitals[coeff.a].subshell)
                         jb   = Basics.subshell_2j(orbitals[coeff.b].subshell)
@@ -753,7 +753,7 @@ end
         im::Hfs.InteractionMatrix is returned.
 
         Note (26-Jul-2026): each coeff.T here is divided by sqrt(2*j_a+1), undoing the "GRASP-like" sqrt(2*j_a+1) factor that
-        SpinAngular.computeCoefficientsNonScalar applies internally for rank>0 one-particle operators -- see the matching note on
+        SpinAngularNew.computeCoefficientsNonScalar applies internally for rank>0 one-particle operators -- see the matching note on
         Hfs.amplitude for the full explanation. Applies uniformly to the M1, E2, and M3 blocks below (all use the same rank>0 SpinAngular
         path).
 """
@@ -768,8 +768,8 @@ function  computeInteractionMatrix(basis::Basis, grid::Radial.Grid, settings::Hf
                 if  basis.csfs[r].parity  != basis.csfs[s].parity   continue    end 
                 # Calculate the spin-angular coefficients
                 subshellList = basis.subshells
-                opa = SpinAngular.OneParticleOperator(1, plus, true)
-                wa  = SpinAngular.computeCoefficients(opa, basis.csfs[r], basis.csfs[s], subshellList) 
+                opa = SpinAngularNew.OneParticleOperator(1, plus)
+                wa  = SpinAngularNew.computeCoefficients(opa, basis.csfs[r], basis.csfs[s], subshellList) 
 
                 for  coeff in wa
                     ja   = Basics.subshell_2j(basis.orbitals[coeff.a].subshell)
@@ -790,8 +790,8 @@ function  computeInteractionMatrix(basis::Basis, grid::Radial.Grid, settings::Hf
                 if  basis.csfs[r].parity  != basis.csfs[s].parity   continue    end 
                  # Calculate the spin-angular coefficients
                 subshellList = basis.subshells
-                opa = SpinAngular.OneParticleOperator(2, plus, true)
-                wa  = SpinAngular.computeCoefficients(opa, basis.csfs[r], basis.csfs[s], subshellList) 
+                opa = SpinAngularNew.OneParticleOperator(2, plus)
+                wa  = SpinAngularNew.computeCoefficients(opa, basis.csfs[r], basis.csfs[s], subshellList) 
 
                 for  coeff in wa
                     ja   = Basics.subshell_2j(basis.orbitals[coeff.a].subshell)
@@ -812,8 +812,8 @@ function  computeInteractionMatrix(basis::Basis, grid::Radial.Grid, settings::Hf
                 if  basis.csfs[r].parity  != basis.csfs[s].parity   continue    end 
                  # Calculate the spin-angular coefficients
                 subshellList = basis.subshells
-                opa = SpinAngular.OneParticleOperator(3, plus, true)
-                wa  = SpinAngular.computeCoefficients(opa, basis.csfs[r], basis.csfs[s], subshellList) 
+                opa = SpinAngularNew.OneParticleOperator(3, plus)
+                wa  = SpinAngularNew.computeCoefficients(opa, basis.csfs[r], basis.csfs[s], subshellList) 
 
                 for  coeff in wa
                     ja   = Basics.subshell_2j(basis.orbitals[coeff.a].subshell)

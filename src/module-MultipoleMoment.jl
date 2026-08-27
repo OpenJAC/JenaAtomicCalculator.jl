@@ -7,7 +7,7 @@
 module MultipoleMoment
 
 
-using Printf, ..Basics, ..Defaults, ..ManyElectron, ..Radial, ..InteractionStrength, ..SpinAngular
+using Printf, ..Basics, ..Defaults, ..ManyElectron, ..Radial, ..InteractionStrength, ..SpinAngularNew
 
 """
 `MultipoleMoment.amplitude(mp::EmMultipole, gauge::EmGauge, omega::Float64, finalLevel::Level, initialLevel::Level, 
@@ -69,8 +69,8 @@ function amplitude(K::Integer, level::Level, grid::Radial.Grid; display::Bool=fa
             spinAngularCoeffs = Basics.compute(AngularCoeffs1pGrasp92(), 0, K, level.basis.csfs[i], level.basis.csfs[j]) 
         end
         if Defaults.saGG()
-            operator = SpinAngular.OneParticleOperator(K, plus, true)
-            spinAngularCoeffs = SpinAngular.computeCoefficients(operator, level.basis.csfs[i], level.basis.csfs[j], level.basis.subshells)
+            operator = SpinAngularNew.OneParticleOperator(K, Basics.multipoleParity(EmMultipole(K, true)))
+            spinAngularCoeffs = SpinAngularNew.computeCoefficients(operator, level.basis.csfs[i], level.basis.csfs[j], level.basis.subshells)
         end
 
         csfME = 0.0
@@ -120,8 +120,8 @@ function dipoleAmplitude(finalLevel::Level, initialLevel::Level, grid::Radial.Gr
                 end
                 if  Defaults.saGG()
                     subshellList = initialLevel.basis.subshells
-                    opa = SpinAngular.OneParticleOperator(1, plus, true)
-                    waG = SpinAngular.computeCoefficients(opa, finalLevel.basis.csfs[r], initialLevel.basis.csfs[s], subshellList) 
+                    opa = SpinAngularNew.OneParticleOperator(1, Basics.multipoleParity(EmMultipole(1, true)))
+                    waG = SpinAngularNew.computeCoefficients(opa, finalLevel.basis.csfs[r], initialLevel.basis.csfs[s], subshellList) 
                     wa  = waG
                 end
                 if  Defaults.saRatip() && Defaults.saGG() && true
@@ -183,8 +183,8 @@ function emmStaticAmplitude(k::Int64, finalLevel::Level, initialLevel::Level, gr
                 if  finalLevel.mc[r] == 0  ||  initialLevel.mc[s] == 0    continue    end
                     
                 subshellList = initialLevel.basis.subshells
-                opa = SpinAngular.OneParticleOperator(k, plus, true)
-                wa  = SpinAngular.computeCoefficients(opa, finalLevel.basis.csfs[r], initialLevel.basis.csfs[s], subshellList) 
+                opa = SpinAngularNew.OneParticleOperator(k, Basics.multipoleParity(EmMultipole(k, true)))
+                wa  = SpinAngularNew.computeCoefficients(opa, finalLevel.basis.csfs[r], initialLevel.basis.csfs[s], subshellList) 
                 #
                 for  coeff in wa
                     tamp = InteractionStrength.eMultipole(k, finalLevel.basis.orbitals[coeff.a], initialLevel.basis.orbitals[coeff.b], grid)
