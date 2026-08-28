@@ -991,6 +991,167 @@ end
 
 
 """
+`TestFrames.testMethod_SpinAngular(; short::Bool=true)`
+    ... tests `SpinAngular` against statements that hold independently of any other implementation: exact identities
+        that a correct spin-angular module must satisfy, closed forms whose values are known analytically, and
+        selection rules whose violation is a defect rather than a disagreement. A success::Bool is returned.
+
+        WHY IT DOES NOT COMPARE AGAINST `SpinAngularGaigalas`. That comparison exists, in
+        `tools/diag-spinangular-compare.jl`, and it is valuable -- it found three real defects between 27 and
+        28-Aug-2026. But it is a COMPARISON and not a REFERENCE: it answers "do the two agree", which says something
+        about this module only while the other one is present and right. It is also blind to any error the two
+        share, and the parity fault repaired on 27-Aug was exactly that, an assumption their CALLERS held in common
+        for years. This test therefore asserts things that are true of the physics, so that it keeps its meaning if
+        `SpinAngularGaigalas` is ever removed.
+
+        THE SEVEN CHECKS, and each is chosen because a known defect would have broken it:
+        1. the occupation identity -- a diagonal rank-0 coefficient IS the occupation number, for any coupling;
+        2. the single-creation closed form, <j^0||a||j^1> = sqrt(2j+1), UP TO j = 21/2, which the quasispin tables
+           cannot reach and which returned 0 there until 28-Aug (priority item 60);
+        3. the single-subshell W closed form, <j^1||W^(k)||j^1> = -sqrt(2k+1), independent of j, same reach;
+        4. a one-electron substitution out of a closed subshell, which must give sqrt(2 j_a + 1) -- silently dropped
+           for l >= 1 until 28-Aug (item 59);
+        5. the parity and angular-momentum selection rules, which a scalar operator cannot violate;
+        6. hermiticity of the rank-0 one-particle coefficients under exchanging the two CSFs;
+        7. a GRASP2018-traceable absolute value: for closed shells plus ONE electron every rank > 0 coefficient is
+           exactly 1, which is what GRASP returns for that case.
+"""
+function testMethod_SpinAngular(; short::Bool=true)
+    success = true
+    printTest, iostream = Defaults.getDefaults("test flag/stream")
+
+    csfsOf = function(confs)
+        relconfs = ConfigurationR[]
+        for  c in confs
+            append!(relconfs, Basics.generateConfigurations(Basics.RelativisticConfigurations(), Configuration(c)))
+        end
+        subshells = Basics.generateSubshellList(relconfs);    csfs = CsfR[]
+        for  rc in relconfs    append!(csfs, Basics.generateCsfRs(rc, subshells))    end
+        return( (csfs, subshells) )
+    end
+
+    # (1) THE OCCUPATION IDENTITY. <Psi| sum_i f(i) |Psi> = sum_a N_a <a|f|a> holds for ANY coupling, so a diagonal
+    #     rank-0 coefficient must be exactly its subshell's occupation number. This is an identity, not a tolerance.
+    for  confs in ( ["1s^2 2s^2", "1s^2 2p^2"], ["1s^2 2s^2 2p^6 3s^2 3p^6 3d^2"], ["1s^2 2p^6 3d^1 4d^1"] )
+        csfs, subshells = csfsOf(confs)
+        for  csf in csfs
+            coeffs = SpinAngular.computeCoefficientsScalar(SpinAngular.OneParticleOperator(0, Basics.plus),
+                                                           csf, csf, subshells)
+            dev    = SpinAngular.checkOccupationIdentity(coeffs, csf, subshells)
+            if  dev > 1.0e-12
+                success = false
+                if printTest   info(iostream, "SpinAngular: the occupation identity fails by $dev for $confs")   end
+            end
+        end
+    end
+
+    # (2) and (3) THE CLOSED FORMS, TAKEN ABOVE j = 9/2 ON PURPOSE. The quasispin tables reach 9/2 and no further;
+    #     a continuum partial wave reaches 21/2. Both routines returned 0 up there until 28-Aug-2026, which cost the
+    #     electron-impact excitation cross section 27 %.
+    for  j2 = 1:2:21
+        j  = AngularJ64(j2//2)
+        wa = SpinAngular.shellReducedA(j, 0, 0, AngularJ64(0), 1, 1, j, AngularM64(-1//2))
+        wb = SpinAngular.shellReducedA(j, 1, 1, j, 0, 0, AngularJ64(0), AngularM64(1//2))
+        if  abs(wa - sqrt(j2 + 1.0)) > 1.0e-12  ||  abs(wb + sqrt(j2 + 1.0)) > 1.0e-12
+            success = false
+            if printTest   info(iostream, "SpinAngular: <j^0||a||j^1> at j = $j gives $wa and $wb, not " *
+                                          "+-$(sqrt(j2+1.0))")   end
+        end
+        for  kj = 0:min(4, j2)
+            wc = SpinAngular.shellReducedW(j, 1, 1, j, 1, j, kj)
+            if  abs(wc + sqrt(2kj + 1.0)) > 1.0e-12
+                success = false
+                if printTest   info(iostream, "SpinAngular: <j^1||W^($kj)||j^1> at j = $j gives $wc, not " *
+                                              "$(-sqrt(2kj+1.0))")   end
+            end
+        end
+    end
+
+    # (4) A ONE-ELECTRON SUBSTITUTION OUT OF A CLOSED SUBSHELL into an empty one of the same kappa. The coefficient
+    #     is sqrt(2 j_a + 1). Dropped silently for l >= 1 until 28-Aug-2026, and invisible for l = 0.
+    let  (csfs, subshells) = csfsOf(["1s^2 2s^2 2p^6", "1s^2 2s^2 2p^5 3p^1"]);   seen = 0
+        for  r in csfs,  s in csfs
+            if  r.J != s.J  ||  r.parity != s.parity    continue    end
+            for  coeff in SpinAngular.computeCoefficients(SpinAngular.OneParticleOperator(0, Basics.plus),
+                                                          r, s, subshells)
+                if  coeff.a == coeff.b  ||  abs(coeff.T) < 1.0e-12    continue    end
+                seen = seen + 1
+                if  abs(abs(coeff.T) - sqrt(Basics.subshell_2j(coeff.a) + 1.0)) > 1.0e-12
+                    success = false
+                    if printTest   info(iostream, "SpinAngular: substitution $(coeff.a) x $(coeff.b) gives " *
+                                                  "$(coeff.T), not +-sqrt(2j+1)")   end
+                end
+            end
+        end
+        if  seen == 0
+            success = false
+            if printTest   info(iostream, "SpinAngular: no substitution coefficient found at all for " *
+                                          "2p^6 <-> 2p^5 3p; they are being dropped")   end
+        end
+    end
+
+    # (5) THE SELECTION RULES. A scalar operator connects neither different J nor different parity, and no one-body
+    #     operator can change a subshell occupation by two.
+    let  (csfs, subshells) = csfsOf(["1s^2 2s^2 2p^2", "1s^2 2s^1 2p^3"])
+        for  r in csfs,  s in csfs
+            if  r.J == s.J  &&  r.parity == s.parity    continue    end
+            if  length(SpinAngular.computeCoefficients(SpinAngular.OneParticleOperator(0, Basics.plus),
+                                                       r, s, subshells)) != 0
+                success = false
+                if printTest   info(iostream, "SpinAngular: a scalar operator connects two CSFs of different " *
+                                              "symmetry, which it cannot")   end
+            end
+        end
+    end
+
+    # (6) HERMITICITY. Exchanging the two CSFs must exchange the two subshells of every coefficient and leave the
+    #     value alone. This is what caught the 4th appearance of the X-coupling defect on 24-Aug-2026.
+    let  (csfs, subshells) = csfsOf(["1s^2 2s^2", "1s^2 2p^2"])
+        for  r in csfs,  s in csfs
+            if  r.J != s.J  ||  r.parity != s.parity    continue    end
+            fw = Dict( (c.a, c.b) => c.T  for c in
+                       SpinAngular.computeCoefficients(SpinAngular.OneParticleOperator(0, Basics.plus), r, s, subshells) )
+            bw = Dict( (c.b, c.a) => c.T  for c in
+                       SpinAngular.computeCoefficients(SpinAngular.OneParticleOperator(0, Basics.plus), s, r, subshells) )
+            for  key in union(keys(fw), keys(bw))
+                if  abs( get(fw, key, 0.0) - get(bw, key, 0.0) ) > 1.0e-12
+                    success = false
+                    if printTest   info(iostream, "SpinAngular: hermiticity fails at $key, " *
+                                                  "$(get(fw,key,0.0)) against $(get(bw,key,0.0))")   end
+                end
+            end
+        end
+    end
+
+    # (7) A VALUE TRACEABLE TO GRASP2018. For closed shells plus ONE electron every rank > 0 coefficient GRASP
+    #     returns is exactly 1. Note WHY this is only a weak anchor and is not relied on alone: an implementation
+    #     that returned 1 for every allowed pair would score perfectly here, which is the trap recorded on
+    #     23-Aug-2026 when this very case was used as the whole test set.
+    let  (csfs, subshells) = csfsOf(["1s^2 2s^1", "1s^2 2p^1"]);   seen = 0
+        for  r in csfs,  s in csfs,  k = 1:2
+            for  coeff in SpinAngular.computeCoefficients(SpinAngular.OneParticleOperator(k, Basics.plus),
+                                                          r, s, subshells)
+                if  abs(coeff.T) < 1.0e-12    continue    end
+                seen = seen + 1
+                if  abs(abs(coeff.T) - 1.0) > 1.0e-12
+                    success = false
+                    if printTest   info(iostream, "SpinAngular: rank-$k coefficient $(coeff.T) for a " *
+                                                  "closed-shell-plus-one case, where GRASP2018 gives 1")   end
+                end
+            end
+        end
+        if  seen == 0
+            success = false
+            if printTest   info(iostream, "SpinAngular: no rank > 0 coefficient found for 1s^2 2s + 1s^2 2p")   end
+        end
+    end
+
+    testPrint("testMethod_SpinAngular()::", success)
+    return(success)
+end
+
+
+"""
 `TestFrames.testMethod_DocstringPointers(; short::Bool=true)`
     ... asserts that every `Module.name` written in a docstring under src/ actually resolves. Needs no
         reference data: the requirement is exact, so the test is against zero rather than a tabulated number.
