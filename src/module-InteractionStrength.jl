@@ -1321,7 +1321,9 @@ function XL_CoulombKinkAware(L::Int64, a::Subshell, b::Orbital, c::Subshell, d::
 
     if  AngularMomentum.triangularDelta(ja2+1,jc2+1,L+L+1) * AngularMomentum.triangularDelta(jb2+1,jd2+1,L+L+1) == 0   ||
         rem(la+lc+L,2) == 1   ||   rem(lb+ld+L,2) == 1
-        @warn("stop aa")  # This should not occur.
+        # The angular coefficients are NOT pre-filtered on this selection rule, so a combination whose
+        # reduced matrix element vanishes does reach here -- XL_Coulomb returns zero for the same reason,
+        # silently. The zero matrix IS the result; it is not an anomaly worth warning about.
         return( wm )
     end
 
@@ -1500,7 +1502,9 @@ function XL_CoulombTensor(L::Int64, a::Subshell, b::Orbital, c::Orbital, cVector
 
     if  AngularMomentum.triangularDelta(ja2+1,jc2+1,L+L+1) * AngularMomentum.triangularDelta(jb2+1,jd2+1,L+L+1) == 0   ||
         rem(la+lc+L,2) == 1   ||   rem(lb+ld+L,2) == 1
-        @warn("stop ab")  # This should not occur.
+        # The angular coefficients are NOT pre-filtered on this selection rule, so a combination whose
+        # reduced matrix element vanishes does reach here -- XL_Coulomb returns zero for the same reason,
+        # silently. The zero matrix IS the result; it is not an anomaly worth warning about.
         return( wm )
     end
 

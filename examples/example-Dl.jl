@@ -319,9 +319,12 @@ elseif  false
     # garbage rates. The gridConsistency guard now wired into this module stops that at source, so a Jd-style run
     # should now either succeed or refuse to start.
     #
-    # NOT tested: the ACCURACY of the near-threshold Omega, and the effect of settings.electronEnergies being
-    # silently DISCARDED whenever calcRateCoefficient = true (determineLines generates its own grid instead) --
-    # a user who sets both will not be told that only one of them was used.
+    # NOT tested: the ACCURACY of the near-threshold Omega.
+    #
+    # The OTHER gap recorded here -- settings.electronEnergies being silently DISCARDED whenever
+    # calcRateCoefficient = true -- was CLOSED on 28-Aug-2026: the two settings are now refused together, with a
+    # message naming both and saying which one to drop for which purpose. No branch of this file set both, so
+    # nothing here changes.
     #
     # WHY "Last visit" AND NOT "Last successful" (Rule 7). What is verified here is the MACHINERY: the Maxwellian
     # average reproduces the standard formula to 0.3%, and Upsilon is properly bracketed by the sampled Omega.

@@ -357,10 +357,19 @@ end
 """
 function  computeOrbitalInteractions(naturalSubshells::Array{Subshell,1}, naturalOrbitals::Dict{Subshell, Orbital}, level::Level)
     ns = length(naturalSubshells)
-    orbitalInteraction = zeros(ns,ns)    
-    println(">> computeOrbitalInteractions() ... not yet implemented !!")
+    # NOT IMPLEMENTED, and it REFUSES rather than returning zeros.  Until 28-Aug-2026 it printed one line and
+    # returned zeros(ns,ns), which displayResults then tabulated under the heading "Orbital interactions I_pq" --
+    # a full, well-formatted table of zeros that says nothing about its own emptiness.  That is the same defect
+    # class as the 2pRDM table fixed in 26f1d2c, which printed orbitalInteraction in place of the rho_pprr it had
+    # just built.  settings.calcIpq now fails loudly instead.
+    error("\n\nReducedDensityMatrix.computeOrbitalInteractions() is NOT IMPLEMENTED, and settings.calcIpq = true\n" *
+          "therefore cannot be honoured.  It formerly returned a zero matrix, which was printed as a table of\n"     *
+          "orbital interactions I_pq (28-Aug-2026).\n\n"                                                             *
+          "    Set calcIpq = false to run everything else in this module.\n"                                         *
+          "    Implementing I_pq needs its own definition first: the quantity is NOT part of the Ma et al.\n"        *
+          "    (2024) recipe that the natural-orbital and density machinery here follows.\n")
 
-    return( orbitalInteraction )
+    return( zeros(ns,ns) )
 end
 
 
@@ -411,7 +420,16 @@ function  computeProperties(outcome::ReducedDensityMatrix.Outcome, nm::Nuclear.M
     electronDensity   = outcome.electronDensity;          rho1p              = outcome.rho1p;             rho2p = outcome.rho2p
     
     naturalSubshells   = copy(outcome.level.basis.subshells)
-    rho1p              = compute1pRDMDirect(outcome.level)
+    # The PUBLISHED route is compute1pRDM, which goes through SpinAngular and recouples properly at every rank.
+    # compute1pRDMDirect is kept as an independent cross-check only. It is a special-case shortcut, and its
+    # `samecoupling` test compares the RUNNING coupling subshellX[i] as well as subshellJ[i], so whenever the two
+    # substituted subshells ia < ib have any spectator BETWEEN them, that spectator's X necessarily differs and
+    # the whole element is dropped -- silently, by `continue`, not by the error its docstring promises.
+    # Measured 28-Aug-2026, Ne 1s^2 2s^2 2p^6 + 1s^2 2s^2 2p^5 3p, level 1: the diagonal agrees to every digit and
+    # both traces give 10.000000000000007, but rho[2p_1/2,3p_1/2] = +0.4913514443 and rho[2p_3/2,3p_3/2] =
+    # -0.2252087383 from the general route both come back as exactly 0.0 from Direct. Those off-diagonals ARE the
+    # correlation; dropping them leaves natural orbitals that are just the SCF orbitals again.
+    rho1p              = compute1pRDM(outcome.level)
     naturalOccupation, naturalOrbitalExp = computeNaturalOrbitalExpansion(rho1p, outcome.level)
 
     if  settings.calcNatural  ||  settings.calcDensity  ||  settings.calcIpq

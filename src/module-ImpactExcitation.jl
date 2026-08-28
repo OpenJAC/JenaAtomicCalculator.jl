@@ -581,6 +581,21 @@ function  determineLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet,
     energyShift = Defaults.convertUnits("energy: to atomic", settings.energyShift)
     lines = ImpactExcitation.Line[]
     
+    # The rate-coefficient path builds its OWN logarithmic energy grid below, from the threshold of each pair
+    # out to maxEnergyMultiplier * dE, because the rate integral needs that range and that spacing.  Until
+    # 28-Aug-2026 it did so while silently ignoring settings.electronEnergies: a user who asked for [500., 900.]
+    # eV got 945.2, 937.2, 937.2 and no word about it, and the run then failed further downstream.  Rather than
+    # quietly overriding a setting the caller made deliberately, the combination is refused.
+    if  settings.calcRateCoefficient  &&  length(settings.electronEnergies) > 0
+        error("\n\nImpactExcitation: calcRateCoefficient = true and electronEnergies = " *
+              "$(settings.electronEnergies) cannot both be given.\n"                                            *
+              "The rate coefficient is integrated over an energy grid that this module builds itself, from the\n" *
+              "threshold of each level pair out to maxEnergyMultiplier times it, with numElectronEnergies\n"      *
+              "points; your energies would be discarded.\n\n"                                                    *
+              "    For rate coefficients:  leave electronEnergies empty and set maxEnergyMultiplier and\n"        *
+              "                            numElectronEnergies instead.\n"                                       *
+              "    For cross sections at YOUR energies:  set calcRateCoefficient = false.\n")
+    end
     if settings.calcRateCoefficient
         for  iLevel  in  initialMultiplet.levels
             for  fLevel  in  finalMultiplet.levels
@@ -860,6 +875,11 @@ function  displayLines(lines::Array{ImpactExcitation.Line,1})
             push!( kappaInOutSymmetryList, (line.channels[i].initialKappa, line.channels[i].finalKappa, line.channels[i].symmetry) ) 
         end
         wa = TableStrings.kappaKappaSymmetryTupels(95, kappaInOutSymmetryList)
+        # printBefore = true calls this BEFORE the channels exist, so the tuple list is empty and so is wa.
+        # Until 28-Aug-2026 the `wa[1]` below then raised a BoundsError and killed the run on a documented
+        # setting.  An empty list is the normal state here, not an error: the point of printing before the
+        # computation is to show WHICH lines were selected, and the partial waves are not yet known.
+        if  length(wa) == 0    println( sa );    continue    end
         sb = sa * wa[1];    println( sb )  
         for  i = 2:length(wa)
             NoLines = NoLines + 1

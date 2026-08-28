@@ -48,7 +48,10 @@ function Base.string(gauge::EmGauge)
     elseif  gauge == Coulomb     return( "Coulomb" )   
     elseif  gauge == Babushkin   return( "Babushkin" )   
     elseif  gauge == Magnetic    return( "Magnetic" )   
-    else    error("stop a")
+    elseif  gauge == Velocity    return( "Velocity" )   
+    elseif  gauge == Length      return( "Length" )   
+    else    error("Basics.string(::EmGauge): no printable name for this gauge. Every value of the EmGauge enum " *
+                  "must be handled here, since printing a gauge must never stop a computation.")
     end
 end
 

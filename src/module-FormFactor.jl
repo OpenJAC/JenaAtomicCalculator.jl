@@ -105,10 +105,18 @@ function amplitude(q::Float64, finalLevel::Level, initialLevel::Level, grid::Rad
                 "for the transition [$(initialLevel.index)- $(finalLevel.index)] ... ", color=:light_green)
     matrix = zeros(ComplexF64, nf, ni)
     #
-    printstyled("done. \n", color=:light_green)
-    printstyled("\nWarning -- FormFactor.amplitude():: Not yet implemented.", color=:cyan)
-    #
-    amplitude = 4.0 + 5.0*im
+    # NOT IMPLEMENTED, and it REFUSES rather than returning a number.  Until 28-Aug-2026 this routine printed a
+    # warning and then returned the constant 4.0 + 5.0im -- a fabricated amplitude that a caller who did not watch
+    # the terminal would have taken for a computed one.  A placeholder that returns a plausible value is the most
+    # expensive kind of stub: it is indistinguishable from a result.  The rest of this module IS validated, against
+    # Hubbell (1975) and Waasmaier & Kirfel to better than 1.2 %, which made this one routine easy to trust by
+    # association -- so it must say plainly that it is not part of that.
+    error("\n\nFormFactor.amplitude() is NOT IMPLEMENTED and returns no number.\n"                                  *
+          "It formerly returned the CONSTANT 4.0 + 5.0im behind a warning, which was indistinguishable from a\n"   *
+          "computed amplitude; it now refuses instead (28-Aug-2026).\n\n"                                           *
+          "    What DOES work in this module: FormFactor.computeOutcomes and the standard/Debye form factors,\n"   *
+          "    validated against Hubbell (1975) and Waasmaier & Kirfel to better than 1.2 %.\n"                    *
+          "    What is missing here: the single-electron momentum-transfer amplitude <f|| T^(1)(q) ||i> itself.\n")
     #
     if  display
         println("   (Single-electron) Momentum transfer amplitude:  "                                                 *
