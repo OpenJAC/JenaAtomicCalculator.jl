@@ -1030,6 +1030,18 @@ end
     ... computes the effective Coulomb interaction strength X^L_Coulomb (abcd) for given rank L and orbital functions a, b, c and d at the
         given grid. A value::Float64 is returned. To memoise the result, use the method that additionally takes an
         InteractionStrength.XLCache.
+
+        DO NOT BUILD ONE TRIANGLE OF AN SCF OR CI MATRIX FROM THIS FAMILY AND MIRROR IT WITHOUT VERIFYING FIRST. That optimisation was
+        applied to Basics.compute(::CImatrixWithSymmetryJP,...) and to Hamiltonian.setupMatrix, where it was checked empirically and is
+        sound, and it was deliberately NOT extended to the XL_Coulomb family: the symmetry argument LOOKS the same, but this family mixes
+        Subshell and Orbital roles across its methods and its derivation is not the one that was verified. Being plausible by analogy is
+        not the same as having been tested. Anything built on it needs its own bit-identical before/after on a real SCF, not an appeal to
+        the earlier result.
+
+        The two neighbouring cases are already settled and are worth knowing, because they are the reason this one looks safe and is not
+        established: Bsplines.setupLocalMatrix is NOT symmetric and says so in a disabled diagnostic -- the last B-spline breaks it -- and
+        CrystalField.computeInteractionMatrix Hermitizes with the ADJOINT as a guard against residual floating-point asymmetry, since its
+        two triangles are summed independently rather than mirrored.
 """
 function XL_Coulomb(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital, grid::Radial.Grid)
     # Test for the triangular-delta conditions and calculate the reduced matrix elements of the C^L tensors

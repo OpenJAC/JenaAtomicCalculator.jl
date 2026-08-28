@@ -456,6 +456,74 @@ than worked around.
 unbounded, session-lived and not thread-safe -- and whether `SpinAngular` is retired immediately or kept beside the new
 module for a release. Keeping both is safest and doubles the surface.
 
+## The four working lists (Rule 20)
+
+Four lists carry everything that is outstanding. **None of them lives in this file, and none ever will**: they
+name collaborators, unpublished work and correspondence, which Rule 14 keeps out of a published document. They
+live in the assistant's own memory directory. What belongs here is the MECHANISM — what each list is for, how it
+is numbered, and how something leaves it — so that the rules survive even when the contents cannot be shown.
+
+| list | holds | ordered by | numbers |
+|---|---|---|---|
+| **priority** | defects and open work in `src/` | urgency, within sections | plain integers |
+| **application** | physics driven from OUTSIDE — someone is waiting, a paper is in preparation, a reply is owed | the strength of the outside obligation | `A1, A2, …` |
+| **competition** | capability other codes have and JAC does not | promise against effort | `C1, C2, …` |
+| **challenges** | held open: we do not want to discard it, but WHEN, WHETHER and HOW it returns is unknown | nothing — it is a holding place | its ORIGINAL priority number |
+
+**The prefixes exist so that a number always means one thing.** "Item 8" is the priority list, "A3" the
+application list, "C11" the competition list. A challenge keeps the number it had as a priority item, so that
+something which comes back comes back as itself and nobody has to work out whether it is the same thing twice.
+
+**NUMBERS ARE PERMANENT IDENTIFIERS.** Closing an item deletes its text and RETIRES its number, leaving a gap.
+The gap is correct and must not be tidied away: renumbering makes "item 8" mean something different from one day
+to the next, so that neither side can refer to an item reliably. This holds across all four lists.
+
+### What an item says
+
+A revisited item states four things, because a line naming a defect without the other three cannot be ranked
+against anything:
+
+    PROBLEM   what is wrong, concretely enough to recognise it in the code
+    EFFORT    XS = an hour or two;  S = days;  M = one to three weeks;  L = one to three months;  XL = longer
+    GAIN      what changes if it is fixed — and "no number changes" is a legitimate and important answer
+    VERIFIED  when its central claim was last checked against `src/`, and what was checked
+
+An item with no EFFORT line has never been sized; one with no VERIFIED line has never been checked. Both are
+worth seeing at a glance, so neither is filled in speculatively.
+
+### The five ways an item can leave
+
+1. **CLOSED** — the work was done. The commit is the record.
+2. **CLOSED BY A FACT** — a premise proved false, or the work turned out to be already done. These cannot return,
+   and the fact that ended them is written down so the question is not reopened.
+3. **NOT WORTH DOING** — a real problem whose gain does not justify its effort. This is a legitimate end state,
+   equal to the others, and the reasoning is recorded so that the next reader does not re-derive it.
+4. **MOVED TO CHALLENGES** — kept, with the condition for its return written down.
+5. **RETIRED AT THE MAINTAINER'S REQUEST** — his decision, and it is not revisited.
+
+### The rule that all of this exists for: NOTHING IS PUT BACK "FOR TRIAGE"
+
+*Triage* — from French *trier*, to sort — is the sorting of cases by urgency so that limited effort goes where it
+helps most. It is deliberately a judgement about **which** cases deserve attention, made without treating any of
+them. Applied to a list it means a pass that only asks: is this real, is it urgent, can it go?
+
+The failure it names is this: **something already decided against is put back on the list so that it can be judged
+again**. That quietly reverses the decision, because anything on the priority list is by default something to be
+done. It costs nothing to write and costs the next reader real time.
+
+It has happened here. A module was deleted from the priority list on 18-Aug-2026 with the reason "a decision NOT
+to work on something is not an open item", and was carried again a short while later "so the decision is visible";
+another item recorded in its own text that it had been "restored for triage". **The challenges list is the remedy**:
+a decision that is worth remembering is visible THERE, with its condition, and something returns to the priority
+list when that condition is MET — not when a reader wonders about it again.
+
+### And the failure that is not this one
+
+Between 27 and 28-Aug-2026, five items sent work at things already done or explicitly forbidden. **None was a
+re-proposal; all five were entries that had gone stale while the code moved underneath them.** That is what the
+VERIFIED line is for. An item whose text cannot be trusted is worse than no item, because it is acted upon.
+
+
 ## Commands
 
 A **command** is a named sequence of steps I execute and then summarize. The leading `/` is optional —
@@ -561,6 +629,8 @@ Produces a short checklist only — no changes made.
 
 ### /priority
 **Display the working priority list, and drop from it whatever has been closed.**
+One of the four lists described in Rule 20; the others are reached by `/application`, `/challenges` and by asking
+for the competition list by name.
 The list itself is not kept here — it names collaborators and unpublished work, which Rule 14 keeps out of
 this file — but lives in the assistant's memory directory as the single file that the command reads and
 rewrites.
@@ -603,6 +673,32 @@ obligation**, not by severity, and the field that matters is *who is waiting, an
    as 36–40, and those integers stay retired there rather than being reused.
 
 The command only reads, prints and prunes. It never starts work on an item.
+
+### /challenges
+**Display the challenges list — what is held open, and on what condition it comes back.**
+
+The fourth list, beside `/priority` (defects in `src/`), the application list (physics driven from outside) and
+the competition list (capability other codes have). Like them it lives in the assistant's memory directory, not
+here, and this command describes only the mechanism.
+
+**What it is good for.** Some work is neither to be done nor to be forgotten: a measured speed-up that falls below
+the standing bar, a model whose formula could not be confirmed, an import nobody yet has files for, a module
+postponed so long that nobody remembers what it would cost. Left on the priority list these read as tasks, and
+someone eventually starts them. Deleted outright, the reasoning is lost and the same idea is proposed again in six
+months. The challenges list is where such a thing is kept ON PURPOSE, with three questions answered — **WHEN** it
+would come back, **WHETHER** it should, and **HOW** much it would be — so that the next reader inherits the
+judgement instead of repeating it.
+
+1. Read the challenges list and print it **in full**, with each item's ORIGINAL priority number.
+2. For each, say whether its stated CONDITION has been met. That is the only question this command asks.
+3. **Move an item back to the priority list only when its condition is met**, and say which condition and what
+   changed. It returns under its own old number.
+4. **Never move an item back "for triage"** — see Rule 20. Re-examining something already settled, with no new
+   evidence, is the failure this list exists to prevent.
+5. If a condition has become impossible, the item is closed and its number retired, with the reason recorded.
+
+The command only reads, prints and checks conditions. It never starts work on an item.
+
 
 ### /summarize
 **End-of-session structured summary.**
