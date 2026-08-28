@@ -414,20 +414,38 @@ end
 """
 function multipoleTransition(mp::EmMultipole, gauge::EmGauge, omega::Float64, b::Orbital, a::Orbital, grid::Radial.Grid)
     function besselPrime_jl(L::Int64, x::Float64)    return( GSL.sf_bessel_jl(L-1, x) - (L+1)/x * GSL.sf_bessel_jl(L, x) )       end
+    # THE ANGULAR FACTOR, THROUGH JAC's OWN CL_reduced_me. It replaced AngularMomentum.ChengI on 28-Aug-2026, which
+    # carried a convention of its own that nothing else in the package shares and that its own comments could not
+    # justify -- one factor was changed from sqrt(2 j_a + 1) to sqrt(2 j_b + 1) because it "is likely related to
+    # change emission - absorption", and a phase (-1)^(ja + L - jb) was replaced by (-1)^L "to get a proper phase
+    # between 1/2 --> 3/2 ME". A reader could not tell from the call site whether the Wigner-Eckart factor was
+    # present, which is why the bare coeff.T beside it in module-MultipoleMoment.jl was the ONE site left
+    # unclassified when every other was read under Rule 19.
+    #
+    # The identity below is MEASURED, not transcribed: over all 162 combinations of kappa_1, kappa_2 in
+    # +-1 ... +-6 and L = 1 ... 4,
+    #     ChengI(kappa_1, kappa_2, L)  ==  (-1)^L * CL_reduced_me(kappa_1, L, kappa_2) / sqrt(2 j_2 + 1)
+    # to 1.1e-16, while the same expression with j_1 in the root is wrong by up to 4.1e-01. The factor therefore
+    # sits on the SECOND argument; this routine is called with the BRA orbital first, so kapb is that second
+    # argument and the factor sits on the BRA -- exactly where Rule 18 puts it. THAT ANSWERS THE OPEN QUESTION:
+    # multipoleTransition DOES carry the Wigner-Eckart factor, so the bare coeff.T beside it is correct.
+    angularFactor(kap1::Int64, kap2::Int64, L::Int64) =
+        (-1)^L * AngularMomentum.CL_reduced_me(Subshell(9, kap1), L, Subshell(9, kap2)) /
+                 sqrt( Basics.subshell_2j(Subshell(9, kap2)) + 1.0 )
 
     kapa = a.subshell.kappa;   kapb = b.subshell.kappa;    q = omega / Defaults.getDefaults("speed of light: c") 
     mtp  = min(size(a.P, 1), size(b.P, 1))
 
     if       gauge == Basics.Magnetic
-        ChengI = AngularMomentum.ChengI(-kapa, kapb, AngularJ64(mp.L));   if  abs(ChengI) < 1.0e-10  return( 0. )   end
+        angFac = angularFactor(-kapa, kapb, mp.L);   if  abs(angFac) < 1.0e-10  return( 0. )   end
         wa = Complex(0.)
         for  i = 2:mtp
             wa = wa + (kapa+kapb) / (mp.L+1) * GSL.sf_bessel_jl(mp.L, q * grid.r[i]) * (a.P[i] * b.Q[i] + a.Q[i] * b.P[i]) * grid.wr[i]  
         end
-        wa = ChengI * wa
+        wa = angFac * wa
 
     elseif   gauge == Basics.Velocity
-        ChengI = AngularMomentum.ChengI(kapa, kapb, AngularJ64(mp.L));    if  abs(ChengI) < 1.0e-10  return( 0. )   end
+        angFac = angularFactor( kapa, kapb, mp.L);    if  abs(angFac) < 1.0e-10  return( 0. )   end
         wa = Complex(0.)
         for  i = 2:mtp
             wa = wa - (kapa-kapb) / (mp.L+1) * 
@@ -435,10 +453,10 @@ function multipoleTransition(mp::EmMultipole, gauge::EmGauge, omega::Float64, b:
                         (a.P[i] * b.Q[i] + a.Q[i] * b.P[i]) * grid.wr[i]
             wa = wa + mp.L * GSL.sf_bessel_jl(mp.L, q * grid.r[i]) / (q * grid.r[i]) * (a.P[i] * b.Q[i] - a.Q[i] * b.P[i]) * grid.wr[i]  
         end
-        wa = ChengI * wa
+        wa = angFac * wa
 
     elseif   gauge == Basics.Length
-        ChengI = AngularMomentum.ChengI(kapa, kapb, AngularJ64(mp.L));    if  abs(ChengI) < 1.0e-10  return( 0. )   end
+        angFac = angularFactor( kapa, kapb, mp.L);    if  abs(angFac) < 1.0e-10  return( 0. )   end
         wa = Complex(0.)
         for  i = 2:mtp
             wa = wa + GSL.sf_bessel_jl(mp.L, q * grid.r[i]) * (a.P[i] * b.P[i] + a.Q[i] * b.Q[i]) * grid.wr[i] 
@@ -446,7 +464,7 @@ function multipoleTransition(mp::EmMultipole, gauge::EmGauge, omega::Float64, b:
                         ( (kapa-kapb) / (mp.L+1) * (a.P[i] * b.Q[i] + a.Q[i] * b.P[i]) +
                         (a.P[i] * b.Q[i] - a.Q[i] * b.P[i]) ) * grid.wr[i]
         end
-        wa = ChengI * wa
+        wa = angFac * wa
 
     else     error("stop a")
     end

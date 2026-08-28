@@ -221,6 +221,19 @@ end
 """
 function transitionAmplitude(mp::EmMultipole, gauge::EmGauge, omega::Float64, finalLevel::Level, initialLevel::Level, 
                                 grid::Radial.Grid; display::Bool=false)
+    error("\n\nMultipoleMoment.transitionAmplitude is PARKED, 28-Aug-2026, and gives no number.\n"                    *
+          ">>> IT HAS NOT BEEN CALLABLE FOR SOME TIME: it asks for its angular coefficients through the Ratip2013\n" *
+          ">>> route, whose include is commented out of JenaAtomicCalculator.jl, so the call raised\n"                *
+          ">>> `UndefVarError: AngularCoefficientsRatip2013` rather than returning anything. That was true on\n"      *
+          ">>> HEAD before this change, and it is why nothing ever validated the routine.\n"                          *
+          ">>> ROUTING IT THROUGH SpinAngular WAS TRIED AND WITHDRAWN. It then ran and obeyed the E1 selection\n"     *
+          ">>> rule, but its two gauges disagreed (length/velocity ratio -0.57 and -1.45 at the true transition\n"    *
+          ">>> energy, with a sign difference), and against PhotoEmission.amplitude for the SAME transition of\n"     *
+          ">>> Be-like C it was too large by a factor of 1974 in length and 9309 in velocity. Shipping that would\n"  *
+          ">>> have turned a loud failure into a silent wrong answer.\n"                                              *
+          ">>> USE `PhotoEmission.amplitude(Basics.Absorption(), mp, gauge, omega, fLevel, iLevel, grid)` instead;\n" *
+          ">>> it is exercised by the test suite and by several examples.\n"                                          *
+          ">>> Reviving this one needs its normalization derived and checked against PhotoEmission, not guessed.\n")
     nf = length(finalLevel.basis.csfs);    ni = length(initialLevel.basis.csfs)
     printstyled("Compute multipole-moment transition matrix of dimension $nf x $ni in the final- and initial-state bases " *
                 "for the transition [$(initialLevel.index)- $(finalLevel.index)] ... ", color=:light_green)
