@@ -799,7 +799,7 @@ function computePartialCrossSectionUnpolarized(Mf::AngularM64, line::PhotoIoniza
             J = cha.symmetry.J;    L = ma.multipole.L;    p  = ma.multipole.electric ? 1 : 0
             for  chp in pw.channels,  mp in chp.amplitudes
                 Jp = chp.symmetry.J;   Lp = mp.multipole.L;   pp = mp.multipole.electric ? 1 : 0
-                wc = 1.0im^(L - Lp) * (-1)^(L + Lp) * AngularMomentum.bracket([AngularJ64(L), AngularJ64(Lp), J, Jp]) *
+                wc = (1.0im)^(L - Lp) * (-1)^(L + Lp) * AngularMomentum.bracket([AngularJ64(L), AngularJ64(Lp), J, Jp]) *
                         Racahexpr(pw.kappa, Ji, Jf, Mf, J, Jp, L, Lp, p, pp) * (ma.amplitude * conj(mp.amplitude))
                 waC = waC + wc.Coulomb;    waB = waB + wc.Babushkin
             end
@@ -843,7 +843,7 @@ function computeStatisticalTensorUnpolarized(k::Int64, q::Int64, line::PhotoIoni
                 for  lambda = -1:2:1
                     for  lambdap = -1:2:1
                         if  lambda == lambdap   wb = (1.0 + 0.0im + lambda*P3)    else    wb = P1 - lambda * P2 * im    end
-                        wc = wb * 1.0im^(L - Lp + p - pp) * lambda^p * lambdap^pp *
+                        wc = wb * (1.0im)^(L - Lp + p - pp) * lambda^p * lambdap^pp *
                                 sqrt( AngularMomentum.bracket([AngularJ64(L), AngularJ64(Lp), J, Jp]) ) *
                                 AngularMomentum.phaseFactor([J, +1, Jp, +1, Jf, +1, Ji, +1, j, +1, AngularJ64(1)]) *
                                 AngularMomentum.ClebschGordan( AngularJ64(L),  AngularM64(lambda), AngularJ64(Lp),
