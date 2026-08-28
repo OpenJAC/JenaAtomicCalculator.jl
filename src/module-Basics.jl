@@ -104,7 +104,6 @@ function isViolated                                             end
 function isZero                                                 end
 function lastPoint                                              end
 function merge                                                  end
-function modifyLevelEnergies                                    end
 function modifyLevelMixing                                      end
 function perform                                                end
 function performCI                                              end

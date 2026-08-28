@@ -299,6 +299,35 @@ end
 
 
 """
+`ImpactExcitation.checkLowEnergyGrid(minEnergy::Float64, grid::Radial.Grid)`
+    ... warns when the SLOWEST continuum electron of a run has a de Broglie wavelength too long to complete an oscillation
+        inside the radial box, so that its normalization and phase cannot be read off the asymptotic region. Nothing is
+        returned; the run continues.
+"""
+function checkLowEnergyGrid(minEnergy::Float64, grid::Radial.Grid)
+    if  minEnergy <= 0.    return( nothing )    end
+    wavenb   = sqrt( 2minEnergy + minEnergy * Defaults.getDefaults("alpha")^2 )
+    wavelgth = 2pi / wavenb
+    rbox = grid.r[end]
+    if  wavelgth > rbox
+        @warn("ImpactExcitation: the slowest continuum electron of this run does not fit inside the box.\n" *
+              @sprintf("    lowest continuum energy  = %.6e Hartree  (%.4f eV)\n", minEnergy,
+                       Defaults.convertUnits("energy: from atomic to eV", minEnergy))                        *
+              @sprintf("    de Broglie wavelength    = %.4f a.u.\n", wavelgth)                              *
+              @sprintf("    box radius grid.r[end]   = %.4f a.u.\n", rbox)                                  *
+              @sprintf("    wavelength / box         = %.2f      (should be well below 1)\n", wavelgth/rbox) *
+              "Normalization and phase are taken near the outer boundary, and an orbital that has not completed one\n"  *
+              "oscillation by then has no asymptotic region to be read from. The cross sections at the lowest energies\n" *
+              "are therefore unreliable by an amount this run cannot bound; higher energies are unaffected.\n"           *
+              ">>> Enlarge the box, or raise the lowest energy (with calcRateCoefficient = true the grid starts AT\n"       *
+              "    threshold and only a larger box will help).")
+    end
+
+    return( nothing )
+end
+
+
+"""
 `ImpactExcitation.computeAmplitudesProperties(line::ImpactExcitation.Line, nm::Nuclear.Model, grid::Radial.Grid,
                                                 nrContinuum::Int64, settings::ImpactExcitation.Settings; printout::Bool=true,
                                                 nuclearPot::Union{Nothing,Radial.Potential}=nothing,
@@ -453,8 +482,18 @@ function  computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, n
     ## of the nrContinuum returned here. Both were wrong: an under-resolved continuum orbital does not fail loudly, it
     ## returns cross sections that drift by tens of percent and then diverge by 30+ orders of magnitude once the grid can
     ## no longer represent the oscillation. Continuum.gridConsistency() refuses such a grid up front and says why.
-    maxEnergy = 0.;   for  line in lines   maxEnergy = max(maxEnergy, line.initialElectronEnergy)   end
+    ## gridConsistency() tests the FAST end only -- whether grid.hp can still sample the shortest oscillation.
+    ## The slow end fails the opposite way and was unguarded until 28-Aug-2026: near threshold the wavelength grows
+    ## without bound, and an orbital that cannot complete one oscillation inside rbox has no asymptotic region for
+    ## its normalization to be read from. example-Dl.jl branch c) meets exactly this -- 0.008 eV out, lambda ~ 256
+    ## a.u. against rbox = 30. It WARNS rather than refusing, because how wrong the near-threshold cross section
+    ## then is has not been measured, and refusing on an unmeasured criterion would stop runs that may be fine.
+    maxEnergy = 0.;   minEnergy = Inf
+    for  line in lines
+        maxEnergy = max(maxEnergy, line.initialElectronEnergy);   minEnergy = min(minEnergy, line.finalElectronEnergy)
+    end
     nrContinuum = Continuum.gridConsistency(maxEnergy, grid)
+    ImpactExcitation.checkLowEnergyGrid(minEnergy, grid)
     # Calculate all amplitudes and requested properties
     if  Distributed.nprocs() > 1
         ## NOT given the two keywords below: pmap would have to SERIALIZE both objects to a worker process for
@@ -533,8 +572,12 @@ function  computeLinesCascade(finalMultiplet::Multiplet, initialMultiplet::Multi
     lines = ImpactExcitation.determineLines(finalMultiplet, initialMultiplet, settings)
     if  length(lines) == 0    return( ImpactExcitation.Line[] )    end
     ## The grid must be able to carry the fastest continuum orbital that occurs; see the note in computeLines().
-    maxEnergy   = 0.;   for  line in lines   maxEnergy = max(maxEnergy, line.initialElectronEnergy)   end
+    maxEnergy   = 0.;   minEnergy = Inf
+    for  line in lines
+        maxEnergy = max(maxEnergy, line.initialElectronEnergy);   minEnergy = min(minEnergy, line.finalElectronEnergy)
+    end
     nrContinuum = Continuum.gridConsistency(maxEnergy, grid)
+    ImpactExcitation.checkLowEnergyGrid(minEnergy, grid)
     #
     ## The per-line work is independent -- each line builds its own continuum orbital and its own amplitudes --
     ## so it is spread over the available Julia threads.  This mirrors ImpactExcitation.computeLines() above,

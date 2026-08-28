@@ -204,6 +204,23 @@ end
                                                                    (k=0 is omitted throughout: it is a common
                                                                    energy shift of all levels and does not
                                                                    contribute to the splitting pattern).
+                                                                   PREFER maxRank = 4 OVER 6 WITH BOX/B-SPLINE
+                                                                   ORBITALS. The r < R point-charge model weights
+                                                                   the orbital by r^k, so k = 6 amplifies the tiny
+                                                                   numerical tail that a B-spline basis leaves out
+                                                                   to the box boundary. Measured on a hydrogenic
+                                                                   4f generated on such a grid: <r^6> ~ 4e5 against
+                                                                   <r^2> ~ 1.1, from a tail near r ~ 600 a.u. that
+                                                                   carries no physics whatever. The cost of the cap
+                                                                   is small and has been measured too -- for Er3+
+                                                                   4f^11 the total splitting is 359.25 cm^-1 at
+                                                                   k = 4 and 371.42 at k = 6, i.e. k = 6 adds ~3 %,
+                                                                   which is far less than the tail can distort.
+                                                                   This is a GENERIC hazard of the r < R model at
+                                                                   high rank with box-basis orbitals, not something
+                                                                   peculiar to this module; curing it needs either
+                                                                   properly decaying bound orbitals or an explicit
+                                                                   tail cutoff, and neither exists here yet.
     + includeJmixing   ::Bool                                 ... if true, allow mixing between the selected levels
                                                                    even if they belong to different total J.
     + printBefore      ::Bool                                 ... True if a list of selected levels is printed

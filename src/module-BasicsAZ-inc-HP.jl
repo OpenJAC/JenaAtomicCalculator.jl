@@ -297,18 +297,6 @@ end
 
 
 """
-`Basics.modifyLevelEnergies(multiplet::Multiplet)`  
-    ... to shift the total energies of the atomic levels in multiplet interactively; a (new) multiplet::Multiplet is 
-        returned in which the total energies are just modified accordingly. **Not yet implemented !**
-"""
-function Basics.modifyLevelEnergies(multiplet::Multiplet)
-    error("Not yet implemented !")
-
-    return( nothing )
-end
-
-
-"""
 `Basics.modifyLevelMixing(level::Level, enhancementFaktor::Float64)`  
     ... to "enhance" the mixing of all CSF with |c_ik|^2 < 1.0e-3 by the given enhancementFaktor. 
         The weights all CSF are renormalized eventually. A (normalized) newLevel::Level is returned.

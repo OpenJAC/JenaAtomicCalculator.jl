@@ -1664,10 +1664,15 @@ end
 """
 `InteractionStrength.XL_plasma_ionSphere(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital, lambda::Float64)`  
     ... computes the effective interaction strengths X^L_ion-sphere (abcd) for given rank L and orbital functions a, b, c and d and for the
-        plasma parameter lambda. A value::Float64 is returned. **Not yet implemented !**
+        plasma parameter lambda. NOT IMPLEMENTED: it raises, and names the Debye-Hueckel alternative in doing so.
 """
 function XL_plasma_ionSphere(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital, lambda::Float64)
-    error("Not yet implemented")
+    error("\n\nInteractionStrength.XL_plasma_ionSphere() is NOT IMPLEMENTED.\n\n"                               *
+          "The ion-sphere model screens the electron-electron interaction with a SHARP cutoff at the ion-sphere\n" *
+          "radius, and its Slater-type radial integral has never been written for this code.\n\n"                 *
+          "    The implemented plasma screening is Debye-Hueckel:  InteractionStrength.XL_Coulomb_DH(L, a, b,\n"   *
+          "    c, d, grid, lambda), which builds on RadialIntegrals.SlaterRkDebyeHueckel. Note it takes the\n"     *
+          "    radial grid as an argument, which this routine does not, so it is not a drop-in substitution.\n")
 end
 
 
