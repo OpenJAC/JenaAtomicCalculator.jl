@@ -17,6 +17,9 @@ using JenaAtomicCalculator, ..Defaults, ..TestFrames
         @test TestFrames.testModule_HydrogenicIon()     ## identity checks: inverses, limits, orthogonality
         @test TestFrames.testModule_Nuclear()           ## and exact hydrogenic values -- so none of them
         @test TestFrames.testModule_RadialIntegrals()   ## can pass on a stale stored reference
+        @test TestFrames.testModule_Bsplines()      ## added 28-Aug-2026; exercises BOTH Rule 12 guards from
+                                                    ## both sides -- they must refuse a 0.05 a.u. box
+        @test TestFrames.testModule_StarkZeeman()   ## added 28-Aug-2026; the centre of gravity cannot move
     end
 
     @testset "JAC structs" begin

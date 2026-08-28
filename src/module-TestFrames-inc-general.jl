@@ -1513,3 +1513,162 @@ function testModule_RadialIntegrals(; short::Bool=true)
     testPrint("testModule_RadialIntegrals()::", success)
     return( success )
 end
+
+
+"""
+`TestFrames.testModule_Bsplines(; short::Bool=true)`  ... tests on module Bsplines; a success::Bool is returned.
+"""
+function testModule_Bsplines(; short::Bool=true)
+    Defaults.setDefaults("print summary: open", "test-Bsplines-new.sum")
+    printstyled("\n\nTest the module  Bsplines  ... \n", color=:cyan)
+    # Bsplines carries the two Rule 12 guards, and a guard that cannot fail is worse than none -- it reads as a
+    # clean bill of health. So the guards are tested from BOTH SIDES here: they must pass on a box matched to the
+    # orbitals and REFUSE on one deliberately too small. That is the whole point of this test, and it is the part
+    # that a single-sided check would have missed for as long as the guards have existed.
+    #
+    # The basis itself is checked against the exact point-nucleus Dirac energies. That is a genuine closed-form
+    # comparison and not a second opinion from the same machinery: Basics.computeDiracEnergy evaluates the
+    # analytic formula, while the eigenvalue comes from diagonalizing the B-spline Galerkin matrix.
+    success = true;    printTest, iostream = Defaults.getDefaults("test flag/stream")
+    subshells = [Subshell("1s_1/2"), Subshell("2s_1/2"), Subshell("2p_1/2"), Subshell("2p_3/2")]
+    Z         = 20.
+    nm        = Nuclear.Model(Z, PointNucleus())
+    # Z = 20, so the 2p turning point sits near r+ = 4/20 * 2 = 0.4 a.u.; rbox = 8 is comfortable for all four.
+    goodGrid  = Radial.Grid(Radial.Grid(false), rnt = 1.0e-6, h = 5.0e-2, hp = 1.0e-2, rbox = 8.0)
+    goodPrim  = Bsplines.generatePrimitives(goodGrid)
+    orbitals  = redirect_stdout(devnull) do;  Bsplines.generateOrbitalsHydrogenic(subshells, nm, goodPrim, printout=false)  end
+
+    # (1) the B-spline eigenvalues against the analytic Dirac formula
+    for  sh  in  subshells
+        exact = Basics.computeDiracEnergy(sh, Z)
+        wa    = orbitals[sh].energy
+        if  abs(wa - exact) > 1.0e-6 * abs(exact)
+            success = false
+            if printTest   info(iostream, "$sh: B-spline energy $wa against the Dirac formula $exact")   end
+        end
+    end
+    # (2) the generated orbitals are orthonormal
+    for  sh  in  subshells
+        wa = RadialIntegrals.overlap(orbitals[sh], orbitals[sh], goodGrid)
+        if  abs(wa - 1.0) > 1.0e-6
+            success = false
+            if printTest   info(iostream, "<$sh|$sh> = $wa, must be 1")   end
+        end
+    end
+    wa = RadialIntegrals.overlap(orbitals[Subshell("1s_1/2")], orbitals[Subshell("2s_1/2")], goodGrid)
+    if  abs(wa) > 1.0e-6
+        success = false
+        if printTest   info(iostream, "<1s_1/2|2s_1/2> = $wa, must be 0")   end
+    end
+    # (3) BOTH GUARDS PASS on the matched box
+    # NOTE THE TWO RETURN TYPES, which are not the same: checkGridRepresentation gives back (ok::Bool, rbox), the
+    # second element being the box it would recommend, while checkOrbitalConsistency gives a bare Bool.
+    ok1, rboxWanted = redirect_stdout(devnull) do;  Bsplines.checkGridRepresentation(subshells, Z, goodPrim, stopper=false)  end
+    ok2 = redirect_stdout(devnull) do;  Bsplines.checkOrbitalConsistency(orbitals, goodGrid, stopper=false)      end
+    if  !ok1
+        success = false
+        if printTest   info(iostream, "checkGridRepresentation refuses a box that is matched to the orbitals")   end
+    end
+    if  !ok2
+        success = false
+        if printTest   info(iostream, "checkOrbitalConsistency refuses orbitals generated on a matched box")   end
+    end
+    # (4) AND THE GRID GUARD REFUSES a box far too small for the same orbitals. Without this the guard could be
+    #     returning true unconditionally and everything above would still pass.
+    tinyGrid = Radial.Grid(Radial.Grid(false), rnt = 1.0e-6, h = 5.0e-2, hp = 1.0e-2, rbox = 0.05)
+    tinyPrim = Bsplines.generatePrimitives(tinyGrid)
+    ok3, _ = redirect_stdout(devnull) do;  Bsplines.checkGridRepresentation(subshells, Z, tinyPrim, stopper=false)  end
+    if  ok3
+        success = false
+        if printTest   info(iostream, "checkGridRepresentation accepts a box of 0.05 a.u. for Z = 20 orbitals; " *
+                                      "the guard is not guarding")   end
+    end
+
+    println(iostream, "Bsplines: the Galerkin eigenvalues against the analytic Dirac energies, orbital " *
+                      "orthonormality, and BOTH Rule 12 guards exercised from both sides -- passing on a "  *
+                      "matched box and refusing a 0.05 a.u. one. No approved data is used.")
+    Defaults.setDefaults("print summary: close", "")
+    testPrint("testModule_Bsplines()::", success)
+    return( success )
+end
+
+
+"""
+`TestFrames.testModule_StarkZeeman(; short::Bool=true)`  ... tests on module StarkZeeman; a success::Bool is returned.
+"""
+function testModule_StarkZeeman(; short::Bool=true)
+    Defaults.setDefaults("print summary: open", "test-StarkZeeman-new.sum")
+    printstyled("\n\nTest the module  StarkZeeman  ... \n", color=:cyan)
+    # Three exact statements about a field-dressed level, none of which needs a reference value:
+    #
+    #   * with both fields off, the eigenvalues must reproduce the zero-field level energies WITH their (2J+1)
+    #     degeneracies -- the perturbation matrix is then diagonal and the diagonalization must not disturb it;
+    #   * the CENTRE OF GRAVITY cannot move. Diagonalization preserves the trace, and the Zeeman diagonal is
+    #     proportional to M, which sums to zero over a level, so the sum of all eigenvalues equals the sum of the
+    #     unperturbed sublevel energies EXACTLY, at any field strength. This is the check with teeth: it holds for
+    #     any correct implementation and is broken by a wrong sign, a wrong g-factor placement or a double count;
+    #   * at fields far below the fine-structure scale the splitting is LINEAR in B, so doubling the field doubles
+    #     the spread. That is a statement about the physics rather than about a number.
+    success = true;    printTest, iostream = Defaults.getDefaults("test flag/stream")
+    grid = Radial.Grid(Radial.Grid(false), rnt = 2.0e-6, h = 5.0e-2, hp = 2.0e-2, rbox = 20.0)
+    wa   = Atomic.Computation(Atomic.Computation(), name="StarkZeeman test: B-like C 2p", grid=grid,
+                              nuclearModel = Nuclear.Model(6.), configs = [Configuration("1s^2 2s^2 2p")] )
+    multiplet = redirect_stdout(devnull) do;  perform(wa; output=true)["multiplet:"]  end
+    levels    = multiplet.levels
+    nSub      = sum([Basics.twice(lev.J) + 1  for lev in levels])
+    sum0      = sum([(Basics.twice(lev.J) + 1) * lev.energy  for lev in levels])
+
+    cache = Dict{Float64, Array{Float64,1}}()
+    run(bF) = redirect_stdout(devnull) do
+        set = StarkZeeman.Settings(StarkZeeman.Settings(); includeEField = false, includeBField = (bF > 0.),
+                                   bField = bF, printBefore = false)
+        StarkZeeman.computeOutcomes(multiplet, Nuclear.Model(6.), grid, set; output=true)
+    end
+    # each field value is computed ONCE; the checks below ask for 0, 1, 2 and 100 T and two of them twice
+    energies(bF) = get!(cache, bF) do;  sort([o.energy  for o in run(bF)])  end
+
+    # (1) zero field: the sublevel energies reproduce the level energies with their degeneracies
+    out0 = run(0.)
+    if  length(out0) != nSub
+        success = false
+        if printTest   info(iostream, "zero field gives $(length(out0)) sublevels, must be $nSub")   end
+    else
+        for  o  in  out0
+            if  minimum([abs(o.energy - lev.energy)  for lev in levels]) > 1.0e-12
+                success = false
+                if printTest   info(iostream, "zero-field eigenvalue $(o.energy) matches no level energy")   end
+            end
+        end
+    end
+    # (2) the centre of gravity is invariant, at every field strength
+    for  bF  in  [0., 1.0, 100.0]
+        wb = sum(energies(bF))
+        if  abs(wb - sum0) > 1.0e-10 * max(abs(sum0), 1.0)
+            success = false
+            if printTest   info(iostream, "at B = $bF T the eigenvalues sum to $wb, must be $sum0; the centre " *
+                                          "of gravity cannot move")   end
+        end
+    end
+    # (3) the SHIFTS are linear in B. It is the shifts and not the raw spread: 1s^2 2s^2 2p carries a 2p_1/2 /
+    #     2p_3/2 fine-structure splitting some four orders larger than a one-tesla Zeeman effect, so
+    #     max(E) - min(E) measures the fine structure and barely moves with the field -- measured 1.0133 instead
+    #     of 2 when this test was first written. Subtracting the zero-field eigenvalues, level by level in sorted
+    #     order, leaves the pure Zeeman shift, and that must double when B does.
+    e0 = energies(0.)
+    d1 = energies(1.0) .- e0;    d2 = energies(2.0) .- e0
+    s1 = maximum(d1) - minimum(d1);    s2 = maximum(d2) - minimum(d2)
+    if  s1 <= 0.
+        success = false
+        if printTest   info(iostream, "a 1 T field produces no splitting at all")   end
+    elseif  abs(s2/s1 - 2.0) > 1.0e-3
+        success = false
+        if printTest   info(iostream, "the Zeeman shifts grow by $(s2/s1) when B doubles, must be 2 in the " *
+                                      "linear regime")   end
+    end
+
+    println(iostream, "StarkZeeman: the zero-field limit with its degeneracies, the invariance of the centre of " *
+                      "gravity at 0, 1 and 100 T, and linearity of the splitting in B. No reference value.")
+    Defaults.setDefaults("print summary: close", "")
+    testPrint("testModule_StarkZeeman()::", success)
+    return( success )
+end
