@@ -451,6 +451,20 @@ function  computeAmplitudesPropertiesPlasma(line::PhotoIonization.Line, nm::Nucl
         push!(newPartialWaves, PhotoIonization.PartialWave(pw.kappa, line.electronEnergy, phase, newChannels))
     end
     Ji2 = Basics.twice(line.initialLevel.J)
+    # ####################################################################################################
+    # WARNING, 28-Aug-2026: THIS NORMALISATION DISAGREES WITH `computeCrossSection`, WHICH THE NON-PLASMA PATH
+    # USES, AND IT IS THE ONE THAT FAILS THE ONLY ABSOLUTE TEST WE HAVE. The two carry OPPOSITE omega dependence
+    # -- this one goes as alpha*omega, the other as 1/(alpha*omega) -- so they cannot differ by a constant and
+    # cannot both be right; the gap is 4 pi (2J_i+1)/(alpha^2 omega^2), which is 8.4e5 at omega = 20.4 eV.
+    # MEASURED against Stobbe's closed-form 1s cross section (hydrogen, point nucleus, E1 only), at
+    # x = omega/omega_th = 1.5, 2, 3, in barn:
+    #        Stobbe                2.09127e+06   9.31429e+05   2.88397e+05
+    #        computeCrossSection   2.51913e+06   1.02584e+06   3.22474e+05     (ratio 1.205, 1.101, 1.118)
+    #        THIS FACTOR                  3.72          2.82          1.99     (ratio ~1.8e-6, and NOT flat)
+    # So a plasma photoionization cross section computed here is wrong by five to six orders of magnitude, and by
+    # an amount that grows as omega^2. NOT CORRECTED HERE because it changes every number this path has ever
+    # produced, which is the maintainer's call; carried as a priority item.
+    # ####################################################################################################
     csFactor     = 4 * pi^2 * Defaults.getDefaults("alpha") * line.photonEnergy / (2*(Ji2 + 1))
     crossSection = csFactor * cs
     newline = PhotoIonization.Line( line.initialLevel, line.finalLevel, line.electronEnergy, line.photonEnergy,
@@ -524,6 +538,11 @@ function computeCrossSection(partialWaves::Array{PhotoIonization.PartialWave,1},
     for  pw in partialWaves,  ch in pw.channels,  ma in ch.amplitudes
         cs = cs + abs2(ma.amplitude)
     end
+    # THIS IS THE CORRECT NORMALISATION, settled 28-Aug-2026 against Stobbe's closed-form 1s cross section rather
+    # than by preference. Hydrogen 1s, point nucleus, E1 only, at x = omega/omega_th = 1.5, 2 and 3: this factor
+    # gives 2.51913e+06, 1.02584e+06 and 3.22474e+05 barn in the Babushkin (length) gauge against Stobbe's
+    # 2.09127e+06, 9.31429e+05 and 2.88397e+05 -- ratios 1.205, 1.101, 1.118, i.e. FLAT to ~10 %, which is the
+    # agreement examples/example-Dd.jl already recorded. See the warning in computeAmplitudesPropertiesPlasma.
     csFactor = 8 * pi^3 / Defaults.getDefaults("alpha") / photonEnergy
     return( EmProperty(csFactor * cs.Coulomb, csFactor * cs.Babushkin) )
 end
