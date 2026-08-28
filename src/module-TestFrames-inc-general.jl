@@ -1672,3 +1672,173 @@ function testModule_StarkZeeman(; short::Bool=true)
     testPrint("testModule_StarkZeeman()::", success)
     return( success )
 end
+
+
+"""
+`TestFrames.testModule_Hamiltonian(; short::Bool=true)`  ... tests on module Hamiltonian; a success::Bool is returned.
+"""
+function testModule_Hamiltonian(; short::Bool=true)
+    Defaults.setDefaults("print summary: open", "test-Hamiltonian-new.sum")
+    printstyled("\n\nTest the module  Hamiltonian  ... \n", color=:cyan)
+    # WHAT IS DELIBERATELY NOT ASSERTED HERE: that the CI matrix is symmetric. It is not, and that is by design.
+    # setupMatrix computes only the UPPER triangle and leaves the lower one at zero, because Basics.diagonalize
+    # wraps the matrix in LinearAlgebra.Symmetric(..., :U) and never reads below the diagonal. An `H == transpose(H)`
+    # check would therefore FAIL on correct code -- the obvious test for a CI matrix is the wrong one here, and the
+    # convention itself is what is pinned instead, so that a later refactor filling the lower triangle inconsistently
+    # cannot pass unnoticed.
+    #
+    # The rest are exact: the trace is invariant under diagonalization, a one-dimensional block must return its own
+    # diagonal element, enlarging the CSF space cannot RAISE the ground state (the variational principle), and the
+    # kink-aware matrix must agree with the plain one, being the same operator through a different radial quadrature.
+    success = true;    printTest, iostream = Defaults.getDefaults("test flag/stream")
+    grid = Radial.Grid(Radial.Grid(false), rnt = 2.0e-6, h = 5.0e-2, hp = 2.0e-2, rbox = 20.0)
+    nm   = Nuclear.Model(8.)
+
+    multiplet = redirect_stdout(devnull) do
+        perform(Atomic.Computation(Atomic.Computation(), name="Hamiltonian test", grid=grid, nuclearModel=nm,
+                configs=[Configuration("1s^2 2s^2"), Configuration("1s^2 2p^2")]); output=true)["multiplet:"]
+    end
+    basis    = multiplet.levels[1].basis
+    settings = AsfSettings()
+    sym      = LevelSymmetry(multiplet.levels[1].J, multiplet.levels[1].parity)
+    cache    = InteractionStrength.XLCache()
+    matrix   = redirect_stdout(devnull) do;  Hamiltonian.setupMatrix(sym, basis, nm, grid, settings, cache)  end
+    n        = size(matrix, 1)
+
+    # (1) the upper-triangle convention: everything strictly below the diagonal is untouched
+    below = maximum([abs(matrix[r,s])  for r = 1:n, s = 1:n  if r > s];  init = 0.0)
+    if  below != 0.
+        success = false
+        if printTest   info(iostream, "the lower triangle of the CI matrix is not zero (largest $below); either " *
+                                      "the upper-triangle convention changed or it is now filled inconsistently")   end
+    end
+    # (2) the trace is invariant under diagonalization
+    eig    = Hamiltonian.diagonalizeCiMatrix(matrix, LevelSelection())
+    trace  = sum([matrix[r,r]  for r = 1:n])
+    sumEig = sum(eig.values)
+    if  abs(sumEig - trace) > 1.0e-8 * max(abs(trace), 1.0)
+        success = false
+        if printTest   info(iostream, "the eigenvalues sum to $sumEig but the trace is $trace")   end
+    end
+    # (3) a 1x1 block must hand back its own diagonal element
+    eig1 = Hamiltonian.diagonalizeCiMatrix(reshape([-3.75], 1, 1), LevelSelection())
+    if  abs(eig1.values[1] + 3.75) > 1.0e-12
+        success = false
+        if printTest   info(iostream, "a 1x1 block gives $(eig1.values[1]) instead of -3.75")   end
+    end
+    # (4) the variational principle: adding CSFs cannot RAISE the ground state
+    small = redirect_stdout(devnull) do
+        perform(Atomic.Computation(Atomic.Computation(), name="Hamiltonian test: small space", grid=grid,
+                nuclearModel=nm, configs=[Configuration("1s^2 2s^2")]); output=true)["multiplet:"]
+    end
+    eSmall = minimum([lev.energy  for lev in small.levels])
+    eLarge = minimum([lev.energy  for lev in multiplet.levels])
+    if  eLarge > eSmall + 1.0e-10
+        success = false
+        if printTest   info(iostream, "enlarging the CSF space RAISED the ground state, $eSmall -> $eLarge; " *
+                                      "the variational principle forbids it")   end
+    end
+    # (5) two routes to the same matrix: the kink-aware Slater integral must not change the operator
+    matrixK = redirect_stdout(devnull) do
+        Hamiltonian.setupMatrixKinkAware(sym, basis, nm, grid, settings, InteractionStrength.XLCache())
+    end
+    if  size(matrixK) != size(matrix)
+        success = false
+        if printTest   info(iostream, "the kink-aware matrix has size $(size(matrixK)), the plain one $(size(matrix))")   end
+    else
+        scale = maximum(abs.(matrix));    dev = maximum(abs.(matrixK .- matrix)) / max(scale, 1.0)
+        if  dev > 1.0e-4
+            success = false
+            if printTest   info(iostream, "the kink-aware and plain CI matrices differ by $dev relative; they " *
+                                          "are the same operator through different quadratures")   end
+        end
+    end
+
+    println(iostream, "Hamiltonian: the upper-triangle convention, trace invariance, the 1x1 block, the "     *
+                      "variational bound under CSF enlargement, and the kink-aware matrix against the plain " *
+                      "one. Symmetry is NOT asserted -- the lower triangle is zero by design.")
+    Defaults.setDefaults("print summary: close", "")
+    testPrint("testModule_Hamiltonian()::", success)
+    return( success )
+end
+
+
+"""
+`TestFrames.testModule_InteractionStrength(; short::Bool=true)`  ... tests on module InteractionStrength;
+    a success::Bool is returned.
+"""
+function testModule_InteractionStrength(; short::Bool=true)
+    Defaults.setDefaults("print summary: open", "test-InteractionStrength-new.sum")
+    printstyled("\n\nTest the module  InteractionStrength  ... \n", color=:cyan)
+    # A TWO-ROUTE test that the file itself sets up: XL_CoulombKinkAware's own docstring says it "computes the same
+    # effective Coulomb interaction strength as XL_Coulomb(L, a, b, c, d, grid), including the same triangular-delta
+    # veto and angular prefactor", differing only in using RadialIntegrals.SlaterRkKinkAware for the radial integral
+    # instead of SlaterRk. Two independent quadratures of one quantity must agree, and nothing outside the module is
+    # needed to say so.
+    #
+    # This matters beyond tidiness: the kink-aware route is what the ALField and EOLField code lines use, through
+    # Hamiltonian.setupMatrixKinkAware and SelfConsistent.computeTwoElectronV, so a divergence between the two would
+    # move SCF energies while leaving the ordinary CI path untouched -- exactly the kind of split that is hard to
+    # attribute afterwards.
+    success = true;    printTest, iostream = Defaults.getDefaults("test flag/stream")
+    grid = Radial.Grid(Radial.Grid(false), rnt = 2.0e-6, h = 5.0e-2, hp = 2.0e-2, rbox = 20.0)
+    nm   = Nuclear.Model(10.)
+    orb  = Dict{String,Orbital}()
+    for  s  in  ["1s_1/2", "2s_1/2", "2p_1/2", "2p_3/2"]
+        orb[s] = HydrogenicIon.orbital(Subshell(s), nm, grid)
+    end
+
+    # (1) the two routes agree, over ranks and orbital combinations that include both diagonal and exchange-like
+    #     orderings and both spin-orbit partners
+    nCompared = 0
+    for  (L, sa, sb, sc, sd)  in  [(0, "1s_1/2","1s_1/2","1s_1/2","1s_1/2"), (0, "1s_1/2","2s_1/2","1s_1/2","2s_1/2"),
+                                   (0, "2p_1/2","2p_1/2","2p_1/2","2p_1/2"), (1, "1s_1/2","2p_1/2","2p_1/2","1s_1/2"),
+                                   (1, "1s_1/2","2p_3/2","2p_3/2","1s_1/2"), (2, "2p_3/2","2p_3/2","2p_3/2","2p_3/2"),
+                                   (1, "2s_1/2","2p_3/2","2p_3/2","2s_1/2"), (0, "2p_1/2","2p_3/2","2p_1/2","2p_3/2")]
+        wa = InteractionStrength.XL_Coulomb(         L, orb[sa], orb[sb], orb[sc], orb[sd], grid)
+        wb = InteractionStrength.XL_CoulombKinkAware(L, orb[sa], orb[sb], orb[sc], orb[sd], grid)
+        if  abs(wa) < 1.0e-14  &&  abs(wb) < 1.0e-14    continue    end     # both vetoed; nothing to compare
+        nCompared = nCompared + 1
+        if  abs(wa - wb) > 1.0e-4 * max(abs(wa), abs(wb))
+            success = false
+            if printTest   info(iostream, "X^$L($sa,$sb,$sc,$sd): plain $wa against kink-aware $wb")   end
+        end
+    end
+    # A comparison that compared nothing would pass silently, so the count is asserted too.
+    if  nCompared < 6
+        success = false
+        if printTest   info(iostream, "only $nCompared of the eight combinations were non-vanishing; the " *
+                                      "comparison is not exercising the routes")   end
+    end
+    # (2) the selection rules give EXACTLY zero, in both routes. Parity: l_a + l_c + L must be even.
+    for  (L, sa, sb, sc, sd)  in  [(1, "1s_1/2","1s_1/2","1s_1/2","1s_1/2"), (1, "2s_1/2","2s_1/2","2s_1/2","2s_1/2"),
+                                   (5, "1s_1/2","2p_1/2","2p_1/2","1s_1/2")]
+        wa = InteractionStrength.XL_Coulomb(         L, orb[sa], orb[sb], orb[sc], orb[sd], grid)
+        wb = InteractionStrength.XL_CoulombKinkAware(L, orb[sa], orb[sb], orb[sc], orb[sd], grid)
+        if  wa != 0.  ||  wb != 0.
+            success = false
+            if printTest   info(iostream, "X^$L($sa,$sb,$sc,$sd) must be exactly 0 by the selection rules; " *
+                                          "got $wa and $wb")   end
+        end
+    end
+    # (3) the memoised method must return exactly what the uncached one does -- a cache that drifts from its own
+    #     function is silent, and this family is used inside the SCF where a wrong cached value would simply become
+    #     the answer.
+    cache = InteractionStrength.XLCache()
+    for  (L, sa, sb, sc, sd)  in  [(0, "1s_1/2","2s_1/2","1s_1/2","2s_1/2"), (1, "1s_1/2","2p_3/2","2p_3/2","1s_1/2")]
+        wa = InteractionStrength.XL_Coulomb(L, orb[sa], orb[sb], orb[sc], orb[sd], grid)
+        wb = InteractionStrength.XL_Coulomb(L, orb[sa], orb[sb], orb[sc], orb[sd], grid, cache)
+        wc = InteractionStrength.XL_Coulomb(L, orb[sa], orb[sb], orb[sc], orb[sd], grid, cache)   # now from the cache
+        if  wa != wb  ||  wb != wc
+            success = false
+            if printTest   info(iostream, "X^$L($sa,$sb,$sc,$sd) uncached $wa, first cached $wb, second $wc")   end
+        end
+    end
+
+    println(iostream, "InteractionStrength: XL_Coulomb against XL_CoulombKinkAware over eight (L, abcd) "     *
+                      "combinations, exact zeros where the selection rules forbid, and the memoised method "  *
+                      "against the plain one. No approved data is used.")
+    Defaults.setDefaults("print summary: close", "")
+    testPrint("testModule_InteractionStrength()::", success)
+    return( success )
+end
