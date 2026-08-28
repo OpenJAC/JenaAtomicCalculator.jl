@@ -125,19 +125,22 @@ function  compute1pRDM(level::Level)
     lenNO = length(subshellList);    rho_pq     = zeros(lenNO,lenNO)
     # Cycle over all matrix elements of the CSF basis
     opa          = SpinAngular.OneParticleOperator(0, plus)
+    # EACH COEFFICIENT IS ACCUMULATED ONCE, AT ITS OWN (a,b). Until 28-Aug-2026 this loop searched every pair of
+    # subshells for a coefficient matching EITHER ordering and then assigned to rho[p,q] AND rho[q,p], which
+    # double-counted twice over and made every OFF-DIAGONAL element exactly 4x too large -- the diagonals were
+    # right, so the error was invisible in a trace or an occupation sum. Measured on Be 1s^2 2s^2 + 1s^2 2s 3s,
+    # rho[2s,3s] came out -7.706351480018e-01 against the correct -1.926587870004e-01.
+    # The two factors: the spin-angular list carries BOTH orderings of a pair, since the (ir,is) loop visits
+    # csf(1,2) with a=2s,b=3s and csf(2,1) with a=3s,b=2s; and the (ip,iq)/(iq,ip) search then took each of those
+    # twice. Hermiticity needs no help here -- T(r,s;a,b) = T(s,r;b,a), so the (is,ir) pass fills rho[b,a] with
+    # the same value and the matrix comes out symmetric on its own.
+    index = Dict( sh => i  for (i, sh) in enumerate(subshellList) )
     for  (ir, rcsf) in enumerate(level.basis.csfs)
         for  (is, scsf) in enumerate(level.basis.csfs)
-            # Calculate angular coefficient for rank-0 operator
             wa = SpinAngular.computeCoefficients(opa, rcsf, scsf, subshellList) 
-            # Cycle over the pair of natural subshells in rho_pq
-            for (ip,p)  in  enumerate(subshellList)
-                for (iq,q)  in  enumerate(subshellList)
-                    for  coeff in wa
-                        if  (p == coeff.a   &&  q == coeff.b)  ||  (p == coeff.b   &&  q == coeff.a)
-                            rho_pq[ip,iq] = rho_pq[iq,ip] = rho_pq[ip,iq] + level.mc[ir] * coeff.T * level.mc[is]
-                        end
-                    end
-                end
+            for  coeff in wa
+                ip = index[coeff.a];    iq = index[coeff.b]
+                rho_pq[ip,iq] = rho_pq[ip,iq] + level.mc[ir] * coeff.T * level.mc[is]
             end
         end
     end
