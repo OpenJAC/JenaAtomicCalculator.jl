@@ -44,6 +44,39 @@ function Settings()
 end
 
 
+"""
+`DoubleAutoIonization.Settings(set::DoubleAutoIonization.Settings;`
+
+    green..., NoEnergySharings..., printBefore..., minAugerEnergy..., maxAugerEnergy..., maxKappa..., operator...,
+    lineSelection...)
+
+    ... constructor for modifying the given DoubleAutoIonization.Settings by 'overwriting' the previously selected parameters.
+        A settings::DoubleAutoIonization.Settings is returned.
+"""
+function Settings(set::DoubleAutoIonization.Settings;
+                        green::Union{Nothing,Array{GreenChannel,1}} = nothing,
+                        NoEnergySharings::Union{Nothing,Int64} = nothing,
+                        printBefore::Union{Nothing,Bool} = nothing,
+                        minAugerEnergy::Union{Nothing,Float64} = nothing,
+                        maxAugerEnergy::Union{Nothing,Float64} = nothing,
+                        maxKappa::Union{Nothing,Int64} = nothing,
+                        operator::Union{Nothing,AbstractEeInteraction} = nothing,
+                        lineSelection::Union{Nothing,LineSelection} = nothing )
+
+    if  isnothing(green)              greenx            = set.green              else   greenx            = green              end
+    if  isnothing(NoEnergySharings)   NoEnergySharingsx = set.NoEnergySharings   else   NoEnergySharingsx = NoEnergySharings   end
+    if  isnothing(printBefore)        printBeforex      = set.printBefore        else   printBeforex      = printBefore        end
+    if  isnothing(minAugerEnergy)     minAugerEnergyx   = set.minAugerEnergy     else   minAugerEnergyx   = minAugerEnergy     end
+    if  isnothing(maxAugerEnergy)     maxAugerEnergyx   = set.maxAugerEnergy     else   maxAugerEnergyx   = maxAugerEnergy     end
+    if  isnothing(maxKappa)           maxKappax         = set.maxKappa           else   maxKappax         = maxKappa           end
+    if  isnothing(operator)           operatorx         = set.operator           else   operatorx         = operator           end
+    if  isnothing(lineSelection)      lineSelectionx    = set.lineSelection      else   lineSelectionx    = lineSelection      end
+
+    Settings( greenx, NoEnergySharingsx, printBeforex, minAugerEnergyx, maxAugerEnergyx, maxKappax, operatorx,
+              lineSelectionx )
+end
+
+
 # `Base.show(io::IO, settings::DoubleAutoIonization.Settings)`  ... prepares a proper printout of the variable settings::DoubleAutoIonization.Settings.
 function Base.show(io::IO, settings::DoubleAutoIonization.Settings) 
     println(io, "green:                         (settings.green)  ")

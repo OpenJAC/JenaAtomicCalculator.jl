@@ -46,6 +46,33 @@ end
 
 
 """
+`ReducedDensityMatrix.Settings(set::ReducedDensityMatrix.Settings;`
+
+    calcNatural..., calcDensity..., calcIpq..., calc2pRDM..., printBefore..., levelSelection...)
+
+    ... constructor for modifying the given ReducedDensityMatrix.Settings by 'overwriting' the previously selected parameters.
+        A settings::ReducedDensityMatrix.Settings is returned.
+"""
+function Settings(set::ReducedDensityMatrix.Settings;
+                        calcNatural::Union{Nothing,Bool} = nothing,
+                        calcDensity::Union{Nothing,Bool} = nothing,
+                        calcIpq::Union{Nothing,Bool} = nothing,
+                        calc2pRDM::Union{Nothing,Bool} = nothing,
+                        printBefore::Union{Nothing,Bool} = nothing,
+                        levelSelection::Union{Nothing,LevelSelection} = nothing )
+
+    if  isnothing(calcNatural)      calcNaturalx    = set.calcNatural      else   calcNaturalx    = calcNatural      end
+    if  isnothing(calcDensity)      calcDensityx    = set.calcDensity      else   calcDensityx    = calcDensity      end
+    if  isnothing(calcIpq)          calcIpqx        = set.calcIpq          else   calcIpqx        = calcIpq          end
+    if  isnothing(calc2pRDM)        calc2pRDMx      = set.calc2pRDM        else   calc2pRDMx      = calc2pRDM        end
+    if  isnothing(printBefore)      printBeforex    = set.printBefore      else   printBeforex    = printBefore      end
+    if  isnothing(levelSelection)   levelSelectionx = set.levelSelection   else   levelSelectionx = levelSelection   end
+
+    Settings( calcNaturalx, calcDensityx, calcIpqx, calc2pRDMx, printBeforex, levelSelectionx )
+end
+
+
+"""
 `Base.show(io::IO, settings::ReducedDensityMatrix.Settings)`
     ... prepares a proper printout of the variable settings::ReducedDensityMatrix.Settings; nothing is returned.
 """

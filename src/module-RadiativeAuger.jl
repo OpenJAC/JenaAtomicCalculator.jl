@@ -41,6 +41,38 @@ function Settings()
 end
 
 
+"""
+`RadiativeAuger.Settings(set::RadiativeAuger.Settings;`
+
+    multipoles..., gauges..., green..., NoEnergySharings..., maxKappa..., printBefore..., operator..., lineSelection...)
+
+    ... constructor for modifying the given RadiativeAuger.Settings by 'overwriting' the previously selected parameters.
+        A settings::RadiativeAuger.Settings is returned.
+"""
+function Settings(set::RadiativeAuger.Settings;
+                        multipoles::Union{Nothing,Array{EmMultipole,1}} = nothing,
+                        gauges::Union{Nothing,Array{UseGauge,1}} = nothing,
+                        green::Union{Nothing,Array{GreenChannel,1}} = nothing,
+                        NoEnergySharings::Union{Nothing,Int64} = nothing,
+                        maxKappa::Union{Nothing,Int64} = nothing,
+                        printBefore::Union{Nothing,Bool} = nothing,
+                        operator::Union{Nothing,AbstractEeInteraction} = nothing,
+                        lineSelection::Union{Nothing,LineSelection} = nothing )
+
+    if  isnothing(multipoles)         multipolesx       = set.multipoles         else   multipolesx       = multipoles         end
+    if  isnothing(gauges)             gaugesx           = set.gauges             else   gaugesx           = gauges             end
+    if  isnothing(green)              greenx            = set.green              else   greenx            = green              end
+    if  isnothing(NoEnergySharings)   NoEnergySharingsx = set.NoEnergySharings   else   NoEnergySharingsx = NoEnergySharings   end
+    if  isnothing(maxKappa)           maxKappax         = set.maxKappa           else   maxKappax         = maxKappa           end
+    if  isnothing(printBefore)        printBeforex      = set.printBefore        else   printBeforex      = printBefore        end
+    if  isnothing(operator)           operatorx         = set.operator           else   operatorx         = operator           end
+    if  isnothing(lineSelection)      lineSelectionx    = set.lineSelection      else   lineSelectionx    = lineSelection      end
+
+    Settings( multipolesx, gaugesx, greenx, NoEnergySharingsx, maxKappax, printBeforex, operatorx,
+              lineSelectionx )
+end
+
+
 # `Base.show(io::IO, settings::RadiativeAuger.Settings)`  ... prepares a proper printout of the variable settings::RadiativeAuger.Settings.
 function Base.show(io::IO, settings::RadiativeAuger.Settings) 
     println(io, "multipoles:                   $(settings.multipoles)  ")

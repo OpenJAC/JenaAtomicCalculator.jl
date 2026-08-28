@@ -285,6 +285,35 @@ function Settings()
 end
 
 
+"""
+`StrongField.Settings(set::StrongField.Settings;`
+
+    multipoles..., gauge..., printAmplitudes..., coupledBasis..., hydrogenic..., hydrogenic1s..., mAverage...)
+
+    ... constructor for modifying the given StrongField.Settings by 'overwriting' the previously selected parameters.
+        A settings::StrongField.Settings is returned.
+"""
+function Settings(set::StrongField.Settings;
+                        multipoles::Union{Nothing,Array{EmMultipole,1}} = nothing,
+                        gauge::Union{Nothing,String} = nothing,
+                        printAmplitudes::Union{Nothing,Bool} = nothing,
+                        coupledBasis::Union{Nothing,Bool} = nothing,
+                        hydrogenic::Union{Nothing,Bool} = nothing,
+                        hydrogenic1s::Union{Nothing,Bool} = nothing,
+                        mAverage::Union{Nothing,Bool} = nothing )
+
+    if  isnothing(multipoles)        multipolesx      = set.multipoles        else   multipolesx      = multipoles        end
+    if  isnothing(gauge)             gaugex           = set.gauge             else   gaugex           = gauge             end
+    if  isnothing(printAmplitudes)   printAmplitudesx = set.printAmplitudes   else   printAmplitudesx = printAmplitudes   end
+    if  isnothing(coupledBasis)      coupledBasisx    = set.coupledBasis      else   coupledBasisx    = coupledBasis      end
+    if  isnothing(hydrogenic)        hydrogenicx      = set.hydrogenic        else   hydrogenicx      = hydrogenic        end
+    if  isnothing(hydrogenic1s)      hydrogenic1sx    = set.hydrogenic1s      else   hydrogenic1sx    = hydrogenic1s      end
+    if  isnothing(mAverage)          mAveragex        = set.mAverage          else   mAveragex        = mAverage          end
+
+    Settings( multipolesx, gaugex, printAmplitudesx, coupledBasisx, hydrogenicx, hydrogenic1sx, mAveragex )
+end
+
+
 # `Base.show(io::IO, settings::StrongField.Settings)`  ... prepares a proper printout of the variable settings::StrongField.Settings.
 function Base.show(io::IO, settings::StrongField.Settings) 
     println(io, "multipoles:                 $(settings.multipoles)  ")

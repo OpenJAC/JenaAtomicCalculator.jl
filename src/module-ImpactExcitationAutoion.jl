@@ -37,6 +37,31 @@ function Settings()
 end
 
 
+"""
+`ImpactExcitationAutoion.Settings(set::ImpactExcitationAutoion.Settings;`
+
+    electronEnergies..., printBefore..., selectPathways..., selectedPathways..., maxKappa...)
+
+    ... constructor for modifying the given ImpactExcitationAutoion.Settings by 'overwriting' the previously selected parameters.
+        A settings::ImpactExcitationAutoion.Settings is returned.
+"""
+function Settings(set::ImpactExcitationAutoion.Settings;
+                        electronEnergies::Union{Nothing,Array{Float64,1}} = nothing,
+                        printBefore::Union{Nothing,Bool} = nothing,
+                        selectPathways::Union{Nothing,Bool} = nothing,
+                        selectedPathways::Union{Nothing,Array{Tuple{Int64,Int64,Int64},1}} = nothing,
+                        maxKappa::Union{Nothing,Int64} = nothing )
+
+    if  isnothing(electronEnergies)   electronEnergiesx = set.electronEnergies   else   electronEnergiesx = electronEnergies   end
+    if  isnothing(printBefore)        printBeforex      = set.printBefore        else   printBeforex      = printBefore        end
+    if  isnothing(selectPathways)     selectPathwaysx   = set.selectPathways     else   selectPathwaysx   = selectPathways     end
+    if  isnothing(selectedPathways)   selectedPathwaysx = set.selectedPathways   else   selectedPathwaysx = selectedPathways   end
+    if  isnothing(maxKappa)           maxKappax         = set.maxKappa           else   maxKappax         = maxKappa           end
+
+    Settings( electronEnergiesx, printBeforex, selectPathwaysx, selectedPathwaysx, maxKappax )
+end
+
+
 # `Base.show(io::IO, settings::ImpactExcitationAutoion.Settings)`  
 #   ... prepares a proper printout of the variable settings::ImpactExcitationAutoion.Settings.  
 function Base.show(io::IO, settings::ImpactExcitationAutoion.Settings) 

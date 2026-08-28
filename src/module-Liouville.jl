@@ -114,6 +114,23 @@ function Settings()
 end
 
 
+"""
+`Liouville.Settings(set::Liouville.Settings;`
+
+    printBefore...)
+
+    ... constructor for modifying the given Liouville.Settings by 'overwriting' the previously selected parameters.
+        A settings::Liouville.Settings is returned.
+"""
+function Settings(set::Liouville.Settings;
+                        printBefore::Union{Nothing,Bool} = nothing )
+
+    if  isnothing(printBefore)   printBeforex = set.printBefore   else   printBeforex = printBefore   end
+
+    Settings( printBeforex )
+end
+
+
 # `Base.show(io::IO, settings::Liouville.Settings)`  ... prepares a proper printout of the variable settings::Liouville.Settings.
 function Base.show(io::IO, settings::Liouville.Settings) 
     println(io, "printBefore:         $(settings.printBefore)  ")

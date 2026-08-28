@@ -575,10 +575,12 @@ function testMethod_SettingsCopyConstructors(; short::Bool=true)
     ## module is added, and this class of defect is precisely the one nobody thinks to add a test for.
     success = true
     JAC     = JenaAtomicCalculator
-    ## KNOWN FAILURE, EXCLUDED BY DECISION rather than skipped silently: Liouville's copy-constructor does not
-    ## convert, but that module was postponed by the user on 09-Aug-2026 and is not to be touched. If it is ever
-    ## revived, delete it from this list FIRST and let the test tell you what is wrong with it.
-    excluded = [:Liouville]
+    ## Nothing is excluded. Liouville stood here from 09-Aug-2026 as a "known failure ... its copy-constructor
+    ## does not convert", which was not quite what was wrong with it: the module had NO copy-constructor at all,
+    ## so the hasmethod guard below would have passed over it in any case and the exclusion decided nothing. One
+    ## was written on 28-Aug-2026 and it converts, so the entry is removed rather than corrected. Postponing a
+    ## module is a decision about its PHYSICS; its constructor is ordinary code and is tested like any other.
+    excluded = Symbol[]
     modules  = Module[]
     for  nm in names(JAC, all=true, imported=false)
         isdefined(JAC, nm) || continue
