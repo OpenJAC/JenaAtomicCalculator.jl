@@ -51,10 +51,6 @@ struct  HfEnergiesRelative  end   # tabulate hyperfine level energies relative t
 #################################################################################################################################
 #################################################################################################################################
 
-# RETIRED 05-Aug-2026: Hfs.IJF_Vector, the CSF-based coupled basis vector (F, parity, isomer, csf, basisJ). It was never constructed with
-# content anywhere in src/ -- only its empty constructor existed -- and the job it was meant for, the hyperfine interaction inside a CSF
-# basis, is done directly by Hfs.computeInteractionMatrix. Having two similarly-named coupled basis types in one module was itself a defect:
-# defineHyperfineBasis reached for this one when it needed the ASF-based HfBasisVector, which is one reason it could never run.
 
 
 """
@@ -964,14 +960,6 @@ end
 `Hfs.defineHyperfineBasis(level::Level, nm::Nuclear.Model)`
     ... to define/set-up an atomic hyperfine (IJF-coupled) basis for the given electronic level;
         an Array{Hfs.HfBasisVector,1} is returned.
-
-        REPAIRED 05-Aug-2026, together with the multiplet method below. Both had been written against `HfVector` and `HfBasis`, neither of
-        which exists in this module, and the multiplet method additionally called `IJF_Vector(nm.spinI, F, level)` -- three arguments
-        against a five-field struct whose first field is F and whose fourth is a CsfR, not a Level. Neither method could ever be called.
-
-        The confusion behind it: the module carried TWO similarly-named coupled basis types, and these methods reached for the CSF-based one
-        when they needed the ASF-based HfBasisVector. The CSF-based IJF_Vector has since been retired, so only one coupled basis type
-        remains.
 """
 function  defineHyperfineBasis(level::Level, nm::Nuclear.Model)
     return( Hfs.defineHyperfineBasis(Multiplet("single level", [level]), nm) )
@@ -1402,9 +1390,8 @@ end
     ... to sort all hyperfine levels in the multiplet into a sequence of increasing energy; a (new) multiplet::Hfs.HfMultiplet is returned.
 """
 function Basics.sortByEnergy(multiplet::Hfs.HfMultiplet)
-    # REPAIRED 06-Aug-2026; this could not run. It read `multiplet.hfLevels` where the field is `hfLevels`, and rebuilt each level as an
-    # `Hfs.IJF_Level` -- a type that does not exist -- from `lev.I` and `lev.basis`, neither of which is a field of Hfs.HfLevel. Since the
-    # levels are immutable and only their ORDER changes, none of that reconstruction was needed in the first place.
+    # The levels are immutable and only their ORDER changes, so the sorted multiplet is rebuilt from the
+    # existing HfLevel objects rather than from their contents.
     sortedLevels = sort( multiplet.hfLevels, by = lev -> lev.energy )
     return( Hfs.HfMultiplet(multiplet.name, sortedLevels) )
 end

@@ -14,14 +14,10 @@
                       the 205Pb one from ~15 min to ~32 ms.
     * MIXED        -- both change, i.e. the hyperfine electronic bridge.
 
-    REWRITTEN 06-Aug-2026, and the module's own note of September 2025 asked for exactly this: the IJF_Vector /
-    IJF_Level / IJF_Multiplet defined here duplicated the Hfs family, and "it is neither recommended nor useful to
-    define analogue data structures in different modules". They are retired; everything now runs on
-    Hfs.HfBasisVector / Hfs.HfLevel / Hfs.HfMultiplet. The previous version could not be used in any case: FIVE of
-    its function bodies were dead through identical-signature duplicates that Julia resolves silently by load
-    order (computeLines, determineIJFlevels, displayHfMultiplet, displayRates, amplitude), only one of its three
-    `amplitude` methods was reachable, and the two unreachable ones called `amplitude_Wu` with a
-    String argument for which no method exists.
+    THIS MODULE DEFINES NO BASIS TYPES OF ITS OWN. The IJF-coupled representation it works in is
+    `Hfs.HfBasisVector` / `Hfs.HfLevel` / `Hfs.HfMultiplet`, and it is deliberately the only one: defining
+    analogue data structures in different modules is neither recommended nor useful, and two similarly named
+    coupled bases in one place is how methods come to reach for the wrong one.
 
     The structure now mirrors PhotoEmission one-for-one -- Settings, Channel, Line, amplitude,
     computeAmplitudesProperties, computeLines, determineChannels, determineLines, displayLines, displayRates,
@@ -476,15 +472,13 @@ end
 
 """
 `HyperfineInduced.determineHyperfineMultiplet(multiplet::Multiplet, isomers::Array{Nuclear.Isomer,1},
-                            levelIndex::Int64, addIndices::Array{Int64,1}, Fvalues::Array{AngularJ64,1},
+                            mixingLevels::Array{Int64,1}, Fvalues::Array{AngularJ64,1},
                             grid::Radial.Grid, settings::HyperfineInduced.Settings; printout::Bool=false)`
     ... to build and diagonalize the IJF-coupled hyperfine representation for the selected electronic levels and
         nuclear states; an Hfs.HfMultiplet is returned.
 
-        Renamed from `determineIJFlevels` (06-Aug-2026), together with the retirement of the IJF_* types: it
-        returns an Hfs.HfMultiplet, and the name should say so. The electronic levels admitted are levelIndex
-        together with addIndices -- the level whose hyperfine expansion is wanted, plus the neighbours whose
-        admixture makes the transition possible in the first place.
+        `mixingLevels` names every electronic level admitted to the expansion: the level whose hyperfine structure
+        is wanted, together with the neighbours whose admixture makes the transition possible in the first place.
 """
 function  determineHyperfineMultiplet(multiplet::Multiplet, isomers::Array{Nuclear.Isomer,1},
                                       mixingLevels::Array{Int64,1}, Fvalues::Array{AngularJ64,1},
