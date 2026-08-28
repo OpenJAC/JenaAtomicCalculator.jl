@@ -20,20 +20,40 @@ setDefaults("unit: rate", "1/s")
 ## essentially does not arise here the way it does for a K-hole (PhotoEmission/PhotoIonization) or an excited
 ## valence-to-Rydberg jump (PhotoExcitation). No calcBiorthogonal field added to PhotoRecombination.Settings.
 
-## WHICH NUMBERS IN THIS FILE ARE CURRENT (9-Aug-2026). Two corrections landed on 9-Aug-2026 and both change
-## results here: the Racah-phase fix in AngularMomentum.JohnsonI (0bdff9f), which moves BOTH gauges, and the
-## length-form orientation fix in InteractionStrength.MabEmission (c023481), which moves Babushkin only, by a
-## factor growing as (Z*alpha)^2 and with the photon momentum q. Re-measured and re-dated on 9-Aug-2026:
-## the Z=92 2s-capture, Z=54 K-shell and Z=82 K-shell branches -- i.e. exactly those whose high-energy points
-## had been flagged "open/unconverged". They are now gauge-converged to <=1.5% everywhere, and the diagnosis
-## recorded for them in July (a continuum radial-grid/orbital-quality problem) was WRONG.
-## NOT yet re-measured: the Z=12 F-like, Z=18 K-shell and Z=18 L/M-shell branches below, which still quote
-## pre-fix Babushkin numbers. All three are low-Z and low-energy, where (Z*alpha)^2 is 0.008-0.017, so the
-## expected shift is ~1-2% and none of their stated conclusions (the ~17-19% gauge gap, the ~3% agreement, the
-## factor 2-3 against Kramers) depends on it -- but the digits themselves are stale until re-run.
+## WHICH NUMBERS IN THIS FILE ARE CURRENT (28-Aug-2026). ALL SIX branches were re-run on 28-Aug-2026 and every
+## number below is from that run. This supersedes the 9-Aug-2026 state, in which three branches were current and
+## three still quoted pre-fix Babushkin digits.
+##
+## TWO EARLIER CORRECTIONS, both from 9-Aug-2026, remain in force: the Racah-phase fix in AngularMomentum.JohnsonI
+## (0bdff9f), which moves BOTH gauges, and the length-form orientation fix in InteractionStrength.MabEmission
+## (c023481), which moves Babushkin only, by a factor growing as (Z*alpha)^2 and with the photon momentum q.
+##
+## A THIRD CORRECTION LANDED ON 27-Aug-2026 AND IT MOVES THESE CROSS SECTIONS BY UP TO 34 %, GAUGE-INDEPENDENTLY.
+## The rank>0 spin-angular callers were migrated to the new SpinAngular module (fd7498e). Its commit message says
+## "nothing here changes a number"; THAT IS WRONG, and this file is where it shows. The OLD module IGNORED the
+## parity argument it was given and returned the union of BOTH parity classes; the new one obeys it and returns
+## the correct half. Measured 28-Aug on a 30-CSF 2p^5 + 2p^4 3d basis, counting coefficients per multipole:
+##      multipole   E1    M1     E2    M2     E3    M3
+##      new          8   114    105    26     26    80
+##      old        122   122    131   131    106   106
+## The old counts do not depend on the multipole's parity at all, and the new pair sums to the old at every rank
+## (8+114 = 122, 105+26 = 131, 26+80 = 106). So every rank>0 amplitude previously summed the wrong-parity
+## coefficients in with the right ones. The new numbers are the CORRECTED ones.
+##
+## WHY IT SHOWS HERE AND ALMOST NOWHERE ELSE: the error rides on the higher multipoles, and at 10 keV they are
+## ~10 % of the K-shell REC cross section while at 500 keV they are ~85 % (measured: Z=82 E1-only gives 1210.6,
+## 55.54 and 2.211 barn against 1329.1, 75.74 and 4.083 with E1+M1+E2+M2). So the shift against 9-Aug is -0.0 %
+## at 10 keV, -6.2 % at 100 keV and -34.4 % at 500 keV. An E1-dominated branch barely moves.
+##
+## GAUGE AGREEMENT IS UNAFFECTED AND REMAINS GOOD EVERYWHERE -- both gauges moved together, which is what a
+## gauge-independent angular error does. Measured 28-Aug across all six branches: 0.06 % to 1.51 % for the three
+## high-Z branches, 1.2-4.7 % for the two Z=18 branches, and 17-19 % for the Z=12 F-like branch, whose gap is a
+## long-standing open question of its own and is NOT a high-Z gauge-convergence problem.
 
 if  true
-    # Last successful:  14-Aug-2026
+    # Last successful:  28-Aug-2026 -- Coulomb/Babushkin 4911.864/4073.194, 1403.839/1139.254, 799.1763/643.5974
+    # barn @ 10/30/50 eV. Unchanged from 14-Aug in the first five figures: this branch is Z=12 with E1 and M1 only,
+    # so the 27-Aug parity correction described at the head of this file has almost nothing to act on.
     # Z=12, F-like 2p^5 -> Ne-like 2p^6 capture (electron into the 2p vacancy) at 10/30/50 eV. No specific literature
     # comparison known.
     #
@@ -88,8 +108,14 @@ if  true
     wb = perform(wa)
     #
 elseif  false
-    # Last successful:  22-Jul-2026 -- Coulomb/Babushkin agree to ~3% throughout (5.26e6/5.11e6 @1eV down to
-    # 26.0/26.6 barn @10keV). Matches built-in Stobbe(1s) to ~10-20% at 100eV-10keV; ab-initio exceeds Stobbe by
+    # Last successful:  28-Aug-2026 -- Coulomb/Babushkin 5.255384e6/5.089325e6, 1.823885e5/1.766079e5,
+    # 8683.07/8399.78, 617.688/593.243, 26.0111/24.7985 barn @ 1/10/100/1000/10000 eV; gauge agreement 3.2, 3.2,
+    # 3.3, 4.0, 4.7 %. THE PRE-FIX BABUSHKIN DIGITS THIS BRANCH USED TO CARRY ARE NOW REPLACED: Coulomb is
+    # unchanged to five figures (5.2554e6 and 26.01 barn, exactly as reconfirmed on 2-Aug), while Babushkin moved
+    # from 5.1058e6 to 5.0893e6 (-0.3 %) and from 26.63 to 24.80 barn (-6.9 %) -- the length-form orientation fix,
+    # larger at the top of the energy range as expected. The old text said the two gauges "agree to ~3% throughout"
+    # and that survives, but the agreement now degrades to 4.7 % at 10 keV rather than staying flat.
+ Matches built-in Stobbe(1s) to ~10-20% at 100eV-10keV; ab-initio exceeds Stobbe by
     # ~2.5-7x at 1-10 eV (close to the eta>>1 threshold regime), plausibly relativistic/multipole effects (E2,M2
     # included ab-initio, absent from the non-relativistic E1-only Stobbe formula).
     # RECONFIRMED 2-Aug-2026: re-ran unchanged, results essentially identical to two decimal places (5.2554e6/
@@ -111,8 +137,13 @@ elseif  false
     wb = perform(wa)
     #
 elseif  false
-    # Last successful:  22-Jul-2026 -- total (all 5 final shells summed) Coulomb cross sections 1.49e6, 4.75e4, 2172,
-    # 106.1, 2.44 barn @ 1/10/100/1000/10000 eV; within a factor 2-3 of Kramers(n=2,3) (7.72e5, 7.63e4, 6823, 345,
+    # Last successful:  28-Aug-2026 -- total (all 5 final shells summed) Coulomb/Babushkin 1.487028e6/1.440833e6,
+    # 4.745413e4/4.596358e4, 2171.93/2099.70, 106.140/101.994, 2.44322/2.41439 barn @ 1/10/100/1000/10000 eV, i.e.
+    # gauge agreement 3.1, 3.1, 3.3, 3.9, 1.2 %. THIS BRANCH HAD NEVER QUOTED BABUSHKIN AT ALL; those digits are new
+    # here. The Coulomb column is unchanged from 22-Jul to every figure it was quoted to (1.49e6, 4.75e4, 2172,
+    # 106.1, 2.44), which is the cleanest evidence in this file that the 27-Aug parity correction leaves an
+    # E1-dominated low-Z branch alone.
+    # The Kramers comparison below is therefore unaffected: within a factor 2-3 of Kramers(n=2,3) (7.72e5, 7.63e4, 6823, 345,
     # 6.05 barn) at every point, no runaway/one-directional trend -- much better behaved than the still-open Z=12
     # F-like branch above.
     # Z=18 (Ar), He-like 1s^2 -> Li-like: L/M-shell radiative recombination (capture into 2s, 2p, 3s, 3p or 3d) at the
@@ -132,7 +163,11 @@ elseif  false
     wb = perform(wa)
     #
 elseif  false
-    # Last successful:  9-Aug-2026 -- both gauges genuinely computed (before 22-Jul-2026 only Babushkin was
+    # Last successful:  28-Aug-2026 -- Coulomb/Babushkin 1234.09/1237.48, 109.778/109.841, 6.49946/6.46310 barn
+    # @ 1.196/11.96/119.6 keV; gauge agreement 0.27, 0.06, 0.56 %. Against the 9-Aug run (1117.8/1120.8, 109.24/
+    # 109.30, 7.076/7.037) Coulomb moved +10.4 %, +0.5 % and -8.1 % -- the 27-Aug parity correction, see the head
+    # of this file. Both gauges moved together, so the agreement is as good as it was.
+    # Superseded note from 9-Aug-2026 -- both gauges genuinely computed (before 22-Jul-2026 only Babushkin was
     # requested, which hid the true Coulomb-gauge result behind a display artifact -- see the note at the top of
     # this file).
     # Coulomb/Babushkin: 1117.8/1120.8 barn @1.196 keV (0.3% gauge agreement), 109.24/109.30 barn @11.96 keV (0.06%),
@@ -180,7 +215,11 @@ elseif  false
     wb = perform(wa)
     #
 elseif  false
-    # Last successful:  9-Aug-2026 -- Coulomb/Babushkin: 545.5/538.7 barn @10 keV (1.3% gauge agreement),
+    # Last successful:  28-Aug-2026 -- Coulomb/Babushkin 546.201/539.408 barn @10 keV (1.24 %), 20.2192/19.9138
+    # @100 keV (1.51 %), 0.670034/0.665195 @500 keV (0.72 %). Against 9-Aug (545.5/538.7, 21.35/21.03,
+    # 0.9988/0.9923) the shift is +0.1 %, -5.3 % and -32.9 %: the 27-Aug parity correction, growing with the
+    # higher multipoles' weight. Gauge agreement is unchanged, because the correction is gauge-independent.
+    # Superseded note from 9-Aug-2026 -- Coulomb/Babushkin: 545.5/538.7 barn @10 keV (1.3% gauge agreement),
     # 21.35/21.03 barn @100 keV (1.5%), 0.9988/0.9923 barn @500 keV (0.7%). ALL THREE points are now gauge-converged.
     # The high-energy blow-up recorded on 22-Jul-2026 (546.9/597.2, 20.4/36.0 and 0.74/2.88 barn, i.e. a 76% gap at
     # 100 keV and a 3.9x gap at 500 keV) was NOT the suspected continuum radial-grid/orbital-quality problem, and the
@@ -207,7 +246,12 @@ elseif  false
     wb = perform(wa)
     #
 elseif  false
-    # Last successful:  9-Aug-2026 -- Coulomb/Babushkin: 1329.3/1320.6 barn @10 keV (0.7% gauge agreement),
+    # Last successful:  28-Aug-2026 -- Coulomb/Babushkin 1329.07/1320.32 barn @10 keV (0.66 %), 75.7433/75.0374
+    # @100 keV (0.93 %), 4.08271/4.05165 @500 keV (0.76 %). Against 9-Aug (1329.3/1320.6, 80.72/79.98,
+    # 6.226/6.183) the shift is -0.0 %, -6.2 % and -34.4 %. This is the branch where the 27-Aug parity correction
+    # is largest anywhere in the test set, for the same reason the July length-gauge defect was: the higher
+    # multipoles carry ~85 % of the 500 keV cross section here. E1-only gives 2.211 barn at that point.
+    # Superseded note from 9-Aug-2026 -- Coulomb/Babushkin: 1329.3/1320.6 barn @10 keV (0.7% gauge agreement),
     # 80.72/79.98 barn @100 keV (0.9%), 6.226/6.183 barn @500 keV (0.7%). ALL THREE points are now gauge-converged.
     # Recorded on 22-Jul-2026 as 1337.8/1539.5, 77.1/138.8 and 4.54/16.67 barn, i.e. an 80% gap at 100 keV and a 3.7x
     # gap at 500 keV. The July diagnostic was sound as far as it went -- re-running the 500 keV point with maxKappa=8
