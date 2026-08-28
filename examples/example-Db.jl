@@ -4,7 +4,12 @@ println("Db) Apply & test the PhotoExcitation module with ASF from an internally
 setDefaults("print summary: open", "zzz-PhotoExcitation.sum")
 
 if  true
-    # Last successful:  1-Aug-2026
+    # Last successful:  28-Aug-2026 -- REPRODUCES EXACTLY. Energies 1.84650119 and 1.84657903 eV (record: 1.8464),
+    # summed absorption oscillator strength f = 0.65048 (Coulomb) / 0.88455 (Babushkin) against the recorded
+    # 0.6505 / 0.8845, still bracketing the literature f(2s-2p) = 0.7414.
+    # THIS BRANCH IS UNAFFECTED BY THE 6-Aug OSCILLATOR-STRENGTH FIX and the two branches below are not; see there.
+    # The reason is exact: 03cc54f corrected f by (2J_i+1)/2, and here J_i = 1/2, so the factor is 1.
+    # Previously: 1-Aug-2026
     # Compute the photoexcitation cross sections for neutral lithium
     #
     #   REPORT: two fine-structure lines, 1->1 (2s J=1/2 -> 2p_1/2) and 1->2 (2s J=1/2 -> 2p_3/2), both at
@@ -28,7 +33,16 @@ if  true
     wb = perform(wa)
     #
 elseif false
-    # Last successful:  1-Aug-2026
+    # Last successful:  28-Aug-2026 -- THE RECORDED f-VALUES BELOW WERE PRE-FIX AND ARE NOW DOUBLED, CORRECTLY.
+    # Today: f(1->2) = 1.8309e-02 (Coulomb) / 1.8578e-02 (Babushkin), f(1->4) = 7.6852e-01 / 7.8003e-01, at
+    # 3.88624723e+03 and 3.90608068e+03 eV. The REPORT below quotes 0.0091/0.0086 and 0.3843/0.3886, i.e. almost
+    # exactly half (ratio 1.99979 on the Coulomb resonance line).
+    # THIS IS NOT A REGRESSION. `03cc54f` (6-Aug-2026) fixed the absorption oscillator strength, which "came out
+    # too large by (2J_i+1)/2" -- so for J_i = 0 the old value was too SMALL by two, and the fix doubles it. The
+    # branch is dated 1-Aug, five days BEFORE that commit, so its numbers are simply pre-fix. The fix was found by
+    # checking f_ik against PhotoEmission's A_ki through the identity A_ki = 2 alpha^3 omega^2 (g_i/g_k) f_ik.
+    # The new f(1->4) ~ 0.77 for the He-like resonance line is also the physically expected size.
+    # Previously: 1-Aug-2026 (pre-fix numbers; the REPORT text below still quotes them)
     # Test of absorption f-values for 1s^2 --> 1s2p ^1P_1 resonance  in the helium isoelectronic sequence; cf. Table 8.1 in Section 8.1.a
     #
     #   REPORT: two E1 lines from the "1s 2p" multiplet's two J=1(-) levels: 1->2 (weak, f=0.0091(C)/
@@ -49,7 +63,11 @@ elseif false
     wb = perform(wa)
     #
 elseif false
-    # Last successful:  1-Aug-2026
+    # Last successful:  28-Aug-2026 -- SAME PRE-FIX HALVING AS THE BRANCH ABOVE, and for the same reason.
+    # Today: f(1->2) = 1.8213e-02 / 1.7616e-02, f(1->4) = 7.6512e-01 / 7.3954e-01 at 3.88546592e+03 and
+    # 3.90529938e+03 eV, against the recorded 0.3826(C)/0.3684(B) for 1->4 -- ratio 2.0003.
+    # See the branch above: `03cc54f`, 6-Aug-2026, and this branch is dated 1-Aug.
+    # Previously: 1-Aug-2026 (pre-fix numbers)
     # Branch 2: Ca^18+ (He-like) 1s^2 --> 1s2p, WITHOUT vs. WITH the bi-orthogonal transformation
     #   (calcBiorthogonal), added 1-Aug-2026 together with the new calcBiorthogonal field on
     #   PhotoExcitation.Settings (analog to PhotoEmission.Settings, code in PhotoExcitation.computeLines).

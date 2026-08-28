@@ -5,7 +5,10 @@ setDefaults("print summary: open", "zzz-BeamPhotoExcitation.sum")
 
 
 if  true
-    # Last successful:  unknown ...
+    # Last successful:  28-Aug-2026 -- runs clean, as one of three PhotoExcitation checks (with Db and Co).
+    #   NO COMPARISON WAS POSSIBLE: this branch has never recorded numbers, so running it shows only that it does
+    #   not fail. Whoever next uses it should write down what it produces, so the next run has something to hit.
+    # Previously: unknown ...
     # Test of beam-photo-excitation computatations of dominant-multipole regions and intensity pattern
     ## grid = Radial.Grid(Radial.Grid(false), rnt = 4.0e-6, h = 5.0e-2, hp = 1.0e-2, rbox = 20.0)
     grid = Radial.Grid(true)

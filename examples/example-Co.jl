@@ -27,7 +27,10 @@ using Printf
 
 if  true
     # Last visit:      26-Aug-2026
-    # Last successful: 26-Aug-2026
+    # Last successful: 28-Aug-2026 -- RE-RUN AND REPRODUCES EXACTLY: rho_20 = 9.0473e-06 (line 1->2) and
+    #                    3.8170e-04 (line 1->4), matching the 26-Aug record digit for digit, with the alignment
+    #                    parameters unchanged. Checked as one of three PhotoExcitation files on 28-Aug.
+    # Previously:      26-Aug-2026
     #
     # Branch a: ALIGNMENT IS GEOMETRY, and this branch is dated on a prediction that could have failed.
     #
