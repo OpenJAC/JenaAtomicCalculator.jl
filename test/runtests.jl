@@ -22,6 +22,8 @@ using JenaAtomicCalculator, ..Defaults, ..TestFrames
         @test TestFrames.testModule_StarkZeeman()   ## added 28-Aug-2026; the centre of gravity cannot move
         @test TestFrames.testModule_Hamiltonian()          ## added 28-Aug-2026; trace, the variational bound,
         @test TestFrames.testModule_InteractionStrength()  ## and two quadratures of one operator
+        @test TestFrames.testModule_SelfConsistent()  ## added 28-Aug-2026; the converged SCF is a FIXED POINT,
+                                                      ## and a frozen subshell does not move at all
     end
 
     @testset "JAC structs" begin

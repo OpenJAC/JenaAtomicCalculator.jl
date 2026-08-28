@@ -1842,3 +1842,89 @@ function testModule_InteractionStrength(; short::Bool=true)
     testPrint("testModule_InteractionStrength()::", success)
     return( success )
 end
+
+
+"""
+`TestFrames.testModule_SelfConsistent(; short::Bool=true)`  ... tests on module SelfConsistent; a success::Bool is returned.
+"""
+function testModule_SelfConsistent(; short::Bool=true)
+    Defaults.setDefaults("print summary: open", "test-SelfConsistent-new.sum")
+    printstyled("\n\nTest the module  SelfConsistent  ... \n", color=:cyan)
+    # An SCF has no closed-form answer to be checked against, but it does have a DEFINING PROPERTY: the converged
+    # solution is a FIXED POINT. Restarting the cycle from its own output must change nothing. That is exactly what
+    # "converged" claims, it needs no reference value, and it is broken by any of the ways an SCF can stop early --
+    # a stagnant-step test that fires too soon, an iteration limit reached quietly, a mixing scheme that oscillates
+    # about the solution rather than settling on it.
+    #
+    # The second check is narrower and has a history: settings.frozenSubshells must be honoured EXACTLY. A frozen
+    # orbital is not "changed very little", it is not changed at all, so the assertion is bit-identity of P and Q
+    # and not a tolerance. The EOL rotation solver ignored this setting until it was fixed earlier today, and
+    # nothing else stops that returning; here the DFS path is pinned, and MEASURED to honour it -- the frozen 1s
+    # comes back with dE/E = 0.0 and an identical P-vector while the free 2s moves.
+    success = true;    printTest, iostream = Defaults.getDefaults("test flag/stream")
+    grid = Radial.Grid(Radial.Grid(false), rnt = 2.0e-6, h = 5.0e-2, hp = 2.0e-2, rbox = 20.0)
+    nm   = Nuclear.Model(8.);    cfg = [Configuration("1s^2 2s^2")]
+    scf(set) = redirect_stdout(devnull) do
+        perform(Atomic.Computation(Atomic.Computation(), name="SCF test", grid=grid, nuclearModel=nm,
+                configs=cfg, asfSettings=set); output=true)["multiplet:"]
+    end
+
+    orb1 = scf(AsfSettings()).levels[1].basis.orbitals
+    shs  = sort( collect(keys(orb1)) )
+
+    # (1) the converged orbitals are orthonormal
+    for  sh  in  shs
+        wa = RadialIntegrals.overlap(orb1[sh], orb1[sh], grid)
+        if  abs(wa - 1.0) > 1.0e-8
+            success = false
+            if printTest   info(iostream, "<$sh|$sh> = $wa after the SCF, must be 1")   end
+        end
+    end
+    wa = RadialIntegrals.overlap(orb1[Subshell("1s_1/2")], orb1[Subshell("2s_1/2")], grid)
+    if  abs(wa) > 1.0e-8
+        success = false
+        if printTest   info(iostream, "<1s_1/2|2s_1/2> = $wa after the SCF, must be 0")   end
+    end
+    # (2) THE FIXED POINT. Restarted from its own output, the cycle must return the same orbitals. Measured
+    #     28-Aug-2026 at dE/E = 2e-9 and an overlap of 1.0 to twelve digits; the tolerances below leave a factor
+    #     of about fifty. Bit-identity is NOT asserted -- the cycle still performs an iteration and the last
+    #     digits move -- so what is pinned is that the physics is stationary, which is the actual claim.
+    orb2 = scf(AsfSettings(AsfSettings(); startScfFrom = StartFromPrevious(orb1))).levels[1].basis.orbitals
+    for  sh  in  shs
+        de = abs(orb2[sh].energy - orb1[sh].energy) / abs(orb1[sh].energy)
+        ov = RadialIntegrals.overlap(orb1[sh], orb2[sh], grid)
+        if  de > 1.0e-7
+            success = false
+            if printTest   info(iostream, "restarting from the converged orbitals moved $sh by dE/E = $de; a " *
+                                          "converged SCF is a fixed point")   end
+        end
+        if  abs(abs(ov) - 1.0) > 1.0e-8
+            success = false
+            if printTest   info(iostream, "the restarted $sh overlaps its own input by $ov, must be 1")   end
+        end
+    end
+    # (3) A FROZEN SUBSHELL DOES NOT MOVE AT ALL -- bit-identical P and Q, and the same energy, not a tolerance.
+    #     The free subshell of the same run must still be allowed to move, or "frozen" would be indistinguishable
+    #     from "nothing happened".
+    frozen = Subshell("1s_1/2");    free = Subshell("2s_1/2")
+    orb3   = scf(AsfSettings(AsfSettings(); startScfFrom = StartFromPrevious(orb1),
+                             frozenSubshells = [frozen])).levels[1].basis.orbitals
+    if  orb3[frozen].P != orb1[frozen].P  ||  orb3[frozen].Q != orb1[frozen].Q  ||
+        orb3[frozen].energy != orb1[frozen].energy
+        success = false
+        if printTest   info(iostream, "the frozen $frozen changed: energy $(orb1[frozen].energy) -> " *
+                                      "$(orb3[frozen].energy); frozenSubshells is not being honoured")   end
+    end
+    if  orb3[free].P == orb1[free].P
+        success = false
+        if printTest   info(iostream, "the free $free did not move either, so this run proves nothing about " *
+                                      "freezing")   end
+    end
+
+    println(iostream, "SelfConsistent: orthonormality of the converged orbitals, the FIXED-POINT property under " *
+                      "restart from its own output, and frozenSubshells honoured bit-for-bit while a free "       *
+                      "subshell still moves. No reference value is used.")
+    Defaults.setDefaults("print summary: close", "")
+    testPrint("testModule_SelfConsistent()::", success)
+    return( success )
+end
