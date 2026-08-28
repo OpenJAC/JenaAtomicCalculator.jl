@@ -65,7 +65,6 @@ function buildCIMatrixEOL(idxCsf::Array{Int64,1}, cache1p, cache2p, orbitals::Di
     # per (r,s) occurrence. Pass the SAME cache Dicts in across every block diagonalized within one outer
     # iteration (they also depend only on the current orbitals, not on which block/CSF-pair references them);
     # a fresh empty cache per call (the default) is still correct, just without the cross-block reuse.
-    #
     # Hermitian-symmetry shortcut (28-Jul-2026): only the UPPER triangle (r<=s) is computed -- exact, not
     # just safe, since this matrix feeds diagonalizeBlockEOL -> Basics.diagonalize(MatrixWithLinearAlgebra(),
     # ...), whose Symmetric(matrix) wrapper (default uplo=:U) already discards the lower triangle. See
@@ -201,9 +200,9 @@ function combineAngularCoefficientsEOL(blockCaches, targetLevels::Array{Level,1}
         n = length(idxCsf)
         for  r = 1:n
             for  s = 1:n
-                ## pairs = :all (default, unchanged) | :diagonal (r == s only) | :offdiagonal (r != s only).
-                ## The split exists to test whether the off-diagonal CSF-pair contributions should be scaled
-                ## by the generalized occupation at all -- see the DA-term note in solveOptimizedLevelField.
+                # pairs = :all (default, unchanged) | :diagonal (r == s only) | :offdiagonal (r != s only).
+                # The split exists to test whether the off-diagonal CSF-pair contributions should be scaled
+                # by the generalized occupation at all -- see the DA-term note in solveOptimizedLevelField.
                 if      pairs == :diagonal      &&  r != s     continue
                 elseif  pairs == :offdiagonal   &&  r == s     continue
                 end
@@ -322,7 +321,7 @@ function virtualDirections(bVectors::Dict{Subshell, Vector{Float64}}, subshells:
               SelfConsistent.positiveBranchSpectrum(subshells, primitives, nucPot, matrixB, storage) : spectrum
     virtuals = Dict{Subshell, Array{Vector{Float64},1}}()
     for  sh  in  subshells
-        ## the occupied orbitals of this kappa, S-orthonormalized so that the projection below is exact
+        # the occupied orbitals of this kappa, S-orthonormalized so that the projection below is exact
         occSame = Vector{Float64}[]
         for  s2  in  subshells
             if  s2.kappa != sh.kappa    continue    end
@@ -331,7 +330,7 @@ function virtualDirections(bVectors::Dict{Subshell, Vector{Float64}}, subshells:
             nrm = sqrt( abs(transpose(v) * matrixB * v) )
             if  nrm > 1.0e-10    push!(occSame, v / nrm)    end
         end
-        ## a one-electron reference spectrum for this kappa; orbital-independent, hence a fixed frame
+        # a one-electron reference spectrum for this kappa; orbital-independent, hence a fixed frame
         (posVecs, _) = posSpec[sh.kappa]
         dirs  = Vector{Float64}[]
         for  i = 1:length(posVecs)
@@ -444,56 +443,56 @@ function computeOrbitalGradient(bVectors::Dict{Subshell, Vector{Float64}},
         expanded[sh] = (orbitals[sh].P, orbitals[sh].Q)
     end
 
-    ## The screened potential depends only on the rank and the ORBITAL PAIR (b,d), not on the slot being
-    ## differentiated, and many angular coefficients share the same triple.  The orbitals are fixed for the
-    ## whole of one gradient evaluation, so the memo is local to this call and cannot go stale.  This is the
-    ## same redundancy that dominates the average-level Fock build (3.5x for argon, 9.1x for Th+), and after
-    ## the average-level field was memoised the rotation became the larger part of EOL: 66% of it for W+.
+    # The screened potential depends only on the rank and the ORBITAL PAIR (b,d), not on the slot being
+    # differentiated, and many angular coefficients share the same triple.  The orbitals are fixed for the
+    # whole of one gradient evaluation, so the memo is local to this call and cannot go stale.  This is the
+    # same redundancy that dominates the average-level Fock build (3.5x for argon, 9.1x for Th+), and after
+    # the average-level field was memoised the rotation became the larger part of EOL: 66% of it for W+.
     vkCache = Dict{Tuple{Int64,Subshell,Subshell}, Vector{Float64}}()
 
-    ## one-electron:  d/db_a [ w * b_a^T H1 b_b ]  contributes to BOTH slots
+    # one-electron:  d/db_a [ w * b_a^T H1 b_b ]  contributes to BOTH slots
     h1 = Dict{Int64, Array{Float64,2}}()
     for  kappa  in  unique( [sh.kappa for sh in subshells] )
         h1[kappa] = Bsplines.setupLocalMatrix(kappa, primitives, nucPot, storage)
     end
     for  cf  in  coeffs1p
         if  cf.a.kappa != cf.b.kappa    continue    end          ## no one-electron element between kappas
-        ## The SAME chain-rule factor the two-electron part applies, and for the same reason.  The energy's
-        ## one-electron term is built from the ORBITALS, and an orbital is scale*expand(b) -- so
-        ## GrantIab(orb_a, orb_b) = scale_a * scale_b * (b_a^T H1 b_b) and the derivative carries that product.
-        ## Omitting it is harmless whenever a and b share a sign, which is why it went unnoticed: a DIAGONAL
-        ## term has scale^2 = +1 always, and a kappa whose subshells happen to be canonicalized alike gives +1
-        ## too.  It bites only on an OFF-DIAGONAL element between two subshells of OPPOSITE sign, and then it
-        ## flips the sign of that contribution outright.  Measured on a three-layer Be RAS, validating the
-        ## gradient along guaranteed-tangent directions: every kappa came out exact to 1.0000 except kappa = -2,
-        ## the single kappa holding an off-diagonal pair -- 2p_3/2 with scale +1 and 3p_3/2 with scale -1 --
-        ## where the ratio of finite difference to prediction ran -0.10, -0.56, -0.024.
+        # The SAME chain-rule factor the two-electron part applies, and for the same reason.  The energy's
+        # one-electron term is built from the ORBITALS, and an orbital is scale*expand(b) -- so
+        # GrantIab(orb_a, orb_b) = scale_a * scale_b * (b_a^T H1 b_b) and the derivative carries that product.
+        # Omitting it is harmless whenever a and b share a sign, which is why it went unnoticed: a DIAGONAL
+        # term has scale^2 = +1 always, and a kappa whose subshells happen to be canonicalized alike gives +1
+        # too.  It bites only on an OFF-DIAGONAL element between two subshells of OPPOSITE sign, and then it
+        # flips the sign of that contribution outright.  Measured on a three-layer Be RAS, validating the
+        # gradient along guaranteed-tangent directions: every kappa came out exact to 1.0000 except kappa = -2,
+        # the single kappa holding an off-diagonal pair -- 2p_3/2 with scale +1 and 3p_3/2 with scale -1 --
+        # where the ratio of finite difference to prediction ran -0.10, -0.56, -0.024.
         w  = cf.T * scale[cf.a] * scale[cf.b]
         hh = h1[cf.a.kappa]
         grad[cf.a] = grad[cf.a] + w * (hh * bVectors[cf.b])
         grad[cf.b] = grad[cf.b] + w * (transpose(hh) * bVectors[cf.a])
     end
 
-    ## two-electron:  R^k(abcd) = b_a^T M(a,orb_b;c,orb_d) b_c  and, by R^k(abcd) = R^k(badc),
-    ##                          = b_b^T M(b,orb_a;d,orb_c) b_d
-    ##
-    ## MATRIX-FREE (10-Aug-2026).  M is never formed.  Its entries are INT B_i B_k w_r V_L, so
-    ## (M v)_i = INT B_i(r) f(r) w_r V_L(r) with f the expansion of v -- and M is symmetric within each
-    ## block, so the two products a coefficient needs share one potential and differ only in the vector.
-    ## Each subshell's expansion is built ONCE per gradient rather than per coefficient.
-    ## The expansions must carry the SAME sign convention as the orbitals the energy is built from.
-    ## Bsplines.generateOrbitalFromVector canonicalizes each orbital so that P > 0 at small r, and does NOT
-    ## feed that back into bVectors -- so a raw expansion and its own orbital can be oppositely signed. The
-    ## screened potential Vk below comes from the ORBITALS (b,d) while the contracted vector came from the
-    ## RAW b-vector (a,c), and an off-diagonal CSF pair carries an ODD power of a correlating orbital's sign,
-    ## so the mismatch survives instead of cancelling. Measured on the Be RAS step-2 case, where 2p_1/2 and
-    ## 2p_3/2 are canonicalized against their raw vectors in every iteration: the analytic gradient agreed
-    ## with a finite difference to five digits while only s-orbitals were involved, then went 2.5x, 19x and
-    ## finally SIGN-WRONG as the 2p weight grew -- which is what stalled the line search. Same defect, and
-    ## the same remedy, as the cVector sign-matching in computeTwoElectronV.
+    # two-electron:  R^k(abcd) = b_a^T M(a,orb_b;c,orb_d) b_c  and, by R^k(abcd) = R^k(badc),
+    #                          = b_b^T M(b,orb_a;d,orb_c) b_d
+    #
+    # MATRIX-FREE (10-Aug-2026).  M is never formed.  Its entries are INT B_i B_k w_r V_L, so
+    # (M v)_i = INT B_i(r) f(r) w_r V_L(r) with f the expansion of v -- and M is symmetric within each
+    # block, so the two products a coefficient needs share one potential and differ only in the vector.
+    # Each subshell's expansion is built ONCE per gradient rather than per coefficient.
+    # The expansions must carry the SAME sign convention as the orbitals the energy is built from.
+    # Bsplines.generateOrbitalFromVector canonicalizes each orbital so that P > 0 at small r, and does NOT
+    # feed that back into bVectors -- so a raw expansion and its own orbital can be oppositely signed. The
+    # screened potential Vk below comes from the ORBITALS (b,d) while the contracted vector came from the
+    # RAW b-vector (a,c), and an off-diagonal CSF pair carries an ODD power of a correlating orbital's sign,
+    # so the mismatch survives instead of cancelling. Measured on the Be RAS step-2 case, where 2p_1/2 and
+    # 2p_3/2 are canonicalized against their raw vectors in every iteration: the analytic gradient agreed
+    # with a finite difference to five digits while only s-orbitals were involved, then went 2.5x, 19x and
+    # finally SIGN-WRONG as the 2p weight grew -- which is what stalled the line search. Same defect, and
+    # the same remedy, as the cVector sign-matching in computeTwoElectronV.
     for  cf  in  coeffs2p
         for  (sA, sB, sC, sD)  in  [ (cf.a, cf.b, cf.c, cf.d), (cf.b, cf.a, cf.d, cf.c) ]
-            ## the same triangular-delta and parity guard XL_CoulombKinkAware applies before doing any work
+            # the same triangular-delta and parity guard XL_CoulombKinkAware applies before doing any work
             lA = Basics.subshell_l(sA);   jA = Basics.subshell_2j(sA)
             lB = Basics.subshell_l(sB);   jB = Basics.subshell_2j(sB)
             lC = Basics.subshell_l(sC);   jC = Basics.subshell_2j(sC)
@@ -578,7 +577,7 @@ function projectOntoPositiveBranch(bVectors::Dict{Subshell, Vector{Float64}}, su
               SelfConsistent.positiveBranchSpectrum(subshells, primitives, nucPot, matrixB, storage) : spectrum
     posSet  = Dict{Int64, Array{Vector{Float64},1}}()
     for  kappa  in  unique( [sh.kappa for sh in subshells] )    posSet[kappa] = posSpec[kappa][1]    end
-    ## (1) project each orbital on the positive branch of its kappa
+    # (1) project each orbital on the positive branch of its kappa
     for  sh  in  subshells
         b = bVectors[sh];    v = zeros( length(b) )
         for  phi  in  posSet[sh.kappa]    v = v + (transpose(phi) * matrixB * b) * phi    end
@@ -586,12 +585,12 @@ function projectOntoPositiveBranch(bVectors::Dict{Subshell, Vector{Float64}}, su
         worst    = max( worst, 1.0 - nrm2Pos/max(nrm2Full,1.0e-30) )
         out[sh]  = v / sqrt( max(nrm2Pos, 1.0e-30) )
     end
-    ## (2) S-orthonormalize within each kappa, in coefficient space, so the positive span is preserved --
-    ## but ONLY where it is actually needed.  Gram-Schmidt is sequential and asymmetric: it leaves the first
-    ## orbital of a kappa untouched and pushes the whole correction onto the later ones, so applying it to
-    ## an already-orthonormal set rotates the orbitals for nothing.  Measured on Li, doing it unconditionally
-    ## cost 8.5e-07 Ha while removing a negative-branch weight of only 3.4e-14 -- more than the entire
-    ## discrepancy that sent us looking.  Skip it when the block is orthonormal to tolerance.
+    # (2) S-orthonormalize within each kappa, in coefficient space, so the positive span is preserved --
+    # but ONLY where it is actually needed.  Gram-Schmidt is sequential and asymmetric: it leaves the first
+    # orbital of a kappa untouched and pushes the whole correction onto the later ones, so applying it to
+    # an already-orthonormal set rotates the orbitals for nothing.  Measured on Li, doing it unconditionally
+    # cost 8.5e-07 Ha while removing a negative-branch weight of only 3.4e-14 -- more than the entire
+    # discrepancy that sent us looking.  Skip it when the block is orthonormal to tolerance.
     for  kappa  in  unique( [sh.kappa for sh in subshells] )
         shk = [ sh for sh in subshells if sh.kappa == kappa ]
         dev = 0.
@@ -600,11 +599,11 @@ function projectOntoPositiveBranch(bVectors::Dict{Subshell, Vector{Float64}}, su
             dev = max( dev, abs( ov - (i == j ? 1.0 : 0.0) ) )
         end
         if  dev < 1.0e-9    continue    end
-        ## SYMMETRIC (Loewdin) orthogonalisation, S^(-1/2), in place of Gram-Schmidt.  Gram-Schmidt is
-        ## sequential and asymmetric: it leaves the FIRST orbital of a kappa untouched and pushes the whole
-        ## correction onto the later ones, so perturbing an earlier orbital of a kappa silently moves the later
-        ## ones as well.  Loewdin treats every orbital of the block alike and is the orthonormal set CLOSEST to
-        ## the input in a least-squares sense, so it introduces no ordering of its own.
+        # SYMMETRIC (Loewdin) orthogonalisation, S^(-1/2), in place of Gram-Schmidt.  Gram-Schmidt is
+        # sequential and asymmetric: it leaves the FIRST orbital of a kappa untouched and pushes the whole
+        # correction onto the later ones, so perturbing an earlier orbital of a kappa silently moves the later
+        # ones as well.  Loewdin treats every orbital of the block alike and is the orthonormal set CLOSEST to
+        # the input in a least-squares sense, so it introduces no ordering of its own.
         nk  = length(shk)
         ovl = zeros(nk, nk)
         for  (i, sha) in enumerate(shk),  (j, shb) in enumerate(shk)
@@ -679,7 +678,7 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
     blockCaches = Dict()
     for  sym  in  relevantSyms    blockCaches[sym] = SelfConsistent.cacheCsfPairCoefficientsEOL(sym, basis)   end
 
-    ## Built ONCE: it depends only on the nuclear potential and the B-spline basis, never on the orbitals.
+    # Built ONCE: it depends only on the nuclear potential and the B-spline basis, never on the orbitals.
     posSpectrum = SelfConsistent.positiveBranchSpectrum(basis.subshells, primitives, nucPot, matrixB, storage)
     (bVectors, _) = SelfConsistent.projectOntoPositiveBranch(bVectors, basis.subshells, primitives,
                                                                      nucPot, matrixB, storage; spectrum=posSpectrum)
@@ -706,11 +705,11 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
                 ";  $(length(activeSubshells)) of $(length(basis.subshells)) subshells are varied.")
     end
     ePrevious = 0.;   tStep = 1.0;   multiplet = Multiplet("EOL-ByRotation", Level[])
-    ## Set by every exit below.  A loop that simply runs out of iterations used to end in silence, which was the
-    ## fifth of five ways this driver can stop and the only one left unreported.
+    # Set by every exit below.  A loop that simply runs out of iterations used to end in silence, which was the
+    # fifth of five ways this driver can stop and the only one left unreported.
     stopReason = "";   gNorm = 0.;   iterDone = 0
-    ## Direction state, all held in b-space: the virtual directions are rebuilt every iteration, so anything
-    ## stored in THAT basis would be meaningless one step later.
+    # Direction state, all held in b-space: the virtual directions are rebuilt every iteration, so anything
+    # stored in THAT basis would be meaningless one step later.
     dirPrev = Dict{Subshell, Vector{Float64}}();   gPrev = Dict{Subshell, Vector{Float64}}()
     sgPrev  = 0.;    iterSinceRestart = 0
     bPrev   = Dict{Subshell, Vector{Float64}}()
@@ -734,15 +733,15 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
         targetLevels = SelfConsistent.selectTargetLevelsEOL(multiplet, settings.levelSelectionCI)
         (coeffs1p, coeffs2p) = SelfConsistent.combineAngularCoefficientsEOL(blockCaches, targetLevels)
 
-        ## e0 MUST be the energy of the point the line search starts from, measured the way the line search
-        ## measures its trials -- on the POSITIVE-BRANCH-PROJECTED vectors.  Taking it from the raw bVectors
-        ## instead made the comparison `eTrial < e0` a comparison between two different functions, and once
-        ## the two drifted apart no step could ever win: traced on a three-layer Be RAS, the driver reported
-        ## "no descent found" at iteration 61 while e0 sat 5.42 mHa BELOW the energy of its own starting
-        ## point, and the trial energy was flat in t across five decades because every t was being measured
-        ## against that offset.  The direction was never at fault -- dg = -0.047 there, and its tangential
-        ## part -0.046.  Re-projecting here is a no-op whenever the iterate is already on the manifold, which
-        ## is what makes it safe: it costs one projection per iteration and removes a whole class of stall.
+        # e0 MUST be the energy of the point the line search starts from, measured the way the line search
+        # measures its trials -- on the POSITIVE-BRANCH-PROJECTED vectors.  Taking it from the raw bVectors
+        # instead made the comparison `eTrial < e0` a comparison between two different functions, and once
+        # the two drifted apart no step could ever win: traced on a three-layer Be RAS, the driver reported
+        # "no descent found" at iteration 61 while e0 sat 5.42 mHa BELOW the energy of its own starting
+        # point, and the trial energy was flat in t across five decades because every t was being measured
+        # against that offset.  The direction was never at fault -- dg = -0.047 there, and its tangential
+        # part -0.046.  Re-projecting here is a no-op whenever the iterate is already on the manifold, which
+        # is what makes it safe: it costs one projection per iteration and removes a whole class of stall.
         (bVectors, _) = SelfConsistent.projectOntoPositiveBranch(bVectors, basis.subshells, primitives,
                                                         nucPot, matrixB, storage; spectrum=posSpectrum)
         restoreFrozen!(bVectors)
@@ -752,11 +751,11 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
                                                              primitives, nucPot, storage)
         virt = SelfConsistent.virtualDirections(bVectors, basis.subshells, primitives, nucPot,
                                                         matrixB, storage; nVirtual=nVirtual, spectrum=posSpectrum)
-        ## Project the gradient on the allowed rotations, and PRECONDITION each component by the
-        ## orbital-energy denominator (eps_v - eps_a) -- the diagonal of the rotation Hessian, i.e. the
-        ## standard first-order estimate  kappa_av = -g_av / (eps_v - eps_a).  Plain steepest descent
-        ## converges far too slowly here: it left the Li control 1.8e-6 Ha short after 60 steps.
-        ## The denominator is floored, since a near-degenerate pair would otherwise produce a huge step.
+        # Project the gradient on the allowed rotations, and PRECONDITION each component by the
+        # orbital-energy denominator (eps_v - eps_a) -- the diagonal of the rotation Hessian, i.e. the
+        # standard first-order estimate  kappa_av = -g_av / (eps_v - eps_a).  Plain steepest descent
+        # converges far too slowly here: it left the Li control 1.8e-6 Ha short after 60 steps.
+        # The denominator is floored, since a near-degenerate pair would otherwise produce a huge step.
         gProj = Dict{Subshell, Vector{Float64}}();   step = Dict{Subshell, Vector{Float64}}()
         denom = Dict{Subshell, Vector{Float64}}()
         gNorm = 0.;    sNorm = 0.
@@ -784,10 +783,10 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
             break
         end
 
-        ## Assemble the search direction in b-space.  Plain preconditioned steepest descent zigzags here:
-        ## the energy falls steadily while |grad| merely oscillates, each step undoing part of the previous
-        ## one.  Polak-Ribiere conjugacy reuses the previous direction to cancel that, at the cost of two
-        ## dot products and one stored vector per subshell.
+        # Assemble the search direction in b-space.  Plain preconditioned steepest descent zigzags here:
+        # the energy falls steadily while |grad| merely oscillates, each step undoing part of the previous
+        # one.  Polak-Ribiere conjugacy reuses the previous direction to cancel that, at the cost of two
+        # dot products and one stored vector per subshell.
         sVec = Dict{Subshell, Vector{Float64}}();   gVec = Dict{Subshell, Vector{Float64}}()
         for  sh  in  activeSubshells
             sv = zeros(nsL+nsS);    gv = zeros(nsL+nsS)
@@ -797,23 +796,23 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
             end
             sVec[sh] = sv;    gVec[sh] = gv
         end
-        ## method = :conjugate is the DEFAULT and the one to use.  :lbfgs is kept because it is measurably
-        ## better where the basis is stable -- Be 1s^2 2s^2 + 1s^2 2p^2 at 12 iterations reaches -14.618710
-        ## against conjugacy's -14.616507, i.e. it does change the RATE and not merely the constant -- but it
-        ## LOSES on the harder Be RAS step-2 case, -14.617374 against -14.619313, and there it discards its
-        ## own curvature history at iterations 8, 15, 21 and 23.  WHY IT FAILS IS NOT KNOWN.  Two candidates
-        ## were proposed and BOTH MEASURED SMALL, so neither should be repeated as an explanation:
-        ##   * the virtual space is NOT churning -- successive frames overlap to |1-<new,old>| = 1e-4..3e-3
-        ##     with no change in the number of directions, one 0.67 rotation excepted, and that one does not
-        ##     coincide with any of the four history discards;
-        ##   * the objective DOES drift, since coeffs1p/coeffs2p are rebuilt from the re-diagonalized mixing
-        ##     vector every iteration, but only by max|dV| ~ 1e-4..3e-3 against max|V| ~ 1.8.
-        ## Conjugacy tolerates whatever this is because it carries ONE previous direction and restarts every
-        ## ten; L-BFGS accumulates five pairs and does not.  Anyone picking this up should measure first.
+        # method = :conjugate is the DEFAULT and the one to use.  :lbfgs is kept because it is measurably
+        # better where the basis is stable -- Be 1s^2 2s^2 + 1s^2 2p^2 at 12 iterations reaches -14.618710
+        # against conjugacy's -14.616507, i.e. it does change the RATE and not merely the constant -- but it
+        # LOSES on the harder Be RAS step-2 case, -14.617374 against -14.619313, and there it discards its
+        # own curvature history at iterations 8, 15, 21 and 23.  WHY IT FAILS IS NOT KNOWN.  Two candidates
+        # were proposed and BOTH MEASURED SMALL, so neither should be repeated as an explanation:
+        #   * the virtual space is NOT churning -- successive frames overlap to |1-<new,old>| = 1e-4..3e-3
+        #     with no change in the number of directions, one 0.67 rotation excepted, and that one does not
+        #     coincide with any of the four history discards;
+        #   * the objective DOES drift, since coeffs1p/coeffs2p are rebuilt from the re-diagonalized mixing
+        #     vector every iteration, but only by max|dV| ~ 1e-4..3e-3 against max|V| ~ 1.8.
+        # Conjugacy tolerates whatever this is because it carries ONE previous direction and restarts every
+        # ten; L-BFGS accumulates five pairs and does not.  Anyone picking this up should measure first.
         dotAll(u, v) = sum( sum(u[sh] .* v[sh])  for sh in activeSubshells )
-        ## H_0 is the DIAGONAL PRECONDITIONER, not the usual gamma*I: the (eps_v - eps_a) denominators carry
-        ## real physics and throwing them away for a scalar would be a step backwards.  applyPrecond is what
-        ## turns gVec into -sVec, so it is exactly the operator already in use.
+        # H_0 is the DIAGONAL PRECONDITIONER, not the usual gamma*I: the (eps_v - eps_a) denominators carry
+        # real physics and throwing them away for a scalar would be a step backwards.  applyPrecond is what
+        # turns gVec into -sVec, so it is exactly the operator already in use.
         applyPrecond = function(q)
             r = Dict{Subshell, Vector{Float64}}()
             for  sh  in  activeSubshells
@@ -825,9 +824,9 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
             end
             return( r )
         end
-        ## Record the curvature pair (s,y) of the step just taken.  Only pairs with <y,s> > 0 are kept, which
-        ## is what keeps the implicit inverse Hessian positive definite -- and hence the direction a descent
-        ## direction -- on a surface that is not convex.
+        # Record the curvature pair (s,y) of the step just taken.  Only pairs with <y,s> > 0 are kept, which
+        # is what keeps the implicit inverse Hessian positive definite -- and hence the direction a descent
+        # direction -- on a surface that is not convex.
         if  method == :lbfgs  &&  !isempty(bPrev)
             sPair = Dict{Subshell, Vector{Float64}}();   yPair = Dict{Subshell, Vector{Float64}}()
             for  sh  in  activeSubshells
@@ -844,7 +843,7 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
         beta = 0.
         dir  = Dict{Subshell, Vector{Float64}}()
         if      method == :lbfgs  &&  !isempty(sHist)
-            ## two-loop recursion, giving d = -H grad with H built from the stored pairs around H_0
+            # two-loop recursion, giving d = -H grad with H built from the stored pairs around H_0
             q = Dict{Subshell, Vector{Float64}}( sh => copy(gVec[sh])  for sh in activeSubshells )
             alphas = zeros( length(sHist) )
             for  i = length(sHist):-1:1
@@ -869,7 +868,7 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
         else
             for  sh  in  activeSubshells    dir[sh] = sVec[sh]    end
         end
-        ## Guard: a conjugate direction must still descend.  If it does not, fall back to steepest descent.
+        # Guard: a conjugate direction must still descend.  If it does not, fall back to steepest descent.
         dg = 0.;   for sh in activeSubshells   dg = dg + sum( gVec[sh] .* dir[sh] )   end
         if  dg >= 0.
             for  sh  in  activeSubshells    dir[sh] = sVec[sh]    end
@@ -880,9 +879,9 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
         gPrev  = gVec;    dirPrev = dir
         bPrev  = Dict{Subshell, Vector{Float64}}( sh => copy(bVectors[sh])  for sh in activeSubshells )
         if  sNorm < 1.0e-14
-            ## Until 18-Aug-2026 this was the one exit of four that said NOTHING, so a run could end here and
-            ## be read as a completed optimisation.  It means the PRECONDITIONED direction has collapsed, which
-            ## is not the same as a converged gradient and must not be reported as one.
+            # Until 18-Aug-2026 this was the one exit of four that said NOTHING, so a run could end here and
+            # be read as a completed optimisation.  It means the PRECONDITIONED direction has collapsed, which
+            # is not the same as a converged gradient and must not be reported as one.
             stopReason = "direction collapsed";   println(">> [EOL-C3] STOPPED at iteration $iter: the preconditioned direction has collapsed " *
                     "(|s| = $sNorm), with |grad| = $gNorm.  This is NOT convergence.")
             break
@@ -890,19 +889,19 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
         if  printout
             println(">> [EOL-C3] iter $iter:  E = $(multiplet.levels[1].energy)   |grad| = $gNorm   step = $tStep")
         end
-        ## Converged when the GRADIENT is small. settings.accuracyScf is its tolerance, which is the honest
-        ## test: the old sole criterion, |E - E_prev| < accuracyScf, halts when PROGRESS is slow, which is a
-        ## statement about the optimizer and not about the solution -- and it is why every EOL value quoted
-        ## before 16-Aug-2026 was an upper bound. It cannot stand ALONE, though: |grad| PLATEAUS at a floor
-        ## set by the basis and the projection, so on Li a pure gradient test ran 48 further iterations after
-        ## the energy had stopped moving, for nothing. Both tests are kept, and the driver says which fired.
+        # Converged when the GRADIENT is small. settings.accuracyScf is its tolerance, which is the honest
+        # test: the old sole criterion, |E - E_prev| < accuracyScf, halts when PROGRESS is slow, which is a
+        # statement about the optimizer and not about the solution -- and it is why every EOL value quoted
+        # before 16-Aug-2026 was an upper bound. It cannot stand ALONE, though: |grad| PLATEAUS at a floor
+        # set by the basis and the projection, so on Li a pure gradient test ran 48 further iterations after
+        # the energy had stopped moving, for nothing. Both tests are kept, and the driver says which fired.
         if  gNorm < settings.accuracyScf
             stopReason = "converged";   println(">> [EOL-C3] CONVERGED at iteration $iter: |grad| = $gNorm < accuracyScf = " *
                     "$(settings.accuracyScf), tStep = $tStep.")
             break
         end
 
-        ## backtracking line search along -gProj; halve until the energy actually falls
+        # backtracking line search along -gProj; halve until the energy actually falls
         accepted = false
         for  trial = 1:24
             newB = Dict{Subshell, Vector{Float64}}( sh => bVectors[sh]  for sh in basis.subshells )
@@ -910,14 +909,14 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
                 v = bVectors[sh] + tStep * dir[sh]
                 newB[sh] = v / sqrt( abs(transpose(v) * matrixB * v) )
             end
-            ## The projection must happen BEFORE the acceptance test, not after it.  Projecting and
-            ## re-orthonormalizing moves the orbitals, so accepting `newB` on the strength of its own energy
-            ## and then storing the PROJECTED vector stores something that was never tested -- and the
-            ## projection gives a little of the gain back each step.  That broke monotonicity: on Li the
-            ## driver reduced the gradient 19-fold while the energy ROSE by 3.7e-7 Ha, which a descent
-            ## method cannot do.  Testing the projected vector restores  E(new) < E(old)  by construction,
-            ## and with it the guarantee that the CI eigenvalue falls too (it is bounded above by this
-            ## fixed-coefficient functional, and equals it at the previous orbitals).
+            # The projection must happen BEFORE the acceptance test, not after it.  Projecting and
+            # re-orthonormalizing moves the orbitals, so accepting `newB` on the strength of its own energy
+            # and then storing the PROJECTED vector stores something that was never tested -- and the
+            # projection gives a little of the gain back each step.  That broke monotonicity: on Li the
+            # driver reduced the gradient 19-fold while the energy ROSE by 3.7e-7 Ha, which a descent
+            # method cannot do.  Testing the projected vector restores  E(new) < E(old)  by construction,
+            # and with it the guarantee that the CI eigenvalue falls too (it is bounded above by this
+            # fixed-coefficient functional, and equals it at the previous orbitals).
             (projB, negW) = SelfConsistent.projectOntoPositiveBranch(newB, basis.subshells,
                                                     primitives, nucPot, matrixB, storage; spectrum=posSpectrum)
             eTrial = SelfConsistent.energyFromBVectors(projB, coeffs1p, coeffs2p, basis.subshells,
@@ -934,10 +933,10 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
         if  printout
         end
         if  !accepted  &&  method == :lbfgs  &&  !isempty(sHist)
-            ## A line search that finds no descent along an L-BFGS direction means the stored curvature is
-            ## no longer describing this surface -- unsurprising, since virtualDirections is rebuilt every
-            ## iteration and the pairs then mix vectors from different subspaces. Discard the history and
-            ## retry from the preconditioned gradient rather than giving up.
+            # A line search that finds no descent along an L-BFGS direction means the stored curvature is
+            # no longer describing this surface -- unsurprising, since virtualDirections is rebuilt every
+            # iteration and the pairs then mix vectors from different subspaces. Discard the history and
+            # retry from the preconditioned gradient rather than giving up.
             if  printout    println(">> [EOL-C3] L-BFGS history discarded at iteration $iter; retrying.")   end
             empty!(sHist);   empty!(yHist);   empty!(rhoHist);   tStep = 1.0
             for  trial = 1:24
@@ -959,16 +958,16 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
                     "(tStep fell to $tStep), with |grad| = $gNorm.  This is NOT convergence.")
             break
         end
-        ## A STAGNANT ENERGY IS ONLY CONVERGENCE IF THE STEP IS STILL HEALTHY.  The test compares successive
-        ## CI eigenvalues, and a variational energy is STATIONARY at a minimum: |dE| falls as the SQUARE of the
-        ## orbital error while |grad| falls linearly, so |dE| < 1e-11 is reached long before convergence
-        ## whenever the steps have become small -- and then it reports a collapsed line search as a converged
-        ## calculation.  Measured at the moment it used to fire: tStep = 4.1e-9 on a Be RAS correlation layer
-        ## and 3.5e-11 on a carbon one, i.e. down eight to eleven orders from unity, with |grad| still 0.037
-        ## and 0.998.  The collapse is TEMPORARY -- allowed to continue, carbon recovers a step of 0.125 and
-        ## converges at |grad| = 4.7e-6, sixty-five mHa BELOW where it used to stop.  So the remedy is not a
-        ## smaller threshold but the extra condition: stagnation ends the iteration only when the step that
-        ## produced it was of usable size.
+        # A STAGNANT ENERGY IS ONLY CONVERGENCE IF THE STEP IS STILL HEALTHY.  The test compares successive
+        # CI eigenvalues, and a variational energy is STATIONARY at a minimum: |dE| falls as the SQUARE of the
+        # orbital error while |grad| falls linearly, so |dE| < 1e-11 is reached long before convergence
+        # whenever the steps have become small -- and then it reports a collapsed line search as a converged
+        # calculation.  Measured at the moment it used to fire: tStep = 4.1e-9 on a Be RAS correlation layer
+        # and 3.5e-11 on a carbon one, i.e. down eight to eleven orders from unity, with |grad| still 0.037
+        # and 0.998.  The collapse is TEMPORARY -- allowed to continue, carbon recovers a step of 0.125 and
+        # converges at |grad| = 4.7e-6, sixty-five mHa BELOW where it used to stop.  So the remedy is not a
+        # smaller threshold but the extra condition: stagnation ends the iteration only when the step that
+        # produced it was of usable size.
         stepFloor = 1.0e-6
         if  iter > 1  &&  abs(multiplet.levels[1].energy - ePrevious) < 1.0e-11  &&  tStep > stepFloor
             stopReason = "stationary energy";   println(">> [EOL-C3] stopped at iteration $iter on a stationary energy: |dE| = " *
@@ -1130,8 +1129,8 @@ function solveOptimizedLevelField(basis::Basis, nuclearModel::Nuclear.Model, pri
         # been "processed" this iteration -- which, since they never change, they effectively have.
         processedBVectors = Dict{Subshell, Vector{Float64}}( sh => bVectors[sh]  for sh in settings.frozenSubshells  if  sh in basis.subshells )
         dpm = Dict{Subshell, Float64}()
-        ## fresh each sweep, for the reason given in solveAverageLevelField: the partner orbitals are fixed
-        ## within a sweep but not between sweeps, so a cache carried over would serve stale matrices
+        # fresh each sweep, for the reason given in solveAverageLevelField: the partner orbitals are fixed
+        # within a sweep but not between sweeps, so a cache carried over would serve stale matrices
         directKernels   = Dict{Tuple{Int64,Subshell,Subshell},Array{Float64,2}}()
         exchangeKernels = Dict{Tuple{Int64,Subshell},Array{Float64,2}}()
 
@@ -1176,10 +1175,10 @@ function solveOptimizedLevelField(basis::Basis, nuclearModel::Nuclear.Model, pri
             l  = Basics.subshell_l(subshell)
             mm = Bsplines.findPositiveBranchStart(wc.values)
             oldVector = bVectors[subshell]
-            ## TESTED AND REFUTED (09-Aug-2026): selecting the eigenvector of maximum OVERLAP with the
-            ## previous orbital instead of the counted index changes nothing here (identical to eight
-            ## decimals), so the counted index was never the problem -- and it actively harms a correlating
-            ## orbital, which must be free to change character.  Do not re-propose it.
+            # TESTED AND REFUTED (09-Aug-2026): selecting the eigenvector of maximum OVERLAP with the
+            # previous orbital instead of the counted index changes nothing here (identical to eight
+            # decimals), so the counted index was never the problem -- and it actively harms a correlating
+            # orbital, which must be free to change character.  Do not re-propose it.
             ni = mm + subshell.n - l - count - 1
             rawVector = wc.vectors[ni]
 
@@ -1201,10 +1200,10 @@ function solveOptimizedLevelField(basis::Basis, nuclearModel::Nuclear.Model, pri
         for  sh  in  basis.subshells
             newOrbitals[sh] = Bsplines.generateOrbitalFromVector(sh, 0.0, bVectors[sh], primitives)
         end
-        ## The EOL driver damps exactly as the AL one does, so it loses same-kappa orthogonality in exactly
-        ## the same way and needs the same repair.  Measured before this was added: Si^2+ [Ne] 3s^2 + 3p^2
-        ## gave a worst same-kappa overlap of 2.4e-06 under EOL against 9.3e-10 under AL, and Si^+ reached
-        ## 6.9e-05.  Wiring the switch into solveAverageLevelField alone was an oversight.
+        # The EOL driver damps exactly as the AL one does, so it loses same-kappa orthogonality in exactly
+        # the same way and needs the same repair.  Measured before this was added: Si^2+ [Ne] 3s^2 + 3p^2
+        # gave a worst same-kappa overlap of 2.4e-06 under EOL against 9.3e-10 under AL, and Si^+ reached
+        # 6.9e-05.  Wiring the switch into solveAverageLevelField alone was an oversight.
         if  SelfConsistent.GBL_SCF_REORTHONORMALIZE
             (newOrbitals, bVectors) = SelfConsistent.orthonormalizeSameKappa(newOrbitals, bVectors,
                                                         basis.subshells, primitives, matrixB)

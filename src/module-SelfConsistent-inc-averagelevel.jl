@@ -55,8 +55,8 @@ function computeAngularCoefficients(scField::Basics.ALField, basis::Basis)
                 if    hasConsidered[icx]   
                 elseif  nu == cfx.nu &&    a == cfx.a  &&  b == cfx.b  &&  c == cfx.c &&  d == cfx.d    
                         V  = V + cfx.V;    hasConsidered[icx] = true
-                ## elseif  nu == cfx.nu &&  a == cfx.b && b == cf.a &&  c == cfx.d &&  d == cf.c    
-                ##         V = V + cfx.V;    hasConsidered[icx] = true
+                # elseif  nu == cfx.nu &&  a == cfx.b && b == cf.a &&  c == cfx.d &&  d == cf.c    
+                #         V = V + cfx.V;    hasConsidered[icx] = true
                 end 
             end
             push!(coeffs2px, Coefficient2p(nu, a, b, c, d, V) );   V = 0.
@@ -106,8 +106,8 @@ end
 function solveAverageLevelField(basis::Basis, nuclearModel::Nuclear.Model, primitives::Bsplines.Primitives,
                                 settings::AsfSettings; printout::Bool=true, andersonDepth::Int64=GBL_AL_ANDERSON_DEPTH)
     nsL = primitives.grid.nsL;    nsS = primitives.grid.nsS;    grid = primitives.grid
-    ## Anderson history over the CONCATENATED b-vectors. One full Gauss-Seidel sweep is the fixed-point map
-    ## g(x); the 0.5 damping already inside it stays, so depth 0 reproduces the previous behaviour exactly.
+    # Anderson history over the CONCATENATED b-vectors. One full Gauss-Seidel sweep is the fixed-point map
+    # g(x); the 0.5 damping already inside it stays, so depth 0 reproduces the previous behaviour exactly.
     xHistAL = Vector{Vector{Float64}}();    fHistAL = Vector{Vector{Float64}}()
 
     # (1) Initialize storage and important arrays; determine nuclear potential and mean occupation once
@@ -154,10 +154,10 @@ function solveAverageLevelField(basis::Basis, nuclearModel::Nuclear.Model, primi
         processedBVectors = Dict{Subshell, Vector{Float64}}()
         dpm = Dict{Subshell, Float64}()
 
-        ## The subshell-independent part of every two-electron matrix is reused across this sweep and ONLY
-        ## across this sweep: bVectors is reassigned at the END of the iteration, so the partner orbitals are
-        ## fixed here but not between iterations, and a cache carried over would serve stale matrices.  Built
-        ## fresh each iteration for exactly that reason.  Measured redundancy: 3.5x for argon, 9.1x for Th+.
+        # The subshell-independent part of every two-electron matrix is reused across this sweep and ONLY
+        # across this sweep: bVectors is reassigned at the END of the iteration, so the partner orbitals are
+        # fixed here but not between iterations, and a cache carried over would serve stale matrices.  Built
+        # fresh each iteration for exactly that reason.  Measured redundancy: 3.5x for argon, 9.1x for Th+.
         directKernels   = Dict{Tuple{Int64,Subshell,Subshell},Array{Float64,2}}()
         exchangeKernels = Dict{Tuple{Int64,Subshell},Array{Float64,2}}()
 
@@ -212,11 +212,11 @@ function solveAverageLevelField(basis::Basis, nuclearModel::Nuclear.Model, primi
         for  sh  in  basis.subshells
             newOrbitals[sh] = Bsplines.generateOrbitalFromVector(sh, newEnergies[sh], newBVectors[sh], primitives)
         end
-        ## ANDERSON ACCELERATION on the orbitals themselves.  The mean-field driver already accelerates its
-        ## screening potential this way, with 1.6-2.6x fewer iterations and the same solution to ~1e-7; here
-        ## the iterate is the concatenated b-vector set and g(x) is one full sweep.  The sweep sign-aligns
-        ## each eigenvector against the previous one, so g is sign-consistent with x and the residual means
-        ## what it should.  depth <= 0 leaves the plain damped iteration untouched.
+        # ANDERSON ACCELERATION on the orbitals themselves.  The mean-field driver already accelerates its
+        # screening potential this way, with 1.6-2.6x fewer iterations and the same solution to ~1e-7; here
+        # the iterate is the concatenated b-vector set and g(x) is one full sweep.  The sweep sign-aligns
+        # each eigenvector against the previous one, so g is sign-consistent with x and the residual means
+        # what it should.  depth <= 0 leaves the plain damped iteration untouched.
         if  andersonDepth > 0
             xNow = vcat( [ bVectors[sh]     for sh in basis.subshells ]... )
             gNow = vcat( [ newBVectors[sh]  for sh in basis.subshells ]... )
@@ -251,22 +251,22 @@ function solveAverageLevelField(basis::Basis, nuclearModel::Nuclear.Model, primi
                 end
             end
         end
-        ## Under test: restore the same-kappa orthonormality that the damping step destroys.
+        # Under test: restore the same-kappa orthonormality that the damping step destroys.
         if  SelfConsistent.GBL_SCF_REORTHONORMALIZE
             (newOrbitals, newBVectors) = SelfConsistent.orthonormalizeSameKappa(newOrbitals, newBVectors,
                                                                 basis.subshells, primitives, matrixB)
         end
-        ## Convergence is measured against what is ACTUALLY accepted, which Anderson may have moved. Only
-        ## when it is active, so that depth 0 remains a bit-for-bit control on the previous behaviour.
+        # Convergence is measured against what is ACTUALLY accepted, which Anderson may have moved. Only
+        # when it is active, so that depth 0 remains a bit-for-bit control on the previous behaviour.
         if  andersonDepth > 0
             for  sh  in  basis.subshells
                 dpm[sh] = 1.0 - abs( transpose(bVectors[sh]) * matrixB * newBVectors[sh] )
             end
         end
         eFunctional = SelfConsistent.computeFunctional(coeffs1p, coeffs2p, newOrbitals, grid, nucPot)
-        ## The overlap defect 1 - |<b_old|b_new>| is QUADRATIC in the orbital change; the change itself is
-        ## || b_new - b_old ||_B = sqrt(2 * defect), and that is what a user means by "the orbitals still move
-        ## by".  Both are reported so that the tolerance cannot be misread by a factor of its own square root.
+        # The overlap defect 1 - |<b_old|b_new>| is QUADRATIC in the orbital change; the change itself is
+        # || b_new - b_old ||_B = sqrt(2 * defect), and that is what a user means by "the orbitals still move
+        # by".  Both are reported so that the tolerance cannot be misread by a factor of its own square root.
         overlapDefect = 0.;    worstShell = basis.subshells[1]
         for  (sh, d)  in dpm    if  d > overlapDefect   overlapDefect = d;   worstShell = sh   end    end
         orbitalConv = overlapDefect < 1.0 ? 1.0 - overlapDefect : 0.0
@@ -280,8 +280,8 @@ function solveAverageLevelField(basis::Basis, nuclearModel::Nuclear.Model, primi
         if  overlapDefect < settings.accuracyScf    isConverged = true;    break    end
     end
 
-    ## Say which of the two happened.  An iteration that merely runs out of steps used to end in silence, so
-    ## that a stopped field and a converged one printed the same thing and were quoted the same way.
+    # Say which of the two happened.  An iteration that merely runs out of steps used to end in silence, so
+    # that a stopped field and a converged one printed the same thing and were quoted the same way.
     if      isConverged
         println(">> [AL] converged after $NoIterations iterations: overlap defect " *
                 @sprintf("%.2e", lastDefect) * " < accuracyScf = " * @sprintf("%.2e", settings.accuracyScf) *

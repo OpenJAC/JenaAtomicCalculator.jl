@@ -245,9 +245,19 @@ reader finding what they expect where they expect it.
 
 **Order within the file**
 
+0. **`RacahAlgebra-inc-*` IS OUT OF SCOPE FOR HYGIENE ENTIRELY** -- the maintainer's decision, 28-Aug-2026. Do
+   not run `/hygiene` on `module-RacahAlgebra-inc-sumrules.jl` or `module-RacahAlgebra-inc-special.jl`, and do
+   not re-propose them. Their `#` lines are structural to how the sum rules are written out, not clutter.
+
 1. **Structs and their associated methods come first** -- each struct together with its constructors and its
    `Base.show` -- and only then the compute-, determine- and display-methods.
-2. **Those methods appear in alphabetical order**, and each is separated from the next by **two blank lines**.
+2. **Alphabetical order applies WITHIN a `#####` banner section, not across the whole file** -- the maintainer's
+   instruction, 28-Aug-2026. A banner such as `### RAS: Restricted-Active-Space expansions ####...` marks a block
+   whose structs and methods belong to ONE topic, and that grouping carries real information: sorting the file
+   end-to-end would scatter a topic's methods among unrelated ones and destroy it. So the banners fix the order of
+   the SECTIONS, and alphabetical order arranges the methods INSIDE each section. In a file with no banners,
+   alphabetical order applies to the file as a whole, as before.
+   Each method is separated from the next by **two blank lines**.
 
 **Docstrings**
 

@@ -1,6 +1,4 @@
-#
 # Two-photon absorption by monochromatic and equally-polarized photons, usually from the same beam.
-#
 """
 `struct  MultiPhotonTransition.Channel_2pAbsorptionMonochromatic`  
     ... defines a type for a two-photon absorption channel for the absorption of monochromatic light with well-defined 
@@ -105,7 +103,6 @@ function  computeLines(scheme::TwoPhotonAbsorptionScheme, finalMultiplet::Multip
     printstyled("MultiPhotonTransition.computeLines(::TwoPhotonAbsorptionScheme): The computation of amplitudes starts now ... \n", color=:light_green)
     printstyled("---------------------------------------------------------------------------------------------------------------------- \n", color=:light_green)
     println("")
-    #
     lines = MultiPhotonTransition.determineLines_2pAbsorptionMonochromatic(finalMultiplet, initialMultiplet, settings)
     # Display all selected lines before the computations start
     if  settings.printBefore    MultiPhotonTransition.displayLines_2pAbsorptionMonochromatic(lines)    end
@@ -120,7 +117,6 @@ function  computeLines(scheme::TwoPhotonAbsorptionScheme, finalMultiplet::Multip
     MultiPhotonTransition.displayResults_2pAbsorptionMonochromatic(stdout, settings.scheme.properties, newLines)
     printSummary, iostream = Defaults.getDefaults("summary flag/stream")
     if  printSummary    MultiPhotonTransition.displayResults_2pAbsorptionMonochromatic(iostream, settings.scheme.properties, newLines)  end
-    #
     if    output    return( newLines )
     else            return( nothing )
     end
@@ -184,27 +180,27 @@ function  computeProperties_2pAbsorptionMonochromatic(line::MultiPhotonTransitio
             csUnpolarized = EmProperty( totalCs_Cou,  totalCs_Bab)
         end
     end
-    ## THE DENSITY-MATRIX CROSS SECTION for arbitrary Stokes parameters (added 07-Aug-2026). It had been listed
-    ## among the properties since the module was written but was never a field, never computed and never
-    ## displayed, so requesting it did nothing at all.
-    ##
-    ## For a J = 0 -> J = 0 transition through two E1 photons the polarization dependence closes in a simple
-    ## form. Only the MIXED-helicity channel contributes: two photons of equal helicity would have to deliver
-    ## two units of angular momentum along the beam, which a 0 -> 0 transition cannot absorb. Writing the
-    ## photon density matrix in the helicity basis as rho = 1/2 [[1+P3, P1-iP2], [P1+iP2, 1-P3]] and taking the
-    ## two photons as independent draws from the same beam (rho (x) rho, which is the correct description of two
-    ## photons from ONE beam) gives
-    ##
-    ##     sigma(P1,P2,P3)  =  sigma_unpolarized * (1 + P1^2 + P2^2 - P3^2)
-    ##
-    ## and this reproduces all three special cases exactly: linear (1,0,0) -> 2*sigma_unpol = sigma_linear;
-    ## right-circular (0,0,1) -> 0; unpolarized (0,0,0) -> sigma_unpol. Those identities are checks in
-    ## themselves, fixed by angular algebra and independent of any normalisation or of the wave functions.
-    ##
-    ## LIMITATION, stated rather than hidden: the closed form above is derived for J_i = J_f = 0, where only
-    ## K = 0 contributes. For a general transition several K contribute with different polarization weights and
-    ## this expression does NOT apply; it is therefore computed only when both levels have J = 0, and left at
-    ## zero otherwise rather than silently returning a wrong number.
+    # THE DENSITY-MATRIX CROSS SECTION for arbitrary Stokes parameters (added 07-Aug-2026). It had been listed
+    # among the properties since the module was written but was never a field, never computed and never
+    # displayed, so requesting it did nothing at all.
+    #
+    # For a J = 0 -> J = 0 transition through two E1 photons the polarization dependence closes in a simple
+    # form. Only the MIXED-helicity channel contributes: two photons of equal helicity would have to deliver
+    # two units of angular momentum along the beam, which a 0 -> 0 transition cannot absorb. Writing the
+    # photon density matrix in the helicity basis as rho = 1/2 [[1+P3, P1-iP2], [P1+iP2, 1-P3]] and taking the
+    # two photons as independent draws from the same beam (rho (x) rho, which is the correct description of two
+    # photons from ONE beam) gives
+    #
+    #     sigma(P1,P2,P3)  =  sigma_unpolarized * (1 + P1^2 + P2^2 - P3^2)
+    #
+    # and this reproduces all three special cases exactly: linear (1,0,0) -> 2*sigma_unpol = sigma_linear;
+    # right-circular (0,0,1) -> 0; unpolarized (0,0,0) -> sigma_unpol. Those identities are checks in
+    # themselves, fixed by angular algebra and independent of any normalisation or of the wave functions.
+    #
+    # LIMITATION, stated rather than hidden: the closed form above is derived for J_i = J_f = 0, where only
+    # K = 0 contributes. For a general transition several K contribute with different polarization weights and
+    # this expression does NOT apply; it is therefore computed only when both levels have J = 0, and left at
+    # zero otherwise rather than silently returning a wrong number.
     stokes = settings.stokes
     if  Basics.twice(line.initialLevel.J) == 0  &&  Basics.twice(line.finalLevel.J) == 0
         wp  = 1.0 + stokes.P1^2 + stokes.P2^2 - stokes.P3^2
@@ -236,8 +232,8 @@ function computeReducedAmplitudeAbsorption(K::AngularJ64, finalLevel::Level, mul
     U = Complex(0.);    nuLevels = MultiPhotonTransition.intermediateLevels(intermediateStates, Jsym)
     found = length(nuLevels) > 0
     for  nuLevel in nuLevels
-        ## A vanishing denominator is a RESONANT intermediate level, where the non-resonant perturbative
-        ## expression does not apply; it is skipped rather than silently producing an enormous cross section.
+        # A vanishing denominator is a RESONANT intermediate level, where the non-resonant perturbative
+        # expression does not apply; it is skipped rather than silently producing an enormous cross section.
         denom = initialLevel.energy + omega - nuLevel.energy
         if  abs(denom) < selfTolerance    continue    end
         U = U + PhotoEmission.amplitude(Absorption(), multipole2, gauge, omega, finalLevel, nuLevel, grid,
@@ -330,23 +326,23 @@ function computeTotalCsLinear(line::MultiPhotonTransition.Line_2pAbsorptionMonoc
         end
     end
     
-    ## println("computeTotalCsLinear: tcs = $tcs")
-    ## PREFACTOR CORRECTED 11-Aug-2026.  It read  8*pi^5 * alpha^2 ...  and therefore carried alpha^2 where
-    ## the radiation relation requires c^2 = 1/alpha^2.  Two independent arguments fix this:
-    ##  (i) DIMENSIONS.  Comparing this module's own two-photon emission and absorption for the SAME
-    ##      transition, the unconverged intermediate sum cancels and only radiation physics remains,
-    ##          dA/domega_1 = (g_l/g_u) * delta * omega_1^2 omega_2^2 / (pi^4 c^4),   delta = hbar*sigma,
-    ##      each photon contributing the mode density c*rho(omega) = omega^2/(pi^2 c^2) that also makes the
-    ##      one-photon Einstein relation come out right.  With the OLD prefactor the ratio of the two
-    ##      routines carried NO power of c at all, alpha^2 cancelling between them, while the relation
-    ##      demands c^-4: a cross section and a rate cannot differ by no power of alpha.
-    ##  (ii) INTERNALLY.  computeTotalAlpha0 in this same file already divides by alpha^2.
-    ## Measured before the change: emission/absorption exceeded the relation by 1.63264e7 at Z = 1 and
-    ## 1.63255e7 at Z = 2 -- constant to 6e-5 over a fourfold change in omega, so a pure prefactor.  It
-    ## decomposes exactly as c^4/4 = 8.81614e7 times 0.185188.  The c^4/4 is installed here; the residual
-    ## 0.185188 (0.656 per single-photon amplitude) is NOT, being still unexplained -- it most likely
-    ## reflects how the reduced matrix elements carry their (2J+1) weights when amplitude(::Absorption)
-    ## conjugates and swaps the levels.  Absolute cross sections therefore remain low by about 5.4.
+    # println("computeTotalCsLinear: tcs = $tcs")
+    # PREFACTOR CORRECTED 11-Aug-2026.  It read  8*pi^5 * alpha^2 ...  and therefore carried alpha^2 where
+    # the radiation relation requires c^2 = 1/alpha^2.  Two independent arguments fix this:
+    #  (i) DIMENSIONS.  Comparing this module's own two-photon emission and absorption for the SAME
+    #      transition, the unconverged intermediate sum cancels and only radiation physics remains,
+    #          dA/domega_1 = (g_l/g_u) * delta * omega_1^2 omega_2^2 / (pi^4 c^4),   delta = hbar*sigma,
+    #      each photon contributing the mode density c*rho(omega) = omega^2/(pi^2 c^2) that also makes the
+    #      one-photon Einstein relation come out right.  With the OLD prefactor the ratio of the two
+    #      routines carried NO power of c at all, alpha^2 cancelling between them, while the relation
+    #      demands c^-4: a cross section and a rate cannot differ by no power of alpha.
+    #  (ii) INTERNALLY.  computeTotalAlpha0 in this same file already divides by alpha^2.
+    # Measured before the change: emission/absorption exceeded the relation by 1.63264e7 at Z = 1 and
+    # 1.63255e7 at Z = 2 -- constant to 6e-5 over a fourfold change in omega, so a pure prefactor.  It
+    # decomposes exactly as c^4/4 = 8.81614e7 times 0.185188.  The c^4/4 is installed here; the residual
+    # 0.185188 (0.656 per single-photon amplitude) is NOT, being still unexplained -- it most likely
+    # reflects how the reduced matrix elements carry their (2J+1) weights when amplitude(::Absorption)
+    # conjugates and swaps the levels.  Absolute cross sections therefore remain low by about 5.4.
     tcs = tcs * 2*pi^5 / Defaults.getDefaults("alpha")^2 / (Basics.twice(line.initialLevel.J) + 1) / omega^2
     
     return( tcs )
@@ -412,22 +408,22 @@ function computeTotalCsRightCircular(line::MultiPhotonTransition.Line_2pAbsorpti
         end
     end
 
-    ## PREFACTOR CORRECTED 11-Aug-2026.  It read  8*pi^5 * alpha^2 ...  and therefore carried alpha^2 where
-    ## the radiation relation requires c^2 = 1/alpha^2.  Two independent arguments fix this:
-    ##  (i) DIMENSIONS.  Comparing this module's own two-photon emission and absorption for the SAME
-    ##      transition, the unconverged intermediate sum cancels and only radiation physics remains,
-    ##          dA/domega_1 = (g_l/g_u) * delta * omega_1^2 omega_2^2 / (pi^4 c^4),   delta = hbar*sigma,
-    ##      each photon contributing the mode density c*rho(omega) = omega^2/(pi^2 c^2) that also makes the
-    ##      one-photon Einstein relation come out right.  With the OLD prefactor the ratio of the two
-    ##      routines carried NO power of c at all, alpha^2 cancelling between them, while the relation
-    ##      demands c^-4: a cross section and a rate cannot differ by no power of alpha.
-    ##  (ii) INTERNALLY.  computeTotalAlpha0 in this same file already divides by alpha^2.
-    ## Measured before the change: emission/absorption exceeded the relation by 1.63264e7 at Z = 1 and
-    ## 1.63255e7 at Z = 2 -- constant to 6e-5 over a fourfold change in omega, so a pure prefactor.  It
-    ## decomposes exactly as c^4/4 = 8.81614e7 times 0.185188.  The c^4/4 is installed here; the residual
-    ## 0.185188 (0.656 per single-photon amplitude) is NOT, being still unexplained -- it most likely
-    ## reflects how the reduced matrix elements carry their (2J+1) weights when amplitude(::Absorption)
-    ## conjugates and swaps the levels.  Absolute cross sections therefore remain low by about 5.4.
+    # PREFACTOR CORRECTED 11-Aug-2026.  It read  8*pi^5 * alpha^2 ...  and therefore carried alpha^2 where
+    # the radiation relation requires c^2 = 1/alpha^2.  Two independent arguments fix this:
+    #  (i) DIMENSIONS.  Comparing this module's own two-photon emission and absorption for the SAME
+    #      transition, the unconverged intermediate sum cancels and only radiation physics remains,
+    #          dA/domega_1 = (g_l/g_u) * delta * omega_1^2 omega_2^2 / (pi^4 c^4),   delta = hbar*sigma,
+    #      each photon contributing the mode density c*rho(omega) = omega^2/(pi^2 c^2) that also makes the
+    #      one-photon Einstein relation come out right.  With the OLD prefactor the ratio of the two
+    #      routines carried NO power of c at all, alpha^2 cancelling between them, while the relation
+    #      demands c^-4: a cross section and a rate cannot differ by no power of alpha.
+    #  (ii) INTERNALLY.  computeTotalAlpha0 in this same file already divides by alpha^2.
+    # Measured before the change: emission/absorption exceeded the relation by 1.63264e7 at Z = 1 and
+    # 1.63255e7 at Z = 2 -- constant to 6e-5 over a fourfold change in omega, so a pure prefactor.  It
+    # decomposes exactly as c^4/4 = 8.81614e7 times 0.185188.  The c^4/4 is installed here; the residual
+    # 0.185188 (0.656 per single-photon amplitude) is NOT, being still unexplained -- it most likely
+    # reflects how the reduced matrix elements carry their (2J+1) weights when amplitude(::Absorption)
+    # conjugates and swaps the levels.  Absolute cross sections therefore remain low by about 5.4.
     tcs = tcs * 2*pi^5 / Defaults.getDefaults("alpha")^2 / (Basics.twice(line.initialLevel.J) + 1) / omega^2
 
     return( tcs )
@@ -445,20 +441,20 @@ function computeTotalCsUnpolarized(line::MultiPhotonTransition.Line_2pAbsorption
     symi = LevelSymmetry(line.initialLevel.J, line.initialLevel.parity);    symf = LevelSymmetry(line.finalLevel.J, line.finalLevel.parity) 
     
     for  K in Klist
-        ## ODD K IS FORBIDDEN FOR TWO PHOTONS FROM THE SAME BEAM (added 07-Aug-2026). They are identical bosons,
-        ## so the two-photon polarization state must be SYMMETRIC; exchanging the two multipoles in the 3-j
-        ## carries (-1)^(L1+L2+K), i.e. (-1)^K for E1E1, so odd K is antisymmetric and cannot contribute.
-        ##
-        ## LINEAR light got this right by accident: its helicity sum is COHERENT, so the (+,-) and (-,+) terms
-        ## cancel for odd K on their own. The UNPOLARIZED sum is incoherent -- |+-> and |-+> are accumulated as
-        ## separate states, and neither is individually symmetric -- so odd K survived spuriously there.
-        ## MEASURED: for H 1s -> 2s (J = 1/2 -> 1/2, K = {0,1}) K = 1 supplied 92 % of the unpolarized cross
-        ## section, while the K = 0 part was already correct (0.107e-27 against 0.214e-27 for linear -- exactly
-        ## the factor 2 that Mg gives, and Mg is K = 0 only).
-        ##
-        ## NOTE this restriction belongs to the MONOCHROMATIC single-beam scheme ONLY. With two distinguishable
-        ## beams the photons are not identical and every K contributes -- which is one more reason the
-        ## bichromatic case is worth completing.
+        # ODD K IS FORBIDDEN FOR TWO PHOTONS FROM THE SAME BEAM (added 07-Aug-2026). They are identical bosons,
+        # so the two-photon polarization state must be SYMMETRIC; exchanging the two multipoles in the 3-j
+        # carries (-1)^(L1+L2+K), i.e. (-1)^K for E1E1, so odd K is antisymmetric and cannot contribute.
+        #
+        # LINEAR light got this right by accident: its helicity sum is COHERENT, so the (+,-) and (-,+) terms
+        # cancel for odd K on their own. The UNPOLARIZED sum is incoherent -- |+-> and |-+> are accumulated as
+        # separate states, and neither is individually symmetric -- so odd K survived spuriously there.
+        # MEASURED: for H 1s -> 2s (J = 1/2 -> 1/2, K = {0,1}) K = 1 supplied 92 % of the unpolarized cross
+        # section, while the K = 0 part was already correct (0.107e-27 against 0.214e-27 for linear -- exactly
+        # the factor 2 that Mg gives, and Mg is K = 0 only).
+        #
+        # NOTE this restriction belongs to the MONOCHROMATIC single-beam scheme ONLY. With two distinguishable
+        # beams the photons are not identical and every K contributes -- which is one more reason the
+        # bichromatic case is worth completing.
         if  isodd( Int(Basics.twice(K)/2) )    continue    end
         qList = AngularMomentum.m_values(K)
         for  q in qList
@@ -485,22 +481,22 @@ function computeTotalCsUnpolarized(line::MultiPhotonTransition.Line_2pAbsorption
         end
     end
     
-    ## PREFACTOR CORRECTED 11-Aug-2026.  It read  8*pi^5 * alpha^2 ...  and therefore carried alpha^2 where
-    ## the radiation relation requires c^2 = 1/alpha^2.  Two independent arguments fix this:
-    ##  (i) DIMENSIONS.  Comparing this module's own two-photon emission and absorption for the SAME
-    ##      transition, the unconverged intermediate sum cancels and only radiation physics remains,
-    ##          dA/domega_1 = (g_l/g_u) * delta * omega_1^2 omega_2^2 / (pi^4 c^4),   delta = hbar*sigma,
-    ##      each photon contributing the mode density c*rho(omega) = omega^2/(pi^2 c^2) that also makes the
-    ##      one-photon Einstein relation come out right.  With the OLD prefactor the ratio of the two
-    ##      routines carried NO power of c at all, alpha^2 cancelling between them, while the relation
-    ##      demands c^-4: a cross section and a rate cannot differ by no power of alpha.
-    ##  (ii) INTERNALLY.  computeTotalAlpha0 in this same file already divides by alpha^2.
-    ## Measured before the change: emission/absorption exceeded the relation by 1.63264e7 at Z = 1 and
-    ## 1.63255e7 at Z = 2 -- constant to 6e-5 over a fourfold change in omega, so a pure prefactor.  It
-    ## decomposes exactly as c^4/4 = 8.81614e7 times 0.185188.  The c^4/4 is installed here; the residual
-    ## 0.185188 (0.656 per single-photon amplitude) is NOT, being still unexplained -- it most likely
-    ## reflects how the reduced matrix elements carry their (2J+1) weights when amplitude(::Absorption)
-    ## conjugates and swaps the levels.  Absolute cross sections therefore remain low by about 5.4.
+    # PREFACTOR CORRECTED 11-Aug-2026.  It read  8*pi^5 * alpha^2 ...  and therefore carried alpha^2 where
+    # the radiation relation requires c^2 = 1/alpha^2.  Two independent arguments fix this:
+    #  (i) DIMENSIONS.  Comparing this module's own two-photon emission and absorption for the SAME
+    #      transition, the unconverged intermediate sum cancels and only radiation physics remains,
+    #          dA/domega_1 = (g_l/g_u) * delta * omega_1^2 omega_2^2 / (pi^4 c^4),   delta = hbar*sigma,
+    #      each photon contributing the mode density c*rho(omega) = omega^2/(pi^2 c^2) that also makes the
+    #      one-photon Einstein relation come out right.  With the OLD prefactor the ratio of the two
+    #      routines carried NO power of c at all, alpha^2 cancelling between them, while the relation
+    #      demands c^-4: a cross section and a rate cannot differ by no power of alpha.
+    #  (ii) INTERNALLY.  computeTotalAlpha0 in this same file already divides by alpha^2.
+    # Measured before the change: emission/absorption exceeded the relation by 1.63264e7 at Z = 1 and
+    # 1.63255e7 at Z = 2 -- constant to 6e-5 over a fourfold change in omega, so a pure prefactor.  It
+    # decomposes exactly as c^4/4 = 8.81614e7 times 0.185188.  The c^4/4 is installed here; the residual
+    # 0.185188 (0.656 per single-photon amplitude) is NOT, being still unexplained -- it most likely
+    # reflects how the reduced matrix elements carry their (2J+1) weights when amplitude(::Absorption)
+    # conjugates and swaps the levels.  Absolute cross sections therefore remain low by about 5.4.
     tcs = tcs * 2*pi^5 / Defaults.getDefaults("alpha")^2 / (Basics.twice(line.initialLevel.J) + 1) / omega^2
     
     return( tcs )
@@ -526,7 +522,7 @@ function getReducedAmplitudeAbsorption(K::AngularJ64, finalLevel::Level, multipo
     end 
     
     if    found                                
-            ## println("U^{K, 2gamma absorption} (..) = $U   ** amplitude found. ")
+            # println("U^{K, 2gamma absorption} (..) = $U   ** amplitude found. ")
     else  println("U^{$K, 2gamma absorption} (Jf, mp2=$multipole2, Jsym=$Jsym, omega=$omega, mp1=$multipole1, Ji)  ** NO amplitude found.")
     end 
     
@@ -550,13 +546,13 @@ function determineChannels_2pAbsorptionMonochromatic(omega::Float64, finalLevel:
             Klist       = oplus(symf.J, symi.J)
             for  symn in symmetries
                 for  gauge in settings.gauges
-                    ## THE SECOND CONDITION WAS DEAD until 08-Aug-2026: it read
-                    ##     elseif string(mp1)[1] == 'E'  string(mp2)[1] == 'E'  &&  gauge == Basics.UseBabushkin
-                    ## without the first `&&`, which Julia parses as a condition on mp1 ALONE followed by a
-                    ## no-op expression -- so the test on mp2 and the test on the gauge were both discarded.
-                    ## Harmless for E1E1, which is all this module has ever been run with, and wrong as soon as
-                    ## mixed multipoles are requested: an (E1, M1) pair with gauge = UseCoulomb fell through to
-                    ## here and was pushed as a BABUSHKIN channel. Fixed; E1E1 results are bit-identical.
+                    # THE SECOND CONDITION WAS DEAD until 08-Aug-2026: it read
+                    #     elseif string(mp1)[1] == 'E'  string(mp2)[1] == 'E'  &&  gauge == Basics.UseBabushkin
+                    # without the first `&&`, which Julia parses as a condition on mp1 ALONE followed by a
+                    # no-op expression -- so the test on mp2 and the test on the gauge were both discarded.
+                    # Harmless for E1E1, which is all this module has ever been run with, and wrong as soon as
+                    # mixed multipoles are requested: an (E1, M1) pair with gauge = UseCoulomb fell through to
+                    # here and was pushed as a BABUSHKIN channel. Fixed; E1E1 results are bit-identical.
                     # Include further restrictions if appropriate
                     if     string(mp1)[1] == 'E' && string(mp2)[1] == 'E'  &&   gauge == Basics.UseCoulomb
                         for K in Klist  push!(channels, MultiPhotonTransition.Channel_2pAbsorptionMonochromatic(K, omega, mp1, mp2, Basics.Coulomb, symn, 0.) )     end
@@ -621,7 +617,6 @@ function  displayLines_2pAbsorptionMonochromatic(lines::Array{MultiPhotonTransit
     sa = sa * TableStrings.flushleft(90, "List of multipoles & intermediate level symmetries"; na=4)            
     sb = sb * TableStrings.flushleft(90, "(K-rank, multipole_1, Jsym, multipole_2, gauge), ..."; na=4)
     println(sa);    println(sb);    println("  ", TableStrings.hLine(nx)) 
-    #   
     for  line in lines
         sa  = "";    isym = LevelSymmetry( line.initialLevel.J, line.initialLevel.parity)
                         fsym = LevelSymmetry( line.finalLevel.J,   line.finalLevel.parity)
@@ -641,7 +636,6 @@ function  displayLines_2pAbsorptionMonochromatic(lines::Array{MultiPhotonTransit
         end
     end
     println("  ", TableStrings.hLine(nx))
-    #
     return( nothing )
 end
 
@@ -672,7 +666,6 @@ function  displayTotalAlpha0_2pAbsorptionMonochromatic(stream::IO, properties::A
     sb = sb * TableStrings.center(28, "[cm^4/Ws]"  * "           " * "[cm^4/Ws]"; na=8)
 
     println(stream, sa);    println(stream, sb);    println(stream, "  ", TableStrings.hLine(nx)) 
-    #   
     for  line in lines
         sa  = "";    isym = LevelSymmetry( line.initialLevel.J, line.initialLevel.parity)
                         fsym = LevelSymmetry( line.finalLevel.J,   line.finalLevel.parity)
@@ -691,7 +684,6 @@ function  displayTotalAlpha0_2pAbsorptionMonochromatic(stream::IO, properties::A
         println(stream, sa )
     end
     println(stream, "  ", TableStrings.hLine(nx))
-    #
     return( nothing )
 end
 
@@ -707,14 +699,14 @@ function  displayResults_2pAbsorptionMonochromatic(stream::IO, properties::Array
                                                     lines::Array{Line_2pAbsorptionMonochromatic,1})
     nx = 75
     wx = Defaults.convertUnits("length: from atomic to cm", 1.0)^4 / Defaults.convertUnits("energy: from atomic to Ws", 1.0)
-    ## wx = wx * Defaults.convertUnits("time: from atomic to sec", 1.0)
+    # wx = wx * Defaults.convertUnits("time: from atomic to sec", 1.0)
     println(stream, " ")
     println(stream, "  Two-photon absorption by monochromatic and equally-polarized photons (usually from the same beam):")
     println(stream, " ")
-    ## THE UNIT LABEL SAID cm^4/W WHILE wx COMPUTES cm^4/(W s) -- the header and the conversion disagreed.
-    ## Corrected to match what is actually computed. NOTE the ABSOLUTE normalisation of these cross sections has
-    ## NOT been derived or verified (unlike the emission prefactor, checked against H 2s -> 1s), so the numbers
-    ## are provisional; the POLARIZATION RATIOS below are not, being fixed by angular algebra alone.
+    # THE UNIT LABEL SAID cm^4/W WHILE wx COMPUTES cm^4/(W s) -- the header and the conversion disagreed.
+    # Corrected to match what is actually computed. NOTE the ABSOLUTE normalisation of these cross sections has
+    # NOT been derived or verified (unlike the emission prefactor, checked against H 2s -> 1s), so the numbers
+    # are provisional; the POLARIZATION RATIOS below are not, being fixed by angular algebra alone.
     println(stream, "  Cross sections [cm^4/Ws] are given for (absolute scale NOT yet verified):")
     noCs = 0  # Number of cross sections to be printed
     for property in properties
@@ -745,7 +737,6 @@ function  displayResults_2pAbsorptionMonochromatic(stream::IO, properties::Array
     end
 
     println(stream, sa);    println(stream, sb);    println(stream, "  ", TableStrings.hLine(nx + 34noCs)) 
-    #   
     for  line in lines
         sa  = "";    isym = LevelSymmetry( line.initialLevel.J, line.initialLevel.parity)
                         fsym = LevelSymmetry( line.finalLevel.J,   line.finalLevel.parity)
@@ -772,12 +763,9 @@ function  displayResults_2pAbsorptionMonochromatic(stream::IO, properties::Array
         println(stream, sa )
     end
     println(stream, "  ", TableStrings.hLine(nx + 34noCs))
-    #
-    #
     # Display the TotalAlpha0 parameters if calculated
     if  TotalAlpha0()  in   properties
         MultiPhotonTransition.displayTotalAlpha0_2pAbsorptionMonochromatic(stream, properties, lines)
     end
-    #
     return( nothing )
 end

@@ -10,7 +10,7 @@
 """
 function solveMeanFieldBasis(basis::Basis, nuclearModel::Nuclear.Model, primitives::Bsplines.Primitives, 
                              settings::AsfSettings; printout::Bool=true)
-    ## Defaults.setDefaults("standard grid", primitives.grid; printout=printout)
+    # Defaults.setDefaults("standard grid", primitives.grid; printout=printout)
     # Define the storage for the calculations of matrices
     if  printout    println(">> (Re-) Define a storage array for dealing with single-electron TTp B-spline matrices:")    end
     storage  = Dict{String,Array{Float64,2}}()
@@ -37,14 +37,13 @@ function solveMeanFieldBasis(basis::Basis, nuclearModel::Nuclear.Model, primitiv
         if  NoIteration >  settings.maxIterationsScf
                 println(">> Maximum number of SCF iterations = $(settings.maxIterationsScf) is reached at accuracy " * 
                         @sprintf("%.4e", accuracyScf) * " ... computations proceed.")
-                ## Collected as well; see the note at solveAverageAtomField above.
+                # Collected as well; see the note at solveAverageAtomField above.
                 Defaults.warn(AddWarning(), "SelfConsistent.solveMeanFieldBasis(): the SCF did NOT converge for " *
                               string(basis.subshells) * " -- stopped at accuracy " * @sprintf("%.1e", accuracyScf) *
                               " after $(settings.maxIterationsScf) iterations.")
             break
         end
         if  printout    println("\nIteration $NoIteration for symmetries ... ")    end
-        #
         for kappa in kappas
             # (1) First re-define an (arbitrary) 'level' that represents the mean occupation for the local potential
             wBasis = Basis(true, basis.NoElectrons, basis.subshells, basis.csfs, basis.coreSubshells, previousOrbitals)
@@ -134,8 +133,8 @@ function solveMeanFieldBasisAnderson(basis::Basis, nuclearModel::Nuclear.Model, 
     bsplineBlock = Dict{Int64,Basics.Eigen}();   previousOrbitals = deepcopy(basis.orbitals)
     for  kappa  in  kappas           bsplineBlock[kappa]  = Basics.Eigen( zeros(2), [zeros(2), zeros(2)])   end
 
-    ## The screening potential built from a given set of orbitals -- the right-hand side of the self-consistency
-    ## condition, and the vector Anderson works on.
+    # The screening potential built from a given set of orbitals -- the right-hand side of the self-consistency
+    # condition, and the vector Anderson works on.
     function screeningZr(orbitals)
         wBasis = Basis(true, basis.NoElectrons, basis.subshells, basis.csfs, basis.coreSubshells, orbitals)
         NoCsf  = length(wBasis.csfs)
@@ -154,7 +153,7 @@ function solveMeanFieldBasisAnderson(basis::Basis, nuclearModel::Nuclear.Model, 
         if  NoIteration >  settings.maxIterationsScf
                 println(">> Maximum number of SCF iterations = $(settings.maxIterationsScf) is reached at accuracy " *
                         @sprintf("%.4e", accuracyScf) * " ... computations proceed.")
-                ## Collected as well; see the note at solveAverageAtomField above.
+                # Collected as well; see the note at solveAverageAtomField above.
                 Defaults.warn(AddWarning(), "SelfConsistent.solveMeanFieldBasisAnderson(): the SCF did NOT converge for " *
                               string(basis.subshells) * " -- stopped at accuracy " * @sprintf("%.1e", accuracyScf) *
                               " after $(settings.maxIterationsScf) iterations.")
@@ -162,7 +161,6 @@ function solveMeanFieldBasisAnderson(basis::Basis, nuclearModel::Nuclear.Model, 
         end
         if  printout    println("\nIteration $NoIteration for symmetries ... ")    end
         pot = Basics.add(nuclearPotential, Radial.Potential("mean field", xUsed, primitives.grid))
-        #
         for kappa in kappas
             wa = Bsplines.setupLocalMatrix(kappa, primitives, pot, storage)
             wc = Bsplines.diagonalizeLocalMatrix(kappa, wa, wb, primitives)
@@ -184,9 +182,8 @@ function solveMeanFieldBasisAnderson(basis::Basis, nuclearModel::Nuclear.Model, 
             bsplineBlock[kappa] = wc
         end
         if  go_on   nothing   else   break   end
-        #
-        ## The self-consistency residual: what the orbitals just obtained say the screening potential should be,
-        ## minus what was actually used to obtain them. It vanishes exactly at the self-consistent solution.
+        # The self-consistency residual: what the orbitals just obtained say the screening potential should be,
+        # minus what was actually used to obtain them. It vanishes exactly at the self-consistent solution.
         gNew = screeningZr(previousOrbitals);    fNew = gNew - xUsed
         if  andersonDepth <= 0
             xUsed = gNew                                                        ## plain (Jacobi) iteration
@@ -198,8 +195,8 @@ function solveMeanFieldBasisAnderson(basis::Basis, nuclearModel::Nuclear.Model, 
             m = length(xHistory) - 1
             if  m < 1     xUsed = gNew                                          ## no history yet
             else
-                ## Least squares: choose the combination of the last m residual DIFFERENCES that best cancels
-                ## the current residual, then apply it to the iterates as well (standard Anderson, beta = 1).
+                # Least squares: choose the combination of the last m residual DIFFERENCES that best cancels
+                # the current residual, then apply it to the iterates as well (standard Anderson, beta = 1).
                 dF = zeros( length(fNew), m );   dX = zeros( length(fNew), m )
                 for j = 1:m   dF[:,j] = fHistory[j+1] - fHistory[j];   dX[:,j] = xHistory[j+1] - xHistory[j]   end
                 local gamma

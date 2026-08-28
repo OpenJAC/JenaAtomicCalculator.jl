@@ -1,6 +1,4 @@
-#
 # Two-photon emission of initially-unpolarized atoms.
-#
 """
 `struct  MultiPhotonTransition.ReducedChannel_2pEmission`  
     ... defines a type for a two-photon emission channel for the emission of photons with well-defined 
@@ -115,33 +113,33 @@ function computeEnergyDiffCs(sharing::MultiPhotonTransition.Sharing_2pEmission, 
             symmetries  = AngularMomentum.allowedTotalSymmetries(symf, mp2, mp1, symi)
             Klist       = oplus(line.finalLevel.J, line.initialLevel.J)
             for Jsym in symmetries
-                ## THE MODULUS IS TAKEN PER K (corrected 06-Aug-2026). The K-sum used to sit INSIDE abs(), i.e.
-                ## dcs += |sum_K M_K|^2 instead of sum_K |M_K|^2, and that is wrong twice over.
-                ##
-                ## PHYSICALLY: different K are different total angular-momentum transfers between the initial and
-                ## final level. For an initially unpolarized atom and an angle-integrated rate they are
-                ## distinguishable channels and cannot interfere; their squares add.
-                ##
-                ## AND IT BROKE THE omega1 <-> omega2 SYMMETRY, which is how it was found. Writing the two photon
-                ## orderings as A_K and B_K with phase p_K, the old expression was sum_K (A_K + p_K B_K); under
-                ## omega1 <-> omega2 the orderings exchange, giving sum_K (B_K + p_K A_K). Those two agree only if
-                ## p_K is the SAME for every K. For H 2s -> 1s, J_i = J_f = 1/2 gives Klist = {0,1} and
-                ## p_K = (-1)^(K+1) = -1, +1 -- so they differ, and the computed spectrum came out asymmetric by
-                ## 60-90 % even though the two emitted photons are indistinguishable. Per K, p_K = +-1 gives
-                ## |wk'| = |wk| identically, so taking the modulus first restores the symmetry exactly.
+                # THE MODULUS IS TAKEN PER K (corrected 06-Aug-2026). The K-sum used to sit INSIDE abs(), i.e.
+                # dcs += |sum_K M_K|^2 instead of sum_K |M_K|^2, and that is wrong twice over.
+                #
+                # PHYSICALLY: different K are different total angular-momentum transfers between the initial and
+                # final level. For an initially unpolarized atom and an angle-integrated rate they are
+                # distinguishable channels and cannot interfere; their squares add.
+                #
+                # AND IT BROKE THE omega1 <-> omega2 SYMMETRY, which is how it was found. Writing the two photon
+                # orderings as A_K and B_K with phase p_K, the old expression was sum_K (A_K + p_K B_K); under
+                # omega1 <-> omega2 the orderings exchange, giving sum_K (B_K + p_K A_K). Those two agree only if
+                # p_K is the SAME for every K. For H 2s -> 1s, J_i = J_f = 1/2 gives Klist = {0,1} and
+                # p_K = (-1)^(K+1) = -1, +1 -- so they differ, and the computed spectrum came out asymmetric by
+                # 60-90 % even though the two emitted photons are indistinguishable. Per K, p_K = +-1 gives
+                # |wk'| = |wk| identically, so taking the modulus first restores the symmetry exactly.
                 for  K in Klist
                     wk =  MultiPhotonTransition.getReducedAmplitudeEmission(K, line.finalLevel, omega2, mp2, Jsym, omega1, mp1,
                                                                                         line.initialLevel, gauge, line.sharings) +
-                            ## EXCHANGE PHASE (-1)^(L1+L2-K), not (-1)^(K+J_f+J_i)  -- A1, 07-Aug-2026.
-                            ## The two emitted photons are identical bosons, so the amplitude must be symmetric
-                            ## under exchanging them. Exchanging two coupled multipoles carries
-                            ## (-1)^(L1+L2-K); for E1E1 that is (-1)^K. The previous factor was (-1)^(K+J_f+J_i),
-                            ## which for J_i = J_f = 1/2 equals -(-1)^K -- an overall sign that SWAPS which K
-                            ## adds its two orderings and which cancels.
-                            ## MEASURED CONSEQUENCE: for H 2s -> 1s the 2E1 operator is spin-independent and
-                            ## orbitally rank 0 (l = 0 -> 0), hence a total scalar, so K = 1 must vanish up to
-                            ## (Z alpha)^2 ~ 1e-5. With the old phase K = 1 carried 48 % of the rate; with this
-                            ## one it carries 7 %.
+                            # EXCHANGE PHASE (-1)^(L1+L2-K), not (-1)^(K+J_f+J_i)  -- A1, 07-Aug-2026.
+                            # The two emitted photons are identical bosons, so the amplitude must be symmetric
+                            # under exchanging them. Exchanging two coupled multipoles carries
+                            # (-1)^(L1+L2-K); for E1E1 that is (-1)^K. The previous factor was (-1)^(K+J_f+J_i),
+                            # which for J_i = J_f = 1/2 equals -(-1)^K -- an overall sign that SWAPS which K
+                            # adds its two orderings and which cancels.
+                            # MEASURED CONSEQUENCE: for H 2s -> 1s the 2E1 operator is spin-independent and
+                            # orbitally rank 0 (l = 0 -> 0), hence a total scalar, so K = 1 must vanish up to
+                            # (Z alpha)^2 ~ 1e-5. With the old phase K = 1 carried 48 % of the rate; with this
+                            # one it carries 7 %.
                             (-1.0)^( mp1.L + mp2.L - Basics.twice(K)/2 ) *
                                 MultiPhotonTransition.getReducedAmplitudeEmission(K, line.finalLevel, omega1, mp1, Jsym, omega2, mp2,
                                                                                         line.initialLevel, gauge, line.sharings)
@@ -150,53 +148,53 @@ function computeEnergyDiffCs(sharing::MultiPhotonTransition.Sharing_2pEmission, 
             end
         end
     end
-    ## THE PREFACTOR IS WRONG BY A CONSTANT FACTOR OF 26.7, MEASURED BUT NOT DERIVED -- OPEN ISSUE.
-    ##
-    ## (The value has moved twice for reasons that had nothing to do with this prefactor, so the history matters:
-    ## 12.98 -> 6.679 on 07-Aug-2026 with the exchange-phase fix A1, and 6.679 -> 26.7 on 08-Aug-2026 when the
-    ## two-photon TOTAL was corrected by a factor 4 -- the quadrature weights of Basics.determineEnergySharings
-    ## had been high by 2, and the indistinguishable-photon 1/2 was missing. Neither touched the DIFFERENTIAL
-    ## rate or the amplitude, so everything said below about the prefactor still applies; only the number to be
-    ## reproduced has changed. Older notes quote 6.679 or 12.98 and are stale by exactly 4 or 2.)
-    ##
-    ##     Z = 1: exact/computed = 26.717     Z = 2: 26.722     Z = 3: 26.731     (constant to 0.05 %)
-    ##     -- these follow from the measured 6.67935 / 6.68060 / 6.68268 by the EXACT factor 4; the factor was
-    ##        verified by re-running branch d of example-Dh.jl, where every differential rate is unchanged to
-    ##        all printed digits and the total is exactly 1/2 * sum(weight * differential) with the corrected
-    ##        weights, i.e. a quarter of what the same branch printed before.
-    ##     gauge ratio Cou/Bab = 0.9069 at every Z (was 0.5799 before the phase fix), UNAFFECTED by the factor 4
-    ##
-    ## STILL A PURE CONSTANT, so still a prefactor rather than a physics omission. NOT identified; deliberately
-    ## NOT calibrated away. Candidate forms that ALMOST fit (20/3 = 6.667, 21/pi = 6.685) are within 0.2 % but
-    ## there is no derivation behind either, and fitting a constant to a benchmark is what produced three false
-    ## conclusions here already.
-    ##
-    ## FOR THE RECORD, the pre-phase-fix analysis:
-    ##
-    ## Against the exact H 2s -> 1s rate 8.2206 * Z^6, with the sum CONVERGED (nmax 35/45/55 -> 0.6337/0.63349/
-    ## 0.6334) and the emission denominator corrected:
-    ##       Z = 1:  exact/computed = 12.9767      Z = 2: 12.9797      Z = 3: 12.9848
-    ## Constant to 0.06 % over a 729-fold change in rate, so it is a PREFACTOR, not a physics omission; the
-    ## residual 0.06 % drift is consistent with (Z alpha)^2 relativistic corrections entering.
-    ##
-    ## A MATCHING DERIVATION WAS ATTEMPTED AND FAILED ITS OWN ACCEPTANCE TEST. Matching JAC's one-photon
-    ## normalisation A_1 = 8 pi alpha omega/(2J_i+1) |T|^2 to the golden rule fixes the one-photon angular sum at
-    ## S = 16 pi^2 |T|^2/(2J_i+1); repeating for two photons AND ASSUMING the two-photon angular sum factorises
-    ## as the square of the one-photon one gives 32 pi, i.e. a factor 16 relative to the 2 pi below. Measured is
-    ## 12.98 -- 23 % away. The factorisation is the faulty step: the two photon multipoles are COUPLED to rank K
-    ## and the reduced amplitude carries a 6-j symbol, which that assumption discards.
-    ##
-    ## A LEAD, NOT A RESULT: 16/12.98 = 1.2327 and pi^2/8 = 1.2337 (0.08 %), which would make the constant
-    ## 128/pi^2 = 12.969. DELIBERATELY NOT INSTALLED -- pi^2/8 emerging from an angular factorisation already
-    ## known to be wrong is not evidence, and fitting a factor to a benchmark is the failure mode that produced
-    ## three earlier false conclusions here (the radial-box artifact, the "Cou/Bab = 1.0035" crossing, and the
-    ## spurious-pole "5.5 % agreement").
-    ##
-    ## THE CORRECT DERIVATION needs the angular reduction done properly: couple the two multipoles to K, carry
-    ## the 6-j through the polarisation and angle sums, do NOT factorise. Any candidate must reproduce
-    ## 12.98 +- 0.01 UNPROMPTED (that acceptance figure belongs to the pre-08-Aug totals; against the corrected
-    ## ones it is 4 x 12.98), and the second constant Cou/Bab = 0.5799 (also Z-independent, also unexplained)
-    ## is a further independent check on it.
+    # THE PREFACTOR IS WRONG BY A CONSTANT FACTOR OF 26.7, MEASURED BUT NOT DERIVED -- OPEN ISSUE.
+    #
+    # (The value has moved twice for reasons that had nothing to do with this prefactor, so the history matters:
+    # 12.98 -> 6.679 on 07-Aug-2026 with the exchange-phase fix A1, and 6.679 -> 26.7 on 08-Aug-2026 when the
+    # two-photon TOTAL was corrected by a factor 4 -- the quadrature weights of Basics.determineEnergySharings
+    # had been high by 2, and the indistinguishable-photon 1/2 was missing. Neither touched the DIFFERENTIAL
+    # rate or the amplitude, so everything said below about the prefactor still applies; only the number to be
+    # reproduced has changed. Older notes quote 6.679 or 12.98 and are stale by exactly 4 or 2.)
+    #
+    #     Z = 1: exact/computed = 26.717     Z = 2: 26.722     Z = 3: 26.731     (constant to 0.05 %)
+    #     -- these follow from the measured 6.67935 / 6.68060 / 6.68268 by the EXACT factor 4; the factor was
+    #        verified by re-running branch d of example-Dh.jl, where every differential rate is unchanged to
+    #        all printed digits and the total is exactly 1/2 * sum(weight * differential) with the corrected
+    #        weights, i.e. a quarter of what the same branch printed before.
+    #     gauge ratio Cou/Bab = 0.9069 at every Z (was 0.5799 before the phase fix), UNAFFECTED by the factor 4
+    #
+    # STILL A PURE CONSTANT, so still a prefactor rather than a physics omission. NOT identified; deliberately
+    # NOT calibrated away. Candidate forms that ALMOST fit (20/3 = 6.667, 21/pi = 6.685) are within 0.2 % but
+    # there is no derivation behind either, and fitting a constant to a benchmark is what produced three false
+    # conclusions here already.
+    #
+    # FOR THE RECORD, the pre-phase-fix analysis:
+    #
+    # Against the exact H 2s -> 1s rate 8.2206 * Z^6, with the sum CONVERGED (nmax 35/45/55 -> 0.6337/0.63349/
+    # 0.6334) and the emission denominator corrected:
+    #       Z = 1:  exact/computed = 12.9767      Z = 2: 12.9797      Z = 3: 12.9848
+    # Constant to 0.06 % over a 729-fold change in rate, so it is a PREFACTOR, not a physics omission; the
+    # residual 0.06 % drift is consistent with (Z alpha)^2 relativistic corrections entering.
+    #
+    # A MATCHING DERIVATION WAS ATTEMPTED AND FAILED ITS OWN ACCEPTANCE TEST. Matching JAC's one-photon
+    # normalisation A_1 = 8 pi alpha omega/(2J_i+1) |T|^2 to the golden rule fixes the one-photon angular sum at
+    # S = 16 pi^2 |T|^2/(2J_i+1); repeating for two photons AND ASSUMING the two-photon angular sum factorises
+    # as the square of the one-photon one gives 32 pi, i.e. a factor 16 relative to the 2 pi below. Measured is
+    # 12.98 -- 23 % away. The factorisation is the faulty step: the two photon multipoles are COUPLED to rank K
+    # and the reduced amplitude carries a 6-j symbol, which that assumption discards.
+    #
+    # A LEAD, NOT A RESULT: 16/12.98 = 1.2327 and pi^2/8 = 1.2337 (0.08 %), which would make the constant
+    # 128/pi^2 = 12.969. DELIBERATELY NOT INSTALLED -- pi^2/8 emerging from an angular factorisation already
+    # known to be wrong is not evidence, and fitting a factor to a benchmark is the failure mode that produced
+    # three earlier false conclusions here (the radial-box artifact, the "Cou/Bab = 1.0035" crossing, and the
+    # spurious-pole "5.5 % agreement").
+    #
+    # THE CORRECT DERIVATION needs the angular reduction done properly: couple the two multipoles to K, carry
+    # the 6-j through the polarisation and angle sums, do NOT factorise. Any candidate must reproduce
+    # 12.98 +- 0.01 UNPROMPTED (that acceptance figure belongs to the pre-08-Aug totals; against the corrected
+    # ones it is 4 x 12.98), and the second constant Cou/Bab = 0.5799 (also Z-independent, also unexplained)
+    # is a further independent check on it.
     dcs = dcs * 2pi * Defaults.getDefaults("alpha")^2 / (Basics.twice(line.initialLevel.J) + 1) * omega1 * omega2
     
     return( dcs )
@@ -216,7 +214,6 @@ function  computeLines(scheme::TwoPhotonEmissionScheme, finalMultiplet::Multiple
     printstyled("MultiPhotonTransition.computeLines(::TwoPhotonEmissionScheme): The computation of amplitudes starts now ... \n", color=:light_green)
     printstyled("------------------------------------------------------------------------------------------------------- \n", color=:light_green)
     println("")
-    #
     lines = MultiPhotonTransition.determineLines_2pEmission(finalMultiplet, initialMultiplet, settings)
     # Display all selected lines before the computations start
     if  settings.printBefore    MultiPhotonTransition.displayLines_2pEmission(lines)    end
@@ -241,7 +238,6 @@ function  computeLines(scheme::TwoPhotonEmissionScheme, finalMultiplet::Multiple
     printSummary, iostream = Defaults.getDefaults("summary flag/stream")
     if  printSummary   MultiPhotonTransition.displayTotalRates_2pEmission(iostream, newLines, settings)
                         MultiPhotonTransition.displayDifferentialRates_2pEmission(iostream, newLines, settings)     end
-    #
     if    output    return( newLines )
     else            return( nothing )
     end
@@ -271,31 +267,31 @@ function  computeProperties_2pEmission(line::MultiPhotonTransition.Line_2pEmissi
         push!( newSharings, MultiPhotonTransition.Sharing_2pEmission( sharing.omega1, sharing.omega2, sharing.weight, diffRate, sharing.channels) )
         totalRate = totalRate + sharing.weight * diffRate
     end
-    ## THE FACTOR 1/2 IS THE INDISTINGUISHABLE-PHOTON FACTOR, applied here explicitly (08-Aug-2026) and written
-    ## down rather than left inside a quadrature weight.
-    ##
-    ## `computeEnergyDiffCs` already contains BOTH time orderings in its amplitude, so the differential rate at a
-    ## sharing (omega1, omega2) is the rate density for "one photon at omega1 and its partner at omega2" -- and
-    ## the sharings run over the FULL interval [0, E], where (omega1, omega2) and (omega2, omega1) are the SAME
-    ## physical event. Integrating over the full range therefore counts every event twice:
-    ##
-    ##     A  =  1/2 Int_0^E domega1 (dA/domega1)  =  Int_0^(E/2) domega1 (dA/domega1)
-    ##
-    ## the two being equal because the spectrum is symmetric -- which this module verifies to all printed digits
-    ## (branch d of example-Dh.jl) and which is exactly the symmetry the exchange-phase bug A1 was found through.
-    ##
-    ## TOGETHER WITH THE CORRECTED QUADRATURE WEIGHTS this changes every two-photon emission TOTAL by a factor 4
-    ## and no differential rate at all. `Basics.determineEnergySharings` used to return weights that were larger
-    ## by exactly 2 than the quadrature weights of Int_0^E (the 1/2 of the interval map was missing), so the old
-    ## totalRate was 2 * Int, where the physical answer is (1/2) * Int. The two factors are independent -- one is
-    ## arithmetic, the other is physics -- and are now separated: the arithmetic lives in Basics, the statistics
-    ## lives here.
-    ##
-    ## CONSEQUENCE FOR THE OPEN CONSTANT, stated so that nobody compares against a stale number: the deficit
-    ## measured against the exact H 2s -> 1s rate was 6.679 with the old totals, hence 4 * 6.679 = 26.7 with
-    ## these. THE DISCREPANCY IS THEREFORE LARGER, NOT SMALLER, and no factor has been introduced anywhere to
-    ## make it look better. The constant remains underived and must be derived, not fitted; see the long note at
-    ## the prefactor in computeEnergyDiffCs.
+    # THE FACTOR 1/2 IS THE INDISTINGUISHABLE-PHOTON FACTOR, applied here explicitly (08-Aug-2026) and written
+    # down rather than left inside a quadrature weight.
+    #
+    # `computeEnergyDiffCs` already contains BOTH time orderings in its amplitude, so the differential rate at a
+    # sharing (omega1, omega2) is the rate density for "one photon at omega1 and its partner at omega2" -- and
+    # the sharings run over the FULL interval [0, E], where (omega1, omega2) and (omega2, omega1) are the SAME
+    # physical event. Integrating over the full range therefore counts every event twice:
+    #
+    #     A  =  1/2 Int_0^E domega1 (dA/domega1)  =  Int_0^(E/2) domega1 (dA/domega1)
+    #
+    # the two being equal because the spectrum is symmetric -- which this module verifies to all printed digits
+    # (branch d of example-Dh.jl) and which is exactly the symmetry the exchange-phase bug A1 was found through.
+    #
+    # TOGETHER WITH THE CORRECTED QUADRATURE WEIGHTS this changes every two-photon emission TOTAL by a factor 4
+    # and no differential rate at all. `Basics.determineEnergySharings` used to return weights that were larger
+    # by exactly 2 than the quadrature weights of Int_0^E (the 1/2 of the interval map was missing), so the old
+    # totalRate was 2 * Int, where the physical answer is (1/2) * Int. The two factors are independent -- one is
+    # arithmetic, the other is physics -- and are now separated: the arithmetic lives in Basics, the statistics
+    # lives here.
+    #
+    # CONSEQUENCE FOR THE OPEN CONSTANT, stated so that nobody compares against a stale number: the deficit
+    # measured against the exact H 2s -> 1s rate was 6.679 with the old totals, hence 4 * 6.679 = 26.7 with
+    # these. THE DISCREPANCY IS THEREFORE LARGER, NOT SMALLER, and no factor has been introduced anywhere to
+    # make it look better. The constant remains underived and must be derived, not fitted; see the long note at
+    # the prefactor in computeEnergyDiffCs.
     totalRate = 0.5 * totalRate
     # Calculate the totalRate
     newLine = MultiPhotonTransition.Line_2pEmission( line.initialLevel, line.finalLevel, totalRate, newSharings)
@@ -319,23 +315,23 @@ function computeReducedAmplitudeEmission(K::AngularJ64, finalLevel::Level, omega
     U = Complex(0.);    nuLevels = MultiPhotonTransition.intermediateLevels(intermediateStates, Jsym)
     found = length(nuLevels) > 0
     for  nuLevel in nuLevels
-        ## Skip a resonant intermediate level: the denominator vanishes and the perturbative expression is not
-        ## defined there. This is the boundary between non-resonant and resonant two-photon decay, and it is
-        ## guarded rather than hidden -- calcOverview reports the merely-small denominators.
-        ## MINUS omega1, not plus (corrected 07-Aug-2026). For EMISSION the intermediate state is reached AFTER
-        ## the first photon has left, so it lies at E_i - omega1; the "+" here was the ABSORPTION denominator,
-        ## which is correct in the absorption file and wrong in this one.
-        ##
-        ## The sign produced SPURIOUS POLES. For H 2s -> 1s, E_2s + omega1 - E_3p = omega1 - 1.889 eV vanishes at
-        ## omega1 = 1.889 eV, and the np series gives poles accumulating at the limit omega1 = 3.40 eV. The
-        ## differential spectrum showed exactly that: a spike at 3.225 eV and a MINIMUM at the centre, where the
-        ## true spectrum is a smooth dome peaked in the middle. With the correct sign the denominator is strictly
-        ## negative for every bound np and no pole exists.
-        ##
-        ## It also explains three things that had been puzzling for days: why ADDING intermediate states made the
-        ## result worse (more spurious poles, accumulating toward the series limit), why the gauge ratio was
-        ## Z-INDEPENDENT in the Z-scan (a structural error, not a relativistic one), and why the total sat ~6 %
-        ## above 8.2206 with a stubborn factor-1.7 gauge split.
+        # Skip a resonant intermediate level: the denominator vanishes and the perturbative expression is not
+        # defined there. This is the boundary between non-resonant and resonant two-photon decay, and it is
+        # guarded rather than hidden -- calcOverview reports the merely-small denominators.
+        # MINUS omega1, not plus (corrected 07-Aug-2026). For EMISSION the intermediate state is reached AFTER
+        # the first photon has left, so it lies at E_i - omega1; the "+" here was the ABSORPTION denominator,
+        # which is correct in the absorption file and wrong in this one.
+        #
+        # The sign produced SPURIOUS POLES. For H 2s -> 1s, E_2s + omega1 - E_3p = omega1 - 1.889 eV vanishes at
+        # omega1 = 1.889 eV, and the np series gives poles accumulating at the limit omega1 = 3.40 eV. The
+        # differential spectrum showed exactly that: a spike at 3.225 eV and a MINIMUM at the centre, where the
+        # true spectrum is a smooth dome peaked in the middle. With the correct sign the denominator is strictly
+        # negative for every bound np and no pole exists.
+        #
+        # It also explains three things that had been puzzling for days: why ADDING intermediate states made the
+        # result worse (more spurious poles, accumulating toward the series limit), why the gauge ratio was
+        # Z-INDEPENDENT in the Z-scan (a structural error, not a relativistic one), and why the total sat ~6 %
+        # above 8.2206 with a stubborn factor-1.7 gauge split.
         denom = initialLevel.energy - omega1 - nuLevel.energy
         if  abs(denom) < selfTolerance    continue    end
         U = U + PhotoEmission.amplitude(Emission(), multipole2, gauge, omega2, finalLevel, nuLevel, grid,
@@ -369,11 +365,11 @@ function getReducedAmplitudeEmission(K::AngularJ64, finalLevel::Level, omega2::F
     U = Complex(0.);    found = false
     for sharing in sharings
         for channel in sharing.channels
-            ## omega1 == channel.omega1  &&  omega2 == channel.omega2  &&  
+            # omega1 == channel.omega1  &&  omega2 == channel.omega2  &&  
             if  K == channel.K         &&  abs(omega1 - channel.omega1) < 1.e-10  &&   abs(omega2 - channel.omega2) < 1.e-10 && 
                 Jsym == channel.Jsym   &&  multipole1 == channel.multipole1  &&  multipole2 == channel.multipole2            && 
                 gauge == channel.gauge
-                ## (gauge == channel.gauge  ||  EmGauge("Magnetic")  == channel.gauge)
+                # (gauge == channel.gauge  ||  EmGauge("Magnetic")  == channel.gauge)
                 U = channel.amplitude;    found = true;     break
             end
         end
@@ -454,7 +450,6 @@ end
 """
 function  displayDifferentialRates_2pEmission(stream::IO, lines::Array{MultiPhotonTransition.Line_2pEmission,1}, 
                                                 settings::MultiPhotonTransition.Settings)
-    #
     # First, print lines and sharings
     nx = 130
     println(stream, " ")
@@ -471,7 +466,6 @@ function  displayDifferentialRates_2pEmission(stream::IO, lines::Array{MultiPhot
     sb = sb * TableStrings.center(34, TableStrings.inUnits("rate") * "        " * 
                                         TableStrings.inUnits("rate"); na=3)
     println(stream, sa);    println(stream, sb);    println(stream, "  ", TableStrings.hLine(nx)) 
-    #   
     for  line in lines
         sa  = "";      isym = LevelSymmetry( line.initialLevel.J, line.initialLevel.parity)
                         fsym = LevelSymmetry( line.finalLevel.J,   line.finalLevel.parity)
@@ -479,7 +473,6 @@ function  displayDifferentialRates_2pEmission(stream::IO, lines::Array{MultiPhot
         sa = sa * TableStrings.center(18, TableStrings.symmetries_if(isym, fsym); na=4) 
         energy = line.finalLevel.energy - line.initialLevel.energy
         sa = sa * @sprintf("%.5e", Defaults.convertUnits("energy: from atomic", energy)) * "    "
-        #
         for  (is, sharing)  in  enumerate(line.sharings)
             if  is == 1     sb = sa     else    sb = TableStrings.hBlank( length(sa) )    end
             sb = sb * @sprintf("%.4e", Defaults.convertUnits("energy: from atomic", sharing.omega1))                   * "    "
@@ -491,7 +484,6 @@ function  displayDifferentialRates_2pEmission(stream::IO, lines::Array{MultiPhot
         end
     end
     println(stream, "  ", TableStrings.hLine(nx))
-    #
     return( nothing )
 end
 
@@ -515,7 +507,6 @@ function  displayLines_2pEmission(lines::Array{MultiPhotonTransition.Line_2pEmis
     sa = sa * TableStrings.flushleft(77, "List of multipoles, gauges & intermediate level symmetries"; na=4)  
     sb = sb * TableStrings.flushleft(77, "(K-rank, multipole_1, Jsym, multipole_2, gauge)           "; na=4)
     println(sa);    println(sb);    println("  ", TableStrings.hLine(nx)) 
-    #   
     for  line in lines
         sa  = "";    isym = LevelSymmetry( line.initialLevel.J, line.initialLevel.parity)
                         fsym = LevelSymmetry( line.finalLevel.J,   line.finalLevel.parity)
@@ -523,7 +514,6 @@ function  displayLines_2pEmission(lines::Array{MultiPhotonTransition.Line_2pEmis
         sa = sa * TableStrings.center(18, TableStrings.symmetries_if(isym, fsym); na=4)
         energy = line.initialLevel.energy - line.finalLevel.energy
         sa = sa * @sprintf("%.4e", Defaults.convertUnits("energy: from atomic", energy)) * "  "
-        #
         for  sharing  in  line.sharings
             sb =      @sprintf("%.4e", Defaults.convertUnits("energy: from atomic", sharing.omega1))   * "  "
             sb = sb * @sprintf("%.4e", Defaults.convertUnits("energy: from atomic", sharing.omega2))   * "     "
@@ -539,7 +529,6 @@ function  displayLines_2pEmission(lines::Array{MultiPhotonTransition.Line_2pEmis
         end
     end
     println("  ", TableStrings.hLine(nx))
-    #
     return( nothing )
 end
 
@@ -550,7 +539,6 @@ end
     ... to display all total rates, etc. of the selected lines. A neat table is printed but nothing is returned otherwise.
 """
 function  displayTotalRates_2pEmission(stream::IO, lines::Array{MultiPhotonTransition.Line_2pEmission,1}, settings::MultiPhotonTransition.Settings)
-    #
     # First, print lines and sharings
     nx = 88
     println(stream, " ")
@@ -566,7 +554,6 @@ function  displayTotalRates_2pEmission(stream::IO, lines::Array{MultiPhotonTrans
     sb = sb * TableStrings.center(30, TableStrings.inUnits("rate") * "          " * 
                                         TableStrings.inUnits("rate"); na=3)
     println(stream, sa);    println(stream, sb);    println(stream, "  ", TableStrings.hLine(nx)) 
-    #   
     for  line in lines
         sa  = "";      isym = LevelSymmetry( line.initialLevel.J, line.initialLevel.parity)
                         fsym = LevelSymmetry( line.finalLevel.J,   line.finalLevel.parity)
@@ -574,13 +561,11 @@ function  displayTotalRates_2pEmission(stream::IO, lines::Array{MultiPhotonTrans
         sa = sa * TableStrings.center(18, TableStrings.symmetries_if(isym, fsym); na=4) 
         energy = line.initialLevel.energy - line.finalLevel.energy
         sa = sa * @sprintf("%.4e", Defaults.convertUnits("energy: from atomic", energy))                 * "      "
-        #
         sb = sa * @sprintf("%.5e", Defaults.convertUnits("rate: from atomic", line.totalRate.Coulomb))   * "     "
         sb = sb * @sprintf("%.5e", Defaults.convertUnits("rate: from atomic", line.totalRate.Babushkin)) * "   "
         println(stream,  sb )
     end
     println(stream, "  ", TableStrings.hLine(nx))
-    #
     return( nothing )
 end
 
@@ -625,10 +610,10 @@ function  displayIntermediateRanking(stream::IO, lines::Array{MultiPhotonTransit
                 TableStrings.inUnits("energy") * "      multipoles      Jsym")
         println(stream, "  ", TableStrings.hLine(nx))
         entries = NamedTuple{(:c,:idx,:jsym,:dE,:mps,:sym),Tuple{Float64,Int64,String,Float64,String,String}}[]
-        ## DEDUPLICATE OVER K (07-Aug-2026): sharing.channels carries one entry per K value, but the quantity
-        ## ranked here -- <f|O|nu><nu|O|i>/denominator -- does not depend on K at all, so every intermediate
-        ## level was being listed once per K. For J_i = J_f = 1/2 that meant each line printed twice, which
-        ## reads as though two distinct channels contributed where there is only one.
+        # DEDUPLICATE OVER K (07-Aug-2026): sharing.channels carries one entry per K value, but the quantity
+        # ranked here -- <f|O|nu><nu|O|i>/denominator -- does not depend on K at all, so every intermediate
+        # level was being listed once per K. For J_i = J_f = 1/2 that meant each line printed twice, which
+        # reads as though two distinct channels contributed where there is only one.
         seen = Set{Tuple{Int64,String,String,EmGauge}}()
         for  ch in sharing.channels
             nuLevels = MultiPhotonTransition.intermediateLevels(settings.intermediateStates, ch.Jsym)

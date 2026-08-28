@@ -28,7 +28,6 @@ function determineChemicalPotential(orbitals::Dict{Subshell, Orbital}, temp::Flo
         end
         return( wa )
     end
-    #
     function gprime(mu::Float64, orbitals::Dict{Subshell, Orbital}, temp::Float64, nm::Nuclear.Model)
         wa = 0.
         for  (k,v)  in orbitals
@@ -71,7 +70,7 @@ function solveAverageAtomField(orbitals::Dict{Subshell, Orbital}, nuclearModel::
     # Extract the kappa's from orbitals
     kappas = Int64[];     for (k,v)  in  orbitals     push!(kappas, k.kappa)    end;    kappas = unique(kappas);
 
-    ## Defaults.setDefaults("standard grid", primitives.grid; printout=printout)
+    # Defaults.setDefaults("standard grid", primitives.grid; printout=printout)
     # Define the storage for the calculations of matrices
     if  printout    println(">> (Re-) Define a storage array for dealing with single-electron TTp B-spline matrices:")    end
     storage  = Dict{String,Array{Float64,2}}()
@@ -95,15 +94,14 @@ function solveAverageAtomField(orbitals::Dict{Subshell, Orbital}, nuclearModel::
         if  NoIteration >  32
                 println(">> Maximum number of SCF iterations = 32 is reached at accuracy " * 
                         @sprintf("%.4e", accuracyScf) * " ... computations proceed.")
-                ## Collected as well: in a long run this line scrolls away, and nobody learns afterwards that a
-                ## field never converged.  The accuracy is rounded so that repeated identical failures collapse
-                ## into one counted entry; see Defaults.warn.
+                # Collected as well: in a long run this line scrolls away, and nobody learns afterwards that a
+                # field never converged.  The accuracy is rounded so that repeated identical failures collapse
+                # into one counted entry; see Defaults.warn.
                 Defaults.warn(AddWarning(), "SelfConsistent.solveAverageAtomField(): the SCF did NOT converge -- " *
                               "stopped at accuracy " * @sprintf("%.1e", accuracyScf) * " after 32 iterations.")
             break
         end
         if  printout    println("\nIteration $NoIteration for symmetries ... ")    end
-        #
         for kappa in kappas
             # (1) Re-compute the local potential
             wp  = Basics.computePotential(scField, grid, previousOrbitals, chemMu, temp)
@@ -126,7 +124,7 @@ function solveAverageAtomField(orbitals::Dict{Subshell, Orbital}, nuclearModel::
                         sa = sa * @sprintf("%.4e", wcOrbital)   * "  ["
                         sa = sa * @sprintf("%.4e", wcBlock)             * " for sym-block kappa = $kappa]"
                         if  printout    println(sa)    end
-                    ## println("  $sh  en [a.u.] = $(newOrbital.energy)   self-consistency = $(wcOrbital), $(wcBlock) [kappa=$kappa] ") 
+                    # println("  $sh  en [a.u.] = $(newOrbital.energy)   self-consistency = $(wcOrbital), $(wcBlock) [kappa=$kappa] ") 
                     previousOrbitals[k] = newOrbital
                 end
             end

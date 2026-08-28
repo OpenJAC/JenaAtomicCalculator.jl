@@ -1,20 +1,20 @@
 
 #################################################################################################################################
 ### Stopping powers (SP) ########################################################################################################
-##
-##  Energy loss - dE/dx of a projectile (electron, positron or bare ion) to the electrons of a material: the free
-##  electrons of a plasma, the bound electrons of a neutral atom gas, or both in a partially ionized gas. All
-##  approximations below share the (Bohr/Bethe-type) form
-##
-##      - dE/dx  =  sum_t  n_t  (4 pi z^2 e^4)/(m_e v^2)  ln Lambda_t ,
-##
-##  where the sum runs over the electron populations t of the material with densities n_t, v is the projectile
-##  velocity, and the Coulomb logarithm ln Lambda_t = ln(b_max/b_min) counts the effective range of impact
-##  parameters; each population enters through its density and one characteristic energy (hbar omega_p for free,
-##  Ibar for bound electrons). The projectile enters through z^2, its mass (v = sqrt(2E/M)) and its statistics.
-##  Quantity: a stopping power [Hartree/a_o] -- the energy loss per unit path length; it already contains the
-##      electron densities of the material. Divide by the density for the stopping cross section, or by the mass
-##      density for the mass stopping power [MeV cm^2/g].
+#
+#  Energy loss - dE/dx of a projectile (electron, positron or bare ion) to the electrons of a material: the free
+#  electrons of a plasma, the bound electrons of a neutral atom gas, or both in a partially ionized gas. All
+#  approximations below share the (Bohr/Bethe-type) form
+#
+#      - dE/dx  =  sum_t  n_t  (4 pi z^2 e^4)/(m_e v^2)  ln Lambda_t ,
+#
+#  where the sum runs over the electron populations t of the material with densities n_t, v is the projectile
+#  velocity, and the Coulomb logarithm ln Lambda_t = ln(b_max/b_min) counts the effective range of impact
+#  parameters; each population enters through its density and one characteristic energy (hbar omega_p for free,
+#  Ibar for bound electrons). The projectile enters through z^2, its mass (v = sqrt(2E/M)) and its statistics.
+#  Quantity: a stopping power [Hartree/a_o] -- the energy loss per unit path length; it already contains the
+#      electron densities of the material. Divide by the density for the stopping cross section, or by the mass
+#      density for the mass stopping power [MeV cm^2/g].
 
 
 """
@@ -315,7 +315,7 @@ function stoppingPowerPrintout(projectile::Empirical.AbstractStoppingProjectile,
          "and shell, Barkas (z^3), Bloch and density-effect corrections. " *
          "\n    + Projectile energies [$unEnergy]   = $energiex " *
          "\n    + Stopping powers - dE/dx [eV/cm] = $spsx "
-    ##  For atom gases with known mass number, also express the mass stopping power - (dE/dx)/rho in MeV cm^2/g.
+    #  For atom gases with known mass number, also express the mass stopping power - (dE/dx)/rho in MeV cm^2/g.
     if      typeof(material) in [Empirical.NeutralAtomGas, Empirical.PartiallyIonizedGas]
         gPerU   = Defaults.ELECTRON_MASS_IN_G / Defaults.ELECTRON_MASS_U
         rho     = material.natom / aoCm^3 * material.A * gPerU

@@ -21,7 +21,7 @@
 function boundFreeGauntFactor(n::Int64, x::Float64)
     if  x <= 1.0    return( 1.0 )   end
     kappa  = sqrt( max(x - 1.0, 1.0e-14) )
-    ## Stobbe's exact 1s cross section over the Kramers form; the common factor alpha a_o^2 cancels in the ratio.
+    # Stobbe's exact 1s cross section over the Kramers form; the common factor alpha a_o^2 cancels in the ratio.
     sigmaS = 2^9 * pi^2 / 3 * x^(-4) * exp(4 - 4*atan(kappa)/kappa) / (1 - exp(-2pi/kappa)) / exp(4.0)
     sigmaK = 64 * pi / (3 * sqrt(3.0)) * x^(-3)
     g1s    = sigmaS / sigmaK
@@ -115,7 +115,7 @@ function scaledBindingEnergy(Z::Float64, sh::Shell, conf::Configuration, data::P
 
     bEnergy = 0.
     if  !fewElectronIon
-        ## The tabulated data sets cover only a limited range of Z and shells; they raise an error or return 0. otherwise.
+        # The tabulated data sets cover only a limited range of Z and shells; they raise an error or return 0. otherwise.
         try
             bEnergy = Empirical.bindingEnergy(round(Int64, Z), sh, data=data)
         catch
@@ -124,16 +124,16 @@ function scaledBindingEnergy(Z::Float64, sh::Shell, conf::Configuration, data::P
         if  bEnergy > 0.    return( bEnergy )    end
     end
 
-    ## No shell-resolved value applies. If sh is the OUTERMOST occupied shell of a NEUTRAL atom, its binding energy is
-    ## the first ionization potential by definition, and NIST tabulates that for every element. The X-ray compilations
-    ## above are core-level tables and carry no valence shell at all, so without this the valence threshold of every
-    ## atom whose outermost shell is an s shell fell through to the Slater estimate below -- which errs by tens of
-    ## percent there, and in BOTH directions: Sr 5s 4.421 eV against the true 5.695, Na 3s 7.317 against 5.139.
-    ## The test is GROUND configuration, not merely "neutral": the ionization potential refers to the outermost shell
-    ## of the ground state. An EXCITED neutral has an outermost shell too -- H in 1s^0 3d^1 is neutral and its
-    ## outermost shell is 3d -- and taking 13.598 eV for a 3d electron whose true binding energy is 13.6/9 = 1.51 eV
-    ## would be wrong by a factor of 9, and by 100 for 10d. That Rydberg case is precisely where the Slater estimate
-    ## below is exact, so it must keep it.
+    # No shell-resolved value applies. If sh is the OUTERMOST occupied shell of a NEUTRAL atom, its binding energy is
+    # the first ionization potential by definition, and NIST tabulates that for every element. The X-ray compilations
+    # above are core-level tables and carry no valence shell at all, so without this the valence threshold of every
+    # atom whose outermost shell is an s shell fell through to the Slater estimate below -- which errs by tens of
+    # percent there, and in BOTH directions: Sr 5s 4.421 eV against the true 5.695, Na 3s 7.317 against 5.139.
+    # The test is GROUND configuration, not merely "neutral": the ionization potential refers to the outermost shell
+    # of the ground state. An EXCITED neutral has an outermost shell too -- H in 1s^0 3d^1 is neutral and its
+    # outermost shell is 3d -- and taking 13.598 eV for a 3d electron whose true binding energy is 13.6/9 = 1.51 eV
+    # would be wrong by a factor of 9, and by 100 for 10d. That Rydberg case is precisely where the Slater estimate
+    # below is exact, so it must keep it.
     if  !fewElectronIon  &&  conf.NoElectrons == round(Int64, Z)  &&
         conf == Empirical.groundConfiguration(round(Int64, Z))  &&  sh == Empirical.outermostShell(conf)
         try
@@ -143,27 +143,27 @@ function scaledBindingEnergy(Z::Float64, sh::Shell, conf::Configuration, data::P
         end
     end
 
-    ## No tabulated value applies: screen the nuclear charge by all *other* electrons of conf with Slater's rules.
+    # No tabulated value applies: screen the nuclear charge by all *other* electrons of conf with Slater's rules.
     shells = deepcopy(conf.shells)
     if      haskey(shells, sh)  &&  shells[sh] > 1    shells[sh] = shells[sh] - 1
     elseif  haskey(shells, sh)                        delete!(shells, sh)
     end
     rConf = Configuration(shells, conf.NoElectrons - 1)
     Zeff  = Semiempirical.estimateSlaterZeff(Z, rConf, Subshell(sh.n, -sh.l - 1))
-    ## An electron of a neutral atom or positive ion sees at least a unit charge asymptotically.
+    # An electron of a neutral atom or positive ion sees at least a unit charge asymptotically.
     if  Zeff < 1.0      Zeff = 1.0      end
     if  fewElectronIon
-        ## For a genuine few-electron ion this branch is exact for H-like ions; for He-like ions, Slater's 0.30
-        ## same-group screening constant overestimates the binding energy by ~31% at Z=3, shrinking to a few
-        ## percent by Z ~ 20 (checked against NIST/CRC data), not merely a fallback, so the warning says so.
+        # For a genuine few-electron ion this branch is exact for H-like ions; for He-like ions, Slater's 0.30
+        # same-group screening constant overestimates the binding energy by ~31% at Z=3, shrinking to a few
+        # percent by Z ~ 20 (checked against NIST/CRC data), not merely a fallback, so the warning says so.
         sa = "conf = $conf has only $(conf.NoElectrons) electron(s) at Z = $Z, i.e. it is a genuine few-electron ion, " *
              "for which the tabulated *neutral*-atom binding energy in $data would be wrong. A Slater-screened " *
              "hydrogenic estimate is used instead (exact for H-like ions; for He-like ions it overestimates the " *
              "binding energy by ~5-30%, decreasing with Z; this warning is shown at most 5 times)."
     else
-        ## For (Rydberg) shells outside the tabulation this estimate is the designed behavior -- for a Rydberg electron
-        ## it is even exact -- so the warning is limited; a summation over many capture channels would otherwise flood
-        ## the output with one warning per shell.
+        # For (Rydberg) shells outside the tabulation this estimate is the designed behavior -- for a Rydberg electron
+        # it is even exact -- so the warning is limited; a summation over many capture channels would otherwise flood
+        # the output with one warning per shell.
         sa = "No tabulated binding energy for Z = $Z and $sh in $data, and $sh is not the outermost shell of a neutral " *
              "atom either, so the first ionization potential does not apply; a Slater-screened hydrogenic estimate is " *
              "used (exact for Rydberg shells, but it can err by tens of percent for a VALENCE shell, in either " *
@@ -529,9 +529,9 @@ end
 """
 function ionizationThreshold(Z::Float64, sh::Shell, conf::Configuration, data::PeriodicTable.AbstractEnergyData)
     Zint = round(Int64, Z);    q = Zint - conf.NoElectrons
-    ## The OUTERMOST OCCUPIED shell, not the valence shell: Basics.ValenceShells returns the OPEN shells only,
-    ## so a closed-shell ion such as Sr^2+ = [Kr] -- and every noble-gas-like stage, which is just what a plasma
-    ## is full of -- would return an empty list and silently keep the neutral threshold.
+    # The OUTERMOST OCCUPIED shell, not the valence shell: Basics.ValenceShells returns the OPEN shells only,
+    # so a closed-shell ion such as Sr^2+ = [Kr] -- and every noble-gas-like stage, which is just what a plasma
+    # is full of -- would return an empty list and silently keep the neutral threshold.
     outer = Shell(0,0)
     for  (shell, occ)  in  conf.shells
         occ < 1  &&  continue
@@ -543,12 +543,12 @@ function ionizationThreshold(Z::Float64, sh::Shell, conf::Configuration, data::P
         if  length(ips) >= q + 1   &&   ips[q+1] > 0.
             return( Defaults.convertUnits("energy: to atomic", ips[q+1]) )
         end
-        ## Reaching here means the successive potential is not tabulated. The NIST 2025 table carries EVERY
-        ## charge state of every element up to Z = 90 and nothing at all above it, so in practice this is the
-        ## actinides from Pa upwards. The fall-through then hands back the NEUTRAL binding energy for an ION,
-        ## which is precisely the error this function exists to remove -- about a factor two in the edge for
-        ## Sr^+, and a factor of order 1e3 in a Planck mean built on it. Degrading silently is what made that
-        ## error survive, so it is announced.
+        # Reaching here means the successive potential is not tabulated. The NIST 2025 table carries EVERY
+        # charge state of every element up to Z = 90 and nothing at all above it, so in practice this is the
+        # actinides from Pa upwards. The fall-through then hands back the NEUTRAL binding energy for an ION,
+        # which is precisely the error this function exists to remove -- about a factor two in the edge for
+        # Sr^+, and a factor of order 1e3 in a Planck mean built on it. Degrading silently is what made that
+        # error survive, so it is announced.
         sa = "Empirical.ionizationThreshold: no successive ionization potential for Z = $Zint at charge " *
              "state q = $q; the NIST 2025 table ends at Z = 90. Falling back on the NEUTRAL binding energy " *
              "of $sh, which UNDERESTIMATES the threshold of an ion, for Sr^+ by about a factor of two. " *
@@ -1060,8 +1060,8 @@ function photorecombinationPlasmaAlpha(eDist::Distribution.AbstractElectronDistr
     else           css = Empirical.photorecombinationCrossSection(gridGL.t, iConf, fConf, approx; printout=false)
     end
     for  n = 1:gridGL.nt
-        ## nbar(omega) follows from the spectral photon number density by dividing out the density of photon modes
-        ## omega^2/(pi^2 c^3); this conversion applies to any (isotropic) photon distribution.
+        # nbar(omega) follows from the spectral photon number density by dividing out the density of photon modes
+        # omega^2/(pi^2 c^3); this conversion applies to any (isotropic) photon distribution.
         if  isVacuum   occNumber = 0.
         else
             omega     = eEns[n] + bEnergy

@@ -273,8 +273,8 @@ function computeFockMatrix(subshell::Subshell, coeffs2p::Array{Coefficient2p,1},
     matrix  = Bsplines.setupLocalMatrix(subshell.kappa, primitives, nucPot, storage)
     matrixV = computeTwoElectronV(subshell, coeffs2p, bVectors, primitives, tensorCaches;
                                   directKernels=directKernels, exchangeKernels=exchangeKernels)
-    ## coeffs2pUnscaled, when given, contributes WITHOUT the 1/occ scaling. Empty by default, so the
-    ## returned matrix is bit-for-bit what it always was unless a caller opts in.
+    # coeffs2pUnscaled, when given, contributes WITHOUT the 1/occ scaling. Empty by default, so the
+    # returned matrix is bit-for-bit what it always was unless a caller opts in.
     if  length(coeffs2pUnscaled) > 0
         matrixU = computeTwoElectronV(subshell, coeffs2pUnscaled, bVectors, primitives, tensorCaches;
                                       directKernels=directKernels, exchangeKernels=exchangeKernels)

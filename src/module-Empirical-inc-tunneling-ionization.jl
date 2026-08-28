@@ -1,15 +1,15 @@
 
 #################################################################################################################################
 ### Tunneling ionization (TI) ###################################################################################################
-##
-##  The (quasiclassical) tunneling ionization rate of an atom or ion in a strong, quasi-static electric field, following
-##  Ammosov, Delone & Krainov (1986); the exact formula and its coefficients are quoted from the summary of
-##  J. Bauer & P. Mulser, Phys. Rev. A 59, 569 (1999) [arXiv:physics/9802042], Eq. (10). The rate depends on the
-##  instantaneous (peak) field strength F alone -- no plasma or radiation field enters -- so this is a *static-field*
-##  rate, not the cycle-average over an oscillating (laser) field; cf. the Note of Empirical.tunnelingIonizationRate.
-##  Quantity: a field-ionization rate [1/s] -- a property of the ion in the given field alone; no further
-##      multiplication is needed. It is *not* a spontaneous (zero-field) rate, and it must not be summed with one:
-##      the field dependence is strongly nonperturbative (an essential singularity at F = 0).
+#
+#  The (quasiclassical) tunneling ionization rate of an atom or ion in a strong, quasi-static electric field, following
+#  Ammosov, Delone & Krainov (1986); the exact formula and its coefficients are quoted from the summary of
+#  J. Bauer & P. Mulser, Phys. Rev. A 59, 569 (1999) [arXiv:physics/9802042], Eq. (10). The rate depends on the
+#  instantaneous (peak) field strength F alone -- no plasma or radiation field enters -- so this is a *static-field*
+#  rate, not the cycle-average over an oscillating (laser) field; cf. the Note of Empirical.tunnelingIonizationRate.
+#  Quantity: a field-ionization rate [1/s] -- a property of the ion in the given field alone; no further
+#      multiplication is needed. It is *not* a spontaneous (zero-field) rate, and it must not be summed with one:
+#      the field dependence is strongly nonperturbative (an essential singularity at F = 0).
 
 
 """

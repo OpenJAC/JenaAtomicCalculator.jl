@@ -190,6 +190,24 @@ end
 
 
 
+"""
+`TestFrames.info(stream::IO, sa::String)`
+    ... writes one diagnostic line from a failing test to the test report; nothing is returned.
+
+    THIS EXISTED AS A CALL AND NOT AS A FUNCTION until 28-Aug-2026. `info` was a Base function in Julia 0.x and was
+    REMOVED IN 1.0, yet 77 call sites of the form `if printTest   info(iostream, "...")   end` remained across the
+    TestFrames files. Every one of them is guarded by `printTest`, which is false unless `Defaults.setDefaults("print
+    test: open", ...)` is called -- and the line that would do so is commented out in `test/runtests.jl`. So the
+    diagnostics never ran, and an `UndefVarError` sat behind every one of them: the moment a test failed WITH the
+    report enabled, the crash replaced the very message that was meant to explain the failure. Found by turning the
+    report on to read why a new test was failing, and getting this instead of the answer.
+"""
+function info(stream::IO, sa::String)
+    println(stream, sa)
+    return( nothing )
+end
+
+
 function testPrint(sa::String, success::Bool)
     printTest, iostream = Defaults.getDefaults("test flag/stream")
     ok(succ) =  succ ? "[OK]" : "[Fail]"

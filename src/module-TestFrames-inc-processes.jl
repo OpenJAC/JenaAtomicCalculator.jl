@@ -623,3 +623,227 @@ function testModule_PhotoRecombinationInterference(; short::Bool=true)
     testPrint("testModule_PhotoRecombinationInterference()::", success)
     return(success)
 end
+
+
+"""
+`TestFrames.testModule_ResonantImpactIonization(; short::Bool=true)`  ... tests on module ResonantImpactIonization;
+    a success::Bool is returned.
+"""
+function testModule_ResonantImpactIonization(; short::Bool=true)
+    Defaults.setDefaults("print summary: open", "test-ResonantImpactIonization-new.sum")
+    printstyled("\n\nTest the module  ResonantImpactIonization  ... \n", color=:cyan)
+    # The module's own example, example-Fl.jl, is a cascade that takes 72-88 s -- far too heavy for the suite, and
+    # its headline check (the 158 branching sums coming out at exactly 1) is one its own comment warns about: it
+    # tests the ARITHMETIC and never the completeness, so a decay route left out of the configuration lists is
+    # missing from the denominator too and the sum is 1 regardless.
+    #
+    # What IS checked here are the SCALING LAWS and BOUNDS of the strength formulas, which are exact, which no
+    # implementation can satisfy by accident, and which need no computation at all:
+    #     S_0 = pi^2/k^2 * A_capture * (2J_d + 1)/(2J_i + 1)
+    # is linear in the capture rate, proportional to the statistical-weight ratio, and falls as 1/k^2; while the
+    # sequential and simultaneous strengths are S_0 times branchings that cannot exceed 1, so neither may ever
+    # exceed S_0 -- more strength into one route than was captured in the first place would be a defect that no
+    # comparison against a literature total would necessarily reveal.
+    success = true;    printTest, iostream = Defaults.getDefaults("test flag/stream")
+    E = 1.0;    A = 1.0e13;    RII = ResonantImpactIonization
+
+    # (1) exact linearity in the capture rate
+    s1 = RII.resonanceStrength(E, A, 3, 1);    s2 = RII.resonanceStrength(E, 2A, 3, 1)
+    if  abs(s2 - 2*s1) > 1.0e-12 * abs(s2)
+        success = false
+        if printTest   info(iostream, "resonanceStrength is not linear in the capture rate: $s1 and $s2")   end
+    end
+    # (2) the statistical-weight ratio (2J_d+1)/(2J_i+1), exactly
+    for  (jd2, ji2)  in  [(1,1), (3,1), (5,3), (7,1), (0,4)]
+        wa = RII.resonanceStrength(E, A, jd2, ji2);    wb = RII.resonanceStrength(E, A, ji2, ji2)
+        if  abs(wa/wb - (jd2 + 1.)/(ji2 + 1.)) > 1.0e-12
+            success = false
+            if printTest   info(iostream, "weight ratio for 2Jd,2Ji = $jd2,$ji2 is $(wa/wb), must be " *
+                                          "$((jd2+1.)/(ji2+1.))")   end
+        end
+    end
+    # (3) the 1/k^2 fall-off. At these energies k^2 = 2E to within the relativistic correction, so the strength
+    #     ratio between E and 2E must be 2 to better than a part in 1e3.
+    r = RII.resonanceStrength(0.5, A, 3, 1) / RII.resonanceStrength(1.0, A, 3, 1)
+    if  abs(r - 2.0) > 1.0e-3
+        success = false
+        if printTest   info(iostream, "the strength ratio between E and 2E is $r, must be 2 to O(alpha^2 E)")   end
+    end
+    # (4) a non-positive resonance energy and a vanishing width both give EXACTLY zero
+    if  RII.resonanceStrength(0., A, 3, 1) != 0.  ||  RII.resonanceStrength(-1., A, 3, 1) != 0.
+        success = false
+        if printTest   info(iostream, "resonanceStrength must be exactly 0 at non-positive energy")   end
+    end
+    if  RII.sequentialStrength(E, A, 3, 1, A, 0., A, A) != 0.  ||  RII.simultaneousStrength(E, A, 3, 1, A, 0.) != 0.
+        success = false
+        if printTest   info(iostream, "a vanishing total width must give exactly 0")   end
+    end
+    # (5) NEITHER route may exceed the formation strength, and both saturate it when the branchings are 1
+    s0 = RII.resonanceStrength(E, A, 3, 1)
+    for  (aToN, gD, aN, gN)  in  [(0.3A, A, 0.5A, A), (A, A, A, A), (0.1A, A, 0.9A, A)]
+        wa = RII.sequentialStrength(E, A, 3, 1, aToN, gD, aN, gN)
+        if  wa > s0 * (1.0 + 1.0e-12)
+            success = false
+            if printTest   info(iostream, "sequentialStrength $wa exceeds the formation strength $s0")   end
+        end
+        if  aToN == gD  &&  aN == gN  &&  abs(wa - s0) > 1.0e-12 * s0
+            success = false
+            if printTest   info(iostream, "with both branchings 1, sequentialStrength $wa must equal $s0")   end
+        end
+    end
+    for  (aDouble, gD)  in  [(0.25A, A), (A, A), (0.75A, A)]
+        wa = RII.simultaneousStrength(E, A, 3, 1, aDouble, gD)
+        if  wa > s0 * (1.0 + 1.0e-12)
+            success = false
+            if printTest   info(iostream, "simultaneousStrength $wa exceeds the formation strength $s0")   end
+        end
+        if  aDouble == gD  &&  abs(wa - s0) > 1.0e-12 * s0
+            success = false
+            if printTest   info(iostream, "with a branching of 1, simultaneousStrength $wa must equal $s0")   end
+        end
+    end
+    # (6) shakeProbability is a probability, and it is EXACTLY zero when the electron's own orbital is among the
+    #     final ones -- the projection is then complete and nothing can be shaken off.
+    grid  = Radial.Grid(Radial.Grid(false), rnt = 2.0e-6, h = 5.0e-2, hp = 2.0e-2, rbox = 20.0)
+    orb10 = HydrogenicIon.orbital(Subshell("1s_1/2"), Nuclear.Model(10.), grid)
+    orb12 = HydrogenicIon.orbital(Subshell("1s_1/2"), Nuclear.Model(12.), grid)
+    p0    = RII.shakeProbability(orb10, Radial.Orbital[orb10], grid)
+    if  abs(p0) > 1.0e-6
+        success = false
+        if printTest   info(iostream, "shakeProbability against the electron's own orbital is $p0, must be 0")   end
+    end
+    p1 = RII.shakeProbability(orb10, Radial.Orbital[orb12], grid)
+    if  !(0. <= p1 <= 1.)
+        success = false
+        if printTest   info(iostream, "shakeProbability = $p1 is outside [0,1]")   end
+    end
+
+    println(iostream, "ResonantImpactIonization: the strength formulas by their exact scaling laws -- linearity " *
+                      "in the capture rate, the statistical-weight ratio, 1/k^2 -- and the bound that neither "   *
+                      "route may exceed the formation strength. No cascade and no literature value.")
+    Defaults.setDefaults("print summary: close", "")
+    testPrint("testModule_ResonantImpactIonization()::", success)
+    return( success )
+end
+
+
+"""
+`TestFrames.testModule_TwoElectronOnePhoton(; short::Bool=true)`  ... tests on module TwoElectronOnePhoton;
+    a success::Bool is returned.
+"""
+function testModule_TwoElectronOnePhoton(; short::Bool=true)
+    Defaults.setDefaults("print summary: open", "test-TwoElectronOnePhoton-new.sum")
+    printstyled("\n\nTest the module  TwoElectronOnePhoton  ... \n", color=:cyan)
+    # A TWO-ROUTE test, cut down from example-Dn.jl branch a). The same physical rate for Be-like Ne is reached in
+    # two independent ways, and to leading order in the configuration mixing they must agree:
+    #
+    #   (ii) EXPLICIT second-order perturbation theory -- this module. The initial state is the PURE 2s2p
+    #        configuration and the coupling to the one-hole intermediates is carried by an explicit sum over a
+    #        Green-function multiplet, with the energy denominators written out.
+    #   (i)  IMPLICIT, through ordinary CI mixing -- a plain PhotoEmission computation whose initial multiplet
+    #        already contains 1s2p beside 2s2p, so the one-body E1 operator connects the small 1s2p admixture to
+    #        the ground state. The two multiplets are built on different, non-orthogonal orbital sets, hence
+    #        calcBiorthogonal = true.
+    #
+    # The agreement is not a coincidence to be tuned: the CI coefficient of route (i) IS c_n = <n|V|i>/(E_i - E_n),
+    # the very ratio route (ii) forms inside its second-order sum. So this is a known-answer test in which the
+    # answer is supplied by a different part of the code, and neither route can be fixed to match the other by
+    # adjusting a stored number, because there is none.
+    #
+    # The COULOMB gauge is compared. Babushkin is deliberately not asserted: these amplitudes are small and
+    # near-cancelling, the two routes truncate the cancellation differently, and the length form is the more
+    # sensitive of the two -- example-Dn.jl records the weak line's Babushkin rate moving 37 % under a change that
+    # left Coulomb at 0.14 %. A tolerance loose enough to admit that would test nothing.
+    success = true;    printTest, iostream = Defaults.getDefaults("test flag/stream")
+    # hp = 1.2e-2 where example-Dn.jl uses 0.6e-2, and the coarser grid costs nothing in accuracy: MEASURED at
+    # hp = 0.6e-2 / 1.2e-2 / 2.0e-2 (1967 / 1134 / 798 points) the ratio below comes out 1.0516 / 1.0517 / 1.0517
+    # and the TEOP rate 1.53476e10 / 1.53477e10 / 1.53478e10 1/s -- five figures unchanged over a factor 2.5 in
+    # grid size, and the finest reproduces example-Dn.jl's recorded 1.534757e10 exactly. Grid-insensitivity on
+    # that scale is itself evidence the comparison is converged rather than balanced on a resolution.
+    #
+    # NO TIMING CLAIM IS MADE FOR THE GRID CHANGE. The obvious experiment -- loop over the three grids in one
+    # session -- reports 74.5 s, 3.6 s and 2.3 s, which looks like a twentyfold saving and is not: the FIRST
+    # iteration pays for compiling the TEOP and biorthogonal paths and the later ones run warm. Measured cold, the
+    # same test takes 69.7 s at 0.6e-2 and 56.6 s at 1.2e-2, so the grid is worth about 13 s and compilation is
+    # the rest. Inside the suite most of that compilation is shared with other tests and is not paid again here.
+    grid = Radial.Grid(Radial.Grid(false), rnt = 4.0e-6, h = 5.0e-2, hp = 1.2e-2, rbox = 10.0)
+    finalConfigs = [Configuration("1s^2"), Configuration("1s 2s"), Configuration("2p^2")]
+
+    gComp      = Atomic.Computation(Atomic.Computation(), name="TEOP test: Green-function multiplet", grid=grid,
+                                    nuclearModel = Nuclear.Model(10.),
+                                    configs = [Configuration("1s 2p"), Configuration("1s 2s")] )
+    gMultiplet = perform(gComp; output=true)["multiplet:"]
+
+    # route (ii): the module itself
+    teopSettings = TwoElectronOnePhoton.Settings([E1], [UseCoulomb,UseBabushkin], false,
+                                                 LineSelection(true, indexPairs=[(i,1) for i = 1:4]), 0.,
+                                                 CoulombInteraction(), gMultiplet)
+    wb = Atomic.Computation(Atomic.Computation(), name="TEOP test: explicit second order", grid=grid,
+                            nuclearModel   = Nuclear.Model(10.),
+                            initialConfigs = [Configuration("2s 2p")],
+                            finalConfigs   = finalConfigs,      processSettings = teopSettings )
+    teopLines = perform(wb; output=true)["two-electron-one-photon lines:"]
+
+    # route (i): CI mixing plus the biorthogonal transformation
+    photoSettings = PhotoEmission.Settings(PhotoEmission.Settings(), multipoles=[E1], gauges=[UseCoulomb,UseBabushkin],
+                        printBefore=false, calcBiorthogonal=true,
+                        lineSelection=LineSelection(true, indexPairs=[(i,1) for i = 1:8]) )
+    wc = Atomic.Computation(Atomic.Computation(), name="TEOP test: CI mixing + biorthogonal", grid=grid,
+                            nuclearModel   = Nuclear.Model(10.),
+                            initialConfigs = [Configuration("2s 2p"), Configuration("1s 2p")],
+                            finalConfigs   = finalConfigs,      processSettings = photoSettings )
+    photoLines = perform(wc; output=true)["radiative lines:"]
+
+    # THE TWO ROUTES ARE MATCHED BY PHOTON ENERGY, NOT BY SIZE, and that is the one subtlety of this test. Route
+    # (i)'s multiplet contains the 1s2p levels as well as the 2s2p ones, so it also produces the ORDINARY Kalpha
+    # lines -- at ~0.92 keV and A ~ 9.9e12 1/s, three orders above anything TEOP. Taking the largest rate finds
+    # those, compares an allowed one-electron transition against a second-order one, and fails by a factor of 600.
+    # The TEOP counterpart sits near 1.93 keV instead, and the two routes describe the SAME transition, so their
+    # photon energies must very nearly coincide -- which is asserted here before the rates are compared at all.
+    if  length(teopLines) == 0  ||  length(photoLines) == 0
+        success = false
+        if printTest   info(iostream, "one of the two routes returned no line at all: $(length(teopLines)) and " *
+                                      "$(length(photoLines))")   end
+    else
+        teopLine = teopLines[argmax([line.teopRate.Coulomb  for line in teopLines])]
+        toGround = [line  for line in photoLines  if line.finalLevel.index == 1]
+        photoLine = toGround[argmin([abs(line.omega - teopLine.omega)  for line in toGround])]
+        dOmega    = abs(photoLine.omega - teopLine.omega) / teopLine.omega
+        if  dOmega > 0.01
+            success = false
+            if printTest   info(iostream, "no route-(i) line matches the TEOP photon energy $(teopLine.omega); " *
+                                          "closest is $(photoLine.omega), off by $dOmega")   end
+        end
+        aTeop  = teopLine.teopRate.Coulomb
+        aPhoto = photoLine.photonRate.Coulomb
+        ratio  = aTeop / aPhoto
+        # (1) the two routes agree. 15 % admits the 5 % of example-Dn.jl with room for the truncation to differ,
+        #     and still excludes everything this test is for: a wrong second-order denominator, a missing time
+        #     ordering or a lost factor would move this by an order of magnitude, not by a tenth.
+        if  !(0.85 < ratio < 1.15)
+            success = false
+            if printTest   info(iostream, "second order gives $aTeop 1/s, CI + biorthogonal $aPhoto 1/s, " *
+                                          "ratio $ratio; the two routes must agree to leading order")   end
+        end
+        # (2) and it really is a SECOND-order rate: an allowed one-electron E1 line at Z = 10 runs at 1e13-1e14
+        #     per second, so a TEOP rate anywhere near that would mean the amplitude is not the one intended.
+        #     NOTE THE UNITS. `teopRate` and `photonRate` are stored in ATOMIC UNITS; the 1/s figures in the
+        #     printed tables and in example-Dn.jl are converted on the way out. 1 a.u. of rate is 4.1341e16 /s,
+        #     so the 1.5348e10 /s of that example is 3.712e-7 here. The ratio in check (1) is unaffected, being
+        #     a ratio; this bound is not, and was written in 1/s at first, which is what the restored diagnostic
+        #     caught in one line.
+        aTeopPerSec = Defaults.convertUnits("rate: from atomic to 1/s", aTeop)
+        if  !(1.0e6 < aTeopPerSec < 1.0e12)
+            success = false
+            if printTest   info(iostream, "the TEOP rate $aTeopPerSec 1/s is outside the range of a " *
+                                          "second-order process at Z = 10")   end
+        end
+    end
+
+    println(iostream, "TwoElectronOnePhoton: the same Be-like Ne rate by explicit second-order perturbation " *
+                      "theory and by CI mixing with a biorthogonal transformation; the two must agree to "    *
+                      "leading order in the mixing. Coulomb gauge only. No approved data is used.")
+    Defaults.setDefaults("print summary: close", "")
+    testPrint("testModule_TwoElectronOnePhoton()::", success)
+    return( success )
+end

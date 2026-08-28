@@ -1,23 +1,23 @@
 
 #################################################################################################################################
 ### Charge exchange (CX) ########################################################################################################
-##
-##  Single-electron capture in a slow ion-atom or ion-ion collision,  A^q+ + B --> A^(q-1)+ + B^+,  where B carries a
-##  weakly-bound "active" electron of ionization potential I_p -- B's *own*, whatever B's own charge state already
-##  is. Charge exchange from a neutral-atom donor and from an already-ionized donor therefore use the *same*
-##  formulas below, just with the donor's I_p taken in its actual (possibly ionized) charge state; this is why the
-##  Configuration-based convenience methods accept any standard-filling Configuration, atom or ion alike, and simply
-##  hand it to Empirical.ionizationPotential.
-##
-##  Both approximations below are restricted to the *slow-collision* (adiabatic, quasi-molecular) regime, relative
-##  collision velocity v << 1 a.u. (25 keV/amu for a proton), where the active electron moves quasi-statically near
-##  the saddle point of the two-center potential and the cross section becomes energy-independent to leading order.
-##  Outside this regime (fast collisions) neither approximation applies; no velocity-dependent treatment (e.g.
-##  Landau-Zener, which needs a coupling matrix element this module does not have access to; or CDW/AOCC) is
-##  attempted here.
-##  Quantity: a cross section [a.u.] -- a property of the (q, I_p) pair alone, energy-independent within the
-##      slow-collision regime; fold with a relative-velocity distribution, or use
-##      Empirical.chargeExchangePlasmaAlpha, to obtain a rate coefficient.
+#
+#  Single-electron capture in a slow ion-atom or ion-ion collision,  A^q+ + B --> A^(q-1)+ + B^+,  where B carries a
+#  weakly-bound "active" electron of ionization potential I_p -- B's *own*, whatever B's own charge state already
+#  is. Charge exchange from a neutral-atom donor and from an already-ionized donor therefore use the *same*
+#  formulas below, just with the donor's I_p taken in its actual (possibly ionized) charge state; this is why the
+#  Configuration-based convenience methods accept any standard-filling Configuration, atom or ion alike, and simply
+#  hand it to Empirical.ionizationPotential.
+#
+#  Both approximations below are restricted to the *slow-collision* (adiabatic, quasi-molecular) regime, relative
+#  collision velocity v << 1 a.u. (25 keV/amu for a proton), where the active electron moves quasi-statically near
+#  the saddle point of the two-center potential and the cross section becomes energy-independent to leading order.
+#  Outside this regime (fast collisions) neither approximation applies; no velocity-dependent treatment (e.g.
+#  Landau-Zener, which needs a coupling matrix element this module does not have access to; or CDW/AOCC) is
+#  attempted here.
+#  Quantity: a cross section [a.u.] -- a property of the (q, I_p) pair alone, energy-independent within the
+#      slow-collision regime; fold with a relative-velocity distribution, or use
+#      Empirical.chargeExchangePlasmaAlpha, to obtain a rate coefficient.
 
 
 """
@@ -111,8 +111,8 @@ function chargeExchangeCrossSection(q::Float64, Ip::Float64, approx::Empirical.N
              "regime, v << 1 a.u., of this empirical scaling; the returned cross section may be unreliable."
         @warn sa maxlog=5
     end
-    ## Constant C = 2.6e-13 cm^2 eV^2, expressed in atomic units [a_o^2 Hartree^2]; cf. the identical unit-conversion
-    ## recipe used for Lotz's constant in Empirical.impactIonizationCrossSection.
+    # Constant C = 2.6e-13 cm^2 eV^2, expressed in atomic units [a_o^2 Hartree^2]; cf. the identical unit-conversion
+    # recipe used for Lotz's constant in Empirical.impactIonizationCrossSection.
     Cau   = 2.6e-13 / Defaults.convertUnits("length: from atomic to cm", 1.0)^2 *
             Defaults.convertUnits("energy: from eV to atomic", 1.0)^2
     sigma = Cau * q / Ip^2
@@ -238,11 +238,11 @@ end
 
 #################################################################################################################################
 ### State-selective (n,l) charge exchange #######################################################################################
-##
-##  Empirical.chargeExchangeCrossSection() above returns only the *total*, state-summed capture cross section. The
-##  functions below additionally estimate *which* shell the electron is most likely captured into -- a considerably
-##  cruder, explicitly labeled extension (see the "StateSelective" name and the named-tuple field names below, so
-##  the distinction from the total cross section is unambiguous from the call site alone).
+#
+#  Empirical.chargeExchangeCrossSection() above returns only the *total*, state-summed capture cross section. The
+#  functions below additionally estimate *which* shell the electron is most likely captured into -- a considerably
+#  cruder, explicitly labeled extension (see the "StateSelective" name and the named-tuple field names below, so
+#  the distinction from the total cross section is unambiguous from the call site alone).
 
 
 """

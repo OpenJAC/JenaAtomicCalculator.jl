@@ -108,9 +108,9 @@ function displayExpansionOpacities(stream::IO, sc::String, property::Cascade.Exp
         "\n    + energy shift  [Hartree]            = $(property.transitionEnergyShift) \n"
     println(stream, sa)
     println(stream, "  ", TableStrings.hLine(nx))
-    ## The bin centres are handed over as photon energies in all three cases, but a wavelength-dependent
-    ## opacity is read against wavelength -- printing it in eV made the standard plot of the literature
-    ## impossible to compare with. The binning likewise was labelled [Hartree] whatever the dependence.
+    # The bin centres are handed over as photon energies in all three cases, but a wavelength-dependent
+    # opacity is read against wavelength -- printing it in eV made the standard plot of the literature
+    # impossible to compare with. The binning likewise was labelled [Hartree] whatever the dependence.
     isWavelength = typeof(property.opacityDependence) == Cascade.WavelengthOpacityDependence
     sb = TableStrings.inUnits("energy")
     if  typeof(property.opacityDependence) == Cascade.TemperatureOpacityDependence    sb = "[dim-less]"     end
@@ -239,7 +239,6 @@ function displayLevelTree(stream::IO, levels::Array{Cascade.Level,1}; extended::
         sb = "Parents P(A/R: No_e, sym, energy) and Daughters D(A/R: No_e, sym, energy);  all energies in " * TableStrings.inUnits("energy")
         sa = sa * TableStrings.flushleft(100, sb; na=2)
     end
-    # 
     println(stream, sa)
     if  extended    println(stream, "  ", TableStrings.hLine(nx))  else    println(stream, "  ", TableStrings.hLine(ny))  end
     for n = maxElectrons:-1:minElectrons
@@ -255,9 +254,9 @@ function displayLevelTree(stream::IO, levels::Array{Cascade.Level,1}; extended::
                 pProcessSymmetryEnergyList = Tuple{Basics.AtomicProcess,Int64,LevelSymmetry,Float64}[]
                 dProcessSymmetryEnergyList = Tuple{Basics.AtomicProcess,Int64,LevelSymmetry,Float64}[]
                 for  p in levels[en].parents
-                    ## A Cascade.LineReference already carries the line list of its OWN process, so no
-                    ## per-process selection is needed; the former p.lineSet.linesA/linesR/linesP referred to
-                    ## an earlier layout in which one reference pointed at a SET of lists.
+                    # A Cascade.LineReference already carries the line list of its OWN process, so no
+                    # per-process selection is needed; the former p.lineSet.linesA/linesR/linesP referred to
+                    # an earlier layout in which one reference pointed at a SET of lists.
                     idx = p.index
                     lev = p.lines[idx].initialLevel
                     push!( pProcessSymmetryEnergyList, (p.process, lev.basis.NoElectrons, LevelSymmetry(lev.J, lev.parity), lev.energy) )
@@ -308,7 +307,6 @@ function displayIntensities(stream::IO, property::PhotonIntensities, energiesInt
     sa = sa * TableStrings.center(13, "Number / ion"; na=2)
     println(stream, sa)
     println(stream, "  ", TableStrings.hLine(nx))
-    #
     totalIntensity = 0.
     for  enInt in  energiesIntensities
         sa = "     "
@@ -344,7 +342,6 @@ function displayIntensities(stream::IO, property::ElectronIntensities, energiesI
     sa = sa * TableStrings.center(13, "Number / ion"; na=2)
     println(stream, sa)
     println(stream, "  ", TableStrings.hLine(nx))
-    #
     totalIntensity = 0.
     for  enInt in  energiesIntensities
         sa = "     "
@@ -368,7 +365,6 @@ function displayPhotoAbsorptionSpectrum(stream::IO, pEnergies::Array{Float64,1},
                                         property::Cascade.PhotoAbsorptionSpectrum)
     # Photon energies enter via the property
     if  length(pEnergies) != length(crossSections)  error("stop a")    end
-    #
     nx = 46
     println(stream, " ")
     println(stream, "* Absorption cross sections:  ")
@@ -383,7 +379,6 @@ function displayPhotoAbsorptionSpectrum(stream::IO, pEnergies::Array{Float64,1},
     sa = "                      Coulomb       Babushkin"
     println(stream, sa)
     println(stream, "  ", TableStrings.hLine(nx))
-    #
     for  (i, cs)  in  enumerate(crossSections)
         sa = "     "
         sa = sa * @sprintf("%.6e", Defaults.convertUnits("energy: from atomic", pEnergies[i]))        * "     "
@@ -417,7 +412,6 @@ function displayRelativeOccupation(stream::IO, levels::Array{Cascade.Level,1}, s
     sa = sa * TableStrings.center(16, "Energy " * TableStrings.inUnits("energy"); na=5)
     sa = sa * TableStrings.center(10, "Rel. occ.";                                    na=2)
     println(stream, sa)
-    #
     for  initialOcc in  settings.initialOccupations
         idx = initialOcc[1];   occ = initialOcc[2]
         if   idx < 1   ||   idx > length(levels)       error("In appropriate choice of initial occupation; idx = $idx")    end
@@ -453,7 +447,6 @@ function displayRelativeOccupation(stream::IO, levels::Array{Cascade.Level,1})
     sa = sa * TableStrings.center(10, "Rel. occ.";                                    na=2)
     println(stream, sa)
     println(stream, "  ", TableStrings.hLine(nx))
-    #
     for  (levi, level) in enumerate(levels)
         sa = "            " * string(level.NoElectrons);                                  sa  = sa[end-10:end]
         sb = "            " * string(levi);                                               sb  = sb[end-12:end]
@@ -473,7 +466,6 @@ end
     ... determines the total occupation of the levels in (one of) the groundConfigs. A occ::Float64 is returned.
 """
 function extractOccupation(levels::Array{Cascade.Level,1}, groundConfigs::Array{Configuration,1})
-    #
     wocc = 0.
     for level in levels
         if  Basics.extractConfiguration(Basics.LeadingConfiguration(), level) in groundConfigs   wocc = wocc + level.relativeOcc     end
@@ -533,7 +525,6 @@ function extractLevels(data::Array{Cascade.Data,1}, settings::Cascade.Simulation
     if printSummary     print(iostream, "> Extract and sort the list of levels for the given decay data ... ")     end
         
     for cData in data
-        #
         if  typeof(cData) == Cascade.Data{PhotoEmission.Line}
             linesR = cData.lines
             for  (i,line)  in  enumerate(linesR)
@@ -548,7 +539,6 @@ function extractLevels(data::Array{Cascade.Data,1}, settings::Cascade.Simulation
                                         Cascade.LineReference[] ) 
                 Cascade.pushLevels!(levels, fLevel)  
             end
-            #
         elseif  typeof(cData) == Cascade.Data{AutoIonization.Line}
             linesA = cData.lines
             for  (i,line)  in  enumerate(linesA)
@@ -562,7 +552,6 @@ function extractLevels(data::Array{Cascade.Data,1}, settings::Cascade.Simulation
                                         major, line.finalLevel.relativeOcc, [ Cascade.LineReference(linesA, Basics.Auger(), i)], Cascade.LineReference[] ) 
                 Cascade.pushLevels!(levels, fLevel)
             end
-            #
         elseif  typeof(cData) == Cascade.Data{PhotoIonization.Line}
             linesP = cData.lines
             for  (i,line)  in  enumerate(linesP)
@@ -575,8 +564,6 @@ function extractLevels(data::Array{Cascade.Data,1}, settings::Cascade.Simulation
                                         major, line.finalLevel.relativeOcc, [ Cascade.LineReference(linesP, Basics.Photo(), i)], Cascade.LineReference[] ) 
                 Cascade.pushLevels!(levels, fLevel)
             end
-            #
-            #
         elseif  typeof(cData) == Cascade.Data{PhotoExcitation.Line}
             linesE = cData.lines
             for  (i,line)  in  enumerate(linesE)
@@ -670,7 +657,6 @@ function interpolateIonizationCS(photonEnergy::Float64, ionizationCS::Array{Basi
     for  (i, ionCS)  in  enumerate(ionizationCS)
         if  ionCS.arg >  photonEnergy   imax = i;   break    end
     end
-    #
     if       imin == 0  &&  imax == 1        return(ionizationCS[1].value)
     elseif   imax == 0                       return(ionizationCS[end].value)
     elseif   imax - imin == 1
@@ -696,18 +682,18 @@ end
         specifications of the cascade but can easily accessed by the keys of this dictionary.
 """
 function perform(simulation::Cascade.Simulation; output::Bool=false)
-    ## The property (and, where it matters, the method) select what is simulated BY DISPATCH; this used to be a
-    ## chain of ten `typeof(simulation.property) == ...` tests ending in error("stop b"). That chain is why
-    ## Cascade.ElectronIntensities stayed dead for years: it had no branch, so a request for it fell straight
-    ## through and returned nothing, silently. Under dispatch an unsupported combination hits the explicit
-    ## fallback below and says so. Cascade.PiRateCoefficients is still in that position and now reports it.
+    # The property (and, where it matters, the method) select what is simulated BY DISPATCH; this used to be a
+    # chain of ten `typeof(simulation.property) == ...` tests ending in error("stop b"). That chain is why
+    # Cascade.ElectronIntensities stayed dead for years: it had no branch, so a request for it fell straight
+    # through and returned nothing, silently. Under dispatch an unsupported combination hits the explicit
+    # fallback below and says so. Cascade.PiRateCoefficients is still in that position and now reports it.
     wa = Cascade.simulate(simulation.property, simulation.method, simulation)
 
-    ## NOTE (05-Aug-2026): the individual branches used to merge their own keys into `results`
-    ## ("energies/intensities:", "alpha^RR:", "relaxPercentage:", ...), but the closing block then RESET
-    ## `results` to a fresh Dict before filling in name/property/data -- so none of those keys ever reached a
-    ## caller. They were aliases for `wa` in any case, and the behaviour that callers actually saw is kept
-    ## unchanged here.
+    # NOTE (05-Aug-2026): the individual branches used to merge their own keys into `results`
+    # ("energies/intensities:", "alpha^RR:", "relaxPercentage:", ...), but the closing block then RESET
+    # `results` to a fresh Dict before filling in name/property/data -- so none of those keys ever reached a
+    # caller. They were aliases for `wa` in any case, and the behaviour that callers actually saw is kept
+    # unchanged here.
     if  output
         results = Dict{String, Any}()
         results = Base.merge( results, Dict("name:"         => simulation.name) )
@@ -896,10 +882,9 @@ function simulate(property::Cascade.EaCrossSections, method::Cascade.AbstractSim
               "this cascade autoionizes and the EA cross section is zero by construction.  Widen " *
               "ElectronIonizationScheme.excitationToShells until levels above the ionization threshold are reached.")
     end
-    ## The autoionizing levels are those that appear as the INITIAL level of an Auger line.  Their branching ratio
-    ## is taken as 1: this scheme computes no radiative rates, so the result is an upper bound (see the docstring).
+    # The autoionizing levels are those that appear as the INITIAL level of an Auger line.  Their branching ratio
+    # is taken as 1: this scheme computes no radiative rates, so the result is an upper bound (see the docstring).
     autoIonizing = unique([ (l.initialLevel.index, l.initialLevel.energy)  for l in linesA ])
-    #
     energies = length(property.electronEnergies) > 0 ? property.electronEnergies :
                       sort(unique([Defaults.convertUnits("energy: from atomic", l.initialElectronEnergy) for l in linesE]))
     results  = Basics.ScalarProperty{Float64}[]
@@ -913,10 +898,8 @@ function simulate(property::Cascade.EaCrossSections, method::Cascade.AbstractSim
         end
         push!( results, Basics.ScalarProperty(en_au, cs) )
     end
-    #
     Cascade.displayEaCrossSections(stdout, results, property)
     if  printSummary   Cascade.displayEaCrossSections(iostream, results, property)    end
-    #
     return( results )
 end
 
@@ -946,7 +929,6 @@ function displayEaCrossSections(stream::IO, results::Array{Basics.ScalarProperty
         println(stream, sa)
     end
     println(stream, "  ", TableStrings.hLine(nx))
-    #
     return( nothing )
 end
 
@@ -968,18 +950,17 @@ function simulate(property::Cascade.EieRateCoefficients, method::Cascade.Abstrac
         error("Cascade.EieRateCoefficients needs the collision strengths at three or more electron energies; " *
               "the given cascade data carry only $(length(linesE)) line(s).  Widen ImpactExcitationScheme.electronEnergies.")
     end
-    ## The aggregation itself lives in ImpactExcitation; only the temperatures are taken from the property.
-    ## numElectronEnergies must match the number of DISTINCT incident energies actually present in the lines:
-    ## ImpactExcitation.groupLines reshapes the line list into (energies x transitions) and refuses anything
-    ## that does not divide evenly.  The Settings default of 6 has nothing to do with what the cascade computed,
-    ## so it is taken from the data here.
+    # The aggregation itself lives in ImpactExcitation; only the temperatures are taken from the property.
+    # numElectronEnergies must match the number of DISTINCT incident energies actually present in the lines:
+    # ImpactExcitation.groupLines reshapes the line list into (energies x transitions) and refuses anything
+    # that does not divide evenly.  The Settings default of 6 has nothing to do with what the cascade computed,
+    # so it is taken from the data here.
     nEnergies = length(unique([l.initialElectronEnergy  for l in linesE]))
     settings  = ImpactExcitation.Settings(ImpactExcitation.Settings(), calcRateCoefficient=true,
                                           temperatures=property.temperatures, numElectronEnergies=nEnergies)
     rates    = ImpactExcitation.computeRateCoefficients(linesE, settings)
     ImpactExcitation.displayResults(stdout, rates)
     if  printSummary    ImpactExcitation.displayResults(iostream, rates)    end
-    #
     return( rates )
 end
 
@@ -990,9 +971,9 @@ end
 """
 function simulate(property::Cascade.RrRateCoefficients, method::Cascade.AbstractSimulationMethod,
                   simulation::Cascade.Simulation)
-    ## Cascade.Data carries its lines in the field `lines`; `.linesR` has not existed since that struct was
-    ## generalised, so this path raised a FieldError on every call and the RR rate coefficients could never
-    ## be simulated at all.
+    # Cascade.Data carries its lines in the field `lines`; `.linesR` has not existed since that struct was
+    # generalised, so this path raised a FieldError on every call and the RR rate coefficients could never
+    # be simulated at all.
     linesR = simulation.computationData[1]["results"]["photo-recombination line data:"].lines
     return( Cascade.simulateRrRateCoefficients(linesR, simulation) )
 end
@@ -1025,13 +1006,13 @@ end
     ... propagates the occupation of the levels by dt in time. 
 """
 function propagateOccupationInTime!(levels::Array{Cascade.Level,1}, dt::Float64)
-    ## Exact for one time step, at ANY dt: the probability that a level has decayed at all after dt is
-    ## 1 - exp(-totalRate*dt), and that amount is shared among its daughters in proportion to their individual
-    ## rates. The previous formulation applied 1 - exp(-rate*dt) to each daughter separately and capped the
-    ## running sum at 1, which is only valid while every rate*dt << 1: for a larger step the first daughter
-    ## in the list absorbed the whole population and the remaining branches received nothing, so the branching
-    ## ratios were silently destroyed. That did not matter while the caller used a tiny fixed step, but it is
-    ## fatal on a logarithmic time grid, where dt deliberately becomes large compared with the fast rates.
+    # Exact for one time step, at ANY dt: the probability that a level has decayed at all after dt is
+    # 1 - exp(-totalRate*dt), and that amount is shared among its daughters in proportion to their individual
+    # rates. The previous formulation applied 1 - exp(-rate*dt) to each daughter separately and capped the
+    # running sum at 1, which is only valid while every rate*dt << 1: for a larger step the first daughter
+    # in the list absorbed the whole population and the remaining branches received nothing, so the branching
+    # ratios were silently destroyed. That did not matter while the caller used a tiny fixed step, but it is
+    # fatal on a logarithmic time grid, where dt deliberately becomes large compared with the fast rates.
     relativeOcc = zeros(length(levels))
     for (i, level) in  enumerate(levels)
         occ = level.relativeOcc
@@ -1048,7 +1029,6 @@ function propagateOccupationInTime!(levels::Array{Cascade.Level,1}, dt::Float64)
         totalRate = sum(rates)
         if  totalRate <= 0.    continue    end
         pLeave = (1.0 - exp(-totalRate*dt)) * occ
-        #
         for  (k, daughter) in  enumerate(level.daughters)
             line       = daughter.lines[daughter.index]
             major      = Basics.extractConfiguration(Basics.LeadingConfiguration(), line.finalLevel)
@@ -1119,7 +1099,7 @@ function propagateProbability!(levels::Array{Cascade.Level,1})
                         kk    = Cascade.findLevelIndex(newLevel, levels)
                         flux  = prob * rates[i] / totalRate
                         relativeOcc[kk] = relativeOcc[kk] + flux
-                        ## Record the flux through this line, whatever its process; the properties sort it out later.
+                        # Record the flux through this line, whatever its process; the properties sort it out later.
                         push!(fluxes, Cascade.LineFlux(daughter.process, level.energy - levels[kk].energy, flux, li, kk))
                     end
                     level.relativeOcc = 0.;   totalProbability = totalProbability + prob
@@ -1193,7 +1173,6 @@ function walkPathways!(levels::Array{Cascade.Level,1}, index::Int64, prob::Float
     if  prob < cutoff  ||  length(level.daughters) == 0
         push!(pathways, (emissions, index, prob));    return( nothing )
     end
-    #
     rates = zeros(length(level.daughters))
     for  (i,daughter) in  enumerate(level.daughters)
         idx = daughter.index
@@ -1207,7 +1186,6 @@ function walkPathways!(levels::Array{Cascade.Level,1}, index::Int64, prob::Float
     if  totalRate <= 0.
         push!(pathways, (emissions, index, prob));    return( nothing )
     end
-    #
     for  (i,daughter) in  enumerate(level.daughters)
         idx      = daughter.index;    line = daughter.lines[idx]
         major    = Basics.extractConfiguration(Basics.LeadingConfiguration(), line.finalLevel)
@@ -1241,7 +1219,6 @@ function simulateParticleCoincidences(levels::Array{Cascade.Level,1}, simulation
     end
     Cascade.specifyInitialOccupation!(levels, prop.initialOccupations)
     Cascade.displayRelativeOccupation(stdout, levels)
-    #
     cutoff   = 1.0e-10
     pathways = Any[]
     for  (li, level) in  enumerate(levels)
@@ -1251,10 +1228,8 @@ function simulateParticleCoincidences(levels::Array{Cascade.Level,1}, simulation
         end
     end
     println("\n*  Coincidence analysis: $(length(pathways)) decay pathways enumerated (probability cutoff $cutoff).")
-    #
     seqGates    = filter(g -> typeof(g) != Cascade.ChargeStateGate, prop.gates)
     chargeGates = filter(g -> typeof(g) == Cascade.ChargeStateGate, prop.gates)
-    #
     energiesInts = Tuple{Float64,Float64}[];   nAccepted = 0
     for  (emissions, finalIndex, pathProb) in pathways
         ok = true
@@ -1262,13 +1237,13 @@ function simulateParticleCoincidences(levels::Array{Cascade.Level,1}, simulation
             if  levels[finalIndex].NoElectrons != g.NoElectrons    ok = false    end
         end
         if  !ok    continue    end
-        ## The gates are matched as an ordered SUBSEQUENCE of the emissions, not against adjacent positions.
-        ## That is what a coincidence experiment actually measures: between two detected Auger electrons the
-        ## ion may well have emitted a photon, and a detector counting electrons is indifferent to it. Strict
-        ## adjacency would discard exactly those pathways. With no gates at all, every emission is therefore a
-        ## candidate, and the result reduces to the ungated singles spectrum -- which is the check that caught
-        ## this: adjacency gave only the FIRST emission and so recovered just 0.95 of the 1.91 electrons that
-        ## this cascade emits per ion.
+        # The gates are matched as an ordered SUBSEQUENCE of the emissions, not against adjacent positions.
+        # That is what a coincidence experiment actually measures: between two detected Auger electrons the
+        # ion may well have emitted a photon, and a detector counting electrons is indifferent to it. Strict
+        # adjacency would discard exactly those pathways. With no gates at all, every emission is therefore a
+        # candidate, and the result reduces to the ungated singles spectrum -- which is the check that caught
+        # this: adjacency gave only the FIRST emission and so recovered just 0.95 of the 1.91 electrons that
+        # this cascade emits per ion.
         pos = 0
         for  g in seqGates
             found = 0
@@ -1279,7 +1254,7 @@ function simulateParticleCoincidences(levels::Array{Cascade.Level,1}, simulation
             pos = found
         end
         if  !ok    continue    end
-        ## every later emission that matches the observation window contributes
+        # every later emission that matches the observation window contributes
         for  j = pos+1:length(emissions)
             if  Cascade.matchesGate(prop.observed, emissions[j])
                 push!(energiesInts, (emissions[j][2], pathProb));    nAccepted = nAccepted + 1
@@ -1287,7 +1262,6 @@ function simulateParticleCoincidences(levels::Array{Cascade.Level,1}, simulation
         end
     end
     println("*  $nAccepted pathways satisfy all gates and contribute to the coincidence spectrum.")
-    #
     energiesInts = Cascade.truncateEnergiesIntensities(energiesInts, -1.0e10, 1.0e10)
     Cascade.displayCoincidences(stdout, prop, energiesInts)
     if  printSummary   Cascade.displayCoincidences(iostream, prop, energiesInts)      end
@@ -1316,7 +1290,6 @@ function displayCoincidences(stream::IO, property::Cascade.ParticleCoincidences,
     sa = sa * TableStrings.center(13, "Number / ion"; na=2)
     println(stream, sa)
     println(stream, "  ", TableStrings.hLine(nx))
-    #
     totalIntensity = 0.
     for  enInt in  energiesIntensities
         sa = "     " * @sprintf("%.6e", Defaults.convertUnits("energy: from atomic", enInt[1])) *
@@ -1380,7 +1353,6 @@ function reviewData(simulation::Cascade.Simulation; ascendingOrder::Bool=false)
             Cascade.displayLevels(iostream, multiplets,  sa="initial ")
             Cascade.displayLevels(iostream, gMultiplets, sa="generated ")        
         end
-        #
         if      haskey(results, "cascade data:")             lineData = results["cascade data:"]
         else    error("stop a")
         end
@@ -1436,7 +1408,6 @@ function extractIonizingResonances(levels::Array{Cascade.Level,1}, property::Cas
     resonances = Cascade.IonizingResonance[]
     if  length(levels) == 0    return( resonances )    end
     es    = Defaults.convertUnits("energy: to atomic", property.electronEnergyShift)
-    #
     # IDENTIFY THE INITIAL LEVEL BY ELECTRON NUMBER AND ENERGY, NOT BY ITS INDEX ALONE.  A ManyElectron.Level's index
     # counts within ITS OWN multiplet, so level 1 of the excited block carries the same index as level 1 of the initial
     # block; testing the index alone made every ordinary Auger to an excited level look like a capture, and produced a
@@ -1452,7 +1423,6 @@ function extractIonizingResonances(levels::Array{Cascade.Level,1}, property::Cas
               "resonant channels of Cascade.ElectronIonizationScheme.")
     end
     iniLevel = iniLs[ argmin([level.energy for level in iniLs]) ]
-    #
     for  level in levels
         if  level.NoElectrons != nMax                                          continue   end
         # find the Auger line back to the initial GROUND level; its rate is the capture rate, by detailed balance
@@ -1468,13 +1438,11 @@ function extractIonizingResonances(levels::Array{Cascade.Level,1}, property::Cas
         if  captureRate == 0.                                                  continue   end
         en = level.energy - iniLevel.energy + es
         if  en <= 0.                                                           continue   end
-        #
         augerD  = Cascade.computeTotalAugerRate(level)
         photonD = Cascade.computeTotalPhotonRate(level)
         gammaDb = augerD + photonD.Babushkin;      gammaDc = augerD + photonD.Coulomb
         if  gammaDb <= 0.                                                      continue   end
         twoJd   = Basics.twice(level.J)
-        #
         # the SEQUENTIAL route: every Auger daughter that lands on a level which itself autoionizes.  Each gauge is
         # carried through with its OWN total width, since the widths sit in the denominators of the branching ratios.
         sSeqB = 0.;   sSeqC = 0.
@@ -1505,7 +1473,6 @@ function extractIonizingResonances(levels::Array{Cascade.Level,1}, property::Cas
         # the RECOMBINATION strength of the same resonance, for comparison
         s0   = ResonantImpactIonization.resonanceStrength(en, captureRate, twoJd, twoJi)
         sDr  = Basics.EmProperty(s0 * photonD.Coulomb / gammaDc, s0 * photonD.Babushkin / gammaDb)
-        #
         push!( resonances, Cascade.IonizingResonance(level, en, captureRate, augerD, photonD,
                                                      Basics.EmProperty(sSeqC, sSeqB), sSim, sDr) )
     end
@@ -1523,11 +1490,10 @@ function simulateResonantIonizationStrengths(levels::Array{Cascade.Level,1}, sim
     printSummary, iostream = Defaults.getDefaults("summary flag/stream")
     property   = simulation.property
     resonances = Cascade.extractIonizingResonances(levels, property)
-    #
     nRes   = 0
     sumSeq = 0.;   sumSim = 0.;   sumDr = Basics.EmProperty(0.)
-    ## Every line goes to BOTH streams: the summary file is what the test suite compares against, so a table that
-    ## reached only stdout could not be regression-tested at all.
+    # Every line goes to BOTH streams: the summary file is what the test suite compares against, so a table that
+    # reached only stdout could not be regression-tested at all.
     sayBoth = function(line::String)
         println(line);   if  printSummary   println(iostream, line)   end
     end
@@ -1574,17 +1540,16 @@ function simulateEiiRateCoefficients(levels::Array{Cascade.Level,1}, simulation:
         error("Cascade.EiiRateCoefficients: no temperature was given, so there is nothing to form.  alpha^EII is a " *
               "function of temperature; set the `temperatures` field of the property.")
     end
-    #
     # ---- the RESONANT half ---------------------------------------------------------------------------------------
     # The Boltzmann factor and the conversion to cm^3/s are taken from DielectronicRecombination.computeRateCoefficient
     # itself, rather than written out again here, so that the IONIZATION and the RECOMBINATION rate coefficients of the
     # same resonances cannot drift apart.  Only the STRENGTH differs between the two: it is the double-autoionization
     # strength here and the radiative one there.  The dummy levels below are inert -- that function reads only the
     # resonance energy and the strength.
-    ## strict=false: a cascade that computed ONLY the impact-excitation channel carries no resonance at all, and for
-    ## this property that is a legitimate input rather than an error -- it sums whichever channels are present.  The
-    ## alternative, wrapping the call in a bare `catch` that substitutes an empty list, would also have swallowed a
-    ## genuine failure and reported "no resonances" for it.
+    # strict=false: a cascade that computed ONLY the impact-excitation channel carries no resonance at all, and for
+    # this property that is a legitimate input rather than an error -- it sums whichever channels are present.  The
+    # alternative, wrapping the call in a bare `catch` that substitutes an empty list, would also have swallowed a
+    # genuine failure and reported "no resonances" for it.
     resonances = Cascade.extractIonizingResonances(levels, property, strict=false)
     dummy    = ManyElectron.Level(AngularJ64(0), AngularM64(0), Basics.plus, 0, 0., 0., false, ManyElectron.Basis(), Float64[])
     alphaRes = Basics.EmProperty[];    alphaDr = Basics.EmProperty[]
@@ -1601,20 +1566,16 @@ function simulateEiiRateCoefficients(levels::Array{Cascade.Level,1}, simulation:
         end
         push!(alphaRes, wa);    push!(alphaDr, wb)
     end
-    #
     # ---- the EXCITATION-AUTOIONIZATION half ----------------------------------------------------------------------
     csEnergies, csValues = Cascade.extractEaCrossSections(simulation)
     alphaEa, weightAbove = Cascade.foldWithMaxwellian(csEnergies, csValues, temps)
-    #
     # ---- the DIRECT half, semi-empirically ---------------------------------------------------------------------
     if  property.directCharge > 0.
         alphaDir, skipped = Cascade.directIonizationAlpha(property.directCharge, property.directConfig, temps)
     else
         alphaDir = zeros(length(temps));    skipped = String[]
     end
-    #
     total = Basics.EmProperty[ alphaRes[i] + Basics.EmProperty(alphaEa[i] + alphaDir[i])  for i = 1:length(temps) ]
-    #
     Cascade.displayEiiRateCoefficients(stdout, temps, alphaRes, alphaEa, alphaDir, skipped, alphaDr, total,
                                        weightAbove, resonances, csEnergies, property)
     if  printSummary
@@ -1686,7 +1647,6 @@ function displayEiiRateCoefficients(stream::IO, temperatures::Array{Float64,1}, 
         println(stream, "    Set directCharge and directConfig to add a semi-empirical Lotz estimate of it.")
     end
     println(stream, " ")
-    #
     # ---- the DR comparison, free of charge: it is the other fate of the very same resonances -------------------
     if  length(resonances) > 0
         println(stream, "    For comparison, the DIELECTRONIC RECOMBINATION rate coefficient of the SAME resonances,")
@@ -1700,7 +1660,6 @@ function displayEiiRateCoefficients(stream::IO, temperatures::Array{Float64,1}, 
         end
         println(stream, " ")
     end
-    #
     # ---- diagnostic 1: WHERE THE MAXIMUM MUST LIE.  alpha^res(T) ~ T^(-3/2) exp(-E/T) has d(ln alpha)/dT = 0 at
     # kT = 2E/3 exactly.  BE CLEAR ABOUT WHAT THIS TESTS.  It tests the FOLD -- the exponent, the sign of the
     # exponential and the Kelvin-to-Hartree conversion -- and it is falsifiable there: a T^(-1/2) in place of
@@ -1728,13 +1687,13 @@ function displayEiiRateCoefficients(stream::IO, temperatures::Array{Float64,1}, 
         println(stream, "      strength-weighted mean resonance energy   E     = " * @sprintf("%10.3f", eBev) * " eV")
         println(stream, "      predicted maximum at                      kT    = " * @sprintf("%10.3f", kTpk) * " eV")
         println(stream, "      largest tabulated value falls at          kT    = " * @sprintf("%10.3f", kTs[imax]) * " eV")
-        ## The test is that the tabulated maximum is one of the two grid points BRACKETING the predicted one, and
-        ## not that it lies numerically close to it.  alpha(T) is unimodal, so it is monotone on either side of the
-        ## true maximum; no grid point can then exceed the bracketing point on its own side, and the discrete
-        ## argmax must be one of the two.  That statement is exact and holds on ANY grid, whereas comparing
-        ## |kT_max - kT_predicted| against a tolerance merely measures how coarse the grid is: the first version of
-        ## this check used a 50% tolerance and reported INCONSISTENT for a perfectly sound four-point grid whose
-        ## neighbouring points sat at 86 and 431 eV around a predicted 204 eV.
+        # The test is that the tabulated maximum is one of the two grid points BRACKETING the predicted one, and
+        # not that it lies numerically close to it.  alpha(T) is unimodal, so it is monotone on either side of the
+        # true maximum; no grid point can then exceed the bracketing point on its own side, and the discrete
+        # argmax must be one of the two.  That statement is exact and holds on ANY grid, whereas comparing
+        # |kT_max - kT_predicted| against a tolerance merely measures how coarse the grid is: the first version of
+        # this check used a 50% tolerance and reported INCONSISTENT for a perfectly sound four-point grid whose
+        # neighbouring points sat at 86 and 431 eV around a predicted 204 eV.
         if      kTpk < kTs[1]
             println(stream, "      -> the predicted maximum lies BELOW the whole temperature grid; widen it downwards.")
             if  imax != 1                     println(stream, "         INCONSISTENT: the tabulated maximum is not at the lowest temperature.")   end
@@ -1755,7 +1714,6 @@ function displayEiiRateCoefficients(stream::IO, temperatures::Array{Float64,1}, 
         end
         println(stream, " ")
     end
-    #
     # ---- diagnostic 2: how much of the Maxwellian the computed impact energies actually cover -------------------
     if  length(csEnergies) > 0
         eMax = Defaults.convertUnits("energy: from atomic to eV", csEnergies[end])
@@ -1802,7 +1760,6 @@ function simulatePiRateCoefficients(simulation::Cascade.Simulation)
         error("Cascade.PiRateCoefficients: a fold over photon energy needs at least two computed energies; the given " *
               "data carry $(length(lines)) line(s).  Widen PhotoIonizationScheme.photonEnergies.")
     end
-    #
     # sigma^PI(omega), summed over the final levels and over the selected initial level(s)
     energies = sort(unique([l.photonEnergy  for l in lines]))
     csC = Float64[];    csB = Float64[]
@@ -1820,14 +1777,12 @@ function simulatePiRateCoefficients(simulation::Cascade.Simulation)
               "$(property.initialLevelNo).  Either that level carries no photoionization line in these data, or its " *
               "index does not exist; initialLevelNo = 0 sums over all initial levels.")
     end
-    #
     rates = Basics.EmProperty[];    edges = Float64[]
     for  dist  in  property.photonDistributions
         rC, eC = Cascade.foldWithPhotonField(energies, csC, dist)
         rB, _  = Cascade.foldWithPhotonField(energies, csB, dist)
         push!(rates, Basics.EmProperty(rC, rB));    push!(edges, eC)
     end
-    #
     Cascade.displayPiRateCoefficients(stdout, energies, rates, edges, property)
     if  printSummary   Cascade.displayPiRateCoefficients(iostream, energies, rates, edges, property)   end
 
@@ -1884,10 +1839,10 @@ function displayPiRateCoefficients(stream::IO, energies::Array{Float64,1}, rates
     println(stream, "                                                                    [1/s]             [1/s]     ")
     println(stream, "  ", "-"^nx)
     for  i = 1:length(rates)
-        ## Each field prints a whole sentence describing itself, with its temperature in ATOMIC units.  Truncating
-        ## that to fit the column removed exactly what distinguishes two fields of the same kind -- two Planck
-        ## entries became identical labels against different numbers.  The type and the temperature in eV are what
-        ## the reader needs, so they are built here rather than taken from the sentence.
+        # Each field prints a whole sentence describing itself, with its temperature in ATOMIC units.  Truncating
+        # that to fit the column removed exactly what distinguishes two fields of the same kind -- two Planck
+        # entries became identical labels against different numbers.  The type and the temperature in eV are what
+        # the reader needs, so they are built here rather than taken from the sentence.
         dist = property.photonDistributions[i]
         lab  = replace(string(typeof(dist)), "JenaAtomicCalculator." => "", "Distribution." => "")
         if  hasproperty(dist, :T)
@@ -1937,9 +1892,9 @@ function directIonizationAlpha(Z::Float64, conf::Configuration, temperatures::Ar
     alphas = Float64[];   skipped = String[]
     conv   = Defaults.convertUnits("length: from atomic to cm", 1.0)^3 / Defaults.convertUnits("time: from atomic to sec", 1.0)
     shells = sort(collect(keys(conf.shells)), by = sh -> (sh.n, sh.l))
-    ## Empirical.impactIonizationPlasmaAlpha reads the nuclear charge from the global defaults rather than taking it as
-    ## an argument, so it is set here and restored afterwards; leaving it changed would silently alter whatever the
-    ## caller does next.
+    # Empirical.impactIonizationPlasmaAlpha reads the nuclear charge from the global defaults rather than taking it as
+    # an argument, so it is set here and restored afterwards; leaving it changed would silently alter whatever the
+    # caller does next.
     oldZ = Defaults.getDefaults("nuclear: charge")
     Defaults.setDefaults("nuclear: charge", Z)
     try
@@ -1955,11 +1910,11 @@ function directIonizationAlpha(Z::Float64, conf::Configuration, temperatures::Ar
                              Empirical.impactIonizationPlasmaAlpha(Distribution.ElectronMaxwell(tAu), conf, fConf)
                          end
                 catch  ex
-                    ## An UndefVarError or a MethodError is a fault in THIS code, not a gap in the tables, and must
-                    ## not be recorded as a physics limitation -- the first version of this catch reported exactly
-                    ## that, turning a missing `using ..Distribution` into "the empirical tables do not cover them".
-                    ## Those two are re-thrown; only a genuine failure of the empirical routine is skipped, and the
-                    ## reason it gave is reported verbatim rather than interpreted.
+                    # An UndefVarError or a MethodError is a fault in THIS code, not a gap in the tables, and must
+                    # not be recorded as a physics limitation -- the first version of this catch reported exactly
+                    # that, turning a missing `using ..Distribution` into "the empirical tables do not cover them".
+                    # Those two are re-thrown; only a genuine failure of the empirical routine is skipped, and the
+                    # reason it gave is reported verbatim rather than interpreted.
                     if  ex isa UndefVarError  ||  ex isa MethodError    rethrow(ex)    end
                     sa = "$(sh): " * first(split(sprint(showerror, ex), "\n"))
                     if  !(sa in skipped)    push!(skipped, sa)    end
@@ -1989,8 +1944,8 @@ function extractEaCrossSections(simulation::Cascade.Simulation)
     linesE = results["impact-excitation lines:"]
     linesA = haskey(results, "autoionization lines:") ? results["autoionization lines:"] : AutoIonization.Line[]
     if  length(linesE) == 0  ||  length(linesA) == 0     return( (Float64[], Float64[]) )   end
-    ## An excited level counts as autoionizing exactly if it appears as the INITIAL level of an Auger line; its
-    ## branching ratio is taken as 1, as in Cascade.EaCrossSections, so this half is an UPPER BOUND.
+    # An excited level counts as autoionizing exactly if it appears as the INITIAL level of an Auger line; its
+    # branching ratio is taken as 1, as in Cascade.EaCrossSections, so this half is an UPPER BOUND.
     autoIonizing = unique([ (l.initialLevel.index, l.initialLevel.energy)  for l in linesA ])
     energies     = sort(unique([l.initialElectronEnergy  for l in linesE]))
     values       = Float64[]
@@ -2051,14 +2006,12 @@ function simulateDrRateCoefficients(levels::Array{Cascade.Level,1}, simulation::
     printSummary, iostream = Defaults.getDefaults("summary flag/stream")
     resonances = DielectronicRecombination.CaptureLine[]
     rSelection = simulation.property.resonanceSelection
-    #
     # Collect the information about all resonances
     for  level in levels
         for daughter in level.daughters
             if  daughter.process != Basics.Auger();                            continue   end
             aLine   = daughter.lines[daughter.index]
             if  aLine.finalLevel.index != simulation.property.initialLevelNo   continue   end
-            #
             dJ      = aLine.initialLevel.J;         iJ      = aLine.finalLevel.J
             dM      = aLine.initialLevel.M;         iM      = aLine.finalLevel.M
             dParity = aLine.initialLevel.parity;    iParity = aLine.finalLevel.parity
@@ -2068,12 +2021,10 @@ function simulateDrRateCoefficients(levels::Array{Cascade.Level,1}, simulation::
             augerRate   = Cascade.computeTotalAugerRate(level)
             photonRate  = Cascade.computeTotalPhotonRate(level)
             strength    = Basics.EmProperty(0.)
-            #
             iLevel      = ManyElectron.Level(iJ, iM, iParity, iIndex, iEnergy, 0., false, ManyElectron.Basis(), Float64[])
             dLevel      = ManyElectron.Level(dJ, dM, dParity, dIndex, dEnergy, 0., false, ManyElectron.Basis(), Float64[])
             es          = Defaults.convertUnits("energy: to atomic", simulation.property.electronEnergyShift)
             en          = dLevel.energy-iLevel.energy + es;    if  en < 0.  continue   end
-            #
             wa          = Defaults.convertUnits("kinetic energy to wave number: atomic units", en)
             if   augerRate + photonRate.Babushkin == 0.
                 strength = EmProperty(0.)
@@ -2081,22 +2032,22 @@ function simulateDrRateCoefficients(levels::Array{Cascade.Level,1}, simulation::
                 # Set the strength to zero, if the initial (resonance) level of aLine is not selected explicitly
                 strength = EmProperty(0.)
             else
-                ## CORRECTED 05-Aug-2026, on two counts.
-                ## (i) The factor 2 that stood here is spurious. Tu et al., Phys. Plasmas 23, 053301 (2016), Eq. (1)
-                ##     give S = (g_d/2g_i) * pi^2 hbar^3/(m_e E_res) * A_r A_a/(sum A_r + sum A_a); with k^2 = 2E in
-                ##     atomic units, pi^2/k^2 * g_d/g_i is identically pi^2/E * g_d/(2g_i), so the 2 is ALREADY
-                ##     contained in k^2 and including it again made every Cascade DR strength twice too large. The
-                ##     DielectronicRecombination module has always had it (correctly) commented out; this copy did not.
-                ## (ii) Both gauges were divided by the BABUSHKIN total width, so the Coulomb strength used a
-                ##     mismatched denominator. Each gauge now uses its own.
+                # CORRECTED 05-Aug-2026, on two counts.
+                # (i) The factor 2 that stood here is spurious. Tu et al., Phys. Plasmas 23, 053301 (2016), Eq. (1)
+                #     give S = (g_d/2g_i) * pi^2 hbar^3/(m_e E_res) * A_r A_a/(sum A_r + sum A_a); with k^2 = 2E in
+                #     atomic units, pi^2/k^2 * g_d/g_i is identically pi^2/E * g_d/(2g_i), so the 2 is ALREADY
+                #     contained in k^2 and including it again made every Cascade DR strength twice too large. The
+                #     DielectronicRecombination module has always had it (correctly) commented out; this copy did not.
+                # (ii) Both gauges were divided by the BABUSHKIN total width, so the Coulomb strength used a
+                #     mismatched denominator. Each gauge now uses its own.
                 wa       = pi*pi / (wa*wa) * captureRate *
                             ((Basics.twice(dJ) + 1) / (Basics.twice(iJ) + 1))
                 sC       = augerRate + photonRate.Coulomb   == 0. ? 0. : wa * photonRate.Coulomb   / (augerRate + photonRate.Coulomb)
                 sB       = augerRate + photonRate.Babushkin == 0. ? 0. : wa * photonRate.Babushkin / (augerRate + photonRate.Babushkin)
                 strength = EmProperty(sC, sB)
             end
-            ## The captureRate of the individual (i,m) channel is not tracked by the cascade, so it is left at 0.;
-            ## the two TOTAL widths are what the strength and the printout need, and both are known here.
+            # The captureRate of the individual (i,m) channel is not tracked by the cascade, so it is left at 0.;
+            # the two TOTAL widths are what the strength and the printout need, and both are known here.
             newResonance = DielectronicRecombination.CaptureLine(iLevel, dLevel, en, 0., augerRate, photonRate, strength,
                                                                  AutoIonization.PartialWave[])
             push!(resonances, newResonance)
@@ -2116,7 +2067,6 @@ function simulateDrRateCoefficients(levels::Array{Cascade.Level,1}, simulation::
                 if  daughter.process != Basics.Auger();                            continue   end
                 aLine   = daughter.lines[daughter.index]
                 if  aLine.finalLevel.index != simulation.property.initialLevelNo   continue   end
-                #
                 dJ      = aLine.initialLevel.J;         iJ      = aLine.finalLevel.J
                 dM      = aLine.initialLevel.M;         iM      = aLine.finalLevel.M
                 dParity = aLine.initialLevel.parity;    iParity = aLine.finalLevel.parity
@@ -2129,13 +2079,11 @@ function simulateDrRateCoefficients(levels::Array{Cascade.Level,1}, simulation::
                 augerRate   = Cascade.computeTotalAugerRate(level)
                 photonRate  = Cascade.computeTotalPhotonRate(level)
                 strength    = Basics.EmProperty(0.)
-                #
                 wa          = Defaults.convertUnits("kinetic energy to wave number: atomic units", en)
                 wa          = pi*pi / (wa*wa) * captureRate  * 2 * # factor 2 is not really clear.
                                 ((Basics.twice(dJ) + 1) / (Basics.twice(iJ) + 1)) /
                                 (augerRate + photonRate.Babushkin)
                 strength     = EmProperty(wa * photonRate.Coulomb, wa * photonRate.Babushkin)
-                #
                 Zeff         = sqrt( 2*simulation.property.nDetailed^2 * 
                                         Basics.extractMeanEnergy(simulation.property.nDetailed, aLine.initialLevel.basis) )
                 for  n = simulation.property.nDetailed+1:simulation.property.nMax
@@ -2157,8 +2105,8 @@ function simulateDrRateCoefficients(levels::Array{Cascade.Level,1}, simulation::
     settings = DielectronicRecombination.Settings(DielectronicRecombination.Settings(), calcRateAlpha=true, temperatures=simulation.property.temperatures)
     DielectronicRecombination.displayResults(stdout, resonances, DielectronicRecombination.PhotonLine[], settings)
     DielectronicRecombination.displayRateCoefficients(stdout, resonances, settings)
-    ## alpha^DR is the observable this whole scheme exists for, yet it used to go to the screen only, while the
-    ## intermediate Auger and radiative tables were written to the summary file.  Send it there as well.
+    # alpha^DR is the observable this whole scheme exists for, yet it used to go to the screen only, while the
+    # intermediate Auger and radiative tables were written to the summary file.  Send it there as well.
     if  printSummary
         DielectronicRecombination.displayResults(iostream, resonances, DielectronicRecombination.PhotonLine[], settings)
         DielectronicRecombination.displayRateCoefficients(iostream, resonances, settings)
@@ -2178,18 +2126,16 @@ end
 """
 function simulateExpansionOpacities(photoexcitationData::Array{Cascade.Data,1}, name::String, 
                                     property::Cascade.ExpansionOpacities; printout::Bool=true)
-    #
     function lambda_over_dlambda(opacityDependence::AbstractOpacityDependence, lineOmega::Float64, kT::Float64, depValue::Float64)
         # Calculates the value lambda / Delta lambda for the given binning and depValue, for which the opacity need to be
         # determined; the binning is assumed in Hartree (for frequency- and temperature-normalized dependence) and in
         # nm for wavelength-dependent opacities; an value = 0. is returned if the lineOmega does not fall into the (binning)
         # interval
         wa = 0.;  halfBinning = opacityDependence.binning / 2.
-        #
-        ## The Eastman & Pinto factor is lambda/Delta-lambda, i.e. the INVERSE relative bin width. Since
-        ## |Delta-lambda|/lambda = |Delta-omega|/omega exactly, the same factor omega/Delta-omega must be used
-        ## in every dependence -- the frequency and temperature branches returned Delta-omega/omega instead,
-        ## which is wrong by (omega/Delta-omega)^2, typically four orders of magnitude.
+        # The Eastman & Pinto factor is lambda/Delta-lambda, i.e. the INVERSE relative bin width. Since
+        # |Delta-lambda|/lambda = |Delta-omega|/omega exactly, the same factor omega/Delta-omega must be used
+        # in every dependence -- the frequency and temperature branches returned Delta-omega/omega instead,
+        # which is wrong by (omega/Delta-omega)^2, typically four orders of magnitude.
         if     typeof(opacityDependence) == FrequencyOpacityDependence
             # Binning, depValue and lineOmega are all in Hartree and readily to compare.
             if  depValue - halfBinning < lineOmega < depValue + halfBinning             wa = lineOmega / (2* halfBinning)      end
@@ -2208,10 +2154,7 @@ function simulateExpansionOpacities(photoexcitationData::Array{Cascade.Data,1}, 
         
         return( wa )
     end
-    #
-    #
     printSummary, iostream = Defaults.getDefaults("summary flag/stream")
-    #
     values     = property.dependencyValues;                
     exptime    = property.expansionTime;                   
     dependence = property.opacityDependence;                   
@@ -2219,14 +2162,13 @@ function simulateExpansionOpacities(photoexcitationData::Array{Cascade.Data,1}, 
     T          = property.temperature;                                
     rho        = property.massDensity          ## [g/cm^3], enters the 1/(rho c t) prefactor
     eshift     = property.transitionEnergyShift
-    ## The ion number density enters the Sobolev optical depth and must be in ATOMIC units there (1/a_0^3).
-    ## It used to be hard-wired as `ne = 1.0` with a "??" comment, so the input density never reached tau and
-    ## the absolute scale of every opacity was arbitrary.
+    # The ion number density enters the Sobolev optical depth and must be in ATOMIC units there (1/a_0^3).
+    # It used to be hard-wired as `ne = 1.0` with a "??" comment, so the input density never reached tau and
+    # the absolute scale of every opacity was arbitrary.
     a0_in_cm   = convertUnits("length: from atomic to fm", 1.0) * 1.0e-13
     nion_au    = property.ionNumberDensity * a0_in_cm^3          ## [1/cm^3] -> [1/a_0^3]
     NoValues   = length(values);                                      
     kappas     = Basics.EmProperty[];    for  i = 1:NoValues     push!(kappas, Basics.EmProperty(0.))   end
-    #
     # Determine c in cm/s
     alpha   = Defaults.getDefaults("alpha")
     c_in_SI = Defaults.getDefaults("speed of light: c") * convertUnits("length: from atomic to fm", 1.0) * 1.0e-13 /
@@ -2234,14 +2176,12 @@ function simulateExpansionOpacities(photoexcitationData::Array{Cascade.Data,1}, 
     factor  = 1.0 / (rho * c_in_SI * exptime)
     kT      = convertUnits("temperature: from Kelvin to (Hartree) units", T)
     A_au    = convertUnits("length: from fm to atomic", 1.0e5)
-    #
     if length(photoexcitationData) == 0     error("No photoexcitationData provided.")     end
-    #
-    ## The LTE population of each LOWER level, normalised over the levels that actually occur in this line
-    ## list.  The former expression used  ge/g0 * exp(-omega/kT), which is not a population of the lower level
-    ## at all: there is no partition function, omega is the TRANSITION energy rather than the excitation energy
-    ## of the absorbing level, and the statistical-weight ratio is inverted.  property.levelPopulation is now
-    ## dispatched on, so that the field means something.
+    # The LTE population of each LOWER level, normalised over the levels that actually occur in this line
+    # list.  The former expression used  ge/g0 * exp(-omega/kT), which is not a population of the lower level
+    # at all: there is no partition function, omega is the TRANSITION energy rather than the excitation energy
+    # of the absorbing level, and the statistical-weight ratio is inverted.  property.levelPopulation is now
+    # dispatched on, so that the field means something.
     if  typeof(property.levelPopulation) != Basics.BoltzmannLevelPopulation
         error("Cascade.ExpansionOpacities presently supports levelPopulation = BoltzmannLevelPopulation() only; " *
               "got $(property.levelPopulation).")
@@ -2257,11 +2197,10 @@ function simulateExpansionOpacities(photoexcitationData::Array{Cascade.Data,1}, 
     eGround      = minimum(levelEnergies)
     partitionFct = sum( levelWeights .* exp.(-(levelEnergies .- eGround) ./ kT) )
     nLower(lev)  = nion_au * (Basics.twice(lev.J) + 1.0) * exp(-(lev.energy - eGround)/kT) / partitionFct
-    #
     minEnergy = 1000.;   maxEnergy = 0.
     for  excData  in photoexcitationData
-        ## Cascade.Data{T} carries its lines in `lines`; `.linesE` belonged to the retired
-        ## Cascade.ExcitationData and raised a FieldError here (the same class as the RR `.linesR` bug).
+        # Cascade.Data{T} carries its lines in `lines`; `.linesE` belonged to the retired
+        # Cascade.ExcitationData and raised a FieldError here (the same class as the RR `.linesR` bug).
         for  line  in excData.lines
             if  minEnergy > line.omega     minEnergy = line.omega   end
             if  maxEnergy < line.omega     maxEnergy = line.omega   end
@@ -2272,7 +2211,7 @@ function simulateExpansionOpacities(photoexcitationData::Array{Cascade.Data,1}, 
             for  ivalue = 1:NoValues
                 lmd_over_dl    = lambda_over_dlambda(dependence, omega, kT, values[ivalue])
                 if  lmd_over_dl == 0.  continue  end
-                ## Sobolev optical depth  tau_l = pi alpha n_l lambda_l t_exp f_l   (atomic units)
+                # Sobolev optical depth  tau_l = pi alpha n_l lambda_l t_exp f_l   (atomic units)
                 tau_Cou        = pi * alpha * nl * lambda_au * exptime_au * fosc.Coulomb
                 tau_Bab        = pi * alpha * nl * lambda_au * exptime_au * fosc.Babushkin
                 term_Cou       = factor * lmd_over_dl * (1.0 - exp(-tau_Cou))
@@ -2281,10 +2220,9 @@ function simulateExpansionOpacities(photoexcitationData::Array{Cascade.Data,1}, 
             end
         end
     end
-    #
-    ## `printout` controls PRINTING only. It used to control the return value as well, so the printing path
-    ## handed back nothing and perform(::Simulation) filled results["data:"] with nothing -- the opacities
-    ## could be read on screen but not retrieved, unlike every other simulation property.
+    # `printout` controls PRINTING only. It used to control the return value as well, so the printing path
+    # handed back nothing and perform(::Simulation) filled results["data:"] with nothing -- the opacities
+    # could be read on screen but not retrieved, unlike every other simulation property.
     if  printout
         Cascade.displayExpansionOpacities(stdout, name, property, (minEnergy,maxEnergy), kappas)
         if  printSummary
@@ -2309,9 +2247,7 @@ function simulateFinalLevelDistribution(levels::Array{Cascade.Level,1}, simulati
     else    Cascade.specifyInitialOccupation!(levels, simulation.property.leadingConfigs) 
     end
     Cascade.displayRelativeOccupation(stdout, levels)
-    #
     Cascade.propagateProbability!(levels)  
-    #
     finalDist = Cascade.displayFinalLevelDistribution(stdout, simulation.name, levels, simulation.property.finalConfigs)     
     if  printSummary   Cascade.displayFinalLevelDistribution(iostream, simulation.name, levels, simulation.property.finalConfigs)      end
 
@@ -2333,9 +2269,7 @@ function simulateIonDistribution(levels::Array{Cascade.Level,1}, simulation::Cas
     else    Cascade.specifyInitialOccupation!(levels, simulation.property.leadingConfigs) 
     end
     Cascade.displayRelativeOccupation(stdout, levels)
-    #
     Cascade.propagateProbability!(levels)  
-    #
     ionDist = Cascade.displayIonDistribution(stdout, simulation.name, levels)     
     if  printSummary   Cascade.displayIonDistribution(iostream, simulation.name, levels)      end
 
@@ -2351,9 +2285,7 @@ end
 """
 function simulateLevelDistribution(levels::Array{Cascade.Level,1}, simulation::Cascade.Simulation)
     printSummary, iostream = Defaults.getDefaults("summary flag/stream")
-    #
     Cascade.propagateProbability!(levels)   
-    #
     if  typeof(simulation.property) == Cascade.IonDistribution   
         Cascade.displayIonDistribution(stdout, simulation.name, levels)     
         if  printSummary   Cascade.displayIonDistribution(iostream, simulation.name, levels)      end
@@ -2399,13 +2331,13 @@ function simulateRelaxationCurve(levels::Array{Cascade.Level,1}, simulation::Cas
         end
     end
 
-    ## The time grid is LOGARITHMIC, not uniform. A cascade spans an enormous range of rates -- for the Mg
-    ## K-hole tree of example-Fb.jl the fastest channel is 4.9e-2 a.u. and the slowest 4.4e-12 a.u., a
-    ## stiffness ratio of 1e10 -- because a single metastable level decays only through a strongly forbidden
-    ## channel. Reaching the last percent of the population therefore takes ~1e11 a.u., which a fixed step of
-    ## 1e-3 a.u. would need 1e14 iterations to cover. Stepping geometrically from just below the fastest
-    ## lifetime to well beyond the slowest needs a few thousand points instead, and resolves every decade
-    ## equally well -- which is what a relaxation curve spanning ten decades actually calls for.
+    # The time grid is LOGARITHMIC, not uniform. A cascade spans an enormous range of rates -- for the Mg
+    # K-hole tree of example-Fb.jl the fastest channel is 4.9e-2 a.u. and the slowest 4.4e-12 a.u., a
+    # stiffness ratio of 1e10 -- because a single metastable level decays only through a strongly forbidden
+    # channel. Reaching the last percent of the population therefore takes ~1e11 a.u., which a fixed step of
+    # 1e-3 a.u. would need 1e14 iterations to cover. Stepping geometrically from just below the fastest
+    # lifetime to well beyond the slowest needs a few thousand points instead, and resolves every decade
+    # equally well -- which is what a relaxation curve spanning ten decades actually calls for.
     tFirst        = 0.01 / maxRate
     tLast         = 20.0 / minRate
     pointsPerDec  = 40
@@ -2426,7 +2358,6 @@ function simulateRelaxationCurve(levels::Array{Cascade.Level,1}, simulation::Cas
             if  relaxTimes[i] == 0.  &&  wocc >= relaxPercentage[i]    relaxTimes[i] = t    end
         end
     end
-    #
     Cascade.displayRelaxationCurve(stdout, relaxPercentage, relaxTimes, times, occupations)
     if  printSummary   Cascade.displayRelaxationCurve(iostream, relaxPercentage, relaxTimes, times, occupations)   end
 
@@ -2451,7 +2382,7 @@ function displayRelaxationCurve(stream::IO, relaxPercentage::Array{Float64,1}, r
     println(stream, "      time [a.u.]        time [fs]         rel. occupation     ")
     println(stream, "  ------------------------------------------------------------")
     for  (i,t) in  enumerate(times)
-        ## print a readable subset: every fourth grid point, plus the ends
+        # print a readable subset: every fourth grid point, plus the ends
         if  i == 1  ||  i == length(times)  ||  rem(i,4) == 0
             println(stream, "     " * @sprintf("%.4e", t) * "      " * @sprintf("%.4e", t*auToFs) *
                             "        " * @sprintf("%.6f", occupations[i]))
@@ -2487,7 +2418,6 @@ function simulatePhotoAbsorptionSpectrum(simulation::Cascade.Simulation,
         error("\nFor a photo-absorption spectrum, the energy units must be one of eV, Kayser, Hartree;  units = " *
                 getDefaults("unit: energy") )             
     end
-    #
     printSummary, iostream = Defaults.getDefaults("summary flag/stream")
     paProperty = simulation.property;   pEnergies = Float64[];      crossSections = Basics.EmProperty[]
     for  en in paProperty.photonEnergies    push!(pEnergies, Defaults.convertUnits("energy: to atomic", en))    end
@@ -2503,7 +2433,6 @@ function simulatePhotoAbsorptionSpectrum(simulation::Cascade.Simulation,
                 notYet = false 
             end
         end  
-        #
         for  line  in  linesE       
             if  occ[1] == line.initialLevel.index   &&   notYet   
                 push!(initialLevels, line.initialLevel);   push!(initialWeights, occ[2])  
@@ -2511,7 +2440,6 @@ function simulatePhotoAbsorptionSpectrum(simulation::Cascade.Simulation,
             end
         end    
     end
-    #
     println(stdout, "\n  Initial levels, for which cross section data contribute to the photoabsorption cross section")
     println(stdout, "\n  ", TableStrings.hLine(55))
     sa = "  ";   sb = "  "
@@ -2632,12 +2560,10 @@ function simulatePhotonIntensities(levels::Array{Cascade.Level,1}, simulation::C
     else    Cascade.specifyInitialOccupation!(levels, simulation.property.leadingConfigs) 
     end
     Cascade.displayRelativeOccupation(stdout, levels)
-    #
     prop = simulation.property
     fluxes       = Cascade.propagateProbability!(levels)
     energiesInts = Cascade.extractIntensities(fluxes, Basics.Radiative())
     energiesInts = Cascade.truncateEnergiesIntensities(energiesInts, prop.minPhotonEnergy, prop.maxPhotonEnergy)
-    #
     Cascade.displayIntensities(stdout, simulation.property, energiesInts)
     if  printSummary   Cascade.displayIntensities(iostream, simulation.property, energiesInts)      end
 
@@ -2668,12 +2594,10 @@ function simulateElectronIntensities(levels::Array{Cascade.Level,1}, simulation:
     # Specify and display the initial (relative) occupation
     Cascade.specifyInitialOccupation!(levels, simulation.property.initialOccupations)
     Cascade.displayRelativeOccupation(stdout, levels)
-    #
     prop = simulation.property
     fluxes       = Cascade.propagateProbability!(levels)
     energiesInts = Cascade.extractIntensities(fluxes, Basics.Auger())
     energiesInts = Cascade.truncateEnergiesIntensities(energiesInts, prop.minElectronEnergy, prop.maxElectronEnergy)
-    #
     Cascade.displayIntensities(stdout, simulation.property, energiesInts)
     if  printSummary   Cascade.displayIntensities(iostream, simulation.property, energiesInts)      end
 
@@ -2702,14 +2626,13 @@ function simulateMeanOpacities(photoexcitationData::Array{Cascade.Data,1}, simul
     for  (id, rho)  in  enumerate(property.massDensities)
         nion = property.ionNumberDensities[id]
         for  T in property.temperatures
-            ## Assemble kappa_nu as the SUM over the requested contributions; each returns one value per node.
+            # Assemble kappa_nu as the SUM over the requested contributions; each returns one value per node.
             kappas = Basics.EmProperty[ Basics.EmProperty(0.)  for i = 1:length(ulist) ]
             for  contribution  in  property.contributions
                 wa = Cascade.spectralOpacityContribution(contribution, photoexcitationData, property,
                                                          nion, rho, T, ulist)
                 for  i = 1:length(ulist)     kappas[i] = kappas[i] + wa[i]     end
             end
-            #
             mean, note = Cascade.applyOpacityMean(property.opacityMean, kappas, weights)
             sa = "> " * Cascade.nameOfOpacityMean(property.opacityMean) * " opacity for rho = " *
                     @sprintf("%.3e",rho) * " [g/cm^3],  n_ion = " * @sprintf("%.3e",nion) * " [1/cm^3]  &  T = " *
@@ -2790,7 +2713,6 @@ function spectralOpacityContribution(contribution::Cascade.BoundFreeOpacity, pho
     omegas   = [ u * kT   for u in ulist ]                                          ## [Hartree]
     a0_in_cm = Defaults.convertUnits("length: from atomic to fm", 1.0) * 1.0e-13     ## [cm]
     kappas   = Basics.EmProperty[ Basics.EmProperty(0.)  for i = 1:length(ulist) ]
-    #
     zOld = Defaults.getDefaults("nuclear: charge")
     Defaults.setDefaults("nuclear: charge", contribution.nuclearCharge)
     try
@@ -2885,9 +2807,9 @@ function simulateRrRateCoefficients(lines::Array{PhotoRecombination.Line,1}, sim
     printSummary, iostream = Defaults.getDefaults("summary flag/stream")
     # Check consistency of data
     isym = LevelSymmetry(lines[1].initialLevel.J, lines[1].initialLevel.parity)
-    ## for  line  in  lines
-    ##     if  LevelSymmetry(line.initialLevel.J, line.initialLevel.parity) != isym   error("error a")    end
-    ## end
+    # for  line  in  lines
+    #     if  LevelSymmetry(line.initialLevel.J, line.initialLevel.parity) != isym   error("error a")    end
+    # end
     
     # Convert units into cm^3 / s
     factor  = Defaults.convertUnits("length: from atomic to fm", 1.0)^3 * 1.0e-39 * 
@@ -2895,17 +2817,15 @@ function simulateRrRateCoefficients(lines::Array{PhotoRecombination.Line,1}, sim
     
     temperatures = simulation.property.temperatures
     alphaRR      = EmProperty[]
-    #
     for temp  in  temperatures
         temp_au  = Defaults.convertUnits("temperature: from Kelvin to (Hartree) units", temp)
         wa       = EmProperty(0., 0.)
-        #
-        ## @warn "Cross sections not yet properly set."
+        # @warn "Cross sections not yet properly set."
         for  line  in  lines
-            ## Select the initial symmetry from the DATA, not from a hard-wired J^P = 1+.  The 1+ was a
-            ## leftover from one particular test case and silently discarded every line of any ion whose
-            ## initial level has a different symmetry -- e.g. every closed-shell (0+) ground state, for which
-            ## the rate coefficient then came out as exactly zero.  isym is what the table header announces.
+            # Select the initial symmetry from the DATA, not from a hard-wired J^P = 1+.  The 1+ was a
+            # leftover from one particular test case and silently discarded every line of any ion whose
+            # initial level has a different symmetry -- e.g. every closed-shell (0+) ground state, for which
+            # the rate coefficient then came out as exactly zero.  isym is what the table header announces.
             if  LevelSymmetry(line.initialLevel.J, line.initialLevel.parity) != isym               continue    end
             # Determine cross section of this line
             cs  = EmProperty(0., 0.)
@@ -2928,7 +2848,7 @@ function simulateRrRateCoefficients(lines::Array{PhotoRecombination.Line,1}, sim
     
     # Display the RR plasma rate coefficients
     PhotoRecombination.displayRateCoefficients(stdout, isym, simulation.property.temperatures, alphaRR)
-    ## ... and to the summary file, for the same reason as for alpha^DR above.
+    # ... and to the summary file, for the same reason as for alpha^DR above.
     if  printSummary
         PhotoRecombination.displayRateCoefficients(iostream, isym, simulation.property.temperatures, alphaRR)
     end
@@ -2944,14 +2864,12 @@ end
 function sortByEnergy(levels::Array{Cascade.Level,1}; ascendingOrder::Bool=false)
     printSummary, iostream = Defaults.getDefaults("summary flag/stream")
     newlevels = Cascade.Level[]
-    #
     
     # Sort the levels by energy in reversed order
     energies  = zeros(length(levels));       for  i = 1:length(levels)   energies[i]  = levels[i].energy   end
     if     ascendingOrder   enIndices = sortperm(energies, rev=true)
     else                    enIndices = sortperm(energies, rev=false)
     end
-    #
     newlevels = Cascade.Level[]
     for i = 1:length(enIndices)   ix = enIndices[i];    push!(newlevels, levels[ix])    end
     
@@ -2972,7 +2890,6 @@ end
         but returns nothing otherwise.
 """
 function specifyInitialOccupation!(levels::Array{Cascade.Level,1}, initialOccupations::Array{Tuple{Int64,Float64},1})
-    #
     for  initialOcc in  initialOccupations
         idx = initialOcc[1];   occ = initialOcc[2]
         if   idx < 1   ||   idx > length(levels)       error("In appropriate choice of initial occupation; idx = $idx")    end
@@ -2989,13 +2906,11 @@ end
         but returns nothing otherwise.
 """
 function specifyInitialOccupation!(levels::Array{Cascade.Level,1}, leadingConfigs::Array{Configuration,1})
-    #
     nx = 0
     for  lev = 1:length(levels)
         if  Basics.extractConfiguration(Basics.LeadingConfiguration(), levels[lev])  in  leadingConfigs   nx = nx + 1    end
     end
     if  nx == 0     error("Inappropriate selection of leading configurations for the given set of cascade levels.")     end
-    #
     # Now distribute the occupation
     for  lev = 1:length(levels)
         if  Basics.extractConfiguration(Basics.LeadingConfiguration(), levels[lev]) in leadingConfigs   levels[lev].relativeOcc = 1/nx    end

@@ -1,53 +1,53 @@
 
 #################################################################################################################################
 ### Inelastic ion/atom -- hydrogen collisions (Belyaev-Yakovleva simplified model) ##############################################
-##
-##  Rate coefficients for neutralization, ion-pair formation, excitation and de-excitation in low-energy collisions
-##      A^(Z+1)+ + H^-  <-->  A^Z+(j) + H ,       Z = 0, 1, 2, ... ,
-##  important for non-local-thermodynamic-equilibrium (non-LTE) modeling of cool stellar atmospheres, following the
-##  simplified model of A. K. Belyaev & S. A. Yakovleva, A&A 606, A147 (2017) [Paper I, Z = 0] and A. K. Belyaev &
-##  S. A. Yakovleva, A&A 608, A33 (2017) [the Z = 1, 2 case, whose equation numbers are used throughout below].
-##
-##  Physics in one paragraph: at low collision energy the reaction proceeds via long-range nonadiabatic transitions
-##  where the ionic (Coulomb) A^(Z+1)+ + H^- molecular-state potential crosses a covalent A^Z+(j) + H potential
-##  (both taken as simple diabatic curves, Eqs. 6-7); the Landau-Zener model gives the single-pass transition
-##  probability at each such crossing from the ionic-covalent coupling matrix element of Olson, Smith & Bauer
-##  [Appl. Opt. 10, 1848 (1971)], Eq. (12). This needs only the electronic bound (ionization) energy of the atomic
-##  state involved -- no wavefunctions, no CI, no transition matrix elements -- which is the entire point of the
-##  model: it "practically does not require any computational effort" (Belyaev & Yakovleva 2017, Sec. 2.4) once the
-##  bound energies and statistical weights of the states of interest are known (e.g. from NIST, or from a JAC
-##  structure computation where NIST is incomplete).
-##
-##  Sign/unit convention (matches the paper): all bound energies (Ej, Ei, Ef, EH-) are NEGATIVE, measured from the
-##  ionization limit of the A^Z+ ion, in atomic units unless stated otherwise. Z is the (dimensionless) charge of
-##  the covalent species A^Z+ (Z=1 for a singly-ionized atom colliding with H, etc.), so the ionic species carries
-##  charge Z+1. mu is the ion-H reduced mass in units of m_e (e.g. Defaults.PROTON_MASS_U/Defaults.ELECTRON_MASS_U
-##  for atomic hydrogen as the light collision partner).
-##
-##  Limitations (see the paper for the full discussion): the model targets only rate coefficients with high and
-##  moderate values -- those from the *dominant* long-range ionic-covalent crossings -- and deliberately ignores
-##  short-range/multichannel effects that matter for small rates. De-excitation/excitation rates specifically are
-##  known to be unreliable by a factor ~1.9-2.6 (root cause diagnosed -- neglected multichannel branching among the
-##  OTHER covalent channels the ionic curve also crosses -- but not fixed; see Empirical.deExcitationCrossSection's
-##  own docstring and project_inelastic_h_collisions.md for the full trail, including a documented, unsuccessful
-##  attempt to apply Belyaev's (1993) general multichannel formula). Neutralization/ion-pair-formation rates, by
-##  contrast, are validated to 3 significant figures against the paper's own tables.
-##
-##  This one file covers three layers of interface, low-level to high-level:
-##    1. Raw physics (this section): operates directly on bound energies (Ej, Ei, Ef), Z (the COVALENT species' own
-##       charge, not the nuclear charge), and mu (reduced mass) -- no knowledge of JAC's Configuration/Nuclear.Model
-##       entities is needed here.
-##    2. Molecular-symmetry channel correlation (below): automates the Wigner-Witmer-style bookkeeping (Steps 1-2 of
-##       the 2017 paper) that decides which atomic levels A^Z+(j) even correlate to the ionic entrance term, and
-##       with what statistical weight, given just (L,S) of both sides; verified exactly against Table 1 of the paper.
-##    3. Empirical.InelasticHReaction (below): the recommended entry point for a NEW reaction -- specifies
-##       everything via JAC's own Nuclear.Model and Configuration, with reduced mass, symmetry, and statistical
-##       weights all derived internally. Level ENERGIES are the one thing this file deliberately does not compute
-##       itself -- always supplied by the caller (from a real SCF run via Atomic.Computation/perform, from
-##       literature, or otherwise), keeping this module free of a dependency on the heavier Atomic/SelfConsistent
-##       machinery, and cleanly separating "how were these energies obtained" from "how are rates computed from
-##       them." Scope is deliberately restricted to a closed-shell entrance ion and a single-active-electron
-##       transfer per final configuration; anything else raises an informative error rather than a wrong number.
+#
+#  Rate coefficients for neutralization, ion-pair formation, excitation and de-excitation in low-energy collisions
+#      A^(Z+1)+ + H^-  <-->  A^Z+(j) + H ,       Z = 0, 1, 2, ... ,
+#  important for non-local-thermodynamic-equilibrium (non-LTE) modeling of cool stellar atmospheres, following the
+#  simplified model of A. K. Belyaev & S. A. Yakovleva, A&A 606, A147 (2017) [Paper I, Z = 0] and A. K. Belyaev &
+#  S. A. Yakovleva, A&A 608, A33 (2017) [the Z = 1, 2 case, whose equation numbers are used throughout below].
+#
+#  Physics in one paragraph: at low collision energy the reaction proceeds via long-range nonadiabatic transitions
+#  where the ionic (Coulomb) A^(Z+1)+ + H^- molecular-state potential crosses a covalent A^Z+(j) + H potential
+#  (both taken as simple diabatic curves, Eqs. 6-7); the Landau-Zener model gives the single-pass transition
+#  probability at each such crossing from the ionic-covalent coupling matrix element of Olson, Smith & Bauer
+#  [Appl. Opt. 10, 1848 (1971)], Eq. (12). This needs only the electronic bound (ionization) energy of the atomic
+#  state involved -- no wavefunctions, no CI, no transition matrix elements -- which is the entire point of the
+#  model: it "practically does not require any computational effort" (Belyaev & Yakovleva 2017, Sec. 2.4) once the
+#  bound energies and statistical weights of the states of interest are known (e.g. from NIST, or from a JAC
+#  structure computation where NIST is incomplete).
+#
+#  Sign/unit convention (matches the paper): all bound energies (Ej, Ei, Ef, EH-) are NEGATIVE, measured from the
+#  ionization limit of the A^Z+ ion, in atomic units unless stated otherwise. Z is the (dimensionless) charge of
+#  the covalent species A^Z+ (Z=1 for a singly-ionized atom colliding with H, etc.), so the ionic species carries
+#  charge Z+1. mu is the ion-H reduced mass in units of m_e (e.g. Defaults.PROTON_MASS_U/Defaults.ELECTRON_MASS_U
+#  for atomic hydrogen as the light collision partner).
+#
+#  Limitations (see the paper for the full discussion): the model targets only rate coefficients with high and
+#  moderate values -- those from the *dominant* long-range ionic-covalent crossings -- and deliberately ignores
+#  short-range/multichannel effects that matter for small rates. De-excitation/excitation rates specifically are
+#  known to be unreliable by a factor ~1.9-2.6 (root cause diagnosed -- neglected multichannel branching among the
+#  OTHER covalent channels the ionic curve also crosses -- but not fixed; see Empirical.deExcitationCrossSection's
+#  own docstring and project_inelastic_h_collisions.md for the full trail, including a documented, unsuccessful
+#  attempt to apply Belyaev's (1993) general multichannel formula). Neutralization/ion-pair-formation rates, by
+#  contrast, are validated to 3 significant figures against the paper's own tables.
+#
+#  This one file covers three layers of interface, low-level to high-level:
+#    1. Raw physics (this section): operates directly on bound energies (Ej, Ei, Ef), Z (the COVALENT species' own
+#       charge, not the nuclear charge), and mu (reduced mass) -- no knowledge of JAC's Configuration/Nuclear.Model
+#       entities is needed here.
+#    2. Molecular-symmetry channel correlation (below): automates the Wigner-Witmer-style bookkeeping (Steps 1-2 of
+#       the 2017 paper) that decides which atomic levels A^Z+(j) even correlate to the ionic entrance term, and
+#       with what statistical weight, given just (L,S) of both sides; verified exactly against Table 1 of the paper.
+#    3. Empirical.InelasticHReaction (below): the recommended entry point for a NEW reaction -- specifies
+#       everything via JAC's own Nuclear.Model and Configuration, with reduced mass, symmetry, and statistical
+#       weights all derived internally. Level ENERGIES are the one thing this file deliberately does not compute
+#       itself -- always supplied by the caller (from a real SCF run via Atomic.Computation/perform, from
+#       literature, or otherwise), keeping this module free of a dependency on the heavier Atomic/SelfConsistent
+#       machinery, and cleanly separating "how were these energies obtained" from "how are rates computed from
+#       them." Scope is deliberately restricted to a closed-shell entrance ion and a single-active-electron
+#       transfer per final configuration; anything else raises an informative error rather than a wrong number.
 
 
 """
@@ -332,16 +332,16 @@ end
 
 #################################################################################################################################
 ### Molecular-symmetry channel correlation #######################################################################################
-##
-##  Automates Steps 1-2 of Belyaev & Yakovleva (2017): given the ionic entrance term (Lion,Sion) and a candidate channel's own
-##  term (Lj,Sj), decides whether that channel correlates to the entrance by molecular symmetry and, if so, with what
-##  statistical weight -- the p_stat_j field of Empirical.InelasticHChannel below. The paper states only that "the statistical
-##  probabilities p_stat_j can be readily calculated" (Sec. 2.1), without giving an explicit formula; the formula below is this
-##  codebase's own reconstruction, verified level-by-level to reproduce all 19 p_stat_j values in Table 1 of the Ba paper
-##  exactly (1/4 for every ^2S channel, 1/12 for ^2P, 1/20 for ^2D, 1/28 for ^2F, 1/36 for ^2G).
-##
-##  Known scope limitation: reflection parity (Sigma+/Sigma-) for Lambda=0 terms is NOT resolved separately -- exact for the
-##  Ba+H case (both partners' relevant terms are always Sigma+ there) but unverified where it could matter.
+#
+#  Automates Steps 1-2 of Belyaev & Yakovleva (2017): given the ionic entrance term (Lion,Sion) and a candidate channel's own
+#  term (Lj,Sj), decides whether that channel correlates to the entrance by molecular symmetry and, if so, with what
+#  statistical weight -- the p_stat_j field of Empirical.InelasticHChannel below. The paper states only that "the statistical
+#  probabilities p_stat_j can be readily calculated" (Sec. 2.1), without giving an explicit formula; the formula below is this
+#  codebase's own reconstruction, verified level-by-level to reproduce all 19 p_stat_j values in Table 1 of the Ba paper
+#  exactly (1/4 for every ^2S channel, 1/12 for ^2P, 1/20 for ^2D, 1/28 for ^2F, 1/36 for ^2G).
+#
+#  Known scope limitation: reflection parity (Sigma+/Sigma-) for Lambda=0 terms is NOT resolved separately -- exact for the
+#  Ba+H case (both partners' relevant terms are always Sigma+ there) but unverified where it could matter.
 
 
 """
@@ -518,21 +518,21 @@ end
 
 #################################################################################################################################
 ### Configuration-level reaction interface (Empirical.InelasticHReaction) #######################################################
-##
-##  Specifies the reaction directly in terms of JAC's own Nuclear.Model and Configuration entities, exactly the way any other
-##  JAC structure calculation is specified -- reduced mass, molecular symmetry, and statistical weights are all DERIVED from
-##  this input (via the sections above), not supplied by the caller. Level ENERGIES remain the one piece this module does not
-##  compute itself (see the module note at the top of this file for why) -- always supplied by the caller as an
-##  Array{Pair{Configuration,Float64},1} of total energies (a plain array, not a Dict, because Configuration currently has no
-##  matching `hash` method for its working `==` -- a real, separate JAC bug found while building this interface, not fixed here
-##  since Configuration is a foundational type used throughout JAC).
-##
-##  Scope (deliberately restricted, matching the physics already validated for Ba2+ + H- -> Ba+ + H): the entrance ion must be
-##  closed-shell (so its own molecular symmetry is the trivial, unique 1S0 -- Lion=0, Sion=0.0, no term-generation needed), and
-##  every final ion configuration must differ from the entrance configuration by exactly ONE electron in exactly ONE shell (a
-##  genuine single-active-electron transfer, S=1/2 always). Configurations that don't fit this pattern raise an informative
-##  error rather than being silently mishandled or guessed at; open-shell entrance ions would need real term generation from
-##  the configuration, not yet implemented here.
+#
+#  Specifies the reaction directly in terms of JAC's own Nuclear.Model and Configuration entities, exactly the way any other
+#  JAC structure calculation is specified -- reduced mass, molecular symmetry, and statistical weights are all DERIVED from
+#  this input (via the sections above), not supplied by the caller. Level ENERGIES remain the one piece this module does not
+#  compute itself (see the module note at the top of this file for why) -- always supplied by the caller as an
+#  Array{Pair{Configuration,Float64},1} of total energies (a plain array, not a Dict, because Configuration currently has no
+#  matching `hash` method for its working `==` -- a real, separate JAC bug found while building this interface, not fixed here
+#  since Configuration is a foundational type used throughout JAC).
+#
+#  Scope (deliberately restricted, matching the physics already validated for Ba2+ + H- -> Ba+ + H): the entrance ion must be
+#  closed-shell (so its own molecular symmetry is the trivial, unique 1S0 -- Lion=0, Sion=0.0, no term-generation needed), and
+#  every final ion configuration must differ from the entrance configuration by exactly ONE electron in exactly ONE shell (a
+#  genuine single-active-electron transfer, S=1/2 always). Configurations that don't fit this pattern raise an informative
+#  error rather than being silently mishandled or guessed at; open-shell entrance ions would need real term generation from
+#  the configuration, not yet implemented here.
 
 
 """

@@ -1,31 +1,23 @@
-#
 # Two-photon absorption by BI-CHROMATIC photons, i.e. two beams of different frequency.
-#
 # NEW FILE, 06-Aug-2026; IMPLEMENTED 08-Aug-2026 (Phase C). `TwoPhotonAbsorptionBichromatic` had existed as a
 # process type since the module was written, was offered in the docstring of the abstract type and had its own
 # default constructor -- but no `-inc-` file and therefore no `computeLines` method at all, so selecting it died
 # in a MethodError with nothing to say why. Until 08-Aug-2026 this file held only a scaffold that named what was
 # missing; the physics below now replaces it.
-#
 # THE PHYSICS DIFFERENCE from the monochromatic case, and it is the whole point of this file:
-#
 #     omega1 = scheme.omegaLess [user units]        omega2 = (E_f - E_i) - omega1
-#
 # are FIXED and unequal, so the two photons are DISTINGUISHABLE. Three consequences follow, and each of them is
 # a test rather than merely a feature:
-#
 #   (1) THE TWO TIME ORDERINGS ARE PHYSICALLY DISTINCT. Absorbing omega1 first reaches the intermediate level at
 #       E_i + omega1; absorbing omega2 first reaches E_i + omega2. Both orderings contribute to the same final
 #       state and must be added coherently, with their OWN denominators. In the monochromatic case the two
 #       orderings coincide term by term, which is why the single-beam routine gets away with one of them.
-#
 #   (2) ODD K IS ALLOWED, where a single beam forbids it. Two photons from one beam are identical bosons, so
 #       their polarization state must be symmetric and odd K cancels (blocker A2, 07-Aug-2026). Two beams of
 #       different colour are not identical particles, and nothing forces that cancellation. This tests the A2
 #       fix FROM THE OPPOSITE SIDE: if odd K came out suppressed here as well, the mechanism claimed in A2 --
 #       exchange symmetry of identical bosons, not some accidental property of the angular algebra -- would be
 #       wrong. The cancellation must switch on CONTINUOUSLY as omega1 -> omega2, and it does; see below.
-#
 #       ONE REFINEMENT, MEASURED HERE AND WORTH STATING PRECISELY: what odd K needs is an ANTISYMMETRIC
 #       two-photon POLARIZATION state, not merely distinguishable photons. Two beams in the SAME pure
 #       polarization -- which is all Settings can describe today, since it carries one Stokes vector -- still
@@ -34,17 +26,14 @@
 #       1.3333 for K = 0, EXACTLY 0 for K = 1 and 0.5333 for K = 2, independently of any amplitude. Odd K
 #       therefore shows up in the UNPOLARIZED cross section, which is an incoherent mixture over helicities and
 #       does contain the antisymmetric part -- and that is where it is measured below.
-#
 #   (3) THE CROSS SECTION IS EXACTLY INVARIANT under omega1 <-> omega2 when both beams carry the same
 #       polarization. Exchanging the two beams exchanges the two orderings and multiplies the rank-K amplitude
 #       by the phase (-1)^(L1+L2-K), whose modulus is one; since the modulus is taken per K, every observable is
 #       unchanged. This is the same free symmetry check that found the K-interference bug in the emission
 #       spectrum, and it costs nothing: run the same line twice with omegaLess and (E_f - E_i) - omegaLess.
-#
 # THE EXCHANGE PHASE (-1)^(L1+L2-K) is the SAME one that blocker A1 corrected in the emission file: rewriting
 # [O(mp1) (x) O(mp2)]^K as [O(mp2) (x) O(mp1)]^K carries it. It appears here for a different reason -- not to
 # symmetrize identical photons, but to express the second time ordering in the same coupling order as the first.
-#
 # WHAT THIS FIXES AND WHAT IT DOES NOT. The monochromatic limit of the amplitude is unambiguous: as
 # omega1 -> omega2 the two orderings become term-by-term equal, so the rank-K amplitude tends to
 # (1 + (-1)^K) U, i.e. 2 U for even K and 0 for odd K, where U is exactly the single-ordering quantity the
@@ -54,7 +43,6 @@
 # F^2 (ordered pairs) or F^2/2 (unordered) -- which is a photon-counting question on top of the amplitude and
 # has to be decided when the absorption normalisation is finally derived. Both are recorded rather than merged
 # into one number; see the note at computeTotalCsUnpolarized_2pAbsorptionBichromatic.
-#
 
 
 """
@@ -144,12 +132,12 @@ function  computeChannelAmplitudes_2pAbsorptionBichromatic(line::MultiPhotonTran
                                                            grid::Radial.Grid, settings::MultiPhotonTransition.Settings)
     newChannels = MultiPhotonTransition.Channel_2pAbsorptionBichromatic[]
     for channel in line.channels
-        ## Ordering (a): the photon of beam 1 is absorbed FIRST, so the intermediate level is reached at
-        ## E_i + omega1 and the second (left-standing) operator is multipole2 at omega2.
+        # Ordering (a): the photon of beam 1 is absorbed FIRST, so the intermediate level is reached at
+        # E_i + omega1 and the second (left-standing) operator is multipole2 at omega2.
         amplitude1 = MultiPhotonTransition.computeReducedAmplitudeBichromatic(channel.K, line.finalLevel,
                             channel.omega2, channel.multipole2, channel.Jsym, channel.omega1, channel.multipole1,
                             line.initialLevel, channel.gauge, grid, settings.intermediateStates, settings.selfTolerance)
-        ## Ordering (b): the photon of beam 2 is absorbed first -- the two roles simply exchange.
+        # Ordering (b): the photon of beam 2 is absorbed first -- the two roles simply exchange.
         amplitude2 = MultiPhotonTransition.computeReducedAmplitudeBichromatic(channel.K, line.finalLevel,
                             channel.omega1, channel.multipole1, channel.Jsym, channel.omega2, channel.multipole2,
                             line.initialLevel, channel.gauge, grid, settings.intermediateStates, settings.selfTolerance)
@@ -180,7 +168,6 @@ function  computeLines(scheme::TwoPhotonAbsorptionBichromaticScheme, finalMultip
     printstyled("---------------------------------------------------------------------------------------------------------------------- \n",
                 color=:light_green)
     println("")
-    #
     lines = MultiPhotonTransition.determineLines_2pAbsorptionBichromatic(finalMultiplet, initialMultiplet, settings)
     # Display all selected lines before the computations start
     if  settings.printBefore    MultiPhotonTransition.displayLines_2pAbsorptionBichromatic(lines)    end
@@ -205,7 +192,6 @@ function  computeLines(scheme::TwoPhotonAbsorptionBichromaticScheme, finalMultip
     printSummary, iostream = Defaults.getDefaults("summary flag/stream")
     if  printSummary    MultiPhotonTransition.displayResults_2pAbsorptionBichromatic(iostream, settings.scheme.properties, newLines)
                         MultiPhotonTransition.displayKContributions_2pAbsorptionBichromatic(iostream, newLines, settings)     end
-    #
     if    output    return( newLines )
     else            return( nothing )
     end
@@ -257,10 +243,10 @@ function  computeProperties_2pAbsorptionBichromatic(line::MultiPhotonTransition.
             end
             csUnpolarized = EmProperty( totalCs_Cou,  totalCs_Bab)
         else
-            ## REFUSED RATHER THAN INVENTED. TotalAlpha0 divides by omega^3, and TotalCsDensityMatrix was derived
-            ## for two photons drawn from ONE beam (rho (x) rho with a single Stokes vector). Neither carries over
-            ## to two beams of different colour without a definition that does not yet exist -- alpha_0 would need
-            ## a convention for which omega to use, and the density matrix would need a Stokes vector per beam.
+            # REFUSED RATHER THAN INVENTED. TotalAlpha0 divides by omega^3, and TotalCsDensityMatrix was derived
+            # for two photons drawn from ONE beam (rho (x) rho with a single Stokes vector). Neither carries over
+            # to two beams of different colour without a definition that does not yet exist -- alpha_0 would need
+            # a convention for which omega to use, and the density matrix would need a Stokes vector per beam.
             @warn("MultiPhotonTransition: $(typeof(property)) is not defined for the bichromatic scheme " *
                   "(alpha_0 would need one omega, the density matrix one Stokes vector per beam); it is skipped.")
         end
@@ -294,10 +280,10 @@ function computeReducedAmplitudeBichromatic(K::AngularJ64, finalLevel::Level, om
     U = Complex(0.);    nuLevels = MultiPhotonTransition.intermediateLevels(intermediateStates, Jsym)
     found = length(nuLevels) > 0
     for  nuLevel in nuLevels
-        ## A vanishing denominator is a RESONANT intermediate level, where the non-resonant perturbative
-        ## expression does not apply; it is skipped rather than silently producing an enormous cross section.
-        ## NOTE that with two beams the near-resonant case is not an accident but the experimentally interesting
-        ## regime -- one tunes omega1 onto an intermediate level -- so calcOverview prints BOTH denominators.
+        # A vanishing denominator is a RESONANT intermediate level, where the non-resonant perturbative
+        # expression does not apply; it is skipped rather than silently producing an enormous cross section.
+        # NOTE that with two beams the near-resonant case is not an accident but the experimentally interesting
+        # regime -- one tunes omega1 onto an intermediate level -- so calcOverview prints BOTH denominators.
         denom = initialLevel.energy + omegaA - nuLevel.energy
         if  abs(denom) < selfTolerance    continue    end
         U = U + PhotoEmission.amplitude(Absorption(), multipoleB, gauge, omegaB, finalLevel, nuLevel, grid,
@@ -369,16 +355,16 @@ function computeTotalCsLinear_2pAbsorptionBichromatic(line::MultiPhotonTransitio
     symf = LevelSymmetry(line.finalLevel.J,   line.finalLevel.parity)
 
     for  K in Klist
-        ## NO ODD-K RESTRICTION IS IMPOSED, and that is the physics of this file: the monochromatic routine must
-        ## skip odd K because two photons from one beam are identical bosons, whereas two beams of different
-        ## colour are not identical particles and nothing forbids it a priori.
-        ##
-        ## FOR LINEARLY POLARIZED LIGHT IT NEVERTHELESS VANISHES, and by itself rather than by a rule. Both beams
-        ## carry the SAME polarization here (Settings holds one Stokes vector), so the helicity sum below is
-        ## coherent and symmetric, while the 3-j is antisymmetric under lambda1 <-> lambda2 for odd K with
-        ## L1 = L2: the angular weight is exactly zero for K = 1, whatever the amplitude. Odd K is therefore
-        ## visible in the UNPOLARIZED cross section, an incoherent mixture that does contain the antisymmetric
-        ## component -- see computeTotalCsUnpolarized_2pAbsorptionBichromatic, where it is measured.
+        # NO ODD-K RESTRICTION IS IMPOSED, and that is the physics of this file: the monochromatic routine must
+        # skip odd K because two photons from one beam are identical bosons, whereas two beams of different
+        # colour are not identical particles and nothing forbids it a priori.
+        #
+        # FOR LINEARLY POLARIZED LIGHT IT NEVERTHELESS VANISHES, and by itself rather than by a rule. Both beams
+        # carry the SAME polarization here (Settings holds one Stokes vector), so the helicity sum below is
+        # coherent and symmetric, while the 3-j is antisymmetric under lambda1 <-> lambda2 for odd K with
+        # L1 = L2: the angular weight is exactly zero for K = 1, whatever the amplitude. Odd K is therefore
+        # visible in the UNPOLARIZED cross section, an incoherent mixture that does contain the antisymmetric
+        # component -- see computeTotalCsUnpolarized_2pAbsorptionBichromatic, where it is measured.
         qList = AngularMomentum.m_values(K)
         for  q in qList
             amp = ComplexF64(0.)
@@ -680,13 +666,13 @@ function  determineLines_2pAbsorptionBichromatic(finalMultiplet::Multiplet, init
         for  fLevel  in  finalMultiplet.levels
             if  Basics.selectLevelPair(iLevel, fLevel, settings.lineSelection)
                 energy = fLevel.energy - iLevel.energy + settings.photonEnergyShift
-                ## omegaLess is given in the USER-SELECTED energy units, following the convention of the photon
-                ## energies of the other process modules, and is converted here -- once, and in the only place
-                ## it enters.
+                # omegaLess is given in the USER-SELECTED energy units, following the convention of the photon
+                # energies of the other process modules, and is converted here -- once, and in the only place
+                # it enters.
                 omega1 = Defaults.convertUnits("energy: to atomic", settings.scheme.omegaLess)
                 omega2 = energy - omega1
-                ## GUARDED, because an omegaLess that does not fit the transition is a user error that would
-                ## otherwise show up as a negative photon energy deep inside an amplitude.
+                # GUARDED, because an omegaLess that does not fit the transition is a user error that would
+                # otherwise show up as a negative photon energy deep inside an amplitude.
                 if  omega1 <= 0.  ||  omega2 <= 0.
                     error("\n\nMultiPhotonTransition: omegaLess = $(settings.scheme.omegaLess) "                *
                           TableStrings.inUnits("energy") * " does not fit the transition "                      *
@@ -730,7 +716,6 @@ function  displayLines_2pAbsorptionBichromatic(lines::Array{MultiPhotonTransitio
     sa = sa * TableStrings.flushleft(90, "List of multipoles & intermediate level symmetries"; na=4)
     sb = sb * TableStrings.flushleft(90, "(K-rank, multipole_1, Jsym, multipole_2, gauge), ..."; na=4)
     println(sa);    println(sb);    println("  ", TableStrings.hLine(nx))
-    #
     for  line in lines
         sa   = "";   isym = LevelSymmetry( line.initialLevel.J, line.initialLevel.parity)
                      fsym = LevelSymmetry( line.finalLevel.J,   line.finalLevel.parity)
@@ -751,7 +736,6 @@ function  displayLines_2pAbsorptionBichromatic(lines::Array{MultiPhotonTransitio
         end
     end
     println("  ", TableStrings.hLine(nx))
-    #
     return( nothing )
 end
 
@@ -798,7 +782,6 @@ function  displayResults_2pAbsorptionBichromatic(stream::IO,
     end
 
     println(stream, sa);    println(stream, sb);    println(stream, "  ", TableStrings.hLine(nx + 34noCs))
-    #
     for  line in lines
         sa   = "";   isym = LevelSymmetry( line.initialLevel.J, line.initialLevel.parity)
                      fsym = LevelSymmetry( line.finalLevel.J,   line.finalLevel.parity)
@@ -821,7 +804,6 @@ function  displayResults_2pAbsorptionBichromatic(stream::IO,
         println(stream, sa )
     end
     println(stream, "  ", TableStrings.hLine(nx + 34noCs))
-    #
     return( nothing )
 end
 
@@ -874,7 +856,6 @@ function  displayKContributions_2pAbsorptionBichromatic(stream::IO,
     println(stream, "  ", TableStrings.hLine(nx))
     println(stream, ">>> Odd K is FORBIDDEN for a single beam (identical bosons) and ALLOWED here; it must " *
                     "fall to zero\n>>> continuously as omega1 -> omega2.")
-    #
     return( nothing )
 end
 
@@ -933,8 +914,8 @@ function  displayIntermediateRanking_2pAbsorptionBichromatic(stream::IO,
         println(stream, "  ", TableStrings.hLine(nx))
         entries = NamedTuple{(:c,:idx,:jsym,:d1,:d2,:mps,:sym,:gauge),
                              Tuple{Float64,Int64,String,Float64,Float64,String,String,String}}[]
-        ## Deduplicated over K, as in the emission ranking: the quantity ranked here does not depend on K, so
-        ## without this every intermediate level would be listed once per K value.
+        # Deduplicated over K, as in the emission ranking: the quantity ranked here does not depend on K, so
+        # without this every intermediate level would be listed once per K value.
         seen = Set{Tuple{Int64,String,String,EmGauge}}()
         for  ch in line.channels
             nuLevels = MultiPhotonTransition.intermediateLevels(settings.intermediateStates, ch.Jsym)

@@ -18,83 +18,83 @@ const Coefficient2p = SpinAngular.Coefficient2p{SpinAngular.EffectiveStrengthKin
 
 # Module-level defaults. Each is set through its own SelfConsistent.set... function below.
 
-## EXPERIMENTAL SWITCH (09-Aug-2026), default false = the behaviour that has always been in place.
-## When true, solveOptimizedLevelField builds the Fock matrix as
-##      h  +  (1/occ) * V(diagonal CSF pairs)  +  V(off-diagonal CSF pairs)
-## instead of  h + (1/occ) * V(all pairs).  This tests whether the off-diagonal (CI-coupling) part should
-## be scaled by the generalized occupation at all: it carries weight ~ c_r c_s while occ carries ~ c_r^2,
-## so dividing it by occ introduces a c_1/c_2 factor that grows without bound as a correlating CSF's own
-## coefficient shrinks -- the suspected mechanism behind the winner-take-all collapse documented in
-## solveOptimizedLevelField's KNOWN LIMITATION.  Set with SelfConsistent.setEolUnscaledOffDiagonal(true).
+# EXPERIMENTAL SWITCH (09-Aug-2026), default false = the behaviour that has always been in place.
+# When true, solveOptimizedLevelField builds the Fock matrix as
+#      h  +  (1/occ) * V(diagonal CSF pairs)  +  V(off-diagonal CSF pairs)
+# instead of  h + (1/occ) * V(all pairs).  This tests whether the off-diagonal (CI-coupling) part should
+# be scaled by the generalized occupation at all: it carries weight ~ c_r c_s while occ carries ~ c_r^2,
+# so dividing it by occ introduces a c_1/c_2 factor that grows without bound as a correlating CSF's own
+# coefficient shrinks -- the suspected mechanism behind the winner-take-all collapse documented in
+# solveOptimizedLevelField's KNOWN LIMITATION.  Set with SelfConsistent.setEolUnscaledOffDiagonal(true).
 GBL_EOL_UNSCALED_OFFDIAGONAL = false
 
-## Re-orthonormalize the same-kappa orbitals after the damping step. DEFAULT TRUE since 10-Aug-2026;
-## the switch is kept only so the two behaviours can still be compared.
-##
-## Hamiltonian.projectHamiltonian makes each raw eigenvector orthogonal to the already-processed same-kappa
-## orbitals, but the damping that follows, mixed = 0.5*old + 0.5*raw, mixes it back with the PREVIOUS
-## iteration's vector, which is NOT orthogonal to them -- and nothing restored it. The CSF expansion assumes
-## an orthonormal orbital set, so the resulting energies were not legitimate variational numbers.
-## Measured on Li 1s^2 2s + 1s^2 3s + 1s^2 3d (three s-orbitals in kappa = -1), converged:
-##
-##                     <2s|3s>      <1s|2s>      E
-##     as it was      -1.128e-03   -5.558e-05   -7.4335291982
-##     re-orthonorm.  -1.373e-11   -5.358e-13   -7.4335284248
-##
-## The energy RISES by 7.7e-07 Ha, which is the honest direction: the non-orthogonal set was giving a
-## slightly-too-low number. The whole approved test suite is blind to this (44/44 either way), which is why
-## it went unnoticed -- TestFrames.testMethod_OrbitalOrthonormality now asserts it directly.
-## The fix needs no new code: orthonormalizeSameKappa was written for exactly this and had never
-## been called from anywhere.
+# Re-orthonormalize the same-kappa orbitals after the damping step. DEFAULT TRUE since 10-Aug-2026;
+# the switch is kept only so the two behaviours can still be compared.
+#
+# Hamiltonian.projectHamiltonian makes each raw eigenvector orthogonal to the already-processed same-kappa
+# orbitals, but the damping that follows, mixed = 0.5*old + 0.5*raw, mixes it back with the PREVIOUS
+# iteration's vector, which is NOT orthogonal to them -- and nothing restored it. The CSF expansion assumes
+# an orthonormal orbital set, so the resulting energies were not legitimate variational numbers.
+# Measured on Li 1s^2 2s + 1s^2 3s + 1s^2 3d (three s-orbitals in kappa = -1), converged:
+#
+#                     <2s|3s>      <1s|2s>      E
+#     as it was      -1.128e-03   -5.558e-05   -7.4335291982
+#     re-orthonorm.  -1.373e-11   -5.358e-13   -7.4335284248
+#
+# The energy RISES by 7.7e-07 Ha, which is the honest direction: the non-orthogonal set was giving a
+# slightly-too-low number. The whole approved test suite is blind to this (44/44 either way), which is why
+# it went unnoticed -- TestFrames.testMethod_OrbitalOrthonormality now asserts it directly.
+# The fix needs no new code: orthonormalizeSameKappa was written for exactly this and had never
+# been called from anywhere.
 GBL_SCF_REORTHONORMALIZE = true
 
-## Anderson depth for the AVERAGE-LEVEL field, separate from the mean-field one above because the iterate is
-## different: there it is the screening potential, here the orbitals themselves.  0 = the plain damped
-## iteration exactly as before.
-##
-## ON since 17-Aug-2026, at the same depth 2 the mean-field driver uses.  It reaches the SAME solution --
-## Ar 3s^2 3p^6 agrees to 4.3e-9 once accuracyScf is tight enough to converge at all -- and is 1.4x to 1.9x
-## faster, the gain GROWING with the accuracy demanded (1.47x at 1e-6, 1.79x at 1e-9, 1.89x at 1e-12).
-## On Be 4-config it is also the more STABLE of the two: across accuracyScf = 1e-6, 1e-9, 1e-12 it drifts by
-## 1e-5 where the plain iteration swings 6.5e-5 NON-MONOTONICALLY, and it gets there in 211 s against 1093 s.
-##
-## It could not be switched on until 18aaf5f.  Anderson perturbs the orbital tails just enough to move the
-## old mtp cut, which made TestFrames.testMethod_OrbitalOrthonormality report 6.5e-08 where the plain
-## iteration gave 6.8e-10 -- an artefact of the truncated integral, not of the orbitals, which were
-## orthonormal to 1e-17 throughout.  With the tails kept, both give ~1e-16.
-##
-## STILL OPEN, and NOT fixed by any of this: plain AL does not converge for a multi-configuration basis with
-## near-degenerate CSFs (Be 4-config), and the default accuracyScf = 1e-6 hides it by stopping early.
-## Tightening the tolerance is therefore not a general cure -- right for Ar-like cases, worse for Be.
+# Anderson depth for the AVERAGE-LEVEL field, separate from the mean-field one above because the iterate is
+# different: there it is the screening potential, here the orbitals themselves.  0 = the plain damped
+# iteration exactly as before.
+#
+# ON since 17-Aug-2026, at the same depth 2 the mean-field driver uses.  It reaches the SAME solution --
+# Ar 3s^2 3p^6 agrees to 4.3e-9 once accuracyScf is tight enough to converge at all -- and is 1.4x to 1.9x
+# faster, the gain GROWING with the accuracy demanded (1.47x at 1e-6, 1.79x at 1e-9, 1.89x at 1e-12).
+# On Be 4-config it is also the more STABLE of the two: across accuracyScf = 1e-6, 1e-9, 1e-12 it drifts by
+# 1e-5 where the plain iteration swings 6.5e-5 NON-MONOTONICALLY, and it gets there in 211 s against 1093 s.
+#
+# It could not be switched on until 18aaf5f.  Anderson perturbs the orbital tails just enough to move the
+# old mtp cut, which made TestFrames.testMethod_OrbitalOrthonormality report 6.5e-08 where the plain
+# iteration gave 6.8e-10 -- an artefact of the truncated integral, not of the orbitals, which were
+# orthonormal to 1e-17 throughout.  With the tails kept, both give ~1e-16.
+#
+# STILL OPEN, and NOT fixed by any of this: plain AL does not converge for a multi-configuration basis with
+# near-degenerate CSFs (Be 4-config), and the default accuracyScf = 1e-6 hides it by stopping early.
+# Tightening the tolerance is therefore not a general cure -- right for Ar-like cases, worse for Be.
 GBL_AL_ANDERSON_DEPTH = 2
 
-## Anderson depth for the mean-field (DFS/HS) SCF.  0 = the plain iteration exactly as before; a positive
-## value routes performSCF to SelfConsistent.solveMeanFieldBasisAnderson, which reaches the SAME self-consistent
-## solution in fewer iterations.  DEFAULT 0 so that nothing changes unless it is asked for.
-##
-## The plain iteration converges linearly, the residual shrinking by a constant factor r per step; measured
-## 12-Aug-2026, r = 0.44 (Ar 1s^2..3p^6), 0.57 (Ne 1s^2 2s^2 2p^6), 0.69 (Fe [Ar] 3d^6 4s^2).  Anderson
-## mixing builds the next screening potential from a least-squares combination of the last few iterates and
-## their residuals, cancelling the slowest-decaying error rather than waiting for it to decay:
-##
-##                        plain        depth 2      agreement of the converged orbital energies
-##     Ne  2s^2 2p^6      28 it        13 it        7.9e-07
-##     Ar  3s^2 3p^6      23 it        14 it        6.9e-09
-##     Fe  3d^6 4s^2      45 it        18 it        6.5e-07
-##     Ne+ 1s hole        17 it        11 it        1.2e-07
-##
-## Depth 2 is the measured optimum; 3 is nearly equal, and LARGER IS WORSE (Ne: 24 it at depth 5, 36 at 12),
-## the usual ill-conditioning of a long Anderson history.  Note that depth 0 in the Anderson driver itself is a
-## JACOBI sweep and does NOT converge in 60 iterations -- the Gauss-Seidel ordering of the original driver is
-## what makes the plain iteration viable at all.
-##
-## STANDARD SINCE 12-Aug-2026 (was 0 = the plain iteration when this was first added).  Setting it to 0
-## restores the old path exactly, which is how the two were compared.  Making it the default is a deliberate
-## editorial act: both iterations reach the same self-consistent solution, but only to within accuracyScf,
-## so results can move by ~1e-6.  What that costs was measured by regenerating every approved reference with
-## it on: 27 of 29 came out BITWISE IDENTICAL, one moved by 3.0e-09, and the only large apparent change --
-## test-Cascade-StepwiseDecay -- was not numerical at all, but two DEGENERATE levels swapping index labels
-## (all 606 transition rows the same set).
+# Anderson depth for the mean-field (DFS/HS) SCF.  0 = the plain iteration exactly as before; a positive
+# value routes performSCF to SelfConsistent.solveMeanFieldBasisAnderson, which reaches the SAME self-consistent
+# solution in fewer iterations.  DEFAULT 0 so that nothing changes unless it is asked for.
+#
+# The plain iteration converges linearly, the residual shrinking by a constant factor r per step; measured
+# 12-Aug-2026, r = 0.44 (Ar 1s^2..3p^6), 0.57 (Ne 1s^2 2s^2 2p^6), 0.69 (Fe [Ar] 3d^6 4s^2).  Anderson
+# mixing builds the next screening potential from a least-squares combination of the last few iterates and
+# their residuals, cancelling the slowest-decaying error rather than waiting for it to decay:
+#
+#                        plain        depth 2      agreement of the converged orbital energies
+#     Ne  2s^2 2p^6      28 it        13 it        7.9e-07
+#     Ar  3s^2 3p^6      23 it        14 it        6.9e-09
+#     Fe  3d^6 4s^2      45 it        18 it        6.5e-07
+#     Ne+ 1s hole        17 it        11 it        1.2e-07
+#
+# Depth 2 is the measured optimum; 3 is nearly equal, and LARGER IS WORSE (Ne: 24 it at depth 5, 36 at 12),
+# the usual ill-conditioning of a long Anderson history.  Note that depth 0 in the Anderson driver itself is a
+# JACOBI sweep and does NOT converge in 60 iterations -- the Gauss-Seidel ordering of the original driver is
+# what makes the plain iteration viable at all.
+#
+# STANDARD SINCE 12-Aug-2026 (was 0 = the plain iteration when this was first added).  Setting it to 0
+# restores the old path exactly, which is how the two were compared.  Making it the default is a deliberate
+# editorial act: both iterations reach the same self-consistent solution, but only to within accuracyScf,
+# so results can move by ~1e-6.  What that costs was measured by regenerating every approved reference with
+# it on: 27 of 29 came out BITWISE IDENTICAL, one moved by 3.0e-09, and the only large apparent change --
+# test-Cascade-StepwiseDecay -- was not numerical at all, but two DEGENERATE levels swapping index labels
+# (all 606 transition rows the same set).
 GBL_SCF_ANDERSON_DEPTH = 2
 
 
@@ -202,23 +202,23 @@ function initializeBasis(configs::Array{Configuration,1}, nuclearModel::Nuclear.
         orbitals  = Bsplines.generateOrbitalsHydrogenic(subshells, nuclearModel, primitives; printout=printout)
     elseif  typeof(settings.startScfFrom) == StartFromThomasFermi
         if  printout   println("> Start SCF process with orbitals in a Thomas-Fermi potential.")   end
-        ## The nucleus screened by a statistical model of the electron cloud.  Unlike every self-consistent
-        ## field this needs no density, so it is available before any orbital exists -- which is the point of
-        ## a start potential.  Bsplines.generateOrbitals then does what it does for any other potential.
+        # The nucleus screened by a statistical model of the electron cloud.  Unlike every self-consistent
+        # field this needs no density, so it is available before any orbital exists -- which is the point of
+        # a start potential.  Bsplines.generateOrbitals then does what it does for any other potential.
         tfPot     = Basics.add( Nuclear.nuclearPotential(nuclearModel, primitives.grid),
                                 Basics.computePotential(Basics.ThomasFermiField(), primitives.grid,
                                                         nuclearModel.Z, NoElectrons) )
         orbitals  = Bsplines.generateOrbitals(subshells, tfPot, nuclearModel, primitives; printout=printout)
     elseif  typeof(settings.startScfFrom) == StartFromPrevious
         if  printout   println("> Start SCF process from given list of orbitals.energy")    end
-        ## Take what the given set provides and fall back to a hydrogenic orbital for anything it does not.
-        ## THE FALLBACK NEVER RAN BEFORE (fixed 13-Aug-2026): it called HydrogenicIon.radialOrbital(subsh, ...,
-        ## grid) where neither `subsh` nor `grid` exists in this method -- the loop variable is `sh` and only
-        ## `primitives` is passed -- and radialOrbital takes a Shell rather than a Subshell in any case, so the
-        ## branch could only ever have thrown.  It went unnoticed because StartFromPrevious had exactly one
-        ## caller, which always supplied a complete set.  Warm-starting one cascade block from another does
-        ## not: consecutive blocks differ in which subshells are occupied.  The missing ones are now generated
-        ## by the same B-spline routine the StartFromHydrogenic branch above uses, in ONE call.
+        # Take what the given set provides and fall back to a hydrogenic orbital for anything it does not.
+        # THE FALLBACK NEVER RAN BEFORE (fixed 13-Aug-2026): it called HydrogenicIon.radialOrbital(subsh, ...,
+        # grid) where neither `subsh` nor `grid` exists in this method -- the loop variable is `sh` and only
+        # `primitives` is passed -- and radialOrbital takes a Shell rather than a Subshell in any case, so the
+        # branch could only ever have thrown.  It went unnoticed because StartFromPrevious had exactly one
+        # caller, which always supplied a complete set.  Warm-starting one cascade block from another does
+        # not: consecutive blocks differ in which subshells are occupied.  The missing ones are now generated
+        # by the same B-spline routine the StartFromHydrogenic branch above uses, in ONE call.
         orbitals = Dict{Subshell, Orbital}()
         missingSubshells = Subshell[]
         for  sh in subshells
@@ -322,8 +322,8 @@ function performSCF(configs::Array{Configuration,1}, nm::Nuclear.Model, grid::Ra
     # Solve a self-consistent field for this basis
     scfProc = Basics.scfProcedure(settings.scField)
     if   scfProc == :meanFieldIteration
-        ## GBL_SCF_ANDERSON_DEPTH = 0 keeps the plain iteration; a positive depth reaches the SAME
-        ## self-consistent solution in fewer iterations (see the note at the switch).
+        # GBL_SCF_ANDERSON_DEPTH = 0 keeps the plain iteration; a positive depth reaches the SAME
+        # self-consistent solution in fewer iterations (see the note at the switch).
         if  GBL_SCF_ANDERSON_DEPTH > 0
             basis = SelfConsistent.solveMeanFieldBasisAnderson(basis, nm, primitives, settings; printout=printout,
                                                             andersonDepth=GBL_SCF_ANDERSON_DEPTH)
@@ -342,7 +342,6 @@ function performSCF(configs::Array{Configuration,1}, nm::Nuclear.Model, grid::Ra
         # trivial reason.  Measured on Be 1s^2 2s^2 + 1s^2 2p^2 it lands 19.4 mHa ABOVE the average-level
         # field on the very level it is asked to optimize, with the 2p weight collapsed from 0.25 to 0.0001.
         # Rotating the orbitals instead escapes that point and reaches 5.3 mHa BELOW AL.  See example-Ao.jl.
-        #
         # The rotation is a LOCAL optimizer, so it starts from an average-level basis rather than from the
         # initial guess -- that is how it was validated, and a hydrogenic start has no reason to lie in its
         # basin.  Both solvers return a complete, correctly (kink-aware) diagonalized multiplet, so return it
@@ -360,9 +359,9 @@ function performSCF(configs::Array{Configuration,1}, nm::Nuclear.Model, grid::Ra
     # different state, Ge II 4f on a 614 a.u. box being the case that motivated it. Note the EOLField branch
     # above returns early and is therefore not covered here.
     Bsplines.checkOrbitalConsistency(basis.orbitals, grid; stopper = settings.gridStopper)
-    ## ... and that the box was in fact large enough for them.  This is the only test made on the CONVERGED
-    ## orbitals rather than on a hydrogenic stand-in, so it is the one that says whether the estimate the
-    ## grid was built from turned out to be right.
+    # ... and that the box was in fact large enough for them.  This is the only test made on the CONVERGED
+    # orbitals rather than on a hydrogenic stand-in, so it is the one that says whether the estimate the
+    # grid was built from turned out to be right.
     (boxOk, boxReport) = Bsplines.checkOrbitalBox(basis.orbitals, grid; stopper = false)
     if  printout   println(">> Radial box: " * boxReport * (boxOk ? "  -- adequate." : "  -- NOT adequate."))   end
 
@@ -396,8 +395,8 @@ function performSCF(basis::Basis, nm::Nuclear.Model, grid::Radial.Grid,
     # Solve a self-consistent field for this basis
     scfProc = Basics.scfProcedure(settings.scField)
     if   scfProc == :meanFieldIteration
-        ## GBL_SCF_ANDERSON_DEPTH = 0 keeps the plain iteration; a positive depth reaches the SAME
-        ## self-consistent solution in fewer iterations (see the note at the switch).
+        # GBL_SCF_ANDERSON_DEPTH = 0 keeps the plain iteration; a positive depth reaches the SAME
+        # self-consistent solution in fewer iterations (see the note at the switch).
         if  GBL_SCF_ANDERSON_DEPTH > 0
             basis = SelfConsistent.solveMeanFieldBasisAnderson(basis, nm, primitives, settings; printout=printout,
                                                             andersonDepth=GBL_SCF_ANDERSON_DEPTH)
@@ -424,9 +423,9 @@ function performSCF(basis::Basis, nm::Nuclear.Model, grid::Radial.Grid,
     # different state, Ge II 4f on a 614 a.u. box being the case that motivated it. Note the EOLField branch
     # above returns early and is therefore not covered here.
     Bsplines.checkOrbitalConsistency(basis.orbitals, grid; stopper = settings.gridStopper)
-    ## ... and that the box was in fact large enough for them.  This is the only test made on the CONVERGED
-    ## orbitals rather than on a hydrogenic stand-in, so it is the one that says whether the estimate the
-    ## grid was built from turned out to be right.
+    # ... and that the box was in fact large enough for them.  This is the only test made on the CONVERGED
+    # orbitals rather than on a hydrogenic stand-in, so it is the one that says whether the estimate the
+    # grid was built from turned out to be right.
     (boxOk, boxReport) = Bsplines.checkOrbitalBox(basis.orbitals, grid; stopper = false)
     if  printout   println(">> Radial box: " * boxReport * (boxOk ? "  -- adequate." : "  -- NOT adequate."))   end
 

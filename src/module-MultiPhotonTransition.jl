@@ -20,9 +20,9 @@
 """
 module MultiPhotonTransition
 
-## GaussQuadrature is used by the three-photon simplex sharings, which build their own tensor rule rather than
-## calling Basics.determineEnergySharings -- that routine returns the sharings of ONE energy between TWO photons
-## and does not generalize to a simplex.
+# GaussQuadrature is used by the three-photon simplex sharings, which build their own tensor rule rather than
+# calling Basics.determineEnergySharings -- that routine returns the sharings of ONE energy between TWO photons
+# and does not generalize to a simplex.
 using Printf, QuadGK, GaussQuadrature, ..AngularMomentum, ..AtomicState, ..Basics, ..Defaults, ..ManyElectron,
                         ..Nuclear, ..PhotoEmission, ..Radial, ..TableStrings
 
@@ -70,8 +70,8 @@ abstract type  AbstractMultiPhotonProperty       end
 """
 struct   EnergyDiffCs  <:  MultiPhotonTransition.AbstractMultiPhotonProperty      end
 
-## Note the `io` argument: until 06-Aug-2026 all of these were declared `Base.show(property::X)` -- without io --
-## while their bodies called `print(io, ...)`, so every one of them raised an UndefVarError if ever shown.
+# Note the `io` argument: until 06-Aug-2026 all of these were declared `Base.show(property::X)` -- without io --
+# while their bodies called `print(io, ...)`, so every one of them raised an UndefVarError if ever shown.
 function Base.show(io::IO, property::EnergyDiffCs)
     print(io, "energy-differential cross sections for multi-photon emission", "\n")
 end

@@ -1,6 +1,4 @@
-#
 # Three-photon excitation and decay between bound levels.
-#
 # WHAT IS AND IS NOT IMPLEMENTED HERE, 08-Aug-2026, because the two halves differ:
 #   * THREE-PHOTON ABSORPTION is implemented, in an elementary formulation -- see the second header, further
 #     down, for exactly what "elementary" buys and what it gives up.
@@ -10,39 +8,29 @@
 # The asymmetry is not an oversight. Absorption fixes the three photon energies, so it needs no sharings at all;
 # emission fixes only their SUM, so it needs the simplex, and it is that quadrature -- not the amplitude -- that
 # was the self-contained piece worth doing first.
-#
 # WHY THAT PIECE FIRST. For two photons the sharings are a Gauss-Legendre line: omega1 in [0, E], omega2 fixed by
 # energy conservation. For three photons the domain is the triangle
-#
 #     omega1 + omega2 + omega3 = E,      omega1, omega2, omega3 > 0
-#
 # and the rate is differential in TWO of them. Getting that quadrature right is a self-contained problem with an
 # EXACT answer to check against, which is what makes it worth doing before the third-order amplitude: the moments
 # of a simplex are known in closed form,
-#
 #     Int omega1^a omega2^b omega3^c domega1 domega2  =  E^(a+b+c+2) * a! b! c! / (a+b+c+2)!
-#
 # so a = b = c = 0 must give E^2/2, (1,0,0) must give E^3/6, and (1,1,1) must give E^5/120. Three sum rules of
 # increasing polynomial degree, all parameter-free. If the weights are wrong, the eventual three-photon total
 # rate is wrong by a factor that no amount of checking the amplitude would ever reveal -- exactly the class of
 # silent normalisation error that has cost this module time before.
-#
 # THE TRANSFORM is the standard collapsed-coordinate (Duffy) map of the square onto the triangle,
-#
 #     omega1 = E u,     omega2 = E (1-u) v,     omega3 = E (1-u)(1-v),     u, v in [0,1]
-#
 # with Jacobian domega1 domega2 = E^2 (1-u) du dv. A tensor Gauss-Legendre rule in (u,v) then integrates any
 # polynomial exactly up to the order of the rule, including the (1-u) weight. `noSharings` is the number of
 # points PER DIRECTION, so the grid carries noSharings^2 sharings -- stated because it is the one place a user
 # could reasonably expect it to mean the total.
-#
 # ONE HONEST LIMITATION, stated rather than discovered later: the Duffy grid is EXACT but not PERMUTATION
 # SYMMETRIC -- omega1 plays a distinguished role in the transform. For the integrated rate that is irrelevant
 # (exactness is exactness), but a three-photon spectrum plotted on these nodes will not LOOK symmetric under
 # exchanging the photons, even though the underlying function is. The symmetry check that served the two-photon
 # case so well (blocker A1 was found through it) therefore has to be applied to the function, evaluated at
 # permuted points, and not to the tabulated node values.
-#
 
 
 """
@@ -96,7 +84,7 @@ function determineSharings_3p(energy::Float64, noSharings::Int64)
             omega1 = energy * u
             omega2 = energy * (1. - u) * v
             omega3 = energy * (1. - u) * (1. - v)
-            ## the Jacobian domega1 domega2 = E^2 (1-u) du dv
+            # the Jacobian domega1 domega2 = E^2 (1-u) du dv
             weight = wu * wv * energy^2 * (1. - u)
             push!( sharings, MultiPhotonTransition.Sharing_3p(omega1, omega2, omega3, weight) )
         end
@@ -163,7 +151,6 @@ function  displaySharings_3p(stream::IO, energy::Float64, noSharings::Int64)
                 "    " * @sprintf("%.6e", sh.weight))
     end
     println(stream, "  ", TableStrings.hLine(nx))
-    #
     println(stream, " ")
     println(stream, "  Sum rule -- the quadrature against the EXACT moments of the simplex:")
     println(stream, " ")
@@ -177,7 +164,6 @@ function  displaySharings_3p(stream::IO, energy::Float64, noSharings::Int64)
     println(stream, "  ", TableStrings.hLine(nx))
     println(stream, ">>> All four moments must be reproduced to machine precision; the (1,1,1) moment is the " *
             "one that\n>>> would expose a missing Jacobian, which the constant moment alone cannot.")
-    #
     return( nothing )
 end
 
@@ -192,9 +178,9 @@ end
 """
 function  computeLines(scheme::ThreePhotonEmissionScheme, finalMultiplet::Multiplet, initialMultiplet::Multiplet,
                        grid::Radial.Grid, settings::MultiPhotonTransition.Settings; output=true)
-    ## calcOverview shows what exists rather than refusing outright. The sharings need nothing but the transition
-    ## energy, so they can be inspected and checked long before any amplitude is written -- which is the point of
-    ## having built them first.
+    # calcOverview shows what exists rather than refusing outright. The sharings need nothing but the transition
+    # energy, so they can be inspected and checked long before any amplitude is written -- which is the point of
+    # having built them first.
     if  settings.calcOverview
         println("")
         printstyled("MultiPhotonTransition.computeLines(::ThreePhotonEmissionScheme): only the energy sharings " *
@@ -231,12 +217,9 @@ end
 
 
 
-#
 # ---------------------------------------------------------------------------------------------------------------
 # THREE-PHOTON ABSORPTION, in an ELEMENTARY formulation.       Added 08-Aug-2026.
-#
 # WHAT "ELEMENTARY" MEANS HERE, stated first so that nothing below is mistaken for more than it is:
-#
 #   * THREE BEAMS, ALL LINEARLY POLARIZED ALONG THE SAME AXIS. One geometry, no polarization decomposition, no
 #     Stokes parameters. With every polarization along z only the q = 0 spherical component contributes, the
 #     magnetic quantum number is conserved through the whole chain, and the four-fold m-sum collapses to a
@@ -246,7 +229,6 @@ end
 #     normalisation has never been derived either, so inventing a three-photon one would add a second
 #     undetermined constant wearing the units of a measured quantity.
 #   * NO POLARIZATION OBSERVABLES and no rank-K decomposition.
-#
 # WHY THE m-SUM AND NOT A COUPLED-TENSOR FORM. The natural-looking route is to couple the three photon
 # multipoles to a total rank K through an intermediate rank k, as the two-photon code couples two. It is also
 # the route on which this implementation would most plausibly have been WRONG: the six time orderings then have
@@ -255,7 +237,6 @@ end
 # quantum numbers with one Wigner-Eckart 3-j per step needs no recoupling at all: each ordering is a plain
 # product of three 3-j symbols and three reduced matrix elements. It costs an m-sum -- which for parallel
 # linear polarization is a single loop -- and buys transparency.
-#
 # NOTE WHAT IS THEREFORE *NOT* A TEST HERE. For two photons, invariance of the result under exchanging the two
 # colours was a genuine check, because the two orderings were combined with a relative phase that could be (and
 # was) wrong. Here all six orderings are summed explicitly with no relative phase to get wrong, so permuting the
@@ -263,7 +244,6 @@ end
 # selection rule (an exact zero), the count of six orderings in the monochromatic limit, and the hydrogenic
 # Z-scaling; see examples/example-Du.jl.
 # ---------------------------------------------------------------------------------------------------------------
-#
 
 
 """
@@ -366,7 +346,7 @@ function computeStrength_3pAbsorption(finalLevel::Level, initialLevel::Level, om
     symi     = LevelSymmetry(initialLevel.J, initialLevel.parity)
     symf     = LevelSymmetry(finalLevel.J,   finalLevel.parity)
     ji       = Basics.twice(initialLevel.J) / 2;    jf = Basics.twice(finalLevel.J) / 2
-    ## the reduced matrix elements are re-used across orderings and are cached on (levels, omega-index, multipole)
+    # the reduced matrix elements are re-used across orderings and are cached on (levels, omega-index, multipole)
     cache    = Dict{Tuple{Int64,Int64,Int64,EmMultipole},ComplexF64}()
     function redME(levA::Level, levB::Level, iw::Int64, mp::EmMultipole)
         key = (levA.index, levB.index, iw, mp)
@@ -376,7 +356,7 @@ function computeStrength_3pAbsorption(finalLevel::Level, initialLevel::Level, om
         cache[key] = wa
         return( wa )
     end
-    ## M is conserved through the chain, so a single list serves; the 3-j symbols vanish outside it anyway
+    # M is conserved through the chain, so a single list serves; the 3-j symbols vanish outside it anyway
     Mlist    = collect(-min(ji,jf) : 1. : min(ji,jf))
     amps     = zeros(ComplexF64, length(Mlist))
     orders   = [(1,2,3), (1,3,2), (2,1,3), (2,3,1), (3,1,2), (3,2,1)][1:noOrderings]
@@ -464,7 +444,6 @@ function  computeLines(scheme::ThreePhotonAbsorptionScheme, finalMultiplet::Mult
     printstyled("---------------------------------------------------------------------------------------------------------------------- \n",
                 color=:light_green)
     println("")
-    #
     newLines = MultiPhotonTransition.Line_3pAbsorption[]
     for  iLevel  in  initialMultiplet.levels
         for  fLevel  in  finalMultiplet.levels
@@ -490,7 +469,6 @@ function  computeLines(scheme::ThreePhotonAbsorptionScheme, finalMultiplet::Mult
     MultiPhotonTransition.displayResults_3pAbsorption(stdout, newLines)
     printSummary, iostream = Defaults.getDefaults("summary flag/stream")
     if  printSummary    MultiPhotonTransition.displayResults_3pAbsorption(iostream, newLines)     end
-    #
     if    output    return( newLines )
     else            return( nothing )
     end
@@ -521,7 +499,6 @@ function  displayResults_3pAbsorption(stream::IO, lines::Array{MultiPhotonTransi
     sa = sa * TableStrings.center(10, "omega3"; na=4);   sb = sb * TableStrings.center(10, TableStrings.inUnits("energy"); na=4)
     sa = sa * TableStrings.center(30, "Cou --   S^(3) [a.u.]   -- Bab"; na=3);     sb = sb * TableStrings.hBlank(33)
     println(stream, sa);    println(stream, sb);    println(stream, "  ", TableStrings.hLine(nx))
-    #
     for  line in lines
         sa   = "";   isym = LevelSymmetry( line.initialLevel.J, line.initialLevel.parity)
                      fsym = LevelSymmetry( line.finalLevel.J,   line.finalLevel.parity)
@@ -537,6 +514,5 @@ function  displayResults_3pAbsorption(stream::IO, lines::Array{MultiPhotonTransi
     println(stream, "  ", TableStrings.hLine(nx))
     println(stream, ">>> A strength of exactly 0 is a SELECTION RULE, not a failure: three E1 photons change the " *
                     "parity, so a\n>>> transition between levels of the SAME parity cannot be driven by them.")
-    #
     return( nothing )
 end
