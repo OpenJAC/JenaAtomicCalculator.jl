@@ -498,3 +498,128 @@ function testModule_ParticleScattering(; short::Bool=true)
     testPrint("testModule_ParticleScattering()::", success)
     return(success)
 end
+
+
+"""
+`TestFrames.testModule_GeneralizedOscillatorStrength(; short::Bool=true)`  ... tests on module
+    GeneralizedOscillatorStrength; a success::Bool is returned.
+"""
+function testModule_GeneralizedOscillatorStrength(; short::Bool=true)
+    Defaults.setDefaults("print summary: open", "test-GeneralizedOscillatorStrength-new.sum")
+    printstyled("\n\nTest the module  GeneralizedOscillatorStrength  ... \n", color=:cyan)
+    # A SANITY test, deliberately not a comparison against a stored .sum.  Both checks below are absolute --
+    # one against a closed-form result and one against a statistical weight -- so neither can pass on a stale
+    # reference, which is the failure mode a file comparison cannot rule out.  Atomic hydrogen is used because
+    # Inokuti (1971) gives its GOS in closed form, Eq. (4.2):  f_2p(q) = 2^13 3^-9 [1 + (4/9) q]^-6.
+    # Basics.NuclearField() is essential rather than a detail: with the default DFS field a ONE-electron system
+    # acquires a spurious self-interaction, and the initial and final orbitals then solve different one-body
+    # operators.  See examples/example-Dpnew.jl, branch a, for the full acceptance test this is cut down from.
+    success = true;    printTest, iostream = Defaults.getDefaults("test flag/stream")
+    f2pExact(q) = 2.0^13 * 3.0^-9 * (1 + (4/9)*q)^-6
+    grid   = Radial.Grid(Radial.Grid(false), rnt = 4.0e-6, h = 1.2e-1, hp = 3.0e-2, rbox = 30.0)
+    Defaults.setDefaults("standard grid", grid)
+    nModel = Nuclear.Model(1., UniformNucleus(), 1., 0.8783, AngularJ64(1//2), 2.7928473, 0.0, 0.0)
+    asfH   = AsfSettings(AsfSettings(); scField = Basics.NuclearField())
+    Ks     = [1.0]
+    gosSettings = GeneralizedOscillatorStrength.Settings(GeneralizedOscillatorStrength.Settings();
+                      qValues = Ks, calcOpticalLimit = false, printBefore = false)
+    wa = Atomic.Computation(Atomic.Computation(), name="GOS sanity: H 1s -> 2p", grid=grid, nuclearModel=nModel,
+             initialConfigs = [Configuration("1s")],   initialAsfSettings = asfH,
+             finalConfigs   = [Configuration("2p")],   finalAsfSettings   = asfH,
+             processSettings = gosSettings)
+    lines = perform(wa; output=true)["generalized oscillator strengths:"]
+
+    f2p = zeros(length(Ks));    fsSplit = Dict{String,Vector{Float64}}()
+    for  line in lines
+        f2p .+= line.gosValues
+        fsSplit[string(LevelSymmetry(line.finalLevel.J, line.finalLevel.parity))] = line.gosValues
+    end
+    # (1) the summed GOS against the closed form; 2e-5 is reached, and 1e-3 leaves room for the grid
+    ratio = f2p[1] / f2pExact(Ks[1]^2)
+    if  abs(ratio - 1.0) > 1.0e-3
+        success = false
+        if printTest   info(iostream, "f_2p(q=1) = $(f2p[1]) against the exact $(f2pExact(Ks[1]^2)), ratio $ratio")   end
+    end
+    # (2) the two spin-orbit partners carry the GOS in the ratio of their statistical weights.  That ratio is
+    #     2 only in the NON-RELATIVISTIC limit -- 2p_1/2 and 2p_3/2 are different radial functions -- so the
+    #     measured 1.999967 is not an error but the O((alpha Z)^2) = 5e-5 correction at Z = 1.  The tolerance is
+    #     set at 1e-3, which still catches what this check is for: a module that mishandled the fine-structure
+    #     sum would be wrong by a FACTOR, not by two parts in 1e5, and would look perfectly healthy otherwise.
+    if  haskey(fsSplit, "3/2 -")  &&  haskey(fsSplit, "1/2 -")
+        wRatio = fsSplit["3/2 -"][1] / fsSplit["1/2 -"][1]
+        if  abs(wRatio - 2.0) > 1.0e-3
+            success = false
+            if printTest   info(iostream, "f(2p_3/2)/f(2p_1/2) = $wRatio, must be 2 by statistical weight")   end
+        end
+    else
+        success = false
+        if printTest   info(iostream, "the two 2p levels were not both returned: $(keys(fsSplit))")   end
+    end
+
+    Defaults.setDefaults("print summary: close", "")
+    testPrint("testModule_GeneralizedOscillatorStrength()::", success)
+    return(success)
+end
+
+
+"""
+`TestFrames.testModule_PhotoRecombinationInterference(; short::Bool=true)`  ... tests on module
+    PhotoRecombinationInterference; a success::Bool is returned.
+"""
+function testModule_PhotoRecombinationInterference(; short::Bool=true)
+    Defaults.setDefaults("print summary: open", "test-PhotoRecombinationInterference-new.sum")
+    printstyled("\n\nTest the module  PhotoRecombinationInterference  ... \n", color=:cyan)
+    # A SANITY test on the module's own internal consistency, needing no stored reference.  With includeDR =
+    # false the coherent sum must collapse to plain radiative recombination, so the module has to reproduce
+    # PhotoRecombination exactly -- not approximately, since it is then evaluating the same amplitude -- and
+    # both the resonant and the interference term must be identically zero.  Li-like Fe23+ is used because it
+    # is the case of examples/example-Dvnew.jl, branch a, and is cheap at maxKappa = 2 and one energy.
+    success  = true;   printTest, iostream = Defaults.getDefaults("test flag/stream")
+    grid     = Radial.Grid(Radial.Grid(false), rnt = 2.0e-6, h = 5.0e-2, hp = 1.0e-2, rbox = 4.0)
+    Defaults.setDefaults("standard grid", grid)
+    nModel   = Nuclear.Model(26.)
+    energies = [2000.0]
+    iConfigs = [Configuration("1s^2 2s")];   mConfigs = [Configuration("1s 2s^2 2p")]
+    fConfigs = [Configuration("1s^2 2s^2")]
+
+    prSet   = PhotoRecombination.Settings(PhotoRecombination.Settings(); multipoles=[E1], gauges=[UseCoulomb],
+                  electronEnergies=energies, maxKappa=2, calcAnisotropy=false, printBefore=false)
+    rrLines = perform( Atomic.Computation(Atomic.Computation(), name="RR reference", grid=grid, nuclearModel=nModel,
+                  initialConfigs=iConfigs, finalConfigs=fConfigs, processSettings=prSet);
+                  output=true )["photo recombination lines:"]
+    priSet   = PhotoRecombinationInterference.Settings(PhotoRecombinationInterference.Settings();
+                  multipoles=[E1], gauges=[UseCoulomb], electronEnergies=energies, maxKappa=2,
+                  includeRR=true, includeDR=false, calcAnisotropy=false, calcPolarization=false, printBefore=false)
+    priPaths = perform( Atomic.Computation(Atomic.Computation(), name="RR limit of the interference module",
+                  grid=grid, nuclearModel=nModel, initialConfigs=iConfigs, intermediateConfigs=mConfigs,
+                  finalConfigs=fConfigs, processSettings=priSet);
+                  output=true )["photorecombination-interference pathways:"]
+
+    if  length(priPaths) == 0
+        success = false
+        if printTest   info(iostream, "no interference pathways were returned")   end
+    end
+    for  p  in  priPaths
+        # (1) the resonant and interference terms must vanish IDENTICALLY when DR is switched off
+        if  p.crossSectionDR.Coulomb != 0.0   ||   p.interference.Coulomb != 0.0
+            success = false
+            if printTest   info(iostream, "with includeDR = false, sigma_DR = $(p.crossSectionDR.Coulomb) and " *
+                                "interference = $(p.interference.Coulomb); both must be identically zero")   end
+        end
+        # (2) what remains must BE radiative recombination, evaluated by the other module
+        for  l  in  rrLines
+            if  abs(l.electronEnergy - p.electronEnergy) < 1.0e-10  &&  l.finalLevel.index == p.finalLevel.index
+                ratio = p.crossSectionRR.Coulomb / l.crossSection.Coulomb
+                if  abs(ratio - 1.0) > 1.0e-8
+                    success = false
+                    if printTest   info(iostream, "the RR limit gives $(p.crossSectionRR.Coulomb) against " *
+                                        "PhotoRecombination's $(l.crossSection.Coulomb), ratio $ratio")   end
+                end
+            end
+        end
+    end
+
+    Defaults.setDefaults("print summary: close", "")
+    testPrint("testModule_PhotoRecombinationInterference()::", success)
+    return(success)
+end

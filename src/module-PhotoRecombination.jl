@@ -199,20 +199,39 @@ end
 
 
 """
-`PhotoRecombination.checkConsistentMultiplets(finalMultiplet::Multiplet, initialMultiplet::Multiplet)`  
-    ... to check that the given initial- and final-state levels and multiplets are consistent to each other and to avoid later problems with
-        the computations. An error message is issued if an inconsistency occurs, and nothing is returned otherwise.
+`PhotoRecombination.checkConsistentMultiplets(finalMultiplet::Multiplet, initialMultiplet::Multiplet)`
+    ... to check that the given initial- and final-state levels and multiplets are consistent with each other, so that later
+        problems in the computation are avoided. An error is raised if an inconsistency occurs, and nothing is returned
+        otherwise.
+
+        THE REQUIREMENT IS A PREFIX, AND IT IS NOT THIS FUNCTION'S TO RELAX. Basics.generateLevelWithSymmetryReducedBasis,
+        which every amplitude below goes through, supports only the ADDITION of subshells: it raises unless the initial
+        subshells are the opening segment of the final ones AND strictly fewer. Ignoring subshells that are empty in every
+        initial CSF was tried on 28-Aug-2026 and REVERTED, because it admits exactly the cases that then fail one level
+        deeper with an unexplained "stop a" -- a permissive guard in front of a strict one helps nobody.
+
+        This is why a BARE ion must be written with the empty shell being the very shell captured INTO: Configuration("2s^0")
+        for capture into 2s. Configuration("1s^0") against a 2s final state compares [1s_1/2] with [2s_1/2] and is refused
+        here, with the remedy named. Making one spelling serve every channel means changing that shared Basics routine, which
+        is not a small change and is carried as its own item.
 """
 function  checkConsistentMultiplets(finalMultiplet::Multiplet, initialMultiplet::Multiplet)
     initialSubshells      = initialMultiplet.levels[1].basis.subshells;             ni = length(initialSubshells)
-    finalSubshells        = finalMultiplet.levels[1].basis.subshells
-    
-    if initialSubshells[1:end] == finalSubshells[1:ni]
-    else
-        error("\nThe order of subshells must be equal for the initial- and final states. \n" *
-                "However, the initial states can have less subshells; this limitation arises from the angular coefficients.")
-    end
-        
+    finalSubshells        = finalMultiplet.levels[1].basis.subshells;               nf = length(finalSubshells)
+
+    # The ni <= nf test is not redundant: without it, a longer initial list made the slice below raise a BoundsError
+    # instead of the message written here, so the commonest way of getting this wrong reported nothing useful.
+    if  ni <= nf   &&   initialSubshells[1:end] == finalSubshells[1:ni]    return( nothing )    end
+
+    error("\nThe order of subshells must be equal for the initial- and final states; the initial states may have \n" *
+          "FEWER subshells, but they must be the FIRST ones and in the same order. This limitation arises from \n"    *
+          "the angular coefficients and from Basics.generateLevelWithSymmetryReducedBasis.\n\n"                      *
+          "    initial = $initialSubshells \n"                                                                       *
+          "    final   = $finalSubshells \n\n"                                                                      *
+          ">>> Write every configuration over the SAME subshells, with explicit ZERO occupations where a shell is \n" *
+          "    empty. A BARE ion is spelled with the shell being captured INTO, e.g. Configuration(\"2s^0\") for \n"  *
+          "    capture into 2s; Configuration(\"1s^0\") there compares [1s_1/2] with [2s_1/2] and fails.\n")
+
     return( nothing )
 end
 

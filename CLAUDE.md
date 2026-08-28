@@ -12,6 +12,9 @@ and collaboration rules for the JenaAtomicCalculator (JAC) codebase. Follow thes
 - **Never make mechanical bulk changes** (regex replacements, automated refactors) without first
   showing a representative sample of the before/after diff and getting approval.
 - Commits should group one logical change only. Prefer infrequent, well-described commits.
+- **Two sessions often run in parallel in this one directory.** The discipline that keeps them from
+  blocking or overwriting each other is under `/preparetravel`, "Starting a SECOND session"; read it
+  before committing, testing or editing the shared working lists.
 
 ## Code style — preserve as-is unless told otherwise
 
@@ -666,6 +669,54 @@ What makes that safe is a discipline that belongs to the SESSIONS, not to him. E
 - **does not run the test suite while the other session is running it** -- they write the same files under `test/`.
 
 If a session cannot say which files are its own, it must not commit.
+
+**PARTITION BY DEPENDENCY, NOT BY TODAY'S FILE LIST.** Naming the modules each session owns is necessary and not
+sufficient: a session working a THEME will reach every module that theme touches, days before it opens them. On
+27-Aug-2026 one session migrated the spin-angular convention through 25 modules in an afternoon, while the other
+went looking for "independent" work and picked `ImpactExcitation` -- untouched at that moment, and three
+`SpinAngular` references away from being next. The usable test is one grep: a module with ZERO references to the
+other session's theme is safe, one with any is not, however quiet it looks. State the theme, not just the files.
+
+**BEFORE `git commit`, THREE CHECKS, because the tree moves under you.**
+
+- `git status --porcelain` and stage by explicit pathspec, never `-A`, `.` or `-u`;
+- `git diff --cached <each file>` must contain ONLY your own hunks. This is what proves you are not reverting the
+  other session's work in a file you both edited. On 27-Aug `module-Hamiltonian.jl` changed hands four times,
+  including a revert and a re-land, while an edit of the other session's sat in the working copy the whole time;
+  the staged diff showing two hunks and nothing else is what made that safe to commit;
+- **re-read the code your commit MESSAGE describes.** A message drafted ten minutes ago can be false by the time
+  it is written. On 27-Aug a commit explaining a `sqrt(2j+1)` at a call site was drafted, and the other session
+  removed that very factor before it was committed; the message had to be amended before pushing. A message is a
+  claim about the code as it stands at HEAD, not as it stood when the work was done.
+
+**A TEST RUN MEANS NOTHING UNLESS THE TREE STOOD STILL FOR ALL OF IT.** Not running the suite at the same time is
+only half the rule: an EDIT by the other session during the run is just as corrupting, and silent. Julia compiles
+the package once at startup, so a run that began before an edit may or may not have seen it, and afterwards there
+is no way to tell. Note the modification times of every file the other session has dirty before starting, check
+them again at the end, and report the window: "suite 54/54, their files unchanged at HH:MM:SS across a run from
+HH:MM to HH:MM". If the times moved, the run is not evidence and must be repeated. Three suite runs were wasted
+this way on 27-Aug before the rule was written down.
+
+**PREFER A TARGETED CHECK TO THE FULL SUITE while the other session is active.** The suite needs a still tree for
+three minutes; calling the changed functions directly and comparing numbers needs seconds and cannot be
+contaminated. Where a change is claimed to move no number, that claim is better proved by a direct before/after
+on the affected functions -- and where a rebuild alone perturbs the result (Rule 12's neighbour, the build
+sensitivity), the ONLY sound proof is a CONTROL: put the original file back, rebuild, run, and show it reproduces
+the new numbers. That control was needed twice on 27-Aug and settled both cases in minutes.
+
+**THE MEMORY DIRECTORY AND THE WORKING LISTS ARE SHARED TOO, and they have no merge.** Two sessions editing the
+priority list or `MEMORY.md` will silently overwrite each other: on 27-Aug an index line was clobbered and had to
+be restored, and an item appeared in the list between one session reading it and writing it back. So: re-read the
+file immediately before editing it, edit by ANCHORED replacement of a known string rather than by line number,
+never rewrite a whole shared file from a copy held in memory, and check afterwards that the other session's
+entries are still there. If two sessions must both record something, each adds its own item rather than
+renumbering or reflowing the other's.
+
+**WHEN THE THEMES COLLIDE, SAY SO AND STOP RATHER THAN WORK AROUND IT.** A session that cannot find work outside
+the other's theme should say that plainly and wait, or ask for a different assignment. Half a day of hunting for
+something "independent" in a codebase one migration is sweeping produces proposals for work already done, and
+that is worse than idleness: on 27-Aug four such proposals in a row turned out to be already fixed or explicitly
+forbidden. Waiting is a legitimate answer; inventing scope is not.
 
 
 ### recall commands
