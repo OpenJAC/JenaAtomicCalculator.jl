@@ -156,6 +156,10 @@ end
 `Plasma.computeIsotopicNumberDensity(temp::Float64, isoClass::IsotopeClass)`  
     ... computes the (number) density n (Z,A) of a given isotope class at temperature T;
         an nDensity::Float64 is returned.   ... Not used in the present code.
+
+        NO CALLER IN `src/`, and the docstring already said 'not used in the present code' without saying who WOULD use
+        it: a user assembling an isotopic mixture by hand, who needs the number density of one isotope class at a given
+        temperature before handing it to the Saha-Boltzmann machinery. The mixture drivers take densities as input.
 """
 function computeIsotopicNumberDensity(temp::Float64, isoClass::IsotopeClass)
     nDensity = 0.

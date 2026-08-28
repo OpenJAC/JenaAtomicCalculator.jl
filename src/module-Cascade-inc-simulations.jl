@@ -63,6 +63,9 @@ end
 `Cascade.combineEnergiesIntensities(w1::Float64, w1enInts::Array{Tuple{Float64,Float64},1}, 
                                     w2::Float64, w2enInts::Array{Tuple{Float64,Float64},1})` 
     ... combines w1 * w1enInts + w2 * w2enInts; a newEnergiesInts::Array{Tuple{Float64,Float64},1} is returned.
+
+        NO CALLER IN `src/`: it is offered to a USER combining two simulations by hand -- two cascades under different
+        conditions, weighted and added. The simulation drivers build their own lists and do not need it.
 """
 function combineEnergiesIntensities(w1::Float64, w1enInts::Array{Tuple{Float64,Float64},1}, 
                                     w2::Float64, w2enInts::Array{Tuple{Float64,Float64},1})

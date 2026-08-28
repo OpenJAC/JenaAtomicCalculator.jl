@@ -42,7 +42,6 @@ function Base.show(io::IO, Jsublevel::LandeZeeman.SublevelJ)
 end
 
 
-
 # SublevelF defines a magnetic hyperfine sublevel
 """
 `struct  LandeZeeman.SublevelF`  ... defines a type to specify a magnetic hyperfine sublevel with well-defined F.
@@ -268,49 +267,6 @@ end
 
 
 """
-`LandeZeeman.amplitudeN1(::ZeemanN1, rLevel::Level, sLevel::Level, grid::Radial.Grid; display::Bool=false)`
-    ... to compute the (reduced) Zeeman amplitude <alpha_r J_r || N^(1) || alpha_s J_s>
-        for a given pair of levels. A value::ComplexF64 is returned.
-"""
-function amplitudeN1(::ZeemanN1, rLevel::Level, sLevel::Level, grid::Radial.Grid; display::Bool=false)
-    if     rLevel.parity != sLevel.parity     amplitude = ComplexF64(0.)
-    else
-        nr = length(rLevel.basis.csfs);    ns = length(sLevel.basis.csfs)
-        if display   printstyled("Compute Zeeman N^(1) matrix of dimension $nr x $ns in the given bases " *
-                                 "[transition $(rLevel.index)- $(sLevel.index)] ... ", color=:light_green)     end
-        matrix = zeros(ComplexF64, nr, ns)
-        #
-        for  r = 1:nr
-            for  s = 1:ns
-                if  rLevel.mc[r] == 0  ||  sLevel.mc[s] == 0    continue    end
-                subshellList = sLevel.basis.subshells
-                opa = SpinAngular.OneParticleOperator(1, plus)
-                wa  = SpinAngular.computeCoefficients(opa, rLevel.basis.csfs[r], sLevel.basis.csfs[s], subshellList)
-                for  coeff in wa
-                    tamp = InteractionStrength.zeeman_n1(rLevel.basis.orbitals[coeff.a], sLevel.basis.orbitals[coeff.b], grid)
-                    matrix[r,s] = matrix[r,s] + coeff.T * tamp
-                end
-            end
-        end
-        if display   printstyled("done. \n", color=:light_green)   end
-        amplitude = transpose(rLevel.mc) * matrix * sLevel.mc
-    end
-    if  display
-        sa = @sprintf("%.5e", amplitude.re) * "  " * @sprintf("%.5e", amplitude.im)
-        println("    < level=$(rLevel.index) [J=$(rLevel.J)$(string(rLevel.parity))] || N^(1) ||" *
-                " $(sLevel.index) [$(sLevel.J)$(string(sLevel.parity))] >  = " * sa)
-        printSummary, iostream = Defaults.getDefaults("summary flag/stream")
-        if  printSummary
-            println(iostream,  "    N^(1) amplitude:  < level=$(rLevel.index) [J=$(rLevel.J)$(string(rLevel.parity))] || N^(1) ||" *
-                               " $(sLevel.index) [$(sLevel.J)$(string(sLevel.parity))] >  = " * sa)
-        end
-    end
-    return( amplitude )
-end
-
-
-
-"""
 `LandeZeeman.computeAmplitudesProperties(outcome::LandeZeeman.Outcome, grid::Radial.Grid, settings::LandeZeeman.Settings)`  
     ... to compute all amplitudes and properties of for a given level. The given gMultiplet in settings containes the
         intermediate levels used in the computation of second order coefficients. An outcome::LandeZeeman.Outcome is 
@@ -356,7 +312,6 @@ function  computeAmplitudesProperties(outcome::LandeZeeman.Outcome, grid::Radial
                                       newJsublevels, newFsublevels)
     return( newOutcome )
 end
-
 
 
 """

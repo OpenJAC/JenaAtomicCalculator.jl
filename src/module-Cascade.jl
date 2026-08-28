@@ -1380,6 +1380,10 @@ end
         the file loaded, false otherwise. Nothing is thrown: a file that cannot be read is the normal case this
         function exists for, and it prints which JAC wrote it and which type failed, instead of leaving a JLD2
         internal error.
+
+        NO CALLER IN `src/`, AND THAT IS CORRECT: it is a REPL tool for a user holding a stored cascade `.jld` file of
+        uncertain provenance, who wants to know what is in it and whether this JAC can read it BEFORE loading it into a
+        computation. Nothing in a run should call it, because a run already knows what it wrote.
 """
 function checkDataFile(filename::String; stream::IO=stdout)
     println(stream, "\n  Stored cascade data:  $filename")

@@ -550,6 +550,13 @@ end
         MIRRORED, NOT REPAIRED: `angCS` is filled once per line but never emptied between lines, so the table printed for the second line
         repeats the rows of the first. That is a defect of the flat function; it is reproduced here unchanged, so that the two paths can be
         compared line for line, and it is to be fixed in the flat function -- where it belongs -- rather than silently here.
+
+        NO CALLER, AND NEVER EXECUTED -- treat that as a warning, not a reassurance. It is a user entry point for non-E1
+        angle-differential cross sections. On 28-Aug-2026 the two OTHER never-executed functions in this module,
+        `computePartialCrossSectionUnpolarized` and `computeStatisticalTensorUnpolarized`, were run for the first time
+        and held THREE defects between them: a retired call signature, a Clebsch-Gordan coefficient evaluated where it
+        had to be skipped, and a normalisation that still does not sum to the total. Expect the same class here until
+        somebody runs it, and do not quote a number from it before then.
 """
 function computeDisplayNonE1AngleDifferentialCS(stream::IO, lines::Array{PhotoIonization.Line,1},
                                                       settings::PhotoIonization.Settings)

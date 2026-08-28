@@ -181,6 +181,11 @@ end
     ... to analyze the representation of hydrogenic orbitals from shells for the given nuclear charge and grid.
         The procedure orders the shells, tabulates their (hydrogenic) energy in the given grid and compares them
         with the exact solution. Nothing is returned otherwise..
+
+        NO CALLER IN `src/`, AND THAT IS CORRECT: this is a HAND diagnostic, meant to be run at the REPL when a
+        computation has failed or a grid is suspected of being under-resolved, and it prints a table for a person to
+        read. Its automatic counterpart is the Rule 12 guard `Bsplines.checkGridRepresentation`, which REFUSES a bad
+        grid during a run; this one is how you find out why. Keep both.
 """
 function Basics.analyzeGrid(shells::Array{Shell,1}, nm::Nuclear.Model, grid::Radial.Grid)
     subshells = Basics.generateSubshellList(shells::Array{Shell,1})

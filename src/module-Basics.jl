@@ -34,7 +34,6 @@ function computeDiracEnergy                                     end
 function computeMeanSubshellOccupation                          end
 function computeMultipletForGreenApproach                       end
 function computePotential                                       end
-function computeScfCoefficients                                 end
 function determineEnergySharings                                end
 function determineHoleShells                                    end
 function determineMeanEnergy                                    end

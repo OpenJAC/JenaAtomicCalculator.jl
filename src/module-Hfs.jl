@@ -688,6 +688,11 @@ end
 `Hfs.computeInteractionAmplitudeT(mp::EmMultipole, aLevel::Level, bLevel, grid::Radial.Grid)` 
     ... to compute the T^(mp) interaction amplitude for two levels of the same basis, i.e. (<aLevel || T^(mp) || bLevel>). A me::ComplexF64
         is returned.
+
+        NO CALLER IN `src/`: the A, B and C constants are formed inside `computeAmplitudesProperties`, which builds the
+        electronic part inline. This offers the same quantity as a SEPARATE reduced matrix element, for a user who wants
+        <a || T^(mp) || b> itself rather than the constants derived from it. Its nuclear partner
+        `computeInteractionAmplitudeM` IS called, from `Hfs` and from `HyperfineInduced`.
 """
 function  computeInteractionAmplitudeT(mp::EmMultipole, aLevel::Level, bLevel, grid::Radial.Grid)
 
@@ -835,6 +840,9 @@ end
     ... to compute and tabulate the modified Einstein amplitudes and rates for the hyperfine-resolved transitions between the upper and
         lower outcome. The procedures assumes that the two outcomes provide a proper IJF expansion (multiplet) of the hyperfine levels of
         interest. A neat table is printed but nothing is returned otherwise
+
+        NO CALLER IN `src/`: it is a user entry point that computes AND tabulates, i.e. it is meant to be invoked for
+        its printed table rather than for a returned value that another routine consumes.
 """
 function  computeModifiedEinsteinRates(upperOutcome::Outcome, lowerOutcome::Outcome, multipoles::Array{EmMultipole,1}, gauge::EmGauge,
                                        grid::Radial.Grid)
