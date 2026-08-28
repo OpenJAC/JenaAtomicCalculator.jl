@@ -251,3 +251,101 @@ function testModule_MultipolePolarizibility(; short::Bool=true)
     testPrint("testModule_MultipolePolarizibility()::", success)
     return(success)
 end
+
+
+"""
+`TestFrames.testModule_ReducedDensityMatrix(; short::Bool=true)`  ... tests on module ReducedDensityMatrix;
+    a success::Bool is returned.
+"""
+function testModule_ReducedDensityMatrix(; short::Bool=true)
+    Defaults.setDefaults("print summary: open", "test-ReducedDensityMatrix-new.sum")
+    printstyled("\n\nTest the module  ReducedDensityMatrix  ... \n", color=:cyan)
+    # A SANITY test built entirely from ALGEBRAIC invariants of a one-particle reduced density matrix, and
+    # deliberately not a comparison against a stored .sum.  Every check below is exact for any basis and any
+    # grid -- the trace is the electron number, rho is symmetric, and no natural orbital may hold fewer than
+    # zero or more than 2j+1 electrons -- so none of them can pass on a stale reference, and none of them is
+    # sensitive to how well the orbitals themselves are converged.  That insensitivity is the point: it tests
+    # the RDM machinery rather than the SCF underneath it.
+    #
+    # The last check is the one with a history.  Until 28-Aug-2026 computeProperties published
+    # compute1pRDMDirect, a special-case shortcut whose `samecoupling` test compares the RUNNING coupling
+    # subshellX[i]; whenever a spectator subshell lies BETWEEN the two substituted ones its X necessarily
+    # differs, and the element was dropped by `continue`.  The diagonal and the trace stayed perfect, so the
+    # first three checks here would ALL have passed while every off-diagonal was silently zero -- and the
+    # off-diagonals are exactly where the correlation lives.  Hence check (4): in a genuinely correlated
+    # two-configuration level the off-diagonal block must not vanish.
+    success = true;    printTest, iostream = Defaults.getDefaults("test flag/stream")
+    grid = Radial.Grid(Radial.Grid(false), rnt = 1.0e-5, h = 5.0e-2, hp = 2.0e-2, rbox = 40.0)
+    # ReducedDensityMatrix offers only the plain keyword constructor; it has no Settings(set; kw...) copy
+    # constructor of the kind the rest of JAC uses, which is a separate convention gap and not this test's business.
+    rdmSettings = ReducedDensityMatrix.Settings(calcNatural = true, calcDensity = false, calcIpq = false,
+                      calc2pRDM = false, printBefore = false, levelSelection = LevelSelection(true, indices=[1]))
+
+    # (a) the closed-shell reference: one configuration, so rho^(1p) is exactly diagonal with the subshell
+    #     occupations 2, 2, 2, 4 on it and nothing anywhere else.
+    waA = Atomic.Computation(Atomic.Computation(), name="RDM sanity: Ne closed shell", grid=grid,
+              nuclearModel = Nuclear.Model(10.), configs = [Configuration("1s^2 2s^2 2p^6")],
+              propertySettings = [rdmSettings] )
+    outA  = perform(waA; output=true)["RDM outcomes:"]
+    rhoA  = outA[1].rho1p;    nA = size(rhoA, 1)
+    offA  = maximum([abs(rhoA[p,q])  for p = 1:nA, q = 1:nA  if p != q];  init = 0.0)
+    diagA = [rhoA[p,p]  for p = 1:nA]
+    if  offA > 1.0e-10
+        success = false
+        if printTest   info(iostream, "closed-shell rho^(1p) is not diagonal; largest off-diagonal $offA")   end
+    end
+    if  maximum(abs.(diagA - [2.0, 2.0, 2.0, 4.0])) > 1.0e-10
+        success = false
+        if printTest   info(iostream, "closed-shell occupations $diagA, must be [2, 2, 2, 4]")   end
+    end
+
+    # (b) the correlated case: two configurations differing by a 2p -> 3p substitution, with 2p_3/2 lying
+    #     between 2p_1/2 and 3p_1/2 in the subshell order, which is precisely the arrangement the retired
+    #     shortcut could not handle.
+    waB = Atomic.Computation(Atomic.Computation(), name="RDM sanity: Ne with 2p -> 3p", grid=grid,
+              nuclearModel = Nuclear.Model(10.),
+              configs = [Configuration("1s^2 2s^2 2p^6"), Configuration("1s^2 2s^2 2p^5 3p")],
+              propertySettings = [rdmSettings] )
+    outB   = perform(waB; output=true)["RDM outcomes:"]
+    rhoB   = outB[1].rho1p;    nB = size(rhoB, 1)
+    subsh  = outB[1].naturalSubshells;    occB = outB[1].naturalOccupation
+
+    # (1) the trace is the electron number, exactly
+    traceB = sum(rhoB[p,p]  for p = 1:nB)
+    if  abs(traceB - 10.0) > 1.0e-8
+        success = false
+        if printTest   info(iostream, "trace of rho^(1p) = $traceB, must be the electron number 10")   end
+    end
+    # (2) rho^(1p) is symmetric
+    symB = maximum(abs.(rhoB - transpose(rhoB)))
+    if  symB > 1.0e-12
+        success = false
+        if printTest   info(iostream, "rho^(1p) is not symmetric; largest asymmetry $symB")   end
+    end
+    # (3) every natural occupation lies between 0 and the subshell capacity 2j+1, and they sum to N
+    for  (i, sh)  in  enumerate(subsh)
+        capacity = Basics.subshell_2j(sh) + 1
+        if  occB[i] < -1.0e-8  ||  occB[i] > capacity + 1.0e-8
+            success = false
+            if printTest   info(iostream, "natural occupation $(occB[i]) of $sh outside [0, $capacity]")   end
+        end
+    end
+    if  abs(sum(occB) - 10.0) > 1.0e-8
+        success = false
+        if printTest   info(iostream, "natural occupations sum to $(sum(occB)), must be 10")   end
+    end
+    # (4) the correlation must actually be there: see the note at the head of this function
+    offB = maximum([abs(rhoB[p,q])  for p = 1:nB, q = 1:nB  if p != q];  init = 0.0)
+    if  offB < 1.0e-3
+        success = false
+        if printTest   info(iostream, "all off-diagonals of rho^(1p) vanish (largest $offB); a correlated "  *
+                                      "level must have them -- this is the compute1pRDMDirect defect back.")   end
+    end
+
+    println(iostream, "ReducedDensityMatrix: algebraic invariants of rho^(1p) -- trace = N, symmetry, "        *
+                      "0 <= occupation <= 2j+1 -- plus the exact closed-shell limit and a guard that the "     *
+                      "off-diagonal correlation block does not vanish. No comparison against approved data.")
+    Defaults.setDefaults("print summary: close", "")
+    testPrint("testModule_ReducedDensityMatrix()::", success)
+    return(success)
+end

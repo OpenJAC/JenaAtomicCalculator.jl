@@ -52,6 +52,8 @@ using JenaAtomicCalculator, ..Defaults, ..TestFrames
         @test TestFrames.testModule_FormFactor() 
         @test TestFrames.testModule_DecayYield()
         @test TestFrames.testModule_MultipolePolarizibility()
+        @test TestFrames.testModule_ReducedDensityMatrix()  ## added 28-Aug-2026; algebraic invariants of
+                                                            ## rho^(1p), no stored .sum
     end
 
     @testset "JAC processes" begin
