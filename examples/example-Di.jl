@@ -12,7 +12,12 @@ grid = Radial.Grid(Radial.Grid(false), rnt = 4.0e-6, h = 5.0e-2, hp = 1.0e-2, rb
 
 
 if  true
-    # Last successful:  unknown ...
+    # Last visit:  28-Aug-2026 -- RUNS CLEAN, and now has a first number to hit. It stays "Last visit" rather than
+    #   "Last successful" (Rule 7) because it has never recorded anything to compare against and this run only
+    #   establishes a baseline. What it produces: two Green-function channels, 1/2 + with 52 levels spanning
+    #   -126.31632730365092 to -58.36340034676487 Hartree, and 3/2 + with 60 levels spanning -95.11966604377739 to
+    #   -58.21471492409840 Hartree, via the DampedSpaceCI() approach.
+    # Previously:  unknown ...
     # Green function for double Auger decay of 1s photoionized neon
     name             = "Double Auger decay of 1s photoionized neon"
     refConfigs       = [Configuration("1s 2s^2 2p^6")]

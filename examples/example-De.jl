@@ -33,7 +33,10 @@ grid = Radial.Grid(Radial.Grid(false), rnt = 4.0e-6, h = 5.0e-2, hp = 1.0e-2, rb
 ## (added 17-Aug-2026) is the one that supplies a real gMultiplet and exercises the path.
 
 if  false
-    # Last successful:  2-Aug-2026
+    # Last successful:  28-Aug-2026 -- REPRODUCES. Total K-shell Auger rate 9.461809e-03 a.u. against the recorded
+    # 9.464e-3 (0.02 %), lifetime 2.556471e-15 s and total width 2.574689e-01 eV, i.e. 2.556 fs and 0.2575 eV
+    # exactly as recorded, still matching the tabulated Ne K-shell width of ~0.24-0.27 eV.
+    # Previously: 2-Aug-2026
     # K-LL Auger spectrum of F-like neon (1s-hole, 2s^2 2p^6 spectator shell): Comparison with PhD and related
     # work (an imprecise, unverifiable reference -- kept as-is, not a proper citation).
     #
@@ -55,7 +58,9 @@ if  false
     wb = perform(wa)
     #
 elseif  false
-    # Last successful:  2-Aug-2026
+    # Last successful:  28-Aug-2026 -- REPRODUCES ALL FOUR WIDTHS EXACTLY: 7.987094e-02, 7.970066e-02,
+    # 7.938559e-02 and 4.612132e-02 eV, against the recorded 0.0799, 0.0797, 0.0794, 0.0461 eV.
+    # Previously: 2-Aug-2026
     # K-LL Auger spectrum of Be-like neon (1s-hole, 2s^2 2p spectator shell): Comparison with Bruch (PRA, 1991)
     #
     #   REPORT: 4 initial levels (J^P = 0-,1-,2-,1-), total widths 0.0799, 0.0797, 0.0794, 0.0461 eV
@@ -76,7 +81,11 @@ elseif  false
     wb = perform(wa)
     #
 elseif  false
-    # Last successful:  2-Aug-2026
+    # Last successful:  28-Aug-2026 -- REPRODUCES, INCLUDING THE EXACT ZERO. Level 1 width 8.322900e-02 eV against
+    # the recorded 0.0833; levels 2 and 3 at 1.898168e-06 and 5.153823e-06 eV, i.e. the small p_1/2-coupled widths
+    # the report describes; and level 4 (J = 5/2-) gives a rate of 0.000000e+00 EXACTLY, which is the selection-rule
+    # statement in the report and the most useful single check in this branch -- it is either exactly zero or wrong.
+    # Previously: 2-Aug-2026
     # K-LL Auger spectrum of Li-like aluminium: Comparison with Fan et al. (PRA, 2018)
     # (relabeled 2-Aug-2026 from "Be-like" -- initialConfigs below total 3 electrons, i.e. Li-like electron
     #  count with a K-hole, not Be-like; a doubled/broken sibling branch comparing against the same Fan et

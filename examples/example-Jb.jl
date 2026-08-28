@@ -5,7 +5,11 @@ grid = Radial.Grid(Radial.Grid(false), rnt = 4.0e-6, h = 5.0e-2, hp = 0.6e-2, rb
 
 if  true
     #
-    # Last successful:  18-Jul-2026
+    # Last successful:  28-Aug-2026 -- REPRODUCES ITS 18-Jul RECORD EXACTLY, which makes it the longest-baseline
+    #   AutoIonization check in the test set: 3.367867e+13 (field-free), 3.388540e+13 (10 a_o) and 3.448074e+13 1/s
+    #   (2 a_o), against the recorded 3.368e13 -> 3.389e13 -> 3.448e13. The weak-screening consistency check also
+    #   still holds: DebyeHueckelModel(1000 a_o) gives 3.368531e+13, 0.02 % from field-free.
+    # Previously:       18-Jul-2026
     # Branch 1: Ne K-LL Auger (AutoIonization) rates within a Debye-Hueckel plasma, compared across four plasma
     #   cases -- NoPlasmaModel() (field-free baseline), DebyeHueckelModel(1000 a_o) (weak-screening limit, included
     #   as a consistency check: this should reproduce the field-free result closely, cf. session notes), and
