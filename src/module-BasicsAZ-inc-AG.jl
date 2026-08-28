@@ -104,10 +104,23 @@ function Basics.analyze(orbitals::Dict{Subshell, Orbital}; printout::Bool=false)
     # Analyze and modify the orbital if necessary
     for (k,v) in orbitals
         found = false
+        # THE THRESHOLD IS RELATIVE TO THE ORBITAL'S OWN SCALE, and that is not a refinement. Until 28-Aug-2026 it
+        # was the absolute 1.0e-5, and P near the origin is of exactly that size: measured on Ne 2p^6 + 2p^5 3p, the
+        # sign of every orbital was decided at a point where |P| was between 5.7e-6 and 2.7e-5 of max|P|, with the
+        # deciding value within 30 % of the threshold itself. One grid point either way then changed the answer, so
+        # a rounding difference anywhere upstream could flip a whole orbital -- which is what made the SCF result
+        # depend on the BUILD (priority item 57): a blank line inserted in an SCF source file moved a density-matrix
+        # sum in the 9th digit, purely because 3p_3/2 came out with the opposite sign.
+        # It also read NOISE as physics. A 3d orbital has no radial node and cannot change sign, yet for Fe
+        # [Ar] 3d^6 4s^2 the old rule fixed the sign of 3d_5/2 from P = +1.099e-05 at grid point 5, against
+        # P = -1.089e-03 at point 181 where the orbital actually lives.
+        mx = maximum(abs, v.P)
+        if  mx == 0.0    newOrbitals[k] = v;   continue    end
+        thr = 1.0e-3 * mx
         for  P in v.P   
-            if      abs(P) > 1.0e-5  &&  abs(P) == P
+            if      abs(P) > thr  &&  abs(P) == P
                 mOrbital = v;   found = true;   break
-            elseif  abs(P) > 1.0e-5  &&  abs(P) == -P
+            elseif  abs(P) > thr  &&  abs(P) == -P
                 mOrbital = Orbital( v.subshell, v.isBound, v.useStandardGrid, v.energy, -1.0 .* v.P,  -1.0 .* v.Q,  
                                     -1.0 .* v.Pprime,  -1.0 .* v.Qprime, v.grid)
                 if  printout    println(">>> Sign changed for orbital $k")   end                    

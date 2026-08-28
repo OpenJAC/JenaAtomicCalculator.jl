@@ -522,6 +522,28 @@ end
 
 export  Subshell, subshell_2j
 
+"""
+`Base.hash(sh::Basics.Shell, h::UInt)` and `Base.hash(sh::Basics.Subshell, h::UInt)`
+    ... hash a shell or subshell from its quantum numbers alone, with a fixed seed. A value::UInt is returned.
+
+        THESE EXIST TO MAKE Dict ITERATION ORDER REPRODUCIBLE, and that is a correctness matter rather than a
+        tidiness one. Julia's default hash for a composite type folds in the TYPE's identity, which differs between
+        precompiled images: measured on 28-Aug-2026, hash(Shell("1s")) was 17510954341873548245 in one build and
+        15512695893170165806 in the next, for the same source. Every Dict or Set keyed by one of these types then
+        iterated in a different order from build to build -- so `Basics.generateConfigurations` emitted the
+        relativistic configurations of 1s^2 2s^2 2p^5 3p^1 in one order or another, the CSF basis followed, and the
+        SCF total energy moved in the 9th digit for no reason a reader could see. That was priority item 57, and it
+        cost a day of control runs across two migrations before it was tracked down.
+
+        Hashing the quantum numbers with a literal seed removes the type identity from the calculation and makes the
+        order a property of the physics. Consistency with equality is preserved: neither type defines its own `==`,
+        so equality is field-wise and these are exactly the fields.
+"""
+Base.hash(sh::Shell,    h::UInt) = hash(sh.l,     hash(sh.n, h ⊻ 0x5368656c6c000001))
+Base.hash(sh::Subshell, h::UInt) = hash(sh.kappa, hash(sh.n, h ⊻ 0x5375627368000002))
+
+
+
 
 
 """
