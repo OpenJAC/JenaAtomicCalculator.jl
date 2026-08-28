@@ -762,17 +762,21 @@ end
     ... computes the partial photoionization cross section for a given magnetic quantum number Mf of the final level; an EmProperty is
         returned, holding BOTH gauges at once.
 
-        NOTE ON THE SIGNATURE. The flat PhotoIonization.computePartialCrossSectionUnpolarized takes a `gauge::EmGauge` and returns one
-        number, because a gauge there is a channel label that has to be selected for. Here it is carried by the amplitude, so one call
-        returns both -- there is nothing to select and no way to select wrongly.
+        RUN FOR THE FIRST TIME ON 28-Aug-2026, and it took two fixes to get there -- see the caller at
+        `displayResults`, which was still passing the retired flat signature, and the |M| > J guard in `Racahexpr`
+        below. Both are corrected.
 
-        DIFFERENCE FROM THE FLAT VERSION, and it is not a rounding difference. In the flat function the inner loop reads
-              if kappa != chp.kappa || (gauge != cha.gauge && gauge != Basics.Magnetic)  continue
-        i.e. it re-tests the OUTER channel's gauge (`cha`) instead of the inner one's (`chp`). Since the outer loop has already established
-        that condition, the inner test never excludes anything, and amplitudes belonging to DIFFERENT gauges are multiplied together. The
-        same slip appears in computeStatisticalTensorUnpolarized; computeAngularBeta has it right. Here the product `amp * conj(ampp)` is
-        componentwise, so the two gauges cannot meet whatever anyone writes. These two functions will therefore NOT agree with their flat
-        counterparts -- see the note in the statistical-tensor function below.
+        IT DOES NOT YET SUM TO THE TOTAL, and this is the open part. Measured on Ne-like Kr at 3000 eV: with E1
+        and M1 only, `sum over M_f` divided into `line.crossSection` gives 2086.5406 (J_f = 3/2) and 2086.5404
+        (J_f = 1/2), which is 1/(9 alpha^2) to eight figures. That looked like a clean missing scalar and IS NOT
+        one: adding E2 and M2 moves the two ratios to 2063.9997 and 2065.5892, so they are no longer equal to each
+        other and no longer 1/(9 alpha^2). The 9 is an artefact of dipole-only channels. What IS certain is the
+        alpha: this factor carries `* alpha` while `computeCrossSection` carries `/ alpha`. Do not "fix" this by
+        multiplying in 9 alpha^2 -- the L-dependence has to be derived.
+
+        NO GAUGE CAN BE SELECTED WRONGLY HERE. The product `ma.amplitude * conj(mp.amplitude)` of two EmPropertyC
+        is componentwise, so Coulomb meets Coulomb and Babushkin meets Babushkin whatever anyone writes, and one
+        call returns both.
 """
 function computePartialCrossSectionUnpolarized(Mf::AngularM64, line::PhotoIonization.Line)
     function Racahexpr(kappa::Int64, Ji::AngularJ64, Jf::AngularJ64, Mf::AngularM64, J::AngularJ64, Jp::AngularJ64,
@@ -782,6 +786,11 @@ function computePartialCrossSectionUnpolarized(Mf::AngularM64, line::PhotoIoniza
         for  t  in tList
             for  lambda = -1:2:1
                 j = AngularMomentum.kappa_j(kappa);   Mf_lambda = Basics.add(AngularM64(lambda), Mf)
+                # A Clebsch-Gordan coefficient with |M| > J is ZERO BY DEFINITION and must be skipped, not
+                # evaluated: WignerSymbols raises DomainError rather than returning 0. The case is reached
+                # whenever the coupled t is smaller than |M_f + lambda| -- e.g. J_f = 3/2, M_f = 3/2, lambda = +1
+                # asks for t = 1/2 with M = 5/2. Never seen before 28-Aug-2026 because this function had never run.
+                if  abs(Basics.twice(Mf_lambda)) > Basics.twice(t)    continue    end
                 wb = wb + (1.0im * lambda)^p * (-1.0im * lambda)^pp *
                         AngularMomentum.ClebschGordan( AngularJ64(Lp), AngularM64(lambda), Jf, Mf, t, Mf_lambda) *
                         AngularMomentum.ClebschGordan( AngularJ64(L),  AngularM64(lambda), Jf, Mf, t, Mf_lambda) *
@@ -1355,11 +1364,13 @@ function  displayResults(stream::IO, lines::Array{PhotoIonization.Line,1}, setti
             MfList = Basics.projections(line.finalLevel.J)
             for  Mf in MfList
                 sb  = TableStrings.hBlank(97)
-                wac = PhotoIonization.computePartialCrossSectionUnpolarized(Basics.Coulomb, Mf, line)
-                wab = PhotoIonization.computePartialCrossSectionUnpolarized(Basics.Babushkin, Mf, line)
+                # ONE call returns BOTH gauges, as it does for the statistical tensor below. This site still passed a
+                # `gauge` and read `.re` -- the FLAT signature, retired on 15-Aug-2026 -- so it raised a MethodError
+                # the moment `calcPartialCs` was switched on, which nobody had ever done.
+                wa  = PhotoIonization.computePartialCrossSectionUnpolarized(Mf, line)
                 sb  = sb * TableStrings.flushright( 8, string(Mf))                             * "       "
-                sb  = sb * @sprintf("%.6e", Defaults.convertUnits("cross section: from atomic", wac.re))     * "    "
-                sb  = sb * @sprintf("%.6e", Defaults.convertUnits("cross section: from atomic", wab.re))     * "    "
+                sb  = sb * @sprintf("%.6e", Defaults.convertUnits("cross section: from atomic", wa.Coulomb))   * "    "
+                sb  = sb * @sprintf("%.6e", Defaults.convertUnits("cross section: from atomic", wa.Babushkin)) * "    "
                 println(stream, sb)
             end
         end
