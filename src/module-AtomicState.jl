@@ -6,7 +6,7 @@
 module AtomicState
 
 
-## using Interact
+# using Interact
 using  ..Basics, ..ManyElectron, ..Nuclear, ..Radial
 
 export  MeanFieldSettings, MeanFieldBasis, MeanFieldMultiplet, OneElectronSettings, OneElectronSpectrum, CiSettings, CiExpansion,
@@ -72,7 +72,6 @@ function Base.string(basis::MeanFieldBasis)
     if !(basis.settings.scField  in [DFSField(), HSField()])
         error("A MeanFieldBasis presently supports only a DFSField() or HSField() but received:  $(basis.settings.scField)")
     end
-    #
     sa = "Mean-field orbital basis for a $(basis.settings.scField) SCF field:"
     return( sa )
 end
@@ -97,7 +96,6 @@ end
 
 # `Base.string(basis::MeanFieldMultiplet)`  ... provides a String notation for the variable basis::MeanFieldMultiplet.
 function Base.string(basis::MeanFieldMultiplet)
-    #
     sa = "Mean-field multiplet for a $(basis.settings.scField) SCF field:"
     return( sa )
 end
@@ -591,8 +589,8 @@ end
 `AtomicState.GreenSettings()`  ... constructor for an `empty` instance of AtomicState.GreenSettings.
 """
 function GreenSettings()
-    ## `GreenSettings`, not `Settings` (fixed 07-Aug-2026): this constructor called `Settings(...)`, so the
-    ## zero-argument form either raised or returned the wrong type. Every caller had to use the positional form.
+    # `GreenSettings`, not `Settings` (fixed 07-Aug-2026): this constructor called `Settings(...)`, so the
+    # zero-argument form either raised or returned the wrong type. Every caller had to use the positional form.
     GreenSettings( 0, Int64[], 0., false, LevelSelection(), Basics.DFSField() )
 end
 

@@ -272,7 +272,13 @@ reader finding what they expect where they expect it.
 
 **Comments**
 
-6. Inline comments start with a single `#`. Never `##`, `###` or deeper.
+6. **A comment line that STANDS ON ITS OWN starts with a single `#`.** Never `##`, `###` or deeper.
+   **A comment APPENDED TO A CODE LINE may keep its `##`** -- amended 28-Aug-2026 on the maintainer's
+   instruction. The doubled hash is doing work there: it marks the text as an aside to the statement it sits on,
+   and converting it buys nothing.
+   **What to do with an appended comment instead is to READ IT.** Ask whether it is instructive -- whether it
+   tells a reader something the code does not already say. If it does not, DELETE IT rather than reformat it.
+   `n = n + 1    ## increment n` is noise whichever hash it uses.
 7. **A `#####...#####` rule that is nothing but hashes is an OPTICAL SEPARATOR and is KEPT.** JAC uses it,
    usually two lines of 129 hashes together, to divide a file into blocks, and that is worth having. What must
    go is a `#####` line that CARRIES TEXT -- `### The display section ####...` -- or a banner block whose
@@ -281,6 +287,12 @@ reader finding what they expect where they expect it.
    therefore test whether the line contains anything besides `#` and whitespace, and must not simply count
    `#####`. Getting this backwards deletes exactly the separators the maintainer wants: on 15-Aug-2026 a
    hygiene pass removed 22 pure separators and zero text-carrying banners.
+   **AMENDED 28-Aug-2026: a SHORT, INSTRUCTIVE label inside a separator MAY STAY.** The maintainer's own
+   example is `####### Radiative Recombination ####...`, and such a line earns its place -- it tells a reader
+   scanning the file which block they have reached, which is exactly what these rules are for. The test is
+   therefore NOT "does the line carry text" but "does the text help someone find their way". A one- or
+   two-word section name inside a separator: KEEP. A sentence, a paragraph, or a delimiter block enclosing
+   comment lines: that belongs in a docstring, and goes.
 8. **No empty `#` lines.** A blank line separates blocks of code better than a bare comment marker.
 9. Comments are for a reader who knows Julia and atomic physics but not this file's history. **Remove
    historical remarks that can no longer be checked** -- references to code that has since been deleted, to
@@ -294,6 +306,12 @@ reader finding what they expect where they expect it.
     line.
 11. Top-level `function` lines and their docstrings start at column 1; 4-space indent inside.
 12. Existing column alignment in copy-constructors is preserved exactly (see the style section above).
+
+**READ THESE RULES WITH TOLERANCE** -- the maintainer's instruction, 28-Aug-2026. The goal is to make the code
+**more easily accessible to a potential user**, not to reach a state a detector calls clean. Where a rule and that
+goal disagree, the goal wins, and the judgement is worth stating in the report rather than resolved silently. A
+mechanical sweep that satisfies every clause while making a file harder to read has failed at the only thing it
+was for.
 
 **A hygiene pass changes no behaviour.** That is what makes it verifiable, and the verification is not
 optional: the printed output of a real case must be **byte-identical** before and after, and the test suite
@@ -574,8 +592,11 @@ The acting counterpart of `/audit`, which only reports. One module per invocatio
 1. Capture a **behaviour baseline** first: run one real case through the module and save its printed output.
    Without this the pass cannot be verified, so it is not optional.
 2. Reorder: structs and their methods first, then the remaining methods alphabetically, two blank lines apart.
-3. Fix comments (`##` -> `#`, drop TEXT-CARRYING `#####` banners but KEEP the pure hash-only separators, and
-   drop empty `#` lines), then **re-flow docstring prose and
+3. Fix comments, per Rule 15.6-15.8 AS AMENDED 28-Aug-2026: a standalone `##` becomes `#`, but an APPENDED
+   `##` on a code line STAYS -- and is instead read, and DELETED outright if it is not instructive; pure
+   hash-only separators are KEPT, and so is a separator carrying a SHORT section label such as
+   `####### Radiative Recombination ####`; only a separator carrying a sentence or enclosing a comment block
+   goes; empty `#` lines go. Then **re-flow docstring prose and
    comment blocks to USE the 140-column width** (Rule 15.5) -- filling the line, not just staying under it --
    including the descriptions in the `+ field ::Type ... text` tables, and leaving only copy-constructor keyword
    lists and indented examples alone. A re-flow is verified by

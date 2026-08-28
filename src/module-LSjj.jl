@@ -320,7 +320,6 @@ function checkLSexpansion(multipletNR::MultipletNR)
                 println("Level $(level.index):: Total angular momenta $(level.J)  !=  $(basis.csfs[r].J) for r = $r")
             end
         end
-        #
         if  weight < 0.99   println("Level $(level.index):: Total weight $weight  < 1.0 ")      end
     end
     return( nothing )
@@ -462,7 +461,6 @@ function expandCsfRintoNonrelativisticBasis(openShells::OneOpenShell, csfR::CsfR
             end
         end
     end
-    #
     return( mcVector )
 end
 
@@ -1069,7 +1067,6 @@ function shortString(csfNR::CsfNR, basisNR::BasisNR)
         end
         return( wb )
     end
-    #
     function  multiplicity(S::AngularJ64) 
         return( string(Basics.twice(S) + 1) )
     end
@@ -1148,18 +1145,17 @@ end
 function getLSjjCoefficient(l::Int64, N::Int64, qn::LS_jj_qn)
     global  LS_jj_p_3,  LS_jj_p_4,  LS_jj_p_5,  LS_jj_p_6,  LS_jj_d_3,  LS_jj_d_4,  LS_jj_d_5,  LS_jj_d_6,  LS_jj_d_7,
             LS_jj_d_8,  LS_jj_d_9,  LS_jj_d_10,  LS_jj_f_3,  LS_jj_f_4,  LS_jj_f_5,  LS_jj_f_6,  LS_jj_f_7
-    #
     wa = 0.
-    ## Electron-hole symmetry. A shell with more than half of its 4l+2 places occupied is obtained from its
-    ## conjugate shell l^(4l+2-N) by reversing the occupation of the j_- = l-1/2 subshell, Nm -> 2l - Nm,
-    ## keeping every other quantum number, and attaching the phase (-1)^(Qm + Qp - Q); in seniority form
-    ## this is (-1)^((nu_- + nu_+ - nu)/2). The relation is due to Dyall & Grant, J. Phys. B 15 (1982) L371,
-    ## and is Eq. (A.4) of Gaigalas & Fritzsche, Comput. Phys. Commun. 149 (2002) 39. It is applied ONLY to
-    ## the f-shells with N = 8..13, which is exactly the range for which no tables are tabulated: for p and d
-    ## the tables run to the closed shell already, and conjugating a CLOSED shell would be wrong here because
-    ## the N = 0 branch below returns zero rather than one. Verified against the tables that do exist on both
-    ## sides: d^3<->d^7 and d^4<->d^6 in both directions, and the self-conjugate p^3, d^5 and f^7, 8197
-    ## coefficients in all, every one reproduced exactly.
+    # Electron-hole symmetry. A shell with more than half of its 4l+2 places occupied is obtained from its
+    # conjugate shell l^(4l+2-N) by reversing the occupation of the j_- = l-1/2 subshell, Nm -> 2l - Nm,
+    # keeping every other quantum number, and attaching the phase (-1)^(Qm + Qp - Q); in seniority form
+    # this is (-1)^((nu_- + nu_+ - nu)/2). The relation is due to Dyall & Grant, J. Phys. B 15 (1982) L371,
+    # and is Eq. (A.4) of Gaigalas & Fritzsche, Comput. Phys. Commun. 149 (2002) 39. It is applied ONLY to
+    # the f-shells with N = 8..13, which is exactly the range for which no tables are tabulated: for p and d
+    # the tables run to the closed shell already, and conjugating a CLOSED shell would be wrong here because
+    # the N = 0 branch below returns zero rather than one. Verified against the tables that do exist on both
+    # sides: d^3<->d^7 and d^4<->d^6 in both directions, and the self-conjugate p^3, d^5 and f^7, 8197
+    # coefficients in all, every one reproduced exactly.
     if  l == 3   &&   8 <= N <= 13
         qnc = LS_jj_qn(qn.w, qn.QQ, qn.LL, qn.SS, qn.JJ, 2l - qn.Nm, qn.Qm, qn.Jm, qn.Qp, qn.Jp)
         return( (-1)^( (qn.Qm + qn.Qp - qn.QQ) ÷ 2 ) * LSjj.getLSjjCoefficient(l, 4l + 2 - N, qnc) )
@@ -1243,7 +1239,7 @@ function getLSjjCoefficient(l::Int64, N::Int64, qn::LS_jj_qn)
     return(wa)
 end
 
-## p^3  shell;  11 ME in total
+# p^3  shell;  11 ME in total
 const   LS_jj_p_3 = [ LS_jj_me( LS_jj_qn(0, 2, 2, 1, 1, 1, 0, 1, 2, 0),  1, 1, 1),
                         LS_jj_me( LS_jj_qn(0, 0, 0, 3, 3, 0, 1, 0, 1, 3), -1, 2, 9),
                         LS_jj_me( LS_jj_qn(0, 0, 0, 3, 3, 1, 0, 1, 0, 4),  1, 5, 9),
@@ -1254,7 +1250,7 @@ const   LS_jj_p_3 = [ LS_jj_me( LS_jj_qn(0, 2, 2, 1, 1, 1, 0, 1, 2, 0),  1, 1, 1
                         LS_jj_me( LS_jj_qn(0, 0, 4, 1, 3, 1, 0, 1, 0, 4),  1, 4, 9),
                         LS_jj_me( LS_jj_qn(0, 0, 4, 1, 3, 2, 1, 0, 1, 3), -1, 5,18),
                         LS_jj_me( LS_jj_qn(0, 0, 4, 1, 5, 1, 0, 1, 0, 4),  1, 1, 1)  ]
-## p^4  shell;  9 ME in total
+# p^4  shell;  9 ME in total
 const   LS_jj_p_4 = [ LS_jj_me( LS_jj_qn(0, 3, 0, 0, 0, 0, 1, 0, 2, 0),  1, 1, 3),
                         LS_jj_me( LS_jj_qn(0, 3, 0, 0, 0, 2, 1, 0, 2, 0),  1, 2, 3),
                         LS_jj_me( LS_jj_qn(0, 1, 2, 2, 0, 0, 1, 0, 2, 0), -1, 2, 3),
@@ -1264,14 +1260,14 @@ const   LS_jj_p_4 = [ LS_jj_me( LS_jj_qn(0, 3, 0, 0, 0, 0, 1, 0, 2, 0),  1, 1, 3
                         LS_jj_me( LS_jj_qn(0, 1, 2, 2, 4, 2, 1, 0, 0, 4),  1, 2, 3),
                         LS_jj_me( LS_jj_qn(0, 1, 4, 0, 4, 1, 0, 1, 1, 3), -1, 2, 3),
                         LS_jj_me( LS_jj_qn(0, 1, 4, 0, 4, 2, 1, 0, 0, 4),  1, 1, 3)  ]
-## p^5  shell;  2 ME in total
+# p^5  shell;  2 ME in total
 const   LS_jj_p_5 = [ LS_jj_me( LS_jj_qn(0, 2, 2, 1, 1, 1, 0, 1, 2, 0),  1, 1, 1),
                         LS_jj_me( LS_jj_qn(0, 2, 2, 1, 3, 2, 1, 0, 1, 3),  1, 1, 1)  ]
-## p^6  shell;  1 ME in total
+# p^6  shell;  1 ME in total
 const   LS_jj_p_6 = [ LS_jj_me( LS_jj_qn(0, 3, 0, 0, 0, 2, 1, 0, 2, 0),  1, 1, 1)  ]
 
 
-## d^3  shell;  73 ME in total
+# d^3  shell;  73 ME in total
 const   LS_jj_d_3 = [ LS_jj_me( LS_jj_qn(0, 2, 2, 3, 1, 1, 1, 3, 1, 4), -1,  7, 15), ## 1
                         LS_jj_me( LS_jj_qn(0, 2, 2, 3, 1, 2, 0, 4, 2, 5), -1,  8, 15), ## 2
                         LS_jj_me( LS_jj_qn(0, 2, 2, 1, 1, 1, 1, 3, 1, 4), -1,  8, 15), ## 3
@@ -1337,7 +1333,7 @@ const   LS_jj_d_3 = [ LS_jj_me( LS_jj_qn(0, 2, 2, 3, 1, 1, 1, 3, 1, 4), -1,  7, 
                         LS_jj_me( LS_jj_qn(0, 2,10, 1, 9, 1, 1, 3, 1, 8), -1, 48,125), ## 71
                         LS_jj_me( LS_jj_qn(0, 2,10, 1, 9, 2, 0, 4, 2, 5),  1, 66,125), ## 72
                         LS_jj_me( LS_jj_qn(0, 2,10, 1,11, 1, 1, 3, 1, 8), -1,  1,  1) ]## 73
-## d^4  shell;  198 ME in total 					    	       
+# d^4  shell;  198 ME in total 					    	       
 const   LS_jj_d_4 = [ LS_jj_me( LS_jj_qn(0, 5, 0, 0, 0, 0, 2, 0, 3, 0),  1,  3,  10), ## 1
                         LS_jj_me( LS_jj_qn(0, 5, 0, 0, 0, 2, 2, 0, 3, 0),  1,  3,   5), ## 3
                         LS_jj_me( LS_jj_qn(0, 5, 0, 0, 0, 4, 2, 0, 3, 0),  1,  1,  10), ## 5
@@ -1504,7 +1500,7 @@ const   LS_jj_d_4 = [ LS_jj_me( LS_jj_qn(0, 5, 0, 0, 0, 0, 2, 0, 3, 0),  1,  3, 
                         LS_jj_me( LS_jj_qn(0, 1,10, 2,12, 2, 0, 4, 1, 8),  1,  2,   5), ## 196
                         LS_jj_me( LS_jj_qn(0, 1,12, 0,12, 1, 1, 3, 0, 9),  1,  2,   5), ## 197
                         LS_jj_me( LS_jj_qn(0, 1,12, 0,12, 2, 0, 4, 1, 8), -1,  3,   5) ]## 198
-## d^5  shell;  249 ME in total					    		
+# d^5  shell;  249 ME in total					    		
 const   LS_jj_d_5 = [ LS_jj_me( LS_jj_qn(0, 0, 0, 1, 1, 1, 1, 3, 1, 4),  1,   2,	5), ## 1
                         LS_jj_me( LS_jj_qn(0, 0, 0, 1, 1, 2, 0, 4, 0, 3),  1,   1,	5), ## 3
                         LS_jj_me( LS_jj_qn(0, 0, 0, 1, 1, 3, 1, 3, 1, 4), -1,   2,	5), ## 4
@@ -1689,7 +1685,7 @@ const   LS_jj_d_5 = [ LS_jj_me( LS_jj_qn(0, 0, 0, 1, 1, 1, 1, 3, 1, 4),  1,   2,
                         LS_jj_me( LS_jj_qn(0, 0,12, 1,11, 2, 0, 4, 0, 9), -1,  12,   25), ## 247
                         LS_jj_me( LS_jj_qn(0, 0,12, 1,11, 3, 1, 3, 1, 8), -1,  13,   50), ## 248
                         LS_jj_me( LS_jj_qn(0, 0,12, 1,13, 2, 0, 4, 0, 9), -1,   1,    1) ]## 249
-## d^6  shell;  198 ME in total                                                       
+# d^6  shell;  198 ME in total                                                       
 const   LS_jj_d_6 = [ LS_jj_me( LS_jj_qn(0, 5, 0, 0, 0, 0, 2, 0, 3, 0),  1,  1,  10), ## 1
                         LS_jj_me( LS_jj_qn(0, 5, 0, 0, 0, 2, 2, 0, 3, 0),  1,  3,   5), ## 2
                         LS_jj_me( LS_jj_qn(0, 5, 0, 0, 0, 4, 2, 0, 3, 0),  1,  3,  10), ## 5
@@ -1856,7 +1852,7 @@ const   LS_jj_d_6 = [ LS_jj_me( LS_jj_qn(0, 5, 0, 0, 0, 0, 2, 0, 3, 0),  1,  1, 
                         LS_jj_me( LS_jj_qn(0, 1,10, 2,12, 3, 1, 3, 0, 9),  1,  3,   5), ## 196
                         LS_jj_me( LS_jj_qn(0, 1,12, 0,12, 2, 0, 4, 1, 8), -1,  3,   5), ## 197
                         LS_jj_me( LS_jj_qn(0, 1,12, 0,12, 3, 1, 3, 0, 9),  1,  2,   5) ]## 198
-## d^7  shell;  73 ME in total                                                      
+# d^7  shell;  73 ME in total                                                      
 const   LS_jj_d_7 = [ LS_jj_me( LS_jj_qn(0, 2, 2, 3, 1, 2, 0, 4, 2, 5), -1,  8, 15), ## 1
                         LS_jj_me( LS_jj_qn(0, 2, 2, 3, 1, 3, 1, 3, 1, 4), -1,  7, 15), ## 2
                         LS_jj_me( LS_jj_qn(0, 2, 2, 1, 1, 2, 0, 4, 2, 5),  1,  7, 15), ## 3
@@ -1922,7 +1918,7 @@ const   LS_jj_d_7 = [ LS_jj_me( LS_jj_qn(0, 2, 2, 3, 1, 2, 0, 4, 2, 5), -1,  8, 
                         LS_jj_me( LS_jj_qn(0, 2,10, 1, 9, 3, 1, 3, 1, 8), -1, 48,125), ## 71
                         LS_jj_me( LS_jj_qn(0, 2,10, 1, 9, 4, 2, 0, 0, 9), -1, 11,125), ## 72
                         LS_jj_me( LS_jj_qn(0, 2,10, 1,11, 3, 1, 3, 1, 8), -1,  1,  1) ]## 73
-## d^8  shell;  19 ME in total                                                     
+# d^8  shell;  19 ME in total                                                     
 const   LS_jj_d_8 = [ LS_jj_me( LS_jj_qn(0, 5, 0, 0, 0, 2, 2, 0, 3, 0),  1, 2,  5), ## 1
                         LS_jj_me( LS_jj_qn(0, 5, 0, 0, 0, 4, 2, 0, 3, 0),  1, 3,  5), ## 2
                         LS_jj_me( LS_jj_qn(0, 3, 2, 2, 0, 2, 2, 0, 3, 0), -1, 3,  5), ## 3
@@ -1942,10 +1938,10 @@ const   LS_jj_d_8 = [ LS_jj_me( LS_jj_qn(0, 5, 0, 0, 0, 2, 2, 0, 3, 0),  1, 2,  
                         LS_jj_me( LS_jj_qn(0, 3, 6, 2, 8, 4, 2, 0, 1, 8),  1, 4,  5), ## 17
                         LS_jj_me( LS_jj_qn(0, 3, 8, 0, 8, 3, 1, 3, 2, 5), -1, 4,  5), ## 18
                         LS_jj_me( LS_jj_qn(0, 3, 8, 0, 8, 4, 2, 0, 1, 8),  1, 1,  5) ]## 19
-## d^9  shell;  2 ME in total                                                     
+# d^9  shell;  2 ME in total                                                     
 const   LS_jj_d_9 = [ LS_jj_me( LS_jj_qn(0, 4, 4, 1, 3, 3, 1, 3, 3, 0),  1, 1, 1),  ## 1
                         LS_jj_me( LS_jj_qn(0, 4, 4, 1, 5, 4, 2, 0, 2, 5),  1, 1, 1) ] ## 2
-## d^10  shell;  1 ME in total  LS_jj_qn(                                         
+# d^10  shell;  1 ME in total  LS_jj_qn(                                         
 const   LS_jj_d_10= [ LS_jj_me( LS_jj_qn(0, 5, 0, 0, 0, 4, 2, 0, 3, 0),  1, 1, 1) ] ## 1
                         
                             

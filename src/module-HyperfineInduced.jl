@@ -288,36 +288,34 @@ function  amplitude(::Emission, mp::EmMultipole, gauge::EmGauge, omega::Float64,
     amp   = ComplexF64(0.)
     alpha = Defaults.getDefaults("alpha")
     L     = mp.L
-    ## THE MULTIPOLE FIELD FACTOR, derived 06-Aug-2026 rather than assumed, and verified against the bare
-    ## nucleus. It puts a nuclear reduced matrix element on the same footing as PhotoEmission's electronic
-    ## amplitude, i.e. it is fixed by demanding that the rate below reproduce the standard result
-    ##
-    ##     A(sigma L)  =  8 pi (L+1) / (L [(2L+1)!!]^2) * (omega/c)^(2L+1) * B(sigma L)
-    ##
-    ## Inserting A = 8 pi alpha omega/(2 F_i + 1) |elementM * fld|^2 with elementM = sqrt((2 I_i + 1) B), the
-    ## degeneracies cancel identically and everything collapses to
-    ##
-    ##     fld  =  sqrt( (L+1)/L ) * (alpha omega)^L / (2L+1)!!
-    ##
-    ## with NO 4 pi, no (2L+1), and -- the point -- no dependence on the nuclear spin. An earlier version had
-    ## sqrt((L+1)(2L+1)/(4 pi L)) and was too fast by ~9300; the spurious spin dependence needed to repair it
-    ## was what revealed that the manuscript's elementM convention, not this factor, was the real error.
-    ##
-    ## THE EXTRA alpha FOR MAGNETIC MULTIPOLES is the 1/c of the magnetic multipole radiation operator. JAC
-    ## stores nuclear moments with mu_N = 5.446170e-4/2 (the mu_B = 1/2 convention), which is correct for the
-    ## hyperfine INTERACTION -- V11 and V22 match Shabaev to 5 % -- whereas the radiation formula is written in
-    ## the Gaussian convention mu_B = alpha/2. The factor belongs to the photon operator, so it is applied here
-    ## and not to the moment, which must stay consistent with Isomer.mu and with Hfs.
+    # THE MULTIPOLE FIELD FACTOR, derived 06-Aug-2026 rather than assumed, and verified against the bare
+    # nucleus. It puts a nuclear reduced matrix element on the same footing as PhotoEmission's electronic
+    # amplitude, i.e. it is fixed by demanding that the rate below reproduce the standard result
+    #
+    #     A(sigma L)  =  8 pi (L+1) / (L [(2L+1)!!]^2) * (omega/c)^(2L+1) * B(sigma L)
+    #
+    # Inserting A = 8 pi alpha omega/(2 F_i + 1) |elementM * fld|^2 with elementM = sqrt((2 I_i + 1) B), the
+    # degeneracies cancel identically and everything collapses to
+    #
+    #     fld  =  sqrt( (L+1)/L ) * (alpha omega)^L / (2L+1)!!
+    #
+    # with NO 4 pi, no (2L+1), and -- the point -- no dependence on the nuclear spin. An earlier version had
+    # sqrt((L+1)(2L+1)/(4 pi L)) and was too fast by ~9300; the spurious spin dependence needed to repair it
+    # was what revealed that the manuscript's elementM convention, not this factor, was the real error.
+    #
+    # THE EXTRA alpha FOR MAGNETIC MULTIPOLES is the 1/c of the magnetic multipole radiation operator. JAC
+    # stores nuclear moments with mu_N = 5.446170e-4/2 (the mu_B = 1/2 convention), which is correct for the
+    # hyperfine INTERACTION -- V11 and V22 match Shabaev to 5 % -- whereas the radiation formula is written in
+    # the Gaussian convention mu_B = alpha/2. The factor belongs to the photon operator, so it is applied here
+    # and not to the moment, which must stay consistent with Isomer.mu and with Hfs.
     fld   = sqrt( (L+1)/L ) * (alpha * omega)^L / HyperfineInduced.doubleFactorial(2L+1)
     if  !mp.electric    fld = fld * alpha    end
-    #
     for  (q, iVec)  in  enumerate(initialLevel.hfBasisVectors)
         if  abs(initialLevel.mc[q]) < 1.0e-12    continue    end
         for  (p, fVec)  in  enumerate(finalLevel.hfBasisVectors)
             if  abs(finalLevel.mc[p]) < 1.0e-12    continue    end
             weight = finalLevel.mc[p] * initialLevel.mc[q]
-            #
-            ## (1) NUCLEAR radiation: the electronic level is untouched, the isomer changes.
+            # (1) NUCLEAR radiation: the electronic level is untouched, the isomer changes.
             if  fVec.levelJ.index == iVec.levelJ.index
                 wn = Hfs.computeInteractionAmplitudeM(mp, fVec.isomer, iVec.isomer)
                 if  fVec.isomer != iVec.isomer  &&  wn != 0.
@@ -326,18 +324,17 @@ function  amplitude(::Emission, mp::EmMultipole, gauge::EmGauge, omega::Float64,
                     amp = amp + weight * wa * wn * fld
                 end
             end
+            # (2) ELECTRONIC radiation: the isomer is untouched, the electrons radiate.
             #
-            ## (2) ELECTRONIC radiation: the isomer is untouched, the electrons radiate.
-            ##
-            ## NO CONDITION on the electronic level, and this matters (corrected 06-Aug-2026): requiring the
-            ## electronic level to CHANGE looks natural, but it silently discards the dominant channel of nuclear
-            ## hyperfine mixing. In H-like 229Th89+ every basis vector carries the same 1s level, so that
-            ## condition switched the electronic operator off altogether and left only the slow nuclear M1 -- an
-            ## enhancement of 4 orders instead of the ~6 that Shabaev reports. The fast path is the ordinary
-            ## HYPERFINE M1 transition F -> F' within ONE nuclear state, driven by the electron's magnetic moment;
-            ## the isomer-dominated level borrows it through its ground-state admixture. Same electronic level,
-            ## same isomer, different F: non-zero precisely because the recoupling factor below carries the F
-            ## dependence, and PhotoEmission.amplitude then supplies the level's own magnetic moment.
+            # NO CONDITION on the electronic level, and this matters (corrected 06-Aug-2026): requiring the
+            # electronic level to CHANGE looks natural, but it silently discards the dominant channel of nuclear
+            # hyperfine mixing. In H-like 229Th89+ every basis vector carries the same 1s level, so that
+            # condition switched the electronic operator off altogether and left only the slow nuclear M1 -- an
+            # enhancement of 4 orders instead of the ~6 that Shabaev reports. The fast path is the ordinary
+            # HYPERFINE M1 transition F -> F' within ONE nuclear state, driven by the electron's magnetic moment;
+            # the isomer-dominated level borrows it through its ground-state admixture. Same electronic level,
+            # same isomer, different F: non-zero precisely because the recoupling factor below carries the F
+            # dependence, and PhotoEmission.amplitude then supplies the level's own magnetic moment.
             if  fVec.isomer == iVec.isomer
                 wa = Hfs.recouplingElectronicOperator(iVec.isomer.spinI, iVec.levelJ.J, iVec.F,
                                                       fVec.levelJ.J, fVec.F, L)
@@ -430,14 +427,14 @@ function  determineLines(finalMultiplet::Hfs.HfMultiplet, initialMultiplet::Hfs.
                          settings::HyperfineInduced.Settings)
     lines  = HyperfineInduced.Line[]
     eShift = Defaults.convertUnits("energy: to atomic", settings.photonEnergyShift)
-    ## The selection is done on indices and F^P here, NOT through Basics.selectLevelPair: that method dispatches
-    ## on ManyElectron.Level, and an Hfs.HfLevel is not one.
-    ##
-    ## THE INDEX USED IS `lev.index`, the stable energy-ordered label that Hfs.computeHyperfineRepresentation
-    ## assigns to the FULL diagonalized multiplet -- not the position in this loop. The two differ whenever
-    ## restricting mixingLevels or the F values changes the size of the multiplet, and it is the stable index
-    ## that a user reads off the printed tables and puts into a LineSelection. Selecting by loop position would
-    ## silently mean a different pair as soon as the basis changed.
+    # The selection is done on indices and F^P here, NOT through Basics.selectLevelPair: that method dispatches
+    # on ManyElectron.Level, and an Hfs.HfLevel is not one.
+    #
+    # THE INDEX USED IS `lev.index`, the stable energy-ordered label that Hfs.computeHyperfineRepresentation
+    # assigns to the FULL diagonalized multiplet -- not the position in this loop. The two differ whenever
+    # restricting mixingLevels or the F values changes the size of the multiplet, and it is the stable index
+    # that a user reads off the printed tables and puts into a LineSelection. Selecting by loop position would
+    # silently mean a different pair as soon as the basis changed.
     for  iLevel  in  initialMultiplet.hfLevels
         for  fLevel  in  finalMultiplet.hfLevels
             if  settings.lineSelection.active
@@ -490,9 +487,9 @@ function  determineHyperfineMultiplet(multiplet::Multiplet, isomers::Array{Nucle
                   "mixingLevels, \nbut the electronic multiplet has only $nl levels.\n")
         end
     end
-    ## An empty mixingLevels means the WHOLE multiplet mixes -- the physical default, and a cheap one. Note that
-    ## this list governs the BASIS and therefore the amplitude itself; which transitions are reported is a
-    ## separate question, settled solely by settings.lineSelection on the hyperfine indices below.
+    # An empty mixingLevels means the WHOLE multiplet mixes -- the physical default, and a cheap one. Note that
+    # this list governs the BASIS and therefore the amplitude itself; which transitions are reported is a
+    # separate question, settled solely by settings.lineSelection on the hyperfine indices below.
     if  length(mixingLevels) == 0    basisIndices = collect(1:nl)
     else                             basisIndices = sort(unique(mixingLevels))
     end
@@ -569,21 +566,18 @@ function  computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, n
         println("    I = $(isomer.spinI)$(isomer.parity),  excitation energy $(isomer.energy),  mu = $(isomer.mu)," *
                 "  Q = $(isomer.Q),  nuclear transitions $(isomer.multipoleM)")
     end
-    #
-    ## The A and B coefficients first: they rest on the same nuclear moments and electronic matrix elements as the
-    ## mixing does, but are directly comparable with tabulated values, so bad nuclear input shows up here.
+    # The A and B coefficients first: they rest on the same nuclear moments and electronic matrix elements as the
+    # mixing does, but are directly comparable with tabulated values, so bad nuclear input shows up here.
     A, B = HyperfineInduced.computeHfsCoefficientsAB(initialMultiplet, settings.isomers[1], 1, grid)
     println(">>> initial level 1:  A = $(A) a.u.,  B = $(B) a.u.")
     A, B = HyperfineInduced.computeHfsCoefficientsAB(finalMultiplet, settings.isomers[1], 1, grid)
     println(">>> final level 1:    A = $(A) a.u.,  B = $(B) a.u.")
-    #
-    ## Show which electronic levels admix. With mixingLevels defaulting to the whole multiplet, this is what
-    ## tells a user what the default actually did -- it governs the AMPLITUDE, not merely the printout.
+    # Show which electronic levels admix. With mixingLevels defaulting to the whole multiplet, this is what
+    # tells a user what the default actually did -- it governs the AMPLITUDE, not merely the printout.
     HyperfineInduced.displayElectronicBasis(stdout, initialMultiplet, settings.mixingLevels, "initial")
     HyperfineInduced.displayElectronicBasis(stdout, finalMultiplet,   settings.mixingLevels, "final")
-    #
-    ## OVERVIEW MODE: build everything, show what is there and what will carry the transition, then stop. No
-    ## amplitude is evaluated, so this is the cheap pass that lets lineSelection be written from evidence.
+    # OVERVIEW MODE: build everything, show what is there and what will carry the transition, then stop. No
+    # amplitude is evaluated, so this is the cheap pass that lets lineSelection be written from evidence.
     if  settings.calcOverview
         for  (mp, Fv, sRole) in [ (initialMultiplet, settings.initialFvalues, "initial"),
                                   (finalMultiplet,   settings.finalFvalues,   "final") ]
@@ -599,7 +593,6 @@ function  computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, n
         else          return( nothing )
         end
     end
-    #
     initialHfMultiplet = HyperfineInduced.determineHyperfineMultiplet(initialMultiplet, settings.isomers,
                                 settings.mixingLevels, settings.initialFvalues, grid, settings)
     finalHfMultiplet   = HyperfineInduced.determineHyperfineMultiplet(finalMultiplet, settings.isomers,
@@ -607,15 +600,12 @@ function  computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, n
     println("\n>>> hyperfine levels: $(length(initialHfMultiplet.hfLevels)) initial, " *
             "$(length(finalHfMultiplet.hfLevels)) final")
     HyperfineInduced.displayHyperfineComposition(stdout, initialHfMultiplet, "initial")
-    #
     lines = HyperfineInduced.determineLines(finalHfMultiplet, initialHfMultiplet, settings)
     if  settings.printBefore    HyperfineInduced.displayLines(stdout, lines)    end
-    #
     newLines = HyperfineInduced.Line[]
     for  line in lines
         push!( newLines, HyperfineInduced.computeAmplitudesProperties(line, grid, settings; printout=false) )
     end
-    #
     HyperfineInduced.displayRates(stdout, newLines, settings)
     if  settings.calcLifetimes    HyperfineInduced.displayLifetimes(stdout, newLines, settings)    end
     printSummary, iostream = Defaults.getDefaults("summary flag/stream")
@@ -623,7 +613,6 @@ function  computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, n
         HyperfineInduced.displayRates(iostream, newLines, settings)
         if  settings.calcLifetimes    HyperfineInduced.displayLifetimes(iostream, newLines, settings)    end
     end
-    #
     if  output    return( newLines )
     else          return( nothing )
     end
@@ -697,17 +686,17 @@ end
 """
 function  displayHyperfineComposition(stream::IO, hfMultiplet::Hfs.HfMultiplet, role::String;
                                       threshold::Float64=1.0e-7, nAlways::Int64=3)
-    ## THE THRESHOLD MUST BE SMALL, and the first version's 1.0e-3 was not. The two mechanisms this module treats
-    ## differ by two orders of magnitude in their admixtures: nuclear hyperfine mixing in 229Th89+ gives 1.2e-2,
-    ## whereas the electronic quenching of the Be-like 3P_0 level rests entirely on 1.8e-4 (33S12+, from the
-    ## neighbouring 3P_1 at 0.59 eV). A threshold tuned to the first printed "-1.000000  <-- parent" for the
-    ## second and hid the very admixture that makes the transition possible. Hence 1e-7 -- and, in addition, the
-    ## nAlways largest contributions are printed whatever their size, because a composition table that shows only
-    ## the parent has failed at its one job.
-    ##
-    ## What the Be-like table then shows is worth the space: 3P_1 contributes 1.8e-4, 1P_1 only 3e-6 (sixty
-    ## times less, being ~25 eV away instead of 0.59 eV), and 3P_2 appears at 1e-6 solely because hfMultipoles
-    ## includes E2, which connects J = 0 to J = 2 where M1 cannot. None of that is guessable from the input.
+    # THE THRESHOLD MUST BE SMALL, and the first version's 1.0e-3 was not. The two mechanisms this module treats
+    # differ by two orders of magnitude in their admixtures: nuclear hyperfine mixing in 229Th89+ gives 1.2e-2,
+    # whereas the electronic quenching of the Be-like 3P_0 level rests entirely on 1.8e-4 (33S12+, from the
+    # neighbouring 3P_1 at 0.59 eV). A threshold tuned to the first printed "-1.000000  <-- parent" for the
+    # second and hid the very admixture that makes the transition possible. Hence 1e-7 -- and, in addition, the
+    # nAlways largest contributions are printed whatever their size, because a composition table that shows only
+    # the parent has failed at its one job.
+    #
+    # What the Be-like table then shows is worth the space: 3P_1 contributes 1.8e-4, 1P_1 only 3e-6 (sixty
+    # times less, being ~25 eV away instead of 0.59 eV), and 3P_2 appears at 1e-6 solely because hfMultipoles
+    # includes E2, which connects J = 0 to J = 2 where M1 cannot. None of that is guessable from the input.
     nx = 104
     println(stream, " ")
     println(stream, "  Composition of the reported $role hyperfine levels  (|c| > $threshold, or among the " *
@@ -759,7 +748,7 @@ end
         candidate perturbers is really looking for.
 """
 function  displayAdmixtureRanking(stream::IO, hfMultiplet::Hfs.HfMultiplet, role::String; nShow::Int64=20)
-    ## collect every non-parent contribution as one channel
+    # collect every non-parent contribution as one channel
     chans = NamedTuple{(:c,:lev,:kind,:from,:to,:dE),
                        Tuple{Float64,Int64,String,String,String,Float64}}[]
     for  hfLevel in hfMultiplet.hfLevels
@@ -768,8 +757,8 @@ function  displayAdmixtureRanking(stream::IO, hfMultiplet::Hfs.HfMultiplet, role
         for  p in perm[2:end]
             vec = hfLevel.hfBasisVectors[p]
             if  abs(hfLevel.mc[p]) < 1.0e-12    continue    end
-            ## ELECTRONIC: the nuclear state is the same and another electronic level admixes.
-            ## NUCLEAR:    the electronic level is the same and another nuclear state admixes.
+            # ELECTRONIC: the nuclear state is the same and another electronic level admixes.
+            # NUCLEAR:    the electronic level is the same and another nuclear state admixes.
             if      vec.isomer == parent.isomer  &&  vec.levelJ.index != parent.levelJ.index   kind = "electronic"
             elseif  vec.isomer != parent.isomer  &&  vec.levelJ.index == parent.levelJ.index   kind = "nuclear"
             else                                                                               kind = "mixed"
@@ -784,14 +773,14 @@ function  displayAdmixtureRanking(stream::IO, hfMultiplet::Hfs.HfMultiplet, role
                     (vec.isomer.energy != 0. ? "*" : "")
             dE    = (vec.levelJ.energy + Defaults.convertUnits("energy: to atomic", vec.isomer.energy)) -
                     (parent.levelJ.energy + Defaults.convertUnits("energy: to atomic", parent.isomer.energy))
-            ## DEGENERATE PAIRS ARE NOT CHANNELS, and must be dropped rather than ranked. If two basis vectors
-            ## are exactly degenerate -- which happens whenever the multipoles in hfMultipoles produce no
-            ## DIAGONAL hyperfine splitting, e.g. an E3-only calculation, or a nuclear state with mu = 0 -- then
-            ## any superposition of them is an equally valid eigenvector and the eigensolver returns an
-            ## arbitrary one. The tell-tale signature is dE = 0 with a coefficient near 1/sqrt(2) = 0.707. Such a
-            ## pair carries no transition in any case, since a channel with dE = 0 emits no photon. The cure for
-            ## the underlying degeneracy is to include M1 (and E2) in hfMultipoles alongside the mixing
-            ## multipole, so that the hyperfine levels are split as they physically are.
+            # DEGENERATE PAIRS ARE NOT CHANNELS, and must be dropped rather than ranked. If two basis vectors
+            # are exactly degenerate -- which happens whenever the multipoles in hfMultipoles produce no
+            # DIAGONAL hyperfine splitting, e.g. an E3-only calculation, or a nuclear state with mu = 0 -- then
+            # any superposition of them is an equally valid eigenvector and the eigensolver returns an
+            # arbitrary one. The tell-tale signature is dE = 0 with a coefficient near 1/sqrt(2) = 0.707. Such a
+            # pair carries no transition in any case, since a channel with dE = 0 emits no photon. The cure for
+            # the underlying degeneracy is to include M1 (and E2) in hfMultipoles alongside the mixing
+            # multipole, so that the hyperfine levels are split as they physically are.
             if  abs(dE) < 1.0e-12    continue    end
             push!(chans, (c = hfLevel.mc[p], lev = hfLevel.index, kind = kind, from = sFrom, to = sTo,
                           dE = Defaults.convertUnits("energy: from atomic", dE)))
@@ -950,9 +939,9 @@ end
         NOT included, so a lifetime printed here is an upper bound on the true one.
 """
 function  displayLifetimes(stream::IO, lines::Array{HyperfineInduced.Line,1}, settings::HyperfineInduced.Settings)
-    ## Group by the initial hyperfine level, keyed on its INDEX. Until 06-Aug-2026 Hfs.HfLevel carried no index
-    ## and this had to key on the surrogate pair (2F, energy) -- which is fragile precisely where it matters, since
-    ## two levels of equal F differing only in their nuclear parent are exactly what this module computes.
+    # Group by the initial hyperfine level, keyed on its INDEX. Until 06-Aug-2026 Hfs.HfLevel carried no index
+    # and this had to key on the surrogate pair (2F, energy) -- which is fragile precisely where it matters, since
+    # two levels of equal F differing only in their nuclear parent are exactly what this module computes.
     total = Dict{Int64,EmProperty}();   symOf = Dict{Int64,LevelSymmetry}();   nucOf = Dict{Int64,String}()
     for  line in lines
         k = line.initialLevel.index

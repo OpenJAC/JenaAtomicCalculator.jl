@@ -17,11 +17,11 @@ end
 """
 function Basics.extractConfiguration(theme::Basics.LeadingConfiguration, cLevel::Cascade.Level)
     # First extract the right ManyElectron.Level that is to be analyzed.
-    ## The placeholder `level = Level()` that used to stand here could never work: inside module Cascade the
-    ## bare name Level resolves to Cascade.Level, which has no zero-argument constructor, whereas the comment
-    ## (and everything below) wants a ManyElectron.Level. It was pure scope declaration in any case -- every
-    ## branch below either assigns `level` or raises -- and Julia's `if` does not open a new scope, so the
-    ## assignments are visible afterwards without it.
+    # The placeholder `level = Level()` that used to stand here could never work: inside module Cascade the
+    # bare name Level resolves to Cascade.Level, which has no zero-argument constructor, whereas the comment
+    # (and everything below) wants a ManyElectron.Level. It was pure scope declaration in any case -- every
+    # branch below either assigns `level` or raises -- and Julia's `if` does not open a new scope, so the
+    # assignments are visible afterwards without it.
     if length(cLevel.parents) > 0
         parent = cLevel.parents[1]
         if      parent.process == Basics.Auger()       level = parent.lines[parent.index].finalLevel
@@ -81,8 +81,8 @@ end
 """
 function Basics.perform(comp::Cascade.Computation; output::Bool=false, outputToFile::Bool=true,
                         outputDirectory::String="")
-    ## Reject an unrealizable cascade approach HERE, before any orbital or amplitude work is done; a cascade
-    ## that cannot succeed should say so in the first second rather than in the middle of some step.
+    # Reject an unrealizable cascade approach HERE, before any orbital or amplitude work is done; a cascade
+    # that cannot succeed should say so in the first second rather than in the middle of some step.
     Cascade.validateConditions(comp.approach)
     Cascade.perform(comp.scheme, comp::Cascade.Computation, output=output, outputToFile=outputToFile,
                     outputDirectory=outputDirectory)
@@ -120,12 +120,10 @@ end
 """
 function computeDecayProbabilities(outcome::DecayYield.Outcome, linesR::Array{PhotoEmission.Line,1}, 
                                     linesA::Array{AutoIonization.Line,1}, settings::DecayYield.Settings)
-    #
     # Determine the leading configuration and shells of the initial level
     subshList     = Basics.extractRelativisticSubshellList(outcome.level)
     relConfigs    = Basics.extractConfigurations(Basics.RelativisticConfigurations(), outcome.level.basis, outcome.level.J)
     holeSubshells = Basics.extractFromConfiguration(Basics.OpenSubshells(), relConfigs[1]);   holeSubshell = holeSubshells[1]
-    #
     # Initialize and fill dictionaries for collecting the radiative and Auger rates
     level = outcome.level;    sym = LevelSymmetry(level.J, level.parity)
     if  subshList[1] != Subshell("1s_1/2")    error("stop a")     end
@@ -141,8 +139,6 @@ function computeDecayProbabilities(outcome::DecayYield.Outcome, linesR::Array{Ph
             if  j >= i  aProbabilities[(subshi, subshj)] = 0.   end 
         end
     end
-    #
-    #
     # Calculate the total rate and convert the dictionaries into probabilities
     # First, identify the level key of the given level also in the lists of radiative and Auger lines
     level = outcome.level;    levelKey = LevelKey( LevelSymmetry(level.J, level.parity), level.index, level.energy, 0.)
@@ -173,7 +169,6 @@ function computeDecayProbabilities(outcome::DecayYield.Outcome, linesR::Array{Ph
                                                 (line.photonRate.Babushkin + line.photonRate.Coulomb) / 2
         end
     end
-    #
     for  line in linesA
         if  similarKey == LevelKey( LevelSymmetry(line.initialLevel.J, line.initialLevel.parity), line.initialLevel.index, line.initialLevel.energy, 0.)
             rateA = rateA + line.totalRate;   NoAugerLines = NoAugerLines + 1    
@@ -193,15 +188,12 @@ function computeDecayProbabilities(outcome::DecayYield.Outcome, linesR::Array{Ph
             aProbabilities[ (subshList[1], subshList[2]) ] = aProbabilities[ (subshList[1], subshList[2]) ] + line.totalRate
         end
     end
-    #
     # Add all rates, convert to probabilities and print these dictionaries into a neat table
     rate = 0.
     for (k,v) in rProbabilities   rate = rate + v   end
     for (k,v) in aProbabilities   rate = rate + v   end
-    #
     for (k,v) in rProbabilities   rProbabilities[k] = v/(rate + 1.0e-20)   end
     for (k,v) in aProbabilities   aProbabilities[k] = v/(rate + 1.0e-20)   end
-    #
     Cascade.displayDecayProbabilities(stdout, outcome, rProbabilities, aProbabilities, settings)
     # Generate an additional output file if printDataX & printDataY = true
     printDataX, iodataX = Defaults.getDefaults("data-X flag/stream")
@@ -289,7 +281,6 @@ end
         about the given blocks. nothing is returned.
 """
 function displayBlocks(stream::IO, blockList::Array{Cascade.Block,1}; sa::String="")
-    #
     nx = 150
     println(stream, "\n* Configuration 'blocks' (multiplets): " * sa * "\n")
     println(stream, "  ", TableStrings.hLine(nx))
@@ -331,7 +322,6 @@ end
 function displayDecayProbabilities(stream::IO, outcome::DecayYield.Outcome, rProbabilities::Dict{Subshell,Float64},
                                     aProbabilities::Dict{Tuple{Subshell,Subshell},Float64}, settings::DecayYield.Settings)
     
-    #
     # Determine the leading configuration and shells of the initial level
     subshList     = Basics.extractRelativisticSubshellList(outcome.level)
     relConfigs    = Basics.extractConfigurations(Basics.RelativisticConfigurations(), outcome.level.basis, outcome.level.J)
@@ -349,14 +339,12 @@ function displayDecayProbabilities(stream::IO, outcome::DecayYield.Outcome, rPro
     if    settings.approach isa Union{Basics.AverageSCA, Basics.SCA}
     println(stream, "    + Approach:  $(settings.approach)  ... all decay probabilities only in Babushkin gauge. ")
     end
-    #
     println(stream, " ")
     println(stream, "  ", TableStrings.hLine(nx))
     sa = " "
     sa = sa * TableStrings.center(10, "Shell"; na=2);     
     sa = sa * TableStrings.center(16, "p (radiative)";   na=4)
     println(stream, sa);    println(stream, "  ", TableStrings.hLine(nx)) 
-    #
     for subsh in subshList
         if  haskey(rProbabilities, subsh)
             if  rProbabilities[subsh] == 0.  continue    end
@@ -364,12 +352,10 @@ function displayDecayProbabilities(stream::IO, outcome::DecayYield.Outcome, rPro
         end
     end
     println(stream, "  ", TableStrings.hLine(nx), "\n")
-    #  
     sa = " ";       nx = 38
     sa = sa * TableStrings.center(10, "Shell"; na=0) * TableStrings.center(10, "Shell"; na=2);     
     sa = sa * TableStrings.center(16, "p (Auger)";   na=4)
     println(stream, sa);    println(stream, "  ", TableStrings.hLine(nx)) 
-    #
     for subsha in subshList
         for subshb in subshList
             if  haskey(aProbabilities, (subsha, subshb) )
@@ -451,7 +437,6 @@ end
 """
 function dumpDecayProbabilities(stream::IO, outcome::DecayYield.Outcome, subshEnergies::Dict{Subshell,Float64},
                                 rProbabilities::Dict{Subshell,Float64},settings::DecayYield.Settings)
-    #
     # Determine the leading configuration and shells of the initial level
     subshList     = Basics.extractRelativisticSubshellList(outcome.level)
     relConfigs    = Basics.extractConfigurations(Basics.RelativisticConfigurations(), outcome.level.basis, outcome.level.J)
@@ -489,7 +474,6 @@ end
 """
 function dumpDecayProbabilities(stream::IO, outcome::DecayYield.Outcome, subshEnergies::Dict{Subshell,Float64},
                                 aProbabilities::Dict{Tuple{Subshell,Subshell},Float64},settings::DecayYield.Settings)
-    #
     # Determine the leading configuration and shells of the initial level
     subshList     = Basics.extractRelativisticSubshellList(outcome.level)
     relConfigs    = Basics.extractConfigurations(Basics.RelativisticConfigurations(), outcome.level.basis, outcome.level.J)
@@ -567,7 +551,6 @@ function displaySteps(stream::IO, steps::Array{Cascade.Step,1}; sa::String="")
     sa = sa * TableStrings.flushleft(40, "Energies from ... to in " * TableStrings.inUnits("energy"); na=4)
     println(stream, sa)
     println(stream, "  ", TableStrings.hLine(nx))
-    #
     for  i = 1:length(steps)
         sa = " " * TableStrings.flushright( 7, string(i); na=5)
         sa = sa  * TableStrings.flushleft( 11, string(steps[i].process); na=1)
@@ -601,12 +584,11 @@ function generateBlocks(comp::Cascade.Computation, confs::Array{Configuration,1}
                         sa::String="", printout::Bool=true)
     blockList = Cascade.Block[]
     printSummary, iostream = Defaults.getDefaults("summary flag/stream")
-    #
-    ## The approach is no longer interrogated by name here. It is resolved into its conditions, and those
-    ## conditions decide what happens -- which is also what the six lines printed by Cascade.displayApproach
-    ## report. Announcing and doing therefore come from ONE source and cannot drift apart, as they had: this
-    ## block used to print "all blocks (multiplets) are generated from single-CSF levels and without any
-    ## configuration mixing" while the code below was running full configuration interaction.
+    # The approach is no longer interrogated by name here. It is resolved into its conditions, and those
+    # conditions decide what happens -- which is also what the six lines printed by Cascade.displayApproach
+    # report. Announcing and doing therefore come from ONE source and cannot drift apart, as they had: this
+    # block used to print "all blocks (multiplets) are generated from single-CSF levels and without any
+    # configuration mixing" while the code below was running full configuration interaction.
     cd = Cascade.conditions(comp.approach)
     if  printout
         println("\n* Generate blocks " * sa)
@@ -616,47 +598,45 @@ function generateBlocks(comp::Cascade.Computation, confs::Array{Configuration,1}
             Cascade.displayApproach(iostream, comp.approach, comp.asfSettings)
         end
     end
-    #
-    ## ChargeStateOrbitals needs one self-consistent field per charge state, prepared once for all blocks.
-    ## GlobalOrbitals uses the initial multiplet's own orbitals, which the caller has already passed in and
-    ## which are precisely "the mean field of the initial ion" that the approach asks for. MultipletOrbitals
-    ## prepares nothing here: every block runs its own self-consistent field in the loop below.
+    # ChargeStateOrbitals needs one self-consistent field per charge state, prepared once for all blocks.
+    # GlobalOrbitals uses the initial multiplet's own orbitals, which the caller has already passed in and
+    # which are precisely "the mean field of the initial ion" that the approach asks for. MultipletOrbitals
+    # prepares nothing here: every block runs its own self-consistent field in the loop below.
     orbitalSets = Dict{Int64, Dict{Subshell, Orbital}}()
     if  cd.bound == Cascade.ChargeStateOrbitals()
         orbitalSets = Cascade.generateBoundOrbitals(comp.approach, comp, confs; printout=printout)
     end
+    # WARM START (13-Aug-2026), BROADCAST RATHER THAN CHAINED (15-Aug-2026).  With MultipletOrbitals every
+    # block solves its own field, and each one used to begin from hydrogenic orbitals -- although every block
+    # of a cascade differs from the initial ion by only a few holes or electrons, so their orbitals are
+    # nearly the same.  Each block therefore starts from the INITIAL ion's converged orbitals, which the
+    # caller already passes in.  The machinery existed and was used in exactly one place (the
+    # dielectronic-recombination cascade): ManyElectron.StartFromPrevious, honoured by
+    # SelfConsistent.initializeBasis, which fills any subshell the seed lacks hydrogenically.
     #
-    ## WARM START (13-Aug-2026), BROADCAST RATHER THAN CHAINED (15-Aug-2026).  With MultipletOrbitals every
-    ## block solves its own field, and each one used to begin from hydrogenic orbitals -- although every block
-    ## of a cascade differs from the initial ion by only a few holes or electrons, so their orbitals are
-    ## nearly the same.  Each block therefore starts from the INITIAL ion's converged orbitals, which the
-    ## caller already passes in.  The machinery existed and was used in exactly one place (the
-    ## dielectronic-recombination cascade): ManyElectron.StartFromPrevious, honoured by
-    ## SelfConsistent.initializeBasis, which fills any subshell the seed lacks hydrogenically.
-    ##
-    ## WHY BROADCAST AND NOT A CHAIN.  Until 15-Aug each block was seeded from the PREVIOUS block's converged
-    ## set.  That looks like the better guess -- adjacent blocks resemble each other more than either
-    ## resembles the initial ion -- but it makes the loop CARRY A DEPENDENCE, so the blocks cannot be run
-    ## concurrently.  Measured, the chain is not even faster.  Two cascades, RefinedSCA, MINIMUM OF FOUR runs
-    ## after a warm-up (total wall clock):
-    ##
-    ##      case          chained     broadcast
-    ##      Mg 1s-hole    36.46 s      33.31 s     broadcast 9 % faster
-    ##      Ar 2p-hole    14.94 s      13.63 s     broadcast 9 % faster
-    ##
-    ## Both give IDENTICAL line counts (Mg 99 Auger / 236 photon, Ar 21 / 55); the summed rates differ by
-    ## 3e-8 relative, i.e. two starting guesses landing at different points inside the same SCF convergence
-    ## tolerance.  Suite 48/48.
-    ## The chain probably loses because it DRIFTS: every block seeds the next, so a late block starts from a
-    ## guess that has wandered several charge states from its own solution, whereas the broadcast keeps every
-    ## block anchored to one converged reference.
-    ## MEASUREMENT NOTE: single readings are worthless here.  The Ar case spreads 33 % between repeats
-    ## (13.63 - 18.14 s), and a first two-run comparison made the broadcast look 17 % SLOWER.  Take the
-    ## minimum of at least four.
-    ##
-    ## Against no warm start at all (Mg): generateBlocks 25.61 s, total 45.18 s -- so the warm start is worth
-    ## about 1.28x on the whole cascade and has pulled generateBlocks from the 77.6 % of the 13-Aug profile
-    ## down to 48.5 %, which also caps what THREADING it could ever buy at roughly 2x.
+    # WHY BROADCAST AND NOT A CHAIN.  Until 15-Aug each block was seeded from the PREVIOUS block's converged
+    # set.  That looks like the better guess -- adjacent blocks resemble each other more than either
+    # resembles the initial ion -- but it makes the loop CARRY A DEPENDENCE, so the blocks cannot be run
+    # concurrently.  Measured, the chain is not even faster.  Two cascades, RefinedSCA, MINIMUM OF FOUR runs
+    # after a warm-up (total wall clock):
+    #
+    #      case          chained     broadcast
+    #      Mg 1s-hole    36.46 s      33.31 s     broadcast 9 % faster
+    #      Ar 2p-hole    14.94 s      13.63 s     broadcast 9 % faster
+    #
+    # Both give IDENTICAL line counts (Mg 99 Auger / 236 photon, Ar 21 / 55); the summed rates differ by
+    # 3e-8 relative, i.e. two starting guesses landing at different points inside the same SCF convergence
+    # tolerance.  Suite 48/48.
+    # The chain probably loses because it DRIFTS: every block seeds the next, so a late block starts from a
+    # guess that has wandered several charge states from its own solution, whereas the broadcast keeps every
+    # block anchored to one converged reference.
+    # MEASUREMENT NOTE: single readings are worthless here.  The Ar case spreads 33 % between repeats
+    # (13.63 - 18.14 s), and a first two-run comparison made the broadcast look 17 % SLOWER.  Take the
+    # minimum of at least four.
+    #
+    # Against no warm start at all (Mg): generateBlocks 25.61 s, total 45.18 s -- so the warm start is worth
+    # about 1.28x on the whole cascade and has pulled generateBlocks from the 77.6 % of the 13-Aug profile
+    # down to 48.5 %, which also caps what THREADING it could ever buy at roughly 2x.
     for  confa  in confs
         print("  Multiplet computations for $(string(confa)[1:end]) with $(confa.NoElectrons) electrons ... ")
         if  printSummary   println(iostream, "\n*  Multiplet computations for $(string(confa)[1:end]) with $(confa.NoElectrons) electrons ... ")   end
@@ -731,16 +711,12 @@ end
         one or several steps. A newStepList::Array{Cascade.Step,1} for which the transition data are eventually computed.
 """
 function modifySteps(stepList::Array{Cascade.Step,1})
-    #
     newStepList = Cascade.Step[]
-    #
     println("\n* Here, modify the individual steps explicitly in the code, if needed, ...... and just do it !!")
-    # 
     #  Delete individual steps from stepList
     #  if  i in [1,2,5, ...] modify the particular settings, etc.
     for  i = 1:length(stepList)
         step = stepList[i]
-        #
         if  i in []
             println("  Modify step $i :")
             newStep = Cascade.Step(step.process, step.settings, step.initialConfs, step.finalConfs, step.initialMultiplet, step.initialMultiplet)
@@ -749,10 +725,8 @@ function modifySteps(stepList::Array{Cascade.Step,1})
             push!(newStepList, step)
         end
     end
-    #
     # wa = [1,2,3]
     # delete from list
-    #
     println("\n  A total of $(length(newStepList)) steps are still defined in the cascade.")
     printSummary, iostream = Defaults.getDefaults("summary flag/stream")
     if  printSummary   println(iostream, "\n* A total of $(length(newStepList)) steps are still defined in the cascade.")    end      
