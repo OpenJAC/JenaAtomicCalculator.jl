@@ -110,7 +110,7 @@ export AbstractCImethod, AbstractComputeTheme, AbstractConfigurationRestriction,
        RequestMinimumOccupation, ResonantInelastic, RestrictExcitations, RestrictMaximumDisplacements,
        RestrictNoElectronsTo, RestrictParity, RestrictToShellDoubles,
        SchiffMoment, SelfConsistent, Semiempirical, setDefaults, Shell, ShellSelection, SolidAngle, Spectroscopy,
-       SphericalMesh, SphericalTensor, SpinAngular, SpinAngularNew, StarkShift, StarkZeeman, StartFromHydrogenic,
+       SphericalMesh, SphericalTensor, SpinAngular, SpinAngularNew, SpinAngularTables, StarkShift, StarkZeeman, StartFromHydrogenic,
        StartFromPrevious, StartFromThomasFermi, StaticField,
        StaticQuantizationAxis, Statistical, StrongField, Subshell, SuperConfiguration,
        tabulate, TestFrames, ThomasFermiField, ThreeParameterFermiNucleus, TimeHarmonicField, TotalAM,
@@ -134,6 +134,7 @@ include("module-Nuclear.jl");           using ..Nuclear
 # Specialized functions/methods to manipulate these data
 include("module-AngularMomentum.jl")
 ## include("module-AngularCoefficients-Ratip2013.jl")  ## keep for internal test purposes only
+include("module-SpinAngularTables.jl"); using ..SpinAngularTables
 include("module-SpinAngular.jl");       using ..SpinAngular
 include("module-SpinAngularNew.jl");    using ..SpinAngularNew
 include("module-Bsplines.jl");          using ..Bsplines

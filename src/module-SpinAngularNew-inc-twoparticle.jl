@@ -270,7 +270,7 @@ end
         enumerated by index. A value::Float64 is returned.
 """
 function shellReducedWByIndex(j::AngularJ64, Nbra::Int64, ibra::Int64, Nket::Int64, iket::Int64, kj::Int64)
-    SA = SpinAngular
+    SA = SpinAngularTables
     tb = SA.qspaceTerms(ibra);    tk = SA.qspaceTerms(iket)
     if  kj == 0
         return( ibra == iket ? -Nbra * sqrt((Basics.twice(tb.J)+1.0)/(Basics.twice(j)+1.0)) : 0.0 )
@@ -303,7 +303,7 @@ end
         A value::Float64 is returned.
 """
 function shellWW(j::AngularJ64, N::Int64, ibra::Int64, iket::Int64, kj::Int64)
-    SA = SpinAngular
+    SA = SpinAngularTables
     tb = SA.qspaceTerms(ibra);    tk = SA.qspaceTerms(iket);    wa = 0.0
     for  r = tb.min_even:tb.max_even
         tr = SA.qspaceTerms(r)
@@ -337,7 +337,7 @@ end
         A value::Float64 is returned.
 """
 function twoParticleSameShell(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, ia::Int64, k::Int64)
-    SA = SpinAngular
+    SA = SpinAngularTables
     sh = subshells[ia];    N = leftCsf.occupation[ia]
     if  N < 2                                                             return( 0.0 )   end
     # (W^(k) x W^(k))^(0) is a SCALAR on the subshell it acts in, so it cannot change any coupling: every other
@@ -712,7 +712,7 @@ end
 """
 function shellReducedAW(j::AngularJ64, Nbra::Int64, senBra::Int64, Jbra::AngularJ64, Nket::Int64, senKet::Int64,
                         Jket::AngularJ64, kW::Int64, K::AngularJ64, mq::AngularM64)
-    SA   = SpinAngular
+    SA   = SpinAngularTables
     Qbra = SA.qshellTermQ(j, senBra)
     if  AngularMomentum.triangularDelta(Jbra, K, Jket) == 0                return( 0.0 )   end
     # ... the triangle INEQUALITIES are not the whole rule: the three ranks must also sum to an integer, which
@@ -771,7 +771,7 @@ end
 """
 function shellReducedWA(j::AngularJ64, Nbra::Int64, senBra::Int64, Jbra::AngularJ64, Nket::Int64, senKet::Int64,
                         Jket::AngularJ64, kW::Int64, K::AngularJ64, mq::AngularM64)
-    SA   = SpinAngular
+    SA   = SpinAngularTables
     Qket = SA.qshellTermQ(j, senKet)
     if  AngularMomentum.triangularDelta(Jbra, K, Jket) == 0                return( 0.0 )   end
     if  AngularMomentum.triangularDelta(j, AngularJ64(kW), K) == 0         return( 0.0 )   end
@@ -1034,7 +1034,7 @@ end
 """
 function shellReducedAA(j::AngularJ64, Nbra::Int64, senBra::Int64, Jbra::AngularJ64, Nket::Int64, senKet::Int64,
                         Jket::AngularJ64, K::AngularJ64, mq::AngularM64)
-    SA   = SpinAngular
+    SA   = SpinAngularTables
     if  AngularMomentum.triangularDelta(Jbra, K, Jket) == 0                return( 0.0 )   end
     if  AngularMomentum.triangularDelta(j, j, K) == 0                      return( 0.0 )   end
     if  isodd(Basics.twice(Jbra) + Basics.twice(K) + Basics.twice(Jket))   return( 0.0 )   end

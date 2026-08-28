@@ -15,7 +15,7 @@
 """
 module SpinAngular
 
-using  Printf, ..AngularMomentum, ..Basics,  ..Defaults, ..ManyElectron, ..Radial
+using  Printf, ..AngularMomentum, ..Basics,  ..Defaults, ..ManyElectron, ..Radial, ..SpinAngularTables
 
 export  Xronecker
 
@@ -132,29 +132,6 @@ struct  Coefficient2p
     V          ::Float64
 end
 
-"""
-`struct  SpinAngular.QspaceTerm`  
-    ... a struct for defining a subshell term/state  |j (nu) alpha Q J> == |j (nu) Q J Nr> for a subshell with well-defined j.
-
-    + j        ::AngularJ64   ... subshell j
-    + Q        ::AngularJ64   ... quasi-spin
-    + J        ::AngularJ64   ... total J of subshell term
-    + Nr       ::Int64        ... Additional quantum number Nr = 0,1,2.
-    + min_odd  ::Int64        ... the minimal limits of the subshell terms for odd number operators in second quantization
-    + max_odd  ::Int64        ... the maximal limits of the subshell terms for odd number operators in second quantization
-    + min_even ::Int64        ... the minimal limits of the subshell terms for even number operators in second quantization
-    + max_even ::Int64        ... the maximal limits of the subshell terms for even number operators in second quantization
-"""
-struct  QspaceTerm
-    j          ::AngularJ64
-    Q          ::AngularJ64
-    J          ::AngularJ64
-    Nr         ::Int64
-    min_odd    ::Int64
-    max_odd    ::Int64
-    min_even   ::Int64
-    max_even   ::Int64
-end
 
 # `Base.show(io::IO, term::QspaceTerm)`  ... prepares a proper printout of term::QspaceTerm.
 function Base.show(io::IO, term::QspaceTerm)
@@ -205,7 +182,6 @@ struct  DiagramC05   end
 ## Sentinel type for the ordered-shells overload of recoupling2p; distinguishes it from the unordered overload.
 struct  Ordered2p    end
 
-include("module-SpinAngular-inc-reducedcoeffs.jl")
 
 #######################################################################################################################
 #######################################################################################################################
@@ -902,40 +878,8 @@ function normalPhase(ia::Int64, ib::Int64, ic::Int64, id::Int64)
     return( wa )
 end
 
-"""
-`SpinAngular.qshellTermM(j::AngularJ64, N::Int64)`  
-    ... computes MQ quantum number; an M::Int64 is returned.
 
-        j - is angular momentum j for the subshell;
-        N - is number of electrons in the subshell;
-"""
-function  qshellTermM(j::AngularJ64, N::Int64)
-    M = Int64(N-0.5*(Basics.twice(j)+1));  return( AngularM64(M//2) )
-end
 
-"""
-`SpinAngular.qshellTermQ(j::AngularJ64, nu::Int64)`  
-    ... computes Q quantum number; a Q::Int64 is returned.
-
-        j  - is angular momentum j for the subshell;
-        nu - is seniority for the subshell;
-"""
-function  qshellTermQ(j::AngularJ64, nu::Int64)
-    Q = Int64((Basics.twice(j)+1)*0.5-nu);  return( AngularJ64(Q//2) )
-end
-
-"""
-`SpinAngular.qspacedelta(q::AngularJ64, mq::AngularM64)`  
-    ... computes trivial delta factors for Q space; a value::Int64 = {0,1} is returned.
-
-        Q  - is the subshell total quasispin Q;
-        MQ - is the subshell total projection of quasispin MQ;
-"""
-function  qspacedelta(q::AngularJ64, mq::AngularM64)
-    if Basics.twice(q) < abs(Basics.twice(mq))  return( 0 ) end
-    if (-1)^Int64(Basics.twice(q) + Basics.twice(mq)) == -1 return( 0 )  end
-    return( 1 )
-end
 
 """
 `SpinAngular.recouplingDiagram(diagram::DiagramC01,leftCsf::CsfR, rightCsf::CsfR, rank::AngularJ64, ia::Int64)`  

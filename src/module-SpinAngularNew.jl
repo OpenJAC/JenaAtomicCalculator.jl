@@ -68,7 +68,7 @@
     the failure mode this module exists to remove. Two-or-more electrons in an open subshell need the coefficients of
     fractional parentage and are not yet re-implemented.
 
-    This module IS included from `JenaAtomicCalculator.jl` and reaches `SpinAngular` through the `using ..SpinAngular`
+    This module IS included from `JenaAtomicCalculator.jl` and reaches `SpinAngular` through the `using ..SpinAngularTables`
     clause above, like every other JAC module. It began outside the package, included directly by
     `examples/example-Aq.jl` so that a broken intermediate state could not break the build, and while that was so it
     named the package absolutely -- `JenaAtomicCalculator.SpinAngular`. That name does not resolve from INSIDE the
@@ -111,7 +111,7 @@
 """
 module SpinAngularNew
 
-using  Printf, ..AngularMomentum, ..Basics, ..ManyElectron, ..SpinAngular
+using  Printf, ..AngularMomentum, ..Basics, ..ManyElectron, ..SpinAngularTables
 
 
 """

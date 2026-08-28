@@ -143,7 +143,7 @@ end
 """
 function shellReducedWUncached(j::AngularJ64, N::Int64, senBra::Int64, Jbra::AngularJ64, senKet::Int64,
                                Jket::AngularJ64, kj::Int64)
-    SA = SpinAngular
+    SA = SpinAngularTables
     # AN EMPTY OR SINGLY OCCUPIED SUBSHELL NEEDS NO COEFFICIENT OF FRACTIONAL PARENTAGE, and taking those two cases
     # here is what lets this routine work above j = 9/2, where the quasispin tables it otherwise consults stop.
     # A singly occupied subshell has exactly one state, seniority 1 with J = j, and measured against the tables
@@ -279,7 +279,7 @@ end
 """
 function shellReducedAUncached(j::AngularJ64, Nbra::Int64, senBra::Int64, Jbra::AngularJ64,
                                Nket::Int64, senKet::Int64, Jket::AngularJ64, mq::AngularM64)
-    SA = SpinAngular
+    SA = SpinAngularTables
     # AN EMPTY SUBSHELL AGAINST A SINGLY OCCUPIED ONE NEEDS NO COEFFICIENT OF FRACTIONAL PARENTAGE: there is only
     # one state on each side, and the reduced matrix element is -/+ sqrt(2j+1) in closed form, + for the
     # annihilation j^1 -> j^0 and - for the creation j^0 -> j^1.

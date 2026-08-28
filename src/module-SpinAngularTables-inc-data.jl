@@ -3,7 +3,7 @@
 
 
 """
-`SpinAngular.completlyReducedCfpByIndices(aIndex::Int64, bIndex::Int64)`  
+`SpinAngularTables.completlyReducedCfpByIndices(aIndex::Int64, bIndex::Int64)`  
     ... returns the (completely) reduced coefficient of fractional parentage 
 
         (j alpha Q J||| a^(qj)||| j alpha' Q' J')
@@ -40,7 +40,7 @@ end
 
 
 """
-`SpinAngular.completelyReducedWkk(aIndex::Int64, bIndex::Int64, kq::Int64, kj::Int64)`
+`SpinAngularTables.completelyReducedWkk(aIndex::Int64, bIndex::Int64, kq::Int64, kj::Int64)`
     ... returns the (completely) reduced coefficient of fractional parentage 
 
         (j alpha Q J||| W^(kq kj)||| j alpha' Q' J')
@@ -159,7 +159,7 @@ end
 
 
 """
-`SpinAngular.completelyReducedWkk_calculate(aIndex::Int64, bIndex::Int64, kq::Int64, kj::Int64)`
+`SpinAngularTables.completelyReducedWkk_calculate(aIndex::Int64, bIndex::Int64, kq::Int64, kj::Int64)`
     ... calculate the (completely) reduced coefficient of fractional parentage 
 
         (j alpha Q J||| W^(kq kj)||| j alpha' Q' J')
@@ -197,7 +197,7 @@ end
 
 
 """
-`SpinAngular.getTermNumber(j::AngularJ64, N::Int64, Q::AngularJ64, J::AngularJ64)`  
+`SpinAngularTables.getTermNumber(j::AngularJ64, N::Int64, Q::AngularJ64, J::AngularJ64)`  
     ... returns the internal index for a subshell term which is given by its angular momentum j, the quasispin quantum 
         number Q as well as the total subshell angular momentum J.
 
@@ -229,7 +229,7 @@ function  getTermNumber(j::AngularJ64, N::Int64, Q::AngularJ64, J::AngularJ64)
         end
     else
         if N == 0 || N == 1 || N == 2   I = ((Basics.twice(j)*1000) + Basics.twice(Q))*1000 + Basics.twice(J)
-        else    error("SpinAngular.getTermNumber: please, contact with G. Gaigalas")
+        else    error("SpinAngularTables.getTermNumber: please, contact with G. Gaigalas")
         end
     end
     return( I )
@@ -237,7 +237,7 @@ end
 
 
 """
-`SpinAngular.getTermNumber(j::AngularJ64, Q::AngularJ64, J::AngularJ64, Nr::Int64)`  
+`SpinAngularTables.getTermNumber(j::AngularJ64, Q::AngularJ64, J::AngularJ64, Nr::Int64)`  
     ... returns the internal index for a subshell term which is given by its angular momentum j, the quasispin quantum 
         number Q as well as the total subshell angular momentum J.
 
@@ -267,7 +267,7 @@ function  getTermNumber(j::AngularJ64, Q::AngularJ64, J::AngularJ64, Nr::Int64)
                 end
             end
         end
-    else    error("SpinAngular.getTermNumber supporte j= 1/2, 3/2, 5/2, 7/2, 9/2 subshells")
+    else    error("SpinAngularTables.getTermNumber supporte j= 1/2, 3/2, 5/2, 7/2, 9/2 subshells")
     end
     return( I )
 end
@@ -285,8 +285,8 @@ end
 
     
 """
-`SpinAngular.qspaceTerms(iIndex::Int64)`  
-    ... returns a list of Q-space term for the given state number; a term::SpinAngular.QspaceTerm,1 is returned.
+`SpinAngularTables.qspaceTerms(iIndex::Int64)`  
+    ... returns a list of Q-space term for the given state number; a term::SpinAngularTables.QspaceTerm,1 is returned.
 
         iIndex - is the state number of the subshell in quasispin representation.
 """
@@ -299,7 +299,7 @@ end
 #######################################################################################################################
 
 """
-`SpinAngular.QTerm[]`
+`SpinAngularTables.QTerm[]`
     ... set-up the list of Q-space term for the given Term number.
 """
     # First define some short-cuts to simplify the subsequent input
@@ -341,7 +341,7 @@ end
 
 
 """
-`SpinAngular.reducedCfp1half[]`
+`SpinAngularTables.reducedCfp1half[]`
     ... set-up the reduced coefficients of fractional parentage (rcfp) for j=1/2
         G. Gaigalas, S. Fritzsche, and Z. Rudzikas
         Atomic Data and Nuclear Data Tables 76, 235–269 (2000)
@@ -352,7 +352,7 @@ reducedCfp1half = Matrix{Tuple{Int64,Int64,Int64}}(undef,1,1);    for i=1:1  for
 
 
 """
-`SpinAngular.reducedCfp3half[]`
+`SpinAngularTables.reducedCfp3half[]`
     ... set-up the reduced coefficients of fractional parentage (rcfp) for j=3/2
         G. Gaigalas, S. Fritzsche, and Z. Rudzikas
         Atomic Data and Nuclear Data Tables 76, 235–269 (2000)
@@ -363,7 +363,7 @@ reducedCfp3half = Matrix{Tuple{Int64,Int64,Int64}}(undef,1,2);    for i=1:1  for
 
 
 """
-`SpinAngular.reducedCfp5half[]`
+`SpinAngularTables.reducedCfp5half[]`
     ... set-up the reduced coefficients of fractional parentage (rcfp) for j=5/2
         G. Gaigalas, S. Fritzsche, and Z. Rudzikas
         Atomic Data and Nuclear Data Tables 76, 235–269 (2000)
@@ -374,7 +374,7 @@ reducedCfp5half = Matrix{Tuple{Int64,Int64,Int64}}(undef,6,6);    for i=1:3  for
 
 
 """
-`SpinAngular.reducedCfp7half[]`
+`SpinAngularTables.reducedCfp7half[]`
     ... set-up the reduced coefficients of fractional parentage (rcfp) for j=7/2
         G. Gaigalas, S. Fritzsche, and Z. Rudzikas
         Atomic Data and Nuclear Data Tables 76, 235–269 (2000)
@@ -385,7 +385,7 @@ reducedCfp7half = Matrix{Tuple{Int64,Int64,Int64}}(undef,6,8);  for i=1:6 for j=
 
 
 """
-`SpinAngular.reducedCfp9half[]`
+`SpinAngularTables.reducedCfp9half[]`
     ... set-up the reduced coefficients of fractional parentage (rcfp) for j=9/2
         G. Gaigalas, S. Fritzsche, and Z. Rudzikas
         Atomic Data and Nuclear Data Tables 76, 235–269 (2000)
@@ -630,7 +630,7 @@ reducedCfp9half = Matrix{Tuple{Int64,Int64,Int64}}(undef,20,18);  for i=1:20 for
 
 
 """
-`SpinAngular.W_00_one_half[]`
+`SpinAngularTables.W_00_one_half[]`
     ... set-up the ivalue of reduced matrix elements
         ( j QJ :: W(00) :: j QJ)  for j = 1/2
         G. Gaigalas, S. Fritzsche, and Z. Rudzikas
@@ -642,7 +642,7 @@ W_00_one_half = Array{Tuple{Int64,Int64,Int64}}(undef,2);       for i=1:2  W_00_
 
 
 """
-`SpinAngular.W_00_three_half[]`
+`SpinAngularTables.W_00_three_half[]`
     ... set-up the ivalue of reduced matrix elements
         ( j QJ :: W(00) :: j QJ)  for j = 3/2
         G. Gaigalas, S. Fritzsche, and Z. Rudzikas
@@ -654,7 +654,7 @@ W_00_three_half = Array{Tuple{Int64,Int64,Int64}}(undef,3);       for i=1:3  W_0
 
 
 """
-`SpinAngular.W_00_five_half[]`
+`SpinAngularTables.W_00_five_half[]`
     ... set-up the ivalue of reduced matrix elements
         ( j QJ :: W(00) :: j QJ)  for j = 5/2
         G. Gaigalas, S. Fritzsche, and Z. Rudzikas
@@ -666,7 +666,7 @@ W_00_five_half = Array{Tuple{Int64,Int64,Int64}}(undef,6);       for i=1:6  W_00
 
 
 """
-`SpinAngular.W_00_seven_half[]`
+`SpinAngularTables.W_00_seven_half[]`
     ... set-up the ivalue of reduced matrix elements
         ( j QJ :: W(00) :: j QJ)  for j = 7/2
         G. Gaigalas, S. Fritzsche, and Z. Rudzikas
@@ -695,7 +695,7 @@ W_00_seven_half = Array{Tuple{Int64,Int64,Int64}}(undef,14);       for i=1:14  W
 
 
 """
-`SpinAngular.W_10_one_half[]`
+`SpinAngularTables.W_10_one_half[]`
     ... set-up the ivalue of reduced matrix elements
         ( j QJ :: W(10) :: j QJ)  for j = 1/2
         G. Gaigalas, S. Fritzsche, and Z. Rudzikas
@@ -707,7 +707,7 @@ W_10_one_half = Array{Tuple{Int64,Int64,Int64}}(undef,2);       for i=1:2  W_10_
 
 
 """
-`SpinAngular.W_10_three_half[]`
+`SpinAngularTables.W_10_three_half[]`
     ... set-up the ivalue of reduced matrix elements
         ( j QJ :: W(10) :: j QJ)  for j = 3/2
         G. Gaigalas, S. Fritzsche, and Z. Rudzikas
@@ -719,7 +719,7 @@ W_10_three_half = Array{Tuple{Int64,Int64,Int64}}(undef,3);       for i=1:3  W_1
 
 
 """
-`SpinAngular.W_10_five_half[]`
+`SpinAngularTables.W_10_five_half[]`
     ... set-up the ivalue of reduced matrix elements
         ( j QJ :: W(10) :: j QJ)  for j = 5/2
         G. Gaigalas, S. Fritzsche, and Z. Rudzikas
@@ -731,7 +731,7 @@ W_10_five_half = Array{Tuple{Int64,Int64,Int64}}(undef,6);       for i=1:6  W_10
 
 
 """
-`SpinAngular.W_10_seven_half[]`
+`SpinAngularTables.W_10_seven_half[]`
     ... set-up the ivalue of reduced matrix elements
         ( j QJ :: W(10) :: j QJ)  for j = 7/2
         G. Gaigalas, S. Fritzsche, and Z. Rudzikas
@@ -760,7 +760,7 @@ W_10_seven_half = Array{Tuple{Int64,Int64,Int64}}(undef,14);       for i=1:14  W
 
 
 """
-`SpinAngular.W_01_one_half[]`
+`SpinAngularTables.W_01_one_half[]`
     ... set-up the ivalue of reduced matrix elements
         ( j QJ :: W(01) :: j QJ)  for j = 1/2
         G. Gaigalas, S. Fritzsche, and Z. Rudzikas
@@ -772,7 +772,7 @@ W_01_one_half = Array{Tuple{Int64,Int64,Int64}}(undef,2);       for i=1:2  W_01_
 
 
 """
-`SpinAngular.W_01_three_half[]`
+`SpinAngularTables.W_01_three_half[]`
     ... set-up the ivalue of reduced matrix elements
         ( j QJ :: W(01) :: j QJ)  for j = 3/2
         G. Gaigalas, S. Fritzsche, and Z. Rudzikas
@@ -784,7 +784,7 @@ W_01_three_half = Array{Tuple{Int64,Int64,Int64}}(undef,3);       for i=1:3  W_0
 
 
 """
-`SpinAngular.W_01_five_half[]`
+`SpinAngularTables.W_01_five_half[]`
     ... set-up the ivalue of reduced matrix elements
         ( j QJ :: W(01) :: j QJ)  for j = 5/2
         G. Gaigalas, S. Fritzsche, and Z. Rudzikas
@@ -796,7 +796,7 @@ W_01_five_half = Array{Tuple{Int64,Int64,Int64}}(undef,6);       for i=1:6  W_01
 
 
 """
-`SpinAngular.W_01_seven_half[]`
+`SpinAngularTables.W_01_seven_half[]`
     ... set-up the ivalue of reduced matrix elements
         ( j QJ :: W(01) :: j QJ)  for j = 7/2
         G. Gaigalas, S. Fritzsche, and Z. Rudzikas
@@ -825,7 +825,7 @@ W_01_seven_half = Array{Tuple{Int64,Int64,Int64}}(undef,14);       for i=1:14  W
 
 
 """
-`SpinAngular.W_12_three_half_odd[]`
+`SpinAngularTables.W_12_three_half_odd[]`
     ... set-up the ivalue of reduced matrix elements
         ( j QJ :: W(12) :: j QJ) j = 3/2  for odd seniority 
         G. Gaigalas, S. Fritzsche, and Z. Rudzikas
@@ -837,7 +837,7 @@ W_12_three_half_odd = Matrix{Tuple{Int64,Int64,Int64}}(undef,1,1);  for i=1:1  f
 
 
 """
-`SpinAngular.W_12_three_half_even[]`
+`SpinAngularTables.W_12_three_half_even[]`
     ... set-up the ivalue of reduced matrix elements
         ( j QJ :: W(12) :: j QJ) j = 3/2  for even seniority 
         G. Gaigalas, S. Fritzsche, and Z. Rudzikas
@@ -849,7 +849,7 @@ W_12_three_half_even = Matrix{Tuple{Int64,Int64,Int64}}(undef,2,2); for i=1:2  f
 
 
 """
-`SpinAngular.W_12_five_half_odd[]`
+`SpinAngularTables.W_12_five_half_odd[]`
     ... set-up the ivalue of reduced matrix elements
         ( j QJ :: W(12) :: j QJ)  j = 5/2  for odd seniority
         G. Gaigalas, S. Fritzsche, and Z. Rudzikas
@@ -861,7 +861,7 @@ W_12_five_half_odd = Matrix{Tuple{Int64,Int64,Int64}}(undef,3,3);   for i=1:3  f
 
 
 """
-`SpinAngular.W_12_five_half_even[]`
+`SpinAngularTables.W_12_five_half_even[]`
     ... set-up the ivalue of reduced matrix elements
         ( j QJ :: W(12) :: j QJ)  j = 5/2  for even seniority
         G. Gaigalas, S. Fritzsche, and Z. Rudzikas
@@ -873,7 +873,7 @@ W_12_five_half_even = Matrix{Tuple{Int64,Int64,Int64}}(undef,3,3);  for i=1:3  f
 
 
 """
-`SpinAngular.W_12_seven_half_odd[]`
+`SpinAngularTables.W_12_seven_half_odd[]`
     ... set-up the ivalue of reduced matrix elements
         ( j QJ :: W(12) :: j QJ)  j = 7/2  for odd seniority
         G. Gaigalas, S. Fritzsche, and Z. Rudzikas
@@ -885,7 +885,7 @@ W_12_seven_half_odd = Array{Tuple{Int64,Int64,Int64}}(undef,21);    for i=1:21  
 
 
 """
-`SpinAngular.W_12_seven_half_even[]`
+`SpinAngularTables.W_12_seven_half_even[]`
     ... set-up the ivalue of reduced matrix elements
         ( j QJ :: W(12) :: j QJ)  j = 7/2  for even seniority
         G. Gaigalas, S. Fritzsche, and Z. Rudzikas
@@ -945,7 +945,7 @@ W_12_seven_half_even = Array{Tuple{Int64,Int64,Int64}}(undef,36);       for i=1:
     
 
 """
-`SpinAngular.W_03_three_half_odd[]`
+`SpinAngularTables.W_03_three_half_odd[]`
     ... set-up the ivalue of reduced matrix elements
         ( j QJ :: W(03) :: j QJ) j = 3/2  for odd seniority 
         G. Gaigalas, S. Fritzsche, and Z. Rudzikas
@@ -957,7 +957,7 @@ W_03_three_half_odd = Matrix{Tuple{Int64,Int64,Int64}}(undef,1,1);  for i=1:1  f
 
 
 """
-`SpinAngular.W_03_three_half_even[]`
+`SpinAngularTables.W_03_three_half_even[]`
     ... set-up the ivalue of reduced matrix elements
         ( j QJ :: W(03) :: j QJ) j = 3/2  for even seniority 
         G. Gaigalas, S. Fritzsche, and Z. Rudzikas
@@ -969,7 +969,7 @@ W_03_three_half_even = Matrix{Tuple{Int64,Int64,Int64}}(undef,2,2); for i=1:2  f
 
 
 """
-`SpinAngular.W_03_five_half_odd[]`
+`SpinAngularTables.W_03_five_half_odd[]`
     ... set-up the ivalue of reduced matrix elements
         ( j QJ :: W(03) :: j QJ)  j = 5/2  for odd seniority
         G. Gaigalas, S. Fritzsche, and Z. Rudzikas
@@ -981,7 +981,7 @@ W_03_five_half_odd = Matrix{Tuple{Int64,Int64,Int64}}(undef,3,3);   for i=1:3  f
 
 
 """
-`SpinAngular.W_03_five_half_even[]`
+`SpinAngularTables.W_03_five_half_even[]`
     ... set-up the ivalue of reduced matrix elements
         ( j QJ :: W(03) :: j QJ)  j = 5/2  for even seniority
         G. Gaigalas, S. Fritzsche, and Z. Rudzikas
@@ -993,7 +993,7 @@ W_03_five_half_even = Matrix{Tuple{Int64,Int64,Int64}}(undef,3,3);  for i=1:3  f
 
 
 """
-`SpinAngular.W_03_seven_half_odd[]`
+`SpinAngularTables.W_03_seven_half_odd[]`
     ... set-up the ivalue of reduced matrix elements
         ( j QJ :: W(03) :: j QJ)  j = 7/2  for odd seniority
         G. Gaigalas, S. Fritzsche, and Z. Rudzikas
@@ -1005,7 +1005,7 @@ W_03_seven_half_odd = Array{Tuple{Int64,Int64,Int64}}(undef,21);    for i=1:21  
 
 
 """
-`SpinAngular.W_03_seven_half_even[]`
+`SpinAngularTables.W_03_seven_half_even[]`
     ... set-up the ivalue of reduced matrix elements
         ( j QJ :: W(03) :: j QJ)  j = 7/2  for even seniority
         G. Gaigalas, S. Fritzsche, and Z. Rudzikas
@@ -1065,7 +1065,7 @@ W_03_seven_half_even = Array{Tuple{Int64,Int64,Int64}}(undef,36);   for i=1:36  
 
 
 """
-`SpinAngular.W_14_five_half_odd[]`
+`SpinAngularTables.W_14_five_half_odd[]`
     ... set-up the ivalue of reduced matrix elements
         ( j QJ :: W(14) :: j QJ)  j = 5/2  for odd seniority
         G. Gaigalas, S. Fritzsche, and Z. Rudzikas
@@ -1077,7 +1077,7 @@ W_14_five_half_odd = Matrix{Tuple{Int64,Int64,Int64}}(undef,3,3);   for i=1:3  f
 
 
 """
-`SpinAngular.W_14_five_half_even[]`
+`SpinAngularTables.W_14_five_half_even[]`
     ... set-up the ivalue of reduced matrix elements
         ( j QJ :: W(14) :: j QJ)  j = 5/2  for even seniority
         G. Gaigalas, S. Fritzsche, and Z. Rudzikas
@@ -1089,7 +1089,7 @@ W_14_five_half_even = Matrix{Tuple{Int64,Int64,Int64}}(undef,3,3);  for i=1:3  f
 
 
 """
-`SpinAngular.W_14_seven_half_odd[]`
+`SpinAngularTables.W_14_seven_half_odd[]`
     ... set-up the ivalue of reduced matrix elements
         ( j QJ :: W(14) :: j QJ)  j = 7/2  for odd seniority
         G. Gaigalas, S. Fritzsche, and Z. Rudzikas
@@ -1101,7 +1101,7 @@ W_14_seven_half_odd = Array{Tuple{Int64,Int64,Int64}}(undef,21);    for i=1:21  
 
 
 """
-`SpinAngular.W_14_seven_half_even[]`
+`SpinAngularTables.W_14_seven_half_even[]`
     ... set-up the ivalue of reduced matrix elements
         ( j QJ :: W(14) :: j QJ)  j = 7/2  for even seniority
         G. Gaigalas, S. Fritzsche, and Z. Rudzikas
@@ -1156,7 +1156,7 @@ W_14_seven_half_even = Array{Tuple{Int64,Int64,Int64}}(undef,36);       for i=1:
 
 
 """
-`SpinAngular.W_05_five_half_odd[]`
+`SpinAngularTables.W_05_five_half_odd[]`
     ... set-up the ivalue of reduced matrix elements
         ( j QJ :: W(05) :: j QJ)  j = 5/2  for odd seniority
         G. Gaigalas, S. Fritzsche, and Z. Rudzikas
@@ -1168,7 +1168,7 @@ W_05_five_half_odd = Matrix{Tuple{Int64,Int64,Int64}}(undef,3,3);   for i=1:3  f
 
 
 """
-`SpinAngular.W_05_five_half_even[]`
+`SpinAngularTables.W_05_five_half_even[]`
     ... set-up the ivalue of reduced matrix elements
         ( j QJ :: W(05) :: j QJ)  j = 5/2  for even seniority
         G. Gaigalas, S. Fritzsche, and Z. Rudzikas
@@ -1180,7 +1180,7 @@ W_05_five_half_even = Matrix{Tuple{Int64,Int64,Int64}}(undef,3,3);  for i=1:3  f
 
 
 """
-`SpinAngular.W_05_seven_half_odd[]`
+`SpinAngularTables.W_05_seven_half_odd[]`
     ... set-up the ivalue of reduced matrix elements
         ( j QJ :: W(05) :: j QJ)  j = 7/2  for odd seniority
         G. Gaigalas, S. Fritzsche, and Z. Rudzikas
@@ -1192,7 +1192,7 @@ W_05_seven_half_odd = Array{Tuple{Int64,Int64,Int64}}(undef,21);    for i=1:21  
 
 
 """
-`SpinAngular.W_05_seven_half_even[]`
+`SpinAngularTables.W_05_seven_half_even[]`
     ... set-up the ivalue of reduced matrix elements
         ( j QJ :: W(05) :: j QJ)  j = 7/2  for even seniority
         G. Gaigalas, S. Fritzsche, and Z. Rudzikas
@@ -1247,7 +1247,7 @@ W_05_seven_half_even = Array{Tuple{Int64,Int64,Int64}}(undef,36);   for i=1:36  
 
     
 """
-`SpinAngular.W_16_seven_half_odd[]`
+`SpinAngularTables.W_16_seven_half_odd[]`
     ... set-up the ivalue of reduced matrix elements
         ( j QJ :: W(16) :: j QJ)  j = 7/2  for odd seniority
         G. Gaigalas, S. Fritzsche, and Z. Rudzikas
@@ -1259,7 +1259,7 @@ W_16_seven_half_odd = Array{Tuple{Int64,Int64,Int64}}(undef,21);    for i=1:21  
 
 
 """
-`SpinAngular.W_16_seven_half_even[]`
+`SpinAngularTables.W_16_seven_half_even[]`
     ... set-up the ivalue of reduced matrix elements
         ( j QJ :: W(16) :: j QJ)  j = 7/2  for even seniority
         G. Gaigalas, S. Fritzsche, and Z. Rudzikas
@@ -1302,7 +1302,7 @@ W_16_seven_half_even = Array{Tuple{Int64,Int64,Int64}}(undef,36);   for i=1:36  
     
 
 """
-`SpinAngular.W_07_seven_half_odd[]`
+`SpinAngularTables.W_07_seven_half_odd[]`
     ... set-up the ivalue of reduced matrix elements
         ( j QJ :: W(07) :: j QJ)  j = 7/2  for odd seniority
         G. Gaigalas, S. Fritzsche, and Z. Rudzikas
@@ -1314,7 +1314,7 @@ W_07_seven_half_odd = Array{Tuple{Int64,Int64,Int64}}(undef,21);    for i=1:21  
 
 
 """
-`SpinAngular.W_07_seven_half_even[]`
+`SpinAngularTables.W_07_seven_half_even[]`
     ... set-up the ivalue of reduced matrix elements
         ( j QJ :: W(07) :: j QJ)  j = 7/2  for even seniority
         G. Gaigalas, S. Fritzsche, and Z. Rudzikas
