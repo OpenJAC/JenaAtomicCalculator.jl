@@ -181,7 +181,15 @@ elseif  false
     end
     #
 elseif  true
-    # Last successful:  31-Jul-2026
+    # Last successful:  28-Aug-2026 -- ALL SIX QUADRATIC SHIFTS REPRODUCE, to between 0.01 % and 0.6 %:
+    #   3P0[1] M=0    -0.24119424941 MHz/T^2   (recorded -0.24138)
+    #   3P1[2] M=0     0.13806323819            (recorded  0.13828)
+    #          M=+-1  -0.07699337674            (recorded -0.07697)
+    #   3P2[3] M=0     0.10134573611            (recorded  0.10133)
+    #          M=+-1   0.07481985265            (recorded  0.07481)
+    #          M=+-2  -0.00475779772            (recorded -0.00473)
+    # The M degeneracy is EXACT: M = +1 and M = -1 return identical values to every digit, as they must.
+    # Previously:  31-Jul-2026
     # Branch f: Ca^14+ [He]2s^2 2p^2 quadratic Zeeman shift coefficients C_2 for all M-sublevels of
     #   ^3P_0, ^3P_1, ^3P_2 -- Gilles et al. (2024), Table V (the paper's own flagship highly-charged-
     #   ion result, and the exact system Jan Gilles' own original job file targeted: see

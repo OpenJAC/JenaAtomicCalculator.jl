@@ -7,7 +7,11 @@ Defaults.setDefaults("unit: energy", "Hz")
 setDefaults("print summary: open", "zzz-Hfs.sum")
 
 if  false
-    # Last successful:  26-Jul-2026
+    # Last successful:  28-Aug-2026 -- A(1s) now reads 1.421215e+03 MHz where this branch recorded 1423.157 MHz, a
+    # move of 0.14 % and TOWARD the measured value: agreement with the famous 1420.405751 MHz 21 cm line improves
+    # from 0.19 % to 0.057 %. The record is from 26-Jul, so the shift is not attributable to any one change; it is
+    # the same small radial/SCF drift seen in example-Dn.jl on 28-Aug.
+    # Previously:  26-Jul-2026
     # Branch a: HFS A parameter for hydrogen 1s (the 21 cm line). Proton: I=1/2, mu=2.7928 nmu, Q=0,
     #   rms radius=0.8797 fm. "uniform" nuclear model, not "Fermi": for Z=1, JAC's 2-parameter Fermi
     #   charge distribution (fixed skin thickness) cannot represent an rms radius below ~1.86 fm --
@@ -172,7 +176,10 @@ elseif  false
     wb = perform(wa)
     #
 elseif  true
-    # Last successful:  18-Aug-2026 (Ho I; the Pr I comparison is NOT dated -- see the citation caveat)
+    # Last successful:  28-Aug-2026 -- REPRODUCES EXACTLY, and being dated 18-Aug it is the tighter of this file's
+    # two checks: Ho I A = 8.957463e+02 MHz and B = -9.516364e+02 MHz against the recorded 895.75 and -951.6;
+    # Pr I A = 9.301445e+02 MHz and B = -5.849614e+00 MHz against the recorded 930.14 and -5.85.
+    # Previously:  18-Aug-2026 (Ho I; the Pr I comparison is NOT dated -- see the citation caveat)
     # Branch f (open f shell): the hyperfine constants of two NEUTRAL lanthanides, Ho I [Xe] 4f^11 6s^2
     #   ^4I_15/2 and Pr I [Xe] 4f^3 6s^2 ^4I_9/2.  These are the branches that were blocked from 11-Aug-2026
     #   until 18-Aug-2026, and it is worth recording why, because the reason was not what it looked like.

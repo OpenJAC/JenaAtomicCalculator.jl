@@ -3,7 +3,13 @@ println("Ds) Test of the CoulombExcitation module with ASF from an internally ge
 
 
 if  true
-    # Last successful:  23-Jul-2026 -- He-like U90+, K-shell -> L-shell (1s^2 -> 1s2p) Coulomb excitation, scanned
+    # Last successful:  28-Aug-2026 -- RE-RUN. This branch's hard, quantitative claim is a SYMMETRY, and it still
+    # holds bit-for-bit: sigma(Mi,Mf) = sigma(-Mi,-Mf) with no post-hoc averaging. At Tp = 600 MeV/u the 0+ -> 1-
+    # line gives Mf = -1 and Mf = +1 both exactly 5.809794e-01 barn, against 1.431879e-01 for Mf = 0, total
+    # 1.305147e+00 barn. The 0+ -> 0- line is identically zero at every energy, as it must be.
+    # NO ABSOLUTE CROSS SECTION WAS EVER RECORDED HERE, so nothing else could be compared; the A2 discussion below
+    # is qualitative and is unchanged.
+    # Previously:  23-Jul-2026 -- He-like U90+, K-shell -> L-shell (1s^2 -> 1s2p) Coulomb excitation, scanned
     # over Tp=10..600 MeV/u, following the K->L benchmark case of Surzhykov, Jentschura, Stohlker, Gumberidze,
     # Fritzsche, Phys. Rev. A 77, 042722 (2008) (papers/b07.pra-excitation-alignment-original.pdf).
     #

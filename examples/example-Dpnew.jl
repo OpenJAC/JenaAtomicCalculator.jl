@@ -10,7 +10,22 @@ println("    with it the full Bethe surface, the Bethe sum rule and the first-Bo
 println("    are not (yet) included.")
 
 if  true
-    # Last successful:  20-Aug-2026
+    # Last successful:  28-Aug-2026 -- AND THIS BRANCH CAUGHT A REAL REGRESSION, WHICH IS FIXED IN THE SAME COMMIT.
+    #   WHAT WAS WRONG: f_2s(K) read EXACTLY TWICE the exact Bethe value at every momentum transfer -- JAC/exact =
+    #   1.999959, 1.999961, 1.999971, 1.999989, 2.000063, 2.000154, 2.000245, 2.000416 across the eight K points --
+    #   where the table recorded here on 20-Aug read 0.999980 and 0.999985. f_2p was NEVER affected and still reads
+    #   0.999977, and the 1 : 2 fine-structure split of f_2p is still exact.
+    #   WHY: 1s -> 2s at finite K is the RANK-0 channel. The rank-0 convention migration of 27/28-Aug put
+    #   sqrt(2 j_a + 1) INSIDE the coefficient at every rank (Rule 18), and
+    #   `GeneralizedOscillatorStrength.computeAmplitude` was not updated with the other call sites: it still
+    #   special-cased L = 0 with wNorm = (2J_f+1) against sqrt(2J_f+1) for L >= 1, so it supplied the factor once
+    #   too often. A factor 2 in f is sqrt(2) in the amplitude, and sqrt(2J_f+1) = sqrt(2) for the J_f = 1/2 final
+    #   level here. The special case is now gone and one normalization serves every rank, as Rule 18 intends.
+    #   AFTER THE FIX f_2s/exact reads 0.99998, 0.99998, 0.999985, 0.999995, 1.000032, 1.000077, 1.000123, 1.000208
+    #   -- i.e. back onto the 20-Aug values.
+    #   NOTE the suite did NOT catch this and could not: testModule_GeneralizedOscillatorStrength checks the level
+    #   structure and returns no comparison against stored numbers. This example file was the only thing watching.
+    # Previously:  20-Aug-2026
     #   [PROVENANCE: produced on Julia 1.10.9, with a Manifest re-resolved for 1.10 because the checkout's Manifest had been
     #    resolved under 1.12.6 on the maintainer machine.  Every figure quoted below is an ABSOLUTE comparison against a
     #    closed-form result, a published figure or JAC's own independent path -- not a tolerance -- so a genuine change would

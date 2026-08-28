@@ -224,15 +224,17 @@ function amplitude(L::Int64, q::Float64, finalLevel::Level, initialLevel::Level,
         end
     end
     if  display   printstyled("done. \n", color=:light_green)   end
-    # The spin-angular coefficients of SpinAngular do NOT come in a single normalization: computeCoefficientsScalar (rank 0)
-    # divides by sqrt(2J+1) and therefore yields the ORDINARY matrix element, as it must for the one-body Hamiltonian that is
-    # its main client, whereas computeCoefficientsNonScalar (rank > 0) divides by sqrt(2L+1) and yields the reduced one up to
-    # a factor sqrt(2J_f+1).  Both were calibrated against the exact one-electron reduced matrix element
-    # <kappa_f||C^L||kappa_i> * int j_L(qr)[P_f P_i + Q_f Q_i] dr of hydrogen, for J_f = 1/2, 3/2 and 5/2 and for L = 0 ... 4:
-    # the ratio is sqrt(2J_f+1) for every L >= 1 and (2J_f+1) for L = 0, with no residual L dependence.
-    if  L == 0   wNorm = Basics.twice(fLevel.J) + 1.0
-    else         wNorm = sqrt( Basics.twice(fLevel.J) + 1.0 )
-    end
+    # ONE NORMALIZATION AT EVERY RANK, which is Rule 18 and is what SpinAngular now delivers.  This site used to
+    # special-case L = 0 with (2J_f+1) against sqrt(2J_f+1) for L >= 1, because the OLD rank-0 coefficient divided by
+    # sqrt(2J+1) and returned the ORDINARY matrix element, so the factor had to be supplied twice here.  The rank-0
+    # convention migration put sqrt(2 j_a + 1) INSIDE the coefficient at every rank, and this site was not updated with
+    # the others -- so it applied the factor once too often and every L = 0 amplitude came out sqrt(2J_f+1) too large.
+    # MEASURED, against the exact Bethe formulae of Inokuti (1971) in examples/example-Dpnew.jl: f_2s(K) read exactly
+    # TWICE the exact value at every K (JAC/exact = 1.999959, 1.999961, 1.999971, 1.999989, 2.000063, ... across eight
+    # momentum transfers) where the same table recorded 0.999980 on 20-Aug-2026, before the migration.  f_2p, which is
+    # rank 1 and 2, was never affected and still reads 0.999977.  A factor 2 in f is sqrt(2) in the amplitude, and
+    # sqrt(2 J_f + 1) = sqrt(2) for the J_f = 1/2 final level of this test.
+    wNorm = sqrt( Basics.twice(fLevel.J) + 1.0 )
     amplitude = ComplexF64( wNorm * transpose(fLevel.mc) * matrix * iLevel.mc )
     #
     if  display

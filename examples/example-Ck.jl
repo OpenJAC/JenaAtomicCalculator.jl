@@ -8,7 +8,12 @@ println("    complementary (non-CSF, ab-initio point-charge + Dirac-DFT determin
 using Printf
 
 if  true
-    # Last successful:  28-Jul-2026
+    # Last successful:  28-Aug-2026 -- RE-RUN, AND BOTH GROUP-THEORY PREDICTIONS HOLD EXACTLY. J = 3/2 (Gamma8) does
+    # NOT split: all four sublevels sit at 0.000000 cm^-1 and the CXS is 0.000000 exactly. J = 5/2 splits into
+    # exactly two groups of 2 and 4: sublevels 1-2 at 0.000000 cm^-1 and sublevels 3-6 at 0.065832 cm^-1, giving
+    # CXS = 0.065832 cm^-1. These are structural checks with no tolerance to argue about, which is what makes them
+    # worth re-running.
+    # Previously:  28-Jul-2026
     # Branch a: pure symmetry/group-theory sanity check, no external reference numbers needed.
     #   System: bare hydrogen H(3d) (Z=1, no core) -- a single active d-electron gives exactly two
     #   single-CSF levels, 3d_(3/2) and 3d_(5/2) (mc = [1.0] each, no CI mixing), so the crystal-field

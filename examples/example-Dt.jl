@@ -10,7 +10,11 @@ println("    AbstractPropertySettings/Outcome from AbstractProcessSettings/Line 
 println("    the two within one module or one example branch.")
 
 if  true
-    # Last successful:  29-Jul-2026
+    # Last successful:  28-Aug-2026 -- RE-RUN. The textbook degeneracy ratio still comes out right: summed
+    # |amplitude|^2 is 7.014929536953278e-7 for 2p_3/2 -> 1s_1/2 against 3.507613925346975e-7 for 2p_1/2 -> 1s_1/2,
+    # a ratio of 1.9999149525155786 against the exact 2.0 -- agreement to 4e-5, and independent of Z or of anything
+    # in this implementation.
+    # Previously:  29-Jul-2026
     # Branch a: empty-lattice cross-check against a textbook, implementation-independent fact --
     #   NOT just "re-derive my own formula". With an empty CrystalField.Lattice, every CfLevel
     #   collapses to a single, definite (parentLevel, M) basis vector, so the crystal-field-resolved
