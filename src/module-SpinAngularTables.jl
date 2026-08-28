@@ -5,14 +5,14 @@
         completely reduced W tensors and the q-space term list -- together with the small quantum-number helpers
         that index them, and nothing else.
 
-        IT EXISTS SO THAT TWO MODULES CAN SHARE ONE COPY OF THE DATA. `SpinAngular` and `SpinAngularNew` implement
+        IT EXISTS SO THAT TWO MODULES CAN SHARE ONE COPY OF THE DATA. `SpinAngular` and `SpinAngular` implement
         the spin-angular algebra independently, but both read these tables; until 28-Aug-2026 the tables lived
-        inside `SpinAngular` and `SpinAngularNew` reached across for them, which made the newer module depend on the
+        inside `SpinAngular` and `SpinAngular` reached across for them, which made the newer module depend on the
         one it is meant to replace. The algebra is deliberately NOT here: this module is data and indexing.
 
         THE DATA REACHES j <= 9/2 AND NO FURTHER, which is a property of Gaigalas's tables rather than of this code.
         A caller that needs more must either use a closed form -- an empty or singly occupied subshell needs no
-        coefficient of fractional parentage, see `SpinAngularNew.shellReducedA` and `shellReducedW` -- or say so and
+        coefficient of fractional parentage, see `SpinAngular.shellReducedA` and `shellReducedW` -- or say so and
         stop. Returning zero beyond the tables is what hid a 27 % error in the electron-impact excitation cross
         section until 27-Aug-2026.
 """

@@ -8,7 +8,7 @@ module TwoElectronOnePhoton
 
 
 using Printf, ..AngularMomentum, ..AtomicState, ..Basics, ..Defaults, ..InteractionStrength, ..ManyElectron, ..Nuclear, 
-                ..Radial, ..SpinAngular, ..TableStrings
+                ..Radial, ..TableStrings
 
 
 """

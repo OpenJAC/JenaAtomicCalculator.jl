@@ -7,7 +7,7 @@ module AutoIonization
 
 
 using  Printf, ..AngularMomentum, ..Basics, ..BiOrthogonal, ..Bsplines, ..Continuum, ..Defaults, ..InteractionStrength,
-               ..ManyElectron, ..Nuclear, ..Radial, ..SpinAngularNew, ..TableStrings
+               ..ManyElectron, ..Nuclear, ..Radial, ..SpinAngular, ..TableStrings
 
 
 """
@@ -239,13 +239,13 @@ function amplitude(kind::AbstractEeInteraction, kappa::Int64, phase::Float64, co
                 end
                 if  Defaults.saGG()
                         subshellList = cLevel.basis.subshells
-                    opa  = SpinAngularNew.TwoParticleOperator(0, plus)
-                    waG2 = SpinAngularNew.computeCoefficients(opa, cLevel.basis.csfs[r], iLevel.basis.csfs[s], subshellList)
+                    opa  = SpinAngular.TwoParticleOperator(0, plus)
+                    waG2 = SpinAngular.computeCoefficients(opa, cLevel.basis.csfs[r], iLevel.basis.csfs[s], subshellList)
                     wa   = [1.0, waG2]
                 end
                 if  Defaults.saRatip() && Defaults.saGG() && true
                     if  length(waR[2]) != 0     println("\n>> Angular coeffients from Ratip2013   = $(waR[2]) ")    end
-                    if  length(waG2)   != 0     println(  ">> Angular coeffients from SpinAngularNew = $waG2 ")        end
+                    if  length(waG2)   != 0     println(  ">> Angular coeffients from SpinAngular = $waG2 ")        end
                 end
 
                 me = 0.
@@ -359,8 +359,8 @@ function amplitude(kind::AbstractEeInteraction, kappa::Int64, phase::Float64, co
             end
             if  Defaults.saGG()
                 subshellList = cLevel.basis.subshells
-                opa  = SpinAngularNew.TwoParticleOperator(0, plus)
-                waG2 = SpinAngularNew.computeCoefficients(opa, cLevel.basis.csfs[r], iLevel.basis.csfs[s], subshellList)
+                opa  = SpinAngular.TwoParticleOperator(0, plus)
+                waG2 = SpinAngular.computeCoefficients(opa, cLevel.basis.csfs[r], iLevel.basis.csfs[s], subshellList)
                 wa   = [1.0, waG2]
             end
             me = 0.

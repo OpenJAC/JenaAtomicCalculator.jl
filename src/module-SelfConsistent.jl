@@ -7,7 +7,13 @@
 module SelfConsistent
 
 using  Printf, LinearAlgebra, ..AngularMomentum, ..Basics, ..Bsplines, ..Defaults, ..Hamiltonian, ..InteractionStrength, ..ManyElectron, ..Nuclear, ..Radial,
-       ..RadialIntegrals, ..SpinAngular, ..SpinAngularNew
+       ..RadialIntegrals, ..SpinAngular
+
+# The coefficient carriers, aliased so that the signatures below stay readable. The KIND parameter is the point:
+# a rank-0 coefficient multiplies an ORDINARY one-electron matrix element and a rank-k one a REDUCED one, and
+# pairing the wrong two raises a MethodError naming both rather than returning a wrong number (Rule 18).
+const Coefficient1p = SpinAngular.Coefficient1p{SpinAngular.OrdinaryKind}
+const Coefficient2p = SpinAngular.Coefficient2p{SpinAngular.EffectiveStrengthKind}
 
 
 # Module-level defaults. Each is set through its own SelfConsistent.set... function below.

@@ -23,7 +23,7 @@ module GeneralizedOscillatorStrength
 
 
 using  Printf, ..AngularMomentum, ..Basics, ..BiOrthogonal, ..Defaults, ..ManyElectron, ..Radial, ..RadialIntegrals,
-       ..SpinAngularNew, ..TableStrings
+       ..SpinAngular, ..TableStrings
 
 
 """
@@ -211,8 +211,8 @@ function amplitude(L::Int64, q::Float64, finalLevel::Level, initialLevel::Level,
             if  fLevel.mc[r] == 0.  ||  iLevel.mc[s] == 0.    continue    end
 
             subshellList = iLevel.basis.subshells
-            opa = SpinAngularNew.OneParticleOperator(L, Basics.multipoleParity(EmMultipole(L, true)))
-            wa  = SpinAngularNew.computeCoefficients(opa, fLevel.basis.csfs[r], iLevel.basis.csfs[s], subshellList)
+            opa = SpinAngular.OneParticleOperator(L, Basics.multipoleParity(EmMultipole(L, true)))
+            wa  = SpinAngular.computeCoefficients(opa, fLevel.basis.csfs[r], iLevel.basis.csfs[s], subshellList)
             #
             for  coeff in wa
                 orba = fLevel.basis.orbitals[coeff.a];      orbb = iLevel.basis.orbitals[coeff.b]

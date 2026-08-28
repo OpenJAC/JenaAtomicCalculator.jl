@@ -2,11 +2,11 @@
 #
 # Recoupling for one-particle operators of rank k > 0.
 #
-# This file is included from module-SpinAngularNew.jl and shares its namespace.
+# This file is included from module-SpinAngular.jl and shares its namespace.
 #
 
 """
-`SpinAngularNew.openShells(csf::CsfR, subshells::Array{Subshell,1})`
+`SpinAngular.openShells(csf::CsfR, subshells::Array{Subshell,1})`
     ... to list the indices of the subshells of `csf` that are neither empty nor closed. A closed subshell couples to
         J = 0 and contributes nothing to a tensor of rank k > 0, and an empty one contributes nothing at all, so only the
         open subshells carry the recoupling. A list indices::Array{Int64,1} is returned.
@@ -23,7 +23,7 @@ end
 
 
 """
-`SpinAngularNew.computeCoefficientsNonScalar(op::SpinAngularNew.OneParticleOperator, leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1})`
+`SpinAngular.computeCoefficientsNonScalar(op::SpinAngular.OneParticleOperator, leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1})`
     ... to compute the spin-angular coefficients of a one-particle operator of rank k > 0, in GRASP convention. A list
         coeffs::Array{Coefficient1p{ReducedKind},1} is returned.
 
@@ -32,7 +32,7 @@ end
         fractional parentage is needed. A subshell holding two or more electrons requires the CFP machinery and RAISES
         rather than returning a number nobody has checked.
 """
-function computeCoefficientsNonScalar(op::SpinAngularNew.OneParticleOperator, leftCsf::CsfR, rightCsf::CsfR,
+function computeCoefficientsNonScalar(op::SpinAngular.OneParticleOperator, leftCsf::CsfR, rightCsf::CsfR,
                                       subshells::Array{Subshell,1})
     coeffs = Coefficient1p{ReducedKind}[]
 
@@ -65,7 +65,7 @@ end
 
 
 """
-`SpinAngularNew.shellReducedW(j::AngularJ64, N::Int64, senBra::Int64, Jbra::AngularJ64, senKet::Int64, Jket::AngularJ64, kj::Int64)`
+`SpinAngular.shellReducedW(j::AngularJ64, N::Int64, senBra::Int64, Jbra::AngularJ64, senKet::Int64, Jket::AngularJ64, kj::Int64)`
     ... to compute the reduced matrix element of the shell operator W^(kj) = (a^+ x a~)^(kj) within a single subshell j^N,
 
             <j^N v J || W^(kj) || j^N v' J'>
@@ -80,7 +80,7 @@ end
         M_Q = (N - (2j+1)/2)/2 on both sides since the operator conserves particle number. For kj = 0 the result is the
         closed form -N sqrt((2J+1)/(2j+1)).
 
-        VERIFIED against `SpinAngular.irreducibleTensor(SchemeEta_W(), ...)` to ratio 1.000000 on every case tested, which
+        VERIFIED against `SpinAngularGaigalas.irreducibleTensor(SchemeEta_W(), ...)` to ratio 1.000000 on every case tested, which
         isolates this step from the outer normalization. A value::Float64 is returned.
 """
 #
@@ -112,8 +112,8 @@ const SHELL_A_CACHE = Dict{NTuple{8,Int64}, Float64}()
 
 
 """
-`SpinAngularNew.clearCaches()`
-    ... to empty the memo of `SpinAngularNew.shellReducedW`. Not needed for correctness -- the cached quantities are
+`SpinAngular.clearCaches()`
+    ... to empty the memo of `SpinAngular.shellReducedW`. Not needed for correctness -- the cached quantities are
         basis-independent -- but useful for timing a cold run. Returns the number of entries discarded.
 """
 function clearCaches()
@@ -137,8 +137,8 @@ end
 
 
 """
-`SpinAngularNew.shellReducedWUncached(j::AngularJ64, N::Int64, senBra::Int64, Jbra::AngularJ64, senKet::Int64, Jket::AngularJ64, kj::Int64)`
-    ... the body of `SpinAngularNew.shellReducedW`, without the memo. Kept separate so that the cache can be tested
+`SpinAngular.shellReducedWUncached(j::AngularJ64, N::Int64, senBra::Int64, Jbra::AngularJ64, senKet::Int64, Jket::AngularJ64, kj::Int64)`
+    ... the body of `SpinAngular.shellReducedW`, without the memo. Kept separate so that the cache can be tested
         against it directly rather than trusted. A value::Float64 is returned.
 """
 function shellReducedWUncached(j::AngularJ64, N::Int64, senBra::Int64, Jbra::AngularJ64, senKet::Int64,
@@ -157,7 +157,7 @@ function shellReducedWUncached(j::AngularJ64, N::Int64, senBra::Int64, Jbra::Ang
     # Beyond those, the tables are needed and their reach must be stated rather than silently returned as a zero
     # or thrown as a BoundsError from inside SpinAngular.
     if  Basics.twice(j) > 9
-        error("\n\nSpinAngularNew.shellReducedW: the quasispin/CFP tables reach j <= 9/2 and j = $(j) was asked "   *
+        error("\n\nSpinAngular.shellReducedW: the quasispin/CFP tables reach j <= 9/2 and j = $(j) was asked "   *
               "for\n>>> with occupation N = $N, which is beyond the closed forms for an empty or singly occupied "  *
               "subshell.\n")
     end
@@ -181,7 +181,7 @@ end
 
 
 """
-`SpinAngularNew.chainRecoupling(leftCsf::CsfR, rightCsf::CsfR, ip::Int64, kJ::AngularJ64; top::Int64 = 0)`
+`SpinAngular.chainRecoupling(leftCsf::CsfR, rightCsf::CsfR, ip::Int64, kJ::AngularJ64; top::Int64 = 0)`
     ... to compute the recoupling factor for a one-particle tensor of rank k acting on the subshell `ip` of a CSF whose
         subshells are coupled as a chain X_1 = J_1, X_q = X_{q-1} x J_q, X_n = J.
 
@@ -209,17 +209,17 @@ end
 
 
 """
-`SpinAngularNew.nonScalarGeneral(op::SpinAngularNew.OneParticleOperator, leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, openList::Array{Int64,1})`
+`SpinAngular.nonScalarGeneral(op::SpinAngular.OneParticleOperator, leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, openList::Array{Int64,1})`
     ... to compute the rank-k coefficients of a CSF pair of equal occupation with ANY number of open subshells, each
         holding any number of electrons. Each open subshell contributes in turn, its own shell matrix element from
-        `SpinAngularNew.shellReducedW` and its place in the coupling tree from `SpinAngularNew.chainRecoupling`:
+        `SpinAngular.shellReducedW` and its place in the coupling tree from `SpinAngular.chainRecoupling`:
 
             T^(k)(a,a)  =  - R_chain * <j^N v J_a || W^(k) || j^N v' J'_a> * sqrt(2j_a+1) / ( sqrt(2k+1) sqrt(2J_bra+1) )
 
         This is the same expression as for a single open subshell, with the recoupling factor no longer equal to one. A
         list coeffs::Array{Coefficient1p{ReducedKind},1} is returned.
 """
-function nonScalarGeneral(op::SpinAngularNew.OneParticleOperator, leftCsf::CsfR, rightCsf::CsfR,
+function nonScalarGeneral(op::SpinAngular.OneParticleOperator, leftCsf::CsfR, rightCsf::CsfR,
                           subshells::Array{Subshell,1}, openList::Array{Int64,1})
     coeffs = Coefficient1p{ReducedKind}[]
     k      = op.rank
@@ -255,7 +255,7 @@ end
 
 
 """
-`SpinAngularNew.shellReducedA(j::AngularJ64, Nbra::Int64, senBra::Int64, Jbra::AngularJ64, Nket::Int64, senKet::Int64, Jket::AngularJ64, mq::AngularM64)`
+`SpinAngular.shellReducedA(j::AngularJ64, Nbra::Int64, senBra::Int64, Jbra::AngularJ64, Nket::Int64, senKet::Int64, Jket::AngularJ64, mq::AngularM64)`
     ... to compute the reduced matrix element of a single creation or annihilation operator within one subshell,
         <j^Nbra v J || a^(+/-) || j^Nket v' J'>, from the quasispin representation. As with `shellReducedW`, the
         coefficients of fractional parentage are reused as DATA -- `SpinAngular.completlyReducedCfpByIndices` -- and only
@@ -273,8 +273,8 @@ end
 
 
 """
-`SpinAngularNew.shellReducedAUncached(j::AngularJ64, Nbra::Int64, senBra::Int64, Jbra::AngularJ64, Nket::Int64, senKet::Int64, Jket::AngularJ64, mq::AngularM64)`
-    ... the body of `SpinAngularNew.shellReducedA`, evaluated without consulting the cache. Kept separate so that the
+`SpinAngular.shellReducedAUncached(j::AngularJ64, Nbra::Int64, senBra::Int64, Jbra::AngularJ64, Nket::Int64, senKet::Int64, Jket::AngularJ64, mq::AngularM64)`
+    ... the body of `SpinAngular.shellReducedA`, evaluated without consulting the cache. Kept separate so that the
         cache is a wrapper and the physics is in one place. A value::Float64 is returned.
 """
 function shellReducedAUncached(j::AngularJ64, Nbra::Int64, senBra::Int64, Jbra::AngularJ64,
@@ -298,7 +298,7 @@ function shellReducedAUncached(j::AngularJ64, Nbra::Int64, senBra::Int64, Jbra::
     # Beyond that closed form the tables are needed, and outside their reach the honest answer is to say so rather
     # than to return a zero that cannot be told from a selection rule.
     if  Basics.twice(j) > 9
-        error("\n\nSpinAngularNew.shellReducedA: the quasispin/CFP tables reach j <= 9/2 and j = $(j) was asked "  *
+        error("\n\nSpinAngular.shellReducedA: the quasispin/CFP tables reach j <= 9/2 and j = $(j) was asked "  *
               "for,\n>>> with occupations $Nket -> $Nbra, which is beyond the closed form for an empty against a "  *
               "singly\n>>> occupied subshell. Returning 0 here would be indistinguishable from a selection rule.\n")
     end
@@ -316,7 +316,7 @@ end
 
 
 """
-`SpinAngularNew.substitutionRecoupling(leftCsf::CsfR, rightCsf::CsfR, ia::Int64, ib::Int64, ja::AngularJ64, jb::AngularJ64, k::Int64)`
+`SpinAngular.substitutionRecoupling(leftCsf::CsfR, rightCsf::CsfR, ia::Int64, ib::Int64, ja::AngularJ64, jb::AngularJ64, k::Int64)`
     ... to compute the recoupling factor for the two-subshell operator (A^(ja)(ia) x B^(jb)(ib))^(k) with ia < ib, i.e.
         for a CSF pair that differs by moving one electron between two subshells.
 
@@ -382,7 +382,7 @@ end
 
 
 """
-`SpinAngularNew.nonScalarSubstitution(op::SpinAngularNew.OneParticleOperator, leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, iCre::Int64, iAnn::Int64)`
+`SpinAngular.nonScalarSubstitution(op::SpinAngular.OneParticleOperator, leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, iCre::Int64, iAnn::Int64)`
     ... to compute the rank-k coefficient of a CSF pair that differs by moving ONE electron: created in subshell `iCre`
         of the bra, annihilated in subshell `iAnn` of the ket. Three ingredients beyond the recoupling, each of which is
         easy to drop and each of which changes the answer:
@@ -396,7 +396,7 @@ end
 
         A list coeffs::Array{Coefficient1p{ReducedKind},1} is returned.
 """
-function nonScalarSubstitution(op::SpinAngularNew.OneParticleOperator, leftCsf::CsfR, rightCsf::CsfR,
+function nonScalarSubstitution(op::SpinAngular.OneParticleOperator, leftCsf::CsfR, rightCsf::CsfR,
                                subshells::Array{Subshell,1}, iCre::Int64, iAnn::Int64)
     coeffs = Coefficient1p{ReducedKind}[]
     shC    = subshells[iCre];                 shA = subshells[iAnn]
@@ -450,13 +450,13 @@ end
 
 
 """
-`SpinAngularNew.peelRange(leftCsf::CsfR, rightCsf::CsfR, from::Int64, to::Int64, kJ::AngularJ64)`
+`SpinAngular.peelRange(leftCsf::CsfR, rightCsf::CsfR, from::Int64, to::Int64, kJ::AngularJ64)`
     ... to peel a tensor of total rank `kJ` outwards through the subshells `from` ... `to`, each of which carries NO
         operator and therefore enters as a spectator in the first subsystem,
 
             (-1)^(X_{q-1}+J_q+X'_q+k) sqrt((2X_q+1)(2X'_q+1)) { X_{q-1} X_q J_q ; X'_q X'_{q-1} k } .
 
-        This is the outer loop of `SpinAngularNew.chainRecoupling` lifted out unchanged, so that the same peeling serves
+        This is the outer loop of `SpinAngular.chainRecoupling` lifted out unchanged, so that the same peeling serves
         an operator acting on one subshell and one acting on several. An empty range returns 1. A value::Float64 is
         returned.
 """
@@ -481,13 +481,13 @@ end
 
 
 """
-`SpinAngularNew.actingFactor(leftCsf::CsfR, rightCsf::CsfR, ip::Int64, kJ::AngularJ64)`
+`SpinAngular.actingFactor(leftCsf::CsfR, rightCsf::CsfR, ip::Int64, kJ::AngularJ64)`
     ... to compute the factor contributed by the LOWEST subshell that carries an operator, where the tensor sits in the
         second subsystem with X_{ip-1} as spectator,
 
             (-1)^(X_{ip-1}+J'_ip+X_ip+k) sqrt((2X_ip+1)(2X'_ip+1)) { J_ip X_ip X_{ip-1} ; X'_ip J'_ip k } .
 
-        Lifted out of `SpinAngularNew.chainRecoupling` unchanged, for the same reason as `SpinAngularNew.peelRange`. A
+        Lifted out of `SpinAngular.chainRecoupling` unchanged, for the same reason as `SpinAngular.peelRange`. A
         value::Float64 is returned.
 """
 function actingFactor(leftCsf::CsfR, rightCsf::CsfR, ip::Int64, kJ::AngularJ64)
@@ -512,7 +512,7 @@ end
 
 
 """
-`SpinAngularNew.junctionFactor(leftCsf::CsfR, rightCsf::CsfR, ip::Int64, below::AngularJ64, here::AngularJ64, above::AngularJ64)`
+`SpinAngular.junctionFactor(leftCsf::CsfR, rightCsf::CsfR, ip::Int64, below::AngularJ64, here::AngularJ64, above::AngularJ64)`
     ... to compute the factor contributed by a subshell at which a rank JOINS the chain: the accumulated rank `below`
         coming up from the subshells 1 ... ip-1 couples with the rank `here` of the operator acting on subshell ip to the
         accumulated rank `above`. This is where a NINE-j appears rather than a six-j,
@@ -547,15 +547,15 @@ end
 
 
 """
-`SpinAngularNew.treeRecoupling(leftCsf::CsfR, rightCsf::CsfR, sites::Array{Int64,1}, ranks::Array{AngularJ64,1}, inter::Array{AngularJ64,1})`
+`SpinAngular.treeRecoupling(leftCsf::CsfR, rightCsf::CsfR, sites::Array{Int64,1}, ranks::Array{AngularJ64,1}, inter::Array{AngularJ64,1})`
     ... to compute the recoupling factor for an operator that acts on ANY number of subshells, whose shell tensors are
         coupled ALONG THE SUBSHELL CHAIN itself: `sites` holds the acting subshell indices in increasing order, `ranks[m]`
         the rank of the tensor on `sites[m]`, and `inter[m]` the accumulated rank after that site, so that `inter[1]`
         equals `ranks[1]` and `inter[end]` is the total rank of the operator.
 
-        The whole chain is then three kinds of factor and nothing else: `SpinAngularNew.peelRange` between acting
-        subshells, `SpinAngularNew.junctionFactor` at each acting subshell above the first, and
-        `SpinAngularNew.actingFactor` at the lowest one. That is what makes this ONE routine instead of a case tree:
+        The whole chain is then three kinds of factor and nothing else: `SpinAngular.peelRange` between acting
+        subshells, `SpinAngular.junctionFactor` at each acting subshell above the first, and
+        `SpinAngular.actingFactor` at the lowest one. That is what makes this ONE routine instead of a case tree:
         `chainRecoupling(ip, k)` is the single site `[ip]`, and `substitutionRecoupling(ia, ib, ja, jb, k)` is the two
         sites `[ia, ib]` -- both are checked against it rather than assumed. A value::Float64 is returned.
 """

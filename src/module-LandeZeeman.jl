@@ -7,7 +7,7 @@ module LandeZeeman
 
 
 using Printf, ..AngularMomentum, ..Basics, ..Defaults, ..InteractionStrength, ..ManyElectron, ..Nuclear, ..Radial,
-                ..SpinAngularNew, ..TableStrings, ..Hfs
+                ..SpinAngular, ..TableStrings, ..Hfs
 
 
 """
@@ -220,8 +220,8 @@ function  amplitude(::ZeemanN1, rLevel::Level, sLevel::Level, grid::Radial.Grid)
                 rLevel.mc[r] == 0  ||  sLevel.mc[s] == 0   continue
             end
             subshellList = sLevel.basis.subshells
-            opa = SpinAngularNew.OneParticleOperator(1, plus)
-            wa  = SpinAngularNew.computeCoefficients(opa, rLevel.basis.csfs[r], sLevel.basis.csfs[s], subshellList)
+            opa = SpinAngular.OneParticleOperator(1, plus)
+            wa  = SpinAngular.computeCoefficients(opa, rLevel.basis.csfs[r], sLevel.basis.csfs[s], subshellList)
             for  coeff in wa
                 tamp  = InteractionStrength.zeeman_n1(rLevel.basis.orbitals[coeff.a], sLevel.basis.orbitals[coeff.b], grid)
                 me = me + coeff.T * tamp
@@ -252,8 +252,8 @@ function  amplitude(::ZeemanDeltaN1, rLevel::Level, sLevel::Level, grid::Radial.
                 rLevel.mc[r] == 0  ||  sLevel.mc[s] == 0   continue
             end
             subshellList = sLevel.basis.subshells
-            opa = SpinAngularNew.OneParticleOperator(1, plus)
-            wa  = SpinAngularNew.computeCoefficients(opa, rLevel.basis.csfs[r], sLevel.basis.csfs[s], subshellList)
+            opa = SpinAngular.OneParticleOperator(1, plus)
+            wa  = SpinAngular.computeCoefficients(opa, rLevel.basis.csfs[r], sLevel.basis.csfs[s], subshellList)
             for  coeff in wa
                 tamp  = InteractionStrength.zeeman_Delta_n1(rLevel.basis.orbitals[coeff.a], sLevel.basis.orbitals[coeff.b], grid)
                 me = me + coeff.T * tamp
@@ -284,8 +284,8 @@ function amplitudeN1(::ZeemanN1, rLevel::Level, sLevel::Level, grid::Radial.Grid
             for  s = 1:ns
                 if  rLevel.mc[r] == 0  ||  sLevel.mc[s] == 0    continue    end
                 subshellList = sLevel.basis.subshells
-                opa = SpinAngularNew.OneParticleOperator(1, plus)
-                wa  = SpinAngularNew.computeCoefficients(opa, rLevel.basis.csfs[r], sLevel.basis.csfs[s], subshellList)
+                opa = SpinAngular.OneParticleOperator(1, plus)
+                wa  = SpinAngular.computeCoefficients(opa, rLevel.basis.csfs[r], sLevel.basis.csfs[s], subshellList)
                 for  coeff in wa
                     tamp = InteractionStrength.zeeman_n1(rLevel.basis.orbitals[coeff.a], sLevel.basis.orbitals[coeff.b], grid)
                     matrix[r,s] = matrix[r,s] + coeff.T * tamp

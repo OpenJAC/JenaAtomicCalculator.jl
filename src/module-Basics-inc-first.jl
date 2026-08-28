@@ -127,11 +127,11 @@ end
         coefficients survive the parity selection rule -- an even operator connects orbitals with l_a + l_b even,
         an odd one those with l_a + l_b odd. A value::Basics.Parity is returned.
 
-        IT EXISTS BECAUSE HARD-CODING `plus` IS WRONG AND USED TO BE HARMLESS. `SpinAngular.computeCoefficients`
+        IT EXISTS BECAUSE HARD-CODING `plus` IS WRONG AND USED TO BE HARMLESS. `SpinAngularGaigalas.computeCoefficients`
         ignores the parity it is given and returns both sets, leaving the radial integral to kill the wrong half;
-        `SpinAngularNew` applies the rule, so a caller that passes `plus` for an E1 operator now silently loses
-        exactly the coefficients E1 needs. Measured on 2s <-> 2p at rank 1: SpinAngular returns 9 coefficients for
-        either parity, SpinAngularNew returns 5 for plus and 4 for minus.
+        `SpinAngular` applies the rule, so a caller that passes `plus` for an E1 operator now silently loses
+        exactly the coefficients E1 needs. Measured on 2s <-> 2p at rank 1: SpinAngularGaigalas returns 9 coefficients
+        for either parity, SpinAngular returns 5 for plus and 4 for minus.
 """
 function multipoleParity(mp::EmMultipole)
     return( iseven(mp.L) == mp.electric  ?  Basics.plus  :  Basics.minus )

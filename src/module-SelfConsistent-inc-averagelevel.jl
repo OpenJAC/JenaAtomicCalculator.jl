@@ -12,24 +12,24 @@
         is returned.
 """
 function computeAngularCoefficients(scField::Basics.ALField, basis::Basis)
-    ncsf = length(basis.csfs);    coeffs1p = SpinAngular.Coefficient1p[];     coeffs2p = SpinAngular.Coefficient2p[] 
+    ncsf = length(basis.csfs);    coeffs1p = Coefficient1p[];     coeffs2p = Coefficient2p[] 
     
     # Compute angular coefficients in turn for all diagonal ME
     for  csf  in  basis.csfs
-        coeffs = SpinAngularNew.computeCoefficientsScalar(SpinAngularNew.OneParticleOperator(0, Basics.plus), 
+        coeffs = SpinAngular.computeCoefficientsScalar(SpinAngular.OneParticleOperator(0, Basics.plus), 
                                                        csf, csf, basis.subshells)
         # Add to the existing list
-        for  cf in coeffs   push!(coeffs1p, SpinAngular.Coefficient1p(cf.nu, cf.a, cf.b, cf.T / ncsf) )   end
+        for  cf in coeffs   push!(coeffs1p, Coefficient1p(cf.nu, cf.a, cf.b, cf.T / ncsf) )   end
         
-        coeffs = SpinAngularNew.computeCoefficients(SpinAngularNew.TwoParticleOperator(0, Basics.plus), 
+        coeffs = SpinAngular.computeCoefficients(SpinAngular.TwoParticleOperator(0, Basics.plus), 
                                                        csf, csf, basis.subshells)
         # Add to the existing lists
-        for  cf in coeffs   push!(coeffs2p, SpinAngular.Coefficient2p(cf.nu, cf.a, cf.b, cf.c, cf.d, cf.V / ncsf) )   end
+        for  cf in coeffs   push!(coeffs2p, Coefficient2p(cf.nu, cf.a, cf.b, cf.c, cf.d, cf.V / ncsf) )   end
     end 
 
     # Condense angular coefficients if they refer to the same set of orbital; 
     # include symmetry <ab||cd> == <ba||dc> for symmetric interactions
-    coeffs1px = SpinAngular.Coefficient1p[];     coeffs2px = SpinAngular.Coefficient2p[]
+    coeffs1px = Coefficient1p[];     coeffs2px = Coefficient2p[]
     
     hasConsidered = falses( length(coeffs1p) );   T = 0.
     for  (ic, cf) in enumerate(coeffs1p)
@@ -41,7 +41,7 @@ function computeAngularCoefficients(scField::Basics.ALField, basis::Basis)
                 elseif  nu == cfx.nu  &&  a == cfx.a  &&  b == cfx.b    T = T + cfx.T;    hasConsidered[icx] = true
                 end 
             end
-            push!(coeffs1px, SpinAngular.Coefficient1p(nu, a, b, T) );  T = 0.
+            push!(coeffs1px, Coefficient1p(nu, a, b, T) );  T = 0.
         end 
     end
     
@@ -59,7 +59,7 @@ function computeAngularCoefficients(scField::Basics.ALField, basis::Basis)
                 ##         V = V + cfx.V;    hasConsidered[icx] = true
                 end 
             end
-            push!(coeffs2px, SpinAngular.Coefficient2p(nu, a, b, c, d, V) );   V = 0.
+            push!(coeffs2px, Coefficient2p(nu, a, b, c, d, V) );   V = 0.
         end
     end
 

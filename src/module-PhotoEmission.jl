@@ -8,7 +8,7 @@ module PhotoEmission
 
 
 using Printf, ..AngularMomentum, ..Basics, ..BiOrthogonal, ..Defaults, ..InteractionStrength, ..ManyElectron, ..Radial,
-                ..SpinAngularNew, ..TableStrings
+                ..SpinAngular, ..TableStrings
 
 
 """
@@ -196,8 +196,8 @@ function amplitudeAndCancellation(::Emission, Mp::EmMultipole, gauge::EmGauge, o
         for  s = 1:ni
             if  iLevel.basis.csfs[s].J != iLevel.J  ||  iLevel.basis.csfs[s].parity  != iLevel.parity    continue    end
             subshellList = fLevel.basis.subshells
-            opa = SpinAngularNew.OneParticleOperator(Mp.L, Basics.multipoleParity(Mp))
-            wa  = SpinAngularNew.computeCoefficients(opa, fLevel.basis.csfs[r], iLevel.basis.csfs[s], subshellList)
+            opa = SpinAngular.OneParticleOperator(Mp.L, Basics.multipoleParity(Mp))
+            wa  = SpinAngular.computeCoefficients(opa, fLevel.basis.csfs[r], iLevel.basis.csfs[s], subshellList)
             me = 0.
             for  coeff in wa
                 MabEm = InteractionStrength.MabEmission(Mp, gauge, omega, fLevel.basis.orbitals[coeff.a],

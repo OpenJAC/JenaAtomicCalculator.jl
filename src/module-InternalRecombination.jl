@@ -36,7 +36,7 @@ module InternalRecombination
 
 
 using  Printf, ..AngularMomentum, ..Basics, ..Bsplines, ..Defaults, ..InteractionStrength, ..ManyElectron, ..Nuclear,
-                ..Radial, ..SpinAngular, ..TableStrings
+                ..Radial, ..TableStrings
 
 """
 `struct  InternalRecombination.Settings  <:  AbstractProcessSettings`  

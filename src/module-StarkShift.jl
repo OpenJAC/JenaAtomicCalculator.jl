@@ -23,7 +23,7 @@ module StarkShift
 
 
 using Printf, ..AngularMomentum, ..Basics, ..Defaults, ..InteractionStrength, ..ManyElectron, ..MultipoleMoment,
-              ..MultipolePolarizibility, ..Nuclear, ..Radial, ..SpinAngular, ..TableStrings
+              ..MultipolePolarizibility, ..Nuclear, ..Radial, ..TableStrings
 
 
 """

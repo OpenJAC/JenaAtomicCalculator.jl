@@ -10,7 +10,7 @@
         available from a JAC computation (Eq. (3)), reusing
         AngularMomentum.CL_reduced_me(...) (one-electron reduced matrix elements of C^(k),
         with the l_a+l_b+k parity selection rule of Eq. (5) built in),
-        SpinAngularNew.computeCoefficients(...) (many-electron spin-angular coefficients of a
+        SpinAngular.computeCoefficients(...) (many-electron spin-angular coefficients of a
         one-particle tensor operator) and RadialIntegrals.rkDiagonal(...) (the radial moment
         <r^k>_ab, valid for point charges outside the electron shell, i.e. the r<R branch of
         Eq. (2)), following the same architecture as Hfs.jl.
@@ -42,7 +42,7 @@
 module CrystalField
 
 
-using LinearAlgebra, Printf, ..AngularMomentum, ..Basics, ..Defaults, ..ManyElectron, ..Radial, ..RadialIntegrals, ..SpinAngularNew
+using LinearAlgebra, Printf, ..AngularMomentum, ..Basics, ..Defaults, ..ManyElectron, ..Radial, ..RadialIntegrals, ..SpinAngular
 
 
 #################################################################################################################################
@@ -342,13 +342,13 @@ end
 `CrystalField.reducedMatrixElement(k::Int64, rLevel::Level, sLevel::Level, grid::Radial.Grid)`
     ... computes the rank-k reduced matrix element <rLevel||C^(k)||sLevel> between two ASF levels,
         by looping over all CSF pairs of the two levels' own basis, obtaining the many-electron
-        spin-angular coefficients from SpinAngularNew.computeCoefficients(...) for a
-        SpinAngularNew.OneParticleOperator(k, ...), contracting each with
+        spin-angular coefficients from SpinAngular.computeCoefficients(...) for a
+        SpinAngular.OneParticleOperator(k, ...), contracting each with
         CrystalField.electrostaticIntegral(...) and finally sandwiching the resulting CSF x CSF
         matrix between the two levels' mixing vectors -- following exactly the pattern of
         Hfs.amplitude (module-Hfs.jl). As in Hfs.amplitude, each coeff.T is divided by
         sqrt(2*j_a+1) to undo the internal "GRASP-like" normalization that
-        SpinAngularNew.computeCoefficients applies for rank>0 one-particle operators (see the note on
+        SpinAngular.computeCoefficients applies for rank>0 one-particle operators (see the note on
         Hfs.amplitude). No same-parity restriction is imposed here: for odd k the l_a+l_b+k
         selection rule already built into CL_reduced_me allows rLevel and sLevel to belong to
         different overall parities, which is exactly the "ASF mixing with different parities"
@@ -362,11 +362,11 @@ end
 function reducedMatrixElement(k::Int64, rLevel::Level, sLevel::Level, grid::Radial.Grid)
     nr = length(rLevel.basis.csfs);   ns = length(sLevel.basis.csfs)
     matrix = zeros(Float64, nr, ns)
-    opa    = SpinAngularNew.OneParticleOperator(k, Basics.multipoleParity(EmMultipole(k, true)))
+    opa    = SpinAngular.OneParticleOperator(k, Basics.multipoleParity(EmMultipole(k, true)))
     for  r = 1:nr
         for  s = 1:ns
             subshellList = sLevel.basis.subshells
-            wa = SpinAngularNew.computeCoefficients(opa, rLevel.basis.csfs[r], sLevel.basis.csfs[s], subshellList)
+            wa = SpinAngular.computeCoefficients(opa, rLevel.basis.csfs[r], sLevel.basis.csfs[s], subshellList)
             me = 0.
             for  coeff in wa
                 ja2  = Basics.subshell_2j(coeff.a)

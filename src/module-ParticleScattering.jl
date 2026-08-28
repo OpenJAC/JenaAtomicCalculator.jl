@@ -23,7 +23,7 @@ module ParticleScattering
 
 using  Printf, GSL, QuadGK, SpecialFunctions,
         ..AngularMomentum, ..Basics, ..Beam, ..Bsplines, ..Continuum, ..Defaults, ..InteractionStrength, ..ManyElectron,
-        ..Nuclear, ..PhotoEmission, ..Radial, ..RadialIntegrals, ..SpinAngular, ..TableStrings
+        ..Nuclear, ..PhotoEmission, ..Radial, ..RadialIntegrals, ..TableStrings
 
 
 # The data structures come first: Settings below refers to them in its field types, and a struct cannot name a type

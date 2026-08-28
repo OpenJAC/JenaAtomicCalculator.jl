@@ -32,7 +32,7 @@
 module WeakInteractionMoment
 
 
-using  Printf, ..AngularMomentum, ..Basics, ..Defaults, ..ManyElectron, ..Nuclear, ..Radial, ..SpinAngularNew
+using  Printf, ..AngularMomentum, ..Basics, ..Defaults, ..ManyElectron, ..Nuclear, ..Radial, ..SpinAngular
 
 
 """
@@ -172,7 +172,7 @@ end
     ... to contract a one-electron kernel with the spin-angular coefficients of the two levels and with their mixing coefficients, giving
         the many-electron REDUCED matrix element <alpha_f J_f || H || alpha_i J_i>.  A value::ComplexF64 is returned.
 
-        `SpinAngularNew.computeCoefficients` does NOT return its coefficients in one normalization, and the difference is exactly what this
+        `SpinAngularGaigalas.computeCoefficients` does NOT return its coefficients in one normalization, and the difference is exactly what this
         function has to absorb.  For rank >= 1 (`computeCoefficientsNonScalar`) the contraction yields the reduced matrix element up to a
         factor sqrt(2J_f+1); for rank 0 (`computeCoefficientsScalar`) it yields the ORDINARY matrix element, as it must, since its main
         client is the one-body Hamiltonian -- and the reduced one then follows from the Wigner-Eckart theorem as sqrt(2J_f+1) times it.
@@ -192,8 +192,8 @@ function oneParticleAmplitude(rank::Int64, kernel::Function, finalLevel::Level, 
         for  s = 1:ni
             if  fLevel.mc[r] == 0.  ||  iLevel.mc[s] == 0.    continue    end
             # the parity field of OneParticleOperator is not read by SpinAngular; plus is used, as by every other caller
-            opa = SpinAngularNew.OneParticleOperator(rank, Basics.minus)
-            wa  = SpinAngularNew.computeCoefficients(opa, fLevel.basis.csfs[r], iLevel.basis.csfs[s], iLevel.basis.subshells)
+            opa = SpinAngular.OneParticleOperator(rank, Basics.minus)
+            wa  = SpinAngular.computeCoefficients(opa, fLevel.basis.csfs[r], iLevel.basis.csfs[s], iLevel.basis.subshells)
             for  coeff in wa
                 matrix[r,s] = matrix[r,s] + coeff.T * kernel(fLevel.basis.orbitals[coeff.a], iLevel.basis.orbitals[coeff.b])
             end

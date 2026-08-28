@@ -49,7 +49,7 @@ module CoulombIonization
 
 
 using  Printf, ..AngularMomentum, ..Basics, ..Continuum, ..CoulombExcitation, ..Defaults, ..ManyElectron, ..Nuclear,
-       ..Radial, ..RadialIntegrals, ..SpinAngular, ..TableStrings
+       ..Radial, ..RadialIntegrals, ..TableStrings
 
 ## The reduced matrix elements and the projectile velocity are TAKEN FROM CoulombExcitation rather than copied.
 ## The theory is the same one -- Surzhykov et al., Phys. Rev. A 77, 042722 (2008), Eq. (8) -- and the corrections

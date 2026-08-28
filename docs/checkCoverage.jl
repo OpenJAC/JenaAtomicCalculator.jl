@@ -101,7 +101,7 @@ end
 ## rather than in anyone's memory, so the decision stays visible and can be revisited. Adding an entry to make a message
 ## go away, rather than because the maintainer decided it, is the misuse this comment exists to name.
 const WITHHELD = Dict(
-    "SpinAngularNew" => "maintainer, 26-Aug-2026: not published before the sqrt(2j+1) convention migration (Rule 19) " *
+    "SpinAngular" => "maintainer, 26-Aug-2026: not published before the sqrt(2j+1) convention migration (Rule 19) " *
                         "is done, and then only the functions other modules actually call -- today nothing in src/ " *
                         "calls it, so the published set would be empty in any case." )
 

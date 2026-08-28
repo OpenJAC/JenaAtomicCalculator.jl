@@ -1,23 +1,23 @@
-# Compare SpinAngular against SpinAngularNew, coefficient by coefficient, on bases chosen so that the
+# Compare SpinAngularGaigalas against SpinAngular, coefficient by coefficient, on bases chosen so that the
 # comparison CAN FAIL.  Written 27-Aug-2026 after three caller swaps passed a verification set that could not.
 #
 # THE TWO THINGS A NAIVE CHECK MISSES, both of which cost a day:
 #   1. a SAME-KAPPA, DIFFERENT-n substitution with l >= 1.  Two s subshells of different n have no subshell
 #      between them, so l = 0 exercises nothing; `3d^2 + 3d 4d` exposes 26 coefficients at once.
-#   2. a subshell with j > 9/2.  SpinAngular's quasispin/CFP tables stop at j = 9/2, and SpinAngularNew reaches
+#   2. a subshell with j > 9/2.  SpinAngularGaigalas's quasispin/CFP tables stop at j = 9/2, and SpinAngular reaches
 #      into them; past that the lookup threw a BoundsError that was swallowed into a 0, so every two-particle
 #      coefficient moving an electron into or out of a high-j subshell vanished.  Bound configurations up to
 #      3d reach only j = 5/2 and nu <= 4 and cannot see it; a continuum partial wave reaches j = 21/2.  The
 #      `1s^2 5g + 1s 2p 6h` and `1s^2 6h + 1s 2p 7i` bases are TWO-ELECTRON MOVES onto a j >= 11/2 subshell,
 #      which is the shape that failed.
-#   3. CROSS-SYMMETRY CSF pairs.  SpinAngular ignores its own parity argument and emits rank-0 coefficients
-#      between opposite-parity CSFs, which a scalar operator cannot connect; SpinAngularNew omits them and is
+#   3. CROSS-SYMMETRY CSF pairs.  SpinAngularGaigalas ignores its own parity argument and emits rank-0 coefficients
+#      between opposite-parity CSFs, which a scalar operator cannot connect; SpinAngular omits them and is
 #      right.  A same-symmetry-only comparison hides the whole class.
 #
 # Run:  julia --project=. tools/diag-spinangular-compare.jl
 using Printf, JenaAtomicCalculator
 const B = JenaAtomicCalculator.Basics
-const SA = JenaAtomicCalculator.SpinAngular;  const SAN = JenaAtomicCalculator.SpinAngularNew
+const SA = JenaAtomicCalculator.SpinAngularGaigalas;  const SAN = JenaAtomicCalculator.SpinAngular
 
 const BASES = [("Be   2s^2 + 2p^2",            ["1s^2 2s^2", "1s^2 2p^2"]),
                ("C    2s^2 2p^2 + 2s 2p^3",    ["1s^2 2s^2 2p^2", "1s^2 2s^1 2p^3"]),
@@ -66,9 +66,9 @@ function compare(label, confs)
     end
 end
 
-println("SpinAngular vs SpinAngularNew, rank 0.  'miss' = emitted by SpinAngular only; 'extra' = by SpinAngularNew only.")
+println("SpinAngularGaigalas vs SpinAngular, rank 0.  'miss' = emitted by SpinAngularGaigalas only; 'extra' = by SpinAngular only.")
 println("EXPECTED: all zero on same-symmetry pairs.  On cross-symmetry pairs a non-zero 1p 'miss' is CORRECT --")
-println("those are the parity-forbidden terms SpinAngular emits and SpinAngularNew rightly does not.\n")
+println("those are the parity-forbidden terms SpinAngularGaigalas emits and SpinAngular rightly does not.\n")
 const REACH = Dict("j2" => 0, "nu" => -1)
 
 function coverage(confs)

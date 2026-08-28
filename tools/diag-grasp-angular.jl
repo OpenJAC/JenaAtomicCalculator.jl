@@ -32,7 +32,7 @@
 #     k=2  R^2(2p_1/2, 2p_1/2, 2p_3/2, 2p_3/2)   JAC -0.10000000   GRASP -0.14472136
 # Its partner state agrees with GRASP on all six of its shared coefficients, which rules out a basis rotation: were
 # the two codes carrying different bases of that subspace, one basis vector coinciding exactly would force the other
-# to coincide too. Both JAC modules -- SpinAngular and the independently derived SpinAngularNew -- give the same
+# to coincide too. Both JAC modules -- SpinAngular and the independently derived SpinAngular -- give the same
 # values, and the condition (two CSFs differing only in seniority) is exactly the one librang90's own ReadMe names
 # and that branch k of examples/example-Aq.jl documents. This is that defect, in a second configuration.
 #

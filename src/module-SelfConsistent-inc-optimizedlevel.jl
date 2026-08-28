@@ -7,7 +7,7 @@
 `SelfConsistent.cacheCsfPairCoefficientsEOL(sym::LevelSymmetry, basis::Basis)`
     ... caches, for every CSF pair (r,s) with symmetry sym in the given basis, the pure spin-angular
         coefficients (independent of the orbitals/radial functions) as returned by
-        SpinAngularNew.computeCoefficientsScalar -- the same call Hamiltonian.setupMatrix/setupMatrixKinkAware
+        SpinAngular.computeCoefficientsScalar -- the same call Hamiltonian.setupMatrix/setupMatrixKinkAware
         make internally to build the CI Hamiltonian matrix. Here the intermediate coefficient lists are
         retained instead of being discarded, so they can be reused across the whole EOL outer SCF+CI loop
         (they depend only on the fixed CSF list, never on the current orbitals). A tuple
@@ -21,19 +21,15 @@ function cacheCsfPairCoefficientsEOL(sym::LevelSymmetry, basis::Basis)
     end
     n = length(idxCsf)
 
-    cache1p = Dict{Tuple{Int64,Int64}, Array{SpinAngular.Coefficient1p,1}}()
-    cache2p = Dict{Tuple{Int64,Int64}, Array{SpinAngular.Coefficient2p,1}}()
+    cache1p = Dict{Tuple{Int64,Int64}, Array{Coefficient1p,1}}()
+    cache2p = Dict{Tuple{Int64,Int64}, Array{Coefficient2p,1}}()
     for  r = 1:n
         for  s = 1:n
             csfR = basis.csfs[idxCsf[r]];   csfS = basis.csfs[idxCsf[s]]
-            # The caches are typed on SpinAngular.Coefficient*, which stay as the data carriers for now, so the
-            # coefficients are rebuilt on the way in; only the COMPUTATION moves to SpinAngularNew.
-            cache1p[(r,s)] = [ SpinAngular.Coefficient1p(c.nu, c.a, c.b, c.T)  for c in
-                               SpinAngularNew.computeCoefficientsScalar(SpinAngularNew.OneParticleOperator(0, Basics.plus),
-                                                                    csfR, csfS, basis.subshells) ]
-            cache2p[(r,s)] = [ SpinAngular.Coefficient2p(c.nu, c.a, c.b, c.c, c.d, c.V)  for c in
-                               SpinAngularNew.computeCoefficients(SpinAngularNew.TwoParticleOperator(0, Basics.plus),
-                                                                    csfR, csfS, basis.subshells) ]
+            cache1p[(r,s)] = SpinAngular.computeCoefficientsScalar(SpinAngular.OneParticleOperator(0, Basics.plus),
+                                                                    csfR, csfS, basis.subshells)
+            cache2p[(r,s)] = SpinAngular.computeCoefficients(SpinAngular.TwoParticleOperator(0, Basics.plus),
+                                                                    csfR, csfS, basis.subshells)
         end
     end
 
@@ -200,7 +196,7 @@ function combineAngularCoefficientsEOL(blockCaches, targetLevels::Array{Level,1}
     sumWeights  = sum( twiceJp1(level.J)  for level in targetLevels )
     weights     = [ twiceJp1(level.J) / sumWeights  for level in targetLevels ]
 
-    coeffs1p = SpinAngular.Coefficient1p[];   coeffs2p = SpinAngular.Coefficient2p[]
+    coeffs1p = Coefficient1p[];   coeffs2p = Coefficient2p[]
     for  (_, (idxCsf, cache1p, cache2p))  in  blockCaches
         n = length(idxCsf)
         for  r = 1:n
@@ -214,15 +210,15 @@ function combineAngularCoefficientsEOL(blockCaches, targetLevels::Array{Level,1}
                 drs = 0.
                 for  (i, level)  in  enumerate(targetLevels)    drs = drs + weights[i] * level.mc[idxCsf[r]] * level.mc[idxCsf[s]]    end
                 if  drs == 0.    continue    end
-                for  cf in cache1p[(r,s)]   push!(coeffs1p, SpinAngular.Coefficient1p(cf.nu, cf.a, cf.b, cf.T * drs) )   end
-                for  cf in cache2p[(r,s)]   push!(coeffs2p, SpinAngular.Coefficient2p(cf.nu, cf.a, cf.b, cf.c, cf.d, cf.V * drs) )   end
+                for  cf in cache1p[(r,s)]   push!(coeffs1p, Coefficient1p(cf.nu, cf.a, cf.b, cf.T * drs) )   end
+                for  cf in cache2p[(r,s)]   push!(coeffs2p, Coefficient2p(cf.nu, cf.a, cf.b, cf.c, cf.d, cf.V * drs) )   end
             end
         end
     end
 
     # Condense angular coefficients if they refer to the same set of orbitals -- identical to
     # SelfConsistent.computeAngularCoefficients' own condensation tail.
-    coeffs1px = SpinAngular.Coefficient1p[];     coeffs2px = SpinAngular.Coefficient2p[]
+    coeffs1px = Coefficient1p[];     coeffs2px = Coefficient2p[]
 
     hasConsidered = falses( length(coeffs1p) );   T = 0.
     for  (ic, cf) in enumerate(coeffs1p)
@@ -234,7 +230,7 @@ function combineAngularCoefficientsEOL(blockCaches, targetLevels::Array{Level,1}
                 elseif  nu == cfx.nu  &&  a == cfx.a  &&  b == cfx.b    T = T + cfx.T;    hasConsidered[icx] = true
                 end
             end
-            push!(coeffs1px, SpinAngular.Coefficient1p(nu, a, b, T) );  T = 0.
+            push!(coeffs1px, Coefficient1p(nu, a, b, T) );  T = 0.
         end
     end
 
@@ -250,7 +246,7 @@ function combineAngularCoefficientsEOL(blockCaches, targetLevels::Array{Level,1}
                         V  = V + cfx.V;    hasConsidered[icx] = true
                 end
             end
-            push!(coeffs2px, SpinAngular.Coefficient2p(nu, a, b, c, d, V) );   V = 0.
+            push!(coeffs2px, Coefficient2p(nu, a, b, c, d, V) );   V = 0.
         end
     end
 
@@ -260,7 +256,7 @@ end
 
 """
 `SelfConsistent.energyFromBVectors(bVectors::Dict{Subshell, Vector{Float64}},
-        coeffs1p::Array{SpinAngular.Coefficient1p,1}, coeffs2p::Array{SpinAngular.Coefficient2p,1},
+        coeffs1p::Array{Coefficient1p,1}, coeffs2p::Array{Coefficient2p,1},
         subshells::Array{Subshell,1}, primitives::Bsplines.Primitives, grid::Radial.Grid,
         nucPot::Radial.Potential)`  
     ... the EOL energy as a plain scalar function of the orbital B-spline coefficient vectors, with the
@@ -270,8 +266,8 @@ end
         is the inconsistency the rotation-based path exists to remove. A value::Float64 is returned.
 """
 function energyFromBVectors(bVectors::Dict{Subshell, Vector{Float64}},
-                                   coeffs1p::Array{SpinAngular.Coefficient1p,1},
-                                   coeffs2p::Array{SpinAngular.Coefficient2p,1},
+                                   coeffs1p::Array{Coefficient1p,1},
+                                   coeffs2p::Array{Coefficient2p,1},
                                    subshells::Array{Subshell,1}, primitives::Bsplines.Primitives,
                                    grid::Radial.Grid, nucPot::Radial.Potential)
     orbitals = Dict{Subshell, Orbital}()
@@ -412,7 +408,7 @@ end
 
 """
 `SelfConsistent.computeOrbitalGradient(bVectors::Dict{Subshell, Vector{Float64}},
-        coeffs1p::Array{SpinAngular.Coefficient1p,1}, coeffs2p::Array{SpinAngular.Coefficient2p,1},
+        coeffs1p::Array{Coefficient1p,1}, coeffs2p::Array{Coefficient2p,1},
         subshells::Array{Subshell,1}, primitives::Bsplines.Primitives, nucPot::Radial.Potential,
         storage::Dict{String,Array{Float64,2}})`  
     ... the ANALYTIC gradient dE/db_a of the same energy that energyFromBVectors evaluates, for every
@@ -425,8 +421,8 @@ end
         A Dict{Subshell, Vector{Float64}} is returned.
 """
 function computeOrbitalGradient(bVectors::Dict{Subshell, Vector{Float64}},
-                                       coeffs1p::Array{SpinAngular.Coefficient1p,1},
-                                       coeffs2p::Array{SpinAngular.Coefficient2p,1},
+                                       coeffs1p::Array{Coefficient1p,1},
+                                       coeffs2p::Array{Coefficient2p,1},
                                        subshells::Array{Subshell,1}, primitives::Bsplines.Primitives,
                                        nucPot::Radial.Potential, storage::Dict{String,Array{Float64,2}})
     nsL = primitives.grid.nsL;    nsS = primitives.grid.nsS
@@ -523,8 +519,8 @@ end
 
 """
 `SelfConsistent.gradientByFiniteDifference(bVectors::Dict{Subshell, Vector{Float64}},
-        virtuals::Dict{Subshell, Array{Vector{Float64},1}}, coeffs1p::Array{SpinAngular.Coefficient1p,1},
-        coeffs2p::Array{SpinAngular.Coefficient2p,1}, subshells::Array{Subshell,1},
+        virtuals::Dict{Subshell, Array{Vector{Float64},1}}, coeffs1p::Array{Coefficient1p,1},
+        coeffs2p::Array{Coefficient2p,1}, subshells::Array{Subshell,1},
         primitives::Bsplines.Primitives, grid::Radial.Grid, nucPot::Radial.Potential; hStep::Float64=1.0e-4)`  
     ... the gradient of the EOL energy with respect to the allowed orbital rotations, by central finite
         differences. Slow but free of any derivation, so it is the reference against which an analytic
@@ -534,8 +530,8 @@ end
 """
 function gradientByFiniteDifference(bVectors::Dict{Subshell, Vector{Float64}},
                                            virtuals::Dict{Subshell, Array{Vector{Float64},1}},
-                                           coeffs1p::Array{SpinAngular.Coefficient1p,1},
-                                           coeffs2p::Array{SpinAngular.Coefficient2p,1},
+                                           coeffs1p::Array{Coefficient1p,1},
+                                           coeffs2p::Array{Coefficient2p,1},
                                            subshells::Array{Subshell,1}, primitives::Bsplines.Primitives,
                                            grid::Radial.Grid, nucPot::Radial.Potential; hStep::Float64=1.0e-4)
     grad = Dict{Subshell, Vector{Float64}}()
@@ -1065,8 +1061,8 @@ function solveOptimizedLevelField(basis::Basis, nuclearModel::Nuclear.Model, pri
 
     # (2) Cache the (orbital-independent) per-CSF-pair angular coefficients once for every relevant block
     if  printout    println(">> [EOL] Caching per-CSF-pair angular coefficients for symmetries $(relevantSyms) ...")    end
-    blockCaches = Dict{LevelSymmetry, Tuple{Array{Int64,1}, Dict{Tuple{Int64,Int64},Array{SpinAngular.Coefficient1p,1}},
-                                             Dict{Tuple{Int64,Int64},Array{SpinAngular.Coefficient2p,1}}}}()
+    blockCaches = Dict{LevelSymmetry, Tuple{Array{Int64,1}, Dict{Tuple{Int64,Int64},Array{Coefficient1p,1}},
+                                             Dict{Tuple{Int64,Int64},Array{Coefficient2p,1}}}}()
     for  sym  in  relevantSyms
         blockCaches[sym] = SelfConsistent.cacheCsfPairCoefficientsEOL(sym, basis)
     end
@@ -1098,7 +1094,7 @@ function solveOptimizedLevelField(basis::Basis, nuclearModel::Nuclear.Model, pri
         (coeffs1pOff, coeffs2pOff) = SelfConsistent.combineAngularCoefficientsEOL(blockCaches, targetLevels; pairs=:offdiagonal)
     else
         (coeffs1p, coeffs2p)       = SelfConsistent.combineAngularCoefficientsEOL(blockCaches, targetLevels)
-        coeffs2pOff                = SpinAngular.Coefficient2p[]
+        coeffs2pOff                = Coefficient2p[]
     end
     genOcc = SelfConsistent.computeGeneralizedOccupationEOL(blockCaches, targetLevels, basis)
 
@@ -1244,7 +1240,7 @@ function solveOptimizedLevelField(basis::Basis, nuclearModel::Nuclear.Model, pri
             (coeffs1pOff, coeffs2pOff) = SelfConsistent.combineAngularCoefficientsEOL(blockCaches, dampedLevels; pairs=:offdiagonal)
         else
             (coeffs1p, coeffs2p)       = SelfConsistent.combineAngularCoefficientsEOL(blockCaches, dampedLevels)
-            coeffs2pOff                = SpinAngular.Coefficient2p[]
+            coeffs2pOff                = Coefficient2p[]
         end
         genOcc = SelfConsistent.computeGeneralizedOccupationEOL(blockCaches, dampedLevels, basis)
 

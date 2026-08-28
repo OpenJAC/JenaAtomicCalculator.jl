@@ -38,7 +38,7 @@ if      char == 'A'
     println("An) Apply & test the bi-orthogonal transformation of two independently-generated multiplets.")
     println("Ao) Apply & test the average-level (AL) and optimized-level (EOL) self-consistent fields, and where they differ.")
     println("Ap) Apply & test the three-parameter Fermi nucleus: the shape of the nuclear charge distribution.")
-    println("Aq) Compare the spin-angular coefficients of SpinAngularNew against SpinAngular and against GRASP2018.")
+    println("Aq) Compare the spin-angular coefficients of SpinAngular against SpinAngular and against GRASP2018.")
     #
 elseif  char == 'B'
     println("B)  Examples, tests & development of atomic amplitudes")

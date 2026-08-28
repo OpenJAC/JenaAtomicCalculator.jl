@@ -2,11 +2,11 @@
 #
 # Two-particle (electron-electron) coefficients.
 #
-# This file is included from module-SpinAngularNew.jl and shares its namespace.
+# This file is included from module-SpinAngular.jl and shares its namespace.
 #
 
 """
-`abstract type SpinAngularNew.AbstractTwoElectronKind`
+`abstract type SpinAngular.AbstractTwoElectronKind`
     ... defines an abstract type to distinguish WHICH two-electron radial quantity a two-particle coefficient is to be
         multiplied by. This is not a hypothetical hazard: JAC and GRASP2018 decompose the electron-electron interaction
         onto DIFFERENT quantities, so their coefficients are not comparable term by term, and a coefficient carried from
@@ -31,7 +31,7 @@ struct         GraspCoulombKind      <:  AbstractTwoElectronKind             end
 
 
 """
-`struct  SpinAngularNew.Coefficient2p{K<:AbstractTwoElectronKind}`
+`struct  SpinAngular.Coefficient2p{K<:AbstractTwoElectronKind}`
     ... a struct for a single spin-angular coefficient of a two-particle matrix element. As for the one-particle case the
         type parameter records which radial quantity the coefficient belongs to, so that mixing the two conventions has
         no method rather than a plausible value.
@@ -53,14 +53,14 @@ struct  Coefficient2p{K<:AbstractTwoElectronKind}
 end
 
 
-# `Base.show(io::IO, coeff::SpinAngularNew.Coefficient2p)`  ... prepares a proper printout of coeff.
-function Base.show(io::IO, coeff::SpinAngularNew.Coefficient2p{K})  where K<:AbstractTwoElectronKind
+# `Base.show(io::IO, coeff::SpinAngular.Coefficient2p)`  ... prepares a proper printout of coeff.
+function Base.show(io::IO, coeff::SpinAngular.Coefficient2p{K})  where K<:AbstractTwoElectronKind
     print(io, "   V^$(coeff.nu) [$(coeff.a), $(coeff.b); $(coeff.c), $(coeff.d)] = $(coeff.V)   ($(K.name.name))")
 end
 
 
 """
-`SpinAngularNew.toGraspCoulomb(coeff::SpinAngularNew.Coefficient2p{EffectiveStrengthKind})`
+`SpinAngular.toGraspCoulomb(coeff::SpinAngular.Coefficient2p{EffectiveStrengthKind})`
     ... to convert a coefficient of the effective strength X^L into the corresponding coefficient of GRASP's COULOMB
         convention, i.e. of the plain Slater integral R^k, by restoring the reduced C^k factors that X^L carries:
 
@@ -81,7 +81,7 @@ end
 
         A coeff::Coefficient2p{GraspCoulombKind} is returned.
 """
-function toGraspCoulomb(coeff::SpinAngularNew.Coefficient2p{EffectiveStrengthKind})
+function toGraspCoulomb(coeff::SpinAngular.Coefficient2p{EffectiveStrengthKind})
     wa = coeff.V * AngularMomentum.CL_reduced_me(coeff.a, coeff.nu, coeff.c) *
                    AngularMomentum.CL_reduced_me(coeff.b, coeff.nu, coeff.d)
     if  isodd(coeff.nu)    wa = -wa    end
@@ -91,7 +91,7 @@ end
 
 
 """
-`SpinAngularNew.computeCoefficients(op::SpinAngularNew.TwoParticleOperator, leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1})`
+`SpinAngular.computeCoefficients(op::SpinAngular.TwoParticleOperator, leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1})`
     ... to compute the spin-angular coefficients of the two-particle (electron-electron) interaction for a DIAGONAL CSF
         pair, in JAC's convention, i.e. as coefficients of the effective strength X^L. A list
         coeffs::Array{Coefficient2p{EffectiveStrengthKind},1} is returned.
@@ -111,10 +111,10 @@ end
 coeffs2pEmpty() = Coefficient2p{EffectiveStrengthKind}[]
 
 
-function computeCoefficients(op::SpinAngularNew.TwoParticleOperator, leftCsf::CsfR, rightCsf::CsfR,
+function computeCoefficients(op::SpinAngular.TwoParticleOperator, leftCsf::CsfR, rightCsf::CsfR,
                              subshells::Array{Subshell,1})
     if  op.rank != 0
-        error("\n\nSpinAngularNew.computeCoefficients: only the scalar (rank-0) two-particle operator is defined.\n")
+        error("\n\nSpinAngular.computeCoefficients: only the scalar (rank-0) two-particle operator is defined.\n")
     end
     # EQUAL OCCUPATIONS are required; the couplings may differ. Each term is bra/ket aware -- the direct and
     # exchange terms through `substitutionRecoupling`, the same-subshell term through its own orthogonality guard --
@@ -149,7 +149,7 @@ function computeCoefficients(op::SpinAngularNew.TwoParticleOperator, leftCsf::Cs
         # ... every occupation pattern a two-body operator can connect is handled above; anything reaching here is a
         #     pattern that should not exist, so it raises rather than returning an empty list that would look like a
         #     legitimate zero.
-        error("\n\nSpinAngularNew.computeCoefficients (two-particle): unreachable occupation pattern, "  *
+        error("\n\nSpinAngular.computeCoefficients (two-particle): unreachable occupation pattern, "  *
               "count = $(count(!=(0), diff)), sum = $(sum(abs, diff)).\n")
     end
 
@@ -187,7 +187,7 @@ function computeCoefficients(op::SpinAngularNew.TwoParticleOperator, leftCsf::Cs
 end
 
 """
-`SpinAngularNew.twoParticleDirect(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, ia::Int64, ib::Int64, k::Int64)`
+`SpinAngular.twoParticleDirect(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, ia::Int64, ib::Int64, k::Int64)`
     ... to compute the DIRECT two-particle coefficient V^k(a,b;a,b) for two distinct open subshells `ia` and `ib`, in
         the effective-strength convention. The direct part of the electron-electron interaction is the scalar product
         of two rank-k tensors, one on each subshell, so it is built from the same pieces as the one-particle case:
@@ -200,7 +200,7 @@ end
 
         THE NORMALIZATION WAS CALIBRATED AND THEN TESTED OUT OF SAMPLE. Four values of 1s 2s fixed the two factors;
         twenty further coefficients of 1s 2p, 2s 3d and 1s 3d, spanning J = 0, 1, 2, 3 and j = 1/2, 3/2, 5/2, then
-        reproduced SpinAngular exactly, every ratio 1.0000000.
+        reproduced SpinAngularGaigalas exactly, every ratio 1.0000000.
 
         ITS REACH WAS MEASURED, NOT ASSUMED. Applied to EVERY pair of distinct subshells, classified by occupation,
         it is exact in all four classes: closed/closed (19), closed/open (9), closed/single (72), single/single (68) --
@@ -229,14 +229,14 @@ function twoParticleDirect(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subsh
 end
 
 """
-`SpinAngularNew.twoParticleExchange(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, ia::Int64, ib::Int64, k::Int64)`
+`SpinAngular.twoParticleExchange(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, ia::Int64, ib::Int64, k::Int64)`
     ... to compute the EXCHANGE two-particle coefficient V^k(a,b;b,a) for two distinct subshells at ANY occupations,
         in the effective-strength convention. The exchange channel is not the direct one relabelled: it expands over
         the direct channel at intermediate ranks, by the Racah transformation between the two coupling schemes,
 
             V^k(a,b;b,a)  =  SUM_K  (2K+1) { j_a  j_b  k ;  j_b  j_a  K }  V^K(a,b;a,b)
 
-        so it needs no machinery of its own -- `SpinAngularNew.twoParticleDirect` supplies every term of the sum.
+        so it needs no machinery of its own -- `SpinAngular.twoParticleDirect` supplies every term of the sum.
 
         HOW THE FORM WAS ARRIVED AT, since a fitted 6j would be worth little. For singly occupied subshells the sum
         collapses to one symbol, and that collapsed case was settled first BY ELIMINATION: of five candidate 6j
@@ -264,8 +264,8 @@ function twoParticleExchange(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Sub
 end
 
 """
-`SpinAngularNew.shellReducedWByIndex(j::AngularJ64, Nbra::Int64, ibra::Int64, Nket::Int64, iket::Int64, kj::Int64)`
-    ... as `SpinAngularNew.shellReducedW`, but addressing the two shell terms by their quasispin INDEX rather than by
+`SpinAngular.shellReducedWByIndex(j::AngularJ64, Nbra::Int64, ibra::Int64, Nket::Int64, iket::Int64, kj::Int64)`
+    ... as `SpinAngular.shellReducedW`, but addressing the two shell terms by their quasispin INDEX rather than by
         seniority and J. Needed because the two-body assembly sums over INTERMEDIATE shell terms, which are naturally
         enumerated by index. A value::Float64 is returned.
 """
@@ -286,7 +286,7 @@ end
 
 
 """
-`SpinAngularNew.shellWW(j::AngularJ64, N::Int64, ibra::Int64, iket::Int64, kj::Int64)`
+`SpinAngular.shellWW(j::AngularJ64, N::Int64, ibra::Int64, iket::Int64, kj::Int64)`
     ... to compute the TWO-body quasispin object <j^N || (W^(k) W^(k))^(0) || j^N> within one subshell, as a closure
         sum over the shell's own intermediate terms:
 
@@ -298,7 +298,7 @@ end
         THIS IS NOT THE SAME-SUBSHELL COEFFICIENT, and mistaking it for one cost two failed attempts. Compared
         directly against the coefficient it disagrees everywhere -- for j = 3/2, N = 2, J = 0 the coefficient is 0.25
         at every rank while this object gives 1.0, 0, 2.236, 0. The object was right; what was missing was the factor
-        of one half and the normal-ordering subtraction that `SpinAngularNew.twoParticleSameShell` supplies.
+        of one half and the normal-ordering subtraction that `SpinAngular.twoParticleSameShell` supplies.
 
         A value::Float64 is returned.
 """
@@ -320,7 +320,7 @@ end
 
 
 """
-`SpinAngularNew.twoParticleSameShell(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, ia::Int64, k::Int64)`
+`SpinAngular.twoParticleSameShell(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, ia::Int64, k::Int64)`
     ... to compute the SAME-SUBSHELL two-particle coefficient V^k(a,a;a,a), in the effective-strength convention:
 
             V^k(a,a;a,a)  =  0.5 * ( WW(k)/sqrt(2k+1)  -  (-1)^(2j+k) W(0)/sqrt(2j+1) ) / sqrt(2J+1)
@@ -344,7 +344,7 @@ function twoParticleSameShell(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Su
     # subshell must be in an identical state, and the running couplings X must agree throughout, or the two CSFs are
     # orthogonal and the element vanishes. Without this the routine returns the DIAGONAL value on a pair that differs
     # only in another subshell's coupling -- which is exactly the defect this module documents in GRASP2018 at
-    # example-Aq.jl branch k, and it was present here until measured against SpinAngular on off-diagonal pairs.
+    # example-Aq.jl branch k, and it was present here until measured against SpinAngularGaigalas on off-diagonal pairs.
     if  leftCsf.subshellX != rightCsf.subshellX  ||  leftCsf.subshellJ != rightCsf.subshellJ
         return( 0.0 )
     end
@@ -363,7 +363,7 @@ function twoParticleSameShell(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Su
 end
 
 """
-`SpinAngularNew.twoParticleDirectVector(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, ia::Int64, ib::Int64, kMax::Int64)`
+`SpinAngular.twoParticleDirectVector(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, ia::Int64, ib::Int64, kMax::Int64)`
     ... to compute the direct coefficients V^K(a,b;a,b) for every rank K = 0 ... kMax at once. A
         vector::Array{Float64,1} indexed as K+1 is returned.
 
@@ -379,12 +379,12 @@ end
 
 
 """
-`SpinAngularNew.exchangeFromDirect(direct::Array{Float64,1}, ja::AngularJ64, jb::AngularJ64, k::Int64)`
+`SpinAngular.exchangeFromDirect(direct::Array{Float64,1}, ja::AngularJ64, jb::AngularJ64, k::Int64)`
     ... to form the exchange coefficient at rank k from a direct vector already computed, by the Racah transformation
 
             V^k(a,b;b,a)  =  SUM_K  (2K+1) { j_a  j_b  k ;  j_b  j_a  K }  V^K(a,b;a,b)
 
-        This is the same expression `SpinAngularNew.twoParticleExchange` evaluates; the difference is only that the
+        This is the same expression `SpinAngular.twoParticleExchange` evaluates; the difference is only that the
         direct vector is supplied rather than recomputed. A value::Float64 is returned.
 """
 function exchangeFromDirect(direct::Array{Float64,1}, ja::AngularJ64, jb::AngularJ64, k::Int64)
@@ -399,11 +399,11 @@ end
 
 
 """
-`SpinAngularNew.moveOnePrimaryVector(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, iCre::Int64, iAnn::Int64, iSpec::Int64, kMax::Int64, wCre::Float64, wAnn::Float64)`
+`SpinAngular.moveOnePrimaryVector(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, iCre::Int64, iAnn::Int64, iSpec::Int64, kMax::Int64, wCre::Float64, wAnn::Float64)`
     ... to compute the primary one-electron-move coefficients for ALL ranks 0 ... kMax of one spectator subshell at once,
         returning them as a vector. Only the spectator's own rank changes with k: the ordering of the three acting
         subshells along the chain, and their places in it, do not -- so they are formed once and the rank vectors are
-        REUSED rather than rebuilt for every rank. This is the same reason `SpinAngularNew.twoParticleDirectVector`
+        REUSED rather than rebuilt for every rank. This is the same reason `SpinAngular.twoParticleDirectVector`
         exists for the equal-occupation case, and it is worth doing for the same reason: the work is unchanged and the
         allocation is not. A vector prim::Array{Float64,1} is returned.
 """
@@ -449,7 +449,7 @@ end
 
 
 """
-`SpinAngularNew.moveOneQuads(subshells::Array{Subshell,1}, iCre::Int64, iAnn::Int64, iSpec::Int64)`
+`SpinAngular.moveOneQuads(subshells::Array{Subshell,1}, iCre::Int64, iAnn::Int64, iSpec::Int64)`
     ... to determine the two index quadruples (a,b,c,d) under which the one-electron-move terms of a given spectator
         subshell are emitted, together with their four subshell angular momenta and whether the spectator lies BETWEEN
         the two subshells that change occupation.
@@ -457,7 +457,7 @@ end
         The rank of a two-particle coefficient couples (a,c) and (b,d), so the quadruple says which pairing a value
         belongs to, and there are two of them for each spectator: the DIRECT pairing, spectator with spectator and
         acceptor with donor, and the CROSSED one, acceptor with spectator and spectator with donor. Which of the two the
-        assembly of `SpinAngularNew.moveOnePrimary` yields is decided by the arrangement, and that is the whole reason
+        assembly of `SpinAngular.moveOnePrimary` yields is decided by the arrangement, and that is the whole reason
         this small routine exists rather than being inlined: with the spectator outside it yields the direct pairing,
         with the spectator between it yields the crossed one. A tuple (qPrimary, qPartner, js, between) is returned.
 """
@@ -476,7 +476,7 @@ end
 
 
 """
-`SpinAngularNew.moveOnePrimary(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, iCre::Int64, iAnn::Int64, iSpec::Int64, k::Int64)`
+`SpinAngular.moveOnePrimary(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, iCre::Int64, iAnn::Int64, iSpec::Int64, k::Int64)`
     ... to compute the primary two-particle coefficient, at rank `k`, of a CSF pair that differs by ONE electron -- created
         in subshell `iCre` of the bra, annihilated in `iAnn` of the ket -- with the two-body operator's second index pair
         acting on the distinct spectator subshell `iSpec`. Three subshells act at once, and the operator is assembled from
@@ -515,8 +515,8 @@ end
 
 
 """
-`SpinAngularNew.moveOnePrimaryFrom(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, iCre::Int64, iAnn::Int64, iSpec::Int64, k::Int64, wCre::Float64, wAnn::Float64)`
-    ... as `SpinAngularNew.moveOnePrimary`, but taking the creation and annihilation matrix elements ALREADY FORMED.
+`SpinAngular.moveOnePrimaryFrom(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, iCre::Int64, iAnn::Int64, iSpec::Int64, k::Int64, wCre::Float64, wAnn::Float64)`
+    ... as `SpinAngular.moveOnePrimary`, but taking the creation and annihilation matrix elements ALREADY FORMED.
         They depend on neither the spectator subshell nor the rank, so a caller sweeping over both computes them once
         and passes them in; `moveOnePrimary` itself is the convenience entry that forms them and delegates here. A
         value::Float64 is returned.
@@ -557,7 +557,7 @@ const PARTNER_CACHE = Dict{NTuple{6,Int64}, Matrix{Float64}}()
 
 
 """
-`SpinAngularNew.partnerMatrix(js::NTuple{4,AngularJ64}, nk::Int64, between::Bool)`
+`SpinAngular.partnerMatrix(js::NTuple{4,AngularJ64}, nk::Int64, between::Bool)`
     ... to return the matrix M with M[k+1, K+1] = (2K+1) { j_a j_b k ; ... K } that turns a whole family of coefficients
         into its partner, so that the partner follows by ONE matrix-vector product instead of a six-j per (k, K).
 
@@ -583,7 +583,7 @@ end
 
 
 """
-`SpinAngularNew.moveOnePartner(prim::Array{Float64,1}, js::NTuple{4,AngularJ64}, k::Int64, between::Bool)`
+`SpinAngular.moveOnePartner(prim::Array{Float64,1}, js::NTuple{4,AngularJ64}, k::Int64, between::Bool)`
     ... to compute, at rank `k`, the coefficient of the OTHER of the two pairings of a one-electron-move term from the whole
         vector `prim` of primary coefficients, by the Racah sum that relates the two,
 
@@ -611,14 +611,14 @@ end
 
 
 """
-`SpinAngularNew.twoParticleMoveOne(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, iCre::Int64, iAnn::Int64)`
+`SpinAngular.twoParticleMoveOne(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, iCre::Int64, iAnn::Int64)`
     ... to compute all two-particle coefficients of a CSF pair that differs by ONE electron, moved from subshell `iAnn`
         of the ket to subshell `iCre` of the bra. Every subshell that keeps its occupation and holds an electron acts in
         turn as the spectator on which the operator's second index pair sits, contributing two coefficients per rank --
-        the primary from `SpinAngularNew.moveOnePrimary` and its partner from `SpinAngularNew.moveOnePartner`.
+        the primary from `SpinAngular.moveOnePrimary` and its partner from `SpinAngular.moveOnePartner`.
 
         A spectator that COINCIDES with the acceptor or the donor is included too, through
-        `SpinAngularNew.moveOneSameShell`: three of the four one-electron operators then fall on a single subshell and
+        `SpinAngular.moveOneSameShell`: three of the four one-electron operators then fall on a single subshell and
         the shell matrix element becomes the coupled `shellReducedAW` or `shellReducedWA`. So this method covers the
         one-electron-move case COMPLETELY, and nothing about it raises.
 
@@ -693,7 +693,7 @@ end
 
 
 """
-`SpinAngularNew.shellReducedAW(j::AngularJ64, Nbra::Int64, senBra::Int64, Jbra::AngularJ64, Nket::Int64, senKet::Int64, Jket::AngularJ64, kW::Int64, K::AngularJ64, mq::AngularM64)`
+`SpinAngular.shellReducedAW(j::AngularJ64, Nbra::Int64, senBra::Int64, Jbra::AngularJ64, Nket::Int64, senKet::Int64, Jket::AngularJ64, kW::Int64, K::AngularJ64, mq::AngularM64)`
     ... to compute the reduced matrix element of the COUPLED product of a single creation or annihilation operator with
         a rank-kW tensor acting on the SAME subshell, <j^Nbra v J || (a^(j) x W^(kW))^(K) || j^Nket v' J'>. This is the
         object needed whenever three of a two-body operator's four one-electron operators fall on one subshell, i.e.
@@ -755,12 +755,12 @@ end
 
 
 """
-`SpinAngularNew.shellReducedWA(j::AngularJ64, Nbra::Int64, senBra::Int64, Jbra::AngularJ64, Nket::Int64, senKet::Int64, Jket::AngularJ64, kW::Int64, K::AngularJ64, mq::AngularM64)`
+`SpinAngular.shellReducedWA(j::AngularJ64, Nbra::Int64, senBra::Int64, Jbra::AngularJ64, Nket::Int64, senKet::Int64, Jket::AngularJ64, kW::Int64, K::AngularJ64, mq::AngularM64)`
     ... to compute the reduced matrix element of the coupled product taken in the OTHER order,
         <j^Nbra v J || (W^(kW) x a^(j))^(K) || j^Nket v' J'>, where the single operator acts FIRST and the rank-kW tensor
         second, so that the intermediate subshell terms carry `Nbra` electrons rather than `Nket`.
 
-        THIS IS NOT THE SAME OPERATOR AS `SpinAngularNew.shellReducedAW` WITH A PHASE. The reordering identity
+        THIS IS NOT THE SAME OPERATOR AS `SpinAngular.shellReducedAW` WITH A PHASE. The reordering identity
         (A x B)^K = (-1)^(k_A + k_B - K) (B x A)^K holds for tensors that commute, and `a` and `W = (a^+ a)` on the SAME
         subshell do not. The two are genuinely different objects, which is why the predecessor carries two schemes for
         them, and the difference is invisible until the subshell is FULL on one side: with a filled j = 1/2 donor shell
@@ -805,12 +805,12 @@ end
 
 
 """
-`SpinAngularNew.moveOneSameShell(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, iCre::Int64, iAnn::Int64, iSpec::Int64, k::Int64)`
+`SpinAngular.moveOneSameShell(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, iCre::Int64, iAnn::Int64, iSpec::Int64, k::Int64)`
     ... to compute, at rank `k`, the two-particle coefficient of a CSF pair differing by ONE electron in the case where
         the spectator subshell COINCIDES with the acceptor `iCre` or the donor `iAnn`. Three of the operator's four
         one-electron operators then fall on that one subshell -- two creations and an annihilation when it is the
         acceptor, a creation and two annihilations when it is the donor -- so the shell matrix element is the coupled
-        `SpinAngularNew.shellReducedAW` rather than a plain creation, and only TWO subshells act in total.
+        `SpinAngular.shellReducedAW` rather than a plain creation, and only TWO subshells act in total.
 
         Because the two site ranks must couple to zero, the coupled rank K is fixed to the OTHER subshell's j, and there
         is no sum. Two phases beyond the Jordan-Wigner string, both established on data:
@@ -859,7 +859,7 @@ end
 
 
 """
-`SpinAngularNew.moveOneSameShellQuad(subshells::Array{Subshell,1}, iCre::Int64, iAnn::Int64, iSpec::Int64)`
+`SpinAngular.moveOneSameShellQuad(subshells::Array{Subshell,1}, iCre::Int64, iAnn::Int64, iSpec::Int64)`
     ... to determine the index quadruple (a,b,c,d) under which the same-subshell one-electron-move term is emitted. The
         rule is the one every other topology in this module follows: `a` and `b` are the two CREATIONS in subshell-index
         order and `c` and `d` the two ANNIHILATIONS in index order. With the spectator on the acceptor the creations are
@@ -877,7 +877,7 @@ end
 
 
 """
-`SpinAngularNew.moveTwoWeight(jc::NTuple{2,AngularJ64}, ja::NTuple{2,AngularJ64}, jsite::NTuple{4,AngularJ64}, swapped::NTuple{2,Bool}, crossPair::Bool, R::AngularJ64, k::Int64)`
+`SpinAngular.moveTwoWeight(jc::NTuple{2,AngularJ64}, ja::NTuple{2,AngularJ64}, jsite::NTuple{4,AngularJ64}, swapped::NTuple{2,Bool}, crossPair::Bool, R::AngularJ64, k::Int64)`
     ... to compute the weight with which one value `R` of the chain's free intermediate rank enters a four-subshell
         two-electron-move coefficient of rank `k`. Four subshells act, each with one operator, and the physical operator
         pairs each creation with its own annihilation -- a pairing that in general CROSSES the subshell chain, which is
@@ -926,10 +926,10 @@ end
 
 
 """
-`SpinAngularNew.moveTwoRecoupling(leftCsf::CsfR, rightCsf::CsfR, sites::Array{Int64,1}, jsite::NTuple{4,AngularJ64}, R::AngularJ64)`
+`SpinAngular.moveTwoRecoupling(leftCsf::CsfR, rightCsf::CsfR, sites::Array{Int64,1}, jsite::NTuple{4,AngularJ64}, R::AngularJ64)`
     ... to compute the RECOUPLING alone of a four-subshell two-electron move at one value `R` of the free intermediate
         rank. Only this factor depends on R; the four one-electron matrix elements and the Jordan-Wigner string do not,
-        and `SpinAngularNew.twoParticleMoveTwo` forms them once rather than once per R. For four operators that string
+        and `SpinAngular.twoParticleMoveTwo` forms them once rather than once per R. For four operators that string
         is a PREFIX count -- the occupations lying before each acting subshell -- and not a count of the gaps between
         them; the two differ as soon as the creations and annihilations interleave, which they do in half of the
         arrangements. A value::Float64 is returned.
@@ -946,12 +946,12 @@ end
 
 
 """
-`SpinAngularNew.twoParticleMoveTwo(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, cre::Array{Int64,1}, ann::Array{Int64,1})`
+`SpinAngular.twoParticleMoveTwo(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, cre::Array{Int64,1}, ann::Array{Int64,1})`
     ... to compute all two-particle coefficients of a CSF pair that differs by TWO electrons moved between FOUR distinct
         subshells, `cre` holding the two that gain an electron and `ann` the two that lose one, each in increasing
         subshell order. Every subshell carries exactly one operator, so no coupled shell tensor is needed and the whole
-        assembly is `SpinAngularNew.moveTwoRecoupling` summed over the chain's free intermediate rank with the weights of
-        `SpinAngularNew.moveTwoWeight`.
+        assembly is `SpinAngular.moveTwoRecoupling` summed over the chain's free intermediate rank with the weights of
+        `SpinAngular.moveTwoWeight`.
 
         The DIRECT family pairs each creation with the annihilation of the same rank order and is built directly; its
         partner, with the two annihilations exchanged, follows by the same Racah sum the equal-occupation exchange term
@@ -1018,13 +1018,13 @@ end
 
 
 """
-`SpinAngularNew.shellReducedAA(j::AngularJ64, Nbra::Int64, senBra::Int64, Jbra::AngularJ64, Nket::Int64, senKet::Int64, Jket::AngularJ64, K::AngularJ64, mq::AngularM64)`
+`SpinAngular.shellReducedAA(j::AngularJ64, Nbra::Int64, senBra::Int64, Jbra::AngularJ64, Nket::Int64, senKet::Int64, Jket::AngularJ64, K::AngularJ64, mq::AngularM64)`
     ... to compute the reduced matrix element of TWO creation or TWO annihilation operators coupled on one subshell,
         <j^Nbra v J || (a^(j) x a^(j))^(K) || j^Nket v' J'>, with `mq` = +1/2 for two creations and -1/2 for two
         annihilations, so that Nbra and Nket differ by two. This is the object a two-electron move needs whenever BOTH
         electrons leave, or both arrive in, the same subshell.
 
-        Built by the same closure as `SpinAngularNew.shellReducedAW`, over the intermediate subshell terms of j^(Nket+2mq)
+        Built by the same closure as `SpinAngular.shellReducedAW`, over the intermediate subshell terms of j^(Nket+2mq)
         that the Gaigalas tables already enumerate:
 
             <bra||(a x a)^(K)||ket>  =  (-1)^(J_bra + J_ket + K) sqrt(2K+1)
@@ -1068,7 +1068,7 @@ end
 
 
 """
-`SpinAngularNew.twoParticleMoveTwoSameShell(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, dbl::Int64, sgl::Array{Int64,1}, diff::Array{Int64,1})`
+`SpinAngular.twoParticleMoveTwoSameShell(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, dbl::Int64, sgl::Array{Int64,1}, diff::Array{Int64,1})`
     ... to compute all two-particle coefficients of a CSF pair that differs by TWO electrons where BOTH of them leave, or
         both arrive in, the SAME subshell `dbl`, the other two operators sitting on the single subshells `sgl`. The
         doubled subshell then carries the coupled two-creation or two-annihilation tensor `shellReducedAA`, and only
@@ -1085,7 +1085,7 @@ end
             which is what a prefix count would give and is what the four-subshell case needs;
         (2) which single subshell enters the weight's phase depends on WHICH KIND of operator is doubled: the first when
             the doubled subshell creates, the second when it annihilates. This is the `irez` distinction of
-            `SpinAngular.twoParticle15to18order`, and without it half of the doubled-annihilation coefficients come out
+            `SpinAngularGaigalas.twoParticle15to18order`, and without it half of the doubled-annihilation coefficients come out
             with the wrong sign while every doubled-creation one is right;
         (3) a RE-PAIRING phase (-1)^(j_x1 + j_x2 + 1) when the doubled subshell lies BETWEEN the two single ones,
             because the coupling chain then joins it to a single subshell first where the operator couples the two
@@ -1152,7 +1152,7 @@ end
 
 
 """
-`SpinAngularNew.twoParticleMoveTwoBothDoubled(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, iCre::Int64, iAnn::Int64)`
+`SpinAngular.twoParticleMoveTwoBothDoubled(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, iCre::Int64, iAnn::Int64)`
     ... to compute all two-particle coefficients of a CSF pair in which TWO electrons leave one subshell `iAnn` and TWO
         arrive in another `iCre`, so that only TWO subshells act and each carries a coupled pair tensor: `shellReducedAA`
         with two creations on one and two annihilations on the other. Their ranks must be equal, since the operator is a

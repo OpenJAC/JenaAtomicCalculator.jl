@@ -13,7 +13,7 @@
         `PhotoEmission`/`PhotoIonization` (no photon-energy sweep, no gauge -- there is no "gauge"
         concept at all for this near-field nuclear interaction). The actual one-electron matrix
         element, however, is a genuine rank-L ONE-PARTICLE multipole operator (like
-        `PhotoEmission.amplitude`'s `SpinAngularNew.OneParticleOperator`), not `AutoIonization`'s
+        `PhotoEmission.amplitude`'s `SpinAngular.OneParticleOperator`), not `AutoIonization`'s
         two-particle Coulomb operator -- so this module combines `AutoIonization`'s pipeline shape
         with `PhotoEmission`'s one-particle spin-angular machinery.
 
@@ -80,7 +80,7 @@
 module InternalConversion
 
 
-using Printf, GSL, ..AngularMomentum, ..Basics, ..Continuum, ..Defaults, ..ManyElectron, ..Nuclear, ..Radial, ..SpinAngularNew, ..TableStrings
+using Printf, GSL, ..AngularMomentum, ..Basics, ..Continuum, ..Defaults, ..ManyElectron, ..Nuclear, ..Radial, ..SpinAngular, ..TableStrings
 
 
 """
@@ -358,19 +358,19 @@ end
         attached as an extra "subshell" -- mirroring AutoIonization.amplitude/computeAmplitudesProperties)
         and `initialLevel` (the bound N-electron level), by summing the one-particle contributions
         InternalConversion.reducedBif(...) * InternalConversion.reducedRif(...) over CSF pairs via
-        SpinAngularNew.OneParticleOperator(mp.L,...), exactly as PhotoEmission.amplitude does for a real
+        SpinAngular.OneParticleOperator(mp.L,...), exactly as PhotoEmission.amplitude does for a real
         photon field (including the same sqrt(2 j_a+1) "undo" of SpinAngular's internal GRASP-like
         convention, cf. the note in Hfs.amplitude). A value::ComplexF64 is returned.
 """
 function amplitude(mp::EmMultipole, gammaEnergy::Float64, finalLevel::Level, initialLevel::Level, grid::Radial.Grid)
     nf = length(finalLevel.basis.csfs);   ni = length(initialLevel.basis.csfs)
     matrix = zeros(ComplexF64, nf, ni)
-    opa    = SpinAngularNew.OneParticleOperator(mp.L, Basics.multipoleParity(mp))
+    opa    = SpinAngular.OneParticleOperator(mp.L, Basics.multipoleParity(mp))
     for  r = 1:nf
         for  s = 1:ni
             if  initialLevel.basis.csfs[s].J != initialLevel.J  ||  initialLevel.basis.csfs[s].parity != initialLevel.parity   continue    end
             subshellList = finalLevel.basis.subshells
-            wa = SpinAngularNew.computeCoefficients(opa, finalLevel.basis.csfs[r], initialLevel.basis.csfs[s], subshellList)
+            wa = SpinAngular.computeCoefficients(opa, finalLevel.basis.csfs[r], initialLevel.basis.csfs[s], subshellList)
             me = ComplexF64(0)
             for  coeff in wa
                 orbFinal    = finalLevel.basis.orbitals[coeff.a]     # bra/final side (may be the continuum orbital)

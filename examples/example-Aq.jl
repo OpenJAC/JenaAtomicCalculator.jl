@@ -1,8 +1,8 @@
 #
-println("Aq) Compare the spin-angular coefficients of SpinAngularNew against SpinAngular and against GRASP2018.")
+println("Aq) Compare the spin-angular coefficients of SpinAngular against SpinAngular and against GRASP2018.")
 
 #
-# SpinAngularNew is part of the package and is reached through it; it was included directly here only while it was
+# SpinAngular is part of the package and is reached through it; it was included directly here only while it was
 # under development, so that a broken intermediate state could not break the package.
 #
 configs = [Configuration("1s^2 2s"), Configuration("1s^2 2p")]
@@ -29,7 +29,7 @@ if  true
     #
     #   WHY GRASP AND NOT THE PRESENT MODULE.  A comparison against SpinAngular can only establish that the two agree;
     #   it cannot establish that either is right, and SpinAngular has a documented normalization defect that shipped
-    #   (module-Hfs.jl:370-379).  GRASP2018 is a genuinely independent implementation, and since SpinAngularNew adopts
+    #   (module-Hfs.jl:370-379).  GRASP2018 is a genuinely independent implementation, and since SpinAngular adopts
     #   GRASP's convention this branch is an EQUALITY test rather than a conversion test.
     #
     #   HOW THE REFERENCE WAS OBTAINED, so that it can be reproduced.  GRASP2018 source (read-only, outside this
@@ -42,7 +42,7 @@ if  true
     #
     #   REPORT (22-Aug-2026).  EXACT AGREEMENT on every coefficient, and the new module is the more accurate of the two.
     #
-    #       CSF pair          subshell      GRASP2018                SpinAngularNew
+    #       CSF pair          subshell      GRASP2018                SpinAngular
     #        (1,1)             1s_1/2       2.00000000000000044      2.0
     #        (1,1)             2s_1/2       1.00000000000000000      1.0
     #        (2,2)             1s_1/2       2.00000000000000044      2.0
@@ -53,7 +53,7 @@ if  true
     #   (JAC's CSF ORDER differs from GRASP's -- JAC 2 <-> 3 here -- so the rows are matched by CSF content, not index.)
     #
     #   THE 4.4e-16 IS GRASP'S, NOT OURS.  GRASP reaches 2.0 through a chain of Float64 multiplications and square roots
-    #   and lands 4.4e-16 above it; SpinAngularNew reaches it as an integer occupation and is exact.  So this branch also
+    #   and lands 4.4e-16 above it; SpinAngular reaches it as an integer occupation and is exact.  So this branch also
     #   measures the accumulated rounding error of the reference, which is a free by-product of computing the quantity
     #   the exact way rather than the transcribed way.
     #
@@ -65,10 +65,10 @@ if  true
                            (2,"1s_1/2") => 2.00000000000000044, (2,"2p_3/2") => 1.0,
                            (3,"1s_1/2") => 2.00000000000000044, (3,"2p_1/2") => 1.0 )
 
-    op = SpinAngularNew.OneParticleOperator(0, Basics.plus)
-    println("\n  CSF pair   subshell     GRASP2018              SpinAngularNew          difference")
+    op = SpinAngular.OneParticleOperator(0, Basics.plus)
+    println("\n  CSF pair   subshell     GRASP2018              SpinAngular          difference")
     for  (ic, csf) in enumerate(csfList)
-        coeffs = SpinAngularNew.computeCoefficients(op, csf, csf, subshellList)
+        coeffs = SpinAngular.computeCoefficients(op, csf, csf, subshellList)
         for  c in coeffs
             key = (ic, string(c.a))
             if  haskey(graspReference, key)
@@ -100,12 +100,12 @@ elseif  true
     #   REPORT (22-Aug-2026): deviation 0.0 for all three CSFs, i.e. zero exactly and not merely to rounding, because the
     #   coefficient is produced as an integer occupation rather than accumulated in floating point.
     #
-    op = SpinAngularNew.OneParticleOperator(0, Basics.plus)
+    op = SpinAngular.OneParticleOperator(0, Basics.plus)
     maxDeviation = 0.0
     println("")
     for  (ic, csf) in enumerate(csfList)
-        coeffs    = SpinAngularNew.computeCoefficients(op, csf, csf, subshellList)
-        deviation = SpinAngularNew.checkOccupationIdentity(coeffs, csf, subshellList)
+        coeffs    = SpinAngular.computeCoefficients(op, csf, csf, subshellList)
+        deviation = SpinAngular.checkOccupationIdentity(coeffs, csf, subshellList)
         global maxDeviation = max(maxDeviation, deviation)
         println("  CSF $ic  (occ = $(csf.occupation)):   deviation = $deviation")
     end
@@ -125,7 +125,7 @@ elseif  true
     #       computeCoefficientsNonScalar under the comment "GRASP like".  So its rank-0 coefficients are smaller than
     #       GRASP's by exactly sqrt(2j_a+1).  MEASURED, and it is exact on both j values present:
     #
-    #           subshell    SpinAngular      SpinAngularNew    ratio      sqrt(2j+1)
+    #           subshell    SpinAngular      SpinAngular    ratio      sqrt(2j+1)
     #           1s_1/2      1.4142135624     2.0               1.414214   1.414214
     #           2s_1/2      0.7071067812     1.0               1.414214   1.414214
     #           2p_1/2      0.7071067812     1.0               1.414214   1.414214
@@ -138,20 +138,20 @@ elseif  true
     #
     #   (2) TWO COEFFICIENTS THAT SHOULD NOT EXIST.  SpinAngular emits rank-0 coefficients for the CSF pairs (1,3) and
     #       (3,1), connecting 2s_1/2 to 2p_1/2 -- that is kappa = -1 to kappa = +1, and across OPPOSITE PARITY.  A scalar
-    #       operator cannot do either.  GRASP2018 emits nothing for those pairs, and neither does SpinAngularNew, which
-    #       decides it in SpinAngularNew.isAllowed1p from the triangle and parity conditions before any float is computed.
+    #       operator cannot do either.  GRASP2018 emits nothing for those pairs, and neither does SpinAngular, which
+    #       decides it in SpinAngular.isAllowed1p from the triangle and parity conditions before any float is computed.
     #
     #       This is LATENT rather than harmful today: the Hamiltonian only pairs CSFs within one symmetry block, so those
     #       pairs never arise there, and the radial integral would vanish in any case.  It is recorded because it is
     #       exactly what a magnitude threshold cannot catch and a selection rule can -- `abs(wa) >= 2.0e-10` asks whether
     #       a number came out small, where the question is whether the quantum numbers permit it at all.
     #
-    op    = SpinAngularNew.OneParticleOperator(0, Basics.plus)
+    op    = SpinAngular.OneParticleOperator(0, Basics.plus)
     opOld = SpinAngular.OneParticleOperator(0, Basics.plus, true)
-    println("\n  rank ICSF JCSF  a         b          SpinAngular        SpinAngularNew       ratio")
+    println("\n  rank ICSF JCSF  a         b          SpinAngular        SpinAngular       ratio")
     for  (ic, l) in enumerate(csfList),  (ir, r) in enumerate(csfList)
         oldCoeffs = SpinAngular.computeCoefficients(opOld, l, r, subshellList)
-        newCoeffs = SpinAngularNew.computeCoefficients(op, l, r, subshellList)
+        newCoeffs = SpinAngular.computeCoefficients(op, l, r, subshellList)
         for  oc in oldCoeffs
             if  abs(oc.T) < 1.0e-14    continue    end
             idx = findfirst(nc -> nc.a == oc.a  &&  nc.b == oc.b, newCoeffs)
@@ -189,7 +189,7 @@ elseif  true
     #   REPORT (22-Aug-2026).  Five CSFs, matching GRASP's five.
     #
     #       occupation identity, all 5 CSFs               max deviation = 0.0     (exactly, not to rounding)
-    #       off-diagonal coefficients, SpinAngularNew     0                       (GRASP: 0)
+    #       off-diagonal coefficients, SpinAngular     0                       (GRASP: 0)
     #       pairs that raised                             0                       (before the fix: non-zero)
     #       off-diagonal coefficients, SpinAngular        0                       (GRASP: 0)
     #
@@ -208,14 +208,14 @@ elseif  true
     localCsfs = CsfR[]
     for  relconf in localRel    append!(localCsfs, Basics.generateCsfRs(relconf, localSubshells))    end
 
-    op = SpinAngularNew.OneParticleOperator(0, Basics.plus)
+    op = SpinAngular.OneParticleOperator(0, Basics.plus)
     println("\n  $(length(localCsfs)) CSFs of 1s^2 2s^2 2p^2:")
     for  (i,c) in enumerate(localCsfs)   println("    CSF $i:  J = $(c.J)$(string(c.parity))   occ = $(c.occupation)")   end
 
     maxDeviation = 0.0
     for  (i,c) in enumerate(localCsfs)
-        coeffs = SpinAngularNew.computeCoefficients(op, c, c, localSubshells)
-        global maxDeviation = max(maxDeviation, SpinAngularNew.checkOccupationIdentity(coeffs, c, localSubshells))
+        coeffs = SpinAngular.computeCoefficients(op, c, c, localSubshells)
+        global maxDeviation = max(maxDeviation, SpinAngular.checkOccupationIdentity(coeffs, c, localSubshells))
     end
     println("\n  occupation identity, max deviation = $maxDeviation      (must be 0)")
 
@@ -223,7 +223,7 @@ elseif  true
     for  (i,l) in enumerate(localCsfs),  (j,r) in enumerate(localCsfs)
         i == j  &&  continue
         try
-            global nOff    = nOff + length( SpinAngularNew.computeCoefficients(op, l, r, localSubshells) )
+            global nOff    = nOff + length( SpinAngular.computeCoefficients(op, l, r, localSubshells) )
         catch  ex
             global nRaised = nRaised + 1
         end
@@ -291,11 +291,11 @@ elseif  true
                       (3,3,4,"2p_3/2") =>  1.00000000000000000e+00, (3,4,3,"2p_3/2") => -7.74596669241483293e-01,
                       (3,4,4,"2p_3/2") =>  6.32455532033675882e-01 )
 
-    println("\n  rank bra ket  subshell        GRASP2018         SpinAngularNew        ratio")
+    println("\n  rank bra ket  subshell        GRASP2018         SpinAngular        ratio")
     nMatched = 0;   worstRatio = 1.0
     for  k in [1,2,3],  ib in [3,4],  ik in [3,4]
-        opK    = SpinAngularNew.OneParticleOperator(k, Basics.plus)
-        coeffs = SpinAngularNew.computeCoefficients(opK, localCsfs[ib], localCsfs[ik], localSubshells)
+        opK    = SpinAngular.OneParticleOperator(k, Basics.plus)
+        coeffs = SpinAngular.computeCoefficients(opK, localCsfs[ib], localCsfs[ik], localSubshells)
         for  c in coeffs
             key = (k, ib, ik, string(c.a))
             if  haskey(graspRank, key)
@@ -321,7 +321,7 @@ elseif  true
     #   that turns a completely reduced element into the one for a shell of N electrons, with kq = 1 for even kj and 0 for
     #   odd kj, and M_Q equal on both sides because the operator conserves particle number.
     #
-    #   THE ASSEMBLY WAS ISOLATED BEFORE IT WAS TRUSTED.  Comparing SpinAngularNew.shellReducedW against
+    #   THE ASSEMBLY WAS ISOLATED BEFORE IT WAS TRUSTED.  Comparing SpinAngular.shellReducedW against
     #   SpinAngular.irreducibleTensor(SchemeEta_W(), ...) gave ratio 1.000000 on every case -- which separates "is the
     #   shell matrix element right?" from "is the outer normalization right?".  It was the second that was wrong, and
     #   knowing which half to look at is most of the work.  Solving for the outer factor on four GRASP coefficients gave
@@ -367,12 +367,12 @@ elseif  true
                                   1:length(localSubshells)), localCsfs)
 
     println("\n  3d_5/2 with two electrons, against GRASP2018")
-    println("   rank 2Jb 2Jk       GRASP2018        SpinAngularNew        ratio")
+    println("   rank 2Jb 2Jk       GRASP2018        SpinAngular        ratio")
     nMatched = 0;   worstRatio = 1.0
     for  ((k, jb, jk), g) in sort(collect(ref52), by = x -> x[1])
         ib = findCsf(jb);    ik = findCsf(jk)
         (ib === nothing || ik === nothing)  &&  continue
-        coeffs = SpinAngularNew.computeCoefficients(SpinAngularNew.OneParticleOperator(k, Basics.plus),
+        coeffs = SpinAngular.computeCoefficients(SpinAngular.OneParticleOperator(k, Basics.plus),
                                                     localCsfs[ib], localCsfs[ik], localSubshells)
         idx = findfirst(c -> c.a == localSubshells[i52], coeffs)
         idx === nothing  &&  continue
@@ -389,7 +389,7 @@ elseif  true
         isub === nothing  &&  continue
         c.occupation[isub] != 2  &&  continue
         jj = AngularJ64( Basics.subshell_2j(localSubshells[isub])//2 )
-        w  = SpinAngularNew.shellReducedW(jj, 2, c.seniorityNr[isub], c.subshellJ[isub],
+        w  = SpinAngular.shellReducedW(jj, 2, c.seniorityNr[isub], c.subshellJ[isub],
                                                  c.seniorityNr[isub], c.subshellJ[isub], 0)
         v  = -w * sqrt(Basics.twice(jj)+1.0) / sqrt(Basics.twice(c.J)+1.0)
         @printf("    CSF %d  %-9s  formula = %18.15f   occupation = %d\n", i, string(localSubshells[isub]), v,
@@ -404,7 +404,7 @@ elseif  true
     #   the one-particle problem, and the case every earlier branch raised on. 1s^2 2p^2 3s, where 2p_3/2 carries two
     #   electrons and 3s one, so BOTH subshells contribute and the coupling tree is no longer trivial.
     #
-    #   WHAT WAS ADDED.  SpinAngularNew.chainRecoupling: the tensor is peeled outwards one subshell at a time. For every
+    #   WHAT WAS ADDED.  SpinAngular.chainRecoupling: the tensor is peeled outwards one subshell at a time. For every
     #   subshell beyond the acting one it sits in the FIRST subsystem with J_q as spectator; at the acting subshell it
     #   sits in the SECOND with X_{ip-1} as spectator. The coefficient is then the same expression as before,
     #
@@ -457,12 +457,12 @@ elseif  true
                  (3,4,7,3,  9.79795897113271086e-01), (3,7,4,3, -7.99999999999999822e-01),
                  (3,7,7,3, -9.79795897113271086e-01) ]
 
-    println("\n  rank bra ket  subshell        GRASP2018        SpinAngularNew        ratio")
+    println("\n  rank bra ket  subshell        GRASP2018        SpinAngular        ratio")
     nMatched = 0;   worstRatio = 1.0
     for  (k, gb, gk, gs, g) in graspGen
         ib = gToJac[gb];   ik = gToJac[gk]
         (ib === nothing || ik === nothing)  &&  continue
-        coeffs = SpinAngularNew.computeCoefficients(SpinAngularNew.OneParticleOperator(k, Basics.plus),
+        coeffs = SpinAngular.computeCoefficients(SpinAngular.OneParticleOperator(k, Basics.plus),
                                                     localCsfs[ib], localCsfs[ik], localSubshells)
         idx = findfirst(c -> c.a == localSubshells[subOf[gs]], coeffs)
         idx === nothing  &&  continue
@@ -532,10 +532,10 @@ elseif  true
                  (2,5,2,4,3, -0.894427190999915633),(2,5,4,3,4,  0.836660026534075563) ]
 
     println("\n  adjacent subshells, 2p_1/2 <-> 2p_3/2")
-    println("   rank bra ket   a        b            GRASP2018        SpinAngularNew        ratio")
+    println("   rank bra ket   a        b            GRASP2018        SpinAngular        ratio")
     nMatched = 0;   worstRatio = 1.0
     for  (k, gb, gk, sa, sb, g) in graspSub
-        coeffs = SpinAngularNew.computeCoefficients(SpinAngularNew.OneParticleOperator(k, Basics.plus),
+        coeffs = SpinAngular.computeCoefficients(SpinAngular.OneParticleOperator(k, Basics.plus),
                                                     localCsfs[gToJac[gb]], localCsfs[gToJac[gk]], localSubshells)
         idx = findfirst(c -> c.a == localSubshells[subOf[sa]] && c.b == localSubshells[subOf[sb]], coeffs)
         idx === nothing  &&  continue
@@ -578,7 +578,7 @@ elseif  true
     #   THE CACHES ARE PURE MEMOISATION and change no number: the arguments are a handful of small quantum numbers, the
     #   key is the complete argument list, and every verification in this file was re-run after adding them --
     #   45 952 one-electron-move coefficients, 386 678 two-electron-move coefficients and the whole one-particle
-    #   inventory, all unchanged. `SpinAngularNew.clearCaches()` empties them and returns how many entries were held.
+    #   inventory, all unchanged. `SpinAngular.clearCaches()` empties them and returns how many entries were held.
     #
     #   AGAINST GRASP2018, per coefficient on the same CSF list, this module is now about 4x slower rather than 9x. The
     #   remaining gap is structural rather than algorithmic: RKCO_GG writes into preallocated module-level buffers and
@@ -835,9 +835,9 @@ elseif  true
 
     if  length(cand) >= 2
         i, j = cand[1], cand[2]
-        n1a  = SpinAngularNew.computeCoefficients(SpinAngularNew.OneParticleOperator(0, Basics.plus),
+        n1a  = SpinAngular.computeCoefficients(SpinAngular.OneParticleOperator(0, Basics.plus),
                                                   localCsfs[i], localCsfs[j], localSubshells)
-        n1b  = SpinAngularNew.computeCoefficients(SpinAngularNew.OneParticleOperator(0, Basics.plus),
+        n1b  = SpinAngular.computeCoefficients(SpinAngular.OneParticleOperator(0, Basics.plus),
                                                   localCsfs[j], localCsfs[i], localSubshells)
         o2a  = SpinAngular.computeCoefficients(SpinAngular.TwoParticleOperator(0, Basics.plus, true),
                                                localCsfs[i], localCsfs[j], localSubshells)
@@ -859,7 +859,7 @@ elseif  true
     # Last visit:      24-Aug-2026
     # Last successful:  24-Aug-2026
     #
-    # Branch l (THE TWO-PARTICLE DIAGONAL CASE, COMPLETE): the electron-electron coefficients from SpinAngularNew
+    # Branch l (THE TWO-PARTICLE DIAGONAL CASE, COMPLETE): the electron-electron coefficients from SpinAngular
     #   against SpinAngular's, compared as complete LISTS rather than term by term -- so that a coefficient present on
     #   one side and absent on the other counts as a failure rather than going unnoticed.
     #
@@ -929,7 +929,7 @@ elseif  true
         for  c in localCsfs
             old = [x for x in SpinAngular.computeCoefficients(SpinAngular.TwoParticleOperator(0, Basics.plus, true),
                                                               c, c, localSub)   if abs(x.V) > 1.0e-14]
-            new = SpinAngularNew.computeCoefficients(SpinAngularNew.TwoParticleOperator(), c, c, localSub)
+            new = SpinAngular.computeCoefficients(SpinAngular.TwoParticleOperator(), c, c, localSub)
             kk(x) = (x.nu, string(x.a), string(x.b), string(x.c), string(x.d))
             dOld = Dict{Any,Float64}();   for x in old   dOld[kk(x)] = get(dOld,kk(x),0.0) + x.V   end
             dNew = Dict{Any,Float64}();   for x in new   dNew[kk(x)] = get(dNew,kk(x),0.0) + x.V   end
@@ -1012,7 +1012,7 @@ elseif  true
             np += 1
             old = [x for x in SpinAngular.computeCoefficients(SpinAngular.TwoParticleOperator(0,Basics.plus,true),
                                                               l, r, lSub)   if abs(x.V) > 1.0e-14]
-            new = SpinAngularNew.computeCoefficients(SpinAngularNew.TwoParticleOperator(), l, r, lSub)
+            new = SpinAngular.computeCoefficients(SpinAngular.TwoParticleOperator(), l, r, lSub)
             kk(x) = (x.nu, string(x.a), string(x.b), string(x.c), string(x.d))
             dO = Dict{Any,Float64}();   for x in old   dO[kk(x)] = get(dO,kk(x),0.0) + x.V   end
             dN = Dict{Any,Float64}();   for x in new   dN[kk(x)] = get(dN,kk(x),0.0) + x.V   end
@@ -1131,7 +1131,7 @@ elseif  true
             nh += 1
             old = [x for x in SpinAngular.computeCoefficients(SpinAngular.TwoParticleOperator(0,Basics.plus,true),
                                                              l, r, lSub)   if abs(x.V) > 1.0e-14]
-            new = SpinAngularNew.computeCoefficients(SpinAngularNew.TwoParticleOperator(), l, r, lSub)
+            new = SpinAngular.computeCoefficients(SpinAngular.TwoParticleOperator(), l, r, lSub)
             kk(x) = (x.nu, string(x.a), string(x.b), string(x.c), string(x.d))
             dO = Dict{Any,Float64}();   for x in old   dO[kk(x)] = get(dO,kk(x),0.0) + x.V   end
             dN = Dict{Any,Float64}();   for x in new   dN[kk(x)] = get(dN,kk(x),0.0) + x.V   end
@@ -1156,7 +1156,7 @@ elseif  true
     # Last successful:  24-Aug-2026
     #
     # Branch o (THE COMPLETE DIFFERENCE INVENTORY): the question this branch answers is the one that decides whether
-    #   SpinAngularNew may ever replace SpinAngular -- do the two return the SAME set of coefficients, and where they do
+    #   SpinAngular may ever replace SpinAngular -- do the two return the SAME set of coefficients, and where they do
     #   not, exactly why? Every other branch compares selected cases and reports agreement. This one takes EVERY key
     #   either module emits, over twelve configurations and ranks 0 to 3, and forces each into a named class. A key that
     #   fell into no class would be an unexplained difference, and the count of those is printed.
@@ -1164,11 +1164,11 @@ elseif  true
     #   THERE ARE EXACTLY TWO CLASSES OF DIFFERENCE, and both are deliberate:
     #
     #   (1) THE RANK-0 NORMALIZATION, ratio exactly sqrt(2 j_a + 1). This is the convention change branch c documents:
-    #       SpinAngularNew carries the factor at EVERY rank, SpinAngular has it commented out at rank 0 and its callers
+    #       SpinAngular carries the factor at EVERY rank, SpinAngular has it commented out at rank 0 and its callers
     #       compensate (module-Hamiltonian.jl:277 re-applies it, Hfs.amplitude divides it out). A migration must delete
     #       those compensating lines, and that is the one edit that carries real risk.
     #
-    #   (2) THE PARITY SELECTION RULE. SpinAngularNew's `isAllowed1p` refuses a pair whose l_a + l_b does not match the
+    #   (2) THE PARITY SELECTION RULE. SpinAngular's `isAllowed1p` refuses a pair whose l_a + l_b does not match the
     #       operator's parity; SpinAngular does not, and returns everything the triangle condition allows. That is not a
     #       guess about its intent: given the SAME CSFs and ranks, SpinAngular returns BIT-IDENTICAL lists for
     #       Basics.plus and Basics.minus, so it ignores the parity it is handed and leaves it to the caller's radial
@@ -1234,7 +1234,7 @@ elseif  true
                 if  rank >= 0
                     old = [x for x in SpinAngular.computeCoefficients(
                               SpinAngular.OneParticleOperator(rank, Basics.plus, true), l, r, lSub) if abs(x.T) > 1.0e-14]
-                    new = SpinAngularNew.computeCoefficients(SpinAngularNew.OneParticleOperator(rank, Basics.plus),
+                    new = SpinAngular.computeCoefficients(SpinAngular.OneParticleOperator(rank, Basics.plus),
                                                              l, r, lSub)
                 else
                     local dd = l.occupation - r.occupation
@@ -1248,7 +1248,7 @@ elseif  true
                     reach  ||  continue
                     old = [x for x in SpinAngular.computeCoefficients(
                               SpinAngular.TwoParticleOperator(0, Basics.plus, true), l, r, lSub) if abs(x.V) > 1.0e-14]
-                    new = SpinAngularNew.computeCoefficients(SpinAngularNew.TwoParticleOperator(), l, r, lSub)
+                    new = SpinAngular.computeCoefficients(SpinAngular.TwoParticleOperator(), l, r, lSub)
                 end
                 kk(x)  = rank >= 0 ? (x.nu, string(x.a), string(x.b)) :
                                      (x.nu, string(x.a), string(x.b), string(x.c), string(x.d))
@@ -1365,7 +1365,7 @@ elseif  true
             np += 1
             old = [x for x in SpinAngular.computeCoefficients(SpinAngular.TwoParticleOperator(0,Basics.plus,true),
                                                               l, r, lSub)   if abs(x.V) > 1.0e-14]
-            new = SpinAngularNew.computeCoefficients(SpinAngularNew.TwoParticleOperator(), l, r, lSub)
+            new = SpinAngular.computeCoefficients(SpinAngular.TwoParticleOperator(), l, r, lSub)
             kk(x) = (x.nu, string(x.a), string(x.b), string(x.c), string(x.d))
             dO = Dict{Any,Float64}();   for x in old   dO[kk(x)] = get(dO,kk(x),0.0) + x.V   end
             dN = Dict{Any,Float64}();   for x in new   dN[kk(x)] = get(dN,kk(x),0.0) + x.V   end

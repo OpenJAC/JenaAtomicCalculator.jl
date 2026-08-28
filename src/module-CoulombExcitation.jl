@@ -12,7 +12,7 @@
 module CoulombExcitation
 
 
-using  Printf, ..AngularMomentum, ..Basics, ..Defaults, ..ManyElectron, ..Nuclear, ..Radial, ..RadialIntegrals, ..SpinAngularNew, ..TableStrings
+using  Printf, ..AngularMomentum, ..Basics, ..Defaults, ..ManyElectron, ..Nuclear, ..Radial, ..RadialIntegrals, ..SpinAngular, ..TableStrings
 
 """
 `struct  CoulombExcitation.Settings  <:  AbstractProcessSettings`  
@@ -207,8 +207,8 @@ function  computeKjYme(finalLevel::Level, L::AngularJ64, initialLevel::Level, q:
         for  s = 1:ni
             if  iLevel.basis.csfs[s].J != iLevel.J  ||  iLevel.basis.csfs[s].parity != iLevel.parity    continue    end
             subshellList = fLevel.basis.subshells
-            opa = SpinAngularNew.OneParticleOperator(Lint, Basics.multipoleParity(EmMultipole(Lint, true)))
-            wa  = SpinAngularNew.computeCoefficients(opa, fLevel.basis.csfs[r], iLevel.basis.csfs[s], subshellList)
+            opa = SpinAngular.OneParticleOperator(Lint, Basics.multipoleParity(EmMultipole(Lint, true)))
+            wa  = SpinAngular.computeCoefficients(opa, fLevel.basis.csfs[r], iLevel.basis.csfs[s], subshellList)
             me  = 0.
             for  coeff in wa
                 orbf = fLevel.basis.orbitals[coeff.a];   orbi = iLevel.basis.orbitals[coeff.b]
@@ -249,8 +249,8 @@ function  computeKjTme(finalLevel::Level, t::AngularJ64, L::AngularJ64, initialL
         for  s = 1:ni
             if  iLevel.basis.csfs[s].J != iLevel.J  ||  iLevel.basis.csfs[s].parity != iLevel.parity    continue    end
             subshellList = fLevel.basis.subshells
-            opa = SpinAngularNew.OneParticleOperator(tint, Basics.multipoleParity(EmMultipole(Lint, false)))
-            wa  = SpinAngularNew.computeCoefficients(opa, fLevel.basis.csfs[r], iLevel.basis.csfs[s], subshellList)
+            opa = SpinAngular.OneParticleOperator(tint, Basics.multipoleParity(EmMultipole(Lint, false)))
+            wa  = SpinAngular.computeCoefficients(opa, fLevel.basis.csfs[r], iLevel.basis.csfs[s], subshellList)
             me  = 0.
             for  coeff in wa
                 orbf = fLevel.basis.orbitals[coeff.a];   orbi = iLevel.basis.orbitals[coeff.b]

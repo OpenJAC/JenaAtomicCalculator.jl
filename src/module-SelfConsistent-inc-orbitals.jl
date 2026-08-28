@@ -60,13 +60,13 @@ end
 
 
 """
-`SelfConsistent.computeFunctional(coeffs1p::Array{SpinAngular.Coefficient1p,1}, coeffs2p::Array{SpinAngular.Coefficient2p,1},
+`SelfConsistent.computeFunctional(coeffs1p::Array{Coefficient1p,1}, coeffs2p::Array{Coefficient2p,1},
                                         orbitals::Dict{Subshell, Orbital}, grid::Radial.Grid, potential::Radial.Potential)`
     ... computes the MCDHF energy functional using InteractionStrength.XL_CoulombKinkAware (kink-aware
         two-electron Slater integral) for the two-electron term. Used by the ALField/EOLField code line, cf.
         solveAverageLevelField. An energy::Float64 is returned.
 """
-function computeFunctional(coeffs1p::Array{SpinAngular.Coefficient1p,1}, coeffs2p::Array{SpinAngular.Coefficient2p,1},
+function computeFunctional(coeffs1p::Array{Coefficient1p,1}, coeffs2p::Array{Coefficient2p,1},
                                  orbitals::Dict{Subshell, Orbital}, grid::Radial.Grid, potential::Radial.Potential)
     energy = 0.
 
@@ -118,7 +118,7 @@ end
 
 
 """
-`SelfConsistent.computeTwoElectronV(subshell::Subshell, coeffs2p::Array{SpinAngular.Coefficient2p,1},
+`SelfConsistent.computeTwoElectronV(subshell::Subshell, coeffs2p::Array{Coefficient2p,1},
                                            bVectors::Dict{Subshell, Vector{Float64}}, primitives::Bsplines.Primitives,
                                            tensorCaches::Dict{Int64, NTuple{3,RadialIntegrals.ScreenedPotentialCache}})`
     ... computes the direct and exchange two-electron potential matrix for the given subshell, taking
@@ -133,7 +133,7 @@ end
         by the ALField and EOLField code lines. A (nsL+nsS) x (nsL+nsS) matrixV::Array{Float64,2} is
         returned.
 """
-function computeTwoElectronV(subshell::Subshell, coeffs2p::Array{SpinAngular.Coefficient2p,1},
+function computeTwoElectronV(subshell::Subshell, coeffs2p::Array{Coefficient2p,1},
                                     bVectors::Dict{Subshell, Vector{Float64}}, primitives::Bsplines.Primitives,
                                     tensorCaches::Dict{Int64, NTuple{3,RadialIntegrals.ScreenedPotentialCache}};
                                     directKernels::Dict{Tuple{Int64,Subshell,Subshell},Array{Float64,2}} =
@@ -238,7 +238,7 @@ end
 
 
 """
-`SelfConsistent.computeFockMatrix(subshell::Subshell, coeffs2p::Array{SpinAngular.Coefficient2p,1},
+`SelfConsistent.computeFockMatrix(subshell::Subshell, coeffs2p::Array{Coefficient2p,1},
                                          bVectors::Dict{Subshell, Vector{Float64}}, primitives::Bsplines.Primitives,
                                          nucPot::Radial.Potential, storage::Dict{String,Array{Float64,2}},
                                          occ::Float64, tensorCaches::Dict{Int64, NTuple{3,RadialIntegrals.ScreenedPotentialCache}})`
@@ -252,11 +252,11 @@ end
         session against the DBSR_HF av_energy_coef reference for all of Ne's coefficients). Shared by the
         ALField and EOLField code lines. A (nsL+nsS) x (nsL+nsS) matrix::Array{Float64,2} is returned.
 """
-function computeFockMatrix(subshell::Subshell, coeffs2p::Array{SpinAngular.Coefficient2p,1},
+function computeFockMatrix(subshell::Subshell, coeffs2p::Array{Coefficient2p,1},
                                   bVectors::Dict{Subshell, Vector{Float64}}, primitives::Bsplines.Primitives,
                                   nucPot::Radial.Potential, storage::Dict{String,Array{Float64,2}},
                                   occ::Float64, tensorCaches::Dict{Int64, NTuple{3,RadialIntegrals.ScreenedPotentialCache}};
-                                  coeffs2pUnscaled::Array{SpinAngular.Coefficient2p,1}=SpinAngular.Coefficient2p[],
+                                  coeffs2pUnscaled::Array{Coefficient2p,1}=Coefficient2p[],
                                   directKernels::Dict{Tuple{Int64,Subshell,Subshell},Array{Float64,2}} =
                                                  Dict{Tuple{Int64,Subshell,Subshell},Array{Float64,2}}(),
                                   exchangeKernels::Dict{Tuple{Int64,Subshell},Array{Float64,2}} =
