@@ -302,7 +302,19 @@ elseif  false
     setDefaults("print summary: close", "")
     #
 elseif  false
-    # Last successful:  22-Aug-2026
+    # Last successful:  28-Aug-2026 -- AND THIS BRANCH CAUGHT A SILENT ZERO, fixed in the same commit.
+    #   WHAT WAS WRONG: E1_PNC came out +0.00000000e+00 for EVERY intermediate set and BOTH ions, while the
+    #   2s-2p_1/2 splitting printed correctly (36.1 eV in Ca, 235.1 eV in Pb) -- so the levels were fine and only
+    #   the amplitude was dead. The branch then died with `KeyError: "Li-like 40Ca"` at the error budget, because
+    #   the truncation dictionary is only filled when a change is non-zero.
+    #   WHY: `SpinAngular.computeCoefficientsScalar` required leftCsf.parity == rightCsf.parity unconditionally.
+    #   That is right for the one-body Hamiltonian, which is parity-EVEN, but the nuclear weak charge is a rank-0
+    #   P-ODD operator and connects OPPOSITE parities. Every P-odd rank-0 call therefore got an empty coefficient
+    #   list and returned exactly zero. Measured: WeakInteractionMoment.weakChargeAmplitude gave -0.0 - 0.0im.
+    #   The gate now tests the OPERATOR's parity, and rank 0 still fixes J_f = J_i -- which is exactly the rule
+    #   branch a of example-Bb.jl states in words.
+    #   AFTER: E1_PNC = +1.24574758e-13 (Ca) and +6.76245739e-11 (Pb) for the 2p set, and the sign flip on one
+    #   intermediate that this branch's own text predicts is back.
     #   [PROVENANCE: as branch a.]
     # Branch f: THE TWO SYSTEMS OF A REAL PAPER -- Li-like 40Ca and 208Pb, and an error budget that turns over with Z.
     #

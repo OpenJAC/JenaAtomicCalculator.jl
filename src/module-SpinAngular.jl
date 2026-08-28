@@ -311,8 +311,16 @@ function computeCoefficientsScalar(op::SpinAngular.OneParticleOperator, leftCsf:
     coeffs = Coefficient1p{OrdinaryKind}[]
     nw     = length(subshells)
 
-    # A scalar operator connects only states of equal J and equal parity; this is decided before any work is done.
-    if  leftCsf.J != rightCsf.J   ||   leftCsf.parity != rightCsf.parity      return( coeffs )   end
+    # RANK 0 FIXES J, BUT NOT PARITY -- THE OPERATOR'S OWN PARITY DOES. A rank-0 operator connects only states of
+    # equal J, always. Whether it connects equal or OPPOSITE parities depends on the operator: the one-body
+    # Hamiltonian is parity-EVEN and so needs leftCsf.parity == rightCsf.parity, but the nuclear weak charge is a
+    # rank-0 P-ODD operator and needs exactly the opposite. Requiring equal parity unconditionally, as this line did
+    # until 28-Aug-2026, returned an EMPTY list for every P-odd rank-0 call and so silently zeroed every amplitude
+    # built on one -- measured: `WeakInteractionMoment.weakChargeAmplitude` gave -0.0 - 0.0im for 1s^2 2p_1/2 <-
+    # 1s^2 2s in Li-like Ca, and with it the whole PNC E1 amplitude of `example-Cnnew.jl` branch f, which had been
+    # non-zero when that branch was last run on 22-Aug. The old SpinAngularGaigalas returned 2 coefficients there.
+    if  leftCsf.J != rightCsf.J                                               return( coeffs )   end
+    if  (op.parity == Basics.plus)  !=  (leftCsf.parity == rightCsf.parity)   return( coeffs )   end
 
     diffs = Int64[]
     for  i = 1:nw

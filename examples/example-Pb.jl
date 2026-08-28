@@ -5,8 +5,9 @@ setDefaults("print summary: open", "zzz-PhotonScattering.sum")
 setDefaults("unit: energy", "eV")
 
 if  true
-    # Last visit:      21-Aug-2026
-    # Last successful:  unknown ... the omega^4 law IS reproduced in both gauges and the basis is exonerated, but the
+    # Last successful:  28-Aug-2026 -- the omega^4 law is reproduced EXACTLY: the fitted exponent reads
+    #                   4.000000e+00 in BOTH gauges, which is the Rayleigh law this branch exists to check.
+    # Previously:      21-Aug-2026 (Last visit) ... the omega^4 law IS reproduced in both gauges and the basis is exonerated, but the
     #                              ABSOLUTE cross sections rest on an underived prefactor and nothing here constrains a
     #                              PHASE.  A date on a cross-section branch would read as "these cross sections are
     #                              right", which is more than has been shown.  See the report below.
