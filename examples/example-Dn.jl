@@ -38,7 +38,24 @@ grid = Radial.Grid(Radial.Grid(false), rnt = 4.0e-6, h = 5.0e-2, hp = 0.6e-2, rb
 
 
 if  false
-    # Last visit:  09-Aug-2026
+    # Last visit:  28-Aug-2026 -- RE-RUN, AND EVERY LINE AGREES TO 0.08-0.14 %. Today against the 9-Aug column:
+    #   STEP 2   2-->1  C 2.760519e+06 / B 9.565061e+06   (was 2.757046e+06 / 9.551948e+06)   +0.13 %
+    #            4-->1  C 1.375121e+10 / B 5.448745e+10   (was 1.376205e+10 / 5.453150e+10)   -0.08 %
+    #   STEP 3   2-->1  C 3.101045e+06 / B 1.073773e+07   (was 3.097219e+06 / 1.072328e+07)   +0.12 %
+    #            4-->1  C 1.534757e+10 / B 6.081964e+10   (was 1.535991e+10 / 6.086998e+10)   -0.08 %
+    #   STEP 4   6-->1  C 3.354699e+06 / B 1.938824e+07   (was 3.350980e+06 / 1.936779e+07)   +0.11 %
+    #            8-->1  C 1.459402e+10 / B 1.035002e+11   (was 1.460522e+10 / 1.036086e+11)   -0.08 %
+    #   Kalpha   4-->1  C 9.864266e+12                    (was 9.863788e+12)                  +0.005 %
+    # WHAT THE PATTERN MEANS, and it is worth reading before anyone suspects the angular coefficients: BOTH GAUGES
+    # MOVE TOGETHER AND BY THE SAME AMOUNT on every line, and the sign follows the transition energy (the ~1910 eV
+    # lines rise, the ~1926 eV lines fall) rather than the multipole or the gauge. That is a small change in the
+    # radial/SCF layer -- level energies and mixing coefficients -- not in the angular part, which would show as a
+    # gauge-dependent or multipole-dependent shift. The omegas moved too, in the fifth figure.
+    # IT ALSO PREDATES 15-Aug: `test/approved/test-PhotoEmission-approved.sum` was regenerated on 15-Aug (6276e4f)
+    # and has NOT been touched since, and the suite compares against it at rtol = 1e-6 and passes. So PhotoEmission
+    # rates are bit-stable since 15-Aug, and this 0.1 % sits between 9 and 15-Aug -- the kink-aware Slater integral
+    # (4cc94eb) and the screened-potential sweeps are the changes in that window.
+    # Previously: 09-Aug-2026
     # --- The complete TEOP test: one gMultiplet, three computations, all numbers of the REPORT below reproduced
     #     by a single run of this branch.
     #

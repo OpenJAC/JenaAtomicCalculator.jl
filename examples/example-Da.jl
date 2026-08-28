@@ -7,7 +7,13 @@ setDefaults("print summary: open", "zzz-radiative.sum")
 
 
 if  false
-    # Last successful:  9-Aug-2026
+    # Last successful:  28-Aug-2026 -- RE-RUN UNCHANGED. Every number recorded below reproduces to all four
+    # figures it was quoted to: 4.585787e12 / 4.755319e12 (Kalpha1, Coulomb/Babushkin), 2.305319e12 / 2.390639e12
+    # (Kalpha2), at 849.9454 and 849.8406 eV. The three derived checks also hold: intensity ratio 1.9892, gauge
+    # gap 3.70 % on BOTH fine-structure components, radiative widths 4.536e-3 eV (Coulomb) / 4.703e-3 eV
+    # (Babushkin). Run as one of three PhotoEmission checks on 28-Aug (with Dn and Ba); see Dn for the one place
+    # where anything moved at all.
+    # Previously: 9-Aug-2026
     # Branch 0: Ne K-alpha, 1s-hole "1s 2s^2 2p^6" -> 2p-hole "1s^2 2s^2 2p^5" (2p fills the K-hole).
     #   Set up per explicit user request/hypothesis: our SCF procedure may not produce sufficiently relaxed
     #   orbitals for shallow valence-hole cases (like the Fe X 3p-hole tested above) for a bi-orthogonal
