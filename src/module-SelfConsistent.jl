@@ -7,7 +7,7 @@
 module SelfConsistent
 
 using  Printf, LinearAlgebra, ..AngularMomentum, ..Basics, ..Bsplines, ..Defaults, ..Hamiltonian, ..InteractionStrength, ..ManyElectron, ..Nuclear, ..Radial,
-       ..RadialIntegrals, ..SpinAngular
+       ..RadialIntegrals, ..SpinAngular, ..SpinAngularNew
 
 
 # Module-level defaults. Each is set through its own SelfConsistent.set... function below.

@@ -7,7 +7,7 @@
 `SelfConsistent.cacheCsfPairCoefficientsEOL(sym::LevelSymmetry, basis::Basis)`
     ... caches, for every CSF pair (r,s) with symmetry sym in the given basis, the pure spin-angular
         coefficients (independent of the orbitals/radial functions) as returned by
-        SpinAngular.computeCoefficientsScalar -- the same call Hamiltonian.setupMatrix/setupMatrixKinkAware
+        SpinAngularNew.computeCoefficientsScalar -- the same call Hamiltonian.setupMatrix/setupMatrixKinkAware
         make internally to build the CI Hamiltonian matrix. Here the intermediate coefficient lists are
         retained instead of being discarded, so they can be reused across the whole EOL outer SCF+CI loop
         (they depend only on the fixed CSF list, never on the current orbitals). A tuple
@@ -26,10 +26,14 @@ function cacheCsfPairCoefficientsEOL(sym::LevelSymmetry, basis::Basis)
     for  r = 1:n
         for  s = 1:n
             csfR = basis.csfs[idxCsf[r]];   csfS = basis.csfs[idxCsf[s]]
-            cache1p[(r,s)] = SpinAngular.computeCoefficientsScalar(SpinAngular.OneParticleOperator(0, Basics.plus, true),
-                                                                    csfR, csfS, basis.subshells)
-            cache2p[(r,s)] = SpinAngular.computeCoefficientsScalar(SpinAngular.TwoParticleOperator(0, Basics.plus, true),
-                                                                    csfR, csfS, basis.subshells)
+            # The caches are typed on SpinAngular.Coefficient*, which stay as the data carriers for now, so the
+            # coefficients are rebuilt on the way in; only the COMPUTATION moves to SpinAngularNew.
+            cache1p[(r,s)] = [ SpinAngular.Coefficient1p(c.nu, c.a, c.b, c.T)  for c in
+                               SpinAngularNew.computeCoefficientsScalar(SpinAngularNew.OneParticleOperator(0, Basics.plus),
+                                                                    csfR, csfS, basis.subshells) ]
+            cache2p[(r,s)] = [ SpinAngular.Coefficient2p(c.nu, c.a, c.b, c.c, c.d, c.V)  for c in
+                               SpinAngularNew.computeCoefficients(SpinAngularNew.TwoParticleOperator(0, Basics.plus),
+                                                                    csfR, csfS, basis.subshells) ]
         end
     end
 

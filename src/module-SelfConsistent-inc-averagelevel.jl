@@ -16,12 +16,12 @@ function computeAngularCoefficients(scField::Basics.ALField, basis::Basis)
     
     # Compute angular coefficients in turn for all diagonal ME
     for  csf  in  basis.csfs
-        coeffs = SpinAngular.computeCoefficientsScalar(SpinAngular.OneParticleOperator(0, Basics.plus, true), 
+        coeffs = SpinAngularNew.computeCoefficientsScalar(SpinAngularNew.OneParticleOperator(0, Basics.plus), 
                                                        csf, csf, basis.subshells)
         # Add to the existing list
         for  cf in coeffs   push!(coeffs1p, SpinAngular.Coefficient1p(cf.nu, cf.a, cf.b, cf.T / ncsf) )   end
         
-        coeffs = SpinAngular.computeCoefficientsScalar(SpinAngular.TwoParticleOperator(0, Basics.plus, true), 
+        coeffs = SpinAngularNew.computeCoefficients(SpinAngularNew.TwoParticleOperator(0, Basics.plus), 
                                                        csf, csf, basis.subshells)
         # Add to the existing lists
         for  cf in coeffs   push!(coeffs2p, SpinAngular.Coefficient2p(cf.nu, cf.a, cf.b, cf.c, cf.d, cf.V / ncsf) )   end

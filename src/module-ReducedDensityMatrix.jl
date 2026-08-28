@@ -8,7 +8,7 @@ module ReducedDensityMatrix
 
 
 using Printf, ..Basics, ..Defaults, ..InteractionStrength, ..ManyElectron, ..Nuclear, ..Radial, ..RadialIntegrals,
-                ..SpinAngular, ..TableStrings
+                ..SpinAngularNew, ..TableStrings
 
 
 """
@@ -124,11 +124,11 @@ function  compute1pRDM(level::Level)
     subshellList = level.basis.subshells
     lenNO = length(subshellList);    rho_pq     = zeros(lenNO,lenNO)
     # Cycle over all matrix elements of the CSF basis
-    opa          = SpinAngular.OneParticleOperator(0, plus, true)
+    opa          = SpinAngularNew.OneParticleOperator(0, plus)
     for  (ir, rcsf) in enumerate(level.basis.csfs)
         for  (is, scsf) in enumerate(level.basis.csfs)
             # Calculate angular coefficient for rank-0 operator
-            wa = SpinAngular.computeCoefficients(opa, rcsf, scsf, subshellList) 
+            wa = SpinAngularNew.computeCoefficients(opa, rcsf, scsf, subshellList) 
             # Cycle over the pair of natural subshells in rho_pq
             for (ip,p)  in  enumerate(subshellList)
                 for (iq,q)  in  enumerate(subshellList)
@@ -150,7 +150,7 @@ end
 `ReducedDensityMatrix.compute1pRDMDirect(level::Level)`
     ... to compute the 1p RDM directly from the CI mixing coefficients and CSF occupation numbers, following Eq. (7) of Ma et al., Atoms 12,
         30 (2024), rho^kappa_nn' = sum_ij c_i v^ij_nn' c_j -- but derived here from elementary second quantization, independently of
-        SpinAngular.computeCoefficients.
+        SpinAngularNew.computeCoefficients.
 
         Diagonal elements need no angular-momentum recoupling at all: the expectation value of a number operator in a normalized state is
         just the mc-weighted sum of that CSF's own occupation number.
@@ -245,11 +245,11 @@ function  compute2pRDM(level::Level)
     subshellList = level.basis.subshells
     lenNO = length(subshellList);    rdm     = zeros(lenNO,lenNO,lenNO,lenNO)
     # Cycle over all matrix elements of the CSF basis
-    opa = SpinAngular.TwoParticleOperator(0, plus, true)
+    opa = SpinAngularNew.TwoParticleOperator(0, plus)
     for  (i, icsf) in enumerate(level.basis.csfs)
         for  (j, jcsf) in enumerate(level.basis.csfs)
             # Calculate angular coefficient for rank-0 operator
-            wa = SpinAngular.computeCoefficients(opa, icsf, jcsf, subshellList) 
+            wa = SpinAngularNew.computeCoefficients(opa, icsf, jcsf, subshellList) 
             # Cycle over the pair of natural subshells in rho_pqrs
             for (ip,p)  in  enumerate(subshellList)
                 for (iq,q)  in  enumerate(subshellList)
