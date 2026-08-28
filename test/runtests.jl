@@ -13,6 +13,10 @@ using JenaAtomicCalculator, ..Defaults, ..TestFrames
         @test TestFrames.testMethod_Opacities()
         @test TestFrames.testMethod_SpinAngular()
         @test TestFrames.testMethod_DocstringPointers()
+        @test TestFrames.testModule_AngularMomentum()   ## the four added 28-Aug-2026 are closed-form or
+        @test TestFrames.testModule_HydrogenicIon()     ## identity checks: inverses, limits, orthogonality
+        @test TestFrames.testModule_Nuclear()           ## and exact hydrogenic values -- so none of them
+        @test TestFrames.testModule_RadialIntegrals()   ## can pass on a stale stored reference
     end
 
     @testset "JAC structs" begin

@@ -1245,3 +1245,271 @@ function testMethod_DocstringPointers(; short::Bool=true)
     testPrint("testMethod_DocstringPointers()::", success)
     return( success )
 end
+
+
+"""
+`TestFrames.testModule_AngularMomentum(; short::Bool=true)`  ... tests on module AngularMomentum; a success::Bool is returned.
+"""
+function testModule_AngularMomentum(; short::Bool=true)
+    Defaults.setDefaults("print summary: open", "test-AngularMomentum-new.sum")
+    printstyled("\n\nTest the module  AngularMomentum  ... \n", color=:cyan)
+    # testMethod_Wigner_3j already checks three TABULATED values. This test checks IDENTITIES instead, and that is
+    # a different thing: a tabulated value pins one point, whereas an orthogonality sum or a closed-form special
+    # value constrains a whole family at once and cannot be satisfied by a lookup that happens to hold three
+    # entries. Every check below is exact algebra, so the tolerances are at machine level rather than physical.
+    success = true;    printTest, iostream = Defaults.getDefaults("test flag/stream")
+    jj(k2) = iseven(k2) ? AngularJ64(k2 ÷ 2) : AngularJ64(k2 // 2)      # from DOUBLED angular momenta, so that
+    mm(k2) = iseven(k2) ? AngularM64(k2 ÷ 2) : AngularM64(k2 // 2)      # integer and half-integer share one loop
+
+    # (1) 3j orthogonality:  sum_{ma,mb} (2c+1) * 3j(a,b,c; ma,mb,-M)^2 = 1  for every allowed c and M.
+    for  (a2, b2)  in  [(2,2), (3,2), (4,6), (5,3), (1,1)]
+        for  c2 = abs(a2-b2):2:(a2+b2)
+            for  mc2 = -c2:2:c2
+                wa = 0.
+                for  ma2 = -a2:2:a2,  mb2 = -b2:2:b2
+                    if  ma2 + mb2 != mc2    continue    end
+                    wa = wa + (c2+1) * AngularMomentum.Wigner_3j(jj(a2), jj(b2), jj(c2), mm(ma2), mm(mb2), mm(-mc2))^2
+                end
+                if  abs(wa - 1.0) > 1.0e-10
+                    success = false
+                    if printTest   info(iostream, "3j orthogonality for 2a,2b,2c,2M = $a2,$b2,$c2,$mc2 gives $wa, must be 1")   end
+                end
+            end
+        end
+    end
+
+    # (2) the closed-form special value  3j(j,0,j; m,0,-m) = (-1)^(j+m) / sqrt(2j+1).
+    #     The phase is (j+m) and NOT (j-m). Both give the same answer for integer j, since 2m is then even, so the
+    #     wrong one passes every integer case and fails every half-integer one -- which is what it did when this
+    #     test was first written. The phase that holds for both follows from the Clebsch-Gordan relation
+    #     (j1 j2 j3; m1 m2 m3) = (-1)^(j1-j2-m3)/sqrt(2j3+1) * <j1 m1 j2 m2 | j3 -m3>, which at j2 = 0 gives
+    #     (-1)^(j+m); e.g. 3j(1/2, 0, 1/2; 1/2, 0, -1/2) = -1/sqrt(2), not +1/sqrt(2). Half-integer j is in the
+    #     loop for exactly this reason.
+    for  j2 = 0:1:8
+        for  m2 = -j2:2:j2
+            wa = AngularMomentum.Wigner_3j(jj(j2), jj(0), jj(j2), mm(m2), mm(0), mm(-m2))
+            wb = (-1.)^((j2+m2)/2) / sqrt(j2 + 1.)
+            if  abs(wa - wb) > 1.0e-12
+                success = false
+                if printTest   info(iostream, "3j(j,0,j; m,0,-m) for 2j,2m = $j2,$m2 gives $wa, must be $wb")   end
+            end
+        end
+    end
+
+    # (3) the closed-form 6j special value  {a b c; 0 c b} = (-1)^(a+b+c) / sqrt( (2b+1)(2c+1) )
+    for  (a2, b2)  in  [(2,4), (3,3), (4,4), (6,2), (1,5)]
+        for  c2 = abs(a2-b2):2:(a2+b2)
+            wa = AngularMomentum.Wigner_6j(jj(a2), jj(b2), jj(c2), jj(0), jj(c2), jj(b2))
+            wb = (-1.)^((a2+b2+c2)/2) / sqrt((b2+1.) * (c2+1.))
+            if  abs(wa - wb) > 1.0e-12
+                success = false
+                if printTest   info(iostream, "6j{a b c; 0 c b} for 2a,2b,2c = $a2,$b2,$c2 gives $wa, must be $wb")   end
+            end
+        end
+    end
+
+    # (4) a violated triangle must give EXACTLY zero, not something small. Only INTEGER j appear here: m = 0 is
+    #     not a legal projection of a half-integer j, and WignerSymbols rejects the pair outright rather than
+    #     returning the zero the test is looking for.
+    for  (a2, b2, c2)  in  [(2,2,10), (2,4,14), (4,2,14), (6,6,26)]
+        wa = AngularMomentum.Wigner_3j(jj(a2), jj(b2), jj(c2), mm(0), mm(0), mm(0))
+        if  wa != 0.
+            success = false
+            if printTest   info(iostream, "3j with a violated triangle 2a,2b,2c = $a2,$b2,$c2 gives $wa, must be exactly 0")   end
+        end
+    end
+
+    println(iostream, "AngularMomentum: 3j orthogonality, the (j,0,j) and {a b c; 0 c b} closed forms, and exact " *
+                      "zeros for violated triangles. Identities rather than tabulated points; no approved data.")
+    Defaults.setDefaults("print summary: close", "")
+    testPrint("testModule_AngularMomentum()::", success)
+    return( success )
+end
+
+
+"""
+`TestFrames.testModule_HydrogenicIon(; short::Bool=true)`  ... tests on module HydrogenicIon; a success::Bool is returned.
+"""
+function testModule_HydrogenicIon(; short::Bool=true)
+    Defaults.setDefaults("print summary: open", "test-HydrogenicIon-new.sum")
+    printstyled("\n\nTest the module  HydrogenicIon  ... \n", color=:cyan)
+    # The Dirac energy is checked by its STRUCTURE rather than against a re-typed copy of the same formula, which
+    # would be circular: the l-degeneracy at equal j, the non-relativistic limit, the (alpha Z)^2 scaling of the
+    # departure from it, and the ordering of the fine-structure pair. A wrong formula fails at least one of those.
+    # The r^k expectation values are then checked against a SECOND ROUTE -- numerical quadrature over the module's
+    # own radial orbital -- so the closed form and the tabulated orbital must agree with each other.
+    success = true;    printTest, iostream = Defaults.getDefaults("test flag/stream")
+    alpha   = Defaults.getDefaults("alpha")
+    en(sh, Z) = redirect_stdout(devnull) do;  HydrogenicIon.energy(sh, Z)  end
+
+    # (1) Dirac l-degeneracy: 2s_1/2 and 2p_1/2 share n and j, so their energies must agree to machine precision
+    e2s = en(Subshell("2s_1/2"), 10.);    e2p = en(Subshell("2p_1/2"), 10.)
+    if  abs(e2s - e2p) > 1.0e-12 * abs(e2s)
+        success = false
+        if printTest   info(iostream, "2s_1/2 and 2p_1/2 must be degenerate; got $e2s and $e2p")   end
+    end
+    # (2) the fine-structure pair is ordered: 2p_3/2 lies ABOVE 2p_1/2
+    e2p3 = en(Subshell("2p_3/2"), 10.)
+    if  !(e2p3 > e2p)
+        success = false
+        if printTest   info(iostream, "2p_3/2 = $e2p3 must lie above 2p_1/2 = $e2p")   end
+    end
+    # (3) the non-relativistic limit, and the (alpha Z)^2 law for the departure from it. The RATIO of the relative
+    #     departures at Z = 2 and Z = 1 must be 4; that is implementation-independent, unlike the value itself.
+    rel(Z) = (en(Subshell("1s_1/2"), Z) - (-Z^2/2)) / (-Z^2/2)
+    r1 = rel(1.);   r2 = rel(2.)
+    if  abs(r1) > 1.0e-4
+        success = false
+        if printTest   info(iostream, "1s_1/2 at Z=1 departs from -Z^2/2 by $r1, far more than (alpha Z)^2")   end
+    end
+    if  abs(r2/r1 - 4.0) > 1.0e-2
+        success = false
+        if printTest   info(iostream, "the relativistic shift scales as $(r2/r1) between Z=1 and Z=2, must be 4")   end
+    end
+    # (4) rkExpectation against numerical quadrature over the module's own radial orbital
+    # rbox = 60 rather than 40, by Rule 12: hydrogenic 3s has its outer turning point at r+ = 18 a.u. and wants
+    # a box near 45. At 40 the truncation shows up directly as <3s|3s> = 0.9999896 instead of 1.
+    grid = Radial.Grid(Radial.Grid(false), rnt = 2.0e-6, h = 5.0e-2, hp = 2.0e-2, rbox = 60.0)
+    for  sh  in  [Shell("1s"), Shell("2s"), Shell("2p"), Shell("3d")]
+        P = HydrogenicIon.radialOrbital(sh, 1., grid)
+        for  (srk, k)  in  [("r", 1), ("r^2", 2), ("1/r", -1)]
+            wa = HydrogenicIon.rkExpectation(srk, sh, 1.)
+            wb = RadialIntegrals.rkDiagonal(k, P, P, grid)
+            if  abs(wa - wb) > 1.0e-3 * abs(wa)
+                success = false
+                if printTest   info(iostream, "<$srk> for $sh: closed form $wa against quadrature $wb")   end
+            end
+        end
+    end
+
+    println(iostream, "HydrogenicIon: Dirac l-degeneracy at equal j, fine-structure ordering, the (alpha Z)^2 " *
+                      "scaling of the non-relativistic departure, and <r^k> by two independent routes.")
+    Defaults.setDefaults("print summary: close", "")
+    testPrint("testModule_HydrogenicIon()::", success)
+    return( success )
+end
+
+
+"""
+`TestFrames.testModule_Nuclear(; short::Bool=true)`  ... tests on module Nuclear; a success::Bool is returned.
+"""
+function testModule_Nuclear(; short::Bool=true)
+    Defaults.setDefaults("print summary: open", "test-Nuclear-new.sum")
+    printstyled("\n\nTest the module  Nuclear  ... \n", color=:cyan)
+    # Nuclear is named 48 times inside other test bodies, but almost always as Nuclear.Model(...) setting up
+    # somebody else's computation -- the constructor is exercised and nothing else is. The deformed Fermi shapes
+    # added later have never been checked at all. They are tested here by INVERSES and LIMITS, both of which hold
+    # exactly and neither of which needs a reference value: a round trip must return what it started from, and a
+    # deformed shape at zero deformation must reproduce the spherical one.
+    success = true;    printTest, iostream = Defaults.getDefaults("test flag/stream")
+
+    # (1) axisRatio and deformationFromAxisRatio are inverses
+    for  beta2  in  [-0.3, -0.1, 0.0, 0.05, 0.2, 0.4]
+        q  = Nuclear.axisRatio(beta2)
+        b2 = Nuclear.deformationFromAxisRatio(q)
+        if  abs(b2 - beta2) > 1.0e-10
+            success = false
+            if printTest   info(iostream, "axisRatio round trip: beta2 = $beta2 -> q = $q -> $b2")   end
+        end
+    end
+    # (2) the spherical limit: at beta2 = 0 the volume factor is exactly 1 and the shape is r-independent
+    model0 = Nuclear.DeformedFermiNucleus(beta2 = 0.0)
+    vf     = Nuclear.deformedVolumeFactor(model0)
+    if  abs(vf - 1.0) > 1.0e-10
+        success = false
+        if printTest   info(iostream, "deformedVolumeFactor at beta2 = 0 is $vf, must be 1")   end
+    end
+    for  x  in  [-1.0, -0.5, 0.0, 0.3, 1.0]
+        sh = Nuclear.deformedShape(x, model0)
+        if  abs(sh - 1.0) > 1.0e-10
+            success = false
+            if printTest   info(iostream, "deformedShape($x) at beta2 = 0 is $sh, must be 1")   end
+        end
+    end
+    # (3) the two-parameter Fermi radius is invertible: R -> b -> R
+    for  R  in  [2.0, 3.5, 5.5, 7.0]
+        b  = Nuclear.computeFermiBParameter(R)
+        Rx = Nuclear.fermiRrms(b)
+        if  abs(Rx - R) > 1.0e-6 * R
+            success = false
+            if printTest   info(iostream, "Fermi radius round trip: R = $R -> b = $b -> $Rx")   end
+        end
+    end
+    # (4) the DEFORMED radius is invertible too, at zero and at finite deformation
+    for  beta2  in  [0.0, 0.25]
+        model = Nuclear.DeformedFermiNucleus(beta2 = beta2)
+        for  R  in  [3.5, 5.5]
+            c  = Nuclear.computeDeformedFermiC(R, 0.524, model)
+            Rx = Nuclear.deformedFermiRrms(c, 0.524, model)
+            if  abs(Rx - R) > 1.0e-4 * R
+                success = false
+                if printTest   info(iostream, "deformed radius round trip at beta2 = $beta2: R = $R -> c = $c -> $Rx")   end
+            end
+        end
+    end
+
+    println(iostream, "Nuclear: axisRatio and the Fermi/deformed-Fermi radii are checked as INVERSES, and the " *
+                      "deformed shape at beta2 = 0 against the spherical limit. No reference value is used.")
+    Defaults.setDefaults("print summary: close", "")
+    testPrint("testModule_Nuclear()::", success)
+    return( success )
+end
+
+
+"""
+`TestFrames.testModule_RadialIntegrals(; short::Bool=true)`  ... tests on module RadialIntegrals; a success::Bool is returned.
+"""
+function testModule_RadialIntegrals(; short::Bool=true)
+    Defaults.setDefaults("print summary: open", "test-RadialIntegrals-new.sum")
+    printstyled("\n\nTest the module  RadialIntegrals  ... \n", color=:cyan)
+    # The quadrature is checked against the CLOSED FORMS of the non-relativistic hydrogen atom, where <r>, <r^2>
+    # and <1/r> are exact. The non-relativistic route is used on purpose: it removes the O((alpha Z)^2) difference
+    # that a Dirac orbital would carry, so any discrepancy here is the quadrature and nothing else. The 1/r case
+    # is the one worth having -- rkDiagonal skips the innermost points for negative k, which is a deliberate and
+    # documented compromise, and this pins how much it costs.
+    success = true;    printTest, iostream = Defaults.getDefaults("test flag/stream")
+    # rbox = 60 rather than 40, by Rule 12: hydrogenic 3s has its outer turning point at r+ = 18 a.u. and wants a
+    # box near 45. Measured at rbox = 40 the truncation alone gives <3s|3s> = 0.9999896, i.e. 1.0e-5 short, which
+    # would be read here as a quadrature error when it is nothing of the kind. The box is part of the test.
+    grid = Radial.Grid(Radial.Grid(false), rnt = 2.0e-6, h = 5.0e-2, hp = 2.0e-2, rbox = 60.0)
+    Z    = 1.
+
+    # (1) normalization: <nl|nl> = 1
+    for  sh  in  [Shell("1s"), Shell("2s"), Shell("2p"), Shell("3s"), Shell("3d")]
+        P  = HydrogenicIon.radialOrbital(sh, Z, grid)
+        wa = RadialIntegrals.overlap(P, P, grid)
+        if  abs(wa - 1.0) > 1.0e-6
+            success = false
+            if printTest   info(iostream, "<$sh|$sh> = $wa, must be 1")   end
+        end
+    end
+    # (2) orthogonality of different n at the same l
+    for  (sha, shb)  in  [(Shell("1s"), Shell("2s")), (Shell("1s"), Shell("3s")), (Shell("2s"), Shell("3s"))]
+        wa = RadialIntegrals.overlap(HydrogenicIon.radialOrbital(sha, Z, grid),
+                                     HydrogenicIon.radialOrbital(shb, Z, grid), grid)
+        if  abs(wa) > 1.0e-6
+            success = false
+            if printTest   info(iostream, "<$sha|$shb> = $wa, must be 0")   end
+        end
+    end
+    # (3) r^k against the closed forms  <r> = (3n^2 - l(l+1))/2Z,  <r^2> = n^2(5n^2 + 1 - 3l(l+1))/2Z^2,
+    #     <1/r> = Z/n^2
+    for  sh  in  [Shell("1s"), Shell("2s"), Shell("2p"), Shell("3d")]
+        n = sh.n;    l = sh.l;    P = HydrogenicIon.radialOrbital(sh, Z, grid)
+        for  (k, exact)  in  [( 1, (3n^2 - l*(l+1)) / (2Z)),
+                              ( 2, (5n^2 + 1 - 3*l*(l+1)) * n^2 / (2*Z^2)),
+                              (-1, Z / n^2)]
+            wa = RadialIntegrals.rkDiagonal(k, P, P, grid)
+            if  abs(wa - exact) > 1.0e-3 * abs(exact)
+                success = false
+                if printTest   info(iostream, "<r^$k> for $sh = $wa, closed form $exact")   end
+            end
+        end
+    end
+
+    println(iostream, "RadialIntegrals: overlap normalization and orthogonality, and r^k for k = 1, 2, -1 against " *
+                      "the exact non-relativistic hydrogenic closed forms. No approved data is used.")
+    Defaults.setDefaults("print summary: close", "")
+    testPrint("testModule_RadialIntegrals()::", success)
+    return( success )
+end
