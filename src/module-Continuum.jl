@@ -14,8 +14,23 @@ using  ..Basics, ..Bsplines, ..Defaults, ..ManyElectron, ..Radial, ..Nuclear
 """
 `struct  Continuum.Settings`  ... defines a type for the parameters for computing continuum orbitals.
 
-    + includeExchange         ::Bool    ... True, if the exchange is to be included and false otherwise.
+    + includeExchange         ::Bool    ... True, if the exchange is to be included and false otherwise. SEE THE NOTE BELOW:
+                                            the only supported value is `false`.
     + mtp                     ::Int64   ... No of grid points for which the continuum orbital(s) are to be computed.
+
+    DELIBERATELY POSITIONAL, AND DELIBERATELY OUTSIDE THE `Settings` CONVENTION -- decided 28-Aug-2026. Every other
+    `Settings` in the package carries a zero-argument constructor and a keyword copy-constructor, because every other one is
+    something a USER assembles and then varies. This one is not: it is an internal argument-holder that a process module
+    fills in on its way to `Continuum.generateOrbitalForLevel`, and it is built positionally at all 27 sites that construct it in
+    `src/` and `examples/` -- 20 of them the identical `Continuum.Settings(false, nrContinuum)`. Adding the convention here
+    would give a user a constructor for a struct they have no decision to make about. Do not "fix" this; it is the decision.
+
+    `includeExchange` HAS EXACTLY ONE LEGAL VALUE, `false`, and that is worth knowing before anyone sets it hoping for
+    exchange. Measured 28-Aug-2026: it is `false` at all 27 construction sites, and the only code that reads it is
+    `generateOrbitalLocalPotential`, which does `settings.includeExchange && error(...)` -- so `true` does not enable
+    exchange, it raises. This matches the note on the method below: all continuum orbitals are generated in a LOCAL (DFS)
+    potential, exchange with the bound electrons is not treated. The field is therefore a placeholder for a capability that
+    does not exist yet, not a switch.
 """
 struct Settings 
     includeExchange           ::Bool  
