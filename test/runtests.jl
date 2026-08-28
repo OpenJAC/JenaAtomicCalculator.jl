@@ -75,6 +75,8 @@ using JenaAtomicCalculator, ..Defaults, ..TestFrames
         @test TestFrames.testModule_PhotoRecombinationInterference()  ## absolute checks, no stored .sum
         @test TestFrames.testModule_ParticleScattering()   ## added 17-Aug-2026 with the Dirac rebuild; replaces a
                                                            ## Settings() constructor entry that could not fail
+        @test TestFrames.testModule_TwoElectronOnePhoton()      ## added 28-Aug-2026: a two-route agreement, and
+        @test TestFrames.testModule_ResonantImpactIonization()  ## exact scaling laws -- no stored .sum in either
     end
 
     @testset "JAC cascades" begin
