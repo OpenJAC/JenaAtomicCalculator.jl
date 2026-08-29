@@ -126,6 +126,10 @@ elseif  false
 
     settings   = PhotonScattering.Settings(PhotonScattering.Settings();
                         process        = PhotonScattering.ResonantScattering(),
+                        # ResonantScattering is SECOND order -- two photon vertices -- so it needs a second-order
+                        # approximation.  This block omitted `approximation` and took the FirstOrderVertex default,
+                        # which the module rightly refuses as describing nothing.  Branch a above sets it explicitly.
+                        approximation  = PhotonScattering.SecondOrderGreen(),
                         photonEnergies = [10.816], multipoles = [E1],
                         gMultiplet     = gMultiplet, width = 0., printBefore = true )
 

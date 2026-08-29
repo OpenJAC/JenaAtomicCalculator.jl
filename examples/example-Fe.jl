@@ -123,8 +123,12 @@ elseif  false
     #   with its 0.1 eV resonance width. Requires branch a to have run.
     setDefaults("print summary: open", "zzz-Cascade-Fe-simulation.sum")
 
-    fn       = sort(filter(f -> startswith(f, "zzz-cascade-photoabsorption-computations-"), readdir()),
-                    by = f -> stat(f).mtime)[end]
+    fns      = sort(filter(f -> startswith(f, "zzz-cascade-photoabsorption-computations-"), readdir()),
+                    by = f -> stat(f).mtime)
+    # Say so rather than dying on `[end]` of an empty list, as example-Fa.jl and example-Fl.jl already do.
+    if  isempty(fns)   error("Run branch a of this file first; no zzz-cascade-photoabsorption-computations-* " *
+                             "file was found in the working directory.")   end
+    fn       = fns[end]
     println(">>> reading the cascade data from  $fn")
     data     = [JLD2.load(fn)]
     energies = [en for en = 286.0:0.2:292.0]
@@ -149,8 +153,12 @@ elseif  false
     #   for the population WITHIN the ground term, which is what initialOccupations addresses directly.
     setDefaults("print summary: open", "zzz-Cascade-Fe-admixture.sum")
 
-    fn       = sort(filter(f -> startswith(f, "zzz-cascade-photoabsorption-computations-"), readdir()),
-                    by = f -> stat(f).mtime)[end]
+    fns      = sort(filter(f -> startswith(f, "zzz-cascade-photoabsorption-computations-"), readdir()),
+                    by = f -> stat(f).mtime)
+    # Say so rather than dying on `[end]` of an empty list, as example-Fa.jl and example-Fl.jl already do.
+    if  isempty(fns)   error("Run branch a of this file first; no zzz-cascade-photoabsorption-computations-* " *
+                             "file was found in the working directory.")   end
+    fn       = fns[end]
     data     = [JLD2.load(fn)]
     energies = [en for en = 286.0:0.2:292.0]
     for  (sa, occ)  in  [("level 1 only", [(1, 1.0)]), ("level 2 only", [(2, 1.0)]),
@@ -176,8 +184,12 @@ elseif  false
     #   simulation, since Eq. (1) is an incoherent sum by construction.
     setDefaults("print summary: open", "zzz-Cascade-Fe-decomposition.sum")
 
-    fn       = sort(filter(f -> startswith(f, "zzz-cascade-photoabsorption-computations-"), readdir()),
-                    by = f -> stat(f).mtime)[end]
+    fns      = sort(filter(f -> startswith(f, "zzz-cascade-photoabsorption-computations-"), readdir()),
+                    by = f -> stat(f).mtime)
+    # Say so rather than dying on `[end]` of an empty list, as example-Fa.jl and example-Fl.jl already do.
+    if  isempty(fns)   error("Run branch a of this file first; no zzz-cascade-photoabsorption-computations-* " *
+                             "file was found in the working directory.")   end
+    fn       = fns[end]
     data     = [JLD2.load(fn)]
     energies = [en for en = 286.0:0.2:292.0]
     for  (sa, inclIon, inclExc)  in  [("direct only", true, false), ("resonant only", false, true),

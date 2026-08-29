@@ -48,6 +48,10 @@ elseif true
 	volkov          = StrongField.FreeVolkov()
 
 	sfaSettings     = StrongField.Settings([E1], "VelocityGauge", true, true, hydrogenic, hydrogenic1s, true)
+	# nuclearModel, rGrid, initialLevel and finalLevel are all produced by an earlier branch of this file
+	# (from line 27 on); without them this branch died on an UndefVarError naming only the first of them.
+	if  !@isdefined(nuclearModel)   error("Run the earlier branch of this file first; it defines "     *
+	                                      "nuclearModel, rGrid, initialLevel and finalLevel.")   end
 	SFIComp	        = StrongField.Computation(observable, nuclearModel, rGrid, initialLevel, finalLevel, beam, envelope, polarization, volkov, sfaSettings)
 	SFIData         = StrongField.perform(SFIComp, output=true)
 	

@@ -29,8 +29,11 @@ grid = Radial.Grid(Radial.Grid(true); rnt = 4.0e-6, h = 5.0e-2, hp = 0.8e-2, rbo
 #   5. SelfConsistent.performSCF returns a Multiplet, but generateBlocks still used it as a Basis.
 #   6. Cascade.Step's `settings` field is a Union that did not list ImpactExcitation.Settings, so a Step for
 #      this scheme could not be constructed however it was built.
-# A seventh, harmless one is left alone: perform() stores its result under the key "impact-exited lines:"
-# (a typo) while the ElectronExcitation dispatcher reads "impact-excitation lines:" -- they could never match.
+# A seventh was recorded here as harmless and left alone, with the blame on perform() for storing under
+# "impact-exited lines:".  THAT WAS BACKWARDS, corrected 29-Aug-2026: perform() stores "impact-excitation
+# lines:", which is also what example-Fl.jl:183 reads; the typo was in THIS file, at the one place that read
+# the key.  Nor was it harmless -- it killed the branch with a KeyError, which is how the random branch sweep
+# of 28/29-Aug found it.
 #
 # COMPUTATION versus SIMULATION -- the point this file had to be corrected on. A cascade COMPUTATION produces
 # LINES and nothing else; making physics out of lines is the job of a cascade SIMULATION. That is the split of
@@ -164,7 +167,7 @@ elseif  false
                                  approach=Cascade.AverageSCA(), scheme=scheme,
                                  initialConfigs=[Configuration("1s")] )
         t  = @elapsed (wb = perform(wa; output=true, outputToFile=false))
-        ls = wb["impact-exited lines:"]
+        ls = wb["impact-excitation lines:"]
         for  l  in  ls
             println(">>>   E = ", round(Defaults.convertUnits("energy: from atomic", l.initialElectronEnergy), digits=1),
                     " eV   Omega = ", round(l.collisionStrength, sigdigits=5),

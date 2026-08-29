@@ -24,6 +24,8 @@ if  true
 elseif true
     # Last successful:  unknown ...
     # Radiative Auger decay of 1s photoionized neon
+    # `raGreen` is produced by branch a of this file (line 22).
+    if  !@isdefined(raGreen)   error("Run branch a of this file first; it defines `raGreen`.")   end
     raSettings = RadiativeAuger.Settings([E1, M1], [JAC.UseCoulomb, JAC.UseBabushkin], raGreen, 2, 3, true, CoulombInteraction(), 
                                          LineSelection(true, indexPairs=[(1,1), (1,2)]))
 

@@ -23,6 +23,8 @@ if  true
 elseif true
     # Last successful:  unknown ...
     # Photo-double ionization of he-like Be: 1s^2   -->  4l + epsilon kappa: Computation of cross sections
+    # `wb` is produced by an earlier branch of this file (line 21).
+    if  !@isdefined(wb)   error("Run the earlier branch of this file first; it defines `wb`.")   end
     nMultiplet     = wb["mean-field multiplet"]
     doubleSettings = PhotoDoubleIonization.Settings(EmMultipole[E1], UseGauge[UseCoulomb, UseBabushkin], quasiShells,
                                                     [400., 500.], 2, 2, 

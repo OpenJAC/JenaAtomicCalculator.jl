@@ -625,11 +625,19 @@ For every branch, read what the branch itself claims and compare:
 - **What the date claims.** A branch marked `Last successful: <date>` that now fails or has drifted is a
   REGRESSION and ranks far above a branch marked `unknown`, which has simply never worked. Say which.
 
-**5. Report in five classes, and do not blur them.**
+**5. Report in six classes, and do not blur them.**
 `VERIFIED` (ran and its numbers stand) · `DRIFTED` (ran, numbers moved — quote both) · `FAILED` (raised) ·
 `TIMED OUT` (not a defect, say so) · `NOT A DEFECT` (a branch needing an earlier branch of the same file, or a
 guard correctly refusing a wrong grid — the code was right and the EXAMPLE is wrong; still worth an item, but
-say plainly that `src/` behaved).
+say plainly that `src/` behaved) · **`RAISED AS DESIGNED`**.
+
+**That last class is the one a does-it-run sweep gets backwards, so read the branch's own text before judging it.**
+Some branches are GUARD TESTS: they ask for something impossible on purpose, to check that the code refuses
+instead of returning a plausible number. For those, raising is the PASS and completing would be the defect. The
+28-Aug sweep marked `example-Pc.jl` branch b a failure when its own comment says "a guard test, not a physics
+branch" and sets `width = 0` deliberately. Judge such a branch by whether the error it raises is the error it
+says it expects — and if it dies on a DIFFERENT error first, that is a real finding, because the earlier fault
+is masking the guard the branch exists to demonstrate. That is exactly what had happened there.
 
 **6. Add DRIFTED, FAILED and example-is-wrong results to the priority list**, one item each, with the file and
 line, the error or the two numbers, and **one sentence saying what made you doubt it** — that sentence is the

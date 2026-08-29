@@ -76,7 +76,10 @@ elseif  false
     setDefaults("print summary: open", "zzz-InternalConversion.sum")
     #
     gammaEnergy_Ha = Defaults.convertUnits("energy: to atomic", 1063.6e3)
-    grid = Radial.Grid(Radial.Grid(false), rnt=4.0e-6, h=5.0e-2, hp=2.0e-3, rbox=6.0)
+    # hp = 1.5e-3, not 2.0e-3: at the 3.583e4 Ha continuum energy this branch reaches, the de Broglie
+    # wavelength is 2.347e-2 a.u., and Continuum.gridConsistency requires 15 points across it -- it refused
+    # the old grid at 11.73 and named the ceiling itself, 1.565e-3 a.u.
+    grid = Radial.Grid(Radial.Grid(false), rnt=4.0e-6, h=5.0e-2, hp=1.5e-3, rbox=6.0)
     nm   = Nuclear.Model(82.)
     #
     icSettings = InternalConversion.Settings(InternalConversion.Settings(); multipoles=[M4], gammaEnergy=gammaEnergy_Ha, maxKappa=6, printBefore=true,
