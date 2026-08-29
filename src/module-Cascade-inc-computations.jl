@@ -126,7 +126,7 @@ function computeDecayProbabilities(outcome::DecayYield.Outcome, linesR::Array{Ph
     holeSubshells = Basics.extractFromConfiguration(Basics.OpenSubshells(), relConfigs[1]);   holeSubshell = holeSubshells[1]
     # Initialize and fill dictionaries for collecting the radiative and Auger rates
     level = outcome.level;    sym = LevelSymmetry(level.J, level.parity)
-    if  subshList[1] != Subshell("1s_1/2")    error("Cascade.computeDecayProbabilities(): the first subshell is $(subshList[1]), not"  *
+    if  subshList[1] != Subshell("1s_1/2")    error("Cascade.computeDecayProbabilities(): the first subshell is $(subshList[1]), not "  *
                                                       "1s_1/2.")     end
     println("\n Probabilities are determined for the initial hole $holeSubshell of a level with symmetry $sym " *
             "and configurations \n  $(relConfigs)")
@@ -160,13 +160,13 @@ function computeDecayProbabilities(outcome::DecayYield.Outcome, linesR::Array{Ph
             for  diff in occDiffs
                 # holeSubshell must differ by -1
                 if diff[1] == holeSubshell
-                    if diff[2] == -1     else   error("Cascade.computeDecayProbabilities(): the occupation difference is not the single"  *
+                    if diff[2] == -1     else   error("Cascade.computeDecayProbabilities(): the occupation difference is not the single "  *
                                                         "hole expected.")    end
                 end
                 if     diff[2] ==  1     push!(subshList, diff[1])                                end       
                 if     diff[2] ==  2     push!(subshList, diff[1]);    push!(subshList, diff[1])  end       
             end
-            if   length(subshList)  != 1   error("Cascade.computeDecayProbabilities(): $(length(subshList)) subshells differ, exactly"  *
+            if   length(subshList)  != 1   error("Cascade.computeDecayProbabilities(): $(length(subshList)) subshells differ, exactly "  *
                                                    "one expected.")    end
             rProbabilities[ subshList[1] ] = rProbabilities[ subshList[1] ] + 
                                                 (line.photonRate.Babushkin + line.photonRate.Coulomb) / 2
@@ -182,13 +182,13 @@ function computeDecayProbabilities(outcome::DecayYield.Outcome, linesR::Array{Ph
             for  diff in occDiffs
                 # holeSubshell must differ by -1
                 if diff[1] == holeSubshell
-                    if diff[2] == -1     else   error("Cascade.computeDecayProbabilities(): the occupation difference is not the single"  *
+                    if diff[2] == -1     else   error("Cascade.computeDecayProbabilities(): the occupation difference is not the single "  *
                                                         "hole expected.")    end
                 end
                 if     diff[2] ==  1     push!(subshList, diff[1])                                end       
                 if     diff[2] ==  2     push!(subshList, diff[1]);    push!(subshList, diff[1])  end       
             end
-            if   length(subshList)  != 2   error("Cascade.computeDecayProbabilities(): $(length(subshList)) subshells differ, exactly"  *
+            if   length(subshList)  != 2   error("Cascade.computeDecayProbabilities(): $(length(subshList)) subshells differ, exactly "  *
                                                    "two expected.")    end
             aProbabilities[ (subshList[1], subshList[2]) ] = aProbabilities[ (subshList[1], subshList[2]) ] + line.totalRate
         end

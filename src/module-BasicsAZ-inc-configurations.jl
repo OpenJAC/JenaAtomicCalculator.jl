@@ -472,7 +472,7 @@ function  Basics.extractConfiguration(theme::Basics.FromBasis, basis::Basis, csf
         end
     end
     
-    if      basis.NoElectrons != NoElectrons    error("Basics.extractConfiguration(): the basis holds $(basis.NoElectrons) electrons,"  *
+    if      basis.NoElectrons != NoElectrons    error("Basics.extractConfiguration(): the basis holds $(basis.NoElectrons) electrons, "  *
                                                         "$NoElectrons expected.")
     else    conf = Configuration(newShells, NoElectrons)
     end 
@@ -656,7 +656,7 @@ function Basics.extractConfigurations(theme::Basics.FromBasis, basis::Basis)
                 if   occ > 0  newShells = Base.merge( newShells, Dict( shell => occ));     NoElectrons = NoElectrons + occ   end
             end
         end
-        if  basis.NoElectrons != NoElectrons    error("Basics.extractConfigurations(): the basis holds $(basis.NoElectrons) electrons,"  *
+        if  basis.NoElectrons != NoElectrons    error("Basics.extractConfigurations(): the basis holds $(basis.NoElectrons) electrons, "  *
                                                         "$NoElectrons expected.")
         else
             conf = Configuration(newShells, NoElectrons)
@@ -713,7 +713,7 @@ function Basics.extractConfigurations(theme::Basics.RelativisticConfigurations, 
                 if   occ > 0             newSubshells[subshell] = occ;   NoElectrons = NoElectrons + occ   end
             end
         end
-        if  basis.NoElectrons != NoElectrons    error("Basics.extractConfigurations(): the basis holds $(basis.NoElectrons) electrons,"  *
+        if  basis.NoElectrons != NoElectrons    error("Basics.extractConfigurations(): the basis holds $(basis.NoElectrons) electrons, "  *
                                                         "$NoElectrons expected.")
         else
             confR = ConfigurationR(newSubshells, NoElectrons)
@@ -746,7 +746,7 @@ function Basics.extractConfigurations(theme::Basics.RelativisticConfigurations, 
                 if   occ > 0             newSubshells[subshell] = occ;   NoElectrons = NoElectrons + occ   end
             end
         end
-        if  basis.NoElectrons != NoElectrons    error("Basics.extractConfigurations(): the basis holds $(basis.NoElectrons) electrons,"  *
+        if  basis.NoElectrons != NoElectrons    error("Basics.extractConfigurations(): the basis holds $(basis.NoElectrons) electrons, "  *
                                                         "$NoElectrons expected.")
         else
             confR = ConfigurationR(newSubshells, NoElectrons)
@@ -1106,8 +1106,8 @@ function Basics.extractFromConfiguration(theme::Basics.ValenceOccupation, conf::
     coreShells = coreConf.shells;    valenceShells = Dict{Shell,Int64}()
     for  (shell, occ)  in  conf.shells
         if       haskey(coreShells, shell)  &&   coreShells[shell] == occ
-        elseif   haskey(coreShells, shell)       error("Basics.extractFromConfiguration(): the shell $shell is both a core and a valence"  *
-                                                         "shell.") 
+        elseif   haskey(coreShells, shell)       error("Basics.extractFromConfiguration(): the shell $shell is both a core and a "  *
+                                                         "valence shell.") 
         else     valenceShells[shell] = occ
         end 
     end
@@ -1846,8 +1846,8 @@ function Basics.generateConfigurations(theme::Basics.SuperConfiguration, NoElect
             end 
         end
         if      breakOut
-        elseif  newNoElectrons != NoElectrons    error("Basics.generateConfigurations(): the generated configuration has $newNoElectrons"  *
-                                                         "electrons but $NoElectrons were expected.")    
+        elseif  newNoElectrons != NoElectrons    error("Basics.generateConfigurations(): the generated configuration has "  *
+                                                         "$newNoElectrons electrons but $NoElectrons were expected.")    
         else                                     push!(confList, Configuration(newShells, NoElectrons))
         end
     end

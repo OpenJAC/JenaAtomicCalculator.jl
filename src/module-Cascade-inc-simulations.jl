@@ -367,7 +367,7 @@ end
 function displayPhotoAbsorptionSpectrum(stream::IO, pEnergies::Array{Float64,1}, crossSections::Array{EmProperty,1},
                                         property::Cascade.PhotoAbsorptionSpectrum)
     # Photon energies enter via the property
-    if  length(pEnergies) != length(crossSections)  error("Cascade.displayPhotoAbsorptionSpectrum(): $(length(pEnergies)) photon"  *
+    if  length(pEnergies) != length(crossSections)  error("Cascade.displayPhotoAbsorptionSpectrum(): $(length(pEnergies)) photon "  *
                                                             "energies but $(length(crossSections)) cross sections.")    end
     nx = 46
     println(stream, " ")
@@ -668,7 +668,7 @@ function interpolateIonizationCS(photonEnergy::Float64, ionizationCS::Array{Basi
         totalEnergy = ionizationCS[imax].arg - ionizationCS[imin].arg 
         cs          = ionizationCS[imin].value + deltaEnergy/totalEnergy * (ionizationCS[imax].value - ionizationCS[imin].value)
         return( cs )
-    else  error("Cascade.interpolateIonizationCS(): the photon energy $photonEnergy lies outside the tabulated range and cannot be"  *
+    else  error("Cascade.interpolateIonizationCS(): the photon energy $photonEnergy lies outside the tabulated range and cannot be "  *
                   "interpolated.")    
     end
 end
@@ -1087,7 +1087,7 @@ function propagateProbability!(levels::Array{Cascade.Level,1})
                     end
                 end
                 totalRate = sum(rates)
-                if      totalRate <  0.    error("Cascade.propagateProbability!(): the total rate of a level came out NEGATIVE"  *
+                if      totalRate <  0.    error("Cascade.propagateProbability!(): the total rate of a level came out NEGATIVE "  *
                                                    "($totalRate), which no sum of decay rates can be.")
                 elseif  totalRate == 0.    # do nothing
                 else
@@ -1097,7 +1097,7 @@ function propagateProbability!(levels::Array{Cascade.Level,1})
                         if      daughter.process == Basics.Radiative()     line = daughter.lines[idx]
                         elseif  daughter.process == Basics.Auger()         line = daughter.lines[idx]
                         elseif  daughter.process == Basics.Photo()         line = daughter.lines[idx]
-                        else    error("Cascade.propagateProbability!(): the process $(daughter.process) is not one this propagation"  *
+                        else    error("Cascade.propagateProbability!(): the process $(daughter.process) is not one this propagation "  *
                                         "handles.")
                         end
                         major    = Basics.extractConfiguration(Basics.LeadingConfiguration(), line.finalLevel)
