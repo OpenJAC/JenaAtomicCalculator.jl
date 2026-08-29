@@ -122,22 +122,43 @@ end
 
 
 """
+`Semiempirical.noEntry(source::String, sh::Shell, Z::Int64)`
+    ... raises because the named compilation of measured binding energies has no entry for this shell of this
+        element; it never returns. The three tables mark a missing entry with -1., and all three
+        `estimate(::EstimateBindingEnergy..., ...)` methods meet it identically, so they share ONE message rather
+        than carrying twenty-eight `error("stop aa")` markers between them, as they did until 29-Aug-2026.
+        **A missing entry is an ordinary user request, not an internal fault**: these compilations are incomplete
+        for many elements, so the message says which table, which shell and which Z, and names the alternatives.
+"""
+function noEntry(source::String, sh::Shell, Z::Int64)
+    error("Semiempirical.estimate(): " * source * " tabulates NO binding energy for shell $sh of Z = $Z " *
+          "(its table entry is -1.), so the total cannot be formed.  Give a Z the table covers, drop that "  *
+          "shell from the configuration, or try one of the other EstimateBindingEnergy... variants.")
+end
+
+const WILLIAMS2000  = "Williams et al. (2000)"
+const LARKINS1977   = "Larkins (1977)"
+const XRAYBOOKLET   = "the X-ray Data Booklet"
+
+"""
 `Semiempirical.estimate(::EstimateBindingEnergyWilliams2000, Z::Int64, conf::Configuration)`
     ... provides an approximate total binding energy of a configuration from Williams et al. (2000);
         no relaxation effects between hole states are included; an energy::Float64 in Hartree is returned.
 """
+
+
 function estimate(::EstimateBindingEnergyWilliams2000, Z::Int64, conf::Configuration)
     wa = PeriodicTable.bindingEnergies_Williams2000(Z)
     wb = 0.
     for (sh,v) in  conf.shells
-        if      sh == Shell("1s")    if wa[1]  == -1.   error("stop aa")   else   wb = wb + v * wa[1]    end
-        elseif  sh == Shell("2s")    if wa[2]  == -1.   error("stop ab")   else   wb = wb + v * wa[2]    end
-        elseif  sh == Shell("2p")    if wa[4]  == -1.   error("stop ac")   else   wb = wb + v * wa[4]    end
-        elseif  sh == Shell("3s")    if wa[5]  == -1.   error("stop ad")   else   wb = wb + v * wa[5]    end
-        elseif  sh == Shell("3p")    if wa[7]  == -1.   error("stop ae")   else   wb = wb + v * wa[7]    end
-        elseif  sh == Shell("3d")    if wa[9]  == -1.   error("stop af")   else   wb = wb + v * wa[9]    end
-        elseif  sh == Shell("4s")    if wa[10] == -1.   error("stop ag")   else   wb = wb + v * wa[10]   end
-        elseif  sh == Shell("4p")    if wa[12] == -1.   error("stop ah")   else   wb = wb + v * wa[12]   end
+        if      sh == Shell("1s")    if wa[1]  == -1.   noEntry(WILLIAMS2000, sh, Z)   else   wb = wb + v * wa[1]    end
+        elseif  sh == Shell("2s")    if wa[2]  == -1.   noEntry(WILLIAMS2000, sh, Z)   else   wb = wb + v * wa[2]    end
+        elseif  sh == Shell("2p")    if wa[4]  == -1.   noEntry(WILLIAMS2000, sh, Z)   else   wb = wb + v * wa[4]    end
+        elseif  sh == Shell("3s")    if wa[5]  == -1.   noEntry(WILLIAMS2000, sh, Z)   else   wb = wb + v * wa[5]    end
+        elseif  sh == Shell("3p")    if wa[7]  == -1.   noEntry(WILLIAMS2000, sh, Z)   else   wb = wb + v * wa[7]    end
+        elseif  sh == Shell("3d")    if wa[9]  == -1.   noEntry(WILLIAMS2000, sh, Z)   else   wb = wb + v * wa[9]    end
+        elseif  sh == Shell("4s")    if wa[10] == -1.   noEntry(WILLIAMS2000, sh, Z)   else   wb = wb + v * wa[10]   end
+        elseif  sh == Shell("4p")    if wa[12] == -1.   noEntry(WILLIAMS2000, sh, Z)   else   wb = wb + v * wa[12]   end
         end
     end
 
@@ -154,14 +175,14 @@ function estimate(::EstimateBindingEnergyLarkins1977, Z::Int64, conf::Configurat
     wa = PeriodicTable.bindingEnergies_Larkins1977(Z)
     wb = 0.
     for (sh,v) in  conf.shells
-        if      sh == Shell("1s")    if wa[1]  == -1.   error("stop aa")   else   wb = wb + v * wa[1]    end
-        elseif  sh == Shell("2s")    if wa[2]  == -1.   error("stop ab")   else   wb = wb + v * wa[2]    end
-        elseif  sh == Shell("2p")    if wa[4]  == -1.   error("stop ac")   else   wb = wb + v * wa[4]    end
-        elseif  sh == Shell("3s")    if wa[5]  == -1.   error("stop ad")   else   wb = wb + v * wa[5]    end
-        elseif  sh == Shell("3p")    if wa[7]  == -1.   error("stop ae")   else   wb = wb + v * wa[7]    end
-        elseif  sh == Shell("3d")    if wa[9]  == -1.   error("stop af")   else   wb = wb + v * wa[9]    end
-        elseif  sh == Shell("4s")    if wa[10] == -1.   error("stop ag")   else   wb = wb + v * wa[10]   end
-        elseif  sh == Shell("4p")    if wa[12] == -1.   error("stop ah")   else   wb = wb + v * wa[12]   end
+        if      sh == Shell("1s")    if wa[1]  == -1.   noEntry(LARKINS1977, sh, Z)   else   wb = wb + v * wa[1]    end
+        elseif  sh == Shell("2s")    if wa[2]  == -1.   noEntry(LARKINS1977, sh, Z)   else   wb = wb + v * wa[2]    end
+        elseif  sh == Shell("2p")    if wa[4]  == -1.   noEntry(LARKINS1977, sh, Z)   else   wb = wb + v * wa[4]    end
+        elseif  sh == Shell("3s")    if wa[5]  == -1.   noEntry(LARKINS1977, sh, Z)   else   wb = wb + v * wa[5]    end
+        elseif  sh == Shell("3p")    if wa[7]  == -1.   noEntry(LARKINS1977, sh, Z)   else   wb = wb + v * wa[7]    end
+        elseif  sh == Shell("3d")    if wa[9]  == -1.   noEntry(LARKINS1977, sh, Z)   else   wb = wb + v * wa[9]    end
+        elseif  sh == Shell("4s")    if wa[10] == -1.   noEntry(LARKINS1977, sh, Z)   else   wb = wb + v * wa[10]   end
+        elseif  sh == Shell("4p")    if wa[12] == -1.   noEntry(LARKINS1977, sh, Z)   else   wb = wb + v * wa[12]   end
         end
     end
 
@@ -178,18 +199,18 @@ function estimate(::EstimateBindingEnergyXrayDataBooklet, Z::Int64, conf::Config
     wa = PeriodicTable.bindingEnergies_XrayDataBooklet(Z)
     wb = 0.
     for (sh,v) in  conf.shells
-        if      sh == Shell("1s")    if wa[1]  == -1.   error("stop aa")   else   wb = wb + v * wa[1]    end
-        elseif  sh == Shell("2s")    if wa[2]  == -1.   error("stop ab")   else   wb = wb + v * wa[2]    end
-        elseif  sh == Shell("2p")    if wa[4]  == -1.   error("stop ac")   else   wb = wb + v * wa[4]    end
-        elseif  sh == Shell("3s")    if wa[5]  == -1.   error("stop ad")   else   wb = wb + v * wa[5]    end
-        elseif  sh == Shell("3p")    if wa[7]  == -1.   error("stop ae")   else   wb = wb + v * wa[7]    end
-        elseif  sh == Shell("3d")    if wa[9]  == -1.   error("stop af")   else   wb = wb + v * wa[9]    end
-        elseif  sh == Shell("4s")    if wa[10] == -1.   error("stop ag")   else   wb = wb + v * wa[10]   end
-        elseif  sh == Shell("4p")    if wa[12] == -1.   error("stop ah")   else   wb = wb + v * wa[12]   end
-        elseif  sh == Shell("4d")    if wa[14] == -1.   error("stop ai")   else   wb = wb + v * wa[14]   end
-        elseif  sh == Shell("4f")    if wa[16] == -1.   error("stop aj")   else   wb = wb + v * wa[16]   end
-        elseif  sh == Shell("5s")    if wa[17] == -1.   error("stop ag")   else   wb = wb + v * wa[17]   end
-        elseif  sh == Shell("5p")    if wa[19] == -1.   error("stop ah")   else   wb = wb + v * wa[19]   end
+        if      sh == Shell("1s")    if wa[1]  == -1.   noEntry(XRAYBOOKLET, sh, Z)   else   wb = wb + v * wa[1]    end
+        elseif  sh == Shell("2s")    if wa[2]  == -1.   noEntry(XRAYBOOKLET, sh, Z)   else   wb = wb + v * wa[2]    end
+        elseif  sh == Shell("2p")    if wa[4]  == -1.   noEntry(XRAYBOOKLET, sh, Z)   else   wb = wb + v * wa[4]    end
+        elseif  sh == Shell("3s")    if wa[5]  == -1.   noEntry(XRAYBOOKLET, sh, Z)   else   wb = wb + v * wa[5]    end
+        elseif  sh == Shell("3p")    if wa[7]  == -1.   noEntry(XRAYBOOKLET, sh, Z)   else   wb = wb + v * wa[7]    end
+        elseif  sh == Shell("3d")    if wa[9]  == -1.   noEntry(XRAYBOOKLET, sh, Z)   else   wb = wb + v * wa[9]    end
+        elseif  sh == Shell("4s")    if wa[10] == -1.   noEntry(XRAYBOOKLET, sh, Z)   else   wb = wb + v * wa[10]   end
+        elseif  sh == Shell("4p")    if wa[12] == -1.   noEntry(XRAYBOOKLET, sh, Z)   else   wb = wb + v * wa[12]   end
+        elseif  sh == Shell("4d")    if wa[14] == -1.   noEntry(XRAYBOOKLET, sh, Z)   else   wb = wb + v * wa[14]   end
+        elseif  sh == Shell("4f")    if wa[16] == -1.   noEntry(XRAYBOOKLET, sh, Z)   else   wb = wb + v * wa[16]   end
+        elseif  sh == Shell("5s")    if wa[17] == -1.   noEntry(XRAYBOOKLET, sh, Z)   else   wb = wb + v * wa[17]   end
+        elseif  sh == Shell("5p")    if wa[19] == -1.   noEntry(XRAYBOOKLET, sh, Z)   else   wb = wb + v * wa[19]   end
         elseif  sh == Shell("5d")    if wa[21] == -1.                      else   wb = wb + v * wa[21]   end
         elseif  sh == Shell("6s")    if wa[22] == -1.                      else   wb = wb + v * wa[22]   end
         elseif  sh == Shell("6p")    if wa[24] == -1.                      else   wb = wb + v * wa[24]   end

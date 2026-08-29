@@ -69,7 +69,8 @@ end
     ... to provide a string of a given shell state in the form !!To be worked out !! '[2p_1/2^occ]_(seniorityNr, J_sub), X=Xo' ... .
 """
 function shellStateString(shell::String, occ::Int64, w::Int64, Q::AngularJ64, L::AngularJ64, S::AngularJ64, LX::AngularJ64, SX::AngularJ64)
-    error("stop a: To be adapted yet. ")
+    error("LSjj.shellStateString(): the string form of a shell state is not yet written for this case; "  *
+                                 "the numeric fields are available on the ShellStateNR itself.")
     sa = "[" * subshell * "^$occ]_($seniorityNr, " * string(Jsub) * ") X=" * string(X)
     return( sa )
 end
@@ -407,7 +408,9 @@ end
         expansion is complete, and a warning is issued if this is not the case.
 """
 function expandCsfRintoNonrelativisticBasis(openShells::ZeroOpenShell, csfR::CsfR, basisR::Basis, basisNR::BasisNR)
-    if  csfR.J != AngularJ64(0)  ||   csfR.parity != Basics.plus    error("stop a")   end
+    if  csfR.J != AngularJ64(0)  ||   csfR.parity != Basics.plus    error("LSjj.expandCsfRintoNonrelativisticBasis(): "  *
+                                                                           "a CSF with NO open shell must have J = 0 and even "  *
+                                                                      "parity; this one has J = $(csfR.J) and parity $(csfR.parity).")   end
     mcVector = Float64[]
     confR     = Basics.extractConfiguration(Basics.FromBasis(), basisR, csfR)
     for  csf in basisNR.csfs
@@ -432,8 +435,11 @@ function expandCsfRintoNonrelativisticBasis(openShells::OneOpenShell, csfR::CsfR
     rQN           = Basics.extractOpenShellQNfromCsfR(csfR, basisR)
     rShells, rOCC = Basics.extractShellOccupationFromCsfR(csfR, basisR)
     
-    if  length( keys(rQN) ) != 1    error("stop a")     end
-    if  rShells != basisNR.shells   error("stop b")     end
+    if  length( keys(rQN) ) != 1    error("LSjj.expandCsfRintoNonrelativisticBasis(): "  *
+                                           "exactly ONE open relativistic subshell was expected "  *
+                                        "here; got $(length(keys(rQN))).")     end
+    if  rShells != basisNR.shells   error("LSjj.expandCsfRintoNonrelativisticBasis(): the relativistic and non-relativistic shell lists "  *
+                                        "differ; they must describe the same configuration.")     end
     
     for  (rsh, rv)  in  rQN
         rQNm = rv[1];   rQNp = rv[2]    # Get QN of the relativistic subshells
@@ -445,9 +451,13 @@ function expandCsfRintoNonrelativisticBasis(openShells::OneOpenShell, csfR::CsfR
                 me = 0.
                 if  rOCC == csfNR.occupation
                     nrQN = LSjj.extractOpenShellQNfromCsfNR(csfNR, basisNR)
-                    if  length( keys(nrQN) ) != 1    error("stop c")     end
+                    if  length( keys(nrQN) ) != 1    error("LSjj.expandCsfRintoNonrelativisticBasis(): "  *
+                                                            "exactly ONE open non-relativistic shell was expected "  *
+                                         "here; got $(length(keys(nrQN))).")     end
                     for  (nrsh, nrv)  in  nrQN
-                        if  rsh != nrsh              error("stop d")     end
+                        if  rsh != nrsh              error("LSjj.expandCsfRintoNonrelativisticBasis(): "  *
+                                                            "the open relativistic subshell $rsh does not belong "  *
+                                     "to the open non-relativistic shell $nrsh.")     end
                         # Determine the jj-LS overlap coefficient from the tabulation; no re-coupling coefficients need to be
                         # considered for a single nonrelativistic open shell
                         if  rsh.l == 0  twojm = 1    else    twojm = 2*rsh.l - 1  end
@@ -498,8 +508,10 @@ function expandCsfRintoNonrelativisticBasis(openShells::GeneralOpenShells, csfR:
     rKeys         = keys(rQN)
     u             = length(rKeys)
 
-    if  u < 2                       error("stop a")     end
-    if  rShells != basisNR.shells   error("stop b")     end
+    if  u < 2                       error("LSjj.expandCsfRintoNonrelativisticBasis(): this general-open-shell branch needs at least TWO "  *
+                                        "open shells; got $u.")     end
+    if  rShells != basisNR.shells   error("LSjj.expandCsfRintoNonrelativisticBasis(): the relativistic and non-relativistic shell lists "  *
+                                        "differ; they must describe the same configuration.")     end
 
     # Fix a definite ORDER for the open shells (the order in which they are folded into the recursion);
     # any order is formally valid, but it must be the SAME order used below to read csfNR's own
@@ -772,7 +784,7 @@ function provideShellStates(sh::Shell, occ::Int64)
                                             push!( wb, LSjj.ShellStateNR( sh, occ, 0, 0, 8, 1) )
                                             push!( wb, LSjj.ShellStateNR( sh, occ, 0, 2,10, 1) )
                                             push!( wb, LSjj.ShellStateNR( sh, occ, 0, 0,12, 1) );       return(wb)
-        else     error("stop c")
+        else     error("LSjj.provideShellStates(): no LS shell states are tabulated for $sh with occupation $occ.")
         end
     elseif   sh.l == 3
         if       occ == 0  || occ == 14     push!( wb, LSjj.ShellStateNR( sh, occ, 1, 7, 0, 0) );       return(wb)
@@ -1041,11 +1053,12 @@ function provideShellStates(sh::Shell, occ::Int64)
                                             push!( wb, LSjj.ShellStateNR( sh, occ, 1, 3,20, 0) )
                                             push!( wb, LSjj.ShellStateNR( sh, occ, 2, 1,20, 0) )
                                             push!( wb, LSjj.ShellStateNR( sh, occ, 0, 1,24, 0) );       return(wb)
-        else     error("stop d")
+        else     error("LSjj.provideShellStates(): no LS shell states are tabulated for $sh with occupation $occ.")
         end
 
     # For an extension to other subshell-occupations, see the Racah-manual; Table ...
-    else  error("stop a")
+    else  error("LSjj.provideShellStates(): no LS shell states are tabulated for $sh; only s, p, d and f shells "  *
+                "are covered. For other subshell occupations see the Racah manual, Table ...")
     end
 end
 
@@ -1063,7 +1076,7 @@ function shortString(csfNR::CsfNR, basisNR::BasisNR)
         wa = [ "P", "D", "F", "G", "H", "I", "K", "L", "M", "N", "O", "Q"]
         if      L == 0      wb = "S"    
         elseif  L in 1:12    wb = wa[L]
-        else    error("stop a")
+        else    error("LSjj.shortString(): no spectroscopic letter for L = $L; the table runs S, P, D, ... Q, i.e. L = 0..12.")
         end
         return( wb )
     end
@@ -1163,7 +1176,8 @@ function getLSjjCoefficient(l::Int64, N::Int64, qn::LS_jj_qn)
     # Deal separately with the occupations N = 0, 1, 2  before the matrix elements are taken from some predefined lists
     if      N == 0
     elseif  N == 1
-        if  qn.Jm == qn.Jp     error("stop a")                 end
+        if  qn.Jm == qn.Jp     error("LSjj.getLSjjCoefficient(): "  *
+                                      "for N = 1 the two j-subshell occupations must differ, but Jm = Jp = $(qn.Jm).")                 end
         if  qn.JJ == qn.Jm  ||  qn.JJ == qn.Jp   wa = 1.0      end
     elseif  N == 2
         Nm = qn.Nm;    Np = N - Nm;     l2 = l+l;   LL = qn.LL;   SS = qn.SS;   JJ = qn.JJ
@@ -1173,7 +1187,8 @@ function getLSjjCoefficient(l::Int64, N::Int64, qn::LS_jj_qn)
             if  l2 == 0     twoj1 = twoj2 = 1   else    twoj1 = l2 - 1;   twoj2 = l2 + 1      end
         elseif      Nm == 0     &&  Np == 2
             twoj1 = twoj2 = l2 + 1
-        else        error("stop b")                             
+        else        error("LSjj.getLSjjCoefficient(): for N = 2 the occupations (Nm, Np) = ($Nm, $Np) are not one of the "  *
+                                    "three cases handled here.")                             
         end
         # Compute matrix element
         if          rem(LL+SS,4) != 0
@@ -1199,7 +1214,7 @@ function getLSjjCoefficient(l::Int64, N::Int64, qn::LS_jj_qn)
             end
         elseif  N == 6   ## Use data from the array LS_jj_p_6
             for  me  in  LS_jj_p_6    if  qn == me.qn    wa = me.factor * sqrt( me.nom/me.denom );    break    end    end
-        else    error("stop c")
+        else    error("LSjj.getLSjjCoefficient(): no LS-jj table for a p-shell with N = $N; p^1..p^6 are tabulated.")
         end
     elseif  l == 2
         if      N == 3   ## Use data from the array LS_jj_d_3
@@ -1218,7 +1233,7 @@ function getLSjjCoefficient(l::Int64, N::Int64, qn::LS_jj_qn)
             for  me  in  LS_jj_d_9    if  qn == me.qn    wa = me.factor * sqrt( me.nom/me.denom );    break    end    end
         elseif  N == 10  ## Use data from the array LS_jj_d_10
             for  me  in  LS_jj_d_10   if  qn == me.qn    wa = me.factor * sqrt( me.nom/me.denom );    break    end    end
-        else    error("stop d")
+        else    error("LSjj.getLSjjCoefficient(): no LS-jj table for a d-shell with N = $N; d^1..d^10 are tabulated.")
         end
     elseif  l == 3
         if      N == 3   ## Use data from the array LS_jj_f_3
@@ -1231,9 +1246,9 @@ function getLSjjCoefficient(l::Int64, N::Int64, qn::LS_jj_qn)
             for  me  in  LS_jj_f_6    if  qn == me.qn    wa = me.factor * sqrt( me.nom/me.denom );    break    end    end
         elseif  N == 7   ## Use data from the array LS_jj_f_7
             for  me  in  LS_jj_f_7    if  qn == me.qn    wa = me.factor * sqrt( me.nom/me.denom );    break    end    end
-        else    error("stop f")
+        else    error("LSjj.getLSjjCoefficient(): no LS-jj table for an f-shell with N = $N; f^1..f^7 are tabulated.")
         end
-    else        error("stop g")
+    else        error("LSjj.getLSjjCoefficient(): LS-jj coefficients are tabulated for l = 0,1,2,3 (s, p, d, f) only; got l = $l.")
     end
     
     return(wa)
