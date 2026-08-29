@@ -1,9 +1,30 @@
 using Test
 using JenaAtomicCalculator, ..Defaults, ..TestFrames
 
+## Clear the .sum files of the PREVIOUS run, before this one starts.  Each test that opens a summary writes a
+## test-<Name>-new.sum here and never removes it, so they accumulate -- 51 had collected by 29-Aug-2026.
+## Deliberately done at the START and not at the end, unlike the zzz-*.jld block below: after a FAILING run those
+## files are the evidence of what the test actually produced, and deleting them on the way out would throw away
+## the one thing worth reading.  Cleaning on the way in gives the same tidiness and keeps the evidence.
+## test/approved/ is a subdirectory and readdir() does not descend, so the 33 approved references are out of reach.
+let  dir = @__DIR__
+    stale = filter(f -> startswith(f, "test-") && endswith(f, "-new.sum"), readdir(dir))
+    for  f in stale   rm(joinpath(dir, f), force = true)   end
+    if  length(stale) > 0
+        printstyled("\nCleared $(length(stale)) .sum file(s) from the previous run in $(dir) \n", color = :cyan)
+    end
+end
+
 @testset "Name" begin
     printstyled("\nPerform tests on the JAC program; this may take a while .... \n", color=:cyan)
-    ## Defaults.Constants.define("print test: open", pwd() * "/runtests.report")
+    # To see WHY a test failed, uncomment the next line: it turns on the per-test diagnostics that every
+    # `if printTest   info(iostream, "...")   end` in TestFrames writes.  They are off by default because a
+    # passing suite has nothing to say.
+    #     Defaults.setDefaults("print test: open", joinpath(@__DIR__, "runtests.report"))
+    # The line that stood here until 29-Aug-2026 read `Defaults.Constants.define(...)`, which is not an API
+    # this package has -- there is no Constants submodule and no `define` -- so uncommenting it would have
+    # RAISED rather than enabled anything.  Nobody found out, because nobody uncommented it; and the 77
+    # diagnostics behind it were themselves calling an `info` that was only defined on 28-Aug-2026.
 
     @testset "JAC methods" begin
         @test TestFrames.testMethod_Wigner_3j()
