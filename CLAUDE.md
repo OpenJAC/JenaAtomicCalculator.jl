@@ -580,6 +580,66 @@ A Fail is reported with the failing test name and error before anything else is 
 Note: some tests are deliberately disabled in `runtests.jl` (marked `##`); those are not failures.
 The M-branch `example-Mx.jl` files are **separate** from this test suite.
 
+### /testExamples
+
+**Sample 60 example branches at random, run each one alone, and JUDGE the result — then put what fails on the
+priority list.** Meant to be run at night. It takes roughly 45 minutes of compute and needs no supervision.
+
+It exists because the test suite and the examples fail differently. The suite tests what somebody thought to
+test; the examples are where the physics is actually used, and a branch nobody has run in six months drifts
+against the code silently. A first sweep of 200 branches on 28/29-Aug-2026 found two live regressions, nine
+wrong grids and two one-character typos, none of which any test could see.
+
+**1. Choose the branches.** A branch is one `if true` / `if false` / `elseif true` / `elseif false` guard in
+`examples/*.jl`; there are about 500. Draw 60 AT RANDOM, but from the LEAST-RECENTLY-VISITED first: keep the
+list of what each run sampled, and prefer branches not drawn before. Pure random sampling revisits some and
+never reaches others; drawing from the unvisited pool reaches every branch in about nine runs. Record the seed.
+
+**2. Run each one ALONE.** Copy the whole example file, set that one guard to `true` and EVERY other guard in
+the file to `false`, so exactly one branch executes. Four harness details, each learned by getting it wrong:
+
+- **Prepend the packages.** Only about a quarter of the example files carry a `using` line; the rest assume a
+  live session. Prepend `using JenaAtomicCalculator`, `const JAC = JenaAtomicCalculator`, and
+  `using Printf, LinearAlgebra, Distributed`, with `JLD2` and `SymEngine` inside a `try`. Without `Printf`
+  a batch of examples fails on `@printf` and it looks like a defect.
+- **Julia resolves `include` relative to the SCRIPT's directory, not the working directory.** One example
+  includes a sibling file; copy that file next to the generated scripts, and run with the working directory
+  set there so relative reads and `zzz-*.sum` output land in scratch rather than in the repository.
+- **Use `timeout -k`.** Plain `timeout` sends only SIGTERM, which a branch inside a long numerical call can
+  ignore; one escaped for eight hours.
+- **Two at a time**, no more — each Julia process holds a couple of gigabytes.
+
+**3. VERIFY THE HARNESS BEFORE BELIEVING IT.** Run five branches first and read every failure. If a failure is
+the harness rather than the code, fix it and start again. The first attempt at the 28-Aug sweep reported 21
+failures of which more than half were its own; a list half made of noise is worse than no list.
+
+**4. Judge each result — this is the part that makes the command worth running.** Completing is NOT passing.
+For every branch, read what the branch itself claims and compare:
+
+- **Its own recorded numbers.** Most branches carry a REPORT block or a `Last successful` note quoting values.
+  Do they still come out? A branch that completes while its own quoted number has moved by 30 % is a FINDING,
+  and it is invisible to any "does it run" check.
+- **Physical sense.** Right order of magnitude, correct quantum numbers, partial sums matching totals, gauge
+  agreement in the expected range, rates that are not zero and not 1e30, no negative populations.
+- **Its own warnings.** A run that completes while printing NOT CONVERGED, or a grid warning, has not passed.
+- **What the date claims.** A branch marked `Last successful: <date>` that now fails or has drifted is a
+  REGRESSION and ranks far above a branch marked `unknown`, which has simply never worked. Say which.
+
+**5. Report in five classes, and do not blur them.**
+`VERIFIED` (ran and its numbers stand) · `DRIFTED` (ran, numbers moved — quote both) · `FAILED` (raised) ·
+`TIMED OUT` (not a defect, say so) · `NOT A DEFECT` (a branch needing an earlier branch of the same file, or a
+guard correctly refusing a wrong grid — the code was right and the EXAMPLE is wrong; still worth an item, but
+say plainly that `src/` behaved).
+
+**6. Add DRIFTED, FAILED and example-is-wrong results to the priority list**, one item each, with the file and
+line, the error or the two numbers, and **one sentence saying what made you doubt it** — that sentence is the
+point of the exercise and is what a later reader will act on. Do NOT add timeouts, and do NOT add branches that
+merely need an earlier branch to have run.
+
+**7. Never re-date a branch from this command.** Rule 7 asks for verified physical consistency, and a sampled
+overnight run is not that. `/testExamples` reports and files items; dating stays with `/test Mx` and with a
+human deciding.
+
 ### /push JAC
 **Test, then commit to git.**
 1. Run `/test JAC` first. Any failure blocks the push.
