@@ -294,6 +294,12 @@ function allIntermediateLevels(mp::Multiplet)
     return( mp.levels )
 end
 
+"""
+`MultiPhotonTransition.allIntermediateLevels(gChannels::Array{AtomicState.GreenChannel,1})`
+    ... collects the levels of ALL Green channels, of every symmetry. The unfiltered counterpart of
+        `intermediateLevels`, needed by the three-photon amplitude, whose two intermediate sums do not share one
+        total symmetry. A levels::Array{Level,1} is returned.
+"""
 function allIntermediateLevels(gChannels::Array{AtomicState.GreenChannel,1})
     levels = Level[]
     for  ch in gChannels    append!(levels, ch.gMultiplet.levels)    end

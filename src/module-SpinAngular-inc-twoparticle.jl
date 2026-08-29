@@ -111,6 +111,15 @@ end
 coeffs2pEmpty() = Coefficient2p{EffectiveStrengthKind}[]
 
 
+"""
+`SpinAngular.computeCoefficients(op::SpinAngular.TwoParticleOperator, leftCsf::CsfR, rightCsf::CsfR,`
+                                `subshells::Array{Subshell,1})`
+    ... computes the spin-angular coefficients of a SCALAR (rank-0) two-particle operator between the two CSF, i.e.
+        the coefficients that multiply the Slater integrals of the electron-electron interaction. **Only rank 0 is
+        defined**, and any other rank raises rather than returning an empty list, since an empty list would be
+        indistinguishable from an exact zero. The two CSF must have EQUAL occupations, though their couplings may
+        differ. A coeffs::Array{Coefficient2p,1} is returned.
+"""
 function computeCoefficients(op::SpinAngular.TwoParticleOperator, leftCsf::CsfR, rightCsf::CsfR,
                              subshells::Array{Subshell,1})
     if  op.rank != 0

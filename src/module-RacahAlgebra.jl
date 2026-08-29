@@ -19,9 +19,33 @@ export  ClebschGordan, Integral, Kronecker, Triangle, W3j, W6j, W9j, Ylm, Djpq, 
 """
 struct  AngMomentum   end
 
+"""
+`RacahAlgebra.AngMomentum(x::Basic)`
+    ... passes a symbolic angular momentum through unchanged; a value::Basic is returned. The identity case of the
+        family, so that a caller need not know whether its argument is already symbolic.
+"""
 function AngMomentum(x::Basic)   return(x)                                end
+
+
+"""
+`RacahAlgebra.AngMomentum(x::Int64)`
+    ... converts an integer angular momentum to the symbolic `Basic` the algebra works in; a value::Basic is returned.
+"""
 function AngMomentum(x::Int64)   return( Basic(x) )                       end
+
+
+"""
+`RacahAlgebra.AngMomentum(x::Symbol)`
+    ... turns a Julia symbol such as `:ja` into the SymEngine symbol of the same name, so that an angular momentum
+        may be left unspecified and carried through the algebra by name; a value::Basic is returned.
+"""
 function AngMomentum(x::Symbol)  return( SymEngine.symbols(string(x)) )   end
+"""
+`RacahAlgebra.AngMomentum(x::Rational{Int64})`
+    ... converts a rational angular momentum to the symbolic `Basic` the algebra works in, ACCEPTING ONLY integer
+        and half-integer values -- a denominator other than 1 or 2 raises, since nothing else is an angular
+        momentum. A value::Basic is returned. The companion methods take a Basic, an Int64 or a Symbol.
+"""
 function AngMomentum(x::Rational{Int64})  
     if  x.den == 1 || x.den == 2     return( Basic(x.num//x.den) )   
     else    error("Angular momenta must be integer or half-interger.")
@@ -284,6 +308,12 @@ function  Ylm(l::AngMomentum, m::AngMomentum, theta::Basic, phi::Basic, star::Bo
 end
 
 
+"""
+`RacahAlgebra.Ylm(wl::Basic, wm::Basic, theta::Basic, phi::Basic, star::Bool)`
+    ... returns the spherical harmonic Y_lm(theta,phi), or its COMPLEX CONJUGATE if star = true. The conjugate is
+        not formed by conjugating the function but by using Y*_lm = (-1)^m Y_l,-m, so the result stays a
+        RacahExpression the algebra can go on simplifying. A rex::RacahExpression is returned.
+"""
 function  Ylm(wl::Basic, wm::Basic, theta::Basic, phi::Basic, star::Bool)
     if  star    rex = RacahExpression( Basic[], Integral[], -wm, Basic(1), Kronecker[], Triangle[], W3j[], W6j[], W9j[], [Ylm(wl, -wm, theta, phi)], Djpq[] )
                 return( rex )
@@ -2356,6 +2386,12 @@ function testRecursions(; short::Bool=true)
 end
 
 
+"""
+`RacahAlgebra.testPrint(sa::String, success::Bool)`
+    ... writes one line of a self-test report -- the label sa padded to column 100, then `[OK]` or `[Fail]` -- to
+        the test stream. Nothing is returned. The twin of `TestFrames.testPrint`, kept here so that this module's
+        self-tests do not depend on the test framework.
+"""
 function testPrint(sa::String, success::Bool)
     printTest, iostream = Defaults.getDefaults("test flag/stream")
     ok(succ) =  succ ? "[OK]" : "[Fail]"

@@ -272,6 +272,11 @@ function Basics.merge(aList::Array{Shell,1}, bList::Array{Shell,1})
     cList = Basics.sort(cList)
     return( cList )
 end
+"""
+`Basics.merge(aList::Array{Shell,1}, bList::Array{Shell,1}, cList::Array{Shell,1})`
+    ... merges THREE shell lists into one, by applying the two-list method twice; duplicates are removed and the
+        result is sorted. A cList::Array{Shell,1} is returned.
+"""
 function Basics.merge(aList::Array{Shell,1}, bList::Array{Shell,1}, cList::Array{Shell,1})
     dList = Basics.merge(aList, bList);     dList = Basics.merge(dList, cList)
     dList = Basics.sort(dList)
@@ -289,6 +294,11 @@ function Basics.merge(aList::Array{Subshell,1}, bList::Array{Subshell,1})
     cList = Basics.sort(cList)
     return( cList )
 end
+"""
+`Basics.merge(aList::Array{Subshell,1}, bList::Array{Subshell,1}, cList::Array{Subshell,1})`
+    ... merges THREE subshell lists into one, by applying the two-list method twice; duplicates are removed and the
+        result is sorted. A dList::Array{Subshell,1} is returned.
+"""
 function Basics.merge(aList::Array{Subshell,1}, bList::Array{Subshell,1}, cList::Array{Subshell,1})
     dList = Basics.merge(aList, bList);     dList = Basics.merge(dList, cList)
     dList = Basics.sort(dList)
@@ -360,10 +370,21 @@ function Basics.plot(::RadialOrbitalsLarge, orbitals::Array{Radial.Orbital,1}, g
     error("call instead:  using Plots; pyplot()    ... to access this method simply by plot(...)")
 end
 
+"""
+`Basics.plot(::RadialOrbitalsSmall, orbitals::Array{Radial.Orbital,1}, grid::Radial.Grid; N = 0)`
+    ... plots the SMALL components of the given orbitals. It RAISES rather than plotting: the method is a
+        placeholder that tells the caller to load Plots first, since JAC does not depend on a plotting backend.
+        Nothing is returned.
+"""
 function Basics.plot(::RadialOrbitalsSmall, orbitals::Array{Radial.Orbital,1}, grid::Radial.Grid; N = 0)
     error("call instead:  using Plots; pyplot()    ... to access this method simply by plot(...)")
 end
 
+"""
+`Basics.plot(::RadialOrbitalsBoth, orbitals::Array{Radial.Orbital,1}, grid::Radial.Grid; N = 0)`
+    ... plots BOTH the large and the small components of the given orbitals. As the small-component method above,
+        it RAISES and tells the caller to load Plots first. Nothing is returned.
+"""
 function Basics.plot(::RadialOrbitalsBoth, orbitals::Array{Radial.Orbital,1}, grid::Radial.Grid; N = 0)
     error("call instead:  using Plots; pyplot()    ... to access this method simply by plot(...)")
 end

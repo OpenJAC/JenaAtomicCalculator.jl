@@ -467,6 +467,22 @@ end
 
 
 
+"""
+`Defaults.setDefaults(sa::String, sb::String)`
+    ... sets the string-valued global default named by the keystring sa to sb; nothing is returned.
+
+    Two families of keystring are handled here and nowhere else, and they behave differently:
+
+    + the UNIT settings -- `"unit: energy"`, `"unit: cross section"`, `"unit: rate"`, `"unit: strength"` and
+      `"unit: time"` -- are VALIDATED against the list of units the corresponding conversion can perform, and an
+      unsupported value raises at once rather than at the first conversion.
+    + the STREAM settings -- `"print data: open"/"close"`, `"print data-X: ..."`, `"print data-Y: ..."`,
+      `"print summary: open"/"append"/"close"` and `"print test: open"/"close"` -- open or close a file whose
+      name is sb, and the "close" forms ignore sb.
+
+    An unrecognised keystring raises and names itself. See the keystring catalogue above `setDefaults(sa::String)`
+    for the complete list across all methods of this family.
+"""
 function setDefaults(sa::String, sb::String)
     if        sa == "unit: energy"
         units = ["eV", "Kayser", "Hartree", "Hz", "A"]
@@ -540,6 +556,18 @@ function setDefaults(sa::String, sb::String)
 end
 
 
+"""
+`Defaults.setDefaults(sa::String, Z::Float64)`
+    ... sets a global default that carries a single real number; nothing is returned.
+
+    + `"nuclear: charge"`               ... the nuclear charge used where none is given explicitly.
+    + `"fine structure constant: alpha"` ... alpha, and with it its inverse, which is kept consistent here rather
+      than recomputed at each use. **Changing alpha changes every relativistic quantity in the package**, so this
+      is a setting for a deliberate study of the alpha-dependence -- see the AlphaVariation module -- and not one
+      to be varied casually.
+
+    An unrecognised keystring raises and names itself.
+"""
 function setDefaults(sa::String, Z::Float64)
 
     if        sa == "nuclear: charge"      global GBL_NUCLEAR_CHARGE = Z
@@ -553,6 +581,13 @@ function setDefaults(sa::String, Z::Float64)
 end
 
 
+"""
+`Defaults.setDefaults(sa::String, nm::Any)`
+    ... sets a global default that carries an arbitrary object; nothing is returned. The single keystring is
+        `"nuclear: model"`, whose value is a `Nuclear.Model` used where none is given explicitly. The argument is
+        typed `Any` rather than `Nuclear.Model` only because this module is compiled before that type exists; it
+        is not an invitation to store something else. An unrecognised keystring raises and names itself.
+"""
 function setDefaults(sa::String, nm::Any)
 
     if        sa == "nuclear: model"      global GBL_NUCLEAR_MODEL = nm
@@ -806,6 +841,17 @@ function warn(wa::AbstractWarning)
 end
 
 
+"""
+`Defaults.warn(wa::AbstractWarning, sa::String)`
+    ... records the warning text sa under the action wa; nothing is returned. The only action taken here is
+        `AddWarning()`; the actions that print or reset the collected warnings take no text and are handled by
+        `Defaults.warn(wa::AbstractWarning)`.
+
+    **A warning is RECORDED ONCE AND COUNTED EVERY TIME.** A condition met by five hundred lines produces one
+    entry saying so, not five hundred entries, and the count is shown when the warnings are printed. The
+    bookkeeping is done under a lock, so this may be called from a threaded line loop; the lock is uncontended in
+    the ordinary single-threaded case and costs nothing against the work that produced the warning.
+"""
 function warn(wa::AbstractWarning, sa::String)
     global GBL_WARNINGS, GBL_WARNINGS_COUNT
 

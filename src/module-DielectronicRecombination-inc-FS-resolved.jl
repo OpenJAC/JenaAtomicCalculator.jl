@@ -939,6 +939,13 @@ function determinePhotonChannels(finalLevel::Level, intermediateLevel::Level,
 end
 
 
+"""
+`DielectronicRecombination.determinePhotonLines(finalMultiplet::Multiplet, intermediateMultiplet::Multiplet,`
+                                               `initialMultiplet::Multiplet, settings::DielectronicRecombination.Settings)`
+    ... determines the radiative-stabilisation lines of a fine-structure-resolved DR computation: every transition
+        from an intermediate (doubly-excited) level down to a final level, with its photon energy shifted by
+        settings.photonEnergyShift. A photonLines::Array{DielectronicRecombination.PhotonLine,1} is returned.
+"""
 function  determinePhotonLines(finalMultiplet::Multiplet, intermediateMultiplet::Multiplet, initialMultiplet::Multiplet,
                                      settings::DielectronicRecombination.Settings)
     photonLines       = DielectronicRecombination.PhotonLine[]

@@ -125,6 +125,15 @@ function clearCaches()
 end
 
 
+"""
+`SpinAngular.shellReducedW(j::AngularJ64, N::Int64, senBra::Int64, Jbra::AngularJ64, senKet::Int64,`
+                          `Jket::AngularJ64, kj::Int64)`
+    ... gives the reduced matrix element of the W^(kj) double tensor within one subshell j^N, between the states of
+        seniority senBra/Jbra and senKet/Jket. **This is the MEMOISED wrapper**: it returns a cached value where one
+        exists and otherwise calls `shellReducedWUncached` and stores the result under the key of all seven
+        arguments in doubled form. A value::Float64 is returned. The cache `SHELL_W_CACHE` is session-lived and
+        unbounded; see Rule 19 on whether it should be scoped.
+"""
 function shellReducedW(j::AngularJ64, N::Int64, senBra::Int64, Jbra::AngularJ64, senKet::Int64, Jket::AngularJ64,
                        kj::Int64)
     key = (Basics.twice(j), N, senBra, Basics.twice(Jbra), senKet, Basics.twice(Jket), kj)

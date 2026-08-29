@@ -563,6 +563,13 @@ function  sigma_reduced_me(suba::Subshell, subb::Subshell)
           ">>> See sigma_reduced_me_ma / sigma_reduced_me_mb, which ARE implemented, for the intended structure.\n")
 end
 
+"""
+`AngularMomentum.sigma_reduced_me_ma(mkapa::Int64, kapb::Int64)`
+    ... computes the reduced matrix element <-kappa_a || sigma^(1) || kappa_b> of the Pauli spin operator, i.e. with
+        the sign of the FIRST kappa reversed (hence the `ma` in the name; `sigma_reduced_me_mb` reverses the second).
+        The element vanishes unless 2j_a - 1 = l_b, and is otherwise a 6-j symbol times sqrt(6 (2j_a+1)(2j_b+1)).
+        A redme::Float64 is returned, zero where the selection rule fails.
+"""
 function  sigma_reduced_me_ma(mkapa::Int64, kapb::Int64) 
     suba = Subshell(9,-mkapa);   ja2 = Basics.subshell_2j(suba);   ja = Basics.subshell_j(suba);   la = Basics.subshell_l(suba)
     subb = Subshell(9,  kapb);   jb2 = Basics.subshell_2j(subb);   jb = Basics.subshell_j(subb);   lb = Basics.subshell_l(subb)
@@ -576,6 +583,12 @@ function  sigma_reduced_me_ma(mkapa::Int64, kapb::Int64)
     return (redme)
 end
 
+"""
+`AngularMomentum.sigma_reduced_me_mb(kapa::Int64, mkapb::Int64)`
+    ... computes the reduced matrix element <kappa_a || sigma^(1) || -kappa_b> of the Pauli spin operator, i.e. with
+        the sign of the SECOND kappa reversed; the companion of `sigma_reduced_me_ma`, which reverses the first.
+        A redme::Float64 is returned, zero where the selection rule fails.
+"""
 function  sigma_reduced_me_mb(kapa::Int64, mkapb::Int64) 
     suba = Subshell(9,  kapa);   ja2 = Basics.subshell_2j(suba);   ja = Basics.subshell_j(suba);   la = Basics.subshell_l(suba)
     subb = Subshell(9,-mkapb);   jb2 = Basics.subshell_2j(subb);   jb = Basics.subshell_j(subb);   lb = Basics.subshell_l(subb)

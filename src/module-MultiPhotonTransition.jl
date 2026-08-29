@@ -582,6 +582,11 @@ function stringIntermediateStates(mp::Multiplet)
     return( "mean-field multiplet with $(length(mp.levels)) level(s)" )
 end
 
+"""
+`MultiPhotonTransition.stringIntermediateStates(gChannels::Array{AtomicState.GreenChannel,1})`
+    ... summarises a Green expansion for printing -- how many channels it has and how many levels in total. A
+        sa::String is returned; nothing is computed from it.
+"""
 function stringIntermediateStates(gChannels::Array{AtomicState.GreenChannel,1})
     nl = 0;   for ch in gChannels    nl = nl + length(ch.gMultiplet.levels)    end
     return( "Green expansion with $(length(gChannels)) channel(s) and $nl level(s) in total" )
@@ -603,6 +608,12 @@ function intermediateLevels(mp::Multiplet, Jsym::LevelSymmetry)
     return( filter(lev -> LevelSymmetry(lev.J, lev.parity) == Jsym, mp.levels) )
 end
 
+"""
+`MultiPhotonTransition.intermediateLevels(gChannels::Array{AtomicState.GreenChannel,1}, Jsym::LevelSymmetry)`
+    ... collects the levels of those Green channels whose symmetry equals Jsym, i.e. the intermediate states that
+        can contribute to a second-order amplitude of that total symmetry. A levels::Array{Level,1} is returned,
+        empty if no channel matches.
+"""
 function intermediateLevels(gChannels::Array{AtomicState.GreenChannel,1}, Jsym::LevelSymmetry)
     levels = Level[]
     for  ch in gChannels

@@ -449,8 +449,22 @@ end
     ... determines the (standard) lambda value for the given kind of polarization; a lambda::Int64 is returned.
 """
 function Basics.determinePolarizationLambda(kind::Basics.LeftCircular)   return(  1 )    end
+"""
+`Basics.determinePolarizationLambda(kind::Basics.RightCircular)`
+    ... gives the helicity lambda = -1 of RightCircular light; a value::Int64 is returned.
+"""
 function Basics.determinePolarizationLambda(kind::Basics.RightCircular)  return( -1 )    end
+"""
+`Basics.determinePolarizationLambda(kind::Basics.LeftElliptical)`
+    ... gives the helicity lambda = 1 of LeftElliptical light; a value::Int64 is returned.
+        Elliptical light is treated by its dominant helicity here.
+"""
 function Basics.determinePolarizationLambda(kind::Basics.LeftElliptical)   return(  1 )    end
+"""
+`Basics.determinePolarizationLambda(kind::Basics.RightElliptical)`
+    ... gives the helicity lambda = -1 of RightElliptical light; a value::Int64 is returned.
+        Elliptical light is treated by its dominant helicity here.
+"""
 function Basics.determinePolarizationLambda(kind::Basics.RightElliptical)  return( -1 )    end
 
 
