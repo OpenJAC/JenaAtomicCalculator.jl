@@ -618,7 +618,13 @@ For every branch, read what the branch itself claims and compare:
 
 - **Its own recorded numbers.** Most branches carry a REPORT block or a `Last successful` note quoting values.
   Do they still come out? A branch that completes while its own quoted number has moved by 30 % is a FINDING,
-  and it is invisible to any "does it run" check.
+  and it is invisible to any "does it run" check. **Two traps here, both of which produced a false finding on the
+  first run: (a) MOST BRANCHES SEND THEIR RESULTS TO A SUMMARY FILE, not to stdout — a number absent from the log
+  is usually in the `.sum` the branch opened, so search both; (b) A LAST-DIGIT DIFFERENCE IS NOT DRIFT —
+  5.28415 against 5.28416 is the same number rebuilt, and only a change in the leading figures is a finding.**
+  Expect this check to reach only a minority of branches: on the first run just 4 of 38 completed branches quoted
+  numbers in a mechanically comparable form. **Say how many were actually checked; a branch that merely ran is
+  NOT verified.**
 - **Physical sense.** Right order of magnitude, correct quantum numbers, partial sums matching totals, gauge
   agreement in the expected range, rates that are not zero and not 1e30, no negative populations.
 - **Its own warnings.** A run that completes while printing NOT CONVERGED, or a grid warning, has not passed.
