@@ -139,9 +139,14 @@ end
     ... to compute the absorption amplitude for ...
 """
 function  absorptionAmplitude()
-    wa = ComplexF64(1.)
-    println("BeamPhotoExcitation.absorptionAmplitude() ... not yet implemented.")
-    return( wa )
+    # NOT IMPLEMENTED, and it REFUSES rather than returning a number.  Until 29-Aug-2026 it printed one line and
+    # returned ComplexF64(1.) -- an amplitude of exactly one, indistinguishable from a computed result to any
+    # caller that did not watch the terminal.  That is the same defect class as FormFactor.amplitude returning
+    # 4.0 + 5.0im, fixed on 28-Aug.
+    error("\n\nBeamPhotoExcitation.absorptionAmplitude() is NOT IMPLEMENTED and returns no number.\n"          *
+          "It formerly returned the constant ComplexF64(1.) behind a printed warning.\n\n"                      *
+          "    It has no caller today, so nothing is lost by its refusing; it is kept because the amplitude is\n" *
+          "    the piece this module still needs.\n")
 end
 
 
@@ -153,8 +158,15 @@ end
 """
 function  computeOutcome(observable::Beam.DominantMultipoles, outcome::BeamPhotoExcitation.Outcome, nm::Nuclear.Model, 
                             grid::Radial.Grid, settings::BeamPhotoExcitation.Settings)
-    println("BeamPhotoExcitation.computeOutcome(), observable = $(observable) ... not yet implemented.")
-    return(outcome)
+    # NOT IMPLEMENTED, and it REFUSES rather than handing back its own input.  Until 29-Aug-2026 it printed one
+    # line and returned `outcome` UNTOUCHED, which computeOutcomes then passed to displayOutcome -- so a full,
+    # well-formatted table of the pre-computation values was printed as though it were a result.  That is the
+    # defect class fixed in ReducedDensityMatrix on 28-Aug, where a zero matrix was tabulated as "orbital
+    # interactions I_pq".
+    error("\n\nBeamPhotoExcitation.computeOutcome() is NOT IMPLEMENTED for observable = $(observable),\n"      *
+          "and it is the ONLY method of computeOutcome, so no observable of this module can be computed yet.\n" *
+          "It formerly returned its own argument unchanged, which was then displayed as a result.\n\n"          *
+          "    There is nothing to set differently; the module needs its amplitude written first.\n")
 end
 
 
@@ -186,13 +198,17 @@ function  computeOutcomes(finalMultiplet::Multiplet, initialMultiplet::Multiplet
         newOutcome = BeamPhotoExcitation.computeOutcome(outcome.observable, outcome, nm, grid, settings) 
         push!( newOutcomes, newOutcome)
     end
-    # Print all results to screen
-    for  outcome in outcomes  BeamPhotoExcitation.displayOutcome(stdout, outcome.observable, outcome, settings)    end
+    # Print all results to screen.  newOutcomes, NOT outcomes: until 29-Aug-2026 this loop and the return below
+    # both used `outcomes`, the list as it stood BEFORE computeOutcome was called, so whatever computeOutcome
+    # produced was built and then discarded, and the pre-computation values were displayed and returned in its
+    # place.  Found while making computeOutcome refuse; it cannot bite today, since that refusal now stops the
+    # run before this point, but it would have bitten the moment the module was implemented.
+    for  outcome in newOutcomes  BeamPhotoExcitation.displayOutcome(stdout, outcome.observable, outcome, settings)    end
     if  printSummary 
-        for  outcome in outcomes  BeamPhotoExcitation.displayOutcome(iostream, outcome.observable, outcome, settings)    end
+        for  outcome in newOutcomes  BeamPhotoExcitation.displayOutcome(iostream, outcome.observable, outcome, settings)  end
     end
     #
-    if    output    return( outcomes )
+    if    output    return( newOutcomes )
     else            return( nothing )
     end
 end
