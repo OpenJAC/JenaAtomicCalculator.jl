@@ -26,15 +26,15 @@ function Basics.extractConfiguration(theme::Basics.LeadingConfiguration, cLevel:
         parent = cLevel.parents[1]
         if      parent.process == Basics.Auger()       level = parent.lines[parent.index].finalLevel
         elseif  parent.process == Basics.Radiative()   level = parent.lines[parent.index].finalLevel
-        else    error("stop a")
+        else    error("Basics.extractConfiguration(): unsupported theme.")
         end
     elseif length(cLevel.daughters) > 0   
         daugth = cLevel.daughters[1]
         if      daugth.process == Basics.Auger()       level = daugth.lines[daugth.index].initialLevel
         elseif  daugth.process == Basics.Radiative()   level = daugth.lines[daugth.index].initialLevel
-        else    error("stop b")
+        else    error("Basics.extractConfiguration(): unsupported theme.")
         end
-    else        error("stop c")
+    else        error("Basics.extractConfiguration(): unsupported theme.")
     end
 
     allConfs = Basics.extractConfigurations(Basics.FromBasis(), level.basis)
@@ -126,7 +126,8 @@ function computeDecayProbabilities(outcome::DecayYield.Outcome, linesR::Array{Ph
     holeSubshells = Basics.extractFromConfiguration(Basics.OpenSubshells(), relConfigs[1]);   holeSubshell = holeSubshells[1]
     # Initialize and fill dictionaries for collecting the radiative and Auger rates
     level = outcome.level;    sym = LevelSymmetry(level.J, level.parity)
-    if  subshList[1] != Subshell("1s_1/2")    error("stop a")     end
+    if  subshList[1] != Subshell("1s_1/2")    error("Cascade.computeDecayProbabilities(): the first subshell is $(subshList[1]), not"  *
+                                                      "1s_1/2.")     end
     println("\n Probabilities are determined for the initial hole $holeSubshell of a level with symmetry $sym " *
             "and configurations \n  $(relConfigs)")
     subshEnergies  = Dict{Subshell,Float64}()
@@ -159,12 +160,14 @@ function computeDecayProbabilities(outcome::DecayYield.Outcome, linesR::Array{Ph
             for  diff in occDiffs
                 # holeSubshell must differ by -1
                 if diff[1] == holeSubshell
-                    if diff[2] == -1     else   error("stop b")    end
+                    if diff[2] == -1     else   error("Cascade.computeDecayProbabilities(): the occupation difference is not the single"  *
+                                                        "hole expected.")    end
                 end
                 if     diff[2] ==  1     push!(subshList, diff[1])                                end       
                 if     diff[2] ==  2     push!(subshList, diff[1]);    push!(subshList, diff[1])  end       
             end
-            if   length(subshList)  != 1   error("stop c")    end
+            if   length(subshList)  != 1   error("Cascade.computeDecayProbabilities(): $(length(subshList)) subshells differ, exactly"  *
+                                                   "one expected.")    end
             rProbabilities[ subshList[1] ] = rProbabilities[ subshList[1] ] + 
                                                 (line.photonRate.Babushkin + line.photonRate.Coulomb) / 2
         end
@@ -179,12 +182,14 @@ function computeDecayProbabilities(outcome::DecayYield.Outcome, linesR::Array{Ph
             for  diff in occDiffs
                 # holeSubshell must differ by -1
                 if diff[1] == holeSubshell
-                    if diff[2] == -1     else   error("stop d")    end
+                    if diff[2] == -1     else   error("Cascade.computeDecayProbabilities(): the occupation difference is not the single"  *
+                                                        "hole expected.")    end
                 end
                 if     diff[2] ==  1     push!(subshList, diff[1])                                end       
                 if     diff[2] ==  2     push!(subshList, diff[1]);    push!(subshList, diff[1])  end       
             end
-            if   length(subshList)  != 2   error("stop e")    end
+            if   length(subshList)  != 2   error("Cascade.computeDecayProbabilities(): $(length(subshList)) subshells differ, exactly"  *
+                                                   "two expected.")    end
             aProbabilities[ (subshList[1], subshList[2]) ] = aProbabilities[ (subshList[1], subshList[2]) ] + line.totalRate
         end
     end
@@ -420,7 +425,7 @@ function dumpGeant4Index(subsh::Subshell)
     elseif  subsh == Subshell("7s_1/2")       idx = 58
     elseif  subsh == Subshell("7p_1/2")       idx = 60
     elseif  subsh == Subshell("7p_3/2")       idx = 61
-    else    error("stop a; subsh = $subsh")
+    else    error("Cascade.dumpGeant4Index(): no Geant4 index is defined for the subshell $subsh.")
     end
     
     return( idx )

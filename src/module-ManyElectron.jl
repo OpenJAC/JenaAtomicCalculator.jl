@@ -426,7 +426,8 @@ function CsfRGrasp92(subshells::Array{Subshell,1}, coreSubshells::Array{Subshell
         if      typeof(subJx) == Nothing     subJ = AngularJ64(0)
         elseif  typeof(subJx) == Int64    subJ = AngularJ64(subJx)
         elseif  typeof(subJx) == Expr     subJ = AngularJ64( subJx.args[2]// subJx.args[3] )
-        else    error("stop b; type = $(typeof(subJx))")
+        else    error("ManyElectron.CsfRGrasp92(): while reading a GRASP92 CSL file, the sub-shell J of shell $ishell parsed "  *
+                    "as $(typeof(subJx)), which is neither an integer nor a rational. The line may be malformed.")
         end
 
         if   length(scx) > 0  &&  scx[end:end] in ["+", "-"]    scx = scx[1:end-1]   end
@@ -437,7 +438,8 @@ function CsfRGrasp92(subshells::Array{Subshell,1}, coreSubshells::Array{Subshell
         elseif  typeof(subXx) == Nothing                     subX = subshellX[ishell-1]
         elseif  typeof(subXx) == Int64                    subX = AngularJ64(subXx)
         elseif  typeof(subXx) == Expr                     subX = AngularJ64( subXx.args[2]// subXx.args[3] )
-        else    error("stop c")
+        else    error("ManyElectron.CsfRGrasp92(): while reading a GRASP92 CSL file, the intermediate coupling X of shell "  *
+                                                       "$ishell parsed as $(typeof(subXx)), which is neither an integer nor a rational.")
         end
 
         # Fill the arrays due to the pre-defined sequence of subshells
@@ -448,7 +450,8 @@ function CsfRGrasp92(subshells::Array{Subshell,1}, coreSubshells::Array{Subshell
             for  a in wa
             if   AngularJ64( a.Jsub2//2 ) == subJ	 nu = a.nu;    break   end
             end
-            nu < 0    &&    error("stop d")
+            nu < 0    &&    error("ManyElectron.CsfRGrasp92(): no seniority could be assigned to sub-shell J = $subJ of shell $ishell; "  *
+                              "the shell/J combination is not in the seniority table.")
             push!(occupation, occ);    push!(seniorityNr, nu);	 push!(subshellJ, subJ);    push!(subshellX, subX) 
             break
         else
@@ -461,7 +464,9 @@ function CsfRGrasp92(subshells::Array{Subshell,1}, coreSubshells::Array{Subshell
         end
         end
 
-        ishell > length(subshells)    &&	error("stop e")
+        ishell > length(subshells)    &&	error("ManyElectron.CsfRGrasp92(): the CSL file names more shells "  *
+                                                "than the subshell list has ($ishell > "  *
+                                                "$(length(subshells))); file and subshell list disagree.")
 
         # Terminate if all subshells are read
         if  9i + 10 >  length(sa)	 break    end
@@ -480,7 +485,8 @@ function CsfRGrasp92(subshells::Array{Subshell,1}, coreSubshells::Array{Subshell
     J = subshellX[end];    scx = strip(sc)
     if	  scx[end:end] == "+"  parity = Parity("+")
     elseif  scx[end:end] == "-"  parity = Parity("-")
-    else	  error("stop f")
+    else	  error("ManyElectron.CsfRGrasp92(): the coupling line of this CSF ends with '$(scx[end:end])' where a parity "  *
+                        "'+' or '-' was expected; the GRASP92 file may be malformed.")
     end
 
     wa = CsfR(true, J, parity, occupation, seniorityNr, subshellJ, subshellX, subshellsx)
@@ -639,7 +645,8 @@ function Basis(sa::String, cslFilename::String, rwfFilename::String)
         grid     = Radial.Grid(true)
         basis    = Basics.read(ReadCslFileGrasp92(), cslFilename)
         orbitals = Basics.readOrbitalFileGrasp92(rwfFilename, grid)
-    else  error("stop a")
+    else  error("ManyElectron.Basis(): this constructor reads a GRASP92 pair of files and needs BOTH a .csl and a .rwf "  *
+              "name; one of them is missing or of an unexpected kind.")
     end
 
         Basis( isDefined, basis.NoElectrons, basis.subshells, basis.csfs, basis.coreSubshells, orbitals) 

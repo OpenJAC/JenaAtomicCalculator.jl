@@ -176,7 +176,8 @@ function  allowedMultipoleSymmetries(syma::LevelSymmetry, multipole::EmMultipole
     for  J in JList
         if      parityEmMultipolePi(syma.parity, multipole, Basics.plus)     push!( symList, LevelSymmetry(J, Basics.plus) )
         elseif  parityEmMultipolePi(syma.parity, multipole, Basics.minus)    push!( symList, LevelSymmetry(J, Basics.minus) )
-        else    error("stop a")
+        else    error("AngularMomentum.allowedMultipoleSymmetries(): the multipole $mp is neither electric nor "  *
+                    "magnetic; no symmetry list can be formed.")
         end
     end
     return( symList )           
@@ -245,7 +246,7 @@ function ChengI(kapa::Int64, ma::AngularM64, kapb::Int64, mb::AngularM64, L::Ang
     la = Basics.subshell_l( Subshell(9, kapa) );    lb = Basics.subshell_l( Subshell(9, kapb) ) 
     #
     # Test for parity
-    if  L.den != 1   error("stop a")                end 
+    if  L.den != 1   error("AngularMomentum.ChengI(): the multipole rank L = $L is not an integer.")                end 
     if  isodd( la + lb + L.num )    return( 0. )    end
     # 
     wa = AngularMomentum.phaseFactor([jb, +1, L, -1, ja]) * sqrt( (Basics.twice(jb)+1)*(Basics.twice(L)+1) / (4*pi*(Basics.twice(ja)+1) ) ) *
@@ -264,7 +265,7 @@ function ChengI(kapa::Int64, kapb::Int64, L::AngularJ64)
     la = Basics.subshell_l( Subshell(9, kapa) );    lb = Basics.subshell_l( Subshell(9, kapb) ) 
     #
     # Test for parity
-    if  L.den != 1   error("stop a")                end 
+    if  L.den != 1   error("AngularMomentum.ChengI(): the multipole rank L = $L is not an integer.")                end 
     if  isodd( la + lb + L.num )    return( 0. )    end
     # 
     # There occurs here two changes with regard to Cheng formulas: 
@@ -319,7 +320,8 @@ end
 function  CL_reduced_me(suba::Subshell, L::Int64, subb::Subshell)   
     la = Basics.subshell_l(suba);    ja2 = Basics.subshell_2j(suba);    
     lb = Basics.subshell_l(subb);    jb2 = Basics.subshell_2j(subb)
-    rem(ja2+1, 2) != 0    &&    error("stop a")
+    rem(ja2+1, 2) != 0    &&    error("AngularMomentum.CL_reduced_me(): the subshell $suba has an even 2j+1, which no subshell has; "  *
+                                     "the subshell is malformed.")
     if  rem(la + lb + L, 2) != 0    return( 0. )    end
 
     redme = ((-1)^((ja2+1)/2)) * sqrt( (ja2+1)*(jb2+1) ) * 
@@ -395,7 +397,7 @@ function JohnsonI(kapa::Int64, kapb::Int64, L::AngularJ64)
     la = Basics.subshell_l( Subshell(9, kapa) );    lb = Basics.subshell_l( Subshell(9, kapb) ) 
     #
     # Test for parity
-    if  L.den != 1   error("stop a")                end 
+    if  L.den != 1   error("AngularMomentum.JohnsonI(): the multipole rank L = $L is not an integer.")                end 
     if  isodd( la + lb + L.num )    return( 0. )    end
     ## THE PHASE IS REAL, and was complex only through a slip (corrected 09-Aug-2026). The Racah phase here is
     ## (-1)^(j_b + 1/2); j_b is half-integer, so that exponent is an INTEGER and the phase is +-1, ALTERNATING
@@ -443,7 +445,7 @@ function  j_values(j1::AngularJ64, j2::AngularJ64)
     elseif   j1.den == 1   &&   j2.den == 2    for  jx = abs(2*j1.num - j2.num):2:2*j1.num + j2.num   push!( jList, AngularJ64(jx//2))    end
     elseif   j1.den == 2   &&   j2.den == 1    for  jx = abs(j1.num - 2*j2.num):2:j1.num + 2*j2.num   push!( jList, AngularJ64(jx//2))    end
     elseif   j1.den == 2   &&   j2.den == 2    for  jx = abs(j1.num - j2.num):2:j1.num + j2.num       push!( jList, AngularJ64(jx//2))    end
-    else     error("stop a")
+    else     error("AngularMomentum.j_values(): j1 = $j1 and j2 = $j2 must both be integer or both half-integer.")
     end
 
     return( jList )
@@ -456,7 +458,7 @@ function  m_values(j::AngularJ64)
     mList = AngularM64[]
     if       j.den == 1   for  jx = -j.num:j.num      push!( mList, AngularM64(jx))       end
     elseif   j.den == 2   for  jx = -j.num:2:j.num    push!( mList, AngularM64(jx//2))    end
-    else     error("stop a")
+    else     error("AngularMomentum.m_values(): j = $j is neither an integer nor a half-integer.")
     end
 
     return( mList )

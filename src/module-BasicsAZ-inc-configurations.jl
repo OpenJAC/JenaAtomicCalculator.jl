@@ -472,7 +472,8 @@ function  Basics.extractConfiguration(theme::Basics.FromBasis, basis::Basis, csf
         end
     end
     
-    if      basis.NoElectrons != NoElectrons    error("stop a")
+    if      basis.NoElectrons != NoElectrons    error("Basics.extractConfiguration(): the basis holds $(basis.NoElectrons) electrons,"  *
+                                                        "$NoElectrons expected.")
     else    conf = Configuration(newShells, NoElectrons)
     end 
     
@@ -504,7 +505,7 @@ function Basics.extractConfiguration(theme::Basics.GroundConfiguration)
         elseif  31 <= ne < 37   refConfig = Configuration("1s^2 2s^2 2p^6 3s^2 3p^6 3d^10 4s^2 4p^$(ne-30)")
         elseif  37 <= ne < 47   refConfig = Configuration("1s^2 2s^2 2p^6 3s^2 3p^6 3d^10 4s^2 4p^6 4d^$(ne-36)")
         elseif  47 <= ne < 61   refConfig = Configuration("1s^2 2s^2 2p^6 3s^2 3p^6 3d^10 4s^2 4p^6 4d^10 4f^$(ne-46)")
-        else    error("stop a")
+        else    error("Basics.extractConfiguration(): unsupported theme.")
         end
         
     elseif  0. <= theme.Z - ne <= 0.2
@@ -520,10 +521,10 @@ function Basics.extractConfiguration(theme::Basics.GroundConfiguration)
         elseif  ne == 48        refConfig = Configuration("1s^2 2s^2 2p^6 3s^2 3p^6 3d^10 4s^2 4p^6 4d^10 5s^2")
         elseif  ne == 49        refConfig = Configuration("1s^2 2s^2 2p^6 3s^2 3p^6 3d^10 4s^2 4p^6 4d^10 5s^2")
         elseif  49 <= ne < 54   refConfig = Configuration("1s^2 2s^2 2p^6 3s^2 3p^6 3d^10 4s^2 4p^6 4d^10 5s^2 5p^$(ne-48)")
-        else    error("stop b")
+        else    error("Basics.extractConfiguration(): unsupported theme.")
         end
             
-    else        error("stop c")
+    else        error("Basics.extractConfiguration(): unsupported theme.")
     end             
     
     return ( refConfig )
@@ -655,7 +656,8 @@ function Basics.extractConfigurations(theme::Basics.FromBasis, basis::Basis)
                 if   occ > 0  newShells = Base.merge( newShells, Dict( shell => occ));     NoElectrons = NoElectrons + occ   end
             end
         end
-        if  basis.NoElectrons != NoElectrons    error("stop a")
+        if  basis.NoElectrons != NoElectrons    error("Basics.extractConfigurations(): the basis holds $(basis.NoElectrons) electrons,"  *
+                                                        "$NoElectrons expected.")
         else
             conf = Configuration(newShells, NoElectrons)
             if  conf in confList    continue;    else    push!( confList,  conf)    end
@@ -711,7 +713,8 @@ function Basics.extractConfigurations(theme::Basics.RelativisticConfigurations, 
                 if   occ > 0             newSubshells[subshell] = occ;   NoElectrons = NoElectrons + occ   end
             end
         end
-        if  basis.NoElectrons != NoElectrons    error("stop a")
+        if  basis.NoElectrons != NoElectrons    error("Basics.extractConfigurations(): the basis holds $(basis.NoElectrons) electrons,"  *
+                                                        "$NoElectrons expected.")
         else
             confR = ConfigurationR(newSubshells, NoElectrons)
             if  confR in confList    continue;    else    push!( confList, confR)    end
@@ -743,7 +746,8 @@ function Basics.extractConfigurations(theme::Basics.RelativisticConfigurations, 
                 if   occ > 0             newSubshells[subshell] = occ;   NoElectrons = NoElectrons + occ   end
             end
         end
-        if  basis.NoElectrons != NoElectrons    error("stop a")
+        if  basis.NoElectrons != NoElectrons    error("Basics.extractConfigurations(): the basis holds $(basis.NoElectrons) electrons,"  *
+                                                        "$NoElectrons expected.")
         else
             confR = ConfigurationR(newSubshells, NoElectrons)
             if  confR in confList    continue;    else    push!( confList, confR)    end
@@ -919,7 +923,7 @@ function Basics.extractFromConfiguration(theme::Basics.GetParity , conf::Configu
 
     if       par == 1    return( Basics.plus )  
     elseif   par == -1   return( Basics.minus )
-    else     error("stop a")
+    else     error("Basics.extractFromConfiguration(): unsupported theme.")
     end  
 end
 
@@ -938,7 +942,7 @@ function Basics.extractFromConfiguration(theme::Basics.GetParity, conf::Configur
 
     if       par == 1    return( Basics.plus )  
     elseif   par == -1   return( Basics.minus )
-    else     error("stop a")
+    else     error("Basics.extractFromConfiguration(): unsupported theme.")
     end  
 end
 
@@ -1102,7 +1106,8 @@ function Basics.extractFromConfiguration(theme::Basics.ValenceOccupation, conf::
     coreShells = coreConf.shells;    valenceShells = Dict{Shell,Int64}()
     for  (shell, occ)  in  conf.shells
         if       haskey(coreShells, shell)  &&   coreShells[shell] == occ
-        elseif   haskey(coreShells, shell)       error("stop a") 
+        elseif   haskey(coreShells, shell)       error("Basics.extractFromConfiguration(): the shell $shell is both a core and a valence"  *
+                                                         "shell.") 
         else     valenceShells[shell] = occ
         end 
     end
@@ -1841,7 +1846,8 @@ function Basics.generateConfigurations(theme::Basics.SuperConfiguration, NoElect
             end 
         end
         if      breakOut
-        elseif  newNoElectrons != NoElectrons    error("stop a")    
+        elseif  newNoElectrons != NoElectrons    error("Basics.generateConfigurations(): the generated configuration has $newNoElectrons"  *
+                                                         "electrons but $NoElectrons were expected.")    
         else                                     push!(confList, Configuration(newShells, NoElectrons))
         end
     end

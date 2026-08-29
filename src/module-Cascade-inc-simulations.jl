@@ -367,7 +367,8 @@ end
 function displayPhotoAbsorptionSpectrum(stream::IO, pEnergies::Array{Float64,1}, crossSections::Array{EmProperty,1},
                                         property::Cascade.PhotoAbsorptionSpectrum)
     # Photon energies enter via the property
-    if  length(pEnergies) != length(crossSections)  error("stop a")    end
+    if  length(pEnergies) != length(crossSections)  error("Cascade.displayPhotoAbsorptionSpectrum(): $(length(pEnergies)) photon"  *
+                                                            "energies but $(length(crossSections)) cross sections.")    end
     nx = 46
     println(stream, " ")
     println(stream, "* Absorption cross sections:  ")
@@ -667,7 +668,8 @@ function interpolateIonizationCS(photonEnergy::Float64, ionizationCS::Array{Basi
         totalEnergy = ionizationCS[imax].arg - ionizationCS[imin].arg 
         cs          = ionizationCS[imin].value + deltaEnergy/totalEnergy * (ionizationCS[imax].value - ionizationCS[imin].value)
         return( cs )
-    else  error("stop b")    
+    else  error("Cascade.interpolateIonizationCS(): the photon energy $photonEnergy lies outside the tabulated range and cannot be"  *
+                  "interpolated.")    
     end
 end
 
@@ -1026,7 +1028,7 @@ function propagateOccupationInTime!(levels::Array{Cascade.Level,1}, dt::Float64)
             line = daughter.lines[daughter.index]
             if      daughter.process == Basics.Radiative()     rates[k] = line.photonRate.Coulomb
             elseif  daughter.process == Basics.Auger()         rates[k] = line.totalRate
-            else    error("stop b; process = $(daughter.process) ")
+            else    error("Cascade.propagateOccupationInTime!(): the process $(daughter.process) is not one this propagation handles.")
             end
         end
         totalRate = sum(rates)
@@ -1081,11 +1083,12 @@ function propagateProbability!(levels::Array{Cascade.Level,1})
                     if      daughter.process == Basics.Radiative()     rates[i] = daughter.lines[idx].photonRate.Coulomb
                     elseif  daughter.process == Basics.Auger()         rates[i] = daughter.lines[idx].totalRate
                     elseif  daughter.process == Basics.Photo()         rates[i] = daughter.lines[idx].crossSection.Coulomb
-                    else    error("stop a; process = $(daughter.process) ")
+                    else    error("Cascade.propagateProbability!(): the process $(daughter.process) is not one this propagation handles.")
                     end
                 end
                 totalRate = sum(rates)
-                if      totalRate <  0.    error("stop b")
+                if      totalRate <  0.    error("Cascade.propagateProbability!(): the total rate of a level came out NEGATIVE"  *
+                                                   "($totalRate), which no sum of decay rates can be.")
                 elseif  totalRate == 0.    # do nothing
                 else
                     # Shift the relative occupation to the 'daughter' levels due to the different ionization and decay pathes
@@ -1094,7 +1097,8 @@ function propagateProbability!(levels::Array{Cascade.Level,1})
                         if      daughter.process == Basics.Radiative()     line = daughter.lines[idx]
                         elseif  daughter.process == Basics.Auger()         line = daughter.lines[idx]
                         elseif  daughter.process == Basics.Photo()         line = daughter.lines[idx]
-                        else    error("stop b; process = $(daughter.process) ")
+                        else    error("Cascade.propagateProbability!(): the process $(daughter.process) is not one this propagation"  *
+                                        "handles.")
                         end
                         major    = Basics.extractConfiguration(Basics.LeadingConfiguration(), line.finalLevel)
                         newLevel = Cascade.Level( line.finalLevel.energy, line.finalLevel.J, line.finalLevel.parity,
@@ -1182,7 +1186,7 @@ function walkPathways!(levels::Array{Cascade.Level,1}, index::Int64, prob::Float
         if      daughter.process == Basics.Radiative()     rates[i] = daughter.lines[idx].photonRate.Coulomb
         elseif  daughter.process == Basics.Auger()         rates[i] = daughter.lines[idx].totalRate
         elseif  daughter.process == Basics.Photo()         rates[i] = daughter.lines[idx].crossSection.Coulomb
-        else    error("stop a; process = $(daughter.process) ")
+        else    error("Cascade.walkPathways!(): the process $(daughter.process) is not one this walk handles.")
         end
     end
     totalRate = sum(rates)
@@ -1357,7 +1361,7 @@ function reviewData(simulation::Cascade.Simulation; ascendingOrder::Bool=false)
             Cascade.displayLevels(iostream, gMultiplets, sa="generated ")        
         end
         if      haskey(results, "cascade data:")             lineData = results["cascade data:"]
-        else    error("stop a")
+        else    error("Cascade.reviewData(): this simulation property is not one reviewData knows how to review.")
         end
         
         
@@ -2329,7 +2333,7 @@ function simulateRelaxationCurve(levels::Array{Cascade.Level,1}, simulation::Cas
                 rLine  = daughter.lines[daughter.index]
                 if  minRate > rLine.photonRate.Coulomb > 0.  minRate = rLine.photonRate.Coulomb   end
                 if  maxRate < rLine.photonRate.Coulomb       maxRate = rLine.photonRate.Coulomb   end
-            else    error("stop a")
+            else    error("Cascade.simulateRelaxationCurve(): this simulation method is not supported for a relaxation curve.")
             end
         end
     end

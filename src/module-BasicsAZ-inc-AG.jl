@@ -8,7 +8,8 @@ export recastAG
 """
 function  Basics.add(pota::Radial.Potential, potb::Radial.Potential)
     if  pota.grid.NoPoints != potb.grid.NoPoints  ||   pota.grid.rnt != potb.grid.rnt  ||  pota.grid.h != potb.grid.h  ||  
-        pota.grid.hp != potb.grid.hp                   error("stop a")   end
+        pota.grid.hp != potb.grid.hp                   error("Basics.add(): the two potentials are on "  *
+              "DIFFERENT grids and cannot be added; interpolate one onto the other first.")   end
     name = pota.name * "+" * potb.name;   nmax = max(length(pota.Zr), length(potb.Zr));   nmin = min(length(pota.Zr), length(potb.Zr))
     Zr   = zeros(nmax);   
     nx = length(pota.Zr);    Zr[1:nx] = Zr[1:nx] + pota.Zr[1:nx] 
@@ -127,7 +128,7 @@ function Basics.analyze(orbitals::Dict{Subshell, Orbital}; printout::Bool=false)
                 found = true;   break
             end
         end
-        if  !found  error("stop a")     end
+        if  !found  error("Basics.analyze(): the orbital list contains no subshell of the symmetry looked for here.")     end
         newOrbitals[k] = mOrbital
     end
 
@@ -159,8 +160,10 @@ end
         on the same grid and that the components are zero if only one of the orbitals is defined beyond some maximum grid point.
 """
 function Basics.analyzeConvergence(a::Radial.Orbital, b::Radial.Orbital)
-    if       a.subshell !=  b.subshell                                             error("stop a")   
-    elseif   a.useStandardGrid !=  b.useStandardGrid   ||  !(a.useStandardGrid)   error("stop b")
+    if       a.subshell !=  b.subshell                                             error("Basics.analyzeConvergence(): "  *
+                          "the two orbitals belong to different subshells, $(a.subshell) and $(b.subshell).")   
+    elseif   a.useStandardGrid !=  b.useStandardGrid   ||  !(a.useStandardGrid)   error("Basics.analyzeConvergence(): "  *
+                          "the two orbitals are on different grids and cannot be compared point by point.")
     else     wa = 0.;   wa = max(wa, abs( (a.energy-b.energy) / (a.energy+b.energy) ));   nx = min(length(a.P), length(b.P))
             #=== DISABLED: an alternative, POINTWISE relative comparison of the two orbitals, kept beside the
             #   norm-based measure actually used.  It is far stricter and fires on the outermost points where
@@ -342,7 +345,8 @@ function Basics.determineNearestPoints(x0::Float64, n::Int64, values::Array{Floa
         dabs[ix] = 1.0e99
     end
     
-    if  length(unique(ws)) != n   error("stop a")    end 
+    if  length(unique(ws)) != n   error("Basics.determineNearestPoints(): the grid has repeated points, so the $n nearest neighbours "  *
+                                  "of x0 are not unique.")    end 
     
     return( ws, diffs )
 end
@@ -1092,7 +1096,7 @@ function Basics.extractOpenShellQNfromCsfR(csfR::CsfR, basis::Basis)
                                                 Basics.twice(csfR.subshellJ[s]), Basics.twice(csfR.subshellX[s]) ) ) ) )
         elseif  2l + 1 == j2    continue
         elseif  2l - 1 == j2    &&    (n != nx  ||  l != lx  ||  j2x != j2 + 2)
-                error("stop a")
+                error("Basics.extractOpenShellQNfromCsfR(): more than three open shells are not handled here.")
         elseif  0 < occ + occx < 2* (2l + 1)
             wa = Base.merge( wa, Dict(shell => ( (s, csfR.occupation[s], csfR.seniorityNr[s], 
                                                 Basics.twice(csfR.subshellJ[s]), Basics.twice(csfR.subshellX[s]) ), 
@@ -1119,7 +1123,8 @@ function  Basics.extractRelativisticConfigurationFromCsfR(csf::CsfR,  basis::Bas
         if   occ > 0  newSubshells = Base.merge( newSubshells, Dict( subsh => occ));     NoElectrons = NoElectrons + occ   end
     end
     
-    if      basis.NoElectrons != NoElectrons    error("stop a")
+    if      basis.NoElectrons != NoElectrons    error("Basics.extractRelativisticConfiguration(): "  *
+                    "the basis holds $(basis.NoElectrons) electrons but $NoElectrons were expected.")
     else    conf = ConfigurationR(newSubshells, NoElectrons)
     end
     
