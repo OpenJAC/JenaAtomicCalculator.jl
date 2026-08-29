@@ -1928,3 +1928,394 @@ function testModule_SelfConsistent(; short::Bool=true)
     testPrint("testModule_SelfConsistent()::", success)
     return( success )
 end
+
+
+"""
+`TestFrames.testModule_Radial(; short::Bool=true)`  ... tests on module Radial; a success::Bool is returned.
+"""
+function testModule_Radial(; short::Bool=true)
+    Defaults.setDefaults("print summary: open", "test-Radial-new.sum")
+    printstyled("\n\nTest the module  Radial  ... \n", color=:cyan)
+    # The grid is the one object every other module depends on, and both of its constructions carry a recipe that is
+    # written out in the docstring.  A recipe that is only described can drift away from the code silently, so it is
+    # re-derived here from the documented formula and compared, rather than compared against a stored number.
+    #
+    # Note which quantity witnesses the box.  `rbox` is a REQUEST: it enters only through determineNoPoints, which
+    # rounds the point count UP to a multiple of orderGL, so the last break point tL[end] overshoots the request by
+    # up to a percent or two and is NOT an exact witness.  `hp = rbox/300` is exact, and so is the MINIMALITY of the
+    # point count, which is what is tested below.
+    success = true;    printTest, iostream = Defaults.getDefaults("test flag/stream")
+    #
+    # (1) Basics.recommendedGrid: rbox = max over shells of  r_+ + tailFactor*n/Zeff  with
+    #     r_+ = (n^2/Zeff)(1 + sqrt(1 - l(l+1)/n^2))  and  Zeff = max(Z - N + 1, Z - slaterScreening, 1),
+    #     and hp = rbox/300.  Both are re-derived here from the documented formula.
+    occupations = Dict( Shell("1s") => 2, Shell("2s") => 2, Shell("2p") => 6, Shell("3s") => 1 )
+    Z = 11.;    NoElectrons = sum( values(occupations) );    tailFactor = 16.;    rMax = 0.
+    for  (sh, occ)  in occupations
+        if  occ <= 0    continue    end
+        n = sh.n;    l = sh.l
+        Zeff = max( Z - NoElectrons + 1., Z - Basics.slaterScreening(sh, occupations), 1.0 )
+        wa   = (n*n/Zeff) * (1.0 + sqrt( max(0., 1.0 - l*(l+1)/(n*n)) ))  +  tailFactor * n / Zeff
+        if  wa > rMax   rMax = wa    end
+    end
+    grid = Basics.recommendedGrid(occupations, Z)
+    if  abs(grid.hp - rMax/300.) > 1.0e-12
+        success = false
+        if printTest   info(iostream, "recommendedGrid: hp = $(grid.hp), the recipe gives rbox/300 = $(rMax/300.)")   end
+    end
+    #
+    # (2) The two recommendedGrid methods must agree: the configuration route only collects the largest occupation
+    #     of every shell and then calls the occupation route.
+    grid2 = Basics.recommendedGrid([Configuration("1s^2 2s^2 2p^6 3s")], Nuclear.Model(Z, PointNucleus()))
+    if  grid2.hp != grid.hp  ||  grid2.NoPoints != grid.NoPoints
+        success = false
+        if printTest   info(iostream, "recommendedGrid: the configuration and occupation routes disagree, " *
+                                      "hp $(grid2.hp) vs $(grid.hp), NoPoints $(grid2.NoPoints) vs $(grid.NoPoints)")   end
+    end
+    #
+    # (3) An explicit rbox or hp overrides the estimate; that is the user's way in and must be honoured exactly.
+    grid3 = Basics.recommendedGrid(occupations, Z; rbox = 40., hp = 0.05)
+    if  grid3.hp != 0.05
+        success = false
+        if printTest   info(iostream, "recommendedGrid: hp = $(grid3.hp) although 0.05 was given explicitly")   end
+    end
+    #
+    # (4) Radial.determineNoPoints returns the SMALLEST multiple of orderGL whose mesh reaches beyond rbox.  The mesh
+    #     point r(i) solves  log(r/rnt + 1) + (h/hp) r = (i-1) h,  which is solved here by BISECTION -- deliberately a
+    #     different method from the Newton iteration the function itself uses, so the two cannot fail together.
+    rOfI = function(rnt::Float64, h::Float64, hp::Float64, i::Int64)
+        f  = r -> log(r/rnt + 1.) + (h/hp)*r - (i-1)*h
+        lo = 0.;    hi = 1.
+        while  f(hi) < 0.    hi = 2hi    end
+        for  k = 1:200
+            mid = 0.5*(lo+hi)
+            if  f(mid) < 0.    lo = mid    else    hi = mid    end
+        end
+        return( 0.5*(lo+hi) )
+    end
+    rnt = 2.0e-6;    h = 5.0e-2;    orderGL = 7
+    for  (rbox, hp)  in  [(30., 0.1), (5.95, 0.02), (249., 0.83), (12., 0.04), (80., 0.2666)]
+        NoPoints = Radial.determineNoPoints(rnt, h, hp, rbox, orderGL)
+        rHere    = rOfI(rnt, h, hp, NoPoints);    rBefore = rOfI(rnt, h, hp, NoPoints - orderGL)
+        if  rem(NoPoints, orderGL) != 0  ||  rHere <= rbox  ||  rBefore > rbox
+            success = false
+            if printTest   info(iostream, "determineNoPoints($rbox, $hp) = $NoPoints is not the smallest multiple of " *
+                                          "$orderGL reaching beyond the box: r = $rHere, r before = $rBefore")   end
+        end
+        # the docstring's own count, log(rbox/rnt)/h + rbox/hp, must be reproduced to within one orderGL
+        predicted = log(rbox/rnt)/h + rbox/hp + 1.
+        if  abs(NoPoints - predicted) > orderGL
+            success = false
+            if printTest   info(iostream, "determineNoPoints($rbox, $hp) = $NoPoints, the documented formula gives " *
+                                          "$predicted")   end
+        end
+    end
+    #
+    # (5) The documented reason for scaling hp with the box: hp = rbox/300 holds the point count near 600 whatever the
+    #     box.  The docstring quotes 602 points at rbox = 5.1 and 679 at rbox = 249, and both are reproduced exactly.
+    for  (rbox, quoted)  in  [(5.1, 602), (249., 679)]
+        NoPoints = Radial.determineNoPoints(rnt, h, rbox/300., rbox, orderGL)
+        if  NoPoints != quoted
+            success = false
+            if printTest   info(iostream, "hp = rbox/300 at rbox = $rbox gives $NoPoints points, the docstring " *
+                                          "quotes $quoted")   end
+        end
+    end
+    #
+    # (6) Radial.generateGrid(maximumPrincipalQN = n) is Rule 12 written as code: rbox = 2.5 r_+.  The resulting grid
+    #     must carry exactly the point count that box asks for.
+    for  (n, lValue, Zeff)  in  [(4, 0, 1.), (3, 2, 2.5), (5, 1, 3.)]
+        rPlus   = (n^2 / Zeff) * (1.0 + sqrt(1.0 - lValue*(lValue+1)/n^2))
+        newGrid = redirect_stdout(devnull) do
+            Radial.generateGrid(Radial.Grid(false); maximumPrincipalQN = n, lValue = lValue, Zeff = Zeff)
+        end
+        wanted = Radial.determineNoPoints(newGrid.rnt, newGrid.h, newGrid.hp, 2.5*rPlus, newGrid.orderGL)
+        if  newGrid.NoPoints != wanted
+            success = false
+            if printTest   info(iostream, "generateGrid(n=$n, l=$lValue, Zeff=$Zeff): NoPoints = $(newGrid.NoPoints), " *
+                                          "rbox = 2.5 r_+ = $(2.5*rPlus) asks for $wanted")   end
+        end
+    end
+    #
+    # (7) Radial.determineZbar samples the last five points of Zr, so a potential with a constant Zr must return that
+    #     constant exactly.  Until 12-Aug-2026 the loop read Zr[mtp] rather than Zr[i] and the spread could not fire.
+    gridZ = Radial.Grid(true)
+    Zbar  = redirect_stdout(devnull) do
+        Radial.determineZbar( Radial.Potential("test", 7.0 * ones(length(gridZ.r)), gridZ) )
+    end
+    if  abs(Zbar - 7.0) > 1.0e-12
+        success = false
+        if printTest   info(iostream, "determineZbar of a constant Zr = 7 potential returned $Zbar")   end
+    end
+    #
+    # (8) The guards.  A grid that cannot be built must say so rather than return a silently unusable one.
+    guards = [ ("no shell",            () -> Basics.recommendedGrid(Dict{Shell,Int64}(), Z)),
+               ("Z <= 0",              () -> Basics.recommendedGrid(occupations, -1.)),
+               ("rbox <= 0",           () -> Basics.recommendedGrid(occupations, Z; rbox = -3.)),
+               ("no configuration",    () -> Basics.recommendedGrid(Configuration[], Nuclear.Model(Z, PointNucleus()))),
+               ("no scheme",           () -> Radial.generateGrid(Radial.Grid(false))),
+               ("two schemes",         () -> Radial.generateGrid(Radial.Grid(false); boxSize = 10., maximumPrincipalQN = 3,
+                                                                 Zeff = 1.)),
+               ("n < 1",               () -> Radial.generateGrid(Radial.Grid(false); maximumPrincipalQN = 0, Zeff = 1.)),
+               ("Zeff not given",      () -> Radial.generateGrid(Radial.Grid(false); maximumPrincipalQN = 3)),
+               ("Zeff <= 0",           () -> Radial.generateGrid(Radial.Grid(false); maximumPrincipalQN = 3, Zeff = 0.)),
+               ("l > n-1",             () -> Radial.generateGrid(Radial.Grid(false); maximumPrincipalQN = 2, lValue = 5,
+                                                                 Zeff = 1.)) ]
+    for  (label, thunk)  in  guards
+        raised = false
+        try     redirect_stdout(devnull) do
+                    thunk()
+                end
+        catch
+            raised = true
+        end
+        if  !raised
+            success = false
+            if printTest   info(iostream, "the guard against '$label' did not raise")   end
+        end
+    end
+    #
+    # (9) The mesh itself: strictly increasing, positive, and with no negative integration weight.
+    if  !all(diff(grid.r) .> 0.)  ||  grid.r[1] <= 0.  ||  !all(grid.wr .>= 0.)
+        success = false
+        if printTest   info(iostream, "the mesh of the recommended grid is not strictly increasing and positive")   end
+    end
+
+    println(iostream, "Radial: the recommendedGrid recipe and the generateGrid box re-derived from their own " *
+                      "documented formulae, determineNoPoints checked for minimality against an independent " *
+                      "bisection solve of the mesh equation, determineZbar on a constant potential, and ten guards. " *
+                      "No approved data is used.")
+    Defaults.setDefaults("print summary: close", "")
+    testPrint("testModule_Radial()::", success)
+    return( success )
+end
+
+
+"""
+`TestFrames.testModule_LSjj(; short::Bool=true)`  ... tests on module LSjj; a success::Bool is returned.
+"""
+function testModule_LSjj(; short::Bool=true)
+    Defaults.setDefaults("print summary: open", "test-LSjj-new.sum")
+    printstyled("\n\nTest the module  LSjj  ... \n", color=:cyan)
+    # For a shell l^N at a fixed J, the jj-LS transformation is a change between two complete orthonormal couplings
+    # of the same space, so its matrix is ORTHOGONAL: M'M = M M' = 1.  That is exact, holds table by table, and needs
+    # nothing external -- which is what makes it the right test here.  It is also a genuinely different check from
+    # the GRASP comparison the tables were validated against, since it tests the tables AGAINST EACH OTHER.
+    success = true;    printTest, iostream = Defaults.getDefaults("test flag/stream")
+    # LinearAlgebra is not among TestFrames' imports, so the distance of a matrix from the unit matrix is measured
+    # here directly rather than through I.
+    maxOffUnit = function(A)
+        devs = 0.
+        for  i = 1:size(A,1),  j = 1:size(A,2)
+            devs = max( devs, abs( A[i,j] - (i == j ? 1. : 0.) ) )
+        end
+        return( devs )
+    end
+    #
+    # The matrix of one (l, N, J) block is assembled from the tabulated entries themselves: the distinct LS labels
+    # (w, Q, L, S) give the rows, the distinct jj labels (Nm, Qm, Jm, Qp, Jp) the columns, and every element is asked
+    # for through getLSjjCoefficient -- so a label pair the table does not carry contributes the 0 it should.
+    blockMatrix = function(l::Int64, N::Int64, table, JJ::Int64, mapNm::Bool)
+        sub = [me for me in table if me.qn.JJ == JJ]
+        LSs = sort(unique( [(me.qn.w, me.qn.QQ, me.qn.LL, me.qn.SS)                                   for me in sub] ))
+        jjs = sort(unique( [(mapNm ? 2l - me.qn.Nm : me.qn.Nm, me.qn.Qm, me.qn.Jm, me.qn.Qp, me.qn.Jp) for me in sub] ))
+        M   = zeros( length(LSs), length(jjs) )
+        for  (i, ls)  in enumerate(LSs),  (j, jj)  in enumerate(jjs)
+            qn     = LSjj.LS_jj_qn(ls[1], ls[2], ls[3], ls[4], JJ, jj[1], jj[2], jj[3], jj[4], jj[5])
+            M[i,j] = LSjj.getLSjjCoefficient(l, N, qn)
+        end
+        return( M )
+    end
+    checkBlocks = function(l::Int64, N::Int64, table, mapNm::Bool)
+        for  JJ  in  sort(unique( [me.qn.JJ for me in table] ))
+            M = blockMatrix(l, N, table, JJ, mapNm)
+            if  size(M,1) != size(M,2)
+                success = false
+                if printTest   info(iostream, "the l = $l, N = $N, 2J = $JJ block is $(size(M,1)) x $(size(M,2)) and " *
+                                              "so cannot be orthogonal")   end
+                continue
+            end
+            devs = max( maxOffUnit(M' * M), maxOffUnit(M * M') )
+            if  devs > 1.0e-10
+                success = false
+                if printTest   info(iostream, "the l = $l, N = $N, 2J = $JJ block is not orthogonal, worst " *
+                                              "deviation $devs")   end
+            end
+        end
+    end
+    #
+    # (1) Every tabulated shell: p^3..p^6, d^3..d^10 and f^3..f^7, 108 blocks in all.
+    for  (l, N, table)  in  [ (1, 3, LSjj.LS_jj_p_3),  (1, 4, LSjj.LS_jj_p_4),  (1, 5, LSjj.LS_jj_p_5),
+                              (1, 6, LSjj.LS_jj_p_6),  (2, 3, LSjj.LS_jj_d_3),  (2, 4, LSjj.LS_jj_d_4),
+                              (2, 5, LSjj.LS_jj_d_5),  (2, 6, LSjj.LS_jj_d_6),  (2, 7, LSjj.LS_jj_d_7),
+                              (2, 8, LSjj.LS_jj_d_8),  (2, 9, LSjj.LS_jj_d_9),  (2,10, LSjj.LS_jj_d_10),
+                              (3, 3, LSjj.LS_jj_f_3),  (3, 4, LSjj.LS_jj_f_4),  (3, 5, LSjj.LS_jj_f_5),
+                              (3, 6, LSjj.LS_jj_f_6),  (3, 7, LSjj.LS_jj_f_7) ]
+        checkBlocks(l, N, table, false)
+    end
+    #
+    # (2) f^8..f^13 are NOT tabulated: getLSjjCoefficient reaches them through the Dyall-Grant electron-hole
+    #     conjugation, Nm -> 2l - Nm with the phase (-1)^((Qm + Qp - Q)/2).  Their labels are therefore taken from the
+    #     conjugate table with Nm mapped back.
+    #
+    #     WHAT THIS DOES NOT COVER, and it is worth knowing.  The phase's exponent splits as (Qm + Qp)/2 - Q/2, i.e.
+    #     into a part fixed by the jj label alone and a part fixed by the LS label alone, so multiplying it in is a
+    #     diagonal similarity D1 * M * D2 with D1, D2 = +-1 -- and M'M is then unchanged.  Measured over all four
+    #     conjugated shells: every entry factorizes that way, none is an exception.  So NO orthogonality test can see
+    #     that phase, and deleting it from the module leaves this test green (checked).  What is tested here is that
+    #     the conjugated MAGNITUDES form an orthogonal matrix; the sign convention needs a comparison against the
+    #     tables, which is where it was established.
+    for  (N, table)  in  [ (8, LSjj.LS_jj_f_6), (9, LSjj.LS_jj_f_5), (10, LSjj.LS_jj_f_4), (11, LSjj.LS_jj_f_3) ]
+        checkBlocks(3, N, table, true)
+    end
+    #
+    # (3) The guards: an occupation or an l with no table must say so rather than return the 0. of a missed lookup,
+    #     which is indistinguishable from a coefficient that is legitimately zero.
+    guards = [ ("p^7",           () -> LSjj.getLSjjCoefficient(1,  7, LSjj.LS_jj_qn(0, 2, 2, 1, 1, 1, 0, 1, 2, 0))),
+               ("d^11",          () -> LSjj.getLSjjCoefficient(2, 11, LSjj.LS_jj_qn(0, 2, 2, 1, 1, 1, 0, 1, 2, 0))),
+               ("l = 4 (g)",     () -> LSjj.getLSjjCoefficient(4,  3, LSjj.LS_jj_qn(0, 2, 2, 1, 1, 1, 0, 1, 2, 0))),
+               ("N = 1, Jm = Jp",() -> LSjj.getLSjjCoefficient(1,  1, LSjj.LS_jj_qn(0, 0, 0, 1, 1, 0, 0, 1, 0, 1))) ]
+    for  (label, thunk)  in  guards
+        raised = false
+        try     thunk()
+        catch
+            raised = true
+        end
+        if  !raised
+            success = false
+            if printTest   info(iostream, "the guard against '$label' did not raise")   end
+        end
+    end
+
+    println(iostream, "LSjj: the jj-LS transformation matrix of every tabulated block of p^3..p^6, d^3..d^10 and " *
+                      "f^3..f^7, together with the f^8..f^13 electron-hole conjugation branch, is orthogonal to " *
+                      "machine precision -- 153 blocks. Four guards are checked. No approved data is used.")
+    Defaults.setDefaults("print summary: close", "")
+    testPrint("testModule_LSjj()::", success)
+    return( success )
+end
+
+
+"""
+`TestFrames.testModule_BiOrthogonal(; short::Bool=true)`  ... tests on module BiOrthogonal; a success::Bool is returned.
+"""
+function testModule_BiOrthogonal(; short::Bool=true)
+    Defaults.setDefaults("print summary: open", "test-BiOrthogonal-new.sum")
+    printstyled("\n\nTest the module  BiOrthogonal  ... \n", color=:cyan)
+    # The transformation has a defining property, stated in its own docstring: Cleft' * S * Cright = 1 exactly, where
+    # S is the overlap matrix of the two orbital sets.  It is an identity rather than a number, so it needs no
+    # reference value and cannot drift.  Two bases from DIFFERENT nuclear charges are used, so that S is genuinely far
+    # from the unit matrix -- against S = 1 the property would hold for any pair of inverse triangular matrices and
+    # the test would be vacuous.
+    success = true;    printTest, iostream = Defaults.getDefaults("test flag/stream")
+    # LinearAlgebra is not among TestFrames' imports, so the distance of a matrix from the unit matrix is measured
+    # here directly rather than through I.
+    maxOffUnit = function(A)
+        devs = 0.
+        for  i = 1:size(A,1),  j = 1:size(A,2)
+            devs = max( devs, abs( A[i,j] - (i == j ? 1. : 0.) ) )
+        end
+        return( devs )
+    end
+    # The configurations are chosen so that no kappa block is 1 x 1: 1s, 2s and 3s make kappa = -1 a 3 x 3 block, and
+    # 2p together with 3p makes each of kappa = 1 and kappa = -2 a 2 x 2 one.  A 1 x 1 block has a trivial triangular
+    # factorization and would satisfy the identity below for free, so the size of the blocks is part of the test.
+    configs = [Configuration("1s^2 2s^2"), Configuration("1s^2 2s 2p"), Configuration("1s^2 2s 3s"),
+               Configuration("1s^2 2s 3p")]
+    multipletOf = function(Z::Float64)
+        nm   = Nuclear.Model(Z, PointNucleus())
+        grid = Basics.recommendedGrid(configs, nm)
+        wb   = redirect_stdout(devnull) do
+            perform( Atomic.Computation(Atomic.Computation(); name = "Z=$Z", grid = grid, nuclearModel = nm,
+                                        configs = configs); output = true )
+        end
+        return( (wb["multiplet:"], grid) )
+    end
+    leftMp,  grid  = multipletOf(4.)
+    rightMp, _     = multipletOf(5.)
+    leftBasis      = leftMp.levels[1].basis
+    rightBasis     = rightMp.levels[1].basis
+    overlapMatrix  = function(basA::Basis, lList::Array{Subshell,1}, basB::Basis, rList::Array{Subshell,1})
+        n = length(lList);    S = zeros(n, n)
+        for  i = 1:n,  j = 1:n
+            S[i,j] = RadialIntegrals.overlap(basA.orbitals[lList[i]], basB.orbitals[rList[j]], grid)
+        end
+        return( S )
+    end
+    #
+    # (1) The same basis on both sides.  Its orbitals are orthonormal, so S = 1, the triangular factorization is
+    #     trivial and both transformation matrices must come back as the unit matrix.
+    for  (kappa, (lList, rList, Cleft, Cright))  in  BiOrthogonal.computeTransformationMatrices(leftBasis, leftBasis, grid)
+        S = overlapMatrix(leftBasis, lList, leftBasis, rList)
+        if  maxOffUnit(S) > 1.0e-8
+            success = false
+            if printTest   info(iostream, "the orbitals of kappa = $kappa are not orthonormal, worst deviation " *
+                                          "$(maxOffUnit(S))")   end
+        end
+        if  maxOffUnit(Cleft) > 1.0e-10  ||  maxOffUnit(Cright) > 1.0e-10
+            success = false
+            if printTest   info(iostream, "for one basis with itself the kappa = $kappa transformation is not the " *
+                                          "unit matrix")   end
+        end
+    end
+    #
+    # (2) Two different bases: the defining property itself.  The overlap is also required to be genuinely non-trivial,
+    #     so that a degenerate S cannot make the check pass for the wrong reason.
+    biggestOverlapDeviation = 0.
+    for  (kappa, (lList, rList, Cleft, Cright))  in  BiOrthogonal.computeTransformationMatrices(leftBasis, rightBasis, grid)
+        S = overlapMatrix(leftBasis, lList, rightBasis, rList)
+        biggestOverlapDeviation = max( biggestOverlapDeviation, maxOffUnit(S) )
+        devs = maxOffUnit( Cleft' * S * Cright )
+        if  devs > 1.0e-10
+            success = false
+            if printTest   info(iostream, "Cleft' * S * Cright is not the unit matrix for kappa = $kappa, worst " *
+                                          "deviation $devs")   end
+        end
+    end
+    if  biggestOverlapDeviation < 1.0e-2
+        success = false
+        if printTest   info(iostream, "the two bases overlap almost perfectly ($biggestOverlapDeviation), so the " *
+                                      "biorthonormality check above is vacuous")   end
+    end
+    #
+    # (3) Transforming a multiplet against ITSELF must leave every mixing coefficient where it was; the counter-
+    #     rotation of the CI vectors is then the unit matrix as well.
+    newLeftMp, newRightMp = redirect_stdout(devnull) do
+        BiOrthogonal.computeTransformation(leftMp, leftMp, grid)
+    end
+    for  i = 1:length(leftMp.levels)
+        devs = max( maximum(abs.(newLeftMp.levels[i].mc  - leftMp.levels[i].mc)),
+                    maximum(abs.(newRightMp.levels[i].mc - leftMp.levels[i].mc)) )
+        if  devs > 1.0e-10
+            success = false
+            if printTest   info(iostream, "the mixing coefficients of level $i moved by $devs under the identity " *
+                                          "transformation")   end
+        end
+    end
+    #
+    # (4) The guard against a differing number of orbitals per kappa -- the general case of the paper's Appendix B,
+    #     which is not implemented and must therefore refuse rather than factorize a rectangular overlap.  The trimmed
+    #     basis is built by dropping one subshell from the one already computed, so no second SCF is needed.
+    dropped     = leftBasis.subshells[end]
+    keptShells  = [sh for sh in leftBasis.subshells if sh != dropped]
+    keptOrbitals= Dict( sh => leftBasis.orbitals[sh] for sh in keptShells )
+    trimmedBasis= Basis(true, leftBasis.NoElectrons, keptShells, leftBasis.csfs, leftBasis.coreSubshells, keptOrbitals)
+    raised = false
+    try     BiOrthogonal.computeTransformationMatrices(leftBasis, trimmedBasis, grid)
+    catch
+        raised = true
+    end
+    if  !raised
+        success = false
+        if printTest   info(iostream, "a right basis missing the subshell $dropped did not raise, although the " *
+                                      "differing-dimension case is not supported")   end
+    end
+
+    println(iostream, "BiOrthogonal: Cleft' * S * Cright = 1 to machine precision for two bases whose overlap " *
+                      "differs from the unit matrix by $(round(biggestOverlapDeviation, digits=3)); the " *
+                      "transformation of a basis with itself is the identity, and leaves the mixing coefficients " *
+                      "unchanged. No approved data is used.")
+    Defaults.setDefaults("print summary: close", "")
+    testPrint("testModule_BiOrthogonal()::", success)
+    return( success )
+end

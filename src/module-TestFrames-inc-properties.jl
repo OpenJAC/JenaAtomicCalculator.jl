@@ -349,3 +349,105 @@ function testModule_ReducedDensityMatrix(; short::Bool=true)
     testPrint("testModule_ReducedDensityMatrix()::", success)
     return(success)
 end
+
+
+"""
+`TestFrames.testModule_StarkShift(; short::Bool=true)`  ... tests on module StarkShift; a success::Bool is returned.
+"""
+function testModule_StarkShift(; short::Bool=true)
+    Defaults.setDefaults("print summary: open", "test-StarkShift-new.sum")
+    printstyled("\n\nTest the module  StarkShift  ... \n", color=:cyan)
+    # The quadratic Stark shift  dE(J,M) = -(1/2) alpha_0 E^2 - (1/2) alpha_2 E^2 [3M^2 - J(J+1)]/[J(2J-1)]  has three
+    # exact properties that hold whatever the polarizabilities come out as, so they test the module's own algebra and
+    # not the accuracy of the polarizability sum behind it: the tensor term is TRACELESS in M, the shift depends on M
+    # only through M^2, and the whole shift scales as E^2.
+    #
+    # Hydrogen 2p is used because it gives BOTH cases in one computation: 2p_1/2 has J = 1/2, where J(2J-1) = 0 forces
+    # alpha_2 to be exactly zero, and 2p_3/2 has J = 3/2, where the tensor term is live.  Without a level of the second
+    # kind the first two checks would be satisfied by a module that simply never computed a tensor shift, so the size
+    # of the splitting is itself asserted below.
+    success = true;    printTest, iostream = Defaults.getDefaults("test flag/stream")
+    nm         = Nuclear.Model(1., PointNucleus())
+    perturbers = [Configuration("1s"), Configuration("3s"), Configuration("4s"), Configuration("3d"), Configuration("4d")]
+    grid       = Basics.recommendedGrid( vcat(perturbers, [Configuration("2p")]), nm )
+    starkOutcomes = function(EField::Float64)
+        wb1 = redirect_stdout(devnull) do
+            perform( Atomic.Computation(Atomic.Computation(); name = "H perturbers", grid = grid, nuclearModel = nm,
+                                        configs = perturbers); output = true )
+        end
+        settings = StarkShift.Settings(StarkShift.Settings(); calcStarkshifts = true, gMultiplet = wb1["multiplet:"],
+                                       EField = EField)
+        wb = redirect_stdout(devnull) do
+            perform( Atomic.Computation(Atomic.Computation(); name = "H 2p Stark shift", grid = grid, nuclearModel = nm,
+                                        configs = [Configuration("2p")], propertySettings = [settings]); output = true )
+        end
+        return( wb["Stark-shift outcomes:"] )
+    end
+    EField   = 1.0e5
+    outcomes = starkOutcomes(EField)
+    EFieldAu = EField / StarkShift.AU_EFIELD_IN_VCM
+    sawTensor = false
+    for  outcome  in  outcomes
+        Jd     = Basics.twice(outcome.Jlevel.J) / 2.0
+        alpha0 = outcome.alpha0.Babushkin
+        #
+        # (1) Sum over M.  The tensor factor [3M^2 - J(J+1)] sums to zero over the 2J+1 sublevels, so whatever alpha_2
+        #     is, the centre of gravity of the multiplet is the pure scalar shift.
+        total = sum( sub.energy.Babushkin for sub in outcome.Jsublevels )
+        want  = (2*Jd + 1) * (-0.5) * alpha0 * EFieldAu^2
+        if  abs(total - want) > 1.0e-10 * max(abs(want), 1.0e-30)
+            success = false
+            if printTest   info(iostream, "for J = $Jd the sublevel shifts sum to $total, but the traceless tensor " *
+                                          "term requires (2J+1)(-alpha_0 E^2/2) = $want")   end
+        end
+        #
+        # (2) The shift depends on M only through M^2, so the M and -M sublevels must be exactly degenerate.
+        for  subA  in  outcome.Jsublevels,  subB  in  outcome.Jsublevels
+            if  Basics.twice(subA.M) == -Basics.twice(subB.M)  &&
+                abs(subA.energy.Babushkin - subB.energy.Babushkin) > 1.0e-14 * max(abs(subA.energy.Babushkin), 1.0e-30)
+                success = false
+                if printTest   info(iostream, "for J = $Jd the M = $(subA.M) and M = $(subB.M) sublevels differ, " *
+                                              "$(subA.energy.Babushkin) against $(subB.energy.Babushkin)")   end
+            end
+        end
+        #
+        # (3) J < 1 leaves J(2J-1) = 0, where the module returns alpha_2 = 0 rather than dividing by it; the level then
+        #     shifts as a whole and does not split at all.
+        spread = maximum(sub.energy.Babushkin for sub in outcome.Jsublevels) -
+                 minimum(sub.energy.Babushkin for sub in outcome.Jsublevels)
+        if      Jd < 1.   &&  (outcome.alpha2.Babushkin != 0.  ||  spread != 0.)
+            success = false
+            if printTest   info(iostream, "the J = $Jd level has alpha_2 = $(outcome.alpha2.Babushkin) and a splitting " *
+                                          "of $spread, but J(2J-1) = 0 forces both to be exactly zero")   end
+        elseif  Jd >= 1.  &&  spread > 0.
+            sawTensor = true
+        end
+    end
+    #
+    # A tensor shift must actually have occurred somewhere, or checks (1) and (2) were satisfied by arithmetic on zeros.
+    if  !sawTensor
+        success = false
+        if printTest   info(iostream, "no level showed a nonzero tensor splitting, so the traceless and M -> -M " *
+                                      "checks above are vacuous")   end
+    end
+    #
+    # (4) The shift is quadratic in the field: doubling E must multiply every sublevel shift by exactly four.  This is
+    #     the one check that has content even where alpha_2 vanishes.
+    for  (outcome, doubled)  in  zip(outcomes, starkOutcomes(2*EField))
+        for  (subA, subB)  in  zip(outcome.Jsublevels, doubled.Jsublevels)
+            if  abs(subA.energy.Babushkin) > 0.  &&
+                abs(subB.energy.Babushkin / subA.energy.Babushkin - 4.0) > 1.0e-10
+                success = false
+                if printTest   info(iostream, "doubling the field changed the M = $(subA.M) shift by a factor " *
+                                              "$(subB.energy.Babushkin / subA.energy.Babushkin) rather than 4")   end
+            end
+        end
+    end
+
+    println(iostream, "StarkShift: for hydrogen 2p the tensor term is traceless in M, the sublevels are degenerate " *
+                      "in M -> -M, J = 1/2 leaves alpha_2 exactly zero, and doubling the field multiplies every " *
+                      "shift by exactly four. No approved data is used.")
+    Defaults.setDefaults("print summary: close", "")
+    testPrint("testModule_StarkShift()::", success)
+    return( success )
+end

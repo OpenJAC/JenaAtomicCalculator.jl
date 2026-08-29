@@ -45,6 +45,9 @@ end
         @test TestFrames.testModule_InteractionStrength()  ## and two quadratures of one operator
         @test TestFrames.testModule_SelfConsistent()  ## added 28-Aug-2026; the converged SCF is a FIXED POINT,
                                                       ## and a frozen subshell does not move at all
+        @test TestFrames.testModule_Radial()        ## the three added 29-Aug-2026 check documented RECIPES and exact
+        @test TestFrames.testModule_LSjj()          ## IDENTITIES -- the grid formulae, the orthogonality of the
+        @test TestFrames.testModule_BiOrthogonal()  ## jj-LS matrices, and Cleft' S Cright = 1
     end
 
     @testset "JAC structs" begin
@@ -86,6 +89,8 @@ end
         @test TestFrames.testModule_MultipolePolarizibility()
         @test TestFrames.testModule_ReducedDensityMatrix()  ## added 28-Aug-2026; algebraic invariants of
                                                             ## rho^(1p), no stored .sum
+        @test TestFrames.testModule_StarkShift()   ## added 29-Aug-2026; the tensor term is traceless in M and the
+                                                   ## shift is exactly quadratic in the field
     end
 
     @testset "JAC processes" begin
