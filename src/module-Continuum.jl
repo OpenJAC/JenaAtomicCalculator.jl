@@ -244,7 +244,7 @@ function generateOrbitalAsymptoticCoulomb(energy::Float64, sh::Subshell, pot::Ra
     for  i = 2:settings.mtp  
         theta = q * pot.grid.r[i]  +  y * log(2q * pot.grid.r[i])  - angle( SpecialFunctions.gamma(gammaBar + im*y) )  -  pi*gammaBar/2  +  eta.re
         P[i] = NP * cos(theta + phi0);      Pprime[i] = - NP * (q + y/pot.grid.r[i]) * sin(theta + phi0)       
-        Q[i] = - NQ * sin(theta + phi0);    Qprime[i] = - NP * (q + y/pot.grid.r[i]) * cos(theta + phi0)       
+        Q[i] = - NQ * sin(theta + phi0);    Qprime[i] = - NQ * (q + y/pot.grid.r[i]) * cos(theta + phi0)       
     end
 
     cOrbital = Orbital( sh, false, true, energy, P, Q, Pprime, Qprime, Radial.Grid())
@@ -264,7 +264,7 @@ function generateOrbitalBessel(energy::Float64, sh::Subshell, grid::Radial.Grid,
     
     q = sqrt( 2*energy );    l = Basics.subshell_l(sh);   wc = Defaults.getDefaults("speed of light: c")
     for  i = 2:settings.mtp   P[i] = GSL.sf_bessel_jl(l, q * grid.r[i]) * grid.r[i]    end
-    for  i = 2:settings.mtp   qz = q * grid.r[i];   Pprime[i] = (l/qz * GSL.sf_bessel_jl(l, qz) - GSL.sf_bessel_jl(l+1, qz)) + P[i]/grid.r[i]     end
+    for  i = 2:settings.mtp   qz = q * grid.r[i];   Pprime[i] = qz * (l/qz * GSL.sf_bessel_jl(l, qz) - GSL.sf_bessel_jl(l+1, qz)) + P[i]/grid.r[i]   end
     for  i = 2:settings.mtp   Q[i] = -1/(2 * wc) * Pprime[i]  +  sh.kappa/grid.r[i] * P[i]         end
     
     println("Continuum-Bessel orbital for q = $q,  l = $l")

@@ -2319,3 +2319,233 @@ function testModule_BiOrthogonal(; short::Bool=true)
     testPrint("testModule_BiOrthogonal()::", success)
     return( success )
 end
+
+
+"""
+`TestFrames.testModule_Continuum(; short::Bool=true)`  ... tests on module Continuum; a success::Bool is returned.
+"""
+function testModule_Continuum(; short::Bool=true)
+    Defaults.setDefaults("print summary: open", "test-Continuum-new.sum")
+    printstyled("\n\nTest the module  Continuum  ... \n", color=:cyan)
+    # Continuum supplies the free electron to every process module in the package and had no test of its own until
+    # 29-Aug-2026. Nothing here is compared against a stored number: a free wave has closed forms for its amplitude,
+    # its phase and its derivative, and those are what is asserted. The energy-scale normalization sqrt(2/(pi q)) and
+    # the centrifugal phase -l*pi/2 enter every cross section the package prints, so an error in either is an error in
+    # all of them at once.
+    success = true;    printTest, iostream = Defaults.getDefaults("test flag/stream")
+    wc   = Defaults.getDefaults("speed of light: c")
+    # An asymptotic step of 0.02 a.u. against a de Broglie wavelength of 4.44 a.u. at 1 Hartree: 222 points per
+    # oscillation, comfortably inside the 15 the module demands.
+    grid = Radial.Grid(Radial.Grid(false), rnt = 1.0e-6, h = 5.0e-2, hp = 2.0e-2, rbox = 40.0)
+    mtp      = grid.NoPoints - 200
+    settings = Continuum.Settings(false, mtp)
+
+    # A guard that cannot fail is worse than no guard, since it reads as a clean bill of health; every refusal below
+    # is therefore exercised from both sides.
+    function isRefused(f::Function)
+        try     redirect_stdout(devnull) do;   f()   end
+        catch
+            return( true )
+        end
+        return( false )
+    end
+
+    # Elementary spherical Bessel functions, written out in sines and cosines so that the check on the Bessel wave
+    # below does not ask GSL to confirm GSL. Stable only away from the origin, which is where they are used.
+    function jSmall(l::Int64, z::Float64)
+        if      l == 0   return( sin(z)/z )
+        elseif  l == 1   return( sin(z)/z^2 - cos(z)/z )
+        elseif  l == 2   return( (3/z^3 - 1/z)*sin(z) - 3*cos(z)/z^2 )
+        elseif  l == 3   return( (15/z^4 - 6/z^2)*sin(z) - (15/z^3 - 1/z)*cos(z) )
+        else    error("no elementary form is kept here for l = $l")
+        end
+    end
+
+    # (1) gridConsistency returns exactly the point its own docstring names, and refuses all four ways it says it does.
+    nrCont = redirect_stdout(devnull) do;  Continuum.gridConsistency(1.0, grid)  end
+    if  nrCont != grid.NoPoints - 200
+        success = false
+        if printTest   info(iostream, "gridConsistency returns $nrCont, but the documented recipe is " *
+                                      "NoPoints-200 = $(grid.NoPoints - 200)")   end
+    end
+    zeroHp   = Radial.Grid(Radial.Grid(false), rnt = 1.0e-6, h = 5.0e-2, hp = 0.0,    rbox = 40.0)
+    fewPts   = Radial.Grid(Radial.Grid(false), rnt = 1.0e-6, h = 5.0e-2, hp = 2.0e-2, rbox = 0.2)
+    shortBox = Radial.Grid(Radial.Grid(false), rnt = 1.0e-6, h = 1.0e-2, hp = 1.0e-3, rbox = 1.5)
+    guards   = [ ("a grid with hp = 0 and so no asymptotic region",    () -> Continuum.gridConsistency(1.0,   zeroHp)),
+                 ("a mesh far too coarse for the requested energy",    () -> Continuum.gridConsistency(400.0, grid)),
+                 ("a grid of fewer than 600 points",                   () -> Continuum.gridConsistency(1.0,   fewPts)),
+                 ("a box whose normalization point is inside 2 a.u.",  () -> Continuum.gridConsistency(1.0,   shortBox)) ]
+    for  (what, f)  in  guards
+        if  !isRefused(f)
+            success = false
+            if printTest   info(iostream, "gridConsistency accepts $what")   end
+        end
+    end
+    # The threshold is stated as 15 points per oscillation, i.e. hp = wavelength/15 = 0.2962 a.u. at 1 Hartree. Testing
+    # it from both sides fixes the guard AT its stated value rather than merely somewhere.
+    wavelgth = 2pi / sqrt( 2.0 + Defaults.getDefaults("alpha")^2 )
+    justFine = Radial.Grid(Radial.Grid(false), rnt = 1.0e-6, h = 5.0e-2, hp = 0.29, rbox = 400.0)
+    justOver = Radial.Grid(Radial.Grid(false), rnt = 1.0e-6, h = 5.0e-2, hp = 0.30, rbox = 400.0)
+    if  isRefused(() -> Continuum.gridConsistency(1.0, justFine))
+        success = false
+        if printTest   info(iostream, "gridConsistency refuses hp = 0.29 although wavelength/15 = $wavelgth/15")   end
+    end
+    if  !isRefused(() -> Continuum.gridConsistency(1.0, justOver))
+        success = false
+        if printTest   info(iostream, "gridConsistency accepts hp = 0.30 although wavelength/15 = $(wavelgth/15)")   end
+    end
+
+    # (2) THE PURE SINE WAVE AND ITS EXACT INVARIANT. P = N sin(qr - l*pi/2) with N = sqrt(2/(pi q)) obeys
+    #     P^2 + (P'/q)^2 = N^2 at EVERY mesh point -- one identity tying the amplitude, the derivative and the phase
+    #     together, and true point by point rather than on average.
+    for  (energy, sh)  in  [(1.0, Subshell("1000s_1/2")), (1.0, Subshell("1000p_3/2")), (2.5, Subshell("1000d_5/2"))]
+        cOrb = redirect_stdout(devnull) do;  Continuum.generateOrbitalPureSine(energy, sh, grid, settings)  end
+        q    = sqrt(2energy);    wa = 0.
+        for  i = 1:mtp   wa = max(wa, abs( cOrb.P[i]^2 + (cOrb.Pprime[i]/q)^2 - 2/(pi*q) ))   end
+        if  wa > 1.0e-14 * 2/(pi*q)
+            success = false
+            if printTest   info(iostream, "$sh at E = $energy: P^2 + (P'/q)^2 departs from 2/(pi q) by $wa")   end
+        end
+    end
+    # ... and that same invariant, multiplied by q, is 2/pi at every energy. This fixes the EXPONENT of q in the
+    # energy-scale normalization, which a single energy cannot see.
+    for  energy  in  [0.5, 1.0, 2.0, 5.0]
+        cOrb = redirect_stdout(devnull) do;  Continuum.generateOrbitalPureSine(energy, Subshell("1000p_1/2"), grid, settings)  end
+        q    = sqrt(2energy);    wa = (cOrb.P[mtp]^2 + (cOrb.Pprime[mtp]/q)^2) * q
+        if  abs(wa - 2/pi) > 1.0e-13
+            success = false
+            if printTest   info(iostream, "at E = $energy the energy-normalization gives q*N^2 = $wa, not 2/pi")   end
+        end
+    end
+
+    # (3) THE CENTRIFUGAL PHASE, and its SIGN, which no amplitude check can see. sin(x - (l+2)pi/2) = -sin(x - l pi/2),
+    #     so the waves for l and l+2 are exact negatives and those for l and l+4 identical. The three subshells below
+    #     also carry kappa = -1, +2 and -5, so Basics.subshell_l is exercised for both signs.
+    cS = redirect_stdout(devnull) do;  Continuum.generateOrbitalPureSine(1.0, Subshell("1000s_1/2"), grid, settings)  end
+    cD = redirect_stdout(devnull) do;  Continuum.generateOrbitalPureSine(1.0, Subshell("1000d_3/2"), grid, settings)  end
+    cG = redirect_stdout(devnull) do;  Continuum.generateOrbitalPureSine(1.0, Subshell("1000g_7/2"), grid, settings)  end
+    scale = maximum( abs.(cS.P) )
+    if  maximum( abs.(cS.P .+ cD.P) ) > 1.0e-12 * scale
+        success = false
+        if printTest   info(iostream, "the l = 0 and l = 2 pure sine waves are not exact negatives of one another")   end
+    end
+    if  maximum( abs.(cS.P .- cG.P) ) > 1.0e-12 * scale
+        success = false
+        if printTest   info(iostream, "the l = 0 and l = 4 pure sine waves do not agree")   end
+    end
+
+    # (4) GENERATE THEN NORMALIZE IS THE IDENTITY. A wave that is already energy-normalized must come back with the
+    #     phase 0 and the factor 1. The phase does so exactly; the FACTOR does not, and the reason is worth stating,
+    #     because it is the difference between a derived bound and a tolerance chosen to make a test pass: the routine
+    #     takes the DISCRETE maximum of |P|, and the nearest sample can sit half a step from the crest, so the maximum
+    #     falls short by at most (q*hp)^2/8. The honest assertion is therefore 1 <= N <= 1/(1 - (q*hp)^2/8).
+    for  (energy, sh)  in  [(1.0, Subshell("1000s_1/2")), (1.0, Subshell("1000p_3/2")),
+                            (2.5, Subshell("1000d_5/2")), (0.5, Subshell("1000f_5/2"))]
+        cOrb = redirect_stdout(devnull) do;  Continuum.generateOrbitalPureSine(energy, sh, grid, settings)  end
+        newOrb, phi, normF = redirect_stdout(devnull) do;  Continuum.normalizeOrbitalPureSine(cOrb, grid, settings)  end
+        q     = sqrt(2energy)
+        # phi is returned modulo pi, so 0 and pi are the same answer and both must be accepted -- AND that reduction
+        # is a REAL BLIND SPOT of this check, not an oversight in it. Flipping the sign of the centrifugal term in
+        # normalizeOrbitalPureSine, +l*pi/2 -> -l*pi/2, moves the phase by exactly l*pi, an integer multiple of pi
+        # for every l, so the reduced value is unchanged: measured at 4e-13 across l = 0...4, far below the 1e-10
+        # asserted here. NO test of this function's returned phase can see that sign. The sign is nevertheless the
+        # right one -- an orbital behaving as sin(qr - l*pi/2 + delta) gives at - kr + l*pi/2 = delta -- and it rests
+        # on that derivation, not on anything below.
+        if  min( abs(phi), abs(pi - phi) ) > 1.0e-10
+            success = false
+            if printTest   info(iostream, "$sh at E = $energy: renormalizing an already-normalized sine gives the " *
+                                          "phase $phi, which is neither 0 nor pi")   end
+        end
+        wa = maximum( abs.(newOrb.P) ) / maximum( abs.(cOrb.P) )
+        if  wa < 1.0 - 1.0e-12   ||   wa > 1/(1 - (q*grid.hp)^2/8)
+            success = false
+            if printTest   info(iostream, "$sh at E = $energy: renormalizing gives N = $wa, outside the sampling " *
+                                          "bound [1, $(1/(1 - (q*grid.hp)^2/8))]")   end
+        end
+    end
+
+    # (5) AND THE NORMALIZATION REFUSES what it cannot reach. |N| > 30 means the orbital never grew to its asymptotic
+    #     amplitude inside the box, and the routine says so instead of returning a factor of a thousand.
+    cOrb  = redirect_stdout(devnull) do;  Continuum.generateOrbitalPureSine(1.0, Subshell("1000s_1/2"), grid, settings)  end
+    small = Orbital( cOrb.subshell, cOrb.isBound, cOrb.useStandardGrid, cOrb.energy,
+                     cOrb.P/1000, cOrb.Q/1000, cOrb.Pprime/1000, cOrb.Qprime/1000, cOrb.grid )
+    if  !isRefused(() -> Continuum.normalizeOrbitalPureSine(small, grid, settings))
+        success = false
+        if printTest   info(iostream, "normalizeOrbitalPureSine accepts an orbital needing N = 1000, although it " *
+                                      "refuses above 30")   end
+    end
+
+    # (6) THE BESSEL WAVE AGAINST ELEMENTARY CLOSED FORMS: P = r j_l(qr) and dP/dr = (l+1) j_l(z) - z j_{l+1}(z), with
+    #     j_0 ... j_3 written out above in sines and cosines. The derivative is the half that matters -- it is what the
+    #     phase is read from downstream, and it carried a missing factor z until 29-Aug-2026.
+    for  sh  in  [Subshell("1000s_1/2"), Subshell("1000p_3/2"), Subshell("1000d_5/2")]
+        cOrb = redirect_stdout(devnull) do;  Continuum.generateOrbitalBessel(1.0, sh, grid, settings)  end
+        q    = sqrt(2.0);    l = Basics.subshell_l(sh);    wa = 0.;   wb = 0.
+        for  i = mtp-800:mtp-100
+            z  = q * grid.r[i]
+            wa = max(wa, abs( cOrb.P[i]      - grid.r[i]*jSmall(l, z) ))
+            wb = max(wb, abs( cOrb.Pprime[i] - ((l+1)*jSmall(l, z) - z*jSmall(l+1, z)) ))
+        end
+        if  wa > 1.0e-12
+            success = false
+            if printTest   info(iostream, "$sh: the Bessel wave departs from r*j_l(qr) by $wa")   end
+        end
+        if  wb > 1.0e-12
+            success = false
+            if printTest   info(iostream, "$sh: d/dr of the Bessel wave departs from (l+1) j_l - z j_(l+1) by $wb")   end
+        end
+    end
+
+    # (7) THE ASYMPTOTIC COULOMB WAVE: its four arrays must belong to ONE wave. The asymptotic ratio of the small to
+    #     the large component of a free Dirac wave is R = sqrt(E/(E+2c^2)) -- a textbook result, not something read off
+    #     this code -- so with P = A cos(theta) and Q = A R sin(theta) the arrays satisfy two identities in theta,
+    #         P^2 + (Q/R)^2 = const        and        Q'*Q = -R^2 * P'*P,
+    #     the second of which needs no knowledge of dtheta/dr and is exactly what a wrong amplitude on a derivative
+    #     violates. Q' carried the LARGE-component amplitude until 29-Aug-2026, which is this identity out by 1/R^2.
+    nm     = Nuclear.Model(10.0, PointNucleus())
+    pot    = redirect_stdout(devnull) do;  Nuclear.nuclearPotential(nm, grid)  end
+    energy = 1.0;      R = sqrt( energy / (energy + 2*wc^2) )
+    for  sh  in  [Subshell("1000s_1/2"), Subshell("1000p_3/2"), Subshell("1000d_5/2")]
+        cOrb = redirect_stdout(devnull) do;  Continuum.generateOrbitalAsymptoticCoulomb(energy, sh, pot, settings)  end
+        amp2 = cOrb.P[mtp]^2 + (cOrb.Q[mtp]/R)^2;     wa = 0.;   wb = 0.;   scale = 0.
+        for  i = 2:mtp
+            wa    = max(wa,    abs( cOrb.P[i]^2 + (cOrb.Q[i]/R)^2 - amp2 ))
+            wb    = max(wb,    abs( cOrb.Qprime[i]*cOrb.Q[i] + R^2 * cOrb.Pprime[i]*cOrb.P[i] ))
+            scale = max(scale, abs( R^2 * cOrb.Pprime[i]*cOrb.P[i] ))
+        end
+        if  wa > 1.0e-12 * amp2
+            success = false
+            if printTest   info(iostream, "$sh: P^2 + (Q/R)^2 is not constant along the asymptotic Coulomb wave; " *
+                                          "it moves by $wa against $amp2")   end
+        end
+        if  wb > 1.0e-12 * scale
+            success = false
+            if printTest   info(iostream, "$sh: Q'*Q + R^2 P'*P = $wb against a scale of $scale; the small and large " *
+                                          "components do not belong to one wave")   end
+        end
+    end
+
+    # (8) twoFzero, the 2F0 asymptotic series translated from Salvat's RADIAL. It has one property that can be checked
+    #     exactly: for a negative-integer first argument the series TERMINATES, so 2F0(-n, b; 1/z) is a polynomial of
+    #     degree n in 1/z and can be summed here in three lines.
+    for  (na, b, z)  in  [(1, 2.5+0.7im, 30.0+4.0im), (2, 1.3-0.4im, 25.0+0.0im), (3, 0.5+0.0im, 40.0+10.0im)]
+        a  = ComplexF64(-na, 0.);      wa = Continuum.twoFzero(a, ComplexF64(b), ComplexF64(z))
+        wb = 0.0+0.0im;                wx = 1.0+0.0im
+        for  k = 0:na    wb = wb + wx;    wx = wx * (a+k)*(b+k)/((k+1)*z)    end
+        if  abs(wa - wb) > 1.0e-14 * abs(wb)
+            success = false
+            if printTest   info(iostream, "twoFzero(-$na, $b; 1/$z) = $wa against the terminating series $wb")   end
+        end
+    end
+
+    println(iostream, "Continuum: the energy-scale normalization and the centrifugal phase of the free wave as the " *
+                      "exact invariant P^2 + (P'/q)^2 = 2/(pi q); generate-then-normalize as an identity, with the " *
+                      "renormalization factor held inside a bound DERIVED from the mesh; the Bessel wave and its "  *
+                      "derivative against elementary sines and cosines; the asymptotic Coulomb wave's small and "   *
+                      "large components tied by the free-Dirac ratio sqrt(E/(E+2c^2)); twoFzero against a "         *
+                      "terminating 2F0; and all five refusals -- four in gridConsistency and one in "               *
+                      "normalizeOrbitalPureSine -- exercised from both sides. No approved data is used.")
+    Defaults.setDefaults("print summary: close", "")
+    testPrint("testModule_Continuum()::", success)
+    return( success )
+end

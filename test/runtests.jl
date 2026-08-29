@@ -48,6 +48,8 @@ end
         @test TestFrames.testModule_Radial()        ## the three added 29-Aug-2026 check documented RECIPES and exact
         @test TestFrames.testModule_LSjj()          ## IDENTITIES -- the grid formulae, the orthogonality of the
         @test TestFrames.testModule_BiOrthogonal()  ## jj-LS matrices, and Cleft' S Cright = 1
+        @test TestFrames.testModule_Continuum()     ## added 29-Aug-2026; the free wave against its own closed forms --
+                                                    ## P^2 + (P'/q)^2 = 2/(pi q), the centrifugal phase, and five refusals
     end
 
     @testset "JAC structs" begin
