@@ -756,7 +756,8 @@ function  computeLinesPlasma(finalMultiplet::Multiplet, initialMultiplet::Multip
     printstyled("------------------------------------------------------------------------------------------------------- \n", color=:light_green)
     println("")
     photoSettings = PhotoIonization.Settings(settings.multipoles, settings.gauges, settings.photonEnergies, Float64[], Float64[],
-                        false, false, false, false, false, settings.printBefore, settings.lineSelection, Basics.ExpStokes(), 0., [0,1,2,3,4,5])
+                        false, false, false, false, false, false, settings.printBefore, settings.lineSelection,
+                        Basics.ExpStokes(), 0., [0,1,2,3,4,5])
 
     lines = PhotoIonization.determineLines(finalMultiplet, initialMultiplet, photoSettings)
     # Display-only and the same for every line; set ONCE per computation, never from inside the line loop.

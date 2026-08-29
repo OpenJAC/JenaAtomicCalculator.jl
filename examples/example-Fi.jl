@@ -220,7 +220,12 @@ elseif  false
     setDefaults("print summary: open", "zzz-Cascade-Fi-simulation.sum")
     setDefaults("unit: cross section", "barn")
 
-    fn   = sort(filter(f -> startswith(f, "zzz-cascade-electron-ionization-"), readdir()), by = f -> stat(f).mtime)[end]
+    fns  = sort(filter(f -> startswith(f, "zzz-cascade-electron-ionization-"), readdir()), by = f -> stat(f).mtime)
+    # Say so rather than dying on `[end]` of an empty list -- the same repair as example-Fe.jl and the same
+    # house style as example-Fa.jl and example-Fl.jl.
+    if  isempty(fns)   error("Run branch a of this file first; no zzz-cascade-electron-ionization-* file was " *
+                             "found in the working directory.")   end
+    fn   = fns[end]
     println(">>> reading the cascade data from  $fn")
     data = [JLD2.load(fn)]
     prop = Cascade.EaCrossSections(1, Float64[])       ## empty list: report at every computed energy

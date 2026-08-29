@@ -25,6 +25,9 @@ elseif  true
     # Last successful:  unknown ...
     # Run the network for one or several configurations and compared with predicted excitation energies
     # with the data available from the NIST tables.
+    # `nistLevels` and `atomicModel` are built by branch a of this file (lines 9-12); without them this branch
+    # died on an UndefVarError naming only the first of them.
+    if  !@isdefined(nistLevels)   error("Run branch a of this file first; it builds nistLevels and atomicModel.")   end
     requestConfs = [Configuration("[Ne] 3s^2 3p^3 4f")]
     request      = DeepLearning.LevelEstimationRequest(requestConfs, nistLevels)
     application  = DeepLearning.Application(Application(), name="Ar-NN with nMax=4", atomicModel=atomicModel,

@@ -148,6 +148,8 @@ elseif  false
 elseif  false
     # Extract selected configurations from given lists or information about them
     # -------------------------------------------------------------------------- 
+    # `basis` is built by an earlier branch of this file (line 118).
+    if  !@isdefined(basis)   error("Run the earlier branch of this file first; it builds `basis`.")   end
     wa = Basics.extractConfigurations(FromBasis(), basis);                                              @show wa
     wb = Basics.extractConfigurations(ByNumber([18]), allConfs);                                        @show wb
     wc = Basics.extractConfigurations(ByParity(Basics.plus), allConfs);                                 @show wc
