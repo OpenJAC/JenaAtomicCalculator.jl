@@ -112,7 +112,8 @@ elseif  false
 elseif  true
     # Last successful:  unknown
     # Compute different direct potentials for the charge density of a given level 
-    grid = Radial.Grid(Radial.Grid(true), rnt = 2.0e-6,h = 3.0e-2, hp = 6.0e-2, NoPoints = 900)
+    # (a Radial.Grid(...; NoPoints = 900) call stood here until 29-Aug-2026: the keyword became `rbox`, and the
+    #  line was dead in any case -- the next line reassigns `grid` before it is ever used.)
     grid = Radial.Grid(true)
     wa = Atomic.Computation(Atomic.Computation(), name="xx", grid=grid, nuclearModel=Nuclear.Model(16., PointNucleus()), 
                             configs=[Configuration("[Ne] 3s^2 3p^2")],  ## , Basics.DFSField()

@@ -18,7 +18,7 @@ if      false
     # Basic operations
     # ----------------
     # Merge three configuration lists
-    wa = Basics.mergeConfigurations([heConf], [arConf], [xeConf])
+    wa = Basics.merge([heConf], [arConf], [xeConf])
          Basics.displayConfigurations(stdout, wa, longForm=true, details="He + Ar + Xe")
     #
 elseif  false

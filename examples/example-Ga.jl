@@ -70,8 +70,10 @@ elseif  true
     ma   = Basic(:ma);    mb = Basic(:mb);    mr = Basic(:mr);    ms = Basic(:ms);    M1 = Basic(:M1);    M2 = Basic(:M2)
     w3ja = W3j(jr, L1, ja, -mr, M1, ma);      w3jb = W3j(js, L1, jb, -ms, -M1, mb)
     w3jc = W3j(ja, L2, jr, -ma, M2, mr);      w3jd = W3j(jb, L2, js, -mb, -M2, ms)
-    rex  = RacahExpression( [ma, mb, mr, ms, M1, M2], L1 - M1 + L2 - M2 + ja - ma + jb - mb + jr - mr + js - ms, 
-                            Basic(1), Kronecker[], Triangle[], [w3ja, w3jb, w3jc, w3jd], W6j[], W9j[] )
+    rex  = RacahExpression( [ma, mb, mr, ms, M1, M2], RacahAlgebra.Integral[],
+                            L1 - M1 + L2 - M2 + ja - ma + jb - mb + jr - mr + js - ms, 
+                            Basic(1), Kronecker[], Triangle[], [w3ja, w3jb, w3jc, w3jd], W6j[], W9j[],
+                            RacahAlgebra.Ylm[], RacahAlgebra.Djpq[] )
     rex  = RacahAlgebra.evaluate(rex);   @show rex
     rex  = RacahAlgebra.evaluate(rex)
     #

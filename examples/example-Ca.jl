@@ -50,10 +50,11 @@ elseif  true
     ## asfSettings   = AsfSettings(AsfSettings(), frozenSubshells=[Subshell("1s_1/2"), Subshell("2s_1/2")],
     ##                                            startScfFrom=StartFromPrevious(frozenOrbs), generateScf=true)
     wa = Atomic.Computation(Atomic.Computation(), name="xx", grid=grid, nuclearModel=Nuclear.Model(6.), ## asfSettings=asfSettings,
-                            properties=[JAC.EinsteinX()], 
-                            ##x configs=[Configuration("1s^2 2s"), Configuration("1s^2 2p"), Configuration("1s^2 3d"), Configuration("1s^2 4f")],
+                            # `properties=[JAC.EinsteinX()]` with a separate `einsteinSettings=` stood here until
+                            # 29-Aug-2026. Atomic.Computation carries ONE list now -- propertySettings -- and the
+                            # settings object itself says which property is wanted, so the type is no longer named.
                             configs=[Configuration("1s^2 2s^2"), Configuration("1s^2 2s 3p")],
-                            einsteinSettings=Einstein.Settings([E1], true, LineSelection(), 0., 0., 10000. ) )
+                            propertySettings=[Einstein.Settings([E1], true, LineSelection(), 0., 0., 10000. )] )
                             ## einsteinSettings=Einstein.Settings([E1,M1,E2], true, LineSelection(true, indexPairs=[(3,1), (5,1)]), 0., 0., 10000. ) )
 
     wb = perform(wa; output=true)

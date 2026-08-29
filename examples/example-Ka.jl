@@ -7,7 +7,7 @@ if  true
     # Compute the atomic model for Ar^+, Ar^2+, Ar^3+ ions and with nMax = 4;
     # extract the NIST levels from externally prepared files
     filenames   = String[]
-    nistLevels  = DeepLearning.extractNistLevels(filesnames)
+    nistLevels  = DeepLearning.extractNistLevels(filenames)
     nistConfs   = DeepLearning.extractNistConfigurations(nistLevels)
     atomicModel = DeepLearning.generateAtomicModelForLE_Arn4()
     #
