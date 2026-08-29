@@ -116,10 +116,38 @@ function performCI(basis::Basis, nm::Nuclear.Model, grid::Radial.Grid, settings:
     # this, but their order fixes both the progress messages and the order in which the levels below are
     # appended -- and a Dict iterates differently from one process to the next, so two runs of one
     # calculation could not be compared line by line.  The value v is not used in the loop.
-    for  sym  in  sort( collect(keys(symmetries)), by = s -> (Basics.twice(s.J), string(s.parity)) )
-        # Skip the symmetry block if it not selected
-        if  !Basics.selectSymmetry(sym, settings.levelSelectionCI)     continue    end
-        matrix = Hamiltonian.setupMatrix(sym, basis, nm, grid, settings, xlCache; printout=printout)
+    # THREADED OVER SYMMETRY BLOCKS, 29-Aug-2026.  The blocks are independent -- which is what the note above
+    # already said -- and building them is where essentially all of the time goes: measured on a 3859-CSF
+    # Os^16+ basis, `setupMatrix` took 25.1 s against 0.1 s for `diagonalizeCiMatrix`, i.e. the CI cost is
+    # 99.6 % matrix CONSTRUCTION.  BLAS threading, which is on by default, therefore parallelises the 0.4 %.
+    # This follows the pattern already used in `AutoIonization`, `PhotoIonization`, `ImpactExcitation`,
+    # `PhotoRecombination` and `Cascade`, which thread over LINES; here the loop is over blocks.
+    # DETERMINISM IS PRESERVED: results are written into a pre-sized vector at the index of the SORTED
+    # symmetry list and assembled in that order afterwards, so the level order does not depend on which
+    # thread finishes first.  `:static` scheduling is used so that `threadid()` is stable for a whole
+    # iteration, which is what makes the per-thread cache below sound.
+    # ONE CACHE PER THREAD, not one shared: `xlCache` is a Dict written during setup, so sharing it across
+    # threads would be a data race.  Reuse WITHIN a thread is kept, which is where most of the benefit was.
+    symList = filter(s -> Basics.selectSymmetry(s, settings.levelSelectionCI),
+                     sort( collect(keys(symmetries)), by = s -> (Basics.twice(s.J), string(s.parity)) ))
+    nthr    = Threads.nthreads()
+    blockMp = Vector{Union{Nothing,Multiplet}}(nothing, length(symList))
+    # DYNAMIC SCHEDULING, LARGEST BLOCK FIRST.  The blocks are very uneven -- on a 3859-CSF Os^16+ basis
+    # they ran from 3 to 346 CSFs and from 0.01 s to 2.53 s -- so `@threads :static`, which hands out
+    # contiguous chunks, leaves most threads idle waiting for whichever chunk drew the big blocks.
+    # `@spawn` inside `@sync` lets the scheduler take the next block as soon as a thread is free, and
+    # queueing the expensive ones first keeps the tail short.
+    # ONE CACHE PER BLOCK rather than per thread: `xlCache` is a Dict written during setup and cannot be
+    # shared across tasks.  The reuse that matters is WITHIN a block, where many CSF pairs need the same
+    # radial integral, and that is retained; only the smaller cross-block reuse is given up.  With a single
+    # thread the original shared cache is used unchanged, so nothing about the serial path changes.
+    order = sortperm([count(c -> LevelSymmetry(c.J, c.parity) == sm, basis.csfs) for sm in symList], rev=true)
+    @sync for isym in order
+        Threads.@spawn begin
+            sym    = symList[isym]
+            xlc    = nthr == 1 ? xlCache : InteractionStrength.XLCache()
+            matrix = Hamiltonian.setupMatrix(sym, basis, nm, grid, settings, xlc;
+                                             printout=(printout && nthr == 1))
         eigen  = Hamiltonian.diagonalizeCiMatrix(matrix, settings.levelSelectionCI)
 
         # Reassign state vectors to levels
@@ -133,8 +161,11 @@ function performCI(basis::Basis, nm::Nuclear.Model, grid::Radial.Grid, settings:
             newlevel = Level( sym.J, AngularM64(sym.J.num//sym.J.den), sym.parity, 0, eigen.values[ev], 0., true, basis, vector ) 
             push!( levels, newlevel)
         end
-        wa = Multiplet(string(sym) * "+", levels)
-        push!( multiplets, wa)
+            blockMp[isym] = Multiplet(string(sym) * "+", levels)
+        end
+    end
+    for  mpb in blockMp
+        if  mpb !== nothing     push!( multiplets, mpb)     end
     end
     
     # Merge all multiplets into a single one
