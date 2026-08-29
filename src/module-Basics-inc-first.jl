@@ -35,7 +35,12 @@ function EmGauge(sa::String)
     elseif   sa == "Coulomb"                   wa = Coulomb
     elseif   sa == "Babushkin"                 wa = Babushkin
     elseif   sa in ["Magnetic", "magnetic"]    wa = Magnetic
-    else     error("stop a")
+    elseif   sa in ["Velocity", "velocity"]    wa = Velocity
+    elseif   sa in ["Length",   "length"]      wa = Length
+    else     error("Basics.EmGauge(): '$sa' is not a gauge. The EmGauge enum has SIX values and this "  *
+                   "constructor accepted only four until 29-Aug-2026 -- Velocity and Length raised here "  *
+                   "while Base.string(::EmGauge) printed them, the same gap in the opposite direction. "   *
+                   "Valid: none/NoGauge, Coulomb, Babushkin, Magnetic, Velocity, Length.")
     end
 
     return( wa )
@@ -100,7 +105,7 @@ function EmMultipole(sa::String)
     elseif   sa == "M3"    L = 3;   electric = false
     elseif   sa == "E4"    L = 4;   electric = true
     elseif   sa == "M4"    L = 4;   electric = false
-    else     error("stop a")
+    else     error("Basics.EmMultipole(): '$sa' is not a multipole. Valid: E1, M1, E2, M2, E3, M3, E4, M4.")
     end
 
     EmMultipole(L, electric)
@@ -362,7 +367,7 @@ export  Parity,   plus,  minus
 function Parity(sa::String)
     if       sa == "+"    wa = plus
     elseif   sa == "-"    wa = minus
-    else     error("stop a")
+    else     error("Basics.Parity(): '$sa' is not a parity. Valid: \"+\" or \"-\".")
     end
 
     return( wa )
@@ -375,7 +380,8 @@ end
 function invertParity(p::Parity)
     if       p == plus    return( minus )
     elseif   p == minus   return( plus )
-    else     error("stop a")
+    else     error("Basics.invertParity(): the Parity enum has a value this function does not handle; " *
+                   "every value must be inverted here.")
     end
 end
 
@@ -384,7 +390,8 @@ end
 function Base.string(p::Parity) 
     if      p == plus     return( "+" )
     elseif  p == minus    return( "-" )  
-    else    error("stop a")
+    else    error("Basics.string(::Parity): no printable name for this parity; every value of the Parity " *
+                  "enum must be handled here, since printing must never stop a computation.")
     end
 end
 
@@ -499,7 +506,8 @@ function shellSplitOccupation(sh::Shell, occ::Int64)
                     ## if  k2 == 0    delete!(wb, subshells[2])   end
                     push!(wa, wb)
                     end
-                else    error("stop a") 
+                else    error("Basics.generate(): this branch handles one or two subshells only; got " *
+                              "$(length(subshells)). A three-subshell case would need its own construction.")
                 end
             end
         end
@@ -687,7 +695,8 @@ export  UseGauge,   UseCoulomb,  UseBabushkin
 function UseGauge(sa::String)
     if       sa == "Coulomb"                   wa = UseCoulomb
     elseif   sa == "Babushkin"                 wa = UseBabushkin
-    else     error("stop a")
+    else     error("Basics.UseGauge(): '$sa' is not a gauge selection. Valid: Coulomb or Babushkin. " *
+                   "Note this is the two-valued UseGauge, not the six-valued EmGauge.")
     end
 
     UseGauge(wa)
@@ -698,7 +707,8 @@ end
 function Base.string(gauge::UseGauge) 
     if      gauge == UseCoulomb     return( "Coulomb" )   
     elseif  gauge == UseBabushkin   return( "Babushkin" )   
-    else    error("stop a")
+    else    error("Basics.string(::UseGauge): no printable name for this gauge selection; both values of " *
+                  "the UseGauge enum must be handled here.")
     end
 end
 

@@ -1107,7 +1107,8 @@ function purifyPhase(phase::SymEngine.Basic)
         elseif   length(SymEngine.get_args(wa)) == 2
             wb = SymEngine.get_args(wa);   wc = convert(Int64,wb[1]);   wc = rem(wc+100,4);    if  wc == 3   wc = -1   end                                    
                                                         newphase = newphase + wc * wb[2]
-        else     error("stop a")
+        else     error("RacahAlgebra: a phase argument with $(length(SymEngine.get_args(wa))) sub-terms is not handled here; " *
+                     "only a bare symbol (0) or a two-argument product is.")
         end
     end
     
@@ -1453,7 +1454,7 @@ function selectW3j(n::Int64)
     elseif  n == 16     w3j = W3j(j, j, 2, m, -m, 0)
 
     elseif  n == 20     w3j = FAIL
-    else    error("stop a")
+    else    error("RacahAlgebra.selectW3j(): there is no test W3j numbered $n. Valid: 1-16 and 20.")
     end
     
     return( w3j )
@@ -1496,7 +1497,7 @@ function selectW6j(n::Int64)
     elseif  n == 20     w6j = W6j( a, b, c, 2, c-1, b)
     elseif  n == 21     w6j = W6j( a, b, c, 2, c-1, b+1)
     elseif  n == 22     w6j = W6j( a, b, c, 2, c  , b)
-    else    error("stop a")
+    else    error("RacahAlgebra.selectW6j(): there is no test W6j numbered $n. Valid: 1-22.")
     end
     
     return( w6j )
@@ -1520,7 +1521,7 @@ function selectW9j(n::Int64)
     
     if      n ==  1     w9j = W9j(a, b, 0, c, d, 0, ee, f, 0)
     elseif  n ==  2     w9j = W9j(a, b, c, d, ee, f, g, h, 0)
-    else    error("stop a")
+    else    error("RacahAlgebra.selectW9j(): there is no test W9j numbered $n. Valid: 1-2.")
     end
     
     return( w9j )
@@ -1683,7 +1684,7 @@ function selectRacahExpression(n::Int64)
                         dw3j = W3j(j4, j10, j5, m4, m10, -m5);  ew3j = W3j(j5, j11, j6, m5, m11, -m6);    fw3j = W3j(j6, j12, j1, m6, m12, -m1)
                         rex = RacahExpression( [m1, m2, m3, m4, m5, m6], Integral[], -m1-m2-m3-m4-m5-m6, Basic(1), Kronecker[], Triangle[], 
                                                 W3j[aw3j, bw3j, cw3j, dw3j, ew3j, fw3j], W6j[], W9j[], Ylm[], Djpq[] )
-    else    error("stop a")
+    else    error("RacahAlgebra.selectRacahExpression(): there is no test expression numbered $n.")
     end
     
     return( rex )
@@ -1710,7 +1711,7 @@ function selectRacahIntegral(n::Int64)
     # Integral rules for one Ylm symbol   ... to be adapted
     if      n ==  1     w3j = W3j(j, j, J, m, -m, M)
                         rex = RacahExpression( [m], Integral[], Basic(-m), Basic(1), Kronecker[], Triangle[], [w3j], W6j[], W9j[], Ylm[], Djpq[] )
-    else    error("stop a")
+    else    error("RacahAlgebra.selectRacahIntegral(): there is no test integral numbered $n. Valid: 1.")
     end
     
     return( rex )
@@ -1811,7 +1812,8 @@ function simplifyDeltas(rex::RacahExpression)
             newYlms       = RacahAlgebra.subs(newYlms,      delta.k, delta.i)
             newDjpqs      = RacahAlgebra.subs(newDjpqs,     delta.k, delta.i)
             newIntegrals  = RacahAlgebra.subs(newIntegrals, delta.k, delta.i)
-        else    error("stop a")
+        else    error("RacahAlgebra: a Kronecker delta must carry either two symbols or a symbol and an integer; " *
+                    "this one carries neither, so there is nothing to substitute.")
         end
         
         nrex = RacahExpression( newSummations, newIntegrals, newPhase, newWeight, newDeltas, newTriangles, newW3js, newW6js, newW9js, newYlms, newDjpqs )
@@ -2120,7 +2122,8 @@ function symmetricForms(w3j::RacahAlgebra.W3j; regge::Bool=false)
     deltas  = Kronecker[];    triangles = Triangle[];   w3js = W3j[];   w6js = W6j[];   w9js = W9j[];   ylms = Ylm[];   djpqs = Djpq[];   ints = Integral[]
     sums    = Basic[];    phase = Basic(0);    weight = Basic(1)
     
-    if regge    error("stop a")
+    if regge    error("RacahAlgebra.symmetricForms(::W3j): the REGGE symmetries are not implemented. Call with " *
+                     "regge = false for the twelve classical symmetries.")
     else
         j1 = w3j.ja;  j2 = w3j.jb;  j3 = w3j.jc;  m1 = w3j.ma;  m2 = w3j.mb;  m3 = w3j.mc
         push!( rexList, RacahExpression( sums, ints, phase,            weight, deltas, triangles, [W3j(j1,j2,j3, m1,m2,m3)],     w6js, w9js, ylms, djpqs ) )
@@ -2152,7 +2155,8 @@ function symmetricForms(w6j::RacahAlgebra.W6j; regge::Bool=false)
     deltas  = Kronecker[];    triangles = Triangle[];   w3js = W3j[];   w6js = W6j[];   w9js = W9j[];   ylms = Ylm[];   djpqs = Djpq[];   ints = Integral[]
     sums    = Basic[];        phase = Basic(0);    weight = Basic(1)
     
-    if regge    error("stop a")
+    if regge    error("RacahAlgebra.symmetricForms(::W6j): the REGGE symmetries are not implemented. Call with " *
+                     "regge = false for the twenty-four classical symmetries.")
     else
         j1 = w6j.a;  j2 = w6j.b;  j3 = w6j.c;  j4 = w6j.d;  j5 = w6j.e;  j6 = w6j.f
         push!( rexList, RacahExpression( sums, ints, phase, weight, deltas, triangles, w3js, [W6j(j1,j2,j3, j4,j5,j6)], w9js, ylms, djpqs ) )

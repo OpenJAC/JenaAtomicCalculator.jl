@@ -214,7 +214,7 @@ function convertUnits(sa::String, wa::Float64)
         elseif  Defaults.getDefaults("unit: cross section") == "barn"   return( wa * CONVERT_CROSS_SECTION_AU_TO_BARN )
         elseif  Defaults.getDefaults("unit: cross section") == "Mbarn"  return( wa * CONVERT_CROSS_SECTION_AU_TO_BARN * 1.0e-6 )
         elseif  Defaults.getDefaults("unit: cross section") == "cm^2"   return( wa * CONVERT_CROSS_SECTION_AU_TO_BARN * 1.0e-24 )
-        else    error("stop a")
+        else    error("Defaults.convertUnits(): the current setting `unit: cross section` is currently $(Defaults.getDefaults("unit: cross section")), which this conversion does not handle. Valid: a.u., barn, Mbarn, cm^2.")
         end
     
     elseif   sa in ["cross section: from atomic to barn"]               return( wa * CONVERT_CROSS_SECTION_AU_TO_BARN )
@@ -226,7 +226,7 @@ function convertUnits(sa::String, wa::Float64)
         elseif  Defaults.getDefaults("unit: cross section") == "barn"   return( wa / CONVERT_CROSS_SECTION_AU_TO_BARN )
         elseif  Defaults.getDefaults("unit: cross section") == "Mbarn"  return( wa / CONVERT_CROSS_SECTION_AU_TO_BARN * 1.0e6 )
         elseif  Defaults.getDefaults("unit: cross section") == "cm^2"   return( wa / CONVERT_CROSS_SECTION_AU_TO_BARN * 1.0e24 )
-        else    error("stop b")
+        else    error("Defaults.convertUnits(): the current setting `unit: cross section` is currently $(Defaults.getDefaults("unit: cross section")), which this conversion does not handle. Valid: a.u., barn, Mbarn, cm^2.")
         end
 
     elseif   sa in ["cross section: from barn to atomic unit"]          return( wa / CONVERT_CROSS_SECTION_AU_TO_BARN )
@@ -240,7 +240,7 @@ function convertUnits(sa::String, wa::Float64)
         if      Defaults.getDefaults("unit: energy-diff. cross section") == "a.u."      return( wa )
         elseif  Defaults.getDefaults("unit: energy-diff. cross section") == "barn/eV"   
                                                                         return( wa * CONVERT_CROSS_SECTION_AU_TO_BARN/CONVERT_ENERGY_AU_TO_EV )
-        else    error("stop bb")
+        else    error("Defaults.convertUnits(): the current setting `unit: energy-diff. cross section` is currently $(Defaults.getDefaults("unit: energy-diff. cross section")), which this conversion does not handle. Valid: a.u., barn/eV.")
         end
 
     elseif   sa in ["energy: from atomic to predefined unit", "energy: from atomic"]
@@ -250,7 +250,7 @@ function convertUnits(sa::String, wa::Float64)
         elseif  Defaults.getDefaults("unit: energy") == "Hz"            return( wa * CONVERT_ENERGY_AU_TO_PER_SEC )
         elseif  Defaults.getDefaults("unit: energy") == "A"             return( 2pi * Defaults.INVERSE_FINE_STRUCTURE_CONSTANT / wa * 
                                                                                         Defaults.BOHR_RADIUS_SI * 1.0e10 )
-        else    error("stop c")
+        else    error("Defaults.convertUnits(): the current setting `unit: energy` is currently $(Defaults.getDefaults("unit: energy")), which this conversion does not handle. Valid: eV, Kayser, Hartree, Hz, A.")
         end
     
     elseif   sa in ["energy: from atomic to eV"]                        return( wa * CONVERT_ENERGY_AU_TO_EV )
@@ -267,7 +267,7 @@ function convertUnits(sa::String, wa::Float64)
         elseif  Defaults.getDefaults("unit: energy") == "Hz"            return( wa / CONVERT_ENERGY_AU_TO_PER_SEC )
         elseif  Defaults.getDefaults("unit: energy") == "A"             return( 2pi * Defaults.INVERSE_FINE_STRUCTURE_CONSTANT / wa * 
                                                                                         Defaults.BOHR_RADIUS_SI * 1.0e10 )
-        else    error("stop d")
+        else    error("Defaults.convertUnits(): the current setting `unit: energy` is currently $(Defaults.getDefaults("unit: energy")), which this conversion does not handle. Valid: eV, Kayser, Hartree, Hz, A.")
         end
 
     elseif   sa in ["energy: from eV to atomic"]                        return( wa / CONVERT_ENERGY_AU_TO_EV )
@@ -294,22 +294,26 @@ function convertUnits(sa::String, wa::Float64)
     elseif    sa in ["rate: from atomic to predefined unit", "rate: from atomic"]
         if       Defaults.getDefaults("unit: rate") == "1/s"            return( wa * CONVERT_RATE_AU_TO_PER_SEC )
         elseif   Defaults.getDefaults("unit: rate") == "a.u."           return( wa )
-        else     error("stop e")
+        else     error("Defaults.convertUnits(): the current setting `unit: rate` is currently $(Defaults.getDefaults("unit: rate")), which this conversion does not handle. Valid: 1/s, a.u..")
         end
     
     elseif   sa in ["rate: from atomic to 1/s"]                         return( wa * CONVERT_RATE_AU_TO_PER_SEC )
 
     elseif   sa in ["rate: from predefined to atomic unit", "rate: to atomic"]
-        if      Defaults.getDefaults("rate: time") == "1/s"             return( wa / CONVERT_RATE_AU_TO_PER_SEC )
-        elseif  Defaults.getDefaults("rate: time") == "a.u."            return( wa  )
-        else    error("stop f")
+        # "unit: rate", NOT "rate: time".  Until 29-Aug-2026 both lines read "rate: time", which is not a
+        # settings key at all, so getDefaults raised "Unsupported keystring:: rate: time" BEFORE any conversion
+        # was attempted -- convertUnits("rate: to atomic", ...) could never work, while the from-atomic
+        # direction six lines above, which reads "unit: rate", always did.
+        if      Defaults.getDefaults("unit: rate") == "1/s"             return( wa / CONVERT_RATE_AU_TO_PER_SEC )
+        elseif  Defaults.getDefaults("unit: rate") == "a.u."            return( wa  )
+        else    error("Defaults.convertUnits(): the current setting `unit: rate` is currently $(Defaults.getDefaults("unit: rate")), which this conversion does not handle. Valid: 1/s, a.u..")
         end
 
     elseif    sa in ["strength: from atomic to predefined unit", "strength: from atomic"]
         if       Defaults.getDefaults("unit: strength") == "barn eV"    return( wa * CONVERT_STRENGTH_AU_TO_BARN_EV )
         elseif   Defaults.getDefaults("unit: strength") == "cm^2 eV"    return( wa * CONVERT_STRENGTH_AU_TO_CM2_EV )
         elseif   Defaults.getDefaults("unit: strength") == "a.u."       return( wa )
-        else     error("stop fx")
+        else     error("Defaults.convertUnits(): the current setting `unit: strength` is currently $(Defaults.getDefaults("unit: strength")), which this conversion does not handle. Valid: barn eV, cm^2 eV, a.u..")
         end
         
     elseif  sa in ["time: from atomic to predefined unit", "time: from atomic"]
@@ -317,7 +321,7 @@ function convertUnits(sa::String, wa::Float64)
         elseif  Defaults.getDefaults("unit: time") == "fs"              return( wa * CONVERT_TIME_AU_TO_SEC * 1.0e15 )
         elseif  Defaults.getDefaults("unit: time") == "as"              return( wa * CONVERT_TIME_AU_TO_SEC * 1.0e18 )
         elseif  Defaults.getDefaults("unit: time") == "a.u."            return( wa )
-        else    error("stop g")
+        else    error("Defaults.convertUnits(): the current setting `unit: time` is currently $(Defaults.getDefaults("unit: time")), which this conversion does not handle. Valid: sec, fs, as, a.u..")
         end
     
     elseif   sa in ["time: from atomic to sec"]                         return( wa * CONVERT_TIME_AU_TO_SEC )
@@ -329,7 +333,7 @@ function convertUnits(sa::String, wa::Float64)
         elseif  Defaults.getDefaults("unit: time") == "fs"              return( wa / (CONVERT_TIME_AU_TO_SEC * 1.0e15) )
         elseif  Defaults.getDefaults("unit: time") == "as"              return( wa / (CONVERT_TIME_AU_TO_SEC * 1.0e18) )
         elseif  Defaults.getDefaults("unit: time") == "a.u."            return( wa )
-        else    error("stop h")
+        else    error("Defaults.convertUnits(): the current setting `unit: time` is currently $(Defaults.getDefaults("unit: time")), which this conversion does not handle. Valid: sec, fs, as, a.u..")
         end
     
     elseif   sa in ["temperature: from Kelvin to (Hartree) units"]      return( wa / 315774.64 )
@@ -645,7 +649,8 @@ function setDefaults(sa::String, Znuc::Float64, wa::Array{Float64,1})
     global GBL_QED_HYDROGENIC_LAMBDAC,  GBL_QED_NUCLEAR_CHARGE
 
     if        sa == "QED: damped-hydrogenic"
-        if  length(wa) != 5  error("stop a ")   end
+        if  length(wa) != 5  error("Defaults.setDefaults(\"QED: damped-hydrogenic\"): the array must hold five " *
+                                   "damping parameters; got $(length(wa)).")   end
         println("Re-define the damped overlap integrals < a | e^{-r/lambda_C} | a > of the lowest kappa-orbitals for nuclear charge Z = " *
                 "$(Znuc).")
         GBL_QED_NUCLEAR_CHARGE     = Znuc
