@@ -125,7 +125,10 @@ elseif false
     # Last successful:  unknown
     # Test for Björn, 7. Mai 2020
     ## grid=JAC.Radial.Grid(true)
-    grid = Radial.Grid(Radial.Grid(true), rnt = 2.0e-5,h = 5.0e-2, hp = 5.0e-2, NoPoints = 2000)
+    # `NoPoints` was retired as a Radial.Grid keyword; `rbox` replaced it. rbox = 85.0 reproduces the
+    # ~2000 points this line asked for (1911 at 80, 2114 at 90) with rnt/h/hp unchanged. This is the
+    # SECOND occurrence in this file -- item 79 repaired the one at line 115 on 29-Aug and missed this one.
+    grid = Radial.Grid(Radial.Grid(true), rnt = 2.0e-5, h = 5.0e-2, hp = 5.0e-2, rbox = 85.0)
     wa = Atomic.Computation(Atomic.Computation(), name="xx", grid=grid, nuclearModel=Nuclear.Model(8.0, FermiNucleus()), 
                             configs=[Configuration("1s^2 2s"), Configuration("1s 2s^2"), Configuration("1s 2s 3p"), Configuration("1s 2s 4p")], 
                             ## configs=[Configuration("1s^2 2s"), Configuration("1s^2 2p"), Configuration("1s 2s 3s"), Configuration("1s 2p 3s"), 

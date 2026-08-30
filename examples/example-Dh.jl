@@ -333,6 +333,9 @@ elseif  false
     end
     #
 elseif  false
+    # OWN GRID: the file-level grid (80 a.u.) is refused for this branch, which wants about 255 a.u.
+    # A local grid leaves the branches that are already matched undisturbed; hp = rbox/300.
+    grid = Radial.Grid(Radial.Grid(false), rnt = 4.0e-6, h = 5.0e-2, hp = 0.8500, rbox = 255.0)
     # Last successful:  07-Aug-2026
     #
     # DATED SUCCESSFUL for what it actually verifies, which is the SHAPE and the SYMMETRY -- both independent
@@ -785,6 +788,9 @@ elseif  false
     perform(wi)
     #
 elseif  false
+    # OWN GRID: the file-level grid (80 a.u.) is refused for this branch, which wants about 209 a.u.
+    # A local grid leaves the branches that are already matched undisturbed; hp = rbox/300.
+    grid = Radial.Grid(Radial.Grid(false), rnt = 4.0e-6, h = 5.0e-2, hp = 0.6967, rbox = 209.0)
     # Last successful:  08-Aug-2026        ## for the ANGULAR structure and the monochromatic limit
     #
     # DATED for what it verifies -- the odd-K selection rule, the omega1 <-> omega2 invariance and the

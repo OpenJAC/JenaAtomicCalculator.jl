@@ -47,7 +47,12 @@ elseif true
     # relativistic contraction of the s vs f orbital).
     # Nd13+ -- single valence electron (5s or 4f) above a Pd-like [Kr]4d^10 core; an open-f-shell/near-crossing case.
     setDefaults("print summary: open", "zzz-AlphaVariation.sum")
-    wa = Atomic.Computation(Atomic.Computation(), name="Nd13-alpha", grid=Radial.Grid(true), nuclearModel=Nuclear.Model(60.),
+    # Same fault, and same fix, as the Sm15 branch below: Radial.Grid(true) reaches 614 a.u. where these
+    # subshells want about 7 a.u., and checkOrbitalConsistency then reports the spin-orbit partners as
+    # describing different states -- Rule 12's signature for a box not matched to the orbitals.
+    grid = Basics.recommendedGrid([Configuration("[Kr] 4d^10 5s"), Configuration("[Kr] 4d^10 4f")],
+                                  Nuclear.Model(60.), printout=false)
+    wa = Atomic.Computation(Atomic.Computation(), name="Nd13-alpha", grid=grid, nuclearModel=Nuclear.Model(60.),
                             configs=[Configuration("[Kr] 4d^10 5s"), Configuration("[Kr] 4d^10 4f")],
                             propertySettings=[AlphaVariation.Settings(true, 0.125, true, LevelSelection())] )
     wb = perform(wa)
