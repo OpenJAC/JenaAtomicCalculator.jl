@@ -42,7 +42,15 @@ sumSA = 0.;     sumFortran = 0.
 # The comparison therefore could not run and had nothing left to compare against. What remains below is the
 # branch that exercises the Julia route on its own.
 @time if  true
-    # Last successful:  unknown ...
+    # Last successful:  30-Aug-2026 -- the rank-0 DIAGONAL one-particle coefficients equal the occupation
+    #   numbers exactly: 2.0000000000000004 for the doubly-occupied 1s_1/2 and 1.0 for the singly-occupied
+    #   subshell of each of the three CSFs, largest departure 4.44e-16. That is an EXACT check needing no
+    #   reference data -- under the GRASP convention the sqrt(2j+1) sits inside the coefficient, so the
+    #   rank-0 diagonal coefficient IS the occupation (Rule 18), and a wrong convention would be visible
+    #   by eye. Dated on the maintainer's decision of 30-Aug-2026.
+    #   WHAT THIS DATE DOES NOT COVER, so nobody reads more into it: rank 0 only, on a three-CSF Li-like
+    #   system. It says nothing about rank > 0, nothing about the VALUES of the 21 two-particle
+    #   coefficients that N2 merely counts, and nothing about any off-diagonal coefficient.
     # Compute 
     N1 = N2 = 0
     # Calculate angular coefficients for a scalar one- or two-particle operator
