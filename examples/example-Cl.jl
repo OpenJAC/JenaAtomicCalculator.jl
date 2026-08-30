@@ -2,6 +2,11 @@
 println("Cl) Apply & test the StarkShift module with ASF from an internally generated multiplet.")
 
 if  false
+    # Last visit:  30-Aug-2026 -- RUNS (exit 0) after the box was matched, and CANNOT BE DATED.
+    #   H(1s) with np perturbers, n = 2..5: alpha_0 = 2.0699 a.u. in both gauges against the EXACT 4.5,
+    #   i.e. 46 % of the right answer. alpha_2 = 0.0 exactly, correct for J = 1/2. This is the known
+    #   MultipolePolarizibility shortfall, not a fault of this branch: the module is blocked on the
+    #   B-spline pseudo-continuum problem, so no branch of this file can be dated until that moves.
     # Last visit:  31-Jul-2026
     # Last successful:  unknown ...
     # Branch a: hydrogen 1s Stark shift in a static field -- reuses the SAME independently-generated
@@ -38,6 +43,9 @@ if  false
     end
     #
 elseif false
+    # Last visit:  30-Aug-2026 -- RUNS (exit 0) after its box was matched on 30-Aug; it was the fourth
+    #   branch of this file and the one item 76 never named. Li: alpha_0 = 61.26 a.u. Not dated, for the
+    #   same reason as the branch above -- the module's absolute scale is not trustworthy yet.
     # Last visit:  31-Jul-2026
     # Last successful:  unknown ...
     # Branch b: Li [He]2s Stark shift -- same internal-consistency idea as branch a, but on a
@@ -45,7 +53,10 @@ elseif false
     #   ([He]2p..[He]10p) already validated in example-Cj.jl branch c against alpha_0(Li,2s) =
     #   164.0740(5) a.u. (Puchalski et al.), where JAC's frozen-core single-CSF treatment landed at
     #   ~37% of that value. J=1/2 again, so alpha_2 must be exactly 0. here too.
-    grid = Radial.Grid(true)
+    # NOT Radial.Grid(true): 614 a.u. against the 359 the guard names for this branch's subshells, and the
+    # exponential family cannot be tuned to 359 (its achievable r_max is quantised). Same fix as the other
+    # three branches of this file; hp = rbox/300 is Basics.recommendedGrid's own recipe.
+    grid = Radial.Grid(Radial.Grid(false), rnt = 1.0e-6, h = 5.0e-2, hp = 1.20, rbox = 359.0)
     nm   = Nuclear.Model(3., PointNucleus())
     nMaxLi = 10
 
@@ -67,6 +78,12 @@ elseif false
     end
     #
 elseif false
+    # Last visit:  30-Aug-2026
+    # Last successful:  unknown ... -- RUNS (exit 0) and is the CLEAREST demonstration of why this file
+    #   cannot be dated. Ba 6s8s: alpha_0 = 13098 and 15075 a.u. against the branch's own quoted literature
+    #   (van Leeuwen & Hogervorst 1984, Table 1) of 4.68 and 5.68 a.u. -- too large by a factor of about
+    #   2600. The two gauges agree with each other EXACTLY, which is the point: the disagreement is with
+    #   reality, not between the gauges.
     # NOT Radial.Grid(true) here. Its box is 614 a.u. and Bsplines.checkGridRepresentation refuses it for
     # Ba [Xe]6s + [Xe]6s np, n = 8..10 -- a box much TOO LARGE starves the fixed number of B-splines exactly as
     # badly as one too small (Rule 12). The guard names 359 a.u. as the box these subshells want, and the
@@ -102,6 +119,12 @@ elseif false
             " 6s8s 3S1: alpha_0=5.68(11), alpha_2=0.000(6)  [MHz/(kV/cm)^2]")
     #
 elseif true
+    # Last visit:  30-Aug-2026
+    # Last successful:  unknown ... -- RUNS (exit 0) but STOPS SHORT TWICE. Ca 3d^2: the SCF reports
+    #   "Maximum number of SCF iterations = 24 is reached at accuracy 5.04e-06 ... computations proceed",
+    #   i.e. it hands on an UNCONVERGED field -- the AsfSettings() default ceiling of 24, the same trap
+    #   that made the first attempt at priority item 50 report a wrong number. Raising maxIterationsScf
+    #   is the first thing to try. Beyond that it shares the module-wide absolute-scale problem above.
     # NOT Radial.Grid(true) here. Its box is 614 a.u. and Bsplines.checkGridRepresentation refuses it for
     # Ca [Ar]3d + [Ar]3d np, n = 4..6 -- a box much TOO LARGE starves the fixed number of B-splines exactly as
     # badly as one too small (Rule 12). The guard names 167 a.u. as the box these subshells want, and the

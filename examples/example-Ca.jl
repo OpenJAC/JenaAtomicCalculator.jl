@@ -8,6 +8,11 @@ grid=Radial.Grid(true)
 
 
 if  true
+    # Last visit:  30-Aug-2026 -- RUNS (exit 0). Fe (Z=26), three configurations, 16 E1 transitions, and the
+    #   two gauges agree reasonably: Coulomb/Babushkin has median 1.039 over all 16, range 0.544 to 1.083.
+    #   The single 0.544 sits on a weak line, where the two gauges are differences of large cancelling terms
+    #   and disagreement is expected. NOT DATED only because Rule 7 leaves that to a human; this branch is a
+    #   candidate for a date as it stands.
     # Last successful:  unknown ...
     # Compute 
     asfSettings   = AsfSettings(AsfSettings(), scField=Basics.DFSField())
@@ -18,6 +23,13 @@ if  true
     wb = perform(wa; output=true)
     #
 elseif  true
+    # Last visit:  30-Aug-2026 -- RUNS (exit 0), and WHAT STOPS A DATE IS THE GAUGES. C (Z=6), four
+    #   configurations, 13 E1 transitions. The strong lines to levels 6 and 7 (A ~ 4e8 1/s) agree to 25 %,
+    #   which is ordinary; but the equally strong lines 13-->11 and 13-->12 (A ~ 1e8 and 7e7 1/s) come out
+    #   with Coulomb/Babushkin = 6.28 and 6.31, and 15-->11, 15-->12 with 4.01 and 4.12. A factor of four to
+    #   six between the gauges on transitions that are NOT weak is not something to date. (The 2.9e4 ratio on
+    #   13-->3 is a different matter and is fine: A = 3e2 against 1e-2, i.e. a near-cancelling weak line.)
+    #   Whether this is correlation, the basis, or something in the module is NOT established here.
     # Last successful:  unknown ...
     # Compute 
     ## grid = Radial.Grid(Radial.Grid(true), rnt = 4.0e-6, h = 1.0e-2, hp = 0., rbox = 2.0)
@@ -29,6 +41,11 @@ elseif  true
     wb = perform(wa; output=true)
     #
 elseif  false
+    # Last visit:  30-Aug-2026 -- RUNS (exit 0) AND COMPUTES NOTHING, which is why it cannot be dated.
+    #   The configuration list is the single closed shell 1s^2 2s^2 at Z=36, so the multiplet holds ONE level
+    #   (J=0, even) and there is no pair of levels to connect: the Einstein table comes out empty. The branch
+    #   is therefore correct and useless as it stands -- it would need a second configuration to test
+    #   anything. A does-it-run sweep would report this branch as healthy.
     # Last successful:  unknown ...
     # Compute 
     ## grid = Radial.Grid(Radial.Grid(true), rnt = 4.0e-6, h = 1.0e-2, hp = 0., rbox = 2.0)
@@ -43,6 +60,11 @@ elseif  false
     frozenOrbs = wb["multiplet:"].levels[1].basis.orbitals
     #
 elseif  true
+    # Last visit:  30-Aug-2026 -- RUNS (exit 0). C (Z=6), 1s^2 2s^2 + 1s^2 2s 3p, two E1 transitions, and the
+    #   gauge ratio is 1.1898 and 1.1919 -- consistent between the two lines, so the 19 % is systematic rather
+    #   than erratic, as a length-against-velocity difference in a small CI usually is. NOT DATED only because
+    #   Rule 7 leaves that to a human; a date here would record a 19 % gauge spread, which is worth saying
+    #   out loud rather than leaving implicit.
     # Last successful:  unknown ...
     # Compute 
     ## grid = Radial.Grid(Radial.Grid(true), rnt = 4.0e-6, h = 1.0e-2, hp = 0., rbox = 2.0)
