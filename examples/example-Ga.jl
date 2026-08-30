@@ -47,8 +47,10 @@ elseif  false
     m1   = Basic(:m1);    m2 = Basic(:m2);    m3 = Basic(:m3);    M12 = Basic(:M12);    M23 = Basic(:M23);    M = Basic(:M)
     w3ja = W3j(J12, j3, J, M12, m3, -M);        w3jb = W3j(j1, j2, J12, m1, m2, -M12)       
     w3jc = W3j(j2, j3, J23, m2, m3, -M23);      w3jd = W3j(j1, J23, J, m1, M23, -M)   
-    rex  = RacahExpression( [m1, m2, m3, M12, M23], -J12 + 2*j3 - 2*M - 2*j1 - M12 - M23 + J23, 
-                            (2*J+1) * sqrt( (2*J12+1)*(2*J23+1) ), Kronecker[], Triangle[], [w3ja, w3jb, w3jc, w3jd], W6j[], W9j[] )
+    rex  = RacahExpression( [m1, m2, m3, M12, M23], RacahAlgebra.Integral[],
+                            -J12 + 2*j3 - 2*M - 2*j1 - M12 - M23 + J23, 
+                            (2*J+1) * sqrt( (2*J12+1)*(2*J23+1) ), Kronecker[], Triangle[], [w3ja, w3jb, w3jc, w3jd], W6j[], W9j[],
+                            RacahAlgebra.Ylm[], RacahAlgebra.Djpq[] )
     rex  = RacahAlgebra.evaluate(rex);   @show rex
     rex  = RacahAlgebra.evaluate(rex)
     #
@@ -59,7 +61,9 @@ elseif  false
     ma   = Basic(:ma);    mb = Basic(:mb);    mc = Basic(:mc);    md = Basic(:md);    Mab = Basic(:Mab);    Mcd = Basic(:Mcd);    M = Basic(:M)
     rexa = RacahAlgebra.ClebschGordan(ja, ma, jb, mb, Jab, Mab);    rexb = RacahAlgebra.ClebschGordan(jc, mc, jd, md, Jcd, Mcd)
     w3ja = W3j(ja, L, jc, -ma, M, mc);                              w3jb = W3j(jb, L, jd, -mb, -M, md)
-    rex  = rexa * rexb * RacahExpression( [ma, mb, mc, md, M], L - M + ja - ma + jb - mb, Basic(1), Kronecker[], Triangle[], [w3ja, w3jb], W6j[], W9j[] )
+    rex  = rexa * rexb * RacahExpression( [ma, mb, mc, md, M], RacahAlgebra.Integral[], L - M + ja - ma + jb - mb,
+                                          Basic(1), Kronecker[], Triangle[], [w3ja, w3jb], W6j[], W9j[],
+                                          RacahAlgebra.Ylm[], RacahAlgebra.Djpq[] )
     rex  = RacahAlgebra.evaluate(rex);   @show rex
     rex  = RacahAlgebra.evaluate(rex)
     #

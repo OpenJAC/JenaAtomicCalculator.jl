@@ -5,9 +5,14 @@ setDefaults("print summary: open", "zzz-BeamPhotoExcitation.sum")
 
 
 if  true
-    # Last successful:  28-Aug-2026 -- runs clean, as one of three PhotoExcitation checks (with Db and Co).
-    #   NO COMPARISON WAS POSSIBLE: this branch has never recorded numbers, so running it shows only that it does
-    #   not fail. Whoever next uses it should write down what it produces, so the next run has something to hit.
+    # Last visit:  30-Aug-2026
+    # Last successful:  unknown ...
+    #   THE 28-Aug-2026 DATE WAS WITHDRAWN ON 30-Aug: it recorded only that the branch "runs clean", and it was
+    #   written while BeamPhotoExcitation.computeOutcome was a stub that returned its own argument unchanged, which
+    #   was then displayed as a result. The stub has since been replaced by a raise saying so, and that raise is the
+    #   code behaving correctly -- the module has no amplitude yet, and computeOutcome is its only method, so no
+    #   observable of it can be computed. There is nothing to set differently here; the branch cannot be dated
+    #   until the amplitude is written.
     # Previously: unknown ...
     # Test of beam-photo-excitation computatations of dominant-multipole regions and intensity pattern
     ## grid = Radial.Grid(Radial.Grid(false), rnt = 4.0e-6, h = 5.0e-2, hp = 1.0e-2, rbox = 20.0)

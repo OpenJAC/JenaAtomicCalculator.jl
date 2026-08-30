@@ -67,7 +67,11 @@ if  true
     #   that is done, re-run this branch and, if alpha_exc comes out sane, this is likely close to a
     #   genuine, literature-comparable R(Te) curve (the satellite side and the w-line energy check both
     #   already agree well with the literature).
-    grid = Radial.Grid(Radial.Grid(false), rnt = 1.0e-5, h = 5.0e-2, hp = 2.0e-2, rbox = 20.0)
+    # hp is set by the FASTEST continuum electron this branch asks for, not by the bound orbitals: ieSettings
+    # scans to maxEnergyMultiplier = 4.0 times the 1s->2p threshold, i.e. 4 x 246.567 = 986.27 Hartree, whose de
+    # Broglie wavelength is 0.14147 a.u.  Continuum.gridConsistency requires 15 points per oscillation, so
+    # hp <= 0.14147/15 = 9.43e-3; hp = 2.0e-2 gave 7.07 and was refused outright (Rule 12, and the loud failure).
+    grid = Radial.Grid(Radial.Grid(false), rnt = 1.0e-5, h = 5.0e-2, hp = 9.0e-3, rbox = 20.0)
     nm   = Nuclear.Model(26.)                               # Fe XXV, He-like
 
     drSettings = DielectronicRecombination.Settings(DielectronicRecombination.Settings();

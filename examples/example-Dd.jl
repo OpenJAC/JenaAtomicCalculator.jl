@@ -115,7 +115,7 @@ elseif  false
     # from 5.1058e6 to 5.0893e6 (-0.3 %) and from 26.63 to 24.80 barn (-6.9 %) -- the length-form orientation fix,
     # larger at the top of the energy range as expected. The old text said the two gauges "agree to ~3% throughout"
     # and that survives, but the agreement now degrades to 4.7 % at 10 keV rather than staying flat.
- Matches built-in Stobbe(1s) to ~10-20% at 100eV-10keV; ab-initio exceeds Stobbe by
+    # Matches built-in Stobbe(1s) to ~10-20% at 100eV-10keV; ab-initio exceeds Stobbe by
     # ~2.5-7x at 1-10 eV (close to the eta>>1 threshold regime), plausibly relativistic/multipole effects (E2,M2
     # included ab-initio, absent from the non-relativistic E1-only Stobbe formula).
     # RECONFIRMED 2-Aug-2026: re-ran unchanged, results essentially identical to two decimal places (5.2554e6/
