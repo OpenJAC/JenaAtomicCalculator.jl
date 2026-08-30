@@ -82,6 +82,19 @@ GBL_AL_ANDERSON_DEPTH = 2
 #     Ar  3s^2 3p^6      23 it        14 it        6.9e-09
 #     Fe  3d^6 4s^2      45 it        18 it        6.5e-07
 #     Ne+ 1s hole        17 it        11 it        1.2e-07
+#     Ar+ 1s hole        14 it        11 it        1.2e-07   (added 30-Aug-2026)
+#
+# THE 30-Aug ROW WAS TAKEN WITH maxIterationsScf = 200, AND THAT IS NOT A DETAIL. AsfSettings() defaults the
+# ceiling to 24, and the plain Ne iteration needs 28: a first attempt at this measurement reported "24 it" for
+# Ne, which is the CEILING and not a convergence count, beside a NOT-CONVERGED flag easy to read as a property
+# of the case rather than of the settings. Ne was therefore re-run as a CONTROL for the new row and reproduces
+# 28 exactly. Any iteration count taken here without raising the ceiling first measures the default.
+# Ne's depth-2 count came out 12 against the 13 recorded above; the grid differs (Basics.recommendedGrid was
+# used in 2026-08-30, and the 12-Aug measurement does not record what it used), so this is most likely the
+# convergence path rather than a change. It is left standing rather than smoothed over.
+# Ar+ is the SMALLEST gain of the five (1.27x, against 2.15x Ne, 1.64x Ar, 2.50x Fe, 1.55x Ne+), consistent
+# with Anderson helping most where the plain iteration converges slowest -- a 1s-hole system already converges
+# quickly.
 #
 # Depth 2 is the measured optimum; 3 is nearly equal, and LARGER IS WORSE (Ne: 24 it at depth 5, 36 at 12),
 # the usual ill-conditioning of a long Anderson history.  Note that depth 0 in the Anderson driver itself is a
