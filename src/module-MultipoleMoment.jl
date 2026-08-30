@@ -65,9 +65,6 @@ function amplitude(K::Integer, level::Level, grid::Radial.Grid; display::Bool=fa
             continue
         end
 
-        if Defaults.saRatip()
-            spinAngularCoeffs = Basics.compute(AngularCoeffs1pGrasp92(), 0, K, level.basis.csfs[i], level.basis.csfs[j]) 
-        end
         if Defaults.saGG()
             operator = SpinAngular.OneParticleOperator(K, Basics.multipoleParity(EmMultipole(K, true)))
             spinAngularCoeffs = SpinAngular.computeCoefficients(operator, level.basis.csfs[i], level.basis.csfs[j], level.basis.subshells)
@@ -114,19 +111,11 @@ function dipoleAmplitude(finalLevel::Level, initialLevel::Level, grid::Radial.Gr
         for  r = 1:nf
             for  s = 1:ni
                 # Calculate the spin-angular coefficients
-                if  Defaults.saRatip()
-                    waR = Basics.compute(AngularCoeffs1pGrasp92(), 0, 1, finalLevel.basis.csfs[r], initialLevel.basis.csfs[s])
-                    wa  = waR       
-                end
                 if  Defaults.saGG()
                     subshellList = initialLevel.basis.subshells
                     opa = SpinAngular.OneParticleOperator(1, Basics.multipoleParity(EmMultipole(1, true)))
                     waG = SpinAngular.computeCoefficients(opa, finalLevel.basis.csfs[r], initialLevel.basis.csfs[s], subshellList) 
                     wa  = waG
-                end
-                if  Defaults.saRatip() && Defaults.saGG() && true
-                    if  length(waR) != 0     println("\n>> Angular coeffients from GRASP/MCT   = $waR ")    end
-                    if  length(waG) != 0     println(  ">> Angular coeffients from SpinAngular = $waG ")    end
                 end
                 #
                 for  coeff in wa
@@ -241,7 +230,12 @@ function transitionAmplitude(mp::EmMultipole, gauge::EmGauge, omega::Float64, fi
     #
     for  r = 1:nf
         for  s = 1:ni
-            wa = compute(AngularCoeffs1pGrasp92(), 0, mp.L, finalLevel.basis.csfs[r], initialLevel.basis.csfs[s])
+            # The Ratip2013 angular-coefficient route was RETIRED on 30-Aug-2026: its module was already absent
+            # from src/ and its include already commented out of JenaAtomicCalculator.jl, so this line could
+            # never have run -- and it is in any case unreachable, since this function raises at its first
+            # statement (see the STATUS block above). Left as an explicit stub rather than silently deleted, so
+            # that whoever un-parks this routine sees that its angular coefficients must be re-sourced.
+            wa = error("MultipoleMoment.transitionAmplitude: no angular-coefficient route; see the STATUS block.")
             for  coeff in wa
                 tamp  = InteractionStrength.multipoleTransition(mp, gauge, omega, finalLevel.basis.orbitals[coeff.a], 
                                                                     initialLevel.basis.orbitals[coeff.b], grid)

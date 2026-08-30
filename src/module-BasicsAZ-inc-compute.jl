@@ -1,60 +1,11 @@
-
-export compute
-
-"""
-`Basics.compute(::AngularCoeffsEeRatip2013, csfa::CsfR, csfb::CsfR)`
-    ... to compute the angular coefficients in the decomposition of a (reduced) many-electron matrix element with a general
-        rank-0 electron-electron interaction operator ``⟨csf_a ||V(e-e)|| csfb⟩ = \\sum_t  T(a_t, b_t, c_t, d_t) * R^k (a_t, b_t, c_t, d_t)``
-        by a call to the Fortran procedure `anco_calculate_csf_pair` of the RATIP program; a Tuple{Array{AngularTcoeff,1},Array{AngularVcoeff,1}}`
-        is returned.
-"""
-function Basics.compute(::AngularCoeffsEeRatip2013, csfa::CsfR, csfb::CsfR)
-    if csfa == csfb
-        AngularCoefficientsRatip2013.load_csl(csfa)
-        t_coeffs, v_coeffs = AngularCoefficientsRatip2013.angular_coefficients_pair(1,1)
-    else
-        AngularCoefficientsRatip2013.load_csl(csfa, csfb)
-        t_coeffs, v_coeffs = AngularCoefficientsRatip2013.angular_coefficients_pair(1,2)
-    end
-    return t_coeffs, v_coeffs
-end
-
-"""
-`Basics.compute(::AngularCoeffs1pRatip2013, rank, csfa::CsfR, csfb::CsfR)`
-    ... to compute the angular coefficients in the decomposition of a (reduced) many-electron matrix element with a general
-        single-particle operator of the given rank ``⟨csf_a ||O^rank|| csfb⟩ = \\sum_t  T(a_t, b_t) * R (a_t, b_t)``  by a call
-        to the Fortran procedure `anco_calculate_csf_pair_1p` of the RATIP program; an `Array{AngularTcoeff,1}` is returned.
-"""
-function Basics.compute(::AngularCoeffs1pRatip2013, rank, csfa::CsfR, csfb::CsfR)
-    if csfa == csfb
-        AngularCoefficientsRatip2013.load_csl(csfa)
-        t_coeffs = AngularCoefficientsRatip2013.angular_coefficients_pair_1p(rank,1,1)
-    else
-        AngularCoefficientsRatip2013.load_csl(csfa, csfb)
-        t_coeffs = AngularCoefficientsRatip2013.angular_coefficients_pair_1p(rank,1,2)
-    end
-    return t_coeffs
-end
-
-"""
-`Basics.compute(::AngularCoeffs1pGrasp92, parity, rank::Integer, csfa::CsfR, csfb::CsfR)`
-    ... to compute the angular coefficients in the decomposition of a (reduced) many-electron matrix element with a general
-        single-particle operator of the given parity and rank by a call to the Fortran procedure `mct_generate_coefficients`
-        of the RATIP program; an `Array{AngularTcoeff,1}` is returned.
-"""
-function Basics.compute(::AngularCoeffs1pGrasp92, parity, rank::Integer, csfa::CsfR, csfb::CsfR)
-    if csfa == csfb
-        subshells  = AngularCoefficientsRatip2013.load_csl(csfa)
-        mct_coeffs = AngularCoefficientsRatip2013.mct_generate_coefficients(1, 1, 1, 1, Int32(parity), rank)
-    else
-        # Add 'zeros' to the fields if the length of occupation does not agree
-        if       ( nz = length(csfa.occupation) - length(csfb.occupation) ) <  0   csfa = Basics.addZerosToCsfR( -nz, csfa)
-        elseif   ( nz = length(csfa.occupation) - length(csfb.occupation) ) >  0   csfb = Basics.addZerosToCsfR(  nz, csfb)    end
-        subshells  = AngularCoefficientsRatip2013.load_csl(csfa, csfb)
-        mct_coeffs = AngularCoefficientsRatip2013.mct_generate_coefficients(1, 1, 2, 2, Int32(parity), rank)
-    end
-    return map(t -> AngularCoefficientsRatip2013.AngularTcoeff(t, subshells), mct_coeffs) # Convert Fmctcoefficient to AngularTcoeff
-end
+# THE RATIP2013 ANGULAR-COEFFICIENT ROUTE WAS RETIRED HERE ON 30-Aug-2026.
+# Three Basics.compute methods stood at the top of this file -- for AngularCoeffsEeRatip2013,
+# AngularCoeffs1pRatip2013 and AngularCoeffs1pGrasp92 -- and all three called into the module
+# AngularCoefficients-Ratip2013, a Julia wrapper around the old Fortran implementation. That module's
+# source was already ABSENT from src/ and its include already commented out of JenaAtomicCalculator.jl,
+# so each of them raised UndefVarError if it was ever reached. Nothing reached them: every call site in
+# src/ sat behind Defaults.saRatip(), which was hardcoded false. The Julia route -- SpinAngular and
+# SpinAngularGaigalas -- is what the package actually uses.
 
 """
 `Basics.compute(::CImatrixWithSymmetryJP, JP::LevelSymmetry, basis::Basis, nuclearModel::Nuclear.Model, grid::Radial.Grid,`
@@ -90,10 +41,6 @@ function Basics.compute(::CImatrixWithSymmetryJP, JP::LevelSymmetry, basis::Basi
             #
             if  settings.eeInteractionCI == DiagonalCoulomb()  &&  r != s    continue    end
             # Calculate the spin-angular coefficients
-            if  Defaults.saRatip()
-                waR = compute(AngularCoeffsEeRatip2013(), basis.csfs[idx_csf[r]], basis.csfs[idx_csf[s]])
-                wa  = waR       
-            end
             if  Defaults.saGG()
                 subshellList = basis.subshells
                 opa  = SpinAngular.OneParticleOperator(0, plus)
@@ -101,12 +48,6 @@ function Basics.compute(::CImatrixWithSymmetryJP, JP::LevelSymmetry, basis::Basi
                 opa  = SpinAngular.TwoParticleOperator(0, plus)
                 waG2 = SpinAngular.computeCoefficients(opa, basis.csfs[idx_csf[r]], basis.csfs[idx_csf[s]], subshellList)
                 wa   = [waG1, waG2]
-            end
-            if  Defaults.saRatip() && Defaults.saGG() && true
-                if  length(waR[1]) != 0     println(  ">> Angular coeffients from Ratip2013   = $(waR[1]) ")    end
-                if  length(waG1)   != 0     println("\n>> Angular coeffients from SpinAngular = $waG1 ")        end
-                if  length(waR[2]) != 0     println(  ">> Angular coeffients from Ratip2013   = $(waR[2]) ")    end
-                if  length(waG2)   != 0     println("\n>> Angular coeffients from SpinAngular = $waG2 ")        end
             end
             #
             me = 0.
@@ -188,10 +129,6 @@ function Basics.compute(JP::LevelSymmetry, basis::Basis, nuclearModel::Nuclear.M
         for  r = 1:n
             for  s = r:n
                 # Calculate the spin-angular coefficients
-                if  Defaults.saRatip()
-                    waR = compute(AngularCoeffsEeRatip2013(), basis.csfs[idx_csf[r]], basis.csfs[idx_csf[s]])
-                    wa  = waR       
-                end
                 if  Defaults.saGG()
                     subshellList = basis.subshells
                     opa  = SpinAngular.OneParticleOperator(0, plus)
@@ -199,12 +136,6 @@ function Basics.compute(JP::LevelSymmetry, basis::Basis, nuclearModel::Nuclear.M
                     opa  = SpinAngular.TwoParticleOperator(0, plus)
                     waG2 = SpinAngular.computeCoefficients(opa, basis.csfs[idx_csf[r]], basis.csfs[idx_csf[s]], subshellList)
                     wa   = [waG1, waG2]
-                end
-                if  Defaults.saRatip() && Defaults.saGG() && true
-                    if  length(waR[1]) != 0     println(  ">> Angular coeffients from Ratip2013   = $(waR[1]) ")    end
-                    if  length(waG1)   != 0     println("\n>> Angular coeffients from SpinAngular = $waG1 ")        end
-                    if  length(waR[2]) != 0     println(  ">> Angular coeffients from Ratip2013   = $(waR[2]) ")    end
-                    if  length(waG2)   != 0     println("\n>> Angular coeffients from SpinAngular = $waG2 ")        end
                 end
                 #
                 me = 0.

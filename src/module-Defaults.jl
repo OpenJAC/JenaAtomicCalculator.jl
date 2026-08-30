@@ -875,11 +875,6 @@ end
 
     
     
-"""
-`Defaults.saRatip()`  
-    ... returns true or false if the spin-angular coefficients should be calculated by Fortran codes from RATIP/Grasp.
-"""
-saRatip() = false
 saGG()    = true
 
 

@@ -233,19 +233,11 @@ function amplitude(kind::AbstractEeInteraction, kappa::Int64, phase::Float64, co
             for  s = 1:ni
                 if  iLevel.basis.csfs[s].J != iLevel.J  ||  iLevel.basis.csfs[s].parity != iLevel.parity      continue    end 
                     # Calculate the spin-angular coefficients
-                if  Defaults.saRatip()
-                    waR = compute(AngularCoeffsEeRatip2013(), continuumLevel.basis.csfs[r], initialLevel.basis.csfs[s])
-                    wa  = waR       
-                end
                 if  Defaults.saGG()
                         subshellList = cLevel.basis.subshells
                     opa  = SpinAngular.TwoParticleOperator(0, plus)
                     waG2 = SpinAngular.computeCoefficients(opa, cLevel.basis.csfs[r], iLevel.basis.csfs[s], subshellList)
                     wa   = [1.0, waG2]
-                end
-                if  Defaults.saRatip() && Defaults.saGG() && true
-                    if  length(waR[2]) != 0     println("\n>> Angular coeffients from Ratip2013   = $(waR[2]) ")    end
-                    if  length(waG2)   != 0     println(  ">> Angular coeffients from SpinAngular = $waG2 ")        end
                 end
 
                 me = 0.
@@ -353,10 +345,6 @@ function amplitude(kind::AbstractEeInteraction, kappa::Int64, phase::Float64, co
     for  r = 1:nt
         for  s = 1:ni
             if  iLevel.basis.csfs[s].J != iLevel.J  ||  iLevel.basis.csfs[s].parity != iLevel.parity      continue    end
-            if  Defaults.saRatip()
-                waR = compute(AngularCoeffsEeRatip2013(), continuumLevel.basis.csfs[r], initialLevel.basis.csfs[s])
-                wa  = waR
-            end
             if  Defaults.saGG()
                 subshellList = cLevel.basis.subshells
                 opa  = SpinAngular.TwoParticleOperator(0, plus)

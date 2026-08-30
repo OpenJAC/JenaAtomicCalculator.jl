@@ -53,8 +53,7 @@ export AbstractCImethod, AbstractComputeTheme, AbstractConfigurationRestriction,
        AbstractDisplayTheme, AbstractEeInteraction, AbstractEmpiricalSettings, AbstractLineShiftSettings,
        AbstractNeutralNetwork, AbstractNeutralNetworkRequest, AbstractNuclearModel, AbstractPlasmaModel, AbstractPlotTheme,
        AbstractProcessSettings, AbstractPropertySettings, AbstractQedModel, AbstractStartOrbitals,
-       add, AddElectrons, AllShells, AlphaVariation, analyze, AnapoleMoment, AngularCoeffs1pGrasp92,
-       AngularCoeffs1pRatip2013, AngularCoeffsEeRatip2013, AngularJ, AngularJ64, AngularM64, AngularMomentum,
+       add, AddElectrons, AllShells, AlphaVariation, analyze, AnapoleMoment,        AngularJ, AngularJ64, AngularM64, AngularMomentum,
        Application, AsfSettings, Atomic, AtomicFeatures, AtomicModel, AtomicState, AtomicStructure,
        Auger, AugerInPlasma, AutoIonization, AverageAtom,
        Basics, Basis, Beam, BeamPhotoExcitation, BiOrthogonal, BreitInteraction, Bsplines, ByMultipoles, ByNumber, ByParity,
@@ -133,7 +132,9 @@ include("module-Nuclear.jl");           using ..Nuclear
 
 # Specialized functions/methods to manipulate these data
 include("module-AngularMomentum.jl")
-## include("module-AngularCoefficients-Ratip2013.jl")  ## keep for internal test purposes only
+## The Ratip2013 angular-coefficient module -- a Julia wrapper around the old Fortran
+## implementation -- was RETIRED on 30-Aug-2026. Its source was already absent from src/ and this
+## include already disabled; every call site sat behind Defaults.saRatip(), hardcoded false.
 include("module-SpinAngularTables.jl"); using ..SpinAngularTables
 include("module-SpinAngularGaigalas.jl"); using ..SpinAngularGaigalas
 include("module-SpinAngular.jl");    using ..SpinAngular

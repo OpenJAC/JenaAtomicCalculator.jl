@@ -35,98 +35,13 @@ sumSA = 0.;     sumFortran = 0.
 # using Profile
 # Profile.clear()
 # @profile if  false
-@time if false
-    # Last successful:  unknown ...
-    # Calculate angular coefficients for a scalar one- or two-particle operator
-    for  leftCsf in csfList
-        for rightCsf in csfList
-            opa    = SpinAngularGaigalas.OneParticleOperator(0, plus, true)     ## SpinAngularGaigalas.TwoParticleOperator(0, plus, true)
-            coeffs = SpinAngularGaigalas.computeCoefficients(opa, leftCsf, rightCsf, subshellList)
-            coefft = Basics.compute(AngularCoeffsEeRatip2013(), leftCsf, rightCsf)
-            ## println(">> Angular coeffients for <$leftCsf || O^($(op.rank))  || $rightCsf> = \n $coeffs ")
-            if  length(coeffs)    != 0     println("\n>> Angular coeffients from SpinAngular = $coeffs ")         end
-            if  length(coefft[1]) != 0     println(  ">> Angular coeffients from Ratip2013   = $(coefft[1]) ")    end
-            for coeff in coeffs       global sumSA      = sumSA      + coeff.v     end
-            for coeff in coefft[1]    global sumFortran = sumFortran + coeff.T     end
-        end
-    end
-    @show sumSA, sumFortran
-    #
-elseif  false
-    # NOTE, 30-Aug-2026: this branch CANNOT run as the package is built. It reaches
-    # Basics.compute(::AngularCoeffs...), whose body needs AngularCoefficientsRatip2013 -- and
-    # src/JenaAtomicCalculator.jl:136 keeps that include COMMENTED OUT, "for internal test purposes only".
-    # The same decision is why MultipoleMoment is parked under Rule 13. The retired string-dispatch calls
-    # this file used were repaired on 30-Aug; this residue is a package-level choice, not an example fault.
-    # Last visit:  30-Aug-2026
-    # Last successful:  unknown ...
-    # Compute 
-    # Calculate angular coefficients for a nonscalar one- particle operator
-    for  leftCsf in csfList
-        for rightCsf in csfList
-            opb    = SpinAngularGaigalas.OneParticleOperator(1, plus, true)  ## SpinAngular.OneParticleOperator(1, minus, true)
-            coeffs = SpinAngularGaigalas.computeCoefficients(opb, leftCsf, rightCsf, subshellList)
-            ## coefft = Basics.compute(AngularCoeffs1pRatip2013(), 1, leftCsf, rightCsf)
-            coefft = Basics.compute(AngularCoeffs1pGrasp92(), 0, 1, leftCsf, rightCsf)
-            ## println(">> Angular coeffients for <$leftCsf || O^($(op.rank))  || $rightCsf> = \n $coeffs ")
-            if  length(coeffs) != 0     println("\n>> Angular coeffients from SpinAngular = $coeffs ")    end
-            if  length(coefft) != 0     println(  ">> Angular coeffients from MCT/Grasp92 = $coefft ")    end
-            for coeff in coeffs       global sumSA      = sumSA      + coeff.v     end
-            for coeff in coefft       global sumFortran = sumFortran + coeff.T     end
-        end
-    end
-    @show sumSA, sumFortran
-    #
-elseif  false
-    # NOTE, 30-Aug-2026: this branch CANNOT run as the package is built. It reaches
-    # Basics.compute(::AngularCoeffs...), whose body needs AngularCoefficientsRatip2013 -- and
-    # src/JenaAtomicCalculator.jl:136 keeps that include COMMENTED OUT, "for internal test purposes only".
-    # The same decision is why MultipoleMoment is parked under Rule 13. The retired string-dispatch calls
-    # this file used were repaired on 30-Aug; this residue is a package-level choice, not an example fault.
-    # Last visit:  30-Aug-2026
-    # Last successful:  unknown ...
-    # Compute 
-    # Calculate angular coefficients for a nonscalar one- particle operator
-    for  leftCsf in csfList
-        for rightCsf in csfList
-            opb    = SpinAngularGaigalas.OneParticleOperator(2, plus, true)  ## SpinAngularGaigalas.OneParticleOperator(2, plus, true)
-            coeffs = SpinAngularGaigalas.computeCoefficients(opb, leftCsf, rightCsf, subshellList)
-            ## coefft = Basics.compute(AngularCoeffs1pRatip2013(), 2, leftCsf, rightCsf)
-            coefft = Basics.compute(AngularCoeffs1pGrasp92(), 0, 2, leftCsf, rightCsf)
-            ## println(">> Angular coeffients for <$leftCsf || O^($(op.rank))  || $rightCsf> = \n $coeffs ")
-            if  length(coeffs) != 0     println("\n>> Angular coeffients from SpinAngular = $coeffs ")    end
-            if  length(coefft) != 0     println(  ">> Angular coeffients from MCT/Grasp92 = $coefft ")    end
-            for coeff in coeffs       global sumSA      = sumSA      + coeff.v     end
-            for coeff in coefft       global sumFortran = sumFortran + coeff.T     end
-        end
-    end
-    @show sumSA, sumFortran
-    #
-elseif  false
-    # NOTE, 30-Aug-2026: this branch CANNOT run as the package is built. It reaches
-    # Basics.compute(::AngularCoeffs...), whose body needs AngularCoefficientsRatip2013 -- and
-    # src/JenaAtomicCalculator.jl:136 keeps that include COMMENTED OUT, "for internal test purposes only".
-    # The same decision is why MultipoleMoment is parked under Rule 13. The retired string-dispatch calls
-    # this file used were repaired on 30-Aug; this residue is a package-level choice, not an example fault.
-    # Last visit:  30-Aug-2026
-    # Last successful:  unknown ...
-    # Compute 
-    # Calculate angular coefficients for a scalar two- particle operator
-    for  leftCsf in csfList
-        for rightCsf in csfList
-            opb    = SpinAngularGaigalas.TwoParticleOperator(0, plus, true)  ## SpinAngularGaigalas.TwoParticleOperator(0, plus, true)
-            coeffs = SpinAngularGaigalas.computeCoefficients(opb, leftCsf, rightCsf, subshellList)
-            coefft = Basics.compute(AngularCoeffsEeRatip2013(), leftCsf, rightCsf)
-            ## println(">> Angular coeffients for <$leftCsf || O^($(op.rank))  || $rightCsf> = \n $coeffs ")
-            if  length(coeffs)    != 0     println("\n>> Angular coeffients from SpinAngular = $coeffs ")    end
-            if  length(coefft[2]) != 0     println(  ">> Angular coeffients from Ratip2013   = $(coefft[2]) ")    end
-            for coeff in coeffs       global sumSA      = sumSA      + coeff.v     end
-            for coeff in coefft[2]    global sumFortran = sumFortran + coeff.V     end
-        end
-    end
-    @show sumSA, sumFortran
-    #
-elseif  true
+# THE FOUR BRANCHES THAT STOOD HERE COMPARED JAC's Julia spin-angular coefficients against the old FORTRAN
+# route (AngularCoefficients-Ratip2013, reached through Basics.compute(AngularCoeffs...)). That route was
+# RETIRED on 30-Aug-2026: its module source was already absent from src/, its include already commented out
+# of JenaAtomicCalculator.jl, and every call site in src/ sat behind Defaults.saRatip(), hardcoded false.
+# The comparison therefore could not run and had nothing left to compare against. What remains below is the
+# branch that exercises the Julia route on its own.
+@time if  true
     # Last successful:  unknown ...
     # Compute 
     N1 = N2 = 0
