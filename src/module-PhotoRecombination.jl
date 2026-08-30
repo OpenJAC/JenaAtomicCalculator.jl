@@ -199,6 +199,32 @@ end
 
 
 """
+`PhotoRecombination.checkPartialWavesAreAdmitted(settings::PhotoRecombination.Settings)`
+    ... to check that the given settings admit at least one partial wave of the free electron, so that a computation which
+        cannot produce anything says so instead of reporting zeros. An error is raised if none is admitted, and nothing is
+        returned otherwise.
+
+        WHY THIS EXISTS. `PhotoRecombination.Settings()` leaves `maxKappa = 0`, and `determineChannels` discards every
+        partial wave with `abs(kappa) > settings.maxKappa`. Since `abs(kappa) >= 1` always, `maxKappa = 0` discards ALL of
+        them: the channel list comes back empty and every amplitude and cross section is exactly 0.0. Measured 30-Aug-2026,
+        a computation differing from `examples/example-Dd.jl:110` only in omitting `maxKappa` spent 47 minutes on genuine
+        SCF and continuum work and then reported 0.000000e+00 for both gauges at all fifteen of its (Z, energy) points, with
+        nothing to say that the run had been empty from the start. A zero cross section is a physically meaningful answer,
+        which is exactly why it must not be produced by a setting that admits no channel.
+"""
+function  checkPartialWavesAreAdmitted(settings::PhotoRecombination.Settings)
+    if  settings.maxKappa >= 1    return( nothing )    end
+
+    error("\nNo partial wave of the free electron is admitted: settings.maxKappa = $(settings.maxKappa), and every \n" *
+          "partial wave has abs(kappa) >= 1, so PhotoRecombination.determineChannels would discard all of them and \n"  *
+          "every cross section would come back as exactly 0.0.\n\n"                                                    *
+          ">>> Set maxKappa explicitly; PhotoRecombination.Settings() leaves it at 0, which is not a usable default. \n" *
+          "    The examples use 3 or 4, and the suite test uses 2; convergence is checked by raising it until the \n"   *
+          "    cross section stops moving.\n")
+end
+
+
+"""
 `PhotoRecombination.checkConsistentMultiplets(finalMultiplet::Multiplet, initialMultiplet::Multiplet)`
     ... to check that the given initial- and final-state levels and multiplets are consistent with each other, so that later
         problems in the computation are avoided. An error is raised if an inconsistency occurs, and nothing is returned
@@ -377,6 +403,7 @@ function computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, nm
     printstyled("-------------------------------------------------------------------------------------------------------- \n", color=:light_green)
     println("")
     PhotoRecombination.checkConsistentMultiplets(finalMultiplet, initialMultiplet)
+    PhotoRecombination.checkPartialWavesAreAdmitted(settings)
 
     lines = PhotoRecombination.determineLines(finalMultiplet, initialMultiplet, settings)
     if  settings.printBefore    PhotoRecombination.displayLines(stdout, lines)    end
@@ -421,6 +448,7 @@ function computeLinesWithContinuumOrbital(finalMultiplet::Multiplet, initialMult
                                                 grid::Radial.Grid, cOrbitals::Dict{Subshell, Orbital}, cPhases::Dict{Subshell, Float64},
                                                 energyGrid::Radial.GridGL, settings::PhotoRecombination.Settings; output::Bool=true)
     PhotoRecombination.checkConsistentMultiplets(finalMultiplet, initialMultiplet);     ie = 0
+    PhotoRecombination.checkPartialWavesAreAdmitted(settings)
 
     lines = PhotoRecombination.determineLines(finalMultiplet, initialMultiplet, settings)
     if  settings.printBefore    PhotoRecombination.displayLines(stdout, lines)    end
