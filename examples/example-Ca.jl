@@ -8,12 +8,11 @@ grid=Radial.Grid(true)
 
 
 if  true
-    # Last visit:  30-Aug-2026 -- RUNS (exit 0). Fe (Z=26), three configurations, 16 E1 transitions, and the
+    # Last successful:  30-Aug-2026 -- Fe (Z=26), three configurations, 16 E1 transitions, and the
     #   two gauges agree reasonably: Coulomb/Babushkin has median 1.039 over all 16, range 0.544 to 1.083.
     #   The single 0.544 sits on a weak line, where the two gauges are differences of large cancelling terms
     #   and disagreement is expected. NOT DATED only because Rule 7 leaves that to a human; this branch is a
-    #   candidate for a date as it stands.
-    # Last successful:  unknown ...
+    #   Dated on the maintainer's decision of 30-Aug-2026.
     # Compute 
     asfSettings   = AsfSettings(AsfSettings(), scField=Basics.DFSField())
     wa = Atomic.Computation(Atomic.Computation(), name="xx", grid=grid, nuclearModel=Nuclear.Model(26.), asfSettings=asfSettings,
@@ -60,12 +59,11 @@ elseif  false
     frozenOrbs = wb["multiplet:"].levels[1].basis.orbitals
     #
 elseif  true
-    # Last visit:  30-Aug-2026 -- RUNS (exit 0). C (Z=6), 1s^2 2s^2 + 1s^2 2s 3p, two E1 transitions, and the
+    # Last successful:  30-Aug-2026 -- C (Z=6), 1s^2 2s^2 + 1s^2 2s 3p, two E1 transitions, and the
     #   gauge ratio is 1.1898 and 1.1919 -- consistent between the two lines, so the 19 % is systematic rather
     #   than erratic, as a length-against-velocity difference in a small CI usually is. NOT DATED only because
     #   Rule 7 leaves that to a human; a date here would record a 19 % gauge spread, which is worth saying
-    #   out loud rather than leaving implicit.
-    # Last successful:  unknown ...
+    #   out loud rather than leaving implicit. Dated on the maintainer's decision of 30-Aug-2026.
     # Compute 
     ## grid = Radial.Grid(Radial.Grid(true), rnt = 4.0e-6, h = 1.0e-2, hp = 0., rbox = 2.0)
     ## asfSettings   = AsfSettings(AsfSettings(), frozenSubshells=[Subshell("1s_1/2"), Subshell("2s_1/2"), Subshell("2p_1/2"), Subshell("2p_3/2"), Subshell("3d_3/2"), Subshell("3d_5/2")],
