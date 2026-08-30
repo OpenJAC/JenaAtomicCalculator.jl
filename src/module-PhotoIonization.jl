@@ -841,7 +841,35 @@ function computePartialCrossSectionUnpolarized(Mf::AngularM64, line::PhotoIoniza
             end
         end
     end
+    # THIS FUNCTION DOES NOT REPRODUCE THE TOTAL, AND THE DISCREPANCY IS NOT A CONSTANT. Measured 30-Aug-2026,
+    # E1, omega = 80 eV, summing this function over all M_f and dividing by PhotoIonization.computeCrossSection --
+    # which IS validated, against Stobbe's closed form (see the note at computeCrossSection):
+    #
+    #     system          J_i    J_f                 sum/total, in units of alpha^2
+    #     H 1s            1/2    0                   5.0002
+    #     Ne 2p^6         0      3/2, 1/2            9.0000, 9.0000
+    #     Ne+ 2p^5        3/2    2, 1, 0, 2, 0       3.8382, 4.0199, 4.2463, 3.0982, 4.2469
+    #     Ne+ 2p^5        1/2    2, 1, 0, 2, 0       4.5545, 5.7424, 5.8912, 4.5544, 5.8917
+    #
+    # TWO SEPARATE FAULTS, and only the first is understood. (i) The alpha below sits in the NUMERATOR where
+    # computeCrossSection has it in the DENOMINATOR. That one is certainly wrong: JAC's multipole amplitude already
+    # carries the photon-momentum factor from j_L(alpha omega r), and the total's 1/alpha is there to cancel it --
+    # the partial uses the SAME amplitudes, so it needs the same cancellation. alpha^2 is accordingly common to
+    # every row above. (ii) The residue after removing alpha^2 is NOT constant: it varies from 3.10 to 9.00, and
+    # TWO LINES WITH THE SAME J_i AND THE SAME J_f differ (3.8382 against 3.0982). No prefactor in J_i can absorb
+    # that, so the ANGULAR expression above is wrong as well, and by an amount that is not established.
+    #
+    # DO NOT "FIX" THIS BY MULTIPLYING BY 9 alpha^2. That number is the Ne value only, and Ne is the special case:
+    # J_i = 0 with a single initial level. Patching the call site with a compensating factor is exactly the drift
+    # Rule 18 exists to stop. The correct prefactor and the correct angular expression have to be derived together
+    # and checked against a J_i != 0 case; that is carried as challenge 63.
+    #
+    # NOTHING IN THE PACKAGE CONSUMES THIS. It has never been used in an application nor checked against a known
+    # value, and computeCrossSection is unaffected -- so the numbers this returns are the only ones at risk.
     csFactor = 8 * pi^3 * Defaults.getDefaults("alpha") / (2*line.photonEnergy * (Basics.twice(Ji) + 1))
+    Defaults.warn(AddWarning(), "PhotoIonization.computePartialCrossSectionUnpolarized(): these partial cross " *
+                  "sections do NOT sum to the total (they are low by a level-dependent 3.1-9.0 times alpha^2); " *
+                  "see the note at this function and challenge 63. Do not use them quantitatively.")
 
     return( EmProperty(real(csFactor * waC), real(csFactor * waB)) )
 end
