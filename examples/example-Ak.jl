@@ -14,15 +14,20 @@ configs = [Configuration("1s^2 2s"), Configuration("1s^2 2p")]
         
 # Generate a list of relativistic configurations and determine an ordered list of subshells for these configurations
 relconfList = ConfigurationR[]
-for  conf in configs    wax = Basics.generate("configuration list: relativistic", conf);     append!( relconfList, wax)   end
+# The string-dispatch form of Basics.generate is retired. The current route is the one src/ itself uses at
+# module-BasicsAZ-inc-generate.jl:152-158, verbatim: RelativisticConfigurations() for the configurations and
+# Basics.generateSubshellList for the ordered subshells.
+for  conf in configs
+    wax = Basics.generateConfigurations(Basics.RelativisticConfigurations(), conf);   append!( relconfList, wax)
+end
 for  i = 1:length(relconfList)    println(">> include ", relconfList[i])    end
-subshellList = Basics.generate("subshells: ordered list for relativistic configurations", relconfList)
+subshellList = Basics.generateSubshellList(relconfList)
 Defaults.setDefaults("relativistic subshell list", subshellList; printout=false)
 
 # Generate the relativistic CSF's for the given subshell list
 csfList = CsfR[]
 for  relconf in relconfList
-    newCsfs = Basics.generate("CSF list: from single ConfigurationR", relconf, subshellList);   append!( csfList, newCsfs)
+    newCsfs = Basics.generateCsfRs(relconf, subshellList);                             append!( csfList, newCsfs)
 end
 
 sumSA = 0.;     sumFortran = 0.
@@ -35,9 +40,9 @@ sumSA = 0.;     sumFortran = 0.
     # Calculate angular coefficients for a scalar one- or two-particle operator
     for  leftCsf in csfList
         for rightCsf in csfList
-            opa    = SpinAngular.OneParticleOperator(0, plus, true)     ## SpinAngular.TwoParticleOperator(0, plus, true)
-            coeffs = SpinAngular.computeCoefficients(opa, leftCsf, rightCsf, subshellList)
-            coefft = Basics.compute("angular coefficients: e-e, Ratip2013", leftCsf, rightCsf)
+            opa    = SpinAngularGaigalas.OneParticleOperator(0, plus, true)     ## SpinAngularGaigalas.TwoParticleOperator(0, plus, true)
+            coeffs = SpinAngularGaigalas.computeCoefficients(opa, leftCsf, rightCsf, subshellList)
+            coefft = Basics.compute(AngularCoeffsEeRatip2013(), leftCsf, rightCsf)
             ## println(">> Angular coeffients for <$leftCsf || O^($(op.rank))  || $rightCsf> = \n $coeffs ")
             if  length(coeffs)    != 0     println("\n>> Angular coeffients from SpinAngular = $coeffs ")         end
             if  length(coefft[1]) != 0     println(  ">> Angular coeffients from Ratip2013   = $(coefft[1]) ")    end
@@ -48,15 +53,21 @@ sumSA = 0.;     sumFortran = 0.
     @show sumSA, sumFortran
     #
 elseif  false
+    # NOTE, 30-Aug-2026: this branch CANNOT run as the package is built. It reaches
+    # Basics.compute(::AngularCoeffs...), whose body needs AngularCoefficientsRatip2013 -- and
+    # src/JenaAtomicCalculator.jl:136 keeps that include COMMENTED OUT, "for internal test purposes only".
+    # The same decision is why MultipoleMoment is parked under Rule 13. The retired string-dispatch calls
+    # this file used were repaired on 30-Aug; this residue is a package-level choice, not an example fault.
+    # Last visit:  30-Aug-2026
     # Last successful:  unknown ...
     # Compute 
     # Calculate angular coefficients for a nonscalar one- particle operator
     for  leftCsf in csfList
         for rightCsf in csfList
-            opb    = SpinAngular.OneParticleOperator(1, plus, true)  ## SpinAngular.OneParticleOperator(1, minus, true)
-            coeffs = SpinAngular.computeCoefficients(opb, leftCsf, rightCsf, subshellList)
-            ## coefft = Basics.compute("angular coefficients: 1-p, Ratip2013", 1, leftCsf, rightCsf)
-            coefft = Basics.compute("angular coefficients: 1-p, Grasp92", 0, 1, leftCsf, rightCsf)
+            opb    = SpinAngularGaigalas.OneParticleOperator(1, plus, true)  ## SpinAngular.OneParticleOperator(1, minus, true)
+            coeffs = SpinAngularGaigalas.computeCoefficients(opb, leftCsf, rightCsf, subshellList)
+            ## coefft = Basics.compute(AngularCoeffs1pRatip2013(), 1, leftCsf, rightCsf)
+            coefft = Basics.compute(AngularCoeffs1pGrasp92(), 0, 1, leftCsf, rightCsf)
             ## println(">> Angular coeffients for <$leftCsf || O^($(op.rank))  || $rightCsf> = \n $coeffs ")
             if  length(coeffs) != 0     println("\n>> Angular coeffients from SpinAngular = $coeffs ")    end
             if  length(coefft) != 0     println(  ">> Angular coeffients from MCT/Grasp92 = $coefft ")    end
@@ -67,15 +78,21 @@ elseif  false
     @show sumSA, sumFortran
     #
 elseif  false
+    # NOTE, 30-Aug-2026: this branch CANNOT run as the package is built. It reaches
+    # Basics.compute(::AngularCoeffs...), whose body needs AngularCoefficientsRatip2013 -- and
+    # src/JenaAtomicCalculator.jl:136 keeps that include COMMENTED OUT, "for internal test purposes only".
+    # The same decision is why MultipoleMoment is parked under Rule 13. The retired string-dispatch calls
+    # this file used were repaired on 30-Aug; this residue is a package-level choice, not an example fault.
+    # Last visit:  30-Aug-2026
     # Last successful:  unknown ...
     # Compute 
     # Calculate angular coefficients for a nonscalar one- particle operator
     for  leftCsf in csfList
         for rightCsf in csfList
-            opb    = SpinAngular.OneParticleOperator(2, plus, true)  ## SpinAngular.OneParticleOperator(2, plus, true)
-            coeffs = SpinAngular.computeCoefficients(opb, leftCsf, rightCsf, subshellList)
-            ## coefft = Basics.compute("angular coefficients: 1-p, Ratip2013", 2, leftCsf, rightCsf)
-            coefft = Basics.compute("angular coefficients: 1-p, Grasp92", 0, 2, leftCsf, rightCsf)
+            opb    = SpinAngularGaigalas.OneParticleOperator(2, plus, true)  ## SpinAngularGaigalas.OneParticleOperator(2, plus, true)
+            coeffs = SpinAngularGaigalas.computeCoefficients(opb, leftCsf, rightCsf, subshellList)
+            ## coefft = Basics.compute(AngularCoeffs1pRatip2013(), 2, leftCsf, rightCsf)
+            coefft = Basics.compute(AngularCoeffs1pGrasp92(), 0, 2, leftCsf, rightCsf)
             ## println(">> Angular coeffients for <$leftCsf || O^($(op.rank))  || $rightCsf> = \n $coeffs ")
             if  length(coeffs) != 0     println("\n>> Angular coeffients from SpinAngular = $coeffs ")    end
             if  length(coefft) != 0     println(  ">> Angular coeffients from MCT/Grasp92 = $coefft ")    end
@@ -85,15 +102,21 @@ elseif  false
     end
     @show sumSA, sumFortran
     #
-elseif  true
+elseif  false
+    # NOTE, 30-Aug-2026: this branch CANNOT run as the package is built. It reaches
+    # Basics.compute(::AngularCoeffs...), whose body needs AngularCoefficientsRatip2013 -- and
+    # src/JenaAtomicCalculator.jl:136 keeps that include COMMENTED OUT, "for internal test purposes only".
+    # The same decision is why MultipoleMoment is parked under Rule 13. The retired string-dispatch calls
+    # this file used were repaired on 30-Aug; this residue is a package-level choice, not an example fault.
+    # Last visit:  30-Aug-2026
     # Last successful:  unknown ...
     # Compute 
     # Calculate angular coefficients for a scalar two- particle operator
     for  leftCsf in csfList
         for rightCsf in csfList
-            opb    = SpinAngular.TwoParticleOperator(0, plus, true)  ## SpinAngular.TwoParticleOperator(0, plus, true)
-            coeffs = SpinAngular.computeCoefficients(opb, leftCsf, rightCsf, subshellList)
-            coefft = Basics.compute("angular coefficients: e-e, Ratip2013", leftCsf, rightCsf)
+            opb    = SpinAngularGaigalas.TwoParticleOperator(0, plus, true)  ## SpinAngularGaigalas.TwoParticleOperator(0, plus, true)
+            coeffs = SpinAngularGaigalas.computeCoefficients(opb, leftCsf, rightCsf, subshellList)
+            coefft = Basics.compute(AngularCoeffsEeRatip2013(), leftCsf, rightCsf)
             ## println(">> Angular coeffients for <$leftCsf || O^($(op.rank))  || $rightCsf> = \n $coeffs ")
             if  length(coeffs)    != 0     println("\n>> Angular coeffients from SpinAngular = $coeffs ")    end
             if  length(coefft[2]) != 0     println(  ">> Angular coeffients from Ratip2013   = $(coefft[2]) ")    end
@@ -108,19 +131,19 @@ elseif  true
     # Compute 
     N1 = N2 = 0
     # Calculate angular coefficients for a scalar one- or two-particle operator
-    op = SpinAngular.TwoParticleOperator(0, plus, true)
+    op = SpinAngularGaigalas.TwoParticleOperator(0, plus, true)
     for  leftCsf in csfList
         for rightCsf in csfList
-            coeffs = SpinAngular.computeCoefficients(op, leftCsf, rightCsf, subshellList)
+            coeffs = SpinAngularGaigalas.computeCoefficients(op, leftCsf, rightCsf, subshellList)
             global N2 = N2 + length(coeffs)
         end
     end
     #
     # Calculate angular coefficients for a nonscalar one- particle operator
-    op = SpinAngular.OneParticleOperator(0, plus, true)
+    op = SpinAngularGaigalas.OneParticleOperator(0, plus, true)
     for  leftCsf in csfList
         for rightCsf in csfList
-            coeffs = SpinAngular.computeCoefficients(op, leftCsf, rightCsf, subshellList)
+            coeffs = SpinAngularGaigalas.computeCoefficients(op, leftCsf, rightCsf, subshellList)
             global N1 = N1 + length(coeffs)
         end
     end
