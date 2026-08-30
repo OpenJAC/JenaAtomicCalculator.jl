@@ -63,7 +63,30 @@ sumSA = 0.;     sumFortran = 0.
         end
     end
     @show length(csfList), N1, N2
-    println("The Nd II test (Julia) has been completed")
+    #
+    # THE PHYSICS CHECK, and the reason this branch is worth running rather than merely completing.
+    # N1 and N2 above are COUNTS: they would be unchanged if every coefficient were wrong by a factor, so they
+    # test that the machinery runs and nothing more. The rank-0 DIAGONAL one-particle coefficient, by contrast,
+    # has an exact expected value and needs no reference data: under the GRASP convention the sqrt(2j+1) sits
+    # INSIDE the coefficient, so that coefficient IS the occupation number of its subshell (Rule 18, and the
+    # reason the convention was chosen -- a wrong one is then visible by eye instead of invisible).
+    println("\n>> Rank-0 diagonal one-particle coefficients against the occupation numbers.")
+    println(">> Each T must EQUAL the occupation of its subshell, exactly.")
+    opDiag = SpinAngularGaigalas.OneParticleOperator(0, plus, true)
+    worst  = 0.
+    for  (i, csf) in enumerate(csfList)
+        occ = [csf.occupation[k] for k = 1:length(subshellList)]
+        println("     CSF $i, occupations $occ:")
+        for  c in SpinAngularGaigalas.computeCoefficients(opDiag, csf, csf, subshellList)
+            k        = findfirst(isequal(c.a), subshellList)
+            expected = occ[k]
+            global worst = max(worst, abs(c.T - expected))
+            println("        $(c.a):  T = $(c.T)   expected (occupation) = $expected")
+        end
+    end
+    println(">> Largest departure from the occupation number: $worst   (must be 0 to machine precision)")
+    #
+    println("The Li-like test (1s^2 2s + 1s^2 2p, Julia route) has been completed")
     #
 end
 
