@@ -253,6 +253,41 @@ end
 
 
 """
+`SelfConsistent.checkOneElectronSelfInteraction(configs::Array{Configuration,1}, scField::Basics.AbstractScField)`
+    ... warns if a ONE-ELECTRON system is about to be solved in a mean-field potential built from its own density,
+        and names `Basics.NuclearField()` as the field that avoids it; nothing is returned.
+
+        WHY THIS IS WORTH A WARNING RATHER THAN A NOTE SOMEWHERE. A mean field such as DFS is built from the total
+        electron density, so with a SINGLE electron it contains that electron's own charge: the electron is repelled
+        by itself. The bound orbital and the continuum orbital then solve DIFFERENT one-body operators, which is not
+        a small error and does not look like one. Measured 30-Aug-2026 on H(1s) -> continuum: the Coulomb and
+        Babushkin photoionization cross sections, which are EQUAL for exact hydrogenic wavefunctions, come out in
+        the ratio 1.238, 1.299 and 1.294 at omega/I = 1.5, 2 and 3 under `DFSField()`, and 1.000000 at every one of
+        them under `NuclearField()` -- unchanged across boxes of 30 to 150 a.u., meshes of 0.05 to 0.01, and the
+        pure-sine, pure-Coulomb and Ong-Russek normalisations.
+
+        That 24-30 % discrepancy was carried on the priority list for weeks as a suspected defect of the CONTINUUM
+        machinery, and the three suspects it named were all innocent. `AsfSettings()` defaults to `DFSField()`, so
+        the default is the trap; the remark that would have prevented it existed only inside a test for another
+        module, where no user would meet it.
+"""
+function checkOneElectronSelfInteraction(configs::Array{Configuration,1}, scField::Basics.AbstractScField)
+    NoElectrons = length(configs) == 0  ?  0  :  sum( values(configs[1].shells) )
+    if  NoElectrons != 1   ||   typeof(scField) == Basics.NuclearField   return( nothing )   end
+
+    sa = "SelfConsistent.performSCF(): a ONE-ELECTRON system is being solved in $(nameof(typeof(scField))), " *
+         "which is built from the electron's OWN density, so the electron is repelled by itself. " *
+         "Use  AsfSettings(AsfSettings(); scField = Basics.NuclearField())  instead."
+    printstyled("\n>> WARNING: " * sa * "\n", color=:light_red)
+    printstyled(">> This is not a small error: on H(1s) it puts the two photoionization gauges, which are EQUAL " *
+                "for exact\n>> hydrogenic wavefunctions, in the ratio 1.24-1.30 rather than 1.000000.\n", color=:light_red)
+    Defaults.warn(AddWarning(), sa)
+
+    return( nothing )
+end
+
+
+"""
 `SelfConsistent.checkScFieldIsSupported(scField::Basics.AbstractScField)`
     ... verifies that the given field is one that performSCF can actually iterate, and raises an explanatory
         error if it is not. Several members of Basics.AbstractScField are POTENTIALS rather than fields: they
@@ -326,6 +361,7 @@ function performSCF(configs::Array{Configuration,1}, nm::Nuclear.Model, grid::Ra
                     settings::AsfSettings; levelSymmetries::Array{LevelSymmetry,1}=LevelSymmetry[], printout::Bool=true)
     
     SelfConsistent.checkScFieldIsSupported(settings.scField)
+    SelfConsistent.checkOneElectronSelfInteraction(configs, settings.scField)
 
     # Generate primitives and initialize the many-electron basis
     Defaults.setDefaults("standard grid", grid)
