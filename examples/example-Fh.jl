@@ -204,7 +204,14 @@ elseif  false
     #   (dielectronic) and example-Fg.jl (radiative recombination).
     setDefaults("print summary: open", "zzz-Cascade-Fh-rates.sum")
 
-    fn    = sort(filter(f -> startswith(f, "zzz-cascade-impact-excitation-"), readdir()), by = f -> stat(f).mtime)[end]
+    # The sibling cascade files -- Fb, Fe and Fi -- test for an empty list here and say what to do.
+    # This line indexed it with [end] instead, so a missing cascade file surfaced as
+    # `BoundsError: attempt to access 0-element Vector{String} at index [0]`, which names neither the
+    # cause nor the remedy. Index [0] is never valid in Julia, so the message was doubly misleading.
+    fnList     = sort(filter(f -> startswith(f, "zzz-cascade-impact-excitation-"), readdir()), by = f -> stat(f).mtime)
+    if  isempty(fnList)   error("Run branch a of this file first; no zzz-cascade-impact-excitation-* file found in the " *
+                                "working directory.")   end
+    fn    = fnList[end]
     println(">>> reading the cascade data from  $fn")
     data  = [JLD2.load(fn)]
     temps = [5.0e5, 1.0e6, 2.0e6, 5.0e6, 1.0e7]
@@ -246,7 +253,14 @@ elseif  false
     setDefaults("print summary: open", "zzz-Cascade-Fh-vanregemorter.sum")
     setDefaults("nuclear: charge", 6.)
 
-    fn    = sort(filter(f -> startswith(f, "zzz-cascade-impact-excitation-"), readdir()), by = f -> stat(f).mtime)[end]
+    # The sibling cascade files -- Fb, Fe and Fi -- test for an empty list here and say what to do.
+    # This line indexed it with [end] instead, so a missing cascade file surfaced as
+    # `BoundsError: attempt to access 0-element Vector{String} at index [0]`, which names neither the
+    # cause nor the remedy. Index [0] is never valid in Julia, so the message was doubly misleading.
+    fnList     = sort(filter(f -> startswith(f, "zzz-cascade-impact-excitation-"), readdir()), by = f -> stat(f).mtime)
+    if  isempty(fnList)   error("Run branch a of this file first; no zzz-cascade-impact-excitation-* file found in the " *
+                                "working directory.")   end
+    fn    = fnList[end]
     data  = [JLD2.load(fn)]
     temps = [5.0e5, 1.0e6, 2.0e6, 5.0e6, 1.0e7]
     prop  = Cascade.EieRateCoefficients(1, temps, LevelSelection())

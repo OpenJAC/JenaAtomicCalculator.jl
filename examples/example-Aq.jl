@@ -147,10 +147,10 @@ elseif  true
     #       a number came out small, where the question is whether the quantum numbers permit it at all.
     #
     op    = SpinAngular.OneParticleOperator(0, Basics.plus)
-    opOld = SpinAngular.OneParticleOperator(0, Basics.plus, true)
+    opOld = SpinAngularGaigalas.OneParticleOperator(0, Basics.plus, true)
     println("\n  rank ICSF JCSF  a         b          SpinAngular        SpinAngular       ratio")
     for  (ic, l) in enumerate(csfList),  (ir, r) in enumerate(csfList)
-        oldCoeffs = SpinAngular.computeCoefficients(opOld, l, r, subshellList)
+        oldCoeffs = SpinAngularGaigalas.computeCoefficients(opOld, l, r, subshellList)
         newCoeffs = SpinAngular.computeCoefficients(op, l, r, subshellList)
         for  oc in oldCoeffs
             if  abs(oc.T) < 1.0e-14    continue    end
@@ -706,10 +706,10 @@ elseif  true
         (5,5,3,4,4,3,2, -4.000000000000000e-02)
     ]
 
-    opTwo   = SpinAngular.TwoParticleOperator(0, Basics.plus, true)
+    opTwo   = SpinAngularGaigalas.TwoParticleOperator(0, Basics.plus, true)
     jacConv = Dict{Any,Float64}();   nRaw = 0;   nAnnihilated = 0
     for  (ic,l) in enumerate(localCsfs),  (ir,r) in enumerate(localCsfs)
-        for  c in SpinAngular.computeCoefficients(opTwo, l, r, localSubshells)
+        for  c in SpinAngularGaigalas.computeCoefficients(opTwo, l, r, localSubshells)
             abs(c.V) < 1.0e-14  &&  continue
             global nRaw = nRaw + 1
             f = AngularMomentum.CL_reduced_me(c.a, c.nu, c.c) * AngularMomentum.CL_reduced_me(c.b, c.nu, c.d)
@@ -839,9 +839,9 @@ elseif  true
                                                   localCsfs[i], localCsfs[j], localSubshells)
         n1b  = SpinAngular.computeCoefficients(SpinAngular.OneParticleOperator(0, Basics.plus),
                                                   localCsfs[j], localCsfs[i], localSubshells)
-        o2a  = SpinAngular.computeCoefficients(SpinAngular.TwoParticleOperator(0, Basics.plus, true),
+        o2a  = SpinAngularGaigalas.computeCoefficients(SpinAngularGaigalas.TwoParticleOperator(0, Basics.plus, true),
                                                localCsfs[i], localCsfs[j], localSubshells)
-        o2b  = SpinAngular.computeCoefficients(SpinAngular.TwoParticleOperator(0, Basics.plus, true),
+        o2b  = SpinAngularGaigalas.computeCoefficients(SpinAngularGaigalas.TwoParticleOperator(0, Basics.plus, true),
                                                localCsfs[j], localCsfs[i], localSubshells)
         nz(v)     = count(c -> abs(c.V) > 1.0e-14, v)
         direct0(v)= count(c -> c.nu == 0 && c.a == c.c && c.b == c.d && abs(c.V) > 1.0e-14, v)
@@ -927,7 +927,7 @@ elseif  true
         for  relconf in localRel    append!(localCsfs, Basics.generateCsfRs(relconf, localSub))    end
         local nm = 0;  local nn = 0;  local nx = 0;  local wr = 1.0
         for  c in localCsfs
-            old = [x for x in SpinAngular.computeCoefficients(SpinAngular.TwoParticleOperator(0, Basics.plus, true),
+            old = [x for x in SpinAngularGaigalas.computeCoefficients(SpinAngularGaigalas.TwoParticleOperator(0, Basics.plus, true),
                                                               c, c, localSub)   if abs(x.V) > 1.0e-14]
             new = SpinAngular.computeCoefficients(SpinAngular.TwoParticleOperator(), c, c, localSub)
             kk(x) = (x.nu, string(x.a), string(x.b), string(x.c), string(x.d))
@@ -1010,7 +1010,7 @@ elseif  true
         for  (i,l) in enumerate(lCsfs),  (j,r) in enumerate(lCsfs)
             l.occupation == r.occupation  ||  continue
             np += 1
-            old = [x for x in SpinAngular.computeCoefficients(SpinAngular.TwoParticleOperator(0,Basics.plus,true),
+            old = [x for x in SpinAngularGaigalas.computeCoefficients(SpinAngularGaigalas.TwoParticleOperator(0, Basics.plus, true),
                                                               l, r, lSub)   if abs(x.V) > 1.0e-14]
             new = SpinAngular.computeCoefficients(SpinAngular.TwoParticleOperator(), l, r, lSub)
             kk(x) = (x.nu, string(x.a), string(x.b), string(x.c), string(x.d))
@@ -1129,7 +1129,7 @@ elseif  true
             local mv = findall(!=(0), dd)
             local iC = dd[mv[1]] > 0 ? mv[1] : mv[2];     local iA = dd[mv[1]] > 0 ? mv[2] : mv[1]
             nh += 1
-            old = [x for x in SpinAngular.computeCoefficients(SpinAngular.TwoParticleOperator(0,Basics.plus,true),
+            old = [x for x in SpinAngularGaigalas.computeCoefficients(SpinAngularGaigalas.TwoParticleOperator(0, Basics.plus, true),
                                                              l, r, lSub)   if abs(x.V) > 1.0e-14]
             new = SpinAngular.computeCoefficients(SpinAngular.TwoParticleOperator(), l, r, lSub)
             kk(x) = (x.nu, string(x.a), string(x.b), string(x.c), string(x.d))
@@ -1232,8 +1232,8 @@ elseif  true
             for  l in lCsfs,  r in lCsfs
                 local old = [];   local new = []
                 if  rank >= 0
-                    old = [x for x in SpinAngular.computeCoefficients(
-                              SpinAngular.OneParticleOperator(rank, Basics.plus, true), l, r, lSub) if abs(x.T) > 1.0e-14]
+                    old = [x for x in SpinAngularGaigalas.computeCoefficients(
+                              SpinAngularGaigalas.OneParticleOperator(rank, Basics.plus, true), l, r, lSub) if abs(x.T) > 1.0e-14]
                     new = SpinAngular.computeCoefficients(SpinAngular.OneParticleOperator(rank, Basics.plus),
                                                              l, r, lSub)
                 else
@@ -1246,8 +1246,8 @@ elseif  true
                         reach = !(r.occupation[iC] >= 1 || r.occupation[iAn] >= 2) && l.J == r.J && l.parity == r.parity
                     end
                     reach  ||  continue
-                    old = [x for x in SpinAngular.computeCoefficients(
-                              SpinAngular.TwoParticleOperator(0, Basics.plus, true), l, r, lSub) if abs(x.V) > 1.0e-14]
+                    old = [x for x in SpinAngularGaigalas.computeCoefficients(
+                              SpinAngularGaigalas.TwoParticleOperator(0, Basics.plus, true), l, r, lSub) if abs(x.V) > 1.0e-14]
                     new = SpinAngular.computeCoefficients(SpinAngular.TwoParticleOperator(), l, r, lSub)
                 end
                 kk(x)  = rank >= 0 ? (x.nu, string(x.a), string(x.b)) :
@@ -1363,7 +1363,7 @@ elseif  true
             local dd = l.occupation - r.occupation
             count(!=(0), dd) == 4  &&  sum(abs, dd) == 4   ||  continue
             np += 1
-            old = [x for x in SpinAngular.computeCoefficients(SpinAngular.TwoParticleOperator(0,Basics.plus,true),
+            old = [x for x in SpinAngularGaigalas.computeCoefficients(SpinAngularGaigalas.TwoParticleOperator(0, Basics.plus, true),
                                                               l, r, lSub)   if abs(x.V) > 1.0e-14]
             new = SpinAngular.computeCoefficients(SpinAngular.TwoParticleOperator(), l, r, lSub)
             kk(x) = (x.nu, string(x.a), string(x.b), string(x.c), string(x.d))

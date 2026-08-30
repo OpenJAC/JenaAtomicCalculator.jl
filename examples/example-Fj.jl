@@ -200,7 +200,14 @@ elseif  false
     #   radiative, depending only on which was picked.
     setDefaults("print summary: open", "zzz-Cascade-Fj-simulation.sum")
 
-    fn   = sort(filter(f -> startswith(f, "zzz-cascade-hollow-ion-"), readdir()), by = f -> stat(f).mtime)[end]
+    # The sibling cascade files -- Fb, Fe and Fi -- test for an empty list here and say what to do.
+    # This line indexed it with [end] instead, so a missing cascade file surfaced as
+    # `BoundsError: attempt to access 0-element Vector{String} at index [0]`, which names neither the
+    # cause nor the remedy. Index [0] is never valid in Julia, so the message was doubly misleading.
+    fnList     = sort(filter(f -> startswith(f, "zzz-cascade-hollow-ion-"), readdir()), by = f -> stat(f).mtime)
+    if  isempty(fnList)   error("Run branch a of this file first; no zzz-cascade-hollow-ion-* file found in the " *
+                                "working directory.")   end
+    fn    = fnList[end]
     println(">>> reading the cascade data from  $fn")
     data = [JLD2.load(fn)]
     for  levelNo  in  [4, 9, 13]

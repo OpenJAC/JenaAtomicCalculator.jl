@@ -1411,11 +1411,15 @@ function Basics.generateConfigurations(theme::Basics.RestrictExcitations, refCon
         newConfigs = Base.unique(newConfigs)
     end
     
-    # Now apply in turn all given restrictions, if any, and append if no restriction is violated
+    # Now apply in turn all given restrictions, if any, and append if no restriction is violated.
+    # theme.restrictions, NOT a bare `restrictions`: this method takes only (theme, refConfigs), and the bare name
+    # was left behind when the signature was changed to carry a theme -- the retired keyword form it replaced is
+    # still quoted in the two comment lines at the top of this function. Until 30-Aug-2026 every call therefore
+    # raised UndefVarError, so RestrictExcitations could not be used at all.
     confList = Configuration[]
     for  conf  in  newConfigs
         addConf = true
-        for res in restrictions
+        for res in theme.restrictions
             if  Basics.isViolated(conf,res)     addConf = false;    break   end
         end
         if  addConf     push!(confList, conf)   end

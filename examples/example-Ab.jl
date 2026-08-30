@@ -133,9 +133,17 @@ elseif false
                             configs=[Configuration("1s^2 2s"), Configuration("1s 2s^2"), Configuration("1s 2s 3p"), Configuration("1s 2s 4p")], 
                             ## configs=[Configuration("1s^2 2s"), Configuration("1s^2 2p"), Configuration("1s 2s 3s"), Configuration("1s 2p 3s"), 
                             ##          Configuration("1s 2s 2p")],  ## 
-                            asfSettings=AsfSettings(true, false, Basics.DFSField(), "hydrogenic", Dict{Subshell, Orbital}(), [1],    40, 1.0e-6, JAC.Subshell[], JAC.Subshell[], 
-                                                    true, false, NoneQed(), LSjjSettings(false),
-                                                    false, [1,2,3,4], false, JAC.LevelSymmetry[] )  )
+                            # WAS a fully POSITIONAL AsfSettings of the retired shape -- EIGHTEEN values into a struct
+                            # that now has FOURTEEN fields, so it could not be remapped position by position. Only the
+                            # values that are unambiguous are carried over: DFSField, hydrogenic start, 40 iterations,
+                            # 1.0e-6, NoneQed, LSjjSettings(false). DELIBERATELY DROPPED because the old positions
+                            # cannot be identified with confidence: two level lists, [1] and [1,2,3,4], of which one
+                            # was presumably levelSelectionCI; and the four bare Bools. The branch is undated, so
+                            # nothing rests on them. The same file already uses this keyword form at four other calls.
+                            asfSettings=AsfSettings(AsfSettings(); scField = Basics.DFSField(),
+                                                    startScfFrom = StartFromHydrogenic(), maxIterationsScf = 40,
+                                                    accuracyScf = 1.0e-6, qedModel = NoneQed(),
+                                                    jjLS = LSjjSettings(false))  )
 
     wb = perform(wa)
 
