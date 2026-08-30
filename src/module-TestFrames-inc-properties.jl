@@ -451,3 +451,224 @@ function testModule_StarkShift(; short::Bool=true)
     testPrint("testModule_StarkShift()::", success)
     return( success )
 end
+
+
+"""
+`TestFrames.testModule_CrystalField(; short::Bool=true)`  ... tests on module CrystalField; a success::Bool is returned.
+"""
+function testModule_CrystalField(; short::Bool=true)
+    Defaults.setDefaults("print summary: open", "test-CrystalField-new.sum")
+    printstyled("\n\nTest the module  CrystalField  ... \n", color=:cyan)
+    # Everything asserted here is a theorem about a crystal field, not a number anyone measured, so none of it can
+    # drift and none of it needs a reference. Two of them are exact for ANY lattice whatsoever -- Kramers degeneracy
+    # for an odd electron count, and the tracelessness of every k >= 1 term -- and the third, that a RIGID ROTATION
+    # of the lattice cannot move the spectrum, exercises the spherical harmonics, the 3-j symbols and the phases
+    # together in a way that no single matrix element does.
+    success = true;    printTest, iostream = Defaults.getDefaults("test flag/stream")
+
+    # (1) THE LATTICE SUMS ALONE, which need no atomic structure at all. An empty lattice gives exactly nothing, and
+    #     a perfectly octahedral one has A_2q = 0 for every q while its k = 4 term survives only at q = 0, +-4 in the
+    #     fixed ratio A_44/A_40 = sqrt(5/14). That ratio is a property of the cubic group, not of this code.
+    rho     = 200.0
+    empty   = CrystalField.Lattice()
+    for  k = 1:6,  q = -k:k
+        if  abs( CrystalField.multipoleLatticeSum(empty, k, q) ) != 0.
+            success = false
+            if printTest   info(iostream, "an empty lattice gives a non-zero A_$k$q")   end
+        end
+    end
+    charge  = -2.0
+    ohIons  = [ CrystalField.PointCharge(charge, rho, 0.0,  0.0),   CrystalField.PointCharge(charge, rho, pi,   0.0),
+                CrystalField.PointCharge(charge, rho, pi/2, 0.0),   CrystalField.PointCharge(charge, rho, pi/2, pi),
+                CrystalField.PointCharge(charge, rho, pi/2, pi/2),  CrystalField.PointCharge(charge, rho, pi/2, 3pi/2) ]
+    oh      = CrystalField.Lattice(ohIons, "Oh")
+    a40     = CrystalField.multipoleLatticeSum(oh, 4, 0)
+    for  q = -2:2
+        if  abs( CrystalField.multipoleLatticeSum(oh, 2, q) ) > 1.0e-10 * abs(a40)
+            success = false
+            if printTest   info(iostream, "the k = 2 lattice sum of a perfect octahedron does not vanish at q = $q")   end
+        end
+    end
+    for  q  in  [-3, -2, -1, 1, 2, 3]
+        if  abs( CrystalField.multipoleLatticeSum(oh, 4, q) ) > 1.0e-10 * abs(a40)
+            success = false
+            if printTest   info(iostream, "the k = 4 lattice sum of a perfect octahedron does not vanish at q = $q")   end
+        end
+    end
+    if  abs( real(CrystalField.multipoleLatticeSum(oh, 4, 4) / a40) - sqrt(5/14) ) > 1.0e-10
+        success = false
+        if printTest   info(iostream, "A_44/A_40 of a perfect octahedron is " *
+                                      "$(CrystalField.multipoleLatticeSum(oh, 4, 4)/a40), not sqrt(5/14)")   end
+    end
+
+    # The test system is bare hydrogen H(3d): ONE active electron, so J = 3/2 and 5/2 are single-CSF levels with no CI
+    # mixing at all, and every matrix element below depends on the lattice geometry and the tensor algebra alone. One
+    # electron is also an ODD electron count, which is what puts Kramers' theorem within reach.
+    wa = Atomic.Computation(Atomic.Computation(), name="test-CrystalField", grid = Radial.Grid(true),
+                            nuclearModel = Nuclear.Model(1., UniformNucleus(), 1., 0.8783, AngularJ64(1//2), 2.7928473, 0.0, 0.0),
+                            configs = [Configuration("3d")], propertySettings = Basics.AbstractPropertySettings[] )
+    multiplet = redirect_stdout(devnull) do;   perform(wa; output=true)["multiplet:"]   end
+    grid      = Radial.Grid(true)
+    # A DELIBERATELY LOW-SYMMETRY lattice: three unequal charges at three generic directions and three distances. The
+    # point is that no point-group argument can force any degeneracy here, so a degeneracy that does appear is Kramers'
+    # and nothing else.
+    lowSym = CrystalField.Lattice( [ CrystalField.PointCharge(-2.0, rho,      0.7, 0.3),
+                                     CrystalField.PointCharge(-1.3, 1.4*rho, 1.9, 2.1),
+                                     CrystalField.PointCharge(-0.8, 0.9*rho, 2.6, 4.7) ], "low symmetry" )
+    spectrum = function(lev::Level, latt::CrystalField.Lattice, scale::Float64)
+        cfm = redirect_stdout(devnull) do
+                  CrystalField.computeRepresentation([lev], latt, CrystalField.PointChargeModel(scale), grid, 6)
+              end
+        return( sort([ cfLev.energy  for cfLev in cfm.cfLevels ]) )
+    end
+
+    for  lev  in  multiplet.levels
+        energies = spectrum(lev, lowSym, 1.0);      n = length(energies)
+        shifts   = energies .- lev.energy;          scale = maximum( abs.(shifts) )
+        # (2) KRAMERS DEGENERACY, exact for a half-integer J in ANY electrostatic field. The 2J+1 sublevels must come
+        #     in exactly degenerate pairs -- and the pairs must be DISTINCT from one another, or the check would be
+        #     passing on a spectrum that simply never split.
+        for  i = 1:div(n, 2)
+            if  abs( energies[2i] - energies[2i-1] ) > 1.0e-10 * scale
+                success = false
+                if printTest   info(iostream, "J = $(lev.J): Kramers pair $i is split by " *
+                                              "$(energies[2i] - energies[2i-1]) against a scale of $scale")   end
+            end
+        end
+        pairs = [ (energies[2i] + energies[2i-1])/2  for i = 1:div(n, 2) ]
+        for  i = 1:length(pairs)-1
+            if  abs( pairs[i+1] - pairs[i] ) < 1.0e-3 * scale
+                success = false
+                if printTest   info(iostream, "J = $(lev.J): Kramers doublets $i and $(i+1) coincide, so the " *
+                                              "degeneracy check is not being made on a split spectrum")   end
+            end
+        end
+        # (3) THE CENTRE OF GRAVITY CANNOT MOVE. Every k >= 1 term is traceless over the M_J basis -- the sum over M of
+        #     the 3-j symbol vanishes for k >= 1 -- so whatever the lattice does to the individual sublevels, the sum
+        #     of the shifts is exactly zero.
+        if  abs( sum(shifts) ) > 1.0e-10 * scale
+            success = false
+            if printTest   info(iostream, "J = $(lev.J): the crystal-field shifts sum to $(sum(shifts)) against a " *
+                                          "scale of $scale, although every k >= 1 term is traceless")   end
+        end
+        # (4) AND AN EMPTY LATTICE MOVES NOTHING AT ALL, which is the other side of (2) and (3): without it they could
+        #     both be passing on a spectrum in which nothing ever happened.
+        for  wb  in  spectrum(lev, empty, 1.0)
+            if  wb != lev.energy
+                success = false
+                if printTest   info(iostream, "J = $(lev.J): an empty lattice shifts a sublevel by $(wb - lev.energy)")   end
+            end
+        end
+    end
+
+    # (5) A RIGID ROTATION OF THE LATTICE CANNOT MOVE THE SPECTRUM. The eigenvalues describe the ion in its field; which
+    #     way round the laboratory axes are pointing is not a physical fact about it. Ranks do not mix under rotation,
+    #     so this stays exact even with the k <= 6 truncation. The rotation is applied in CARTESIAN coordinates and
+    #     converted back, so it shares no code with the spherical harmonics it tests.
+    function rotateLattice(latt::CrystalField.Lattice, alpha::Float64, beta::Float64, gamma::Float64)
+        ions = CrystalField.PointCharge[]
+        for  ion  in  latt.ions
+            x  = ion.rho*sin(ion.theta)*cos(ion.phi);   y = ion.rho*sin(ion.theta)*sin(ion.phi);   z = ion.rho*cos(ion.theta)
+            x1 = cos(gamma)*x - sin(gamma)*y;           y1 = sin(gamma)*x + cos(gamma)*y;          z1 = z
+            x2 = cos(beta)*x1 + sin(beta)*z1;           y2 = y1;                                   z2 = -sin(beta)*x1 + cos(beta)*z1
+            x3 = cos(alpha)*x2 - sin(alpha)*y2;         y3 = sin(alpha)*x2 + cos(alpha)*y2;        z3 = z2
+            wb = sqrt(x3^2 + y3^2 + z3^2)
+            push!(ions, CrystalField.PointCharge(ion.charge, wb, acos(z3/wb), atan(y3, x3)))
+        end
+        return( CrystalField.Lattice(ions, "rotated") )
+    end
+    lev      = multiplet.levels[2]
+    energies = spectrum(lev, lowSym, 1.0);   scale = maximum(energies) - minimum(energies)
+    for  (alpha, beta, gamma)  in  [(0.0, 0.0, 1.234), (0.0, 0.9, 0.0), (0.31, 1.77, 2.55)]
+        wb = spectrum(lev, rotateLattice(lowSym, alpha, beta, gamma), 1.0)
+        if  maximum( abs.(wb - energies) ) > 1.0e-10 * scale
+            success = false
+            if printTest   info(iostream, "rotating the lattice by (alpha, beta, gamma) = ($alpha, $beta, $gamma) " *
+                                          "moves the spectrum by $(maximum(abs.(wb - energies)))")   end
+        end
+    end
+
+    # (6) J-MIXING, where the two parent levels are diagonalized in ONE common M_J basis. Nothing above reaches the
+    #     off-diagonal <J||C^(k)||J'> blocks at all, and both theorems survive into the joint problem unchanged: the
+    #     ten sublevels still pair up under Kramers, and the centre of gravity of the whole ten is still the weighted
+    #     mean of the two parent energies, since the k >= 1 terms are traceless within each diagonal block and the
+    #     off-diagonal blocks contribute nothing to a trace.
+    joint = redirect_stdout(devnull) do
+                CrystalField.computeRepresentation(multiplet.levels, lowSym, CrystalField.PointChargeModel(1.0), grid, 6)
+            end
+    energies = sort([ cfLev.energy  for cfLev in joint.cfLevels ])
+    wb       = sum( Basics.twice(lv.J)+1 for lv in multiplet.levels )
+    if  length(energies) != wb
+        success = false
+        if printTest   info(iostream, "J-mixing over the two parent levels gives $(length(energies)) sublevels, not $wb")   end
+    end
+    barycentre = sum( (Basics.twice(lv.J)+1) * lv.energy  for lv in multiplet.levels )
+    scale      = maximum(energies) - minimum(energies)
+    if  abs( sum(energies) - barycentre ) > 1.0e-10 * scale
+        success = false
+        if printTest   info(iostream, "under J-mixing the centre of gravity moves by $(sum(energies) - barycentre) " *
+                                      "against a scale of $scale")   end
+    end
+    for  i = 1:div(length(energies), 2)
+        if  abs( energies[2i] - energies[2i-1] ) > 1.0e-10 * scale
+            success = false
+            if printTest   info(iostream, "under J-mixing, Kramers pair $i is split by " *
+                                          "$(energies[2i] - energies[2i-1]) against a scale of $scale")   end
+        end
+    end
+    # ... and the off-diagonal blocks must actually DO something, or the three checks above would be passing on a
+    #     problem that never mixed: the joint spectrum must differ from the union of the two separate ones.
+    wb = sort( vcat( spectrum(multiplet.levels[1], lowSym, 1.0), spectrum(multiplet.levels[2], lowSym, 1.0) ) )
+    if  maximum( abs.(energies - wb) ) < 1.0e-6 * scale
+        success = false
+        if printTest   info(iostream, "the J-mixed spectrum equals the union of the unmixed ones, so the " *
+                                      "off-diagonal blocks are contributing nothing")   end
+    end
+
+    # (7) THE SCALE FIELD, AND fitScaleField AS ITS INVERSE. For a single parent level the diagonal of the interaction
+    #     matrix is a multiple of the identity, so every shift is EXACTLY proportional to scaleField and so is the
+    #     characteristic splitting. fitScaleField must therefore return exactly the factor asked of it.
+    cxs1 = CrystalField.characteristicSplitting( redirect_stdout(devnull) do
+               CrystalField.computeRepresentation([lev], lowSym, CrystalField.PointChargeModel(1.0), grid, 6) end )
+    cxs2 = CrystalField.characteristicSplitting( redirect_stdout(devnull) do
+               CrystalField.computeRepresentation([lev], lowSym, CrystalField.PointChargeModel(2.0), grid, 6) end )
+    if  cxs1 <= 0.   ||   abs(cxs2/cxs1 - 2.0) > 1.0e-10
+        success = false
+        if printTest   info(iostream, "doubling scaleField multiplies the characteristic splitting by " *
+                                      "$(cxs2/cxs1), not by 2")   end
+    end
+    wb = redirect_stdout(devnull) do;  CrystalField.fitScaleField([lev], lowSym, grid, 3.7*cxs1, 6)  end
+    if  abs(wb - 3.7) > 1.0e-8
+        success = false
+        if printTest   info(iostream, "fitScaleField asked for 3.7 times the unit-scale splitting returns $wb")   end
+    end
+
+    # (8) characteristicSplitting itself is an algorithm on a list of numbers, and is checked as one: a spectrum whose
+    #     largest gap sits between 2 and 10 must be split there, giving mean(10, 11) - mean(0, 1, 2) = 9.5.
+    cfBasis = CrystalField.CfBasisVector[]
+    cfLev   = [ CrystalField.CfLevel(en, cfBasis, ComplexF64[])  for en in [10.0, 0.0, 2.0, 11.0, 1.0] ]
+    wb      = CrystalField.characteristicSplitting( CrystalField.CfMultiplet("synthetic", cfLev) )
+    if  abs(wb - 9.5) > 1.0e-12
+        success = false
+        if printTest   info(iostream, "characteristicSplitting of [0,1,2,10,11] is $wb, not 9.5")   end
+    end
+    if  CrystalField.characteristicSplitting( CrystalField.CfMultiplet("one level", [cfLev[1]]) ) != 0.
+        success = false
+        if printTest   info(iostream, "characteristicSplitting of a single sublevel is not 0")   end
+    end
+
+    println(iostream, "CrystalField: Kramers degeneracy for the odd electron count of H(3d) in a lattice of no "  *
+                      "symmetry at all, where nothing else can force it; the centre of gravity held fixed by the " *
+                      "tracelessness of every k >= 1 term; both of those again over the J-mixed basis, where the "  *
+                      "off-diagonal blocks are shown to contribute; the spectrum unmoved by three rigid rotations " *
+                      "of the lattice; the k = 2 sum of a perfect octahedron vanishing while A_44/A_40 = "         *
+                      "sqrt(5/14); fitScaleField as the exact inverse of a proportionality; and an empty lattice " *
+                      "moving nothing at all. NOTE what none of this can reach: every check here is a structural " *
+                      "invariant, so an overall CONSTANT on the crystal-field strength -- for instance the "       *
+                      "sqrt(2J+1) of the Wigner-Eckart factor, which for one parent level is exactly that -- "     *
+                      "passes unseen. Fixing the absolute scale needs a comparison, and that is item 67. "         *
+                      "No approved data is used.")
+    Defaults.setDefaults("print summary: close", "")
+    testPrint("testModule_CrystalField()::", success)
+    return( success )
+end

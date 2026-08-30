@@ -93,6 +93,8 @@ end
                                                             ## rho^(1p), no stored .sum
         @test TestFrames.testModule_StarkShift()   ## added 29-Aug-2026; the tensor term is traceless in M and the
                                                    ## shift is exactly quadratic in the field
+        @test TestFrames.testModule_CrystalField()  ## added 29-Aug-2026; Kramers degeneracy, the traceless centre of
+                                                    ## gravity, and a spectrum unmoved by rotating the lattice
     end
 
     @testset "JAC processes" begin
