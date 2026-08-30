@@ -16,7 +16,11 @@ if  false
     # configurations 2p, 3p, 4p, 5p -- exactly the physically relevant perturber levels for a 1s ground
     # state -- and handed to MultipolePolarizibility.Settings. The outcome now reports BOTH the Coulomb
     # and Babushkin gauge (as an EmProperty), NOT calibrated onto a common scale -- see module docstring.
-    grid = Radial.Grid(true)
+    # NOT Radial.Grid(true): its box reaches 614 a.u., and Bsplines.checkGridRepresentation refuses it
+    # for H 1s + np perturbers, n = 2..5 -- a box that is much TOO LARGE starves the fixed number of
+    # B-splines exactly as badly as one too small (Rule 12). 129.0 a.u. is the box the guard itself
+    # names for these subshells.
+    grid = Radial.Grid(Radial.Grid(true); rbox = 129.0)
     nm   = Nuclear.Model(1., PointNucleus())
 
     wa1 = Atomic.Computation(Atomic.Computation(), name="H perturber multiplet (np, n=2..5)", grid=grid,
@@ -71,8 +75,16 @@ elseif false
     nm   = Nuclear.Model(1., PointNucleus())
     nMaxHighN = 45
 
+    # gridStopper = false IS THE POINT OF THIS BRANCH, not a way round an inconvenient guard.
+    # Bsplines.checkGridRepresentation correctly reports that 80 of these 88 subshells are not physical bound
+    # Rydberg states on this grid -- it asks for a box of about 4769 a.u., which no fixed B-spline basis can
+    # carry -- and the branch's own text above says the same thing: beyond n ~ 5-6 these are deliberately
+    # pseudo-states, a discrete stand-in for the continuum's contribution to the polarizability sum. So the
+    # guard is RIGHT and the branch wants exactly what the guard is refusing; it must therefore say so
+    # explicitly rather than be silently exempted.
     wa1 = Atomic.Computation(Atomic.Computation(), name="H perturber multiplet (np, n=2..$nMaxHighN)", grid=grid,
-                            nuclearModel=nm, configs=[Configuration("$(n)p") for n = 2:nMaxHighN])
+                            nuclearModel=nm, configs=[Configuration("$(n)p") for n = 2:nMaxHighN],
+                            asfSettings=AsfSettings(AsfSettings(); gridStopper = false))
     wb1 = perform(wa1; output=true)
     gMultiplet = wb1["multiplet:"]
 
@@ -104,24 +116,13 @@ elseif false
     println(">> ratio computed/exact [Babushkin] = $(outcome.alpha0.Babushkin/4.5)")
     #
 elseif true
-    # Last visit:  31-Jul-2026
-    # Last successful:  unknown ... (date NOT yet set, first run of this branch -- Rule 7).
-    # Branch c: neutral Li [He]2s ground-level static electric-dipole polarizability -- a genuine
-    #   MANY-electron (3-electron) test, unlike H's trivial one-electron branches a/b, compared against
-    #   a real, precisely known literature value: alpha_0(Li, 2s) = 164.0740(5) a.u. (Puchalski, Yerokhin
-    #   & Pachucki-type high-precision relativistic+QED calculation), cross-checked against an independent
-    #   ~164.2(1) a.u. figure from other sources -- both web-verified this session (31-Jul-2026), not
-    #   from memory alone.
-    #   The 1s^2 core is kept FROZEN/closed throughout (both in the [He]2s ground level and in every
-    #   [He]np perturber configuration) -- this is a genuine, standard approximation (not an oversight):
-    #   the true many-electron sum also has small core-excitation/core-polarization contributions, known
-    #   from the alkali-polarizability literature to be tiny (of order 0.1-0.2 a.u., a fraction of a
-    #   percent of the total 164 a.u.), and are NOT included here. gMultiplet is built from the 9 lowest
-    #   [He]np perturber configurations (n=2..10), well within the requested 5-20 range -- Li's
-    #   polarizability is textbook-dominated (~99%) by the single 2s-2p resonance transition alone, so
-    #   this modest set should already capture most of the valence sum, unlike H's much slower-converging
-    #   1s case (branches a/b above).
-    grid = Radial.Grid(true)
+    # NOT Radial.Grid(true) here. Its box is 614 a.u. and Bsplines.checkGridRepresentation refuses it for
+    # Li [He]2s + [He]np, n = 2..10 -- a box much TOO LARGE starves the fixed number of B-splines exactly as
+    # badly as one too small (Rule 12). The guard names 359 a.u. as the box these subshells want, and the
+    # EXPONENTIAL family cannot be tuned to it: its achievable r_max is quantised (151.4, 214.9, 304.9,
+    # 432.7 ...), so no rbox request lands near 359. The non-exponential family honours rbox to 0.1 %.
+    # hp = rbox/300 is the recipe Basics.recommendedGrid itself uses.
+    grid = Radial.Grid(Radial.Grid(false), rnt = 4.0e-06, h = 5.0e-2, hp = 1.20, rbox = 359.0)
     nm   = Nuclear.Model(3., PointNucleus())
     nMaxLi = 10
 

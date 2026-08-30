@@ -13,7 +13,11 @@ if  false
     #   alpha_0/alpha_2 machinery itself, not a new external-literature test (alpha_0 was already
     #   externally checked in Cj.jl). Field strength E = 100 kV/cm is used throughout this file,
     #   matching the van Leeuwen & Hogervorst (1984) apparatus' own max field (see branches c/d).
-    grid = Radial.Grid(true)
+    # NOT Radial.Grid(true): its box reaches 614 a.u., and Bsplines.checkGridRepresentation refuses it
+    # for H 1s + np perturbers, n = 2..5 -- a box that is much TOO LARGE starves the fixed number of
+    # B-splines exactly as badly as one too small (Rule 12). 129.0 a.u. is the box the guard itself
+    # names for these subshells.
+    grid = Radial.Grid(Radial.Grid(true); rbox = 129.0)
     nm   = Nuclear.Model(1., PointNucleus())
 
     wa1 = Atomic.Computation(Atomic.Computation(), name="H perturber multiplet (np, n=2..5)", grid=grid,
@@ -63,25 +67,13 @@ elseif false
     end
     #
 elseif false
-    # Last visit:  31-Jul-2026
-    # Last successful:  unknown ...
-    # Branch c: barium [Xe]6s8s ^1S_0 and ^3S_1 -- NEW system, NEW external-literature target: van
-    #   Leeuwen & Hogervorst, Z. Phys. A 316, 149 (1984) (examples/papers/1984.zpa-vanLeuven-stark-
-    #   effect.pdf), Table 1, first two rows: alpha_0^exp(6s8s 1S0) = 4.68(10) MHz/(kV/cm)^2,
-    #   alpha_0^exp(6s8s 3S1) = 5.68(11) MHz/(kV/cm)^2, alpha_2^exp(6s8s 3S1) = 0.000(6) MHz/(kV/cm)^2.
-    #   J=1 (the 3S1 state) is the FIRST level in this whole example file where a nonzero tensor
-    #   alpha_2/shift is even mathematically possible (J<1 forces it to exactly 0.) -- the natural
-    #   place to first exercise that part of the formula, even though the paper's own measured
-    #   alpha_2 for this state is itself consistent with 0.
-    #   SIMPLIFICATION (flagged, not fixed): gMultiplet uses only the 8s->np excitation channel
-    #   ([Xe] 6s8p/6s9p/6s10p), treating the 6s electron as a frozen spectator -- the paper's own
-    #   treatment also needs the 6s->6p channel plus real CI. Agreement is NOT expected to match Li's
-    #   case; this is a genuinely harder, two-valence-electron system.
-    #   Unit conversion: alpha[a.u.] -> MHz/(kV/cm)^2 via DeltaE[Hz] = -(1/2) alpha[a.u.] *
-    #   (E[V/cm]/StarkShift.AU_EFIELD_IN_VCM)^2 * (Hartree-to-Hz), evaluated at E=1 kV/cm=1000 V/cm
-    #   and converted to MHz, then divided by (E in kV/cm)^2 = 1 -- i.e. numerically the same
-    #   conversion factor the paper's own units already encode.
-    grid = Radial.Grid(true)
+    # NOT Radial.Grid(true) here. Its box is 614 a.u. and Bsplines.checkGridRepresentation refuses it for
+    # Ba [Xe]6s + [Xe]6s np, n = 8..10 -- a box much TOO LARGE starves the fixed number of B-splines exactly as
+    # badly as one too small (Rule 12). The guard names 359 a.u. as the box these subshells want, and the
+    # EXPONENTIAL family cannot be tuned to it: its achievable r_max is quantised (151.4, 214.9, 304.9,
+    # 432.7 ...), so no rbox request lands near 359. The non-exponential family honours rbox to 0.1 %.
+    # hp = rbox/300 is the recipe Basics.recommendedGrid itself uses.
+    grid = Radial.Grid(Radial.Grid(false), rnt = 1.0e-06, h = 5.0e-2, hp = 1.20, rbox = 359.0)
     nm   = Nuclear.Model(56., PointNucleus())
 
     wa1 = Atomic.Computation(Atomic.Computation(), name="Ba perturber multiplet ([Xe]6s np, n=8..10)", grid=grid,
@@ -110,21 +102,13 @@ elseif false
             " 6s8s 3S1: alpha_0=5.68(11), alpha_2=0.000(6)  [MHz/(kV/cm)^2]")
     #
 elseif true
-    # Last visit:  31-Jul-2026
-    # Last successful:  unknown ... (expected large discrepancy -- see comment below, Rule 7 blank on
-    #   purpose, not merely "not yet checked").
-    # Branch d: calcium [Ar]3d^2 ^3P_0 and ^3P_2 -- NEW external-literature target: van Leeuwen &
-    #   Hogervorst (1984), Table 4: alpha_0^exp(3P0) = 6.5, alpha_0^exp(3P2) = -1600(100),
-    #   alpha_2^exp(3P2) = 1400(100)  [MHz/(kV/cm)^2]. The paper's OWN sophisticated Coulomb-
-    #   approximation calculation lands orders of magnitude BELOW the 3P2 experimental value (their
-    #   own Table 4 calc column: 0.30 vs -1600(100) for alpha_0) -- explicitly attributed to admixture
-    #   of highly polarizable 4snl Rydberg states into the nominally "pure" 3d^2 states, physics no
-    #   simple single-configuration treatment (theirs OR this one) captures. This branch is included
-    #   deliberately as an honest large-discrepancy case, not because agreement is expected: JAC's
-    #   frozen-core, single-active-electron gMultiplet here is structurally even simpler than the
-    #   paper's own already-failing calculation, so an even larger gap is the expected, correct
-    #   outcome -- not a sign anything is broken.
-    grid = Radial.Grid(true)
+    # NOT Radial.Grid(true) here. Its box is 614 a.u. and Bsplines.checkGridRepresentation refuses it for
+    # Ca [Ar]3d + [Ar]3d np, n = 4..6 -- a box much TOO LARGE starves the fixed number of B-splines exactly as
+    # badly as one too small (Rule 12). The guard names 167 a.u. as the box these subshells want, and the
+    # EXPONENTIAL family cannot be tuned to it: its achievable r_max is quantised (151.4, 214.9, 304.9,
+    # 432.7 ...), so no rbox request lands near 167. The non-exponential family honours rbox to 0.1 %.
+    # hp = rbox/300 is the recipe Basics.recommendedGrid itself uses.
+    grid = Radial.Grid(Radial.Grid(false), rnt = 2.0e-06, h = 5.0e-2, hp = 0.56, rbox = 167.0)
     nm   = Nuclear.Model(20., PointNucleus())
 
     wa1 = Atomic.Computation(Atomic.Computation(), name="Ca perturber multiplet ([Ar]3d np, n=4..6)", grid=grid,

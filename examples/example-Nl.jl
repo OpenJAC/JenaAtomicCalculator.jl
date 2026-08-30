@@ -54,7 +54,11 @@ if  true
     #   value equality via Empirical.energyOf, rather than a Dict.
     println("  Running a single-configuration Dirac-Fock SCF calculation for each configuration (Atomic.Computation " *
             "/ perform -- outside the Empirical module) ...")
-    grid = Radial.Grid(true)
+    # Bsplines.checkGridRepresentation refuses Radial.Grid(true) here -- its box reaches 614 a.u. and the guard
+    # names about 12.7 a.u. for these subshells, a 48-fold oversize. A box much TOO LARGE starves the fixed
+    # B-spline basis exactly as badly as one too small, and Rule 12 warns that the high-n members of each
+    # symmetry are then misrepresented -- often returning a DIFFERENT state rather than an inaccurate one.
+    grid = Radial.Grid(Radial.Grid(false), rnt = 1.0e-6, h = 5.0e-2, hp = 0.0423, rbox = 12.7)
     scfEnergy(nmx, conf) = perform(Atomic.Computation(Atomic.Computation(), name="Nl-scf", nuclearModel=nmx, grid=grid,
                                                        configs=[conf]); output=true)["multiplet:"].levels[1].energy
     energiesSCF = Pair{Configuration,Float64}[ conf => scfEnergy(nm,conf) for conf in

@@ -175,6 +175,13 @@ if  false
 ##  so a line has a continuous spectrum and is resolved by energy sharings)
 ## =====================================================================================================
 elseif  false
+    # OWN GRID for this branch: Bsplines.checkGridRepresentation refused the one used here and named
+    # about 255.0 a.u. as the box this branch's subshells want. A local grid is used rather than
+    # changing a shared one, so the branches that are already matched are not disturbed -- a box too
+    # LARGE starves the fixed B-spline basis just as badly as one too small (Rule 12). The
+    # non-exponential family is used because the exponential one quantises r_max coarsely and cannot
+    # be tuned to a target; hp = rbox/300 is Basics.recommendedGrid's own recipe.
+    grid = Radial.Grid(Radial.Grid(false), rnt = 4.0e-06, h = 5.0e-2, hp = 0.8500, rbox = 255.0)
     # Last visit:  07-Aug-2026        ## NOT successful: the open prefactor, and this basis is not converged
     #
     # RE-RUN 07-Aug-2026 AFTER THE EXCHANGE-PHASE FIX (blocker A1). Babushkin = 1.461 /s with the 2p..8p basis
@@ -608,6 +615,13 @@ elseif  false
 ##  rather than spontaneous; the observables are cross sections, not rates)
 ## =====================================================================================================
 elseif  true
+    # OWN GRID for this branch: Bsplines.checkGridRepresentation refused the one used here and named
+    # about 209.0 a.u. as the box this branch's subshells want. A local grid is used rather than
+    # changing a shared one, so the branches that are already matched are not disturbed -- a box too
+    # LARGE starves the fixed B-spline basis just as badly as one too small (Rule 12). The
+    # non-exponential family is used because the exponential one quantises r_max coarsely and cannot
+    # be tuned to a target; hp = rbox/300 is Basics.recommendedGrid's own recipe.
+    grid = Radial.Grid(Radial.Grid(false), rnt = 4.0e-06, h = 5.0e-2, hp = 0.6967, rbox = 209.0)
     # Last successful:  07-Aug-2026        ## for the ANGULAR structure; the absolute scale is NOT verified
     #
     # DATED for the polarization structure, which is exact and parameter-free, NOT for the magnitude.

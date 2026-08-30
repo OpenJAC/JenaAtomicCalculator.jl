@@ -60,7 +60,12 @@ elseif true
     # isoelectronic sequence -- and the SIGN of q flips accordingly, exactly as in the literature.
     # Sm15+ -- same recipe as Nd13+, two charge states further along the sequence, past the 5s-4f crossing.
     setDefaults("print summary: open", "zzz-AlphaVariation.sum")
-    wa = Atomic.Computation(Atomic.Computation(), name="Sm15-alpha", grid=Radial.Grid(true), nuclearModel=Nuclear.Model(62.),
+    # Bsplines.checkOrbitalConsistency refuses Radial.Grid(true) here: its two spin-orbit partners come out
+    # describing DIFFERENT states, which Rule 12 names as the signature of a box not matched to the orbitals.
+    # Radial.Grid(true) reaches 614 a.u.; Basics.recommendedGrid sizes Sm15+ at 7.4 a.u., an 83-fold oversize.
+    grid = Basics.recommendedGrid([Configuration("[Kr] 4d^10 5s"), Configuration("[Kr] 4d^10 4f")],
+                                  Nuclear.Model(62.), printout=false)
+    wa = Atomic.Computation(Atomic.Computation(), name="Sm15-alpha", grid=grid, nuclearModel=Nuclear.Model(62.),
                             configs=[Configuration("[Kr] 4d^10 5s"), Configuration("[Kr] 4d^10 4f")],
                             propertySettings=[AlphaVariation.Settings(true, 0.125, true, LevelSelection())] )
     wb = perform(wa)

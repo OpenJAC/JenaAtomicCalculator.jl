@@ -54,6 +54,13 @@ grid = Radial.Grid(Radial.Grid(false), rnt = 4.0e-6, h = 5.0e-2, hp = 1.0e-2, rb
 ##  THREE-PHOTON EMISSION -- the energy sharings only; there is no amplitude
 ## =====================================================================================================
 if  false
+    # OWN GRID for this branch: Bsplines.checkGridRepresentation refused the one used here and named
+    # about 66.0 a.u. as the box this branch's subshells want. A local grid is used rather than
+    # changing a shared one, so the branches that are already matched are not disturbed -- a box too
+    # LARGE starves the fixed B-spline basis just as badly as one too small (Rule 12). The
+    # non-exponential family is used because the exponential one quantises r_max coarsely and cannot
+    # be tuned to a target; hp = rbox/300 is Basics.recommendedGrid's own recipe.
+    grid = Radial.Grid(Radial.Grid(false), rnt = 4.0e-06, h = 5.0e-2, hp = 0.2200, rbox = 66.0)
     # Last successful:  08-Aug-2026        ## for the SIMPLEX SHARINGS only; there is still no amplitude
     #
     # --- Branch a: the ENERGY SHARINGS on the two-dimensional simplex, and their sum rule.
@@ -108,6 +115,13 @@ if  false
 ##  THREE-PHOTON ABSORPTION -- elementary, and it runs
 ## =====================================================================================================
 elseif  true
+    # OWN GRID for this branch: Bsplines.checkGridRepresentation refused the one used here and named
+    # about 95.0 a.u. as the box this branch's subshells want. A local grid is used rather than
+    # changing a shared one, so the branches that are already matched are not disturbed -- a box too
+    # LARGE starves the fixed B-spline basis just as badly as one too small (Rule 12). The
+    # non-exponential family is used because the exponential one quantises r_max coarsely and cannot
+    # be tuned to a target; hp = rbox/300 is Basics.recommendedGrid's own recipe.
+    grid = Radial.Grid(Radial.Grid(false), rnt = 4.0e-06, h = 5.0e-2, hp = 0.3167, rbox = 95.0)
     # Last successful:  08-Aug-2026        ## for the SELECTION RULE, the ordering count and the Z-scaling
     #
     # DATED for what it verifies -- three exact, parameter-free structural checks -- and NOT for the magnitude,

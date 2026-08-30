@@ -118,7 +118,13 @@ elseif true
     #   EXACT match is not expected since our 6-level chain is not the complete degenerate m=0 subspace
     #   (that would require the excluded kappa<=-2 levels too); the ~3% proximity is a meaningful,
     #   honest sanity check, not a precision benchmark.
-    grid = Radial.Grid(true)
+    # OWN GRID for this branch: Bsplines.checkGridRepresentation refused the one used here and named
+    # about 168.0 a.u. as the box the high-n hydrogenic set of this branch want. A local grid is used rather than
+    # changing a shared one, so the branches that are already matched are not disturbed -- a box too
+    # LARGE starves the fixed B-spline basis just as badly as one too small (Rule 12). The
+    # non-exponential family is used because the exponential one quantises r_max coarsely and cannot
+    # be tuned to a target; hp = rbox/300 is Basics.recommendedGrid's own recipe.
+    grid = Radial.Grid(Radial.Grid(false), rnt = 4.0e-06, h = 5.0e-2, hp = 0.5600, rbox = 168.0)
     nm   = Nuclear.Model(1., PointNucleus())
     n    = 6
     configs = [Configuration("$(n)s"), Configuration("$(n)p"), Configuration("$(n)d"),

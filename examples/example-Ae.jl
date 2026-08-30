@@ -107,7 +107,13 @@ elseif  false
     # InteractionStrengthQED.selfEnergyVolotka returns EXACTLY 0. for n>4 by explicit code guard (not an
     # error, not a silently wrong nonzero value), so only the Uehling vacuum-polarization piece survives for
     # Petersburg at n=5; this directly answers "which features can be used technically smoothly."
-    grid = Radial.Grid(true)
+    # OWN GRID for this branch: Bsplines.checkGridRepresentation refused the one used here and named
+    # about 2.4 a.u. as the box these subshells want. A local grid is used rather than
+    # changing a shared one, so the branches that are already matched are not disturbed -- a box too
+    # LARGE starves the fixed B-spline basis just as badly as one too small (Rule 12). The
+    # non-exponential family is used because the exponential one quantises r_max coarsely and cannot
+    # be tuned to a target; hp = rbox/300 is Basics.recommendedGrid's own recipe.
+    grid = Radial.Grid(Radial.Grid(false), rnt = 1.0e-07, h = 5.0e-2, hp = 0.0080, rbox = 2.4)
     settingsNone       = AsfSettings()
     settingsPetersburg = AsfSettings(AsfSettings(); qedModel=QedPetersburg())
     settingsSydney     = AsfSettings(AsfSettings(); qedModel=QedSydney())
