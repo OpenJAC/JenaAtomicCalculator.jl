@@ -483,7 +483,10 @@ function testRepresentation_RasExpansion(; short::Bool=true)
     # independently verified) by examples/example-Ai.jl Scenario B.
     name        = "Beryllium 1s^2 2s^2 ^1S_0 ground state"
     refConfigs  = [Configuration("[He] 2s^2")]
-    rasSettings = RasSettings([1], 24, 1.0e-6, CoulombInteraction(), LevelSelection(true, indices=[1]) )
+    # 60 iterations, not 24, because this test now asserts CONVERGENCE and not merely a number: with the
+    # gradient corrected (items 121, 122 and the L-BFGS curvature pairs) step 1 converges at 12 and step 2 at
+    # 45, so a budget of 24 would assert a failure.  The cost is a few seconds.
+    rasSettings = RasSettings([1], 60, 1.0e-6, CoulombInteraction(), LevelSelection(true, indices=[1]) )
     coreShells  = [Shell("1s")]
     fromShells  = [Shell("2s")]
     layers      = [ RasLayer(Shell[]; se=false, de=false),   # layer 1: reference SCF only, no correlation
@@ -542,6 +545,28 @@ function testRepresentation_RasExpansion(; short::Bool=true)
     if  abs(wb["step2"].levels[1].energy + 14.618871268972836)  > 1.0e-3
         success = false
         if printTest   info(iostream, "levels[1].energy $(wb["step2"].levels[1].energy) != -14.618871268972836")   end
+    end
+
+    # AND THE FIELD MUST CONVERGE, WHICH IS A DIFFERENT ASSERTION FROM THE ENERGY ABOVE.  Every EOL exit
+    # other than convergence now raises a collected warning, so a converged run leaves the report clean and a
+    # stalled one does not.  Reading the report is also what a user has: `generate` ends with PrintWarnings()
+    # followed by ResetWarnings(), so by the time it returns the file is the only record.
+    #   THIS IS THE CHECK THAT WAS MISSING.  The energy assertion above passed unchanged through every change
+    # made to this solver between 29 and 31-Aug-2026, INCLUDING the two that made it worse -- a unit-step
+    # reset that killed the line search at iteration 11, and a 4x growth factor that lost a convergence -- and
+    # through the three gradient defects that preceded them.  A tolerance of 1e-3 on an energy cannot see any
+    # of that; the stop reason can.
+    #   NEGATIVE CONTROL, measured 31-Aug-2026 rather than assumed: forcing the field to :steepest leaves both
+    # layers unconverged at the 60-iteration limit, step 2 with |grad| = 5.3e-03 -- and its energy is
+    # -14.618760171, which deviates by 1.1e-04 and so PASSES the energy assertion above.  The check below is
+    # what fails, which is the whole reason it exists.
+    let  report = "jac-warn.report"
+        text = isfile(report) ? read(report, String) : ""
+        if  occursin("solveOptimizedLevelFieldByRotation", text)
+            success = false
+            if printTest   info(iostream, "the EOL field did not converge in this RAS expansion; " *
+                                          "jac-warn.report holds: $text")   end
+        end
     end
 
     testPrint("testRepresentation_RasExpansion()::", success)
