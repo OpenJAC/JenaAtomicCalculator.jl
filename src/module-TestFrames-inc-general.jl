@@ -1889,6 +1889,27 @@ function testModule_SelfConsistent(; short::Bool=true)
     #     28-Aug-2026 at dE/E = 2e-9 and an overlap of 1.0 to twelve digits; the tolerances below leave a factor
     #     of about fifty. Bit-identity is NOT asserted -- the cycle still performs an iteration and the last
     #     digits move -- so what is pinned is that the physics is stationary, which is the actual claim.
+    # (3) A NON-CONVERGED FIELD MUST SAY SO WHERE A SCRIPT CAN SEE IT.  solveMeanFieldBasis and
+    #     solveAverageAtomField have raised a COLLECTED warning on non-convergence for a long time; the AL and
+    #     EOL fields only printed to the console, so a driver that writes its multiplet to a file recorded
+    #     unconverged energies with nothing to mark them.  That is the failure mode this checks: run AL with
+    #     maxIterationsScf = 1, which cannot converge, and require that the warning reaches the report.
+    #     It is read from jac-warn.report and NOT from Defaults.GBL_WARNINGS, because `perform` ends with
+    #     PrintWarnings() followed by ResetWarnings() -- so by the time it returns the array is empty and the
+    #     file is the only record.  Reading the file is also what a user actually has.
+    let  report = "jac-warn.report"
+        rm(report, force = true)
+        redirect_stdout(devnull) do
+            scf(AsfSettings(AsfSettings(); scField = Basics.ALField(), maxIterationsScf = 1))
+        end
+        text = isfile(report) ? read(report, String) : ""
+        if  !( occursin("solveAverageLevelField", text)  &&  occursin("did NOT converge", text) )
+            success = false
+            if printTest   info(iostream, "an AL field stopped at maxIterationsScf = 1 left no non-convergence " *
+                                          "warning in $report; the file holds: $text")   end
+        end
+    end
+
     orb2 = scf(AsfSettings(AsfSettings(); startScfFrom = StartFromPrevious(orb1))).levels[1].basis.orbitals
     for  sh  in  shs
         de = abs(orb2[sh].energy - orb1[sh].energy) / abs(orb1[sh].energy)
@@ -2547,5 +2568,120 @@ function testModule_Continuum(; short::Bool=true)
                       "normalizeOrbitalPureSine -- exercised from both sides. No approved data is used.")
     Defaults.setDefaults("print summary: close", "")
     testPrint("testModule_Continuum()::", success)
+    return( success )
+end
+
+
+"""
+`TestFrames.testMethod_ThomasReicheKuhn(; short::Bool=true)`  ... tests the Thomas-Reiche-Kuhn sum rule for the
+    dipole oscillator strengths of hydrogen; a success::Bool is returned.
+"""
+function testMethod_ThomasReicheKuhn(; short::Bool=true)
+    Defaults.setDefaults("print summary: open", "test-ThomasReicheKuhn-new.sum")
+    printstyled("\n\nTest the Thomas-Reiche-Kuhn sum rule  ... \n", color=:cyan)
+    # THE ONE CHECK IN THIS SUITE THAT PINS AN ABSOLUTE SCALE. Everything else asserted about a cross section or an
+    # oscillator strength here is a RELATION -- a ratio, a symmetry, an invariance -- and three separate scale
+    # errors survived for weeks in 2026 precisely because every check they met was of that kind: the plasma
+    # photoionization normalisation (item 64, wrong by 4 pi/(alpha omega)^2), MultipolePolarizibility (challenge
+    # 113, wrong by ~2600 with the two gauges agreeing EXACTLY with each other), and example-Ak.jl, which ran for
+    # years while reporting only counts. A sum rule cannot be satisfied by a wrongly scaled spectrum.
+    #
+    # Thomas-Reiche-Kuhn: the dipole oscillator strengths from a given state sum to the number of electrons. For
+    # hydrogen that is 1, and the BOUND states carry only 0.5650 of it -- the continuum holds the remaining
+    # 0.4350. So the rule is only reachable if the B-spline pseudo-continuum is included, and it is that
+    # requirement which makes this an absolute test rather than a comparison.
+    success = true;    printTest, iostream = Defaults.getDefaults("test flag/stream")
+    # NuclearField, not the default DFS: a ONE-electron system in a mean field built from its own density is
+    # repelled by itself (see SelfConsistent.checkOneElectronSelfInteraction). gridStopper = false is the POINT
+    # rather than a workaround -- the grid guard correctly reports that the high-n np states are not physical
+    # bound states on this box, which is exactly what a pseudo-continuum is.
+    grid = Radial.Grid(Radial.Grid(false), rnt = 4.0e-6, h = 5.0e-2, hp = 2.0e-2, rbox = 120.0)
+    nm   = Nuclear.Model(1., PointNucleus())
+    asf  = AsfSettings(AsfSettings(); scField = Basics.NuclearField(), gridStopper = false)
+    peS  = PhotoExcitation.Settings(PhotoExcitation.Settings(); multipoles=[E1],
+                                    gauges=[UseCoulomb, UseBabushkin], printBefore=false)
+    wa   = Atomic.Computation(Atomic.Computation(), name="Thomas-Reiche-Kuhn", grid=grid, nuclearModel=nm,
+               initialConfigs = [Configuration("1s")],                        initialAsfSettings = asf,
+               finalConfigs   = [Configuration("$(n)p")  for n = 2:20],       finalAsfSettings   = asf,
+               processSettings = peS)
+    lines = redirect_stdout(devnull) do;  perform(wa; output=true)["photo-excitation lines:"]  end
+
+    # (1) the ground state is the exact hydrogenic one; without this the rest could be a sum rule of the wrong atom
+    if  abs(lines[1].initialLevel.energy + 0.5) > 1.0e-4
+        success = false
+        if printTest   info(iostream, "the 1s level is at $(lines[1].initialLevel.energy), not -0.5")   end
+    end
+
+    # (2) THE INDIVIDUAL OSCILLATOR STRENGTHS AGAINST THE CLOSED FORM. Summed over the two fine-structure
+    #     components, f(1s->np) is 0.4162, 0.0791, 0.0290, 0.0139, 0.0078 for n = 2..6 -- textbook hydrogen, and
+    #     an exact statement rather than a stored number.
+    # Rounded to THREE decimals, not more: the two fine-structure components of one n differ in omega only at the
+    # sixth (0.375005 against 0.375006), so a finer key splits the doublet and compares one component against the
+    # pair's total. Three decimals still separates n = 2..7 cleanly (0.375, 0.444, 0.469, 0.480, 0.486, 0.490).
+    byOmega = Dict{Float64,Vector{EmProperty}}()
+    for  l in lines   push!( get!(byOmega, round(l.omega, digits=3), EmProperty[]), l.oscStrength )   end
+    fSorted = [ sum(v).Coulomb  for v in [byOmega[k] for k in sort(collect(keys(byOmega)))] ]
+    for  (i, fExact)  in  enumerate([0.41620, 0.07910, 0.02899, 0.01394, 0.00780])
+        if  abs(fSorted[i] - fExact) > 1.0e-3 * fExact
+            success = false
+            if printTest   info(iostream, "f(1s->$(i+1)p) = $(fSorted[i]) against the exact $fExact")   end
+        end
+    end
+
+    # (3) THE FINE-STRUCTURE RATIO. f(np_3/2)/f(np_1/2) is 2 by statistical weight, exactly in the
+    #     non-relativistic limit; the residue is the O((alpha Z)^2) = 5.3e-5 correction that item 46 measured, so
+    #     1e-3 is the right tolerance and a factor error would be caught while that correction is not.
+    for  k  in  keys(byOmega)
+        v = byOmega[k];   length(v) == 2 || continue
+        r = max(v[1].Coulomb, v[2].Coulomb) / min(v[1].Coulomb, v[2].Coulomb)
+        if  abs(r - 2.0) > 1.0e-3
+            success = false
+            if printTest   info(iostream, "the doublet at omega = $k has f-ratio $r, not 2")   end
+        end
+    end
+
+    # (4) THE PSEUDO-CONTINUUM MUST ACTUALLY BE THERE, or (5) below would be a statement about bound states only.
+    #     Measured: 22 of the 38 final levels lie ABOVE threshold.
+    nPositive = count(l -> l.finalLevel.energy > 0., lines)
+    if  nPositive < 15
+        success = false
+        if printTest   info(iostream, "only $nPositive of $(length(lines)) final levels are above threshold; the " *
+                                      "sum below would then be over bound states alone")   end
+    end
+
+    # (5) THE SUM RULE ITSELF, from both sides. It must EXCEED 0.5650 -- the sum over ALL bound states, which no
+    #     bound spectrum can pass -- and it must not exceed 1, the electron number, which no spectrum may pass.
+    #     Measured here: 0.688. Extending the basis walks it up to 0.958 at n <= 60, and it approaches 1 from
+    #     below as it must.
+    sumC = sum(l.oscStrength.Coulomb   for l in lines)
+    sumB = sum(l.oscStrength.Babushkin for l in lines)
+    for  (lab, s)  in  [("Coulomb", sumC), ("Babushkin", sumB)]
+        if  s <= 0.5650
+            success = false
+            if printTest   info(iostream, "the $lab oscillator-strength sum is $s, at or below the bound-state " *
+                                          "limit 0.5650, so the pseudo-continuum is contributing nothing")   end
+        end
+        if  s >= 1.0
+            success = false
+            if printTest   info(iostream, "the $lab oscillator-strength sum is $s, which EXCEEDS the electron " *
+                                          "number: Thomas-Reiche-Kuhn is violated")   end
+        end
+    end
+
+    # (6) and the two gauges agree, because with NuclearField the orbitals are the exact hydrogenic ones
+    if  abs(sumC - sumB) > 1.0e-6 * sumC
+        success = false
+        if printTest   info(iostream, "the two gauges give $sumC and $sumB for the sum")   end
+    end
+
+    println(iostream, "Thomas-Reiche-Kuhn: hydrogen 1s -> np, n = 2..20, on a B-spline basis in which " *
+                      "$nPositive of $(length(lines)) final levels lie above threshold. The oscillator strengths " *
+                      "reproduce the closed-form 0.4162, 0.0791, 0.0290, 0.0139, 0.0078 for n = 2..6; the "      *
+                      "fine-structure doublets carry them in the statistical ratio 2; and the sum comes to "     *
+                      "$(round(sumC, digits=6)), which EXCEEDS the all-bound-states limit of 0.5650 -- so the "  *
+                      "pseudo-continuum is contributing -- while staying below the electron number of 1, which " *
+                      "the sum rule forbids it to pass. No approved data is used.")
+    Defaults.setDefaults("print summary: close", "")
+    testPrint("testMethod_ThomasReicheKuhn()::", success)
     return( success )
 end

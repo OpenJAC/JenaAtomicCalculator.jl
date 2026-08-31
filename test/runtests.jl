@@ -34,6 +34,9 @@ end
         @test TestFrames.testMethod_Opacities()
         @test TestFrames.testMethod_SpinAngular()
         @test TestFrames.testMethod_DocstringPointers()
+        @test TestFrames.testMethod_ThomasReicheKuhn()  ## added 31-Aug-2026; the ONE check here that pins an
+                                                        ## ABSOLUTE scale -- sum f = N, which no wrongly scaled
+                                                        ## spectrum can satisfy
         @test TestFrames.testModule_AngularMomentum()   ## the four added 28-Aug-2026 are closed-form or
         @test TestFrames.testModule_HydrogenicIon()     ## identity checks: inverses, limits, orthogonality
         @test TestFrames.testModule_Nuclear()           ## and exact hydrogenic values -- so none of them
