@@ -2418,6 +2418,7 @@ struct  LevelSelection  <:  AbstractSelection
     active         ::Bool  
     indices        ::Array{Int64,1}
     symmetries     ::Array{LevelSymmetry,1}
+    configurations ::Array{Configuration,1}
 end
 
 
@@ -2425,16 +2426,22 @@ end
 `Basics.LevelSelection()`  ... constructor for an inactive LevelSelection.
 """
 function  LevelSelection()
-    LevelSelection( false, Int64[], LevelSymmetry[])    
+    LevelSelection( false, Int64[], LevelSymmetry[], Configuration[])    
 end
 
 
 """
-`Basics.LevelSelection(active::Bool; indices::Array{Int64,1}=Int64[], symmetries::Array{LevelSymmetry,1}=LevelSymmetry[])`  
-    ... constructor for specifying the details of a LevelSelection.
+`Basics.LevelSelection(active::Bool; indices::Array{Int64,1}=Int64[], symmetries::Array{LevelSymmetry,1}=LevelSymmetry[],
+                       configurations::Array{Configuration,1}=Configuration[])`  
+    ... constructor for specifying the details of a LevelSelection.  At most ONE of the three ways of naming levels
+        should be given.  `configurations` names the REFERENCE configurations and selects the levels that are built
+        mainly from them, measured by the weight the level carries on those configurations' CSFs; it is the only one
+        of the three that survives an intruder level dropping into the energy ordering, and it is therefore the one
+        to use for the target set of an EOL field.  See SelfConsistent.selectTargetLevelsEOL.
 """
-function  LevelSelection(active::Bool; indices::Array{Int64,1}=Int64[], symmetries::Array{LevelSymmetry,1}=LevelSymmetry[])
-    if  active   LevelSelection( true, indices, symmetries)  
+function  LevelSelection(active::Bool; indices::Array{Int64,1}=Int64[], symmetries::Array{LevelSymmetry,1}=LevelSymmetry[],
+                        configurations::Array{Configuration,1}=Configuration[])
+    if  active   LevelSelection( true, indices, symmetries, configurations)  
     else         LevelSelection()
     end
 end
@@ -2717,10 +2724,6 @@ export  AbstractGenerateTheme, CondensedMultiplet, ConfigurationListNRFromBasis,
 `abstract type Basics.AbstractComputeTheme`
     ... defines an abstract and a number of singleton types to select the computation theme for Basics.compute(), replacing the former
         string-key dispatch.
-
-    + AngularCoeffsEeRatip2013    ... compute electron-electron angular coefficients via the Ratip2013 interface.
-    + AngularCoeffs1pRatip2013    ... compute single-particle angular coefficients via the Ratip2013 interface.
-    + AngularCoeffs1pGrasp92      ... compute single-particle angular coefficients via the Grasp92 interface.
     + CImatrixWithSymmetryJP      ... compute the CI Hamiltonian matrix for a given J^P symmetry block.
 
         THE FOUR RadialOrbital* THEMES WERE RETIRED on 13-Aug-2026: RadialOrbitalBunge1993, RadialOrbitalMcLean1981, RadialOrbitalHydrogenic
@@ -2738,17 +2741,11 @@ export  AbstractGenerateTheme, CondensedMultiplet, ConfigurationListNRFromBasis,
         potential.
 """
 abstract type  AbstractComputeTheme                                              end
-struct         AngularCoeffsEeRatip2013   <:  AbstractComputeTheme              end
-struct         AngularCoeffs1pRatip2013   <:  AbstractComputeTheme              end
-struct         AngularCoeffs1pGrasp92     <:  AbstractComputeTheme              end
 struct         CImatrixWithSymmetryJP     <:  AbstractComputeTheme              end
 
-@doc "... compute electron-electron angular coefficients via the Ratip2013 interface."                                        AngularCoeffsEeRatip2013
-@doc "... compute single-particle angular coefficients via the Ratip2013 interface."                                          AngularCoeffs1pRatip2013
-@doc "... compute single-particle angular coefficients via the Grasp92 interface."                                              AngularCoeffs1pGrasp92
 @doc "... compute the CI Hamiltonian matrix for a given J^P symmetry block."                                                    CImatrixWithSymmetryJP
 
-export  AbstractComputeTheme, AngularCoeffsEeRatip2013, AngularCoeffs1pRatip2013, AngularCoeffs1pGrasp92,
+export  AbstractComputeTheme,
         CImatrixWithSymmetryJP
 
 

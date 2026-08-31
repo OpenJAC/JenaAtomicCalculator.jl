@@ -98,6 +98,63 @@ end
 
 
 """
+`SelfConsistent.computeFunctionalSplit(coeffs1p, coeffs2p, orbitals, grid, potential, isFrozen, frozenRk)`  
+    ... the same functional as computeFunctional, but returned as the PAIR (eFrozen, eActive): the part built
+        entirely from frozen subshells, and the rest.  Two things follow from the split, and they are the
+        reason it exists.
+
+        (1) PRECISION.  The line search of the EOL driver decides descent by comparing two total energies.
+        For a heavy ion that total is enormous -- Cf^17+ sits at -32975.774170971636 Ha -- while an orbital
+        step in a correlation layer moves it in the twelfth digit, a relative 3e-16, which is the resolution
+        of the number itself.  Measured on Cf^17+ with an SD layer into {7s,7p}: on three different boxes the
+        driver stopped with |dE| = 0.0 EXACTLY while the gradient was still 7e-3, three orders above its
+        tolerance.  The frozen part is identical for the start point and for every trial of one line search --
+        the angular coefficients are fixed within an iteration and the frozen orbitals never move -- so
+        comparing eActive alone is the SAME test carried out on numbers a thousand times smaller, and the
+        cancellation that destroyed the digits never happens.
+
+        (2) COST.  The radial integral over a quadruple of frozen subshells is constant for the whole run, so
+        it is memoised in `frozenRk`, which the caller owns and reuses across iterations.  The existing
+        per-call cache inside computeFunctional cannot do this: it is discarded at every evaluation, and the
+        line search alone evaluates the functional up to 24 times per iteration.  Measured share of frozen-only
+        quadruples for Cf^17+ with the spectroscopic shells frozen: 1287 of 1592 coefficients (80.8 %) for a
+        layer into {7s,7p} and 1287 of 2276 (56.5 %) into {7s,7p,7d,7f} -- the count is a property of the
+        frozen core, so it is the same absolute work saved in both.
+"""
+function computeFunctionalSplit(coeffs1p::Array{Coefficient1p,1}, coeffs2p::Array{Coefficient2p,1},
+                                orbitals::Dict{Subshell, Orbital}, grid::Radial.Grid, potential::Radial.Potential,
+                                isFrozen::Function, frozenRk::Dict{NTuple{5,Any}, Float64})
+    eFrozen = 0.;    eActive = 0.
+
+    for  cf  in  coeffs1p
+        wa = cf.T * RadialIntegrals.GrantIab(orbitals[cf.a], orbitals[cf.b], grid, potential)
+        if  isFrozen(cf.a) && isFrozen(cf.b)    eFrozen = eFrozen + wa    else    eActive = eActive + wa    end
+    end
+
+    rkCache = Dict{NTuple{5,Any}, Float64}()          # per-call, for quadruples that touch an active subshell
+    for  cf  in  coeffs2p
+        key = (cf.nu, cf.a, cf.b, cf.c, cf.d)
+        if  isFrozen(cf.a) && isFrozen(cf.b) && isFrozen(cf.c) && isFrozen(cf.d)
+            rk = get!(frozenRk, key) do
+                     InteractionStrength.XL_CoulombKinkAware(cf.nu, orbitals[cf.a], orbitals[cf.b],
+                                                                   orbitals[cf.c], orbitals[cf.d], grid)
+                 end
+            eFrozen = eFrozen + cf.V * rk
+        else
+            rk = get!(rkCache, key) do
+                     InteractionStrength.XL_CoulombKinkAware(cf.nu, orbitals[cf.a], orbitals[cf.b],
+                                                                   orbitals[cf.c], orbitals[cf.d], grid)
+                 end
+            eActive = eActive + cf.V * rk
+        end
+    end
+
+    return( (eFrozen, eActive) )
+end
+
+
+
+"""
 `SelfConsistent.rotateOrbitals(subshellList::Array{Subshell,1}, orbitals::Dict{Subshell, Orbital}, grid::Radial.Grid,
                                settings::AsfSettings)`
     ... rotates pairwise the orbitals to enhance the covergence of the SCF procedures; it follows that 

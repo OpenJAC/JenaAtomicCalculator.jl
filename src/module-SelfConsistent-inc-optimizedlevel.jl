@@ -126,8 +126,56 @@ end
         lowest level overall -- a genuine OL (one-level) computation.
         An  Array{Level,1}  is returned.
 """
+function referenceCsfIndices(basis::Basis, refConfigs::Array{Configuration,1})
+    # A CSF belongs to a reference configuration when its NON-RELATIVISTIC occupations agree with that
+    # configuration's shell by shell; the relativistic subshells of one shell are summed, so that a
+    # configuration named as 5f^1 matches CSFs carrying 5f_5/2^1 or 5f_7/2^1 alike.
+    refOccs = [ Dict{Shell,Int64}( sh => n  for (sh, n) in conf.shells  if n > 0 )  for conf in refConfigs ]
+    indices = Int64[]
+    for  (ic, csf)  in  enumerate(basis.csfs)
+        occ = Dict{Shell,Int64}()
+        for  (i, subsh)  in  enumerate(basis.subshells)
+            if  csf.occupation[i] > 0
+                sh = Shell(subsh.n, Basics.subshell_l(subsh));    occ[sh] = get(occ, sh, 0) + csf.occupation[i]
+            end
+        end
+        if  any(r -> r == occ, refOccs)    push!(indices, ic)    end
+    end
+    return( indices )
+end
+
+
 function selectTargetLevelsEOL(mp::Multiplet, levelSelectionCI::LevelSelection)
-    if  !levelSelectionCI.active  ||  ( isempty(levelSelectionCI.indices) && isempty(levelSelectionCI.symmetries) )
+    if  levelSelectionCI.active  &&  !isempty(levelSelectionCI.configurations)
+        # SELECTION BY REFERENCE WEIGHT.  Selecting the EOL target set by index is not merely imprecise, it is
+        # UNSTABLE: the indices refer to the energy-sorted multiplet, so the moment a correlation configuration
+        # sinks below the reference -- which is what a doubly-excited layer routinely does before its orbitals
+        # have settled -- indices 1..n stop pointing at the reference levels and the field begins optimizing the
+        # intruders.  The functional then changes identity between iterations and the optimizer has no fixed
+        # minimum to find; measured on Cf^17+ with an SD layer into {7s,7p}, the gradient plateaued at 0.69 while
+        # the step collapsed to 5e-8, and the returned "ground state" was a 7p^2 level of the wrong J.
+        # Weighting on the reference CSFs is immune to that, because it asks what a level IS and not where it
+        # sits.  The premise is the ordinary one for this kind of work: the reference configurations are chosen
+        # so that the level ORDER is already right and correlation only improves the energies.
+        refIdx = SelfConsistent.referenceCsfIndices(mp.levels[1].basis, levelSelectionCI.configurations)
+        if  isempty(refIdx)     error("SelfConsistent.selectTargetLevelsEOL(): none of the $(length(mp.levels[1].basis.csfs)) " *
+                                      "CSFs in this basis belongs to the reference configurations " *
+                                      "$(levelSelectionCI.configurations).")   end
+        targetLevels = Level[];    best = 0.0
+        for  level  in  mp.levels                              # energy-sorted
+            w = sum( level.mc[r]^2  for r in refIdx );    best = max(best, w)
+            if  w >= 0.5    push!(targetLevels, level)    end
+        end
+        # A THRESHOLD OF 0.5 IS THE STATEMENT "this level IS a reference level", the same rule the Os^16+ and
+        # Cf application reports had to apply by hand afterwards.  Failing it is not something to paper over
+        # with a fallback to the lowest levels: it means the reference space does not describe this spectrum,
+        # and continuing would optimize on states nobody chose.
+        if  isempty(targetLevels)   error("SelfConsistent.selectTargetLevelsEOL(): no level carries a weight of 0.5 " *
+                    "or more on the reference configurations $(levelSelectionCI.configurations); the largest is " *
+                    "$best.  The reference space does not describe these levels, so no EOL target set can be formed.")
+        end
+        return( targetLevels )
+    elseif  !levelSelectionCI.active  ||  ( isempty(levelSelectionCI.indices) && isempty(levelSelectionCI.symmetries) )
         return( [ mp.levels[1] ] )
     elseif  !isempty(levelSelectionCI.indices)  &&  !isempty(levelSelectionCI.symmetries)
         error("stop a; levelSelectionCI must specify EITHER indices OR symmetries for the EOL scheme, not both.")
@@ -275,6 +323,26 @@ function energyFromBVectors(bVectors::Dict{Subshell, Vector{Float64}},
     end
     return( SelfConsistent.computeFunctional(coeffs1p, coeffs2p, orbitals, grid, nucPot) )
 end
+
+
+"""
+`SelfConsistent.energyFromBVectorsSplit(bVectors, coeffs1p, coeffs2p, subshells, primitives, grid, nucPot,
+                                        isFrozen, frozenRk)`  
+    ... as energyFromBVectors, but returns the pair (eFrozen, eActive) of SelfConsistent.computeFunctionalSplit,
+        which is what the line search compares and what carries the persistent radial memo.
+"""
+function energyFromBVectorsSplit(bVectors::Dict{Subshell, Vector{Float64}},
+                                 coeffs1p::Array{Coefficient1p,1}, coeffs2p::Array{Coefficient2p,1},
+                                 subshells::Array{Subshell,1}, primitives::Bsplines.Primitives,
+                                 grid::Radial.Grid, nucPot::Radial.Potential,
+                                 isFrozen::Function, frozenRk::Dict{NTuple{5,Any}, Float64})
+    orbitals = Dict{Subshell, Orbital}()
+    for  sh  in  subshells
+        orbitals[sh] = Bsplines.generateOrbitalFromVector(sh, 0.0, bVectors[sh], primitives)
+    end
+    return( SelfConsistent.computeFunctionalSplit(coeffs1p, coeffs2p, orbitals, grid, nucPot, isFrozen, frozenRk) )
+end
+
 
 
 """
@@ -695,6 +763,12 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
     # renormalizes, and its Gram-Schmidt would rotate them on the occasions it fires.
     frozenSubshells = [ sh  for sh in basis.subshells  if    sh in settings.frozenSubshells ]
     activeSubshells = [ sh  for sh in basis.subshells  if  !(sh in settings.frozenSubshells) ]
+    # The descent test and the radial memo both work on the SPLIT functional; see
+    # SelfConsistent.computeFunctionalSplit for why.  frozenRk survives the whole run, because a Slater
+    # integral over four frozen orbitals cannot change while those orbitals do not.
+    frozenSet   = Set(frozenSubshells)
+    isFrozenSub = sh -> sh in frozenSet
+    frozenRk    = Dict{NTuple{5,Any}, Float64}()
     pinnedB         = Dict{Subshell, Vector{Float64}}( sh => copy(bVectors[sh])  for sh in frozenSubshells )
     restoreFrozen!  = function(bs)
         for  sh  in  frozenSubshells    bs[sh] = copy(pinnedB[sh])    end
@@ -745,8 +819,12 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
         (bVectors, _) = SelfConsistent.projectOntoPositiveBranch(bVectors, basis.subshells, primitives,
                                                         nucPot, matrixB, storage; spectrum=posSpectrum)
         restoreFrozen!(bVectors)
-        e0   = SelfConsistent.energyFromBVectors(bVectors, coeffs1p, coeffs2p, basis.subshells,
-                                                         primitives, grid, nucPot)
+        # e0 IS NOW THE ACTIVE PART ALONE.  The frozen part is common to this point and to every trial of the
+        # line search below -- the angular coefficients are fixed within this iteration and the frozen orbitals
+        # do not move -- so it cancels in `eTrial < e0` exactly, and leaving it out of BOTH sides is what keeps
+        # the comparison meaningful at Z = 98, where the total is 3e4 Ha and a step moves its twelfth digit.
+        (e0Frozen, e0) = SelfConsistent.energyFromBVectorsSplit(bVectors, coeffs1p, coeffs2p, basis.subshells,
+                                                         primitives, grid, nucPot, isFrozenSub, frozenRk)
         grad = SelfConsistent.computeOrbitalGradient(bVectors, coeffs1p, coeffs2p, basis.subshells,
                                                              primitives, nucPot, storage)
         virt = SelfConsistent.virtualDirections(bVectors, basis.subshells, primitives, nucPot,
@@ -884,6 +962,9 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
             # is not the same as a converged gradient and must not be reported as one.
             stopReason = "direction collapsed";   println(">> [EOL-C3] STOPPED at iteration $iter: the preconditioned direction has collapsed " *
                     "(|s| = $sNorm), with |grad| = $gNorm.  This is NOT convergence.")
+            Defaults.warn(AddWarning(), "SelfConsistent.solveOptimizedLevelFieldByRotation(): the EOL field did NOT " *
+                          "converge -- the preconditioned direction collapsed at iteration $iter with |grad| = " *
+                          @sprintf("%.1e", gNorm) * ".  The energies are NOT self-consistent.")
             break
         end
         if  printout
@@ -901,7 +982,13 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
             break
         end
 
-        # backtracking line search along -gProj; halve until the energy actually falls
+        # THE STEP IS INHERITED FROM THE PREVIOUS ITERATION, AND IT MUST BE.  Resetting it to 1.0 here was
+        # tried on 31-Aug-2026 and FAILS OUTRIGHT: 24 halvings from unity reach only 1/2^24 = 6.0e-8, while
+        # the steps this surface actually accepts at that stage are 4e-9 to 1e-8 -- SMALLER than the search
+        # can reach from a unit start -- so no descent is found and the run stops.  Measured on Cf^17+ with
+        # an SD layer into {7s,7p}: dead at iteration 11 against 100 iterations of real progress with the
+        # step inherited.  The small steps are what the surface requires, not the residue of a collapse.
+        # What IS too slow is the recovery rate; see the growth factor at the acceptance below.
         accepted = false
         for  trial = 1:24
             newB = Dict{Subshell, Vector{Float64}}( sh => bVectors[sh]  for sh in basis.subshells )
@@ -919,13 +1006,26 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
             # fixed-coefficient functional, and equals it at the previous orbitals).
             (projB, negW) = SelfConsistent.projectOntoPositiveBranch(newB, basis.subshells,
                                                     primitives, nucPot, matrixB, storage; spectrum=posSpectrum)
-            eTrial = SelfConsistent.energyFromBVectors(projB, coeffs1p, coeffs2p, basis.subshells,
-                                                               primitives, grid, nucPot)
+            (_, eTrial) = SelfConsistent.energyFromBVectorsSplit(projB, coeffs1p, coeffs2p, basis.subshells,
+                                                 primitives, grid, nucPot, isFrozenSub, frozenRk)
             if  eTrial < e0
                 bVectors = restoreFrozen!(projB)
                 if  printout  &&  negW > 1.0e-8
                     println(">> [EOL-C3] removed negative-branch weight $negW from the step.")
                 end
+                # THE 1.3x IS SLOW ON PURPOSE-BY-ACCIDENT, AND IT MUST STAY UNTIL THE STATIONARY-ENERGY TEST
+                # IS SOUND.  Growing 4x on a first-trial success was tried on 31-Aug-2026 and made the result
+                # WORSE, for a reason worth recording.  A collapse takes log(1e7)/log(1.3) = 61 iterations to
+                # climb back, and on Cf^17+ (SD layer into {7s,7p}) that showed as a 55-iteration plateau with
+                # |grad| frozen at 0.007384 -- so growing faster looks obviously right.  But during that
+                # plateau the ENERGY is stationary to 1e-12 while the calculation is NOT converged: allowed to
+                # run, it escapes and falls a further 3.5e-4 Ha, moving the clock transition by 34 cm^-1.  The
+                # stationary-energy exit below is blocked during the plateau only because tStep sits at 1e-9,
+                # BELOW its stepFloor guard.  Growing 4x lifts the step over that floor while the energy is
+                # still flat, the exit fires at iteration 17, and the run returns the less converged answer
+                # (8834.25 cm^-1 against 8867.97 after 100 iterations).  So the slow growth is compensating
+                # for an exit test that cannot tell a plateau from a minimum.  FIX THE TEST FIRST; the growth
+                # factor is then free to be raised, and should be.
                 accepted = true;    tStep = min(1.0, 1.3*tStep);    break
             end
             tStep = tStep / 2
@@ -947,8 +1047,8 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
                 end
                 (projB, negW) = SelfConsistent.projectOntoPositiveBranch(newB, basis.subshells,
                                                     primitives, nucPot, matrixB, storage; spectrum=posSpectrum)
-                eTrial = SelfConsistent.energyFromBVectors(projB, coeffs1p, coeffs2p, basis.subshells,
-                                                                   primitives, grid, nucPot)
+                (_, eTrial) = SelfConsistent.energyFromBVectorsSplit(projB, coeffs1p, coeffs2p, basis.subshells,
+                                                         primitives, grid, nucPot, isFrozenSub, frozenRk)
                 if  eTrial < e0    bVectors = restoreFrozen!(projB);   accepted = true;   break    end
                 tStep = tStep / 2
             end
@@ -956,6 +1056,9 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
         if  !accepted
             stopReason = "no descent";   println(">> [EOL-C3] STOPPED at iteration $iter: no descent found along the search direction " *
                     "(tStep fell to $tStep), with |grad| = $gNorm.  This is NOT convergence.")
+            Defaults.warn(AddWarning(), "SelfConsistent.solveOptimizedLevelFieldByRotation(): the EOL field did NOT " *
+                          "converge -- no descent found at iteration $iter, |grad| = " * @sprintf("%.1e", gNorm) *
+                          ".  The energies are NOT self-consistent.")
             break
         end
         # A STAGNANT ENERGY IS ONLY CONVERGENCE IF THE STEP IS STILL HEALTHY.  The test compares successive
@@ -973,6 +1076,9 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
             stopReason = "stationary energy";   println(">> [EOL-C3] stopped at iteration $iter on a stationary energy: |dE| = " *
                     "$(abs(multiplet.levels[1].energy - ePrevious)) < 1.0e-11 with a healthy step " *
                     "tStep = $tStep and |grad| = $gNorm.  A converging UPPER BOUND, not a converged gradient.")
+            Defaults.warn(AddWarning(), "SelfConsistent.solveOptimizedLevelFieldByRotation(): the EOL field stopped on " *
+                          "a stationary energy at iteration $iter with |grad| = " * @sprintf("%.1e", gNorm) *
+                          ".  The energy is a converging UPPER BOUND, not a converged gradient.")
             break
         end
         ePrevious = multiplet.levels[1].energy
@@ -981,6 +1087,9 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
         println(">> [EOL-C3] STOPPED after $iterDone iterations: the limit maxIterationsScf = " *
                 "$(settings.maxIterationsScf) was reached with |grad| = $gNorm and tStep = $tStep.  " *
                 "This is NOT convergence; raise maxIterationsScf to see where it goes.")
+        Defaults.warn(AddWarning(), "SelfConsistent.solveOptimizedLevelFieldByRotation(): the EOL field did NOT " *
+                      "converge -- the limit maxIterationsScf = $(settings.maxIterationsScf) was reached with " *
+                      "|grad| = " * @sprintf("%.1e", gNorm) * ".  The energies are NOT self-consistent.")
     end
 
     return( multiplet )

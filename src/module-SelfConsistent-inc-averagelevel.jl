@@ -291,6 +291,14 @@ function solveAverageLevelField(basis::Basis, nuclearModel::Nuclear.Model, primi
                 @sprintf("%.2e", lastDefect) * " has not reached accuracyScf = " *
                 @sprintf("%.2e", settings.accuracyScf) * "; the orbitals are still moving by " *
                 @sprintf("%.2e", lastStep) * " ($lastShell).  The energies below are NOT self-consistent.")
+        # COLLECTED AS WELL, not merely printed.  solveMeanFieldBasis and solveAverageAtomField have
+        # raised a warning here since long ago; AL and EOL did not, so the two fields recommended for
+        # ordinary work -- AL for a reference layer, EOL for an added one -- were the only ones whose
+        # non-convergence reached nothing but the console.  A driver that writes its multiplet to a
+        # file then records unconverged energies with no trace that they are unconverged.
+        Defaults.warn(AddWarning(), "SelfConsistent.solveAverageLevelField(): the AL field did NOT converge for " *
+                      string(basis.subshells) * " -- overlap defect " * @sprintf("%.1e", lastDefect) *
+                      " after $NoIterations iterations (maxIterationsScf).  The energies are NOT self-consistent.")
     end
 
     newBasis = Basis(true, basis.NoElectrons, basis.subshells, basis.csfs, basis.coreSubshells, orbitals)
