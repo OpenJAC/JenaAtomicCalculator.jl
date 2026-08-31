@@ -1,7 +1,31 @@
 
 """
 `module  JAC.PhotoExcitationFluores`  
-... a submodel of JAC that contains all methods for computing photo-excitation-autoionization cross sections and rates.
+... a submodel of JAC that contains all methods for computing photo-excitation-fluorescence cross sections and rates.
+
+    STATUS, 31-Aug-2026: PARKED BY THE MAINTAINER. Do NOT pick this module up as a task without saying so first.
+
+    IT CANNOT BUILD A PATHWAY, AND WOULD RETURN A SENTINEL IF IT COULD. Two faults, and they are of different
+    kinds; the second is the reason parking is the right answer rather than a one-word repair.
+
+    (i) `PhotoExcitationFluores.Pathway(...)` is called with NINE arguments at lines 188 and 335 against an
+    EIGHT-field struct: an extra `true` sits where a retired `hasSublines` field used to be. The struct is
+    (initialLevel, intermediateLevel, finalLevel, excitEnergy, fluorEnergy, crossSection, excitChannels,
+    fluorChannels). Every call therefore raises a MethodError, which is how this was found -- through
+    `examples/example-Eb.jl` in the `/testExamples` run of 31-Aug-2026.
+
+    (ii) Behind it, `computeAmplitudesProperties` returns `crossSection = EmProperty(-1., -1.)` -- a NEGATIVE
+    SENTINEL, not a computed quantity. Repairing (i) alone would turn a module that refuses into a module that
+    hands back a cross section of -1 as though it were a result.
+
+    BUT IT IS NOT THE SAME CASE AS PhotoExcitationAutoion, AND THE DIFFERENCE IS WORTH KNOWING BEFORE ANYONE
+    DECIDES WHAT TO DO. That module substitutes hardcoded stubs for every amplitude. THIS ONE COMPUTES REAL
+    AMPLITUDES: `PhotoEmission.amplitude(Absorption(), ...)` for the excitation step and
+    `PhotoEmission.amplitude(Emission(), ...)` for the fluorescence step, both gauges, no stubs anywhere. What is
+    missing is only the final contraction of the two into a resonant cross section. The hard half is written.
+
+    NOTHING HAS EVER RUN THROUGH IT: its only example, `examples/example-Eb.jl`, carries ZERO `Last successful`
+    dates, and the test suite does not reach it. Carried as challenge 118.
 """
 module PhotoExcitationFluores 
 
@@ -281,6 +305,16 @@ function  computePathways(finalMultiplet::Multiplet, intermediateMultiplet::Mult
     printstyled("PhotoExcitationFluores.computePathways(): The computation of photo-excitation-fluorescence amplitudes starts now ... \n", color=:light_green)
     printstyled("-------------------------------------------------------------------------------------------------------------------- \n", color=:light_green)
     println("")
+    error("\n\nPhotoExcitationFluores is PARKED (31-Aug-2026) and gives no number.\n"                             *
+          ">>> TWO faults. Pathway(...) is called with NINE arguments against an EIGHT-field struct (an extra\n"  *
+          ">>> `true` where a retired hasSublines used to sit), so no pathway can be built at all; and behind\n"  *
+          ">>> that, computeAmplitudesProperties returns crossSection = EmProperty(-1., -1.), a NEGATIVE\n"       *
+          ">>> SENTINEL. Repairing the constructor alone would turn a module that refuses into one that hands\n"  *
+          ">>> back -1 as a result.\n\n"                                                                          *
+          ">>> WORTH KNOWING: unlike PhotoExcitationAutoion, this module computes REAL amplitudes -- both the\n"  *
+          ">>> absorption and the fluorescence step, in both gauges, with no stubs. Only the contraction of the\n" *
+          ">>> two into a resonant cross section is missing. See the STATUS block in the module docstring and\n"  *
+          ">>> challenge 118.\n")
     pathways = PhotoExcitationFluores.determinePathways(finalMultiplet, intermediateMultiplet, initialMultiplet, settings)
     # Display all selected pathways before the computations start
     if  settings.printBefore    PhotoExcitationFluores.displayPathways(stdout, pathways, settings)    end
