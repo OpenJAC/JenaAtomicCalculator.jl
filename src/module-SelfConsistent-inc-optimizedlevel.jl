@@ -947,10 +947,84 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
             for  sh  in  activeSubshells    dir[sh] = sVec[sh]    end
         end
         # Guard: a conjugate direction must still descend.  If it does not, fall back to steepest descent.
-        dg = 0.;   for sh in activeSubshells   dg = dg + sum( gVec[sh] .* dir[sh] )   end
+        #
+        # THE PAIRING IS WITH THE RAW GRADIENT, NOT WITH gVec, AND THE DIFFERENCE IS A FACTOR OF FIVE TO NINE.
+        # virtualDirections returns a B-ORTHONORMAL set (phi^T B phi = 1).  gVec is rebuilt from the gradient's
+        # components along that set, gVec = sum_i (phi_i^T grad) phi_i, so pairing it with dir by a plain
+        # Euclidean dot gives sum_ij gv_i s_j (phi_i^T phi_j) -- and phi_i^T phi_j is NOT delta_ij, because the
+        # phi are orthonormal in B and not in the Euclidean metric.  grad and dir both live in b-space, so
+        # their plain pairing IS the directional derivative, with no metric to get wrong.
+        #
+        # MEASURED 31-Aug-2026 against a central difference of the functional itself (JAC_EOL_FDCHECK), on the
+        # Be RAS step-2 case: FD = -6.3452e-03, raw pairing = -6.5391e-03 (3 % high, the residue being the
+        # normalization projection that computeOrbitalGradient still omits), old dg = -4.5380e-02 -- SEVEN
+        # TIMES the true derivative.  The old value has the right SIGN, which is why the method still descended
+        # and why this survived so long; but the line search predicted seven times the decrease it could get,
+        # so its first trial always overshot and it halved to 1e-8, which is the plateau seen on Cf^17+ and on
+        # Be Scenario B.  gNorm is built from the same components and so never vanished at a stationary point,
+        # which is why an energy-based exit test had to exist at all.
+        dg = 0.;   for sh in activeSubshells   dg = dg + sum( grad[sh] .* dir[sh] )   end
         if  dg >= 0.
             for  sh  in  activeSubshells    dir[sh] = sVec[sh]    end
             beta = 0.
+        end
+        # ONE-SHOT FINITE-DIFFERENCE CHECK OF THE GRADIENT, off unless JAC_EOL_FDCHECK is set.
+        # Four inferences about this solver's plateau were refuted by measurement on 30/31-Aug-2026, so this
+        # measures the thing itself: is <grad,dir> the directional derivative of the functional the line
+        # search evaluates?  Both conventions are tested, because the gradient may be that of the raw
+        # functional or that of the functional restricted to the normalization manifold, and the line search
+        # renormalizes every trial vector.  If a central difference reproduces dg for either convention, the
+        # gradient is exact and the tiny steps are the surface's own curvature (conditioning, not a defect);
+        # if both differ from dg by a fixed factor, the direction is built on a gradient that is not the
+        # functional's, which would explain every plateau seen so far.
+        if  haskey(ENV, "JAC_EOL_FDCHECK")  &&  iter == 5
+            @printf(">> [EOL-FD] iteration %d:  <grad,dir> = %+.10e\n", iter, dg)
+            # IS THE GRADIENT ORTHOGONAL TO ITS OWN b-VECTOR?  generateOrbitalFromVector normalizes, so the
+            # functional is SCALE-INVARIANT in b: E(lambda*b) = E(b), and differentiating at lambda = 1 gives
+            # <grad, b> = 0 for the true gradient.  A non-zero overlap is a spurious radial component that
+            # does nothing to the energy but inflates every directional derivative built from it.  dgProj is
+            # the same directional derivative with that component removed, subshell by subshell.
+            dgProj = 0.
+            for  sh  in  activeSubshells
+                bb  = sum( bVectors[sh] .* bVectors[sh] )
+                ov  = bb > 0. ? sum( gVec[sh] .* bVectors[sh] ) / bb : 0.
+                gp  = gVec[sh] - ov * bVectors[sh]
+                cosang = sqrt(sum(gVec[sh].^2)*bb) > 0. ?
+                         sum( gVec[sh] .* bVectors[sh] ) / sqrt(sum(gVec[sh].^2)*bb) : 0.
+                @printf(">> [EOL-FD]   %-9s cos(grad,b) = %+.6f\n", string(sh), cosang)
+                dgProj = dgProj + sum( gp .* dir[sh] )
+            end
+            @printf(">> [EOL-FD] iteration %d:  <grad_projected,dir> = %+.10e   (ratio to raw %+.6f)\n",
+                    iter, dgProj, dg != 0. ? dgProj/dg : NaN)
+            # THE CANDIDATE.  virtualDirections returns a B-ORTHONORMAL set (phi^T B phi = 1), but gVec is
+            # rebuilt as sum_i (phi_i^T grad) phi_i and then paired with dir by a plain Euclidean dot.  For
+            # dir = sum_j s_j phi_j the true directional derivative is sum_i gv_i s_i, whereas that dot gives
+            # sum_ij gv_i s_j (phi_i^T phi_j), and phi_i^T phi_j is NOT delta_ij in the Euclidean metric.
+            # The raw gradient and the direction both live in b-space, so their plain pairing IS the
+            # derivative -- that is what dgRaw measures here.
+            dgRaw = 0.
+            for  sh  in  activeSubshells    dgRaw = dgRaw + sum( grad[sh] .* dir[sh] )    end
+            @printf(">> [EOL-FD] iteration %d:  <grad_raw,dir> = %+.10e   (ratio to dg %+.6f)\n",
+                    iter, dgRaw, dg != 0. ? dgRaw/dg : NaN)
+            for  eps  in  (1.0e-4, 1.0e-5, 1.0e-6, 1.0e-7)
+                bR = Dict{Subshell, Vector{Float64}}( sh => bVectors[sh]  for sh in basis.subshells )
+                bN = Dict{Subshell, Vector{Float64}}( sh => bVectors[sh]  for sh in basis.subshells )
+                eR = zeros(2);   eN = zeros(2)
+                for  (k, sgn)  in  enumerate((+1.0, -1.0))
+                    for  sh  in  activeSubshells
+                        v      = bVectors[sh] + sgn*eps * dir[sh]
+                        bR[sh] = v
+                        bN[sh] = v / sqrt( abs(transpose(v) * matrixB * v) )
+                    end
+                    (_, eR[k]) = SelfConsistent.energyFromBVectorsSplit(bR, coeffs1p, coeffs2p, basis.subshells,
+                                                     primitives, grid, nucPot, isFrozenSub, frozenRk)
+                    (_, eN[k]) = SelfConsistent.energyFromBVectorsSplit(bN, coeffs1p, coeffs2p, basis.subshells,
+                                                     primitives, grid, nucPot, isFrozenSub, frozenRk)
+                end
+                fdR = (eR[1] - eR[2]) / (2eps);    fdN = (eN[1] - eN[2]) / (2eps)
+                @printf(">> [EOL-FD]   eps = %.0e :  raw FD = %+.10e (ratio %+.6f) ;  normalized FD = %+.10e (ratio %+.6f)\n",
+                        eps, fdR, dg != 0. ? fdR/dg : NaN, fdN, dg != 0. ? fdN/dg : NaN)
+            end
         end
         iterSinceRestart = beta == 0. ? 0 : iterSinceRestart + 1
         sgPrev = 0.;   for sh in activeSubshells   sgPrev = sgPrev + sum( gVec[sh] .* sVec[sh] )   end
@@ -1026,6 +1100,33 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
                 # (8834.25 cm^-1 against 8867.97 after 100 iterations).  So the slow growth is compensating
                 # for an exit test that cannot tell a plateau from a minimum.  FIX THE TEST FIRST; the growth
                 # factor is then free to be raised, and should be.
+                # THE ARMIJO RATIO: what the step actually bought, over what the direction promised.
+                # predicted decrease = -tStep * <grad, dir> (dg < 0 by the descent guard above), actual =
+                # e0 - eTrial.  A ratio near 1 means the linear model describes this surface and the small
+                # steps are the surface's own curvature; a ratio near 0 means the direction is poor and the
+                # halving is the search compensating for it.  The two call for opposite repairs, and nothing
+                # in the solver reported this quantity before, which is why three attempts to cure the
+                # plateau of 30/31-Aug-2026 were aimed at the symptom.
+                # TWO ratios, because the line search's model and its measurement are taken at DIFFERENT
+                # points.  ratio1 uses tStep*<grad,dir>, the decrease the direction promises for the step as
+                # PLANNED.  But the point actually evaluated is not b + tStep*dir: each orbital is
+                # renormalized and then projected onto the positive branch first.  ratio2 therefore uses the
+                # displacement that really happened, <grad, projB - b>.  For a genuine gradient ratio2 must
+                # tend to 1 as the step shrinks -- that is what a derivative means -- so if ratio1 sits at a
+                # constant far from 1 while ratio2 approaches it, the model is describing a step the search
+                # does not take, and the repair is to model the displacement instead.  If BOTH stray, the
+                # gradient itself disagrees with the functional and the fault is in computeOrbitalGradient.
+                if  printout
+                    predicted1 = -tStep * dg
+                    predicted2 = 0.
+                    for  sh  in  activeSubshells
+                        predicted2 = predicted2 - sum( grad[sh] .* (projB[sh] - bPrev[sh]) )
+                    end
+                    r1 = predicted1 > 0. ? (e0 - eTrial)/predicted1 : NaN
+                    r2 = predicted2 > 0. ? (e0 - eTrial)/predicted2 : NaN
+                    @printf(">> [EOL-C3]    accepted at trial %2d, tStep = %.3e, planned = %+.4f, actual-disp = %+.4f\n",
+                            trial, tStep, r1, r2)
+                end
                 accepted = true;    tStep = min(1.0, 1.3*tStep);    break
             end
             tStep = tStep / 2
