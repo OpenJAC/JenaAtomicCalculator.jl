@@ -673,7 +673,6 @@ function testStructConstructors(; short::Bool=true)
         ("MultiPhotonTransition.Settings()",      () -> MultiPhotonTransition.Settings()           ),
         ("MultiPhotonIonization.Settings()",        () -> MultiPhotonIonization.Settings()             ),
         ("PhotoDoubleIonization.Settings()",        () -> PhotoDoubleIonization.Settings()             ),
-        ("ImpactExcitationAutoion.Settings()",      () -> ImpactExcitationAutoion.Settings()           ),
         ("RadiativeAuger.Settings()",               () -> RadiativeAuger.Settings()                    ),
         ("InternalConversion.Settings()",           () -> InternalConversion.Settings()                ),
         ("InternalRecombination.Settings()",        () -> InternalRecombination.Settings()             ),

@@ -81,7 +81,7 @@ export AbstractCImethod, AbstractComputeTheme, AbstractConfigurationRestriction,
        Hamiltonian, HarmonicQuantizationAxis, Hfs, HundsRules, HydrogenicIon, HyperfineInduced,
        HyperfineStructure,
        ZeemanStructure,
-       ImpactExc, ImpactExcAuto, ImpactExcitation, ImpactExcitationAutoion, ImpactIonization, Integral, integrate,
+       ImpactExc, ImpactExcAuto, ImpactExcitation, ImpactIonization, Integral, integrate,
        InteractionStrength, InternalConv, InternalConversion, InternalRecombination, IsOccupied,
        IsotopeShift, IsotopicFraction,
        Kronecker,
@@ -206,7 +206,6 @@ if incAdvancedProcesses
 include("module-MultiPhotonTransition.jl")
 include("module-CoulombIonization.jl")
 include("module-PhotoDoubleIonization.jl")
-include("module-ImpactExcitationAutoion.jl")
 include("module-RadiativeAuger.jl")
 include("module-MultiPhotonIonization.jl")
 include("module-InternalConversion.jl") 

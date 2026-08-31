@@ -91,7 +91,6 @@ function Basics.perform(computation::Atomic.Computation; output::Bool=false)
         if  output   results["initialMultiplet"] = initialMultiplet;   results["finalMultiplet"] = finalMultiplet    end 
         #
         if typeof(computation.processSettings) in [PhotoExcitationFluores.Settings, PhotoExcitationAutoion.Settings,
-                                                   ImpactExcitationAutoion.Settings,
                                                    DielectronicRecombination.Settings, ResonantInelastic.Settings,
                                                    PhotoRecombinationInterference.Settings]
             intermediateMultiplet = SelfConsistent.performSCF(computation.intermediateConfigs, nModel, computation.grid, computation.intermediateAsfSettings)
@@ -198,10 +197,6 @@ function Basics.perform(computation::Atomic.Computation; output::Bool=false)
             outcome = CoulombIonization.computeLines(finalMultiplet, initialMultiplet, nModel, computation.grid,
                                                      computation.processSettings)
             if output    results = Base.merge( results, Dict("Coulomb ionization lines:" => outcome) )           end
-        elseif  typeof(computation.processSettings) == ImpactExcitationAutoion.Settings
-            outcome = ImpactExcitationAutoion.computePathways(finalMultiplet, intermediateMultiplet, initialMultiplet, 
-                                                                computation.grid, computation.processSettings) 
-            if output    results = Base.merge( results, Dict("impact-excitation-autoionization pathways:" => outcome) )     end
         elseif  typeof(computation.processSettings) == MultiPhotonIonization.Settings
             outcome = MultiPhotonIonization.computeLines(finalMultiplet, initialMultiplet, computation.grid, computation.processSettings) 
             if output    results = Base.merge( results, Dict("multi-photon single ionization:" => outcome) )        end

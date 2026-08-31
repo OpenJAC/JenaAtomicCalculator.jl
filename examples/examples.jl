@@ -22,7 +22,6 @@ println(" ")
 if      char == 'A'
     println("A)  Examples, tests & development of the electronic structure part.")
     println("-------------------------------------------------------------------")
-    println("Aa) Apply & test several radial e-e potentials.")
     println("Ab) Apply & test the  a SCF field: B-spline primitives and one-particle spectra in a local potential.")
     println("Ac) Apply & test the CI part for open-shell multiplets of increasing complexity, without Breit interaction.")
     println("Ad) Apply & test for the frequency-independent Breit interaction for an internally generated neon multiplet.")
@@ -102,7 +101,6 @@ elseif  char == 'E'
     println("Ed) Apply & test the Photoionization and PlasmaShift module with ASF from an internally generated initial- and final-state multiplet.")
     println("Ef) RETIRED -- plasma-shifted Auger rates moved to Plasma.LineShiftScheme; see example-Jb.jl branch 1.")
     #
-    println("Eg) Test of the ImpactExcitationAutoion module with ASF from an internally generated initial-, intermediate and final-state multiplets.")
     println("Ei) Test of the MultiPhotonIonization module with ASF from an internally generated initial- and final-state multiplet.")
     println("Ek) Test of the PairAnnihilation1Photon module with ASF from an internally generated initial- and final-state multiplet.")
     println("Em) Test of the PhotoIonizationAutoIon module with ASF from an internally generated initial-, intermediate and final-state multiplets.")
