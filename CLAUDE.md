@@ -233,6 +233,35 @@ clones JAC, so it must contain **only** what belongs to JAC itself:
 - **No third-party names**, no unpublished results, no collaborator correspondence.
 - **No credentials or machine specifics.**
 
+**AND THE SAME APPLIES TO EVERY COMMIT MESSAGE, WHICH IS THE HARDER HALF.** This file is edited deliberately
+and re-read often; a commit message is written once, in the middle of the work, and is then permanent, public and
+effectively unfixable -- removing one means rewriting pushed history that other clones already hold. On
+31-Aug-2026 a scan of the last 100 commits found exactly one leak, and it had the shape this rule must catch:
+the physics was described correctly and a collaborator's FULL NAME was put in brackets beside it, as ordinary
+context, by a session that had been working in that person's `apps/` folder all morning.
+
+**So an application is named by its NUMBER and its PHYSICS, never by a person.** Write
+
+    found while starting application A17 (Cf^15+/Cf^17+ q-factors)
+
+and never
+
+    found while starting application A17 (Cf^15+/Cf^17+ q-factors for <a person's name>)
+
+The number is the link to the working record, which is where the name is allowed to live. This holds for the
+commit subject and the body alike, for a `.jl` comment or docstring in `src/`, and for a file name -- anything
+that git carries. A first name alone is no better than a full one; if a reader could identify the person, it does
+not go in.
+
+**The check is one command and takes seconds**, so it is worth running before a release and after any stretch of
+work driven from an `apps/` folder: build the token list from the `apps/` directory NAMES, then
+
+    git log -100 --format='%an%n%s%n%b' | grep -inwF -f <that token list>
+
+Read the hits rather than counting them -- `alpha`, `breit`, `plus`, `high` and `thomas` all matched innocently
+on 31-Aug (Thomas-Reiche-Kuhn is a sum rule), and the one real hit sat among them. Scan the DIFFS too, not only
+the messages: a name committed into `src/` is the worse leak of the two.
+
 The working record that *does* hold such things -- findings in progress, wrong turns, colleagues' names,
 unpublished plans -- lives outside the repository in the assistant's own memory directory, and stays there.
 Keep the two separate: this file is the curated, normative document; that one is the notebook.
