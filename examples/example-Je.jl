@@ -130,7 +130,10 @@ if true
     # Both are why this branch stays "Last visit" rather than "Last successful": the agreement above is
     # genuinely good, but two known channels are absent by construction.
     #
-    grid = Radial.Grid(Radial.Grid(false), rnt=1.0e-5, h=5.0e-2, hp=2.0e-2, rbox=20.0)
+    # hp is set by the FASTEST continuum electron this branch asks for, not by the bound orbitals.
+    # Continuum.gridConsistency refused hp = 2.0e-2 at 327.33 Hartree: the de Broglie wavelength is
+    # 0.245564 a.u., and the guard requires 15 points per oscillation, i.e. hp <= 1.637e-2.
+    grid = Radial.Grid(Radial.Grid(false), rnt=1.0e-5, h=5.0e-2, hp=1.5e-2, rbox=20.0)
     nm   = Nuclear.Model(6.)
 
     ieSettings = ImpactExcitation.Settings(ImpactExcitation.Settings(); maxKappa=5, numElectronEnergies=6,
@@ -215,7 +218,10 @@ elseif false
     # into the scheme -- note that scheme.aiSettings is currently ACCEPTED BUT NEVER READ by the driver,
     # so setting it below buys nothing today.
     #
-    grid = Radial.Grid(Radial.Grid(false), rnt=1.0e-5, h=5.0e-2, hp=2.0e-2, rbox=20.0)
+    # hp is set by the FASTEST continuum electron this branch asks for, not by the bound orbitals.
+    # Continuum.gridConsistency refused hp = 2.0e-2 at 327.33 Hartree: the de Broglie wavelength is
+    # 0.245564 a.u., and the guard requires 15 points per oscillation, i.e. hp <= 1.637e-2.
+    grid = Radial.Grid(Radial.Grid(false), rnt=1.0e-5, h=5.0e-2, hp=1.5e-2, rbox=20.0)
     nm   = Nuclear.Model(10.)
 
     ieSettings = ImpactExcitation.Settings(ImpactExcitation.Settings(); maxKappa=5, numElectronEnergies=6,

@@ -274,8 +274,12 @@ function  determinePathways(finalMultiplet::Multiplet, intermediateMultiplet::Mu
                     eChannels = PhotoEmission.determineChannels(nLevel, iLevel, rSettings) 
                     aSettings = AutoIonization.Settings( false, false, false, false, LineSelection(), 0., 0., 0., settings.maxKappa, CoulombInteraction(), Multiplet())
                     aChannels = AutoIonization.determineChannels(fLevel, nLevel, aSettings) 
-                    pSettings = PhotoIonization.Settings( settings.multipoles, settings.gauges, [pEnergy], false, false, false, false, 
-                                                            LineSelection(), ExpStokes())
+                    # KEYWORD FORM, not positional: PhotoIonization.Settings has SIXTEEN fields and this call
+                    # passed NINE, with the Bools landing on electronEnergies and thetas, which are Vector{Float64}.
+                    # It raised a MethodError for every use, so no pathway of this module could ever be built
+                    # (found 31-Aug-2026 through examples/example-Ec.jl). The keyword form cannot drift that way.
+                    pSettings = PhotoIonization.Settings(PhotoIonization.Settings(); multipoles=settings.multipoles,
+                                    gauges=settings.gauges, photonEnergies=[pEnergy], printBefore=false)
                     pChannels = PhotoIonization.determineChannels(fLevel, iLevel, pSettings) 
                     push!( pathways, PhotoExcitationAutoion.Pathway(iLevel, nLevel, fLevel, eEnergy, aEnergy, EmProperty(0., 0.), EmProperty(0., 0.), 
                                                                     eChannels, aChannels, pChannels) )
