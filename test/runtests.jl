@@ -98,6 +98,13 @@ end
                                                    ## shift is exactly quadratic in the field
         @test TestFrames.testModule_CrystalField()  ## added 29-Aug-2026; Kramers degeneracy, the traceless centre of
                                                     ## gravity, and a spectrum unmoved by rotating the lattice
+        @test TestFrames.testModule_Statistical()   ## added 31-Aug-2026; rho_00 = trace/sqrt(2J+1) absolutely, the
+                                                    ## Hermiticity rho_(k,-q) = (-1)^q conj(rho_kq), k > 2J vanishes,
+                                                    ## and an isotropic ensemble has no alignment
+        @test TestFrames.testModule_WeakInteractionEnhancement()
+                                                    ## added 31-Aug-2026; the PNC amplitude is purely IMAGINARY and
+                                                    ## connects EQUAL parities, the EDM one is REAL and connects
+                                                    ## OPPOSITE parities with equal J -- exact opposites in both
     end
 
     @testset "JAC processes" begin

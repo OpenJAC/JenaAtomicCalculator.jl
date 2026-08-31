@@ -454,6 +454,183 @@ end
 
 
 """
+`TestFrames.testModule_Statistical(; short::Bool=true)`  ... tests on module Statistical; a success::Bool is returned.
+"""
+function testModule_Statistical(; short::Bool=true)
+    Defaults.setDefaults("print summary: open", "test-Statistical-new.sum")
+    printstyled("\n\nTest the module  Statistical  ... \n", color=:cyan)
+    # Every statement below is a theorem about a density matrix, not a number anyone measured, so none of it can drift
+    # and none of it needs a reference or an atomic-structure computation. That matters here more than usual: two stubs
+    # of this module were caught in July PRINTING FABRICATED TENSORS, which is precisely the failure that a test
+    # comparing one computed number against another computed number cannot see. (1) and (4) are ABSOLUTE.
+    success = true;    printTest, iostream = Defaults.getDefaults("test flag/stream")
+    key  = LevelKey( LevelSymmetry(AngularJ64(3//2), Basics.plus), 0., 1, 0. )
+    J    = AngularJ64(3//2);      MList = AngularMomentum.m_values(J)
+    ampl = Dict{AngularM64,ComplexF64}( MList[1] => ComplexF64(0.3, 0.1), MList[2] => ComplexF64(-0.5, 0.2),
+                                        MList[3] => ComplexF64(0.7, -0.4), MList[4] => ComplexF64(0.2, 0.6) )
+    tens = Statistical.computeTensors(6, ampl, key)
+    # Tensor.k is an AngularJ64 and Tensor.q an AngularM64, not integers, so they are compared through
+    # AngularMomentum.oneJ / oneM exactly as Statistical.alignmentParameters itself does.
+    get(k, q) = ( w = filter(t -> AngularMomentum.oneJ(t.k) == 1.0*k  &&  AngularMomentum.oneM(t.q) == 1.0*q, tens);
+                  length(w) == 0 ? ComplexF64(0.) : w[1].value )
+
+    # (1) THE NORMALISATION, and it is an absolute statement rather than a ratio: the Clebsch-Gordan
+    #     <J M, J -M | 0 0> = (-1)^(J-M)/sqrt(2J+1) cancels the (-1)^(J-M) phase exactly, so rho_00 is the total
+    #     population divided by sqrt(2J+1) -- no more and no less.
+    trace = sum( abs2(ampl[M])  for M in MList )
+    rho00 = get(0, 0)
+    if  abs( rho00 - trace / sqrt(Basics.twice(J) + 1.0) ) > 1.0e-12
+        success = false
+        if printTest   info(iostream, "rho_00 = $rho00 against the exact $(trace/sqrt(Basics.twice(J)+1.0))")   end
+    end
+
+    # (2) HERMITICITY. rho_(M,M') = a_M conj(a_M') is Hermitian for ANY amplitudes whatsoever, and that carries over
+    #     to the tensors as rho_(k,-q) = (-1)^q conj(rho_kq). A wrong phase or a swapped index in the sum breaks this
+    #     while leaving every magnitude intact, so it catches what a check on |rho| cannot.
+    for  k = 0:3,  q = 1:k
+        if  abs( get(k, -q) - (-1)^q * conj(get(k, q)) ) > 1.0e-12
+            success = false
+            if printTest   info(iostream, "rho_($k,$(-q)) = $(get(k,-q)) against (-1)^q conj(rho_($k,$q)) = " *
+                                          "$((-1)^q * conj(get(k,q)))")   end
+        end
+    end
+
+    # (3) THE TRIANGLE CONDITION. Two angular momenta J couple to at most 2J, so every tensor of rank k > 2J must
+    #     vanish identically. Here 2J = 3, and ranks up to 6 were asked for above precisely so that 4, 5 and 6 have
+    #     the chance to be wrong.
+    for  k = 4:6,  q = -k:k
+        if  abs( get(k, q) ) != 0.
+            success = false
+            if printTest   info(iostream, "rho_($k,$q) = $(get(k,q)) is non-zero although k > 2J = 3")   end
+        end
+    end
+
+    # (4) AN ISOTROPIC ENSEMBLE HAS NO ALIGNMENT. Equal, incoherent populations of every sublevel describe an
+    #     unpolarized state, for which every k > 0 tensor vanishes exactly and A_00 = 1 alone survives. This is the
+    #     one case whose answer is known without any algebra, so a fabricated tensor cannot hide in it.
+    dm = Dict{Tuple{AngularM64,AngularM64},ComplexF64}()
+    for  M in MList,  Mp in MList    dm[(M, Mp)] = (M == Mp  ?  ComplexF64(1.)  :  ComplexF64(0.))    end
+    iso = Statistical.computeTensors(3, dm, key)
+    for  t  in  iso
+        if  AngularMomentum.oneJ(t.k) != 0.  &&  abs(t.value) > 1.0e-12
+            success = false
+            if printTest   info(iostream, "an isotropic ensemble has rho_($(t.k),$(t.q)) = $(t.value), not 0")   end
+        end
+    end
+    aTens = Statistical.alignmentParameters(iso)
+    for  t  in  aTens
+        expected = (AngularMomentum.oneJ(t.k) == 0.  &&  AngularMomentum.oneM(t.q) == 0.)  ?  ComplexF64(1.)  :  ComplexF64(0.)
+        if  abs(t.value - expected) > 1.0e-12
+            success = false
+            if printTest   info(iostream, "A_($(t.k),$(t.q)) = $(t.value) for an isotropic ensemble, not $expected")   end
+        end
+    end
+
+    # (5) alignmentParameters REFUSES an empty ensemble rather than dividing by zero.
+    try
+        Statistical.alignmentParameters( Statistical.Tensor[] )
+        success = false
+        if printTest   info(iostream, "alignmentParameters accepted a list with no rho_00")   end
+    catch                                                                                              end
+
+    Defaults.setDefaults("print summary: close", "")
+    if  success   println("\n\nTest.perform: `Test the module Statistical`  ... has been successful.")   end
+    return( success )
+end
+
+
+"""
+`TestFrames.testModule_WeakInteractionEnhancement(; short::Bool=true)`  ... tests on module WeakInteractionEnhancement;
+    a success::Bool is returned.
+"""
+function testModule_WeakInteractionEnhancement(; short::Bool=true)
+    Defaults.setDefaults("print summary: open", "test-WeakInteractionEnhancement-new.sum")
+    printstyled("\n\nTest the module  WeakInteractionEnhancement  ... \n", color=:cyan)
+    # This module has NO absolute anchor -- there is nothing to compare an electron-EDM enhancement against -- so its
+    # exact selection rules and its reality are the only handle anyone has on it, and that is what is asserted here.
+    # THE TWO AMPLITUDES ARE EXACT OPPOSITES IN BOTH RESPECTS, which is the point of testing them together: the weak
+    # charge carries gamma_5 and so is PURELY IMAGINARY and connects levels of EQUAL parity, while H_EDM contracts an
+    # axial with a polar vector and so is REAL and connects levels of OPPOSITE parity with equal J. A test that swapped
+    # the two would have to fail four assertions, not one.
+    success = true;    printTest, iostream = Defaults.getDefaults("test flag/stream")
+    grid = Radial.Grid(Radial.Grid(false); rnt = 2.0e-6, h = 5.0e-2, hp = 1.0e-2, rbox = 12.0)
+    nm   = Nuclear.Model(20., FermiNucleus())
+    asf  = AsfSettings(AsfSettings(); scField = Basics.NuclearField())
+    # one even- and one odd-parity multiplet of Ca^19+, small enough to be quick and hydrogenic enough to be exact
+    evenMp = redirect_stdout(devnull) do
+        SelfConsistent.performSCF([Configuration("1s"), Configuration("2s")], nm, grid, asf; printout=false)   end
+    oddMp  = redirect_stdout(devnull) do
+        SelfConsistent.performSCF([Configuration("2p")], nm, grid, asf; printout=false)                       end
+    evenLs = evenMp.levels;    oddLs = oddMp.levels
+
+    # (1) THE PNC AMPLITUDE IS PURELY IMAGINARY for real radial orbitals, since the weak-charge amplitude is.
+    #     A real part is not a small error but a wrong operator.
+    for  f  in  evenLs,  i  in  evenLs
+        a = WeakInteractionEnhancement.computePncE1Amplitude(f, i, oddMp, nm, grid)
+        if  abs(real(a)) > 1.0e-14 * max(1.0, abs(a))
+            success = false
+            if printTest   info(iostream, "PNC amplitude $(f.index)<-$(i.index) = $a has a real part")   end
+        end
+    end
+
+    # (2) IT VANISHES BETWEEN LEVELS OF OPPOSITE PARITY -- which is where the ORDINARY E1 amplitude lives. H_W is a
+    #     pseudoscalar and D is P-odd, so their product is P-even and connects EQUAL parities; the opposite-parity
+    #     matrix element is the one that must be exactly zero.
+    for  f  in  oddLs,  i  in  evenLs
+        if  abs( WeakInteractionEnhancement.computePncE1Amplitude(f, i, oddMp, nm, grid) ) != 0.
+            success = false
+            if printTest   info(iostream, "a PNC amplitude survives between the opposite-parity levels " *
+                                          "$(f.index) and $(i.index)")   end
+        end
+    end
+
+    # (3) THE EDM AMPLITUDE IS THE MIRROR IMAGE: REAL, and non-zero only between OPPOSITE parities with EQUAL J.
+    for  f  in  oddLs,  i  in  evenLs
+        a = WeakInteractionEnhancement.edmAmplitude(f, i, nm, grid)
+        if  abs(imag(a)) > 1.0e-14 * max(1.0, abs(a))
+            success = false
+            if printTest   info(iostream, "EDM amplitude $(f.index)<-$(i.index) = $a has an imaginary part")   end
+        end
+        if  f.J != i.J  &&  abs(a) != 0.
+            success = false
+            if printTest   info(iostream, "EDM amplitude $(f.index)<-$(i.index) = $a survives J_f = $(f.J) != J_i = $(i.J)")   end
+        end
+    end
+    for  f  in  evenLs,  i  in  evenLs
+        if  abs( WeakInteractionEnhancement.edmAmplitude(f, i, nm, grid) ) != 0.
+            success = false
+            if printTest   info(iostream, "an EDM amplitude survives between the equal-parity levels " *
+                                          "$(f.index) and $(i.index)")   end
+        end
+    end
+
+    # (4) AN EMPTY INTERMEDIATE SET GIVES EXACTLY ZERO. The PNC amplitude is a sum over opposite-parity intermediate
+    #     levels; with none supplied there is nothing to sum, and anything other than zero would be invented.
+    #
+    # WHAT THE NEGATIVE CONTROLS SHOWED, 31-Aug-2026, and it is worth knowing before anyone strengthens this test:
+    # THE TWO PARITY GUARDS IN THIS MODULE ARE REDUNDANT AND CANNOT BE CAUGHT BY ANY TEST. Flipping
+    # computePncE1Amplitude's early return from != to ==, and deleting edmAmplitude's guard outright, both leave
+    # every number unchanged -- because the physics inside already enforces them. In the PNC sum, term 1 is
+    # D(f,n) H_W(n,i): H_W needs n opposite to i and D needs f opposite to n, so f and i must share parity whatever
+    # the guard says; term 2 is the same. In the EDM amplitude the operator requires kappa_b = -kappa_a, which
+    # excludes equal parities on its own. The guards are honest shortcuts, not constraints, and assertions (2) and
+    # (3) below therefore verify the PHYSICS rather than the guards. What DOES make this test go red is destroying
+    # the amplitude's reality -- replacing wOrd by abs(wOrd) in the first PNC term was the control that worked.
+    empty = Multiplet("empty", Level[])
+    for  f  in  evenLs,  i  in  evenLs
+        if  abs( WeakInteractionEnhancement.computePncE1Amplitude(f, i, empty, nm, grid) ) != 0.
+            success = false
+            if printTest   info(iostream, "a PNC amplitude is non-zero with no intermediate levels at all")   end
+        end
+    end
+
+    Defaults.setDefaults("print summary: close", "")
+    if  success   println("\n\nTest.perform: `Test the module WeakInteractionEnhancement`  ... has been successful.")   end
+    return( success )
+end
+
+
+"""
 `TestFrames.testModule_CrystalField(; short::Bool=true)`  ... tests on module CrystalField; a success::Bool is returned.
 """
 function testModule_CrystalField(; short::Bool=true)
