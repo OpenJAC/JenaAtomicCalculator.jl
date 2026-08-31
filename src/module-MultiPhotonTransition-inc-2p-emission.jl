@@ -169,6 +169,44 @@ function computeEnergyDiffCs(sharing::MultiPhotonTransition.Sharing_2pEmission, 
     # there is no derivation behind either, and fitting a constant to a benchmark is what produced three false
     # conclusions here already.
     #
+    # AMENDED 31-Aug-2026 -- THE ARGUMENT ABOVE HAS A GAP, AND THE MEASUREMENTS BELOW SAY IT IS NOT A PREFACTOR.
+    #
+    # The gap: "the discrepancy is Z-INDEPENDENT, therefore it is a constant prefactor" does not follow. A missing
+    # continuum in the intermediate sum, and an off-shell gauge error, are BOTH Z-independent as well, by the same
+    # hydrogenic scaling that makes every H-like system a scaled copy of every other. Z-independence separates a
+    # prefactor from a relativistic effect; it does not separate it from a physics omission.
+    #
+    # What DOES separate them is n_max, because a prefactor cannot change with it. Measured on H 2s -> 1s at
+    # Z = 1, one variable at a time, with the box derived by Basics.recommendedGrid at each n_max:
+    #
+    #     n_max          4         6         8        12        16        20
+    #     Cou [1/s]   0.03097   0.04196   0.04622   0.04945   0.05064   0.05120     converging, monotone
+    #     Bab [1/s]   0.49290   0.48397   0.48121   0.37427   0.37286   0.37221     converging
+    #     Bab/Cou     15.91     11.53     10.41      7.57      7.36      7.27       NOT converging to 1
+    #     exact/Bab   16.68     16.99     17.08     21.96     22.05     22.09
+    #
+    # BOTH GAUGES CONVERGE -- and they converge to 160x and 22x BELOW the exact 8.2206 1/s, with a residual gauge
+    # ratio near 7.27 rather than 1. A quantity whose gauge ratio moves from 15.9 to 7.3 as the sum is extended is
+    # not being multiplied by a wrong constant.
+    #
+    # THE GRID IS EXONERATED: Bab/Cou = 7.5682 at n_max = 12, stable to five digits across boxes of 403, 496, 603,
+    # 807 and 1206 a.u. -- a factor of three in box size. So this is not Rule 12.
+    #
+    # AND TWO EARLIER SUSPICIONS WERE ARTEFACTS OF TRUNCATING AT n_max = 12, which is what example-Dh.jl:276 uses:
+    # at n_max = 12 a POINT and a FERMI nucleus give Babushkin rates differing by 28 % (23.95 against 30.67 1/s at
+    # Z = 2), which is impossible for a 1.9 fm nucleus; at n_max = 20 the two are bit-identical, 23.81788 both. The
+    # Coulomb rate never showed the effect at any n_max. So "the Babushkin amplitude is unstable" was a symptom of
+    # an unconverged sum, not a defect of the amplitude -- and example-Dh.jl:276's own header is right that
+    # n_max = 12 is far from converged.
+    #
+    # WHERE TO LOOK NEXT, on the evidence above: the intermediate set is BOUND-ONLY. Gauge equivalence of a
+    # second-order amplitude requires a COMPLETE set, and for hydrogen the bound states carry 0.5650 of the dipole
+    # oscillator strength while the continuum carries 0.4350 -- which is exactly what TestFrames.
+    # testMethod_ThomasReicheKuhn asserts. On top of that, PhotoEmission.amplitude is called here with the SHARING
+    # energy omega, not with the on-shell transition energy of (finalLevel <- nuLevel), and length and velocity
+    # forms are equivalent only ON shell. The same off-shell-omega fault is already recorded against
+    # PhotonScattering. Either alone would produce a Z-independent, n_max-dependent discrepancy of the kind seen.
+    #
     # FOR THE RECORD, the pre-phase-fix analysis:
     #
     # Against the exact H 2s -> 1s rate 8.2206 * Z^6, with the sum CONVERGED (nmax 35/45/55 -> 0.6337/0.63349/
