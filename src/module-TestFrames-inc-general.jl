@@ -540,11 +540,27 @@ function testRepresentation_RasExpansion(; short::Bool=true)
     # on a stationary energy at iteration 15 instead of running out at 24.  The tolerance below is left at
     # 1.0e-3, which is now very loose for a number stable to 6.7e-09; tightening it is a separate decision.
     #
+    # 31-Aug-2026, the SIXTH change, and the same KIND of change as the fifth: solveAverageLevelField now
+    # honours AsfSettings.frozenSubshells, which it too had ignored entirely -- only the DFS mean-field driver
+    # observed the field.  That mattered here because performSCF runs an AL pass as the STARTING POINT of every
+    # EOL computation (the :optimizedLevel branch), and the EOL solver pins its frozen orbitals to what it finds
+    # ON ENTRY.  So although Basics.generate hands each RAS step the previous step's converged orbitals for the
+    # shells it freezes, that AL pass then re-optimized them anyway -- on THIS layer's basis, whose flat CSF
+    # average includes the 2p correlation configurations.  Step 2's "frozen" 1s and 2s were therefore neither
+    # step 1's orbitals nor free ones, and the minimum was less constrained than a RAS layer means.
+    #   The energy RISES accordingly, as a constrained minimum must: -14.618871268972836 -> -14.614058864452650,
+    # i.e. +4.81e-03 Ha.  It is a CONVERGED number and a better-behaved one: both layers now reach the gradient
+    # tolerance outright, step 1 at iteration 12 and step 2 at 44, with |grad| = 8.5e-07 and 8.7e-07, where the
+    # fifth change left step 2 at 4.45e-05 on the iteration limit.  Run at 24, 60 and 120 iterations it gives
+    # -14.614058793496298, -14.614058864452650 and -14.614058864452650 -- identical at the last two, so the
+    # residual budget dependence is 7.1e-08 Ha, five orders below the shift itself; step 1 is bit-identical at
+    # all three.
+    #
     # Do not restore any earlier number: each was obtained on a grid, a gradient or an unconstrained layer that
     # no longer exists here.
-    if  abs(wb["step2"].levels[1].energy + 14.618871268972836)  > 1.0e-3
+    if  abs(wb["step2"].levels[1].energy + 14.614058864452650)  > 1.0e-3
         success = false
-        if printTest   info(iostream, "levels[1].energy $(wb["step2"].levels[1].energy) != -14.618871268972836")   end
+        if printTest   info(iostream, "levels[1].energy $(wb["step2"].levels[1].energy) != -14.614058864452650")   end
     end
 
     # AND THE FIELD MUST CONVERGE, WHICH IS A DIFFERENT ASSERTION FROM THE ENERGY ABOVE.  Every EOL exit

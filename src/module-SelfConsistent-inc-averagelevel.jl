@@ -146,6 +146,26 @@ function solveAverageLevelField(basis::Basis, nuclearModel::Nuclear.Model, primi
 
     orbitals = Dict{Subshell, Orbital}()    # only ever a disposable, per-iteration reporting byproduct
 
+    # FROZEN SUBSHELLS.  settings.frozenSubshells names orbitals that must NOT be varied, and until 31-Aug-2026
+    # this driver ignored the field entirely: only the DFS mean-field driver honoured it, so an AL field refined
+    # every subshell whatever the caller asked for.  That is not a cosmetic difference.  performSCF runs an AL
+    # pass as the STARTING POINT of every EOL computation (see the :optimizedLevel branch), and the EOL solver
+    # then pins its frozen orbitals to the values it finds ON ENTRY -- i.e. to whatever this driver had just done
+    # to them.  A RAS step that freezes its spectroscopic shells, or a caller that hands in a converged set
+    # through StartFromPrevious, therefore had those orbitals silently re-optimized anyway, and re-optimized on
+    # the FULL layer basis: Basics.extractMeanOccupation averages flatly over every CSF present, so for
+    # Cf^17+ with an SD layer into {7s,7p} the mean configuration that defined the "spectroscopic" 5f and 6p
+    # carried the layer's 7s/7p occupation as well.  Frozen now means frozen at the value handed in.  The
+    # orbitals still enter the Fock matrix and the same-kappa orthogonality projection of every shell refined
+    # after them, exactly as an occupied orbital must; they are simply never themselves diagonalized.
+    frozenSubshells = [ sh  for sh in basis.subshells  if  sh in settings.frozenSubshells ]
+    pinnedB = Dict{Subshell, Vector{Float64}}( sh => copy(bVectors[sh])  for sh in frozenSubshells )
+    pinnedE = Dict{Subshell, Float64}(         sh => energies[sh]        for sh in frozenSubshells )
+    if  printout  &&  !isempty(frozenSubshells)
+        println(">> [AL] frozen and NOT refined: " * join(string.(frozenSubshells), ", ") *
+                ";  $(length(basis.subshells) - length(frozenSubshells)) of $(length(basis.subshells)) subshells are varied.")
+    end
+
     isConverged = false;    NoIterations = 0;    lastDefect = 1.0;    lastStep = 1.0;    lastShell = basis.subshells[1]
 
     for  iter = 1:settings.maxIterationsScf
@@ -162,6 +182,15 @@ function solveAverageLevelField(basis::Basis, nuclearModel::Nuclear.Model, primi
         exchangeKernels = Dict{Tuple{Int64,Subshell},Array{Float64,2}}()
 
         for  subshell  in  basis.subshells
+            if  subshell in frozenSubshells
+                # Kept at the pinned value, but still registered so that the shells refined after it are
+                # projected orthogonal to it.
+                newBVectors[subshell]       = copy(pinnedB[subshell])
+                newEnergies[subshell]       = pinnedE[subshell]
+                processedBVectors[subshell] = copy(pinnedB[subshell])
+                dpm[subshell]               = 0.0
+                continue
+            end
             occ = meanOcc[subshell]
             print(">> Refine $subshell orbital with mean occ = $occ ... ")
 
@@ -255,6 +284,13 @@ function solveAverageLevelField(basis::Basis, nuclearModel::Nuclear.Model, primi
         if  SelfConsistent.GBL_SCF_REORTHONORMALIZE
             (newOrbitals, newBVectors) = SelfConsistent.orthonormalizeSameKappa(newOrbitals, newBVectors,
                                                                 basis.subshells, primitives, matrixB)
+        end
+        # Anderson acceleration works on the CONCATENATED b-vector of every subshell, and
+        # orthonormalizeSameKappa rotates within each kappa block; both would move a frozen orbital.  Put the
+        # pinned values back before anything is measured or accepted.
+        for  sh  in  frozenSubshells
+            newBVectors[sh] = copy(pinnedB[sh]);    newEnergies[sh] = pinnedE[sh]
+            newOrbitals[sh] = Bsplines.generateOrbitalFromVector(sh, pinnedE[sh], pinnedB[sh], primitives)
         end
         # Convergence is measured against what is ACTUALLY accepted, which Anderson may have moved. Only
         # when it is active, so that depth 0 remains a bit-for-bit control on the previous behaviour.

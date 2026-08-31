@@ -118,7 +118,10 @@ end
 """
 `SelfConsistent.selectTargetLevelsEOL(mp::Multiplet, levelSelectionCI::LevelSelection)`
     ... determines the target level(s) for the EOL functional from an (energy-sorted) multiplet mp,
-        using levelSelectionCI EXCLUSIVELY: either indices or symmetries may be given, never both.
+        using levelSelectionCI EXCLUSIVELY.  If configurations is given, the target set is selected by
+        reference weight (see below) and, if symmetries is given as well, restricted to those J^P --
+        the one-orbital-set-per-J route for RAS layers.  Otherwise either indices or symmetries may be
+        given, never both.
         If symmetries is given, the target set is the LOWEST level of each listed symmetry (the classic
         EOL use case, e.g. the lowest of J=1/2^+ together with the lowest of J=3/2^+). If indices is
         given, the target set is those exact levels by their (global, energy-sorted) index. If
@@ -173,6 +176,31 @@ function selectTargetLevelsEOL(mp::Multiplet, levelSelectionCI::LevelSelection)
         if  isempty(targetLevels)   error("SelfConsistent.selectTargetLevelsEOL(): no level carries a weight of 0.5 " *
                     "or more on the reference configurations $(levelSelectionCI.configurations); the largest is " *
                     "$best.  The reference space does not describe these levels, so no EOL target set can be formed.")
+        end
+        # A SYMMETRY LIST MAY BE GIVEN IN ADDITION, and then restricts the reference levels to those J^P.  This is the
+        # ONE-ORBITAL-SET-PER-J route, and it is the recommended way to run the RAS layers on top of an AL reference:
+        # the spectroscopic orbitals are optimized once, by AL, over all fine-structure levels of the reference
+        # configurations; each added correlation layer is then optimized SEPARATELY for each J, giving one set of
+        # correlation orbitals per symmetry.  Statistically (2J+1)-weighting several J's into a single set of
+        # correlation orbitals asks those orbitals for a compromise no single J wants, and the price is paid in the
+        # ENERGY: measured on Cf^17+ with an SD layer into {7s,7p}, the J=5/2 reference level comes out at
+        # -32975.77417097 Ha when four levels share one orbital set and at -32975.77423934 Ha when it is optimized
+        # alone -- 6.8e-5 Ha, about 15 cm^-1, and the clock transition moves from 8834 to 8849 cm^-1 with it.  Each
+        # per-J energy is a proper variational upper bound for ITS OWN level, which the weighted compromise is not.
+        # (An earlier version of this note claimed the compromise also collapses the line search, on the strength of
+        # the step falling to 1e-5 in the four-level run.  That was a misreading: the energy of that run had already
+        # converged to 1e-11 by iteration 11, so the shrinking step is an optimizer standing still at a flat minimum,
+        # which is normal terminal behaviour and not a trust-radius pathology.)
+        # Note this is a RESTRICTION of the reference-weight set and not the plain-symmetries branch below: the level
+        # is chosen by what it IS (its weight on the reference configurations) and only then filtered by its J^P, so
+        # an intruder of the right symmetry sinking below it cannot capture the target set.
+        if  !isempty(levelSelectionCI.symmetries)
+            selected = [ lv  for lv in targetLevels  if  LevelSymmetry(lv.J, lv.parity) in levelSelectionCI.symmetries ]
+            if  isempty(selected)   error("SelfConsistent.selectTargetLevelsEOL(): of the $(length(targetLevels)) " *
+                        "reference levels found, symmetries $(unique([LevelSymmetry(lv.J, lv.parity) for lv in targetLevels])), " *
+                        "none carries one of the requested symmetries $(levelSelectionCI.symmetries).")
+            end
+            targetLevels = selected
         end
         return( targetLevels )
     elseif  !levelSelectionCI.active  ||  ( isempty(levelSelectionCI.indices) && isempty(levelSelectionCI.symmetries) )
