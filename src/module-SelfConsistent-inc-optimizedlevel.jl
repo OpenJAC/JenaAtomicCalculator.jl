@@ -491,7 +491,8 @@ function computeOrbitalGradient(bVectors::Dict{Subshell, Vector{Float64}},
                                        coeffs1p::Array{Coefficient1p,1},
                                        coeffs2p::Array{Coefficient2p,1},
                                        subshells::Array{Subshell,1}, primitives::Bsplines.Primitives,
-                                       nucPot::Radial.Potential, storage::Dict{String,Array{Float64,2}})
+                                       nucPot::Radial.Potential, storage::Dict{String,Array{Float64,2}},
+                                       matrixB::Array{Float64,2})
     nsL = primitives.grid.nsL;    nsS = primitives.grid.nsS
     orbitals = Dict{Subshell, Orbital}()
     for  sh  in  subshells
@@ -578,6 +579,24 @@ function computeOrbitalGradient(bVectors::Dict{Subshell, Vector{Float64}},
             (pC, qC) = expanded[sC];     (pA, qA) = expanded[sA]
             grad[sA] = grad[sA] + (cf.V * xc * scale[sA]) * SelfConsistent.screenedProduct(Vk, pC, qC, primitives)
             grad[sC] = grad[sC] + (cf.V * xc * scale[sC]) * SelfConsistent.screenedProduct(Vk, pA, qA, primitives)
+        end
+    end
+
+    # THE SCALE-INVARIANCE PROJECTION.  generateOrbitalFromVector NORMALIZES, so the functional depends on b
+    # only through b/sqrt(b^T B b) and is invariant under b -> lambda b.  Differentiating that identity at
+    # lambda = 1 gives <grad, b> = 0 for the true gradient, and the correction is a projection along B b:
+    #     grad  <-  grad - (<grad,b> / b^T B b) * (B b).
+    # Along B b, not along b -- the metric matters, and getting it wrong was one of the wrong turns of
+    # 31-Aug-2026.  The virtual directions are already B-orthogonal to the occupied orbitals, so on THEM this
+    # correction is exactly zero and neither the direction nor gNorm change.  It bites on `dir`, which is a
+    # CONJUGATE-GRADIENT combination carrying dirPrev from the previous iteration's basis, built against the
+    # previous orbitals: measured b^T B dir / (|b|_B |dir|_B) = +3.9e-02 and -1.2e-02 on the Be RAS step-2
+    # case, and that leak is exactly the 3 % by which <grad,dir> exceeded a converged central difference
+    # after item 121 was fixed (ratio 0.970348, stable over four decades of step size).
+    for  sh  in  subshells
+        bb = transpose(bVectors[sh]) * matrixB * bVectors[sh]
+        if  abs(bb) > 1.0e-30
+            grad[sh] = grad[sh] - ( sum( grad[sh] .* bVectors[sh] ) / bb ) * (matrixB * bVectors[sh])
         end
     end
     return( grad )
@@ -826,7 +845,7 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
         (e0Frozen, e0) = SelfConsistent.energyFromBVectorsSplit(bVectors, coeffs1p, coeffs2p, basis.subshells,
                                                          primitives, grid, nucPot, isFrozenSub, frozenRk)
         grad = SelfConsistent.computeOrbitalGradient(bVectors, coeffs1p, coeffs2p, basis.subshells,
-                                                             primitives, nucPot, storage)
+                                                             primitives, nucPot, storage, matrixB)
         virt = SelfConsistent.virtualDirections(bVectors, basis.subshells, primitives, nucPot,
                                                         matrixB, storage; nVirtual=nVirtual, spectrum=posSpectrum)
         # Project the gradient on the allowed rotations, and PRECONDITION each component by the
@@ -1004,6 +1023,18 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
             # derivative -- that is what dgRaw measures here.
             dgRaw = 0.
             for  sh  in  activeSubshells    dgRaw = dgRaw + sum( grad[sh] .* dir[sh] )    end
+            # IS THE SEARCH DIRECTION B-ORTHOGONAL TO THE ORBITAL IT MOVES?  virtualDirections orthogonalizes
+            # every phi against the occupied orbitals of that kappa IN THE B METRIC, so b^T B dir should
+            # vanish.  If it does, the scale-invariance correction -- which is a projection along B b, not
+            # along b -- contributes nothing to <grad,dir>, and cannot be the 3 % residual against the finite
+            # difference.  Printed rather than assumed, because assuming it is how six earlier hypotheses died.
+            for  sh  in  activeSubshells
+                bBd  = transpose(bVectors[sh]) * matrixB * dir[sh]
+                nb   = sqrt(abs(transpose(bVectors[sh]) * matrixB * bVectors[sh]))
+                nd   = sqrt(abs(transpose(dir[sh]) * matrixB * dir[sh]))
+                @printf(">> [EOL-FD]   %-9s b^T B dir / (|b|_B |dir|_B) = %+.3e\n", string(sh),
+                        (nb*nd) > 0. ? bBd/(nb*nd) : NaN)
+            end
             @printf(">> [EOL-FD] iteration %d:  <grad_raw,dir> = %+.10e   (ratio to dg %+.6f)\n",
                     iter, dgRaw, dg != 0. ? dgRaw/dg : NaN)
             for  eps  in  (1.0e-4, 1.0e-5, 1.0e-6, 1.0e-7)
