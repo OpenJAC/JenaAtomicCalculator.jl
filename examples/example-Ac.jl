@@ -2,10 +2,18 @@
 println("Ac) Apply & test the CI part for open-shell multiplets of increasing complexity, without Breit interaction.")
 
 if  false
-    # Last successful:  28-Jul-2026: E1 = -54.412785002103 Ha, nlev=5. CI-only (isolated) timing:
-    # 0.194 s BEFORE the Hamiltonian.jl caching fix (see module-Hamiltonian.jl/module-InteractionStrength.jl,
-    # 28-Jul-2026) -> 0.142 s AFTER (1.37x speedup, bit-identical energy) -- the smallest branch (3 blocks),
-    # so the smallest speedup of the four (see Branch 4 for the largest).
+    # Last successful:  31-Aug-2026: E1 = -54.414213603268 Ha, nlev=5.
+    #   THE NUMBER MOVED BY 1.43 mHa FROM THE 28-Jul-2026 VALUE OF -54.412785002103, AND THAT IS NOT A
+    #   REGRESSION. Bisected 31-Aug over the 469 commits since: the shift is `4cc94eb` (15-Aug-2026), "The
+    #   kink-aware Slater integral becomes the standard" -- XL_Coulomb integrating the Slater kernel across the
+    #   r_< / r_> cusp instead of through it. That commit validated the new rule against the ANALYTIC
+    #   F^0(1s,1s) = 5Z/8 (7.85e-5 against the old 2.59e-4 on this very grid) and re-approved twelve reference
+    #   files. So the old number was the less accurate one; this branch's comment simply was never updated.
+    #   A SECOND, MUCH SMALLER STEP of 9.7e-8 Ha sits at `3876ab0` (31-Jul), the kappa-sign B-spline
+    #   boundary-condition fix -- also deliberate, and far too small to be what was noticed.
+    # Earlier timing note, kept: CI-only (isolated) 0.194 s BEFORE the Hamiltonian.jl caching fix (see
+    #   module-Hamiltonian.jl/module-InteractionStrength.jl, 28-Jul-2026) -> 0.142 s AFTER (1.37x, bit-identical
+    #   energy at the time) -- the smallest branch (3 blocks), so the smallest speedup of the four.
     # Branch 1 (smallest): N I, single reference 1s^2 2s^2 2p^3 -- the richest SINGLE p-shell case (2p^2 and
     # 2p^4 are identical in CSF count/structure by particle-hole symmetry, both only 5 CSF/2 blocks; 2p^3
     # alone already reaches 5 CSF across 3 symmetry blocks). Pure Coulomb (AsfSettings() defaults already
