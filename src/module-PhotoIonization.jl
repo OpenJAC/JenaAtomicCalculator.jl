@@ -450,22 +450,31 @@ function  computeAmplitudesPropertiesPlasma(line::PhotoIonization.Line, nm::Nucl
         end
         push!(newPartialWaves, PhotoIonization.PartialWave(pw.kappa, line.electronEnergy, phase, newChannels))
     end
-    Ji2 = Basics.twice(line.initialLevel.J)
-    # ####################################################################################################
-    # WARNING, 28-Aug-2026: THIS NORMALISATION DISAGREES WITH `computeCrossSection`, WHICH THE NON-PLASMA PATH
-    # USES, AND IT IS THE ONE THAT FAILS THE ONLY ABSOLUTE TEST WE HAVE. The two carry OPPOSITE omega dependence
-    # -- this one goes as alpha*omega, the other as 1/(alpha*omega) -- so they cannot differ by a constant and
-    # cannot both be right; the gap is 4 pi (2J_i+1)/(alpha^2 omega^2), which is 8.4e5 at omega = 20.4 eV.
-    # MEASURED against Stobbe's closed-form 1s cross section (hydrogen, point nucleus, E1 only), at
-    # x = omega/omega_th = 1.5, 2, 3, in barn:
-    #        Stobbe                2.09127e+06   9.31429e+05   2.88397e+05
-    #        computeCrossSection   2.51913e+06   1.02584e+06   3.22474e+05     (ratio 1.205, 1.101, 1.118)
-    #        THIS FACTOR                  3.72          2.82          1.99     (ratio ~1.8e-6, and NOT flat)
-    # So a plasma photoionization cross section computed here is wrong by five to six orders of magnitude, and by
-    # an amount that grows as omega^2. NOT CORRECTED HERE because it changes every number this path has ever
-    # produced, which is the maintainer's call; carried as a priority item.
-    # ####################################################################################################
-    csFactor     = 4 * pi^2 * Defaults.getDefaults("alpha") * line.photonEnergy / (2*(Ji2 + 1))
+    # CORRECTED 31-Aug-2026. This line read  4 pi^2 alpha omega / (2(2J_i+1))  and was wrong by 4 pi/(alpha omega)^2
+    # -- 174.7 at omega = 1 keV, and growing as omega falls. It now uses the SAME factor as
+    # PhotoIonization.computeCrossSection, which is what the field-free path uses and which is validated against
+    # Stobbe's closed-form 1s cross section.
+    #
+    # WHY THE OLD FACTOR LOOKED RIGHT: 4 pi^2 alpha omega |d|^2 IS the textbook photoionization cross section --
+    # for a DIPOLE MATRIX ELEMENT. JAC's multipole amplitude is not one: it is built on j_L(alpha omega r), whose
+    # leading term is (alpha omega r)^L/(2L+1)!!, so an E1 amplitude ALREADY carries one power of alpha omega and
+    # |M|^2 carries two. The prefactor must therefore go as 1/(alpha omega), not as alpha omega. The old line was a
+    # correct formula applied to the wrong object.
+    #
+    # MEASURED, both routes in one session on the same case (Ne 1s^2 2s^2 2p^6 -> 1s 2s^2 2p^6, omega = 1000 eV,
+    # E1, Coulomb, NoPlasmaModel so that only the route differs):
+    #        route                                  channels   sum |amp|^2      sigma/sum
+    #        PhotoIonization.computeLines              2        8.84431072e-06   9.249642e+02  = 8 pi^3/(alpha w)
+    #        PhotoIonization.computeLinesPlasma        2        8.84430289e-06   5.293518e+00  = 4 pi^2 alpha w/2
+    # The summed amplitudes agree to six figures and the channel counts are equal, so the ENTIRE difference was the
+    # prefactor. In barn: 0.2291 Mb against 0.001311 Mb, and 0.229 Mb is the right order for Ne K-shell just above
+    # its 870 eV edge, which the old value was not.
+    #
+    # WHY IT SURVIVED SO LONG: examples/example-Jb.jl branch b is the only caller, and it runs ALL FOUR of its
+    # plasma models -- including the "field-free" NoPlasmaModel() -- through THIS function. Its checks are
+    # monotonicity in screening strength, absence of discontinuities, and convergence to the field-free limit;
+    # every one of them is scale-invariant, so a factor common to all four is invisible to all three.
+    csFactor     = 8 * pi^3 / Defaults.getDefaults("alpha") / line.photonEnergy
     crossSection = csFactor * cs
     newline = PhotoIonization.Line( line.initialLevel, line.finalLevel, line.electronEnergy, line.photonEnergy,
                                     crossSection, EmProperty(0.), EmProperty(0.), EmProperty(0.), newPartialWaves)

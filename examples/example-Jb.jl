@@ -80,8 +80,16 @@ elseif  false
     #   - Weak-screening limit: at debyeLength = 1000 a_o, the threshold shift is only 0.03 eV (vs 2.97, 18.74 eV
     #     at 10, 2 a_o) and the continuum-orbital Zbar = converges toward the field-free +1 -- smooth, correct
     #     convergence as screening -> 0, consistent with the same check in Branch 1.
-    #   - Cross section increases mildly and monotonically with screening strength (1311 -> 1336 -> 1412 barn,
+    #   - Cross section increases mildly and monotonically with screening strength (0.2291 -> 0.2335 -> 0.2467 Mb,
     #     Coulomb gauge, from field-free to debyeLength = 10, 2 a_o); no discontinuities or sign changes.
+    #     NUMBERS RESTATED 31-Aug-2026. They read 1311 -> 1336 -> 1412 BARN until then, and were 174.7x too small:
+    #     PhotoIonization.computeAmplitudesPropertiesPlasma carried 4 pi^2 alpha omega/(2(2J_i+1)) where the
+    #     field-free PhotoIonization.computeCrossSection carries 8 pi^3/(alpha omega), and only the latter is
+    #     validated (against Stobbe). THIS BRANCH COULD NOT HAVE SEEN IT: all four of its plasma models, the
+    #     "field-free" NoPlasmaModel() included, go through computeLinesPlasma, so the wrong factor was common to
+    #     every number compared -- and all three checks above (monotonic, no discontinuities, converges to the
+    #     field-free limit) are SCALE-INVARIANT. What settles it is absolute: 0.229 Mb is the right order for the
+    #     Ne K shell just above its 870 eV edge; 0.0013 Mb is not.
     #
     nm             = Nuclear.Model(10.0)
     initialConfigs = [Configuration("1s^2 2s^2 2p^6")]
