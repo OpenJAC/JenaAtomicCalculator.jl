@@ -1,8 +1,13 @@
 
 """
 `module JAC.RacahAlgebra`  
-... a submodel of JAC that contains procedures for defining a Nuclear.Model and for calculating various nuclear
-    potentials.
+... a submodel of JAC that contains procedures for the symbolic evaluation of expressions from Racah's algebra.
+
+    LINE WIDTH: THIS FILE IS EXEMPT FROM THE 140-COLUMN RULE (maintainer's decision, 31-Aug-2026), as are the two
+    `RacahAlgebra-inc-` files, which have been out of hygiene scope since 28-Aug-2026. The over-long lines are
+    almost all `RacahExpression( ... )` constructor calls carrying all eleven fields positionally, written one per
+    line with the fields in fixed columns so that two expressions can be compared by eye. That is a table in
+    everything but name and is left as it is.
 """
 module  RacahAlgebra
 

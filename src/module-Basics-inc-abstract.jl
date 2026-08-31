@@ -1,5 +1,12 @@
 
 
+# LINE WIDTH: THIS FILE IS EXEMPT FROM THE 140-COLUMN RULE (maintainer's decision, 31-Aug-2026). 126 of its 140
+# over-long lines are single-line `@doc "..."` strings attached to a struct definition, which cannot be wrapped
+# without being rewritten as triple-quoted blocks -- a change that would add three lines per struct and make the
+# list of concrete types harder, not easier, to scan. The remainder are the aligned `+ Name  ... description`
+# entries of the abstract-type overviews, which are tables in the same sense.
+
+
 """
 `abstract type Basics.AbstractAngularMomentum` 
     ... defines an abstract and a number of concrete types for dealing with angular momentum variables.
@@ -1167,6 +1174,17 @@ struct   TotalAM             <:  AbstractConfigurationTheme
     allJ            ::Bool
     totalJs         ::Array{AngularJ64,1}
 end
+
+
+"""
+`Basics.TotalAM()`  ... constructor for the default `TotalAM(true, AngularJ64[])`, i.e. ALL total angular momenta
+    to which the CSF of a configuration can couple, with none selected in particular; a theme::Basics.TotalAM is
+    returned. It exists so that this theme is written like every other `AbstractConfigurationTheme` -- `ClosedShells()`,
+    `OpenSubshells()`, `ValenceShells()` are all empty structs called with no argument, and `TotalAM` is the only one
+    carrying fields, so a caller who writes `TotalAM()` beside them is following the family rather than making a
+    mistake. The `allJ` field is exactly what expresses "all of them".
+"""
+TotalAM() = TotalAM(true, AngularJ64[])
 
 
 # `Base.string(theme::Basics.TotalAM)`  ... provides a proper printout of the variable theme::Basics.TotalAM.
@@ -2433,11 +2451,14 @@ end
 """
 `Basics.LevelSelection(active::Bool; indices::Array{Int64,1}=Int64[], symmetries::Array{LevelSymmetry,1}=LevelSymmetry[],
                        configurations::Array{Configuration,1}=Configuration[])`  
-    ... constructor for specifying the details of a LevelSelection.  At most ONE of the three ways of naming levels
-        should be given.  `configurations` names the REFERENCE configurations and selects the levels that are built
-        mainly from them, measured by the weight the level carries on those configurations' CSFs; it is the only one
-        of the three that survives an intruder level dropping into the energy ordering, and it is therefore the one
-        to use for the target set of an EOL field.  See SelfConsistent.selectTargetLevelsEOL.
+    ... constructor for specifying the details of a LevelSelection.  `indices` and `symmetries` are alternatives
+        and must not be combined.  `configurations` names the REFERENCE configurations and selects the levels that
+        are built mainly from them, measured by the weight the level carries on those configurations' CSFs; it is
+        the only one of the three that survives an intruder level dropping into the energy ordering, and it is
+        therefore the one to use for the target set of an EOL field.  `configurations` MAY be combined with
+        `symmetries`, which then restricts the selected reference levels to those J^P: that is the
+        one-orbital-set-per-J route for the RAS layers on top of an AL-optimized reference.
+        See SelfConsistent.selectTargetLevelsEOL.
 """
 function  LevelSelection(active::Bool; indices::Array{Int64,1}=Int64[], symmetries::Array{LevelSymmetry,1}=LevelSymmetry[],
                         configurations::Array{Configuration,1}=Configuration[])

@@ -4,6 +4,12 @@
 ... a submodel of JAC that contains methods and data from the periodic table of elements. Although we here collect 
     data for various elements, no attempt will be made to set-up a full compilation. Instead, useful information
     and some semi-empirical data are compiled to simplify the use of the JAC package in the future.
+
+    LINE WIDTH: THIS FILE IS EXEMPT FROM THE 140-COLUMN RULE, and deliberately so (maintainer's decision,
+    31-Aug-2026). Its 698 over-long lines are the rows of ALIGNED DATA TABLES -- one element per line, with
+    symbol, name, mass, density, ionization energy, ground configuration and further quantities each in a fixed
+    column. The alignment IS the readability here: a reader checks one quantity down a column, which is exactly
+    what wrapping would destroy. Do not re-flow them, and do not raise this as a finding.
 """
 module PeriodicTable
 

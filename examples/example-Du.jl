@@ -208,7 +208,11 @@ elseif  false
     asfN        = AsfSettings(AsfSettings(); scField = scfN)
     interConfs  = [Configuration("2s"), Configuration("2p"), Configuration("3s"), Configuration("3p"),
                    Configuration("3d"), Configuration("4p")]
-    interRep    = Representation("intermediate levels", ni, grid, interConfs,
+    # The file-level grid (rbox = 20) is too small for the 4p intermediate, whose turning point is near 31 a.u.;
+    # checkGridRepresentation refused 7 of 11 subshells.  This branch therefore takes its OWN derived box rather
+    # than raising the shared one, which every other branch of this file depends on.
+    gridDu      = Basics.recommendedGrid([Configuration("4p")], ni)
+    interRep    = Representation("intermediate levels", ni, gridDu, interConfs,
                                  MeanFieldMultiplet(MeanFieldSettings(scfN)))
     interMp     = generate(interRep, output=true)["mean-field multiplet"]
     #
@@ -220,7 +224,7 @@ elseif  false
                         multipoles = [E1], gauges = [UseCoulomb, UseBabushkin],
                         intermediateStates = interMp, calcOverview = false,
                         lineSelection = LineSelection() )
-    wc = Atomic.Computation(Atomic.Computation(), name="Du-c: three-colour three-photon absorption of H", grid=grid,
+    wc = Atomic.Computation(Atomic.Computation(), name="Du-c: three-colour three-photon absorption of H", grid=gridDu,
                             nuclearModel   = ni,
                             initialConfigs = [Configuration("1s")],
                             finalConfigs   = [Configuration("2p")],

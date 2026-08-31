@@ -446,7 +446,19 @@ elseif  false
     # implementation. The PHYSICS is not: there is no literature comparison for this system in the repository,
     # the strengths are dominated by an adjustable model, and the bound-state limitation above is known and
     # uncorrected. A "Last successful" date here would claim more than has been shown.
-    grid79     = Radial.Grid(Radial.Grid(false), rnt = 6.0e-6, h = 5.0e-2, hp = 6.0e-3, rbox = 10.0)
+    # THE BOX IS DERIVED, NOT CHOSEN.  rbox = 10.0 was too SMALL and Bsplines.checkGridRepresentation refused
+    # the branch outright, failing on 5 of the 14 subshells: the n = 19 spectator seeing an effective charge of
+    # about 76 has its outer turning point at roughly 9.5 a.u., so a 10 a.u. box ends exactly where the orbital
+    # still is.  Basics.recommendedGrid reads the shells out of the configurations themselves and returns
+    # rbox = 14.16, which passes.  Deriving it also means the box follows if the spectator n is ever changed.
+    # hp IS KEPT AT THE BRANCH'S OWN 6.0e-3 AND NOT TAKEN FROM THE RECOMMENDATION, because the two are fixed by
+    # DIFFERENT physics: the box by the most extended BOUND orbital, the outer step by the shortest CONTINUUM
+    # wavelength.  recommendedGrid knows only the bound side and offered hp = 0.046, on which
+    # Continuum.gridConsistency then refused the branch -- 10.95 points per oscillation at 77 Ha against the 15
+    # it requires.  Taking the box from one guard and the step from the other is what satisfies both.
+    grid79     = Basics.recommendedGrid([Configuration("1s^2 2s^2 2p^0 3s^0 3p^0 3d^0 19s^0 19p^0 19d^0"),
+                                         Configuration("1s^2 2s^1 2p^1 3s^0 3p^0 3d^0 19s^1 19p^0 19d^0")],
+                                        Nuclear.Model(79., FermiNucleus()); hp = 6.0e-3)
     asfSet79   = AsfSettings(AsfSettings(), eeInteraction=CoulombBreit(1.0))
     drSettings = DielectronicRecombination.Settings(DielectronicRecombination.Settings();
                                                     multipoles         = [E1],

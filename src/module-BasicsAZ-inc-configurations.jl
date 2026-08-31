@@ -849,6 +849,25 @@ end
 
     
 """
+`Basics.extractFromConfiguration(theme::Basics.ClosedSubshells, conf::Configuration)`
+    ... extract the closed (relativistic) subshells of the NON-relativistic configuration conf; a
+        list::Array{Subshell,1} is returned. A shell `nl` contributes BOTH of its spin-orbit partners when it is
+        full, i.e. when its occupation is 2(2l+1), and neither of them otherwise: a partly-filled non-relativistic
+        shell carries no statement about how its electrons are distributed over j = l-1/2 and j = l+1/2, so no
+        subshell of it can be called closed. This mirrors `Basics.extractFromConfiguration(ClosedShells(), conf)`
+        above, which returns the same shells unsplit.
+"""
+function Basics.extractFromConfiguration(theme::Basics.ClosedSubshells, conf::Configuration)
+    subshells = Subshell[]
+    for  (shell, occ)  in conf.shells
+        if  occ == 2*(2*shell.l + 1)    append!(subshells, Basics.shellSplitIntoSubshells(shell))    end
+    end
+
+    return( subshells )
+end
+
+
+"""
 `Basics.extractFromConfiguration(theme::Basics.ClosedSubshells, conf::ConfigurationR)`  
     ... extract the (relativistic) closed subshells in conf; a list::Array{Subshell,1} is returned.
 """
@@ -1444,7 +1463,7 @@ end
 function Basics.generateConfigurations(theme::Basics.ForAutoIonization, confs::Array{Configuration,1})
     newConfs = Configuration[]
     # Test for equal number of electrons
-    wa = Basics.extractFromConfigurations(NumberOfElectrons(), confs)
+    wa = unique( Basics.extractFromConfigurations(NumberOfElectrons(), confs) )
     if  length(wa) != 1   error("Configurations with different NoElectrons are given.")   else   noe = wa[1]    end 
     
     for  conf in confs
@@ -1484,14 +1503,14 @@ end
 """
 function Basics.generateConfigurations(theme::Basics.ForDielectronicCapture, confs::Array{Configuration,1})
     # Check that all configurations have the same number of electrons
-    wa = Basics.extractFromConfigurations(NumberOfElectrons(), confs)
+    wa = unique( Basics.extractFromConfigurations(NumberOfElectrons(), confs) )
     if  length(wa) != 1   error("Configurations with different NoElectrons are given.")   else   noe = wa[1]    end 
     
     newConfs = Basics.generateConfigurations(ExciteElectrons(1, theme.fromShells, theme.toShells), confs)
     newConfs = Basics.generateConfigurations(AddElectrons(1, theme.intoShells), newConfs)
     
     # Check that all generated configurations have one electron less than given initially
-    wa = Basics.extractFromConfigurations(NumberOfElectrons(), newConfs)
+    wa = unique( Basics.extractFromConfigurations(NumberOfElectrons(), newConfs) )
     if       length(wa) != 1     error("Configurations with different NoElectrons are generated.")   
     elseif   wa[1] != noe + 1    error("Configurations with unexpected NoElectrons are generated.") 
              Basics.displayConfigurations(stdout, newConfs)
@@ -1589,7 +1608,7 @@ end
 """
 function Basics.generateConfigurations(theme::Basics.ForHollowIons, confs::Array{Configuration,1})
     # Test for equal number of electrons
-    wa = Basics.extractFromConfigurations(NumberOfElectrons(), confs)
+    wa = unique( Basics.extractFromConfigurations(NumberOfElectrons(), confs) )
     if  length(wa) != 1   error("Configurations with different NoElectrons are given.")   else   noe = wa[1]    end
     
     # First capture theme.ne electrons into theme.intoShells
@@ -1717,7 +1736,7 @@ end
 """
 function Basics.generateConfigurations(theme::Basics.ForRasExcitations, confs::Array{Configuration,1})
     # Check that all configurations have the same number of electrons
-    wa = Basics.extractFromConfigurations(NumberOfElectrons(), confs)
+    wa = unique( Basics.extractFromConfigurations(NumberOfElectrons(), confs) )
     if  length(wa) != 1   error("Configurations with different NoElectrons are given.")   else   noe = wa[1]    end 
     
     newConfs = deepcopy(confs)
@@ -1762,7 +1781,7 @@ function Basics.generateConfigurations(theme::Basics.ForStepwiseDecay, confs::Ar
     end
     newConfs = Configuration[];   currentConfs = deepcopy(confs)
     # Test for equal number of electrons
-    wa = Basics.extractFromConfigurations(NumberOfElectrons(), confs)
+    wa = unique( Basics.extractFromConfigurations(NumberOfElectrons(), confs) )
     if  length(wa) != 1   error("Configurations with different NoElectrons are given.")   else   noe = wa[1]    end 
     
     neMax = max(1, theme.maximallyReleased)

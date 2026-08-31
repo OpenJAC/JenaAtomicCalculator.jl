@@ -311,7 +311,12 @@ elseif  false
         ni          = Nuclear.Model(Z, Z < 2.0 ? PointNucleus() : FermiNucleus())
         scfZ        = Basics.NuclearField()          ## same one-body Hamiltonian for initial, final, intermediate
         asfZ        = AsfSettings(AsfSettings(); scField = scfZ)
-        gridZ       = Radial.Grid(Radial.Grid(false), rnt = 4.0e-6, h = 5.0e-2, hp = 1.0e-2, rbox = 80.0/Z)
+        # rbox = 80/Z scaled with Z correctly and was simply too small: the intermediate sum runs to 12p, whose
+        # turning point is near 287/Z a.u., so 80/Z ended well inside it and checkGridRepresentation refused the
+        # branch at EVERY Z, 14 of 24 subshells each time.  The box is now derived from the most extended
+        # intermediate; recommendedGrid returns 487.9/Z, which passes at all six charges.  A single electron sees
+        # no screening, so naming 12p alone is the right call here and gives Zeff = Z.
+        gridZ       = Basics.recommendedGrid([Configuration("12p")], ni)
         interConfs  = [Configuration("$(n)p") for n = 2:12]
         interRep    = Representation("intermediate np", ni, gridZ, interConfs, MeanFieldMultiplet(MeanFieldSettings(scfZ)))
         interMp     = generate(interRep, output=true)["mean-field multiplet"]
