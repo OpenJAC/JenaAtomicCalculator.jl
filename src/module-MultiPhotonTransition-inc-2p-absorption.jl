@@ -137,6 +137,7 @@ function  computeProperties_2pAbsorptionMonochromatic(line::MultiPhotonTransitio
     csLinear        = EmProperty(0., 0.)
     csRightCircular = EmProperty(0., 0.)
     csUnpolarized   = EmProperty(0., 0.)
+    csDensityMatrix = EmProperty(0., 0.)
     for property in settings.scheme.properties
         if      typeof(property) == TotalAlpha0          
             if  Basics.UseCoulomb  in  settings.gauges
@@ -201,14 +202,18 @@ function  computeProperties_2pAbsorptionMonochromatic(line::MultiPhotonTransitio
     # K = 0 contributes. For a general transition several K contribute with different polarization weights and
     # this expression does NOT apply; it is therefore computed only when both levels have J = 0, and left at
     # zero otherwise rather than silently returning a wrong number.
+    # Computed only when asked for, and only for J_i = J_f = 0; determineLines_2pAbsorptionMonochromatic has
+    # already refused any other pair, so reaching the else here would mean the two tests had drifted apart.
     stokes = settings.stokes
-    if  Basics.twice(line.initialLevel.J) == 0  &&  Basics.twice(line.finalLevel.J) == 0
-        wp  = 1.0 + stokes.P1^2 + stokes.P2^2 - stokes.P3^2
-        csDensityMatrix = EmProperty(csUnpolarized.Coulomb * wp, csUnpolarized.Babushkin * wp)
-    else
-        csDensityMatrix = EmProperty(0., 0.)
-        @warn("TotalCsDensityMatrix is implemented only for J_i = J_f = 0 (K = 0 alone); returning zero for " *
-              "J_i = $(line.initialLevel.J), J_f = $(line.finalLevel.J).")
+    if  TotalCsDensityMatrix()  in  settings.scheme.properties
+        if  Basics.twice(line.initialLevel.J) == 0  &&  Basics.twice(line.finalLevel.J) == 0
+            wp  = 1.0 + stokes.P1^2 + stokes.P2^2 - stokes.P3^2
+            csDensityMatrix = EmProperty(csUnpolarized.Coulomb * wp, csUnpolarized.Babushkin * wp)
+        else
+            error("MultiPhotonTransition: TotalCsDensityMatrix reached a J_i = $(line.initialLevel.J), " *
+                  "J_f = $(line.finalLevel.J) line that determineLines_2pAbsorptionMonochromatic should have " *
+                  "refused; the two J = 0 tests have drifted apart.")
+        end
     end
     line = MultiPhotonTransition.Line_2pAbsorptionMonochromatic( line.initialLevel, line.finalLevel, line.omega, 
                                                                     alpha0, csLinear, csRightCircular, csUnpolarized,
@@ -592,6 +597,31 @@ function  determineLines_2pAbsorptionMonochromatic(finalMultiplet::Multiplet, in
             end
         end
     end
+    # REFUSE HERE RATHER THAN RETURN A ZERO LATER. TotalCsDensityMatrix is derived for J_i = J_f = 0, where K = 0
+    # alone contributes; for any other pair several K enter with different polarization weights and the closed form
+    # does not apply. Until 31-Aug-2026 such a line was given EmProperty(0., 0.) with a @warn, and the display then
+    # printed 0.0000e+00 in a column beside three genuine cross sections -- a number-shaped hole that a reader has
+    # no way to tell from a computed zero. That is what `example-Dh.jl:620` ran into: a DATED branch, 1/2+ -> 1/2+,
+    # whose table looked complete. The check sits here, before the Green-function work rather than after it, so a
+    # caller who asked for something undefined is told at once and loses nothing they had waited for.
+    if  TotalCsDensityMatrix()  in  settings.scheme.properties
+        for  line  in  lines
+            if  Basics.twice(line.initialLevel.J) != 0   ||   Basics.twice(line.finalLevel.J) != 0
+                error("\n\nMultiPhotonTransition: TotalCsDensityMatrix was requested for the transition "        *
+                      "$(line.initialLevel.index) -> $(line.finalLevel.index), J_i = $(line.initialLevel.J), "    *
+                      "J_f = $(line.finalLevel.J).\n"                                                            *
+                      ">>> It is implemented only for J_i = J_f = 0, where K = 0 alone contributes and the "      *
+                      "polarization\n>>> dependence closes as sigma(P1,P2,P3) = sigma_unpol * "                   *
+                      "(1 + P1^2 + P2^2 - P3^2). For a general\n>>> transition several K contribute with "        *
+                      "different weights and that expression is simply wrong.\n"                                  *
+                      ">>> Drop TotalCsDensityMatrix from the scheme's properties, or restrict the line "         *
+                      "selection to\n>>> J = 0 -> J = 0. The other properties -- TotalAlpha0, TotalCsLinear, "    *
+                      "TotalCsRightCircular,\n>>> TotalCsUnpolarized -- are unaffected and available for this "   *
+                      "transition.\n")
+            end
+        end
+    end
+
     return( lines )
 end
 

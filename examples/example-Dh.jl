@@ -666,7 +666,10 @@ elseif  true
     #     TotalCsLinear          Stokes (1,0,0)
     #     TotalCsRightCircular   Stokes (0,0,1)
     #     TotalCsUnpolarized     Stokes (0,0,0)
-    #     TotalCsDensityMatrix   the user's own Stokes vector, of which the three above are special values
+    #     TotalCsDensityMatrix   the user's own Stokes vector, of which the three above are special values --
+    #                            and NOT asked for here, because it exists only for J_i = J_f = 0 while this is
+    #                            1/2 -> 1/2.  It WAS asked for until 31-Aug-2026, and the module then printed a
+    #                            column of 0.0000e+00 beside three genuine cross sections; it now refuses instead.
     #
     # THEIR RATIOS ARE A CHECK IN THEMSELVES. Angular algebra alone fixes them, independently of any overall
     # normalisation -- so this branch can be tested even before an absolute two-photon absorption benchmark for
@@ -682,11 +685,10 @@ elseif  true
                                      MultiPhotonTransition.AbstractMultiPhotonProperty[
                                          MultiPhotonTransition.TotalAlpha0(), MultiPhotonTransition.TotalCsLinear(),
                                          MultiPhotonTransition.TotalCsRightCircular(),
-                                         MultiPhotonTransition.TotalCsUnpolarized(),
-                                         MultiPhotonTransition.TotalCsDensityMatrix()] ),
+                                         MultiPhotonTransition.TotalCsUnpolarized()] ),
                         multipoles = [E1], gauges = [UseCoulomb, UseBabushkin],
                         intermediateStates = interMp, calcOverview = false,
-                        stokes = ExpStokes(0.6, 0.0, 0.8),      ## partially polarized, for TotalCsDensityMatrix
+                        stokes = ExpStokes(0.6, 0.0, 0.8),      ## kept, though no property here reads it
                         lineSelection = LineSelection(), printBefore = true )
     wd = Atomic.Computation(Atomic.Computation(), name="Dh-g: 1s -> 2s two-photon absorption of H", grid=grid,
                             nuclearModel   = ni,
