@@ -2,6 +2,34 @@
 """
 `module  PhotoExcitationAutoion`  
 ... a submodel of JAC that contains all methods for computing photo-excitation-autoionization cross sections and rates.
+
+    STATUS, 31-Aug-2026: PARKED BY THE MAINTAINER. Do NOT pick this module up as a task without saying so first.
+
+    IT IS A SCAFFOLD AND HAS NEVER COMPUTED ANYTHING. `computeAmplitudesProperties` builds the three channel sets
+    correctly -- excitation, Auger, photoionization -- and then substitutes a hardcoded constant for every one of
+    them: `amplitude = 1.0im` for the excitation, `amplitude = 1.0` for the Auger, and `EmPropertyC(1.0im)` for
+    each photoionization multipole. It then returns `partialCs = EmProperty(-1., -1.)` and
+    `qFano = EmProperty(-2., -2.)`. Both observables are NEGATIVE SENTINELS, not computed quantities: a cross
+    section of -1 and a Fano q of -2.
+
+    THE EVIDENCE THAT NOTHING WAS EVER RUN THROUGH IT, so nobody re-derives it: only `examples/example-Ec.jl`
+    uses the module and that file carries ZERO `Last successful` dates; the test suite touches it once, in
+    `testStructConstructors`, which builds an empty `Settings()` and checks nothing physical; every substantive
+    commit since 30-Jul-2026 is ANOTHER module's refactor sweeping through it, chiefly the "retire the flat
+    channel form" series of 14-15 Aug; and until `a664b96` it built `PhotoIonization.Settings` with NINE
+    positional arguments against a SIXTEEN-field struct, so every call raised a MethodError before reaching any
+    of the above.
+
+    DO NOT READ THE COMMENTED-OUT CALLS AS PROGRESS. Beside each stub sits the real call, commented out -- e.g.
+    `## amplitude = AutoIonization.amplitude(CoulombInteraction(), pw.kappa, phase, newnLevel, newcLevel, grid)`.
+    Those lines are what was NEVER WRITTEN, not what was recently disabled. Similarly, `a664b96` repaired the
+    `PhotoIonization.Settings` call and that is NOT a step towards a working module; it merely let the failure
+    move one level deeper, to `displayPathways` reading `ach.symmetry` where `AutoIonization.PartialWave` now
+    carries `(kappa, energy, phase, amplitude)` and no `symmetry` at all (lines 182, 199 and 328-331).
+
+    WHAT IS WORTH KEEPING: the pathway structure is right -- initial -> intermediate -> final, carrying the three
+    amplitude sets a Fano treatment needs -- so whoever writes the physics starts from a correct skeleton. Carried
+    as challenge 115.
 """
 module PhotoExcitationAutoion 
 
@@ -222,6 +250,15 @@ function  computePathways(finalMultiplet::Multiplet, intermediateMultiplet::Mult
     printstyled("PhotoExcitationAutoion.computePathways(): The computation of photo-excitation-autoionization amplitudes starts now ... \n", color=:light_green)
     printstyled("---------------------------------------------------------------------------------------------------------------------- \n", color=:light_green)
     println("")
+    error("\n\nPhotoExcitationAutoion is PARKED (31-Aug-2026) and gives no number.\n"                              *
+          ">>> EVERY amplitude in computeAmplitudesProperties is a HARDCODED STUB -- 1.0im for the excitation,\n"  *
+          ">>> 1.0 for the Auger, EmPropertyC(1.0im) for each photoionization multipole -- with the real call\n"   *
+          ">>> commented out beside it. The two observables are returned as NEGATIVE SENTINELS:\n"                 *
+          ">>>     partialCs = EmProperty(-1., -1.)     qFano = EmProperty(-2., -2.)\n"                            *
+          ">>> so a run of this module hands back a cross section of -1 and a Fano q of -2 as though they were\n"  *
+          ">>> results. That is why it now refuses instead of returning.\n\n"                                      *
+          ">>> Nothing in the package depends on it: no dated example, no physics test. See the STATUS block in\n" *
+          ">>> the module docstring for what remains, and challenge 115 for the decision.\n")
     #
     pathways = PhotoExcitationAutoion.determinePathways(finalMultiplet, intermediateMultiplet, initialMultiplet, settings)
     # Display all selected lines before the computations start
