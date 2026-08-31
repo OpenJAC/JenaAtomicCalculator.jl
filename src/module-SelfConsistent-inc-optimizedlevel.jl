@@ -745,6 +745,12 @@ end
 function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.Model, primitives::Bsplines.Primitives,
                                          settings::AsfSettings; printout::Bool=true, nVirtual::Int64=16,
                                          method::Symbol=:lbfgs, cgRestart::Int64=10, lbfgsMemory::Int64=12)
+    # Measurement hook only; the default is unchanged.  The code's own note says conjugacy tolerates the
+    # per-iteration rebuild of virtualDirections because it carries ONE previous direction and restarts every
+    # ten, while L-BFGS accumulates several pairs and does not -- and its y-pairs are differences of gVec,
+    # the same metric-mixed object that item 121 had to stop using for the directional derivative.  This lets
+    # that be tested without touching the default.
+    if  haskey(ENV, "JAC_EOL_METHOD")    method = Symbol(ENV["JAC_EOL_METHOD"])    end
     nsL = primitives.grid.nsL;    nsS = primitives.grid.nsS;    grid = primitives.grid
     storage = Dict{String,Array{Float64,2}}()
     matrixB = zeros( nsL+nsS, nsL+nsS )
@@ -805,6 +811,8 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
     # Direction state, all held in b-space: the virtual directions are rebuilt every iteration, so anything
     # stored in THAT basis would be meaningless one step later.
     dirPrev = Dict{Subshell, Vector{Float64}}();   gPrev = Dict{Subshell, Vector{Float64}}()
+    gradPrev = Dict{Subshell, Vector{Float64}}()      # the RAW gradient of the previous iteration; see the
+                                                      # curvature pair below for why gVec will not do
     sgPrev  = 0.;    iterSinceRestart = 0
     bPrev   = Dict{Subshell, Vector{Float64}}()
     sHist   = Vector{Dict{Subshell, Vector{Float64}}}();   yHist = Vector{Dict{Subshell, Vector{Float64}}}()
@@ -925,10 +933,20 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
         # Record the curvature pair (s,y) of the step just taken.  Only pairs with <y,s> > 0 are kept, which
         # is what keeps the implicit inverse Hessian positive definite -- and hence the direction a descent
         # direction -- on a surface that is not convex.
-        if  method == :lbfgs  &&  !isempty(bPrev)
+        if  method == :lbfgs  &&  !isempty(bPrev)  &&  !isempty(gradPrev)
             sPair = Dict{Subshell, Vector{Float64}}();   yPair = Dict{Subshell, Vector{Float64}}()
             for  sh  in  activeSubshells
-                sPair[sh] = bVectors[sh] - bPrev[sh];    yPair[sh] = gVec[sh] - gPrev[sh]
+                # y IS A DIFFERENCE OF GRADIENTS, NOT OF gVec.  L-BFGS builds its inverse-Hessian model from
+                # (s, y) = (delta x, delta grad f), and gVec = sum_i (phi_i^T grad) phi_i is REBUILT IN A NEW
+                # BASIS EVERY ITERATION -- virtualDirections is recomputed against the current orbitals -- so a
+                # y taken from it registers curvature whenever the basis merely ROTATES, even where the
+                # gradient has not moved.  That spurious curvature is what an accumulated history cannot
+                # tolerate and a one-step conjugacy can: measured 31-Aug-2026, L-BFGS died on "no descent" at
+                # iteration 179 of Be Scenario B step 3 while :conjugate ran to the limit, though L-BFGS was
+                # otherwise the better method (Be A step 2 in 40 iterations against 101, and 1.1 mHa deeper on
+                # B before dying).  The raw gradient carries no basis with it.  Same error as item 121, one
+                # level down.
+                sPair[sh] = bVectors[sh] - bPrev[sh];    yPair[sh] = grad[sh] - gradPrev[sh]
             end
             ys = dotAll(yPair, sPair)
             if  ys > 1.0e-14
@@ -942,7 +960,7 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
         dir  = Dict{Subshell, Vector{Float64}}()
         if      method == :lbfgs  &&  !isempty(sHist)
             # two-loop recursion, giving d = -H grad with H built from the stored pairs around H_0
-            q = Dict{Subshell, Vector{Float64}}( sh => copy(gVec[sh])  for sh in activeSubshells )
+            q = Dict{Subshell, Vector{Float64}}( sh => copy(grad[sh])  for sh in activeSubshells )
             alphas = zeros( length(sHist) )
             for  i = length(sHist):-1:1
                 alphas[i] = rhoHist[i] * dotAll(sHist[i], q)
@@ -1060,7 +1078,7 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
         end
         iterSinceRestart = beta == 0. ? 0 : iterSinceRestart + 1
         sgPrev = 0.;   for sh in activeSubshells   sgPrev = sgPrev + sum( gVec[sh] .* sVec[sh] )   end
-        gPrev  = gVec;    dirPrev = dir
+        gPrev  = gVec;    gradPrev = grad;    dirPrev = dir
         bPrev  = Dict{Subshell, Vector{Float64}}( sh => copy(bVectors[sh])  for sh in activeSubshells )
         if  sNorm < 1.0e-14
             # Until 18-Aug-2026 this was the one exit of four that said NOTHING, so a run could end here and
