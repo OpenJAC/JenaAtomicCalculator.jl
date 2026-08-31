@@ -798,6 +798,7 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
                 ";  $(length(activeSubshells)) of $(length(basis.subshells)) subshells are varied.")
     end
     ePrevious = 0.;   tStep = 1.0;   multiplet = Multiplet("EOL-ByRotation", Level[])
+    bestGNorm = Inf;   bestGIter = 0        # for the stagnation test that ends the iteration, see below
     # Set by every exit below.  A loop that simply runs out of iterations used to end in silence, which was the
     # fifth of five ways this driver can stop and the only one left unreported.
     stopReason = "";   gNorm = 0.;   iterDone = 0
@@ -1158,6 +1159,19 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
                     @printf(">> [EOL-C3]    accepted at trial %2d, tStep = %.3e, planned = %+.4f, actual-disp = %+.4f\n",
                             trial, tStep, r1, r2)
                 end
+                # THE GROWTH FACTOR STAYS AT 1.3, AND THAT WAS MEASURED RATHER THAN ASSUMED.  It only matters
+                # after a collapse -- recovery from 1e-8 takes log(1e7)/log(1.3) = 61 iterations -- which was a
+                # real cost while the directional derivative was five to nine times too steep and collapses
+                # were routine (items 121, 122).  With the derivative exact the steps run at 0.03 to 1.0 and
+                # rarely collapse, so the rate stopped being the binding constraint.  Measured 31-Aug-2026 on
+                # Be Scenarios A and B, growth applied only on a first-trial success:
+                #     1.3  all six A steps converge at 63, 154, 51, 40, 51, 40
+                #     2.0  all six converge at 39, 145, 54, 41, 54, 41 -- faster on two, slower on two
+                #     4.0  A REGRESSION: default-grid step 1 stops on a stagnant gradient at 57 where 1.3
+                #          converges at 63; B stops stagnant at 46
+                # 2.0 is a wash and 4.0 loses a convergence, so there is no case for changing a working
+                # default.  A faster step that overshoots into "no descent" trades a real convergence for a
+                # marginal speedup, which is the wrong bargain in a solver whose problem was trustworthiness.
                 accepted = true;    tStep = min(1.0, 1.3*tStep);    break
             end
             tStep = tStep / 2
@@ -1204,12 +1218,27 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
         # smaller threshold but the extra condition: stagnation ends the iteration only when the step that
         # produced it was of usable size.
         stepFloor = 1.0e-6
-        if  iter > 1  &&  abs(multiplet.levels[1].energy - ePrevious) < 1.0e-11  &&  tStep > stepFloor
-            stopReason = "stationary energy";   println(">> [EOL-C3] stopped at iteration $iter on a stationary energy: |dE| = " *
-                    "$(abs(multiplet.levels[1].energy - ePrevious)) < 1.0e-11 with a healthy step " *
-                    "tStep = $tStep and |grad| = $gNorm.  A converging UPPER BOUND, not a converged gradient.")
-            Defaults.warn(AddWarning(), "SelfConsistent.solveOptimizedLevelFieldByRotation(): the EOL field stopped on " *
-                          "a stationary energy at iteration $iter with |grad| = " * @sprintf("%.1e", gNorm) *
+        # THE ITERATION ENDS WHEN THE GRADIENT STOPS IMPROVING -- NOT WHEN THE ENERGY STOPS MOVING.
+        # A stationary energy is a weak signal near a minimum: the energy is quadratic there and flattens long
+        # before the gradient does, which is why |dE| reaches 1e-12 while |grad| is still 1e-5.  Ending on it
+        # stopped every step of Be Scenario A short of convergence -- at iterations 3, 15, 37 and 80 -- while
+        # the SAME runs with the exit disabled converged at 63, 154, 51 and 40 with |grad| < 1e-6.  No
+        # threshold on |grad| separates those cases (6.95e-5 still converges if allowed), so the test itself
+        # was the wrong one.
+        # The question this exit exists to answer is whether more iterating will help, and the quantity that
+        # answers it is the gradient's own progress.  It is given `stagnationWindow` iterations to beat its
+        # best value by any margin; if it cannot, no further iterating will, and the run stops saying so.
+        # The original justification for the energy test -- that |grad| plateaus at a floor set by the basis
+        # and the projection -- was measured while the directional derivative was five to nine times too steep
+        # (items 121 and 122).  With the gradient exact there is no such floor.
+        stagnationWindow = 20
+        if  gNorm < bestGNorm    bestGNorm = gNorm;    bestGIter = iter    end
+        if  iter - bestGIter >= stagnationWindow  &&  !haskey(ENV, "JAC_EOL_NOSTATEXIT")
+            stopReason = "gradient stagnated";   println(">> [EOL-C3] stopped at iteration $iter: the gradient has " *
+                    "not improved on $bestGNorm since iteration $bestGIter, $stagnationWindow iterations ago.  " *
+                    "A converging UPPER BOUND, not a converged gradient.")
+            Defaults.warn(AddWarning(), "SelfConsistent.solveOptimizedLevelFieldByRotation(): the EOL field stopped " *
+                          "on a stagnant gradient at iteration $iter with |grad| = " * @sprintf("%.1e", gNorm) *
                           ".  The energy is a converging UPPER BOUND, not a converged gradient.")
             break
         end
