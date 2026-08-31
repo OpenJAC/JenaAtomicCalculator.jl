@@ -531,9 +531,29 @@ is numbered, and how something leaves it — so that the rules survive even when
 application list, "C11" the competition list. A challenge keeps the number it had as a priority item, so that
 something which comes back comes back as itself and nobody has to work out whether it is the same thing twice.
 
-**NUMBERS ARE PERMANENT IDENTIFIERS.** Closing an item deletes its text and RETIRES its number, leaving a gap.
-The gap is correct and must not be tidied away: renumbering makes "item 8" mean something different from one day
-to the next, so that neither side can refer to an item reliably. This holds across all four lists.
+**A NUMBER IS STABLE BETWEEN RENUMBERINGS, AND A RENUMBERING IS A DELIBERATE, ANNOUNCED ACT.** Closing an item
+deletes its text and leaves a gap. The gap stays until the next renumbering and is not tidied away in passing: what
+makes "item 8" unusable is not renumbering as such but renumbering that one side does not know about, so that the
+same words mean different things to two people on the same day.
+
+**So the list is renumbered 1...N only on the maintainer's instruction**, and when it is, three things happen
+together: every open item is renumbered in its stored order, cross-references INSIDE the items are remapped, and a
+reference to an item that was closed rather than renumbered is marked `(old numbering)`. **Numbers do not pass
+100.** When the highest approaches it, renumber rather than continue upward.
+
+Between renumberings the rule is the one that was always meant: **a new item takes the next free number, i.e. one
+above the highest currently OPEN** — never a number seen somewhere in the file, and never one already used. That
+mistake was made three times in two days, and always the same way: the number was read off the highest one VISIBLE
+in the open section while the closed section, where the used-up numbers live, went unread.
+
+**The cost of a renumbering, so that nobody rediscovers it by surprise:** everything written before it — commit
+messages, the closed record, the other three lists, the assistant's memory — keeps the numbers of its own day. When
+reading anything dated earlier than the last renumbering, assume the old scheme unless it says otherwise. This is
+the price of short numbers, and it is worth paying only occasionally, which is exactly why a renumbering is the
+maintainer's call and not a piece of routine tidying.
+
+The first renumbering was on 31-Aug-2026: the old scheme had reached 125 with 96 of those numbers dead, so a
+three-digit number carried no more information than a one-digit one while being harder to say.
 
 ### What an item says
 
@@ -611,18 +631,30 @@ The M-branch `example-Mx.jl` files are **separate** from this test suite.
 
 ### /testExamples
 
-**Sample 60 example branches at random, run each one alone, and JUDGE the result — then put what fails on the
-priority list.** Meant to be run at night. It takes roughly 45 minutes of compute and needs no supervision.
+**Sample 150 example branches AT RANDOM, run each one alone, and JUDGE the result — then put what fails on the
+priority list.** Meant to be run at night, and RUN SELDOM: it needs no supervision, but at 150 branches and up
+to 500 s each it can occupy a machine for several hours.
 
 It exists because the test suite and the examples fail differently. The suite tests what somebody thought to
 test; the examples are where the physics is actually used, and a branch nobody has run in six months drifts
 against the code silently. A first sweep of 200 branches on 28/29-Aug-2026 found two live regressions, nine
 wrong grids and two one-character typos, none of which any test could see.
 
+**THE FIRST TOUR IS COMPLETE.** Six sweeps between 28 and 31-Aug-2026 ran all ~494 branch guards alone at least
+once, and that is why the sampling rule below changed: the point is no longer to REACH every branch but to
+NOTICE what has broken in the ones that already work.
+
 **1. Choose the branches.** A branch is one `if true` / `if false` / `elseif true` / `elseif false` guard in
-`examples/*.jl`; there are about 500. Draw 60 AT RANDOM, but from the LEAST-RECENTLY-VISITED first: keep the
-list of what each run sampled, and prefer branches not drawn before. Pure random sampling revisits some and
-never reaches others; drawing from the unvisited pool reaches every branch in about nine runs. Record the seed.
+`examples/*.jl`; there are about 494. **Draw 150 UNIFORMLY AT RANDOM from ALL of them** — no least-recently-visited
+preference, no exclusion of what earlier runs drew. **Record the seed**, so a surprising result can be reproduced
+exactly.
+
+The earlier rule drew from the unvisited pool, because the first job was to reach every branch once. That job is
+done, and with it the reason for the preference: a branch that passed a month ago is now exactly as interesting as
+one never drawn, since what this command looks for is what has BROKEN since. Uniform sampling also keeps the
+statistics honest — 150 of 494 is 30 % of the tree in one run, so two runs see most things and a real regression
+is unlikely to hide for long. Keep appending to the visited record all the same; it is now a history of WHEN each
+branch last ran, which is worth having when judging a failure.
 
 **2. Run each one ALONE.** Copy the whole example file, set that one guard to `true` and EVERY other guard in
 the file to `false`, so exactly one branch executes. Four harness details, each learned by getting it wrong:
@@ -634,8 +666,10 @@ the file to `false`, so exactly one branch executes. Four harness details, each 
 - **Julia resolves `include` relative to the SCRIPT's directory, not the working directory.** One example
   includes a sibling file; copy that file next to the generated scripts, and run with the working directory
   set there so relative reads and `zzz-*.sum` output land in scratch rather than in the repository.
-- **Use `timeout -k`.** Plain `timeout` sends only SIGTERM, which a branch inside a long numerical call can
-  ignore; one escaped for eight hours.
+- **Allow 500 s per branch, and use `timeout -k`.** Most branches finish inside a minute; the cap exists for the
+  minority that legitimately need longer — a heavy-element SCF, a cascade, a continuum sum — and 500 s keeps those
+  as RESULTS rather than as timeouts to be discounted. Plain `timeout` sends only SIGTERM, which a branch inside a
+  long numerical call can ignore; one escaped for eight hours, so the `-k` is not optional.
 - **Two at a time**, no more — each Julia process holds a couple of gigabytes.
 
 **3. VERIFY THE HARNESS BEFORE BELIEVING IT.** Run five branches first and read every failure. If a failure is
