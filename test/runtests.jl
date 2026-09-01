@@ -110,6 +110,10 @@ end
     @testset "JAC processes" begin
         @test TestFrames.testModule_PhotoEmission()
         @test TestFrames.testModule_PhotoExcitation()
+        @test TestFrames.testModule_MultiPhotonIonization()
+                                                   ## added 01-Sep-2026; the hydrogenic Z^-6 law for sigma^(2),
+                                                   ## the monochromatic/bichromatic meeting as omega1 -> omega2,
+                                                   ## and the RELATIVE resonance guard refusing 1s -> 2p
         @test TestFrames.testModule_PhotoIonization()
         @test TestFrames.testModule_PhotoRecombination()
         @test TestFrames.testModule_AutoIonization()  

@@ -243,6 +243,96 @@ end
 
 
 """
+`TestFrames.testModule_MultiPhotonIonization(; short::Bool=true)`  ... tests on module MultiPhotonIonization;
+    a success::Bool is returned.
+"""
+function testModule_MultiPhotonIonization(; short::Bool=true)
+    Defaults.setDefaults("print summary: open", "test-MultiPhotonIonization-new.sum")
+    printstyled("\n\nTest the module  MultiPhotonIonization  ... \n", color=:cyan)
+    # WHAT IS **NOT** ASSERTED HERE, and the reason belongs in the file rather than in a list: GAUGE EQUALITY.
+    # For a one-photon amplitude the length and velocity forms agree at the physical photon energy and that makes
+    # a powerful test (see testModule_PhotoIonization). A SECOND-ORDER amplitude is different: every intermediate
+    # step is evaluated OFF SHELL -- the operator carries the driving frequency omega, not the level difference --
+    # and the two forms are then equivalent only through CLOSURE over a COMPLETE intermediate set. This module
+    # sums bound states, so the set is incomplete and the gauges are EXPECTED to differ, by a lot. Asserting their
+    # equality here would produce a test that fails for a correct code.
+    #
+    # The three statements below hold regardless of that, and none needs a stored reference.
+    success = true;    printTest, iostream = Defaults.getDefaults("test flag/stream")
+
+    function setup(Z::Float64)
+        # everything scales as 1/Z, so the grids are scaled copies and the Z-law below is exact, not approximate
+        grid = Radial.Grid(Radial.Grid(false); rnt = 2.0e-6/Z, h = 5.0e-2, hp = 1.0e-2/Z, rbox = 90.0/Z)
+        nm   = Nuclear.Model(Z, Nuclear.PointNucleus(), 0., 0., AngularJ64(0), 0., 0., 0.)
+        prim = Bsplines.generatePrimitives(grid)
+        shs  = Subshell[]
+        for  n = 1:8
+            push!(shs, Subshell(n,-1))
+            if n >= 2   push!(shs, Subshell(n,1));   push!(shs, Subshell(n,-2))   end
+            if n >= 3   push!(shs, Subshell(n,2));   push!(shs, Subshell(n,-3))   end
+        end
+        orbs = redirect_stdout(devnull) do;  Bsplines.generateOrbitalsHydrogenic(shs, nm, prim; printout=false)  end
+        return( (orbs, Nuclear.nuclearPotential(nm, grid)) )
+    end
+
+    # (1) THE HYDROGENIC Z^-6 LAW, which is an ABSOLUTE statement and the strongest thing available here.
+    #     sigma^(2) is not an area: it has units of cm^4 s, because a two-photon rate goes as the flux SQUARED.
+    #     In atomic units that is length^4 x time, and under Z-scaling length -> 1/Z and time -> 1/Z^2, so at a
+    #     FIXED omega/I every hydrogen-like ion must give exactly Z^-6 times the hydrogen value. No wrong power of
+    #     omega, of Z, or of the flux normalisation can satisfy that, and it needs no reference data at all.
+    ref = 0.
+    for  Z  in [1.0, 2.0]
+        orbs, pot = setup(Z)
+        iOrb  = orbs[Subshell("1s_1/2")]
+        omega = 0.30 * Z^2                      # the same fraction of the threshold for every Z
+        cs, _ = redirect_stdout(devnull) do
+            MultiPhotonIonization.crossSection2pOneElectron(:linear, iOrb, omega, omega, [E1],
+                                                            Basics.Babushkin, orbs, pot)   end
+        if  Z == 1.0    ref = cs
+        elseif  abs( cs * Z^6 / ref - 1.0 ) > 2.0e-2
+            success = false
+            if printTest   info(iostream, "MultiPhotonIonization, Z = $Z: Z^6 sigma2 = $(cs*Z^6) against " *
+                                          "$(ref) at Z = 1, a departure of $(abs(cs*Z^6/ref - 1.0)) from Z^-6")  end
+        end
+    end
+
+    # (2) THE MONOCHROMATIC AND BICHROMATIC CONVENTIONS MUST MEET as omega_1 -> omega_2. The single-beam factor is
+    #     a CONVENTION, and the module pins it by requiring exactly this; a mismatched factor of 2 between the two
+    #     is the classic error in two-photon work and would show up here as a factor of 2.
+    orbs, pot = setup(1.0)
+    iOrb = orbs[Subshell("1s_1/2")]
+    csMono, _ = redirect_stdout(devnull) do
+        MultiPhotonIonization.crossSection2pOneElectron(:linear, iOrb, 0.30, 0.30, [E1], Basics.Babushkin, orbs, pot)  end
+    csBi, _   = redirect_stdout(devnull) do
+        MultiPhotonIonization.crossSection2pOneElectron(:linear, iOrb, 0.30 - 1.0e-6, 0.30 + 1.0e-6, [E1],
+                                                        Basics.Babushkin, orbs, pot)  end
+    if  abs(csMono/csBi - 1.0) > 1.0e-3
+        success = false
+        if printTest   info(iostream, "MultiPhotonIonization: monochromatic $csMono and bichromatic $csBi do not " *
+                                      "meet as omega_1 -> omega_2; ratio $(csMono/csBi)")   end
+    end
+
+    # (3) THE RESONANCE GUARD REFUSES RATHER THAN RETURNING A NUMBER, and it is RELATIVE for a reason worth
+    #     keeping: an ABSOLUTE tolerance of 1e-6 a.u. did NOT trip on hydrogen's own 1s -> 2p resonance, whose
+    #     computed position is 0.3750046, leaving a denominator of 4.6e-6 that looked "safe" while inflating that
+    #     one term by 2e5. Dropping the term instead of refusing would remove most of the amplitude and hand back
+    #     a small number in place of no number.
+    try
+        redirect_stdout(devnull) do
+            MultiPhotonIonization.crossSection2pOneElectron(:linear, iOrb, 0.3750046, 0.3750046, [E1],
+                                                            Basics.Babushkin, orbs, pot)   end
+        success = false
+        if printTest   info(iostream, "MultiPhotonIonization: the 1s -> 2p resonance at omega = 0.3750046 was " *
+                                      "not refused")   end
+    catch                                                                                              end
+
+    Defaults.setDefaults("print summary: close", "")
+    testPrint("testModule_MultiPhotonIonization()::", success)
+    return( success )
+end
+
+
+"""
 `TestFrames.testModule_PhotoIonization(; short::Bool=true)`  ... tests on module PhotoIonization.
 """
 function testModule_PhotoIonization(; short::Bool=true)
