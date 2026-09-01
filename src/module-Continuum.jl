@@ -406,8 +406,26 @@ end
         OPEN POINT, stated here rather than emitted as a per-call warning as it was until 12-Aug-2026: the grid
         point at which the normalization and phase are fixed deserves a better choice than the present fixed
         offset. It is a property of the method, not of any particular run.
+
+        MEASURED 01-Sep-2026, and it turns that open point into the sharpest of these checks. The offset is FIXED
+        AT 200 GRID POINTS from the end, so where it lands physically depends on hp and NoPoints and not on the
+        atom at all. On H-like photoionization, where the two gauges are equal for exact wavefunctions:
+
+            Zeff * r[NoPoints-200]   2.12    4.09   4.84   6.50   9.77    10.74   14.70   21.69   48.32
+            Cou/Bab                  0.004   0.085  4.15   3.78   1.072   0.9996  0.9997  1.00001 1.00000
+
+        Z = 1 and Z = 10 fall on the SAME curve in the dimensionless variable Zeff*r, which is what identifies it
+        as the right one, and the errors below 10 are not small -- a factor of 200 at the worst point. THE
+        FAILURE IS NON-MONOTONE (0.085 and then 3.78 on a FINER grid), which is the signature of the
+        normalization point landing at an arbitrary phase of the oscillation and NOT of insufficient resolution.
+
+        Hence the optional `Zeff`: when it is given, this function refuses a grid with Zeff*r < 10. It is optional
+        only because the existing callers pass `(maxEnergy, grid)` and none of them can be changed from here; each
+        should be migrated to supply it, one module at a time. Until a caller does, the absolute `2.0` test is all
+        that guards it, and the table above shows that 2.0 establishes nothing: at Z = 1 it admits grids that are
+        wrong by two orders of magnitude.
 """
-function gridConsistency(maxEnergy::Float64, grid::Radial.Grid)
+function gridConsistency(maxEnergy::Float64, grid::Radial.Grid; Zeff::Union{Nothing,Float64}=nothing)
     wavenb      = sqrt( 2maxEnergy + maxEnergy * Defaults.getDefaults("alpha")^2 )
     wavelgth    = 2pi / wavenb
     nrContinuum = grid.NoPoints - 200
@@ -443,6 +461,25 @@ function gridConsistency(maxEnergy::Float64, grid::Radial.Grid)
                 @sprintf("grid.r[nrContinuum] = %.4e < 2.\n", grid.r[nrContinuum]) *
                 "The normalization point (grid.NoPoints-200) still lies inside the atomic core region, where the orbital " *
                 "has not yet\nreached its asymptotic form.\n>>> Enlarge rbox.\n")
+    elseif  !isnothing(Zeff)  &&  Zeff * grid.r[nrContinuum] < 10.0
+        # THE 2.0 ABOVE IS AN ABSOLUTE LENGTH AND SO CANNOT BE RIGHT FOR EVERY CHARGE: the atom's own size scales
+        # as 1/Zeff, so a normalization point 2 a.u. out is deep inside hydrogen and far outside Ne^9+.  What
+        # matters is the DIMENSIONLESS Zeff * r, and this clause is the one with the measurement behind it.
+        error("\n\nContinuum.gridConsistency():  STOP -- the normalization point lies too close to the atom.\n" *
+                @sprintf("    normalization radius     = %.4f a.u.   (grid point NoPoints-200)\n", grid.r[nrContinuum]) *
+                @sprintf("    Zeff * that radius       = %.2f       (a minimum of 10 is required)\n",
+                         Zeff * grid.r[nrContinuum]) *
+                "The normalization and phase of the continuum orbital are fixed at that ONE point, so it must lie well " *
+                "outside\nthe bound-state charge cloud, whose extent scales as 1/Zeff.  Measured 01-Sep-2026 on H-like " *
+                "photoionization,\nwhere the two gauges are EQUAL for exact wavefunctions so every departure from " *
+                "1.00000 is error:\n\n" *
+                "    Zeff*r   2.12    4.09    4.84    6.50    9.77    10.74   14.70   21.69   48.32\n" *
+                "    Cou/Bab  0.004   0.085   4.15    3.78    1.072   0.9996  0.9997  1.00001 1.00000\n\n" *
+                "The two charges Z = 1 and Z = 10 fall on the SAME curve in this variable, which is why it is the " *
+                "right one:\nZeff*r = 21.69 gives 1.00001 at Z = 1 and 1.00000 at Z = 10.  Note also that the failure " *
+                "is NON-MONOTONE\n(0.085 then 3.78 on a FINER grid), which is the signature of a normalization point " *
+                "landing at an arbitrary\nplace in the oscillation rather than of insufficient resolution.\n" *
+                @sprintf(">>> Enlarge rbox until grid.r[NoPoints-200] exceeds %.3f a.u.\n", 10.0/Zeff))
     end
     
     return( nrContinuum )
