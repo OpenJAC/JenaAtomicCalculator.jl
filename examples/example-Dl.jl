@@ -27,7 +27,9 @@ grid = Radial.Grid(Radial.Grid(true), rnt = 4.0e-6, h = 5.0e-2, hp = 0.8e-2, rbo
 ##   a)  H-like C5+,  1s --> 2p                 WORKS. Bethe slope to 0.5%; the anchor for everything else.
 ##   b)  He-like C V, 1s^2 --> 1s2s / 1s2p      WORKS. ln(E) growth, a constant and E^-2 decay, all in one run.
 ##   c)  He-like C V, rate coefficients         WORKS. Maxwellian average correct to 0.3%; settles the Jd.jl bug.
-##   d)  Na-like Mg II, 3s --> 3p               FAILS. Omega saturates ~45% below the Bethe limit, CONVERGED.
+##   d)  Na-like Mg II, 3s --> 3p               WORKS, since 01-Sep-2026. The old "45% below Bethe" was a
+##                                             JOINT truncation of the box and the partial-wave sum, each
+##                                             tested while the other was binding. Slope 22.10 vs 22.84.
 ##   e)  F-like Ne+, 2p^5 2P_3/2 --> 2P_1/2     Behaviour right, absolute magnitude never benchmarked.
 ##
 ## ===== WHAT A USER SHOULD EXPECT FROM THIS MODULE (survey of 04-Aug-2026) =====
@@ -362,11 +364,14 @@ elseif  false
     #
     # Threshold is only ~4.4 eV, so the ladder 10 - 100 eV already spans 2x to 23x threshold. At 100 eV the
     # wavelength is 2.3 a.u., so hp = 2.5e-2 is comfortable (15*hp = 0.375 << 2.3).
-    gridD = Radial.Grid(Radial.Grid(true), rnt = 4.0e-6, h = 5.0e-2, hp = 2.5e-2, rbox = 30.0)
+    # THE BOX AND THE PARTIAL-WAVE CAP MUST BE RAISED TOGETHER, and that is the whole content of the correction
+    # of 01-Sep-2026 below. rbox = 30 with maxKappa = 120 was the old setting and it is what produced the
+    # "violates the Bethe limit" conclusion.
+    gridD = Radial.Grid(Radial.Grid(true), rnt = 4.0e-6, h = 5.0e-2, hp = 2.5e-2, rbox = 120.0)
     ieSettings = ImpactExcitation.Settings(ImpactExcitation.Settings();
-                                           electronEnergies    = [10., 20., 50., 100., 200., 500., 1000.],
+                                           electronEnergies    = [10., 20., 50., 100., 200., 500.],
                                            calcRateCoefficient = false,
-                                           maxKappa            = 120,
+                                           maxKappa            = 300,
                                            printBefore         = false,
                                            operator            = CoulombInteraction() )
     wd = Atomic.Computation(Atomic.Computation(), name="Dl-d: Na-like Mg II, 3s --> 3p", grid=gridD,
@@ -406,6 +411,38 @@ elseif  false
     #     200      5.2983      84.36            2.21
     #     500      6.2146      85.34            1.07
     #    1000      6.9078      85.83            0.71
+    #
+    # ================= CORRECTED 01-Sep-2026: THE FAILURE BELOW WAS AN ARTEFACT AFTER ALL ================
+    #
+    # JAC does NOT violate the Bethe limit here. With the radial box AND the partial-wave sum both released, the
+    # slope comes out at 22.10 against the analytic 22.84 -- agreement to 3.2 % -- where the old setting gave 1.07.
+    #
+    #     rbox=120, maxKappa=300:   Omega(200 eV) = 112.83     Omega(500 eV) = 133.08     slope = 22.10
+    #     rbox=30,  maxKappa=120:   Omega(200 eV) =  84.36     Omega(500 eV) =  85.34     slope =  1.07
+    #
+    # WHY THE ORIGINAL STUDY COULD NOT SEE IT, and this is the lesson worth carrying: THE TWO TRUNCATIONS ARE
+    # COUPLED, and each was tested while the OTHER was binding.
+    #   * At rbox = 30, raising maxKappa 120 -> 400 changed Omega by nothing at all -- seven significant figures --
+    #     so partial waves were "ruled out". They were not: the BOX was binding, and no number of partial waves can
+    #     reach an impact parameter the box does not contain.
+    #   * The grid was "ruled out" by Continuum.gridConsistency passing comfortably. That guard checks the STEP
+    #     against the electron's wavelength; it says nothing about the EXTENT. Same distinction as item 28.
+    # Varying one at a time therefore showed nothing twice, and the natural conclusion -- that the amplitude itself
+    # was wrong -- followed from two sound-looking negative results.
+    #
+    # THE PHYSICS THAT SETS THE SCALE, so the numbers are chosen rather than guessed: for a dipole-allowed
+    # transition the ln(E) growth comes from LARGE IMPACT PARAMETERS, b ~ v/DeltaE, and the corresponding angular
+    # momentum is L ~ k b. At 200 eV with DeltaE = 4.4 eV that is b ~ 24 a.u. and L ~ 92; at 500 eV, b ~ 38 and
+    # L ~ 230. So the box must hold several tens of a.u. and the kappa sum must reach a few hundred, and BOTH
+    # requirements grow with energy. Measured convergence: Omega rises 13 % from rbox 30 to 60 and is flat from 60
+    # to 120; at rbox = 120 it rises 31 % from maxKappa 60 to 300, with the last step contributing 3 %.
+    #
+    # THE COST IS REAL: the 500 eV point at maxKappa = 300 takes about half an hour on its own, which is why the
+    # 1000 eV point has been dropped from the ladder rather than left to run for hours.
+    #
+    # Everything below is the ORIGINAL report of 04-Aug-2026 and is kept because its reasoning was careful and its
+    # conclusion was still wrong; that combination is worth being able to re-read.
+    # =====================================================================================================
     #
     # NOT SUCCESSFUL, and the failure is REAL rather than a convergence artefact. The Bethe prediction is
     # a = 4 * g_i * f / DeltaE[Ry] = 4 * 2 * 0.9018 / 0.31586 = 22.84 per unit ln(E), which would put Omega near
