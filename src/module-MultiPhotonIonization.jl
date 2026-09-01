@@ -31,7 +31,7 @@
 """
 module MultiPhotonIonization
 
-using  Printf, ..AngularMomentum, ..Basics, ..Continuum, ..Defaults, ..InteractionStrength, ..ManyElectron,
+using  Printf, ..AngularMomentum, ..AtomicState, ..Basics, ..Continuum, ..Defaults, ..InteractionStrength, ..ManyElectron,
        ..Nuclear, ..Radial, ..TableStrings
 
 
@@ -87,12 +87,20 @@ end
                           check a second-order amplitude has, so both are computed by default.
     + printBefore     ::Bool                ... print all selected lines before the computation starts.
     + lineSelection   ::LineSelection       ... specifies the selected levels, if any.
+    + intermediateStates ::Union{Multiplet, Array{AtomicState.GreenChannel,1}}   ... the intermediate states over
+                          which the second-order sum runs. THE SAME CONVENTION AS EVERY OTHER SECOND-ORDER MODULE
+                          IN JAC -- `MultiPhotonTransition`, `PhotoExcitationFluores`, `PhotonScattering` all pass
+                          a gMultiplet or a set of Green channels here -- and it is deliberately not something of
+                          this module's own. A second-order amplitude is a sum over a spectrum; the spectrum is
+                          supplied, not invented, and the caller decides whether it is a mean-field multiplet or a
+                          Green-function expansion.
 """
 struct Settings  <:  AbstractProcessSettings
     scheme            ::MultiPhotonIonization.AbstractMultiPhotonIonizationScheme
     gauges            ::Array{UseGauge,1}
     printBefore       ::Bool
     lineSelection     ::LineSelection
+    intermediateStates ::Union{Multiplet, Array{AtomicState.GreenChannel,1}}
 end
 
 
@@ -102,14 +110,15 @@ end
         is returned, which selects two-photon one-electron ionization in both gauges.
 """
 function Settings()
-    Settings( TwoPhotonOneElectronScheme(), [UseCoulomb, UseBabushkin], false, LineSelection() )
+    Settings( TwoPhotonOneElectronScheme(), [UseCoulomb, UseBabushkin], false, LineSelection(), Multiplet() )
 end
 
 
 """
 `MultiPhotonIonization.Settings(set::MultiPhotonIonization.Settings;`
     
-        scheme=..,              gauges=..,              printBefore=..,         lineSelection=..)
+        scheme=..,              gauges=..,              printBefore=..,         lineSelection=..,
+        intermediateStates=..)
                     
     ... constructor for modifying the given MultiPhotonIonization.Settings by 'overwriting' the previously selected
         parameters; a `settings::MultiPhotonIonization.Settings` is returned.
@@ -118,14 +127,17 @@ function Settings(set::MultiPhotonIonization.Settings;
     scheme::Union{Nothing,MultiPhotonIonization.AbstractMultiPhotonIonizationScheme}=nothing,
     gauges::Union{Nothing,Array{UseGauge,1}}=nothing,
     printBefore::Union{Nothing,Bool}=nothing,
-    lineSelection::Union{Nothing,LineSelection}=nothing)
+    lineSelection::Union{Nothing,LineSelection}=nothing,
+    intermediateStates::Union{Nothing,Multiplet,Array{AtomicState.GreenChannel,1}}=nothing)
 
     if  isnothing(scheme)           schemex         = set.scheme         else   schemex         = scheme         end
     if  isnothing(gauges)           gaugesx         = set.gauges         else   gaugesx         = gauges         end
     if  isnothing(printBefore)      printBeforex    = set.printBefore    else   printBeforex    = printBefore    end
     if  isnothing(lineSelection)    lineSelectionx  = set.lineSelection  else   lineSelectionx  = lineSelection  end
+    if  isnothing(intermediateStates)  intermediateStatesx = set.intermediateStates
+                                                             else   intermediateStatesx = intermediateStates     end
 
-    Settings( schemex, gaugesx, printBeforex, lineSelectionx)
+    Settings( schemex, gaugesx, printBeforex, lineSelectionx, intermediateStatesx)
 end
 
 
@@ -133,6 +145,7 @@ end
 function Base.show(io::IO, settings::MultiPhotonIonization.Settings)
     println(io, "scheme:                   $(settings.scheme)  ")
     println(io, "gauges:                   $(settings.gauges)  ")
+    println(io, "intermediateStates:       $(settings.intermediateStates)  ")
     println(io, "printBefore:              $(settings.printBefore)  ")
     println(io, "lineSelection:            $(settings.lineSelection)  ")
 end

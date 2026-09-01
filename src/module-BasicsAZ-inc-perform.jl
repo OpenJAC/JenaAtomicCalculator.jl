@@ -198,7 +198,8 @@ function Basics.perform(computation::Atomic.Computation; output::Bool=false)
                                                      computation.processSettings)
             if output    results = Base.merge( results, Dict("Coulomb ionization lines:" => outcome) )           end
         elseif  typeof(computation.processSettings) == MultiPhotonIonization.Settings
-            outcome = MultiPhotonIonization.computeLines(finalMultiplet, initialMultiplet, computation.grid, computation.processSettings) 
+            outcome = MultiPhotonIonization.computeLines(finalMultiplet, initialMultiplet, nModel, computation.grid,
+                                                         computation.processSettings) 
             if output    results = Base.merge( results, Dict("multi-photon single ionization:" => outcome) )        end
         elseif  typeof(computation.processSettings) == InternalConversion.Settings
             outcome = InternalConversion.computeLines(finalMultiplet, initialMultiplet, nModel, computation.grid, computation.processSettings)

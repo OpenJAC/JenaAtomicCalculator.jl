@@ -177,6 +177,73 @@ end
 
 
 """
+`MultiPhotonIonization.computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, nm::Nuclear.Model,
+                                    grid::Radial.Grid, settings::MultiPhotonIonization.Settings; output::Bool=true)`
+    ... the entrance from `Atomic.Computation` and `Basics.perform`, so that a multi-photon study is set up exactly
+        like every other process in JAC rather than by calling into this file directly; a
+        `lines::Array{Line2pOneElectron,1}` is returned, or `nothing` when `output=false`.
+
+        WHAT THIS DOES AND DOES NOT DO. It is an ADAPTER, not a generalisation. The physics behind it is written
+        for ONE electron in a central potential -- that is what `-inc-2p-one-electron-hydrogenic` means -- and this
+        function does not change that. It takes the general (initialMultiplet, finalMultiplet) route, checks that
+        the system really has a single electron, extracts the occupied subshell, and hands the work to
+        `computeLines2pOneElectron`. A many-electron system is REFUSED with a message that says why, rather than
+        being silently reduced to something this module can do.
+
+        THE INTERMEDIATE SPECTRUM COMES FROM `settings.intermediateStates`, as in every other second-order module
+        of JAC. A second-order amplitude is a sum over a spectrum, and the spectrum is the caller's to choose: a
+        mean-field multiplet, or a Green-function expansion. This function therefore does NOT build one of its
+        own; if none is supplied it says so instead of quietly summing over whatever orbitals happen to be in the
+        initial basis, which would make the result depend on how the initial state was generated.
+"""
+function  computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, nm::Nuclear.Model,
+                       grid::Radial.Grid, settings::MultiPhotonIonization.Settings; output::Bool=true)
+    # (1) one electron, or nothing
+    NoElectrons = length(initialMultiplet.levels) == 0  ?  0  :  initialMultiplet.levels[1].basis.NoElectrons
+    if  NoElectrons != 1
+        error("\n\nMultiPhotonIonization: this module computes two-photon ionization of a ONE-ELECTRON system " *
+              "and the initial state has $NoElectrons.\n"                                                        *
+              ">>> The amplitudes are built for a single electron in a central potential -- the file name says\n" *
+              ">>> so -- and there is no many-electron version to fall back on. Extending it is real physics,\n"  *
+              ">>> not a keyword: the second-order sum would need the full CSF machinery on both steps.\n"        *
+              ">>> Use a hydrogen-like initial configuration, or drive a many-electron two-photon process\n"      *
+              ">>> through MultiPhotonTransition, which is bound-bound.\n")
+    end
+
+    # (2) the intermediate spectrum is supplied, never invented
+    if  typeof(settings.intermediateStates) == Multiplet  &&  length(settings.intermediateStates.levels) == 0
+        error("\n\nMultiPhotonIonization: no intermediate states were given.\n"                                 *
+              ">>> A second-order amplitude is a SUM OVER A SPECTRUM, and which spectrum it is changes the\n"     *
+              ">>> answer, so it is the caller's choice rather than this module's. Set\n"                         *
+              ">>>     MultiPhotonIonization.Settings(...; intermediateStates = <a Multiplet or GreenChannels>)\n" *
+              ">>> exactly as MultiPhotonTransition and PhotonScattering are set up. Summing instead over the\n"  *
+              ">>> orbitals that happen to sit in the initial basis would make the result depend on how the\n"    *
+              ">>> initial state was generated, which is why it is refused here.\n")
+    end
+
+    # (3) the occupied subshell of the one electron, and the orbitals available for the sum
+    iSubshell = Subshell[]
+    for  (sh, occ)  in  initialMultiplet.levels[1].basis.csfs[1].occupation |> x -> zip(initialMultiplet.levels[1].basis.subshells, x)
+        if  occ > 0    push!(iSubshell, sh)    end
+    end
+    length(iSubshell) == 1  ||  error("MultiPhotonIonization: the one-electron initial state occupies " *
+                                      "$(length(iSubshell)) subshells; expected exactly one.")
+    orbitals = Dict{Subshell,Orbital}()
+    for  (sh, orb)  in  initialMultiplet.levels[1].basis.orbitals      orbitals[sh] = orb      end
+    if  typeof(settings.intermediateStates) == Multiplet
+        for  lev  in  settings.intermediateStates.levels
+            for  (sh, orb)  in  lev.basis.orbitals    orbitals[sh] = orb    end
+        end
+    end
+
+    scheme = settings.scheme
+    return( MultiPhotonIonization.computeLines2pOneElectron(iSubshell[1], scheme.omegas, scheme.multipoles,
+                    orbitals, Nuclear.nuclearPotential(nm, grid);
+                    resonanceTolerance = scheme.resonanceTolerance, output = output) )
+end
+
+
+"""
 `MultiPhotonIonization.computeLines2pOneElectron(iSubshell::Subshell, omegas::Array{Float64,1},
                                                  multipoles::Array{EmMultipole,1}, orbitals::Dict{Subshell,Orbital},
                                                  meanPot::Radial.Potential; resonanceTolerance::Float64=1.0e-3,
