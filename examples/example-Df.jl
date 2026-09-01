@@ -621,6 +621,88 @@ elseif  false
                             processSettings     = drSettings )
     perform(wg)
     #
+elseif  false
+    # Last visit:      01-Sep-2026
+    # Last successful: 01-Sep-2026 -- ran clean in 18 min: no normalisation warning, no NOT-CONVERGED flag, and
+    #                  checkOrbitalBox reports extent/box = 0.580 for 9d_3/2 against its 0.90 limit, so the
+    #                  orbitals ARE converged and the grid IS adequate. That is what makes the number below a
+    #                  measurement rather than an artefact.
+    #
+    # RESULT (01-Sep-2026), against branch g's n = 5, 6 on the same system:
+    #
+    #     l      p at n = 5,6      p at n = 8,9     level content
+    #     0        2.798             3.491          4 vs 3   <== EXCLUDED by the guard
+    #     1        1.979             1.275          10 vs 10  -- the only clean pair
+    #     2        1.720             2.260          12 vs 11 <== EXCLUDED by the guard
+    #     3       -1.598             not computed (l restricted, as instructed)
+    #
+    # RAISING n DID NOT REPAIR IT, and that is the finding. Suspicion (ii) above -- that n = 5, 6 is simply not
+    # asymptotic -- is REFUTED: the one pair with equal level content moved from 1.979 to 1.275, i.e. FURTHER
+    # from 3, on a calculation that carries no warning of any kind. W(8) = 7.3113e-04 falls to W(9) = 6.2917e-04,
+    # a ratio of 0.8605, where n^(-3) would demand (8/9)^3 = 0.7023.
+    #
+    # AND THE DIRECTION MATTERS: n^(-3) falls FASTER than the measured n^(-1.275), so the assumed law makes the
+    # Rydberg tail SMALLER than this calculation says it is. If the measurement is right, DR rate coefficients
+    # built on nExponent = 3.0 UNDERESTIMATE the tail. That is a consequence worth stating and NOT one to act on
+    # from a single case -- which is why the code still builds the tail on the assumed 3.0 and merely warns.
+    #
+    # NOTE ALSO that the guard EXCLUDED two of the three l values for unequal level content (4 vs 3, 12 vs 11).
+    # Only l = 1 survived. Whether those shells genuinely carry different level sets, or whether CI mixing left
+    # levels without a single identifiable Rydberg shell, is not answered here and is the next thing to look at.
+    #
+    # --- Branch h: THE RYDBERG EXPONENT AT HIGH n, which is what application item A22 asks for.
+    #
+    # THE QUESTION.  DR rate coefficients extrapolate the capture series as n^(-3) above the highest explicitly
+    # computed shell.  `measureRydbergExponent` checks that from the user's own data, and on branch g -- the same
+    # system with n = 5 and 6 -- it FAILED: p = 2.798 (l=0), 1.979 (l=1), 1.720 (l=2), -1.598 (l=3).  The last is
+    # unphysical, the weighted capture strength GROWING from n = 5 to 6, and the sequence degrades monotonically
+    # with l.
+    #
+    # A22 names TWO suspicions and this branch separates them by changing exactly ONE thing.
+    #   (i) HIGH-l ORBITAL ACCURACY.  The orbital amplitude near the core goes as r^l and the capture rate samples
+    #       exactly that region, so by l = 3 the rate is already 15x below l = 1 and is the least reliable number
+    #       in the set.  Hence l is RESTRICTED to s, p, d here -- the maintainer's own condition of 05-Aug-2026.
+    #   (ii) n = 5, 6 IS SIMPLY NOT ASYMPTOTIC.  An n^(-3) law is a statement about large n, and two adjacent low
+    #       shells need not show it.  Hence n = 8, 9 instead, in the SAME system and with the same core
+    #       transition, so that any change is attributable to n and not to the atom.
+    #
+    # WHAT WOULD SETTLE IT EITHER WAY.  If p moves towards 3 for every l, the law holds and n = 5, 6 was the
+    # problem -- and nExponent = 3.0 stops being an assumption carried on textbook authority.  If p stays where
+    # it was, n is exonerated and the orbitals are the remaining suspect.  Both outcomes are worth having; the
+    # one thing this branch must not do is be read as a test of the LAW when it is a diagnostic of the
+    # CALCULATION, which is the distinction A22 is careful about.
+    #
+    # THE BOX IS SET BY THE RYDBERG SHELL, not by the core: a 9s electron seeing Zeff ~ 5 turns over near 32 a.u.,
+    # so 90 a.u. holds it with room, where branch g's 45 a.u. was sized for n = 6.
+    grid8      = Radial.Grid(Radial.Grid(false), rnt = 4.0e-6, h = 5.0e-2, hp = 1.0e-2, rbox = 90.0)
+    drSettings = DielectronicRecombination.Settings(DielectronicRecombination.Settings();
+                                                    multipoles    = [E1],
+                                                    gauges        = [UseCoulomb],
+                                                    printBefore   = false,
+                                                    calcRateAlpha = true,
+                                                    temperatures  = [1.0e6],
+                                                    corrections   = DielectronicRecombination.AbstractCorrections[
+                                                        DielectronicRecombination.RydbergTailCorrection(30, 5.0, 10, missing)] )
+    wh = Atomic.Computation(Atomic.Computation(), name="Df-h: Rydberg exponent at n = 8, 9 (l <= 2)", grid=grid8,
+                            nuclearModel        = Nuclear.Model(6.),
+                            initialConfigs      = [Configuration("1s^1 2s^0 2p^0 8s^0 8p^0 8d^0 9s^0 9p^0 9d^0")],
+                            intermediateConfigs = [Configuration("1s^0 2s^0 2p^1 8s^1 8p^0 8d^0 9s^0 9p^0 9d^0"),
+                                                   Configuration("1s^0 2s^0 2p^1 8s^0 8p^1 8d^0 9s^0 9p^0 9d^0"),
+                                                   Configuration("1s^0 2s^0 2p^1 8s^0 8p^0 8d^1 9s^0 9p^0 9d^0"),
+                                                   Configuration("1s^0 2s^0 2p^1 8s^0 8p^0 8d^0 9s^1 9p^0 9d^0"),
+                                                   Configuration("1s^0 2s^0 2p^1 8s^0 8p^0 8d^0 9s^0 9p^1 9d^0"),
+                                                   Configuration("1s^0 2s^0 2p^1 8s^0 8p^0 8d^0 9s^0 9p^0 9d^1")],
+                            finalConfigs        = [Configuration("1s^1 2s^0 2p^0 8s^1 8p^0 8d^0 9s^0 9p^0 9d^0"),
+                                                   Configuration("1s^1 2s^0 2p^0 8s^0 8p^1 8d^0 9s^0 9p^0 9d^0"),
+                                                   Configuration("1s^1 2s^0 2p^0 8s^0 8p^0 8d^1 9s^0 9p^0 9d^0"),
+                                                   Configuration("1s^1 2s^0 2p^0 8s^0 8p^0 8d^0 9s^1 9p^0 9d^0"),
+                                                   Configuration("1s^1 2s^0 2p^0 8s^0 8p^0 8d^0 9s^0 9p^1 9d^0"),
+                                                   Configuration("1s^1 2s^0 2p^0 8s^0 8p^0 8d^0 9s^0 9p^0 9d^1"),
+                                                   Configuration("1s^1 2s^1 2p^0 8s^0 8p^0 8d^0 9s^0 9p^0 9d^0"),
+                                                   Configuration("1s^1 2s^0 2p^1 8s^0 8p^0 8d^0 9s^0 9p^0 9d^0")],
+                            processSettings     = drSettings )
+    perform(wh)
+    #
 elseif  true
     # Last visit:  05-Aug-2026
     # --- Branch h: K-LL DR of Li-like C3+ (Z=6) with the initial ion HYPERFINE-RESOLVED -- the first branch that
