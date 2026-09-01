@@ -210,6 +210,47 @@ function solveAverageLevelField(basis::Basis, nuclearModel::Nuclear.Model, primi
             l  = Basics.subshell_l(subshell)
             mm = Bsplines.findPositiveBranchStart(wc.values)
             ni = mm + subshell.n - l - count - 1
+            # WHAT THIS INDEX MEANS, and why the offset is the interesting part.  The Hamiltonian has already
+            # been projected against every processed same-kappa orbital, so wc.vectors[mm] is the LOWEST state
+            # orthogonal to them, and  n - l - count - 1  is therefore the number of radial nodes this orbital
+            # is being given ABOVE the minimum that orthogonality alone forces.  For a contiguous sequence it
+            # is exactly zero -- 3s has n-l-count-1 = 3-0-2-1 = 0 -- so a spectroscopic computation always sits
+            # at the minimum and nothing here concerns it.  The offset is nonzero only where the kappa sequence
+            # has a GAP, i.e. only for a correlation orbital named above its first free slot: with 3d, 4d and 5d
+            # occupied, a "7d" is given 4 nodes where orthogonality demands 3.
+            #   THAT OFFSET IS A CONSTRAINT NOBODY ASKED FOR.  A correlation orbital is a basis function, not an
+            # observable; the functional sees it only through the space the CSFs span, and the only genuine
+            # requirements are square-integrability and orthonormality within each kappa.  Orthogonality to k
+            # occupied same-kappa orbitals already forces at least k sign changes (a function orthogonal to the
+            # first k eigenfunctions of a Sturm-Liouville operator cannot have fewer), so node counting is not an
+            # extra imposition -- but the MINIMUM is what the constraint gives, and anything beyond it is the
+            # label speaking rather than the physics.  GRASP varies under orthogonality alone and so lands on the
+            # minimum whatever the orbital is called, which is exactly why its block naming (7s ... 7g, with 5g
+            # and 6d absent) is sound there and does not transfer here.
+            #   THE FIRST AVAILABLE ORTHOGONAL STATE IS THEREFORE WHAT IS TAKEN, making the label pure
+            # bookkeeping as it is in GRASP.  This was measured before it was made the default (1-Sep-2026,
+            # probe-firstfree.jl on a three-valence-electron ion at Z = 98).  Three AL runs on one space:
+            #   7g as this routine used to build it :  2 nodes, <r> = 3.0579 a0
+            #   7g as first available               :  0 nodes, <r> = 1.1721 a0
+            #   5g named explicitly                 :  0 nodes, <r> = 1.1721 a0
+            #   |<7g first-available | 5g explicit>| = 1.000000     -- the SAME orbital, to six digits
+            #   |<7g as-built-before | 5g explicit>| = 0.000047     -- essentially ORTHOGONAL to it
+            # So the old index did not produce a poorer version of the right orbital, it produced a different
+            # basis function: with the correlated 5f shell at <r> = 0.85 a0, a g orbital at 3.06 a0 with two
+            # radial nodes through the valence region cannot correlate it.  The cost is not marginal.  On the
+            # same CI space (3 367 CSFs, references + S + D), a layer named {7s,7p,7d,7f,7g} was worth 387
+            # cm^-1 of correlation energy on the ground level and one named {7s,7p,6d,6f,5g} was worth 5 409 --
+            # a factor of fourteen, from nothing but the label -- and the first-free layer was better on every
+            # observable, moving the 5f fine structure, the 6p_3/2 level and the clock transition all closer to
+            # the published values.
+            #   NOTHING SPECTROSCOPIC CHANGES.  The offset removed is n - l - count - 1, which is identically
+            # zero for a contiguous kappa sequence (3s gives 3-0-2-1 = 0), so it can only ever act on a
+            # correlation slot named above its first free label.  JAC_AL_NODECOUNT restores the old selection
+            # for anyone who needs to reproduce an earlier number.
+            if  ni > mm  &&  !haskey(ENV, "JAC_AL_NODECOUNT")
+                if  printout   print("[first-free: node offset $(ni-mm) dropped] ")   end
+                ni = mm
+            end
             rawVector  = wc.vectors[ni];    newEnergy = wc.values[ni]
 
             # Damping (26-Jul-2026): sequential (Jacobi-style) per-orbital refinement combined with the
