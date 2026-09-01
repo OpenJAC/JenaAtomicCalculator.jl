@@ -431,6 +431,39 @@ function Basics.recommendedGrid(occupations::Dict{Shell,Int64}, Z::Float64;
     if  isnothing(hp)       hpx   = rboxx / 300.           else    hpx   = hp       end
 
     grid = Radial.Grid(Radial.Grid(false); rnt=rnt, h=h, hp=hpx, rbox=rboxx)
+    # THIS GRID IS SIZED FOR BOUND ORBITALS. IT IS NOT AUTOMATICALLY GOOD ENOUGH FOR A CONTINUUM ONE, AND NOTHING
+    # IN JAC WILL TELL YOU SO.  The rule hp = rbox/300 puts a roughly FIXED number of points in the outer region
+    # however large the box, so the B-spline basis does not grow with it -- and it is the SIZE OF THAT BASIS,
+    # neither the box nor the sampling of the wavelength, that decides whether an outgoing electron is
+    # represented.
+    #
+    # MEASURED 01-Sep-2026 on H 1s photoionization at omega/I = 2.  The two gauges are EQUAL for exact hydrogenic
+    # wavefunctions, so every departure from 1.00000 below is error and nothing else:
+    #
+    #     rbox     hp       points per oscillation   nsL     Cou/Bab
+    #     18.09    0.060     104                      95     1.067     <- what this function returns by default
+    #     18.09    0.030     209                     139     1.002
+    #     30.00    0.060     104                     125     1.00001
+    #
+    # NOTE WHAT THAT RULES OUT, because two plausible criteria are both wrong.  104 points per oscillation FAILS
+    # at rbox = 18.09 and PASSES at rbox = 30, so `Continuum.gridConsistency`'s rule -- 15 points across the
+    # shortest de Broglie wavelength -- is not the relevant one and satisfying it establishes nothing here.  Nor
+    # is the box alone at fault: with hp = 5e-3 even rbox = 12 gives 1.002.
+    #
+    # AND THE FAILURE IS SILENT.  `Continuum.gridConsistency` checks the STEP against the wavelength;
+    # `Bsplines.checkGridRepresentation` and `Bsplines.checkOrbitalBox` check BOUND orbitals.  A grid that passes
+    # all three can still put the photoionization gauges 6.7 % apart and the Babushkin cross section 5.9 % low.
+    # This is the `example-Df.jl` lesson inverted: there the step was too coarse for a 77 Ha electron and
+    # gridConsistency REFUSED the run; here nothing refuses and the numbers are merely wrong.
+    #
+    # WHAT NOT TO DO ABOUT IT, tried and rejected the same day: `Radial.generateGrid(grid;
+    # maximumFreeElectronEnergy = ...)` is the obvious remedy and makes this case WORSE.  It targets 20 points per
+    # wavelength, so for eps = 0.5 Ha it returns hp = 0.314 -- five times COARSER than the 0.060 that already
+    # fails -- with nsL unchanged at 95.  It is calibrated for a criterion this measurement refutes.
+    #
+    # SO: A CALLER DOING CONTINUUM WORK MUST BUILD THE GRID BY HAND AND CHECK CONVERGENCE, by halving hp until the
+    # answer stops moving.  No rule here is validated well enough to do it for them -- one energy on one system is
+    # a hypothesis, not a criterion -- and inventing a factor would be worse than saying so.
 
     if  printout
         println("> Basics.recommendedGrid(): Z = $Z with $NoElectrons electrons; the box is set by $outer, which " *
