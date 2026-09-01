@@ -1299,6 +1299,24 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
                       "|grad| = " * @sprintf("%.1e", gNorm) * ".  The energies are NOT self-consistent.")
     end
 
+    # THE REQUESTED INTERACTION IS APPLIED HERE, ONCE, ON THE CONVERGED ORBITALS.  Until 01-Sep-2026 this
+    # function returned the multiplet built inside its own iteration by the EOL machinery
+    # (cacheCsfPairCoefficientsEOL / buildCIMatrixEOL), which is PURE COULOMB BY CONSTRUCTION -- so
+    # settings.eeInteractionCI was silently ignored on the whole EOL path, and a Breit or QED request
+    # returned Coulomb numbers with no warning.  Its sibling solveOptimizedLevelField always ended with this
+    # call; performSCF dispatches here, to the one that dropped it, and the file's own note above (that the
+    # non-Coulomb terms "are added only once, at the final Hamiltonian.performCIKinkAware call") described
+    # the sibling and not this function.
+    #   THE SCF LOOP ITSELF STAYS PURE COULOMB, deliberately: that is the variational functional the rotation
+    # minimizes, and adding Breit inside the iteration would change what is being optimized rather than what
+    # is being reported.  The correction belongs at the end, which is also where AL and DFS apply it.
+    finalOrbitals = Dict{Subshell, Orbital}()
+    for  sh  in  basis.subshells
+        finalOrbitals[sh] = Bsplines.generateOrbitalFromVector(sh, 0.0, bVectors[sh], primitives)
+    end
+    finalBasis = Basis(true, basis.NoElectrons, basis.subshells, basis.csfs, basis.coreSubshells, finalOrbitals)
+    multiplet  = Hamiltonian.performCIKinkAware(finalBasis, nuclearModel, grid, settings; printout=printout)
+
     return( multiplet )
 end
 
