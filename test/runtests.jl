@@ -110,6 +110,10 @@ end
     @testset "JAC processes" begin
         @test TestFrames.testModule_PhotoEmission()
         @test TestFrames.testModule_PhotoExcitation()
+        @test TestFrames.testModule_ImpactExcitation()
+                                                   ## added 01-Sep-2026; Omega(i->f) = Omega(f->i) exactly, on
+                                                   ## H-like C5+ where the module is known to work, and the
+                                                   ## statistical 2p_3/2 : 2p_1/2 ratio of 2
         @test TestFrames.testModule_MultiPhotonIonization()
                                                    ## added 01-Sep-2026; the hydrogenic Z^-6 law for sigma^(2),
                                                    ## the monochromatic/bichromatic meeting as omega1 -> omega2,

@@ -243,6 +243,83 @@ end
 
 
 """
+`TestFrames.testModule_ImpactExcitation(; short::Bool=true)`  ... tests on module ImpactExcitation; a
+    success::Bool is returned.
+"""
+function testModule_ImpactExcitation(; short::Bool=true)
+    Defaults.setDefaults("print summary: open", "test-ImpactExcitation-new.sum")
+    printstyled("\n\nTest the module  ImpactExcitation  ... \n", color=:cyan)
+    # THE SYSTEM IS H-LIKE C5+, and the choice is deliberate. The survey of 04-Aug-2026 found this module solid
+    # for compact, highly charged ions -- C5+ and C V reproduce the analytic Bethe limit to 0.5-0.7 % -- and
+    # questionable for near-neutral ones, where Mg II misses it by 45 %. A test belongs where the module is known
+    # to work; the Mg II shortfall is a separate open question and must NOT be wired into the suite, or the test
+    # would fail for a reason that is not its business.
+    #
+    # NOTHING BELOW IS COMPARED WITH A STORED NUMBER. Both statements are exact.
+    success = true;    printTest, iostream = Defaults.getDefaults("test flag/stream")
+    grid = Radial.Grid(Radial.Grid(false); rnt = 2.0e-6, h = 5.0e-2, hp = 1.0e-2, rbox = 12.0)
+    nm   = Nuclear.Model(6.)
+    asf  = AsfSettings(AsfSettings(); scField = Basics.NuclearField())
+
+    function collisionStrengths(iConf::Configuration, fConf::Configuration, energy::Float64)
+        ieS = ImpactExcitation.Settings(ImpactExcitation.Settings(); electronEnergies = [energy],
+                                       calcRateCoefficient = false, maxKappa = 5, printBefore = false)
+        wa  = Atomic.Computation(Atomic.Computation(), name = "C5+", grid = grid, nuclearModel = nm,
+                  initialConfigs = [iConf], initialAsfSettings = asf,
+                  finalConfigs   = [fConf], finalAsfSettings   = asf, processSettings = ieS)
+        return( redirect_stdout(devnull) do;  perform(wa; output = true)["impact-excitation lines:"]  end )
+    end
+
+    # (1) Omega(i -> f) = Omega(f -> i), EXACTLY. The collision strength is symmetric under exchange of the two
+    #     states by detailed balance, while the CROSS SECTION is not -- sigma carries the statistical weight and
+    #     the incident momentum, so the two directions differ by a factor of about 4 here. That is what makes this
+    #     a real test rather than a tautology: the same amplitudes enter both runs, but the bookkeeping around
+    #     them -- weights, momenta, which electron is incident -- is different and must cancel exactly.
+    #     THE COMPARISON MUST BE AT THE SAME COLLISION, not at the same incident energy: the de-excitation starts
+    #     where the excitation ended, so E_in(reverse) = E_out(forward), channel by channel.
+    fwd = collisionStrengths(Configuration("1s"), Configuration("2p"), 500.)
+    for  l  in  fwd
+        eBack = Defaults.convertUnits("energy: from atomic to eV", l.finalElectronEnergy)
+        rev   = collisionStrengths(Configuration("2p"), Configuration("1s"), eBack)
+        # pick the reverse line whose initial J matches this forward line's final J
+        wa = filter(x -> x.initialLevel.J == l.finalLevel.J, rev)
+        if  length(wa) == 0
+            success = false
+            if printTest   info(iostream, "ImpactExcitation: no reverse line for J = $(l.finalLevel.J)")   end
+            continue
+        end
+        if  abs( wa[1].collisionStrength / l.collisionStrength - 1.0 ) > 1.0e-3
+            success = false
+            if printTest   info(iostream, "ImpactExcitation: Omega(i->f) = $(l.collisionStrength) against " *
+                                          "Omega(f->i) = $(wa[1].collisionStrength) for J = $(l.finalLevel.J)")  end
+        end
+    end
+
+    # (2) THE FINE-STRUCTURE RATIO, free from the same runs. For 1s -> 2p the two spin-orbit partners are
+    #     populated in the ratio of their statistical weights, Omega(2p_3/2)/Omega(2p_1/2) = 2, exactly in the
+    #     non-relativistic limit; the residue is the O((alpha Z)^2) correction, which at Z = 6 is small. A wrong
+    #     angular factor or a mis-assigned kappa breaks this while leaving the sum of the two unchanged, so it
+    #     sees what a check on the total cannot.
+    o12 = 0.;   o32 = 0.
+    for  l  in  fwd
+        if      Basics.twice(l.finalLevel.J) == 1    o12 = l.collisionStrength
+        elseif  Basics.twice(l.finalLevel.J) == 3    o32 = l.collisionStrength     end
+    end
+    if  o12 == 0.  ||  o32 == 0.
+        success = false
+        if printTest   info(iostream, "ImpactExcitation: the 2p_1/2 or 2p_3/2 channel is missing")   end
+    elseif  abs( o32/o12 - 2.0 ) > 2.0e-2
+        success = false
+        if printTest   info(iostream, "ImpactExcitation: Omega(2p_3/2)/Omega(2p_1/2) = $(o32/o12), not 2")   end
+    end
+
+    Defaults.setDefaults("print summary: close", "")
+    testPrint("testModule_ImpactExcitation()::", success)
+    return( success )
+end
+
+
+"""
 `TestFrames.testModule_MultiPhotonIonization(; short::Bool=true)`  ... tests on module MultiPhotonIonization;
     a success::Bool is returned.
 """
