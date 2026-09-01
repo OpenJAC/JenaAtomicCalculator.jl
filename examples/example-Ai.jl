@@ -257,6 +257,82 @@ elseif  false
     for i = 1:length(layers)
         k = "step" * string(i)
         haskey(wb, k)  &&  println(">> step $i : lowest level = $(sort(wb[k].levels, by = l -> l.energy)[1].energy) Ha")
+    end    #
+elseif  false
+    # Last visit:  02-Sep-2026
+    # Last successful:  02-Sep-2026 -- numbers below, produced by the run this branch performs.
+    #
+    # e) THE C-LIKE COUNTERPART OF BRANCH (d): C-like at Z = 92, the 3P_0 -> 3P_1 fine structure of
+    #    1s^2 2s^2 2p^2.  Six electrons instead of four, and an OPEN 2p valence shell instead of a closed
+    #    2s one -- which is the whole reason for repeating the series here.  This is the largest RAS
+    #    computation in this file: 1592 CSFs at the fourth layer for the odd... (1+) symmetry, 658 for 0+.
+    #
+    #    THE MODEL.  Reference = the n = 2 COMPLEX {2s^2 2p^2, 2s 2p^3, 2p^4}, for the same reason as in (d):
+    #    both levels of the transition must be described by the SAME correlation model or their energies
+    #    cannot be compared.  Both 0+ and 1+ come from 2s^2 2p^2, and 2s 2p^3 (odd parity) contributes to
+    #    neither -- but it belongs in the reference so that the model is the n = 2 complex and not a subset
+    #    chosen per symmetry.  ONE EXPANSION PER SYMMETRY, the transition formed from two absolute totals.
+    #
+    #    MEASURED, 02-Sep-2026, four layers (reference / +{3s,3p,3d} / +{4s..4f} / +{5s..5g}):
+    #
+    #      layer   CSFs 0+/1+   Coulomb [cm^-1]   +Breit [cm^-1]   Breit shift
+    #        1        4 /    2     32 591 118.35    32 193 276.72    -397 841.63
+    #        2       67 /  124     32 604 516.51    32 208 202.51    -396 314.00
+    #        3      264 /  589     32 607 479.11    32 211 649.59    -395 829.52
+    #        4      658 / 1592     32 609 711.15    32 214 279.58    -395 431.57
+    #
+    #      0+ totals [Ha]  C : -14351.2270058665 / -14351.4807118722 / -14351.5359971278 / -14351.5769920724
+    #                      CB: -14330.2670088184 / -14330.4915344958 / -14330.5413436329 / -14330.5788640877
+    #      1+ totals [Ha]  C : -14202.7309443812 / -14202.9236038947 / -14202.9653905461 / -14202.9962155771
+    #                      CB: -14183.5836471721 / -14183.7401659789 / -14183.7742690343 / -14183.7998064067
+    #      wall time       0+ 0.91 h / 1.47 h     1+ 1.63 h / 2.20 h     (Coulomb / +Breit)
+    #
+    #    AND THE REFERENCE LAYER ALONE, three mean fields against two interactions (tourC-A-fields.jl):
+    #      DFS  C -14351.21887732  CB -14330.22831829   3P0->3P1  32 589 166 / 32 186 520 cm^-1   1.9 / 0.9 s
+    #      AL   C -14351.23925550  CB -14330.25357840             32 591 161 / 32 191 591        2.4 / 3.0 s
+    #      EOL  C -14351.24891773  CB -14330.27080296             32 591 370 / 32 193 723       10.4 / 10.8 s
+    #
+    #    FIVE THINGS, AND THE FIRST TWO REVERSE WHAT BRANCH (d) SHOWS.
+    #    (i)   BREIT CHANGES SIGN BETWEEN THE TWO SEQUENCES.  It is +229 000 cm^-1 for the Be-like line of
+    #          branch (d) and -397 000 cm^-1 here.  Nothing about "Breit is a positive correction" survives
+    #          a change of isoelectronic sequence; only its SIZE at high Z is general.
+    #    (ii)  CORRELATION ALSO REVERSES: it moves this line UP by +18 593 cm^-1 (Coulomb), where in (d) it
+    #          moved the Be-like line DOWN by 20 360.  Both are ~0.06-0.8 % of their transition.
+    #    (iii) RELATIVE TO THE TRANSITION, BOTH EFFECTS ARE MUCH SMALLER HERE, because the transition itself
+    #          is a 32.6 MILLION cm^-1 fine-structure splitting rather than a 2.5 million cm^-1 excitation:
+    #          Breit is 1.2 % (against 9 %) and correlation 0.06 % (against 0.8 %).  A fine-structure
+    #          interval is a much easier target than an excitation energy at the same Z.
+    #    (iv)  THE FIRST CORRELATION LAYER TAKES 72 % OF THE CORRELATION ENERGY, and remarkably it is 72 %
+    #          in ALL FOUR runs (72.5 / 72.0 / 72.6 / 72.4 %) -- both symmetries, both interactions.  In the
+    #          Be-like case the same fraction was 47 % for the even symmetry and 82 % for the odd, so this
+    #          uniformity is a property of THIS ion and not a general rule.
+    #    (v)   THE ABSOLUTE CORRELATION ENERGY IS ~140x LARGER than Be-like: 0.254 Ha at the first
+    #          correlation layer against 0.0018 Ha.  Four valence electrons rather than two, and an open
+    #          shell rather than a closed one.  The mean field remains irrelevant: 2 204 cm^-1 across DFS,
+    #          AL and EOL, i.e. 0.007 % of the transition.
+    #
+    #    COST.  The four expansions took 0.91, 1.47, 1.63 and 2.20 h on an ordinary desktop -- so a
+    #    four-layer RAS study of a six-electron high-Z ion, both symmetries and both interactions, is a
+    #    single overnight run.  Breit adds 35-60 % of wall time and nothing to the SCF.
+    #
+    Z      = 92.0
+    refs   = [Configuration("1s^2 2s^2 2p^2"), Configuration("1s^2 2s^1 2p^3"), Configuration("1s^2 2p^4")]
+    layers = [ RasLayer(Shell[]; se=false, de=false),
+               RasLayer([Shell("3s"), Shell("3p"), Shell("3d")]),
+               RasLayer([Shell("4s"), Shell("4p"), Shell("4d"), Shell("4f")]),
+               RasLayer([Shell("5s"), Shell("5p"), Shell("5d"), Shell("5f"), Shell("5g")]) ]
+    # The 0+ symmetry, the cheaper of the two at 0.91 h; swap for LevelSymmetry(1, Basics.plus) and
+    # difference the two lowest totals to reproduce the table above.
+    rasSettings = RasSettings([1], 60, 1.0e-6, CoulombInteraction(), LevelSelection(true, configurations=refs))
+    grid   = Basics.recommendedGrid(refs, Nuclear.Model(Z); rnt = 2.0e-7)
+    wa     = Representation("C-like Z=92 -- 4-layer RAS", Nuclear.Model(Z), grid, refs,
+                            RasExpansion([LevelSymmetry(0, Basics.plus)], 6, [Shell("1s")],
+                                         [Shell("2s"), Shell("2p")], layers, rasSettings) )
+    println("wa = $wa")
+    wb = generate(wa, output=true)
+    for i = 1:length(layers)
+        k = "step" * string(i)
+        haskey(wb, k)  &&  println(">> step $i : lowest level = $(sort(wb[k].levels, by = l -> l.energy)[1].energy) Ha")
     end
     #
 end
