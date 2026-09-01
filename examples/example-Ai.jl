@@ -189,25 +189,32 @@ elseif  false
     #    reference weight, Coulomb and Coulomb+Breit:
     #
     #      layer     Coulomb [cm^-1]   +Breit [cm^-1]   Breit shift    (2s^2 -> 2s2p)
-    #        1          2 523 378.55     2 748 515.60    225 137.06
-    #        2          2 499 736.60     2 728 708.61    228 972.01
-    #        3          2 499 876.70     2 728 932.92    229 056.22
-    #        4          2 500 032.86     2 729 178.36    229 145.50
+    #        1          2 522 685.49     2 748 931.29    226 245.80
+    #        2          2 505 627.36     2 735 652.26    230 024.90
+    #        3          2 503 834.63     2 734 190.41    230 355.78
+    #        4          2 502 325.85     2 733 011.26    230 685.41
     #
-    #      0+ totals [Ha]  C : -12040.8608630542 / -12040.8626981076 / -12040.8637114179 / -12040.8647392645
-    #                      CB: -12025.9649174697 / -12025.9687581045 / -12025.9705520430 / -12025.9723015723
-    #      1- totals [Ha]  C : -12029.3635044239 / -12029.4730601271 / -12029.4734351020 / -12029.4737514117
-    #                      CB: -12013.4417589374 / -12013.5358468782 / -12013.5366187808 / -12013.5372500104
-    #      wall time       0+ 0.11 h / 0.14 h      1- 0.39 h / 0.53 h      (Coulomb / +Breit)
+    #      0+ totals [Ha]  C : -12040.8510586486 / -12040.8528916844 / -12040.8539048313 / -12040.8549322944
+    #                      CB: -12025.9598261503 / -12025.9636711274 / -12025.9655187973 / -12025.9672696758
+    #      1- totals [Ha]  C : -12029.3568578365 / -12029.4364134361 / -12029.4455948420 / -12029.4534968039
+    #                      CB: -12013.4347736219 / -12013.4991223023 / -12013.5076306471 / -12013.5147541055
+    #      CSFs            0+ 3 / 11 / 26 / 50      1- 2 / 14 / 42 / 92
+    #      wall time       0+ 0.09 h / 0.13 h      1- 0.89 h / 1.03 h      (Coulomb / +Breit)
+    #
+    #      MEASURED AFTER item 32 was fixed (commit 93ee87a).  An earlier table here, taken the same day
+    #      BEFORE that fix, is superseded: the positive-branch projection was rotating the FROZEN orbitals,
+    #      which lowered every total by ~9.8 mHa and -- for the odd symmetry -- badly distorted how the gain
+    #      was shared between layers.  Do not quote the earlier numbers.
     #
     #    WHAT THE NUMBERS SAY, and why this case is worth keeping.
-    #    (i)   CORRELATION IS WORTH -23 346 cm^-1 (0.9 %) AND 99 % OF IT ARRIVES IN THE FIRST CORRELATION
-    #          LAYER.  Layer 2 moves the transition by -23 642; layers 3 and 4 move it BACK by +140 and +156.
-    #          Every total energy falls monotonically, but the DIFFERENCE overshoots and returns.
-    #    (ii)  BREIT AND CORRELATION ARE SEPARABLE -- BUT NOT AT LAYER 1.  The Breit shift changes by 3 835
-    #          cm^-1 (1.7 %) from the bare reference to one correlation layer, then by 84 and 89 cm^-1
-    #          (0.04 %).  A Breit correction taken from the UNCORRELATED reference is wrong by ~2 %; taken
-    #          with a single layer it is good to 0.04 %.
+    #    (i)   CORRELATION IS WORTH -20 360 cm^-1 UNDER COULOMB (-15 920 with Breit), and the FIRST
+    #          correlation layer takes most but not all of it: 47 % of the correlation ENERGY for the even
+    #          symmetry and 82 % for the odd, with layers 3 and 4 each worth about 10 % for the odd state.
+    #          The transition falls monotonically here, layer by layer, unlike the pre-fix table.
+    #    (ii)  BREIT AND CORRELATION ARE NOT ADDITIVE, and the first layer matters most.  The Breit shift
+    #          moves +3 779 cm^-1 (1.7 %) from the bare reference to one correlation layer, then keeps
+    #          drifting by +331 and +330 (0.14 % each).  So a Breit correction taken from the UNCORRELATED
+    #          reference is wrong by ~2 %, and one layer brings it to ~0.3 % -- useful, but not converged.
     #    (iii) THE NON-ADDITIVITY IS IN THE CORRELATION ENERGY ITSELF: the same layer buys -0.00184 Ha under
     #          Coulomb and -0.00384 under Breit for 0+ (2.1x MORE), and -0.10956 against -0.09409 for 1-
     #          (14 % LESS).  Breit does not scale correlation uniformly.
