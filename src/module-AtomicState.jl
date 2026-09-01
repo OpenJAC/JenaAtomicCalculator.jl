@@ -193,11 +193,20 @@ end
 `struct  AtomicState.RasSettings`  
     ... a struct for defining the settings for a restricted active-space computations.
 
-    + levelsScf            ::Array{Int64,1}         ... Levels on which the optimization need to be carried out.
+    + levelsScf            ::Array{Int64,1}         ... Levels on which the optimization is carried out, BY INDEX.
+        Read only when `levelSelectionCI` is INACTIVE; when both are given, `levelSelectionCI` wins and the RAS
+        driver says so. Until 01-Sep-2026 this field was declared, documented and printed but NEVER READ (priority
+        item 22), so a user who wrote `RasSettings([1], ...)` to optimize a layer on the ground level alone
+        silently got an EOL functional over every level `levelSelectionCI` had selected -- thirteen of them in one
+        measured case -- while the printout confirmed the wrong belief.
+        PREFER `levelSelectionCI` with `configurations=`: selecting an EOL target by INDEX is unstable, because
+        the indices refer to the energy-sorted multiplet and a correlation configuration sinking below the
+        reference silently changes which levels are optimized.
     + maxIterationsScf     ::Int64                  ... maximum number of SCF iterations in each RAS step.
     + accuracyScf          ::Float64                ... convergence criterion for the SCF field.
     + eeInteractionCI      ::AbstractEeInteraction  ... logical flag to include Breit interactions.
-    + levelSelectionCI     ::LevelSelection         ... Specifies the selected levels, if any.
+    + levelSelectionCI     ::LevelSelection         ... Specifies the selected levels, if any; also the EOL target
+        of every step when active, and then takes precedence over `levelsScf`.
 """
 struct  RasSettings
     levelsScf              ::Array{Int64,1}
@@ -217,7 +226,9 @@ end
 
 # `Base.show(io::IO, settings::RasSettings)`  ... prepares a proper printout of the settings::RasSettings.
 function Base.show(io::IO, settings::RasSettings)
-        println(io, "levelsScf:            $(settings.levelsScf)  ")
+        println(io, "levelsScf:            $(settings.levelsScf)  " *
+                    (settings.levelSelectionCI.active ? "  (NOT in force: levelSelectionCI is active and wins)" :
+                                                        "  (in force as the EOL target of each step)"))
         println(io, "maxIterationsScf:     $(settings.maxIterationsScf)  ")
         println(io, "accuracyScf:          $(settings.accuracyScf)  ")
         println(io, "eeInteractionCI:      $(settings.eeInteractionCI)  ")

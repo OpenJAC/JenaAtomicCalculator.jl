@@ -84,6 +84,7 @@ function generateLevelWithExtraTwoElectrons                     end
 function generateLevelWithSymmetryReducedBasis                  end
 function generateMeshCoordinates                                end
 function generateOrbitalsForBasis                               end
+function printRasStepDiagnostic                                 end
 function generateOrbitalSuperposition                           end
 function generateShellList                                      end
 function generateSubshellList                                   end

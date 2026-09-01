@@ -193,6 +193,49 @@ end
 
 
 """
+`Basics.printRasStepDiagnostic(istep::Int64, multiplet::Multiplet, basis::Basis, refConfigs::Array{Configuration,1},`
+                              `frozenShells::Array{Shell,1}, grid::Radial.Grid)`
+    ... prints, for one step of a RAS expansion, the two numbers that say what the layer actually did: the weight
+        of each of the lowest levels on the REFERENCE CSFs, and the mean radius of every subshell the step newly
+        introduced. Nothing is returned. See priority item 25 for why a step that prints only its multiplet is
+        not enough.
+"""
+function Basics.printRasStepDiagnostic(istep::Int64, multiplet::Multiplet, basis::Basis,
+                                       refConfigs::Array{Configuration,1}, frozenShells::Array{Shell,1},
+                                       grid::Radial.Grid)
+    levels = sort(multiplet.levels, by = l -> l.energy)
+    isempty(levels)  &&  return( nothing )
+    refIdx = SelfConsistent.referenceCsfIndices(levels[1].basis, refConfigs)
+    println("\n>> [RAS step $istep] what this layer did:")
+    if  isempty(refIdx)
+        println(">>   NO CSF of this basis belongs to the reference configurations -- the reference space does " *
+                "not describe this step, and every weight below would be zero.")
+    else
+        for  (i, level)  in  enumerate(levels[1:min(5, end)])
+            w = sum( level.mc[r]^2  for r in refIdx )
+            println(">>   level $i   J^P = " * string(LevelSymmetry(level.J, level.parity)) *
+                    "   E = " * @sprintf("%.8f", level.energy) * " Ha   weight on the reference CSFs = " *
+                    @sprintf("%.5f", w) * (w < 0.5 ? "   <-- NOT a reference level" : ""))
+        end
+    end
+    # THE SHELLS THIS STEP ACTUALLY VARIED are the ones it did NOT freeze, which is the same rule the driver
+    # uses to build AsfSettings.frozenSubshells.  Taking it from the frozen list rather than from a "new
+    # shells" field keeps this correct for any RasStep, however its excitation lists are written.
+    orbitals = levels[1].basis.orbitals
+    for  subsh  in  sort(collect(keys(orbitals)), by = t -> (t.n, abs(t.kappa)))
+        isFrozen = any(sh -> sh.n == subsh.n  &&  Basics.subshell_l(subsh) == sh.l, frozenShells)
+        if  !isFrozen  &&  length(orbitals[subsh].P) > 1
+            r0 = RadialIntegrals.rkDiagonal(0, orbitals[subsh], orbitals[subsh], grid)
+            r1 = RadialIntegrals.rkDiagonal(1, orbitals[subsh], orbitals[subsh], grid)
+            println(">>   varied subshell " * string(subsh) * "   <r> = " * @sprintf("%.4f", r1/r0) *
+                    " a.u.   norm = " * @sprintf("%.6f", r0))
+        end
+    end
+    return( nothing )
+end
+
+
+"""
 `Basics.generate(repType::AtomicState.RasExpansion, representation::AtomicState.Representation)`  
     ... to generate a restricted active-space expansion for a single level symmetry and based on a set of reference configurations
         and a number of pre-specified steps. All relevant intermediate and final results are printed to screen (stdout). 
@@ -210,11 +253,21 @@ function Basics.generate(repType::AtomicState.RasExpansion, rep::AtomicState.Rep
                                     ## all further details are specified for each step
     priorMultiplet = SelfConsistent.performSCF(rep.refConfigs, nModel, rep.grid, asfSettings; printout=true)
     nuclearPot     = Nuclear.nuclearPotential(nModel, rep.grid)
-    ## electronicPot  = Basics.compute("radial potential: Dirac-Fock-Slater", rep.grid, priorMultiplet.levels[1].basis)
-    ## meanPot        = Basics.add(nuclearPot, electronicPot)
+    # ITEM 23, FIXED 01-Sep-2026.  The two lines that build a SCREENED potential sat here commented out, and the
+    # start orbitals were generated in the BARE nuclear potential -- so every correlation orbital a layer
+    # introduces began life as a hydrogenic function of the FULL nuclear charge.  MEASURED at Z = 76 with 60
+    # electrons: the generated spectrum reproduced the point-Dirac energies to 1.9e-05 relative for 2p_1/2 and
+    # 1e-10 for 2p_3/2, i.e. the screening of sixty electrons was exactly absent, and a 5f correlation orbital
+    # started far too compact for the valence region it is meant to correlate.
+    #   THE SAME DEFECT WAS FIXED IN THE GreenExpansion DRIVER ON 07-Aug-2026, a hundred lines below in this
+    # file, and the reasoning recorded there -- that a spectrum must match the Hamiltonian of the computation
+    # that consumes it -- applies here word for word.  This is the wiring job that reasoning implies, using the
+    # reference multiplet already computed just above as the density for the screening.
+    electronicPot  = Basics.computePotential(Basics.DFSField(1.0), rep.grid, priorMultiplet.levels[1].basis)
+    meanPot        = Basics.add(nuclearPot, electronicPot)
     subshellList   = Basics.extractRelativisticSubshellList(rep)             ## extract all subshells that occur in the RAS computation
     primitives     = Bsplines.generatePrimitives(rep.grid)
-    startOrbitals  = Bsplines.generateOrbitals(subshellList, nuclearPot, nModel, primitives, printout=true)  ## generate a spectrum of sufficient size
+    startOrbitals  = Bsplines.generateOrbitals(subshellList, meanPot, nModel, primitives, printout=true)  ## generate a spectrum of sufficient size
     if output    results = Base.merge( results, Dict("reference multiplet" => Multiplet("Reference multiplet:", priorMultiplet.levels) ) )  end
 
     # Now, cycle over all steps of the RasExpansion. Each step re-optimizes ONLY the shells newly introduced
@@ -236,11 +289,38 @@ function Basics.generate(repType::AtomicState.RasExpansion, rep::AtomicState.Rep
         frozenSubshellsThisStep = [ sh  for  shell in step.frozenShells  for sh in basis.subshells
                                         if  sh.n == shell.n  &&  Basics.subshell_l(sh) == shell.l ]
 
+        # ITEM 22, FIXED 01-Sep-2026.  RasSettings.levelsScf was declared, documented and PRINTED, and never read:
+        # the EOL target came from levelSelectionCI alone, so a user who wrote RasSettings([1], ...) to optimize
+        # the layer on the ground level got, silently, a functional over every level the CI had selected.  It is
+        # now read -- but only when levelSelectionCI is INACTIVE, because levelSelectionCI is the more expressive
+        # and the safer selector: it can name levels by their weight on the reference configurations, which is
+        # the only one of the three that survives an intruder sinking below the reference, whereas levelsScf can
+        # only name indices into the energy-sorted multiplet.  Silently replacing a reference-weight selection by
+        # an index one would be a downgrade, so when both are given levelSelectionCI wins and this says so.
+        stepLevelSelection = repType.settings.levelSelectionCI
+        if  !stepLevelSelection.active  &&  !isempty(repType.settings.levelsScf)
+            stepLevelSelection = LevelSelection(true, indices=repType.settings.levelsScf)
+            if  istep == 1
+                println(">> [RAS] the EOL target of every step is levelsScf = $(repType.settings.levelsScf), by index.")
+            end
+        elseif  stepLevelSelection.active  &&  !isempty(repType.settings.levelsScf)  &&  istep == 1
+            println(">> [RAS] BOTH levelsScf and levelSelectionCI were given; levelSelectionCI is in force as the " *
+                    "EOL target and levelsScf = $(repType.settings.levelsScf) is ignored.")
+        end
         stepSettings = AsfSettings( AsfSettings();  scField=Basics.EOLField(),  frozenSubshells=frozenSubshellsThisStep,
-                                     eeInteractionCI=repType.settings.eeInteractionCI,  levelSelectionCI=repType.settings.levelSelectionCI,
+                                     eeInteractionCI=repType.settings.eeInteractionCI,  levelSelectionCI=stepLevelSelection,
                                      maxIterationsScf=repType.settings.maxIterationsScf,  accuracyScf=repType.settings.accuracyScf )
 
         multiplet  = SelfConsistent.performSCF(basis, nModel, rep.grid, stepSettings; printout=true)
+        # ITEM 25, ADDED 01-Sep-2026.  Until now a step printed one Multiplet and nothing else, so nothing in
+        # the output said whether the layer just added is a CORRELATION layer or has collapsed onto a
+        # spectroscopic orbital -- a distinction that is not academic: a 5f treated as occupied once came out
+        # at 4f's radius, mixed in at 22 %, and reordered a multiplet by 3.2 eV, caught only because the
+        # application computed the reference weight by hand.  Two numbers per step say it.  The weight is on
+        # the REFERENCE CSFs, so a level that drifts away from the reference space shows up as w_ref falling;
+        # the radii say whether a new shell contracted into the valence region (a correlation orbital) or
+        # expanded out of it (a Rydberg orbital, which is not what a layer is for).
+        Basics.printRasStepDiagnostic(istep, multiplet, basis, rep.refConfigs, step.frozenShells, rep.grid)
         if output    results = Base.merge( results, Dict("step"*string(istep) => Multiplet("Multiplet:", multiplet.levels)) )              end
         priorMultiplet = multiplet
     end
@@ -1213,10 +1293,18 @@ end
 function Basics.generateOrbitalsForBasis(basis::Basis, frozenShells::Array{Shell,1}, priorBasis::Basis, 
                                             startOrbitals::Dict{Subshell, Orbital})
     orbitals = Dict{Subshell, Orbital}()
+    # ITEM 24, FIXED 01-Sep-2026.  `subsh in frozenShells` compared a Subshell(n,kappa) against an
+    # Array{Shell,1}: there is no == method for that pair, so the fallback === returned false ALWAYS and both
+    # frozen branches were dead code.  The consequence looked benign, because the next branch takes the same
+    # orbital from priorBasis anyway -- but the error below could never fire, so a shell declared frozen and
+    # MISSING from the prior basis was given a hydrogenic start orbital in silence, which at high Z (and with
+    # item 23 still open, in the BARE nuclear potential) is not a small error.  The test now compares on (n,l),
+    # which is how the driver itself builds AsfSettings.frozenSubshells a few lines below.
+    isFrozen(subsh) = any(sh -> sh.n == subsh.n  &&  Basics.subshell_l(subsh) == sh.l, frozenShells)
     for  subsh in basis.subshells
-        if  subsh in frozenShells    &&   haskey(priorBasis.orbitals, subsh)
+        if  isFrozen(subsh)    &&   haskey(priorBasis.orbitals, subsh)
             orbitals = Base.merge( orbitals, Dict( subsh => priorBasis.orbitals[subsh]) )
-        elseif  subsh in frozenShells     error("Frozen orbital $subsh not found in prior basis.")
+        elseif  isFrozen(subsh)           error("Frozen orbital $subsh not found in prior basis.")
         elseif  haskey(priorBasis.orbitals, subsh)
             println(">> Start orbital $subsh is taken from prior basis")
             orbitals = Base.merge( orbitals, Dict( subsh => priorBasis.orbitals[subsh]) )
