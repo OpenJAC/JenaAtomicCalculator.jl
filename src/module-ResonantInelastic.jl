@@ -3,6 +3,33 @@
 `module  JAC.ResonantInelastic`  
 ... a submodel of JAC that contains all methods for computing Resonant-Inelastic X-ray Scattering (RIXS) observables,
     based on initial, intermediate and final-state multiplets.
+
+    STATUS, 01-Sep-2026: TO BE RETIRED LATER -- BUT NOT NOW, AND NO EXAMPLE FILE IS TO BE PREPARED FOR IT.
+    The maintainer's decision, and both halves of it matter.
+
+    NOT NOW, because this module HAS BEEN USED RECENTLY IN AN APPLICATION and is the only working RIXS code in
+    JAC that answers its particular question. It is PATHWAY-shaped: it takes its intermediate levels from the
+    intermediateMultiplet that `Basics.perform` builds from `intermediateConfigs`, and reports each
+    initial -> intermediate -> final pathway separately, so it says WHICH resonance carries the signal. That is a
+    different question from the one a cross-section map answers, and it is the question one needs when assigning
+    a spectrum.
+
+    THE REPLACEMENT IS `module-PhotonScattering-inc-resonant.jl`, which is LINE-shaped by the decision of
+    21-Aug-2026: intermediates from `settings.gMultiplet` like every other second-order process, one result type,
+    one entry point, and `PhotonScattering.Settings` deliberately absent from the intermediateMultiplet list in
+    `module-BasicsAZ-inc-perform.jl`. It was written FROM SCRATCH and carries no code from here. Its examples are
+    `example-Pb.jl` and `example-Pc.jl`.
+
+    RETIREMENT IS CONDITIONAL ON THAT REPLACEMENT BEING SUFFICIENT, which it is not yet. The intention is to take
+    the application this module served and use it to make `PhotonScattering-inc-resonant` genuinely useful; only
+    once that application runs through the new code does this module go. **A successful replacement is the
+    condition -- not a tidy-up, not a duplicate-module argument.**
+
+    AND NO EXAMPLE IS TO BE WRITTEN FOR IT. `ResonantInelastic` appears in the priority list's count of modules
+    that produce numbers and have no example, and the natural reflex is to supply one. Do not: an example here
+    would entrench a duplicate that is meant to go, and the RIXS examples that a user should read are the P-line
+    ones already written against the replacement. This paragraph exists so that a later reader -- or a later
+    `/testExamples` sweep -- meets the decision instead of filing the gap again.
 """
 module ResonantInelastic
 
