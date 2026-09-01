@@ -32,7 +32,6 @@ if      char == 'A'
     println("Ai) Apply & test for restricted-active-space (RAS) expansions.")
     println("Aj) Apply & test for a Green (-function) expansion.")
     println("Ak) Apply & test the computation of spin-angular coefficients.")
-    println("Al) Apply & test for parallel computating methods/techniques with Julia.")
     println("Am) Apply & test procedures to establish a configuration-based language and to deal with electron configurations.")
     println("An) Apply & test the bi-orthogonal transformation of two independently-generated multiplets.")
     println("Ao) Apply & test the average-level (AL) and optimized-level (EOL) self-consistent fields, and where they differ.")
