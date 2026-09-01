@@ -62,9 +62,17 @@
         refuses to produce them unless `settings.acceptUnvalidated` is set.
 
         What is known:
-          * for 207Pb K-shell M4 at 1063.6 keV the computed alpha_K is off by a factor of ~27000 against
-            the measured 0.0945(22) of Raman et al., Phys. Rev. C 66, 044312 (2002), Table VII. The root
-            cause is an open formula question and has not been located.
+          * for 207Pb K-shell M4 at 1063.6 keV the computed alpha_K disagrees with the measured 0.0945(22)
+            of Raman et al., Phys. Rev. C 66, 044312 (2002), Table VII. The root cause is an open formula
+            question and has not been located.
+            THE SIZE OF THE DISAGREEMENT IS NOT ~27000, AS THIS NOTE SAID UNTIL 01-Sep-2026. Re-measured on
+            that date with the grid `example-Dq.jl:69` now carries (hp = 1.5e-3, the value
+            Continuum.gridConsistency requires for the 3.583e4 Ha ejected electron), the computed alpha_K is
+            3.32e44 -- wrong by some 45 orders of magnitude, not four. Whoever resumes this should NOT go
+            looking for a factor of 27000; that number belonged to an earlier, coarser grid on which the
+            ejected electron was not resolved at all, and the two figures are not measurements of the same
+            thing. Start by asking what the coefficient DOES depend on, since a discrepancy this large is
+            more likely a misplaced power or normalisation than a subtle omission.
           * the INTERNAL consistency does hold, and example-Dq.jl branch a demonstrates it: the sum over
             partial waves is unchanged once the allowed-channel list is exhausted (maxKappa = 2, 3, 5 agree
             to all printed digits), and the coefficient falls monotonically over gammaEnergy = 35, 40, 60,
