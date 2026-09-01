@@ -268,6 +268,73 @@ function testModule_PhotoIonization(; short::Bool=true)
               testCompareFiles( joinpath(@__DIR__, "..", "test", "approved", "test-PhotoIonization-approved.sum"),
                                 joinpath(@__DIR__, "..", "test", "test-PhotoIonization-new.sum"),
                                 "Total photoionization cross sections, summed", 15)
+    # ----------------------------------------------------------------------------------------------------------
+    # TWO EXACT INVARIANTS, added 01-Sep-2026, and they test something the comparison above CANNOT.
+    #
+    # `testCompareFiles` is a REGRESSION check: it asks whether today's numbers match a stored .sum file. That
+    # file was produced by this same code, so a systematically wrong NORMALISATION agrees with it forever. This
+    # module had exactly such a fault -- until 28-Aug-2026 one route used 4 pi^2 alpha omega |d|^2, the textbook
+    # expression for a DIPOLE matrix element, while JAC's amplitude is built on j_L(alpha omega r) and already
+    # carries a power of alpha omega, so the prefactor must go as 1/(alpha omega). A correct formula applied to
+    # the wrong object, invisible to any stored reference.
+    #
+    # Both checks below are statements that must hold exactly, so neither needs a reference and neither can drift.
+    # They test the TOTAL cross section and deliberately not the M_f-resolved partial one: the partials do not
+    # sum to the total, they warn at the point of use, and nothing in the package consumes them (challenge 63).
+    function hydrogenicCs(Z::Float64, x::Float64)
+        # x = omega/omega_threshold, so every Z is the SAME physical point on the cross-section curve.
+        # NuclearField is asked for explicitly: a one-electron system in a field built from its own density is
+        # repelled by itself, which is what put these two gauges 24-30 % apart for weeks.
+        omega = x * Z^2/2                                                # threshold = Z^2/2 Hartree for 1s
+        # THE GRID IS A SCALED COPY, and it is NOT Basics.recommendedGrid. That function sizes the box from the
+        # BOUND orbitals alone and returns rbox = 18.09 a.u. for H 1s -- too short to hold the outgoing
+        # photoelectron, on which these same two gauges come out 1.090, 1.073 and 0.840 at x = 1.5, 2, 3 instead
+        # of 1, and the cross section is 1.4 % low. Nothing warns: Continuum.gridConsistency checks the STEP
+        # against the electron's wavelength and Bsplines.checkGridRepresentation checks BOUND orbitals, so a box
+        # too short for the continuum falls between them. Measured 01-Sep-2026; carried as its own item.
+        # Everything scales as 1/Z, so the three charges below are the same calculation in scaled units and the
+        # 1/Z^2 law is exact rather than approximate.
+        grid  = Radial.Grid(Radial.Grid(false); rnt = 2.0e-6/Z, h = 5.0e-2, hp = 1.0e-2/Z, rbox = 30.0/Z)
+        asf   = AsfSettings(AsfSettings(); scField = Basics.NuclearField())
+        piS   = PhotoIonization.Settings(PhotoIonization.Settings(); multipoles = [E1],
+                        gauges = [UseCoulomb, UseBabushkin], printBefore = false,
+                        photonEnergies = [Defaults.convertUnits("energy: from atomic to eV", omega)])
+        wc = Atomic.Computation(Atomic.Computation(), name = "H-like", grid = grid,
+                 nuclearModel   = Nuclear.Model(Z, PointNucleus()),
+                 initialConfigs = [Configuration("1s")],   initialAsfSettings = asf,
+                 finalConfigs   = [Configuration("1s^0")], finalAsfSettings   = asf, processSettings = piS)
+        wd = redirect_stdout(devnull) do;  perform(wc; output = true)["photoionization lines:"]  end
+        return( wd[1].crossSection )
+    end
+
+    printTest, iostream = Defaults.getDefaults("test flag/stream")
+
+    # (1) THE TWO GAUGES AGREE ON A ONE-ELECTRON SYSTEM. For an exact hydrogenic wavefunction the length and
+    #     velocity forms of the dipole are equivalent, so Coulomb/Babushkin is 1 exactly. This ratio sat at
+    #     1.24-1.30 for weeks and was blamed on the continuum machinery; the cause was the self-interaction above.
+    for  Z  in [1.0, 2.0]
+        cs = hydrogenicCs(Z, 2.0)
+        if  abs(cs.Coulomb / cs.Babushkin - 1.0) > 1.0e-3
+            success = false
+            if printTest   info(iostream, "PhotoIonization, Z = $Z: gauges give Cou/Bab = " *
+                                          "$(cs.Coulomb/cs.Babushkin), not 1")   end
+        end
+    end
+
+    # (2) THE HYDROGENIC Z-SCALING, an absolute statement about the whole curve rather than one point. At fixed
+    #     x = omega/omega_threshold every H-like ion is a scaled copy of hydrogen and the 1s cross section goes
+    #     exactly as 1/Z^2; departures are the O((alpha Z)^2) relativistic terms. A wrong power of omega or of Z
+    #     anywhere in the prefactor cannot satisfy this.
+    csRef = hydrogenicCs(1.0, 2.0).Babushkin
+    for  Z  in [2.0, 3.0]
+        cs = hydrogenicCs(Z, 2.0).Babushkin
+        if  abs( cs * Z^2 / csRef - 1.0 ) > 2.0e-2
+            success = false
+            if printTest   info(iostream, "PhotoIonization, Z = $Z: Z^2 sigma = $(cs*Z^2) against sigma(Z=1) = " *
+                                          "$csRef, a departure of $(abs(cs*Z^2/csRef - 1.0)) from the 1/Z^2 law")  end
+        end
+    end
+
     testPrint("testModule_PhotoIonization()::", success)
     return(success)
 end
