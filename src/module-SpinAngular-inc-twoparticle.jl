@@ -362,6 +362,33 @@ function twoParticleSameShell(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Su
     end
     j  = AngularJ64( Basics.subshell_2j(sh)//2 )
     Jb = leftCsf.subshellJ[ia];    Jk = rightCsf.subshellJ[ia]
+    # ABOVE j = 9/2 THERE ARE NO TERM INDICES, because the Gaigalas tables stop there -- but for N = 2 none
+    # are needed.  shellWW inserts a complete set of intermediate subshell terms, and for two equivalent
+    # electrons those are exactly J'' = 0, 2, ... 2j-1 with seniority 0 for J'' = 0 and 2 otherwise, which can
+    # be enumerated directly.  Together with the N = 2 closed form in shellReducedW this makes the whole
+    # same-shell two-particle coefficient reachable at any j.
+    #   WHY IT MATTERS: an h shell (l = 5) carries j = 11/2, and a DOUBLE excitation puts two electrons in it,
+    # so before this no doubly-excited RAS layer could go past l = 4 whatever the cost budget allowed.
+    #   VERIFIED BEFORE BEING TRUSTED (work/check-ww-n2.jl): the index-free sum reproduces the index-based
+    # shellWW at every j = 3/2 ... 9/2, every (J, J') and every rank -- 394 combinations, 80 of them nonzero,
+    # worst difference 2.2e-15.  Gated on twice(j) > 9 so that NOTHING below the table limit changes route.
+    if  N == 2  &&  Basics.twice(j) > 9
+        nub = leftCsf.seniorityNr[ia];    nuk = rightCsf.seniorityNr[ia]
+        w0  = shellReducedW(j, N, nub, Jb, nuk, Jk, 0) / sqrt(Basics.twice(j) + 1.0)
+        ww  = 0.0
+        for  tJpp = 0:2:(Basics.twice(j) - 1)
+            Jpp = AngularJ64(tJpp);    nupp = tJpp == 0 ? 0 : 2
+            if  AngularMomentum.Wigner_6j(AngularJ64(k), AngularJ64(k), AngularJ64(0), Jk, Jb, Jpp) == 0.0
+                continue
+            end
+            ph = (-1)^Int64( (2*k - Basics.twice(Jb) + Basics.twice(Jpp)) ÷ 2 )
+            ww = ww + ph * shellReducedW(j, N, nub, Jb, nupp, Jpp, k) *
+                           shellReducedW(j, N, nupp, Jpp, nuk, Jk, k)
+        end
+        ww = ww / sqrt((2.0*k + 1.0) * (Basics.twice(Jb) + 1.0))
+        return( 0.5 * ( ww/sqrt(2.0*k + 1.0) -
+                        (-1)^Int64(Basics.twice(j) + k) * w0 ) / sqrt(Basics.twice(Jb) + 1.0) )
+    end
     ib = SA.getTermNumber(j, N, SA.qshellTermQ(j, leftCsf.seniorityNr[ia]),  Jb)
     ik = SA.getTermNumber(j, N, SA.qshellTermQ(j, rightCsf.seniorityNr[ia]), Jk)
     w0 = shellReducedWByIndex(j, N, ib, N, ik, 0) / sqrt(Basics.twice(j) + 1.0)

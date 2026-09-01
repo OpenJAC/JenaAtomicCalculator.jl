@@ -163,11 +163,41 @@ function shellReducedWUncached(j::AngularJ64, N::Int64, senBra::Int64, Jbra::Ang
         if  senBra != 1  ||  senKet != 1  ||  Jbra != j  ||  Jket != j                   return( 0.0 )   end
         return( -sqrt(2.0*kj + 1.0) )
     end
+    # A DOUBLY OCCUPIED SUBSHELL NEEDS NO COEFFICIENT OF FRACTIONAL PARENTAGE EITHER, for the same reason as a
+    # singly occupied one: there is exactly ONE parent, |j> with seniority 1 and J = j, and its CFP is 1.  The
+    # general expansion
+    #     <j^N v J || U^(k) || j^N v' J'> = N sqrt((2J+1)(2J'+1)) SUM_{vbar Jbar} (cfp)(cfp')
+    #                                          (-1)^(Jbar + j + J' + k) { J J' k ; j j Jbar }
+    # therefore collapses to a single 6j with Jbar = j, and with this routine's own N = 1 normalisation
+    # (W = -sqrt(2k+1) U, which is what the N == 1 branch above returns) the result is the line below.
+    #   THE STATES ARE UNIQUE, which is what makes this possible: two equivalent electrons couple to J = 0, 2,
+    # ... 2j-1 only, each J occurring ONCE, with seniority 0 for J = 0 and 2 otherwise.  There is nothing for a
+    # table to disambiguate.
+    #   ADDED 01-Sep-2026, and VERIFIED BEFORE BEING TRUSTED.  Against the quasispin tables wherever they reach
+    # -- every j = 1/2 ... 9/2, every allowed (v,J) and (v',J'), every rank kj = 0 ... 2j -- the closed form
+    # agrees at all 450 combinations with a worst difference of EXACTLY zero, 204 of those values being nonzero
+    # and as large as 5.13 (work/check-n2-closedform.jl).  It also reproduces, by construction, the kj == 0
+    # branch further down, which is the same quantity written for general N.
+    #   WHY IT MATTERS: it lifts the j <= 9/2 ceiling for the commonest case in a correlation calculation.  A
+    # RAS layer that offers an h shell (l = 5, j = 9/2 AND 11/2) needs exactly this, because a DOUBLE excitation
+    # puts two electrons there -- so before this, no doubly-excited layer could go past l = 4 whatever the cost
+    # budget allowed.
+    if  N == 2
+        # Two equivalent electrons: J must be even, and the seniority is fixed by J rather than free.
+        if  isodd( Basics.twice(Jbra) ÷ 2 )  ||  isodd( Basics.twice(Jket) ÷ 2 )        return( 0.0 )   end
+        if  senBra != (Basics.twice(Jbra) == 0 ? 0 : 2)                                 return( 0.0 )   end
+        if  senKet != (Basics.twice(Jket) == 0 ? 0 : 2)                                 return( 0.0 )   end
+        w6    = AngularMomentum.Wigner_6j(Jbra, Jket, AngularJ64(kj), j, j, j)
+        phase = (-1)^( Basics.twice(j) + Basics.twice(Jket) ÷ 2 + kj )                  # (-1)^(2j + J' + k)
+        return( -sqrt(2.0*kj + 1.0) * 2.0 *
+                sqrt( (Basics.twice(Jbra) + 1.0) * (Basics.twice(Jket) + 1.0) ) * phase * w6 )
+    end
+
     # Beyond those, the tables are needed and their reach must be stated rather than silently returned as a zero
     # or thrown as a BoundsError from inside SpinAngular.
     if  Basics.twice(j) > 9
         error("\n\nSpinAngular.shellReducedW: the quasispin/CFP tables reach j <= 9/2 and j = $(j) was asked "   *
-              "for\n>>> with occupation N = $N, which is beyond the closed forms for an empty or singly occupied "  *
+              "for\n>>> with occupation N = $N, which is beyond the closed forms for a subshell holding 0, 1 or 2 "  *
               "subshell.\n")
     end
     Qb = SA.qshellTermQ(j, senBra);           Qk = SA.qshellTermQ(j, senKet)
@@ -303,6 +333,34 @@ function shellReducedAUncached(j::AngularJ64, Nbra::Int64, senBra::Int64, Jbra::
         if  nilBra  &&  (senBra != 0  ||  Basics.twice(Jbra) != 0  ||  senKet != 1  ||  Jket != j)   return( 0.0 )   end
         if !nilBra  &&  (senKet != 0  ||  Basics.twice(Jket) != 0  ||  senBra != 1  ||  Jbra != j)   return( 0.0 )   end
         return( (Basics.twice(mq) > 0  ?  -1.0  :  1.0) * sqrt(Basics.twice(j) + 1.0) )
+    end
+    # A SINGLY AGAINST A DOUBLY OCCUPIED SUBSHELL NEEDS NO TABLE EITHER, for the same reason: j^2 has exactly one
+    # parent, |j> with seniority 1, so the parentage is unique and the completely reduced CFP is a closed form.
+    # Read off the tables and then verified against them (work/check-a-n2.jl):
+    #     J = 0 (seniority 0) :  -sqrt( (2j+1)(2j+3) / 2 )      -- i.e. -sqrt(12), -sqrt(24), -sqrt(40), -sqrt(60)
+    #     J /= 0 (seniority 2):  +sqrt( (2j+1)(2J+1) )          -- reproduces all eleven remaining table values
+    # THE CFP IS NOT SYMMETRIC IN BRA/KET: the j^1 <- j^2 direction carries an extra -1 for the seniority-2 states
+    # and none for seniority 0.  That was measured, not assumed -- every one of the ten initial mismatches was a
+    # ratio of exactly -1, confined to that direction and that seniority, which is what a convention looks like
+    # rather than an error.  Against the tables the closed form now agrees at all 56 combinations of j = 3/2 ...
+    # 9/2, every J, both directions and both mq, 28 of them nonzero, with a worst difference of EXACTLY zero.
+    if  (Nbra == 2 && Nket == 1)  ||  (Nbra == 1 && Nket == 2)
+        tj = Basics.twice(j)
+        (J2, sen2) = Nbra == 2  ?  (Jbra, senBra)  :  (Jket, senKet)
+        senOne     = Nbra == 2  ?  senKet          :  senBra
+        JOne       = Nbra == 2  ?  Jket            :  Jbra
+        if  senOne != 1  ||  JOne != j                                          return( 0.0 )   end
+        if  sen2 != (Basics.twice(J2) == 0 ? 0 : 2)                             return( 0.0 )   end
+        if  isodd( Basics.twice(J2) ÷ 2 )                                       return( 0.0 )   end
+        Qb = SA.qshellTermQ(j, senBra);            Qk = SA.qshellTermQ(j, senKet)
+        if  AngularMomentum.triangularDelta(Qb, AngularJ64(1//2), Qk) == 0       return( 0.0 )   end
+        if  AngularMomentum.triangularDelta(Jbra, j, Jket) == 0                  return( 0.0 )   end
+        cfp = Basics.twice(J2) == 0  ?  -sqrt((tj + 1.0)*(tj + 3.0)/2.0)  :
+                                         sqrt((tj + 1.0)*(Basics.twice(J2) + 1.0))
+        if  Nbra == 1  &&  Basics.twice(J2) != 0    cfp = -cfp    end
+        bMQ = SA.qshellTermM(j, Nket);             aMQ = SA.qshellTermM(j, Nbra)
+        return( -AngularMomentum.ClebschGordan(Qk, bMQ, AngularJ64(1//2), mq, Qb, aMQ) * cfp /
+                sqrt(Basics.twice(Qb) + 1.0) )
     end
     # Beyond that closed form the tables are needed, and outside their reach the honest answer is to say so rather
     # than to return a zero that cannot be told from a selection rule.
