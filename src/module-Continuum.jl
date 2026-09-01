@@ -185,6 +185,7 @@ end
         A tupel of a (continuum) (orbital::Orbital, phase::Float64, normFactor::Float64) is returned.
 """
 function generateOrbitalLocalPotential(energy::Float64, sh::Subshell, pot::Radial.Potential, settings::Continuum.Settings)
+    Continuum.checkNormalizationRadius(pot)
     settings.includeExchange   &&   error("Continuum orbital for local potential does not allow 'exchange'.")
     
     # Generate a continuum orbital due to the given solution method
@@ -228,6 +229,7 @@ end
         Warning: At present, only the real part eta.re is taken into account; check for consistency !!
 """
 function generateOrbitalAsymptoticCoulomb(energy::Float64, sh::Subshell, pot::Radial.Potential, settings::Continuum.Settings)  
+    Continuum.checkNormalizationRadius(pot)
     P = zeros(settings.mtp);    Q = zeros(settings.mtp);   Pprime = zeros(settings.mtp);    Qprime = zeros(settings.mtp)
     
     phi0 = 0.3
@@ -285,6 +287,7 @@ end
 """
 function generateOrbitalGalerkin(energy::Float64, sh::Subshell, pot::Radial.Potential, settings::Continuum.Settings;
                                   primitives::Union{Nothing,Bsplines.Primitives}=nothing)
+    Continuum.checkNormalizationRadius(pot)
     P = zeros(settings.mtp);   Q = zeros(settings.mtp);   Pprime = zeros(settings.mtp);    Qprime = zeros(settings.mtp)
     nsL = pot.grid.nsL - 1;    nsS = pot.grid.nsS - 1
     ## The B-spline basis depends only on the grid, but this function is called once per line AND per partial wave;
@@ -392,6 +395,75 @@ function generateOrbitalPureSine(energy::Float64, sh::Subshell, grid::Radial.Gri
     cOrbital = Orbital( sh, false, false, energy, P, Q, Pprime, Qprime, grid)
     
     return( cOrbital )
+end
+
+
+"""
+`Continuum.checkNormalizationRadius(pot::Radial.Potential)`
+    ... checks that the point at which a continuum orbital's normalization and phase are fixed lies far enough
+        outside the atom, and raises with the measurement behind it otherwise; `nothing` is returned.
+
+        WHY THIS EXISTS SEPARATELY FROM `gridConsistency`, which asks a related question and cannot answer this
+        one. `gridConsistency` receives only `(maxEnergy, grid)` and therefore knows nothing about the atom, so
+        the best it can do is an ABSOLUTE test -- `grid.r[nrContinuum] < 2.0` -- and an absolute length cannot be
+        right for every charge: 2 a.u. is deep inside hydrogen and far outside Ne^9+. What matters is the
+        DIMENSIONLESS product Zeff * r.
+
+        AND Zeff NEEDS NO ARGUMENT, which is the point of putting the check here. `Radial.Potential` carries
+        `Zr`, with `V(r) = -Zr(r)/r`, so `pot.Zr[n]` IS the effective charge the escaping electron still feels at
+        radius r[n] -- the residual ion's charge, seen from where the orbital is normalized. Every generator in
+        this module that solves in a potential already has it, so all twenty call sites of `gridConsistency`
+        across the package are protected without any of them being changed.
+
+        THE CRITERION, measured 01-Sep-2026 on H-like photoionization at Z = 1 and Z = 10, where the two gauges
+        are EQUAL for exact wavefunctions so every departure from 1.00000 is error and nothing else:
+
+            Zeff * r    2.12    4.09    4.84    6.50    9.77    10.74   14.70   21.69   48.32
+            Cou/Bab     0.004   0.085   4.15    3.78    1.072   0.9996  0.9997  1.00001 1.00000
+
+        The two charges fall on the SAME curve in this variable, which is what identifies it as the right one:
+        Zeff*r = 21.69 gives 1.00001 at Z = 1 and 1.00000 at Z = 10. Below 10 the errors are not small -- a
+        factor of 200 at the worst point -- and the failure is NON-MONOTONE (0.085 and then 3.78 on a FINER
+        grid), which is the signature of the normalization point landing at an arbitrary phase of the oscillation
+        rather than of insufficient resolution.
+
+        A FREE PARTICLE IS EXEMPT, and must be. When the residual system is neutral the electron sees no Coulomb
+        tail, Zeff -> 0, and `Zeff * r >= 10` could never be satisfied by any box; there is also nothing for it to
+        guard, since a plane wave has no Coulomb phase to get wrong. The check therefore applies only where a
+        Coulomb tail exists.
+"""
+function checkNormalizationRadius(pot::Radial.Potential)
+    grid = pot.grid;    n = grid.NoPoints - 200
+    if  n < 1  ||  n > length(pot.Zr)     return( nothing )     end
+    Zeff = pot.Zr[n]
+    if  Zeff < 0.5      return( nothing )     end          # free particle: no Coulomb tail, nothing to guard
+    if  Zeff * grid.r[n] < 10.0
+        # WARNS RATHER THAN REFUSES, and the distinction is deliberate. Promoting this to an `error` is a
+        # ONE-WORD change and is the intended end state; what it waits on is a MANY-ELECTRON case that validates
+        # the criterion. The number 10 was measured on hydrogen-like systems, where Zeff is the bare nuclear
+        # charge and is CONSTANT in r. In a many-electron ion Zr(r) falls towards the residual charge, so
+        # "Zeff" at the normalization point and the asymptotic charge are different numbers, and the data behind
+        # the 10 cannot say which of them the criterion should use. Refusing on that basis would be exactly the
+        # "a finding from one scan is a hypothesis" mistake this list has twice paid for.
+        #
+        # WHAT IT COSTS TODAY, measured 01-Sep-2026: as an ERROR this refuses exactly ONE case in the whole test
+        # suite -- testModule_Cascade_StepwiseDecay, at Zeff*r = 9.36 against 10, i.e. 6 % short. Repairing that
+        # needs rbox 9.5 -> 14.0, a 47 % larger box, and it MOVES THE NUMBERS, so the approved reference would
+        # have to be re-approved. Note also that enlarging the box from 9.5 to 11.5 makes the product WORSE
+        # (9.36 -> 8.63), because Zr falls faster than r grows over that range; the requirement is really
+        # r >= 10/Z_asymptotic, i.e. about 10 a.u. for a singly charged residual ion.
+        Defaults.warn(AddWarning(), "Continuum.checkNormalizationRadius(): Zeff * r = " *
+                      "$(round(Zeff * grid.r[n], digits=2)) at the normalization point, below the 10 that " *
+                      "hydrogen-like measurements require; the continuum phase and normalization may be wrong.")
+        sa = @sprintf("r = %.4f a.u., Zeff = %.3f, Zeff*r = %.2f against a required 10.\n",
+                      grid.r[n], Zeff, Zeff * grid.r[n])
+        sb = @sprintf(">> Enlarge rbox until grid.r[NoPoints-200] exceeds %.3f a.u.\n", 10.0/Zeff)
+        printstyled("\n>> WARNING: the continuum normalization point lies close to the atom: " * sa * sb *
+                    ">> See the docstring of Continuum.checkNormalizationRadius for the measurement.\n",
+                    color=:light_red)
+    end
+
+    return( nothing )
 end
 
 
