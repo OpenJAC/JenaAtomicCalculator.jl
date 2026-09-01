@@ -156,6 +156,7 @@ elseif  char == 'K'
     println("K)  Examples, tests & development of deep-learning applications")
     println("--------------------------------------------------------")
     println("Ka) Train & apply a neural network for estimating missing energies in the NIST tables.")
+    println("Kb) Apply & test the AtomicFeatures module: the FEATURE VECTORS a neural network is trained on.")
     #
 elseif  char == 'L'
     println("L)  Examples, tests & development of Liouville (time-evolution) computations")
