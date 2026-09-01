@@ -685,15 +685,19 @@ end
 function projectOntoPositiveBranch(bVectors::Dict{Subshell, Vector{Float64}}, subshells::Array{Subshell,1},
                                           primitives::Bsplines.Primitives, nucPot::Radial.Potential,
                                           matrixB::Array{Float64,2}, storage::Dict{String,Array{Float64,2}};
-                                          spectrum=nothing)
+                                          spectrum=nothing, frozen::Array{Subshell,1}=Subshell[])
     out    = Dict{Subshell, Vector{Float64}}()
     worst  = 0.
     posSpec = isnothing(spectrum) ?
               SelfConsistent.positiveBranchSpectrum(subshells, primitives, nucPot, matrixB, storage) : spectrum
     posSet  = Dict{Int64, Array{Vector{Float64},1}}()
     for  kappa  in  unique( [sh.kappa for sh in subshells] )    posSet[kappa] = posSpec[kappa][1]    end
-    # (1) project each orbital on the positive branch of its kappa
+    # (1) project each orbital on the positive branch of its kappa.  A FROZEN orbital is passed through
+    # untouched: it arrives from a converged computation, so it is already on the positive branch and already
+    # normalized, and projecting it again can only move it.
+    frozenSet = Set(frozen)
     for  sh  in  subshells
+        if  sh in frozenSet    out[sh] = copy(bVectors[sh]);    continue    end
         b = bVectors[sh];    v = zeros( length(b) )
         for  phi  in  posSet[sh.kappa]    v = v + (transpose(phi) * matrixB * b) * phi    end
         nrm2Full = abs( transpose(b) * matrixB * b );    nrm2Pos = abs( transpose(v) * matrixB * v )
@@ -707,7 +711,24 @@ function projectOntoPositiveBranch(bVectors::Dict{Subshell, Vector{Float64}}, su
     # cost 8.5e-07 Ha while removing a negative-branch weight of only 3.4e-14 -- more than the entire
     # discrepancy that sent us looking.  Skip it when the block is orthonormal to tolerance.
     for  kappa  in  unique( [sh.kappa for sh in subshells] )
-        shk = [ sh for sh in subshells if sh.kappa == kappa ]
+        shkAll = [ sh for sh in subshells if sh.kappa == kappa ]
+        frz    = [ sh for sh in shkAll if      sh in frozenSet ]
+        shk    = [ sh for sh in shkAll if  !( sh in frozenSet ) ]
+        # THE FROZEN MEMBERS OF THIS BLOCK ARE HELD FIXED, and the actives are made orthogonal to THEM before
+        # anything else.  Loewdin below treats every orbital of a block alike -- that is its virtue, and here
+        # its problem: applied to the whole block it rotates the frozen orbitals too, and on a five-step RAS
+        # expansion at Z = 92 that moved the frozen 1s by 6.2 % at the fifth step, where the kappa = -1 block
+        # first holds six s orbitals and the deviation finally exceeds the 1e-9 gate.  The energy of a state
+        # still 98 % reference then rose by 568 Ha.  So: project the actives onto the orthogonal complement of
+        # the frozen set first, then Loewdin among the ACTIVES only.
+        for  sh  in  shk
+            for  f  in  frz
+                out[sh] = out[sh] - ( transpose(out[f]) * matrixB * out[sh] ) * out[f]
+            end
+            nrm = sqrt( abs( transpose(out[sh]) * matrixB * out[sh] ) )
+            if  nrm > 1.0e-12    out[sh] = out[sh] / nrm    end
+        end
+        isempty(shk)  &&  continue
         dev = 0.
         for  (i, sha) in enumerate(shk),  (j, shb) in enumerate(shk)
             ov  = transpose(out[sha]) * matrixB * out[shb]
@@ -801,8 +822,15 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
 
     # Built ONCE: it depends only on the nuclear potential and the B-spline basis, never on the orbitals.
     posSpectrum = SelfConsistent.positiveBranchSpectrum(basis.subshells, primitives, nucPot, matrixB, storage)
+    # A FROZEN ORBITAL MUST SURVIVE THIS PROJECTION UNCHANGED (item 32, 01-Sep-2026), and the actives must
+    # still come out orthogonal to it -- which is why the frozen set is passed IN rather than restored
+    # afterwards.  Restoring afterwards was tried first and is wrong: the projection orthogonalizes the whole
+    # kappa block jointly, so putting the frozen vectors back leaves the actives orthogonal to vectors that no
+    # longer exist, and a non-orthogonal CSF basis can return an arbitrarily low energy.  Measured: it turned
+    # the +568 Ha of the five-step case into -5.28 Ha, a "gain" five thousand times the layer before it.
     (bVectors, _) = SelfConsistent.projectOntoPositiveBranch(bVectors, basis.subshells, primitives,
-                                                                     nucPot, matrixB, storage; spectrum=posSpectrum)
+                                                                     nucPot, matrixB, storage; spectrum=posSpectrum,
+                                                                     frozen=settings.frozenSubshells)
     # FROZEN SUBSHELLS.  settings.frozenSubshells names orbitals that must NOT be varied, which is what a RAS
     # layer means by "frozen" -- Basics.generate sets it for every step of a RasExpansion, so this is the
     # ordinary case for this driver and not an exotic one.  The optimizer below therefore runs over
@@ -811,9 +839,12 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
     # has to be orthogonalized against.  Nothing has to be re-imposed afterwards, because virtualDirections
     # builds each subshell's directions orthogonal to all occupied orbitals of the same kappa, frozen ones
     # included -- so a step taken by an active orbital leaves the kappa block orthonormal by construction.
-    # The pinned vectors are taken AFTER the initial projection, so that they sit on the positive branch like
-    # everything else, and are written back after every later projection: projectOntoPositiveBranch
-    # renormalizes, and its Gram-Schmidt would rotate them on the occasions it fires.
+    # The pinned vectors are the ones RESTORED just above, i.e. exactly as they were handed in, and they are
+    # written back after every later projection too: projectOntoPositiveBranch renormalizes, and its
+    # Gram-Schmidt rotates whatever it is given on the occasions it fires.  Until 01-Sep-2026 they were taken
+    # AFTER the initial projection instead, on the reasoning that they should "sit on the positive branch like
+    # everything else" -- which is true of an orbital built here, but not of one inherited from a converged
+    # computation that already satisfies both conditions.  See the measurement above.
     frozenSubshells = [ sh  for sh in basis.subshells  if    sh in settings.frozenSubshells ]
     activeSubshells = [ sh  for sh in basis.subshells  if  !(sh in settings.frozenSubshells) ]
     # The descent test and the radial memo both work on the SPLIT functional; see

@@ -7,8 +7,8 @@ if  true
     #                   2.5276 / 2.5289 a.u., 22.0 s.  See the 01-Sep survey below.
     #
     # ===== SURVEY, 01-Sep-2026 (priority items 7 and 10): ALL THREE BRANCHES RE-RUN AND DATED. =====
-    #   branch 1 (2-layer EOL) : -14.57132546 / -14.61403156 Ha            22.0 s
-    #   branch 2 (3-layer EOL) : -14.57132546 / -14.61403156 / -14.61475586 Ha   16.7 s
+    #   branch 1 (2-layer EOL) : -14.57132545 / -14.61403155 Ha            21.9 s
+    #   branch 2 (3-layer EOL) : -14.57132545 / -14.61403155 / -14.61474032 Ha    8.4 s
     #   branch 3 (3-layer DFS) : -14.570964036 / -14.605737784 / -14.616949323 Ha  0.6 s
     #
     # TWO THINGS CHANGED SINCE THE 27-Aug SURVEY, and they pull in opposite directions.
@@ -70,9 +70,15 @@ if  true
     #
 elseif  false
     # Last visit:  01-Sep-2026
-    # Last successful:  01-Sep-2026 -- -14.57132546 / -14.61403156 / -14.61475586 Ha in 16.7 s, w_ref
-    #                   0.90211 at step 3, 3l orbitals at 6.90-8.43 a.u.  THE OPEN ISSUE BELOW IS CLOSED:
-    #                   what took more than 40 minutes without converging now takes seventeen seconds.
+    # Last successful:  01-Sep-2026 -- -14.57132545 / -14.61403155 / -14.61474032 Ha in 8.4 s, w_ref
+    #                   0.90208 at step 3, 3l orbitals at 6.90-8.43 a.u.  THE OPEN ISSUE BELOW IS CLOSED:
+    #                   what took more than 40 minutes without converging now takes eight seconds.
+    #                   (Step 3 was -14.61475586 earlier the same day, before item 32 was fixed: this is the
+    #                   THREE-layer case, so kappa = -1 first holds 1s, 2s AND 3s here, the positive-branch
+    #                   projection's 1e-9 orthonormality gate is crossed, and its Loewdin step used to rotate
+    #                   the FROZEN orbitals along with the active one.  Holding them fixed raises this number
+    #                   by 1.55e-05 Ha, as a genuinely constrained minimum must.  Branches 1 and 3 are
+    #                   unchanged to 1e-08, the two-orbital block never reaching that gate.)
     # OPEN ISSUE (28-Jul-2026, root cause CONFIRMED, fix deferred; RESOLVED 01-Sep-2026 by the four EOL
     # convergence fixes): this 3rd layer (3s,3p,3d, 11 CSF) did
     # NOT converge within 40 minutes even at a single EOL target level -- energy still dropping steadily
