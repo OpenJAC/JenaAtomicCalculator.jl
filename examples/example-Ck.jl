@@ -130,6 +130,18 @@ elseif  false
     println("   splittings (without J-mixing) spanning 0 to 414.54 cm^-1 across 2159 neighboring ions")
     println("   (this branch uses only the nearest 6 ions and an illustrative Z=18 hydrogenic proxy")
     println("   orbital, not Er3+'s actual wavefunction -- see comment above).")
+    # THE 42 % OVERSHOOT IS KNOWN, EXPLAINED AND DELIBERATELY NOT PURSUED -- maintainer's decision, 01-Sep-2026.
+    # DO NOT RAISE IT AS A DEFECT. On the real Er3+ wavefunction this branch's method gives a span of 587.85
+    # cm^-1 against the 414.54 above, and the direction is what a 6-ion truncation should give, since more
+    # distant shells partly cancel. Chasing it further was retired for a reason worth stating: **414.54 is
+    # another CALCULATION, not a measurement** -- the same idealised point-charge model, computed by someone
+    # else -- so reproducing it would validate our tensor algebra against theirs and would say nothing about
+    # how well JAC describes a real crystal field. That question is to be answered by a real application, with
+    # measured levels, rather than by this branch.
+    #
+    # AND A TRAP, recorded because it is easy to fall into: our characteristic splitting CXS = 417.06 cm^-1
+    # sits within 0.6 % of their SPAN of 414.54. Those are DIFFERENT QUANTITIES -- a largest-gap measure against
+    # a full range -- and the closeness is a coincidence. Reporting it as excellent agreement would be wrong.
     #
     setDefaults("print summary: close", "")
     #
