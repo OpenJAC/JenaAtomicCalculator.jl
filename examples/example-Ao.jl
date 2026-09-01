@@ -34,6 +34,33 @@ using Printf
 # 178 mHa over AL and -- the sharper test -- puts the 2p^4 3P multiplet in its correct INVERTED order
 # (3P_2 lowest, as a more-than-half-filled shell requires), where AL has it the wrong way round.
 #
+#
+# ===== SURVEY, 01-Sep-2026 (priority items 7 and 10): ALL FOUR BRANCHES RE-RUN AND DATED. =====
+# The four branches below were carried with `Last successful: unknown` because their absolute energies had
+# never been checked and, more importantly, because the numbers in their own comments were the OLD SOLVER's.
+# Re-run on current code -- the rotation solver of 16-Aug plus the convergence fixes of 29-Aug to 01-Sep
+# (the EOL directional derivative and its scale-invariance projection, the L-BFGS curvature pairs, the
+# gradient-stagnation exit, the AL driver honouring frozenSubshells, and eeInteractionCI reaching the EOL
+# path at all) -- every branch now behaves as the physics demands:
+#
+#     case                          AL            EOL          EOL - AL     correlating weight
+#     Be-like C^2+  2s^2 + 2p^2   -36.49373663  -36.49688571  -0.00314908   0.2258 -> 0.2258  (preserved)
+#     Li-like C^3+  2s + 3s + 3d  -34.74190845  -34.74192244  -0.00001399   no competition
+#     Si^+  3s^2 3p + 3p^3       -289.22410213 -289.22692037  -0.00281824   no competition
+#     Si^2+ 3s^2 + 3p^2          -288.66105540 -288.66499124  -0.00393584   0.1826 -> 0.1835  (preserved)
+#
+# THE TWO COLLAPSE CASES ARE FIXED.  Compare row by row with the old-solver table above: (a) went from
+# +0.038 Ha ABOVE AL with the 2p^2 channel eliminated (0.2258 -> 0.0002) to 3.1 mHa BELOW AL with the weight
+# untouched, and (d) from +0.021 Ha above with 0.1825 -> -0.0000 to 3.9 mHa below with 0.1835 preserved --
+# very slightly LARGER than AL's, which is what a correlation channel should do when it is allowed to work.
+# EOL now binds its own target level better than AL in ALL FOUR, which is the assertion this file exists to
+# make.  The two non-competing cases moved too, and in the same direction: (b) -4.1e-05 -> -1.400e-05 and
+# (c) -4.5e-04 -> -2.8e-03.
+#   ORTHONORMALITY is clean everywhere: the worst same-kappa overlap is 2.2e-16, 2.8e-10, 4.4e-16, 4.1e-16
+# for (a) to (d), against the <= 1e-08 this file asserts.
+#   COST also fell: (c) and (d) now take 27+49 s and 26+45 s per pair of fields, where the note below still
+# says two to four minutes per field.  Treat that note as an upper bound.
+#
 # ORTHONORMALITY.  Each branch also reports the worst same-kappa overlap, which the CSF expansion requires
 # to vanish.  Until 10-Aug-2026 it did not: the SCF damping step, mixed = 0.5*old + 0.5*raw, destroyed the
 # orthogonality that Hamiltonian.projectHamiltonian had just enforced, and nothing restored it -- converged
@@ -83,20 +110,23 @@ end
 
 
 if  true
-    # Last visit:  16-Aug-2026
-    # Last successful:  unknown ... absolute energies not yet checked against literature
+    # Last visit:  01-Sep-2026
+    # Last successful:  01-Sep-2026 -- AL -36.49373663, EOL -36.49688571, EOL-AL -0.00314908 Ha,
+    #                   mixing +0.9609 +0.2258 under BOTH fields, worst same-kappa overlap 2.2e-16.
     #
-    # a) Be-like C^2+, 1s^2 2s^2 + 1s^2 2p^2.  The canonical failure: two CSFs of the same J = 0+ block
-    #    competing for one correlation channel.  EOL drives the 2p^2 weight from AL's 0.2258 down to 0.0002
-    #    and lands 0.038 Ha ABOVE AL on the very level it is optimizing.  Cheapest branch here; use it when
-    #    re-checking anything about EOL.
+    # a) Be-like C^2+, 1s^2 2s^2 + 1s^2 2p^2.  THE CANONICAL FAILURE CASE -- two CSFs of the same J = 0+
+    #    block competing for one correlation channel -- and the one that now PASSES.  The old solver drove
+    #    the 2p^2 weight from AL's 0.2258 down to 0.0002 and landed 0.038 Ha ABOVE AL on the very level it
+    #    was optimizing; the rotation solver leaves the weight at 0.2258, identical to AL's, and comes out
+    #    3.1 mHa BELOW.  Cheapest branch here; use it when re-checking anything about EOL.
     grid = Radial.Grid(Radial.Grid(false); rnt = 2.0e-6, h = 5.0e-2, hp = 2.0e-2, rbox = 10.0)
     compareFields("Be-like C^2+   1s^2 2s^2 + 1s^2 2p^2", 6.,
                   [Configuration("1s^2 2s^2"), Configuration("1s^2 2p^2")], grid)
     #
 elseif  false
-    # Last visit:  16-Aug-2026
-    # Last successful:  unknown ... absolute energies not yet checked against literature
+    # Last visit:  01-Sep-2026
+    # Last successful:  01-Sep-2026 -- AL -34.74190845, EOL -34.74192244, EOL-AL -1.399e-05 Ha,
+    #                   worst same-kappa overlap 2.8e-10 (the three-orbital kappa = -1 block).
     #
     # b) Li-like C^3+, 1s^2 2s + 1s^2 3s + 1s^2 3d.  A single valence electron, so no two CSFs compete and
     #    EOL behaves correctly -- 4.1e-05 Ha BELOW AL.  Its value here is the kappa = -1 block, which holds
@@ -107,8 +137,9 @@ elseif  false
                   [Configuration("1s^2 2s"), Configuration("1s^2 3s"), Configuration("1s^2 3d")], grid)
     #
 elseif  false
-    # Last visit:  16-Aug-2026
-    # Last successful:  unknown ... absolute energies not yet checked against literature
+    # Last visit:  01-Sep-2026
+    # Last successful:  01-Sep-2026 -- AL -289.22410213, EOL -289.22692037, EOL-AL -0.00281824 Ha,
+    #                   worst same-kappa overlap 4.4e-16; 27 s and 49 s, not the minutes noted below.
     #
     # c) Al-like Si^+, [Ne] 3s^2 3p + [Ne] 3p^3.  An OPEN valence shell with J != 0, a real Ne core, and one
     #    dominant CSF -- so again no competition, and EOL comes out 4.5e-04 Ha below AL.  Together with (d),
@@ -119,13 +150,16 @@ elseif  false
                   [Configuration("1s^2 2s^2 2p^6 3s^2 3p"), Configuration("1s^2 2s^2 2p^6 3p^3")], grid)
     #
 elseif  false
-    # Last visit:  16-Aug-2026
-    # Last successful:  unknown ... absolute energies not yet checked against literature
+    # Last visit:  01-Sep-2026
+    # Last successful:  01-Sep-2026 -- AL -288.66105540, EOL -288.66499124, EOL-AL -0.00393584 Ha,
+    #                   mixing +0.9745 +0.1826 (AL) against +0.9740 +0.1835 (EOL); 26 s and 45 s.
     #
     # d) Mg-like Si^2+, [Ne] 3s^2 + [Ne] 3p^2.  Branch (a) again, now with a real Ne core beneath it: the
-    #    same closed-valence competition, the same collapse (0.1825 -> -0.0000), the same sign and a similar
-    #    size of error (+0.021 Ha).  Compare with (c), the SAME element one charge state lower, where EOL is
-    #    correct.  ~2-4 minutes per field.
+    #    same closed-valence competition, and with the old solver the same collapse (0.1825 -> -0.0000) and
+    #    the same sign of error (+0.021 Ha).  It now behaves like (a): the 3p^2 weight survives at 0.1835 --
+    #    marginally ABOVE AL's 0.1826, which is what a correlation channel does when it is allowed to work --
+    #    and EOL lands 3.9 mHa BELOW AL.  Compare with (c), the SAME element one charge state lower, which
+    #    never had the competition.
     grid = Radial.Grid(Radial.Grid(false); rnt = 2.0e-6, h = 5.0e-2, hp = 2.0e-2, rbox = 15.0)
     compareFields("Mg-like Si^2+  [Ne] 3s^2 + [Ne] 3p^2", 14.,
                   [Configuration("1s^2 2s^2 2p^6 3s^2"), Configuration("1s^2 2s^2 2p^6 3p^2")], grid)
