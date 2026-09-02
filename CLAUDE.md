@@ -731,6 +731,13 @@ line, the error or the two numbers, and **one sentence saying what made you doub
 point of the exercise and is what a later reader will act on. Do NOT add timeouts, and do NOT add branches that
 merely need an earlier branch to have run.
 
+**RUN THE REGISTER CHECK ON EVERY ONE BEFORE FILING IT** -- step 5 of `/priority`, and this command is where it
+matters most. A sweep re-derives symptoms from scratch and has no memory of what was decided; it will happily
+re-file something settled six weeks ago, in whatever words this run happens to produce. So for each candidate:
+write the symptom as the sweep reported it, grep `THE SETTLED REGISTER`, and then **read the register in full**,
+because the same thing returning under a different description is precisely what a grep cannot catch and is the
+failure this check exists for.
+
 **7. Never re-date a branch from this command.** Rule 7 asks for verified physical consistency, and a sampled
 overnight run is not that. `/testExamples` reports and files items; dating stays with `/test Mx` and with a
 human deciding.
@@ -831,8 +838,27 @@ rewrites.
    and say which items were removed and why, in one line each.
 4. Items carrying a `verify` or `memory only` marker have not been re-checked against `src/`. Do not remove
    one on the strength of the marker alone; either check it or leave it, and say which.
-5. Never silently reintroduce an item the maintainer has dropped. The list carries its own dropped-register
-   for exactly this.
+5. **THE REGISTER CHECK -- NO ITEM IS ADDED TO THE PRIORITY LIST WITHOUT IT.** The list opens with a section
+   called `THE SETTLED REGISTER`, one line per thing already decided, and it is deliberately short so that it
+   can be read in full every time. Before an item is added:
+
+   a. **Write the SYMPTOM first** -- what a detector, a grep or a sweep actually reported, in its words
+      ("100 `error("stop aa")` markers remain", "`measureRydbergExponent` gives p = 1.3"). Not the conclusion
+      drawn from it.
+   b. `grep` that symptom against the register. An exact hit means: do not add the item.
+   c. **THEN READ THE WHOLE REGISTER ANYWAY, and this step is the one that matters.** A grep catches only the
+      same WORDS. The failure this check exists for is the same THING coming back in DIFFERENT words -- an item
+      deleted as settled, re-derived months later by another route, and filed under a new description that
+      matches nothing. The register is kept short for exactly this reason: reading all of it costs a minute,
+      and only reading it can catch a re-wording.
+   d. If the thing is already there, do NOT add the item. If the register's own line has gone stale, say so to
+      the maintainer rather than quietly overriding it.
+
+   **And when an item is CLOSED, the reverse duty applies:** add one line to the register, keyed by the symptom
+   a future detector would report, never by the item's number. **If the thing can be re-found by looking at
+   `src/`, put the closing note AT THAT PLACE IN `src/` as well** -- a comment at the function cannot go stale
+   against the code and cannot be missed by whoever reads the code. That is the only part of this check that
+   does not depend on somebody remembering a list exists.
 
 The command only reads, prints and prunes. It never starts work on an item.
 
