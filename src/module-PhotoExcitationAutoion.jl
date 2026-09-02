@@ -29,7 +29,7 @@
 
     WHAT IS WORTH KEEPING: the pathway structure is right -- initial -> intermediate -> final, carrying the three
     amplitude sets a Fano treatment needs -- so whoever writes the physics starts from a correct skeleton. Carried
-    as challenge 115.
+    on the maintainer's decision.
 """
 module PhotoExcitationAutoion 
 
@@ -258,7 +258,7 @@ function  computePathways(finalMultiplet::Multiplet, intermediateMultiplet::Mult
           ">>> so a run of this module hands back a cross section of -1 and a Fano q of -2 as though they were\n"  *
           ">>> results. That is why it now refuses instead of returning.\n\n"                                      *
           ">>> Nothing in the package depends on it: no dated example, no physics test. See the STATUS block in\n" *
-          ">>> the module docstring for what remains, and challenge 115 for the decision.\n")
+          ">>> the module docstring for what remains.\n")
     #
     pathways = PhotoExcitationAutoion.determinePathways(finalMultiplet, intermediateMultiplet, initialMultiplet, settings)
     # Display all selected lines before the computations start

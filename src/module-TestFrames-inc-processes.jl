@@ -447,7 +447,7 @@ function testModule_PhotoIonization(; short::Bool=true)
     #
     # Both checks below are statements that must hold exactly, so neither needs a reference and neither can drift.
     # They test the TOTAL cross section and deliberately not the M_f-resolved partial one: the partials do not
-    # sum to the total, they warn at the point of use, and nothing in the package consumes them (challenge 63).
+    # sum to the total, they warn at the point of use, and nothing in the package consumes them.
     function hydrogenicCs(Z::Float64, x::Float64)
         # x = omega/omega_threshold, so every Z is the SAME physical point on the cross-section curve.
         # NuclearField is asked for explicitly: a one-electron system in a field built from its own density is

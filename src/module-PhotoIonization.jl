@@ -871,14 +871,15 @@ function computePartialCrossSectionUnpolarized(Mf::AngularM64, line::PhotoIoniza
     # DO NOT "FIX" THIS BY MULTIPLYING BY 9 alpha^2. That number is the Ne value only, and Ne is the special case:
     # J_i = 0 with a single initial level. Patching the call site with a compensating factor is exactly the drift
     # Rule 18 exists to stop. The correct prefactor and the correct angular expression have to be derived together
-    # and checked against a J_i != 0 case; that is carried as challenge 63.
+    # and checked against a J_i != 0 case; that is deliberately deferred and
+    # recorded in the maintainer's own working notes, not here.
     #
     # NOTHING IN THE PACKAGE CONSUMES THIS. It has never been used in an application nor checked against a known
     # value, and computeCrossSection is unaffected -- so the numbers this returns are the only ones at risk.
     csFactor = 8 * pi^3 * Defaults.getDefaults("alpha") / (2*line.photonEnergy * (Basics.twice(Ji) + 1))
     Defaults.warn(AddWarning(), "PhotoIonization.computePartialCrossSectionUnpolarized(): these partial cross " *
                   "sections do NOT sum to the total (they are low by a level-dependent 3.1-9.0 times alpha^2); " *
-                  "see the note at this function and challenge 63. Do not use them quantitatively.")
+                  "see the note at this function. Do not use them quantitatively.")
 
     return( EmProperty(real(csFactor * waC), real(csFactor * waB)) )
 end

@@ -25,7 +25,8 @@
     missing is only the final contraction of the two into a resonant cross section. The hard half is written.
 
     NOTHING HAS EVER RUN THROUGH IT: its only example, `examples/example-Eb.jl`, carries ZERO `Last successful`
-    dates, and the test suite does not reach it. Carried as challenge 118.
+    dates, and the test suite does not reach it.  What remains is one resonant contraction over amplitudes
+    that already exist; the decision to defer it is the maintainer's.
 """
 module PhotoExcitationFluores 
 
@@ -314,7 +315,7 @@ function  computePathways(finalMultiplet::Multiplet, intermediateMultiplet::Mult
           ">>> WORTH KNOWING: unlike PhotoExcitationAutoion, this module computes REAL amplitudes -- both the\n"  *
           ">>> absorption and the fluorescence step, in both gauges, with no stubs. Only the contraction of the\n" *
           ">>> two into a resonant cross section is missing. See the STATUS block in the module docstring and\n"  *
-          ">>> challenge 118.\n")
+          ">>> the module docstring for what remains.\n")
     pathways = PhotoExcitationFluores.determinePathways(finalMultiplet, intermediateMultiplet, initialMultiplet, settings)
     # Display all selected pathways before the computations start
     if  settings.printBefore    PhotoExcitationFluores.displayPathways(stdout, pathways, settings)    end
