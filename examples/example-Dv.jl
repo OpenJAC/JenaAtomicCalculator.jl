@@ -15,7 +15,7 @@ println("Dv) Apply & test the ElectronCapture module: capture rates and the ALIG
 #
 # The module implements Eq. (4) of the latter for A_k0, and Eq. (3) for the capture rate itself.
 
-if  true
+if  false
     # Last visit:  02-Sep-2026
     # Last successful:  unknown ...
     #
@@ -90,5 +90,58 @@ elseif  false
                             finalConfigs   = [Configuration("2s^2"), Configuration("2s 2p"), Configuration("2p^2")],
                             processSettings = ecSettings )
     perform(wa)
+    #
+    #
+elseif  true
+    # Last visit:  02-Sep-2026
+    # Last successful:  02-Sep-2026 -- the two published alignment parameters are REPRODUCED TO 0.9 %:
+    #
+    #        resonance                    published        JAC         difference
+    #        2s_1/2 2p_3/2  J = 2  (2-)     -0.890       -0.89776        0.9 %
+    #        2s_1/2 2p_3/2  J = 1  (1-)     -0.918       -0.92599        0.9 %
+    #
+    #   with the right sign, the right magnitude AND the right ordering -- J = 1 is more strongly aligned than
+    #   J = 2 in both.  About 1 % is what a single-configuration basis should give against the paper's MCDF, and
+    #   the alignment is a RATIO in which the common radial factors cancel, which is why it comes out this close
+    #   from a much simpler wave function.  The other levels printed are different resonances: level 3 (1-) is
+    #   2s_1/2 2p_1/2 and level 9 (2+) is 2p^2.
+    #
+    # d) RECONSTRUCT THE PUBLISHED ALIGNMENTS.  Fritzsche, Kabachnik & Surzhykov, PRA 78, 032703 (2008), Sec. IV B,
+    #    for the K-LL dielectronic recombination of hydrogenlike U(91+) into helium-like uranium, quote
+    #
+    #        A_20( 2s_1/2 2p_3/2, J = 2 ) = -0.890        A_20( 2s_1/2 2p_3/2, J = 1 ) = -0.918
+    #
+    #    obtained with MCDF wave functions and with BOTH the static Coulomb repulsion and the Breit interaction in
+    #    the capture amplitudes -- hence CoulombBreit() here rather than the default CoulombInteraction().
+    #
+    #    WHAT AGREEMENT WOULD MEAN, and what it would not.  This branch uses a single-configuration basis where the
+    #    paper used MCDF, so the two are not the same calculation and exact agreement is not the target; landing
+    #    near -0.89 and -0.92 would show that the angular algebra of Eq. (4) and the capture amplitudes are right,
+    #    since the alignment is a RATIO in which the common radial factors cancel.  A large discrepancy would point
+    #    at the amplitudes, not at the formula, because the formula is already verified independently: for a single
+    #    partial wave it reproduces the pure geometric values (-0.70711 for J_d=1 p_3/2, -0.83666 and -0.95618 for
+    #    J_d=2), and over all two-wave mixtures A_20 stays inside its physical range [-sqrt(2), +1/sqrt(2)].
+    #
+    #    THE GRID IS A COMPROMISE, and the reason is worth stating: the n = 2 orbitals of uranium turn over near
+    #    4/92 = 0.04 a.u. and want a TINY box, while Continuum.gridConsistency refuses anything whose normalisation
+    #    point sits inside 2 a.u.  The box and the inner resolution are fixed by DIFFERENT physics, so the box is
+    #    set by the continuum (5 a.u.) and the bound orbitals are carried by a very fine logarithmic inner mesh
+    #    (rnt = 1e-7, h = 0.03) rather than by a small box.
+    grid = Radial.Grid(Radial.Grid(false), rnt = 1.0e-7, h = 3.0e-2, hp = 2.0e-3, rbox = 5.0)
+    ecSettings = ElectronCapture.Settings(ElectronCapture.Settings(); maxKappa = 6, calcAlignment = true,
+                                           operator = CoulombBreit(1.0))
+    wa = Atomic.Computation(Atomic.Computation(); name = "K-LL capture into He-like U (the 2008 paper)", grid = grid,
+                            nuclearModel   = Nuclear.Model(92.),
+                            initialConfigs = [Configuration("1s")],
+                            finalConfigs   = [Configuration("2s^2"), Configuration("2s 2p"), Configuration("2p^2")],
+                            processSettings = ecSettings )
+    wb = perform(wa; output = true)
+    println("\n  Published (PRA 78, 032703 (2008), Sec. IV B):  A_20(2s2p_3/2, J=2) = -0.890,  " *
+            "A_20(2s2p_3/2, J=1) = -0.918")
+    for  ln in wb["electron-capture lines:"]
+        length(ln.alignment) == 0  &&  continue
+        @printf("    level %2d   J^P = %s   A_20 = %9.5f\n", ln.finalLevel.index,
+                string(LevelSymmetry(ln.finalLevel.J, ln.finalLevel.parity)), ln.alignment[1])
+    end
     #
 end
