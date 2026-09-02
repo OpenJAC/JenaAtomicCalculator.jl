@@ -427,6 +427,27 @@ end
         grid), which is the signature of the normalization point landing at an arbitrary phase of the oscillation
         rather than of insufficient resolution.
 
+        THE MANY-ELECTRON CASE, measured 02-Sep-2026, which is what the criterion had been waiting for. For a
+        many-electron ion the two gauges are NOT equal even for exact wavefunctions, so the H-like error measure
+        does not exist; CONVERGENCE does. Neon with a 1s hole -- the system of `testModule_Cascade_StepwiseDecay`,
+        i.e. the one case a refusal here would block -- decaying by Auger emission to Ne^2+, total rate against box:
+
+            Zeff * r    6.81       10.46      13.21      18.25      22.13      30.13      44.18      62.04
+            rate        9.432734   9.427362   9.427437   9.427417   9.427461   9.427415   9.427445   9.427469   (e-03)
+
+        THE THRESHOLD IS IN THE RIGHT PLACE: the rate settles to 9.42742e-03 within ~5e-6 from Zeff*r = 10.46 on,
+        and the only point that misses it is the one BELOW the criterion. **And the local-vs-asymptotic ambiguity
+        that held this up turns out not to be material**: the local Zr equals the asymptotic charge (2.000) to 0.1 %
+        at every radius where the check is evaluated, and differs (2.099) only at r = 3.2 a.u., which the check
+        refuses anyway.
+
+        BUT THE PENALTY FOR VIOLATING IT IS OBSERVABLE-DEPENDENT BY ORDERS OF MAGNITUDE, and that is the reason
+        this is still a warning. At Zeff*r = 6.8 the Auger rate above is wrong by 5.7e-4 RELATIVE; at Zeff*r = 4.8
+        the H-like photoionization gauge ratio is wrong by a FACTOR OF FOUR. A ratio of two amplitudes exposes the
+        continuum phase directly, while a rate built from one matrix element is far more forgiving of it. So the
+        number 10 is right for the quantity it was measured on, and very conservative for others -- which is why
+        promoting this to an unconditional `error` would refuse calculations whose error is 1e-4.
+
         A FREE PARTICLE IS EXEMPT, and must be. When the residual system is neutral the electron sees no Coulomb
         tail, Zeff -> 0, and `Zeff * r >= 10` could never be satisfied by any box; there is also nothing for it to
         guard, since a plane wave has no Coulomb phase to get wrong. The check therefore applies only where a

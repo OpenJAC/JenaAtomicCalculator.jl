@@ -1,8 +1,10 @@
 
 """
 `module  JAC.SpinAngular`
-... an independent re-implementation of the spin-angular coefficients of JAC, developed ALONGSIDE `SpinAngular` and not
-    (yet) replacing it. It exists to settle two defects of the present module that cannot be repaired in place without
+... the spin-angular coefficients of JAC. This module was written as an independent re-implementation and TOOK THE
+    NAME `SpinAngular` on 28-Aug-2026 (`1d57acd`); the implementation it replaced is parked as `SpinAngularGaigalas`,
+    and every mention of "`SpinAngular`" in the two numbered points below refers to THAT older module, which is what
+    they were written against. It exists to settle two defects of it that could not be repaired in place without
     touching its eighteen callers at once.
 
     **(1) One normalization for every rank.** `SpinAngular` applies a factor `sqrt(2j_a+1)` inside the coefficient for

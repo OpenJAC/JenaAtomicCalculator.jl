@@ -475,7 +475,7 @@ forgetting; a convention in prose can.
 docstring, or the next migration will edit the visible sites and silently break the invisible one.
 
 **The worked example, kept current rather than described here:** the migration inventory in the module docstring of
-`src/module-SpinAngularNew.jl` lists all eighteen sites by file and line, and separates those whose factor is visible
+`src/module-SpinAngular.jl` lists all eighteen sites by file and line, and separates those whose factor is visible
 from those whose is not. Re-derive it rather than trusting the list -- `grep -n "coeff.T" src/*.jl` is the whole method,
 and a coefficient used with no visible factor is a question, not an answer.
 
@@ -485,8 +485,26 @@ Written 25-Aug-2026, with the migration itself deliberately POSTPONED. The plan 
 message because the danger is not that it is hard but that it is done PARTIALLY, and a half-done convention change
 produces wrong numbers with nothing failing.
 
+**STATUS, 02-Sep-2026 -- MUCH OF THIS HAS SINCE LANDED, so read the plan below as history plus a remainder, not as
+work still to start.** Measured against `src/` today: the new module took the name `SpinAngular` on 28-Aug (`1d57acd`)
+and the old implementation is parked as `SpinAngularGaigalas`; **26 source files now use `SpinAngular.` against 6 that
+still name `SpinAngularGaigalas.`**; the GRASP convention is in, with the rank carried in the TYPE
+(`Coefficient1p{OrdinaryKind}` / `{ReducedKind}`) exactly as Rule 18 asks; and **six compensating factors remain at
+call sites, not eighteen** -- and those six are the level factor `sqrt(2J_f+1)`, which is a different quantity from
+the subshell factor this rule is about.
+
+**AND `SpinAngular` IS INDEPENDENT OF THE PARKED MODULE, which was the agreement.** Checked by stripping docstrings
+and comments and then looking for a call: **zero** references to `SpinAngularGaigalas` in the executable code of
+`module-SpinAngular.jl` and its two include files, and zero in `WeakInteractionMoment`. Every remaining mention of the
+old name is a COMMENT recording what the new code was verified against. What does remain is only that
+`JenaAtomicCalculator.jl` still `include`s and exports the parked module; whether it should is a separate question
+and the maintainer's.
+
+**The final wording of this rule is the maintainer's -- the POSTPONED was his decision and only he can say what
+replaces it.** This note exists so that no session reads "deliberately POSTPONED" and plans work that is largely done.
+
 **Why it cannot be staged.** Eighteen sites across nine modules compensate for the present convention, in two OPPOSITE
-directions (see the inventory in the module docstring of `src/module-SpinAngularNew.jl`). Any intermediate state has
+directions (see the inventory in the module docstring of `src/module-SpinAngular.jl`). Any intermediate state has
 some callers on the old convention and some on the new, and every result computed in between is wrong. This is the one
 place where the one-module-per-task rule is suspended DELIBERATELY, and it must be said out loud in the commit rather
 than worked around.
