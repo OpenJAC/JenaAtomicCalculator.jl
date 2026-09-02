@@ -636,19 +636,40 @@ elseif  false
     #     2        1.720             2.260          12 vs 11 <== EXCLUDED by the guard
     #     3       -1.598             not computed (l restricted, as instructed)
     #
-    # RAISING n DID NOT REPAIR IT, and that is the finding. Suspicion (ii) above -- that n = 5, 6 is simply not
-    # asymptotic -- is REFUTED: the one pair with equal level content moved from 1.979 to 1.275, i.e. FURTHER
-    # from 3, on a calculation that carries no warning of any kind. W(8) = 7.3113e-04 falls to W(9) = 6.2917e-04,
-    # a ratio of 0.8605, where n^(-3) would demand (8/9)^3 = 0.7023.
+    # RAISING n DID NOT REPAIR IT -- and the reason, found 02-Sep-2026, is that NEITHER BRANCH WAS MEASURING THE
+    # LAW. Both put every Rydberg shell in ONE CI basis, where the shells MIX; and the exponent is formed from the
+    # RATIO W(n1)/W(n2), which is exactly what mixing corrupts. The line above this one had already guessed it
+    # ("whether CI mixing left levels without a single identifiable Rydberg shell ... is the next thing to look
+    # at"), and that is what the measurement below settles.
     #
-    # AND THE DIRECTION MATTERS: n^(-3) falls FASTER than the measured n^(-1.275), so the assumed law makes the
-    # Rydberg tail SMALLER than this calculation says it is. If the measurement is right, DR rate coefficients
-    # built on nExponent = 3.0 UNDERESTIMATE the tail. That is a consequence worth stating and NOT one to act on
-    # from a single case -- which is why the code still builds the tail on the assumed 3.0 and merely warns.
+    # THE TEST. The same system, same grid, same settings -- but each Rydberg shell computed in a basis OF ITS OWN,
+    # so that no two shells can mix. Only the configuration lists change:
     #
-    # NOTE ALSO that the guard EXCLUDED two of the three l values for unequal level content (4 vs 3, 12 vs 11).
-    # Only l = 1 survived. Whether those shells genuinely carry different level sets, or whether CI mixing left
-    # levels without a single identifiable Rydberg shell, is not answered here and is the next thing to look at.
+    #     l = 1 (the only l with the same level content at every shell, 10 levels at n = 8, 9 and 10)
+    #         shells TOGETHER in one basis :  p(8->9) = 1.274        <== what this branch reported
+    #         each shell ALONE             :  p(8->9) = 3.066    p(9->10) = 3.064    p(8->10) = 3.065
+    #
+    # Three independent pairs agreeing to +-0.001. THE n^(-3) LAW HOLDS; nExponent = 3.0 is right.
+    #
+    # AND THE MECHANISM IS VISIBLE IN THE NUMBERS, which is what makes this an explanation rather than a story:
+    # sharing a basis moves W(8, l=1) DOWN 10.3 % (8.137e-4 -> 7.296e-4) and W(9, l=1) UP 10.7 % (5.671e-4 ->
+    # 6.279e-4), while their SUM is conserved to 1.7 % and 72 % of what n = 8 loses reappears at n = 9. Strength is
+    # redistributed between the shells, not created or destroyed -- and a ratio built from the two is flattened
+    # towards 1, i.e. p towards 0.
+    #
+    # THE RESIDUAL, stated honestly: 3.065 sits 2 % above 3, consistently, and that is NOT fully explained -- a
+    # quantum defect of the right sign reaches only 3.01. It costs the tail sum (n = 10..30 from n0 = 9) 2.7 %,
+    # far inside anything else a DR rate coefficient carries, so it is a residual and not a defect.
+    #
+    # WHAT THIS MEANS FOR THE DIAGNOSTIC. `measureRydbergExponent` can only run when two shells were computed
+    # explicitly -- i.e. exactly when they share a basis and mix -- so a LOW p from it is evidence of MIXING and
+    # must NOT be adopted as nExponent. The module now says so, and the advice that stood there before ("set
+    # nExponent to the measured one if the deviation is believed") was backwards. Note too that the level-count
+    # guard is necessary but NOT sufficient: l = 1 passed it with 10 vs 10 and was the most corrupted of the three.
+    #
+    # (Reproduction note: the check above rebuilt this branch without the tail correction and without
+    # calcRateAlpha, so its W values differ from the ones quoted here in the fourth figure -- 7.296e-4 against
+    # 7.3113e-4 -- and p came out 1.2738 against 1.275. Same calculation, same conclusion.)
     #
     # --- Branch h: THE RYDBERG EXPONENT AT HIGH n, which is what application item A22 asks for.
     #

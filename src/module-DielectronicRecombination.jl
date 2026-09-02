@@ -92,19 +92,24 @@ abstract type  AbstractCorrections       end
     + nExponent     ::Union{Float64,Missing}
         ... exponent of the n-scaling of the capture and Auger rates; 3.0 if missing.
 
-        OPEN QUESTION, to be settled on real systems (05-Aug-2026). The default 3.0 is carried on textbook
-        authority and has NOT yet been confirmed inside JAC. The first attempt, examples/example-Df.jl branch g
-        (H-like C5+ with n = 5 and 6 computed explicitly), measured p = 2.80, 1.98, 1.72 and -1.60 for
-        l = 0, 1, 2, 3 -- the last one unphysical, since the weighted capture strength grows with n there. The
-        degradation is monotonic in l, which points at the numerical accuracy of high-l Rydberg orbitals near the
-        core (their amplitude goes as r^l, and the capture rate samples exactly that region) rather than at the
-        law itself; n = 5, 6 is also not yet asymptotic. Whichever it is, the question should be decided on a
-        real high-n calculation with converged orbitals, a higher reference shell, and l restricted to the range
-        whose capture rates are numerically solid -- not on a small test case built for the purpose.
+        SETTLED 02-Sep-2026, AND THE DEFAULT 3.0 IS RIGHT. Measured on H-like C5+ (the system of
+        examples/example-Df.jl branches g and h) with each Rydberg shell computed in a basis OF ITS OWN, so that
+        no two shells can mix:
 
-        Until then: the module MEASURES the exponent whenever two Rydberg shells are present, prints it against
-        the assumed value with the level counts that went into it, warns on a deviation above 0.3, and still
-        extrapolates with the ASSUMED value. It never silently adopts a measurement it cannot vouch for.
+            l = 1, the only l whose level content is the same at every shell (10 levels at n = 8, 9 and 10):
+                 p(8->9) = 3.066     p(9->10) = 3.064     p(8->10) = 3.065
+
+        Three independent pairs agreeing to +-0.001. The residual 2 % above 3 is small, systematic and not fully
+        explained -- a quantum defect of the right sign accounts for at most 3.01 -- and it costs the tail sum
+        (n = 10..30 scaled from n0 = 9) only 2.7 %, which is far inside any other uncertainty a DR rate
+        coefficient carries. So `nExponent = 3.0` stands.
+
+        WHAT THE EARLIER LOW VALUES WERE. Branch h reported p = 1.27 for l = 1, and that number is an ARTIFACT OF
+        PUTTING n = 8 AND n = 9 IN ONE CI BASIS, not a property of the law. Measured both ways on the same system:
+        W(8, l=1) falls 8.137e-4 -> 7.296e-4 (-10.3 %) and W(9, l=1) rises 5.671e-4 -> 6.279e-4 (+10.7 %) when the
+        two shells share a basis, while their SUM is conserved to 1.7 % and 72 % of what n = 8 loses reappears at
+        n = 9. That is redistribution between the shells, and the ratio of two shells is exactly what the exponent
+        is formed from -- so a shared basis flattens it towards zero. See the warning in `measureRydbergExponent`.
 """
 struct   RydbergTailCorrection               <:  DielectronicRecombination.AbstractCorrections
     nMax              ::Int64

@@ -695,10 +695,24 @@ function  computeRydbergTailLines(captureLines::Array{DielectronicRecombination.
     else
         report = report * "\n  + n-scaling exponent:  MEASURED p = " * @sprintf("%.3f", pMeasured) *
                           "   vs   assumed p = " * @sprintf("%.2f", pUsed) * details
+        ## A measured exponent BELOW the assumed one is the expected signature of inter-shell CI mixing, not of a
+        ## broken scaling law: the shells that make the measurement possible are in one basis and therefore mix,
+        ## which moves strength upward in n and flattens the ratio.  Measured 02-Sep-2026 on H-like C5+ at n = 8, 9:
+        ## p = 1.27 in a shared basis against 3.066 with each shell computed alone.  So the advice that stood here
+        ## until then -- "set nExponent to the measured one if the deviation is believed" -- was exactly backwards
+        ## and would have inflated the tail.  The two directions are therefore reported differently.
         if  abs(pMeasured - pUsed) > 0.3
             report = report * "\n    >>> WARNING: measured and assumed exponent differ by " *
-                              @sprintf("%.2f", abs(pMeasured-pUsed)) * ". The extrapolation uses the ASSUMED value; " *
-                              "\n        set nExponent to the measured one if the deviation is believed."
+                              @sprintf("%.2f", abs(pMeasured-pUsed)) * ". The extrapolation uses the ASSUMED value."
+            if  pMeasured < pUsed
+                report = report * "\n        The measured value is LOWER, which is what inter-shell CI mixing does: the shells " *
+                                  "\n        that make this measurement possible share one basis and exchange capture strength, " *
+                                  "\n        which flattens W(n1)/W(n2).  Do NOT adopt it.  To test the scaling itself, compute " *
+                                  "\n        each Rydberg shell in a basis of its own; done that way the law holds at p = 3.07."
+            else
+                report = report * "\n        The measured value is HIGHER than assumed, which mixing does not explain.  Check the " *
+                                  "\n        level content of the two shells first -- unequal content is reported per l above."
+            end
         end
     end
     # (2) Group the explicit lines of the reference shell n0 by their Rydberg l
@@ -1544,6 +1558,20 @@ end
 
         The weighted sum W rather than a single A_a, because the individual levels of a shell need not correspond
         one-to-one between two shells, whereas the (2J+1)-weighted total over a given l does.
+
+        WHAT THIS CANNOT SEE, established 02-Sep-2026 and the reason the result is a DIAGNOSTIC and not a test of
+        the law. The exponent is only measurable when two Rydberg shells were computed explicitly -- and two shells
+        computed explicitly are two shells IN THE SAME CI BASIS, which is exactly the condition under which they
+        MIX. The mixing moves capture strength from the lower shell to the upper one, and the ratio W(n1)/W(n2) is
+        precisely what it corrupts. Measured on H-like C5+, n = 8 and 9, l = 1: computing each shell in a basis of
+        its own gives p = 3.066, and putting both in one basis gives p = 1.27, because W(8) falls 10.3 % and W(9)
+        rises 10.7 % while their sum is conserved to 1.7 %.
+
+        SO A LOW p HERE IS EVIDENCE OF MIXING, NOT OF A BROKEN SCALING LAW, and the law itself was confirmed at
+        p = 3.065 +- 0.001 over three separated pairs (see the RydbergTailCorrection docstring). The level-count
+        guard below is necessary but NOT sufficient: at n = 8 -> 9 the l = 1 channel had 10 levels on both sides,
+        passed the guard, and was the most corrupted of the three. To test the law rather than the mixing, compute
+        each shell separately.
 """
 function  measureRydbergExponent(captureLines::Array{DielectronicRecombination.CaptureLine,1},
                                  empTreatment::DielectronicRecombination.EmpiricalTreatment)
