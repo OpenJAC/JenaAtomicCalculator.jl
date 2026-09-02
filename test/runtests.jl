@@ -132,6 +132,8 @@ end
                                                            ## Settings() constructor entry that could not fail
         @test TestFrames.testModule_TwoElectronOnePhoton()      ## added 28-Aug-2026: a two-route agreement, and
         @test TestFrames.testModule_ResonantImpactIonization()  ## exact scaling laws -- no stored .sum in either
+        @test TestFrames.testModule_ElectronCapture()   ## added 02-Sep-2026: detailed balance against AutoIonization
+                                                        ## for the reversed pair, plus the alignment selection rules
     end
 
     @testset "JAC cascades" begin

@@ -103,6 +103,12 @@ function Basics.perform(computation::Atomic.Computation; output::Bool=false)
         elseif  typeof(computation.processSettings) == RayleighCompton.Settings 
             outcome = RayleighCompton.computeLines(finalMultiplet, initialMultiplet, computation.grid, computation.processSettings) 
             if output    results = Base.merge( results, Dict("Rayleigh-Compton lines:" => outcome) )                end
+        elseif  typeof(computation.processSettings) == ElectronCapture.Settings
+            ## The capture is the time reverse of an Auger transition, so `initialConfigs` are the ion BEFORE the
+            ## capture and `finalConfigs` the doubly excited resonance it forms.
+            outcome = ElectronCapture.computeLines(finalMultiplet, initialMultiplet, nModel, computation.grid,
+                                                   computation.processSettings)
+            if output    results = Base.merge( results, Dict("electron-capture lines:" => outcome) )               end
         elseif  typeof(computation.processSettings) == DoubleAutoIonization.Settings   
             outcome = DoubleAutoIonization.computeLines(finalMultiplet, initialMultiplet, nModel, computation.grid, computation.processSettings) 
             if output    results = Base.merge( results, Dict("Double-Auger lines:" => outcome) )                    end

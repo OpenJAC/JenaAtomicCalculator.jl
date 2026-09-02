@@ -1081,3 +1081,95 @@ function testModule_TwoElectronOnePhoton(; short::Bool=true)
     testPrint("testModule_TwoElectronOnePhoton()::", success)
     return( success )
 end
+
+
+"""
+`TestFrames.testModule_ElectronCapture(; short::Bool=true)`  ... tests on module ElectronCapture; a success::Bool is returned.
+"""
+function testModule_ElectronCapture(; short::Bool=true)
+    Defaults.setDefaults("print summary: open", "test-ElectronCapture-new.sum")
+    printstyled("\n\nTest the module  ElectronCapture  ... \n", color=:cyan)
+    # Two EXACT statements, so neither needs a stored reference and neither can drift.
+    #
+    # (1) DETAILED BALANCE.  The capture is the time reverse of an Auger transition, so the rate this module
+    #     computes and the rate AutoIonization computes for the REVERSED pair must satisfy
+    #         P_cap(0 -> d) = (2J_d + 1) / (2 (2J_0 + 1)) * P_A(d -> 0)
+    #     level by level (Fritzsche, Kabachnik & Surzhykov, PRA 78, 032703 (2008), Eq. 3).  This is the strongest
+    #     check available here because it ties TWO modules together: it fails if either normalization is wrong,
+    #     and it is what caught a missing (2J_d+1) on 02-Sep-2026.
+    #
+    # (2) THE ALIGNMENT SELECTION RULES.  A_k0 exists only for EVEN k with k <= 2J_d, and not at all for J_d < 1.
+    #     An unpolarized electron on an unpolarized ion can ALIGN the resonance but never ORIENT it.
+    success = true;    printTest, iostream = Defaults.getDefaults("test flag/stream")
+    grid     = Radial.Grid(Radial.Grid(false), rnt = 2.0e-6, h = 5.0e-2, hp = 2.0e-2, rbox = 12.0)
+    ionConf  = [Configuration("1s")]
+    resConfs = [Configuration("2s^2"), Configuration("2s 2p")]
+    wcap = redirect_stdout(devnull) do
+        perform( Atomic.Computation(Atomic.Computation(); name = "capture", grid = grid, nuclearModel = Nuclear.Model(6.),
+                 initialConfigs = ionConf, finalConfigs = resConfs,
+                 processSettings = ElectronCapture.Settings(ElectronCapture.Settings(); maxKappa = 4,
+                                                            calcAlignment = true) ); output = true )
+    end
+    waug = redirect_stdout(devnull) do
+        perform( Atomic.Computation(Atomic.Computation(); name = "Auger", grid = grid, nuclearModel = Nuclear.Model(6.),
+                 initialConfigs = resConfs, finalConfigs = ionConf,
+                 processSettings = AutoIonization.Settings(AutoIonization.Settings(); maxKappa = 4) ); output = true )
+    end
+    capLines = wcap["electron-capture lines:"];    augLines = waug["AutoIonization lines:"]
+    if  length(capLines) == 0
+        success = false
+        if printTest   info(iostream, "no electron-capture line was built at all")   end
+    end
+    #
+    # (1) detailed balance, on every pair that both computations share
+    nChecked = 0
+    for  cl in capLines,  al in augLines
+        if  cl.initialLevel.index != al.finalLevel.index  ||  cl.finalLevel.index != al.initialLevel.index   continue   end
+        if  al.totalRate <= 0.                                                                               continue   end
+        expected = (Basics.twice(cl.finalLevel.J) + 1) / (2 * (Basics.twice(cl.initialLevel.J) + 1))
+        ratio    = (cl.totalRate / al.totalRate) / expected
+        nChecked = nChecked + 1
+        if  abs(ratio - 1.0) > 1.0e-8
+            success = false
+            if printTest   info(iostream, "detailed balance fails for d = $(cl.finalLevel.index): P_cap/P_A = " *
+                                          "$(cl.totalRate/al.totalRate) against an expected $expected")   end
+        end
+    end
+    if  nChecked == 0
+        success = false
+        if printTest   info(iostream, "no capture/Auger pair could be matched, so detailed balance was never tested")   end
+    end
+    #
+    # (2) the alignment selection rules, and that an aligned case actually occurs
+    sawAligned = false
+    for  cl in capLines
+        Jd = Basics.twice(cl.finalLevel.J) / 2.0
+        if      Jd < 1.0  &&  length(cl.alignment) != 0
+            success = false
+            if printTest   info(iostream, "the J_d = $Jd resonance carries $(length(cl.alignment)) alignment " *
+                                          "parameters, but a level with J_d < 1 cannot be aligned")   end
+        elseif  Jd >= 1.0
+            if  length(cl.alignment) != Int(floor(Jd))
+                success = false
+                if printTest   info(iostream, "the J_d = $Jd resonance carries $(length(cl.alignment)) alignment " *
+                                              "parameters; the even ranks k <= 2J_d give $(Int(floor(Jd)))")   end
+            end
+            if  any(a -> !isfinite(a), cl.alignment)
+                success = false
+                if printTest   info(iostream, "a non-finite alignment parameter for d = $(cl.finalLevel.index)")   end
+            end
+            if  length(cl.alignment) > 0  &&  cl.alignment[1] != 0.    sawAligned = true    end
+        end
+    end
+    if  !sawAligned
+        success = false
+        if printTest   info(iostream, "no resonance came out aligned, so the selection-rule checks above are vacuous")   end
+    end
+
+    println(iostream, "ElectronCapture: detailed balance against AutoIonization for the reversed pair, " *
+                      "P_cap/P_A = (2J_d+1)/(2(2J_0+1)), on $nChecked pairs; and the alignment parameters exist " *
+                      "only for even k <= 2J_d. No approved data is used.")
+    Defaults.setDefaults("print summary: close", "")
+    testPrint("testModule_ElectronCapture()::", success)
+    return( success )
+end
