@@ -929,10 +929,43 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
             epsA = transpose(bVectors[sh]) * h1k * bVectors[sh]
             gv   = [ transpose(phi) * grad[sh]  for phi in virt[sh] ]
             sv   = zeros( length(gv) );    dv = zeros( length(gv) )
+            # MEASURED AND NOT REPAIRED, 02-Sep-2026 -- the preconditioner's denominator is not what its formula
+            # assumes, and JAC_EOL_VIRTCHECK below is what shows it.  The division by (epsV - epsA) is the
+            # standard orbital-energy denominator, valid when phi is an EIGENSTATE.  It is not: virtualDirections
+            # orthogonalizes each direction against the occupied orbitals, so phi^T h1k phi is a Rayleigh quotient
+            # of a mixed vector.  On Be-like Z = 92 the sixteen 2s_1/2 directions gave
+            #     -5584  -5027  -4457  -3511  -2001  -1993  -935  -360  -164  -131  -110  -54  +438  +635  +734  +3013
+            # against an occupied 2s at -1256, where the bare-nucleus s-series is -4861, -1257, -547, -302.  Six lie
+            # BELOW the occupied orbital, the lowest beneath even the 1s, and the floor then replaces their large
+            # NEGATIVE denominator by the smallest positive one available (+0.05) -- amplifying them and reversing
+            # their sign.  Those six carried 100.0 % of the step's weight, while 2p_1/2 and 2p_3/2 had none.  The
+            # positive-branch projection then removes them, which is why a planned descent of -35.2 arrives as
+            # +3.8e-07 and the search halves 24 times in vain.  Excluding them by  epsV - epsA <= 0  was tried and
+            # buys only 1.7e-08 Ha, because the allowed gradient (0.74 of the 1.52 reported) is not reachable
+            # through this preconditioner either.  The repair is to build the directions as eigenstates of the
+            # mean field so the denominators mean what the formula says; that is a redesign, not a patch.
+            ev = zeros( length(gv) )
             for  (iv, phi)  in  enumerate(virt[sh])
                 epsV    = transpose(phi) * h1k * phi
+                ev[iv]  = epsV
                 dv[iv]  = max( epsV - epsA, 0.05 )
                 sv[iv]  = - gv[iv] / dv[iv]
+            end
+            # HOW MUCH OF THE STEP RIDES ON VIRTUALS THAT LIE BELOW THE OCCUPIED ORBITAL?  For such a virtual
+            # epsV - epsA < 0, and the floor above replaces that large negative denominator by +0.05 -- the
+            # SMALLEST available -- so the component is amplified rather than suppressed, and its sign is
+            # reversed.  A negative-energy solution has epsV ~ -2mc^2 ~ -37558 Ha, so this is where a
+            # Dirac-sea direction would enter.  Off unless JAC_EOL_VIRTCHECK is set.
+            if  haskey(ENV, "JAC_EOL_VIRTCHECK")
+                below = [ iv  for iv = 1:length(ev)  if ev[iv] - epsA < 0. ]
+                wBelow = isempty(below) ? 0. : sum( sv[below].^2 )
+                above  = [ iv  for iv = 1:length(ev)  if ev[iv] - epsA > 0. ]
+                gAbove = isempty(above) ? 0. : sqrt(sum( gv[above].^2 ))
+                gBelow = isempty(below) ? 0. : sqrt(sum( gv[below].^2 ))
+                @printf(">> [EOL-VIRT] iter %d %-9s nVirt = %3d  nBelow = %3d  |g_allowed| = %.6e  |g_below| = %.6e  |s_below|^2/|s|^2 = %.4f\n",
+                        iter, string(sh), length(ev), length(below), gAbove, gBelow,
+                        sum(sv.^2) > 0. ? wBelow/sum(sv.^2) : 0.)
+                flush(stdout)
             end
             gProj[sh] = gv;    step[sh] = sv;    denom[sh] = dv
             gNorm = gNorm + sum( gv.^2 );    sNorm = sNorm + sum( sv.^2 )
@@ -1074,7 +1107,8 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
         # gradient is exact and the tiny steps are the surface's own curvature (conditioning, not a defect);
         # if both differ from dg by a fixed factor, the direction is built on a gradient that is not the
         # functional's, which would explain every plateau seen so far.
-        if  haskey(ENV, "JAC_EOL_FDCHECK")  &&  iter == 5
+        if  haskey(ENV, "JAC_EOL_FDCHECK")  &&
+                    iter == something(tryparse(Int, ENV["JAC_EOL_FDCHECK"]), 5)   ## the value selects the iteration
             @printf(">> [EOL-FD] iteration %d:  <grad,dir> = %+.10e\n", iter, dg)
             # IS THE GRADIENT ORTHOGONAL TO ITS OWN b-VECTOR?  generateOrbitalFromVector normalizes, so the
             # functional is SCALE-INVARIANT in b: E(lambda*b) = E(b), and differentiating at lambda = 1 gives
@@ -1173,6 +1207,25 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
         # step inherited.  The small steps are what the surface requires, not the residue of a collapse.
         # What IS too slow is the recovery rate; see the growth factor at the acceptance below.
         accepted = false
+        # ZERO-STEP CONSISTENCY OF THE LINE-SEARCH BASELINE, off unless JAC_EOL_ZEROCHECK is set.  e0 is measured
+        # on the projected vectors AFTER restoreFrozen!; a trial is measured on the projected vectors WITHOUT it.
+        # If the two disagree at tStep = 0 then `eTrial < e0` compares two different functions and no step can
+        # win, however good the direction -- which is the "no descent at iteration 1" seen wherever many
+        # subshells are frozen.
+        if  haskey(ENV, "JAC_EOL_ZEROCHECK")
+            zB = Dict{Subshell, Vector{Float64}}( sh => copy(bVectors[sh])  for sh in basis.subshells )
+            (zProj, _)  = SelfConsistent.projectOntoPositiveBranch(zB, basis.subshells, primitives, nucPot,
+                                                        matrixB, storage; spectrum=posSpectrum)
+            (_, eZero)  = SelfConsistent.energyFromBVectorsSplit(zProj, coeffs1p, coeffs2p, basis.subshells,
+                                                        primitives, grid, nucPot, isFrozenSub, frozenRk)
+            zRest       = restoreFrozen!( Dict{Subshell, Vector{Float64}}( sh => copy(zProj[sh])
+                                                        for sh in basis.subshells ) )
+            (_, eZeroR) = SelfConsistent.energyFromBVectorsSplit(zRest, coeffs1p, coeffs2p, basis.subshells,
+                                                        primitives, grid, nucPot, isFrozenSub, frozenRk)
+            @printf(">> [EOL-ZERO] iter %d: e0 = %.12f  eTrial(0) = %.12f  diff = %+.3e  restored-diff = %+.3e  nFrozen = %d\n",
+                    iter, e0, eZero, eZero - e0, eZeroR - e0, length(frozenSubshells))
+            flush(stdout)
+        end
         for  trial = 1:24
             newB = Dict{Subshell, Vector{Float64}}( sh => bVectors[sh]  for sh in basis.subshells )
             for  sh  in  activeSubshells
@@ -1187,12 +1240,38 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
             # method cannot do.  Testing the projected vector restores  E(new) < E(old)  by construction,
             # and with it the guarantee that the CI eigenvalue falls too (it is bounded above by this
             # fixed-coefficient functional, and equals it at the previous orbitals).
+            # THE PROJECTION STAYS INSIDE THE ACCEPTANCE TEST, and letting the search leave the branch was
+            # MEASURED AND REJECTED on 02-Sep-2026, after the frozen-orbital repair of the same day removed the
+            # earlier objection to that measurement.  Judging a trial on its UNPROJECTED energy and storing the
+            # projected vector banks a real loss for a fake gain, and the two compound: on Be-like Z = 92 the
+            # reference layer went from -12040.8576547019 to -11691.0209575892, i.e. 350 Ha UPHILL, with |grad|
+            # exploding from 1.52 to 11195.9 by the second iteration.  That is variational collapse into the
+            # negative-energy sea, and it is what this projection exists to prevent.
             (projB, negW) = SelfConsistent.projectOntoPositiveBranch(newB, basis.subshells,
                                                     primitives, nucPot, matrixB, storage; spectrum=posSpectrum)
+            restoreFrozen!(projB)
             (_, eTrial) = SelfConsistent.energyFromBVectorsSplit(projB, coeffs1p, coeffs2p, basis.subshells,
                                                  primitives, grid, nucPot, isFrozenSub, frozenRk)
+            # THE SHAPE OF THE ENERGY ALONG THE SEARCH DIRECTION, off unless JAC_EOL_LINEPROFILE is set.  When a
+            # line search fails, the three possible causes are told apart by this one picture: an energy that
+            # RISES at every trial means the direction is uphill (the gradient is wrong); one that stays FLAT at
+            # the 1e-13 level means the step is not moving the orbitals at all (the projection is giving it
+            # back); one that FALLS and is still rejected means the acceptance test is misaccounting.  `moved`
+            # is the size of the displacement that actually survived projection and renormalization.
+            if  haskey(ENV, "JAC_EOL_LINEPROFILE")
+                moved = 0.
+                for  sh  in  activeSubshells   moved = moved + sum( (projB[sh] - bVectors[sh]).^2 )   end
+                # <grad, realized displacement> against tStep*<grad,dir>: the derivative along the step the
+                # search ACTUALLY takes, versus the one it planned.  They differ by whatever the renormalization
+                # and the positive-branch projection do to the direction.
+                dgReal = 0.
+                for  sh  in  activeSubshells   dgReal = dgReal + sum( grad[sh] .* (projB[sh] - bVectors[sh]) )   end
+                @printf(">> [EOL-LINE] iter %2d trial %2d: tStep = %.3e  eTrial-e0 = %+.6e  moved = %.3e  planned = %+.4e  realized = %+.4e  negW = %.3e\n",
+                        iter, trial, tStep, eTrial - e0, sqrt(moved), tStep*dg, dgReal, negW)
+                flush(stdout)
+            end
             if  eTrial < e0
-                bVectors = restoreFrozen!(projB)
+                bVectors = projB
                 if  printout  &&  negW > 1.0e-8
                     println(">> [EOL-C3] removed negative-branch weight $negW from the step.")
                 end
@@ -1270,9 +1349,10 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
                 end
                 (projB, negW) = SelfConsistent.projectOntoPositiveBranch(newB, basis.subshells,
                                                     primitives, nucPot, matrixB, storage; spectrum=posSpectrum)
+                restoreFrozen!(projB)                    ## measure the point that would be stored; see the main loop
                 (_, eTrial) = SelfConsistent.energyFromBVectorsSplit(projB, coeffs1p, coeffs2p, basis.subshells,
                                                          primitives, grid, nucPot, isFrozenSub, frozenRk)
-                if  eTrial < e0    bVectors = restoreFrozen!(projB);   accepted = true;   break    end
+                if  eTrial < e0    bVectors = projB;   accepted = true;   break    end
                 tStep = tStep / 2
             end
         end
