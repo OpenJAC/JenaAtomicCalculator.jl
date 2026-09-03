@@ -58,10 +58,10 @@ function  reducedAmplitude2pOneElectron(K::AngularJ64, fOrbital::Orbital, omega2
                   "number it cannot stand behind.")
         end
         found = true
-        ## MabEmission(mp, gauge, omega, X, Y, grid) returns <Y || O || X>, so the chain reads
+        ## MabEmission(mp, gauge, omega, a, b, grid) returns <a || O || b>, so the chain reads
         ##     <f || O2 || v>  <v || O1 || i>
-        U = U + InteractionStrength.MabEmission(mp2, gauge, omega2, vOrbital, fOrbital, grid) *
-                InteractionStrength.MabEmission(mp1, gauge, omega1, iOrbital, vOrbital, grid) / denom
+        U = U + InteractionStrength.MabEmission(mp2, gauge, omega2, fOrbital, vOrbital, grid) *
+                InteractionStrength.MabEmission(mp1, gauge, omega1, vOrbital, iOrbital, grid) / denom
     end
     if  !found    return( ComplexF64(0.) )    end
     ## the two photons are recoupled to the total transferred rank K

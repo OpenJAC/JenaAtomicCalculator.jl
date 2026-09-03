@@ -348,16 +348,16 @@ function photoemissionEinsteinA(iConf::Configuration, fConf::Configuration, appr
     tEnergy = iOrbitals[iSubsh].energy - fOrbitals[fSubsh].energy
     
     if      multipole == E1
-        amp  = InteractionStrength.MabEmission(Basics.E1, Basics.Babushkin, tEnergy, fOrbitals[fSubsh],  
-                                                       iOrbitals[iSubsh], grid)
+        amp  = InteractionStrength.MabEmission(Basics.E1, Basics.Babushkin, tEnergy, iOrbitals[iSubsh],  
+                                                       fOrbitals[fSubsh], grid)
         wa   = 8.0pi * Defaults.getDefaults("alpha") * tEnergy / 
                Basics.extractFromConfiguration(Basics.Multiplicity(), iConf) *
                Basics.extractFromConfiguration(Basics.Multiplicity(), fConf) 
         rate = wa * abs(amp)^2
         triple = (multipole, tEnergy, rate)
     elseif  multipole == M1
-        amp  = InteractionStrength.MabEmission(Basics.M1, Basics.Magnetic, tEnergy, fOrbitals[fSubsh],  
-                                                       iOrbitals[iSubsh], grid)
+        amp  = InteractionStrength.MabEmission(Basics.M1, Basics.Magnetic, tEnergy, iOrbitals[iSubsh],  
+                                                       fOrbitals[fSubsh], grid)
         wa   = 8.0pi * Defaults.getDefaults("alpha") * tEnergy / 
                Basics.extractFromConfiguration(Basics.Multiplicity(), iConf) *
                Basics.extractFromConfiguration(Basics.Multiplicity(), fConf) 
@@ -729,8 +729,8 @@ function photoionizationCrossSection(omegas::Array{Float64,1}, iConf::Configurat
             ji2 = Basics.twice(Basics.subshell_j(subsh))
             for  kapc in e1Channels(li, ji2)
                 cOrbital, phase, norm = Continuum.generateOrbitalLocalPotential(eps, Subshell(101, kapc), localPot, contSettings)
-                amp   = InteractionStrength.MabEmission(Basics.E1, Basics.Babushkin, omega, cOrbital,
-                                                                iBasis.orbitals[subsh], grid)
+                amp   = InteractionStrength.MabEmission(Basics.E1, Basics.Babushkin, omega, iBasis.orbitals[subsh],
+                                                                cOrbital, grid)
                 sigma = sigma + nShell / (2*(2li+1)) * 8 * pi^3 / (alfa * omega) * abs(amp)^2
             end
         end

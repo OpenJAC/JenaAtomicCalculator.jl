@@ -313,7 +313,7 @@ end
 
 
 """
-`InteractionStrength.MabEmission(mp::EmMultipole, gauge::EmGauge, omega::Float64, b::Orbital, a::Orbital, grid::Radial.Grid)`
+`InteractionStrength.MabEmission(mp::EmMultipole, gauge::EmGauge, omega::Float64, a::Orbital, b::Orbital, grid::Radial.Grid)`
     ... computes the single-electron reduced matrix element <a || O^(Mp, emission) || b> of the electron-photon multipole interaction, for
         the multipole mp of the radiation field at photon energy omega and in the given gauge. A value::Float64 is returned.
 
@@ -322,9 +322,10 @@ end
         MbaEmissionMigdalek -- which differed in normalisation, in return type, in sign and in argument order, so that amplitudes computed
         through different ones could not be added.
 
-        ARGUMENT ORDER, stated because the family disagreed about it: the orbitals are passed as (b, a) and the matrix element returned is
-        <a || O || b>. That is, the SECOND orbital argument is the one that appears on the LEFT of the matrix element. This is the order
-        every live call site already uses.
+        ARGUMENT ORDER: the orbitals are passed in the order they appear, `MabEmission(..., a, b, ...)` returning <a || O || b>. Until
+        03-Sep-2026 the two were declared the other way round, so that the SECOND argument was the one on the left; the signature was
+        turned round and every call site swapped in the same commit, which changes no number. The old arrangement needed a paragraph of
+        prose to explain it, and prose that reads like physics but is really about a parameter list is worse than no prose.
 
         THE GAUGES, following Grant, J. Phys. B 7, 12 (1974): `Coulomb` is the velocity form and `Babushkin` the length form of the electric
         multipole operator; `Magnetic` is used for magnetic multipoles. For exact one-body eigenfunctions the two electric forms must agree
@@ -369,7 +370,7 @@ end
         it carries (kapa+kapb) = 2*kappa and I^+(a,a) != 0; that is why M1 fine-structure rates inside a term come out right to a few parts
         in 1000.
 """
-function MabEmission(mp::EmMultipole, gauge::EmGauge, omega::Float64, b::Orbital, a::Orbital, grid::Radial.Grid)
+function MabEmission(mp::EmMultipole, gauge::EmGauge, omega::Float64, a::Orbital, b::Orbital, grid::Radial.Grid)
     kapa = a.subshell.kappa;   kapb = b.subshell.kappa;    q = omega / Defaults.getDefaults("speed of light: c")
 
     if       gauge == Basics.Magnetic

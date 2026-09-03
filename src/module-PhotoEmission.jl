@@ -200,8 +200,8 @@ function amplitudeAndCancellation(::Emission, Mp::EmMultipole, gauge::EmGauge, o
             wa  = SpinAngular.computeCoefficients(opa, fLevel.basis.csfs[r], iLevel.basis.csfs[s], subshellList)
             me = 0.
             for  coeff in wa
-                MabEm = InteractionStrength.MabEmission(Mp, gauge, omega, fLevel.basis.orbitals[coeff.a],
-                                                                                        iLevel.basis.orbitals[coeff.b], grid)
+                MabEm = InteractionStrength.MabEmission(Mp, gauge, omega, iLevel.basis.orbitals[coeff.b],
+                                                                                        fLevel.basis.orbitals[coeff.a], grid)
                 ja = Basics.subshell_2j(fLevel.basis.orbitals[coeff.a].subshell)
                 # jb = Basics.subshell_2j(iLevel.basis.orbitals[coeff.b].subshell)
                 me = me + coeff.T * MabEm / sqrt( ja + 1) * sqrt( (Basics.twice(fLevel.J) + 1))      # * sqrt( jb + 1)
