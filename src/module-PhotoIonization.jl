@@ -795,93 +795,61 @@ end
 
 """
 `PhotoIonization.computePartialCrossSectionUnpolarized(Mf::AngularM64, line::PhotoIonization.Line)`
-    ... computes the partial photoionization cross section for a given magnetic quantum number Mf of the final level; an EmProperty is
-        returned, holding BOTH gauges at once.
+    ... computes the partial photoionization cross section for a given magnetic quantum number Mf of the final level, for initially
+        unpolarized atoms ionized by unpolarized plane-wave photons; an `EmProperty` is returned, holding both gauges at once.
 
-        RUN FOR THE FIRST TIME ON 28-Aug-2026, and it took two fixes to get there -- see the caller at
-        `displayResults`, which was still passing the retired flat signature, and the |M| > J guard in `Racahexpr`
-        below. Both are corrected.
+        THE SUM RULE IS BUILT IN RATHER THAN CHECKED. The partial cross section is the TOTAL times the normalised population of the
+        sublevel, sigma(M_f) = sigma_total * p(M_f), following Balashov, Grum-Grzhimailo & Kabachnik, *Polarization and Correlation
+        Phenomena in Atomic Collisions*, Sect. 2.3, Eqs. (2.161)-(2.162). The population is obtained from the statistical tensor by the
+        standard inversion p(M_f) = SUM_k (-1)^(J_f - M_f) <J_f M_f, J_f -M_f | k 0> rho_k0, and because
+        SUM_{M_f} (-1)^(J_f - M_f) <J_f M_f, J_f -M_f | k 0> = sqrt(2 J_f + 1) delta_{k0}, summing over M_f returns sigma_total EXACTLY,
+        for every level and every energy. That identity is the whole reason for writing it this way.
 
-        IT DOES NOT YET SUM TO THE TOTAL, and this is the open part. Measured on Ne-like Kr at 3000 eV: with E1
-        and M1 only, `sum over M_f` divided into `line.crossSection` gives 2086.5406 (J_f = 3/2) and 2086.5404
-        (J_f = 1/2), which is 1/(9 alpha^2) to eight figures. That looked like a clean missing scalar and IS NOT
-        one: adding E2 and M2 moves the two ratios to 2063.9997 and 2065.5892, so they are no longer equal to each
-        other and no longer 1/(9 alpha^2). The 9 is an artefact of dipole-only channels. What IS certain is the
-        alpha: this factor carries `* alpha` while `computeCrossSection` carries `/ alpha`. Do not "fix" this by
-        multiplying in 9 alpha^2 -- the L-dependence has to be derived.
+        THE NORMALISATION IS THE DIVISION BY rho_00, AND IT IS THE FIX. Eq. (2.161) normalises the tensor by the incoherent sum of squared
+        reduced amplitudes, (SUM_{ljJ} |M_{ljJ}|^2)^{-1}. rho_00 is proportional to exactly that sum, so dividing by it supplies the
+        normalisation -- and any common prefactor that `computeStatisticalTensorUnpolarized` happens to carry cancels in the ratio, which
+        makes this expression independent of that function's own scale convention.
 
-        NO GAUGE CAN BE SELECTED WRONGLY HERE. The product `ma.amplitude * conj(mp.amplitude)` of two EmPropertyC
-        is componentwise, so Coulomb meets Coulomb and Babushkin meets Babushkin whatever anyone writes, and one
-        call returns both.
+        WHAT THIS REPLACED, so that the old behaviour is not re-derived a fifth time. Until 03-Sep-2026 this function evaluated a SECOND,
+        independent angular expression -- a coherent double sum over channel and multipole pairs with its own 9j -- and multiplied it by a
+        prefactor `8 pi^3 alpha / (2 omega (2J_i+1))`. It did not sum to the total, and there were two faults. (i) The `alpha` sat in the
+        NUMERATOR where the validated `computeCrossSection` has it in the DENOMINATOR: JAC's multipole amplitude already carries the
+        photon-momentum factor from j_L(alpha omega r), and the total's 1/alpha exists to cancel it. (ii) The normalisation above was
+        missing entirely, which is why the residue was LEVEL-DEPENDENT -- SUM |M|^2 differs from level to level, so omitting it leaves a
+        level-dependent factor behind. Measured at omega = 80 eV, E1, sum over M_f divided by the total came out as 5.00 alpha^2 for H 1s,
+        9.00 for Ne, and 3.10 to 5.89 across the levels of Ne+ -- two levels with the SAME J_i and J_f differing (3.8382 against 3.0982),
+        which no prefactor in J_i can absorb. Do NOT "repair" such a discrepancy by multiplying in the number measured on one system: 9
+        alpha^2 is the Ne value alone, Ne being the special case J_i = 0, and patching a call site with a compensating factor is the drift
+        Rule 18 exists to stop.
+
+        THE CHANNEL PAIRING WAS NEVER AT FAULT. Balashov states of (2.162) that the partial waves of the electron enter INCOHERENTLY
+        (l = l\', j = j\') while J and J\' are free, which is what `computeStatisticalTensorUnpolarized` does; the pairing is inherited from
+        it here rather than written a second time.
 """
 function computePartialCrossSectionUnpolarized(Mf::AngularM64, line::PhotoIonization.Line)
-    function Racahexpr(kappa::Int64, Ji::AngularJ64, Jf::AngularJ64, Mf::AngularM64, J::AngularJ64, Jp::AngularJ64,
-                        L::Int64, Lp::Int64, p::Int64, pp::Int64)
-        t1 = Basics.oplus( AngularJ64(Lp), Jf);    t2 = Basics.oplus( AngularJ64(L), Jf);    tList = intersect(t1, t2)
-        wb = 0.
-        for  t  in tList
-            for  lambda = -1:2:1
-                j = AngularMomentum.kappa_j(kappa);   Mf_lambda = Basics.add(AngularM64(lambda), Mf)
-                # A Clebsch-Gordan coefficient with |M| > J is ZERO BY DEFINITION and must be skipped, not
-                # evaluated: WignerSymbols raises DomainError rather than returning 0. The case is reached
-                # whenever the coupled t is smaller than |M_f + lambda| -- e.g. J_f = 3/2, M_f = 3/2, lambda = +1
-                # asks for t = 1/2 with M = 5/2. Never seen before 28-Aug-2026 because this function had never run.
-                if  abs(Basics.twice(Mf_lambda)) > Basics.twice(t)    continue    end
-                wb = wb + (1.0im * lambda)^p * (-1.0im * lambda)^pp *
-                        AngularMomentum.ClebschGordan( AngularJ64(Lp), AngularM64(lambda), Jf, Mf, t, Mf_lambda) *
-                        AngularMomentum.ClebschGordan( AngularJ64(L),  AngularM64(lambda), Jf, Mf, t, Mf_lambda) *
-                        AngularMomentum.Wigner_9j(j, Jp, Jf, J, Ji, AngularJ64(L), Jf, AngularJ64(Lp), t)
-            end
-        end
-        return( wb )
+    Jf        = line.finalLevel.J
+    # Unpolarized light: the tensor is needed at q = 0 only, and the Stokes vector must be the empty one.
+    uSettings = PhotoIonization.Settings(PhotoIonization.Settings(), stokes=Basics.ExpStokes())
+    rho00     = PhotoIonization.computeStatisticalTensorUnpolarized(0, 0, line, uSettings)
+    if  rho00.Coulomb == 0.0im   ||   rho00.Babushkin == 0.0im
+        return( EmProperty(0., 0.) )
     end
 
-    Ji = line.initialLevel.J;    Jf = line.finalLevel.J
-    waC = 0.0im;    waB = 0.0im
-    # Pairs are formed WITHIN one partial wave; two amplitudes of different kappa never multiply each other.
-    for  pw in line.partialWaves
-        for  cha in pw.channels,  ma in cha.amplitudes
-            J = cha.symmetry.J;    L = ma.multipole.L;    p  = ma.multipole.electric ? 1 : 0
-            for  chp in pw.channels,  mp in chp.amplitudes
-                Jp = chp.symmetry.J;   Lp = mp.multipole.L;   pp = mp.multipole.electric ? 1 : 0
-                wc = (1.0im)^(L - Lp) * (-1)^(L + Lp) * AngularMomentum.bracket([AngularJ64(L), AngularJ64(Lp), J, Jp]) *
-                        Racahexpr(pw.kappa, Ji, Jf, Mf, J, Jp, L, Lp, p, pp) * (ma.amplitude * conj(mp.amplitude))
-                waC = waC + wc.Coulomb;    waB = waB + wc.Babushkin
-            end
-        end
+    # p(M_f) = SUM_k (-1)^(J_f - M_f) <J_f M_f, J_f -M_f | k 0> rho_k0, with rho normalised so that
+    # sqrt(2 J_f + 1) rho_00 = 1. Odd k carry the orientation and vanish for unpolarized light; they are summed
+    # over all the same, so that nothing depends on that expectation being right.
+    pC = 0.0;   pB = 0.0
+    for  k = 0:Basics.twice(Jf)
+        wcg = AngularMomentum.ClebschGordan( Jf, Mf, Jf, AngularM64(-Basics.twice(Mf)//2), AngularJ64(k), AngularM64(0) )
+        wcg == 0.  &&  continue
+        ph    = (-1)^( div(Basics.twice(Jf) - Basics.twice(Mf), 2) )
+        rhok  = PhotoIonization.computeStatisticalTensorUnpolarized(k, 0, line, uSettings)
+        wnorm = sqrt( Basics.twice(Jf) + 1.0 )
+        pC    = pC + ph * wcg * real( rhok.Coulomb   / rho00.Coulomb   ) / wnorm
+        pB    = pB + ph * wcg * real( rhok.Babushkin / rho00.Babushkin ) / wnorm
     end
-    # THIS FUNCTION DOES NOT REPRODUCE THE TOTAL, AND THE DISCREPANCY IS NOT A CONSTANT. Measured 30-Aug-2026,
-    # E1, omega = 80 eV, summing this function over all M_f and dividing by PhotoIonization.computeCrossSection --
-    # which IS validated, against Stobbe's closed form (see the note at computeCrossSection):
-    #
-    #     system          J_i    J_f                 sum/total, in units of alpha^2
-    #     H 1s            1/2    0                   5.0002
-    #     Ne 2p^6         0      3/2, 1/2            9.0000, 9.0000
-    #     Ne+ 2p^5        3/2    2, 1, 0, 2, 0       3.8382, 4.0199, 4.2463, 3.0982, 4.2469
-    #     Ne+ 2p^5        1/2    2, 1, 0, 2, 0       4.5545, 5.7424, 5.8912, 4.5544, 5.8917
-    #
-    # TWO SEPARATE FAULTS, and only the first is understood. (i) The alpha below sits in the NUMERATOR where
-    # computeCrossSection has it in the DENOMINATOR. That one is certainly wrong: JAC's multipole amplitude already
-    # carries the photon-momentum factor from j_L(alpha omega r), and the total's 1/alpha is there to cancel it --
-    # the partial uses the SAME amplitudes, so it needs the same cancellation. alpha^2 is accordingly common to
-    # every row above. (ii) The residue after removing alpha^2 is NOT constant: it varies from 3.10 to 9.00, and
-    # TWO LINES WITH THE SAME J_i AND THE SAME J_f differ (3.8382 against 3.0982). No prefactor in J_i can absorb
-    # that, so the ANGULAR expression above is wrong as well, and by an amount that is not established.
-    #
-    # DO NOT "FIX" THIS BY MULTIPLYING BY 9 alpha^2. That number is the Ne value only, and Ne is the special case:
-    # J_i = 0 with a single initial level. Patching the call site with a compensating factor is exactly the drift
-    # Rule 18 exists to stop. The correct prefactor and the correct angular expression have to be derived together
-    # and checked against a J_i != 0 case; that is deliberately deferred and
-    # recorded in the maintainer's own working notes, not here.
-    #
-    # NOTHING IN THE PACKAGE CONSUMES THIS. It has never been used in an application nor checked against a known
-    # value, and computeCrossSection is unaffected -- so the numbers this returns are the only ones at risk.
-    csFactor = 8 * pi^3 * Defaults.getDefaults("alpha") / (2*line.photonEnergy * (Basics.twice(Ji) + 1))
-    Defaults.warn(AddWarning(), "PhotoIonization.computePartialCrossSectionUnpolarized(): these partial cross " *
-                  "sections do NOT sum to the total (they are low by a level-dependent 3.1-9.0 times alpha^2); " *
-                  "see the note at this function. Do not use them quantitatively.")
 
-    return( EmProperty(real(csFactor * waC), real(csFactor * waB)) )
+    return( EmProperty(line.crossSection.Coulomb * pC, line.crossSection.Babushkin * pB) )
 end
 
 
