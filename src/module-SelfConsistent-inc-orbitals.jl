@@ -85,10 +85,20 @@ function computeFunctional(coeffs1p::Array{Coefficient1p,1}, coeffs2p::Array{Coe
     # multi-configuration by construction, and because the memo is demonstrably exact -- both runs returned
     # E = -14.6142687294, identical to every digit.
     rkCache = Dict{NTuple{5,Any}, Float64}()
+    # AND ONE LEVEL DOWN, THE POTENTIAL ITSELF.  The quintuple key above was measured to MISS 100 % OF THE TIME
+    # in the level-optimised field -- 40 of 40, 1744 of 1744, 20083 of 20083 coefficients carrying distinct
+    # (nu,a,b,c,d) on the four layers of C-like uranium -- because the reuse does not live at that level.  It
+    # lives at (nu,b,d): the expensive part of the integral is the screened potential V_nu[b,d], a function of
+    # only TWO of the four orbitals, and the same triple recurs across many (a,c) pairs.  The same three layers
+    # give 1.43x, 8.99x and 25.71x redundancy there.  This cache is per-CALL and must stay so: it is keyed on
+    # subshell LABELS, so one carried across an evaluation would hand back a potential built from orbitals that
+    # have since moved -- and the line search evaluates this functional up to 24 times per iteration with
+    # different orbitals each time.
+    vkCache = Dict{Tuple{Int64,Subshell,Subshell,Int64}, Vector{Float64}}()
     for  cf  in  coeffs2p
         rk = get!(rkCache, (cf.nu, cf.a, cf.b, cf.c, cf.d)) do
                  InteractionStrength.XL_CoulombKinkAware(cf.nu, orbitals[cf.a], orbitals[cf.b],
-                                                               orbitals[cf.c], orbitals[cf.d], grid)
+                                                               orbitals[cf.c], orbitals[cf.d], grid, vkCache)
              end
         energy = energy + cf.V * rk
     end
@@ -132,18 +142,40 @@ function computeFunctionalSplit(coeffs1p::Array{Coefficient1p,1}, coeffs2p::Arra
     end
 
     rkCache = Dict{NTuple{5,Any}, Float64}()          # per-call, for quadruples that touch an active subshell
+    vkCache = Dict{Tuple{Int64,Subshell,Subshell,Int64}, Vector{Float64}}()   ## per-call; see computeFunctional
+    # HOW MUCH REDUNDANCY IS THERE AT THE POTENTIAL LEVEL?  Off unless JAC_EOL_RKCOUNT is set.  A Slater
+    # integral is  int P_a(r) V_nu[b,d](r) P_c(r) dr,  and the expensive part -- the screened potential
+    # V_nu[b,d] built by RadialIntegrals.buildScreenedPotential -- depends on only TWO of the four orbitals.
+    # `rkCache` below is keyed on all five indices, so two coefficients sharing a (nu,b,d) triple but differing
+    # in (a,c) each rebuild the same potential.  The ratio printed here is the factor a potential-level cache
+    # could save; the gradient already exploits exactly this redundancy with its own vkCache, and this path
+    # does not.
+    if  haskey(ENV, "JAC_EOL_RKCOUNT")
+        trip = Set{Tuple{Int64,Subshell,Subshell}}();   quad = Set{NTuple{5,Any}}()
+        nFroz = 0
+        for  cf  in  coeffs2p
+            push!(trip, (cf.nu, cf.b, cf.d));    push!(quad, (cf.nu, cf.a, cf.b, cf.c, cf.d))
+            isFrozen(cf.b) && isFrozen(cf.d) && (nFroz += 1)
+        end
+        redun = length(trip) > 0 ? length(quad)/length(trip) : 0.0
+        println(">> [RK-COUNT] " * string(length(coeffs2p)) * " coeffs2p, " * string(length(quad)) *
+                " distinct (nu,a,b,c,d), " * string(length(trip)) * " distinct (nu,b,d)  ->  potential-level " *
+                @sprintf("redundancy %.2fx;  ", redun) * string(nFroz) *
+                @sprintf(" coeffs (%.1f %%) have BOTH b,d frozen", 100*nFroz/max(1,length(coeffs2p))))
+        flush(stdout)
+    end
     for  cf  in  coeffs2p
         key = (cf.nu, cf.a, cf.b, cf.c, cf.d)
         if  isFrozen(cf.a) && isFrozen(cf.b) && isFrozen(cf.c) && isFrozen(cf.d)
             rk = get!(frozenRk, key) do
                      InteractionStrength.XL_CoulombKinkAware(cf.nu, orbitals[cf.a], orbitals[cf.b],
-                                                                   orbitals[cf.c], orbitals[cf.d], grid)
+                                                                   orbitals[cf.c], orbitals[cf.d], grid, vkCache)
                  end
             eFrozen = eFrozen + cf.V * rk
         else
             rk = get!(rkCache, key) do
                      InteractionStrength.XL_CoulombKinkAware(cf.nu, orbitals[cf.a], orbitals[cf.b],
-                                                                   orbitals[cf.c], orbitals[cf.d], grid)
+                                                                   orbitals[cf.c], orbitals[cf.d], grid, vkCache)
                  end
             eActive = eActive + cf.V * rk
         end
