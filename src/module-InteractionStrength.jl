@@ -1281,6 +1281,42 @@ end
 
 """
 `InteractionStrength.XL_CoulombKinkAware(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital,
+        grid::Radial.Grid, vkCache::Dict{Tuple{Int64,Subshell,Subshell,Int64},Vector{Float64}})`
+    ... as the method without a cache, but passing `vkCache` down to RadialIntegrals.SlaterRkKinkAware so that the
+        screened potential V_L[b,d] -- the expensive part, and a function of only TWO of the four orbitals -- is
+        built once per (L, b, d, extent) instead of once per coefficient. A value::Float64 is returned.
+
+        NOT TO BE CONFUSED WITH THE `XLCache` METHOD ABOVE, WHICH KEYS ON ALL FOUR SUBSHELLS.  That one memoises
+        the finished integral and is right for a caller that meets the same quadruple twice; it is useless where
+        every coefficient carries a unique quintuple, which is what the level-optimised field does -- measured
+        03-Sep-2026 on C-like uranium, 20 083 coefficients with 20 083 distinct quintuples and only 781 distinct
+        (L,b,d) triples, a redundancy of 25.7x that a quadruple key cannot see.  The two caches are
+        complementary, not alternatives.
+
+        THE CACHE IS THE CALLER'S AND IS KEYED ON SUBSHELL LABELS, so it must not outlive the orbitals it was
+        built from: a caller inside an SCF iteration creates a fresh one per evaluation.
+"""
+function XL_CoulombKinkAware(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital, grid::Radial.Grid,
+                              vkCache::Dict{Tuple{Int64,Subshell,Subshell,Int64},Vector{Float64}})
+    la = Basics.subshell_l(a.subshell);    ja2 = Basics.subshell_2j(a.subshell)
+    lb = Basics.subshell_l(b.subshell);    jb2 = Basics.subshell_2j(b.subshell)
+    lc = Basics.subshell_l(c.subshell);    jc2 = Basics.subshell_2j(c.subshell)
+    ld = Basics.subshell_l(d.subshell);    jd2 = Basics.subshell_2j(d.subshell)
+
+    if  AngularMomentum.triangularDelta(ja2+1,jc2+1,L+L+1) * AngularMomentum.triangularDelta(jb2+1,jd2+1,L+L+1) == 0   ||
+        rem(la+lc+L,2) == 1   ||   rem(lb+ld+L,2) == 1
+        return( 0. )
+    end
+
+    xc = AngularMomentum.CL_reduced_me(a.subshell, L, c.subshell) * AngularMomentum.CL_reduced_me(b.subshell, L, d.subshell)
+    if   rem(L,2) == 1    xc = - xc    end
+
+    return( xc * RadialIntegrals.SlaterRkKinkAware(L, a, b, c, d, grid, vkCache) )
+end
+
+
+"""
+`InteractionStrength.XL_CoulombKinkAware(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital,
                                           grid::Radial.Grid, cache::InteractionStrength.XLCache)`
     ... as XL_CoulombKinkAware without a cache, but memoising the result in the given cache. A value::Float64 is returned.
 
