@@ -9,7 +9,7 @@ module ElectronCapture
 
 ## ..AutoIonization is imported because the capture amplitude IS the complex conjugate of the Auger amplitude; the
 ## module is included immediately before this one in JenaAtomicCalculator.jl, so the dependency is well ordered.
-using  Printf, ..AngularMomentum, ..AutoIonization, ..Basics, ..Continuum, ..Defaults, ..InteractionStrength,
+using  Printf, ..AngularMomentum, ..AutoIonization, ..Basics, ..Bsplines, ..Continuum, ..Defaults, ..InteractionStrength,
                 ..ManyElectron, ..Nuclear, ..Radial, ..TableStrings
 
 """
@@ -158,13 +158,23 @@ end
 
 """
 `ElectronCapture.computeAmplitudesProperties(line::ElectronCapture.Line, nm::Nuclear.Model, grid::Radial.Grid, nrContinuum::Int64, 
-                                                settings::ElectronCapture.Settings; printout::Bool=true)` 
+                                                settings::ElectronCapture.Settings; printout::Bool=true,
+                                                nuclearPot::Union{Nothing,Radial.Potential}=nothing,
+                                                primitives::Union{Nothing,Bsplines.Primitives}=nothing)` 
     ... to compute all amplitudes and properties of the given line; a line::ElectronCapture.Line is returned for which the amplitudes 
         and properties are now evaluated.
+
+        `nuclearPot` and `primitives` are the two things `Continuum.generateOrbitalForLevel` would otherwise rebuild for EVERY partial
+        wave, although both depend only on (nm, grid) and are therefore the same object each time. A caller that has them already passes
+        them in; `nothing` means "build them here", which is the documented fallback and reproduces the result byte for byte. This is the
+        same conversion `AutoIonization.computeAmplitudesProperties` carries, and the two modules share the continuum-per-channel pattern.
 """
 function computeAmplitudesProperties(line::ElectronCapture.Line, nm::Nuclear.Model, grid::Radial.Grid, nrContinuum::Int64, 
-                                        settings::ElectronCapture.Settings; printout::Bool=true) 
+                                        settings::ElectronCapture.Settings; printout::Bool=true,
+                                        nuclearPot::Union{Nothing,Radial.Potential}=nothing,
+                                        primitives::Union{Nothing,Bsplines.Primitives}=nothing) 
     newChannels = ElectronCapture.Channel[];   contSettings = Continuum.Settings(false, nrContinuum);   rate = 0.
+    nucPot      = isnothing(nuclearPot) ? Nuclear.nuclearPotential(nm, grid) : nuclearPot
     ## BOTH levels must be expressed in ONE ordered subshell list before anything is contracted; taking the final
     ## level's own list, as this function did until 02-Sep-2026, leaves the initial ion's 1s appended at the end and
     ## the contraction raises "Improper subshell order".  This mirrors AutoIonization.computeAmplitudesProperties.
@@ -178,7 +188,8 @@ function computeAmplitudesProperties(line::ElectronCapture.Line, nm::Nuclear.Mod
         ## levels.  Putting both on one level appends 101s twice and the contraction refuses.
         newdLevel = Basics.generateLevelWithExtraSubshell(Subshell(101, channel.kappa), newfLevel)
         cOrbital, phase = Continuum.generateOrbitalForLevel(line.electronEnergy, Subshell(101, channel.kappa),
-                                                            redILevel, nm, grid, contSettings)
+                                                            redILevel, nm, grid, contSettings; nuclearPot=nucPot,
+                                                            primitives=primitives)
         newcLevel  = Basics.generateLevelWithExtraElectron(cOrbital, channel.symmetry, redILevel)
         newChannel = ElectronCapture.Channel(channel.kappa, channel.symmetry, phase, 0.)
         amplitude  = ElectronCapture.amplitude(settings.operator, newChannel, newdLevel, newcLevel, grid, printout=printout)
@@ -331,8 +342,12 @@ function computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, nm
     maxEnergy   = 0.;   for  line in lines   maxEnergy = max(maxEnergy, line.electronEnergy)   end
     nrContinuum = Continuum.gridConsistency(maxEnergy, grid)
     newLines    = ElectronCapture.Line[]
+    # Built ONCE for all lines: both depend only on (nm, grid), so rebuilding them per partial wave is pure repetition.
+    nuclearPot  = Nuclear.nuclearPotential(nm, grid)
+    primitives  = Bsplines.generatePrimitives(grid)
     for  line in lines
-        push!( newLines, ElectronCapture.computeAmplitudesProperties(line, nm, grid, nrContinuum, settings) )
+        push!( newLines, ElectronCapture.computeAmplitudesProperties(line, nm, grid, nrContinuum, settings;
+                                                                     nuclearPot=nuclearPot, primitives=primitives) )
     end
     ElectronCapture.displayRates(stdout, newLines, settings)
     printSummary, iostream = Defaults.getDefaults("summary flag/stream")
