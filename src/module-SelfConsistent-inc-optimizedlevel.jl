@@ -858,6 +858,43 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
         for  sh  in  frozenSubshells    bs[sh] = copy(pinnedB[sh])    end
         return( bs )
     end
+    # A COST WARNING BEFORE THE EXPENSIVE PART, so that a run which cannot finish says so in the first second
+    # instead of taking the machine down without writing a line to the log.  Three runs of a 6 163-CSF layer were
+    # killed by the OOM reaper at 12.9, 14.1 and 14.7 GB after SEVEN MINUTES OF COMPLETE SILENCE, and all three
+    # looked like a dropped network connection rather than a memory failure; that is what this exists to prevent.
+    #
+    # THE LAW IS MEASURED, NOT GUESSED.  A plain Coulomb CI of the same ion fits 1.58 GB + 0.181 MB/CSF, and the
+    # EOL field costs about ten times that per CSF because it carries per-level b-vectors forward across
+    # iterations.  Applied to the case that died: 1.58 + 6163*1.8e-3 = 12.7 GB, against the 12.9-14.7 GB observed.
+    # A prediction agreeing with three independent kills is worth printing; it is still an ESTIMATE, and it is
+    # labelled as one rather than used to refuse the run, since a refusal on an estimate would be worse than a
+    # warning on a good one.
+    #
+    # THE COST GROWS WITH THE NUMBER OF CSFs AND WITH THE ORBITAL COUNT SEPARATELY, and open d- and f-shells are
+    # where both explode at once: the CSF count from the couplings, the orbital work as the square of the subshell
+    # count, since the electron-electron repulsion is rebuilt for every PAIR.  Measured on C-like Z = 92 at
+    # 4 / 67 / 264 / 658 CSFs over 4 / 9 / 16 / 25 subshells: 21 s, 320 s, 677 s, 2860 s.
+    if  printout
+        nCsf   = length(basis.csfs);    nSub = length(basis.subshells)
+        memEol = 1.58 + 1.8e-3 * nCsf                          ## GB, from the measured law above
+        println(">> [EOL-C3] cost estimate: $nCsf CSFs over $nSub subshells;  predicted peak " *
+                @sprintf("%.1f GB", memEol) * " (measured law 1.58 GB + 1.8 MB/CSF).")
+        if  memEol > 8.0
+            println(">> [EOL-C3] *** WARNING: this layer is predicted to need " * @sprintf("%.1f GB", memEol) *
+                    ".  A 6 163-CSF layer was killed three times at 12.9-14.7 GB, silently and after seven " *
+                    "minutes.  Reduce the layer, the number of target levels, or run where that memory exists.")
+            # DELIBERATELY NOT A COLLECTED WARNING.  The warning channel of this function means exactly one
+            # thing -- "the EOL field did not converge" -- and the RAS test asserts on precisely that by looking
+            # for this function's name in jac-warn.report.  A memory estimate is not a convergence failure, and
+            # putting it there would make a large-but-healthy run indistinguishable from a stalled one.
+        end
+        if  nSub >= 20  &&  nCsf >= 300
+            println(">> [EOL-C3] *** NOTE: $nSub subshells and $nCsf CSFs together are the expensive corner -- the " *
+                    "repulsion is rebuilt for every orbital PAIR, so the orbital work grows as the square of the " *
+                    "subshell count while the CI grows with the CSFs.  For scale, C-like Z = 92 took 2860 s for " *
+                    "658 CSFs over 25 subshells, against 21 s for 4 CSFs over 4.")
+        end
+    end
     if  printout  &&  !isempty(frozenSubshells)
         println(">> [EOL-C3] frozen and NOT optimized: " * join(string.(frozenSubshells), ", ") *
                 ";  $(length(activeSubshells)) of $(length(basis.subshells)) subshells are varied.")
