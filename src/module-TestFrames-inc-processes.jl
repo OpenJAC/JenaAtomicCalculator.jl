@@ -423,7 +423,8 @@ function testModule_PhotoIonization(; short::Bool=true)
                             processSettings=PhotoIonization.Settings(PhotoIonization.Settings(), multipoles=[E1, M1], photonEnergies=[3000., 4000.],
                                                                      calcAnisotropy=true, printBefore=true,
                                                                      lineSelection=LineSelection(true, indexPairs=[(1,1), (1,2)])) )
-    wb = perform(wa)
+    wb = perform(wa; output=true)
+    piLines = wb["photoionization lines:"]
     ###
     Defaults.setDefaults("print summary: close", "")
     # Make the comparison with approved data
@@ -445,9 +446,9 @@ function testModule_PhotoIonization(; short::Bool=true)
     # carries a power of alpha omega, so the prefactor must go as 1/(alpha omega). A correct formula applied to
     # the wrong object, invisible to any stored reference.
     #
-    # Both checks below are statements that must hold exactly, so neither needs a reference and neither can drift.
-    # They test the TOTAL cross section and deliberately not the M_f-resolved partial one: the partials do not
-    # sum to the total, they warn at the point of use, and nothing in the package consumes them.
+    # Every check below is a statement that must hold exactly, so none needs a reference and none can drift.
+    # Checks (1) and (2) test the TOTAL cross section; (3) tests the M_f-resolved PARTIAL ones, which became
+    # testable on 03-Sep-2026 when they were rebuilt as sigma_total * p(M_f) from the statistical tensor.
     function hydrogenicCs(Z::Float64, x::Float64)
         # x = omega/omega_threshold, so every Z is the SAME physical point on the cross-section curve.
         # NuclearField is asked for explicitly: a one-electron system in a field built from its own density is
@@ -500,6 +501,58 @@ function testModule_PhotoIonization(; short::Bool=true)
             if printTest   info(iostream, "PhotoIonization, Z = $Z: Z^2 sigma = $(cs*Z^2) against sigma(Z=1) = " *
                                           "$csRef, a departure of $(abs(cs*Z^2/csRef - 1.0)) from the 1/Z^2 law")  end
         end
+    end
+
+    # (3) THE PARTIAL CROSS SECTIONS SUM TO THE TOTAL, AND DO SO NON-TRIVIALLY. sigma(M_f) is built as
+    #     sigma_total * p(M_f), with p(M_f) the normalised sublevel population taken from the statistical tensor,
+    #     so the sum rule is an identity rather than a coincidence -- see computePartialCrossSectionUnpolarized.
+    #     Three statements are checked together, and the third is what stops the first passing vacuously:
+    #       (a) SUM_{M_f} sigma(M_f) = sigma_total exactly, in BOTH gauges;
+    #       (b) sigma(M_f) = sigma(-M_f), since unpolarized light carries alignment but no orientation;
+    #       (c) a J_f = 1/2 level is exactly isotropic, a rank-2 alignment being impossible below J = 1, while a
+    #           J_f >= 3/2 level here is NOT isotropic -- so the sum rule is not being satisfied by giving every
+    #           sublevel an equal share.
+    #     This is the invariant that four earlier attempts on the partials would each have failed: the residue ran
+    #     from 3.10 to 9.00 times alpha^2 and differed between two levels of the SAME J_i and J_f.
+    isotropicSeen = false;   anisotropicSeen = false
+    for  line in piLines
+        Jf = line.finalLevel.J;   MfList = Basics.projections(Jf)
+        sC = 0.;   sB = 0.;   fractions = Float64[]
+        for  Mf in MfList
+            wa2 = PhotoIonization.computePartialCrossSectionUnpolarized(Mf, line)
+            sC  = sC + wa2.Coulomb;   sB = sB + wa2.Babushkin
+            push!(fractions, wa2.Babushkin)
+        end
+        for  (cs, sm, gauge)  in ((line.crossSection.Coulomb, sC, "Coulomb"), (line.crossSection.Babushkin, sB, "Babushkin"))
+            if  cs != 0.  &&  abs(sm/cs - 1.0) > 1.0e-8
+                success = false
+                if printTest   info(iostream, "PhotoIonization, J_f = $(string(Jf)), $gauge: the partial cross " *
+                                              "sections sum to $sm against a total of $cs, a ratio of $(sm/cs)")   end
+            end
+        end
+        # (b) M_f and -M_f must carry the same cross section; the list is ordered -J_f ... +J_f.
+        for  i = 1:length(fractions)
+            if  abs(fractions[i] - fractions[end+1-i]) > 1.0e-8 * max(abs(fractions[i]), 1.0e-30)
+                success = false
+                if printTest   info(iostream, "PhotoIonization, J_f = $(string(Jf)): sigma(M_f) and sigma(-M_f) " *
+                                              "differ, $(fractions[i]) against $(fractions[end+1-i])")   end
+            end
+        end
+        # (c) isotropic exactly at J_f = 1/2, and NOT isotropic above it.
+        spread = maximum(fractions) - minimum(fractions)
+        if      Basics.twice(Jf) == 1   &&  spread > 1.0e-8 * max(maximum(fractions), 1.0e-30)
+            success = false
+            if printTest   info(iostream, "PhotoIonization: a J_f = 1/2 level cannot be aligned, yet its " *
+                                          "partial cross sections spread by $spread")   end
+        elseif  Basics.twice(Jf) == 1   isotropicSeen   = true
+        elseif  Basics.twice(Jf) >= 3   &&  spread > 1.0e-8 * maximum(fractions)   anisotropicSeen = true
+        end
+    end
+    if  !isotropicSeen  ||  !anisotropicSeen
+        success = false
+        if printTest   info(iostream, "PhotoIonization: the partial-cross-section invariant is vacuous -- an " *
+                                      "isotropic J_f = 1/2 level and an anisotropic J_f >= 3/2 level are both " *
+                                      "needed, seen = ($isotropicSeen, $anisotropicSeen)")   end
     end
 
     testPrint("testModule_PhotoIonization()::", success)
