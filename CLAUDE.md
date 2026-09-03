@@ -619,6 +619,108 @@ re-proposal; all five were entries that had gone stale while the code moved unde
 VERIFIED line is for. An item whose text cannot be trusted is worse than no item, because it is acted upon.
 
 
+## Naming a calculation, so that a number can be read a year later (Rule 21)
+
+Agreed 03-Sep-2026, after two days in which results were described as "before the first repair", "after the
+second repair" and by commit hash -- none of which means anything to a reader a few hours later, and all of
+which force a trip through `git log` to recover what was actually computed.
+
+**FIRST, THE DISTINCTION THAT THE WHOLE RULE RESTS ON: a bug fix is NOT a path.** Nobody would ever choose the
+version that compared two different quantities, so old versions need no names -- they are superseded, and the
+only question worth asking of an old number is whether re-running reproduces it. What DOES need naming is the
+set of genuine CHOICES, because those cost differently, give different physics, and remain available.
+
+**THE FIVE AXES OF A CHOICE.** A calculation is named by picking one from each:
+
+| axis | options | what it decides |
+|---|---|---|
+| mean field | `DFS` / `AL` / `EOL` | what the orbitals are optimized FOR |
+| EOL method | `Fock route` / `rotation route` with `plain`, `conjugate` or `curvature` stepping | HOW the level-optimized orbitals are found |
+| correlation model | `ref(...) + ...` (below) | which CSFs exist |
+| freezing policy | `previous layers frozen` / `core frozen` / `all free` | what may still move |
+| interaction | `Coulomb` / `Coulomb+Breit` | the Hamiltonian |
+
+**THE STEPPING NAMES ARE PLAIN WORDS ON PURPOSE.** All three go downhill and differ only in how the direction is
+chosen: `plain` steps straight downhill and zig-zags, undoing part of each previous step; `conjugate` corrects the
+new direction against the previous one so it stops zig-zagging; `curvature` keeps a short memory of how the slope
+changed over recent steps and guesses the curvature from it -- Newton's method without second derivatives. Write
+`rotation route with curvature stepping`, not `L-BFGS`; the abbreviation names an algorithm's authors, the phrase
+names what it does.
+
+**THE CORRELATION MODEL NAMES THE REFERENCE AND THEN THE LAYERS**, because a layer count alone is ambiguous and a
+shell list alone is unreadable:
+
+    ref(n=2) + n3 + n4 + n5           ... the n=2 complex, then all n=3 shells, then n=4, then n=5
+    ref(n=2) + n3 + n4(spd)           ... a partial layer says so explicitly
+
+Do NOT write `RAS-4(n=2)`: it reads as a four-layer calculation restricted to n=2 orbitals, which is a
+contradiction. The reference is `ref(...)`; everything after a `+` is added on top of it.
+
+**A RECORDED NUMBER CARRIES THE PATH AND THE DATE**, and that is enough:
+
+    EOL, rotation route with curvature stepping · ref(n=2) + n3 + n4 + n5 · previous layers frozen · Coulomb
+    measured 3-Sep-2026
+
+**THE DATE IS THE HUMAN POINTER INTO `git`; the hash belongs in the commit message, not in the table.** And the
+test of whether a recorded number is still current needs no `git` at all: RE-RUN THE SAME PATH. If it reproduces,
+the number stands; if it does not, the code has moved and the date says where to look.
+
+**A REPAIR IS DESCRIBED IN PHYSICS, IN ONE SENTENCE, so that a reader knows what was wrong with older numbers.**
+The two of 02/03-Sep-2026 are the pattern to follow:
+
+- *the frozen-orbital comparison* -- the optimizer judged a trial change without first putting the frozen
+  orbitals back, but stored the version with them back, so it compared two different things;
+- *the virtual orbitals were not orbitals* -- an occupied orbital is improved by mixing in virtual ones, each
+  weighted by its excitation energy, and a re-orthogonalization step had mixed the virtuals together, so their
+  "energies" were meaningless averages and some lay BELOW the orbital being improved.
+
+**FINALLY, COMPARE PATHS BY THE LAYER INCREMENTS AND NOT BY THE TOTAL.** Two paths can agree on the total
+correlation energy and disagree completely about where it comes from, and it is the SEQUENCE that says whether
+another layer would still be worth adding. Measured 03-Sep-2026 on C-like uranium, the same four layers before
+and after the second repair:
+
+    total correlation, layer 1 -> 4     -0.349986 Ha   against   -0.348350 Ha      (0.5 % apart)
+    layer increments                    -0.253706  -0.055285  -0.040995
+                                        -0.278774  -0.041060  -0.028516           (+10 %, -26 %, -30 %)
+
+Nearly the same total; a substantially different convergence pattern, and the second one falls away faster. As
+in GRASP, running the levels of interest in layers with the earlier layers held fixed guarantees NEITHER easy
+convergence NOR convergence to the measured value -- so it is the increments that are worth recording and
+comparing, and the endpoint alone that is worth least.
+
+
+## Sending a long job to the compute machine (Rule 22)
+
+Agreed 03-Sep-2026. A separate, much faster machine is available for long computations. It is reached over ssh and
+is NOT one of the two working sessions: **it runs compute, never reasoning.** The job is composed here, it executes
+there, and the numbers come back here to be judged. Its name, address and resources are machine specifics and so
+live in the assistant's own notes rather than in this published file (Rule 14).
+
+**PERMISSION IS REQUIRED, EVERY TIME, AND IT IS NOT A FORMALITY.** The machine is shared and the agreement is to use
+it RARELY. So a request is not "may I run something" but a proposal with a size on it, and the maintainer agrees to
+the size:
+
+  * WHAT the job computes, in one sentence, and why it cannot sensibly run here;
+  * HOW MUCH -- cores and memory it will take;
+  * HOW LONG -- a wall-clock estimate, and what happens if it overruns;
+  * WHAT COMES BACK -- the output files, and nothing else.
+
+**Send ONE batched job rather than a series**, and poll seldom; a chatty loop of small jobs is exactly the use the
+agreement is meant to prevent. A job that needs a judgement while it runs is not a candidate at all -- it must be
+fully specified before it starts, or it belongs here.
+
+**THE ASSISTANT IS RESPONSIBLE FOR THE STATE OF THE CODE THERE, and this is the part that makes the output usable.**
+A number computed against a different version of JAC cannot be compared with anything, and the failure is silent.
+So, before every job: bring the remote clone to a NAMED commit, instantiate its environment there rather than
+copying a `Manifest.toml` (which is machine- and Julia-specific and must never be copied), and record the commit
+hash and the Julia version ALONGSIDE the output. If the output cannot say which version produced it, it is not
+evidence.
+
+**Three practical points, each learned by checking rather than by assuming.** Julia may be on the LOGIN shell's path
+only, so a remote command has to go through a login shell or name the binary absolutely -- otherwise it fails in a
+way that looks like the job never started. A job must be launched DETACHED, under `tmux` or `nohup`, or it dies
+with the ssh connection. And only the output files come back, never the working directory.
+
 ## Commands
 
 A **command** is a named sequence of steps I execute and then summarize. The leading `/` is optional —
