@@ -187,13 +187,17 @@ elseif  false
     # RE-RUN 07-Aug-2026 AFTER THE EXCHANGE-PHASE FIX (blocker A1). Babushkin = 1.461 /s with the 2p..8p basis
     # written below; the CONVERGED value (2p..45p, same box) is 1.231 /s, so this branch as configured is 19 %
     # off its own converged limit -- n_max = 8 is not enough, and the gauge ratio 0.153 here against 0.907 when
-    # converged says so plainly. Against the exact 8.2206 /s the converged result is low by the open constant
-    # 26.7 documented at the prefactor in module-MultiPhotonTransition-inc-2p-emission.jl.
+    # converged says so plainly. Against the exact 8.2206 /s the converged result is low by the open factor
+    # documented at the prefactor in module-MultiPhotonTransition-inc-2p-emission.jl -- 13.1 as of 03-Sep-2026,
+    # having been 22.0 before the coherent-Jsym correction and 26.7 in an older, discredited note.
     # NOT DATED SUCCESSFUL: neither the basis nor the absolute scale is settled. What this branch DID establish
     # is the exchange-phase bug -- K-resolving it showed K = 1 carrying 48 % of a transition where it must
     # vanish, which is how blocker A1 was found.
     #
     # --- Branch b: TWO-PHOTON EMISSION, 2s -> 1s in neutral hydrogen. THE ANCHOR OF THIS WHOLE FILE.
+    #
+    # Last visit:  03-Sep-2026        ## runs again; it could not run at all before, see the grid note below
+    # Last successful:  unknown ...   ## a factor 13.1 below the exact rate is not physical consistency
     #
     # A(2s -> 1s) = 8.2206 s^-1 is the single most-checked number in two-photon atomic physics: Breit & Teller,
     # Klarsfeld, Goldman & Drake, Labzowsky and others all agree on it. The transition is strictly forbidden for
@@ -217,13 +221,23 @@ elseif  false
     #
     # CONVERGENCE, measured 06/07-Aug-2026 (work/diag-2p-convergence.jl, diag-samepotential.jl, diag-nf-push.jl):
     #
-    #     potential          n_max, rbox    Coulomb   Babushkin   Cou/Bab   Bab/8.2206
-    #     DFS (mismatched)      8,  40       24.31      13.03      1.865      1.586
-    #     DFS (mismatched)     12,  80       11.17      11.13      1.0035     1.354
-    #     NuclearField          8,  40       22.09       9.726     2.272      1.183
-    #     NuclearField         12,  80       15.09       8.693     1.736      1.057
-    #     NuclearField         16, 120       14.90       8.661     1.720      1.054
-    #     NuclearField         20, 160       16.09       8.774     1.834      1.067
+    # THAT 06/07-Aug TABLE IS WITHDRAWN, and the correction matters. It quoted rbox = 40...160 and read Babushkin
+    # ~ 8.7 /s, "5.5 % above the exact 8.2206". THOSE BOXES ARE FAR TOO SMALL: an 8p orbital turns over near
+    # r_+ = 127 a.u., so Rule 12 asks for ~300, and `Bsplines.checkGridRepresentation` now REFUSES the old grid
+    # ("fails to represent 6 of 14 subshells"). The apparent 5.5 % agreement was the too-small-box artifact of
+    # Rule 12 wearing the shape of a physics result, and it stood as the better number for a month.
+    #
+    # RE-MEASURED 03-Sep-2026, box from `Basics.recommendedGrid` at each n_max, with the coherent-Jsym correction
+    # of `27fc7e1` in place. Against the exact 8.2206 1/s:
+    #
+    #     n_max     rbox [a.u.]    Coulomb    Babushkin    Bab/Cou    8.2206/Bab
+    #        8          255         0.08037     0.07757      0.965      105.97     <- OUTLIER, do not use
+    #       12          479         0.08602     0.63150      7.341       13.018
+    #       16          767         0.08809     0.62903      7.141       13.069
+    #       20         1119         0.08907     0.62789      7.049       13.092
+    #
+    # n_max = 8 is an OUTLIER -- its basis is too small to carry the K = 1 cancellation, and its gauge ratio of
+    # 0.965 is a coincidental crossing of exactly the kind lesson (ii) below warns about.
     #
     # THREE LESSONS, and the first two each nearly cost something.
     #
@@ -240,18 +254,34 @@ elseif  false
     # (iii) POTENTIAL CONSISTENCY IS WORTH A FACTOR OF SIX IN THE ERROR. Moving the intermediate states into the
     #     same Hamiltonian took the LENGTH gauge from 35 % high (DFS, 11.13) to 5.5 % high (8.66).
     #
-    # WHERE IT NOW STANDS. Babushkin (length) is CONVERGED at ~8.7 /s, a stable 5-7 % above the exact 8.2206;
-    # Coulomb (velocity) is stable at ~1.75x that. Both facts have ONE cause: the intermediate sum contains only
-    # BOUND states. The velocity form weights the inner region and high-lying intermediates far more heavily
-    # than the length form, so omitting the continuum hurts it disproportionately -- which is why the gauge split
-    # persists instead of closing. The length gauge is the trustworthy number here.
+    # WHERE IT NOW STANDS. Babushkin (length) converges to ~0.628 /s for n_max >= 12, a factor 13.1 BELOW the
+    # exact 8.2206; Coulomb (velocity) sits a further factor ~7 below. Two facts about the gauge split were
+    # settled on 03-Sep-2026 by measuring the ONE-photon amplitude directly, and they should save the next reader
+    # from re-deriving them:
+    #
+    #   * ON SHELL THE GAUGES AGREE EXACTLY -- Babushkin/Coulomb = 1.000000 at omega = E_nu - E_f, for every
+    #     intermediate. `PhotoEmission.amplitude` is sound; it is not the problem.
+    #   * OFF SHELL, Babushkin/Coulomb = omega/(E_nu - E_f) EXACTLY -- six digits over eight intermediates. That
+    #     is simply <f|p|nu> = i (E_nu - E_f) <f|r|nu>: the length form carries the PHOTON energy, the velocity
+    #     form the LEVEL SPACING. Neither is wrong; they are different legitimate off-shell continuations, and NO
+    #     RESCALING BRINGS THEM TOGETHER -- converting one into the other is an identity, not a repair.
+    #
+    # So the residual gauge ratio is not a defect to hunt. Length and velocity forms of a SECOND-ORDER amplitude
+    # agree only after summing over a COMPLETE set, and the ratio is therefore a quantitative measure of how
+    # incomplete the bound-only intermediate set is. The length gauge stays the trustworthy number, its <r>
+    # weighting living in the large-r region the bound states describe well.
     #
     # NOT DATED. 5.5 % with a 75 % gauge split is an understood discrepancy, not agreement. Closing it needs a
     # genuine continuum in the intermediate spectrum (a working Green expansion -- branch g -- or explicit
     # continuum orbitals), NOT more bound states: n_max = 12, 16, 20 already agree among themselves.
     ni          = Nuclear.Model(1.0, PointNucleus())   ## Fermi cannot represent Z = 1; see the note in the header
-    interConfs  = [Configuration("2p"), Configuration("3p"), Configuration("4p"), Configuration("5p"),
-                   Configuration("6p"), Configuration("7p"), Configuration("8p")]
+    ## THE BOX IS MATCHED TO THE ORBITALS AND IS LOCAL TO THIS BRANCH (03-Sep-2026). The file-level grid carries
+    ## rbox = 80, which is fine for the other branches but far too small for a 12p intermediate: this branch used
+    ## to fail outright on Bsplines.checkGridRepresentation. Basics.recommendedGrid sizes the box from the shells
+    ## it is given, which is exactly Rule 12 done for us.
+    nMax        = 12                                  ## 8 is an outlier; 12 is the first converged point
+    grid        = Basics.recommendedGrid(Dict(Shell("1s") => 1, Shell("2s") => 1, Shell("$(nMax)p") => 1), 1.0)
+    interConfs  = [Configuration("$(n)p")  for n = 2:nMax]
     scf         = Basics.NuclearField()          ## the SAME one-body Hamiltonian for all three; see above
     asfA        = AsfSettings(AsfSettings(); scField = scf)
     interRep    = Representation("intermediate np levels", ni, grid, interConfs, MeanFieldMultiplet(MeanFieldSettings(scf)))
