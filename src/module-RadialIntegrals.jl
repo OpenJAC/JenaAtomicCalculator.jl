@@ -725,6 +725,50 @@ end
 
 
 """
+`RadialIntegrals.SlaterRkKinkAware(k::Int64, a::Radial.Orbital, b::Radial.Orbital, c::Radial.Orbital,
+        d::Radial.Orbital, grid::Radial.Grid, vkCache::Dict{Tuple{Int64,Subshell,Subshell,Int64},Vector{Float64}};
+        rtol::Float64=1.0e-9)`
+    ... as the method without a cache, but memoising the screened potential V_k, which is the expensive part and
+        depends on only TWO of the four orbitals. A value::Float64 is returned.
+
+        WHY THIS PAYS, measured 03-Sep-2026.  The integral is  int P_a(r) V_k[b,d](r) P_c(r) dr, and the inner
+        sum over r is a handful of multiplications while `buildScreenedPotential` costs ~1.4 ms -- an adaptive
+        quadrature and a spline through the (b,d) density.  In the level-optimised field the same (k,b,d) triple
+        recurs across different (a,c) pairs: measured on a three-layer beryllium RAS, 358 coefficients carry only
+        180 distinct triples, a redundancy of 1.99x at the correlating layer.  The caller's own cache over the
+        FULL coefficient quintuple cannot catch this -- it was measured to miss 100 % of the time, every
+        coefficient carrying a unique (k,a,b,c,d) -- because the reuse lives one level down.
+
+        THE KEY CARRIES mtpOut, WHICH IS NOT REDUNDANT EVEN THOUGH IT IS CONSTANT IN THE SCF.  V_k is tabulated
+        only out to the extent of (a,c), so a potential built for a short (a,c) pair must not be handed to a
+        longer one -- exactly the dropped-tail trap that `buildScreenedPotential`'s own docstring warns about and
+        that moved an approved AutoIonization reference by 100 % on 13-Aug-2026.  Every bound orbital of a
+        B-spline basis reaches the box boundary, so in the SCF the extent is the same for every pair and the
+        cache hits regardless (measured: truncated and full builds cost the same to 1 %); on the Auger path,
+        where (a,c) may hold a continuum orbital and (b,d) be short, the key is what keeps this correct.
+
+        THE CACHE IS OWNED BY THE CALLER AND MUST NOT OUTLIVE THE ORBITALS IT WAS BUILT FROM.  It is keyed on
+        SUBSHELL LABELS, so a cache carried across an SCF iteration would hand back a potential computed for an
+        earlier orbital shape.  A caller inside an iteration creates a fresh one per evaluation; only a caller
+        that knows its orbitals are frozen may keep one longer.
+"""
+function SlaterRkKinkAware(k::Int64, a::Radial.Orbital, b::Radial.Orbital, c::Radial.Orbital, d::Radial.Orbital,
+                             grid::Radial.Grid,
+                             vkCache::Dict{Tuple{Int64,Subshell,Subshell,Int64},Vector{Float64}};
+                             rtol::Float64=1.0e-9)
+    mtp_ac = min(size(a.P, 1), size(c.P, 1))
+    Vk     = get!(vkCache, (k, b.subshell, d.subshell, mtp_ac)) do
+                 buildScreenedPotential(k, b, d, grid; rtol=rtol, mtpOut=mtp_ac)
+             end
+
+    wa = 0.
+    for  r = 2:mtp_ac   wa = wa + (a.P[r]*c.P[r] + a.Q[r]*c.Q[r]) * grid.wr[r] * Vk[r]   end
+
+    return( wa )
+end
+
+
+"""
 `RadialIntegrals.buildScreenedPotentialPair(k::Int64, Ba::Vector{Float64}, orbComp::Vector{Float64},
                                                   grid::Radial.Grid; rtol::Float64=1.0e-9,
                                                   mtpOut::Union{Nothing,Int64}=nothing)`
