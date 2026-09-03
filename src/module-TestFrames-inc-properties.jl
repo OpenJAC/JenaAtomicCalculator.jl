@@ -245,9 +245,19 @@ function testModule_MultipolePolarizibility(; short::Bool=true)
         end
     end
     Defaults.setDefaults("print summary: close", "")
+    ## AND the approved reference, restored 03-Sep-2026. The two exact invariants above cannot be fooled but they
+    ## are also very loose -- anything in (0, 4.5) passes -- so they would not notice alpha_0 drifting from 1.164
+    ## to 3.9, nor a column vanishing from the table. The file comparison catches exactly that, at rtol = 1e-6.
+    ## The reference had been orphaned since 09-Aug-2026, when this test was rewritten around the invariants and
+    ## the comparison was dropped without the file being removed: it sat in test/approved/ describing output that
+    ## nothing checked. A reference that no test reads is not a safety net, it is a thing that goes quietly stale.
+    scomp   = testCompareFiles( joinpath(@__DIR__, "..", "test", "approved", "test-MultipolePolarizibility-approved.sum"),
+                                joinpath(@__DIR__, "..", "test", "test-MultipolePolarizibility-new.sum"),
+                                "Static electric-dipole scalar/tensor polarizibilities", 6)
+    success = success  &&  scomp
     _, iostream = Defaults.getDefaults("test flag/stream")
-    println(iostream, "MultipolePolarizibility: the J = 1/2 tensor-polarizability zero and the bound on alpha0; " *
-                      "no comparison against approved data, and the Coulomb gauge is deliberately not asserted.")
+    println(iostream, "MultipolePolarizibility: the J = 1/2 tensor-polarizability zero, the bound on alpha0, and " *
+                      "the approved results table; the Coulomb gauge is deliberately not asserted.")
     testPrint("testModule_MultipolePolarizibility()::", success)
     return(success)
 end
