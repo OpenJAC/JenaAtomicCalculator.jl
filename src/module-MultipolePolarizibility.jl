@@ -65,11 +65,34 @@
         not a converged polarizability. Reaching 4.5 needs the continuum, i.e. the pseudo-continuum tail
         described above, and nobody has yet checked that such a tail converges to the right number.
     So: usable as a lower bound and as a structural demonstration, not yet a source of publishable values.
+
+    THE UNITS, because comparing against a measured Stark shift without them has already produced one false alarm.
+    `alpha_0` is returned and printed in ATOMIC UNITS. The Stark-shift literature quotes MHz/(kV/cm)^2, and the two
+    differ by 1 a.u. = 1.244160e-04 MHz/(kV/cm)^2. Dividing the printed a.u. value by a published MHz/(kV/cm)^2 one
+    yields a meaningless ratio near 2000-3000, which was recorded for eight days as "the module is too large by a
+    factor of ~2600". CONVERTED, the same two Ba 6s8s cases give 1.63 against 5.68 and 1.88 against 4.68 -- a factor
+    ~3 LOW, which is the lower bound this block describes, and consistent with H 1s at 0.46 of the exact value.
+    So: convert before forming any ratio, and expect this module to come out BELOW an experiment, never above.
 """
 module MultipolePolarizibility
 
 
 using Printf, ..AngularMomentum, ..AtomicState, ..Basics, ..Defaults, ..ManyElectron, ..MultipoleMoment, ..Nuclear, ..PhotoEmission, ..Radial, ..TableStrings
+
+
+"""
+`MultipolePolarizibility.AU_ALPHA_IN_MHZ_PER_KVCM2`
+    ... the factor that converts a static E1 polarizability from atomic units into MHz/(kV/cm)^2, the unit in which
+        the Stark-shift literature quotes alpha_0 and alpha_2; a `factor::Float64` is returned. It is built as
+        (1/2) * (E_h/h in Hz) * (1 kV/cm / E_au)^2 * 1e-6, with E_au = 5.142206751e9 V/cm the atomic unit of electric
+        field strength, and the leading 1/2 is the customary half of DeltaE = -(1/2) alpha E^2 that experimenters
+        absorb into the quoted number. Its value is 1.244160e-04, so a polarizability of 13098 a.u. is 1.63 in the
+        literature's unit. Dividing a printed a.u. value by a published MHz/(kV/cm)^2 one -- rather than converting
+        first -- yields a spurious ratio of some thousands, which is exactly how this module was once believed to be
+        too large by a factor of 2600 when it is in fact a factor ~3 LOW; see the module docstring.
+"""
+const AU_ALPHA_IN_MHZ_PER_KVCM2 = 1.0e-6 * Defaults.convertUnits("energy: from atomic to Hz", 1.0) *
+                                  0.5 * (1000.0 / 5.142206751e9)^2
 
 
 """
@@ -385,7 +408,7 @@ end
         printed but nothing is returned otherwise.
 """
 function  displayResults(stream::IO, outcomes::Array{MultipolePolarizibility.Outcome,1})
-    nx = 122
+    nx = 141
     println(stream, " ")
     println(stream, "  Static electric-dipole scalar/tensor polarizibilities (Coulomb and Babushkin gauge, not calibrated " *
                      "onto a common scale -- see module docstring):")
@@ -400,6 +423,7 @@ function  displayResults(stream::IO, outcomes::Array{MultipolePolarizibility.Out
     sa = sa * TableStrings.center(15, "alpha_0 [Bab]" ; na=3);                    sb = sb * TableStrings.center(15, "[a.u.]" ; na=3)
     sa = sa * TableStrings.center(15, "alpha_2 [Coul]"; na=3);                    sb = sb * TableStrings.center(15, "[a.u.]" ; na=3)
     sa = sa * TableStrings.center(15, "alpha_2 [Bab]" ; na=3);                    sb = sb * TableStrings.center(15, "[a.u.]" ; na=3)
+    sa = sa * TableStrings.center(15, "alpha_0 [Bab]" ; na=3);                    sb = sb * TableStrings.center(15, "[MHz/(kV/cm)^2]"; na=3)
     println(stream, sa);    println(stream, sb);    println(stream, "  ", TableStrings.hLine(nx))
     #
     for  outcome in outcomes
@@ -411,6 +435,7 @@ function  displayResults(stream::IO, outcomes::Array{MultipolePolarizibility.Out
         sa = sa * TableStrings.flushright(15, @sprintf("%.6e", outcome.alpha0.Babushkin) )                * "    "
         sa = sa * TableStrings.flushright(15, @sprintf("%.6e", outcome.alpha2.Coulomb) )                  * "    "
         sa = sa * TableStrings.flushright(15, @sprintf("%.6e", outcome.alpha2.Babushkin) )                * "    "
+        sa = sa * TableStrings.flushright(15, @sprintf("%.6e", outcome.alpha0.Babushkin * MultipolePolarizibility.AU_ALPHA_IN_MHZ_PER_KVCM2) ) * "    "
         println(stream, sa )
     end
     println(stream, "  ", TableStrings.hLine(nx), "\n\n")
