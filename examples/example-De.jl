@@ -169,8 +169,26 @@ elseif  false
     wb = perform(wa)
     #
 elseif  true
-    # Last visit:  17-Aug-2026
+    # Last visit:  03-Sep-2026
     # Last successful:  unknown ...
+    #
+    # FURTHER WORK ON THIS BRANCH IS DELAYED, on the maintainer's decision of 03-Sep-2026, and the reason is a
+    # measurement rather than a judgement: THE TEST PROPOSED BELOW DOES NOT FIT. Extending the intermediate series
+    # was run on a fast machine that day, as six independent processes, at the commit dcf3a6d:
+    #     Green space   levels   maxKappa   total rate
+    #     n=3 only        15        2       4664.14e-7 a.u.
+    #     n=3 only        15        4       4665.58e-7 a.u.     <-- the reference point, 20.5x the measurement
+    #     n=3 only        15        6       4665.58e-7 a.u.
+    #     + 3s holes      23        4       4268.08e-7 a.u.     <-- reproduces the -8.5% recorded below, exactly
+    #     + 4p           129        4       no result: unfinished after 5 h 20 m
+    #     + 4p,5p,4f     419        4       no result: abandoned after 1 h 40 m
+    # TWO THINGS FOLLOW. (1) THE PARTIAL-WAVE SUM IS CLOSED, which had never been checked: maxKappa 4 and 6 agree
+    # to every digit and maxKappa 2 lies within 0.03%, so the factor 20 is NOT truncation in kappa and that half of
+    # the question is settled. (2) The TEA sum scales far worse than linearly in the number of intermediate levels
+    # -- 15 levels cost ~210 s, 129 levels did not converge in five hours -- so work/diag-ar-tea.jl cannot be
+    # completed as written. It was never "one command away"; it simply does not fit, and saying so is the point of
+    # this note. What would revive it is a cheaper intermediate sum (Green-function or pseudo-states instead of an
+    # explicit CI over hundreds of levels), or a smaller system in which the series can genuinely be extended.
     # Two-to-one Auger decay of the argon double L vacancy:  Ar^2+ 2p^-2  -->  Ar^3+ 3p^-3 + e-.
     # Comparison target: Zitnik et al., Phys. Rev. A 93, 021401(R) (2016), who resolved this L_23^2 - M^3 spectrum
     # and compared it with second-order perturbation theory. THE PAPER IS NOT YET IN HAND, so no number below is
