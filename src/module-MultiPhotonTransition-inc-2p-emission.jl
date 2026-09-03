@@ -112,7 +112,31 @@ function computeEnergyDiffCs(sharing::MultiPhotonTransition.Sharing_2pEmission, 
             symi        = LevelSymmetry(line.initialLevel.J, line.initialLevel.parity);    symf = LevelSymmetry(line.finalLevel.J, line.finalLevel.parity) 
             symmetries  = AngularMomentum.allowedTotalSymmetries(symf, mp2, mp1, symi)
             Klist       = oplus(line.finalLevel.J, line.initialLevel.J)
-            for Jsym in symmetries
+            # THE SUM OVER THE INTERMEDIATE SYMMETRY Jsym IS COHERENT, and sits INSIDE the modulus (corrected
+            # 03-Sep-2026). It used to be the outer loop, with abs()^2 taken per Jsym and the squares added --
+            # the exact mistake the K-sum note below describes, made on the other index.
+            #
+            # THE TWO INDICES ARE NOT ALIKE. K is the total angular-momentum transfer between the initial and
+            # final LEVEL: different K are distinguishable channels for an unpolarized atom and an
+            # angle-integrated rate, so their squares add, which is what the note below establishes. Jsym is the
+            # symmetry of the VIRTUAL intermediate state -- nothing observes it, it is summed over inside one
+            # second-order sum, and np_1/2 and np_3/2 therefore INTERFERE.
+            #
+            # THE TEST THAT SETTLED IT, and it was not fitted. For H 2s -> 1s the 2E1 operator is spin-independent
+            # and orbitally rank 0 (l = 0 -> 0), hence a total scalar, so K = 1 must vanish up to (Z alpha)^2 ~
+            # 1e-5. That cancellation runs BETWEEN the J_nu = 1/2 and J_nu = 3/2 intermediates, so squaring them
+            # separately makes it impossible. Measured at n_max = 12, central sharing:
+            #
+            #     K = 1 share of the rate      incoherent Jsym   21.05 %      coherent Jsym   1.2e-11
+            #     total, coherent/incoherent   1.4211 in Coulomb AND 1.4211 in Babushkin, identically
+            #
+            # Eleven digits of cancellation in both gauges independently is not something a wrong grouping
+            # produces. The residual 7 % that the 31-Aug-2026 note recorded for K = 1, and left unexplained, was
+            # this. NOTE the rate RISES by 1.4211: it does not close the remaining factor ~15 against the exact
+            # 8.2206 1/s, and the gauge ratio is untouched because both gauges scale by the same number.
+            for  K in Klist
+                wk = Complex(0.)
+                for Jsym in symmetries
                 # THE MODULUS IS TAKEN PER K (corrected 06-Aug-2026). The K-sum used to sit INSIDE abs(), i.e.
                 # dcs += |sum_K M_K|^2 instead of sum_K |M_K|^2, and that is wrong twice over.
                 #
@@ -127,8 +151,8 @@ function computeEnergyDiffCs(sharing::MultiPhotonTransition.Sharing_2pEmission, 
                 # p_K = (-1)^(K+1) = -1, +1 -- so they differ, and the computed spectrum came out asymmetric by
                 # 60-90 % even though the two emitted photons are indistinguishable. Per K, p_K = +-1 gives
                 # |wk'| = |wk| identically, so taking the modulus first restores the symmetry exactly.
-                for  K in Klist
-                    wk =  MultiPhotonTransition.getReducedAmplitudeEmission(K, line.finalLevel, omega2, mp2, Jsym, omega1, mp1,
+                    wk = wk +
+                          MultiPhotonTransition.getReducedAmplitudeEmission(K, line.finalLevel, omega2, mp2, Jsym, omega1, mp1,
                                                                                         line.initialLevel, gauge, line.sharings) +
                             # EXCHANGE PHASE (-1)^(L1+L2-K), not (-1)^(K+J_f+J_i)  -- A1, 07-Aug-2026.
                             # The two emitted photons are identical bosons, so the amplitude must be symmetric
@@ -143,8 +167,8 @@ function computeEnergyDiffCs(sharing::MultiPhotonTransition.Sharing_2pEmission, 
                             (-1.0)^( mp1.L + mp2.L - Basics.twice(K)/2 ) *
                                 MultiPhotonTransition.getReducedAmplitudeEmission(K, line.finalLevel, omega1, mp1, Jsym, omega2, mp2,
                                                                                         line.initialLevel, gauge, line.sharings)
-                    dcs = dcs + abs( wk )^2
                 end
+                dcs = dcs + abs( wk )^2
             end
         end
     end
