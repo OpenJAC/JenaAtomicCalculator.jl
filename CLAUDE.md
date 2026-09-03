@@ -721,6 +721,14 @@ only, so a remote command has to go through a login shell or name the binary abs
 way that looks like the job never started. A job must be launched DETACHED, under `tmux` or `nohup`, or it dies
 with the ssh connection. And only the output files come back, never the working directory.
 
+**AND THE OUTPUT DOES NOT LIVE IN `/tmp`.** Learned on 03-Sep-2026 by losing five hours: a job's logs were written
+to `/tmp`, the shared machine REBOOTED mid-run, and `/tmp` was wiped along with the running job. Two results
+survived only because they had already been streamed back into the session; the third was gone with no trace that
+it had ever run. So write remote output under `$HOME`, and **fetch each result as it completes rather than
+collecting them at the end** -- a batched job is still a series of results, and a result that has not been fetched
+does not yet exist. The same reboot is the reason a long remote job needs a cheap way to say how far it got: a run
+that prints only on completion is indistinguishable from a run that died.
+
 ## Commands
 
 A **command** is a named sequence of steps I execute and then summarize. The leading `/` is optional —
