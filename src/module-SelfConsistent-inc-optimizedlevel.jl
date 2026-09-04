@@ -1459,6 +1459,14 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
     # minimizes, and adding Breit inside the iteration would change what is being optimized rather than what
     # is being reported.  The correction belongs at the end, which is also where AL and DFS apply it.
     finalOrbitals = Dict{Subshell, Orbital}()
+        # THE ENERGY FIELD IS 0.0 DELIBERATELY, AND IT COSTS SOMETHING -- read this before "fixing" it.
+        # A rotation-optimised orbital is not the eigenfunction of any one-particle operator, so it has no
+        # eigenvalue to carry; 0.0 is the honest placeholder, not an oversight.  The price is that omega =
+        # factor |E_a - E_c| / c comes out ZERO for every pair of such orbitals, so a frequency-dependent
+        # CoulombBreit(factor > 0) would silently return its own omega -> 0 limit on any EOL or RAS basis.
+        # Since 04-Sep-2026 InteractionStrength.checkFrequencyIsMeaningful REFUSES that combination instead
+        # of answering it, so the gap is loud rather than silent.  Giving these orbitals a defined energy --
+        # the diagonal Lagrange multiplier is the candidate -- is a physics question and is on the list.
     for  sh  in  basis.subshells
         finalOrbitals[sh] = Bsplines.generateOrbitalFromVector(sh, 0.0, bVectors[sh], primitives)
     end
@@ -1679,6 +1687,9 @@ function solveOptimizedLevelField(basis::Basis, nuclearModel::Nuclear.Model, pri
 
         bVectors = newBVectors
         newOrbitals = Dict{Subshell, Orbital}()
+        # The energy field is 0.0 for the reason given at the sibling solver's final tabulation; the same
+        # applies here, and this solver DOES have a one-particle eigenvalue in hand, which is why the choice
+        # has to be made deliberately rather than by taking whichever number is nearest.
         for  sh  in  basis.subshells
             newOrbitals[sh] = Bsplines.generateOrbitalFromVector(sh, 0.0, bVectors[sh], primitives)
         end

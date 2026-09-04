@@ -520,6 +520,39 @@ end
 
 
 """
+`InteractionStrength.checkFrequencyIsMeaningful(factor::Float64, a::Orbital, b::Orbital, c::Orbital, d::Orbital)`
+    ... refuses a frequency-dependent Breit strength whose orbitals cannot supply a frequency. Nothing is returned.
+
+        WHY THIS HAS TO REFUSE RATHER THAN WARN. The photon wave number is omega = factor |E_a - E_c| / c, taken from the ORBITAL
+        ENERGIES. Both EOL solvers (SelfConsistent.solveOptimizedLevelField and ...ByRotation) build their orbitals with
+        `Bsplines.generateOrbitalFromVector(sh, 0.0, ...)` -- a rotation- or functional-optimised orbital is not the eigenfunction of any
+        one-particle operator, so it carries no eigenvalue and the field is left at zero. Every orbital of a RAS or EOL basis therefore
+        has energy 0.0 exactly, omega comes out 0 for every pair, and CoulombBreit(1.) silently returns the CoulombBreit(0.) answer:
+        the retardation the caller asked for is absent and nothing says so. Measured 04-Sep-2026 on Be-like U: all four orbitals of the
+        reference layer at 0.0, against -4705.73 / -1185.21 / -1174.16 / -1018.99 Ha from a mean-field SCF on the same configurations.
+
+        Four bound orbitals at EXACTLY 0.0 is the signature of the unset field and not of physics, so the test is safe; a continuum
+        orbital carries its own positive energy and an AL or DFS basis its eigenvalues, which is why example-Ad, -Df and -Dv keep working.
+        The remedy is one of: CoulombBreit(0.), which is the EXACT omega -> 0 limit and what every published JAC RAS number used; or a
+        mean-field basis, whose orbitals carry eigenvalues. Giving EOL orbitals a defined energy is a physics question -- the diagonal
+        Lagrange multiplier is the candidate -- and is on the priority list rather than guessed at here.
+"""
+function checkFrequencyIsMeaningful(factor::Float64, a::Orbital, b::Orbital, c::Orbital, d::Orbital)
+    if  factor != 0.   &&   a.energy == 0.   &&   b.energy == 0.   &&   c.energy == 0.   &&   d.energy == 0.
+        error("A frequency-dependent Breit interaction was requested (factor = $factor), but all four orbitals " *
+              "($(a.subshell), $(b.subshell), $(c.subshell), $(d.subshell)) carry energy 0.0 exactly, so omega = " *
+              "factor |E_a - E_c| / c is zero for every pair and the retardation would be silently absent.\n" *
+              "   This is what an EOL or RAS basis looks like: both EOL solvers build their orbitals with " *
+              "generateOrbitalFromVector(sh, 0.0, ...), because a rotation-optimised orbital has no one-particle " *
+              "eigenvalue.\n" *
+              "   Use CoulombBreit(0.) -- the EXACT omega -> 0 limit, and what every published JAC RAS number has " *
+              "used -- or run on a mean-field (AL/DFS) basis, whose orbitals carry their eigenvalues.")
+    end
+    return( nothing )
+end
+
+
+"""
 `InteractionStrength.XL_Breit(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital, grid::Radial.Grid,
                               eeint::Union{BreitInteraction, CoulombBreit, CoulombGaunt})`
     ... computes the effective Breit interaction strength X^L_Breit (abcd), or the Gaunt strength X^L_Gaunt (abcd) for eeint =
@@ -658,6 +691,7 @@ function XL_Breit(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital, grid
 
     # Calculate a reduced number of cofficients for the CoulombGaunt() interaction
     onlyGaunt, factor, quadrature = InteractionStrength.breitRouteOf(eeint)
+    InteractionStrength.checkFrequencyIsMeaningful(factor, a, b, c, d)
     xcList = XL_Breit_coefficients(L, a, b, c, d, onlyGaunt=onlyGaunt)
 
     if  quadrature == :swept    return( XL_Breit_densitiesSwept(xcList, factor, grid) )
@@ -1145,6 +1179,7 @@ function XL_BreitDamped(tau::Float64, L::Int64, a::Orbital, b::Orbital, c::Orbit
     end
 
     onlyGaunt, factor, quadrature = InteractionStrength.breitRouteOf(eeint)
+    InteractionStrength.checkFrequencyIsMeaningful(factor, a, b, c, d)
     xcList = XL_Breit_coefficients(L, a, b, c, d, onlyGaunt=onlyGaunt)
     if  quadrature == :swept    return( XL_Breit_densitiesSwept(xcList, factor, grid, tau=tau) )
     else                        return( XL_Breit_densities(     xcList, factor, grid, tau=tau) )
