@@ -1275,16 +1275,31 @@ end
 @doc "... to represent the Coulomb part of the electron-electron interaction."                                                      CoulombInteraction
 @doc "... to represent the Coulomb part of the electron-electron interaction."                                                            CoulombGaunt
 struct     CoulombBreit         <:  AbstractEeInteraction     
-    factor ::Float64
+    factor     ::Float64
+    quadrature ::Symbol
 end
 
-@doc "... to represent the Coulomb+Breit part of the electron-electron interaction."                                                      CoulombBreit
+CoulombBreit(factor::Float64) = CoulombBreit(factor, :direct)
+
+@doc "... to represent the Coulomb+Breit part of the electron-electron interaction, with factor as for BreitInteraction and quadrature " *
+     "selecting HOW the radial integrals are evaluated -- the SAME physics either way. :direct (the default, and what every JAC number " *
+     "before 04-Sep-2026 used) evaluates each sub-coefficient as a full double sum over the grid, O(N^2); :swept exploits the fact that " *
+     "every Breit kernel factorises into a function of r_< times a function of r_>, and accumulates the inner integral in one pass, " *
+     "O(N) -- the same construction the Coulomb path has always used through RadialIntegrals.SlaterRkKinkAware. The two agree to the " *
+     "accuracy of the quadrature but NOT bit for bit, because the summation order differs; :direct is kept as the readable reference " *
+     "form and as the oracle the swept form is tested against. Quadrature is deliberately NOT a separate AbstractEeInteraction: that " *
+     "type answers WHICH TERMS of the Hamiltonian are included and is consumed by seventeen `typeof(kind) in [...]` lists across six " *
+     "modules, where a missing entry silently drops a whole interaction -- as happened to CoulombGaunt in ImpactExcitation."           CoulombBreit
 
 export  AbstractEeInteraction, DiagonalCoulomb, CoulombInteraction, CoulombGaunt, BreitInteraction, CoulombBreit
 
 # `Base.show(io::IO, CoulombBreit}::)`  ... prepares a proper printout of the variable CoulombBreit}::.
-function Base.show(io::IO, eeint::Union{BreitInteraction,CoulombBreit}) 
+function Base.show(io::IO, eeint::BreitInteraction) 
     sa = "$(typeof(eeint)) [factor=$(eeint.factor)]";                print(io, sa)
+end
+
+function Base.show(io::IO, eeint::CoulombBreit) 
+    sa = "$(typeof(eeint)) [factor=$(eeint.factor), quadrature=:$(eeint.quadrature)]";     print(io, sa)
 end
 
 

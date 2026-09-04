@@ -895,6 +895,39 @@ function testMethod_BreitInteraction(; short::Bool=true)
                 "the retardation kernel, its power of omega or its coefficients are wrong.")
     end
 
+    ## (5) The two QUADRATURES of the same integral must agree.  CoulombBreit(factor, :direct) sums the full
+    ##     double loop over the grid; CoulombBreit(factor, :swept) uses the fact that every Breit kernel
+    ##     factorises into a function of r_< times one of r_>, and accumulates the inner integral in one pass.
+    ##     They differ only in the ORDER of the summation, so they cannot be bitwise equal -- and must still
+    ##     agree to the accuracy of the quadrature.  Both frequency regimes are covered: factor = 0. takes the
+    ##     analytic omega -> 0 kernels, factor = 1. the Bessel ones, and those are DIFFERENT code in both routes.
+    ##     KEEP THIS TEST.  An unused route rots: XL_BreitDamped sat with an `error("stop a")` body behind a
+    ##     signature one argument short of its only caller, unnoticed, because no example ever selected it.
+    p12   = orbs[Subshell("2p_1/2")];       s1 = orbs[Subshell("1s_1/2")]
+    quads = [ (1, p32, p32, s2, s2), (1, p32, p32, p32, p32), (1, p12, p32, s2, s2),
+              (2, p32, p32, p32, p32), (1, s1, p32, s2, p32),  (2, p32, s2, p32, s2) ]
+    worst = 0.;     nUsed = 0
+    for  f  in  [0., 1.]
+        for  q  in  quads
+            vd = InteractionStrength.XL_Breit(q..., grid, Basics.CoulombBreit(f, :direct))
+            vs = InteractionStrength.XL_Breit(q..., grid, Basics.CoulombBreit(f, :swept))
+            abs(vd) < 1.0e-10   &&   continue
+            worst = max(worst, abs(vs - vd) / abs(vd));     nUsed = nUsed + 1
+        end
+    end
+    println("  (5) :swept against :direct on $nUsed non-vanishing strengths, both frequencies:  " *
+            "worst relative deviation = $worst ")
+    if  nUsed < 6
+        success = false
+        println("  *** Too few strengths survived the 1e-10 floor for this comparison to test anything.")
+    end
+    if  worst > 1.0e-8
+        success = false
+        println("  *** The swept and the direct Breit quadrature disagree by more than the quadrature's own " *
+                "accuracy. They are the same integral summed in a different order, so this is not " *
+                "reassociation: one of the separable kernels in XL_Breit_densitiesSwept is wrong.")
+    end
+
     testPrint("testMethod_BreitInteraction()::", success)
     return( success )
 end

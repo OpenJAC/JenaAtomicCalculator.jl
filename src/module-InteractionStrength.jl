@@ -33,19 +33,23 @@ end
 
 """
 `const  InteractionStrength.XLKey`
-    ... the key under which one interaction strength is memoised: (route, L, a, b, c, d, factor), where the four Subshells are those of the
-        orbitals a, b, c, d.
+    ... the key under which one interaction strength is memoised: (route, L, a, b, c, d, factor, quadrature), where the four Subshells are
+        those of the orbitals a, b, c, d.
 
         THE ROUTE IS PART OF THE KEY, which is why ONE cache serves every X^L. `XL_Coulomb`,
         `XL_CoulombKinkAware` and `XL_Breit` all answer the same kind of question -- a strength for rank L
         and four orbitals, asked for by a spin-angular coefficient -- so what separates them belongs here rather than in three separate
         dictionaries. `route` is one of :Coulomb, :CoulombKinkAware, :Gaunt or :Breit, and `factor` carries the photon-frequency scaling of
-        CoulombBreit(factor); it is 0. for every route that has none.
+        CoulombBreit(factor); it is 0. for every route that has none. `quadrature` is :direct or :swept and carries the two ways of evaluating a
+        Breit radial integral -- the same physics by a different summation, so they must not share a memo; it is :direct for every route that
+        offers no choice. IT WAS ADDED 04-Sep-2026 AND THE KEY TYPE HAD TO BE WIDENED WITH IT: XLKey is a CONCRETE tuple type, so a key of the
+        wrong arity fails at the `setindex!`, deep inside the CI build and ONLY on the cached path -- which is exactly the path a probe that
+        calls XL_Breit directly does not exercise.
 
         `Subshell` is a plain immutable struct of two Int64 fields, so Julia hashes it structurally and it
         enters the key directly -- there is no string to build, and none to read back when debugging.
 """
-const XLKey = Tuple{Symbol, Int64, Subshell, Subshell, Subshell, Subshell, Float64}
+const XLKey = Tuple{Symbol, Int64, Subshell, Subshell, Subshell, Subshell, Float64, Symbol}
 
 
 """
@@ -140,8 +144,9 @@ end
         them. See InteractionStrength.XLCache.
 """
 function breitRouteOf(eeint::Union{BreitInteraction, CoulombBreit, CoulombGaunt})
-    if    typeof(eeint) == CoulombGaunt   return( (true,  0.) )
-    else                                  return( (false, eeint.factor) )
+    if      typeof(eeint) == CoulombGaunt   return( (true,  0.,           :direct) )
+    elseif  typeof(eeint) == CoulombBreit   return( (false, eeint.factor, eeint.quadrature) )
+    else                                    return( (false, eeint.factor, :direct) )
     end
 end
 
@@ -652,10 +657,12 @@ function XL_Breit(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital, grid
     end
 
     # Calculate a reduced number of cofficients for the CoulombGaunt() interaction
-    onlyGaunt, factor = InteractionStrength.breitRouteOf(eeint)
+    onlyGaunt, factor, quadrature = InteractionStrength.breitRouteOf(eeint)
     xcList = XL_Breit_coefficients(L, a, b, c, d, onlyGaunt=onlyGaunt)
 
-    return( XL_Breit_densities(xcList, factor, grid) )
+    if  quadrature == :swept    return( XL_Breit_densitiesSwept(xcList, factor, grid) )
+    else                        return( XL_Breit_densities(     xcList, factor, grid) )
+    end
 end
 
 
@@ -672,9 +679,9 @@ end
 """
 function XL_Breit(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital, grid::Radial.Grid,
                     eeint::Union{BreitInteraction, CoulombBreit, CoulombGaunt}, cache::XLCache)
-    onlyGaunt, factor = InteractionStrength.breitRouteOf(eeint)
+    onlyGaunt, factor, quadrature = InteractionStrength.breitRouteOf(eeint)
     route = onlyGaunt ? :Gaunt : :Breit
-    key   = (route, L, a.subshell, b.subshell, c.subshell, d.subshell, factor)
+    key   = (route, L, a.subshell, b.subshell, c.subshell, d.subshell, factor, quadrature)
     haskey(cache.values, key)   &&   return( cache.values[key] )
     value = InteractionStrength.XL_Breit(L, a, b, c, d, grid, eeint)
     cache.values[key] = value
@@ -1001,6 +1008,122 @@ end
 
 
 """
+`InteractionStrength.XL_Breit_densitiesSwept(xcList::Array{XLCoefficient,1}, factor::Float64, grid::Radial.Grid; tau::Float64=0.)`
+    ... the same integral as XL_Breit_densities, accumulated in ONE PASS over the grid instead of a full double sum.
+        A value::Float64 is returned. Selected by CoulombBreit(factor, :swept); :direct keeps the other form.
+
+        WHY THIS IS POSSIBLE AT ALL, and it is the only idea in the function: EVERY Breit kernel factorises into a
+        function of r_< times a function of r_>, so the inner integral over s <= r is a RUNNING SUM and need not be
+        redone for each r. Term by term, with s the smaller radius:
+          'T' (Gaunt)   V_nu(r_s,r_r) Ubar_nu  =  [phi_nu(omega r_s) r_s^nu] * [psi_nu(omega r_r) / r_r^(nu+1)]
+          'S' at omega -> 0   W = -[nu]/2 (Ubar_(nu-1) - Ubar_(nu+1))                       -- TWO such products
+          'S' at omega > 0    W = -([nu]^2/omega^2) r_s^(nu-1) r_r^-(nu+2) (a + b + a b)    -- THREE, since
+                              a depends on r_s alone and b on r_r alone.
+        The cost falls from O(N^2) to O(N) per sub-coefficient. On a 595-point grid with 11.9 sub-coefficients per
+        strength the direct form visits 2.11 million grid points per Breit strength; this one visits some thousands.
+        THE BESSEL FUNCTIONS COME ALONG FOR FREE: the direct form evaluates them per (r,s) PAIR, this one per point,
+        which is the reuse the maintainer asked for on 04-Sep-2026 -- a corollary of separability, not a separate
+        optimisation. (In the STATIC case, factor = 0., neither form evaluates a Bessel function at all.)
+
+        THE DIAGONAL IS NOT PART OF THE SWEEP FOR 'S'. Grant's W is a DIFFERENT function for r_1 = r_2 than for
+        r_1 < r_2 -- the direct form reaches its `else` branch there -- so that single term is added separately,
+        which costs O(N) and keeps the two forms comparable term by term. 'T' has no such split: V is one
+        expression in r_< and r_>, so its diagonal is carried by the sweep with the same halved weight.
+
+        WHAT IT DOES NOT PROMISE: this is NOT bitwise identical to XL_Breit_densities, and cannot be -- the same
+        products are summed in a different order. It is the same integral, and the difference is the floating-point
+        associativity of the sum, not a change of physics. TestFrames.testMethod_BreitInteraction(), section (5), compares the two
+        on real orbitals in both frequency regimes; keep that test, because an unused route rots (see XL_BreitDamped, whose body was
+        `error("stop a")` behind a signature one argument short of its only caller, unnoticed for months).
+"""
+function XL_Breit_densitiesSwept(xcList::Array{XLCoefficient,1}, factor::Float64, grid::Radial.Grid; tau::Float64=0.)
+    cLight     = Defaults.getDefaults("speed of light: c")
+    omegaFloor = 1.0e-4
+    wa         = 0.
+    # the shortcuts of the direct form's V, kept identical: at omega <= 0 both normalised functions are 1
+    phiOf(nu::Int64, omg::Float64, r::Float64) = omg <= 0. ? 1.0 : InteractionStrength.besselPhiPsi(nu, omg*r)[1]
+    psiOf(nu::Int64, omg::Float64, r::Float64) = omg <= 0. ? 1.0 : InteractionStrength.besselPhiPsi(nu, omg*r)[2]
+
+    for  xc  in  xcList
+        nu     = xc.nu
+        mtp_ac = min(size(xc.a.P, 1), size(xc.c.P, 1));     mtp_bd = min(size(xc.b.P, 1), size(xc.d.P, 1))
+        omg_ac = factor * abs(xc.a.energy - xc.c.energy) / cLight
+        omg_bd = factor * abs(xc.b.energy - xc.d.energy) / cLight
+        xc.kind == 'S'  &&  nu < 1   &&   continue      # W vanishes for nu < 1, exactly as in the direct form
+
+        # the two densities, each carrying its own quadrature weight and, where asked for, its damping factor
+        fr = zeros(mtp_ac);     fs = zeros(mtp_bd)
+        for  r = 2:mtp_ac   fr[r] = xc.a.P[r] * xc.c.Q[r] * grid.wr[r] * (tau > 0. ? exp(-tau*grid.r[r]) : 1.0)   end
+        for  s = 2:mtp_bd   fs[s] = xc.b.P[s] * xc.d.Q[s] * grid.wr[s] * (tau > 0. ? exp(-tau*grid.r[s]) : 1.0)   end
+
+        terms    = Tuple{Vector{Float64},Vector{Float64}}[]
+        halfDiag = xc.kind == 'T'
+        for  omg  in  (omg_ac, omg_bd)          # the mean of the two frequencies, as the direct form takes it
+            if      xc.kind == 'T'
+                u = zeros(mtp_bd);      v = zeros(mtp_ac)
+                for  s = 2:mtp_bd   u[s] = 0.5 * phiOf(nu, omg, grid.r[s]) * grid.r[s]^nu        end
+                for  r = 2:mtp_ac   v[r] = psiOf(nu, omg, grid.r[r]) / grid.r[r]^(nu+1)          end
+                push!(terms, (u, v))
+            elseif  omg <= omegaFloor
+                nn = 2nu + 1
+                u1 = zeros(mtp_bd);     v1 = zeros(mtp_ac);     u2 = zeros(mtp_bd);     v2 = zeros(mtp_ac)
+                for  s = 2:mtp_bd   u1[s] = 0.5 * (-0.5*nn) * grid.r[s]^(nu-1)
+                                    u2[s] = 0.5 * ( 0.5*nn) * grid.r[s]^(nu+1)                   end
+                for  r = 2:mtp_ac   v1[r] = 1.0 / grid.r[r]^nu
+                                    v2[r] = 1.0 / grid.r[r]^(nu+2)                               end
+                push!(terms, (u1, v1));     push!(terms, (u2, v2))
+            else
+                nn   = 2nu + 1
+                pref = -(nn^2 / omg^2)
+                ua = zeros(mtp_bd);     u1 = zeros(mtp_bd);     vb = zeros(mtp_ac);     v1 = zeros(mtp_ac)
+                for  s = 2:mtp_bd
+                    aa    = InteractionStrength.besselPhiPsi(nu-1, omg*grid.r[s])[1] - 1.0
+                    u1[s] = 0.5 * pref * grid.r[s]^(nu-1);      ua[s] = u1[s] * aa
+                end
+                for  r = 2:mtp_ac
+                    bb    = InteractionStrength.besselPhiPsi(nu+1, omg*grid.r[r])[2] - 1.0
+                    v1[r] = 1.0 / grid.r[r]^(nu+2);             vb[r] = v1[r] * bb
+                end
+                push!(terms, (ua, v1));     push!(terms, (u1, vb));     push!(terms, (ua, vb))
+            end
+        end
+
+        # THE SWEEP.  cum is the inner integral over s <= r, carried forward instead of rebuilt.
+        for  (u, v)  in  terms
+            cum = 0.
+            for  r = 2:mtp_ac
+                if  r <= mtp_bd
+                    dg    = u[r] * fs[r]
+                    cum   = cum + dg
+                    inner = halfDiag ? cum - 0.5*dg : cum - dg      # 'T' halves the diagonal, 'S' drops it
+                else
+                    inner = cum
+                end
+                wa = wa + xc.coeff * (v[r] * fr[r]) * inner
+            end
+        end
+
+        # ... and the 'S' diagonal, where Grant's W is the other of his two expressions
+        if  xc.kind == 'S'
+            for  r = 2:min(mtp_ac, mtp_bd)
+                wk = 0.
+                for  omg  in  (omg_ac, omg_bd)
+                    omg <= omegaFloor   &&   continue
+                    psi = InteractionStrength.besselPhiPsi(nu-1, omg*grid.r[r])[2]
+                    phi = InteractionStrength.besselPhiPsi(nu+1, omg*grid.r[r])[1]
+                    wk  = wk + 0.5 * ( -omg^2 * psi * phi * grid.r[r]^(nu+1) / ((2nu-1) * (2nu+3) * grid.r[r]^nu) )
+                end
+                wk == 0.   &&   continue
+                wa = wa + xc.coeff * 0.5 * wk * fr[r] * fs[r]
+            end
+        end
+    end
+
+    return( wa )
+end
+
+
+"""
 `InteractionStrength.XL_BreitDamped(tau::Float64, L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital, grid::Radial.Grid,
                                     eeint::Union{BreitInteraction, CoulombBreit, CoulombGaunt})`
     ... computes the effective Breit interaction strength X^L_Breit (abcd) for given rank L and orbital functions a, b, c and d at the given
@@ -1021,9 +1144,11 @@ function XL_BreitDamped(tau::Float64, L::Int64, a::Orbital, b::Orbital, c::Orbit
         return( 0. )
     end
 
-    onlyGaunt, factor = InteractionStrength.breitRouteOf(eeint)
+    onlyGaunt, factor, quadrature = InteractionStrength.breitRouteOf(eeint)
     xcList = XL_Breit_coefficients(L, a, b, c, d, onlyGaunt=onlyGaunt)
-    return( XL_Breit_densities(xcList, factor, grid, tau=tau) )
+    if  quadrature == :swept    return( XL_Breit_densitiesSwept(xcList, factor, grid, tau=tau) )
+    else                        return( XL_Breit_densities(     xcList, factor, grid, tau=tau) )
+    end
 end
 
 
@@ -1035,7 +1160,7 @@ end
         than a global.
 """
 function XL_Coulomb(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital, grid::Radial.Grid, cache::XLCache)
-    key = (:Coulomb, L, a.subshell, b.subshell, c.subshell, d.subshell, 0.)
+    key = (:Coulomb, L, a.subshell, b.subshell, c.subshell, d.subshell, 0., :direct)
     haskey(cache.values, key)   &&   return( cache.values[key] )
     value = InteractionStrength.XL_Coulomb(L, a, b, c, d, grid)
     cache.values[key] = value
@@ -1345,7 +1470,7 @@ end
 """
 function XL_CoulombKinkAware(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital, grid::Radial.Grid,
                               cache::XLCache)
-    key = (:CoulombKinkAware, L, a.subshell, b.subshell, c.subshell, d.subshell, 0.)
+    key = (:CoulombKinkAware, L, a.subshell, b.subshell, c.subshell, d.subshell, 0., :direct)
     haskey(cache.values, key)   &&   return( cache.values[key] )
     value = InteractionStrength.XL_CoulombKinkAware(L, a, b, c, d, grid)
     cache.values[key] = value
