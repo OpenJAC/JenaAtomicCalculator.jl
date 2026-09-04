@@ -641,10 +641,22 @@ end
            with Ubar the one-sided kernel of equation (10) -- which the r/s loop below realises by summing only
            s <= r and halving the diagonal, since U = Ubar(1,2) + Ubar(2,1).  Signs included, JAC matches.
 
-           CONSEQUENCE FOR THE FREQUENCY-DEPENDENT RETARDATION: it CANNOT be switched on by changing a multiplier.
-           The 'S' entries currently carry the static limit inside their coefficients, so they would have to be
-           re-emitted as a single term in W_(L-1,L+1,L) (Grant equation 6) instead of two terms in Ubar.  That is
-           the remaining work, and it is a change to XL_Breit_coefficients, not to the kernels.
+           CONSEQUENCE FOR THE FREQUENCY-DEPENDENT RETARDATION, AS IT STOOD ON 13-Aug-2026: it could not be switched
+           on by changing a multiplier, because the 'S' entries carried the static limit inside their coefficients.
+
+           **THAT WORK WAS DONE THE NEXT DAY AND THIS PARAGRAPH IS NO LONGER A TO-DO -- corrected 04-Sep-2026, after
+           it was read at face value and nearly acted on.**  Since 14-Aug-2026 (commit 7c82e45) each mu emits a
+           SINGLE entry carrying the multipole L itself and the bare coefficient xcc, and the whole kernel
+           W_(L-1,L+1,L) of equation (6) is supplied by XL_Breit_densities; see the comment at the 'S' block of
+           XL_Breit_coefficients, which records the collapse and why no extra prefactor is needed.  The eight mu
+           terms are four TRANSPOSED PAIRS, matching the two-term W(1,2) / W(2,1) structure of equation (8).
+
+           SO THERE IS NO OUTSTANDING ALGEBRA HERE, and the term count is not padding: the 'T' blocks at
+           nu = L-1, L, L+1 are three distinct tensor ranks and the eight 'S' mu terms are Grant's table 2 in full.
+           The only genuine redundancy was entries sharing (kind, nu, a, b, c, d), which differ by a scalar alone;
+           XL_Breit_densitiesSwept sums those coefficients and sweeps once (commit 94df5bc, 11.94 -> 7.15
+           sub-coefficients per strength).  Measured 04-Sep-2026, generating the coefficients is ~1 % of a swept
+           Breit strength, so there is no speed argument for touching this decomposition either.
 """
 function XL_Breit(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital, grid::Radial.Grid,
                     eeint::Union{BreitInteraction, CoulombBreit, CoulombGaunt})
