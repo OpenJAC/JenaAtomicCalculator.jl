@@ -944,6 +944,17 @@ function XL_Breit_densities(xcList::Array{XLCoefficient,1}, factor::Float64, gri
     end
     
     wa = 0.
+    # HOISTED 04-Sep-2026 (priority item 10).  NOTHING BELOW CHANGES THE ARITHMETIC: every product and division
+    # keeps its operands and its left-to-right order, so the result is BITWISE identical -- verified by dumping
+    # the whole Coulomb+Breit CI matrix before and after and comparing the files with cmp, not by eye.
+    # What moved out of the O(N^2) grid double loop: r^nu and r^(nu+1), each a function of ONE index but raised
+    # to a power at EVERY (r,s) pair; the r-only weight and density factors, re-formed for every s; and the
+    # speed of light, re-read from the defaults once per coefficient.  This is the same shape as the
+    # ul()/SlaterRk_2dim power hoist of 12-Aug-2026, which measured 4.7-9.4x bitwise-identical; that item's
+    # "SlaterRk_2dim was the only N^2 case" note scoped itself to module-RadialIntegrals.jl and never covered
+    # this module.  WHY IT IS WORTH DOING HERE: one XL_Breit was measured at >= 31x one XL_Coulomb, and Breit
+    # is ~36 % of a Coulomb+Breit run, so this kernel is the larger half of every Breit calculation.
+    cLight = Defaults.getDefaults("speed of light: c")
     for  xc  in  xcList  # [end:end]
         # Use the minimal extent of any involved orbitals; this need to be improved
         mtp_ac = min(size(xc.a.P, 1), size(xc.c.P, 1));     mtp_bd = min(size(xc.b.P, 1), size(xc.d.P, 1))
@@ -952,7 +963,6 @@ function XL_Breit_densities(xcList::Array{XLCoefficient,1}, factor::Float64, gri
         # until 13-Aug-2026, which overstated the phase by a factor c = 137 and would have sampled j_nu*y_nu
         # in their oscillatory regime instead of the small-argument one where retardation actually lives.
         # It never affected a published number, because no branch below ever consumed these values.
-        cLight = Defaults.getDefaults("speed of light: c")
         omg_ac = factor * abs(xc.a.energy - xc.c.energy) / cLight
         omg_bd = factor * abs(xc.b.energy - xc.d.energy) / cLight
         # Only s <= r contributes: every permutation is emitted together with its TRANSPOSE, and the transposed
@@ -960,22 +970,29 @@ function XL_Breit_densities(xcList::Array{XLCoefficient,1}, factor::Float64, gri
         # his Ubar_nu(1,2) vanishes for r_1 > r_2, and the static factor here is r_s^nu / r_r^(nu+1) -- so both
         # kernels are called with grid.r[s] first.  The two frequencies omg_ac, omg_bd coincide when energy is
         # conserved; their mean is used where it does not, as GRASP2018 likewise works with a single omega.
+        # The two static powers of the 'T' kernel: each depends on ONE index, so each is formed once per index
+        # rather than once per pair.  They are divided in the same order below, so the bits do not move.
+        rsPow = xc.kind == 'T' ? [ grid.r[s]^xc.nu     for s = 1:mtp_bd ] : Float64[]
+        rrPow = xc.kind == 'T' ? [ grid.r[r]^(xc.nu+1) for r = 1:mtp_ac ] : Float64[]
         for  r = 2:mtp_ac
+            cwr = xc.coeff * grid.wr[r]                 # the s-independent half of wc
+            pqr = xc.a.P[r] * xc.c.Q[r]                 # the s-independent half of the density
+            etr = tau > 0. ? -tau*grid.r[r] : 0.
             for  s = 2:min(r, mtp_bd)
                 if      xc.kind == 'T'
                     # Gaunt (magnetic) part: the static kernel Ubar_nu times the frequency factor V_nu -> 1.
                     wk = ( V(xc.nu, grid.r[s], grid.r[r], omg_ac) + V(xc.nu, grid.r[s], grid.r[r], omg_bd) ) / 2.0 *
-                         (grid.r[s]^xc.nu) / (grid.r[r]^(xc.nu+1))
+                         rsPow[s] / rrPow[r]
                 elseif  xc.kind == 'S'
                     # Retardation: W_(L-1,L+1,L) is the COMPLETE kernel, not a factor multiplying Ubar_nu.
                     wk = ( W(xc.nu, grid.r[s], grid.r[r], omg_ac) + W(xc.nu, grid.r[s], grid.r[r], omg_bd) ) / 2.0
                 else    error("stop a")
                 end
 
-                wc = xc.coeff * grid.wr[r] * grid.wr[s]
+                wc = cwr * grid.wr[s]
                 if  s == r      wc = wc / 2.0                                          end
-                if  tau > 0.    wc = wc * exp( -tau*grid.r[r] - tau*grid.r[s] )         end
-                wa = wa + wc * wk * (xc.a.P[r] * xc.c.Q[r]) * (xc.b.P[s] * xc.d.Q[s])
+                if  tau > 0.    wc = wc * exp( etr - tau*grid.r[s] )                    end
+                wa = wa + wc * wk * pqr * (xc.b.P[s] * xc.d.Q[s])
             end
         end
     end
