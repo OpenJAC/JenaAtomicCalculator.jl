@@ -2387,28 +2387,46 @@ function testModule_BiOrthogonal(; short::Bool=true)
         end
     end
     #
-    # (4) The guard against a differing number of orbitals per kappa -- the general case of the paper's Appendix B,
-    #     which is not implemented and must therefore refuse rather than factorize a rectangular overlap.  The trimmed
-    #     basis is built by dropping one subshell from the one already computed, so no second SCF is needed.
+    # (4) THE DIFFERING-DIMENSION CASE, Appendix B of the same paper, implemented 04-Sep-2026.  Until then this
+    #     check asserted the opposite -- that the code REFUSES a rectangular overlap -- and it is rewritten here
+    #     rather than deleted, because the property it should now assert is the stronger one.  With one subshell
+    #     dropped from the right-hand basis, that kappa has n_left > n_right, so this also exercises the MIRROR
+    #     branch (the paper writes only the case where the right side is larger).  The condition is no longer
+    #     Cleft' * S * Cright = 1 but = (I 0): a unit matrix of the order of the SMALLER side, and zero elsewhere.
+    #     The trimmed basis is built by dropping one subshell from the one already computed, so no second SCF is
+    #     needed.
     dropped     = leftBasis.subshells[end]
     keptShells  = [sh for sh in leftBasis.subshells if sh != dropped]
     keptOrbitals= Dict( sh => leftBasis.orbitals[sh] for sh in keptShells )
     trimmedBasis= Basis(true, leftBasis.NoElectrons, keptShells, leftBasis.csfs, leftBasis.coreSubshells, keptOrbitals)
-    raised = false
-    try     BiOrthogonal.computeTransformationMatrices(leftBasis, trimmedBasis, grid)
-    catch
-        raised = true
+    sawRectangular = false
+    for  (kappa, (lList, rList, Cleft, Cright))  in  BiOrthogonal.computeTransformationMatrices(leftBasis, trimmedBasis, grid)
+        nl = length(lList);    nr = length(rList)
+        nl != nr   &&   (sawRectangular = true)
+        S    = [RadialIntegrals.overlap(leftBasis.orbitals[lList[i]], trimmedBasis.orbitals[rList[j]], grid)
+                for i = 1:nl, j = 1:nr]
+        lhs  = Cleft' * S * Cright
+        devs = 0.
+        for  i = 1:nl,  j = 1:nr
+            devs = max( devs, abs(lhs[i,j] - (i == j ? 1.0 : 0.0)) )
+        end
+        if  devs > 1.0e-10
+            success = false
+            if printTest   info(iostream, "with a right basis missing $dropped, Cleft' * S * Cright is not (I 0) " *
+                                          "for kappa = $kappa (n = $nl vs $nr), worst deviation $devs")   end
+        end
     end
-    if  !raised
+    if  !sawRectangular
         success = false
-        if printTest   info(iostream, "a right basis missing the subshell $dropped did not raise, although the " *
-                                      "differing-dimension case is not supported")   end
+        if printTest   info(iostream, "dropping the subshell $dropped left no kappa with differing dimensions, so " *
+                                      "the Appendix B branch was never exercised")   end
     end
 
     println(iostream, "BiOrthogonal: Cleft' * S * Cright = 1 to machine precision for two bases whose overlap " *
                       "differs from the unit matrix by $(round(biggestOverlapDeviation, digits=3)); the " *
                       "transformation of a basis with itself is the identity, and leaves the mixing coefficients " *
-                      "unchanged. No approved data is used.")
+                      "unchanged; and, for bases of DIFFERING dimension per kappa, Cleft' * S * Cright = (I 0), " *
+                      "the Appendix B case. No approved data is used.")
     Defaults.setDefaults("print summary: close", "")
     testPrint("testModule_BiOrthogonal()::", success)
     return( success )

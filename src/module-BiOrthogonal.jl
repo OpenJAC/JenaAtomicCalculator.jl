@@ -63,6 +63,33 @@ end
 
 
 """
+`BiOrthogonal.appendixB(S::Matrix{Float64})`
+    ... solves the differing-dimension biorthonormalisation of Appendix B of Olsen, Godefroid, Jönsson,
+        Malmqvist & Froese Fischer, Phys. Rev. E 52, 4499 (1995), for an overlap matrix S of size n x m with
+        m >= n. Writing S = (T Z) with T square of order n, the returned pair (Cleft, Cright) -- of orders n
+        and m -- satisfies Cleft' * S * Cright = (I 0) exactly, I being the unit matrix of order n. The square
+        problem on T is solved by the same LU factorisation as the equal-dimension case, and Eq. (B6) then
+        reduces to C12 = -C11 * (Cleft' * Z), since Eq. (B4) already identifies Cleft' * T as inv(C11).
+        A tuple tpl(Cleft::Matrix{Float64}, Cright::Matrix{Float64}) is returned.
+"""
+function  appendixB(S::Matrix{Float64})
+    n, m = size(S)
+    m < n   &&   error("BiOrthogonal.appendixB(): expects m >= n, got $n x $m.")
+    T = S[:, 1:n];    Z = S[:, n+1:m]
+    F     = lu(T, NoPivot())
+    Cleft = inv(Matrix(F.L))'
+    C11   = inv(Matrix(F.U))
+    C12   = -C11 * (Cleft' * Z)
+    Cright                 = zeros(m, m)
+    Cright[1:n, 1:n]       = C11
+    Cright[1:n, n+1:m]     = C12
+    Cright[n+1:m, n+1:m]   = Matrix{Float64}(LinearAlgebra.I, m-n, m-n)
+
+    return( (Cleft, Cright) )
+end
+
+
+"""
 `BiOrthogonal.computeTransformationMatrices(leftBasis::Basis, rightBasis::Basis, grid::Radial.Grid)`
     ... computes, for every kappa symmetry present in leftBasis or rightBasis, the pair of upper-triangular
         orbital transformation matrices (Cleft, Cright) that bring the (in general non-orthogonal) orbital
@@ -72,9 +99,19 @@ end
         matrices to be upper triangular reduces their determination to a triangular (LU) factorization of
         the overlap matrix S_ij = <phi_i^left|phi_j^right>. With S = L*U (L unit-lower-triangular, U
         upper-triangular, no pivoting so the chosen n-ordering is preserved), Cleft = inv(L)' and
-        Cright = inv(U) satisfy Cleft' * S * Cright = I exactly. Presently requires leftBasis and rightBasis
-        to have the same number of orbitals for every shared kappa (the general, differing-dimension case
-        of the paper's Appendix B is not yet supported). A Dict{Int64, Tuple{Array{Subshell,1},
+        Cright = inv(U) satisfy Cleft' * S * Cright = I exactly.
+
+        THE DIFFERING-DIMENSION CASE IS SUPPORTED (Appendix B of the same paper, added 04-Sep-2026). Nothing in
+        the biorthonormality condition requires the two sides to carry the same number of orbitals for a given
+        kappa. With n orbitals on the smaller side and m > n on the larger, the n x m overlap matrix splits as
+        S = (T Z) with T square of order n, and Cleft' * S * Cright = (I 0) is met by the ansatz
+        Cright = [C11 C12; 0 I]. Eqs. (B4) and (B6) then give Cleft' * T * C11 = I -- which is exactly the
+        square problem already solved above, on T -- and C12 = -(Cleft' * T)^(-1) * Cleft' * Z. Since (B4)
+        identifies Cleft' * T as inv(C11), the inverse is already in hand and C12 = -C11 * (Cleft' * Z); no
+        second factorisation is needed. Either side may be the larger, the two cases being related by
+        transposition. BOTH RETURNED MATRICES REMAIN SQUARE -- of order n_left and n_right -- so everything
+        downstream, which only forms linear combinations within one side, is unaffected.
+        A Dict{Int64, Tuple{Array{Subshell,1},
         Array{Subshell,1}, Matrix{Float64}, Matrix{Float64}}}, keyed by kappa and giving the (ordered)
         subshell lists together with (Cleft, Cright) for that symmetry block, is returned.
 """
@@ -85,20 +122,24 @@ function  computeTransformationMatrices(leftBasis::Basis, rightBasis::Basis, gri
     for  kappa  in  kappas
         lList = sort( [sh for sh in leftBasis.subshells  if sh.kappa == kappa], by = sh -> sh.n )
         rList = sort( [sh for sh in rightBasis.subshells if sh.kappa == kappa], by = sh -> sh.n )
-        if  length(lList) != length(rList)
-            error("BiOrthogonal.computeTransformationMatrices: leftBasis and rightBasis have a differing " *
-                    "number of orbitals for kappa = $kappa ($(length(lList)) vs $(length(rList))); the " *
-                    "differing-dimension case is not yet supported.")
-        end
-        n = length(lList)
-        S = zeros(n, n)
-        for  i = 1:n,  j = 1:n
+        nl = length(lList);   nr = length(rList)
+        (nl == 0  ||  nr == 0)  &&  continue
+        S  = zeros(nl, nr)
+        for  i = 1:nl,  j = 1:nr
             S[i,j] = RadialIntegrals.overlap(leftBasis.orbitals[lList[i]], rightBasis.orbitals[rList[j]], grid)
         end
 
-        F      = lu(S, NoPivot())
-        Cleft  = inv(Matrix(F.L))'
-        Cright = inv(Matrix(F.U))
+        if      nl == nr
+            F      = lu(S, NoPivot())
+            Cleft  = inv(Matrix(F.L))'
+            Cright = inv(Matrix(F.U))
+        elseif  nr > nl
+            Cleft, Cright = BiOrthogonal.appendixB(S)
+        else
+            ## the mirror case: transpose, solve with the two sides exchanged, and hand back swapped
+            Crm, Clm      = BiOrthogonal.appendixB( Matrix(S') )
+            Cleft, Cright = Clm, Crm
+        end
         result[kappa] = (lList, rList, Cleft, Cright)
     end
 
@@ -123,25 +164,31 @@ function  generateBiorthogonalShellMatrices(leftBasis::Basis, rightBasis::Basis,
 
     padTo(v::Array{Float64,1}, len::Int64) = length(v) >= len ? v[1:len] : vcat(v, zeros(len - length(v)))
 
+    ## THE TWO SIDES ARE LOOPED SEPARATELY, each with its OWN dimension.  A single n taken from the
+    ## left list was correct only while the two sides were required to have equally many orbitals per
+    ## kappa; with Appendix B in place they need not, and sharing n would silently skip right-hand
+    ## orbitals (n_right > n_left) or index past the end of the left list (n_left > n_right).
     for  (_, (lList, rList, Cleft, Cright))  in  transformation
-        n     = length(lList)
+        nl    = length(lList);   nr = length(rList)
         lOrbs = [leftBasis.orbitals[sh]  for sh in lList]
         rOrbs = [rightBasis.orbitals[sh] for sh in rList]
         lenL  = maximum( length(o.P) for o in lOrbs )
         lenR  = maximum( length(o.P) for o in rOrbs )
 
-        for  i = 1:n
-            newP  = sum( padTo(lOrbs[j].P,      lenL) * Cleft[j,i]  for j = 1:n )
-            newQ  = sum( padTo(lOrbs[j].Q,      lenL) * Cleft[j,i]  for j = 1:n )
-            newPp = sum( padTo(lOrbs[j].Pprime, lenL) * Cleft[j,i]  for j = 1:n )
-            newQp = sum( padTo(lOrbs[j].Qprime, lenL) * Cleft[j,i]  for j = 1:n )
+        for  i = 1:nl
+            newP  = sum( padTo(lOrbs[j].P,      lenL) * Cleft[j,i]  for j = 1:nl )
+            newQ  = sum( padTo(lOrbs[j].Q,      lenL) * Cleft[j,i]  for j = 1:nl )
+            newPp = sum( padTo(lOrbs[j].Pprime, lenL) * Cleft[j,i]  for j = 1:nl )
+            newQp = sum( padTo(lOrbs[j].Qprime, lenL) * Cleft[j,i]  for j = 1:nl )
             newLeft[lList[i]]  = Radial.Orbital(lList[i], lOrbs[i].isBound, lOrbs[i].useStandardGrid,
                                                     lOrbs[i].energy, newP, newQ, newPp, newQp, grid)
+        end
 
-            newP  = sum( padTo(rOrbs[j].P,      lenR) * Cright[j,i] for j = 1:n )
-            newQ  = sum( padTo(rOrbs[j].Q,      lenR) * Cright[j,i] for j = 1:n )
-            newPp = sum( padTo(rOrbs[j].Pprime, lenR) * Cright[j,i] for j = 1:n )
-            newQp = sum( padTo(rOrbs[j].Qprime, lenR) * Cright[j,i] for j = 1:n )
+        for  i = 1:nr
+            newP  = sum( padTo(rOrbs[j].P,      lenR) * Cright[j,i] for j = 1:nr )
+            newQ  = sum( padTo(rOrbs[j].Q,      lenR) * Cright[j,i] for j = 1:nr )
+            newPp = sum( padTo(rOrbs[j].Pprime, lenR) * Cright[j,i] for j = 1:nr )
+            newQp = sum( padTo(rOrbs[j].Qprime, lenR) * Cright[j,i] for j = 1:nr )
             newRight[rList[i]] = Radial.Orbital(rList[i], rOrbs[i].isBound, rOrbs[i].useStandardGrid,
                                                     rOrbs[i].energy, newP, newQ, newPp, newQp, grid)
         end
