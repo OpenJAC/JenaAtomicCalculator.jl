@@ -1227,6 +1227,85 @@ end
 
 
 """
+`TestFrames.testMethod_DensityAtNucleus(; short::Bool=true)`
+    ... tests Basics.densityAtNucleus, the electron density of one orbital averaged over the nuclear volume;
+        a success::Bool is returned.  Every check below is an EXACT statement that needs no reference data.
+"""
+function testMethod_DensityAtNucleus(; short::Bool=true)
+    Defaults.setDefaults("print summary: open", "test-DensityAtNucleus-new.sum")
+    printstyled("\n\nTest the method  Basics.densityAtNucleus()  ... \n", color=:cyan)
+    success = true;    printTest, iostream = Defaults.getDefaults("test flag/stream")
+
+    ## The hydrogen-like 1s density at the nucleus is Z^3/pi exactly in the non-relativistic point-nucleus
+    ## limit, so a light H-like ion is an absolute anchor: no table, no fitted number.  Relativistic and
+    ## finite-size corrections are of order (Z alpha)^2 and grow with Z.  Measured 04-Sep-2026: the ratio to
+    ## Z^3/pi is 1.0005, 1.0019 and 1.0042 at Z = 1, 2, 3 -- a MONOTONE rise, which is the relativistic
+    ## enhancement rather than numerical noise, so 1 % is a tolerance the method comfortably meets and a
+    ## failure would mean something real.
+    d = Dict{Float64,Float64}()
+    for  Z  in (1.0, 2.0, 3.0)
+        grid = Radial.Grid(Radial.Grid(false); rnt = 2.0e-6/Z, h = 5.0e-2, hp = 2.0e-2, rbox = 30.0/Z)
+        nm   = Nuclear.Model(Z, Nuclear.UniformNucleus())
+        asf  = AsfSettings(AsfSettings(); scField = Basics.NuclearField())
+        wa   = Atomic.Computation(Atomic.Computation(); name = "H-like", grid = grid, nuclearModel = nm,
+                                  configs = [Configuration("1s")], asfSettings = asf)
+        bas  = redirect_stdout(devnull) do;  perform(wa; output = true)["multiplet:"].levels[1].basis  end
+        d[Z] = Basics.densityAtNucleus(bas.orbitals[Subshell("1s_1/2")], grid, nm)
+        exact = Z^3/pi
+        if  abs(d[Z]/exact - 1.0) > 0.01
+            success = false
+            if printTest   info(iostream, "the H-like 1s density at Z = $Z is $(d[Z]) against the exact " *
+                                          "Z^3/pi = $exact, a deviation of $(abs(d[Z]/exact - 1))")   end
+        end
+    end
+    ## and the Z^3 scaling itself, which divides the absolute normalisation out
+    for  (Z, factor)  in  ((2.0, 8.0), (3.0, 27.0))
+        if  abs( d[Z]/d[1.0]/factor - 1.0 ) > 0.01
+            success = false
+            if printTest   info(iostream, "the density does not scale as Z^3: d($Z)/d(1) = $(d[Z]/d[1.0]) " *
+                                          "against $factor")   end
+        end
+    end
+
+    ## A p_1/2 orbital has a NON-ZERO density at the nucleus, carried entirely by the small component -- a
+    ## purely relativistic effect, and the reason p_1/2 orbitals take part in electron capture at all.  It
+    ## must be non-zero and it must be far smaller than the s density of the same shell.
+    grid = Radial.Grid(Radial.Grid(false); rnt = 2.0e-6, h = 5.0e-2, hp = 2.0e-2, rbox = 20.0)
+    nm   = Nuclear.Model(54.0, Nuclear.UniformNucleus())
+    asf  = AsfSettings(AsfSettings(); scField = Basics.DFSField())
+    wa   = Atomic.Computation(Atomic.Computation(); name = "Xe", grid = grid, nuclearModel = nm,
+               configs = [Configuration("1s^2 2s^2 2p^6 3s^2 3p^6 3d^10 4s^2 4p^6 4d^10 5s^2 5p^6")],
+               asfSettings = asf)
+    bas  = redirect_stdout(devnull) do;  perform(wa; output = true)["multiplet:"].levels[1].basis  end
+    dS   = Basics.densityAtNucleus(bas.orbitals[Subshell("3s_1/2")],  grid, nm)
+    dP   = Basics.densityAtNucleus(bas.orbitals[Subshell("3p_1/2")],  grid, nm)
+    if  !(0. < dP < 0.5*dS)
+        success = false
+        if printTest   info(iostream, "the 3p_1/2 density at the nucleus is $dP against $dS for 3s; it must " *
+                                      "be positive (a relativistic small-component effect) and much smaller")  end
+    end
+
+    ## The guard: a POINT nucleus has no volume to average over and must refuse rather than return a number.
+    raised = false
+    try     Basics.densityAtNucleus(bas.orbitals[Subshell("3s_1/2")], grid, Nuclear.Model(54.0, PointNucleus()))
+    catch
+        raised = true          ## NOTE: the assignment must NOT sit on the `catch` line -- Julia would read
+    end                        ##       `raised` as the name of the exception variable and then fail on `=`.
+    if  !raised
+        success = false
+        if printTest   info(iostream, "a point nucleus did not raise, although it has no volume to average over")  end
+    end
+
+    println(iostream, "Basics.densityAtNucleus: the H-like 1s density against the exact Z^3/pi at Z = 1, 2, 3 " *
+                      "and its Z^3 scaling; a non-zero but much smaller p_1/2 density, which exists only " *
+                      "relativistically; and the refusal for a point nucleus. No approved data is used.")
+    Defaults.setDefaults("print summary: close", "")
+    testPrint("testMethod_DensityAtNucleus()::", success)
+    return( success )
+end
+
+
+"""
 `TestFrames.testMethod_DocstringPointers(; short::Bool=true)`
     ... asserts that every `Module.name` written in a docstring under src/ actually resolves. Needs no
         reference data: the requirement is exact, so the test is against zero rather than a tabulated number.

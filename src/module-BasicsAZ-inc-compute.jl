@@ -196,6 +196,63 @@ function Basics.computeDensity(level::Level, grid::Radial.Grid)
 end
 
 """
+`Basics.densityAtNucleus(orbital::Radial.Orbital, grid::Radial.Grid, nm::Nuclear.Model)`
+    ... computes the electron density of a SINGLE orbital at the nucleus, averaged over the nuclear volume; a
+        density::Float64 in atomic units (electrons per bohr^3, for one electron in that orbital) is returned.
+
+        WHY AN AVERAGE AND NOT A LIMIT.  The quantity wanted is |psi(0)|^2, and one is tempted to take
+        (P/r)^2 as r -> 0.  That works for s_1/2, whose large component behaves as P ~ r, but it is
+        numerically hopeless for p_1/2: there the large component vanishes as r^2 and the density is carried
+        by the SMALL component, Q ~ r, which a logarithmic grid resolves poorly near the origin.  Measured on
+        Ho on 04-Sep-2026, (P/r)^2 for the s orbitals was flat to 0.2-1.6 % across the innermost grid points
+        while (Q/r)^2 for the p_1/2 ones varied by 36 %, by a factor 8 and by a factor 20.  An INTEGRAL over
+        the nuclear volume is stable where a limit is not, and it is also the physically right object: a
+        nucleus has a finite size and the capture samples the electron density across it.
+
+        THE DEFINITION.  With the nucleus taken as a homogeneously charged sphere of radius R = nm.radius,
+        the volume density (P^2 + Q^2)/(4 pi r^2) averaged over that sphere is
+
+            <|psi|^2>  =  int_0^R [ P(r)^2 + Q(r)^2 ] dr   /   ( 4 pi  int_0^R r^2 dr )
+
+        since the 4 pi r^2 of the volume element cancels the 1/r^2 of the density.  BOTH integrals are formed
+        with the same quadrature over the same points, so that the error of stopping at the last grid point
+        inside R cancels between them; dividing by the analytic 4 pi R^3/3 instead leaves the result several
+        percent low.  The p_1/2 contribution
+        enters through Q and is a purely relativistic effect -- non-relativistically a p electron has no
+        density at the nucleus at all, which is why p_1/2 orbitals take part in electron capture only in a
+        relativistic treatment.
+
+        A GUARD IS APPLIED rather than a silent result: if fewer than three grid points fall inside the
+        nucleus the integral is meaningless and the function raises, naming the radius and the count.
+"""
+function Basics.densityAtNucleus(orbital::Radial.Orbital, grid::Radial.Grid, nm::Nuclear.Model)
+    R = Defaults.convertUnits("length: from fm to atomic", nm.radius)
+    R <= 0.   &&   error("Basics.densityAtNucleus(): the nuclear radius is $(nm.radius) fm; a point nucleus " *
+                         "has no volume to average over, so use a uniform or Fermi model instead.")
+    mtp = 0
+    for  i = 1:min(length(orbital.P), grid.NoPoints)
+        grid.r[i] <= R   &&   (mtp = i)
+    end
+    mtp < 3   &&   error("Basics.densityAtNucleus(): only $mtp grid points lie inside the nucleus " *
+                         "(R = $R a.u.); refine rnt and h before trusting an integral over that region.")
+    ## THE NORMALISATION IS TAKEN FROM THE SAME QUADRATURE, not from the analytic R^3/3, and that is the
+    ## whole trick.  The volume average is int (P^2+Q^2) dr / (4 pi int r^2 dr) over the nuclear interior; if
+    ## both integrals are formed with the SAME weights over the SAME points, the error made by stopping at the
+    ## last grid point inside R cancels between them.  Dividing instead by the exact 4 pi R^3/3 left the
+    ## hydrogenic anchor 5 % LOW, and hand-adding the missing sliver then overshot by 5-10 %, because grid.wr
+    ## already covers part of it; the self-normalised form needs no such correction.
+    num = 0.;   den = 0.
+    for  i = 1:mtp
+        num = num + (orbital.P[i]^2 + orbital.Q[i]^2) * grid.wr[i]
+        den = den + grid.r[i]^2 * grid.wr[i]
+    end
+    den <= 0.   &&   error("Basics.densityAtNucleus(): the nuclear-volume normalisation came out non-positive.")
+
+    return( num / (4pi * den) )
+end
+
+
+"""
 `Basics.computeDiracEnergy(sh::Subshell, Z::Float64; mass::Float64=1.0)`  
     ... computes the Dirac energy for the hydrogenic subshell sh and for a point-like nucleus with nuclear charge Z; 
         a energy::Float64 in atomic units and without the rest energy of the particle is returned. That is the binding 

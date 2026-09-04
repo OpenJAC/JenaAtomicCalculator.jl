@@ -30,6 +30,7 @@ function analyzeGrid                                            end
 function checkConfigurations                                    end
 function compute                                                end
 function computeDensity                                         end
+function densityAtNucleus                                       end
 function computeDiracEnergy                                     end
 function computeMeanSubshellOccupation                          end
 function computeMultipletForGreenApproach                       end
