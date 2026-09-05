@@ -185,21 +185,37 @@ elseif  false
     #    ONE EXPANSION PER SYMMETRY, the transition formed afterwards from two absolute totals, each
     #    variational for its own level.
     #
-    #    MEASURED, 01-Sep-2026, four layers (reference / +{3s,3p,3d} / +{4s..4f} / +{5s..5g}), EOL target by
-    #    reference weight, Coulomb and Coulomb+Breit:
+    #    MEASURED, 04-Sep-2026, four layers (reference / +{3s,3p,3d} / +{4s..4f} / +{5s..5g}), EOL target by
+    #    reference weight, Coulomb and Coulomb+Breit.  RE-MEASURED IN FULL on one code state (6ac4d5b8) after
+    #    the solver repairs of 02/03-Sep; the 01-Sep table it replaces is kept two blocks below, because the
+    #    DIFFERENCE between them is the point.
     #
     #      layer     Coulomb [cm^-1]   +Breit [cm^-1]   Breit shift    (2s^2 -> 2s2p)
-    #        1          2 522 685.49     2 748 931.29    226 245.80
-    #        2          2 505 627.36     2 735 652.26    230 024.90
-    #        3          2 503 834.63     2 734 190.41    230 355.78
-    #        4          2 502 325.85     2 733 011.26    230 685.41
+    #        1          2 523 657.82     2 750 446.21    226 788.39
+    #        2          2 510 551.05     2 739 427.31    228 876.27
+    #        3          2 507 846.85     2 737 235.86    229 389.02
+    #        4          2 505 822.23     2 735 621.66    229 799.43
     #
-    #      0+ totals [Ha]  C : -12040.8510586486 / -12040.8528916844 / -12040.8539048313 / -12040.8549322944
-    #                      CB: -12025.9598261503 / -12025.9636711274 / -12025.9655187973 / -12025.9672696758
-    #      1- totals [Ha]  C : -12029.3568578365 / -12029.4364134361 / -12029.4455948420 / -12029.4534968039
-    #                      CB: -12013.4347736219 / -12013.4991223023 / -12013.5076306471 / -12013.5147541055
+    #      0+ totals [Ha]  C : -12040.8576547019 / -12040.8594875539 / -12040.8605053288 / -12040.8615720957
+    #                      CB: -12025.9698061148 / -12025.9736162445 / -12025.9754362997 / -12025.9772603032
+    #      1- totals [Ha]  C : -12029.3590236115 / -12029.4205753182 / -12029.4339143359 / -12029.4442059380
+    #                      CB: -12013.4378510808 / -12013.4918670131 / -12013.5036720473 / -12013.5128508881
     #      CSFs            0+ 3 / 11 / 26 / 50      1- 2 / 14 / 42 / 92
-    #      wall time       0+ 0.09 h / 0.13 h      1- 0.89 h / 1.03 h      (Coulomb / +Breit)
+    #      wall time       0+ 0.081 h / 0.109 h    1- 0.064 h / 0.228 h    (Coulomb / +Breit)
+    #
+    #    THE OBSERVABLE MOVES: the transition shifts +972 / +4924 / +4012 / +3496 cm^-1 layer by layer, i.e.
+    #    0.14 % at layer 4, and +1515 / +3775 / +3045 / +2610 under Breit.  The large common shift in the
+    #    TOTALS did not cancel in the difference.  Compare branch (e), where it does -- see there.
+    #
+    #      SUPERSEDED TABLE, 01-Sep-2026, kept because the difference is the result:
+    #        layer 1..4   Coulomb  2 522 685.49 / 2 505 627.36 / 2 503 834.63 / 2 502 325.85
+    #                     +Breit   2 748 931.29 / 2 735 652.26 / 2 734 190.41 / 2 733 011.26
+    #        0+ totals C : -12040.8510586486 / -12040.8528916844 / -12040.8539048313 / -12040.8549322944
+    #                  CB: -12025.9598261503 / -12025.9636711274 / -12025.9655187973 / -12025.9672696758
+    #        1- totals C : -12029.3568578365 / -12029.4364134361 / -12029.4455948420 / -12029.4534968039
+    #                  CB: -12013.4347736219 / -12013.4991223023 / -12013.5076306471 / -12013.5147541055
+    #        wall time    0+ 0.09 h / 0.13 h      1- 0.89 h / 1.03 h
+    #        Those wall times were taken under contention and are not evidence; the ENERGIES are deterministic.
     #
     #      MEASURED AFTER item 32 was fixed (commit 93ee87a).  An earlier table here, taken the same day
     #      BEFORE that fix, is superseded: the positive-branch projection was rotating the FROZEN orbitals,
@@ -207,18 +223,22 @@ elseif  false
     #      was shared between layers.  Do not quote the earlier numbers.
     #
     #    WHAT THE NUMBERS SAY, and why this case is worth keeping.
-    #    (i)   CORRELATION IS WORTH -20 360 cm^-1 UNDER COULOMB (-15 920 with Breit), and the FIRST
+    #    (i)   CORRELATION IS WORTH -17 836 cm^-1 UNDER COULOMB (-14 825 with Breit)  [04-Sep; was -20 360 / -15 920], and the FIRST
     #          correlation layer takes most but not all of it: 47 % of the correlation ENERGY for the even
     #          symmetry and 82 % for the odd, with layers 3 and 4 each worth about 10 % for the odd state.
     #          The transition falls monotonically here, layer by layer, unlike the pre-fix table.
     #    (ii)  BREIT AND CORRELATION ARE NOT ADDITIVE, and the first layer matters most.  The Breit shift
-    #          moves +3 779 cm^-1 (1.7 %) from the bare reference to one correlation layer, then keeps
-    #          drifting by +331 and +330 (0.14 % each).  So a Breit correction taken from the UNCORRELATED
+    #          moves +2 088 cm^-1 (0.9 %) from the bare reference to one correlation layer, then keeps
+    #          drifting by +513 and +410  [04-Sep; was +3 779, then +331 and +330].  The non-additivity SURVIVES
+    #          and is weaker: the drift across the four layers falls from +4 440 to +3 011 cm^-1.  So a Breit correction taken from the UNCORRELATED
     #          reference is wrong by ~2 %, and one layer brings it to ~0.3 % -- useful, but not converged.
-    #    (iii) THE NON-ADDITIVITY IS IN THE CORRELATION ENERGY ITSELF: the same layer buys -0.00184 Ha under
-    #          Coulomb and -0.00384 under Breit for 0+ (2.1x MORE), and -0.10956 against -0.09409 for 1-
+    #    (iii) THE NON-ADDITIVITY IS IN THE CORRELATION ENERGY ITSELF: the same layer buys -0.00183 Ha under
+    #          Coulomb and -0.00381 under Breit for 0+ (2.1x MORE)  [04-Sep: essentially UNCHANGED, and this is
+    #          the one claim the repair leaves alone -- the correlation increment in the TOTALS is robust where
+    #          the TRANSITION built from differences is not], and -0.10956 against -0.09409 for 1-
     #          (14 % LESS).  Breit does not scale correlation uniformly.
-    #    (iv)  BREIT COSTS ~30 % MORE WALL-CLOCK AND NOTHING IN THE SCF: the orbital radii come out identical
+    #    (iv)  BREIT COSTS ~35 % MORE WALL-CLOCK FOR 0+ AND +255 % FOR 1- AND NOTHING IN THE SCF  [04-Sep: the
+    #          single figure BREAKS -- 290.5 -> 392.2 s for 0+ but 231.1 -> 820.0 s for 1-]: the orbital radii come out identical
     #          to four digits with and without it, because the EOL path applies it once at the final CI and
     #          leaves the variational loop pure Coulomb.
     #    (v)   WHICH LAYER PAYS IS VISIBLE IN THE RADII, which each step now prints.  The n = 3 layer contracts
@@ -273,19 +293,38 @@ elseif  false
     #    neither -- but it belongs in the reference so that the model is the n = 2 complex and not a subset
     #    chosen per symmetry.  ONE EXPANSION PER SYMMETRY, the transition formed from two absolute totals.
     #
-    #    MEASURED, 02-Sep-2026, four layers (reference / +{3s,3p,3d} / +{4s..4f} / +{5s..5g}):
+    #    MEASURED, 04-Sep-2026, four layers (reference / +{3s,3p,3d} / +{4s..4f} / +{5s..5g}), on ONE code
+    #    state (6ac4d5b8) after the solver repairs of 02/03-Sep.  The 0+ pair ran on the desktop and the 1+
+    #    pair on the compute machine; a CHECK expansion reproduced the desktop's value there to 3e-11 Ha, so
+    #    the four are one measurement.  The 02-Sep table is kept below -- the difference is the point.
     #
     #      layer   CSFs 0+/1+   Coulomb [cm^-1]   +Breit [cm^-1]   Breit shift
-    #        1        4 /    2     32 591 118.35    32 193 276.72    -397 841.63
-    #        2       67 /  124     32 604 516.51    32 208 202.51    -396 314.00
-    #        3      264 /  589     32 607 479.11    32 211 649.59    -395 829.52
-    #        4      658 / 1592     32 609 711.15    32 214 279.58    -395 431.57
+    #        1        4 /    2     32 592 054.76    32 194 254.13    -397 800.63
+    #        2       67 /  124     32 604 705.31    32 208 580.23    -396 125.08
+    #        3      264 /  589     32 607 719.46    32 212 044.15    -395 675.31
+    #        4      658 / 1592     32 609 672.27    32 214 516.23    -395 156.04
     #
-    #      0+ totals [Ha]  C : -14351.2270058665 / -14351.4807118722 / -14351.5359971278 / -14351.5769920724
-    #                      CB: -14330.2670088184 / -14330.4915344958 / -14330.5413436329 / -14330.5788640877
-    #      1+ totals [Ha]  C : -14202.7309443812 / -14202.9236038947 / -14202.9653905461 / -14202.9962155771
-    #                      CB: -14183.5836471721 / -14183.7401659789 / -14183.7742690343 / -14183.7998064067
-    #      wall time       0+ 0.91 h / 1.47 h     1+ 1.63 h / 2.20 h     (Coulomb / +Breit)
+    #      0+ totals [Ha]  C : -14351.2414275256 / -14351.4875603166 / -14351.5431408615 / -14351.5825881609
+    #                      CB: -14330.2814946783 / -14330.4985661779 / -14330.5485071486 / -14330.5847223087
+    #      1+ totals [Ha]  C : -14202.7410994446 / -14202.9295921041 / -14202.9714391621 / -14203.0019888131
+    #                      CB: -14183.5936796418 / -14183.7454766284 / -14183.7796348288 / -14183.8045863688
+    #      wall time       0+ 0.56 h / 1.05 h     1+ 9.59 h / 10.13 h    (Coulomb / +Breit)
+    #
+    #    AND HERE THE OBSERVABLE DOES NOT MOVE -- the opposite of branch (d), for a physical reason.  The
+    #    transition shifts +936 / +189 / +240 / -39 cm^-1 layer by layer, i.e. -0.0001 % at layer 4, against
+    #    +3 496 cm^-1 (0.14 %) for the Be-like EXCITATION.  A FINE-STRUCTURE INTERVAL joins two levels of the
+    #    SAME configuration, so the large common shift cancels almost exactly; an excitation between DIFFERENT
+    #    configurations has no such cancellation.  "Does the solver repair move the observable?" therefore has
+    #    no single answer, and the KIND of transition decides.
+    #
+    #      SUPERSEDED TABLE, 02-Sep-2026:
+    #        layer 1..4  Coulomb 32 591 118.35 / 32 604 516.51 / 32 607 479.11 / 32 609 711.15
+    #                    +Breit  32 193 276.72 / 32 208 202.51 / 32 211 649.59 / 32 214 279.58
+    #        0+ totals C : -14351.2270058665 / -14351.4807118722 / -14351.5359971278 / -14351.5769920724
+    #                  CB: -14330.2670088184 / -14330.4915344958 / -14330.5413436329 / -14330.5788640877
+    #        1+ totals C : -14202.7309443812 / -14202.9236038947 / -14202.9653905461 / -14202.9962155771
+    #                  CB: -14183.5836471721 / -14183.7401659789 / -14183.7742690343 / -14183.7998064067
+    #        wall time   0+ 0.91 h / 1.47 h     1+ 1.63 h / 2.20 h
     #
     #    AND THE REFERENCE LAYER ALONE, three mean fields against two interactions (tourC-A-fields.jl):
     #      DFS  C -14351.21887732  CB -14330.22831829   3P0->3P1  32 589 166 / 32 186 520 cm^-1   1.9 / 0.9 s
@@ -293,27 +332,38 @@ elseif  false
     #      EOL  C -14351.24891773  CB -14330.27080296             32 591 370 / 32 193 723       10.4 / 10.8 s
     #
     #    FIVE THINGS, AND THE FIRST TWO REVERSE WHAT BRANCH (d) SHOWS.
-    #    (i)   BREIT CHANGES SIGN BETWEEN THE TWO SEQUENCES.  It is +229 000 cm^-1 for the Be-like line of
-    #          branch (d) and -397 000 cm^-1 here.  Nothing about "Breit is a positive correction" survives
+    #    (i)   BREIT CHANGES SIGN BETWEEN THE TWO SEQUENCES.  It is +229 799 cm^-1 for the Be-like line of
+    #          branch (d) and -395 156 cm^-1 here.  Nothing about "Breit is a positive correction" survives
     #          a change of isoelectronic sequence; only its SIZE at high Z is general.
-    #    (ii)  CORRELATION ALSO REVERSES: it moves this line UP by +18 593 cm^-1 (Coulomb), where in (d) it
-    #          moved the Be-like line DOWN by 20 360.  Both are ~0.06-0.8 % of their transition.
+    #          [Re-checked 04-Sep-2026: SURVIVES.  Was +229 000 / -397 000; both moved by well under a percent.]
+    #    (ii)  CORRELATION ALSO REVERSES: it moves this line UP by +17 618 cm^-1 (Coulomb), where in (d) it
+    #          moved the Be-like line DOWN by 17 836.  Both are ~0.05-0.7 % of their transition.
+    #          [04-Sep: SURVIVES.  Was +18 593 / -20 360 -- and the two are now nearly equal and opposite,
+    #          which the old pair was not.]
     #    (iii) RELATIVE TO THE TRANSITION, BOTH EFFECTS ARE MUCH SMALLER HERE, because the transition itself
     #          is a 32.6 MILLION cm^-1 fine-structure splitting rather than a 2.5 million cm^-1 excitation:
-    #          Breit is 1.2 % (against 9 %) and correlation 0.06 % (against 0.8 %).  A fine-structure
+    #          Breit is 1.21 % (against 9.17 %) and correlation 0.054 % (against 0.71 %).  A fine-structure
     #          interval is a much easier target than an excitation energy at the same Z.
+    #          [04-Sep: SURVIVES, and it is the reason the observable moves in (d) and not here -- see the
+    #          note under the table.]
     #    (iv)  THE FIRST CORRELATION LAYER TAKES 72 % OF THE CORRELATION ENERGY, and remarkably it is 72 %
-    #          in ALL FOUR runs (72.5 / 72.0 / 72.6 / 72.4 %) -- both symmetries, both interactions.  In the
+    #          in ALL FOUR runs (72.1 / 72.3 / 71.6 / 72.0 %) -- both symmetries, both interactions.  In the
     #          Be-like case the same fraction was 47 % for the even symmetry and 82 % for the odd, so this
     #          uniformity is a property of THIS ion and not a general rule.
-    #    (v)   THE ABSOLUTE CORRELATION ENERGY IS ~140x LARGER than Be-like: 0.254 Ha at the first
-    #          correlation layer against 0.0018 Ha.  Four valence electrons rather than two, and an open
+    #          [04-Sep: SURVIVES and is the most robust of the five; was 72.5 / 72.0 / 72.6 / 72.4.]
+    #    (v)   THE ABSOLUTE CORRELATION ENERGY IS ~134x LARGER than Be-like: 0.246 Ha at the first
+    #          correlation layer against 0.00183 Ha.  Four valence electrons rather than two, and an open
     #          shell rather than a closed one.  The mean field remains irrelevant: 2 204 cm^-1 across DFS,
     #          AL and EOL, i.e. 0.007 % of the transition.
+    #          [04-Sep: SURVIVES; was ~140x.]
     #
-    #    COST.  The four expansions took 0.91, 1.47, 1.63 and 2.20 h on an ordinary desktop -- so a
-    #    four-layer RAS study of a six-electron high-Z ion, both symmetries and both interactions, is a
-    #    single overnight run.  Breit adds 35-60 % of wall time and nothing to the SCF.
+    #    COST -- REWRITTEN 04-Sep-2026, AND THIS IS THE ONE CONCLUSION THAT BROKE.  The four expansions now
+    #    take 0.56, 1.05, 9.59 and 10.13 h = 21.3 h.  The 0+ pair got FASTER (0.61x, 0.72x) from the
+    #    Breit-kernel work of 04-Sep; the 1+ pair is 4.6-5.9x SLOWER, because the repaired solver takes real
+    #    optimisation steps where the old one quit early.  Still one overnight run, but only just.  And
+    #    "Breit adds 35-60 % of wall time" is false in both directions: +88.6 % on 0+, +5.7 % on 1+, whose
+    #    wall clock is dominated by the pure-Coulomb SCF.  The two halves were timed on DIFFERENT MACHINES,
+    #    so treat the 0+/1+ ratio as indicative rather than as a measurement.
     #
     Z      = 92.0
     refs   = [Configuration("1s^2 2s^2 2p^2"), Configuration("1s^2 2s^1 2p^3"), Configuration("1s^2 2p^4")]
@@ -321,7 +371,7 @@ elseif  false
                RasLayer([Shell("3s"), Shell("3p"), Shell("3d")]),
                RasLayer([Shell("4s"), Shell("4p"), Shell("4d"), Shell("4f")]),
                RasLayer([Shell("5s"), Shell("5p"), Shell("5d"), Shell("5f"), Shell("5g")]) ]
-    # The 0+ symmetry, the cheaper of the two at 0.91 h; swap for LevelSymmetry(1, Basics.plus) and
+    # The 0+ symmetry, much the cheaper of the two at 0.56 h against 9.59 h; swap for LevelSymmetry(1, Basics.plus) and
     # difference the two lowest totals to reproduce the table above.
     rasSettings = RasSettings([1], 60, 1.0e-6, CoulombInteraction(), LevelSelection(true, configurations=refs))
     grid   = Basics.recommendedGrid(refs, Nuclear.Model(Z); rnt = 2.0e-7)
