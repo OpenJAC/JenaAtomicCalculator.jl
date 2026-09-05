@@ -437,6 +437,39 @@ function virtualDirections(bVectors::Dict{Subshell, Vector{Float64}}, subshells:
             if  nrm > 1.0e-8    push!(dirs, v / nrm)    end
             if  length(dirs) >= nVirtual    break    end
         end
+
+        # AND NOW MAKE THEM ORBITALS AGAIN -- priority item 5, 04-Sep-2026.
+        # Up to here `dirs` spans the right space but its members are MIXTURES: each reference eigenvector is
+        # projected free of the occupied orbitals and then Gram-Schmidt'ed against the ones already accepted, and
+        # both steps mix.  The caller divides the gradient by (epsV - epsA) with epsV = phi' h1 phi, which is the
+        # standard orbital-energy denominator and is only meaningful when phi is an EIGENSTATE; for a mixture it
+        # is a Rayleigh quotient of nothing in particular.  MEASURED CONSEQUENCE (Be-like Z = 92, the sixteen
+        # 2s_1/2 directions): six lay BELOW the occupied 2s at -1256 Ha, the lowest beneath even the 1s, the
+        # floor then replaced their large NEGATIVE denominator by the smallest positive one available (+0.05),
+        # amplifying them and reversing their sign, and those six carried 100.0 % of the step's weight while
+        # 2p_1/2 and 2p_3/2 carried none.
+        # THE REPAIR IS TO DIAGONALIZE h1 INSIDE THE SPAN, which costs one nVirtual x nVirtual symmetric
+        # eigenproblem per kappa and turns the mixtures back into eigenstates of the one-particle operator
+        # RESTRICTED TO THE COMPLEMENT of the occupied space.  Each epsV the caller then forms is a genuine
+        # eigenvalue rather than a Rayleigh quotient, which is exactly what its formula assumes.
+        # TWO PROPERTIES ARE PRESERVED, and the callers rely on both: the set stays B-ORTHONORMAL, because an
+        # orthogonal transformation of a B-orthonormal set is B-orthonormal; and it stays inside the complement,
+        # because a linear combination of vectors orthogonal to the occupied space still is.
+        # h1 IS THE ONE-PARTICLE OPERATOR, NOT THE FULL MEAN FIELD, deliberately: the caller's denominator uses
+        # h1 on BOTH sides (epsA = b' h1 b), the rotation route never forms a Fock matrix, and a denominator is
+        # self-consistent or it is nothing.  Eigenstates of the true mean field would be a larger change and are
+        # not needed to make the formula mean what it says.
+        if  length(dirs) > 1
+            h1  = Bsplines.setupLocalMatrix(sh.kappa, primitives, nucPot, storage)
+            nd  = length(dirs)
+            hm  = zeros(nd, nd)
+            for  i = 1:nd
+                hv = h1 * dirs[i]
+                for  j = i:nd    hm[i,j] = transpose(dirs[j]) * hv;    hm[j,i] = hm[i,j]    end
+            end
+            wa   = LinearAlgebra.eigen( LinearAlgebra.Symmetric(hm) )
+            dirs = [ sum( wa.vectors[k,m] * dirs[k]  for k = 1:nd )   for m = 1:nd ]
+        end
         virtuals[sh] = dirs
     end
     return( virtuals )
@@ -899,7 +932,7 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
         println(">> [EOL-C3] frozen and NOT optimized: " * join(string.(frozenSubshells), ", ") *
                 ";  $(length(activeSubshells)) of $(length(basis.subshells)) subshells are varied.")
     end
-    ePrevious = 0.;   tStep = 1.0;   multiplet = Multiplet("EOL-ByRotation", Level[])
+    tStep = 1.0;   multiplet = Multiplet("EOL-ByRotation", Level[])
     bestGNorm = Inf;   bestGIter = 0        # for the stagnation test that ends the iteration, see below
     # Set by every exit below.  A loop that simply runs out of iterations used to end in silence, which was the
     # fifth of five ways this driver can stop and the only one left unreported.
@@ -1227,9 +1260,22 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
         # Converged when the GRADIENT is small. settings.accuracyScf is its tolerance, which is the honest
         # test: the old sole criterion, |E - E_prev| < accuracyScf, halts when PROGRESS is slow, which is a
         # statement about the optimizer and not about the solution -- and it is why every EOL value quoted
-        # before 16-Aug-2026 was an upper bound. It cannot stand ALONE, though: |grad| PLATEAUS at a floor
-        # set by the basis and the projection, so on Li a pure gradient test ran 48 further iterations after
-        # the energy had stopped moving, for nothing. Both tests are kept, and the driver says which fired.
+        # before 16-Aug-2026 was an upper bound.
+        #
+        # "BOTH TESTS ARE KEPT" IS NO LONGER TRUE, and this sentence stood here after it stopped being true --
+        # corrected 04-Sep-2026.  The energy test was REMOVED on 03-Sep in favour of the gradient-STAGNATION
+        # exit below (see its own note: a stationary energy stopped every step of Be Scenario A short, at
+        # iterations 3, 15, 37 and 80, where the same runs converged at 63, 154, 51 and 40).  THIS IS NOW THE
+        # ONLY CONVERGENCE EXIT; every other one below is a give-up and says so.
+        #
+        # AND IT IS KNOWN TO BE INADEQUATE AT BOTH ENDS OF Z -- priority item 6, measured 03-Sep-2026.  |grad|
+        # is not scale-free: its size is set by the excitation energies that set the curvature, ~1000 Ha at
+        # Z = 92 against ~1 Ha at Z = 4.  At Z = 92 the run is DONE and cannot say so (energy flat to 4e-15 Ha,
+        # a central difference of the functional returning pure round-off, ~3e-09 Ha still available) while
+        # |grad| = 0.0023 reads as unconverged against 1e-6; at Z = 4 the exits fire while the energy is still
+        # falling by 1.3e-05 Ha per iteration.  The remedy is NOT the naive energy test that was removed -- that
+        # was measured and is wrong -- but a GUARDED one: a tolerance carrying its own resolution floor, and a
+        # flat energy read as converged ONLY when the step is still healthy.  Item 6 holds the measurements.
         if  gNorm < settings.accuracyScf
             stopReason = "converged";   println(">> [EOL-C3] CONVERGED at iteration $iter: |grad| = $gNorm < accuracyScf = " *
                     "$(settings.accuracyScf), tStep = $tStep.")
@@ -1436,7 +1482,6 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
                           ".  The energy is a converging UPPER BOUND, not a converged gradient.")
             break
         end
-        ePrevious = multiplet.levels[1].energy
     end
     if  stopReason == ""
         println(">> [EOL-C3] STOPPED after $iterDone iterations: the limit maxIterationsScf = " *
