@@ -60,8 +60,8 @@
 module WeakInteractionEnhancement
 
 
-using  Printf, ..AngularMomentum, ..Basics, ..Defaults, ..InteractionStrength, ..ManyElectron, ..Nuclear, ..Radial, ..TableStrings,
-       ..WeakInteractionMoment
+using  Printf, ..AngularMomentum, ..Basics, ..Defaults, ..Hfs, ..InteractionStrength, ..ManyElectron, ..Nuclear, ..Radial,
+       ..TableStrings, ..WeakInteractionMoment
 
 
 """
@@ -317,7 +317,7 @@ end
         anapole probe rather than a weak-charge measurement with a small spin-dependent correction, which is the reverse of the caesium
         6s-7s situation.
 
-        The two geometrical factors are `hyperfineDipoleFactor` and `hyperfineScalarFactor`; the electronic reduced matrix element of the
+        The two geometrical factors are `hyperfineMultipoleFactor` and `hyperfineScalarFactor`; the electronic reduced matrix element of the
         anapole operator is `WeakInteractionMoment.anapoleAmplitude`, which already carries the `G_F/sqrt(2) kappa` prefactor.  Since the
         anapole Hamiltonian is diagonal in F, the admixture on the initial side carries F_i and that on the final side F_f.
 
@@ -340,7 +340,7 @@ function computePncE1AmplitudeNsd(finalLevel::Level, Ff::AngularJ64, initialLeve
         dE = initialLevel.energy - nLevel.energy
         if  abs(dE) > 1.0e-12
             wg = WeakInteractionEnhancement.hyperfineScalarFactor(nLevel.J, initialLevel.J, Fi, nm.spinI) *
-                 WeakInteractionEnhancement.hyperfineDipoleFactor(finalLevel.J, Ff, nLevel.J, Fi, nm.spinI)
+                 WeakInteractionEnhancement.hyperfineMultipoleFactor(1, finalLevel.J, Ff, nLevel.J, Fi, nm.spinI)
             if  wg != 0.
                 wa = wa + wg * WeakInteractionEnhancement.dipoleReducedMe(finalLevel, nLevel, grid) *
                           WeakInteractionMoment.anapoleAmplitude(nLevel, initialLevel, nm, grid; kappaAnapole=kappaAnapole) / dE
@@ -351,7 +351,7 @@ function computePncE1AmplitudeNsd(finalLevel::Level, Ff::AngularJ64, initialLeve
         dE = finalLevel.energy - nLevel.energy
         if  abs(dE) > 1.0e-12
             wg = WeakInteractionEnhancement.hyperfineScalarFactor(finalLevel.J, nLevel.J, Ff, nm.spinI) *
-                 WeakInteractionEnhancement.hyperfineDipoleFactor(nLevel.J, Ff, initialLevel.J, Fi, nm.spinI)
+                 WeakInteractionEnhancement.hyperfineMultipoleFactor(1, nLevel.J, Ff, initialLevel.J, Fi, nm.spinI)
             if  wg != 0.
                 wa = wa + wg * WeakInteractionMoment.anapoleAmplitude(finalLevel, nLevel, nm, grid; kappaAnapole=kappaAnapole) *
                           WeakInteractionEnhancement.dipoleReducedMe(nLevel, initialLevel, grid) / dE
@@ -370,14 +370,14 @@ end
         <f J_f I F_f || D_PNC || i J_i I F_i>.  A value::ComplexF64 is returned, in atomic units (e a_0).
 
         It carries no physics of its own: the weak charge is a purely electronic scalar, so the F-dependence is the single geometrical
-        factor `hyperfineDipoleFactor` and nothing else.  The function exists so that the two contributions to one measured hyperfine line
+        factor `hyperfineMultipoleFactor` and nothing else.  The function exists so that the two contributions to one measured hyperfine line
         can be added, which is what an experiment sees, and so that their RATIO can be formed on the same footing -- the caesium anapole
         moment was extracted from exactly that ratio, as the small difference between the F = 3 -> 4 and F = 4 -> 3 components of one line.
 """
 function computePncE1AmplitudeNsi(finalLevel::Level, Ff::AngularJ64, initialLevel::Level, Fi::AngularJ64,
                                   gMultiplet::Multiplet, nm::Nuclear.Model, grid::Radial.Grid)
     if      !AngularMomentum.isTriangle(Ff, AngularJ64(1), Fi)              return( ComplexF64(0.) )    end
-    wg = WeakInteractionEnhancement.hyperfineDipoleFactor(finalLevel.J, Ff, initialLevel.J, Fi, nm.spinI)
+    wg = WeakInteractionEnhancement.hyperfineMultipoleFactor(1, finalLevel.J, Ff, initialLevel.J, Fi, nm.spinI)
     if      wg == 0.                                                        return( ComplexF64(0.) )    end
 
     return( wg * WeakInteractionEnhancement.computePncE1Amplitude(finalLevel, initialLevel, gMultiplet, nm, grid) )
@@ -570,29 +570,32 @@ end
 
 
 """
-`WeakInteractionEnhancement.hyperfineDipoleFactor(Ja::AngularJ64, Fa::AngularJ64, Jb::AngularJ64, Fb::AngularJ64, spinI::AngularJ64)`
-    ... to compute the geometrical factor that turns a purely ELECTRONIC rank-1 reduced matrix element <a J_a || T^(1) || b J_b> into the
-        reduced matrix element <a J_a I F_a || T^(1) || b J_b I F_b> of the same operator in the coupled hyperfine basis.  A value::Float64
-        is returned, and it is zero unless the F's satisfy the triangle rule.
+`WeakInteractionEnhancement.hyperfineMultipoleFactor(rank::Int64, Ja::AngularJ64, Fa::AngularJ64, Jb::AngularJ64, Fb::AngularJ64,`
+                                                     `spinI::AngularJ64)`
+    ... to compute the geometrical factor that turns a purely ELECTRONIC reduced matrix element <a J_a || T^(rank) || b J_b> into the
+        reduced matrix element <a J_a I F_a || T^(rank) || b J_b I F_b> of the same operator in the coupled hyperfine basis.  A
+        value::Float64 is returned, and it is zero whenever the momenta cannot be coupled.
 
-            factor = (-1)^(J_a + I + F_b + 1) sqrt( (2F_a+1)(2F_b+1) ) { J_a  F_a  I ; F_b  J_b  1 }
+        THE FORMULA IS NOT REPEATED HERE.  It is `Hfs.recouplingElectronicOperator`, which carries it and was verified over 454
+        combinations of I, J_a, J_b, F_a and rank; this method only adds the guards that let it be called from inside a loop over
+        intermediate levels.  Those guards are the reason it exists at all: the recoupling routine reaches `AngularMomentum.phaseFactor`,
+        which RAISES for momenta that cannot be coupled, whereas a sum over states must simply skip such a level.  Keeping a second copy of
+        the algebra was tried and rejected on 5-Sep-2026 -- the two agreed to 0.0 over 497 combinations, which is exactly the situation in
+        which one of them later drifts.
 
-        This is the standard reduction of an operator acting on one part of a coupled system (Edmonds, Eq. 7.1.7).  It applies to the
-        ordinary electric dipole and, unchanged, to the nuclear-spin-independent PNC amplitude, both of which are electronic rank-1 tensors.
+        `rank` is 1 for the electric dipole and for the nuclear-spin-independent PNC amplitude, 2 for an electric quadrupole; any rank the
+        underlying reduced matrix element is defined for may be used.
 """
-function hyperfineDipoleFactor(Ja::AngularJ64, Fa::AngularJ64, Jb::AngularJ64, Fb::AngularJ64, spinI::AngularJ64)
-    # a level whose J cannot couple with I to the given F is not part of this hyperfine manifold and contributes nothing; the test is made
-    # on the doubled momenta because AngularMomentum.isTriangle RAISES rather than returns false when they cannot be coupled at all
+function hyperfineMultipoleFactor(rank::Int64, Ja::AngularJ64, Fa::AngularJ64, Jb::AngularJ64, Fb::AngularJ64, spinI::AngularJ64)
+    # a level whose J cannot couple with I to the given F is not part of this hyperfine manifold and contributes nothing; the tests are made
+    # on the doubled momenta because both AngularMomentum.isTriangle and .phaseFactor RAISE rather than return zero in that case
     if  rem(Basics.twice(Ja) + Basics.twice(spinI) + Basics.twice(Fa), 2) != 0                       return( 0. )    end
     if  rem(Basics.twice(Jb) + Basics.twice(spinI) + Basics.twice(Fb), 2) != 0                       return( 0. )    end
     if  rem(Basics.twice(Fa) + Basics.twice(Fb), 2) != 0                                             return( 0. )    end
-    if  !AngularMomentum.isTriangle(Fa, AngularJ64(1), Fb)                                           return( 0. )    end
+    if  !AngularMomentum.isTriangle(Fa, AngularJ64(rank), Fb)                                        return( 0. )    end
     if  !AngularMomentum.isTriangle(Ja, spinI, Fa)  ||  !AngularMomentum.isTriangle(Jb, spinI, Fb)   return( 0. )    end
-    n2 = Basics.twice(Ja) + Basics.twice(spinI) + Basics.twice(Fb) + 2
-    wa = (-1.)^div(n2, 2) * sqrt( (Basics.twice(Fa) + 1.0) * (Basics.twice(Fb) + 1.0) ) *
-         AngularMomentum.Wigner_6j(Ja, Fa, spinI, Fb, Jb, AngularJ64(1))
 
-    return( wa )
+    return( Hfs.recouplingElectronicOperator(spinI, Jb, Fb, Ja, Fa, rank) )
 end
 
 

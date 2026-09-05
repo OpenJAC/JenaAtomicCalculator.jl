@@ -1308,7 +1308,7 @@ end
 """
 `TestFrames.testMethod_HyperfinePncFactors(; short::Bool=true)`
     ... tests the two geometrical factors that carry the nuclear-spin-DEPENDENT PNC amplitude,
-        WeakInteractionEnhancement.hyperfineDipoleFactor and .hyperfineScalarFactor; a success::Bool is
+        WeakInteractionEnhancement.hyperfineMultipoleFactor and .hyperfineScalarFactor; a success::Bool is
         returned.  Every check is an EXACT statement about angular momentum and needs no reference data.
 """
 function testMethod_HyperfinePncFactors(; short::Bool=true)
@@ -1319,8 +1319,8 @@ function testMethod_HyperfinePncFactors(; short::Bool=true)
     ## A nucleus of spin zero has no hyperfine structure, so F = J and the dipole factor must be exactly 1:
     ## the recoupling then does nothing at all.  This fixes both the phase and the normalization at once.
     for  (ja, jb)  in  [(1//2, 1//2), (1//2, 3//2), (3//2, 5//2), (5//2, 5//2)]
-        wa = WeakInteractionEnhancement.hyperfineDipoleFactor(AngularJ64(ja), AngularJ64(ja),
-                                                              AngularJ64(jb), AngularJ64(jb), AngularJ64(0))
+        wa = WeakInteractionEnhancement.hyperfineMultipoleFactor(1, AngularJ64(ja), AngularJ64(ja),
+                                                                 AngularJ64(jb), AngularJ64(jb), AngularJ64(0))
         if  abs(wa - 1.0) > 1.0e-12
             success = false
             if printTest   info(iostream, "the I = 0 dipole factor for J_a = $ja, J_b = $jb is $wa and not 1")  end
@@ -1328,17 +1328,22 @@ function testMethod_HyperfinePncFactors(; short::Bool=true)
     end
 
     ## The hyperfine components of one line share out the strength of the fine-structure line without
-    ## creating or destroying any: summed over both F's, the squared factor is exactly 2I+1.
-    for  i2  in  [1, 3, 5, 7],  (ja2, jb2)  in  [(1,1), (1,3), (3,5)]
+    ## creating or destroying any: summed over both F's, the squared factor is exactly 2I+1.  This holds at
+    ## every rank, so it also covers the quadrupole, for which the same factor carries the E2 amplitudes.
+    ## The rule presupposes that the ELECTRONIC matrix element exists at all: there is no rank-2 operator
+    ## between two J = 1/2 levels, and the sum is then exactly zero rather than 2I+1.  Both branches are
+    ## asserted, since a factor that silently returned something for a forbidden rank would be worse.
+    for  rank  in  [1, 2],  i2  in  [1, 3, 5, 7],  (ja2, jb2)  in  [(1,1), (1,3), (3,5)]
         wa = 0.
         for  fa2 = abs(ja2-i2):2:(ja2+i2),  fb2 = abs(jb2-i2):2:(jb2+i2)
-            wa = wa + WeakInteractionEnhancement.hyperfineDipoleFactor(AngularJ64(ja2//2), AngularJ64(fa2//2),
+            wa = wa + WeakInteractionEnhancement.hyperfineMultipoleFactor(rank, AngularJ64(ja2//2), AngularJ64(fa2//2),
                                        AngularJ64(jb2//2), AngularJ64(fb2//2), AngularJ64(i2//2))^2
         end
-        if  abs(wa - (i2 + 1.0)) > 1.0e-10
+        wb = AngularMomentum.isTriangle(AngularJ64(ja2//2), AngularJ64(rank), AngularJ64(jb2//2)) ? i2 + 1.0 : 0.
+        if  abs(wa - wb) > 1.0e-10
             success = false
-            if printTest   info(iostream, "the hyperfine sum rule gives $wa and not $(i2+1) for 2I = $i2, " *
-                                          "2J_a = $ja2, 2J_b = $jb2")  end
+            if printTest   info(iostream, "the hyperfine sum rule gives $wa and not $wb for rank $rank, " *
+                                          "2I = $i2, 2J_a = $ja2, 2J_b = $jb2")  end
         end
     end
 
@@ -1354,8 +1359,8 @@ function testMethod_HyperfinePncFactors(; short::Bool=true)
     ## spin-INDEPENDENT geometry vanishes for EVERY hyperfine component of a J = 1/2 to J = 5/2 line,
     ## while the anapole reaches it through a J = 3/2 intermediate.  Both halves are asserted.
     for  fi  in  [1, 2],  ff  in  [1, 2, 3, 4]
-        if  WeakInteractionEnhancement.hyperfineDipoleFactor(AngularJ64(5//2), AngularJ64(ff), AngularJ64(1//2),
-                                                             AngularJ64(fi), AngularJ64(3//2)) != 0.
+        if  WeakInteractionEnhancement.hyperfineMultipoleFactor(1, AngularJ64(5//2), AngularJ64(ff), AngularJ64(1//2),
+                                                                AngularJ64(fi), AngularJ64(3//2)) != 0.
             success = false
             if printTest   info(iostream, "the spin-independent geometry is non-zero for J = 1/2 -> 5/2, " *
                                           "F = $fi -> $ff")  end
@@ -1367,10 +1372,11 @@ function testMethod_HyperfinePncFactors(; short::Bool=true)
         if printTest   info(iostream, "the anapole route through a J = 3/2 intermediate is closed")  end
     end
 
-    println(iostream, "WeakInteractionEnhancement.hyperfineDipoleFactor and .hyperfineScalarFactor: the I = 0 " *
-                      "limit, the 2I+1 hyperfine sum rule, the vanishing of the anapole factor for a spin-zero " *
-                      "nucleus, and the J = 1/2 -> 5/2 selection rule that makes barium an anapole experiment. " *
-                      "No approved data is used.")
+    println(iostream, "WeakInteractionEnhancement.hyperfineMultipoleFactor and .hyperfineScalarFactor: the I = 0 " *
+                      "limit, the 2I+1 hyperfine sum rule at ranks 1 and 2 (and its exact zero where the rank is " *
+                      "forbidden), the vanishing of the anapole factor " *
+                      "for a spin-zero nucleus, and the J = 1/2 -> 5/2 selection rule that makes barium an " *
+                      "anapole experiment. No approved data is used.")
     Defaults.setDefaults("print summary: close", "")
     testPrint("testMethod_HyperfinePncFactors()::", success)
     return( success )
