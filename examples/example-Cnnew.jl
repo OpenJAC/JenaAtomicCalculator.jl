@@ -637,4 +637,91 @@ elseif  false
     #
     setDefaults("print summary: close", "")
     #
+elseif  false
+    # Last successful:  05-Sep-2026
+    #   [Verified against a published calculation, not merely run: the two hyperfine components of the 5d_3/2
+    #    line come out 1.172 and 1.171 times the Dirac-Fock column of Mani & Angom, arXiv:1104.3473 Table I,
+    #    and a ratio equal for both says the angular recoupling is exact.  Both selection-rule assertions hold.]
+    # Branch i: THE NUCLEAR-SPIN-DEPENDENT AMPLITUDE, WHICH IS A DIFFERENT OBSERVABLE AND NOT A CORRECTION.  Every branch
+    #   above computes the amplitude driven by the WEAK CHARGE, which is an electronic scalar: it lives between
+    #   fine-structure levels and hyperfine structure only re-couples it.  The nuclear ANAPOLE moment is not like that.
+    #   Its operator is a rank-1 ELECTRONIC tensor dotted into the nuclear spin, so it is a scalar only in the coupled
+    #   electron-plus-nucleus space; there is no fine-structure anapole amplitude at all, the quantity exists only between
+    #   hyperfine levels, and it vanishes identically for a spin-zero nucleus.  138-Ba, the abundant isotope, has none.
+    #
+    #   THE SELECTION RULE IS THE POINT.  Because the weak charge cannot change J, the 6s_1/2 - 5d_5/2 line of Ba+ has NO
+    #   spin-independent amplitude whatever -- no single E1 step spans J = 1/2 to J = 5/2 -- so anything it carries is
+    #   anapole.  The anapole obeys only the triangle |J_n - J_i| <= 1 and reaches it through p_3/2.  This branch asserts
+    #   both halves.
+    #
+    #   AND IT PRINTS A RATIO THAT IS DELIBERATELY WRONG, AS A WARNING.  The 5d_5/2 amplitude computed here is 41 times
+    #   SMALLER than the published value of Roberts, Dzuba & Flambaum, PRA 89, 012502 (2014), Table VII -- constant to
+    #   0.1 % across all five hyperfine components, so the angular part is exact and the deficit is entirely radial.  The
+    #   reason is physical and cannot be repaired on a frozen core: that transition has a SECOND route, the anapole acting
+    #   between p_3/2 and 5d_5/2 rather than at the 6s, and core polarisation makes it as large as the first.  A DFS basis
+    #   has none, so the branch's own d_3/2-over-d_5/2 ratio comes out near 1000 where the published amplitudes give 20.
+    #   The 5d_3/2 amplitude, which does not depend on that route, is good to about 20 %.  Do not read the ratio below as
+    #   a result; it is here because a number that survives every internal check and is still 41x off is worth keeping in
+    #   front of a reader.
+    setDefaults("print summary: open", "zzz-WeakInteractionEnhancement-nsd.sum")
+    setDefaults("unit: energy", "eV")
+    xe   = "1s^2 2s^2 2p^6 3s^2 3p^6 3d^10 4s^2 4p^6 4d^10 5s^2 5p^6"
+    occ  = Dict(sh => n for (sh,n) in Configuration("$xe 6s^1").shells)
+    occ[Shell("8p")] = 1;    occ[Shell("5d")] = 1
+    grBa = Basics.recommendedGrid(occ, 56.0)
+    ## 137-Ba carries I = 3/2; the default Nuclear.Model has spin ZERO, for which the amplitude below is identically zero
+    nmBa = Nuclear.Model(Nuclear.Model(56.0); mass = 137.0, spinI = AngularJ64(3//2), mu = 0.9374)
+    asf  = AsfSettings(AsfSettings(); scField = Basics.DFSField())
+    mult(cfgs, gr, nm) = redirect_stdout(devnull) do
+        perform(Atomic.Computation(Atomic.Computation(); name="x", grid=gr, nuclearModel=nm,
+                                   configs=cfgs, asfSettings=asf); output=true)["multiplet:"]
+    end
+    mEven = mult([Configuration("$xe 6s^1"), Configuration("$xe 5d^1")], grBa, nmBa)
+    mOdd  = mult([Configuration("$xe 6p^1"), Configuration("$xe 7p^1"), Configuration("$xe 8p^1")], grBa, nmBa)
+    s6    = mEven.levels[argmin([lv.energy for lv in mEven.levels])]
+    d32   = mEven.levels[findfirst(lv -> Basics.twice(lv.J) == 3  &&  lv.index != s6.index, mEven.levels)]
+    d52   = mEven.levels[findfirst(lv -> Basics.twice(lv.J) == 5, mEven.levels)]
+    #
+    println("\n  Ba+ 137 (I = 3/2): the two amplitudes on the two candidate lines   [a.u., imaginary part]")
+    println("  " * "-"^96)
+    @printf("    %-22s %18s %20s\n", "hyperfine line", "NSI (weak charge)", "NSD (per unit kappa)")
+    nsdMax = Dict("5d_3/2" => 0., "5d_5/2" => 0.)
+    for  (nam, up, Ffs)  in  (("5d_5/2", d52, [1,2,3,4]), ("5d_3/2", d32, [0,1,2,3]))
+        for  Fi in [1,2],  Ff in Ffs
+            wa = imag( WeakInteractionEnhancement.computePncE1AmplitudeNsi(up, AngularJ64(Ff), s6,
+                                                                          AngularJ64(Fi), mOdd, nmBa, grBa) )
+            wb = imag( WeakInteractionEnhancement.computePncE1AmplitudeNsd(up, AngularJ64(Ff), s6,
+                                                                          AngularJ64(Fi), mOdd, nmBa, grBa) )
+            if  wa == 0.  &&  wb == 0.    continue    end
+            nsdMax[nam] = max(nsdMax[nam], abs(wb))
+            @printf("    %-8s F=%d -> F=%d %18.6e %20.6e\n", nam, Fi, Ff, wa, wb)
+        end
+    end
+    #
+    ## the two assertions this branch exists for, stated as tests rather than left to the eye
+    wNsi = maximum( abs(WeakInteractionEnhancement.computePncE1AmplitudeNsi(d52, AngularJ64(Ff), s6,
+                        AngularJ64(Fi), mOdd, nmBa, grBa))  for Fi in [1,2], Ff in [1,2,3,4] )
+    println("\n  >> the spin-INDEPENDENT amplitude on 6s - 5d_5/2 is $(wNsi == 0. ? "EXACTLY ZERO, as required" : "NON-ZERO -- WRONG")")
+    println("  >> the spin-DEPENDENT amplitude there is $(nsdMax["5d_5/2"] > 0. ? "non-zero, as required" : "ZERO -- WRONG")")
+    @printf("  >> this basis makes the clean line weaker than 6s - 5d_3/2 by a factor %.0f; the published\n",
+            nsdMax["5d_3/2"] / nsdMax["5d_5/2"])
+    println("     amplitudes give about 20.  The gap is core polarisation, which opens a second route to 5d_5/2")
+    println("     (the anapole acting between p_3/2 and 5d_5/2) that a frozen-core mean field does not have.")
+    #
+    ## AND THE CALIBRATION, because a new observable with no external check is not yet a capability.  Mani & Angom,
+    ## arXiv:1104.3473, Table I, give this same reduced matrix element for 135-Ba+ in units of i e a_0 x 1e-12 mu'_W.
+    ## Their operator carries the bare nuclear spin where ours carries I/I, so their number divided by I is ours.
+    println("\n  Against Mani & Angom (2011), Table I -- 6s_1/2 - 5d_3/2, their Dirac-Fock column")
+    println("  " * "-"^96)
+    for  (Fi, Ff, theirs)  in  ((2, 3, -2.716), (1, 2, 2.707))
+        wa = imag( WeakInteractionEnhancement.computePncE1AmplitudeNsd(d32, AngularJ64(Ff), s6,
+                                                                      AngularJ64(Fi), mOdd, nmBa, grBa) )
+        @printf("    F=%d -> F=%d   ours %12.4e   theirs/I %12.4e   ratio %6.3f\n",
+                Fi, Ff, wa, theirs*1.0e-12/1.5, abs(wa / (theirs*1.0e-12/1.5)))
+    end
+    println("    The two hyperfine components differ ONLY through the angular recoupling, so a ratio that is the")
+    println("    same for both says the angular part is exact and the whole difference is radial.")
+    #
+    setDefaults("print summary: close", "")
+    #
 end
