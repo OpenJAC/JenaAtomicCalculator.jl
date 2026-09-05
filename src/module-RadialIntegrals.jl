@@ -616,9 +616,10 @@ end
         deeply bound (eigenvalue off by roughly a fifth from the experimental K-shell value) because its Fock
         matrix was silently missing part of its direct screening from the 2p shell.
         rho_bd(s) is represented as a cubic spline (Dierckx.Spline1D) over the tabulated grid values, and each
-        piece is evaluated by adaptive Gauss-Kronrod quadrature (QuadGK.quadgk), exactly as already done
-        elsewhere in JAC (cf. Nuclear.jl's nuclear-density integrals) for integrals with known problematic
-        points.
+        piece is evaluated by a FIXED eight-point Gauss-Legendre rule per cell (RadialIntegrals.cellIntegral,
+        GBL_GaussLegendreCell) -- not, as this paragraph said until 05-Sep-2026, by adaptive Gauss-Kronrod:
+        the adaptive form was replaced when the sweep was introduced, since one grid cell is smooth and needs
+        no subdivision, and the description was not updated with it.
         BOTH integrals are accumulated by a SINGLE SWEEP over the grid rather than integrated afresh at every
         point: the inner moment grows with r and the outer moment shrinks with r, so each differs from its
         neighbour by exactly one grid cell. An earlier version ran two full-range adaptive quadratures at each
@@ -653,26 +654,50 @@ function buildScreenedPotential(k::Int64, b::Radial.Orbital, d::Radial.Orbital, 
     iLast = 1
     for  i = 2:mtpOutx     if  grid.r[i] < rmaxBd    iLast = i    else    break    end    end
 
+    # BOTH MOMENTS OF A CELL ARE TAKEN IN ONE PASS -- 05-Sep-2026.  The two sweeps below evaluate the SAME
+    # spline at the SAME eight Gauss-Legendre nodes of the same cell, once multiplied by s^k and once by
+    # s^-(k+1), and rho_bd(s) is by far the expensive half: a fresh profile of a four-layer C-like U RAS put
+    # 26.9 % of the whole run in Dierckx spline EVALUATION, called from here.  Asking for the density once per
+    # cell instead of twice halves that.  Nothing else changes: the nodes, the weights, the products and the
+    # order in which they are accumulated are exactly cellIntegral's, so every moment is BITWISE what it was.
+    function cellMoments(a::Float64, b::Float64)
+        (xg, wg) = RadialIntegrals.GBL_GaussLegendreCell
+        half = 0.5*(b - a);    mid = 0.5*(b + a);    accP = 0.;    accM = 0.
+        for  j = 1:length(xg)
+            sj   = half*xg[j] + mid
+            rh   = splBd(sj)
+            accP = accP + wg[j] * (sj^k * rh)
+            accM = accM + wg[j] * (sj^(-(k+1)) * rh)
+        end
+        return( half*accP, half*accM )
+    end
+    # cell i is [r_(i-1), r_i]; the tail piece is [r_iLast, rmaxBd] and is empty when they coincide
+    momP = zeros(iLast+1);    momM = zeros(iLast+1)
+    for  i = 2:iLast
+        (pp, mm) = cellMoments(grid.r[i-1], grid.r[i])
+        momP[i]  = pp;    momM[i] = mm
+    end
+    (tailP, tailM) = iLast >= 2 ? cellMoments(grid.r[iLast], rmaxBd) : (0., 0.)
+
     # FORWARD sweep:  inner[i] = int_{r0}^{r_i} ds s^k rho_bd(s), accumulated ONE GRID CELL AT A TIME.
     inner = zeros(mtpOutx);    acc = 0.
     for  i = 2:iLast
-        acc      = acc + RadialIntegrals.cellIntegral(s -> s^k * splBd(s), grid.r[i-1], grid.r[i])
+        acc      = acc + momP[i]
         inner[i] = acc
     end
     # the remaining cell out to rmaxBd completes the full inner moment, so that fullInner is by
     # construction the end value of the same sweep rather than a separately integrated quantity
-    fullInner = grid.r[iLast] < rmaxBd ?
-                acc + RadialIntegrals.cellIntegral(s -> s^k * splBd(s), grid.r[iLast], rmaxBd)  :  acc
+    fullInner = grid.r[iLast] < rmaxBd ?  acc + tailP  :  acc
 
     # BACKWARD sweep:  outer[i] = int_{r_i}^{rmaxBd} ds s^{-(k+1)} rho_bd(s), likewise cell by cell.
     # Accumulating from the far end inwards also adds the small contributions first, which is the
     # numerically favourable order.
     outer = zeros(mtpOutx)
     if  iLast >= 2
-        acc = RadialIntegrals.cellIntegral(s -> s^(-(k+1)) * splBd(s), grid.r[iLast], rmaxBd)
+        acc = tailM
         outer[iLast] = acc
         for  i = iLast-1:-1:2
-            acc      = acc + RadialIntegrals.cellIntegral(s -> s^(-(k+1)) * splBd(s), grid.r[i], grid.r[i+1])
+            acc      = acc + momM[i+1]
             outer[i] = acc
         end
     end
