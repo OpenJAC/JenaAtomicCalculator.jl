@@ -937,6 +937,13 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
     # Set by every exit below.  A loop that simply runs out of iterations used to end in silence, which was the
     # fifth of five ways this driver can stop and the only one left unreported.
     stopReason = "";   gNorm = 0.;   iterDone = 0
+    # THE STEP-HEALTH FLOOR, used by BOTH exits below and hoisted here 05-Sep-2026 so that it can be.
+    # A step smaller than this means the line search has collapsed, temporarily or otherwise, and NOTHING
+    # measured during such a step says anything about convergence: neither a stagnant gradient nor a flat
+    # energy.  Measured (see the stagnation note): a carbon case collapsed to 3.5e-11, recovered a step of
+    # 0.125 when allowed to continue, and converged SIXTY-FIVE mHa below where it used to stop.
+    stepFloor = 1.0e-6
+    e0Prev    = NaN
     # Direction state, all held in b-space: the virtual directions are rebuilt every iteration, so anything
     # stored in THAT basis would be meaningless one step later.
     dirPrev = Dict{Subshell, Vector{Float64}}();   gPrev = Dict{Subshell, Vector{Float64}}()
@@ -1282,6 +1289,33 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
             break
         end
 
+        # AND CONVERGED WHEN THE ENERGY CAN NO LONGER BE RESOLVED -- priority item 6, added 05-Sep-2026.
+        # |grad| IS NOT SCALE-FREE: its size is set by the excitation energies that set the curvature, ~1000 Ha
+        # at Z = 92 against ~1 Ha at Z = 4, so one threshold cannot serve both.  At Z = 92 the run is DONE and
+        # cannot say so -- the energy flat to 4e-15 Ha, a central difference of the functional returning pure
+        # round-off, ~3e-09 Ha still available -- while |grad| = 0.0023 reads as unconverged against 1e-6.
+        # THIS IS NOT THE NAIVE STATIONARY-ENERGY TEST THAT WAS REMOVED ON 03-Sep, and the difference is the
+        # whole design.  That one compared |dE| against accuracyScf, which the energy reaches long before the
+        # gradient does, and it stopped every step of Be Scenario A short (iterations 3, 15, 37, 80 against
+        # 63, 154, 51, 40).  This one compares |dE| against the RESOLUTION OF THE ENERGY ITSELF -- 32 eps|E|,
+        # a few units in the last place -- so it cannot fire while the energy is still measurably falling; on
+        # Be that floor is ~1e-13 while |dE| plateaus at 1e-12, and the test stays silent.  It fires only when
+        # the arithmetic can no longer tell two successive energies apart.
+        # AND IT IS GUARDED BY THE STEP, because a PLATEAU IS NOT A MINIMUM: on Cf^17+ the energy sat
+        # stationary to 1e-12 for 55 iterations with tStep at 1e-9, and allowed to run the calculation escaped
+        # and fell a further 3.5e-4 Ha, moving the clock transition by 34 cm^-1.  A flat energy measured
+        # during a collapsed step says nothing at all.
+        eFloor = 32 * eps(abs(e0))
+        if  iter > 1  &&  tStep >= stepFloor  &&  abs(e0Prev - e0) < eFloor
+            stopReason = "energy below its own resolution"
+            println(">> [EOL-C3] CONVERGED at iteration $iter: the energy moved by " *
+                    @sprintf("%.2e", abs(e0Prev - e0)) * " Ha, below its own resolution of " *
+                    @sprintf("%.2e", eFloor) * " Ha, with a healthy step (tStep = " * @sprintf("%.2e", tStep) *
+                    ").  |grad| = $gNorm is reported as a HINT and is not the test: it is not scale-free.")
+            break
+        end
+        e0Prev = e0
+
         # THE STEP IS INHERITED FROM THE PREVIOUS ITERATION, AND IT MUST BE.  Resetting it to 1.0 here was
         # tried on 31-Aug-2026 and FAILS OUTRIGHT: 24 halvings from unity reach only 1/2^24 = 6.0e-8, while
         # the steps this surface actually accepts at that stage are 4e-9 to 1e-8 -- SMALLER than the search
@@ -1457,7 +1491,6 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
         # converges at |grad| = 4.7e-6, sixty-five mHa BELOW where it used to stop.  So the remedy is not a
         # smaller threshold but the extra condition: stagnation ends the iteration only when the step that
         # produced it was of usable size.
-        stepFloor = 1.0e-6
         # THE ITERATION ENDS WHEN THE GRADIENT STOPS IMPROVING -- NOT WHEN THE ENERGY STOPS MOVING.
         # A stationary energy is a weak signal near a minimum: the energy is quadratic there and flattens long
         # before the gradient does, which is why |dE| reaches 1e-12 while |grad| is still 1e-5.  Ending on it
@@ -1473,7 +1506,12 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
         # (items 121 and 122).  With the gradient exact there is no such floor.
         stagnationWindow = 20
         if  gNorm < bestGNorm    bestGNorm = gNorm;    bestGIter = iter    end
-        if  iter - bestGIter >= stagnationWindow  &&  !haskey(ENV, "JAC_EOL_NOSTATEXIT")
+        # THE GUARD THE NOTE ABOVE PRESCRIBES, WIRED IN 05-Sep-2026 (priority item 6).  `stepFloor` was
+        # defined here and never used: the comment said "stagnation ends the iteration only when the step that
+        # produced it was of usable size" and the condition did not test it, so a TEMPORARY step collapse --
+        # the carbon case, 3.5e-11 with |grad| still 0.998 -- could end the run 65 mHa short of where it goes
+        # when allowed to continue.  The guard can only let a run continue, never stop it earlier.
+        if  iter - bestGIter >= stagnationWindow  &&  tStep >= stepFloor  &&  !haskey(ENV, "JAC_EOL_NOSTATEXIT")
             stopReason = "gradient stagnated";   println(">> [EOL-C3] stopped at iteration $iter: the gradient has " *
                     "not improved on $bestGNorm since iteration $bestGIter, $stagnationWindow iterations ago.  " *
                     "A converging UPPER BOUND, not a converged gradient.")
