@@ -896,12 +896,22 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
     # killed by the OOM reaper at 12.9, 14.1 and 14.7 GB after SEVEN MINUTES OF COMPLETE SILENCE, and all three
     # looked like a dropped network connection rather than a memory failure; that is what this exists to prevent.
     #
-    # THE LAW IS MEASURED, NOT GUESSED.  A plain Coulomb CI of the same ion fits 1.58 GB + 0.181 MB/CSF, and the
-    # EOL field costs about ten times that per CSF because it carries per-level b-vectors forward across
-    # iterations.  Applied to the case that died: 1.58 + 6163*1.8e-3 = 12.7 GB, against the 12.9-14.7 GB observed.
-    # A prediction agreeing with three independent kills is worth printing; it is still an ESTIMATE, and it is
-    # labelled as one rather than used to refuse the run, since a refusal on an estimate would be worse than a
-    # warning on a good one.
+    # THE LAW IS MEASURED, NOT GUESSED -- AND IT WAS RE-MEASURED 04-Sep-2026, WHICH CORRECTED IT TWICE OVER.
+    # A plain Coulomb CI of the same ion fits 1.58 GB + 0.181 MB/CSF; the EOL field costs about ten times that
+    # per CSF because it carries per-level b-vectors forward across iterations.
+    #   THE OLD LAW, 1.58 + 1.8e-3 nCsf, PREDICTED 12.7 GB FOR THE OS^16+ CASE THAT DIED AND LOOKED RIGHT
+    # AGAINST "12.9-14.7 GB observed" -- but those three numbers were OOM KILLS on a 15 GB machine, i.e. the
+    # ceiling and not the requirement.  Run under a 25 GB cap on a machine that has it, the same case needs
+    # 18.29 GB and COMPLETES in 1270 s.  It was never diverging.
+    #   AND THE COST DEPENDS ON THE NUMBER OF TARGET LEVELS, which the old law did not carry.  Two points,
+    # same basis (6163 CSFs), RSS sampled from outside the process once a second:
+    #        1 target level    11.13 GB    956 s
+    #       13 target levels   18.29 GB   1270 s
+    # so 0.60 GB per extra level on an 11.1 GB base.  The suspicion the item was opened on -- that the cost
+    # grows with (target levels x iterations) RATHER than with the basis -- is therefore only half right: the
+    # levels do cost, and the BASE still dominates.  The two-term law below reproduces both points to 0.02 GB.
+    # It is still an ESTIMATE and is labelled as one rather than used to refuse the run, since a refusal on an
+    # estimate would be worse than a warning on a good one.
     #
     # THE COST GROWS WITH THE NUMBER OF CSFs AND WITH THE ORBITAL COUNT SEPARATELY, and open d- and f-shells are
     # where both explode at once: the CSF count from the couplings, the orbital work as the square of the subshell
@@ -909,9 +919,15 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
     # 4 / 67 / 264 / 658 CSFs over 4 / 9 / 16 / 25 subshells: 21 s, 320 s, 677 s, 2860 s.
     if  printout
         nCsf   = length(basis.csfs);    nSub = length(basis.subshells)
-        memEol = 1.58 + 1.8e-3 * nCsf                          ## GB, from the measured law above
-        println(">> [EOL-C3] cost estimate: $nCsf CSFs over $nSub subshells;  predicted peak " *
-                @sprintf("%.1f GB", memEol) * " (measured law 1.58 GB + 1.8 MB/CSF).")
+        # THE NUMBER OF TARGET LEVELS ENTERS THE LAW, MEASURED 04-Sep-2026 -- see the note above.  Where the
+        # selection is by CONFIGURATION rather than by index the count is not known until the first CI, so 1 is
+        # assumed and the estimate is then a LOWER bound; the message says which case it is in.
+        nLev   = isempty(settings.levelSelectionCI.indices) ? 1 : length(settings.levelSelectionCI.indices)
+        memEol = 1.58 + 1.0e-3 * nCsf * (1.55 + 0.097*(nLev-1))          ## GB, from the two measured points
+        println(">> [EOL-C3] cost estimate: $nCsf CSFs over $nSub subshells, $nLev target level(s)" *
+                (isempty(settings.levelSelectionCI.indices) ? " ASSUMED (selection is by configuration, so this is a LOWER bound)" : "") *
+                ";  predicted peak " * @sprintf("%.1f GB", memEol) *
+                " (measured law 1.58 GB + nCsf x (1.55 + 0.097 (nLev-1)) MB).")
         if  memEol > 8.0
             println(">> [EOL-C3] *** WARNING: this layer is predicted to need " * @sprintf("%.1f GB", memEol) *
                     ".  A 6 163-CSF layer was killed three times at 12.9-14.7 GB, silently and after seven " *
