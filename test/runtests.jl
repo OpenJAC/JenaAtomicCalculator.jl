@@ -34,6 +34,7 @@ end
         @test TestFrames.testMethod_Opacities()
         @test TestFrames.testMethod_SpinAngular()
         @test TestFrames.testMethod_DensityAtNucleus()
+        @test TestFrames.testMethod_HyperfinePncFactors()
         @test TestFrames.testMethod_DocstringPointers()
         @test TestFrames.testMethod_ThomasReicheKuhn()  ## added 31-Aug-2026; the ONE check here that pins an
                                                         ## ABSOLUTE scale -- sum f = N, which no wrongly scaled

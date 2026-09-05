@@ -5,7 +5,16 @@
     which -- unlike those bare amplitudes -- all require a SUM OVER INTERMEDIATE STATES.  Two are provided:
 
         E1_PNC  ... the parity-non-conserving electric-dipole amplitude between two levels of the SAME parity, which is what a PNC
-                    experiment on a forbidden transition such as the caesium 6s-7s line actually measures;
+                    experiment on a forbidden transition such as the caesium 6s-7s line actually measures.  It comes in two kinds, and
+                    they are DIFFERENT OBSERVABLES rather than a leading term and a correction:
+                    -- the NUCLEAR-SPIN-INDEPENDENT part, driven by the weak charge, which is a scalar and therefore lives between
+                       fine-structure levels;  `computePncE1Amplitude`, re-coupled to hyperfine levels by `computePncE1AmplitudeNsi`;
+                    -- the NUCLEAR-SPIN-DEPENDENT part, driven by the nuclear anapole moment, whose operator is a scalar only in the
+                       COUPLED electron-plus-nucleus space and which therefore exists only between hyperfine levels and only for a
+                       nucleus of non-zero spin;  `computePncE1AmplitudeNsd`.
+                    The distinction is not academic.  The weak charge cannot change J, so a transition such as barium 6s_1/2 - 5d_5/2
+                    has NO spin-independent amplitude at all and is a clean anapole probe; caesium 6s-7s is the opposite case, where the
+                    weak charge dominates and the anapole is the few-per-cent difference between two hyperfine components.
         R       ... the enhancement factor d_atom / d_e of an electron electric-dipole moment in the atomic state.
 
     Both are second-order quantities of the same shape, differing only in which P-odd operator is admixed and in how the dipole is then
@@ -288,6 +297,94 @@ end
 
 
 """
+`WeakInteractionEnhancement.computePncE1AmplitudeNsd(finalLevel::Level, Ff::AngularJ64, initialLevel::Level, Fi::AngularJ64,`
+                                                     `gMultiplet::Multiplet, nm::Nuclear.Model, grid::Radial.Grid;`
+                                                     `kappaAnapole::Float64=1.0)`
+    ... to compute the NUCLEAR-SPIN-DEPENDENT parity-non-conserving electric-dipole amplitude <f J_f I F_f || D_PNC || i J_i I F_i> between
+        two HYPERFINE levels of the same electronic parity, from the sum over the opposite-parity intermediate levels of gMultiplet.  A
+        value::ComplexF64 is returned, in atomic units (e a_0).
+
+        THIS IS A DIFFERENT OBSERVABLE FROM `computePncE1Amplitude` AND NOT A REFINEMENT OF IT.  The weak charge is a scalar, so the
+        amplitude it drives is an ordinary rank-1 reduced matrix element between FINE-STRUCTURE levels and the hyperfine structure only
+        re-couples it.  The anapole moment is not: its operator is the scalar product `alpha.I rho(r)` of an electronic rank-1 tensor with
+        the nuclear spin, so it is a scalar only in the COUPLED electron-plus-nucleus space, and the amplitude it drives exists only between
+        hyperfine levels.  A nucleus of spin zero has no anapole amplitude at all, and this function returns zero for one.
+
+        The consequence that matters for an experiment is a selection rule.  Because the weak charge cannot change J, the intermediate level
+        must carry J_n = J_i on one side and J_n = J_f on the other, and a transition such as barium 6s_1/2 - 5d_5/2 then has NO
+        nuclear-spin-independent amplitude whatever: no single E1 step reaches from J = 1/2 to J = 5/2.  The anapole operator obeys only the
+        triangle |J_n - J_i| <= 1, so p_3/2 intermediates open and the amplitude is non-zero.  Such a transition is therefore a CLEAN
+        anapole probe rather than a weak-charge measurement with a small spin-dependent correction, which is the reverse of the caesium
+        6s-7s situation.
+
+        The two geometrical factors are `hyperfineDipoleFactor` and `hyperfineScalarFactor`; the electronic reduced matrix element of the
+        anapole operator is `WeakInteractionMoment.anapoleAmplitude`, which already carries the `G_F/sqrt(2) kappa` prefactor.  Since the
+        anapole Hamiltonian is diagonal in F, the admixture on the initial side carries F_i and that on the final side F_f.
+
+        + kappaAnapole  ::Float64   ... the dimensionless nuclear anapole constant, left at 1.0 so that the returned amplitude is the
+                                        coefficient OF kappa and may be scaled by whatever value the user adopts.  The convention is the one
+                                        of Flambaum and Khriplovich, `H = (G_F/sqrt2) kappa (alpha.I/I) rho(r)`, i.e. with the 1/I that
+                                        makes kappa comparable with the caesium value 0.112(16) of Wood et al., Science 275, 1759 (1997).
+"""
+function computePncE1AmplitudeNsd(finalLevel::Level, Ff::AngularJ64, initialLevel::Level, Fi::AngularJ64,
+                                  gMultiplet::Multiplet, nm::Nuclear.Model, grid::Radial.Grid; kappaAnapole::Float64=1.0)
+    # a PNC amplitude exists only between levels of EQUAL electronic parity, and the dipole supplies the triangle rule in the F's
+    if      finalLevel.parity != initialLevel.parity                        return( ComplexF64(0.) )    end
+    if      !AngularMomentum.isTriangle(Ff, AngularJ64(1), Fi)              return( ComplexF64(0.) )    end
+    if      Basics.twice(nm.spinI) == 0                                     return( ComplexF64(0.) )    end
+    wa = ComplexF64(0.)
+    for  nLevel  in  gMultiplet.levels
+        if  nLevel.parity == initialLevel.parity    continue    end
+        #
+        # first term: the anapole acts on the INITIAL level, which fixes the admixture to F_i, and the dipole on the admixture
+        dE = initialLevel.energy - nLevel.energy
+        if  abs(dE) > 1.0e-12
+            wg = WeakInteractionEnhancement.hyperfineScalarFactor(nLevel.J, initialLevel.J, Fi, nm.spinI) *
+                 WeakInteractionEnhancement.hyperfineDipoleFactor(finalLevel.J, Ff, nLevel.J, Fi, nm.spinI)
+            if  wg != 0.
+                wa = wa + wg * WeakInteractionEnhancement.dipoleReducedMe(finalLevel, nLevel, grid) *
+                          WeakInteractionMoment.anapoleAmplitude(nLevel, initialLevel, nm, grid; kappaAnapole=kappaAnapole) / dE
+            end
+        end
+        #
+        # second term: the anapole acts on the FINAL level, which fixes the admixture to F_f
+        dE = finalLevel.energy - nLevel.energy
+        if  abs(dE) > 1.0e-12
+            wg = WeakInteractionEnhancement.hyperfineScalarFactor(finalLevel.J, nLevel.J, Ff, nm.spinI) *
+                 WeakInteractionEnhancement.hyperfineDipoleFactor(nLevel.J, Ff, initialLevel.J, Fi, nm.spinI)
+            if  wg != 0.
+                wa = wa + wg * WeakInteractionMoment.anapoleAmplitude(finalLevel, nLevel, nm, grid; kappaAnapole=kappaAnapole) *
+                          WeakInteractionEnhancement.dipoleReducedMe(nLevel, initialLevel, grid) / dE
+            end
+        end
+    end
+
+    return( wa )
+end
+
+
+"""
+`WeakInteractionEnhancement.computePncE1AmplitudeNsi(finalLevel::Level, Ff::AngularJ64, initialLevel::Level, Fi::AngularJ64,`
+                                                     `gMultiplet::Multiplet, nm::Nuclear.Model, grid::Radial.Grid)`
+    ... to re-couple the nuclear-spin-independent amplitude of `computePncE1Amplitude` into the hyperfine basis, giving
+        <f J_f I F_f || D_PNC || i J_i I F_i>.  A value::ComplexF64 is returned, in atomic units (e a_0).
+
+        It carries no physics of its own: the weak charge is a purely electronic scalar, so the F-dependence is the single geometrical
+        factor `hyperfineDipoleFactor` and nothing else.  The function exists so that the two contributions to one measured hyperfine line
+        can be added, which is what an experiment sees, and so that their RATIO can be formed on the same footing -- the caesium anapole
+        moment was extracted from exactly that ratio, as the small difference between the F = 3 -> 4 and F = 4 -> 3 components of one line.
+"""
+function computePncE1AmplitudeNsi(finalLevel::Level, Ff::AngularJ64, initialLevel::Level, Fi::AngularJ64,
+                                  gMultiplet::Multiplet, nm::Nuclear.Model, grid::Radial.Grid)
+    if      !AngularMomentum.isTriangle(Ff, AngularJ64(1), Fi)              return( ComplexF64(0.) )    end
+    wg = WeakInteractionEnhancement.hyperfineDipoleFactor(finalLevel.J, Ff, initialLevel.J, Fi, nm.spinI)
+    if      wg == 0.                                                        return( ComplexF64(0.) )    end
+
+    return( wg * WeakInteractionEnhancement.computePncE1Amplitude(finalLevel, initialLevel, gMultiplet, nm, grid) )
+end
+
+
+"""
 `WeakInteractionEnhancement.determineOutcomes(multiplet::Multiplet, settings::WeakInteractionEnhancement.Settings)`
     ... to determine a list of Outcome's for the computation of the enhancement properties for the given multiplet, taking the level
         selection of the settings into account.  An Array{WeakInteractionEnhancement.Outcome,1} is returned, in which all physical
@@ -469,6 +566,67 @@ function edmAmplitude(finalLevel::Level, initialLevel::Level, nm::Nuclear.Model,
     end
 
     return( amplitude )
+end
+
+
+"""
+`WeakInteractionEnhancement.hyperfineDipoleFactor(Ja::AngularJ64, Fa::AngularJ64, Jb::AngularJ64, Fb::AngularJ64, spinI::AngularJ64)`
+    ... to compute the geometrical factor that turns a purely ELECTRONIC rank-1 reduced matrix element <a J_a || T^(1) || b J_b> into the
+        reduced matrix element <a J_a I F_a || T^(1) || b J_b I F_b> of the same operator in the coupled hyperfine basis.  A value::Float64
+        is returned, and it is zero unless the F's satisfy the triangle rule.
+
+            factor = (-1)^(J_a + I + F_b + 1) sqrt( (2F_a+1)(2F_b+1) ) { J_a  F_a  I ; F_b  J_b  1 }
+
+        This is the standard reduction of an operator acting on one part of a coupled system (Edmonds, Eq. 7.1.7).  It applies to the
+        ordinary electric dipole and, unchanged, to the nuclear-spin-independent PNC amplitude, both of which are electronic rank-1 tensors.
+"""
+function hyperfineDipoleFactor(Ja::AngularJ64, Fa::AngularJ64, Jb::AngularJ64, Fb::AngularJ64, spinI::AngularJ64)
+    # a level whose J cannot couple with I to the given F is not part of this hyperfine manifold and contributes nothing; the test is made
+    # on the doubled momenta because AngularMomentum.isTriangle RAISES rather than returns false when they cannot be coupled at all
+    if  rem(Basics.twice(Ja) + Basics.twice(spinI) + Basics.twice(Fa), 2) != 0                       return( 0. )    end
+    if  rem(Basics.twice(Jb) + Basics.twice(spinI) + Basics.twice(Fb), 2) != 0                       return( 0. )    end
+    if  rem(Basics.twice(Fa) + Basics.twice(Fb), 2) != 0                                             return( 0. )    end
+    if  !AngularMomentum.isTriangle(Fa, AngularJ64(1), Fb)                                           return( 0. )    end
+    if  !AngularMomentum.isTriangle(Ja, spinI, Fa)  ||  !AngularMomentum.isTriangle(Jb, spinI, Fb)   return( 0. )    end
+    n2 = Basics.twice(Ja) + Basics.twice(spinI) + Basics.twice(Fb) + 2
+    wa = (-1.)^div(n2, 2) * sqrt( (Basics.twice(Fa) + 1.0) * (Basics.twice(Fb) + 1.0) ) *
+         AngularMomentum.Wigner_6j(Ja, Fa, spinI, Fb, Jb, AngularJ64(1))
+
+    return( wa )
+end
+
+
+"""
+`WeakInteractionEnhancement.hyperfineScalarFactor(Ja::AngularJ64, Jb::AngularJ64, F::AngularJ64, spinI::AngularJ64)`
+    ... to compute the geometrical factor that turns the ELECTRONIC rank-1 reduced matrix element <a J_a || alpha rho || b J_b> of the
+        anapole operator into the matrix element of the full scalar Hamiltonian `H = (G_F/sqrt2) kappa (alpha.I/I) rho(r)` between the
+        hyperfine states |a J_a I F> and |b J_b I F>.  A value::Float64 is returned; it is zero for a nucleus of spin zero.
+
+            factor = (-1)^(I + J_b + F) { F  J_a  I ; 1  I  J_b }  sqrt( I(I+1)(2I+1) ) / I
+
+        The first three factors are the reduction of a scalar product of two commuting tensors (Edmonds, Eq. 7.1.6), in the SAME form and
+        with the same phase convention as `Hfs.computeHyperfineRepresentation` uses for the hyperfine matrix itself, which was verified
+        there against the Casimir formula.  The last factor is the nuclear reduced matrix element <I||I||I> = sqrt(I(I+1)(2I+1)), divided by
+        I because the anapole constant kappa is conventionally defined with the unit vector I/I; carrying that 1/I here is what makes a
+        kappa extracted from a computed amplitude comparable with the published caesium value.
+
+        Note that the operator is diagonal in F but NOT in J: the triangle |J_a - J_b| <= 1 is what lets the anapole reach intermediate
+        levels that the weak charge cannot, and is the whole reason a spin-dependent amplitude survives where the spin-independent one
+        vanishes.
+"""
+function hyperfineScalarFactor(Ja::AngularJ64, Jb::AngularJ64, F::AngularJ64, spinI::AngularJ64)
+    floatI = Basics.twice(spinI) / 2.0
+    if  floatI == 0.                                                                                 return( 0. )    end
+    if  rem(Basics.twice(Ja) + Basics.twice(Jb), 2) != 0                                             return( 0. )    end
+    if  rem(Basics.twice(Ja) + Basics.twice(spinI) + Basics.twice(F), 2) != 0                        return( 0. )    end
+    if  rem(Basics.twice(Jb) + Basics.twice(spinI) + Basics.twice(F), 2) != 0                        return( 0. )    end
+    if  !AngularMomentum.isTriangle(Ja, AngularJ64(1), Jb)                                           return( 0. )    end
+    if  !AngularMomentum.isTriangle(Ja, spinI, F)  ||  !AngularMomentum.isTriangle(Jb, spinI, F)     return( 0. )    end
+    n2 = Basics.twice(spinI) + Basics.twice(Jb) + Basics.twice(F)
+    wa = (-1.)^div(n2, 2) * AngularMomentum.Wigner_6j(F, Ja, spinI, AngularJ64(1), spinI, Jb) *
+         sqrt( floatI * (floatI + 1.0) * (2floatI + 1.0) ) / floatI
+
+    return( wa )
 end
 
 
