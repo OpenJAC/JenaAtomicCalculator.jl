@@ -937,6 +937,18 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
             # for this function's name in jac-warn.report.  A memory estimate is not a convergence failure, and
             # putting it there would make a large-but-healthy run indistinguishable from a stalled one.
         end
+        # AND A TIME ESTIMATE, which is far weaker than the memory one and says so.  WITHIN one expansion the
+        # per-layer cost ran roughly linearly in the CSF count -- C-like U 0+ gave 21 / 320 / 677 / 2860 s for
+        # 4 / 67 / 264 / 658 CSFs, i.e. 5.3 / 4.8 / 2.6 / 4.3 s per CSF -- so ~4 s/CSF is the anchor below.
+        # ACROSS expansions it is much steeper and this law will UNDER-predict: C-like 1+ carries 2.4x the CSFs
+        # of 0+ and cost 17x the wall clock, because more CSFs bring more subshells and more SCF iterations
+        # with them.  Calibrated at Z = 92 on six electrons, single-threaded, on an ordinary desktop.  Quoted
+        # to one significant figure with the factor-of-two spread stated, because that is what it is worth.
+        tEol = 4.0 * nCsf
+        println(">> [EOL-C3] time estimate for this layer: " *
+                (tEol < 120. ? @sprintf("~%.0f s", tEol) : @sprintf("~%.1f h", tEol/3600)) *
+                " single-threaded, WITHIN A FACTOR OF ABOUT TWO (anchor 4 s/CSF, measured on C-like U at " *
+                "4/67/264/658 CSFs; it under-predicts for a larger or lower-symmetry expansion).")
         if  nSub >= 20  &&  nCsf >= 300
             println(">> [EOL-C3] *** NOTE: $nSub subshells and $nCsf CSFs together are the expensive corner -- the " *
                     "repulsion is rebuilt for every orbital PAIR, so the orbital work grows as the square of the " *
