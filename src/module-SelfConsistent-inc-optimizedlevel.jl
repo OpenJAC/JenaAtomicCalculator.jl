@@ -428,14 +428,29 @@ function virtualDirections(bVectors::Dict{Subshell, Vector{Float64}}, subshells:
         end
         # a one-electron reference spectrum for this kappa; orbital-independent, hence a fixed frame
         (posVecs, _) = posSpec[sh.kappa]
-        dirs  = Vector{Float64}[]
+        dirs  = Vector{Float64}[];    nrms = Float64[]
         for  i = 1:length(posVecs)
             v = copy(posVecs[i])
             for  u in occSame    v = v - (transpose(u) * matrixB * v) * u    end
             for  u in dirs       v = v - (transpose(u) * matrixB * v) * u    end
             nrm = sqrt( abs(transpose(v) * matrixB * v) )
-            if  nrm > 1.0e-8    push!(dirs, v / nrm)    end
+            # THE THRESHOLD IS 0.1 AND NOT 1e-8 -- 05-Sep-2026.  `nrm` is what SURVIVES the projection out of the
+            # occupied space, so nrm^2 is the fraction of this reference vector that is genuinely new.  At 1e-8 a
+            # vector 99.999999 % inside the occupied space was accepted and then DIVIDED BY that residue,
+            # amplifying round-off and leftover occupied character by up to 1e8.  Measured on Be-like U, the
+            # accepted residues per kappa fall into two groups with nothing between them:
+            #     s_1/2 : 3.9e-03  1.3e-02 | 4.3e-01 7.2e-01 7.3e-01 ... 8.2e-01
+            #     p_1/2 : 3.3e-02          | 5.7e-01 8.2e-01 ...
+            # The first group is amplified 77x to 256x and is where the direction lying BELOW the occupied
+            # orbital came from -- the one that carried 100 % of the step's weight through the +0.05 floor.
+            # 0.1 sits in the gap and states a criterion: at least 1 % of the vector must lie outside the
+            # occupied space for it to count as a direction.  Fifteen or so of sixteen survive.
+            if  nrm > 0.1    push!(dirs, v / nrm);   push!(nrms, nrm)    end
             if  length(dirs) >= nVirtual    break    end
+        end
+        if  haskey(ENV, "JAC_EOL_VIRTCHECK")
+            println(">> [EOL-NRM] $sh  residual norms of the accepted directions: " *
+                    join([@sprintf("%.1e", x) for x in nrms], " "));   flush(stdout)
         end
 
         # AND NOW MAKE THEM ORBITALS AGAIN -- priority item 5, 04-Sep-2026.

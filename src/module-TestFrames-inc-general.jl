@@ -558,9 +558,21 @@ function testRepresentation_RasExpansion(; short::Bool=true)
     #
     # Do not restore any earlier number: each was obtained on a grid, a gradient or an unconstrained layer that
     # no longer exists here.
-    if  abs(wb["step2"].levels[1].energy + 14.614058864452650)  > 1.0e-3
+    # REFERENCE MOVED 06-Sep-2026, from -14.614058864452650 to -14.614059017048 (1.5e-07 Ha LOWER), and
+    # re-approved by the maintainer on evidence rather than on the improvement itself -- monotone lowering is
+    # exactly what misled the reverted attempt of 03-Sep.  What changed: virtualDirections accepted a projected
+    # reference vector whenever its residual norm exceeded 1e-8 and then DIVIDED BY that residue, so a vector
+    # 99.999999 % inside the occupied space was admitted with its round-off amplified up to 1e8.  The threshold
+    # is now 0.1, chosen from the measured gap in the residues (3.9e-03, 1.3e-02 | 4.3e-01 ... 8.2e-01).
+    # THE EVIDENCE THAT THIS IS NOT DRIFT, which is the failure mode that reverted the last attempt:
+    #   orthonormality holds to machine precision -- worst |<a|a>-1| = 2.2e-16, worst same-kappa |<a|b>| =
+    #     6.3e-15, against 2.4e-06 in the recorded drift case;
+    #   the five "no descent found" line-search failures of a twelve-run census become ZERO;
+    #   the answer stops depending on accuracyScf -- Be-like U returns IDENTICAL digits at 1e-6, 1e-8, 1e-10
+    #     (spread was 3.4e-05 Ha) and C-like U's spread falls from 0.137 Ha to 8.3e-04.
+    if  abs(wb["step2"].levels[1].energy + 14.614059017048)  > 1.0e-3
         success = false
-        if printTest   info(iostream, "levels[1].energy $(wb["step2"].levels[1].energy) != -14.614058864452650")   end
+        if printTest   info(iostream, "levels[1].energy $(wb["step2"].levels[1].energy) != -14.614059017048")   end
     end
 
     # AND THE FIELD MUST CONVERGE, WHICH IS A DIFFERENT ASSERTION FROM THE ENERGY ABOVE.  Every EOL exit
