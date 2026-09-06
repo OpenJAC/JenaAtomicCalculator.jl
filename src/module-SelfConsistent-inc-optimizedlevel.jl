@@ -987,6 +987,7 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
     # 0.125 when allowed to continue, and converged SIXTY-FIVE mHa below where it used to stop.
     stepFloor = 1.0e-6
     e0Prev    = NaN
+    collapsedSince = 0        # first iteration of the CURRENT run of collapsed steps; 0 when the step is healthy
     # Direction state, all held in b-space: the virtual directions are rebuilt every iteration, so anything
     # stored in THAT basis would be meaningless one step later.
     dirPrev = Dict{Subshell, Vector{Float64}}();   gPrev = Dict{Subshell, Vector{Float64}}()
@@ -1554,9 +1555,27 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
         # produced it was of usable size" and the condition did not test it, so a TEMPORARY step collapse --
         # the carbon case, 3.5e-11 with |grad| still 0.998 -- could end the run 65 mHa short of where it goes
         # when allowed to continue.  The guard can only let a run continue, never stop it earlier.
-        if  iter - bestGIter >= stagnationWindow  &&  tStep >= stepFloor  &&  !haskey(ENV, "JAC_EOL_NOSTATEXIT")
+        # A COLLAPSE THAT NEVER RECOVERS IS NOT A TEMPORARY ONE -- 06-Sep-2026, and this bounds the guard added
+        # in d0d66fc.  That guard exists because a collapse CAN be temporary: a carbon case fell to 3.5e-11 with
+        # |grad| still 0.998 and, allowed to continue, recovered a step of 0.125 and converged 65 mHa lower.  But
+        # unbounded it turns a dead run into a full iteration budget: MEASURED on C-like U at 1e-8, the step
+        # collapsed to ~2e-08 at iteration 47 and stayed there for 350 more iterations with |grad| frozen at
+        # 0.0770 and the energy flat in its eleventh decimal, while the guard blocked the exit at every one.
+        # So the step is given `stagnationWindow` iterations to recover, the same budget the gradient gets.
+        if  tStep >= stepFloor    collapsedSince = 0
+        elseif  collapsedSince == 0    collapsedSince = iter
+        end
+        stepIsDead = collapsedSince > 0  &&  iter - collapsedSince >= stagnationWindow
+        if  haskey(ENV, "JAC_EOL_STAGDIAG")  &&  iter - bestGIter >= stagnationWindow
+            @printf(">> [EOL-STAG] iter %3d  bestGIter %3d  tStep %.3e  collapsedSince %3d  -> %s\n",
+                    iter, bestGIter, tStep, collapsedSince,
+                    (tStep >= stepFloor || stepIsDead) ? "EXIT" : "held open");  flush(stdout)
+        end
+        if  iter - bestGIter >= stagnationWindow  &&  (tStep >= stepFloor || stepIsDead)  &&
+                                                      !haskey(ENV, "JAC_EOL_NOSTATEXIT")
             stopReason = "gradient stagnated";   println(">> [EOL-C3] stopped at iteration $iter: the gradient has " *
-                    "not improved on $bestGNorm since iteration $bestGIter, $stagnationWindow iterations ago.  " *
+                    "not improved on $bestGNorm since iteration $bestGIter, $stagnationWindow iterations ago" *
+                    (stepIsDead ? ", and the step has been collapsed below $stepFloor since iteration $collapsedSince" : "") * ".  " *
                     "A converging UPPER BOUND, not a converged gradient.")
             Defaults.warn(AddWarning(), "SelfConsistent.solveOptimizedLevelFieldByRotation(): the EOL field stopped " *
                           "on a stagnant gradient at iteration $iter with |grad| = " * @sprintf("%.1e", gNorm) *
