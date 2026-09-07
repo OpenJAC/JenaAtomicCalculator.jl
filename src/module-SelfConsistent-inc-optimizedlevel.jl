@@ -1602,7 +1602,14 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
         # and the projection -- was measured while the directional derivative was five to nine times too steep
         # (items 121 and 122).  With the gradient exact there is no such floor.
         stagnationWindow = 20
-        if  gNorm < bestGNorm    bestGNorm = gNorm;    bestGIter = iter    end
+        # THE IMPROVEMENT MUST BE MEANINGFUL, NOT MERELY POSITIVE -- 07-Sep-2026.  This test used to accept ANY
+        # decrease of |grad| as progress, and the comment above said so ("beat its best value by any margin").
+        # MEASURED: a C-like U layer sat at |grad| = 1.3350e-01 for 296 iterations with the step collapsed to
+        # 1e-13, improving in a far digit often enough to reset this window every time, so neither this exit nor
+        # the collapse bound that depends on it could ever fire.  A relative margin of 1e-3 ends that run at
+        # iteration 30 and cannot mask real progress: a solver reducing |grad| by less than a tenth of a percent
+        # per twenty iterations is not converging on any useful timescale.
+        if  gNorm < bestGNorm * (1.0 - 1.0e-3)    bestGNorm = gNorm;    bestGIter = iter    end
         # THE GUARD THE NOTE ABOVE PRESCRIBES, WIRED IN 05-Sep-2026 (priority item 6).  `stepFloor` was
         # defined here and never used: the comment said "stagnation ends the iteration only when the step that
         # produced it was of usable size" and the condition did not test it, so a TEMPORARY step collapse --
