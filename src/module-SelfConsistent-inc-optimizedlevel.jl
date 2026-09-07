@@ -782,6 +782,10 @@ function projectOntoPositiveBranch(bVectors::Dict{Subshell, Vector{Float64}}, su
             ov  = transpose(out[sha]) * matrixB * out[shb]
             dev = max( dev, abs( ov - (i == j ? 1.0 : 0.0) ) )
         end
+        if  haskey(ENV, "JAC_EOL_LOWDIN")
+            @printf(">> [EOL-LOWDIN] kappa %3d  dev %.6e  %s\n", kappa, dev,
+                    dev < 1.0e-9 ? "-> SKIPPED (below the 1e-9 gate)" : "-> Loewdin FIRES");   flush(stdout)
+        end
         if  dev < 1.0e-9    continue    end
         # SYMMETRIC (Loewdin) orthogonalisation, S^(-1/2), in place of Gram-Schmidt.  Gram-Schmidt is
         # sequential and asymmetric: it leaves the FIRST orbital of a kappa untouched and pushes the whole
@@ -795,6 +799,11 @@ function projectOntoPositiveBranch(bVectors::Dict{Subshell, Vector{Float64}}, su
         end
         ovl = 0.5 * (ovl + transpose(ovl))          ## exact symmetry before the eigendecomposition
         wa  = LinearAlgebra.eigen(ovl)
+        if  haskey(ENV, "JAC_EOL_LOWDIN")
+            @printf(">> [EOL-LOWDIN] kappa %3d  overlap eigenvalues: %s   (cut at 1e-12, %d dropped)\n",
+                    kappa, join([@sprintf("%.4e", x) for x in wa.values], " "),
+                    count(x -> x < 1.0e-12, wa.values));    flush(stdout)
+        end
         sinv = zeros(nk, nk)
         for  k = 1:nk
             if  wa.values[k] < 1.0e-12    continue    end     ## a linearly dependent block keeps its input
@@ -1386,6 +1395,50 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
             @printf(">> [EOL-ZERO] iter %d: e0 = %.12f  eTrial(0) = %.12f  diff = %+.3e  restored-diff = %+.3e  nFrozen = %d\n",
                     iter, e0, eZero, eZero - e0, eZeroR - e0, length(frozenSubshells))
             flush(stdout)
+        end
+        # THE STEP SCAN, 07-Sep-2026 -- this is what found the sign discontinuity, so it is kept.
+        # It walks the trial step over four orders around the current one and reports the energy together with
+        # the cosine of each TABULATED orbital against its value at the smallest step.  A DISCONTINUOUS
+        # functional shows here and almost nowhere else: on C-like U it gave a jump of exactly 0.032 Ha between
+        # 2.20e-08 and 2.25e-08, with one orbital's cosine going to -1 while every other diagnostic in this
+        # file -- the b-vectors, negW, the orthonormality deviation, mtp -- was unchanged to five digits.
+        # COMPARE THE TABULATED ORBITAL AND NOT THE VECTOR: the sign convention is applied inside
+        # generateOrbitalFromVector, so a flip is invisible in the b-vector and invisible in wSign itself.
+        # Off unless JAC_EOL_BISECT names an iteration.
+        if  get(ENV, "JAC_EOL_BISECT", "") == string(iter)
+            @printf(">> [EOL-BISECT] iteration %d, e0 = %.12f\n", iter, e0);   flush(stdout)
+            bisectRef = Dict{Subshell, Vector{Float64}}()
+            for  ts  in  tStep .* [0.25, 0.5, 0.75, 0.9, 1.0, 1.1, 1.25, 1.5, 2.0, 4.0]
+                bB = Dict{Subshell, Vector{Float64}}( sh => bVectors[sh]  for sh in basis.subshells )
+                for  sh  in  activeSubshells
+                    v = bVectors[sh] + ts * dir[sh]
+                    bB[sh] = v / sqrt( abs(transpose(v) * matrixB * v) )
+                end
+                # the SAME functional on the UNPROJECTED vectors, to place the jump on one side of the
+                # projection or the other
+                bRaw = Dict{Subshell, Vector{Float64}}( sh => copy(bB[sh])  for sh in basis.subshells )
+                restoreFrozen!(bRaw)
+                (_, eRaw) = SelfConsistent.energyFromBVectorsSplit(bRaw, coeffs1p, coeffs2p, basis.subshells,
+                                                        primitives, grid, nucPot, isFrozenSub, frozenRk)
+                (bProj, bNeg) = SelfConsistent.projectOntoPositiveBranch(bB, basis.subshells, primitives,
+                                                        nucPot, matrixB, storage; spectrum=posSpectrum)
+                restoreFrozen!(bProj)
+                (_, bE) = SelfConsistent.energyFromBVectorsSplit(bProj, coeffs1p, coeffs2p, basis.subshells,
+                                                        primitives, grid, nucPot, isFrozenSub, frozenRk)
+                # the TABULATED orbital, not the b-vector: generateOrbitalFromVector canonicalises the sign
+                # with sum(P[1:30]), which can cross zero and flip the whole orbital -- invisible in the vector
+                # compare the TABULATED orbital against the one at the smallest step: a sign flip inside
+                # generateOrbitalFromVector is invisible in wSign, because it is applied before the return
+                ovl = join([ begin
+                        ob = Bsplines.generateOrbitalFromVector(sh, 0.0, bProj[sh], primitives)
+                        rf = get!(bisectRef, sh, ob.P)
+                        n  = min(length(ob.P), length(rf))
+                        d  = sum(ob.P[1:n] .* rf[1:n]) / sqrt(sum(rf[1:n].^2) * sum(ob.P[1:n].^2))
+                        @sprintf("%s %+.4f", string(sh), d)
+                    end  for sh in basis.subshells ], " ")
+                @printf(">> [EOL-BISECT] tStep %.4e  dE %+.6e  | cos to reference: %s\n", ts, bE - e0, ovl)
+                flush(stdout)
+            end
         end
         for  trial = 1:24
             newB = Dict{Subshell, Vector{Float64}}( sh => bVectors[sh]  for sh in basis.subshells )

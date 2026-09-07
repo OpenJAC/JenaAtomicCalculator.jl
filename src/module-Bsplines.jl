@@ -632,6 +632,34 @@ end
 
 
 """
+`Bsplines.canonicalSign(coeffs::AbstractVector{Float64}, nsL::Int64)`
+    ... the sign convention for a tabulated orbital: +1.0 or -1.0, taken from the LARGE-component B-spline
+        coefficient of greatest magnitude.  A Float64 is returned.
+
+        WHY NOT `sum(P[1:30])`, WHICH THIS REPLACES (07-Sep-2026).  That criterion sums the large component over
+        the first thirty grid points -- deep inside the nucleus, where a p, d or f orbital is essentially zero.
+        For the 3p_1/2 of a C-like uranium RAS layer it evaluated to ~1e-15, i.e. PURE ROUND-OFF, so an orbital
+        change of one part in 1e8 could flip the sign of the whole tabulated orbital.
+        THAT MADE THE ENERGY FUNCTIONAL DISCONTINUOUS, and it is why the EOL solver stagnated.  Measured on
+        C-like U: walking the line-search step across 2.20e-08 -> 2.25e-08 flips 3p_1/2 and moves the energy by
+        exactly 0.032 Ha, while every other orbital and every other diagnostic (the b-vectors, the positive-branch
+        weight, the orthonormality deviation, mtp) is unchanged.  The line search then cannot step past the cliff,
+        every iteration buys ~3e-10 Ha, |grad| floors, and the run stops on a stagnant gradient -- which was the
+        state of eleven of twelve census runs and of layers 2-4 of every table in examples/example-Ai.jl.
+        The largest coefficient is O(1) by construction, so it cannot be decided by round-off.  The convention it
+        picks may DIFFER from the old one for a given orbital; that is a gauge choice and no observable may
+        depend on it -- which is exactly what the test suite checks.
+"""
+function canonicalSign(coeffs::AbstractVector{Float64}, nsL::Int64)
+    imax = 1;    amax = 0.
+    for  i = 1:min(nsL, length(coeffs))
+        if  abs(coeffs[i]) > amax    amax = abs(coeffs[i]);    imax = i    end
+    end
+    return( coeffs[imax] < 0. ? -1.0 : 1.0 )
+end
+
+
+"""
 `Bsplines.generateOrbitalFromPrimitives(sh::Subshell, wc::Basics.Eigen, primitives::Bsplines.Primitives; mass::Float64=1.0)`
     ... generates the large and small components for the subshell sh from the primitives and their eigenvalues & eigenvectors.
         A (normalized) orbital::Orbital is returned.
@@ -665,8 +693,9 @@ function generateOrbitalFromPrimitives(sh::Subshell, wc::Basics.Eigen, primitive
                         if  abs(Pprimex[j]) < 1.0e-16    Pprimex[j] = 0.  end
                         if  abs(Qprimex[j]) < 1.0e-16    Qprimex[j] = 0.  end      end
                         
-    # Ensure that the large component of all orbitals start 'positive'
-    wSign     = sum( Px[1:30] )
+    # Ensure that the large component of all orbitals start 'positive' -- see Bsplines.canonicalSign for why
+    # the criterion is the largest COEFFICIENT and no longer sum(P[1:30]), which was round-off for a p orbital.
+    wSign     = Bsplines.canonicalSign(ev, nsL)
     if  wSign < 0.   Px[1:mtp] = -Px[1:mtp];   Pprimex[1:mtp] = -Pprimex[1:mtp] 
                      Qx[1:mtp] = -Qx[1:mtp];   Qprimex[1:mtp] = -Qprimex[1:mtp]   end
     
@@ -747,7 +776,7 @@ function generateOrbitalFromVector(sh::Subshell, energy::Float64, vector::Vector
                         if  abs(Pprimex[j]) < 1.0e-16    Pprimex[j] = 0.  end
                         if  abs(Qprimex[j]) < 1.0e-16    Qprimex[j] = 0.  end      end
 
-    wSign = sum( Px[1:min(30,mtp)] )
+    wSign = Bsplines.canonicalSign(vector, nsL)          ## see Bsplines.canonicalSign; was sum(Px[1:min(30,mtp)])
     if  wSign < 0.   Px[1:mtp] = -Px[1:mtp];   Pprimex[1:mtp] = -Pprimex[1:mtp]
                      Qx[1:mtp] = -Qx[1:mtp];   Qprimex[1:mtp] = -Qprimex[1:mtp]   end
 

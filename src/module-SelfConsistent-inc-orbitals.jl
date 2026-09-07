@@ -305,13 +305,11 @@ function computeTwoElectronV(subshell::Subshell, coeffs2p::Array{Coefficient2p,1
             # should). Fix: mirror generateOrbitalFromVector's own small-r wSign test on the raw bVector,
             # and pass a sign-matched cVector so it always agrees with partnerOrb's canonical sign.
             cVector = get!(partnerCVectors, partner) do
-                bV      = bVectors[partner]
-                wSign   = 0.0
-                for  i = 1:nsL
-                    Bi    = primitives.bsplinesL[i];   add = 1 - Bi.lower
-                    for  j = Bi.lower:min(Bi.upper,30)   wSign = wSign + bV[i] * Bi.bs[j+add]   end
-                end
-                wSign < 0.  ?  -bV  :  bV
+                bV = bVectors[partner]
+                # MIRRORS Bsplines.generateOrbitalFromVector's convention and must keep mirroring it: this
+                # reconstructed the old sum(P[1:30]) test by hand, and that criterion was replaced on
+                # 07-Sep-2026 because it was round-off for a p orbital and made the functional discontinuous.
+                Bsplines.canonicalSign(bV, nsL) < 0.  ?  -bV  :  bV
             end
             (cacheLL, cacheLS, cacheSS) = tensorCaches[cf.nu]
             matrixV = matrixV + cf.V *
