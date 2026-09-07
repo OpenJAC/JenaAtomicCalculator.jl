@@ -347,7 +347,7 @@ function energyFromBVectors(bVectors::Dict{Subshell, Vector{Float64}},
                                    grid::Radial.Grid, nucPot::Radial.Potential)
     orbitals = Dict{Subshell, Orbital}()
     for  sh  in  subshells
-        orbitals[sh] = Bsplines.generateOrbitalFromVector(sh, 0.0, bVectors[sh], primitives)
+        orbitals[sh] = Bsplines.generateOrbitalFromVector(sh, 0.0, bVectors[sh], primitives; canonicalize=false)
     end
     return( SelfConsistent.computeFunctional(coeffs1p, coeffs2p, orbitals, grid, nucPot) )
 end
@@ -366,7 +366,7 @@ function energyFromBVectorsSplit(bVectors::Dict{Subshell, Vector{Float64}},
                                  isFrozen::Function, frozenRk::Dict{NTuple{5,Any}, Float64})
     orbitals = Dict{Subshell, Orbital}()
     for  sh  in  subshells
-        orbitals[sh] = Bsplines.generateOrbitalFromVector(sh, 0.0, bVectors[sh], primitives)
+        orbitals[sh] = Bsplines.generateOrbitalFromVector(sh, 0.0, bVectors[sh], primitives; canonicalize=false)
     end
     return( SelfConsistent.computeFunctionalSplit(coeffs1p, coeffs2p, orbitals, grid, nucPot, isFrozen, frozenRk) )
 end
@@ -572,7 +572,7 @@ function computeOrbitalGradient(bVectors::Dict{Subshell, Vector{Float64}},
     nsL = primitives.grid.nsL;    nsS = primitives.grid.nsS
     orbitals = Dict{Subshell, Orbital}()
     for  sh  in  subshells
-        orbitals[sh] = Bsplines.generateOrbitalFromVector(sh, 0.0, bVectors[sh], primitives)
+        orbitals[sh] = Bsplines.generateOrbitalFromVector(sh, 0.0, bVectors[sh], primitives; canonicalize=false)
     end
     grad = Dict{Subshell, Vector{Float64}}()
     for  sh  in  subshells    grad[sh] = zeros(nsL+nsS)    end
@@ -1009,7 +1009,7 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
     for  iter = 1:settings.maxIterationsScf
         orbitals = Dict{Subshell, Orbital}()
         for  sh  in  basis.subshells
-            orbitals[sh] = Bsplines.generateOrbitalFromVector(sh, 0.0, bVectors[sh], primitives)
+            orbitals[sh] = Bsplines.generateOrbitalFromVector(sh, 0.0, bVectors[sh], primitives; canonicalize=false)
         end
         tempBasis = Basis(true, basis.NoElectrons, basis.subshells, basis.csfs, basis.coreSubshells, orbitals)
         radial1p  = Dict{Tuple{Subshell,Subshell},Float64}()

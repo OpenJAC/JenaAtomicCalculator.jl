@@ -750,7 +750,8 @@ end
         renormalizes to unit norm in the grid quadrature) -- just without the wc/ni lookup indirection.
         A (normalized) orbital::Orbital is returned.
 """
-function generateOrbitalFromVector(sh::Subshell, energy::Float64, vector::Vector{Float64}, primitives::Bsplines.Primitives)
+function generateOrbitalFromVector(sh::Subshell, energy::Float64, vector::Vector{Float64}, primitives::Bsplines.Primitives;
+                                  canonicalize::Bool=true)
     nsL = primitives.grid.nsL;    nsS = primitives.grid.nsS
     if  length(vector) != nsL + nsS    error("stop a")    end
 
@@ -776,7 +777,16 @@ function generateOrbitalFromVector(sh::Subshell, energy::Float64, vector::Vector
                         if  abs(Pprimex[j]) < 1.0e-16    Pprimex[j] = 0.  end
                         if  abs(Qprimex[j]) < 1.0e-16    Qprimex[j] = 0.  end      end
 
-    wSign = Bsplines.canonicalSign(vector, nsL)          ## see Bsplines.canonicalSign; was sum(Px[1:min(30,mtp)])
+    # `canonicalize=false` LEAVES THE SIGN ALONE, and an optimiser must ask for that -- 07-Sep-2026.
+    # A canonicalisation applied HERE can flip an orbital in the middle of a line search, and the EOL
+    # functional is evaluated against ANGULAR COEFFICIENTS FROZEN AT THE START OF THE ITERATION.  An
+    # off-diagonal Slater integral R^k(a,b,c,d) with four distinct subshells contains each orbital ONCE, so a
+    # mid-search flip changes the sign of that term while its coefficient keeps the old convention, and the
+    # energy jumps.  MEASURED at the point a C-like U layer stalls: e(+eps) - e(-eps) = -1.72478 Ha, constant
+    # over four decades of eps, with a finite analytic derivative of -4.77e-02 -- so no step, however small,
+    # can find descent.  Robustness is not enough here and never was: the requirement is CONSTANCY WITHIN AN
+    # ITERATION, which only the caller can know.  See Bsplines.canonicalSign for the criterion itself.
+    wSign = canonicalize ? Bsplines.canonicalSign(vector, nsL) : 1.0
     if  wSign < 0.   Px[1:mtp] = -Px[1:mtp];   Pprimex[1:mtp] = -Pprimex[1:mtp]
                      Qx[1:mtp] = -Qx[1:mtp];   Qprimex[1:mtp] = -Qprimex[1:mtp]   end
 
