@@ -720,7 +720,7 @@ end
 
 """
 `PhotoEmission.displayRates(stream::IO, lines::Array{PhotoEmission.Line,1}, settings::PhotoEmission.Settings)`
-    ... lists, for every line, the Einstein A and B coefficients, the oscillator strength, the decay width and -- for E1 -- the line
+    ... lists, for every line, the Einstein A and B coefficients, the WEIGHTED oscillator strength gf = g_lower * f, the decay width and -- for E1 -- the line
         strength. One row is printed per (multipole, gauge), so an electric multipole contributes two rows and a magnetic one a single row.
         A neat table is printed to stream; nothing::Nothing is returned.
 """
@@ -745,7 +745,7 @@ function  displayRates(stream::IO, lines::Array{PhotoEmission.Line,1}, settings:
     sa = sa * TableStrings.center(11, "Gauge"    ; na=4);                         sb = sb * TableStrings.hBlank(17)
     sa = sa * TableStrings.center(26, "A--Einstein--B"; na=3);       
     sb = sb * TableStrings.center(26, TableStrings.inUnits("rate")*"          "*TableStrings.inUnits("rate"); na=2)
-    sa = sa * TableStrings.center(11, "Osc. strength"    ; na=3);                 sb = sb * TableStrings.hBlank(17)
+    sa = sa * TableStrings.center(11, "gf"               ; na=3);                 sb = sb * TableStrings.hBlank(17)
     sa = sa * TableStrings.center(12, "Decay widths"; na=3);       
     sb = sb * TableStrings.center(12, TableStrings.inUnits("energy"); na=4)
     sa = sa * TableStrings.center(13, "Line strength"; na=4);       

@@ -479,7 +479,7 @@ function  displayRates(stream::IO, lines::Array{TwoElectronOnePhoton.Line,1}, se
     sa = sa * TableStrings.center(11, "Gauge"    ; na=4);                         sb = sb * TableStrings.hBlank(17)
     sa = sa * TableStrings.center(26, "A--Einstein--B"; na=3);       
     sb = sb * TableStrings.center(26, TableStrings.inUnits("rate")*"          "*TableStrings.inUnits("rate"); na=2)
-    sa = sa * TableStrings.center(11, "Osc. strength"    ; na=3);                 sb = sb * TableStrings.hBlank(17)
+    sa = sa * TableStrings.center(11, "gf"               ; na=3);                 sb = sb * TableStrings.hBlank(17)
     sa = sa * TableStrings.center(12, "Decay widths"; na=3);       
     sb = sb * TableStrings.center(12, TableStrings.inUnits("energy"); na=4)
     sa = sa * TableStrings.center(13, "Line strength"; na=4);       

@@ -368,7 +368,7 @@ function  displayRates(stream::IO, lines::Array{Einstein.Line,1})
     sa = sa * TableStrings.center(11, "Gauge"    ; na=4);                         sb = sb * TableStrings.hBlank(17)
     sa = sa * TableStrings.center(26, "A--Einstein--B"; na=2);       
     sb = sb * TableStrings.center(26, TableStrings.inUnits("rate")*"           "*TableStrings.inUnits("rate"); na=2)
-    sa = sa * TableStrings.center(11, "Osc. strength"    ; na=3);                 sb = sb * TableStrings.hBlank(17)
+    sa = sa * TableStrings.center(11, "gf"               ; na=3);                 sb = sb * TableStrings.hBlank(17)
     sa = sa * TableStrings.center(12, "Decay widths"; na=4);       
     sb = sb * TableStrings.center(12, TableStrings.inUnits("energy"); na=4)
     println(stream, sa);    println(stream, sb);    println(stream, "  ", TableStrings.hLine(nx)) 
@@ -382,11 +382,17 @@ function  displayRates(stream::IO, lines::Array{Einstein.Line,1})
             sa = sa * @sprintf("%.6e", Defaults.convertUnits("energy: from atomic", line.omega)) * "    "
             sa = sa * TableStrings.center(9,  string(ch.multipole); na=4)
             sa = sa * TableStrings.flushleft(11, string(ch.gauge);  na=2)
-            chRate =  8pi * Defaults.getDefaults("alpha") * line.omega / (Basics.twice(line.initialLevel.J) + 1) * (abs(ch.amplitude)^2) * 
-                                                                (Basics.twice(line.finalLevel.J) + 1)
+            # A SPURIOUS (2J_f+1) WAS REMOVED HERE, 7-Sep-2026, and it made every number in this table too large.
+            # The Einstein A for emission out of an upper level is 8 pi alpha omega |<f||O||i>|^2 / (2J_i+1); there is no
+            # statistical weight of the LOWER level in it, and PhotoEmission.displayRates has always used exactly that.
+            # Measured on hydrogen Lyman-alpha, where A = 6.2649e8 1/s is known exactly for both 2p components: without
+            # the factor 6.2684e8 and 6.2682e8 (0.06 %), with it 1.2537e9 and 1.2536e9, i.e. high by exactly 2J_f+1 = 2.
+            # A, B, gf and the decay width are all built from chRate, so all four were wrong by that factor -- which is
+            # also why this module and PhotoEmission reported A values differing by exactly 4 for a 5/2 -> 3/2 line.
+            chRate =  8pi * Defaults.getDefaults("alpha") * line.omega / (Basics.twice(line.initialLevel.J) + 1) * (abs(ch.amplitude)^2)
             sa = sa * @sprintf("%.6e", Basics.recast(RecastRateToEinsteinA(),  line, chRate)) * "  "
             sa = sa * @sprintf("%.6e", Basics.recast(RecastRateToEinsteinB(),  line, chRate)) * "    "
-            sa = sa * @sprintf("%.6e", Basics.recast(RecastRateToOscillatorF(),           line, chRate)) * "    "
+            sa = sa * @sprintf("%.6e", Basics.recast(RecastRateToOscillatorGf(),          line, chRate)) * "    "
             sa = sa * @sprintf("%.6e", Basics.recast(RecastRateToDecayWidth(), line, chRate)) * "    "
             println(stream, sa)
         end

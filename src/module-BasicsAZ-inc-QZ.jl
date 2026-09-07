@@ -321,20 +321,33 @@ end
 
 """
 `Basics.recast(::RecastRateToOscillatorGf, line::Union{Einstein.Line, PhotoEmission.Line, TwoElectronOnePhoton.Line}, wa::Float64)`
-    ... recasts a radiative rate (Einstein A, a.u.) into the oscillator strength g_f; a Float64 is returned.
+    ... recasts a radiative rate (Einstein A, a.u.) into the WEIGHTED oscillator strength g_l f, i.e. the absorption oscillator strength
+        multiplied by the statistical weight of the LOWER level, which is the quantity tabulated as "gf" and the one that obeys the
+        Thomas-Reiche-Kuhn sum rule directly; a Float64 is returned.
+
+        CORRECTED 7-Sep-2026, and the correction changes printed output. Until that date this method returned the UNWEIGHTED f, which is
+        what `RecastRateToOscillatorF` is for, so the two recasts returned quantities the other way round from their names. Measured on
+        hydrogen Lyman-alpha, where the answer is known exactly: for 1s (2)S_1/2 - 2p (2)P_3/2 the old body gave 0.27745 against the
+        tabulated f = 0.27750, and against g_l f = 0.55500. The name said g_f throughout.
 """
 function Basics.recast(::RecastRateToOscillatorGf, line::Union{Einstein.Line, PhotoEmission.Line, TwoElectronOnePhoton.Line}, wa::Float64)
-    return( (Basics.twice(line.initialLevel.J) + 1) / (Basics.twice(line.finalLevel.J) + 1) / 2. *
+    return( (Basics.twice(line.initialLevel.J) + 1) / 2. *
                 Defaults.getDefaults("speed of light: c")^3 / line.omega^2 * wa )
 end
 
 
 """
 `Basics.recast(::RecastRateToOscillatorF, line::Union{Einstein.Line, PhotoEmission.Line}, wa::Float64)`
-    ... recasts a radiative rate (Einstein A, a.u.) into the oscillator strength f; a Float64 is returned.
+    ... recasts a radiative rate (Einstein A, a.u.) into the absorption oscillator strength f, defined from the emission rate by
+        A_ul = 2 alpha^3 omega^2 (g_l/g_u) f_lu, so that f = (g_u/g_l) c^3 A / (2 omega^2) in atomic units; a Float64 is returned.
+
+        CORRECTED 7-Sep-2026, and this one was not merely misnamed but WRONG. The old body, c/(12 pi omega) * wa, is not an oscillator
+        strength in any convention: on hydrogen Lyman-alpha it returned 1.5e-07 where the tabulated f is 0.27750, i.e. it was low by six
+        orders of magnitude. It was reached only through `Einstein.displayRates`, whose "Osc. strength" column was therefore meaningless.
 """
 function Basics.recast(::RecastRateToOscillatorF, line::Union{Einstein.Line, PhotoEmission.Line}, wa::Float64)
-    return( Defaults.getDefaults("speed of light: c") / (12. * pi * line.omega) * wa )
+    return( (Basics.twice(line.initialLevel.J) + 1) / (Basics.twice(line.finalLevel.J) + 1) / 2. *
+                Defaults.getDefaults("speed of light: c")^3 / line.omega^2 * wa )
 end
 
 
