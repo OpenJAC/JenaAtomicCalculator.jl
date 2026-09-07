@@ -985,7 +985,8 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
                 ";  $(length(activeSubshells)) of $(length(basis.subshells)) subshells are varied.")
     end
     tStep = 1.0;   multiplet = Multiplet("EOL-ByRotation", Level[])
-    bestGNorm = Inf;   bestGIter = 0        # for the stagnation test that ends the iteration, see below
+    bestGNorm = Inf;   bestGIter = 0        # the gradient's best, kept for the REPORTED HINT only
+    bestE     = Inf;   bestEIter = 0        # the ENERGY's best -- this is what ends the iteration, see below
     # Set by every exit below.  A loop that simply runs out of iterations used to end in silence, which was the
     # fifth of five ways this driver can stop and the only one left unreported.
     stopReason = "";   gNorm = 0.;   iterDone = 0
@@ -1602,13 +1603,30 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
         # and the projection -- was measured while the directional derivative was five to nine times too steep
         # (items 121 and 122).  With the gradient exact there is no such floor.
         stagnationWindow = 20
-        # THE IMPROVEMENT MUST BE MEANINGFUL, NOT MERELY POSITIVE -- 07-Sep-2026.  This test used to accept ANY
-        # decrease of |grad| as progress, and the comment above said so ("beat its best value by any margin").
-        # MEASURED: a C-like U layer sat at |grad| = 1.3350e-01 for 296 iterations with the step collapsed to
-        # 1e-13, improving in a far digit often enough to reset this window every time, so neither this exit nor
-        # the collapse bound that depends on it could ever fire.  A relative margin of 1e-3 ends that run at
-        # iteration 30 and cannot mask real progress: a solver reducing |grad| by less than a tenth of a percent
-        # per twenty iterations is not converging on any useful timescale.
+        # THE ITERATION NOW ENDS WHEN THE ENERGY STOPS IMPROVING, NOT WHEN THE GRADIENT DOES -- 07-Sep-2026.
+        # This reverses the decision of 03-Sep, and it reverses it because the surface changed underneath it.
+        # THEN: |grad| was pinned by a discontinuity (the orbital sign could flip mid-line-search, 559c3ea), so
+        # a stationary energy really did mean "stuck" and the gradient was the better signal.
+        # NOW: the functional is differentiable and the analytic gradient matches a central difference to
+        # 1.0000, and on that surface the ordering is the other way round.  MEASURED on C-like U layer 2 with
+        # full steps: |grad| falls to 7.77e-02 by iteration 26 and RISES to 1.57e-01 by 46, while the ENERGY
+        # falls steadily by ~0.025 Ha over the same span -- so a gradient-watching exit stops a run that is
+        # descending.  That is exactly item 6's Z = 4 symptom, "both exits fire while the energy is STILL
+        # FALLING", and it is what the item prescribed fixing: progress on the TOTAL ENERGY as GRASP does,
+        # with the gradient reported as a HINT.
+        # AND THE ENERGY WATCHED IS THE CI EIGENVALUE, NOT THE FUNCTIONAL e0.  They are not interchangeable and
+        # the difference decides runs: the EOL functional is REBUILT every iteration, because its angular
+        # coefficients come from the current CI vector, so comparing e0 across iterations compares DIFFERENT
+        # FUNCTIONS.  Measured on C-like U layer 2: e0 sat at -1.1418373642578115 from iteration 29 while the
+        # CI energy fell from -14351.7287 to -14351.7457, i.e. 0.017 Ha of real descent that an e0-watching
+        # exit reads as stagnation.  The CI eigenvalue is the quantity that is the SAME question every
+        # iteration, and it is the one a user is given.
+        # THE MARGIN IS THAT ENERGY'S OWN RESOLUTION, not a tolerance: an improvement smaller than the
+        # arithmetic can represent is not an improvement.  It is NOT capped here as it is in the convergence
+        # exit -- there a plateau must not be read as convergence, whereas here reading it as stagnation is
+        # exactly right.
+        eCI = multiplet.levels[1].energy
+        if  eCI < bestE - 32 * eps(abs(eCI))    bestE = eCI;    bestEIter = iter    end
         if  gNorm < bestGNorm * (1.0 - 1.0e-3)    bestGNorm = gNorm;    bestGIter = iter    end
         # THE GUARD THE NOTE ABOVE PRESCRIBES, WIRED IN 05-Sep-2026 (priority item 6).  `stepFloor` was
         # defined here and never used: the comment said "stagnation ends the iteration only when the step that
@@ -1631,15 +1649,16 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
                     iter, bestGIter, tStep, collapsedSince,
                     (tStep >= stepFloor || stepIsDead) ? "EXIT" : "held open");  flush(stdout)
         end
-        if  iter - bestGIter >= stagnationWindow  &&  (tStep >= stepFloor || stepIsDead)  &&
+        if  iter - bestEIter >= stagnationWindow  &&  (tStep >= stepFloor || stepIsDead)  &&
                                                       !haskey(ENV, "JAC_EOL_NOSTATEXIT")
-            stopReason = "gradient stagnated";   println(">> [EOL-C3] stopped at iteration $iter: the gradient has " *
-                    "not improved on $bestGNorm since iteration $bestGIter, $stagnationWindow iterations ago" *
+            stopReason = "energy stagnated";   println(">> [EOL-C3] stopped at iteration $iter: the ENERGY has " *
+                    "not improved on $bestE since iteration $bestEIter, $stagnationWindow iterations ago" *
                     (stepIsDead ? ", and the step has been collapsed below $stepFloor since iteration $collapsedSince" : "") * ".  " *
-                    "A converging UPPER BOUND, not a converged gradient.")
+                    "A converging UPPER BOUND.  |grad| = $gNorm is a HINT and not the test: it is not scale-free, " *
+                    "and on a smooth surface it can RISE while the energy falls (best was $bestGNorm at $bestGIter).")
             Defaults.warn(AddWarning(), "SelfConsistent.solveOptimizedLevelFieldByRotation(): the EOL field stopped " *
-                          "on a stagnant gradient at iteration $iter with |grad| = " * @sprintf("%.1e", gNorm) *
-                          ".  The energy is a converging UPPER BOUND, not a converged gradient.")
+                          "on a stagnant ENERGY at iteration $iter with |grad| = " * @sprintf("%.1e", gNorm) *
+                          ".  The energy is a converging UPPER BOUND.")
             break
         end
     end
