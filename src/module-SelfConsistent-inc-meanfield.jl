@@ -34,13 +34,13 @@ function solveMeanFieldBasis(basis::Basis, nuclearModel::Nuclear.Model, primitiv
     isNotSCF = true;   NoIteration = 0;   accuracyScf = 0.
     while  isNotSCF
         NoIteration = NoIteration + 1;   go_on = false 
-        if  NoIteration >  settings.maxIterationsScf
-                println(">> Maximum number of SCF iterations = $(settings.maxIterationsScf) is reached at accuracy " * 
+        if  NoIteration >  Basics.maxIterations(settings.scfRoute)
+                println(">> Maximum number of SCF iterations = $(Basics.maxIterations(settings.scfRoute)) is reached at accuracy " * 
                         @sprintf("%.4e", accuracyScf) * " ... computations proceed.")
                 # Collected as well; see the note at solveAverageAtomField above.
                 Defaults.warn(AddWarning(), "SelfConsistent.solveMeanFieldBasis(): the SCF did NOT converge for " *
                               string(basis.subshells) * " -- stopped at accuracy " * @sprintf("%.1e", accuracyScf) *
-                              " after $(settings.maxIterationsScf) iterations.")
+                              " after $(Basics.maxIterations(settings.scfRoute)) iterations.")
             break
         end
         if  printout    println("\nIteration $NoIteration for symmetries ... ")    end
@@ -150,13 +150,13 @@ function solveMeanFieldBasisAnderson(basis::Basis, nuclearModel::Nuclear.Model, 
     isNotSCF = true;   NoIteration = 0;   accuracyScf = 0.
     while  isNotSCF
         NoIteration = NoIteration + 1;   go_on = false
-        if  NoIteration >  settings.maxIterationsScf
-                println(">> Maximum number of SCF iterations = $(settings.maxIterationsScf) is reached at accuracy " *
+        if  NoIteration >  Basics.maxIterations(settings.scfRoute)
+                println(">> Maximum number of SCF iterations = $(Basics.maxIterations(settings.scfRoute)) is reached at accuracy " *
                         @sprintf("%.4e", accuracyScf) * " ... computations proceed.")
                 # Collected as well; see the note at solveAverageAtomField above.
                 Defaults.warn(AddWarning(), "SelfConsistent.solveMeanFieldBasisAnderson(): the SCF did NOT converge for " *
                               string(basis.subshells) * " -- stopped at accuracy " * @sprintf("%.1e", accuracyScf) *
-                              " after $(settings.maxIterationsScf) iterations.")
+                              " after $(Basics.maxIterations(settings.scfRoute)) iterations.")
             break
         end
         if  printout    println("\nIteration $NoIteration for symmetries ... ")    end

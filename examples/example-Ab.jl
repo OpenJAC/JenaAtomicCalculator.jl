@@ -59,7 +59,7 @@ if  true
     #
     wa = Atomic.Computation(Atomic.Computation(), name="He-AL", grid=Radial.Grid(true), nuclearModel=Nuclear.Model(2.),
                             configs=[Configuration("1s^2")],
-                            asfSettings=AsfSettings(AsfSettings(), scField=Basics.ALField(), accuracyScf = 1.0e-8, maxIterationsScf = 60)  )
+                            asfSettings=AsfSettings(AsfSettings(), scField=Basics.ALField(), accuracyScf = 1.0e-8, scfRoute = Basics.AverageLevelRoute(60))  )
 
     wb = perform(wa)
 
@@ -77,7 +77,7 @@ elseif  false
     # do not re-enable this branch expecting the old (wrong) result.
     wa = Atomic.Computation(Atomic.Computation(), name="He-AL", grid=Radial.Grid(true), nuclearModel=Nuclear.Model(2.),
                             configs=[Configuration("1s^2")],
-                            asfSettings=AsfSettings(AsfSettings(), scField=Basics.ALField(), accuracyScf = 1.0e-8, maxIterationsScf = 60)  )
+                            asfSettings=AsfSettings(AsfSettings(), scField=Basics.ALField(), accuracyScf = 1.0e-8, scfRoute = Basics.AverageLevelRoute(60))  )
 
     wb = perform(wa)
 

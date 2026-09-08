@@ -168,7 +168,7 @@ function solveAverageLevelField(basis::Basis, nuclearModel::Nuclear.Model, primi
 
     isConverged = false;    NoIterations = 0;    lastDefect = 1.0;    lastStep = 1.0;    lastShell = basis.subshells[1]
 
-    for  iter = 1:settings.maxIterationsScf
+    for  iter = 1:Basics.maxIterations(settings.scfRoute)
         println("\n> SCF interation $(iter) [AL]: ")
         newBVectors = Dict{Subshell, Vector{Float64}}();    newEnergies = Dict{Subshell, Float64}()
         processedBVectors = Dict{Subshell, Vector{Float64}}()

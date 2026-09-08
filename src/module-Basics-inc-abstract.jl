@@ -2389,6 +2389,177 @@ providesScfDriver(scField::AbstractScField) = scfProcedure(scField) != :none
 
 
 """
+`abstract type Basics.AbstractScfRoute` 
+    ... defines an abstract and a number of types to distinguish HOW the orbitals of a given self-consistent field are found.
+        Basics.AbstractScField says what the orbitals are optimized FOR; this family says by which procedure they are obtained.
+        Basics.scfProcedure already names that second axis, but derives it from the field, so it could not be chosen: these types
+        make it a setting. They form a HIERARCHY by cost -- a fast route that may fail, a slow route that is dependable -- so that
+        a computation can be repeated on a more expensive route when a cheaper one does not converge; every route reports which
+        one it was and how it ended, since a recorded energy is only meaningful together with the path that produced it.
+
+    + struct AutomaticRoute    ... to take the standard route of the given field, i.e. whatever Basics.scfProcedure names; the
+                                   default, so that a field alone remains a complete specification.
+    + struct MeanFieldRoute    ... to iterate a local screened potential to self-consistency (DFS, HS, KS, CH).
+    + struct AverageLevelRoute ... to run the average-level variational procedure.
+    + struct RotationRoute     ... to obtain an optimized level by ORBITAL ROTATION, i.e. by direct minimization of the level
+                                   energy. Dependable but slow: it descends monotonically and keeps the basis orthonormal to
+                                   1e-15, and it needs hundreds to thousands of iterations to do so (measured 08-Sep-2026 on
+                                   C-like uranium: |grad| 7.6e-03 at 400 iterations and 3.3e-04 at 2000, the energy still
+                                   falling by 5.4e-04 Ha in between). This is the fallback of the hierarchy.
+    + struct FockRoute         ... to obtain an optimized level by solving the Fock equations to self-consistency, as GRASP does.
+                                   Fast where it works -- tens of iterations rather than thousands -- but it can converge onto a
+                                   degenerate stationary point when two near-degenerate CSFs compete for one correlation channel
+                                   and the correlating weight runs to zero; cf. the note at SelfConsistent.performSCF.
+    + struct NewtonRoute       ... reserved for a second-order (Newton) procedure that uses the curvature and not only the
+                                   gradient. NOT IMPLEMENTED: it raises rather than silently taking another route.
+"""
+abstract type  AbstractScfRoute                         end
+struct     AutomaticRoute       <:  AbstractScfRoute    end
+
+
+"""
+`struct  Basics.MeanFieldRoute  <:  AbstractScfRoute`  
+    ... defines a type to iterate a local screened potential to self-consistency.
+
+    + maxIterations      ::Int64     ... maximum number of iterations this route may take.
+"""
+struct     MeanFieldRoute       <:  AbstractScfRoute
+    maxIterations        ::Int64
+end
+
+
+# `Basics.MeanFieldRoute()`  ... defines the default budget
+function MeanFieldRoute()
+    MeanFieldRoute(24)
+end
+
+
+"""
+`struct  Basics.AverageLevelRoute  <:  AbstractScfRoute`  
+    ... defines a type to run the average-level variational procedure.
+
+    + maxIterations      ::Int64     ... maximum number of iterations this route may take.
+"""
+struct     AverageLevelRoute    <:  AbstractScfRoute
+    maxIterations        ::Int64
+end
+
+
+# `Basics.AverageLevelRoute()`  ... defines the default budget
+function AverageLevelRoute()
+    AverageLevelRoute(24)
+end
+
+
+"""
+`struct  Basics.RotationRoute   <:  AbstractScfRoute`  
+    ... defines a type to obtain an optimized-level field by orbital rotation, i.e. by direct minimization of the level energy.
+
+    + maxIterations      ::Int64     ... maximum number of iterations this route may take.
+    + nVirtual           ::Int64     ... number of virtual directions per subshell that span the step; the search direction is
+                                         assembled inside this span, out of a b-space of nsL + nsS (183 for a C-like uranium RAS
+                                         layer), and the reported |grad| is measured in the SAME span. Measured 08-Sep-2026:
+                                         raising it from 16 to 32 lowers the energy of that case by 3.7e-04 Ha with the basis
+                                         orthonormal to 1e-10, while 96 destroys the line search outright at iteration 41.
+    + stepping           ::Symbol    ... how the search direction is chosen: :plain steps straight downhill and zig-zags,
+                                         :conjugate corrects the new direction against the previous one, and :curvature keeps a
+                                         short memory of how the slope changed and guesses the curvature from it. The names are
+                                         Rule 21's and describe what the method does rather than who wrote it.
+"""
+struct     RotationRoute        <:  AbstractScfRoute
+    maxIterations        ::Int64
+    nVirtual             ::Int64
+    stepping             ::Symbol
+end
+
+
+# `Basics.RotationRoute()`  ... defines the values the rotation solver has used since 27-Aug-2026
+function RotationRoute()
+    RotationRoute(24, 16, :curvature)
+end
+
+
+# `Basics.RotationRoute(maxIterations::Int64)`  ... sets the budget and keeps the standard step space and stepping
+function RotationRoute(maxIterations::Int64)
+    RotationRoute(maxIterations, 16, :curvature)
+end
+
+
+"""
+`struct  Basics.FockRoute       <:  AbstractScfRoute`  
+    ... defines a type to obtain an optimized-level field by solving the Fock equations to self-consistency.
+
+    + maxIterations      ::Int64     ... maximum number of iterations this route may take.
+    + sourceTerm         ::Bool      ... True, if the inhomogeneous (source) term is carried, which is what keeps the solution
+                                         finite as a CSF's generalized occupation shrinks; cf. Grant's account of GRASP.
+"""
+struct     FockRoute            <:  AbstractScfRoute
+    maxIterations        ::Int64
+    sourceTerm           ::Bool
+end
+
+
+# `Basics.FockRoute()`  ... defines the default budget, with the source term carried
+function FockRoute()
+    FockRoute(40, true)
+end
+
+
+# `Basics.FockRoute(maxIterations::Int64)`  ... sets the budget and keeps the source term
+function FockRoute(maxIterations::Int64)
+    FockRoute(maxIterations, true)
+end
+
+
+"""
+`struct  Basics.NewtonRoute     <:  AbstractScfRoute`  
+    ... defines a type reserved for a second-order procedure. NOT IMPLEMENTED; it raises where it is used.
+
+    + maxIterations      ::Int64     ... maximum number of iterations this route would be allowed to take.
+"""
+struct     NewtonRoute          <:  AbstractScfRoute
+    maxIterations        ::Int64
+end
+
+
+# `Basics.NewtonRoute()`  ... defines the default budget
+function NewtonRoute()
+    NewtonRoute(20)
+end
+
+
+"""
+`Basics.maxIterations(route::Basics.AbstractScfRoute)`
+    ... returns the iteration budget of the given route. Each solver has its own natural budget -- a mean field converges in a
+        handful of iterations where the rotation route needs thousands -- which is why the budget belongs to the route and not
+        to the settings as a whole. An AutomaticRoute carries no budget of its own and yields the shared default.
+        A value::Int64 is returned.
+"""
+function maxIterations end
+
+maxIterations(route::AbstractScfRoute)      = route.maxIterations
+maxIterations(::AutomaticRoute)             = 24
+
+
+"""
+`Basics.standardRoute(scField::Basics.AbstractScField, maxIterations::Int64)`
+    ... returns the route by which the given field is normally solved, carrying the given iteration budget. This is what an
+        AutomaticRoute stands for, and it is the way to name a budget without also having to know which solver a field uses --
+        which matters wherever the field is a variable rather than a literal. A route::AbstractScfRoute is returned.
+"""
+function standardRoute end
+
+function standardRoute(scField::AbstractScField, maxIterations::Int64)
+    proc = Basics.scfProcedure(scField)
+    if       proc == :meanFieldIteration    return( MeanFieldRoute(maxIterations)    )
+    elseif   proc == :averageLevel          return( AverageLevelRoute(maxIterations) )
+    elseif   proc == :optimizedLevel        return( RotationRoute(maxIterations)     )
+    else                                    return( AutomaticRoute()                 )
+    end
+end
+
+
+"""
 `Basics.providesPotential(scField::Basics.AbstractScField)`
     ... answers whether Basics.computePotential can build a radial potential for this field. False by
         default. Note that the two predicates are INDEPENDENT rather than complementary: DFSField and
@@ -2420,8 +2591,9 @@ end
 
     
 
-export  AbstractScField, AaDFSField, AaHSField, ALField, EOLField, DFSField, HSField, NuclearField,
-        providesPotential, providesScfDriver, scfDriverFields, scfProcedure,
+export  AbstractScfRoute, AbstractScField, AaDFSField, AaHSField, ALField, AutomaticRoute, AverageLevelRoute,
+        EOLField, DFSField, FockRoute, HSField, MeanFieldRoute, NewtonRoute, NuclearField,
+        providesPotential, providesScfDriver, RotationRoute, scfDriverFields, scfProcedure,
         ThomasFermiField
 
 #################################################################################################################################

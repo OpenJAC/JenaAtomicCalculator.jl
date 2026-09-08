@@ -86,7 +86,7 @@ function compareFields(label, Z, configs, grid)
         local multiplet
         t = @elapsed redirect_stdout(devnull) do
                 multiplet = SelfConsistent.performSCF(configs, Nuclear.Model(Z), grid,
-                                AsfSettings(AsfSettings(); scField=field, maxIterationsScf=20); printout=false)
+                                AsfSettings(AsfSettings(); scField=field, scfRoute=Basics.standardRoute(field, 20)); printout=false)
             end
         basis = multiplet.levels[1].basis;    orbitals = basis.orbitals;    worst = 0.
         for  (i, sha)  in  enumerate(basis.subshells),  (j, shb)  in  enumerate(basis.subshells)

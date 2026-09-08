@@ -174,7 +174,7 @@ function Basics.generate(repType::AtomicState.CiExpansion, rep::AtomicState.Repr
     println("*** Level symmetries = $symmetries ")
 
     # The asfSettings only define the CI part and are partly derived from the CiSettings
-    asfSettings = AsfSettings(true, CoulombInteraction(), Basics.DFSField(), StartFromHydrogenic(),    0, 0., Subshell[], Subshell[], 
+    asfSettings = AsfSettings(true, CoulombInteraction(), Basics.DFSField(), StartFromHydrogenic(), Basics.AutomaticRoute(), 0., Subshell[], Subshell[], 
                                 1.0e-3, true, repType.settings.eeInteractionCI, NoneQed(), LSjjSettings(false), 
                                 repType.settings.levelSelectionCI) 
     
@@ -309,7 +309,8 @@ function Basics.generate(repType::AtomicState.RasExpansion, rep::AtomicState.Rep
         end
         stepSettings = AsfSettings( AsfSettings();  scField=Basics.EOLField(),  frozenSubshells=frozenSubshellsThisStep,
                                      eeInteractionCI=repType.settings.eeInteractionCI,  levelSelectionCI=stepLevelSelection,
-                                     maxIterationsScf=repType.settings.maxIterationsScf,  accuracyScf=repType.settings.accuracyScf )
+                                     scfRoute=Basics.RotationRoute(repType.settings.maxIterationsScf),
+                                     accuracyScf=repType.settings.accuracyScf )
 
         multiplet  = SelfConsistent.performSCF(basis, nModel, rep.grid, stepSettings; printout=true)
         # ITEM 25, ADDED 01-Sep-2026.  Until now a step printed one Multiplet and nothing else, so nothing in
@@ -382,7 +383,7 @@ function Basics.generate(repType::AtomicState.GreenExpansion, rep::AtomicState.R
     Basics.display(stdout, orbitals, rep.grid)
 
     # The asfSettings only define the CI part of the Green channels and are partly derived from the GreenSettings
-    asfSettings = AsfSettings(true, CoulombInteraction(), Basics.DFSField(), StartFromHydrogenic(),    0, 0., Subshell[], Subshell[], 
+    asfSettings = AsfSettings(true, CoulombInteraction(), Basics.DFSField(), StartFromHydrogenic(), Basics.AutomaticRoute(), 0., Subshell[], Subshell[], 
                                 1.0e-3, true, CoulombInteraction(), NoneQed(), LSjjSettings(false), settings.levelSelection ) 
     
     # Cycle over all selected level symmetries to generate the requested channels

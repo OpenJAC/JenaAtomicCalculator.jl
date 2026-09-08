@@ -775,7 +775,7 @@ function testMethod_OrbitalOrthonormality(; short::Bool=true)
     grid    = Radial.Grid(Radial.Grid(false); rnt = 2.0e-6, h = 5.0e-2, hp = 2.0e-2, rbox = 30.0)
     configs = [Configuration("1s^2 2s"), Configuration("1s^2 3s"), Configuration("1s^2 3d")]
     multiplet = SelfConsistent.performSCF(configs, Nuclear.Model(3.), grid,
-                    AsfSettings(AsfSettings(); scField=Basics.ALField(), maxIterationsScf=24); printout=false)
+                    AsfSettings(AsfSettings(); scField=Basics.ALField(), scfRoute=Basics.AverageLevelRoute(24)); printout=false)
     basis    = multiplet.levels[1].basis;    orbitals = basis.orbitals
     worst    = 0.;    worstPair = ""
     for  (i, sha)  in  enumerate(basis.subshells),  (j, shb)  in  enumerate(basis.subshells)
@@ -2142,7 +2142,7 @@ function testModule_SelfConsistent(; short::Bool=true)
     let  report = "jac-warn.report"
         rm(report, force = true)
         redirect_stdout(devnull) do
-            scf(AsfSettings(AsfSettings(); scField = Basics.ALField(), maxIterationsScf = 1))
+            scf(AsfSettings(AsfSettings(); scField = Basics.ALField(), scfRoute = Basics.AverageLevelRoute(1)))
         end
         text = isfile(report) ? read(report, String) : ""
         if  !( occursin("solveAverageLevelField", text)  &&  occursin("did NOT converge", text) )

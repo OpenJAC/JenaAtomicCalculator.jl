@@ -856,7 +856,24 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
     # ten, while L-BFGS accumulates several pairs and does not -- and its y-pairs are differences of gVec,
     # the same metric-mixed object that item 121 had to stop using for the directional derivative.  This lets
     # that be tested without touching the default.
+    # THE ROUTE SUPPLIES THE STEP SPACE, THE STEPPING AND THE ITERATION BUDGET.  A settings carrying an
+    # AutomaticRoute leaves all three at the values below, so naming only the field remains a complete
+    # specification and behaves exactly as it did before the route existed.  The stepping names are Rule 21's,
+    # which describe what the method does; :curvature is the short-memory secant method the code calls :lbfgs.
+    if  settings.scfRoute isa Basics.RotationRoute
+        nVirtual = settings.scfRoute.nVirtual
+        method   = settings.scfRoute.stepping == :curvature ? :lbfgs : settings.scfRoute.stepping
+    end
     if  haskey(ENV, "JAC_EOL_METHOD")    method = Symbol(ENV["JAC_EOL_METHOD"])    end
+    # Measurement hook only; the default is unchanged.  The search direction is assembled inside the span that
+    # virtualDirections returns, and that span holds at most nVirtual vectors out of a b-space of nsL + nsS --
+    # 16 of 183 for a C-like uranium RAS layer, i.e. 9 %.  gNorm is built from the components along the SAME
+    # span, so the reported |grad| is the REACHABLE gradient and not the gradient.  Whether the descent slows
+    # because the surface is flat or because the step space is truncated cannot be told apart without varying
+    # this, and it has never been varied: the two callers in module-SelfConsistent.jl both take the default.
+    if  haskey(ENV, "JAC_EOL_NVIRTUAL")
+        nVirtual = something(tryparse(Int, ENV["JAC_EOL_NVIRTUAL"]), nVirtual)
+    end
     nsL = primitives.grid.nsL;    nsS = primitives.grid.nsS;    grid = primitives.grid
     storage = Dict{String,Array{Float64,2}}()
     matrixB = zeros( nsL+nsS, nsL+nsS )
@@ -1007,7 +1024,7 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
     bPrev   = Dict{Subshell, Vector{Float64}}()
     sHist   = Vector{Dict{Subshell, Vector{Float64}}}();   yHist = Vector{Dict{Subshell, Vector{Float64}}}()
     rhoHist = Float64[]
-    for  iter = 1:settings.maxIterationsScf
+    for  iter = 1:Basics.maxIterations(settings.scfRoute)
         orbitals = Dict{Subshell, Orbital}()
         for  sh  in  basis.subshells
             orbitals[sh] = Bsplines.generateOrbitalFromVector(sh, 0.0, bVectors[sh], primitives; canonicalize=false)
@@ -1125,11 +1142,16 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
             end
             sVec[sh] = sv;    gVec[sh] = gv
         end
-        # method = :conjugate is the DEFAULT and the one to use.  :lbfgs is kept because it is measurably
-        # better where the basis is stable -- Be 1s^2 2s^2 + 1s^2 2p^2 at 12 iterations reaches -14.618710
-        # against conjugacy's -14.616507, i.e. it does change the RATE and not merely the constant -- but it
-        # LOSES on the harder Be RAS step-2 case, -14.617374 against -14.619313, and there it discards its
-        # own curvature history at iterations 8, 15, 21 and 23.  WHY IT FAILS IS NOT KNOWN.  Two candidates
+        # THE DEFAULT IS :lbfgs -- Rule 21's CURVATURE stepping -- and it now arrives from the route above.
+        # This comment asserted that :conjugate was the default, which it has not been since the five-file
+        # split of 27-Aug-2026; corrected 08-Sep-2026 after measuring it, and it was wrong in both halves.
+        # On C-like uranium layer 2, :conjugate reaches -14351.681709 against :lbfgs's -14351.757229, i.e.
+        # 7.55e-02 Ha WORSE, with |grad| stuck at 3.09e-01 against 7.56e-03.
+        # :lbfgs is measurably better where the basis is stable -- Be 1s^2 2s^2 + 1s^2 2p^2 at 12 iterations
+        # reaches -14.618710 against conjugacy's -14.616507, i.e. it does change the RATE and not merely the
+        # constant -- but it LOSES on the harder Be RAS step-2 case, -14.617374 against -14.619313, and there
+        # it discards its own curvature history at iterations 8, 15, 21 and 23.  That is why :conjugate is
+        # kept and is worth trying on a case that will not settle.  WHY IT FAILS IS NOT KNOWN.  Two candidates
         # were proposed and BOTH MEASURED SMALL, so neither should be repeated as an explanation:
         #   * the virtual space is NOT churning -- successive frames overlap to |1-<new,old>| = 1e-4..3e-3
         #     with no change in the number of directions, one 0.67 rotation excepted, and that one does not
@@ -1663,11 +1685,11 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
         end
     end
     if  stopReason == ""
-        println(">> [EOL-C3] STOPPED after $iterDone iterations: the limit maxIterationsScf = " *
-                "$(settings.maxIterationsScf) was reached with |grad| = $gNorm and tStep = $tStep.  " *
-                "This is NOT convergence; raise maxIterationsScf to see where it goes.")
+        println(">> [EOL-C3] STOPPED after $iterDone iterations: the budget of $(settings.scfRoute) was reached " *
+                "with |grad| = $gNorm and tStep = $tStep.  This is NOT convergence: the rotation route descends " *
+                "monotonically, so a larger maxIterations is very likely to keep improving the energy.")
         Defaults.warn(AddWarning(), "SelfConsistent.solveOptimizedLevelFieldByRotation(): the EOL field did NOT " *
-                      "converge -- the limit maxIterationsScf = $(settings.maxIterationsScf) was reached with " *
+                      "converge -- the budget of $(Basics.maxIterations(settings.scfRoute)) iterations was reached with " *
                       "|grad| = " * @sprintf("%.1e", gNorm) * ".  The energies are NOT self-consistent.")
     end
 
@@ -1829,7 +1851,7 @@ function solveOptimizedLevelField(basis::Basis, nuclearModel::Nuclear.Model, pri
         tensorCaches[L] = (cacheLL, cacheLS, cacheSS)
     end
 
-    for  iter = 1:settings.maxIterationsScf
+    for  iter = 1:Basics.maxIterations(settings.scfRoute)
         println("\n> SCF+CI iteration $(iter) [EOL]: ")
         for  level  in  targetLevels
             println("   target level  J=$(level.J)  parity=$(level.parity)  energy=$(level.energy)")

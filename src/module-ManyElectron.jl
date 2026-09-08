@@ -137,7 +137,10 @@ end
     + scField              ::AbstractScField        ... Specify the self-consistent field, for instance, 
                                                         Basics.ALField(), etc.
     + startScfFrom         ::AbstractStartOrbitals  ... Specify the orbitals to start the SCF computations
-    + maxIterationsScf     ::Int64                  ... maximum number of SCF iterations
+    + scfRoute             ::AbstractScfRoute       ... Specify HOW the orbitals of the given scField are found, and with
+                                                        what iteration budget; cf. Basics.AbstractScfRoute. The routes form a
+                                                        hierarchy by cost, so that a computation which does not converge on a
+                                                        fast route can be repeated on a dependable one.
     + accuracyScf          ::Float64                ... convergence criterion for the SCF field.
     + shellSequenceScf     ::Array{Subshell,1}      ... Sequence of subshells to be optimized.
     + frozenSubshells      ::Array{Subshell,1}      ... Sequence of subshells to be kept frozen.
@@ -160,7 +163,7 @@ struct  AsfSettings
     eeInteraction          ::AbstractEeInteraction 
     scField                ::AbstractScField 
     startScfFrom           ::AbstractStartOrbitals
-    maxIterationsScf       ::Int64 
+    scfRoute               ::Basics.AbstractScfRoute
     accuracyScf            ::Float64   
     shellSequenceScf       ::Array{Subshell,1}
     frozenSubshells        ::Array{Subshell,1}
@@ -178,7 +181,7 @@ struct  AsfSettings
 `ManyElectron.AsfSettings()`  ... constructor for setting the default values.
 """
 function AsfSettings()
-    AsfSettings(true, CoulombInteraction(), Basics.DFSField(), StartFromHydrogenic(), 24, 1.0e-6, Subshell[], Subshell[],  
+    AsfSettings(true, CoulombInteraction(), Basics.DFSField(), StartFromHydrogenic(), Basics.AutomaticRoute(), 1.0e-6, Subshell[], Subshell[],  
                 1.0e-3, true, CoulombInteraction(), NoneQed(), LSjjSettings(false), LevelSelection() )
 end
 
@@ -187,7 +190,7 @@ end
 `ManyElectron.AsfSettings(settings::AsfSettings;`
     
             generateScf=..,       eeInteraction=..,       scField=..,            startScfFrom=..,           
-            maxIterationsScf=..,  accuracyScf=..,         shellSequenceScf=..,   frozenSubshells=..,    
+            scfRoute=..,          accuracyScf=..,         shellSequenceScf=..,   frozenSubshells=..,    
             gridAccuracy=..,      gridStopper=..,         eeInteractionCI=..,    qedModel=..,            
             jjLS=..,              levelSelectionCI=..,     
             printout::Bool=false)
@@ -196,18 +199,28 @@ end
 function AsfSettings(settings::AsfSettings; 
     generateScf::Union{Nothing,Bool}=nothing,                       eeInteraction::Union{Nothing,AbstractEeInteraction}=nothing,         
     scField::Union{Nothing,AbstractScField}=nothing,                startScfFrom::Union{Nothing,AbstractStartOrbitals}=nothing,
-    maxIterationsScf::Union{Nothing,Int64}=nothing,                 accuracyScf::Union{Nothing,Float64}=nothing,     
+    scfRoute::Union{Nothing,Basics.AbstractScfRoute}=nothing,       accuracyScf::Union{Nothing,Float64}=nothing,     
     shellSequenceScf::Union{Nothing,Array{Subshell,1}}=nothing,     frozenSubshells::Union{Nothing,Array{Subshell,1}}=nothing, 
     gridAccuracy::Union{Nothing,Float64}=nothing,                   gridStopper::Union{Nothing,Bool}=nothing,
     eeInteractionCI::Union{Nothing,AbstractEeInteraction}=nothing,  qedModel::Union{Nothing,AbstractQedModel}=nothing,              
     jjLS::Union{Nothing,LSjjSettings}=nothing,  
-    levelSelectionCI::Union{Nothing,LevelSelection}=nothing,        printout::Bool=false)
+    levelSelectionCI::Union{Nothing,LevelSelection}=nothing,        printout::Bool=false,
+    maxIterationsScf::Union{Nothing,Int64}=nothing)
+    # maxIterationsScf was REMOVED as a field: four solvers read it, and their natural budgets differ by two orders of
+    # magnitude -- a mean field converges in a handful of iterations where the rotation route needs thousands.  The budget
+    # now belongs to the route.  Accepted here only so that the change announces itself instead of being ignored.
+    if  !isnothing(maxIterationsScf)
+        error("AsfSettings no longer carries maxIterationsScf; the iteration budget belongs to the scf route.  Write, " *
+              "for instance, scfRoute = Basics.RotationRoute($maxIterationsScf) for an optimized level by orbital " *
+              "rotation, Basics.FockRoute($maxIterationsScf) for the Fock route, or Basics.MeanFieldRoute($maxIterationsScf) " *
+              "for a DFS or Hartree-Slater field;  cf. Basics.AbstractScfRoute.")
+    end
 
     if  isnothing(generateScf)           generateScfx          = settings.generateScf           else   generateScfx          = generateScf          end 
     if  isnothing(eeInteraction)         eeInteractionx        = settings.eeInteraction         else   eeInteractionx        = eeInteraction        end 
     if  isnothing(scField)               scFieldx              = settings.scField               else   scFieldx              = scField              end 
     if  isnothing(startScfFrom)          startScfFromx         = settings.startScfFrom          else   startScfFromx         = startScfFrom         end 
-    if  isnothing(maxIterationsScf)      maxIterationsScfx     = settings.maxIterationsScf      else   maxIterationsScfx     = maxIterationsScf     end 
+    if  isnothing(scfRoute)              scfRoutex             = settings.scfRoute              else   scfRoutex             = scfRoute             end 
     if  isnothing(accuracyScf)           accuracyScfx          = settings.accuracyScf           else   accuracyScfx          = accuracyScf          end 
     if  isnothing(shellSequenceScf)      shellSequenceScfx     = settings.shellSequenceScf      else   shellSequenceScfx     = shellSequenceScf     end 
     if  isnothing(frozenSubshells)       frozenSubshellsx      = settings.frozenSubshells       else   frozenSubshellsx      = frozenSubshells      end 
@@ -218,7 +231,7 @@ function AsfSettings(settings::AsfSettings;
     if  isnothing(jjLS)                  jjLSx                 = settings.jjLS                  else   jjLSx                 = jjLS                 end 
     if  isnothing(levelSelectionCI)      levelSelectionCIx     = settings.levelSelectionCI      else   levelSelectionCIx     = levelSelectionCI     end 
     
-    AsfSettings(generateScfx, eeInteractionx, scFieldx, startScfFromx, maxIterationsScfx, accuracyScfx, 
+    AsfSettings(generateScfx, eeInteractionx, scFieldx, startScfFromx, scfRoutex, accuracyScfx, 
                 shellSequenceScfx, frozenSubshellsx, gridAccuracyx, gridStopperx, 
                 eeInteractionCIx, qedModelx, jjLSx, levelSelectionCIx)
 end
@@ -230,7 +243,7 @@ function Base.show(io::IO, settings::AsfSettings)
         println(io, "eeInteraction:        $(settings.eeInteraction)  ")
         println(io, "scField:              $(settings.scField)  ")
         println(io, "startScfFrom:         $(settings.startScfFrom)  ")
-        println(io, "maxIterationsScf:     $(settings.maxIterationsScf)  ")
+        println(io, "scfRoute:             $(settings.scfRoute)  ")
         println(io, "accuracyScf:          $(settings.accuracyScf)  ")
         println(io, "shellSequenceScf:     $(settings.shellSequenceScf)  ")
         println(io, "frozenSubshells:      $(settings.frozenSubshells)  ")
@@ -247,7 +260,7 @@ end
 # `Base.string(settings::AsfSettings)`  ... provides a String notation for the variable settings::AsfSettings.
 function Base.string(settings::AsfSettings)
         error("Not yet implemented.")
-        sa = "Asf settings: maximum No. of iterations = $(settings.maxIterationsScf), accuracy = (settings.accuracyScf)"
+        sa = "Asf settings: scf route = $(settings.scfRoute), accuracy = (settings.accuracyScf)"
         return( sa )
 end
 
@@ -264,7 +277,7 @@ function  Base.:(==)(seta::AsfSettings, setb::AsfSettings)
     if  seta.scField          !=  setb.scField                    return( false )    end
     if  seta.startScfFrom     !=  setb.startScfFrom               return( false )    end
     #   startOrbitals
-    if  seta.maxIterationsScf !=  setb.maxIterationsScf           return( false )    end
+    if  seta.scfRoute         !=  setb.scfRoute                   return( false )    end
     if  seta.accuracyScf      !=  setb.accuracyScf                return( false )    end
     if  seta.shellSequenceScf !=  setb.shellSequenceScf           return( false )    end
     if  seta.frozenSubshells  !=  setb.frozenSubshells            return( false )    end

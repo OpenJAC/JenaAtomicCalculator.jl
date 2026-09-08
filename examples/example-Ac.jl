@@ -127,7 +127,7 @@ elseif  false
     println(">> [Branch 5, DFS-Field] took $(round(time()-t0, digits=3)) s,  lowest level energy = $(mpDFS.levels[1].energy)")
 
     t1 = time()
-    settingsAL = AsfSettings(AsfSettings(); scField=Basics.ALField(), maxIterationsScf=5)
+    settingsAL = AsfSettings(AsfSettings(); scField=Basics.ALField(), scfRoute=Basics.AverageLevelRoute(5))
     mpAL       = SelfConsistent.performSCF(refConfigs, nModel, grid, settingsAL; printout=true)
     println(">> [Branch 5, AL-Field, maxIterationsScf=5] took $(round(time()-t1, digits=3)) s,  lowest level energy = $(mpAL.levels[1].energy)")
 
