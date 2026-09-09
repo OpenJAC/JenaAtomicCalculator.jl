@@ -16,6 +16,7 @@ makedocs(;
         "Home"                          => "index.md",
         "Getting Started"               => "getting-started.md", 
         "For pedestrians"               => "for-pedestrians.md", 
+        "Self-consistent fields"        => "scf-routes.md",
         "Demos"                         => "demos.md",
         "Examples"                      => "examples.md",
         "News"                          => "news.md",

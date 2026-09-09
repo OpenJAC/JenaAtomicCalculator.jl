@@ -17,6 +17,12 @@ Modules = [CrystalField]
 Order   = [:type, :function]
 ```
 
+##  Einstein A and B coefficients
+```@autodocs
+Modules = [Einstein]
+Order   = [:type, :function]
+```
+
 ##  Hyperfine coefficients and energy splittings
 ```@autodocs
 Modules = [Hfs]

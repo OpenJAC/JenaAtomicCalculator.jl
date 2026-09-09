@@ -103,7 +103,18 @@ end
 const WITHHELD = Dict(
     "SpinAngular" => "maintainer, 26-Aug-2026: not published before the sqrt(2j+1) convention migration (Rule 19) " *
                         "is done, and then only the functions other modules actually call -- today nothing in src/ " *
-                        "calls it, so the published set would be empty in any case." )
+                        "calls it, so the published set would be empty in any case.",
+    "SpinAngularGaigalas" => "maintainer, 09-Sep-2026: the superseded spin-angular implementation, PARKED under " *
+                        "Rule 13 and kept only as the reference the new module was validated against. Publishing a " *
+                        "parked implementation beside its replacement would invite a user to call it. Released " *
+                        "when the module is either retired or un-parked.",
+    "AtomicFeatures" => "maintainer, 09-Sep-2026: part of the neural-network line whose stage 2 returned an honest " *
+                        "NEGATIVE result and which is not being carried further for now. Released when that line " *
+                        "resumes.",
+    "SphericalTensor" => "maintainer, 09-Sep-2026: the module is still at its infancy. Balashov's book has first " *
+                        "to be worked through to recognize which functionality this module should and could offer; " *
+                        "publishing it now would fix an interface before that is known. Released once that scope " *
+                        "has been settled." )
 
 qual              = qualifyingModules()
 (documented, pgs) = documentedModules()
