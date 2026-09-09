@@ -1885,6 +1885,11 @@ function solveOptimizedLevelField(basis::Basis, nuclearModel::Nuclear.Model, pri
         tensorCaches[L] = (cacheLL, cacheLS, cacheSS)
     end
 
+    # THE BEST ITERATE IS KEPT, not merely the last.  This route can walk AWAY from a good orbital set -- that is
+    # what the winner-take-all collapse does -- and the CI energy on any orthonormal orbital set is a variational
+    # upper bound, so the lowest one seen is the best answer available and is what should be returned.
+    bestEnergy   = Inf;    bestOrbitals = deepcopy(orbitals);    bestIteration = 0
+    converged    = false;  iterDone     = 0
     for  iter = 1:Basics.maxIterations(settings.scfRoute)
         println("\n> SCF+CI iteration $(iter) [EOL]: ")
         for  level  in  targetLevels
@@ -2027,8 +2032,57 @@ function solveOptimizedLevelField(basis::Basis, nuclearModel::Nuclear.Model, pri
         println(">> Weighted-average energy = $newWeightedEnergy   orbital-conv = $orbitalConv   " *
                 "orbital-acc = $(1.0 - orbitalConv)   energy-diff = $energyDiff")
 
-        weightedEnergy = newWeightedEnergy
-        if  abs(1.0 - orbitalConv) < settings.accuracyScf  &&  energyDiff < settings.accuracyScf    break   end
+        weightedEnergy = newWeightedEnergy;    iterDone = iter
+        if  newWeightedEnergy < bestEnergy
+            bestEnergy = newWeightedEnergy;    bestOrbitals = deepcopy(orbitals);    bestIteration = iter
+        end
+        if  abs(1.0 - orbitalConv) < settings.accuracyScf  &&  energyDiff < settings.accuracyScf
+            converged = true;    break
+        end
+    end
+
+    # THE ROUTE SAYS WHAT IT DID AND WHAT THE ANSWER IS WORTH.  Until 09-Sep-2026 this loop ended in silence,
+    # whether it had converged in twelve iterations or run out of budget still moving -- and a quiet wrong answer
+    # is the more dangerous of the two failures, because the orbitals it returns look perfectly healthy.
+    if  bestEnergy < weightedEnergy - 1.0e-12
+        println(">> [EOL-FOCK] the LAST iterate is not the best one: iteration $bestIteration reached " *
+                "$bestEnergy against the final $weightedEnergy, so the best is returned.  A Fock iteration that " *
+                "moves uphill has been attracted towards the degenerate occ -> 0 fixed point;  treat the result " *
+                "with suspicion and compare against Basics.RotationRoute().")
+        orbitals = bestOrbitals
+    end
+    if  converged
+        println(">> [EOL-FOCK] CONVERGED at iteration $iterDone with a weighted-average energy of $bestEnergy.")
+    else
+        println(">> [EOL-FOCK] STOPPED after $iterDone iterations: the budget of the route was reached with a " *
+                "weighted-average energy of $bestEnergy, still moving.  This is NOT convergence;  raise the " *
+                "route's maxIterations, or use Basics.RotationRoute(), which descends monotonically.")
+        Defaults.warn(AddWarning(), "SelfConsistent.solveOptimizedLevelField(): the EOL field did NOT converge " *
+                      "-- $iterDone iterations were exhausted.  The energies are NOT self-consistent.")
+    end
+    # THE STANDING CAVEAT, printed whether or not the run converged, because it is not a convergence question.
+    println(">> [EOL-FOCK] THIS ROUTE IS FAST AND APPROXIMATE.  It converges in tens of iterations where the " *
+            "rotation route needs hundreds, and it lands SYSTEMATICALLY ABOVE it: measured 09-Sep-2026 on Be " *
+            "1s^2 2s^2 + 1s^2 2p^2, -14.610656 against -14.619515, i.e. 8.86 mHa high.  The cause is known and " *
+            "is NOT slow convergence -- the orbital equation, divided by the generalized occupation, has a " *
+            "second and degenerate fixed point as that occupation goes to zero.  GRASP avoids it with machinery " *
+            "JAC does not have (a node-controlled ODE solution, adaptive damping, Lagrange multipliers, and a " *
+            "classification of orbitals into spectroscopic and correlation).  Use Basics.RotationRoute() where " *
+            "the number matters.")
+    # AND THE SIGNATURE TO CHECK, which is cheap and specific: the two spin-orbit partners of a subshell must
+    # agree in mean radius.  On the collapsed answer the Be 2p pair came out at 2.52 and 10.08.
+    for  sh  in  basis.subshells
+        sh.kappa > 0  ||  continue
+        partner = Subshell(sh.n, -sh.kappa - 1)
+        haskey(orbitals, partner)  ||  continue
+        rA = RadialIntegrals.rkDiagonal(1, orbitals[sh], orbitals[sh], grid)
+        rB = RadialIntegrals.rkDiagonal(1, orbitals[partner], orbitals[partner], grid)
+        dev = abs(rA - rB) / max(abs(rA), abs(rB))
+        if  dev > 0.05
+            println(">> [EOL-FOCK] WARNING: the spin-orbit partners $sh and $partner differ in mean radius by " *
+                    "$(round(100dev, digits=1)) % ($(round(rA, digits=4)) against $(round(rB, digits=4))).  " *
+                    "They should very nearly agree;  this is the signature of the collapse described above.")
+        end
     end
 
     finalBasis = Basis(true, basis.NoElectrons, basis.subshells, basis.csfs, basis.coreSubshells, orbitals)
