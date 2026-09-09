@@ -2555,12 +2555,38 @@ end
              occupation falls below `correlationCut`; those are refined LAST, so that a weakly occupied orbital
              is projected against settled ones rather than the other way round.
 
-        WHAT IS NOT EXPECTED OF IT, recorded before measuring so that the test is a real one. Neither mechanism
-        should be expected to cure the winner-take-all collapse: that collapse is not an OSCILLATION -- damping
-        of 0.9 and 0.98 made it MORE complete, not less -- and the ordering cannot matter where an orbital is
-        alone in its kappa block, as both Be 2p orbitals are. The value sought here is speed on monotone cases,
-        robustness where a case genuinely oscillates or carries several orbitals per kappa block, and the
-        orbital energy that falls out as a by-product.
+        STATUS, 09-Sep-2026: MEASURED AND SET ASIDE, with the maintainer's agreement. It was built to answer a
+        question and it answered it -- in the negative. DO NOT ADOPT IT, and do not make either mechanism a
+        default, without new evidence; equally, do not delete it, since the code is what makes the measurement
+        below reproducible.
+
+        WHAT WAS MEASURED, five cases against the rotation route, one code state (deficits in mHa):
+
+            case         fock    stab      note
+            Be Z=4       8.86    8.69      the only case stab wins, by 0.17
+            Be Z=10      4.36    6.65
+            Be Z=26      3.16    5.34
+            Be 2-shell  >8.95   >10.37     reference itself unconverged; stab's orbitals break, 83 % so-dev
+            C  Z=6      10.17   13.94
+
+        THE ORDERING MECHANISM IS A NO-OP IN JAC BY CONSTRUCTION, and this is the part worth remembering. JAC
+        orders subshells by (n, kappa) and the generalized occupation falls monotonically with n -- measured on
+        the two-shell Be case: 2.000, 1.820, 0.069, 0.110, 0.0015, 0.00002, 0.0003 -- so the spectroscopic
+        orbitals ALREADY come first and the correlation-last sort returns the basis order unchanged. It has
+        never altered a number in any case tried. An earlier guess that it was inert only because the kappa
+        blocks were singletons was WRONG; the reason is structural. To make it act at all, the criterion would
+        have to become GRASP's own, which sorts by SELF-CONSISTENCY AND ENERGY rather than by class.
+
+        ADAPTIVE DAMPING IS NET NEGATIVE. It is worth 13.07 mHa against the GRASP-scaled equation with no
+        stabilizer at all -- a configuration nobody would ship -- but only 0.17 mHa against the Fock route as it
+        stands, and it LOSES by 2.2 to 3.8 mHa in four cases of five. It also costs iterations (60 without
+        converging against 17 that converge, on Be Z=4) and degrades the spin-orbit symmetry of the orbitals
+        even where it improves the energy.
+
+        WHAT NOT TO CONCLUDE FROM THIS. That fixed damping is useless is NOT what was shown, and the reverse was
+        concluded once already from too blunt a test: raising a FIXED damping to 0.9 and 0.98 made the collapse
+        more complete, which is a different statement from GRASP's rule, which damps only where successive
+        relative energy changes change sign and halves it everywhere else.
 
     + maxIterations       ::Int64     ... maximum number of iterations this route may take.
     + adaptiveDamping     ::Bool      ... True, if the per-orbital damping follows dampck.f90 rather than the
