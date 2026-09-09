@@ -2113,10 +2113,23 @@ function solveOptimizedLevelField(basis::Basis, nuclearModel::Nuclear.Model, pri
         rA = RadialIntegrals.rkDiagonal(1, orbitals[sh], orbitals[sh], grid)
         rB = RadialIntegrals.rkDiagonal(1, orbitals[partner], orbitals[partner], grid)
         dev = abs(rA - rB) / max(abs(rA), abs(rB))
-        if  dev > 0.05
+        # THE THRESHOLD MUST GROW WITH Z, because the partners genuinely split.  A fixed 5 % was used until
+        # 09-Sep-2026 and would have fired on EVERY heavy element with perfectly correct orbitals.  Measured on
+        # the rotation route, i.e. on orbitals known to be right:  Be at Z = 4 / 10 / 26 / 54 / 92 gives
+        # 0.00 / 0.10 / 1.21 / 5.59 / 15.74 %, which for Z >= 26 follows 0.35 (Z alpha)^2.  Carbon does NOT
+        # follow it -- 3.06 % at Z = 6 falling to 0.66 % at Z = 26 -- because an open shell splits its partners
+        # by their unequal occupations, and that effect is largest where correlation is relatively largest.  So
+        # a pure-Z formula cannot serve as the bound; (Z alpha)^2 with a 10 % floor sits about a factor three
+        # above every physical value measured, while a genuine collapse (75 % to 154 % in the cases on record)
+        # is far above it.
+        za    = nuclearModel.Z * Defaults.getDefaults("alpha")
+        bound = max(0.10, za*za)
+        if  dev > bound
             println(">> [EOL-FOCK] WARNING: the spin-orbit partners $sh and $partner differ in mean radius by " *
-                    "$(round(100dev, digits=1)) % ($(round(rA, digits=4)) against $(round(rB, digits=4))).  " *
-                    "They should very nearly agree;  this is the signature of the collapse described above.")
+                    "$(round(100dev, digits=1)) % ($(round(rA, digits=4)) against $(round(rB, digits=4))), " *
+                    "against a bound of $(round(100bound, digits=1)) % for Z = $(nuclearModel.Z).  Some splitting " *
+                    "is physical and grows with Z, but not this much;  this is the signature of the collapse " *
+                    "described above.")
         end
     end
 
