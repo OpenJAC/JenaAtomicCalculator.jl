@@ -2489,23 +2489,33 @@ end
 `struct  Basics.FockRoute       <:  AbstractScfRoute`  
     ... defines a type to obtain an optimized-level field by solving the Fock equations to self-consistency.
 
-    + maxIterations      ::Int64     ... maximum number of iterations this route may take.
-    + sourceTerm         ::Bool      ... True, if the inhomogeneous (source) term is carried, which is what keeps the solution
-                                         finite as a CSF's generalized occupation shrinks; cf. Grant's account of GRASP.
+    + maxIterations         ::Int64  ... maximum number of iterations this route may take.
+    + unscaledOffDiagonal   ::Bool   ... True, if the off-diagonal (CSF-pair) contributions are kept OUT of the 1/occ scaling
+                                         of the Fock matrix. They carry weight ~ c_r c_s while the generalized occupation
+                                         carries ~ c_r^2, so dividing them by it introduces a ratio that grows without bound
+                                         as a correlating CSF's own coefficient shrinks. Measured 09-Sep-2026 on Be
+                                         1s^2 2s^2 + 1s^2 2p^2: with the scaling in place the competing CSF's weight collapses
+                                         to 1.9e-05 and the 2p_3/2 orbital diffuses to <r> = 10.08 against its partner's 2.52;
+                                         without it the weight is 0.053 and the energy is 15.8 mHa lower.
+                                         NOTE that this is NOT GRASP's inhomogeneous source term, which is still MISSING: an
+                                         off-diagonal element such as R^k(2s,2s,2p,2p) differentiates to a term proportional to
+                                         P(2s), i.e. to a SOURCE on the right-hand side, and JAC still applies it as a matrix
+                                         multiplying P(2p). That is why the converged Fock fixed point sits 8.9 mHa ABOVE the
+                                         minimum the rotation route reaches, and it is a defect of the EQUATIONS.
 """
 struct     FockRoute            <:  AbstractScfRoute
     maxIterations        ::Int64
-    sourceTerm           ::Bool
+    unscaledOffDiagonal  ::Bool
 end
 
 
-# `Basics.FockRoute()`  ... defines the default budget, with the source term carried
+# `Basics.FockRoute()`  ... defines the default budget, with the off-diagonal terms kept out of the 1/occ scaling
 function FockRoute()
     FockRoute(40, true)
 end
 
 
-# `Basics.FockRoute(maxIterations::Int64)`  ... sets the budget and keeps the source term
+# `Basics.FockRoute(maxIterations::Int64)`  ... sets the budget and keeps the off-diagonal terms unscaled
 function FockRoute(maxIterations::Int64)
     FockRoute(maxIterations, true)
 end

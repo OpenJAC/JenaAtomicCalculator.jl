@@ -411,6 +411,16 @@ function performSCF(configs::Array{Configuration,1}, nm::Nuclear.Model, grid::Ra
         # directly; falling through would re-diagonalize with the bare, non-kink-aware Hamiltonian.performCI.
         alSettings = AsfSettings(settings; scField = Basics.ALField())
         basis      = SelfConsistent.solveAverageLevelField(basis, nm, primitives, alSettings; printout=printout)
+        # WHICH optimized-level solver runs is the route's choice; both are started from the same average-level
+        # basis, so the two differ only in the solver and can be compared.  An AutomaticRoute keeps the rotation
+        # route, which is what this branch has always done.
+        if      settings.scfRoute isa Basics.FockRoute
+            return( SelfConsistent.solveOptimizedLevelField(basis, nm, primitives, settings; printout=printout) )
+        elseif  settings.scfRoute isa Basics.NewtonRoute
+            error("SelfConsistent.performSCF(): Basics.NewtonRoute names a second-order procedure that is NOT " *
+                  "implemented.  Use Basics.RotationRoute(), which descends monotonically but needs many " *
+                  "iterations, or Basics.FockRoute(), which is fast where it converges;  cf. Basics.AbstractScfRoute.")
+        end
         return( SelfConsistent.solveOptimizedLevelFieldByRotation(basis, nm, primitives, settings; printout=printout) )
     else  error("stop a")
     end
@@ -475,6 +485,16 @@ function performSCF(basis::Basis, nm::Nuclear.Model, grid::Radial.Grid,
         # from an average-level basis, and returns a complete, correctly (kink-aware) diagonalized multiplet.
         alSettings = AsfSettings(settings; scField = Basics.ALField())
         basis      = SelfConsistent.solveAverageLevelField(basis, nm, primitives, alSettings; printout=printout)
+        # WHICH optimized-level solver runs is the route's choice; both are started from the same average-level
+        # basis, so the two differ only in the solver and can be compared.  An AutomaticRoute keeps the rotation
+        # route, which is what this branch has always done.
+        if      settings.scfRoute isa Basics.FockRoute
+            return( SelfConsistent.solveOptimizedLevelField(basis, nm, primitives, settings; printout=printout) )
+        elseif  settings.scfRoute isa Basics.NewtonRoute
+            error("SelfConsistent.performSCF(): Basics.NewtonRoute names a second-order procedure that is NOT " *
+                  "implemented.  Use Basics.RotationRoute(), which descends monotonically but needs many " *
+                  "iterations, or Basics.FockRoute(), which is fast where it converges;  cf. Basics.AbstractScfRoute.")
+        end
         return( SelfConsistent.solveOptimizedLevelFieldByRotation(basis, nm, primitives, settings; printout=printout) )
     else  error("stop a")
     end

@@ -1118,6 +1118,15 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
             gProj[sh] = gv;    step[sh] = sv;    denom[sh] = dv
             gNorm = gNorm + sum( gv.^2 );    sNorm = sNorm + sum( sv.^2 )
         end
+        # gNorm SUMS THE GRADIENT OVER THE RETAINED VIRTUAL DIRECTIONS ONLY, so it is the REACHABLE gradient and
+        # not the gradient, and two runs with different nVirtual cannot be compared by it -- a larger span
+        # mechanically adds terms.  Measured 08-Sep-2026 on C-like uranium layer 2, and recorded here because the
+        # symptom invites the opposite conclusion: nVirtual = 48 reports a LARGER |grad| than 16 while reaching a
+        # LOWER energy.  The same measurement closed the question of whether |grad| ~ 7.5e-03 is a floor -- IT IS
+        # NOT.  That value was simply where a 400-iteration budget stopped; run to 2000 the same case reaches
+        # 3.31e-04, with the energy 5.45e-04 Ha (120 cm^-1) deeper.  Enlarging the span does not change the RATE
+        # of the descent (16 to 48 identical) but does change where it ENDS (nVirtual 32 is 3.71e-04 Ha lower),
+        # and 96 destroys the line search outright at iteration 41.  Do not re-file the plateau as a defect.
         gNorm = sqrt(gNorm);    sNorm = sqrt(sNorm);    iterDone = iter
         # Every subshell frozen is a legitimate request, not an error: the multiplet built at the top of this
         # iteration IS the answer, being the CI result on the given orbitals.  Reported separately because the
@@ -1753,11 +1762,30 @@ end
         of the "DA/inhomogeneous-term mechanism" gap vs. GRASP's setcof.f90 (which treats within-level
         off-diagonal coupling as a separate inhomogeneous/source term, not folded into the same per-orbital
         homogeneous eigenvalue division) -- see project_eol_implementation.md. Flooring `occ` before the
-        division was tried and REJECTED as a fix (non-monotonic in the floor constant). Safe for
-        single-CSF-per-block cases (validated: He, Li) and multi-CSF cases where every competing CSF's own
-        weight stays comfortably bounded away from zero; NOT yet safe/reliable for genuine near-degenerate
-        competing correlation (Be's 2p^2 case, and by extension most 3+ layer RAS scenarios). A real fix
-        needs the actual inhomogeneous-term mechanism -- deferred, substantial future work.
+        division was tried and REJECTED as a fix (non-monotonic in the floor constant).
+
+        MEASURED 09-Sep-2026, and the diagnosis above is CONFIRMED but is only HALF of the error. Be
+        1s^2 2s^2 + 1s^2 2p^2 at Z = 4, every route started from the same average-level basis:
+
+            Fock, off-diagonal terms SCALED by 1/occ   E = -14.594824221   2p_3/2 <r> = 10.08, weight 1.9e-05
+            Fock, off-diagonal terms UNSCALED          E = -14.610656334   2p_3/2 <r> =  3.41, weight 0.053
+            average level                              E = -14.613805206
+            rotation route                             E = -14.619514867   2p_1/2, 2p_3/2 agree to 5 digits
+
+        Keeping the off-diagonal contributions OUT of the 1/occ scaling -- Basics.FockRoute's
+        unscaledOffDiagonal, which is its default -- removes the winner-take-all collapse and is worth 15.8 mHa.
+
+        WHAT REMAINS IS A DEFECT OF THE EQUATIONS, not of the search, and this is the measurement that shows it:
+        STARTED AT the rotation minimum, this solver walks UPHILL by 8.86 mHa to the very same fixed point it
+        reaches from an average-level start (-14.610656351 against -14.610656334). Its fixed point is therefore
+        not a stationary point of the EOL functional. The reason is that an off-diagonal element such as
+        R^k(2s,2s,2p,2p) differentiates, with respect to the 2p orbital, into a term proportional to P(2s) -- an
+        inhomogeneous SOURCE on the right-hand side -- while computeTwoElectronV applies it as a matrix
+        multiplying P(2p). Removing the 1/occ scaling put that term at the right SIZE; it is still on the wrong
+        SIDE, which is what GRASP's setcof.f90 carries as a source term. Until that exists this route converges
+        quickly to an answer reliably above the rotation route's, and the signature to watch for is the two
+        spin-orbit partners of a subshell disagreeing in mean radius: 2.95 against 3.41 here, where the rotation
+        route gives 2.502 and 2.502.
 """
 function solveOptimizedLevelField(basis::Basis, nuclearModel::Nuclear.Model, primitives::Bsplines.Primitives,
                                   settings::AsfSettings; printout::Bool=true)
@@ -1824,7 +1852,13 @@ function solveOptimizedLevelField(basis::Basis, nuclearModel::Nuclear.Model, pri
     mp           = diagonalizeAllBlocks(orbitals)
     targetLevels = SelfConsistent.selectTargetLevelsEOL(mp, settings.levelSelectionCI)
     previousMc   = [ copy(level.mc)  for level in targetLevels ]
-    if  SelfConsistent.GBL_EOL_UNSCALED_OFFDIAGONAL
+    # THE ROUTE DECIDES whether the off-diagonal CSF-pair terms are kept out of the 1/occ scaling; the global
+    # switch of 09-Aug-2026 remains as an override for a caller that names no route.  Leaving it off is what
+    # produced the winner-take-all collapse this solver's docstring documents, and it was off by default for a
+    # month: measured 09-Sep-2026, turning it on is worth 15.8 mHa on Be 1s^2 2s^2 + 1s^2 2p^2.
+    unscaledOff  = settings.scfRoute isa Basics.FockRoute ? settings.scfRoute.unscaledOffDiagonal :
+                                                            SelfConsistent.GBL_EOL_UNSCALED_OFFDIAGONAL
+    if  unscaledOff
         (coeffs1p, coeffs2p)       = SelfConsistent.combineAngularCoefficientsEOL(blockCaches, targetLevels; pairs=:diagonal)
         (coeffs1pOff, coeffs2pOff) = SelfConsistent.combineAngularCoefficientsEOL(blockCaches, targetLevels; pairs=:offdiagonal)
     else
@@ -1973,7 +2007,7 @@ function solveOptimizedLevelField(basis::Basis, nuclearModel::Nuclear.Model, pri
             previousMc[i] = mixed
         end
 
-        if  SelfConsistent.GBL_EOL_UNSCALED_OFFDIAGONAL
+        if  unscaledOff
             (coeffs1p, coeffs2p)       = SelfConsistent.combineAngularCoefficientsEOL(blockCaches, dampedLevels; pairs=:diagonal)
             (coeffs1pOff, coeffs2pOff) = SelfConsistent.combineAngularCoefficientsEOL(blockCaches, dampedLevels; pairs=:offdiagonal)
         else
