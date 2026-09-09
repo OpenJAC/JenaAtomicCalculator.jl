@@ -398,6 +398,17 @@ function  displayRates(stream::IO, lines::Array{Einstein.Line,1})
         end
     end
     println(stream, "  ", TableStrings.hLine(nx))
+    # HOW FAR THE TWO GAUGES AGREE, printed beside the rates they qualify.  The indicator is free here: the rate
+    # is already held in both gauges, so this only reads what has been computed.  It is deliberately the same
+    # measure and the same thresholds PhotoEmission applies, through Basics.gaugeConsistency.
+    rows = Tuple{String,Float64,EmProperty}[]
+    for  line  in  lines
+        label = TableStrings.levels_if(line.initialLevel.index, line.finalLevel.index) * "  " *
+                TableStrings.symmetries_if(LevelSymmetry(line.initialLevel.J, line.initialLevel.parity),
+                                           LevelSymmetry(line.finalLevel.J, line.finalLevel.parity))
+        push!( rows, (label, Defaults.convertUnits("energy: from atomic", line.omega), line.photonRate) )
+    end
+    Basics.displayGaugeConsistency(stream, rows; caption="Einstein A coefficients")
     #
     return( nothing )
 end

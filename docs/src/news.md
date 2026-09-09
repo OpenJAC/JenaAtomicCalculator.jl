@@ -6,6 +6,60 @@
 
 # 2026
 
+## Version 0.6.0
+
+!!! warning "One breaking change"
+    `AsfSettings.maxIterationsScf` has been **removed** and replaced by `AsfSettings.scfRoute`. The iteration
+    budget now belongs to the route that actually runs, because one number could not serve four solvers whose
+    natural counts differ by two orders of magnitude -- which is why its default of 24 was simultaneously right
+    for a mean field and far too small for an optimized level. Passing the old keyword raises an error that
+    names the replacement: write, for instance, `scfRoute = Basics.RotationRoute(400)`.
+
+* **You can now choose HOW the orbitals are found, not only what they are optimized for.** `AsfSettings` gained
+    `scfRoute`, a family of routes that made explicit what was previously fixed: `MeanFieldRoute`,
+    `AverageLevelRoute`, `RotationRoute` (direct minimization of the level energy) and `FockRoute` (the Fock
+    equations solved to self-consistency). The default, `Basics.AutomaticRoute()`, takes the standard procedure
+    for whichever field you name, so nothing changes unless you ask it to. **The new page
+    [Self-consistent fields](scf-routes.md) says which to use and what each costs** -- including the measured
+    accuracy of the fast route against the accurate one, from 6e-4 of the total energy near neutrality to 6e-7
+    for a highly charged ion. *(September'26)*
+
+* **The optimized-level solvers now report on themselves.** A run says whether it converged and at which
+    iteration, or that it exhausted its budget while still moving; the Fock route additionally states that it is
+    approximate, by how much, and checks a signature of its own failure -- the two spin-orbit partners of a
+    subshell must agree in mean radius to within a bound that grows with `Z`. It also returns the best orbital
+    set it saw rather than the last. Previously such a run ended in silence. *(September'26)*
+
+* **Four process modules now print how far their two gauges agree.** `Einstein`, `PhotoExcitation`,
+    `PhotoIonization` and `PhotoRecombination` add a short table giving the relative Babushkin/Coulomb deviation
+    and a verdict, beside the results it qualifies, in both the log and the summary file. It costs nothing --
+    the quantity was already held in both gauges -- and it is honest about its limits: a large deviation is good
+    evidence that a number is wrong, a small one is NOT evidence that it is right, since both gauges can miss
+    the same correlation. *(September'26)*
+
+* **A frequency-dependent Breit request on an EOL or RAS basis now refuses**, instead of silently returning the
+    static limit. Orbitals from those bases carry no orbital energy, so the frequency came out zero and
+    `CoulombBreit(1.)` quietly gave the `CoulombBreit(0.)` answer. *(September'26)*
+
+* **The Breit interaction is substantially faster.** `CoulombBreit(factor, :swept)` computes the same radial
+    integrals in one pass rather than a double sum, exploiting the fact that every Breit kernel factorizes;
+    measured at 116x on the kernel and 4.4x on the surrounding work. `:direct` remains the default and the
+    reference form. *(September'26)*
+
+* **Oscillator strengths and Einstein A coefficients: four defects fixed**, which had hidden one another.
+    Numbers from these routes move; see the commit record for the individual cases. *(September'26)*
+
+* **New modules**: `GeneralizedOscillatorStrength` (Bethe surface, bound-bound), `ResonantImpactIonization`,
+    `PhotonScattering`, `PhotoRecombinationInterference` (coherent RR + DR), `WeakInteractionEnhancement` and
+    `WeakInteractionMoment`. *(August/September'26)*
+
+* **The documentation has a front door.** The home page now opens with a complete, runnable example -- the
+    K-alpha lines of He-like iron -- together with the output it actually produces; and a new page,
+    [How do I ...?](how-to.md), answers sixteen common questions with one worked example each, rather than
+    leaving a newcomer to navigate several hundred example branches. *(September'26)*
+
+# Earlier
+
 !!! note "The EOL path is under active development"
     The optimized-level field is being worked on continuously, and 0.5.0 is a snapshot of it rather than a
     finished state. It converges and reports honestly whether it did -- that reporting is itself part of the

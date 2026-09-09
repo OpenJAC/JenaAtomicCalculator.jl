@@ -362,7 +362,14 @@ function computeAnisotropyParameter(nu::Int64, line::PhotoRecombination.Line)
         end
     end
 
-    return( EmPropertyC(- 0.5 * wa.Coulomb / wn.Coulomb, - 0.5 * wa.Babushkin / wn.Babushkin) )
+    # The prefactor is fixed by the nu = 0 sum rule: the SAME expression evaluated at nu = 0 must return beta_0 = 1, since that is what
+    # normalizes W(theta) = (sigma/4pi) [1 + Sum_nu beta_nu P_nu(cos theta)].  At nu = 0 every Clebsch-Gordan and 6j collapses to a
+    # Kronecker delta, sqrt(bracket) cancels the product of the square-root denominators exactly, and the surviving phase is
+    # (-1)^(2J) (-1)^(2J_i) = -1 whether J_i is integer or half-integer -- so wa = -wn identically and the factor must be -1, not -1/2.
+    # Checked against the physics as well: E1 radiative recombination into an s shell has W ~ sin^2(theta), i.e. beta_2 = -1 and full
+    # linear polarization, which this returns and the earlier -0.5 did not.  (09-Sep-2026; the -0.5 had made every beta_nu of this
+    # module, and the polarization of PhotoRecombinationInterference, a factor two too small.)
+    return( EmPropertyC(- wa.Coulomb / wn.Coulomb, - wa.Babushkin / wn.Babushkin) )
 end
 
 
@@ -918,6 +925,18 @@ function  displayResults(stream::IO, lines::Array{PhotoRecombination.Line,1}, se
         println(stream, "  Reduced statistical tensors of the recombined ion ... not yet implemented !!")
         println(stream, " ")
     end
+
+    # HOW FAR THE TWO GAUGES AGREE, printed beside the results they qualify;  the same measure and thresholds
+    # PhotoEmission applies, through Basics.gaugeConsistency.  The indicator is free here: the quantity is
+    # already held in both gauges, so this only reads what has been computed.
+    rows = Tuple{String,Float64,EmProperty}[]
+    for  line  in  lines
+        label = TableStrings.levels_if(line.initialLevel.index, line.finalLevel.index) * "  " *
+                TableStrings.symmetries_if(LevelSymmetry(line.initialLevel.J, line.initialLevel.parity),
+                                           LevelSymmetry(line.finalLevel.J, line.finalLevel.parity))
+        push!( rows, (label, Defaults.convertUnits("energy: from atomic", line.photonEnergy), line.crossSection) )
+    end
+    Basics.displayGaugeConsistency(stream, rows; caption="radiative-recombination cross sections")
 
     return( nothing )
 end

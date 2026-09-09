@@ -168,7 +168,7 @@ struct  EmProperty
     Babushkin         ::Float64
 end
 
-export EmProperty, gaugeConsistency
+export EmProperty, displayGaugeConsistency, gaugeConsistency
 
 
 """
@@ -220,6 +220,48 @@ function gaugeConsistency(property::EmProperty)
     end
 
     return( (dev, verdict) )
+end
+
+
+"""
+`Basics.displayGaugeConsistency(stream::IO, rows::Array{Tuple{String,Float64,EmProperty},1}; caption::String="")`
+    ... prints one compact table of how far the two gauge forms of a result agree, for a list of rows, each a
+        (label, energy ALREADY in the display unit, property) triple that the calling module builds from its own
+        Line type -- the conversion stays with the caller, since Defaults is not yet loaded at this point.
+
+        THE TWO GAUGE VALUES THEMSELVES ARE DELIBERATELY NOT PRINTED. They stand in the module's own table
+        directly above this one, in that module's display units, whereas an EmProperty arrives here in atomic
+        units; printing them again would show the same quantity in two different units a few lines apart, which
+        is how a reader concludes the code disagrees with itself. What is new here is the DEVIATION, so that is
+        what the table carries. The
+        table is shared deliberately: four process modules printing the same indicator in four slightly
+        different layouts would make the indicator harder to read, not easier. Nothing is returned.
+"""
+function displayGaugeConsistency(stream::IO, rows::Array{Tuple{String,Float64,EmProperty},1}; caption::String="")
+    # A row whose result VANISHES in both gauges carries no information about gauge agreement -- it is a
+    # forbidden or unconnected pair, not a doubtful number -- and printing them buries the rows that do carry
+    # information.  For an E1 table of a small multiplet they are usually the majority.
+    rows = filter( r -> !(r[3].Coulomb == 0.  &&  r[3].Babushkin == 0.), rows )
+    length(rows) == 0   &&   return( nothing )
+    println(stream, " ")
+    println(stream, "  Gauge consistency:  Babushkin against Coulomb, as a relative deviation" *
+                    (caption == "" ? "" : "  (" * caption * ")"))
+    println(stream, " ")
+    println(stream, "  ", "-"^80)
+    println(stream, "          i-level-f   i--J^P--f      Energy [eV]    deviation   verdict")
+    println(stream, "  ", "-"^80)
+    for  (label, omega, prop)  in  rows
+        (dev, verdict) = Basics.gaugeConsistency(prop)
+        sa = "   " * rpad(label, 34)
+        sa = sa * @sprintf("%.4e", omega) * "     "
+        sa = sa * (isnan(dev) ? rpad("--", 12) : rpad(@sprintf("%.2f %%", 100dev), 12)) * verdict
+        println(stream, sa)
+    end
+    println(stream, "  ", "-"^80)
+    println(stream, "  A large deviation is good evidence that a number is wrong;  a small one is NOT evidence that it is")
+    println(stream, "  right, since both gauges can miss the same correlation.")
+
+    return( nothing )
 end
 
 

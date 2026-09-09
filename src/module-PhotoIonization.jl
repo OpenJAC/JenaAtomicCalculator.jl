@@ -1469,6 +1469,18 @@ function  displayResults(stream::IO, lines::Array{PhotoIonization.Line,1}, setti
         println(stream, "  ", TableStrings.hLine(nx))
     end
 
+    # HOW FAR THE TWO GAUGES AGREE, printed beside the results they qualify;  the same measure and thresholds
+    # PhotoEmission applies, through Basics.gaugeConsistency.  The indicator is free here: the quantity is
+    # already held in both gauges, so this only reads what has been computed.
+    rows = Tuple{String,Float64,EmProperty}[]
+    for  line  in  lines
+        label = TableStrings.levels_if(line.initialLevel.index, line.finalLevel.index) * "  " *
+                TableStrings.symmetries_if(LevelSymmetry(line.initialLevel.J, line.initialLevel.parity),
+                                           LevelSymmetry(line.finalLevel.J, line.finalLevel.parity))
+        push!( rows, (label, Defaults.convertUnits("energy: from atomic", line.photonEnergy), line.crossSection) )
+    end
+    Basics.displayGaugeConsistency(stream, rows; caption="photoionisation cross sections")
+
     return( nothing )
 end
 
