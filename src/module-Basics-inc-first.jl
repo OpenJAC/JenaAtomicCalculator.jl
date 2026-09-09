@@ -168,7 +168,7 @@ struct  EmProperty
     Babushkin         ::Float64
 end
 
-export EmProperty
+export EmProperty, gaugeConsistency
 
 
 """
@@ -197,6 +197,32 @@ end
 
 
 # `Base.string(property::EmProperty)`  ... provides a String notation for the variable property::EmProperty.
+"""
+`Basics.gaugeConsistency(property::EmProperty)`
+    ... measures how far the two gauge forms of a radiation-field result agree, and turns that into a verdict a
+        reader can act on. The relative deviation is |Babushkin - Coulomb| / max(|Babushkin|, |Coulomb|), so it is
+        symmetric in the two gauges and needs no reference value. This is NOT a proof that a number is right --
+        two gauges can agree on a wrong answer when the same correlation is missing from both -- but a large
+        deviation is reliable evidence that it is wrong, which is what makes it worth printing.
+
+        The thresholds are those already used by PhotoEmission.displayQualityFlags, deliberately: two indicators
+        that disagreed about the word "ok" would be worse than one. A tuple (deviation::Float64,
+        verdict::String) is returned; the deviation is NaN where both gauges vanish.
+"""
+function gaugeConsistency(property::EmProperty)
+    den = max(abs(property.Babushkin), abs(property.Coulomb))
+    if  den == 0.    return( (NaN, "no value") )    end
+    dev = abs(property.Babushkin - property.Coulomb) / den
+    if      dev > 1.0    verdict = "gauges x2+"
+    elseif  dev > 0.5    verdict = "gauges 50%+"
+    elseif  dev > 0.2    verdict = "gauges 20-50%"
+    else                 verdict = "ok"
+    end
+
+    return( (dev, verdict) )
+end
+
+
 function Base.string(property::EmProperty)
     sa = "$(property.Coulomb) [Coulomb],  $(property.Babushkin) [Babushkin]"
     return( sa )

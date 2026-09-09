@@ -14,6 +14,46 @@ If you use JAC in published work, please cite:
 
 ---
 
+## JAC in one example
+
+The K-alpha lines of He-like iron -- level structure and radiative rates in a single call:
+
+```julia
+using JenaAtomicCalculator
+
+comp = Atomic.Computation(Atomic.Computation();
+           name            = "He-like Fe: 1s 2p -> 1s^2",
+           grid            = Radial.Grid(true),
+           nuclearModel    = Nuclear.Model(26.),
+           initialConfigs  = [Configuration("1s 2p")],
+           finalConfigs    = [Configuration("1s^2")],
+           processSettings = PhotoEmission.Settings(PhotoEmission.Settings(),
+                                 multipoles=[E1], gauges=[UseCoulomb, UseBabushkin]) )
+perform(comp)
+```
+
+which returns, among the full output,
+
+```
+   i-level-f    i--J^P--f      Energy [eV]   Multipole  Gauge        A--Einstein [1/s]        gf
+      2 --  1   1 - --> 0 +    6.675863e+03      E1     Babushkin    3.921535e+13      6.083492e-02
+      4 --  1   1 - --> 0 +    6.709489e+03      E1     Babushkin    4.785937e+14      7.350211e-01
+
+   Quality indicators:   CF Coulomb / Babushkin      B/C ratio      Verdict
+      2 --  1                 0.3369 / 0.3382          1.0114         ok
+      4 --  1                 1.0000 / 1.0000          1.0116         ok
+```
+
+These are the *y* and *w* lines of the Fe XXV K-alpha complex, one of the standard diagnostics of hot
+astrophysical and laboratory plasmas. Measured values are 6668 eV and 6700 eV, so this calculation -- a plain
+single-configuration run with no correlation layer and no QED -- sits about 9 eV (0.13 %) high on both, which
+is what those two omissions cost at Z = 26. Adding them is a matter of settings, not of a different code.
+
+The last block is printed by JAC itself: Cowan's cancellation factor per gauge and the Babushkin/Coulomb rate
+ratio, which say how far the numbers above can be trusted. Here both lines agree between gauges to about 1 %.
+
+---
+
 # What is JAC?
 
 **JAC**, the **Jena Atomic Calculator**, provides an open-source Julia package for doing atomic computations of various kind
