@@ -2539,6 +2539,55 @@ end
 
 
 """
+`struct  Basics.StabilizedFockRoute  <:  AbstractScfRoute`  
+    ... an EXPLORATORY route: the Fock route carrying the two stabilizing mechanisms of GRASP's rmcdhf that are
+        tractable in a B-spline code. It exists to find out what they are worth here, and is deliberately kept
+        beside Basics.FockRoute rather than replacing it.
+
+        The two mechanisms, taken from `src/appl/rmcdhf90/` rather than invented:
+        (i)  ADAPTIVE PER-ORBITAL DAMPING, after dampck.f90. The damping starts at 0.5; when successive relative
+             changes of an orbital's own energy change SIGN -- an oscillation, `ED1*ED2 < -1e-4` -- it is raised
+             as `0.1 + 0.9*damping`, and otherwise HALVED, so that a monotonically improving orbital is taken
+             almost whole. JAC's Fock solver already computes each orbital's eigenvalue and discards it, which
+             is what this needs, and is the same quantity priority item 11 is about.
+        (ii) A SPECTROSCOPIC / CORRELATION CLASSIFICATION, after orthy.f90, which orthogonalizes in the order
+             fixed, spectroscopic, correlation. An orbital counts as a correlation orbital when its generalized
+             occupation falls below `correlationCut`; those are refined LAST, so that a weakly occupied orbital
+             is projected against settled ones rather than the other way round.
+
+        WHAT IS NOT EXPECTED OF IT, recorded before measuring so that the test is a real one. Neither mechanism
+        should be expected to cure the winner-take-all collapse: that collapse is not an OSCILLATION -- damping
+        of 0.9 and 0.98 made it MORE complete, not less -- and the ordering cannot matter where an orbital is
+        alone in its kappa block, as both Be 2p orbitals are. The value sought here is speed on monotone cases,
+        robustness where a case genuinely oscillates or carries several orbitals per kappa block, and the
+        orbital energy that falls out as a by-product.
+
+    + maxIterations       ::Int64     ... maximum number of iterations this route may take.
+    + adaptiveDamping     ::Bool      ... True, if the per-orbital damping follows dampck.f90 rather than the
+                                          fixed 0.5 the other Fock route uses.
+    + correlationCut      ::Float64   ... generalized occupation below which an orbital counts as a CORRELATION
+                                          orbital rather than a spectroscopic one, and is refined last.
+"""
+struct     StabilizedFockRoute  <:  AbstractScfRoute
+    maxIterations        ::Int64
+    adaptiveDamping      ::Bool
+    correlationCut       ::Float64
+end
+
+
+# `Basics.StabilizedFockRoute()`  ... both mechanisms on, with a correlation cut of half an electron
+function StabilizedFockRoute()
+    StabilizedFockRoute(40, true, 0.5)
+end
+
+
+# `Basics.StabilizedFockRoute(maxIterations::Int64)`  ... sets the budget and keeps both mechanisms
+function StabilizedFockRoute(maxIterations::Int64)
+    StabilizedFockRoute(maxIterations, true, 0.5)
+end
+
+
+"""
 `Basics.maxIterations(route::Basics.AbstractScfRoute)`
     ... returns the iteration budget of the given route. Each solver has its own natural budget -- a mean field converges in a
         handful of iterations where the rotation route needs thousands -- which is why the budget belongs to the route and not
@@ -2603,6 +2652,7 @@ end
 
 export  AbstractScfRoute, AbstractScField, AaDFSField, AaHSField, ALField, AutomaticRoute, AverageLevelRoute,
         EOLField, DFSField, FockRoute, HSField, MeanFieldRoute, NewtonRoute, NuclearField,
+        StabilizedFockRoute,
         providesPotential, providesScfDriver, RotationRoute, scfDriverFields, scfProcedure,
         ThomasFermiField
 

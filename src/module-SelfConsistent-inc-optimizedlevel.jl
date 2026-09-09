@@ -1858,6 +1858,15 @@ function solveOptimizedLevelField(basis::Basis, nuclearModel::Nuclear.Model, pri
     # month: measured 09-Sep-2026, turning it on is worth 15.8 mHa on Be 1s^2 2s^2 + 1s^2 2p^2.
     unscaledOff  = settings.scfRoute isa Basics.FockRoute ? settings.scfRoute.unscaledOffDiagonal :
                                                             SelfConsistent.GBL_EOL_UNSCALED_OFFDIAGONAL
+    # THE EXPLORATORY ROUTE, and it deliberately uses the GRASP-CONSISTENT SCALING: setcof.f90 divides EVERY
+    # contribution -- direct, exchange, one- and two-electron, diagonal and off-diagonal -- by UCF(J), so the
+    # off-diagonal terms are NOT left unscaled here.  That is exactly the combination which collapses without
+    # stabilization, which is what makes this route the test it is meant to be.
+    isStab       = settings.scfRoute isa Basics.StabilizedFockRoute
+    if  isStab   unscaledOff = false   end
+    oDamp        = Dict{Subshell, Float64}( sh => 0.5  for sh in basis.subshells )
+    pedPrev      = Dict{Subshell, Float64}()
+    epsPrev      = Dict{Subshell, Float64}()
     if  unscaledOff
         (coeffs1p, coeffs2p)       = SelfConsistent.combineAngularCoefficientsEOL(blockCaches, targetLevels; pairs=:diagonal)
         (coeffs1pOff, coeffs2pOff) = SelfConsistent.combineAngularCoefficientsEOL(blockCaches, targetLevels; pairs=:offdiagonal)
@@ -1909,7 +1918,15 @@ function solveOptimizedLevelField(basis::Basis, nuclearModel::Nuclear.Model, pri
         directKernels   = Dict{Tuple{Int64,Subshell,Subshell},Array{Float64,2}}()
         exchangeKernels = Dict{Tuple{Int64,Subshell},Array{Float64,2}}()
 
-        for  subshell  in  basis.subshells
+        # ORTHY'S ORDERING: spectroscopic orbitals first, correlation orbitals last, so that a weakly occupied
+        # orbital is projected against settled ones rather than the other way round.  A stable sort keeps the
+        # basis order within each class, so with no correlation orbital the sweep is unchanged.
+        sweepSubshells = basis.subshells
+        if  isStab
+            cut            = settings.scfRoute.correlationCut
+            sweepSubshells = sort( collect(basis.subshells), by = sh -> get(genOcc, sh, 0.0) < cut ? 1 : 0 )
+        end
+        for  subshell  in  sweepSubshells
             if  subshell in settings.frozenSubshells
                 # Carry the frozen bVector forward unchanged into newBVectors -- required, since newBVectors
                 # is a fresh Dict every iteration and the final newOrbitals tabulation loop below reads
@@ -1958,7 +1975,25 @@ function solveOptimizedLevelField(basis::Basis, nuclearModel::Nuclear.Model, pri
             rawVector = wc.vectors[ni]
 
             if  transpose(oldVector) * matrixB * rawVector < 0    rawVector = -rawVector    end
+            # ADAPTIVE DAMPING, after dampck.f90.  The eigenvalue wc.values[ni] belongs to the orbital just
+            # selected and is otherwise discarded; GRASP drives its damping from exactly this quantity.  A SIGN
+            # CHANGE between successive relative energy changes is an oscillation and is damped harder, while
+            # monotone progress halves the damping so that a settling orbital is taken almost whole.
             damping = 0.5
+            if  isStab  &&  settings.scfRoute.adaptiveDamping
+                epsNew = wc.values[ni]
+                if  haskey(epsPrev, subshell)  &&  abs(epsPrev[subshell]) > 0.
+                    ed2 = (epsPrev[subshell] - epsNew) / epsPrev[subshell]
+                    if  haskey(pedPrev, subshell)  &&  pedPrev[subshell] * ed2 < -1.0e-4
+                        oDamp[subshell] = 0.10 + 0.90 * oDamp[subshell]
+                    else
+                        oDamp[subshell] = 0.50 * oDamp[subshell]
+                    end
+                    pedPrev[subshell] = ed2
+                end
+                epsPrev[subshell] = epsNew
+                damping           = oDamp[subshell]
+            end
             mixed     = damping * oldVector + (1.0 - damping) * rawVector
             newVector = mixed / sqrt( transpose(mixed) * matrixB * mixed )
 

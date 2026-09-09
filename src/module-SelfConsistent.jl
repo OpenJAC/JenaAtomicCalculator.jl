@@ -414,7 +414,7 @@ function performSCF(configs::Array{Configuration,1}, nm::Nuclear.Model, grid::Ra
         # WHICH optimized-level solver runs is the route's choice; both are started from the same average-level
         # basis, so the two differ only in the solver and can be compared.  An AutomaticRoute keeps the rotation
         # route, which is what this branch has always done.
-        if      settings.scfRoute isa Basics.FockRoute
+        if      settings.scfRoute isa Basics.FockRoute  ||  settings.scfRoute isa Basics.StabilizedFockRoute
             return( SelfConsistent.solveOptimizedLevelField(basis, nm, primitives, settings; printout=printout) )
         elseif  settings.scfRoute isa Basics.NewtonRoute
             error("SelfConsistent.performSCF(): Basics.NewtonRoute names a second-order procedure that is NOT " *
@@ -488,7 +488,7 @@ function performSCF(basis::Basis, nm::Nuclear.Model, grid::Radial.Grid,
         # WHICH optimized-level solver runs is the route's choice; both are started from the same average-level
         # basis, so the two differ only in the solver and can be compared.  An AutomaticRoute keeps the rotation
         # route, which is what this branch has always done.
-        if      settings.scfRoute isa Basics.FockRoute
+        if      settings.scfRoute isa Basics.FockRoute  ||  settings.scfRoute isa Basics.StabilizedFockRoute
             return( SelfConsistent.solveOptimizedLevelField(basis, nm, primitives, settings; printout=printout) )
         elseif  settings.scfRoute isa Basics.NewtonRoute
             error("SelfConsistent.performSCF(): Basics.NewtonRoute names a second-order procedure that is NOT " *
