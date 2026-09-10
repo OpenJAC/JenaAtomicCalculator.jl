@@ -236,7 +236,10 @@ end
     + finalLevel     ::Level                            ... final-(state) level
     + electronEnergy ::Float64                          ... Energy of the (outgoing free) electron.
     + photonEnergy   ::Float64                          ... Energy of the absorbed photon.
-    + crossSection   ::EmProperty                       ... Cross section for this photoionization.
+    + crossSection   ::EmProperty                       ... Cross section for this photoionization, AVERAGED over
+                                                          the magnetic sublevels of the initial level, i.e. the
+                                                          quantity an unpolarized measurement returns and the one
+                                                          published tables quote.
     + angularBeta    ::EmProperty                       ... beta_2 anisotropy parameter.
     + coherentDelay  ::EmProperty                       ... coherent time delay.
     + incoherentDelay::EmProperty                       ... incoherent time delay.
@@ -384,7 +387,7 @@ function computeAmplitudesProperties(line::PhotoIonization.Line, nm::Nuclear.Mod
         push!(newPartialWaves, PhotoIonization.PartialWave(pw.kappa, line.electronEnergy, phase, newChannels))
     end
 
-    crossSection = PhotoIonization.computeCrossSection(newPartialWaves, line.photonEnergy)
+    crossSection = PhotoIonization.computeCrossSection(newPartialWaves, line.photonEnergy, line.initialLevel)
     if    settings.calcAnisotropy
           angularBeta = PhotoIonization.computeAngularBeta(line.initialLevel, line.finalLevel, newPartialWaves)
     else  angularBeta = EmProperty(0.)
@@ -474,7 +477,9 @@ function  computeAmplitudesPropertiesPlasma(line::PhotoIonization.Line, nm::Nucl
     # plasma models -- including the "field-free" NoPlasmaModel() -- through THIS function. Its checks are
     # monotonicity in screening strength, absence of discontinuities, and convergence to the field-free limit;
     # every one of them is scale-invariant, so a factor common to all four is invisible to all three.
-    csFactor     = 8 * pi^3 / Defaults.getDefaults("alpha") / line.photonEnergy
+    # Averaged over the initial magnetic sublevels, exactly as PhotoIonization.computeCrossSection; the two paths
+    # must not differ in convention.  See the note there for how the 1/(2J_i+1) was settled.
+    csFactor     = 8 * pi^3 / Defaults.getDefaults("alpha") / line.photonEnergy / (Basics.twice(line.initialLevel.J) + 1.0)
     crossSection = csFactor * cs
     newline = PhotoIonization.Line( line.initialLevel, line.finalLevel, line.electronEnergy, line.photonEnergy,
                                     crossSection, EmProperty(0.), EmProperty(0.), EmProperty(0.), newPartialWaves)
@@ -531,8 +536,10 @@ end
 
 
 """
-`PhotoIonization.computeCrossSection(partialWaves::Array{PhotoIonization.PartialWave,1}, photonEnergy::Float64)`
-    ... computes the total photoionization cross section from the given partial waves; an EmProperty is returned.
+`PhotoIonization.computeCrossSection(partialWaves::Array{PhotoIonization.PartialWave,1}, photonEnergy::Float64,
+                                    initialLevel::Level)`
+    ... computes the total photoionization cross section from the given partial waves, AVERAGED over the magnetic
+        sublevels of the initial level; an EmProperty is returned.
 
         THE SUMMATION IS THE SAME AS THE FLAT PATH'S, deliberately: |amplitude|^2 is summed INCOHERENTLY over multipoles as well as over
         channels. The new structure would make a coherent multipole sum easy to write, and that would be a change of physics -- a question
@@ -542,17 +549,30 @@ end
         No gauge appears: abs2(::EmPropertyC) returns an EmProperty, so the two gauges are carried along untouched, and a magnetic multipole
         -- whose two components are equal -- reproduces the flat path's rule of adding it to both sums without any special case.
 """
-function computeCrossSection(partialWaves::Array{PhotoIonization.PartialWave,1}, photonEnergy::Float64)
+function computeCrossSection(partialWaves::Array{PhotoIonization.PartialWave,1}, photonEnergy::Float64,
+                             initialLevel::Level)
     cs = EmProperty(0., 0.)
     for  pw in partialWaves,  ch in pw.channels,  ma in ch.amplitudes
         cs = cs + abs2(ma.amplitude)
     end
-    # THIS IS THE CORRECT NORMALISATION, settled 28-Aug-2026 against Stobbe's closed-form 1s cross section rather
-    # than by preference. Hydrogen 1s, point nucleus, E1 only, at x = omega/omega_th = 1.5, 2 and 3: this factor
-    # gives 2.51913e+06, 1.02584e+06 and 3.22474e+05 barn in the Babushkin (length) gauge against Stobbe's
-    # 2.09127e+06, 9.31429e+05 and 2.88397e+05 -- ratios 1.205, 1.101, 1.118, i.e. FLAT to ~10 %, which is the
-    # agreement examples/example-Dd.jl already recorded. See the warning in computeAmplitudesPropertiesPlasma.
-    csFactor = 8 * pi^3 / Defaults.getDefaults("alpha") / photonEnergy
+    # THE CROSS SECTION IS AVERAGED OVER THE INITIAL MAGNETIC SUBLEVELS, hence the 1/(2J_i+1); this is the
+    # convention of every published table, and the quantity a measurement on an unpolarized target returns.
+    #
+    # CORRECTED 10-Sep-2026, and the correction is a clean factor.  Hydrogen 1s, point nucleus, E1 only, against
+    # Stobbe's closed form at x = omega/omega_th = 1.5, 2, 3 gave 4.18259, 1.86266 and 0.57673 Mb against
+    # Stobbe's 2.09124, 0.93133 and 0.28838 -- ratios 2.0000, 2.0000, 1.9999, and hydrogen 1s has J = 1/2.
+    # Independently, the three (3)P levels of B+ 1s^2 2s2p, whose K-shell cross sections MUST be equal since they
+    # share the same two 1s electrons, came out as exactly 1 : 3 : 5 for J = 0, 1, 2, and sigma/(2J+1) equal to
+    # six figures AND equal to the J = 0 ground level.  Two independent routes, one factor.
+    #
+    # WHY THE EARLIER CHECK MISSED IT, recorded because the reasoning was sound and still wrong: the 28-Aug-2026
+    # comment here quoted the same Stobbe comparison with ratios 1.205, 1.101, 1.118 and called them "flat to
+    # ~10 %".  A constant factor of two cannot be seen through a 10 % scatter, and the scatter was JAC's own --
+    # the energy dependence has since become exact, which is what made the constant visible.  A J = 0 initial
+    # level is blind to this factor altogether, which is why the Verner anchors for B+ 1s^2 2s^2 were reproduced
+    # within 15 % in the very run whose metastable column was wrong by a factor of four.
+    gi       = Basics.twice(initialLevel.J) + 1.0
+    csFactor = 8 * pi^3 / Defaults.getDefaults("alpha") / photonEnergy / gi
     return( EmProperty(csFactor * cs.Coulomb, csFactor * cs.Babushkin) )
 end
 
