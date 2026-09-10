@@ -847,6 +847,33 @@ end
         means by freezing an orbital, and Basics.generate sets the field for every step of a RasExpansion.
         Freezing everything is allowed and is reported as such: the returned multiplet is then the CI result on
         the orbitals as given.
+
+        WHAT "CONVERGED" MEANS HERE, measured 10-Sep-2026 and worth reading before quoting a number to better than
+        a milli-Hartree. THE ROUTE FINDS A STATIONARY POINT, NOT NECESSARILY THE MINIMUM, and which one it finds
+        depends on where it started. Three starting bases on three systems, one route, one tolerance:
+
+            case      average-level start   Fock-point start    hydrogenic start    spread(AL, Fock)
+            Be Z=4      -14.619514867        -14.619561354       -14.580896847        0.047 mHa
+            Be Z=26    -812.786662010       -812.787235260      -812.774914173        0.573 mHa
+            C  Z=6      -37.722777567        -37.722694227       -37.681361605        0.083 mHa
+
+        ALL NINE REPORTED CONVERGED. Three things follow, none of them a defect to be fixed:
+
+        * A HYDROGENIC START COSTS 12 TO 41 mHa, which is why SelfConsistent.performSCF always starts this route
+          from an average-level basis and never from the initial guess. That decision predates this measurement;
+          the numbers are what it is worth.
+        * BETWEEN THE TWO LEGITIMATE STARTS the answers differ by 0.05 to 0.57 mHa, and NEITHER IS SYSTEMATICALLY
+          BETTER -- the Fock start wins on both Be cases, the average-level start on C. That is a flat valley with
+          several shallow stationary points, not one start stopping early.
+        * TIGHTENING accuracyScf DOES NOTHING. At 1e-8, 1e-10 and 1e-12 the Be Z=26 answers are BIT-IDENTICAL in
+          identical iteration counts, because the exit is not accuracyScf at all: it is the energy's own
+          double-precision resolution, 32 eps |E| = 3.64e-12 Ha there, four orders of magnitude below the
+          tolerance. Each run is converged as far as arithmetic permits and they still land 0.573 mHa apart.
+
+        So CONVERGED means "stationary to machine resolution FROM THIS START", not "the minimum". The variational
+        principle still holds -- a lower energy is the better calculation -- but nothing here identifies the lowest
+        of these as global. Where a milli-Hartree matters, run from more than one start and keep the lowest; it
+        costs one extra run and is the only honest way to bound the answer.
 """
 function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.Model, primitives::Bsplines.Primitives,
                                          settings::AsfSettings; printout::Bool=true, nVirtual::Int64=16,

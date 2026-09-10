@@ -42,6 +42,16 @@ This is the only choice that really requires judgement, and the honest guidance 
 descends monotonically, keeps the orbital basis orthonormal to about 1e-15, and is the route against which
 everything else here was measured. Its cost is iterations: 60–400 on small cases, and more on larger ones.
 
+!!! note "What `CONVERGED` means, and the reference's own uncertainty"
+    This route finds a *stationary point*, and which one it finds depends on where it started. Measured on three
+    systems from two sensible starting bases, the converged energies differ by **0.05 to 0.6 mHa** — and every run
+    reported `CONVERGED`. Asking for a tighter `accuracyScf` does not close the gap: the iteration already stops
+    at the energy's own double-precision resolution, so the runs are converged as far as arithmetic allows and
+    still differ. The variational principle still applies, so a lower energy is the better calculation, but
+    nothing identifies the lowest as global. **Where a milli-Hartree matters, run from more than one starting
+    basis and keep the lowest.** The accuracy figures in the table above are differences against this route, so
+    they carry this slack too — negligible at Z = 4, about 18 % of the quoted deficit at Z = 26.
+
 **Use `FockRoute` for exploration, scans, and highly charged ions.** It solves the Fock equations to
 self-consistency in roughly 10–25 iterations. It is *approximate*: it converges to a slightly different
 condition than the energy minimum, and it lands above the rotation route by
