@@ -56,13 +56,17 @@ everything else here was measured. Its cost is iterations: 60–400 on small cas
 self-consistency in roughly 10–25 iterations. It is *approximate*: it converges to a slightly different
 condition than the energy minimum, and it lands above the rotation route by
 
+<!-- BEGIN generated: route accuracy -->
 | system | absolute | relative to the total energy |
 |---|---|---|
-| Be-like, Z = 4 | 8.9 mHa | 6e-4 |
-| Be-like, Z = 10 | 4.4 mHa | 4e-5 |
-| Be-like, Z = 26 | 3.2 mHa | 4e-6 |
-| Be-like, Z = 92 | 7.1 mHa | 6e-7 |
-| C-like, Z = 6 | 10.2 mHa | 3e-4 |
+| Be-like, Z = 4   | 8.9 mHa | 6e-04 |
+| Be-like, Z = 10  | 4.4 mHa | 4e-05 |
+| Be-like, Z = 26  | 3.2 mHa | 4e-06 |
+| Be-like, Z = 92  | 7.1 mHa | 6e-07 |
+| C-like, Z = 6    | 10.2 mHa | 3e-04 |
+
+*Measured 10 September 2026 at commit `5976750`; regenerate with `julia --project=. tools/regenerateRouteAccuracy.jl --write`.*
+<!-- END generated: route accuracy -->
 
 The pattern is the useful part: **the relative error falls by three orders of magnitude from neutral-like to
 highly charged systems.** Near neutrality the competing configurations have comparable weights, the generalized

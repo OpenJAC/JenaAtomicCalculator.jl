@@ -411,17 +411,25 @@ gitignored and therefore reaches nobody.
 2. **`julia --project=. docs/checkCoverage.jl`** must print OK. It re-derives what Rule 16 says to publish and
    what the API pages actually reference, reading no stored list. If a module qualifies but is undocumented, ADD
    it; do not edit the rule to silence the message.
-3. **`julia --project=docs docs/make.jl`** must exit 0. Two failures are worth expecting: a `@example` block
+3. **`julia --project=. tools/regenerateRouteAccuracy.jl --write`** re-derives the accuracy figures that
+   `docs/src/scf-routes.md` quotes for each SCF route, and rewrites only the region between its markers. A user
+   reads those figures to decide whether a number is safe to publish, and they were hand-typed until 10-Sep-2026.
+   **If the regenerated table differs from what the page said, that is the point of running it** — the code has
+   moved and the page was stale; commit the new numbers rather than reverting them. Ten SCF runs, a few minutes.
+   The hand-recorded number that goes quietly stale is this project's most repeated failure: the 28-Aug Stobbe
+   comparison hid a factor of two for a fortnight because its own scatter was measured on a code state that had
+   since improved.
+4. **`julia --project=docs docs/make.jl`** must exit 0. Two failures are worth expecting: a `@example` block
    breaking through ordinary API drift — the blocks are CHAINED, so one break cascades and Documenter stops at
    the first — and `HTMLSizeThresholdError`, where a page passed 1 MB and should be split rather than have the
    threshold raised. Deployment cannot happen locally; Documenter detects it is not in CI and skips.
-4. **`docs/src/news.md`**, newest first, selecting what a USER would notice over what the repository noticed —
+5. **`docs/src/news.md`**, newest first, selecting what a USER would notice over what the repository noticed —
    0.5.0 drew eight entries from about 220 commits.
-5. **Bump `version` in `Project.toml`**, then run the suite from `test/` (Rule 11). No approved reference may be
+6. **Bump `version` in `Project.toml`**, then run the suite from `test/` (Rule 11). No approved reference may be
    re-approved to make it pass.
-6. **Commit as `Release X.Y.Z: <one line>`** and push. `documentation.yml` then rebuilds and deploys the site
+7. **Commit as `Release X.Y.Z: <one line>`** and push. `documentation.yml` then rebuilds and deploys the site
    automatically, so the docs go live at push, before the registry step.
-7. **Register — the maintainer's step.** Comment on the release commit:
+8. **Register — the maintainer's step.** Comment on the release commit:
 
        @JuliaRegistrator register
 
@@ -437,7 +445,7 @@ gitignored and therefore reaches nobody.
    request in 14 seconds and ignored the second for 44 minutes, because version and commit were unchanged. To add
    notes afterwards, register a NEW commit. Do not create the tag by hand — `TagBot.yml` does it once the General
    registry merges, and doing both yields two tags for one release.
-8. **Afterwards**, read WHICH CI job failed before reacting: JAC's CI has historically failed on the coverage
+9. **Afterwards**, read WHICH CI job failed before reacting: JAC's CI has historically failed on the coverage
    step rather than on the tests.
 
 ## Where the sqrt(2j+1) sits: one Wigner-Eckart convention for the whole code (Rule 18)
