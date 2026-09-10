@@ -122,7 +122,9 @@ end
                                                    ## and the RELATIVE resonance guard refusing 1s -> 2p
         @test TestFrames.testModule_PhotoIonization()
         @test TestFrames.testModule_PhotoRecombination()
+        @test TestFrames.testModule_PhotoRecombination_anisotropyNormalization()
         @test TestFrames.testModule_AutoIonization()  
+        @test TestFrames.testModule_AutoIonization_partialWaveDivision()
         @test TestFrames.testModule_DielectronicRecombination()  
         @test TestFrames.testModule_HyperfineInduced()
         @test TestFrames.testModule_RayleighCompton()

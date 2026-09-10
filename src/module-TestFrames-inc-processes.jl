@@ -561,6 +561,122 @@ end
 
 
 """
+`TestFrames.testModule_AutoIonization_partialWaveDivision(; short::Bool=true)`
+    ... tests how an Auger amplitude DIVIDES between partial waves, which nothing else in the suite constrains.
+
+        WHY IT IS NEEDED.  Every validation AutoIonization.amplitude has ever had SUMS over kappa -- the total
+        width Gamma_a = 2 pi Sum_kappa |A|^2, the DR resonance-strength calibration, and every approved Auger
+        rate.  A reweighting between partial waves that preserved the sum would pass all of them.
+
+        THE CASE, from an independent published FAC calculation: Li-like Z = 53, the doubly-excited 1s 2s^2 2p
+        J = 1- level decaying to 1s^2 2s, with the BREIT interaction in the Auger operator.  Breit is not a
+        refinement here but the whole effect: the p_3/2 capture amplitude has NO rank-0 Coulomb term at all,
+        since <eps p_3/2 || C^0 || 2p_1/2> vanishes, so what remains is a small exchange residue that the
+        magnetic interaction dominates.  Coulomb alone gives 0.67 for this ratio and Coulomb+Breit gives 0.25 --
+        a factor of 2.6, which is what makes the test sharp.
+
+        ON THE VALUE.  The independent FAC comparison gave 0.2458.  This ratio is basis-sensitive: measured over
+        radial boxes of 6, 8, 10, 12 and 16 a.u. it spans 0.2389 to 0.2569, so 0.2458 and the value asserted
+        here are the same physics on different bases rather than a discrepancy.  The grid is therefore FIXED in
+        this test and the tolerance is 5 %, which cannot be reached by anything except a genuine reweighting.
+        A value::Bool is returned.
+"""
+function testModule_AutoIonization_partialWaveDivision(; short::Bool=true)
+    printstyled("\n\nTest the module  AutoIonization  ... partial-wave division of the amplitude \n", color=:cyan)
+    grid = Radial.Grid(Radial.Grid(false), rnt = 2.0e-6, h = 5.0e-2, hp = 1.0e-2, rbox = 6.0)
+    aSet = AutoIonization.Settings(AutoIonization.Settings(); calcAnisotropy=false, printBefore=false,
+                                   maxKappa=4, lineSelection=LineSelection(), operator=CoulombBreit(0.))
+    wa   = Atomic.Computation(Atomic.Computation(); name="Li-like Z=53 KLL", grid=grid,
+                              nuclearModel = Nuclear.Model(53.),
+                              initialConfigs = [Configuration("1s 2s^2 2p")],
+                              finalConfigs   = [Configuration("1s^2 2s")],
+                              initialAsfSettings = AsfSettings(AsfSettings(); eeInteractionCI=CoulombBreit(0.)),
+                              finalAsfSettings   = AsfSettings(AsfSettings(); eeInteractionCI=CoulombBreit(0.)),
+                              processSettings = aSet )
+    wb = redirect_stdout(devnull) do;  perform(wa; output=true)  end
+
+    ratio = 0.;   found = false
+    for  lines  in  values(wb)
+        isa(lines, Array)  ||  continue
+        for  ln  in  lines
+            isdefined(ln, :partialWaves)  ||  continue
+            (string(ln.initialLevel.J) == "1"  &&  string(ln.initialLevel.parity) == "-")  ||  continue
+            ln.initialLevel.index == 1  ||  continue        # the 2p_1/2 level, the lower of the two J = 1-
+            d = Dict{Int64,Float64}( pw.kappa => abs(pw.amplitude)  for pw in ln.partialWaves )
+            if  haskey(d, -2)  &&  haskey(d, 1)  &&  d[1] != 0.
+                ratio = d[-2] / d[1];    found = true
+            end
+        end
+    end
+    success = found  &&  abs(ratio - 0.2445) / 0.2445 < 0.05
+    @printf("   |A(kappa=-2)/A(kappa=+1)| = %.4f   against 0.2445 on this grid (FAC: 0.2458)   %s\n",
+            ratio, success ? "" : "  <-- OUTSIDE 5 %")
+    testPrint("testModule_AutoIonization_partialWaveDivision()::", success)
+
+    return(success)
+end
+
+
+"""
+`TestFrames.testModule_PhotoRecombination_anisotropyNormalization(; short::Bool=true)`
+    ... tests the NORMALIZATION of PhotoRecombination.computeAnisotropyParameter through its own nu = 0 sum rule.
+
+        WHY A SUM RULE AND NOT A STORED NUMBER.  W(theta) = (sigma/4pi) [1 + Sum_nu beta_nu P_nu(cos theta)] is
+        normalized by beta_0 = 1, and at nu = 0 every Clebsch-Gordan and 6j in the expression collapses to a
+        Kronecker delta, so the identity holds for ANY amplitudes whatever -- no physics case, no reference file,
+        no grid.  That is exactly what was missing: the routine returned precisely half of every beta_nu from the
+        day it was written until 09-Sep-2026 and the suite stayed green throughout, because
+        test-PhotoRecombination-approved.sum carries no beta column and the interference test runs with
+        calcAnisotropy = false.  A factor of two is invisible to every test that never evaluates the quantity.
+
+        The test uses ARBITRARY complex amplitudes and two unrelated (J_i, J_f) couplings, so it constrains the
+        normalization alone and cannot be satisfied by a lucky case.  A value::Bool is returned.
+"""
+function testModule_PhotoRecombination_anisotropyNormalization(; short::Bool=true)
+    printstyled("\n\nTest the module  PhotoRecombination  ... anisotropy normalization (nu = 0 sum rule) \n", color=:cyan)
+    success = true
+
+    # Two unrelated couplings, and amplitudes chosen to be irregular on purpose: the identity must not depend on them.
+    cases = [ (AngularJ64(1//2), AngularJ64(0),   [-1,  1, -2],  "J_i = 1/2 -> J_f = 0"),
+              (AngularJ64(1),    AngularJ64(3//2),[ 1, -2,  2],  "J_i = 1   -> J_f = 3/2") ]
+    for  (Ji, Jf, kappas, label)  in  cases
+        iLevel = Level(Ji, AngularM64(0), Basics.plus,  1, 0., 0., false, Basis(), Float64[])
+        fLevel = Level(Jf, AngularM64(0), Basics.minus, 1, 0., 0., false, Basis(), Float64[])
+        pws    = PhotoRecombination.PartialWave[]
+        for  (n, kappa)  in  enumerate(kappas)
+            # THE COMPOUND SYMMETRY IS  initial ion (x) free electron,  and it must then reach the FINAL level
+            # through the photon multipole: the nu = 0 sum rule contains a 6j {J Jp 0; Lp L Jf} that enforces
+            # triangle(J, L, Jf) exactly, so a channel violating it contributes nothing and a test built from
+            # such channels measures nothing.  (Built from the FINAL level first, which is wrong here and
+            # returned beta_0 = 0 for every case.)
+            j    = AngularMomentum.kappa_j(kappa)
+            syms = LevelSymmetry[]
+            for  Jt  in  AngularMomentum.allowedTotalSymmetries(LevelSymmetry(Ji, Basics.plus), kappa)
+                if  AngularMomentum.isTriangle(Jt.J, AngularJ64(1), Jf)    push!(syms, Jt)    end
+            end
+            chs = PhotoRecombination.Channel[]
+            for  (m, sym)  in  enumerate(syms)
+                amp = EmPropertyC( (0.3n + 0.7m) + (0.2n - 0.5m)im, (0.4n - 0.1m) + (0.6n + 0.3m)im )
+                push!(chs, PhotoRecombination.Channel(sym, [MultipoleAmplitude(E1, amp)]) )
+            end
+            isempty(chs)  &&  continue
+            push!(pws, PhotoRecombination.PartialWave(kappa, 1.0, 0.0, chs))
+        end
+        line  = PhotoRecombination.Line(iLevel, fLevel, 1.0, 2.0, 0., 1., EmProperty(0.), pws)
+        beta0 = PhotoRecombination.computeAnisotropyParameter(0, line)
+        for  (gauge, value)  in  (("Coulomb", beta0.Coulomb), ("Babushkin", beta0.Babushkin))
+            ok = abs(value - 1.0) < 1.0e-10
+            ok || (success = false)
+            @printf("   %-24s  %-10s  beta_0 = %+.12f   %s\n", label, gauge, value, ok ? "" : "  <-- MUST BE 1")
+        end
+    end
+    testPrint("testModule_PhotoRecombination_anisotropyNormalization()::", success)
+
+    return(success)
+end
+
+
+"""
 `TestFrames.testModule_PhotoRecombination(; short::Bool=true)`  ... tests on module PhotoRecombination.
 """
 function testModule_PhotoRecombination(; short::Bool=true)

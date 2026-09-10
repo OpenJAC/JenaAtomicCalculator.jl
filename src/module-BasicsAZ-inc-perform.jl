@@ -16,6 +16,8 @@ function Basics.perform(computation::Atomic.Computation; output::Bool=false)
     if  output    results = Dict{String, Any}()    else    results = nothing    end
     nModel = computation.nuclearModel
 
+    Atomic.warnAboutUnusedSettings(computation)
+
     # Distinguish between the computation of level energies and properties and the simulation of atomic processes
     if   length(computation.configs) != 0
         multiplet = SelfConsistent.performSCF(computation.configs, nModel, computation.grid, computation.asfSettings)

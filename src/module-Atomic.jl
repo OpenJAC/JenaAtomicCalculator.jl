@@ -176,4 +176,43 @@ function Base.show(io::IO, comp::Atomic.Computation)
     end
 end
 
+
+"""
+`Atomic.warnAboutUnusedSettings(comp::Atomic.Computation)`
+    ... warns about every AsfSettings field of the given computation that the path it will actually take can NEVER
+        read, and whose value differs from the default. An Atomic.Computation carries FOUR such fields -- asfSettings
+        for the `configs` path, and initialAsfSettings / intermediateAsfSettings / finalAsfSettings for the
+        initial/final path -- deliberately, so that each multiplet may carry its own correlation model. Only the
+        fields of the chosen path are consulted, and a value placed in one of the others is silently ignored: someone
+        who sets eeInteractionCI = CoulombBreit(...) in `asfSettings` while giving initialConfigs gets a Coulomb-only
+        CI with no indication why.
+
+        THE COMPARISON AGAINST THE DEFAULT IS WHAT MAKES THIS USABLE. Every computation carries all four fields
+        whether or not the user touched them, so a check that merely asked "is this path reading the field" would
+        fire on every run and be ignored within a week. AsfSettings defines Base.:(==), so `!= AsfSettings()`
+        separates "the user set this" from "untouched".
+
+        IT IS A WARNING AND NEVER AN ERROR: one Computation may legitimately be built once and reused across paths.
+        And it catches only a field that is NEVER consulted -- it cannot catch someone who fills initialAsfSettings
+        where finalAsfSettings was meant, since both are read. Nothing is returned.
+"""
+function warnAboutUnusedSettings(comp::Atomic.Computation)
+    usesConfigs = length(comp.configs) != 0
+    unused      = usesConfigs ? [ ("initialAsfSettings",      comp.initialAsfSettings),
+                                  ("intermediateAsfSettings", comp.intermediateAsfSettings),
+                                  ("finalAsfSettings",        comp.finalAsfSettings) ] :
+                                [ ("asfSettings",             comp.asfSettings) ]
+    named       = usesConfigs ? "configs"       : "initialConfigs/finalConfigs"
+    reads       = usesConfigs ? "asfSettings"   : "initialAsfSettings, intermediateAsfSettings and finalAsfSettings"
+    for  (name, set)  in  unused
+        if  set != AsfSettings()
+            println(">> WARNING: this computation is built from $named, so it reads $reads;  the $name you gave " *
+                    "is NOT used and its contents -- an eeInteractionCI or scfRoute set there, for instance -- " *
+                    "will not reach the calculation.")
+        end
+    end
+
+    return( nothing )
+end
+
 end # module
