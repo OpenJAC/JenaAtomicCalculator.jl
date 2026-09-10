@@ -12,9 +12,9 @@ authors:
     given-names: Stephan
     email: s.fritzsche@hi-jena.gsi.de
     affiliation: "Helmholtz Institute Jena & GSI Helmholtz Centre for Heavy Ion Research"
-version: "0.3.0"
-date-released: "2024-01-01"
-url: "https://github.com/OpenJAC/JAC.jl"
+version: "0.6.0"
+date-released: "2026-09-09"
+url: "https://github.com/OpenJAC/JenaAtomicCalculator.jl"
 license: MIT
 keywords:
   - atomic physics

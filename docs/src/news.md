@@ -46,8 +46,24 @@
     measured at 116x on the kernel and 4.4x on the surrounding work. `:direct` remains the default and the
     reference form. *(September'26)*
 
-* **Oscillator strengths and Einstein A coefficients: four defects fixed**, which had hidden one another.
-    Numbers from these routes move; see the commit record for the individual cases. *(September'26)*
+* **Oscillator strengths and Einstein A coefficients: four defects, and why they hid each other.** The printed
+    oscillator strengths and, in `Einstein.displayRates`, the A and B coefficients and decay widths are
+    corrected in this release, so values from these columns change. Each defect was
+    settled against hydrogen Lyman-alpha, where `A = 6.2649e8` 1/s and `f = 0.27750` (2p_3/2) are known exactly,
+    rather than by comparing JAC against itself. `Basics.recast(RecastRateToOscillatorF, ...)` returned a
+    quantity that is an oscillator strength in no convention -- 1.5e-07 against the tabulated 0.27750, low by
+    six orders; `RecastRateToOscillatorGf` returned the UNWEIGHTED f while its name and both its callers said
+    gf; `Einstein.displayRates` carried a spurious (2J_f+1), and since A, B, gf and the decay width are all
+    built from that one expression, all four of its columns were affected. `Einstein`, `PhotoEmission` and
+    `TwoElectronOnePhoton` had used one header for two different quantities; all three now print `g_l f` under a
+    header that says `gf`, that being the tabulated convention and the one obeying the Thomas-Reiche-Kuhn sum
+    rule directly.
+
+    **Why it survived so long is worth knowing**, because it is the shape of check most people would run:
+    Einstein's f and PhotoEmission's gf used to agree numerically for a shared line -- the missing `g_l` and the
+    extra (2J_f+1) cancelled. Two wrong quantities produced one agreeing number, so cross-checking the two
+    modules confirmed the error rather than exposing it, and repairing either defect alone looked like a
+    regression. *(September'26)*
 
 * **New modules**: `GeneralizedOscillatorStrength` (Bethe surface, bound-bound), `ResonantImpactIonization`,
     `PhotonScattering`, `PhotoRecombinationInterference` (coherent RR + DR), `WeakInteractionEnhancement` and

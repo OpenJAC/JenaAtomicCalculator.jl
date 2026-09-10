@@ -1,0 +1,30 @@
+{
+    "upload_type": "software",
+    "title": "JenaAtomicCalculator (JAC): a Julia package for atomic structures, processes and cascades",
+    "description": "<p>JAC, the Jena Atomic Calculator, is an open-source Julia package for relativistic atomic structure and collision computations. It provides interaction amplitudes, atomic properties, a wide range of excitation and decay processes, cascade simulations and the symbolic evaluation of expressions from Racah's algebra, for open-shell atoms and ions across the periodic table.</p><p>This record archives one released version of the source code. For the method, please cite Fritzsche, Comput. Phys. Commun. 240, 1-14 (2019); for the specific version you ran, cite this record.</p>",
+    "license": "mit",
+    "access_right": "open",
+    "creators": [
+        {
+            "name": "Fritzsche, Stephan",
+            "affiliation": "Helmholtz Institute Jena & GSI Helmholtz Centre for Heavy Ion Research"
+        }
+    ],
+    "keywords": [
+        "atomic physics",
+        "relativistic atomic structure",
+        "electronic structure",
+        "atomic processes",
+        "atomic cascades",
+        "Racah algebra",
+        "Julia"
+    ],
+    "related_identifiers": [
+        {
+            "identifier": "10.1016/j.cpc.2019.01.012",
+            "relation": "isSupplementTo",
+            "resource_type": "publication-article",
+            "scheme": "doi"
+        }
+    ]
+}
