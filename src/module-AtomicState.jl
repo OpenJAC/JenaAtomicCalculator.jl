@@ -253,6 +253,12 @@ end
     + frozenShells      ::Array{Shell,1}        ... List of shells that are kept 'frozen' in this step.
     + constraints       ::Array{String,1}       ... List of Strings to define 'constraints/restrictions' 
                                                     to the generated CSF basis.
+    + treatment         ::Basics.AbstractQTreatment  ... how the configurations this step generates are to be treated:
+                                                    Basics.Variational() puts every one of them into the CI, which is
+                                                    what a step has always done and remains the default, while
+                                                    Basics.SecondOrder(promoteAbove, discardBelow) ranks each one by
+                                                    the fraction of the wave function it carries and promotes, folds
+                                                    in perturbatively or discards it accordingly.
 """
 struct  RasStep
     seFrom              ::Array{Shell,1}
@@ -265,13 +271,15 @@ struct  RasStep
     qeTo                ::Array{Shell,1}
     frozenShells        ::Array{Shell,1}
     constraints         ::Array{String,1}
+    treatment           ::Basics.AbstractQTreatment
 end
 
 """
 `AtomicState.RasStep()`  ... constructor for an 'empty' instance of a variable::AtomicState.RasStep
 """
 function RasStep()
-    RasStep(Shell[], Shell[], Shell[], Shell[], Shell[], Shell[], Shell[], Shell[],    Shell[], String[])
+    RasStep(Shell[], Shell[], Shell[], Shell[], Shell[], Shell[], Shell[], Shell[],    Shell[], String[],
+            Basics.Variational())
 end
 
 
@@ -282,7 +290,8 @@ end
                     deFrom::Array{Shell,1}=Shell[], deTo::Array{Shell,1}=Shell[], 
                     teFrom::Array{Shell,1}=Shell[], teTo::Array{Shell,1}=Shell[], 
                     qeFrom::Array{Shell,1}=Shell[], qeTo::Array{Shell,1}=Shell[], 
-                    frozen::Array{Shell,1}=Shell[], constraints::Array{String,1}=String[]  
+                    frozen::Array{Shell,1}=Shell[], constraints::Array{String,1}=String[],
+                    treatment::Union{Nothing,Basics.AbstractQTreatment}=nothing
                     
     ... constructor for modifying the given rasStep by specifying all excitations, frozen shells and 
         constraints optionally.
@@ -292,7 +301,8 @@ function RasStep(rasStep::AtomicState.RasStep;
                     deFrom::Array{Shell,1}=Shell[], deTo::Array{Shell,1}=Shell[], 
                     teFrom::Array{Shell,1}=Shell[], teTo::Array{Shell,1}=Shell[], 
                     qeFrom::Array{Shell,1}=Shell[], qeTo::Array{Shell,1}=Shell[], 
-                    frozen::Array{Shell,1}=Shell[], constraints::Array{String,1}=String[])
+                    frozen::Array{Shell,1}=Shell[], constraints::Array{String,1}=String[],
+                    treatment::Union{Nothing,Basics.AbstractQTreatment}=nothing)
     if  seFrom == Shell[]   sxFrom = rasStep.seFrom   else      sxFrom = seFrom      end
     if  seTo   == Shell[]   sxTo   = rasStep.seTo     else      sxTo   = seTo        end
     if  deFrom == Shell[]   dxFrom = rasStep.deFrom   else      dxFrom = deFrom      end
@@ -303,8 +313,9 @@ function RasStep(rasStep::AtomicState.RasStep;
     if  qeTo   == Shell[]   qxTo   = rasStep.qeTo     else      qxTo   = qeTo        end
     if  frozen == Shell[]        frozx  = rasStep.frozenShells   else      frozx  = frozen             end
     if  constraints ==String[]   consx  = rasStep.constraints    else      consx  = constraints        end
+    if  isnothing(treatment)     treatx = rasStep.treatment      else      treatx = treatment          end
     
-    RasStep( sxFrom, sxTo, dxFrom, dxTo, txFrom, txTo, qxFrom, qxTo, frozx, consx)
+    RasStep( sxFrom, sxTo, dxFrom, dxTo, txFrom, txTo, qxFrom, qxTo, frozx, consx, treatx)
 end
 
 
@@ -338,6 +349,11 @@ function Base.show(io::IO, step::AtomicState.RasStep)
         sa = sa[1:end-2] * " }   ... to { ";      for  sh in step.qeTo     sa = sa * string(sh) * ", "  end;   
         sa = sa[1:end-2] * " }";            print(io, sa, "\n")
     end   
+    # A variational step is the default and says nothing; a perturbative one must announce itself, since the
+    # CSF count it reports is then no longer the size of the space it accounts for.
+    if  typeof(step.treatment) != Basics.Variational
+        sa = "   Q-space treatment:     " * string(step.treatment);    print(io, sa, "\n")
+    end
 end
 
 
@@ -353,20 +369,26 @@ end
                                                     shells (up to and including this layer) if true.
     + de               ::Bool                  ... Include double excitations from the reference into all active
                                                     shells (up to and including this layer) if true.
+    + treatment        ::Basics.AbstractQTreatment  ... how this layer's configurations are treated; see
+                                                    AtomicState.RasStep. Variational() by default, so a layered
+                                                    expansion written before 11-Sep-2026 is unaffected.
 """
 struct  RasLayer
     newShells          ::Array{Shell,1}
     se                 ::Bool
     de                 ::Bool
+    treatment          ::Basics.AbstractQTreatment
 end
 
 """
-`AtomicState.RasLayer(newShells::Array{Shell,1}; se::Bool=true, de::Bool=true)`
+`AtomicState.RasLayer(newShells::Array{Shell,1}; se::Bool=true, de::Bool=true,`
+                     `treatment::Basics.AbstractQTreatment=Basics.Variational())`
     ... constructor for a variable::AtomicState.RasLayer with the given new shells and, by default, both single
         and double excitations enabled.
 """
-function RasLayer(newShells::Array{Shell,1}; se::Bool=true, de::Bool=true)
-    RasLayer(newShells, se, de)
+function RasLayer(newShells::Array{Shell,1}; se::Bool=true, de::Bool=true,
+                  treatment::Basics.AbstractQTreatment=Basics.Variational())
+    RasLayer(newShells, se, de, treatment)
 end
 
 
@@ -431,7 +453,8 @@ function RasExpansion(symmetries::Array{LevelSymmetry,1}, NoElectrons::Int64, co
         append!(to, layer.newShells)
         sxFrom = layer.se ? deepcopy(fromShells) : Shell[];    sxTo = layer.se ? deepcopy(to) : Shell[]
         dxFrom = layer.de ? deepcopy(fromShells) : Shell[];    dxTo = layer.de ? deepcopy(to) : Shell[]
-        step   = AtomicState.RasStep(prior; seFrom=sxFrom, seTo=sxTo, deFrom=dxFrom, deTo=dxTo, frozen=deepcopy(frozen))
+        step   = AtomicState.RasStep(prior; seFrom=sxFrom, seTo=sxTo, deFrom=dxFrom, deTo=dxTo, frozen=deepcopy(frozen),
+                                             treatment=layer.treatment)
         push!(steps, step)
         if  i == 1   append!(frozen, fromShells)   end
         append!(frozen, layer.newShells)

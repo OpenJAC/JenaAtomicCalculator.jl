@@ -276,6 +276,17 @@ function Basics.generate(repType::AtomicState.RasExpansion, rep::AtomicState.Rep
     # higher-lying states entering the growing space dilute the correlation for the levels actually wanted),
     # freezing every shell already present/optimized in an earlier step -- GRASP's own default behavior
     # (LFIX(:NW)=.TRUE. unless explicitly varied).
+    #
+    # WHAT THE AL ALTERNATIVE ACTUALLY COSTS, measured 11-Sep-2026, because "dilute" understates it. An average-
+    # level field over a correlation expansion optimizes the core for the configurations that carry a core HOLE:
+    # on a Cl III basis whose reference is 2s^2 it returns a mean occupation of 1.807 for 2s, so the reference is
+    # not a stationary point of its own orbitals. A single excitation between orbitals of EQUAL kappa is then no
+    # longer suppressed -- the one-particle operator is rank 0, so it connects only equal kappa, and 2s -> 4s is
+    # an orbital ROTATION rather than a correlation excitation. Ranked by a second-order estimate it took 99.7 %
+    # of the whole core contribution, against 71.6 % for the genuine double 2p^2 -> 3d^2 once it was removed.
+    # Under EOL the target stays the reference-dominated level and that channel is absorbed into the orbitals.
+    # Same-kappa correlation orbitals cannot be avoided in any case -- layers n = 4,5,6,7 give 4s,5s,6s,7s -- so
+    # what protects the expansion is the CHOICE OF FUNCTIONAL here, not the choice of shells.
     for (istep, step)  in  enumerate(repType.steps)
         println("")
         printstyled("++ Compute the orbitals, orbitals and multiplet for step $istep ... \n", color=:light_green)
@@ -312,7 +323,25 @@ function Basics.generate(repType::AtomicState.RasExpansion, rep::AtomicState.Rep
                                      scfRoute=Basics.RotationRoute(repType.settings.maxIterationsScf),
                                      accuracyScf=repType.settings.accuracyScf )
 
-        multiplet  = SelfConsistent.performSCF(basis, nModel, rep.grid, stepSettings; printout=true)
+        # A VARIATIONAL step optimizes its new shells and puts every configuration it generated into the CI, which
+        # is what a step has always done.  A SECOND-ORDER step does neither: its orbitals are the ones this layer
+        # was given -- earlier layers frozen, the new shells taken from the spectrum generated once in the mean
+        # potential above -- and its configurations are ranked, then promoted, folded in or dropped.  Skipping the
+        # SCF is the point rather than an economy: the layer exists to RECOVER what P leaves out, so optimizing
+        # orbitals on the whole of it would pay for Q in the one place the treatment is meant to avoid, and the
+        # virtuals of a perturbation belong in the field of the reference in any case.
+        if  typeof(step.treatment) == Basics.Variational
+            multiplet  = SelfConsistent.performSCF(basis, nModel, rep.grid, stepSettings; printout=true)
+        else
+            printstyled(">> step $istep is treated to SECOND ORDER in its Q space; the orbitals of this layer are " *
+                        "NOT re-optimized. \n", color=:light_yellow)
+            (multiplet, partitions) = Hamiltonian.performCIwithSecondOrderQ(basis, rep.refConfigs, nModel, rep.grid,
+                                                                            stepSettings, step.treatment; printout=true)
+            if  !all(p -> p.isJustified, partitions)
+                printstyled(">> step $istep: the second-order treatment was NOT justified in every symmetry; see " *
+                            "the configurations named above. \n", color=:light_red)
+            end
+        end
         # ITEM 25, ADDED 01-Sep-2026.  Until now a step printed one Multiplet and nothing else, so nothing in
         # the output said whether the layer just added is a CORRELATION layer or has collapsed onto a
         # spectroscopic orbital -- a distinction that is not academic: a 5f treated as occupied once came out

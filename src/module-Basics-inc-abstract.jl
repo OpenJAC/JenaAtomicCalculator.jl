@@ -2645,6 +2645,82 @@ end
 
 
 """
+`abstract type  Basics.AbstractQTreatment`
+    ... defines an abstract type to say how the Q space of a RAS step is to be treated -- the configurations the
+        step GENERATES but which need not all enter the CI. The two implementations are not two algorithms but the
+        two ends of one dial, and it is the individual configuration that is routed rather than the step.
+
+    + struct Variational     ... every generated configuration enters the CI. What a RAS step has always done.
+    + struct SecondOrder     ... each configuration is ranked by the fraction of the atomic state function it
+                                 carries, and is then promoted into the CI, folded in perturbatively, or dropped.
+"""
+abstract type  AbstractQTreatment                       end
+
+
+"""
+`struct  Basics.Variational  <:  Basics.AbstractQTreatment`
+    ... every configuration a RAS step generates enters the CI, which is the behaviour of every RAS step written
+        before 11-Sep-2026 and remains the default. Equivalent to `SecondOrder(0., 0.)` and kept as its own type
+        because "treat this layer exactly" is a statement about intent, not a choice of threshold.
+"""
+struct     Variational          <:  AbstractQTreatment  end
+
+
+"""
+`struct  Basics.SecondOrder  <:  Basics.AbstractQTreatment`
+    ... ranks every configuration of the step's Q space by `|c(K')|^2`, the fraction of the atomic state function
+        that configuration carries, and routes it on that number alone:
+
+            |c|^2 > promoteAbove                 into the CI, and diagonalized exactly
+            discardBelow < |c|^2 < promoteAbove  folded in through the second-order effective Hamiltonian
+            |c|^2 < discardBelow                 dropped
+
+        so that `promoteAbove = 0.` reproduces a variational step and `promoteAbove = Inf` folds the whole layer
+        in. The weight is obtained from the same quantities as the energy correction, `|c(K')|^2 = dE_PT(K')/D`
+        with `dE_PT(K') = SUM_chi' |<(K chi J)||V||(K' chi' J)>|^2 / D` and `D = <q|H|q> - E_i`, i.e. Epstein-Nesbet
+        denominators: each Q-CSF's own diagonal element against the CI eigenvalue. No configuration-average energy
+        is needed and no H0/V partitioning has to be declared.
+
+    + promoteAbove       ::Float64   ... weight above which a configuration is put INTO the CI rather than folded in.
+    + discardBelow       ::Float64   ... weight below which a configuration is dropped entirely.
+
+    WHY A WEIGHT AND NOT AN ENERGY. `dE_PT` is an energy and equals `|c|^2 * D`, so at equal weight a configuration
+    further away in energy ranks HIGHER -- which is the wrong way round for a spectrum. Measured on Cl III
+    3s^2 3p^3 (11-Sep-2026): core excitations carry 97.9 % of the total `dE_PT` while their net effect on the
+    excitation energies is 0.2 %, because their contribution is nearly level-independent (-47.696 / -47.729 /
+    -47.601 mHa) and cancels to 99.8 %. The weight separates the two classes by three orders of magnitude
+    (valence-valence 3.1e-02 against core 1.7e-05) where the energy separates them by only two.
+
+    WHY SECOND ORDER MAY RANK BUT MUST NOT BE TRUSTED AS AN ENERGY WHERE THE COUPLING IS STRONG. On the same case
+    it reproduces the exact CI to 0.6-1.3 % for the core and is wrong by 3.6-11.5 % for the valence shells. An
+    effective Hamiltonian in P repairs part of that -- it must use a LEVEL-INDEPENDENT denominator, so it
+    over-binds the ground state and makes the SPECTRUM worse (worst splitting error 1021 cm^-1 against 701). This
+    is why the threshold exists: a strongly coupled configuration is promoted rather than folded, and the fold-in
+    is then applied only where it is accurate.
+
+    THE DEFAULTS ARE CALIBRATED ON ONE ION and a Z-scan along an isoelectronic sequence has NOT been done. Treat
+    them as a starting point and read the `Sum |c|^2` a step reports, which is the quantity that says whether the
+    fold-in was justified at all.
+"""
+struct     SecondOrder          <:  AbstractQTreatment
+    promoteAbove         ::Float64
+    discardBelow         ::Float64
+end
+
+
+# `Basics.SecondOrder()`  ... the calibrated starting point; see the caveat in the docstring above
+function SecondOrder()
+    SecondOrder(1.0e-4, 1.0e-12)
+end
+
+
+# `Basics.SecondOrder(promoteAbove::Float64)`  ... sets the promotion threshold and keeps the default floor
+function SecondOrder(promoteAbove::Float64)
+    SecondOrder(promoteAbove, 1.0e-12)
+end
+
+
+"""
 `Basics.providesPotential(scField::Basics.AbstractScField)`
     ... answers whether Basics.computePotential can build a radial potential for this field. False by
         default. Note that the two predicates are INDEPENDENT rather than complementary: DFSField and

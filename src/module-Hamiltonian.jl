@@ -527,4 +527,6 @@ function setupMatrixKinkAware(sym::LevelSymmetry, basis::Basis, nm::Nuclear.Mode
     return( matrix )
 end
 
+include("module-Hamiltonian-inc-secondorder.jl")
+
 end # module
