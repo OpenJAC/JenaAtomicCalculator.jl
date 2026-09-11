@@ -104,22 +104,36 @@ end
 const SHELL_W_CACHE = Dict{NTuple{7,Int64}, Float64}()
 
 
-# The single-operator matrix elements are memoised for the same reason as the rank-k ones, and it matters more: a
-# profile of the one-electron-move sweep is dominated not by the recoupling but by EXACT RATIONAL ARITHMETIC -- BigInt
-# allocation inside the Wigner-symbol package, reached through the Clebsch-Gordan in `shellReducedA`. The arguments are
-# a handful of small quantum numbers and the same ones recur across every CSF pair of a calculation.
+# The single-operator matrix elements are memoised for the same reason as the rank-k ones, and it matters more. The
+# arguments are a handful of small quantum numbers and the same ones recur across every CSF pair of a calculation.
+#
+# WHAT THE MEMO IS WORTH, re-measured 11-Sep-2026, and WHY THE EARLIER REASON NO LONGER HOLDS. This note used to say
+# that the sweep is dominated by EXACT RATIONAL ARITHMETIC -- BigInt allocation inside the Wigner-symbol package,
+# reached through the Clebsch-Gordan in `shellReducedA`. That ceased to be true on 25-Aug-2026, when the default
+# Wigner method became `FloatingWigner` (see `AngularMomentum.WIGNER_METHOD`): the exact path still exists but is
+# taken only when asked for, so no BigInt is allocated in a default run. At 3 us per uncached call the cost is not
+# rational arithmetic at all -- it is the quasispin/CFP table work and the Float64 Wigner evaluations themselves.
+#
+# The memo is nonetheless worth MORE than that stale reason claimed, and most where the coupling trees are longest:
+#     shellReducedW  8.1x per call          shellReducedA  7.1x per call
+#     whole CI matrix, cold against warm:   Cl III 3s^2 3p^3   57 %      Ti III 3d^2   94 %
+# The open-d case needs only 26 W keys and 10 A keys for an entire matrix, so the reuse factor is largest exactly
+# for the open shells that cost the most. MEASURE BEFORE CHANGING THIS: a first attempt reported 4-25 % because it
+# cleared the memo before the "cold" call but let it refill during the "warm" one, and so timed the radial cache.
 const SHELL_A_CACHE = Dict{NTuple{8,Int64}, Float64}()
 
 
 """
 `SpinAngular.clearCaches()`
-    ... to empty the memo of `SpinAngular.shellReducedW`. Not needed for correctness -- the cached quantities are
-        basis-independent -- but useful for timing a cold run. Returns the number of entries discarded.
+    ... to empty the memos of `SpinAngular.shellReducedW`, `SpinAngular.shellReducedA` and the recoupling partners.
+        Not needed for correctness -- the cached quantities are basis-independent -- but useful for timing a cold
+        run. Note that ONE cleared call is not a cold measurement of the memo: the store refills during that very
+        call and serves the rest of it, so a cold/warm comparison must clear before EVERY timed call and use a
+        fresh radial cache with it. Returns the number of entries discarded.
 """
 function clearCaches()
     n = length(SHELL_W_CACHE) + length(PARTNER_CACHE) + length(SHELL_A_CACHE)
     empty!(SHELL_W_CACHE);    empty!(PARTNER_CACHE);    empty!(SHELL_A_CACHE)
-    empty!(PARTNER_CACHE)
 
     return( n )
 end
