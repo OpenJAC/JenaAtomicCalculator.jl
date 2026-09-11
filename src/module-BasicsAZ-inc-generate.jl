@@ -297,8 +297,12 @@ function Basics.generate(repType::AtomicState.RasExpansion, rep::AtomicState.Rep
 
         # step.frozenShells is a list of non-relativistic Shell(n,l); translate to the concrete, relativistic
         # Subshell(n,kappa) instances actually present in THIS step's basis, as AsfSettings.frozenSubshells needs.
-        frozenSubshellsThisStep = [ sh  for  shell in step.frozenShells  for sh in basis.subshells
-                                        if  sh.n == shell.n  &&  Basics.subshell_l(sh) == shell.l ]
+        # Subshell[...] and not [...]:  a step with NO frozen shells makes this comprehension empty, Julia then
+        # infers Vector{Any}, and AsfSettings rejects it.  Unreachable through RasLayer, which always passes a
+        # non-empty core, and reached at once by building the steps by hand -- which is what a step that adds new
+        # EXCITATIONS rather than new SHELLS has to do.
+        frozenSubshellsThisStep = Subshell[ sh  for  shell in step.frozenShells  for sh in basis.subshells
+                                                if  sh.n == shell.n  &&  Basics.subshell_l(sh) == shell.l ]
 
         # ITEM 22, FIXED 01-Sep-2026.  RasSettings.levelsScf was declared, documented and PRINTED, and never read:
         # the EOL target came from levelSelectionCI alone, so a user who wrote RasSettings([1], ...) to optimize
@@ -335,8 +339,9 @@ function Basics.generate(repType::AtomicState.RasExpansion, rep::AtomicState.Rep
         else
             printstyled(">> step $istep is treated to SECOND ORDER in its Q space; the orbitals of this layer are " *
                         "NOT re-optimized. \n", color=:light_yellow)
-            (multiplet, partitions) = Hamiltonian.performCIwithSecondOrderQ(basis, rep.refConfigs, nModel, rep.grid,
-                                                                            stepSettings, step.treatment; printout=true)
+            (multiplet, partitions) = Hamiltonian.performCIwithSecondOrderQ(basis, priorMultiplet.levels[1].basis,
+                                                rep.refConfigs, nModel, rep.grid, stepSettings, step.treatment;
+                                                printout=true)
             if  !all(p -> p.isJustified, partitions)
                 printstyled(">> step $istep: the second-order treatment was NOT justified in every symmetry; see " *
                             "the configurations named above. \n", color=:light_red)
@@ -352,7 +357,13 @@ function Basics.generate(repType::AtomicState.RasExpansion, rep::AtomicState.Rep
         # expanded out of it (a Rydberg orbital, which is not what a layer is for).
         Basics.printRasStepDiagnostic(istep, multiplet, basis, rep.refConfigs, step.frozenShells, rep.grid)
         if output    results = Base.merge( results, Dict("step"*string(istep) => Multiplet("Multiplet:", multiplet.levels)) )              end
-        priorMultiplet = multiplet
+        # A PERTURBATIVE STEP IS A LEAF AND MUST NOT BECOME THE TRUNK.  It reports what the excitations left out of
+        # the previous step are still worth, over that step's own orbitals; a later variational step therefore
+        # inherits from the last VARIATIONAL step, not from this one.  Were the leaf carried forward, the next step
+        # would take the whole folded space as its P -- including exactly the configurations that were deliberately
+        # kept out of the CI.  So a chain may read step2, step2PT, step3, step3PT, ... and each PT branches off its
+        # own layer.
+        if  typeof(step.treatment) == Basics.Variational    priorMultiplet = multiplet    end
     end
     
     return( results )

@@ -125,7 +125,8 @@ end
 """
 `Hamiltonian.rankQspace(basis::Basis, pIndices::Array{Int64,1}, qGroups::Dict{String,Array{Int64,1}},
                          energies::Array{Float64,1}, vectors::Array{Float64,2}, nm::Nuclear.Model, grid::Radial.Grid,
-                         settings::AsfSettings, cache::InteractionStrength.XLCache)`
+                         settings::AsfSettings, cache::InteractionStrength.XLCache,
+                         targetLevels::Array{Int64,1})`
     ... computes, for every configuration of the Q space, the fraction of the atomic state function it carries and
         the second-order energy it would contribute. The P space must already have been diagonalized, its energies
         and eigenvectors being passed in; the Q space is visited ONE CONFIGURATION AT A TIME and its CSFs are never
@@ -134,7 +135,8 @@ end
         For each Q-CSF `q` and each P level `i` the weight is `|c|^2 = (<Psi_i|V|q> / D)^2` with the Epstein-Nesbet
         denominator `D = <q|H|q> - E_i`: the Q-CSF's OWN diagonal element against the CI eigenvalue, so that no
         configuration-average energy is needed and no H0/V partitioning has to be declared. The weight of a
-        configuration is the MAXIMUM over the levels, since one basis must serve them all.
+        configuration is the MAXIMUM over the TARGET levels named by `targetLevels`, since one basis must serve
+        them all -- but only them: a correlation level of P that nobody asked for must not enlarge the basis.
 
         A tuple `(weights, deltaE, c2)::Tuple{Dict{String,Float64}, Dict{String,Array{Float64,1}},
         Dict{String,Array{Float64,1}}}` is returned, keyed as `Hamiltonian.groupCsfsByConfiguration` keys its groups
@@ -143,7 +145,7 @@ end
 """
 function rankQspace(basis::Basis, pIndices::Array{Int64,1}, qGroups::Dict{String,Array{Int64,1}},
                      energies::Array{Float64,1}, vectors::Array{Float64,2}, nm::Nuclear.Model, grid::Radial.Grid,
-                     settings::AsfSettings, cache::InteractionStrength.XLCache)
+                     settings::AsfSettings, cache::InteractionStrength.XLCache, targetLevels::Array{Int64,1})
     potential = Nuclear.nuclearPotential(nm, grid)
     nLev      = length(energies)
     weights   = Dict{String,Float64}()
@@ -167,7 +169,7 @@ function rankQspace(basis::Basis, pIndices::Array{Int64,1}, qGroups::Dict{String
                 dEconf[i] = dEconf[i] - viq^2/dd
             end
         end
-        weights[key] = maximum(c2conf);    deltaE[key] = dEconf;    c2[key] = c2conf
+        weights[key] = maximum( c2conf[i]  for i in targetLevels );    deltaE[key] = dEconf;    c2[key] = c2conf
     end
 
     return( (weights, deltaE, c2) )
@@ -175,9 +177,9 @@ end
 
 
 """
-`Hamiltonian.secondOrderBlock(sym::LevelSymmetry, basis::Basis, refConfigs::Array{Configuration,1},
-                              nm::Nuclear.Model, grid::Radial.Grid, settings::AsfSettings,
-                              treatment::Basics.SecondOrder; printout::Bool=true)`
+`Hamiltonian.secondOrderBlock(sym::LevelSymmetry, basis::Basis, pBasis::Basis,
+                              refConfigs::Array{Configuration,1}, nm::Nuclear.Model, grid::Radial.Grid,
+                              settings::AsfSettings, treatment::Basics.SecondOrder; printout::Bool=true)`
     ... performs the CI of ONE symmetry block of the given basis with its Q space treated by the thresholds of the
         treatment, and is the body of `Hamiltonian.performCIwithSecondOrderQ`. Every
         configuration whose weight exceeds `promoteAbove` enters the CI and is diagonalized exactly, those below
@@ -192,9 +194,9 @@ end
 
         A tuple `(levels::Array{Level,1}, partition::Hamiltonian.QPartition)` is returned.
 """
-function secondOrderBlock(sym::LevelSymmetry, basis::Basis, refConfigs::Array{Configuration,1}, nm::Nuclear.Model,
-                           grid::Radial.Grid, settings::AsfSettings, treatment::Basics.SecondOrder;
-                           printout::Bool=true)
+function secondOrderBlock(sym::LevelSymmetry, basis::Basis, pBasis::Basis, refConfigs::Array{Configuration,1},
+                           nm::Nuclear.Model, grid::Radial.Grid, settings::AsfSettings,
+                           treatment::Basics.SecondOrder; printout::Bool=true)
     cache     = InteractionStrength.XLCache()
     potential = Nuclear.nuclearPotential(nm, grid)
 
@@ -203,7 +205,13 @@ function secondOrderBlock(sym::LevelSymmetry, basis::Basis, refConfigs::Array{Co
     allIdx            = [ k for k = 1:length(basis.csfs)
                               if basis.csfs[k].J == sym.J  &&  basis.csfs[k].parity == sym.parity ]
     (groups, confOf)  = Hamiltonian.groupCsfsByConfiguration(basis, allIdx)
-    refKeys           = [ Hamiltonian.configurationKey(conf)  for conf in refConfigs ]
+    # P IS THE PREVIOUS STEP'S SPACE, NOT THE REFERENCE.  A perturbative step sits at the end of a chain of
+    # variational ones, and everything those built belongs in P -- the correlation they describe was decided by
+    # physics and must not be re-decided by a threshold.  Taking P from the reference alone put the whole valence
+    # correlation into Q, where the ranking promoted most of it back: the same answer for the wrong reason, and
+    # dependent on the threshold rather than on the model.
+    (pGroups, _)      = Hamiltonian.groupCsfsByConfiguration(pBasis, collect(1:length(pBasis.csfs)))
+    refKeys           = collect(keys(pGroups))
     pIndices = Int64[];    qGroups = Dict{String,Array{Int64,1}}()
     for  (key, idx)  in  groups
         if  key in refKeys   append!(pIndices, idx)   else   qGroups[key] = idx   end
@@ -214,7 +222,7 @@ function secondOrderBlock(sym::LevelSymmetry, basis::Basis, refConfigs::Array{Co
               "configurations, so there is no P space to perturb about.")
     end
     if  printout
-        println("\n>> [second order, $(string(sym))] P = $(length(pIndices)) CSF of $(length(refKeys)) reference configuration(s);  " *
+        println("\n>> [second order, $(string(sym))] P = $(length(pIndices)) CSF of $(length(refKeys)) configuration(s) inherited from the previous step;  " *
                 "Q = $(sum(length(v) for v in values(qGroups); init=0)) CSF in $(length(qGroups)) configurations.")
     end
 
@@ -225,8 +233,35 @@ function secondOrderBlock(sym::LevelSymmetry, basis::Basis, refConfigs::Array{Co
     fP  = Hamiltonian.diagonalizeCiMatrix(hPP, LevelSelection())
     ePl = fP.values;    cPl = hcat(fP.vectors...)
 
+    # -- WHICH LEVELS DOES THE WEIGHT ANSWER FOR?  P now carries the whole previous variational space, so most of
+    #    its levels are correlation states nobody asked for -- and taking the maximum over ALL of them lets an
+    #    obscure level force a promotion the wanted levels do not need. Measured on Cl III: the maximum came from
+    #    P level 5 at 3.6e-06 against level 1's 9.0e-07, and 9 of 11 configurations were promoted, leaving 875 CSF
+    #    of 908 and no saving at all. The targets are therefore chosen by WEIGHT ON THE REFERENCE, the same rule
+    #    and the same 0.5 as SelfConsistent.selectTargetLevelsEOL -- selection by index is unstable for exactly
+    #    the reason given there, that a correlation level sinking below the reference silently redirects it.
+    refKeysTarget = [ Hamiltonian.configurationKey(conf)  for conf in refConfigs ]
+    refRows       = [ k  for (k, p) in enumerate(pIndices)
+                          if Hamiltonian.configurationKey(
+                                 Basics.extractConfiguration(Basics.FromBasis(), basis, basis.csfs[p])) in refKeysTarget ]
+    targetLevels  = Int64[]
+    for  i = 1:length(ePl)
+        w = isempty(refRows) ? 1.0 : sum( cPl[k,i]^2  for k in refRows )
+        if  w >= 0.5    push!(targetLevels, i)    end
+    end
+    if  isempty(targetLevels)
+        @warn("Hamiltonian.secondOrderBlock(): no level of P carries a weight of 0.5 on the reference " *
+              "configurations, so every level is treated as a target and the selection is CONSERVATIVE " *
+              "(it will promote more than it needs).")
+        targetLevels = collect(1:length(ePl))
+    end
+    if  printout
+        println(">>   $(length(targetLevels)) of $(length(ePl)) levels in P carry the reference and set the weights.")
+    end
+
     # -- rank every Q configuration, one at a time
-    (weights, deltaE, c2) = Hamiltonian.rankQspace(basis, pIndices, qGroups, ePl, cPl, nm, grid, settings, cache)
+    (weights, deltaE, c2) = Hamiltonian.rankQspace(basis, pIndices, qGroups, ePl, cPl, nm, grid, settings, cache,
+                                                   targetLevels)
 
     # -- route each configuration by its own weight
     promoted = Configuration[];    folded = Configuration[];    discarded = Configuration[]
@@ -265,10 +300,12 @@ function secondOrderBlock(sym::LevelSymmetry, basis::Basis, refConfigs::Array{Co
     fN  = Hamiltonian.diagonalizeCiMatrix(hNN, LevelSelection())
 
     # -- the gate: is the folded part really a weak perturbation?
-    nLev        = length(ePl)
+    nLev        = length(targetLevels)
     sumC2Folded = zeros(nLev);    dETotal = zeros(nLev)
     for  key in foldedKeys
-        for i = 1:nLev   sumC2Folded[i] += c2[key][i];   dETotal[i] += deltaE[key][i]   end
+        for (j, i) in enumerate(targetLevels)
+            sumC2Folded[j] += c2[key][i];   dETotal[j] += deltaE[key][i]
+        end
     end
     isJustified = all(sumC2Folded .<= treatment.promoteAbove)
 
@@ -292,20 +329,31 @@ end
 
 
 """
-`Hamiltonian.performCIwithSecondOrderQ(basis::Basis, refConfigs::Array{Configuration,1}, nm::Nuclear.Model,
-                                       grid::Radial.Grid, settings::AsfSettings, treatment::Basics.SecondOrder;
-                                       printout::Bool=true)`
+`Hamiltonian.performCIwithSecondOrderQ(basis::Basis, pBasis::Basis, refConfigs::Array{Configuration,1},
+                                       nm::Nuclear.Model, grid::Radial.Grid, settings::AsfSettings,
+                                       treatment::Basics.SecondOrder; printout::Bool=true)`
     ... performs the CI of the given basis, symmetry block by symmetry block, with the Q space of each treated by
         the thresholds of the treatment; see `Hamiltonian.secondOrderBlock` for what happens inside one block. The
         levels of every block are merged and sorted by energy, exactly as `Hamiltonian.performCI` does, so that the
         multiplet returned here is indistinguishable from one that routine would give.
 
+        P IS `pBasis`, THE SPACE THE PREVIOUS STEP BUILT, and Q is what this basis adds beyond it. A perturbative
+        step is therefore always a LEAF: it reports what the excluded excitations are still worth and is never
+        inherited by a later variational step, so a promotion is internal to it -- some Q configurations simply
+        treated better -- and needs no carrying forward.
+
+        AND Q IS FINITE. It is the set of CSFs the CURRENT ORBITAL SET can build but the previous step excluded,
+        not the complete second-order sum over an infinite virtual space. A correction from here says what this
+        orbital set is still missing through the excitations left out; it does not say what a larger orbital set
+        would add. That is why a new layer ENLARGES Q rather than shrinking it, and why the sequence of these
+        corrections across layers is a convergence measure for the variational space.
+
         A tuple `(multiplet::Multiplet, partitions::Array{Hamiltonian.QPartition,1})` is returned, one partition
         per symmetry block, in the order the blocks were computed.
 """
-function performCIwithSecondOrderQ(basis::Basis, refConfigs::Array{Configuration,1}, nm::Nuclear.Model,
-                                    grid::Radial.Grid, settings::AsfSettings, treatment::Basics.SecondOrder;
-                                    printout::Bool=true)
+function performCIwithSecondOrderQ(basis::Basis, pBasis::Basis, refConfigs::Array{Configuration,1},
+                                    nm::Nuclear.Model, grid::Radial.Grid, settings::AsfSettings,
+                                    treatment::Basics.SecondOrder; printout::Bool=true)
     symList = LevelSymmetry[]
     for  csf in basis.csfs
         sym = LevelSymmetry(csf.J, csf.parity)
@@ -314,8 +362,8 @@ function performCIwithSecondOrderQ(basis::Basis, refConfigs::Array{Configuration
 
     blockMp = Multiplet[];    partitions = Hamiltonian.QPartition[]
     for  sym in symList
-        (levels, part) = Hamiltonian.secondOrderBlock(sym, basis, refConfigs, nm, grid, settings, treatment;
-                                                      printout=printout)
+        (levels, part) = Hamiltonian.secondOrderBlock(sym, basis, pBasis, refConfigs, nm, grid, settings,
+                                                      treatment; printout=printout)
         push!(blockMp, Multiplet(string(sym) * "+", levels));    push!(partitions, part)
     end
     mp = Basics.sortByEnergy( Basics.merge(blockMp) )
