@@ -69,10 +69,20 @@ if  true
     wb = generate(wa, output=true)
     #
 elseif  false
-    # Last visit:  01-Sep-2026
-    # Last successful:  01-Sep-2026 -- -14.57132545 / -14.61403155 / -14.61474032 Ha in 8.4 s, w_ref
-    #                   0.90208 at step 3, 3l orbitals at 6.90-8.43 a.u.  THE OPEN ISSUE BELOW IS CLOSED:
-    #                   what took more than 40 minutes without converging now takes eight seconds.
+    # Last visit:  11-Sep-2026
+    # Last successful:  11-Sep-2026 -- -14.571325453 / -14.614031602 / -14.616162172 Ha, w_ref 0.90461 at
+    #                   step 3, 3l orbitals at 3.86-8.38 a.u.  THE OPEN ISSUE BELOW IS CLOSED: what took more
+    #                   than 40 minutes without converging now takes seconds.
+    #                   STEP 3 IS 1.42 mHa LOWER THAN THE 01-Sep VALUE of -14.61474032, and lower is right --
+    #                   it is a variational minimum and the layer sequence stays monotone.  Steps 1 and 2
+    #                   reproduce the 01-Sep numbers to 3e-09 and 5e-08, i.e. exactly; only the third layer
+    #                   moved.  The cause is the September EOL repairs, not this branch: the preconditioner
+    #                   now diagonalizes h1 inside the span it builds (51bf015), the two exits test step
+    #                   health and the energy's own resolution (d0d66fc), and an orbital's sign no longer
+    #                   flips mid-line-search (559c3ea).  Re-dated after a CONTROL: the same run against the
+    #                   tree without that day's uncommitted work is bit-identical, so the change is the
+    #                   solver and not the caller.  Wall time is not recorded here -- the machine was
+    #                   contended and a contended wall time is not evidence.
     #                   (Step 3 was -14.61475586 earlier the same day, before item 32 was fixed: this is the
     #                   THREE-layer case, so kappa = -1 first holds 1s, 2s AND 3s here, the positive-branch
     #                   projection's 1e-9 orthonormality gate is crossed, and its Loewdin step used to rotate
