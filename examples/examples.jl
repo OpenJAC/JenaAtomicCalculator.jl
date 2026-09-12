@@ -37,6 +37,7 @@ if      char == 'A'
     println("Ao) Apply & test the average-level (AL) and optimized-level (EOL) self-consistent fields, and where they differ.")
     println("Ap) Apply & test the three-parameter Fermi nucleus: the shape of the nuclear charge distribution.")
     println("Aq) Compare the spin-angular coefficients of SpinAngular against SpinAngular and against GRASP2018.")
+    println("Ar) Apply & test the second-order treatment of the Q space of a RAS step.")
     #
 elseif  char == 'B'
     println("B)  Examples, tests & development of atomic amplitudes")

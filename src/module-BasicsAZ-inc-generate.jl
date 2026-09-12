@@ -802,8 +802,10 @@ function Basics.generateBasis(refConfigs::Array{Configuration,1}, symmetries::Ar
             confTriples = Basics.generateConfigurations(confTriples,     step.teFrom, step.teTo)
             confTriples = Basics.generateConfigurations(confTriples,     step.teFrom, step.teTo)
     end
-    # Quadruple excitations
-    if      step.teFrom == Shell[]  ||  step.teTo == Shell[]    confQuadruples = Configuration[]
+    # Quadruple excitations.  The guard tests qeFrom/qeTo and NOT teFrom/teTo -- it tested the triples' fields
+    # until 11-Sep-2026, so a step asking for quadruples ALONE silently produced none, while a step asking for
+    # triples ran this branch with empty shell lists.  Invisible because nothing in the repository sets qeFrom.
+    if      step.qeFrom == Shell[]  ||  step.qeTo == Shell[]    confQuadruples = Configuration[]
     else    confQuadruples = Basics.generateConfigurations(refConfigs, step.qeFrom, step.qeTo)
             confQuadruples = Basics.generateConfigurations(confQuadruples,  step.qeFrom, step.qeTo)
             confQuadruples = Basics.generateConfigurations(confQuadruples,  step.qeFrom, step.qeTo)

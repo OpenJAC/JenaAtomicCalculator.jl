@@ -15,14 +15,20 @@
     + weights        ::Array{Tuple{Configuration,Float64},1}  ... |c|^2 of every configuration of the Q space, the
                                                            MAXIMUM over the target levels (a configuration that matters
                                                            to any one level must enter the basis they all share),
-                                                           sorted descending. A LIST and not a Dict on purpose:
-                                                           Configuration satisfies == and isequal but does NOT hash
-                                                           consistently, so it cannot be used as a dictionary key.
+                                                           sorted descending. A LIST and not a Dict because the order
+                                                           is the point: a caller reads this to see WHICH configurations
+                                                           carry the weight, and a Dict would throw that away.
     + deltaE         ::Array{Float64,1}                ... second-order contribution of the folded part, per level.
     + sumC2Folded    ::Array{Float64,1}                ... Sum |c|^2 over the folded part, per level. THE GATE.
     + isJustified    ::Bool                            ... whether that sum stayed below `promoteAbove` for every
                                                            level, i.e. whether the folded remainder really is a weak
                                                            perturbation. False means the energies are not to be used.
+    + unsound        ::Array{Tuple{Configuration,Float64},1}  ... configurations carrying an INTRUDER level: one that
+                                                           came out of the enlarged CI below the reference level while
+                                                           holding almost none of the reference, with that eigenvalue.
+                                                           Empty is the normal case. A non-empty list means the CI has
+                                                           been handed a state that displaces the reference rather than
+                                                           corrects it -- see the guard in `Hamiltonian.secondOrderBlock`.
 """
 struct  QPartition
     promoted            ::Array{Configuration,1}
@@ -32,13 +38,15 @@ struct  QPartition
     deltaE              ::Array{Float64,1}
     sumC2Folded         ::Array{Float64,1}
     isJustified         ::Bool
+    unsound             ::Array{Tuple{Configuration,Float64},1}
 end
 
 
 # `Base.show(io::IO, part::Hamiltonian.QPartition)`  ... prepares a proper printout of part::Hamiltonian.QPartition.
 function Base.show(io::IO, part::Hamiltonian.QPartition)
     println(io, "QPartition:  $(length(part.promoted)) promoted, $(length(part.folded)) folded in, " *
-                "$(length(part.discarded)) discarded;  justified = $(part.isJustified)")
+                "$(length(part.discarded)) discarded;  justified = $(part.isJustified)" *
+                (isempty(part.unsound) ? "" : ";  $(length(part.unsound)) UNSOUND promotions"))
 end
 
 
@@ -91,9 +99,12 @@ end
         together, so a threshold can never keep `3p_^2 3p` while dropping `3p_ 3p^2` and leave the expansion
         unbalanced in the spin-orbit splitting.
 
-        THE GROUPING IS BY A CANONICAL STRING AND NOT BY THE Configuration ITSELF, because Configuration satisfies
-        `==` and `isequal` while `hash` disagrees -- two configurations that compare equal land in different
-        buckets, so a Dict keyed by one silently makes every CSF its own group. A tuple
+        THE GROUPING IS BY A CANONICAL STRING AND NOT BY THE Configuration ITSELF. The original reason was a defect:
+        `Configuration` satisfied `==` while `hash` fell back to object identity, so a `Dict` keyed by one put 426
+        CSFs into 425 groups -- one per CSF -- with no error anywhere. THAT DEFECT IS FIXED (12-Sep-2026; see
+        `Base.hash(conf::Basics.Configuration, h::UInt)` in `module-Basics-inc-first.jl`) and a Dict keyed by a
+        Configuration is now sound. The String key is kept because it is also SORTABLE and READABLE, which is what
+        the reports below need, not because it must be. A tuple
         `(groups, confOf)::Tuple{Dict{String,Array{Int64,1}}, Dict{String,Configuration}}` is returned, the second
         map holding one representative Configuration per key for reporting.
 """
@@ -113,9 +124,9 @@ end
 
 """
 `Hamiltonian.configurationKey(conf::Configuration)`
-    ... builds a canonical String for the given (non-relativistic) configuration, so that configurations which
-        compare equal are grouped together despite `Configuration` not hashing consistently. A key::String is
-        returned.
+    ... builds a canonical String for the given (non-relativistic) configuration -- the occupied shells in a fixed
+        order -- so that configurations which compare equal give the same key, and so that the key can be sorted and
+        printed. A key::String is returned.
 """
 function configurationKey(conf::Configuration)
     return( join(sort([ string(sh) * "^" * string(w)  for (sh,w) in conf.shells  if w > 0 ]), " ") )
@@ -299,6 +310,38 @@ function secondOrderBlock(sym::LevelSymmetry, basis::Basis, pBasis::Basis, refCo
     end
     fN  = Hamiltonian.diagonalizeCiMatrix(hNN, LevelSelection())
 
+    # -- THE PROMOTION GUARD, AND IT MUST LOOK AT THE RESULT AND NOT AT THE INPUT.  `Sum |c|^2` polices the
+    #    FOLDED remainder and is blind to the promoted part, which is where a bad configuration does the real
+    #    damage: folding one costs a small error, PROMOTING one puts it into the variational CI.
+    #      A FIRST VERSION TESTED THE DIAGONAL ELEMENTS of the promoted configurations and did NOT fire, because
+    #    a variational minimum can lie far below every diagonal -- the spurious level is made by OFF-DIAGONAL
+    #    mixing.  The honest test is therefore on the eigenvalues: an excitation OUT OF THE CORE must COST
+    #    energy, so a level that carries almost none of the reference and yet lies BELOW the reference level is
+    #    not a correction to it but an intruder.
+    #      Found on Fe XV 3s^2 (12-Sep-2026): a 2p-hole configuration landed 10 Ha below the 3s^2 reference,
+    #    which cannot be -- the hole must cost some 28 Ha.  The cause is that a variational layer's correlation
+    #    orbitals are CONTRACTED pseudo-orbitals (its "4s" came out at <r> = 0.698 a.u., on top of the 3s
+    #    valence) and this step reuses them to build core-hole CSFs, where they are unphysical.
+    refRowsN = [ k  for (k, idx) in enumerate(newIdx)
+                     if Hamiltonian.configurationKey(
+                            Basics.extractConfiguration(Basics.FromBasis(), basis, basis.csfs[idx])) in refKeysTarget ]
+    unsound  = Tuple{Configuration,Float64}[]
+    if  !isempty(refRowsN)
+        wRef  = [ sum(fN.vectors[i][k]^2  for k in refRowsN; init=0.0)  for i = 1:length(fN.values) ]
+        iRef  = argmax(wRef)
+        for  i = 1:length(fN.values)
+            if  fN.values[i] < fN.values[iRef]  &&  wRef[i] < 0.1
+                # name the configuration this intruder is built on: the one carrying most of its weight
+                best = nothing;  bw = -1.0
+                for  (key, idx)  in  qGroups
+                    w = sum( fN.vectors[i][k]^2  for (k, ix) in enumerate(newIdx) if ix in idx; init=0.0 )
+                    if  w > bw    bw = w;   best = confOf[key]   end
+                end
+                isnothing(best)  ||  push!(unsound, (best, fN.values[i]))
+            end
+        end
+    end
+
     # -- the gate: is the folded part really a weak perturbation?
     nLev        = length(targetLevels)
     sumC2Folded = zeros(nLev);    dETotal = zeros(nLev)
@@ -320,7 +363,7 @@ function secondOrderBlock(sym::LevelSymmetry, basis::Basis, pBasis::Basis, refCo
                              basis, vector) )
     end
     weightList = sort( [ (confOf[key], w)  for (key, w) in weights ], by = x -> -x[2] )
-    partition  = QPartition(promoted, folded, discarded, weightList, dETotal, sumC2Folded, isJustified)
+    partition  = QPartition(promoted, folded, discarded, weightList, dETotal, sumC2Folded, isJustified, unsound)
 
     if  printout    Hamiltonian.displayQPartition(stdout, partition, treatment, length(newIdx))    end
 
@@ -389,6 +432,17 @@ function displayQPartition(stream::IO, partition::Hamiltonian.QPartition, treatm
                                  i, partition.sumC2Folded[i], partition.deltaE[i]))
     end
 
+    if  !isempty(partition.unsound)
+        println(stream, ">>   *** WARNING: $(length(partition.unsound)) level(s) of the CI lie BELOW the reference " *
+                        "level while carrying almost none of the reference.  An excitation out of the core must")
+        println(stream, ">>   COST energy, so these are INTRUDERS rather than corrections, and any level ordering " *
+                        "taken from this step is unsafe.  This is not a threshold question: a variational")
+        println(stream, ">>   layer's correlation orbitals are CONTRACTED pseudo-orbitals, and reusing them to " *
+                        "build core-hole configurations is what produces it.  See priority item 21.")
+        for  (conf, e)  in  sort(partition.unsound, by = x -> x[2])[1:min(5,end)]
+            println(stream, @sprintf(">>     intruder at %.6f Ha, mostly   ", e) * string(conf))
+        end
+    end
     if  partition.isJustified
         println(stream, ">>   the folded remainder is a WEAK perturbation; second order is justified here.")
     else

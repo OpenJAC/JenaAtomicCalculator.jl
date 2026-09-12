@@ -1,5 +1,10 @@
 #
 println("Ai) Apply & test for restricted-active-space (RAS) expansions.")
+#
+# A RAS step may also treat part of its Q space to SECOND ORDER instead of putting every CSF into the CI --
+# rank the configurations, promote the strongly coupled ones, fold the weakly coupled remainder.  That is a
+# field on RasStep (`treatment = Basics.SecondOrder(promoteAbove, discardBelow)`) and it has its own file:
+# see example-Ar.jl.  Nothing in THIS file uses it; every branch here is variational.
 
 if  true
     # Last visit:  01-Sep-2026
