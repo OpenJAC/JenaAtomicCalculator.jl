@@ -1,26 +1,32 @@
 #
-# probe-eolOrbitalEnergy.jl   --   groundwork for priority item 11.
+# probe-eolOrbitalEnergy.jl   --   the regression test for priority item 11.
 #
-# Every orbital of an EOL or RAS basis carries `energy = 0.0` exactly, because a rotation-optimized orbital is
-# not the eigenfunction of any one-particle operator.  Item 11 asks for a DEFINED energy, names the diagonal
-# Lagrange multiplier eps_a = <a|F|a> as the candidate, and warns that the one-particle expectation <a|h_D|a>
-# is NOT the orbital energy and is the plausible-looking wrong answer.
+# Until 12-Sep-2026 every orbital of an EOL or RAS basis carried `energy = 0.0` exactly.  Item 11 asked for a
+# DEFINED energy, named the diagonal Lagrange multiplier eps_a = <a|F_a|a> as the candidate, and warned that the
+# one-particle expectation <a|h_D|a> is NOT the orbital energy and is the plausible-looking wrong answer.
+# BOTH EOL SOLVERS NOW SET eps_a (SelfConsistent.computeOrbitalEnergiesEOL), so this file's job has changed from
+# deciding the question to GUARDING the answer.
 #
 # THIS PROBE DECIDES BETWEEN THEM WITHOUT TOUCHING THE SOLVER.  It builds both quantities from the orbitals
 # alone and compares them with the AL orbital energies of the same closed-shell system -- the check item 11
 # itself proposes: "the AL and EOL orbital energies of a closed-shell case should agree to the size of the
 # correlation they differ by, not by hundreds of Hartree".
 #
-# WHAT IT MEASURES, AND WHAT IT DOES NOT.  Three columns are printed: the AL orbital energy (the reference any
-# definition has to reproduce to within a correlation-sized amount), the 0.0 the EOL solver stores today, and
+# THE TEST IS THE MIDDLE COLUMN AGAINST THE FIRST.  These are CLOSED-SHELL, single-configuration cases, where
+# the EOL and AL functionals are the same functional, so the two columns must agree to the accuracy the two
+# optimizers converge to -- NOT to hundreds of Hartree, and NOT to a factor of two.  Measured 12-Sep-2026:
 #
-#   <a|h_D|a>            the one-particle (Dirac + nucleus) expectation alone.
+#   Be-like  1s  -4.73386 (AL)  -4.73350 (EOL)        Ne-like  1s  -32.81822  -32.81740
+#            2s  -0.30933       -0.30932                       2s   -1.93607   -1.93580
+#                                                              2p_  -0.85304   -0.85277
 #
-# THE FOCK EXPECTATION <a|F|a> IS NOT COMPUTED HERE.  Building it needs the tensor caches that the rotation
-# solver does not construct, which is the implementation work item 11 is actually about; this probe exists to
-# settle the CHEAPER question first -- whether the one-particle expectation could serve instead -- because that
-# route needs nothing new and would be the tempting shortcut.  It cannot serve: see the numbers it prints.
-# So this probe EXCLUDES an alternative; it does not yet CONFIRM <a|F|a>.
+# The third column is the alternative that was EXCLUDED by this probe before the work was done:
+#
+#   <a|h_D|a>            the one-particle (Dirac + nucleus) expectation alone,
+#
+# which omits the electron-electron interaction and so runs 1.7x to 12x too DEEP while looking perfectly
+# well-behaved.  It is kept in the output as the contrast: if a future change ever moves the middle column
+# towards the third, that is the failure this file exists to catch.
 #
 using JenaAtomicCalculator, Printf
 const B = JenaAtomicCalculator.Basics
@@ -53,14 +59,15 @@ for (tag, Z, cstr) in [("Be-like  1s^2 2s^2", 4.0, "1s^2 2s^2"),
     bAL   = alReference(confs, nm, grid)
     bEOL  = eolBasis(confs, nm, grid)
     println("\n", "="^96);   println(tag, "   (Z = ", Z, ")");   println("="^96)
-    @printf("%-10s %16s %16s %16s\n", "subshell", "AL energy", "EOL stored", "<a|h_D|a>")
+    @printf("%-10s %16s %16s %16s %10s\n", "subshell", "AL energy", "EOL eps_a", "<a|h_D|a>", "AL-EOL")
     for sh in bAL.subshells
         eAL = bAL.orbitals[sh].energy
         eST = haskey(bEOL.orbitals, sh) ? bEOL.orbitals[sh].energy : NaN
         h1  = haskey(bEOL.orbitals, sh) ? oneParticle(bEOL.orbitals[sh], grid, nucPot) : NaN
-        @printf("  %-8s %16.5f %16.5f %16.5f\n", string(sh), eAL, eST, h1)
+        @printf("  %-8s %16.5f %16.5f %16.5f %10.2e\n", string(sh), eAL, eST, h1, abs(eAL - eST))
     end
-    println("\n  READ THE THIRD COLUMN AGAINST THE FIRST: <a|h_D|a> omits ALL electron-electron interaction, so it")
-    println("  must come out FAR BELOW the true orbital energy -- that is exactly why item 11 warns against it.")
-    println("  The second column is the 0.0 the solver stores today.")
+    println("\n  THE TEST IS COLUMN 2 AGAINST COLUMN 1: one closed-shell configuration makes the EOL and AL functionals")
+    println("  the same functional, so eps_a must reproduce the AL energy to optimizer accuracy.  Column 3 is the")
+    println("  one-particle expectation <a|h_D|a>, which omits ALL electron-electron interaction and therefore lands")
+    println("  far too DEEP;  it is shown as the contrast, since drifting towards it is the failure to catch.")
 end

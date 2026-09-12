@@ -702,11 +702,14 @@ function checkFrequencyIsMeaningful(factor::Float64, a::Orbital, b::Orbital, c::
         error("A frequency-dependent Breit interaction was requested (factor = $factor), but all four orbitals " *
               "($(a.subshell), $(b.subshell), $(c.subshell), $(d.subshell)) carry energy 0.0 exactly, so omega = " *
               "factor |E_a - E_c| / c is zero for every pair and the retardation would be silently absent.\n" *
-              "   This is what an EOL or RAS basis looks like: both EOL solvers build their orbitals with " *
-              "generateOrbitalFromVector(sh, 0.0, ...), because a rotation-optimised orbital has no one-particle " *
-              "eigenvalue.\n" *
+              "   Until 12-Sep-2026 this was what EVERY EOL or RAS basis looked like, and the remedy was to change " *
+              "the request.  Both EOL solvers now set the diagonal Lagrange multiplier eps_a = <a|F_a|a> instead " *
+              "(SelfConsistent.computeOrbitalEnergiesEOL), so a converged EOL basis no longer reaches this error.\n" *
+              "   Four exact zeros therefore mean something more specific now: orbitals that carry NO generalized " *
+              "occupation in the target level(s), for which the EOL functional defines no mean field and hence no " *
+              "multiplier, or a basis whose orbitals were never given energies at all.\n" *
               "   Use CoulombBreit(0.) -- the EXACT omega -> 0 limit, and what every published JAC RAS number has " *
-              "used -- or run on a mean-field (AL/DFS) basis, whose orbitals carry their eigenvalues.")
+              "used -- or run on a basis whose orbitals carry their energies.")
     end
     return( nothing )
 end

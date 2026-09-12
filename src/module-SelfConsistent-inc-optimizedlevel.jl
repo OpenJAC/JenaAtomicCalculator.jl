@@ -255,6 +255,62 @@ end
 
 
 """
+`SelfConsistent.computeOrbitalEnergiesEOL(subshells::Array{Subshell,1}, bVectors::Dict{Subshell, Vector{Float64}},
+                                          coeffs2p::Array{Coefficient2p,1}, genOcc::Dict{Subshell,Float64},
+                                          primitives::Bsplines.Primitives, grid::Radial.Grid, nucPot::Radial.Potential,
+                                          storage::Dict{String,Array{Float64,2}}, matrixB::Array{Float64,2};
+                                          coeffs2pUnscaled::Array{Coefficient2p,1}=Coefficient2p[])`
+    ... gives every subshell of a converged EOL orbital set a DEFINED energy, the diagonal Lagrange multiplier
+
+            eps_a  =  <a|F_a|a>  =  b_a^T F_a b_a / b_a^T B b_a ,
+
+        with F_a the same orbital-specific Fock operator `SelfConsistent.computeFockMatrix` builds to refine that
+        subshell. This is the exact analogue of what the AL field already stores: there the orbital IS an eigenvector
+        of F_a, so its stored energy `wc.values[ni]` and this Rayleigh quotient are the same number. A
+        rotation-optimized orbital is NOT such an eigenvector, and the quotient is then the honest generalisation --
+        the multiplier that the orthonormality constraint carries -- rather than an eigenvalue it does not have.
+
+        WHAT THIS IS NOT: the one-particle expectation <a|h_D|a>. That omits the electron-electron interaction
+        entirely and comes out 1.7x to 12x too DEEP (measured 12-Sep-2026, `tools/probe-eolOrbitalEnergy.jl`, Be-like
+        and Ne-like: 2s of Ne-like at -11.13 against the AL -1.94), while looking perfectly well-behaved. It is the
+        plausible wrong answer and must not be substituted here.
+
+        A subshell carrying ZERO generalized occupation keeps 0.0, and that is correct rather than a fallback: the
+        EOL functional does not depend on such an orbital at all, so no mean field and no multiplier is defined for
+        it. A `Dict{Subshell, Float64}` is returned.
+"""
+function computeOrbitalEnergiesEOL(subshells::Array{Subshell,1}, bVectors::Dict{Subshell, Vector{Float64}},
+                                    coeffs2p::Array{Coefficient2p,1}, genOcc::Dict{Subshell,Float64},
+                                    primitives::Bsplines.Primitives, grid::Radial.Grid, nucPot::Radial.Potential,
+                                    storage::Dict{String,Array{Float64,2}}, matrixB::Array{Float64,2};
+                                    coeffs2pUnscaled::Array{Coefficient2p,1}=Coefficient2p[])
+    energies    = Dict{Subshell, Float64}()
+    neededRanks = unique( [ cf.nu  for cf in vcat(coeffs2p, coeffs2pUnscaled) ] )
+    tensorCaches = Dict{Int64, NTuple{3,RadialIntegrals.ScreenedPotentialCache}}()
+    for  L  in  neededRanks
+        cacheLL = RadialIntegrals.buildScreenedPotentialCache(L, primitives.bsplinesL, primitives.bsplinesL, grid; rtol=1.0e-6)
+        cacheLS = RadialIntegrals.buildScreenedPotentialCache(L, primitives.bsplinesL, primitives.bsplinesS, grid; rtol=1.0e-6)
+        cacheSS = RadialIntegrals.buildScreenedPotentialCache(L, primitives.bsplinesS, primitives.bsplinesS, grid; rtol=1.0e-6)
+        tensorCaches[L] = (cacheLL, cacheLS, cacheSS)
+    end
+    directKernels   = Dict{Tuple{Int64,Subshell,Subshell},Array{Float64,2}}()
+    exchangeKernels = Dict{Tuple{Int64,Subshell},Array{Float64,2}}()
+
+    for  sh  in  subshells
+        occ = get(genOcc, sh, 0.0)
+        if  abs(occ) < 1.0e-12    energies[sh] = 0.0;    continue    end
+        matrix = SelfConsistent.computeFockMatrix(sh, coeffs2p, bVectors, primitives, nucPot, storage, occ,
+                                                  tensorCaches; coeffs2pUnscaled=coeffs2pUnscaled,
+                                                  directKernels=directKernels, exchangeKernels=exchangeKernels)
+        b            = bVectors[sh]
+        energies[sh] = (transpose(b) * matrix * b) / (transpose(b) * matrixB * b)
+    end
+
+    return( energies )
+end
+
+
+"""
 `SelfConsistent.combineAngularCoefficientsEOL(blockCaches, targetLevels::Array{Level,1})`
     ... generalizes SelfConsistent.computeAngularCoefficients (AL's single-CSF-average analog: loop CSFs,
         weight 1/ncsf) to CSF PAIRS, weighted by the EOL generalized weight
@@ -1740,17 +1796,55 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
     #   THE SCF LOOP ITSELF STAYS PURE COULOMB, deliberately: that is the variational functional the rotation
     # minimizes, and adding Breit inside the iteration would change what is being optimized rather than what
     # is being reported.  The correction belongs at the end, which is also where AL and DFS apply it.
-    finalOrbitals = Dict{Subshell, Orbital}()
-        # THE ENERGY FIELD IS 0.0 DELIBERATELY, AND IT COSTS SOMETHING -- read this before "fixing" it.
-        # A rotation-optimised orbital is not the eigenfunction of any one-particle operator, so it has no
-        # eigenvalue to carry; 0.0 is the honest placeholder, not an oversight.  The price is that omega =
-        # factor |E_a - E_c| / c comes out ZERO for every pair of such orbitals, so a frequency-dependent
-        # CoulombBreit(factor > 0) would silently return its own omega -> 0 limit on any EOL or RAS basis.
-        # Since 04-Sep-2026 InteractionStrength.checkFrequencyIsMeaningful REFUSES that combination instead
-        # of answering it, so the gap is loud rather than silent.  Giving these orbitals a defined energy --
-        # the diagonal Lagrange multiplier is the candidate -- is a physics question and is on the list.
+    # EVERY ORBITAL IS GIVEN ITS DIAGONAL LAGRANGE MULTIPLIER eps_a = <a|F_a|a>, 12-Sep-2026.  Until then the
+    # energy field was 0.0 here, which was HONEST rather than an oversight -- a rotation-optimised orbital is
+    # not the eigenfunction of any one-particle operator, so it has no eigenvalue to carry -- but it cost
+    # something real: omega = factor |E_a - E_c| / c came out ZERO for every pair of such orbitals, so a
+    # frequency-dependent CoulombBreit(factor > 0) silently returned its own omega -> 0 limit on any EOL or
+    # RAS basis, and anything else reading an orbital energy was equally stuck.
+    #   THE MULTIPLIER IS THE GENERALISATION THE ORBITAL DOES HAVE.  Where the orbital IS an eigenvector of
+    # F_a -- which is exactly the AL case -- the Rayleigh quotient and the stored eigenvalue are the same
+    # number, so this defines the same quantity AL already reports rather than a second convention.
+    #   The one-particle expectation <a|h_D|a> is NOT this quantity and must not be substituted: it omits the
+    # electron-electron interaction and comes out 1.7x to 12x too deep while looking well-behaved (measured,
+    # tools/probe-eolOrbitalEnergy.jl).
+    #   The cost is one Fock build per subshell, once, after convergence.
+    #   THE TARGET LEVELS ARE RE-SELECTED ON THE FINAL ORBITALS, not carried out of the loop: the multiplier is a
+    # property of the converged orbital set, and the loop's last iterate was built on the previous one.
+    finalTmpOrbs = Dict{Subshell, Orbital}()
     for  sh  in  basis.subshells
-        finalOrbitals[sh] = Bsplines.generateOrbitalFromVector(sh, 0.0, bVectors[sh], primitives)
+        finalTmpOrbs[sh] = Bsplines.generateOrbitalFromVector(sh, 0.0, bVectors[sh], primitives; canonicalize=false)
+    end
+    finalTmpBasis = Basis(true, basis.NoElectrons, basis.subshells, basis.csfs, basis.coreSubshells, finalTmpOrbs)
+    finalLevels   = Level[]
+    let  radial1pF = Dict{Tuple{Subshell,Subshell},Float64}(),
+         radial2pF = Dict{Tuple{Int64,Subshell,Subshell,Subshell,Subshell},Float64}()
+        for  sym  in  relevantSyms
+            (idxCsf, cache1p, cache2p) = blockCaches[sym]
+            mtx = SelfConsistent.buildCIMatrixEOL(idxCsf, cache1p, cache2p, finalTmpOrbs, grid, nucPot,
+                                                  radial1pF, radial2pF)
+            append!( finalLevels, SelfConsistent.diagonalizeBlockEOL(sym, idxCsf, mtx, finalTmpBasis) )
+        end
+    end
+    finalTargetLevels = SelfConsistent.selectTargetLevelsEOL(Basics.sortByEnergy(Multiplet("EOL-ByRotation",
+                                                             finalLevels)), settings.levelSelectionCI)
+    # The off-diagonal CSF-pair terms follow the SAME convention the sibling solver refines with, so that the
+    # two report the same quantity; see the note at `unscaledOff` there.
+    unscaledOffF = SelfConsistent.GBL_EOL_UNSCALED_OFFDIAGONAL
+    if  unscaledOffF
+        (_, coeffs2pF)    = SelfConsistent.combineAngularCoefficientsEOL(blockCaches, finalTargetLevels; pairs=:diagonal)
+        (_, coeffs2pFOff) = SelfConsistent.combineAngularCoefficientsEOL(blockCaches, finalTargetLevels; pairs=:offdiagonal)
+    else
+        (_, coeffs2pF)    = SelfConsistent.combineAngularCoefficientsEOL(blockCaches, finalTargetLevels)
+        coeffs2pFOff      = Coefficient2p[]
+    end
+    genOccF     = SelfConsistent.computeGeneralizedOccupationEOL(blockCaches, finalTargetLevels, basis)
+    orbEnergies = SelfConsistent.computeOrbitalEnergiesEOL(basis.subshells, bVectors, coeffs2pF, genOccF,
+                                                           primitives, grid, nucPot, storage, matrixB;
+                                                           coeffs2pUnscaled=coeffs2pFOff)
+    finalOrbitals = Dict{Subshell, Orbital}()
+    for  sh  in  basis.subshells
+        finalOrbitals[sh] = Bsplines.generateOrbitalFromVector(sh, orbEnergies[sh], bVectors[sh], primitives)
     end
     finalBasis = Basis(true, basis.NoElectrons, basis.subshells, basis.csfs, basis.coreSubshells, finalOrbitals)
     multiplet  = Hamiltonian.performCIKinkAware(finalBasis, nuclearModel, grid, settings; printout=printout)
@@ -1925,6 +2019,10 @@ function solveOptimizedLevelField(basis::Basis, nuclearModel::Nuclear.Model, pri
     # what the winner-take-all collapse does -- and the CI energy on any orthonormal orbital set is a variational
     # upper bound, so the lowest one seen is the best answer available and is what should be returned.
     bestEnergy   = Inf;    bestOrbitals = deepcopy(orbitals);    bestIteration = 0
+    # The b-vectors travel WITH the best orbitals.  They are the same object in two representations, and the
+    # orbital energies below are built from the b-vectors, so keeping only one of the pair would pair a
+    # reverted orbital set with the b-vectors of a different iteration.
+    bestBVectors = deepcopy(bVectors)
     converged    = false;  iterDone     = 0
     for  iter = 1:Basics.maxIterations(settings.scfRoute)
         println("\n> SCF+CI iteration $(iter) [EOL]: ")
@@ -2097,6 +2195,7 @@ function solveOptimizedLevelField(basis::Basis, nuclearModel::Nuclear.Model, pri
         weightedEnergy = newWeightedEnergy;    iterDone = iter
         if  newWeightedEnergy < bestEnergy
             bestEnergy = newWeightedEnergy;    bestOrbitals = deepcopy(orbitals);    bestIteration = iter
+            bestBVectors = deepcopy(bVectors)
         end
         if  abs(1.0 - orbitalConv) < settings.accuracyScf  &&  energyDiff < settings.accuracyScf
             converged = true;    break
@@ -2111,7 +2210,7 @@ function solveOptimizedLevelField(basis::Basis, nuclearModel::Nuclear.Model, pri
                 "$bestEnergy against the final $weightedEnergy, so the best is returned.  A Fock iteration that " *
                 "moves uphill has been attracted towards the degenerate occ -> 0 fixed point;  treat the result " *
                 "with suspicion and compare against Basics.RotationRoute().")
-        orbitals = bestOrbitals
+        orbitals = bestOrbitals;    bVectors = bestBVectors
     end
     if  converged
         println(">> [EOL-FOCK] CONVERGED at iteration $iterDone with a weighted-average energy of $bestEnergy.")
@@ -2158,6 +2257,28 @@ function solveOptimizedLevelField(basis::Basis, nuclearModel::Nuclear.Model, pri
                     "is physical and grows with Z, but not this much;  this is the signature of the collapse " *
                     "described above.")
         end
+    end
+
+    # EVERY ORBITAL IS GIVEN ITS DIAGONAL LAGRANGE MULTIPLIER eps_a = <a|F_a|a>, 12-Sep-2026 -- the same
+    # quantity, by the same routine, as the rotation solver sets;  see the note there for why it is this and
+    # not the one-particle expectation <a|h_D|a>.  This solver has an eigenvalue of F_a in hand during each
+    # refinement, and at convergence that eigenvalue and this Rayleigh quotient are the same number;  the
+    # quotient is used all the same, so that BOTH solvers report a quantity defined the same way, and so that
+    # a run which fell back on an earlier best iterate still reports the multiplier of the orbitals it returns.
+    finalTargetLevels = SelfConsistent.selectTargetLevelsEOL(diagonalizeAllBlocks(orbitals), settings.levelSelectionCI)
+    if  unscaledOff
+        (_, coeffs2pF)    = SelfConsistent.combineAngularCoefficientsEOL(blockCaches, finalTargetLevels; pairs=:diagonal)
+        (_, coeffs2pFOff) = SelfConsistent.combineAngularCoefficientsEOL(blockCaches, finalTargetLevels; pairs=:offdiagonal)
+    else
+        (_, coeffs2pF)    = SelfConsistent.combineAngularCoefficientsEOL(blockCaches, finalTargetLevels)
+        coeffs2pFOff      = Coefficient2p[]
+    end
+    genOccF     = SelfConsistent.computeGeneralizedOccupationEOL(blockCaches, finalTargetLevels, basis)
+    orbEnergies = SelfConsistent.computeOrbitalEnergiesEOL(basis.subshells, bVectors, coeffs2pF, genOccF,
+                                                           primitives, grid, nucPot, storage, matrixB;
+                                                           coeffs2pUnscaled=coeffs2pFOff)
+    for  sh  in  basis.subshells
+        orbitals[sh] = Bsplines.generateOrbitalFromVector(sh, orbEnergies[sh], bVectors[sh], primitives)
     end
 
     finalBasis = Basis(true, basis.NoElectrons, basis.subshells, basis.csfs, basis.coreSubshells, orbitals)
