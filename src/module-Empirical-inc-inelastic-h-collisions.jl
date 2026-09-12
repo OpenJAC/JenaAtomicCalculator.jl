@@ -523,9 +523,10 @@ end
 #  JAC structure calculation is specified -- reduced mass, molecular symmetry, and statistical weights are all DERIVED from
 #  this input (via the sections above), not supplied by the caller. Level ENERGIES remain the one piece this module does not
 #  compute itself (see the module note at the top of this file for why) -- always supplied by the caller as an
-#  Array{Pair{Configuration,Float64},1} of total energies (a plain array, not a Dict, because Configuration currently has no
-#  matching `hash` method for its working `==` -- a real, separate JAC bug found while building this interface, not fixed here
-#  since Configuration is a foundational type used throughout JAC).
+#  Array{Pair{Configuration,Float64},1} of total energies. A plain array and not a Dict because, when this interface was built,
+#  Configuration had a working `==` but NO matching `hash`, so a Dict keyed by one silently dropped valid keys. THAT BUG IS
+#  FIXED (12-Sep-2026; `Base.hash(conf::Basics.Configuration, h::UInt)` in module-Basics-inc-first.jl) and a Dict would now be
+#  sound here -- the array is kept because it is the published signature of this interface, not because it must be.
 #
 #  Scope (deliberately restricted, matching the physics already validated for Ba2+ + H- -> Ba+ + H): the entrance ion must be
 #  closed-shell (so its own molecular symmetry is the trivial, unique 1S0 -- Lion=0, Sion=0.0, no term-generation needed), and
@@ -656,10 +657,10 @@ end
 
 """
 `Empirical.energyOf(energies::Array{Pair{Configuration,Float64},1}, conf::Configuration)`
-    ... to look up conf's total energy [a.u.] in energies by VALUE equality (Configuration == is defined and reliable, but
-        Configuration currently has no matching `hash` method, so a genuine Dict{Configuration,Float64} silently drops valid
-        keys -- a real, separate JAC bug worth fixing centrally at some point, not something to route around by relying on
-        Dict here). Raises an informative error if conf is not found. A value::Float64 is returned.
+    ... to look up conf's total energy [a.u.] in energies by VALUE equality. The linear search dates from a time when
+        Configuration had a working `==` but no matching `hash`, so a Dict{Configuration,Float64} silently dropped valid keys;
+        that bug is fixed (12-Sep-2026) and a Dict would serve now. The list is short and the search is not a cost worth
+        changing a signature for. Raises an informative error if conf is not found. A value::Float64 is returned.
 """
 function energyOf(energies::Array{Pair{Configuration,Float64},1}, conf::Configuration)
     idx = findfirst(p -> p.first == conf, energies)

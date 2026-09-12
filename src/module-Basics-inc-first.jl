@@ -1032,6 +1032,35 @@ function  Base.:(==)(confa::Configuration, confb::Configuration)
 end
 
 
+"""
+`Base.hash(conf::Basics.Configuration, h::UInt)`
+    ... hash a configuration from its CANONICAL content -- the occupied shells in a fixed order, plus the electron
+        number -- so that two configurations which compare equal also hash equal. A value::UInt is returned.
+
+        THESE EXIST BECAUSE THE DEFAULT HASH BREAKS JULIA'S CONTRACT HERE, and it breaks it SILENTLY: `isequal`
+        implies equal hashes, so a `Dict` or `Set` keyed by a configuration must find what it stored. Two causes,
+        and a fix needs both. FIRST, a Configuration holds a `Dict`, so it is not `isbits` and Julia's generic
+        fallback `hash(x, h) = hash(objectid(x), h)` applies -- OBJECT IDENTITY. Measured 12-Sep-2026: two
+        configurations built from the same string have `hash(a.shells) == hash(b.shells)` and equal `NoElectrons`,
+        and still hash differently. SECOND, `==` above deliberately treats a MISSING shell as one of occupation
+        ZERO, which is the right physics, so hashing the `Dict` as it stands would still disagree whenever one of
+        the two carries an explicit zero. Dropping the zero occupations is what makes the hash agree with what
+        `==` MEANS rather than with how the Dict happens to be filled.
+
+        The cost was paid twice in unrelated work before this was written: once in the inelastic-H-collision
+        module, and again on 12-Sep in `Hamiltonian.groupCsfsByConfiguration`, where a `Dict{Configuration,...}`
+        put 426 CSFs into "425 configurations" -- one per CSF -- and a second-order ranking then listed the same
+        configuration a dozen times with different weights. Neither produced an error.
+"""
+function  Base.hash(conf::Configuration, h::UInt)
+    items = sort( [ (sh.n, sh.l, w)  for (sh, w) in conf.shells  if w > 0 ] )
+    hh    = hash(conf.NoElectrons, hash(:Configuration, h))
+    for  it in items    hh = hash(it, hh)    end
+
+    return( hh )
+end
+
+
 #################################################################################################################################
 #################################################################################################################################
 
@@ -1083,11 +1112,31 @@ end
         and false otherwise
 """
 function  Base.:(==)(confa::ConfigurationR, confb::ConfigurationR)
+    # THE COMPARISON RUNS OVER BOTH KEY SETS AND TREATS A MISSING SUBSHELL AS ONE OF OCCUPATION ZERO, exactly as
+    # the non-relativistic Base.:(==) above does.  Until 12-Sep-2026 it iterated over confa's keys ALONE, which
+    # made it ASYMMETRIC: with confa = {1s^2} and confb = {1s^2, 2p^0}, `confa == confb` was true while
+    # `confb == confa` was false, since the second pass met a key the first never looked at.
     if   confa.NoElectrons  != confb.NoElectrons    return( false )    end
-    wk = keys(confa.subshells)
-    for  k in wk
-        if  !haskey(confb.subshells, k)  ||   confa.subshells[k] != confb.subshells[k]    return( false )    end
+    for  k in union(keys(confa.subshells), keys(confb.subshells))
+        wa = get(confa.subshells, k, 0);    wb = get(confb.subshells, k, 0)
+        if  wa != wb    return( false )    end
     end
     return( true )
+end
+
+
+"""
+`Base.hash(conf::Basics.ConfigurationR, h::UInt)`
+    ... hash a relativistic configuration from its CANONICAL content -- the occupied subshells in a fixed order, plus
+        the electron number -- so that two configurations which compare equal also hash equal. A value::UInt is returned.
+        The reasons are those given for `Base.hash(conf::Basics.Configuration, h::UInt)` above: a ConfigurationR holds a
+        Dict and so falls back to OBJECT IDENTITY, and its `==` treats a missing subshell as one of occupation zero.
+"""
+function  Base.hash(conf::ConfigurationR, h::UInt)
+    items = sort( [ (sh.n, sh.kappa, w)  for (sh, w) in conf.subshells  if w > 0 ] )
+    hh    = hash(conf.NoElectrons, hash(:ConfigurationR, h))
+    for  it in items    hh = hash(it, hh)    end
+
+    return( hh )
 end
 
