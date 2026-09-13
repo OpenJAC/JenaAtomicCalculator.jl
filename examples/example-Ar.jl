@@ -18,13 +18,22 @@ println("Ar) Apply & test the second-order treatment of the Q space of a RAS ste
 # true second-order correction; a new layer ENLARGES Q rather than shrinking it.
 
 if  false
-    # Last visit:  12-Sep-2026
-    # Last successful:  12-Sep-2026 -- step 1 -459.68354038, step 2 -459.74254091, step 3 -459.93473441 Ha;
-    #                   splittings 22628.6/37880.4, 20295.7/31601.4, 22764.4/56203.3 cm^-1.
-    #                   P = 66 CSF (5 configurations from step 2), Q = 842 CSF in 11 configurations; 3 of the
-    #                   66 levels in P carry the reference and set the weights; 8 configurations promoted,
-    #                   3 folded, 0 discarded, so the CI uses 799 of 908 CSF.  Sum |c|^2 over the folded part
-    #                   = 1.13e-06 / 1.20e-06 / 1.10e-06 -- a weak perturbation, and the step says so.
+    # Last visit:      13-Sep-2026
+    # Last successful:  unknown -- THE 12-Sep DATE WAS WITHDRAWN, NOT LOST.  It was earned on two-particle angular
+    #                   coefficients that were wrong for CSF pairs differing by one electron over a shared open
+    #                   spectator (fixed 13-Sep, commit 1d05ab3), and step 3 of this branch -- which opens the
+    #                   core -- generates such pairs in bulk.  Re-run that day on the repaired code:
+    #
+    #                       step 1  -459.68354038  unchanged   (the reference alone has no such pairs)
+    #                       step 2  -459.76562495  was -459.74254091     -23.1 mHa
+    #                       step 3  -459.76919888  was -459.93473441    +165.5 mHa
+    #                       step 3 splittings 21323.4 / 33606.0 cm^-1,  were 22764.4 / 56203.3
+    #
+    #                   THE NEW NUMBERS ARE NOT YET JUDGED, which is why no date is written.  They are almost
+    #                   certainly the better ones -- the old step-3 value was an eigenvalue of a wrong matrix and
+    #                   so not a variational bound at all, and energies rising is what removing a spurious
+    #                   lowering does -- but this branch carries no measured comparison to settle it, and
+    #                   "different" is not "right".  Dating it needs a judgement, not a re-run.
     #
     #    VERIFIED AGAINST GROUND TRUTH, which is what makes this branch worth keeping.  Re-run with
     #    SecondOrder(1.0e-30, 1.0e-40) every configuration is promoted, the CI uses all 908 CSF and the scheme
@@ -80,9 +89,15 @@ if  false
     end
 
 elseif  false
-    # Last visit:  12-Sep-2026
-    # Last successful:  12-Sep-2026 -- the CI uses all 908 CSF; -459.93426153 Ha, 22773.1 / 56286.4 cm^-1,
-    #                   identical to a plain RAS over the same space.
+    # Last visit:      13-Sep-2026
+    # Last successful:  unknown -- withdrawn for the reason given in branch (a): the 12-Sep value was earned on
+    #                   defective angular coefficients.  Re-run 13-Sep on the repaired code the CI still uses all
+    #                   908 CSF and gives -459.76920238 Ha, where it gave -459.93426153.  THE GUARD ITSELF STILL
+    #                   HOLDS, and that is the part worth noting: this branch's claim is that promoting everything
+    #                   reproduces a plain CI over the same space EXACTLY, and it still does -- branch (a)'s
+    #                   step 3 gives -459.76919888 against this -459.76920238, the same 3.5e-06 Ha apart as
+    #                   before.  The defect moved both numbers together and left the identity intact, which is
+    #                   why a self-consistency guard cannot substitute for a comparison against measurement.
     #
     # b) THE GUARD.  The same case as (a) with the thresholds set so low that EVERY configuration is promoted.
     #    The scheme must then reduce EXACTLY to an ordinary CI -- nothing folded, nothing discarded -- so this
@@ -112,67 +127,205 @@ elseif  false
     println(">> step 3 : $(length(ls)) levels, lowest = $(ls[1].energy) Ha  -- EXPECTED -459.93426153 Ha")
 
 elseif  true
-    # Last visit:  12-Sep-2026
-    # Last successful:  unknown -- AND DELIBERATELY SO; this branch is NOT yet trustworthy.  It runs, the gate
-    #                   correctly REFUSES (Sum |c|^2 = 6.26e-05 against a 1.0e-5 threshold) and names what to
-    #                   promote, and the reference level is sound: -1183.042412 / -1183.132879 / -1184.092930 Ha
-    #                   with w_ref 1.000 / 0.974 / 0.939, i.e. -0.091 Ha of valence and -0.960 Ha of core
-    #                   correlation, both the right order for Fe.
-    #                   BUT A SPURIOUS INTRUDER APPEARS: a 2p-hole configuration lands 10 Ha BELOW the 3s^2
-    #                   reference, which is impossible -- the hole must cost ~28 Ha.  The cause is that step 2's
-    #                   correlation orbitals are CONTRACTED pseudo-orbitals ("4s" at <r> = 0.698 a.u., on top of
-    #                   the 3s valence) and the perturbative step reuses them to build CORE-HOLE CSFs, where they
-    #                   are unphysical.  The gate cannot see this: it tests the FOLDED remainder, not whether the
-    #                   PROMOTED configurations are sound.  See priority item 21.  Do not quote numbers from this
-    #                   branch until that is resolved.
+    # Last visit:  13-Sep-2026
+    # Last successful:  13-Sep-2026 -- the table this branch prints, against NIST ASD 5.12.  Coulomb+Breit(0.):
+    #                   3P*_0 233235 / 233406 / 235209,  3P*_1 239101 / 239246 / 240884,
+    #                   3P*_2 253163 / 253269 / 254777,  1P*_1 357408 / 356254 / 354891 cm^-1
+    #                   for AL / 1-layer / 1-layer+PT.  Intervals 0-1: 5865 / 5840 / 5674 against NIST 5818;
+    #                   1-2: 14062 / 14024 / 13893 against 14160.  Runtime 33 + 198 + 881 s.
     #
-    # c) Fe XV 1s^2 2s^2 2p^6 3s^2, J = 0 even -- THE CASE THE METHOD IS FOR.
+    # c) Fe XV 1s^2 2s^2 2p^6 3s^2 -- THE LADDER, against measured levels.
     #
-    #    Branch (a) saved only 12 %, and that was the honest answer for Cl III: its "core" 2s,2p sits directly
-    #    below the 3s,3p valence, so the coupling is not weak and the threshold rightly promotes most of it.
-    #    The weight goes as |c|^2 ~ 1/D^2, so the fold-versus-promote boundary is set by how FAR the shell sits
-    #    from the valence -- and the gain therefore belongs to DEEP cores, which is to say to heavy ions, which
-    #    is exactly where the variational alternative is least affordable.
+    #    THIS REPLACES AN EARLIER BRANCH (12-Sep-2026) AND THE DIFFERENCE IS INSTRUCTIVE.  That one took
+    #    {3s^2} ALONE as the reference and reached 3s3p, 3s3d, 3p3d only as excitations -- but those are REAL
+    #    low-lying states of this ion (NIST puts 3s3d 3D at 678 772 and 3p3d 3F* at 928 241 cm^-1), not
+    #    correlation, and the configurations of one complex are quasi-degenerate so no perturbative route to
+    #    them converges.  It also ran on two-particle angular coefficients that were wrong for exactly the CSF
+    #    pairs such a reference generates.  Both are fixed; the old branch is not worth keeping.
     #
-    #    Fe XV is Mg-like: the 3s valence sits over a 1s,2s,2p core that is tens of a.u. away, against ~10 a.u.
-    #    for Cl III.  And the arithmetic of the space is stark -- valence correlation into n=3 and n=4 gives
-    #    17 CSF, the same with the core opened gives 334.  The core excitations are 95 % of the space.
-    #    If they fold, that 95 % is had for the cost of a ranking pass.
+    #    THE REFERENCE IS THE COMPLETE n=3 COMPLEX and the ladder is built on SPECTROSCOPIC orbitals:
+    #    {3s^2, 3s3p, 3s3d, 3p^2, 3p3d, 3d^2}, so 3d is optimized as a valence orbital of step 1 rather than as
+    #    a correlation orbital of a later layer.  The EOL TARGETS are restricted to the levels of interest --
+    #    the P space and the target set are separate choices, and optimizing across 3d^2 and 3p3d levels nobody
+    #    asked for makes the levels one does want worse.
+    #
+    #    BREIT IS IN THE CI FROM THE START, and at Z = 26 it is not a correction but a leading term of the fine
+    #    structure: measured here it shifts 3P*_0 by +628, 3P*_1 by +438 and 3P*_2 by only +23 cm^-1, i.e. it
+    #    is strongly J-dependent and moves the 0-1 interval by -190 and 1-2 by -415 cm^-1.  A Coulomb-only
+    #    version of this same ladder misses both.  `CoulombBreit(0.)` is the exact omega -> 0 limit.
+    #
+    #    WHAT THE THREE MODELS SAY.  AL already reaches -0.26 / -0.23 / -0.26 % on the triplet; the n=4 layer
+    #    improves every level and takes the 0-1 interval to +0.4 %; and the PERTURBATIVE step then OVERSHOOTS,
+    #    carrying the intervals past NIST to -2.5 % and -1.9 %.  That is worth stating plainly because the same
+    #    step looks like a success in a Coulomb-only calculation, where its -165 cm^-1 on 0-1 substitutes for
+    #    the -190 cm^-1 that Breit supplies: the folded core and the magnetic interaction are independent and
+    #    of similar size here, and applying both double-counts what only one of them should provide.
+    #    1P*_1 is the exception and behaves oppositely -- it improves monotonically, 1.56 / 1.23 / 0.85 %,
+    #    being a correlation problem that Breit barely touches.
+    #
+    #    MEASURED SEPARATELY, not by this branch: a second layer (n=5, 86 min) with the Breit shift of the
+    #    n=4 layer added gives the triplet to 0.07 / 0.06 / 0.10 % and intervals 5840 / 14052, i.e. +0.4 % and
+    #    -0.8 %.  Layers move the term as a whole; Breit sets its internal structure.
     #
     Z      = 26.0
-    refs   = [Configuration("1s^2 2s^2 2p^6 3s^2")]
-    sym    = LevelSymmetry(0, Basics.plus)
-    val    = [Shell("3s")];   core = [Shell("2s"), Shell("2p")]
-    to     = [Shell("3s"), Shell("3p"), Shell("3d"), Shell("4s"), Shell("4p"), Shell("4d"), Shell("4f")]
-    steps  = [ RasStep(),
-               RasStep(RasStep(); seFrom=val, seTo=to, deFrom=val, deTo=to,
-                                  frozen=[Shell("1s"), Shell("2s"), Shell("2p")]),
-               RasStep(RasStep(); seFrom=vcat(core,val), seTo=to, deFrom=vcat(core,val), deTo=to,
-                                  frozen=vcat([Shell("1s"),Shell("2s"),Shell("2p")], to),
-                                  treatment = Basics.SecondOrder(1.0e-5, 1.0e-12)) ]
+    c(s)   = Configuration("1s^2 2s^2 2p^6 " * s)
+    refs   = [c("3s^2"), c("3s 3p"), c("3s 3d"), c("3p^2"), c("3p 3d"), c("3d^2")]
+    wanted = [c("3s^2"), c("3s 3p")]                      # the EOL targets, and the levels reported
+    syms   = [LevelSymmetry(0, Basics.plus),  LevelSymmetry(0, Basics.minus),
+              LevelSymmetry(1, Basics.minus), LevelSymmetry(2, Basics.minus)]
     grid   = Basics.recommendedGrid(refs, Nuclear.Model(Z); rbox = 10.)
-    rasSettings = RasSettings(Int64[], 24, 1.0e-6, CoulombInteraction(),
-                              LevelSelection(true, configurations=refs))
-    wa     = Representation("Fe XV 3s^2 -- a DEEP core folded on the valence orbitals",
-                            Nuclear.Model(Z), grid, refs, RasExpansion([sym], 12, steps, rasSettings) )
-    println("wa = $wa")
-    wb = generate(wa, output=true)
-    # REPORT THE REFERENCE LEVEL, NOT THE LOWEST ONE.  Once the core is opened, a core-excited configuration
-    # can sink below the reference in the energy ORDER, and then "lowest" names the wrong state -- the same
-    # trap SelfConsistent.selectTargetLevelsEOL exists to avoid.  The step diagnostic prints w_ref per level;
-    # here the level is picked by that weight.
-    for i = 1:length(steps)
-        k = "step" * string(i)
-        haskey(wb, k)  ||  continue
-        mp   = wb[k];   b = mp.levels[1].basis
-        rIdx = [ r for r = 1:length(b.csfs)
-                     if Basics.extractConfiguration(Basics.FromBasis(), b, b.csfs[r]) in refs ]
-        best = nothing;  bw = -1.0
-        for lev in mp.levels
-            w = sum(lev.mc[r]^2  for r in rIdx; init=0.0)
-            if  w > bw    bw = w;   best = lev    end
-        end
-        println(">> step $i : $(length(mp.levels)) levels;  the REFERENCE level is at $(best.energy) Ha " *
-                "with w_ref = $(round(bw, digits=5))")
+    core   = [Shell("2s"), Shell("2p")];   v3 = [Shell("3s"), Shell("3p"), Shell("3d")]
+    n4     = vcat(v3, [Shell("4s"), Shell("4p"), Shell("4d"), Shell("4f")])
+    frz    = [Shell("1s"), Shell("2s"), Shell("2p")]
+    nist   = [("3s^2  1S_0 ", 0.0), ("3s3p  3P*_0", 233842.0), ("3s3p  3P*_1", 239660.0),
+              ("3s3p  3P*_2", 253820.0), ("3s3p  1P*_1", 351911.0)]
+    #
+    # THE FIVE LEVELS ARE PICKED BY THEIR DOMINANT CONFIGURATION AND NOT BY ENERGY ORDER: with one correlation
+    # layer a correlation level of this space can lie between them, and "the k-th level of symmetry J" then
+    # names the wrong state.  Within J = 1- both wanted levels are 3s3p, so those two are ordered by energy
+    # AMONG the 3s3p-dominated ones, which is what NIST's own ordering asserts.
+    fiveLevels = function(mp)
+        bs   = mp.levels[1].basis
+        cof  = [ Basics.extractConfiguration(Basics.FromBasis(), bs, cc)  for cc in bs.csfs ]
+        i2   = findall(x -> x == wanted[1], cof);    ip = findall(x -> x == wanted[2], cof)
+        wt(l, ix)  = sum( l.mc[r]^2  for r in ix; init=0.0 )
+        sy(J, p)   = [ l  for l in mp.levels  if l.J == AngularJ64(J) && l.parity == p ]
+        pk(J,p,ix) = ( ls = sy(J,p);  isempty(ls) ? nothing : ls[argmax([wt(l,ix) for l in ls])] )
+        g  = pk(0, Basics.plus, i2);    e0 = pk(0, Basics.minus, ip);    e2 = pk(2, Basics.minus, ip)
+        l1 = sort( [ l for l in sy(1, Basics.minus) if wt(l, ip) >= 0.20 ], by = l -> l.energy )
+        (isnothing(g) || isnothing(e0) || isnothing(e2) || length(l1) < 2)  &&  return( Float64[] )
+        k(x) = Defaults.convertUnits("energy: from atomic to Kayser", x - g.energy)
+        return( [0.0, k(e0.energy), k(l1[1].energy), k(e2.energy), k(l1[2].energy)] )
     end
+    report = function(tag, mp)
+        e = fiveLevels(mp)
+        if  isempty(e)   println(">> $tag : the five levels were not all found");   return   end
+        println("\n>> $tag")
+        for  (i, (name, ref))  in  enumerate(nist)
+            @printf(">>   %-12s %12.1f   NIST %10.1f  %+9.1f  (%+6.2f %%)\n", name, e[i], ref, e[i]-ref,
+                    ref == 0.0 ? 0.0 : 100*(e[i]-ref)/ref)
+        end
+        @printf(">>   3P* intervals:  0-1 %8.1f (NIST  5818.0)   1-2 %9.1f (NIST 14160.0)\n",
+                e[3]-e[2], e[4]-e[3])
+    end
+    #
+    set = AsfSettings(AsfSettings(); scField = Basics.ALField(), eeInteraction = CoulombInteraction(),
+                                     eeInteractionCI = CoulombBreit(0.), gridStopper = false)
+    report("AL", SelfConsistent.performSCF(refs, Nuclear.Model(Z), grid, set; printout=false))
+    #
+    runRas = function(tag, steps)
+        rs = RasSettings(Int64[], 300, 1.0e-6, CoulombBreit(0.), LevelSelection(true, configurations=wanted))
+        wb = generate( Representation("Fe XV -- $tag", Nuclear.Model(Z), grid, refs,
+                                      RasExpansion(syms, 12, steps, rs)), output=true )
+        k  = "step" * string(length(steps))
+        haskey(wb, k) ? report(tag, wb[k]) : println(">> $tag : no $k")
+    end
+    layer4 = RasStep(RasStep(); seFrom=v3, seTo=n4, deFrom=v3, deTo=n4, frozen=frz)
+    ptStep = RasStep(RasStep(); seFrom=vcat(core,v3), seTo=n4, deFrom=vcat(core,v3), deTo=n4,
+                                frozen=vcat(frz, n4), treatment = Basics.SecondOrder(1.0, 1.0e-12))
+    runRas("1-layer",    [RasStep(), layer4])
+    runRas("1-layer+PT", [RasStep(), layer4, ptStep])
+elseif  false
+    # Last visit:      13-Sep-2026
+    # Last successful:  unknown -- AL and 0-layer are VERIFIED against NIST (numbers below); the 1-layer and
+    #                   2-layer rows were still running on the compute machine when this was written and are
+    #                   NOT yet filled in, so the branch is not yet dated.
+    #
+    # d) Fe VII [Ar] 3d^2, Z = 26 -- THE d-SHELL TEST.
+    #
+    #    WHY d^2 AND WHY THIS ION.  Every CSF pair that the repaired two-particle coefficients got wrong had a
+    #    p SPECTATOR, carrying j = 1/2 and 3/2.  A d spectator carries j = 3/2 and 5/2, higher than anything the
+    #    Mg-like and C-like cases reach, and 3d^2 also brings the same-shell seniority/CFP path into combination
+    #    with the repaired cross-configuration one.  Fe VII rather than Ti III because at charge +6 the ion is
+    #    compact, so correlation is a smaller fraction of the answer and a residual angular error is not masked
+    #    by a large correlation error; Ti III is the better stress test of the RECIPE and the worse test of the
+    #    COEFFICIENTS.
+    #
+    #    THE REFERENCE IS 3d^2 ALONE, AND THE MEASURED SPECTRUM SAYS SO.  Branch (c) had to carry the complete
+    #    n=3 complex because 3s3p, 3p3d and 3d^2 are quasi-degenerate there.  Here the other members of the n=3
+    #    complex are CORE-HOLE configurations (3p^5 3d^3 from 389 340 cm^-1) and the nearest genuine neighbour,
+    #    3d4s, begins at 344 462 cm^-1 -- some 277 000 cm^-1 (34 eV) above the highest 3d^2 level.  Nothing is
+    #    near-degenerate with 3d^2, so completing a complex would add cost and no physics.  The rule is "put the
+    #    quasi-degenerate partners in P", not "always enlarge the reference", and reading it off the measured
+    #    spectrum is what separates the two cases.
+    #
+    #    MEASURED 13-Sep-2026, Coulomb+Breit(0.), excitation energies in cm^-1 against
+    #    NIST Atomic Spectra Database (ver. 5.12), retrieved 13-Sep-2026, DOI 10.18434/T4W30F:
+    #
+    #       term    J        NIST          AL      0-layer     dev (0-layer)
+    #       3F      2         0.00        0.00        0.00        --
+    #       3F      3      1049.75     1019.50     1013.95      -3.4 %
+    #       3F      4      2329.48     2280.76     2268.12      -2.6 %
+    #       1D      2     17474.00    21094.20    21148.47     +21.0 %
+    #       3P      0     20040.0     24382.74    24441.20     +21.9 %
+    #       3P      1     20428.8     24750.59    24809.29     +21.4 %
+    #       3P      2     21275.97    25527.86    25584.97     +20.2 %
+    #       1G      4     28923.5     32226.03    32310.27     +11.7 %
+    #       1S      0     67076.9     78191.71    78419.45     +16.9 %
+    #
+    #    WHAT THAT PATTERN MEANS, and the two halves say different things.  The 3F FINE STRUCTURE -- two
+    #    intervals INSIDE one term, the analogue of the 3P* case that exposed the coefficient defect -- comes out
+    #    within 3 %, correctly ordered and with no inversion: the d spectator behaves.  The TERM SEPARATIONS are
+    #    12-22 % too large, which is the textbook signature of an open d shell with no correlation: term energies
+    #    there are governed by the Slater F^2 and F^4 integrals, which a bare mean field overestimates because it
+    #    cannot screen the d-d repulsion.  It is the same fact that makes ligand-field and astrophysical work
+    #    scale F_k by ~0.8.  So the angular part looks sound and what is missing is d-d correlation, which is
+    #    what the layers below exist to supply -- a far harder test of them than branch (c), where the mean field
+    #    was already within 0.5 %.
+    #
+    #    NOTE ALSO that the 0-layer EOL step makes the TERM separations very slightly WORSE while lowering the
+    #    total energy.  That is not a defect: EOL optimizes the energy of the target levels, not the splittings
+    #    between them.
+    #
+    #    NIST's own leading percentages make J = 2+ the interesting block: 1D_2 is 91 % with 6 % 3P, and 3P_2 is
+    #    92 % with 6 % 1D, so those two genuinely mix and the angular coefficients must get that mixing right.
+    #
+    Z      = 26.0
+    refs   = [Configuration("1s^2 2s^2 2p^6 3s^2 3p^6 3d^2")]
+    syms   = [LevelSymmetry(J, Basics.plus)  for J = 0:4]
+    grid   = Basics.recommendedGrid(refs, Nuclear.Model(Z))
+    v3     = [Shell("3d")]
+    n4     = [Shell("3d"), Shell("4s"), Shell("4p"), Shell("4d"), Shell("4f")]
+    frz    = [Shell("1s"), Shell("2s"), Shell("2p"), Shell("3s"), Shell("3p")]
+    nist   = [(2,0.00), (3,1049.75), (4,2329.48), (2,17474.00), (0,20040.0),
+              (1,20428.8), (2,21275.97), (4,28923.5), (0,67076.9)]
+    #
+    # EVERY 3d^2-DOMINATED LEVEL IS PRINTED WITH ITS J AND ITS WEIGHT, in energy order, rather than being matched
+    # to a term by name: the term order of a d^2 ion is not something to assume in advance, and the J sequence
+    # against NIST's is what identifies the levels.
+    showLevels = function(lab, mp)
+        bs  = mp.levels[1].basis
+        cof = [ Basics.extractConfiguration(Basics.FromBasis(), bs, cc)  for cc in bs.csfs ]
+        ig  = findall(x -> x == refs[1], cof)
+        wt(l) = sum( l.mc[r]^2  for r in ig; init=0.0 )
+        keep  = sort( [ l for l in mp.levels if wt(l) >= 0.20 ], by = l -> l.energy )
+        isempty(keep)  &&  (println(">> $lab : no 3d^2-dominated level found");   return)
+        g = keep[1]
+        println("\n>> Fe VII   $lab     ($(length(keep)) of $(length(mp.levels)) levels are 3d^2)")
+        println(">>     J    excitation [cm^-1]      NIST        deviation     w(3d^2)")
+        for  (i, l) in enumerate(keep)
+            e = Defaults.convertUnits("energy: from atomic to Kayser", l.energy - g.energy)
+            if  i <= length(nist)  &&  Basics.twice(l.J) == 2*nist[i][1]
+                ref = nist[i][2]
+                @printf(">>   %4s  %18.2f  %10.2f  %+12.2f %s   %6.3f\n", string(l.J), e, ref, e-ref,
+                        ref == 0.0 ? "        " : @sprintf("(%+6.1f %%)", 100*(e-ref)/ref), wt(l))
+            else
+                @printf(">>   %4s  %18.2f  %10s  %12s        %6.3f\n", string(l.J), e, "--", "J MISMATCH", wt(l))
+            end
+        end
+    end
+    #
+    set = AsfSettings(AsfSettings(); scField=Basics.ALField(), eeInteraction=CoulombInteraction(),
+                                     eeInteractionCI=CoulombBreit(0.), gridStopper=false)
+    showLevels("AL", SelfConsistent.performSCF(refs, Nuclear.Model(Z), grid, set; printout=false))
+    #
+    runRas = function(lab, steps)
+        rs = RasSettings(Int64[], 60, 1.0e-6, CoulombBreit(0.), LevelSelection(true, configurations=refs))
+        wb = generate( Representation("Fe VII $lab", Nuclear.Model(Z), grid, refs,
+                                      RasExpansion(syms, 20, steps, rs)), output=true )
+        k = "step" * string(length(steps))
+        haskey(wb, k) ? showLevels(lab, wb[k]) : println(">> $lab : no $k")
+    end
+    runRas("0-layer", [RasStep()])
+    runRas("1-layer", [RasStep(), RasStep(RasStep(); seFrom=v3, seTo=n4, deFrom=v3, deTo=n4, frozen=frz)])
 end
