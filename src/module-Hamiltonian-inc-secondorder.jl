@@ -350,7 +350,13 @@ function secondOrderBlock(sym::LevelSymmetry, basis::Basis, pBasis::Basis, refCo
             sumC2Folded[j] += c2[key][i];   dETotal[j] += deltaE[key][i]
         end
     end
-    isJustified = all(sumC2Folded .<= treatment.promoteAbove)
+    # THE TEST IS AGAINST `justifyBelow` AND NOT AGAINST `promoteAbove`, fixed 13-Sep-2026.  Judging the fold-in by
+    # the same number that decides what gets folded made the gate LOOSEN as more was folded, so the one setting
+    # that most needs policing -- promoteAbove = 1.0, "promote nothing, fold everything" -- was exactly the setting
+    # at which it could never fire.  Measured on Fe VII [Ar] 3d^2: the step announced "a WEAK perturbation; second
+    # order is justified here" while returning a 3F term inverted and displaced thirtyfold, with Sum |c|^2 = 0.048
+    # printed beside it and not judged.  See priority item 28.
+    isJustified = all(sumC2Folded .<= treatment.justifyBelow)
 
     # The level vectors are expanded back onto the WHOLE basis -- zero on every CSF that was folded in or
     # discarded -- so that a level from here is indistinguishable from one performCI would return, and every
@@ -443,12 +449,25 @@ function displayQPartition(stream::IO, partition::Hamiltonian.QPartition, treatm
             println(stream, @sprintf(">>     intruder at %.6f Ha, mostly   ", e) * string(conf))
         end
     end
+    # THE SPREAD OF THE CORRECTION ACROSS THE TARGET LEVELS, and for a SPECTRUM it decides more than the size does.
+    # Core correlation is largely a common shift, which cancels out of every excitation energy; what survives is
+    # the part that DIFFERS between levels.  On Fe VII the correction was -0.28 to -0.30 Ha -- a spread of some
+    # 3300 cm^-1 across a term spanning 2329 cm^-1, which is how a 5 % fold-in inverted a multiplet.
+    if  length(partition.deltaE) > 1
+        spread = maximum(partition.deltaE) - minimum(partition.deltaE)
+        println(stream, @sprintf(">>   second-order contribution: %+.6e to %+.6e Ha over the target levels, a SPREAD of ",
+                                 minimum(partition.deltaE), maximum(partition.deltaE)) *
+                        @sprintf("%.4e Ha = %.1f cm^-1.", spread,
+                                 Defaults.convertUnits("energy: from atomic to Kayser", spread)))
+        println(stream, ">>   For a SPECTRUM it is that spread and not the size that matters: a common shift cancels " *
+                        "out of every excitation energy, and what is left over does not.")
+    end
     if  partition.isJustified
         println(stream, ">>   the folded remainder is a WEAK perturbation; second order is justified here.")
     else
         println(stream, ">>   *** WARNING: the folded remainder is NOT a weak perturbation.  Sum |c|^2 reaches " *
-                        @sprintf("%.4e", maximum(partition.sumC2Folded)) * " against a promotion threshold of " *
-                        "$(treatment.promoteAbove), so second order is NOT justified for this step and the")
+                        @sprintf("%.4e", maximum(partition.sumC2Folded)) * " against the justification bound " *
+                        "$(treatment.justifyBelow), so second order is NOT justified for this step and the")
         println(stream, ">>   energies above should not be used.  PROMOTE THE FOLLOWING and run again -- the running " *
                         "sum shows how far down the list is needed:")
         foldedKeys = [ Hamiltonian.configurationKey(c)  for c in partition.folded ]

@@ -2683,6 +2683,8 @@ struct     Variational          <:  AbstractQTreatment  end
 
     + promoteAbove       ::Float64   ... weight above which a configuration is put INTO the CI rather than folded in.
     + discardBelow       ::Float64   ... weight below which a configuration is dropped entirely.
+    + justifyBelow       ::Float64   ... the largest `Sum |c|^2` over the FOLDED part for which the fold-in is still
+                                         called justified. INDEPENDENT of `promoteAbove` on purpose; see below.
 
     WHY A WEIGHT AND NOT AN ENERGY. `dE_PT` is an energy and equals `|c|^2 * D`, so at equal weight a configuration
     further away in energy ranks HIGHER -- which is the wrong way round for a spectrum. Measured on Cl III
@@ -2698,6 +2700,14 @@ struct     Variational          <:  AbstractQTreatment  end
     is why the threshold exists: a strongly coupled configuration is promoted rather than folded, and the fold-in
     is then applied only where it is accurate.
 
+    WHY `justifyBelow` IS A SEPARATE NUMBER, AND WHY IT HAD TO BECOME ONE. Until 13-Sep-2026 the step judged its own
+    fold-in by testing `Sum |c|^2` against `promoteAbove` -- the same number that decides what gets folded. Raising
+    the threshold therefore folded MORE and simultaneously loosened the test of whether folding was legitimate, so
+    the one setting that most needs policing, `promoteAbove = 1.0` meaning "promote nothing, fold everything", was
+    exactly the setting at which the gate could never fire. Measured on Fe VII [Ar] 3d^2 that day: the step reported
+    "a WEAK perturbation; second order is justified here" while returning a 3F term INVERTED and displaced by a
+    factor of thirty, with `Sum |c|^2 = 0.048` printed on the adjacent line and not judged.
+
     THE DEFAULTS ARE CALIBRATED ON ONE ION and a Z-scan along an isoelectronic sequence has NOT been done. Treat
     them as a starting point and read the `Sum |c|^2` a step reports, which is the quantity that says whether the
     fold-in was justified at all.
@@ -2705,18 +2715,26 @@ struct     Variational          <:  AbstractQTreatment  end
 struct     SecondOrder          <:  AbstractQTreatment
     promoteAbove         ::Float64
     discardBelow         ::Float64
+    justifyBelow         ::Float64
 end
 
 
 # `Basics.SecondOrder()`  ... the calibrated starting point; see the caveat in the docstring above
 function SecondOrder()
-    SecondOrder(1.0e-4, 1.0e-12)
+    SecondOrder(1.0e-4, 1.0e-12, 1.0e-2)
 end
 
 
 # `Basics.SecondOrder(promoteAbove::Float64)`  ... sets the promotion threshold and keeps the default floor
 function SecondOrder(promoteAbove::Float64)
-    SecondOrder(promoteAbove, 1.0e-12)
+    SecondOrder(promoteAbove, 1.0e-12, 1.0e-2)
+end
+
+
+# `Basics.SecondOrder(promoteAbove::Float64, discardBelow::Float64)`  ... keeps the default justification bound,
+#   which is deliberately NOT tied to promoteAbove -- see the docstring above.
+function SecondOrder(promoteAbove::Float64, discardBelow::Float64)
+    SecondOrder(promoteAbove, discardBelow, 1.0e-2)
 end
 
 
