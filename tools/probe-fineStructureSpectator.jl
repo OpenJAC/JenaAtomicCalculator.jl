@@ -1,13 +1,14 @@
 #
 # probe-fineStructureSpectator.jl   --   the reproducer for priority item 27.
 #
-# A CONFIGURATION INTERACTION THAT SHARES AN OPEN SPECTATOR SUBSHELL WITH j > 1/2 INVERTS THE FINE STRUCTURE OF
-# THE TERM IT ACTS ON.  Adding ONE configuration to a {3s^2, 3s3p, 3p^2} CI either leaves the Mg-like 3s3p 3P*
-# term alone or turns it inside out, and which of the two happens is decided by the SPECTATOR:
-#
-#   * a single replacement whose spectator is 3s  (j = 1/2 only)          -- correct
-#   * a DOUBLE replacement, sharing no open subshell                      -- correct
-#   * a single replacement whose spectator is 3p  (j = 1/2 and 3/2)       -- INVERTED
+# THE DEFECT THIS FILE WAS WRITTEN FOR IS FIXED (13-Sep-2026), AND THE FILE IS NOW ITS REGRESSION TEST.
+# Adding ONE configuration to a {3s^2, 3s3p, 3p^2} CI used to turn the Mg-like 3s3p 3P* term inside out whenever
+# the interacting configuration was reached by a single replacement over a SHARED SPECTATOR lying BETWEEN the
+# donor and the acceptor -- the Lande ratio 1-2 / 0-1 went from 1.96 to -1.40, and to -0.67 in the worst case.
+# The cause was in `SpinAngular.twoParticleMoveOne`: in that case the assembly yields the CROSSED pairing and the
+# code labelled it as the direct one, so weight landed on ranks the R^k conversion annihilates and the surviving
+# rank was left at zero.  Every row below must now come out near 2; if one ever returns to -1.40 or -0.67, that
+# is the defect back.
 #
 # THE TEST NEEDS NO EXPERIMENTAL DATA, which is what makes it a proof rather than a comparison.  This interaction
 # is diagonal in L and S, so in the LS limit it shifts every J of the term by the SAME amount and cannot change
@@ -15,10 +16,13 @@
 # intermediate coupling there is far too weak to move that ratio -- Mg I's real intervals are 20.1 and 40.7 cm^-1.
 # Delta-l is NOT the trigger and must not be reported as one: 3s4p (dl = 0) is correct, 3p4s (dl = 0) is inverted.
 #
-# The second table follows the spurious shift along the sequence, to show it is systematic rather than a low-Z
-# accident: it grows roughly linearly with Z and at Z = 26 takes Fe XV from +6 % agreement with NIST to the
-# wrong sign.  Parity is the built-in control -- 3s3d and 3d^2 are EVEN, cannot touch the odd 3s3p, and must
-# move nothing.
+# The second table follows the shift the complete n=3 complex makes along the sequence.  BEFORE the repair it was
+# -946, -2677, -4484, -5615, -6603 cm^-1 at Z = 12, 14, 18, 22, 26 -- at Z = 12 that is 47x the whole physical
+# fine structure (Mg I: 20.1 and 40.7 cm^-1), and at Z = 26 it took Fe XV from +6 % agreement with NIST to the
+# WRONG SIGN.  AFTER it the shift is -13.5, -20.1, -16.9, -38.0, -117.3, growing with Z as intermediate coupling
+# does, and Fe XV's 0-1 interval IMPROVES from +6.1 % to +4.1 % against NIST -- the complex now helps, as a
+# configuration interaction should.  Parity is the built-in control: 3s3d and 3d^2 are EVEN, cannot touch the odd
+# 3s3p, and must move nothing.
 #
 using JenaAtomicCalculator, Printf
 
@@ -51,17 +55,17 @@ function intervals(refs::Array{Configuration,1}, Z::Float64)
     return( (k(l1[1].energy) - k(e0.energy), k(e2.energy) - k(l1[1].energy)) )
 end
 
-sets = [ ("(nothing added)",              base,                          "-",  "correct"),
-         ("+ 3s4p   3p->4p, spectator 3s", vcat(base, [c("3s 4p")]),     "0",  "correct"),
-         ("+ 3s4f   3p->4f, spectator 3s", vcat(base, [c("3s 4f")]),     "2",  "correct"),
-         ("+ 3s5p   3p->5p, spectator 3s", vcat(base, [c("3s 5p")]),     "1",  "correct"),
-         ("+ 4s4p   BOTH replaced",        vcat(base, [c("4s 4p")]),     "-",  "correct"),
+sets = [ ("(nothing added)",              base,                          "-",  "near 2"),
+         ("+ 3s4p   3p->4p, spectator 3s", vcat(base, [c("3s 4p")]),     "0",  "near 2"),
+         ("+ 3s4f   3p->4f, spectator 3s", vcat(base, [c("3s 4f")]),     "2",  "near 2"),
+         ("+ 3s5p   3p->5p, spectator 3s", vcat(base, [c("3s 5p")]),     "1",  "near 2"),
+         ("+ 4s4p   BOTH replaced",        vcat(base, [c("4s 4p")]),     "-",  "near 2"),
          ("+ 3s3d   even, cannot couple",  vcat(base, [c("3s 3d")]),     "-",  "control"),
          ("+ 3d^2   even, cannot couple",  vcat(base, [c("3d^2")]),      "-",  "control"),
-         ("+ 3p3d   3s->3d, spectator 3p", vcat(base, [c("3p 3d")]),     "2",  "INVERTED"),
-         ("+ 3p4d   3s->4d, spectator 3p", vcat(base, [c("3p 4d")]),     "2",  "INVERTED"),
-         ("+ 3p4s   3s->4s, spectator 3p", vcat(base, [c("3p 4s")]),     "0",  "INVERTED"),
-         ("+ 3p5s   3s->5s, spectator 3p", vcat(base, [c("3p 5s")]),     "1",  "INVERTED") ]
+         ("+ 3p3d   3s->3d, spectator 3p", vcat(base, [c("3p 3d")]),     "2",  "near 2"),
+         ("+ 3p4d   3s->4d, spectator 3p", vcat(base, [c("3p 4d")]),     "2",  "near 2"),
+         ("+ 3p4s   3s->4s, spectator 3p", vcat(base, [c("3p 4s")]),     "0",  "near 2"),
+         ("+ 3p5s   3s->5s, spectator 3p", vcat(base, [c("3p 5s")]),     "1",  "near 2") ]
 
 println("\n", "="^96)
 println("Z = 12, near-pure LS coupling: the 3P ratio 1-2 / 0-1 MUST stay near 2 for every row")

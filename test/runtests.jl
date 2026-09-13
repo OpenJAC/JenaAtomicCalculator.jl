@@ -33,6 +33,7 @@ end
         @test TestFrames.testMethod_BreitInteraction()
         @test TestFrames.testMethod_Opacities()
         @test TestFrames.testMethod_SpinAngular()
+        @test TestFrames.testMethod_SpinAngularTwoParticleLS()
         @test TestFrames.testMethod_DensityAtNucleus()
         @test TestFrames.testMethod_HyperfinePncFactors()
         @test TestFrames.testMethod_DocstringPointers()

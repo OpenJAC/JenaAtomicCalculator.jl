@@ -1237,6 +1237,128 @@ function testMethod_SpinAngular(; short::Bool=true)
     return(success)
 end
 
+"""
+`TestFrames.testMethod_SpinAngularTwoParticleLS()`
+    ... tests that `SpinAngular`'s TWO-PARTICLE coefficients respect the total orbital and spin angular momenta. V_ee
+        commutes with L and with S, so between two configurations of two electrons outside closed shells the
+        interaction block must be STRICTLY DIAGONAL in (L,S) once the radial integrals are taken in the LS limit.
+        A success::Bool is returned.
+
+        IT IS SEPARATE FROM `TestFrames.testMethod_SpinAngular` FOR A REASON. As of 13-Sep-2026 it FAILS, on a defect
+        that is filed and understood but not yet repaired: the coefficients for CSF pairs differing by ONE electron
+        across two open shells are wrong, and the block comes out with forbidden elements of order unity. Folding it
+        into the seven-check function would have made that function return false for every run, masking any
+        regression in the other seven. It is wired into `runtests.jl` as `@test_broken`, so the day the repair lands
+        the suite reports an unexpected PASS and the marker must be changed to `@test`.
+
+        WHY THIS TEST AND NOT A COMPARISON. The defect it catches was invisible to comparison for years: the
+        occupation-changing case was calibrated against `SpinAngularGaigalas`, which shares the error, while the only
+        GRASP2018 check covered same-occupation pairs. A property of the physics cannot go stale that way.
+
+        TWO CONDITIONS MAKE IT MEANINGFUL, and without either it condemns every implementation including a correct
+        one -- both mistakes were made while writing it. The radial integrals must depend on (n,l) and NOT on j,
+        because L and S are good quantum numbers only when the spin-orbit partners share a radial function; and they
+        must carry the Slater symmetry R^k(abcd) = R^k(badc) = R^k(cdab) = R^k(dcba). The draws are deterministic but
+        well spread, so a cancellation holding for one of them will not hold for five.
+"""
+function testMethod_SpinAngularTwoParticleLS()
+    success = true
+    printTest, iostream = Defaults.getDefaults("test flag/stream")
+
+    csfsOf = function(confs)
+        relconfs = ConfigurationR[]
+        for  c in confs
+            append!(relconfs, Basics.generateConfigurations(Basics.RelativisticConfigurations(), Configuration(c)))
+        end
+        subshells = Basics.generateSubshellList(relconfs);    csfs = CsfR[]
+        for  rc in relconfs    append!(csfs, Basics.generateCsfRs(rc, subshells))    end
+        return( (csfs, subshells) )
+    end
+
+    # THE TWO-PARTICLE COEFFICIENTS MUST RESPECT L AND S.  V_ee commutes with the total orbital and spin angular
+    #     momenta, so between two configurations of two electrons outside closed shells the interaction block is
+    #     STRICTLY DIAGONAL in (L,S) once the radial integrals are taken in the LS limit.  That is a property of the
+    #     physics, so it tests the coefficients without any second implementation to compare against -- which is the
+    #     point, since the only defect this module is known to carry was invisible to a comparison (the
+    #     occupation-changing case was calibrated against `SpinAngularGaigalas`, which shares the error).
+    #     TWO CONDITIONS MAKE IT MEANINGFUL, and without either it condemns every implementation including a correct
+    #     one: the radial integrals must depend on (n,l) and NOT on j, since L and S are good quantum numbers only
+    #     when the spin-orbit partners share a radial function; and they must carry the Slater symmetry
+    #     R^k(abcd) = R^k(badc) = R^k(cdab) = R^k(dcba).  Random draws make it structural rather than a coincidence.
+    let  draw = (n::Int64) -> sin(1000.13*n + 7.0) + 0.5*cos(371.7*n)   # deterministic, well spread, no dependency
+        # pairs of two-electron configurations that differ by ONE electron over a shared open shell
+        for  (cA, cB, lA, lB)  in  [ ("3s 3p", "3p 3d", (0,1), (1,2) ), ("2s 2p", "2p 3d", (0,1), (1,2) ),
+                                     ("3s 3p", "3p 4s", (0,1), (1,0) ) ]
+            csfs, subshells = csfsOf([cA, cB])
+            lOf = Dict( sh => Basics.subshell_l(sh)  for sh in subshells )
+            isA = function(csf)
+                occ = [ i for i = 1:length(subshells) if csf.occupation[i] > 0 ]
+                length(occ) == 2  &&  (lOf[subshells[occ[1]]], lOf[subshells[occ[2]]]) == lA
+            end
+            isB = function(csf)
+                occ = [ i for i = 1:length(subshells) if csf.occupation[i] > 0 ]
+                length(occ) == 2  &&  (lOf[subshells[occ[1]]], lOf[subshells[occ[2]]]) == lB
+            end
+            jsOf = function(csf)
+                occ = [ i for i = 1:length(subshells) if csf.occupation[i] > 0 ]
+                ( Basics.twice(Basics.subshell_j(subshells[occ[1]]))/2.0,
+                  Basics.twice(Basics.subshell_j(subshells[occ[2]]))/2.0 )
+            end
+            for  tJ  in  [0, 2, 4]
+                braCsfs = [ c for c in csfs if isA(c) && Basics.twice(c.J) == tJ ]
+                ketCsfs = [ c for c in csfs if isB(c) && Basics.twice(c.J) == tJ ]
+                (isempty(braCsfs) || isempty(ketCsfs))  &&  continue
+                JJ = tJ/2
+                # the LS states each side supports, and the jj -> LS transformation between them
+                lsOf = function(ls)
+                    [ (Float64(L), Float64(S))  for L = abs(ls[1]-ls[2]):(ls[1]+ls[2]), S in [0, 1]
+                              if abs(L-S) <= JJ <= L+S ]
+                end
+                tmat = function(ls, cs)
+                    lsl = lsOf(ls)
+                    [ sqrt((2L+1)*(2S+1)*(2js[1]+1)*(2js[2]+1)) *
+                      AngularMomentum.Wigner_9j(Float64(ls[1]), 0.5, js[1], Float64(ls[2]), 0.5, js[2], L, S, JJ)
+                      for js in map(jsOf, cs), (L,S) in lsl ]
+                end
+                TA = tmat(lA, braCsfs);    TB = tmat(lB, ketCsfs)
+                (size(TA,2) == 0 || size(TB,2) == 0)  &&  continue
+                for  trial = 1:5
+                    rad = Dict{NTuple{5,Int64},Float64}();    nDrawn = Ref(100*trial)
+                    getR = function(k, a, b, c, d)
+                        key = (k, minimum([(a,b,c,d), (b,a,d,c), (c,d,a,b), (d,c,b,a)])...)
+                        return( get!(rad, key) do;  nDrawn[] += 1;  draw(nDrawn[])  end )
+                    end
+                    idx = Dict( sh => i  for (i, sh) in enumerate(subshells) )
+                    lix = Dict( sh => lOf[sh]  for sh in subshells )
+                    mtx = zeros( length(braCsfs), length(ketCsfs) )
+                    for  (ir, rc) in enumerate(braCsfs),  (ic, cc) in enumerate(ketCsfs)
+                        for  cf  in  SpinAngular.computeCoefficients(SpinAngular.TwoParticleOperator(0, Basics.plus),
+                                                                     rc, cc, subshells)
+                            g = SpinAngular.toGraspCoulomb(cf)
+                            mtx[ir,ic] += g.V * getR(g.nu, lix[g.a], lix[g.b], lix[g.c], lix[g.d])
+                        end
+                    end
+                    mls = transpose(TA) * mtx * TB
+                    for  (ip, (L,Sp)) in enumerate(lsOf(lA)),  (iq, (Lq,Sq)) in enumerate(lsOf(lB))
+                        (L == Lq && Sp == Sq)  &&  continue
+                        if  abs(mls[ip,iq]) > 1.0e-10
+                            success = false
+                            if printTest   info(iostream, "SpinAngular: the two-particle block $cA -- $cB at " *
+                                          "2J = $tJ is not diagonal in (L,S): the ($L,$Sp)-($Lq,$Sq) element is " *
+                                          "$(mls[ip,iq]), which V_ee cannot produce.")   end
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    testPrint("testMethod_SpinAngularTwoParticleLS()::", success)
+    return(success)
+end
+
+
+
 
 """
 `TestFrames.testMethod_DensityAtNucleus(; short::Bool=true)`

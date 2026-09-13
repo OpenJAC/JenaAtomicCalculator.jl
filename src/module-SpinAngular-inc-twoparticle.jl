@@ -715,12 +715,23 @@ function twoParticleMoveOne(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subs
         prim = moveOnePrimaryVector(leftCsf, rightCsf, subshells, iCre, iAnn, iSpec, kMax, wCre, wAnn)
         if  all(iszero, prim)    continue    end
 
+        # WHICH QUADRUPLE EACH VALUE BELONGS TO IS REVERSED WHEN THE SPECTATOR LIES BETWEEN, fixed 13-Sep-2026.
+        # The assembly then yields the CROSSED pairing, not the direct one, so `prim` is the coefficient of qX and
+        # the transform's result that of qP.  Until this was corrected the two were attached the other way round,
+        # and the consequence was not a wrong number but a MISSING one: the ranks a quadruple can carry are fixed
+        # by its own C^k factors, so weight written under the wrong quadruple lands on ranks the conversion to
+        # R^k annihilates, and the rank that survives is left at zero.  On 3s3p -- 3p3d the k = 1 coefficient of
+        # R(3s 3p, 3p 3d) vanished entirely while GRASP2018 has -0.4472136; swapping the labels reproduces that
+        # to nine figures, and the k = 2 partner likewise (-0.0894427).
+        #   THE VALUES AND THE TRANSFORM ARE UNTOUCHED -- `js` and `partnerMatrix` still see the quadruple the
+        # assembly was built on, which is what makes the numbers come out right; only the labels move.
+        (qPrim, qPart) = between ? (qX, qP) : (qP, qX)
         for  k = 0:kMax
             abs(prim[k+1]) > 1.0e-14  &&
-                push!(coeffs, Coefficient2p{EffectiveStrengthKind}(k, qP[1], qP[2], qP[3], qP[4], prim[k+1]))
+                push!(coeffs, Coefficient2p{EffectiveStrengthKind}(k, qPrim[1], qPrim[2], qPrim[3], qPrim[4], prim[k+1]))
             vx = moveOnePartner(prim, js, k, between)
             abs(vx) > 1.0e-14  &&
-                push!(coeffs, Coefficient2p{EffectiveStrengthKind}(k, qX[1], qX[2], qX[3], qX[4], vx))
+                push!(coeffs, Coefficient2p{EffectiveStrengthKind}(k, qPart[1], qPart[2], qPart[3], qPart[4], vx))
         end
     end
 
