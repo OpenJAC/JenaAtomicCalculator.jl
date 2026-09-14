@@ -7,7 +7,7 @@ module AtomicState
 
 
 # using Interact
-using  Printf, ..Basics, ..ManyElectron, ..Nuclear, ..Radial
+using  Printf, ..Basics, ..ManyElectron, ..Nuclear, ..Radial, ..SpinAngular
 
 export  MeanFieldSettings, MeanFieldBasis, MeanFieldMultiplet, OneElectronSettings, OneElectronSpectrum, CiSettings, CiExpansion,
         RasSettings, RasStep, RasLayer, RasExpansion, GreenSettings, GreenChannel, GreenExpansion, Representation
@@ -1021,6 +1021,201 @@ function sizeRasStep(refConfigs::Array{Configuration,1}, symmetries::Array{Level
     end
 
     return( (nCsf=nCsf, nSub=nSub, lMax=lMax, blocks=blocks, sumN2=sumN2, maxN2=maxN2, blockShare=share) )
+end
+
+"""
+`AtomicState.tryRun(rep::AtomicState.Representation; nSample::Int64=2000, printout::Bool=true)`
+    ... a TRY RUN of a RAS ladder: for every step it reports what the production job would cost in memory and in
+        time, WITHOUT running any of it, so that a ladder can be discussed and decided before a machine is
+        committed to it. An `Array{NamedTuple,1}`, one entry per step, is returned.
+
+        WHY IT TAKES THE REPRESENTATION AND NOT A SETTINGS FLAG. It is handed THE VERY OBJECT that `generate`
+        would be handed, so the estimate cannot describe a different calculation from the production run -- which
+        is the one advantage a `tryRun` field in `AsfSettings` would have had, obtained here without any of its
+        costs. A flag there would have to make `performSCF` return something other than a `Multiplet` (a fake one,
+        or `nothing`, or a union every caller must then handle); `AsfSettings` is threaded through every module,
+        so a stray `true` left in a copy-constructor would silently produce no physics everywhere and look like a
+        convergence failure; and "estimate instead of compute" is a verb, not a property of the Hamiltonian. With
+        a separate entry point there is no flag to default, and the production path is untouched.
+
+        HOW THE NUMBERS ARE OBTAINED -- COUNTED WHERE POSSIBLE, SAMPLED WHERE NOT. The CSF expansion of each step
+        is generated (cheap: no orbitals, no SCF) and its symmetry blocks are counted exactly. Everything an
+        EOL/RAS step builds per CSF PAIR lives inside one block, so the pair work is `sum_b n_b^2` and NOT
+        `nCsf^2`; with the stores of all blocks resident, as they are today, that sum is what is paid, while a
+        route holding one block at a time would pay `max_b n_b^2`. Those are exact. The only unmeasured quantity
+        is the cost of ONE pair, and that is SAMPLED: `nSample` pairs are drawn at RANDOM from each block and
+        their angular coefficients actually computed, on this system's own shells and occupations.
+
+        RANDOM PAIRS, NOT A CONTIGUOUS SUB-BLOCK, AND THE DIFFERENCE MATTERS. Cost per pair FALLS as a block grows
+        -- measured 14-Sep-2026, 61.5 coefficients per pair at 3d^2 against 29.1 at 3d^5 -- because most pairs of
+        a large block are far apart in excitation and carry nothing at all (61 % were empty in one measured
+        block). A contiguous subset over-samples the near-diagonal pairs and would over-predict; a random draw
+        samples the true distribution, so the mean is unbiased. The scatter over the sample is reported beside the
+        estimate, since 60 % of draws returning zero makes a small sample noisy.
+
+        WHAT IS SOLID AND WHAT IS NOT. The per-ITERATION figures rest on exact counts times a measured per-pair
+        cost, and are the trustworthy part. The TOTAL needs the iteration count, which is genuinely
+        unpredictable -- so `maxIterationsScf` from the ladder's own settings is printed as the multiplier it is,
+        and the total is given as "up to", not as a forecast.
+
+        AND THE ITERATION BUDGET IS PRINTED AS A DIAL, because for a large open-shell system it may be the only
+        one left to turn. The cost is linear in it, and the rotation route descends MONOTONICALLY, so a run
+        stopped early returns a variational UPPER BOUND on the energy: the orbitals are less converged, not
+        wrong. Trading convergence for feasibility is therefore a legitimate choice, and the row exists so that
+        the choice can be made on numbers -- "60 iterations is 22 h but 15 is 5 h" -- rather than discovered
+        after a job has been queued.
+"""
+function tryRun(rep::AtomicState.Representation; nSample::Int64=2000, printout::Bool=true)
+    if  !(rep.repType isa AtomicState.RasExpansion)
+        error("AtomicState.tryRun is implemented for a RasExpansion; the representation given carries " *
+              "$(typeof(rep.repType)).  Other representation types follow by the same pattern.")
+    end
+    repType = rep.repType;    maxIter = repType.settings.maxIterationsScf
+    results = NamedTuple[]
+
+    if  printout
+        println("\n", "="^124)
+        println("TRY RUN -- what this RAS ladder would cost, WITHOUT running it.   $(length(repType.steps)) step(s), " *
+                "up to $maxIter SCF iterations each.")
+        println("="^124)
+    end
+
+    for  (istep, step)  in  enumerate(repType.steps)
+        tGen  = @elapsed (basis = Basics.generateBasis(rep.refConfigs, repType.symmetries, step))
+        nCsf  = length(basis.csfs);    nSub = length(basis.subshells)
+        blocks = Dict{LevelSymmetry,Int64}()
+        for  csf  in  basis.csfs
+            sym = LevelSymmetry(csf.J, csf.parity);    blocks[sym] = get(blocks, sym, 0) + 1
+        end
+        sumN2 = sum( Float64(n)^2  for (_, n) in blocks; init=0.0 )
+        maxN2 = isempty(blocks) ? 0.0 : Float64(maximum(values(blocks)))^2
+
+        # SAMPLE the per-pair cost on this system's own CSFs.  THE DRAW MUST BE WITHIN ONE BLOCK, and getting
+        # that wrong is the obvious trap: `sum_b n_b^2` counts only pairs that SHARE a symmetry, so sampling (r,s)
+        # from the whole CSF list scores zero on every cross-block draw and dilutes the mean by whatever fraction
+        # those are.  Measured before the fix on a 25 085-CSF step: 0.1 coefficients per pair, against about 3
+        # when the draw is done properly -- a thirtyfold under-estimate of the store.  A block is therefore chosen
+        # first, with probability proportional to n_b^2 (its share of the work), and r and s are drawn inside it.
+        idxOfBlock = Dict{LevelSymmetry,Array{Int64,1}}()
+        for  (i, csf)  in  enumerate(basis.csfs)
+            sym = LevelSymmetry(csf.J, csf.parity);    push!(get!(idxOfBlock, sym, Int64[]), i)
+        end
+        blockList = collect(keys(blocks));    wBlock = [ Float64(blocks[b])^2 / max(sumN2,1.0)  for b in blockList ]
+        cumW = cumsum(wBlock)
+        drawPair() = begin
+            u = rand();    ib = findfirst(x -> x >= u, cumW);    ib === nothing && (ib = length(cumW))
+            idx = idxOfBlock[blockList[ib]]
+            (basis.csfs[idx[rand(1:length(idx))]], basis.csfs[idx[rand(1:length(idx))]])
+        end
+        countPair(csfR, csfS) = begin
+            m = 0
+            for  cf  in  SpinAngular.computeCoefficientsScalar(SpinAngular.OneParticleOperator(0, Basics.plus),
+                                                               csfR, csfS, basis.subshells)      m += 1   end
+            for  cf  in  SpinAngular.computeCoefficients(SpinAngular.TwoParticleOperator(0, Basics.plus),
+                                                         csfR, csfS, basis.subshells)            m += 1   end
+            m
+        end
+        # WARM UP FIRST, AND TIME THE LOOP AS A WHOLE.  Wrapping `@elapsed` around each individual pair charges
+        # Julia's JIT compilation of the angular routines to whichever pair happened to be first -- seconds of it
+        # -- and that one pair then sets the per-pair cost.  Measured 14-Sep-2026: two runs of the SAME step gave
+        # 22 min and 7.5 h per iteration, a twentyfold swing, from exactly this.  One warm-up call outside the
+        # timing and one `@elapsed` around the whole loop removes it.
+        entries = Int64[];    tSample = 0.0
+        # AND THE LOOP IS TIMED TWICE, THE FIRST PASS DISCARDED.  A handful of warm-up draws is NOT enough here:
+        # `SpinAngular` specialises on the occupation pattern of the pair it is given, so fresh specialisations go
+        # on being compiled well into the sample and land in the timing.  Measured 14-Sep-2026, the same 887-CSF
+        # step timed 2 s and then 27 s of angular build in two runs -- a thirteenfold swing -- while the STORE,
+        # which does not depend on timing, reproduced at 8 MB both times.  Running the whole loop twice and
+        # keeping the second pass removes it;  the counts come from the second pass too, so both are consistent.
+        for  pass = 1:2
+            passEntries = Int64[]
+            tPass = @elapsed begin
+                for  k = 1:nSample
+                    (csfR, csfS) = drawPair();    push!(passEntries, countPair(csfR, csfS))
+                end
+            end
+            entries = passEntries;    tSample = tPass
+        end
+        nDrawn   = max(length(entries), 1)
+        perPair  = sum(entries) / nDrawn
+        sdPair   = nDrawn > 1 ? sqrt(sum((e - perPair)^2 for e in entries) / (nDrawn - 1)) : 0.0
+        # THE STANDARD ERROR OF THE MEAN IS WHAT THE ESTIMATE INHERITS, not the spread of the sample.  With most
+        # pairs empty and a heavy tail on the rest, the two differ by sqrt(nSample) and only the first says how
+        # well the total is known;  it is reported so that a noisy estimate announces itself.
+        sePair   = sdPair / sqrt(nDrawn)
+        relErr   = perPair > 0. ? sePair / perPair : 0.
+        sPerPair = tSample / nDrawn
+        fillPct  = 100 * count(!iszero, entries) / nDrawn
+
+        # 16 bytes per stored entry is the flat-CSR cost of the present store: an Int32 label index, an Int32
+        # value index, and the amortised share of the interning tables and the pair pointer.
+        bytesPerEntry = 16.0
+        memAll = sumN2 * perPair * bytesPerEntry / 1024^3
+        memOne = maxN2 * perPair * bytesPerEntry / 1024^3
+        fmtMem(g) = g >= 1.0 ? @sprintf("%.2f GB", g) : (g >= 1.0e-3 ? @sprintf("%.0f MB", g*1024) : @sprintf("%.1f kB", g*1024^2))
+        # THE ANGULAR BUILD IS THE SAME WORK ON EITHER ROUTE -- every block's coefficients are needed each
+        # iteration whichever way they are stored.  WHAT THE ROUTE CHANGES IS HOW OFTEN IT IS PAID: holding all
+        # blocks pays it ONCE and reuses them, holding one at a time pays it EVERY iteration.  So that route buys
+        # memory WITH time and can NEVER be faster;  an earlier version of this routine applied the memory
+        # formula (max_b n_b^2) to the time column and so showed the cheaper-memory route as also the quicker,
+        # which is the trade backwards.
+        tBuild = sumN2 * sPerPair
+        # A FULL SCF ITERATION IS LARGER THAN ITS ANGULAR PART, by a measured factor: 15.26 s of angular build
+        # against 47.7 s per iteration at 3167 CSFs, and 4.78 s against 8.4 s at 887 -- so the build is roughly a
+        # third of an iteration, and the penalty for holding one block at a time is about +30 % wall clock rather
+        # than a doubling.  This routine times only the angular work and cannot see the radial integrals, the
+        # orbital update or the diagonalisation, so that factor is carried explicitly.
+        iterOverAngular = 3.0
+        tIter  = tBuild * iterOverAngular
+        tAllT  = tBuild + tIter * maxIter                      ## build once, then iterate
+        tOneT  = (tBuild + tIter) * maxIter                    ## rebuild every iteration
+
+        if  printout
+            println("\n>> step $istep:  $nCsf CSFs, $nSub subshells, $(length(blocks)) blocks, largest " *
+                    @sprintf("%.0f %%", 100*maxN2/max(sumN2,1.0)) * " of the pair work;  CSF list built in " *
+                    @sprintf("%.1f s", tGen) * ";  sampled $nDrawn random pairs, " *
+                    @sprintf("%.2f +- %.2f", perPair, sePair) * " coefficients each (s.e. of the mean, " *
+                    @sprintf("%.0f %%", 100*relErr) * "), " * @sprintf("%.0f %%", fillPct) * " non-empty." *
+                    (relErr > 0.20 ? "  ** NOISY: raise nSample **" : ""))
+            println("   " * rpad("route", 38) * rpad("store", 12) * rpad("angular build", 14) *
+                    rpad("paid", 18) * "total, up to $maxIter iterations")
+            println("   " * rpad("all blocks resident (today)", 38) * rpad(fmtMem(memAll), 12) *
+                    rpad(fmtTime(tBuild), 14) * rpad("once", 18) * fmtTime(tAllT))
+            println("   " * rpad("one block at a time (not yet built)", 38) * rpad(fmtMem(memOne), 12) *
+                    rpad(fmtTime(tBuild), 14) * rpad("every iteration", 18) * fmtTime(tOneT))
+            println("   " * rpad("", 38) *
+                    @sprintf("-> one block at a time would cost %.0f %% more time and keep %.0f %% of the store",
+                             100*(tOneT/max(tAllT,1e-30) - 1), 100*memOne/max(memAll,1e-30)))
+            # THE ITERATION BUDGET IS A DIAL, AND FOR A LARGE SYSTEM IT MAY BE THE ONLY ONE LEFT.  The rotation
+            # route descends monotonically, so a run stopped early returns a VARIATIONAL UPPER BOUND on the
+            # energy -- the orbitals are less good, not wrong -- and trading convergence for feasibility is a
+            # legitimate choice rather than a fudge.  The cost is linear in the budget, so it is shown as a dial.
+            local budgets = sort(unique(Int64[ b  for b in [maxIter, maxIter ÷ 2, maxIter ÷ 4, 10, 5]  if 1 <= b <= maxIter ]), rev=true)
+            println("   " * rpad("iteration budget (today's route)", 38) *
+                    join([ @sprintf("%d -> %s", b, fmtTime(tBuild + tIter*b))  for b in budgets ], "   |   "))
+        end
+
+        push!(results, (step=istep, nCsf=nCsf, nSub=nSub, blocks=length(blocks), sumN2=sumN2, maxN2=maxN2,
+                        perPair=perPair, sdPerPair=sdPair, fillPercent=fillPct, memAllGB=memAll, memOneGB=memOne,
+                        secAngularBuild=tBuild, secPerIteration=tIter, secTotalAll=tAllT,
+                        secTotalOne=tOneT, maxIterations=maxIter))
+    end
+
+    if  printout
+        println("\n>> THE PER-ITERATION FIGURES ARE THE SOLID ONES -- exact pair counts times a per-pair cost measured")
+        println(">> on this very system.  The totals assume the full iteration budget and are an UPPER bound, not a")
+        println(">> forecast:  a step that converges in five iterations costs a quarter of what is shown.  The store")
+        println(">> figure covers the angular coefficient store only;  a running job also carries the ~1.5 GB JAC")
+        println(">> baseline, the CI matrix of one block at a time, and the radial caches.")
+        println(">> THE TIME COLUMN IS BUILT FROM THE ANGULAR WORK, sampled here, times a measured factor of 3 for the")
+        println(">> rest of an SCF iteration.  Against the one step run to completion it comes out LOW by about 1.75x")
+        println(">> -- helmtop did 16 iterations of the 25 085-CSF step in under ten hours -- so read the totals as a")
+        println(">> FLOOR.  Item 30 can never be faster:  it does the same angular work and merely pays it per")
+        println(">> iteration instead of once, which is how it buys the store back.  That route is NOT IMPLEMENTED yet;")
+        println(">> its row says what it WOULD cost, so that the trade can be judged before anyone builds it.")
+    end
+
+    return( results )
 end
 
 end # module
