@@ -4,41 +4,131 @@
 # the generalized occupation, and the two EOL solvers.
 
 """
+`struct  SelfConsistent.PairCoefficientCache`
+    ... holds the orbital-independent angular coefficients of every CSF pair of ONE symmetry block, in a form whose
+        size is set by the number of DISTINCT labels and values rather than by the number of pair-entries.
+
+        WHY IT IS NOT A `Dict` OF `Vector`s ANY MORE.  It was, until 14-Sep-2026, and that cost 1.55 MB per CSF
+        against 0.181 for a plain Coulomb CI of the same ion -- about ten times more -- which is what put an open
+        d shell out of reach whatever the machine: a Ti III layer of 25 085 CSF was killed at a predicted 72 GB.
+        The CI matrix was never the problem; it IS built and diagonalised per symmetry block. The STORAGE was,
+        because every block's cache is held for the whole SCF run (the EOL target levels span symmetries and each
+        outer iteration revisits them) and because the old form paid a `Vector` header for every one of the n^2
+        ordered pairs, including the empty ones.
+
+        THE THREE REDUNDANCIES, MEASURED 13-Sep-2026 on the J = 2+ block of a Ti III 3p-opened space, 239 CSF:
+            57 121 ordered pairs, of which 34 686 (61 %) carry NOTHING and still held an empty Vector;
+            140 585 coefficient entries drawn from only 437 distinct (nu,a,b,c,d) labels   -> 321 x reuse;
+            the same entries drawn from 15 560 distinct values                             ->   9 x reuse.
+        So: FLAT CSR arrays instead of a Dict of Vectors, so an empty pair costs one Int32 and no header; the
+        labels INTERNED in a table, an Int32 index per entry; the values likewise. Measured 11.4 x smaller on
+        that block, and the gain GROWS with block size, which is where it is needed.
+
+        NOT DONE, and deliberately: the further factor of two from hermiticity. `buildCIMatrixEOL` uses only
+        r <= s, but `combineAngularCoefficientsEOL` uses every ordered pair, so dropping the lower triangle needs
+        the relation between the (r,s) and (s,r) coefficient lists PROVED rather than assumed. It is the smallest
+        of the available gains and the only one resting on an unverified claim.
+
+    + idxCsf     ::Array{Int64,1}            ... indices, in the full basis, of the CSFs of this block.
+    + subshells  ::Array{Subshell,1}         ... the basis subshell list, so a label index can be turned back
+                                                 into a Subshell.
+    + labels1p   ::Array{NTuple{3,Int64},1}  ... distinct (nu, a, b) as subshell INDICES.
+    + labels2p   ::Array{NTuple{5,Int64},1}  ... distinct (nu, a, b, c, d) as subshell indices.
+    + values     ::Array{Float64,1}          ... distinct coefficient values, shared by the one- and two-particle
+                                                 parts.
+    + ptr1p, lab1p, val1p                    ... CSR row pointer and the two index arrays, one-particle.
+    + ptr2p, lab2p, val2p                    ... the same, two-particle.
+"""
+struct  PairCoefficientCache
+    idxCsf              ::Array{Int64,1}
+    subshells           ::Array{Subshell,1}
+    labels1p            ::Array{NTuple{3,Int64},1}
+    labels2p            ::Array{NTuple{5,Int64},1}
+    values              ::Array{Float64,1}
+    ptr1p               ::Array{Int32,1}
+    lab1p               ::Array{Int32,1}
+    val1p               ::Array{Int32,1}
+    ptr2p               ::Array{Int32,1}
+    lab2p               ::Array{Int32,1}
+    val2p               ::Array{Int32,1}
+end
+
+
+"""
+`SelfConsistent.coefficients1p(c::SelfConsistent.PairCoefficientCache, r::Int64, s::Int64)`
+    ... rebuilds, lazily, the one-particle coefficients of the CSF pair (r,s) from the interned tables. A
+        generator of `Coefficient1p` is returned, so nothing is allocated per pair and the caller's
+        `for cf in ...` loop is unchanged.
+"""
+function coefficients1p(c::PairCoefficientCache, r::Int64, s::Int64)
+    k = (s - 1) * length(c.idxCsf) + r
+    return( ( Coefficient1p( c.labels1p[c.lab1p[i]][1], c.subshells[c.labels1p[c.lab1p[i]][2]],
+                             c.subshells[c.labels1p[c.lab1p[i]][3]], c.values[c.val1p[i]] )
+              for i = c.ptr1p[k]:(c.ptr1p[k+1] - 1) ) )
+end
+
+
+"""
+`SelfConsistent.coefficients2p(c::SelfConsistent.PairCoefficientCache, r::Int64, s::Int64)`
+    ... as `SelfConsistent.coefficients1p`, for the two-particle coefficients. A generator of `Coefficient2p`
+        is returned.
+"""
+function coefficients2p(c::PairCoefficientCache, r::Int64, s::Int64)
+    k = (s - 1) * length(c.idxCsf) + r
+    return( ( Coefficient2p( c.labels2p[c.lab2p[i]][1], c.subshells[c.labels2p[c.lab2p[i]][2]],
+                             c.subshells[c.labels2p[c.lab2p[i]][3]], c.subshells[c.labels2p[c.lab2p[i]][4]],
+                             c.subshells[c.labels2p[c.lab2p[i]][5]], c.values[c.val2p[i]] )
+              for i = c.ptr2p[k]:(c.ptr2p[k+1] - 1) ) )
+end
+
+
+"""
 `SelfConsistent.cacheCsfPairCoefficientsEOL(sym::LevelSymmetry, basis::Basis)`
-    ... caches, for every CSF pair (r,s) with symmetry sym in the given basis, the pure spin-angular
-        coefficients (independent of the orbitals/radial functions) as returned by
-        SpinAngular.computeCoefficientsScalar -- the same call Hamiltonian.setupMatrix/setupMatrixKinkAware
-        make internally to build the CI Hamiltonian matrix. Here the intermediate coefficient lists are
-        retained instead of being discarded, so they can be reused across the whole EOL outer SCF+CI loop
-        (they depend only on the fixed CSF list, never on the current orbitals). A tuple
-        (idxCsf::Array{Int64,1}, cache1p, cache2p) is returned, with (r,s) keys running over the LOCAL
-        index (1:length(idxCsf)) into the symmetry block.
+    ... computes, once, the orbital-independent angular coefficients of every CSF pair of the symmetry block
+        `sym` and stores them interned. The coefficients depend only on the CSFs and the subshell list, never on
+        the radial functions, so they survive every outer SCF+CI iteration unchanged -- which is the whole point
+        of caching them. A `cache::SelfConsistent.PairCoefficientCache` is returned; see its docstring for the
+        storage form and for what it replaced.
 """
 function cacheCsfPairCoefficientsEOL(sym::LevelSymmetry, basis::Basis)
     idxCsf = Int64[]
     for  idx = 1:length(basis.csfs)
         if  basis.csfs[idx].J == sym.J   &&   basis.csfs[idx].parity == sym.parity    push!(idxCsf, idx)    end
     end
-    n = length(idxCsf)
-
-    cache1p = Dict{Tuple{Int64,Int64}, Array{Coefficient1p,1}}()
-    cache2p = Dict{Tuple{Int64,Int64}, Array{Coefficient2p,1}}()
-    for  r = 1:n
-        for  s = 1:n
+    n     = length(idxCsf)
+    subIx = Dict( sh => i  for (i, sh) in enumerate(basis.subshells) )
+    lab1D = Dict{NTuple{3,Int64},Int32}();    labels1p = NTuple{3,Int64}[]
+    lab2D = Dict{NTuple{5,Int64},Int32}();    labels2p = NTuple{5,Int64}[]
+    valD  = Dict{Float64,Int32}();            values   = Float64[]
+    intern!(d, tab, key) = get!(d, key) do;   push!(tab, key);   Int32(length(tab))   end
+    ptr1p = Int32[1];   lab1p = Int32[];   val1p = Int32[]
+    ptr2p = Int32[1];   lab2p = Int32[];   val2p = Int32[]
+    # THE COLUMN-MAJOR ORDER (s outer, r inner) matches the linear index the accessors form, k = (s-1)n + r.
+    for  s = 1:n
+        for  r = 1:n
             csfR = basis.csfs[idxCsf[r]];   csfS = basis.csfs[idxCsf[s]]
-            cache1p[(r,s)] = SpinAngular.computeCoefficientsScalar(SpinAngular.OneParticleOperator(0, Basics.plus),
-                                                                    csfR, csfS, basis.subshells)
-            cache2p[(r,s)] = SpinAngular.computeCoefficients(SpinAngular.TwoParticleOperator(0, Basics.plus),
-                                                                    csfR, csfS, basis.subshells)
+            for  cf  in  SpinAngular.computeCoefficientsScalar(SpinAngular.OneParticleOperator(0, Basics.plus),
+                                                               csfR, csfS, basis.subshells)
+                push!(lab1p, intern!(lab1D, labels1p, (cf.nu, subIx[cf.a], subIx[cf.b])))
+                push!(val1p, intern!(valD,  values,   cf.T))
+            end
+            push!(ptr1p, Int32(length(lab1p) + 1))
+            for  cf  in  SpinAngular.computeCoefficients(SpinAngular.TwoParticleOperator(0, Basics.plus),
+                                                         csfR, csfS, basis.subshells)
+                push!(lab2p, intern!(lab2D, labels2p, (cf.nu, subIx[cf.a], subIx[cf.b], subIx[cf.c], subIx[cf.d])))
+                push!(val2p, intern!(valD,  values,   cf.V))
+            end
+            push!(ptr2p, Int32(length(lab2p) + 1))
         end
     end
 
-    return( (idxCsf, cache1p, cache2p) )
+    return( PairCoefficientCache(idxCsf, basis.subshells, labels1p, labels2p, values,
+                                 ptr1p, lab1p, val1p, ptr2p, lab2p, val2p) )
 end
 
 
 """
-`SelfConsistent.buildCIMatrixEOL(idxCsf::Array{Int64,1}, cache1p, cache2p, orbitals::Dict{Subshell, Orbital},
+`SelfConsistent.buildCIMatrixEOL(cache::SelfConsistent.PairCoefficientCache, orbitals::Dict{Subshell, Orbital},
                                  grid::Radial.Grid, potential::Radial.Potential)`
     ... (re-) builds the CI Hamiltonian matrix for one symmetry block from CACHED, orbital-independent
         angular coefficients (see cacheCsfPairCoefficientsEOL) and the CURRENT radial functions in
@@ -54,7 +144,7 @@ end
         (found by profiling to be the dominant EOL cost for multi-CSF cases -- see
         project_eol_implementation.md). A  matrix::Array{Float64,2}  is returned.
 """
-function buildCIMatrixEOL(idxCsf::Array{Int64,1}, cache1p, cache2p, orbitals::Dict{Subshell, Orbital},
+function buildCIMatrixEOL(cache::PairCoefficientCache, orbitals::Dict{Subshell, Orbital},
                           grid::Radial.Grid, potential::Radial.Potential,
                           radial1pCache::Dict{Tuple{Subshell,Subshell},Float64}          = Dict{Tuple{Subshell,Subshell},Float64}(),
                           radial2pCache::Dict{Tuple{Int64,Subshell,Subshell,Subshell,Subshell},Float64} =
@@ -69,17 +159,17 @@ function buildCIMatrixEOL(idxCsf::Array{Int64,1}, cache1p, cache2p, orbitals::Di
     # just safe, since this matrix feeds diagonalizeBlockEOL -> Basics.diagonalize(MatrixWithLinearAlgebra(),
     # ...), whose Symmetric(matrix) wrapper (default uplo=:U) already discards the lower triangle. See
     # Hamiltonian.setupMatrix's identical note for the confirming test.
-    n = length(idxCsf);   matrix = zeros(Float64, n, n)
+    n = length(cache.idxCsf);   matrix = zeros(Float64, n, n)
     for  r = 1:n
         for  s = r:n
             me = 0.
-            for  cf in cache1p[(r,s)]
+            for  cf in coefficients1p(cache, r, s)
                 I_ab = get!(radial1pCache, (cf.a,cf.b)) do
                     RadialIntegrals.GrantIab(orbitals[cf.a], orbitals[cf.b], grid, potential)
                 end
                 me = me + cf.T * I_ab
             end
-            for  cf in cache2p[(r,s)]
+            for  cf in coefficients2p(cache, r, s)
                 R_abcd = get!(radial2pCache, (cf.nu,cf.a,cf.b,cf.c,cf.d)) do
                     InteractionStrength.XL_CoulombKinkAware(cf.nu, orbitals[cf.a], orbitals[cf.b], orbitals[cf.c], orbitals[cf.d], grid)
                 end
@@ -241,7 +331,8 @@ function computeGeneralizedOccupationEOL(blockCaches, targetLevels::Array{Level,
     weights     = [ twiceJp1(level.J) / sumWeights  for level in targetLevels ]
 
     occs = Dict{Subshell, Float64}();   for  sh in basis.subshells   occs[sh] = 0.   end
-    for  (_, (idxCsf, _, _))  in  blockCaches
+    for  (_, cache)  in  blockCaches
+        idxCsf = cache.idxCsf
         for  r  in  idxCsf
             drr = 0.
             for  (i, level)  in  enumerate(targetLevels)    drr = drr + weights[i] * level.mc[r]^2    end
@@ -328,8 +419,8 @@ function combineAngularCoefficientsEOL(blockCaches, targetLevels::Array{Level,1}
     weights     = [ twiceJp1(level.J) / sumWeights  for level in targetLevels ]
 
     coeffs1p = Coefficient1p[];   coeffs2p = Coefficient2p[]
-    for  (_, (idxCsf, cache1p, cache2p))  in  blockCaches
-        n = length(idxCsf)
+    for  (_, cache)  in  blockCaches
+        idxCsf = cache.idxCsf;    n = length(idxCsf)
         for  r = 1:n
             for  s = 1:n
                 # pairs = :all (default, unchanged) | :diagonal (r == s only) | :offdiagonal (r != s only).
@@ -341,8 +432,8 @@ function combineAngularCoefficientsEOL(blockCaches, targetLevels::Array{Level,1}
                 drs = 0.
                 for  (i, level)  in  enumerate(targetLevels)    drs = drs + weights[i] * level.mc[idxCsf[r]] * level.mc[idxCsf[s]]    end
                 if  drs == 0.    continue    end
-                for  cf in cache1p[(r,s)]   push!(coeffs1p, Coefficient1p(cf.nu, cf.a, cf.b, cf.T * drs) )   end
-                for  cf in cache2p[(r,s)]   push!(coeffs2p, Coefficient2p(cf.nu, cf.a, cf.b, cf.c, cf.d, cf.V * drs) )   end
+                for  cf in coefficients1p(cache, r, s)   push!(coeffs1p, Coefficient1p(cf.nu, cf.a, cf.b, cf.T * drs) )   end
+                for  cf in coefficients2p(cache, r, s)   push!(coeffs2p, Coefficient2p(cf.nu, cf.a, cf.b, cf.c, cf.d, cf.V * drs) )   end
             end
         end
     end
@@ -1047,11 +1138,20 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
         # selection is by CONFIGURATION rather than by index the count is not known until the first CI, so 1 is
         # assumed and the estimate is then a LOWER bound; the message says which case it is in.
         nLev   = isempty(settings.levelSelectionCI.indices) ? 1 : length(settings.levelSelectionCI.indices)
-        memEol = 1.58 + 1.0e-3 * nCsf * (1.55 + 0.097*(nLev-1))          ## GB, from the two measured points
+        # THE LAW IS NOW AN UPPER BOUND, NOT A PREDICTION -- 14-Sep-2026.  It was fitted on 04-Sep to a cache that
+        # stored every CSF pair's coefficients explicitly; that cache was re-formed (flat CSR, interned labels and
+        # values) and measured 15x smaller on the same blocks -- 125.24 MB to 8.30 MB over the five symmetry
+        # blocks of an 887-CSF Ti III space, 0.141 to 0.0094 MB/CSF.  Since the cache was the term that grew as
+        # n^2 WITHIN a block, the old coefficient overstates the requirement, and by more the larger the layer.
+        # It is LEFT IN PLACE deliberately: a bound that errs high still stops the silent kill it was written for,
+        # and re-fitting it needs the same two-point measurement the 04-Sep note describes, which has not been
+        # redone.  Do not quote it as a requirement.
+        memEol = 1.58 + 1.0e-3 * nCsf * (1.55 + 0.097*(nLev-1))          ## GB, an UPPER BOUND since 14-Sep-2026
         println(">> [EOL-C3] cost estimate: $nCsf CSFs over $nSub subshells, $nLev target level(s)" *
                 (isempty(settings.levelSelectionCI.indices) ? " ASSUMED (selection is by configuration, so this is a LOWER bound)" : "") *
                 ";  predicted peak " * @sprintf("%.1f GB", memEol) *
-                " (measured law 1.58 GB + nCsf x (1.55 + 0.097 (nLev-1)) MB).")
+                " (law of 04-Sep-2026, an UPPER BOUND since the pair cache was re-formed on 14-Sep and measured " *
+                "15x smaller; see the note at this line).")
         if  memEol > 8.0
             println(">> [EOL-C3] *** WARNING: this layer is predicted to need " * @sprintf("%.1f GB", memEol) *
                     ".  A 6 163-CSF layer was killed three times at 12.9-14.7 GB, silently and after seven " *
@@ -1117,8 +1217,8 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
         radial2p  = Dict{Tuple{Int64,Subshell,Subshell,Subshell,Subshell},Float64}()
         levels    = Level[]
         for  sym  in  relevantSyms
-            (idxCsf, cache1p, cache2p) = blockCaches[sym]
-            mtx = SelfConsistent.buildCIMatrixEOL(idxCsf, cache1p, cache2p, orbitals, grid, nucPot, radial1p, radial2p)
+            cache = blockCaches[sym];    idxCsf = cache.idxCsf
+            mtx = SelfConsistent.buildCIMatrixEOL(cache, orbitals, grid, nucPot, radial1p, radial2p)
             append!( levels, SelfConsistent.diagonalizeBlockEOL(sym, idxCsf, mtx, tempBasis) )
         end
         multiplet    = Basics.sortByEnergy( Multiplet("EOL-ByRotation", levels) )
@@ -1820,8 +1920,8 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
     let  radial1pF = Dict{Tuple{Subshell,Subshell},Float64}(),
          radial2pF = Dict{Tuple{Int64,Subshell,Subshell,Subshell,Subshell},Float64}()
         for  sym  in  relevantSyms
-            (idxCsf, cache1p, cache2p) = blockCaches[sym]
-            mtx = SelfConsistent.buildCIMatrixEOL(idxCsf, cache1p, cache2p, finalTmpOrbs, grid, nucPot,
+            cache = blockCaches[sym];    idxCsf = cache.idxCsf
+            mtx = SelfConsistent.buildCIMatrixEOL(cache, finalTmpOrbs, grid, nucPot,
                                                   radial1pF, radial2pF)
             append!( finalLevels, SelfConsistent.diagonalizeBlockEOL(sym, idxCsf, mtx, finalTmpBasis) )
         end
@@ -1945,8 +2045,7 @@ function solveOptimizedLevelField(basis::Basis, nuclearModel::Nuclear.Model, pri
 
     # (2) Cache the (orbital-independent) per-CSF-pair angular coefficients once for every relevant block
     if  printout    println(">> [EOL] Caching per-CSF-pair angular coefficients for symmetries $(relevantSyms) ...")    end
-    blockCaches = Dict{LevelSymmetry, Tuple{Array{Int64,1}, Dict{Tuple{Int64,Int64},Array{Coefficient1p,1}},
-                                             Dict{Tuple{Int64,Int64},Array{Coefficient2p,1}}}}()
+    blockCaches = Dict{LevelSymmetry, SelfConsistent.PairCoefficientCache}()
     for  sym  in  relevantSyms
         blockCaches[sym] = SelfConsistent.cacheCsfPairCoefficientsEOL(sym, basis)
     end
@@ -1961,8 +2060,8 @@ function solveOptimizedLevelField(basis::Basis, nuclearModel::Nuclear.Model, pri
         radial2pCache = Dict{Tuple{Int64,Subshell,Subshell,Subshell,Subshell},Float64}()
         levels = Level[]
         for  sym  in  relevantSyms
-            (idxCsf, cache1p, cache2p) = blockCaches[sym]
-            matrix = SelfConsistent.buildCIMatrixEOL(idxCsf, cache1p, cache2p, currentOrbitals, grid, nucPot,
+            cache = blockCaches[sym];    idxCsf = cache.idxCsf
+            matrix = SelfConsistent.buildCIMatrixEOL(cache, currentOrbitals, grid, nucPot,
                                                       radial1pCache, radial2pCache)
             append!( levels, SelfConsistent.diagonalizeBlockEOL(sym, idxCsf, matrix, tempBasis) )
         end
