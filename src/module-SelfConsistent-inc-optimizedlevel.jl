@@ -1138,20 +1138,50 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
         # selection is by CONFIGURATION rather than by index the count is not known until the first CI, so 1 is
         # assumed and the estimate is then a LOWER bound; the message says which case it is in.
         nLev   = isempty(settings.levelSelectionCI.indices) ? 1 : length(settings.levelSelectionCI.indices)
-        # THE LAW IS NOW AN UPPER BOUND, NOT A PREDICTION -- 14-Sep-2026.  It was fitted on 04-Sep to a cache that
-        # stored every CSF pair's coefficients explicitly; that cache was re-formed (flat CSR, interned labels and
-        # values) and measured 15x smaller on the same blocks -- 125.24 MB to 8.30 MB over the five symmetry
-        # blocks of an 887-CSF Ti III space, 0.141 to 0.0094 MB/CSF.  Since the cache was the term that grew as
-        # n^2 WITHIN a block, the old coefficient overstates the requirement, and by more the larger the layer.
-        # It is LEFT IN PLACE deliberately: a bound that errs high still stops the silent kill it was written for,
-        # and re-fitting it needs the same two-point measurement the 04-Sep note describes, which has not been
-        # redone.  Do not quote it as a requirement.
-        memEol = 1.58 + 1.0e-3 * nCsf * (1.55 + 0.097*(nLev-1))          ## GB, an UPPER BOUND since 14-Sep-2026
+        # THE COST IS A LINEAR TERM PLUS A QUADRATIC ONE IN THE SYMMETRY-BLOCK SIZE -- measured 14-Sep-2026,
+        # and this is a change of SHAPE, not a re-fit.  The 04-Sep law was 1.58 + 1.0e-3*nCsf*(1.55 +
+        # 0.097*(nLev-1)), written per CSF;  fitting that same form to eleven solves over 14-1231 CSFs gave a
+        # per-CSF slope 24x smaller.  BOTH ARE RIGHT WHERE THEY WERE FITTED AND WRONG ELSEWHERE, because a
+        # single power law cannot describe a sum of two terms:  the linear one dominates below about a thousand
+        # CSFs, the quadratic one above, and each fit sampled only its own side.
+        #
+        # WHY QUADRATIC AT ALL.  Everything built per CSF PAIR within a block -- `PairCoefficientCache`, the CI
+        # matrix, the combined-coefficient temporary, the radial caches -- grows with the ordered pairs, i.e. as
+        # n^2 for a block of n CSFs.  Item 29 cut the CONSTANT in front of that (the cache is 15x smaller) and
+        # could not change the exponent.  The cache is about 38 % of the quadratic term; the other per-pair
+        # structures carry the rest, which is why shrinking the cache alone did not move the limit.
+        #
+        # CALIBRATED ON THREE ANCHORS, Ti III with 3p opened, each run in its own process under /usr/bin/time:
+        #
+        #        nCsf      sum n_b^2     measured      this law
+        #         887       1.74e5        0.15 GB       0.13 GB      (space-dependent part, baseline subtracted)
+        #       3 167       2.16e6        0.65 GB       0.64 GB
+        #      25 085       1.59e8       24.5   GB     22.1   GB
+        #
+        # -- within 15 % across a 28x span in CSFs and a 900x span in sum n^2.  At the top anchor the quadratic
+        # term is 86 % of the cost;  at the bottom it is 15 %.
+        #
+        # THE LEVEL COUNT IS DELIBERATELY ABSENT.  The old law charged 0.097 GB per 1000 CSFs per extra target
+        # level.  Measured at FIXED space (1231 CSFs, nLev = 1 / 3 / 6): 1.669 / 1.636 / 1.643 GB, i.e. FLAT,
+        # where that term predicts +0.6 GB across the range.  Do not reinstate it without a measurement.
+        #
+        # AND THE BLOCKS ARE REPORTED BECAUSE THEY ARE THE LEVER.  The stores for ALL blocks are held for the
+        # whole run, so the cost is the SUM of the squares;  the work, however, is done one block at a time.  On
+        # the Ti III balanced row the five blocks hold 6667, 6275, 6092, 4382 and 1669 CSFs, so the largest is
+        # 31 % of the sum -- i.e. holding one block at a time would take that row from ~26 GB to ~9 GB.
+        blockSizes = Dict{LevelSymmetry,Int64}()
+        for  csf  in  basis.csfs
+            sym = LevelSymmetry(csf.J, csf.parity);   blockSizes[sym] = get(blockSizes, sym, 0) + 1
+        end
+        sumN2  = sum( Float64(n)^2  for (_, n) in blockSizes; init=0.0 )
+        maxN   = isempty(blockSizes) ? 0 : maximum(values(blockSizes))
+        memEol = 1.5 + 1.2e-4 * nCsf + 1.2e-7 * sumN2                    ## GB, measured 14-Sep-2026; see above
         println(">> [EOL-C3] cost estimate: $nCsf CSFs over $nSub subshells, $nLev target level(s)" *
                 (isempty(settings.levelSelectionCI.indices) ? " ASSUMED (selection is by configuration, so this is a LOWER bound)" : "") *
                 ";  predicted peak " * @sprintf("%.1f GB", memEol) *
-                " (law of 04-Sep-2026, an UPPER BOUND since the pair cache was re-formed on 14-Sep and measured " *
-                "15x smaller; see the note at this line).")
+                @sprintf(";  %d symmetry blocks, the largest holding %d CSFs and %.0f %% of the pair cost",
+                         length(blockSizes), maxN, 100*maxN^2/max(sumN2,1.0)) *
+                " -- the stores for ALL blocks are held at once, so that percentage is what one block at a time would cost.")
         if  memEol > 8.0
             println(">> [EOL-C3] *** WARNING: this layer is predicted to need " * @sprintf("%.1f GB", memEol) *
                     ".  A 6 163-CSF layer was killed three times at 12.9-14.7 GB, silently and after seven " *
