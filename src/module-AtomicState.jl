@@ -7,7 +7,7 @@ module AtomicState
 
 
 # using Interact
-using  ..Basics, ..ManyElectron, ..Nuclear, ..Radial
+using  Printf, ..Basics, ..ManyElectron, ..Nuclear, ..Radial
 
 export  MeanFieldSettings, MeanFieldBasis, MeanFieldMultiplet, OneElectronSettings, OneElectronSpectrum, CiSettings, CiExpansion,
         RasSettings, RasStep, RasLayer, RasExpansion, GreenSettings, GreenChannel, GreenExpansion, Representation
@@ -903,6 +903,124 @@ function Base.show(io::IO, rep::Representation)
     println(io, "representation type:   $(rep.repType)  ")
     println(io, "nuclearModel:          $(rep.nuclearModel)  ")
     println(io, "grid:                  $(rep.grid)  ")
+end
+
+
+# The measured anchors used by `sizeRasStep` to BRACKET a layer: (nCsf, peak RSS in GB, wall clock in s; 0 = not
+# measured).  Ti III with 3p opened, one process each under /usr/bin/time -v, 14-Sep-2026.  THE 11 298 ENTRY IS
+# PROVISIONAL -- that run did not complete, and it is the single point that makes the series look unfittable, so it
+# should be re-measured before any law is rejected or built on it.
+const ANCHORS = [ (887, 1.6, 98.0), (3167, 2.1, 777.0), (11298, 12.8, 0.0), (25085, 29.7, 36000.0) ]
+
+fmtTime(t::Float64) = t < 120. ? @sprintf("%.0f s", t) : (t < 7200. ? @sprintf("%.0f min", t/60) : @sprintf("%.1f h", t/3600))
+
+
+"""
+`AtomicState.sizeRasStep(refConfigs::Array{Configuration,1}, symmetries::Array{LevelSymmetry,1},
+                         step::AtomicState.RasStep; printout::Bool=true)`
+    ... counts what a RAS step would cost BEFORE any of it is run, so that a layer can be judged against the machine
+        it is meant to run on. Only the CSF expansion is built -- no orbitals, no SCF, no angular coefficients -- so
+        this is seconds even for a layer that would take hours. A NamedTuple
+        `(nCsf, nSub, lMax, blocks, sumN2, maxN2, blockShare)` is returned.
+
+        WHAT IT REPORTS, AND WHY NOT MORE. Everything here is either an exact COUNT or a RATIO of two counts, and
+        that restraint is deliberate. Everything an EOL/RAS layer builds per CSF PAIR lives inside one symmetry
+        block, so the pair work is `sum_b n_b^2` over the blocks and NOT `nCsf^2`; with the stores of all blocks
+        resident, as they are today, that sum is what is paid, while a route holding ONE block at a time would pay
+        `max_b n_b^2` instead. Both are counted here, and `blockShare = max_b n_b^2 / sum_b n_b^2` is what such a
+        route would save -- 31 % on a Ti III layer of 25 085 CSFs, measured 14-Sep-2026.
+
+        **A RATIO IS QUOTED WHERE AN ABSOLUTE FIGURE IS NOT, BECAUSE THE UNKNOWN CONSTANT CANCELS IN IT.** Four peak-RSS
+        anchors on Ti III layers with 3p opened -- 887 CSFs at 1.647 GB, 3 167 at 2.149, 11 298 at 12.784, 25 085 at
+        29.73 -- are fitted by NO law in the CSF count alone: the space-dependent cost per CSF runs 1.7e-4, 2.1e-4,
+        1.0e-3, 1.1e-3 GB, a fivefold jump between the second and third and then flat, because those four are not four
+        sizes of one thing but layers that add 4p, then 4d, then 4f. Two successive fitted laws disagreed by 24x in
+        slope for exactly that reason. So the anchors are printed as MEASUREMENTS to interpolate between, and this
+        routine does not pretend to a law it does not have.
+
+        THE TWO DESIGN LEVERS IT IS MEANT TO INFORM, both measured rather than argued:
+        - the angular coefficient count per CSF is set mainly by l, at roughly 2.7x per step -- about 55 entries per
+          CSF for p, 130-172 for d, 340-389 for f -- and grows with the subshell count as well, so `lMax` and `nSub`
+          are reported beside the CSF count;
+        - CONCENTRATING the open electrons beats splitting them: 3d^5 gives 37 CSFs and 6 363 entries against
+          3p^3 3d^2 with 141 and 33 545, a factor 5.3 for the same five open-shell electrons.
+
+        AND THE J DISTRIBUTION IS NOT A LEVER, though it looks like one in the table below: it follows from the
+        configurations and the angular coupling and is not chosen. The only control there is which symmetries are
+        asked for at all, which drops whole blocks.
+"""
+function sizeRasStep(refConfigs::Array{Configuration,1}, symmetries::Array{LevelSymmetry,1},
+                     step::AtomicState.RasStep; printout::Bool=true)
+    basis  = Basics.generateBasis(refConfigs, symmetries, step)
+    nCsf   = length(basis.csfs);    nSub = length(basis.subshells)
+    lMax   = isempty(basis.subshells) ? 0 : maximum( Basics.subshell_l(sh)  for sh in basis.subshells )
+
+    blocks = Dict{LevelSymmetry,Int64}()
+    for  csf  in  basis.csfs
+        sym = LevelSymmetry(csf.J, csf.parity);    blocks[sym] = get(blocks, sym, 0) + 1
+    end
+    sumN2 = sum( Float64(n)^2  for (_, n) in blocks; init=0.0 )
+    maxN2 = isempty(blocks) ? 0.0 : Float64(maximum(values(blocks)))^2
+    share = sumN2 > 0. ? maxN2 / sumN2 : 0.
+
+    if  printout
+        println("\n>> RAS step sizing:  $nCsf CSFs over $nSub subshells (l_max = $lMax), $(length(blocks)) symmetry blocks.")
+        println(">>   J^P            CSFs           n_b^2      share of the pair work")
+        for  (sym, n)  in  sort(collect(blocks), by = x -> -x[2])
+            println(">>   " * rpad(string(sym), 12) * lpad(string(n), 8) * lpad(@sprintf("%14.4g", Float64(n)^2), 16) *
+                    lpad(@sprintf("%8.1f %%", 100*Float64(n)^2/max(sumN2,1.0)), 16))
+        end
+        println(">>   sum n_b^2 = " * @sprintf("%.4g", sumN2) * ",  largest block = " * @sprintf("%.4g", maxN2) *
+                @sprintf(" (%.1f %% of the sum)", 100*share))
+        println(">>")
+        println(">>   ROUTE COMPARISON, as a ratio, which is the part that does not depend on an unmeasured constant:")
+        println(">>     all symmetry blocks resident (today)        1.00 x the pair work")
+        println(">>     one block at a time                         " * @sprintf("%.2f", share) *
+                " x the pair work, for 26-32 % more run time")
+        println(">>")
+        println(">>   MEASURED ANCHORS -- peak RSS and wall clock of Ti III layers with 3p opened, one process each")
+        println(">>   (14-Sep-2026).  These are MEASUREMENTS, not a fitted curve:")
+        println(">>        nCsf      peak RSS     wall clock")
+        println(">>         887       1.6 GB          98 s")
+        println(">>       3 167       2.1 GB         777 s")
+        println(">>      11 298      12.8 GB          --        (PROVISIONAL: that run did not complete)")
+        println(">>      25 085      29.7 GB       > 10 h       (stopped by its own time limit, not by memory)")
+        println(">>")
+        (loA, hiA) = (0, 0)
+        for (n, g, t) in ANCHORS
+            n <= nCsf  &&  (loA = findfirst(x -> x[1] == n, ANCHORS))
+            hiA == 0  &&  n >= nCsf  &&  (hiA = findfirst(x -> x[1] == n, ANCHORS))
+        end
+        if      loA != 0  &&  loA == hiA
+            # the step lands ON an anchor, so quote what was actually measured rather than a bracket around it
+            (n1, g1, t1) = ANCHORS[loA]
+            println(">>   THIS STEP IS THE ANCHOR AT $n1 CSFs, which was measured at " * @sprintf("%.1f GB", g1) *
+                    (t1 > 0. ? " in " * fmtTime(t1) : "") * ".")
+        elseif  loA != 0  &&  hiA != 0  &&  loA != hiA
+            (n1, g1, t1) = ANCHORS[loA];    (n2, g2, t2) = ANCHORS[hiA]
+            println(">>   THIS STEP SITS BETWEEN TWO OF THEM, so expect roughly")
+            println(">>     memory   between " * @sprintf("%.1f", g1) * " and " * @sprintf("%.1f GB", g2) *
+                    "   (bracketed by the anchors at $n1 and $n2 CSFs)")
+            t1 > 0. && t2 > 0. &&
+                println(">>     time     between " * fmtTime(t1) * " and " * fmtTime(t2))
+        elseif  hiA == 0
+            (n1, g1, t1) = ANCHORS[end]
+            println(">>   THIS STEP IS LARGER THAN EVERY ANCHOR (the largest is $n1 CSFs at " *
+                    @sprintf("%.1f GB", g1) * "), so the figures above are a LOWER bound and nothing here")
+            println(">>   should be read as a prediction:  extrapolating these anchors is exactly what produced two")
+            println(">>   successive cost laws that disagreed by 24x in slope.")
+        else
+            println(">>   THIS STEP IS SMALLER THAN EVERY ANCHOR, so expect the ~1.5 GB baseline to dominate:  a JAC")
+            println(">>   process costs about that before any layer is built.")
+        end
+        println(">>")
+        println(">>   AND THE RATIO ABOVE IS THE FIRM PART.  An absolute figure needs a constant that has NOT been")
+        println(">>   pinned down -- the cost per CSF runs 1.7e-4, 2.1e-4, 1.1e-3 GB across these anchors -- whereas")
+        println(">>   the one-block-at-a-time ratio carries that same constant in numerator and denominator, where it")
+        println(">>   cancels.  Trust the " * @sprintf("%.2f", share) * " x;  treat the GB as a bracket.")
+    end
+
+    return( (nCsf=nCsf, nSub=nSub, lMax=lMax, blocks=blocks, sumN2=sumN2, maxN2=maxN2, blockShare=share) )
 end
 
 end # module
