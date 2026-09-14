@@ -310,6 +310,61 @@ end
 
 
 """
+`Basics.determineMeanEnergy(conf::Configuration, orbitals::Dict{Subshell, Orbital}, nm::Nuclear.Model,
+                             grid::Radial.Grid, settings::AsfSettings)`
+    ... to determine the mean energy of a configuration WITHOUT DIAGONALIZING IT, from the (2J+1)-weighted trace of
+        the Hamiltonian over the configuration's CSFs. A value::Float64 is returned.
+
+        WHY THIS IS EXACT AND NOT AN APPROXIMATION. A similarity transformation preserves the trace, and the CI
+        matrix is block-diagonal in J^P, so within one block every CSF carries the SAME weight 2J+1 and
+
+            SUM_levels (2J_l+1) E_l  =  SUM_blocks (2J+1) tr(H_block)  =  SUM_csfs (2J_r+1) H_rr ,
+
+        with the two normalisations SUM_levels (2J_l+1) and SUM_csfs (2J_r+1) equal for the same reason. So this
+        returns the same number as the diagonalising method beside it, to round-off, while doing no eigenvalue
+        work at all: O(n) diagonal elements instead of an O(n^3) diagonalisation. For an open f shell, where one
+        configuration can carry thousands of CSFs, that is the difference between affordable and not.
+
+        IT IS NOT YET THE CLOSED FORM priority item 22 asks for. Slater's average energy of a configuration is
+        O(1) in the number of subshell PAIRS and touches no CSF at all; this still enumerates the CSFs, so it
+        removes the diagonalisation and not the enumeration. It is worth having in its own right, and it is the
+        natural yardstick for that closed form when it is written -- an identity to check against, rather than a
+        second approximation.
+"""
+function Basics.determineMeanEnergy(conf::Configuration, orbitals::Dict{Subshell, Orbital}, nm::Nuclear.Model,
+                                     grid::Radial.Grid, settings::AsfSettings)
+    # the basis is built exactly as Hamiltonian.performCIwithFrozenOrbitals builds it, so that the CSF set, the
+    # subshell order and the core are the same ones the diagonalising route would have used
+    relconfList = ConfigurationR[]
+    append!(relconfList, Basics.generateConfigurations(Basics.RelativisticConfigurations(), conf))
+    subshellList = Basics.generateSubshellList(relconfList)
+    csfList      = CsfR[]
+    for  relconf in relconfList    append!(csfList, Basics.generateCsfRs(relconf, subshellList))    end
+    NoElectrons  = sum( csfList[1].occupation )
+    coreSubshellList = Subshell[]
+    for  k = 1:length(subshellList)
+        mocc = Basics.subshell_2j(subshellList[k]) + 1;    isFilled = true
+        for  csf in csfList
+            if  csf.occupation[k] != mocc    isFilled = false;    break    end
+        end
+        isFilled  &&  push!(coreSubshellList, subshellList[k])
+    end
+    basis     = Basis(true, NoElectrons, subshellList, csfList, coreSubshellList, orbitals)
+    potential = Nuclear.nuclearPotential(nm, grid)
+    cache     = InteractionStrength.XLCache()
+
+    num = 0.;    den = 0
+    for  r = 1:length(csfList)
+        w   = Basics.twice(csfList[r].J) + 1
+        num = num + w * Hamiltonian.matrixElement(basis, r, r, nm, grid, settings, potential, cache)
+        den = den + w
+    end
+
+    return( num / den )
+end
+
+
+"""
 `Basics.determineMeanEnergy(multiplet::Multiplet)`  
     ... to determine the mean energy of a given multiplet. A value::Float64 is returned.
 """
