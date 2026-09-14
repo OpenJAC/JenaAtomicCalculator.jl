@@ -418,58 +418,57 @@ function combineAngularCoefficientsEOL(blockCaches, targetLevels::Array{Level,1}
     sumWeights  = sum( twiceJp1(level.J)  for level in targetLevels )
     weights     = [ twiceJp1(level.J) / sumWeights  for level in targetLevels ]
 
-    coeffs1p = Coefficient1p[];   coeffs2p = Coefficient2p[]
+    # ACCUMULATED DIRECTLY INTO THE CONDENSED SET, never through a flat vector of every pair's coefficients.
+    # It was built that way until 14-Sep-2026, and the cost was measured by VmHWM rather than guessed: on a
+    # 7 062-CSF Ti III space this routine ADDED 0.584 GB to the high-water mark to return 1 357 coefficients,
+    # once per SCF iteration and twice when the off-diagonal split is on.  The temporary held every coefficient
+    # of every contributing CSF pair, each a separately boxed heap object because `Coefficient2p[]` has a
+    # non-concrete element type (the kind is a type parameter), and it was then condensed by a NESTED DOUBLE LOOP
+    # over that vector -- O(N^2) in the entry count, not in the CSF count.
+    #
+    # THE RESULT WAS NEVER LARGE: it is bounded by the number of distinct (nu,a,b,c,d) labels, i.e. by the
+    # SUBSHELL count, while the temporary was bounded by nothing.  So the table below is the whole fix, and it
+    # removes the memory, the boxing and the quadratic condensation together.
+    #
+    # FIRST-ENCOUNTER ORDER IS PRESERVED DELIBERATELY, and it is what makes the change verifiable: the old code
+    # summed each label's contributions in the order it met them and emitted the labels in that same order, so
+    # keeping both leaves every downstream floating-point sum in the order it had.  Emitting the table in Dict
+    # order instead would re-order those sums and move the last bits of the energies.
+    idx1 = Dict{NTuple{3,Any},Int64}();    keys1 = NTuple{3,Any}[];    vals1 = Float64[]
+    idx2 = Dict{NTuple{5,Any},Int64}();    keys2 = NTuple{5,Any}[];    vals2 = Float64[]
     for  (_, cache)  in  blockCaches
         idxCsf = cache.idxCsf;    n = length(idxCsf)
         for  r = 1:n
             for  s = 1:n
                 # pairs = :all (default, unchanged) | :diagonal (r == s only) | :offdiagonal (r != s only).
-                # The split exists to test whether the off-diagonal CSF-pair contributions should be scaled
-                # by the generalized occupation at all -- see the DA-term note in solveOptimizedLevelField.
                 if      pairs == :diagonal      &&  r != s     continue
                 elseif  pairs == :offdiagonal   &&  r == s     continue
                 end
                 drs = 0.
                 for  (i, level)  in  enumerate(targetLevels)    drs = drs + weights[i] * level.mc[idxCsf[r]] * level.mc[idxCsf[s]]    end
                 if  drs == 0.    continue    end
-                for  cf in coefficients1p(cache, r, s)   push!(coeffs1p, Coefficient1p(cf.nu, cf.a, cf.b, cf.T * drs) )   end
-                for  cf in coefficients2p(cache, r, s)   push!(coeffs2p, Coefficient2p(cf.nu, cf.a, cf.b, cf.c, cf.d, cf.V * drs) )   end
+                for  cf in coefficients1p(cache, r, s)
+                    key = (cf.nu, cf.a, cf.b)
+                    ix  = get(idx1, key, 0)
+                    if  ix == 0   push!(keys1, key);   push!(vals1, cf.T * drs);   idx1[key] = length(keys1)
+                    else          vals1[ix] = vals1[ix] + cf.T * drs
+                    end
+                end
+                for  cf in coefficients2p(cache, r, s)
+                    key = (cf.nu, cf.a, cf.b, cf.c, cf.d)
+                    ix  = get(idx2, key, 0)
+                    if  ix == 0   push!(keys2, key);   push!(vals2, cf.V * drs);   idx2[key] = length(keys2)
+                    else          vals2[ix] = vals2[ix] + cf.V * drs
+                    end
+                end
             end
         end
     end
 
-    # Condense angular coefficients if they refer to the same set of orbitals -- identical to
-    # SelfConsistent.computeAngularCoefficients' own condensation tail.
     coeffs1px = Coefficient1p[];     coeffs2px = Coefficient2p[]
-
-    hasConsidered = falses( length(coeffs1p) );   T = 0.
-    for  (ic, cf) in enumerate(coeffs1p)
-        if    hasConsidered[ic]
-        else  nu = cf.nu;   a = cf.a;   b = cf.b
-            T = T + cf.T;    hasConsidered[ic] = true
-            for   (icx, cfx) in enumerate(coeffs1p)
-                if    hasConsidered[icx]
-                elseif  nu == cfx.nu  &&  a == cfx.a  &&  b == cfx.b    T = T + cfx.T;    hasConsidered[icx] = true
-                end
-            end
-            push!(coeffs1px, Coefficient1p(nu, a, b, T) );  T = 0.
-        end
-    end
-
-    hasConsidered = falses( length(coeffs2p) );   V = 0.
-    for  (ic, cf) in enumerate(coeffs2p)
-        if    hasConsidered[ic]
-        else
-            nu = cf.nu;       a = cf.a;   b = cf.b;   c = cf.c;   d = cf.d
-            V  = V + cf.V;    hasConsidered[ic] = true
-            for   (icx, cfx) in enumerate(coeffs2p)
-                if    hasConsidered[icx]
-                elseif  nu == cfx.nu &&    a == cfx.a  &&  b == cfx.b  &&  c == cfx.c &&  d == cfx.d
-                        V  = V + cfx.V;    hasConsidered[icx] = true
-                end
-            end
-            push!(coeffs2px, Coefficient2p(nu, a, b, c, d, V) );   V = 0.
-        end
+    for  (i, key)  in  enumerate(keys1)    push!(coeffs1px, Coefficient1p(key[1], key[2], key[3], vals1[i]))    end
+    for  (i, key)  in  enumerate(keys2)
+        push!(coeffs2px, Coefficient2p(key[1], key[2], key[3], key[4], key[5], vals2[i]))
     end
 
     return( (coeffs1px, coeffs2px) )
