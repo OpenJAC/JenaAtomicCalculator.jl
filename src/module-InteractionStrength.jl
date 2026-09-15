@@ -6,7 +6,7 @@
 module InteractionStrength
 
 
-using  GSL, ..AngularMomentum, ..Basics, ..Bsplines, ..Defaults, ..ManyElectron, ..Nuclear, ..Radial, ..RadialIntegrals
+using  Printf, GSL, ..AngularMomentum, ..Basics, ..Bsplines, ..Defaults, ..ManyElectron, ..Nuclear, ..Radial, ..RadialIntegrals
 
 
 """
@@ -670,7 +670,7 @@ function XL_Breit(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital, grid
 
     # Calculate a reduced number of cofficients for the CoulombGaunt() interaction
     onlyGaunt, factor, quadrature = InteractionStrength.breitRouteOf(eeint)
-    InteractionStrength.checkFrequencyIsMeaningful(factor, a, b, c, d)
+    InteractionStrength.checkFrequencyIsMeaningful(factor, a, b, c, d, grid)
     xcList = XL_Breit_coefficients(L, a, b, c, d, onlyGaunt=onlyGaunt)
 
     if  quadrature == :swept    return( XL_Breit_densitiesSwept(xcList, factor, grid) )
@@ -680,7 +680,8 @@ end
 
 
 """
-`InteractionStrength.checkFrequencyIsMeaningful(factor::Float64, a::Orbital, b::Orbital, c::Orbital, d::Orbital)`
+`InteractionStrength.checkFrequencyIsMeaningful(factor::Float64, a::Orbital, b::Orbital, c::Orbital, d::Orbital,
+                                               grid::Radial.Grid)`
     ... refuses a frequency-dependent Breit strength whose orbitals cannot supply a frequency. Nothing is returned.
 
         WHY THIS HAS TO REFUSE RATHER THAN WARN. The photon wave number is omega = factor |E_a - E_c| / c, taken from the ORBITAL
@@ -696,8 +697,46 @@ end
         The remedy is one of: CoulombBreit(0.), which is the EXACT omega -> 0 limit and what every published JAC RAS number used; or a
         mean-field basis, whose orbitals carry eigenvalues. Giving EOL orbitals a defined energy is a physics question -- the diagonal
         Lagrange multiplier is the candidate -- and is on the priority list rather than guessed at here.
+
+        AND THE OTHER END, ADDED 15-Sep-2026.  Nothing guarded LARGE omega, where the kernels oscillate faster than the quadrature can
+        follow.  In an Auger or dielectronic-capture amplitude one orbital is a CONTINUUM electron, so |E_a - E_c| is the continuum
+        energy itself -- omega = 5.3 a.u. at Z = 53 rising to 17 at Z = 92 -- and amplitudes measured on 09-Sep-2026 degraded from a
+        healthy 0.2 % correction to values wrong by 10^6-10^7, with no warning of any kind.
+
+        THE QUANTITY THAT DECIDES IT IS omega TIMES THE RADIAL EXTENT OF THE OVERLAP, and that was measured rather than argued.  Scanning
+        omega on a FIXED orbital quadruple -- so that omega is the only variable, which a scan over Z can never be -- on two systems 15x
+        apart in box size and 9x in Z (Ne-like Xe, rbox 0.8 a.u.; C-like carbon, rbox 12.4), the strength relative to its omega -> 0 value
+        tracks the SAME curve in the product to within a few per cent:
+
+            product     0.5     1      2      4      7       9      11      14      18      20
+            Xe        1.0025 1.0099 1.0377 1.1249 1.2079  1.1438  0.9619  0.5447  0.0314  -0.108
+            C         1.0022 1.0086 1.0325 1.1049 1.1623  1.1009  0.9532  0.6384 -0.2729  -6.046
+
+        The leading retardation correction is O(omega^2) -- the law `example-Ad.jl` branch 4 validates at small omega -- so the ratio must
+        leave 1 quadratically.  It does so to about product 2;  by 4 it is ~21 % below the law;  at 7 it PEAKS and the correction stops
+        growing with omega, which is unphysical;  by 11 the correction has VANISHED (ratio 1, for entirely wrong reasons);  by 18 it is
+        zero or negative.  Hence a WARNING at 4, where the validated law is already ~21 % out.
+
+        AND DELIBERATELY NO REFUSAL, because the threshold is not established and a wrong refusal is worse than a warning.  The two
+        bound systems above collapse onto one curve in omega*RBOX, not in omega*(orbital extent) -- their extent/rbox ratios are 0.305
+        and 0.428, so the landmarks scatter by 40 % in that variable.  But rbox cannot be the criterion either: the Auger measurements
+        of 09-Sep-2026 are HEALTHY at omega*rbox = 21, far past where both bound systems have already changed sign, and re-expressed in
+        extent they sit at 0.5-1.0, below every threshold, so extent would not catch the Z = 92 catastrophe.  NEITHER VARIABLE EXPLAINS
+        BOTH DATASETS.  The priority item stays open on precisely this;  what the warning delivers meanwhile is that the number stops
+        being silent.
+
+        THE EXTENT IS THE OVERLAP'S, NOT THE BOX'S, and the difference is what keeps an Auger amplitude from false-alarming: three compact
+        bound orbitals plus one continuum orbital filling the box have an integrand confined to the bound orbitals, so rbox overestimates
+        the danger by a wide margin.  Each pair's extent is bounded by the MORE COMPACT of the two (the code forms omg_ac and omg_bd
+        separately, one per pair), and the larger of the two pairs sets the scale.
+
+        AND THE CHECK IS O(1).  It forms two frequencies and one product;  ordinary bound-bound work sits near omega*rbox ~ 0.07, four
+        orders below the threshold, so nothing is paid on the path that matters.  `InteractionStrength.effectiveExtent` is kept beside
+        this because the extent is the physically motivated length and will be needed when the criterion is settled, but it is NOT used
+        by the guard today -- using it would have imported a 40 % system-dependence into the threshold.
 """
-function checkFrequencyIsMeaningful(factor::Float64, a::Orbital, b::Orbital, c::Orbital, d::Orbital)
+function checkFrequencyIsMeaningful(factor::Float64, a::Orbital, b::Orbital, c::Orbital, d::Orbital,
+                                    grid::Radial.Grid)
     if  factor != 0.   &&   a.energy == 0.   &&   b.energy == 0.   &&   c.energy == 0.   &&   d.energy == 0.
         error("A frequency-dependent Breit interaction was requested (factor = $factor), but all four orbitals " *
               "($(a.subshell), $(b.subshell), $(c.subshell), $(d.subshell)) carry energy 0.0 exactly, so omega = " *
@@ -711,7 +750,54 @@ function checkFrequencyIsMeaningful(factor::Float64, a::Orbital, b::Orbital, c::
               "   Use CoulombBreit(0.) -- the EXACT omega -> 0 limit, and what every published JAC RAS number has " *
               "used -- or run on a basis whose orbitals carry their energies.")
     end
+    factor == 0.  &&  return( nothing )
+
+    # THE LARGE-omega END -- A WARNING AND DELIBERATELY NOT A REFUSAL, because the threshold is not established.
+    # What IS established (15-Sep-2026): four BOUND orbitals in a box sized to them break down around
+    # omega*rbox ~ 7-9, measured on two systems 15x apart in box size and 9x in Z which track the same curve in
+    # that product to a few per cent.  What is NOT established is the scale for a quadruple containing a
+    # CONTINUUM orbital -- the Auger case this guard exists for -- where the measurements of 09-Sep are healthy at
+    # omega*rbox = 21, far past where both bound systems have already changed sign.  Neither omega*rbox nor
+    # omega*(orbital extent) explains both datasets;  see the priority item, which stays open on exactly this.
+    # So: warn where the validated law is known to have failed, name the remedy, and refuse nothing.
+    cLight = Defaults.getDefaults("speed of light: c")
+    omgAC  = factor * abs(a.energy - c.energy) / cLight
+    omgBD  = factor * abs(b.energy - d.energy) / cLight
+    product = max(omgAC, omgBD) * grid.r[end]
+    if  product >= 4.0
+        @warn("A frequency-dependent Breit interaction at omega x rbox = " * @sprintf("%.1f", product) *
+              " is OUTSIDE the range where its O(omega^2) retardation law was validated (example-Ad.jl branch 4, " *
+              "small omega).  Measured 15-Sep-2026 on two bound systems: the correction is already ~21 % below that " *
+              "law by 4, PEAKS near 7, has vanished by 11 and reverses sign by 18.  A quadruple containing a " *
+              "CONTINUUM orbital behaves differently and its scale is NOT established, so this is indicative only " *
+              "in either direction.  CoulombBreit(0.) is the exact omega -> 0 limit and is what every published " *
+              "JAC Auger, DR and cascade number has used.", maxlog=3)
+    end
+
     return( nothing )
+end
+
+
+"""
+`InteractionStrength.effectiveExtent(orb::Orbital, grid::Radial.Grid)`
+    ... the radius inside which 99 % of the orbital's radial density lies, i.e. the distance over which it can contribute to an
+        overlap integral. A value::Float64 is returned.
+
+        THIS IS NOT THE BOX, and for a continuum orbital the two differ by orders of magnitude -- which is the point: an Auger
+        amplitude pairs compact bound orbitals with an electron that fills the grid, and the integrand lives where the BOUND
+        orbitals do. Using the box instead would refuse every Auger run with a frequency-dependent Breit interaction.
+"""
+function effectiveExtent(orb::Orbital, grid::Radial.Grid)
+    n = min(length(orb.P), length(orb.Q), length(grid.r), length(grid.wr))
+    total = 0.
+    for  i = 1:n    total = total + (orb.P[i]^2 + orb.Q[i]^2) * grid.wr[i]    end
+    total <= 0.  &&  return( grid.r[n] )
+    acc = 0.;    target = 0.99 * total
+    for  i = 1:n
+        acc = acc + (orb.P[i]^2 + orb.Q[i]^2) * grid.wr[i]
+        acc >= target  &&  return( grid.r[i] )
+    end
+    return( grid.r[n] )
 end
 
 
@@ -1227,7 +1313,7 @@ function XL_BreitDamped(tau::Float64, L::Int64, a::Orbital, b::Orbital, c::Orbit
     end
 
     onlyGaunt, factor, quadrature = InteractionStrength.breitRouteOf(eeint)
-    InteractionStrength.checkFrequencyIsMeaningful(factor, a, b, c, d)
+    InteractionStrength.checkFrequencyIsMeaningful(factor, a, b, c, d, grid)
     xcList = XL_Breit_coefficients(L, a, b, c, d, onlyGaunt=onlyGaunt)
     if  quadrature == :swept    return( XL_Breit_densitiesSwept(xcList, factor, grid, tau=tau) )
     else                        return( XL_Breit_densities(     xcList, factor, grid, tau=tau) )
