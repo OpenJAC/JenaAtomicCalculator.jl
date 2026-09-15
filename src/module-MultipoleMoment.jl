@@ -151,6 +151,25 @@ end
 `MultipoleMoment.emmStaticAmplitude(k::Int64, finalLevel::Level, initialLevel::Level, grid::Radial.Grid; display::Bool=false)`  
         ... to compute the (reduced static) electric-multipole-moment (EMM) amplitude   
             <alpha_f J_f || T^(Ek) || alpha_i J_i>  for the given final and initial level. A value::ComplexF64 is returned.
+
+        THE sqrt(2J_f+1) IS APPLIED HERE, AND UNTIL 15-Sep-2026 IT WAS NOT.  `SpinAngular.computeCoefficients` returns
+        the rank-k coefficients in a normalization that yields the reduced matrix element up to that factor -- the same
+        convention `WeakInteractionMoment.oneParticleAmplitude` absorbs, where both factors were MEASURED against exact
+        one-electron reduced matrix elements rather than assumed.  This routine contracted them without it and so
+        returned an amplitude too small by sqrt(2J_f+1).
+
+        WHICH SIDE WAS RIGHT WAS DECIDED BY PUBLISHED DATA, not by inspection -- that the two routines differed had been
+        known since `examples/example-Cn.jl` branch a printed them side by side.  Against Cserveny & Roberts,
+        PRA 112, 032816 (2025), Table II for Ba+ (all-order, Breit + QED, ~1 %), the ratios of the UNNORMALIZED
+        amplitudes to the published values are 0.813 / 0.571 / 0.558 / 0.458 for <6s||d||6p_1/2>, <6s||d||6p_3/2>,
+        <6s||Q2||5d_3/2>, <6s||Q2||5d_5/2> -- NOT constant, so not a convention difference at all -- while divided by
+        sqrt(2J_f+1) they become 1.150 / 1.142 / 1.116 / 1.122, i.e. ONE 12-15 % mean-field error common to all four.
+        Rule 18: the factor belongs here, not at a call site;  the hand-compensation that branch g of that example
+        carried is exactly the drift the rule exists to stop.
+
+        AND THE TWO SUBSHELL LISTS ARE MERGED, as `oneParticleAmplitude` merges them.  Passing
+        `initialLevel.basis.subshells` alone raised a `BoundsError` whenever the two levels came from separately
+        computed multiplets, which is the ordinary way a polarizibility or Stark calculation obtains them.
 """
 function emmStaticAmplitude(k::Int64, finalLevel::Level, initialLevel::Level, grid::Radial.Grid; display::Bool=false)
     # An electric multipole operator of rank k has parity (-1)^k: for even k, the reduced matrix
@@ -162,27 +181,38 @@ function emmStaticAmplitude(k::Int64, finalLevel::Level, initialLevel::Level, gr
     if     iseven(k)  &&  finalLevel.parity != initialLevel.parity     amplitude = 0.
     elseif isodd(k)   &&  finalLevel.parity == initialLevel.parity     amplitude = 0.
     else
-        nf = length(finalLevel.basis.csfs);    ni = length(initialLevel.basis.csfs)
+        # THE TWO LEVELS MAY COME FROM SEPARATELY COMPUTED MULTIPLETS, and then their subshell lists differ; using
+        # the initial level's list alone indexes the final level's CSFs against the wrong subshells and raises a
+        # BoundsError.  Merged here exactly as WeakInteractionMoment.oneParticleAmplitude merges them.
+        if  initialLevel.basis.subshells == finalLevel.basis.subshells
+            iLevel = initialLevel;    fLevel = finalLevel
+        else
+            subshells = Basics.merge(initialLevel.basis.subshells, finalLevel.basis.subshells)
+            iLevel    = Level(initialLevel, subshells);     fLevel = Level(finalLevel, subshells)
+        end
+        nf = length(fLevel.basis.csfs);    ni = length(iLevel.basis.csfs)
         if display   printstyled("Compute (static) EMM matrix of dimension $nf x $ni in the final- and initial-state bases " *
                                  "for the transition [$(initialLevel.index)- $(finalLevel.index)] ... ", color=:light_green)     end
         matrix = zeros(Float64, nf, ni)
         #
         for  r = 1:nf
             for  s = 1:ni
-                if  finalLevel.mc[r] == 0  ||  initialLevel.mc[s] == 0    continue    end
+                if  fLevel.mc[r] == 0  ||  iLevel.mc[s] == 0    continue    end
                     
-                subshellList = initialLevel.basis.subshells
+                subshellList = iLevel.basis.subshells
                 opa = SpinAngular.OneParticleOperator(k, Basics.multipoleParity(EmMultipole(k, true)))
-                wa  = SpinAngular.computeCoefficients(opa, finalLevel.basis.csfs[r], initialLevel.basis.csfs[s], subshellList) 
+                wa  = SpinAngular.computeCoefficients(opa, fLevel.basis.csfs[r], iLevel.basis.csfs[s], subshellList) 
                 #
                 for  coeff in wa
-                    tamp = InteractionStrength.eMultipole(k, finalLevel.basis.orbitals[coeff.a], initialLevel.basis.orbitals[coeff.b], grid)
+                    tamp = InteractionStrength.eMultipole(k, fLevel.basis.orbitals[coeff.a], iLevel.basis.orbitals[coeff.b], grid)
                     matrix[r,s] = matrix[r,s] + coeff.T * tamp  
                 end
             end
         end
         if display   printstyled("done. \n", color=:light_green)   end
-        amplitude = transpose(finalLevel.mc) * matrix * initialLevel.mc 
+        # sqrt(2J_f+1): see the docstring.  SpinAngular's rank-k coefficients give the reduced matrix element up to
+        # this factor, and it belongs here rather than at a call site (Rule 18).
+        amplitude = sqrt( Basics.twice(fLevel.J) + 1.0 ) * transpose(fLevel.mc) * matrix * iLevel.mc 
     end
     #
     if  display
