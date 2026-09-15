@@ -344,6 +344,12 @@ function  computeAmplitudesProperties(line::ImpactExcitation.Line, nm::Nuclear.M
                                         primitives::Union{Nothing,Bsplines.Primitives}=nothing)
     newChannels = ImpactExcitation.Channel[];
     contSettings = Continuum.Settings(false, nrContinuum);   cross = 0.;   coll = 0.; convergence = 1.
+    # The TTp B-spline matrices depend on the grid and on kappa but never on the potential or the energy, so all the continuum
+    # orbitals of ONE line -- both directions and every partial wave, ~35 of them at the maxKappa of a typical case -- can share a
+    # single storage dictionary instead of each rebuilding its own. It is created HERE, per line, and deliberately NOT hoisted
+    # beside nuclearPot and primitives above the `Threads.@threads` loop that calls this function: a Dict is mutable and is written
+    # on every first use of a block, so one shared across threads would be a data race. Per line it is thread-local by construction.
+    storage = Dict{String,Array{Float64,2}}()
     conv = 0.; conv0 = 0. ; n = 0
 
     # Define a common subshell list for both multiplets
@@ -379,7 +385,7 @@ function  computeAmplitudesProperties(line::ImpactExcitation.Line, nm::Nuclear.M
                             ciOrbital, iPhase     = Continuum.generateOrbitalForLevel(line.initialElectronEnergy, iSubshell,
                                                                                             redILevel, nm, grid, contSettings;
                                                                                             nuclearPot=nuclearPot,
-                                                                                            primitives=primitives)
+                                                                                            primitives=primitives, storage=storage)
                             ciOrbitals[iSubshell] = ciOrbital;      ciPhases[iSubshell] = iPhase
                             println("\n Initial channel")
                         end
@@ -389,7 +395,7 @@ function  computeAmplitudesProperties(line::ImpactExcitation.Line, nm::Nuclear.M
                             cfOrbital, fPhase     = Continuum.generateOrbitalForLevel(line.finalElectronEnergy,   fSubshell,
                                                                                             redFLevel, nm, grid, contSettings;
                                                                                             nuclearPot=nuclearPot,
-                                                                                            primitives=primitives)
+                                                                                            primitives=primitives, storage=storage)
                             cfOrbitals[fSubshell] = cfOrbital;      cfPhases[fSubshell] = fPhase
                             println("\n Final channel")
                         end

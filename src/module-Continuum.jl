@@ -40,14 +40,16 @@ end
 
 """
 `Continuum.generateOrbitalForLevel(energy::Float64, sh::Subshell, level::Level, nm::Nuclear.Model, grid::Radial.Grid,
-                                    settings::Continuum.Settings; nuclearPot::Union{Nothing,Radial.Potential}=nothing,
-                                    primitives::Union{Nothing,Bsplines.Primitives}=nothing)`
+                                    settings::Continuum.Settings; nuclearPot::Union{Nothing,Radial.Potential}=nothing, 
+                                    primitives::Union{Nothing,Bsplines.Primitives}=nothing, 
+                                    storage::Union{Nothing,Dict{String,Array{Float64,2}}}=nothing)`
     ... to generate a continuum orbital for the (continuum) subshell sh, the energy and the effective charge within the given
         potential. The continuum orbital is generated orthogonal with regard to all subshells of the same symmetry in the basis.
-        All further specifications about this generations are made by proper settings. Both keywords carry quantities that are
+        All further specifications about this generations are made by proper settings. All three keywords carry quantities that are
         CONSTANT for a whole computation -- the nuclear potential depends only on the nuclear model and the grid, the B-spline
-        primitives only on the grid -- so that a caller which generates many continuum orbitals need not rebuild them for every
-        line and every partial wave; omitting them reproduces the previous behaviour exactly. A tupel of a (continuum)
+        primitives only on the grid, and the storage dictionary holds the TTp matrices, which depend on the grid and on kappa but
+        never on the potential or the energy -- so that a caller which generates many continuum orbitals need not rebuild them for
+        every line and every partial wave; omitting them reproduces the previous behaviour exactly. A tupel of a (continuum)
         (orbital::Orbital, phase::Float64) is returned.
 
         NOTE ON THE POTENTIAL: all continuum orbitals are generated in a LOCAL (DFS) potential -- exchange with
@@ -56,8 +58,9 @@ end
         one identical entry in jac-warn.report for every partial wave, and said nothing about the run).
 """
 function generateOrbitalForLevel(energy::Float64, sh::Subshell, level::Level, nm::Nuclear.Model, grid::Radial.Grid,
-                                 settings::Continuum.Settings; nuclearPot::Union{Nothing,Radial.Potential}=nothing,
-                                 primitives::Union{Nothing,Bsplines.Primitives}=nothing)
+                                 settings::Continuum.Settings; nuclearPot::Union{Nothing,Radial.Potential}=nothing, 
+                                 primitives::Union{Nothing,Bsplines.Primitives}=nothing, 
+                                 storage::Union{Nothing,Dict{String,Array{Float64,2}}}=nothing)
     #
     # Generate a (local) potential for the given level.  The NUCLEAR part depends only on the nuclear model
     # and the grid, so it is constant for a whole computation -- but this function is called once per line
@@ -83,7 +86,7 @@ function generateOrbitalForLevel(energy::Float64, sh::Subshell, level::Level, nm
     elseif  Defaults.GBL_CONT_SOLUTION  ==  NonrelativisticCoulomb()
         cOrbital = Continuum.generateOrbitalNonrelativisticCoulomb(energy, sh, pot.grid, settings)
     elseif  Defaults.GBL_CONT_SOLUTION  ==  BsplineGalerkin()
-        cOrbital = Continuum.generateOrbitalGalerkin(energy, sh, pot, settings; primitives=primitives)
+        cOrbital = Continuum.generateOrbitalGalerkin(energy, sh, pot, settings; primitives=primitives, storage=storage)
     else    error("stop a")
     end
     #
@@ -115,8 +118,9 @@ end
 """
 `Continuum.generateOrbitalForLevel(energy::Float64, sh::Subshell, level::Level, nm::Nuclear.Model, grid::Radial.Grid,
                                     settings::Continuum.Settings, plasmaModel::Basics.AbstractPlasmaModel;
-                                    nuclearPot::Union{Nothing,Radial.Potential}=nothing,
-                                    primitives::Union{Nothing,Bsplines.Primitives}=nothing)`
+                                    nuclearPot::Union{Nothing,Radial.Potential}=nothing, 
+                                    primitives::Union{Nothing,Bsplines.Primitives}=nothing, 
+                                    storage::Union{Nothing,Dict{String,Array{Float64,2}}}=nothing)`
     ... to generate a continuum orbital as Continuum.generateOrbitalForLevel(...) above, but with the combined local
         potential (nuclear + bound-electron mean field) Debye-Hueckel-screened according to the given plasma model.
         The WHOLE combined potential is screened, not just its nuclear part: screening only the (attractive) nuclear
@@ -129,11 +133,12 @@ end
 """
 function generateOrbitalForLevel(energy::Float64, sh::Subshell, level::Level, nm::Nuclear.Model, grid::Radial.Grid,
                                   settings::Continuum.Settings, plasmaModel::Basics.AbstractPlasmaModel;
-                                  nuclearPot::Union{Nothing,Radial.Potential}=nothing,
-                                  primitives::Union{Nothing,Bsplines.Primitives}=nothing)
+                                  nuclearPot::Union{Nothing,Radial.Potential}=nothing, 
+                                  primitives::Union{Nothing,Bsplines.Primitives}=nothing, 
+                                  storage::Union{Nothing,Dict{String,Array{Float64,2}}}=nothing)
     if  typeof(plasmaModel) == Basics.NoPlasmaModel
         return( Continuum.generateOrbitalForLevel(energy, sh, level, nm, grid, settings; nuclearPot=nuclearPot,
-                                                  primitives=primitives) )
+                                                  primitives=primitives, storage=storage) )
     end
     typeof(plasmaModel) == Basics.DebyeHueckelModel  ||
         error("Unsupported plasma model = $(plasmaModel)  (only Basics.DebyeHueckelModel is currently supported " *
@@ -157,7 +162,7 @@ function generateOrbitalForLevel(energy::Float64, sh::Subshell, level::Level, nm
     elseif  Defaults.GBL_CONT_SOLUTION  ==  NonrelativisticCoulomb()
         cOrbital = Continuum.generateOrbitalNonrelativisticCoulomb(energy, sh, pot.grid, settings)
     elseif  Defaults.GBL_CONT_SOLUTION  ==  BsplineGalerkin()
-        cOrbital = Continuum.generateOrbitalGalerkin(energy, sh, pot, settings; primitives=primitives)
+        cOrbital = Continuum.generateOrbitalGalerkin(energy, sh, pot, settings; primitives=primitives, storage=storage)
     else    error("stop a")
     end
     #
@@ -278,15 +283,19 @@ end
 
 
 """
-`Continuum.generateOrbitalGalerkin(energy::Float64, sh::Subshell, pot::Radial.Potential, settings::Continuum.Settings;
-                                    primitives::Union{Nothing,Bsplines.Primitives}=nothing)`
+`Continuum.generateOrbitalGalerkin(energy::Float64, sh::Subshell, pot::Radial.Potential, settings::Continuum.Settings; 
+                                    primitives::Union{Nothing,Bsplines.Primitives}=nothing, 
+                                    storage::Union{Nothing,Dict{String,Array{Float64,2}}}=nothing)`
     ... to generate a non-normalized continuum orbital within the given local potential by using the Galerkin method and a
-        given B-spline basis. The B-spline primitives depend on the radial grid alone; a caller that generates many
-        continuum orbitals on one and the same grid may build them once and pass them in as primitives. Omitting the
-        keyword reproduces the previous behaviour exactly. A (non-normalized) orbital::Orbital is returned.
+        given B-spline basis. Both keywords carry quantities that are constant for a whole computation on one grid: the
+        B-spline primitives depend on the radial grid alone, and the storage dictionary holds the TTp matrices, which depend
+        on the grid and on kappa but never on the potential or the energy. A caller that generates many continuum orbitals
+        should build both once and pass them in. Omitting either reproduces the previous behaviour exactly. A
+        (non-normalized) orbital::Orbital is returned.
 """
-function generateOrbitalGalerkin(energy::Float64, sh::Subshell, pot::Radial.Potential, settings::Continuum.Settings;
-                                  primitives::Union{Nothing,Bsplines.Primitives}=nothing)
+function generateOrbitalGalerkin(energy::Float64, sh::Subshell, pot::Radial.Potential, settings::Continuum.Settings; 
+                                  primitives::Union{Nothing,Bsplines.Primitives}=nothing, 
+                                  storage::Union{Nothing,Dict{String,Array{Float64,2}}}=nothing)
     Continuum.checkNormalizationRadius(pot)
     P = zeros(settings.mtp);   Q = zeros(settings.mtp);   Pprime = zeros(settings.mtp);    Qprime = zeros(settings.mtp)
     nsL = pot.grid.nsL - 1;    nsS = pot.grid.nsS - 1
@@ -298,7 +307,7 @@ function generateOrbitalGalerkin(energy::Float64, sh::Subshell, pot::Radial.Pote
         wa.grid.nsL == pot.grid.nsL  &&  wa.grid.nsS == pot.grid.nsS  &&  wa.grid.NoPoints == pot.grid.NoPoints  ||
             error("The given primitives belong to a different grid than the potential.")
     end
-    wb = Bsplines.generateGalerkinMatrix(sh, energy, pot, wa)
+    wb = Bsplines.generateGalerkinMatrix(sh, energy, pot, wa; storage=storage)
     wc = adjoint(wb) * wb
     
     # Test for 'real-symmetric matrix' ... and symmetrize otherwise

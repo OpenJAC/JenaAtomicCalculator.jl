@@ -608,23 +608,42 @@ end
 
 
 """
-`Bsplines.generateGalerkinMatrix(sh::Subshell, energy::Float64, pot::Radial.Potential, primitives::Bsplines.Primitives;
-                                 mass::Float64=1.0)`
+`Bsplines.generateGalerkinMatrix(sh::Subshell, energy::Float64, pot::Radial.Potential, primitives::Bsplines.Primitives; 
+                                 mass::Float64=1.0, storage::Union{Nothing,Dict{String,Array{Float64,2}}}=nothing)`
     ... generates the Galerkin-A matrix for the given potential and B-spline primitives; a matrix::Array{Float64,2} is returned.
+
+        Everything this function builds through `generateTTpMatrix!` -- the two overlap blocks and the two D_kappa blocks -- depends on
+        the GRID and on kappa alone, and never on the potential or the energy: `computeOverlap` sees only the B-splines and the grid, and
+        `computeNondiagonalD` adds only kappa. One storage dictionary is therefore valid for every continuum orbital of a whole
+        computation on one grid, and a caller that builds many of them should create it once and pass it in, exactly as it already does
+        with `primitives`. The blocks are then built on first use and looked up afterwards. **Omitting the keyword creates a private
+        dictionary and reproduces the previous behaviour exactly, printed line included.**
 """
-function generateGalerkinMatrix(sh::Subshell, energy::Float64, pot::Radial.Potential, primitives::Bsplines.Primitives;
-                                mass::Float64=1.0)
+function generateGalerkinMatrix(sh::Subshell, energy::Float64, pot::Radial.Potential, primitives::Bsplines.Primitives; 
+                                mass::Float64=1.0, storage::Union{Nothing,Dict{String,Array{Float64,2}}}=nothing)
     nsL      = primitives.grid.nsL;    nsS = primitives.grid.nsS
 
     # Define the storage for the calculations of matrices; this is necessary to use the Bsplines.generateMatrix!() function
-    println(">> (Re-) Define a storage array for dealing with single-electron TTp B-spline matrices:")
-    storage  = Dict{String,Array{Float64,2}}()
-    # Set-up the overlap matrix
-    wb  = zeros( nsL+nsS, nsL+nsS )
-    wb[1:nsL,1:nsL]                 = Bsplines.generateTTpMatrix!("LL-overlap", 0, primitives, storage)
-    wb[nsL+1:nsL+nsS,nsL+1:nsL+nsS] = Bsplines.generateTTpMatrix!("SS-overlap", 0, primitives, storage)
+    if  isnothing(storage)
+        println(">> (Re-) Define a storage array for dealing with single-electron TTp B-spline matrices:")
+        wStorage = Dict{String,Array{Float64,2}}()
+    else
+        wStorage = storage
+    end
+    # Set-up the overlap matrix. It too depends on the grid alone, so the assembled (nsL+nsS) x (nsL+nsS) form is kept in the same
+    # dictionary under a key that carries no colon and so can never collide with a "kappa:TTp" block. It is only ever READ below.
+    if  haskey(wStorage, "full-overlap")
+        wb = wStorage["full-overlap"]
+        size(wb) == (nsL+nsS, nsL+nsS)  ||
+            error("The given storage was built on a different grid: it holds a $(size(wb)) overlap where $((nsL+nsS, nsL+nsS)) is needed.")
+    else
+        wb  = zeros( nsL+nsS, nsL+nsS )
+        wb[1:nsL,1:nsL]                 = Bsplines.generateTTpMatrix!("LL-overlap", 0, primitives, wStorage)
+        wb[nsL+1:nsL+nsS,nsL+1:nsL+nsS] = Bsplines.generateTTpMatrix!("SS-overlap", 0, primitives, wStorage)
+        wStorage["full-overlap"]        = wb
+    end
     # Set-up the local Hamiltonian matrix
-    wa = Bsplines.setupLocalMatrix(sh.kappa, primitives, pot::Radial.Potential, storage::Dict{String,Array{Float64,2}}; mass=mass)
+    wa = Bsplines.setupLocalMatrix(sh.kappa, primitives, pot, wStorage; mass=mass)
     # Subtract the overlap term IN PLACE. Written as `wa[1:end,1:end] = wa[1:end,1:end] - energy * wb[1:end,1:end]` this built FOUR
     # full (nsL+nsS)^2 temporaries on every call -- one for each slice, one for the scalar multiply, one for the difference -- for an
     # operation that only writes back into `wa`. Measured 15-Sep-2026 on the F-like Ne+ electron-impact case of `example-Dl.jl` branch e,
