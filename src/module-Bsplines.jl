@@ -625,7 +625,12 @@ function generateGalerkinMatrix(sh::Subshell, energy::Float64, pot::Radial.Poten
     wb[nsL+1:nsL+nsS,nsL+1:nsL+nsS] = Bsplines.generateTTpMatrix!("SS-overlap", 0, primitives, storage)
     # Set-up the local Hamiltonian matrix
     wa = Bsplines.setupLocalMatrix(sh.kappa, primitives, pot::Radial.Potential, storage::Dict{String,Array{Float64,2}}; mass=mass)
-    wa[1:end,1:end] = wa[1:end,1:end] - energy * wb[1:end,1:end]
+    # Subtract the overlap term IN PLACE. Written as `wa[1:end,1:end] = wa[1:end,1:end] - energy * wb[1:end,1:end]` this built FOUR
+    # full (nsL+nsS)^2 temporaries on every call -- one for each slice, one for the scalar multiply, one for the difference -- for an
+    # operation that only writes back into `wa`. Measured 15-Sep-2026 on the F-like Ne+ electron-impact case of `example-Dl.jl` branch e,
+    # that single line was 32.5 % of the whole run's allocation in seven allocations per call, because a continuum orbital is built for
+    # every partial wave and that case generates ~35 of them per energy. The fused broadcast allocates nothing and is bit-identical.
+    wa .-= energy .* wb
 
     return( wa )
 end
