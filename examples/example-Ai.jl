@@ -310,8 +310,8 @@ elseif  false
         haskey(wb, k)  &&  println(">> step $i : lowest level = $(sort(wb[k].levels, by = l -> l.energy)[1].energy) Ha")
     end    #
 elseif  false
-    # Last visit:  02-Sep-2026
-    # Last successful:  02-Sep-2026 -- numbers below, produced by the run this branch performs.
+    # Last visit:  15-Sep-2026
+    # Last successful:  15-Sep-2026 -- numbers below, produced by the run this branch performs.
     #
     # e) THE C-LIKE COUNTERPART OF BRANCH (d): C-like at Z = 92, the 3P_0 -> 3P_1 fine structure of
     #    1s^2 2s^2 2p^2.  Six electrons instead of four, and an OPEN 2p valence shell instead of a closed
@@ -324,23 +324,45 @@ elseif  false
     #    neither -- but it belongs in the reference so that the model is the n = 2 complex and not a subset
     #    chosen per symmetry.  ONE EXPANSION PER SYMMETRY, the transition formed from two absolute totals.
     #
-    #    MEASURED, 07-Sep-2026, four layers (reference / +{3s,3p,3d} / +{4s..4f} / +{5s..5g}), on ONE code
-    #    state (c175728), single-threaded, on the compute machine.
-    #
-    #    *** UPPER BOUNDS, NOT CONVERGED ENERGIES -- see the same warning in branch (d). ***  One layer of four
-    #    converges in each expansion; layers 2 to 4 stop on a stagnant gradient, |grad| floored at 0.0770.
+    #    MEASURED, 15-Sep-2026, four layers (reference / +{3s,3p,3d} / +{4s..4f} / +{5s..5g}), on ONE code
+    #    state (0a70337), single-threaded, four parts run as four separate processes.
     #
     #      layer   CSFs 0+/1+   Coulomb [cm^-1]   +Breit [cm^-1]   Breit shift
     #        1        4 /    2     32 592 815.09    32 198 494.47    -394 320.62
-    #        2       67 /  124     32 618 974.55    32 222 321.13    -396 653.42
-    #        3      264 /  589     32 615 930.34    32 223 844.61    -392 085.74
-    #        4      658 / 1592     32 616 322.87    32 224 402.15    -391 920.72
+    #        2       67 /  124     32 591 498.49    32 198 848.47    -392 650.02
+    #        3      264 /  589     32 591 245.84    32 199 120.27    -392 125.57
+    #        4      658 / 1592     32 591 088.38    32 199 416.99    -391 671.40
     #
-    #      0+ totals [Ha]  C : -14351.2468346300 / -14351.6352219174 / -14351.6951774612 / -14351.6973199659
-    #                      CB: -14330.3062233960 / -14330.6263371439 / -14330.7048767268 / -14330.7078785450
-    #      1+ totals [Ha]  C : -14202.7430422524 / -14203.0122382811 / -14203.0860642319 / -14203.0864182448
-    #                      CB: -14183.5990879655 / -14183.8106394626 / -14183.8822375547 / -14183.8826990375
-    #      wall time       0+ 1.01 h / 1.34 h     1+ 5.12 h / 5.54 h     (Coulomb / +Breit)
+    #      0+ totals [Ha]  C : -14351.2468346300 / -14351.2675185711 / -14351.2765273162 / -14351.2851777275
+    #                      CB: -14330.3062233960 / -14330.3419720415 / -14330.3562980856 / -14330.3698386266
+    #      1+ totals [Ha]  C : -14202.7430422524 / -14202.7697250692 / -14202.7798849503 / -14202.7892527949
+    #                      CB: -14183.5990879655 / -14183.6332236623 / -14183.6463112862 / -14183.6584998992
+    #      wall time       0+ 0.62 h / 0.99 h     1+ 0.73 h / 1.15 h     (Coulomb / +Breit), ordinary desktop
+    #
+    #    *** THESE NUMBERS SUPERSEDE THE 07-Sep TABLE BECAUSE THE TWO-PARTICLE ANGULAR COEFFICIENTS WERE WRONG
+    #    WHEN IT WAS MADE -- not because the solver or the model changed. ***  The spectator-between case of
+    #    SpinAngular.twoParticleMoveOne assembled the CROSSED pairing and labelled it the DIRECT one, fixed
+    #    13-Sep-2026 in `1d05ab3`.  This branch was the LAST of the seven dated RAS branches without a verdict
+    #    against that fix, and the verdict was obtained by re-running one part on the PRE-FIX commit itself:
+    #
+    #        step 2, 0+ Coulomb    recorded 02-Sep        -14351.6352219174
+    #                              PRE-FIX code, 15-Sep   -14351.635222136    (reproduces it, 2e-07 Ha)
+    #                              REPAIRED code, 15-Sep  -14351.2675185711
+    #
+    #    so the old table is what the defect produced, and the table above is what the repaired code gives.
+    #
+    #    AND THE REPAIR RESTORES THE PHYSICS THIS BRANCH WAS WRITTEN TO SHOW.  Correlation now moves the
+    #    interval by 1 727 cm^-1 over four layers, -0.005 %, where the 07-Sep table had it jump +23 508 cm^-1,
+    #    +0.07 %.  A FINE-STRUCTURE INTERVAL JOINS TWO LEVELS OF ONE CONFIGURATION AND THE COMMON SHIFT
+    #    CANCELS -- which is exactly what this file concluded on 04-Sep and then RETRACTED on 07-Sep.  The
+    #    retraction was itself an artefact of the defect; the original argument stands.
+    #
+    #    THE SOLVER IS NOT STUCK, THOUGH IT LOOKS LIKE IT.  On the repaired code the EOL rotation route starts
+    #    layer 2 at |grad| = 0.069 and moves the energy by 0.28 mHa over its 60 iterations;  the pre-fix run
+    #    starts at |grad| = 0.204 and descends 153 mHa.  The repaired problem BEGINS near its minimum -- there
+    #    is no longer a large spurious correlation energy to descend into -- and |grad| is not scale-free, so a
+    #    flat gradient here is convergence rather than stagnation.  Layers 2 to 4 still report STOPPED at the
+    #    60-iteration budget, so these remain upper bounds;  they are simply much tighter ones.
     #
     #    AND HERE THE OBSERVABLE MOVES TOO -- WHICH RETRACTS WHAT THIS BRANCH SAID ON 04-Sep.  That day the
     #    transition came out 39 cm^-1 from the 02-Sep table and the conclusion drawn was that a FINE-STRUCTURE
