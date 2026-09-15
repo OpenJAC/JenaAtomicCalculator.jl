@@ -14,10 +14,10 @@ using Printf
 if  true
     # Last successful:  28-Aug-2026 -- reproduces, BUT SEE THE CAVEAT, which is the useful part.
     #   THIS BRANCH'S CHECKS WERE PASSING VACUOUSLY UNTIL TODAY. It asserts that the P-odd operators VANISH between
-    #   same-parity levels. From the rank-0 parity-gate defect fixed on 28-Aug (see example-Cnnew.jl branch f), the
+    #   same-parity levels. From the rank-0 parity-gate defect fixed on 28-Aug (see example-Cn.jl branch f), the
     #   weak-charge amplitude was returning exactly zero for EVERY pair, same parity or not -- which satisfies a
     #   "must vanish" test perfectly. A selection-rule check cannot tell "correctly zero" from "always zero" unless
-    #   something also asserts a NON-zero value where one is required. example-Cnnew.jl branch f is what did that
+    #   something also asserts a NON-zero value where one is required. example-Cn.jl branch f is what did that
     #   here, and it is why the two files are worth keeping together.
     # Previously:  21-Aug-2026
     #   [PROVENANCE: produced on Julia 1.10.9, with a Manifest re-resolved for 1.10 because the checkout's Manifest had been

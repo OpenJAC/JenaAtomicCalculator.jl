@@ -85,11 +85,11 @@ elseif  char == 'D'
     println("Do) Apply & test the HyperfineInduced module: electronic quenching, nuclear hyperfine mixing, and mixed cases.")
     println("Dp) Coulomb IONIZATION of ions by fast ion impact: energy-differential cross sections and the alignment of the residual ion.")
     println("Dq) Apply & test the InternalConversion module with ASF from an internally generated initial- and final-state multiplet.")
-    println("Dpnew) Apply & test the GeneralizedOscillatorStrength module: generalized oscillator strengths f_n(K) of the Bethe theory, for bound-bound transitions.")
     println("Dr) Apply & test the CoulombIonization module with ASF from an internally generated initial- and final-state multiplet.")
     println("Ds) Apply & test the CoulombExcitation module with ASF from an internally generated initial- and final-state multiplet.")
     println("Dt) Apply & test the CrystalFieldEmission module (crystal-field-resolved transitions) with initial- and final-state multiplets declared directly via Atomic.Computation.")
-    println("Dvnew) Apply & test the PhotoRecombinationInterference module: RR and DR amplitudes added coherently; interference in the cross section, beta_2 and the photon polarization.")
+    println("Dw) Apply & test the GeneralizedOscillatorStrength module: generalized oscillator strengths f_n(K) of the Bethe theory, for bound-bound transitions.")
+    println("Dx) Apply & test the PhotoRecombinationInterference module: RR and DR amplitudes added coherently; interference in the cross section, beta_2 and the photon polarization.")
     #
 elseif  char == 'E'
     println("E)  Examples, tests & development of composed atomic processes")

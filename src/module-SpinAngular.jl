@@ -319,7 +319,7 @@ function computeCoefficientsScalar(op::SpinAngular.OneParticleOperator, leftCsf:
     # rank-0 P-ODD operator and needs exactly the opposite. Requiring equal parity unconditionally, as this line did
     # until 28-Aug-2026, returned an EMPTY list for every P-odd rank-0 call and so silently zeroed every amplitude
     # built on one -- measured: `WeakInteractionMoment.weakChargeAmplitude` gave -0.0 - 0.0im for 1s^2 2p_1/2 <-
-    # 1s^2 2s in Li-like Ca, and with it the whole PNC E1 amplitude of `example-Cnnew.jl` branch f, which had been
+    # 1s^2 2s in Li-like Ca, and with it the whole PNC E1 amplitude of `example-Cn.jl` branch f, which had been
     # non-zero when that branch was last run on 22-Aug. The old SpinAngularGaigalas returned 2 coefficients there.
     if  leftCsf.J != rightCsf.J                                               return( coeffs )   end
     if  (op.parity == Basics.plus)  !=  (leftCsf.parity == rightCsf.parity)   return( coeffs )   end

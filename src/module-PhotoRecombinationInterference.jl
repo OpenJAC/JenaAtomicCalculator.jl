@@ -593,7 +593,7 @@ end
 
             N = sqrt( (2J_f+1) / (2J_i+1) ) .
 
-        This value is DERIVED, and the derivation is not trusted on its own: branch b of example-Dvnew.jl measures the ratio of the
+        This value is DERIVED, and the derivation is not trusted on its own: branch b of example-Dx.jl measures the ratio of the
         integrated resonant cross section to the resonance strength of the DielectronicRecombination module and reports it.  A
         value::Float64 is returned.
 """

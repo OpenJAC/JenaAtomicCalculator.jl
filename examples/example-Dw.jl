@@ -1,4 +1,4 @@
-println("Dpnew) Apply & test the GeneralizedOscillatorStrength module: the generalized oscillator")
+println("Dw) Apply & test the GeneralizedOscillatorStrength module: the generalized oscillator")
 println("    strength f_n(K) of the Bethe theory of fast charged-particle collisions, cf.")
 println("    M. Inokuti, Rev. Mod. Phys. 43 (1971) 297, computed between the levels of an initial-")
 println("    and a final-state multiplet.  f_n(K) is the inelastic counterpart of the atomic form")

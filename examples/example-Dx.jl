@@ -1,4 +1,4 @@
-println("Dvnew) Apply & test the PhotoRecombinationInterference module: the RADIATIVE (RR) and the")
+println("Dx) Apply & test the PhotoRecombinationInterference module: the RADIATIVE (RR) and the")
 println("    DIELECTRONIC (DR) recombination amplitudes added COHERENTLY, and the interference between")
 println("    them in the cross section, the anisotropy beta_2 and the linear polarization of the emitted")
 println("    photon.  Both processes end in the same final state -- a recombined ion plus one photon --")

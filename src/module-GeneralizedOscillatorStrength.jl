@@ -229,7 +229,7 @@ function amplitude(L::Int64, q::Float64, finalLevel::Level, initialLevel::Level,
     # sqrt(2J+1) and returned the ORDINARY matrix element, so the factor had to be supplied twice here.  The rank-0
     # convention migration put sqrt(2 j_a + 1) INSIDE the coefficient at every rank, and this site was not updated with
     # the others -- so it applied the factor once too often and every L = 0 amplitude came out sqrt(2J_f+1) too large.
-    # MEASURED, against the exact Bethe formulae of Inokuti (1971) in examples/example-Dpnew.jl: f_2s(K) read exactly
+    # MEASURED, against the exact Bethe formulae of Inokuti (1971) in examples/example-Dw.jl: f_2s(K) read exactly
     # TWICE the exact value at every K (JAC/exact = 1.999959, 1.999961, 1.999971, 1.999989, 2.000063, ... across eight
     # momentum transfers) where the same table recorded 0.999980 on 20-Aug-2026, before the migration.  f_2p, which is
     # rank 1 and 2, was never affected and still reads 0.999977.  A factor 2 in f is sqrt(2) in the amplitude, and

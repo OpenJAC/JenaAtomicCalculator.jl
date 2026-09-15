@@ -916,7 +916,7 @@ function testModule_GeneralizedOscillatorStrength(; short::Bool=true)
     # Inokuti (1971) gives its GOS in closed form, Eq. (4.2):  f_2p(q) = 2^13 3^-9 [1 + (4/9) q]^-6.
     # Basics.NuclearField() is essential rather than a detail: with the default DFS field a ONE-electron system
     # acquires a spurious self-interaction, and the initial and final orbitals then solve different one-body
-    # operators.  See examples/example-Dpnew.jl, branch a, for the full acceptance test this is cut down from.
+    # operators.  See examples/example-Dw.jl, branch a, for the full acceptance test this is cut down from.
     success = true;    printTest, iostream = Defaults.getDefaults("test flag/stream")
     f2pExact(q) = 2.0^13 * 3.0^-9 * (1 + (4/9)*q)^-6
     grid   = Radial.Grid(Radial.Grid(false), rnt = 4.0e-6, h = 1.2e-1, hp = 3.0e-2, rbox = 30.0)
@@ -976,7 +976,7 @@ function testModule_PhotoRecombinationInterference(; short::Bool=true)
     # false the coherent sum must collapse to plain radiative recombination, so the module has to reproduce
     # PhotoRecombination exactly -- not approximately, since it is then evaluating the same amplitude -- and
     # both the resonant and the interference term must be identically zero.  Li-like Fe23+ is used because it
-    # is the case of examples/example-Dvnew.jl, branch a, and is cheap at maxKappa = 2 and one energy.
+    # is the case of examples/example-Dx.jl, branch a, and is cheap at maxKappa = 2 and one energy.
     success  = true;   printTest, iostream = Defaults.getDefaults("test flag/stream")
     grid     = Radial.Grid(Radial.Grid(false), rnt = 2.0e-6, h = 5.0e-2, hp = 1.0e-2, rbox = 4.0)
     Defaults.setDefaults("standard grid", grid)

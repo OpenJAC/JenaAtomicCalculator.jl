@@ -35,7 +35,7 @@
     -- R IS A CANCELLING SUM AND MUST BE READ DIFFERENTLY.  Schiff's theorem states that the electric-dipole moment of a POINT,
        NON-RELATIVISTIC bound system vanishes identically; the whole enhancement is what survives that cancellation once relativity is
        restored, so a truncated sum retains part of what was meant to cancel.  What that costs in practice was MEASURED rather than
-       assumed, in branch d of `example-Cnnew.jl`, and the answer is more nuanced than the theorem alone suggests: R does converge for a
+       assumed, in branch d of `example-Cn.jl`, and the answer is more nuanced than the theorem alone suggests: R does converge for a
        Li-like ion, but more slowly than E1_PNC over the very same sequence of intermediate sets -- 3.2 % against 1.0 % at the last step --
        which is the signature of a cancellation eating into the accuracy without destroying it.  In a hydrogen-like ion, by contrast, the
        two members of a near-degenerate pair return values equal and opposite to six digits: the cancellation caught in the act with two
