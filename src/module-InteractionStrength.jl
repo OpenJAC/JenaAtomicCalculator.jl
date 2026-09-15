@@ -1386,6 +1386,21 @@ function XL_Coulomb(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital, gr
 end
 
 
+# THE FULL-LENGTH-ARRAY PATTERN IN THIS METHOD AND THE EXCHANGE ONE BELOW IS DELIBERATE, AND WAS MEASURED.
+# Both materialise each B-spline into an array as long as the grid before integrating, which is what the
+# kink-aware kernels did until 971199c -- there, integrating over each spline's own support instead cut a RAS
+# ladder's allocation from 99.4 to 46.7 GB. The ten instances that remain here are NOT an oversight: the arrays
+# are handed to RadialIntegrals.SlaterRkComponent, whose length acts as the integration bound.
+#
+# PROFILED 15-Sep-2026 AND FOUND NOT WORTH CHANGING, on the two process modules that exercise this path hardest:
+# the Ne K-LL Auger case of example-De.jl branch a, and the F-like Ne+ electron-impact case of example-Dl.jl
+# branch e. XL_Coulomb is 7.9 % of the Auger run and 13.7 % of the impact run, and is ABSENT from both
+# allocation profiles -- under the 30 % bar that governs a speed change here, and nothing on the memory side.
+# Most of the Auger share is the bound-state CI rather than the Auger amplitude.
+#
+# The two runs are otherwise OPPOSITE and neither generalises to the other: the Auger case is 79 % SCF and CI
+# with 1.6 partial waves per line, the impact case 76 % process lines with 35 continuum orbitals per energy.
+# Re-measure on the module at hand before treating either as the cost of "a process module".
 """
 `InteractionStrength.XL_Coulomb(L::Int64, a::Subshell, b::Orbital, c::Subshell, d::Orbital, primitives::Bsplines.Primitives)`  
     ... computes the (direct) Coulomb interaction strengths X^L_Coulomb (.b.d) for given rank L and orbital functions as well as the given
