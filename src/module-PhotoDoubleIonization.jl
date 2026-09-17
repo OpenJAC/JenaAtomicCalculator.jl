@@ -7,7 +7,11 @@
     total symmetry from the initial level. The amplitude is second order, with both time orderings of the knock-out (TS1) mechanism, and
     the intermediate states are levels of the (N-1)-electron ion with ONE continuum partial wave added.
 
-    STATUS, 15-Aug-2026: POSTPONED BY THE MAINTAINER. Do NOT pick this module up as a task without saying so
+    STATUS, 15-Sep-2026: THE PARKING IS LIFTED BY THE MAINTAINER -- see the closing paragraph of this block for
+    what that does and does not mean. The 15-Aug text below is kept because it is the diagnosis, and it is still
+    the best statement of what is wrong.
+
+    STATUS, 15-Aug-2026 (SUPERSEDED, KEPT AS THE DIAGNOSIS): POSTPONED BY THE MAINTAINER. Do NOT pick this module up as a task without saying so
     first. It was rebuilt on this date from the parked quasi-shell version, and the rebuild is UNFINISHED:
     the structure works and passes several internal tests, but the ABSOLUTE SCALE IS WRONG BY THREE TO FOUR
     ORDERS OF MAGNITUDE and no number it produces means anything yet.
@@ -66,8 +70,52 @@
     the 1.68% asymptote marked. Note their total cross section cost about 20 h on a 10-Mflop machine, so this
     is an expensive calculation even when done correctly.
 
-    The error() in computeLines stays until a number is earned, and is to be removed in the same commit that
-    earns it -- not before.
+    ---------------------------------------------------------------------------------------------------------
+    THE PARKING IS LIFTED, 15-Sep-2026, ON THE MAINTAINER'S DECISION. What changed, and what did not:
+
+    FIXED SINCE 15-Aug: the photon was subtracted instead of added in one time ordering; the intermediate
+    integral stopped at the wrong energy; the residue term was missing, so the amplitude was exactly real;
+    the cross-section constant was wrong by 4 pi/(alpha^2 omega^2). And on 15-Sep the OUTPUT PATH: this
+    module's `displayResults` was called by `computeLines` and had never been written, while `displayLines`
+    read a `channels` field that the 15-Aug rebuild had moved onto the PartialWavePair. Either would raise.
+    So until today the public entry point could not run to completion whatever else was right.
+
+    THE ABSOLUTE SCALE IS NO LONGER 3-4 ORDERS OUT; THE 15-Aug TEXT ABOVE IS STALE ON THIS POINT. That figure
+    predates the four fixes of 06-Sep, one of which was a cross-section constant wrong by 4 pi/(alpha^2 omega^2).
+    Measured 15-Sep-2026 for He with 9 sharings and maxKappa = 2, in the COULOMB gauge:
+        sigma(2+)/sigma(+)  =  2.70 % at 200 eV,  3.18 % at 400 eV,  2.28 % at 800 eV
+    against a measured 3-4 % near 200 eV falling towards an asymptotic 1.68 %. So the velocity-gauge ratio is
+    the right SIZE and falls between 400 and 800 eV, which is the right direction. It is not monotonic, and
+    nothing below is converged; but "three orders of magnitude too small" is no longer true and must not be
+    repeated.
+
+    WHAT IS STILL NOT TRUSTWORTHY, and the caller is warned of it at run time rather than stopped:
+      * THE SHARING INTEGRAL IS NOT CONVERGED, and this is now the leading error. Measured at 200 eV: the total
+        moves +2.3 %, +12.4 % and +14.1 % as the Gauss-Legendre points go 5 -> 9 -> 15 -> 21, i.e. +29 % over
+        the whole scan and still rising. The round-1 statement that it was converged "to a few per cent, and
+        more points will not help" is WRONG on both counts and is corrected here.
+      * THE LENGTH (Babushkin) FORM. Measured 15-Sep: quadrupling the intermediate set moves the velocity
+        (Coulomb) cross section by under 1 % at 200 eV while the length one nearly DOUBLES. The gauge RATIO
+        is therefore not a convergence indicator here, because one of its two members is the unstable one.
+        This agrees with Kornberg & Miraglia, who find velocity the trustworthy form at high energy.
+      * THE ENERGY TREND is not monotonic in either gauge; see the numbers above.
+
+    WHY THE TWO GAUGES ARE NOT EXPECTED TO AGREE, which is a property of second-order amplitudes and not a
+    defect of this module. The length and velocity forms of a one-photon matrix element are connected by the
+    commutator identity <a|p|b> = i (E_a - E_b) <a|r|b>, i.e. by the LEVEL DIFFERENCE. In a second-order
+    amplitude the photon operator carries the PHYSICAL frequency omega, while the intermediate state is
+    off shell: E_n - E_i is not omega. The difference between the two forms is then governed by the factor
+    (E_i - E_n - omega), which vanishes only ON SHELL, and the two gauges are equivalent only through
+    CLOSURE over a COMPLETE intermediate set. Putting omega in the operator is the correct S-matrix
+    prescription and is what this module does; it is ALSO the reason the two forms separate here. See
+    Fortun et al., arXiv:1610.03571, for the master identity and the statement that extended gauge
+    invariance holds only at exact resonance. Do not "fix" this by replacing omega with a level difference:
+    that would restore gauge agreement matrix element by matrix element while making the amplitude wrong.
+
+    THE SUITE NOW GUARDS THIS MODULE. `TestFrames.testModule_PhotoDoubleIonization` asserts the output path,
+    the mirror symmetry of the sharing distribution, and that the quadrature adds up -- three invariants that
+    hold whatever the scale turns out to be. It deliberately asserts NOTHING about the absolute value and
+    nothing about gauge equality, for the reason given above.
 """
 module PhotoDoubleIonization
 
@@ -651,15 +699,16 @@ function  computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, n
     printstyled("PhotoDoubleIonization.computeLines(): The computation of photo-double ionization properties starts now ... \n", color=:light_green)
     printstyled("---------------------------------------------------------------------------------------------------------- \n", color=:light_green)
     println("")
-    error("\n\nPhotoDoubleIonization is POSTPONED (15-Aug-2026) and does not produce meaningful numbers.\n" *
-          ">>> The module was rebuilt on that date onto partial-wave PAIRS and it now runs end to end, but\n"   *
-          ">>> its ABSOLUTE SCALE IS WRONG BY 3-4 ORDERS OF MAGNITUDE: sigma(2+)/sigma(+) comes out 0.001%\n"   *
-          ">>> at 200 eV against 3-4% measured, and it trends the wrong way with photon energy.\n"              *
-          ">>> Do NOT read the internal tests it passes (mirror symmetry to 1e-10, threshold 77.77 eV) as\n"    *
-          ">>> evidence that it is nearly right; they were all passing while the result was this wrong.\n"      *
-          ">>> The prefactor of Kornberg & Miraglia, Phys. Rev. A 48, 3714 (1993), Eq. (2) is not yet applied\n"*
-          ">>> -- see the STATUS block in the module docstring for the three missing factors and the\n"         *
-          ">>> truncated intermediate space. Remove this error only together with that work.\n")
+    # The 15-Aug-2026 barrier was removed on 15-Sep-2026 when the maintainer lifted the parking. It is replaced
+    # by a WARNING and not by silence: the module is usable for shapes, ratios and trends, and is not usable for
+    # a bare cross section. Saying so on every run is cheaper than a reader discovering it from a wrong number.
+    printstyled(">>> PhotoDoubleIonization: the SHARING INTEGRAL IS NOT CONVERGED -- measured 15-Sep-2026, the total\n" *
+                ">>> drifts +29 % between 3 and 21 Gauss-Legendre points and is still rising. Treat the first digit\n" *
+                ">>> only, and state the number of sharings with any number taken from here.\n" *
+                ">>> The COULOMB (velocity) form is the stable one: quadrupling the intermediate set moves it by\n" *
+                ">>> under 1 % while the Babushkin (length) one nearly doubles. Prefer velocity, and do not read\n" *
+                ">>> the gauge ratio as a convergence indicator. See the STATUS block in the module docstring.\n",
+                color=:yellow)
 
     # The nuclear potential and the B-spline primitives are constant for the whole computation and are built once.
     nuclearPot = Nuclear.nuclearPotential(nm, grid)
@@ -786,6 +835,90 @@ end
 
 
 """
+`PhotoDoubleIonization.displayResults(stream::IO, lines::Array{PhotoDoubleIonization.Line,1},`
+        `settings::PhotoDoubleIonization.Settings)`
+    ... to display the total photo-double ionization cross sections and, for each line, the energy-sharing distribution from which they
+        were obtained.  A neat table is printed to stream; nothing::Nothing is returned.
+
+        TWO TABLES, because the two quantities are not equally trustworthy.  The total cross section is the sharing integral
+        sigma = SUM_k w_k (dsigma/d eps_1)_k over the Gauss-Legendre points, and it is a single number per line.  The DISTRIBUTION is the
+        primary observable of this process and is what a reader must see in order to judge the integral: an integrand that is not smooth
+        across the sharing coordinate, or that fails to fall towards the two ends, says that the quadrature is not converged whatever the
+        total happens to be.  The second table therefore prints the integrand and its weights rather than only their sum.
+
+        The symmetry of the distribution about equal sharing is a property of the pair set rather than of the physics, and is the internal
+        check that costs nothing to look at here: eps_1 <-> eps_2 must give the same differential cross section when the pair set is
+        exchange-closed.
+"""
+function  displayResults(stream::IO, lines::Array{PhotoDoubleIonization.Line,1}, settings::PhotoDoubleIonization.Settings)
+    #
+    # First table: the sharing-integrated total cross section, one row per line
+    nx = 108
+    println(stream, " ")
+    println(stream, "  Total photo-double ionization cross sections:")
+    println(stream, " ")
+    println(stream, "  ", TableStrings.hLine(nx))
+    sa = "  ";   sb = "  "
+    sa = sa * TableStrings.center(18, "i-level-f"; na=0);                         sb = sb * TableStrings.hBlank(18)
+    sa = sa * TableStrings.center(18, "i--J^P--f"; na=2);                         sb = sb * TableStrings.hBlank(20)
+    sa = sa * TableStrings.center(12, "omega";      na=4)
+    sb = sb * TableStrings.center(12, TableStrings.inUnits("energy"); na=4)
+    sa = sa * TableStrings.center(10, "sharings";   na=3);                        sb = sb * TableStrings.hBlank(13)
+    sa = sa * TableStrings.center(30, "Cou -- Cross section -- Bab"; na=3)
+    sb = sb * TableStrings.center(30, TableStrings.inUnits("cross section") * "          " *
+                                      TableStrings.inUnits("cross section"); na=3)
+    println(stream, sa);    println(stream, sb);    println(stream, "  ", TableStrings.hLine(nx))
+    #
+    for  line in lines
+        sa   = "";     isym = LevelSymmetry( line.initialLevel.J, line.initialLevel.parity)
+                       fsym = LevelSymmetry( line.finalLevel.J,   line.finalLevel.parity)
+        sa = sa * TableStrings.center(18, TableStrings.levels_if(line.initialLevel.index, line.finalLevel.index); na=2)
+        sa = sa * TableStrings.center(18, TableStrings.symmetries_if(isym, fsym); na=3)
+        sa = sa * @sprintf("%.5e", Defaults.convertUnits("energy: from atomic", line.photonEnergy))          * "    "
+        sa = sa * TableStrings.center(10, string(length(line.sharings)); na=3)
+        sa = sa * @sprintf("%.6e", Defaults.convertUnits("cross section: from atomic", line.crossSection.Coulomb))   * "    "
+        sa = sa * @sprintf("%.6e", Defaults.convertUnits("cross section: from atomic", line.crossSection.Babushkin))
+        println(stream, sa)
+    end
+    println(stream, "  ", TableStrings.hLine(nx))
+    #
+    # Second table: the energy-sharing distribution, i.e. the integrand of the number above
+    nx = 118
+    println(stream, " ")
+    println(stream, "  Energy-sharing distributions   ... the integrand of the totals above; sigma = SUM_k weight_k * dsigma/d eps_1")
+    println(stream, " ")
+    println(stream, "  ", TableStrings.hLine(nx))
+    sa = "  ";   sb = "  "
+    sa = sa * TableStrings.center(18, "i-level-f"; na=2);                         sb = sb * TableStrings.hBlank(20)
+    sa = sa * TableStrings.center(12, "epsilon_1"; na=2)
+    sb = sb * TableStrings.center(12, TableStrings.inUnits("energy"); na=2)
+    sa = sa * TableStrings.center(12, "epsilon_2"; na=2)
+    sb = sb * TableStrings.center(12, TableStrings.inUnits("energy"); na=2)
+    sa = sa * TableStrings.center(12, "weight";    na=3);                         sb = sb * TableStrings.hBlank(15)
+    sa = sa * TableStrings.center(34, "Cou -- dsigma/d eps_1 -- Bab"; na=2)
+    sb = sb * TableStrings.center(34, TableStrings.inUnits("cross section") * "/" * TableStrings.inUnits("energy") *
+                                      "     " * TableStrings.inUnits("cross section") * "/" * TableStrings.inUnits("energy"); na=2)
+    println(stream, sa);    println(stream, sb);    println(stream, "  ", TableStrings.hLine(nx))
+    #
+    for  line in lines
+        sa = TableStrings.center(18, TableStrings.levels_if(line.initialLevel.index, line.finalLevel.index); na=2)
+        for  (is, sharing)  in  enumerate(line.sharings)
+            if  is == 1     sb = sa     else    sb = TableStrings.hBlank( length(sa) )    end
+            sb = sb * @sprintf("%.5e", Defaults.convertUnits("energy: from atomic", sharing.epsilon1)) * "  "
+            sb = sb * @sprintf("%.5e", Defaults.convertUnits("energy: from atomic", sharing.epsilon2)) * "  "
+            sb = sb * @sprintf("%.5e", sharing.weight)                                                 * "   "
+            sb = sb * @sprintf("%.6e", Defaults.convertUnits("cross section: from atomic", sharing.differentialCs.Coulomb))   * "   "
+            sb = sb * @sprintf("%.6e", Defaults.convertUnits("cross section: from atomic", sharing.differentialCs.Babushkin))
+            println(stream, sb)
+        end
+    end
+    println(stream, "  ", TableStrings.hLine(nx))
+
+    return( nothing )
+end
+
+
+"""
 `PhotoDoubleIonization.displayLines(stream::IO, lines::Array{PhotoDoubleIonization.Line,1})`
     ... to display a list of lines, sharings and channels that have been selected due to the prior settings. A neat table 
         of all selected transitions and energies is printed but nothing is returned otherwise.
@@ -833,8 +966,8 @@ function  displayLines(stream::IO, lines::Array{PhotoDoubleIonization.Line,1})
     sa = "  ";   sb = "  "
     sa = sa * TableStrings.center(18, "i-level-f"; na=0);                         sb = sb * TableStrings.hBlank(18)
     sa = sa * TableStrings.center(18, "i--J^P--f"; na=4);                         sb = sb * TableStrings.hBlank(22)
-    sa = sa * TableStrings.flushleft(100, "Channels (all energies in " * TableStrings.inUnits("energy") * ")" ; na=5);              
-    sb = sb * TableStrings.flushleft(100, "Multipole  Gauge      quasi-Subshell   J^P_x   kappa   -->    J^P_t"; na=5)
+    sa = sa * TableStrings.flushleft(100, "Partial-wave pairs and the total symmetries they serve"; na=5);              
+    sb = sb * TableStrings.flushleft(100, "kappa_1 + kappa_2    J^P_x        -->   J^P_total   multipoles"; na=5)
     println(stream, sa);    println(stream, sb);    println(stream, "  ", TableStrings.hLine(nx)) 
     #
     for  line in lines
@@ -842,13 +975,19 @@ function  displayLines(stream::IO, lines::Array{PhotoDoubleIonization.Line,1})
                        fsym = LevelSymmetry( line.finalLevel.J,   line.finalLevel.parity)
         sa = sa * TableStrings.center(18, TableStrings.levels_if(line.initialLevel.index, line.finalLevel.index); na=2)
         sa = sa * TableStrings.center(18, TableStrings.symmetries_if(isym, fsym); na=4)
-        for (ic, ch) in enumerate(line.sharings[1].channels)
-            if  ic == 1     sb = sa     else    sb = TableStrings.hBlank( length(sa) )    end
-            sb = sb * string(ch.multipole) * "         " * string(ch.gauge)[1:3] * "            " 
-            sb = sb * string(ch.quasiSubshell) * "       " * string(ch.xSymmetry) * "   "
-            sb = sb * string(Subshell(1,ch.kappa))[end-4:end] * "   -->    "
-            sb = sb * string(ch.tSymmetry)
-            println(stream,  sb )
+        if  length(line.sharings) == 0      println(stream, sa * "  (no sharings)");     continue    end
+        ic = 0
+        for  pair  in  line.sharings[1].partialWavePairs
+            for  ch  in  pair.channels
+                ic = ic + 1
+                if  ic == 1     sb = sa     else    sb = TableStrings.hBlank( length(sa) )    end
+                sb = sb * string(Subshell(1, pair.kappa1))[end-4:end] * " + " *
+                          string(Subshell(1, pair.kappa2))[end-4:end] * "      "
+                sb = sb * TableStrings.center(10, string(pair.xSymmetry); na=3)
+                sb = sb * "-->   " * TableStrings.center(10, string(ch.symmetry); na=3)
+                sb = sb * join([string(ma.multipole) for ma in ch.amplitudes], ", ")
+                println(stream,  sb )
+            end
         end
     end
     println(stream, "  ", TableStrings.hLine(nx))

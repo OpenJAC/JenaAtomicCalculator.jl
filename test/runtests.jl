@@ -138,6 +138,9 @@ end
         @test TestFrames.testModule_TwoElectronOnePhoton()      ## added 28-Aug-2026: a two-route agreement, and
         @test TestFrames.testModule_ResonantImpactIonization()  ## exact scaling laws -- no stored .sum in either
         @test TestFrames.testModule_ElectronCapture()   ## added 02-Sep-2026: detailed balance against AutoIonization
+        @test TestFrames.testModule_PhotoDoubleIonization()  ## added 15-Sep-2026: the output path, mirror
+                                                             ## symmetry and the quadrature -- NOT the scale, which
+                                                             ## is parked under Rule 13
                                                         ## for the reversed pair, plus the alignment selection rules
     end
 

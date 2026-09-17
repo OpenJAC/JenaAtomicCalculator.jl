@@ -1342,3 +1342,95 @@ function testModule_ElectronCapture(; short::Bool=true)
     testPrint("testModule_ElectronCapture()::", success)
     return( success )
 end
+
+"""
+`TestFrames.testModule_PhotoDoubleIonization(; short::Bool=true)`  ... tests on module PhotoDoubleIonization;
+    a success::Bool is returned.
+"""
+function testModule_PhotoDoubleIonization(; short::Bool=true)
+    Defaults.setDefaults("print summary: open", "test-PhotoDoubleIonization-new.sum")
+    printstyled("\n\nTest the module  PhotoDoubleIonization  ... \n", color=:cyan)
+    # THIS MODULE IS PARKED UNDER RULE 13 AND ITS ABSOLUTE SCALE IS NOT TRUSTED, so this test asserts nothing
+    # about the VALUE of a cross section.  What it does assert are three invariants that hold whatever the scale
+    # turns out to be, and each of them has already been broken once:
+    #
+    #   (1) THE OUTPUT PATH RUNS.  displayResults was CALLED by computeLines and never written, and displayLines'
+    #       second table read a `channels` field that the 15-Aug rebuild had moved onto the PartialWavePair.  Both
+    #       were repaired on 15-Sep-2026; a module whose display routines raise cannot be used at all, and nothing
+    #       else in the suite would notice.
+    #   (2) MIRROR SYMMETRY OF THE SHARING DISTRIBUTION.  Exchanging the two electrons' energies must give the same
+    #       differential cross section, because the pair set is exchange-closed by construction.  This tests the
+    #       pair bookkeeping and the continuum orbitals, and it is independent of any prefactor.
+    #   (3) THE QUADRATURE ADDS UP.  The total must equal SUM_k weight_k * (dsigma/d eps_1)_k, which is how
+    #       computeAmplitudesProperties forms it; a mismatch means the weights and the integrand have parted company.
+    #
+    # WHAT IS DELIBERATELY **NOT** ASSERTED: gauge equality.  As for MultiPhotonIonization above, a second-order
+    # amplitude is evaluated off shell at every intermediate step and the two gauge forms agree only through
+    # closure over a COMPLETE intermediate set.  This module sums a handful of states, so the gauges are EXPECTED
+    # to differ, by a lot; asserting their equality would produce a test that fails for a correct code.
+    success = true;    printTest, iostream = Defaults.getDefaults("test flag/stream")
+
+    # Helium, the cheapest case that has two electrons to remove; maxKappa = 2 and three sharings keep it seconds.
+    grid = Radial.generateGrid(Basics.recommendedGrid(Dict(Shell("1s") => 2), 2.0);
+                               maximumFreeElectronEnergy = 42.0)
+    nm   = Nuclear.Model(2.0)
+    asf  = AsfSettings(AsfSettings(); scField = Basics.DFSField())
+    mult(c, n) = redirect_stdout(devnull) do
+        perform(Atomic.Computation(Atomic.Computation(); name=n, grid=grid, nuclearModel=nm,
+                configs=c, asfSettings=asf); output=true)["multiplet:"]
+    end
+    mi = mult([Configuration("1s^2")], "He");    mf = mult([Configuration("1s^0")], "He2+")
+    gm = mult([Configuration("1s")],   "He+")
+    set = PhotoDoubleIonization.Settings(PhotoDoubleIonization.Settings();
+              multipoles=[Basics.E1], photonEnergies=[200.0], NoEnergySharings=3,
+              maxKappa=2, gMultiplet=gm, printBefore=false)
+
+    newLine = nothing
+    try
+        lines = PhotoDoubleIonization.determineLines(mf, mi, set)
+        ln    = lines[1]
+        mE    = maximum(max(sh.epsilon1, sh.epsilon2) for sh in ln.sharings)
+        newLine = redirect_stdout(devnull) do
+            PhotoDoubleIonization.computeAmplitudesProperties(ln, nm, grid,
+                Continuum.gridConsistency(mE, grid), set;
+                nuclearPot=Nuclear.nuclearPotential(nm, grid), primitives=Bsplines.generatePrimitives(grid))
+        end
+        # (1) both display routines must run to completion on a real line
+        redirect_stdout(devnull) do
+            PhotoDoubleIonization.displayLines(stdout, lines)
+            PhotoDoubleIonization.displayResults(stdout, [newLine], set)
+        end
+    catch  err
+        success = false
+        if printTest   info(iostream, "PhotoDoubleIonization raised: $(first(sprint(showerror, err), 200))")   end
+    end
+
+    if  success  &&  newLine !== nothing
+        shs = newLine.sharings
+        # (2) mirror symmetry: sharing k and sharing (end+1-k) exchange the two electrons
+        for  k = 1:div(length(shs), 2)
+            a = shs[k].differentialCs.Coulomb;    b = shs[end+1-k].differentialCs.Coulomb
+            if  abs(a) < 1.0e-30  ||  abs(a-b)/abs(a) > 1.0e-2
+                success = false
+                if printTest   info(iostream, "mirror symmetry of the sharing distribution is broken: " *
+                                              "$a against $b at sharing $k")   end
+            end
+        end
+        # (3) the total is the weighted sum of the integrand
+        tot = sum(sh.weight * sh.differentialCs.Coulomb for sh in shs)
+        if  abs(newLine.crossSection.Coulomb) < 1.0e-30  ||
+            abs(tot - newLine.crossSection.Coulomb)/abs(newLine.crossSection.Coulomb) > 1.0e-8
+            success = false
+            if printTest   info(iostream, "the quadrature does not add up: SUM w*dsigma = $tot against " *
+                                          "crossSection = $(newLine.crossSection.Coulomb)")   end
+        end
+    end
+
+    if printTest   info(iostream, "PhotoDoubleIonization: the output path runs, the sharing distribution is " *
+                                  "mirror-symmetric and the quadrature adds up. NOTHING is asserted about the " *
+                                  "absolute scale, which is not trusted, nor about gauge equality, which an " *
+                                  "incomplete intermediate set does not provide. No approved data is used.")   end
+    Defaults.setDefaults("print summary: close", "")
+    testPrint("testModule_PhotoDoubleIonization()::", success)
+    return( success )
+end
