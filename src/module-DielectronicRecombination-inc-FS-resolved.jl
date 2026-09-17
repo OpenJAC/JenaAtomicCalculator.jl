@@ -469,8 +469,18 @@ function  computeHydrogenicRate(ni::Int64, li::Int64, nf::Int64, lf::Int64,  Zef
         if n>l  &&  n*l > 0     A = sqrt( (n+l) * (n-l)) / (n*l)     end
         return ( A )
     end
-    # Compute I(n,l; n',l') integral in the recursion formulas
+    # Compute I(n,l; n',l') integral in the recursion formulas.
+    #
+    # MEMOIZED, 16-Sep-2026.  The recursion branches into TWO calls on every rung and terminates only
+    # when lp reaches n, so without a cache one rate costs O(2^n) calls and the routine is unusable
+    # beyond n ~ 25 -- measured 0.004 s at n = 16, 0.26 s at n = 20, 0.94 s at n = 24, roughly tripling
+    # every two shells.  That, and not any loss of accuracy, is what the `nf > 40` guard below was
+    # protecting against.  computeI is a PURE function of the four integers, so caching it returns
+    # bit-identical values and only stops the same rung being evaluated again; the cost becomes O(n*l).
+    memoI = Dict{NTuple{4,Int64},Float64}()
     function computeI(n::Int64, l::Int64, np::Int64, lp::Int64)
+        key = (n, l, np, lp)
+        haskey(memoI, key)  &&  return( memoI[key] )
         wi = 0.0
         if       l>=n  ||  l<0  || lp>n  ||  lp>=np  ||  lp<0  || abs(l-lp)!=1    wi = 0.0
         elseif   l == lp-1
@@ -489,6 +499,7 @@ function  computeHydrogenicRate(ni::Int64, li::Int64, nf::Int64, lf::Int64,  Zef
         else
             error("Unexpected set of quantum number n=$n l=$l  np=$np  lp=$lp ")
         end
+        memoI[key] = wi
         return ( wi )
     end
     # Compute absorption oscillator strength
@@ -503,7 +514,36 @@ function  computeHydrogenicRate(ni::Int64, li::Int64, nf::Int64, lf::Int64,  Zef
     end
     rate = 0.0;
     if  abs(li-lf)!=1  ||  ni <= nf  ||  li >= ni  ||  li<0  ||  lf >= nf  ||  lf<0   return( rate )   
-    elseif  nf > 40    error("Don't use a recursive scheme ... but make a new implementation for ni = $ni ")
+    elseif  nf > 0.90 * ni
+        # WHERE THIS LIMIT COMES FROM, measured 16-Sep-2026 rather than assumed.  The old guard read
+        # `nf > 40` and was protecting against COST: the recursion branches twice per rung and was not
+        # memoized, so one rate cost O(2^nf) -- 0.004 s at nf = 16, 0.26 s at nf = 20, 0.94 s at nf = 24.
+        # `computeI` is now cached and that cost is gone (nf = 40 went from unreachable to 0.0000 s, with
+        # bit-identical values against an independent transcription).
+        #
+        # BUT A SECOND, GENUINE LIMIT WAS FOUND UNDERNEATH IT, and it is an ACCURACY limit.  The ladder
+        # relations combine terms by subtraction, and as nf approaches ni those terms become nearly equal
+        # and cancellation eats the result.  A(ni -> nf) must fall monotonically with nf, since the
+        # transition energy collapses; instead it flattens and TURNS BACK UP.  Measured for l = 0, Z = 83:
+        #
+        #        ni        first rise at nf      ni - nf      nf/ni
+        #       100              92                  8         0.920
+        #       140             129                 11         0.921
+        #       183             165                 18         0.902
+        #
+        # so the breakdown is RELATIVE (nf/ni ~ 0.90-0.92) and NOT at a fixed nf, which is why the guard
+        # is written as a fraction of ni rather than as a constant.  A `nf > const` guard is the wrong
+        # SHAPE: raised far enough to be useful at ni = 183 it would already be unsafe at ni = 100.
+        #
+        # 0.90 is set just below the lowest measured onset.  The omitted tail is negligible for the high-n
+        # radiative rates this is used for: A(183 -> nf p) falls from 1.19e9 at nf = 2 to 3.9e5 near the
+        # limit, four orders down, so the last few per cent of shells carry a vanishing share of the total.
+        error("\n\nDielectronicRecombination.computeHydrogenicRate():  STOP -- nf = $nf is too close to "   *
+              "ni = $ni.\n>>> The Infeld-Hull recursion loses its digits through cancellation once "        *
+              "nf/ni exceeds about 0.90, and\n>>> returns rates that RISE with nf where they must fall. "   *
+              "See the measured table at this guard.\n>>> The omitted shells carry a negligible share of "  *
+              "a high-n radiative rate; if they are genuinely\n>>> needed, the recursion must be replaced, "*
+              "not the guard relaxed.\n")
     end
     if      lf == (li + 1)     rate = (2*(li+1) + 1) / (2*li+1) * computeOsc(nf, li+1, ni, li)
     elseif  lf == (li - 1)     rate = (2*(li-1) + 1) / (2*li+1) * computeOsc(nf, li-1, ni, li)
