@@ -87,6 +87,51 @@ if  false
                      string(round((ls[3].energy-ls[1].energy)*219474.6313702, digits=1)) * " cm^-1" : ""))
         end
     end
+    #
+    # ===== WHAT THE SAME ION LOOKS LIKE WHEN THE VALENCE MODEL IS PUSHED (measured 15/16-Sep-2026) =====
+    #
+    # Branch (a) folds the core on top of ONE valence layer, where the valence error is still 18 %, so the core
+    # contribution is buried.  Measured separately on the same ion, the same J = 3/2 odd levels and the same
+    # grid (rbox = 20 a.u.), with NO core at all -- 2s,2p frozen throughout -- and only the valence ladder grown:
+    #
+    #   layer 1   refs(3s^2 3p^3) [1s..2p frozen] SD(3s..3p --> 3s..3d)     66 CSF
+    #   layer 2   + [1s..3d frozen] SD(3s..3p --> 3s..4f)                  802 CSF
+    #   layer 3   + [1s..4f frozen] SD(3s..3p --> 3s..5g)                 2816 CSF
+    #   layer 4   + [1s..5g frozen] SD(3s..3p --> 3s..6h)                 6622 CSF     1:41:10, peak 4.84 GB
+    #
+    #                 2D*_3/2 (NIST 18052.5)      2P*_3/2 (NIST 29906.5)
+    #     layer 1      21371.4  +18.38 %           33678.0  +12.61 %
+    #     layer 2      19194.8   +6.33 %           31522.5   +5.40 %
+    #     layer 3      18791.5   +4.09 %           30944.3   +3.47 %
+    #     layer 4      18760.0   +3.92 %           30899.9   +3.32 %
+    #     increments  -2176.6 / -403.3 / -31.5    -2155.5 / -578.2 / -44.4 cm^-1
+    #
+    # THE VALENCE LADDER CONVERGES AND DOES NOT REACH THE MEASURED VALUES.  A geometric extrapolation of the
+    # increments (and Aitken on the last three) puts the infinite-layer limit at 18757 / 30896 cm^-1, i.e.
+    # +3.90 % and +3.31 % -- so ten layers would still leave ~700 and ~980 cm^-1.  What is missing is what was
+    # never in the model: the frozen 2s,2p core, and Breit (this ladder is Coulomb-only).
+    #
+    # THE LAST INCREMENT UNDERSTATES THE REMAINING ERROR BY 22x (31.5 against 707.5 cm^-1; 44.4 against 993.5).
+    # A ladder that has stopped moving has not arrived -- the same lesson branch (c) records for Fe XV, where
+    # the factor reached 100x on one interval.
+    #
+    # AND THE n=3 COMPLEX IS NOT THE CULPRIT.  SDTQ(3s..3p --> 3s..3d) is the COMPLETE CAS for J = 3/2 odd --
+    # parity is (-1)^(3p occupation), so only odd-3p configurations mix, and there are seven of them; SD reaches
+    # five, SDTQ adds 3s3p3d^3 and 3p3d^4, and 3d^5 needs a QUINTUPLE excitation and is even parity anyway.
+    # Measured: 66 CSF -> 145 CSF for 0.14 and 0.36 percentage points.  Triples and quadruples are not the gap.
+    #
+    # AND THE OBVIOUS NEXT TEST -- FOLDING THE CORE ONTO THE CONVERGED VALENCE LADDER -- CANNOT BE DONE THIS WAY.
+    # Tried 16-Sep-2026: valence SD to 4f, then PT-SD(2s..3p --> 3s..4f), 12370 CSF, NINE HOURS.  The step ran to
+    # completion and returned splittings of +59 % and +62 %, and the code said why in its own output: two CI
+    # levels lay BELOW the reference carrying almost none of it -- an intruder at -466.85 Ha (7 Ha below the
+    # ground state!) of 2p^4 3s^2 3p^3 4p^2, and one at -460.79 Ha of 2p^5 3s 3p^3 3d 4f.  A variational layer's
+    # 4p and 4f are CONTRACTED pseudo-orbitals built to describe valence correlation; a 2p -> 4p excitation on
+    # them appears to LOWER the energy instead of costing ~200 eV.  This is not a threshold or a Q-space-size
+    # question, so no cheaper variant of the run fixes it.
+    #
+    # THE SAME DOUBT APPLIES TO THIS BRANCH.  Branch (a) folds the core onto LAYER-1 orbitals and reports the
+    # fold as costing 0.47 mHa / -8.7 / -83.1 cm^-1 (0.0035 mHa after the 13-Sep angular repair).  Those numbers
+    # were taken without an intruder check.  Before they are trusted, read the step's warning block.
 
 elseif  false
     # Last visit:      13-Sep-2026
