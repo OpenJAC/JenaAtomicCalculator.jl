@@ -41,7 +41,11 @@ def main(src, dst):
     objs.append("<< /Type /Catalog /Pages 2 0 R >>")
     kids = " ".join("%d 0 R" % (4 + 2*i) for i in range(n_pg))
     objs.append("<< /Type /Pages /Count %d /Kids [%s] >>" % (n_pg, kids))
-    objs.append("<< /Type /Font /Subtype /Type1 /BaseFont /%s >>" % FONT)
+    # /Encoding IS NOT OPTIONAL.  Without it a viewer falls back to the font's built-in
+    # StandardEncoding, in which code 0x27 is `quoteright` -- so a plain ASCII apostrophe
+    # renders as a curly one and the output is no longer the ASCII it claims to be.
+    # Measured 21-Sep-2026: 21 such characters in an 11-page reply whose source held none.
+    objs.append("<< /Type /Font /Subtype /Type1 /BaseFont /%s /Encoding /WinAnsiEncoding >>" % FONT)
     for i in range(n_pg):
         objs.append("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 %.2f %.2f] "
                     "/Resources << /Font << /F1 3 0 R >> >> /Contents %d 0 R >>"
