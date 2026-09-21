@@ -334,6 +334,14 @@ end
     + temperatures          ::Array{Float64,1}     
         ... list of temperatures for which plasma rate coefficients are displayed; however, these rate coefficients
             only include the contributions from those pathways that are calculated here explicitly.
+    + mergedBeamKT          ::Tuple{Float64,Float64}
+        ... (kT_perp, kT_par) [Hartree] of the FLATTENED Maxwellian of a merged-beam (storage-ring) experiment.
+            This is a different average from `temperatures`, which is the isotropic plasma one: an electron cooler
+            leaves the longitudinal spread far smaller than the transverse, and the observed line shape follows
+            from that anisotropy. (0., 0.) means no merged-beam rate coefficient is wanted.
+    + mergedBeamEnergies    ::Array{Float64,1}
+        ... detuning energies E_d [Hartree] at which the merged-beam rate coefficient is reported, i.e. the mesh
+            the experiment scans. Empty means none is wanted.
     + corrections           ::Array{DielectronicRecombination.AbstractCorrections,1}
         ... Specify, if appropriate, the inclusion of additional corrections to the rates and DR strengths.
     + augerOperator         ::AbstractEeInteraction 
@@ -353,6 +361,8 @@ struct Settings  <:  AbstractProcessSettings
     photonEnergyShift       ::Float64
     mimimumPhotonEnergy     ::Float64
     temperatures            ::Array{Float64,1}
+    mergedBeamKT            ::Tuple{Float64,Float64}
+    mergedBeamEnergies      ::Array{Float64,1}
     corrections             ::Array{DielectronicRecombination.AbstractCorrections,1}
     augerOperator           ::AbstractEeInteraction
 end 
@@ -364,7 +374,7 @@ end
 """
 function Settings()
     Settings([E1], UseGauge[], false, false, false, false, false, PathwaySelection(), 0., 0., 0., Float64[],
-             DielectronicRecombination.AbstractCorrections[], CoulombInteraction())
+             (0., 0.), Float64[], DielectronicRecombination.AbstractCorrections[], CoulombInteraction())
 end
 
 
@@ -373,6 +383,7 @@ end
 
         multipoles=..,             gauges=..,                  
         calcOnlyPassages=..,       calcRateAlpha=..,         calcHyperfineResolved=..,
+        mergedBeamKT=..,           mergedBeamEnergies=..,
         calcPhotonSpectrum=..,
         printBefore=..,            pathwaySelection=..,      electronEnergyShift=..,   photonEnergyShift=..,       
         mimimumPhotonEnergy=..,    temperatures=..,          corrections=..,           augerOperator=..)
@@ -387,6 +398,7 @@ function Settings(set::DielectronicRecombination.Settings;
     printBefore::Union{Nothing,Bool}=nothing,                              pathwaySelection::Union{Nothing,PathwaySelection}=nothing,
     electronEnergyShift::Union{Nothing,Float64}=nothing,                   photonEnergyShift::Union{Nothing,Float64}=nothing, 
     mimimumPhotonEnergy::Union{Nothing,Float64}=nothing,                   temperatures::Union{Nothing,Array{Float64,1}}=nothing,    
+    mergedBeamKT::Union{Nothing,Tuple{Float64,Float64}}=nothing,           mergedBeamEnergies::Union{Nothing,Array{Float64,1}}=nothing,
     corrections::Union{Nothing,Array{AbstractCorrections,1}}=nothing,      augerOperator::Union{Nothing,AbstractEeInteraction}=nothing)
     
     if  isnothing(multipoles)            multipolesx           = set.multipoles            else  multipolesx           = multipoles            end 
@@ -401,12 +413,14 @@ function Settings(set::DielectronicRecombination.Settings;
     if  isnothing(photonEnergyShift)     photonEnergyShiftx    = set.photonEnergyShift     else  photonEnergyShiftx    = photonEnergyShift     end 
     if  isnothing(mimimumPhotonEnergy)   mimimumPhotonEnergyx  = set.mimimumPhotonEnergy   else  mimimumPhotonEnergyx  = mimimumPhotonEnergy   end 
     if  isnothing(temperatures)          temperaturesx         = set.temperatures          else  temperaturesx         = temperatures          end 
+    if  isnothing(mergedBeamKT)          mergedBeamKTx         = set.mergedBeamKT         else  mergedBeamKTx         = mergedBeamKT         end 
+    if  isnothing(mergedBeamEnergies)    mergedBeamEnergiesx   = set.mergedBeamEnergies   else  mergedBeamEnergiesx   = mergedBeamEnergies   end 
     if  isnothing(corrections)           correctionsx          = set.corrections           else  correctionsx          = corrections           end 
     if  isnothing(augerOperator)         augerOperatorx        = set.augerOperator         else  augerOperatorx        = augerOperator         end 
 
     Settings( multipolesx, gaugesx, calcOnlyPassagesx, calcRateAlphax, calcHyperfineResolvedx, calcPhotonSpectrumx, printBeforex,
               pathwaySelectionx, electronEnergyShiftx, photonEnergyShiftx, mimimumPhotonEnergyx, temperaturesx,
-              correctionsx, augerOperatorx )
+              mergedBeamKTx, mergedBeamEnergiesx, correctionsx, augerOperatorx )
 end
 
 
@@ -427,6 +441,8 @@ function Base.show(io::IO, settings::DielectronicRecombination.Settings)
     println(io, "photonEnergyShift:          $(settings.photonEnergyShift)  ")
     println(io, "mimimumPhotonEnergy:        $(settings.mimimumPhotonEnergy)  ")
     println(io, "temperatures:               $(settings.temperatures)  ")
+    println(io, "mergedBeamKT:               $(settings.mergedBeamKT)  ")
+    println(io, "mergedBeamEnergies:         $(settings.mergedBeamEnergies)  ")
     println(io, "corrections:                $(settings.corrections)  ")
     println(io, "augerOperator:              $(settings.augerOperator)  ")
 end

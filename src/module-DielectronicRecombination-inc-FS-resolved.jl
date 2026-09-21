@@ -335,6 +335,7 @@ function  computeCaptureLines(finalMultiplet::Multiplet, intermediateMultiplet::
     # Print all results to screen and, if requested, to the summary file
     DielectronicRecombination.displayResults(stdout, newCaptureLines, newPhotonLines, settings)
     DielectronicRecombination.displayRateCoefficients(stdout, newCaptureLines, settings, tailLines)
+    DielectronicRecombination.displayMergedBeamRateCoefficients(stdout, newCaptureLines, settings)
     printSummary, iostream = Defaults.getDefaults("summary flag/stream")
     if  printSummary
         if  empTreatment.doRydbergTailCorrection
@@ -342,6 +343,7 @@ function  computeCaptureLines(finalMultiplet::Multiplet, intermediateMultiplet::
         end
         DielectronicRecombination.displayResults(iostream, newCaptureLines, newPhotonLines, settings)
         DielectronicRecombination.displayRateCoefficients(iostream, newCaptureLines, settings, tailLines)
+        DielectronicRecombination.displayMergedBeamRateCoefficients(iostream, newCaptureLines, settings)
     end
     # The tail lines join the returned list, so that every downstream consumer -- the rate coefficients, the Cascade
     # simulations, the satellite diagnostic -- sees the full series rather than only the part that fitted in memory.
@@ -690,6 +692,135 @@ function  computeRateCoefficient(captureLine::DielectronicRecombination.CaptureL
                 Defaults.convertUnits("rate: from atomic to 1/s", 1.0)
     alphaDR = factor * alphaDR
     return( alphaDR )
+end
+
+
+"""
+`DielectronicRecombination.computeMergedBeamRateCoefficient(captureLine::DielectronicRecombination.CaptureLine, 
+                            Ed::Float64, kTperp::Float64, kTpar::Float64; nTheta::Int64=4001)`
+    ... to compute the merged-beam rate coefficient alpha(E_d) [cm^3/s] of a SINGLE resonance, i.e. the average of
+        v*sigma over the FLATTENED (anisotropic) Maxwellian of an electron cooler with transverse kT_perp and
+        longitudinal kT_par, at detuning energy E_d. An alpha::EmProperty is returned.
+
+        THIS IS A DIFFERENT AVERAGE FROM `computeRateCoefficient`, which is the isotropic PLASMA one, and a
+        storage-ring measurement needs this one: the cooler leaves kT_par orders of magnitude below kT_perp, so
+        the observed line shape and its peak position follow from the anisotropy and not from the natural width.
+
+        THE RESONANCE IS TAKEN IN THE DELTA-FUNCTION LIMIT, sigma(E) = S delta(E - E_res), which is what a
+        resonance strength is. That is safe exactly while the natural width is small against the beam: on the
+        209Bi(82+) resonances it was measured at Gamma ~ 0.01 meV against kT of 0.02-5 meV, a factor of a few
+        thousand. Where a width approaches kT this function is the wrong tool and the profile must be folded.
+
+        With that limit the three-dimensional average collapses to ONE angular integral, written out here rather
+        than taken from a closed form so that the geometry stays visible:
+
+            alpha(E_d) = sqrt(2/pi) S E_r / (kT_perp sqrt(kT_par))
+                         INT_0^pi dtheta sin(theta) exp[ -E_r sin^2(theta)/kT_perp
+                                                         -(sqrt(E_r) cos(theta) - sqrt(E_d))^2/kT_par ]
+
+        where theta is between the electron velocity and the beam axis. **It is integrated in u = cos(theta),
+        not in theta**, which is worth a sentence because it is what makes the result accurate: the substitution
+        absorbs the sin(theta) weight exactly, leaving INT_(-1)^(+1) du of a smooth exponential, and in the
+        isotropic limit below that integrand is CONSTANT so the trapezoidal rule is then exact rather than merely
+        convergent. Integrating in theta instead leaves the sin(theta) factor to be sampled, and its trapezoidal
+        error h^2/6 shows up as a floor -- measured at 5.1e-08 with 4001 points, which is where this started.
+
+        ITS OWN CHECK IS INTERNAL AND EXACT: set kT_perp = kT_par = kT and E_d = 0 and the exponent becomes
+        -E_r/kT independent of angle, so the integral is 2 exp(-E_r/kT) and alpha reduces to
+        4/sqrt(2pi) kT^(-3/2) E_r exp(-E_r/kT) S -- which is `computeRateCoefficient` term by term. Any change
+        here that breaks that identity is wrong.
+"""
+function  computeMergedBeamRateCoefficient(captureLine::DielectronicRecombination.CaptureLine, 
+                                           Ed::Float64, kTperp::Float64, kTpar::Float64; nTheta::Int64=4001)
+    if  kTperp <= 0.  ||  kTpar <= 0.
+        error("computeMergedBeamRateCoefficient(): kT_perp = $kTperp and kT_par = $kTpar must both be positive.")
+    end
+    Er = captureLine.electronEnergy
+    # The angular integral in u = cos(theta), which absorbs the sin(theta) weight exactly:
+    #     INT_0^pi dtheta sin(theta) f(cos theta)  =  INT_(-1)^(+1) du f(u),     sin^2(theta) = 1 - u^2
+    du = 2.0 / (nTheta - 1);    wa = 0.
+    for  i = 1:nTheta
+        u  = -1.0 + (i-1) * du
+        w  = (i == 1  ||  i == nTheta) ? 0.5 : 1.0
+        wa = wa + w * exp( -Er*(1.0 - u*u)/kTperp - (sqrt(Er)*u - sqrt(Ed))^2/kTpar )
+    end
+    wa      = wa * du
+    factor  = sqrt(2/pi) * Er * wa / (kTperp * sqrt(kTpar))
+    alphaDR = factor * captureLine.resonanceStrength
+    # Convert into cm^3 / s, exactly as computeRateCoefficient does
+    factor  = Defaults.convertUnits("length: from atomic to fm", 1.0)^3 * 1.0e-39 *
+                Defaults.convertUnits("rate: from atomic to 1/s", 1.0)
+    alphaDR = factor * alphaDR
+
+    return( alphaDR )
+end
+
+
+"""
+`DielectronicRecombination.extractMergedBeamRateCoefficients(captureLines::Array{DielectronicRecombination.CaptureLine,1},
+                            settings::DielectronicRecombination.Settings)`
+    ... to sum the merged-beam rate coefficient of every capture line at each requested detuning energy; an
+        alphas::Array{EmProperty,1} of the same length as `settings.mergedBeamEnergies` is returned, and an empty
+        array if no merged-beam average was requested.
+"""
+function  extractMergedBeamRateCoefficients(captureLines::Array{DielectronicRecombination.CaptureLine,1},
+                                            settings::DielectronicRecombination.Settings)
+    alphas  = EmProperty[]
+    kTperp, kTpar = settings.mergedBeamKT
+    if  kTperp <= 0.  ||  kTpar <= 0.  ||  length(settings.mergedBeamEnergies) == 0    return( alphas )    end
+    for  Ed in settings.mergedBeamEnergies
+        wa = EmProperty(0., 0.)
+        for  cLine in captureLines
+            wa = wa + DielectronicRecombination.computeMergedBeamRateCoefficient(cLine, Ed, kTperp, kTpar)
+        end
+        push!( alphas, wa)
+    end
+
+    return( alphas )
+end
+
+
+"""
+`DielectronicRecombination.displayMergedBeamRateCoefficients(stream::IO, 
+                            captureLines::Array{DielectronicRecombination.CaptureLine,1},
+                            settings::DielectronicRecombination.Settings)`
+    ... to list the merged-beam rate coefficient alpha(E_d) [cm^3/s] over the requested detuning mesh, i.e. what a
+        storage-ring experiment with this electron cooler would measure; nothing is returned.
+
+        NOTHING IS PRINTED UNLESS BOTH `mergedBeamKT` AND `mergedBeamEnergies` ARE SET, and this average is
+        INDEPENDENT of `calcRateAlpha`: a run may ask for the plasma rate coefficient, for this one, for both or
+        for neither. They answer different questions -- an isotropic Maxwellian against a flattened one -- and
+        nothing is gained by making the user choose between them at the start of a computation.
+"""
+function  displayMergedBeamRateCoefficients(stream::IO, captureLines::Array{DielectronicRecombination.CaptureLine,1},
+                                            settings::DielectronicRecombination.Settings)
+    alphas = DielectronicRecombination.extractMergedBeamRateCoefficients(captureLines, settings)
+    if  length(alphas) == 0     return( nothing )     end
+    kTperp, kTpar = settings.mergedBeamKT
+    kTpEv = Defaults.convertUnits("energy: from atomic to eV", kTperp)
+    kTzEv = Defaults.convertUnits("energy: from atomic to eV", kTpar)
+    nx    = 62
+    println(stream, " ")
+    println(stream, "  Merged-beam DR rate coefficients [cm^3/s]   --   kT_perp = " * @sprintf("%.4e", kTpEv) *
+                    " eV,  kT_par = " * @sprintf("%.4e", kTzEv) * " eV")
+    println(stream, "  (flattened Maxwellian of an electron cooler; the resonances are taken in the delta-function " *
+                    "limit, so this is valid while their widths stay small against kT)")
+    println(stream, " ")
+    println(stream, "  ", TableStrings.hLine(nx))
+    sa = "  " * TableStrings.center(18, "Detuning E_d"; na=4) * TableStrings.center(18, "alpha (Coulomb)"; na=2) *
+                TableStrings.center(18, "alpha (Babushkin)"; na=2)
+    sb = "  " * TableStrings.center(18, TableStrings.inUnits("energy"); na=4) * TableStrings.center(18, "[cm^3/s]"; na=2) *
+                TableStrings.center(18, "[cm^3/s]"; na=2)
+    println(stream, sa);    println(stream, sb);    println(stream, "  ", TableStrings.hLine(nx))
+    for  (i, Ed)  in  enumerate(settings.mergedBeamEnergies)
+        sc = "  " * TableStrings.center(18, @sprintf("%.6e", Defaults.convertUnits("energy: from atomic to eV", Ed)); na=4) *
+                    TableStrings.center(18, @sprintf("%.6e", alphas[i].Coulomb);   na=2) *
+                    TableStrings.center(18, @sprintf("%.6e", alphas[i].Babushkin); na=2)
+        println(stream, sc)
+    end
+    println(stream, "  ", TableStrings.hLine(nx))
+
+    return( nothing )
 end
 
 
