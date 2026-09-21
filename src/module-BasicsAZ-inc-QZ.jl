@@ -421,6 +421,11 @@ end
     + rbox         ::Union{Nothing,Float64}  ... explicit box, which overrides the estimate and is the user's way in.
     + hp           ::Union{Nothing,Float64}  ... explicit outer step; if omitted it is scaled with the box as above.
 """
+# Set once the continuum caveat below has been shown, so that it reaches a user who never reads the source and
+# never sets printout=true, WITHOUT being repeated by the 17 internal callers of this function.  A single Bool is
+# the whole state; the worst a race can do is print it twice.
+const GBL_CONTINUUM_GRID_NOTE_SHOWN = Ref(false)
+
 function Basics.recommendedGrid(occupations::Dict{Shell,Int64}, Z::Float64;
                                 tailFactor::Float64=16., rbox::Union{Nothing,Float64}=nothing, rnt::Float64=2.0e-6,
                                 h::Float64=5.0e-2, hp::Union{Nothing,Float64}=nothing, printout::Bool=false)
@@ -474,9 +479,47 @@ function Basics.recommendedGrid(occupations::Dict{Shell,Int64}, Z::Float64;
     # wavelength, so for eps = 0.5 Ha it returns hp = 0.314 -- five times COARSER than the 0.060 that already
     # fails -- with nsL unchanged at 95.  It is calibrated for a criterion this measurement refutes.
     #
+    # AND A SECOND MEASUREMENT, 17-Sep-2026, BECAUSE THE ONE ABOVE IS NEUTRAL HYDROGEN AND ITS DIAGNOSTIC DOES NOT
+    # CARRY OVER.  RR into 1s 4s of H-like Bi at 1 eV, with the box held FIXED at 142 a.u. and only hp refined:
+    #
+    #     hp       NoPts    nsL     sigma_C [b]     B/C
+    #     0.472      665    101      3.8338e-10    0.994
+    #     0.200     1071    159      5.0133e-09    0.983
+    #     0.100     1785    261      9.7472e-03    1.000
+    #     0.050     3199    463      1.1324e-02    1.005
+    #     0.025     6027    867      1.1324e-02    1.005
+    #
+    # SEVEN ORDERS OF MAGNITUDE, AND THE TWO GAUGES AGREE TO BETTER THAN 2 % AT EVERY SINGLE ROW.  The gauge ratio
+    # is what exposed the neutral case above, where it ran 1.067 -> 1.002; here it is BLIND.  A reader who takes
+    # the hydrogen table to mean "compare the gauges and you will be warned" gets no warning whatever while the
+    # cross section is wrong by a factor of 10^7.  HALVING hp UNTIL THE ANSWER STOPS MOVING IS THE ONLY CHECK.
+    #
+    # Two controls make that unambiguous rather than suggestive.  The BOUND levels of 1s 4s are stable to NINE
+    # figures across these grids, so the bound side is innocent; and the convergence tracks `nsL` exactly as the
+    # note above predicts, so this measurement CONFIRMS that explanation rather than competing with it -- it is the
+    # size of the basis that decides the matter, not the mesh against the wavelength.
+    #
+    # THE TWO REGIMES DIFFER IN SEVERITY AND IN WHAT GIVES THEM AWAY, which is why both are kept: 6.7 % with a
+    # gauge ratio that announces it, against seven orders with a gauge ratio that does not.  6.7 % is an accuracy
+    # question; seven orders is a wrong answer.
+    #
     # SO: A CALLER DOING CONTINUUM WORK MUST BUILD THE GRID BY HAND AND CHECK CONVERGENCE, by halving hp until the
-    # answer stops moving.  No rule here is validated well enough to do it for them -- one energy on one system is
-    # a hypothesis, not a criterion -- and inventing a factor would be worse than saying so.
+    # answer stops moving.  No rule here is validated well enough to do it for them, and the SECOND measurement
+    # strengthens that rather than weakening it: the controlling parameter is not the same in the two regimes, so
+    # two systems in two regimes argue AGAINST inventing a factor, not for one.
+
+    # THE CAVEAT IS PRINTED, NOT ONLY COMMENTED.  A standard user does not read this source and does not set
+    # printout=true, so a grid that is fine for bound orbitals and quietly wrong for a continuum one would reach
+    # them with nothing said.  Once per session, because it applies to the function and not to the call.
+    if  !GBL_CONTINUUM_GRID_NOTE_SHOWN[]
+        GBL_CONTINUUM_GRID_NOTE_SHOWN[] = true
+        println("> Basics.recommendedGrid(): this grid is sized for BOUND orbitals.  It is NOT automatically good " *
+                "enough for a CONTINUUM one, and nothing in JAC will tell you so:")
+        println(">   measured, H 1s photoionization 6.7 % off with the gauges 1.067 apart;  RR into 1s 4s of " *
+                "H-like Bi SEVEN ORDERS off with the gauges agreeing to 2 %.")
+        println(">   So the gauge ratio warns you on a neutral system and is BLIND on a highly charged one.  For " *
+                "continuum work, halve hp until the answer stops moving.")
+    end
 
     if  printout
         println("> Basics.recommendedGrid(): Z = $Z with $NoElectrons electrons; the box is set by $outer, which " *
