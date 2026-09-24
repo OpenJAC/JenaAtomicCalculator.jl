@@ -8,7 +8,7 @@ module Continuum
 
 
 using  GSL, Printf, SpecialFunctions, DelimitedFiles
-using  ..Basics, ..Bsplines, ..Defaults, ..ManyElectron, ..Radial, ..Nuclear
+using  ..AngularMomentum, ..Basics, ..Bsplines, ..Defaults, ..ManyElectron, ..Radial, ..Nuclear
 
 
 """
@@ -69,7 +69,7 @@ end
                                     settings::Continuum.Settings; nuclearPot::Union{Nothing,Radial.Potential}=nothing,
                                     primitives::Union{Nothing,Bsplines.Primitives}=nothing,
                                     storage::Union{Nothing,Dict{String,Array{Float64,2}}}=nothing, orthogonalize::Bool=false,
-                                    exchange::Symbol=:Slater)`
+                                    exchange::Symbol=:Slater, exchangeMatrix::Union{Nothing,Array{Float64,2}}=nothing)`
     ... to generate a continuum orbital for the (continuum) subshell sh, the energy and the effective charge within the given
         potential. It is orthogonal to the bound orbitals of the same kappa AUTOMATICALLY only when these are eigenfunctions of
         the same local operator, i.e. come from the default Basics.DFSField(1.0): measured 24-Sep-2026 for C3+ 1s2 2s at 50 eV,
@@ -77,7 +77,9 @@ end
         true the projection is made explicitly, see Continuum.orthogonalizeToBasis(); the default leaves the orbital as it is.
         The keyword exchange selects the local exchange added to the static (nuclear + Hartree) potential of the level, see
         Continuum.continuumPotential(): :Slater (the default, the energy-independent DFS term), :FurnessMcCarthy (energy-
-        dependent, vanishing as 1/E) or :none.
+        dependent, vanishing as 1/E), :none, or :nonlocal -- the exact exchange with the bound electrons, see
+        Continuum.exchangeMatrix(), which requires the B-spline Galerkin method. That matrix depends on the level and on
+        kappa but not on the energy, so a caller that needs it at many energies may pass it in as exchangeMatrix.
         All further specifications about this generations are made by proper settings. The keywords nuclearPot, primitives and storage carry quantities that are
         CONSTANT for a whole computation -- the nuclear potential depends only on the nuclear model and the grid, the B-spline
         primitives only on the grid, and the storage dictionary holds the TTp matrices, which depend on the grid and on kappa but
@@ -96,7 +98,7 @@ function generateOrbitalForLevel(energy::Float64, sh::Subshell, level::Level, nm
                                  settings::Continuum.Settings; nuclearPot::Union{Nothing,Radial.Potential}=nothing,
                                  primitives::Union{Nothing,Bsplines.Primitives}=nothing,
                                  storage::Union{Nothing,Dict{String,Array{Float64,2}}}=nothing, orthogonalize::Bool=false,
-                                 exchange::Symbol=:Slater)
+                                 exchange::Symbol=:Slater, exchangeMatrix::Union{Nothing,Array{Float64,2}}=nothing)
     #
     # Generate a (local) potential for the given level.  The NUCLEAR part depends only on the nuclear model
     # and the grid, so it is constant for a whole computation -- but this function is called once per line
@@ -111,7 +113,15 @@ function generateOrbitalForLevel(energy::Float64, sh::Subshell, level::Level, nm
     ## wp3 = compute("radial potential: Kohn-Sham", grid, wLevel)
     ## wp4 = compute("radial potential: Dirac-Fock-Slater", grid, wLevel)
     ## wp  = Basics.computePotential(Basics.DFSField(0.42), grid, level)   
-    pot = Continuum.continuumPotential(energy, level, nuclearPotential, grid, exchange)
+    pot = Continuum.continuumPotential(energy, level, nuclearPotential, grid, exchange == :nonlocal ? :none : exchange)
+    if  exchange == :nonlocal
+        Defaults.GBL_CONT_SOLUTION == BsplineGalerkin()   ||
+            error("Continuum: exchange = :nonlocal requires the B-spline Galerkin method (setDefaults(\"method: continuum, Galerkin\")).")
+        settings.includeExchange   &&
+            error("Continuum: exchange = :nonlocal and settings.includeExchange = true each add the non-local exchange; ask for one of them.")
+        prim = isnothing(primitives) ? Bsplines.generatePrimitives(grid) : primitives
+        K    = isnothing(exchangeMatrix) ? Continuum.exchangeMatrix(sh, level, prim) : exchangeMatrix
+    end
 
     # `includeExchange` is honoured in exactly one place -- the Galerkin solution method, where it costs no new
     # iteration (see Continuum.Settings' docstring, item 99). Elsewhere it has no mechanism to act through, and
@@ -129,6 +139,8 @@ function generateOrbitalForLevel(energy::Float64, sh::Subshell, level::Level, nm
         cOrbital = Continuum.generateOrbitalAsymptoticCoulomb(energy, sh, pot, settings)
     elseif  Defaults.GBL_CONT_SOLUTION  ==  NonrelativisticCoulomb()
         cOrbital = Continuum.generateOrbitalNonrelativisticCoulomb(energy, sh, pot.grid, settings)
+    elseif  Defaults.GBL_CONT_SOLUTION  ==  BsplineGalerkin()  &&  exchange == :nonlocal
+        cOrbital = Continuum.generateOrbitalGalerkin(energy, sh, pot, settings; primitives=prim, storage=storage, exchangeMatrix=K)
     elseif  Defaults.GBL_CONT_SOLUTION  ==  BsplineGalerkin()
         cOrbital = Continuum.generateOrbitalGalerkin(energy, sh, pot, settings; primitives=primitives, storage=storage,
                                                        coreOrbitals=coreOrbitals, occupations=coreOccupations)
@@ -281,6 +293,82 @@ end
 
 
 """
+`Continuum.exchangeMatrix(sh::Subshell, level::Level, primitives::Bsplines.Primitives)`
+    ... the matrix  K_mu,nu = <B_mu| X |B_nu>  of the NON-LOCAL exchange operator of a free electron in subshell symmetry sh
+        with the bound electrons of the level, in the B-spline basis of the Galerkin method (large components first, then
+        small). The operator is that of the Dirac-Fock equation,
+            (X F)(r) = - sum_b sum_k Gamma^k_b  V^k[b,F](r) (P_b(r), Q_b(r)),   V^k[b,F](r) = int (P_b F_P + Q_b F_Q)(r') r<^k/r>^(k+1) dr',
+        with Gamma^k_b = q_b (j_a k j_b; 1/2 0 -1/2)^2 for q_b electrons in subshell b and l_a + l_b + k even: exact for
+        closed subshells and the configuration average for open ones. This is, term for term, the exchange potential of the
+        relativistic distorted-wave code (routine wpq: weight 2j_b+1 for a core shell and 1 for the valence electron,
+        the same 3j symbol and parity rule), checked 25-Sep-2026. Singlet-triplet differences of an open-shell target are
+        therefore NOT in the distorted wave; they come from the exchange amplitude of the (N+1)-electron CSFs.
+        THE SAME CODE ALSO PROJECTS THE WAVE ONTO EVERY SAME-KAPPA BOUND ORBITAL ON EACH ITERATION, and the solution of the
+        equation with K alone is not orthogonal to them (overlaps ~5e-3 for C2+ eps s); combine exchange = :nonlocal with
+        orthogonalize = true to reproduce that method. NOT YET VALIDATED AGAINST AN INDEPENDENT CODE: the distorted-wave code
+        at hand uses this exchange only for NEUTRAL targets (routine DW); for an ionic target it calls DWION, a local-
+        potential solver, so its Mg+ reference contains no exchange potential to compare with. What is checked: K is
+        symmetric to 1e-16 for kappa = -1 ... 5, and the resulting cross sections lie between those of the local models
+        (tools/diag-ie-nonlocalExchange.jl). K depends on the target and on kappa but not on the energy.
+        A matrix::Array{Float64,2} is returned.
+"""
+function exchangeMatrix(sh::Subshell, level::Level, primitives::Bsplines.Primitives)
+    grid = primitives.grid;    nL = length(primitives.bsplinesL);    nS = length(primitives.bsplinesS)
+    ja   = Basics.subshell_j(sh);    la = Basics.subshell_l(sh)
+    # (Gamma, k, P_b, Q_b, extent) for every exchange term
+    terms = Tuple{Float64,Int64,Vector{Float64},Vector{Float64},Int64}[]
+    for  b in level.basis.subshells
+        orb = level.basis.orbitals[b];    orb.isBound   ||   continue
+        q   = Basics.computeMeanSubshellOccupation(b, [level]);    q > 0.   ||   continue
+        jb  = Basics.subshell_j(b);    lb = Basics.subshell_l(b)
+        for  k = abs(Basics.twice(ja) - Basics.twice(jb)) ÷ 2 : (Basics.twice(ja) + Basics.twice(jb)) ÷ 2
+            isodd(la + lb + k)   &&   continue
+            w3j = AngularMomentum.Wigner_3j(ja, AngularJ64(k), jb, AngularM64(1//2), AngularM64(0), AngularM64(-1//2))
+            G   = q * w3j^2;    abs(G) < 1.0e-14   &&   continue
+            push!(terms, (G, k, orb.P, orb.Q, min(length(orb.P), grid.NoPoints)))
+        end
+    end
+
+    K = zeros(nL + nS, nL + nS);    r = grid.r;    wr = grid.wr
+    Vk = zeros(grid.NoPoints)
+    for  nu = 1:nL+nS
+        bsp   = nu <= nL ? primitives.bsplinesL[nu] : primitives.bsplinesS[nu-nL]
+        large = nu <= nL
+        for  (G, k, Pb, Qb, mb) in terms
+            lo = bsp.lower;   up = min(bsp.upper, mb);   up < max(lo, 2)   &&   continue
+            # V^k[b, B_nu](r_i) = sum_i' rho_i' r<^k / r>^(k+1) on 2:mb, for the density P_b B_nu (large) or Q_b B_nu (small)
+            # that lives on lo:up. Written as two recursions over RATIOS of radii, so that no power r^-(k+1) of a point near
+            # the origin is ever formed -- the direct form overflows for high k.
+            fill!(Vk, 0.)
+            I = 0.
+            for  i = 2:mb
+                rho = (lo <= i <= up) ? (large ? Pb[i] : Qb[i]) * bsp.bs[i-lo+1] * wr[i] : 0.
+                I   = (i > 2 ? (r[i-1]/r[i])^(k+1) * I : 0.) + rho / r[i]
+                Vk[i] = I
+            end
+            O = 0.
+            for  i = mb-1:-1:2
+                rho = (lo <= i+1 <= up) ? (large ? Pb[i+1] : Qb[i+1]) * bsp.bs[i+1-lo+1] * wr[i+1] : 0.
+                O   = (r[i]/r[i+1])^k * (O + rho / r[i+1])
+                Vk[i] = Vk[i] + O
+            end
+            # project -G V^k (P_b, Q_b) onto every B-spline that overlaps the bound orbital
+            for  mu = 1:nL+nS
+                bm = mu <= nL ? primitives.bsplinesL[mu] : primitives.bsplinesS[mu-nL]
+                Xc = mu <= nL ? Pb : Qb
+                a  = max(bm.lower, 2);   z = min(bm.upper, mb);   a > z   &&   continue
+                wa = 0.
+                for  i = a:z    wa = wa + bm.bs[i-bm.lower+1] * Vk[i] * Xc[i] * wr[i]    end
+                K[mu,nu] = K[mu,nu] - G * wa
+            end
+        end
+    end
+
+    return( K )
+end
+
+
+"""
 `Continuum.orthogonalizeToBasis(cOrbital::Orbital, level::Level, grid::Radial.Grid)`
     ... makes the continuum orbital orthogonal to every BOUND orbital of the same kappa in the basis of the level, by
         Schmidt projection  P -> P - <b|c> P_b,  Q -> Q - <b|c> Q_b  (and likewise for the derivatives), taking the bound
@@ -416,13 +504,15 @@ end
                                     primitives::Union{Nothing,Bsplines.Primitives}=nothing,
                                     storage::Union{Nothing,Dict{String,Array{Float64,2}}}=nothing,
                                     coreOrbitals::Union{Nothing,Dict{Subshell,Orbital}}=nothing,
-                                    occupations::Union{Nothing,Dict{Subshell,Float64}}=nothing)`
+                                    occupations::Union{Nothing,Dict{Subshell,Float64}}=nothing,
+                                    exchangeMatrix::Union{Nothing,Array{Float64,2}}=nothing)`
     ... to generate a non-normalized continuum orbital within the given local potential by using the Galerkin method and a
         given B-spline basis. Both keywords carry quantities that are constant for a whole computation on one grid: the
         B-spline primitives depend on the radial grid alone, and the storage dictionary holds the TTp matrices, which depend
         on the grid and on kappa but never on the potential or the energy. A caller that generates many continuum orbitals
         should build both once and pass them in. Omitting either reproduces the previous behaviour exactly. A
-        (non-normalized) orbital::Orbital is returned.
+        (non-normalized) orbital::Orbital is returned. An exchangeMatrix, if given, is added to the Galerkin matrix of the local
+        potential, so that the orbital solves the equation with that (non-local) operator included; see Continuum.exchangeMatrix().
 
         **`coreOrbitals`/`occupations`, ADDED 29-Oct-2026 (item 99), ADD EXCHANGE WITH A FROZEN CORE, AND NEED NO ITERATION
         HERE.** When both are given, `Bsplines.setupExchangeMatrix` -- the same frozen nonlocal Dirac-Fock exchange operator
@@ -438,7 +528,8 @@ function generateOrbitalGalerkin(energy::Float64, sh::Subshell, pot::Radial.Pote
                                   primitives::Union{Nothing,Bsplines.Primitives}=nothing,
                                   storage::Union{Nothing,Dict{String,Array{Float64,2}}}=nothing,
                                   coreOrbitals::Union{Nothing,Dict{Subshell,Orbital}}=nothing,
-                                  occupations::Union{Nothing,Dict{Subshell,Float64}}=nothing)
+                                  occupations::Union{Nothing,Dict{Subshell,Float64}}=nothing,
+                                  exchangeMatrix::Union{Nothing,Array{Float64,2}}=nothing)
     Continuum.checkNormalizationRadius(pot)
     P = zeros(settings.mtp);   Q = zeros(settings.mtp);   Pprime = zeros(settings.mtp);    Qprime = zeros(settings.mtp)
     nsL = pot.grid.nsL - 1;    nsS = pot.grid.nsS - 1
@@ -454,6 +545,7 @@ function generateOrbitalGalerkin(energy::Float64, sh::Subshell, pot::Radial.Pote
     if  !isnothing(coreOrbitals)
         wb = wb + Bsplines.setupExchangeMatrix(sh.kappa, wa, coreOrbitals, occupations)
     end
+    if  !isnothing(exchangeMatrix)    wb = wb + exchangeMatrix    end
     wc = adjoint(wb) * wb
     
     # Test for 'real-symmetric matrix' ... and symmetrize otherwise
