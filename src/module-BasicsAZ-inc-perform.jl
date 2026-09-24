@@ -605,7 +605,9 @@ function Basics.perform(computation::Atomic.Computation; output::Bool=false)
                            PhotoRecombination.Settings(computation.processSettings; continuumExchange=exchangex))
             if output    results = Base.merge( results, Dict("photo recombination lines:" => outcome) )                  end
         elseif  typeof(computation.processSettings) == ImpactExcitation.Settings
-            exchangex = Continuum.resolveExchangeDefault(computation.processSettings.continuumExchange, computation.finalAsfSettings.scField)
+            # A Symbol names an exchange model of the continuum potential and is used as given; see ImpactExcitation.Settings.
+            exchangex = computation.processSettings.continuumExchange isa Symbol ? computation.processSettings.continuumExchange :
+                        Continuum.resolveExchangeDefault(computation.processSettings.continuumExchange, computation.finalAsfSettings.scField)
             outcome = ImpactExcitation.computeLines(finalMultiplet, initialMultiplet, nModel, computation.grid,
                            ImpactExcitation.Settings(computation.processSettings; continuumExchange=exchangex))
             if output    results = Base.merge( results, Dict("impact-excitation lines:" => outcome) )                    end

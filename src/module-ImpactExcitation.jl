@@ -61,14 +61,19 @@ end
     + operator                 ::AbstractEeInteraction
         ... Interaction operator that is to be used for evaluating the e-e interaction amplitudes; allowed values are:
             CoulombInteraction(), BreitInteraction(), ...
-    + continuumExchange        ::Union{Nothing,Bool}
+    + continuumExchange        ::Union{Nothing,Bool,Symbol}
         ... True/false to force exchange between the impacting/scattered electron and the bound electrons on or off;
             `nothing` -- the default -- lets `Basics.perform` decide automatically from the final-ion `AsfSettings.scField`
-            (`Continuum.resolveExchangeDefault`, item 99).
+            (`Continuum.resolveExchangeDefault`, item 99).  A Symbol instead selects the exchange model of the continuum
+            potential itself, and is then used as given: :Slater, :FurnessMcCarthy or :none (Continuum.continuumPotential).
     + calcDCS                  ::Bool               ... True, if differential cross sections are to be calculated.
     + angles                   ::Array{Float64,1}   ... Angles in degrees for calculating differential cross sections.
     + cacheAngularCoefficients ::Bool               ... Cache SpinAngular coefficient tables across energies in this run.
     + cacheRadialIntegrals     ::Bool               ... Cache radial integrals within each individual line/energy.
+    + orthogonalizeContinuum   ::Bool               ... Orthogonalize each continuum orbital to the bound orbitals of the same kappa
+                                                        (Continuum.orthogonalizeToBasis), as the spin-angular coefficients assume.
+    + asymptoticTail           ::Bool               ... Add the part of the direct Coulomb integrals beyond the radial box
+                                                        (ImpactExcitation.tailCorrection).
 """
 struct Settings  <:  AbstractProcessSettings
     lineSelection             ::LineSelection
@@ -81,11 +86,13 @@ struct Settings  <:  AbstractProcessSettings
     temperatures              ::Array{Float64, 1}
     printBefore               ::Bool
     operator                  ::AbstractEeInteraction
-    continuumExchange         ::Union{Nothing,Bool}
+    continuumExchange         ::Union{Nothing,Bool,Symbol}
     calcDCS                   ::Bool
     angles                    ::Array{Float64,1}
     cacheAngularCoefficients  ::Bool
     cacheRadialIntegrals      ::Bool
+    orthogonalizeContinuum    ::Bool
+    asymptoticTail            ::Bool
 end
 
 
@@ -95,7 +102,17 @@ end
 function Settings()
     Settings( LineSelection(), Float64[], 0., 300, false, 30.0, 6,
               [5e4, 1e5, 2e5, 3e5, 5e5, 7e5, 1e6], false, CoulombInteraction(), nothing,
-              false, Float64[], true, true)
+              false, Float64[], true, true, false, false)
+end
+
+
+"""
+`ImpactExcitation.continuumExchangeModel(settings::ImpactExcitation.Settings)`
+    ... returns the exchange model of the continuum potential selected by settings.continuumExchange, which is :Slater unless that
+        field names another one; a model::Symbol is returned.
+"""
+function continuumExchangeModel(settings::ImpactExcitation.Settings)
+    return( settings.continuumExchange isa Symbol ? settings.continuumExchange : :Slater )
 end
 
 
@@ -104,7 +121,8 @@ end
 
     lineSelection...,  electronEnergies..., energyShift..., maxKappa...,
     calcRateCoefficient..., maxEnergyMultiplier..., numElectronEnergies..., temperatures...,
-    printBefore..., operator..., continuumExchange..., calcDCS..., angles..., cacheAngularCoefficients..., cacheRadialIntegrals...)
+    printBefore..., operator..., continuumExchange..., calcDCS..., angles..., cacheAngularCoefficients..., cacheRadialIntegrals...,
+    orthogonalizeContinuum..., asymptoticTail...)
 
     ... constructor for modifying the given ImpactExcitation.Settings by 'overwriting' the previously selected parameters.
 """
@@ -119,11 +137,13 @@ function Settings(set::ImpactExcitation.Settings;
     temperatures::Union{ Nothing, Array{Float64,1} } = nothing,
     printBefore::Union{Nothing, Bool} = nothing,
     operator::Union{Nothing, AbstractEeInteraction} = nothing,
-    continuumExchange::Union{Nothing, Bool} = nothing,
+    continuumExchange::Union{Nothing, Bool, Symbol} = nothing,
     calcDCS::Union{Nothing, Bool} = nothing,
     angles::Union{Nothing, Array{Float64,1}} = nothing,
     cacheAngularCoefficients::Union{Nothing, Bool} = nothing,
-    cacheRadialIntegrals::Union{Nothing, Bool} = nothing )
+    cacheRadialIntegrals::Union{Nothing, Bool} = nothing,
+    orthogonalizeContinuum::Union{Nothing, Bool} = nothing,
+    asymptoticTail::Union{Nothing, Bool} = nothing )
 
     if  isnothing(lineSelection)            lineSelectionx            = set.lineSelection            else  lineSelectionx            = lineSelection            end
     if  isnothing(electronEnergies)         electronEnergiesx         = set.electronEnergies         else  electronEnergiesx         = electronEnergies         end
@@ -140,10 +160,12 @@ function Settings(set::ImpactExcitation.Settings;
     if  isnothing(angles)                   anglesx                   = set.angles                   else  anglesx                   = angles                   end
     if  isnothing(cacheAngularCoefficients) cacheAngularCoefficientsx = set.cacheAngularCoefficients else  cacheAngularCoefficientsx = cacheAngularCoefficients end
     if  isnothing(cacheRadialIntegrals)     cacheRadialIntegralsx     = set.cacheRadialIntegrals     else  cacheRadialIntegralsx     = cacheRadialIntegrals     end
+    if  isnothing(orthogonalizeContinuum)   orthogonalizeContinuumx   = set.orthogonalizeContinuum   else  orthogonalizeContinuumx   = orthogonalizeContinuum   end
+    if  isnothing(asymptoticTail)           asymptoticTailx           = set.asymptoticTail           else  asymptoticTailx           = asymptoticTail           end
 
     Settings( lineSelectionx, electronEnergiesx, energyShiftx, maxKappax, calcRateCoefficientx, maxEnergyMultiplierx,
               numElectronEnergiesx, temperaturesx, printBeforex, operatorx, continuumExchangex, calcDCSx, anglesx,
-              cacheAngularCoefficientsx, cacheRadialIntegralsx )
+              cacheAngularCoefficientsx, cacheRadialIntegralsx, orthogonalizeContinuumx, asymptoticTailx )
 
 end
 
@@ -165,6 +187,8 @@ function Base.show(io::IO, settings::ImpactExcitation.Settings)
     println(io, "angles:                     $(settings.angles)  ")
     println(io, "cacheAngularCoefficients:   $(settings.cacheAngularCoefficients)  ")
     println(io, "cacheRadialIntegrals:       $(settings.cacheRadialIntegrals)  ")
+    println(io, "orthogonalizeContinuum:     $(settings.orthogonalizeContinuum)  ")
+    println(io, "asymptoticTail:             $(settings.asymptoticTail)  ")
 end
 
 
@@ -349,6 +373,167 @@ end
 
 
 """
+`struct  ImpactExcitation.ContinuumTail`
+    ... the analytic continuation of one continuum orbital beyond the last point r0 of its grid representation. Outside the
+        bound orbitals the potential is the pure Coulomb tail -Z_ion/r, so the large component is  P(r) = A F_l(eta,qr) +
+        B G_l(eta,qr)  with eta = -Z_ion (1 + E/c^2)/q; A and B are fitted to the grid orbital at r0 and a quarter wavelength
+        inside it. The small component is not continued: in the tail it contributes at relative order (alpha q)^2.
+
+    + r0          ::Float64   ... last grid point of the orbital, where the grid representation ends.
+    + q           ::Float64   ... (relativistic) wave number.
+    + eta         ::Float64   ... Sommerfeld parameter, negative for an attractive ion.
+    + l           ::Int64     ... orbital angular momentum of the large component.
+    + A           ::Float64   ... coefficient of the regular Coulomb function F_l.
+    + B           ::Float64   ... coefficient of the irregular Coulomb function G_l.
+    + fitError    ::Float64   ... |P_fit - P_grid| / sqrt(A^2+B^2) at an intermediate point; the quality of the continuation.
+"""
+struct  ContinuumTail
+    r0            ::Float64
+    q             ::Float64
+    eta           ::Float64
+    l             ::Int64
+    A             ::Float64
+    B             ::Float64
+    fitError      ::Float64
+end
+
+
+"""
+`struct  ImpactExcitation.TailCache`
+    ... memoises, for ONE line (i.e. one energy), the continuations of its continuum orbitals, the bound multipole moments
+        and the tail integrals, all of which recur across channels and total symmetries.
+
+    + Zion        ::Float64                                           ... charge of the target ion seen by the free electron.
+    + tails       ::Dict{Subshell, ImpactExcitation.ContinuumTail}    ... continuation of each continuum orbital.
+    + moments     ::Dict{Tuple{Int64,Subshell,Subshell}, Float64}     ... bound multipole moments M_L(a,c).
+    + integrals   ::Dict{Tuple{Int64,Subshell,Subshell}, Float64}     ... tail integrals int_r0^infinity P_b P_d r^-(L+1) dr.
+"""
+struct  TailCache
+    Zion          ::Float64
+    tails         ::Dict{Subshell, ImpactExcitation.ContinuumTail}
+    moments       ::Dict{Tuple{Int64,Subshell,Subshell}, Float64}
+    integrals     ::Dict{Tuple{Int64,Subshell,Subshell}, Float64}
+end
+
+
+"""
+`ImpactExcitation.TailCache(Zion::Float64)`
+    ... constructor for an empty tail cache of a line with target-ion charge Zion; a cache::ImpactExcitation.TailCache is returned.
+"""
+TailCache(Zion::Float64) = TailCache(Zion, Dict{Subshell, ContinuumTail}(), Dict{Tuple{Int64,Subshell,Subshell}, Float64}(),
+                                     Dict{Tuple{Int64,Subshell,Subshell}, Float64}())
+
+
+"""
+`ImpactExcitation.coulombFG(t::ImpactExcitation.ContinuumTail, r::Float64)`
+    ... evaluates the continued large component and its r-derivative at r >= t.r0. A tuple (P::Float64, dP::Float64) is returned.
+"""
+function coulombFG(t::ImpactExcitation.ContinuumTail, r::Float64)
+    f, fp, g, gp = GSL.sf_coulomb_wave_FG_e(t.eta, t.q * r, Float64(t.l), 0, 0.0, 0.0)
+
+    return( (t.A * f.val + t.B * g.val,  t.q * (t.A * fp.val + t.B * gp.val)) )
+end
+
+
+"""
+`ImpactExcitation.continuumTail(orbital::Orbital, grid::Radial.Grid, Zion::Float64)`
+    ... fits the Coulomb continuation of a continuum orbital beyond its last grid point; see ImpactExcitation.ContinuumTail.
+        A tail::ImpactExcitation.ContinuumTail is returned.
+"""
+function continuumTail(orbital::Orbital, grid::Radial.Grid, Zion::Float64)
+    wc  = Defaults.getDefaults("speed of light: c");    E = orbital.energy
+    q   = sqrt(E * (E + 2wc^2)) / wc;                  eta = -Zion * (1.0 + E/wc^2) / q
+    l   = Basics.subshell_l(orbital.subshell)
+    m0  = length(orbital.P);   r0 = grid.r[m0]
+    m1  = m0;   while  m1 > 2  &&  r0 - grid.r[m1] < 0.5pi/q    m1 = m1 - 1   end
+    mh  = div(m0 + m1, 2)
+    fg(r) = (f = GSL.sf_coulomb_wave_FG_e(eta, q*r, Float64(l), 0, 0.0, 0.0);   (f[1].val, f[3].val))
+    F0, G0 = fg(r0);   F1, G1 = fg(grid.r[m1])
+    det = F0*G1 - F1*G0
+    A   = (orbital.P[m0]*G1 - orbital.P[m1]*G0) / det
+    B   = (F0*orbital.P[m1] - F1*orbital.P[m0]) / det
+    Fh, Gh = fg(grid.r[mh])
+    err = abs(A*Fh + B*Gh - orbital.P[mh]) / sqrt(A^2 + B^2)
+
+    return( ContinuumTail(r0, q, eta, l, A, B, err) )
+end
+
+
+"""
+`ImpactExcitation.tailIntegral(tb::ImpactExcitation.ContinuumTail, td::ImpactExcitation.ContinuumTail, n::Int64)`
+    ... computes  int_r0^infinity P_b(r) P_d(r) r^(-n) dr  for two continued continuum orbitals with a common r0: by Simpson
+        on a uniform mesh of 40 points per shortest wavelength out to X, where both waves are past their centrifugal
+        turning points and at least four times r0; then analytically from X to infinity, with each wave written as
+        amp sin(theta(X) + theta'(X)(r-X)) so that the remainder is a pair of generalized exponential integrals E_n. This
+        is the treatment of the asymptotic region of the Fortran RDW code (Purcell et al. 1987), with the Coulomb phase
+        carried by theta' = q - eta/X. A value::Float64 is returned.
+"""
+function tailIntegral(tb::ImpactExcitation.ContinuumTail, td::ImpactExcitation.ContinuumTail, n::Int64)
+    r0 = tb.r0
+    X  = max( 4r0, 3.0 * (max(tb.l, td.l) + 1 + abs(tb.eta) + abs(td.eta)) / min(tb.q, td.q) )
+    h  = 2pi / max(tb.q, td.q) / 40;    N = 2 * ceil(Int64, (X - r0) / h / 2);    h = (X - r0) / N
+    wa = 0.
+    for  i = 0:N
+        r  = r0 + i*h;    w = (i == 0 || i == N) ? 1.0 : (isodd(i) ? 4.0 : 2.0)
+        wa = wa + w * coulombFG(tb, r)[1] * coulombFG(td, r)[1] / r^n
+    end
+    wa = wa * h / 3
+
+    function ampPhase(t::ImpactExcitation.ContinuumTail)
+        u, du = coulombFG(t, X);    om = t.q - t.eta / X
+        return( (sqrt(u^2 + (du/om)^2), atan(u, du/om), om) )
+    end
+    Ab, thb, omb = ampPhase(tb);    Ad, thd, omd = ampPhase(td)
+    I(om) = abs(om) < 1.0e-12 ? X^(1-n) / (n-1) : exp(-im*om*X) * X^(1-n) * SpecialFunctions.expint(n, -im*om*X)
+    rem = Ab * Ad / 2 * real( exp(im*(thb - thd)) * I(omb - omd) - exp(im*(thb + thd)) * I(omb + omd) )
+
+    return( wa + rem )
+end
+
+
+"""
+`ImpactExcitation.tailCorrection(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital, grid::Radial.Grid,
+                                  cache::ImpactExcitation.TailCache)`
+    ... the part of the Coulomb strength X^L(abcd) that lies beyond the radial box, for a DIRECT term in which one of the
+        pairs (a,c), (b,d) is bound-bound and the other continuum-continuum: outside the bound orbitals the potential of
+        the bound transition density is exactly M_L / r^(L+1), so the missing piece is  xc * M_L * int_r0^inf P P' r^-(L+1),
+        with the same angular prefactor xc as in InteractionStrength.XL_Coulomb. Zero for every other term -- exchange
+        and bound-continuum densities vanish beyond the bound orbitals -- and for L = 0, where M_0 = <a|c> = 0 by
+        orthogonality. A value::Float64 is returned.
+"""
+function tailCorrection(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital, grid::Radial.Grid,
+                        cache::ImpactExcitation.TailCache)
+    L == 0   &&   return( 0. )
+    if      a.isBound  &&  c.isBound  &&  !b.isBound  &&  !d.isBound     bnd1, bnd2, con1, con2 = a, c, b, d
+    elseif  b.isBound  &&  d.isBound  &&  !a.isBound  &&  !c.isBound     bnd1, bnd2, con1, con2 = b, d, a, c
+    else    return( 0. )
+    end
+    ja2 = Basics.subshell_2j(a.subshell);   jb2 = Basics.subshell_2j(b.subshell)
+    jc2 = Basics.subshell_2j(c.subshell);   jd2 = Basics.subshell_2j(d.subshell)
+    if  AngularMomentum.triangularDelta(ja2+1,jc2+1,L+L+1) * AngularMomentum.triangularDelta(jb2+1,jd2+1,L+L+1) == 0   ||
+        rem(Basics.subshell_l(a.subshell) + Basics.subshell_l(c.subshell) + L, 2) == 1   ||
+        rem(Basics.subshell_l(b.subshell) + Basics.subshell_l(d.subshell) + L, 2) == 1
+        return( 0. )
+    end
+    xc = AngularMomentum.CL_reduced_me(a.subshell, L, c.subshell) * AngularMomentum.CL_reduced_me(b.subshell, L, d.subshell)
+    if  rem(L,2) == 1    xc = - xc    end
+
+    M  = get!(cache.moments, (L, bnd1.subshell, bnd2.subshell)) do
+             n = min(length(bnd1.P), length(bnd2.P), grid.NoPoints)
+             sum( (bnd1.P[i]*bnd2.P[i] + bnd1.Q[i]*bnd2.Q[i]) * grid.r[i]^L * grid.wr[i] for i = 1:n )
+         end
+    tb = get!(cache.tails, con1.subshell) do;   ImpactExcitation.continuumTail(con1, grid, cache.Zion)   end
+    td = get!(cache.tails, con2.subshell) do;   ImpactExcitation.continuumTail(con2, grid, cache.Zion)   end
+    abs(tb.r0 - td.r0) < 1.0e-10   ||   error("ImpactExcitation.tailCorrection: the two continua end at different radii.")
+    T  = get!(cache.integrals, (L, con1.subshell, con2.subshell)) do
+             ImpactExcitation.tailIntegral(tb, td, L+1)
+         end
+
+    return( xc * M * T )
+end
+
+
+"""
 `ImpactExcitation.amplitude(kind::AbstractEeInteraction, channel::ImpactExcitation.Channel, cFinalLevel::Level, cInitialLevel::Level, 
                             grid::Radial.Grid; printout::Bool=true)`  
     ... to compute the kind in  CoulombInteraction(), BreitInteraction(), CoulombBreit() electron-impact interaction amplitude 
@@ -358,7 +543,8 @@ end
 function amplitude(kind::AbstractEeInteraction, channel::ImpactExcitation.Channel, cFinalLevel::Level, cInitialLevel::Level,
                     grid::Radial.Grid; printout::Bool=true,
                     radialCache::Union{Nothing,InteractionStrength.XLCache}=nothing,
-                    angularCache::Union{Nothing,ImpactExcitation.AngularCoefficientCache}=nothing)
+                    angularCache::Union{Nothing,ImpactExcitation.AngularCoefficientCache}=nothing,
+                    tailCache::Union{Nothing,ImpactExcitation.TailCache}=nothing)
     nf = length(cFinalLevel.basis.csfs);      fPartial = Subshell(9,channel.finalKappa)         
     ni = length(cInitialLevel.basis.csfs);    iPartial = Subshell(9,channel.initialKappa)    
     
@@ -393,6 +579,9 @@ function amplitude(kind::AbstractEeInteraction, channel::ImpactExcitation.Channe
                     if  typeof(kind) in [CoulombInteraction, CoulombBreit]
                         me = me + coeff.V * ( isnothing(radialCache) ? InteractionStrength.XL_Coulomb(coeff.nu, oa, ob, oc, od, grid) :
                                               InteractionStrength.XL_Coulomb(coeff.nu, oa, ob, oc, od, grid, radialCache) )
+                        if  !isnothing(tailCache)
+                            me = me + coeff.V * ImpactExcitation.tailCorrection(coeff.nu, oa, ob, oc, od, grid, tailCache)
+                        end
                     end
                     if  typeof(kind) in [BreitInteraction, CoulombBreit]
                         me = me + coeff.V * ( isnothing(radialCache) ?
@@ -593,7 +782,7 @@ function  computeAmplitudesProperties(line::ImpactExcitation.Line, nm::Nuclear.M
                                         primitives::Union{Nothing,Bsplines.Primitives}=nothing,
                                         angularCache::Union{Nothing,ImpactExcitation.AngularCoefficientCache}=nothing)
     newChannels = ImpactExcitation.Channel[];
-    contSettings = Continuum.Settings(isnothing(settings.continuumExchange) ? false : settings.continuumExchange, nrContinuum)
+    contSettings = Continuum.Settings(settings.continuumExchange === true, nrContinuum)
     cross = 0.;   coll = 0.; convergence = 1.
     # The TTp B-spline matrices depend on the grid and on kappa but never on the potential or the energy, so all the continuum
     # orbitals of ONE line -- both directions and every partial wave, ~35 of them at the maxKappa of a typical case -- can share a
@@ -614,6 +803,9 @@ function  computeAmplitudesProperties(line::ImpactExcitation.Line, nm::Nuclear.M
 
     # The radial integrals depend on the continuum orbitals and hence on the energy: one cache per line, owned by one thread.
     radialCache = settings.cacheRadialIntegrals ? InteractionStrength.XLCache() : nothing
+    # The free electron sees the target ion's charge beyond the bound orbitals; the tail is continued in that Coulomb field.
+    Zion        = nm.Z - sum(line.initialLevel.basis.csfs[1].occupation)
+    tailCache   = settings.asymptoticTail ? ImpactExcitation.TailCache(Float64(Zion)) : nothing
 
     angles = settings.calcDCS ? (isempty(settings.angles) ? collect(0.0:1.0:180.0) : settings.angles) : Float64[]
     numMi = Basics.twice(line.initialLevel.J) + 1
@@ -645,7 +837,9 @@ function  computeAmplitudesProperties(line::ImpactExcitation.Line, nm::Nuclear.M
                             ciOrbital, iPhase     = Continuum.generateOrbitalForLevel(line.initialElectronEnergy, iSubshell,
                                                                                             redILevel, nm, grid, contSettings;
                                                                                             nuclearPot=nuclearPot,
-                                                                                            primitives=primitives, storage=storage)
+                                                                                            primitives=primitives, storage=storage,
+                                                                                            orthogonalize=settings.orthogonalizeContinuum,
+                                                                                            exchange=ImpactExcitation.continuumExchangeModel(settings))
                             ciOrbitals[iSubshell] = ciOrbital;      ciPhases[iSubshell] = iPhase
                             println("\n Initial channel")
                         end
@@ -655,7 +849,9 @@ function  computeAmplitudesProperties(line::ImpactExcitation.Line, nm::Nuclear.M
                             cfOrbital, fPhase     = Continuum.generateOrbitalForLevel(line.finalElectronEnergy,   fSubshell,
                                                                                             redFLevel, nm, grid, contSettings;
                                                                                             nuclearPot=nuclearPot,
-                                                                                            primitives=primitives, storage=storage)
+                                                                                            primitives=primitives, storage=storage,
+                                                                                            orthogonalize=settings.orthogonalizeContinuum,
+                                                                                            exchange=ImpactExcitation.continuumExchangeModel(settings))
                             cfOrbitals[fSubshell] = cfOrbital;      cfPhases[fSubshell] = fPhase
                             println("\n Final channel")
                         end
@@ -681,7 +877,8 @@ function  computeAmplitudesProperties(line::ImpactExcitation.Line, nm::Nuclear.M
                                                                                                             iPhase, fPhase, 0.)
                         #
                         amplitude  = ImpactExcitation.amplitude(settings.operator, newChannel, newfLevel, newiLevel, grid;
-                                                               printout=printout, radialCache=radialCache, angularCache=angularCache)
+                                                               printout=printout, radialCache=radialCache, angularCache=angularCache,
+                                                               tailCache=tailCache)
 
                         coll       = coll + AngularMomentum.bracket([channel.symmetry.J]) * ( conj(amplitude) * amplitude ).re
 
