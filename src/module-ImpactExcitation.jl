@@ -76,6 +76,9 @@ end
                                                         (ImpactExcitation.tailCorrection).
     + topUp                    ::Bool               ... Add the partial waves beyond maxKappa by geometric extrapolation of the
                                                         last two kappa shells (ImpactExcitation.topUpCollisionStrength).
+    + exchangeMaxL             ::Int64              ... Exchange terms of the amplitude are kept only for channels whose incoming
+                                                        and outgoing partial waves both have l <= exchangeMaxL (40, the lamex of the
+                                                        relativistic distorted-wave code); beyond that exchange is negligible.
 """
 struct Settings  <:  AbstractProcessSettings
     lineSelection             ::LineSelection
@@ -96,6 +99,7 @@ struct Settings  <:  AbstractProcessSettings
     orthogonalizeContinuum    ::Bool
     asymptoticTail            ::Bool
     topUp                     ::Bool
+    exchangeMaxL              ::Int64
 end
 
 
@@ -105,7 +109,7 @@ end
 function Settings()
     Settings( LineSelection(), Float64[], 0., 300, false, 30.0, 6,
               [5e4, 1e5, 2e5, 3e5, 5e5, 7e5, 1e6], false, CoulombInteraction(), nothing,
-              false, Float64[], true, true, false, false, false)
+              false, Float64[], true, true, false, false, false, 40)
 end
 
 
@@ -125,7 +129,7 @@ end
     lineSelection...,  electronEnergies..., energyShift..., maxKappa...,
     calcRateCoefficient..., maxEnergyMultiplier..., numElectronEnergies..., temperatures...,
     printBefore..., operator..., continuumExchange..., calcDCS..., angles..., cacheAngularCoefficients..., cacheRadialIntegrals...,
-    orthogonalizeContinuum..., asymptoticTail..., topUp...)
+    orthogonalizeContinuum..., asymptoticTail..., topUp..., exchangeMaxL...)
 
     ... constructor for modifying the given ImpactExcitation.Settings by 'overwriting' the previously selected parameters.
 """
@@ -147,7 +151,8 @@ function Settings(set::ImpactExcitation.Settings;
     cacheRadialIntegrals::Union{Nothing, Bool} = nothing,
     orthogonalizeContinuum::Union{Nothing, Bool} = nothing,
     asymptoticTail::Union{Nothing, Bool} = nothing,
-    topUp::Union{Nothing, Bool} = nothing )
+    topUp::Union{Nothing, Bool} = nothing,
+    exchangeMaxL::Union{Nothing, Int64} = nothing )
 
     if  isnothing(lineSelection)            lineSelectionx            = set.lineSelection            else  lineSelectionx            = lineSelection            end
     if  isnothing(electronEnergies)         electronEnergiesx         = set.electronEnergies         else  electronEnergiesx         = electronEnergies         end
@@ -167,11 +172,12 @@ function Settings(set::ImpactExcitation.Settings;
     if  isnothing(orthogonalizeContinuum)   orthogonalizeContinuumx   = set.orthogonalizeContinuum   else  orthogonalizeContinuumx   = orthogonalizeContinuum   end
     if  isnothing(asymptoticTail)           asymptoticTailx           = set.asymptoticTail           else  asymptoticTailx           = asymptoticTail           end
     if  isnothing(topUp)                    topUpx                    = set.topUp                    else  topUpx                    = topUp                    end
+    if  isnothing(exchangeMaxL)             exchangeMaxLx             = set.exchangeMaxL             else  exchangeMaxLx             = exchangeMaxL             end
 
     Settings( lineSelectionx, electronEnergiesx, energyShiftx, maxKappax, calcRateCoefficientx, maxEnergyMultiplierx,
               numElectronEnergiesx, temperaturesx, printBeforex, operatorx, continuumExchangex, calcDCSx, anglesx,
               cacheAngularCoefficientsx, cacheRadialIntegralsx, orthogonalizeContinuumx, asymptoticTailx,
-              topUpx )
+              topUpx, exchangeMaxLx )
 
 end
 
@@ -196,6 +202,7 @@ function Base.show(io::IO, settings::ImpactExcitation.Settings)
     println(io, "orthogonalizeContinuum:     $(settings.orthogonalizeContinuum)  ")
     println(io, "asymptoticTail:             $(settings.asymptoticTail)  ")
     println(io, "topUp:                      $(settings.topUp)  ")
+    println(io, "exchangeMaxL:               $(settings.exchangeMaxL)  ")
 end
 
 
@@ -321,6 +328,49 @@ AngularCoefficientCache() = AngularCoefficientCache( Dict{Tuple, Matrix{Any}}(),
 # SpinAngular keeps process-wide memo caches of its own that are not thread-safe (Rule 19), so every call into
 # SpinAngular.computeCoefficients() from the threads of this module is serialized through this one lock.
 const SPIN_ANGULAR_LOCK = ReentrantLock()
+
+
+"""
+`struct  ImpactExcitation.ExchangeMatrixCache`
+    ... memoises, for ONE run, the matrix of the non-local exchange operator (Continuum.exchangeMatrix) for each target level
+        and continuum kappa. It depends on the bound orbitals and on kappa but not on the electron energy, so without this it
+        was rebuilt for every partial wave at every energy. The lock makes it safe to share between the threads of one run.
+
+    + matrices  ::Dict{Tuple, Array{Float64,2}}   ... the memoised matrices, keyed by level identity and kappa.
+    + lock      ::ReentrantLock                   ... guards reads and writes of matrices.
+"""
+struct  ExchangeMatrixCache
+    matrices    ::Dict{Tuple, Array{Float64,2}}
+    lock        ::ReentrantLock
+end
+
+
+"""
+`ImpactExcitation.ExchangeMatrixCache()`
+    ... constructor for an empty cache; a cache::ImpactExcitation.ExchangeMatrixCache is returned.
+"""
+ExchangeMatrixCache() = ExchangeMatrixCache( Dict{Tuple, Array{Float64,2}}(), ReentrantLock() )
+
+
+"""
+`ImpactExcitation.cachedExchangeMatrix(cache::Union{Nothing,ImpactExcitation.ExchangeMatrixCache}, sh::Subshell, level::Level,
+                                        primitives::Union{Nothing,Bsplines.Primitives}, settings::ImpactExcitation.Settings)`
+    ... returns the exchange matrix for the continuum subshell sh and the (symmetry-reduced) target level when the settings ask
+        for non-local exchange and a cache and primitives are available, and nothing otherwise, in which case Continuum builds
+        it itself. A matrix::Union{Nothing,Array{Float64,2}} is returned.
+"""
+function cachedExchangeMatrix(cache::Union{Nothing,ImpactExcitation.ExchangeMatrixCache}, sh::Subshell, level::Level,
+                              primitives::Union{Nothing,Bsplines.Primitives}, settings::ImpactExcitation.Settings)
+    if  settings.continuumExchange != :nonlocal  ||  isnothing(cache)  ||  isnothing(primitives)    return( nothing )    end
+    key = (level.index, level.energy, level.J.num, level.J.den, string(level.parity), length(level.basis.csfs),
+           Tuple(level.basis.subshells), sh.kappa)
+    K   = lock(cache.lock) do;   get(cache.matrices, key, nothing)   end
+    isnothing(K)  ||  return( K )
+    K   = Continuum.exchangeMatrix(sh, level, primitives)
+    lock(cache.lock) do;   cache.matrices[key] = K   end
+
+    return( K )
+end
 
 
 """
@@ -573,7 +623,7 @@ function amplitude(kind::AbstractEeInteraction, channel::ImpactExcitation.Channe
                     grid::Radial.Grid; printout::Bool=true,
                     radialCache::Union{Nothing,InteractionStrength.XLCache}=nothing,
                     angularCache::Union{Nothing,ImpactExcitation.AngularCoefficientCache}=nothing,
-                    tailCache::Union{Nothing,ImpactExcitation.TailCache}=nothing)
+                    tailCache::Union{Nothing,ImpactExcitation.TailCache}=nothing, exchangeMaxL::Int64=40)
     nf = length(cFinalLevel.basis.csfs);      fPartial = Subshell(9,channel.finalKappa)         
     ni = length(cInitialLevel.basis.csfs);    iPartial = Subshell(9,channel.initialKappa)    
     
@@ -599,9 +649,11 @@ function amplitude(kind::AbstractEeInteraction, channel::ImpactExcitation.Channe
                 wa === nothing && continue
                 me = 0.
 
+                # Exchange terms -- the incoming continuum (101) paired with a bound orbital -- only up to exchangeMaxL.
+                keepExchange = max(Basics.subshell_l(Subshell(101, channel.initialKappa)),
+                                   Basics.subshell_l(Subshell(102, channel.finalKappa))) <= exchangeMaxL
                 for  coeff in wa
-                    # The exchange T-matrices are considered up to 40 partial waves
-                    if ( (coeff.c.n == 101) && (coeff.nu > 40) )  continue end
+                    if  coeff.c.n == 101  &&  !keepExchange    continue    end
 
                     oa = fLevel.basis.orbitals[coeff.a];   ob = fLevel.basis.orbitals[coeff.b]
                     oc = iLevel.basis.orbitals[coeff.c];   od = iLevel.basis.orbitals[coeff.d]
@@ -798,7 +850,8 @@ end
                                                 nrContinuum::Int64, settings::ImpactExcitation.Settings; printout::Bool=true,
                                                 nuclearPot::Union{Nothing,Radial.Potential}=nothing,
                                                 primitives::Union{Nothing,Bsplines.Primitives}=nothing,
-                                                angularCache::Union{Nothing,ImpactExcitation.AngularCoefficientCache}=nothing)`
+                                                angularCache::Union{Nothing,ImpactExcitation.AngularCoefficientCache}=nothing,
+                                                exchangeCache::Union{Nothing,ImpactExcitation.ExchangeMatrixCache}=nothing)`
     ... to compute all amplitudes and properties of the given line; a line::ImpactExcitation.Line is returned for which
     the amplitudes and properties are now evaluated. The two keywords carry quantities that are CONSTANT for a whole
     computation and are otherwise rebuilt for every line and every partial wave: the nuclear potential depends only on
@@ -809,7 +862,8 @@ function  computeAmplitudesProperties(line::ImpactExcitation.Line, nm::Nuclear.M
                                         nrContinuum::Int64, settings::ImpactExcitation.Settings; printout::Bool=true,
                                         nuclearPot::Union{Nothing,Radial.Potential}=nothing,
                                         primitives::Union{Nothing,Bsplines.Primitives}=nothing,
-                                        angularCache::Union{Nothing,ImpactExcitation.AngularCoefficientCache}=nothing)
+                                        angularCache::Union{Nothing,ImpactExcitation.AngularCoefficientCache}=nothing,
+                                        exchangeCache::Union{Nothing,ImpactExcitation.ExchangeMatrixCache}=nothing)
     newChannels = ImpactExcitation.Channel[];
     contSettings = Continuum.Settings(settings.continuumExchange === true, nrContinuum)
     cross = 0.;   coll = 0.; convergence = 1.
@@ -868,7 +922,8 @@ function  computeAmplitudesProperties(line::ImpactExcitation.Line, nm::Nuclear.M
                                                                                             nuclearPot=nuclearPot,
                                                                                             primitives=primitives, storage=storage,
                                                                                             orthogonalize=settings.orthogonalizeContinuum,
-                                                                                            exchange=ImpactExcitation.continuumExchangeModel(settings))
+                                                                                            exchange=ImpactExcitation.continuumExchangeModel(settings),
+                                  exchangeMatrix=ImpactExcitation.cachedExchangeMatrix(exchangeCache, iSubshell, redILevel, primitives, settings))
                             ciOrbitals[iSubshell] = ciOrbital;      ciPhases[iSubshell] = iPhase
                             println("\n Initial channel")
                         end
@@ -880,7 +935,8 @@ function  computeAmplitudesProperties(line::ImpactExcitation.Line, nm::Nuclear.M
                                                                                             nuclearPot=nuclearPot,
                                                                                             primitives=primitives, storage=storage,
                                                                                             orthogonalize=settings.orthogonalizeContinuum,
-                                                                                            exchange=ImpactExcitation.continuumExchangeModel(settings))
+                                                                                            exchange=ImpactExcitation.continuumExchangeModel(settings),
+                                  exchangeMatrix=ImpactExcitation.cachedExchangeMatrix(exchangeCache, fSubshell, redFLevel, primitives, settings))
                             cfOrbitals[fSubshell] = cfOrbital;      cfPhases[fSubshell] = fPhase
                             println("\n Final channel")
                         end
@@ -907,7 +963,7 @@ function  computeAmplitudesProperties(line::ImpactExcitation.Line, nm::Nuclear.M
                         #
                         amplitude  = ImpactExcitation.amplitude(settings.operator, newChannel, newfLevel, newiLevel, grid;
                                                                printout=printout, radialCache=radialCache, angularCache=angularCache,
-                                                               tailCache=tailCache)
+                                                               tailCache=tailCache, exchangeMaxL=settings.exchangeMaxL)
 
                         coll       = coll + AngularMomentum.bracket([channel.symmetry.J]) * ( conj(amplitude) * amplitude ).re
 
@@ -975,7 +1031,8 @@ function  computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, n
     println("")
     #
     lines = ImpactExcitation.determineLines(finalMultiplet, initialMultiplet, settings)
-    angularCache = settings.cacheAngularCoefficients ? ImpactExcitation.AngularCoefficientCache() : nothing
+    angularCache  = settings.cacheAngularCoefficients ? ImpactExcitation.AngularCoefficientCache() : nothing
+    exchangeCache = settings.continuumExchange == :nonlocal ? ImpactExcitation.ExchangeMatrixCache() : nothing
     # Display all selected lines before the computations start
     if  settings.printBefore    ImpactExcitation.displayLines(lines)    end
     ## Determine the maximum (continuum) electron energy and check the grid for consistency with it. This module used to
@@ -1014,7 +1071,7 @@ function  computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, n
         Threads.@threads for l in eachindex(lines)
             newLines[l] = ImpactExcitation.computeAmplitudesProperties(lines[l], nm, grid, nrContinuum, settings;
                                                                        nuclearPot=nuclearPot, primitives=primitives,
-                                                                       angularCache=angularCache)
+                                                                       angularCache=angularCache, exchangeCache=exchangeCache)
         end
     end
     # Print all results to screen
@@ -1072,7 +1129,8 @@ function  computeLinesCascade(finalMultiplet::Multiplet, initialMultiplet::Multi
                               grid::Radial.Grid, settings::ImpactExcitation.Settings;
                               output::Bool=true, printout::Bool=true)
     lines = ImpactExcitation.determineLines(finalMultiplet, initialMultiplet, settings)
-    angularCache = settings.cacheAngularCoefficients ? ImpactExcitation.AngularCoefficientCache() : nothing
+    angularCache  = settings.cacheAngularCoefficients ? ImpactExcitation.AngularCoefficientCache() : nothing
+    exchangeCache = settings.continuumExchange == :nonlocal ? ImpactExcitation.ExchangeMatrixCache() : nothing
     if  length(lines) == 0    return( ImpactExcitation.Line[] )    end
     ## The grid must be able to carry the fastest continuum orbital that occurs; see the note in computeLines().
     maxEnergy   = 0.;   minEnergy = Inf
@@ -1102,7 +1160,8 @@ function  computeLinesCascade(finalMultiplet::Multiplet, initialMultiplet::Multi
     primitives = Bsplines.generatePrimitives(grid)
     Threads.@threads for  i  in  eachindex(lines)
         newLine = ImpactExcitation.computeAmplitudesProperties(lines[i], nm, grid, nrContinuum, settings; printout=doPrint,
-                                                               nuclearPot=nuclearPot, primitives=primitives, angularCache=angularCache)
+                                                               nuclearPot=nuclearPot, primitives=primitives, angularCache=angularCache,
+                                                               exchangeCache=exchangeCache)
         if  length(newLine.channels) > 0    tmpLines[i] = newLine    end
     end
     newLines = ImpactExcitation.Line[ l  for l in tmpLines  if l !== nothing ]
