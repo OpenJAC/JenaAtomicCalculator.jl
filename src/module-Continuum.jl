@@ -66,12 +66,15 @@ end
 
 """
 `Continuum.generateOrbitalForLevel(energy::Float64, sh::Subshell, level::Level, nm::Nuclear.Model, grid::Radial.Grid,
-                                    settings::Continuum.Settings; nuclearPot::Union{Nothing,Radial.Potential}=nothing, 
-                                    primitives::Union{Nothing,Bsplines.Primitives}=nothing, 
-                                    storage::Union{Nothing,Dict{String,Array{Float64,2}}}=nothing)`
+                                    settings::Continuum.Settings; nuclearPot::Union{Nothing,Radial.Potential}=nothing,
+                                    primitives::Union{Nothing,Bsplines.Primitives}=nothing,
+                                    storage::Union{Nothing,Dict{String,Array{Float64,2}}}=nothing, orthogonalize::Bool=false)`
     ... to generate a continuum orbital for the (continuum) subshell sh, the energy and the effective charge within the given
-        potential. The continuum orbital is generated orthogonal with regard to all subshells of the same symmetry in the basis.
-        All further specifications about this generations are made by proper settings. All three keywords carry quantities that are
+        potential. It is orthogonal to the bound orbitals of the same kappa AUTOMATICALLY only when these are eigenfunctions of
+        the same local operator, i.e. come from the default Basics.DFSField(1.0): measured 24-Sep-2026 for C3+ 1s2 2s at 50 eV,
+        <ns|eps s> ~ 3e-10 then, but 5e-3 for Hartree-Slater and 1e-1 for NuclearField bound orbitals. With orthogonalize =
+        true the projection is made explicitly, see Continuum.orthogonalizeToBasis(); the default leaves the orbital as it is.
+        All further specifications about this generations are made by proper settings. The keywords nuclearPot, primitives and storage carry quantities that are
         CONSTANT for a whole computation -- the nuclear potential depends only on the nuclear model and the grid, the B-spline
         primitives only on the grid, and the storage dictionary holds the TTp matrices, which depend on the grid and on kappa but
         never on the potential or the energy -- so that a caller which generates many continuum orbitals need not rebuild them for
@@ -86,9 +89,9 @@ end
         only -- see `Continuum.Settings`'s own docstring for what that does and why every other combination raises.
 """
 function generateOrbitalForLevel(energy::Float64, sh::Subshell, level::Level, nm::Nuclear.Model, grid::Radial.Grid,
-                                 settings::Continuum.Settings; nuclearPot::Union{Nothing,Radial.Potential}=nothing, 
-                                 primitives::Union{Nothing,Bsplines.Primitives}=nothing, 
-                                 storage::Union{Nothing,Dict{String,Array{Float64,2}}}=nothing)
+                                 settings::Continuum.Settings; nuclearPot::Union{Nothing,Radial.Potential}=nothing,
+                                 primitives::Union{Nothing,Bsplines.Primitives}=nothing,
+                                 storage::Union{Nothing,Dict{String,Array{Float64,2}}}=nothing, orthogonalize::Bool=false)
     #
     # Generate a (local) potential for the given level.  The NUCLEAR part depends only on the nuclear model
     # and the grid, so it is constant for a whole computation -- but this function is called once per line
@@ -140,6 +143,9 @@ function generateOrbitalForLevel(energy::Float64, sh::Subshell, level::Level, nm
         cOrbital, phase = Continuum.normalizeOrbitalAlok(cOrbital, pot, settings)
     else    error("stop b")
     end
+    # After normalization: the component removed is localized where the bound orbitals are, so the asymptotic amplitude
+    # and phase just read off are unchanged.
+    if  orthogonalize    cOrbital = Continuum.orthogonalizeToBasis(cOrbital, level, grid)    end
 
     #=open("continuum.txt","w") do file
         write(file,"energy $energy , n $(sh.n), kappa $(sh.kappa), phase $phase ")
@@ -228,6 +234,34 @@ function generateOrbitalForLevel(energy::Float64, sh::Subshell, level::Level, nm
     end
 
     return( cOrbital, phase )
+end
+
+
+"""
+`Continuum.orthogonalizeToBasis(cOrbital::Orbital, level::Level, grid::Radial.Grid)`
+    ... makes the continuum orbital orthogonal to every BOUND orbital of the same kappa in the basis of the level, by
+        Schmidt projection  P -> P - <b|c> P_b,  Q -> Q - <b|c> Q_b  (and likewise for the derivatives), taking the bound
+        orbitals as mutually orthonormal. This is what the spin-angular coefficients of an (N+1)-electron CSF with a
+        continuum subshell assume: they are derived for orthonormal orbitals, and without the projection every
+        exchange term in which the continuum electron shares kappa with a bound one is evaluated inconsistently. For a
+        closed bound subshell the removed component is Pauli-forbidden anyway; for an open one it is dropped, i.e.
+        its coupling to the (N+1)-electron bound configuration is neglected. A cOrbital::Orbital is returned.
+"""
+function orthogonalizeToBasis(cOrbital::Orbital, level::Level, grid::Radial.Grid)
+    P = copy(cOrbital.P);   Q = copy(cOrbital.Q);   Pp = copy(cOrbital.Pprime);   Qp = copy(cOrbital.Qprime)
+    for  (sh, b)  in  level.basis.orbitals
+        if  !b.isBound  ||  sh.kappa != cOrbital.subshell.kappa    continue    end
+        n  = min(length(b.P), length(P))
+        ov = 0.
+        for  i = 1:min(n, grid.NoPoints)    ov = ov + (b.P[i] * P[i] + b.Q[i] * Q[i]) * grid.wr[i]    end
+        for  i = 1:n
+            P[i] = P[i] - ov * b.P[i];   Q[i] = Q[i] - ov * b.Q[i]
+            if  i <= length(b.Pprime)  &&  i <= length(Pp)    Pp[i] = Pp[i] - ov * b.Pprime[i]    end
+            if  i <= length(b.Qprime)  &&  i <= length(Qp)    Qp[i] = Qp[i] - ov * b.Qprime[i]    end
+        end
+    end
+
+    return( Orbital(cOrbital.subshell, cOrbital.isBound, cOrbital.useStandardGrid, cOrbital.energy, P, Q, Pp, Qp, cOrbital.grid) )
 end
 
 
