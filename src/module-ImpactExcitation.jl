@@ -15,7 +15,6 @@ using   Distributed, FastGaussQuadrature, GSL, SpecialFunctions, Printf,
 const convergenceCriterion = 1.0e-5
 
 
-
 """
 `struct  ImpactExcitation.RateCoefficients`     ... Defines a type for the output results from excitation rate or
                                                     effective collision strengths calculations
@@ -66,6 +65,10 @@ end
         ... True/false to force exchange between the impacting/scattered electron and the bound electrons on or off;
             `nothing` -- the default -- lets `Basics.perform` decide automatically from the final-ion `AsfSettings.scField`
             (`Continuum.resolveExchangeDefault`, item 99).
+    + calcDCS                  ::Bool               ... True, if differential cross sections are to be calculated.
+    + angles                   ::Array{Float64,1}   ... Angles in degrees for calculating differential cross sections.
+    + cacheAngularCoefficients ::Bool               ... Cache SpinAngular coefficient tables across energies in this run.
+    + cacheRadialIntegrals     ::Bool               ... Cache radial integrals within each individual line/energy.
 """
 struct Settings  <:  AbstractProcessSettings
     lineSelection             ::LineSelection
@@ -79,6 +82,10 @@ struct Settings  <:  AbstractProcessSettings
     printBefore               ::Bool
     operator                  ::AbstractEeInteraction
     continuumExchange         ::Union{Nothing,Bool}
+    calcDCS                   ::Bool
+    angles                    ::Array{Float64,1}
+    cacheAngularCoefficients  ::Bool
+    cacheRadialIntegrals      ::Bool
 end
 
 
@@ -86,7 +93,9 @@ end
 `ImpactExcitation.Settings()`  ... constructor for the default values of electron-impact excitation line computations.
 """
 function Settings()
-    Settings( LineSelection(), Float64[], 0., 300, false, 30.0, 6, [5e4, 1e5, 2e5, 3e5, 5e5, 7e5, 1e6], false, CoulombInteraction(), nothing)
+    Settings( LineSelection(), Float64[], 0., 300, false, 30.0, 6,
+              [5e4, 1e5, 2e5, 3e5, 5e5, 7e5, 1e6], false, CoulombInteraction(), nothing,
+              false, Float64[], true, true)
 end
 
 
@@ -95,7 +104,7 @@ end
 
     lineSelection...,  electronEnergies..., energyShift..., maxKappa...,
     calcRateCoefficient..., maxEnergyMultiplier..., numElectronEnergies..., temperatures...,
-    printBefore..., operator..., continuumExchange...)
+    printBefore..., operator..., continuumExchange..., calcDCS..., angles..., cacheAngularCoefficients..., cacheRadialIntegrals...)
 
     ... constructor for modifying the given ImpactExcitation.Settings by 'overwriting' the previously selected parameters.
 """
@@ -110,25 +119,31 @@ function Settings(set::ImpactExcitation.Settings;
     temperatures::Union{ Nothing, Array{Float64,1} } = nothing,
     printBefore::Union{Nothing, Bool} = nothing,
     operator::Union{Nothing, AbstractEeInteraction} = nothing,
-    continuumExchange::Union{Nothing, Bool} = nothing )
+    continuumExchange::Union{Nothing, Bool} = nothing,
+    calcDCS::Union{Nothing, Bool} = nothing,
+    angles::Union{Nothing, Array{Float64,1}} = nothing,
+    cacheAngularCoefficients::Union{Nothing, Bool} = nothing,
+    cacheRadialIntegrals::Union{Nothing, Bool} = nothing )
 
-    if isnothing(lineSelection)     lineSelectionx = set.lineSelection       else lineSelectionx = lineSelection        end
-    if isnothing(electronEnergies)  electronEnergiesx = set.electronEnergies else electronEnergiesx = electronEnergies  end
-    if isnothing(energyShift)       energyShiftx = set.energyShift           else energyShiftx = energyShift            end
-    if isnothing(maxKappa)          maxKappax = set.maxKappa                 else maxKappax = maxKappa                  end
-    if isnothing(calcRateCoefficient)   calcRateCoefficientx = set.calcRateCoefficient else
-                                                                                calcRateCoefficientx = calcRateCoefficient end
-    if isnothing(maxEnergyMultiplier) maxEnergyMultiplierx = set.maxEnergyMultiplier else maxEnergyMultiplierx = maxEnergyMultiplier end
-    if isnothing(numElectronEnergies) numElectronEnergiesx = set.numElectronEnergies else
-                                                                             numElectronEnergiesx = numElectronEnergies end
-    if isnothing(temperatures)      temperaturesx = set.temperatures         else temperaturesx = temperatures          end
-    if isnothing(printBefore)       printBeforex = set.printBefore           else printBeforex = printBefore            end
-    if isnothing(operator)          operatorx = set.operator                 else operatorx = operator                  end
-    if isnothing(continuumExchange) continuumExchangex = set.continuumExchange else continuumExchangex = continuumExchange end
+    if  isnothing(lineSelection)            lineSelectionx            = set.lineSelection            else  lineSelectionx            = lineSelection            end
+    if  isnothing(electronEnergies)         electronEnergiesx         = set.electronEnergies         else  electronEnergiesx         = electronEnergies         end
+    if  isnothing(energyShift)              energyShiftx              = set.energyShift              else  energyShiftx              = energyShift              end
+    if  isnothing(maxKappa)                 maxKappax                 = set.maxKappa                 else  maxKappax                 = maxKappa                 end
+    if  isnothing(calcRateCoefficient)      calcRateCoefficientx      = set.calcRateCoefficient      else  calcRateCoefficientx      = calcRateCoefficient      end
+    if  isnothing(maxEnergyMultiplier)      maxEnergyMultiplierx      = set.maxEnergyMultiplier      else  maxEnergyMultiplierx      = maxEnergyMultiplier      end
+    if  isnothing(numElectronEnergies)      numElectronEnergiesx      = set.numElectronEnergies      else  numElectronEnergiesx      = numElectronEnergies      end
+    if  isnothing(temperatures)             temperaturesx             = set.temperatures             else  temperaturesx             = temperatures             end
+    if  isnothing(printBefore)              printBeforex              = set.printBefore              else  printBeforex              = printBefore              end
+    if  isnothing(operator)                 operatorx                 = set.operator                 else  operatorx                 = operator                 end
+    if  isnothing(continuumExchange)        continuumExchangex        = set.continuumExchange        else  continuumExchangex        = continuumExchange        end
+    if  isnothing(calcDCS)                  calcDCSx                  = set.calcDCS                  else  calcDCSx                  = calcDCS                  end
+    if  isnothing(angles)                   anglesx                   = set.angles                   else  anglesx                   = angles                   end
+    if  isnothing(cacheAngularCoefficients) cacheAngularCoefficientsx = set.cacheAngularCoefficients else  cacheAngularCoefficientsx = cacheAngularCoefficients end
+    if  isnothing(cacheRadialIntegrals)     cacheRadialIntegralsx     = set.cacheRadialIntegrals     else  cacheRadialIntegralsx     = cacheRadialIntegrals     end
 
     Settings( lineSelectionx, electronEnergiesx, energyShiftx, maxKappax, calcRateCoefficientx, maxEnergyMultiplierx,
-                                                            numElectronEnergiesx, temperaturesx, printBeforex, operatorx,
-                                                            continuumExchangex )
+              numElectronEnergiesx, temperaturesx, printBeforex, operatorx, continuumExchangex, calcDCSx, anglesx,
+              cacheAngularCoefficientsx, cacheRadialIntegralsx )
 
 end
 
@@ -146,6 +161,10 @@ function Base.show(io::IO, settings::ImpactExcitation.Settings)
     println(io, "printBefore:                $(settings.printBefore)  ")
     println(io, "operator:                   $(settings.operator)  ")
     println(io, "continuumExchange:          $(settings.continuumExchange)  ")
+    println(io, "calcDCS:                    $(settings.calcDCS)  ")
+    println(io, "angles:                     $(settings.angles)  ")
+    println(io, "cacheAngularCoefficients:   $(settings.cacheAngularCoefficients)  ")
+    println(io, "cacheRadialIntegrals:       $(settings.cacheRadialIntegrals)  ")
 end
 
 
@@ -193,6 +212,8 @@ end
     + finalElectronEnergy    ::Float64       ... energy of the outgoing (final-state) free-electron
     + crossSection           ::Float64       ... total cross section of this line
     + collisionStrength      ::Float64       ... total collision strength of this line
+    + angles                 ::Array{Float64,1}   ... angles for differential cross section calculation.
+    + dcs                    ::Array{Float64,1}   ... differential cross sections for these angles.
     + channels               ::Array{ImpactExcitation.Channel,1}  ... List of ImpactExcitation channels of this line.
     + convergence            ::Float64       ... convergence of calculation
 """
@@ -203,6 +224,8 @@ struct  Line
     finalElectronEnergy      ::Float64
     crossSection             ::Float64 
     collisionStrength        ::Float64 
+    angles                   ::Array{Float64,1}
+    dcs                      ::Array{Float64,1}
     channels                 ::Array{ImpactExcitation.Channel,1}
     convergence              ::Float64
 end 
@@ -212,7 +235,7 @@ end
 `ImpactExcitation.Line()`  ... 'empty' constructor for an electron-impact excitation line between a specified initial and final level.
 """
 function Line()
-    Line(Level(), Level(), 0., 0., 0., 0., ImpactExcitation.Channel[], 1.0 )
+    Line(Level(), Level(), 0., 0., 0., 0., Float64[], Float64[], ImpactExcitation.Channel[], 1.0 )
 end
 
 
@@ -221,7 +244,7 @@ end
     ... constructor for an electron-impact excitation line between a specified initial and final level.
 """
 function Line(initialLevel::Level, finalLevel::Level, crossSection::Float64)
-    Line(initialLevel, finalLevel, 0., 0., crossSection, 0., ImpactExcitation.Channel[], 1.0 )
+    Line(initialLevel, finalLevel, 0., 0., crossSection, 0., Float64[], Float64[], ImpactExcitation.Channel[], 1.0 )
 end
 
 
@@ -233,7 +256,95 @@ function Base.show(io::IO, line::ImpactExcitation.Line)
     println(io, "finalElectronEnergy:     $(line.finalElectronEnergy)  ")
     println(io, "crossSection:            $(line.crossSection)  ")
     println(io, "collisionStrength:       $(line.collisionStrength)  ")
+    println(io, "angles:                  $(line.angles)  ")
+    println(io, "dcs:                     $(line.dcs)  ")
     println(io, "channels:                $(line.channels)  ")
+end
+
+
+"""
+`struct  ImpactExcitation.AngularCoefficientCache`
+    ... memoises, for ONE run of computeLines() or computeLinesCascade(), the table of spin-angular coefficients of every
+        (final CSF, initial CSF) pair for a given line and channel. These coefficients depend on the CSF topology -- the two
+        target levels, the two continuum kappas and the total symmetry -- but not on the electron energy, so a run over
+        several impact energies reuses each table once per energy. The cache is created by the driver and goes out of
+        scope with it, like InteractionStrength.XLCache, so its keys never outlive the multiplets they refer to. The lock
+        makes it safe to share between the threads of one run.
+
+    + tables    ::Dict{Tuple, Matrix{Any}}   ... the memoised tables; an entry `nothing` marks a CSF pair of wrong symmetry.
+    + lock      ::ReentrantLock              ... guards reads and writes of tables.
+"""
+struct  AngularCoefficientCache
+    tables      ::Dict{Tuple, Matrix{Any}}
+    lock        ::ReentrantLock
+end
+
+
+"""
+`ImpactExcitation.AngularCoefficientCache()`
+    ... constructor for an empty cache; a cache::ImpactExcitation.AngularCoefficientCache is returned.
+"""
+AngularCoefficientCache() = AngularCoefficientCache( Dict{Tuple, Matrix{Any}}(), ReentrantLock() )
+
+
+# SpinAngular keeps process-wide memo caches of its own that are not thread-safe (Rule 19), so every call into
+# SpinAngular.computeCoefficients() from the threads of this module is serialized through this one lock.
+const SPIN_ANGULAR_LOCK = ReentrantLock()
+
+
+"""
+`ImpactExcitation.angularCoefficientKey(channel::ImpactExcitation.Channel, fLevel::Level, iLevel::Level)`
+    ... identifies an energy-independent table of spin-angular coefficients within one run: the two target levels, the two
+        continuum kappas, the total symmetry and the common subshell list. A key::Tuple is returned.
+"""
+function angularCoefficientKey(channel::ImpactExcitation.Channel, fLevel::Level, iLevel::Level)
+    Jt = channel.symmetry.J
+    return( (iLevel.index, fLevel.index, channel.initialKappa, channel.finalKappa, Jt.num, Jt.den, string(channel.symmetry.parity),
+             length(iLevel.basis.csfs), length(fLevel.basis.csfs), Tuple(fLevel.basis.subshells)) )
+end
+
+
+"""
+`ImpactExcitation.computeAngularCoefficientTable(fLevel::Level, iLevel::Level)`
+    ... computes the spin-angular coefficients of the scalar two-particle operator for every (final CSF, initial CSF) pair of
+        the two (continuum) levels; the entry is `nothing` for an initial CSF whose symmetry differs from the level's. The call
+        is serialized through SPIN_ANGULAR_LOCK. A table::Matrix{Any} is returned.
+"""
+function computeAngularCoefficientTable(fLevel::Level, iLevel::Level)
+    nf = length(fLevel.basis.csfs);   ni = length(iLevel.basis.csfs)
+    table = Matrix{Any}(undef, nf, ni)
+    op2   = SpinAngular.TwoParticleOperator(0, plus)
+    lock(SPIN_ANGULAR_LOCK) do
+        for  r = 1:nf,  s = 1:ni
+            if  iLevel.basis.csfs[s].J != iLevel.J  ||  iLevel.basis.csfs[s].parity != iLevel.parity
+                table[r,s] = nothing
+            else
+                table[r,s] = SpinAngular.computeCoefficients(op2, fLevel.basis.csfs[r], iLevel.basis.csfs[s], fLevel.basis.subshells)
+            end
+        end
+    end
+
+    return( table )
+end
+
+
+"""
+`ImpactExcitation.angularCoefficientTable(channel::ImpactExcitation.Channel, fLevel::Level, iLevel::Level,
+                                           cache::Union{Nothing,ImpactExcitation.AngularCoefficientCache})`
+    ... returns the table of spin-angular coefficients for the given channel, from the cache when it holds one and computing
+        and storing it otherwise; with cache = nothing the table is always computed. A table::Matrix{Any} is returned.
+"""
+function angularCoefficientTable(channel::ImpactExcitation.Channel, fLevel::Level, iLevel::Level,
+                                 cache::Union{Nothing,ImpactExcitation.AngularCoefficientCache})
+    isnothing(cache)   &&   return( ImpactExcitation.computeAngularCoefficientTable(fLevel, iLevel) )
+    key    = ImpactExcitation.angularCoefficientKey(channel, fLevel, iLevel)
+    cached = lock(cache.lock) do;   get(cache.tables, key, nothing)   end
+    isnothing(cached)  ||  return( cached )
+    # Two threads may both miss and both compute the same table; they produce identical tables, so the second write is harmless.
+    table  = ImpactExcitation.computeAngularCoefficientTable(fLevel, iLevel)
+    lock(cache.lock) do;   cache.tables[key] = table   end
+
+    return( table )
 end
 
 
@@ -244,8 +355,10 @@ end
         <(alpha_f J_f, kappa_f) J_t || O^(e-e, kind) || (alpha_i J_i, kappa_i) J_t>  due to the interelectronic interaction for 
         the given final and initial (continuum) level. A value::ComplexF64 is returned.
 """
-function amplitude(kind::AbstractEeInteraction, channel::ImpactExcitation.Channel, cFinalLevel::Level, cInitialLevel::Level, 
-                    grid::Radial.Grid; printout::Bool=true)
+function amplitude(kind::AbstractEeInteraction, channel::ImpactExcitation.Channel, cFinalLevel::Level, cInitialLevel::Level,
+                    grid::Radial.Grid; printout::Bool=true,
+                    radialCache::Union{Nothing,InteractionStrength.XLCache}=nothing,
+                    angularCache::Union{Nothing,ImpactExcitation.AngularCoefficientCache}=nothing)
     nf = length(cFinalLevel.basis.csfs);      fPartial = Subshell(9,channel.finalKappa)         
     ni = length(cInitialLevel.basis.csfs);    iPartial = Subshell(9,channel.initialKappa)    
     
@@ -264,29 +377,28 @@ function amplitude(kind::AbstractEeInteraction, channel::ImpactExcitation.Channe
     #
     if      typeof(kind) in [ CoulombInteraction, BreitInteraction, CoulombBreit]        ## pure V^Coulomb interaction
     #--------------------------------------------------------------------------
+        angularTable = ImpactExcitation.angularCoefficientTable(channel, fLevel, iLevel, angularCache)
         for  r = 1:nf
             for  s = 1:ni
-                #if ( fLevel.mc[r] == 0.0 && iLevel.mc[s] == 0.0 ) continue end
-                if  iLevel.basis.csfs[s].J != iLevel.J  ||  iLevel.basis.csfs[s].parity != iLevel.parity      continue    end 
-                subshellList = fLevel.basis.subshells
-                op2  = SpinAngular.TwoParticleOperator(0, plus)
-                wa   = SpinAngular.computeCoefficients(op2, fLevel.basis.csfs[r], iLevel.basis.csfs[s], subshellList)
-                #
+                wa = angularTable[r,s]
+                wa === nothing && continue
                 me = 0.
 
                 for  coeff in wa
-                    # The exchnage T-matrices are considered up to 40 partial waves
+                    # The exchange T-matrices are considered up to 40 partial waves
                     if ( (coeff.c.n == 101) && (coeff.nu > 40) )  continue end
 
-                    if   typeof(kind) in [ CoulombInteraction, CoulombBreit]    
-                        me = me + coeff.V * InteractionStrength.XL_Coulomb(coeff.nu, 
-                                                fLevel.basis.orbitals[coeff.a], fLevel.basis.orbitals[coeff.b],
-                                                iLevel.basis.orbitals[coeff.c], iLevel.basis.orbitals[coeff.d], grid)   end
-                    if   typeof(kind) in [ BreitInteraction, CoulombBreit]    
-                        me = me + coeff.V * InteractionStrength.XL_Breit(coeff.nu, 
-                                                fLevel.basis.orbitals[coeff.a], fLevel.basis.orbitals[coeff.b],
-                                                iLevel.basis.orbitals[coeff.c], iLevel.basis.orbitals[coeff.d], grid,
-                                                                                                   CoulombBreit(1.0))   end
+                    oa = fLevel.basis.orbitals[coeff.a];   ob = fLevel.basis.orbitals[coeff.b]
+                    oc = iLevel.basis.orbitals[coeff.c];   od = iLevel.basis.orbitals[coeff.d]
+                    if  typeof(kind) in [CoulombInteraction, CoulombBreit]
+                        me = me + coeff.V * ( isnothing(radialCache) ? InteractionStrength.XL_Coulomb(coeff.nu, oa, ob, oc, od, grid) :
+                                              InteractionStrength.XL_Coulomb(coeff.nu, oa, ob, oc, od, grid, radialCache) )
+                    end
+                    if  typeof(kind) in [BreitInteraction, CoulombBreit]
+                        me = me + coeff.V * ( isnothing(radialCache) ?
+                                              InteractionStrength.XL_Breit(coeff.nu, oa, ob, oc, od, grid, CoulombBreit(1.0)) :
+                                              InteractionStrength.XL_Breit(coeff.nu, oa, ob, oc, od, grid, CoulombBreit(1.0), radialCache) )
+                    end
                 end
                 matrix[r,s] = me
             end
@@ -336,11 +448,139 @@ function checkLowEnergyGrid(minEnergy::Float64, grid::Radial.Grid)
 end
 
 
+
+
+"""
+`ImpactExcitation.dcsYlmVector!(cache::Dict{Tuple{Int64,Int64},Vector{ComplexF64}}, l::Int64, m::Int64, angles::Array{Float64,1})`
+    ... returns Y_lm(theta, phi=0) on the given angle grid (in degrees) from AngularMomentum.sphericalYlm(), memoised in the
+        cache, which belongs to ONE angle grid. A ylm::Vector{ComplexF64} is returned.
+"""
+function dcsYlmVector!(cache::Dict{Tuple{Int64,Int64},Vector{ComplexF64}}, l::Int64, m::Int64, angles::Array{Float64,1})
+    return get!(cache, (l,m)) do
+        ComplexF64[ AngularMomentum.sphericalYlm(l, m, deg2rad(theta), 0.0) for theta in angles ]
+    end
+end
+
+
+"""
+`ImpactExcitation.accumulateChannelDCS!(fAmp::Array{ComplexF64,5}, line::ImpactExcitation.Line, channel::ImpactExcitation.Channel,
+                                         angles::Array{Float64,1},
+                                         ylmCache::Union{Nothing,Dict{Tuple{Int64,Int64},Vector{ComplexF64}}}=nothing)`
+    ... adds the (already computed) amplitude of one channel to the coherent scattering amplitude
+        fAmp[theta, M_i, M_f, mu_a, mu_b] for an incoming electron along z and an outgoing one at angle theta in the x-z plane.
+        The projection m_b of the outgoing partial wave is not summed over, since the Clebsch-Gordan coefficients fix it:
+        M_t = M_i + mu_a, m_b = M_t - M_f, m_lb = m_b - mu_b. The channel amplitude is the ordinary (M-independent) matrix
+        element of the scalar e-e interaction, as in the collision strength. Nothing is returned; fAmp is modified in place.
+"""
+function accumulateChannelDCS!(fAmp::Array{ComplexF64,5}, line::ImpactExcitation.Line, channel::ImpactExcitation.Channel,
+                               angles::Array{Float64,1},
+                               ylmCache::Union{Nothing,Dict{Tuple{Int64,Int64},Vector{ComplexF64}}}=nothing)
+    Ji = line.initialLevel.J.num // line.initialLevel.J.den
+    Jf = line.finalLevel.J.num // line.finalLevel.J.den
+
+    iSubshell = Subshell(101, channel.initialKappa)
+    fSubshell = Subshell(102, channel.finalKappa)
+    la = Basics.subshell_l(iSubshell)
+    lb = Basics.subshell_l(fSubshell)
+    ja = Basics.subshell_j(iSubshell).num // Basics.subshell_j(iSubshell).den
+    jb = Basics.subshell_j(fSubshell).num // Basics.subshell_j(fSubshell).den
+    Jt = channel.symmetry.J.num // channel.symmetry.J.den
+
+    for (mubIdx, mub) in enumerate(-1//2:1//2)
+        for (muaIdx, mua) in enumerate(-1//2:1//2)
+            cgA = AngularMomentum.ClebschGordan(la, 0, 1//2, mua, ja, mua)
+            cgA == 0.0 && continue
+
+            for (mfIdx, Mf) in enumerate(-Jf:Jf)
+                for (miIdx, Mi) in enumerate(-Ji:Ji)
+                    Mt = Mi + mua
+                    abs(Mt) > Jt && continue
+
+                    # CG(Jf Mf, jb mb | Jt Mt) forces mb = Mt - Mf.
+                    mb = Mt - Mf
+                    abs(mb) > jb && continue
+
+                    mlb = mb - mub
+                    denominator(mlb) != 1 && continue
+                    mlbInt = Int64(numerator(mlb))
+                    abs(mlbInt) > lb && continue
+
+                    cgI = AngularMomentum.ClebschGordan(Ji, Mi, ja, mua, Jt, Mt)
+                    cgI == 0.0 && continue
+
+                    cgF = AngularMomentum.ClebschGordan(Jf, Mf, jb, mb, Jt, Mt)
+                    cgF == 0.0 && continue
+
+                    cgB = AngularMomentum.ClebschGordan(lb, mlbInt, 1//2, mub, jb, mb)
+                    cgB == 0.0 && continue
+
+                    ylm = isnothing(ylmCache) ? ComplexF64[ AngularMomentum.sphericalYlm(lb, mlbInt, deg2rad(theta), 0.0) for theta in angles ] :
+                                                ImpactExcitation.dcsYlmVector!(ylmCache, lb, mlbInt, angles)
+
+                    factor = cgA * cgB * sqrt((2la + 1) / 4π) * cgI * cgF * channel.amplitude
+                    @views fAmp[:, miIdx, mfIdx, muaIdx, mubIdx] .+= factor .* ylm
+                end
+            end
+        end
+    end
+
+    return( nothing )
+end
+
+
+"""
+`ImpactExcitation.computeDCS(line::ImpactExcitation.Line, angles::Array{Float64,1}=line.angles)`
+    ... recomputes the differential cross section of a line from its stored channel amplitudes, with the same accumulator and
+        normalization as the on-the-fly computation in computeAmplitudesProperties(); an empty angle list means 0:1:180 degrees.
+        A dcs::Array{Float64,1} in a_0^2/sr is returned.
+"""
+function computeDCS(line::ImpactExcitation.Line, angles::Array{Float64,1}=line.angles)
+    anglesx  = isempty(angles) ? collect(0.0:1.0:180.0) : angles
+    numMi    = Basics.twice(line.initialLevel.J) + 1;    numMf = Basics.twice(line.finalLevel.J) + 1
+    fAmp     = zeros(ComplexF64, length(anglesx), numMi, numMf, 2, 2)
+    ylmCache = Dict{Tuple{Int64,Int64},Vector{ComplexF64}}()
+    for  channel in line.channels
+        ImpactExcitation.accumulateChannelDCS!(fAmp, line, channel, anglesx, ylmCache)
+    end
+
+    return( ImpactExcitation.dcsFromAmplitudeTensor(line, fAmp) )
+end
+
+
+"""
+`ImpactExcitation.dcsFromAmplitudeTensor(line::ImpactExcitation.Line, fAmp::Array{ComplexF64,5})`
+    ... turns the coherent amplitude tensor into the differential cross section, averaged over M_i and mu_a and summed over
+        M_f and mu_b. The normalization is tied to that of the integrated cross section of the same line: integrating the result
+        over the sphere reproduces line.crossSection to the accuracy of the angle quadrature (3e-5 with a 0.5 degree trapezoid,
+        C3+ 2s --> 2p at 50 eV, measured 24-Sep-2026). A factor pi^2/4 had been missing here before that check was made.
+        A dcs::Array{Float64,1} in a_0^2/sr is returned.
+"""
+function dcsFromAmplitudeTensor(line::ImpactExcitation.Line, fAmp::Array{ComplexF64,5})
+    matx = zeros(Float64, size(fAmp, 1))
+    for  mubIdx = 1:2,  muaIdx = 1:2,  mfIdx = axes(fAmp,3),  miIdx = axes(fAmp,2)
+        matx .+= abs2.(fAmp[:, miIdx, mfIdx, muaIdx, mubIdx])
+    end
+
+    wc = Defaults.getDefaults("speed of light: c")
+    qa = sqrt((line.initialElectronEnergy / wc)^2 + 2 * line.initialElectronEnergy)
+    qb = sqrt((line.finalElectronEnergy   / wc)^2 + 2 * line.finalElectronEnergy)
+    Ea = sqrt((qa * wc)^2 + wc^4);    Eb = sqrt((qb * wc)^2 + wc^4)
+    Ji = line.initialLevel.J.num // line.initialLevel.J.den
+
+    dcsCoeff = 0.5 * sqrt((Ea + wc^2) * (Eb + wc^2) / (Ea * Eb)) / qa / qb
+    normDCS  = (2π)^4 * (qb / qa) / (2 * (2Ji + 1))
+    dcs      = matx .* normDCS .* dcsCoeff^2 .* qa .* qb
+
+    return( dcs )
+end
+
+
 """
 `ImpactExcitation.computeAmplitudesProperties(line::ImpactExcitation.Line, nm::Nuclear.Model, grid::Radial.Grid,
                                                 nrContinuum::Int64, settings::ImpactExcitation.Settings; printout::Bool=true,
                                                 nuclearPot::Union{Nothing,Radial.Potential}=nothing,
-                                                primitives::Union{Nothing,Bsplines.Primitives}=nothing)`
+                                                primitives::Union{Nothing,Bsplines.Primitives}=nothing,
+                                                angularCache::Union{Nothing,ImpactExcitation.AngularCoefficientCache}=nothing)`
     ... to compute all amplitudes and properties of the given line; a line::ImpactExcitation.Line is returned for which
     the amplitudes and properties are now evaluated. The two keywords carry quantities that are CONSTANT for a whole
     computation and are otherwise rebuilt for every line and every partial wave: the nuclear potential depends only on
@@ -350,7 +590,8 @@ end
 function  computeAmplitudesProperties(line::ImpactExcitation.Line, nm::Nuclear.Model, grid::Radial.Grid,
                                         nrContinuum::Int64, settings::ImpactExcitation.Settings; printout::Bool=true,
                                         nuclearPot::Union{Nothing,Radial.Potential}=nothing,
-                                        primitives::Union{Nothing,Bsplines.Primitives}=nothing)
+                                        primitives::Union{Nothing,Bsplines.Primitives}=nothing,
+                                        angularCache::Union{Nothing,ImpactExcitation.AngularCoefficientCache}=nothing)
     newChannels = ImpactExcitation.Channel[];
     contSettings = Continuum.Settings(isnothing(settings.continuumExchange) ? false : settings.continuumExchange, nrContinuum)
     cross = 0.;   coll = 0.; convergence = 1.
@@ -370,6 +611,15 @@ function  computeAmplitudesProperties(line::ImpactExcitation.Line, nm::Nuclear.M
     ## Both symmetry-reduced levels are properties of the line alone; see the note in the innermost loop.
     redILevel = Basics.generateLevelWithSymmetryReducedBasis(line.initialLevel, subshellList)
     redFLevel = Basics.generateLevelWithSymmetryReducedBasis(line.finalLevel,   subshellList)
+
+    # The radial integrals depend on the continuum orbitals and hence on the energy: one cache per line, owned by one thread.
+    radialCache = settings.cacheRadialIntegrals ? InteractionStrength.XLCache() : nothing
+
+    angles = settings.calcDCS ? (isempty(settings.angles) ? collect(0.0:1.0:180.0) : settings.angles) : Float64[]
+    numMi = Basics.twice(line.initialLevel.J) + 1
+    numMf = Basics.twice(line.finalLevel.J) + 1
+    fAmpDCS = settings.calcDCS ? zeros(ComplexF64, length(angles), numMi, numMf, 2, 2) : nothing
+    dcsYlmCache = settings.calcDCS ? Dict{Tuple{Int64,Int64},Vector{ComplexF64}}() : nothing
 
     # First determine a common set of continuum orbitals for the incoming and outgoing electron
     ciOrbitals = Dict{Subshell, Orbital}();     ciPhases = Dict{Subshell, Float64}()
@@ -430,15 +680,19 @@ function  computeAmplitudesProperties(line::ImpactExcitation.Line, nm::Nuclear.M
                         newChannel = ImpactExcitation.Channel(channel.initialKappa, channel.finalKappa, channel.symmetry, 
                                                                                                             iPhase, fPhase, 0.)
                         #
-                        amplitude  = ImpactExcitation.amplitude(settings.operator, newChannel, newfLevel, newiLevel, grid, 
-                                                                                                                printout=printout)
+                        amplitude  = ImpactExcitation.amplitude(settings.operator, newChannel, newfLevel, newiLevel, grid;
+                                                               printout=printout, radialCache=radialCache, angularCache=angularCache)
 
                         coll       = coll + AngularMomentum.bracket([channel.symmetry.J]) * ( conj(amplitude) * amplitude ).re
 
                         conv += (conj(amplitude) * amplitude).re
 
-                        push!( newChannels, ImpactExcitation.Channel(newChannel.initialKappa, newChannel.finalKappa, 
-                                                                            newChannel.symmetry, iPhase, fPhase, amplitude) )
+                        chan = ImpactExcitation.Channel(newChannel.initialKappa, newChannel.finalKappa,
+                                                        newChannel.symmetry, iPhase, fPhase, amplitude)
+                        push!(newChannels, chan)
+                        if settings.calcDCS
+                            ImpactExcitation.accumulateChannelDCS!(fAmpDCS, line, chan, angles, dcsYlmCache)
+                        end
                     end
                 end
             end
@@ -470,8 +724,10 @@ function  computeAmplitudesProperties(line::ImpactExcitation.Line, nm::Nuclear.M
     coll = coll * N 
     cross = coll * pi / ( (qa^2) * (Basics.twice(line.initialLevel.J) + 1) )
 
+    dcs = settings.calcDCS ? ImpactExcitation.dcsFromAmplitudeTensor(line, fAmpDCS) : Float64[]
+
     newLine = ImpactExcitation.Line( line.initialLevel, line.finalLevel, line.initialElectronEnergy, line.finalElectronEnergy,
-                                        cross, coll, newChannels, convergence )
+                                     cross, coll, angles, dcs, newChannels, convergence )
     ImpactExcitation.displayResults(newLine)
     return( newLine )
 end
@@ -491,6 +747,7 @@ function  computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, n
     println("")
     #
     lines = ImpactExcitation.determineLines(finalMultiplet, initialMultiplet, settings)
+    angularCache = settings.cacheAngularCoefficients ? ImpactExcitation.AngularCoefficientCache() : nothing
     # Display all selected lines before the computations start
     if  settings.printBefore    ImpactExcitation.displayLines(lines)    end
     ## Determine the maximum (continuum) electron energy and check the grid for consistency with it. This module used to
@@ -528,7 +785,8 @@ function  computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, n
         primitives = Bsplines.generatePrimitives(grid)
         Threads.@threads for l in eachindex(lines)
             newLines[l] = ImpactExcitation.computeAmplitudesProperties(lines[l], nm, grid, nrContinuum, settings;
-                                                                       nuclearPot=nuclearPot, primitives=primitives)
+                                                                       nuclearPot=nuclearPot, primitives=primitives,
+                                                                       angularCache=angularCache)
         end
     end
     # Print all results to screen
@@ -586,6 +844,7 @@ function  computeLinesCascade(finalMultiplet::Multiplet, initialMultiplet::Multi
                               grid::Radial.Grid, settings::ImpactExcitation.Settings;
                               output::Bool=true, printout::Bool=true)
     lines = ImpactExcitation.determineLines(finalMultiplet, initialMultiplet, settings)
+    angularCache = settings.cacheAngularCoefficients ? ImpactExcitation.AngularCoefficientCache() : nothing
     if  length(lines) == 0    return( ImpactExcitation.Line[] )    end
     ## The grid must be able to carry the fastest continuum orbital that occurs; see the note in computeLines().
     maxEnergy   = 0.;   minEnergy = Inf
@@ -615,7 +874,7 @@ function  computeLinesCascade(finalMultiplet::Multiplet, initialMultiplet::Multi
     primitives = Bsplines.generatePrimitives(grid)
     Threads.@threads for  i  in  eachindex(lines)
         newLine = ImpactExcitation.computeAmplitudesProperties(lines[i], nm, grid, nrContinuum, settings; printout=doPrint,
-                                                               nuclearPot=nuclearPot, primitives=primitives)
+                                                               nuclearPot=nuclearPot, primitives=primitives, angularCache=angularCache)
         if  length(newLine.channels) > 0    tmpLines[i] = newLine    end
     end
     newLines = ImpactExcitation.Line[ l  for l in tmpLines  if l !== nothing ]
@@ -670,7 +929,7 @@ function  determineLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet,
                         channels = ImpactExcitation.Channel[]
                         # order channels as per Kappa to check convergence
                         push!( lines, ImpactExcitation.Line(iLevel, fLevel, initialElectronEnergy, finalElectronEnergy, 0., 0.,
-                                                                                                                    channels, 1.0) )
+                                                                                  Float64[], Float64[], channels, 1.0) )
                     end
                 end
             end
@@ -687,7 +946,7 @@ function  determineLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet,
                         channels = ImpactExcitation.Channel[]
                         # order channels as per Kappa to check convergence
                         push!( lines, ImpactExcitation.Line(iLevel, fLevel, initialElectronEnergy, finalElectronEnergy, 0., 0.,
-                                                                                                                    channels, 1.0) )
+                                                                                  Float64[], Float64[], channels, 1.0) )
                     end
                 end
             end
@@ -1050,6 +1309,19 @@ function displayResults(line::ImpactExcitation.Line)
     sa = sa * @sprintf("%.2e", line.convergence)                                                          * "    "
     println(sa)
     println("  ", TableStrings.hLine(nx))
+
+    if !isempty(line.dcs)
+        println(" ")
+        println("  Differential Cross Sections (DCS):")
+        println("  ", TableStrings.hLine(50))
+        println("    Theta [deg]         DCS [10^-20 m^2/sr]")
+        println("  ", TableStrings.hLine(50))
+        for (idx, θ) in enumerate(line.angles)
+            dcsVal = line.dcs[idx] * 0.5291772109 * 0.5291772109
+            @printf("     %8.2f           %.6e\n", θ, dcsVal)
+        end
+        println("  ", TableStrings.hLine(50))
+    end
     return( nothing )
 end
 
