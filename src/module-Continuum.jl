@@ -68,12 +68,16 @@ end
 `Continuum.generateOrbitalForLevel(energy::Float64, sh::Subshell, level::Level, nm::Nuclear.Model, grid::Radial.Grid,
                                     settings::Continuum.Settings; nuclearPot::Union{Nothing,Radial.Potential}=nothing,
                                     primitives::Union{Nothing,Bsplines.Primitives}=nothing,
-                                    storage::Union{Nothing,Dict{String,Array{Float64,2}}}=nothing, orthogonalize::Bool=false)`
+                                    storage::Union{Nothing,Dict{String,Array{Float64,2}}}=nothing, orthogonalize::Bool=false,
+                                    exchange::Symbol=:Slater)`
     ... to generate a continuum orbital for the (continuum) subshell sh, the energy and the effective charge within the given
         potential. It is orthogonal to the bound orbitals of the same kappa AUTOMATICALLY only when these are eigenfunctions of
         the same local operator, i.e. come from the default Basics.DFSField(1.0): measured 24-Sep-2026 for C3+ 1s2 2s at 50 eV,
         <ns|eps s> ~ 3e-10 then, but 5e-3 for Hartree-Slater and 1e-1 for NuclearField bound orbitals. With orthogonalize =
         true the projection is made explicitly, see Continuum.orthogonalizeToBasis(); the default leaves the orbital as it is.
+        The keyword exchange selects the local exchange added to the static (nuclear + Hartree) potential of the level, see
+        Continuum.continuumPotential(): :Slater (the default, the energy-independent DFS term), :FurnessMcCarthy (energy-
+        dependent, vanishing as 1/E) or :none.
         All further specifications about this generations are made by proper settings. The keywords nuclearPot, primitives and storage carry quantities that are
         CONSTANT for a whole computation -- the nuclear potential depends only on the nuclear model and the grid, the B-spline
         primitives only on the grid, and the storage dictionary holds the TTp matrices, which depend on the grid and on kappa but
@@ -91,7 +95,8 @@ end
 function generateOrbitalForLevel(energy::Float64, sh::Subshell, level::Level, nm::Nuclear.Model, grid::Radial.Grid,
                                  settings::Continuum.Settings; nuclearPot::Union{Nothing,Radial.Potential}=nothing,
                                  primitives::Union{Nothing,Bsplines.Primitives}=nothing,
-                                 storage::Union{Nothing,Dict{String,Array{Float64,2}}}=nothing, orthogonalize::Bool=false)
+                                 storage::Union{Nothing,Dict{String,Array{Float64,2}}}=nothing, orthogonalize::Bool=false,
+                                 exchange::Symbol=:Slater)
     #
     # Generate a (local) potential for the given level.  The NUCLEAR part depends only on the nuclear model
     # and the grid, so it is constant for a whole computation -- but this function is called once per line
@@ -106,8 +111,7 @@ function generateOrbitalForLevel(energy::Float64, sh::Subshell, level::Level, nm
     ## wp3 = compute("radial potential: Kohn-Sham", grid, wLevel)
     ## wp4 = compute("radial potential: Dirac-Fock-Slater", grid, wLevel)
     ## wp  = Basics.computePotential(Basics.DFSField(0.42), grid, level)   
-    wp  = Basics.computePotential(Basics.DFSField(1.0), grid, level);
-    pot = Basics.add(nuclearPotential, wp)
+    pot = Continuum.continuumPotential(energy, level, nuclearPotential, grid, exchange)
 
     # `includeExchange` is honoured in exactly one place -- the Galerkin solution method, where it costs no new
     # iteration (see Continuum.Settings' docstring, item 99). Elsewhere it has no mechanism to act through, and
@@ -234,6 +238,45 @@ function generateOrbitalForLevel(energy::Float64, sh::Subshell, level::Level, nm
     end
 
     return( cOrbital, phase )
+end
+
+
+"""
+`Continuum.continuumPotential(energy::Float64, level::Level, nuclearPotential::Radial.Potential, grid::Radial.Grid,
+                               exchange::Symbol)`
+    ... the local potential in which a free electron of kinetic energy `energy` moves about the target in the given level:
+        the nuclear and Hartree potential of the level plus a LOCAL approximation to exchange with the bound electrons,
+            :Slater           -(3 rho_t / (4 pi^2 r^2))^(1/3), the DFS term used for the bound electrons themselves; it does not
+                              depend on the energy of the free electron and therefore overstates exchange at high energies;
+            :FurnessMcCarthy  V_x = (E - V_st)/2 - sqrt( (E - V_st)^2 + 4 pi rho )/2 in atomic units, with V_st the static
+                              potential and rho = rho_t/(4 pi r^2) the electron density; semiclassical, it falls off as
+                              -pi rho/E at high energy, and it is the local-exchange model of relativistic distorted-wave codes;
+            :none             the static potential alone.
+        :Slater reproduces exactly the potential used before this option existed. A pot::Radial.Potential is returned, in the
+        Z(r) = -r V(r) convention.
+"""
+function continuumPotential(energy::Float64, level::Level, nuclearPotential::Radial.Potential, grid::Radial.Grid,
+                            exchange::Symbol)
+    if      exchange == :Slater
+        return( Basics.add(nuclearPotential, Basics.computePotential(Basics.DFSField(1.0), grid, level)) )
+    elseif  exchange in [:none, :FurnessMcCarthy]
+        pot = Basics.add(nuclearPotential, Basics.computePotential(Basics.DFSField(0.0), grid, level))
+        exchange == :none   &&   return( pot )
+        rhot = zeros(grid.NoPoints)
+        for  sh in level.basis.subshells
+            orb = level.basis.orbitals[sh];   occ = Basics.computeMeanSubshellOccupation(sh, [level])
+            for  i = 1:min(length(orb.P), grid.NoPoints)    rhot[i] = rhot[i] + occ * (orb.P[i]^2 + orb.Q[i]^2)    end
+        end
+        Zr = copy(pot.Zr)
+        for  i = 2:min(length(Zr), grid.NoPoints)
+            r   = grid.r[i];    Vst = - pot.Zr[i] / r;    rho = rhot[i] / (4pi * r^2)
+            Vx  = 0.5 * (energy - Vst) - 0.5 * sqrt( (energy - Vst)^2 + 4pi * rho )
+            Zr[i] = Zr[i] - r * Vx
+        end
+
+        return( Radial.Potential(pot.name * " + Furness-McCarthy exchange", Zr, pot.grid) )
+    else    error("Continuum.continuumPotential: exchange = $exchange; use :Slater, :FurnessMcCarthy or :none.")
+    end
 end
 
 
