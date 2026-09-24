@@ -74,6 +74,8 @@ end
                                                         (Continuum.orthogonalizeToBasis), as the spin-angular coefficients assume.
     + asymptoticTail           ::Bool               ... Add the part of the direct Coulomb integrals beyond the radial box
                                                         (ImpactExcitation.tailCorrection).
+    + topUp                    ::Bool               ... Add the partial waves beyond maxKappa by geometric extrapolation of the
+                                                        last two kappa shells (ImpactExcitation.topUpCollisionStrength).
 """
 struct Settings  <:  AbstractProcessSettings
     lineSelection             ::LineSelection
@@ -93,6 +95,7 @@ struct Settings  <:  AbstractProcessSettings
     cacheRadialIntegrals      ::Bool
     orthogonalizeContinuum    ::Bool
     asymptoticTail            ::Bool
+    topUp                     ::Bool
 end
 
 
@@ -102,7 +105,7 @@ end
 function Settings()
     Settings( LineSelection(), Float64[], 0., 300, false, 30.0, 6,
               [5e4, 1e5, 2e5, 3e5, 5e5, 7e5, 1e6], false, CoulombInteraction(), nothing,
-              false, Float64[], true, true, false, false)
+              false, Float64[], true, true, false, false, false)
 end
 
 
@@ -122,7 +125,7 @@ end
     lineSelection...,  electronEnergies..., energyShift..., maxKappa...,
     calcRateCoefficient..., maxEnergyMultiplier..., numElectronEnergies..., temperatures...,
     printBefore..., operator..., continuumExchange..., calcDCS..., angles..., cacheAngularCoefficients..., cacheRadialIntegrals...,
-    orthogonalizeContinuum..., asymptoticTail...)
+    orthogonalizeContinuum..., asymptoticTail..., topUp...)
 
     ... constructor for modifying the given ImpactExcitation.Settings by 'overwriting' the previously selected parameters.
 """
@@ -143,7 +146,8 @@ function Settings(set::ImpactExcitation.Settings;
     cacheAngularCoefficients::Union{Nothing, Bool} = nothing,
     cacheRadialIntegrals::Union{Nothing, Bool} = nothing,
     orthogonalizeContinuum::Union{Nothing, Bool} = nothing,
-    asymptoticTail::Union{Nothing, Bool} = nothing )
+    asymptoticTail::Union{Nothing, Bool} = nothing,
+    topUp::Union{Nothing, Bool} = nothing )
 
     if  isnothing(lineSelection)            lineSelectionx            = set.lineSelection            else  lineSelectionx            = lineSelection            end
     if  isnothing(electronEnergies)         electronEnergiesx         = set.electronEnergies         else  electronEnergiesx         = electronEnergies         end
@@ -162,10 +166,12 @@ function Settings(set::ImpactExcitation.Settings;
     if  isnothing(cacheRadialIntegrals)     cacheRadialIntegralsx     = set.cacheRadialIntegrals     else  cacheRadialIntegralsx     = cacheRadialIntegrals     end
     if  isnothing(orthogonalizeContinuum)   orthogonalizeContinuumx   = set.orthogonalizeContinuum   else  orthogonalizeContinuumx   = orthogonalizeContinuum   end
     if  isnothing(asymptoticTail)           asymptoticTailx           = set.asymptoticTail           else  asymptoticTailx           = asymptoticTail           end
+    if  isnothing(topUp)                    topUpx                    = set.topUp                    else  topUpx                    = topUp                    end
 
     Settings( lineSelectionx, electronEnergiesx, energyShiftx, maxKappax, calcRateCoefficientx, maxEnergyMultiplierx,
               numElectronEnergiesx, temperaturesx, printBeforex, operatorx, continuumExchangex, calcDCSx, anglesx,
-              cacheAngularCoefficientsx, cacheRadialIntegralsx, orthogonalizeContinuumx, asymptoticTailx )
+              cacheAngularCoefficientsx, cacheRadialIntegralsx, orthogonalizeContinuumx, asymptoticTailx,
+              topUpx )
 
 end
 
@@ -189,6 +195,7 @@ function Base.show(io::IO, settings::ImpactExcitation.Settings)
     println(io, "cacheRadialIntegrals:       $(settings.cacheRadialIntegrals)  ")
     println(io, "orthogonalizeContinuum:     $(settings.orthogonalizeContinuum)  ")
     println(io, "asymptoticTail:             $(settings.asymptoticTail)  ")
+    println(io, "topUp:                      $(settings.topUp)  ")
 end
 
 
@@ -534,6 +541,28 @@ end
 
 
 """
+`ImpactExcitation.topUpCollisionStrength(shellColl::Array{Float64,1})`
+    ... estimates the contribution of all kappa shells beyond the last one computed, from the (unnormalized) partial collision
+        strengths of the kappa shells, by the geometric series  Omega_K r/(1-r)  with  r = Omega_K/Omega_(K-1). This is the
+        usual top-up for NON-dipole transitions and a lower bound for dipole ones, whose partial strengths fall off more
+        slowly than geometrically (the Bethe logarithm); a warning is issued when r > 0.9, where the estimate is least
+        reliable. Zero is returned if fewer than two shells exist or the last two do not decrease. A value::Float64 is
+        returned, in the units of shellColl.
+"""
+function topUpCollisionStrength(shellColl::Array{Float64,1})
+    length(shellColl) < 2   &&   return( 0. )
+    r = shellColl[end] / shellColl[end-1]
+    if  !(0. < r < 1.)    return( 0. )    end
+    if  r > 0.9
+        @warn("ImpactExcitation.topUpCollisionStrength: the partial collision strengths fall off slowly (ratio $(round(r, digits=4)))" *
+              " -- the geometric top-up is a lower bound here; raise maxKappa.")
+    end
+
+    return( shellColl[end] * r / (1. - r) )
+end
+
+
+"""
 `ImpactExcitation.amplitude(kind::AbstractEeInteraction, channel::ImpactExcitation.Channel, cFinalLevel::Level, cInitialLevel::Level, 
                             grid::Radial.Grid; printout::Bool=true)`  
     ... to compute the kind in  CoulombInteraction(), BreitInteraction(), CoulombBreit() electron-impact interaction amplitude 
@@ -820,7 +849,7 @@ function  computeAmplitudesProperties(line::ImpactExcitation.Line, nm::Nuclear.M
     symi = LevelSymmetry(line.initialLevel.J, line.initialLevel.parity);    
     symf = LevelSymmetry(line.finalLevel.J, line.finalLevel.parity) 
     #
-    kappa = 1
+    kappa = 1;   shellColl = Float64[];   collBefore = 0.;   converged = false
     while kappa <= settings.maxKappa
         for  inKappa = -kappa:kappa
             if  inKappa == 0    continue    end
@@ -895,12 +924,13 @@ function  computeAmplitudesProperties(line::ImpactExcitation.Line, nm::Nuclear.M
             end
         end
         
+        push!(shellColl, coll - collBefore);   collBefore = coll
         # Checking convergence
         convergence = abs(conv - conv0)/conv
         if convergence < convergenceCriterion
             printstyled("\nConvergence Achieved "; bold=true, underline=true, color=:light_red); 
             if n == 5 
-                printstyled("\nConvergence Achieved "; bold=true, underline=true, color=:light_red); break
+                printstyled("\nConvergence Achieved "; bold=true, underline=true, color=:light_red);   converged = true;   break
             end
             n += 1
         end
@@ -918,6 +948,7 @@ function  computeAmplitudesProperties(line::ImpactExcitation.Line, nm::Nuclear.M
     N = 4. * sqrt( (initialEnergy + wc^2) * ( finalEnergy + wc^2 ) / ( initialEnergy * finalEnergy ) ) / qa / qb
     N = N / ( sqrt( qa / pi / line.initialElectronEnergy) * sqrt( qb / pi / line.finalElectronEnergy) )^2
 
+    if  settings.topUp  &&  !converged    coll = coll + ImpactExcitation.topUpCollisionStrength(shellColl)    end
     coll = coll * N 
     cross = coll * pi / ( (qa^2) * (Basics.twice(line.initialLevel.J) + 1) )
 
