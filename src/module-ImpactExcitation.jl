@@ -82,7 +82,8 @@ end
     + coulombBetheKappa        ::Int64              ... If > maxKappa, the partial waves maxKappa < |kappa| <= coulombBetheKappa are
                                                         added in the Coulomb-Bethe approximation: undistorted Coulomb waves, direct
                                                         dipole-like channels |l_in - l_out| <= 1, integrals to infinity (the tail is
-                                                        switched on). 0 = off. See ImpactExcitation.coulombContinuumOrbital.
+                                                        switched on); these channels also enter the DCS. 0 = off. See
+                                                        ImpactExcitation.coulombContinuumOrbital.
 """
 struct Settings  <:  AbstractProcessSettings
     lineSelection             ::LineSelection
@@ -882,6 +883,17 @@ end
         M_f and mu_b. The normalization is tied to that of the integrated cross section of the same line: integrating the result
         over the sphere reproduces line.crossSection to the accuracy of the angle quadrature (3e-5 with a 0.5 degree trapezoid,
         C3+ 2s --> 2p at 50 eV, measured 24-Sep-2026). A factor pi^2/4 had been missing here before that check was made.
+        SHAPE, measured 25-Sep-2026: for H 1s -> 2p at 1000 eV (maxKappa = 30, coulombBetheKappa = 400) the DCS agrees with
+        the first Born approximation to ~10 % from 2 to 8 degrees, where partial-wave interference fixes the shape -- so the
+        relative phases are right -- but reaches only 0.53 of it at 0 degrees, where the highest partial waves decide; above
+        ~15 degrees Born itself fails (tools/diag-ie-dcsBorn.jl). The Coulomb-Bethe channels (settings.coulombBetheKappa)
+        enter the DCS, but only with |l_in - l_out| <= 1, so non-dipole partial waves beyond maxKappa are missing at
+        intermediate angles. Against the Mg+ DCS files of the distorted-wave Fortran code the shape differs by factors of
+        up to 7 at 40 - 60 degrees; the settings that produced those files are unknown (tools/diag-ie-dcsCoulombBethe.jl).
+        THE DCS IS NOT TOPPED UP: settings.topUp corrects the integrated collision strength only. The partial waves beyond
+        maxKappa are what builds the forward peak of a dipole transition, so at small angles the DCS converges far more
+        slowly in maxKappa than sigma does; the remedy is the Born closure of the relativistic distorted-wave code
+        (T = T_Born + sum_l (T_DW,l - T_Born,l)), which is not implemented. Check small-angle convergence in maxKappa.
         A dcs::Array{Float64,1} in a_0^2/sr is returned.
 """
 function dcsFromAmplitudeTensor(line::ImpactExcitation.Line, fAmp::Array{ComplexF64,5})
@@ -1043,8 +1055,10 @@ function  computeAmplitudesProperties(line::ImpactExcitation.Line, nm::Nuclear.M
                         chan = ImpactExcitation.Channel(newChannel.initialKappa, newChannel.finalKappa,
                                                         newChannel.symmetry, iPhase, fPhase, amplitude)
                         push!(newChannels, chan)
-                        # The Coulomb-Bethe channels carry no consistent distortion phase and are left out of the DCS.
-                        if settings.calcDCS  &&  !inCB
+                        # The Coulomb-Bethe channels enter the DCS too: their phase and sign join those of the distorted waves
+                        # continuously (Mg+ 50 eV: phase difference 2e-5, wave difference 1.5e-5 at |kappa| = 40), and they
+                        # are what builds the small-angle peak of a dipole line.
+                        if settings.calcDCS
                             ImpactExcitation.accumulateChannelDCS!(fAmpDCS, line, chan, angles, dcsYlmCache)
                         end
                     end
