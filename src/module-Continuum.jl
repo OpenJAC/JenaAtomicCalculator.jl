@@ -305,11 +305,14 @@ end
         therefore NOT in the distorted wave; they come from the exchange amplitude of the (N+1)-electron CSFs.
         THE SAME CODE ALSO PROJECTS THE WAVE ONTO EVERY SAME-KAPPA BOUND ORBITAL ON EACH ITERATION, and the solution of the
         equation with K alone is not orthogonal to them (overlaps ~5e-3 for C2+ eps s); combine exchange = :nonlocal with
-        orthogonalize = true to reproduce that method. NOT YET VALIDATED AGAINST AN INDEPENDENT CODE: the distorted-wave code
-        at hand uses this exchange only for NEUTRAL targets (routine DW); for an ionic target it calls DWION, a local-
-        potential solver, so its Mg+ reference contains no exchange potential to compare with. What is checked: K is
-        symmetric to 1e-16 for kappa = -1 ... 5, and the resulting cross sections lie between those of the local models
-        (tools/diag-ie-nonlocalExchange.jl). K depends on the target and on kappa but not on the energy.
+        orthogonalize = true to reproduce that method. VALIDATED 25-Sep-2026 AGAINST JAC'S OWN DIRAC-FOCK SCF, which shares no
+        code with this function: for a closed-shell atom the Dirac-Fock orbitals satisfy (h + V_Hartree + X) phi = eps phi
+        with exactly this X, and the AL orbital energies re-appear as eigenvalues of H_static + K -- Ne 1s ... 2p_3/2 to
+        1 - 6e-5, Ar 1s ... 3p_3/2 to 3e-6 - 5e-4 (the rest is the omitted off-diagonal Lagrange terms), against errors of
+        10 - 84 % without K (tools/diag-exchange-vs-DiracFock.jl). The distorted-wave Fortran code could not serve here: it
+        uses this exchange only for neutral targets (routine DW, which fails at the first solve in the version at hand)
+        and a local-potential solver (DWION) for ions. K is symmetric to 1e-16 for kappa = -1 ... 5. It depends on the
+        target and on kappa but not on the energy.
         A matrix::Array{Float64,2} is returned.
 """
 function exchangeMatrix(sh::Subshell, level::Level, primitives::Bsplines.Primitives)
