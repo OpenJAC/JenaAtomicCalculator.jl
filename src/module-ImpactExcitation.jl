@@ -79,6 +79,10 @@ end
     + exchangeMaxL             ::Int64              ... Exchange terms of the amplitude are kept only for channels whose incoming
                                                         and outgoing partial waves both have l <= exchangeMaxL (40, the lamex of the
                                                         relativistic distorted-wave code); beyond that exchange is negligible.
+    + coulombBetheKappa        ::Int64              ... If > maxKappa, the partial waves maxKappa < |kappa| <= coulombBetheKappa are
+                                                        added in the Coulomb-Bethe approximation: undistorted Coulomb waves, direct
+                                                        dipole-like channels |l_in - l_out| <= 1, integrals to infinity (the tail is
+                                                        switched on). 0 = off. See ImpactExcitation.coulombContinuumOrbital.
 """
 struct Settings  <:  AbstractProcessSettings
     lineSelection             ::LineSelection
@@ -100,6 +104,7 @@ struct Settings  <:  AbstractProcessSettings
     asymptoticTail            ::Bool
     topUp                     ::Bool
     exchangeMaxL              ::Int64
+    coulombBetheKappa         ::Int64
 end
 
 
@@ -109,7 +114,7 @@ end
 function Settings()
     Settings( LineSelection(), Float64[], 0., 300, false, 30.0, 6,
               [5e4, 1e5, 2e5, 3e5, 5e5, 7e5, 1e6], false, CoulombInteraction(), nothing,
-              false, Float64[], true, true, false, false, false, 40)
+              false, Float64[], true, true, false, false, false, 40, 0)
 end
 
 
@@ -129,7 +134,8 @@ end
     lineSelection...,  electronEnergies..., energyShift..., maxKappa...,
     calcRateCoefficient..., maxEnergyMultiplier..., numElectronEnergies..., temperatures...,
     printBefore..., operator..., continuumExchange..., calcDCS..., angles..., cacheAngularCoefficients..., cacheRadialIntegrals...,
-    orthogonalizeContinuum..., asymptoticTail..., topUp..., exchangeMaxL...)
+    orthogonalizeContinuum..., asymptoticTail..., topUp..., exchangeMaxL...,
+    coulombBetheKappa...)
 
     ... constructor for modifying the given ImpactExcitation.Settings by 'overwriting' the previously selected parameters.
 """
@@ -152,7 +158,8 @@ function Settings(set::ImpactExcitation.Settings;
     orthogonalizeContinuum::Union{Nothing, Bool} = nothing,
     asymptoticTail::Union{Nothing, Bool} = nothing,
     topUp::Union{Nothing, Bool} = nothing,
-    exchangeMaxL::Union{Nothing, Int64} = nothing )
+    exchangeMaxL::Union{Nothing, Int64} = nothing,
+    coulombBetheKappa::Union{Nothing, Int64} = nothing )
 
     if  isnothing(lineSelection)            lineSelectionx            = set.lineSelection            else  lineSelectionx            = lineSelection            end
     if  isnothing(electronEnergies)         electronEnergiesx         = set.electronEnergies         else  electronEnergiesx         = electronEnergies         end
@@ -173,11 +180,12 @@ function Settings(set::ImpactExcitation.Settings;
     if  isnothing(asymptoticTail)           asymptoticTailx           = set.asymptoticTail           else  asymptoticTailx           = asymptoticTail           end
     if  isnothing(topUp)                    topUpx                    = set.topUp                    else  topUpx                    = topUp                    end
     if  isnothing(exchangeMaxL)             exchangeMaxLx             = set.exchangeMaxL             else  exchangeMaxLx             = exchangeMaxL             end
+    if  isnothing(coulombBetheKappa)        coulombBetheKappax        = set.coulombBetheKappa        else  coulombBetheKappax        = coulombBetheKappa        end
 
     Settings( lineSelectionx, electronEnergiesx, energyShiftx, maxKappax, calcRateCoefficientx, maxEnergyMultiplierx,
               numElectronEnergiesx, temperaturesx, printBeforex, operatorx, continuumExchangex, calcDCSx, anglesx,
               cacheAngularCoefficientsx, cacheRadialIntegralsx, orthogonalizeContinuumx, asymptoticTailx,
-              topUpx, exchangeMaxLx )
+              topUpx, exchangeMaxLx, coulombBetheKappax )
 
 end
 
@@ -203,6 +211,7 @@ function Base.show(io::IO, settings::ImpactExcitation.Settings)
     println(io, "asymptoticTail:             $(settings.asymptoticTail)  ")
     println(io, "topUp:                      $(settings.topUp)  ")
     println(io, "exchangeMaxL:               $(settings.exchangeMaxL)  ")
+    println(io, "coulombBetheKappa:          $(settings.coulombBetheKappa)  ")
 end
 
 
@@ -487,6 +496,8 @@ TailCache(Zion::Float64) = TailCache(Zion, Dict{Subshell, ContinuumTail}(), Dict
 """
 function coulombFG(t::ImpactExcitation.ContinuumTail, r::Float64)
     f, fp, g, gp = GSL.sf_coulomb_wave_FG_e(t.eta, t.q * r, Float64(t.l), 0, 0.0, 0.0)
+    # Inside the centrifugal barrier of a high partial wave GSL returns NaN where F_l underflows; B = 0 there, so P = 0.
+    if  t.B == 0.  &&  !(isfinite(f.val) && isfinite(fp.val))    return( (0., 0.) )    end
 
     return( (t.A * f.val + t.B * g.val,  t.q * (t.A * fp.val + t.B * gp.val)) )
 end
@@ -511,6 +522,14 @@ function continuumTail(orbital::Orbital, grid::Radial.Grid, Zion::Float64)
     B   = (F0*orbital.P[m1] - F1*orbital.P[m0]) / det
     Fh, Gh = fg(grid.r[mh])
     err = abs(A*Fh + B*Gh - orbital.P[mh]) / sqrt(A^2 + B^2)
+    # A wave still inside its centrifugal barrier at r0 (l >> q r0, e.g. the Coulomb-Bethe partial waves of a small box)
+    # has P ~ 0 there and the fit is singular. It is then the regular Coulomb function with the normalized amplitude.
+    if  !isfinite(A)  ||  !isfinite(B)  ||  !isfinite(err)
+        A = sqrt((E + 2wc^2) / (pi * wc^2 * q));   B = 0.;   err = 0.
+    end
+    # A round-off B (~1e-30 measured for an undistorted wave just inside its barrier) must not survive: G_l is huge or NaN
+    # there and would poison the tail integral.
+    if  abs(B) < 1.0e-10 * abs(A)    B = 0.    end
 
     return( ContinuumTail(r0, q, eta, l, A, B, err) )
 end
@@ -596,8 +615,14 @@ end
         strengths of the kappa shells, by the geometric series  Omega_K r/(1-r)  with  r = Omega_K/Omega_(K-1). This is the
         usual top-up for NON-dipole transitions and a lower bound for dipole ones, whose partial strengths fall off more
         slowly than geometrically (the Bethe logarithm); a warning is issued when r > 0.9, where the estimate is least
-        reliable. Zero is returned if fewer than two shells exist or the last two do not decrease. A value::Float64 is
-        returned, in the units of shellColl.
+        reliable. Zero is returned if fewer than two shells exist or the last two do not decrease. Measured 25-Sep-2026 for
+        H-like C5+ 1s -> 2p at 2939 eV against maxKappa = 120 computed with the SAME code (9.216e-02 for 2p_1/2): maxKappa =
+        20 with this top-up gives 0.997 of it, where plain maxKappa = 20 gives 0.878 and 40 gives 0.992. (An earlier
+        statement here of "4.4 % low" compared with example-Dl's recorded maxKappa = 120 value of 04-Aug-2026, which today's
+        code no longer reproduces.) settings.coulombBetheKappa computes these partial waves instead of extrapolating them.
+        For Mg+ 3s -> 3p at 50 and 100 eV (maxKappa = 40, with the tail) it brings JAC to 0.998 -
+        1.009 of the relativistic distorted-wave code, from 0.967 and 0.846. A value::Float64 is returned, in the units of
+        shellColl.
 """
 function topUpCollisionStrength(shellColl::Array{Float64,1})
     length(shellColl) < 2   &&   return( 0. )
@@ -609,6 +634,40 @@ function topUpCollisionStrength(shellColl::Array{Float64,1})
     end
 
     return( shellColl[end] * r / (1. - r) )
+end
+
+
+"""
+`ImpactExcitation.coulombContinuumOrbital(energy::Float64, sh::Subshell, grid::Radial.Grid, Zion::Float64, mtp::Int64)`
+    ... the UNDISTORTED continuum orbital of a free electron in the pure Coulomb field -Zion/r, for the Coulomb-Bethe partial
+        waves: P(r) = N F_l(eta, qr) with eta = -Zion (1 + E/c^2)/q and N = sqrt((E + 2c^2)/(pi c^2 q)), the amplitude of the
+        normalized distorted waves (Continuum.normalizeOrbitalAlok), and Q from the free-particle kinetic balance
+        Q = c/(E + 2c^2) (P' + kappa P/r). At the partial waves where it is used the classical turning point l/q lies far
+        outside the bound orbitals, so the distortion the wave would feel is negligible. For l >= 10 the region qr < 0.02 l,
+        where F_l is below ~1e-15 of its amplitude, is set to zero, and so is any point where F_l underflows. A tuple (orbital::Orbital, phase::Float64) with the Coulomb phase arg Gamma(l+1+i eta) is returned.
+"""
+function coulombContinuumOrbital(energy::Float64, sh::Subshell, grid::Radial.Grid, Zion::Float64, mtp::Int64)
+    wc  = Defaults.getDefaults("speed of light: c")
+    q   = sqrt(energy * (energy + 2wc^2)) / wc;    eta = -Zion * (1.0 + energy/wc^2) / q
+    l   = Basics.subshell_l(sh);                   N   = sqrt((energy + 2wc^2) / (pi * wc^2 * q))
+    P = zeros(mtp);   Pp = zeros(mtp);   Q = zeros(mtp);   Qp = zeros(mtp)
+    for  i = 2:mtp
+        r = grid.r[i]
+        # deep inside the centrifugal barrier F_l < ~1e-15 of its amplitude; skip it rather than let GSL underflow
+        if  l >= 10  &&  q*r < 0.02*l    continue    end
+        try
+            f, fp, g, gp = GSL.sf_coulomb_wave_FG_e(eta, q*r, Float64(l), 0, 0.0, 0.0)
+            # GSL returns NaN rather than raising where F_l underflows (measured for l >= 60): that is F_l = 0 here
+            if  isfinite(f.val)  &&  isfinite(fp.val)    P[i] = N * f.val;    Pp[i] = N * q * fp.val    end
+        catch
+            P[i] = 0.;           Pp[i] = 0.
+        end
+        Q[i] = wc / (energy + 2wc^2) * (Pp[i] + sh.kappa * P[i] / r)
+    end
+    # imag(loggamma), not angle(gamma): Gamma(l+1+i eta) overflows for l ~ 170 and angle(gamma) is SILENTLY wrong from l ~ 200
+    phase = imag(SpecialFunctions.loggamma(l + 1 + im*eta))
+
+    return( Orbital(sh, false, true, energy, P, Q, Pp, Qp, grid), phase )
 end
 
 
@@ -888,7 +947,7 @@ function  computeAmplitudesProperties(line::ImpactExcitation.Line, nm::Nuclear.M
     radialCache = settings.cacheRadialIntegrals ? InteractionStrength.XLCache() : nothing
     # The free electron sees the target ion's charge beyond the bound orbitals; the tail is continued in that Coulomb field.
     Zion        = nm.Z - sum(line.initialLevel.basis.csfs[1].occupation)
-    tailCache   = settings.asymptoticTail ? ImpactExcitation.TailCache(Float64(Zion)) : nothing
+    tailCache   = (settings.asymptoticTail || settings.coulombBetheKappa > settings.maxKappa) ? ImpactExcitation.TailCache(Float64(Zion)) : nothing
 
     angles = settings.calcDCS ? (isempty(settings.angles) ? collect(0.0:1.0:180.0) : settings.angles) : Float64[]
     numMi = Basics.twice(line.initialLevel.J) + 1
@@ -904,19 +963,28 @@ function  computeAmplitudesProperties(line::ImpactExcitation.Line, nm::Nuclear.M
     symf = LevelSymmetry(line.finalLevel.J, line.finalLevel.parity) 
     #
     kappa = 1;   shellColl = Float64[];   collBefore = 0.;   converged = false
-    while kappa <= settings.maxKappa
+    kappaEnd = max(settings.maxKappa, settings.coulombBetheKappa)
+    while kappa <= kappaEnd
+        inCB = kappa > settings.maxKappa
         for  inKappa = -kappa:kappa
             if  inKappa == 0    continue    end
             insymtList = AngularMomentum.allowedTotalSymmetries(symi, inKappa)
             for  outKappa = -(kappa):kappa
                 if  outKappa == 0  || ( abs(inKappa) < kappa && abs(outKappa) < kappa )  continue    end
+                # Coulomb-Bethe region: only the long-range (dipole-like) channels, |l_in - l_out| <= 1
+                if  inCB  &&  abs(Basics.subshell_l(Subshell(101, inKappa)) - Basics.subshell_l(Subshell(102, outKappa))) > 1
+                    continue
+                end
                 outsymtList = AngularMomentum.allowedTotalSymmetries(symf, outKappa)
                 for  symt in insymtList
                     if symt in outsymtList
                         channel = ImpactExcitation.Channel( inKappa, outKappa, symt, 0., 0.,Complex(0.))
                         # Generate the continuum orbitals if they were not yet generated before
                         iSubshell  = Subshell(101, channel.initialKappa)
-                        if  !haskey(ciOrbitals, iSubshell)
+                        if  !haskey(ciOrbitals, iSubshell)  &&  abs(channel.initialKappa) > settings.maxKappa
+                            ciOrbitals[iSubshell], ciPhases[iSubshell] =
+                                ImpactExcitation.coulombContinuumOrbital(line.initialElectronEnergy, iSubshell, grid, Float64(Zion), contSettings.mtp)
+                        elseif  !haskey(ciOrbitals, iSubshell)
                             ciOrbital, iPhase     = Continuum.generateOrbitalForLevel(line.initialElectronEnergy, iSubshell,
                                                                                             redILevel, nm, grid, contSettings;
                                                                                             nuclearPot=nuclearPot,
@@ -929,7 +997,10 @@ function  computeAmplitudesProperties(line::ImpactExcitation.Line, nm::Nuclear.M
                         end
 
                         fSubshell  = Subshell(102, channel.finalKappa)
-                        if  !haskey(cfOrbitals, fSubshell)
+                        if  !haskey(cfOrbitals, fSubshell)  &&  abs(channel.finalKappa) > settings.maxKappa
+                            cfOrbitals[fSubshell], cfPhases[fSubshell] =
+                                ImpactExcitation.coulombContinuumOrbital(line.finalElectronEnergy, fSubshell, grid, Float64(Zion), contSettings.mtp)
+                        elseif  !haskey(cfOrbitals, fSubshell)
                             cfOrbital, fPhase     = Continuum.generateOrbitalForLevel(line.finalElectronEnergy,   fSubshell,
                                                                                             redFLevel, nm, grid, contSettings;
                                                                                             nuclearPot=nuclearPot,
@@ -972,7 +1043,8 @@ function  computeAmplitudesProperties(line::ImpactExcitation.Line, nm::Nuclear.M
                         chan = ImpactExcitation.Channel(newChannel.initialKappa, newChannel.finalKappa,
                                                         newChannel.symmetry, iPhase, fPhase, amplitude)
                         push!(newChannels, chan)
-                        if settings.calcDCS
+                        # The Coulomb-Bethe channels carry no consistent distortion phase and are left out of the DCS.
+                        if settings.calcDCS  &&  !inCB
                             ImpactExcitation.accumulateChannelDCS!(fAmpDCS, line, chan, angles, dcsYlmCache)
                         end
                     end
@@ -1565,6 +1637,9 @@ function  displayResults(lines::Array{ImpactExcitation.Line,1})
         println("    The requirement grows with impact energy, because the Bethe logarithm is built from large ")
         println("    impact parameters b ~ kappa/k, i.e. precisely from the highest partial waves.")
         printstyled("    >>> Increase settings.maxKappa and re-run.\n", color=:light_red)
+        println("    EXCEPTION: with settings.topUp or settings.coulombBetheKappa the column refers to the RAW sum, before")
+        println("    the partial waves beyond the last computed kappa were added; the flag is then expected on every")
+        println("    dipole line and says nothing about the corrected collision strength.")
         println("")
     end
     #
