@@ -62,6 +62,7 @@ elseif  char == 'C'
     println("Cm) Apply & test the StarkZeeman module (exact ASF-basis diagonalization of level mixing in static E and/or B fields of arbitrary relative direction).")
     println("Cn) Apply & test the WeakInteractionEnhancement module: the parity-non-conserving E1 amplitude and the electron-EDM enhancement factor, both as sums over caller-supplied intermediate states.")
     println("Co) Statistical tensors of an atomic ensemble: alignment and orientation from photoexcitation, the axis they are stated about, and the tensor machinery itself.")
+    println("Cp) Apply & test the NuclearShielding module: the quadrupole antishielding factor of a closed-shell ion, i.e. how its own electrons amplify at the nucleus a field gradient applied from outside.")
     #
 elseif  char == 'D'
     println("D)  Examples, tests & development of basic atomic processes")

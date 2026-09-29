@@ -108,6 +108,13 @@ end
                                                     ## added 31-Aug-2026; the PNC amplitude is purely IMAGINARY and
                                                     ## connects EQUAL parities, the EDM one is REAL and connects
                                                     ## OPPOSITE parities with equal J -- exact opposites in both
+        @test TestFrames.testModule_NuclearShielding()
+                                                    ## added 29-Sep-2026; the angular normalisation ALONE, with no
+                                                    ## orbitals and no stored .sum: (8/5)|<l||C2||l>|^2 must equal
+                                                    ## Sternheimer's 48/25, 16/7, 224/75, and the relativistic sum
+                                                    ## over spin-orbit partners must be exactly twice the
+                                                    ## non-relativistic value.  One constant multiplies every number
+                                                    ## the module returns, and nothing else could reveal it wrong.
     end
 
     @testset "JAC processes" begin

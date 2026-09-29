@@ -91,7 +91,7 @@ export AbstractCImethod, AbstractComputeTheme, AbstractConfigurationRestriction,
        MeanOccupation, MuonicAtom, minus, Model, MultiPhotonDE, MultiPhotonIonization,
        MultiPhotonTransition, MultiPI, Multiplet, Multiplicity, MultipoleAmplitude, MultipoleMoment,
        MultipolePolarizibility,
-       NoAmplitude, NoneQed, NonrelativisticBasis, NoProcess, NoProperty, Nuclear, NumberOfElectrons,
+       NoAmplitude, NoneQed, NonrelativisticBasis, NoProcess, NoProperty, Nuclear, NuclearShielding, NumberOfElectrons,
        OccupationDifference, OneElectronSettings, OneElectronSpectrum, OpenShellNumber, OpenShells, OpenSubshells, oplus,
        Orbital,
        PairA1P, Parity,
@@ -171,6 +171,7 @@ include("module-FormFactor.jl")
 include("module-ReducedDensityMatrix.jl")
 include("module-AlphaVariation.jl")
 include("module-MultipolePolarizibility.jl")
+include("module-NuclearShielding.jl")
 include("module-StarkShift.jl")
 include("module-StarkZeeman.jl")
 include("module-CrystalField.jl")

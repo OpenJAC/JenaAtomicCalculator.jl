@@ -26,6 +26,60 @@ end
 
 
 """
+`TestFrames.testModule_NuclearShielding(; short::Bool=true)`
+    ... tests the ANGULAR NORMALISATION of module NuclearShielding against closed-form values, with no orbitals,
+        no grid and no approved file, so that nothing in it can drift.
+
+        WHY THIS IS THE TEST TO HAVE.  The whole module is one angular weight times one radial sum, and the weight
+        is a single constant multiplying every number it returns.  If that constant is wrong, every shielding
+        factor is wrong by the same silent factor and no comparison with experiment can reveal it, because the
+        quantity has no independent measurement of its own.  Two closed-form statements pin it:
+
+        (i)  the NON-RELATIVISTIC closed-shell coefficients of Sternheimer, Phys. Rev. 159, 266 (1967),
+             48/25 (p->p), 16/7 (d->d) and 224/75 (f->f), must equal (8/5) |<l||C^(2)||l>|^2;
+        (ii) the RELATIVISTIC sum over the two spin-orbit partners of |<kappa||C^(2)||kappa'>|^2 must equal
+             exactly TWICE the non-relativistic |<l||C^(2)||l'>|^2 -- the spin factor -- which is what makes the
+             relativistic module reduce to the tabulated non-relativistic limit.
+
+        A success::Bool is returned.
+"""
+function testModule_NuclearShielding(; short::Bool=true)
+    printstyled("\n\nTest the module  NuclearShielding  ... \n", color=:cyan)
+    success = true
+    clNR(l, L, lp) = (l+lp+L) % 2 != 0 ? 0.0 :
+        (-1.0)^l * sqrt((2l+1)*(2lp+1)) *
+        AngularMomentum.Wigner_3j(AngularJ64(l), AngularJ64(L), AngularJ64(lp),
+                                  AngularM64(0), AngularM64(0), AngularM64(0))
+
+    # (i) the published closed-shell coefficients
+    for  (l, published)  in  ((1, 48/25), (2, 16/7), (3, 224/75))
+        computed = 1.6 * clNR(l, 2, l)^2
+        if  abs(computed - published) > 1.0e-10
+            success = false
+            println("  ** l = $l :  (8/5)|<l||C2||l>|^2 = $computed  but Sternheimer's value is $published")
+        end
+    end
+
+    # (ii) the relativistic sum over spin-orbit partners must be exactly twice the non-relativistic value
+    kappas(l) = l == 0 ? [-1] : [-(l+1), l]
+    for  (l, lp)  in  ((1,1), (2,2), (3,3), (0,2), (1,3), (2,4))
+        wa = 0.
+        for  ka  in  kappas(l),  kv  in  kappas(lp)
+            wa = wa + AngularMomentum.CL_reduced_me(Subshell(9, ka), 2, Subshell(9, kv))^2
+        end
+        wb = 2.0 * clNR(l, 2, lp)^2
+        if  abs(wa - wb) > 1.0e-10
+            success = false
+            println("  ** l = $l -> $lp :  relativistic sum = $wa  but 2 x non-relativistic = $wb")
+        end
+    end
+
+    testPrint("testModule_NuclearShielding()::", success)
+    return(success)
+end
+
+
+"""
 `TestFrames.testModule_DecayYield(; short::Bool=true)`  ... tests on module DecayYield.
 """
 function testModule_DecayYield(; short::Bool=true)
