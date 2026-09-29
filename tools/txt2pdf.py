@@ -10,6 +10,20 @@ happened once before this file was moved here (7-Sep-2026).
 Assumes pure ASCII input: any other byte is replaced rather than raising, so a stray character
 gives a visible artefact instead of a failed build.  55 lines fit on a page at these margins, so
 a page count can be predicted from the line count before rendering.
+
+AND THERE IS A WIDTH LIMIT THAT THIS SCRIPT DOES NOT ENFORCE: nothing is wrapped, so a line
+longer than **80 characters** runs off the right edge of the page and is simply lost.  Measured
+29-Sep-2026 by rendering lines of known length and reading them back with pdftotext: 80 survives,
+84 does not.  It fails SILENTLY -- the build reports success and the page looks normal -- and it
+had already cost an application summary eight lines, among them a table column and the one
+reference value its argument rested on.  So check the source before publishing:
+
+    awk 'length>80{print FILENAME" "NR": "length}' <file>
+
+and verify afterwards by comparing alphanumeric content, which ignores how pdftotext reflows
+whitespace:
+
+    for f in src.txt out.txt; do tr -cd '[:alnum:]' < $f | wc -c; done
 """
 import sys, zlib
 
