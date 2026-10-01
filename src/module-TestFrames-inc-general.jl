@@ -1233,6 +1233,45 @@ function testMethod_SpinAngular(; short::Bool=true)
         end
     end
 
+    # (6) A SPECTATOR SUBSHELL MUST BE IN THE SAME STATE ON BOTH SIDES. A two-body operator touches at most TWO
+    #     subshells, so a term that leaves a third one untouched vanishes unless that third subshell carries the
+    #     same seniority AND the same subshellJ in bra and ket. Added 1-Oct-2026 with the repair of that rule in
+    #     `SpinAngular.computeCoefficients`: without it, the two 4f_7/2^4 states of 1s^2 4f^10 with J = 2 and
+    #     seniorities 2 and 4 were connected by the rank-0 DIRECT term of the CLOSED 1s_1/2 and 4f_5/2 spectators,
+    #     V = 2 sqrt(3) with XL = F^0(1s,4f) = 14.54, i.e. 50.35 Ha where every honest element of that multiplet
+    #     is below 0.4. The 2x2 block then gave E0 +/- V, so the LOWEST and the HIGHEST level of neutral Dy
+    #     4f^10 6s^2 were the symmetric and antisymmetric mixture of one CSF pair, 210 keV apart.
+    #     The invariant below is the general statement and does not depend on that particular atom.
+    let
+        csfs, subshells = csfsOf(["1s^2 4f^10"])
+        pairs = 0
+        for  r = 1:length(csfs),  s = r+1:length(csfs)
+            (csfs[r].occupation == csfs[s].occupation  &&  csfs[r].J == csfs[s].J  &&
+             csfs[r].parity == csfs[s].parity)  ||  continue
+            differing = [i for i = 1:length(subshells)
+                         if csfs[r].seniorityNr[i] != csfs[s].seniorityNr[i]  ||
+                            csfs[r].subshellJ[i]  != csfs[s].subshellJ[i]]
+            length(differing) == 0  &&  continue
+            pairs = pairs + 1
+            coeffs = SpinAngular.computeCoefficients(SpinAngular.TwoParticleOperator(0, Basics.plus),
+                                                     csfs[r], csfs[s], subshells)
+            for  c  in  coeffs
+                acting = Set([c.a, c.b, c.c, c.d])
+                if  !issubset(Set(subshells[differing]), acting)
+                    success = false
+                    if printTest   info(iostream, "SpinAngular: a two-particle coefficient on $(c.a) $(c.b) " *
+                                                  "$(c.c) $(c.d) survives between CSFs $r and $s, which differ " *
+                                                  "in a subshell the operator does not touch")   end
+                end
+            end
+        end
+        if  pairs == 0
+            success = false
+            if printTest   info(iostream, "SpinAngular: 1s^2 4f^10 carries no coupling-degenerate CSF pair, " *
+                                          "so the spectator test checked nothing")   end
+        end
+    end
+
     testPrint("testMethod_SpinAngular()::", success)
     return(success)
 end

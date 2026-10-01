@@ -127,7 +127,9 @@ function computeCoefficients(op::SpinAngular.TwoParticleOperator, leftCsf::CsfR,
     end
     # EQUAL OCCUPATIONS are required; the couplings may differ. Each term is bra/ket aware -- the direct and
     # exchange terms through `substitutionRecoupling`, the same-subshell term through its own orthogonality guard --
-    # so a pair differing only in coupling is handled rather than refused, and gives zero where it should.
+    # so a pair differing only in coupling is handled rather than refused. That was not sufficient on its own: the
+    # recoupling chain reads the subshellJ and subshellX and so cannot see a SENIORITY difference, and the spectator
+    # guard that catches one is in the equal-occupation branch below (1-Oct-2026).
     if  leftCsf.J != rightCsf.J  ||  leftCsf.parity != rightCsf.parity     return( coeffs2pEmpty() )   end
     # ... a pair that MOVES ONE electron between two subshells has its own assembly; anything further apart is
     #     orthogonal for a two-body operator, and returning the equal-occupation answer for it would be a wrong
@@ -164,11 +166,32 @@ function computeCoefficients(op::SpinAngular.TwoParticleOperator, leftCsf::CsfR,
 
     coeffs = Coefficient2p{EffectiveStrengthKind}[]
     nw     = length(subshells)
+    # A TWO-BODY OPERATOR TOUCHES AT MOST TWO SUBSHELLS, SO EVERY OTHER ONE IS A SPECTATOR AND MUST BE IN THE SAME
+    # STATE ON BOTH SIDES. Two states of one subshell that share occupation, J and parity but differ in SENIORITY are
+    # orthogonal, so a term that leaves such a pair untouched is exactly zero -- and nothing in the recoupling chain
+    # below notices, because it reads only the subshellJ and subshellX, which are identical for such a pair. The
+    # one-particle counterpart `scalarDiagonal` has carried this guard from the start; this one was missing, and the
+    # cost of that was measured: in 1s^2 4f^10 at Z = 66 the two 4f_7/2^4 states with J = 2 and seniority 2 and 4 were
+    # connected by the rank-0 DIRECT term of the two CLOSED spectator subshells, V = 2 sqrt(3) times F^0(1s,4f_5/2) =
+    # 50.35 Ha, where every honest element of that multiplet is below 0.4 Ha. The 2x2 block then gave E0 +/- V, i.e.
+    # two levels displaced by +/- 1370 eV in that system and by +/- 105 keV in neutral Dy 4f^10 6s^2 -- the lowest and
+    # the highest level of the whole multiplet, each an equal mixture of the two CSFs. For j <= 7/2 a two-body
+    # interaction is diagonal in seniority (Racah), so `twoParticleSameShell` returns an exact zero for that pair and
+    # the whole element must vanish; it is the spectator term that has to be stopped here.
+    changedSubshells = Int64[]
+    for  i = 1:nw
+        if  leftCsf.seniorityNr[i] != rightCsf.seniorityNr[i]  ||  leftCsf.subshellJ[i] != rightCsf.subshellJ[i]
+            push!(changedSubshells, i)
+        end
+    end
+    # ... more than two subshells in a different state cannot be reached by a two-body operator at all
+    if  length(changedSubshells) > 2    return( coeffs )    end
+
     for  ia = 1:nw
         leftCsf.occupation[ia] == 0  &&  continue
         sha = subshells[ia]
-        # ... the same-subshell term, which needs two electrons in the one shell
-        if  leftCsf.occupation[ia] >= 2
+        # ... the same-subshell term, which needs two electrons in the one shell and no spectator out of place
+        if  leftCsf.occupation[ia] >= 2  &&  issubset(changedSubshells, (ia,))
             for  k = 0:Basics.subshell_2j(sha)
                 v = twoParticleSameShell(leftCsf, rightCsf, subshells, ia, k)
                 abs(v) > 1.0e-14  &&  push!(coeffs, Coefficient2p{EffectiveStrengthKind}(k, sha, sha, sha, sha, v))
@@ -179,6 +202,7 @@ function computeCoefficients(op::SpinAngular.TwoParticleOperator, leftCsf::CsfR,
         #     whole vector, so computing them rank by rank would re-evaluate it kMax + 2 times over.
         for  ib = ia+1:nw
             leftCsf.occupation[ib] == 0  &&  continue
+            issubset(changedSubshells, (ia, ib))  ||  continue
             shb  = subshells[ib]
             ja   = AngularJ64( Basics.subshell_2j(sha)//2 );   jb = AngularJ64( Basics.subshell_2j(shb)//2 )
             kMax = Int64( (Basics.subshell_2j(sha) + Basics.subshell_2j(shb))//2 )
