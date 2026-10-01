@@ -1053,8 +1053,19 @@ from cost an evening once, and the fix is thirty seconds.
 
 **ON THE LAPTOP** — take copies:
 4. `git pull` on every branch you may want to touch while away.
-5. `jac-fetch` — brings `apps/` across. `jac-results` — brings `work/` output if you want to read it en route.
+5. **`apps/` IS SYNCHRONIZED IN BOTH DIRECTIONS, NOT MERELY FETCHED.** `jac-send` first, then `jac-fetch`, so the
+   two machines START the trip level. A pull alone is the mistake this step exists to prevent: on 01-Oct-2026 a
+   sweep found **72 files across 12 `apps/` folders** sitting only on the laptop, the oldest a fortnight old,
+   because every sync had been a pull and the matching `/returntravel` push was never run. Nothing was lost, but
+   none of it had reached the machine that does the computing. `jac-results` then brings `work/` output if you
+   want to read it en route.
 6. `jac-memory-pull` — brings the assistant's memory across, so nothing has to be re-explained.
+
+   **AND VERIFY, rather than trusting the transfer:** a dry run in BOTH directions must come back empty
+   (`rsync -avzn --itemize-changes` each way), and the two `ls -1 apps` must agree -- equal FILE COUNTS are not
+   enough, since a rename shows as one file on each side. Where a dry run reports a file present on both with
+   differing content, `md5sum` it before letting either side win: rsync's quick check compares SIZE AND MTIME
+   only, so two files of equal size and different content are reported as needing a mere timestamp fix.
 7. **Test the VPN before leaving.** The desktop sits at a private address: it is reachable from the institute
    network, and NOT from a hotel without the VPN. That is much better discovered at home than in a departure lounge.
 
