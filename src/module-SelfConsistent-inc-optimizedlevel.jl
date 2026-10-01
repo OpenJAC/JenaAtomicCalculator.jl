@@ -419,16 +419,28 @@ function combineAngularCoefficientsEOL(blockCaches, targetLevels::Array{Level,1}
     weights     = [ twiceJp1(level.J) / sumWeights  for level in targetLevels ]
 
     # ACCUMULATED DIRECTLY INTO THE CONDENSED SET, never through a flat vector of every pair's coefficients.
-    # It was built that way until 14-Sep-2026, and the cost was measured by VmHWM rather than guessed: on a
-    # 7 062-CSF Ti III space this routine ADDED 0.584 GB to the high-water mark to return 1 357 coefficients,
-    # once per SCF iteration and twice when the off-diagonal split is on.  The temporary held every coefficient
-    # of every contributing CSF pair, each a separately boxed heap object because `Coefficient2p[]` has a
-    # non-concrete element type (the kind is a type parameter), and it was then condensed by a NESTED DOUBLE LOOP
-    # over that vector -- O(N^2) in the entry count, not in the CSF count.
+    # It was built that way until 14-Sep-2026: the temporary held every coefficient of every contributing CSF
+    # pair and was then condensed by a NESTED DOUBLE LOOP over that vector -- O(N^2) in the entry count, not in
+    # the CSF count.  Accumulating directly removes both.  Measured on a 7 062-CSF Ti III space: 208.8 s ->
+    # 130.1 s, a factor 1.6, with the energies 1 ulp apart.
     #
     # THE RESULT WAS NEVER LARGE: it is bounded by the number of distinct (nu,a,b,c,d) labels, i.e. by the
-    # SUBSHELL count, while the temporary was bounded by nothing.  So the table below is the whole fix, and it
-    # removes the memory, the boxing and the quadratic condensation together.
+    # SUBSHELL count, while the temporary was bounded by nothing.
+    #
+    # TWO CLAIMS THAT LED HERE WERE LATER CHECKED AND ARE FALSE.  They are recorded because both are the kind a
+    # reader would otherwise re-derive, and one of them stood in this comment until 30-Sep-2026.
+    #   * NOT A BOXING PROBLEM.  The vector was said to hold separately boxed objects because `Coefficient2p[]`
+    #     has a non-concrete element type.  It does not: inside this module `Coefficient1p` and `Coefficient2p`
+    #     are `const` aliases to the CONCRETE types (module-SelfConsistent.jl, just below the Rule 18 note), so
+    #     those vectors have always been concretely typed.  The "105-178 bytes per entry" that started it was an
+    #     average over one-particle (48 B) and two-particle (80 B) entries plus array overhead, divided by the
+    #     combined count; a benchmark that appeared to confirm it had used `SpinAngular.Coefficient1p`, the
+    #     UnionAll, rather than the alias.
+    #   * AND IT DOES NOT SET THE PEAK.  A VmHWM attribution gave this routine 0.584 GB of an EOL run's
+    #     high-water mark, which is what made it look like the dominant term.  Removing the temporary saved
+    #     158 MB, not 584, because in a full solve the peak is set later in the iteration.  The memory of a
+    #     large EOL run is ALLOCATION CHURN -- measured 133.5 GB allocated to hold ~2 GB live, 12 % of the wall
+    #     clock in collection -- so it is a rate, not a structure, and no single routine owns it.
     #
     # FIRST-ENCOUNTER ORDER IS PRESERVED DELIBERATELY, and it is what makes the change verifiable: the old code
     # summed each label's contributions in the order it met them and emitted the labels in that same order, so
@@ -1190,18 +1202,55 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
             # for this function's name in jac-warn.report.  A memory estimate is not a convergence failure, and
             # putting it there would make a large-but-healthy run indistinguishable from a stalled one.
         end
-        # AND A TIME ESTIMATE, which is far weaker than the memory one and says so.  WITHIN one expansion the
-        # per-layer cost ran roughly linearly in the CSF count -- C-like U 0+ gave 21 / 320 / 677 / 2860 s for
-        # 4 / 67 / 264 / 658 CSFs, i.e. 5.3 / 4.8 / 2.6 / 4.3 s per CSF -- so ~4 s/CSF is the anchor below.
-        # ACROSS expansions it is much steeper and this law will UNDER-predict: C-like 1+ carries 2.4x the CSFs
-        # of 0+ and cost 17x the wall clock, because more CSFs bring more subshells and more SCF iterations
-        # with them.  Calibrated at Z = 92 on six electrons, single-threaded, on an ordinary desktop.  Quoted
-        # to one significant figure with the factor-of-two spread stated, because that is what it is worth.
-        tEol = 4.0 * nCsf
-        println(">> [EOL-C3] time estimate for this layer: " *
-                (tEol < 120. ? @sprintf("~%.0f s", tEol) : @sprintf("~%.1f h", tEol/3600)) *
-                " single-threaded, WITHIN A FACTOR OF ABOUT TWO (anchor 4 s/CSF, measured on C-like U at " *
-                "4/67/264/658 CSFs; it under-predicts for a larger or lower-symmetry expansion).")
+        # AND A TIME ESTIMATE, IN TWO TERMS.  Until 30-Sep-2026 this was a single "4 s/CSF" anchored on C-like U,
+        # and a layer's cost is not proportional to its CSF count: there is a FIXED cost per layer, the orbital
+        # and pair work, which does not care how many CSFs there are, plus a CI cost which does.  Dividing the
+        # total by N_CSF therefore names a quantity that does not exist, and the measured "s/CSF" duly FALLS as
+        # the expansion grows -- on Yb+ from 1.045 to 0.184 across four layers.
+        #
+        #     t  =  A(nSub)  +  b(nSub) * nCsf
+        #
+        # A = 111 s and b = 0.0426 s/CSF at nSub = 24;  A = 169 s and b = 0.1330 at nSub = 28 (Yb+, 69 electrons,
+        # Z = 70, four measured layers).  A rises about as nSub^2.73 and b as nSub^7.39 between those two points.
+        # **THOSE TWO EXPONENTS ARE FITTED ON TWO VALUES OF nSub AND ARE NOT THE TRUE SCALING** -- 7.39 is simply
+        # what two points give.  They are used because the SHAPE is what matters here and the shape is confirmed
+        # out of sample: a fifth Yb+ run at nSub = 33 and 8086 CSFs, both outside the fitted range, came in at
+        # 3316 s against 3884 s predicted, 1.17x, where the old law said 42694 s, 12.9x.
+        #
+        # THE COEFFICIENTS DO NOT TRANSFER BETWEEN ELEMENTS, and that is stated in the printout rather than hidden.
+        # Measured on Cl III (15 electrons, Z = 17) at three layers -- 802 CSF / 16 subshells / 114 s, 2816 / 25 /
+        # 874 s, 6622 / 36 / 5039 s -- this law gives 0.34x, 0.33x and 1.19x of the measurement, i.e. it UNDER-
+        # predicts a light ion by about three where it over-predicts Yb+. Still far better than the old law, which
+        # over-predicted those same three layers by 28x, 12.9x and 5.3x.
+        #
+        # AND THE DIRECTION OF ERROR IS NOW STATED CORRECTLY.  The old message said "within a factor of about two"
+        # and "it under-predicts for a larger expansion".  Both were false and in the opposite sense: it OVER-
+        # predicted on both systems measured, by 4x to 28x, and the trend is not even monotone in the expansion --
+        # worst at the LARGEST layer on Yb+ and at the SMALLEST on Cl III.  A user plans around this number; a
+        # 3321-CSF Yb+ layer was billed at 3.7 h, nearly not run for that reason, and took ten minutes.
+        # THE EXPONENTS ARE ONLY ANCHORED BETWEEN nSub = 24 AND 28, validated to 33, so they are NOT extrapolated
+        # far below that: nSub^7.39 taken down to nSub = 9 is a factor-5000 extrapolation and collapses the CI term
+        # to zero -- measured, it billed a 66-CSF / 9-subshell Cl III layer at 8 s against an actual ~25 s, and
+        # printed "0.000 s/CSF", which reads as a broken estimator rather than an extrapolated one.  Below the
+        # anchored range the law is reported AS an extrapolation and the user is told which way it fails.
+        tFixed  = 111.0  * (nSub/24.0)^2.73                   ## the per-layer orbital and pair work
+        tPerCsf = 0.0426 * (nSub/24.0)^7.39                   ## the per-CSF CI work
+        tEol    = tFixed + tPerCsf * nCsf
+        hms(t)  = t < 120. ? @sprintf("~%.0f s", t) : @sprintf("~%.1f h", t/3600)
+        println(">> [EOL-C3] time estimate for this layer: " * hms(tEol) * " single-threaded  =  " *
+                @sprintf("%.0f s fixed (orbitals, ~nSub^2.7)", tFixed) * " + " *
+                @sprintf("%.2e s/CSF x %d CSFs (the CI)", tPerCsf, nCsf) * ".")
+        if      nSub < 20
+            println(">> [EOL-C3]   *** nSub = $nSub is BELOW the anchored range (24-33), so this is an " *
+                    "extrapolation of nSub^7.39 over more than a factor of two and it UNDER-predicts there -- " *
+                    "measured 0.3x on a 15-electron ion.  Treat it as a lower bound, not an estimate.")
+        elseif  nSub > 40
+            println(">> [EOL-C3]   *** nSub = $nSub is ABOVE the anchored range (24-33); the law is untested there.")
+        else
+            println(">> [EOL-C3]   anchored on Yb+ (69 electrons), exact on its four fitted layers and 1.2x out of " *
+                    "sample;  a 15-electron ion measured 0.3x to 1.2x of it, so it is good to a FACTOR OF THREE " *
+                    "EITHER WAY across elements.  Its predecessor, one 4 s/CSF anchor, over-predicted by 4x-28x.")
+        end
         if  nSub >= 20  &&  nCsf >= 300
             println(">> [EOL-C3] *** NOTE: $nSub subshells and $nCsf CSFs together are the expensive corner -- the " *
                     "repulsion is rebuilt for every orbital PAIR, so the orbital work grows as the square of the " *
