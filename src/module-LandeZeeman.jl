@@ -555,6 +555,42 @@ end
 
 
 """
+`LandeZeeman.landeFFactor(F::AngularJ64, J::AngularJ64, I::AngularJ64, gJ::Float64, gI::Float64)`
+    ... calculates the hyperfine Lande factor g_F of a hyperfine level |(I J) F>, i.e. the factor by which that level
+        responds to an external magnetic field; a value::Float64 is returned.
+
+        BOTH the electronic and the NUCLEAR magnetic moment are included:
+
+            g_F  =  g_J [F(F+1) + J(J+1) - I(I+1)] / 2F(F+1)
+                  - g_I (mu_N/mu_B) [F(F+1) + I(I+1) - J(J+1)] / 2F(F+1)
+
+        where g_I = mu_I / (I mu_N) is the dimensionless nuclear g factor and mu_N/mu_B = m_e/m_p.
+
+        THE NUCLEAR TERM WAS MISSING UNTIL 30-Sep-2026 and is not negligible, which is why it has its own function
+        rather than sitting inline in a display routine.  It is of relative order 1e-4 -- about m_e/m_p -- so it is
+        a HUNDRED TIMES larger than the 1e-6 at which a quantum-logic experiment now reads a g factor.  Worse, the
+        electronic projection VANISHES on particular hyperfine levels while the nuclear one does not, and there the
+        omission was the entire answer: for I = 7/2 coupled to J = 3/2 at F = 3 the electronic bracket is identically
+        zero and g_F is purely nuclear.  49Ti+ a^4F_(3/2), F = 3 returns +1.718e-04 where the old code returned 0.
+
+        SIGN CONVENTION.  g_I carries the sign of the nuclear moment, and the nuclear term enters with a MINUS because
+        the nucleus and the electron have opposite charge.  For a NEGATIVE moment -- as both odd titanium isotopes have
+        -- the nuclear term is therefore POSITIVE.
+"""
+function landeFFactor(F::AngularJ64, J::AngularJ64, I::AngularJ64, gJ::Float64, gI::Float64)
+    Fx = AngularMomentum.oneJ(F);    Jx = AngularMomentum.oneJ(J);    Ix = AngularMomentum.oneJ(I)
+    Fx*(Fx+1.0) < 1.0e-10   &&   return( 0. )                  # F = 0 has no first-order Zeeman response
+    # mu_N/mu_B = m_e/m_p.  The converter returns a moment in ATOMIC units, where mu_B = 1/2, so twice its
+    # value for one nuclear magneton is the ratio itself; the constant then lives in Defaults alone.
+    muNoverMuB = 2.0 * Defaults.convertUnits("moment: from nuclear magneton to atomic", 1.0)
+    wElectron  = (Fx*(Fx+1.0) + Jx*(Jx+1.0) - Ix*(Ix+1.0)) / (2.0*Fx*(Fx+1.0))
+    wNucleus   = (Fx*(Fx+1.0) + Ix*(Ix+1.0) - Jx*(Jx+1.0)) / (2.0*Fx*(Fx+1.0))
+
+    return( gJ * wElectron - gI * muNoverMuB * wNucleus )
+end
+
+
+"""
 `LandeZeeman.displayResults(stream::IO, outcomes::Array{LandeZeeman.Outcome,1}, nm::Nuclear.Model, settings::LandeZeeman.Settings)`  
     ... to display the energies, Lande factors, Zeeman amplitudes etc. for the selected levels. A neat table is printed but nothing is 
         returned otherwise.
@@ -619,9 +655,10 @@ function  displayResults(stream::IO, outcomes::Array{LandeZeeman.Outcome,1}, nm:
             sc = TableStrings.hBlank( length(sa) + 1 )
             Flist = oplus(nm.spinI, outcome.Jlevel.J)
             for  F in Flist
-                symf   = LevelSymmetry( F, outcome.Jlevel.parity);      Fx = AngularMomentum.oneJ(F)
-                Jx     = AngularMomentum.oneJ(outcome.Jlevel.J);    Ix = AngularMomentum.oneJ(nm.spinI)
-                LandeF = (Fx*(Fx+1) + Jx*(Jx+1) - Ix*(Ix+1)) / (2*Fx*(Fx+1)) * outcome.LandeJ
+                symf   = LevelSymmetry( F, outcome.Jlevel.parity)
+                Ix     = AngularMomentum.oneJ(nm.spinI)
+                gI     = Ix > 1.0e-10 ? nm.mu / Ix : 0.                # dimensionless nuclear g factor
+                LandeF = LandeZeeman.landeFFactor(F, outcome.Jlevel.J, nm.spinI, outcome.LandeJ, gI)
                 sa = sc * TableStrings.center(10, string(symf); na=4)
                 sa = sa * TableStrings.flushright(15, @sprintf("% .8e", LandeF) )   
                 println(stream, sa )

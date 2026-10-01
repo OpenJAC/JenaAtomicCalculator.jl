@@ -206,6 +206,16 @@ end
 `TestFrames.testModule_LandeZeeman(; short::Bool=true)`  ... tests on module LandeZeeman.
 """
 function testModule_LandeZeeman(; short::Bool=true)
+    # THE g_F ROWS OF THE APPROVED FILE WERE RE-APPROVED ON 30-Sep-2026, and this note is here so that the
+    # change is findable from the test rather than only from a commit message.  `LandeZeeman.landeFFactor`
+    # gained the NUCLEAR contribution to the hyperfine g factor, which had been omitted: the electrons are
+    # not the only magnet in a hyperfine level, and the nuclear term is of relative order m_e/m_p = 5.4e-4,
+    # i.e. a hundred times the 1e-6 at which such a g factor is now measured.  Eight g_F rows moved and
+    # NOTHING ELSE in the file was touched; every difference equals -g_I (m_e/m_p) times the nuclear
+    # projection bracket exactly, checked level by level, and the case I = 7/2 with J = 3/2 at F = 3 -- where
+    # the ELECTRONIC bracket vanishes identically so the answer is purely nuclear -- reproduces
+    # -g_I (m_e/m_p) to five figures.  The level energies in the same file drifted by 4.3e-8 relative over
+    # the same period, which is inside this comparison's rtol of 1e-6 and was NOT re-approved.
     Defaults.setDefaults("print summary: open", "test-LandeZeeman-new.sum")
     printstyled("\n\nTest the module  LandeZeeman  ... \n", color=:cyan)
     ### Make the tests
