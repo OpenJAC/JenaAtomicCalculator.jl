@@ -26,9 +26,15 @@ elseif true
     # `wb` is produced by an earlier branch of this file (line 21).
     if  !@isdefined(wb)   error("Run the earlier branch of this file first; it defines `wb`.")   end
     nMultiplet     = wb["mean-field multiplet"]
-    doubleSettings = PhotoDoubleIonization.Settings(EmMultipole[E1], UseGauge[UseCoulomb, UseBabushkin], quasiShells,
-                                                    [400., 500.], 2, 2, 
-                                                    true, true, LineSelection(true, indexPairs=[(1,0)]), CoulombInteraction(), nMultiplet )
+    # The KEYWORD form, so that a new Settings field cannot silently break this call -- which had already happened:
+    # the positional version passed `quasiShells` third, where `photonEnergies` now sits, and a field of that name
+    # no longer exists.  A second field was added on 30-Sep-2026 (NoIntermediateEnergies) and would have been the
+    # eleventh of twelve.
+    doubleSettings = PhotoDoubleIonization.Settings(PhotoDoubleIonization.Settings();
+                         multipoles=[E1], gauges=[UseCoulomb, UseBabushkin], photonEnergies=[400., 500.],
+                         NoEnergySharings=2, maxKappa=2, calcDifferentialCs=true, printBefore=true,
+                         lineSelection=LineSelection(true, indexPairs=[(1,0)]),
+                         eeInteraction=CoulombInteraction(), gMultiplet=nMultiplet )
     
     wc = Atomic.Computation(Atomic.Computation(), name="xx", grid=grid, nuclearModel=Nuclear.Model(4.01), 
                             initialConfigs  = [Configuration("1s^2")],

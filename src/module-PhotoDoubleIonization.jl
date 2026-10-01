@@ -134,6 +134,13 @@ using Printf, ..AngularMomentum, ..Basics, ..Bsplines, ..Continuum, ..Defaults, 
         it corrects the total electron energy for a shift of the i-f transition energy and thereby separates the energies at which the
         continuum orbitals are generated from the sharing coordinates.
     + NoEnergySharings        ::Int64                   ... Number of energy sharings that are used in the computations for each line.
+    + NoIntermediateEnergies  ::Int64                   ... Number of points in the integral over the INTERMEDIATE electron energy of the
+        second-order amplitude. This is a different convergence question from `NoEnergySharings` and must be set separately: the sharing
+        mesh resolves the OUTER integral over how the excess energy is divided between the two emitted electrons, whereas this mesh decides
+        how completely the second-order sum over intermediate states is carried out. **Until 30-Sep-2026 both were taken from
+        `NoEnergySharings`**, so asking for more sharings silently made the intermediate sum more complete as well, and the differential
+        cross section at a FIXED sharing then grew with the number of sharings -- measured at equal sharing, a factor 2.7 between 3 and 41
+        sharings, with the partial-wave set unchanged. 0 means fall back to `NoEnergySharings`, i.e. the old, entangled behaviour.
     + maxKappa                ::Int64                   ... Maximum kappa value of partial waves to be included.
     + calcDifferentialCs      ::Bool                    ... True, if the energy-differential cs are to be calculated and false otherwise.  
     + printBefore             ::Bool                    ... True, if all energies and lines are printed before their evaluation.
@@ -147,6 +154,7 @@ struct Settings  <:  AbstractProcessSettings
     photonEnergies            ::Array{Float64,1} 
     electronEnergyShift       ::Float64 
     NoEnergySharings          ::Int64         
+    NoIntermediateEnergies    ::Int64         
     maxKappa                  ::Int64 
     calcDifferentialCs        ::Bool 
     printBefore               ::Bool
@@ -160,7 +168,7 @@ end
 `PhotoDoubleIonization.Settings()`  ... constructor for the default values of PhotoDoubleIonization line computations
 """
 function Settings()
-    Settings(Basics.EmMultipole[E1], Basics.UseGauge[Basics.UseCoulomb, Basics.UseBabushkin], Float64[], 0., 0, 0, false, false, 
+    Settings(Basics.EmMultipole[E1], Basics.UseGauge[Basics.UseCoulomb, Basics.UseBabushkin], Float64[], 0., 0, 0, 0, false, false, 
                 LineSelection(), CoulombInteraction(), Multiplet())
 end
 
@@ -169,7 +177,7 @@ end
 `PhotoDoubleIonization.Settings(set::PhotoDoubleIonization.Settings;`
 
         multipoles=..,          gauges=..,                  photonEnergies=..,          
-        electronEnergyShift=.., NoEnergySharings=..,     
+        electronEnergyShift=.., NoEnergySharings=..,     NoIntermediateEnergies=..,
         maxKappa=..,            calcDifferentialCs..,       printBefore=..,             lineSelection=..,       
         eeInteraction=..,       gMultiplet=..)
                     
@@ -178,7 +186,7 @@ end
 function Settings(set::PhotoDoubleIonization.Settings;    
     multipoles::Union{Nothing,Array{EmMultipole,1}}=nothing,                gauges::Union{Nothing,Array{UseGauge,1}}=nothing,  
     photonEnergies::Union{Nothing,Array{Float64,1}}=nothing,                electronEnergyShift::Union{Nothing,Float64}=nothing,
-    NoEnergySharings::Union{Nothing,Int64}=nothing,       
+    NoEnergySharings::Union{Nothing,Int64}=nothing,                         NoIntermediateEnergies::Union{Nothing,Int64}=nothing,
     maxKappa::Union{Nothing,Int64}=nothing,                                 calcDifferentialCs::Union{Nothing,Bool}=nothing,      
     printBefore::Union{Nothing,Bool}=nothing,                               lineSelection::Union{Nothing,LineSelection}=nothing, 
     eeInteraction::Union{Nothing,AbstractEeInteraction}=nothing,            gMultiplet::Union{Nothing,Multiplet}=nothing)  
@@ -188,6 +196,7 @@ function Settings(set::PhotoDoubleIonization.Settings;
     if  isnothing(photonEnergies)       photonEnergiesx     = set.photonEnergies     else  photonEnergiesx     = photonEnergies      end 
     if  isnothing(electronEnergyShift)  electronEnergyShiftx= set.electronEnergyShift else electronEnergyShiftx= electronEnergyShift end 
     if  isnothing(NoEnergySharings)     NoEnergySharingsx   = set.NoEnergySharings   else  NoEnergySharingsx   = NoEnergySharings    end 
+    if  isnothing(NoIntermediateEnergies)  NoIntermediateEnergiesx = set.NoIntermediateEnergies  else  NoIntermediateEnergiesx = NoIntermediateEnergies  end 
     if  isnothing(maxKappa)             maxKappax           = set.maxKappa           else  maxKappax           = maxKappa            end 
     if  isnothing(calcDifferentialCs)   calcDifferentialCsx = set.calcDifferentialCs else  calcDifferentialCsx = calcDifferentialCs  end 
     if  isnothing(printBefore)          printBeforex        = set.printBefore        else  printBeforex        = printBefore         end 
@@ -195,8 +204,8 @@ function Settings(set::PhotoDoubleIonization.Settings;
     if  isnothing(eeInteraction)        eeInteractionx      = set.eeInteraction      else  eeInteractionx      = eeInteraction       end 
     if  isnothing(gMultiplet)           gMultipletx         = set.gMultiplet         else  gMultipletx         = gMultiplet          end 
 
-    Settings( multipolesx, gaugesx, photonEnergiesx, electronEnergyShiftx, NoEnergySharingsx, maxKappax, calcDifferentialCsx, 
-                printBeforex, lineSelectionx, eeInteractionx, gMultipletx)
+    Settings( multipolesx, gaugesx, photonEnergiesx, electronEnergyShiftx, NoEnergySharingsx, NoIntermediateEnergiesx, maxKappax,
+                calcDifferentialCsx, printBeforex, lineSelectionx, eeInteractionx, gMultipletx)
 end
 
 
@@ -449,6 +458,19 @@ function amplitude(::Absorption, Mp::EmMultipole, gauge::EmGauge, omega::Float64
                             # quadrature levels carry the principal value, the on-shell level carries the residue
                             # and takes no denominator at all.  Deciding this by how close enn happens to lie to
                             # the pole would misclassify any quadrature node that drifted near it.
+                            # THE DELTA-RESIDUE IS HERE AND THE PRINCIPAL VALUE IS NOT -- MEASURED 30-Sep-2026,
+                            # and it is why the second-order sum has no converged value.  A retarded propagator is
+                            # 1/(x + i eta) = PV(1/x) - i pi delta(x).  The -i pi below IS the delta piece, taken at
+                            # the one designated on-shell node; every OTHER node then divides by the bare x, and a
+                            # plain Gauss-Legendre sum of 1/x through a pole is not a principal value.  It has no
+                            # limit: refining the mesh puts nodes ever nearer the pole.  Measured on He at 200 eV,
+                            # maxKappa = 2, with the SHARING mesh held at 9 and only this one refined, the total runs
+                            # 4.35e-05 -> 4.18 -> 4.44 -> 5.15 -> 6.35 -> 7.99 -> 9.64e-05 for 3, 5, 9, 15, 25, 41,
+                            # 61 points -- more than doubling, with the increments NOT shrinking (+16, +23, +26,
+                            # +21 %).  The OUTER sharing quadrature, by contrast, converges to five digits by 15
+                            # points once the two meshes are separated, so it was never the problem.  A correct PV
+                            # needs nodes placed symmetrically about the pole, a subtraction of the singular part, or
+                            # the interval split AT the pole -- none of which a plain rule does.  Priority item 33.
                             propagator = onShell[k] ? ComplexF64(0., -pi) : ComplexF64(1. / (eni + omega - enn))
                             amplitude = amplitude + wn * fLevel.mc[r] * Vee * nLevel.mc[t] * nLevel.mc[tp] * OMp *
                                                     iLevel.mc[s] * propagator
@@ -577,7 +599,12 @@ function  computeAmplitudesProperties(line::PhotoDoubleIonization.Line, nm::Nucl
     contSettings = Continuum.Settings(false, nrContinuum)
     symi         = LevelSymmetry(line.initialLevel.J, line.initialLevel.parity)
     # The sum over intermediate states is an integral over the intermediate electron energy, because those states
-    # are normalized per energy interval.  The same number of points is used as for the energy sharings.
+    # are normalized per energy interval.  ITS NUMBER OF POINTS IS ITS OWN SETTING -- until 30-Sep-2026 it was taken
+    # from `NoEnergySharings`, which tied two unrelated convergence questions together: the outer integral over the
+    # energy SHARING, and the completeness of the second-order sum.  Measured consequence, He at 200 eV, maxKappa = 2:
+    # dsigma/deps_1 AT EQUAL SHARING grew 7.30e-06 -> 2.00e-05, a factor 2.7, from 3 to 41 sharings, with the eight
+    # partial-wave pairs unchanged -- so the differential cross section was not a function of the sharing at all, and
+    # a convergence scan in `NoEnergySharings` was really watching the intermediate sum move.  See priority item 33.
     Ji2          = Basics.twice(line.initialLevel.J)
     # THE SAME WRONG PREFACTOR THAT WAS ALREADY FOUND AND CORRECTED IN PhotoIonization.  Until
     # 6-Sep-2026 this read  4 pi^2 alpha omega / (2 (2J_i+1)), which is character for character the
@@ -605,7 +632,8 @@ function  computeAmplitudesProperties(line::PhotoDoubleIonization.Line, nm::Nucl
     # on-shell point inside it; see the note at that denominator.
     eGreenMin    = minimum(lv.energy for lv in settings.gMultiplet.levels)
     maxIntEnergy = line.initialLevel.energy + line.photonEnergy - eGreenMin
-    intermediateGrid = Radial.GridGL(Radial.GridGaussLegendreFinite(), 0.01, maxIntEnergy, settings.NoEnergySharings; printout=false)
+    noIntEnergies    = settings.NoIntermediateEnergies > 0 ? settings.NoIntermediateEnergies : settings.NoEnergySharings
+    intermediateGrid = Radial.GridGL(Radial.GridGaussLegendreFinite(), 0.01, maxIntEnergy, noIntEnergies; printout=false)
 
     for  sharing in line.sharings
         newPairs = PhotoDoubleIonization.PartialWavePair[]
