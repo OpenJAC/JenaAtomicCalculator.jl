@@ -1506,6 +1506,18 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
         # measured on the planned step sat at 0.585 while the one measured on the realized displacement sat
         # at 0.824, and it was the realized one that was closer to unity in 114 of 144 accepted steps.  That
         # is the solver's own stated signature for "the model is describing a step the search does not take".
+        #   AND IT MUST NOT BE TAKEN FURTHER THAN THE ORBITAL ITSELF -- MEASURED 04-Oct-2026 AND REJECTED.
+        # Renormalizing preserves each orbital's NORM but not the mutual ORTHOGONALITY of a kappa block, so the
+        # same reasoning seems to say: project the direction against EVERY orbital of its own kappa, not only
+        # against the one it moves.  That is WRONG, and the error is physical rather than numerical.  A rotation
+        # that mixes 5s into 4s is NOT a redundant degree of freedom while the CSF space is incomplete -- it
+        # changes the energy, and it is part of what a correlation layer is for.  Projecting it out over-constrains
+        # the optimization: on 43Ca+ [Ar] 4s with core s -> s singles at a budget of 150, step 2 gives
+        #     project against the orbital itself only (as here)   E = -679.517947 Ha
+        #     project against the whole kappa block               E = -679.498826 Ha   (19 mHa WORSE)
+        # and the second returns A = -1009.74 MHz against -806.402 measured, a 25 % error on the worst energy.
+        # The component along the orbital ITSELF is the only one the renormalization provably discards, and it is
+        # therefore the only one that may be removed here.
         stripNormChange! = function(d::Dict{Subshell, Vector{Float64}})
             for  sh  in  activeSubshells
                 bBb = transpose(bVectors[sh]) * matrixB * bVectors[sh]
