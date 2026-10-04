@@ -1593,6 +1593,68 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
             beta = 0.
             dg   = 0.;   for sh in activeSubshells   dg = dg + sum( grad[sh] .* dir[sh] )   end
         end
+        # ONE-SHOT MEASUREMENT OF A FINITE-DIFFERENCE HESSIAN-VECTOR PRODUCT, off unless JAC_EOL_HESSCHECK is set.
+        # The question it answers is whether a second-order (Newton) method needs the orbital-orbital Hessian to be
+        # DERIVED at all.  It does not have to be: the gradient here is exact, so H v follows from a central
+        # difference of it, (grad(b + eps v) - grad(b - eps v)) / (2 eps), at the cost of two gradients and with no
+        # new angular machinery whatever.  Three things are reported, because a Hessian-vector product that is
+        # merely plausible is worthless: SYMMETRY, <v1, H v2> against <v2, H v1>, which an exact Hessian must
+        # satisfy and a wrong one generally will not; CURVATURE, <v, H v> against the second difference of the
+        # ENERGY itself, which ties it to the functional rather than to the gradient routine; and the COST of a
+        # gradient against that of an energy, which is what decides whether a Newton-CG inner loop is affordable.
+        if  haskey(ENV, "JAC_EOL_HESSCHECK")  &&
+                    iter == something(tryparse(Int, ENV["JAC_EOL_HESSCHECK"]), 5)
+            hessTimes = function(v::Dict{Subshell, Vector{Float64}}, eps::Float64)
+                bp = Dict{Subshell, Vector{Float64}}( sh => copy(bVectors[sh])  for sh in basis.subshells )
+                bm = Dict{Subshell, Vector{Float64}}( sh => copy(bVectors[sh])  for sh in basis.subshells )
+                for  sh  in  activeSubshells
+                    bp[sh] = bVectors[sh] + eps * v[sh];    bm[sh] = bVectors[sh] - eps * v[sh]
+                end
+                gp = SelfConsistent.computeOrbitalGradient(bp, coeffs1p, coeffs2p, basis.subshells,
+                                                                   primitives, nucPot, storage, matrixB)
+                gm = SelfConsistent.computeOrbitalGradient(bm, coeffs1p, coeffs2p, basis.subshells,
+                                                                   primitives, nucPot, storage, matrixB)
+                hv = Dict{Subshell, Vector{Float64}}()
+                for  sh  in  activeSubshells    hv[sh] = (gp[sh] - gm[sh]) / (2eps)    end
+                return( hv )
+            end
+            dotA = function(x, y)
+                wa = 0.;    for sh in activeSubshells   wa = wa + sum( x[sh] .* y[sh] )   end;    return( wa )
+            end
+            # Two independent probe directions: the search direction and the raw gradient.
+            v1 = Dict{Subshell, Vector{Float64}}( sh => copy(dir[sh])   for sh in activeSubshells )
+            v2 = Dict{Subshell, Vector{Float64}}( sh => copy(grad[sh])  for sh in activeSubshells )
+            for  eps  in  (1.0e-3, 1.0e-4, 1.0e-5, 1.0e-6)
+                h1 = hessTimes(v1, eps);    h2 = hessTimes(v2, eps)
+                a  = dotA(v2, h1);          b = dotA(v1, h2)
+                # <v,Hv> against the energy's own second difference, both on RAW vectors as the gradient is.
+                bp = Dict{Subshell, Vector{Float64}}( sh => copy(bVectors[sh])  for sh in basis.subshells )
+                bm = Dict{Subshell, Vector{Float64}}( sh => copy(bVectors[sh])  for sh in basis.subshells )
+                for  sh  in  activeSubshells
+                    bp[sh] = bVectors[sh] + eps * v1[sh];    bm[sh] = bVectors[sh] - eps * v1[sh]
+                end
+                (_, ep) = SelfConsistent.energyFromBVectorsSplit(bp, coeffs1p, coeffs2p, basis.subshells,
+                                                     primitives, grid, nucPot, isFrozenSub, frozenRk)
+                (_, em) = SelfConsistent.energyFromBVectorsSplit(bm, coeffs1p, coeffs2p, basis.subshells,
+                                                     primitives, grid, nucPot, isFrozenSub, frozenRk)
+                fd2 = (ep - 2*e0 + em) / eps^2
+                @printf(">> [EOL-HESS] eps = %.0e :  sym rel.diff = %.2e ;  <d,Hd> = %+.8e  energy 2nd diff = %+.8e  ratio = %.6f ;  <g,Hg> = %+.6e  curv = %+.6e\n",
+                        eps, abs(a-b)/max(abs(a),abs(b),1.0e-30), dotA(v1,h1), fd2,
+                        fd2 != 0. ? dotA(v1,h1)/fd2 : NaN, dotA(v2,h2),
+                        dotA(v2,v2) > 0. ? dotA(v2,h2)/dotA(v2,v2) : NaN);    flush(stdout)
+            end
+            tG = time();    for k = 1:5
+                SelfConsistent.computeOrbitalGradient(bVectors, coeffs1p, coeffs2p, basis.subshells,
+                                                              primitives, nucPot, storage, matrixB)
+            end;            tG = (time() - tG)/5
+            tE = time();    for k = 1:5
+                SelfConsistent.energyFromBVectorsSplit(bVectors, coeffs1p, coeffs2p, basis.subshells,
+                                                     primitives, grid, nucPot, isFrozenSub, frozenRk)
+            end;            tE = (time() - tE)/5
+            @printf(">> [EOL-HESS] cost: one gradient %.4f s, one energy %.4f s, ratio %.3f;  one H*v = 2 gradients = %.4f s = %.2f energies\n",
+                    tG, tE, tG/tE, 2tG, 2tG/tE);    flush(stdout)
+        end
+
         # ONE-SHOT FINITE-DIFFERENCE CHECK OF THE GRADIENT, off unless JAC_EOL_FDCHECK is set.
         # Four inferences about this solver's plateau were refuted by measurement on 30/31-Aug-2026, so this
         # measures the thing itself: is <grad,dir> the directional derivative of the functional the line
@@ -1723,6 +1785,41 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
         # stationary to 1e-12 for 55 iterations with tStep at 1e-9, and allowed to run the calculation escaped
         # and fell a further 3.5e-4 Ha, moving the clock transition by 34 cm^-1.  A flat energy measured
         # during a collapsed step says nothing at all.
+        # AND |grad| IS NOW REPORTED IN HARTREES, which is the only form a reader can act on.  The note above says
+        # what the bare number cannot do; the remedy is to convert it, and the conversion needs a curvature.  Along
+        # the search direction the energy still reachable is the Newton decrement  dg^2 / (2 <d,Hd>), and <d,Hd>
+        # follows from ONE central difference of the exact gradient -- two gradient evaluations, once per run,
+        # measured at 2.9 energy evaluations on a correlation layer.  Verified the same day (JAC_EOL_HESSCHECK):
+        # the product is symmetric to 9.4e-09 and <d,Hd> agrees with the energy's own second difference to
+        # 1.000016.
+        #   IT MUST BE THE SEARCH DIRECTION AND NOT THE RAW GRADIENT, which was tried first and is WRONG for a
+        # reason worth keeping: the raw gradient lives in the full b-space and therefore carries components along
+        # the NEGATIVE-ENERGY branch, where the curvature is enormous and negative.  Measured, stable across four
+        # decades of the difference step so it is not round-off: <g,Hg>/<g,g> = -1.53e+04 Ha on the reference layer
+        # and -4.03e+03 on the correlation layer, against 2mc^2 = 3.76e+04 Ha.  Used naively that reports "the
+        # curvature is not positive, this is not a minimum" at EVERY exit of EVERY run -- a spurious saddle.  The
+        # search direction is built by virtualDirections inside the positive branch, and its curvature is positive
+        # and physical.  This is also a sharper statement of why |grad| is not a convergence measure: it is not
+        # merely unscaled, it is partly supported on rotations the solver is forbidden to make.
+        #   IT IS A LOWER BOUND AND IS LABELLED AS ONE: it looks only along one direction, so others may hold more.
+        energyStillAvailable = function()
+            dHd = 0.
+            gg  = 0.;    for sh in activeSubshells   gg = gg + sum( dir[sh].^2 )   end
+            gg < 1.0e-30  &&  return( 0.0 )
+            epsH = 1.0e-5 / sqrt(gg)                     ## scaled so the probe displacement is ~1e-5 in norm
+            bp = Dict{Subshell, Vector{Float64}}( sh => copy(bVectors[sh])  for sh in basis.subshells )
+            bm = Dict{Subshell, Vector{Float64}}( sh => copy(bVectors[sh])  for sh in basis.subshells )
+            for  sh  in  activeSubshells
+                bp[sh] = bVectors[sh] + epsH * dir[sh];    bm[sh] = bVectors[sh] - epsH * dir[sh]
+            end
+            gp = SelfConsistent.computeOrbitalGradient(bp, coeffs1p, coeffs2p, basis.subshells,
+                                                               primitives, nucPot, storage, matrixB)
+            gm = SelfConsistent.computeOrbitalGradient(bm, coeffs1p, coeffs2p, basis.subshells,
+                                                               primitives, nucPot, storage, matrixB)
+            for  sh  in  activeSubshells   dHd = dHd + sum( dir[sh] .* (gp[sh] - gm[sh]) ) / (2*epsH)   end
+            dHd <= 1.0e-30  &&  return( NaN )            ## no positive curvature along the direction taken
+            return( dg*dg / (2*dHd) )
+        end
         eFloor = 32 * eps(abs(e0))
         if  iter > 1  &&  tStep >= stepFloor  &&  abs(e0Prev - e0) < eFloor
             stopReason = "energy below its own resolution"
@@ -1730,6 +1827,16 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
                     @sprintf("%.2e", abs(e0Prev - e0)) * " Ha, below its own resolution of " *
                     @sprintf("%.2e", eFloor) * " Ha, with a healthy step (tStep = " * @sprintf("%.2e", tStep) *
                     ").  |grad| = $gNorm is reported as a HINT and is not the test: it is not scale-free.")
+            eAvail = energyStillAvailable()
+            if  isnan(eAvail)
+                println(">> [EOL-C3]   the curvature along the search direction is NOT POSITIVE, so this point is " *
+                        "not a minimum along it;  treat the result as a stationary point only.")
+            else
+                println(">> [EOL-C3]   energy still available along the search direction: " *
+                        @sprintf("%.2e", eAvail) * " Ha -- a LOWER BOUND, since only that one direction was " *
+                        "measured.  CONVERGED here means stationary to machine resolution FROM THIS START, not " *
+                        "the global minimum.")
+            end
             break
         end
         e0Prev = e0
