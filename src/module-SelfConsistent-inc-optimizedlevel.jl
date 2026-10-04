@@ -1285,6 +1285,20 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
     bPrev   = Dict{Subshell, Vector{Float64}}()
     sHist   = Vector{Dict{Subshell, Vector{Float64}}}();   yHist = Vector{Dict{Subshell, Vector{Float64}}}()
     rhoHist = Float64[]
+    # DISCARDING THE CURVATURE WHEN THE CI RE-SOLVE MOVES THE FUNCTIONAL: MEASURED 04-Oct-2026 AND WORSE.
+    # Every iteration re-solves the CI eigenvector, so the function the line search minimized at iteration n is
+    # not the one it minimizes at n+1, and an L-BFGS pair (s,y) built across that boundary differences the
+    # gradients of two DIFFERENT functions.  Measured on 43Ca+ [Ar] 4s with core s -> s singles, that re-solve
+    # adds 5.9e-03 Ha of unmodelled descent over 40 iterations, always downward, i.e. 0.2 % to 17 % of the line
+    # search's own gain -- so flushing the history whenever it exceeded a fraction of that gain looked obviously
+    # right.  IT IS NOT.  At a budget of 150, step 2 of that ladder gives
+    #     no flush (as here)        E = -679.517947 Ha        <- best
+    #     flush above 10 % of gain  E = -679.517131   (5 flushes,  0.8 mHa worse)
+    #     flush above  2 % of gain  E = -679.508011   (19 flushes, 9.9 mHa worse)
+    # monotone in the number of flushes: the stale curvature is worth more than the error it carries.  AND THE
+    # 2 % RUN IS A TRAP WORTH NAMING -- it returns A = -822.97 MHz against the measured -806.402, the BEST-LOOKING
+    # hyperfine constant of the whole study, on the WORST energy of the three.  Judge a solver by its energy.
+    # The remedy for the moving functional is to stop alternating at all, i.e. second-order MCSCF; not this.
     for  iter = 1:Basics.maxIterations(settings.scfRoute)
         orbitals = Dict{Subshell, Orbital}()
         for  sh  in  basis.subshells
