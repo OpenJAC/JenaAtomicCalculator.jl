@@ -214,4 +214,47 @@ elseif  false
                      "  >>> A LINK FAILED.  The constant is no longer consistent with its own derivation.")
     println("  " * "-"^92)
     #
+
+elseif  false
+    # Last visit:      04-Oct-2026
+    # Last successful: 04-Oct-2026 -- SELF-CONSISTENT SCREENING, AND A RESULT THAT CONTRADICTS WHAT WAS EXPECTED.
+    #   The module's default response is UNCOUPLED: the induced field is not allowed to act back.  With
+    #   selfConsistent = true it is, and the loop converges (spread below 0.01 over the last four of 16 steps at
+    #   mixing 0.5; UNDAMPED IT OSCILLATES, so do not read six steps and stop).
+    #   WHAT WAS EXPECTED was that |gamma| would FALL by 10-30 % everywhere, the induced field opposing the
+    #   applied one.  Measured, it falls for the two lighter ions and RISES for thorium:
+    #        Y(3+)    -36.18 -> -32.07   -11.4 %
+    #        In(3+)   -27.39 -> -18.45   -32.7 %   (outside the expected range)
+    #        Th(4+)  -184.95 -> -194.62   +5.2 %   (the WRONG WAY)
+    #   Thorium is the one that matters, since -184.95 is to be compared with the 110-120 extracted from the
+    #   CaF2 measurements: self-consistency moves it AWAY from them, so it is argued against as the explanation
+    #   of that gap rather than for.  The numbers above include the exchange response; direct-only gives
+    #   -31.64, -18.09 and -197.99, i.e. exchange is worth about 1.5 percentage points and changes no sign.
+    println("\nCp-g)  Uncoupled against self-consistent, for three closed-shell ions.")
+    cpSets0 = NuclearShielding.Settings()
+    cpSets1 = NuclearShielding.Settings(NuclearShielding.Settings(); selfConsistent=true, scfIterations=16, scfMixing=0.5)
+    @printf("\n  %-8s %5s %14s %16s %10s\n", "ion", "Z", "uncoupled", "self-consistent", "change")
+    println("  " * "-"^62)
+    for  (cpName, cpZ, cpConf)  in  (("Y^3+", 39.0, "[Kr]"), ("In^3+", 49.0, "[Kr] 4d^10"), ("Th^4+", 90.0, "[Rn]"))
+        cpC  = Configuration(cpConf);   cpNm = Nuclear.Model(cpZ)
+        cpG  = Basics.recommendedGrid([cpC], cpNm; printout=false);   setDefaults("standard grid", cpG)
+        cpA  = AsfSettings(AsfSettings(); scField=Basics.DFSField(1.0))
+        cpT  = tempname()
+        cpMp = open(cpT,"w") do io;  redirect_stdout(io) do
+                   perform(Atomic.Computation(Atomic.Computation(); name=cpName, grid=cpG, nuclearModel=cpNm,
+                           configs=[cpC], asfSettings=cpA); output=true)["multiplet:"]  end  end
+        cpV = Float64[]
+        for  cpS  in  (cpSets0, cpSets1)
+            cpO = open(cpT,"w") do io;  redirect_stdout(io) do
+                      NuclearShielding.computeOutcomes(cpMp, cpNm, cpG, cpS; output=true)  end  end
+            push!(cpV, cpO[1].gammaE2)
+        end
+        rm(cpT, force=true)
+        @printf("  %-8s %5.0f %14.2f %16.2f %9.1f %%\n", cpName, cpZ, cpV[1], cpV[2],
+                100*(abs(cpV[2])-abs(cpV[1]))/abs(cpV[1]))
+        flush(stdout)
+    end
+    println("  " * "-"^62)
+    println("  The rise at Z = 90 is the finding, and it is why priority item 43 was rewritten rather than closed.")
+    #
 end
