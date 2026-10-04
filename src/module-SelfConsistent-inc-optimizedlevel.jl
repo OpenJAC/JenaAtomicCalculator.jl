@@ -2245,8 +2245,10 @@ function solveOptimizedLevelField(basis::Basis, nuclearModel::Nuclear.Model, pri
             # Refining it regardless used to produce a Fock matrix of NaN (computeFockMatrix divides by
             # occ, and Inf * 0 = NaN), which surfaced far downstream as the thoroughly misleading
             # "Bsplines.findPositiveBranchStart(): no eigenvalue found above the negative-continuum threshold"
-            # -- the signature of a missing nuclear well, which was not the problem at all.  AL never meets
-            # this because its MEAN occupation averages over every CSF and so is never zero.
+            # -- the signature of a missing nuclear well, which was not the problem at all.  AL MEETS THIS TOO
+            # and handles it the same way; the claim here that it could not was wrong, because its mean
+            # occupation averages over the CSFs of THIS BASIS, and a basis restricted to one symmetry can leave
+            # a subshell empty in all of them (Sc+ [Ar] 3d 4s at J = 1 empties 3d_5/2).  Corrected 04-Oct-2026.
             if  abs(occ) < 1.0e-12
                 println(">> Subshell $subshell carries zero generalized occupation in the target level(s); " *
                         "the EOL functional does not depend on it, so it is kept unchanged.")

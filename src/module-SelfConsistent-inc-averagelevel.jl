@@ -192,6 +192,28 @@ function solveAverageLevelField(basis::Basis, nuclearModel::Nuclear.Model, primi
                 continue
             end
             occ = meanOcc[subshell]
+            # A SUBSHELL OF THE BASIS CAN CARRY ZERO MEAN OCCUPATION, and it was long assumed here that it
+            # could not -- `Basics.extractMeanOccupation` averages over the CSFs OF THIS BASIS, not over every
+            # CSF the configurations could produce, so a basis restricted to ONE SYMMETRY empties any subshell
+            # that no CSF of that symmetry can occupy.  The clean example is Sc+ [Ar] 3d 4s at J = 1: coupling
+            # 3d_5/2 with 4s_1/2 gives J = 2 or 3 only, so no J = 1 CSF occupies 3d_5/2 at all and its mean
+            # occupation is exactly 0.  A correlation layer does the same to any virtual its CSFs leave empty.
+            # Refining such a subshell asked `computeFockMatrix` for a mean field that does not exist, and it
+            # refused (correctly) -- which aborted the whole SCF, and with it every layer of a RAS ladder that
+            # had already succeeded.  There is nothing to refine: no mean field is defined, so the orbital is
+            # carried forward unchanged, exactly as a frozen one is, and still registered so that the shells
+            # refined after it are projected orthogonal to it.
+            if  abs(occ) < 1.0e-12
+                if  printout
+                    println(">> $subshell carries zero mean occupation in this basis; no mean field is defined " *
+                            "for it, so it is kept unchanged.")
+                end
+                newBVectors[subshell]       = copy(bVectors[subshell])
+                newEnergies[subshell]       = energies[subshell]
+                processedBVectors[subshell] = copy(bVectors[subshell])
+                dpm[subshell]               = 0.0
+                continue
+            end
             print(">> Refine $subshell orbital with mean occ = $occ ... ")
 
             matrix = SelfConsistent.computeFockMatrix(subshell, coeffs2p, bVectors, primitives, nucPot,
