@@ -1473,6 +1473,34 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
         end
         beta = 0.
         dir  = Dict{Subshell, Vector{Float64}}()
+        # A DIRECTION MUST NOT TRY TO CHANGE AN ORBITAL'S NORM.  The line search renormalizes every trial
+        # vector, so whatever part of the step lies ALONG the orbital is discarded in full before the energy
+        # is ever evaluated -- yet `dg = <grad,dir>` counts it, and the Armijo test and the backtracking are
+        # then driven by a promise the step cannot keep.  Removing it costs nothing, because it is exactly
+        # the part that does nothing.
+        #   WHY IT IS NOT ALREADY ZERO.  `virtualDirections` returns a set B-orthogonal to the occupied
+        # orbitals, so the STEEPEST-DESCENT direction is clean.  An L-BFGS direction is not: it is a
+        # combination of stored (s,y) pairs from earlier iterations, and those were orthogonal to the
+        # orbitals as they stood THEN.  The component regrows as the orbitals move, and it regrows fastest
+        # for the orbitals that move most -- the correlation virtuals.
+        #   MEASURED 04-Oct-2026 on 43Ca+ [Ar] 4s, iteration 20, cos(b, dir) in the B metric:
+        #     reference step (no virtuals)   1s..4s, 2p, 3p   5.6e-05 ... 6.1e-04   -- clean
+        #     correlation step               1s..4s, 2p, 3p   5.3e-04 ... 7.1e-02
+        #                                    5s  0.6155,  6s  0.4023,  7s  0.4459   -- up to 62 % PARALLEL
+        # With that much of the step discarded, the realized directional derivative scattered between 0.024
+        # and 1.888 of the planned one, against 1.0000 (0.987-1.005) in the reference step; the Armijo ratio
+        # measured on the planned step sat at 0.585 while the one measured on the realized displacement sat
+        # at 0.824, and it was the realized one that was closer to unity in 114 of 144 accepted steps.  That
+        # is the solver's own stated signature for "the model is describing a step the search does not take".
+        stripNormChange! = function(d::Dict{Subshell, Vector{Float64}})
+            for  sh  in  activeSubshells
+                bBb = transpose(bVectors[sh]) * matrixB * bVectors[sh]
+                if  abs(bBb) > 1.0e-30
+                    d[sh] = d[sh] - ( (transpose(bVectors[sh]) * matrixB * d[sh]) / bBb ) * bVectors[sh]
+                end
+            end
+            return( nothing )
+        end
         if      method == :lbfgs  &&  !isempty(sHist)
             # two-loop recursion, giving d = -H grad with H built from the stored pairs around H_0
             q = Dict{Subshell, Vector{Float64}}( sh => copy(grad[sh])  for sh in activeSubshells )
@@ -1516,10 +1544,13 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
         # so its first trial always overshot and it halved to 1e-8, which is the plateau seen on Cf^17+ and on
         # Be Scenario B.  gNorm is built from the same components and so never vanished at a stationary point,
         # which is why an energy-based exit test had to exist at all.
+        stripNormChange!(dir)
         dg = 0.;   for sh in activeSubshells   dg = dg + sum( grad[sh] .* dir[sh] )   end
         if  dg >= 0.
             for  sh  in  activeSubshells    dir[sh] = sVec[sh]    end
+            stripNormChange!(dir)
             beta = 0.
+            dg   = 0.;   for sh in activeSubshells   dg = dg + sum( grad[sh] .* dir[sh] )   end
         end
         # ONE-SHOT FINITE-DIFFERENCE CHECK OF THE GRADIENT, off unless JAC_EOL_FDCHECK is set.
         # Four inferences about this solver's plateau were refuted by measurement on 30/31-Aug-2026, so this
