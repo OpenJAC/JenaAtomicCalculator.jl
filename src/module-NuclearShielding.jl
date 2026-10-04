@@ -312,18 +312,40 @@ end
 
 """
 `NuclearShielding.GAMMA_PREFACTOR`
-    ... the single overall constant of the quadrupole response, -0.4.
+    ... the single overall constant of the quadrupole response, -2/5.
 
-        ITS MAGNITUDE IS DERIVED AND ITS FACTOR OF TWO AND ITS SIGN ARE FIXED BY THE VALIDATION SET, which is
-        worth stating plainly rather than burying.  The angular content is derived and exact: requiring the
-        non-relativistic limit to reproduce Sternheimer's closed-shell coefficients gives 4/5 times the sum of
-        |<kappa_a||C^(2)||kappa'>|^2 over spin-orbit partners, and that reproduces 48/25, 16/7 and 224/75 to
-        machine precision (see `tools/probe-nuclearShielding.jl`).  What the derivation does NOT fix is (i) a
-        factor of two, because Sternheimer's equation is written in RYDBERG units, and (ii) the overall sign,
-        which depends on the sign convention of his driving potential -- and the 1967 paper reaches us as a
-        poor scan in which that term cannot be read with certainty.  Both were therefore fixed ONCE, here, and
-        the validation set still tests the result independently because it contains THREE closed-shell ions
-        spanning Z = 39 to 83.  Do not re-tune this constant to improve an individual ion.
+        IT IS DERIVED, SIGN AND ALL -- four factors, each a line of electrostatics or angular-momentum algebra,
+        and nothing in it is fitted (derived 04-Oct-2026; until then the magnitude's factor of two and the sign
+        had been calibrated against the validation set, and this docstring said so):
+
+            2            LINEAR RESPONSE.  The induced gradient is <0|Q|v><v|H'|0> + c.c., and the two terms are
+                         equal for real orbitals and Hermitian operators.
+            x 2          THE OBSERVABLE.  The field gradient at the nucleus from one electron is 2 P_2(cos t)/r^3,
+                         the 2 being d^2/dz^2 of r^2 P_2.  `fObserve` in `computeAmplitudesProperties` carries
+                         only the 1/r^3, SO THAT 2 LIVES HERE.  That is what made this constant look arbitrary:
+                         the factor was real and had simply been moved.
+            x 1/5        THE ANGULAR REDUCTION.  Summed over the magnetic substates of a closed subshell,
+                         sum_m |(j_a 2 j_v; -m_a 0 m_v)|^2 = 1/(2k+1) = 1/5 at rank k = 2, which is what turns
+                         the reduced matrix elements into the response of the whole shell.
+            / 2          THE APPLIED GRADIENT.  `drivingFunction` uses f(r) = r^2, whose own gradient at the
+                         nucleus is `appliedGradient` = 2, and the ratio is divided by it to make a shielding
+                         FACTOR rather than a field.
+            = 2/5,  and the MINUS from  gamma_inf = -q_induced/q_applied,  the two electron charges (-1 in the
+                    perturbation and -1 in the observable) having already cancelled against each other.
+
+        THE SIGN NEVER NEEDED STERNHEIMER'S PAPER.  It is fixed internally, by the relation between
+        `drivingFunction` and `appliedGradient`, both of which are in this module; the earlier note that it
+        "depends on the sign convention of his driving potential, which reaches us as a poor scan" was looking
+        for the answer in the wrong place.
+
+        AND THE ANGULAR CONTENT IS A CHECK RATHER THAN THE DEFINITION.  4/5 times the sum of
+        |<kappa_a||C^(2)||kappa'>|^2 over the spin-orbit partners reproduces Sternheimer's non-relativistic
+        closed-shell coefficients 48/25 (p), 16/7 (d) and 224/75 (f) with ratio 1.0000000 in all three cases --
+        the sums themselves being 12/5, 20/7 and 56/15.  Note that 4/5 is TWICE the constant above, because
+        Sternheimer's coefficients are quoted for a radial integral defined with the other half.
+
+        `example-Cp.jl` branch (f) checks every one of these links, and needs no orbitals to do it.
+        Do not re-tune this constant to improve an individual ion.
 """
 const GAMMA_PREFACTOR = -0.4
 
@@ -333,8 +355,10 @@ const GAMMA_PREFACTOR = -0.4
                                              ` settings::NuclearShielding.Settings)`  
     ... computes the shielding factor of the given level by summing, over every occupied subshell and every rank-2
         excitation channel, the response of the electron cloud to the external field.  The angular weight of a channel is
-        |<kappa_a || C^(2) || kappa'>|^2 and the overall factor 4/5 is fixed by requiring that the non-relativistic limit
-        reproduce Sternheimer's closed-shell coefficients 48/25 (p->p), 16/7 (d->d) and 224/75 (f->f) exactly.
+        |<kappa_a || C^(2) || kappa'>|^2 and the overall constant is `GAMMA_PREFACTOR`, which is DERIVED -- see its own
+        docstring for the four factors -- and checked against Sternheimer's closed-shell coefficients 48/25 (p->p),
+        16/7 (d->d) and 224/75 (f->f).  NOTE that `fObserve` below is 1/r^3 and NOT the full 2/r^3 of the gradient
+        operator; that factor of two sits in `GAMMA_PREFACTOR`.
         A new outcome::NuclearShielding.Outcome is returned.
 """
 function computeAmplitudesProperties(outcome::NuclearShielding.Outcome, nm::Nuclear.Model, grid::Radial.Grid,

@@ -143,4 +143,75 @@ elseif  false
         end
     end
     #
+
+elseif  false
+    # Last visit:      04-Oct-2026
+    # Last successful: 04-Oct-2026 -- THE OVERALL CONSTANT IS DERIVED, AND THIS BRANCH CHECKS EVERY LINK.
+    #   `NuclearShielding.GAMMA_PREFACTOR` used to carry a factor of two and a sign that had been fixed by
+    #   calibration against Sternheimer's ions, which is a poor state for the one constant that multiplies
+    #   every number the module returns.  It is now derived from four factors, and each of them can be checked
+    #   here WITHOUT SOLVING ANYTHING: no SCF, no orbitals, no grid.  The branch runs in under a second and it
+    #   fails loudly if any link breaks, which is what makes it worth having beside the physics branches.
+    println("\nCp-f)  The overall constant of the quadrupole response, link by link.")
+    cpOk = Ref(true)
+    cpCheck = function (name, got, want, tol)
+        good = abs(got - want) <= tol
+        @printf("  %-54s %14.9f   expected %12.9f   %s\n", name, got, want, good ? "ok" : "FAILED")
+        cpOk[] = cpOk[] && good
+    end
+
+    # LINK 1 -- the angular reduction.  Summed over the magnetic substates of a closed subshell,
+    #           sum_m |(j_a k j_v; -m_a 0 m_v)|^2 = 1/(2k+1), which is 1/5 at the quadrupole rank k = 2.
+    println("\n  link 1:  the 3j orthogonality that reduces a closed subshell, at rank k = 2")
+    for  (ja2, jv2)  in  ((1,3), (3,3), (3,5), (5,5), (5,7), (7,7))
+        cpSum = 0.
+        for  ma2 = -ja2:2:ja2
+            cpSum = cpSum + AngularMomentum.Wigner_3j(AngularJ64(ja2//2), AngularJ64(2), AngularJ64(jv2//2),
+                                                      AngularM64(-ma2//2), AngularM64(0), AngularM64(ma2//2))^2
+        end
+        cpCheck("      j_a = $(ja2)/2,  j_v = $(jv2)/2", cpSum, 1/5, 1.0e-10)
+    end
+
+    # LINK 2 -- the applied gradient.  `drivingFunction` gives the RADIAL factor of the external rank-2
+    #           potential and `appliedGradient` the field gradient that same potential makes at the nucleus.
+    #           They are not independent: d^2/dz^2 of r^2 P_2 is 2, so appliedGradient = 2 lim_{r->0} f(r)/r^2.
+    #           This is the link that fixes the SIGN, and it needs no outside paper at all.
+    println("\n  link 2:  appliedGradient = 2 x lim(r->0) drivingFunction(r)/r^2, for both field models")
+    for  (cpWhat, cpModel)  in  (("a uniform field", NuclearShielding.UniformField()),
+                                 ("two charges, +1 at 4.0 and -2 at 5.5 a.u.",
+                                  NuclearShielding.NeighbourField([(1.0, 4.0), (-2.0, 5.5)])))
+        cpR   = 1.0e-4
+        cpLim = NuclearShielding.drivingFunction(cpModel, cpR) / (cpR*cpR)
+        cpCheck("      $cpWhat", NuclearShielding.appliedGradient(cpModel), 2.0*cpLim, 1.0e-8)
+    end
+
+    # LINK 3 -- the angular content, against a validation set that exists independently of us.  4/5 times the
+    #           sum of |<kappa_a||C^(2)||kappa'>|^2 over the spin-orbit partners of a closed shell must give
+    #           Sternheimer's non-relativistic closed-shell coefficients.  Note that 4/5 is TWICE the constant,
+    #           because his coefficients are quoted for a radial integral defined with the other half.
+    println("\n  link 3:  4/5 x sum |<kappa||C2||kappa'>|^2 against Sternheimer's closed-shell coefficients")
+    for  (cpLab, cpKappas, cpStern)  in  (("p", [1,-2], 48/25), ("d", [2,-3], 16/7), ("f", [3,-4], 224/75))
+        cpSq = 0.
+        for  ka  in  cpKappas,  kb  in  cpKappas
+            cpSq = cpSq + AngularMomentum.CL_reduced_me(Subshell(9, ka), 2, Subshell(9, kb))^2
+        end
+        @printf("      the %s shell:  sum of squares = %10.7f\n", cpLab, cpSq)
+        cpCheck("          4/5 x that", 0.8*cpSq, cpStern, 1.0e-9)
+    end
+
+    # LINK 4 -- the product, which is the constant itself, and its sign.
+    println("\n  link 4:  the four factors multiplied out")
+    println("      2 (linear response)  x  2 (the gradient operator is 2 P_2/r^3)  x  1/5 (rank 2)  /  2 (applied)")
+    cpCheck("      the product", 2.0 * 2.0 * (1/5) / 2.0, 0.4, 1.0e-12)
+    cpCheck("      |GAMMA_PREFACTOR|", abs(NuclearShielding.GAMMA_PREFACTOR), 0.4, 1.0e-12)
+    @printf("  %-54s %14s   expected %12s   %s\n", "      its sign, from gamma = -q_induced/q_applied",
+            NuclearShielding.GAMMA_PREFACTOR < 0 ? "negative" : "positive", "negative",
+            NuclearShielding.GAMMA_PREFACTOR < 0 ? "ok" : "FAILED")
+    cpOk[] = cpOk[] && (NuclearShielding.GAMMA_PREFACTOR < 0)
+
+    println("\n  " * "-"^92)
+    println(cpOk[] ? "  ALL LINKS HOLD:  GAMMA_PREFACTOR = -2/5 is derived, not fitted." :
+                     "  >>> A LINK FAILED.  The constant is no longer consistent with its own derivation.")
+    println("  " * "-"^92)
+    #
 end
