@@ -1518,6 +1518,21 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
         # and the second returns A = -1009.74 MHz against -806.402 measured, a 25 % error on the worst energy.
         # The component along the orbital ITSELF is the only one the renormalization provably discards, and it is
         # therefore the only one that may be removed here.
+        #   AND THE ORTHOGONALITY LOSS THAT MOTIVATED THAT ATTEMPT IS NOT A DEFECT -- SETTLED 04-Oct-2026, so that
+        # the 68 % figure is not raised as an alarm again.  A trial vector is b + t*dir renormalized, and
+        # virtualDirections has already made dir B-orthogonal to the occupied orbitals of its kappa, so both cross
+        # terms in <b1 + t*d1, b2 + t*d2> vanish and the leading surviving term is t^2 <d1,d2>.  The loss is
+        # therefore SECOND ORDER IN THE STEP, which is exactly what a first-order method should produce.  Measured
+        # on 43Ca+ [Ar] 4s with core s -> s singles, kappa = -1, down one backtracking ladder:
+        #     tStep   1.000  0.500  0.250  0.125  0.0625  0.03125  0.015625
+        #     dev     0.668  0.397  0.185  0.0669 0.0194  0.00509  0.00129
+        # and halving tStep multiplies dev by 0.594, 0.466, 0.361, 0.291, 0.262, 0.253 -> 0.25 = (1/2)^2.  The 0.68
+        # belongs to the FIRST trial at tStep = 1.0, which the line search rejects anyway; an ACCEPTED step runs at
+        # tStep ~ 0.01, where the deviation is ~1e-4 and Loewdin's correction to it is negligible.
+        #   This also explains why that 0.68 came out BIT-IDENTICAL under two different direction rules: at
+        # iteration 1 the L-BFGS history is empty, so the direction is the preconditioned steepest-descent step in
+        # both, and virtualDirections has already orthogonalized it -- so every variant of this projection is a
+        # no-op there and produces the same trial.
         stripNormChange! = function(d::Dict{Subshell, Vector{Float64}})
             for  sh  in  activeSubshells
                 bBb = transpose(bVectors[sh]) * matrixB * bVectors[sh]
