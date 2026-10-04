@@ -486,7 +486,7 @@ function testRepresentation_RasExpansion(; short::Bool=true)
     # 60 iterations, not 24, because this test now asserts CONVERGENCE and not merely a number: with the
     # gradient corrected (items 121, 122 and the L-BFGS curvature pairs) step 1 converges at 12 and step 2 at
     # 45, so a budget of 24 would assert a failure.  The cost is a few seconds.
-    rasSettings = RasSettings([1], 60, 1.0e-6, CoulombInteraction(), LevelSelection(true, indices=[1]) )
+    rasSettings = RasSettings([1], Basics.RotationRoute(60), 1.0e-6, CoulombInteraction(), LevelSelection(true, indices=[1]) )
     coreShells  = [Shell("1s")]
     fromShells  = [Shell("2s")]
     layers      = [ RasLayer(Shell[]; se=false, de=false),   # layer 1: reference SCF only, no correlation

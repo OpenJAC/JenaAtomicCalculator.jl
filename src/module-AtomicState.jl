@@ -202,15 +202,26 @@ end
         PREFER `levelSelectionCI` with `configurations=`: selecting an EOL target by INDEX is unstable, because
         the indices refer to the energy-sorted multiplet and a correlation configuration sinking below the
         reference silently changes which levels are optimized.
-    + maxIterationsScf     ::Int64                  ... maximum number of SCF iterations in each RAS step.
-    + accuracyScf          ::Float64                ... convergence criterion for the SCF field.
+    + scfRoute             ::Basics.AbstractScfRoute   ... the SCF route by which each RAS step is solved, carrying its own
+        iteration budget and whatever else that solver needs. **This replaced `maxIterationsScf::Int64` on 04-Oct-2026 and the
+        change is not cosmetic.** The old field was converted, one line deep in the driver, into
+        `Basics.RotationRoute(maxIterationsScf)` -- so a RAS ladder could name ONLY the rotation route and ONLY its iteration
+        count, while `RotationRoute` also carries `nVirtual` and `stepping`, `FockRoute` carries `unscaledOffDiagonal`, and the
+        route hierarchy exists precisely so that a computation may be repeated on a more expensive route when a cheaper one does
+        not converge. Four of the six things a route can say were unreachable from a RAS computation. Naming the route here makes
+        all of them reachable and gives the quantity ONE spelling, the same as `AsfSettings.scfRoute`.
+    + accuracyScf          ::Float64                ... convergence criterion for the SCF field.  This stays a settings field
+        rather than moving into the route, exactly as in `AsfSettings`, and the split is deliberate: an iteration BUDGET is a
+        property of the solver -- a mean field converges in a handful of iterations where the rotation route needs thousands --
+        whereas a convergence TOLERANCE is a property of the answer the caller wants, and is the same question whichever solver
+        is asked.
     + eeInteractionCI      ::AbstractEeInteraction  ... logical flag to include Breit interactions.
     + levelSelectionCI     ::LevelSelection         ... Specifies the selected levels, if any; also the EOL target
         of every step when active, and then takes precedence over `levelsScf`.
 """
 struct  RasSettings
     levelsScf              ::Array{Int64,1}
-    maxIterationsScf       ::Int64  
+    scfRoute               ::Basics.AbstractScfRoute
     accuracyScf            ::Float64 
     eeInteractionCI        ::AbstractEeInteraction 
     levelSelectionCI       ::LevelSelection
@@ -220,7 +231,45 @@ end
 `AtomicState.RasSettings()`  ... constructor for setting the default values.
 """
 function RasSettings()
-    RasSettings(Int64[1], 24, 1.0e-6, CoulombInteraction(), LevelSelection() )
+    ## RotationRoute(24) is what the driver built from the old maxIterationsScf = 24, so the default is unchanged in behaviour.
+    RasSettings(Int64[1], Basics.RotationRoute(24), 1.0e-6, CoulombInteraction(), LevelSelection() )
+end
+
+
+"""
+`AtomicState.RasSettings(set::AtomicState.RasSettings;`
+
+        levelsScf=..,            scfRoute=..,             accuracyScf=..,
+        eeInteractionCI=..,      levelSelectionCI=..)
+                    
+    ... constructor for modifying the given AtomicState.RasSettings by 'overwriting' the previously selected parameters; a
+        settings::AtomicState.RasSettings is returned.
+
+        IT ALSO REFUSES `maxIterationsScf` BY NAME, and that is the point of having it. `AsfSettings` retired the same field
+        into the routes and refuses the keyword with a message naming the replacement, so a caller is told what to write;
+        `RasSettings` carried it on as its SECOND POSITIONAL argument, so the one quantity had two spellings and only one of
+        them announced itself. A user who learned the new convention from the `AsfSettings` message and wrote it into a
+        `RasSettings` call got a `MethodError` about positional arguments instead -- which is what this refusal replaces.
+"""
+function RasSettings(set::AtomicState.RasSettings;
+    levelsScf::Union{Nothing,Array{Int64,1}}=nothing,                      scfRoute::Union{Nothing,Basics.AbstractScfRoute}=nothing,
+    accuracyScf::Union{Nothing,Float64}=nothing,                           eeInteractionCI::Union{Nothing,AbstractEeInteraction}=nothing,
+    levelSelectionCI::Union{Nothing,LevelSelection}=nothing,               maxIterationsScf::Union{Nothing,Int64}=nothing)
+
+    if  !isnothing(maxIterationsScf)
+        error("RasSettings no longer carries maxIterationsScf; the iteration budget belongs to the scf route, as it does in " *
+              "AsfSettings.  Write, for instance, scfRoute = Basics.RotationRoute($maxIterationsScf) for an optimized level " *
+              "by orbital rotation, Basics.FockRoute($maxIterationsScf) for the Fock route, or " *
+              "Basics.MeanFieldRoute($maxIterationsScf) for a local screened potential.  Naming the route also reaches what " *
+              "the old field could not: nVirtual and stepping for the rotation route, unscaledOffDiagonal for the Fock route.")
+    end
+    if  isnothing(levelsScf)          levelsScfx          = set.levelsScf          else  levelsScfx          = levelsScf          end 
+    if  isnothing(scfRoute)           scfRoutex           = set.scfRoute           else  scfRoutex           = scfRoute           end 
+    if  isnothing(accuracyScf)        accuracyScfx        = set.accuracyScf        else  accuracyScfx        = accuracyScf        end 
+    if  isnothing(eeInteractionCI)    eeInteractionCIx    = set.eeInteractionCI    else  eeInteractionCIx    = eeInteractionCI    end 
+    if  isnothing(levelSelectionCI)   levelSelectionCIx   = set.levelSelectionCI   else  levelSelectionCIx   = levelSelectionCI   end 
+
+    RasSettings( levelsScfx, scfRoutex, accuracyScfx, eeInteractionCIx, levelSelectionCIx )
 end
 
 
@@ -229,7 +278,7 @@ function Base.show(io::IO, settings::RasSettings)
         println(io, "levelsScf:            $(settings.levelsScf)  " *
                     (settings.levelSelectionCI.active ? "  (NOT in force: levelSelectionCI is active and wins)" :
                                                         "  (in force as the EOL target of each step)"))
-        println(io, "maxIterationsScf:     $(settings.maxIterationsScf)  ")
+        println(io, "scfRoute:             $(settings.scfRoute)   (budget $(Basics.maxIterations(settings.scfRoute)))  ")
         println(io, "accuracyScf:          $(settings.accuracyScf)  ")
         println(io, "eeInteractionCI:      $(settings.eeInteractionCI)  ")
         println(io, "levelSelectionCI:     $(settings.levelSelectionCI)  ")
@@ -253,6 +302,12 @@ end
     + frozenShells      ::Array{Shell,1}        ... List of shells that are kept 'frozen' in this step.
     + constraints       ::Array{String,1}       ... List of Strings to define 'constraints/restrictions' 
                                                     to the generated CSF basis.
+    + scfRoute          ::Union{Nothing,Basics.AbstractScfRoute}   ... an SCF route for THIS step alone, or `nothing` to inherit
+        the ladder's `RasSettings.scfRoute`.  `nothing` is the default and is what nearly every ladder wants.  The override exists
+        because a ladder's steps are not alike: measured, a REFERENCE layer is converged by about twelve iterations while a
+        CORRELATION layer never converges at all -- it descends indefinitely with increments that grow -- so one budget for the
+        whole ladder cannot express both, and spending the correlation layer's budget on the reference one buys nothing.  This
+        mirrors `treatment`, which is likewise a per-step policy rather than a ladder-wide one.
     + treatment         ::Basics.AbstractQTreatment  ... how the configurations this step generates are to be treated:
                                                     Basics.Variational() puts every one of them into the CI, which is
                                                     what a step has always done and remains the default, while
@@ -272,6 +327,7 @@ struct  RasStep
     frozenShells        ::Array{Shell,1}
     constraints         ::Array{String,1}
     treatment           ::Basics.AbstractQTreatment
+    scfRoute            ::Union{Nothing,Basics.AbstractScfRoute}
 end
 
 """
@@ -279,7 +335,7 @@ end
 """
 function RasStep()
     RasStep(Shell[], Shell[], Shell[], Shell[], Shell[], Shell[], Shell[], Shell[],    Shell[], String[],
-            Basics.Variational())
+            Basics.Variational(), nothing)
 end
 
 
@@ -291,10 +347,15 @@ end
                     teFrom::Array{Shell,1}=Shell[], teTo::Array{Shell,1}=Shell[], 
                     qeFrom::Array{Shell,1}=Shell[], qeTo::Array{Shell,1}=Shell[], 
                     frozen::Array{Shell,1}=Shell[], constraints::Array{String,1}=String[],
-                    treatment::Union{Nothing,Basics.AbstractQTreatment}=nothing
+                    treatment::Union{Nothing,Basics.AbstractQTreatment}=nothing,
+                    scfRoute::Union{Nothing,Basics.AbstractScfRoute}=nothing
                     
     ... constructor for modifying the given rasStep by specifying all excitations, frozen shells and 
         constraints optionally.
+
+        NOTE THAT `scfRoute` CANNOT BE CLEARED BACK TO `nothing` THROUGH THIS CONSTRUCTOR, since `nothing` is also how the
+        keyword says "leave this field alone" -- which is the price of the keyword-copy pattern and is the same for every other
+        field here.  Build a fresh `RasStep()` to drop an override.
 """
 function RasStep(rasStep::AtomicState.RasStep;
                     seFrom::Array{Shell,1}=Shell[], seTo::Array{Shell,1}=Shell[], 
@@ -302,7 +363,8 @@ function RasStep(rasStep::AtomicState.RasStep;
                     teFrom::Array{Shell,1}=Shell[], teTo::Array{Shell,1}=Shell[], 
                     qeFrom::Array{Shell,1}=Shell[], qeTo::Array{Shell,1}=Shell[], 
                     frozen::Array{Shell,1}=Shell[], constraints::Array{String,1}=String[],
-                    treatment::Union{Nothing,Basics.AbstractQTreatment}=nothing)
+                    treatment::Union{Nothing,Basics.AbstractQTreatment}=nothing,
+                    scfRoute::Union{Nothing,Basics.AbstractScfRoute}=nothing)
     if  seFrom == Shell[]   sxFrom = rasStep.seFrom   else      sxFrom = seFrom      end
     if  seTo   == Shell[]   sxTo   = rasStep.seTo     else      sxTo   = seTo        end
     if  deFrom == Shell[]   dxFrom = rasStep.deFrom   else      dxFrom = deFrom      end
@@ -314,8 +376,9 @@ function RasStep(rasStep::AtomicState.RasStep;
     if  frozen == Shell[]        frozx  = rasStep.frozenShells   else      frozx  = frozen             end
     if  constraints ==String[]   consx  = rasStep.constraints    else      consx  = constraints        end
     if  isnothing(treatment)     treatx = rasStep.treatment      else      treatx = treatment          end
+    if  isnothing(scfRoute)      routex = rasStep.scfRoute       else      routex = scfRoute           end
     
-    RasStep( sxFrom, sxTo, dxFrom, dxTo, txFrom, txTo, qxFrom, qxTo, frozx, consx, treatx)
+    RasStep( sxFrom, sxTo, dxFrom, dxTo, txFrom, txTo, qxFrom, qxTo, frozx, consx, treatx, routex)
 end
 
 
@@ -807,7 +870,7 @@ end
 
         name        = "Beryllium 1s^2 2s^2 ^1S_0 ground state"
         refConfigs  = [Configuration("[He] 2s^2")]
-        rasSettings = RasSettings([1], 24, 1.0e-6, CoulombInteraction(), true, [1,2,3] )
+        rasSettings = RasSettings([1], Basics.RotationRoute(24), 1.0e-6, CoulombInteraction(), LevelSelection() )
         from        = [Shell("2s")]
         
         frozen      = [Shell("1s")]
@@ -1070,7 +1133,8 @@ function tryRun(rep::AtomicState.Representation; nSample::Int64=2000, printout::
         error("AtomicState.tryRun is implemented for a RasExpansion; the representation given carries " *
               "$(typeof(rep.repType)).  Other representation types follow by the same pattern.")
     end
-    repType = rep.repType;    maxIter = repType.settings.maxIterationsScf
+    ## Through the accessor, so that a new route type needs no change here; every route carries its own natural budget.
+    repType = rep.repType;    maxIter = Basics.maxIterations(repType.settings.scfRoute)
     results = NamedTuple[]
 
     if  printout

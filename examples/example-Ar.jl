@@ -71,7 +71,7 @@ if  false
                RasStep(RasStep(); seFrom=vcat(core,val), seTo=to, deFrom=vcat(core,val), deTo=to,
                                   frozen=frozen2, treatment = Basics.SecondOrder(1.0e-5, 1.0e-12)) ]
     grid   = Basics.recommendedGrid(refs, Nuclear.Model(Z); rbox = 20.)
-    rasSettings = RasSettings(Int64[], 24, 1.0e-6, CoulombInteraction(),
+    rasSettings = RasSettings(Int64[], Basics.RotationRoute(24), 1.0e-6, CoulombInteraction(),
                               LevelSelection(true, configurations=refs))
     wa     = Representation("Cl III -- valence variational, core folded on the same orbitals",
                             Nuclear.Model(Z), grid, refs, RasExpansion([sym], 15, steps, rasSettings) )
@@ -162,7 +162,7 @@ elseif  false
                                   frozen=[Shell("1s"),Shell("2s"),Shell("2p"),Shell("3s"),Shell("3p"),Shell("3d")],
                                   treatment = Basics.SecondOrder(1.0e-30, 1.0e-40)) ]
     grid   = Basics.recommendedGrid(refs, Nuclear.Model(Z); rbox = 20.)
-    rasSettings = RasSettings(Int64[], 24, 1.0e-6, CoulombInteraction(),
+    rasSettings = RasSettings(Int64[], Basics.RotationRoute(24), 1.0e-6, CoulombInteraction(),
                               LevelSelection(true, configurations=refs))
     wa     = Representation("Cl III -- the guard: promote everything, reproduce the exact CI",
                             Nuclear.Model(Z), grid, refs, RasExpansion([sym], 15, steps, rasSettings) )
@@ -259,7 +259,7 @@ elseif  true
     report("AL", SelfConsistent.performSCF(refs, Nuclear.Model(Z), grid, set; printout=false))
     #
     runRas = function(tag, steps)
-        rs = RasSettings(Int64[], 300, 1.0e-6, CoulombBreit(0.), LevelSelection(true, configurations=wanted))
+        rs = RasSettings(Int64[], Basics.RotationRoute(300), 1.0e-6, CoulombBreit(0.), LevelSelection(true, configurations=wanted))
         wb = generate( Representation("Fe XV -- $tag", Nuclear.Model(Z), grid, refs,
                                       RasExpansion(syms, 12, steps, rs)), output=true )
         k  = "step" * string(length(steps))
@@ -365,7 +365,7 @@ elseif  false
     showLevels("AL", SelfConsistent.performSCF(refs, Nuclear.Model(Z), grid, set; printout=false))
     #
     runRas = function(lab, steps)
-        rs = RasSettings(Int64[], 60, 1.0e-6, CoulombBreit(0.), LevelSelection(true, configurations=refs))
+        rs = RasSettings(Int64[], Basics.RotationRoute(60), 1.0e-6, CoulombBreit(0.), LevelSelection(true, configurations=refs))
         wb = generate( Representation("Fe VII $lab", Nuclear.Model(Z), grid, refs,
                                       RasExpansion(syms, 20, steps, rs)), output=true )
         k = "step" * string(length(steps))

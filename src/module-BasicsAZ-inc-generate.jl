@@ -322,9 +322,22 @@ function Basics.generate(repType::AtomicState.RasExpansion, rep::AtomicState.Rep
             println(">> [RAS] BOTH levelsScf and levelSelectionCI were given; levelSelectionCI is in force as the " *
                     "EOL target and levelsScf = $(repType.settings.levelsScf) is ignored.")
         end
+        # THE ROUTE IS PASSED THROUGH, NOT REBUILT.  Until 04-Oct-2026 this line read
+        #     scfRoute = Basics.RotationRoute(repType.settings.maxIterationsScf)
+        # which converted an Int field into a route here, one line deep in the driver -- so a RAS ladder could name only the
+        # ROTATION route and only its iteration COUNT, while RotationRoute also carries nVirtual and stepping and FockRoute
+        # carries unscaledOffDiagonal.  Four of the six things a route can say were unreachable from a RAS computation, and the
+        # route hierarchy exists precisely so a run may be repeated on a dearer route when a cheaper one does not converge.
+        # A STEP MAY OVERRIDE THE LADDER, because a ladder's steps are not alike: a reference layer is converged in about twelve
+        # iterations where a correlation layer never converges at all, so one budget cannot serve both.
+        stepRoute    = isnothing(step.scfRoute) ? repType.settings.scfRoute : step.scfRoute
+        if  !isnothing(step.scfRoute)
+            println(">> [RAS] step $istep takes its OWN scf route, $(step.scfRoute), instead of the ladder's " *
+                    "$(repType.settings.scfRoute).")
+        end
         stepSettings = AsfSettings( AsfSettings();  scField=Basics.EOLField(),  frozenSubshells=frozenSubshellsThisStep,
                                      eeInteractionCI=repType.settings.eeInteractionCI,  levelSelectionCI=stepLevelSelection,
-                                     scfRoute=Basics.RotationRoute(repType.settings.maxIterationsScf),
+                                     scfRoute=stepRoute,
                                      accuracyScf=repType.settings.accuracyScf )
 
         # A VARIATIONAL step optimizes its new shells and puts every configuration it generated into the CI, which

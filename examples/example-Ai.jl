@@ -61,7 +61,7 @@ if  true
     # layer 1), only 2p is variationally optimized (EOL, target = lowest ^1S_0 level).
     name        = "Beryllium 1s^2 2s^2 ^1S_0 ground state -- 2-layer RAS (reference, then 2p correlation)"
     refConfigs  = [Configuration("[He] 2s^2")]
-    rasSettings = RasSettings([1], 24, 1.0e-6, CoulombInteraction(), LevelSelection(true, indices=[1]) )
+    rasSettings = RasSettings([1], Basics.RotationRoute(24), 1.0e-6, CoulombInteraction(), LevelSelection(true, indices=[1]) )
     coreShells  = [Shell("1s")]
     fromShells  = [Shell("2s")]
     layers      = [ RasLayer(Shell[]; se=false, de=false),
@@ -112,7 +112,7 @@ elseif  false
     # test case (each layer's lowest-level energy should decrease monotonically as correlation is added).
     name        = "Beryllium 1s^2 2s^2 ^1S_0 ground state -- 3-layer RAS (reference, 2p, then 3s3p3d)"
     refConfigs  = [Configuration("[He] 2s^2")]
-    rasSettings = RasSettings([1], 24, 1.0e-6, CoulombInteraction(), LevelSelection(true, indices=[1]) )
+    rasSettings = RasSettings([1], Basics.RotationRoute(24), 1.0e-6, CoulombInteraction(), LevelSelection(true, indices=[1]) )
     coreShells  = [Shell("1s")]
     fromShells  = [Shell("2s")]
     layers      = [ RasLayer(Shell[]; se=false, de=false),
@@ -298,7 +298,7 @@ elseif  false
                RasLayer([Shell("5s"), Shell("5p"), Shell("5d"), Shell("5f"), Shell("5g")]) ]
     # The 0+ symmetry alone, so that the branch stays around ten minutes; swap the symmetry below for the 1-
     # partner and difference the two lowest totals to reproduce the table above.
-    rasSettings = RasSettings([1], 60, 1.0e-6, Basics.CoulombBreit(0.0), LevelSelection(true, configurations=refs))
+    rasSettings = RasSettings([1], Basics.RotationRoute(60), 1.0e-6, Basics.CoulombBreit(0.0), LevelSelection(true, configurations=refs))
     grid   = Basics.recommendedGrid(refs, Nuclear.Model(Z); rnt = 2.0e-7)
     wa     = Representation("Be-like Z=92 -- 4-layer RAS, Coulomb+Breit", Nuclear.Model(Z), grid, refs,
                             RasExpansion([LevelSymmetry(0, Basics.plus)], 4, [Shell("1s")],
@@ -436,7 +436,7 @@ elseif  false
                RasLayer([Shell("5s"), Shell("5p"), Shell("5d"), Shell("5f"), Shell("5g")]) ]
     # The 0+ symmetry, much the cheaper of the two at 0.56 h against 9.59 h; swap for LevelSymmetry(1, Basics.plus) and
     # difference the two lowest totals to reproduce the table above.
-    rasSettings = RasSettings([1], 60, 1.0e-6, CoulombInteraction(), LevelSelection(true, configurations=refs))
+    rasSettings = RasSettings([1], Basics.RotationRoute(60), 1.0e-6, CoulombInteraction(), LevelSelection(true, configurations=refs))
     grid   = Basics.recommendedGrid(refs, Nuclear.Model(Z); rnt = 2.0e-7)
     wa     = Representation("C-like Z=92 -- 4-layer RAS", Nuclear.Model(Z), grid, refs,
                             RasExpansion([LevelSymmetry(0, Basics.plus)], 6, [Shell("1s")],
