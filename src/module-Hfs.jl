@@ -928,6 +928,75 @@ end
 
 
 """
+`Hfs.warnOnContactObservable(outcomes::Array{Hfs.Outcome,1})`  
+    ... prints one advisory note, and only where it applies, if a selected level carries an UNPAIRED s subshell while the CSF basis
+        holds no core s -> s single excitation. The A (and C) constant of such a level is dominated by the spin density AT the
+        nucleus, and that density is set by CORE POLARIZATION, which is a singles effect and is simply absent from such a basis.
+        Nothing is returned and nothing is blocked.
+
+        THE NOTE IS ABOUT THE CSF SPACE, NOT ABOUT THE ROUTE, and that is what makes it decidable here: a `Basis` records its
+        orbitals but NOT which route produced them, so a route-dependent caveat could never be checked. The presence of a core
+        s -> s single excitation can be, and the note therefore disappears exactly when the user has done the thing that cures it.
+
+        THE MEASUREMENT, 04-Oct-2026, 43Ca+ [Ar] 4s, ONE CSF, same grid and nucleus, only the route differing:
+
+            RAS/EOL reference step       A(2S_1/2) = -603.8 MHz     published Dirac-Fock:  -589.09, -589, -588.933 MHz
+            plain DFS                                -808.2         experiment:            -806.402 MHz;  correlated:  -808.12
+
+        READ THE TWO COLUMNS THE RIGHT WAY ROUND. The EOL value agrees with the published DIRAC-FOCK values to 2.5 %, so the
+        EOL route is doing its job; the ~25 % that separates it from experiment is the core-valence correlation that Dirac-Fock
+        omits, and which the literature puts at 22 % of the total for this very state. The DFS value lands on the experiment to
+        0.2 % ACCIDENTALLY, because a local Slater exchange potential mimics core polarization; it is not a better wavefunction
+        and must not be chosen for being closer. A note recommending DFS for contact observables was written on the strength of
+        the Yb+ row alone and is WRONG; it was removed once Ca+ supplied a system with a published Dirac-Fock number to check
+        against.
+
+        THE DEFICIT IS A PROPERTY OF THE UNPAIRED s ELECTRON AND NOT OF Z, measured the same day with one CSF throughout:
+        A(EOL)/A(DFS) = 0.747 for Ca+ [Ar] 4s (19 electrons), 0.745 for Mn+ [Ar] 3d^5 4s (24) and 0.756 for Yb+ 4f^14 6s (69).
+        Enriching the orbital basis does not touch it -- quadrupling the virtual span on Yb+ moved A by 0.3 % against a 24 % gap
+        -- because the missing physics is a CSF, not an orbital. A 4f-hole constant such as A(2F_7/2) moved only +2.2 % in the
+        same runs, since it comes from <r^-3> rather than from a density at the nucleus, and energies and fine-structure
+        intervals are unaffected throughout.
+"""
+function warnOnContactObservable(outcomes::Array{Hfs.Outcome,1})
+    hasUnpairedS = hasCorePolarization = false
+    for  outcome  in  outcomes
+        level = outcome.Jlevel;    basis = level.basis
+        isempty(basis.csfs)  &&  continue
+        csf = basis.csfs[ argmax(abs.(level.mc)) ]          ## the dominant CSF of this level
+        for  (k, sh)  in  enumerate(basis.subshells)
+            if  Basics.subshell_l(sh) == 0  &&  k <= length(csf.occupation)  &&  isodd(csf.occupation[k])
+                hasUnpairedS = true;    break
+            end
+        end
+        # A core s -> s single excitation leaves TWO OR MORE s subshells singly occupied; the reference CSF leaves just the one.
+        for  c  in  basis.csfs
+            nOdd = 0
+            for  (k, sh)  in  enumerate(basis.subshells)
+                if  Basics.subshell_l(sh) == 0  &&  k <= length(c.occupation)  &&  isodd(c.occupation[k])   nOdd = nOdd + 1   end
+            end
+            if  nOdd >= 2   hasCorePolarization = true;    break   end
+        end
+    end
+
+    if  hasUnpairedS  &&  !hasCorePolarization
+        println("\n>> [Hfs] NOTE: a selected level carries an UNPAIRED s subshell, so its A (and C) constant is dominated by " *
+                "the spin density AT the nucleus -- and this CSF basis holds no core s -> s single excitation.")
+        println(">>   Core polarization is therefore missing, and it is NOT a small correction here: measured on 43Ca+ 4s, " *
+                "one CSF gives A = -603.8 MHz against -806.402 measured, the one-CSF value agreeing instead with the published " *
+                "Dirac-Fock numbers (-589.09, -588.933) to 2.5 %.  The same deficit appears at 0.745-0.756 of the DFS value " *
+                "for Ca+, Mn+ and Yb+ alike, so it follows the unpaired s electron and not Z.")
+        println(">>   The cure is a CSF, not an orbital and not another route: add single excitations from the core s shells. " *
+                "Enriching the virtual span does not help (0.3 % on Yb+ against a 24 % gap), and plain DFS lands near " *
+                "experiment only because its local exchange mimics core polarization.  Constants built on <r^-3>, such as a " *
+                "4f-hole A(2F_7/2), are unaffected, as are energies and fine-structure intervals.")
+    end
+
+    return( nothing )
+end
+
+
+"""
 `Hfs.computeOutcomes(multiplet::Multiplet, nm::Nuclear.Model, grid::Radial.Grid, settings::Hfs.Settings; output=true)`  
     ... to compute (as selected) the HFS A, B and C parameters as well as hyperfine energy splittings for the levels of the given multiplet
         and as specified by the given settings. The results are printed in neat tables to screen and, if requested, an arrays{Hfs.Outcome,1}
@@ -948,6 +1017,7 @@ function computeOutcomes(multiplet::Multiplet, nm::Nuclear.Model, grid::Radial.G
         newOutcome = Hfs.computeAmplitudesProperties(outcome, nm, grid, settings, im) 
         push!( newOutcomes, newOutcome)
     end
+    Hfs.warnOnContactObservable(outcomes)
     # Print all results to screen
     Hfs.displayResults(stdout, newOutcomes, nm, settings)
     # Compute and display the non-diagonal hyperfine amplitudes, if requested
