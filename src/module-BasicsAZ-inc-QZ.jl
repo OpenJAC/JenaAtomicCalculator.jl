@@ -521,6 +521,52 @@ function Basics.recommendedGrid(occupations::Dict{Shell,Int64}, Z::Float64;
                 "continuum work, halve hp until the answer stops moving.")
     end
 
+    # AND A SECOND CAVEAT, ADDED 05-Oct-2026, FOR THE CASE WHERE THE CALLER ENLARGES THE BOX.  Everything above
+    # concerns the DEFAULT grid.  A caller who passes a LARGER rbox and leaves hp alone gets hp = rbox/300, which
+    # keeps the number of outer points roughly FIXED, so the spline basis does not grow with the box and each
+    # spline is asked to cover more space.  That is the opposite of what asking for a bigger box looks like it
+    # does, and it is silent.
+    #
+    # MEASURED on the rank-2 shielding factor, which is a sum over the whole B-spline pseudo-spectrum and so is
+    # the most exposed quantity yet found: Th(4+) [Rn] on the default grid gives gamma_inf = -185.0, and enlarging
+    # the box to 30, 61 and 91 a.u. with hp left to scale gives -135.6, +30.2 and +287.1 -- the SIGN changes.  The
+    # same enlargement with hp HELD FIXED, so that nsL grows from 95 to 250, reproduces -184.96.  The box was
+    # never the variable; the spline density nsL/rbox was.
+    #
+    # AND IT WARNS ONLY WHERE THE ACCIDENT CAN HAPPEN: rbox GIVEN AND hp LEFT ALONE.  A density threshold on its
+    # own is NOT usable here, and the measurement that shows why was nearly shipped as a false positive -- Ca(+)
+    # [Ar] 4s/4p on its OWN default grid sits at 2.85 splines per a.u., because a 4p electron seeing Zeff ~ 2
+    # pushes the box out to 34 a.u., and its E1 rate is nonetheless stable to 1.4e-04 as the mesh is refined
+    # eightfold.  So a low density reached by the DEFAULT is not a defect; a low density reached by ENLARGING the
+    # box is, because the caller asked for a better basis and got a thinner one.  Only the second is warned about,
+    # and the threshold is then the measured floor of 4 splines per a.u. rather than something gentler: Th(4+) at
+    # rbox = 30 with hp left to scale reaches 3.18 per a.u. and returns -135.6 against -184.96, so 3 would miss it.
+    #
+    # WHAT THE DEFAULT IS WORTH, measured 05-Oct-2026 by multiplying the divisor by 8 and watching cost and value:
+    #
+    #     quantity                                 divisor 300 -> 2400     relative change     cost
+    #     Th(4+) [Rn] level energy                 -26508.790380 Ha        3.4e-08             6.4x
+    #     Ca(+) 4p -> 4s  A(E1) Coulomb              3.36914e-09 1/s       1.4e-04             9.3x
+    #
+    # An order of magnitude in time for one part in 10^4.  THAT IS WHY THE DIVISOR IS NOT RAISED: a bound energy is
+    # variational and a bound rate samples the orbitals where they are large, while a sum over the whole B-spline
+    # pseudo-spectrum -- a shielding factor, a polarizability, a continuum normalization -- weights the high-lying
+    # members that a sparse basis gets wrong.  Those quantities must refine hp themselves, and they know who they
+    # are; the other 95 % of JAC would pay for them and gain 1e-04.
+    if  !isnothing(rbox)  &&  isnothing(hp)  &&  grid.nsL / rboxx < 4.0
+        @warn("Basics.recommendedGrid(): THE SPLINE BASIS WAS NOT ALLOWED TO GROW WITH THE BOX YOU ASKED FOR.\n" *
+              "   rbox = " * string(round(rboxx, digits=1)) * " a.u. was given explicitly, but hp was not, so " *
+              "hp = rbox/300 gives only $(grid.nsL) large-component splines, i.e. " *
+              string(round(grid.nsL/rboxx, digits=2)) * " per a.u.\n" *
+              "   hp = rbox/300 holds the number of outer points roughly FIXED however large the box, so a larger " *
+              "box yields the SAME basis stretched thinner rather than a better one.\n" *
+              "   REMEDY: give hp as well, e.g. Basics.recommendedGrid(configs, nm; rbox=" *
+              string(round(rboxx, digits=1)) * ", hp=0.03), then halve it until the answer stops moving.  " *
+              "Measured on a rank-2 shielding factor, an enlarged box with hp left to scale changed the SIGN of " *
+              "the result, while the same box at fixed hp reproduced it to five figures.",
+              maxlog=3)
+    end
+
     if  printout
         println("> Basics.recommendedGrid(): Z = $Z with $NoElectrons electrons; the box is set by $outer, which " *
                 "sees Zeff = $(round(ZeffOuter, digits=2)).")
