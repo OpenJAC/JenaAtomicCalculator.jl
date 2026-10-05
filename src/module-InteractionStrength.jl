@@ -745,6 +745,13 @@ function checkFrequencyIsMeaningful(factor::Float64, a::Orbital, b::Orbital, c::
     end
     factor == 0.  &&  return( nothing )
 
+    # PRIORITY ITEM 19 WAS CLOSED HERE, 05-Oct-2026.  Should a frequency-dependent Breit strength again be found
+    # wrong by orders of magnitude at high Z, the three explanations below are already tested and refuted, so do
+    # not spend the time again: it is NOT the quadrature (a fourfold mesh refinement is inert to four decimals),
+    # NOT the radial box (the same orbitals in a 4x box give the same answer while omega*rbox moves 7 -> 28), and
+    # NOT the continuum orbital's resolution (XL_Breit(0.) settles at 37 points per de Broglie wavelength while
+    # XL_Breit(1.) stays wild at 132).  It is the clause below, and its variable is the pair's own extent.
+
     # THE LARGE-omega END -- TWO CLAUSES THAT MEAN DIFFERENT THINGS, AND NEITHER REFUSES.
     #
     # CLAUSE A is the established one, and the variable is omega TIMES THE EXTENT OF THE OVERLAP DENSITY.  That it
