@@ -7,7 +7,7 @@ module TestFrames
 
 
 using  Printf, SymEngine, JLD2, JenaAtomicCalculator,
-       ..AngularMomentum, ..Basics, ..Continuum, ..Defaults, ..ManyElectron, ..Nuclear, ..Radial, ..TableStrings
+       ..AngularMomentum, ..Basics, ..Continuum, ..Defaults, ..ManyElectron, ..Nuclear, ..Radial, ..TableStrings, ..ResultKeys
 
 export testDummy
 

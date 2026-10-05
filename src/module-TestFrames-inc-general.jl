@@ -303,7 +303,7 @@ function testModule_MultipoleMoment(; short::Bool=true)
                             configs=[Configuration("1s 2s^2"), Configuration("1s 2s 2p"), Configuration("1s 2p^2")], printout=true )
 
     wxa  = perform(wa; output=true)
-    wma  = wxa["multiplet:"]
+    wma  = wxa[ResultKeys.Multiplet]
 
     flow = 6;    fup = 8;   ilow = 1;   iup = 3
     println("\n\nDipole amplitudes:\n")
@@ -1422,7 +1422,7 @@ function testMethod_DensityAtNucleus(; short::Bool=true)
         asf  = AsfSettings(AsfSettings(); scField = Basics.NuclearField())
         wa   = Atomic.Computation(Atomic.Computation(); name = "H-like", grid = grid, nuclearModel = nm,
                                   configs = [Configuration("1s")], asfSettings = asf)
-        bas  = redirect_stdout(devnull) do;  perform(wa; output = true)["multiplet:"].levels[1].basis  end
+        bas  = redirect_stdout(devnull) do;  perform(wa; output = true)[ResultKeys.Multiplet].levels[1].basis  end
         d[Z] = Basics.densityAtNucleus(bas.orbitals[Subshell("1s_1/2")], grid, nm)
         exact = Z^3/pi
         if  abs(d[Z]/exact - 1.0) > 0.01
@@ -1449,7 +1449,7 @@ function testMethod_DensityAtNucleus(; short::Bool=true)
     wa   = Atomic.Computation(Atomic.Computation(); name = "Xe", grid = grid, nuclearModel = nm,
                configs = [Configuration("1s^2 2s^2 2p^6 3s^2 3p^6 3d^10 4s^2 4p^6 4d^10 5s^2 5p^6")],
                asfSettings = asf)
-    bas  = redirect_stdout(devnull) do;  perform(wa; output = true)["multiplet:"].levels[1].basis  end
+    bas  = redirect_stdout(devnull) do;  perform(wa; output = true)[ResultKeys.Multiplet].levels[1].basis  end
     dS   = Basics.densityAtNucleus(bas.orbitals[Subshell("3s_1/2")],  grid, nm)
     dP   = Basics.densityAtNucleus(bas.orbitals[Subshell("3p_1/2")],  grid, nm)
     if  !(0. < dP < 0.5*dS)
@@ -2024,7 +2024,7 @@ function testModule_StarkZeeman(; short::Bool=true)
     grid = Radial.Grid(Radial.Grid(false), rnt = 2.0e-6, h = 5.0e-2, hp = 2.0e-2, rbox = 20.0)
     wa   = Atomic.Computation(Atomic.Computation(), name="StarkZeeman test: B-like C 2p", grid=grid,
                               nuclearModel = Nuclear.Model(6.), configs = [Configuration("1s^2 2s^2 2p")] )
-    multiplet = redirect_stdout(devnull) do;  perform(wa; output=true)["multiplet:"]  end
+    multiplet = redirect_stdout(devnull) do;  perform(wa; output=true)[ResultKeys.Multiplet]  end
     levels    = multiplet.levels
     nSub      = sum([Basics.twice(lev.J) + 1  for lev in levels])
     sum0      = sum([(Basics.twice(lev.J) + 1) * lev.energy  for lev in levels])
@@ -2107,7 +2107,7 @@ function testModule_Hamiltonian(; short::Bool=true)
 
     multiplet = redirect_stdout(devnull) do
         perform(Atomic.Computation(Atomic.Computation(), name="Hamiltonian test", grid=grid, nuclearModel=nm,
-                configs=[Configuration("1s^2 2s^2"), Configuration("1s^2 2p^2")]); output=true)["multiplet:"]
+                configs=[Configuration("1s^2 2s^2"), Configuration("1s^2 2p^2")]); output=true)[ResultKeys.Multiplet]
     end
     basis    = multiplet.levels[1].basis
     settings = AsfSettings()
@@ -2140,7 +2140,7 @@ function testModule_Hamiltonian(; short::Bool=true)
     # (4) the variational principle: adding CSFs cannot RAISE the ground state
     small = redirect_stdout(devnull) do
         perform(Atomic.Computation(Atomic.Computation(), name="Hamiltonian test: small space", grid=grid,
-                nuclearModel=nm, configs=[Configuration("1s^2 2s^2")]); output=true)["multiplet:"]
+                nuclearModel=nm, configs=[Configuration("1s^2 2s^2")]); output=true)[ResultKeys.Multiplet]
     end
     eSmall = minimum([lev.energy  for lev in small.levels])
     eLarge = minimum([lev.energy  for lev in multiplet.levels])
@@ -2277,7 +2277,7 @@ function testModule_SelfConsistent(; short::Bool=true)
     nm   = Nuclear.Model(8.);    cfg = [Configuration("1s^2 2s^2")]
     scf(set) = redirect_stdout(devnull) do
         perform(Atomic.Computation(Atomic.Computation(), name="SCF test", grid=grid, nuclearModel=nm,
-                configs=cfg, asfSettings=set); output=true)["multiplet:"]
+                configs=cfg, asfSettings=set); output=true)[ResultKeys.Multiplet]
     end
 
     orb1 = scf(AsfSettings()).levels[1].basis.orbitals
@@ -2661,7 +2661,7 @@ function testModule_BiOrthogonal(; short::Bool=true)
             perform( Atomic.Computation(Atomic.Computation(); name = "Z=$Z", grid = grid, nuclearModel = nm,
                                         configs = configs); output = true )
         end
-        return( (wb["multiplet:"], grid) )
+        return( (wb[ResultKeys.Multiplet], grid) )
     end
     leftMp,  grid  = multipletOf(4.)
     rightMp, _     = multipletOf(5.)
@@ -3033,7 +3033,7 @@ function testMethod_ThomasReicheKuhn(; short::Bool=true)
                initialConfigs = [Configuration("1s")],                        initialAsfSettings = asf,
                finalConfigs   = [Configuration("$(n)p")  for n = 2:20],       finalAsfSettings   = asf,
                processSettings = peS)
-    lines = redirect_stdout(devnull) do;  perform(wa; output=true)["photo-excitation lines:"]  end
+    lines = redirect_stdout(devnull) do;  perform(wa; output=true)[PhotoExcitation.Settings]  end
 
     # (1) the ground state is the exact hydrogenic one; without this the rest could be a sum rule of the wrong atom
     if  abs(lines[1].initialLevel.energy + 0.5) > 1.0e-4

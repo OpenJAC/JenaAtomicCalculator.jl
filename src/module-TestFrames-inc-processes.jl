@@ -77,7 +77,7 @@ function testModule_CoulombExcitation(; short::Bool=true)
                             nuclearModel = Nuclear.Model(92.),
                             initialConfigs = [Configuration("1s^2")], finalConfigs = [Configuration("1s 2p")],
                             processSettings = ceSettings )
-    ceLines = perform(wa; output=true)["Coulomb excitation lines:"]
+    ceLines = perform(wa; output=true)[CoulombExcitation.Settings]
     if  length(ceLines) == 0    success = false;   println("** no Coulomb-excitation lines were computed")   end
     for  line in ceLines
         partial = Dict( (mL.Mi, mL.Mf) => mL.partialCs   for mL in line.mLines )
@@ -267,7 +267,7 @@ function testModule_ImpactExcitation(; short::Bool=true)
         wa  = Atomic.Computation(Atomic.Computation(), name = "C5+", grid = grid, nuclearModel = nm,
                   initialConfigs = [iConf], initialAsfSettings = asf,
                   finalConfigs   = [fConf], finalAsfSettings   = asf, processSettings = ieS)
-        return( redirect_stdout(devnull) do;  perform(wa; output = true)["impact-excitation lines:"]  end )
+        return( redirect_stdout(devnull) do;  perform(wa; output = true)[ImpactExcitation.Settings]  end )
     end
 
     # (1) Omega(i -> f) = Omega(f -> i), EXACTLY. The collision strength is symmetric under exchange of the two
@@ -424,7 +424,7 @@ function testModule_PhotoIonization(; short::Bool=true)
                                                                      calcAnisotropy=true, printBefore=true,
                                                                      lineSelection=LineSelection(true, indexPairs=[(1,1), (1,2)])) )
     wb = perform(wa; output=true)
-    piLines = wb["photoionization lines:"]
+    piLines = wb[PhotoIonization.Settings]
     ###
     Defaults.setDefaults("print summary: close", "")
     # Make the comparison with approved data
@@ -471,7 +471,7 @@ function testModule_PhotoIonization(; short::Bool=true)
                  nuclearModel   = Nuclear.Model(Z, PointNucleus()),
                  initialConfigs = [Configuration("1s")],   initialAsfSettings = asf,
                  finalConfigs   = [Configuration("1s^0")], finalAsfSettings   = asf, processSettings = piS)
-        wd = redirect_stdout(devnull) do;  perform(wc; output = true)["photoionization lines:"]  end
+        wd = redirect_stdout(devnull) do;  perform(wc; output = true)[PhotoIonization.Settings]  end
         return( wd[1].crossSection )
     end
 
@@ -805,7 +805,7 @@ function testModule_ParticleScattering(; short::Bool=true)
     wd     = redirect_stdout(devnull) do
         perform(wc, output=true)
     end
-    event  = wd["particle-scattering events:"][1]
+    event  = wd[ParticleScattering.Settings][1]
     pws    = event.partialWaves
     #
     ## Test 3: the series must have converged well inside maxL, i.e. the epsPartialWave criterion ended it, not the
@@ -876,7 +876,7 @@ function testModule_ParticleScattering(; short::Bool=true)
         wcx = Atomic.Computation(Atomic.Computation(), name="positron/electron", grid=grid,
                                  nuclearModel=Nuclear.Model(2.0), initialConfigs=[Configuration("1s^2")],
                                  finalConfigs=[Configuration("1s^2")], processSettings=st )
-        (redirect_stdout(devnull) do;  perform(wcx, output=true);  end)["particle-scattering events:"][1]
+        (redirect_stdout(devnull) do;  perform(wcx, output=true);  end)[ParticleScattering.Settings][1]
     end
     dPos = ParticleScattering.phaseShift(posEv.partialWaves, -1)
     dEle = ParticleScattering.phaseShift(eEv.partialWaves,   -1)
@@ -930,7 +930,7 @@ function testModule_GeneralizedOscillatorStrength(; short::Bool=true)
              initialConfigs = [Configuration("1s")],   initialAsfSettings = asfH,
              finalConfigs   = [Configuration("2p")],   finalAsfSettings   = asfH,
              processSettings = gosSettings)
-    lines = perform(wa; output=true)["generalized oscillator strengths:"]
+    lines = perform(wa; output=true)[GeneralizedOscillatorStrength.Settings]
 
     f2p = zeros(length(Ks));    fsSplit = Dict{String,Vector{Float64}}()
     for  line in lines
@@ -989,14 +989,14 @@ function testModule_PhotoRecombinationInterference(; short::Bool=true)
                   electronEnergies=energies, maxKappa=2, calcAnisotropy=false, printBefore=false)
     rrLines = perform( Atomic.Computation(Atomic.Computation(), name="RR reference", grid=grid, nuclearModel=nModel,
                   initialConfigs=iConfigs, finalConfigs=fConfigs, processSettings=prSet);
-                  output=true )["photo recombination lines:"]
+                  output=true )[PhotoRecombination.Settings]
     priSet   = PhotoRecombinationInterference.Settings(PhotoRecombinationInterference.Settings();
                   multipoles=[E1], gauges=[UseCoulomb], electronEnergies=energies, maxKappa=2,
                   includeRR=true, includeDR=false, calcAnisotropy=false, calcPolarization=false, printBefore=false)
     priPaths = perform( Atomic.Computation(Atomic.Computation(), name="RR limit of the interference module",
                   grid=grid, nuclearModel=nModel, initialConfigs=iConfigs, intermediateConfigs=mConfigs,
                   finalConfigs=fConfigs, processSettings=priSet);
-                  output=true )["photorecombination-interference pathways:"]
+                  output=true )[PhotoRecombinationInterference.Settings]
 
     if  length(priPaths) == 0
         success = false
@@ -1175,7 +1175,7 @@ function testModule_TwoElectronOnePhoton(; short::Bool=true)
     gComp      = Atomic.Computation(Atomic.Computation(), name="TEOP test: Green-function multiplet", grid=grid,
                                     nuclearModel = Nuclear.Model(10.),
                                     configs = [Configuration("1s 2p"), Configuration("1s 2s")] )
-    gMultiplet = perform(gComp; output=true)["multiplet:"]
+    gMultiplet = perform(gComp; output=true)[ResultKeys.Multiplet]
 
     # route (ii): the module itself
     teopSettings = TwoElectronOnePhoton.Settings([E1], [UseCoulomb,UseBabushkin], false,
@@ -1185,7 +1185,7 @@ function testModule_TwoElectronOnePhoton(; short::Bool=true)
                             nuclearModel   = Nuclear.Model(10.),
                             initialConfigs = [Configuration("2s 2p")],
                             finalConfigs   = finalConfigs,      processSettings = teopSettings )
-    teopLines = perform(wb; output=true)["two-electron-one-photon lines:"]
+    teopLines = perform(wb; output=true)[TwoElectronOnePhoton.Settings]
 
     # route (i): CI mixing plus the biorthogonal transformation
     photoSettings = PhotoEmission.Settings(PhotoEmission.Settings(), multipoles=[E1], gauges=[UseCoulomb,UseBabushkin],
@@ -1195,7 +1195,7 @@ function testModule_TwoElectronOnePhoton(; short::Bool=true)
                             nuclearModel   = Nuclear.Model(10.),
                             initialConfigs = [Configuration("2s 2p"), Configuration("1s 2p")],
                             finalConfigs   = finalConfigs,      processSettings = photoSettings )
-    photoLines = perform(wc; output=true)["radiative lines:"]
+    photoLines = perform(wc; output=true)[PhotoEmission.Settings]
 
     # THE TWO ROUTES ARE MATCHED BY PHOTON ENERGY, NOT BY SIZE, and that is the one subtlety of this test. Route
     # (i)'s multiplet contains the 1s2p levels as well as the 2s2p ones, so it also produces the ORDINARY Kalpha
@@ -1284,7 +1284,7 @@ function testModule_ElectronCapture(; short::Bool=true)
                  initialConfigs = resConfs, finalConfigs = ionConf,
                  processSettings = AutoIonization.Settings(AutoIonization.Settings(); maxKappa = 4) ); output = true )
     end
-    capLines = wcap["electron-capture lines:"];    augLines = waug["AutoIonization lines:"]
+    capLines = wcap[ElectronCapture.Settings];    augLines = waug[AutoIonization.Settings]
     if  length(capLines) == 0
         success = false
         if printTest   info(iostream, "no electron-capture line was built at all")   end
@@ -1377,7 +1377,7 @@ function testModule_PhotoDoubleIonization(; short::Bool=true)
     asf  = AsfSettings(AsfSettings(); scField = Basics.DFSField())
     mult(c, n) = redirect_stdout(devnull) do
         perform(Atomic.Computation(Atomic.Computation(); name=n, grid=grid, nuclearModel=nm,
-                configs=c, asfSettings=asf); output=true)["multiplet:"]
+                configs=c, asfSettings=asf); output=true)[ResultKeys.Multiplet]
     end
     mi = mult([Configuration("1s^2")], "He");    mf = mult([Configuration("1s^0")], "He2+")
     gm = mult([Configuration("1s")],   "He+")

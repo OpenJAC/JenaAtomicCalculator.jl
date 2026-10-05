@@ -289,7 +289,7 @@ function testModule_MultipolePolarizibility(; short::Bool=true)
     ## potentials: exactly the mismatch the two-photon work found to be worth a factor 6.
     wa    = Atomic.Computation(Atomic.Computation(), name="H 1s static polarizibility", grid=grid, nuclearModel=ni,
                 configs=[Configuration("1s")], asfSettings=asf, propertySettings=[set])
-    outcomes = perform(wa; output=true)["Polarizibility outcomes:"]
+    outcomes = perform(wa; output=true)[MultipolePolarizibility.Settings]
     ###
     success = true
     if  length(outcomes) == 0    success = false;   println("** no polarizibility outcome was computed")   end
@@ -360,7 +360,7 @@ function testModule_ReducedDensityMatrix(; short::Bool=true)
     waA = Atomic.Computation(Atomic.Computation(), name="RDM sanity: Ne closed shell", grid=grid,
               nuclearModel = Nuclear.Model(10.), configs = [Configuration("1s^2 2s^2 2p^6")],
               propertySettings = [rdmSettings] )
-    outA  = perform(waA; output=true)["RDM outcomes:"]
+    outA  = perform(waA; output=true)[ReducedDensityMatrix.Settings]
     rhoA  = outA[1].rho1p;    nA = size(rhoA, 1)
     offA  = maximum([abs(rhoA[p,q])  for p = 1:nA, q = 1:nA  if p != q];  init = 0.0)
     diagA = [rhoA[p,p]  for p = 1:nA]
@@ -380,7 +380,7 @@ function testModule_ReducedDensityMatrix(; short::Bool=true)
               nuclearModel = Nuclear.Model(10.),
               configs = [Configuration("1s^2 2s^2 2p^6"), Configuration("1s^2 2s^2 2p^5 3p")],
               propertySettings = [rdmSettings] )
-    outB   = perform(waB; output=true)["RDM outcomes:"]
+    outB   = perform(waB; output=true)[ReducedDensityMatrix.Settings]
     rhoB   = outB[1].rho1p;    nB = size(rhoB, 1)
     subsh  = outB[1].naturalSubshells;    occB = outB[1].naturalOccupation
 
@@ -449,13 +449,13 @@ function testModule_StarkShift(; short::Bool=true)
             perform( Atomic.Computation(Atomic.Computation(); name = "H perturbers", grid = grid, nuclearModel = nm,
                                         configs = perturbers); output = true )
         end
-        settings = StarkShift.Settings(StarkShift.Settings(); calcStarkshifts = true, gMultiplet = wb1["multiplet:"],
+        settings = StarkShift.Settings(StarkShift.Settings(); calcStarkshifts = true, gMultiplet = wb1[ResultKeys.Multiplet],
                                        EField = EField)
         wb = redirect_stdout(devnull) do
             perform( Atomic.Computation(Atomic.Computation(); name = "H 2p Stark shift", grid = grid, nuclearModel = nm,
                                         configs = [Configuration("2p")], propertySettings = [settings]); output = true )
         end
-        return( wb["Stark-shift outcomes:"] )
+        return( wb[StarkShift.Settings] )
     end
     EField   = 1.0e5
     outcomes = starkOutcomes(EField)
@@ -758,7 +758,7 @@ function testModule_CrystalField(; short::Bool=true)
     wa = Atomic.Computation(Atomic.Computation(), name="test-CrystalField", grid = Radial.Grid(true),
                             nuclearModel = Nuclear.Model(1., UniformNucleus(), 1., 0.8783, AngularJ64(1//2), 2.7928473, 0.0, 0.0),
                             configs = [Configuration("3d")], propertySettings = Basics.AbstractPropertySettings[] )
-    multiplet = redirect_stdout(devnull) do;   perform(wa; output=true)["multiplet:"]   end
+    multiplet = redirect_stdout(devnull) do;   perform(wa; output=true)[ResultKeys.Multiplet]   end
     grid      = Radial.Grid(true)
     # A DELIBERATELY LOW-SYMMETRY lattice: three unequal charges at three generic directions and three distances. The
     # point is that no point-group argument can force any degeneracy here, so a degeneracy that does appear is Kramers'
