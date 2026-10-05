@@ -23,6 +23,67 @@ using Printf, LinearAlgebra, ..Basics,  ..Defaults, ..ManyElectron, ..Radial, ..
 
 
 """
+`BiOrthogonal.alignOrbitalSigns(leftBasis::Basis, rightBasis::Basis, grid::Radial.Grid)`
+    ... makes every right orbital agree in OVERALL SIGN with its left partner of the same subshell, which the
+        biorthogonalisation below requires and which no sign convention can guarantee on its own.  A tuple
+        tpl(newRightBasis::Basis, phases::Array{Float64,1}, flipped::Array{Subshell,1}) is returned: the basis with
+        the offending orbitals negated, the per-CSF phase that negation implies, and the subshells that were
+        flipped.  Nothing is changed when every overlap is already positive, and the phases are then all +1.
+
+        WHY IT IS NEEDED, and it is a property of the METHOD rather than a defect of the orbitals.
+        `BiOrthogonal.appendixB` factorises the overlap T = L U with NO pivoting, so `Cleft = inv(L)'` is UNIT
+        upper triangular -- every eigenvalue 1, its logarithm always real -- while `C11 = inv(U)` has eigenvalues
+        1/u_ii.  **One negative pivot therefore makes one eigenvalue of Cright negative, and a real matrix with a
+        negative eigenvalue has no real logarithm**: `log(C)` returns a complex matrix, every entry of it becomes
+        complex, and the first nonzero one assigned into a `Dict{...,Float64}` threw an `InexactError` naming
+        neither the module nor the cause, three call levels below what the user invoked.  Verified in isolation:
+        a near-identity overlap gives pivots +0.90 +1.07 +1.03 +0.86 and a REAL log, and negating one orbital
+        gives +0.90 +1.07 -1.03 +0.86 and a COMPLEX one whose largest imaginary part is exactly pi.
+
+        AND THE CURE IS A GAUGE CHOICE, NOT AN APPROXIMATION.  An orbital's overall sign is arbitrary; negating
+        phi multiplies a CSF by (-1)^n, with n that orbital's occupation in the CSF, because the CSF is built from
+        n copies of it.  Applying that phase to the CI coefficients alongside the negation leaves every
+        expectation value and every transition amplitude unchanged, and it makes the transformation a proper
+        rotation, which is what having a real generator means.
+
+        A SOUND SIGN CONVENTION UPSTREAM DOES NOT REMOVE THE CASE, which is worth saying because it was the
+        suspicion this item carried.  `Bsplines.canonicalSign` already fixes each orbital by the sign of its
+        LARGEST B-spline coefficient -- a robust rule, and a real improvement on the `sum(P[1:30])` test it
+        replaced.  But it canonicalises each basis SEPARATELY, and two independently optimised RAS bases hold
+        genuinely DIFFERENT radial functions under the same label;  their overlap may be negative however each
+        one was canonicalised.  The alignment has to be made between the two bases, which is here.
+"""
+function  alignOrbitalSigns(leftBasis::Basis, rightBasis::Basis, grid::Radial.Grid)
+    flipped = Subshell[]
+    newOrbs = Dict{Subshell, Orbital}()
+    for  (sh, orb)  in  rightBasis.orbitals
+        if  haskey(leftBasis.orbitals, sh)  &&
+                    RadialIntegrals.overlap(leftBasis.orbitals[sh], orb, grid) < 0.
+            newOrbs[sh] = Orbital(orb.subshell, orb.isBound, orb.useStandardGrid, orb.energy,
+                                  -orb.P, -orb.Q, -orb.Pprime, -orb.Qprime, orb.grid)
+            push!(flipped, sh)
+        else
+            newOrbs[sh] = orb
+        end
+    end
+    phases = ones(length(rightBasis.csfs))
+    if  !isempty(flipped)
+        for  (r, csf)  in  enumerate(rightBasis.csfs)
+            n = 0
+            for  (k, sh)  in  enumerate(rightBasis.subshells)
+                if  sh in flipped  &&  k <= length(csf.occupation)    n = n + csf.occupation[k]    end
+            end
+            phases[r] = isodd(n) ? -1.0 : 1.0
+        end
+    end
+    newRightBasis = Basis(true, rightBasis.NoElectrons, rightBasis.subshells, rightBasis.csfs,
+                          rightBasis.coreSubshells, newOrbs)
+
+    return( (newRightBasis, phases, flipped) )
+end
+
+
+"""
 `BiOrthogonal.computeTransformation(leftMp::Multiplet, rightMp::Multiplet, grid::Radial.Grid)`
     ... computes the bi-orthogonal transformation of the two given multiplets by rotating the radial functions
         and by counter-rotating the corresponding CI coefficients. leftMp and rightMp must have the same
@@ -47,6 +108,16 @@ function  computeTransformation(leftMp::Multiplet, rightMp::Multiplet, grid::Rad
         end
     end
 
+    # THE RIGHT ORBITALS ARE SIGN-ALIGNED TO THE LEFT ONES FIRST, because appendixB factorises the overlap with NO
+    # pivoting and one negative pivot leaves Cright with a negative eigenvalue -- which has no real logarithm.  The
+    # phase that the negation implies is carried into the CI coefficients below, so this changes no physics.
+    (rightBasis, rightPhases, flippedShells) = BiOrthogonal.alignOrbitalSigns(leftBasis, rightBasis, grid)
+    if  !isempty(flippedShells)
+        println(">> [BiOrthogonal] sign-aligned " * string(length(flippedShells)) * " right orbital(s) to their " *
+                "left partners: " * join(string.(flippedShells), ", ") * ".  An orbital's overall sign is " *
+                "arbitrary, and the matching phase (-1)^occupation is applied to the CI coefficients, so no " *
+                "expectation value or amplitude changes.")
+    end
     transformation                     = BiOrthogonal.computeTransformationMatrices(leftBasis, rightBasis, grid)
     newLeftOrbitals, newRightOrbitals  = BiOrthogonal.generateBiorthogonalShellMatrices(leftBasis, rightBasis, grid)
     Mleft                              = BiOrthogonal.generateCounterRotatingCiMatrices(leftBasis,  transformation, :left)
@@ -56,7 +127,8 @@ function  computeTransformation(leftMp::Multiplet, rightMp::Multiplet, grid::Rad
     newRightBasis = Basis(true, rightBasis.NoElectrons, rightBasis.subshells, rightBasis.csfs, rightBasis.coreSubshells, newRightOrbitals)
 
     newLeftLevels  = [ Level(lv.J, lv.M, lv.parity, lv.index, lv.energy, lv.relativeOcc, lv.hasStateRep, newLeftBasis,  Mleft  * lv.mc)  for lv in leftMp.levels  ]
-    newRightLevels = [ Level(lv.J, lv.M, lv.parity, lv.index, lv.energy, lv.relativeOcc, lv.hasStateRep, newRightBasis, Mright * lv.mc)  for lv in rightMp.levels ]
+    newRightLevels = [ Level(lv.J, lv.M, lv.parity, lv.index, lv.energy, lv.relativeOcc, lv.hasStateRep, newRightBasis,
+                             Mright * (rightPhases .* lv.mc))  for lv in rightMp.levels ]
 
     return( (Multiplet(leftMp.name * " (bi-orthogonal)", newLeftLevels), Multiplet(rightMp.name * " (bi-orthogonal)", newRightLevels)) )
 end
@@ -272,7 +344,23 @@ function  generateCounterRotatingCiMatrices(basis::Basis, transformation::Dict, 
     for  (_, (lList, rList, Cleft, Cright))  in  transformation
         shellList = side == :left ? lList : (side == :right ? rList : error("side must be :left or :right"))
         C         = side == :left ? Cleft : Cright
-        G         = log(C)
+        # A REAL LOGARITHM EXISTS ONLY WHERE NO EIGENVALUE IS NEGATIVE, and `BiOrthogonal.alignOrbitalSigns` is
+        # what normally ensures it.  Should one survive -- an overlap matrix far enough from the identity that a
+        # pivot turns negative although every diagonal overlap is positive -- this says SO, with the block and the
+        # offending eigenvalue, instead of letting a complex entry reach a Float64 dict and raise an InexactError
+        # that names neither this module nor the cause.
+        Graw      = log(C)
+        if  !(eltype(Graw) <: Real)
+            evs = LinearAlgebra.eigvals(C);    neg = evs[findall(e -> real(e) < 0. && abs(imag(e)) < 1.0e-8, evs)]
+            error("BiOrthogonal.generateCounterRotatingCiMatrices(): the $(side) transformation of the block " *
+                  "$(shellList) has no REAL matrix logarithm, so the counter-rotation cannot be built.  " *
+                  "Negative eigenvalue(s): $(neg).  This means one orbital of that block still carries the " *
+                  "opposite overall sign in the two bases after BiOrthogonal.alignOrbitalSigns, which aligns " *
+                  "them by their pairwise overlap;  a block whose overlap is far from the identity can do this " *
+                  "with every DIAGONAL overlap positive.  The transformation must be refused rather than " *
+                  "silently truncated to its real part, which would not be the counter-rotation of anything.")
+        end
+        G         = real(Graw)
         n         = length(shellList)
         for  a = 1:n,  b = 1:n
             if  G[a,b] != 0.0    Gmap[(shellList[a], shellList[b])] = G[a,b]    end
