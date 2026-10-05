@@ -1801,6 +1801,10 @@ function Basics.generateConfigurations(theme::Basics.ForStepwiseDecay, confs::Ar
             ## skipped, since it has nothing to fill; and the electron that fills hole i is always taken from a
             ## shell ABOVE i, which is what makes the step a decay rather than an excitation.  For a state with a
             ## SINGLE open inner shell only i = 1 qualifies, so such a cascade is unchanged.
+            ## PRIORITY ITEM 37 WAS CLOSED BY THIS LOOP, 05-Oct-2026.  Do not narrow it back to valenceShells[1:1]
+            ## as an optimisation: the cost is real (the Kr(2+) 3p^-1 3d^-1 tree grew +37 % in lines) but the
+            ## channels it buys are 4.4 % of the radiative and 1.9 % of the Auger rate there, and without them the
+            ## cascade answers "which hole decays first" with its own assumption rather than with a calculation.
             for  (i, iShell)  in  enumerate(valenceShells)
                 i >= length(valenceShells)                      &&  continue
                 conf.shells[iShell] < 2*(2*iShell.l + 1)        ||  continue
