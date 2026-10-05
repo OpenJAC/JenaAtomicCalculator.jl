@@ -260,6 +260,12 @@ function buildCIMatrixEOL(cache::PairCoefficientCache, orbitals::Dict{Subshell, 
     # just safe, since this matrix feeds diagonalizeBlockEOL -> Basics.diagonalize(MatrixWithLinearAlgebra(),
     # ...), whose Symmetric(matrix) wrapper (default uplo=:U) already discards the lower triangle. See
     # Hamiltonian.setupMatrix's identical note for the confirming test.
+    # JAC_NO_VKCACHE restores the pre-`cebc08f3` behaviour -- the UNCACHED method, one screened potential per
+    # quadruple -- so that the saving can be measured A/B on ONE build rather than against a number remembered
+    # from another tree.  It exists for that measurement and for re-taking it on a new system; it is not a tuning
+    # knob and nothing reads it by default.  Read ONCE here rather than per coefficient: an ENV lookup is a Dict
+    # probe and does not belong in a numerical inner loop.
+    noVk = haskey(ENV, "JAC_NO_VKCACHE")
     n = length(cache.idxCsf);   matrix = zeros(Float64, n, n)
     for  r = 1:n
         for  s = r:n
@@ -272,8 +278,13 @@ function buildCIMatrixEOL(cache::PairCoefficientCache, orbitals::Dict{Subshell, 
             end
             for  cf in coefficients2p(cache, r, s)
                 R_abcd = get!(radial2pCache, (cf.nu,cf.a,cf.b,cf.c,cf.d)) do
-                    InteractionStrength.XL_CoulombKinkAware(cf.nu, orbitals[cf.a], orbitals[cf.b], orbitals[cf.c],
-                                                            orbitals[cf.d], grid, vkCache)
+                    if  noVk
+                        InteractionStrength.XL_CoulombKinkAware(cf.nu, orbitals[cf.a], orbitals[cf.b],
+                                                                orbitals[cf.c], orbitals[cf.d], grid)
+                    else
+                        InteractionStrength.XL_CoulombKinkAware(cf.nu, orbitals[cf.a], orbitals[cf.b],
+                                                                orbitals[cf.c], orbitals[cf.d], grid, vkCache)
+                    end
                 end
                 me = me + cf.V * R_abcd
             end
