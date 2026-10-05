@@ -31,7 +31,10 @@ setDefaults("method: normalization, pure sine")       ## setDefaults("method: no
 ##     sub-modes: full pathway computation (default), and `calcOnlyPassages`, which collects each resonance's
 ##     contribution directly and is meant for high-n Rydberg intermediates and semi-empirical corrections.
 ##   * HYPERFINE resolved (module-DielectronicRecombination-inc-HF-resolved.jl) -- REWRITTEN 05-Aug-2026 and now
-##     a peer of the fine-structure path, selected simply by `calcHyperfineResolved = true`. It gives the INITIAL
+##     a peer of the fine-structure path, selected simply by `calcHyperfineResolved = true`. IT HAS TWO MODES
+##     SINCE 05-Oct-2026 and the description below is the DEFAULT one; `hfDrivenCapture = true` selects the other,
+##     for a resonance OPENED by the core's own hyperfine transition, and branch (i) is its example.
+##     In the DEFAULT mode it gives the INITIAL
 ##     (recombining) ion the full nuclear moments and sets mu = Q = 0 for the intermediate and final levels, whose
 ##     hyperfine structure is negligible; their F is retained because it carries the angular factors and summed
 ##     over on display. No electronic amplitude is recomputed -- the route runs the fine-structure machinery and
@@ -802,6 +805,79 @@ elseif  true
                             finalConfigs        = [Configuration("1s^2 2s^2"), Configuration("1s^2 2s 2p")],
                             processSettings     = drSettings )
     perform(wh)
+    #
+
+elseif  false
+    # Last visit:      05-Oct-2026
+    # Last successful: unknown -- SEE THE WARNING AT THE END OF THIS HEADER. The mode runs and the machinery is
+    #   cross-validated, but the NUMBER it produces has not been confirmed against anything outside JAC.
+    #
+    # Df-i) A RESONANCE OPENED BY THE CORE'S OWN HYPERFINE TRANSITION -- `hfDrivenCapture = true`.
+    #
+    # WHAT IS DIFFERENT FROM BRANCH (h). There the resonance is ELECTRONICALLY driven and the hyperfine
+    # interaction only splits it, so the intermediate may be given mu = Q = 0 and the electronic capture
+    # amplitude may be LOOKED UP from the fine-structure route. Here the resonance exists ONLY because the core
+    # flips F' -> F and so supplies the energy: the intermediate 1s(F) nl is electronically BOUND, the
+    # fine-structure route forms no capture line at all, and before 05-Oct-2026 the rate came back as a silent
+    # ZERO. The declared mode keeps the FULL nuclear moments of the intermediate and final ions -- it is THEIR
+    # hyperfine structure that lifts the intermediate above threshold -- and COMPUTES the electronic amplitude at
+    # the hyperfine resonance energy E_res = E_HFS - E_b(nlj). The operator is unchanged and purely electronic.
+    #
+    # WHY THE DEFAULT IS STILL THE DEFAULT: this mode needs one continuum orbital per HYPERFINE pair rather than
+    # per electronic pair, because every hyperfine pair has its own E_res. For the ordinary case of branch (h)
+    # that cost buys nothing.
+    #
+    # ASK FOR IT ON THE WRONG CASE AND YOU GET AN ERROR, NOT A ZERO. Run this branch with hfDrivenCapture = false
+    # and the route raises, names the flag, and names the alternative reading (an ordinary resonance whose
+    # intermediate does not autoionize, i.e. a pathway-selection fault). That half of the repair matters as much
+    # as the mode itself.
+    #
+    # WHAT THIS CASE IS. H-like Bi, I = 9/2, whose 1s level splits into F = 4 and F = 5 by E_HFS = 5.1958 eV as
+    # JAC computes it, against 5.084 eV measured -- 2.2 % high, which is the size of a Bohr-Weisskopf correction.
+    # The captured electron sees q = 82, so the channel is open only where E_b(nl) < E_HFS, i.e.
+    #     n_min = sqrt(q^2 / 2 E_HFS) = 133 ,
+    # and n = 10 below is FAR inside the closed region. `electronEnergyShift` is therefore used to place the
+    # resonances just above threshold: this branch exercises and documents the MODE, and is not the Bi physics.
+    # For the physics, `tools/probe-hfDrivenCaptureScaling.jl` measures reachable n and extrapolates to 133.
+    #
+    # WHAT COMES OUT HERE: 6 hyperfine capture lines, 5 of them non-zero, with the two F_i groups separated by
+    # 7.18 meV -- which is the hyperfine splitting of the INITIAL ion seen through the resonance energy, with
+    # reversed sign, since a more strongly bound F_i needs a correspondingly larger electron energy. Capture
+    # rates of order 1e-02 to 1e-04 atomic units.
+    #   THE STABILISING CHANNEL HAS TO BE GIVEN, or the strengths come out zero and look like a failure: from
+    # 1s 10s the Rydberg electron cannot reach 1s by E1 (s -> s), so the final configuration must offer a p
+    # shell. Hence 1s 2p below, and the explicit zero occupations that keep the three subshell lists equal,
+    # which the angular coefficients require.
+    #   AND THE F-SUM RULE DOES NOT APPLY HERE, which the output says for itself: it comes out 0.838 against the
+    # 1.0000000001 of branch (h). There the hyperfine amplitudes are RECOUPLED fine-structure ones and the
+    # recoupling is unitary, so the rule is an identity; here each pair is evaluated at its own resonance energy
+    # and the energetically closed pairs are absent, so neither premise holds. That is the mode working as
+    # designed, not a defect, and the display no longer calls it one.
+    #
+    # >>> WARNING, AND IT IS WHY THIS BRANCH CARRIES NO SUCCESS DATE. Measured 05-Oct-2026, the capture rate of
+    #     this mode falls as n^-1.67, NOT as the 1/n^3 of a genuine two-electron Auger rate. The suspicion is
+    #     that JAC's Coulomb operator contributes a DIRECT monopole term here which should not be present -- for
+    #     a core that is electronically unchanged only the EXCHANGE integral survives -- and the direct term
+    #     exists exactly in the one channel where the continuum and Rydberg kappa agree. Until that is settled,
+    #     USE THIS MODE TO SEE THAT THE CHANNEL EXISTS, NOT TO QUOTE A RATE.
+    println("\nDf-i) Hyperfine-DRIVEN dielectronic capture in H-like Bi, as a declared mode.")
+    dfGrid = Radial.Grid(Radial.Grid(false), rnt = 1.0e-6, h = 5.0e-2, hp = 1.0e-2, rbox = 6.0)
+    dfNm   = Nuclear.Model(Nuclear.Model(83.); spinI = AngularJ64(9//2), mu = 4.1106, Q = -0.516)
+    dfSets = DielectronicRecombination.Settings(DielectronicRecombination.Settings();
+                                                multipoles            = [E1],
+                                                gauges                = [UseCoulomb],
+                                                calcOnlyPassages      = true,
+                                                calcHyperfineResolved = true,
+                                                hfDrivenCapture       = true,
+                                                electronEnergyShift   = 951.9,
+                                                printBefore           = false )
+    wi = Atomic.Computation(Atomic.Computation(), name="Df-i: hyperfine-driven capture in H-like Bi", grid=dfGrid,
+                            nuclearModel        = dfNm,
+                            initialConfigs      = [Configuration("1s^1 2p^0 10s^0")],
+                            intermediateConfigs = [Configuration("1s^1 2p^0 10s^1")],
+                            finalConfigs        = [Configuration("1s^1 2p^1 10s^0")],
+                            processSettings     = dfSets )
+    perform(wi)
     #
 end
 #

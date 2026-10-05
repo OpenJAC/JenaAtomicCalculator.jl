@@ -368,9 +368,10 @@ function  computeHfCaptureLines(finalMultiplet::Multiplet, intermediateMultiplet
     end
     newHfCapture = DielectronicRecombination.setHfTotalRates(newHfCapture, newHfPhoton)
     # (4) DISPLAY, resolved in F_i and summed over F_m and F_f
-    DielectronicRecombination.displayHfResults(stdout, newHfCapture, newECaptureLines, nm)
+    DielectronicRecombination.displayHfResults(stdout, newHfCapture, newECaptureLines, nm, settings.hfDrivenCapture)
     printSummary, iostream = Defaults.getDefaults("summary flag/stream")
-    if  printSummary    DielectronicRecombination.displayHfResults(iostream, newHfCapture, newECaptureLines, nm)   end
+    if  printSummary    DielectronicRecombination.displayHfResults(iostream, newHfCapture, newECaptureLines, nm,
+                                                                  settings.hfDrivenCapture)   end
     if  output    return( (newHfCapture, newHfPhoton) )
     else          return( nothing )
     end
@@ -482,8 +483,9 @@ end
 
 
 """
-`DielectronicRecombination.displayHfResults(stream::IO, hfCaptureLines::Array{HfCaptureLine,1},
-                            eCaptureLines::Array{DielectronicRecombination.CaptureLine,1}, nm::Nuclear.Model)`
+`DielectronicRecombination.displayHfResults(stream::IO, hfCaptureLines::Array{DielectronicRecombination.HfCaptureLine,1},
+                            eCaptureLines::Array{DielectronicRecombination.CaptureLine,1}, nm::Nuclear.Model,
+                            hfDriven::Bool=false)`
     ... to list the hyperfine-resolved DR resonance strengths, resolved in F_i and SUMMED over F_m. Nothing is
         returned.
 
@@ -503,7 +505,8 @@ end
         wrong phase, a missing sqrt(2F+1) or a mis-ordered 6-j.
 """
 function  displayHfResults(stream::IO, hfCaptureLines::Array{DielectronicRecombination.HfCaptureLine,1},
-                           eCaptureLines::Array{DielectronicRecombination.CaptureLine,1}, nm::Nuclear.Model)
+                           eCaptureLines::Array{DielectronicRecombination.CaptureLine,1}, nm::Nuclear.Model,
+                           hfDriven::Bool=false)
     # Aggregate over F_m, keeping F_i and the capture energy
     byFi = Dict{Int64,EmProperty}();    enOf = Dict{Int64,Float64}();   nOf = Dict{Int64,Int64}()
     for  cLine in hfCaptureLines
@@ -518,7 +521,9 @@ function  displayHfResults(stream::IO, hfCaptureLines::Array{DielectronicRecombi
     println(stream, "  Hyperfine-resolved DR resonance strengths, summed over F_m and F_f:")
     println(stream, " ")
     println(stream, "  nuclear spin I = $(nm.spinI),  mu = $(nm.mu),  Q = $(nm.Q)")
-    println(stream, "  the intermediate and final levels carry mu = Q = 0, so their F is summed over")
+    println(stream, hfDriven ? "  hfDrivenCapture: all three ions carry their FULL nuclear moments, and each " *
+                              "amplitude was computed at its own resonance energy" :
+                              "  the intermediate and final levels carry mu = Q = 0, so their F is summed over")
     println(stream, " ")
     println(stream, "  ", TableStrings.hLine(nx))
     sa = "  ";   sb = "  "
@@ -576,7 +581,19 @@ function  displayHfResults(stream::IO, hfCaptureLines::Array{DielectronicRecombi
         eSumC = eSumC + cLine.resonanceStrength.Coulomb;    eSumB = eSumB + cLine.resonanceStrength.Babushkin
     end
     println(stream, " ")
+    # THE SUM RULE IS A CHECK IN THE DEFAULT MODE AND NOT IN THE OTHER ONE, so it must not be printed as though
+    # it were.  It holds because the hyperfine amplitudes there are RECOUPLED fine-structure amplitudes and the
+    # recoupling is unitary;  under hfDrivenCapture each hyperfine pair is evaluated at ITS OWN resonance energy
+    # and the energetically closed pairs are absent altogether, so neither premise survives.  Measured on the
+    # H-like Bi case of `example-Df.jl` branch (i): the ratio comes out 0.838, and that is the mode working as
+    # designed.  Printing the default wording there would make a correct run look like a defect.
+    if  hfDriven
+        println(stream, "  F-SUM RULE -- NOT APPLICABLE IN THIS MODE, and reported only for orientation:")
+        println(stream, "  each hyperfine pair is evaluated at its own resonance energy and the closed pairs are")
+        println(stream, "  absent, so the statistical average need not reproduce the fine-structure sum.")
+    else
     println(stream, "  F-SUM RULE -- the statistically averaged hyperfine strength must reproduce the fine-structure one:")
+    end
     println(stream, " ")
     @printf(stream, "    sum_F (2F_i+1)/((2I+1)(2J_i+1)) * S(hyperfine)   Coulomb %.8e   Babushkin %.8e\n", hfSumC, hfSumB)
     @printf(stream, "    sum   S(fine structure)                          Coulomb %.8e   Babushkin %.8e\n", eSumC, eSumB)
@@ -584,7 +601,9 @@ function  displayHfResults(stream::IO, hfCaptureLines::Array{DielectronicRecombi
         @printf(stream, "    ratio                                            Coulomb %.10f   Babushkin %.10f\n",
                 hfSumC/eSumC, hfSumB/eSumB)
         dev = max(abs(hfSumC/eSumC - 1.), abs(hfSumB/eSumB - 1.))
-        if  dev < 1.0e-8
+        if  hfDriven
+            println(stream, "    >>> this ratio is NOT a check in this mode;  see the note above.")
+        elseif  dev < 1.0e-8
             println(stream, "    >>> the sum rule holds to $(round(dev, sigdigits=2)); the recoupling is consistent.")
         else
             println(stream, "    >>> WARNING: the sum rule is violated by $(round(100*dev, digits=4)) %. This is an identity")
