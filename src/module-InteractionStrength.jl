@@ -752,29 +752,83 @@ function checkFrequencyIsMeaningful(factor::Float64, a::Orbital, b::Orbital, c::
     end
     factor == 0.  &&  return( nothing )
 
-    # THE LARGE-omega END -- A WARNING AND DELIBERATELY NOT A REFUSAL, because the threshold is not established.
-    # What IS established (15-Sep-2026): four BOUND orbitals in a box sized to them break down around
-    # omega*rbox ~ 7-9, measured on two systems 15x apart in box size and 9x in Z which track the same curve in
-    # that product to a few per cent.  What is NOT established is the scale for a quadruple containing a
-    # CONTINUUM orbital -- the Auger case this guard exists for -- where the measurements of 09-Sep are healthy at
-    # omega*rbox = 21, far past where both bound systems have already changed sign.  Neither omega*rbox nor
-    # omega*(orbital extent) explains both datasets;  see the priority item, which stays open on exactly this.
-    # So: warn where the validated law is known to have failed, name the remedy, and refuse nothing.
+    # THE LARGE-omega END -- TWO CLAUSES THAT MEAN DIFFERENT THINGS, AND NEITHER REFUSES.
+    #
+    # CLAUSE A is the established one, and the variable is omega TIMES THE EXTENT OF THE OVERLAP DENSITY.  That it
+    # is the orbitals and not the box was settled 05-Oct-2026 by a controlled test: the SAME C orbitals in a box
+    # enlarged from 12.6 to 50.4 a.u. give the ratio 1.1627 and 1.1626 at the same omega, while omega*rbox moves
+    # from 7.0 to 28.2.  The box cannot be causal if changing it alone changes nothing.  Refining the MESH
+    # fourfold is equally inert (1.1038/1.1041 at product 4, 1.1627/1.1626 at 7, 474 against 1893 points per
+    # oscillation), which rules out quadrature resolution -- the mechanism this item asserted for a month.
+    #
+    # CLAUSE B is retained because clause A does NOT cover the catastrophe this guard was filed for.  An Auger
+    # quadruple is three compact bound orbitals plus a continuum electron filling the box, so its omega*extent is
+    # 0.5-1.0 and clause A is rightly silent -- and the Z = 53 case IS healthy there.  But Z = 92 is wrong by 10^7
+    # and sits at the same omega*extent.  Something other than the extent fails there, it is NOT understood, and a
+    # guard that went quiet about it would be a regression.  So clause B keeps the box test at a threshold above
+    # the measured healthy point (omega*rbox = 21 at Z = 53) and says plainly that it is indicative.
     cLight = Defaults.getDefaults("speed of light: c")
     omgAC  = factor * abs(a.energy - c.energy) / cLight
     omgBD  = factor * abs(b.energy - d.energy) / cLight
-    product = max(omgAC, omgBD) * grid.r[end]
-    if  product >= 4.0
-        @warn("A frequency-dependent Breit interaction at omega x rbox = " * @sprintf("%.1f", product) *
-              " is OUTSIDE the range where its O(omega^2) retardation law was validated (example-Ad.jl branch 4, " *
-              "small omega).  Measured 15-Sep-2026 on two bound systems: the correction is already ~21 % below that " *
-              "law by 4, PEAKS near 7, has vanished by 11 and reverses sign by 18.  A quadruple containing a " *
-              "CONTINUUM orbital behaves differently and its scale is NOT established, so this is indicative only " *
-              "in either direction.  CoulombBreit(0.) is the exact omega -> 0 limit and is what every published " *
-              "JAC Auger, DR and cascade number has used.", maxlog=3)
+    omega  = max(omgAC, omgBD)
+    extent = max( InteractionStrength.overlapExtent(a, c, grid), InteractionStrength.overlapExtent(b, d, grid) )
+    if  omega * extent >= 1.2
+        @warn("A frequency-dependent Breit interaction at omega x (overlap extent) = " *
+              @sprintf("%.2f", omega*extent) * " is OUTSIDE the range where its O(omega^2) retardation law was " *
+              "validated (example-Ad.jl branch 4, small omega).\n" *
+              "   Measured on two bound systems 15x apart in box size and 9x in Z: the correction is already " *
+              "~21 % below that law by 1.2, PEAKS between 2.1 and 3.0 -- where it stops growing with omega, which " *
+              "is unphysical -- has VANISHED by 3.4 to 4.7, and reverses SIGN by 5.5 to 7.7.  The two systems " *
+              "place these landmarks about 40 % apart, so the threshold is the conservative end of that spread.\n" *
+              "   REMEDY: CoulombBreit(0.) is the exact omega -> 0 limit and is what every published JAC Auger, " *
+              "DR and cascade number has used.", maxlog=3)
+    elseif  omega * grid.r[end] >= 25.0
+        @warn("A frequency-dependent Breit interaction spans a box far larger than its orbitals: " *
+              "omega x rbox = " * @sprintf("%.1f", omega*grid.r[end]) * " while omega x (overlap extent) = " *
+              @sprintf("%.2f", omega*extent) * ".\n" *
+              "   This is the Auger and dielectronic-capture geometry -- compact bound orbitals plus a continuum " *
+              "electron filling the grid -- and the extent criterion above is silent on it CORRECTLY: measured " *
+              "09-Sep-2026, Li-like KLL capture at Z = 53 is healthy at omega x rbox = 21, a 0.2 % correction.\n" *
+              "   BUT AT Z = 92 THE SAME AMPLITUDES COME OUT 10^6 TO 10^7 TOO LARGE, at the same omega x extent, " *
+              "and WHY IS NOT KNOWN -- neither the extent, nor the box, nor the mesh explains it.  So this is a " *
+              "warning that you are in the region where that happened, not a diagnosis.  Check the result against " *
+              "CoulombBreit(0.) before using it.", maxlog=3)
     end
 
     return( nothing )
+end
+
+
+"""
+`InteractionStrength.overlapExtent(x::Orbital, y::Orbital, grid::Radial.Grid)`
+    ... the radius inside which 99 % of |P_x P_y + Q_x Q_y| lies, i.e. of the TRANSITION DENSITY that a two-electron radial integral
+        actually samples. A value::Float64 is returned.
+
+        THIS IS THE LENGTH THAT DECIDES WHERE A FREQUENCY-DEPENDENT BREIT STRENGTH STOPS BEING TRUSTWORTHY, and it is the pair's own
+        property rather than the grid's. Settled 05-Oct-2026 by the one test that varies a single thing: the same C orbitals in a box
+        enlarged from 12.6 to 50.4 a.u. return the ratio 1.1627 against 1.1626 at fixed omega, while omega*rbox moves 7.0 -> 28.2.
+
+        It is formed per PAIR, since the code builds omg_ac and omg_bd separately, and the larger of the two pairs sets the scale. For an
+        Auger quadruple -- three compact bound orbitals and a continuum electron filling the grid -- it is the bound orbitals that bound
+        the density, which is why such a run is not false-alarmed on its box.
+
+        Numerically it comes out close to `effectiveExtent` of the more compact partner (0.245 against 0.245 for Ne-like Xe, 5.304
+        against 5.304 for C-like carbon), so the two are not distinguished by the present measurements; this one is used because it is
+        the density the integrand contains rather than a proxy for it.
+"""
+function overlapExtent(x::Orbital, y::Orbital, grid::Radial.Grid)
+    n = min(length(x.P), length(y.P), length(x.Q), length(y.Q), length(grid.r), length(grid.wr))
+    n <= 0   &&   return( grid.r[end] )
+    total = 0.
+    for  i = 1:n    total = total + abs(x.P[i]*y.P[i] + x.Q[i]*y.Q[i]) * grid.wr[i]    end
+    total <= 0.  &&  return( grid.r[n] )
+    acc = 0.;    target = 0.99 * total
+    for  i = 1:n
+        acc = acc + abs(x.P[i]*y.P[i] + x.Q[i]*y.Q[i]) * grid.wr[i]
+        acc >= target  &&  return( grid.r[i] )
+    end
+
+    return( grid.r[n] )
 end
 
 
