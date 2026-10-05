@@ -162,6 +162,88 @@ end
 
 
 """
+`DielectronicRecombination.hfDrivenAugerAmplitude(iLevel::Level, mLevel::Level, kappa::Int64, eEnergy::Float64,
+                            nm::Nuclear.Model, grid::Radial.Grid, nrContinuum::Int64,
+                            settings::DielectronicRecombination.Settings;
+                            nuclearPot::Union{Nothing,Radial.Potential}=nothing,
+                            primitives::Union{Nothing,Bsplines.Primitives}=nothing)`  
+    ... the electronic capture amplitude of one partial wave for a HYPERFINE-DRIVEN resonance, with the
+        mean-field (spectator-direct) terms EXCLUDED; an amplitude::ComplexF64 is returned.
+
+        WHY THIS DIFFERS FROM `AutoIonization.amplitude`, AND IT IS THE WHOLE POINT OF THE MODE.  In a
+        hyperfine-driven capture the core is electronically UNCHANGED -- the free electron drops into nl and the
+        energy goes into the core's F' -> F flip -- so the two-particle sum contains a term in which one electron
+        keeps its orbital.  Measured on 1s + e(s) -> 1s 10s in H-like Bi, the four coefficients are
+
+            nu  bra (a,b)        ket (c,d)        V       R^nu          V R^nu
+             0  (1s, eps s)      (1s,  10s)     +0.5   1.619259e-01   +8.096e-02     <- spectator direct
+             0  (1s, eps s)      (10s, 1s )     -0.5   1.194135e-02   -5.971e-03     <- exchange
+             1  (1s, eps s)      (1s,  10s)     -0.167 0.0            0
+             1  (1s, eps s)      (10s, 1s )     +0.167 0.0            0
+
+        and the first is 13.6 times the second.  But R^0(1s, eps s; 1s, 10s) with the 1s unchanged is nothing but
+        the matrix element of the 1s MONOPOLE POTENTIAL between eps s and 10s -- and that potential is already in
+        the DFS mean field that generated both orbitals.  The autoionization operator is V_ee - U, and this term
+        IS U.  Keeping it double counts.  For an ORDINARY Auger transition the core orbital changes, no such term
+        arises, and `AutoIonization.amplitude` is right as it stands; that path is untouched.
+
+        MEASURED, AND THE SCALING IS THE PROOF.  A genuine two-electron Auger rate into a Rydberg state must fall
+        as 1/n^3, because that is how the Rydberg electron's density at the core falls.  At eps = 0.2 eV:
+
+            n            full (as AutoIonization)        exchange only
+            20     2.661489e-02                     5.420412e-05
+            28     1.528247e-02   p = 1.649         1.957580e-05   p = 3.027
+            40     8.479111e-03   p = 1.652         6.669699e-06   p = 3.019
+            60     4.320206e-03   p = 1.663         1.966046e-06   p = 3.013
+
+        1.66 against 3.02.  The spurious term is not a small correction -- it is 99.95 % of the rate at n = 60 --
+        and only without it does the answer obey the law it must obey.  This is also what the source literature
+        says: for a core that is electronically unchanged the direct Coulomb contribution drops out and the
+        exchange integral is the whole amplitude.
+
+        THE TEST IS ON THE COEFFICIENT, NOT ON THE ORBITAL NAMES: a term is excluded when one electron keeps its
+        orbital, `coeff.a == coeff.c` or `coeff.b == coeff.d`, which is exactly the statement that that electron
+        is a spectator and its interaction is already in the mean field.
+"""
+function  hfDrivenAugerAmplitude(iLevel::Level, mLevel::Level, kappa::Int64, eEnergy::Float64, nm::Nuclear.Model,
+                                 grid::Radial.Grid, nrContinuum::Int64,
+                                 settings::DielectronicRecombination.Settings;
+                                 nuclearPot::Union{Nothing,Radial.Potential}=nothing,
+                                 primitives::Union{Nothing,Bsplines.Primitives}=nothing)
+    contSettings = Continuum.Settings(false, nrContinuum)
+    redNLevel    = Basics.generateLevelWithSymmetryReducedBasis(mLevel, mLevel.basis.subshells)
+    newiLevel    = Basics.generateLevelWithSymmetryReducedBasis(iLevel, redNLevel.basis.subshells)
+    symn         = LevelSymmetry(mLevel.J, mLevel.parity)
+    newnLevel    = Basics.generateLevelWithExtraSubshell(Subshell(101, kappa), redNLevel)
+    cOrbital, phase = Continuum.generateOrbitalForLevel(eEnergy, Subshell(101, kappa), newiLevel, nm, grid,
+                                            contSettings; nuclearPot=nuclearPot, primitives=primitives)
+    newcLevel    = Basics.generateLevelWithExtraElectron(cOrbital, symn, newiLevel)
+    nt = length(newcLevel.basis.csfs);    nn = length(newnLevel.basis.csfs)
+    matrix = zeros(nt, nn)
+    for  r = 1:nt
+        for  s = 1:nn
+            opa    = SpinAngular.TwoParticleOperator(0, plus)
+            coeffs = SpinAngular.computeCoefficients(opa, newcLevel.basis.csfs[r], newnLevel.basis.csfs[s],
+                                                     newcLevel.basis.subshells)
+            me = 0.
+            for  coeff in coeffs
+                # one electron keeping its orbital is a spectator, and its direct interaction is the mean field
+                if  coeff.a == coeff.c   ||   coeff.b == coeff.d       continue    end
+                me = me + coeff.V * InteractionStrength.XL_Coulomb(coeff.nu,
+                                        newcLevel.basis.orbitals[coeff.a], newcLevel.basis.orbitals[coeff.b],
+                                        newnLevel.basis.orbitals[coeff.c], newnLevel.basis.orbitals[coeff.d], grid)
+            end
+            matrix[r,s] = me
+        end
+    end
+    amplitude = transpose(newcLevel.mc) * matrix * newnLevel.mc
+    amplitude = im^Basics.subshell_l(Subshell(101, kappa)) * exp( -im*phase ) * amplitude
+
+    return( amplitude )
+end
+
+
+"""
 `DielectronicRecombination.computeHfDrivenCaptureAmplitudes(hfLine::DielectronicRecombination.HfCaptureLine,
                             nm::Nuclear.Model, grid::Radial.Grid, nrContinuum::Int64,
                             settings::DielectronicRecombination.Settings;
@@ -187,18 +269,20 @@ end
         difference and already discards the closed pairs, so nothing here re-derives it -- but it is only correct
         once the intermediate carries its FULL nuclear moments, which is what `hfDrivenCapture` arranges.
 
-        THE OPERATOR IS UNCHANGED AND PURELY ELECTRONIC.  No new operator is needed and none is introduced: the
-        capture is driven by the electron-electron interaction as always, and the nucleus enters only through the
-        recoupling coefficient, which is the same `hfCaptureRecoupling` the ordinary route uses and which was
-        verified unitary over 515 combinations. What differs is at which ENERGY the electronic amplitude is
-        evaluated, and that each hyperfine pair needs its own.
+        THE OPERATOR IS PURELY ELECTRONIC AND NO NEW ONE IS INTRODUCED.  The capture is driven by the
+        electron-electron interaction as always, and the nucleus enters only through the recoupling coefficient,
+        the same `hfCaptureRecoupling` the ordinary route uses, verified unitary over 515 combinations.  Two
+        things differ from the ordinary route: the ENERGY at which the electronic amplitude is evaluated, each
+        hyperfine pair needing its own;  and the amplitude itself, which must EXCLUDE the spectator-direct terms
+        because the core is electronically unchanged and their interaction is already in the mean field --
+        `hfDrivenAugerAmplitude` does that, and its docstring carries the measurement that forced it.
 
             A(kappa) = sum_{p,q} mc_i[p] mc_m[q] * <((I J_i^p) F_i, j_e) F_m | (I,(J_i^p j_e) J_m^q) F_m>
                                                  * A_electronic(i^p, kappa --> m^q;  E_res)
             captureRate = 2 pi * sum_kappa |A(kappa)|^2
 
-        identical to the lookup route except for the explicit energy argument, so the two agree term by term
-        wherever both are defined.
+        identical in form to the lookup route, with the electronic amplitude supplied by
+        `hfDrivenAugerAmplitude` rather than taken from the fine-structure route.
 
         THE COST IS ONE CONTINUUM ORBITAL PER HYPERFINE PAIR, not per electronic pair, because every hyperfine
         pair has its own E_res. That is why this is a declared mode rather than a generalization of the default.
@@ -224,12 +308,10 @@ function  computeHfDrivenCaptureAmplitudes(hfLine::DielectronicRecombination.HfC
     for  (mci, iLev) in iComps,  (mcm, mLev) in mComps
         pws = DielectronicRecombination.determineCaptureChannels(mLev, iLev, settings)
         if  isempty(pws)    continue    end
-        eLine  = DielectronicRecombination.CaptureLine(iLev, mLev, eEnergy, 0., 0., EmProperty(0., 0.),
-                                                       EmProperty(0., 0.), pws)
-        newELine = DielectronicRecombination.computeCaptureAmplitudes(eLine, nm, grid, nrContinuum, settings;
-                                                   nuclearPot=nuclearPot, primitives=primitives)
-        for  pw in newELine.capturePartialWaves
-            ampDict[(iLev.index, mLev.index, pw.kappa)] = pw.amplitude
+        for  pw in pws
+            ampDict[(iLev.index, mLev.index, pw.kappa)] =
+                DielectronicRecombination.hfDrivenAugerAmplitude(iLev, mLev, pw.kappa, eEnergy, nm, grid,
+                                        nrContinuum, settings; nuclearPot=nuclearPot, primitives=primitives)
         end
     end
     kappas = unique( [key[3] for key in keys(ampDict)] )

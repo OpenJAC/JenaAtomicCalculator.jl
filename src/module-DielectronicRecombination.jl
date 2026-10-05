@@ -23,8 +23,8 @@ module DielectronicRecombination
 
 
 using Base.Threads, Distributed, Printf, ProgressMeter, SpecialFunctions,
-        ..AngularMomentum, ..AutoIonization, ..Basics, ..Bsplines, ..Continuum, ..Defaults, ..Hfs, ..ManyElectron,
-        ..Nuclear, ..PhotoEmission, ..Radial, ..TableStrings
+        ..AngularMomentum, ..AutoIonization, ..Basics, ..Bsplines, ..Continuum, ..Defaults, ..Hfs,
+        ..InteractionStrength, ..ManyElectron, ..Nuclear, ..PhotoEmission, ..Radial, ..SpinAngular, ..TableStrings
 
 
 """

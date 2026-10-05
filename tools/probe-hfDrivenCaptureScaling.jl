@@ -27,26 +27,35 @@
 # two regimes differ in whether the continuum wavelength (3.3 a.u. at 50 eV, 52 at 0.2 eV, 150 at 0.024 eV) is
 # small or comparable to the Rydberg extent (88 a.u. at n = 60, 244 at n = 100).
 #
-# WHAT THIS MEASURED, 05-Oct-2026, DFS mean field, Coulomb capture operator, eps = 0.2 eV where A(eps) has
-# saturated (1.1248, 1.1379, 1.1406 x its 50 eV value at 5, 1, 0.2 eV -- no threshold suppression, as an
+# THE FIRST VERSION OF THIS PROBE WAS WRONG, AND THE WAY IT WAS WRONG IS WORTH KEEPING.  On 05-Oct-2026 it used
+# `AutoIonization.amplitude`, i.e. the full Coulomb operator, and measured an exponent of 1.64 to 1.69 across
+# n = 20..100 -- flat, reproducible, and grid-independent to five figures, so it looked solid and was accepted.
+# But a genuine two-electron Auger rate into a Rydberg state MUST fall as 1/n^3, and 1.67 is not 3.  The cause
+# was a DIRECT monopole term that has no business being there: with the core electronically unchanged,
+# R^0(1s, eps s; 1s, ns) is the matrix element of the 1s screening potential, which the DFS mean field already
+# contains, so keeping it double counts.  It was 13.6 times the exchange term and 99.95 % of the rate at n = 60.
+# `DR.hfDrivenAugerAmplitude` excludes it, and the exponent then comes out at 3.
+#
+# THE LESSON IS NOT "CHECK THE GRID" BUT "CHECK THE LAW": every numerical control passed.  What caught it was a
+# scaling the physics requires, and that check was available from the first run.
+#
+# WHAT THIS MEASURES, 06-Oct-2026, DFS mean field, exchange-only capture amplitude, eps = 0.2 eV where A(eps)
+# has saturated (1.1248, 1.1379, 1.1406 x its 50 eV value at 5, 1, 0.2 eV -- no threshold suppression, as an
 # attractive Coulomb field requires):
 #
-#       n =  20   2.661489e-02        n =  60   4.320246e-03   p = 1.670
-#       n =  24   1.972982e-02        n =  80   2.677647e-03   p = 1.663
-#       n =  28   1.528247e-02        n = 100   1.838243e-03   p = 1.686
-#       n =  34   1.110026e-02
-#       n =  40   8.479111e-03        p = 1.64 to 1.69 across n = 20..100, flat to +/- 0.02
-#       n =  50   5.857671e-03
+#       n =  20   5.420412e-05        p = 3.011 to 3.029 across n = 20..60, which is the law a Rydberg
+#       n =  24   3.120295e-05        capture rate must obey, so the quantity is now the right one
+#       n =  28   1.957580e-05
+#       n =  34   1.089039e-05
+#       n =  40   6.669699e-06
+#       n =  50   3.404329e-06
+#       n =  60   1.966046e-06
 #
-#       ==>  A_capture(1s 133s, eps -> 0) = 1.14e-03 a.u. = 4.7e+13 1/s
+#       ==>  A(1s 133s, eps -> 0) = 1.78e-07 a.u. = 7.34e+09 1/s   for one electronic pair and partial wave sum;
+#            the mode's own total over hyperfine pairs is 1.47e+10 1/s at n = 133.
 #
-# THE GRID CONTROL IS EXACT, and without it none of the above would be evidence: A(60) = 4.320246e-03 on a
-# 300 a.u. box with 1287 splines against 4.320206e-03 on a 120 a.u. box with 631 -- ratio 1.0000 to five figures.
-#
-# ONE QUESTION IS STILL OPEN, and it is physics rather than numerics: p = 1.67 is NOT the 1/n^3 that a genuine
-# two-electron Auger rate shows.  That is consistent with the mechanism -- the core is electronically UNCHANGED,
-# so the amplitude is a monopole-screened one-body transition eps s -> ns whose integrand lives over the whole
-# Rydberg orbital rather than near the core -- but it has not been confirmed against an independent value.
+# THE GRID CONTROL WAS EXACT ON THE EARLIER QUANTITY and is repeated here by --long: A(60) agreed to five figures
+# between a 120 a.u. box with 631 splines and a 300 a.u. box with 1287.
 #
 # Usage:   julia --project=. tools/probe-hfDrivenCaptureScaling.jl            # n = 20..60, 120 a.u. box
 #          julia --project=. tools/probe-hfDrivenCaptureScaling.jl --long     # adds n = 80, 100, 300 a.u. box
@@ -54,9 +63,8 @@
 using JenaAtomicCalculator, Printf
 const DR = JenaAtomicCalculator.DielectronicRecombination
 
-const REFERENCE = Dict(20 => 2.661489e-02, 24 => 1.972982e-02, 28 => 1.528247e-02, 34 => 1.110026e-02,
-                       40 => 8.479111e-03, 50 => 5.857671e-03, 60 => 4.320246e-03, 80 => 2.677647e-03,
-                       100 => 1.838243e-03)
+const REFERENCE = Dict(20 => 5.420412e-05, 24 => 3.120295e-05, 28 => 1.957580e-05, 34 => 1.089039e-05,
+                       40 => 6.669699e-06, 50 => 3.404329e-06, 60 => 1.966046e-06)
 
 
 """
@@ -68,6 +76,9 @@ const REFERENCE = Dict(20 => 2.661489e-02, 24 => 1.972982e-02, 28 => 1.528247e-0
         Supplying the energy is what makes a reachable n usable: at n well below 133 the hyperfine-driven channel
         is closed and `determineHfCaptureLines` discards it, while A(n; eps) remains a perfectly well-defined
         function whose n-dependence is what this probe is after.
+
+        IT USES `DR.hfDrivenAugerAmplitude`, NOT `AutoIonization.amplitude`, and that is the whole correction of
+        06-Oct... see the header of this file.
 """
 function captureRateAt(n::Int64, epsEV::Float64, grid::Radial.Grid, nm::Nuclear.Model)
     asfSettings = AsfSettings(AsfSettings(); scField = Basics.DFSField())
@@ -84,11 +95,11 @@ function captureRateAt(n::Int64, epsEV::Float64, grid::Radial.Grid, nm::Nuclear.
     nuclearPot  = Nuclear.nuclearPotential(nm, grid);   primitives = Bsplines.generatePrimitives(grid)
     rate = 0.
     for  iLevel in iMultiplet.levels,  mLevel in mMultiplet.levels
-        pws = DR.determineCaptureChannels(mLevel, iLevel, drSettings)
-        if  isempty(pws)    continue    end
-        cLine = DR.CaptureLine(iLevel, mLevel, eps, 0., 0., EmProperty(0., 0.), EmProperty(0., 0.), pws)
-        rate  = rate + DR.computeCaptureAmplitudes(cLine, nm, grid, nrContinuum, drSettings;
-                                                   nuclearPot=nuclearPot, primitives=primitives).captureRate
+        for  pw in DR.determineCaptureChannels(mLevel, iLevel, drSettings)
+            amp  = DR.hfDrivenAugerAmplitude(iLevel, mLevel, pw.kappa, eps, nm, grid, nrContinuum, drSettings;
+                                             nuclearPot=nuclearPot, primitives=primitives)
+            rate = rate + 2pi * abs2(amp)
+        end
     end
 
     return( rate )
