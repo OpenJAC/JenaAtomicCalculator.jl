@@ -585,6 +585,40 @@ function cellIntegral(f, a::Float64, b::Float64)
 end
 
 
+# Counters for priority item 47; see the note inside buildScreenedPotential.  Kept off by a Ref rather than by
+# an ENV lookup, so the hot path pays a dereference and not a Dict probe.
+const GBL_COUNT_SCREENEDPOT   = Ref(false)
+const GBL_SCREENEDPOT_CALLS   = Ref(0)
+const GBL_SCREENEDPOT_RANKED  = Set{Tuple{Int64,Subshell,Subshell}}()
+const GBL_SCREENEDPOT_PAIRS   = Dict{Tuple{Subshell,Subshell},Int64}()
+
+
+"""
+`RadialIntegrals.countScreenedPotentials(onOff::Bool)`
+    ... switches the item-47 counters on or off and clears them; nothing is returned.  While on, every call to
+        `buildScreenedPotential` records its (k, b, d) and its (b, d), so that the REDUNDANCY ACROSS RANKS can be
+        read off afterwards with `RadialIntegrals.reportScreenedPotentials()`.
+"""
+function countScreenedPotentials(onOff::Bool)
+    GBL_COUNT_SCREENEDPOT[] = onOff;    GBL_SCREENEDPOT_CALLS[] = 0
+    empty!(GBL_SCREENEDPOT_RANKED);     empty!(GBL_SCREENEDPOT_PAIRS)
+    return( nothing )
+end
+
+
+"""
+`RadialIntegrals.reportScreenedPotentials()`
+    ... returns `(calls, rankedKeys, pairKeys)` for the calls to `buildScreenedPotential` seen since
+        `countScreenedPotentials(true)`.  `pairKeys` is what a spline shared across multipole ranks would cost,
+        `rankedKeys` what it costs today, and their ratio is the saving available.
+"""
+function reportScreenedPotentials()
+    # A COPY, because `countScreenedPotentials` empties the live Dict and a caller that switched the
+    # counters off before reading would otherwise be handed an empty table.
+    return( (GBL_SCREENEDPOT_CALLS[], length(GBL_SCREENEDPOT_RANKED), copy(GBL_SCREENEDPOT_PAIRS)) )
+end
+
+
 """
 `RadialIntegrals.buildScreenedPotential(k::Int64, b::Radial.Orbital, d::Radial.Orbital, grid::Radial.Grid;
                                               rtol::Float64=1.0e-9, mtpOut::Union{Nothing,Int64}=nothing)`
@@ -638,6 +672,16 @@ end
 """
 function buildScreenedPotential(k::Int64, b::Radial.Orbital, d::Radial.Orbital, grid::Radial.Grid;
                                       rtol::Float64=1.0e-9, mtpOut::Union{Nothing,Int64}=nothing)
+    # INSTRUMENTATION FOR PRIORITY ITEM 47, off by default and costing one Ref dereference when off.
+    # The spline below is a function of (b,d) ALONE -- never of the rank k, and nor are the quadrature nodes --
+    # yet every cache above this function keys on k as well, so the same spline is rebuilt and re-evaluated once
+    # per rank.  These counters measure the redundancy that would remove, which is the one number item 47 needs.
+    if  GBL_COUNT_SCREENEDPOT[]
+        GBL_SCREENEDPOT_CALLS[] = GBL_SCREENEDPOT_CALLS[] + 1
+        push!(GBL_SCREENEDPOT_RANKED, (k, b.subshell, d.subshell))
+        kp = (b.subshell, d.subshell)
+        GBL_SCREENEDPOT_PAIRS[kp] = get(GBL_SCREENEDPOT_PAIRS, kp, 0) + 1
+    end
     mtp_bd  = min(size(b.P, 1), size(d.P, 1))
     mtpOutx = isnothing(mtpOut) ? mtp_bd : mtpOut
     Vk      = zeros(mtpOutx)
