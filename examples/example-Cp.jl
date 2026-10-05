@@ -216,28 +216,45 @@ elseif  false
     #
 
 elseif  false
-    # Last visit:      04-Oct-2026
-    # Last successful: 04-Oct-2026 -- SELF-CONSISTENT SCREENING, AND A RESULT THAT CONTRADICTS WHAT WAS EXPECTED.
+    # Last visit:      06-Oct-2026
+    # Last successful: 06-Oct-2026 -- SELF-CONSISTENT SCREENING, AND THE SHELL THAT DECIDES ITS SIZE.
     #   The module's default response is UNCOUPLED: the induced field is not allowed to act back.  With
     #   selfConsistent = true it is, and the loop converges (spread below 0.01 over the last four of 16 steps at
     #   mixing 0.5; UNDAMPED IT OSCILLATES, so do not read six steps and stop).
-    #   WHAT WAS EXPECTED was that |gamma| would FALL by 10-30 % everywhere, the induced field opposing the
-    #   applied one.  Measured, it falls for the two lighter ions and RISES for thorium:
-    #        Y(3+)    -36.18 -> -32.07   -11.4 %
-    #        In(3+)   -27.39 -> -18.45   -32.7 %   (outside the expected range)
-    #        Th(4+)  -184.95 -> -194.62   +5.2 %   (the WRONG WAY)
-    #   Thorium is the one that matters, since -184.95 is to be compared with the 110-120 extracted from the
-    #   CaF2 measurements: self-consistency moves it AWAY from them, so it is argued against as the explanation
-    #   of that gap rather than for.  The numbers above include the exchange response; direct-only gives
-    #   -31.64, -18.09 and -197.99, i.e. exchange is worth about 1.5 percentage points and changes no sign.
+    #   **THE 04-Oct VERSION OF THIS HEADER WAS WRONG IN ITS CENTRAL CLAIM** and is worth recording as such: it
+    #   reported that |gamma| FALLS for light ions and RISES for thorium (+5.2 %), with Hg(2+) at +167 % and
+    #   Bi(3+) changing sign.  Every one of those was a GRID artefact -- the numbers were taken on
+    #   recommendedGrid's own mesh, which item 46 then showed to be a factor 2.9 out for Hg(2+).  Re-measured on
+    #   meshes at 20-35 splines per a.u., and verified stable under doubling the mesh again:
+    #
+    #     EVERY SHIFT IS NEGATIVE.  Screening always reduces |gamma|, which is the direction it must have.
+    #     AND ITS SIZE IS SET BY THE OUTERMOST SHELL'S ANGULAR CHARACTER, not by Z and not by the 4f:
+    #
+    #       outermost p    Y(3+) -10.9   Zr(4+) -10.7   Ba(2+) -13.1   La(3+) -13.8
+    #                      Lu(3+) -10.9  Hf(4+) -10.3   Ra(2+) -13.6   Th(4+) -14.9   U(6+) -17.1   [%]
+    #       outermost s    Bi(3+) -25.1 %
+    #       outermost d    Sn(4+) -26.0   In(3+) -31.1   Pb(4+) -37.2   Hg(2+) -62.2  [%]
+    #
+    #   A d shell is more polarizable and sits where the r^2 driving is strongest, so it screens several times
+    #   harder.  THIS ALSO EXPLAINS the 04-Oct observation that "Lu and Hf carry a filled 4f and behave
+    #   perfectly, so the 4f is not the discriminator": in [Xe] 4f^14 the 4f lies INSIDE 5p, so the outermost
+    #   shell is still p.  The discriminator was never the shell PRESENT but the shell OUTERMOST.
+    #   FOR THORIUM the correction matters outside this module: 1 - gamma goes 190.7 uncoupled to 162.4
+    #   screened, i.e. TOWARD the 110-120 extracted from the CaF2 measurements, closing about a third of that
+    #   gap where the 04-Oct number moved away from it.
     println("\nCp-g)  Uncoupled against self-consistent, for three closed-shell ions.")
     cpSets0 = NuclearShielding.Settings()
     cpSets1 = NuclearShielding.Settings(NuclearShielding.Settings(); selfConsistent=true, scfIterations=16, scfMixing=0.5)
     @printf("\n  %-8s %5s %14s %16s %10s\n", "ion", "Z", "uncoupled", "self-consistent", "change")
     println("  " * "-"^62)
+    # One ion per group: outermost p, outermost d, outermost p again at high Z.  THE MESH MATTERS HERE and the
+    # default one is not enough -- hp = rbox/1500 puts 20-35 splines per a.u., where the shifts are stable under
+    # halving hp again (item 46).  On the default mesh this branch reported a POSITIVE shift for thorium.
     for  (cpName, cpZ, cpConf)  in  (("Y^3+", 39.0, "[Kr]"), ("In^3+", 49.0, "[Kr] 4d^10"), ("Th^4+", 90.0, "[Rn]"))
         cpC  = Configuration(cpConf);   cpNm = Nuclear.Model(cpZ)
-        cpG  = Basics.recommendedGrid([cpC], cpNm; printout=false);   setDefaults("standard grid", cpG)
+        cpG0 = Basics.recommendedGrid([cpC], cpNm; printout=false)
+        cpG  = Basics.recommendedGrid([cpC], cpNm; rbox=cpG0.tL[end], hp=cpG0.tL[end]/1500, printout=false)
+        setDefaults("standard grid", cpG)
         cpA  = AsfSettings(AsfSettings(); scField=Basics.DFSField(1.0))
         cpT  = tempname()
         cpMp = open(cpT,"w") do io;  redirect_stdout(io) do
@@ -255,7 +272,7 @@ elseif  false
         flush(stdout)
     end
     println("  " * "-"^62)
-    println("  The rise at Z = 90 is the finding, and it is why priority item 43 was rewritten rather than closed.")
+    println("  Expect -10.9 %, -31.1 % and -14.9 %:  the outermost shell decides, p against d, not Z.")
     #
 
 elseif  false
