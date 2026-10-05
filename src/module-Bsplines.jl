@@ -128,6 +128,11 @@ end
     + occupations  ::Dict{Shell,Int64}   ... shell occupations; if empty, every subshell is tested at the bare charge.
     + accuracy     ::Float64             ... largest tolerated relative deviation from the closed-form energy.
     + stopper      ::Bool                ... true, if a failure shall raise rather than warn.
+        A NamedTuple is returned, carrying the MEASUREMENT and not merely a verdict -- priority item 40:
+        `(ok, rboxWanted, nSubshells, nOffenders, nBorderline, worstSubshell, worstDeviation, accuracy, rbox)`.
+        `ok` and `rboxWanted` destructure first, so an existing `ok, rbox = ...` keeps working.  **The field to
+        judge on is `worstDeviation` against `accuracy`**: it is the largest relative deviation over ALL subshells,
+        offending or not, and it says how much margin the grid had, which a bare `true` cannot.
 """
 function checkGridRepresentation(subshells::Array{Subshell,1}, Z::Float64, primitives::Bsplines.Primitives;
                                  occupations::Dict{Shell,Int64}=Dict{Shell,Int64}(), accuracy::Float64=1.0e-3,
@@ -161,6 +166,7 @@ function checkGridRepresentation(subshells::Array{Subshell,1}, Z::Float64, primi
         return( (values2[ni], ex, abs(values2[ni]/ex - 1)) )
     end
 
+    maxDevSeen = 0.                        ## the worst deviation over ALL subshells, offender or not
     for  sh  in  subshells
         l = Basics.subshell_l(sh)
         (enB, exB, devB) = deviationAt(sh, l, Z)
@@ -174,6 +180,7 @@ function checkGridRepresentation(subshells::Array{Subshell,1}, Z::Float64, primi
         # The true orbital is BRACKETED by the two hydrogenic proxies, so only a grid that represents NEITHER
         # end is demonstrably wrong; see the docstring for why either alone over-rejects.  Where just one of
         # them fails the grid is not condemned, but it is not silently passed either.
+        isfinite(min(devB, devS))  &&  (maxDevSeen = max(maxDevSeen, min(devB, devS)))
         if      min(devB, devS) > accuracy      push!(offenders,  (sh, enS, exS, devS, Zeff))
         elseif  max(devB, devS) > accuracy      push!(borderline, (sh, devB, devS))
         end
@@ -196,7 +203,10 @@ function checkGridRepresentation(subshells::Array{Subshell,1}, Z::Float64, primi
                     ">>> or Basics.recommendedGrid(configs, nm) to have it matched automatically.\n", color=:light_red)
         if  stopper   error("Bsplines.checkGridRepresentation(): the grid fails to represent " *
                             "$(length(offenders)) of $(length(subshells)) subshells to accuracy $accuracy.")   end
-        return( (false, rbox) )
+        (wSh, _, _, wDev, _) = offenders[argmax([o[4] for o in offenders])]
+        return( (ok = false, rboxWanted = rbox, nSubshells = length(subshells), nOffenders = length(offenders),
+                 nBorderline = length(borderline), worstSubshell = wSh, worstDeviation = wDev,
+                 accuracy = accuracy, rbox = grid.r[end]) )
     end
 
     # A subshell that one proxy carries and the other does not says the grid sits near the edge for that
@@ -213,7 +223,9 @@ function checkGridRepresentation(subshells::Array{Subshell,1}, Z::Float64, primi
                              grid.r[end], rbox), color=:yellow)
     end
 
-    return( (true, rbox) )
+    return( (ok = true, rboxWanted = rbox, nSubshells = length(subshells), nOffenders = 0,
+             nBorderline = length(borderline), worstSubshell = nothing, worstDeviation = maxDevSeen,
+             accuracy = accuracy, rbox = grid.r[end]) )
 end
 
 
@@ -332,7 +344,13 @@ end
              Z =  92   2p  1.1540 / 0.8195      3d  1.0268 / 0.9601      4f  1.0097 / 0.9844
         i.e. at worst 15% in energy and 18% in radius for a legitimate pair, against a factor 26 in energy and 2.1 in radius for the broken
         Ge II case. The defaults of 2.0 and 1.5 sit in that gap with room on both sides.
-        A value::Bool is returned -- true if every partner pair is consistent.
+        A NamedTuple is returned, carrying the MEASUREMENT and not merely a verdict -- priority item 40, whose rule is
+        that a diagnostic hands back a measured quantity with its context so that the CALLER judges rather than the
+        code: `(ok, nPairs, nOffenders, offenders, worstPair, worstRadiusRatio, worstEnergyRatio, radiusTolerance,
+        energyInversionTolerance)`.  `ok` destructures first and reads as advice, not proof.  **The field to judge
+        on is `worstRadiusRatio` against `radiusTolerance`**, because it says how much margin the check had: a run
+        that passes at 1.9 against a tolerance of 1.5 is not the same as one that passes at 1.02, and a bare `true`
+        cannot tell them apart.  The worst ratios are accumulated over ALL partner pairs, offending or not.
 """
 function checkOrbitalConsistency(orbitals::Dict{Subshell,Orbital}, grid::Radial.Grid;
                                  rTolerance::Float64=1.5, eTolerance::Float64=2.0,
@@ -345,9 +363,13 @@ function checkOrbitalConsistency(orbitals::Dict{Subshell,Orbital}, grid::Radial.
         key = (sh.n, Basics.subshell_l(sh));    groups[key] = push!( get(groups, key, Subshell[]), sh )
     end
     offenders = Tuple{Subshell,Subshell,Float64,Float64}[]
+    # Counted over ALL partner pairs, not only the offending ones: a caller wants to know what the worst pair
+    # looked like even on a clean run, since that is what says how much margin the check had.
+    nPairsSeen = 0;    worstRatioSeen = 0.;    worstEnergySeen = 0.
     for  key  in  sort( collect(keys(groups)) )
         shs = groups[key]
         length(shs) == 2   ||   continue
+        nPairsSeen = nPairsSeen + 1
         a = orbitals[shs[1]];     b = orbitals[shs[2]]
         ra = JenaAtomicCalculator.RadialIntegrals.rkDiagonal(1, a, a, grid)
         rb = JenaAtomicCalculator.RadialIntegrals.rkDiagonal(1, b, b, grid)
@@ -376,6 +398,8 @@ function checkOrbitalConsistency(orbitals::Dict{Subshell,Orbital}, grid::Radial.
             eLo  = orbitals[shLo].energy;      eHi = orbitals[shHi].energy
             inverted = (eLo - eHi) / max(abs(eLo), abs(eHi))   # > 0 means the pair is upside down
         end
+        isfinite(rRatio)  &&  (worstRatioSeen  = max(worstRatioSeen,  rRatio))
+        isfinite(eRatio)  &&  (worstEnergySeen = max(worstEnergySeen, eRatio))
         if  rRatio > rTolerance   ||   inverted > eInversion
             push!(offenders, (shs[1], shs[2], eRatio, rRatio))
         end
@@ -401,10 +425,17 @@ function checkOrbitalConsistency(orbitals::Dict{Subshell,Orbital}, grid::Radial.
                       " -- the orbitals are not trustworthy; match the radial box to the orbitals.")
         if  stopper   error("Bsplines.checkOrbitalConsistency(): $(length(offenders)) spin-orbit partner pair(s) " *
                             "describe different states; the orbitals are not trustworthy.")   end
-        return( false )
+        wi = argmax([abs(o[4] - 1.0) for o in offenders])
+        return( (ok = false, nPairs = nPairsSeen, nOffenders = length(offenders), offenders = offenders,
+                 worstPair = (offenders[wi][1], offenders[wi][2]), worstRadiusRatio = offenders[wi][4],
+                 worstEnergyRatio = offenders[wi][3], radiusTolerance = rTolerance,
+                 energyInversionTolerance = eInversion) )
     end
 
-    return( true )
+    return( (ok = true, nPairs = nPairsSeen, nOffenders = 0,
+             offenders = Tuple{Subshell,Subshell,Float64,Float64}[], worstPair = nothing,
+             worstRadiusRatio = worstRatioSeen, worstEnergyRatio = worstEnergySeen,
+             radiusTolerance = rTolerance, energyInversionTolerance = eInversion) )
 end
 
 

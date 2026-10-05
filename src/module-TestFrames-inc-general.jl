@@ -1964,10 +1964,12 @@ function testModule_Bsplines(; short::Bool=true)
         if printTest   info(iostream, "<1s_1/2|2s_1/2> = $wa, must be 0")   end
     end
     # (3) BOTH GUARDS PASS on the matched box
-    # NOTE THE TWO RETURN TYPES, which are not the same: checkGridRepresentation gives back (ok::Bool, rbox), the
-    # second element being the box it would recommend, while checkOrbitalConsistency gives a bare Bool.
+    # BOTH NOW RETURN A NAMED TUPLE carrying what they measured, not a verdict -- priority item 40.  The first two
+    # fields of checkGridRepresentation are still (ok, rboxWanted), so positional destructuring is unchanged;
+    # checkOrbitalConsistency used to give a bare Bool and its verdict is now the `ok` field.
     ok1, rboxWanted = redirect_stdout(devnull) do;  Bsplines.checkGridRepresentation(subshells, Z, goodPrim, stopper=false)  end
-    ok2 = redirect_stdout(devnull) do;  Bsplines.checkOrbitalConsistency(orbitals, goodGrid, stopper=false)      end
+    cons = redirect_stdout(devnull) do;  Bsplines.checkOrbitalConsistency(orbitals, goodGrid, stopper=false)      end
+    ok2  = cons.ok
     if  !ok1
         success = false
         if printTest   info(iostream, "checkGridRepresentation refuses a box that is matched to the orbitals")   end
@@ -1987,6 +1989,12 @@ function testModule_Bsplines(; short::Bool=true)
                                       "the guard is not guarding")   end
     end
 
+    # THE MARGIN IS REPORTED, not just the verdict: that is the point of the item-40 return values, and a test
+    # that printed only pass/fail could not tell a guard passing at 1.02 from one passing at 1.49.
+    if  printTest
+        info(iostream, @sprintf("Bsplines guards: worst spin-orbit radius ratio %.4f against a tolerance of %.2f over %d partner pair(s)",
+                                cons.worstRadiusRatio, cons.radiusTolerance, cons.nPairs))
+    end
     println(iostream, "Bsplines: the Galerkin eigenvalues against the analytic Dirac energies, orbital " *
                       "orthonormality, and BOTH Rule 12 guards exercised from both sides -- passing on a "  *
                       "matched box and refusing a 0.05 a.u. one. No approved data is used.")
