@@ -379,6 +379,8 @@ function computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, gr
         newLine, qualities = PhotoEmission.computeAmplitudesProperties(line, grid, settings)
         push!( newLines, newLine);    push!( newQualities, qualities)
     end
+    GBL_PHOTOEMISSION_QUALITY[] = Any[ PhotoEmission.lineQualitySummary(newLines[i], newQualities[i])
+                                       for i = 1:length(newLines) ]
     PhotoEmission.displayRates(stdout, newLines, settings)
     PhotoEmission.displayQualityFlags(stdout, newLines, newQualities, settings)
     if  settings.calcAnisotropy    PhotoEmission.displayAnisotropies(stdout, newLines, settings)    end
@@ -643,6 +645,81 @@ end
 
 
 """
+`PhotoEmission.qualityVerdict(cf::Float64, ratio::Float64)`
+    ... turns a cancellation factor and a Babushkin/Coulomb rate ratio into the one-word verdict used in the quality
+        table; a `verdict::String` is returned.  It exists so that the printed table and the value handed back by
+        `PhotoEmission.lastQualityFlags()` cannot drift apart -- the thresholds live here and nowhere else.
+"""
+function  qualityVerdict(cf::Float64, ratio::Float64)
+    dev = isnan(ratio) ? NaN : abs(ratio - 1.0)
+    if      cf < 0.05        return( "CF critical" )
+    elseif  cf < 0.10        return( "CF low" )
+    elseif  isnan(ratio)     return( "no rate" )
+    elseif  dev > 1.0        return( "gauges x2+" )
+    elseif  dev > 0.5        return( "gauges 50%+" )
+    elseif  dev > 0.2        return( "gauges 20-50%" )
+    else                     return( "ok" )
+    end
+end
+
+
+"""
+`PhotoEmission.lineQualitySummary(line::PhotoEmission.Line, qualities::Array{PhotoEmission.LineQuality,1})`
+    ... condenses one line's quality indicators into the measured quantities a caller can assert on; a NamedTuple
+        `(initialLevel, finalLevel, omega, worstCancellation, worstMultipole, gaugeRatio, gaugeDeviation, verdict,
+        cancellations)` is returned.  `cancellations` keeps the per-multipole detail as (multipole, Coulomb,
+        Babushkin) triples, and `worstCancellation` is the smallest of them over both gauges.
+
+        **THE FIELD TO ASSERT ON IS `worstCancellation`, AND `gaugeDeviation` MUST NOT BE USED ALONE.**  Below 0.10
+        a transition is unreliable and below 0.05 it carries no information -- Cowan's own thresholds -- and that
+        test is local to the amplitude, so it works wherever the amplitude does.  **The gauge ratio does not:
+        measured, it exposed a 6.7 % grid error on neutral hydrogen and was BLIND to a SEVEN-ORDER error on H-like
+        Bi, where the two gauges agreed to 2 % throughout.**  So gauge agreement is evidence on a near-neutral
+        system and no evidence at all on a highly charged one, and the two indicators fail INDEPENDENTLY: a line
+        can be sound in one and not the other, and CF = 1 is not an endorsement.
+"""
+function  lineQualitySummary(line::PhotoEmission.Line, qualities::Array{PhotoEmission.LineQuality,1})
+    ratio = line.photonRate.Coulomb != 0. ? line.photonRate.Babushkin / line.photonRate.Coulomb : NaN
+    worst = Inf;   worstMp = nothing
+    cancellations = Tuple{EmMultipole,Float64,Float64}[]
+    for  lq  in  qualities
+        push!(cancellations, (lq.multipole, lq.cancellation.Coulomb, lq.cancellation.Babushkin))
+        cf = min(lq.cancellation.Coulomb, lq.cancellation.Babushkin)
+        if  cf < worst    worst = cf;    worstMp = lq.multipole    end
+    end
+    isempty(qualities)  &&  (worst = NaN)
+
+    return( (initialLevel = line.initialLevel.index, finalLevel = line.finalLevel.index, omega = line.omega,
+             worstCancellation = worst, worstMultipole = worstMp, gaugeRatio = ratio,
+             gaugeDeviation = isnan(ratio) ? NaN : abs(ratio - 1.0),
+             verdict = PhotoEmission.qualityVerdict(worst, ratio), cancellations = cancellations) )
+end
+
+
+# The quality summaries of the most recent PhotoEmission.computeLines, in the order of the lines it returned.
+# A module-level record keeps computeLines' own return value unchanged -- it still gives back the lines, and all
+# five of its call sites are untouched -- which is what priority item 40 asks for: the diagnostic becomes
+# ASSERTABLE without the public interface moving.  See PhotoEmission.lastQualityFlags().
+const GBL_PHOTOEMISSION_QUALITY = Ref{Union{Nothing, Vector{Any}}}(nothing)
+
+
+"""
+`PhotoEmission.lastQualityFlags()`
+    ... returns the quality summaries of the most recent `PhotoEmission.computeLines`, in the order of the lines it
+        returned, so that a script can ASK how far a rate may be trusted instead of reading a printed table.  A
+        `Vector` of the NamedTuples described under `PhotoEmission.lineQualitySummary` is returned, or `nothing`
+        if that routine has not run in this session.
+
+        ADVISORY, NEVER GATING: nothing in JAC reads this and no computation is blocked by it.  Read
+        `worstCancellation` rather than `verdict` wherever a number will do, and read `lineQualitySummary`'s own
+        documentation for where the gauge indicator is evidence and where it is blind.
+"""
+function  lastQualityFlags()
+    return( GBL_PHOTOEMISSION_QUALITY[] )
+end
+
+
+"""
 `PhotoEmission.displayQualityFlags(stream::IO, lines::Array{PhotoEmission.Line,1}, qualities::Array{Array{PhotoEmission.LineQuality,1},1}, settings::PhotoEmission.Settings)`
     ... to display, for every line and every contributing multipole, the two cheap indicators of how far the computed
         rate may be trusted: Cowan's cancellation factor in each gauge, and the Babushkin/Coulomb rate ratio. Neither
@@ -690,15 +767,7 @@ function  displayQualityFlags(stream::IO, lines::Array{PhotoEmission.Line,1}, qu
         for  lq in qualities[i]
             cf = min(lq.cancellation.Coulomb, lq.cancellation.Babushkin)
             # The verdict names whichever indicator is worse; a line can be sound in one and not the other.
-            dev = isnan(ratio) ? NaN : abs(ratio - 1.0)
-            if      cf < 0.05                               verdict = "CF critical"
-            elseif  cf < 0.10                               verdict = "CF low"
-            elseif  isnan(ratio)                            verdict = "no rate"
-            elseif  dev > 1.0                               verdict = "gauges x2+"
-            elseif  dev > 0.5                               verdict = "gauges 50%+"
-            elseif  dev > 0.2                               verdict = "gauges 20-50%"
-            else                                            verdict = "ok"
-            end
+            verdict = PhotoEmission.qualityVerdict(cf, ratio)
             sa = "  "
             sa = sa * TableStrings.center(18, TableStrings.levels_if(line.initialLevel.index, line.finalLevel.index); na=2)
             sa = sa * TableStrings.center(18, TableStrings.symmetries_if(LevelSymmetry(line.initialLevel.J, line.initialLevel.parity),
