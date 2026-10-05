@@ -253,6 +253,19 @@ function buildCIMatrixEOL(cache::PairCoefficientCache, orbitals::Dict{Subshell, 
     # 25.7x that a quintuple key cannot reach.  Counted again 05-Oct-2026 on a Ca+ ladder (priority item 47),
     # `buildScreenedPotential` was entered 32 737 times for 125 distinct (nu,b,d), and 42.7 % of ALL the
     # allocation attributed to that routine arrived through THIS call site.
+    #   WHAT IT IS WORTH, measured A/B on one build and closing priority item 47 on 05-Oct-2026.  C-like uranium,
+    # 1s^2 2s^2 2p^2 with SD into {3s..4f}, 864 CSFs over 16 subshells:
+    #       builds       57 423 -> 17 635        69.3 % fewer
+    #       allocation    23.27 -> 16.71 GB      28.2 % less
+    #       wall clock   1.72x / 1.96x / 1.87x   three pairs with the ORDER ALTERNATED, so ~1.9x
+    #       energy       -14350.388262411614051 both ways, dE = 0.000e+00 -- BIT-IDENTICAL
+    # The gain grows with BOTH the CSF count and the subshell count: 30.7 % fewer builds at 19 CSFs, 29.1 % at
+    # 149, 55.2 % at 870, 69.3 % at 864-over-16-subshells.  A single contended pair had read 2.4x and would have
+    # overstated it by a quarter, which is why the repeats are alternated.
+    #   AND THIS IS THE COMPANION OF THE 4.04x OF 03-Sep-2026, which did exactly this for the EOL FIELD path and
+    # left the CI MATRIX path untouched for a month -- hidden behind `radial2pCache`, which keys on the finished
+    # integral's quintuple and therefore cannot see redundancy inside it.  If a third path is ever added, ask
+    # which grain its cache keys on before assuming it is covered.
     #   The key carries the extent as well as (nu,b,d), and it is the caller's: it must not outlive the orbitals
     # it was built from, so it is created beside radial1p/radial2p and dies with them at the end of the outer
     # iteration.
