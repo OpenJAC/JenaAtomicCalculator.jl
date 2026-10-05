@@ -18,7 +18,7 @@ if  true
 
     wb2 = generate(wa2, output=true)
 
-    orbitals    = wb1["mean-field basis"].orbitals
+    orbitals    = wb1[ResultKeys.MeanFieldBasis].orbitals
     ciSettings  = CiSettings(CoulombInteraction(), LevelSelection())
     from        = [Shell("2s")]
     #

@@ -115,7 +115,7 @@ elseif  false
     #
     va          = Representation(name, Nuclear.Model(8.), Radial.Grid(true), refConfigs, MeanFieldBasis(mfSettings) )
     vb          = generate(va, output=true)
-    basis       = vb["mean-field basis"]
+    basis       = vb[ResultKeys.MeanFieldBasis]
 
     wa = Basics.extractConfiguration(GroundConfiguration(29.,24));                                      @show wa
     wb = Basics.extractConfiguration(GroundConfiguration(29.,29));                                      @show wb
@@ -166,7 +166,7 @@ elseif  false
     #
     va          = Representation(name, Nuclear.Model(8.), Radial.Grid(true), refConfigs, MeanFieldBasis(mfSettings) )
     vb          = generate(va, output=true)
-    basis       = vb["mean-field basis"]
+    basis       = vb[ResultKeys.MeanFieldBasis]
     #
     wa = Basics.extractConfigurations(RelativisticConfigurations(), basis);                             @show wa
     wb = Basics.extractConfigurations(RelativisticConfigurations(), basis, AngularJ64(0));              @show wb
@@ -183,7 +183,7 @@ elseif  false
     #
     va          = Representation(name, Nuclear.Model(8.), Radial.Grid(true), refConfigs, MeanFieldBasis(mfSettings) )
     vb          = generate(va, output=true)
-    basis       = vb["mean-field basis"]
+    basis       = vb[ResultKeys.MeanFieldBasis]
     #
     wa = Basics.extractConfigurations(RelativisticConfigurations(), basis);                             @show wa
     wb = Basics.extractFromConfiguration(ClosedSubshells(), wa[1]);                                     @show wb

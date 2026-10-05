@@ -171,7 +171,7 @@ elseif  true
                    Configuration("3d"), Configuration("4p")]
     interRep    = Representation("intermediate levels", ni, grid, interConfs,
                                  MeanFieldMultiplet(MeanFieldSettings(scfN)))
-    interMp     = generate(interRep, output=true)["mean-field multiplet"]
+    interMp     = generate(interRep, output=true)[ResultKeys.MeanFieldMultiplet]
     #
     ## omega1 = omega2 = 0 selects the MONOCHROMATIC case, all three photons carrying (E_f - E_i)/3. Give two
     ## energies in the user-selected units instead to drive it with three different colours; the third then
@@ -214,7 +214,7 @@ elseif  false
     gridDu      = Basics.recommendedGrid([Configuration("4p")], ni)
     interRep    = Representation("intermediate levels", ni, gridDu, interConfs,
                                  MeanFieldMultiplet(MeanFieldSettings(scfN)))
-    interMp     = generate(interRep, output=true)["mean-field multiplet"]
+    interMp     = generate(interRep, output=true)[ResultKeys.MeanFieldMultiplet]
     #
     ## the H 1s -> 2p transition energy is 10.2 eV; 2.0 + 3.0 + 5.2 eV is a strongly asymmetric sharing
     mpSettings  = MultiPhotonTransition.Settings(MultiPhotonTransition.Settings();

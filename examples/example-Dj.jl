@@ -25,7 +25,7 @@ elseif true
     # Photo-double ionization of he-like Be: 1s^2   -->  4l + epsilon kappa: Computation of cross sections
     # `wb` is produced by an earlier branch of this file (line 21).
     if  !@isdefined(wb)   error("Run the earlier branch of this file first; it defines `wb`.")   end
-    nMultiplet     = wb["mean-field multiplet"]
+    nMultiplet     = wb[ResultKeys.MeanFieldMultiplet]
     # The KEYWORD form, so that a new Settings field cannot silently break this call -- which had already happened:
     # the positional version passed `quasiShells` third, where `photonEnergies` now sits, and a field of that name
     # no longer exists.  A second field was added on 30-Sep-2026 (NoIntermediateEnergies) and would have been the

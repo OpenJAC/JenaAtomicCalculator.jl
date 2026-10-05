@@ -82,7 +82,7 @@ if  false
                                       GreenExpansion( AtomicState.DampedSpaceCI(), Basics.DeExciteSingleElectron(),
                                                       levelSymmetries, 3, greenSettings) )
     greenOut         = generate(greenRep, output=true)
-    green            = greenOut["Green channels"]
+    green            = greenOut[ResultKeys.GreenChannels]
 
     rayleighSettings = RayleighCompton.Settings(RayleighCompton.Settings();
                             multipoles = [E1, M1], gauges = [Basics.UseCoulomb, Basics.UseBabushkin],
@@ -129,7 +129,7 @@ elseif  true
                                       GreenExpansion( AtomicState.DampedSpaceCI(), Basics.DeExciteSingleElectron(),
                                                       levelSymmetries, 3, greenSettings) )
     greenOut         = generate(greenRep, output=true)
-    green            = greenOut["Green channels"]
+    green            = greenOut[ResultKeys.GreenChannels]
     #
 end
 #

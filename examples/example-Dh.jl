@@ -152,7 +152,7 @@ if  false
     ni          = Nuclear.Model(1.0, PointNucleus())   ## Fermi cannot represent Z = 1; see the note in the header
     interConfs  = [Configuration("2p"), Configuration("3p"), Configuration("4p"), Configuration("5p")]
     interRep    = Representation("intermediate np levels", ni, grid, interConfs, MeanFieldMultiplet(MeanFieldSettings()))
-    interMp     = generate(interRep, output=true)["mean-field multiplet"]
+    interMp     = generate(interRep, output=true)[ResultKeys.MeanFieldMultiplet]
     #
     mpSettings  = MultiPhotonTransition.Settings(MultiPhotonTransition.Settings();
                         scheme = MultiPhotonTransition.TwoPhotonEmissionScheme(
@@ -285,7 +285,7 @@ elseif  false
     scf         = Basics.NuclearField()          ## the SAME one-body Hamiltonian for all three; see above
     asfA        = AsfSettings(AsfSettings(); scField = scf)
     interRep    = Representation("intermediate np levels", ni, grid, interConfs, MeanFieldMultiplet(MeanFieldSettings(scf)))
-    interMp     = generate(interRep, output=true)["mean-field multiplet"]
+    interMp     = generate(interRep, output=true)[ResultKeys.MeanFieldMultiplet]
     #
     mpSettings  = MultiPhotonTransition.Settings(MultiPhotonTransition.Settings();
                         scheme = MultiPhotonTransition.TwoPhotonEmissionScheme(
@@ -349,7 +349,7 @@ elseif  false
         gridZ       = Basics.recommendedGrid([Configuration("12p")], ni)
         interConfs  = [Configuration("$(n)p") for n = 2:12]
         interRep    = Representation("intermediate np", ni, gridZ, interConfs, MeanFieldMultiplet(MeanFieldSettings(scfZ)))
-        interMp     = generate(interRep, output=true)["mean-field multiplet"]
+        interMp     = generate(interRep, output=true)[ResultKeys.MeanFieldMultiplet]
         #
         mpSettings  = MultiPhotonTransition.Settings(MultiPhotonTransition.Settings();
                             scheme = MultiPhotonTransition.TwoPhotonEmissionScheme(
@@ -415,7 +415,7 @@ elseif  false
     scfC        = Basics.NuclearField()
     asfC        = AsfSettings(AsfSettings(); scField = scfC)
     interRep    = Representation("intermediate np levels", ni, grid, interConfs, MeanFieldMultiplet(MeanFieldSettings(scfC)))
-    interMp     = generate(interRep, output=true)["mean-field multiplet"]
+    interMp     = generate(interRep, output=true)[ResultKeys.MeanFieldMultiplet]
     #
     mpSettings  = MultiPhotonTransition.Settings(MultiPhotonTransition.Settings();
                         scheme = MultiPhotonTransition.TwoPhotonEmissionScheme(
@@ -507,7 +507,7 @@ elseif  false
         interConfs  = [Configuration("1s $(n)p") for n = 2:nmax]
         interRep    = Representation("1snp intermediate levels", ni, gridH, interConfs,
                                      MeanFieldMultiplet(MeanFieldSettings()))
-        interMp     = generate(interRep, output=true)["mean-field multiplet"]
+        interMp     = generate(interRep, output=true)[ResultKeys.MeanFieldMultiplet]
         #
         mpSettings  = MultiPhotonTransition.Settings(MultiPhotonTransition.Settings();
                             scheme = MultiPhotonTransition.TwoPhotonEmissionScheme(
@@ -629,7 +629,7 @@ elseif  false
                                  [Configuration("2p")],
                                  GreenExpansion( AtomicState.DampedSpaceCI(), Basics.DeExciteSingleElectron(),
                                                  levelSyms, 1, greenSet) )
-    greenChs    = generate(greenRep, output=true)["Green channels"]
+    greenChs    = generate(greenRep, output=true)[ResultKeys.GreenChannels]
     #
     mpSettings  = MultiPhotonTransition.Settings(MultiPhotonTransition.Settings();
                         scheme = MultiPhotonTransition.TwoPhotonEmissionScheme(
@@ -713,7 +713,7 @@ elseif  true
     interConfs  = [Configuration("2p"), Configuration("3p"), Configuration("4p"), Configuration("5p"),
                    Configuration("6p"), Configuration("7p")]
     interRep    = Representation("intermediate np levels", ni, grid, interConfs, MeanFieldMultiplet(MeanFieldSettings()))
-    interMp     = generate(interRep, output=true)["mean-field multiplet"]
+    interMp     = generate(interRep, output=true)[ResultKeys.MeanFieldMultiplet]
     #
     mpSettings  = MultiPhotonTransition.Settings(MultiPhotonTransition.Settings();
                         scheme = MultiPhotonTransition.TwoPhotonAbsorptionScheme(
@@ -799,7 +799,7 @@ elseif  false
                    Configuration("[Ne] 3s 6p"), Configuration("[Ne] 3s 7p"), Configuration("[Ne] 3p^2")]
     interRep    = Representation("3snp intermediate levels", ni, gridM, interConfs,
                                  MeanFieldMultiplet(MeanFieldSettings(scfM)))
-    interMp     = generate(interRep, output=true)["mean-field multiplet"]
+    interMp     = generate(interRep, output=true)[ResultKeys.MeanFieldMultiplet]
     #
     mpSettings  = MultiPhotonTransition.Settings(MultiPhotonTransition.Settings();
                         scheme = MultiPhotonTransition.TwoPhotonAbsorptionScheme(
@@ -878,7 +878,7 @@ elseif  false
     interConfs  = [Configuration("2p"), Configuration("3p"), Configuration("4p"), Configuration("5p"),
                    Configuration("6p"), Configuration("7p")]
     interRep    = Representation("intermediate np levels", ni, grid, interConfs, MeanFieldMultiplet(MeanFieldSettings()))
-    interMp     = generate(interRep, output=true)["mean-field multiplet"]
+    interMp     = generate(interRep, output=true)[ResultKeys.MeanFieldMultiplet]
     #
     ## omegaLess is in the USER-SELECTED energy units, like every other photon energy in JAC. The H 1s -> 2s
     ## transition energy is 10.037 eV here, so 4.0 eV is a strongly asymmetric sharing (x = 0.3985), chosen
@@ -1038,7 +1038,7 @@ elseif  false
     gridJ       = Radial.Grid(Radial.Grid(false), rnt = 4.0e-6, h = 5.0e-2, hp = 1.0e-2, rbox = 40.0)
     interConfs  = [Configuration("2p"), Configuration("3p")]     ## crude ON PURPOSE; see above
     interRep    = Representation("intermediate np levels", ni, gridJ, interConfs, MeanFieldMultiplet(MeanFieldSettings()))
-    interMp     = generate(interRep, output=true)["mean-field multiplet"]
+    interMp     = generate(interRep, output=true)[ResultKeys.MeanFieldMultiplet]
     #
     absSettings = MultiPhotonTransition.Settings(MultiPhotonTransition.Settings();
                         scheme = MultiPhotonTransition.TwoPhotonAbsorptionScheme(

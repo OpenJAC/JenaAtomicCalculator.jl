@@ -19,7 +19,7 @@ if  true
     greenRep         = Representation(name, Nuclear.Model(10.), Radial.Grid(true), refConfigs, 
                                       GreenExpansion( AtomicState.DampedSpaceCI(), Basics.DeExciteSingleElectron(), levelSymmetries, 3, greenSettings) ) 
     greenOut         = generate(greenRep, output=true)
-    raGreen          = greenOut["Green channels"]
+    raGreen          = greenOut[ResultKeys.GreenChannels]
     #
 elseif true
     # Last successful:  unknown ...

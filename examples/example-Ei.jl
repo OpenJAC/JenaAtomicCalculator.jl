@@ -49,7 +49,7 @@ if  true
     interConfs = [Configuration("$(n)p")  for n = 2:4]
     interRep   = Representation("intermediate np states", nm, grid, interConfs,
                                 MeanFieldMultiplet(MeanFieldSettings(scfN)))
-    interMp    = generate(interRep, output=true)["mean-field multiplet"]
+    interMp    = generate(interRep, output=true)[ResultKeys.MeanFieldMultiplet]
     #
     mpiSettings = MultiPhotonIonization.Settings(MultiPhotonIonization.Settings();
                       scheme = MultiPhotonIonization.TwoPhotonOneElectronScheme([0.30, 0.32, 0.35], [E1], 1.0e-3),
@@ -88,7 +88,7 @@ elseif false
         println("\n  ---- intermediate np states up to n = $nmax ----")
         interConfs = [Configuration("$(n)p")  for n = 2:nmax]
         interMp    = generate(Representation("inter", nm, grid, interConfs,
-                              MeanFieldMultiplet(MeanFieldSettings(scfN))), output=true)["mean-field multiplet"]
+                              MeanFieldMultiplet(MeanFieldSettings(scfN))), output=true)[ResultKeys.MeanFieldMultiplet]
         mpiSettings = MultiPhotonIonization.Settings(MultiPhotonIonization.Settings();
                           scheme = MultiPhotonIonization.TwoPhotonOneElectronScheme([0.30], [E1], 1.0e-3),
                           intermediateStates = interMp)
@@ -121,7 +121,7 @@ elseif false
     scfN = Basics.NuclearField();    asfN = AsfSettings(AsfSettings(); scField=scfN, gridStopper=false)
     interConfs = [Configuration("$(n)p")  for n = 2:8]
     interMp    = generate(Representation("inter", nm, grid, interConfs,
-                          MeanFieldMultiplet(MeanFieldSettings(scfN))), output=true)["mean-field multiplet"]
+                          MeanFieldMultiplet(MeanFieldSettings(scfN))), output=true)[ResultKeys.MeanFieldMultiplet]
     for  omega  in  [0.35, 0.375]
         println("\n  ---- omega = $omega a.u. " * (omega == 0.375 ? "(the 1s -> 2p resonance; must be REFUSED)" :
                                                                    "(below the resonance; must run)") * " ----")

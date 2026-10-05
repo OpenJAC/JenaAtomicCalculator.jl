@@ -33,7 +33,7 @@ elseif true
     rep = Representation(name, Nuclear.Model(18.), Radial.Grid(true), refConfigs, greenExpansion)
     #
     gExp = generate(rep, output=true)
-    gChannels = gExp["Green channels"]
+    gChannels = gExp[ResultKeys.GreenChannels]
     cha1      = gChannels[1]
     @show cha1.gMultiplet.levels[1].J, cha1.gMultiplet.levels[1].energy
     @show cha1.gMultiplet.levels[2].J, cha1.gMultiplet.levels[2].energy
