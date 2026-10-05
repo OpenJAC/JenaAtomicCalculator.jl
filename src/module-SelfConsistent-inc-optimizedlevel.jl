@@ -7,6 +7,90 @@
 # advice about how the run was STARTED rather than about anything the layer is doing.
 const GBL_EOL_THREAD_NOTE_SHOWN = Ref(false)
 
+
+"""
+`struct  SelfConsistent.ScfVerdict`
+    ... what the EOL rotation solver concluded about its own run, in numbers a caller can assert on rather than
+        text a caller must grep.  It is ADVICE and never a gate: nothing in JAC reads it, no computation is
+        blocked by it, and a surprising physical result must remain obtainable with every field looking wrong.
+
+    + converged            ::Bool      ... advice, NOT a proof.  It means the run reached a stationary point TO
+                                           MACHINE RESOLUTION FROM THIS START.  It does NOT mean the minimum:
+                                           measured 10-Sep-2026, two legitimate starts on one system land 0.05 to
+                                           0.57 mHa apart and BOTH report converged.  Where a milli-Hartree
+                                           matters, run from more than one start and keep the lowest.
+    + stopReason           ::String    ... which exit fired, verbatim: "converged", "energy below its own
+                                           resolution", "no descent", "energy stagnated", "direction collapsed",
+                                           "all subshells frozen", or "" for the iteration budget.
+    + iterations           ::Int64     ... iterations actually performed.
+    + energyStillAvailable ::Float64   ... Ha still reachable along the search direction, the Newton decrement
+                                           dg^2/(2 <d,Hd>).  **This is the field to assert on**, because |grad|
+                                           cannot be compared across systems and this can: measured on one ladder,
+                                           4.50e-11 Ha on a finished layer against 5.81e-06 on an unfinished one
+                                           where |grad| differed by only 48x.  A LOWER BOUND -- only one direction
+                                           is measured -- and NaN where it was not measured or the curvature along
+                                           that direction was not positive.
+    + gradientNorm         ::Float64   ... |grad| at the exit, kept as a HINT only.  It is not scale-free, and it
+                                           is partly supported on rotations the solver is forbidden to make: the
+                                           raw gradient carries negative-energy-branch components whose curvature
+                                           is -1.5e+04 Ha.  Do not threshold on it.
+    + finalStep            ::Float64   ... the line-search step at the exit.  A flat energy means two different
+                                           things and only this tells them apart: flat with a healthy step is
+                                           convergence, flat with a collapsed step is a search that cannot move.
+    + energy               ::Float64   ... the active-part energy at the exit, for reference.
+"""
+struct  ScfVerdict
+    converged              ::Bool
+    stopReason             ::String
+    iterations             ::Int64
+    energyStillAvailable   ::Float64
+    gradientNorm           ::Float64
+    finalStep              ::Float64
+    energy                 ::Float64
+end
+
+
+"""
+`Base.show(io::IO, verdict::SelfConsistent.ScfVerdict)`
+    ... prints the verdict of the last EOL rotation solve in one block; nothing is returned.
+"""
+function Base.show(io::IO, verdict::SelfConsistent.ScfVerdict)
+    println(io, "ScfVerdict:  $(verdict.converged ? "converged" : "NOT converged") " *
+                "($(verdict.stopReason == "" ? "iteration budget" : verdict.stopReason)) " *
+                "after $(verdict.iterations) iterations")
+    println(io, "   energy still available = $(verdict.energyStillAvailable) Ha   (lower bound; the field to " *
+                "assert on)")
+    println(io, "   |grad| = $(verdict.gradientNorm) (a HINT, not scale-free)   final step = $(verdict.finalStep)" *
+                "   energy = $(verdict.energy)")
+end
+
+
+# The last verdict, set by every exit of solveOptimizedLevelFieldByRotation and read by
+# SelfConsistent.lastScfVerdict().  A global is sound here precisely because this solver is single-threaded --
+# see the note in the cost-estimate block -- and it is what keeps the change NON-BREAKING: the solver still
+# returns its Multiplet, so no caller has to be touched to gain a verdict it can test.
+const GBL_EOL_LAST_VERDICT = Ref{Union{Nothing, ScfVerdict}}(nothing)
+
+
+"""
+`SelfConsistent.lastScfVerdict()`
+    ... returns what the EOL rotation solver concluded about its most recent run, so that a script can ASK whether
+        a computation converged instead of capturing stdout and grepping it.  A `verdict::ScfVerdict` is returned,
+        or `nothing` if that solver has not run in this session.
+
+        MEASURED COST OF NOT HAVING THIS, and the reason the item existed: on 27-Sep-2026 a tuning scan suppressed
+        the SCF output to keep a table readable, and an UNCONVERGED ground-state SCF then looked like a physics
+        result -- the excitation energy came out non-monotonic and was one step from being written up as a
+        physical gate. It was an artefact, and it was caught only by re-running with the log captured and the
+        markers counted by hand.
+
+        IT IS ADVICE AND NEVER A GATE. Read `energyStillAvailable` rather than `converged` wherever a number will
+        do, and read `ScfVerdict`'s own documentation for what `converged` does and does not claim.
+"""
+function lastScfVerdict()
+    return( GBL_EOL_LAST_VERDICT[] )
+end
+
 """
 `struct  SelfConsistent.PairCoefficientCache`
     ... holds the orbital-independent angular coefficients of every CSF pair of ONE symmetry block, in a form whose
@@ -1294,7 +1378,7 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
     bestE     = Inf;   bestEIter = 0        # the ENERGY's best -- this is what ends the iteration, see below
     # Set by every exit below.  A loop that simply runs out of iterations used to end in silence, which was the
     # fifth of five ways this driver can stop and the only one left unreported.
-    stopReason = "";   gNorm = 0.;   iterDone = 0
+    stopReason = "";   gNorm = 0.;   iterDone = 0;   eAvailAtExit = NaN;   tStepAtExit = NaN;   eAtExit = NaN
     # THE STEP-HEALTH FLOOR, used by BOTH exits below and hoisted here 05-Sep-2026 so that it can be.
     # A step smaller than this means the line search has collapsed, temporarily or otherwise, and NOTHING
     # measured during such a step says anything about convergence: neither a stagnant gradient nor a flat
@@ -1790,28 +1874,6 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
         # falling by 1.3e-05 Ha per iteration.  The remedy is NOT the naive energy test that was removed -- that
         # was measured and is wrong -- but a GUARDED one: a tolerance carrying its own resolution floor, and a
         # flat energy read as converged ONLY when the step is still healthy.  Item 6 holds the measurements.
-        if  gNorm < settings.accuracyScf
-            stopReason = "converged";   println(">> [EOL-C3] CONVERGED at iteration $iter: |grad| = $gNorm < accuracyScf = " *
-                    "$(settings.accuracyScf), tStep = $tStep.")
-            break
-        end
-
-        # AND CONVERGED WHEN THE ENERGY CAN NO LONGER BE RESOLVED -- priority item 6, added 05-Sep-2026.
-        # |grad| IS NOT SCALE-FREE: its size is set by the excitation energies that set the curvature, ~1000 Ha
-        # at Z = 92 against ~1 Ha at Z = 4, so one threshold cannot serve both.  At Z = 92 the run is DONE and
-        # cannot say so -- the energy flat to 4e-15 Ha, a central difference of the functional returning pure
-        # round-off, ~3e-09 Ha still available -- while |grad| = 0.0023 reads as unconverged against 1e-6.
-        # THIS IS NOT THE NAIVE STATIONARY-ENERGY TEST THAT WAS REMOVED ON 03-Sep, and the difference is the
-        # whole design.  That one compared |dE| against accuracyScf, which the energy reaches long before the
-        # gradient does, and it stopped every step of Be Scenario A short (iterations 3, 15, 37, 80 against
-        # 63, 154, 51, 40).  This one compares |dE| against the RESOLUTION OF THE ENERGY ITSELF -- 32 eps|E|,
-        # a few units in the last place -- so it cannot fire while the energy is still measurably falling; on
-        # Be that floor is ~1e-13 while |dE| plateaus at 1e-12, and the test stays silent.  It fires only when
-        # the arithmetic can no longer tell two successive energies apart.
-        # AND IT IS GUARDED BY THE STEP, because a PLATEAU IS NOT A MINIMUM: on Cf^17+ the energy sat
-        # stationary to 1e-12 for 55 iterations with tStep at 1e-9, and allowed to run the calculation escaped
-        # and fell a further 3.5e-4 Ha, moving the clock transition by 34 cm^-1.  A flat energy measured
-        # during a collapsed step says nothing at all.
         # AND |grad| IS NOW REPORTED IN HARTREES, which is the only form a reader can act on.  The note above says
         # what the bare number cannot do; the remedy is to convert it, and the conversion needs a curvature.  Along
         # the search direction the energy still reachable is the Newton decrement  dg^2 / (2 <d,Hd>), and <d,Hd>
@@ -1847,6 +1909,29 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
             dHd <= 1.0e-30  &&  return( NaN )            ## no positive curvature along the direction taken
             return( dg*dg / (2*dHd) )
         end
+        if  gNorm < settings.accuracyScf
+            stopReason = "converged";   println(">> [EOL-C3] CONVERGED at iteration $iter: |grad| = $gNorm < accuracyScf = " *
+                    "$(settings.accuracyScf), tStep = $tStep.")
+            eAvailAtExit = energyStillAvailable();    tStepAtExit = tStep;    eAtExit = e0
+            break
+        end
+
+        # AND CONVERGED WHEN THE ENERGY CAN NO LONGER BE RESOLVED -- priority item 6, added 05-Sep-2026.
+        # |grad| IS NOT SCALE-FREE: its size is set by the excitation energies that set the curvature, ~1000 Ha
+        # at Z = 92 against ~1 Ha at Z = 4, so one threshold cannot serve both.  At Z = 92 the run is DONE and
+        # cannot say so -- the energy flat to 4e-15 Ha, a central difference of the functional returning pure
+        # round-off, ~3e-09 Ha still available -- while |grad| = 0.0023 reads as unconverged against 1e-6.
+        # THIS IS NOT THE NAIVE STATIONARY-ENERGY TEST THAT WAS REMOVED ON 03-Sep, and the difference is the
+        # whole design.  That one compared |dE| against accuracyScf, which the energy reaches long before the
+        # gradient does, and it stopped every step of Be Scenario A short (iterations 3, 15, 37, 80 against
+        # 63, 154, 51, 40).  This one compares |dE| against the RESOLUTION OF THE ENERGY ITSELF -- 32 eps|E|,
+        # a few units in the last place -- so it cannot fire while the energy is still measurably falling; on
+        # Be that floor is ~1e-13 while |dE| plateaus at 1e-12, and the test stays silent.  It fires only when
+        # the arithmetic can no longer tell two successive energies apart.
+        # AND IT IS GUARDED BY THE STEP, because a PLATEAU IS NOT A MINIMUM: on Cf^17+ the energy sat
+        # stationary to 1e-12 for 55 iterations with tStep at 1e-9, and allowed to run the calculation escaped
+        # and fell a further 3.5e-4 Ha, moving the clock transition by 34 cm^-1.  A flat energy measured
+        # during a collapsed step says nothing at all.
         eFloor = 32 * eps(abs(e0))
         if  iter > 1  &&  tStep >= stepFloor  &&  abs(e0Prev - e0) < eFloor
             stopReason = "energy below its own resolution"
@@ -1854,7 +1939,8 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
                     @sprintf("%.2e", abs(e0Prev - e0)) * " Ha, below its own resolution of " *
                     @sprintf("%.2e", eFloor) * " Ha, with a healthy step (tStep = " * @sprintf("%.2e", tStep) *
                     ").  |grad| = $gNorm is reported as a HINT and is not the test: it is not scale-free.")
-            eAvail = energyStillAvailable()
+            eAvail = energyStillAvailable();    eAvailAtExit = eAvail
+            tStepAtExit = tStep;    eAtExit = e0
             if  isnan(eAvail)
                 println(">> [EOL-C3]   the curvature along the search direction is NOT POSITIVE, so this point is " *
                         "not a minimum along it;  treat the result as a stationary point only.")
@@ -2070,6 +2156,7 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
             end
         end
         if  !accepted
+            eAvailAtExit = energyStillAvailable();    tStepAtExit = tStep;    eAtExit = e0
             stopReason = "no descent";   println(">> [EOL-C3] STOPPED at iteration $iter: no descent found along the search direction " *
                     "(tStep fell to $tStep), with |grad| = $gNorm.  This is NOT convergence.")
             Defaults.warn(AddWarning(), "SelfConsistent.solveOptimizedLevelFieldByRotation(): the EOL field did NOT " *
@@ -2100,6 +2187,12 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
         # The original justification for the energy test -- that |grad| plateaus at a floor set by the basis
         # and the projection -- was measured while the directional derivative was five to nine times too steep
         # (items 121 and 122).  With the gradient exact there is no such floor.
+        # THE BUDGET CASE IS MEASURED HERE, on the last iteration, because `dir` and the closure that needs it are
+        # local to this loop and are gone by the time the budget is found to be exhausted.  One extra measurement
+        # on one iteration, and it is the case a user most wants a number for: a run that simply ran out.
+        if  iter == Basics.maxIterations(settings.scfRoute)
+            eAvailAtExit = energyStillAvailable();    tStepAtExit = tStep;    eAtExit = e0
+        end
         stagnationWindow = 20
         # THE ITERATION NOW ENDS WHEN THE ENERGY STOPS IMPROVING, NOT WHEN THE GRADIENT DOES -- 07-Sep-2026.
         # This reverses the decision of 03-Sep, and it reverses it because the surface changed underneath it.
@@ -2149,6 +2242,7 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
         end
         if  iter - bestEIter >= stagnationWindow  &&  (tStep >= stepFloor || stepIsDead)  &&
                                                       !haskey(ENV, "JAC_EOL_NOSTATEXIT")
+            eAvailAtExit = energyStillAvailable();    tStepAtExit = tStep;    eAtExit = e0
             stopReason = "energy stagnated";   println(">> [EOL-C3] stopped at iteration $iter: the ENERGY has " *
                     "not improved on $bestE since iteration $bestEIter, $stagnationWindow iterations ago" *
                     (stepIsDead ? ", and the step has been collapsed below $stepFloor since iteration $collapsedSince" : "") * ".  " *
@@ -2168,6 +2262,16 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
                       "converge -- the budget of $(Basics.maxIterations(settings.scfRoute)) iterations was reached with " *
                       "|grad| = " * @sprintf("%.1e", gNorm) * ".  The energies are NOT self-consistent.")
     end
+
+    # THE VERDICT IS RECORDED SO A CALLER CAN ASK INSTEAD OF GREPPING, which is what priority item 40 asked for and
+    # all it asked for: the checks already existed and already printed, and none of them returned anything a script
+    # could assert on.  The return value of this function is UNCHANGED -- it is still the Multiplet -- so nothing
+    # downstream has to be touched; the verdict is fetched with SelfConsistent.lastScfVerdict().
+    #   ADVISORY, NEVER GATING.  Nothing in JAC reads this, and no computation is blocked by it.  A surprising
+    # physical result must remain obtainable with every field of it looking wrong, which is the maintainer's
+    # constraint on the whole item and the reason it is a record rather than a check.
+    GBL_EOL_LAST_VERDICT[] = ScfVerdict(stopReason == "converged" || stopReason == "energy below its own resolution",
+                                        stopReason, iterDone, eAvailAtExit, gNorm, tStepAtExit, eAtExit)
 
     # THE REQUESTED INTERACTION IS APPLIED HERE, ONCE, ON THE CONVERGED ORBITALS.  Until 01-Sep-2026 this
     # function returned the multiplet built inside its own iteration by the EOL machinery
