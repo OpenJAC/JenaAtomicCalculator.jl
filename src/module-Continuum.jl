@@ -461,12 +461,33 @@ end
         tail, Zeff -> 0, and `Zeff * r >= 10` could never be satisfied by any box; there is also nothing for it to
         guard, since a plane wave has no Coulomb phase to get wrong. The check therefore applies only where a
         Coulomb tail exists.
+
+        A NamedTuple is returned, carrying the MEASUREMENT rather than a verdict -- priority item 40, whose rule is
+        that a diagnostic hands back a measured quantity with its context so the CALLER judges:
+        `(ok, checked, Zeff, r, ZeffTimesR, required, rWanted, note)`.  **`checked` is the field that matters most
+        and the reason this is not a bare Bool**: two paths leave the criterion UNTESTED -- a grid too short for
+        the probe point to exist, and a free particle with no Coulomb tail -- and both return `ok = true` because
+        nothing failed.  NOT CHECKED IS NOT PASSED, and a caller reading only `ok` would take either for a clean
+        bill of health.  `ZeffTimesR` against `required` is the quantity to judge on, and `rWanted` is the radius
+        that would satisfy it.  Nothing raises: this warns, deliberately, for the reason given above.
 """
 function checkNormalizationRadius(pot::Radial.Potential)
     grid = pot.grid;    n = grid.NoPoints - 200
-    if  n < 1  ||  n > length(pot.Zr)     return( nothing )     end
+    # NOT CHECKED IS NOT THE SAME AS PASSED, and the returned `checked` field is what keeps the two apart.  Both
+    # early exits below leave the criterion UNTESTED -- the first because the grid is too short for the probe
+    # point to exist at all, the second because a free particle has no Coulomb tail to guard -- and a caller that
+    # read only `ok` would take either for a clean bill of health.  Priority item 40: the diagnostic returns what
+    # it measured, with its context, and the caller judges.
+    if  n < 1  ||  n > length(pot.Zr)
+        return( (ok = true, checked = false, Zeff = NaN, r = NaN, ZeffTimesR = NaN, required = 10.0,
+                 rWanted = NaN, note = "not checked: the grid has fewer than 200 points beyond the probe index") )
+    end
     Zeff = pot.Zr[n]
-    if  Zeff < 0.5      return( nothing )     end          # free particle: no Coulomb tail, nothing to guard
+    if  Zeff < 0.5
+        return( (ok = true, checked = false, Zeff = Zeff, r = grid.r[n], ZeffTimesR = Zeff * grid.r[n],
+                 required = 10.0, rWanted = NaN,
+                 note = "not checked: Zeff < 0.5 at the probe point, i.e. a free particle with no Coulomb tail") )
+    end
     if  Zeff * grid.r[n] < 10.0
         # WARNS RATHER THAN REFUSES, and the distinction is deliberate. Promoting this to an `error` is a
         # ONE-WORD change and is the intended end state; what it waits on is a MANY-ELECTRON case that validates
@@ -491,9 +512,12 @@ function checkNormalizationRadius(pot::Radial.Potential)
         printstyled("\n>> WARNING: the continuum normalization point lies close to the atom: " * sa * sb *
                     ">> See the docstring of Continuum.checkNormalizationRadius for the measurement.\n",
                     color=:light_red)
+        return( (ok = false, checked = true, Zeff = Zeff, r = grid.r[n], ZeffTimesR = Zeff * grid.r[n],
+                 required = 10.0, rWanted = 10.0/Zeff, note = "the normalization point lies too close to the atom") )
     end
 
-    return( nothing )
+    return( (ok = true, checked = true, Zeff = Zeff, r = grid.r[n], ZeffTimesR = Zeff * grid.r[n],
+             required = 10.0, rWanted = 10.0/Zeff, note = "") )
 end
 
 
