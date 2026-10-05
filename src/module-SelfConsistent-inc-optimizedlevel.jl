@@ -236,13 +236,26 @@ function buildCIMatrixEOL(cache::PairCoefficientCache, orbitals::Dict{Subshell, 
                           grid::Radial.Grid, potential::Radial.Potential,
                           radial1pCache::Dict{Tuple{Subshell,Subshell},Float64}          = Dict{Tuple{Subshell,Subshell},Float64}(),
                           radial2pCache::Dict{Tuple{Int64,Subshell,Subshell,Subshell,Subshell},Float64} =
-                                        Dict{Tuple{Int64,Subshell,Subshell,Subshell,Subshell},Float64}())
+                                        Dict{Tuple{Int64,Subshell,Subshell,Subshell,Subshell},Float64}(),
+                          vkCache::Dict{Tuple{Int64,Subshell,Subshell,Int64},Vector{Float64}} = Dict{Tuple{Int64,Subshell,Subshell,Int64},Vector{Float64}}())
     # radial1pCache/radial2pCache: keyed purely by subshell labels (never by CSF-pair index), so a radial
     # integral shared by MANY different CSF pairs -- e.g. the same "1s-1s" self-interaction appearing in
     # every CSF's diagonal term -- is evaluated once per outer SCF+CI iteration and reused, instead of once
     # per (r,s) occurrence. Pass the SAME cache Dicts in across every block diagonalized within one outer
     # iteration (they also depend only on the current orbitals, not on which block/CSF-pair references them);
     # a fresh empty cache per call (the default) is still correct, just without the cross-block reuse.
+    #   vkCache IS A THIRD CACHE AT A DIFFERENT GRAIN, and it is the one that matters most here.  radial2pCache
+    # deduplicates the finished integral R^nu(abcd) by its QUINTUPLE, which is the right key for a caller that
+    # meets the same quadruple twice.  It cannot see the redundancy INSIDE those integrals: the expensive part of
+    # R^nu(abcd) is the screened potential V_nu[b,d], a function of only TWO of the four orbitals, so every
+    # distinct (a,c) sharing one (nu,b,d) rebuilt it from scratch.  Measured on C-like uranium, 20 083
+    # coefficients carried 20 083 distinct quintuples and only 781 distinct (nu,b,d) triples -- a redundancy of
+    # 25.7x that a quintuple key cannot reach.  Counted again 05-Oct-2026 on a Ca+ ladder (priority item 47),
+    # `buildScreenedPotential` was entered 32 737 times for 125 distinct (nu,b,d), and 42.7 % of ALL the
+    # allocation attributed to that routine arrived through THIS call site.
+    #   The key carries the extent as well as (nu,b,d), and it is the caller's: it must not outlive the orbitals
+    # it was built from, so it is created beside radial1p/radial2p and dies with them at the end of the outer
+    # iteration.
     # Hermitian-symmetry shortcut (28-Jul-2026): only the UPPER triangle (r<=s) is computed -- exact, not
     # just safe, since this matrix feeds diagonalizeBlockEOL -> Basics.diagonalize(MatrixWithLinearAlgebra(),
     # ...), whose Symmetric(matrix) wrapper (default uplo=:U) already discards the lower triangle. See
@@ -259,7 +272,8 @@ function buildCIMatrixEOL(cache::PairCoefficientCache, orbitals::Dict{Subshell, 
             end
             for  cf in coefficients2p(cache, r, s)
                 R_abcd = get!(radial2pCache, (cf.nu,cf.a,cf.b,cf.c,cf.d)) do
-                    InteractionStrength.XL_CoulombKinkAware(cf.nu, orbitals[cf.a], orbitals[cf.b], orbitals[cf.c], orbitals[cf.d], grid)
+                    InteractionStrength.XL_CoulombKinkAware(cf.nu, orbitals[cf.a], orbitals[cf.b], orbitals[cf.c],
+                                                            orbitals[cf.d], grid, vkCache)
                 end
                 me = me + cf.V * R_abcd
             end
@@ -1418,10 +1432,11 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
         tempBasis = Basis(true, basis.NoElectrons, basis.subshells, basis.csfs, basis.coreSubshells, orbitals)
         radial1p  = Dict{Tuple{Subshell,Subshell},Float64}()
         radial2p  = Dict{Tuple{Int64,Subshell,Subshell,Subshell,Subshell},Float64}()
+        vkCI      = Dict{Tuple{Int64,Subshell,Subshell,Int64},Vector{Float64}}()
         levels    = Level[]
         for  sym  in  relevantSyms
             cache = blockCaches[sym];    idxCsf = cache.idxCsf
-            mtx = SelfConsistent.buildCIMatrixEOL(cache, orbitals, grid, nucPot, radial1p, radial2p)
+            mtx = SelfConsistent.buildCIMatrixEOL(cache, orbitals, grid, nucPot, radial1p, radial2p, vkCI)
             append!( levels, SelfConsistent.diagonalizeBlockEOL(sym, idxCsf, mtx, tempBasis) )
         end
         multiplet    = Basics.sortByEnergy( Multiplet("EOL-ByRotation", levels) )
@@ -2306,11 +2321,12 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
     finalTmpBasis = Basis(true, basis.NoElectrons, basis.subshells, basis.csfs, basis.coreSubshells, finalTmpOrbs)
     finalLevels   = Level[]
     let  radial1pF = Dict{Tuple{Subshell,Subshell},Float64}(),
-         radial2pF = Dict{Tuple{Int64,Subshell,Subshell,Subshell,Subshell},Float64}()
+         radial2pF = Dict{Tuple{Int64,Subshell,Subshell,Subshell,Subshell},Float64}(),
+         vkF       = Dict{Tuple{Int64,Subshell,Subshell,Int64},Vector{Float64}}()
         for  sym  in  relevantSyms
             cache = blockCaches[sym];    idxCsf = cache.idxCsf
             mtx = SelfConsistent.buildCIMatrixEOL(cache, finalTmpOrbs, grid, nucPot,
-                                                  radial1pF, radial2pF)
+                                                  radial1pF, radial2pF, vkF)
             append!( finalLevels, SelfConsistent.diagonalizeBlockEOL(sym, idxCsf, mtx, finalTmpBasis) )
         end
     end
@@ -2446,11 +2462,12 @@ function solveOptimizedLevelField(basis::Basis, nuclearModel::Nuclear.Model, pri
         # different symmetry blocks, but depends only on currentOrbitals, not on which block/pair asked for it.
         radial1pCache = Dict{Tuple{Subshell,Subshell},Float64}()
         radial2pCache = Dict{Tuple{Int64,Subshell,Subshell,Subshell,Subshell},Float64}()
+        vkCache       = Dict{Tuple{Int64,Subshell,Subshell,Int64},Vector{Float64}}()
         levels = Level[]
         for  sym  in  relevantSyms
             cache = blockCaches[sym];    idxCsf = cache.idxCsf
             matrix = SelfConsistent.buildCIMatrixEOL(cache, currentOrbitals, grid, nucPot,
-                                                      radial1pCache, radial2pCache)
+                                                      radial1pCache, radial2pCache, vkCache)
             append!( levels, SelfConsistent.diagonalizeBlockEOL(sym, idxCsf, matrix, tempBasis) )
         end
         mp = Basics.sortByEnergy( Multiplet("EOL", levels) )
