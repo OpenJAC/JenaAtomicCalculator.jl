@@ -698,42 +698,35 @@ end
         mean-field basis, whose orbitals carry eigenvalues. Giving EOL orbitals a defined energy is a physics question -- the diagonal
         Lagrange multiplier is the candidate -- and is on the priority list rather than guessed at here.
 
-        AND THE OTHER END, ADDED 15-Sep-2026.  Nothing guarded LARGE omega, where the kernels oscillate faster than the quadrature can
-        follow.  In an Auger or dielectronic-capture amplitude one orbital is a CONTINUUM electron, so |E_a - E_c| is the continuum
-        energy itself -- omega = 5.3 a.u. at Z = 53 rising to 17 at Z = 92 -- and amplitudes measured on 09-Sep-2026 degraded from a
-        healthy 0.2 % correction to values wrong by 10^6-10^7, with no warning of any kind.
+        AND THE OTHER END, ADDED 15-Sep-2026 AND PUT ON THE RIGHT VARIABLE 05-Oct-2026.  Nothing guarded LARGE omega.  In an Auger or
+        dielectronic-capture amplitude one orbital is a CONTINUUM electron, so |E_a - E_c| is the continuum energy itself, and amplitudes
+        measured on 09-Sep-2026 degraded from a 0.2 % correction at Z = 53 to values wrong by 10^6-10^7 at Z = 92 with no warning at all.
 
-        THE QUANTITY THAT DECIDES IT IS omega TIMES THE RADIAL EXTENT OF THE OVERLAP, and that was measured rather than argued.  Scanning
-        omega on a FIXED orbital quadruple -- so that omega is the only variable, which a scan over Z can never be -- on two systems 15x
-        apart in box size and 9x in Z (Ne-like Xe, rbox 0.8 a.u.; C-like carbon, rbox 12.4), the strength relative to its omega -> 0 value
-        tracks the SAME curve in the product to within a few per cent:
+        THE QUANTITY THAT DECIDES IT IS omega TIMES THE EXTENT OF THE OVERLAP DENSITY, and it was settled by varying one thing at a time
+        rather than by argument.  Two controls, both on C-like carbon:
 
-            product     0.5     1      2      4      7       9      11      14      18      20
-            Xe        1.0025 1.0099 1.0377 1.1249 1.2079  1.1438  0.9619  0.5447  0.0314  -0.108
-            C         1.0022 1.0086 1.0325 1.1049 1.1623  1.1009  0.9532  0.6384 -0.2729  -6.046
+            THE MESH IS INERT.  Box fixed at 12.5 a.u., hp refined fourfold -- 474 against 1893 points per oscillation of the kernel --
+            gives 1.1038/1.1041 at omega*rbox = 4, 1.1627/1.1626 at 7, -0.2162/-0.2558 at 18.  So "an oscillatory integrand the
+            quadrature cannot follow" is REFUTED; that was this guard's stated mechanism for a month.
 
-        The leading retardation correction is O(omega^2) -- the law `example-Ad.jl` branch 4 validates at small omega -- so the ratio must
-        leave 1 quadratically.  It does so to about product 2;  by 4 it is ~21 % below the law;  at 7 it PEAKS and the correction stops
-        growing with omega, which is unphysical;  by 11 the correction has VANISHED (ratio 1, for entirely wrong reasons);  by 18 it is
-        zero or negative.  Hence a WARNING at 4, where the validated law is already ~21 % out.
+            THE BOX IS INERT TOO.  The SAME orbitals in a box enlarged from 12.6 to 50.4 a.u. give 1.1627 against 1.1626 at fixed omega,
+            while omega*rbox moves 7.0 -> 28.2.  A length that changes nothing when changed alone is not the criterion.
 
-        AND DELIBERATELY NO REFUSAL, because the threshold is not established and a wrong refusal is worse than a warning.  The two
-        bound systems above collapse onto one curve in omega*RBOX, not in omega*(orbital extent) -- their extent/rbox ratios are 0.305
-        and 0.428, so the landmarks scatter by 40 % in that variable.  But rbox cannot be the criterion either: the Auger measurements
-        of 09-Sep-2026 are HEALTHY at omega*rbox = 21, far past where both bound systems have already changed sign, and re-expressed in
-        extent they sit at 0.5-1.0, below every threshold, so extent would not catch the Z = 92 catastrophe.  NEITHER VARIABLE EXPLAINS
-        BOTH DATASETS.  The priority item stays open on precisely this;  what the warning delivers meanwhile is that the number stops
-        being silent.
+        So the length belongs to the PAIR, and `InteractionStrength.overlapExtent` forms it.  Landmarks, on two bound systems 15x apart
+        in box size and 9x in Z: already ~21 % below the O(omega^2) law at omega*extent = 1.2;  PEAK at 2.1-3.0, where the correction
+        stops growing with omega and so is unphysical;  correction VANISHED by 3.4-4.7;  sign REVERSED by 5.5-7.7.  The two systems place
+        these about 40 % apart, so the threshold is the conservative end, 1.2.  That the same two systems LOOKED like a clean collapse in
+        omega*rbox is a two-point coincidence: their extent/rbox are 0.304 and 0.428, so those two points cannot separate the variables.
 
-        THE EXTENT IS THE OVERLAP'S, NOT THE BOX'S, and the difference is what keeps an Auger amplitude from false-alarming: three compact
-        bound orbitals plus one continuum orbital filling the box have an integrand confined to the bound orbitals, so rbox overestimates
-        the danger by a wide margin.  Each pair's extent is bounded by the MORE COMPACT of the two (the code forms omg_ac and omg_bd
-        separately, one per pair), and the larger of the two pairs sets the scale.
+        IT COVERS THE AUGER CASE IT WAS FILED FOR, which a box test was kept here for until it was measured.  With a real continuum
+        orbital at the KLL energy, Li-like U sits at omega*extent = 6.3 and Li-like iodine at 3.7 -- both far past 1.2, not at the
+        0.5-1.0 the priority item recorded -- so one clause serves both.  And the "healthy Z = 53" is not a healthy STRENGTH: refining
+        the mesh there, XL_Breit(0.) converges to 4.6430e-03 to six figures while XL_Breit(1.) runs -7.12e-02, +6.84e-03, +2.44e+01.
+        The 0.2 % belongs to the assembled AMPLITUDE, where errors across many strengths partly cancel.
 
-        AND THE CHECK IS O(1).  It forms two frequencies and one product;  ordinary bound-bound work sits near omega*rbox ~ 0.07, four
-        orders below the threshold, so nothing is paid on the path that matters.  `InteractionStrength.effectiveExtent` is kept beside
-        this because the extent is the physically motivated length and will be needed when the criterion is settled, but it is NOT used
-        by the guard today -- using it would have imported a 40 % system-dependence into the threshold.
+        AND IT WARNS RATHER THAN REFUSES, because the 40 % spread in the landmarks is calibrated on two systems and a wrong refusal is
+        worse than a warning that names the remedy.  The check is O(1): two frequencies, two extents and one product, and ordinary
+        bound-bound work sits near omega*extent ~ 0.03, two orders below the threshold.
 """
 function checkFrequencyIsMeaningful(factor::Float64, a::Orbital, b::Orbital, c::Orbital, d::Orbital,
                                     grid::Radial.Grid)
@@ -761,12 +754,19 @@ function checkFrequencyIsMeaningful(factor::Float64, a::Orbital, b::Orbital, c::
     # fourfold is equally inert (1.1038/1.1041 at product 4, 1.1627/1.1626 at 7, 474 against 1893 points per
     # oscillation), which rules out quadrature resolution -- the mechanism this item asserted for a month.
     #
-    # CLAUSE B is retained because clause A does NOT cover the catastrophe this guard was filed for.  An Auger
-    # quadruple is three compact bound orbitals plus a continuum electron filling the box, so its omega*extent is
-    # 0.5-1.0 and clause A is rightly silent -- and the Z = 53 case IS healthy there.  But Z = 92 is wrong by 10^7
-    # and sits at the same omega*extent.  Something other than the extent fails there, it is NOT understood, and a
-    # guard that went quiet about it would be a regression.  So clause B keeps the box test at a threshold above
-    # the measured healthy point (omega*rbox = 21 at Z = 53) and says plainly that it is indicative.
+    # AND THERE IS NO SECOND CLAUSE, which took measuring.  A box test was kept here until 05-Oct-2026 on the
+    # grounds that clause A could not cover the Z = 92 Auger catastrophe this guard was filed for -- the item
+    # recorded both Auger cases as sitting at omega x extent 0.5-1.0, where clause A is silent.  Measured on the
+    # actual quadruples, with a real continuum orbital at the KLL energy, THAT IS NOT WHERE THEY SIT: Li-like
+    # U gives omega x extent = 6.3 and Li-like iodine 3.7, both far past the 1.2 threshold, so clause A fires on
+    # both.  The gap the second clause existed for does not exist, and a guard kept for a reason that has been
+    # measured away is worse than none.
+    #
+    # AND THE "HEALTHY Z = 53" WAS NEVER A HEALTHY STRENGTH.  Refining the mesh on the Li-like iodine quadruple,
+    # XL_Breit(0.) converges to 4.6430e-03 to six figures while XL_Breit(1.) runs -7.12e-02, +6.84e-03, +2.44e+01
+    # over the same three meshes.  The 0.2 % correction the item calls healthy belongs to the assembled
+    # AMPLITUDE, where errors across many strengths partly cancel -- not to the strengths going into it.  So
+    # there was no Z = 53 against Z = 92 contrast to explain.
     cLight = Defaults.getDefaults("speed of light: c")
     omgAC  = factor * abs(a.energy - c.energy) / cLight
     omgBD  = factor * abs(b.energy - d.energy) / cLight
@@ -782,17 +782,6 @@ function checkFrequencyIsMeaningful(factor::Float64, a::Orbital, b::Orbital, c::
               "place these landmarks about 40 % apart, so the threshold is the conservative end of that spread.\n" *
               "   REMEDY: CoulombBreit(0.) is the exact omega -> 0 limit and is what every published JAC Auger, " *
               "DR and cascade number has used.", maxlog=3)
-    elseif  omega * grid.r[end] >= 25.0
-        @warn("A frequency-dependent Breit interaction spans a box far larger than its orbitals: " *
-              "omega x rbox = " * @sprintf("%.1f", omega*grid.r[end]) * " while omega x (overlap extent) = " *
-              @sprintf("%.2f", omega*extent) * ".\n" *
-              "   This is the Auger and dielectronic-capture geometry -- compact bound orbitals plus a continuum " *
-              "electron filling the grid -- and the extent criterion above is silent on it CORRECTLY: measured " *
-              "09-Sep-2026, Li-like KLL capture at Z = 53 is healthy at omega x rbox = 21, a 0.2 % correction.\n" *
-              "   BUT AT Z = 92 THE SAME AMPLITUDES COME OUT 10^6 TO 10^7 TOO LARGE, at the same omega x extent, " *
-              "and WHY IS NOT KNOWN -- neither the extent, nor the box, nor the mesh explains it.  So this is a " *
-              "warning that you are in the region where that happened, not a diagnosis.  Check the result against " *
-              "CoulombBreit(0.) before using it.", maxlog=3)
     end
 
     return( nothing )
