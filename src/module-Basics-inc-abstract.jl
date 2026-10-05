@@ -2063,6 +2063,28 @@ struct   NoProcessSettings  <: AbstractProcessSettings  end
     
 export   AbstractProcessSettings
 
+
+"""
+`abstract type Basics.AbstractResultKey`
+    ... defines an abstract type for the keys under which `Basics.perform` stores a result that has no settings
+        type of its own -- the multiplets and the grid.  Every OTHER result is asked for by the settings type that
+        produced it, `res[PhotoEmission.Settings]` or `res[Hfs.Settings]`, so no key has to be invented for it.
+
+        THE CONCRETE KEYS LIVE IN THE `ResultKeys` MODULE, deliberately, and that is not a stylistic choice: the
+        two natural names are already taken by the DATA -- `ManyElectron.Multiplet` and `Radial.Grid`.  Putting a
+        key called `Multiplet` into `Basics` would place it one qualifier away from the datum of the same name,
+        which is the very near-miss that priority item 39 exists to remove (`"photon emission lines:"` was asked
+        for where `"radiative lines:"` was meant).  A namespace removes the ambiguity without inventing
+        vocabulary: `ResultKeys.Multiplet` is a key, `Multiplet` is the datum, and neither has to be renamed.
+
+        The keys are TYPES rather than instances so that both halves of the interface read alike -- a key is a
+        bare type qualified by the module that owns it, whether it is `PhotoEmission.Settings` or
+        `ResultKeys.FinalMultiplet`.
+"""
+abstract type  AbstractResultKey                        end
+
+export   AbstractResultKey
+
 #################################################################################################################################
 #################################################################################################################################
 

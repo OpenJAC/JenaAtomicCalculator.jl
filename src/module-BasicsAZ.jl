@@ -5,7 +5,9 @@
 """
 module BasicsAZ
 
-using  Printf,  LinearAlgebra, GaussQuadrature, JenaAtomicCalculator, ..Basics, ..TableStrings
+# ..ResultKeys exports NOTHING, deliberately, so this brings in the module name alone and cannot shadow
+# ManyElectron.Multiplet or Radial.Grid -- see the docstring of module-ResultKeys.jl.
+using  Printf,  LinearAlgebra, GaussQuadrature, JenaAtomicCalculator, ..Basics, ..TableStrings, ..ResultKeys
        ## using JenaAtomicCalculator ... since otherwise almost all other modules must be included explicitly
        
 

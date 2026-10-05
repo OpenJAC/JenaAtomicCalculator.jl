@@ -53,6 +53,104 @@ end
 
 
 """
+`BasicsAZ.resultKeyStrings(T::Type)`
+    ... gives the string key(s) under which `Basics.perform` stores the result belonging to `T`, where `T` is
+        either a settings type or one of the `ResultKeys`; an `Array{String,1}` is returned, EMPTY where the type
+        is not one that produces a result.
+
+        IT RETURNS A LIST, not a single string, for one reason: `DielectronicRecombination.Settings` produces
+        either `"dielectronic recombination lines:"` or `"hyperfine-resolved dielectronic recombination lines:"`
+        depending on a field of those very settings.  Asking by TYPE makes that ambiguity disappear for the
+        caller -- they ask for the DR result and are handed whichever was computed -- where a string key forced
+        them to know which branch had run.  It is the one place where the typed key is not merely safer but says
+        something the string could not.
+
+        THIS TABLE IS THE MIGRATION, and it is derived from `Basics.perform` itself: forty settings types, one key
+        each but for the DR pair, and six `ResultKeys` for the results that have no settings type.  While the
+        strings remain accepted, this is the only place the correspondence is written down.
+"""
+function  resultKeyStrings(T::Type)
+    # --- the results that have no settings type of their own
+    T === ResultKeys.Multiplet              &&  return( ["multiplet:"] )
+    T === ResultKeys.Grid                   &&  return( ["grid:"] )
+    T === ResultKeys.InitialMultiplet       &&  return( ["initialMultiplet"] )
+    T === ResultKeys.FinalMultiplet         &&  return( ["finalMultiplet"] )
+    T === ResultKeys.IntermediateMultiplet  &&  return( ["intermediateMultiplet"] )
+    T === ResultKeys.IjfMultiplet           &&  return( ["IJF multiplet:"] )
+    # --- level properties, several of which one computation may request
+    T === Einstein.Settings                 &&  return( ["Einstein lines:"] )
+    T === Hfs.Settings                      &&  return( ["HFS outcomes:"] )
+    T === LandeZeeman.Settings              &&  return( ["Zeeman parameter outcomes:"] )
+    T === StarkShift.Settings               &&  return( ["Stark-shift outcomes:"] )
+    T === StarkZeeman.Settings              &&  return( ["Stark-Zeeman outcomes:"] )
+    T === IsotopeShift.Settings             &&  return( ["Isotope parameter outcomes:"] )
+    T === AlphaVariation.Settings           &&  return( ["alpha variation parameter outcomes:"] )
+    T === FormFactor.Settings               &&  return( ["Form factor outcomes:"] )
+    T === DecayYield.Settings               &&  return( ["Fluorescence and AutoIonization yield outcomes:"] )
+    T === MultipolePolarizibility.Settings  &&  return( ["Polarizibility outcomes:"] )
+    T === ReducedDensityMatrix.Settings     &&  return( ["RDM outcomes:"] )
+    T === WeakInteractionEnhancement.Settings  &&  return( ["Weak-interaction enhancement outcomes:"] )
+    # --- the one process of the computation
+    T === AutoIonization.Settings           &&  return( ["AutoIonization lines:"] )
+    T === RayleighCompton.Settings          &&  return( ["Rayleigh-Compton lines:"] )
+    T === ElectronCapture.Settings          &&  return( ["electron-capture lines:"] )
+    T === DoubleAutoIonization.Settings     &&  return( ["Double-Auger lines:"] )
+    T === DielectronicRecombination.Settings   &&
+        return( ["dielectronic recombination lines:", "hyperfine-resolved dielectronic recombination lines:"] )
+    T === MultiPhotonTransition.Settings    &&  return( ["multi-photon transition lines:"] )
+    T === PhotoIonization.Settings          &&  return( ["photoionization lines:"] )
+    T === PhotoDoubleIonization.Settings    &&  return( ["Single-photon double-ionization lines:"] )
+    T === PhotoExcitation.Settings          &&  return( ["photo-excitation lines:"] )
+    T === PhotoExcitationAutoion.Settings   &&  return( ["photo-excitation-autoionization pathways:"] )
+    T === PhotoExcitationFluores.Settings   &&  return( ["photo-excitation-fluorescence pathways:"] )
+    T === PhotoEmission.Settings            &&  return( ["radiative lines:"] )
+    T === CoulombExcitation.Settings        &&  return( ["Coulomb excitation lines:"] )
+    T === CoulombIonization.Settings        &&  return( ["Coulomb ionization lines:"] )
+    T === RadiativeAuger.Settings           &&  return( ["radiative Auger sharings:"] )
+    T === PhotoRecombination.Settings       &&  return( ["photo recombination lines:"] )
+    T === ImpactExcitation.Settings         &&  return( ["impact-excitation lines:"] )
+    T === InternalRecombination.Settings    &&  return( ["internal-recombination lines:"] )
+    T === InternalConversion.Settings       &&  return( ["internal conversion lines:"] )
+    T === TwoElectronOnePhoton.Settings     &&  return( ["two-electron-one-photon lines:"] )
+    T === ParticleScattering.Settings       &&  return( ["particle-scattering events:"] )
+    T === PhotonScattering.Settings         &&  return( ["photon-scattering lines:"] )
+    T === BeamPhotoExcitation.Settings      &&  return( ["beam-assisted photo-excitation:"] )
+    T === HyperfineInduced.Settings         &&  return( ["hyperfine-induced transitions:"] )
+    T === MultiPhotonIonization.Settings    &&  return( ["multi-photon single ionization:"] )
+    T === CrystalFieldEmission.Settings     &&  return( ["crystal-field-resolved emission lines:"] )
+    T === PhotoRecombinationInterference.Settings  &&  return( ["photorecombination-interference pathways:"] )
+    T === GeneralizedOscillatorStrength.Settings   &&  return( ["generalized oscillator strengths:"] )
+
+    return( String[] )
+end
+
+
+"""
+`Base.getindex(r::BasicsAZ.PerformResults, T::Type)`
+    ... returns the result belonging to the settings type or `ResultKeys` key `T` -- `res[PhotoEmission.Settings]`,
+        `res[Hfs.Settings]`, `res[ResultKeys.FinalMultiplet]`.  A wrong name is an `UndefVarError` where it is
+        WRITTEN, naming the name, rather than a `KeyError` where the result is used.
+
+        Where `T` is a type this computation did not produce a result for, the error says so and lists the settings
+        types and keys that ARE present, translated back from the strings they are still stored under.
+"""
+function  Base.getindex(r::PerformResults, T::Type)
+    cands = BasicsAZ.resultKeyStrings(T)
+    if  isempty(cands)
+        error("Basics.perform(): $T is not a type that labels a result.  Ask by the SETTINGS TYPE that produced " *
+              "the result -- res[PhotoEmission.Settings], res[Hfs.Settings] -- or, for a multiplet or the grid, " *
+              "by one of the ResultKeys:  Multiplet, Grid, InitialMultiplet, FinalMultiplet, " *
+              "IntermediateMultiplet, IjfMultiplet.")
+    end
+    for  k  in  cands     haskey(r.dict, k)  &&  return( r.dict[k] )     end
+    sa = "Basics.perform(): this computation produced no result for $T.\n"
+    sa = sa * "   It produced " * string(length(r.dict)) * " result(s), under these keys:\n"
+    for  k  in  sort(collect(keys(r.dict)))     sa = sa * "       \"" * k * "\"\n"     end
+    error(sa)
+end
+
+
+"""
 `Base.getindex(r::BasicsAZ.PerformResults, key::AbstractString)`
     ... returns the result stored under `key`; where the key is absent the error NAMES the keys that are present,
         and names the intended one where the request differs from it only in spacing, case or punctuation.

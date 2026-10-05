@@ -122,6 +122,9 @@ export AbstractCImethod, AbstractComputeTheme, AbstractConfigurationRestriction,
      
 # Basic data and data structures
 include("module-Basics.jl");            using ..Basics
+# NO `using ..ResultKeys` HERE, DELIBERATELY: that module names its keys `Multiplet` and `Grid`, and bringing
+# them into this namespace would shadow `ManyElectron.Multiplet` and `Radial.Grid`.  They are written qualified.
+include("module-ResultKeys.jl")
 include("module-Radial.jl");            using ..Radial
 include("module-Math.jl");              using ..Math
 include("module-Defaults.jl");          using ..Defaults
