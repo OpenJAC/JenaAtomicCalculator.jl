@@ -315,6 +315,17 @@ end
         ... True, if the DR resonance strength are calculated for hyperfine-resolved levels, and false o/w.
             If true, it need to come together with calcOnlyPassages = true, and no fine-structure resolved rates
             and strength are computed in this case.
+    + hfDrivenCapture       ::Bool                 
+        ... True, if the capture is DRIVEN BY the hyperfine transition of the core itself, i.e. if the resonance
+            exists only because the core flips F' -> F and so supplies the energy E_res = E_HFS - E_b(nlj). It
+            requires calcHyperfineResolved = true, and it changes two things that the ordinary hyperfine-resolved
+            route does deliberately: the intermediate and final ions keep their FULL nuclear moments instead of
+            mu = Q = 0, since it is their hyperfine structure that lifts the intermediate above threshold; and the
+            electronic capture amplitude is COMPUTED at the hyperfine resonance energy rather than looked up from
+            the fine-structure route, which has no such line because the intermediate is electronically bound.
+            It is a DECLARED mode and not the default, because mu = Q = 0 is a good approximation for the ordinary
+            case and this mode is several times more expensive: one continuum orbital per hyperfine pair rather
+            than per electronic pair, the hyperfine energies being all different.
     + calcPhotonSpectrum    ::Bool
         ... True, if the individual PhotonLine's (m --> f) are to be RETAINED and displayed, i.e. if the DR satellite
             spectrum is wanted, and false o/w. Note that this flag controls RETENTION, not computation: the total
@@ -354,6 +365,7 @@ struct Settings  <:  AbstractProcessSettings
     calcOnlyPassages        ::Bool
     calcRateAlpha           ::Bool
     calcHyperfineResolved   ::Bool
+    hfDrivenCapture         ::Bool
     calcPhotonSpectrum      ::Bool
     printBefore             ::Bool
     pathwaySelection        ::PathwaySelection
@@ -373,7 +385,7 @@ end
     ... constructor for the default values of dielectronic recombination pathway computations.
 """
 function Settings()
-    Settings([E1], UseGauge[], false, false, false, false, false, PathwaySelection(), 0., 0., 0., Float64[],
+    Settings([E1], UseGauge[], false, false, false, false, false, false, PathwaySelection(), 0., 0., 0., Float64[],
              (0., 0.), Float64[], DielectronicRecombination.AbstractCorrections[], CoulombInteraction())
 end
 
@@ -382,7 +394,7 @@ end
 ` (set::DielectronicRecombination.Settings;`
 
         multipoles=..,             gauges=..,                  
-        calcOnlyPassages=..,       calcRateAlpha=..,         calcHyperfineResolved=..,
+        calcOnlyPassages=..,       calcRateAlpha=..,         calcHyperfineResolved=..,  hfDrivenCapture=..,
         mergedBeamKT=..,           mergedBeamEnergies=..,
         calcPhotonSpectrum=..,
         printBefore=..,            pathwaySelection=..,      electronEnergyShift=..,   photonEnergyShift=..,       
@@ -393,7 +405,7 @@ end
 function Settings(set::DielectronicRecombination.Settings;    
     multipoles::Union{Nothing,Array{EmMultipole,1}}=nothing,               gauges::Union{Nothing,Array{UseGauge,1}}=nothing,  
     calcOnlyPassages::Union{Nothing,Bool}=nothing,                         calcRateAlpha::Union{Nothing,Bool}=nothing,  
-    calcHyperfineResolved::Union{Nothing,Bool}=nothing,
+    calcHyperfineResolved::Union{Nothing,Bool}=nothing,                     hfDrivenCapture::Union{Nothing,Bool}=nothing,
     calcPhotonSpectrum::Union{Nothing,Bool}=nothing,
     printBefore::Union{Nothing,Bool}=nothing,                              pathwaySelection::Union{Nothing,PathwaySelection}=nothing,
     electronEnergyShift::Union{Nothing,Float64}=nothing,                   photonEnergyShift::Union{Nothing,Float64}=nothing, 
@@ -406,6 +418,7 @@ function Settings(set::DielectronicRecombination.Settings;
     if  isnothing(calcOnlyPassages)      calcOnlyPassagesx     = set.calcOnlyPassages      else  calcOnlyPassagesx     = calcOnlyPassages      end 
     if  isnothing(calcRateAlpha)         calcRateAlphax        = set.calcRateAlpha         else  calcRateAlphax        = calcRateAlpha         end 
     if  isnothing(calcHyperfineResolved) calcHyperfineResolvedx= set.calcHyperfineResolved else  calcHyperfineResolvedx= calcHyperfineResolved end
+    if  isnothing(hfDrivenCapture)       hfDrivenCapturex      = set.hfDrivenCapture       else  hfDrivenCapturex      = hfDrivenCapture       end
     if  isnothing(calcPhotonSpectrum)    calcPhotonSpectrumx   = set.calcPhotonSpectrum    else  calcPhotonSpectrumx   = calcPhotonSpectrum    end 
     if  isnothing(printBefore)           printBeforex          = set.printBefore           else  printBeforex          = printBefore           end 
     if  isnothing(pathwaySelection)      pathwaySelectionx     = set.pathwaySelection      else  pathwaySelectionx     = pathwaySelection      end 
@@ -418,7 +431,8 @@ function Settings(set::DielectronicRecombination.Settings;
     if  isnothing(corrections)           correctionsx          = set.corrections           else  correctionsx          = corrections           end 
     if  isnothing(augerOperator)         augerOperatorx        = set.augerOperator         else  augerOperatorx        = augerOperator         end 
 
-    Settings( multipolesx, gaugesx, calcOnlyPassagesx, calcRateAlphax, calcHyperfineResolvedx, calcPhotonSpectrumx, printBeforex,
+    Settings( multipolesx, gaugesx, calcOnlyPassagesx, calcRateAlphax, calcHyperfineResolvedx, hfDrivenCapturex,
+              calcPhotonSpectrumx, printBeforex,
               pathwaySelectionx, electronEnergyShiftx, photonEnergyShiftx, mimimumPhotonEnergyx, temperaturesx,
               mergedBeamKTx, mergedBeamEnergiesx, correctionsx, augerOperatorx )
 end
@@ -434,6 +448,7 @@ function Base.show(io::IO, settings::DielectronicRecombination.Settings)
     println(io, "calcOnlyPassages:           $(settings.calcOnlyPassages)  ")
     println(io, "calcRateAlpha:              $(settings.calcRateAlpha)  ")
     println(io, "calcHyperfineResolved:      $(settings.calcHyperfineResolved)  ")
+    println(io, "hfDrivenCapture:            $(settings.hfDrivenCapture)  ")
     println(io, "calcPhotonSpectrum:         $(settings.calcPhotonSpectrum)  ")
     println(io, "printBefore:                $(settings.printBefore)  ")
     println(io, "pathwaySelection:           $(settings.pathwaySelection)  ")
