@@ -1789,12 +1789,24 @@ function Basics.generateConfigurations(theme::Basics.ForStepwiseDecay, confs::Ar
         newConfigs = Configuration[]
         for  conf in currentConfs
             valenceShells  = Basics.extractFromConfiguration(Basics.ValenceShells(),   conf)
-            # Determine configuration due to an de-excitation of an electron within valenceShells
-            if     length(valenceShells) < 2
-            else 
-                addConfigs = Basics.generateConfigurations(AddElectrons(1, valenceShells[1:1]), [conf])
-                newConfsPE = Basics.generateConfigurations(RemoveElectrons(1, valenceShells[2:end]), addConfigs)
-                newConfsAI = Basics.generateConfigurations(RemoveElectrons(2, valenceShells[2:end]), addConfigs)
+            ## EVERY HOLE MAY DECAY, NOT ONLY THE DEEPEST ONE.  Until 05-Oct-2026 the filling electron went into
+            ## valenceShells[1:1] alone -- the deepest open shell -- so for a state with TWO inner-shell holes
+            ## only the deeper one was ever filled, and every channel in which the SHALLOWER hole decays while
+            ## the deeper one survives as a spectator was absent from the tree.  Nothing said so.  Measured on
+            ## Kr(2+) 3p^-1 3d^-1, whose valence shells are [3p, 3d, 4s, 4p]: all eight first-generation steps
+            ## filled the 3p hole and none the 3d, so the route in which the 3d hole decays first -- about 5 % of
+            ## the decay by an independent hand calculation -- was simply not there.  "Which hole decays first"
+            ## is the question a double-core-hole measurement asks, and the answer returned was the assumption.
+            ## The loop below fills each shell that HAS a hole in turn.  A shell that is already closed is
+            ## skipped, since it has nothing to fill; and the electron that fills hole i is always taken from a
+            ## shell ABOVE i, which is what makes the step a decay rather than an excitation.  For a state with a
+            ## SINGLE open inner shell only i = 1 qualifies, so such a cascade is unchanged.
+            for  (i, iShell)  in  enumerate(valenceShells)
+                i >= length(valenceShells)                      &&  continue
+                conf.shells[iShell] < 2*(2*iShell.l + 1)        ||  continue
+                addConfigs = Basics.generateConfigurations(AddElectrons(1, valenceShells[i:i]), [conf])
+                newConfsPE = Basics.generateConfigurations(RemoveElectrons(1, valenceShells[i+1:end]), addConfigs)
+                newConfsAI = Basics.generateConfigurations(RemoveElectrons(2, valenceShells[i+1:end]), addConfigs)
                 # Special treatment is necessary if no electron is released
                 if   theme.maximallyReleased == 0   append!(newConfigs, newConfsPE)   
                 else                                append!(newConfigs, newConfsPE, newConfsAI)
