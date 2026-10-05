@@ -3,6 +3,10 @@
 # The EOL (optimized-level) path: the CSF-pair coefficient cache, the CI matrix and its diagonalization,
 # the generalized occupation, and the two EOL solvers.
 
+# Said once per session, not once per layer: a ladder prints it on every step otherwise, and the note is
+# advice about how the run was STARTED rather than about anything the layer is doing.
+const GBL_EOL_THREAD_NOTE_SHOWN = Ref(false)
+
 """
 `struct  SelfConsistent.PairCoefficientCache`
     ... holds the orbital-independent angular coefficients of every CSF pair of ONE symmetry block, in a form whose
@@ -1193,6 +1197,29 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
                 @sprintf(";  %d symmetry blocks, the largest holding %d CSFs and %.0f %% of the pair cost",
                          length(blockSizes), maxN, 100*maxN^2/max(sumN2,1.0)) *
                 " -- the stores for ALL blocks are held at once, so that percentage is what one block at a time would cost.")
+        # THREADS BUY NOTHING HERE, AND A USER WHO GAVE THEM SHOULD BE TOLD RATHER THAN LEFT TO INFER IT.
+        # This solver is single-threaded by construction: it bypasses `Hamiltonian.performCI` -- deliberately,
+        # since `diagonalizeBlockEOL` exists to avoid that routine's per-iteration Multiplet-merge overhead --
+        # and `performCI` is the only threading JAC has.  A RAS layer is dominated by the EOL rather than by the
+        # final CI, so the whole layer runs on one core however many threads were asked for: measured on O III
+        # 2p^2 started as `julia -t 6`, %CPU sat at 110, i.e. 1.1 cores of 6.
+        #   AND IT IS NOT WORTH REPAIRING, which is why this is a note and not an item.  Threading the
+        # per-symmetry block loop was implemented and is CORRECT -- bit-identical to twelve digits at -t 1 and
+        # -t 6 -- and WORTHLESS: 62.6 s against 61.5 s, 1.8 %.  The 15-Sep-2026 profile says why: the radial
+        # machinery (`buildScreenedPotential`) is the largest identified consumer at 23.3 %, which caps threading
+        # at 1.13x on two threads and 1.27x on twelve for the WHOLE run, before any parallel inefficiency.  That
+        # is under the standing 30 % bar.  The lever that DOES move this solver is the allocation rate -- 133.5 GB
+        # turned over to hold ~2 GB live, with 12 % of wall already in collection -- where removing a single
+        # temporary from `combineAngularCoefficientsEOL` bought 1.6x on a 7 062-CSF solve.
+        if  Threads.nthreads() > 1  &&  !GBL_EOL_THREAD_NOTE_SHOWN[]
+            GBL_EOL_THREAD_NOTE_SHOWN[] = true
+            println(">> [EOL-C3] NOTE: Julia was started with $(Threads.nthreads()) threads, and this solver " *
+                    "uses ONE.  A RAS layer is dominated by the EOL field, which is single-threaded by " *
+                    "construction, so -t N does not speed it up;  measured, %CPU sits at ~110 under -t 6.")
+            println(">>   This is measured and deliberate, not an oversight: threading the symmetry-block loop " *
+                    "was implemented, verified bit-identical, and gave 1.8 %, and the profile caps any threading " *
+                    "of this solver at 1.27x.  Give the threads to a cascade or a process computation instead.")
+        end
         if  memEol > 8.0
             println(">> [EOL-C3] *** WARNING: this layer is predicted to need " * @sprintf("%.1f GB", memEol) *
                     ".  A 6 163-CSF layer was killed three times at 12.9-14.7 GB, silently and after seven " *
