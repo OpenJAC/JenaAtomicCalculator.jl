@@ -58,7 +58,7 @@ if  true
                             propertySettings=Basics.AbstractPropertySettings[] )
 
     wb = perform(wa; output=true)
-    multiplet = wb["multiplet:"];    grid = wb["grid:"]
+    multiplet = wb[ResultKeys.Multiplet];    grid = wb[ResultKeys.Grid]
     println(">> Generated levels:  ", [ (lev.index, string(lev.J)) for lev in multiplet.levels ])
     #
     settings = CrystalField.Settings(CrystalField.Settings(); lattice=lattice, maxRank=4, includeJmixing=false,
@@ -119,7 +119,7 @@ elseif  false
                             propertySettings=Basics.AbstractPropertySettings[] )
 
     wb = perform(wa; output=true)
-    multiplet = wb["multiplet:"];    grid = wb["grid:"]
+    multiplet = wb[ResultKeys.Multiplet];    grid = wb[ResultKeys.Grid]
     println(">> Generated levels:  ", [ (lev.index, string(lev.J)) for lev in multiplet.levels ])
     #
     settings = CrystalField.Settings(CrystalField.Settings(); lattice=lattice, maxRank=4, includeJmixing=false,
@@ -176,7 +176,7 @@ elseif  false
                             configs=[Configuration("3d")],
                             propertySettings=Basics.AbstractPropertySettings[] )
     wb = perform(wa; output=true)
-    multiplet = wb["multiplet:"];    grid = wb["grid:"]
+    multiplet = wb[ResultKeys.Multiplet];    grid = wb[ResultKeys.Grid]
     lev52 = [ lev  for lev in multiplet.levels  if  lev.J == AngularJ64(5//2) ][1]
     #
     cfMultiplet1 = CrystalField.computeRepresentation([lev52], lattice, CrystalField.PointChargeModel(1.0), grid, 4)

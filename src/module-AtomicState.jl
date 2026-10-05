@@ -7,7 +7,7 @@ module AtomicState
 
 
 # using Interact
-using  Printf, ..Basics, ..ManyElectron, ..Nuclear, ..Radial, ..SpinAngular
+using  Printf, ..Basics, ..ManyElectron, ..Nuclear, ..Radial, ..SpinAngular, ..ResultKeys
 
 export  MeanFieldSettings, MeanFieldBasis, MeanFieldMultiplet, OneElectronSettings, OneElectronSpectrum, CiSettings, CiExpansion,
         RasSettings, RasStep, RasLayer, RasExpansion, GreenSettings, GreenChannel, GreenExpansion, Representation
@@ -859,7 +859,7 @@ end
         grid        = Radial.Grid(true)
         nuclearM    = Nuclear.Model(8.)
         refConfigs  = [Configuration("[He] 2s^2 2p^4")]
-        orbitals    = wb["mean-field basis"].orbitals #   get a proper set of orbitals
+        orbitals    = wb[ResultKeys.MeanFieldBasis].orbitals #   get a proper set of orbitals
         ciSettings  = CiSettings(true, false, Int64[], false, LevelSymmetry[] )
         from        = [Shell("2s")]
         to          = [Shell("2s"), Shell("2p")]

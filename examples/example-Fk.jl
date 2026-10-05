@@ -125,7 +125,7 @@ if  true
     #    4d - 5p displacement stated rather than hidden.
     setDefaults("print summary: open", "zzz-Fk-a-expansion-opacity-lines.sum")
     wb    = srCascade(printTransitions=true)
-    lines = wb["photoexcitation lines:"]
+    lines = wb[PhotoExcitation.Settings]
     println("\n*** $(length(lines)) bound-bound lines were computed.")
     lambdas = [ convertUnits("energy: from atomic to Angstrom", line.omega)  for line in lines ]
     @printf("*** Wavelength range:  %.1f  ...  %.1f  Angstrom. \n", minimum(lambdas), maximum(lambdas))
@@ -438,7 +438,7 @@ elseif  false
     setDefaults("print summary: open", "zzz-Fk-f-one-line.sum")
 
     wb    = srCascade()
-    lines = wb["photoexcitation lines:"]
+    lines = wb[PhotoExcitation.Settings]
     ip    = argmax([ line.oscStrength.Coulomb  for line in lines ])
     line  = lines[ip]
     #

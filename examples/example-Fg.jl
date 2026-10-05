@@ -209,7 +209,7 @@ elseif  false
                                   computationData=Dict{String,Any}[ Dict{String,Any}("results" => wb) ],
                                   settings=Cascade.SimulationSettings(false, false, 0.) )
         wd = redirect_stdout(devnull) do;  perform(simu; output=true)  end
-        return( [x.Coulomb for x in wd["data:"]] )
+        return( [x.Coulomb for x in wd[ResultKeys.SimulationData]] )
     end
     println("\n  RR rate coefficients [cm^3/s] against the free-electron energy grid")
     println("  ---------------------------------------------------------------------------")
@@ -257,7 +257,7 @@ elseif  false
         aEmp = Empirical.photorecombinationPlasmaAlpha(Distribution.ElectronMaxwell(Tau),
                                                        Distribution.PhotonVacuumField(0.),
                                                        Configuration("1s^2"), Configuration("1s^2 2s")) * fac
-        aCas = wd["data:"][i].Coulomb
+        aCas = wd[ResultKeys.SimulationData][i].Coulomb
         println("   ", @sprintf("%9.1e     %12.4e     %12.4e     %7.3f", T, aCas, aEmp, aCas/aEmp))
     end
     println("  ------------------------------------------------------------------")

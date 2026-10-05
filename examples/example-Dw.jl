@@ -92,7 +92,7 @@ if  true
               finalConfigs   = [Configuration("2s"), Configuration("2p")],   finalAsfSettings   = asfH,
               processSettings = gosSettings)
     wb    = perform(comp; output = true)
-    lines = wb["generalized oscillator strengths:"]
+    lines = wb[GeneralizedOscillatorStrength.Settings]
     #
     # Sum the two 2p_j components; the 2s line is the even-parity (monopole) one
     f2p = zeros(length(Ks));    f2s = zeros(length(Ks));    fsSplit = Dict{String,Vector{Float64}}()
@@ -171,7 +171,7 @@ elseif  false
               initialConfigs = [Configuration("1s^2")], finalConfigs = [Configuration("1s 2p")],
               processSettings = gosSettings)
     wb    = perform(comp; output = true)
-    lines = wb["generalized oscillator strengths:"]
+    lines = wb[GeneralizedOscillatorStrength.Settings]
     #
     # the same transition through PhotoExcitation, for the gauge comparison of point (i)
     peSettings = PhotoExcitation.Settings(PhotoExcitation.Settings(); multipoles = [E1],
@@ -180,7 +180,7 @@ elseif  false
                 grid = grid, nuclearModel = nModel,
                 initialConfigs = [Configuration("1s^2")], finalConfigs = [Configuration("1s 2p")],
                 processSettings = peSettings)
-    peLines = perform(comp2; output = true)["photo-excitation lines:"]
+    peLines = perform(comp2; output = true)[PhotoExcitation.Settings]
     #
     cands = filter(l -> Basics.twice(l.finalLevel.J) == 2  &&  l.finalLevel.parity == Basics.minus, lines)
     line  = cands[ argmax([l.opticalLimit for l in cands]) ]
@@ -251,7 +251,7 @@ elseif  false
     wb    = perform(comp; output = true)
     # the 2^1S_0 initial level, and among its J=1 odd final levels the 3^1P_1 (much the largest strength)
     cands = filter(l -> Basics.twice(l.initialLevel.J) == 0  &&  Basics.twice(l.finalLevel.J) == 2  &&
-                        l.finalLevel.parity == Basics.minus, wb["generalized oscillator strengths:"])
+                        l.finalLevel.parity == Basics.minus, wb[GeneralizedOscillatorStrength.Settings])
     line  = cands[ argmax([l.opticalLimit for l in cands]) ]
     #
     amps = Float64[]
@@ -324,7 +324,7 @@ elseif  false
                   initialConfigs = [Configuration("1s^2")], finalConfigs = [Configuration("1s 2p")],
                   processSettings = gosSetZ)
         wbZ   = perform(compZ; output = true)
-        linesZ = filter(l -> Basics.twice(l.finalLevel.J) == 2, wbZ["generalized oscillator strengths:"])
+        linesZ = filter(l -> Basics.twice(l.finalLevel.J) == 2, wbZ[GeneralizedOscillatorStrength.Settings])
         if  length(linesZ) < 2   println("  fewer than two J=1 final levels found");  continue   end
         # the resonance line w has by far the larger optical limit, the intercombination line y the smaller
         lw = linesZ[ argmax([l.opticalLimit for l in linesZ]) ]

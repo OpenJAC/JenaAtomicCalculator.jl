@@ -278,7 +278,7 @@ function testModule_MultipolePolarizibility(; short::Bool=true)
     scf   = Basics.NuclearField();   asf = AsfSettings(AsfSettings(); scField=scf)
     gMp   = generate(Representation("np perturbers", ni, grid,
                        [Configuration("2p"), Configuration("3p"), Configuration("4p")],
-                       MeanFieldMultiplet(MeanFieldSettings(scf))), output=true)["mean-field multiplet"]
+                       MeanFieldMultiplet(MeanFieldSettings(scf))), output=true)[ResultKeys.MeanFieldMultiplet]
     set   = MultipolePolarizibility.Settings(MultipolePolarizibility.Settings();
                 multipoles=[E1], gMultiplet=gMp, omegas=[0.], printBefore=false, levelSelection=LevelSelection())
     ## `asfSettings`, NOT `initialAsfSettings` (corrected 09-Aug-2026): Atomic.Computation carries BOTH, and the

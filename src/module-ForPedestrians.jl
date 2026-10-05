@@ -15,7 +15,7 @@ module ForPedestrians
 
 using  Printf, ..AngularMomentum, ..Atomic, ..AutoIonization, ..Basics, ..Cascade, ..Defaults, ..DielectronicRecombination,
                ..Empirical, ..Hfs, ..ImpactIonization, ..LandeZeeman, ..ManyElectron,  ..Nuclear, ..PhotoEmission, ..PhotoIonization,
-               ..PhotoRecombination, ..Radial
+               ..PhotoRecombination, ..Radial, ..ResultKeys
 
 export computeBranchingFractions,  computeChargeStateDistribution,  computeCrossSections,  computeForPedestrians,  computeLevelEnergies,
        computeLifetimes,  computeProperties,  computeResonanceStrength,  computeTransitionRates,
@@ -82,7 +82,7 @@ function computeCrossSections(theme::Basics.ForPhotoIonization, initialConfigs::
     else  
           results = redirect_stdout(devnull) do   
                        atomic_code()  end
-          photoLines = results["photoionization lines:"]
+          photoLines = results[PhotoIonization.Settings]
           PhotoIonization.displayResults(stdout, photoLines, photoSettings)
     end
         
@@ -160,7 +160,7 @@ function computeCrossSections(theme::Basics.ForPhotoRecombination, initialConfig
     else
           results  = redirect_stdout(devnull) do
                          atomic_code()  end
-          phLines  = results["photo recombination lines:"]
+          phLines  = results[PhotoRecombination.Settings]
           PhotoRecombination.displayResults(stdout, phLines, phSettings)
     end
 
@@ -295,7 +295,7 @@ function computeLevelEnergies(theme::Basics.ForGivenConfigs, configs::Array{Conf
         else
               results = redirect_stdout(devnull) do
                             atomic_code(confs)  end
-              push!(multiplets, results["multiplet:"])
+              push!(multiplets, results[ResultKeys.Multiplet])
         end
     end
 
@@ -349,7 +349,7 @@ function computeLevelEnergies(theme::Basics.ForIsoelectronicSequence,
         end
         results  = redirect_stdout(devnull) do
                        atomic_code()  end
-        multiplet = results["multiplet:"]
+        multiplet = results[ResultKeys.Multiplet]
         # (2J+1)-weighted average energy
         weight = 0.;   Etotal = 0.
         for  lev  in  multiplet.levels
@@ -472,7 +472,7 @@ function computeLifetimes(theme::Basics.ForPhotoEmission, configs::Array{Configu
     else  
           results = redirect_stdout(devnull) do   
                        atomic_code()  end
-          lines = results["radiative lines:"]
+          lines = results[PhotoEmission.Settings]
           PhotoEmission.displayLifetimes(stdout, lines, photoSettings)
     end
     
@@ -537,7 +537,7 @@ function computeLifetimes(theme::Basics.ForAutoIonization, configs::Array{Config
     else
           results = redirect_stdout(devnull) do
                         atomic_code()  end
-          lines = results["AutoIonization lines:"]
+          lines = results[AutoIonization.Settings]
           AutoIonization.displayLifetimes(stdout, lines)
     end
     
@@ -638,7 +638,7 @@ function computeProperties(theme::Basics.HyperfineStructure, configs::Array{Conf
     else
           results = redirect_stdout(devnull) do
                         atomic_code()  end
-          outcomes = results["HFS outcomes:"]
+          outcomes = results[Hfs.Settings]
           Hfs.displayResults(stdout, outcomes, nm, hfsSettings)
     end
 
@@ -716,7 +716,7 @@ function computeProperties(theme::Basics.ZeemanStructure, configs::Array{Configu
     else
           results = redirect_stdout(devnull) do
                         atomic_code()  end
-          outcomes = results["Zeeman parameter outcomes:"]
+          outcomes = results[LandeZeeman.Settings]
           LandeZeeman.displayResults(stdout, outcomes, nm, zeemanSettings)
     end
 
@@ -797,7 +797,7 @@ function computeResonanceStrength(theme::Basics.ForDielectronicRecombination, in
     else  
           results = redirect_stdout(devnull) do   
                        atomic_code()  end
-          captureLines, photonLines = results["dielectronic recombination lines:"]
+          captureLines, photonLines = results[DielectronicRecombination.Settings]
           ## The CaptureLine's already carry the resonance strength, so no separate aggregation step is needed;
           ## the per-final-level satellite table is printed only if settings.calcPhotonSpectrum is set.
           DielectronicRecombination.displayResults(stdout, captureLines, photonLines, drSettings)
@@ -874,7 +874,7 @@ function computeTransitionRates(theme::Basics.ForAutoIonization, initialConfigs:
     else
           results = redirect_stdout(devnull) do
                         atomic_code()  end
-          lines = results["AutoIonization lines:"]
+          lines = results[AutoIonization.Settings]
           AutoIonization.displayRates(stdout, lines, augerSettings)
     end
 
@@ -938,7 +938,7 @@ function computeTransitionRates(theme::Basics.ForPhotoEmission, initialConfigs::
     else  
           results = redirect_stdout(devnull) do   
                        atomic_code()  end
-          lines = results["radiative lines:"]
+          lines = results[PhotoEmission.Settings]
           PhotoEmission.displayRates(stdout, lines, photoSettings)
     end
 
@@ -993,7 +993,7 @@ function computeBranchingFractions(theme::Basics.ForPhotoEmission, initialConfig
     else
           results = redirect_stdout(devnull) do
                         atomic_code()  end
-          lines = results["radiative lines:"]
+          lines = results[PhotoEmission.Settings]
           # Display branching fractions grouped by initial level
           nx    = 74
           hline = "  " * "-"^nx
@@ -1080,7 +1080,7 @@ function computeBranchingFractions(theme::Basics.ForAutoIonization, initialConfi
     else
           results = redirect_stdout(devnull) do
                         atomic_code()  end
-          lines = results["AutoIonization lines:"]
+          lines = results[AutoIonization.Settings]
           # Display branching fractions grouped by initial level
           nx    = 64
           hline = "  " * "-"^nx
@@ -1165,7 +1165,7 @@ function displaySpectrum(theme::Basics.ForPhotoEmission, initialConfigs::Array{C
     else
           results = redirect_stdout(devnull) do
                         atomic_code()  end
-          lines = results["radiative lines:"]
+          lines = results[PhotoEmission.Settings]
           # Sort by photon energy; normalise each gauge to its own strongest line
           slines   = sort(lines, by = l -> l.omega, rev=true)
           maxBab   = maximum(l.photonRate.Babushkin for l in slines)
@@ -1268,7 +1268,7 @@ function displaySpectrum(theme::Basics.ForAutoIonization, initialConfigs::Array{
     else
           results = redirect_stdout(devnull) do
                         atomic_code()  end
-          lines   = results["AutoIonization lines:"]
+          lines   = results[AutoIonization.Settings]
           # Sort by electron kinetic energy (descending) and normalise
           slines  = sort(lines, by = l -> l.electronEnergy, rev=true)
           maxRate = maximum(l.totalRate for l in slines)
@@ -1438,7 +1438,7 @@ function estimateCrossSections(theme::Basics.ForImpactIonization, initialConfigs
     else
           results = redirect_stdout(devnull) do
                         atomic_code()  end
-          cs = results["EII cross sections:"]
+          cs = results[ResultKeys.EiiCrossSections]
           ImpactIonization.displayCrossSections(stdout, cs, eiiSettings)
     end
 

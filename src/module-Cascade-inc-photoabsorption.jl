@@ -47,20 +47,20 @@ function perform(scheme::PhotoAbsorptionScheme, comp::Cascade.Computation; outpu
     if output   &&   scheme.calcDirect 
         results = Base.merge( results, Dict("name"                          => comp.name) ) 
         results = Base.merge( results, Dict("cascade scheme"                => comp.scheme) ) 
-        results = Base.merge( results, Dict("initial multiplets:"           => iOut["initial multiplets:"]) )    
-        results = Base.merge( results, Dict("photoionized multiplets:"      => iOut["generated multiplets:"]) )    
-        results = Base.merge( results, Dict("photoionization lines:"        => iOut["photoionization lines:"]) )
-        push!(data, Cascade.Data{PhotoIonization.Line}(iOut["photoionization lines:"]) )
+        results = Base.merge( results, Dict("initial multiplets:"           => iOut[ResultKeys.InitialMultiplets]) )    
+        results = Base.merge( results, Dict("photoionized multiplets:"      => iOut[ResultKeys.GeneratedMultiplets]) )    
+        results = Base.merge( results, Dict("photoionization lines:"        => iOut[PhotoIonization.Settings]) )
+        push!(data, Cascade.Data{PhotoIonization.Line}(iOut[PhotoIonization.Settings]) )
         results = Base.merge( results, Dict("cascade data:"                 => data ) )
     end
     #
     if output   &&   scheme.calcResonant 
         results = Base.merge( results, Dict("name"                          => comp.name) ) 
         results = Base.merge( results, Dict("cascade scheme"                => comp.scheme) ) 
-        results = Base.merge( results, Dict("initial multiplets:"           => eOut["initial multiplets:"]) )    
-        results = Base.merge( results, Dict("photoexcited multiplets:"      => eOut["generated multiplets:"]) )    
-        results = Base.merge( results, Dict("photoexcitation lines:"        => eOut["photoexcitation lines:"]) )
-        push!(data, Cascade.Data{PhotoExcitation.Line}(eOut["photoexcitation lines:"]) )
+        results = Base.merge( results, Dict("initial multiplets:"           => eOut[ResultKeys.InitialMultiplets]) )    
+        results = Base.merge( results, Dict("photoexcited multiplets:"      => eOut[ResultKeys.GeneratedMultiplets]) )    
+        results = Base.merge( results, Dict("photoexcitation lines:"        => eOut[PhotoExcitation.Settings]) )
+        push!(data, Cascade.Data{PhotoExcitation.Line}(eOut[PhotoExcitation.Settings]) )
         results = Base.merge( results, Dict("cascade data:"                 => data ) )
     end
     #

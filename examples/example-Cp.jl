@@ -40,7 +40,7 @@ if  true
     asf  = AsfSettings(AsfSettings(); scField=Basics.DFSField(1.0))
     wa   = Atomic.Computation(Atomic.Computation(); name="Th4+", grid=grid, nuclearModel=nm,
                               configs=[conf], asfSettings=asf)
-    mp   = perform(wa; output=true)["multiplet:"]
+    mp   = perform(wa; output=true)[ResultKeys.Multiplet]
     NuclearShielding.computeOutcomes(mp, nm, grid, NuclearShielding.Settings())
     setDefaults("print summary: close", "")
     #
@@ -63,7 +63,7 @@ elseif  false
         grid = Basics.recommendedGrid([conf], nm; printout=false);   setDefaults("standard grid", grid)
         asf  = AsfSettings(AsfSettings(); scField=Basics.DFSField(1.0))
         mp   = perform(Atomic.Computation(Atomic.Computation(); name=name, grid=grid, nuclearModel=nm,
-                       configs=[conf], asfSettings=asf); output=true)["multiplet:"]
+                       configs=[conf], asfSettings=asf); output=true)[ResultKeys.Multiplet]
         out  = NuclearShielding.computeOutcomes(mp, nm, grid, NuclearShielding.Settings(); output=true)
         @printf("\n  >>> %-8s gamma_inf = %9.2f\n\n", name, out[1].gammaE2)
     end
@@ -84,7 +84,7 @@ elseif  false
     grid = Basics.recommendedGrid([conf], nm; printout=false);   setDefaults("standard grid", grid)
     asf  = AsfSettings(AsfSettings(); scField=Basics.DFSField(1.0))
     mp   = perform(Atomic.Computation(Atomic.Computation(); name="Th4+", grid=grid, nuclearModel=nm,
-                   configs=[conf], asfSettings=asf); output=true)["multiplet:"]
+                   configs=[conf], asfSettings=asf); output=true)[ResultKeys.Multiplet]
     ANG  = 1.0/0.529177210903
     for model in (NuclearShielding.UniformField(),
                   NuclearShielding.NeighbourField([(1.0, 1000.0*ANG)]),
@@ -107,7 +107,7 @@ elseif  false
     grid = Basics.recommendedGrid([conf], nm; printout=false);   setDefaults("standard grid", grid)
     asf  = AsfSettings(AsfSettings(); scField=Basics.DFSField(1.0))
     mp   = perform(Atomic.Computation(Atomic.Computation(); name="Th4+", grid=grid, nuclearModel=nm,
-                   configs=[conf], asfSettings=asf); output=true)["multiplet:"]
+                   configs=[conf], asfSettings=asf); output=true)[ResultKeys.Multiplet]
     for nv in (1, 2, 5, 10, 20, 0)
         out = NuclearShielding.computeOutcomes(mp, nm, grid,
                   NuclearShielding.Settings(NuclearShielding.Settings(); nVirtualMax=nv); output=true)
@@ -134,7 +134,7 @@ elseif  false
         asf  = AsfSettings(AsfSettings(); scField=Basics.DFSField(1.0))
         try
             mp = perform(Atomic.Computation(Atomic.Computation(); name="x", grid=grid, nuclearModel=nm,
-                         configs=[conf], asfSettings=asf); output=true)["multiplet:"]
+                         configs=[conf], asfSettings=asf); output=true)[ResultKeys.Multiplet]
             NuclearShielding.computeOutcomes(mp, nm, grid, sets)
             @printf("\n  >>> %-28s DID NOT RAISE -- this is a FAILURE of the guard.\n\n", what)
         catch err
@@ -242,7 +242,7 @@ elseif  false
         cpT  = tempname()
         cpMp = open(cpT,"w") do io;  redirect_stdout(io) do
                    perform(Atomic.Computation(Atomic.Computation(); name=cpName, grid=cpG, nuclearModel=cpNm,
-                           configs=[cpC], asfSettings=cpA); output=true)["multiplet:"]  end  end
+                           configs=[cpC], asfSettings=cpA); output=true)[ResultKeys.Multiplet]  end  end
         cpV = Float64[]
         for  cpS  in  (cpSets0, cpSets1)
             cpO = open(cpT,"w") do io;  redirect_stdout(io) do
@@ -290,7 +290,7 @@ elseif  false
         cpT = tempname()
         cpO = open(cpT,"w") do io;  redirect_stdout(io) do
                   cpMp = perform(Atomic.Computation(Atomic.Computation(); name="Y^3+", grid=cpG, nuclearModel=cpNm,
-                                 configs=[cpConf], asfSettings=cpAsf); output=true)["multiplet:"]
+                                 configs=[cpConf], asfSettings=cpAsf); output=true)[ResultKeys.Multiplet]
                   NuclearShielding.computeOutcomes(cpMp, cpNm, cpG, NuclearShielding.Settings(); output=true)[1]
               end  end
         rm(cpT, force=true)

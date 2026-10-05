@@ -20,7 +20,7 @@ if  true
                               finalConfigs   = [Configuration("[Ne] 3s^2 3p^5")],
                               processSettings = photoSettings )
     wb = perform(comp; output=true)
-    initialMultiplet = wb["initialMultiplet"];   finalMultiplet = wb["finalMultiplet"]
+    initialMultiplet = wb[ResultKeys.InitialMultiplet];   finalMultiplet = wb[ResultKeys.FinalMultiplet]
     iBasis = initialMultiplet.levels[1].basis;   fBasis = finalMultiplet.levels[1].basis
 
     println("\n>> Orbital overlaps BEFORE the bi-orthogonal transformation (should deviate slightly from 1):")
@@ -60,7 +60,7 @@ elseif  true
                               configs = [Configuration("[Ne] 3s"), Configuration("[Ne] 4s")],
                               asfSettings = AsfSettings() )
     wb = perform(comp; output=true)
-    multiplet = wb["multiplet:"];   basis = multiplet.levels[1].basis
+    multiplet = wb[ResultKeys.Multiplet];   basis = multiplet.levels[1].basis
     nm2 = Nuclear.Model(26.);       asfSettings = AsfSettings()
 
     targetLevel = multiplet.levels[1]

@@ -62,7 +62,7 @@ function  perform(scheme::Plasma.SatelliteDiagnosticScheme, computation::Plasma.
                                  intermediateConfigs=intermediateConfs, finalConfigs=finalConfs,
                                  asfSettings=computation.asfSettings, processSettings=drSettings )
     drResults  = Basics.perform(drComp; output=true)
-    captureLines, photonLines = drResults["dielectronic recombination lines:"]
+    captureLines, photonLines = drResults[DielectronicRecombination.Settings]
 
     # A capture line with NO open channel at all -- neither autoionization nor a radiative transition within the
     # computed scope -- now yields a resonance strength of exactly ZERO rather than the 0/0 = NaN the earlier
@@ -119,7 +119,7 @@ function  perform(scheme::Plasma.SatelliteDiagnosticScheme, computation::Plasma.
                                        finalConfigs=computation.refConfigs, asfSettings=computation.asfSettings,
                                        processSettings=photoSettings )
     photoResults  = Basics.perform(photoComp; output=true)
-    photoLines    = photoResults["radiative lines:"]
+    photoLines    = photoResults[PhotoEmission.Settings]
 
     branchingFraction = EmProperty(1., 1.)
 
@@ -131,7 +131,7 @@ function  perform(scheme::Plasma.SatelliteDiagnosticScheme, computation::Plasma.
                                    nuclearModel=nm, initialConfigs=computation.refConfigs, finalConfigs=bareExcitedConfs,
                                    asfSettings=computation.asfSettings, processSettings=ieSettings )
     ieResults = Basics.perform(ieComp; output=true)
-    ieLines, ieRates = ieResults["impact-excitation lines:"]
+    ieLines, ieRates = ieResults[ImpactExcitation.Settings]
 
     parentAlpha = Dict{Float64, Float64}( rc.temperatures[i] => rc.alphas[i] for rc in ieRates for i in eachindex(rc.temperatures) )
 

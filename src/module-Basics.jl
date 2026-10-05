@@ -107,6 +107,7 @@ function lastPoint                                              end
 function merge                                                  end
 function modifyLevelMixing                                      end
 function perform                                                end
+function typedKeyFor                                            end
 function performCI                                              end
 function plot                                                   end
 function read                                                   end

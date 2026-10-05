@@ -164,7 +164,7 @@ elseif  false
     wa0 = Atomic.Computation(Atomic.Computation(), name="Cd-e-AlII-3s3p", grid=Radial.Grid(true),
                             nuclearModel=nm, configs=[Configuration("[Ne] 3s 3p")])
     wb0 = perform(wa0; output=true)
-    gMultiplet = wb0["multiplet:"]
+    gMultiplet = wb0[ResultKeys.Multiplet]
 
     lzSettings = LandeZeeman.Settings(LandeZeeman.Settings(); calcLandeJ=true, calcQZScoeff=true,
                                        includeSchwinger=true, gMultiplet=gMultiplet, printBefore=true)
@@ -172,7 +172,7 @@ elseif  false
                             nuclearModel=nm, configs=[Configuration("[Ne] 3s 3p")],
                             propertySettings=[lzSettings] )
     wb = perform(wa; output=true)
-    outcomes = wb["Zeeman parameter outcomes:"]
+    outcomes = wb[LandeZeeman.Settings]
     for  outcome in outcomes
         if  outcome.Jlevel.J == AngularJ64(0)
             println("\n>> Al+ 3P0 (level $(outcome.Jlevel.index)): computed C_2 = $(outcome.Jsublevels[1].c2Coeff) MHz/T^2")
@@ -218,7 +218,7 @@ elseif  true
     wa0 = Atomic.Computation(Atomic.Computation(), name="Cd-f-Ca14p-2s2p2", grid=Radial.Grid(true),
                             nuclearModel=nm, configs=[Configuration("[He] 2s^2 2p^2")])
     wb0 = perform(wa0; output=true)
-    gMultiplet = wb0["multiplet:"]
+    gMultiplet = wb0[ResultKeys.Multiplet]
 
     lzSettings = LandeZeeman.Settings(LandeZeeman.Settings(); calcLandeJ=true, calcQZScoeff=true,
                                        includeSchwinger=true, gMultiplet=gMultiplet, printBefore=true)
@@ -226,7 +226,7 @@ elseif  true
                             nuclearModel=nm, configs=[Configuration("[He] 2s^2 2p^2")],
                             propertySettings=[lzSettings] )
     wb = perform(wa; output=true)
-    outcomes = wb["Zeeman parameter outcomes:"]
+    outcomes = wb[LandeZeeman.Settings]
     println("\n>> Ca14+ [He]2s^2 2p^2 computed C_2 values [MHz/T^2] (literature in comment block above):")
     for  outcome in outcomes
         sym = LevelSymmetry(outcome.Jlevel.J, outcome.Jlevel.parity)

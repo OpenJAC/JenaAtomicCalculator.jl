@@ -29,7 +29,7 @@ function resonantCascadeFile()
         catch e println(">> skipping $f -- it cannot be loaded: ", first(split(sprint(showerror, e), "\n")));   continue
         end
         res = d["results"]
-        if  !( haskey(res, "impact-excitation lines:")  &&  length(res["impact-excitation lines:"]) > 0 )
+        if  !( haskey(res, "impact-excitation lines:")  &&  length(res[ImpactExcitation.Settings]) > 0 )
             println(">> resonant cascade data from  $f");    return( (f, d) )
         end
     end
@@ -180,7 +180,7 @@ elseif  false
             println(">> skipping $f -- it cannot be loaded: ", first(split(sprint(showerror, e), "\n")))
         end
     end
-    hasExc(d) = haskey(d["results"], "impact-excitation lines:")  &&  length(d["results"]["impact-excitation lines:"]) > 0
+    hasExc(d) = haskey(d["results"], "impact-excitation lines:")  &&  length(d["results"][ImpactExcitation.Settings]) > 0
     iEA  = findfirst(p ->  hasExc(p[2]), loaded)
     iRes = findfirst(p -> !hasExc(p[2]), loaded)
     if  iEA  === nothing  error("No loadable cascade file with impact-excitation lines: run example-Fi.jl branch a.")  end
@@ -191,11 +191,11 @@ elseif  false
     simEA  = Cascade.Simulation(Cascade.Simulation(); name="EA channel",
                                 property=Cascade.EiiRateCoefficients(1, temperatures, 0., 0.),
                                 method=Cascade.ProbPropagation(), computationData=[dEA[2]] )
-    aEA    = perform(simEA;  output=true)["data:"]
+    aEA    = perform(simEA;  output=true)[ResultKeys.SimulationData]
     simRes = Cascade.Simulation(Cascade.Simulation(); name="resonant channel",
                                 property=Cascade.EiiRateCoefficients(1, temperatures, 0., 0.),
                                 method=Cascade.ProbPropagation(), computationData=[dRes[2]] )
-    aRes   = perform(simRes; output=true)["data:"]
+    aRes   = perform(simRes; output=true)[ResultKeys.SimulationData]
     #
     fac   = Defaults.convertUnits("length: from atomic to cm", 1.0)^3 / Defaults.convertUnits("time: from atomic to sec", 1.0)
     iConf = Configuration("1s^2 2s");   fConf = Configuration("1s^2")

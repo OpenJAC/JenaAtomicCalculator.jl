@@ -73,8 +73,8 @@ elseif  false
                             propertySettings=[ ReducedDensityMatrix.Settings(true, false, false, false, true, LevelSelection(true, indices=[(1)])) ] )
 
     wb    = perform(wa; output=true)
-    grid  = wb["grid:"]
-    outc  = wb["RDM outcomes:"][1]
+    grid  = wb[ResultKeys.Grid]
+    outc  = wb[ReducedDensityMatrix.Settings][1]
     level = outc.level
     println("\n  Mean radii <r> [a.u.] before/after the natural-orbital transformation (cf. Table 3/9 of Ma et al.):\n")
     for  subsh  in  [Subshell("2s_1/2"), Subshell("3s_1/2")]
@@ -98,8 +98,8 @@ elseif  false
                             propertySettings=[ ReducedDensityMatrix.Settings(true, true, false, false, true, LevelSelection(true, indices=[(1)])) ] )
 
     wb   = perform(wa; output=true)
-    grid = wb["grid:"]
-    outc = wb["RDM outcomes:"][1]
+    grid = wb[ResultKeys.Grid]
+    outc = wb[ReducedDensityMatrix.Settings][1]
     println("\n  Natural-orbital normalization checks (should all be ~1.0):\n")
     for  (subsh, orb)  in  outc.naturalOrbitals
         println("    $subsh:   <natOrb|natOrb> = $(round(RadialIntegrals.rkDiagonal(0, orb, orb, grid), digits=6))")

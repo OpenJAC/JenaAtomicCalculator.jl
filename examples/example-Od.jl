@@ -61,7 +61,7 @@ if  true
                                     initialConfigs  = [Configuration("1s^2")],
                                     finalConfigs    = [Configuration("1s^2")],
                                     processSettings = psSettings )
-            event = perform(wc; output=true)["particle-scattering events:"][1]
+            event = perform(wc; output=true)[ParticleScattering.Settings][1]
             push!( sigmas, event.integrated.sigmaMomentumTransfer )
         end
         m, t, d = literature[en]

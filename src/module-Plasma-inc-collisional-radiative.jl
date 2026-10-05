@@ -30,7 +30,7 @@ function generateCollisionalRadiativeLevels(scheme::Plasma.CollisionalRadiativeS
     mfSettings = AtomicState.MeanFieldSettings()
     repBasis   = Representation(name, nm, grid, allConfigs, MeanFieldBasis(mfSettings))
     repOutput  = generate(repBasis, output=true)
-    orbitals   = repOutput["mean-field basis"].orbitals
+    orbitals   = repOutput[ResultKeys.MeanFieldBasis].orbitals
 
     levels = Level[]
     for  conf in allConfigs

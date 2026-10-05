@@ -47,7 +47,7 @@ if  true
     asfB   = AsfSettings(AsfSettings(); scField = Basics.NuclearField())
     comp   = Atomic.Computation(Atomic.Computation(), name="one-electron test bed, Z=55", grid=grid, nuclearModel=nModel,
                                 configs=[Configuration("1s"), Configuration("2s"), Configuration("2p")], asfSettings=asfB)
-    mp     = perform(comp; output=true)["multiplet:"]
+    mp     = perform(comp; output=true)[ResultKeys.Multiplet]
     #
     println("\n\n  Selection rules of the three P-odd operators (Z = 55, bare nuclear field)\n")
     println("   f <- i     J^P f     J^P i    same par?   dJ?      weak charge        Schiff           anapole")
@@ -98,7 +98,7 @@ elseif  false
     asfB   = AsfSettings(AsfSettings(); scField = Basics.NuclearField())
     comp   = Atomic.Computation(Atomic.Computation(), name="one-electron test bed, Z=55", grid=grid, nuclearModel=nModel,
                                 configs=[Configuration("1s"), Configuration("2s"), Configuration("2p")], asfSettings=asfB)
-    mp     = perform(comp; output=true)["multiplet:"]
+    mp     = perform(comp; output=true)[ResultKeys.Multiplet]
     #
     println("\n\n  (i) reality:  weak charge must be purely imaginary, Schiff purely real\n")
     println("   f <- i      Re(weak)/|weak|     Im(weak)          Im(Schiff)/|Schiff|   Re(Schiff)")

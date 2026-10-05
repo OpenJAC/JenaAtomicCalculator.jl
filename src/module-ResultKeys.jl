@@ -154,6 +154,59 @@ struct  SimulationData         <: Basics.AbstractResultKey   end
 struct  SimulationProperty     <: Basics.AbstractResultKey   end
 
 
+# ---------------------------------------------------------------------------------------------------------------
+# THE `generate(::Representation)` RESULTS.  A representation is not driven by settings either, so these need
+# names here, like the cascade's.
+# ---------------------------------------------------------------------------------------------------------------
+
+"""
+`struct  ResultKeys.MeanFieldBasis`         ... was `"mean-field basis"`.
+"""
+struct  MeanFieldBasis         <: Basics.AbstractResultKey   end
+
+"""
+`struct  ResultKeys.MeanFieldMultiplet`     ... was `"mean-field multiplet"`.
+"""
+struct  MeanFieldMultiplet     <: Basics.AbstractResultKey   end
+
+"""
+`struct  ResultKeys.MeanPotential`          ... was `"mean potential"`.
+"""
+struct  MeanPotential          <: Basics.AbstractResultKey   end
+
+"""
+`struct  ResultKeys.Orbitals`               ... was `"orbitals"`.
+"""
+struct  Orbitals               <: Basics.AbstractResultKey   end
+
+"""
+`struct  ResultKeys.ReferenceMultiplet`     ... was `"reference multiplet"`.
+"""
+struct  ReferenceMultiplet     <: Basics.AbstractResultKey   end
+
+"""
+`struct  ResultKeys.CiMultiplet`            ... was `"CI multiplet"`.
+"""
+struct  CiMultiplet            <: Basics.AbstractResultKey   end
+
+"""
+`struct  ResultKeys.GreenChannels`          ... was `"Green channels"`.
+"""
+struct  GreenChannels          <: Basics.AbstractResultKey   end
+
+"""
+`struct  ResultKeys.EiiCrossSections`       ... was `"EII cross sections:"`.
+"""
+struct  EiiCrossSections       <: Basics.AbstractResultKey   end
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# WHAT IS DELIBERATELY NOT HERE: the RAS ladder's per-step results, stored as "step1", "step2", ... one per layer.
+# Their number is not known until the ladder is built, so no fixed set of types can name them and they KEEP THEIR
+# STRINGS.  That is why the deprecation warning fires only where a typed key actually replaces the string: a
+# string with no replacement is not deprecated, it is the only way to ask.
+# ---------------------------------------------------------------------------------------------------------------
+
 # NOTHING IS EXPORTED, AND THAT IS THE POINT OF THE MODULE.  Exporting `Multiplet` and `Grid` would let a
 # `using ResultKeys` shadow `ManyElectron.Multiplet` and `Radial.Grid` in the caller's own namespace -- which is
 # precisely the collision this module exists to prevent.  The keys are meant to be written qualified, and the

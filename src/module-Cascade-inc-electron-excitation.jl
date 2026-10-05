@@ -69,20 +69,20 @@ function perform(scheme::ElectronExcitationScheme, comp::Cascade.Computation; ou
     if output   &&   calcDirect 
         results = Base.merge( results, Dict("name"                          => comp.name) ) 
         results = Base.merge( results, Dict("cascade scheme"                => comp.scheme) ) 
-        results = Base.merge( results, Dict("initial multiplets:"           => ieOut["initial multiplets:"]) )    
-        results = Base.merge( results, Dict("impact-excited multiplets:"    => ieOut["generated multiplets:"]) )    
-        results = Base.merge( results, Dict("impact-excitation lines:"      => ieOut["impact-excitation lines:"]) )
-        push!(data, Cascade.Data{ImpactExcitation.Line}(ieOut["impact-excitation lines:"]) )
+        results = Base.merge( results, Dict("initial multiplets:"           => ieOut[ResultKeys.InitialMultiplets]) )    
+        results = Base.merge( results, Dict("impact-excited multiplets:"    => ieOut[ResultKeys.GeneratedMultiplets]) )    
+        results = Base.merge( results, Dict("impact-excitation lines:"      => ieOut[ImpactExcitation.Settings]) )
+        push!(data, Cascade.Data{ImpactExcitation.Line}(ieOut[ImpactExcitation.Settings]) )
         results = Base.merge( results, Dict("cascade data:"                 => data ) )
     end
     #
     if output   &&   calcResonant
         results = Base.merge( results, Dict("name"                          => comp.name) )
         results = Base.merge( results, Dict("cascade scheme"                => comp.scheme) )
-        results = Base.merge( results, Dict("initial multiplets:"           => dcOut["initial multiplets:"]) )
-        results = Base.merge( results, Dict("dielectronic multiplets:"      => dcOut["generated multiplets:"]) )
-        results = Base.merge( results, Dict("dielectronic-capture lines:"   => dcOut["dielectronic-capture lines:"]) )
-        push!(data, Cascade.Data{AutoIonization.Line}(dcOut["dielectronic-capture lines:"]) )
+        results = Base.merge( results, Dict("initial multiplets:"           => dcOut[ResultKeys.InitialMultiplets]) )
+        results = Base.merge( results, Dict("dielectronic multiplets:"      => dcOut[ResultKeys.GeneratedMultiplets]) )
+        results = Base.merge( results, Dict("dielectronic-capture lines:"   => dcOut[ResultKeys.DielectronicCaptureLines]) )
+        push!(data, Cascade.Data{AutoIonization.Line}(dcOut[ResultKeys.DielectronicCaptureLines]) )
         results = Base.merge( results, Dict("cascade data:"                 => data ) )
     end
 

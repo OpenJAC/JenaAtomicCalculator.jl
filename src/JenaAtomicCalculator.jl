@@ -125,6 +125,10 @@ include("module-Basics.jl");            using ..Basics
 # NO `using ..ResultKeys` HERE, DELIBERATELY: that module names its keys `Multiplet` and `Grid`, and bringing
 # them into this namespace would shadow `ManyElectron.Multiplet` and `Radial.Grid`.  They are written qualified.
 include("module-ResultKeys.jl")
+# The MODULE NAME alone is exported, so that `using JenaAtomicCalculator` makes `ResultKeys.Multiplet` resolve in a
+# user's script.  The module itself exports nothing, so none of its key names can leak into that namespace and
+# shadow `Multiplet` or `Grid` -- which is the whole reason the keys live in a module of their own.
+export ResultKeys
 include("module-Radial.jl");            using ..Radial
 include("module-Math.jl");              using ..Math
 include("module-Defaults.jl");          using ..Defaults

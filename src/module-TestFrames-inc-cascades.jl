@@ -174,8 +174,8 @@ function testModule_Cascade_DielectronicCapture(; short::Bool=true)
                               nuclearModel=Nuclear.Model(6.), approach=Cascade.AverageSCA(), scheme=drScheme,
                               initialConfigs=[Configuration("1s^2")] )
     wd = perform(wc; output=true, outputToFile=false)
-    linesC = wb["dielectronic-capture lines:"]
-    linesD = [d for d in wd["cascade data:"] if eltype(d.lines) == AutoIonization.Line][1].lines
+    linesC = wb[ResultKeys.DielectronicCaptureLines]
+    linesD = [d for d in wd[ResultKeys.CascadeData] if eltype(d.lines) == AutoIonization.Line][1].lines
     ## THE LAYOUT HERE IS DICTATED BY testCompareFiles, which compares lines iold+2 ... iold+noLines: it SKIPS
     ## the first line after the anchor and needs noLines lines to exist beyond it.  An anchor that carries the
     ## result itself therefore has nothing to index and walks off the end of the file, which is what it did.

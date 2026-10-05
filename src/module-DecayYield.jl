@@ -157,12 +157,12 @@ function computeOutcomes(initialConfigs::Array{Configuration,1}, asfSettings::As
     wa = JenaAtomicCalculator.Cascade.Computation(JenaAtomicCalculator.Cascade.Computation(), name="photon lines", nuclearModel=nm, grid=grid, asfSettings=asfSettings,
                                 scheme=JenaAtomicCalculator.Cascade.StepwiseDecayScheme([Radiative()], 0, Dict{Int64,Float64}(), 0, decayShells, Shell[], Shell[]),
                                 approach=cApproach, initialConfigs=decayInitialConfigs)
-    wb = perform(wa, output=true, outputToFile=false);   linesR = wb["photoemission lines:"]
+    wb = perform(wa, output=true, outputToFile=false);   linesR = wb[PhotoEmission.Settings]
     println("\nPerform a cascade computation for all (single-electron) Auger decay channels of the levels from the initial configurations:")
     wa = JenaAtomicCalculator.Cascade.Computation(JenaAtomicCalculator.Cascade.Computation(), name="Auger lines", nuclearModel=nm, grid=grid, asfSettings=asfSettings,
                                 scheme=JenaAtomicCalculator.Cascade.StepwiseDecayScheme([Auger()], 1, Dict{Int64,Float64}(), 0, decayShells, Shell[], Shell[]),
                                 approach=cApproach, initialConfigs=decayInitialConfigs)
-    wb = perform(wa, output=true, outputToFile=false);   linesA = wb["autoionization lines:"]
+    wb = perform(wa, output=true, outputToFile=false);   linesA = wb[AutoIonization.Settings]
     #
     # Calculate all amplitudes and requested properties
     newOutcomes = DecayYield.Outcome[]

@@ -20,7 +20,7 @@ if  true
                             configs=[Configuration("1s 2s^2"), Configuration("1s 2s 2p"), Configuration("1s 2p^2")] )
 
     wxa  = perform(wa; output=true)
-    wma  = wxa["multiplet:"]
+    wma  = wxa[ResultKeys.Multiplet]
 
     flow = 6;    fup = 8;   ilow = 1;   iup = 3
     println("\n\nDipole amplitudes:\n")

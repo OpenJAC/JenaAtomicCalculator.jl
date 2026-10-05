@@ -42,12 +42,12 @@ if true
 	AtomicComp       = Atomic.Computation(Atomic.Computation(), name=initialName, grid=rGrid, 
 	                                     nuclearModel=nuclearModel, configs=refConfigInitial,  asfSettings=asfSettings )
 	AtomicData       = perform(AtomicComp, output=true)
-	initialLevel     = AtomicData["multiplet:"].levels[1]
+	initialLevel     = AtomicData[ResultKeys.Multiplet].levels[1]
 
 	AtomicComp       = Atomic.Computation(Atomic.Computation(), name=finalName, grid=rGrid, 
 	                                     nuclearModel=nuclearModel, configs=refConfigFinal,  asfSettings=asfSettings )
 	AtomicData       = perform(AtomicComp, output=true)
-	finalLevel       = AtomicData["multiplet:"].levels[1]
+	finalLevel       = AtomicData[ResultKeys.Multiplet].levels[1]
 
 elseif true
     # Last successful:  unknown ...

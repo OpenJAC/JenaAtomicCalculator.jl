@@ -256,7 +256,7 @@ elseif  true
                                        grid=grid, nuclearModel=Nuclear.Model(18.),
                                        configs = [Configuration("1s^2 2s^2 2p^5 3s^2 3p^5"),
                                                   Configuration("1s^2 2s^2 2p^6 3s^2 3p^4")], asfSettings=asfSettings )
-    gMultiplet    = perform(gComp; output=true)["multiplet:"]
+    gMultiplet    = perform(gComp; output=true)[ResultKeys.Multiplet]
     #
     # ---------- STEP 2: the two-to-one Auger decay itself ----------
     augerSettings = AutoIonization.Settings(AutoIonization.Settings(), printBefore=true, maxAugerEnergy=1.0e6,

@@ -167,7 +167,7 @@ elseif  false
                                  approach=Cascade.AverageSCA(), scheme=scheme,
                                  initialConfigs=[Configuration("1s")] )
         t  = @elapsed (wb = perform(wa; output=true, outputToFile=false))
-        ls = wb["impact-excitation lines:"]
+        ls = wb[ImpactExcitation.Settings]
         for  l  in  ls
             println(">>>   E = ", round(Defaults.convertUnits("energy: from atomic", l.initialElectronEnergy), digits=1),
                     " eV   Omega = ", round(l.collisionStrength, sigdigits=5),
@@ -267,7 +267,7 @@ elseif  false
     simu  = Cascade.Simulation(Cascade.Simulation(); name="EIE rates", computationData=data, property=prop,
                                settings=Cascade.SimulationSettings(false, false, 0.) )
     rates = redirect_stdout(devnull) do;  perform(simu; output=true)  end
-    cascadeAlphas = rates["data:"]        ## one RateCoefficients entry per transition
+    cascadeAlphas = rates[ResultKeys.SimulationData]        ## one RateCoefficients entry per transition
     #
     ## Van Regemorter gives the rate for the whole 1s -> 2p line, so the two fine-structure components of the
     ## cascade have to be summed before comparing.

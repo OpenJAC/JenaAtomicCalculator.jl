@@ -25,7 +25,7 @@ if  false
     wa = Atomic.Computation(Atomic.Computation(), name="H n=2 manifold", grid=grid, nuclearModel=nm,
                             configs=[Configuration("2s"), Configuration("2p")])
     wb = perform(wa; output=true)
-    multiplet = wb["multiplet:"]
+    multiplet = wb[ResultKeys.Multiplet]
 
     szSettings = StarkZeeman.Settings(StarkZeeman.Settings(); includeEField=true, eField=1.0e5,
                                        printBefore=true, levelSelection=LevelSelection())
@@ -33,7 +33,7 @@ if  false
                             nuclearModel=nm, configs=[Configuration("2s"), Configuration("2p")],
                             propertySettings=[szSettings] )
     wd = perform(wc; output=true)
-    outcomes = wd["Stark-Zeeman outcomes:"]
+    outcomes = wd[StarkZeeman.Settings]
 
     println("\n>> Field-dressed energies (Hartree), relative to the mean, divided by eField in a.u.:")
     eFieldAu = 1.0e5 / StarkShift.AU_EFIELD_IN_VCM
@@ -63,7 +63,7 @@ elseif false
     wa = Atomic.Computation(Atomic.Computation(), name="H n=2 manifold", grid=grid, nuclearModel=nm,
                             configs=[Configuration("2s"), Configuration("2p")])
     wb = perform(wa; output=true)
-    multiplet = wb["multiplet:"]
+    multiplet = wb[ResultKeys.Multiplet]
 
     for  tiltAngle in (0.0, pi/6)
         szSettings = StarkZeeman.Settings(StarkZeeman.Settings(); includeEField=true, eField=1.0e5,
@@ -74,7 +74,7 @@ elseif false
                                 nuclearModel=nm, configs=[Configuration("2s"), Configuration("2p")],
                                 propertySettings=[szSettings] )
         wd = perform(wc; output=true)
-        outcomes = wd["Stark-Zeeman outcomes:"]
+        outcomes = wd[StarkZeeman.Settings]
 
         println("\n>> Field-dressed energies (Hartree), B tilted by $(tiltAngle) rad from z" *
                 (tiltAngle == 0.0 ? "  (should match a pure-parallel-field calculation)" : "  (genuinely non-parallel case)") * ":")
@@ -132,7 +132,7 @@ elseif true
 
     wa = Atomic.Computation(Atomic.Computation(), name="H n=$n manifold", grid=grid, nuclearModel=nm, configs=configs)
     wb = perform(wa; output=true)
-    multiplet = wb["multiplet:"]
+    multiplet = wb[ResultKeys.Multiplet]
 
     exact = -1.0 / (2*n^2)
     good  = [lev for lev in multiplet.levels if abs(lev.energy - exact) < 0.05*abs(exact)]
@@ -150,7 +150,7 @@ elseif true
         wc = Atomic.Computation(Atomic.Computation(), name="H n=$n Stark (E=$eFieldVcm V/cm)", grid=grid,
                                 nuclearModel=nm, configs=configs, propertySettings=[szSettings])
         wd = perform(wc; output=true)
-        outcomes = wd["Stark-Zeeman outcomes:"]
+        outcomes = wd[StarkZeeman.Settings]
         energies = sort([o.energy for o in outcomes])
         spread   = energies[end] - energies[1]
         eFieldAu = eFieldVcm / StarkShift.AU_EFIELD_IN_VCM

@@ -255,7 +255,7 @@ function generateMeanFieldOrbitals(comp::Cascade.Computation, confs::Array{Confi
                                            AtomicState.MeanFieldBasis( AtomicState.MeanFieldSettings() ))
     repOutput = Basics.generate(repBasis, output=true)
 
-    return( repOutput["mean-field basis"].orbitals )
+    return( repOutput[ResultKeys.MeanFieldBasis].orbitals )
 end
 
 

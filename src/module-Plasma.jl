@@ -6,7 +6,7 @@
 """
 module Plasma
 
-using  Dates, JLD2, LinearAlgebra, Printf
+using  Dates, JLD2, LinearAlgebra, Printf, ..ResultKeys
 using  ..Atomic, ..AtomicState, ..Basics, ..Bsplines, ..Defaults, ..DielectronicRecombination, ..Hamiltonian, ..ImpactExcitation,
        ..ManyElectron, ..Nuclear, ..Radial, ..RadialIntegrals,
        ..Semiempirical, ..TableStrings, ..FormFactor, ..PhotoEmission, ..PhotoIonization, ..AutoIonization, ..SelfConsistent

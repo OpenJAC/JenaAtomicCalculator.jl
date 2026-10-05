@@ -28,14 +28,14 @@ if  false
     wa1 = Atomic.Computation(Atomic.Computation(), name="H perturber multiplet (np, n=2..5)", grid=grid,
                             nuclearModel=nm, configs=[Configuration("2p"), Configuration("3p"), Configuration("4p"), Configuration("5p")])
     wb1 = perform(wa1; output=true)
-    gMultiplet = wb1["multiplet:"]
+    gMultiplet = wb1[ResultKeys.Multiplet]
 
     starkSettings = StarkShift.Settings(StarkShift.Settings(); calcStarkshifts=true, gMultiplet=gMultiplet,
                                          EField=1.0e5, printBefore=true)
     wa = Atomic.Computation(Atomic.Computation(), name="H(1s) Stark shift", grid=grid, nuclearModel=nm,
                             configs=[Configuration("1s")], propertySettings=[starkSettings] )
     wb = perform(wa; output=true)
-    outcome = wb["Stark-shift outcomes:"][1]
+    outcome = wb[StarkShift.Settings][1]
     println("\n>> alpha_0 = $(outcome.alpha0) a.u.")
     println(">> alpha_2 = $(outcome.alpha2) a.u.   (expect exactly 0. for J=1/2)")
     for  sub in outcome.Jsublevels
@@ -63,14 +63,14 @@ elseif false
     wa1 = Atomic.Computation(Atomic.Computation(), name="Li perturber multiplet ([He]np, n=2..$nMaxLi)", grid=grid,
                             nuclearModel=nm, configs=[Configuration("[He] $(n)p") for n = 2:nMaxLi])
     wb1 = perform(wa1; output=true)
-    gMultiplet = wb1["multiplet:"]
+    gMultiplet = wb1[ResultKeys.Multiplet]
 
     starkSettings = StarkShift.Settings(StarkShift.Settings(); calcStarkshifts=true, gMultiplet=gMultiplet,
                                          EField=1.0e5, printBefore=true)
     wa = Atomic.Computation(Atomic.Computation(), name="Li [He]2s Stark shift", grid=grid, nuclearModel=nm,
                             configs=[Configuration("[He] 2s")], propertySettings=[starkSettings] )
     wb = perform(wa; output=true)
-    outcome = wb["Stark-shift outcomes:"][1]
+    outcome = wb[StarkShift.Settings][1]
     println("\n>> alpha_0 = $(outcome.alpha0) a.u.   (example-Cj.jl branch c found 61.20 a.u. Babushkin, ~37% of 164.074)")
     println(">> alpha_2 = $(outcome.alpha2) a.u.   (expect exactly 0. for J=1/2)")
     for  sub in outcome.Jsublevels
@@ -96,14 +96,14 @@ elseif false
     wa1 = Atomic.Computation(Atomic.Computation(), name="Ba perturber multiplet ([Xe]6s np, n=8..10)", grid=grid,
                             nuclearModel=nm, configs=[Configuration("[Xe] 6s 8p"), Configuration("[Xe] 6s 9p"), Configuration("[Xe] 6s 10p")])
     wb1 = perform(wa1; output=true)
-    gMultiplet = wb1["multiplet:"]
+    gMultiplet = wb1[ResultKeys.Multiplet]
 
     starkSettings = StarkShift.Settings(StarkShift.Settings(); calcStarkshifts=true, gMultiplet=gMultiplet,
                                          EField=1.0e5, printBefore=true)
     wa = Atomic.Computation(Atomic.Computation(), name="Ba [Xe]6s8s Stark shift", grid=grid, nuclearModel=nm,
                             configs=[Configuration("[Xe] 6s 8s")], propertySettings=[starkSettings] )
     wb = perform(wa; output=true)
-    outcomes = wb["Stark-shift outcomes:"]
+    outcomes = wb[StarkShift.Settings]
 
     auToMHzPerKVcm2 = 1.0e-6 * Defaults.convertUnits("energy: from atomic to Hz", 1.0) *
                       0.5 * (1000.0/StarkShift.AU_EFIELD_IN_VCM)^2
@@ -137,14 +137,14 @@ elseif true
     wa1 = Atomic.Computation(Atomic.Computation(), name="Ca perturber multiplet ([Ar]3d np, n=4..6)", grid=grid,
                             nuclearModel=nm, configs=[Configuration("[Ar] 3d 4p"), Configuration("[Ar] 3d 5p"), Configuration("[Ar] 3d 6p")])
     wb1 = perform(wa1; output=true)
-    gMultiplet = wb1["multiplet:"]
+    gMultiplet = wb1[ResultKeys.Multiplet]
 
     starkSettings = StarkShift.Settings(StarkShift.Settings(); calcStarkshifts=true, gMultiplet=gMultiplet,
                                          EField=1.0e5, printBefore=true)
     wa = Atomic.Computation(Atomic.Computation(), name="Ca [Ar]3d^2 Stark shift", grid=grid, nuclearModel=nm,
                             configs=[Configuration("[Ar] 3d^2")], propertySettings=[starkSettings] )
     wb = perform(wa; output=true)
-    outcomes = wb["Stark-shift outcomes:"]
+    outcomes = wb[StarkShift.Settings]
 
     auToMHzPerKVcm2 = 1.0e-6 * Defaults.convertUnits("energy: from atomic to Hz", 1.0) *
                       0.5 * (1000.0/StarkShift.AU_EFIELD_IN_VCM)^2

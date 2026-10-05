@@ -33,7 +33,7 @@ if  true
                                initialConfigs=[Configuration("2p")], finalConfigs=[Configuration("1s")],
                                processSettings=ceSettings)
     wb = perform(comp; output=true)
-    lines = wb["crystal-field-resolved emission lines:"]
+    lines = wb[CrystalFieldEmission.Settings]
     CrystalFieldEmission.displayLines(stdout, lines)
     #
     lineStrength(line) = sum( abs(ch.amplitude)^2 for ch in line.channels )
@@ -75,7 +75,7 @@ elseif  false
                                initialConfigs=[Configuration("3d")], finalConfigs=[Configuration("2p")],
                                processSettings=ceSettings)
     wb = perform(comp; output=true)
-    lines = wb["crystal-field-resolved emission lines:"]
+    lines = wb[CrystalFieldEmission.Settings]
     CrystalFieldEmission.displayLines(stdout, lines)
     #
     # Basis-rotation-invariant cross-check (Parseval-type): FIX one specific, unambiguous initial
@@ -89,7 +89,7 @@ elseif  false
     # for one FIXED initial state must therefore give the identical total in both cases. Only the
     # final side's splitting differs between (A) and (B) -- the initial state is the same fixed
     # vector both times, which is essential for the invariant to hold.
-    initialMultiplet = wb["initialMultiplet"];   finalMultiplet = wb["finalMultiplet"];   grid = comp.grid
+    initialMultiplet = wb[ResultKeys.InitialMultiplet];   finalMultiplet = wb[ResultKeys.FinalMultiplet];   grid = comp.grid
     emptyLat = CrystalField.Lattice()
     emptyInitialSettings = CrystalField.Settings(CrystalField.Settings(); lattice=emptyLat, maxRank=1, includeJmixing=false)
     emptyInitialOutcomes = CrystalField.computeOutcomes(initialMultiplet, emptyLat, grid, emptyInitialSettings)

@@ -676,7 +676,7 @@ elseif  false
     asf  = AsfSettings(AsfSettings(); scField = Basics.DFSField())
     mult(cfgs, gr, nm) = redirect_stdout(devnull) do
         perform(Atomic.Computation(Atomic.Computation(); name="x", grid=gr, nuclearModel=nm,
-                                   configs=cfgs, asfSettings=asf); output=true)["multiplet:"]
+                                   configs=cfgs, asfSettings=asf); output=true)[ResultKeys.Multiplet]
     end
     mEven = mult([Configuration("$xe 6s^1"), Configuration("$xe 5d^1")], grBa, nmBa)
     mOdd  = mult([Configuration("$xe 6p^1"), Configuration("$xe 7p^1"), Configuration("$xe 8p^1")], grBa, nmBa)

@@ -42,7 +42,7 @@ if  true
         comp = Atomic.Computation(Atomic.Computation(), name="Dq-a-mk$mk", grid=grid, nuclearModel=nm,
                                    initialConfigs=initialConfigs, finalConfigs=finalConfigs, processSettings=icSettings)
         wb = perform(comp; output=true)
-        icc = wb["internal conversion lines:"][1].ICC
+        icc = wb[InternalConversion.Settings][1].ICC
         push!(iccByMaxKappa, icc)
         println("   maxKappa=$mk   ICC=$icc")
     end
@@ -58,7 +58,7 @@ if  true
         comp = Atomic.Computation(Atomic.Computation(), name="Dq-a-ge$ge", grid=grid, nuclearModel=nm,
                                    initialConfigs=initialConfigs, finalConfigs=finalConfigs, processSettings=icSettings)
         wb = perform(comp; output=true)
-        line = wb["internal conversion lines:"][1]
+        line = wb[InternalConversion.Settings][1]
         push!(iccByEnergy, line.ICC)
         println("   gammaEnergy=$ge Ha   E_k=$(line.electronEnergy) Ha   ICC=$(line.ICC)")
     end
@@ -89,7 +89,7 @@ elseif  false
                                finalConfigs  =[Configuration("1s 2s^2 2p^6 3s^2 3p^6 3d^10 4s^2 4p^6 4d^10 4f^14 5s^2 5p^6 5d^10 6s^2 6p^2")],
                                processSettings=icSettings)
     wb = perform(comp; output=true)
-    line = wb["internal conversion lines:"][1]
+    line = wb[InternalConversion.Settings][1]
     println(">> 207Pb K-shell M4 alpha_K = $(line.ICC)   (exp: 0.0945 +/- 0.0022, Raman Table VII)")
     #
     setDefaults("print summary: close", "")

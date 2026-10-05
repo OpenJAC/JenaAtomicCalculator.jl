@@ -52,7 +52,7 @@ if  true
     cRR = Atomic.Computation(Atomic.Computation(), name="RR reference", grid=grid, nuclearModel=nModel,
               initialConfigs = initialConfigs, finalConfigs = finalConfigs,
               processSettings = prSet)
-    rrLines = perform(cRR; output=true)["photo recombination lines:"]
+    rrLines = perform(cRR; output=true)[PhotoRecombination.Settings]
     #
     priSet = PhotoRecombinationInterference.Settings(PhotoRecombinationInterference.Settings();
                 multipoles=[E1], gauges=[UseCoulomb, UseBabushkin], electronEnergies=energies, maxKappa=2,
@@ -62,7 +62,7 @@ if  true
                intermediateConfigs = intermediateConfigs,
                finalConfigs        = finalConfigs,
                processSettings = priSet)
-    priPaths = perform(cPRI; output=true)["photorecombination-interference pathways:"]
+    priPaths = perform(cPRI; output=true)[PhotoRecombinationInterference.Settings]
     #
     println("\n\n  RR limit:  the interference module against PhotoRecombination\n")
     println("   E_elec [a.u.]     sigma PhotoRec      sigma PRI (RR)      ratio          beta_2 PhotoRec   beta_2 PRI        ratio")
@@ -154,7 +154,7 @@ elseif  false
                intermediateConfigs = intermediateConfigs,
                finalConfigs        = finalConfigs,
                processSettings = priSet)
-    paths = perform(comp; output=true)["photorecombination-interference pathways:"]
+    paths = perform(comp; output=true)[PhotoRecombinationInterference.Settings]
     #
     println("\n\n  DR limit:  calibration of the resonant normalization N\n")
     for  p in paths
@@ -242,7 +242,7 @@ elseif  false
                intermediateConfigs = intermediateConfigs,
                finalConfigs        = finalConfigs,
                processSettings = priSet)
-    paths = perform(comp; output=true)["photorecombination-interference pathways:"]
+    paths = perform(comp; output=true)[PhotoRecombinationInterference.Settings]
     #
     println("\n\n  Interference across the Fe23+ KLL resonance, Gamma_d = $(round(gammaD_eV,digits=4)) eV\n")
     println("   detuning/Gamma   sigma_total     sigma_RR        sigma_DR       interference   cos(phase)   beta_2     lin.pol.")
@@ -319,7 +319,7 @@ elseif  false
                intermediateConfigs = intermediateConfigs,
                finalConfigs        = finalConfigs,
                processSettings = priSet)
-    paths = perform(comp; output=true)["photorecombination-interference pathways:"]
+    paths = perform(comp; output=true)[PhotoRecombinationInterference.Settings]
     #
     println("\n\n  Interference across the Xe51+ KLL resonance, Gamma_d = $(round(gammaD_eV,digits=4)) eV\n")
     println("   detuning/Gamma   sigma_total     sigma_RR        sigma_DR       interference   cos(phase)   beta_2     lin.pol.")

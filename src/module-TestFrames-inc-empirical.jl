@@ -578,7 +578,7 @@ function testModule_ImpactIonization(; short::Bool=true)
     eiiSettings = ImpactIonization.Settings(ImpactIonization.BEBmodel(), 1, iEnergies, false, true, selection)
     comp        = Empirical.Computation("EII cross section for He I (BEBmodel).", Nuclear.Model(2.0), grid,
                                         [Configuration("1s^2")], eiiSettings)
-    crossSections = perform(comp; output=true)["EII cross sections:"]
+    crossSections = perform(comp; output=true)[ResultKeys.EiiCrossSections]
     ###
     success = true
     sigma   = Dict( cs.impactEnergy => cs.partialCS   for cs in crossSections )

@@ -8,7 +8,7 @@ module Empirical
 
 
 using  Printf, ..AtomicState, ..Basics, ..Continuum, ..Defaults, ..Distribution, ..Radial, ..ManyElectron, ..Nuclear,
-       ..InteractionStrength, ..ImpactIonization, ..PeriodicTable, ..Semiempirical, ..SelfConsistent, SpecialFunctions
+       ..InteractionStrength, ..ImpactIonization, ..PeriodicTable, ..Semiempirical, ..SelfConsistent, SpecialFunctions, ..ResultKeys
 
 """
 `abstract type Empirical.AbstractEmpiricalApproximation`

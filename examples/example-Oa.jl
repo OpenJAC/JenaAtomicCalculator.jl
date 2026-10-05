@@ -35,7 +35,7 @@ if  true
                             processSettings = psSettings )
 
     wd = perform(wc; output=true)
-    we = ParticleScattering.extractCrossSections(wd["particle-scattering events:"], 300.0, 0.0)
+    we = ParticleScattering.extractCrossSections(wd[ParticleScattering.Settings], 300.0, 0.0)
     #
 elseif  false
     # Last successful:  unknown ...

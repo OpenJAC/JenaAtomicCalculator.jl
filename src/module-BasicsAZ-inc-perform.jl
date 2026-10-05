@@ -28,6 +28,9 @@ export  perform
         each but for the DR pair, and six `ResultKeys` for the results that have no settings type.  While the
         strings remain accepted, this is the only place the correspondence is written down.
 """
+const GBL_DEPRECATED_KEYS_SEEN = Set{String}()
+
+
 function  resultKeyStrings(T::Type)
     # --- the results that have no settings type of their own
     T === ResultKeys.Multiplet              &&  return( ["multiplet:"] )
@@ -97,8 +100,63 @@ function  resultKeyStrings(T::Type)
     T === ResultKeys.PhotoExcitationLineData   &&  return( ["photoexcitation line data:"] )
     T === ResultKeys.SimulationData         &&  return( ["data:"] )
     T === ResultKeys.SimulationProperty     &&  return( ["property:"] )
+    # --- the generate(::Representation) results
+    T === ResultKeys.MeanFieldBasis         &&  return( ["mean-field basis"] )
+    T === ResultKeys.MeanFieldMultiplet     &&  return( ["mean-field multiplet"] )
+    T === ResultKeys.MeanPotential          &&  return( ["mean potential"] )
+    T === ResultKeys.Orbitals               &&  return( ["orbitals"] )
+    T === ResultKeys.ReferenceMultiplet     &&  return( ["reference multiplet"] )
+    T === ResultKeys.CiMultiplet            &&  return( ["CI multiplet"] )
+    T === ResultKeys.GreenChannels          &&  return( ["Green channels"] )
+    T === ResultKeys.EiiCrossSections       &&  return( ["EII cross sections:"] )
 
     return( String[] )
+end
+
+
+"""
+`Basics.typedKeyFor(key::AbstractString)`
+    ... names the typed key that replaces a deprecated string key; a `String` is returned, empty where the string
+        is not one JAC ever used.  It is the migration aid for `apps/` scripts: the deprecation warning points at
+        it, and it answers in one call what the table below would otherwise have to be read for.
+"""
+function  Basics.typedKeyFor(key::AbstractString)
+    for  T  in  BasicsAZ.allResultKeyTypes()
+        key in BasicsAZ.resultKeyStrings(T)   &&   return( string(T) )
+    end
+    return( "" )
+end
+
+
+"""
+`BasicsAZ.allResultKeyTypes()`
+    ... lists every type that labels a result -- the forty settings types and the `ResultKeys` -- so that a string
+        can be mapped back to the typed key that replaces it; an `Array{Type,1}` is returned.
+"""
+function  allResultKeyTypes()
+    return( Type[ ResultKeys.Multiplet, ResultKeys.Grid, ResultKeys.InitialMultiplet, ResultKeys.FinalMultiplet,
+            ResultKeys.IntermediateMultiplet, ResultKeys.IjfMultiplet, ResultKeys.CascadeData,
+            ResultKeys.CascadeScheme, ResultKeys.Name, ResultKeys.DataFormat, ResultKeys.InitialMultiplets,
+            ResultKeys.GeneratedMultiplets, ResultKeys.DielectronicMultiplets, ResultKeys.ImpactExcitedMultiplets,
+            ResultKeys.PhotoExcitedMultiplets, ResultKeys.PhotoIonizedMultiplets,
+            ResultKeys.DielectronicCaptureLines, ResultKeys.HollowIonLineData,
+            ResultKeys.PhotoRecombinationLineData, ResultKeys.PhotoExcitationLineData, ResultKeys.SimulationData,
+            ResultKeys.SimulationProperty, ResultKeys.MeanFieldBasis, ResultKeys.MeanFieldMultiplet,
+            ResultKeys.MeanPotential, ResultKeys.Orbitals, ResultKeys.ReferenceMultiplet,
+            ResultKeys.CiMultiplet, ResultKeys.GreenChannels, ResultKeys.EiiCrossSections,
+            Einstein.Settings, Hfs.Settings, LandeZeeman.Settings, StarkShift.Settings, StarkZeeman.Settings,
+            IsotopeShift.Settings, AlphaVariation.Settings, FormFactor.Settings, DecayYield.Settings,
+            MultipolePolarizibility.Settings, ReducedDensityMatrix.Settings, WeakInteractionEnhancement.Settings,
+            AutoIonization.Settings, RayleighCompton.Settings, ElectronCapture.Settings,
+            DoubleAutoIonization.Settings, DielectronicRecombination.Settings, MultiPhotonTransition.Settings,
+            PhotoIonization.Settings, PhotoDoubleIonization.Settings, PhotoExcitation.Settings,
+            PhotoExcitationAutoion.Settings, PhotoExcitationFluores.Settings, PhotoEmission.Settings,
+            CoulombExcitation.Settings, CoulombIonization.Settings, RadiativeAuger.Settings,
+            PhotoRecombination.Settings, ImpactExcitation.Settings, InternalRecombination.Settings,
+            InternalConversion.Settings, TwoElectronOnePhoton.Settings, ParticleScattering.Settings,
+            PhotonScattering.Settings, BeamPhotoExcitation.Settings, HyperfineInduced.Settings,
+            MultiPhotonIonization.Settings, CrystalFieldEmission.Settings,
+            PhotoRecombinationInterference.Settings, GeneralizedOscillatorStrength.Settings ] )
 end
 
 
@@ -128,12 +186,42 @@ end
 
 
 """
-`Base.getindex(r::BasicsAZ.PerformResults, key::AbstractString)`
+`Base.getindex(r::Basics.PerformResults, key::AbstractString)`
     ... returns the result stored under `key`; where the key is absent the error NAMES the keys that are present,
         and names the intended one where the request differs from it only in spacing, case or punctuation.
 """
 function  Base.getindex(r::PerformResults, key::AbstractString)
-    haskey(r.dict, key)   &&   return( r.dict[key] )
+    if  haskey(r.dict, key)
+        # AND THERE IS A BOUNDARY THE TYPED KEYS DO NOT CROSS, found by the suite on 05-Oct-2026 and worth stating
+        # where someone will meet it.  A typed key indexes what `perform` RETURNS.  It does NOT index cascade data
+        # that has been SERIALISED and read back: `Cascade.Simulation` consumes
+        # `simulation.computationData[i]["results"]`, a plain `Dict{String,Any}` restored from a JLD2 file, and
+        # indexing that with a type raises `KeyError: key ResultKeys.InitialMultiplets not found`.  Making it work
+        # would mean defining `getindex(::Dict{String,Any}, ::Type)`, which is type piracy on Base and would reach
+        # every Dict in every package.  So the stored path keeps its strings deliberately, and the warnings it
+        # raises here are correct rather than a conversion anybody forgot.
+        #
+        # STEP 3 OF THE MIGRATION, 05-Oct-2026.  The string keys STILL WORK and now say what replaces them; they
+        # are removed in step 4, once `/testExamples` has confirmed the converted example branches.  `src/`, the
+        # test suite and `examples/` are already converted, so in practice this fires only for `apps/` scripts --
+        # which are not in git, cannot be swept, and are corrected when they are next run.  That is exactly the
+        # population a deprecation period exists for.
+        #   ONCE PER KEY PER SESSION, not once per access: a loop over a cascade's lines would otherwise bury the
+        # message it is trying to deliver.
+        if  !(key in GBL_DEPRECATED_KEYS_SEEN)
+            push!(GBL_DEPRECATED_KEYS_SEEN, key)
+            replacement = Basics.typedKeyFor(key)
+            # A STRING WITH NO TYPED REPLACEMENT IS NOT DEPRECATED -- it is the only way to ask.  The RAS ladder's
+            # "step1", "step2", ... are the case: one per layer, their number unknown until the ladder is built,
+            # so no fixed set of types can name them.  Warning about those would be telling the user to do
+            # something that cannot be done.
+            if  replacement != ""
+                @warn "Basics.perform(): the string key \"$key\" is DEPRECATED and will be removed.  " *
+                      "Write  res[$replacement]  instead."
+            end
+        end
+        return( r.dict[key] )
+    end
     near = [ k  for k in keys(r.dict)  if  normalizeResultKey(k) == normalizeResultKey(key) ]
     sa   = "Basics.perform(): there is no result under the key \"" * key * "\".\n"
     if  !isempty(near)

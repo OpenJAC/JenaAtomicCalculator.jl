@@ -26,7 +26,7 @@ if  false
     wa1 = Atomic.Computation(Atomic.Computation(), name="H perturber multiplet (np, n=2..5)", grid=grid,
                             nuclearModel=nm, configs=[Configuration("2p"), Configuration("3p"), Configuration("4p"), Configuration("5p")])
     wb1 = perform(wa1; output=true)
-    gMultiplet = wb1["multiplet:"]
+    gMultiplet = wb1[ResultKeys.Multiplet]
 
     polSettings = MultipolePolarizibility.Settings(MultipolePolarizibility.Settings(), multipoles=[E1], gMultiplet=gMultiplet, printBefore=true)
     wa = Atomic.Computation(Atomic.Computation(), name="H(1s) static electric-dipole polarizability", grid=grid,
@@ -34,7 +34,7 @@ if  false
                             configs=[Configuration("1s")],
                             propertySettings=[polSettings] )
     wb = perform(wa; output=true)
-    outcome = wb["Polarizibility outcomes:"][1]
+    outcome = wb[MultipolePolarizibility.Settings][1]
     println("\n>> computed alpha_0 = $(outcome.alpha0) a.u.   (exact literature value = 4.5 a.u.)")
     println(">> ratio computed/exact [Coulomb]   = $(outcome.alpha0.Coulomb/4.5)")
     println(">> ratio computed/exact [Babushkin] = $(outcome.alpha0.Babushkin/4.5)")
@@ -86,7 +86,7 @@ elseif false
                             nuclearModel=nm, configs=[Configuration("$(n)p") for n = 2:nMaxHighN],
                             asfSettings=AsfSettings(AsfSettings(); gridStopper = false))
     wb1 = perform(wa1; output=true)
-    gMultiplet = wb1["multiplet:"]
+    gMultiplet = wb1[ResultKeys.Multiplet]
 
     polSettings = MultipolePolarizibility.Settings(MultipolePolarizibility.Settings(), multipoles=[E1], gMultiplet=gMultiplet, printBefore=true)
     wa = Atomic.Computation(Atomic.Computation(), name="H(1s) static electric-dipole polarizability, extended (pseudo-)perturber set",
@@ -94,7 +94,7 @@ elseif false
                             configs=[Configuration("1s")],
                             propertySettings=[polSettings] )
     wb = perform(wa; output=true)
-    outcome = wb["Polarizibility outcomes:"][1]
+    outcome = wb[MultipolePolarizibility.Settings][1]
 
     # Running (cumulative) alpha_0, ordered by ascending perturber energy (i.e. roughly ascending n),
     # to see explicitly how -- and how much -- the high-n/pseudo-continuum tail keeps adding to the sum.
@@ -129,7 +129,7 @@ elseif true
     wa1 = Atomic.Computation(Atomic.Computation(), name="Li perturber multiplet ([He]np, n=2..$nMaxLi)", grid=grid,
                             nuclearModel=nm, configs=[Configuration("[He] $(n)p") for n = 2:nMaxLi])
     wb1 = perform(wa1; output=true)
-    gMultiplet = wb1["multiplet:"]
+    gMultiplet = wb1[ResultKeys.Multiplet]
 
     polSettings = MultipolePolarizibility.Settings(MultipolePolarizibility.Settings(), multipoles=[E1], gMultiplet=gMultiplet, printBefore=true)
     wa = Atomic.Computation(Atomic.Computation(), name="Li [He]2s static electric-dipole polarizability", grid=grid,
@@ -137,7 +137,7 @@ elseif true
                             configs=[Configuration("[He] 2s")],
                             propertySettings=[polSettings] )
     wb = perform(wa; output=true)
-    outcome = wb["Polarizibility outcomes:"][1]
+    outcome = wb[MultipolePolarizibility.Settings][1]
 
     litValue = 164.0740
     println("\n>> computed alpha_0 = $(outcome.alpha0) a.u.   (literature value = $litValue a.u., Puchalski et al.)")

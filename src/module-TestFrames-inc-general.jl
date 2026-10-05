@@ -416,9 +416,9 @@ function testRepresentation_GreenExpansion(; short::Bool=true)
                                                     [LevelSymmetry(1//2, Basics.plus), LevelSymmetry(3//2, Basics.plus)], 3, greenSettings) )
     wb = generate(wa, output=true)
 
-    if  abs(wb["Green channels"][1].gMultiplet.levels[1].energy + 64.080705)  > 1.0e-3
+    if  abs(wb[ResultKeys.GreenChannels][1].gMultiplet.levels[1].energy + 64.080705)  > 1.0e-3
         success = false
-        if printTest   info(iostream, "gMultiplet.levels[1].energy $(wb["Green channels"][1].gMultiplet.levels[1].energy) != -64.080705")   end
+        if printTest   info(iostream, "gMultiplet.levels[1].energy $(wb[ResultKeys.GreenChannels][1].gMultiplet.levels[1].energy) != -64.080705")   end
     end
 
     testPrint("testRepresentation_GreenExpansion()::", success)
@@ -440,7 +440,7 @@ function testRepresentation_MeanFieldBasis_CiExpansion(; short::Bool=true)
     wa          = Representation(name, Nuclear.Model(8.), Radial.Grid(true), refConfigs, MeanFieldBasis(mfSettings) )
     wb = generate(wa, output=true)
     #
-    orbitals    = wb["mean-field basis"].orbitals
+    orbitals    = wb[ResultKeys.MeanFieldBasis].orbitals
     ciSettings  = CiSettings(CoulombInteraction(), LevelSelection() )
     from        = [Shell("2s")]
     #
@@ -459,10 +459,10 @@ function testRepresentation_MeanFieldBasis_CiExpansion(; short::Bool=true)
         if printTest   @info(iostream, "orbital energy $(orbitals[Subshell("1s_1/2")].energy) != -18.705283")     end
         @info(iostream, "orbital energy $(orbitals[Subshell("1s_1/2")].energy) != -18.705283")
     end
-    if  abs(wd["CI multiplet"].levels[1].energy + 74.840309)  > 1.0e-2
+    if  abs(wd[ResultKeys.CiMultiplet].levels[1].energy + 74.840309)  > 1.0e-2
         success = false
-        if printTest   @info(iostream, "levels[1].energy $(wd["CI multiplet"].levels[1].energy) != -74.840309")   end
-        @info(iostream, "levels[1].energy $(wd["CI multiplet"].levels[1].energy) != -74.840309")
+        if printTest   @info(iostream, "levels[1].energy $(wd[ResultKeys.CiMultiplet].levels[1].energy) != -74.840309")   end
+        @info(iostream, "levels[1].energy $(wd[ResultKeys.CiMultiplet].levels[1].energy) != -74.840309")
     end
 
     testPrint("testRepresentation_MeanFieldBasis_CiExpansion()::", success)

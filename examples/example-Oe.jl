@@ -68,7 +68,7 @@ if  true
                                 initialConfigs  = [Configuration("1s^2")],
                                 finalConfigs    = [Configuration("1s^2")],
                                 processSettings = psSettings )
-        event = perform(wc; output=true)["particle-scattering events:"][1]
+        event = perform(wc; output=true)[ParticleScattering.Settings][1]
         println("  ", rpad(label, 30),
                 rpad(round(event.integrated.sigmaElastic, sigdigits=5), 13),
                 rpad(round(event.integrated.sigmaMomentumTransfer, sigdigits=5), 13),

@@ -129,7 +129,7 @@ elseif  false
     wa = Atomic.Computation(Atomic.Computation(), name="Oxygen", grid=Radial.Grid(true), nuclearModel=Nuclear.Model(18.), 
                             configs=[Configuration("[He] 2s^2 2p^4"), Configuration("[He] 2s 2p^5")])
     wb = perform(wa, output=true)
-    mp = wb["multiplet:"]
+    mp = wb[ResultKeys.Multiplet]
     #
     wc = Basics.extractConfiguration(LeadingConfiguration(), mp.levels[1]);                             @show wc
     wd = Basics.extractConfiguration(LeadingConfiguration(), mp.levels[9]);                             @show wd

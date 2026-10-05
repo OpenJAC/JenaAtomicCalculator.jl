@@ -82,7 +82,7 @@ if  true
                                 finalConfigs    = [Configuration(conf)],
                                 processSettings = psSettings )
         wd    = perform(wc; output=true)
-        event = wd["particle-scattering events:"][1]
+        event = wd[ParticleScattering.Settings][1]
         k     = argmax( [abs(o.sherman) for o in event.angular] )
         println("   ", rpad(name, 9), rpad(Int(Z), 6), rpad(round(abs(event.angular[k].sherman), sigdigits=4), 15),
                 rpad(round(event.angular[k].theta * 180/pi, digits=1), 18),

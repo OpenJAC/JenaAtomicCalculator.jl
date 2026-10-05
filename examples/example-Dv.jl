@@ -56,7 +56,7 @@ elseif  false
                     nuclearModel = Nuclear.Model(6.), initialConfigs = resConfs, finalConfigs = ionConf,
                     processSettings = AutoIonization.Settings(AutoIonization.Settings(); maxKappa = 5) );
                     output = true )
-    capLines = wcap["electron-capture lines:"];    augLines = waug["AutoIonization lines:"]
+    capLines = wcap[ElectronCapture.Settings];    augLines = waug[AutoIonization.Settings]
     println("\n  Detailed balance,  P_cap / P_A  against  (2J_d+1) / (2(2J_0+1)) :")
     for  cl in capLines
         for  al in augLines
@@ -138,7 +138,7 @@ elseif  true
     wb = perform(wa; output = true)
     println("\n  Published (PRA 78, 032703 (2008), Sec. IV B):  A_20(2s2p_3/2, J=2) = -0.890,  " *
             "A_20(2s2p_3/2, J=1) = -0.918")
-    for  ln in wb["electron-capture lines:"]
+    for  ln in wb[ElectronCapture.Settings]
         length(ln.alignment) == 0  &&  continue
         @printf("    level %2d   J^P = %s   A_20 = %9.5f\n", ln.finalLevel.index,
                 string(LevelSymmetry(ln.finalLevel.J, ln.finalLevel.parity)), ln.alignment[1])

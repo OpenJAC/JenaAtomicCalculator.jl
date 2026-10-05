@@ -334,11 +334,11 @@ function photoemissionEinsteinA(iConf::Configuration, fConf::Configuration, appr
     mfSettings  = AtomicState.MeanFieldSettings(Basics.DFSField(1.0))
     meanField   = Representation("Internal", Nuclear.Model(Z), grid, [iConf], MeanFieldBasis(mfSettings) )
     mfrep       = generate(meanField; output=true)
-    iOrbitals   = mfrep["mean-field basis"].orbitals
+    iOrbitals   = mfrep[ResultKeys.MeanFieldBasis].orbitals
 
     meanField   = Representation("Internal", Nuclear.Model(Z), grid, [fConf], MeanFieldBasis(mfSettings) )
     mfrep       = generate(meanField; output=true)
-    fOrbitals   = mfrep["mean-field basis"].orbitals
+    fOrbitals   = mfrep[ResultKeys.MeanFieldBasis].orbitals
         
 
     # Assign the energies and rates for the different multipoles
@@ -708,7 +708,7 @@ function photoionizationCrossSection(omegas::Array{Float64,1}, iConf::Configurat
     mfSettings  = AtomicState.MeanFieldSettings(Basics.DFSField(1.0))
     meanField   = Representation("Internal", Nuclear.Model(Z), grid, [iConf], MeanFieldBasis(mfSettings) )
     mfrep       = generate(meanField; output=true)
-    iBasis      = mfrep["mean-field basis"]
+    iBasis      = mfrep[ResultKeys.MeanFieldBasis]
 
     contSettings = Continuum.Settings(false, size(grid.r,1) - 11);    nm = Nuclear.Model(Z)
     nucPot   = Nuclear.nuclearPotential(nm, grid)
@@ -953,7 +953,7 @@ function photorecombinationCrossSection(energies::Array{Float64,1}, iConf::Confi
     mfSettings  = AtomicState.MeanFieldSettings(Basics.DFSField(1.0))
     meanField   = Representation("Internal", Nuclear.Model(Z), grid, [fConf], MeanFieldBasis(mfSettings) )
     mfrep       = generate(meanField; output=true)
-    fOrbitals   = mfrep["mean-field basis"].orbitals
+    fOrbitals   = mfrep[ResultKeys.MeanFieldBasis].orbitals
     fSubsh      = Subshell(fShell.n, -fShell.l -1)
     bEnergy     = - fOrbitals[fSubsh].energy
     omegas  = energies .+ bEnergy

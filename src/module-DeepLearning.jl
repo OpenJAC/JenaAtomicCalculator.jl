@@ -16,7 +16,7 @@ module DeepLearning
 
 
 using Printf, ..AngularMomentum, ..AtomicFeatures, ..AtomicState, ..Basics, ..Defaults, ..Hamiltonian, ..LSjj, ..ManyElectron,
-      ..Nuclear, ..Radial, ..TableStrings
+      ..Nuclear, ..Radial, ..TableStrings, ..ResultKeys
 
 export  AbstractNeuralNetwork, AbstractNeuralNetworkRequest, LevelEstimationRequest, 
         Application

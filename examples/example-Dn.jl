@@ -74,7 +74,7 @@ if  false
     gComp      = Atomic.Computation(Atomic.Computation(), name="STEP 1: Green-function (intermediate) multiplet",
                                     grid=grid, nuclearModel=Nuclear.Model(10.),
                                     configs = [Configuration("1s 2p"), Configuration("1s 2s")] )
-    gMultiplet = perform(gComp; output=true)["multiplet:"]
+    gMultiplet = perform(gComp; output=true)[ResultKeys.Multiplet]
     #
     # ---------- STEP 2: strategy (ii) with the minimal final space ----------
     # The intermediate sum in TwoElectronOnePhoton.amplitude() explicitly skips any gMultiplet level that coincides in
@@ -240,7 +240,7 @@ elseif  true
     gCompB     = Atomic.Computation(Atomic.Computation(), name="STEP 1: gMultiplet for the O5+ TEOP case",
                                     grid=gridB, nuclearModel=Nuclear.Model(8.),
                                     configs = [Configuration("1s 2p 4s"), Configuration("1s 2s 4s")] )
-    gMultipletB = perform(gCompB; output=true)["multiplet:"]
+    gMultipletB = perform(gCompB; output=true)[ResultKeys.Multiplet]
     #
     teopSettingsB = TwoElectronOnePhoton.Settings([E1], [UseCoulomb,UseBabushkin], true, LineSelection(), 0.,
                                                   CoulombInteraction(), gMultipletB)

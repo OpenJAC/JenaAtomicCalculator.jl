@@ -56,7 +56,7 @@ elseif  false
                             ##                 Einstein.Settings([M2], true, LineSelection(true, indexPairs=[(13,2), (15,5), (15,4)]), 0., 0., 10000. ) )
 
     wb         = perform(wa; output=true)
-    frozenOrbs = wb["multiplet:"].levels[1].basis.orbitals
+    frozenOrbs = wb[ResultKeys.Multiplet].levels[1].basis.orbitals
     #
 elseif  true
     # Last successful:  30-Aug-2026 -- C (Z=6), 1s^2 2s^2 + 1s^2 2s 3p, two E1 transitions, and the

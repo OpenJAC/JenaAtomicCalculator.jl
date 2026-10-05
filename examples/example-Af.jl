@@ -16,7 +16,7 @@ if  false
     wb = perform(wa, output=true)
 
     # Extract the ground level to generate a proper potential
-    multiplet = wb["multiplet:"]
+    multiplet = wb[ResultKeys.Multiplet]
     ## grid      = wb["grid:"]
     level     = multiplet.levels[1]
     basis     = multiplet.levels[1].basis  

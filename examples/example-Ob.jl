@@ -58,7 +58,7 @@ if  true
                                 finalConfigs    = [Configuration("1s^2")],
                                 processSettings = psSettings )
         wd    = perform(wc; output=true)
-        event = wd["particle-scattering events:"][1]
+        event = wd[ParticleScattering.Settings][1]
         E     = event.impactEnergy                       # already in atomic units
         ruth  = 4.0 / (16 * E * E)                       # Z^2 / (16 E^2),  sin^4(90 deg) = 1
         dcs   = event.angular[1].dcs

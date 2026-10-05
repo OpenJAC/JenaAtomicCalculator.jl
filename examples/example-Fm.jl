@@ -39,7 +39,7 @@ if  true
                              scheme=captureScheme(), initialConfigs=[Configuration("1s^2")] )
     println(wa)
     wb = perform(wa; output=true, outputToFile=false)
-    println("\n  >> capture lines: ", length(wb["dielectronic-capture lines:"]))
+    println("\n  >> capture lines: ", length(wb[ResultKeys.DielectronicCaptureLines]))
     #
     setDefaults("print summary: close", "")
     #
@@ -75,8 +75,8 @@ elseif  false
                              initialConfigs=[Configuration("1s^2")] )
     we = perform(wd; output=true, outputToFile=false)
     #
-    linesC = wc["dielectronic-capture lines:"]
-    linesD = [d for d in we["cascade data:"] if eltype(d.lines) == AutoIonization.Line][1].lines
+    linesC = wc[ResultKeys.DielectronicCaptureLines]
+    linesD = [d for d in we[ResultKeys.CascadeData] if eltype(d.lines) == AutoIonization.Line][1].lines
     println("\n  Auger lines from the CAPTURE scheme:        ", length(linesC))
     println("  Auger lines from the RECOMBINATION scheme:  ", length(linesD))
     if  length(linesC) == length(linesD)
@@ -120,7 +120,7 @@ elseif  false
                              nuclearModel=Nuclear.Model(6.), grid=grid, approach=Cascade.AverageSCA(),
                              scheme=captureScheme(), initialConfigs=[Configuration("1s^2")] )
     wb = perform(wa; output=true, outputToFile=false)
-    linesC = wb["dielectronic-capture lines:"]
+    linesC = wb[ResultKeys.DielectronicCaptureLines]
     #
     println("\n  Every capture line ends on the SAME target level if the excited channels are closed:")
     finals = unique([ (l.finalLevel.index, l.finalLevel.J, l.finalLevel.parity) for l in linesC ])

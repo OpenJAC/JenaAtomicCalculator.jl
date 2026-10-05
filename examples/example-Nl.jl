@@ -60,7 +60,7 @@ if  true
     # symmetry are then misrepresented -- often returning a DIFFERENT state rather than an inaccurate one.
     grid = Radial.Grid(Radial.Grid(false), rnt = 1.0e-6, h = 5.0e-2, hp = 0.0423, rbox = 12.7)
     scfEnergy(nmx, conf) = perform(Atomic.Computation(Atomic.Computation(), name="Nl-scf", nuclearModel=nmx, grid=grid,
-                                                       configs=[conf]); output=true)["multiplet:"].levels[1].energy
+                                                       configs=[conf]); output=true)[ResultKeys.Multiplet].levels[1].energy
     energiesSCF = Pair{Configuration,Float64}[ conf => scfEnergy(nm,conf) for conf in
                   [ reaction.iConfIon; reaction.fConfIon ] ]
 
@@ -116,7 +116,7 @@ elseif  false
     println("  Running a single-configuration Dirac-Fock SCF calculation for each configuration ...")
     grid = Radial.Grid(true)
     scfEnergy(nmx, conf) = perform(Atomic.Computation(Atomic.Computation(), name="Nl-scf", nuclearModel=nmx, grid=grid,
-                                                       configs=[conf]); output=true)["multiplet:"].levels[1].energy
+                                                       configs=[conf]); output=true)[ResultKeys.Multiplet].levels[1].energy
     energiesSCF = Pair{Configuration,Float64}[ conf => scfEnergy(nm,conf) for conf in
                   [ reaction.iConfIon; reaction.fConfIon ] ]
 
@@ -169,7 +169,7 @@ elseif  false
     println("  Running a single-configuration Dirac-Fock SCF calculation for each configuration ...")
     grid = Radial.Grid(true)
     scfEnergy(nmx, conf) = perform(Atomic.Computation(Atomic.Computation(), name="Nl-scf", nuclearModel=nmx, grid=grid,
-                                                       configs=[conf]); output=true)["multiplet:"].levels[1].energy
+                                                       configs=[conf]); output=true)[ResultKeys.Multiplet].levels[1].energy
     energiesSCF = Pair{Configuration,Float64}[ conf => scfEnergy(nm,conf) for conf in
                   [ reaction.iConfIon; reaction.fConfIon ] ]
 

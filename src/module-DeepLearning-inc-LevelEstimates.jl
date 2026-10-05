@@ -446,17 +446,17 @@ function generateAtomicModelForLE_Arn4()
     refConfigs01 = Basics.generateConfigurations(Basics.ExciteElectrons(1, shells, shells), [Configuration("[Ne] 3s^2 3p^5")])
     meanField01  = AtomicState.Representation("Ar+ mean field",  nm, grid, refConfigs01, AtomicState.MeanFieldBasis(mfSettings))
     mfrep01      = Basics.generate(meanField01; output=true)
-    orbitals01   = mfrep01["mean-field basis"].orbitals
+    orbitals01   = mfrep01[ResultKeys.MeanFieldBasis].orbitals
 
     refConfigs02 = Basics.generateConfigurations(Basics.ExciteElectrons(1, shells, shells), [Configuration("[Ne] 3s^2 3p^4")])
     meanField02  = AtomicState.Representation("Ar2+ mean field", nm, grid, refConfigs02, AtomicState.MeanFieldBasis(mfSettings))
     mfrep02      = Basics.generate(meanField02; output=true)
-    orbitals02   = mfrep02["mean-field basis"].orbitals
+    orbitals02   = mfrep02[ResultKeys.MeanFieldBasis].orbitals
 
     refConfigs03 = Basics.generateConfigurations(Basics.ExciteElectrons(1, shells, shells), [Configuration("[Ne] 3s^2 3p^3")])
     meanField03  = AtomicState.Representation("Ar3+ mean field", nm, grid, refConfigs03, AtomicState.MeanFieldBasis(mfSettings))
     mfrep03      = Basics.generate(meanField03; output=true)
-    orbitals03   = mfrep03["mean-field basis"].orbitals
+    orbitals03   = mfrep03[ResultKeys.MeanFieldBasis].orbitals
 
     atomicModel = AtomicFeatures.AtomicModel(nMax, lMax, grid, asfSettings, nm, shells, subshells,
                                              orbitals01, orbitals02, orbitals03)

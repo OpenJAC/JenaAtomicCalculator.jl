@@ -864,7 +864,7 @@ function generateIonLevelData(scheme::Plasma.SahaBoltzmannScheme, isoClass::Isot
     repBasis     = Representation(name, nm, grid, repConfigs, MeanFieldBasis(mfSettings) )
     repOutput    = generate(repBasis, output=true)
     
-    orbitals = repOutput["mean-field basis"].orbitals
+    orbitals = repOutput[ResultKeys.MeanFieldBasis].orbitals
     
     
     # Extract levels from output

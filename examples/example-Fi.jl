@@ -165,19 +165,19 @@ elseif  false
                                  approach=Cascade.AverageSCA(), scheme=scheme,
                                  initialConfigs=[Configuration("1s^2 2s")] )
         t  = @elapsed (wb = perform(wa; output=true, outputToFile=false))
-        ls = wb["impact-excitation lines:"]
+        ls = wb[ImpactExcitation.Settings]
         for  l  in  ls
             println(">>>   E = ", round(Defaults.convertUnits("energy: from atomic", l.initialElectronEnergy), digits=0),
                     " eV   Omega = ", round(l.collisionStrength, sigdigits=5),
                     "   convergence = ", round(l.convergence, sigdigits=2))
         end
-        ls2 = wb["impact-excitation lines:"]
+        ls2 = wb[ImpactExcitation.Settings]
         for  en  in  sort(unique([l.initialElectronEnergy for l in ls2]))
             om = sum(l.collisionStrength for l in ls2 if abs(l.initialElectronEnergy-en) < 1.0e-8)
             println(">>>   summed Omega at ", round(Defaults.convertUnits("energy: from atomic", en), digits=0),
                     " eV = ", round(om, sigdigits=5))
         end
-        println(">>>   ", length(wb["autoionization lines:"]), " Auger lines;  cost $(round(t, digits=1)) s")
+        println(">>>   ", length(wb[AutoIonization.Settings]), " Auger lines;  cost $(round(t, digits=1)) s")
     end
     setDefaults("print summary: close", "")
     #
@@ -311,7 +311,7 @@ elseif  false
     sim = Cascade.Simulation(Cascade.Simulation(); name="EA rate coefficients of Li-like C",
                              property=Cascade.EiiRateCoefficients(1, temps, 0., 0.),
                              method=Cascade.ProbPropagation(), computationData=[JLD2.load(fn)] )
-    aJac = perform(sim; output=true)["data:"]
+    aJac = perform(sim; output=true)[ResultKeys.SimulationData]
 
     println("\n  Excitation-autoionization of Li-like C: cascade against Arnaud & Rothenflug [cm^3/s]")
     println("  ----------------------------------------------------------------------------------")

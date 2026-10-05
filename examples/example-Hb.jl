@@ -202,7 +202,7 @@ elseif true
     #
     ## The occupation sum rule, printed so that it is checked rather than assumed
     wa    = Atomic.Computation(Atomic.Computation(), name="C I basis", grid=grid, nuclearModel=nucModel, configs=configs)
-    basis = perform(wa; output=true)["multiplet:"].levels[1].basis
+    basis = perform(wa; output=true)[ResultKeys.Multiplet].levels[1].basis
     println("\n>> C I basis holds $(length(basis.csfs)) CSFs and $(basis.NoElectrons) electrons.")
     qList = [Basics.computeMeanSubshellOccupation(sh, basis)  for sh in basis.subshells]
     for  (k, sh) in enumerate(basis.subshells)    println("     mean occupation of $sh  = $(qList[k])")    end

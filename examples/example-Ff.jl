@@ -120,8 +120,8 @@ elseif  false
                                  approach=Cascade.AverageSCA(), scheme=scheme,
                                  initialConfigs=[Configuration("1s^2")] )
         wb = perform(wa; output=true, outputToFile=false)
-        nR = sum(length(d.lines) for d in wb["cascade data:"] if eltype(d.lines) == PhotoEmission.Line)
-        nA = sum(length(d.lines) for d in wb["cascade data:"] if eltype(d.lines) == AutoIonization.Line)
+        nR = sum(length(d.lines) for d in wb[ResultKeys.CascadeData] if eltype(d.lines) == PhotoEmission.Line)
+        nA = sum(length(d.lines) for d in wb[ResultKeys.CascadeData] if eltype(d.lines) == AutoIonization.Line)
         println(">>> multipoles $mp :  $nR radiative lines,  $nA Auger lines")
     end
     setDefaults("print summary: close", "")
@@ -240,7 +240,7 @@ elseif  false
                                   computationData=Dict{String,Any}[ Dict{String,Any}("results" => wb) ],
                                   property=prop, settings=Cascade.SimulationSettings(false, false, 0.) )
         wd   = perform(simu; output=true)
-        return( wd["data:"] )      ## an EmProperty per temperature, ALREADY in cm^3/s
+        return( wd[ResultKeys.SimulationData] )      ## an EmProperty per temperature, ALREADY in cm^3/s
     end
     kll = drAlphas([Shell("2s"), Shell("2p")])
     klm = drAlphas([Shell("2s"), Shell("2p"), Shell("3s"), Shell("3p"), Shell("3d")])

@@ -111,7 +111,7 @@ elseif  false
                                  approach=Cascade.AverageSCA(), scheme=scheme,
                                  initialConfigs=[Configuration("1s^0")] )
         wb = perform(wa; output=true, outputToFile=false)
-        for  x  in  wb["cascade data:"]
+        for  x  in  wb[ResultKeys.CascadeData]
             println(">>>   ", eltype(x.lines), " : ", length(x.lines), " lines")
         end
     end
@@ -144,7 +144,7 @@ elseif  false
                                  grid=grid, approach=Cascade.AverageSCA(), scheme=scheme,
                                  initialConfigs=[Configuration("1s^0")] )
         wb = perform(wa; output=true, outputToFile=false)
-        for  x  in  wb["cascade data:"]
+        for  x  in  wb[ResultKeys.CascadeData]
             println(">>>   ", eltype(x.lines), " : ", length(x.lines), " lines")
         end
     end
