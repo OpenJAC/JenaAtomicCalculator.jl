@@ -208,6 +208,11 @@ function  computeHfDrivenCaptureAmplitudes(hfLine::DielectronicRecombination.HfC
                                            settings::DielectronicRecombination.Settings;
                                            nuclearPot::Union{Nothing,Radial.Potential}=nothing,
                                            primitives::Union{Nothing,Bsplines.Primitives}=nothing)
+    # AND THE GRID IS THE REMAINING OBSTACLE, not this routine (priority item 34).  The channel needs
+    # E_b(nlj) < E_HFS, and for H-like Bi that is n >= 133: E_HFS = 5.196 eV computed here against 5.084
+    # measured, with the captured electron seeing q = 82.  A 133s orbital reaches ~216 a.u., so a grid that also
+    # resolves 1s at Z = 83 would need some 2200 splines.  Compute a few feasible n and extrapolate the 1/n^3
+    # strength rather than attempting n = 133 directly.
     iComps = DielectronicRecombination.electronicComponents(hfLine.initialLevel)
     mComps = DielectronicRecombination.electronicComponents(hfLine.intermediateLevel)
     Fi     = hfLine.initialLevel.F;      Fm = hfLine.intermediateLevel.F
