@@ -134,6 +134,13 @@ using Printf, ..AngularMomentum, ..Basics, ..Bsplines, ..Continuum, ..Defaults, 
         it corrects the total electron energy for a shift of the i-f transition energy and thereby separates the energies at which the
         continuum orbitals are generated from the sharing coordinates.
     + NoEnergySharings        ::Int64                   ... Number of energy sharings that are used in the computations for each line.
+    + intermediateEnergyFactor ::Float64               ... The top of the INTERMEDIATE energy integral, as a multiple of the on-shell
+                                                           energy E_i + omega - E_green(min).  It must EXCEED 1, or the pole of the
+                                                           photon-first ordering sits exactly on the upper endpoint, where no principal
+                                                           value exists; and it is a convergence parameter, because the intermediate
+                                                           state is VIRTUAL and its electron energy is not bounded by energy
+                                                           conservation. The grid must support a continuum orbital at the resulting top
+                                                           energy.  Default 3.
     + NoIntermediateEnergies  ::Int64                   ... Number of points in the integral over the INTERMEDIATE electron energy of the
         second-order amplitude. This is a different convergence question from `NoEnergySharings` and must be set separately: the sharing
         mesh resolves the OUTER integral over how the excess energy is divided between the two emitted electrons, whereas this mesh decides
@@ -155,6 +162,7 @@ struct Settings  <:  AbstractProcessSettings
     electronEnergyShift       ::Float64 
     NoEnergySharings          ::Int64         
     NoIntermediateEnergies    ::Int64         
+    intermediateEnergyFactor  ::Float64
     maxKappa                  ::Int64 
     calcDifferentialCs        ::Bool 
     printBefore               ::Bool
@@ -168,7 +176,7 @@ end
 `PhotoDoubleIonization.Settings()`  ... constructor for the default values of PhotoDoubleIonization line computations
 """
 function Settings()
-    Settings(Basics.EmMultipole[E1], Basics.UseGauge[Basics.UseCoulomb, Basics.UseBabushkin], Float64[], 0., 0, 0, 0, false, false, 
+    Settings(Basics.EmMultipole[E1], Basics.UseGauge[Basics.UseCoulomb, Basics.UseBabushkin], Float64[], 0., 0, 0, 3., 0, false, false, 
                 LineSelection(), CoulombInteraction(), Multiplet())
 end
 
@@ -177,7 +185,7 @@ end
 `PhotoDoubleIonization.Settings(set::PhotoDoubleIonization.Settings;`
 
         multipoles=..,          gauges=..,                  photonEnergies=..,          
-        electronEnergyShift=.., NoEnergySharings=..,     NoIntermediateEnergies=..,
+        electronEnergyShift=.., NoEnergySharings=..,     NoIntermediateEnergies=..,   intermediateEnergyFactor=..,
         maxKappa=..,            calcDifferentialCs..,       printBefore=..,             lineSelection=..,       
         eeInteraction=..,       gMultiplet=..)
                     
@@ -187,6 +195,7 @@ function Settings(set::PhotoDoubleIonization.Settings;
     multipoles::Union{Nothing,Array{EmMultipole,1}}=nothing,                gauges::Union{Nothing,Array{UseGauge,1}}=nothing,  
     photonEnergies::Union{Nothing,Array{Float64,1}}=nothing,                electronEnergyShift::Union{Nothing,Float64}=nothing,
     NoEnergySharings::Union{Nothing,Int64}=nothing,                         NoIntermediateEnergies::Union{Nothing,Int64}=nothing,
+    intermediateEnergyFactor::Union{Nothing,Float64}=nothing,
     maxKappa::Union{Nothing,Int64}=nothing,                                 calcDifferentialCs::Union{Nothing,Bool}=nothing,      
     printBefore::Union{Nothing,Bool}=nothing,                               lineSelection::Union{Nothing,LineSelection}=nothing, 
     eeInteraction::Union{Nothing,AbstractEeInteraction}=nothing,            gMultiplet::Union{Nothing,Multiplet}=nothing)  
@@ -197,6 +206,7 @@ function Settings(set::PhotoDoubleIonization.Settings;
     if  isnothing(electronEnergyShift)  electronEnergyShiftx= set.electronEnergyShift else electronEnergyShiftx= electronEnergyShift end 
     if  isnothing(NoEnergySharings)     NoEnergySharingsx   = set.NoEnergySharings   else  NoEnergySharingsx   = NoEnergySharings    end 
     if  isnothing(NoIntermediateEnergies)  NoIntermediateEnergiesx = set.NoIntermediateEnergies  else  NoIntermediateEnergiesx = NoIntermediateEnergies  end 
+    if  isnothing(intermediateEnergyFactor)  intermediateEnergyFactorx = set.intermediateEnergyFactor  else  intermediateEnergyFactorx = intermediateEnergyFactor  end 
     if  isnothing(maxKappa)             maxKappax           = set.maxKappa           else  maxKappax           = maxKappa            end 
     if  isnothing(calcDifferentialCs)   calcDifferentialCsx = set.calcDifferentialCs else  calcDifferentialCsx = calcDifferentialCs  end 
     if  isnothing(printBefore)          printBeforex        = set.printBefore        else  printBeforex        = printBefore         end 
@@ -204,7 +214,8 @@ function Settings(set::PhotoDoubleIonization.Settings;
     if  isnothing(eeInteraction)        eeInteractionx      = set.eeInteraction      else  eeInteractionx      = eeInteraction       end 
     if  isnothing(gMultiplet)           gMultipletx         = set.gMultiplet         else  gMultipletx         = gMultiplet          end 
 
-    Settings( multipolesx, gaugesx, photonEnergiesx, electronEnergyShiftx, NoEnergySharingsx, NoIntermediateEnergiesx, maxKappax,
+    Settings( multipolesx, gaugesx, photonEnergiesx, electronEnergyShiftx, NoEnergySharingsx, NoIntermediateEnergiesx,
+                intermediateEnergyFactorx, maxKappax,
                 calcDifferentialCsx, printBeforex, lineSelectionx, eeInteractionx, gMultipletx)
 end
 
@@ -217,6 +228,8 @@ function Base.show(io::IO, settings::PhotoDoubleIonization.Settings)
     println(io, "electronEnergyShift:      $(settings.electronEnergyShift)  ")
     println(io, "photonEnergies:           $(settings.photonEnergies)  ")
     println(io, "NoEnergySharings:         $(settings.NoEnergySharings)  ")
+    println(io, "NoIntermediateEnergies:   $(settings.NoIntermediateEnergies)  ")
+    println(io, "intermediateEnergyFactor: $(settings.intermediateEnergyFactor)  ")
     println(io, "maxKappa:                 $(settings.maxKappa)  ")
     println(io, "calcDifferentialCs:       $(settings.calcDifferentialCs)  ")
     println(io, "printBefore:              $(settings.printBefore)  ")
@@ -392,11 +405,18 @@ end
 """
 function amplitude(::Absorption, Mp::EmMultipole, gauge::EmGauge, omega::Float64, finalLevel::Level, initialLevel::Level,
                    nLevels::Array{Level,1}, nWeights::Array{Float64,1}, grid::Radial.Grid; display::Bool=false, printout::Bool=false,
-                   nOnShell::Union{Nothing,Array{Bool,1}}=nothing)
+                   nOnShell::Union{Nothing,Array{Bool,1}}=nothing, nBlock::Union{Nothing,Array{Int64,1}}=nothing,
+                   nEnergy::Union{Nothing,Array{Float64,1}}=nothing,
+                   energyRange::Union{Nothing,Tuple{Float64,Float64}}=nothing)
     length(nLevels) == length(nWeights)  ||  error("nLevels and nWeights must have the same length.")
     onShell = isnothing(nOnShell) ? falses(length(nLevels)) : nOnShell
     length(nLevels) == length(onShell)   ||  error("nLevels and nOnShell must have the same length.")
     if  length(nLevels) == 0    return( ComplexF64(0.) )    end
+    # The principal value needs the levels grouped by their pole and the integration interval they span; without
+    # all three the old, non-convergent assembly is used, so an un-updated caller changes no number silently.
+    doPV = !isnothing(nBlock)  &&  !isnothing(nEnergy)  &&  !isnothing(energyRange)
+    doPV  &&  ( length(nBlock) == length(nLevels) && length(nEnergy) == length(nLevels)  ||
+                error("nBlock and nEnergy must have the same length as nLevels.") )
 
     # Always ensure the same subshell list for all initial, intermediate and final levels.  Each intermediate
     # level carries a continuum subshell of its own kappa, so every one of them has to enter the merge.
@@ -411,6 +431,9 @@ function amplitude(::Absorption, Mp::EmMultipole, gauge::EmGauge, omega::Float64
     if  printout   printstyled("Compute photo-double $(Mp) ionization amplitude for the transition " *
                                "[$(iLevel.index)-$(fLevel.index)] ... ", color=:light_green)    end
     amplitude = ComplexF64(0.)
+    # The photon-first ordering is the one with the pole, so its numerators are accumulated PER INTERMEDIATE
+    # LEVEL and assembled afterwards; the electron-first ordering has no pole and is summed in place as before.
+    numer     = zeros(ComplexF64, length(nLevels))
 
     for  r = 1:nf
         symr = LevelSymmetry(fLevel.basis.csfs[r].J, fLevel.basis.csfs[r].parity);      if  symr != symf    continue    end
@@ -471,15 +494,17 @@ function amplitude(::Absorption, Mp::EmMultipole, gauge::EmGauge, omega::Float64
                             # points once the two meshes are separated, so it was never the problem.  A correct PV
                             # needs nodes placed symmetrically about the pole, a subtraction of the singular part, or
                             # the interval split AT the pole -- none of which a plain rule does.  Priority item 33.
-                            propagator = onShell[k] ? ComplexF64(0., -pi) : ComplexF64(1. / (eni + omega - enn))
-                            amplitude = amplitude + wn * fLevel.mc[r] * Vee * nLevel.mc[t] * nLevel.mc[tp] * OMp *
-                                                    iLevel.mc[s] * propagator
+                            numer[k] = numer[k] + fLevel.mc[r] * Vee * nLevel.mc[t] * nLevel.mc[tp] * OMp *
+                                                  iLevel.mc[s]
                         end
                     end
                 end
             end
         end
     end
+    amplitude = amplitude + PhotoDoubleIonization.assemblePrincipalValue(numer, nLevels, nWeights, onShell,
+                                    nBlock, nEnergy, energyRange, eni + omega, doPV)
+
     if  printout   printstyled("done. \n", color=:light_green)    end
 
     if  display
@@ -489,6 +514,87 @@ function amplitude(::Absorption, Mp::EmMultipole, gauge::EmGauge, omega::Float64
     end
 
     return( amplitude )
+end
+
+
+"""
+`PhotoDoubleIonization.assemblePrincipalValue(numer::Array{ComplexF64,1}, nLevels::Array{Level,1}, nWeights::Array{Float64,1},
+        onShell::Array{Bool,1}, nBlock::Union{Nothing,Array{Int64,1}}, nEnergy::Union{Nothing,Array{Float64,1}},
+        energyRange::Union{Nothing,Tuple{Float64,Float64}}, ePole::Float64, doPV::Bool)`  
+    ... assembles the photon-first second-order sum from the per-level numerators, as a CAUCHY PRINCIPAL VALUE plus the delta residue;
+        a value::ComplexF64 is returned.
+
+        WHY A PLAIN SUM CANNOT DO IT.  The retarded propagator is  1/(x + i eta) = PV(1/x) - i pi delta(x), and in the photon-first
+        ordering x = E_i + omega - E_n passes through zero at exactly one electron photoionized and the other still bound -- the TS1
+        mechanism this module is built on.  Until 05-Oct-2026 the delta residue was taken at one designated node while every other node
+        divided by the BARE x, and a Gauss-Legendre sum of 1/x through a pole is not a principal value and has no limit: each refinement
+        places nodes nearer the singularity.  Measured on He at 200 eV with maxKappa = 2 and the SHARING mesh held at 9, the total ran
+        4.35e-05, 4.18, 4.44, 5.15, 6.35, 7.99, 9.64e-05 for 3, 5, 9, 15, 25, 41, 61 intermediate points -- more than doubling, with the
+        increments NOT shrinking (+16, +23, +26, +21 %).
+
+        WHAT IS DONE INSTEAD -- SUBTRACTION OF THE SINGULAR PART, which needs no new mesh and no interval splitting:
+
+            PV int_a^b  N(e) / (e* - e)  de   =   int_a^b  [N(e) - N(e*)] / (e* - e)  de   +   N(e*) ln|(e* - a)/(b - e*)|
+
+        The first integrand is regular at the pole -- it tends to -N'(e*) -- so the existing Gauss-Legendre rule integrates it correctly,
+        and the second term is analytic.  The one thing this needs is N(e*), the numerator AT the pole, and that is already computed: it
+        is the flagged on-shell level, which the module generates precisely there.  Nothing else about the quadrature changes.
+
+        WHY THE LEVELS MUST BE GROUPED.  There is one pole PER (Green level, kappa) group, at e* = E_i + omega - E_gLevel, while all
+        groups share one node set.  Subtracting a group's own N(e*) from another group's nodes would be meaningless, so `nBlock` labels
+        the groups and the subtraction is done inside each.
+
+        AND A GROUP WHOSE POLE LIES OUTSIDE THE INTERVAL IS LEFT ALONE.  `generateIntermediateLevels` adds an on-shell level whenever
+        e* > 0, which does not mean e* < b: a pole above the top of the intermediate mesh is not enclosed by the integration range, there
+        is nothing to regularize, and the residue must NOT be taken either -- that channel is simply not reached by this quadrature.  Such
+        a group therefore keeps the plain weighted sum, and its on-shell level is skipped.
+
+        + numer        ::Array{ComplexF64,1}   ... the numerator of each intermediate level, already summed over all CSF indices.
+        + nWeights     ::Array{Float64,1}      ... quadrature weight of each level; the on-shell level carries 1 and is not integrated.
+        + onShell      ::Array{Bool,1}         ... true for the one level per group that sits AT the pole.
+        + nBlock       ::Array{Int64,1}        ... the (Green level, kappa) group of each level, or nothing to fall back.
+        + nEnergy      ::Array{Float64,1}      ... continuum electron energy of each level, or nothing to fall back.
+        + energyRange  ::Tuple{Float64,Float64}... the interval (a, b) the intermediate quadrature spans, or nothing to fall back.
+        + ePole        ::Float64               ... E_i + omega, i.e. the total energy whose crossing defines the pole.
+        + doPV         ::Bool                  ... false reproduces the pre-05-Oct-2026 assembly exactly, for an un-updated caller.
+"""
+function assemblePrincipalValue(numer::Array{ComplexF64,1}, nLevels::Array{Level,1}, nWeights::Array{Float64,1},
+                                onShell::Array{Bool,1}, nBlock::Union{Nothing,Array{Int64,1}},
+                                nEnergy::Union{Nothing,Array{Float64,1}},
+                                energyRange::Union{Nothing,Tuple{Float64,Float64}}, ePole::Float64, doPV::Bool)
+    value = ComplexF64(0.)
+    if  !doPV
+        for  k = 1:length(numer)
+            value = value + nWeights[k] * numer[k] *
+                    ( onShell[k] ? ComplexF64(0., -pi) : ComplexF64(1. / (ePole - nLevels[k].energy)) )
+        end
+        return( value )
+    end
+
+    aRange = energyRange[1];    bRange = energyRange[2]
+    for  block  in  sort(unique(nBlock))
+        ks     = findall(isequal(block), nBlock)
+        kStars = filter(k -> onShell[k], ks)
+        kStar  = isempty(kStars) ? 0 : kStars[1]
+        # Is the pole actually enclosed by the integration range?  Only then is there anything to regularize.
+        enclosed = kStar > 0  &&  aRange < nEnergy[kStar] < bRange
+        if  !enclosed
+            for  k  in  ks
+                onShell[k]  &&  continue
+                value = value + nWeights[k] * numer[k] / (ePole - nLevels[k].energy)
+            end
+            continue
+        end
+        nStar = numer[kStar];    eStar = nEnergy[kStar]
+        for  k  in  ks
+            k == kStar  &&  continue
+            value = value + nWeights[k] * (numer[k] - nStar) / (ePole - nLevels[k].energy)
+        end
+        value = value + nStar * log( (eStar - aRange) / (bRange - eStar) )
+        value = value + nStar * ComplexF64(0., -pi)
+    end
+
+    return( value )
 end
 
 
@@ -511,7 +617,10 @@ end
         Green function is the principal value MINUS i*pi times this residue, and without it the amplitude of an above-threshold process
         comes out exactly real, i.e. with the open channel closed. Levels are added only where e* > 0; a closed channel has no residue.
 
-        A tuple (nLevels, nWeights, nOnShell)::Tuple{Array{Level,1}, Array{Float64,1}, Array{Bool,1}} is returned.
+        A tuple (nLevels, nWeights, nOnShell, nBlock, nEnergy)::Tuple{Array{Level,1}, Array{Float64,1}, Array{Bool,1},
+        Array{Int64,1}, Array{Float64,1}} is returned. nBlock labels the (Green level, kappa) group that each intermediate level belongs
+        to, and nEnergy carries its continuum electron energy; together they let the caller assemble ONE principal-value integral per
+        group, which is what the pole of the photon-first ordering requires -- a group is exactly the set of levels sharing one pole.
 """
 function generateIntermediateLevels(symn::LevelSymmetry, gMultiplet::Multiplet, nm::Nuclear.Model, grid::Radial.Grid,
                                           energyGrid::Radial.GridGL, contSettings::Continuum.Settings, maxKappa::Int64;
@@ -520,6 +629,7 @@ function generateIntermediateLevels(symn::LevelSymmetry, gMultiplet::Multiplet, 
                                           spectators::Union{Nothing,Array{Tuple{Subshell,Float64},1}}=nothing,
                                           onShellTotalEnergy::Union{Nothing,Float64}=nothing)
     nLevels = Level[];    nWeights = Float64[];    nOnShell = Bool[]
+    nBlock  = Int64[];    nEnergy  = Float64[];    block    = 0
 
     # A ONE-BODY operator connects this intermediate level to the final state, so the continuum electron that
     # the photon does NOT act upon must be the very same orbital in both -- same kappa, same energy AND the same
@@ -533,11 +643,13 @@ function generateIntermediateLevels(symn::LevelSymmetry, gMultiplet::Multiplet, 
                 if  !(subsh.kappa in AngularMomentum.allowedKappaSymmetries(symg, symn))    continue    end
                 nOrbital, nPhase = Continuum.generateOrbitalForLevel(en, subsh, gLevel, nm, grid, contSettings;
                                                                     nuclearPot=nuclearPot, primitives=primitives)
+                block = block + 1
                 push!(nLevels,  Basics.generateLevelWithExtraElectron(nOrbital, symn, gLevel))
                 push!(nWeights, 1.0);    push!(nOnShell, false)
+                push!(nBlock,   block);  push!(nEnergy,  en)
             end
         end
-        return( nLevels, nWeights, nOnShell )
+        return( nLevels, nWeights, nOnShell, nBlock, nEnergy )
     end
 
     for  gLevel in gMultiplet.levels
@@ -547,12 +659,13 @@ function generateIntermediateLevels(symn::LevelSymmetry, gMultiplet::Multiplet, 
         symg   = LevelSymmetry(gLevel.J, gLevel.parity)
         for  kappa in AngularMomentum.allowedKappaSymmetries(symg, symn)
             if  abs(kappa) > maxKappa    continue    end
-            shn = Subshell(103, kappa)
+            shn = Subshell(103, kappa);    block = block + 1
             for  (ie, en)  in  enumerate(energyGrid.t)
                 nOrbital, nPhase = Continuum.generateOrbitalForLevel(en, shn, gLevel, nm, grid, contSettings;
                                                                     nuclearPot=nuclearPot, primitives=primitives)
                 push!(nLevels,  Basics.generateLevelWithExtraElectron(nOrbital, symn, gLevel))
                 push!(nWeights, energyGrid.wt[ie]);    push!(nOnShell, false)
+                push!(nBlock,   block);                push!(nEnergy,  en)
             end
             # The residue of the retarded Green function: the SAME numerator, with the partial wave generated at the
             # energy that puts the intermediate state on shell, carrying weight 1 because the orbitals are normalized
@@ -564,12 +677,13 @@ function generateIntermediateLevels(symn::LevelSymmetry, gMultiplet::Multiplet, 
                                                                         nuclearPot=nuclearPot, primitives=primitives)
                     push!(nLevels,  Basics.generateLevelWithExtraElectron(nOrbital, symn, gLevel))
                     push!(nWeights, 1.0);    push!(nOnShell, true)
+                    push!(nBlock,   block);  push!(nEnergy,  enStar)
                 end
             end
         end
     end
 
-    return( nLevels, nWeights, nOnShell )
+    return( nLevels, nWeights, nOnShell, nBlock, nEnergy )
 end
 
 
@@ -630,8 +744,25 @@ function  computeAmplitudesProperties(line::PhotoDoubleIonization.Line, nm::Nucl
     # NOT explain the energy trend of the STATUS block, which is a factor of six.  The added
     # region only carries weight once the second-order denominator has the sign that puts the
     # on-shell point inside it; see the note at that denominator.
-    eGreenMin    = minimum(lv.energy for lv in settings.gMultiplet.levels)
-    maxIntEnergy = line.initialLevel.energy + line.photonEnergy - eGreenMin
+    #
+    # AND THE LIMIT MUST LIE ABOVE THE ON-SHELL POINT, NOT AT IT -- found 05-Oct-2026, and it is why priority
+    # item 33's three proposed remedies could not work.  `onShellEnergy` below is exactly the limit this code used
+    # until today, so for the LOWEST Green level the pole of the photon-first ordering sat precisely ON the upper
+    # endpoint.  An endpoint pole is not a principal value and has no value at all: the integral diverges
+    # logarithmically from one side, and no symmetric node placement, no subtraction and no splitting AT the pole
+    # can regularize what has no other side.  Measured: subtracting the singular part on the old range left the
+    # divergence untouched -- the totals merely shifted by a constant -2.37e-05 (the dropped residue) while the
+    # increments stayed at +26, +30, +29, +23 % for 15, 25, 41, 61 points.
+    #
+    # THE PHYSICAL POINT IS THAT AN INTERMEDIATE STATE IS VIRTUAL.  The second-order sum runs over a COMPLETE set,
+    # and the intermediate electron's energy is not restricted by energy conservation -- only the FINAL state's is.
+    # Cutting the integral off at the energetically allowed maximum is therefore wrong on its own terms, quite
+    # apart from where it puts the pole.  `intermediateEnergyFactor` extends the range beyond it; it must exceed 1,
+    # and because it truncates a complete set it is a convergence parameter like `NoIntermediateEnergies`.
+    eGreenMin      = minimum(lv.energy for lv in settings.gMultiplet.levels)
+    onShellEnergy  = line.initialLevel.energy + line.photonEnergy - eGreenMin
+    intFactor      = settings.intermediateEnergyFactor > 1. ? settings.intermediateEnergyFactor : 3.
+    maxIntEnergy   = intFactor * onShellEnergy
     noIntEnergies    = settings.NoIntermediateEnergies > 0 ? settings.NoIntermediateEnergies : settings.NoEnergySharings
     intermediateGrid = Radial.GridGL(Radial.GridGaussLegendreFinite(), 0.01, maxIntEnergy, noIntEnergies; printout=false)
 
@@ -662,29 +793,38 @@ function  computeAmplitudesProperties(line::PhotoDoubleIonization.Line, nm::Nucl
                 # Only the photon-first ordering has a pole: its denominator E_i + omega - E_n crosses zero at the
                 # sequential point, one electron ejected and the other still bound.  The other ordering's denominator
                 # is E_i - E_n, which stays negative and far from zero, so it is given no on-shell energy.
-                nLevelsI, nWeightsI, nOnShellI = PhotoDoubleIonization.generateIntermediateLevels(symi, settings.gMultiplet, nm, grid,
+                nLevelsI, nWeightsI, nOnShellI, nBlockI, nEnergyI = PhotoDoubleIonization.generateIntermediateLevels(symi, settings.gMultiplet, nm, grid,
                                             intermediateGrid, contSettings, settings.maxKappa;
                                             nuclearPot=nuclearPot, primitives=primitives,
                                             spectators=[(sh1, pw.energy1), (sh2, pw.energy2)])
-                nLevelsF, nWeightsF, nOnShellF = PhotoDoubleIonization.generateIntermediateLevels(ch.symmetry, settings.gMultiplet, nm, grid,
+                nLevelsF, nWeightsF, nOnShellF, nBlockF, nEnergyF = PhotoDoubleIonization.generateIntermediateLevels(ch.symmetry, settings.gMultiplet, nm, grid,
                                             intermediateGrid, contSettings, settings.maxKappa;
                                             nuclearPot=nuclearPot, primitives=primitives,
                                             onShellTotalEnergy = line.initialLevel.energy + line.photonEnergy)
                 nLevels  = vcat(nLevelsI,  nLevelsF)
                 nWeights = vcat(nWeightsI, nWeightsF)
                 nOnShell = vcat(nOnShellI, nOnShellF)
+                # The two sets are assembled as ONE sum, so the second set's group labels are offset: a group is
+                # the set of levels sharing one pole, and a label reused across the two sets would subtract one
+                # group's on-shell numerator from the other group's nodes.
+                nOffset  = isempty(nBlockI) ? 0 : maximum(nBlockI)
+                nBlock   = vcat(nBlockI,  nBlockF .+ nOffset)
+                nEnergy  = vcat(nEnergyI, nEnergyF)
                 newAmps  = MultipoleAmplitude[]
                 for  ma in ch.amplitudes
                     mp = ma.multipole
                     if  string(mp)[1] == 'E'
                         ampC = PhotoDoubleIonization.amplitude(Absorption(), mp, Basics.Coulomb,   line.photonEnergy, cLevel,
-                                                               newiLevel, nLevels, nWeights, grid; printout=printout, nOnShell=nOnShell)
+                                                               newiLevel, nLevels, nWeights, grid; printout=printout, nOnShell=nOnShell,
+                                                               nBlock=nBlock, nEnergy=nEnergy, energyRange=(0.01, maxIntEnergy))
                         ampB = PhotoDoubleIonization.amplitude(Absorption(), mp, Basics.Babushkin, line.photonEnergy, cLevel,
-                                                               newiLevel, nLevels, nWeights, grid; printout=printout, nOnShell=nOnShell)
+                                                               newiLevel, nLevels, nWeights, grid; printout=printout, nOnShell=nOnShell,
+                                                               nBlock=nBlock, nEnergy=nEnergy, energyRange=(0.01, maxIntEnergy))
                         push!(newAmps, MultipoleAmplitude(mp, EmPropertyC(ampC, ampB)))
                     else
                         ampM = PhotoDoubleIonization.amplitude(Absorption(), mp, Basics.Magnetic,  line.photonEnergy, cLevel,
-                                                               newiLevel, nLevels, nWeights, grid; printout=printout, nOnShell=nOnShell)
+                                                               newiLevel, nLevels, nWeights, grid; printout=printout, nOnShell=nOnShell,
+                                                               nBlock=nBlock, nEnergy=nEnergy, energyRange=(0.01, maxIntEnergy))
                         push!(newAmps, MultipoleAmplitude(mp, EmPropertyC(ampM, ampM)))
                     end
                 end
