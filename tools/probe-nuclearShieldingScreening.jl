@@ -140,21 +140,29 @@ function probe(name::String, Z::Float64, confs::String; nIter::Int=6, mix::Float
     return( history )
 end
 
-println("\n  ITEM 43:  SELF-CONSISTENCY, WITH AND WITHOUT THE EXCHANGE RESPONSE")
+# AND THE QUESTION BELOW WAS THE WRONG ONE, 04-Oct-2026.  It asks whether the iteration converges, because the
+# Z scan gave +167 % at Z = 80 against +4.8 % at Z = 82 in the same isoelectronic family.  The iteration
+# converges perfectly; what was wrong was its INPUT.  The uncoupled gamma of Hg(2+) on its recommended grid is
+# -21.49 against -62.00 converged, a factor of 2.9, because that ion's 4f^14 5d^10 shells need some 27 B-splines
+# per a.u. and the grid supplies 6.4.  A percentage change computed against a denominator threefold wrong tells
+# nothing about screening.  Re-run with each ion's hp halved until its uncoupled gamma has settled before asking
+# the screening question again -- `tools/probe-nuclearShieldingDensity.jl` gives the recipe.
+#
+println("\n  IS THE LOOP CONVERGING?  The Z scan of 04-Oct gave +167 % at Z = 80 and +4.8 % at Z = 82 in the")
+println("  SAME isoelectronic family, and a SIGN FLIP of gamma itself for Bi(3+).  Neither is physical, so the")
+println("  question is no longer 'what does self-consistency do' but 'does this iteration converge at all'.")
+println("  Ba(2+) is the control: the Z scan put it with the well-behaved group at -11.0 %.")
 println("  " * "="^112)
-println("  f_eff = f_ext + 0.4 Y_2[drho] (+ dV_x),  mixing 0.5, 16 steps.  The exchange kernel is the local")
-println("  derivative of the SAME Slater term JAC's DFS mean field already uses -- no new functional.")
-println("  " * "-"^112)
-@printf("  %-8s %5s %11s %13s %9s %13s %9s   %s\n",
-        "ion", "Z", "uncoupled", "direct only", "change", "+ exchange", "change", "converged?")
-for (name, Z, confs) in (("Y^3+", 39.0, "[Kr]"), ("In^3+", 49.0, "[Kr] 4d^10"), ("Th^4+", 90.0, "[Rn]"))
-    hD = probe(name, Z, confs; nIter=16, mix=0.5, withExchange=false)
-    hX = probe(name, Z, confs; nIter=16, mix=0.5, withExchange=true)
-    sp = max(maximum(hD[13:16])-minimum(hD[13:16]), maximum(hX[13:16])-minimum(hX[13:16]))
-    @printf("  %-8s %5.0f %11.2f %13.2f %+8.1f %% %13.2f %+8.1f %%   spread %.3f\n",
-            name, Z, hD[1], hD[16], 100*(abs(hD[16])-abs(hD[1]))/abs(hD[1]),
-            hX[16], 100*(abs(hX[16])-abs(hX[1]))/abs(hX[1]), sp)
+for (name, Z, confs) in (("Ba^2+", 56.0, "[Xe]"), ("Hg^2+", 80.0, "[Xe] 4f^14 5d^10"),
+                         ("Bi^3+", 83.0, "[Xe] 4f^14 5d^10 6s^2"), ("Th^4+", 90.0, "[Rn]"))
+    h = probe(name, Z, confs; nIter=24, mix=0.5, withExchange=true)
+    @printf("\n  %-7s Z = %2.0f   %s\n", name, Z, confs)
+    @printf("      iterations  1-8 : ");   for g in h[1:8]    @printf("%10.2f", g)   end;   println()
+    @printf("      iterations  9-16: ");   for g in h[9:16]   @printf("%10.2f", g)   end;   println()
+    @printf("      iterations 17-24: ");   for g in h[17:24]  @printf("%10.2f", g)   end;   println()
+    sp = maximum(h[21:24]) - minimum(h[21:24])
+    @printf("      spread over the last four: %.4f   ->  %s\n", sp,
+            sp < 0.01 ? "converged" : (sp < 1.0 ? "SLOW" : "NOT CONVERGED"))
     flush(stdout)
 end
-println("  " * "-"^112)
-println("  Th(4+) is the one that matters: -184.95 uncoupled against 110-120 extracted from the CaF2 data.")
+println("\n  " * "="^112)

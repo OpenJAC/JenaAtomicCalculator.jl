@@ -257,4 +257,51 @@ elseif  false
     println("  " * "-"^62)
     println("  The rise at Z = 90 is the finding, and it is why priority item 43 was rewritten rather than closed.")
     #
+
+elseif  false
+    # Last visit:      04-Oct-2026
+    # Last successful: 04-Oct-2026 -- THE GRID, AND THE ONE THING THAT DECIDES WHETHER A SHIELDING FACTOR IS REAL.
+    #   gamma_inf is NOT box-dependent, which is the opposite of what was believed for a day.  What decides it is
+    #   the SPLINE DENSITY, nsL / r_box.  Hold that fixed and the box may be enlarged tenfold with no change;
+    #   let it fall and the number goes wrong smoothly, through the sign and beyond.
+    #   The cause is one line in `Basics.recommendedGrid`: hp = r_box/300 keeps the number of outer points
+    #   roughly FIXED however large the box, so the B-spline basis does not grow with the box.  Pass hp
+    #   explicitly and the problem disappears.
+    #   MEASURED HERE, on Y(3+) [Kr]:  r_box 8.7 at 10.7 splines/a.u. gives -36.18, and r_box 92 at 5.6 gives
+    #   -36.18 as well -- while r_box 92 on the DEFAULT hp, at 1.07 splines/a.u., gives -41.98.
+    #   AND PASSING THE FLOOR PROVES NOTHING, because the density an ion NEEDS belongs to the ion.  Refined by
+    #   halving hp four times, the four reference ions converge to -36.14, -102.86, -189.72 and -62.00, and their
+    #   own recommended grids are 0.1 %, 1.0 %, 2.5 % and 190 % away from those -- the last being Hg(2+), whose
+    #   4f^14 5d^10 shells need 27 splines/a.u. where Y(3+) needs 11.  So the real test is to HALVE hp and
+    #   recompute; `tools/probe-nuclearShieldingDensity.jl` does that, and the cancellation ratio A1 is what
+    #   flags the Hg(2+) default grid (1.82 against 0.33-0.44 for the three sound ones).
+    println("\nCp-h)  What the spline density does to gamma_inf, and what the two guards do and do not catch.")
+    cpConf = Configuration("[Kr]");    cpNm = Nuclear.Model(39.0)
+    cpAsf  = AsfSettings(AsfSettings(); scField=Basics.DFSField(1.0))
+    @printf("\n  %-28s %8s %6s %10s %12s %7s\n", "grid", "r_box", "nsL", "per a.u.", "gamma_inf", "A1")
+    println("  " * "-"^80)
+    cpRows = Tuple{String,Float64,Union{Nothing,Float64}}[("recommended, default hp", 0.0, nothing),
+                   ("tenfold box, hp HELD FIXED", 92.0, 0.0287), ("tenfold box, default hp", 92.0, nothing)]
+    for  (cpWhat, cpRbox, cpHp)  in  cpRows
+        cpG = cpRbox <= 0.      ?  Basics.recommendedGrid([cpConf], cpNm; printout=false)             :
+              isnothing(cpHp)   ?  Basics.recommendedGrid([cpConf], cpNm; rbox=cpRbox, printout=false) :
+                                   Basics.recommendedGrid([cpConf], cpNm; rbox=cpRbox, hp=cpHp, printout=false)
+        setDefaults("standard grid", cpG)
+        cpT = tempname()
+        cpO = open(cpT,"w") do io;  redirect_stdout(io) do
+                  cpMp = perform(Atomic.Computation(Atomic.Computation(); name="Y^3+", grid=cpG, nuclearModel=cpNm,
+                                 configs=[cpConf], asfSettings=cpAsf); output=true)["multiplet:"]
+                  NuclearShielding.computeOutcomes(cpMp, cpNm, cpG, NuclearShielding.Settings(); output=true)[1]
+              end  end
+        rm(cpT, force=true)
+        cpA1 = maximum(abs(c.value) for c in cpO.contributions) / abs(cpO.gammaE2)
+        @printf("  %-28s %8.1f %6d %10.2f %12.2f %7.2f\n", cpWhat, cpG.tL[end], cpG.nsL,
+                cpG.nsL/cpG.tL[end], cpO.gammaE2, cpA1)
+        flush(stdout)
+    end
+    println("  " * "-"^80)
+    println("  The first two agree to five figures on boxes a factor of ten apart; the third, whose basis was not")
+    println("  allowed to grow with its box, is 16 % wrong -- and its cancellation ratio is as healthy as theirs,")
+    println("  which is why the GRID check and the CANCELLATION check are both needed and still not sufficient.")
+    #
 end

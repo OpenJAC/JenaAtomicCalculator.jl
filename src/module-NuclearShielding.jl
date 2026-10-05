@@ -531,7 +531,148 @@ function computeAmplitudesProperties(outcome::NuclearShielding.Outcome, nm::Nucl
         fEff    = (1 - settings.scfMixing) .* fEff .+ settings.scfMixing .* (fExt .+ induced)
     end
 
+    checkCancellation(contributions, gamma)
+
     return( Outcome(level, gamma, 0., model, contributions) )
+end
+
+
+"""
+`NuclearShielding.checkCancellation(contributions::Array{Contribution,1}, gamma::Float64)`
+    ... warns when the channel sum that produced `gamma` shows the signature of a radial box the response is not
+        converged in; nothing::Nothing is returned.
+
+        WHY A CHECK OF THIS KIND IS NEEDED AT ALL.  gamma_inf is a signed sum over channels, and a sum whose
+        terms are individually larger than their total has lost its leading figures to cancellation; whatever
+        else is true of such a number, it is not one to quote.
+
+        AND ON THE GRIDS A USER ACTUALLY GETS, IT IS WELL CALIBRATED.  Measured 04-Oct-2026 on the four ions'
+        own `Basics.recommendedGrid` grids, against values converged by halving hp four times:
+
+            Y(3+)    A1 = 0.33     -36.18  against  -36.14 converged      0.1 % out
+            Ba(2+)   A1 = 0.35    -101.83  against -102.86                1.0 % out
+            Th(4+)   A1 = 0.44    -184.96  against -189.72                2.5 % out
+            Hg(2+)   A1 = 1.82     -21.49  against  -62.00            a FACTOR OF 2.9 out
+
+        So the one default grid that was grossly wrong is the one this check flags, and it flags no other.  The
+        Hg(2+) ratio falls to 0.38 at the first refinement and sits at 0.36 once the number has settled, so the
+        quantity tracks the error rather than merely correlating with it.
+
+        WHAT IS TESTED, AND WHY THESE TWO.  Both are pure cancellation measures of the channel sum:
+
+            A1 = max |contribution| / |gamma|       one channel larger than the answer it helped produce
+            A2 = sum |contribution| / |gamma|       the usual cancellation factor of a signed sum
+
+        A1 is the one that gates; A2 follows it (1.1 where A1 is healthy, 6.6 at Hg(2+)) and is reported in the
+        warning because it says how much of the sum cancelled, but it adds no discrimination of its own.
+
+        IT IS A FLOOR AND NOT A SUFFICIENT TEST, and this must be said plainly because the first version of this
+        docstring claimed a clean separation that does not exist.  A DELIBERATELY STARVED B-SPLINE BASIS need not
+        cancel at all: Y(3+) in a 93 a.u. box on the default hp, 1.07 splines per a.u., is 16 % wrong with
+        A1 = 0.29 -- as healthy-looking as its own correct answer.  Those cases are caught instead by
+        `checkGridDensity`, which tests the knot sequence and runs before any orbital exists.  Worse, one
+        measured case defeats both: Hg(2+) at 4.70 splines per a.u. in a 30 a.u. box returns -2.6e+07 with
+        A1 = 0.55.  The two checks are therefore complementary, and not even together are they sufficient -- only
+        the refinement test is, and `checkGridDensity` names it.
+
+        ONE CANDIDATE WAS TRIED AND REJECTED, recorded so it is not retried: the LOCALITY ratio, the energy
+        denominator of the dominant term over the outermost binding energy.  It looks compelling -- a healthy
+        response is dominated by LOW-lying excitations of the OUTER shells, and in the bad cases the dominant
+        channel moves to a deep inner s shell at tens of Hartree.  But Ba(2+) in a 30 a.u. box gives a locality
+        ratio of 55 while its gamma is unmoved to five figures, so it cries wolf.  Cancellation gates; locality
+        only describes.
+
+        IT WARNS AND DOES NOT REFUSE.  The remedy is cheap and certain, so a warning that names it costs the user
+        one run; a refusal would stop a calculation whose default grid is, for three ions in four, good to 2.5 %.
+"""
+function checkCancellation(contributions::Array{Contribution,1}, gamma::Float64)
+    (isempty(contributions)  ||  abs(gamma) < 1.0e-30)   &&   return( nothing )
+    a1 = maximum(abs(c.value) for c in contributions) / abs(gamma)
+    a2 = sum(abs(c.value) for c in contributions) / abs(gamma)
+    if  a1 > 1.5
+        @warn("NuclearShielding: this gamma is probably NOT CONVERGED IN THE RADIAL MESH.\n" *
+              "   The largest single channel is " * @sprintf("%.2f", a1) * " times the total (healthy: below 0.8), " *
+              "and the sum of the magnitudes is " * @sprintf("%.1f", a2) * " times it.\n" *
+              "   Measured 04-Oct-2026 on the recommended grids of four ions: this ratio is 0.33, 0.35 and 0.44 " *
+              "where gamma is within 2.5 % of its converged value, and 1.82 where it is a FACTOR OF 2.9 out.\n" *
+              "   REMEDY: halve hp and recompute, keeping the box.  Hg(2+) goes -21.49 -> -58.93 -> -63.43 -> " *
+              "-61.95 -> -62.00 as hp is halved four times, and this ratio falls to 0.36 as it settles.  " *
+              "tools/probe-nuclearShieldingDensity.jl does this.",
+              maxlog=3)
+    end
+
+    return( nothing )
+end
+
+
+"""
+`NuclearShielding.checkGridDensity(grid::Radial.Grid)`  
+    ... tests, BEFORE any orbital is generated, whether the given grid carries enough B-splines to represent the
+        Sternheimer response at all, and warns naming the remedy if it does not; nothing is returned.
+
+        WHAT IS TESTED, AND WHY IT CAN BE TESTED THIS EARLY.  The number tested is the SPLINE DENSITY,
+        nsL / r_box, the number of large-component splines per Bohr radius of box.  It is a property of the KNOT
+        SEQUENCE alone, so it is known the moment the grid exists -- no orbital, no SCF and no response is needed
+        to evaluate it, which is what makes it usable as an entry condition.
+
+        THIS IS A FLOOR AND NOT A CRITERION, AND THE DISTINCTION IS THE WHOLE POINT.  No grid measured below 4
+        splines per a.u. has returned a sound gamma_inf, so a grid below that is rejected cheaply.  But PASSING
+        establishes nothing whatever, and two measurements of 04-Oct-2026 say so in the strongest terms.  The
+        approach to the converged value is GRADUAL rather than a threshold -- Th(4+) in a 62 a.u. box gives
+        -48.1, -135.6, -167.2 and -185.0 at 1.78, 2.32, 2.93 and 4.02 splines per a.u. -- and the density a given
+        ion NEEDS is a property of the ion, not of the grid: Y(3+) [Kr] is converged at 10.7 splines per a.u. to
+        0.1 %, while Hg(2+) [Xe] 4f^14 5d^10 at 6.4 is a FACTOR OF 2.9 out (-21.49 against -62.00) and needs 27
+        before it settles.  And at 4.70 per a.u. in a 30 a.u. box Hg(2+) returns -2.6e+07, seven orders of
+        magnitude wrong, with this check and `checkCancellation` BOTH silent.
+
+        THE PRESCRIPTION IS THEREFORE A REFINEMENT TEST, NOT A THRESHOLD.  Keep the box `Basics.recommendedGrid`
+        chooses, then recompute with hp HALVED and compare.  If gamma_inf moves by more than the accuracy wanted,
+        halve again; when two successive densities agree, the number is converged in the mesh, and -- this being
+        the useful part -- it is then also independent of the box, so no separate box study is needed.  Measured
+        04-Oct-2026 with hp halved four times, the four reference ions converge to
+
+            Y(3+)   -36.14      Ba(2+)  -102.86      Th(4+)  -189.72      Hg(2+)  -62.00
+
+        and their recommended grids are 0.1 %, 1.0 %, 2.5 % and 190 % away from those.  It is the only test here
+        that caught every bad case.  `tools/probe-nuclearShieldingDensity.jl` performs it.
+
+        WHAT THIS CORRECTS, worth stating because the opposite was believed for a day.  gamma_inf is NOT
+        box-dependent, and the apparent box dependence that made Th(4+) run -185 -> -136 -> +30 -> +287 over
+        r_box = 14 to 91 was an artefact of ONE line: `Basics.recommendedGrid` sets hp = r_box/300, which holds
+        the number of points in the outer region roughly FIXED however large the box, so the spline basis does
+        not grow with it and each spline is asked to cover more space.  Hold hp fixed instead -- pass it
+        explicitly -- and the box may be enlarged freely: Y(3+) gives -36.18 at r_box = 8.7 and -36.18 at 92.3, a
+        tenfold box, and Th(4+) -184.98 at 13.7 against -184.96 at 62.2.  The same mechanism is documented at the
+        point where it is caused, in `Basics.recommendedGrid`, where it was measured on continuum normalization
+        on 01-Sep-2026; this is the bound-response face of it.
+
+        AND IT IS COMPLEMENTARY TO `checkCancellation`, NOT REDUNDANT WITH IT.  The two catch disjoint failures.
+        A starved basis need not cancel: Y(3+) at 1.07 splines per a.u. is 16 % wrong with a cancellation ratio
+        of 0.29, as healthy-looking as its own correct answer, so cancellation misses it completely.  Conversely
+        Hg(2+) on its own default grid cancels at 2.24 on a density this check passes.  Both are kept; neither is
+        sufficient, and as the Hg(2+) 30 a.u. case shows, not even both together are.
+"""
+function checkGridDensity(grid::Radial.Grid)
+    rbox = grid.tL[end]
+    rbox <= 0.   &&   return( nothing )
+    density = grid.nsL / rbox
+    if  density < 4.0
+        @warn("NuclearShielding: this GRID IS TOO SPARSE for a shielding factor, and the number it returns will " *
+              "be wrong rather than inaccurate.\n" *
+              "   The grid carries " * @sprintf("%.2f", density) * " large-component B-splines per a.u. " *
+              "(nsL = $(grid.nsL) over r_box = " * @sprintf("%.1f", rbox) * " a.u.); no grid below 4 per a.u. has " *
+              "yet given a sound gamma_inf.\n" *
+              "   Measured 04-Oct-2026: Th(4+) in a 62 a.u. box gives -48.1, -135.6, -167.2 and -185.0 at 1.78, " *
+              "2.32, 2.93 and 4.02 splines per a.u., so the error grows smoothly as the basis is starved.\n" *
+              "   REMEDY: the box is not the problem and need not be shrunk.  Basics.recommendedGrid defaults to " *
+              "hp = r_box/300, which does not let the spline basis grow with the box; pass hp explicitly instead, " *
+              "e.g. Basics.recommendedGrid(configs, nm; rbox=..., hp=0.03), and the box may be as large as wanted.\n" *
+              "   AND PASSING THIS CHECK PROVES NOTHING: the density an ion needs depends on the ion.  Halve hp " *
+              "and recompute; quote gamma_inf only once two successive densities agree.",
+              maxlog=3)
+    end
+
+    return( nothing )
 end
 
 
@@ -657,6 +798,7 @@ function computeOutcomes(multiplet::Multiplet, nm::Nuclear.Model, grid::Radial.G
     printstyled("NuclearShielding.computeOutcomes(): The computation of the shielding factors starts now ... \n", color=:light_green)
     printstyled("--------------------------------------------------------------------------------------------- \n", color=:light_green)
     println("")
+    NuclearShielding.checkGridDensity(grid)
     outcomes = NuclearShielding.determineOutcomes(multiplet, settings)
     if  settings.printBefore    NuclearShielding.displayOutcomes(outcomes)    end
 
