@@ -225,6 +225,6 @@ function perform(scheme::ImpactExcitationScheme, comp::Cascade.Computation; outp
             Cascade.writeDataFile(filename, results)
         end
     end
-    ## return( results )
-    return( results )
+    ## return( results isa Dict{String,Any} ? Basics.PerformResults(results) : results )
+    return( results isa Dict{String,Any} ? Basics.PerformResults(results) : results )
 end

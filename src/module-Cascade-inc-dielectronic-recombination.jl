@@ -418,8 +418,8 @@ function perform(scheme::DielectronicRecombinationScheme, comp::Cascade.Computat
                                                 "\n   results = JLD2.load(''$filename'')    ... to load the results back from file." )      end      
         Cascade.writeDataFile(filename, results)
     end
-    ## return( results )
-    return( results )
+    ## return( results isa Dict{String,Any} ? Basics.PerformResults(results) : results )
+    return( results isa Dict{String,Any} ? Basics.PerformResults(results) : results )
 end
 
 
@@ -532,7 +532,7 @@ function perform(scheme::Cascade.DielectronicCaptureScheme, comp::Cascade.Comput
         Cascade.writeDataFile(filename, results)
     end
 
-    return( results )
+    return( results isa Dict{String,Any} ? Basics.PerformResults(results) : results )
 end
 
 

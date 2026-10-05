@@ -162,7 +162,7 @@ function  perform(scheme::Plasma.SatelliteDiagnosticScheme, computation::Plasma.
     println("SatelliteDiagnosticScheme computation complete ...")
     Defaults.warn(PrintWarnings())
     Defaults.warn(ResetWarnings())
-    return( results )
+    return( results isa Dict{String,Any} ? Basics.PerformResults(results) : results )
 end
 
 

@@ -18,7 +18,7 @@ function Basics.generate(representation::AtomicState.Representation; output::Boo
     Defaults.warn(PrintWarnings())
     Defaults.warn(ResetWarnings())
     println(" ")
-    return( results )
+    return( results isa Dict{String,Any} ? Basics.PerformResults(results) : results )
 end
 
 
@@ -43,7 +43,7 @@ function Basics.generate(repType::AtomicState.MeanFieldBasis, rep::AtomicState.R
     basis          = multiplet.levels[1].basis
     if output    results = Base.merge( results, Dict("mean-field basis" => basis) )          end
     
-    return( results )
+    return( results isa Dict{String,Any} ? Basics.PerformResults(results) : results )
 end
 
 
@@ -72,7 +72,7 @@ function Basics.generate(repType::AtomicState.MeanFieldMultiplet, rep::AtomicSta
         results = Base.merge( results, Dict("mean-field multiplet" => multiplet) )          
     end
     
-    return( results )
+    return( results isa Dict{String,Any} ? Basics.PerformResults(results) : results )
 end
 
 
@@ -129,7 +129,7 @@ function Basics.generate(repType::AtomicState.OneElectronSpectrum, rep::AtomicSt
         results = Base.merge( results, Dict("orbitals" => orbitals) )              
     end
     
-    return( results )
+    return( results isa Dict{String,Any} ? Basics.PerformResults(results) : results )
 end
 
 
@@ -187,7 +187,7 @@ function Basics.generate(repType::AtomicState.CiExpansion, rep::AtomicState.Repr
     multiplet  = Hamiltonian.performCI(basis,  nModel, rep.grid, asfSettings; printout=true) 
     if output    results = Base.merge( results, Dict("CI multiplet" => Multiplet("CI multiplet:", multiplet.levels)) )              end
     
-    return( results )
+    return( results isa Dict{String,Any} ? Basics.PerformResults(results) : results )
 end
 
 
@@ -379,7 +379,7 @@ function Basics.generate(repType::AtomicState.RasExpansion, rep::AtomicState.Rep
         if  typeof(step.treatment) == Basics.Variational    priorMultiplet = multiplet    end
     end
     
-    return( results )
+    return( results isa Dict{String,Any} ? Basics.PerformResults(results) : results )
 end
 
 
@@ -453,7 +453,7 @@ function Basics.generate(repType::AtomicState.GreenExpansion, rep::AtomicState.R
     if  printSummary    Basics.display(iostream, channels)         end
     
     if output    results = Base.merge( results, Dict("Green channels" => channels) )   end
-    return( results )
+    return( results isa Dict{String,Any} ? Basics.PerformResults(results) : results )
 end
 
 

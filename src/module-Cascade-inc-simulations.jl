@@ -704,7 +704,7 @@ function perform(simulation::Cascade.Simulation; output::Bool=false)
         results = Base.merge( results, Dict("name:"         => simulation.name) )
         results = Base.merge( results, Dict("property:"     => simulation.property) )
         results = Base.merge( results, Dict("data:"         => wa) )
-        return( results )
+        return( results isa Dict{String,Any} ? Basics.PerformResults(results) : results )
     end
 
     return( nothing )
@@ -905,7 +905,7 @@ function simulate(property::Cascade.EaCrossSections, method::Cascade.AbstractSim
     end
     Cascade.displayEaCrossSections(stdout, results, property)
     if  printSummary   Cascade.displayEaCrossSections(iostream, results, property)    end
-    return( results )
+    return( results isa Dict{String,Any} ? Basics.PerformResults(results) : results )
 end
 
 

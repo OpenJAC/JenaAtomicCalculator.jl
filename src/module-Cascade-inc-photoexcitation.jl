@@ -227,6 +227,6 @@ function perform(scheme::PhotoExcitationScheme, comp::Cascade.Computation; outpu
             Cascade.writeDataFile(filename, results)
         end
     end
-    ## return( results )
-    return( results )
+    ## return( results isa Dict{String,Any} ? Basics.PerformResults(results) : results )
+    return( results isa Dict{String,Any} ? Basics.PerformResults(results) : results )
 end

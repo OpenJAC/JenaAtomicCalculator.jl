@@ -277,5 +277,5 @@ function perform(scheme::ElectronIonizationScheme, comp::Cascade.Computation; ou
         end
     end
     #
-    return( results )
+    return( results isa Dict{String,Any} ? Basics.PerformResults(results) : results )
 end

@@ -74,7 +74,7 @@ function computeCrossSections(theme::Basics.ForPhotoIonization, initialConfigs::
                                   initialConfigs = initialConfigs, finalConfigs = finalConfigs, 
                                   processSettings = photoSettings ); 
         results = perform(comp, output=true)
-        return( results )
+        return( results isa Dict{String,Any} ? Basics.PerformResults(results) : results )
     end
     
     # Print or suppress the standard output
@@ -152,7 +152,7 @@ function computeCrossSections(theme::Basics.ForPhotoRecombination, initialConfig
                                   initialConfigs = initialConfigs, finalConfigs = finalConfigs,
                                   processSettings = phSettings );
         results = perform(comp, output=true)
-        return( results )
+        return( results isa Dict{String,Any} ? Basics.PerformResults(results) : results )
     end
 
     # Print or suppress the standard output
@@ -284,7 +284,7 @@ function computeLevelEnergies(theme::Basics.ForGivenConfigs, configs::Array{Conf
         comp = Atomic.Computation(Atomic.Computation(), name="Level energies",
                                   grid=grid, nuclearModel=Nuclear.Model(Z), configs=confs);
         results = perform(comp, output=true)
-        return( results )
+        return( results isa Dict{String,Any} ? Basics.PerformResults(results) : results )
     end
 
     Ns         = sort( unique( Basics.extractFromConfigurations(Basics.NumberOfElectrons(), configs) ) )
@@ -464,7 +464,7 @@ function computeLifetimes(theme::Basics.ForPhotoEmission, configs::Array{Configu
                                   initialConfigs = configs, finalConfigs = finalConfigs, 
                                   processSettings = photoSettings ); 
         results = perform(comp, output=true)
-        return( results )
+        return( results isa Dict{String,Any} ? Basics.PerformResults(results) : results )
     end
     
     # Print or suppress the standard output
@@ -529,7 +529,7 @@ function computeLifetimes(theme::Basics.ForAutoIonization, configs::Array{Config
                                   initialConfigs = configs, finalConfigs = finalConfigs,
                                   processSettings = augerSettings );
         results = perform(comp, output=true)
-        return( results )
+        return( results isa Dict{String,Any} ? Basics.PerformResults(results) : results )
     end
 
     # Print or suppress the standard output
@@ -630,7 +630,7 @@ function computeProperties(theme::Basics.HyperfineStructure, configs::Array{Conf
                                   configs = configs, asfSettings = settingsx,
                                   propertySettings = [ hfsSettings ] )
         results = perform(comp, output=true)
-        return( results )
+        return( results isa Dict{String,Any} ? Basics.PerformResults(results) : results )
     end
 
     # Print or suppress the standard output
@@ -708,7 +708,7 @@ function computeProperties(theme::Basics.ZeemanStructure, configs::Array{Configu
                                   configs = configs, asfSettings = settingsx,
                                   propertySettings = [ zeemanSettings ] )
         results = perform(comp, output=true)
-        return( results )
+        return( results isa Dict{String,Any} ? Basics.PerformResults(results) : results )
     end
 
     # Print or suppress the standard output
@@ -789,7 +789,7 @@ function computeResonanceStrength(theme::Basics.ForDielectronicRecombination, in
                                          finalConfigs = finalConfs, processSettings = drSettings )
 
         results     = perform(comp, output=true)
-        return( results )
+        return( results isa Dict{String,Any} ? Basics.PerformResults(results) : results )
     end
     
     # Print or suppress the standard output
@@ -866,7 +866,7 @@ function computeTransitionRates(theme::Basics.ForAutoIonization, initialConfigs:
                                 initialConfigs = initialConfigs, finalConfigs = finalConfigs, 
                                 processSettings = augerSettings ); 
         results = perform(comp, output=true)
-        return( results )
+        return( results isa Dict{String,Any} ? Basics.PerformResults(results) : results )
     end
     
     # Print or suppress the standard output
@@ -930,7 +930,7 @@ function computeTransitionRates(theme::Basics.ForPhotoEmission, initialConfigs::
                                   initialConfigs = initialConfigs, finalConfigs = finalConfigs, 
                                   processSettings = photoSettings ); 
         results = perform(comp, output=true)
-        return( results )
+        return( results isa Dict{String,Any} ? Basics.PerformResults(results) : results )
     end
     
     # Print or suppress the standard output
@@ -1430,7 +1430,7 @@ function estimateCrossSections(theme::Basics.ForImpactIonization, initialConfigs
     function atomic_code()
         comp    = Empirical.Computation(name, nucModel, grid, initialConfigs, eiiSettings)
         results = perform(comp, output=true)
-        return( results )
+        return( results isa Dict{String,Any} ? Basics.PerformResults(results) : results )
     end
 
     # Print or suppress the standard output

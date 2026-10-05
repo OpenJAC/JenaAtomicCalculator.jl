@@ -158,6 +158,6 @@ function  perform(scheme::Plasma.LineShiftScheme, computation::Plasma.Computatio
     
     Defaults.warn(PrintWarnings())
     Defaults.warn(ResetWarnings())
-    return( results )
+    return( results isa Dict{String,Any} ? Basics.PerformResults(results) : results )
 end
 

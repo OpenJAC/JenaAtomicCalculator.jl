@@ -670,7 +670,7 @@ function  perform(scheme::Plasma.SahaBoltzmannScheme, computation::Plasma.Comput
     
     Defaults.warn(PrintWarnings())
     Defaults.warn(ResetWarnings())
-    return( results )
+    return( results isa Dict{String,Any} ? Basics.PerformResults(results) : results )
 end
 
 

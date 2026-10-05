@@ -97,5 +97,5 @@ function perform(scheme::ElectronExcitationScheme, comp::Cascade.Computation; ou
         Cascade.writeDataFile(filename, results)
     end
     
-    return( results )
+    return( results isa Dict{String,Any} ? Basics.PerformResults(results) : results )
 end

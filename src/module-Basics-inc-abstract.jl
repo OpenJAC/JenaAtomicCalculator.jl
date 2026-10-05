@@ -2085,6 +2085,57 @@ abstract type  AbstractResultKey                        end
 
 export   AbstractResultKey
 
+
+"""
+`struct  Basics.PerformResults`
+    ... the `Dict{String,Any}` that `perform` returns, wrapped so that a WRONG KEY names the keys that exist
+        instead of raising a bare `KeyError`.  It behaves as the Dict did in every other respect -- `haskey`,
+        `keys`, `get`, `length`, iteration and `merge` all work as before -- so no existing script changes.
+
+    + dict ::Dict{String,Any}   ... the results themselves.
+
+        WHY THIS EXISTS, and the cost it removes.  One `perform` can produce any of FORTY-FOUR keys, carrying
+        spaces, colons and per-module wording -- `"radiative lines:"`, `"photo recombination lines:"` (with a
+        space), `"AutoIonization lines:"`.  Nothing related the key to the settings that produced it and nothing
+        listed the valid ones, so a near miss was indistinguishable from an absent result.  Measured in one week
+        of application work: four separate wrong-key stalls, among them `"photon emission lines:"` for
+        `"radiative lines:"` and `"photoRecombination lines:"` for `"photo recombination lines:"`, each costing a
+        full edit-run cycle.
+
+        A NEAR MISS IS NAMED BUT NOT ACCEPTED.  Where the requested key differs from an existing one only in
+        spacing, case or punctuation, the message says which key was meant -- that alone answers the second stall
+        above -- but it still raises.  Silently accepting a fuzzy key would turn a typo into a different kind of
+        bug, one that returns the wrong result rather than none.
+"""
+struct  PerformResults <: AbstractDict{String,Any}
+    dict ::Dict{String,Any}
+end
+
+
+# The AbstractDict interface, forwarded unchanged: only `getindex` is given new behaviour, and only when the key
+# is absent.  `get` deliberately keeps Base's semantics and returns its default rather than raising.
+Base.length(r::PerformResults)                        = length(r.dict)
+Base.iterate(r::PerformResults)                       = iterate(r.dict)
+Base.iterate(r::PerformResults, st)                   = iterate(r.dict, st)
+Base.keys(r::PerformResults)                          = keys(r.dict)
+Base.values(r::PerformResults)                        = values(r.dict)
+Base.haskey(r::PerformResults, key)                   = haskey(r.dict, key)
+Base.get(r::PerformResults, key, default)             = get(r.dict, key, default)
+Base.setindex!(r::PerformResults, value, key)         = setindex!(r.dict, value, key)
+
+
+"""
+`Basics.normalizeResultKey(key::AbstractString)`
+    ... reduces a results key to its letters and digits in lower case, so that two keys differing only in spacing,
+        case or punctuation compare equal; a `String` is returned.  `"photoRecombination lines:"` and
+        `"photo recombination lines:"` both reduce to `"photorecombinationlines"`.
+"""
+function  normalizeResultKey(key::AbstractString)
+    return( lowercase( filter(c -> isletter(c) || isdigit(c), key) ) )
+end
+
+export   PerformResults
+
 #################################################################################################################################
 #################################################################################################################################
 

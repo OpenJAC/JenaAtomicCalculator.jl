@@ -218,7 +218,7 @@ function  perform(scheme::Plasma.AverageAtomScheme, computation::Plasma.Computat
     
     Defaults.warn(PrintWarnings())
     Defaults.warn(ResetWarnings())
-    return( results )
+    return( results isa Dict{String,Any} ? Basics.PerformResults(results) : results )
 end
 
 

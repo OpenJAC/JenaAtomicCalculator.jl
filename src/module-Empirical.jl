@@ -429,7 +429,7 @@ function Basics.perform(computation::Empirical.Computation; output::Bool=false)
         error("stop b")
     end
     
-    return( results )
+    return( results isa Dict{String,Any} ? Basics.PerformResults(results) : results )
 end
 
 include("module-Empirical-inc-charge-exchange.jl")

@@ -74,5 +74,5 @@ function perform(scheme::PhotoAbsorptionScheme, comp::Cascade.Computation; outpu
         Cascade.writeDataFile(filename, results)
     end
     
-    return( results )
+    return( results isa Dict{String,Any} ? Basics.PerformResults(results) : results )
 end

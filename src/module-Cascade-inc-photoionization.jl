@@ -211,5 +211,5 @@ function perform(scheme::PhotoIonizationScheme, comp::Cascade.Computation; outpu
         end
     end
 
-    return( results )
+    return( results isa Dict{String,Any} ? Basics.PerformResults(results) : results )
 end

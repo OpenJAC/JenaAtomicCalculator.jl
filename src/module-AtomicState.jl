@@ -1309,7 +1309,7 @@ function tryRun(rep::AtomicState.Representation; nSample::Int64=2000, printout::
         println(">> " * "-"^116)
     end
 
-    return( results )
+    return( results isa Dict{String,Any} ? Basics.PerformResults(results) : results )
 end
 
 end # module

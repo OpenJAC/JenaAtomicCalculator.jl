@@ -4,61 +4,20 @@ export  perform
 # 7Apr25
 
 """
-`struct  BasicsAZ.PerformResults`
-    ... the `Dict{String,Any}` that `perform` returns, wrapped so that a WRONG KEY names the keys that exist
-        instead of raising a bare `KeyError`.  It behaves as the Dict did in every other respect -- `haskey`,
-        `keys`, `get`, `length`, iteration and `merge` all work as before -- so no existing script changes.
-
-    + dict ::Dict{String,Any}   ... the results themselves.
-
-        WHY THIS EXISTS, and the cost it removes.  One `perform` can produce any of FORTY-FOUR keys, carrying
-        spaces, colons and per-module wording -- `"radiative lines:"`, `"photo recombination lines:"` (with a
-        space), `"AutoIonization lines:"`.  Nothing related the key to the settings that produced it and nothing
-        listed the valid ones, so a near miss was indistinguishable from an absent result.  Measured in one week
-        of application work: four separate wrong-key stalls, among them `"photon emission lines:"` for
-        `"radiative lines:"` and `"photoRecombination lines:"` for `"photo recombination lines:"`, each costing a
-        full edit-run cycle.
-
-        A NEAR MISS IS NAMED BUT NOT ACCEPTED.  Where the requested key differs from an existing one only in
-        spacing, case or punctuation, the message says which key was meant -- that alone answers the second stall
-        above -- but it still raises.  Silently accepting a fuzzy key would turn a typo into a different kind of
-        bug, one that returns the wrong result rather than none.
-"""
-struct  PerformResults <: AbstractDict{String,Any}
-    dict ::Dict{String,Any}
-end
-
-
-# The AbstractDict interface, forwarded unchanged: only `getindex` is given new behaviour, and only when the key
-# is absent.  `get` deliberately keeps Base's semantics and returns its default rather than raising.
-Base.length(r::PerformResults)                        = length(r.dict)
-Base.iterate(r::PerformResults)                       = iterate(r.dict)
-Base.iterate(r::PerformResults, st)                   = iterate(r.dict, st)
-Base.keys(r::PerformResults)                          = keys(r.dict)
-Base.values(r::PerformResults)                        = values(r.dict)
-Base.haskey(r::PerformResults, key)                   = haskey(r.dict, key)
-Base.get(r::PerformResults, key, default)             = get(r.dict, key, default)
-Base.setindex!(r::PerformResults, value, key)         = setindex!(r.dict, value, key)
-
-
-"""
-`BasicsAZ.normalizeResultKey(key::AbstractString)`
-    ... reduces a results key to its letters and digits in lower case, so that two keys differing only in spacing,
-        case or punctuation compare equal; a `String` is returned.  `"photoRecombination lines:"` and
-        `"photo recombination lines:"` both reduce to `"photorecombinationlines"`.
-"""
-function  normalizeResultKey(key::AbstractString)
-    return( lowercase( filter(c -> isletter(c) || isdigit(c), key) ) )
-end
-
-
-"""
 `BasicsAZ.resultKeyStrings(T::Type)`
     ... gives the string key(s) under which `Basics.perform` stores the result belonging to `T`, where `T` is
         either a settings type or one of the `ResultKeys`; an `Array{String,1}` is returned, EMPTY where the type
         is not one that produces a result.
 
-        IT RETURNS A LIST, not a single string, for one reason: `DielectronicRecombination.Settings` produces
+        IT RETURNS A LIST, AND THERE ARE TWO REASONS.  The first is that JAC stores some quantities under MORE THAN
+        ONE STRING: the Cascade modules write `"autoionization lines:"`, `"photoemission lines:"` and
+        `"photoexcitation lines:"` where `Basics.perform` writes `"AutoIonization lines:"`, `"radiative lines:"`
+        and `"photo-excitation lines:"` -- the same physical quantities under keys differing in case, in spacing
+        or in the word chosen, and `"name"`/`"name:"` differ by a colon.  **One typed key lists every variant, so
+        the caller never meets the second vocabulary at all.**  That is the whole of the maintainer's instruction
+        of 05-Oct-2026 that there should not be two vocabularies, and it needed no renaming to carry out.
+
+        The second reason: `DielectronicRecombination.Settings` produces
         either `"dielectronic recombination lines:"` or `"hyperfine-resolved dielectronic recombination lines:"`
         depending on a field of those very settings.  Asking by TYPE makes that ambiguity disappear for the
         caller -- they ask for the DR result and are handed whichever was computed -- where a string key forced
@@ -91,7 +50,7 @@ function  resultKeyStrings(T::Type)
     T === ReducedDensityMatrix.Settings     &&  return( ["RDM outcomes:"] )
     T === WeakInteractionEnhancement.Settings  &&  return( ["Weak-interaction enhancement outcomes:"] )
     # --- the one process of the computation
-    T === AutoIonization.Settings           &&  return( ["AutoIonization lines:"] )
+    T === AutoIonization.Settings           &&  return( ["AutoIonization lines:", "autoionization lines:"] )
     T === RayleighCompton.Settings          &&  return( ["Rayleigh-Compton lines:"] )
     T === ElectronCapture.Settings          &&  return( ["electron-capture lines:"] )
     T === DoubleAutoIonization.Settings     &&  return( ["Double-Auger lines:"] )
@@ -100,10 +59,10 @@ function  resultKeyStrings(T::Type)
     T === MultiPhotonTransition.Settings    &&  return( ["multi-photon transition lines:"] )
     T === PhotoIonization.Settings          &&  return( ["photoionization lines:"] )
     T === PhotoDoubleIonization.Settings    &&  return( ["Single-photon double-ionization lines:"] )
-    T === PhotoExcitation.Settings          &&  return( ["photo-excitation lines:"] )
+    T === PhotoExcitation.Settings          &&  return( ["photo-excitation lines:", "photoexcitation lines:"] )
     T === PhotoExcitationAutoion.Settings   &&  return( ["photo-excitation-autoionization pathways:"] )
     T === PhotoExcitationFluores.Settings   &&  return( ["photo-excitation-fluorescence pathways:"] )
-    T === PhotoEmission.Settings            &&  return( ["radiative lines:"] )
+    T === PhotoEmission.Settings            &&  return( ["radiative lines:", "photoemission lines:"] )
     T === CoulombExcitation.Settings        &&  return( ["Coulomb excitation lines:"] )
     T === CoulombIonization.Settings        &&  return( ["Coulomb ionization lines:"] )
     T === RadiativeAuger.Settings           &&  return( ["radiative Auger sharings:"] )
@@ -121,12 +80,30 @@ function  resultKeyStrings(T::Type)
     T === PhotoRecombinationInterference.Settings  &&  return( ["photorecombination-interference pathways:"] )
     T === GeneralizedOscillatorStrength.Settings   &&  return( ["generalized oscillator strengths:"] )
 
+    # --- the cascade and simulation results, which have a scheme rather than a settings type
+    T === ResultKeys.CascadeData            &&  return( ["cascade data:"] )
+    T === ResultKeys.CascadeScheme          &&  return( ["cascade scheme"] )
+    T === ResultKeys.Name                   &&  return( ["name", "name:"] )
+    T === ResultKeys.DataFormat             &&  return( ["data format:"] )
+    T === ResultKeys.InitialMultiplets      &&  return( ["initial multiplets:"] )
+    T === ResultKeys.GeneratedMultiplets    &&  return( ["generated multiplets:"] )
+    T === ResultKeys.DielectronicMultiplets &&  return( ["dielectronic multiplets:"] )
+    T === ResultKeys.ImpactExcitedMultiplets   &&  return( ["impact-excited multiplets:"] )
+    T === ResultKeys.PhotoExcitedMultiplets &&  return( ["photoexcited multiplets:"] )
+    T === ResultKeys.PhotoIonizedMultiplets &&  return( ["photoionized multiplets:"] )
+    T === ResultKeys.DielectronicCaptureLines  &&  return( ["dielectronic-capture lines:"] )
+    T === ResultKeys.HollowIonLineData      &&  return( ["hollow-ion line data:"] )
+    T === ResultKeys.PhotoRecombinationLineData &&  return( ["photo-recombination line data:"] )
+    T === ResultKeys.PhotoExcitationLineData   &&  return( ["photoexcitation line data:"] )
+    T === ResultKeys.SimulationData         &&  return( ["data:"] )
+    T === ResultKeys.SimulationProperty     &&  return( ["property:"] )
+
     return( String[] )
 end
 
 
 """
-`Base.getindex(r::BasicsAZ.PerformResults, T::Type)`
+`Base.getindex(r::Basics.PerformResults, T::Type)`
     ... returns the result belonging to the settings type or `ResultKeys` key `T` -- `res[PhotoEmission.Settings]`,
         `res[Hfs.Settings]`, `res[ResultKeys.FinalMultiplet]`.  A wrong name is an `UndefVarError` where it is
         WRITTEN, naming the name, rather than a `KeyError` where the result is used.
@@ -134,7 +111,7 @@ end
         Where `T` is a type this computation did not produce a result for, the error says so and lists the settings
         types and keys that ARE present, translated back from the strings they are still stored under.
 """
-function  Base.getindex(r::PerformResults, T::Type)
+function  Base.getindex(r::Basics.PerformResults, T::Type)
     cands = BasicsAZ.resultKeyStrings(T)
     if  isempty(cands)
         error("Basics.perform(): $T is not a type that labels a result.  Ask by the SETTINGS TYPE that produced " *
@@ -399,5 +376,5 @@ function Basics.perform(computation::Atomic.Computation; output::Bool=false)
     Defaults.warn(ResetWarnings())
     # WRAPPED AT THE RETURN, not at creation: every `results = Base.merge(results, Dict(...))` above keeps working
     # on a plain Dict, so none of the forty-odd accumulation sites in this function had to be touched.
-    return( isnothing(results) ? results : PerformResults(results) )
+    return( isnothing(results) ? results : Basics.PerformResults(results) )
 end

@@ -338,5 +338,5 @@ function  perform(scheme::Liouville.StimulatedRamanScheme, computation::Liouvill
     Defaults.warn(PrintWarnings())
     Defaults.warn(ResetWarnings())
     
-    return( results )
+    return( results isa Dict{String,Any} ? Basics.PerformResults(results) : results )
 end

@@ -321,5 +321,5 @@ function perform(scheme::StepwiseDecayScheme, comp::Cascade.Computation; output:
     else    results = nothing
     end
     
-    return( results )
+    return( results isa Dict{String,Any} ? Basics.PerformResults(results) : results )
 end

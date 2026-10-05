@@ -453,7 +453,7 @@ function  perform(scheme::Plasma.CollisionalRadiativeScheme, computation::Plasma
     println("CollisionalRadiativeScheme computation complete ...")
     Defaults.warn(PrintWarnings())
     Defaults.warn(ResetWarnings())
-    return( results )
+    return( results isa Dict{String,Any} ? Basics.PerformResults(results) : results )
 end
 
 

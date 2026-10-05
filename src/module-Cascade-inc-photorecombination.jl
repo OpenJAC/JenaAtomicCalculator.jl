@@ -301,6 +301,6 @@ function perform(scheme::RadiativeRecombinationScheme, comp::Cascade.Computation
                                                 "\n   results = JLD2.load(''$filename'')    ... to load the results back from file." )      end      
         Cascade.writeDataFile(filename, results)
     end
-    ## return( results )
-    return( results )
+    ## return( results isa Dict{String,Any} ? Basics.PerformResults(results) : results )
+    return( results isa Dict{String,Any} ? Basics.PerformResults(results) : results )
 end
