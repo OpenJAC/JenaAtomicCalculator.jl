@@ -759,6 +759,11 @@ function  computeAmplitudesProperties(line::PhotoDoubleIonization.Line, nm::Nucl
     # Cutting the integral off at the energetically allowed maximum is therefore wrong on its own terms, quite
     # apart from where it puts the pole.  `intermediateEnergyFactor` extends the range beyond it; it must exceed 1,
     # and because it truncates a complete set it is a convergence parameter like `NoIntermediateEnergies`.
+    # PRIORITY ITEM 33 WAS CLOSED HERE, 05-Oct-2026.  Should the intermediate sum again fail to converge, the
+    # quadrature RULE is not the place to look: subtraction of the singular part was implemented first, on the old
+    # range, and left a divergent sequence shifted by a constant.  What matters is that the pole stays INSIDE the
+    # interval, i.e. that `intermediateEnergyFactor` exceeds 1 -- and that factor is itself unconverged at its
+    # default of 3, which is 1.7 % below its factor-8 value.
     eGreenMin      = minimum(lv.energy for lv in settings.gMultiplet.levels)
     onShellEnergy  = line.initialLevel.energy + line.photonEnergy - eGreenMin
     intFactor      = settings.intermediateEnergyFactor > 1. ? settings.intermediateEnergyFactor : 3.
