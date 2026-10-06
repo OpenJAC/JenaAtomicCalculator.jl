@@ -409,8 +409,30 @@ function performSCF(configs::Array{Configuration,1}, nm::Nuclear.Model, grid::Ra
         # initial guess -- that is how it was validated, and a hydrogenic start has no reason to lie in its
         # basin.  Both solvers return a complete, correctly (kink-aware) diagonalized multiplet, so return it
         # directly; falling through would re-diagonalize with the bare, non-kink-aware Hamiltonian.performCI.
-        alSettings = AsfSettings(settings; scField = Basics.ALField())
-        basis      = SelfConsistent.solveAverageLevelField(basis, nm, primitives, alSettings; printout=printout)
+        # THE AVERAGE-LEVEL PRE-PASS IS SKIPPED WHEN THE CALLER HANDS IN ORBITALS IT WANTS KEPT -- 06-Oct-2026.
+        # It exists because a rotation started from hydrogenic functions wastes its first iterations finding a mean
+        # field, so it stays the default.  But it optimizes the configuration AVERAGE, a DIFFERENT functional from
+        # the level energy the rotation then minimizes, and it moves every subshell not named in frozenSubshells --
+        # so a caller who already had good orbitals had them silently replaced.
+        #   THE NOTE AT solveAverageLevelField's frozen-subshell block (31-Aug-2026) identified exactly this and
+        # fixed HALF of it: frozen now means frozen at the value handed in.  This is the other half, for orbitals a
+        # caller wants KEPT but still VARIED -- which is what a restricted-active-space layer needs when it
+        # RELEASES the earlier shells instead of freezing them.
+        #   MEASURED on the case that motivated it, 43Ca+ [Ar] 4s with 3s -> 5s,6s singles: with the pre-pass the
+        # second layer was handed a point 36.1 mHa ABOVE where the first had finished and never recovered it,
+        # ending 2.8 mHa WORSE than its own reference, which a variational layer cannot be.
+        #   StartFromPrevious is the EXISTING lever and deliberately not a new flag: it already means "these are the
+        # orbitals to start from", it is exported and documented, and the configs overload already honours it for
+        # SEEDING.  Only the pre-pass ignored it.
+        if  settings.startScfFrom isa ManyElectron.StartFromPrevious
+            if  printout
+                println(">> [EOL] the average-level pre-pass is SKIPPED: startScfFrom = StartFromPrevious, so the " *
+                        "rotation begins from the orbitals handed in rather than from a mean field re-derived here.")
+            end
+        else
+            alSettings = AsfSettings(settings; scField = Basics.ALField())
+            basis      = SelfConsistent.solveAverageLevelField(basis, nm, primitives, alSettings; printout=printout)
+        end
         # WHICH optimized-level solver runs is the route's choice; both are started from the same average-level
         # basis, so the two differ only in the solver and can be compared.  An AutomaticRoute keeps the rotation
         # route, which is what this branch has always done.
@@ -483,8 +505,17 @@ function performSCF(basis::Basis, nm::Nuclear.Model, grid::Radial.Grid,
     elseif   scfProc == :optimizedLevel
         # See the note in the other performSCF overload just above: EOL is done by orbital rotation, started
         # from an average-level basis, and returns a complete, correctly (kink-aware) diagonalized multiplet.
-        alSettings = AsfSettings(settings; scField = Basics.ALField())
-        basis      = SelfConsistent.solveAverageLevelField(basis, nm, primitives, alSettings; printout=printout)
+        # The average-level pre-pass is skipped for a caller that hands in orbitals it wants kept; see the full
+        # note at the other :optimizedLevel branch in this file, which this mirrors.
+        if  settings.startScfFrom isa ManyElectron.StartFromPrevious
+            if  printout
+                println(">> [EOL] the average-level pre-pass is SKIPPED: startScfFrom = StartFromPrevious, so the " *
+                        "rotation begins from the orbitals handed in rather than from a mean field re-derived here.")
+            end
+        else
+            alSettings = AsfSettings(settings; scField = Basics.ALField())
+            basis      = SelfConsistent.solveAverageLevelField(basis, nm, primitives, alSettings; printout=printout)
+        end
         # WHICH optimized-level solver runs is the route's choice; both are started from the same average-level
         # basis, so the two differ only in the solver and can be compared.  An AutomaticRoute keeps the rotation
         # route, which is what this branch has always done.
