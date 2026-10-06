@@ -500,10 +500,33 @@ elseif  false
     # 2 3S_1 -> 1 1S_0, which is a different process dominated by M1 rather than 2E1. The selection is therefore
     # made on SYMMETRY, 0+ -> 0+, which picks the singlet robustly however the levels happen to be ordered.
     # The intermediate states are 1snp 1P_1 (J = 1, odd), reached by E1 from the 1S_0.
-    for  (Z, rbox, nmax) in [(2.0, 60.0, 10), (18.0, 20.0, 10)]
+    #
+    # 06-Oct-2026 -- THE BOX WAS TOO SMALL FOR ITS OWN nmax (priority item 51), unrelated to the correlation and
+    #   prefactor questions above. `Bsplines.checkGridRepresentation` refuses the old rbox = 60 at Z = 2: 10p
+    #   needs about 359 a.u. there, not 60 -- the Zeff seen by this Rydberg electron is close to 1 regardless of
+    #   Z, since the SAME single 1s spectator screens it at every Z, so the box cannot simply scale as 1/Z the
+    #   way a one-electron orbital would (see the Dh-c fix above, lines ~335-365, for where that DOES apply).
+    #   At Z = 18 the old rbox = 20 turns out to be close to adequate (recommendedGrid wants 21.1), since the
+    #   outer electron there sees the same Zeff but photon-absorption binds it far tighter in absolute units.
+    #   Sized per Z from the widest shell (10p) instead of hand-picked, and refined to 1.34 splines/a.u.
+    #
+    #   AND ON THE CORRECTED GRID THE NUMBERS MOVE A GREAT DEAL, IN A WAY THIS BOX FIX DOES NOT EXPLAIN AND DOES
+    #   NOT RESOLVE.  Both branches now run to completion with no refusal, but the Cou/Bab ratio of the total
+    #   rate is 0.0052 at Z = 2 and 0.0416 at Z = 18 -- FAR WORSE than the 1.22 and 1.85 recorded on 07-Aug-2026
+    #   on the old, too-small box.  That direction is the opposite of what fixing a bad box should do, and it has
+    #   not been chased further: it may be a near-degenerate intermediate state (the np energies shift slightly
+    #   on the new orbitals, and this scheme computes at one FIXED omega rather than scanning, so a term landing
+    #   close to resonance would inflate one gauge far more than the other), or something else entirely. THIS IS
+    #   A NEW, SEPARATE, UNEXPLAINED FINDING, surfaced here rather than chased, since it sits outside what item 51
+    #   asked for (the grid) and alongside what this branch already disclaimed (correlation, the open prefactor).
+    #   Do not read either number as validated; do not read the improved gauge ratio of 07-Aug as validated
+    #   either, since it was computed on a box this same guard would have refused.
+    for  (Z, nmax) in [(2.0, 10), (18.0, 10)]
         println("\n", "="^110);   println("  He-like Z = $Z: 1s2s 1S_0 -> 1s^2 1S_0 two-photon decay");   println("="^110)
         ni          = Nuclear.Model(Z, Z < 2.5 ? PointNucleus() : FermiNucleus())
-        gridH       = Radial.Grid(Radial.Grid(false), rnt = 4.0e-6, h = 5.0e-2, hp = 1.0e-2, rbox = rbox)
+        gridH0      = Basics.recommendedGrid(Dict(Shell(1,0)=>1, Shell(nmax,1)=>1), Z; printout=false)
+        gridH       = Basics.recommendedGrid(Dict(Shell(1,0)=>1, Shell(nmax,1)=>1), Z;
+                                             rbox=gridH0.tL[end], hp=gridH0.tL[end]/3000, printout=false)
         interConfs  = [Configuration("1s $(n)p") for n = 2:nmax]
         interRep    = Representation("1snp intermediate levels", ni, gridH, interConfs,
                                      MeanFieldMultiplet(MeanFieldSettings()))
