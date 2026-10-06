@@ -388,6 +388,46 @@ function Basics.generate(repType::AtomicState.RasExpansion, rep::AtomicState.Rep
         # virtuals of a perturbation belong in the field of the reference in any case.
         if  typeof(step.treatment) == Basics.Variational
             multiplet  = SelfConsistent.performSCF(basis, nModel, rep.grid, stepSettings; printout=true)
+            # THE RELEASE PHASE -- RasSettings.freezing, 06-Oct-2026.  A released policy runs the layer TWICE and
+            # that is what makes it trustworthy rather than merely richer.
+            #   Phase 1 above WARMED this layer's new shells with the earlier ones frozen, so the new correlation
+            # orbitals have a sensible shape.  Phase 2 now RELEASES, and starts the optimized-level solver from those
+            # warm orbitals through StartFromPrevious -- which (since 06-Oct-2026) skips the average-level pre-pass.
+            # Skipping it is the whole point: that pass optimizes the configuration AVERAGE, a different functional
+            # from the level energy, and would re-derive the inherited orbitals before the solver ever saw them.
+            #   MEASURED without the two-step entry, 43Ca+ [Ar] 4s with 3s -> 5s,6s singles: a released layer BEGAN
+            # 36.1 mHa above the layer it sits on -- more than the whole correlation effect -- and its increment then
+            # had a budget-dependent SIGN, +11.2, +5.9, +1.0 mHa at budgets 20, 60, 120.  With the two-step entry the
+            # same layer gives -0.013, -0.053, -0.063 mHa: monotone, correctly signed, and saturating.
+            #   THE POLICY GOVERNS WHAT A LAYER DOES WITH WHAT EARLIER LAYERS OPTIMIZED, so it applies from step 2 on.
+            # Step 1 optimizes the reference and has nothing to inherit, and its coreShells stay the caller's
+            # explicit declaration under every policy.
+            if  repType.settings.freezing != :previousLayersFrozen  &&  istep > 1
+                eWarm        = minimum( lv.energy  for lv in multiplet.levels )
+                warmOrbitals = multiplet.levels[1].basis.orbitals
+                # :coreFrozen keeps the expansion's own coreShells, which are exactly the frozen set of step 1;
+                # :allFree keeps nothing.
+                releaseShells = repType.settings.freezing == :coreFrozen ? repType.steps[1].frozenShells : Shell[]
+                releaseSubshells = Subshell[ sh  for  shell in releaseShells  for sh in basis.subshells
+                                             if  sh.n == shell.n  &&  Basics.subshell_l(sh) == shell.l ]
+                printstyled(">> [RAS] step $istep RELEASE phase (freezing = $(repType.settings.freezing)): the " *
+                            "warm-up reached " * @sprintf("%.9f", eWarm) * " Ha and the solver now restarts from " *
+                            "those orbitals with " *
+                            (isempty(releaseSubshells) ? "nothing frozen" :
+                             "only " * join(string.(releaseSubshells), ", ") * " frozen") * ". \n",
+                            color=:light_cyan)
+                warmBasis   = Basis( true, basis.NoElectrons, basis.subshells, basis.csfs, basis.coreSubshells,
+                                     warmOrbitals )
+                relSettings = AsfSettings( stepSettings;  frozenSubshells = releaseSubshells,
+                                           startScfFrom = ManyElectron.StartFromPrevious(warmOrbitals) )
+                multiplet   = SelfConsistent.performSCF(warmBasis, nModel, rep.grid, relSettings; printout=true)
+                eRel        = minimum( lv.energy  for lv in multiplet.levels )
+                printstyled(">> [RAS] step $istep RELEASE gained " * @sprintf("%.4f mHa", (eRel - eWarm)*1000) *
+                            " over its own warm-up" *
+                            (eRel > eWarm ? " -- which is POSITIVE and should not be: the release began above the " *
+                                            "warm-up it started from, so suspect the grid or the level selection." :
+                                            ".") * " \n", color=:light_cyan)
+            end
         else
             printstyled(">> step $istep is treated to SECOND ORDER in its Q space; the orbitals of this layer are " *
                         "NOT re-optimized. \n", color=:light_yellow)

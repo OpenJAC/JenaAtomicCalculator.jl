@@ -218,6 +218,28 @@ end
     + eeInteractionCI      ::AbstractEeInteraction  ... logical flag to include Breit interactions.
     + levelSelectionCI     ::LevelSelection         ... Specifies the selected levels, if any; also the EOL target
         of every step when active, and then takes precedence over `levelsScf`.
+    + freezing             ::Symbol                 ... WHICH ORBITALS A LAYER MAY STILL MOVE, one of
+        `:previousLayersFrozen` (the default), `:coreFrozen` or `:allFree`; an unrecognized symbol RAISES.  These are
+        Rule 21's three freezing policies, and naming the policy is what makes a layer increment comparable between
+        runs -- so it belongs in the settings that are printed with the computation rather than in a script.
+        * `:previousLayersFrozen` ... every shell an earlier layer optimized is held, and only the shells this layer
+          introduces are varied.  GRASP's default, and the safe one: the layer's space contains the previous layer's,
+          and with the earlier orbitals held it cannot help but descend.
+        * `:coreFrozen` ... only the `coreShells` of the expansion are held; everything else is released, so the
+          valence shells may relax against the correlation this layer adds.
+        * `:allFree` ... nothing is held.  The richest policy and the most expensive.
+        **THE RELEASED POLICIES RUN IN TWO PHASES, and that is what makes them trustworthy.**  A layer first WARMS its
+        new shells with the earlier ones frozen, and only then RELEASES them, starting the optimized-level solver from
+        the warm orbitals through `ManyElectron.StartFromPrevious` -- which skips the average-level pre-pass that would
+        otherwise re-derive the inherited orbitals for the configuration AVERAGE rather than for the level energy.
+        Without that two-step entry a released layer begins far ABOVE the layer it sits on: measured on 43Ca+ [Ar] 4s
+        with 3s -> 5s,6s singles, 36.1 mHa above, which is more than the whole correlation effect being measured, and
+        the resulting layer increment had a BUDGET-DEPENDENT SIGN (+11.2, +5.9, +1.0 mHa at budgets 20, 60, 120).
+        Repaired, the same layer gives -0.013, -0.053, -0.063 mHa -- monotone, correctly signed, and saturating.
+        **WHAT THE RELEASE IS WORTH:** 2.7x to 3.3x the correlation energy of the frozen policy on that case, for two
+        SCF phases instead of one.  It is the core relaxing against the layer's correlation, and the frozen policy
+        cannot reach it.  Cross-checked under both `stepping = :curvature` and `:newton`, so it is a property of the
+        handover and not of the solver.
 """
 struct  RasSettings
     levelsScf              ::Array{Int64,1}
@@ -225,6 +247,29 @@ struct  RasSettings
     accuracyScf            ::Float64 
     eeInteractionCI        ::AbstractEeInteraction 
     levelSelectionCI       ::LevelSelection
+    freezing               ::Symbol
+
+    # The policy is validated HERE and not in the driver, so that a mistyped name is named where the caller wrote it
+    # rather than silently selecting a different physics -- the same reasoning as for RotationRoute's stepping.
+    function RasSettings(levelsScf::Array{Int64,1}, scfRoute::Basics.AbstractScfRoute, accuracyScf::Float64,
+                         eeInteractionCI::AbstractEeInteraction, levelSelectionCI::LevelSelection, freezing::Symbol)
+        if  !(freezing in (:previousLayersFrozen, :coreFrozen, :allFree))
+            error("AtomicState.RasSettings: freezing = :$freezing is not recognized.  Use :previousLayersFrozen " *
+                  "(the default: only this layer's new shells are varied), :coreFrozen (the coreShells are held, " *
+                  "everything else is released) or :allFree (nothing is held).  See the docstring for what each is " *
+                  "worth and what it costs.")
+        end
+        new(levelsScf, scfRoute, accuracyScf, eeInteractionCI, levelSelectionCI, freezing)
+    end
+end
+
+
+# `AtomicState.RasSettings(levelsScf, scfRoute, accuracyScf, eeInteractionCI, levelSelectionCI)`
+#     ... the five-argument form every caller written before 06-Oct-2026 uses;  it keeps the freezing policy that was
+#         the only one available then, so no existing computation changes.
+function RasSettings(levelsScf::Array{Int64,1}, scfRoute::Basics.AbstractScfRoute, accuracyScf::Float64,
+                     eeInteractionCI::AbstractEeInteraction, levelSelectionCI::LevelSelection)
+    RasSettings(levelsScf, scfRoute, accuracyScf, eeInteractionCI, levelSelectionCI, :previousLayersFrozen)
 end
 
 """
@@ -232,7 +277,7 @@ end
 """
 function RasSettings()
     ## RotationRoute(24) is what the driver built from the old maxIterationsScf = 24, so the default is unchanged in behaviour.
-    RasSettings(Int64[1], Basics.RotationRoute(24), 1.0e-6, CoulombInteraction(), LevelSelection() )
+    RasSettings(Int64[1], Basics.RotationRoute(24), 1.0e-6, CoulombInteraction(), LevelSelection(), :previousLayersFrozen )
 end
 
 
@@ -254,7 +299,8 @@ end
 function RasSettings(set::AtomicState.RasSettings;
     levelsScf::Union{Nothing,Array{Int64,1}}=nothing,                      scfRoute::Union{Nothing,Basics.AbstractScfRoute}=nothing,
     accuracyScf::Union{Nothing,Float64}=nothing,                           eeInteractionCI::Union{Nothing,AbstractEeInteraction}=nothing,
-    levelSelectionCI::Union{Nothing,LevelSelection}=nothing,               maxIterationsScf::Union{Nothing,Int64}=nothing)
+    levelSelectionCI::Union{Nothing,LevelSelection}=nothing,               freezing::Union{Nothing,Symbol}=nothing,
+    maxIterationsScf::Union{Nothing,Int64}=nothing)
 
     if  !isnothing(maxIterationsScf)
         error("RasSettings no longer carries maxIterationsScf; the iteration budget belongs to the scf route, as it does in " *
@@ -268,8 +314,9 @@ function RasSettings(set::AtomicState.RasSettings;
     if  isnothing(accuracyScf)        accuracyScfx        = set.accuracyScf        else  accuracyScfx        = accuracyScf        end 
     if  isnothing(eeInteractionCI)    eeInteractionCIx    = set.eeInteractionCI    else  eeInteractionCIx    = eeInteractionCI    end 
     if  isnothing(levelSelectionCI)   levelSelectionCIx   = set.levelSelectionCI   else  levelSelectionCIx   = levelSelectionCI   end 
+    if  isnothing(freezing)           freezingx           = set.freezing           else  freezingx           = freezing           end 
 
-    RasSettings( levelsScfx, scfRoutex, accuracyScfx, eeInteractionCIx, levelSelectionCIx )
+    RasSettings( levelsScfx, scfRoutex, accuracyScfx, eeInteractionCIx, levelSelectionCIx, freezingx )
 end
 
 
@@ -282,6 +329,10 @@ function Base.show(io::IO, settings::RasSettings)
         println(io, "accuracyScf:          $(settings.accuracyScf)  ")
         println(io, "eeInteractionCI:      $(settings.eeInteractionCI)  ")
         println(io, "levelSelectionCI:     $(settings.levelSelectionCI)  ")
+        println(io, "freezing:             $(settings.freezing)  " *
+                    (settings.freezing == :previousLayersFrozen ? "  (only each layer's new shells are varied)" :
+                     settings.freezing == :coreFrozen           ? "  (coreShells held, the rest released; two SCF phases per layer)" :
+                                                                  "  (nothing held; two SCF phases per layer)"))
 end
 
 
