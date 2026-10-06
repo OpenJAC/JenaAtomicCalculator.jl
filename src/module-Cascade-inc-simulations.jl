@@ -10,6 +10,21 @@
         after this 'addition', and how many of the levels have been modified by this method. Note that all relative occucations are 
         set to zero in this addition; a newlevels::Array{Cascade.Level,1} is returned.
 """
+
+"""
+`Cascade.asResults(x)`
+    ... presents a stored cascade result as a `Basics.PerformResults`, whichever form it arrived in; a
+        `results::Basics.PerformResults` is returned.
+
+        WHY THIS EXISTS.  `Cascade.asResults(simulation.computationData[i]["results"])` can be EITHER -- a `PerformResults` when the
+        caller handed the return of `perform` straight in, or a plain `Dict{String,Any}` when the cascade was
+        restored from a JLD2 file.  Typed result keys work on the first and not on the second, and a typed key
+        cannot be taught to index a plain `Dict` without type piracy on Base.  Normalising here lets this module
+        use the typed keys like every other, and is why its reads did not have to stay on the deprecated strings.
+"""
+asResults(x) = x isa Basics.PerformResults ? x : Basics.PerformResults(x)
+
+
 function  addLevels(levelsA::Array{Cascade.Level,1}, levelsB::Array{Cascade.Level,1})
     nA = length(levelsA);   nB = length(levelsB);    nmod = 0;    nnew = 0;    newlevels = Cascade.Level[];  appendedB = falses(nB)
     
@@ -486,9 +501,9 @@ end
 """
 function extractPhotoExcitationData(dataDicts::Array{Dict{String,Any},1})
     photoexcitationData = Cascade.Data[]
-    for data  in  dataDicts       results = data["results"]
-        if  haskey(results, "photoexcitation lines:")
-            linesE = results["photoexcitation lines:"]
+    for data  in  dataDicts       results = Cascade.asResults(data["results"])
+        if  haskey(results, PhotoExcitation.Settings)
+            linesE = results[PhotoExcitation.Settings]
             push!(photoexcitationData, Cascade.Data{PhotoExcitation.Line}(linesE))   
         end
     end
@@ -504,9 +519,9 @@ end
 """
 function extractPhotoIonizationData(dataDicts::Array{Dict{String,Any},1})
     photoionizationData = Cascade.Data[]
-    for data  in  dataDicts       results = data["results"]
-        if  haskey(results, "photoionization lines:")  
-            linesP = results["photoionization lines:"]
+    for data  in  dataDicts       results = Cascade.asResults(data["results"])
+        if  haskey(results, PhotoIonization.Settings)  
+            linesP = results[PhotoIonization.Settings]
             push!(photoionizationData, Cascade.Data{PhotoIonization.Line}(linesP))  
         end
     end
@@ -734,12 +749,12 @@ end
 """
 function simulate(property::Cascade.PhotoAbsorptionSpectrum, method::Cascade.AbstractSimulationMethod,
                   simulation::Cascade.Simulation)
-    if    haskey(simulation.computationData[1]["results"], "photoionization lines:")
-            linesP = simulation.computationData[1]["results"]["photoionization lines:"]
+    if    haskey(Cascade.asResults(simulation.computationData[1]["results"]), PhotoIonization.Settings)
+            linesP = Cascade.asResults(simulation.computationData[1]["results"])[PhotoIonization.Settings]
     else  linesP = PhotoIonization.Line[]
     end
-    if    haskey(simulation.computationData[1]["results"], "photoexcitation lines:")
-            linesE = simulation.computationData[1]["results"]["photoexcitation lines:"]
+    if    haskey(Cascade.asResults(simulation.computationData[1]["results"]), PhotoExcitation.Settings)
+            linesE = Cascade.asResults(simulation.computationData[1]["results"])[PhotoExcitation.Settings]
     else  linesE = PhotoExcitation.Line[]
     end
     # Display the line data if appropriate
@@ -879,8 +894,8 @@ end
 function simulate(property::Cascade.EaCrossSections, method::Cascade.AbstractSimulationMethod,
                   simulation::Cascade.Simulation)
     printSummary, iostream = Defaults.getDefaults("summary flag/stream")
-    linesE = simulation.computationData[1]["results"]["impact-excitation lines:"]
-    linesA = simulation.computationData[1]["results"]["autoionization lines:"]
+    linesE = Cascade.asResults(simulation.computationData[1]["results"])[ImpactExcitation.Settings]
+    linesA = Cascade.asResults(simulation.computationData[1]["results"])[AutoIonization.Settings]
     if  length(linesE) == 0     error("Cascade.EaCrossSections: the cascade data carry no impact-excitation lines.")   end
     if  length(linesA) == 0
         error("Cascade.EaCrossSections: the cascade data carry no autoionization lines, so NO excited level of " *
@@ -950,7 +965,7 @@ end
 function simulate(property::Cascade.EieRateCoefficients, method::Cascade.AbstractSimulationMethod,
                   simulation::Cascade.Simulation)
     printSummary, iostream = Defaults.getDefaults("summary flag/stream")
-    linesE = simulation.computationData[1]["results"]["impact-excitation lines:"]
+    linesE = Cascade.asResults(simulation.computationData[1]["results"])[ImpactExcitation.Settings]
     if  length(linesE) < 3
         error("Cascade.EieRateCoefficients needs the collision strengths at three or more electron energies; " *
               "the given cascade data carry only $(length(linesE)) line(s).  Widen ImpactExcitationScheme.electronEnergies.")
@@ -979,7 +994,7 @@ function simulate(property::Cascade.RrRateCoefficients, method::Cascade.Abstract
     # Cascade.Data carries its lines in the field `lines`; `.linesR` has not existed since that struct was
     # generalised, so this path raised a FieldError on every call and the RR rate coefficients could never
     # be simulated at all.
-    linesR = simulation.computationData[1]["results"]["photo-recombination line data:"].lines
+    linesR = Cascade.asResults(simulation.computationData[1]["results"])[ResultKeys.PhotoRecombinationLineData].lines
     return( Cascade.simulateRrRateCoefficients(linesR, simulation) )
 end
 
@@ -1345,22 +1360,22 @@ function reviewData(simulation::Cascade.Simulation; ascendingOrder::Bool=false)
     
     # Loop through all (computation) data set and display the major results
     for  (i,data) in  enumerate(dataDicts)
-        results     = data["results"]
-        multiplets  = results["initial multiplets:"]
-        gMultiplets = results["generated multiplets:"]
+        results     = Cascade.asResults(data["results"])
+        multiplets  = results[ResultKeys.InitialMultiplets]
+        gMultiplets = results[ResultKeys.GeneratedMultiplets]
         nlev = 0;    for multiplet in multiplets     nlev  = nlev  + length(multiplet.levels)     end
         nglev = 0;   for multiplet in gMultiplets    nglev = nglev + length(multiplet.levels)     end
-        println("\n* $i) Data dictionary for cascade computation:   $(results["name"])  with  $nlev initial and  $nglev generated levels") 
+        println("\n* $i) Data dictionary for cascade computation:   $(results[ResultKeys.Name])  with  $nlev initial and  $nglev generated levels") 
         println(  "  ===========================================")
         
         Cascade.displayLevels(stdout, multiplets, sa="initial ")
         if  printSummary 
-            println(iostream, "\n* $i) Data dictionary for cascade computation:   $(results["name"])  with  $nlev initial and  $nglev generated levels") 
+            println(iostream, "\n* $i) Data dictionary for cascade computation:   $(results[ResultKeys.Name])  with  $nlev initial and  $nglev generated levels") 
             println(iostream,   "  ===========================================")
             Cascade.displayLevels(iostream, multiplets,  sa="initial ")
             Cascade.displayLevels(iostream, gMultiplets, sa="generated ")        
         end
-        if      haskey(results, "cascade data:")             lineData = results["cascade data:"]
+        if      haskey(results, ResultKeys.CascadeData)             lineData = results[ResultKeys.CascadeData]
         else    error("Cascade.reviewData(): this simulation property is not one reviewData knows how to review.")
         end
         
@@ -1757,12 +1772,12 @@ function simulatePiRateCoefficients(simulation::Cascade.Simulation)
         error("Cascade.PiRateCoefficients: no photon distribution was given, so there is nothing to fold with.  " *
               "Set photonDistributions, e.g. [Distribution.PhotonPlanck(kT)] with kT in atomic units.")
     end
-    results = simulation.computationData[1]["results"]
-    if  !haskey(results, "photoionization lines:")
+    results = Cascade.asResults(simulation.computationData[1]["results"])
+    if  !haskey(results, PhotoIonization.Settings)
         error("Cascade.PiRateCoefficients: these cascade data carry no photoionization lines.  This property needs a " *
               "computation of Cascade.PhotoIonizationScheme; example-Fd.jl branch a is the smallest one.")
     end
-    lines = results["photoionization lines:"]
+    lines = results[PhotoIonization.Settings]
     if  length(lines) < 2
         error("Cascade.PiRateCoefficients: a fold over photon energy needs at least two computed energies; the given " *
               "data carry $(length(lines)) line(s).  Widen PhotoIonizationScheme.photonEnergies.")
@@ -1946,10 +1961,10 @@ end
         computation and is not an error.
 """
 function extractEaCrossSections(simulation::Cascade.Simulation)
-    results = simulation.computationData[1]["results"]
-    if  !haskey(results, "impact-excitation lines:")     return( (Float64[], Float64[]) )   end
-    linesE = results["impact-excitation lines:"]
-    linesA = haskey(results, "autoionization lines:") ? results["autoionization lines:"] : AutoIonization.Line[]
+    results = Cascade.asResults(simulation.computationData[1]["results"])
+    if  !haskey(results, ImpactExcitation.Settings)     return( (Float64[], Float64[]) )   end
+    linesE = results[ImpactExcitation.Settings]
+    linesA = haskey(results, AutoIonization.Settings) ? results[AutoIonization.Settings] : AutoIonization.Line[]
     if  length(linesE) == 0  ||  length(linesA) == 0     return( (Float64[], Float64[]) )   end
     # An excited level counts as autoionizing exactly if it appears as the INITIAL level of an Auger line; its
     # branching ratio is taken as 1, as in Cascade.EaCrossSections, so this half is an UPPER BOUND.

@@ -28,9 +28,6 @@ export  perform
         each but for the DR pair, and six `ResultKeys` for the results that have no settings type.  While the
         strings remain accepted, this is the only place the correspondence is written down.
 """
-const GBL_DEPRECATED_KEYS_SEEN = Set{String}()
-
-
 function  resultKeyStrings(T::Type)
     # --- the results that have no settings type of their own
     T === ResultKeys.Multiplet              &&  return( ["multiplet:"] )
@@ -161,6 +158,19 @@ end
 
 
 """
+`Base.haskey(r::Basics.PerformResults, T::Type)`
+    ... true where this computation produced a result for the settings type or `ResultKeys` key `T`; a
+        `value::Bool` is returned.  It completes the typed interface: a caller that must branch on whether a
+        result exists -- `Cascade.Simulation` does, since a cascade may or may not carry photoexcitation lines --
+        can now ask that question in the same vocabulary it uses to fetch the answer.
+"""
+function  Base.haskey(r::Basics.PerformResults, T::Type)
+    for  k  in  BasicsAZ.resultKeyStrings(T)     haskey(r.dict, k)  &&  return( true )     end
+    return( false )
+end
+
+
+"""
 `Base.getindex(r::Basics.PerformResults, T::Type)`
     ... returns the result belonging to the settings type or `ResultKeys` key `T` -- `res[PhotoEmission.Settings]`,
         `res[Hfs.Settings]`, `res[ResultKeys.FinalMultiplet]`.  A wrong name is an `UndefVarError` where it is
@@ -201,24 +211,23 @@ function  Base.getindex(r::PerformResults, key::AbstractString)
         # every Dict in every package.  So the stored path keeps its strings deliberately, and the warnings it
         # raises here are correct rather than a conversion anybody forgot.
         #
-        # STEP 3 OF THE MIGRATION, 05-Oct-2026.  The string keys STILL WORK and now say what replaces them; they
-        # are removed in step 4, once `/testExamples` has confirmed the converted example branches.  `src/`, the
-        # test suite and `examples/` are already converted, so in practice this fires only for `apps/` scripts --
-        # which are not in git, cannot be swept, and are corrected when they are next run.  That is exactly the
-        # population a deprecation period exists for.
-        #   ONCE PER KEY PER SESSION, not once per access: a loop over a cascade's lines would otherwise bury the
-        # message it is trying to deliver.
-        if  !(key in GBL_DEPRECATED_KEYS_SEEN)
-            push!(GBL_DEPRECATED_KEYS_SEEN, key)
-            replacement = Basics.typedKeyFor(key)
-            # A STRING WITH NO TYPED REPLACEMENT IS NOT DEPRECATED -- it is the only way to ask.  The RAS ladder's
-            # "step1", "step2", ... are the case: one per layer, their number unknown until the ladder is built,
-            # so no fixed set of types can name them.  Warning about those would be telling the user to do
-            # something that cannot be done.
-            if  replacement != ""
-                @warn "Basics.perform(): the string key \"$key\" is DEPRECATED and will be removed.  " *
-                      "Write  res[$replacement]  instead."
-            end
+        # STEP 4 OF THE MIGRATION, 06-Oct-2026: a string key that HAS a typed replacement now RAISES.
+        #   It warned between 05 and 06-Oct, and the deprecation period ended when the evidence it was waiting on
+        # arrived: two `/testExamples` sweeps, 254 branch runs, with ZERO KeyErrors and ZERO UndefVarErrors naming
+        # a ResultKeys type (priority item 49).  The warning also earned its keep on the way out -- it found nine
+        # sites in `examples/` that a grep had missed, because nobody knew that key family was unconverted.
+        #   THE MESSAGE IS THE SAME ONE, raised rather than warned, so an `apps/` script that was never swept is
+        # told exactly what to write at the moment it stops working.
+        replacement = Basics.typedKeyFor(key)
+        # A STRING WITH NO TYPED REPLACEMENT IS NOT DEPRECATED -- it is the only way to ask, and it keeps working
+        # silently.  The RAS ladder's "step1", "step2", ... are the case: one per layer, their number unknown
+        # until the ladder is built, so no fixed set of types can name them.  Raising on those would be telling
+        # the user to do something that cannot be done.
+        if  replacement != ""
+            error("Basics.perform(): the string key \"" * key * "\" has been REPLACED BY A TYPED KEY and is no " *
+                  "longer accepted.  Write  res[" * replacement * "]  instead.  A typed key is checked where it " *
+                  "is WRITTEN, so a misspelling is an UndefVarError naming the name rather than a KeyError three " *
+                  "call levels below it;  see priority item 39.")
         end
         return( r.dict[key] )
     end
