@@ -1805,6 +1805,221 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
                     tG, tE, tG/tE, 2tG, 2tG/tE);    flush(stdout)
         end
 
+        # ONE-SHOT MEASUREMENT OF THE ORBITAL-CI HESSIAN BLOCK AND OF THE REDUCED HESSIAN, off unless
+        # JAC_EOL_HESSOC is set.  This is step (2) of the second-order (Newton) MCSCF build order of priority
+        # item 48, and it is deliberately a CORRECTNESS GATE placed BEFORE any solver exists: a wrong H_oc would
+        # otherwise not announce itself at all, it would look like a convergence problem inside the Newton
+        # iteration and be debugged there, which is the expensive place to find it.
+        #
+        # WHAT IT MEASURES, and why three routes rather than one.  The EOL functional is E(b,c) = c^T H(b) c with c
+        # the CI vector, and the alternation that item 48 is about is exactly the OFF-DIAGONAL block H_oc =
+        # d2E/db dc: it is the term a first-order method cannot see, because between two iterations the CI re-solve
+        # moves c and the gradient history differences two different functions.  H_oc v is obtained here from the
+        # EXISTING exact orbital gradient by a central difference ON THE CI VECTOR -- no new angular or radial
+        # machinery, exactly as H_oo v needed none (see the HESSCHECK block above).
+        #   AND THAT DIFFERENCE IS EXACT, not approximate, which is why no eps-scan is needed for it: the
+        # generalized weight d_rs of combineAngularCoefficientsEOL is QUADRATIC in mc and the gradient is LINEAR in
+        # the coefficients, so the central difference reproduces the linear term with NO truncation error at all.
+        # Only the b-side differences below carry an eps, and they are scanned.
+        #
+        # THE THREE ROUTES ARE INDEPENDENT CODE PATHS, which is the point:
+        #   (a) <v, H_oc w> from the ORBITAL GRADIENT, differenced on c;
+        #   (b) the same number as 2 w^T (dH/db . v) c, from buildCIMatrixEOL, differenced on b -- the other
+        #       operator order, through the CI matrix rather than through the gradient;
+        #   (c) the same number as the MIXED SECOND DIFFERENCE OF THE ENERGY ITSELF, which is what ties it to the
+        #       functional rather than to any derivative routine.
+        # Agreement of (a) with (b) tests the two implementations against each other; agreement with (c) tests both
+        # against the thing being differentiated.  A Hessian block that is merely plausible is worthless.
+        #
+        # THEN THE ASSEMBLED REDUCED HESSIAN, which is the quantity a Newton step actually needs.  Because c is
+        # re-solved at every b, the curvature of the function the solver really walks on is not H_oo but
+        #       H_red(v,v) = <v, H_oo v>  -  2 r^T (H - lambda)^+ r ,     r = P_perp (dH/db . v) c
+        # the second term being ordinary eigenvalue perturbation theory and NEGATIVE for the lowest root -- which is
+        # the curvature-level statement of item 48's measured "always downward" unmodelled descent.  It is checked
+        # against the second difference of the RE-SOLVED eigenvalue, i.e. against the true total curvature, which no
+        # part of the construction has been told about.
+        #
+        # EVERYTHING IS RE-DIAGONALIZED AT THE CURRENT bVectors FIRST, and that is not pedantry: `orbitals`,
+        # `targetLevels` and the loop's `coeffs1p/coeffs2p` were built BEFORE projectOntoPositiveBranch touched
+        # bVectors above.  The projection is a no-op on an iterate already on the manifold, so the two agree in
+        # practice -- but a gate that compares a Hessian against an energy must have both at ONE point, or a
+        # disagreement cannot be attributed.
+        if  haskey(ENV, "JAC_EOL_HESSOC")  &&
+                    iter == something(tryparse(Int, ENV["JAC_EOL_HESSOC"]), 5)
+            if  length(targetLevels) != 1
+                println(">> [EOL-HOC] SKIPPED: this probe is written for ONE target level and the functional has " *
+                        "$(length(targetLevels)).  The weighted multi-level case needs one relaxation term per level " *
+                        "and the levels of one symmetry block couple; that is a separate measurement.");   flush(stdout)
+            else
+                lvT    = targetLevels[1]
+                symT   = LevelSymmetry(lvT.J, lvT.parity)
+                cacheT = blockCaches[symT];     idxCsfT = cacheT.idxCsf;    nCsf = length(idxCsfT)
+                dotA   = function(x, y)
+                    wa = 0.;   for sh in activeSubshells   wa = wa + sum( x[sh] .* y[sh] )   end;   return( wa )
+                end
+                # The b-vectors shifted along an orbital direction;  the frozen subshells never move.
+                shiftedB = function(v::Dict{Subshell, Vector{Float64}}, t::Float64)
+                    bb = Dict{Subshell, Vector{Float64}}( sh => copy(bVectors[sh])  for sh in basis.subshells )
+                    for  sh  in  activeSubshells    bb[sh] = bVectors[sh] + t * v[sh]    end
+                    return( bb )
+                end
+                # The CI matrix of the target block at a given set of b-vectors.  THE THREE INTEGRAL CACHES MUST BE
+                # FRESH: they are keyed by bare subshell labels and know nothing of b, so passing the loop's caches
+                # would silently return the UNPERTURBED radial integrals and every difference below would be zero.
+                ciMatrixAt = function(bv::Dict{Subshell, Vector{Float64}})
+                    orbs = Dict{Subshell, Orbital}()
+                    for  sh  in  basis.subshells
+                        orbs[sh] = Bsplines.generateOrbitalFromVector(sh, 0.0, bv[sh], primitives; canonicalize=false)
+                    end
+                    return( SelfConsistent.buildCIMatrixEOL(cacheT, orbs, grid, nucPot,
+                                    Dict{Tuple{Subshell,Subshell},Float64}(),
+                                    Dict{Tuple{Int64,Subshell,Subshell,Subshell,Subshell},Float64}(),
+                                    Dict{Tuple{Int64,Subshell,Subshell,Int64},Vector{Float64}}()) )
+                end
+                # The angular coefficients belonging to an arbitrary block-local CI vector, through the ordinary
+                # production path, so the probe measures the code the solver would use and not a copy of it.
+                coeffsFromCi = function(x::Vector{Float64})
+                    mcx = zeros( length(basis.csfs) )
+                    for  (r, idx)  in  enumerate(idxCsfT)    mcx[idx] = x[r]    end
+                    lvx = Level(lvT.J, lvT.M, lvT.parity, lvT.index, lvT.energy, lvT.relativeOcc,
+                                lvT.hasStateRep, lvT.basis, mcx)
+                    return( SelfConsistent.combineAngularCoefficientsEOL(blockCaches, [lvx]) )
+                end
+                gradFromCi = function(bv::Dict{Subshell, Vector{Float64}}, x::Vector{Float64})
+                    (c1, c2) = coeffsFromCi(x)
+                    return( SelfConsistent.computeOrbitalGradient(bv, c1, c2, basis.subshells,
+                                                                  primitives, nucPot, storage, matrixB) )
+                end
+                energyFromCi = function(bv::Dict{Subshell, Vector{Float64}}, x::Vector{Float64})
+                    (c1, c2) = coeffsFromCi(x)
+                    (ef, ea) = SelfConsistent.energyFromBVectorsSplit(bv, c1, c2, basis.subshells,
+                                                      primitives, grid, nucPot, isFrozenSub, frozenRk)
+                    return( ef + ea )
+                end
+                # Re-diagonalize HERE, and take the root by its position rather than by "the lowest": an EOL
+                # functional may target an excited root of its block, and the position is what stays meaningful
+                # when b is perturbed.
+                mtx0  = ciMatrixAt(bVectors)
+                eig0  = Basics.diagonalize(MatrixWithLinearAlgebra(), mtx0)
+                k0    = argmin( [ abs(eig0.values[k] - lvT.energy)  for k = 1:length(eig0.values) ] )
+                cVec  = eig0.vectors[k0] / sqrt(sum(eig0.vectors[k0].^2))
+                lam   = eig0.values[k0]
+                if  nCsf < 2
+                    println(">> [EOL-HOC] SKIPPED: the target block holds $nCsf CSF, so there is no CI freedom " *
+                            "and H_oc is empty.  Run this on a correlation layer.");   flush(stdout)
+                else
+                # A CI direction orthogonal to c, deterministic so that a surprising number can be reproduced
+                # exactly.  w is normalized;  with |w| = 1 the O(delta^2) norm error of the unnormalized weight
+                # d_rs is 1e-06 at delta = 1e-03 and cancels from the antisymmetric differences anyway.
+                wVec = [ cos(0.7*r) + 0.3*sin(1.9*r)  for r = 1:nCsf ]
+                wVec = wVec - (sum(wVec .* cVec)) * cVec
+                wVec = wVec / sqrt(sum(wVec.^2))
+                @printf(">> [EOL-HOC] iteration %d:  target %s root %d of %d,  lambda = %+.10f Ha,  |c_target| = %.6f\n",
+                        iter, string(symT), k0, nCsf, lam, sqrt(sum(cVec.^2)));   flush(stdout)
+                # THE B-METRIC OVERLAP OF THE DIRECTION WITH THE ORBITAL IT MOVES IS PRINTED, and it decides whether
+                # the two paths are even comparable.  The CI matrix is built through generateOrbitalFromVector, which
+                # NORMALIZES, so H(b) is invariant under b -> lambda b;  the energy and gradient path contracts the
+                # coefficients with the b-vector AS GIVEN.  A direction with a component along b would therefore mean
+                # two DIFFERENT derivatives and the routes below could not be compared at all.  Measured here it is
+                # 1e-16 -- virtualDirections already builds the span B-orthogonal to the occupied orbitals -- so the
+                # question is moot and ONE direction suffices.  It is printed rather than assumed because a direction
+                # that acquired such a component would make every ratio below wrong for a reason nothing else shows.
+                vRaw = Dict{Subshell, Vector{Float64}}( sh => copy(dir[sh])  for sh in activeSubshells )
+                nrmV = sqrt( dotA(vRaw, vRaw) );    for sh in activeSubshells   vRaw[sh] = vRaw[sh] / nrmV   end
+                for  sh  in  activeSubshells
+                    bBv = transpose(bVectors[sh]) * matrixB * vRaw[sh]
+                    nb  = sqrt(abs(transpose(bVectors[sh]) * matrixB * bVectors[sh]))
+                    nv  = sqrt(abs(transpose(vRaw[sh]) * matrixB * vRaw[sh]))
+                    @printf(">> [EOL-HOC]   %-9s b^T B v / (|b|_B |v|_B) = %+.3e   (raw search direction)\n",
+                            string(sh), (nb*nv) > 0. ? bBv/(nb*nv) : NaN)
+                end
+                flush(stdout)
+                # BEFORE ANY SECOND DERIVATIVE, THE ZEROTH AND FIRST MUST BE SHOWN TO BE THE SAME FUNCTION on both
+                # paths, because every second-derivative route below inherits whichever Hamiltonian its path uses.
+                # buildCIMatrixEOL assembles the block from kink-aware XL_CoulombKinkAware integrals; the energy and
+                # gradient contract the SAME angular coefficients with the screened-potential route.  If these two
+                # differ, a mixed second derivative taken through one and checked against the other must disagree,
+                # and no amount of care about eps will reveal which is at fault.
+                # IS (values[k0], vectors[k0]) ACTUALLY AN EIGENPAIR?  Asked because it must be, and checked because
+                # the whole probe rests on it: every route below pairs that vector with that eigenvalue.
+                # buildCIMatrixEOL FILLS ONLY THE UPPER TRIANGLE (`for s = r:n`) and Basics.diagonalize symmetrizes
+                # it with LinearAlgebra.Symmetric, so EVERY matrix-vector product here must symmetrize too.  Using the
+                # raw array instead drops half of each off-diagonal element: measured on this case it put the first
+                # derivative out by a factor 1.93 and left ||H c - lambda c|| = 1.1e-01 on an exact eigenpair.
+                hSym  = LinearAlgebra.Symmetric(mtx0)
+                resid = sqrt(sum( (hSym*cVec - lam*cVec).^2 ))
+                @printf(">> [EOL-HOC] EIGENPAIR :  ||H c - lambda c|| = %.3e ;  c^T H c = %+.10f ;  lambda = %+.10f ;  spectrum = %s\n",
+                        resid, sum(cVec .* (hSym*cVec)), lam,
+                        string([ @sprintf("%.6f", eig0.values[k])  for k = 1:min(nCsf,5) ]));    flush(stdout)
+                ePath = energyFromCi(bVectors, cVec)
+                gPath = gradFromCi(bVectors, cVec)
+                mP0   = ciMatrixAt(shiftedB(vRaw, 1.0e-4));    mM0 = ciMatrixAt(shiftedB(vRaw, -1.0e-4))
+                hco0  = LinearAlgebra.Symmetric((mP0 - mM0) / (2*1.0e-4)) * cVec
+                @printf(">> [EOL-HOC] ZEROTH ORDER:  lambda = c^T H_CI c = %+.10f Ha   vs   energy path = %+.10f Ha   difference = %+.3e\n",
+                        lam, ePath, lam - ePath)
+                @printf(">> [EOL-HOC] FIRST ORDER :  <v,grad> = %+.10e   vs   c^T (dH_CI/db . v) c = %+.10e   ratio = %.6f\n",
+                        dotA(vRaw, gPath), sum(cVec .* hco0),
+                        sum(cVec .* hco0) != 0. ? dotA(vRaw, gPath)/sum(cVec .* hco0) : NaN);    flush(stdout)
+                # AND IF THE FIRST DERIVATIVES DISAGREE, SCAN BOTH FUNCTIONS ALONG THE DIRECTION, because a ratio
+                # at one point says only THAT they differ.  Both are evaluated at FIXED c, so this compares the two
+                # b-parametrizations alone: f1 is what the line search minimizes, f2 is the expectation value of the
+                # matrix whose lowest root the solver reports as the energy.  They agree at t = 0 by construction.
+                for  t  in  (0.0, 1.0e-3, -1.0e-3, 1.0e-2, -1.0e-2)
+                    bt = shiftedB(vRaw, t)
+                    f1 = energyFromCi(bt, cVec)
+                    f2 = sum( cVec .* (LinearAlgebra.Symmetric(ciMatrixAt(bt)) * cVec) )
+                    @printf(">> [EOL-HOC] SCAN t = %+.0e :  energy path = %+.12f   c^T H_CI c = %+.12f   difference = %+.4e\n",
+                            t, f1, f2, f1 - f2);    flush(stdout)
+                end
+                vDir = vRaw
+                # (a) H_oc w from the orbital gradient, differenced on the CI vector.  Exact, as argued above.
+                del  = 1.0e-3
+                gCiP = gradFromCi(bVectors, cVec + del*wVec);    gCiM = gradFromCi(bVectors, cVec - del*wVec)
+                hoc  = Dict{Subshell, Vector{Float64}}()
+                for  sh  in  activeSubshells    hoc[sh] = (gCiP[sh] - gCiM[sh]) / (2del)    end
+                lhs  = dotA(vDir, hoc)
+                # H_oo v v at FIXED CI, for the reduced Hessian below;  this is the quantity step (1) verified.
+                gFixP = gradFromCi(shiftedB(vDir,  1.0e-4), cVec)
+                gFixM = gradFromCi(shiftedB(vDir, -1.0e-4), cVec)
+                hooVV = 0.
+                for  sh  in  activeSubshells
+                    hooVV = hooVV + sum( vDir[sh] .* (gFixP[sh] - gFixM[sh]) ) / (2*1.0e-4)
+                end
+                for  eps  in  (1.0e-3, 1.0e-4, 1.0e-5)
+                    # (b) the same inner product through the CI matrix, as 2 w^T (dH/db . v) c.
+                    mP   = ciMatrixAt(shiftedB(vDir, eps));     mM = ciMatrixAt(shiftedB(vDir, -eps))
+                    hco  = LinearAlgebra.Symmetric((mP - mM) / (2eps)) * cVec
+                    rhs  = 2 * sum( wVec .* hco )
+                    # (c) and as the mixed second difference of the energy, four evaluations.
+                    mixed = ( energyFromCi(shiftedB(vDir, eps),  cVec + del*wVec)
+                            - energyFromCi(shiftedB(vDir, eps),  cVec - del*wVec)
+                            - energyFromCi(shiftedB(vDir, -eps), cVec + del*wVec)
+                            + energyFromCi(shiftedB(vDir, -eps), cVec - del*wVec) ) / (4*eps*del)
+                    # The CI relaxation of the reduced Hessian, by eigenvalue perturbation theory on the
+                    # re-solved root.  The target root is EXCLUDED from the sum, not merely the lowest one.
+                    rVec = hco - sum(cVec .* hco) * cVec
+                    xVec = zeros(nCsf)
+                    for  k = 1:nCsf
+                        k == k0  &&  continue
+                        ek = eig0.vectors[k] / sqrt(sum(eig0.vectors[k].^2))
+                        xVec = xVec + ( sum(ek .* rVec) / (eig0.values[k] - lam) ) * ek
+                    end
+                    relax = -2 * sum( rVec .* xVec )
+                    # The true total curvature: the second difference of the RE-SOLVED eigenvalue.
+                    ePls = Basics.diagonalize(MatrixWithLinearAlgebra(), mP).values[k0]
+                    eMns = Basics.diagonalize(MatrixWithLinearAlgebra(), mM).values[k0]
+                    fdRes = (ePls - 2*lam + eMns) / eps^2
+                    @printf(">> [EOL-HOC] eps = %.0e :  <v,H_oc w>  grad-route = %+.8e  CI-route = %+.8e  energy-route = %+.8e  rel.diff = %.2e / %.2e\n",
+                            eps, lhs, rhs, mixed, abs(lhs-rhs)/max(abs(lhs),abs(rhs),1.0e-30),
+                            abs(lhs-mixed)/max(abs(lhs),abs(mixed),1.0e-30));    flush(stdout)
+                    @printf(">> [EOL-HOC]            H_oo = %+.8e   CI relaxation = %+.8e (%.1f %% of H_oo)   H_red = %+.8e   re-solved 2nd diff = %+.8e   ratio = %.6f\n",
+                            hooVV, relax, abs(hooVV) > 0. ? 100*abs(relax)/abs(hooVV) : NaN,
+                            hooVV + relax, fdRes, fdRes != 0. ? (hooVV + relax)/fdRes : NaN);    flush(stdout)
+                end
+                end
+            end
+        end
+
         # ONE-SHOT FINITE-DIFFERENCE CHECK OF THE GRADIENT, off unless JAC_EOL_FDCHECK is set.
         # Four inferences about this solver's plateau were refuted by measurement on 30/31-Aug-2026, so this
         # measures the thing itself: is <grad,dir> the directional derivative of the functional the line
