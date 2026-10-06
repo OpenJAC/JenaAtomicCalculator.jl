@@ -2534,15 +2534,67 @@ end
                                          layer), and the reported |grad| is measured in the SAME span. Measured 08-Sep-2026:
                                          raising it from 16 to 32 lowers the energy of that case by 3.7e-04 Ha with the basis
                                          orthonormal to 1e-10, while 96 destroys the line search outright at iteration 41.
-    + stepping           ::Symbol    ... how the search direction is chosen: :plain steps straight downhill and zig-zags,
-                                         :conjugate corrects the new direction against the previous one, and :curvature keeps a
-                                         short memory of how the slope changed and guesses the curvature from it. The names are
-                                         Rule 21's and describe what the method does rather than who wrote it.
+    + stepping           ::Symbol    ... how the search direction is chosen, one of :plain, :conjugate, :curvature (the default)
+                                         and :newton; an unrecognized symbol RAISES rather than falling back silently. The first
+                                         three are first-order and differ only in how they choose the downhill direction: :plain
+                                         steps straight downhill and zig-zags, undoing part of each previous step; :conjugate
+                                         corrects the new direction against the previous one so it stops zig-zagging; :curvature
+                                         keeps a short memory of how the slope changed over recent steps and guesses the
+                                         curvature from it. The names are Rule 21's and describe what the method does rather
+                                         than who wrote it. :newton is second-order and is described below.
+
+    ## WHEN TO ASK FOR :newton, AND WHEN IT CANNOT HELP
+
+    An optimized-level functional re-solves the CI eigenvector at every iteration, so the function minimized at
+    iteration n is NOT the one minimized at n+1: a first-order method differences the gradients of two different
+    functions, and its |grad| then oscillates instead of falling. :newton removes that by construction rather than
+    patching around it -- it solves the REDUCED Hessian system, which contains the CI relaxation exactly, by a
+    preconditioned truncated conjugate-gradient inner loop.
+
+    **It helps exactly where the target symmetry block has CI FREEDOM, and the size of the gain follows the CI
+    relaxation as a fraction of the orbital-orbital curvature.** Measured 06-Oct-2026 on a Be ladder, the same
+    layer structure, everything but the direction held fixed:
+
+        target block           relaxation   :curvature                      :newton
+        1 CSF (reference)      0            3 iterations                    3 iterations  ... NO gain
+        3 CSFs  (+2p)          4.1 %        58 iters, |grad| 6.4e-07        6 iters, |grad| 6.2e-08
+        11 CSFs (+2p3s3p3d)    4.7 %        60 iters, |grad| 1.1e-03, STOPPED  15 iters, |grad| 1.8e-04
+
+    **A SINGLE-CSF STEP CANNOT GAIN ANYTHING, by construction**: with one CSF there is no CI vector to re-solve, the
+    orbital-CI block of the Hessian is empty, and the moving target does not exist. So :newton is for the CORRELATION
+    layers of a RAS ladder, and an ordinary single-configuration SCF -- however heavy the element -- gains nothing
+    from it. Ask for it on a layer that will not settle, and leave :curvature on the reference step.
+
+    **IT IS NOT FASTER, AND SHOULD NOT BE CHOSEN FOR SPEED.** One reduced-Hessian-vector product costs four orbital
+    gradients and two CI-matrix builds, so the measured solver time is 1.4x (+2p) to 4.8x (+2p3s3p3d) that of
+    :curvature, and reaching a GIVEN |grad| costs more arithmetic, not less. What it buys is reliability: on the
+    11-CSF layer the first-order |grad| rises as often as it falls (0.0092, 0.0124, 0.0092, 0.0047, 0.0041, 0.0050,
+    0.0055, 0.0061, 0.0064, 0.0055, 0.0069) and stalls, while :newton falls monotonically from iteration 3 through
+    two orders of magnitude with a full step accepted throughout. Choose it when a layer refuses to converge, not
+    when one converges slowly.
+
+    **ONE RESTRICTION:** the reduced Hessian needs one relaxation term per target level, and two levels of a single
+    symmetry block couple through it. For a functional with more than one target level :newton therefore says so
+    once and uses the first-order step instead, rather than returning a Newton step that silently omits the coupling.
 """
 struct     RotationRoute        <:  AbstractScfRoute
     maxIterations        ::Int64
     nVirtual             ::Int64
     stepping             ::Symbol
+
+    # THE STEPPING IS VALIDATED HERE RATHER THAN AT THE SOLVER, because the solver's direction chain ends in an
+    # `else` that takes the plain preconditioned step: an unrecognized symbol would therefore run to completion and
+    # return a plausible energy obtained by a method the caller did not ask for.  Measured 06-Oct-2026 before this
+    # constructor existed: `stepping = :newtn` ran clean and silently delivered steepest descent.  Raising at
+    # CONSTRUCTION is the right place, since it names the mistake where the caller made it.
+    function RotationRoute(maxIterations::Int64, nVirtual::Int64, stepping::Symbol)
+        if  !(stepping in (:plain, :conjugate, :curvature, :newton))
+            error("Basics.RotationRoute: stepping = :$stepping is not recognized.  Use one of :plain, :conjugate, " *
+                  ":curvature (the default, a short-memory secant method) or :newton (second-order, for a " *
+                  "correlation layer that will not converge).  See the docstring for which to choose.")
+        end
+        new(maxIterations, nVirtual, stepping)
+    end
 end
 
 
