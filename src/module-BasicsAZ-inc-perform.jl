@@ -231,7 +231,7 @@ function  Base.getindex(r::PerformResults, key::AbstractString)
         end
         return( r.dict[key] )
     end
-    near = [ k  for k in keys(r.dict)  if  normalizeResultKey(k) == normalizeResultKey(key) ]
+    near = [ k  for k in keys(r.dict)  if  Basics.normalizeResultKey(k) == Basics.normalizeResultKey(key) ]
     sa   = "Basics.perform(): there is no result under the key \"" * key * "\".\n"
     if  !isempty(near)
         sa = sa * "   DID YOU MEAN  \"" * first(near) * "\" ?  It differs from what you asked for only in " *
