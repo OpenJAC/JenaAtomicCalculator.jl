@@ -295,8 +295,43 @@ function Basics.generate(repType::AtomicState.RasExpansion, rep::AtomicState.Rep
         println("")
         printstyled("++ Compute the orbitals, orbitals and multiplet for step $istep ... \n", color=:light_green)
         printstyled("--------------------------------------------------------------      \n", color=:light_green)
+        # THE FREEZING POLICY THIS DRIVER ALREADY CLAIMS, NOW ACTUALLY APPLIED -- 06-Oct-2026, closing the cause of
+        # challenge S18.  The comment above says a step re-optimizes only its new shells, "freezing every shell
+        # already present/optimized in an earlier step -- GRASP's own default behavior".  That was NOT what
+        # happened: AtomicState.RasExpansion accumulates its frozen set from coreShells, fromShells and each
+        # layer's newShells ONLY, so a reference shell named in NEITHER coreShells NOR fromShells was never frozen
+        # and was re-optimized at every layer -- by performSCF's AVERAGE-LEVEL pass, i.e. for the configuration
+        # average rather than for the level energy the layer minimizes.
+        #   MEASURED: 43Ca+ [Ar] 4s with 3s -> 5s,6s singles handed layer 2 a point 36.1 mHa ABOVE where layer 1
+        # had finished, and layer 2 then ended 2.8 mHa WORSE than its own reference -- which a variational layer
+        # cannot be.  Freezing those five shells puts the entry back AT the previous layer's energy and the ladder
+        # descends again.  See the boundary check further down, which reports the symptom when it survives.
+        #   WHY IT WENT UNSEEN: in examples/example-Ai.jl the Be reference 1s^2 2s^2 is exactly coreShells=[1s]
+        # plus fromShells=[2s], so the claimed policy and the implemented one coincide there.
+        #   THE FIRST STEP IS LEFT FREE, deliberately: it is the step that optimizes the reference, and there is no
+        # earlier step whose work could be lost.
+        #   IT IS DERIVED HERE AND NOT IN RasExpansion because that constructor never receives refConfigs, and the
+        # reference's occupied shells are what the policy is about.  A hand-built RasStep still carries whatever
+        # frozen set it is given, so the other policies Rule 21 names ("core frozen", "all free") remain reachable
+        # that way; what changes is only the DEFAULT of the layer API, which now matches its own documentation.
+        stepFrozenShells = step.frozenShells
+        if  istep > 1
+            refShells = Shell[]
+            for  conf in rep.refConfigs,  (sh, occ) in conf.shells
+                if  occ > 0  &&  !(sh in refShells)    push!(refShells, sh)    end
+            end
+            extraFrozen = Shell[ sh  for sh in refShells
+                                 if !any(f -> f.n == sh.n  &&  f.l == sh.l, step.frozenShells) ]
+            if  !isempty(extraFrozen)
+                stepFrozenShells = vcat(step.frozenShells, extraFrozen)
+                println(">> [RAS] step $istep also freezes the reference shells " *
+                        join(string.(extraFrozen), ", ") * ", which an earlier step already optimized;  without " *
+                        "this they would be re-optimized here for the configuration average and the layer could " *
+                        "end ABOVE the layer it sits on.")
+            end
+        end
         basis      = Basics.generateBasis(rep.refConfigs, repType.symmetries, step)
-        orbitals   = Basics.generateOrbitalsForBasis(basis, step.frozenShells, priorMultiplet.levels[1].basis, startOrbitals)
+        orbitals   = Basics.generateOrbitalsForBasis(basis, stepFrozenShells, priorMultiplet.levels[1].basis, startOrbitals)
         basis      = Basis( true, basis.NoElectrons, basis.subshells, basis.csfs, basis.coreSubshells, orbitals )
 
         # step.frozenShells is a list of non-relativistic Shell(n,l); translate to the concrete, relativistic
@@ -305,7 +340,7 @@ function Basics.generate(repType::AtomicState.RasExpansion, rep::AtomicState.Rep
         # infers Vector{Any}, and AsfSettings rejects it.  Unreachable through RasLayer, which always passes a
         # non-empty core, and reached at once by building the steps by hand -- which is what a step that adds new
         # EXCITATIONS rather than new SHELLS has to do.
-        frozenSubshellsThisStep = Subshell[ sh  for  shell in step.frozenShells  for sh in basis.subshells
+        frozenSubshellsThisStep = Subshell[ sh  for  shell in stepFrozenShells  for sh in basis.subshells
                                                 if  sh.n == shell.n  &&  Basics.subshell_l(sh) == shell.l ]
 
         # ITEM 22, FIXED 01-Sep-2026.  RasSettings.levelsScf was declared, documented and PRINTED, and never read:
@@ -372,7 +407,7 @@ function Basics.generate(repType::AtomicState.RasExpansion, rep::AtomicState.Rep
         # the REFERENCE CSFs, so a level that drifts away from the reference space shows up as w_ref falling;
         # the radii say whether a new shell contracted into the valence region (a correlation orbital) or
         # expanded out of it (a Rydberg orbital, which is not what a layer is for).
-        Basics.printRasStepDiagnostic(istep, multiplet, basis, rep.refConfigs, step.frozenShells, rep.grid)
+        Basics.printRasStepDiagnostic(istep, multiplet, basis, rep.refConfigs, stepFrozenShells, rep.grid)
         # A LAYER THAT ENDS ABOVE THE LAYER IT SITS ON IS NOT PHYSICS, AND UNTIL 06-Oct-2026 NOTHING SAID SO.
         # A variational layer's CSF space CONTAINS the previous layer's, so its lowest level cannot lie above the
         # previous one: taking the previous orbitals and the mixing vector (1,0,...) is a point of this layer's own
@@ -407,7 +442,7 @@ function Basics.generate(repType::AtomicState.RasExpansion, rep::AtomicState.Rep
                     if  occ > 0  &&  !(sh in refShells)    push!(refShells, sh)    end
                 end
                 unfrozen = Shell[ sh  for sh in refShells
-                                  if !any(f -> f.n == sh.n  &&  f.l == sh.l, step.frozenShells) ]
+                                  if !any(f -> f.n == sh.n  &&  f.l == sh.l, stepFrozenShells) ]
                 sa = ">> [RAS] STEP $istep ENDED ABOVE STEP $(istep-1) BY " *
                      @sprintf("%.3f mHa", (eNow - ePrev)*1000) * " -- a variational layer CANNOT do that, since " *
                      "its CSF space contains the previous layer's.  The layer was handed the previous orbitals and " *
