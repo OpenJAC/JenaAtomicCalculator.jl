@@ -1692,7 +1692,192 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
             end
             return( nothing )
         end
-        if      method == :lbfgs  &&  !isempty(sHist)
+        # THE NEWTON DIRECTION -- step (3) of priority item 48, reached with JAC_EOL_METHOD = newton.  It replaces
+        # ONLY the choice of direction: the step space, the preconditioner, the positive-branch projection, the
+        # frozen-orbital restore, the line search and all five exits stay exactly as the first-order route leaves
+        # them, which is what makes the comparison below a comparison of the DIRECTION and of nothing else.
+        #
+        # WHY A SECOND-ORDER STEP IS THE REMEDY AND NOT A BETTER FIRST-ORDER ONE.  Each iteration re-solves the CI
+        # eigenvector, so the function minimized at iteration n is not the one minimized at n+1 and an L-BFGS pair
+        # (s,y) differences the gradients of two DIFFERENT functions.  Measured on 43Ca+ [Ar] 4s with core s -> s
+        # singles, that re-solve adds 5.9e-03 Ha of unmodelled descent over 40 iterations, always downward.  The
+        # cheap repair -- discard the curvature when the relaxation is large -- was implemented and is WORSE,
+        # monotonically in the number of flushes.  The REDUCED Hessian contains the relaxation exactly, so the
+        # alternation is removed by construction rather than patched around.
+        #
+        # H_red v = H_oo v  -  2 <x_v| dH/db |c>,   x_v = (H - lambda)^+ P_perp (dH/db . v) c
+        #
+        # and every piece of it comes from machinery that already exists: H_oo v from a central difference of the
+        # EXACT orbital gradient, (dH/db.v)c from a central difference of buildCIMatrixEOL, and the final term from
+        # a central difference of the gradient ON THE CI VECTOR -- which is EXACT rather than approximate, because
+        # the generalized weight d_rs is quadratic in mc and the gradient linear in the coefficients.  All three
+        # routes were verified against each other and against the energy's own mixed second difference before this
+        # solver was written (JAC_EOL_HESSOC, step (2)): agreement to 7e-07, and the assembled H_red reproduces the
+        # second difference of the RE-SOLVED eigenvalue to ratio 1.000001.
+        #
+        # ONE H_red v COSTS 4 GRADIENTS AND 2 CI BUILDS.  That is why the inner solver is a TRUNCATED CG and not a
+        # formed matrix: the span is nVirtual per active subshell (16 by default), so an explicit Hessian would
+        # need one product per column, where CG needs ten to twenty in all.
+        #
+        # THE SPAN DOES THE REDUNDANCY PROJECTION FOR FREE, which is step (4) of the item and is mostly already
+        # answered.  applyPrecond projects onto the span virtualDirections returns, and that span is built
+        # B-orthogonal to the occupied orbitals of its own kappa, so every CG vector stays inside it with no extra
+        # projection.  What remains is the component along the orbital a direction moves, removed by
+        # stripNormChange! below.  Going FURTHER was measured on 04-Oct-2026 and REJECTED -- see the note at
+        # stripNormChange!: projecting against the whole kappa block costs 19 mHa on the Ca+ ladder, because a
+        # rotation mixing 5s into 4s is NOT redundant while the CSF space is incomplete.
+        if      method == :newton  &&  length(targetLevels) != 1
+            # The reduced Hessian needs one relaxation term per target level, and two levels of ONE symmetry block
+            # couple through it;  neither is built.  Returning a Newton step that silently omits the coupling would
+            # be worse than not offering one, so the preconditioned gradient is used and the reason is said once.
+            if  iter == 1
+                println(">> [EOL-N] JAC_EOL_METHOD = newton is not available for a $(length(targetLevels))-level " *
+                        "functional;  the preconditioned first-order step is used instead.  See priority item 48.")
+            end
+            for  sh  in  activeSubshells    dir[sh] = sVec[sh]    end
+        elseif  method == :newton
+            lvN     = targetLevels[1]
+            symN    = LevelSymmetry(lvN.J, lvN.parity)
+            cacheN  = blockCaches[symN];      idxCsfN = cacheN.idxCsf;      nCsfN = length(idxCsfN)
+            epsB    = 1.0e-3   ## the b-side difference step, measured as the working value: the re-solved second
+                               ## difference degrades to 0.9970 at 1e-5, ordinary round-off for a second difference
+            delC    = 1.0e-3   ## the CI-side step;  the difference is EXACT in it, so this has only to avoid round-off
+            maxCG   = 20
+            cgTol   = 0.1      ## an INEXACT Newton: the caveat of item 48 is that FD quality degrades near
+                               ## convergence, and a truncated CG is what tolerates an approximate H*v
+            shiftB  = function(v::Dict{Subshell, Vector{Float64}}, t::Float64)
+                bb = Dict{Subshell, Vector{Float64}}( sh => copy(bVectors[sh])  for sh in basis.subshells )
+                for  sh  in  activeSubshells    bb[sh] = bVectors[sh] + t * v[sh]    end
+                return( bb )
+            end
+            # The three integral caches MUST be fresh for a perturbed b: they are keyed by bare subshell labels and
+            # know nothing of b, so reusing the iteration's caches would return the UNPERTURBED integrals and every
+            # difference here would come out zero.
+            ciMatAt = function(bv::Dict{Subshell, Vector{Float64}})
+                orbs = Dict{Subshell, Orbital}()
+                for  sh  in  basis.subshells
+                    orbs[sh] = Bsplines.generateOrbitalFromVector(sh, 0.0, bv[sh], primitives; canonicalize=false)
+                end
+                return( SelfConsistent.buildCIMatrixEOL(cacheN, orbs, grid, nucPot,
+                                Dict{Tuple{Subshell,Subshell},Float64}(),
+                                Dict{Tuple{Int64,Subshell,Subshell,Subshell,Subshell},Float64}(),
+                                Dict{Tuple{Int64,Subshell,Subshell,Int64},Vector{Float64}}()) )
+            end
+            gradCi  = function(bv::Dict{Subshell, Vector{Float64}}, x::Vector{Float64})
+                mcx = zeros( length(basis.csfs) )
+                for  (r, idx)  in  enumerate(idxCsfN)    mcx[idx] = x[r]    end
+                lvx = Level(lvN.J, lvN.M, lvN.parity, lvN.index, lvN.energy, lvN.relativeOcc,
+                            lvN.hasStateRep, lvN.basis, mcx)
+                (c1, c2) = SelfConsistent.combineAngularCoefficientsEOL(blockCaches, [lvx])
+                return( SelfConsistent.computeOrbitalGradient(bv, c1, c2, basis.subshells,
+                                                              primitives, nucPot, storage, matrixB) )
+            end
+            # The target root and its whole block spectrum, re-diagonalized at the CURRENT b so that every quantity
+            # below sits at one point.  The spectrum is reused by every CG iteration, so it costs one
+            # diagonalization per Newton step and not one per product.  The root is taken by POSITION, since an EOL
+            # functional may target an excited root of its block and the position is what survives a perturbation.
+            mtxN  = ciMatAt(bVectors)
+            eigN  = Basics.diagonalize(MatrixWithLinearAlgebra(), mtxN)
+            k0N   = argmin( [ abs(eigN.values[k] - lvN.energy)  for k = 1:length(eigN.values) ] )
+            lamN  = eigN.values[k0N]
+            evecN = [ eigN.vectors[k] / sqrt(sum(eigN.vectors[k].^2))  for k = 1:nCsfN ]
+            cN    = evecN[k0N]
+            nHv   = 0
+            hessTimes = function(v::Dict{Subshell, Vector{Float64}})
+                nHv = nHv + 1
+                gp  = gradCi(shiftB(v,  epsB), cN);      gm = gradCi(shiftB(v, -epsB), cN)
+                hv  = Dict{Subshell, Vector{Float64}}()
+                for  sh  in  activeSubshells    hv[sh] = (gp[sh] - gm[sh]) / (2epsB)    end
+                if  nCsfN >= 2
+                    # buildCIMatrixEOL fills only the UPPER TRIANGLE and Basics.diagonalize symmetrizes it, so this
+                    # product MUST symmetrize too;  with the raw array it drops half of every off-diagonal element
+                    # and the first derivative comes out a factor 1.93 wrong, which looks like physics.
+                    mp = ciMatAt(shiftB(v, epsB));       mm = ciMatAt(shiftB(v, -epsB))
+                    hc = LinearAlgebra.Symmetric((mp - mm) / (2epsB)) * cN
+                    rv = hc - sum(cN .* hc) * cN
+                    xv = zeros(nCsfN)
+                    for  k = 1:nCsfN
+                        k == k0N  &&  continue
+                        xv = xv + ( sum(evecN[k] .* rv) / (eigN.values[k] - lamN) ) * evecN[k]
+                    end
+                    # The CI-side difference returns 2 <x|dH/db|c> directly, which is exactly the term wanted.
+                    gxp = gradCi(bVectors, cN + delC*xv);    gxm = gradCi(bVectors, cN - delC*xv)
+                    for  sh  in  activeSubshells    hv[sh] = hv[sh] - (gxp[sh] - gxm[sh]) / (2delC)    end
+                end
+                return( hv )
+            end
+            # PRECONDITIONED, TRUNCATED CG -- AND IT RUNS IN SPAN COORDINATES, NOT IN b-SPACE.  This is the metric
+            # trap the note at stripNormChange! below describes for the directional derivative, and it bites a
+            # Newton solver twice as hard.  virtualDirections returns a set that is orthonormal in B, NOT in the
+            # Euclidean metric, so a CG carried out on b-space vectors with plain dot products silently solves the
+            # system in the wrong metric: measured, it left the inner solve hitting all 20 iterations every step and
+            # the line search cutting tStep to 0.05, ending 0.28 mHa WORSE than the first-order route.
+            #   In span coordinates there is no metric to get wrong.  The unknown is a_i with d = sum_i a_i phi_i;
+            # the right-hand side is phi_i^T grad, which is gProj and is already computed above; the operator is the
+            # Galerkin projection (H a)_i = phi_i^T (H sum_j a_j phi_j); and the preconditioner is the division by
+            # the (eps_v - eps_a) denominators.  Preconditioned steepest descent in these coordinates is EXACTLY
+            # -gProj/denom, i.e. the first-order step, so CG starts from what the first-order method would do and
+            # can only improve on it if the Hessian model is sound.
+            toBSpace = function(a::Dict{Subshell, Vector{Float64}})
+                v = Dict{Subshell, Vector{Float64}}()
+                for  sh  in  activeSubshells
+                    vv = zeros(nsL+nsS)
+                    for  (iv, phi)  in  enumerate(virt[sh])    vv = vv + a[sh][iv] * phi    end
+                    v[sh] = vv
+                end
+                return( v )
+            end
+            applyH = function(a::Dict{Subshell, Vector{Float64}})
+                hv = hessTimes( toBSpace(a) )
+                r  = Dict{Subshell, Vector{Float64}}()
+                for  sh  in  activeSubshells
+                    r[sh] = [ transpose(phi) * hv[sh]  for phi in virt[sh] ]
+                end
+                return( r )
+            end
+            dotSpan  = function(u, v)
+                wa = 0.;    for sh in activeSubshells   wa = wa + sum( u[sh] .* v[sh] )   end;    return( wa )
+            end
+            precSpan = function(u)
+                r = Dict{Subshell, Vector{Float64}}()
+                for  sh  in  activeSubshells    r[sh] = u[sh] ./ denom[sh]    end
+                return( r )
+            end
+            aCG = Dict{Subshell, Vector{Float64}}( sh => zeros(length(virt[sh]))  for sh in activeSubshells )
+            rCG = Dict{Subshell, Vector{Float64}}( sh => -copy(gProj[sh])         for sh in activeSubshells )
+            zCG = precSpan(rCG)
+            pCG = Dict{Subshell, Vector{Float64}}( sh => copy(zCG[sh])            for sh in activeSubshells )
+            rz  = dotSpan(rCG, zCG);      r0 = sqrt( dotSpan(rCG, rCG) )
+            nCG = 0;      negCurv = false;      curv = 0.
+            for  it = 1:maxCG
+                hp  = applyH(pCG);       pHp = dotSpan(pCG, hp)
+                if  it == 1    curv = pHp    end
+                # NEGATIVE CURVATURE IS NOT AN ERROR, it is the functional saying the model is not convex here.  CG
+                # is truncated at that point and whatever descent it has accumulated is kept;  on the FIRST product
+                # there is nothing to keep and the first-order step is used instead.
+                if  pHp <= 0.    negCurv = true;    break    end
+                al  = rz / pHp
+                for  sh  in  activeSubshells
+                    aCG[sh] = aCG[sh] + al * pCG[sh];      rCG[sh] = rCG[sh] - al * hp[sh]
+                end
+                nCG = it
+                if  sqrt( dotSpan(rCG, rCG) ) <= cgTol * r0    break    end
+                zCG = precSpan(rCG);     rzNew = dotSpan(rCG, zCG)
+                for  sh  in  activeSubshells    pCG[sh] = zCG[sh] + (rzNew/rz) * pCG[sh]    end
+                rz  = rzNew
+            end
+            if  nCG == 0
+                for  sh  in  activeSubshells    dir[sh] = sVec[sh]    end
+            else
+                dB = toBSpace(aCG)
+                for  sh  in  activeSubshells    dir[sh] = dB[sh]    end
+            end
+            if  printout
+                @printf(">> [EOL-N] iter %d:  CG %d steps, %d H*v products, first curvature %+.4e%s%s\n",
+                        iter, nCG, nHv, curv, negCurv ? ", TRUNCATED on negative curvature" : "",
+                        nCG == 0 ? ", first-order step used" : "");    flush(stdout)
+            end
+        elseif  method == :lbfgs  &&  !isempty(sHist)
             # two-loop recursion, giving d = -H grad with H built from the stored pairs around H_0
             q = Dict{Subshell, Vector{Float64}}( sh => copy(grad[sh])  for sh in activeSubshells )
             alphas = zeros( length(sHist) )
