@@ -14,7 +14,10 @@ if  true
     # Last successful:  unknown ...
     # Photo-double ionization of he-like Be: 1s^2   -->  4l + epsilon kappa: Generation of MeanFieldMultiplet
     name        = "He-like Be"
-    refConfigs  = Basics.generateConfigurationsWithAdditionalElectron([Configuration("1s")], quasiShells)
+    ## `Basics.generateConfigurationsWithAdditionalElectron` was retired with the new configuration language
+    ## (8e633500) and exists nowhere in src/; `AddElectrons(1, shells)` is its literal successor -- add one
+    ## electron in each of the given shells.  Priority item 50.
+    refConfigs  = Basics.generateConfigurations(Basics.AddElectrons(1, quasiShells), [Configuration("1s")])
     mfSettings  = MeanFieldSettings()
     #
     wa          = Representation(name, Nuclear.Model(4.01), Radial.Grid(true), refConfigs, MeanFieldMultiplet(mfSettings) )
