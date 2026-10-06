@@ -287,6 +287,10 @@ function Basics.generate(repType::AtomicState.RasExpansion, rep::AtomicState.Rep
     # Under EOL the target stays the reference-dominated level and that channel is absorbed into the orbitals.
     # Same-kappa correlation orbitals cannot be avoided in any case -- layers n = 4,5,6,7 give 4s,5s,6s,7s -- so
     # what protects the expansion is the CHOICE OF FUNCTIONAL here, not the choice of shells.
+    # priorIsLayer says whether priorMultiplet is a previous LAYER or still the reference SCF of line 254:
+    # the boundary check below is meaningful only between two layers, since the reference SCF runs a
+    # different field and a first layer may legitimately sit above it.
+    priorIsLayer = false
     for (istep, step)  in  enumerate(repType.steps)
         println("")
         printstyled("++ Compute the orbitals, orbitals and multiplet for step $istep ... \n", color=:light_green)
@@ -369,6 +373,66 @@ function Basics.generate(repType::AtomicState.RasExpansion, rep::AtomicState.Rep
         # the radii say whether a new shell contracted into the valence region (a correlation orbital) or
         # expanded out of it (a Rydberg orbital, which is not what a layer is for).
         Basics.printRasStepDiagnostic(istep, multiplet, basis, rep.refConfigs, step.frozenShells, rep.grid)
+        # A LAYER THAT ENDS ABOVE THE LAYER IT SITS ON IS NOT PHYSICS, AND UNTIL 06-Oct-2026 NOTHING SAID SO.
+        # A variational layer's CSF space CONTAINS the previous layer's, so its lowest level cannot lie above the
+        # previous one: taking the previous orbitals and the mixing vector (1,0,...) is a point of this layer's own
+        # parameter space.  When it does lie above, something has gone wrong in the HANDOVER rather than in the
+        # minimization, and this is the one place that can see it.
+        #
+        # MEASURED, and it is what this check was written from.  43Ca+ [Ar] 4s with 3s -> 5s,6s singles and nothing
+        # frozen: layer 1 converged to -679.5212307 and layer 2 ENTERED at -679.4850961, i.e. 36.1 mHa above it,
+        # ending at -679.5184105 -- a correlation layer 2.8 mHa WORSE than its own reference.  The cause is named
+        # below and is NOT the optimizer: the second-order route drives |grad| from 1.04 to 0.0016, a factor 640
+        # better than the first-order one, and lands HIGHER still (-679.5156563), because a tighter solve converges
+        # to the stationary point of whatever basin it is handed.
+        #
+        # WHY THE HANDOVER LOSES IT.  performSCF runs an AVERAGE-LEVEL pass before the optimized-level solver, and
+        # that pass re-optimizes every subshell not named in AsfSettings.frozenSubshells -- for the configuration
+        # AVERAGE, which is a different functional from the level energy the layer is supposed to minimize.  So a
+        # reference shell that no earlier step froze is re-optimized at every layer, discarding what the previous
+        # layer achieved.  AtomicState.RasExpansion accumulates its frozen set from coreShells, fromShells and each
+        # layer's newShells only, so a reference shell in NEITHER coreShells NOR fromShells is never frozen.  In
+        # examples/example-Ai.jl the Be reference 1s^2 2s^2 is exactly coreShells=[1s] plus fromShells=[2s], the
+        # two coincide, and this is invisible -- which is why it went unseen.
+        #
+        # THE CHECK MOVES NO NUMBER.  It compares two energies that were computed anyway and prints;  the remedy is
+        # the caller's, and naming the unfrozen reference shells is what makes it actionable, since those are
+        # exactly the shells to pass as coreShells.
+        if  typeof(step.treatment) == Basics.Variational  &&  priorIsLayer
+            eNow  = minimum( lv.energy  for lv in multiplet.levels )
+            ePrev = minimum( lv.energy  for lv in priorMultiplet.levels )
+            if  eNow > ePrev
+                refShells = Shell[]
+                for  conf in rep.refConfigs,  (sh, occ) in conf.shells
+                    if  occ > 0  &&  !(sh in refShells)    push!(refShells, sh)    end
+                end
+                unfrozen = Shell[ sh  for sh in refShells
+                                  if !any(f -> f.n == sh.n  &&  f.l == sh.l, step.frozenShells) ]
+                sa = ">> [RAS] STEP $istep ENDED ABOVE STEP $(istep-1) BY " *
+                     @sprintf("%.3f mHa", (eNow - ePrev)*1000) * " -- a variational layer CANNOT do that, since " *
+                     "its CSF space contains the previous layer's.  The layer was handed the previous orbitals and " *
+                     "then lost ground before it began to descend."
+                printstyled(sa * "\n", color=:light_red)
+                if  !isempty(unfrozen)
+                    sb = ">> [RAS]   These reference shells are frozen in NO earlier step, so they are " *
+                         "re-optimized here -- and performSCF's average-level pass does that for the configuration " *
+                         "AVERAGE, not for the level energy this layer minimizes:  " *
+                         join(string.(unfrozen), ", ") * ".\n" *
+                         ">> [RAS]   Pass them as coreShells to keep what the earlier layers achieved, or read " *
+                         "this layer's increment as a lower bound rather than as the correlation energy."
+                    printstyled(sb * "\n", color=:light_red)
+                else
+                    sb = ">> [RAS]   Every reference shell IS frozen here, so the loss is not the freezing policy; " *
+                         "suspect the grid (a correlation shell that does not fit cannot lower the energy) or the " *
+                         "level selection (a different level may have become the target)."
+                    printstyled(sb * "\n", color=:light_red)
+                end
+                Defaults.warn(AddWarning(), "Basics.generate(RasExpansion): step $istep ended " *
+                              @sprintf("%.3f mHa", (eNow - ePrev)*1000) * " ABOVE step $(istep-1), which a " *
+                              "variational layer cannot do.  Unfrozen reference shells: " *
+                              (isempty(unfrozen) ? "none" : join(string.(unfrozen), ", ")) * ".")
+            end
+        end
         if output    results = Base.merge( results, Dict("step"*string(istep) => Multiplet("Multiplet:", multiplet.levels)) )              end
         # A PERTURBATIVE STEP IS A LEAF AND MUST NOT BECOME THE TRUNK.  It reports what the excitations left out of
         # the previous step are still worth, over that step's own orbitals; a later variational step therefore
@@ -376,7 +440,7 @@ function Basics.generate(repType::AtomicState.RasExpansion, rep::AtomicState.Rep
         # would take the whole folded space as its P -- including exactly the configurations that were deliberately
         # kept out of the CI.  So a chain may read step2, step2PT, step3, step3PT, ... and each PT branches off its
         # own layer.
-        if  typeof(step.treatment) == Basics.Variational    priorMultiplet = multiplet    end
+        if  typeof(step.treatment) == Basics.Variational    priorMultiplet = multiplet;   priorIsLayer = true    end
     end
     
     return( results isa Dict{String,Any} ? Basics.PerformResults(results) : results )
