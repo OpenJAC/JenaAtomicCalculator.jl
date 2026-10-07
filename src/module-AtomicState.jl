@@ -245,8 +245,25 @@ end
             C II     1s^2 2s^2 2p       41  -77.1587 mHa   -80.4217 mHa      +4.2 %  0.0001%/ 0.31%   1.65x
             Ti III   [Ar] 3d^2        2264 -150.8840 mHa  -161.8682 mHa      +7.3 %  0.025 % / 0.25%  1.83x
 
-        The release is deeper on EVERY case, and on the two real open-shell layers by 4.2 % and 7.3 % of the
-        correlation energy -- 11 mHa on Ti III, which is physics and not noise.  It costs 1.65x to 1.83x rather than
+        The release is deeper on every case above -- but **READ THE NEXT PARAGRAPH BEFORE CHOOSING IT, because that
+        advantage is almost entirely the release buying back something the REFERENCE layer was forbidden to do, and
+        it is far better not to forbid it.**
+        **WHERE THE CORE IS ALLOWED TO RELAX MATTERS MORE THAN THIS POLICY DOES, and earlier is better.** Isolated
+        07-Oct-2026 on Ti III [Ar] 3d^2 + 4s4p4d(SD), one code path, adaptive stop, `coreShells` the only variable:
+
+            layer 1            step 1         :previousLayersFrozen    :allFree        policy gap
+            core FROZEN      -852.160048      -852.310901 (305 s)    -852.321827 (526 s)   10.93 mHa
+            core FREE        -852.176877      -852.327971 (321 s)    -852.328019 (544 s)    0.048 mHa
+
+        Letting the core relax at the REFERENCE layer is worth **16.8 mHa** on step 1, and the best total improves by
+        **6.2 mHa** -- so no later freezing policy recovers what a frozen core costs: the best frozen-core run still
+        ends 6.2 mHa ABOVE the worst core-free one. And once the core has relaxed there, **this policy is worth
+        0.048 mHa, a factor 228 less than it appeared**, at which point `:previousLayersFrozen` is the right choice
+        because it is 1.7x faster.
+        **SO `:allFree` IS A REMEDY FOR A FROZEN-CORE REFERENCE, NOT A GENERAL IMPROVEMENT.** Declare `coreShells`
+        only when cost forces it; if it is forced, `:allFree` wins back about 11 mHa of the ~17 mHa given away.
+        The same ordering holds on C II, less sharply: the gap falls from 3.26 mHa to 0.61 mHa when its 1s is
+        released, a 1s having little to relax.  It costs 1.65x to 1.83x rather than
         the 2x two phases suggest, because the warm-up leaves the release a good start.  Cross-checked under both
         `stepping = :curvature` and `:newton`, so it is a property of the handover and not of the solver.
         **AND A CLAIM MADE ON THE Ca+ CASE ALONE IS WITHDRAWN HERE:** that the released policy SATURATES in the
