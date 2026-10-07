@@ -447,6 +447,60 @@ function Basics.generate(repType::AtomicState.RasExpansion, rep::AtomicState.Rep
         # the REFERENCE CSFs, so a level that drifts away from the reference space shows up as w_ref falling;
         # the radii say whether a new shell contracted into the valence region (a correlation orbital) or
         # expanded out of it (a Rydberg orbital, which is not what a layer is for).
+        # THE DOUBLING TEST, REPORTED PER LAYER AND COSTING NOTHING -- 07-Oct-2026.  A correlation layer never truly
+        # converges, so its iteration count is a cost dial and the honest question is whether DOUBLING the effort
+        # would still move the layer's increment.  That used to need a second computation at half the budget;  the
+        # solver now carries the descent at half its own iterations, so the answer comes from the run in hand -- and
+        # more correctly, since both numbers lie on ONE trajectory rather than on two runs whose earlier layers may
+        # have stopped in different places.
+        #   IT IS ADVISORY AND NEVER GATING, as the verdict itself is.  A layer whose increment is still moving is
+        # not wrong, it is unfinished, and the reader is the one who decides whether that matters.
+        if  repType.settings.scfRoute isa Basics.RotationRoute
+            vd = SelfConsistent.lastScfVerdict()
+            if  !isnothing(vd)  &&  vd.descent > 0.  &&  vd.descentAtHalf > 0.
+                drift = abs(vd.descent - vd.descentAtHalf) / vd.descent
+                # TWO DIFFERENT NUMBERS, AND THEY MUST NOT BE CONFLATED -- which this print did on the day it was
+                # written.  A layer's INCREMENT is everything it gains over the previous layer, and most of it
+                # arrives at the ENTRY, from mixing the new CSFs in at the inherited orbitals: that part is one
+                # diagonalization, exact, and cannot be unconverged.  The solver's DESCENT is only the part the
+                # orbital optimization then adds, and it is the only part an iteration count can affect.  Measured
+                # on C II 1s^2 2s^2 2p + 3s3p3d(SD): the increment is -80.42 mHa and the orbital optimization
+                # contributes -3.26 mHa of it, i.e. 4 %.  So the doubling test applies to the DESCENT -- correctly,
+                # since that is the only thing still moving -- and a tolerance of 5 % on it is worth about 1 % on
+                # the increment.  Printing both keeps that visible instead of inviting the reader to read the
+                # tolerance as an error bar on the layer.
+                layerInc = istep > 1 ? (minimum(lv.energy for lv in multiplet.levels) -
+                                        minimum(lv.energy for lv in priorMultiplet.levels)) : NaN
+                println(">> [RAS] step $istep: increment " *
+                        (isnan(layerInc) ? "n/a (first step)" : @sprintf("%+.4f mHa", 1000*layerInc)) *
+                        ", of which the orbital optimization gave " * @sprintf("%+.4f mHa", -1000*vd.descent) *
+                        " in $(vd.iterations) iterations;  the rest arrived at entry, from the CI, and needs no " *
+                        "iteration.")
+                # A RELATIVE TEST ON A NEGLIGIBLE QUANTITY SAYS NOTHING, and saying it anyway is worse than silence.
+                # Seen on the first run that printed this: a REFERENCE layer whose orbitals were already converged
+                # gained 0.0002 mHa by optimizing them, and a 20 % change in THAT was reported as "not converged" --
+                # alarming, and about nothing.  So the test is only applied where the optimized part is large enough
+                # to matter: above a MICRO-HARTREE in absolute terms -- a thousandth of a milli-Hartree, below which
+                # no quoted atomic energy is affected -- and above a thousandth of the layer's own increment in
+                # relative ones.  The absolute floor was tried at 1e-9 Ha first and was useless: the two reference
+                # layers that provoked this gained 1e-7 and 2e-7 Ha, so they sailed over it and were still judged.
+                negligible = vd.descent < 1.0e-6  ||
+                             (!isnan(layerInc)  &&  vd.descent < 1.0e-3 * abs(layerInc))
+                if  negligible
+                    println(">> [RAS] step $istep: the orbital optimization moved this layer by only " *
+                            @sprintf("%+.4f mHa", -1000*vd.descent) * ", so there was nothing left for it to do " *
+                            "and the doubling test does not apply.")
+                else
+                println(">> [RAS] step $istep: the DOUBLING TEST on that optimized part -- " *
+                        @sprintf("%+.4f mHa", -1000*vd.descent) * " against " *
+                        @sprintf("%+.4f mHa", -1000*vd.descentAtHalf) * " at half the iterations, a change of " *
+                        @sprintf("%.2f %%", 100*drift) * " -- " *
+                        (drift <= 0.10 ? "so this layer is CONVERGED in its budget." :
+                                         "so this layer is NOT converged;  raise the budget, or quote the " *
+                                         "increment WITH it."))
+                end
+            end
+        end
         Basics.printRasStepDiagnostic(istep, multiplet, basis, rep.refConfigs, stepFrozenShells, rep.grid)
         # A LAYER THAT ENDS ABOVE THE LAYER IT SITS ON IS NOT PHYSICS, AND UNTIL 06-Oct-2026 NOTHING SAID SO.
         # A variational layer's CSF space CONTAINS the previous layer's, so its lowest level cannot lie above the

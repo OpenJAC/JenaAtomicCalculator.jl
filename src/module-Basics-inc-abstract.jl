@@ -2534,6 +2534,22 @@ end
                                          layer), and the reported |grad| is measured in the SAME span. Measured 08-Sep-2026:
                                          raising it from 16 to 32 lowers the energy of that case by 3.7e-04 Ha with the basis
                                          orthonormal to 1e-10, while 96 destroys the line search outright at iteration 41.
+    + incrementTolerance ::Float64   ... WHEN TO STOP, as the fraction by which DOUBLING the effort may still move the
+                                         result;  0.0 (the default) turns the test off, and then `maxIterations` decides the
+                                         answer.  A correlation layer never truly converges, so its iteration count has
+                                         always been a cost dial rather than a criterion -- and that is why a RAS layer
+                                         increment had to be quoted together with its budget.  With a positive tolerance the
+                                         solver instead compares the descent it has achieved, D(n) = E(1) - E(n), against the
+                                         descent at HALF the iterations, D(n/2):  if doubling the effort moved the increment
+                                         by less than the tolerance, doubling it again will not either, and the run stops.
+                                         `maxIterations` is then a CEILING, not the decision.
+                                         **THE SCALE IS THE DESCENT ITSELF, which is what frees the test of units and of Z.**
+                                         No absolute tolerance can serve both a layer worth 160 mHa (Ti III 3d^2) and one
+                                         worth 0.06 mHa (Ca+ 4s with core-s singles), and both were measured on one afternoon.
+                                         It never fires before iteration 6: at a budget of 3 a reference step has been
+                                         measured to return an energy BELOW its own converged value, so an earlier test can
+                                         stop on noise.  0.05 asks for 5 %, which on the ions measured so far is reached well
+                                         inside the budgets those layers were being given.
     + stepping           ::Symbol    ... how the search direction is chosen, one of :plain, :conjugate, :curvature (the default)
                                          and :newton; an unrecognized symbol RAISES rather than falling back silently. The first
                                          three are first-order and differ only in how they choose the downhill direction: :plain
@@ -2581,20 +2597,34 @@ struct     RotationRoute        <:  AbstractScfRoute
     maxIterations        ::Int64
     nVirtual             ::Int64
     stepping             ::Symbol
+    incrementTolerance   ::Float64
 
     # THE STEPPING IS VALIDATED HERE RATHER THAN AT THE SOLVER, because the solver's direction chain ends in an
     # `else` that takes the plain preconditioned step: an unrecognized symbol would therefore run to completion and
     # return a plausible energy obtained by a method the caller did not ask for.  Measured 06-Oct-2026 before this
     # constructor existed: `stepping = :newtn` ran clean and silently delivered steepest descent.  Raising at
     # CONSTRUCTION is the right place, since it names the mistake where the caller made it.
-    function RotationRoute(maxIterations::Int64, nVirtual::Int64, stepping::Symbol)
+    function RotationRoute(maxIterations::Int64, nVirtual::Int64, stepping::Symbol, incrementTolerance::Float64)
         if  !(stepping in (:plain, :conjugate, :curvature, :newton))
             error("Basics.RotationRoute: stepping = :$stepping is not recognized.  Use one of :plain, :conjugate, " *
                   ":curvature (the default, a short-memory secant method) or :newton (second-order, for a " *
                   "correlation layer that will not converge).  See the docstring for which to choose.")
         end
-        new(maxIterations, nVirtual, stepping)
+        if  incrementTolerance < 0.  ||  incrementTolerance >= 1.
+            error("Basics.RotationRoute: incrementTolerance = $incrementTolerance must lie in [0, 1).  Zero turns " *
+                  "the test off and `maxIterations` then decides the answer;  a positive value is the fraction by " *
+                  "which DOUBLING the effort may still move the layer's increment, 0.05 being a reasonable ask.")
+        end
+        new(maxIterations, nVirtual, stepping, incrementTolerance)
     end
+end
+
+
+# `Basics.RotationRoute(maxIterations::Int64, nVirtual::Int64, stepping::Symbol)`
+#     ... the three-argument form used before 07-Oct-2026;  it leaves the increment test OFF, so `maxIterations`
+#         decides where the run stops exactly as it did then.
+function RotationRoute(maxIterations::Int64, nVirtual::Int64, stepping::Symbol)
+    RotationRoute(maxIterations, nVirtual, stepping, 0.0)
 end
 
 
@@ -2749,6 +2779,19 @@ function maxIterations end
 
 maxIterations(route::AbstractScfRoute)      = route.maxIterations
 maxIterations(::AutomaticRoute)             = 24
+
+
+"""
+`Basics.incrementTolerance(route::Basics.AbstractScfRoute)`
+    ... returns the fraction by which DOUBLING the effort may still move the result before the given route stops, or 0.0 for
+        every route that does not offer the test -- so a caller may ask any route without knowing which ones implement it.
+        See `Basics.RotationRoute` for what the test measures and why its scale is the descent itself. A value::Float64 is
+        returned.
+"""
+function incrementTolerance end
+
+incrementTolerance(route::AbstractScfRoute)  = 0.0
+incrementTolerance(route::RotationRoute)     = route.incrementTolerance
 
 
 """

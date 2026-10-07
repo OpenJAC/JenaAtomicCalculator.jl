@@ -38,6 +38,15 @@ const GBL_EOL_THREAD_NOTE_SHOWN = Ref(false)
                                            things and only this tells them apart: flat with a healthy step is
                                            convergence, flat with a collapsed step is a search that cannot move.
     + energy               ::Float64   ... the active-part energy at the exit, for reference.
+    + descent              ::Float64   ... how far this solve brought the energy DOWN from its own first iterate,
+        E(1) - E(final), in Hartree.  Within one RAS layer the frozen part is constant, so this is the layer's
+        INCREMENT -- the quantity Rule 21 says to record and compare, rather than the total.
+    + descentAtHalf        ::Float64   ... the same descent measured at HALF the iterations it actually took,
+        E(1) - E(n/2).  The pair is what makes the doubling test free: a correlation layer never truly converges,
+        so `maxIterations` is a cost dial and not a criterion, and the honest question is whether DOUBLING the
+        effort still moves the increment.  Comparing these two answers it from one run, where it used to take two
+        -- and more correctly, since both numbers come from ONE trajectory rather than from two computations whose
+        earlier layers might have stopped in different places.
 """
 struct  ScfVerdict
     converged              ::Bool
@@ -47,6 +56,8 @@ struct  ScfVerdict
     gradientNorm           ::Float64
     finalStep              ::Float64
     energy                 ::Float64
+    descent                ::Float64
+    descentAtHalf          ::Float64
 end
 
 
@@ -62,6 +73,14 @@ function Base.show(io::IO, verdict::SelfConsistent.ScfVerdict)
                 "assert on)")
     println(io, "   |grad| = $(verdict.gradientNorm) (a HINT, not scale-free)   final step = $(verdict.finalStep)" *
                 "   energy = $(verdict.energy)")
+    # THE DOUBLING TEST, FOR FREE.  Both numbers come from the one trajectory, so this says what a second
+    # computation at half the budget would have said -- see ScfVerdict's own documentation.
+    if  verdict.descent > 0.  &&  verdict.descentAtHalf > 0.
+        drift = abs(verdict.descent - verdict.descentAtHalf) / verdict.descent
+        println(io, "   descent = $(verdict.descent) Ha, and $(verdict.descentAtHalf) Ha at half the iterations: " *
+                    "doubling the effort moved it by " * @sprintf("%.2f %%", 100*drift) *
+                    (drift <= 0.10 ? "  -- stable" : "  -- NOT stable, the increment is still moving"))
+    end
 end
 
 
@@ -1417,6 +1436,11 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
     # Set by every exit below.  A loop that simply runs out of iterations used to end in silence, which was the
     # fifth of five ways this driver can stop and the only one left unreported.
     stopReason = "";   gNorm = 0.;   iterDone = 0;   eAvailAtExit = NaN;   tStepAtExit = NaN;   eAtExit = NaN
+    # THE ACTIVE-PART ENERGY OF EVERY ITERATE, kept so that the layer's DESCENT can be read at any earlier moment.
+    # One Float64 per iteration is nothing beside the iterate itself, and it is what turns the doubling test from a
+    # second computation into a lookup.  The frozen part is constant within a layer, so a difference of these is a
+    # difference of TOTAL energies too.
+    eHist = Float64[]
     # THE STEP-HEALTH FLOOR, used by BOTH exits below and hoisted here 05-Sep-2026 so that it can be.
     # A step smaller than this means the line search has collapsed, temporarily or otherwise, and NOTHING
     # measured during such a step says anything about convergence: neither a stagnant gradient nor a flat
@@ -1485,6 +1509,7 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
         # the comparison meaningful at Z = 98, where the total is 3e4 Ha and a step moves its twelfth digit.
         (e0Frozen, e0) = SelfConsistent.energyFromBVectorsSplit(bVectors, coeffs1p, coeffs2p, basis.subshells,
                                                          primitives, grid, nucPot, isFrozenSub, frozenRk)
+        push!(eHist, e0)
         grad = SelfConsistent.computeOrbitalGradient(bVectors, coeffs1p, coeffs2p, basis.subshells,
                                                              primitives, nucPot, storage, matrixB)
         virt = SelfConsistent.virtualDirections(bVectors, basis.subshells, primitives, nucPot,
@@ -2632,6 +2657,44 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
         if  iter == Basics.maxIterations(settings.scfRoute)
             eAvailAtExit = energyStillAvailable();    tStepAtExit = tStep;    eAtExit = e0
         end
+        # THE INCREMENT HAS STOPPED MOVING UNDER A DOUBLING OF THE EFFORT -- the one exit that is a convergence
+        # criterion for a CORRELATION LAYER, off unless the route asks for it (incrementTolerance > 0).
+        #
+        # WHY NOT THE ENERGY CHANGE PER ITERATION, which is the obvious thing and is wrong.  A correlation layer
+        # creeps: measured on Be Scenario A, a stationary-energy test stopped it at iterations 3, 15, 37 and 80
+        # where the same runs were still improving at 63, 154, 51 and 40.  A one-iteration difference cannot tell
+        # a layer that has converged from one that is descending slowly, because both look flat from step to step.
+        #
+        # WHAT WORKS IS A LONG BASELINE.  Compare the descent achieved so far, D(n) = E(1) - E(n), against the
+        # descent at HALF the iterations, D(n/2).  If doubling the effort from n/2 to n changed the layer's
+        # increment by less than the tolerance, doubling it again will not change it either, and the layer is as
+        # converged as it is going to get.  This is the doubling test of the RAS strategy, applied continuously
+        # instead of by running the whole computation twice -- the maintainer's suggestion, 07-Oct-2026 -- so the
+        # budget becomes a CEILING rather than the thing that decides the answer.
+        #
+        # THE SCALE IS THE DESCENT ITSELF, which is what makes the test free of units and of Z.  An absolute
+        # tolerance cannot serve both a layer worth 160 mHa (Ti III 3d^2) and one worth 0.06 mHa (Ca+ 4s with core
+        # s singles), and those two were measured on the same afternoon.
+        #
+        # NOT BELOW SIX ITERATIONS, measured: at a budget of 3 a reference step returned an energy BELOW its own
+        # converged value, so a test allowed to fire that early can stop on noise.
+        if  settings.scfRoute isa Basics.RotationRoute  &&  Basics.incrementTolerance(settings.scfRoute) > 0.  &&
+                    iter >= 6  &&  length(eHist) == iter
+            half = div(iter, 2)
+            dNow = eHist[1] - eHist[iter];      dHalf = eHist[1] - eHist[half]
+            if  dNow > 0.  &&  abs(dNow - dHalf) <= Basics.incrementTolerance(settings.scfRoute) * dNow
+                eAvailAtExit = energyStillAvailable();    tStepAtExit = tStep;    eAtExit = e0
+                stopReason = "increment stable under doubling"
+                iterDone   = iter
+                println(">> [EOL-C3] CONVERGED at iteration $iter: the layer's increment is " *
+                        @sprintf("%.6e Ha", dNow) * " and was " * @sprintf("%.6e Ha", dHalf) *
+                        " at iteration $half, so DOUBLING the effort moved it by " *
+                        @sprintf("%.2f %%", 100*abs(dNow-dHalf)/dNow) * ", within the requested " *
+                        @sprintf("%.2f %%", 100*Basics.incrementTolerance(settings.scfRoute)) *
+                        ".  |grad| = $gNorm, tStep = $tStep.")
+                break
+            end
+        end
         stagnationWindow = 20
         # THE ITERATION NOW ENDS WHEN THE ENERGY STOPS IMPROVING, NOT WHEN THE GRADIENT DOES -- 07-Sep-2026.
         # This reverses the decision of 03-Sep, and it reverses it because the surface changed underneath it.
@@ -2709,8 +2772,12 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
     #   ADVISORY, NEVER GATING.  Nothing in JAC reads this, and no computation is blocked by it.  A surprising
     # physical result must remain obtainable with every field of it looking wrong, which is the maintainer's
     # constraint on the whole item and the reason it is a record rather than a check.
-    GBL_EOL_LAST_VERDICT[] = ScfVerdict(stopReason == "converged" || stopReason == "energy below its own resolution",
-                                        stopReason, iterDone, eAvailAtExit, gNorm, tStepAtExit, eAtExit)
+    descentNow  = length(eHist) >= 2         ? eHist[1] - eHist[end]            : 0.
+    descentHalf = length(eHist) >= 4         ? eHist[1] - eHist[div(length(eHist),2)] : 0.
+    GBL_EOL_LAST_VERDICT[] = ScfVerdict(stopReason == "converged" || stopReason == "energy below its own resolution" ||
+                                        stopReason == "increment stable under doubling",
+                                        stopReason, iterDone, eAvailAtExit, gNorm, tStepAtExit, eAtExit,
+                                        descentNow, descentHalf)
 
     # THE REQUESTED INTERACTION IS APPLIED HERE, ONCE, ON THE CONVERGED ORBITALS.  Until 01-Sep-2026 this
     # function returned the multiplet built inside its own iteration by the EOL machinery
