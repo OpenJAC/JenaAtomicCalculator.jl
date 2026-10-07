@@ -2682,7 +2682,23 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
                     iter >= 6  &&  length(eHist) == iter
             half = div(iter, 2)
             dNow = eHist[1] - eHist[iter];      dHalf = eHist[1] - eHist[half]
-            if  dNow > 0.  &&  abs(dNow - dHalf) <= Basics.incrementTolerance(settings.scfRoute) * dNow
+            if  dNow > 0.  &&  abs(dNow - dHalf) <= Basics.incrementTolerance(settings.scfRoute) * dNow  &&
+                        # THE WARM-START GUARD, and without it this test has a real failure mode -- measured
+                        # 07-Oct-2026.  From a COLD start the descent looks stable before it has begun: D(n) and
+                        # D(n/2) are both tiny and close, so the doubling condition above is satisfied by a
+                        # trajectory that has not moved.  Measured on C II 1s^2 2s^2 2p + 3s3p3d(SD) released
+                        # DIRECTLY from raw spectrum orbitals, the run stopped after 5 s with an increment of
+                        # -51.84 mHa against the -78.12 mHa a warmed run reaches -- a THIRD of the correlation
+                        # energy lost, and reported as converged.
+                        #   WHAT SEPARATES "converged" FROM "has not begun" is not the descent but what is still
+                        # REACHABLE.  energyStillAvailable() is the Newton decrement along the search direction --
+                        # already the field this solver tells a caller to assert on, and measured to separate a
+                        # finished run (4.5e-11 Ha) from an unfinished one (5.8e-06 Ha) where |grad| differed by
+                        # only 48x.  So the stop additionally requires that what remains reachable be small against
+                        # what has been achieved, on the SAME tolerance, which keeps the test free of units.
+                        #   IT IS EVALUATED ONLY ONCE THE DOUBLING CONDITION HAS PASSED, so its two gradients are
+                        # paid at the moment of stopping and not on every iteration.
+                        energyStillAvailable() <= Basics.incrementTolerance(settings.scfRoute) * dNow
                 eAvailAtExit = energyStillAvailable();    tStepAtExit = tStep;    eAtExit = e0
                 stopReason = "increment stable under doubling"
                 iterDone   = iter
