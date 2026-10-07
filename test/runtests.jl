@@ -1,5 +1,10 @@
 using Test
-using JenaAtomicCalculator, ..Defaults, ..TestFrames
+# TestFrames IS NOT EXPORTED, and is asked for by name here.  Rule 16 of CLAUDE.md opens "TestFrames is never
+# published.  It is the test suite" -- and from 1.0.0 an exported name is a PROMISE to keep that API, which would
+# make renaming a test function a breaking change.  The suite must stay free to change whenever the tests change,
+# so the name is imported explicitly instead.  `using ..TestFrames` stood here and did nothing: the name was in
+# fact arriving from the top-level export list, which is why removing that export broke this file.
+using JenaAtomicCalculator, JenaAtomicCalculator.TestFrames, JenaAtomicCalculator.Defaults
 
 ## Clear the .sum files of the PREVIOUS run, before this one starts.  Each test that opens a summary writes a
 ## test-<Name>-new.sum here and never removes it, so they accumulate -- 51 had collected by 29-Aug-2026.
