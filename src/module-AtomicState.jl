@@ -236,10 +236,33 @@ end
         with 3s -> 5s,6s singles, 36.1 mHa above, which is more than the whole correlation effect being measured, and
         the resulting layer increment had a BUDGET-DEPENDENT SIGN (+11.2, +5.9, +1.0 mHa at budgets 20, 60, 120).
         Repaired, the same layer gives -0.013, -0.053, -0.063 mHa -- monotone, correctly signed, and saturating.
-        **WHAT THE RELEASE IS WORTH:** 2.7x to 3.3x the correlation energy of the frozen policy on that case, for two
-        SCF phases instead of one.  It is the core relaxing against the layer's correlation, and the frozen policy
-        cannot reach it.  Cross-checked under both `stepping = :curvature` and `:newton`, so it is a property of the
-        handover and not of the solver.
+        **WHAT THE RELEASE IS WORTH, measured on three ions with the same two-layer structure and `freezing` as the
+        only variable** -- a reference layer, then ONE correlation layer with singles and doubles, every box checked
+        adequate and every correlation orbital contracted into the valence region, so no grid confound:
+
+            ion      reference        CSFs   frozen incr.   allFree incr.   deeper   doubling test   cost
+            Ca+      [Ar] 4s             5   -0.0234 mHa    -0.0604 mHa     +158 %   29.5 % / 7.3 %  ~2.0x
+            C II     1s^2 2s^2 2p       41  -77.1587 mHa   -80.4217 mHa      +4.2 %  0.0001%/ 0.31%   1.65x
+            Ti III   [Ar] 3d^2        2264 -150.8840 mHa  -161.8682 mHa      +7.3 %  0.025 % / 0.25%  1.83x
+
+        The release is deeper on EVERY case, and on the two real open-shell layers by 4.2 % and 7.3 % of the
+        correlation energy -- 11 mHa on Ti III, which is physics and not noise.  It costs 1.65x to 1.83x rather than
+        the 2x two phases suggest, because the warm-up leaves the release a good start.  Cross-checked under both
+        `stepping = :curvature` and `:newton`, so it is a property of the handover and not of the solver.
+        **AND A CLAIM MADE ON THE Ca+ CASE ALONE IS WITHDRAWN HERE:** that the released policy SATURATES in the
+        iteration budget while the frozen one does not.  That is true only of Ca+.  On both open-shell ions BOTH
+        policies converge and the FROZEN one converges better.  **The argument for the release is its DEPTH, not its
+        convergence.**
+        **WHAT MAKES A LAYER HARD TO CONVERGE IS THE LAYER'S OWN SHELL STRUCTURE, not the ion's.**  Ca+'s layer adds
+        5s and 6s -- high-n orbitals of the SAME symmetry as the occupied 4s, diffuse and nearly degenerate with it;
+        C II adds 3s,3p,3d and Ti III adds 4s,4p,4d, compact orbitals mostly in l channels the reference does not
+        occupy.  Measured, the drift of the increment when the budget doubles: 0.0069 mHa for Ca+ against 0.0001 mHa
+        for C II, i.e. 69x more drift on a 3000x smaller increment.  A layer of high-n orbitals in an
+        already-occupied symmetry is the hard case AND earns little;  a layer opening new l channels is the easy case
+        AND earns the real correlation energy.  Budget accordingly, and test it by DOUBLING the budget and comparing
+        the layer INCREMENT -- under about 10 % the layer is converged.  That test replaces the "about twelve
+        iterations" rule of thumb, which is strongly Z-dependent (45:1 at Z = 92 against 7:1 at Z = 8) and so cannot
+        be carried between elements.
 """
 struct  RasSettings
     levelsScf              ::Array{Int64,1}
