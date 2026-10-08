@@ -7,8 +7,9 @@
 """
 `SelfConsistent.determineChemicalPotential(orbitals::Dict{Subshell, Orbital}, temp::Float64, radiusWS::Float64,
                                            nm::Nuclear.Model, grid::Radial.Grid)`
-    ... determines the chemical potential so that Sum_i f(epsilon_i, mu, temp) = Z.
-        The Newton-Raphson methods is used to iterate to the chemical potential; a chemMu::Float64 is returned.
+    ... determines the chemical potential mu from the neutrality condition  Sum_i (2j_i+1) f(eps_i, mu, temp) = Z,
+        where f is the Fermi-Dirac factor; a safeguarded Newton iteration inside a bracket is used, and a
+        chemMu::Float64 is returned.
 
         Note: this general finite-temperature Fermi-Dirac root-finding utility was moved here from module Plasma
               (where it originated as `determineChemicalPotential`), since Plasma.perform(::AverageAtomScheme,
@@ -18,41 +19,73 @@
 """
 function determineChemicalPotential(orbitals::Dict{Subshell, Orbital}, temp::Float64, radiusWS::Float64, nm::Nuclear.Model,
                                     grid::Radial.Grid)
-    function g(mu::Float64, orbitals::Dict{Subshell, Orbital}, temp::Float64, nm::Nuclear.Model)
-        wa = - nm.Z
+    # THE FERMI FACTOR IS EVALUATED IN THE STABLE BRANCH, which is also what makes the derivative provable.
+    # Writing 1/(exp(w)+1) directly overflows for large positive w, and the previous version avoided that by CLAMPING
+    # w at 300 -- which silently changes the function whose root is being sought.  Choosing the branch instead is
+    # exact everywhere, and then  df/dmu = f (1-f) / temp  follows in one line and cannot be mistyped.
+    fermi(w::Float64)   = w > 0. ? exp(-w) / (1. + exp(-w))  :  1. / (1. + exp(w))
+    function g(mu::Float64)
+        wa = -nm.Z
         for  (k,v)  in orbitals
-            occ = Basics.twice( Basics.subshell_j(k)) + 1
-            wb  = (v.energy - mu) /temp
-            if  wb > 300.   wb = 300.   end
-            wa  = wa + occ / (exp(wb) + 1)
+            wa = wa + (Basics.twice(Basics.subshell_j(k)) + 1) * fermi( (v.energy - mu) / temp )
         end
         return( wa )
     end
-    function gprime(mu::Float64, orbitals::Dict{Subshell, Orbital}, temp::Float64, nm::Nuclear.Model)
+    function gprime(mu::Float64)
         wa = 0.
         for  (k,v)  in orbitals
-            occ = Basics.twice( Basics.subshell_j(k)) + 1
-            wb  = (v.energy - mu) /temp
-            if  wb > 300.   wb = 300.   end
-            wc  = exp( wb )
-            wa  = wa + occ * wc^2 / temp / (wc+1)^2
+            wf = fermi( (v.energy - mu) / temp )
+            wa = wa + (Basics.twice(Basics.subshell_j(k)) + 1) * wf * (1. - wf) / temp
         end
         return( wa )
     end
-    # Iterate for the chemical potential
-    chemMu = -0.1;     newMu = 0.;     nx = 0
-    while true
-        nx = nx + 1
-        newMu = chemMu - g(chemMu, orbitals, temp, nm) / gprime(chemMu, orbitals, temp, nm)
-        if  abs(newMu - chemMu) < 1.0e-4  break
-        else    chemMu = newMu
-        end
+    # THE ROOT IS UNIQUE AND BRACKETABLE: every Fermi factor increases with mu, so g is strictly increasing, g -> -Z
+    # as mu -> -inf and g -> (sum of all 2j+1) - Z > 0 as mu -> +inf whenever the subshell set can hold Z electrons.
+    # A bracket therefore always exists, and finding it first is what stops the iteration running away.
+    #
+    # WHY THAT MATTERS HERE, measured 08-Oct-2026 on the version this replaces.  Its Newton derivative read
+    # `occ * wc^2 / temp / (wc+1)^2` with wc = exp(w) -- exp(2w) where the derivative needs exp(w).  Against a
+    # central difference of g itself, at its own starting point mu = -0.1 for Si at T = 10 eV: finite difference
+    # 6.267236e-04, correct analytic 6.267246e-04, and that expression 2.406385e-08 -- FOUR ORDERS too small.  The
+    # first step went to mu = -2.49e+08 instead of -9.57e+03 and never recovered, ending near -6.4e+24, whereupon
+    # every occupation is zero, the electron sum is 0 instead of Z, and the mean charge comes out as exactly Z.
+    # The error was worst where it mattered: for a deeply bound orbital exp(w) is tiny and squaring it annihilates
+    # the derivative.  A fudge of -0.0011 had been added to the result "for stability", which is what a misbehaving
+    # root-finder looks like from the outside.
+    epsLo = minimum( v.energy  for (k,v) in orbitals );   epsHi = maximum( v.energy  for (k,v) in orbitals )
+    muLo  = epsLo - 60temp - 1.0;    muHi = epsHi + 60temp + 1.0
+    nExp  = 0
+    while  g(muLo) > 0.  &&  nExp < 200    muLo = muLo - max(1.0, abs(muLo));    nExp = nExp + 1    end
+    while  g(muHi) < 0.  &&  nExp < 400    muHi = muHi + max(1.0, abs(muHi));    nExp = nExp + 1    end
+    if  g(muLo) > 0.  ||  g(muHi) < 0.
+        error("SelfConsistent.determineChemicalPotential(): no bracket for the neutrality condition between " *
+              @sprintf("%.3e", muLo) * " and " * @sprintf("%.3e", muHi) * " Ha;  g = " * @sprintf("%.3e", g(muLo)) *
+              " and " * @sprintf("%.3e", g(muHi)) * ".  The subshell set holds " *
+              string(sum(Basics.twice(Basics.subshell_j(k)) + 1  for (k,v) in orbitals)) * " electrons against " *
+              "Z = $(nm.Z);  raise nMax or lMax if that is less than Z.")
     end
+    # A SAFEGUARDED NEWTON: the step is taken when it stays inside the bracket and bisection is taken when it does
+    # not, so the iteration inherits Newton's speed without its ability to leave the interval.  The exit is on the
+    # RESIDUAL of the neutrality condition itself -- electrons, a quantity with a meaning -- and not on the step.
+    chemMu = 0.5 * (muLo + muHi);     nx = 0;    gNow = g(chemMu)
+    for  it = 1:200
+        nx = it
+        if  abs(gNow) < 1.0e-10 * max(1.0, nm.Z)    break    end
+        if  gNow > 0.    muHi = chemMu    else    muLo = chemMu    end
+        gp    = gprime(chemMu)
+        newMu = gp > 0. ? chemMu - gNow / gp : 0.5 * (muLo + muHi)
+        if  !(muLo < newMu < muHi)    newMu = 0.5 * (muLo + muHi)    end
+        if  abs(newMu - chemMu) < 1.0e-14 * max(1.0, abs(chemMu))    chemMu = newMu;    break    end
+        chemMu = newMu;    gNow = g(chemMu)
+    end
+    if  abs(gNow) > 1.0e-6 * max(1.0, nm.Z)
+        Defaults.warn(AddWarning(), "SelfConsistent.determineChemicalPotential(): the neutrality condition is " *
+                      "satisfied only to " * @sprintf("%.2e", gNow) * " electrons after $nx iterations.")
+    end
+    println(">>> chemical potential: mu = " * @sprintf("%.8f", chemMu) * " Ha after $nx safeguarded Newton steps;  " *
+            "the neutrality residual is " * @sprintf("%.2e", gNow) * " electrons.")
 
-    chemMu = chemMu - 0.0011  ## Seems to bring better stability in the SCF computations
-
-    println(">>> Newton-Raphson: $nx)  chemMu = $chemMu  g = $(g(chemMu, orbitals, temp, nm)) ")
-    return ( chemMu )
+    return( chemMu )
 end
 
 
