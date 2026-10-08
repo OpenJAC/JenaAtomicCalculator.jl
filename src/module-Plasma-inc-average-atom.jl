@@ -29,18 +29,27 @@ end
 
 
 """
-`Plasma.computeFormFactors(qValues::Array{Float64,1}, orbitals::Dict{Subshell, Orbital}, chemMu::Float64, temp::Float64, 
-                            grid::Radial.Grid)`  
+`Plasma.computeFormFactors(qValues::Array{Float64,1}, orbitals::Dict{Subshell, Orbital}, chemMu::Float64, temp::Float64,
+                            grid::Radial.Grid)`
     ... computes the (standard) form factor F(q) for the electron density as given by the AA orbitals.
         A list of formFactors::Array{Float64,1} is returned that directly refers to the given q-values.
+
+        **THE INTEGRAL STOPS AT THE CELL**, given `radiusCell`.  A form factor is the transform of ONE atom's
+        electron density, and in this model that atom is the Wigner-Seitz cell;  the average-atom orbitals are
+        now normalised over a B-spline box several times wider than the cell, so integrating to the end of the
+        grid adds the neighbouring cells' electrons to this atom.  Measured 08-Oct-2026 on boron at 2.463 g/cm^3:
+        F(1) came out 2.716 over the whole box against 4.210 over the cell, the oscillating `sin(qr)/qr` outside
+        the cell cancelling part of what belongs inside it.  `radiusCell = 0.` keeps the whole grid, which is
+        correct only where the box IS the cell.
 """
 function computeFormFactors(qValues::Array{Float64,1}, orbitals::Dict{Subshell, Orbital}, chemMu::Float64, temp::Float64,
-                            grid::Radial.Grid)
+                            grid::Radial.Grid; radiusCell::Float64=0.)
     formFactors = Float64[]
     # The (Fermi-Dirac occupation-weighted) electron density does not depend on q; compute it once here, and take a
     # fresh copy for each q below -- reusing (and mutating) a single array across the q loop previously accumulated
     # the density afresh on top of the already q-transformed values of the *previous* iteration, silently corrupting
     # every form factor but the first.
+    mtpCell = radiusCell > 0. ? something( findlast(r -> r <= radiusCell, grid.r), grid.NoPoints ) : grid.NoPoints
     density = zeros( grid.NoPoints )
     for (k,v) in orbitals
         occ  = Basics.FermiDirac(v.energy, chemMu, temp) * (Basics.twice(Basics.subshell_j(k)) + 1)
@@ -52,9 +61,9 @@ function computeFormFactors(qValues::Array{Float64,1}, orbitals::Dict{Subshell, 
         # Compute the full integrant; the factor 4pi * r^2 is already in the density
         if     q == 0.    error("q = 0. is not supported for form-factor computations.")
         else   wa = deepcopy(density)
-               for    i = 2:grid.NoPoints   wa[i] = wa[i] / grid.r[i] * sin(q*grid.r[i]) / q    end
+               for    i = 2:mtpCell        wa[i] = wa[i] / grid.r[i] * sin(q*grid.r[i]) / q    end
         end
-        sF = RadialIntegrals.V0(wa, grid.NoPoints, grid)
+        sF = RadialIntegrals.V0(wa, mtpCell, grid)
         push!(formFactors, sF)
     end
     
@@ -315,12 +324,13 @@ function  perform(scheme::Plasma.AverageAtomScheme, computation::Plasma.Computat
     # The table above is built from the SUBSHELL LIST and is therefore as incomplete as that list; say by how
     # much, so that a reader does not take it for the density the field was built from.  That one is in
     # results["radial density"] and integrates to Z.
-    wSub      = RadialIntegrals.V0(totalNe, computation.grid.NoPoints, computation.grid)
+    wSub      = RadialIntegrals.V0(totalNe, wScf.iCell, computation.grid)
     println(">> Mean charge Z* = " * @sprintf("%.5f", meanCharge) * " free and " * @sprintf("%.5f", wScf.nBound) *
             " bound electrons at mu = " * @sprintf("%.6f", chemMu) * " Ha, from the full per-kappa spectrum " *
             "(lMax = $(wScf.lMax), free partial waves to $(wScf.lMaxFree)).")
     println("   The subshell-list density tabulated above accounts for " * @sprintf("%.4f", wSub) * " of the " *
-            "$(nm.Z) electrons;  the density the field was built from is results[\"radial density\"].")
+            "$(nm.Z) electrons INSIDE THE CELL;  the density the field was built from is " *
+            "results[\"radial density\"], and it carries Z over the same range.")
     # Return results if required
     if  output   
         results["chemical mu"]   = chemMu;                  results["mean charge"]   = meanCharge
@@ -349,7 +359,8 @@ function  perform(scheme::Plasma.AverageAtomScheme, computation::Plasma.Computat
     #
     # Calculate form factors
     if  scheme.calcFormFactor
-        formF = Plasma.computeFormFactors(scheme.qValues, orbitals, chemMu, temp, computation.grid)
+        formF = Plasma.computeFormFactors(scheme.qValues, orbitals, chemMu, temp, computation.grid;
+                                          radiusCell=RWS)
         if  output    results["ff q-values"] = scheme.qValues;    results["form factors"] = formF    end
     end
     #

@@ -155,33 +155,89 @@ end
 
 
 """
-`SelfConsistent.averageAtomElectronCount(mu::Float64, spectra::NamedTuple, temp::Float64)`
-    ... counts the electrons of the Wigner-Seitz cell at chemical potential mu;  a triple
+`SelfConsistent.averageAtomCellNorms(spectra::NamedTuple, primitives::Bsplines.Primitives, iCell::Int64)`
+    ... computes, for every box state of every kappa, the part of it that lies INSIDE the Wigner-Seitz cell,
+        `int_0^(R_WS) (P^2 + Q^2) dr`;  a NamedTuple `(trueNorm, freeNorm)` of `Dict{Int64,Array{Float64,1}}` is
+        returned, indexed exactly as the eigenvalue lists are.
+
+        **THIS IS WHAT MAKES THE BOX STOP BEING THE CELL.**  While the two coincided, every state was normalised
+        over the cell and its weight there was 1, so the electron count needed no radial integral -- but then the
+        cell wall also forced the density to zero at R_WS, which is wrong by a quarter of the free electrons, and
+        left a photoelectron with about one wavelength of room.  With the box carried out well beyond the cell the
+        states are those of Johnson's model -- bound states that decay freely and continuum states that are real
+        scattering waves -- and what the cell contains is an integral over them, which is this.
+
+        The norms do NOT depend on the chemical potential, so they are computed once per SCF iteration and the
+        root solve for mu stays a sum of Fermi factors over stored numbers.  A state far above the occupied range
+        is skipped rather than built:  a box of this size carries states up to thousands of Hartree, and
+        `energyCap` keeps the ones a Fermi factor can still reach.  The FREE norms do not change between
+        iterations either, the potential being zero, so passing a previous call's result as `previous` keeps them
+        -- which matters because a hot dilute cell needs some ninety free partial waves.
+"""
+function averageAtomCellNorms(spectra::NamedTuple, primitives::Bsplines.Primitives, iCell::Int64;
+                              energyCap::Float64=1.0e3, previous::Union{Nothing,NamedTuple}=nothing)
+    grid = primitives.grid;    npoints = grid.NoPoints;    nsL = grid.nsL;    nsS = grid.nsS
+    P = zeros(npoints);        Q = zeros(npoints)
+    function normsOf(eigen::Basics.Eigen, i0::Int64)
+        wa = zeros(length(eigen.values))
+        for  i = i0:length(eigen.values)
+            if  eigen.values[i] > energyCap    break    end
+            ev = eigen.vectors[i];    fill!(P, 0.);    fill!(Q, 0.)
+            for  k = 1:nsL
+                bs = primitives.bsplinesL[k];   add = 1 - bs.lower
+                for  j = bs.lower:min(bs.upper, iCell)    P[j] = P[j] + ev[k] * bs.bs[j+add]    end
+            end
+            for  k = 1:nsS
+                bs = primitives.bsplinesS[k];   add = 1 - bs.lower
+                for  j = bs.lower:min(bs.upper, iCell)    Q[j] = Q[j] + ev[nsL+k] * bs.bs[j+add]    end
+            end
+            wb = 0.
+            for  j = 1:iCell    wb = wb + (P[j]^2 + Q[j]^2) * grid.wr[j]    end
+            wa[i] = wb
+        end
+        return( wa )
+    end
+    trueNorm = Dict{Int64,Array{Float64,1}}();    freeNorm = Dict{Int64,Array{Float64,1}}()
+    for  kappa  in  spectra.kappas        trueNorm[kappa] = normsOf(spectra.trueEigen[kappa], spectra.trueStart[kappa])   end
+    for  kappa  in  spectra.kappasFree
+        if  !isnothing(previous)  &&  haskey(previous.freeNorm, kappa)    freeNorm[kappa] = previous.freeNorm[kappa]
+        else                      freeNorm[kappa] = normsOf(spectra.freeEigen[kappa], spectra.freeStart[kappa])
+        end
+    end
+
+    return( (trueNorm=trueNorm, freeNorm=freeNorm) )
+end
+
+
+"""
+`SelfConsistent.averageAtomElectronCount(mu::Float64, spectra::NamedTuple, norms::NamedTuple, temp::Float64)`
+    ... counts the electrons INSIDE the Wigner-Seitz cell at chemical potential mu;  a triple
         `(nBound, nCont, nTotal)`::Tuple{Float64,Float64,Float64} is returned.
 
-        `n = sum_(l<=lMax) (2j+1) sum_n f(eps_n)  +  sum_(lMax<l<=lMaxFree) (2j+1) sum_n f(eps0_n)`, i.e. the
-        true box states where the potential was solved and the FREE box states of the same box above that -- the
-        statement that a partial wave of high l does not reach into the atom.  A state is split into `nBound` or
-        `nCont` by the sign of its energy, so that `nCont` is Johnson's mean charge Z* and, at neutrality,
-        `nBound = Z - Z*`.
+        `n = sum_(l<=lMax) (2j+1) sum_n f(eps_n) w_n  +  sum_(lMax<l<=lMaxFree) (2j+1) sum_n f(eps0_n) w0_n`,
+        with `w_n` the part of state n lying inside the cell (`averageAtomCellNorms`):  the true box states where
+        the potential was solved, and the FREE box states of the same box above that -- the statement that a
+        partial wave of high l does not reach into the atom.  A state is split into `nBound` or `nCont` by the
+        sign of its energy, so `nCont` is Johnson's mean charge Z* and, at neutrality, `nBound = Z - Z*`.
 
-        Every box state is normalised over the cell, so the count needs no radial integral:  this is what the
-        `int d eps` of the continuum term reduces to in a B-spline box.
+        This is what the `int d eps` of Johnson's continuum term reduces to in a B-spline box:  the energy
+        normalisation cancels the level spacing, leaving a plain sum over box states of the number each one puts
+        inside the cell.
 """
-function averageAtomElectronCount(mu::Float64, spectra::NamedTuple, temp::Float64)
+function averageAtomElectronCount(mu::Float64, spectra::NamedTuple, norms::NamedTuple, temp::Float64)
     nBound = 0.;    nCont = 0.
     for  kappa  in  spectra.kappas
-        occ = 2 * abs(kappa);    wc = spectra.trueEigen[kappa]
+        occ = 2 * abs(kappa);    wc = spectra.trueEigen[kappa];    wn = norms.trueNorm[kappa]
         for  i = spectra.trueStart[kappa]:length(wc.values)
-            wf = occ * Basics.FermiDirac(wc.values[i], mu, temp)
+            wf = occ * Basics.FermiDirac(wc.values[i], mu, temp) * wn[i]
             if  wc.values[i] < 0.   nBound = nBound + wf   else   nCont = nCont + wf   end
         end
     end
     for  kappa  in  spectra.kappasFree
         if  abs(kappa) <= spectra.lMax + 1  &&  haskey(spectra.trueEigen, kappa)    continue    end
-        occ = 2 * abs(kappa);    w0 = spectra.freeEigen[kappa]
+        occ = 2 * abs(kappa);    w0 = spectra.freeEigen[kappa];    wn = norms.freeNorm[kappa]
         for  i = spectra.freeStart[kappa]:length(w0.values)
-            nCont = nCont + occ * Basics.FermiDirac(w0.values[i], mu, temp)
+            nCont = nCont + occ * Basics.FermiDirac(w0.values[i], mu, temp) * wn[i]
         end
     end
 
@@ -190,9 +246,9 @@ end
 
 
 """
-`SelfConsistent.averageAtomChemicalPotential(spectra::NamedTuple, temp::Float64, nm::Nuclear.Model)`
-    ... solves the neutrality condition `nTotal(mu) = Z` on the full per-kappa spectrum;  a `chemMu::Float64` is
-        returned.
+`SelfConsistent.averageAtomChemicalPotential(spectra::NamedTuple, norms::NamedTuple, temp::Float64, nm::Nuclear.Model)`
+    ... solves the neutrality condition `nTotal(mu) = Z` for the electrons INSIDE the Wigner-Seitz cell;  a
+        `chemMu::Float64` is returned.
 
         The spectra do not depend on mu, so this root solve is free compared with the diagonalizations that
         produced them:  one Fermi factor per box state per trial mu.  The count is strictly increasing in mu,
@@ -201,21 +257,21 @@ end
         which is the one place a Fermi-factor derivative has ever gone wrong here (see the note in
         `determineChemicalPotential`), so it is written once and used by both sums.
 """
-function averageAtomChemicalPotential(spectra::NamedTuple, temp::Float64, nm::Nuclear.Model)
-    g(mu::Float64)  = SelfConsistent.averageAtomElectronCount(mu, spectra, temp)[3] - nm.Z
+function averageAtomChemicalPotential(spectra::NamedTuple, norms::NamedTuple, temp::Float64, nm::Nuclear.Model)
+    g(mu::Float64)  = SelfConsistent.averageAtomElectronCount(mu, spectra, norms, temp)[3] - nm.Z
     function gprime(mu::Float64)
         wa = 0.
         for  kappa  in  spectra.kappas
-            occ = 2 * abs(kappa);    wc = spectra.trueEigen[kappa]
+            occ = 2 * abs(kappa);    wc = spectra.trueEigen[kappa];    wn = norms.trueNorm[kappa]
             for  i = spectra.trueStart[kappa]:length(wc.values)
-                wf = Basics.FermiDirac(wc.values[i], mu, temp);    wa = wa + occ * wf * (1. - wf) / temp
+                wf = Basics.FermiDirac(wc.values[i], mu, temp);    wa = wa + occ * wf * (1. - wf) * wn[i] / temp
             end
         end
         for  kappa  in  spectra.kappasFree
             if  abs(kappa) <= spectra.lMax + 1  &&  haskey(spectra.trueEigen, kappa)    continue    end
-            occ = 2 * abs(kappa);    w0 = spectra.freeEigen[kappa]
+            occ = 2 * abs(kappa);    w0 = spectra.freeEigen[kappa];    wn = norms.freeNorm[kappa]
             for  i = spectra.freeStart[kappa]:length(w0.values)
-                wf = Basics.FermiDirac(w0.values[i], mu, temp);    wa = wa + occ * wf * (1. - wf) / temp
+                wf = Basics.FermiDirac(w0.values[i], mu, temp);    wa = wa + occ * wf * (1. - wf) * wn[i] / temp
             end
         end
         return( wa )
@@ -299,9 +355,20 @@ end
 
 
 """
-`SelfConsistent.averageAtomPotential(scField::Basics.AbstractScField, rhot::Array{Float64,1}, grid::Radial.Grid)`
+`SelfConsistent.averageAtomPotential(scField::Basics.AbstractScField, rhot::Array{Float64,1}, grid::Radial.Grid,
+                                      iCell::Int64)`
     ... builds the ELECTRONIC part of the average-atom potential from a given radial density rhot, and returns a
         `pot::Radial.Potential` holding `Z(r) = -r V(r)`, as everywhere else in JAC.
+
+        **ONLY THE CHARGE INSIDE THE CELL IS USED, AND THE EXCHANGE IS MEASURED FROM ITS BACKGROUND VALUE**, which
+        is Johnson's neutral-cell model rather than a numerical convenience.  `backgroundDensity` is the
+        free-electron density `n_free(mu,T)` of the plasma;  given as zero the exchange is taken absolutely, which
+        leaves a step at the wall.  Beyond `R_WS` the density belongs to the
+        NEIGHBOURING cells, which this atom must not be allowed to see:  the direct integral is therefore cut at
+        `iCell`, and since the cell holds exactly Z electrons at neutrality, the total potential -- nuclear plus
+        electronic -- then vanishes identically beyond the wall with no truncation being applied to it.  A bound
+        state consequently decays freely in a field that is zero outside, and a continuum state is a real
+        scattering wave there, which is what gives the box its separate job of being long enough to hold one.
 
         It is the density-space counterpart of `Basics.computePotential(::AaDFSField, grid, orbitals, mu, temp)`
         and uses the same two terms -- the direct `int dr' rhot(r')/r_>` and Slater exchange
@@ -310,16 +377,27 @@ end
         needs rebuilding once per kappa:  the quadratic direct term is now evaluated ONCE per SCF iteration
         rather than once per symmetry block, which for lMax = 7 is sixteen times less work.
 """
-function averageAtomPotential(scField::Basics.AbstractScField, rhot::Array{Float64,1}, grid::Radial.Grid)
+function averageAtomPotential(scField::Basics.AbstractScField, rhot::Array{Float64,1}, grid::Radial.Grid,
+                              iCell::Int64; backgroundDensity::Float64=0.)
     npoints = grid.NoPoints;    wb = zeros(npoints);    wx = zeros(npoints)
     for  i = 1:npoints
-        for  j = 1:npoints    wx[j] = rhot[j] / max( grid.r[i], grid.r[j] )    end
-        wb[i] = RadialIntegrals.V0(wx, npoints, grid)
+        for  j = 1:iCell    wx[j] = rhot[j] / max( grid.r[i], grid.r[j] )    end
+        wb[i] = RadialIntegrals.V0(wx, iCell, grid)
     end
+    # THE EXCHANGE IS COUNTED RELATIVE TO ITS BACKGROUND VALUE, which is what puts the energy zero where the
+    # free-electron gas is.  The direct part vanishes outside a neutral cell on its own, but the exchange does
+    # not: it follows the density, which tends to rho_0 rather than to zero, so an exchange cut at the wall
+    # leaves a step there and every level is then measured from the wrong zero.  Subtracting its background value
+    # makes the total potential continuous AND zero outside, so that eps = 0 means an electron at rest in the
+    # plasma -- the same zero the ideal-gas density n_free(mu,T) is written in.
+    # Measured 08-Oct-2026 on Johnson's own case (JQSRT 99, 327, Table 1; Al at 0.27 g/cm^3, T = 5 eV): without
+    # this the potential stepped from -0.0972 Ha just inside the wall to 0 outside, and mu, 3s and 3p all came
+    # out too deep by the SAME 0.09-0.10 Ha -- against an exchange at the background density of 0.089185 Ha.
+    wExc = backgroundDensity > 0. ? (3 * backgroundDensity / pi)^(1/3) : 0.
     if      scField isa Basics.AaDFSField
-        for  i = 1:npoints   wb[i] = wb[i] - (3 / (4pi^2 * grid.r[i]^2) * max(rhot[i], 0.))^(1/3)             end
+        for  i = 1:iCell     wb[i] = wb[i] - (3 / (4pi^2 * grid.r[i]^2) * max(rhot[i], 0.))^(1/3) + wExc        end
     elseif  scField isa Basics.AaHSField
-        for  i = 1:npoints   wb[i] = wb[i] - (3/2) * (3 / (4pi^2 * grid.r[i]^2) * max(rhot[i], 0.))^(1/3)     end
+        for  i = 1:iCell     wb[i] = wb[i] - (3/2) * ((3 / (4pi^2 * grid.r[i]^2) * max(rhot[i], 0.))^(1/3) - wExc)  end
     else    error("SelfConsistent.averageAtomPotential(): no density-space form for $(typeof(scField)); the " *
                   "average-atom schemes are Basics.AaDFSField() and Basics.AaHSField().")
     end
@@ -450,17 +528,20 @@ function solveAverageAtomSpectra(orbitals::Dict{Subshell, Orbital}, nuclearModel
     lMax    = maximum( Basics.subshell_l(k)  for (k,v) in orbitals )
     adaptFree = lMaxFree < lMax;    lMaxFree = max(lMaxFree, lMax)
     rBox    = grid.tL[end]
-    if  abs(rBox - radiusWS) > 0.05 * radiusWS
-        # Printed as well as collected: a collected warning is shown only where a caller flushes them, and this
-        # one changes the cell the model solves rather than merely degrading it.
-        println(">> The B-spline box R = " * @sprintf("%.4f", rBox) * " a.u. is NOT the Wigner-Seitz radius " *
-                @sprintf("%.4f", radiusWS) * " a.u.:  the average atom is solved in a cell of volume " *
-                @sprintf("%.1f", 4pi/3*rBox^3) * " a_o^3 instead of " * @sprintf("%.1f", 4pi/3*radiusWS^3) *
-                " a_o^3, so its density is not the one asked for.  Use boxSize = R^(WS) when generating the grid.")
+    iCell   = something( findlast(r -> r <= radiusWS, grid.r), npoints )
+    # THE BOX MUST BE COMFORTABLY LARGER THAN THE CELL, and the two have different jobs.  Neutrality is imposed on
+    # the electrons inside R^(WS) and the potential is zero outside it, so the CELL is the physics;  the BOX only
+    # has to be long enough that a state which should decay can decay and one which should oscillate can
+    # oscillate.  A box equal to the cell is the failure this guard exists for:  it forces every state to zero at
+    # the wall, which removes about a quarter of the free electrons and leaves a photoelectron of a few hundred eV
+    # barely one wavelength of room.
+    if  rBox < 1.5 * radiusWS
+        println(">> The B-spline box R = " * @sprintf("%.4f", rBox) * " a.u. is not comfortably larger than the " *
+                "Wigner-Seitz radius " * @sprintf("%.4f", radiusWS) * " a.u.:  the states are then squeezed by " *
+                "the box rather than shaped by the cell.  Generate the grid with boxSize of a few times R^(WS).")
         Defaults.warn(AddWarning(), "SelfConsistent.solveAverageAtomSpectra(): the B-spline box R = " *
-                      @sprintf("%.3f", rBox) * " a.u. is not the Wigner-Seitz radius " *
-                      @sprintf("%.3f", radiusWS) * " a.u.;  every state is normalised over the BOX, so the " *
-                      "cell this solves is the box.  Generate the grid with boxSize = R^(WS).")
+                      @sprintf("%.3f", rBox) * " a.u. is not comfortably larger than the Wigner-Seitz radius " *
+                      @sprintf("%.3f", radiusWS) * " a.u.;  use a boxSize of a few times R^(WS).")
     end
     nuclearPotential = Nuclear.nuclearPotential(nuclearModel, grid)
     # The starting density is the subshell-list one, which is all the hydrogenic orbitals can give; every later
@@ -471,20 +552,23 @@ function solveAverageAtomSpectra(orbitals::Dict{Subshell, Orbital}, nuclearModel
         occ = (Basics.twice(Basics.subshell_j(k)) + 1) * Basics.FermiDirac(v.energy, chemMu, temp)
         for  i = 1:length(v.P)    rhot[i] = rhot[i] + occ * (v.P[i]^2 + v.Q[i]^2)    end
     end
-    pot = Basics.add( nuclearPotential, averageAtomPotential(scField, rhot, grid) )
+    rhoBack = SelfConsistent.freeElectronDensity(chemMu, temp)
+    pot = Basics.add( nuclearPotential, averageAtomPotential(scField, rhot, grid, iCell; backgroundDensity=rhoBack) )
     #
     if  printout
-        println("\n>> Average-atom SCF in density space:  lMax = $lMax, box R = " * @sprintf("%.4f", rBox) *
-                " a.u., cell volume " * @sprintf("%.2f", 4pi/3*rBox^3) * " a_o^3" *
+        println("\n>> Average-atom SCF in density space:  lMax = $lMax, cell R^(WS) = " *
+                @sprintf("%.4f", radiusWS) * " a.u. (volume " * @sprintf("%.2f", 4pi/3*radiusWS^3) *
+                " a_o^3) inside a box of " * @sprintf("%.4f", rBox) * " a.u." *
                 (adaptFree ? ";  free partial waves to the tolerance " * @sprintf("%.0e", freeWaveTolerance) *
                              " electrons." : ";  free partial waves to l = $lMaxFree, as asked for."))
         println("   iter  lFree      mu [Ha]     n(bound)    n(cont)     n(total)    accuracy")
     end
-    spectra = nothing;   nBound = 0.;   nCont = 0.;   accuracy = 1.0;   nx = 0;   eta = 0.4
+    spectra = nothing;   norms = nothing;   nBound = 0.;   nCont = 0.;   accuracy = 1.0;   nx = 0;   eta = 0.4
     for  it = 1:60
         nx      = it
         spectra = averageAtomSpectra(pot, lMax, primitives; lMaxFree=lMaxFree, freeSpectra=spectra)
-        chemMu  = averageAtomChemicalPotential(spectra, temp, nuclearModel)
+        norms   = averageAtomCellNorms(spectra, primitives, iCell; previous=norms)
+        chemMu  = averageAtomChemicalPotential(spectra, norms, temp, nuclearModel)
         # The free tail is as long as the temperature and the cell make it, and mu is what says so, so the limit
         # is re-derived at every iteration.  It never shrinks: the spectra already computed are reused, and a sum
         # that lost a partial wave between two iterations would stop the SCF converging at all.
@@ -493,18 +577,21 @@ function solveAverageAtomSpectra(orbitals::Dict{Subshell, Orbital}, nuclearModel
             if  lNeeded > lMaxFree
                 lMaxFree = lNeeded
                 spectra  = averageAtomSpectra(pot, lMax, primitives; lMaxFree=lMaxFree, freeSpectra=spectra)
-                chemMu   = averageAtomChemicalPotential(spectra, temp, nuclearModel)
+                norms    = averageAtomCellNorms(spectra, primitives, iCell; previous=norms)
+                chemMu   = averageAtomChemicalPotential(spectra, norms, temp, nuclearModel)
             end
         end
-        (nBound, nCont, nTotal) = averageAtomElectronCount(chemMu, spectra, temp)
+        (nBound, nCont, nTotal) = averageAtomElectronCount(chemMu, spectra, norms, temp)
         rhotNew  = averageAtomDensity(chemMu, spectra, temp, primitives)
         # The self-consistency is measured on the DENSITY, in electrons: it is the quantity the potential is built
         # from, and an error of 1e-6 electrons out of Z means the same thing at every temperature, which neither a
         # change in mu nor one in an orbital energy does.
         wx       = [ abs(rhotNew[i] - rhot[i])  for i = 1:npoints ]
-        accuracy = RadialIntegrals.V0(wx, npoints, grid) / nuclearModel.Z
+        accuracy = RadialIntegrals.V0(wx, iCell, grid) / nuclearModel.Z
         for  i = 1:npoints    rhot[i] = (1. - eta) * rhot[i] + eta * rhotNew[i]    end
-        pot      = Basics.add( nuclearPotential, averageAtomPotential(scField, rhot, grid) )
+        rhoBack  = SelfConsistent.freeElectronDensity(chemMu, temp)
+        pot      = Basics.add( nuclearPotential, averageAtomPotential(scField, rhot, grid, iCell;
+                                                                      backgroundDensity=rhoBack) )
         if  printout
             println("   " * @sprintf("%4d", it) * "  " * @sprintf("%5d", lMaxFree) * " " *
                     @sprintf("%12.6f", chemMu) * " " *
@@ -525,7 +612,7 @@ function solveAverageAtomSpectra(orbitals::Dict{Subshell, Orbital}, nuclearModel
         newOrbitals[k] = Bsplines.generateOrbitalFromPrimitives(k, spectra.trueEigen[k.kappa], primitives)
     end
     if  printout
-        wIdeal = SelfConsistent.freeElectronDensity(chemMu, temp) * 4pi/3 * rBox^3
+        wIdeal = SelfConsistent.freeElectronDensity(chemMu, temp) * 4pi/3 * radiusWS^3
         println(">> mu = " * @sprintf("%.8f", chemMu) * " Ha;  " * @sprintf("%.5f", nBound) * " bound and " *
                 @sprintf("%.5f", nCont) * " continuum electrons, i.e. a mean charge Z* = " *
                 @sprintf("%.4f", nCont) * " after $nx iterations.")
@@ -538,8 +625,8 @@ function solveAverageAtomSpectra(orbitals::Dict{Subshell, Orbital}, nuclearModel
     end
 
     return( (orbitals=newOrbitals, chemMu=chemMu, nBound=nBound, nCont=nCont, rhot=rhot, pot=pot,
-             spectra=spectra, lMax=lMax, lMaxFree=lMaxFree, radiusBox=rBox, accuracy=accuracy,
-             iterations=nx) )
+             spectra=spectra, norms=norms, lMax=lMax, lMaxFree=lMaxFree, radiusBox=rBox, radiusCell=radiusWS,
+             iCell=iCell, accuracy=accuracy, iterations=nx) )
 end
 
 
