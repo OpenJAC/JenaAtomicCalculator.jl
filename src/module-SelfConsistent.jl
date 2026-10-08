@@ -6,7 +6,7 @@
 """
 module SelfConsistent
 
-using  Printf, LinearAlgebra, ..AngularMomentum, ..Basics, ..Bsplines, ..Defaults, ..Hamiltonian, ..InteractionStrength, ..ManyElectron, ..Nuclear, ..Radial,
+using  Printf, LinearAlgebra, QuadGK, ..AngularMomentum, ..Basics, ..Bsplines, ..Defaults, ..Hamiltonian, ..InteractionStrength, ..ManyElectron, ..Nuclear, ..Radial,
        ..RadialIntegrals, ..SpinAngular
 
 # The coefficient carriers, aliased so that the signatures below stay readable. The KIND parameter is the point:
