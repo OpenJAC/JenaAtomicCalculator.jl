@@ -9,6 +9,12 @@ println("    Nd13+/Sm15+: single valence electron above a Pd-like ([Kr] 4d^10) c
 println("    crossing that gives a huge, opposite-sign q for the two ions (Berengut, Dzuba & Flambaum, arXiv:1208.4157):")
 println("       Nd13+(Z=60):  ground 5s_1/2,   4f_5/2 at  58897 cm^-1,  q(5s-4f5/2)  = +106000 cm^-1")
 println("       Sm15+(Z=62):  ground 4f_5/2,   5s_1/2 at  55675 cm^-1,  q(4f5/2-5s)  = -136000 cm^-1")
+println("    Cf17+: a trivalent clock-transition candidate with a 6s^2 5f_5/2 ground level and a near-degenerate")
+println("    6s^2 6p_1/2 excited level (Porsev et al., Phys. Rev. A 102, 012802 (2020)):")
+println("       Cf17+(Z=98): ground 5f_5/2,   6p_1/2 at ~20611 cm^-1 (correlated calculation),  q ~ -4.5e5 cm^-1")
+println("    UNLIKE Nd13+/Sm15+ above, here q*2x at this module's own DEFAULT step (x=0.125) is several times")
+println("    LARGER than the level spacing itself, so the four reference levels change ORDER between alpha_0,")
+println("    alpha+ and alpha- -- the regime AlphaVariation.matchLevelByOverlap exists for (challenge S6).")
 
 if true
     # Last successful:  21-Jul-2026 -- 3P1 Q=1.0035, 3P2 Q=1.0003, 1D2 Q=0.0033, 1S0 Q=0.0012 (vs literature above)
@@ -72,6 +78,29 @@ elseif true
                                   Nuclear.Model(62.), printout=false)
     wa = Atomic.Computation(Atomic.Computation(), name="Sm15-alpha", grid=grid, nuclearModel=Nuclear.Model(62.),
                             configs=[Configuration("[Kr] 4d^10 5s"), Configuration("[Kr] 4d^10 4f")],
+                            propertySettings=[AlphaVariation.Settings(true, 0.125, true, LevelSelection())] )
+    wb = perform(wa)
+    setDefaults("print summary: close", "")
+    #
+elseif true
+    # Last successful:  08-Oct-2026 -- clock q = -457873 cm^-1 (1.8% from the Breit+correlation literature
+    # value ~-450000 cm^-1 above, good agreement for a bare, Coulomb-only, uncorrelated reference level);
+    # excitation 13494 cm^-1, matching the Coulomb-only reference-level value independently established for
+    # this ion elsewhere. |q*2x| = 114468 cm^-1 against that 13494 cm^-1 gap -- an 8.5-fold overshoot -- so
+    # the four reference levels DO change order between alpha_0, alpha+ and alpha- here, and the computation
+    # completed cleanly through that crossing: this is the regression demonstration for challenge S6.
+    # Cf17+ -- the crossing case itself, continuing the Nd13+/Sm15+ pair above to where the crossing actually
+    # happens WITHIN one run. Before AlphaVariation.matchLevelByOverlap (fixing challenge S6), this branch
+    # would have paired levels by their energy-sorted POSITION and silently returned a wrong q with no
+    # warning, since the upper clock level (J=1/2) and the ground level (J=5/2) swap positions under the
+    # shift. No Breit and no correlation layer are included here, matching this file's existing plain-Coulomb
+    # style throughout -- the published comparison above used both, so do not expect tight agreement on the
+    # absolute energy; the point of this branch is the CROSSING and its safe handling, not precision.
+    setDefaults("print summary: open", "zzz-AlphaVariation.sum")
+    refs = [Configuration("[Xe] 4f^14 5d^10 6s^2 5f^1"), Configuration("[Xe] 4f^14 5d^10 6s^2 6p^1")]
+    grid = Basics.recommendedGrid(refs, Nuclear.Model(98.), printout=false)
+    wa = Atomic.Computation(Atomic.Computation(), name="Cf17-alpha", grid=grid, nuclearModel=Nuclear.Model(98.),
+                            configs=refs,
                             propertySettings=[AlphaVariation.Settings(true, 0.125, true, LevelSelection())] )
     wb = perform(wa)
     setDefaults("print summary: close", "")

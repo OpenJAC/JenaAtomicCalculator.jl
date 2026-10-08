@@ -102,6 +102,45 @@ end
 
 
 """
+`AlphaVariation.matchLevelByOverlap(target::Level, candidates::Array{Level,1})`
+    ... identifies, among candidates, the level whose mixing-coefficient vector has the LARGEST overlap with
+        target's -- the state that IS the same physical state, rather than the one that merely sits at the
+        same POSITION in an energy-sorted list. This is what makes alpha-variation safe across a level
+        crossing: for these ions q can reach 1e5-1e6 cm^-1 against level spacings of only a few thousand, so a
+        step as small as a few percent can re-order the levels, and a positional match would then silently
+        difference two DIFFERENT physical states (challenge S6, closed by this function). target and every
+        level in candidates must share one CSF basis, in the same order -- true whenever both were built from
+        the same configs and asfSettings, since CSF generation is purely combinatorial and does not depend on
+        alpha. RAISES if the best overlap is not a clear majority (< 0.5): either this level has no clean
+        counterpart at the shifted alpha (the step is too large for the level spacing here, and variationX
+        needs to shrink), or candidates was not built from the same basis as target.
+        A tuple (level::Level, overlap::Float64) is returned.
+"""
+function matchLevelByOverlap(target::Level, candidates::Array{Level,1})
+    pool = [ lev  for lev in candidates  if  lev.J == target.J  &&  lev.parity == target.parity ]
+    if  isempty(pool)
+        error("AlphaVariation.matchLevelByOverlap(): no candidate shares target's symmetry $(target.J)^" *
+              "$(target.parity) -- candidates was not built from the same configs as target.")
+    end
+    if  length(pool[1].mc) != length(target.mc)
+        error("AlphaVariation.matchLevelByOverlap(): mixing-coefficient vectors differ in length " *
+              "($(length(pool[1].mc)) against $(length(target.mc))) -- candidates and target were not built " *
+              "from the same CSF basis.")
+    end
+    overlaps = [ sum(target.mc[r] * lev.mc[r]  for r in eachindex(target.mc))^2   for lev in pool ]
+    iBest    = argmax(overlaps)
+    if  overlaps[iBest] < 0.5
+        error("AlphaVariation.matchLevelByOverlap(): no level of symmetry $(target.J)^$(target.parity) carries " *
+              "a majority overlap with the target level (the best of $(length(pool)) candidates is " *
+              "$(overlaps[iBest])) -- this level has no clean counterpart at the shifted alpha, most likely " *
+              "because variationX is too large relative to the level spacing here; a smaller step is needed.")
+    end
+
+    return( pool[iBest], overlaps[iBest] )
+end
+
+
+"""
 `AlphaVariation.computeOutcomes(multiplet::Multiplet, nm::Nuclear.Model, grid::Radial.Grid, configs::Array{Configuration,1},
                                 asfSettings::AsfSettings, settings::AlphaVariation.Settings; output=true)`
     ... to compute (as selected) the alpha-variation parameters for the levels of the given multiplet and as specified by
@@ -109,8 +148,10 @@ end
         SCF/CI computations are performed for the same configs & asfSettings at alpha shifted by x = +settings.variationX
         and x = -settings.variationX (with x = (alpha/alpha_0)^2 - 1), and q = d omega/dx is obtained from the simple
         symmetric finite-difference formula q = (omega(+x) - omega(-x)) / (2x). Levels are matched across the three
-        multiplets by their (positional) level index, which requires configs & asfSettings to be exactly the ones that
-        produced multiplet -- a minimal consistency check on the electron number is done for this reason.
+        multiplets by OVERLAP of their mixing coefficients (AlphaVariation.matchLevelByOverlap), not by position,
+        so a level crossing under the shift does not silently difference two different physical states; this
+        requires configs & asfSettings to be exactly the ones that produced multiplet -- a minimal consistency
+        check on the electron number is done for this reason, in addition to matchLevelByOverlap's own checks.
         The results are printed in neat tables to screen but nothing is returned otherwise.
 """
 function computeOutcomes(multiplet::Multiplet, nm::Nuclear.Model, grid::Radial.Grid, configs::Array{Configuration,1},
@@ -145,17 +186,19 @@ function computeOutcomes(multiplet::Multiplet, nm::Nuclear.Model, grid::Radial.G
         end
         #
         # The lowest-energy level of the FULL multiplet is taken as the (Kozlov et al.) reference level; its own
-        # q is needed below even if it is not itself among the selected outcomes.
+        # q is needed below even if it is not itself among the selected outcomes. EACH LEVEL IS MATCHED BY
+        # OVERLAP, NOT BY INDEX -- see matchLevelByOverlap's own docstring for why a positional match is unsafe
+        # on exactly the ions this module exists to serve.
         groundLevel  = multiplet.levels[ argmin( [level.energy for level in multiplet.levels] ) ]
-        iGround      = groundLevel.index
-        qGround      = (multipletPlus.levels[iGround].energy - multipletMinus.levels[iGround].energy) / (2x)
+        groundPlus,  _ = AlphaVariation.matchLevelByOverlap(groundLevel, multipletPlus.levels)
+        groundMinus, _ = AlphaVariation.matchLevelByOverlap(groundLevel, multipletMinus.levels)
+        qGround      = (groundPlus.energy - groundMinus.energy) / (2x)
         #
         newOutcomes = AlphaVariation.Outcome[]
         for  outcome in outcomes
-            i           = outcome.level.index
-            omegaPlus   = multipletPlus.levels[i].energy
-            omegaMinus  = multipletMinus.levels[i].energy
-            q           = (omegaPlus - omegaMinus) / (2x)
+            levelPlus,  _  = AlphaVariation.matchLevelByOverlap(outcome.level, multipletPlus.levels)
+            levelMinus, _  = AlphaVariation.matchLevelByOverlap(outcome.level, multipletMinus.levels)
+            q           = (levelPlus.energy - levelMinus.energy) / (2x)
             excitation  = outcome.level.energy - groundLevel.energy
             Q           = excitation == 0.   ?   0.   :   (q - qGround) / excitation
             newOutcome  = AlphaVariation.Outcome(outcome.level, outcome.level.energy, q, Q)
