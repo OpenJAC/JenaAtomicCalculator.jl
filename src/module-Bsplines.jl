@@ -581,6 +581,18 @@ end
         eigenvalues clustering right at -1.999*c^2 instead of at the expected atomic scale (roughly -1 to -2000 Hartree, not ~-37500 for a
         typical ion). That produces orbitals which are numerical garbage rather than "slightly wrong". Always add the nuclear potential to
         any potential passed into `Bsplines.generateOrbitals` or into this function.
+
+        MEASURED 08-Oct-2026, and the measurement bounds that warning rather than widening it. With a FREE-PARTICLE potential (V = 0,
+        used as the reference of the average-atom partial-wave sum) the basis carries ONE EXTRA state for each kappa > 0, and from
+        l = 7-8 upward it sits just above zero energy, so this function returns ITS index as the first physical state and every
+        subshell of that kappa is then addressed one too low. With a REAL nuclear potential there is NO such state: checked for
+        kappa = 1 ... 12 against a bare Z = 14 point nucleus in boxes of 3.2 and 30 a.u., and on 40 screened average-atom spectra,
+        with not one shift in either. So this is NOT a general off-by-one and nothing here needs a guard; it is a property of the
+        well-less case the paragraph above already warns about.
+        WHERE A V = 0 SPECTRUM MUST BE USED, the extra state is found by its SPIN-ORBIT PARTNER and needs no tolerance to be chosen:
+        kappa > 0 and kappa' = -(l+1) share l and therefore very nearly the same radial spectrum, and the partner carries no
+        artifact, so whichever of the two leading states of kappa agrees with the partner's leading state is the physical one. That
+        is how `SelfConsistent.averageAtomSpectra` does it.
 """
 function findPositiveBranchStart(values::Array{Float64,1}; mass::Float64=1.0)
     c  = Defaults.getDefaults("speed of light: c")
