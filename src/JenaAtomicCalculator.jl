@@ -4,7 +4,6 @@
 #  Activation:                 ];   pkg> up;   pkg> activate
 #  Working with JAC:           using Revise;   using JAC;   include("../src/jac.jl");   pkg> test
 #  
-#  Copy to desktop             scp -r JAC.jl/ fritzsch@10.140.119.236:~/fri/.
 """
 `module JenaAtomicCalculator`  
     ... Jena Atomic Calculator (JAC) provides tools for performing atomic (structure) calculations at various degrees of complexity 
@@ -13,6 +12,41 @@
         operator, etc.] and, in particular, (atomic) transition probabilities, Auger rates, photoionization cross sections, 
         radiative and dielectronic recombination rates as well as cross sections for several other -- elementary or composed --
         processes. 
+
+    # WHAT IS PUBLIC, AND WHAT THAT PROMISES
+
+    Until now the answer was "whatever is exported", which is not a decision anybody took.  This is the decision,
+    and it exists because from 1.0.0 onwards an exported name is a PROMISE: a breaking change to the promised set
+    costs a major version, so it must be clear which names carry that weight and which do not.
+
+    Measured 08-Oct-2026: `names(JenaAtomicCalculator)` returns **318 names, and none of them resolves to
+    nothing**.  They are of four kinds, and the promise differs by kind.
+
+    **PROMISED.  A breaking change here costs a major version.**
+    + the **85 exported MODULES**, which are the main surface, because JAC's convention is the QUALIFIED call: one
+      writes `Hfs.Settings(...)` and `PhotoEmission.Settings(...)`, never an imported bare `Settings`.  This is why
+      an "exported names only" rule would be meaningless for JAC -- `AngularMomentum` exports 1 name of 70.
+    + the **35 exported FUNCTIONS**, the verbs: `perform`, `generate`, `compute...`, `display...`, `extract...`,
+      `convertUnits`, `setDefaults`, `integrate`, `diagonalize`, `evaluate`, `tabulate` and the rest.
+    + the **172 exported CONCRETE TYPES** that a user constructs: every `Settings`, every scheme, `Configuration`,
+      `Level`, `Shell`, `Subshell`, the nuclear models, the fields and the SCF routes.
+    + the **12 exported CONSTANTS**: `E1`..`E4`, `M1`..`M4`, `UseCoulomb`, `UseBabushkin`, `plus`, `minus`.
+
+    **PROMISED BY NAME ONLY -- the 14 exported ABSTRACT TYPES** (`AbstractProcessSettings`,
+    `AbstractPropertySettings`, `AbstractEeInteraction`, `AbstractNuclearModel`, `AbstractStartOrbitals`, ...).
+    The NAME will not change and may be dispatched on;  the LIST OF SUBTYPES is **not** promised, because a new
+    scheme, field or route must remain addable without a major version.  Code that enumerates the subtypes of one
+    of these is relying on something JAC does not offer.
+
+    **NOT PROMISED** -- everything not exported, reached as `JenaAtomicCalculator.X` or `SomeModule.helper`.  It
+    may change in any release.  `TestFrames` is deliberately in this class: it is the test suite, and promising its
+    API would make renaming a test function a breaking change.
+
+    **THESE NUMBERS ARE RE-DERIVED AND NEVER KEPT BY HAND.**  `names(JenaAtomicCalculator)` with `isdefined` and
+    `isa` answers all of it in a few lines, so the statement cannot go stale against the code the way a curated
+    list does.  It also follows that **an exported name which resolves to nothing is a DEFECT and not a
+    reservation**: it promises a capability that is not there, which is worse than its absence, because a reader
+    chooses a code on exactly that reading.  Twenty such names were deleted on 07-Oct-2026.
 
 """
 module JenaAtomicCalculator
