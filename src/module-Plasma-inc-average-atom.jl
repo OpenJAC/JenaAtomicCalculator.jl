@@ -91,6 +91,119 @@ end
 
 
 """
+`Plasma.computePhotoionizationData(piSubshells::Array{Subshell,1}, orbitals::Dict{Subshell, Orbital}, chemMu::Float64,
+                                   temp::Float64, grid::Radial.Grid, pot::Radial.Potential, omegas::Array{Float64,1})`
+    ... computes the bound-free photoionization cross section sigma_bf(omega) of each of the given bound subshells in
+        the converged average-atom potential, for every photon energy in omegas [a.u.];  a
+        Dict{Subshell, Array{Float64,1}} of cross sections [a.u.] is returned, one entry per subshell and one value
+        per omega.
+
+        **THIS IS EQ. (23) OF JOHNSON & NILSEN, HEDP 31 (2019) 92**, `sigma_bf = (8 pi^2/3) alpha omega |D|^2` with
+        the radial dipole matrix element `D = int P_eps,l(r) r P_b(r) dr` of Eq. (24).  The continuum electron takes
+        the energy `eps = omega + eps_b` left over after the binding energy, so a photon below threshold returns zero.
+
+        **THE FRACTIONAL OCCUPATION IS APPLIED HERE AND IS NOT A DETAIL.**  In a plasma the bound subshell is only
+        partly filled, and Johnson multiplies the cross section by the fractional occupation -- occ/2 for the K shell,
+        which is just the Fermi-Dirac factor f(eps_b) itself.  Their Fig. 7 shows that factor accounting for a 95 %
+        reduction of the opacity between 20 and 500 eV while the cross section proper contributes 18 %, so a
+        sigma_bf computed without it is not approximately right but wrong by more than an order of magnitude.
+
+        **THE ANGULAR FACTOR IS THE s -> p ONE.**  The 8 pi^2/3 of Eq. (23) already carries the angular algebra of a
+        K-shell (l = 0 -> l = 1) transition, which is what the paper computes and what this reproduces.  For a
+        subshell with l > 0 the two channels l-1 and l+1 would each need their own weight, so such a subshell is
+        REFUSED here rather than silently given the K-shell factor.  The two relativistic partial waves p_1/2 and
+        p_3/2 are combined with their statistical weights, which returns the single non-relativistic l = 1 channel
+        in the limit where they coincide.
+"""
+function computePhotoionizationData(piSubshells::Array{Subshell,1}, orbitals::Dict{Subshell, Orbital}, chemMu::Float64,
+                                    temp::Float64, grid::Radial.Grid, pot::Radial.Potential, omegas::Array{Float64,1})
+    alpha    = Defaults.getDefaults("alpha")
+    piData   = Dict{Subshell, Array{Float64,1}}()
+    cSettings = Continuum.Settings(false, grid.NoPoints - 100)
+    for  sh  in  piSubshells
+        if  !haskey(orbitals, sh)   error("Plasma.computePhotoionizationData(): subshell $sh is not among the " *
+                                          "average-atom orbitals;  check scheme.piSubshells against nMax and lMax.")   end
+        if  Basics.subshell_l(sh) != 0
+            error("Plasma.computePhotoionizationData(): subshell $sh has l > 0, and Eq. (23) of Johnson & Nilsen " *
+                  "(2019) carries the angular factor of an s -> p transition only.  Only s subshells are supported.")
+        end
+        bOrb   = orbitals[sh];      epsB = bOrb.energy
+        fOcc   = Basics.FermiDirac(epsB, chemMu, temp)       ## the fractional occupation, occ/(2j+1)
+        sigmas = zeros(length(omegas))
+        for  (io, omega)  in  enumerate(omegas)
+            eps = omega + epsB                               ## epsB < 0, so this is the photoelectron energy
+            if  eps <= 0.    continue    end                 ## below threshold
+            dSum = 0.;    wSum = 0.
+            for  kappa  in  (1, -2)                          ## p_1/2 and p_3/2
+                wk = abs(2kappa)                             ## 2j+1
+                cOrb, phase = Continuum.generateOrbitalLocalPotential(eps, Subshell(101, kappa), pot, cSettings)
+                mtp = min(length(cOrb.P), length(bOrb.P), length(grid.r))
+                dip = 0.
+                for  ir = 2:mtp    dip = dip + grid.wr[ir] * cOrb.P[ir] * grid.r[ir] * bOrb.P[ir]    end
+                dSum = dSum + wk * dip^2;    wSum = wSum + wk
+            end
+            sigmas[io] = 8pi^2/3 * alpha * omega * (dSum/wSum) * fOcc
+        end
+        piData[sh] = sigmas
+    end
+
+    return( piData )
+end
+
+
+"""
+`Plasma.displayPhotoionizationCrossSections(omegas::Array{Float64,1}, piData::Dict{Subshell, Array{Float64,1}})`
+    ... displays the bound-free photoionization cross sections of every subshell in piData, in barn and as a
+        function of the photon energy; nothing is returned.
+"""
+function displayPhotoionizationCrossSections(omegas::Array{Float64,1}, piData::Dict{Subshell, Array{Float64,1}})
+    println("\n  Bound-free photoionization cross sections of the average atom:\n")
+    println("  " * "-"^88)
+    print(  "   omega [eV]  ");   for sh in sort(collect(keys(piData)), by=x->string(x))   print("   sigma_bf($sh) [barn]")   end
+    println("\n  " * "-"^88)
+    for  (io, omega)  in  enumerate(omegas)
+        print("  " * @sprintf("%10.2f", Defaults.convertUnits("energy: from atomic to eV", omega)) * "  ")
+        for  sh  in  sort(collect(keys(piData)), by=x->string(x))
+            print("   " * @sprintf("%18.4e", Defaults.convertUnits("cross section: from atomic to barn", piData[sh][io])))
+        end
+        println("")
+    end
+    println("  " * "-"^88)
+
+    return( nothing )
+end
+
+
+"""
+`Plasma.computeScatteringFactors(omegas::Array{Float64,1}, piData::Dict{Subshell, Array{Float64,1}}, nm::Nuclear.Model)`
+    ... computes the imaginary part f_2 of the atomic scattering factor and the x-ray mass attenuation coefficient
+        mu/rho from the bound-free cross sections; a Tuple (f2::Array{Float64,1}, muOverRho::Array{Float64,1}) is
+        returned, with f_2 dimensionless and mu/rho in cm^2/g.
+
+        **EQS. (21) AND (27) OF JOHNSON & NILSEN (2019)**: `f_2 = sigma_bf / (2 r_0 lambda)` relates the imaginary
+        scattering factor to the cross section through the optical theorem, and `mu/rho = (N_A/A) sigma_bf` is the
+        mass attenuation coefficient that the x-ray intensity falls off with, `I = I_0 exp(-mu z)`.  Both are summed
+        over the subshells present in piData, since each contributes additively to the absorption.
+"""
+function computeScatteringFactors(omegas::Array{Float64,1}, piData::Dict{Subshell, Array{Float64,1}}, nm::Nuclear.Model)
+    alpha = Defaults.getDefaults("alpha");     r0 = alpha^2        ## classical electron radius in a.u.
+    f2 = zeros(length(omegas));     muOverRho = zeros(length(omegas))
+    for  (io, omega)  in  enumerate(omegas)
+        sigTot = 0.;    for (sh, sg) in piData    sigTot = sigTot + sg[io]    end
+        if  omega > 0.
+            lambda  = 2pi / (alpha * omega)                         ## lambda = 2 pi c / omega, c = 1/alpha
+            f2[io]  = sigTot / (2 * r0 * lambda)
+            # mu/rho = (N_A/A) sigma, with sigma converted from a.u. to cm^2 and A in g/mol
+            sigCm2        = Defaults.convertUnits("cross section: from atomic to barn", sigTot) * 1.0e-24
+            muOverRho[io] = 6.02214076e23 / nm.mass * sigCm2
+        end
+    end
+
+    return( (f2, muOverRho) )
+end
+
+
+"""
 `Plasma.determineWignerSeitzRadius(rho::Float64, nm::Nuclear.Model)`
     ... determines the Wigner-Seitz radius R^(WS) from the plasma density rho [g/cm^3] ne and the nuclear charge Z.
 """
@@ -196,23 +309,41 @@ function  perform(scheme::Plasma.AverageAtomScheme, computation::Plasma.Computat
     #
     # Calculate photoionization data and cross sections
     if  scheme.calcPhotoionizationCs
-        piData = Plasma.computePhotoionizationData(scheme.piSubshells, orbitals, chemMu, temp, computation.grid)
+        # THE CONVERGED AVERAGE-ATOM POTENTIAL IS REBUILT HERE, because the continuum electron must be generated in
+        # the SAME field the bound orbital sits in -- a continuum wave from a bare nuclear potential would carry no
+        # screening and give a cross section that is wrong wherever the plasma is dense.
+        elecPot  = Basics.computePotential(Basics.AaDFSField(), computation.grid, orbitals, chemMu, temp)
+        totalPot = Basics.add(Nuclear.nuclearPotential(nm, computation.grid), elecPot)
+        piData   = Plasma.computePhotoionizationData(scheme.piSubshells, orbitals, chemMu, temp, computation.grid,
+                                                     totalPot, scheme.omegas)
         Plasma.displayPhotoionizationCrossSections(scheme.omegas, piData)
-        # Add omegas and cross sections to results ... computePhotoionizationCrossSections(subshell, scheme.omegas, piData)
+        if  output
+            results["pi omegas"]       = scheme.omegas
+            results["pi cross sections"] = piData
+        end
     end
     #
     # Calculate form factors
     if  scheme.calcFormFactor
         formF = Plasma.computeFormFactors(scheme.qValues, orbitals, chemMu, temp, computation.grid)
-        # Add q-values and form factors to results 
+        if  output    results["ff q-values"] = scheme.qValues;    results["form factors"] = formF    end
     end
     #
-    # Calculate form factors
+    # Calculate the scattering factor f_2 and the mass attenuation coefficient
     if  scheme.calcScatteringFactor
         if !scheme.calcPhotoionizationCs    
             error("Scattering factors also require the computation of photoionization cross sections")    end
-        scatteringF = Plasma.computeScatteringFactors(scheme.omegas, piData, orbitals, chemMu, temp)
-        # Add scattering factors to results 
+        (f2, muOverRho) = Plasma.computeScatteringFactors(scheme.omegas, piData, nm)
+        println("\n  Imaginary scattering factor f_2 and mass attenuation coefficient:\n")
+        println("  " * "-"^62)
+        println("   omega [eV]            f_2        mu/rho [cm^2/g]")
+        println("  " * "-"^62)
+        for  (io, om)  in  enumerate(scheme.omegas)
+            println("  " * @sprintf("%10.2f", Defaults.convertUnits("energy: from atomic to eV", om)) *
+                    @sprintf("%17.5e", f2[io]) * @sprintf("%19.5e", muOverRho[io]))
+        end
+        println("  " * "-"^62)
+        if  output    results["scattering factor f2"] = f2;    results["mass attenuation"] = muOverRho    end
     end
 
     
