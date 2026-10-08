@@ -21,9 +21,10 @@ if  true
     #   - mu = +0.61882 Ha, i.e. the cell is degenerate at this density;  an ideal electron gas at the same mu,
     #     temperature and volume would hold 3.676 electrons against the cell's 3.014, the difference being the
     #     density the cell's Dirichlet wall removes.
-    #   - Form factors F(q) fall monotonically and smoothly from F(1) = 4.2107 to F(10) = 0.4401 a.u. (q in a_o^-1).
-    #   - NOTE that `Plasma.computeMeanCharge` prints 2.0000 here, which is the BOUND count and not Z*;  the mean
-    #     charge to read is the one on the SCF's own closing line.
+    #   - Form factors F(q) fall monotonically from F(1) = 4.2104 to F(10) = 0.4401 a.u. (q in a_o^-1).
+    #   - The run reports "Mean charge Z* = 3.00000 free and 2.00000 bound electrons", both from the full
+    #     per-kappa spectrum.  Until 08-Oct-2026 it printed the BOUND count under the name "mean charge" and
+    #     solved the chemical potential a second time from the subshell list;  both are fixed.
     #
     nm          = Nuclear.Model(5.0, 10.82)
     rho         = 2.463      # [g/cm^3]

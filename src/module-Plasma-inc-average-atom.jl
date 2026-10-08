@@ -72,20 +72,30 @@ end
 
 
 """
-`Plasma.computeMeanCharge(nm::Nuclear.Model, orbitals::Dict{Subshell, Orbital}, chemMu::Float64, temp::Float64)`  
-    ... computes the mean charge state of an average-atom ion in the plasma of given density and temperature;
-        i.e. Z - sum occ (epsilon > 0); a mean charge state meanCharge::Float64 is returned.
+`Plasma.computeMeanCharge(nm::Nuclear.Model, orbitals::Dict{Subshell, Orbital}, chemMu::Float64, temp::Float64)`
+    ... computes the mean charge of an average-atom ion from a given set of orbitals, i.e. the number of electrons
+        that are NOT bound to it, `Z* = sum_(eps>0) (2j+1) f(eps,mu,T)`;  a `meanCharge::Float64` is returned.
+
+        **IT USED TO RETURN `Z - sum_(eps>0) occ f`, WHICH IS THE COMPLEMENT -- the number of BOUND electrons --
+        under the name of the mean charge.**  Corrected 08-Oct-2026:  for aluminium at solid density and 10 eV it
+        printed 9.986 where the mean charge is 3.014, so the error was not small but exactly the complement, and
+        at neutrality the two are indistinguishable by eye only when Z/2 electrons happen to be free.
+
+        This form sums over whatever orbitals it is handed, so it is as complete as that set is.
+        `Plasma.perform(::AverageAtomScheme, ...)` does NOT use it:  it takes the mean charge from
+        `SelfConsistent.solveAverageAtomSpectra`, which counts the FULL per-kappa spectrum of the cell -- about
+        seventy-eight states per kappa against the half-dozen a subshell list carries -- and whose count satisfies
+        neutrality exactly.  The two agree only where the subshell list happens to hold the whole continuum.
 """
 function computeMeanCharge(nm::Nuclear.Model, orbitals::Dict{Subshell, Orbital}, chemMu::Float64, temp::Float64)
-    meanCharge = nm.Z
+    meanCharge = 0.
     for (k,v) in orbitals
-        if  v.energy > 0. 
-            occ        = Basics.FermiDirac(v.energy, chemMu, temp) * (Basics.twice(Basics.subshell_j(k)) + 1) 
-            meanCharge = meanCharge - occ
+        if  v.energy > 0.
+            meanCharge = meanCharge + Basics.FermiDirac(v.energy, chemMu, temp) * (Basics.twice(Basics.subshell_j(k)) + 1)
         end
     end
-    println(">> Mean charge = $meanCharge ")
-    
+    println(">> Mean charge Z* = $meanCharge  from the given " * string(length(orbitals)) * " subshells.")
+
     return ( meanCharge )
 end
 
@@ -290,30 +300,44 @@ function  perform(scheme::Plasma.AverageAtomScheme, computation::Plasma.Computat
     orbitals  = Bsplines.generateOrbitalsHydrogenic(subshells, nm, wa; printout=false)
     chemMu    = SelfConsistent.determineChemicalPotential(orbitals, temp, RWS, nm, computation.grid)
     Basics.displayOrbitalProperties(stdout, orbitals, chemMu, temp, RWS, nm, computation.grid)
-    # Solve the orbitals and chemical potential self-consistently in the average-atom model
-    orbitals  = SelfConsistent.solveAverageAtomField(orbitals, nm, scheme.scField, temp, RWS, wa; printout=true)
-    chemMu    = SelfConsistent.determineChemicalPotential(orbitals, temp, RWS, nm, computation.grid)
+    # Solve the orbitals, the density and the chemical potential self-consistently in the average-atom model.
+    # ONE CALL, AND ITS NUMBERS ARE THE ONES REPORTED.  Until 08-Oct-2026 the chemical potential was solved a
+    # second time here, from the subshell list, and that value -- not the converged one -- went into the results
+    # and into every property computed below.  The two differ by whatever the subshell list leaves out of the
+    # continuum, which is most of it.
+    wScf      = SelfConsistent.solveAverageAtomSpectra(orbitals, nm, scheme.scField, temp, RWS, wa; printout=true)
+    orbitals  = wScf.orbitals;    chemMu = wScf.chemMu;    meanCharge = wScf.nCont
     # Diplay orbital properties
     Basics.displayOrbitalProperties(stdout, orbitals, chemMu, temp, RWS, nm, computation.grid)
     Plasma.displayElectronNumberDensity(computation.grid, orbitals, chemMu, temp, RWS)
     # Generate electron number densities and mean charge state
     totalNe, posNe, negNe = Plasma.computeElectronNumberDensity(computation.grid, orbitals, chemMu, temp)
-    meanCharge            = Plasma.computeMeanCharge(nm, orbitals, chemMu, temp)
+    # The table above is built from the SUBSHELL LIST and is therefore as incomplete as that list; say by how
+    # much, so that a reader does not take it for the density the field was built from.  That one is in
+    # results["radial density"] and integrates to Z.
+    wSub      = RadialIntegrals.V0(totalNe, computation.grid.NoPoints, computation.grid)
+    println(">> Mean charge Z* = " * @sprintf("%.5f", meanCharge) * " free and " * @sprintf("%.5f", wScf.nBound) *
+            " bound electrons at mu = " * @sprintf("%.6f", chemMu) * " Ha, from the full per-kappa spectrum " *
+            "(lMax = $(wScf.lMax), free partial waves to $(wScf.lMaxFree)).")
+    println("   The subshell-list density tabulated above accounts for " * @sprintf("%.4f", wSub) * " of the " *
+            "$(nm.Z) electrons;  the density the field was built from is results[\"radial density\"].")
     # Return results if required
     if  output   
         results["chemical mu"]   = chemMu;                  results["mean charge"]   = meanCharge
         results["AA orbitals"]   = orbitals;                results["density n_e"]   = totalNe
-        results["negative n_e"]  = negNe;                   results["positive n_e"]  = posNe;                  
+        results["negative n_e"]  = negNe;                   results["positive n_e"]  = posNe;
+        results["bound electrons"] = wScf.nBound;           results["radial density"] = wScf.rhot
     end
     #
     #
     # Calculate photoionization data and cross sections
     if  scheme.calcPhotoionizationCs
-        # THE CONVERGED AVERAGE-ATOM POTENTIAL IS REBUILT HERE, because the continuum electron must be generated in
-        # the SAME field the bound orbital sits in -- a continuum wave from a bare nuclear potential would carry no
-        # screening and give a cross section that is wrong wherever the plasma is dense.
-        elecPot  = Basics.computePotential(Basics.AaDFSField(), computation.grid, orbitals, chemMu, temp)
-        totalPot = Basics.add(Nuclear.nuclearPotential(nm, computation.grid), elecPot)
+        # THE CONVERGED AVERAGE-ATOM POTENTIAL IS TAKEN FROM THE SCF, not rebuilt.  The continuum electron must be
+        # generated in the SAME field the bound orbital sits in -- a continuum wave from a bare nuclear potential
+        # would carry no screening and give a cross section that is wrong wherever the plasma is dense -- and
+        # until 08-Oct-2026 it was rebuilt here from the subshell list, which is a DIFFERENT and incomplete field
+        # from the one the orbitals were converged in.
+        totalPot = wScf.pot
         piData   = Plasma.computePhotoionizationData(scheme.piSubshells, orbitals, chemMu, temp, computation.grid,
                                                      totalPot, scheme.omegas)
         Plasma.displayPhotoionizationCrossSections(scheme.omegas, piData)
