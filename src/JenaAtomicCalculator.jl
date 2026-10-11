@@ -187,6 +187,7 @@ include("module-RadialIntegrals.jl");   using ..RadialIntegrals
 include("module-HydrogenicIon.jl")
 include("module-InteractionStrength.jl")
 include("module-InteractionStrengthQED.jl")
+include("module-DalgarnoLewis.jl");     using ..DalgarnoLewis
 include("module-Hamiltonian.jl");       using ..Hamiltonian
 include("module-SelfConsistent.jl");    using ..SelfConsistent
 include("module-PeriodicTable.jl")
