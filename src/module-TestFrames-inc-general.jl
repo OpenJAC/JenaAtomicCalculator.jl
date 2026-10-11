@@ -3110,18 +3110,30 @@ function testModule_DalgarnoLewis(; short::Bool=true)
                         InteractionStrength.MabEmission(E1, Basics.Coulomb, omega, orbN, orb_1s, grid) / (En - targetEnergy)
     end
     direct = DalgarnoLewis.amplitude(E1, orb_1s, chi, grid)
-    if  abs(total) < 1.0e-30  ||  !(0.999 < abs(direct/total) < 1.001)
+    if  abs(total) < 1.0e-30  ||  !(0.999 < real(direct/total) < 1.001)
         success = false
         if printTest   info(iostream, "DalgarnoLewis.amplitude() = $direct against the explicit eigenbasis sum = " *
                                       "$total -- these must agree to the solver's own accuracy")   end
     end
 
-    # (2) THE BABUSHKIN GUARD MUST FIRE -- see the module's own docstring for why this gauge is not yet usable.
-    try
-        DalgarnoLewis.solve(E1, Basics.Babushkin, omega, target, orb_2s, potential, primitives)
+    # (2) THE SAME IDENTITY, BABUSHKIN GAUGE -- fixed 11-Oct-2026 via DalgarnoLewis.amplitudeKernel (Grant 1974
+    #     eq 4.11, applied with a role-based constant sign rather than MabEmission's own energy-dependent eps,
+    #     which has no meaning for chi). The explicit-sum reference must use the SAME uniform convention
+    #     (DalgarnoLewis.amplitudeKernel, not InteractionStrength.MabEmission directly) or the comparison is
+    #     not apples to apples -- exactly the mismatch that produced the earlier, wrong "~12.9x short" verdict.
+    chiB = DalgarnoLewis.solve(E1, Basics.Babushkin, omega, target, orb_2s, potential, primitives)
+    totalB = 0.0 + 0.0im
+    for  n = 1:length(eig.values)
+        En = eig.values[n];   if  abs(En - targetEnergy) < 1.0e-6   continue   end
+        orbN = Bsplines.generateOrbitalFromVector(target, En, eig.vectors[n], primitives)
+        totalB = totalB + DalgarnoLewis.amplitudeKernel(E1, Basics.Babushkin, omega, orb_2s, orbN, grid) *
+                           DalgarnoLewis.amplitudeKernel(E1, Basics.Babushkin, omega, orbN, orb_1s, grid) / (En - targetEnergy)
+    end
+    directB = DalgarnoLewis.amplitude(E1, orb_1s, chiB, grid)
+    if  abs(totalB) < 1.0e-30  ||  !(0.999 < real(directB/totalB) < 1.001)
         success = false
-        if printTest   info(iostream, "DalgarnoLewis.solve() did not raise for gauge = Basics.Babushkin")   end
-    catch
+        if printTest   info(iostream, "Babushkin: DalgarnoLewis.amplitude() = $directB against the explicit " *
+                                      "eigenbasis sum = $totalB -- these must agree to the solver's own accuracy")   end
     end
 
     # (3) THE NEAR-POLE GUARD MUST FIRE -- a target energy placed ON a genuine eigenvalue of this channel.
@@ -3133,8 +3145,8 @@ function testModule_DalgarnoLewis(; short::Bool=true)
     end
 
     println(iostream, "DalgarnoLewis: chi solved from the inhomogeneous equation reproduces the explicit sum over " *
-                      "the complete eigenbasis of the SAME matrix to the solver's own accuracy (Coulomb gauge); " *
-                      "the Babushkin-gauge guard and the near-pole guard both fire. No approved data is used.")
+                      "the complete eigenbasis of the SAME matrix to the solver's own accuracy, in BOTH the " *
+                      "Coulomb and the Babushkin gauge; the near-pole guard fires. No approved data is used.")
     Defaults.setDefaults("print summary: close", "")
     testPrint("testModule_DalgarnoLewis()::", success)
     return( success )

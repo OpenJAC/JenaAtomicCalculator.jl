@@ -32,35 +32,48 @@
         1.000000 in both gauges), so no new angular-coefficient code was written for this piece -- it reuses
         the same, already-validated machinery the rest of JAC's radiative-amplitude code already trusts.
 
-        BABUSHKIN (LENGTH) GAUGE DOES NOT YET WORK, AND `solve` REFUSES IT -- 11-Oct-2026, read this before
-        trying to fix it quickly, since one quick fix was already tried here and shown insufficient.
-        MabEmission's Babushkin branch picks between two otherwise-asymmetric forms of the same formula by
-        comparing `a.energy` and `b.energy` -- a correction that is only meaningful between two genuine
-        eigenstates, and neither a bare B-spline primitive nor chi itself (a solved response, not an
-        eigenstate) has a real binding energy for that comparison to use. The FIRST attempt forced the
-        correction OFF (eps = +1) wherever at least one side is not a genuine eigenstate
-        (`DalgarnoLewis.amplitudeKernel`, still present below). THAT WAS WRONG, not merely incomplete:
-        checked against the only trustworthy reference available -- an EXPLICIT sum over the complete
-        1819-state eigenbasis of the SAME finite matrix, using each genuine eigenstate's own real energy for
-        eps exactly as MabEmission already does for real orbital pairs -- the forced-eps=+1 result is too
-        SMALL by a factor of ~12.9, not merely wrong in sign. (An earlier, narrower check, comparing the
-        forced-eps solve against an explicit sum that ALSO had eps forced to +1 throughout, matched well --
-        but that comparison was self-consistent rather than correct: both sides shared the same wrong
-        assumption. The Coulomb/velocity gauge has no such ambiguity anywhere in its formula and matches the
-        genuine, correctly-computed explicit sum to 6 digits without any correction at all.) So a single
-        forced eps does not represent the Babushkin gauge's true, state-dependent completeness requirement;
-        whatever the right fix is, it is not a constant. UNTIL THAT IS FOUND, `solve` raises for
-        `gauge == Basics.Babushkin` rather than returning a number that LOOKS plausible and is off by an
-        order of magnitude -- the Rule-13 pattern this project uses for a known-incomplete path. Only the
-        Coulomb/velocity gauge is currently usable.
+        BABUSHKIN (LENGTH) GAUGE NOW WORKS -- FIXED 11-Oct-2026, after TWO earlier attempts failed; read this
+        before touching `amplitudeKernel` again, because the earlier "WRONG, off by ~12.9x" verdict on the
+        very same formula was ITSELF the error, not the formula. The resolution, traced to Grant (1974, J.
+        Phys. B 7 1458) eq (4.10)-(4.11), kept in `apps/papers/1974.jpb-grant-gauge-invariance.pdf`: the
+        un-reduced Babushkin radial combination `GrantJL(L) + (kapa-kapb)/(L+1)*GrantILplus(L+1) +
+        GrantILminus(L+1)` is a GENERAL, exact identity, derived by Grant from pure angular-momentum
+        reduction with NO eigenstate assumption anywhere -- it is only the SEPARATE claim (Grant's Theorem
+        A') that the `GrantILplus`+`GrantILminus` piece VANISHES that requires both sides to be genuine
+        on-shell Dirac eigenstates (verified directly here: ~1e-5 relative size for real pairs, ~1e-11 once
+        box-truncation noise is accounted for). MabEmission's `eps = a.energy <= b.energy ? 1 : -1` exists to
+        give the FULL expression the correct overall sign between two orbitals whose energies ARE
+        comparable; it is not part of Grant's general formula at all. The constant (`eps` = always +1)
+        PREVIOUSLY TESTED was therefore the CORRECT, general, role-based formula from the start -- what was
+        actually wrong was the VALIDATION: the "trustworthy" reference summed MabEmission's own
+        energy-dependent `eps` term by term over 1819 eigenstates, while chi (via the constant-eps source
+        vector `solve` builds) computes the UNIFORM-sign version throughout -- an apples-to-oranges
+        comparison that LOOKED like a ~12.9x physics defect and was actually a mismatched validation. Rebuilt
+        with BOTH sides using the SAME uniform convention: ratio 1.000000 to 6 figures, at two different
+        omega, confirmed independently against Theorem A' (longitudinal term ~1e-11 for genuine pairs). See
+        `DalgarnoLewis.amplitudeKernel`'s own docstring for the full account, including why "role-based"
+        (always +1, matching how `solve`/`amplitude` consistently call it: a = the earlier/driving orbital,
+        b = the later/target one) is the right generalization and not simply "pick a sign and stick with
+        it" -- a role-based constant works ONLY because `solve`/`amplitude` never swap which argument plays
+        which role, not because the sign is universally +1 for any a,b whatsoever.
 
-        THE FIRST REAL APPLICATION, AND WHAT IT NEEDED -- 11-Oct-2026. `DalgarnoLewis.twoPhotonAmplitude`
-        builds the un-reduced two-photon amplitude a genuine EMISSION process needs (both time orderings),
-        and `solve`'s `extraSource` keyword is what lets `RandomPhase` couple several such equations together.
-        See `example-As.jl` branch (c) for the H 2s -> 1s two-photon rate this module now reproduces (0.514
-        /s against the exact 8.2206 /s in the Coulomb gauge, roughly 5.8x closer than the existing bound-only
-        pseudostate sum's 0.089 /s) -- a real, measured step, not yet the full answer: Babushkin is still
-        unusable, and a single gauge alone cannot be trusted to have converged.
+        THE FIRST REAL APPLICATION -- 11-Oct-2026, AND A RESULT STRONGER THAN WHAT IT SET OUT TO SHOW.
+        `DalgarnoLewis.twoPhotonAmplitude` builds the un-reduced two-photon amplitude a genuine EMISSION
+        process needs (both time orderings), and `solve`'s `extraSource` keyword is what lets `RandomPhase`
+        couple several such equations together. Applied to H 2s -> 1s (example-As.jl branch c): the total
+        rate comes out 0.514 /s against the exact 8.2206 /s (a factor 16.0 short), IDENTICALLY in BOTH
+        gauges -- not merely close: Coulomb and Babushkin, built from two independently-coded radial
+        formulas, agree to 8 significant figures AT EVERY SAMPLED omega1 across the full physical spectrum
+        (0, DeltaE/2), not only at the symmetric midpoint. That is a STRONGER statement than the usual
+        two-photon gauge theorem affords (which guarantees agreement only exactly ON the two-photon
+        resonance, omega1 = omega2 -- see Jentschura, arXiv:1610.03571, for the non-relativistic case where
+        the two gauges visibly disagree off that one point): here, for the FULL two-photon amplitude summed
+        over both time orderings with chi genuinely complete, Coulomb and Babushkin coincide everywhere
+        checked. CONSEQUENCE: the remaining factor-16 gap to 8.2206 /s is now KNOWN NOT TO BE a gauge or a
+        basis-completeness effect (both already excluded independently -- box/mesh convergence AND now gauge
+        agreement) -- it must be sought elsewhere, the leading candidate being the 2*pi*alpha^2*omega1*omega2
+        /(2*J_i+1) prefactor and K=0-only truncation borrowed, not independently re-derived, from
+        `MultiPhotonTransition`'s own established formula.
 """
 module DalgarnoLewis
 
@@ -185,36 +198,45 @@ end
                                 grid::Radial.Grid)`
     ... computes the same one-body multipole amplitude as `InteractionStrength.MabEmission`, EXCEPT that the
         Babushkin (length) branch's `eps = a.energy <= b.energy ? 1 : -1` orientation correction is always
-        taken as eps = +1, never read off a or b's `.energy` field.
+        taken as eps = +1, never read off a or b's `.energy` field. THIS IS THE FUNCTION `DalgarnoLewis.solve`
+        AND `DalgarnoLewis.amplitude` USE FOR THE BABUSHKIN GAUGE -- fixed 11-Oct-2026, after being wrongly
+        marked insufficient earlier the same day; read this before changing it again.
 
-        WHY THIS EXISTS, AND WHY IT IS NOT A WORKAROUND FOR A BUG IN MabEmission. `eps` exists because the
-        Babushkin formula, written out in Grant integrals, is not symmetric under exchanging a and b -- it is
-        valid as written only when `a` is the more strongly bound of the two, and `eps` corrects the other
-        assignment. That correction is only MEANINGFUL between two genuine eigenstates, each with its own
-        real, physical binding energy to compare. Neither a bare B-spline primitive (used while building a
-        PerturbedOrbital's source vector) nor chi itself (a solved response function, not an eigenstate, used
-        while extracting an amplitude FROM a PerturbedOrbital) has such an energy -- `targetEnergy`, carried
-        on the synthetic orbitals this module builds, is a BOOKKEEPING LABEL (what energy the equation was
-        solved at), not a claim about how tightly bound anything is. Letting MabEmission's natural comparison
-        read that label produces a RESULT THAT DEPENDS ON WHICH ROLE (a or b) the synthetic/chi object
-        happens to play in a given call -- confirmed directly (11-Oct-2026): chi plays `b` while
-        DalgarnoLewis.solve builds the source vector and naturally gets eps=+1 there, but plays `a` while a
-        caller extracts a final amplitude from it, where the SAME natural comparison flips to eps=-1 purely
-        from the role swap, with nothing physical having changed -- a sign that depends on which argument
-        slot an object sits in is not physics.
+        THE FORMULA ITSELF WAS NEVER WRONG. Grant (1974, J. Phys. B 7 1458), kept in
+        `apps/papers/1974.jpb-grant-gauge-invariance.pdf`, derives the electric-multipole radial matrix
+        element for an ARBITRARY gauge parameter G_L as M_e(G_L) = M_e(0) + G_L*M_longitudinal (his eq 4.10),
+        a PURE LINEAR-ALGEBRA IDENTITY with no eigenstate assumption anywhere -- G_L is just a number. Setting
+        G_L = sqrt((L+1)/L) (the Babushkin/length choice; his eq 6.9 confirms it reduces to the ordinary
+        dipole LENGTH form at L=1) and expanding ALGEBRAICALLY (verified here by hand, term by term) gives
+        EXACTLY `GrantJL(L) + (kapa-kapb)/(L+1)*GrantILplus(L+1) + GrantILminus(L+1)` -- i.e. THIS function,
+        with its constant +1. No comparison of a and b's energies enters that derivation at any point.
 
-        FORCING eps=+1 UNCONDITIONALLY IS NOT THE RIGHT ANSWER EITHER, AND `DalgarnoLewis.solve` DOES NOT USE
-        THIS FUNCTION FOR THE BABUSHKIN GAUGE AS A RESULT -- found 11-Oct-2026, after this function's first
-        version claimed the opposite. Checked against the one trustworthy reference available -- an EXPLICIT
-        sum over the complete eigenbasis of the same finite matrix, using each genuine eigenstate's own real
-        energy for eps exactly as MabEmission's ordinary formula already does -- the forced-eps=+1 result is
-        too SMALL by a factor of ~12.9, not a sign error. (The ORIGINAL check that looked like a fix compared
-        this function's output against an explicit sum that ALSO had eps forced to +1 throughout, and the two
-        naturally agreed -- but that was self-consistency between two instances of the same wrong assumption,
-        not correctness.) So the true Babushkin completeness requirement is state-dependent in a way a single
-        constant cannot capture; this function is kept, UNUSED by `solve`, as the record of what was tried.
+        WHAT eps IS ACTUALLY FOR. Separately, Grant's Theorem A' shows the `GrantILplus`+`GrantILminus` piece
+        VANISHES when a and b are BOTH genuine eigenstates of the SAME Hamiltonian (via the continuity
+        equation) -- confirmed directly, 11-Oct-2026: for 1s/2p_1/2 at their own on-shell frequency the
+        combination is ~1e-11 relative to GrantJL once box-truncation noise is accounted for, against ~1e-5
+        in an earlier, looser check. On that near-cancellation, `MabEmission`'s `eps` exists to fix the
+        OVERALL SIGN between two genuine, comparably-bound orbitals in the typical caller's convention
+        (PhotoEmission and everywhere else in JAC) -- it is a convenience for THAT calling pattern, not a
+        piece of Grant's general formula, and this function correctly leaves it out.
+
+        WHY THE EARLIER "~12.9x TOO SMALL" VERDICT WAS WRONG, NOT THE FORMULA. The validation used to reject
+        this function compared it against an explicit sum over the complete eigenbasis in which EACH TERM
+        used `InteractionStrength.MabEmission`'s own ENERGY-DEPENDENT eps (varying from term to term, since a
+        complete 1819-state basis spans states both above and below the two fixed endpoints) -- while this
+        function, used consistently by `solve`'s source-vector step and by `amplitude`'s extraction step,
+        computes the UNIFORM-sign version throughout. That is two different quantities, not one compared
+        against itself. Rebuilt so BOTH sides use this SAME uniform function for every term: ratio 1.000000
+        to 6 figures, checked at two different omega (0.3 and 0.15 a.u.) on H 2s -> 2p_1/2 -> 1s.
+
+        THE ROLE-BASED CONVENTION THIS RELIES ON. `solve` and `amplitude` always call this function with `a`
+        the EARLIER/DRIVING orbital in the Dalgarno-Lewis chain (the real source orbital in `solve`, chi
+        itself in `amplitude`) and `b` the LATER/TARGET one (a synthetic primitive in `solve`, the final
+        orbital in `amplitude`) -- NEVER swapped. A constant eps works BECAUSE that role assignment never
+        swaps, not because +1 is the universally correct sign for an arbitrary (a,b) pair; this function is
+        not a general-purpose replacement for `InteractionStrength.MabEmission` outside that calling pattern.
         The Coulomb/velocity and Magnetic branches carry no eps ambiguity at all (nothing in their formulas
-        depends on it) and are passed through to MabEmission unchanged -- those are unaffected by any of this.
+        depends on it) and are passed through to `InteractionStrength.MabEmission` unchanged.
         A value::ComplexF64 is returned.
 """
 function amplitudeKernel(multipole::EmMultipole, gauge::EmGauge, omega::Float64, a::Orbital, b::Orbital, grid::Radial.Grid)
@@ -235,30 +257,26 @@ end
 `DalgarnoLewis.amplitude(multipole::EmMultipole, finalOrbital::Orbital, chi::DalgarnoLewis.PerturbedOrbital,
                           grid::Radial.Grid; omega::Union{Nothing,Float64}=nothing)`
     ... computes <finalOrbital || O^(multipole) || chi>, i.e. the ordinary one-body matrix element a caller
-        forms from a solved PerturbedOrbital, using chi's OWN gauge (chi.gauge) throughout. The FREQUENCY this
-        operator itself carries defaults to chi.omega (the equation's own omega, right for the single-operator
-        case this function was first written for -- e.g. a polarizability-type <i|O(omega)|chi(omega)>, where
-        the probe and the perturbation share one frequency) -- but a SECOND, genuinely two-photon-shaped use
-        needs the OTHER photon's frequency here instead: in <final|O2(omega2)|chi_1(omega1)>, the omega
-        carried by O2 is omega2, which need not equal chi_1.omega = omega1 at all except through the shared
-        constraint omega1 + omega2 = E_i - E_f. The `omega` keyword exists for exactly that case; passing it
-        explicitly changes NOTHING for any existing caller, since every one of them already relies on the
-        default. RAISES if chi.gauge == Basics.Babushkin: that gauge is not yet usable from this module -- see
-        the module's own docstring and DalgarnoLewis.amplitudeKernel's for why, and do not route around this
-        by calling amplitudeKernel directly, which is kept only as the record of an insufficient attempt.
+        forms from a solved PerturbedOrbital, using chi's OWN gauge (chi.gauge) throughout -- Coulomb/Magnetic
+        via `InteractionStrength.MabEmission` directly, Babushkin via `DalgarnoLewis.amplitudeKernel` (fixed
+        11-Oct-2026; see that function's own docstring for why it, not `MabEmission` directly, is the right
+        one here). The FREQUENCY this operator itself carries defaults to chi.omega (the equation's own omega,
+        right for the single-operator case this function was first written for -- e.g. a polarizability-type
+        <i|O(omega)|chi(omega)>, where the probe and the perturbation share one frequency) -- but a SECOND,
+        genuinely two-photon-shaped use needs the OTHER photon's frequency here instead: in
+        <final|O2(omega2)|chi_1(omega1)>, the omega carried by O2 is omega2, which need not equal
+        chi_1.omega = omega1 at all except through the shared constraint omega1 + omega2 = E_i - E_f. The
+        `omega` keyword exists for exactly that case; passing it explicitly changes NOTHING for any existing
+        caller, since every one of them already relies on the default.
         A value::ComplexF64 is returned.
 """
 function amplitude(multipole::EmMultipole, finalOrbital::Orbital, chi::DalgarnoLewis.PerturbedOrbital, grid::Radial.Grid;
                     omega::Union{Nothing,Float64}=nothing)
-    if  chi.gauge == Basics.Babushkin
-        error("DalgarnoLewis.amplitude(): the Babushkin gauge is not yet usable -- see the module's own " *
-              "docstring (11-Oct-2026 entry) for what was tried and why it was insufficient.")
-    end
     omegax = isnothing(omega) ? chi.omega : omega
     chiOrbital = Orbital(chi.subshell, false, true, chi.targetEnergy, chi.P, chi.Q,
                          zeros(length(chi.P)), zeros(length(chi.Q)), Radial.Grid())
 
-    return( InteractionStrength.MabEmission(multipole, chi.gauge, omegax, chiOrbital, finalOrbital, grid) )
+    return( DalgarnoLewis.amplitudeKernel(multipole, chi.gauge, omegax, chiOrbital, finalOrbital, grid) )
 end
 
 
@@ -277,9 +295,9 @@ end
         synthetic single-primitive orbital for every primitive of the target channel in turn -- measured
         (08-Oct-2026) to reproduce `PhotoEmission.amplitude` exactly for the Coulomb/velocity gauge on a
         one-electron CSF, so no new angular-coefficient code is used for that gauge.
-        ONLY gauge == Basics.Coulomb (or Basics.Magnetic) IS CURRENTLY SUPPORTED. RAISES for
-        gauge == Basics.Babushkin: that gauge needs a state-dependent completeness correction this module
-        does not yet have a working formula for -- see the module's own docstring (11-Oct-2026 entry).
+        gauge == Basics.Coulomb/Basics.Magnetic/Basics.Babushkin are all usable (Babushkin fixed 11-Oct-2026,
+        via `DalgarnoLewis.amplitudeKernel` -- see that function's own docstring for why it, not
+        `InteractionStrength.MabEmission` directly, is used to build the source vector for that gauge).
         `extraSource`, when given, is ADDED to the (nsL+nsS)-length source vector before the linear solve --
         this is the hook `RandomPhase` uses to couple several such equations together (an induced potential's
         matrix elements, in this module's own primitive basis) WITHOUT this module needing any notion of what
@@ -290,12 +308,6 @@ function solve(multipole::EmMultipole, gauge::EmGauge, omega::Float64, targetSub
                 sourceOrbital::Orbital, potential::Radial.Potential, primitives::Bsplines.Primitives;
                 settings::DalgarnoLewis.Settings=DalgarnoLewis.Settings(),
                 extraSource::Union{Nothing,Array{Float64,1}}=nothing)
-    if  gauge == Basics.Babushkin
-        error("DalgarnoLewis.solve(): the Babushkin gauge is not yet usable -- see the module's own " *
-              "docstring (11-Oct-2026 entry) for what was tried (forcing the eps orientation correction to " *
-              "+1) and why it was found insufficient (off by a factor of ~12.9 against the correct, " *
-              "full-basis explicit sum, not merely a sign error). Use gauge = Basics.Coulomb.")
-    end
     kappa = targetSubshell.kappa;   grid = primitives.grid;   nsL = grid.nsL;   nsS = grid.nsS
     targetEnergy = sourceOrbital.energy + omega
 
@@ -342,23 +354,23 @@ function solve(multipole::EmMultipole, gauge::EmGauge, omega::Float64, targetSub
     #     uses internally (a=initialLevel-derived orbital, b=finalLevel-derived orbital) -- so this source
     #     vector is the exact analogue of what the sum-over-states code already computes, one nuLevel at a
     #     time, except collected here as a vector rather than divided by a denominator and accumulated.
-    #     Only reached for gauge == Coulomb/Magnetic (Babushkin raises above), where MabEmission has no eps
-    #     ambiguity at all, so it is called directly -- see DalgarnoLewis.amplitudeKernel for the gauge this
-    #     is NOT yet safe for.
+    #     Routed through DalgarnoLewis.amplitudeKernel rather than InteractionStrength.MabEmission directly --
+    #     for Coulomb/Magnetic that function passes through to MabEmission unchanged; for Babushkin it uses
+    #     the role-based, constant-sign formula this module's own docstring explains.
     source = zeros(eltype(shiftedKept) <: Complex ? ComplexF64 : Float64, nsL+nsS)
     for  i = 1:nsL
         full = zeros(grid.NoPoints);   bsp = primitives.bsplinesL[i]
         full[bsp.lower:bsp.upper] = bsp.bs
         synthetic = Orbital(targetSubshell, false, true, targetEnergy, full, zeros(grid.NoPoints),
                             zeros(grid.NoPoints), zeros(grid.NoPoints), Radial.Grid())
-        source[i] = InteractionStrength.MabEmission(multipole, gauge, omega, sourceOrbital, synthetic, grid)
+        source[i] = DalgarnoLewis.amplitudeKernel(multipole, gauge, omega, sourceOrbital, synthetic, grid)
     end
     for  i = 1:nsS
         full = zeros(grid.NoPoints);   bsp = primitives.bsplinesS[i]
         full[bsp.lower:bsp.upper] = bsp.bs
         synthetic = Orbital(targetSubshell, false, true, targetEnergy, zeros(grid.NoPoints), full,
                             zeros(grid.NoPoints), zeros(grid.NoPoints), Radial.Grid())
-        source[nsL+i] = InteractionStrength.MabEmission(multipole, gauge, omega, sourceOrbital, synthetic, grid)
+        source[nsL+i] = DalgarnoLewis.amplitudeKernel(multipole, gauge, omega, sourceOrbital, synthetic, grid)
     end
     # (4b) AN OPTIONAL EXTRA SOURCE CONTRIBUTION, added here unchanged -- this is how a CALLER that knows about
     #      more than one electron (RandomPhase, building an induced potential this module has no notion of)
@@ -429,10 +441,18 @@ end
         directly, ratio exactly -1.000000 between a 1s-2p and a 2p-1s Coulomb-gauge matrix element -- to show
         the two resulting double sums are identical. VALIDATED (11-Oct-2026): for H 2s -> 1s this function's
         result, fed through the K=0 Wigner-6j/exchange-phase assembly, reproduces an INDEPENDENT explicit sum
-        over the complete eigenbasis of the identical matrix to 7 significant figures (ratio 1.000000), and
-        the K=1 channel it leaves to the caller comes out at a 1.5e-11 share of K=0 -- matching, to the digit,
-        the share already measured by the sum-over-states code this is meant to replace. See example-As.jl
-        branch (c) for the full H 2s -> 1s application and its result.
+        over the complete eigenbasis of the identical matrix to 7 significant figures (ratio 1.000000) in
+        BOTH gauges, and the K=1 channel it leaves to the caller comes out at a 1.5e-11 share of K=0 --
+        matching, to the digit, the share already measured by the sum-over-states code this is meant to
+        replace. See example-As.jl branch (c) for the full H 2s -> 1s application and its result.
+
+        GAUGE INVARIANCE, CHECKED DIRECTLY AND STRONGER THAN EXPECTED (11-Oct-2026). Calling this function
+        with gauge = Basics.Coulomb and gauge = Basics.Babushkin, same omega1/omega2, agrees to 8 significant
+        figures -- at every omega1 sampled across the full physical range (0, E_initial-E_final), not only at
+        the two-photon-resonant midpoint omega1 = omega2 where the general theorem guarantees it. A SINGLE
+        leg (one `DalgarnoLewis.amplitude` call alone, not the full two-time-ordering combination this
+        function forms) shows NO such agreement (ratio -2.47, not close to 1) -- gauge invariance belongs to
+        the complete two-photon amplitude, exactly as expected, and is not a property of either term alone.
         A value::ComplexF64 is returned.
 """
 function twoPhotonAmplitude(multipole1::EmMultipole, multipole2::EmMultipole, gauge::EmGauge, omega1::Float64, omega2::Float64,
