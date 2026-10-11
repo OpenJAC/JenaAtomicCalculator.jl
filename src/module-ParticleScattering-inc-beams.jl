@@ -7,6 +7,16 @@
 # nonrelativistic -- one phase shift per l, sin(delta_l) exp(i delta_l) -- and have to be re-derived over both signs of
 # kappa before they can be used with the Dirac partial waves. Until then they raise, rather than returning a number from
 # a different theory than the one the rest of the module now uses.
+#
+# WHERE THE RE-DERIVATION BELONGS, so it is not started here by mistake (noted 11-Oct-2026, out of
+# apps-andrey-twisted-electron-dr). A twisted beam's own decomposition into plane waves -- its transverse-momentum
+# amplitude, and how displacing the target by an impact parameter translates that decomposition -- is GENERIC: every
+# twisted-beam process needs it (this module's elastic scattering, ElectronCapture's dielectronic capture,
+# PhotonScattering's analogous photon case), and it has nothing to do with WHICH physics couples to the beam once
+# decomposed. That part belongs in the `Beam` module itself (as `Beam.transverseAmplitude`/`Beam.displace`-type
+# functions, not yet built), not duplicated here or re-derived again for ElectronCapture. What stays HERE, once that
+# exists, is only the Dirac-specific part this module already owns: combining the two phase shifts
+# delta_{-l-1}, delta_{+l} a given partial wave contributes, over the beam's own plane-wave superposition.
 
 
 """

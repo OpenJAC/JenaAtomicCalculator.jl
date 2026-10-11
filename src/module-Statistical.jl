@@ -31,7 +31,7 @@
 """
 module Statistical
 
-using  Printf, ..AngularMomentum, ..Basics, ..ManyElectron
+using  Printf, LinearAlgebra, ..AngularMomentum, ..Basics, ..ManyElectron
 
 
 """
@@ -277,6 +277,48 @@ function invariant(tensors::Array{Statistical.Tensor,1}, k::Int64)
     end
 
     return( sqrt(wa) )
+end
+
+
+"""
+`Statistical.isPhysical(tensors::Array{Statistical.Tensor,1}; tolerance::Float64=1.0e-8)`
+    ... checks whether the given statistical tensors could be the rho_kq of a genuine physical ensemble, for the
+        DIAGONAL case a == b that every `computeTensors` method above produces.  Two independent conditions are tested.
+        HERMITICITY: every component must be matched in the same list by its partner rho_{k,-q} = (-1)^q * conj(rho_kq);
+        a missing partner is read as zero, exactly as `tensorValue(...; withZeros=true)` reads it, so an asymmetric list
+        fails rather than raising.  POSITIVITY: the sublevel density matrix rho(M,M'), reconstructed by
+        `Statistical.densityMatrix`, must be Hermitian and positive-semidefinite, i.e. the ensemble it describes has no
+        negative population along any direction.  A level pair with a != b is a coherence between two different levels,
+        not a single-level density matrix, and has no positivity notion defined here; this method raises on one rather
+        than silently passing it.  A `physical::Bool` is returned.
+"""
+function isPhysical(tensors::Array{Statistical.Tensor,1}; tolerance::Float64=1.0e-8)
+    if  length(tensors) == 0    error("Statistical.isPhysical(): the given list of tensors is empty.")    end
+    for  tensor in tensors
+        if  tensor.a != tensor.b
+            error("Statistical.isPhysical(): an off-diagonal tensor (a != b) was found; no positivity notion is defined for a level coherence.")
+        end
+    end
+
+    for  tensor in tensors
+        k = Int64(round(AngularMomentum.oneJ(tensor.k)));   q = Int64(round(AngularMomentum.oneM(tensor.q)))
+        partner  = tensorValue(k, -q, tensors; withZeros=true)
+        expected = (-1)^q * conj(tensor.value)
+        if  abs(partner - expected) > tolerance    return( false )    end
+    end
+
+    dm    = Statistical.densityMatrix(tensors)
+    J     = tensors[1].a.sym.J;    Jx = AngularMomentum.oneJ(J);    MList = AngularMomentum.m_values(J)
+    rho   = zeros(ComplexF64, length(MList), length(MList))
+    for  (i,M) in enumerate(MList)
+        for  (j,Mp) in enumerate(MList)
+            if  haskey(dm, (M,Mp))    rho[i,j] = dm[(M,Mp)]    end
+        end
+    end
+    if  norm(rho - rho') > tolerance    return( false )    end
+    if  minimum(eigvals(Hermitian(rho))) < -tolerance    return( false )    end
+
+    return( true )
 end
 
 
