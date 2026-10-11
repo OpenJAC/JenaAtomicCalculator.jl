@@ -143,8 +143,33 @@ end
     + labels2p   ::Array{NTuple{5,Int64},1}  ... distinct (nu, a, b, c, d) as subshell indices.
     + values     ::Array{Float64,1}          ... distinct coefficient values, shared by the one- and two-particle
                                                  parts.
-    + ptr1p, lab1p, val1p                    ... CSR row pointer and the two index arrays, one-particle.
+    + pairPtr    ::Array{Int32,1}            ... start of column s in `pairRow`;  length n+1.
+    + pairRow    ::Array{Int32,1}            ... the r of each STORED pair, ascending within a column.
+    + ptr1p, lab1p, val1p                    ... CSR pointer and the two index arrays, one-particle;  `ptr1p`
+                                                 is indexed by the PAIR ORDINAL and has length nPairs+1.
     + ptr2p, lab2p, val2p                    ... the same, two-particle.
+
+        **THE PAIR INDEX IS SPARSE.**  Until 11-Oct-2026 `ptr1p` and `ptr2p` were indexed by `k = (s-1)n + r`
+        and therefore had n^2+1 entries each, whatever the coupling actually was.  A two-body operator connects
+        only CSFs that differ by at most a double substitution, so most pairs of a correlation space carry no
+        coefficient at all;  the 14-Sep-2026 CSR redesign made an empty pair cheap to STORE but not to REACH,
+        because the pointer arrays stayed dense.  A pair that produces no coefficient is now not indexed at
+        all, so every array here is O(coupling pairs), and the pair ordinal is found by a binary search in
+        `pairRow`.
+
+        **MEASURED, BECAUSE THE NATURAL GUESS IS WRONG.**  The pair matrix is NOT sparse in the asymptotic
+        sense:  the stored fraction falls with block size but plateaus, measured 37.5 % at n=77, 25.5 % at
+        n=312 and 19.8 % at n=783 for a core-valence singles-and-doubles space.  So the cache still grows as
+        n^2 and this change is a constant factor, not a change of order -- the index 1.8-3.4 x smaller and the
+        cache as a whole 1.2-1.6 x.  Two consequences worth knowing before relying on it:
+
+        * A space with ONE frozen core, where no two CSFs are further apart than a double substitution, stores
+          essentially every pair.  The index is then 1.5 x LARGER than the dense form it replaced, since the
+          old one cost 8n^2 bytes and this one costs 12P;  the break-even is P/n^2 = 2/3.  That case is
+          harmless only because full coupling happens in small blocks, where the index is kilobytes.
+        * The binary search replaces a multiply-add on the READ path, which the EOL gradient walks once per
+          ordered pair.  Measured 82 % slower per lookup and 8 ms per full sweep of 551 424 coefficients at
+          n=783, against ~150 s for one EOL iteration at that scale:  real, and irrelevant.
 """
 struct  PairCoefficientCache
     idxCsf              ::Array{Int64,1}
@@ -152,6 +177,8 @@ struct  PairCoefficientCache
     labels1p            ::Array{NTuple{3,Int64},1}
     labels2p            ::Array{NTuple{5,Int64},1}
     values              ::Array{Float64,1}
+    pairPtr             ::Array{Int32,1}
+    pairRow             ::Array{Int32,1}
     ptr1p               ::Array{Int32,1}
     lab1p               ::Array{Int32,1}
     val1p               ::Array{Int32,1}
@@ -162,13 +189,30 @@ end
 
 
 """
+`SelfConsistent.pairOrdinal(c::SelfConsistent.PairCoefficientCache, r::Int64, s::Int64)`
+    ... returns the ordinal of the stored CSF pair (r,s), or 0 if the pair carries no angular coefficient at
+        all;  a `value::Int64` is returned.  The pairs of column s occupy `pairPtr[s] : pairPtr[s+1]-1` and
+        their r values ascend, so the lookup is a binary search over a short, contiguous run.
+"""
+function pairOrdinal(c::PairCoefficientCache, r::Int64, s::Int64)
+    lo = Int(c.pairPtr[s]);   hi = Int(c.pairPtr[s+1]) - 1
+    if  hi < lo    return( 0 )    end
+    i = searchsortedfirst(view(c.pairRow, lo:hi), Int32(r))
+    if  i > hi - lo + 1  ||  c.pairRow[lo + i - 1] != Int32(r)    return( 0 )    end
+
+    return( lo + i - 1 )
+end
+
+
+"""
 `SelfConsistent.coefficients1p(c::SelfConsistent.PairCoefficientCache, r::Int64, s::Int64)`
     ... rebuilds, lazily, the one-particle coefficients of the CSF pair (r,s) from the interned tables. A
         generator of `Coefficient1p` is returned, so nothing is allocated per pair and the caller's
         `for cf in ...` loop is unchanged.
 """
 function coefficients1p(c::PairCoefficientCache, r::Int64, s::Int64)
-    k = (s - 1) * length(c.idxCsf) + r
+    k = SelfConsistent.pairOrdinal(c, r, s)
+    if  k == 0    return( ( Coefficient1p(0, c.subshells[1], c.subshells[1], 0.)  for i = 1:0 ) )    end
     return( ( Coefficient1p( c.labels1p[c.lab1p[i]][1], c.subshells[c.labels1p[c.lab1p[i]][2]],
                              c.subshells[c.labels1p[c.lab1p[i]][3]], c.values[c.val1p[i]] )
               for i = c.ptr1p[k]:(c.ptr1p[k+1] - 1) ) )
@@ -181,7 +225,9 @@ end
         is returned.
 """
 function coefficients2p(c::PairCoefficientCache, r::Int64, s::Int64)
-    k = (s - 1) * length(c.idxCsf) + r
+    k = SelfConsistent.pairOrdinal(c, r, s)
+    if  k == 0    return( ( Coefficient2p(0, c.subshells[1], c.subshells[1], c.subshells[1], c.subshells[1], 0.)
+                            for i = 1:0 ) )    end
     return( ( Coefficient2p( c.labels2p[c.lab2p[i]][1], c.subshells[c.labels2p[c.lab2p[i]][2]],
                              c.subshells[c.labels2p[c.lab2p[i]][3]], c.subshells[c.labels2p[c.lab2p[i]][4]],
                              c.subshells[c.labels2p[c.lab2p[i]][5]], c.values[c.val2p[i]] )
@@ -210,27 +256,49 @@ function cacheCsfPairCoefficientsEOL(sym::LevelSymmetry, basis::Basis)
     intern!(d, tab, key) = get!(d, key) do;   push!(tab, key);   Int32(length(tab))   end
     ptr1p = Int32[1];   lab1p = Int32[];   val1p = Int32[]
     ptr2p = Int32[1];   lab2p = Int32[];   val2p = Int32[]
-    # THE COLUMN-MAJOR ORDER (s outer, r inner) matches the linear index the accessors form, k = (s-1)n + r.
+    pairPtr = Int32[1];  pairRow = Int32[]
+    # A PAIR IS INDEXED ONLY IF IT ACTUALLY PRODUCED A COEFFICIENT, which is the exact criterion rather than a
+    # predicted one.  An occupation-distance test was tried first -- a one-body operator connects two CSFs only
+    # if their occupations differ by a single substitution, a two-body operator by at most a double one, so
+    # dist(r,s) = sum_a |occ_r(a) - occ_s(a)| > 4 implies no coefficient of either kind.  It is sound, but it
+    # bought nothing and was removed: `SpinAngular.computeCoefficients` already returns at once for such a pair,
+    # so the test was redundant work in front of it, measured at 1.00x and 0.87x on 312- and 783-CSF blocks,
+    # i.e. slightly SLOWER than no test at all.  Asking the angular routines and keeping what they return costs
+    # the same, excludes pairs the occupation test would have let through, and rests on no claim of its own.
+    #
+    # COLUMN-MAJOR, OVER THE FULL SQUARE.  Taking r ascending within each column is what lets pairOrdinal
+    # binary-search `pairRow`.
+    # NOT the upper triangle, although `buildCIMatrixEOL` alone would allow it:  `combineAngularCoefficientsEOL`
+    # reads `for r = 1:n, for s = 1:n`, the full square, when it builds the EOL gradient.  Storing r <= s only
+    # would therefore have to exploit the (r,s) <-> (s,r) symmetry there, and that is NOT a matter of reusing the
+    # same list -- the labels (a,b) and (a,b,c,d) swap with the pair.  Getting it wrong would quietly corrupt the
+    # gradient rather than fail, so it is left as a possible FURTHER factor of two, not taken here.
     for  s = 1:n
+        csfS = basis.csfs[idxCsf[s]]
         for  r = 1:n
-            csfR = basis.csfs[idxCsf[r]];   csfS = basis.csfs[idxCsf[s]]
+            csfR = basis.csfs[idxCsf[r]]
+            was1 = length(lab1p);   was2 = length(lab2p)
             for  cf  in  SpinAngular.computeCoefficientsScalar(SpinAngular.OneParticleOperator(0, Basics.plus),
                                                                csfR, csfS, basis.subshells)
                 push!(lab1p, intern!(lab1D, labels1p, (cf.nu, subIx[cf.a], subIx[cf.b])))
                 push!(val1p, intern!(valD,  values,   cf.T))
             end
-            push!(ptr1p, Int32(length(lab1p) + 1))
             for  cf  in  SpinAngular.computeCoefficients(SpinAngular.TwoParticleOperator(0, Basics.plus),
                                                          csfR, csfS, basis.subshells)
                 push!(lab2p, intern!(lab2D, labels2p, (cf.nu, subIx[cf.a], subIx[cf.b], subIx[cf.c], subIx[cf.d])))
                 push!(val2p, intern!(valD,  values,   cf.V))
             end
+            if  length(lab1p) == was1  &&  length(lab2p) == was2    continue    end
+            ## nothing was appended for a pair that produced nothing, so there is never anything to undo here
+            push!(ptr1p, Int32(length(lab1p) + 1))
             push!(ptr2p, Int32(length(lab2p) + 1))
+            push!(pairRow, Int32(r))
         end
+        push!(pairPtr, Int32(length(pairRow) + 1))
     end
 
     return( PairCoefficientCache(idxCsf, basis.subshells, labels1p, labels2p, values,
-                                 ptr1p, lab1p, val1p, ptr2p, lab2p, val2p) )
+                                 pairPtr, pairRow, ptr1p, lab1p, val1p, ptr2p, lab2p, val2p) )
 end
 
 
