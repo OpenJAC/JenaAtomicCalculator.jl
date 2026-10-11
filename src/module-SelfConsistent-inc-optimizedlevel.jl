@@ -189,6 +189,37 @@ end
 
 
 """
+`SelfConsistent.referenceSymmetries(configs::Array{Configuration,1}, subshells::Array{Subshell,1})`
+    ... determines the level symmetries J^P that the given REFERENCE configurations span, by generating their
+        relativistic configurations and the CSFs of each;  an `Array{LevelSymmetry,1}` is returned.
+
+        **WHAT IT IS FOR, AND WHY RESTRICTING TO IT IS SAFE.**  An EOL field optimizes its orbitals for a set of
+        TARGET levels, and when those are selected by reference configurations the target is scored by the weight
+        a level carries on the reference CSFs.  A level in a symmetry the reference does not span carries ZERO
+        such weight and therefore can never be chosen as a target -- so the symmetry blocks outside this set are
+        provably useless to the SCF functional, not merely unlikely to be used.  Building and holding a
+        pair-coefficient cache for them was measured on 08-Oct-2026 to waste 55 % of both the cache memory and
+        the setup time of a Ti III layer (18 symmetries present, 5 spanned by the reference).
+
+        The restriction is safe for the OUTPUT as well, which is the part worth checking before trusting it: the
+        returned multiplet comes from a separate final CI over the WHOLE basis, so the set computed here governs
+        only which blocks the SCF iterates on, never which levels are reported.
+"""
+function referenceSymmetries(configs::Array{Configuration,1}, subshells::Array{Subshell,1})
+    syms = LevelSymmetry[]
+    for  conf  in  configs
+        for  rconf  in  Basics.generateConfigurations(Basics.RelativisticConfigurations(), conf)
+            for  csf  in  Basics.generateCsfRs(rconf, subshells)
+                push!(syms, LevelSymmetry(csf.J, csf.parity))
+            end
+        end
+    end
+
+    return( unique(syms) )
+end
+
+
+"""
 `SelfConsistent.pairOrdinal(c::SelfConsistent.PairCoefficientCache, r::Int64, s::Int64)`
     ... returns the ordinal of the stored CSF pair (r,s), or 0 if the pair carries no angular coefficient at
         all;  a `value::Int64` is returned.  The pairs of column s occupy `pairPtr[s] : pairPtr[s+1]-1` and
@@ -1286,6 +1317,13 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
 
     if  settings.levelSelectionCI.active  &&  !isempty(settings.levelSelectionCI.symmetries)
         relevantSyms = unique( settings.levelSelectionCI.symmetries )
+    elseif  settings.levelSelectionCI.active  &&  !isempty(settings.levelSelectionCI.configurations)
+        ## selection by REFERENCE CONFIGURATIONS: only the J^P they span can ever hold a target level, so the
+        ## remaining blocks are built and held for nothing.  See SelfConsistent.referenceSymmetries.
+        basisSyms    = unique( [ LevelSymmetry(csf.J, csf.parity)  for csf in basis.csfs ] )
+        refSyms      = SelfConsistent.referenceSymmetries(settings.levelSelectionCI.configurations, basis.subshells)
+        relevantSyms = intersect(basisSyms, refSyms)
+        if  isempty(relevantSyms)    relevantSyms = basisSyms    end       ## never leave the functional with nothing
     else
         relevantSyms = unique( [ LevelSymmetry(csf.J, csf.parity)  for csf in basis.csfs ] )
     end
@@ -3002,6 +3040,13 @@ function solveOptimizedLevelField(basis::Basis, nuclearModel::Nuclear.Model, pri
     # every block present in the basis to resolve the global, energy-sorted ordering.
     if  settings.levelSelectionCI.active  &&  !isempty(settings.levelSelectionCI.symmetries)
         relevantSyms = unique( settings.levelSelectionCI.symmetries )
+    elseif  settings.levelSelectionCI.active  &&  !isempty(settings.levelSelectionCI.configurations)
+        ## selection by REFERENCE CONFIGURATIONS: only the J^P they span can ever hold a target level, so the
+        ## remaining blocks are built and held for nothing.  See SelfConsistent.referenceSymmetries.
+        basisSyms    = unique( [ LevelSymmetry(csf.J, csf.parity)  for csf in basis.csfs ] )
+        refSyms      = SelfConsistent.referenceSymmetries(settings.levelSelectionCI.configurations, basis.subshells)
+        relevantSyms = intersect(basisSyms, refSyms)
+        if  isempty(relevantSyms)    relevantSyms = basisSyms    end       ## never leave the functional with nothing
     else
         relevantSyms = unique( [ LevelSymmetry(csf.J, csf.parity)  for csf in basis.csfs ] )
     end

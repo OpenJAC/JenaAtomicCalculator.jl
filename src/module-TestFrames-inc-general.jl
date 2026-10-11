@@ -2414,10 +2414,63 @@ function testModule_SelfConsistent(; short::Bool=true)
         end
     end
 
+    # (5) THE EOL FIELD'S SYMMETRY RESTRICTION IS EXACTLY THE REFERENCE'S OWN SPAN.  When `levelSelectionCI`
+    #     selects by reference CONFIGURATIONS, the solver builds pair caches only for the J^P those references
+    #     span, because a level elsewhere carries zero reference weight and can never be an EOL target.  The
+    #     whole restriction therefore rests on `referenceSymmetries` returning neither too little nor too much:
+    #     one symmetry MISSED makes a genuine target unreachable and silently changes the SCF, while one too
+    #     many merely wastes what the restriction was introduced to save.  So this asserts set EQUALITY against
+    #     the reference CSFs' own symmetries, and then checks the safety argument itself -- that no dropped
+    #     symmetry contains a reference CSF.  All of it is combinatorial, needs no SCF, and runs in milliseconds.
+    let  SC = JenaAtomicCalculator.SelfConsistent
+        refs  = [Configuration("[Ne] 3s^2 3p^2")]
+        from  = [Shell("3s"), Shell("3p")];     into = [Shell("3d"), Shell("4s"), Shell("4p")]
+        confs = unique(vcat(refs, Basics.generateConfigurations(Basics.ExciteElectrons(1, from, into), refs),
+                                  Basics.generateConfigurations(Basics.ExciteElectrons(2, from, into), refs)))
+        syms  = [ LevelSymmetry(AngularJ64(j), p)  for j = 0:8  for p in [Basics.plus, Basics.minus] ]
+        basis = redirect_stdout(devnull) do;   Basics.generateBasis(confs, syms)   end
+        refSyms   = SC.referenceSymmetries(refs, basis.subshells)
+        basisSyms = unique( [ LevelSymmetry(csf.J, csf.parity)  for csf in basis.csfs ] )
+        kept      = intersect(basisSyms, refSyms)
+        # the reference's CSFs, generated independently of referenceSymmetries, give the symmetries it must return
+        wanted = LevelSymmetry[]
+        for  conf  in  refs
+            for  rconf  in  Basics.generateConfigurations(Basics.RelativisticConfigurations(), conf)
+                for  csf  in  Basics.generateCsfRs(rconf, basis.subshells)
+                    push!(wanted, LevelSymmetry(csf.J, csf.parity))
+                end
+            end
+        end
+        wanted = unique(wanted)
+        for  sym  in  setdiff(wanted, refSyms)
+            success = false
+            if printTest   info(iostream, "referenceSymmetries MISSES $sym, which the reference configurations " *
+                                          "do span; an EOL target there would become unreachable")   end
+        end
+        for  sym  in  setdiff(refSyms, wanted)
+            success = false
+            if printTest   info(iostream, "referenceSymmetries returns $sym, which no reference CSF has")   end
+        end
+        # the safety argument, made executable: a DROPPED symmetry must hold no reference CSF at all
+        for  sym  in  setdiff(basisSyms, kept)
+            if  sym in wanted
+                success = false
+                if printTest   info(iostream, "the restriction drops $sym although a reference CSF carries it")   end
+            end
+        end
+        # and it must actually restrict something, or the check proves nothing about this branch
+        if  length(kept) >= length(basisSyms)
+            success = false
+            if printTest   info(iostream, "the reference spans all $(length(basisSyms)) symmetries of the basis, " *
+                                          "so nothing was restricted and this check is vacuous")   end
+        end
+    end
+
     println(iostream, "SelfConsistent: orthonormality of the converged orbitals, the FIXED-POINT property under " *
                       "restart from its own output, frozenSubshells honoured bit-for-bit while a free subshell "  *
-                      "still moves, and every CSF pair the EOL angular cache declines to index verified against " *
-                      "SpinAngular to carry no coefficient. No reference value is used.")
+                      "still moves, every CSF pair the EOL angular cache declines to index verified against " *
+                      "SpinAngular to carry no coefficient, and the reference-configuration symmetry "         *
+                      "restriction shown to equal the reference's own span. No reference value is used.")
     Defaults.setDefaults("print summary: close", "")
     testPrint("testModule_SelfConsistent()::", success)
     return( success )
