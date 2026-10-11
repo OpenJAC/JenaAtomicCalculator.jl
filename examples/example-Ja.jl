@@ -169,4 +169,61 @@ elseif  false
     println(">>>                N_bound 11.5059, N_free 1.4941, free-electron background in the cell 1.3404.")
     wb          = perform(wa, output=true)
     #
+elseif  false
+    #
+    # Last successful:  11-Oct-2026
+    # Branch 5: THE OPTICAL PROPERTIES -- the average-atom Kubo-Greenwood conductivity and the optical constants
+    #   that follow from it, for the same aluminium plasma as Branch 4, so that the comparison continues into
+    #   Section 3 of W. R. Johnson, C. Guet & G. F. Bertsch, JQSRT 99, 327 (2006).
+    #
+    # WHAT IS COMPUTED.  Every dipole-allowed transition between the box states of the converged average atom,
+    #   with the conductivity it carries, `sigma_ab = (pi/3 Omega)(f_a - f_b) w_ab |<kappa_a||C^(1)||kappa_b>|^2
+    #   R_ab^2`.  In a box the bound-bound, bound-free and free-free parts of Johnson's Eqs. (16), (14) and (17)
+    #   are the SAME sum and only the signs of the two energies say which name a transition goes by -- his
+    #   integrals over the continuum energy become plain sums over box states, as they do for the density.
+    # Checks:
+    #   - BOUND-BOUND against their Table 2.  Fine structure splits each of their lines in two, and the pairs
+    #     sum to 0.0004900, 0.0001255, 0.0000707 and 0.0000236 against their 0.0004702, 0.0001248, 0.0000726 and
+    #     0.0000239 -- i.e. +4.2 %, +0.6 %, -2.6 %, -1.3 % for 3s->3p, 2p->3s, 2s->3p and 1s->3p.
+    #   - their sum rule, N_bb = 0.5056 against 0.493, and it is flat in lMax from 3 to 6.
+    #   - the Drude static conductivity sigma(0) = N_free/(Omega gamma) = 0.02730 a.u. at their gamma = 0.0466
+    #     a.u., against their 0.0262 a.u. = 0.121 (mOhm m)^-1 and the Ziman value 0.125 they quote.
+    #
+    # TWO THINGS THE BOX DOES NOT DO, both of them found by measuring rather than by argument, and both printed
+    #   as warnings by the code rather than left to the reader:
+    #   - A BOX WALL SCATTERS.  A free particle has no free-free absorption at all, so Johnson's free-free l-sum
+    #     converges;  box states are not free waves and theirs does not -- N_ff came out 3.13 at lMax = 3 and
+    #     8.95 at lMax = 6.  Subtracting the free-particle box, as the density already does, removes 94 % of it
+    #     and leaves a convergent 0.40, 0.49, 0.53, 0.54.
+    #   - BUT THAT SUBTRACTION DIFFERENCES TWO COMBS OF LINES, and the true potential shifts the continuum
+    #     levels, so the two combs have different spacings and their difference changes SIGN towards zero
+    #     frequency: Re sigma reached -1.2e-03 a.u. below 0.05 Ha.  That is exactly where the free electrons
+    #     respond, so the free-free part is left out of the spectrum here and the free-electron response is taken
+    #     from `Plasma.drudeConductivity`, whose amplitude the sum rule fixes and whose only parameter is the
+    #     collision rate.  Setting condCollisionRate = 0 puts the computed free-free part back in instead.
+    #   - AND THE SUM RULE IS NOT THE THOMAS-REICHE-KUHN ONE.  N_bb + N_bf + N_ff = 11.63 against Z = 13, and
+    #     the difference is PAULI BLOCKING, verified state by state: the 1s reaches 0.777 per electron because
+    #     1s -> 2p is blocked by a full 2p shell, the 2s 0.654 for the same reason, and the 2p EXCEEDS one at
+    #     1.173 because downward transitions carry negative oscillator strength and a conductivity sum over
+    #     w > 0 excludes them.
+    #
+    nm          = Nuclear.Model(13.0, 26.98)
+    rho         = 0.27       # [g/cm^3]
+    temp_au     = Defaults.convertUnits("energy: from eV to atomic", 5.0)
+    temperature = Defaults.convertUnits("temperature: from atomic to Kelvin", temp_au)    # [K]
+    radiusWS    = Plasma.determineWignerSeitzRadius(rho, nm)
+    grid        = Radial.generateGrid(Radial.Grid(false), boxSize = 3 * radiusWS)
+    settings    = Plasma.Settings(temperature, rho, false)
+    # log-spaced from 0.01 to 400 Ha, i.e. well past the 1s threshold at 55 Ha, as the dispersion integral needs
+    condOmegas  = [ 10^x  for x = -2.0:0.08:2.6 ]
+    scheme      = Plasma.AverageAtomScheme(8, 5, Basics.AaDFSField(), false, false, false, Subshell[], Float64[],
+                                           Float64[], true, condOmegas, 0.0466, 0.0466 )
+
+    wa          = Plasma.Computation(Plasma.Computation(), scheme=scheme,
+                                     nuclearModel=nm, grid=grid, settings=settings)
+    println("\n\n>>> Kubo-Greenwood conductivity of Al at 0.27 g/cm^3 and T = 5 eV, after Johnson, Guet &")
+    println(">>> Bertsch, JQSRT 99, 327 (2006), Section 3:  their N_bb = 0.493, gamma = 0.0466 a.u. = 1.27 eV,")
+    println(">>> sigma(0) = 0.0262 a.u. = 0.121 (mOhm m)^-1, against 0.125 from the Ziman formula.")
+    wb          = perform(wa, output=true)
+    #
 end

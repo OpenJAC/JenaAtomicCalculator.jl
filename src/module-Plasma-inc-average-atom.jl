@@ -357,6 +357,38 @@ function  perform(scheme::Plasma.AverageAtomScheme, computation::Plasma.Computat
         end
     end
     #
+    # Calculate the Kubo-Greenwood conductivity and the optical constants
+    if  scheme.calcConductivity
+        if  isempty(scheme.condOmegas)
+            error("Plasma.perform(::AverageAtomScheme, ...): calcConductivity = true needs condOmegas;  carry " *
+                  "them well past the deepest ionization threshold and log-spaced, since the Kramers-Kronig " *
+                  "integral runs to infinity.")
+        end
+        wBroad   = scheme.condBroadening > 0. ? scheme.condBroadening : 0.05
+        condLines = Plasma.computeConductivityLines(wScf, temp, RWS, computation.grid, wa)
+        freeLines = Plasma.computeConductivityLines(wScf, temp, RWS, computation.grid, wa; useFreeSpectra=true)
+        sumRules  = Plasma.computeConductivitySumRules(condLines, wScf.nCont, RWS; freeLines=freeLines)
+        Plasma.displayConductivitySumRules(sumRules, condLines)
+        # The free-free part is left OUT of the spectrum and the free electrons are carried by the Drude term
+        # instead, whenever a collision rate is given:  the subtracted free-free spectrum of a box changes sign
+        # towards zero frequency, which is where the free electrons respond.  See Plasma.drudeConductivity.
+        condSigma = Plasma.computeConductivitySpectrum(condLines, scheme.condOmegas, wBroad;
+                        freeLines=freeLines,
+                        kinds = scheme.condCollisionRate > 0. ? [:boundBound, :boundFree] :
+                                                                [:boundBound, :boundFree, :freeFree])
+        if  scheme.condCollisionRate > 0.
+            condSigma = condSigma .+ Plasma.drudeConductivity(wScf.nCont, RWS, scheme.condCollisionRate,
+                                                              scheme.condOmegas)
+        end
+        optical = Plasma.computeOpticalProperties(scheme.condOmegas, condSigma)
+        Plasma.displayOpticalProperties(scheme.condOmegas, condSigma, optical)
+        if  output
+            results["cond omegas"]     = scheme.condOmegas;      results["conductivity"]   = condSigma
+            results["cond sum rules"]  = sumRules;               results["cond lines"]     = condLines
+            results["optical"]         = optical
+        end
+    end
+    #
     # Calculate form factors
     if  scheme.calcFormFactor
         formF = Plasma.computeFormFactors(scheme.qValues, orbitals, chemMu, temp, computation.grid;

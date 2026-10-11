@@ -7,7 +7,7 @@
 module Plasma
 
 using  Dates, JLD2, LinearAlgebra, Printf, ..ResultKeys
-using  ..Atomic, ..AtomicState, ..Basics, ..Bsplines, ..Continuum, ..Defaults, ..DielectronicRecombination, ..Hamiltonian, ..ImpactExcitation,
+using  ..AngularMomentum, ..Atomic, ..AtomicState, ..Basics, ..Bsplines, ..Continuum, ..Defaults, ..DielectronicRecombination, ..Hamiltonian, ..ImpactExcitation,
        ..ManyElectron, ..Nuclear, ..Radial, ..RadialIntegrals,
        ..Semiempirical, ..TableStrings, ..FormFactor, ..PhotoEmission, ..PhotoIonization, ..AutoIonization, ..SelfConsistent
 
@@ -44,6 +44,16 @@ abstract type  AbstractPlasmaScheme       end
     + piSubshells           ::Array{Subshell,1}    ... Bound subshells to be included into the photoionization cross sections.
     + omegas                ::Array{Float64,1}     ... energies for the photoionization & scattering factors [in a.u.].
     + qValues               ::Array{Float64,1}     ... q-values for calculating the form factor [in a.u.].
+    + calcConductivity      ::Bool                 ... True, if the Kubo-Greenwood conductivity and the optical
+                                                       constants are to be calculated.
+    + condOmegas            ::Array{Float64,1}     ... photon energies for the conductivity [in a.u.];  carry them
+                                                       WELL PAST the deepest ionization threshold and log-spaced,
+                                                       since the Kramers-Kronig integral runs to infinity.
+    + condBroadening        ::Float64              ... width [a.u.] with which the conductivity lines of the box
+                                                       are folded into a spectrum;  a model parameter, see
+                                                       Plasma.computeConductivitySpectrum.
+    + condCollisionRate     ::Float64              ... electron-ion collision rate gamma [a.u.] of the Drude
+                                                       free-electron term;  zero leaves that term out.
 """
 struct   AverageAtomScheme  <:  Plasma.AbstractPlasmaScheme
     nMax                    ::Int64
@@ -55,14 +65,34 @@ struct   AverageAtomScheme  <:  Plasma.AbstractPlasmaScheme
     piSubshells             ::Array{Subshell,1} 
     omegas                  ::Array{Float64,1} 
     qValues                 ::Array{Float64,1} 
+    calcConductivity        ::Bool
+    condOmegas              ::Array{Float64,1}
+    condBroadening          ::Float64
+    condCollisionRate       ::Float64
 end  
+
+
+"""
+`Plasma.AverageAtomScheme(nMax::Int64, lMax::Int64, scField::AbstractScField, calcPhotoionizationCs::Bool,
+                           calcFormFactor::Bool, calcScatteringFactor::Bool, piSubshells::Array{Subshell,1},
+                           omegas::Array{Float64,1}, qValues::Array{Float64,1})`
+    ... the nine-argument constructor, kept so that every call written before the conductivity existed still
+        works;  it leaves the conductivity out.  A `scheme::AverageAtomScheme` is returned.
+"""
+function AverageAtomScheme(nMax::Int64, lMax::Int64, scField::AbstractScField, calcPhotoionizationCs::Bool,
+                           calcFormFactor::Bool, calcScatteringFactor::Bool, piSubshells::Array{Subshell,1},
+                           omegas::Array{Float64,1}, qValues::Array{Float64,1})
+    AverageAtomScheme( nMax, lMax, scField, calcPhotoionizationCs, calcFormFactor, calcScatteringFactor,
+                       piSubshells, omegas, qValues, false, Float64[], 0., 0. )
+end
 
 
 """
 `Plasma.AverageAtomScheme()`  ... constructor for an 'default' instance of a Plasma.AverageAtomScheme.
 """
 function AverageAtomScheme()
-    AverageAtomScheme( 1, 0, Basics.AaHSField(), false, false, false, Subshell[], Float64[], Float64[] )
+    AverageAtomScheme( 1, 0, Basics.AaHSField(), false, false, false, Subshell[], Float64[], Float64[],
+                       false, Float64[], 0., 0. )
 end
 
 
@@ -83,6 +113,12 @@ function Base.show(io::IO, scheme::AverageAtomScheme)
     println(io, "piSubshells:                $(scheme.piSubshells)  ")
     println(io, "omegas:                     $(scheme.scField)  ")
     println(io, "qValues:                    $(scheme.qValues)  ")
+    println(io, "calcConductivity:           $(scheme.calcConductivity)  ")
+    if  scheme.calcConductivity
+        println(io, "condOmegas:                 $(length(scheme.condOmegas)) photon energies  ")
+        println(io, "condBroadening:             $(scheme.condBroadening)  ")
+        println(io, "condCollisionRate:          $(scheme.condCollisionRate)  ")
+    end
 end
 
 
@@ -576,6 +612,7 @@ end
 
 
 include("module-Plasma-inc-average-atom.jl")
+include("module-Plasma-inc-average-atom-optical.jl")
 include("module-Plasma-inc-line-shifts.jl")
 include("module-Plasma-inc-saha-boltzmann-mixture.jl")
 include("module-Plasma-inc-satellite-diagnostic.jl")
