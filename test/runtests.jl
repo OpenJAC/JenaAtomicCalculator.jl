@@ -61,6 +61,10 @@ end
         @test TestFrames.testModule_BiOrthogonal()  ## jj-LS matrices, and Cleft' S Cright = 1
         @test TestFrames.testModule_Continuum()     ## added 29-Aug-2026; the free wave against its own closed forms --
                                                     ## P^2 + (P'/q)^2 = 2/(pi q), the centrifugal phase, and five refusals
+        @test TestFrames.testModule_DalgarnoLewis()  ## added 11-Oct-2026; chi against the explicit sum over the
+                                                     ## complete eigenbasis of the SAME matrix -- a pure identity
+        @test TestFrames.testModule_RandomPhase()    ## added 11-Oct-2026; the independent-particle limit adds no
+                                                     ## physics of its own; the couplingEnabled guard fires
     end
 
     @testset "JAC structs" begin
@@ -174,6 +178,12 @@ end
     end
 
     @testset "JAC plasma" begin
+        @test TestFrames.testModule_AverageAtom()   ## added 11-Oct-2026, the first test of this testset; five
+                                                    ## exact identities -- the angular factor as algebra,
+                                                    ## neutrality, density-against-state-sum, the free box states
+                                                    ## as the ideal gas, and the 1s Thomas-Reiche-Kuhn sum --
+                                                    ## plus two numbers PUBLISHED by Johnson, Guet and Bertsch.
+                                                    ## No stored reference of our own, so it cannot go stale.
     end
 
     @testset "JAC strongfield" begin
