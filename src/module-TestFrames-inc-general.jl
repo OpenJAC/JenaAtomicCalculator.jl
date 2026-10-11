@@ -2353,9 +2353,71 @@ function testModule_SelfConsistent(; short::Bool=true)
                                       "freezing")   end
     end
 
+    # (4) THE EOL PAIR CACHE DECLINES ONLY PAIRS THAT CARRY NOTHING.  Since 11-Oct-2026 the cache indexes a CSF
+    #     pair only when the angular routines actually returned a coefficient for it, so a pair that is absent
+    #     from the index is a CLAIM: that `SpinAngular` would have returned nothing there.  If that claim were
+    #     ever wrong the EOL gradient would silently lose terms -- no error, no warning, just a different
+    #     energy -- which is why this is asserted rather than trusted.  The check is the whole square, both
+    #     operators, against the angular routines directly, and it needs no SCF: `Basics.generateBasis` gives
+    #     the CSFs, and the coefficients do not depend on the radial functions at all.
+    #
+    #     THE SPACE MATTERS.  Excitations are taken out of the 1s as well as the valence, because with ONE
+    #     frozen core no two CSFs of a singles-and-doubles space are further apart than a double substitution,
+    #     every pair then couples, and the declined-pair path is never entered.  Measured here: of 5 929 pairs
+    #     about 3 700 are declined, so the branch this check exists for is genuinely exercised.
+    let  SC = JenaAtomicCalculator.SelfConsistent,  SA = JenaAtomicCalculator.SpinAngular
+        refs  = [Configuration("1s^2 2s^2"), Configuration("1s^2 2p^2")]
+        from  = [Shell("1s"), Shell("2s"), Shell("2p")]
+        into  = [Shell("3s"), Shell("3p"), Shell("3d")]
+        confs = unique(vcat(refs, Basics.generateConfigurations(Basics.ExciteElectrons(1, from, into), refs),
+                                  Basics.generateConfigurations(Basics.ExciteElectrons(2, from, into), refs)))
+        symm  = LevelSymmetry(AngularJ64(0), Basics.plus)
+        basis = redirect_stdout(devnull) do;   Basics.generateBasis(confs, [symm])   end
+        cache = SC.cacheCsfPairCoefficientsEOL(symm, basis)
+        nCsf  = length(cache.idxCsf);     nSkip = 0
+        for  s = 1:nCsf,  r = 1:nCsf
+            csfR = basis.csfs[cache.idxCsf[r]];     csfS = basis.csfs[cache.idxCsf[s]]
+            wa   = collect( SA.computeCoefficientsScalar(SA.OneParticleOperator(0, Basics.plus),
+                                                         csfR, csfS, basis.subshells) )
+            wb   = collect( SA.computeCoefficients(SA.TwoParticleOperator(0, Basics.plus),
+                                                   csfR, csfS, basis.subshells) )
+            ca   = collect( SC.coefficients1p(cache, r, s) );   cb = collect( SC.coefficients2p(cache, r, s) )
+            if  SC.pairOrdinal(cache, r, s) == 0    nSkip = nSkip + 1    end
+            if  length(ca) != length(wa)  ||  length(cb) != length(wb)
+                success = false
+                if printTest   info(iostream, "the pair cache gives $(length(ca))/$(length(cb)) coefficients " *
+                                              "for the CSF pair ($r,$s) where SpinAngular gives "             *
+                                              "$(length(wa))/$(length(wb))")   end
+                break
+            end
+            for  i = 1:length(wa)
+                if  ca[i].nu != wa[i].nu  ||  ca[i].a != wa[i].a  ||  ca[i].b != wa[i].b  ||  ca[i].T != wa[i].T
+                    success = false
+                    if printTest   info(iostream, "one-particle coefficient $i of the CSF pair ($r,$s) differs " *
+                                                  "from SpinAngular: $(ca[i]) against $(wa[i])")   end
+                end
+            end
+            for  i = 1:length(wb)
+                if  cb[i].nu != wb[i].nu  ||  cb[i].a != wb[i].a  ||  cb[i].b != wb[i].b  ||
+                    cb[i].c  != wb[i].c   ||  cb[i].d != wb[i].d  ||  cb[i].V != wb[i].V
+                    success = false
+                    if printTest   info(iostream, "two-particle coefficient $i of the CSF pair ($r,$s) differs " *
+                                                  "from SpinAngular: $(cb[i]) against $(wb[i])")   end
+                end
+            end
+        end
+        # a run in which NOTHING was declined would pass the loop above while proving nothing about the branch
+        if  nSkip == 0
+            success = false
+            if printTest   info(iostream, "every one of the $(nCsf^2) CSF pairs was indexed, so the "  *
+                                          "declined-pair path was not exercised and this check is vacuous")   end
+        end
+    end
+
     println(iostream, "SelfConsistent: orthonormality of the converged orbitals, the FIXED-POINT property under " *
-                      "restart from its own output, and frozenSubshells honoured bit-for-bit while a free "       *
-                      "subshell still moves. No reference value is used.")
+                      "restart from its own output, frozenSubshells honoured bit-for-bit while a free subshell "  *
+                      "still moves, and every CSF pair the EOL angular cache declines to index verified against " *
+                      "SpinAngular to carry no coefficient. No reference value is used.")
     Defaults.setDefaults("print summary: close", "")
     testPrint("testModule_SelfConsistent()::", success)
     return( success )
