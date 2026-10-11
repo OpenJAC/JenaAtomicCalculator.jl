@@ -9,7 +9,7 @@ module ElectronCapture
 
 ## ..AutoIonization is imported because the capture amplitude IS the complex conjugate of the Auger amplitude; the
 ## module is included immediately before this one in JenaAtomicCalculator.jl, so the dependency is well ordered.
-using  Printf, ..AngularMomentum, ..AutoIonization, ..Basics, ..Bsplines, ..Continuum, ..Defaults, ..InteractionStrength,
+using  Printf, ..AngularMomentum, ..AutoIonization, ..Basics, ..Beam, ..Bsplines, ..Continuum, ..Defaults, ..InteractionStrength,
                 ..ManyElectron, ..Nuclear, ..Radial, ..TableStrings
 
 """
@@ -22,6 +22,11 @@ using  Printf, ..AngularMomentum, ..AutoIonization, ..Basics, ..Bsplines, ..Cont
     + maxKappa                ::Int64                        ... Maximum kappa value of partial waves to be included.
     + operator                ::AbstractEeInteraction        ... Auger/capture operator that is to be used for evaluating the capture amplitudes: 
                                                                     allowed values are: CoulombInteraction(), BreitInteraction(), ...
+    + beamType                ::Beam.AbstractBeamType        ... Type of the incoming (continuum-electron) beam; default Beam.PlaneWave(), which
+                                                                    reproduces the on-axis capture of every earlier computation exactly.
+    + impactVector            ::Tuple{Float64,Float64}       ... (bPerp, phiB), the impact parameter [a.u.] of the target from the beam axis and
+                                                                    its azimuthal angle [rad]; unused by Beam.PlaneWave(), where on-axis capture is
+                                                                    the only notion defined.
 """
 struct Settings  <:  AbstractProcessSettings
     printBefore               ::Bool 
@@ -31,6 +36,8 @@ struct Settings  <:  AbstractProcessSettings
     maxKappa                  ::Int64
     operator                  ::AbstractEeInteraction 
     calcAlignment             ::Bool
+    beamType                  ::Beam.AbstractBeamType
+    impactVector              ::Tuple{Float64,Float64}
 end 
 
 
@@ -38,14 +45,15 @@ end
 `ElectronCapture.Settings()`  ... constructor for the default values of ElectronCapture line computations
 """
 function Settings()
-    Settings(false, LineSelection(), 0., 1.0e5, 2, CoulombInteraction(), true)
+    Settings(false, LineSelection(), 0., 1.0e5, 2, CoulombInteraction(), true, Beam.PlaneWave(), (0., 0.))
 end
 
 
 """
 `ElectronCapture.Settings(set::ElectronCapture.Settings;`
 
-        printBefore=..,       minCaptureEnergy=..,       maxCaptureEnergy=..,       maxKappa=..,       operator=..)
+        printBefore=..,       minCaptureEnergy=..,       maxCaptureEnergy=..,       maxKappa=..,       operator=..,
+        beamType=..,          impactVector=..)
                     
     ... constructor for modifying the given ElectronCapture.Settings by 'overwriting' the previously selected parameters.
 """
@@ -53,7 +61,8 @@ function Settings(set::ElectronCapture.Settings;
     printBefore::Union{Nothing,Bool}=nothing,               lineSelection::Union{Nothing,LineSelection}=nothing, 
     minCaptureEnergy::Union{Nothing,Float64}=nothing,       maxCaptureEnergy::Union{Nothing,Float64}=nothing,
     maxKappa::Union{Nothing,Int64}=nothing,                 operator::Union{Nothing,AbstractEeInteraction}=nothing,
-    calcAlignment::Union{Nothing,Bool}=nothing)  
+    calcAlignment::Union{Nothing,Bool}=nothing,
+    beamType::Union{Nothing,Beam.AbstractBeamType}=nothing, impactVector::Union{Nothing,Tuple{Float64,Float64}}=nothing)  
     
     if  isnothing(printBefore)        printBeforex      = set.printBefore       else  printBeforex      = printBefore        end 
     if  isnothing(lineSelection)      lineSelectionx    = set.lineSelection     else  lineSelectionx    = lineSelection      end 
@@ -62,8 +71,11 @@ function Settings(set::ElectronCapture.Settings;
     if  isnothing(maxKappa)           maxKappax         = set.maxKappa          else  maxKappax         = maxKappa           end 
     if  isnothing(operator)           operatorx         = set.operator          else  operatorx         = operator           end 
     if  isnothing(calcAlignment)      calcAlignmentx    = set.calcAlignment     else  calcAlignmentx    = calcAlignment      end 
+    if  isnothing(beamType)           beamTypex         = set.beamType          else  beamTypex         = beamType           end 
+    if  isnothing(impactVector)       impactVectorx     = set.impactVector      else  impactVectorx     = impactVector       end 
 
-    Settings( printBeforex, lineSelectionx, minCaptureEnergyx, maxCaptureEnergyx, maxKappax, operatorx, calcAlignmentx)
+    Settings( printBeforex, lineSelectionx, minCaptureEnergyx, maxCaptureEnergyx, maxKappax, operatorx, calcAlignmentx,
+              beamTypex, impactVectorx)
 end
 
 
@@ -76,6 +88,8 @@ function Base.show(io::IO, settings::ElectronCapture.Settings)
     println(io, "maxKappa:                      $(settings.maxKappa)  ")
     println(io, "operator:                      $(settings.operator)  ")
     println(io, "calcAlignment:                 $(settings.calcAlignment)  ")
+    println(io, "beamType:                      $(settings.beamType)  ")
+    println(io, "impactVector:                  $(settings.impactVector)  ")
 end
 
 
@@ -168,11 +182,21 @@ end
         wave, although both depend only on (nm, grid) and are therefore the same object each time. A caller that has them already passes
         them in; `nothing` means "build them here", which is the documented fallback and reproduces the result byte for byte. This is the
         same conversion `AutoIonization.computeAmplitudesProperties` carries, and the two modules share the continuum-per-channel pattern.
+
+        `settings.beamType` and `settings.impactVector` are accepted and stored on `settings` but NOT YET USED here: the amplitude below
+        is the on-axis, plane-wave capture amplitude regardless of what `beamType` names. A `Beam.PlaneWave()` is therefore the only
+        value this function honours, and it raises for anything else rather than silently returning a plane-wave number under a
+        twisted-beam label; see `module-ParticleScattering-inc-beams.jl` for where the needed decomposition belongs.
 """
 function computeAmplitudesProperties(line::ElectronCapture.Line, nm::Nuclear.Model, grid::Radial.Grid, nrContinuum::Int64, 
                                         settings::ElectronCapture.Settings; printout::Bool=true,
                                         nuclearPot::Union{Nothing,Radial.Potential}=nothing,
                                         primitives::Union{Nothing,Bsplines.Primitives}=nothing) 
+    if  !(settings.beamType isa Beam.PlaneWave)
+        error("\n\nElectronCapture.computeAmplitudesProperties(): beamType = $(settings.beamType) is not implemented.\n" *
+              "The amplitude computed here is the on-axis, plane-wave capture amplitude; it cannot be relabelled as a " *
+              "twisted-beam result. Use Beam.PlaneWave() meanwhile.")
+    end
     newChannels = ElectronCapture.Channel[];   contSettings = Continuum.Settings(false, nrContinuum);   rate = 0.
     nucPot      = isnothing(nuclearPot) ? Nuclear.nuclearPotential(nm, grid) : nuclearPot
     ## BOTH levels must be expressed in ONE ordered subshell list before anything is contracted; taking the final
