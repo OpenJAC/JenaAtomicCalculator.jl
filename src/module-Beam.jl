@@ -96,16 +96,30 @@ end
 
 """
 `struct  Beam.LaguerreGauss  <:  Beam.AbstractBeamType`   
-    ... to model a Laguerre-Gaussian beam LG^l_p (kz, polarization) quantum numbers.
+    ... to model a Laguerre-Gaussian beam LG^l_p in terms of its two mode indices, its beam waist and the
+        longitudinal wave number.
 
     + lOAM              ::Int64        ... l OAM-value (winding number).         
     + pRadial           ::Int64        ... radial quantum number               
     + kz                ::Float64      ... z-component                
+    + waist             ::Float64      ... beam waist w_0 [a_o], the radius at which the fundamental mode has
+                                           fallen to 1/e of its amplitude at the focus.
+
+        **THE WAIST IS NOT OPTIONAL:  WITHOUT IT THE MODE IS NOT DEFINED.**  Every transverse property of a
+        Laguerre-Gaussian beam is carried by w_0 -- the ring radius w_0 sqrt(|l|/2) of the intensity maximum,
+        the Rayleigh range z_R = k w_0^2/2 over which the beam stays collimated, the divergence 2/(k w_0), the
+        Gouy phase (2p + |l| + 1) arctan(z/z_R), and the width ~ 2/w_0 of the TRANSVERSE MOMENTUM spectrum.
+        That last one is what distinguishes an LG beam from a Bessel beam:  a Bessel beam has a single
+        transverse momentum kappa and therefore a sharp cone, while an LG beam has a spread of order 1/w_0
+        about its mean.  A struct without w_0 can name a mode but cannot evaluate it, which is why `waist` was
+        added on 11-Oct-2026;  the field is appended, so a three-argument call now raises a MethodError naming
+        the type rather than silently constructing a beam with no transverse scale.
 """
 struct   LaguerreGauss  <:  Beam.AbstractBeamType
     lOAM                ::Int64      
     pRadial             ::Int64      
     kz                  ::Float64               
+    waist               ::Float64
 end
 
 
@@ -113,14 +127,47 @@ end
 `Beam.LaguerreGauss()`  ... constructor for an 'default' Beam.LaguerreGauss.
 """
 function LaguerreGauss()
-    LaguerreGauss(0, 0, 1.)
+    LaguerreGauss(0, 0, 1., 1.)
+end
+
+
+"""
+`Beam.rayleighRange(beam::Beam.LaguerreGauss)`
+    ... returns the Rayleigh range `z_R = k w_0^2 / 2` [a_o] of the given beam, i.e. the distance from the focus
+        over which the beam cross section doubles;  a `value::Float64` is returned.
+"""
+function rayleighRange(beam::Beam.LaguerreGauss)
+    return( beam.kz * beam.waist^2 / 2 )
+end
+
+
+"""
+`Beam.waistAt(beam::Beam.LaguerreGauss, z::Float64)`
+    ... returns the beam waist `w(z) = w_0 sqrt(1 + z^2/z_R^2)` [a_o] at a distance z from the focus;  a
+        `value::Float64` is returned.  This is the whole of the z-dependence of the transverse SCALE, and for a
+        target displaced along the beam it is the dominant z-effect:  a displacement b_perp is felt through the
+        ratio b_perp/w(z) rather than through b_perp itself.
+"""
+function waistAt(beam::Beam.LaguerreGauss, z::Float64)
+    return( beam.waist * sqrt(1. + (z/Beam.rayleighRange(beam))^2) )
+end
+
+
+"""
+`Beam.gouyPhase(beam::Beam.LaguerreGauss, z::Float64)`
+    ... returns the Gouy phase `(2p + |l| + 1) arctan(z/z_R)` [rad] of the given mode at a distance z from the
+        focus;  a `value::Float64` is returned.  It is the one place where the RADIAL index p changes the
+        propagation, and it is what distinguishes LG modes of equal |l| as they propagate.
+"""
+function gouyPhase(beam::Beam.LaguerreGauss, z::Float64)
+    return( (2*beam.pRadial + abs(beam.lOAM) + 1) * atan( z / Beam.rayleighRange(beam) ) )
 end
 
 
 # `Base.string(beam::LaguerreGauss)`  ... provides a String notation for the variable beam::LaguerreGauss.
 function Base.string(beam::LaguerreGauss)
-    sa = "Laguerre-Gaussian beam along z-axis with OAM m = $(beam.lOAM), radial index p = $(beam.pRadial) and " * 
-            "kz = $(beam.kz)."
+    sa = "Laguerre-Gaussian beam along z-axis with OAM l = $(beam.lOAM), radial index p = $(beam.pRadial), " *
+            "kz = $(beam.kz) and waist w_0 = $(beam.waist) a_o."
     return( sa )
 end
 
