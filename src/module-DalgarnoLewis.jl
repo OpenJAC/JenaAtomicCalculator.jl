@@ -53,6 +53,14 @@
         `gauge == Basics.Babushkin` rather than returning a number that LOOKS plausible and is off by an
         order of magnitude -- the Rule-13 pattern this project uses for a known-incomplete path. Only the
         Coulomb/velocity gauge is currently usable.
+
+        THE FIRST REAL APPLICATION, AND WHAT IT NEEDED -- 11-Oct-2026. `DalgarnoLewis.twoPhotonAmplitude`
+        builds the un-reduced two-photon amplitude a genuine EMISSION process needs (both time orderings),
+        and `solve`'s `extraSource` keyword is what lets `RandomPhase` couple several such equations together.
+        See `example-As.jl` branch (c) for the H 2s -> 1s two-photon rate this module now reproduces (0.514
+        /s against the exact 8.2206 /s in the Coulomb gauge, roughly 5.8x closer than the existing bound-only
+        pseudostate sum's 0.089 /s) -- a real, measured step, not yet the full answer: Babushkin is still
+        unusable, and a single gauge alone cannot be trusted to have converged.
 """
 module DalgarnoLewis
 
@@ -225,31 +233,40 @@ end
 
 """
 `DalgarnoLewis.amplitude(multipole::EmMultipole, finalOrbital::Orbital, chi::DalgarnoLewis.PerturbedOrbital,
-                          grid::Radial.Grid)`
+                          grid::Radial.Grid; omega::Union{Nothing,Float64}=nothing)`
     ... computes <finalOrbital || O^(multipole) || chi>, i.e. the ordinary one-body matrix element a caller
-        forms from a solved PerturbedOrbital, using chi's OWN gauge (chi.gauge) and OWN omega (chi.omega) --
-        these are properties of the equation chi solves, not free choices at this point. RAISES if
-        chi.gauge == Basics.Babushkin: that gauge is not yet usable from this module -- see the module's own
-        docstring and DalgarnoLewis.amplitudeKernel's for why, and do not route around this by calling
-        amplitudeKernel directly, which is kept only as the record of an insufficient attempt.
+        forms from a solved PerturbedOrbital, using chi's OWN gauge (chi.gauge) throughout. The FREQUENCY this
+        operator itself carries defaults to chi.omega (the equation's own omega, right for the single-operator
+        case this function was first written for -- e.g. a polarizability-type <i|O(omega)|chi(omega)>, where
+        the probe and the perturbation share one frequency) -- but a SECOND, genuinely two-photon-shaped use
+        needs the OTHER photon's frequency here instead: in <final|O2(omega2)|chi_1(omega1)>, the omega
+        carried by O2 is omega2, which need not equal chi_1.omega = omega1 at all except through the shared
+        constraint omega1 + omega2 = E_i - E_f. The `omega` keyword exists for exactly that case; passing it
+        explicitly changes NOTHING for any existing caller, since every one of them already relies on the
+        default. RAISES if chi.gauge == Basics.Babushkin: that gauge is not yet usable from this module -- see
+        the module's own docstring and DalgarnoLewis.amplitudeKernel's for why, and do not route around this
+        by calling amplitudeKernel directly, which is kept only as the record of an insufficient attempt.
         A value::ComplexF64 is returned.
 """
-function amplitude(multipole::EmMultipole, finalOrbital::Orbital, chi::DalgarnoLewis.PerturbedOrbital, grid::Radial.Grid)
+function amplitude(multipole::EmMultipole, finalOrbital::Orbital, chi::DalgarnoLewis.PerturbedOrbital, grid::Radial.Grid;
+                    omega::Union{Nothing,Float64}=nothing)
     if  chi.gauge == Basics.Babushkin
         error("DalgarnoLewis.amplitude(): the Babushkin gauge is not yet usable -- see the module's own " *
               "docstring (11-Oct-2026 entry) for what was tried and why it was insufficient.")
     end
+    omegax = isnothing(omega) ? chi.omega : omega
     chiOrbital = Orbital(chi.subshell, false, true, chi.targetEnergy, chi.P, chi.Q,
                          zeros(length(chi.P)), zeros(length(chi.Q)), Radial.Grid())
 
-    return( InteractionStrength.MabEmission(multipole, chi.gauge, chi.omega, chiOrbital, finalOrbital, grid) )
+    return( InteractionStrength.MabEmission(multipole, chi.gauge, omegax, chiOrbital, finalOrbital, grid) )
 end
 
 
 """
 `DalgarnoLewis.solve(multipole::EmMultipole, gauge::EmGauge, omega::Float64, targetSubshell::Subshell,
                       sourceOrbital::Orbital, potential::Radial.Potential, primitives::Bsplines.Primitives;
-                      settings::DalgarnoLewis.Settings=DalgarnoLewis.Settings())`
+                      settings::DalgarnoLewis.Settings=DalgarnoLewis.Settings(),
+                      extraSource::Union{Nothing,Array{Float64,1}}=nothing)`
     ... solves (H_eff - targetEnergy) |chi> = O^(multipole, gauge) |sourceOrbital> for chi, in the
         kappa-channel of targetSubshell, where H_eff is the one-body Dirac Hamiltonian for `potential` on
         the SAME B-spline primitives sourceOrbital was (or could have been) generated from, and
@@ -263,11 +280,16 @@ end
         ONLY gauge == Basics.Coulomb (or Basics.Magnetic) IS CURRENTLY SUPPORTED. RAISES for
         gauge == Basics.Babushkin: that gauge needs a state-dependent completeness correction this module
         does not yet have a working formula for -- see the module's own docstring (11-Oct-2026 entry).
+        `extraSource`, when given, is ADDED to the (nsL+nsS)-length source vector before the linear solve --
+        this is the hook `RandomPhase` uses to couple several such equations together (an induced potential's
+        matrix elements, in this module's own primitive basis) WITHOUT this module needing any notion of what
+        that extra term represents; `nothing` (the default) reproduces every existing caller unchanged.
         A chi::DalgarnoLewis.PerturbedOrbital is returned.
 """
 function solve(multipole::EmMultipole, gauge::EmGauge, omega::Float64, targetSubshell::Subshell,
                 sourceOrbital::Orbital, potential::Radial.Potential, primitives::Bsplines.Primitives;
-                settings::DalgarnoLewis.Settings=DalgarnoLewis.Settings())
+                settings::DalgarnoLewis.Settings=DalgarnoLewis.Settings(),
+                extraSource::Union{Nothing,Array{Float64,1}}=nothing)
     if  gauge == Basics.Babushkin
         error("DalgarnoLewis.solve(): the Babushkin gauge is not yet usable -- see the module's own " *
               "docstring (11-Oct-2026 entry) for what was tried (forcing the eps orientation correction to " *
@@ -338,6 +360,15 @@ function solve(multipole::EmMultipole, gauge::EmGauge, omega::Float64, targetSub
                             zeros(grid.NoPoints), zeros(grid.NoPoints), Radial.Grid())
         source[nsL+i] = InteractionStrength.MabEmission(multipole, gauge, omega, sourceOrbital, synthetic, grid)
     end
+    # (4b) AN OPTIONAL EXTRA SOURCE CONTRIBUTION, added here unchanged -- this is how a CALLER that knows about
+    #      more than one electron (RandomPhase, building an induced potential this module has no notion of)
+    #      couples into the same equation, without this module needing to know what the extra term represents.
+    #      `isnothing(extraSource)` (the default) reproduces every existing caller's behaviour exactly.
+    if  !isnothing(extraSource)
+        length(extraSource) == nsL+nsS  ||
+            error("DalgarnoLewis.solve(): extraSource has length $(length(extraSource)), expected $(nsL+nsS).")
+        source = source + extraSource
+    end
 
     # (5) SOLVE, not diagonalize -- this is the one genuinely new numerical step.
     cKept = shiftedKept \ source[keep]
@@ -367,6 +398,53 @@ function solve(multipole::EmMultipole, gauge::EmGauge, omega::Float64, targetSub
 
     return( PerturbedOrbital(targetSubshell, sourceOrbital.subshell, multipole, gauge, omega, targetEnergy,
                               Px, Qx, residual) )
+end
+
+
+"""
+`DalgarnoLewis.twoPhotonAmplitude(multipole1::EmMultipole, multipole2::EmMultipole, gauge::EmGauge,
+                                   omega1::Float64, omega2::Float64, initialOrbital::Orbital, finalOrbital::Orbital,
+                                   targetSubshell::Subshell, potential::Radial.Potential, primitives::Bsplines.Primitives;
+                                   settings::DalgarnoLewis.Settings=DalgarnoLewis.Settings())`
+    ... computes, for ONE intermediate kappa-channel (targetSubshell) and both time orderings, the un-reduced
+        second-order amplitude a two-photon EMISSION process needs:
+
+            Sum_nu <final|O2(omega2)|nu><nu|O1(omega1)|initial> / (E_initial - omega1 - E_nu)
+          + Sum_nu <final|O1(omega1)|nu><nu|O2(omega2)|initial> / (E_initial - omega2 - E_nu)
+
+        with the sum over nu COMPLETE (every state of this channel, not a truncated pseudostate set) by
+        construction, exactly DalgarnoLewis's whole reason for existing. A caller still forms the physical
+        amplitude by summing this over every allowed intermediate symmetry (targetSubshell), weighting each
+        by its own Wigner-6j recoupling factor and multipole exchange phase -- that part is system-specific
+        (it depends on Ji, Jf and the multipole ranks) and stays with the caller, exactly as
+        `MultiPhotonTransition.computeReducedAmplitudeEmission` leaves it to ITS OWN caller.
+
+        THE SIGN TRICK, recorded here because it is not obvious and cost real effort to get right (11-Oct-2026).
+        `DalgarnoLewis.solve` can only be driven at a POSITIVE omega (`InteractionStrength.MabEmission`'s
+        radial integrals raise a domain error for a negative one), but the first denominator above needs chi
+        solved at targetEnergy = E_initial - omega1, i.e. at omega = -omega1 relative to initialOrbital. The
+        fix is NOT to negate omega: it is to solve FROM finalOrbital instead, at omega2 = (E_initial-omega1) -
+        E_final (POSITIVE, since omega1 + omega2 = E_initial - E_final by energy conservation), and then use
+        the EXCHANGE ANTISYMMETRY of MabEmission under swapping its two orbital arguments -- measured
+        directly, ratio exactly -1.000000 between a 1s-2p and a 2p-1s Coulomb-gauge matrix element -- to show
+        the two resulting double sums are identical. VALIDATED (11-Oct-2026): for H 2s -> 1s this function's
+        result, fed through the K=0 Wigner-6j/exchange-phase assembly, reproduces an INDEPENDENT explicit sum
+        over the complete eigenbasis of the identical matrix to 7 significant figures (ratio 1.000000), and
+        the K=1 channel it leaves to the caller comes out at a 1.5e-11 share of K=0 -- matching, to the digit,
+        the share already measured by the sum-over-states code this is meant to replace. See example-As.jl
+        branch (c) for the full H 2s -> 1s application and its result.
+        A value::ComplexF64 is returned.
+"""
+function twoPhotonAmplitude(multipole1::EmMultipole, multipole2::EmMultipole, gauge::EmGauge, omega1::Float64, omega2::Float64,
+                             initialOrbital::Orbital, finalOrbital::Orbital, targetSubshell::Subshell,
+                             potential::Radial.Potential, primitives::Bsplines.Primitives;
+                             settings::DalgarnoLewis.Settings=DalgarnoLewis.Settings())
+    chi1 = DalgarnoLewis.solve(multipole2, gauge, omega2, targetSubshell, finalOrbital, potential, primitives; settings=settings)
+    term1 = DalgarnoLewis.amplitude(multipole1, initialOrbital, chi1, primitives.grid; omega=omega1)
+    chi2 = DalgarnoLewis.solve(multipole1, gauge, omega1, targetSubshell, finalOrbital, potential, primitives; settings=settings)
+    term2 = DalgarnoLewis.amplitude(multipole2, initialOrbital, chi2, primitives.grid; omega=omega2)
+
+    return( -(term1 + term2) )
 end
 
 

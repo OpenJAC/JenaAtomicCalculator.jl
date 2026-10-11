@@ -3002,6 +3002,170 @@ end
 
 
 """
+`TestFrames.testModule_DalgarnoLewis(; short::Bool=true)`  ... tests on module DalgarnoLewis; a success::Bool is returned.
+"""
+function testModule_DalgarnoLewis(; short::Bool=true)
+    Defaults.setDefaults("print summary: open", "test-DalgarnoLewis-new.sum")
+    printstyled("\n\nTest the module  DalgarnoLewis  ... \n", color=:cyan)
+    # DalgarnoLewis solves one inhomogeneous equation for chi IN PLACE OF an explicit sum over an enumerated
+    # intermediate spectrum. The absolute check this affords is a pure linear-algebra identity, independent of
+    # whatever second-order physics a caller eventually wants: on the SAME finite matrix, solving for chi and
+    # summing explicitly over the matrix's own COMPLETE eigenbasis must give the identical amplitude, because
+    # that is what the matrix equation means. No approved data is used, and none is needed -- a wrong solve, a
+    # wrong source vector or a wrong sign would show up as a disagreement with the SAME code's own diagonalized
+    # spectrum, not against a number recorded somewhere else.
+    success = true;    printTest, iostream = Defaults.getDefaults("test flag/stream")
+    # rbox = 40 a.u. is comfortably matched to a hydrogenic 2s orbital by Rule 12 (r_+ = 8 a.u., so 2.5 r_+ = 20);
+    # the margin keeps this test fast (nsL+nsS = 487) without the box-too-small warning a tighter box triggers.
+    ni   = Nuclear.Model(1.0, Nuclear.PointNucleus())
+    asfG = AsfSettings(AsfSettings(); scField = Basics.NuclearField())
+    grid = Radial.Grid(Radial.Grid(false), rnt = 4.0e-6, h = 5.0e-2, hp = 3.0e-2, rbox = 40.0)
+    orb_2s = SelfConsistent.performSCF([Configuration("2s")], ni, grid, asfG; printout=false).levels[1].basis.orbitals[Subshell("2s_1/2")]
+    orb_1s = SelfConsistent.performSCF([Configuration("1s")], ni, grid, asfG; printout=false).levels[1].basis.orbitals[Subshell("1s_1/2")]
+    primitives = Bsplines.generatePrimitives(grid)
+    potential  = Nuclear.nuclearPotential(ni, grid)
+    target = Subshell("2p_1/2");   omega = 0.3;   targetEnergy = orb_2s.energy + omega
+
+    chi = DalgarnoLewis.solve(E1, Basics.Coulomb, omega, target, orb_2s, potential, primitives)
+    if  chi.residual > 1.0e-8 * RadialIntegrals.overlap(orb_2s, orb_2s, grid)
+        success = false
+        if printTest   info(iostream, "DalgarnoLewis.solve() residual $(chi.residual) is not small")   end
+    end
+
+    # (1) THE IDENTITY ITSELF -- chi against the complete eigenbasis of the same shifted matrix.
+    kappa   = target.kappa;    storage = Dict{String,Array{Float64,2}}()
+    matrixA = Bsplines.setupLocalMatrix(kappa, primitives, potential, storage)
+    nsL = grid.nsL;   nsS = grid.nsS;   matrixB = zeros(nsL+nsS, nsL+nsS)
+    matrixB[1:nsL,1:nsL]                 = Bsplines.generateTTpMatrix!("LL-overlap", 0, primitives, storage)
+    matrixB[nsL+1:nsL+nsS,nsL+1:nsL+nsS] = Bsplines.generateTTpMatrix!("SS-overlap", 0, primitives, storage)
+    eig     = Bsplines.diagonalizeLocalMatrix(kappa, matrixA, matrixB, primitives)
+
+    total = 0.0 + 0.0im
+    for  n = 1:length(eig.values)
+        En = eig.values[n];   if  abs(En - targetEnergy) < 1.0e-6   continue   end
+        orbN = Bsplines.generateOrbitalFromVector(target, En, eig.vectors[n], primitives)
+        total = total + InteractionStrength.MabEmission(E1, Basics.Coulomb, omega, orb_2s, orbN, grid) *
+                        InteractionStrength.MabEmission(E1, Basics.Coulomb, omega, orbN, orb_1s, grid) / (En - targetEnergy)
+    end
+    direct = DalgarnoLewis.amplitude(E1, orb_1s, chi, grid)
+    if  abs(total) < 1.0e-30  ||  !(0.999 < abs(direct/total) < 1.001)
+        success = false
+        if printTest   info(iostream, "DalgarnoLewis.amplitude() = $direct against the explicit eigenbasis sum = " *
+                                      "$total -- these must agree to the solver's own accuracy")   end
+    end
+
+    # (2) THE BABUSHKIN GUARD MUST FIRE -- see the module's own docstring for why this gauge is not yet usable.
+    try
+        DalgarnoLewis.solve(E1, Basics.Babushkin, omega, target, orb_2s, potential, primitives)
+        success = false
+        if printTest   info(iostream, "DalgarnoLewis.solve() did not raise for gauge = Basics.Babushkin")   end
+    catch
+    end
+
+    # (3) THE NEAR-POLE GUARD MUST FIRE -- a target energy placed ON a genuine eigenvalue of this channel.
+    try
+        DalgarnoLewis.solve(E1, Basics.Coulomb, eig.values[10] - orb_2s.energy, target, orb_2s, potential, primitives)
+        success = false
+        if printTest   info(iostream, "DalgarnoLewis.solve() did not raise at an exact pole of this channel")   end
+    catch
+    end
+
+    println(iostream, "DalgarnoLewis: chi solved from the inhomogeneous equation reproduces the explicit sum over " *
+                      "the complete eigenbasis of the SAME matrix to the solver's own accuracy (Coulomb gauge); " *
+                      "the Babushkin-gauge guard and the near-pole guard both fire. No approved data is used.")
+    Defaults.setDefaults("print summary: close", "")
+    testPrint("testModule_DalgarnoLewis()::", success)
+    return( success )
+end
+
+
+"""
+`TestFrames.testModule_RandomPhase(; short::Bool=true)`  ... tests on module RandomPhase; a success::Bool is returned.
+"""
+function testModule_RandomPhase(; short::Bool=true)
+    Defaults.setDefaults("print summary: open", "test-RandomPhase-new.sum")
+    printstyled("\n\nTest the module  RandomPhase  ... \n", color=:cyan)
+    # RandomPhase.solve currently runs the independent-particle limit only (settings.couplingEnabled must be
+    # false -- see the module's own docstring for what the self-consistent coupling term still needs), so the
+    # one thing worth asserting here is that the orchestration adds no physics of its own: each chi it returns
+    # for TWO active electrons of a shared basis must be IDENTICAL to a bare DalgarnoLewis.solve() call for that
+    # same electron alone, and the couplingEnabled guard must fire. No approved data is used.
+    success = true;    printTest, iostream = Defaults.getDefaults("test flag/stream")
+    ni   = Nuclear.Model(1.0, Nuclear.PointNucleus())
+    asfG = AsfSettings(AsfSettings(); scField = Basics.NuclearField())
+    grid = Radial.Grid(Radial.Grid(false), rnt = 4.0e-6, h = 5.0e-2, hp = 3.0e-2, rbox = 40.0)
+    basis = SelfConsistent.performSCF([Configuration("1s 2s")], ni, grid, asfG; printout=false).levels[1].basis
+    orb_1s = basis.orbitals[Subshell("1s_1/2")];   orb_2s = basis.orbitals[Subshell("2s_1/2")]
+    primitives = Bsplines.generatePrimitives(grid)
+    potential  = Nuclear.nuclearPotential(ni, grid)
+    omega = 0.3;   target = Subshell("2p_1/2")
+
+    activeOrbitals = Dict(Subshell("1s_1/2") => orb_1s, Subshell("2s_1/2") => orb_2s)
+    targets        = Dict(Subshell("1s_1/2") => target, Subshell("2s_1/2") => target)
+    rpSettings     = RandomPhase.Settings(RandomPhase.Settings();
+                         activeSubshells = [Subshell("1s_1/2"), Subshell("2s_1/2")], targetSubshells = targets)
+    response = RandomPhase.solve(E1, Basics.Coulomb, omega, activeOrbitals, potential, primitives; settings=rpSettings)
+
+    for  sh  in  (Subshell("1s_1/2"), Subshell("2s_1/2"))
+        direct = DalgarnoLewis.solve(E1, Basics.Coulomb, omega, targets[sh], activeOrbitals[sh], potential, primitives)
+        viaRP  = response.perturbedOrbitals[sh]
+        if  maximum(abs.(direct.P - viaRP.P)) > 0.  ||  maximum(abs.(direct.Q - viaRP.Q)) > 0.
+            success = false
+            if printTest   info(iostream, "RandomPhase.solve() for $sh differs from a bare DalgarnoLewis.solve() call")   end
+        end
+    end
+    if  response.nIterations != 1  ||  !response.converged
+        success = false
+        if printTest   info(iostream, "RandomPhase.solve()'s independent-particle limit must report nIterations = 1, converged = true")   end
+    end
+
+    # THE ONE RIGOROUS, DECISIVE CHECK ON THE COUPLED PATH: with only ONE active electron there is no "other"
+    # electron to induce anything, so couplingEnabled = true must reproduce couplingEnabled = false EXACTLY --
+    # see the module's own docstring for why a genuine two-electron coupled number is NOT yet asserted here.
+    oneActive  = Dict(Subshell("2s_1/2") => targets[Subshell("2s_1/2")])
+    settings1U = RandomPhase.Settings(RandomPhase.Settings(); activeSubshells=[Subshell("2s_1/2")], targetSubshells=oneActive)
+    settings1C = RandomPhase.Settings(settings1U; couplingEnabled=true, maxIterations=5, accuracy=1.0e-10)
+    r1U = RandomPhase.solve(E1, Basics.Coulomb, omega, activeOrbitals, potential, primitives; settings=settings1U)
+    r1C = RandomPhase.solve(E1, Basics.Coulomb, omega, activeOrbitals, potential, primitives; settings=settings1C)
+    c1u = r1U.perturbedOrbitals[Subshell("2s_1/2")];   c1c = r1C.perturbedOrbitals[Subshell("2s_1/2")]
+    if  maximum(abs.(c1u.P - c1c.P)) > 0.  ||  maximum(abs.(c1u.Q - c1c.Q)) > 0.
+        success = false
+        if printTest   info(iostream, "RandomPhase.solve() with couplingEnabled=true and ONE active electron " *
+                                      "must reproduce couplingEnabled=false exactly (no induced source exists)")   end
+    end
+    if  !r1C.converged
+        success = false
+        if printTest   info(iostream, "the single-electron coupled solve did not report converged = true")   end
+    end
+
+    # A GENUINE TWO-ELECTRON COUPLED CALL MUST AT LEAST RUN AND RETURN FINITE NUMBERS -- its CONVERGENCE on
+    # this toy case is NOT asserted; see the module's own docstring for the measured, honest reason why not.
+    respC = RandomPhase.solve(E1, Basics.Coulomb, omega, activeOrbitals, potential, primitives;
+                               settings=RandomPhase.Settings(rpSettings; couplingEnabled=true, maxIterations=3))
+    for  sh  in  (Subshell("1s_1/2"), Subshell("2s_1/2"))
+        chi = respC.perturbedOrbitals[sh]
+        if  any(isnan, chi.P)  ||  any(isnan, chi.Q)  ||  any(isinf, chi.P)  ||  any(isinf, chi.Q)
+            success = false
+            if printTest   info(iostream, "RandomPhase.solve() with couplingEnabled=true returned a non-finite chi for $sh")   end
+        end
+    end
+    if  respC.nIterations != 3
+        success = false
+        if printTest   info(iostream, "the coupled solve did not run for the requested maxIterations")   end
+    end
+
+    println(iostream, "RandomPhase: the independent-particle limit over two active electrons is bit-identical to " *
+                      "a bare DalgarnoLewis.solve() call for each electron alone; the coupled path with ONE " *
+                      "active electron reproduces it exactly (no induced source exists); a genuine two-electron " *
+                      "coupled call runs and returns finite numbers. Its CONVERGENCE on this toy case is not " *
+                      "asserted -- see the module's own docstring. No approved data is used.")
+    Defaults.setDefaults("print summary: close", "")
+    testPrint("testModule_RandomPhase()::", success)
+    return( success )
+end
+
+
+"""
 `TestFrames.testMethod_ThomasReicheKuhn(; short::Bool=true)`  ... tests the Thomas-Reiche-Kuhn sum rule for the
     dipole oscillator strengths of hydrogen; a success::Bool is returned.
 """

@@ -98,6 +98,7 @@ export AbstractComputeTheme, AbstractConfigurationRestriction, AbstractConfigura
        computeTransitionRates, Configuration, ConfigurationR, Continuum, ContractShells, convertUnits,
        CorePolarization, Coulex, Coulion, CoulombBreit, CoulombExcitation, CoulombGaunt, CoulombInteraction,
        CoulombIonization, CrystalField, CrystalFieldEmission, CsfR, CurrentSettings,
+       DalgarnoLewis,
        DecayYield, DeepLearning, DefaultQuantizationAxis, Defaults, DeformedFermiNucleus, DiagonalCoulomb, diagonalize,
        DielectronicRecombination,
        Dierec, displayConfiguration, displayConfigurations, displayCouplings, displaySpectrum, Distribution, Djpq,
@@ -136,7 +137,7 @@ export AbstractComputeTheme, AbstractConfigurationRestriction, AbstractConfigura
        QedPetersburg, QedSydney,
        RacahAlgebra, RacahExpression, Radial, RadialIntegrals, RadialOrbitalsBoth, RadialOrbitalsLarge,
        RadialOrbitalsSmall,
-       RadialPotentials, Radiative, RadiativeAuger, RasExpansion,
+       RadialPotentials, Radiative, RadiativeAuger, RandomPhase, RasExpansion,
        RasLayer, RasSettings, RasStep, RAuger, RayleighCompton, Rec, recast, ReducedDensityMatrix,
        ResonantImpactIonization,
        RelativisticConfigurations, RemoveElectrons, Representation, RequestMaximumOccupation,
@@ -188,6 +189,7 @@ include("module-HydrogenicIon.jl")
 include("module-InteractionStrength.jl")
 include("module-InteractionStrengthQED.jl")
 include("module-DalgarnoLewis.jl");     using ..DalgarnoLewis
+include("module-RandomPhase.jl");       using ..RandomPhase
 include("module-Hamiltonian.jl");       using ..Hamiltonian
 include("module-SelfConsistent.jl");    using ..SelfConsistent
 include("module-PeriodicTable.jl")

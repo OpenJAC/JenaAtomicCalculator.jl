@@ -38,6 +38,8 @@ if      char == 'A'
     println("Ap) Apply & test the three-parameter Fermi nucleus: the shape of the nuclear charge distribution.")
     println("Aq) Compare the spin-angular coefficients of SpinAngular against SpinAngular and against GRASP2018.")
     println("Ar) Apply & test the second-order treatment of the Q space of a RAS step.")
+    println("As) Apply & test the DalgarnoLewis module: a direct inhomogeneous-equation solve in place of an explicit sum over intermediate states.")
+    println("At) Apply & test the RandomPhase module: orchestrating one DalgarnoLewis solve per active electron.")
     #
 elseif  char == 'B'
     println("B)  Examples, tests & development of atomic amplitudes")
