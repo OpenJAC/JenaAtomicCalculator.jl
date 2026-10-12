@@ -6,7 +6,7 @@
 module Beam
 
 
-using  Printf, ..AngularMomentum, ..Basics, ..Defaults, ..Pulse
+using  GSL, Printf, QuadGK, ..AngularMomentum, ..Basics, ..Defaults, ..Pulse
 
 
 """
@@ -90,6 +90,52 @@ end
 
 # `Base.show(io::IO, beam::BesselBeam)`  ... prepares a proper printout of the beam::BesselBeam.
 function Base.show(io::IO, beam::BesselBeam)
+    sa = Base.string(beam);                print(io, sa)
+end
+
+
+"""
+`struct  Beam.BesselGauss  <:  Beam.AbstractBeamType`
+    ... to model a Bessel-Gauss beam (Gori, Guattari & Padovani, Opt. Commun. 64, 491 (1987)): the finite-energy,
+        experimentally realisable counterpart of an ideal Bessel beam, obtained by replacing the sharp ring of
+        transverse momentum kappa_0 = k sin(openingAngle) that `Beam.BesselBeam` carries with a GAUSSIAN ring of
+        width `ringWidth` about it. This is the standard model for a real vortex beam (optical OAM beams from an
+        axicon or spatial light modulator; electron vortex beams from a phase plate or hologram) as opposed to the
+        idealised, infinite-energy `Beam.BesselBeam`.
+
+    + mOAM              ::Int64        ... m OAM-value (winding number), same convention as Beam.BesselBeam.
+    + openingAngle      ::Float64      ... opening angle [rad] of the ring's CENTRE, kappa_0 = k sin(openingAngle).
+    + kz                ::Float64      ... z-component (unused by Beam.coneIntegrate; see this module's header).
+    + ringWidth         ::Float64      ... Gaussian width Delta_kappa [a.u.] of the momentum-space ring about kappa_0.
+                                           ringWidth -> 0 is the ideal Beam.BesselBeam limit (verified where this
+                                           struct's coneIntegrate method is validated).
+"""
+struct   BesselGauss  <:  Beam.AbstractBeamType
+    mOAM                ::Int64
+    openingAngle        ::Float64
+    kz                  ::Float64
+    ringWidth           ::Float64
+end
+
+
+"""
+`Beam.BesselGauss()`  ... constructor for an 'default' Beam.BesselGauss.
+"""
+function BesselGauss()
+    BesselGauss(0, 0., 1., 0.1)
+end
+
+
+# `Base.string(beam::BesselGauss)`  ... provides a String notation for the variable beam::BesselGauss.
+function Base.string(beam::BesselGauss)
+    sa = "Bessel-Gauss beam along z-axis with OAM m = $(beam.mOAM), opening angle = $(beam.openingAngle), " *
+            "kz = $(beam.kz) and ring width = $(beam.ringWidth)."
+    return( sa )
+end
+
+
+# `Base.show(io::IO, beam::BesselGauss)`  ... prepares a proper printout of the beam::BesselGauss.
+function Base.show(io::IO, beam::BesselGauss)
     sa = Base.string(beam);                print(io, sa)
 end
 
@@ -315,10 +361,15 @@ end
 # (predating this file); unifying the two is a later refactor, deliberately not done here to avoid touching an already
 # validated, dated example (example-Pd.jl) while adding this machinery's first caller.
 #
-# ONLY Beam.BesselBeam is covered here: it is the one case with a SINGLE, sharp transverse momentum kappa =
-# k sin(openingAngle), so the cone collapses to a one-dimensional azimuthal integral. Beam.LaguerreGauss instead has a
-# continuous SPREAD of transverse momenta of width ~ 1/waist (see its own docstring), which needs an additional radial
-# integral this file does not attempt.
+# THREE BEAM TYPES ARE COVERED, in two families. Beam.BesselBeam has a SINGLE, sharp transverse momentum kappa =
+# k sin(openingAngle), so its cone collapses to a one-dimensional azimuthal integral (`Beam.coneIntegrate`, below).
+# Beam.BesselGauss and Beam.LaguerreGauss both have a continuous transverse-momentum SPREAD instead -- a Gaussian ring
+# about kappa_0, respectively the self-Fourier LG radial profile (see each struct's own docstring) -- so their cone
+# becomes a genuine two-dimensional (kappa, phiK) integral, done by the shared `Beam.coneIntegrateContinuous` that
+# each beam's own `Beam.coneIntegrate` method calls (added 12-Oct-2026, extending priority items 5/6 of that day's
+# Beam-module menu). The physics differs (a caller's `amplitudeAt` must now take `(kappa, phiK)`, not `phiK` alone,
+# since a continuous-spectrum beam gives it an elevation degree of freedom the sharp cone does not have), so the two
+# families are NOT drop-in replacements for each other -- but they share the same displacement/OAM conventions.
 #
 # k IS PASSED IN EXPLICITLY, NEVER READ FROM beam.kz (fixed 12-Oct-2026, priority item 63). The first real caller,
 # PhotonScattering.besselAmplitude, computes its own kappa = k*sin(thetaK) from the real photon wavenumber and never
@@ -399,6 +450,12 @@ function oamOf(beam::Beam.BesselBeam)
 end
 
 
+# `Beam.oamOf(beam::Beam.BesselGauss)`  ... the beam's own mOAM field.
+function oamOf(beam::Beam.BesselGauss)
+    return( beam.mOAM )
+end
+
+
 # `Beam.oamOf(beam::Beam.LaguerreGauss)`  ... the beam's own lOAM field.
 function oamOf(beam::Beam.LaguerreGauss)
     return( beam.lOAM )
@@ -431,6 +488,11 @@ function  redefineEnergy(energy::Float64, beam::AbstractBeamType)
     elseif  typeof(beam) == Beam.BesselBeam
         kz = k * cos(beam.openingAngle)
         newBeam = Beam.BesselBeam( beam.mOAM, beam.openingAngle, kz)
+    elseif  typeof(beam) == Beam.BesselGauss
+        kz = k * cos(beam.openingAngle)
+        newBeam = Beam.BesselGauss( beam.mOAM, beam.openingAngle, kz, beam.ringWidth)
+    elseif  typeof(beam) == Beam.LaguerreGauss
+        newBeam = Beam.LaguerreGauss( beam.lOAM, beam.pRadial, k, beam.waist)
     else    error("stop b")   
     end
     
@@ -453,12 +515,13 @@ end
 
 
 """
-`Beam.transverseAmplitude(beam::Beam.BesselBeam, phiK::Float64)`
-    ... to compute the azimuthal OAM phase exp(i mOAM phiK) carried by the plane-wave component at cone azimuth phiK; a
-        `value::ComplexF64` is returned.
+`Beam.transverseAmplitude(beam::Beam.AbstractBeamType, phiK::Float64)`
+    ... to compute the azimuthal OAM phase exp(i oamOf(beam) phiK) carried by the plane-wave component at cone azimuth
+        phiK, using `Beam.oamOf` so one method serves every concrete beam type regardless of which field name it
+        keeps its own winding number under; a `value::ComplexF64` is returned.
 """
-function transverseAmplitude(beam::Beam.BesselBeam, phiK::Float64)
-    return( exp( im * beam.mOAM * phiK ) )
+function transverseAmplitude(beam::Beam.AbstractBeamType, phiK::Float64)
+    return( exp( im * Beam.oamOf(beam) * phiK ) )
 end
 
 
@@ -471,6 +534,150 @@ end
 """
 function transverseMomentum(beam::Beam.BesselBeam, k::Float64)
     return( k * sin(beam.openingAngle) )
+end
+
+
+# CONTINUOUS-TRANSVERSE-MOMENTUM BEAMS (Beam.BesselGauss, Beam.LaguerreGauss), extending the cone machinery above
+# beyond the single sharp kappa a Beam.BesselBeam carries. The physics is a genuine generalisation, not a reshape:
+# the beam's own momentum-space amplitude radialAmplitude(beam, kappa, k) now varies continuously with kappa, so the
+# one-dimensional azimuthal integral above becomes a two-dimensional one, (kappa, phiK), and `amplitudeAt` must take
+# BOTH coordinates -- `amplitudeAt(kappa::Float64, phiK::Float64)::ComplexF64` -- since a continuous-spectrum beam
+# gives the caller a genuine elevation degree of freedom that a sharp Bessel cone does not have.
+#
+# NORMALISATION. `radialAmplitude` need not be normalised by its own type's method: coneIntegrateContinuous divides
+# the coherent radial-times-azimuthal integral by M1 = Int_0^infty dkappa kappa radialAmplitude(kappa), the first
+# radial MOMENT of the weight (linear in radialAmplitude, like the weight itself -- NOT its square). This is the
+# unique choice that reproduces, at bPerp = 0 with mOAM = 0 and a constant amplitudeAt, exactly that constant -- the
+# same anchor Beam.BesselBeam's own (1/2pi) Int dphiK convention satisfies for the azimuthal integral, since
+# |exp(i m phiK)| = 1 needs no explicit normalisation there. A first attempt here divided by Int kappa
+# radialAmplitude^2 instead (by analogy with a quantum-mechanical |psi|^2 = 1 normalisation) and FAILED this exact
+# check (returned 1.417 instead of 1.0): a sharp Beam.BesselBeam cone is an externally FIXED parameter, not an
+# integration variable to be probability-normalised, so that analogy does not transfer. The M1 moment is also what
+# makes coneIntegrateContinuous reduce EXACTLY to Beam.coneIntegrate's own sharp-cone formula as a beam's spread
+# narrows (verified where each continuous-spectrum beam's own coneIntegrate method is checked, below).
+#
+# THE KAPPA INTEGRAL USES QuadGK (adaptive), not a fixed trapezoid: both radial profiles below are smooth and decay
+# like a Gaussian, which QuadGK handles over [0, Inf) without a hand-picked cutoff or node count: the error risked by
+# guessing a cutoff too small is exactly the kind of silent mistake this module's own history (item 63) warns against.
+
+
+"""
+`Beam.radialAmplitude(beam::Beam.BesselGauss, kappa::Float64, k::Float64)`
+    ... to compute the (real, non-negative) Gaussian-ring momentum-space amplitude exp(-(kappa-kappa_0)^2 /
+        (2 ringWidth^2)) of the given Bessel-Gauss beam, with kappa_0 = k sin(openingAngle) the ring's centre at the
+        real wavenumber `k`; a `value::Float64` is returned. ringWidth -> 0 collapses this to a delta function at
+        kappa_0, the ideal Beam.BesselBeam limit (verified at `Beam.coneIntegrate(beam::Beam.BesselGauss, ...)`).
+"""
+function radialAmplitude(beam::Beam.BesselGauss, kappa::Float64, k::Float64)
+    kappa0 = k * sin(beam.openingAngle)
+
+    return( exp( -(kappa - kappa0)^2 / (2 * beam.ringWidth^2) ) )
+end
+
+
+"""
+`Beam.radialAmplitude(beam::Beam.LaguerreGauss, kappa::Float64, k::Float64)`
+    ... to compute the (real, non-negative) momentum-space radial amplitude of the given LG_p^l mode, from the
+        SELF-FOURIER property of Laguerre-Gauss modes: the momentum-space amplitude has the SAME functional form as
+        the real-space one, with r -> kappa and the waist w0 -> 2/w0 (Siegman, *Lasers*, ch. 16) --
+        `(kappa waist/sqrt2)^|l| L_pRadial^|l|(kappa^2 waist^2/2) exp(-kappa^2 waist^2/4)`, dropping the overall
+        constant phase `(-i)^|l| (-1)^pRadial` that the full momentum-space field carries, since it multiplies this
+        function's result by a kappa-independent factor that cancels exactly in `Beam.coneIntegrateContinuous`'s
+        ratio. `k` is accepted for dispatch consistency with `Beam.radialAmplitude(beam::Beam.BesselGauss, ...)` but
+        not used: a paraxial LG mode's transverse structure depends only on its own waist, not on the real
+        wavenumber. A `value::Float64` is returned.
+"""
+function radialAmplitude(beam::Beam.LaguerreGauss, kappa::Float64, k::Float64)
+    m = abs(beam.lOAM);    w0 = beam.waist;    x = kappa^2 * w0^2 / 2
+
+    return( (kappa * w0 / sqrt(2))^m * GSL.sf_laguerre_n(beam.pRadial, Float64(m), x) * exp(-x/2) )
+end
+
+
+"""
+`Beam.kappaBreakpoints(beam::Beam.BesselGauss, k::Float64)`
+    ... to return the kappa nodes `QuadGK.quadgk` must be forced through to resolve the beam's own momentum-space
+        ring, as `[max(0., kappa_0 - 8 ringWidth), kappa_0, kappa_0 + 8 ringWidth]` about kappa_0 = k sin(openingAngle);
+        an `Array{Float64,1}` is returned. Without this, a ring narrower than QuadGK's default sampling can be
+        missed entirely over the semi-infinite domain [0, Inf) -- caught by this struct's own first validation run,
+        where a ring 1000x narrower than kappa_0 integrated to 0/0 = NaN.
+"""
+function kappaBreakpoints(beam::Beam.BesselGauss, k::Float64)
+    kappa0 = k * sin(beam.openingAngle);    low = max(0., kappa0 - 8*beam.ringWidth);    high = kappa0 + 8*beam.ringWidth
+
+    return( low < kappa0 ? [low, kappa0, high] : [low, high] )
+end
+
+
+"""
+`Beam.kappaBreakpoints(beam::Beam.LaguerreGauss, k::Float64)`
+    ... to return the kappa nodes `QuadGK.quadgk` must be forced through to resolve the LG mode's own momentum-space
+        radial profile, as `[0., charKappa, 3 charKappa]` with `charKappa = (2/waist) sqrt(2 pRadial + |lOAM| + 1)`
+        the profile's own characteristic radial scale -- the real-space LG ring radius formula, evaluated at the
+        momentum-space waist `2/waist` that the self-Fourier property of LG modes gives; an `Array{Float64,1}` is
+        returned.
+"""
+function kappaBreakpoints(beam::Beam.LaguerreGauss, k::Float64)
+    charKappa = (2 / beam.waist) * sqrt(2*beam.pRadial + abs(beam.lOAM) + 1)
+
+    return( [0., charKappa, 3*charKappa] )
+end
+
+
+"""
+`Beam.coneIntegrateContinuous(beam::Beam.AbstractBeamType, k::Float64, bPerp::Float64, phiB::Float64,
+                              amplitudeAt::Function; nphi::Int64=361)`
+    ... to combine a caller-supplied amplitude `amplitudeAt(kappa::Float64, phiK::Float64)::ComplexF64` coherently
+        over a continuous-transverse-momentum beam's own momentum-space weight `Beam.radialAmplitude(beam, kappa,
+        k)` and OAM phase, and the target's displacement from the axis, generalising `Beam.coneIntegrate` (sharp
+        Beam.BesselBeam case) to a beam with a genuine kappa spread; a `value::ComplexF64` is returned. See this
+        file's header for the normalisation; `Beam.kappaBreakpoints(beam, k)` forces QuadGK through the beam's own
+        radial feature(s) rather than trusting the default adaptive search to find them unaided.
+"""
+function coneIntegrateContinuous(beam::Beam.AbstractBeamType, k::Float64, bPerp::Float64, phiB::Float64,
+                                 amplitudeAt::Function; nphi::Int64=361)
+    oam  = Beam.oamOf(beam);    dphi = 2pi / (nphi - 1);    nodes = Beam.kappaBreakpoints(beam, k)
+
+    function azimuthalPart(kappa::Float64)
+        acc = ComplexF64(0.)
+        for  i = 1:nphi
+            phiK = (i-1) * dphi;    w = (i == 1 || i == nphi) ? 0.5 : 1.0
+            acc  = acc + w * amplitudeAt(kappa, phiK) * exp(im * oam * phiK) * exp(im * kappa * bPerp * cos(phiK - phiB)) * dphi
+        end
+
+        return( acc / (2pi) )
+    end
+
+    numerator,  _ = QuadGK.quadgk(kappa -> kappa * Beam.radialAmplitude(beam, kappa, k) * azimuthalPart(kappa), nodes..., Inf)
+    firstMoment,_ = QuadGK.quadgk(kappa -> kappa * Beam.radialAmplitude(beam, kappa, k),                        nodes..., Inf)
+
+    return( numerator / firstMoment )
+end
+
+
+"""
+`Beam.coneIntegrate(beam::Beam.BesselGauss, k::Float64, bPerp::Float64, phiB::Float64, amplitudeAt::Function;
+                    nphi::Int64=361)`
+    ... to combine a caller-supplied amplitude `amplitudeAt(kappa::Float64, phiK::Float64)::ComplexF64` coherently
+        over the Bessel-Gauss beam's Gaussian ring of transverse momentum and OAM phase, and the target's
+        displacement from the axis; a `value::ComplexF64` is returned, via `Beam.coneIntegrateContinuous`.
+"""
+function coneIntegrate(beam::Beam.BesselGauss, k::Float64, bPerp::Float64, phiB::Float64, amplitudeAt::Function;
+                       nphi::Int64=361)
+    return( Beam.coneIntegrateContinuous(beam, k, bPerp, phiB, amplitudeAt; nphi=nphi) )
+end
+
+
+"""
+`Beam.coneIntegrate(beam::Beam.LaguerreGauss, k::Float64, bPerp::Float64, phiB::Float64, amplitudeAt::Function;
+                    nphi::Int64=361)`
+    ... to combine a caller-supplied amplitude `amplitudeAt(kappa::Float64, phiK::Float64)::ComplexF64` coherently
+        over the LG mode's continuous transverse-momentum spread and OAM phase, and the target's displacement from
+        the axis; a `value::ComplexF64` is returned, via `Beam.coneIntegrateContinuous`.
+"""
+function coneIntegrate(beam::Beam.LaguerreGauss, k::Float64, bPerp::Float64, phiB::Float64, amplitudeAt::Function;
+                       nphi::Int64=361)
+    return( Beam.coneIntegrateContinuous(beam, k, bPerp, phiB, amplitudeAt; nphi=nphi) )
 end
 
 
