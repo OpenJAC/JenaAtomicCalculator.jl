@@ -1427,14 +1427,21 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
         # level.  Measured at FIXED space (1231 CSFs, nLev = 1 / 3 / 6): 1.669 / 1.636 / 1.643 GB, i.e. FLAT,
         # where that term predicts +0.6 GB across the range.  Do not reinstate it without a measurement.
         #
-        # AND THE BLOCKS ARE REPORTED BECAUSE THEY ARE THE LEVER.  The stores for ALL blocks are held for the
-        # whole run, so the cost is the SUM of the squares;  the work, however, is done one block at a time.  On
-        # the Ti III balanced row the five blocks hold 6667, 6275, 6092, 4382 and 1669 CSFs, so the largest is
+        # AND THE BLOCKS ARE REPORTED BECAUSE THEY ARE THE LEVER.  The stores of the RELEVANT blocks are held for
+        # the whole run, so the cost is the SUM of their squares;  the work, however, is done one block at a time.
+        # On the Ti III balanced row the five blocks hold 6667, 6275, 6092, 4382 and 1669 CSFs, so the largest is
         # 31 % of the sum -- i.e. holding one block at a time would take that row from ~26 GB to ~9 GB.
+        #   COUNTED OVER `relevantSyms` AND NOT OVER THE WHOLE BASIS -- 11-Oct-2026.  Until then this counted
+        # every symmetry present, which was right while every one of them was cached;  since the solver caches
+        # only the symmetries the target selection can reach, counting all of them over-predicted the peak and
+        # the sentence below described behaviour the code no longer has.  A cost estimate that has gone stale
+        # against its own code is worse than none, because it is read as a measurement.
         blockSizes = Dict{LevelSymmetry,Int64}()
         for  csf  in  basis.csfs
-            sym = LevelSymmetry(csf.J, csf.parity);   blockSizes[sym] = get(blockSizes, sym, 0) + 1
+            sym = LevelSymmetry(csf.J, csf.parity)
+            if  sym in relevantSyms    blockSizes[sym] = get(blockSizes, sym, 0) + 1    end
         end
+        allBasisSyms = unique( [ LevelSymmetry(csf.J, csf.parity)  for csf in basis.csfs ] )
         sumN2  = sum( Float64(n)^2  for (_, n) in blockSizes; init=0.0 )
         maxN   = isempty(blockSizes) ? 0 : maximum(values(blockSizes))
         memEol = 1.5 + 1.2e-4 * nCsf + 1.2e-7 * sumN2                    ## GB, measured 14-Sep-2026; see above
@@ -1443,7 +1450,10 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
                 ";  predicted peak " * @sprintf("%.1f GB", memEol) *
                 @sprintf(";  %d symmetry blocks, the largest holding %d CSFs and %.0f %% of the pair cost",
                          length(blockSizes), maxN, 100*maxN^2/max(sumN2,1.0)) *
-                " -- the stores for ALL blocks are held at once, so that percentage is what one block at a time would cost.")
+                (length(blockSizes) == length(allBasisSyms) ? " -- the stores for ALL blocks are held at once, " :
+                     @sprintf(" of the %d in the basis -- the stores for those %d are held at once, ",
+                              length(allBasisSyms), length(blockSizes))) *
+                "so that percentage is what one block at a time would cost.")
         # THREADS BUY NOTHING HERE, AND A USER WHO GAVE THEM SHOULD BE TOLD RATHER THAN LEFT TO INFER IT.
         # This solver is single-threaded by construction: it bypasses `Hamiltonian.performCI` -- deliberately,
         # since `diagonalizeBlockEOL` exists to avoid that routine's per-iteration Multiplet-merge overhead --
@@ -1857,6 +1867,8 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
         # stripNormChange! below.  Going FURTHER was measured on 04-Oct-2026 and REJECTED -- see the note at
         # stripNormChange!: projecting against the whole kappa block costs 19 mHa on the Ca+ ladder, because a
         # rotation mixing 5s into 4s is NOT redundant while the CSF space is incomplete.
+        # WHETHER THIS ITERATION'S DIRECTION CAME FROM A VALID QUADRATIC MODEL -- read by the C3 stop below.
+        stepTruncated = false
         if      method == :newton  &&  length(targetLevels) != 1
             # The reduced Hessian needs one relaxation term per target level, and two levels of ONE symmetry block
             # couple through it;  neither is built.  Returning a Newton step that silently omits the coupling would
@@ -2003,6 +2015,7 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
                 dB = toBSpace(aCG)
                 for  sh  in  activeSubshells    dir[sh] = dB[sh]    end
             end
+            stepTruncated = negCurv
             if  printout
                 @printf(">> [EOL-N] iter %d:  CG %d steps, %d H*v products, first curvature %+.4e%s%s\n",
                         iter, nCG, nHv, curv, negCurv ? ", TRUNCATED on negative curvature" : "",
@@ -2804,6 +2817,25 @@ function solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.
                         # what has been achieved, on the SAME tolerance, which keeps the test free of units.
                         #   IT IS EVALUATED ONLY ONCE THE DOUBLING CONDITION HAS PASSED, so its two gradients are
                         # paid at the moment of stopping and not on every iteration.
+                        # AND THE DIRECTION MUST HAVE COME FROM A VALID MODEL -- 11-Oct-2026, priority item 54.
+                        # The guard above is the Newton decrement along the CURRENT search direction, and its own
+                        # docstring calls it a LOWER bound: it looks along one direction, so others may hold more.
+                        # When truncated CG hits negative curvature the quadratic model has NO minimum along the
+                        # subspace it explored, so dg^2/(2 dHd) is not a bound on what remains reachable at all --
+                        # it is small whenever the direction is exhausted, which a degenerate direction always is.
+                        #   MEASURED on the four Cf^17+ core-valence blocks of 07/08-Oct-2026, and the separation
+                        # is clean: the three sound blocks exited on an UNTRUNCATED iteration (374, 238, 76, with
+                        # curvatures +4.7e-09, +1.8e-07, +7.9e-10 and |grad| ~1e-4), while the one that stopped
+                        # 9254 cm^-1 TOO HIGH exited on a truncated one -- at iteration 14, with |grad| = 4.7e-02,
+                        # a sixth of its siblings' correlation energy, and every one of its 14 iterations
+                        # truncated against their 34-49 %.  Its reference weight came out 0.9991 where theirs were
+                        # 0.991-0.993, i.e. the level was returned very nearly uncorrelated.
+                        #   SO THIS DELAYS NOTHING THAT WAS WORKING: none of the three sound exits is affected,
+                        # and a block in a degenerate region now keeps going instead of certifying the point.
+                        # A gradient threshold was NOT used instead, deliberately: |grad| is partly supported on
+                        # rotations this solver may not make (see the note at energyStillAvailable), which is why
+                        # the 07-Sep-2026 decision moved the exits off it.
+                        !stepTruncated  &&
                         energyStillAvailable() <= Basics.incrementTolerance(settings.scfRoute) * dNow
                 eAvailAtExit = energyStillAvailable();    tStepAtExit = tStep;    eAtExit = e0
                 stopReason = "increment stable under doubling"

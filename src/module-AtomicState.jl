@@ -230,8 +230,11 @@ end
         * `:allFree` ... nothing is held.  The richest policy and the most expensive.
         **THE RELEASED POLICIES RUN IN TWO PHASES, and that is what makes them trustworthy.**  A layer first WARMS its
         new shells with the earlier ones frozen, and only then RELEASES them, starting the optimized-level solver from
-        the warm orbitals through `ManyElectron.StartFromPrevious` -- which skips the average-level pre-pass that would
-        otherwise re-derive the inherited orbitals for the configuration AVERAGE rather than for the level energy.
+        the warm orbitals through `ManyElectron.StartFromPrevious`.  Because the warming phase leaves a set that COVERS
+        the basis, the average-level pre-pass is then skipped, and so does not re-derive the inherited orbitals for the
+        configuration AVERAGE rather than for the level energy.  (That skip follows from the COVERAGE and not from
+        `StartFromPrevious` alone;  a handed-in set that leaves subshells uncovered would leave them hydrogenic, so
+        `SelfConsistent.averageLevelPrePass` pre-passes those alone with the handed-in ones frozen.)
         Without that two-step entry a released layer begins far ABOVE the layer it sits on: measured on 43Ca+ [Ar] 4s
         with 3s -> 5s,6s singles, 36.1 mHa above, which is more than the whole correlation effect being measured, and
         the resulting layer increment had a BUDGET-DEPENDENT SIGN (+11.2, +5.9, +1.0 mHa at budgets 20, 60, 120).

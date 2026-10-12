@@ -2466,11 +2466,90 @@ function testModule_SelfConsistent(; short::Bool=true)
         end
     end
 
+    # (6) THE AVERAGE-LEVEL PRE-PASS IS SKIPPED ON COVERAGE, NOT ON `StartFromPrevious` ALONE.  A rotation is a
+    #     LOCAL optimizer, so a subshell that enters it hydrogenic may never recover;  but a caller handing in
+    #     orbitals it wants kept must not have them re-derived for the configuration AVERAGE either.  Those two
+    #     requirements pull opposite ways and `averageLevelPrePass` separates them by asking whether the handed-in
+    #     set COVERS the basis.  Both failure modes are measured and expensive -- 36.1 mHa on a 43Ca+ layer for
+    #     re-deriving kept orbitals (06-Oct-2026), and 0.046 Ha at the first iteration of a Cf^17+ core-valence
+    #     layer for leaving nine virtuals hydrogenic (11-Oct-2026, priority item 54, worth 9254 cm^-1 on a clock
+    #     transition) -- so all three branches are asserted, and each would be silent if it broke.
+    let  SC = JenaAtomicCalculator.SelfConsistent,  ME = JenaAtomicCalculator.ManyElectron
+        nmC   = Nuclear.Model(18.);     cfg6 = [Configuration("1s^2 2s^2 2p^6 3s^2")]
+        grid6 = Radial.Grid(Radial.Grid(false), rnt = 2.0e-6, h = 5.0e-2, hp = 2.0e-2, rbox = 20.0)
+        prim6 = Bsplines.generatePrimitives(grid6)
+        confs = unique(vcat(cfg6, Basics.generateConfigurations(Basics.ExciteElectrons(1, [Shell("3s")],
+                                                                 [Shell("3p"), Shell("4s")]), cfg6)))
+        bas6  = redirect_stdout(devnull) do
+                    Basics.generateBasis(confs, [LevelSymmetry(AngularJ64(0), Basics.plus)])   end
+        hyd   = redirect_stdout(devnull) do
+                    Bsplines.generateOrbitalsHydrogenic(bas6.subshells, nmC, prim6; printout=false)   end
+        bas6  = ME.Basis(bas6.isDefined, bas6.NoElectrons, bas6.subshells, bas6.csfs, bas6.coreSubshells, hyd)
+        # The "previous" set is a SUBSET of this basis's own orbitals -- the reference subshells, not the ones the
+        # singles add.  Taking it from a separate reference SCF would be closer to the real flow but cannot be
+        # compared array-for-array: that run builds its own grid representation (1319 points against 1320 here),
+        # which is a property of the test harness and not of the code under test.  What is under test is that the
+        # handed-in subshells are frozen while the uncovered ones are refined, and a subset exercises exactly that.
+        refNL  = [(1,0), (2,0), (2,1), (3,0)]
+        prevO  = Dict{Subshell,Orbital}( sh => bas6.orbitals[sh]  for sh in bas6.subshells
+                                         if (sh.n, Basics.subshell_l(sh)) in refNL )
+        handed = intersect(bas6.subshells, collect(keys(prevO)))
+        uncov  = setdiff(bas6.subshells, handed)
+        if  isempty(uncov)  ||  isempty(handed)
+            success = false
+            if printTest   info(iostream, "the pre-pass coverage test needs a partially-covering handed-in set; " *
+                                          "it has $(length(handed)) covered and $(length(uncov)) uncovered")   end
+        end
+        # (a) FULL cover -- every orbital of the basis handed in -- must leave the basis untouched
+        fullO = Dict{Subshell,Orbital}( sh => bas6.orbitals[sh]  for sh in bas6.subshells )
+        bFull = redirect_stdout(devnull) do
+                    SC.averageLevelPrePass(bas6, nmC, prim6, AsfSettings(AsfSettings();
+                        scField = Basics.EOLField(), startScfFrom = ME.StartFromPrevious(fullO)); printout=false)  end
+        for  sh  in  bas6.subshells
+            ## the basis is returned untouched here, so bit-identity IS the right test and no rebuild intervenes
+            if  bFull.orbitals[sh].P != bas6.orbitals[sh].P
+                success = false
+                if printTest   info(iostream, "the pre-pass changed $sh although the handed-in set covers the " *
+                                              "whole basis, so there was nothing for it to do")   end
+                break
+            end
+        end
+        # (b) PARTIAL cover -- the handed-in orbitals are KEPT and the uncovered ones are given a mean field.
+        #     "KEPT" IS TESTED BY THE ENERGY AND THE MEAN RADIUS, each computed from its own orbital, and NOT by
+        #     subtracting the two P arrays.  Two reasons, both measured on 11-Oct-2026: a frozen orbital is pinned
+        #     through its B-spline coefficients and rebuilt from them, so its P differs by ~1e-07 at an s orbital's
+        #     cusp while the ENERGY comes back bit-identical and the overlap is exactly 1;  and the rebuilt arrays
+        #     need not even have the same LENGTH as the input (1316 against 1317 here), which makes an element-wise
+        #     difference a statement about the harness rather than about the code.  A pre-pass that genuinely MOVED
+        #     an orbital breaks the energy and moves <r> by a large factor -- measured 1.05 -> 5.12 a.u. on a 4d --
+        #     so these two separate the cases with room to spare.
+        meanR6(o) = RadialIntegrals.rkDiagonal(1, o, o, grid6) / RadialIntegrals.rkDiagonal(0, o, o, grid6)
+        bPart = redirect_stdout(devnull) do
+                    SC.averageLevelPrePass(bas6, nmC, prim6, AsfSettings(AsfSettings();
+                        scField = Basics.EOLField(), startScfFrom = ME.StartFromPrevious(prevO)); printout=false)  end
+        for  sh  in  handed
+            rWas = meanR6(prevO[sh]);    rNow = meanR6(bPart.orbitals[sh])
+            if  bPart.orbitals[sh].energy != prevO[sh].energy  ||  abs(rNow - rWas) > 1.0e-8 * abs(rWas)
+                success = false
+                if printTest   info(iostream, "the handed-in $sh was not kept: energy $(prevO[sh].energy) -> " *
+                                              "$(bPart.orbitals[sh].energy), <r> $rWas -> $rNow")   end
+            end
+        end
+        if  !any( abs(meanR6(bPart.orbitals[sh]) - meanR6(bas6.orbitals[sh])) >
+                      1.0e-6 * abs(meanR6(bas6.orbitals[sh]))  for sh in uncov )
+            success = false
+            if printTest   info(iostream, "not one of the uncovered subshells $uncov was moved off its hydrogenic " *
+                                          "start, so the pre-pass did nothing where it is needed most")   end
+        end
+    end
+
     println(iostream, "SelfConsistent: orthonormality of the converged orbitals, the FIXED-POINT property under " *
                       "restart from its own output, frozenSubshells honoured bit-for-bit while a free subshell "  *
                       "still moves, every CSF pair the EOL angular cache declines to index verified against " *
                       "SpinAngular to carry no coefficient, and the reference-configuration symmetry "         *
-                      "restriction shown to equal the reference's own span. No reference value is used.")
+                      "restriction shown to equal the reference's own span, and the average-level pre-pass shown to "    *
+                      "skip on full cover while keeping the handed-in orbitals and warming the uncovered ones on "  *
+                      "partial cover. No reference value is used.")
     Defaults.setDefaults("print summary: close", "")
     testPrint("testModule_SelfConsistent()::", success)
     return( success )

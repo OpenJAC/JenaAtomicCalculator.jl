@@ -325,6 +325,75 @@ end
 
 
 """
+`SelfConsistent.averageLevelPrePass(basis::Basis, nm::Nuclear.Model, primitives::Bsplines.Primitives,
+                                    settings::AsfSettings; printout::Bool=true)`
+    ... prepares the starting basis for an optimized-level rotation, which is a LOCAL optimizer and therefore
+        depends on where it begins;  a `basis::Basis` is returned, either the one handed in or one refined by an
+        average-level pre-pass.
+
+        **WHY THIS IS NOT SIMPLY "SKIP IF THE CALLER HANDED IN ORBITALS" -- 11-Oct-2026, priority item 54.**  The
+        pre-pass exists because a rotation started from hydrogenic functions wastes its first iterations finding a
+        mean field, and a hydrogenic start has no reason to lie in the basin of the level one wants.  It was made
+        unconditional on `StartFromPrevious` on 06-Oct-2026, for a measured reason that still holds: it optimizes
+        the configuration AVERAGE, a different functional from the level energy, and moved every subshell not
+        named in `frozenSubshells`, so a caller who already had good orbitals had them silently replaced -- worth
+        36.1 mHa on a 43Ca+ second layer, which ended 2.8 mHa WORSE than its own reference.
+
+        **THE DEFECT WAS THAT IT DID NOT ASK WHETHER THE HANDED-IN SET COVERS THE BASIS.**  A restricted-active-space
+        layer hands in the orbitals of the PREVIOUS, SMALLER space, so the layer's own virtual subshells are not in
+        it and are taken hydrogenic;  skipping then denies exactly those orbitals the only mean field they would
+        ever see.  Measured on the Cf^17+ core-valence layer, where the handed-in set covered 1s-6p and 5f while
+        5g, 6d, 6f, 7s and 7p did not: the pre-pass is worth **0.046 Ha at the first iteration**, and a rotation
+        denied it does not recover the difference -- it descends at 0.028 mHa per iteration, so some 1500 further
+        iterations would be needed.  That single difference is the whole of the 9254 cm^-1 by which one block of
+        that layer came out above a run made before the skip existed.
+
+        **SO BOTH REQUIREMENTS ARE MET AT ONCE, rather than one being traded for the other:** where the handed-in
+        set covers the basis there is nothing to pre-pass and it is skipped;  where it does not, the pre-pass runs
+        with the handed-in subshells ADDED TO `frozenSubshells`, so they are kept at exactly the values handed in
+        -- `solveAverageLevelField` pins a frozen subshell at the value it was given (31-Aug-2026) -- while the
+        uncovered ones are given their mean field.
+"""
+function averageLevelPrePass(basis::Basis, nm::Nuclear.Model, primitives::Bsplines.Primitives,
+                             settings::AsfSettings; printout::Bool=true)
+    if  !(settings.startScfFrom isa ManyElectron.StartFromPrevious)
+        alSettings = AsfSettings(settings; scField = Basics.ALField())
+        return( SelfConsistent.solveAverageLevelField(basis, nm, primitives, alSettings; printout=printout) )
+    end
+
+    handed    = intersect( basis.subshells, collect(keys(settings.startScfFrom.orbitals)) )
+    uncovered = setdiff( basis.subshells, handed )
+    if  isempty(uncovered)
+        if  printout
+            println(">> [EOL] the average-level pre-pass is SKIPPED: startScfFrom = StartFromPrevious covers every " *
+                    "subshell of this basis, so the rotation begins from the orbitals handed in rather than from a " *
+                    "mean field re-derived here.")
+        end
+        return( basis )
+    end
+
+    # THE HANDED-IN ORBITALS ARE INSTALLED BEFORE THEY ARE FROZEN, and that order is not cosmetic: freezing pins
+    # a subshell at the value the BASIS carries, not at the value `startScfFrom` carries.  The basis a caller gets
+    # from this module's own start-orbital branch already holds them, so in the ordinary flow the two agree -- but
+    # relying on that would make this routine silently wrong for any caller whose basis does not, and "silently"
+    # is the whole difficulty of the defect this routine exists to fix.
+    orbitals = Dict{Subshell, Orbital}( sh => get(settings.startScfFrom.orbitals, sh, basis.orbitals[sh])
+                                        for sh in basis.subshells )
+    seeded   = Basis(basis.isDefined, basis.NoElectrons, basis.subshells, basis.csfs, basis.coreSubshells, orbitals)
+    keepFixed = unique( vcat(settings.frozenSubshells, handed) )
+    if  printout
+        println(">> [EOL] the average-level pre-pass runs for the " * string(length(uncovered)) * " subshell(s) the " *
+                "handed-in orbitals do NOT cover (" * join(string.(uncovered), ", ") * "), which would otherwise " *
+                "enter the rotation hydrogenic;  the " * string(length(handed)) * " handed-in subshell(s) are frozen " *
+                "at the values given.")
+    end
+    alSettings = AsfSettings(settings; scField = Basics.ALField(), frozenSubshells = keepFixed)
+
+    return( SelfConsistent.solveAverageLevelField(seeded, nm, primitives, alSettings; printout=printout) )
+end
+
+
+"""
 `SelfConsistent.performSCF(configs::Array{Configuration,1}, nm::Nuclear.Model,
                            settings::AsfSettings; levelSymmetries::Array{LevelSymmetry,1}=LevelSymmetry[], printout::Bool=true)`
     ... performs a SCF computation for which NO grid is given, so that the radial box is derived from the
@@ -409,30 +478,13 @@ function performSCF(configs::Array{Configuration,1}, nm::Nuclear.Model, grid::Ra
         # initial guess -- that is how it was validated, and a hydrogenic start has no reason to lie in its
         # basin.  Both solvers return a complete, correctly (kink-aware) diagonalized multiplet, so return it
         # directly; falling through would re-diagonalize with the bare, non-kink-aware Hamiltonian.performCI.
-        # THE AVERAGE-LEVEL PRE-PASS IS SKIPPED WHEN THE CALLER HANDS IN ORBITALS IT WANTS KEPT -- 06-Oct-2026.
-        # It exists because a rotation started from hydrogenic functions wastes its first iterations finding a mean
-        # field, so it stays the default.  But it optimizes the configuration AVERAGE, a DIFFERENT functional from
-        # the level energy the rotation then minimizes, and it moves every subshell not named in frozenSubshells --
-        # so a caller who already had good orbitals had them silently replaced.
-        #   THE NOTE AT solveAverageLevelField's frozen-subshell block (31-Aug-2026) identified exactly this and
-        # fixed HALF of it: frozen now means frozen at the value handed in.  This is the other half, for orbitals a
-        # caller wants KEPT but still VARIED -- which is what a restricted-active-space layer needs when it
-        # RELEASES the earlier shells instead of freezing them.
-        #   MEASURED on the case that motivated it, 43Ca+ [Ar] 4s with 3s -> 5s,6s singles: with the pre-pass the
-        # second layer was handed a point 36.1 mHa ABOVE where the first had finished and never recovered it,
-        # ending 2.8 mHa WORSE than its own reference, which a variational layer cannot be.
-        #   StartFromPrevious is the EXISTING lever and deliberately not a new flag: it already means "these are the
-        # orbitals to start from", it is exported and documented, and the configs overload already honours it for
-        # SEEDING.  Only the pre-pass ignored it.
-        if  settings.startScfFrom isa ManyElectron.StartFromPrevious
-            if  printout
-                println(">> [EOL] the average-level pre-pass is SKIPPED: startScfFrom = StartFromPrevious, so the " *
-                        "rotation begins from the orbitals handed in rather than from a mean field re-derived here.")
-            end
-        else
-            alSettings = AsfSettings(settings; scField = Basics.ALField())
-            basis      = SelfConsistent.solveAverageLevelField(basis, nm, primitives, alSettings; printout=printout)
-        end
+        # WHETHER THE AVERAGE-LEVEL PRE-PASS RUNS IS DECIDED BY averageLevelPrePass, AND IT IS NOT A SIMPLE
+        # SKIP -- see its docstring.  Briefly: a caller handing in orbitals it wants kept must not have them
+        # replaced by a pre-pass that optimizes a different functional (36.1 mHa on a 43Ca+ layer, 06-Oct-2026),
+        # but a caller whose handed-in set does not COVER the basis must not have the uncovered subshells left
+        # hydrogenic either (0.046 Ha at the first iteration on the Cf^17+ core-valence layer, 11-Oct-2026).
+        # StartFromPrevious is the existing lever for the first and coverage decides the second.
+        basis = SelfConsistent.averageLevelPrePass(basis, nm, primitives, settings; printout=printout)
         # WHICH optimized-level solver runs is the route's choice; both are started from the same average-level
         # basis, so the two differ only in the solver and can be compared.  An AutomaticRoute keeps the rotation
         # route, which is what this branch has always done.
@@ -507,15 +559,7 @@ function performSCF(basis::Basis, nm::Nuclear.Model, grid::Radial.Grid,
         # from an average-level basis, and returns a complete, correctly (kink-aware) diagonalized multiplet.
         # The average-level pre-pass is skipped for a caller that hands in orbitals it wants kept; see the full
         # note at the other :optimizedLevel branch in this file, which this mirrors.
-        if  settings.startScfFrom isa ManyElectron.StartFromPrevious
-            if  printout
-                println(">> [EOL] the average-level pre-pass is SKIPPED: startScfFrom = StartFromPrevious, so the " *
-                        "rotation begins from the orbitals handed in rather than from a mean field re-derived here.")
-            end
-        else
-            alSettings = AsfSettings(settings; scField = Basics.ALField())
-            basis      = SelfConsistent.solveAverageLevelField(basis, nm, primitives, alSettings; printout=printout)
-        end
+        basis = SelfConsistent.averageLevelPrePass(basis, nm, primitives, settings; printout=printout)
         # WHICH optimized-level solver runs is the route's choice; both are started from the same average-level
         # basis, so the two differ only in the solver and can be compared.  An AutomaticRoute keeps the rotation
         # route, which is what this branch has always done.

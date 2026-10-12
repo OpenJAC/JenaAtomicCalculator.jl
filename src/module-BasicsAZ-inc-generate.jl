@@ -392,9 +392,15 @@ function Basics.generate(repType::AtomicState.RasExpansion, rep::AtomicState.Rep
             # that is what makes it trustworthy rather than merely richer.
             #   Phase 1 above WARMED this layer's new shells with the earlier ones frozen, so the new correlation
             # orbitals have a sensible shape.  Phase 2 now RELEASES, and starts the optimized-level solver from those
-            # warm orbitals through StartFromPrevious -- which (since 06-Oct-2026) skips the average-level pre-pass.
-            # Skipping it is the whole point: that pass optimizes the configuration AVERAGE, a different functional
-            # from the level energy, and would re-derive the inherited orbitals before the solver ever saw them.
+            # warm orbitals through StartFromPrevious -- which skips the average-level pre-pass, because phase 1
+            # leaves a warm set that COVERS this basis.  Skipping it is the whole point: that pass optimizes the
+            # configuration AVERAGE, a different functional from the level energy, and would re-derive the inherited
+            # orbitals before the solver ever saw them.
+            #   THE SKIP IS CONDITIONAL ON THAT COVERAGE AND NOT ON StartFromPrevious ALONE -- 11-Oct-2026,
+            # priority item 54.  Handing in a set that does NOT cover the basis leaves the uncovered subshells
+            # hydrogenic, and a local optimizer does not recover from that;  SelfConsistent.averageLevelPrePass
+            # then runs the pre-pass for those subshells alone, with the handed-in ones frozen.  Phase 1 exists
+            # precisely so that this layer is in the covered case.
             #   MEASURED without the two-step entry, 43Ca+ [Ar] 4s with 3s -> 5s,6s singles: a released layer BEGAN
             # 36.1 mHa above the layer it sits on -- more than the whole correlation effect -- and its increment then
             # had a budget-dependent SIGN, +11.2, +5.9, +1.0 mHa at budgets 20, 60, 120.  With the two-step entry the
