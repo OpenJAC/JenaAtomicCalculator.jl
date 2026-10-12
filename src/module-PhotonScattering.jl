@@ -100,10 +100,11 @@ include("module-PhotonScattering-inc-structs.jl")
             resonant denominator as E_i + omega_in - E_nu + i*Gamma/2, which is what lets RIXS be evaluated ON resonance where
             Rayleigh must skip. It is zero by default, and the resonant pipeline refuses to run with a zero width rather than
             dividing by something arbitrarily small.
-    + impactParameters    ::Array{Float64,1}
-        ... impact parameters [a.u.] of the atom from the beam axis, read ONLY by a twisted beam. A vortex beam is not
-            translationally invariant, so where the atom sits relative to the axis is a physical variable rather than a
-            convention, and scanning it is how the vortex structure is seen. Ignored for a plane wave.
+    + impactVectors       ::Array{Tuple{Float64,Float64},1}
+        ... (bPerp [a.u.], phiB [rad]) impact vectors of the atom from the beam axis, read ONLY by a twisted beam. A
+            vortex beam is not translationally invariant, so where the atom sits relative to the axis is a physical
+            variable rather than a convention, and scanning it is how the vortex structure is seen. Ignored for a plane
+            wave. Default [(0., 0.)], a single on-axis entry.
     + selfTolerance       ::Float64
         ... a resonant intermediate level, where the energy denominator vanishes, is SKIPPED once |denominator| falls below this
             value. That is the boundary between non-resonant and resonant scattering, and it is guarded rather than hidden: the
@@ -123,7 +124,7 @@ struct Settings  <:  AbstractProcessSettings
     incidentStokes        ::ExpStokes
     maxKappa              ::Int64
     gMultiplet            ::Union{Multiplet, Array{AtomicState.GreenChannel,1}}
-    impactParameters      ::Array{Float64,1}
+    impactVectors         ::Array{Tuple{Float64,Float64},1}
     width                 ::Float64
     selfTolerance         ::Float64
     printBefore           ::Bool
@@ -137,7 +138,7 @@ end
 function Settings()
     Settings( PhotonScattering.BoundFreePairCreation(), PhotonScattering.FirstOrderVertex(), Beam.PlaneWave(),
               Float64[], EmMultipole[E1], UseGauge[Basics.UseCoulomb, Basics.UseBabushkin], Float64[], Float64[],
-              Basics.ExpStokes(), 4, Multiplet(), Float64[0.], 0., 1.0e-8, false, LineSelection() )
+              Basics.ExpStokes(), 4, Multiplet(), [(0., 0.)], 0., 1.0e-8, false, LineSelection() )
 end
 
 
@@ -146,7 +147,7 @@ end
 
         process=..,             approximation=..,           beamType=..,            photonEnergies=..,
         multipoles=..,          gauges=..,                  polarThetas=..,         polarPhis=..,
-        incidentStokes=..,      maxKappa=..,                gMultiplet=..,          impactParameters=..,   width=..,
+        incidentStokes=..,      maxKappa=..,                gMultiplet=..,          impactVectors=..,      width=..,
         selfTolerance=..,
         printBefore=..,         lineSelection=.. )
 
@@ -160,7 +161,7 @@ function Settings(set::PhotonScattering.Settings;
     polarThetas::Union{Nothing,Array{Float64,1}}=nothing,        polarPhis::Union{Nothing,Array{Float64,1}}=nothing,
     incidentStokes::Union{Nothing,ExpStokes}=nothing,            maxKappa::Union{Nothing,Int64}=nothing,
     gMultiplet::Union{Nothing,Multiplet,Array{AtomicState.GreenChannel,1}}=nothing,
-    impactParameters::Union{Nothing,Array{Float64,1}}=nothing,
+    impactVectors::Union{Nothing,Array{Tuple{Float64,Float64},1}}=nothing,
     width::Union{Nothing,Float64}=nothing,                       selfTolerance::Union{Nothing,Float64}=nothing,
     printBefore::Union{Nothing,Bool}=nothing,                    lineSelection::Union{Nothing,LineSelection}=nothing)
 
@@ -175,14 +176,14 @@ function Settings(set::PhotonScattering.Settings;
     if  isnothing(incidentStokes)   incidentStokesx = set.incidentStokes  else  incidentStokesx = incidentStokes  end
     if  isnothing(maxKappa)         maxKappax       = set.maxKappa        else  maxKappax       = maxKappa        end
     if  isnothing(gMultiplet)       gMultipletx     = set.gMultiplet      else  gMultipletx     = gMultiplet      end
-    if  isnothing(impactParameters) impactParametersx = set.impactParameters else impactParametersx = impactParameters end
+    if  isnothing(impactVectors)    impactVectorsx    = set.impactVectors    else impactVectorsx    = impactVectors    end
     if  isnothing(width)            widthx          = set.width           else  widthx          = width           end
     if  isnothing(selfTolerance)    selfTolerancex  = set.selfTolerance   else  selfTolerancex  = selfTolerance   end
     if  isnothing(printBefore)      printBeforex    = set.printBefore     else  printBeforex    = printBefore     end
     if  isnothing(lineSelection)    lineSelectionx  = set.lineSelection   else  lineSelectionx  = lineSelection   end
 
     Settings( processx, approximationx, beamTypex, photonEnergiesx, multipolesx, gaugesx, polarThetasx, polarPhisx,
-              incidentStokesx, maxKappax, gMultipletx, impactParametersx, widthx, selfTolerancex, printBeforex,
+              incidentStokesx, maxKappax, gMultipletx, impactVectorsx, widthx, selfTolerancex, printBeforex,
               lineSelectionx )
 end
 
@@ -200,7 +201,7 @@ function Base.show(io::IO, settings::PhotonScattering.Settings)
     println(io, "incidentStokes:        $(settings.incidentStokes)  ")
     println(io, "maxKappa:              $(settings.maxKappa)  ")
     println(io, "gMultiplet:            $(typeof(settings.gMultiplet))  ")
-    println(io, "impactParameters:      $(settings.impactParameters)  ")
+    println(io, "impactVectors:         $(settings.impactVectors)  ")
     println(io, "width:                 $(settings.width)  ")
     println(io, "selfTolerance:         $(settings.selfTolerance)  ")
     println(io, "printBefore:           $(settings.printBefore)  ")

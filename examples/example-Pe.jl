@@ -5,7 +5,7 @@ setDefaults("print summary: open", "zzz-PhotonScattering.sum")
 setDefaults("unit: energy", "eV")
 
 if  true
-    # Last visit:      22-Aug-2026
+    # Last visit:      12-Oct-2026
     # Last successful:  unknown ... see the report below.
     #
     # Branch a (THE VORTEX NODE, and the plane-wave limit): Rayleigh scattering of a Bessel beam at beryllium-like
@@ -79,7 +79,7 @@ if  true
                         approximation    = PhotonScattering.FormFactorApproximation(),
                         beamType         = Beam.BesselBeam(m, 0.20, 1.0),      # m, opening angle [rad], kz (unused here)
                         photonEnergies   = [500.0],
-                        impactParameters = [0.0, 0.5, 1.0, 2.0, 4.0, 8.0],
+                        impactVectors    = [(0.0,0.0), (0.5,0.0), (1.0,0.0), (2.0,0.0), (4.0,0.0), (8.0,0.0)],
                         polarThetas      = [0.0, pi/2, pi],
                         printBefore      = false )
 
@@ -91,7 +91,7 @@ if  true
     end
     #
 elseif  false
-    # Last visit:      22-Aug-2026
+    # Last visit:      12-Oct-2026
     # Last successful:  unknown ... not yet run.
     #
     # Branch b (THE PLANE-WAVE LIMIT, made quantitative): the same Rayleigh scattering at m = 0 and b = 0, with the
@@ -117,7 +117,7 @@ elseif  false
                         approximation    = PhotonScattering.FormFactorApproximation(),
                         beamType         = Beam.BesselBeam(0, thetaK, 1.0),
                         photonEnergies   = [500.0],
-                        impactParameters = [0.0],
+                        impactVectors    = [(0.0, 0.0)],
                         polarThetas      = Float64[],
                         printBefore      = false )
 

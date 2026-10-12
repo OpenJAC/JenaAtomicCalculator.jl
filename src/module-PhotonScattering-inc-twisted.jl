@@ -9,9 +9,10 @@
 # case collapses to a one-dimensional integral over phi_k. That is the whole reason this file can exist while the second-order
 # twisted case cannot.
 #
-#     A_m(b)  =  (1/2pi) Int_0^2pi  d phi_k  exp(i m phi_k)  exp(i kappa b cos(phi_k - phi_b))  F(q(theta_k, phi_k; theta, phi))
+#     A_m(b, phi_b)  =  (1/2pi) Int_0^2pi  d phi_k  exp(i m phi_k)  exp(i kappa b cos(phi_k - phi_b))  F(q(theta_k, phi_k; theta, phi))
 #
-# with kappa = k sin(theta_k) the transverse momentum and b the impact parameter. The geometry is exact:
+# with kappa = k sin(theta_k) the transverse momentum, b the impact parameter and phi_b its azimuth about the beam
+# axis -- (b, phi_b) is settings.impactVectors' own (bPerp, phiB) pair. The geometry is exact:
 #
 #     cos(Theta) = sin(theta_k) sin(theta) cos(phi_k - phi) + cos(theta_k) cos(theta) ,      q = 2 k sin(Theta/2) .
 #
@@ -35,21 +36,25 @@
 #   2. AT b = 0 THE CROSS SECTION MUST VANISH FOR m /= 0. On the axis a vortex beam has a node: with F depending on phi_k only
 #      weakly, the integral tends to i^m J_m(kappa b) times a constant, and J_m(0) = 0 for every m /= 0. A non-zero on-axis
 #      result for m = 1 would mean the OAM phase is not being applied.
+#
+# phi_b WAS FIXED AT ZERO until 12-Oct-2026 (settings.impactParameters carried only bare magnitudes); now read from
+# settings.impactVectors' (bPerp, phiB) pairs and used here as cos(phi_k - phi_b), identical to Beam.displace's own
+# phase. At phi_b = 0 this is exactly the formula every example branch has run against so far, so no number moves for
+# any of them. PhotonScattering.Line still has no slot to carry phi_b on the returned Line -- see computeTwistedLines.
 
 
 """
 `PhotonScattering.besselAmplitude(process::PhotonScattering.AbstractPhotonProcess, k::Float64, beam::Beam.BesselBeam,
-                                  bImpact::Float64, theta::Float64, phi::Float64, level::Level, grid::Radial.Grid)`
-    ... to compute the coherent Bessel-beam scattering amplitude of one atom at impact parameter `bImpact` from the beam axis,
-        as the cone integral given in the header of this file. An amplitude::ComplexF64 is returned.
+                                  bImpact::Float64, phiB::Float64, theta::Float64, phi::Float64, level::Level, grid::Radial.Grid)`
+    ... to compute the coherent Bessel-beam scattering amplitude of one atom at impact vector (bImpact, phiB) from the beam
+        axis, as the cone integral given in the header of this file. An amplitude::ComplexF64 is returned.
 
         The integral is a 721-point trapezoid over phi_k, which is ample: the integrand is a form factor varying smoothly with
-        the momentum transfer, times two phases whose highest frequency is set by max(|m|, kappa b). The azimuthal angle of the
-        impact parameter is taken as zero, which costs no generality for a spherically symmetric target -- it merely fixes the
-        origin of phi.
+        the momentum transfer, times two phases whose highest frequency is set by max(|m|, kappa b). phiB = 0 reproduces the
+        formula used before 12-Oct-2026 exactly, since cos(phik - 0) = cos(phik).
 """
 function besselAmplitude(process::PhotonScattering.AbstractPhotonProcess, k::Float64, beam::Beam.BesselBeam,
-                         bImpact::Float64, theta::Float64, phi::Float64, level::Level, grid::Radial.Grid)
+                         bImpact::Float64, phiB::Float64, theta::Float64, phi::Float64, level::Level, grid::Radial.Grid)
     thetaK = beam.openingAngle;    m = beam.mOAM;    kappa = k * sin(thetaK)
     nphi   = 721;    dphi = 2pi / (nphi - 1);    A = ComplexF64(0.)
 
@@ -60,7 +65,7 @@ function besselAmplitude(process::PhotonScattering.AbstractPhotonProcess, k::Flo
         cosTh = max(-1.0, min(1.0, cosTh))
         q     = 2 * k * sqrt( max(0., (1 - cosTh) / 2) )
         F     = FormFactor.standardF(q, level, grid)
-        A     = A + w * exp(im * m * phik) * exp(im * kappa * bImpact * cos(phik)) * F * dphi
+        A     = A + w * exp(im * m * phik) * exp(im * kappa * bImpact * cos(phik - phiB)) * F * dphi
     end
 
     return( A / (2pi) )
@@ -74,9 +79,11 @@ end
         energy and impact parameter, and to display the result. An Array{PhotonScattering.Line,1} is returned if output=true,
         and nothing otherwise.
 
-        One Line is produced per (level, photon energy, impact parameter); the impact parameter is carried in the Line's
-        `particleEnergy` slot, which is otherwise unused by a photon-in/photon-out process. That is a deliberate reuse rather
-        than a new field, and it is documented here because it would otherwise be a trap for the next reader.
+        One Line is produced per (level, photon energy, impact vector); bImpact alone is carried in the Line's
+        `particleEnergy` slot, which is otherwise unused by a photon-in/photon-out process -- a deliberate reuse rather than a
+        new field, documented here because it would otherwise be a trap for the next reader. phiB is USED in computing the
+        line (passed to twistedObservables/besselAmplitude) but is NOT persisted on the returned Line: there is no second
+        spare slot, and every example branch today runs at phiB = 0, so extending Line for it would be premature.
 """
 function computeTwistedLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, nm::Nuclear.Model, grid::Radial.Grid,
                              settings::PhotonScattering.Settings; output=true)
@@ -85,7 +92,7 @@ function computeTwistedLines(finalMultiplet::Multiplet, initialMultiplet::Multip
     printstyled("------------------------------------------------------------------------------------ \n", color=:light_green)
     #
     beam = settings.beamType
-    println(">> $(beam);  impact parameters $(settings.impactParameters) a.u.")
+    println(">> $(beam);  impact vectors $(settings.impactVectors) [a.u., rad]")
     if  settings.process == PhotonScattering.ComptonScattering()
         println(">> NOTE: in the closure approximation the INCOHERENT cross section carries no OAM and no impact-parameter " *
                 "dependence -- S(q) is already summed over final states, so the phases cancel in the modulus. What follows " *
@@ -98,8 +105,8 @@ function computeTwistedLines(finalMultiplet::Multiplet, initialMultiplet::Multip
             if  !Basics.selectLevelPair(iLevel, fLevel, settings.lineSelection)  ||  iLevel.index != fLevel.index    continue    end
             for  omega in settings.photonEnergies
                 inOmega = Defaults.convertUnits("energy: to atomic", omega)
-                for  bImpact in settings.impactParameters
-                    obs, sigma = PhotonScattering.twistedObservables(inOmega, bImpact, iLevel, grid, settings)
+                for  (bImpact, phiB) in settings.impactVectors
+                    obs, sigma = PhotonScattering.twistedObservables(inOmega, bImpact, phiB, iLevel, grid, settings)
                     push!( newLines, PhotonScattering.Line(iLevel, fLevel, inOmega, inOmega, bImpact,
                                                             EmProperty(sigma, sigma), PhotonScattering.Channel[], obs) )
                 end
@@ -149,6 +156,8 @@ function displayTwistedResults(stream::IO, lines::Array{PhotonScattering.Line,1}
     end
     println(stream, "  ", TableStrings.hLine(nx))
     println(stream, "  b is the impact parameter of the atom from the beam axis, carried in the Line's particleEnergy slot.")
+    println(stream, "  phiB (settings.impactVectors' azimuth) was used in computing each row but is not shown: Line has no")
+    println(stream, "  second slot for it, and every row here was computed at phiB = 0.")
     if  settings.beamType.mOAM != 0
         println(stream, "  m /= 0: the b = 0 row MUST vanish -- a vortex beam has a node on its axis, and J_m(0) = 0.")
     end
@@ -160,23 +169,25 @@ end
 
 
 """
-`PhotonScattering.twistedObservables(inOmega::Float64, bImpact::Float64, level::Level, grid::Radial.Grid,
+`PhotonScattering.twistedObservables(inOmega::Float64, bImpact::Float64, phiB::Float64, level::Level, grid::Radial.Grid,
                                      settings::PhotonScattering.Settings)`
     ... to compute the angle-differential cross sections at the requested angles and the angle-integrated total for a twisted
-        beam and one impact parameter. A tuple (observables::Array{PhotonScattering.Observables,1}, sigma::Float64) is returned.
+        beam and one impact vector (bImpact, phiB). A tuple (observables::Array{PhotonScattering.Observables,1},
+        sigma::Float64) is returned.
 
         For RAYLEIGH the coherent cone amplitude of PhotonScattering.besselAmplitude is squared; for COMPTON the incoherent
-        S(q) is cone-AVERAGED instead, the closure having already summed over final states so that no phase survives. The
-        Stokes parameters are NaN throughout: this is a scalar treatment and carries no polarization information.
+        S(q) is cone-AVERAGED instead, the closure having already summed over final states so that no phase survives -- which
+        is also why phiB plays no role in that branch (see this file's header). The Stokes parameters are NaN throughout: this
+        is a scalar treatment and carries no polarization information.
 """
-function twistedObservables(inOmega::Float64, bImpact::Float64, level::Level, grid::Radial.Grid,
+function twistedObservables(inOmega::Float64, bImpact::Float64, phiB::Float64, level::Level, grid::Radial.Grid,
                             settings::PhotonScattering.Settings)
     alpha = Defaults.getDefaults("alpha");    wc = Defaults.getDefaults("speed of light: c")
     reSq  = alpha^4;    k = inOmega / wc;    beam = settings.beamType
 
     function dcsAt(theta::Float64, phi::Float64)
         if      settings.process == PhotonScattering.RayleighScattering()
-            A = PhotonScattering.besselAmplitude(settings.process, k, beam, bImpact, theta, phi, level, grid)
+            A = PhotonScattering.besselAmplitude(settings.process, k, beam, bImpact, phiB, theta, phi, level, grid)
             return( reSq / 2 * (1 + cos(theta)^2) * abs2(A) )
         else
             # incoherent: cone-average the cross-section-level S(q); no phase survives the modulus
