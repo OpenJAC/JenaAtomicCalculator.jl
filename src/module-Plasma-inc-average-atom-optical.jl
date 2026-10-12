@@ -302,6 +302,96 @@ end
 
 
 """
+`Plasma.transportCrossSection(scfResult::NamedTuple, energy::Float64, grid::Radial.Grid; lMax::Int64=8)`
+    ... returns the momentum-transfer (transport) cross section an electron of the given kinetic energy sees in
+        the converged average-atom potential;  a `value::Float64` [a.u.^2] is returned, or 0 where the continuum
+        orbital cannot be formed.
+
+        `sigma_tr(k) = (4 pi/k^2) sum_l (l+1) sin^2(delta_{l+1} - delta_l)`, the standard phase-shift form, with
+        the phases taken from `Continuum.generateOrbitalLocalPotential` in the self-consistent potential.
+
+        **ONLY THE DIFFERENCE OF NEIGHBOURING PHASES ENTERS, AND THAT IS WHAT MAKES THIS WELL POSED.**  A phase
+        shift is defined modulo pi and the routines that compute one do wrap:  on aluminium at 0.27 g/cm^3 and
+        5 eV, delta_0 runs -1.447 at 0.2 Ha and +1.310 at 0.35 Ha, a jump of very nearly pi.  Because `sin^2` is
+        pi-periodic the cross section does not notice, so no unwrapping is needed and a constant offset in the
+        phase convention cannot matter.  Contrast the free-free dipole amplitude, where the box boundary enters
+        the integrand itself;  that is the difference between this route to the DC conductivity and the one that
+        failed.
+"""
+function transportCrossSection(scfResult::NamedTuple, energy::Float64, grid::Radial.Grid; lMax::Int64=8)
+    energy <= 0.  &&  return( 0. )
+    cSet  = Continuum.Settings(false, grid.NoPoints - 10)
+    phase = fill(NaN, lMax + 2)
+    for  l = 0:lMax+1
+        try
+            phase[l+1] = redirect_stdout(devnull) do
+                wa, wp = Continuum.generateOrbitalLocalPotential(energy, Subshell(200, -(l+1)), scfResult.pot, cSet)
+                wp
+            end
+        catch;    phase[l+1] = NaN
+        end
+    end
+    k = sqrt(2*energy);    wa = 0.
+    for  l = 0:lMax
+        if  isnan(phase[l+1])  ||  isnan(phase[l+2])    continue    end
+        wa = wa + (l + 1) * sin( phase[l+2] - phase[l+1] )^2
+    end
+
+    return( 4pi / k^2 * wa )
+end
+
+
+"""
+`Plasma.dcConductivity(scfResult::NamedTuple, temp::Float64, radiusWS::Float64, grid::Radial.Grid;
+                        lMax::Int64=8, energyMin::Float64=0.001, energyMax::Float64=2.5, noEnergies::Int64=48)`
+    ... computes the DC electrical conductivity of the average atom from its own scattering phase shifts, with no
+        adjustable parameter;  a NamedTuple `(sigma0, gamma, crossSections, energies)` is returned, `sigma0` in
+        a.u. and `gamma` the collision rate the same sum rule assigns to it.
+
+        **WHY NOT FROM THE FREE-FREE CONDUCTIVITY, which is where one would look first.**  A single-site model has
+        no relaxation time:  one scattering centre cannot give a finite DC conductivity, so the small-frequency
+        divergence of its free-free Kubo-Greenwood sum -- and the l-sum that grows with it -- is the physics and
+        not a defect to be removed.  A finite `sigma(0)` needs the DENSITY of scatterers, which enters here as
+        `n_ion = 1/Omega` through the relaxation time and nowhere else.  Johnson, Guet & Bertsch (2006) reach
+        their own `sigma(0)` the same way, cross-checking it against the Ziman formula.
+
+        In the relaxation-time approximation, with one ion per cell and `v = k` in atomic units,
+
+            tau(k)   = 1 / ( n_ion k sigma_tr(k) )
+            sigma(0) = (1/3 pi^2) int dk k^4 tau(k) (-df/d eps)|_{eps = k^2/2}
+
+        and the prefactor is fixed rather than fitted:  for a constant `tau` the integral reduces to
+        `sigma(0) = n_e tau` exactly, which is how it was checked.
+
+        Validated against Johnson, Guet & Bertsch (2006) for aluminium at 0.27 g/cm^3 and T = 5 eV:  this gives
+        `sigma(0) = 0.02763 a.u.` against their 0.0262, i.e. 5.5 % high, and the collision rate it implies is
+        0.0486 a.u. against their 0.0466.  Converged to 0.1 % in `lMax` (6 -> 8), to 0.01 % in the mesh (24 -> 48
+        points) and to 0.02 % in the lower energy cut (0.005 -> 0.001 Ha).  **The agreement is the same few per
+        cent the Drude form reached while being GIVEN their collision rate;  what has changed is that nothing is
+        given.**
+"""
+function dcConductivity(scfResult::NamedTuple, temp::Float64, radiusWS::Float64, grid::Radial.Grid;
+                        lMax::Int64=8, energyMin::Float64=0.001, energyMax::Float64=2.5, noEnergies::Int64=48)
+    volume = 4pi/3 * radiusWS^3;    nIon = 1 / volume;    chemMu = scfResult.chemMu
+    # the mesh is uniform in k, since the integrand is written in k and carries k^4
+    kMin = sqrt(2*energyMin);       kMax = sqrt(2*energyMax)
+    ks   = [ kMin + (kMax - kMin) * (i-1) / (noEnergies - 1)   for i = 1:noEnergies ]
+    es   = [ k^2/2  for k in ks ];      sigTr = zeros(noEnergies);      wa = zeros(noEnergies)
+    for  i = 1:noEnergies
+        sigTr[i] = Plasma.transportCrossSection(scfResult, es[i], grid; lMax=lMax)
+        wx       = (es[i] - chemMu) / temp
+        dfde     = wx > 60. ? 0. : exp(wx) / (temp * (1 + exp(wx))^2)
+        wa[i]    = sigTr[i] <= 0. ? 0. : ks[i]^4 / (nIon * ks[i] * sigTr[i]) * dfde
+    end
+    wb = 0.;    for i = 1:noEnergies-1   wb = wb + 0.5*(wa[i] + wa[i+1])*(ks[i+1] - ks[i])   end
+    sigma0 = wb / (3 * pi^2)
+    gamma  = sigma0 > 0. ? scfResult.nCont / (volume * sigma0) : 0.
+
+    return( (sigma0=sigma0, gamma=gamma, crossSections=sigTr, energies=es) )
+end
+
+
+"""
 `Plasma.drudeConductivity(nFree::Float64, radiusWS::Float64, gamma::Float64, omegas::Array{Float64,1})`
     ... returns the free-electron (Drude) conductivity `sigma(w) = sigma(0) gamma^2/(gamma^2 + w^2)` of the cell
         on the given photon energies;  a `sigmas::Array{Float64,1}` [a.u.] is returned.
@@ -313,8 +403,9 @@ end
         free-electron response is supplied here in closed form instead of computed.
 
         Its AMPLITUDE is not free:  the conductivity sum rule `int sigma dw = pi N_free/(2 Omega)` gives
-        `sigma(0) = N_free/(Omega gamma)` with no adjustable factor left.  Only `gamma` is a choice, and it is
-        the quantity a Ziman-type calculation or a measurement supplies.  Johnson, Guet & Bertsch (2006) obtain
+        `sigma(0) = N_free/(Omega gamma)` with no adjustable factor left.  Only `gamma` is a choice -- and since
+        11-Oct-2026 it need not be a choice at all:  `Plasma.dcConductivity` computes it from the average atom's
+        own scattering phase shifts, so the whole optical chain can be run with nothing supplied from outside.  Johnson, Guet & Bertsch (2006) obtain
         `gamma = 0.0466 a.u. = 1.27 eV` for aluminium at 0.27 g/cm^3 and 5 eV by imposing that same sum rule on
         their (divergent) free-free integral, and quote `sigma(0) = 0.0262 a.u. = 0.121 (mOhm m)^-1` against
         0.125 from the Ziman formula.  The closed form above gives 0.0286 at their gamma -- 9 % high, the
