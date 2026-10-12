@@ -307,6 +307,43 @@ function Base.show(io::IO, obs::Beam.IntensityPattern)
 end
 
 
+# GENERIC TWISTED-BEAM DECOMPOSITION, usable by any process that needs a Bessel beam's plane-wave cone and the phase a
+# displaced target picks up from it -- see module-ParticleScattering-inc-beams.jl, where this was identified as belonging
+# here rather than being re-derived per process. Nothing HERE knows what physics couples to the beam: every function below
+# takes the caller's own direction-dependent amplitude as a plain Function and returns a weighted sum over it, so the SAME
+# code can serve PhotonScattering's scalar form-factor amplitude and, eventually, ElectronCapture's M_d-resolved capture
+# amplitude once that is built. PhotonScattering.besselAmplitude still carries its own copy of this logic inline
+# (predating this file); unifying the two is a later refactor, deliberately not done here to avoid touching an already
+# validated, dated example (example-Pd.jl) while adding this machinery's first caller.
+#
+# ONLY Beam.BesselBeam is covered here: it is the one case with a SINGLE, sharp transverse momentum kappa =
+# kz tan(openingAngle), so the cone collapses to a one-dimensional azimuthal integral. Beam.LaguerreGauss instead has a
+# continuous SPREAD of transverse momenta of width ~ 1/waist (see its own docstring), which needs an additional radial
+# integral this file does not attempt.
+
+
+"""
+`Beam.coneIntegrate(beam::Beam.BesselBeam, bPerp::Float64, phiB::Float64, amplitudeAt::Function; nphi::Int64=721)`
+    ... to combine a caller-supplied, direction-dependent amplitude `amplitudeAt(phiK::Float64)::ComplexF64` -- evaluated
+        at the beam's own fixed cone elevation `beam.openingAngle` -- coherently over the beam's plane-wave cone and the
+        target's displacement from the axis, as `(1/2pi) Int_0^2pi dphiK amplitudeAt(phiK) * transverseAmplitude(phiK) *
+        displace(bPerp, phiB, phiK)`. The caller owns every bit of physics; this function owns only the beam's own
+        geometry. A `value::ComplexF64` is returned.
+
+        The integral is a 721-point (default) trapezoid, matching the resolution `PhotonScattering.besselAmplitude` uses
+        for the same integral; `nphi` can be raised for an `amplitudeAt` that itself oscillates faster than that in phiK.
+"""
+function coneIntegrate(beam::Beam.BesselBeam, bPerp::Float64, phiB::Float64, amplitudeAt::Function; nphi::Int64=721)
+    dphi = 2pi / (nphi - 1);    wa = ComplexF64(0.)
+    for  i = 1:nphi
+        phiK = (i-1) * dphi;    w = (i == 1 || i == nphi) ? 0.5 : 1.0
+        wa   = wa + w * amplitudeAt(phiK) * Beam.transverseAmplitude(beam, phiK) * Beam.displace(beam, bPerp, phiB, phiK) * dphi
+    end
+
+    return( wa / (2pi) )
+end
+
+
 """
 `function  Beam.constructSuperposition(key::String)`   
     ... to construct various (vector) beams with well-defined polarization properties; allowed keys are:
@@ -350,6 +387,39 @@ function  redefineEnergy(energy::Float64, beam::AbstractBeamType)
     end
     
     return(newBeam)
+end
+
+
+"""
+`Beam.displace(beam::Beam.BesselBeam, bPerp::Float64, phiB::Float64, phiK::Float64)`
+    ... to compute the phase exp(i kappa bPerp cos(phiK - phiB)) that a target displaced by the impact vector
+        (bPerp [a.u.], phiB [rad]) from the beam axis imposes on the plane-wave component at cone azimuth phiK; a
+        `value::ComplexF64` is returned. bPerp = 0 returns 1 for every phiK and phiB, the on-axis limit.
+"""
+function displace(beam::Beam.BesselBeam, bPerp::Float64, phiB::Float64, phiK::Float64)
+    kappa = Beam.transverseMomentum(beam)
+
+    return( exp( im * kappa * bPerp * cos(phiK - phiB) ) )
+end
+
+
+"""
+`Beam.transverseAmplitude(beam::Beam.BesselBeam, phiK::Float64)`
+    ... to compute the azimuthal OAM phase exp(i mOAM phiK) carried by the plane-wave component at cone azimuth phiK; a
+        `value::ComplexF64` is returned.
+"""
+function transverseAmplitude(beam::Beam.BesselBeam, phiK::Float64)
+    return( exp( im * beam.mOAM * phiK ) )
+end
+
+
+"""
+`Beam.transverseMomentum(beam::Beam.BesselBeam)`
+    ... to compute the single transverse momentum kappa = kz tan(openingAngle) [a.u.] that every plane-wave component on
+        the beam's cone shares; a `value::Float64` is returned.
+"""
+function transverseMomentum(beam::Beam.BesselBeam)
+    return( beam.kz * tan(beam.openingAngle) )
 end
 
 
