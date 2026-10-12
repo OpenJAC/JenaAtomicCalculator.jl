@@ -24,9 +24,9 @@ using  Printf, ..AngularMomentum, ..AutoIonization, ..Basics, ..Beam, ..Bsplines
                                                                     allowed values are: CoulombInteraction(), BreitInteraction(), ...
     + beamType                ::Beam.AbstractBeamType        ... Type of the incoming (continuum-electron) beam; default Beam.PlaneWave(), which
                                                                     reproduces the on-axis capture of every earlier computation exactly.
-    + impactVector            ::Tuple{Float64,Float64}       ... (bPerp, phiB), the impact parameter [a.u.] of the target from the beam axis and
-                                                                    its azimuthal angle [rad]; unused by Beam.PlaneWave(), where on-axis capture is
-                                                                    the only notion defined.
+    + impactVectors           ::Array{Tuple{Float64,Float64},1}
+        ... (bPerp, phiB) impact vectors [a.u., rad] of the target from the beam axis; unused by Beam.PlaneWave(),
+            where on-axis capture is the only notion defined. Default [(0., 0.)], a single on-axis entry.
 """
 struct Settings  <:  AbstractProcessSettings
     printBefore               ::Bool 
@@ -37,7 +37,7 @@ struct Settings  <:  AbstractProcessSettings
     operator                  ::AbstractEeInteraction 
     calcAlignment             ::Bool
     beamType                  ::Beam.AbstractBeamType
-    impactVector              ::Tuple{Float64,Float64}
+    impactVectors             ::Array{Tuple{Float64,Float64},1}
 end 
 
 
@@ -45,7 +45,7 @@ end
 `ElectronCapture.Settings()`  ... constructor for the default values of ElectronCapture line computations
 """
 function Settings()
-    Settings(false, LineSelection(), 0., 1.0e5, 2, CoulombInteraction(), true, Beam.PlaneWave(), (0., 0.))
+    Settings(false, LineSelection(), 0., 1.0e5, 2, CoulombInteraction(), true, Beam.PlaneWave(), [(0., 0.)])
 end
 
 
@@ -53,7 +53,7 @@ end
 `ElectronCapture.Settings(set::ElectronCapture.Settings;`
 
         printBefore=..,       minCaptureEnergy=..,       maxCaptureEnergy=..,       maxKappa=..,       operator=..,
-        beamType=..,          impactVector=..)
+        beamType=..,          impactVectors=..)
                     
     ... constructor for modifying the given ElectronCapture.Settings by 'overwriting' the previously selected parameters.
 """
@@ -62,7 +62,7 @@ function Settings(set::ElectronCapture.Settings;
     minCaptureEnergy::Union{Nothing,Float64}=nothing,       maxCaptureEnergy::Union{Nothing,Float64}=nothing,
     maxKappa::Union{Nothing,Int64}=nothing,                 operator::Union{Nothing,AbstractEeInteraction}=nothing,
     calcAlignment::Union{Nothing,Bool}=nothing,
-    beamType::Union{Nothing,Beam.AbstractBeamType}=nothing, impactVector::Union{Nothing,Tuple{Float64,Float64}}=nothing)  
+    beamType::Union{Nothing,Beam.AbstractBeamType}=nothing, impactVectors::Union{Nothing,Array{Tuple{Float64,Float64},1}}=nothing)  
     
     if  isnothing(printBefore)        printBeforex      = set.printBefore       else  printBeforex      = printBefore        end 
     if  isnothing(lineSelection)      lineSelectionx    = set.lineSelection     else  lineSelectionx    = lineSelection      end 
@@ -72,10 +72,10 @@ function Settings(set::ElectronCapture.Settings;
     if  isnothing(operator)           operatorx         = set.operator          else  operatorx         = operator           end 
     if  isnothing(calcAlignment)      calcAlignmentx    = set.calcAlignment     else  calcAlignmentx    = calcAlignment      end 
     if  isnothing(beamType)           beamTypex         = set.beamType          else  beamTypex         = beamType           end 
-    if  isnothing(impactVector)       impactVectorx     = set.impactVector      else  impactVectorx     = impactVector       end 
+    if  isnothing(impactVectors)      impactVectorsx    = set.impactVectors     else  impactVectorsx    = impactVectors      end 
 
     Settings( printBeforex, lineSelectionx, minCaptureEnergyx, maxCaptureEnergyx, maxKappax, operatorx, calcAlignmentx,
-              beamTypex, impactVectorx)
+              beamTypex, impactVectorsx)
 end
 
 
@@ -89,7 +89,7 @@ function Base.show(io::IO, settings::ElectronCapture.Settings)
     println(io, "operator:                      $(settings.operator)  ")
     println(io, "calcAlignment:                 $(settings.calcAlignment)  ")
     println(io, "beamType:                      $(settings.beamType)  ")
-    println(io, "impactVector:                  $(settings.impactVector)  ")
+    println(io, "impactVectors:                 $(settings.impactVectors)  ")
 end
 
 
@@ -183,7 +183,7 @@ end
         them in; `nothing` means "build them here", which is the documented fallback and reproduces the result byte for byte. This is the
         same conversion `AutoIonization.computeAmplitudesProperties` carries, and the two modules share the continuum-per-channel pattern.
 
-        `settings.beamType` and `settings.impactVector` are accepted and stored on `settings` but NOT YET USED here: the amplitude below
+        `settings.beamType` and `settings.impactVectors` are accepted and stored on `settings` but NOT YET USED here: the amplitude below
         is the on-axis, plane-wave capture amplitude regardless of what `beamType` names. A `Beam.PlaneWave()` is therefore the only
         value this function honours, and it raises for anything else rather than silently returning a plane-wave number under a
         twisted-beam label; see `module-ParticleScattering-inc-beams.jl` for where the needed decomposition belongs.
@@ -283,7 +283,7 @@ end
         the SAME quantity, just reached without ever materializing the M_d-resolved tensors.
 
         THE REMARK, and the reason this is worth re-reading once `Beam.BesselBeam`/`Beam.LaguerreGauss` capture is
-        implemented (settings.beamType, settings.impactVector -- see `ElectronCapture.Settings`, both unused
+        implemented (settings.beamType, settings.impactVectors -- see `ElectronCapture.Settings`, both unused
         today): this function returns A_k0 ONLY, because an on-axis beam leaves the process axially symmetric and
         every A_kq with q != 0 vanishes by that symmetry alone. An OFF-axis impact vector breaks that symmetry --
         the project memory on twisted-electron capture (apps-andrey-twisted-electron-dr) finds populations
