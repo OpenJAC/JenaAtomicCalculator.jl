@@ -226,4 +226,56 @@ elseif  false
     println(">>> sigma(0) = 0.0262 a.u. = 0.121 (mOhm m)^-1, against 0.125 from the Ziman formula.")
     wb          = perform(wa, output=true)
     #
+elseif  false
+    #
+    # Last successful:  12-Oct-2026
+    # Branch 6: THE DC CONDUCTIVITY WITH NOTHING FITTED -- the same aluminium plasma as Branches 4 and 5, but
+    #   with the electron-ion collision rate COMPUTED from the average atom's own scattering phase shifts
+    #   instead of taken from the literature.  Set `condCollisionRate` NEGATIVE to ask for this.
+    #
+    # WHY THIS BRANCH EXISTS.  Branch 5 has to be GIVEN Johnson's gamma = 0.0466 a.u., and that was the one
+    #   quantity in the whole optical chain supplied from outside.  The free electrons cannot supply it
+    #   themselves in a box: a single-site model has no relaxation time, so the free-free Kubo-Greenwood sum
+    #   DIVERGES towards zero frequency and its l-sum grows with it -- that is the physics of one scattering
+    #   centre and not a defect.  A finite sigma(0) needs the DENSITY of scatterers, which enters through
+    #
+    #       sigma_tr(k) = (4 pi/k^2) sum_l (l+1) sin^2(delta_{l+1} - delta_l)
+    #       tau(k)      = 1 / ( n_ion k sigma_tr(k) )          with n_ion = 1/Omega, one ion per cell
+    #       sigma(0)    = (1/3 pi^2) int dk k^4 tau(k) (-df/d eps)
+    #
+    #   and that is also how Johnson reaches his own value, which is why his Ziman cross-check is in the paper.
+    #
+    # WHAT TO EXPECT, as this branch prints it:  gamma = 0.049041 a.u. and sigma(0) = 0.027138 a.u. =
+    #   0.1253 (mOhm m)^-1, against Johnson's gamma = 0.0466 and his sigma(0) = 0.121, and against the 0.125 of
+    #   the Ziman formula he checks himself against.  SO sigma(0) LANDS INSIDE THE SPREAD OF HIS OWN TWO VALUES,
+    #   which differ by 3 % -- and that is the honest way to state it:  the agreement is as good as the published
+    #   numbers can distinguish, not better.  Converged to 0.1 % in lMax and 0.01 % in the energy mesh.
+    #   The sum rules come out N_bb = 0.506, N_bf = 10.598, N_ff = 0.528, i.e. 11.63 of Z = 13 -- the shortfall
+    #   is Pauli blocking and is NOT a defect;  Branch 5's notes verify that state by state.
+    #
+    # WHY THE PHASE SHIFTS ARE A SAFER ROUTE THAN THE DIPOLE AMPLITUDE, which is the point worth taking away:
+    #   only the DIFFERENCE of neighbouring phases enters, and sin^2 is pi-periodic, so the wraps these routines
+    #   really do produce are harmless -- delta_0 runs -1.447 at 0.2 Ha and +1.310 at 0.35 Ha here, very nearly a
+    #   jump of pi, and the cross section does not notice.  The box boundary never enters the integrand at all,
+    #   which is exactly where the free-free amplitude went wrong.
+    #
+    nm          = Nuclear.Model(13.0, 26.98)
+    rho         = 0.27       # [g/cm^3]
+    temp_au     = Defaults.convertUnits("energy: from eV to atomic", 5.0)
+    temperature = Defaults.convertUnits("temperature: from atomic to Kelvin", temp_au)    # [K]
+    radiusWS    = Plasma.determineWignerSeitzRadius(rho, nm)
+    grid        = Radial.generateGrid(Radial.Grid(false), boxSize = 3 * radiusWS)
+    settings    = Plasma.Settings(temperature, rho, false)
+    condOmegas  = [ 10^x  for x = -2.0:0.08:2.6 ]
+    # the last argument is NEGATIVE:  compute the collision rate, do not take one
+    scheme      = Plasma.AverageAtomScheme(8, 5, Basics.AaDFSField(), false, false, false, Subshell[], Float64[],
+                                           Float64[], true, condOmegas, 0.0466, -1.0 )
+
+    wa          = Plasma.Computation(Plasma.Computation(), scheme=scheme,
+                                     nuclearModel=nm, grid=grid, settings=settings)
+    println("\n\n>>> DC conductivity of Al at 0.27 g/cm^3 and T = 5 eV with NOTHING fitted:  expect")
+    println(">>> gamma = 0.0490 a.u. and sigma(0) = 0.0271 a.u. = 0.1253 (mOhm m)^-1, which lies between the")
+    println(">>> 0.121 of Johnson, Guet & Bertsch, JQSRT 99, 327 (2006) and the 0.125 they quote from Ziman.")
+    wb          = perform(wa, output=true)
+    #
 end

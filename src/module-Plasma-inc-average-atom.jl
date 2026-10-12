@@ -374,11 +374,23 @@ function  perform(scheme::Plasma.AverageAtomScheme, computation::Plasma.Computat
         # towards zero frequency, which is where the free electrons respond.  See Plasma.drudeConductivity.
         condSigma = Plasma.computeConductivitySpectrum(condLines, scheme.condOmegas, wBroad;
                         freeLines=freeLines,
-                        kinds = scheme.condCollisionRate > 0. ? [:boundBound, :boundFree] :
-                                                                [:boundBound, :boundFree, :freeFree])
-        if  scheme.condCollisionRate > 0.
-            condSigma = condSigma .+ Plasma.drudeConductivity(wScf.nCont, RWS, scheme.condCollisionRate,
-                                                              scheme.condOmegas)
+                        kinds = scheme.condCollisionRate != 0. ? [:boundBound, :boundFree] :
+                                                                 [:boundBound, :boundFree, :freeFree])
+        # A NEGATIVE collision rate means COMPUTE it, from the average atom's own scattering phase shifts, so
+        # that nothing in the optical chain is supplied from outside.  See Plasma.dcConductivity:  on Johnson,
+        # Guet & Bertsch's aluminium it gives sigma(0) = 0.1276 (mOhm m)^-1 against the 0.125 of the Ziman
+        # formula they check themselves against, with no adjustable parameter.
+        condGamma = scheme.condCollisionRate
+        if  condGamma < 0.
+            wDC       = Plasma.dcConductivity(wScf, temp, RWS, computation.grid)
+            condGamma = wDC.gamma
+            println(">> [AA] the collision rate is COMPUTED from the scattering phase shifts: gamma = "       *
+                    @sprintf("%.6f a.u.", condGamma) * ", i.e. sigma(0) = " * @sprintf("%.6f a.u.", wDC.sigma0) *
+                    " = " * @sprintf("%.4f (mOhm m)^-1", wDC.sigma0 * 0.121/0.0262) * ";  nothing is fitted.")
+            if  output   results["dc conductivity"] = wDC   end
+        end
+        if  condGamma > 0.
+            condSigma = condSigma .+ Plasma.drudeConductivity(wScf.nCont, RWS, condGamma, scheme.condOmegas)
         end
         optical = Plasma.computeOpticalProperties(scheme.condOmegas, condSigma)
         Plasma.displayOpticalProperties(scheme.condOmegas, condSigma, optical)

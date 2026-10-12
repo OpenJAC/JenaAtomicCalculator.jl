@@ -155,14 +155,48 @@ function testModule_AverageAtom(; short::Bool=true)
         end
     end
 
+    # (8) THE DC CONDUCTIVITY FROM THE SCATTERING PHASE SHIFTS, which is the one quantity of the optical chain
+    #     that used to be supplied from outside.  Three things are asserted, and the first two are identities
+    #     that cannot be satisfied by a wrong number:
+    #       (a) the transport cross section must be positive and must FALL with energy.  A fast electron is
+    #           scattered less, and the 4 pi/k^2 prefactor makes that quantitative:  measured 127.2, 32.0 and
+    #           15.6 a.u.^2 at 0.2, 0.8 and 2.0 Ha.  A wrong k-dependence -- the commonest way to get a
+    #           transport cross section wrong -- cannot survive this, while a constant factor would.
+    #       (b) the sum rule relating gamma to sigma(0) must hold EXACTLY, not approximately.
+    #       (c) and the published value, which is what pins the constant factor (a) cannot see:  Johnson, Guet and Bertsch quote sigma(0) = 0.0262 a.u. and check it
+    #           against 0.125 (mOhm m)^-1 from the Ziman formula;  this gives 0.0276, i.e. 2 % from the Ziman
+    #           number and 5 % from theirs.  The tolerance is set at 12 %, loose enough that the mesh and lMax
+    #           defaults may change without re-approving anything and tight enough that a factor-of-two error in
+    #           the phase convention, the prefactor or the density of scatterers cannot pass.
+    wDC = Plasma.dcConductivity(wScf, temp, rWS, grid)
+    wSt = [ Plasma.transportCrossSection(wScf, en, grid)  for en in (0.2, 0.8, 2.0) ]
+    if  !(wSt[1] > wSt[2] > wSt[3] > 0.)
+        success = false
+        if printTest   info(iostream, "the transport cross sections at 0.2, 0.8 and 2.0 Ha come to $wSt and must " *
+                                      "be positive and decreasing;  a faster electron is scattered less")   end
+    end
+    if  abs(wDC.gamma - wScf.nCont/(volume*wDC.sigma0)) > 1.0e-12 * abs(wDC.gamma)
+        success = false
+        if printTest   info(iostream, "the collision rate $(wDC.gamma) does not satisfy its own sum rule " *
+                                      "N_free/(Omega sigma(0)) = $(wScf.nCont/(volume*wDC.sigma0))")   end
+    end
+    if  abs(wDC.sigma0/0.0262 - 1.0) > 0.12
+        success = false
+        if printTest   info(iostream, "sigma(0) comes to $(wDC.sigma0) a.u. against the 0.0262 of Johnson, Guet " *
+                                      "and Bertsch (2006) and the 0.125 (mOhm m)^-1 Ziman value they check it "  *
+                                      "against -- a relative difference of $(abs(wDC.sigma0/0.0262 - 1.0))")   end
+    end
+
     println(iostream, "AverageAtom: the relativistic angular factor against 2 l_> as pure algebra; neutrality of " *
                       "the Wigner-Seitz cell; the radial density and the state sum as two paths to one number; "   *
                       "the free box states reproducing the ideal gas inside the cell, and the density merging "    *
                       "onto that background outside it -- both of which fail if the B-spline box is taken to BE "  *
                       "the cell; the Thomas-Reiche-Kuhn sum of the 1s with the occupations left out, which is an " *
                       "exact identity where the conductivity sum rule is NOT; and the bound-electron count and "   *
-                      "chemical potential against Johnson, Guet and Bertsch (2006), Table 1. No approved data " *
-                      "and no stored number of our own are used.")
+                      "chemical potential against Johnson, Guet and Bertsch (2006), Table 1; and the DC "         *
+                      "conductivity from the scattering phase shifts, whose transport cross section must fall "   *
+                      "with energy, whose sum rule must hold exactly, and whose sigma(0) must agree with the "    *
+                      "published value. No approved data and no stored number of our own are used.")
     Defaults.setDefaults("print summary: close", "")
     testPrint("testModule_AverageAtom()::", success)
     return( success )

@@ -53,7 +53,12 @@ abstract type  AbstractPlasmaScheme       end
                                                        are folded into a spectrum;  a model parameter, see
                                                        Plasma.computeConductivitySpectrum.
     + condCollisionRate     ::Float64              ... electron-ion collision rate gamma [a.u.] of the Drude
-                                                       free-electron term;  zero leaves that term out.
+                                                       free-electron term.  Zero leaves that term out;  a
+                                                       POSITIVE value is used as given;  a NEGATIVE value means
+                                                       COMPUTE it from the average atom's own scattering phase
+                                                       shifts through `Plasma.dcConductivity`, which is the only
+                                                       setting that leaves nothing in the optical chain supplied
+                                                       from outside (see that function for what it is worth).
 """
 struct   AverageAtomScheme  <:  Plasma.AbstractPlasmaScheme
     nMax                    ::Int64
