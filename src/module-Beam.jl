@@ -245,7 +245,7 @@ end
 `Beam.PhotonBeam()`  ... constructor for an 'default' Beam.PhotonBeam.
 """
 function PhotonBeam()
-    PhotonBeam( LaguerreGauss(), Basics.LinearPolarization() )
+    PhotonBeam( LaguerreGauss(), Basics.LinearPolarization(), Pulse.InfiniteEnvelope(), 1.0, 1.0, 0.0 )
 end
 
 
@@ -267,7 +267,6 @@ end
     + struct Beam.NoObservable           ... to represent no observable, usually used just for initialization.
     + struct Beam.DominantMultipoles     ... to represent regions where selected multipoles are dominant.
     + struct Beam.IntensityPattern       ... to represent the intensity pattern of a given excitation/ionization.
-    + struct Beam.AnisotropyParameter    ... to represent the anisotropy A_kq for atoms at given impact vector.
 """
 abstract type  AbstractObservable                               end
 struct         NoObservable       <:  Beam.AbstractObservable   end
@@ -351,21 +350,60 @@ end
     + "radially-polarized LG vector beam"      ... to define a radially-polarized LG vector beam.         
     + "azimuthally-polarized LG vector beam"   ... to define an azimuthally-polarized LG vector beam.   
     + "..."
-    
-    A superposition::Array{Beam.Component,1} of beam components is returned.
+
+    NEITHER KEY IS IMPLEMENTED YET (noted 12-Oct-2026): a genuine vector beam needs each component to carry its OWN
+    polarization, and `Beam.Component` does not track one today -- it holds only a complex weight and a `beamType`.
+    The superposition built here before this note mixed a default `LaguerreGauss()` with a default `BesselBeam()` and
+    no polarization distinction whatsoever, which was wrong rather than merely incomplete, and the second key did
+    nothing at all. Both now raise instead. Giving `Component` a polarization field -- mirroring `Beam.PhotonBeam`'s
+    own `::Basics.AbstractPolarization` -- is the prerequisite, not attempted here.
+
+    A superposition::Array{Beam.Component,1} of beam components would be returned once implemented.
 """
 function  constructSuperposition(key::String)
-    wa = Beam.Component[];   cwsq2 = 1.0 / sqrt(2.0)
-    #
-    if      key == "radially-polarized LG vector beam"
-        # Obviously, this is not correct
-        push!(wa, Beam.Component(cwsq2, Beam.LaguerreGauss()) )
-        push!(wa, Beam.Component(cwsq2, Beam.BesselBeam()) )
-    elseif  key == "azimuthally-polarized LG vector beam"
-    else    error("Unknown beam type")
+    if  key == "radially-polarized LG vector beam"  ||  key == "azimuthally-polarized LG vector beam"
+        error("\n\nBeam.constructSuperposition(\"$key\") is not implemented: a vector beam needs each component to " *
+              "carry its own polarization, which Beam.Component does not track yet (see this function's docstring).")
+    else
+        error("Beam.constructSuperposition(): unknown beam type \"$key\".")
     end
-    
-    return(wa) 
+end
+
+
+"""
+`Beam.oamOf(beam)`
+    ... to return the orbital angular momentum (OAM) winding number of the given beam, under whichever field name its
+        own struct happens to use (`mOAM` for a `Beam.BesselBeam`, `lOAM` for a `Beam.LaguerreGauss`), so that generic
+        code can ask for a beam's OAM without first finding out which concrete type it holds. A `Beam.PlaneWave` carries
+        none; a `Beam.Component` or `Beam.PhotonBeam` reports its wrapped `beamType`'s own OAM. A `value::Int64` is
+        returned.
+"""
+function oamOf(beam::Beam.PlaneWave)
+    return( 0 )
+end
+
+
+# `Beam.oamOf(beam::Beam.BesselBeam)`  ... the beam's own mOAM field.
+function oamOf(beam::Beam.BesselBeam)
+    return( beam.mOAM )
+end
+
+
+# `Beam.oamOf(beam::Beam.LaguerreGauss)`  ... the beam's own lOAM field.
+function oamOf(beam::Beam.LaguerreGauss)
+    return( beam.lOAM )
+end
+
+
+# `Beam.oamOf(beam::Beam.Component)`  ... delegates to the wrapped beamType's own OAM.
+function oamOf(beam::Beam.Component)
+    return( Beam.oamOf(beam.beamType) )
+end
+
+
+# `Beam.oamOf(beam::Beam.PhotonBeam)`  ... delegates to the wrapped beamType's own OAM.
+function oamOf(beam::Beam.PhotonBeam)
+    return( Beam.oamOf(beam.beamType) )
 end
 
 
