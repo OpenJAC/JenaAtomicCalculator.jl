@@ -269,6 +269,32 @@ end
         with N = SUM_(lj) |<a_d J_d || V || a_0 J_0, l j : J_d>|^2 and [a,b,...] = (2a+1)(2b+1)... The parameters
         are nonzero only for EVEN k, because an unpolarized beam on an unpolarized ion can align the resonance but
         not orient it.
+
+        WHY THIS STAYS ITS OWN FUNCTION rather than a call into `Statistical.computeTensors` plus
+        `Statistical.alignmentParameters` (decided 12-Oct-2026, on the maintainer's question). The two live at
+        different levels: `Statistical.computeTensors` builds rho_kq from amplitudes already resolved by the final
+        state's own magnetic quantum number M_d, whereas `line.channels` carries REDUCED capture amplitudes, one per
+        partial wave (kappa) of the captured electron, with the sum over the unobserved M_d and over the electron's
+        own magnetic substate done ANALYTICALLY by the 6j symbols in Eq. (4) above. Going through the generic path
+        would mean expanding those reduced amplitudes back out into M_d-resolved ones with the very same
+        recoupling this closed form already performs, and then re-contracting them -- extra code reproducing Eq.
+        (4) by a longer route, not a simplification. A_k0 computed this way already agrees with
+        `Statistical.alignmentParameters`'s definition (A_kq = rho_kq/rho_00, see that module's docstring); it is
+        the SAME quantity, just reached without ever materializing the M_d-resolved tensors.
+
+        THE REMARK, and the reason this is worth re-reading once `Beam.BesselBeam`/`Beam.LaguerreGauss` capture is
+        implemented (settings.beamType, settings.impactVector -- see `ElectronCapture.Settings`, both unused
+        today): this function returns A_k0 ONLY, because an on-axis beam leaves the process axially symmetric and
+        every A_kq with q != 0 vanishes by that symmetry alone. An OFF-axis impact vector breaks that symmetry --
+        the project memory on twisted-electron capture (apps-andrey-twisted-electron-dr) finds populations
+        depending on |b_perp| while the azimuthal angle phi_b rotates the ensemble -- so a genuinely twisted
+        calculation produces q != 0 components that this function cannot express at all. At that point the right
+        fix is NOT to extend this closed form rank by rank, but to go back to `Statistical.Tensor` and build the
+        capture ensemble's rho_kq directly (most naturally as a density matrix in M_d, via
+        `Statistical.computeTensors(kmax, densityMatrix, levelKey)` with `levelKey` built as
+        `LevelKey(LevelSymmetry(line.finalLevel.J, line.finalLevel.parity), line.finalLevel.index, ...)`, the
+        pattern already used for this purpose in `Cascade`), since that is exactly the general object an
+        off-axis, phase-carrying ensemble needs and this module's own A_k0 is only its q=0 slice.
 """
 function alignmentParameters(line::ElectronCapture.Line)
     Jd = Basics.twice(line.finalLevel.J) / 2.0;    J0 = Basics.twice(line.initialLevel.J) / 2.0
