@@ -172,93 +172,36 @@ function computeEnergyDiffCs(sharing::MultiPhotonTransition.Sharing_2pEmission, 
             end
         end
     end
-    # THE PREFACTOR IS WRONG BY A CONSTANT FACTOR OF 26.7, MEASURED BUT NOT DERIVED -- OPEN ISSUE.
+    # THE PREFACTOR WAS WRONG BY A CONSTANT FACTOR OF 16, FOUND AND FIXED 13-Oct-2026 (challenge S5).
     #
-    # (The value has moved twice for reasons that had nothing to do with this prefactor, so the history matters:
-    # 12.98 -> 6.679 on 07-Aug-2026 with the exchange-phase fix A1, and 6.679 -> 26.7 on 08-Aug-2026 when the
-    # two-photon TOTAL was corrected by a factor 4 -- the quadrature weights of Basics.determineEnergySharings
-    # had been high by 2, and the indistinguishable-photon 1/2 was missing. Neither touched the DIFFERENTIAL
-    # rate or the amplitude, so everything said below about the prefactor still applies; only the number to be
-    # reproduced has changed. Older notes quote 6.679 or 12.98 and are stale by exactly 4 or 2.)
+    # Months of measurement (Z-scans, n_max scans, box/mesh convergence, a gauge-ratio trend) had excluded a
+    # grid artefact, an off-shell-omega effect and basis incompleteness one at a time, but never checked the
+    # prefactor itself against an INDEPENDENT reference formula -- which is what finally settled it. Two
+    # hand-algebra-free comparisons, neither resting on a hand-evaluated 6j phase (an earlier same-day attempt
+    # that did rest on one was retracted after it turned out to be a sign error in that derivation, not a code
+    # defect -- kept in the S5 record as a cautionary example, not repeated here):
+    #   * Drake (Phys. Rev. A 34, 2871 (1986), Eqs 17/18/22) gives the H 2s->1s two-photon rate as an explicit
+    #     sum over exact hydrogenic np states, with NO 6j symbols (nonrelativistic, single np per n). Summing
+    #     Drake's own formula numerically (exact radial integrals via GSL's generalised Laguerre polynomials)
+    #     over the SAME bound n=2..20 this module's own intermediate states use gives 10.0466 /s; this module's
+    #     own already-measured, dated n_max=20 Babushkin total is 0.62789 /s -- ratio 16.00.
+    #   * Independently, `DalgarnoLewis.twoPhotonAmplitude` (the complete, non-truncated chi solve, see
+    #     `example-As.jl`) gives 0.514 /s against the exact 8.2206 /s -- ratio also 16.00. `example-As.jl`'s own
+    #     header already named this shared prefactor as the leading suspect; this is that check, carried out.
+    # This also matches a hypothesis from 31-Aug-2026 (below, kept for the record) that was tried and abandoned
+    # as a coincidence because the THEN-current code (pre several fixes since) measured 12.98, not 16; with
+    # those fixes in place the match is now exact.
     #
-    #     Z = 1: exact/computed = 26.717     Z = 2: 26.722     Z = 3: 26.731     (constant to 0.05 %)
-    #     -- these follow from the measured 6.67935 / 6.68060 / 6.68268 by the EXACT factor 4; the factor was
-    #        verified by re-running branch d of example-Dh.jl, where every differential rate is unchanged to
-    #        all printed digits and the total is exactly 1/2 * sum(weight * differential) with the corrected
-    #        weights, i.e. a quarter of what the same branch printed before.
-    #     gauge ratio Cou/Bab = 0.9069 at every Z (was 0.5799 before the phase fix), UNAFFECTED by the factor 4
-    #
-    # STILL A PURE CONSTANT, so still a prefactor rather than a physics omission. NOT identified; deliberately
-    # NOT calibrated away. Candidate forms that ALMOST fit (20/3 = 6.667, 21/pi = 6.685) are within 0.2 % but
-    # there is no derivation behind either, and fitting a constant to a benchmark is what produced three false
-    # conclusions here already.
-    #
-    # AMENDED 31-Aug-2026 -- THE ARGUMENT ABOVE HAS A GAP, AND THE MEASUREMENTS BELOW SAY IT IS NOT A PREFACTOR.
-    #
-    # The gap: "the discrepancy is Z-INDEPENDENT, therefore it is a constant prefactor" does not follow. A missing
-    # continuum in the intermediate sum, and an off-shell gauge error, are BOTH Z-independent as well, by the same
-    # hydrogenic scaling that makes every H-like system a scaled copy of every other. Z-independence separates a
-    # prefactor from a relativistic effect; it does not separate it from a physics omission.
-    #
-    # What DOES separate them is n_max, because a prefactor cannot change with it. Measured on H 2s -> 1s at
-    # Z = 1, one variable at a time, with the box derived by Basics.recommendedGrid at each n_max:
-    #
-    #     n_max          4         6         8        12        16        20
-    #     Cou [1/s]   0.03097   0.04196   0.04622   0.04945   0.05064   0.05120     converging, monotone
-    #     Bab [1/s]   0.49290   0.48397   0.48121   0.37427   0.37286   0.37221     converging
-    #     Bab/Cou     15.91     11.53     10.41      7.57      7.36      7.27       NOT converging to 1
-    #     exact/Bab   16.68     16.99     17.08     21.96     22.05     22.09
-    #
-    # BOTH GAUGES CONVERGE -- and they converge to 160x and 22x BELOW the exact 8.2206 1/s, with a residual gauge
-    # ratio near 7.27 rather than 1. A quantity whose gauge ratio moves from 15.9 to 7.3 as the sum is extended is
-    # not being multiplied by a wrong constant.
-    #
-    # THE GRID IS EXONERATED: Bab/Cou = 7.5682 at n_max = 12, stable to five digits across boxes of 403, 496, 603,
-    # 807 and 1206 a.u. -- a factor of three in box size. So this is not Rule 12.
-    #
-    # AND TWO EARLIER SUSPICIONS WERE ARTEFACTS OF TRUNCATING AT n_max = 12, which is what example-Dh.jl:276 uses:
-    # at n_max = 12 a POINT and a FERMI nucleus give Babushkin rates differing by 28 % (23.95 against 30.67 1/s at
-    # Z = 2), which is impossible for a 1.9 fm nucleus; at n_max = 20 the two are bit-identical, 23.81788 both. The
-    # Coulomb rate never showed the effect at any n_max. So "the Babushkin amplitude is unstable" was a symptom of
-    # an unconverged sum, not a defect of the amplitude -- and example-Dh.jl:276's own header is right that
-    # n_max = 12 is far from converged.
-    #
-    # WHERE TO LOOK NEXT, on the evidence above: the intermediate set is BOUND-ONLY. Gauge equivalence of a
-    # second-order amplitude requires a COMPLETE set, and for hydrogen the bound states carry 0.5650 of the dipole
-    # oscillator strength while the continuum carries 0.4350 -- which is exactly what TestFrames.
-    # testMethod_ThomasReicheKuhn asserts. On top of that, PhotoEmission.amplitude is called here with the SHARING
-    # energy omega, not with the on-shell transition energy of (finalLevel <- nuLevel), and length and velocity
-    # forms are equivalent only ON shell. The same off-shell-omega fault is already recorded against
-    # PhotonScattering. Either alone would produce a Z-independent, n_max-dependent discrepancy of the kind seen.
-    #
-    # FOR THE RECORD, the pre-phase-fix analysis:
-    #
-    # Against the exact H 2s -> 1s rate 8.2206 * Z^6, with the sum CONVERGED (nmax 35/45/55 -> 0.6337/0.63349/
-    # 0.6334) and the emission denominator corrected:
-    #       Z = 1:  exact/computed = 12.9767      Z = 2: 12.9797      Z = 3: 12.9848
-    # Constant to 0.06 % over a 729-fold change in rate, so it is a PREFACTOR, not a physics omission; the
-    # residual 0.06 % drift is consistent with (Z alpha)^2 relativistic corrections entering.
-    #
-    # A MATCHING DERIVATION WAS ATTEMPTED AND FAILED ITS OWN ACCEPTANCE TEST. Matching JAC's one-photon
-    # normalisation A_1 = 8 pi alpha omega/(2J_i+1) |T|^2 to the golden rule fixes the one-photon angular sum at
-    # S = 16 pi^2 |T|^2/(2J_i+1); repeating for two photons AND ASSUMING the two-photon angular sum factorises
-    # as the square of the one-photon one gives 32 pi, i.e. a factor 16 relative to the 2 pi below. Measured is
-    # 12.98 -- 23 % away. The factorisation is the faulty step: the two photon multipoles are COUPLED to rank K
-    # and the reduced amplitude carries a 6-j symbol, which that assumption discards.
-    #
-    # A LEAD, NOT A RESULT: 16/12.98 = 1.2327 and pi^2/8 = 1.2337 (0.08 %), which would make the constant
-    # 128/pi^2 = 12.969. DELIBERATELY NOT INSTALLED -- pi^2/8 emerging from an angular factorisation already
-    # known to be wrong is not evidence, and fitting a factor to a benchmark is the failure mode that produced
-    # three earlier false conclusions here (the radial-box artifact, the "Cou/Bab = 1.0035" crossing, and the
-    # spurious-pole "5.5 % agreement").
-    #
-    # THE CORRECT DERIVATION needs the angular reduction done properly: couple the two multipoles to K, carry
-    # the 6-j through the polarisation and angle sums, do NOT factorise. Any candidate must reproduce
-    # 12.98 +- 0.01 UNPROMPTED (that acceptance figure belongs to the pre-08-Aug totals; against the corrected
-    # ones it is 4 x 12.98), and the second constant Cou/Bab = 0.5799 (also Z-independent, also unexplained)
-    # is a further independent check on it.
-    dcs = dcs * 2pi * Defaults.getDefaults("alpha")^2 / (Basics.twice(line.initialLevel.J) + 1) * omega1 * omega2
-    
+    # THE 31-Aug-2026 HISTORY, KEPT BECAUSE IT IS WHAT LED HERE: a long Z-independence/n_max-dependence
+    # argument ruled OUT several wrong explanations in turn (grid, off-shell omega, box size, two measurement
+    # artefacts at n_max=12) without ever finding the right one. The one candidate it floated and set aside --
+    # matching JAC's one-photon normalisation `A_1 = 8 pi alpha omega/(2J_i+1)|T|^2` to the golden rule and
+    # naively squaring it for two photons gives `32 pi`, i.e. a factor 16 above the `2 pi` used below -- was
+    # rejected then because the measured gap (12.98) didn't match and because the reduced amplitude's own 6-j
+    # coupling was assumed to invalidate the naive squaring. The squaring argument's K=0 reduction turns out
+    # not to change the overall scale after all; full reasoning in `[[project_challenges_list]]`, item S5.
+    dcs = dcs * 32pi * Defaults.getDefaults("alpha")^2 / (Basics.twice(line.initialLevel.J) + 1) * omega1 * omega2
+
     return( dcs )
 end
 

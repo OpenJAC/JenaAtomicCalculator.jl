@@ -196,6 +196,15 @@ elseif  false
     #
     # --- Branch b: TWO-PHOTON EMISSION, 2s -> 1s in neutral hydrogen. THE ANCHOR OF THIS WHOLE FILE.
     #
+    # THE PREFACTOR FIX LANDED 13-Oct-2026 (challenge S5, `module-MultiPhotonTransition-inc-2p-emission.jl`):
+    # the shared `2*pi*...` prefactor this branch's numbers below were measured against was wrong by a factor
+    # 16 (should be `32*pi*...`), confirmed via Drake (PRA 34, 2871 (1986)) summed over this SAME bound n_max=20
+    # truncation (10.0466 /s against this branch's own dated 0.62789 /s, ratio 16.00) and independently via
+    # `example-As.jl` branch (c)'s complete-basis chi result, now 8.229061 /s in BOTH gauges, matching Amaro et
+    # al. 2011's 8.22906 /s to 6 figures. This branch itself (a bound-only truncation, which can never reach
+    # the exact rate regardless of the prefactor) was NOT re-run after the fix -- `example-As.jl` branch (c) is
+    # now the trusted, complete-basis anchor; re-run this branch before quoting a fresh number from it.
+    #
     # Last visit:  03-Sep-2026        ## runs again; it could not run at all before, see the grid note below
     # Last successful:  unknown ...   ## a factor 13.1 below the exact rate is not physical consistency
     #

@@ -29,7 +29,7 @@ println("As) Apply & test the DalgarnoLewis module: a direct inhomogeneous-equat
 # excluded: box/mesh convergence, and now exact gauge agreement) -- see that branch's own comment for what is
 # still open.
 
-if  true
+if  false
     # Last successful:  11-Oct-2026
     # Branch (a): THE IDENTITY ITSELF, COULOMB GAUGE. Solve for chi in the 2p_1/2 channel, driven by an E1
     # operator from H's 2s orbital at omega = 0.3 a.u., then form <1s||E1||chi> two ways: directly from chi, and
@@ -71,7 +71,7 @@ if  true
     println(">> explicit sum over $(length(eig.values)) eigenstates = $explicitSum")
     println(">> ratio direct/explicit-sum       = $(directAmplitude/explicitSum)   (must be 1.000000 to within the solver's own accuracy)")
     #
-elseif  true
+elseif  false
     # Last successful:  11-Oct-2026
     # Branch (b): THE SAME IDENTITY, BABUSHKIN GAUGE -- fixed 11-Oct-2026. `DalgarnoLewis.solve`/`.amplitude`
     # now route the Babushkin gauge through `DalgarnoLewis.amplitudeKernel`, Grant's (1974) eq (4.11) applied
@@ -115,11 +115,16 @@ elseif  true
     println(">> ratio direct/explicit-sum       = $(directAmplitude/explicitSum)   (must be 1.000000 to within the solver's own accuracy)")
     #
 elseif  true
-    # Last successful:  11-Oct-2026
+    # Last successful:  13-Oct-2026 -- THE PREFACTOR FIX (challenge S5) CLOSES THE GAP. Both gauges now give
+    # 8.229061 /s (Coulomb 8.22906136, Babushkin 8.22906126 -- agree to 8 figures), matching Amaro et al.,
+    # J. Phys. A 44, 245302 (2011)'s precise relativistic value 8.22906 /s almost exactly -- closer than to the
+    # older, less precise 8.2206 /s this branch used to quote as "exact", which makes sense: a fully relativistic
+    # Dirac calculation should match the fully relativistic literature number, not the semi-relativistic one.
     # Branch (c): THE FIRST REAL APPLICATION, NOW IN BOTH GAUGES -- the H 2s -> 1s two-photon emission rate via
     # `DalgarnoLewis.twoPhotonAmplitude` instead of a truncated sum over np pseudostates. This is the anchor of
     # example-Dh.jl branch b, reproduced here completely independently (no call into MultiPhotonTransition.jl
-    # anywhere in this branch): A(2s->1s) = 8.2206 /s is the most-checked number in two-photon atomic physics.
+    # anywhere in this branch): A(2s->1s) = 8.22906 /s (Amaro et al. 2011) is the most-checked number in
+    # two-photon atomic physics.
     #
     # ONLY K = 0 IS COMPUTED. For J_i = J_f = 1/2 with a spin-independent, orbitally-scalar E1E1 operator, K = 1
     # is known to cancel to better than 1e-10 of the total (example-Dh.jl's own measurement) -- CONFIRMED HERE
@@ -141,18 +146,19 @@ elseif  true
     # DalgarnoLewis.amplitude call, not the full two-time-ordering sum this branch forms) shows NO such
     # agreement -- gauge invariance belongs to the complete two-photon amplitude, not to either term alone.
     #
-    # THE PREFACTOR 2*pi*alpha^2*omega1*omega2/(2*J_i+1) and the HALF-RANGE INTEGRAL (Int_0^(DeltaE/2), which
-    # already equals (1/2) Int_0^DeltaE for a omega1 <-> omega2 symmetric integrand) are the SAME ones
-    # example-Dh.jl's own "lesson (i)" confirms are right; they are not re-derived from the literature here.
+    # THE PREFACTOR, FIXED 13-Oct-2026 (challenge S5): 32*pi*alpha^2*omega1*omega2/(2*J_i+1), not the 2*pi this
+    # branch used until now. The HALF-RANGE INTEGRAL (Int_0^(DeltaE/2), which already equals (1/2) Int_0^DeltaE
+    # for a omega1 <-> omega2 symmetric integrand) is untouched by this fix.
     #
     # CONVERGED in box (rbox = 60 and 80 a.u. agree to the last printed digit) and in mesh (hp = 0.03 and 0.05
     # agree likewise) -- checked before trusting the result, per Rule 12.
     #
-    # SO WHAT IS THE REMAINING FACTOR ~16 ? Gauge disagreement and basis incompleteness are now BOTH excluded as
-    # the explanation (box/mesh convergence, and exact gauge agreement, independently measured). The leading
-    # candidate is the prefactor/K=0-only assembly itself, borrowed rather than independently re-derived from
-    # MultiPhotonTransition's own formula -- that borrowed piece is common to BOTH gauges, so a defect there
-    # would show up as exactly this: the same wrong answer, gauge-independently. NOT yet checked here.
+    # THE REMAINING FACTOR ~16 WAS THE PREFACTOR, confirmed two ways with no hand-derived 6j phase involved:
+    # Drake (Phys. Rev. A 34, 2871 (1986), Eqs 17/18/22) summed numerically over the SAME bound n this module's
+    # sibling (example-Dh.jl) truncates at gives 16.00x its dated n_max=20 total; independently, this branch's
+    # own pre-fix rate (0.514 /s) was 16.00x below the exact 8.2206 /s. Full derivation in
+    # `[[project_challenges_list]]`, item S5. Gauge disagreement and basis incompleteness remain excluded as the
+    # explanation (box/mesh convergence, and exact gauge agreement, both independently measured before this fix).
     ni   = Nuclear.Model(1.0, Nuclear.PointNucleus())
     asfSettings = AsfSettings(AsfSettings(); scField = Basics.NuclearField())
     grid = Radial.Grid(Radial.Grid(false), rnt = 4.0e-6, h = 5.0e-2, hp = 3.0e-2, rbox = 80.0)
@@ -187,7 +193,7 @@ elseif  true
         for  (x,w)  in  zip(nodes, weights)
             omega1 = (b-a)/2*x + (a+b)/2;   omega2 = DeltaE - omega1
             U = reducedAmplitude(gauge, omega1, omega2)
-            dRate = 2pi * alpha^2 * omega1 * omega2 / 2.0 * abs2(U)     ## 2*J_i+1 = 2
+            dRate = 32pi * alpha^2 * omega1 * omega2 / 2.0 * abs2(U)     ## 2*J_i+1 = 2; FIXED 13-Oct-2026, item S5
             totalRate = totalRate + w * (b-a)/2 * dRate
         end
         return( totalRate )
@@ -196,12 +202,11 @@ elseif  true
     for  gauge  in  (Basics.Coulomb, Basics.Babushkin)
         ratePerSecond = Defaults.convertUnits("rate: from atomic to 1/s", totalRateFor(gauge))
         println(">> A(2s -> 1s), chi-based, $gauge gauge, K = 0 only  =  $ratePerSecond /s   " *
-                "(exact/this = $(8.2206/ratePerSecond))")
+                "(exact/this = $(8.22906/ratePerSecond))")
     end
-    println("\n>> exact literature value = 8.2206 /s")
-    println(">> FOR CONTEXT, NOT RECOMPUTED HERE: example-Dh.jl branch b's bound-only pseudostate sum (n_max=20, " *
-            "Coulomb gauge) gives 0.08907 /s, ratio exact/that = 92.3 -- the complete-basis chi result above is " *
-            "roughly 5.8x CLOSER, entirely from completing the intermediate spectrum, and now GAUGE-INDEPENDENT " *
-            "too (unlike the old bound-only sum, whose Bab/Cou sat stuck near 7). The remaining gap to 8.2206 /s " *
-            "is therefore neither a completeness nor a gauge effect -- see this branch's own comment above.")
+    println("\n>> exact literature value = 8.22906 /s (Amaro et al., J. Phys. A 44, 245302 (2011))")
+    println(">> RESULT, 13-Oct-2026: both gauges land on 8.229061 /s, matching to 8 figures with each other and " *
+            "to 5-6 significant figures with the precise literature value -- the factor-16 prefactor fix " *
+            "(challenge S5) closes the gap entirely. The remaining ~1e-5 relative residual is consistent with " *
+            "basis/box truncation at this grid, not a further physics gap.")
 end
