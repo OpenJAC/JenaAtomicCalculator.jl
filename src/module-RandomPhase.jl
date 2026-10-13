@@ -94,6 +94,16 @@ using  LinearAlgebra, Printf, ..Basics, ..Bsplines, ..DalgarnoLewis, ..ManyElect
                                                          `DalgarnoLewis.solve` call.
     + printBefore         ::Bool                      ... True if a short overview is to be printed before
                                                          the orchestration starts.
+    + andersonDepth       ::Int64                     ... depth of the Anderson history used to accelerate the
+                                                         coupled iteration.  **THE DEFAULT IS 0, i.e. plain
+                                                         linear mixing, and that is a MEASURED choice rather
+                                                         than a cautious one:** Anderson was implemented for
+                                                         priority item 62 and does NOT repair this fixed point
+                                                         -- on the Ne case in `solve`'s own note it is WORSE
+                                                         than heavy damping at every depth tried.  It is kept
+                                                         because it is sound, costs nothing when unused, and
+                                                         may help a better-posed case;  do not switch it on
+                                                         without checking that it converges.
 """
 struct Settings
     activeSubshells        ::Array{Subshell,1}
@@ -104,6 +114,7 @@ struct Settings
     mixing                  ::Float64
     dalgarnoLewis            ::DalgarnoLewis.Settings
     printBefore              ::Bool
+    andersonDepth            ::Int64
 end
 
 
@@ -111,7 +122,7 @@ end
 `RandomPhase.Settings()`  ... constructor for an `empty` instance of RandomPhase.Settings.
 """
 function Settings()
-    Settings( Subshell[], Dict{Subshell,Subshell}(), false, 15, 1.0e-6, 0.3, DalgarnoLewis.Settings(), false )
+    Settings( Subshell[], Dict{Subshell,Subshell}(), false, 15, 1.0e-6, 0.3, DalgarnoLewis.Settings(), false, 0 )
 end
 
 
@@ -124,7 +135,8 @@ function Settings(settings::RandomPhase.Settings;
     activeSubshells::Union{Nothing,Array{Subshell,1}}=nothing,   targetSubshells::Union{Nothing,Dict{Subshell,Subshell}}=nothing,
     couplingEnabled::Union{Nothing,Bool}=nothing,                 maxIterations::Union{Nothing,Int64}=nothing,
     accuracy::Union{Nothing,Float64}=nothing,                     mixing::Union{Nothing,Float64}=nothing,
-    dalgarnoLewis::Union{Nothing,DalgarnoLewis.Settings}=nothing, printBefore::Union{Nothing,Bool}=nothing)
+    dalgarnoLewis::Union{Nothing,DalgarnoLewis.Settings}=nothing, printBefore::Union{Nothing,Bool}=nothing,
+    andersonDepth::Union{Nothing,Int64}=nothing)
 
     if  isnothing(activeSubshells)   activeSubshellsx = settings.activeSubshells   else   activeSubshellsx = activeSubshells   end
     if  isnothing(targetSubshells)   targetSubshellsx = settings.targetSubshells   else   targetSubshellsx = targetSubshells   end
@@ -134,8 +146,10 @@ function Settings(settings::RandomPhase.Settings;
     if  isnothing(mixing)            mixingx          = settings.mixing            else   mixingx          = mixing            end
     if  isnothing(dalgarnoLewis)     dalgarnoLewisx   = settings.dalgarnoLewis     else   dalgarnoLewisx   = dalgarnoLewis      end
     if  isnothing(printBefore)       printBeforex     = settings.printBefore       else   printBeforex     = printBefore       end
+    if  isnothing(andersonDepth)     andersonDepthx   = settings.andersonDepth     else   andersonDepthx   = andersonDepth     end
 
-    Settings( activeSubshellsx, targetSubshellsx, couplingEnabledx, maxIterationsx, accuracyx, mixingx, dalgarnoLewisx, printBeforex )
+    Settings( activeSubshellsx, targetSubshellsx, couplingEnabledx, maxIterationsx, accuracyx, mixingx, dalgarnoLewisx, printBeforex,
+              andersonDepthx )
 end
 
 
@@ -320,9 +334,41 @@ function solve(multipole::EmMultipole, gauge::EmGauge, omega::Float64, activeOrb
                                        settings=settings.dalgarnoLewis)
     end
 
-    # THE DAMPED (LINEARLY MIXED) ITERATION -- see Settings.mixing's own docstring for why the plain,
-    # undamped iteration (mixing = 1.0) does not converge.
+    # THE ITERATION.  The fixed-point variable is the INDUCED SOURCE, one vector per active subshell, and the
+    # map is "given the sources, solve for the chis;  from the chis, rebuild the sources".  Two schemes are
+    # available and the choice is `settings.andersonDepth`.
+    #
+    # **PLAIN LINEAR MIXING HAS NO USABLE WINDOW, AND THAT WAS MEASURED RATHER THAN SUSPECTED (13-Oct-2026,
+    # priority item 62).**  On Ne 1s^2 2s^2 2p^6 in its own DFS potential, E1 at omega = 0.1, three active
+    # subshells, the ratio |chi|_coupled/|chi|_uncoupled after 40 iterations came out
+    #       mixing 0.300 -> 9.4e+08     0.100 -> 2.3e+03     0.030 -> 7.8     0.010 -> 1.9     0.003 -> 1.0
+    # and `converged` was false at every one:  DIVERGENT above about 0.03 and merely CREEPING below it.  The
+    # ratio FALLING with the mixing is what rules out a sign error -- positive feedback would be
+    # mixing-independent -- so the induced term is sound and it is the SCHEME that fails.
+    #
+    # **ANDERSON ACCELERATION WAS TRIED AND DOES NOT REPAIR IT -- MEASURED 13-Oct-2026, SAME CASE.**  It is the
+    # construction `SelfConsistent.solveMeanFieldBasisAnderson` uses for the mean-field SCF:  keep a short
+    # history of the iterate x and the residual f = x_new - x, solve gamma = dF \ f, step to
+    #       x <- x + f - (dX + dF) gamma ,
+    # with a rank-deficient window falling back to the plain step.  On the Ne case above, at 40 iterations:
+    #       depth 2 -> 18.1 / 3.22 / 1.38      depth 3 -> 77.8 / 101 / 140      depth 5 -> 124 / 48.2 / 52.9
+    # none converged, and ALL ARE WORSE THAN PLAIN MIXING AT 0.003.  So the default is andersonDepth = 0 and
+    # the code is kept available rather than imposed.
+    #
+    # WHAT THAT TOGETHER IMPLIES, and it is the useful part:  a fixed point that neither damping nor Anderson
+    # can reach is not a step-size problem at all.  Anderson accelerates a map whose iteration matrix has
+    # spectral radius near or below one;  it cannot rescue one well above it.  **The remedy is therefore a
+    # DIRECT SOLVE of the coupled system rather than any iteration of it** -- the coupled Dalgarno-Lewis
+    # equations for all active subshells form ONE linear system, and iterating them is a Jacobi scheme that
+    # diverges exactly when the coupling is strong, which is the interesting regime.  That is how an RPA is
+    # normally solved, and it is the next thing to try.
+    #
+    # NOT YET RULED OUT, and it must be before the above is believed:  the measurement used three active
+    # subshells with ONE target channel each, which is a crude induced potential.  The instability may belong
+    # to that truncation rather than to the method.
     converged = false;   nIterations = 0;   previousExtraSource = Dict{Subshell,Array{Float64,1}}()
+    xHistory = Dict{Subshell,Vector{Vector{Float64}}}();   fHistory = Dict{Subshell,Vector{Vector{Float64}}}()
+    for  a in subshells   xHistory[a] = Vector{Float64}[];   fHistory[a] = Vector{Float64}[]   end
     for  iteration = 1:settings.maxIterations
         nIterations = iteration
         newChis = Dict{Subshell,DalgarnoLewis.PerturbedOrbital}();   maxRelChange = 0.0
@@ -330,7 +376,34 @@ function solve(multipole::EmMultipole, gauge::EmGauge, omega::Float64, activeOrb
             VindZr      = RandomPhase.inducedPotentialZr(multipole, activeOrbitals, chis, a, grid)
             justComputed = RandomPhase.inducedSourceVector(VindZr, activeOrbitals[a], primitives)
             priorSource  = get(previousExtraSource, a, zeros(length(justComputed)))
-            dampedSource = settings.mixing * justComputed + (1.0 - settings.mixing) * priorSource
+            if  settings.andersonDepth <= 0  ||  iteration == 1
+                dampedSource = settings.mixing * justComputed + (1.0 - settings.mixing) * priorSource
+            else
+                # x is the source actually used last time, f its residual against what the chis then implied
+                fNew = justComputed - priorSource
+                push!(xHistory[a], copy(priorSource));   push!(fHistory[a], copy(fNew))
+                while  length(xHistory[a]) > settings.andersonDepth + 1
+                    popfirst!(xHistory[a]);   popfirst!(fHistory[a])
+                end
+                m = length(xHistory[a]) - 1
+                if  m < 1
+                    dampedSource = priorSource + fNew
+                else
+                    dF = zeros(length(fNew), m);   dX = zeros(length(fNew), m)
+                    for  j = 1:m
+                        dF[:,j] = fHistory[a][j+1] - fHistory[a][j];   dX[:,j] = xHistory[a][j+1] - xHistory[a][j]
+                    end
+                    local gamma
+                    try
+                        gamma = dF \ fNew
+                    catch
+                        gamma = zeros(m)            ## a rank-deficient window: fall back to the plain step
+                    end
+                    if  any(!isfinite, gamma)   gamma = zeros(m)   end
+                    dampedSource = priorSource + fNew - (dX + dF) * gamma
+                    if  any(!isfinite, dampedSource)   dampedSource = priorSource + settings.mixing * fNew   end
+                end
+            end
 
             newChis[a] = DalgarnoLewis.solve(multipole, gauge, omega, targets[a], activeOrbitals[a], potential,
                                               primitives; settings=settings.dalgarnoLewis, extraSource=dampedSource)
