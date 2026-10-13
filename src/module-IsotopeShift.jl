@@ -1,7 +1,12 @@
 
 """
-`module  JAC.IsotopeShift`  
+`module  JAC.IsotopeShift`
 ... a submodel of JAC that contains all methods for computing isotope-dependent properties for some level(s).
+    Besides the ab-initio K_ms and F parameters themselves, it also carries the small `kingPlot...` family of
+    helper functions that turn those parameters (together with externally-measured isotope shifts, which this
+    module does not and cannot compute on its own) into a King plot: the modified isotope shift, the nuclear
+    mean-square charge-radius change a single transition implies, and the ordinary least-squares fit of two
+    transitions against each other.
 """
 module IsotopeShift
 
@@ -608,6 +613,80 @@ function  displayResults(stream::IO, outcomes::Array{IsotopeShift.Outcome,1}, se
     println(stream, "  ", TableStrings.hLine(nx), "\n\n")
 
     return( nothing )
+end
+
+
+##### King-plot helpers #####
+
+"""
+`IsotopeShift.kingPlotModifiedShift(deltaNu::Float64, massA::Float64, massAprime::Float64)`
+    ... to compute the MODIFIED isotope shift  deltaNu' = mu^(A,A') * deltaNu  that a King plot is built from,
+        with the reduced-mass factor mu^(A,A') = massA*massAprime/(massAprime-massA). This is a purely kinematic
+        reweighting of a RAW isotope shift (measured or otherwise supplied by the caller in whatever frequency
+        unit it is quoted in, e.g. MHz or GHz) by the two isotope masses (in atomic mass units, u); it carries
+        no dependence on JAC's own internal atomic units and performs no unit conversion of its own, so the
+        returned value is in the SAME frequency unit as deltaNu, times u.
+        A value::Float64 is returned.
+"""
+function  kingPlotModifiedShift(deltaNu::Float64, massA::Float64, massAprime::Float64)
+    mu = massA * massAprime / (massAprime - massA)
+
+    return( deltaNu * mu )
+end
+
+
+"""
+`IsotopeShift.kingPlotChargeRadiusChange(deltaNuMeasured::Float64, Kms::Float64, F::Float64, massA::Float64, massAprime::Float64)`
+    ... to extract the change in the nuclear mean-square charge radius, delta<r^2>^(A,A'), implied by a MEASURED
+        isotope shift of one transition together with JAC's own calculated K_ms and F for that same transition,
+        by inverting the standard King relation  deltaNu = K_ms*(1/massA - 1/massAprime) + F*delta<r^2>, i.e.
+        deltaNu' = K_ms + F*mu*delta<r^2>  for the MODIFIED shift deltaNu' = mu*deltaNu (see
+        `IsotopeShift.kingPlotModifiedShift`) -- note the extra factor of mu against F here, easy to miss since
+        it is absent from the deltaNu'-vs-K_ms relation one line up.
+
+        SIGN CONVENTION, WORTH READING BEFORE PASSING IN TABLE VALUES. deltaNuMeasured, Kms and F must all be
+        for the SAME transition direction, upper level minus lower level (i.e. the ordinary, positive transition
+        energy/frequency convention a measurement like an isotope-shift paper uses). `IsotopeShift.displayResults`
+        own transition table prints K_ms and F the OPPOSITE way round, lower-index level minus higher-index level
+        (so, for a ground/excited pair, ground minus excited) -- its own header's advice "just take the
+        difference K_i - K_f" is for comparing TWO ISOTOPES of the SAME transition, not for fixing a transition's
+        own internal direction, and the two are easy to conflate. A caller using that table's printed Kms, F here
+        must NEGATE them first, or (equivalently, and clearer at the call site) form Kms = foutcome.Knms +
+        foutcome.Ksms - ioutcome.Knms - ioutcome.Ksms and F = foutcome.Fme - ioutcome.Fme directly from the two
+        `IsotopeShift.Outcome`s, with `foutcome` the upper (excited) level and `ioutcome` the lower one.
+
+        Units follow this module's own `displayResults` convention otherwise: deltaNuMeasured in MHz, Kms in
+        GHz*u, F in MHz/fm^2, massA and massAprime in atomic mass units (u).
+        A value::Float64, in fm^2, is returned.
+"""
+function  kingPlotChargeRadiusChange(deltaNuMeasured::Float64, Kms::Float64, F::Float64, massA::Float64, massAprime::Float64)
+    mu            = massA * massAprime / (massAprime - massA)
+    modifiedShift = IsotopeShift.kingPlotModifiedShift(deltaNuMeasured, massA, massAprime)
+    KmsInMHzu     = Kms * 1000.0
+
+    return( (modifiedShift - KmsInMHzu) / (F * mu) )
+end
+
+
+"""
+`IsotopeShift.kingPlotFit(xModifiedShifts::Array{Float64,1}, yModifiedShifts::Array{Float64,1})`
+    ... to fit the standard King-plot straight line y = slope*x + intercept by ordinary least squares, where x
+        and y are the MODIFIED isotope shifts (see `IsotopeShift.kingPlotModifiedShift`) of a reference
+        transition and of the transition of interest, respectively, each evaluated for the SAME set of isotope
+        pairs; both arrays must therefore have one entry per isotope pair, in the same order. The slope is the
+        ratio F_y/F_x of the two transitions' field-shift constants and the intercept is K_ms,y - slope*K_ms,x,
+        which is the usual cross-check a King plot provides without needing either transition's F individually.
+        A (slope, intercept)::Tuple{Float64,Float64} is returned.
+"""
+function  kingPlotFit(xModifiedShifts::Array{Float64,1}, yModifiedShifts::Array{Float64,1})
+    length(xModifiedShifts) != length(yModifiedShifts)   &&   error("IsotopeShift.kingPlotFit(): x and y must have the same length.")
+    n  = length(xModifiedShifts)
+    sx = sum(xModifiedShifts);                  sy  = sum(yModifiedShifts)
+    sxx = sum(xModifiedShifts.^2);               sxy = sum(xModifiedShifts .* yModifiedShifts)
+    slope     = (n*sxy - sx*sy) / (n*sxx - sx^2)
+    intercept = (sy - slope*sx) / n
+
+    return( (slope, intercept) )
 end
 
 end # module

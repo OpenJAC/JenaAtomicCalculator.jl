@@ -36,7 +36,7 @@ if  false
 
     wb = perform(wa)
     #
-elseif  true
+elseif  false
     # Last successful:  30-Jul-2026
     # Branch b: Li-like Nd (Z=60), 1s^2 2s ^2S_1/2 / 1s^2 2p ^2P_1/2,3/2 -- the RIS3/RIS4 papers' own worked
     #   example. 74Nd-142 Fermi nucleus (rms 4.9123 fm), single configuration (no correlation).
@@ -265,6 +265,78 @@ elseif  false
         println("\n***  nuclear shape: $label")
         perform(wa)
     end
+    #
+elseif  true
+    # Last successful:  13-Oct-2026
+    #
+    # Branch g: THE KING-PLOT HELPERS (competition-list item C10) -- reuses branch b/d's exact Li-like Nd
+    #   system (Z=60, A=142, Fermi, rms=4.9123 fm, single configuration) and feeds its own K_ms, F straight
+    #   into `IsotopeShift.kingPlotChargeRadiusChange`, checked against a REAL measurement:
+    #   Brandau et al., Phys. Rev. Lett. 100, 073201 (2008) measured the isotope shift of the 2s-2p_1/2 and
+    #   2s-2p_3/2 resonances between 142Nd57+ and 150Nd57+ in dielectronic recombination and extracted
+    #   142,150(delta<r^2>) = -1.36(1)(3) fm^2.
+    #
+    # A REAL BUG AND A REAL SIGN TRAP WERE FOUND BUILDING THIS BRANCH, both now fixed/documented at the
+    # function itself (module-IsotopeShift.jl):
+    #   (1) kingPlotChargeRadiusChange first divided by F alone; the correct King relation (deltaNu*mu = K_ms +
+    #       F*mu*delta<r^2>) needs F*mu in the denominator. Missing it gave delta<r^2> ~ 3340 fm^2 instead of
+    #       order 1 -- off by exactly the missing factor of mu (~2655 u), caught only by testing against this
+    #       real number rather than trusting the algebra.
+    #   (2) `IsotopeShift.displayResults`'s own transition table prints K_ms, F as LOWER-INDEX-LEVEL minus
+    #       HIGHER-INDEX-LEVEL (here: 2s minus 2p_j), the OPPOSITE of the upper-minus-lower convention a
+    #       measured transition-energy isotope shift naturally uses. Using the table's printed sign directly
+    #       flips the result's sign (+1.31 instead of -1.31). This branch builds K_ms, F explicitly as
+    #       (2p_j outcome) minus (2s outcome), not by reading the table, to stay on the correct side of that trap.
+    #   (3) `IsotopeShift.Outcome`'s own K_nms/K_sms/F_me fields are in RAW ATOMIC UNITS -- the 3609.4824
+    #       (-> GHz*u) and `Defaults.convertUnits` (-> MHz/fm^2) factors live ONLY inside `displayResults`,
+    #       applied just before printing. Passing the raw Outcome values straight into
+    #       `kingPlotChargeRadiusChange` (which expects the already-converted, printed units) gave
+    #       delta<r^2> ~ -8.4e9 fm^2 on the first attempt -- the SAME missing-factor shape of mistake as (1),
+    #       just in the unit conversion rather than the formula.
+    #
+    # RESULT: 2s-2p_1/2 gives delta<r^2> = -1.311 fm^2 (3.6% low); 2s-2p_3/2 gives -1.336 fm^2 (1.8% low) --
+    #   TWO INDEPENDENT transitions agreeing with EACH OTHER to 1.9% and with Brandau's measurement to a few
+    #   percent, consistent with the ~4% F-accuracy and ~0.1-0.2% K_nms-accuracy this same single-configuration
+    #   system already showed against RIS3/RIS4 in branches b and c above -- no new accuracy claim beyond what
+    #   those branches already established, just a new, externally-measured way of exercising it.
+    nm      = Nuclear.Model(60., FermiNucleus(), 142., 4.9123, AngularJ64(0//1), 0.0, 0.0, 0.0)
+    wa      = Atomic.Computation(Atomic.Computation(), name="Cc-g-NdKingPlot", grid=Radial.Grid(true),
+                            nuclearModel=nm,
+                            configs=[Configuration("1s^2 2s"), Configuration("1s^2 2p")],
+                            propertySettings=[ IsotopeShift.Settings(IsotopeShift.Settings(); calcNMS=true, calcSMS=true,
+                                                calcF=true, printBefore=true) ] )
+    wb       = perform(wa; output=true)
+    outcomes = wb[IsotopeShift.Settings]
+
+    s2s   = [o for o in outcomes if o.level.J == AngularJ64(1//2) && o.level.parity == Basics.plus ][1]
+    p2p12 = [o for o in outcomes if o.level.J == AngularJ64(1//2) && o.level.parity == Basics.minus][1]
+    p2p32 = [o for o in outcomes if o.level.J == AngularJ64(3//2) && o.level.parity == Basics.minus][1]
+
+    massNd142 = 141.907729;   massNd150 = 149.920902         ## standard atomic mass values, in u
+    meV_to_MHz = 2.417989242e8 * 1.0e-3                       ## 1 eV = 2.417989242e8 MHz (E = h*f)
+
+    for  (label, upper, deltaE_meV, brandau) in  [ ("2s -> 2p_1/2", p2p12, 40.2, -1.36), ("2s -> 2p_3/2", p2p32, 42.3, -1.36) ]
+        ## Outcome's own K_nms/K_sms/F_me fields are in RAW ATOMIC UNITS, exactly as `displayResults` finds
+        ## them before IT applies the same 3609.4824 (-> GHz*u) and Defaults.convertUnits (-> MHz/fm^2) factors
+        ## for printing -- easy to forget since those factors live only inside that display function.
+        Kms = ((upper.Knms + upper.Ksms) - (s2s.Knms + s2s.Ksms)) * 3609.4824       ## UPPER minus LOWER, GHz*u
+        F   = Defaults.convertUnits("energy: from atomic to Hz", upper.Fme - s2s.Fme) * 1.0e-6     ## MHz/fm^2
+        dr2 = IsotopeShift.kingPlotChargeRadiusChange(deltaE_meV*meV_to_MHz, Kms, F, massNd142, massNd150)
+        @printf("  %-14s  JAC delta<r^2> = %7.4f fm^2   Brandau 2008 = %6.3f fm^2   ratio = %6.4f\n",
+                label, dr2, brandau, dr2/brandau)
+    end
+
+    # MACHINERY CHECK, NOT PHYSICS: kingPlotFit is a plain least-squares line fit, verified by round-trip
+    # rather than against a literature King plot (a genuine multi-isotope-pair dataset for this system was not
+    # at hand). Construct synthetic modified shifts from KNOWN Kms1, F1, Kms2, F2 and several delta<r^2>
+    # values, and confirm the fit recovers the known slope = F1/F2 and intercept = Kms1 - slope*Kms2 exactly.
+    Kms1 = 100.0;   F1 = 7.0;   Kms2 = 40.0;   F2 = 3.0
+    dr2s = [0.5, 1.0, 1.5, 2.0, 2.5]
+    x    = [Kms2 + F2*dr2 for dr2 in dr2s]                         ## modified shift of the reference transition
+    y    = [Kms1 + F1*dr2 for dr2 in dr2s]                         ## modified shift of the transition of interest
+    slope, intercept = IsotopeShift.kingPlotFit(x, y)
+    @printf("\n  kingPlotFit (synthetic round-trip): slope = %.10f (exact %.10f), intercept = %.10f (exact %.10f)\n",
+            slope, F1/F2, intercept, Kms1 - (F1/F2)*Kms2)
     #
 end
 #
