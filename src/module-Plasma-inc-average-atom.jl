@@ -330,7 +330,22 @@ function  perform(scheme::Plasma.AverageAtomScheme, computation::Plasma.Computat
             "(lMax = $(wScf.lMax), free partial waves to $(wScf.lMaxFree)).")
     println("   The subshell-list density tabulated above accounts for " * @sprintf("%.4f", wSub) * " of the " *
             "$(nm.Z) electrons INSIDE THE CELL;  the density the field was built from is " *
-            "results[\"radial density\"], and it carries Z over the same range.")
+            "the outcome's radialDensity, and it carries Z over the same range.")
+    # WHERE IN THE (rho,T) PLANE THIS CELL SITS, printed always and never behind a switch.  Both parameters are
+    # free -- they follow from mu, T and the cell -- and a number quoted without them can be used in a regime
+    # this model does not describe.  They are named in words as well as in symbols, deliberately.
+    outcome = Plasma.AverageAtomOutcome(temp, computation.settings.density, RWS, wScf.iCell, chemMu, meanCharge,
+                                        wScf.nBound, wScf.rhot, orbitals)
+    println(">> The cell sits at  coupling parameter Gamma = " * @sprintf("%.4f", outcome.couplingParameter) *
+            "  (" * (outcome.couplingParameter < 1. ? "weakly" : "strongly") * " coupled ions)  and  " *
+            "degeneracy parameter Theta = " * @sprintf("%.4f", outcome.degeneracyParameter) *
+            "  (" * (outcome.degeneracyParameter < 1. ? "degenerate" : "classical") * " electrons).")
+    if  outcome.couplingParameter < 1.0  &&  outcome.degeneracyParameter > 1.0
+        println("   Both of these put it in the weakly-coupled, classical corner, where an ideal-gas or " *
+                "Saha-Boltzmann treatment is cheaper and at least as good as an average atom.")
+    elseif  outcome.couplingParameter > 1.0  &&  outcome.degeneracyParameter < 10.0
+        println("   Gamma > 1 with Theta of order one is the WARM-DENSE regime this model is built for.")
+    end
     # Return results if required
     if  output   
         results["chemical mu"]   = chemMu;                  results["mean charge"]   = meanCharge
@@ -394,6 +409,25 @@ function  perform(scheme::Plasma.AverageAtomScheme, computation::Plasma.Computat
         end
         optical = Plasma.computeOpticalProperties(scheme.condOmegas, condSigma)
         Plasma.displayOpticalProperties(scheme.condOmegas, condSigma, optical)
+        # THE TWO THERMAL MEANS, which are functionals of the spectrum just formed and cost nothing beside it.
+        if  scheme.calcMeanOpacities
+            wOp = Plasma.computeMeanOpacities(scheme.condOmegas, condSigma, temp, computation.settings.density)
+            println("\n  Mean opacities of the absorption spectrum above:\n")
+            println("  " * "-"^78)
+            println("   Planck mean (arithmetic, weight x^3/(e^x-1))        " *
+                    @sprintf("%14.4f cm^2/g", wOp.planck))
+            println("   Rosseland mean (HARMONIC, weight x^4 e^x/(e^x-1)^2) " *
+                    @sprintf("%14.4f cm^2/g", wOp.rosseland))
+            println("  " * "-"^78)
+            println("   The Rosseland mean is the HARMONIC one and is therefore never the larger: radiation")
+            println("   leaks through the transparent WINDOWS of the spectrum, so that mean follows the floor")
+            println("   while the Planck mean follows the peaks.  Use Planck where the radiation escapes and")
+            println("   Rosseland where the plasma is optically thick;  here R/P = " *
+                    @sprintf("%.4f", wOp.rosseland/max(wOp.planck,1.0e-99)) * ".")
+            println("   SCATTERING IS NOT INCLUDED, so these are ABSORPTION means;  a hot, thin plasma needs at")
+            println("   least the Thomson term added before a Rosseland mean is used for transport.")
+            if  output   results["mean opacities"] = wOp   end
+        end
         if  output
             results["cond omegas"]     = scheme.condOmegas;      results["conductivity"]   = condSigma
             results["cond sum rules"]  = sumRules;               results["cond lines"]     = condLines
@@ -425,6 +459,24 @@ function  perform(scheme::Plasma.AverageAtomScheme, computation::Plasma.Computat
         if  output    results["scattering factor f2"] = f2;    results["mass attenuation"] = muOverRho    end
     end
 
+    # THE OUTCOME IS ASSEMBLED HERE, from whatever the optional blocks above actually produced.  The string
+    # keys are KEPT, so nothing that reads them breaks;  the outcome is the form to prefer, because it can say
+    # `nothing` where a Dict can only say "absent", and absent reads the same as zero to whoever gets the file.
+    outcome = Plasma.AverageAtomOutcome( outcome.temperature, outcome.massDensity, outcome.radiusWS,
+                 outcome.iCell, outcome.chemicalMu, outcome.meanCharge, outcome.noBoundElectrons,
+                 outcome.radialDensity, outcome.orbitals, outcome.couplingParameter,
+                 outcome.degeneracyParameter,
+                 get(results, "ff q-values", nothing),            get(results, "form factors", nothing),
+                 get(results, "pi omegas", nothing),               get(results, "pi cross sections", nothing),
+                 get(results, "scattering factor f2", nothing),    get(results, "mass attenuation", nothing),
+                 get(results, "cond omegas", nothing),             get(results, "conductivity", nothing),
+                 get(results, "cond lines", nothing),              get(results, "cond sum rules", nothing),
+                 get(results, "optical", nothing),                 get(results, "dc conductivity", nothing),
+                 get(results, "mean opacities", nothing) )
+    if  output    results["average atom"] = outcome    end
+    println("\n>> The complete result is also returned as one `Plasma.AverageAtomOutcome` under the key " *
+            "\"average atom\":  named fields throughout, with every optional property `nothing` exactly when " *
+            "its switch was not set.")
     
     Defaults.warn(PrintWarnings())
     Defaults.warn(ResetWarnings())

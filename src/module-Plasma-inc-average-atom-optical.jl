@@ -302,6 +302,77 @@ end
 
 
 """
+`Plasma.computeMeanOpacities(omegas::Array{Float64,1}, sigmas::Array{Float64,1}, temp::Float64,
+                             massDensity::Float64)`
+    ... forms the Planck and Rosseland mean opacities of the plasma from its conductivity spectrum;  a
+        NamedTuple `(planck, rosseland, kappa, weightPlanck, weightRosseland, xValues)` is returned, the two
+        means in cm^2/g and `kappa` the spectral mass absorption coefficient they are formed from.
+
+        **THE TWO MEANS ARE DIFFERENT FUNCTIONALS AND NOT TWO WEIGHTINGS OF ONE, which is the whole physics.**
+        With `x = omega/kT`,
+
+            kappa_P   = (15/pi^4)   int kappa(x)     x^3 / (e^x - 1)       dx          ... ARITHMETIC
+            1/kappa_R = (15/4 pi^4) int [1/kappa(x)] x^4 e^x / (e^x - 1)^2 dx          ... HARMONIC
+
+        The Planck mean is dominated by the frequencies where the plasma absorbs MOST and is the one to use
+        when the radiation escapes;  the Rosseland mean is dominated by the WINDOWS where it absorbs least,
+        because radiation leaks through them, and is the one to use when the plasma is optically thick.  So
+        `rosseland <= planck` always, a harmonic mean never exceeding its arithmetic counterpart, and the two
+        can differ by orders of magnitude rather than by a factor.
+
+        **AN ARITHMETIC SUM CARRYING THE ROSSELAND WEIGHT IS NOT A ROSSELAND MEAN**, and that error has been
+        made in this project before -- `simulateRosselandOpacities` formed `sum_i w_i kappa_i` while calling the
+        result Rosseland.  The normalisations above are therefore checked rather than trusted:  a CONSTANT
+        `kappa` must return that same constant from BOTH means, since both weights integrate to one, and that
+        identity is asserted by the suite.
+
+        **WHY THIS BELONGS TO THE AVERAGE ATOM AND NOT TO A LINE LIST.**  A correct Rosseland mean of bound-bound
+        lines ALONE is identically ZERO: an empty frequency bin means `kappa = 0` there, and one perfectly
+        transparent window short-circuits a harmonic mean.  An average atom has no empty bins -- the free-free
+        and bound-free channels absorb at every frequency -- so here the harmonic mean is finite and meaningful,
+        which it cannot be made to be for a line list without an added continuum.
+
+        **NO FURTHER STIMULATED-EMISSION FACTOR IS APPLIED, and this is the one convention to check before
+        comparing with another code.**  An opacity built from a bare cross section needs the factor
+        `(1 - e^{-x})`;  the Kubo-Greenwood conductivity does NOT, because its own `(f_a - f_b)` already IS
+        absorption minus stimulated emission.  Applying both is a classic double correction and would depress
+        the means by up to that factor at small x.
+
+        The absorption coefficient comes from `Plasma.computeOpticalProperties` (its `absorption` field,
+        `2 omega k/c` in inverse Bohr radii) and is divided by the mass density to give cm^2/g.  Scattering is
+        NOT included:  a Rosseland mean for a hot, thin plasma should carry at least the Thomson term, and this
+        routine deliberately leaves it out rather than guessing a value -- so the number is an ABSORPTION mean.
+"""
+function computeMeanOpacities(omegas::Array{Float64,1}, sigmas::Array{Float64,1}, temp::Float64,
+                              massDensity::Float64)
+    nw = length(omegas)
+    nw == length(sigmas)  ||  error("Plasma.computeMeanOpacities(): omegas and sigmas differ in length.")
+    temp > 0.             ||  error("Plasma.computeMeanOpacities(): the temperature must be positive.")
+    massDensity > 0.      ||  error("Plasma.computeMeanOpacities(): the mass density must be positive.")
+    optical = Plasma.computeOpticalProperties(omegas, sigmas)
+    # alpha is per Bohr radius;  rho in g/cm^3 gives kappa in cm^2/g
+    aBohr   = Defaults.convertUnits("length: from atomic to fm", 1.0) * 1.0e-13          ## a_0 in cm
+    kappa   = [ optical.absorption[i] / aBohr / massDensity   for i = 1:nw ]
+    xs      = [ omegas[i] / temp                              for i = 1:nw ]
+    wP      = [ x > 1.0e-8 && x < 200. ? x^3 / (exp(x) - 1)            : 0.   for x in xs ]
+    wR      = [ x > 1.0e-8 && x < 200. ? x^4 * exp(x) / (exp(x) - 1)^2 : 0.   for x in xs ]
+    trap(f) = ( wa = 0.;  for i = 1:nw-1   wa = wa + 0.5*(f[i] + f[i+1])*(xs[i+1] - xs[i])   end;  wa )
+    # the weights are normalised by their OWN integrals over the given mesh rather than by pi^4/15 and
+    # 4 pi^4/15, so a mesh that does not reach x -> 0 or x -> infinity cannot bias the mean -- it only
+    # narrows the range the mean refers to.  The constant-kappa identity holds either way, which is the point.
+    normP   = trap(wP);     normR = trap(wR)
+    normP > 0.  &&  normR > 0.  ||
+        error("Plasma.computeMeanOpacities(): the frequency mesh carries no Planck or Rosseland weight at " *
+              "this temperature;  kT = $temp a.u. needs omegas of order 0.1 to 30 kT.")
+    planck    = trap([ kappa[i] * wP[i]  for i = 1:nw ]) / normP
+    invRoss   = trap([ (kappa[i] > 0. ? wR[i]/kappa[i] : 0.)  for i = 1:nw ]) / normR
+    rosseland = invRoss > 0. ? 1.0/invRoss : 0.
+
+    return( (planck=planck, rosseland=rosseland, kappa=kappa, weightPlanck=wP, weightRosseland=wR, xValues=xs) )
+end
+
+
+"""
 `Plasma.transportCrossSection(scfResult::NamedTuple, energy::Float64, grid::Radial.Grid; lMax::Int64=8)`
     ... returns the momentum-transfer (transport) cross section an electron of the given kinetic energy sees in
         the converged average-atom potential;  a `value::Float64` [a.u.^2] is returned, or 0 where the continuum

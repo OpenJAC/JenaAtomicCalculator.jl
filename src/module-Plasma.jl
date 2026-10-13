@@ -37,7 +37,7 @@ abstract type  AbstractPlasmaScheme       end
 
     + nMax                  ::Int64                ... maximum principal quantum number for the subshells of the AA model.
     + lMax                  ::Int64                ... maximum orbital quantum number for the subshells of the AA model.
-    + scField               ::AbstractScField      ... maximum orbital quantum number for the subshells of the AA model.
+    + scField               ::AbstractScField      ... self-consistent field of the AA model, e.g. Basics.AaDFSField().
     + calcPhotoionizationCs ::Bool                 ... True, if photoionization cross sections are to be calculated.
     + calcFormFactor        ::Bool                 ... True, if the form factor need to be calculated.
     + calcScatteringFactor  ::Bool                 ... True, if scattering factor need to be calculated.
@@ -59,6 +59,11 @@ abstract type  AbstractPlasmaScheme       end
                                                        shifts through `Plasma.dcConductivity`, which is the only
                                                        setting that leaves nothing in the optical chain supplied
                                                        from outside (see that function for what it is worth).
+    + calcMeanOpacities     ::Bool                 ... True, if the Planck and Rosseland mean opacities are to be
+                                                       formed from the conductivity spectrum.  NEEDS
+                                                       calcConductivity, and needs condOmegas to span roughly
+                                                       0.1 to 30 kT, since that is where the two thermal weights
+                                                       live;  both are checked.
 """
 struct   AverageAtomScheme  <:  Plasma.AbstractPlasmaScheme
     nMax                    ::Int64
@@ -74,6 +79,7 @@ struct   AverageAtomScheme  <:  Plasma.AbstractPlasmaScheme
     condOmegas              ::Array{Float64,1}
     condBroadening          ::Float64
     condCollisionRate       ::Float64
+    calcMeanOpacities       ::Bool
 end  
 
 
@@ -88,7 +94,220 @@ function AverageAtomScheme(nMax::Int64, lMax::Int64, scField::AbstractScField, c
                            calcFormFactor::Bool, calcScatteringFactor::Bool, piSubshells::Array{Subshell,1},
                            omegas::Array{Float64,1}, qValues::Array{Float64,1})
     AverageAtomScheme( nMax, lMax, scField, calcPhotoionizationCs, calcFormFactor, calcScatteringFactor,
-                       piSubshells, omegas, qValues, false, Float64[], 0., 0. )
+                       piSubshells, omegas, qValues, false, Float64[], 0., 0., false )
+end
+
+
+"""
+`struct  Plasma.AverageAtomOutcome`
+    ... the complete result of one average-atom computation, as named fields rather than as string keys into a
+        Dict.
+
+    **THE DIVISION OF THE FIELDS IS THE SCHEME'S OWN DIVISION.**  The cell block is ALWAYS filled, because a
+    converged cell always has it;  every optional property is `Union{Nothing,...}` and is `nothing` exactly when
+    its switch was not set.  That distinction is the reason for the type:  a string-keyed Dict cannot tell
+    "this was not computed" from "this came out zero", and a conductivity of zero and an absent conductivity
+    mean entirely different things to whoever reads the number afterwards.
+
+    + temperature          ::Float64   ... the temperature [a.u.] the cell was converged at.
+    + massDensity          ::Float64   ... the mass density [g/cm^3].
+    + radiusWS             ::Float64   ... the Wigner-Seitz cell radius [a.u.];  NOT the B-spline box, which is
+                                           several times larger and must be -- see SelfConsistent's own note.
+    + iCell                ::Int64     ... the grid index of the cell boundary, i.e. the last point with
+                                           r <= radiusWS.  Every cell integral runs 1:iCell.
+    + chemicalMu           ::Float64   ... the chemical potential [a.u.], fixed by neutrality of the cell.
+    + meanCharge           ::Float64   ... Z*, the mean ionization, i.e. the free-electron count of the cell.
+    + noBoundElectrons     ::Float64   ... the bound-electron count;  noBound + meanCharge = Z exactly.
+    + radialDensity        ::Array{Float64,1}        ... the total electron density, carrying Z over the cell.
+    + orbitals             ::Dict{Subshell, Orbital} ... the converged bound orbitals.
+    + couplingParameter    ::Float64   ... the COUPLING PARAMETER Gamma = Z*^2/(R_WS kT):  the ratio of the
+                                           typical Coulomb energy between neighbouring ions to their thermal
+                                           energy.  Gamma << 1 is a weakly coupled (ideal) plasma, Gamma >> 1 a
+                                           strongly coupled one, Gamma ~ 1 the warm-dense regime this model is
+                                           for.
+    + degeneracyParameter  ::Float64   ... the DEGENERACY PARAMETER Theta = kT/E_F with E_F the free-electron
+                                           Fermi energy:  Theta << 1 is a degenerate electron gas, Theta >> 1 a
+                                           classical one.  **Gamma and Theta say WHERE in the (rho,T) plane a
+                                           number came from, so they are always reported and never optional** --
+                                           a result quoted without them can be misused in a regime the model
+                                           does not describe.
+    + qValues              ::Union{Nothing, Array{Float64,1}}  ... momentum transfers of the form factor.
+    + formFactors          ::Union{Nothing, Array{Float64,1}}  ... F(q), integrated over the cell.
+    + piOmegas             ::Union{Nothing, Array{Float64,1}}  ... photon energies of the cross sections.
+    + piCrossSections      ::Union{Nothing, Any}               ... bound-free cross sections per subshell.
+    + scatteringFactor     ::Union{Nothing, Array{Float64,1}}  ... the imaginary scattering factor f_2.
+    + massAttenuation      ::Union{Nothing, Array{Float64,1}}  ... mu/rho [cm^2/g].
+    + condOmegas           ::Union{Nothing, Array{Float64,1}}  ... photon energies of the conductivity.
+    + conductivity         ::Union{Nothing, Array{Float64,1}}  ... Re sigma(omega) [a.u.].
+    + condLines            ::Union{Nothing, Any}               ... the individual box transitions and their
+                                                                   strengths, classified by kind.
+    + condSumRules         ::Union{Nothing, Any}               ... the per-channel sum rules.
+    + optical              ::Union{Nothing, Any}               ... eps(omega), n + ik, the absorption coefficient.
+    + dcConductivity       ::Union{Nothing, Any}               ... sigma(0) and the collision rate, from the
+                                                                   scattering phase shifts.
+    + meanOpacities        ::Union{Nothing, Any}               ... the Planck and Rosseland mean opacities.
+"""
+struct  AverageAtomOutcome
+    temperature             ::Float64
+    massDensity             ::Float64
+    radiusWS                ::Float64
+    iCell                   ::Int64
+    chemicalMu              ::Float64
+    meanCharge              ::Float64
+    noBoundElectrons        ::Float64
+    radialDensity           ::Array{Float64,1}
+    orbitals                ::Dict{Subshell, Orbital}
+    couplingParameter       ::Float64
+    degeneracyParameter     ::Float64
+    qValues                 ::Union{Nothing, Array{Float64,1}}
+    formFactors             ::Union{Nothing, Array{Float64,1}}
+    piOmegas                ::Union{Nothing, Array{Float64,1}}
+    piCrossSections         ::Union{Nothing, Any}
+    scatteringFactor        ::Union{Nothing, Array{Float64,1}}
+    massAttenuation         ::Union{Nothing, Array{Float64,1}}
+    condOmegas              ::Union{Nothing, Array{Float64,1}}
+    conductivity            ::Union{Nothing, Array{Float64,1}}
+    condLines               ::Union{Nothing, Any}
+    condSumRules            ::Union{Nothing, Any}
+    optical                 ::Union{Nothing, Any}
+    dcConductivity          ::Union{Nothing, Any}
+    meanOpacities           ::Union{Nothing, Any}
+end
+
+
+"""
+`Plasma.AverageAtomOutcome(temperature::Float64, massDensity::Float64, radiusWS::Float64, iCell::Int64,
+                            chemicalMu::Float64, meanCharge::Float64, noBoundElectrons::Float64,
+                            radialDensity::Array{Float64,1}, orbitals::Dict{Subshell, Orbital})`
+    ... constructor for the CELL alone, with every optional property left as `nothing`;  the coupling and
+        degeneracy parameters are derived here rather than passed, since they follow from the cell:
+
+            Gamma = Z*^2 / (R_WS kT)            ... coupling, the ion-sphere form
+            Theta = kT / E_F,   E_F = (3 pi^2 n_e)^(2/3) / 2,   n_e = Z* / (4pi/3 R_WS^3)
+
+        An `outcome::Plasma.AverageAtomOutcome` is returned.
+"""
+function AverageAtomOutcome(temperature::Float64, massDensity::Float64, radiusWS::Float64, iCell::Int64,
+                            chemicalMu::Float64, meanCharge::Float64, noBoundElectrons::Float64,
+                            radialDensity::Array{Float64,1}, orbitals::Dict{Subshell, Orbital})
+    volume = 4pi/3 * radiusWS^3
+    gamma  = (radiusWS > 0. && temperature > 0.) ? meanCharge^2 / (radiusWS * temperature) : 0.
+    nE     = volume > 0. ? meanCharge / volume : 0.
+    eFermi = nE > 0. ? (3pi^2 * nE)^(2/3) / 2 : 0.
+    theta  = eFermi > 0. ? temperature / eFermi : 0.
+
+    AverageAtomOutcome( temperature, massDensity, radiusWS, iCell, chemicalMu, meanCharge, noBoundElectrons,
+                        radialDensity, orbitals, gamma, theta,
+                        nothing, nothing, nothing, nothing, nothing, nothing,
+                        nothing, nothing, nothing, nothing, nothing, nothing, nothing )
+end
+
+
+# `Base.show(io::IO, outcome::Plasma.AverageAtomOutcome)`  ... prepares a proper printout of the outcome.
+function Base.show(io::IO, outcome::Plasma.AverageAtomOutcome)
+    println(io, "Average-atom outcome:")
+    println(io, "  temperature:              $(outcome.temperature) a.u. = " *
+                "$(Defaults.convertUnits("energy: from atomic to eV", outcome.temperature)) eV  ")
+    println(io, "  mass density:             $(outcome.massDensity) g/cm^3  ")
+    println(io, "  Wigner-Seitz radius:      $(outcome.radiusWS) a.u.   (cell boundary at grid index " *
+                "iCell = $(outcome.iCell))  ")
+    println(io, "  chemical potential:       $(outcome.chemicalMu) a.u.  ")
+    println(io, "  mean charge Z*:           $(outcome.meanCharge)  ")
+    println(io, "  bound electrons:          $(outcome.noBoundElectrons)  ")
+    println(io, "  coupling parameter Gamma    = $(outcome.couplingParameter)  " *
+                "($(outcome.couplingParameter < 1. ? "weakly" : "strongly") coupled)  ")
+    println(io, "  degeneracy parameter Theta  = $(outcome.degeneracyParameter)  " *
+                "($(outcome.degeneracyParameter < 1. ? "degenerate" : "classical") electrons)  ")
+    wa = String[]
+    isnothing(outcome.formFactors)     || push!(wa, "form factors")
+    isnothing(outcome.piCrossSections) || push!(wa, "photoionization cross sections")
+    isnothing(outcome.scatteringFactor)|| push!(wa, "scattering factor f_2")
+    isnothing(outcome.massAttenuation) || push!(wa, "mass attenuation mu/rho")
+    isnothing(outcome.conductivity)    || push!(wa, "conductivity + optical constants")
+    isnothing(outcome.dcConductivity)  || push!(wa, "DC conductivity")
+    isnothing(outcome.meanOpacities)   || push!(wa, "Planck + Rosseland mean opacities")
+    println(io, "  optional properties:      " * (isempty(wa) ? "none (the cell alone)" : join(wa, ", ")) * "  ")
+end
+
+
+"""
+`Plasma.AverageAtomScheme(scheme::Plasma.AverageAtomScheme;`
+
+        `nMax=..,                lMax=..,                 scField=..,`
+        
+        `calcPhotoionizationCs=..,  calcFormFactor=..,    calcScatteringFactor=..,`
+        
+        `piSubshells=..,         omegas=..,               qValues=..,`
+        
+        `calcConductivity=..,    condOmegas=..,           condBroadening=..,       condCollisionRate=..)`
+                        
+    ... constructor for modifying the given Plasma.AverageAtomScheme by 'overwriting' the previously selected
+        parameters.  Everything not named is carried over unchanged, so a scheme is built by naming only what
+        differs from the default -- which is what makes a thirteen-field scheme readable at the call site:
+
+            scheme = Plasma.AverageAtomScheme(Plasma.AverageAtomScheme();
+                         nMax = 8, lMax = 5, scField = Basics.AaDFSField(),
+                         calcConductivity = true, condOmegas = [ 10^x  for x = -2.0:0.08:2.6 ],
+                         condBroadening = 0.05, condCollisionRate = -1.0 )
+
+        **THE STRUCTURE IS NEVER OPTIONAL AND HAS NO FLAG.**  A converged cell always yields the chemical
+        potential, the bound/free split, every subshell's energy and fractional occupation, the mean charge and
+        the radial density;  the `calc...` switches add the OPTIONAL properties on top of that, each at its own
+        cost.  So a scheme with every switch false is a legitimate and useful computation, not an empty one.
+
+        **EACH SWITCH NEEDS ITS OWN MESH, and that dependency is enforced rather than assumed:** 
+        `calcFormFactor` needs `qValues`, `calcPhotoionizationCs` needs `omegas` (and reads `piSubshells`), and
+        `calcConductivity` needs `condOmegas`.  A switch set without its mesh raises at construction time, where
+        the mistake is, rather than returning an empty array from deep inside `perform`.
+"""
+function AverageAtomScheme(scheme::Plasma.AverageAtomScheme;
+    nMax::Union{Nothing,Int64}=nothing,                          lMax::Union{Nothing,Int64}=nothing, 
+    scField::Union{Nothing,AbstractScField}=nothing,             calcPhotoionizationCs::Union{Nothing,Bool}=nothing, 
+    calcFormFactor::Union{Nothing,Bool}=nothing,                 calcScatteringFactor::Union{Nothing,Bool}=nothing, 
+    piSubshells::Union{Nothing,Array{Subshell,1}}=nothing,       omegas::Union{Nothing,Array{Float64,1}}=nothing, 
+    qValues::Union{Nothing,Array{Float64,1}}=nothing,            calcConductivity::Union{Nothing,Bool}=nothing, 
+    condOmegas::Union{Nothing,Array{Float64,1}}=nothing,         condBroadening::Union{Nothing,Float64}=nothing, 
+    condCollisionRate::Union{Nothing,Float64}=nothing,   calcMeanOpacities::Union{Nothing,Bool}=nothing)
+    
+    if  isnothing(nMax)                   nMaxx                  = scheme.nMax                   else   nMaxx                  = nMax                   end 
+    if  isnothing(lMax)                   lMaxx                  = scheme.lMax                   else   lMaxx                  = lMax                   end 
+    if  isnothing(scField)                scFieldx               = scheme.scField                else   scFieldx               = scField                end 
+    if  isnothing(calcPhotoionizationCs)  calcPhotoionizationCsx = scheme.calcPhotoionizationCs  else   calcPhotoionizationCsx = calcPhotoionizationCs  end 
+    if  isnothing(calcFormFactor)         calcFormFactorx        = scheme.calcFormFactor         else   calcFormFactorx        = calcFormFactor         end 
+    if  isnothing(calcScatteringFactor)   calcScatteringFactorx  = scheme.calcScatteringFactor   else   calcScatteringFactorx  = calcScatteringFactor   end 
+    if  isnothing(piSubshells)            piSubshellsx           = scheme.piSubshells            else   piSubshellsx           = piSubshells            end 
+    if  isnothing(omegas)                 omegasx                = scheme.omegas                 else   omegasx                = omegas                 end 
+    if  isnothing(qValues)                qValuesx               = scheme.qValues                else   qValuesx               = qValues                end 
+    if  isnothing(calcConductivity)       calcConductivityx      = scheme.calcConductivity       else   calcConductivityx      = calcConductivity       end 
+    if  isnothing(condOmegas)             condOmegasx            = scheme.condOmegas             else   condOmegasx            = condOmegas             end 
+    if  isnothing(condBroadening)         condBroadeningx        = scheme.condBroadening         else   condBroadeningx        = condBroadening         end 
+    if  isnothing(condCollisionRate)      condCollisionRatex     = scheme.condCollisionRate      else   condCollisionRatex     = condCollisionRate      end 
+    if  isnothing(calcMeanOpacities)      calcMeanOpacitiesx     = scheme.calcMeanOpacities      else   calcMeanOpacitiesx     = calcMeanOpacities      end 
+
+    # THE DEPENDENCIES ARE CHECKED HERE, where the mistake is, and not inside perform() where the symptom is.
+    # A switch without its mesh used to return an empty array from deep in the computation, which reads as
+    # "this property is zero" rather than as "you forgot the mesh".
+    if  calcFormFactorx         &&  isempty(qValuesx)
+        error("Plasma.AverageAtomScheme(): calcFormFactor = true needs qValues, the momentum transfers [a.u.] "  *
+              "at which the form factor is wanted;  none were given.")                                              end
+    if  calcPhotoionizationCsx  &&  isempty(omegasx)
+        error("Plasma.AverageAtomScheme(): calcPhotoionizationCs = true needs omegas, the photon energies "       *
+              "[a.u.] at which the cross section is wanted;  none were given.")                                     end
+    if  calcScatteringFactorx   &&  isempty(omegasx)
+        error("Plasma.AverageAtomScheme(): calcScatteringFactor = true needs omegas, since f_2 follows from "     *
+              "sigma_bf(omega);  none were given.")                                                                 end
+    if  calcConductivityx       &&  isempty(condOmegasx)
+        error("Plasma.AverageAtomScheme(): calcConductivity = true needs condOmegas, the photon energies [a.u.] " *
+              "of the conductivity spectrum.  Carry them WELL PAST the deepest ionization threshold and "        *
+              "log-spaced, since the Kramers-Kronig integral runs to infinity;  none were given.")                  end
+    if  calcMeanOpacitiesx      &&  !calcConductivityx
+        error("Plasma.AverageAtomScheme(): calcMeanOpacities = true needs calcConductivity = true -- the two "    *
+              "thermal means are functionals OF the absorption spectrum, so there is nothing to average "       *
+              "without it.")                                                                                       end
+
+    AverageAtomScheme( nMaxx, lMaxx, scFieldx, calcPhotoionizationCsx, calcFormFactorx, calcScatteringFactorx,
+                       piSubshellsx, omegasx, qValuesx, calcConductivityx, condOmegasx, condBroadeningx,
+                       condCollisionRatex, calcMeanOpacitiesx )
 end
 
 
@@ -97,7 +316,7 @@ end
 """
 function AverageAtomScheme()
     AverageAtomScheme( 1, 0, Basics.AaHSField(), false, false, false, Subshell[], Float64[], Float64[],
-                       false, Float64[], 0., 0. )
+                       false, Float64[], 0., 0., false )
 end
 
 

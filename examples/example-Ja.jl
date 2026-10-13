@@ -216,8 +216,10 @@ elseif  false
     settings    = Plasma.Settings(temperature, rho, false)
     # log-spaced from 0.01 to 400 Ha, i.e. well past the 1s threshold at 55 Ha, as the dispersion integral needs
     condOmegas  = [ 10^x  for x = -2.0:0.08:2.6 ]
-    scheme      = Plasma.AverageAtomScheme(8, 5, Basics.AaDFSField(), false, false, false, Subshell[], Float64[],
-                                           Float64[], true, condOmegas, 0.0466, 0.0466 )
+    scheme      = Plasma.AverageAtomScheme(Plasma.AverageAtomScheme();
+                      nMax = 8, lMax = 5, scField = Basics.AaDFSField(),
+                      calcConductivity = true, condOmegas = condOmegas, condBroadening = 0.0466,
+                      condCollisionRate = 0.0466 )
 
     wa          = Plasma.Computation(Plasma.Computation(), scheme=scheme,
                                      nuclearModel=nm, grid=grid, settings=settings)
@@ -268,8 +270,10 @@ elseif  false
     settings    = Plasma.Settings(temperature, rho, false)
     condOmegas  = [ 10^x  for x = -2.0:0.08:2.6 ]
     # the last argument is NEGATIVE:  compute the collision rate, do not take one
-    scheme      = Plasma.AverageAtomScheme(8, 5, Basics.AaDFSField(), false, false, false, Subshell[], Float64[],
-                                           Float64[], true, condOmegas, 0.0466, -1.0 )
+    scheme      = Plasma.AverageAtomScheme(Plasma.AverageAtomScheme();
+                      nMax = 8, lMax = 5, scField = Basics.AaDFSField(),
+                      calcConductivity = true, condOmegas = condOmegas, condBroadening = 0.0466,
+                      condCollisionRate = -1.0, calcMeanOpacities = true )
 
     wa          = Plasma.Computation(Plasma.Computation(), scheme=scheme,
                                      nuclearModel=nm, grid=grid, settings=settings)
