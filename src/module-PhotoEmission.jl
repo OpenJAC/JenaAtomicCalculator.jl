@@ -237,6 +237,26 @@ end
     ... to compute the photon emission amplitude alone, discarding the cancellation factor that
         PhotoEmission.amplitudeAndCancellation returns beside it. Kept so that every caller which wants only the
         amplitude reads as it always did. A value::ComplexF64 is returned.
+
+        **WHAT THE SIGN OF THIS VALUE MEANS, measured rather than argued (priority item 63, 13-Oct-2026).** A
+        level's own eigenvector carries an arbitrary overall sign -- a diagonalization convention, not physics --
+        fixed within one run but not guaranteed across a different CSF/configuration-list order, a different
+        basis size, or an independent re-diagonalization of the same CI matrix. So in principle the sign of a
+        SINGLE call to this function, or the sign of a RATIO of two calls sharing only one level, is not something
+        a caller may assume is invariant -- only a CLOSED LOOP (a product of amplitudes around a cycle, where each
+        level's arbitrary sign appears exactly twice and cancels, e.g. `<P1/2||E1||S> * <P3/2||M1||P1/2> *
+        <S||E1||P3/2>` for an S-P1/2-P3/2 triangle) is convention-free BY CONSTRUCTION, independently of anything
+        measured below.
+
+        **MEASURED, on a representative Li-like S/P1/2/P3/2 case with genuine 2-3 CSF mixing in each symmetry
+        block:** the sign of a single amplitude, the sign of a ratio of two amplitudes sharing one level, AND the
+        closed-loop product all stayed stable under four different perturbations -- reordering a 2- and a 3-
+        configuration list, enlarging the basis, and an independent `Hamiltonian.performCI` re-diagonalization of
+        the identical matrix. This is NOT a proof that a single sign or ratio is safe in general -- the
+        convention argument above still stands, and a more strongly mixed or near-degenerate case could behave
+        differently -- but no instability was found in this realistic, genuinely-mixing test. A caller who needs
+        a GUARANTEE, not an empirical observation, should use a closed-loop product; a caller who only needs what
+        was actually tested here can trust a single sign or ratio with that caveat attached.
 """
 function amplitude(kind::Emission, Mp::EmMultipole, gauge::EmGauge, omega::Float64, finalLevel::Level,
                    initialLevel::Level, grid::Radial.Grid; display::Bool=false, printout::Bool=false)
