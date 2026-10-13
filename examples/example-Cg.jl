@@ -212,7 +212,7 @@ elseif  false
                                                 geant4=false, levelSelection=LevelSelection(), decayShells=[Shell("2s")]) ] )
     perform(wa4)
     #
-elseif  true
+elseif  false
     # Last successful:  31-Jul-2026
     # Branch f: Si (Z=14) K-shell hole, "1s 2s^2 2p^6 3s^2 3p^2" (13 electrons; neutral Si [Ne]3s^2 3p^2
     #   minus one 1s electron) -- explicit levelSelection test, per user request. Si's open 3p^2 shell gives
@@ -226,6 +226,14 @@ elseif  true
     #   omega_R=5.3512e-02/5.4721e-02, omega_A=9.4649e-01/9.4528e-01 (Cou/Bab, sum=1.0 exactly). The
     #   level1-only run reproduces this row BIT-IDENTICALLY -- confirms levelSelection both correctly
     #   restricts output and reproduces exactly the same physics for the selected level, no side effects.
+    # SEEN AGAIN 13-Oct-2026 (DecayYield/Cascade control-flow fix, item 65): level 1 now sits at
+    #   E=-6.01849720e+03 eV, No_R=16, No_A=180 (line counts UNCHANGED), omega_R=5.3425e-02/5.6126e-02,
+    #   omega_A=9.4658e-01/9.4387e-01 -- a few percent from the numbers above, NOT a regression. Before the
+    #   fix, `outcome.level`'s reference energy came from an INDEPENDENT standalone SCF that does not match
+    #   what the SCA cascade's own "generation 0" level actually uses (ChargeStateOrbitals' shared mean
+    #   field); now both sides of every comparison come from the SAME cascade-internal levels, which is why
+    #   the energy moved too. The level1-only run still reproduces the full run's level-1 row BIT-IDENTICALLY
+    #   -- the property this branch exists to demonstrate is intact.
     grid = Radial.Grid(Radial.Grid(false), rnt = 4.0e-6, h = 5.0e-2, hp = 1.0e-2, rbox = 10.0)
     wa1 = Atomic.Computation(Atomic.Computation(), name="Cg-f-Si-Khole-allLevels", grid=grid, nuclearModel=Nuclear.Model(14.),
                             configs=[Configuration("1s 2s^2 2p^6 3s^2 3p^2")],
@@ -238,6 +246,48 @@ elseif  true
                             propertySettings=[ DecayYield.Settings(DecayYield.Settings(); approach=Basics.SCA(), printBefore=true,
                                                 geant4=false, levelSelection=LevelSelection(true, indices=[1])) ] )
     perform(wa2)
+    #
+elseif  true
+    # Last successful:  13-Oct-2026
+    # Branch g: Sc (Z=21) K-shell hole, "1s 2s^2 2p^6 3s^2 3p^6 3d^1 4s^2" (20 electrons; neutral Sc
+    #   [Ar]3d^1 4s^2 minus one 1s electron) -- a SECOND literature comparison point alongside Ca/branch b and
+    #   Zn/branch d, added to test the module's predictive power on a harder, OPEN-SHELL case that Ca and Zn
+    #   (both closed-shell) cannot exercise -- without repeating Fe/branch c's mistake (abandoned, 3d^6 is the
+    #   worst case for CSF count).
+    #   TITANIUM (3d^2, Z=22) WAS TRIED FIRST AND ABANDONED, 13-Oct-2026: its own K-hole CSF count (16, same
+    #   as Ni's 3d^8 by particle-hole symmetry) looked tractable by the same reasoning that ruled Fe out, but
+    #   the DECAY TREE that actually has to be computed scales with Koziol's L^-1M^-1/M^-2 counts (484/227 for
+    #   Ti vs just 20/10 for Ca), not with the K-hole's own CSF count -- a distinction the Fe/branch-c
+    #   reasoning did not need to make, since Fe's OWN hole-level CSF count was already the red flag. Ti ran
+    #   30+ minutes (still mid-way through single Auger sub-steps of 4000+ lines) without finishing and was
+    #   killed; not pursued further. Sc (3d^1, one electron lighter) has an L^-1M^-1/M^-2 of 122/56 -- a
+    #   quarter of Ti's -- and finishes in a few minutes rather than 30+ with no end in sight.
+    #   THE TRADE-OFF, stated rather than hidden: Koziol's Table VII has NO experimental point for Sc at all
+    #   (only Ti onward), so this branch checks JAC against an INDEPENDENT THEORETICAL calculation (a
+    #   different code lineage, GRASP2K/FAC/RATIP) rather than against experiment -- a real but smaller claim
+    #   than branches b, d and the abandoned Ti attempt would have made.
+    #   Koziol's own omega_K is an AVERAGE over all K-hole fine-structure levels (his own words: "every state
+    #   has a specific width... presented values are the arithmetic mean of all widths for individual
+    #   states"), so this branch runs EVERY level of the K-hole (no levelSelection restriction) and averages
+    #   omega_R the same way, rather than quoting a single level the way branch f does.
+    #   Target, Koziol arXiv:2204.13428 Table VII (fetched and read directly, not quoted from memory): model
+    #   band (B+R/C+R/B+F/C+F) = 0.175-0.193, no experimental entry for Z=21.
+    #   RESULT: 4 levels, omega_R per level 0.1930-0.1931 (Cou) / 0.1925-0.1927 (Bab), mean 0.19308/0.19257 --
+    #   sits right at the top of the model band, matching the C+F/B+F variant (0.193/0.184) most closely.
+    grid = Radial.Grid(Radial.Grid(false), rnt = 4.0e-6, h = 5.0e-2, hp = 1.0e-2, rbox = 10.0)
+    wa = Atomic.Computation(Atomic.Computation(), name="Cg-g-Sc-Khole", grid=grid, nuclearModel=Nuclear.Model(21.),
+                            configs=[Configuration("1s 2s^2 2p^6 3s^2 3p^6 3d^1 4s^2")],
+                            propertySettings=[ DecayYield.Settings(DecayYield.Settings(); approach=Basics.SCA(), printBefore=true,
+                                                geant4=false, levelSelection=LevelSelection()) ] )
+    wb = perform(wa, output=true)
+    outcomes  = wb[DecayYield.Settings]
+    omegaRCou = [o.omegaR.Coulomb   for o in outcomes]
+    omegaRBab = [o.omegaR.Babushkin for o in outcomes]
+    println("\n>> Sc K-hole: omega_R per level (Coulomb)   = $omegaRCou")
+    println(  ">> Sc K-hole: omega_R per level (Babushkin) = $omegaRBab")
+    println(  ">> Sc K-hole: mean omega_R (Cou/Bab) = $(sum(omegaRCou)/length(omegaRCou)) / " *
+              "$(sum(omegaRBab)/length(omegaRBab))   vs. Koziol arXiv:2204.13428 model band 0.175-0.193 "  *
+              "(no experimental entry for Z=21)")
     #
 end
 #

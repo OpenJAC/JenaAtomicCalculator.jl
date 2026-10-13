@@ -116,26 +116,24 @@ end
 
 
 """
-`DecayYield.computeOutcomes(initialConfigs::Array{Configuration,1},asfSettings::AsfSettings, 
-                            multiplet::Multiplet, nm::Nuclear.Model, grid::Radial.Grid, settings::DecayYield.Settings)` 
-    ... to compute (as selected) the alpha-variation parameters for the levels of the given multiplet and as specified by 
-        the given settings. The results are printed in neat tables to screen but nothing is returned otherwise.
+`DecayYield.computeOutcomes(initialConfigs::Array{Configuration,1},asfSettings::AsfSettings,
+                            multiplet::Multiplet, nm::Nuclear.Model, grid::Radial.Grid, settings::DecayYield.Settings)`
+    ... to compute (as selected) the fluorescence and Auger yields for the levels of the given multiplet and as specified
+        by the given settings. The results are printed in neat tables to screen but nothing is returned otherwise.
 """
-function computeOutcomes(initialConfigs::Array{Configuration,1}, asfSettings::AsfSettings, 
+function computeOutcomes(initialConfigs::Array{Configuration,1}, asfSettings::AsfSettings,
                             multiplet::Multiplet, nm::Nuclear.Model, grid::Radial.Grid, settings::DecayYield.Settings; output=true)
     println("")
     printstyled("DecayYield.computeOutcomes(): The computation of the fluorescence & Auger yields starts now ... \n", color=:light_green)
     printstyled("----------------------------------------------------------------------------------------------- \n", color=:light_green)
     #
-    outcomes = DecayYield.determineOutcomes(multiplet, settings)
-    # Display all selected levels before the computations start
-    if  settings.printBefore    DecayYield.displayOutcomes(outcomes)    end
+    # `multiplet` (the caller's own, independent standalone SCF) is deliberately NOT used to build the
+    # outcomes below -- see the cascadeLevels comment further down (FIXED 13-Oct-2026, item 65).
     #
     # Overwrite the default settings for the generation of the continuum orbitals, if needed
     ## setDefaults("method: continuum, asymptotic Coulomb")
     ## setDefaults("method: normalization, pure sine")
     #
-    println("\nPerform a cascade computation for all radiative decay channels of the levels from the initial configurations:")
     cApproach   = settings.approach
     decayShells = union( Basics.extractNonrelativisticShellList(initialConfigs), settings.decayShells )
     # NOTE: Cascade.StepwiseDecayScheme.decayShells (passed below) is NOT consulted by the currently-active
@@ -154,10 +152,28 @@ function computeOutcomes(initialConfigs::Array{Configuration,1}, asfSettings::As
             push!(decayInitialConfigs, Configuration(nshells, conf.NoElectrons))
         end
     end
+    #
+    println("\nPerform a cascade computation for all radiative decay channels of the levels from the initial configurations:")
     wa = JenaAtomicCalculator.Cascade.Computation(JenaAtomicCalculator.Cascade.Computation(), name="photon lines", nuclearModel=nm, grid=grid, asfSettings=asfSettings,
                                 scheme=JenaAtomicCalculator.Cascade.StepwiseDecayScheme([Radiative()], 0, Dict{Int64,Float64}(), 0, decayShells, Shell[], Shell[]),
                                 approach=cApproach, initialConfigs=decayInitialConfigs)
     wb = perform(wa, output=true, outputToFile=false);   linesR = wb[PhotoEmission.Settings]
+    # The levels DecayYield reports on must be identified from THIS SAME cascade computation, not from an
+    # independent standalone SCF: linesR/linesA's line.initialLevel energies are whatever `cApproach` actually
+    # produced for "generation 0" (e.g. Basics.SCA()'s ChargeStateOrbitals() shares ONE mean field, built by
+    # generateMeanFieldOrbitals, across every configuration of the same electron count anywhere in the
+    # cascade -- a deliberate speed/accuracy trade-off that does not, in general, reproduce a configuration's
+    # own dedicated SCF energy). Matching an EXTERNALLY-computed `outcome.level` against those lines by a
+    # fixed relative-energy tolerance (Cascade.computeDecayYieldOutcome's Basics.isSimilar, tol 1e-3) silently
+    # failed for exactly this reason (FIXED 13-Oct-2026, item 65): measured 2.1e-3 apart on a Mg K-hole, over
+    # twice the tolerance, for nominally "the same" level.
+    genMultiplets = wb[ResultKeys.GeneratedMultiplets]
+    cascadeLevels = DecayYield.extractGenerationZeroLevels(genMultiplets, decayInitialConfigs)
+    #
+    outcomes = DecayYield.determineOutcomes(cascadeLevels, settings)
+    # Display all selected levels before the computations start
+    if  settings.printBefore    DecayYield.displayOutcomes(outcomes)    end
+    #
     println("\nPerform a cascade computation for all (single-electron) Auger decay channels of the levels from the initial configurations:")
     wa = JenaAtomicCalculator.Cascade.Computation(JenaAtomicCalculator.Cascade.Computation(), name="Auger lines", nuclearModel=nm, grid=grid, asfSettings=asfSettings,
                                 scheme=JenaAtomicCalculator.Cascade.StepwiseDecayScheme([Auger()], 1, Dict{Int64,Float64}(), 0, decayShells, Shell[], Shell[]),
@@ -187,13 +203,45 @@ end
 
 
 """
-`DecayYield.determineOutcomes(multiplet::Multiplet, settings::DecayYield.Settings)`  
-    ... to determine a list of Outcomes's for the computation of the alpha-variation parameters for the given 
-        multiplet. It takes into account the particular selections and settings. An Array{DecayYield.Outcome,1} is 
-        returned. Apart from the level specification, all physical properties are set to zero during the 
+`DecayYield.extractGenerationZeroLevels(genMultiplets::Array{Multiplet,1}, decayInitialConfigs::Array{Configuration,1})`
+    ... to pick out, from a Cascade.StepwiseDecayScheme's own `generated multiplets:` result, the multiplet(s) that
+        represent "generation 0" -- the initial configuration(s) themselves, computed under the SAME mean-field
+        approach (`cApproach`) that also produced the radiative and Auger lines these levels will later be matched
+        against. `Cascade.generateBlocks` appends the initial configurations to the end of its own configuration
+        list and builds one block per configuration in that same order, so the last `length(decayInitialConfigs)`
+        entries of `genMultiplets` are exactly the generation-0 blocks, in order; this is verified rather than
+        assumed, by comparing each block's own extracted configuration against the one it is expected to match.
+        A combined `multiplet::Multiplet` of all their levels is returned.
+"""
+function  extractGenerationZeroLevels(genMultiplets::Array{Multiplet,1}, decayInitialConfigs::Array{Configuration,1})
+    n = length(decayInitialConfigs)
+    if  length(genMultiplets) < n
+        error("DecayYield.extractGenerationZeroLevels(): $(length(genMultiplets)) generated multiplets, fewer than "  *
+              "the $n initial configuration(s); the cascade did not generate a generation-0 block for each of them.")
+    end
+    genZero = genMultiplets[end-n+1:end]
+    levels  = Level[]
+    for  (mp, conf)  in  zip(genZero, decayInitialConfigs)
+        mpConfs = Basics.extractConfigurations(Basics.FromMultiplet(), mp)
+        if  length(mpConfs) != 1  ||  mpConfs[1] != conf
+            error("DecayYield.extractGenerationZeroLevels(): expected the cascade's generation-0 block to be the "  *
+                  "single configuration $conf, but its multiplet's own configuration(s) are $mpConfs instead; the "  *
+                  "generation-0 block could no longer be identified by position and must not be guessed at.")
+        end
+        append!(levels, mp.levels)
+    end
+    return( Multiplet("generation 0 (cascade-internal)", levels) )
+end
+
+
+"""
+`DecayYield.determineOutcomes(multiplet::Multiplet, settings::DecayYield.Settings)`
+    ... to determine a list of Outcomes's for the fluorescence and Auger yields of the levels of the given
+        multiplet. It takes into account the particular selections and settings. An Array{DecayYield.Outcome,1} is
+        returned. Apart from the level specification, all physical properties are set to zero during the
         initialization process.
 """
-function  determineOutcomes(multiplet::Multiplet, settings::DecayYield.Settings) 
+function  determineOutcomes(multiplet::Multiplet, settings::DecayYield.Settings)
     outcomes = DecayYield.Outcome[]
     for  level  in  multiplet.levels
         if  Basics.selectLevel(level, settings.levelSelection)

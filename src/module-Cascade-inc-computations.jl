@@ -144,9 +144,17 @@ function computeDecayProbabilities(outcome::DecayYield.Outcome, linesR::Array{Ph
     # First, identify the level key of the given level also in the lists of radiative and Auger lines
     level = outcome.level;    levelKey = LevelKey( LevelSymmetry(level.J, level.parity), level.index, level.energy, 0.)
     similarKey = LevelKey();  rateR = Basics.EmProperty(0.);    rateA = 0.;   NoPhotonLines = 0;   NoAugerLines = 0
+    # Track the CLOSEST similar key, not simply the last one found (FIXED 13-Oct-2026, item 65): several
+    # close-lying but DISTINCT levels can each pass Basics.isSimilar's fixed tolerance against the same
+    # levelKey, and overwriting on every match -- regardless of how close -- let a worse, wrong neighbour win
+    # if it happened to be listed later in linesR.
+    bestDiff = Inf
     for  line in linesR
         compareKey = LevelKey( LevelSymmetry(line.initialLevel.J, line.initialLevel.parity), line.initialLevel.index, line.initialLevel.energy, 0.)
-        if   Basics.isSimilar(levelKey, compareKey, 1.0e-3)    println("** compareKey = $compareKey");   similarKey = deepcopy(compareKey)    end
+        if   Basics.isSimilar(levelKey, compareKey, 1.0e-3)
+            diff = abs(levelKey.energy - compareKey.energy)
+            if  diff < bestDiff    bestDiff = diff;   similarKey = deepcopy(compareKey)    end
+        end
     end
     if   similarKey == LevelKey()    @warn("No similar level found !")   end
     
@@ -224,9 +232,17 @@ function computeDecayYieldOutcome(outcome::DecayYield.Outcome, linesR::Array{Pho
     # Identify the level key of the given level also in the lists of radiative and Auger lines
     level = outcome.level;    levelKey = LevelKey( LevelSymmetry(level.J, level.parity), level.index, level.energy, 0.)
     similarKey = LevelKey();  rateR = Basics.EmProperty(0.);    rateA = 0.;   NoPhotonLines = 0;   NoAugerLines = 0
+    # Track the CLOSEST similar key, not simply the last one found (FIXED 13-Oct-2026, item 65): several
+    # close-lying but DISTINCT levels can each pass Basics.isSimilar's fixed tolerance against the same
+    # levelKey, and overwriting on every match -- regardless of how close -- let a worse, wrong neighbour win
+    # if it happened to be listed later in linesR.
+    bestDiff = Inf
     for  line in linesR
         compareKey = LevelKey( LevelSymmetry(line.initialLevel.J, line.initialLevel.parity), line.initialLevel.index, line.initialLevel.energy, 0.)
-        if   Basics.isSimilar(levelKey, compareKey, 1.0e-3)    println("** compareKey = $compareKey");   similarKey = deepcopy(compareKey)    end
+        if   Basics.isSimilar(levelKey, compareKey, 1.0e-3)
+            diff = abs(levelKey.energy - compareKey.energy)
+            if  diff < bestDiff    bestDiff = diff;   similarKey = deepcopy(compareKey)    end
+        end
     end
     if   similarKey == LevelKey()    @warn("No similar level found !")   end
     
