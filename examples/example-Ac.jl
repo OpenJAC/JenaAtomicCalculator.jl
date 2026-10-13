@@ -115,6 +115,11 @@ elseif  false
     # the correctness bug AND the extreme per-iteration cost documented below (old numbers, for the historical
     # record): DFS 16.639 s / E1=-54.412785 Ha; OLD buggy AL-Field (same 5-iteration cap) 481.766 s
     # (~96 s/iteration) / E1=-50.723 Ha, still far from converged.
+    # SEEN AGAIN 12-Oct-2026 (/testExamples): DFS-Field now gives E1 = -54.414213603268 Ha, 1.43 mHa below
+    #   the number quoted above -- NOT A REGRESSION, the same `4cc94eb` (15-Aug) kink-aware-Slater-integral
+    #   shift that Branch 1's own comment already explains; this branch's text was simply never updated to
+    #   match. AL-Field (still capped at 5 iterations, still correctly reported NOT CONVERGED) now lands at
+    #   E1 = -54.430615937669245 Ha, moved by the same cause plus its own iteration-count sensitivity.
     # Branch 5: DFS-Field vs AL-Field comparison, reusing Branch 1's small (5 CSF) N I system.
     name        = "N I -- Branch 5 (DFS-Field vs AL-Field, Branch 1's system)"
     refConfigs  = [Configuration("[He] 2s^2 2p^3")]

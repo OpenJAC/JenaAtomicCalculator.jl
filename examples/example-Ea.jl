@@ -19,7 +19,7 @@ if  true
     grid = Radial.Grid(true)
     ## Basics.Cartesian2DMesh, Basics.GLegenreMesh, Basics.LinearMesh, Basics.PolarMesh, Basics.SphericalMesh
     obsMesh    = Basics.Cartesian2DMesh(Basics.GLegenreMesh(0., 15., 20), Basics.GLegenreMesh())            
-    beamType   = Beam.LaguerreGauss(2, 0, 0.4)      ## Beam.PlaneWave, Beam.BesselBeam, Beam.LaguerreGauss, Beam.Component
+    beamType   = Beam.LaguerreGauss(2, 0, 0.4, 1.0)  ## Beam.PlaneWave, Beam.BesselBeam, Beam.LaguerreGauss, Beam.Component
     observable = Beam.DominantMultipoles(obsMesh)   ## Beam.DominantMultipoles,  Beam.IntensityPattern, Beam.AnisotropyParameter
     bSettings  = BeamPhotoExcitation.Settings(beamType, observable, [E1, M1], [UseCoulomb, UseBabushkin], true, 
                                               LineSelection(true, [(1,1), (1,2)], Tuple{LevelSymmetry,LevelSymmetry}[]), 0. )
