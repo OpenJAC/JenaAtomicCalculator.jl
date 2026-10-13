@@ -240,6 +240,19 @@ end
         A value::ComplexF64 is returned.
 """
 function amplitudeKernel(multipole::EmMultipole, gauge::EmGauge, omega::Float64, a::Orbital, b::Orbital, grid::Radial.Grid)
+    # THE STATIC LIMIT IS NOT AVAILABLE FROM HERE, AND IT FAILS SILENTLY -- measured 13-Oct-2026.
+    # Every term below carries the photon momentum q = omega/c through a Grant integral, so at omega = 0 the
+    # Bessel factor j_L(0) vanishes for L >= 1 and this kernel returns EXACTLY ZERO.  Since `DalgarnoLewis.solve`
+    # builds its source vector from this same kernel, asking for a static (omega = 0) response gives chi = 0 and
+    # hence a vanishing observable, with no error and no warning:  measured alpha = 0.000000 for the hydrogen 1s
+    # static dipole polarizability, whose exact value is 4.5 a.u.  The Coulomb gauge is no better -- it returns
+    # numerical noise there (-0.003) rather than a clean zero, which is worse, being harder to notice.
+    #   THIS IS NOT A DEFECT:  the operator implemented here is the PHOTON-normalised multipole field, not the
+    # bare dipole, and a photon of zero energy carries no field.  A static polarizability therefore needs the
+    # length operator as its own source, which is `MultipolePolarizibility`'s business and not this function's.
+    #   AND A SMALL FINITE omega DOES NOT RESCUE IT by itself: chi then inherits the q-dependence, so contracting
+    # it with a bare `r` mixes two different operators and no power of omega relates the two -- measured, the
+    # would-be conversion drifts by a factor of 2 per halving of omega instead of settling.
     if  gauge != Basics.Babushkin    return( InteractionStrength.MabEmission(multipole, gauge, omega, a, b, grid) )    end
 
     kapa = a.subshell.kappa;   kapb = b.subshell.kappa;   L = multipole.L
