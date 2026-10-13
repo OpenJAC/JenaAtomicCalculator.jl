@@ -265,14 +265,20 @@ function testModule_MultipolePolarizibility(; short::Bool=true)
     ## Bsplines.checkGridRepresentation flags precisely this and recommends 77.4 a.u.; it was that check,
     ## on its first run over the suite, which found it.
     ##
-    ## WHAT IT DOES NOT CHECK, and why. The Coulomb-gauge value comes out around 1.5e-6 where Babushkin gives
-    ## 1.164, a discrepancy of six orders of magnitude, and it does NOT move with the box. It is a category
-    ## error rather than a numerical one: a STATIC polarizability has no gauge freedom, and the Coulomb column
-    ## here evaluates MabEmission -- the frequency-DEPENDENT transition operator -- at omega = 0, where the
-    ## velocity form needs the 1/omega that connects it to the length form. The frequency-independent operator
-    ## that belongs in a static polarizability (and in C_6/C_8/C_10 dispersion coefficients) is
-    ## InteractionStrength.eMultipole, assembled by MultipoleMoment.emmStaticAmplitude -- Johnson's r^k C_k,
-    ## with no omega and no gauge. Recorded rather than asserted, since fixing it is a separate task.
+    ## THE SIX-ORDER GAUGE GAP THIS COMMENT USED TO DESCRIBE IS GONE, and the paragraph is replaced rather than
+    ## kept, because it describes code that no longer exists. It recorded alpha_0(Coulomb) ~ 1.5e-6 against
+    ## 1.164 (Babushkin) and diagnosed it correctly: the Coulomb column was evaluating the frequency-DEPENDENT
+    ## MabEmission at omega = 0. The module now uses MultipoleMoment.emmStaticAmplitude -- Johnson's r^k C_k,
+    ## with no omega and no gauge -- so the two columns are identical BY CONSTRUCTION, and both give 3.491829.
+    ##
+    ## **AND THE NUMBERS BELOW ARE NOW ASSERTED AGAINST EXACT HYDROGEN, which is what makes this a real test.**
+    ## For H 1s the sum-over-states alpha = sum_i f_i/omega_i^2 is known in closed form, term by term:
+    ##     2p   f = 0.41620,  omega = 0.375      ->  2.9596        (and the 1/2 : 3/2 pair splits 1 : 2)
+    ##     3p   f = 0.07910,  omega = 0.44444    ->  0.4005
+    ##     4p   f = 0.02900,  omega = 0.46875    ->  0.1320
+    ##                                bound sum  ->  3.4921
+    ## so a bound-only 2p+3p+4p sum has ONE right answer and the test demands it to 0.2 %. That is what the old
+    ## "0 < alpha0 < 4.5" bound could not do: it would have passed the stale 1.164 just as happily.
     ni    = Nuclear.Model(1.0, PointNucleus())
     grid  = Radial.Grid(Radial.Grid(false), rnt=4.0e-6, h=5.0e-2, hp=4.0e-2, rbox=80.0)
     scf   = Basics.NuclearField();   asf = AsfSettings(AsfSettings(); scField=scf)
@@ -301,11 +307,52 @@ function testModule_MultipolePolarizibility(; short::Bool=true)
                         "cannot exist: $(outcome.alpha2)")
             end
         end
-        ## the bound-only perturber sum must sit strictly between zero and the exact hydrogen value
+        ## the bound-only perturber sum must sit strictly between zero and the exact hydrogen value ...
         if  !(0. < outcome.alpha0.Babushkin < 4.5)
             success = false
             println("** alpha0 (Babushkin) = $(outcome.alpha0.Babushkin) is outside (0, 4.5); a sum over a " *
                     "bound-only perturber set must be a strict lower bound on the exact 4.5 a.u.")
+        end
+        ## ... and it must be the RIGHT lower bound:  the closed-form 2p+3p+4p value of hydrogen, 3.4921.
+        if  abs(outcome.alpha0.Babushkin/3.4921 - 1.0) > 2.0e-3
+            success = false
+            println("** alpha0 = $(outcome.alpha0.Babushkin) against the closed-form bound-only sum 3.4921 for " *
+                    "H 1s with 2p, 3p and 4p perturbers -- a relative difference of " *
+                    "$(abs(outcome.alpha0.Babushkin/3.4921 - 1.0))")
+        end
+        ## A STATIC POLARIZABILITY HAS NO GAUGE FREEDOM, so the two columns must be identical, not merely close.
+        if  outcome.alpha0.Coulomb != outcome.alpha0.Babushkin
+            success = false
+            println("** the two gauge columns of a STATIC polarizability differ: $(outcome.alpha0.Coulomb) " *
+                    "against $(outcome.alpha0.Babushkin).  They are built from one frequency-independent " *
+                    "operator and must be equal bit for bit.")
+        end
+    end
+    ## AND PERTURBER BY PERTURBER, which is where a wrong angular factor shows itself while a total can still
+    ## look plausible.  Each np pair has a closed-form value, and the two spin-orbit partners must split 1 : 2
+    ## by their statistical weights -- a ratio no fitting can produce by accident.
+    for  outcome in outcomes
+        pairs = Dict{Int64, Vector{Float64}}()
+        for  c  in  outcome.contributions
+            n = c.nuLevel.energy < -0.1 ? 2 : (c.nuLevel.energy < -0.04 ? 3 : 4)
+            push!(get!(pairs, n, Float64[]), c.contribAlpha0.Babushkin)
+        end
+        for  (n, exact)  in  ((2, 2.9596), (3, 0.4005), (4, 0.1320))
+            haskey(pairs, n) || continue
+            wa = sum(pairs[n])
+            if  abs(wa/exact - 1.0) > 3.0e-3
+                success = false
+                println("** the $(n)p perturber pair contributes $wa to alpha_0, against the closed-form " *
+                        "$exact for hydrogen")
+            end
+            if  length(pairs[n]) == 2
+                lo, hi = minimum(pairs[n]), maximum(pairs[n])
+                if  abs(hi/lo - 2.0) > 1.0e-2
+                    success = false
+                    println("** the $(n)p spin-orbit pair splits $hi : $lo = $(hi/lo), not the 2 : 1 its " *
+                            "statistical weights demand")
+                end
+            end
         end
     end
     Defaults.setDefaults("print summary: close", "")

@@ -53,18 +53,42 @@
     magnetic multipoles. Stark shifts and dispersion coefficients are separate, later consumers of
     this module and are also not implemented here.
 
-    STATUS, 10-Aug-2026: PARKED BY THE MAINTAINER -- this module is explicitly NOT urgent, and nothing here
-    should be picked up as the next task without saying so. It is left in a defensible state rather than a
-    finished one:
-      * it runs, and the two blockers recorded against it are resolved. The "B-spline pseudo-continuum bug"
-        was never a bug -- its test simply built the np perturbers in a 20 a.u. box, where 4p comes out at
-        +0.008 a.u., i.e. unbound. At rbox = 80 the perturbers are the exact hydrogenic -0.12500, -0.05556,
-        -0.03125 and alpha_0 is converged. The six-order gauge gap was the wrong operator, as above.
-      * alpha_0(H 1s) = 1.164 a.u. from a bound-only 2p+3p+4p sum, against the exact 4.5. That is CORRECT as
-        far as it goes -- every term is positive, so a finite bound sum is a strict lower bound -- but it is
-        not a converged polarizability. Reaching 4.5 needs the continuum, i.e. the pseudo-continuum tail
-        described above, and nobody has yet checked that such a tail converges to the right number.
-    So: usable as a lower bound and as a structural demonstration, not yet a source of publishable values.
+    UNPARKED 13-Oct-2026 ON THE MAINTAINER'S INSTRUCTION, AND THE MODULE REPRODUCES EXACT HYDROGEN.
+    It had been parked since 10-Aug-2026, and the whole of the reason was a stale number. The story is kept
+    here because it cost two months and the mechanism is general.
+
+      * **alpha_0(H 1s) = 4.499752 a.u. against the exact 4.500000** -- a relative error of 6e-05 -- from
+        np perturbers n = 2...16 with the grid guard switched off (see below). The approach to it is what
+        shows the pseudo-continuum is real rather than fortuitous: 3.4918 at 2p..4p, 3.6258 at 2p..8p --
+        saturating towards the BOUND-series limit of about 3.663 -- then 4.2486 at 2p..12p as the high-n
+        states cross threshold and begin to act as a continuum, 4.4997 at 2p..16p, and 4.4998 at 2p..20p,
+        i.e. converged. **So the question the old block left open -- whether such a tail converges to the
+        right number -- is answered, and it does.**
+
+      * THE BOUND PART IS EXACT TERM BY TERM. A 2p+3p+4p sum gives 3.491829 against the closed-form 3.4921,
+        and perturber by perturber 2.9595 / 0.4004 / 0.1320 against hydrogen's 2.9596 / 0.4005 / 0.1320, with
+        each spin-orbit pair splitting 1 : 2 by its statistical weight. Both gauge columns are identical by
+        construction, as a static quantity requires.
+
+      * **THE 1.164 THAT GOT IT PARKED WAS THE RIGHT ANSWER DIVIDED BY THREE, AND THE DIVISION HAD ALREADY
+        BEEN REPAIRED WHEN THE NOTE WAS WRITTEN.** Dividing today's alpha_0 by 3 reproduces 1.1639429, i.e.
+        the recorded value to seven figures. The repair was `0bdff9f6` (the Mab/Mba consolidation) of
+        09-Aug-2026 -- the day BEFORE the parking note -- and nobody re-ran the module afterwards. A working
+        module therefore sat parked for two months behind a number that was obsolete the day it was recorded.
+        `testModule_MultipolePolarizibility` now asserts the closed-form hydrogen values and has been shown to
+        fail on exactly this error; the old assertion, 0 < alpha_0 < 4.5, passed 1.164 as happily as 3.4918.
+
+    WHAT IT IS GOOD FOR NOW: static scalar and tensor polarizabilities as absolute values, not merely as lower
+    bounds, PROVIDED the perturber set includes the high-n tail. What it still does not do is choose that tail
+    for the caller -- see the grid note below.
+
+    THE GRID, AND WHY THE GUARD MUST BE SWITCHED OFF FOR THE TAIL. Beyond about 5p on a 129 a.u. box,
+    `Bsplines.checkGridRepresentation` refuses the perturbers, and it is RIGHT to: they are not accurate
+    Rydberg states there. But that is exactly what a pseudo-continuum is -- box-confined, properly normalised,
+    mutually orthogonal ASF standing in for the true continuum. So a caller who wants the converged value
+    passes `AsfSettings(...; gridStopper = false)` when GENERATING THE PERTURBER MULTIPLET, deliberately and
+    with this paragraph as the reason. The test of whether the basis is adequate is then not the guard but the
+    CONVERGENCE OF THE SUM, which for hydrogen is checked against an exact answer above.
 
     THE UNITS, because comparing against a measured Stark shift without them has already produced one false alarm.
     `alpha_0` is returned and printed in ATOMIC UNITS. The Stark-shift literature quotes MHz/(kV/cm)^2, and the two

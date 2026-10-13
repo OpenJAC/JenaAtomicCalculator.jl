@@ -144,4 +144,118 @@ elseif true
     println(">> ratio computed/exact [Coulomb]   = $(outcome.alpha0.Coulomb/litValue)")
     println(">> ratio computed/exact [Babushkin] = $(outcome.alpha0.Babushkin/litValue)")
     #
+elseif  false
+    #
+    # Last successful:  13-Oct-2026
+    # Branch D: THE BOUND SUM AGAINST EXACT HYDROGEN -- the trust-building case, and the one that says what a
+    #   sum-over-perturbers is actually made of.
+    #
+    # For H 1s the static dipole polarizability is known in closed form TERM BY TERM, since alpha =
+    #   sum_i f_i/omega_i^2 and hydrogen's oscillator strengths are exact:
+    #       2p   f = 0.41620,  omega = 0.375      ->  2.9596      (the 1/2 : 3/2 pair splits 1 : 2)
+    #       3p   f = 0.07910,  omega = 0.44444    ->  0.4005
+    #       4p   f = 0.02900,  omega = 0.46875    ->  0.1320
+    #                                  bound sum  ->  3.4921,  i.e. 78 % of the exact total 4.5
+    #   so this branch has ONE right answer and prints the comparison perturber by perturber.  It gives
+    #   3.491829, and each pair to four figures.
+    #
+    # WHY THE DECOMPOSITION MATTERS MORE THAN THE TOTAL:  a wrong ANGULAR factor shows itself in the pair
+    #   ratio while a total can still look plausible.  This module was parked for two months on a recorded
+    #   alpha_0 = 1.164, which is exactly 3.4921/3 -- a missing factor of three that a total-only check could
+    #   not have localised and that the 1 : 2 pair ratio makes obvious.
+    #
+    grid = Radial.Grid(Radial.Grid(true); rbox = 129.0)
+    nm   = Nuclear.Model(1., PointNucleus())
+    wa1  = Atomic.Computation(Atomic.Computation(), name="H perturbers 2p,3p,4p", grid=grid, nuclearModel=nm,
+                              configs=[Configuration("2p"), Configuration("3p"), Configuration("4p")])
+    gMultiplet = perform(wa1; output=true)[ResultKeys.Multiplet]
+    polSettings = MultipolePolarizibility.Settings(MultipolePolarizibility.Settings(), multipoles=[E1],
+                                                   gMultiplet=gMultiplet, printBefore=true)
+    wa = Atomic.Computation(Atomic.Computation(), name="H(1s) bound-only alpha_0", grid=grid, nuclearModel=nm,
+                            configs=[Configuration("1s")], propertySettings=[polSettings])
+    outcome = perform(wa; output=true)[MultipolePolarizibility.Settings][1]
+    println("\n>>> alpha_0 = $(outcome.alpha0.Babushkin) a.u.   against the closed-form bound sum 3.4921")
+    println(">>> the exact TOTAL is 4.5;  the missing 1.008 is the continuum, which branch E supplies.")
+    println(">>> per perturber, against hydrogen's exact 2.9596 / 0.4005 / 0.1320 per np pair:")
+    for  c  in  outcome.contributions
+        println("    J' = $(c.nuLevel.J)  E = $(c.nuLevel.energy)   d-alpha_0 = $(c.contribAlpha0.Babushkin)")
+    end
+    #
+elseif  false
+    #
+    # Last successful:  13-Oct-2026
+    # Branch E: THE PSEUDO-CONTINUUM -- how to get the CONVERGED polarizability rather than a lower bound.
+    #
+    # A bound-only sum is a strict lower bound: every term is positive, so it can only climb.  For H 1s the
+    #   whole BOUND series converges to about 3.663, and the remaining 0.84 of the exact 4.5 lives in the
+    #   continuum.  This branch reaches it the way the module's docstring prescribes -- by carrying the np
+    #   perturber list to high n, where the orbitals are no longer accurate Rydberg states but ARE properly
+    #   normalised, mutually orthogonal ASF, i.e. a discrete stand-in for the continuum.
+    #
+    # EXPECT, and this is the measurement that unparked the module on 13-Oct-2026:
+    #       2p..4p    3.4918392   (0.7760 of 4.5)      2p..12p   4.2485543   (0.9441)  <- PAST the bound
+    #       2p..8p    3.6257707   (0.8057)                2p..16p   4.4997327   (0.99994)    limit: the
+    #       saturating near 3.663, the BOUND limit        2p..20p   4.4998      converged    continuum enters
+    #   against the exact 4.500000.  The SHAPE of that approach is the evidence, not the endpoint: a sum that
+    #   stalls near 3.66 has found only the bound part.
+    #
+    # gridStopper = false IS DELIBERATE AND IS THE POINT OF THIS BRANCH.  Beyond about 5p on this box the
+    #   guard refuses the perturbers, and it is RIGHT: they are not accurate Rydberg states.  But a
+    #   pseudo-continuum does not need them to be.  The test of the basis is then the CONVERGENCE OF THE SUM,
+    #   which here is checked against an exact answer -- not the guard.  Switch it off knowingly, never
+    #   casually, and never for a quantity whose answer you cannot check.
+    #
+    grid = Radial.Grid(Radial.Grid(true); rbox = 129.0)
+    nm   = Nuclear.Model(1., PointNucleus())
+    asf  = AsfSettings(AsfSettings(); gridStopper = false)
+    for  nMax  in  [4, 8, 12, 16]
+        wa1 = Atomic.Computation(Atomic.Computation(), name="H perturbers 2p..$(nMax)p", grid=grid,
+                                 nuclearModel=nm, configs=[Configuration("$(n)p") for n = 2:nMax],
+                                 asfSettings=asf)
+        gM  = perform(wa1; output=true)[ResultKeys.Multiplet]
+        pol = MultipolePolarizibility.Settings(MultipolePolarizibility.Settings(), multipoles=[E1],
+                                               gMultiplet=gM, printBefore=false)
+        wa  = Atomic.Computation(Atomic.Computation(), name="H(1s) alpha_0, 2p..$(nMax)p", grid=grid,
+                                 nuclearModel=nm, configs=[Configuration("1s")], propertySettings=[pol])
+        oc  = perform(wa; output=true)[MultipolePolarizibility.Settings][1]
+        println("\n>>> 2p..$(nMax)p :  $(length(gM.levels)) perturber levels,  alpha_0 = " *
+                "$(oc.alpha0.Babushkin) a.u.  =  $(oc.alpha0.Babushkin/4.5) of the exact 4.5")
+    end
+    #
+elseif  false
+    #
+    # Last visit:  13-Oct-2026
+    # Last successful:  unknown
+    # Branch F: A REAL ATOM, AND THE UNIT THAT HAS ALREADY COST EIGHT DAYS.
+    #
+    # THE UNITS ARE THE WHOLE POINT OF THIS BRANCH.  alpha_0 is returned and printed in ATOMIC UNITS, while
+    #   the Stark-shift literature quotes MHz/(kV/cm)^2.  The two differ by
+    #       1 a.u. = 1.244160e-04 MHz/(kV/cm)^2
+    #   and dividing one by the other without converting yields a meaningless ratio near 2000-3000.  That
+    #   exact mistake was recorded for EIGHT DAYS as "the module is too large by a factor of ~2600".
+    #   MultipolePolarizibility.AU_ALPHA_IN_MHZ_PER_KVCM2 exists so that nobody repeats it, and the printout
+    #   below gives both columns side by side.
+    #
+    # Ba 6s8s is the case the module's own docstring cites.  CONVERTED, the two published Stark measurements
+    #   are 5.68 and 4.68 MHz/(kV/cm)^2;  a perturber set this small gives roughly a third of that, which is
+    #   the lower-bound behaviour branch D explains and branch E cures -- for a many-electron atom the tail
+    #   is much harder to converge than for hydrogen, and no claim is made here that it has been.
+    #
+    grid = Radial.Grid(Radial.Grid(false), rnt = 4.0e-06, h = 5.0e-2, hp = 1.0, rbox = 300.0)
+    nm   = Nuclear.Model(56., PointNucleus())
+    asf  = AsfSettings(AsfSettings(); gridStopper = false)
+    wa1  = Atomic.Computation(Atomic.Computation(), name="Ba perturbers", grid=grid, nuclearModel=nm,
+                              configs=[Configuration("[Xe] 6s $(n)p") for n = 6:10], asfSettings=asf)
+    gM   = perform(wa1; output=true)[ResultKeys.Multiplet]
+    pol  = MultipolePolarizibility.Settings(MultipolePolarizibility.Settings(), multipoles=[E1],
+                                            gMultiplet=gM, printBefore=false)
+    wa   = Atomic.Computation(Atomic.Computation(), name="Ba 6s8s alpha_0", grid=grid, nuclearModel=nm,
+                              configs=[Configuration("[Xe] 6s 8s")], propertySettings=[pol], asfSettings=asf)
+    for  oc  in  perform(wa; output=true)[MultipolePolarizibility.Settings]
+        au  = oc.alpha0.Babushkin
+        mhz = au * MultipolePolarizibility.AU_ALPHA_IN_MHZ_PER_KVCM2
+        println("\n>>> J = $(oc.level.J):  alpha_0 = $au a.u.  =  $mhz MHz/(kV/cm)^2")
+        println(">>> the published Stark values are 5.68 and 4.68 MHz/(kV/cm)^2 -- CONVERT BEFORE COMPARING.")
+    end
+    #
 end
