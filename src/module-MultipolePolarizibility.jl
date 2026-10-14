@@ -480,6 +480,45 @@ function  displayResults(stream::IO, outcomes::Array{MultipolePolarizibility.Out
         sa = sa * TableStrings.flushright(15, @sprintf("%.6e", outcome.alpha0.Babushkin * MultipolePolarizibility.AU_ALPHA_IN_MHZ_PER_KVCM2) ) * "    "
         println(stream, sa )
     end
+    println(stream, "  ", TableStrings.hLine(nx))
+    #
+    # THE DOMINANT ENERGY DENOMINATOR, PRINTED BECAUSE IT IS THE ONE NUMBER THAT DIAGNOSES THE WHOLE FAMILY OF
+    # FAILURES HERE (item 70, 14-Oct-2026).  alpha_0 ~ |<a||P||b>|^2 / (W_b - W_a), so it is INVERSELY
+    # proportional to this gap, and a mean field that misplaces the lowest perturber misplaces alpha_0 by the
+    # same factor -- while every internal check in this module still passes, because the formula is right and
+    # only its input is wrong.  A reader who can compare ONE number against a measured level energy can catch
+    # that in seconds;  a reader given only alpha_0 cannot catch it at all.
+    #
+    # MEASURED, Li [He]2s against Puchalski et al.'s 164.0740 a.u. with ONE perturber set throughout:
+    #     DFSField  183.7863 (+12 %, gap 0.056168 Ha)    HSField  227.9872 (+39 %)    ALField  167.6745 (+2.2 %,
+    #     gap 0.067688 Ha against the experimental 0.067700).  DFS puts the Li 2s at -0.079 Ha where the true
+    #     value is -0.198, i.e. underbound by a factor 2.5, and the gap and alpha_0 move together exactly as
+    #     the formula says they must.  `AsfSettings()` DEFAULTS to DFSField, so this is the common case, not
+    #     an exotic one.
+    for  outcome in outcomes
+        isempty(outcome.contributions)   &&   continue
+        dominant = outcome.contributions[1]
+        for  c in outcome.contributions
+            abs(c.contribAlpha0.Babushkin) > abs(dominant.contribAlpha0.Babushkin)   &&   (dominant = c)
+        end
+        share = abs(outcome.alpha0.Babushkin) > 0.0 ?
+                abs(dominant.contribAlpha0.Babushkin / outcome.alpha0.Babushkin) : 0.0
+        println(stream, "  Level $(outcome.level.index):  the DOMINANT perturber is " *
+                        "$(LevelSymmetry(dominant.nuLevel.J, dominant.nuLevel.parity)) at " *
+                        @sprintf("Delta-E = %.6f", abs(dominant.deltaE)) * " a.u. " *
+                        "(" * @sprintf("%.6f", Defaults.convertUnits("energy: from atomic",
+                                                                      abs(dominant.deltaE))) * " " *
+                        TableStrings.inUnits("energy") * "), carrying " *
+                        @sprintf("%.1f", 100*share) * " % of alpha_0.")
+    end
+    println(stream, "  ")
+    println(stream, "  >>> alpha_0 is INVERSELY proportional to that gap, so CHECK IT against a measured level")
+    println(stream, "  >>> energy before trusting alpha_0: a mean field that underbinds the valence electron")
+    println(stream, "  >>> shrinks the gap and inflates alpha_0 by the same factor, with every internal check")
+    println(stream, "  >>> in this module still passing.  Measured on Li [He]2s against a literature 164.0740:")
+    println(stream, "  >>>     DFSField  +12 %      HSField  +39 %      ALField  +2.2 %")
+    println(stream, "  >>> and `AsfSettings()` DEFAULTS to DFSField.  Prefer ALField or EOLField for a")
+    println(stream, "  >>> polarizability;  see examples/example-Cj.jl branch (C).")
     println(stream, "  ", TableStrings.hLine(nx), "\n\n")
     #
     return( nothing )
