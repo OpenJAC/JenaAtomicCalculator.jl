@@ -105,7 +105,7 @@ export AbstractComputeTheme, AbstractConfigurationRestriction, AbstractConfigura
        DoubleAuger, DoubleAutoIonization,
        E1, E2, E3, E4, Einstein, ElecCapture, ElectronCapture, EmMultipole, Empirical, EmProperty,
        EmPropertyC, estimateCrossSections, evaluate, ExcitationLevel, ExciteElectrons, ExpandShells,
-       ExportAdas, ExportDataSet,
+       ExportAdas, ExportChianti, ExportDataSet, ExportVamdc,
        ExpStokes, extractConfiguration, extractConfigurations, extractFromConfiguration, extractFromConfigurations,
        FermiNucleus, FineStructure, FineStructureLS, ForAutoIonization, ForDielectronicCapture, ForDielectronicRecombination,
        ForElectronCapture, ForGivenConfigs, ForHollowIons, ForImpactIonization, ForIsoelectronicSequence,
@@ -276,6 +276,8 @@ include("module-Empirical.jl");         using ..Empirical
 # Functions for exporting computed results into external, non-JAC data formats
 include("module-ExportDataSet.jl")
 include("module-ExportAdas.jl")
+include("module-ExportChianti.jl")
+include("module-ExportVamdc.jl")
 
 # Functions/methods for atomic computations
 include("module-Atomic.jl");            using ..Atomic

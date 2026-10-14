@@ -1,6 +1,7 @@
 
-println("Ra) Apply & test the ExportDataSet/ExportAdas modules: write a BASIC adf04 file from JAC's own output.")
-println("    Demonstrates the pipeline, not a converged physics result -- see this file's own comments.")
+println("Ra) Apply & test the Export* modules: write BASIC adf04, CHIANTI and VAMDC/XSAMS-sketch files from")
+println("    JAC's own output. Demonstrates the pipeline, not a converged physics result -- see this file's")
+println("    own comments, and each Export* module's own docstring for exactly what is and is not covered.")
 
 setDefaults("print summary: open", "zzz-ExportAdas.sum")
 setDefaults("unit: energy", "eV")
@@ -54,5 +55,20 @@ if  true
 
     println(">>> adf04 output:\n")
     ExportAdas.writeAdf04(stdout, ds)
+
+    # CHIANTI's gf column is DERIVED (see ExportChianti's own docstring), not supplied -- cross-checked here
+    # against the well-known He-like "w-line" oscillator strength, f ~ 0.7 fairly flat across the isoelectronic
+    # sequence (e.g. Z=6 is textbook territory for this line): f = gf/g_lower, g_lower = 1 for the 1S_0 ground.
+    lambdaAngstrom = 1.0e8 / deltaE
+    gf             = (2*1.0+1) * aValue * lambdaAngstrom^2 / 6.670e15
+    println("\n>>> CHIANTI gf cross-check: f = gf/g_lower = $(gf) (g_lower = 1),  expected ~ 0.7 for this line\n")
+
+    println(">>> .elvlc output:\n")
+    ExportChianti.writeElvlc(stdout, ds)
+    println("\n>>> .wgfa output:\n")
+    ExportChianti.writeWgfa(stdout, ds)
+
+    println("\n>>> VAMDC/XSAMS-sketch output (NOT schema-valid -- see ExportVamdc's own docstring):\n")
+    ExportVamdc.writeMinimalXsams(stdout, ds)
     #
 end
