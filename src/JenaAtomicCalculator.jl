@@ -127,7 +127,7 @@ export AbstractComputeTheme, AbstractConfigurationRestriction, AbstractConfigura
        MeanOccupation, MuonicAtom, minus, Model, MultiPhotonDE, MultiPhotonIonization,
        MultiPhotonTransition, MultiPI, Multiplet, Multiplicity, MultipoleAmplitude, MultipoleMoment,
        MultipolePolarizibility,
-       NoneQed, NonrelativisticBasis, NoProcess, Nuclear, NuclearShielding, NumberOfElectrons,
+       NistCalibration, NoneQed, NonrelativisticBasis, NoProcess, Nuclear, NuclearShielding, NumberOfElectrons,
        OccupationDifference, OneElectronSettings, OneElectronSpectrum, OpenShellNumber, OpenShells, OpenSubshells, oplus,
        Orbital,
        PairA1P, Parity,
@@ -278,6 +278,9 @@ include("module-ExportDataSet.jl")
 include("module-ExportAdas.jl")
 include("module-ExportChianti.jl")
 include("module-ExportVamdc.jl")
+
+# Functions for calibrating computed level energies against externally supplied (e.g. NIST ASD) data
+include("module-NistCalibration.jl")
 
 # Functions/methods for atomic computations
 include("module-Atomic.jl");            using ..Atomic

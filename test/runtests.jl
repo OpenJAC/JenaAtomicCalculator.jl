@@ -124,6 +124,13 @@ end
                                                     ## over spin-orbit partners must be exactly twice the
                                                     ## non-relativistic value.  One constant multiplies every number
                                                     ## the module returns, and nothing else could reveal it wrong.
+        @test TestFrames.testModule_NistCalibration()
+                                                    ## added 14-Oct-2026; a hand-built 3-level multiplet, no grid, no
+                                                    ## orbitals: a matched level gets exactly ground + NIST-cm^-1 in
+                                                    ## a.u., an unmatched one is untouched and flagged, excludeLevels
+                                                    ## suppresses a match, re-calibrating cm.multiplet a second time
+                                                    ## reproduces the first result exactly (idempotence), and
+                                                    ## calibrating a CalibratedMultiplet directly raises an error.
     end
 
     @testset "JAC processes" begin

@@ -375,6 +375,61 @@ end
 
 
 """
+`TestFrames.testModule_NistCalibration(; short::Bool=true)`
+    ... tests module NistCalibration on a small, hand-built multiplet, no grid, no orbitals and no approved
+        file, so that nothing in it can drift: (i) a matched level gets exactly the expected calibrated
+        energy, ground + NIST-cm^-1-converted-to-a.u.; (ii) an UNmatched level keeps its raw energy and is
+        flagged unmatched; (iii) excludeLevels suppresses a match that would otherwise apply; (iv)
+        calibrating the already-calibrated cm.multiplet a second time reproduces the FIRST result exactly
+        (idempotence, by index-based matching and a fixed reference level -- see the module's own docstring);
+        (v) calibrating a CalibratedMultiplet directly raises an error rather than silently re-shifting it.
+        A success::Bool is returned.
+"""
+function testModule_NistCalibration(; short::Bool=true)
+    printstyled("\n\nTest the module  NistCalibration  ... \n", color=:cyan)
+    success = true
+
+    lev1 = ManyElectron.Level(AngularJ64(0), AngularM64(0), Parity("+"), 1, -10.0, 1.0, false, Basis(), Float64[])
+    lev2 = ManyElectron.Level(AngularJ64(1), AngularM64(1), Parity("-"), 2,  -9.5, 1.0, false, Basis(), Float64[])
+    lev3 = ManyElectron.Level(AngularJ64(2), AngularM64(2), Parity("-"), 3,  -9.0, 1.0, false, Basis(), Float64[])
+    mp   = ManyElectron.Multiplet("test", [lev1, lev2, lev3])
+    nistTable = [ NistCalibration.NistEntry(2, 100000.0, "level 2 measured"),
+                  NistCalibration.NistEntry(3, 200000.0, "level 3 measured") ]
+
+    cm = NistCalibration.calibrate(mp, nistTable, "test source"; groundLevelIndex=1)
+    auPerKayser = 1.0 / Defaults.convertUnits("energy: from atomic to Kayser", 1.0)
+    expected2   = lev1.energy + 100000.0*auPerKayser
+    if  abs(cm.multiplet.levels[2].energy - expected2) > 1.0e-10   ||   !cm.levelRecords[2].matched
+        success = false;   println("  ** matched-level energy or flag wrong: $(cm.multiplet.levels[2].energy) vs $expected2")
+    end
+    if  cm.multiplet.levels[1].energy != lev1.energy   ||   cm.levelRecords[1].matched
+        success = false;   println("  ** unmatched level 1 was changed or wrongly flagged matched")
+    end
+
+    cmExcl = NistCalibration.calibrate(mp, nistTable, "test source"; groundLevelIndex=1, excludeLevels=[2])
+    if  cmExcl.levelRecords[2].matched   ||   cmExcl.multiplet.levels[2].energy != lev2.energy
+        success = false;   println("  ** excludeLevels did not suppress the level 2 match")
+    end
+
+    cm2 = NistCalibration.calibrate(cm.multiplet, nistTable, "test source"; groundLevelIndex=1)
+    if  cm2.multiplet.levels[2].energy != cm.multiplet.levels[2].energy   ||
+        cm2.multiplet.levels[3].energy != cm.multiplet.levels[3].energy
+        success = false;   println("  ** re-calibrating cm.multiplet was NOT idempotent")
+    end
+
+    try
+        NistCalibration.calibrate(cm, nistTable, "test source"; groundLevelIndex=1)
+        success = false;   println("  ** calibrate(::CalibratedMultiplet, ...) did not raise an error")
+    catch
+        # expected
+    end
+
+    testPrint("testModule_NistCalibration()::", success)
+    return(success)
+end
+
+
+"""
 `TestFrames.testModule_ReducedDensityMatrix(; short::Bool=true)`  ... tests on module ReducedDensityMatrix;
     a success::Bool is returned.
 """
