@@ -43,18 +43,26 @@
         DEMONSTRATION THAT THE MACHINERY RUNS AND REDUCES TO THE RIGHT LIMIT, NOT YET AS A VALIDATED PHYSICAL
         RESULT.
 
-        **THAT NEXT STEP HAS NOW BEEN TAKEN, AND IT FOUND A DEFECT -- 14-Oct-2026.** The genuine
-        multi-electron SCF system the paragraph above asks for is Ne 1s^2 2s^2 2p^6 in its own DFS potential,
-        E1 at omega = 0.1, three active subshells. The coupled iteration does not converge there under any
-        damping, and Anderson acceleration does not repair it. Measuring the iteration map's spectral radius
-        directly -- by scaling the induced term by lambda and tracking successive residual norms -- gives
-        rho = 5.03, where a closed shell's tens-of-percent screening calls for 0.2-0.4. **The coupling term
-        is about 12x too strong, and at least a factor 3 of that is identified: this module applies no
-        angular coefficient at all, where a rank-L induced potential needs a reduced matrix element of C^L at
-        each end.** So `couplingEnabled = true` is not merely unvalidated, it is known wrong; the
-        single-electron limit remains exact and is unaffected. The full account, including what the factor 3
-        does NOT explain, is at `RandomPhase.solve`. Fixing the angular algebra and re-measuring rho is the
-        next step -- days of work, and it must come before any larger scheme.
+        **THAT NEXT STEP HAS NOW BEEN TAKEN, IT FOUND A DEFECT, AND THE DEFECT IS REPAIRED -- 14-Oct-2026.**
+        The genuine multi-electron SCF system the paragraph above asks for is Ne 1s^2 2s^2 2p^6 in its own
+        DFS potential, E1 at omega = 0.1, three active subshells. The coupled iteration diverged there under
+        any damping, and measuring the iteration map's spectral radius directly -- by scaling the induced term
+        by a factor lambda and tracking successive residual norms -- gave rho = 5.03, where a closed shell's
+        tens-of-percent screening calls for 0.2-0.4. The cause was that THIS MODULE APPLIED NO ANGULAR
+        COEFFICIENT AT ALL, while a rank-L induced potential needs a reduced matrix element of C^L at each
+        end, and weighted each electron by (2j_b+1) where the reduced convention wants 2*sqrt(2j_b+1). Both
+        are now fixed, the radial route is verified against `InteractionStrength.XL_Coulomb` to ten digits
+        including its sign, and the response is confirmed to SCREEN rather than anti-screen.
+
+        **WHAT IS STILL NOT CONVERGED, STATED PLAINLY.** The fix improved rho by 2.17x, from 5.03 to 2.32 --
+        a genuine improvement and still above one, so the undamped iteration continues to fail at full
+        coupling strength and a coupled number is STILL not to be trusted. The measurement now points at the
+        one-target-per-subshell truncation: because the angular factors of the two spin-orbit partners have
+        OPPOSITE signs, they cancel in the induced field, and a truncated channel set breaks that
+        cancellation -- rho moves between 1.94 and 3.66 on nothing but the choice of targets. Widening
+        `Settings.targetSubshells` beyond one target per subshell is therefore the next step, and it is an API
+        change. See `RandomPhase.solve` for the full account, the two smaller remaining candidates, and why a
+        direct linear solve should wait until the channel set is right.
 
         WHAT IS STILL OUT OF SCOPE EVEN NOW. Only the DIRECT term is built: the EXCHANGE contribution to the
         induced field needs the same two-electron angular machinery (`SpinAngular`) the CI path already
@@ -64,8 +72,8 @@
 module RandomPhase
 
 
-using  LinearAlgebra, Printf, ..Basics, ..Bsplines, ..DalgarnoLewis, ..ManyElectron, ..Radial, ..RadialIntegrals,
-       JenaAtomicCalculator
+using  LinearAlgebra, Printf, ..AngularMomentum, ..Basics, ..Bsplines, ..DalgarnoLewis, ..ManyElectron, ..Radial,
+       ..RadialIntegrals, JenaAtomicCalculator
 
 
 """
@@ -228,39 +236,101 @@ end
 
 
 """
+`RandomPhase.angularCoefficient(L::Int64, tSub::Subshell, aSub::Subshell)`
+    ... the one-electron angular factor the rank-L induced interaction carries on the channel aSub -> tSub,
+        namely `AngularMomentum.CL_reduced_me(tSub, L, aSub)`, or 0.0 where the triangular and parity
+        selection rules forbid the channel. It exists as a named function, rather than inline, because the
+        convention is the thing most easily got wrong here and Rule 18 asks for it to be visible.
+
+        **WHICH CONVENTION, AND HOW IT WAS FIXED -- 14-Oct-2026.** `DalgarnoLewis.solve` builds its EXTERNAL
+        source from `DalgarnoLewis.amplitudeKernel`, i.e. from a REDUCED one-electron matrix element on the
+        channel aSub -> tSub. An induced source added to that same equation must therefore be reduced the
+        same way, which is exactly one factor of `CL_reduced_me` per end and no division by sqrt(2j+1)
+        anywhere. The argument ORDER matters and is not free: `CL_reduced_me(tSub, L, aSub)` and
+        `CL_reduced_me(aSub, L, tSub)` differ by (-1)^(j_t - j_a), so they have OPPOSITE signs for
+        2s_1/2 <-> 2p_3/2 and the same sign for 2s_1/2 <-> 2p_1/2. The order used here is the one
+        `InteractionStrength.XL_Coulomb(L, a::Subshell, b, c::Subshell, d, primitives)` uses for the
+        corresponding two-electron strength -- target (row) first, source (column) second -- so that this
+        module's radial route and JAC's own already-validated angular factor agree term by term.
+
+        **THE `(-1)^L` IS NOT APPLIED HERE.** `XL_Coulomb` carries it once for the whole two-electron
+        product, and this function is called at BOTH ends -- once where the induced density is formed and
+        once where it acts -- so applying it here would square it away. `RandomPhase.solve` applies it once,
+        and says so at the line that does.
+        A coefficient::Float64 is returned, which is 0.0 for a channel the selection rules forbid.
+"""
+function angularCoefficient(L::Int64, tSub::Subshell, aSub::Subshell)
+    lt = Basics.subshell_l(tSub);   jt2 = Basics.subshell_2j(tSub)
+    la = Basics.subshell_l(aSub);   ja2 = Basics.subshell_2j(aSub)
+    if  AngularMomentum.triangularDelta(jt2+1, ja2+1, L+L+1) == 0   ||   rem(lt+la+L, 2) == 1
+        return( 0.0 )
+    end
+
+    return( AngularMomentum.CL_reduced_me(tSub, L, aSub) )
+end
+
+
+"""
 `RandomPhase.inducedPotentialZr(multipole::EmMultipole, activeOrbitals::Dict{Subshell,Orbital},
-                                 chis::Dict{Subshell,DalgarnoLewis.PerturbedOrbital}, excludeSubshell::Subshell,
+                                 chis::Dict{Subshell,DalgarnoLewis.PerturbedOrbital},
+                                 targets::Dict{Subshell,Subshell}, excludeSubshell::Subshell,
                                  grid::Radial.Grid)`
     ... builds the DIRECT (Hartree, "ring") induced potential electron `excludeSubshell` feels from every OTHER
         active electron's CURRENT chi, at the multipole's own rank L, in the SAME "Zr" (= -r*V(r)) convention
         `Radial.Potential` and `Bsplines.computeVlocal` use throughout JAC -- so that the minus sign below is
-        the ordinary nuclear-potential-style sign, not a new convention. Each contributing electron b is
-        weighted by (2j_b+1), treating it statistically as a filled shell (the same choice
-        `Basics.computePotential(::Basics.AaHSField, ...)` makes for its own L=0 Hartree term), and the
-        induced density itself is 2*[Pb*Pchi_b + Qb*Qchi_b] -- the psi*chi + chi*psi symmetrization for a real
-        response -- which is exact only at omega = 0, since at finite omega the two terms are the two time
-        orderings and are different functions.
+        the ordinary nuclear-potential-style sign, not a new convention. The induced density itself is
+        2*[Pb*Pchi_b + Qb*Qchi_b] -- the psi*chi + chi*psi symmetrization for a real response -- which is
+        exact only at omega = 0, since at finite omega the two terms are the two time orderings and are
+        different functions.
 
-        **KNOWN INCOMPLETE, MEASURED 14-Oct-2026:  THE ANGULAR FACTOR IS MISSING AT BOTH ENDS.** The radial
-        part built here is right, but a rank-L induced density does not act as a spherical potential: a
-        reduced matrix element of C^L belongs where psi_b chi_b is projected onto rank L, and a second one
-        where `RandomPhase.inducedSourceVector` lets the result act on the active electron. Neither is applied
-        anywhere in this module, which contains no angular algebra at all. For the three channels of the Ne
-        test case `AngularMomentum.CL_reduced_me(t, 1, a)/sqrt(2j_a+1)` is -1/sqrt(3) throughout, so the
-        product over the two ends is 1/3 and the coupled iteration's induced term is 3x too strong. That is
-        why `couplingEnabled = true` does not converge; see the long note at `RandomPhase.solve` for the
-        measurement and for what it leaves unexplained.
+        **THE WEIGHT IS sqrt(2j_b+1) TIMES THE CHANNEL'S REDUCED MATRIX ELEMENT, AND THE sqrt IS NOT A TYPO.**
+        Until 14-Oct-2026 each electron b was weighted by the full (2j_b+1), treating it statistically as a
+        filled shell, with no angular factor at all -- which made the coupled iteration diverge (see
+        `RandomPhase.solve`). The weight is fixed, without any literature, by the L = 0 HARTREE LIMIT:
+
+          * at L = 0 with t_b = b the induced potential must be the ordinary first-order Hartree potential,
+            2*(2j_b+1)*Y_0[rho]/r, which is what the old code had and what is not in dispute;
+          * the source this potential feeds is `DalgarnoLewis.solve`'s, which is REDUCED -- it comes from
+            `DalgarnoLewis.amplitudeKernel`, a reduced one-electron matrix element -- so the induced term must
+            be reduced to match, one factor of `CL_reduced_me` per end (see `RandomPhase.angularCoefficient`);
+          * and `AngularMomentum.CL_reduced_me(b, 0, b) = sqrt(2j_b+1)` EXACTLY, checked for s, p, d and f.
+
+        Equating the two therefore gives weight * sqrt(2j_b+1) = 2*(2j_b+1), i.e. a weight of
+        2*sqrt(2j_b+1): the occupation splits in half, one sqrt(2j_b+1) staying here and the other being
+        carried by the reduced matrix element's own normalisation. This is precisely the sqrt(2j+1) Rule 18
+        is about, and it is written out because the two quantities it sits between -- an ordinary potential
+        and a reduced source -- are otherwise denoted alike.
+
+        **AND THE ANGULAR FACTOR CHANGES THE PHYSICS, NOT ONLY THE SCALE.** `CL_reduced_me(b, L, t_b)` carries
+        a SIGN, and for the two spin-orbit partners of a subshell those signs are OPPOSITE: for L = 1,
+        CL(2p_1/2, 1, 2s_1/2) = -0.816 against CL(2p_3/2, 1, 2s_1/2) = +1.155. So the partners partially
+        cancel in the induced field, where the old weighting added them with one sign and with weights 2 and
+        4. That cancellation is physical and is a large part of why the uncorrected term was far too strong.
+
+        **THE RADIAL PART IS VERIFIED AGAINST JAC'S OWN, TO TEN DIGITS.** `InteractionStrength.XL_Coulomb`
+        builds the corresponding two-electron strength from `RadialIntegrals.SlaterRkComponent`, so the two
+        can be compared entry by entry if the source orbital is chosen to BE a single B-spline, which makes
+        its coefficient vector a unit vector. Done on the Ne case for three spline pairs, this route and
+        JAC's agree to every digit printed -- ratio 1.000000, values -7.3537752978e-03 against
+        -7.3537752978e-03 -- SIGN INCLUDED. So the radial machinery and the "Zr" sign convention here are the
+        ones JAC uses elsewhere, and the angular factor was the only thing this module lacked.
         A VindZr::Array{Float64,1} of length grid.NoPoints is returned.
 """
 function inducedPotentialZr(multipole::EmMultipole, activeOrbitals::Dict{Subshell,Orbital},
-                             chis::Dict{Subshell,DalgarnoLewis.PerturbedOrbital}, excludeSubshell::Subshell,
+                             chis::Dict{Subshell,DalgarnoLewis.PerturbedOrbital},
+                             targets::Dict{Subshell,Subshell}, excludeSubshell::Subshell,
                              grid::Radial.Grid)
     rho = zeros(grid.NoPoints);   mtpRho = 1
     for  (b, chiB)  in  chis
         b == excludeSubshell   &&   continue
-        orbB = activeOrbitals[b];   occB = Basics.twice(Basics.subshell_j(b)) + 1
+        orbB   = activeOrbitals[b];   jb2 = Basics.subshell_2j(b)
+        # The weight is sqrt(2j_b+1), NOT (2j_b+1):  see this method's docstring for the Hartree calibration
+        # that fixes it.  The remaining sqrt(2j_b+1) of the occupation is carried by CL_reduced_me's own
+        # normalisation at this end, since CL_reduced_me(b, 0, b) = sqrt(2j_b+1) exactly.
+        weightB = sqrt(jb2 + 1.0) * RandomPhase.angularCoefficient(multipole.L, b, targets[b])
+        weightB == 0.0   &&   continue
         mtpB = min(length(orbB.P), length(chiB.P), length(orbB.Q), length(chiB.Q))
-        for  i = 1:mtpB   rho[i] = rho[i] + occB * 2.0 * (orbB.P[i]*chiB.P[i] + orbB.Q[i]*chiB.Q[i])   end
+        for  i = 1:mtpB   rho[i] = rho[i] + weightB * 2.0 * (orbB.P[i]*chiB.P[i] + orbB.Q[i]*chiB.Q[i])   end
         mtpRho = max(mtpRho, mtpB)
     end
 
@@ -276,9 +346,12 @@ end
         primitive, where here it is a general tabulated orbital, so the shared formula is written out again
         rather than called. This is `DalgarnoLewis.solve`'s `extraSource` keyword's own input.
 
-        **AND IT CARRIES NO ANGULAR COEFFICIENT, WHICH IS A KNOWN DEFECT** -- the rank-L potential is applied
-        here as though it were spherical. See `RandomPhase.inducedPotentialZr` for the measurement; the factor
-        belonging at this end is a reduced matrix element of C^L between the active subshell and its target.
+        **IT CARRIES NO ANGULAR COEFFICIENT, DELIBERATELY, AND THE CALLER MUST SUPPLY ONE.** What this
+        function returns is the bare radial projection; the active channel's own reduced matrix element of
+        C^L, and the `(-1)^L` of the two-electron product, are applied by `RandomPhase.solve` through
+        `RandomPhase.angularCoefficient`. Until 14-Oct-2026 nothing applied them at all, which is what made
+        the coupled iteration diverge. A caller that uses this function directly, as a diagnostic does, must
+        multiply by `angularCoefficient(L, target, active)` and the sign itself -- see `RandomPhase.solve`.
         An extraSource::Array{Float64,1} of length primitives.grid.nsL + primitives.grid.nsS is returned.
 """
 function inducedSourceVector(VindZr::Array{Float64,1}, sourceOrbital::Orbital, primitives::Bsplines.Primitives)
@@ -386,45 +459,56 @@ function solve(multipole::EmMultipole, gauge::EmGauge, omega::Float64, activeOrb
     # spectral radius near or below one;  it cannot rescue one well above it.  So the question is WHY the
     # spectral radius is large, and that was measured next rather than argued about.
     #
-    # **THE LAMBDA TEST, 14-Oct-2026:  IT IS A DEFECT IN THIS TERM AND NOT STRONG COUPLING.**  The coupled
-    # equations are AFFINE in chi -- chi = c + J chi, with c the external drive and J the induced term -- so
-    # convergence depends ONLY on the spectral radius rho(J) and NOT on how the external operator is
-    # normalised.  rho(J) is therefore a physical number:  it IS the screening strength.  Scaling the induced
-    # source by lambda and measuring rho as the limit of successive residual norms ||f_k+1||/||f_k||,
-    # UNDAMPED (damping would measure (1-m)I + mJ instead of J), on the same Ne case:
-    #       lambda  1.000   0.500   0.250   0.125       rho/lambda  3.3276  3.3276  3.3276  3.3276
-    # The ratio rho/lambda is CONSTANT TO FIVE FIGURES, which is what proves the quantity measured really is
-    # the spectral radius of a linear map rather than some transient.  The per-iteration ratios oscillate
-    # (6.4, 3.7, 5.8, 5.2, 3.5, 7.2, ...), the signature of a complex-conjugate eigenvalue pair, so the sound
-    # estimate is their geometric mean:  **rho_1 = 5.03, i.e. lambda_crit = 0.199.**
+    # **THE ANGULAR ALGEBRA WENT IN ON 14-Oct-2026, AND THIS NOTE RECORDS WHAT IT DID AND DID NOT FIX.**
+    # Until then the module applied no angular coefficient anywhere, and weighted each contributing electron
+    # by its full (2j_b+1).  Both are now corrected -- one reduced matrix element of C^L per end, a weight of
+    # 2*sqrt(2j_b+1), and the (-1)^L of the two-electron product applied once -- with the derivation in
+    # `RandomPhase.inducedPotentialZr` and the convention in `RandomPhase.angularCoefficient`.
     #
-    # AND THAT NUMBER CANNOT BE READ AS PHYSICS.  For a closed shell the screening correction is a
-    # tens-of-percent effect, so rho_1 should be about 0.2-0.4 and an undamped iteration should simply work;
-    # omega = 0.1 sits far below the 2s-2p excitation energy of ~1 Ha, so there is no resonance to blame.  The
-    # term is therefore about 12x too strong, and the measurement says so independently of any literature.
+    # THREE THINGS ARE NOW ESTABLISHED, each by a check that could have failed.
     #
-    # **WHERE AT LEAST A FACTOR 3 OF IT SITS:  THIS MODULE CONTAINS NO ANGULAR ALGEBRA AT ALL.**  The induced
-    # potential is of rank L, and `inducedSourceVector` applies it as though it were a local SPHERICAL
-    # potential -- a pure radial projection with no coefficient anywhere.  Two reduced matrix elements of C^L
-    # are missing, one at each end:  where the induced density psi_b chi_b is projected onto rank L, and where
-    # the resulting rank-L potential acts on a to make channel t_a.  For the three channels of the Ne case
-    # `AngularMomentum.CL_reduced_me(t, 1, a)/sqrt(2j_a+1)` is -0.577350 = -1/sqrt(3) for every one of them,
-    # so the product over the two ends is exactly 1/3 and the coupling is 3.00x too strong on that count
-    # alone.  Applying it would bring rho_1 from 5.03 to 1.68 -- much better and still divergent, so the
-    # factor 3 is a part of the defect and not the whole of it.
+    #   (1) THE RADIAL ROUTE IS JAC'S OWN, TO TEN DIGITS AND INCLUDING THE SIGN.  Compared entry by entry
+    #       against `RadialIntegrals.SlaterRkComponent`, the object `InteractionStrength.XL_Coulomb`
+    #       contracts: ratio 1.000000 on three spline pairs.  So nothing radial was ever wrong here.
     #
-    # THE REMAINING CANDIDATE, not yet measured:  the induced density carries `2.0 *` for the psi*chi +
-    # chi*psi symmetrization, which is EXACT ONLY AT omega = 0.  At finite omega the two terms are the two
-    # time orderings, driven at +omega and -omega, and they are different functions;  replacing one by the
-    # other overstates the response.  That is an approximation rather than a double count, so it accounts for
-    # less than a factor 2, and it should be checked at omega -> 0 where it becomes exact.
+    #   (2) THE SIGN OF THE WHOLE ASSEMBLY IS RIGHT -- IT SCREENS.  rho depends on |eigenvalue| and is blind
+    #       to this, so it was checked where the iteration converges (lambda = 1/8, residual 2.95e-05 ->
+    #       4.46e-21 over 40 sweeps).  All three active subshells come out SMALLER than their uncoupled
+    #       values -- 0.949, 0.982, 0.630 -- i.e. the induced field OPPOSES the external one, which is what a
+    #       screening response must do and what a reversed sign would have shown as a ratio above 1.
     #
-    # SO THE NEXT STEP IS NOT A DIRECT SOLVE.  An earlier version of this note concluded that the coupling was
-    # genuinely strong and that the remedy was to assemble the coupled equations as ONE linear system.  The
-    # lambda test withdraws that:  a Jacobi iteration of a correctly-built RPA for a closed shell converges
-    # perfectly well, so the work to do is to ADD THE MISSING ANGULAR ALGEBRA and re-measure rho, which is
-    # days rather than weeks.  A direct solve may still be wanted afterwards, for genuinely strongly-screened
-    # cases, but it would be solving a different problem from the one measured here.
+    #   (3) THE SPECTRAL RADIUS IMPROVED BY 2.17x BUT IS STILL ABOVE ONE:  rho_1 = 5.03 before, 2.32 after,
+    #       both as the geometric mean of the per-iteration residual ratios (the ratios cycle, so a single
+    #       one is not the number).  The undamped Jacobi iteration therefore still fails at full strength,
+    #       and `couplingEnabled = true` still cannot be trusted for a converged number.
+    #
+    # **AND ONE CLAIM THIS NOTE PREVIOUSLY MADE IS WITHDRAWN:  THE CHANNEL TRUNCATION IS IMPLICATED AFTER
+    # ALL.**  It had been argued that a narrower channel set could only make the induced term WEAKER, so the
+    # one-target-per-subshell truncation could not explain an EXCESS.  That holds only while every
+    # contribution carries the same sign, and the angular factors destroy exactly that premise: the two
+    # spin-orbit partners of a subshell contribute with OPPOSITE signs -- CL(2p_1/2, 1, 2s_1/2) = -0.816
+    # against CL(2p_3/2, 1, 2s_1/2) = +1.155 -- so dropping a channel removes a CANCELLATION and can make the
+    # net term larger.  Measured, varying only which target each active subshell is given:
+    #       2p1/2->2s, 2p3/2->2s, 2s->2p1/2   rho = 2.43
+    #       2p1/2->2s, 2p3/2->2s, 2s->2p3/2   rho = 3.66
+    #       only the two 2p partners active   rho = 1.94
+    # Non-monotonic in the number of channels, which is the signature of cancellation rather than of a sum.
+    #
+    # SO THE NEXT STEP IS TO WIDEN THE CHANNEL SET, AND IT NEEDS AN API CHANGE:  `Settings.targetSubshells`
+    # is a `Dict{Subshell,Subshell}`, one target per active subshell, where an RPA wants every kappa the
+    # multipole can reach.  Only after that is the remaining excess worth attributing.
+    #
+    # TWO FURTHER CANDIDATES, both smaller and both named rather than guessed at.  The `2.0` symmetrization
+    # of the induced density is exact only at omega = 0, so at finite omega it overstates the response by at
+    # most a factor 2;  checking it at omega -> 0 costs nothing.  And EXCHANGE IS ABSENT BY DESIGN -- this is
+    # "RPA", not "RPA with exchange" -- and a direct-only induced field is known to over-screen, so part of
+    # the residual excess may be a limitation of the approximation rather than a defect in it.
+    #
+    # FINALLY, A CORRECTION WORTH HAVING:  rho > 1 MEANS THE ITERATION FAILS, NOT THAT NO SOLUTION EXISTS.
+    # The coupled equations are chi = c + J chi, and (I - J) is invertible whether or not rho(J) < 1.  A
+    # DIRECT SOLVE would therefore reach the fixed point even at rho = 2.32 -- so it remains a legitimate
+    # method, and the earlier note was wrong only in calling it the remedy for a term that was mis-built.
+    # Build it when the channel set is right, not before: solving the wrong operator exactly gains nothing.
     converged = false;   nIterations = 0;   previousExtraSource = Dict{Subshell,Array{Float64,1}}()
     xHistory = Dict{Subshell,Vector{Vector{Float64}}}();   fHistory = Dict{Subshell,Vector{Vector{Float64}}}()
     for  a in subshells   xHistory[a] = Vector{Float64}[];   fHistory[a] = Vector{Float64}[]   end
@@ -432,8 +516,14 @@ function solve(multipole::EmMultipole, gauge::EmGauge, omega::Float64, activeOrb
         nIterations = iteration
         newChis = Dict{Subshell,DalgarnoLewis.PerturbedOrbital}();   maxRelChange = 0.0
         for  a in subshells
-            VindZr      = RandomPhase.inducedPotentialZr(multipole, activeOrbitals, chis, a, grid)
-            justComputed = RandomPhase.inducedSourceVector(VindZr, activeOrbitals[a], primitives)
+            VindZr      = RandomPhase.inducedPotentialZr(multipole, activeOrbitals, chis, targets, a, grid)
+            # THE a-END ANGULAR FACTOR AND THE SIGN.  `inducedSourceVector` returns the bare radial
+            # projection;  the channel's own reduced matrix element belongs here, and the (-1)^L that
+            # `InteractionStrength.XL_Coulomb` carries for the two-electron product is applied ONCE, here,
+            # rather than at both ends (see `RandomPhase.angularCoefficient`).
+            aCoeff      = RandomPhase.angularCoefficient(multipole.L, targets[a], a)
+            if  rem(multipole.L, 2) == 1    aCoeff = -aCoeff    end
+            justComputed = aCoeff * RandomPhase.inducedSourceVector(VindZr, activeOrbitals[a], primitives)
             priorSource  = get(previousExtraSource, a, zeros(length(justComputed)))
             if  settings.andersonDepth <= 0  ||  iteration == 1
                 dampedSource = settings.mixing * justComputed + (1.0 - settings.mixing) * priorSource
