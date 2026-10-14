@@ -344,6 +344,70 @@ function solve(multipole::EmMultipole, gauge::EmGauge, omega::Float64, targetSub
     dropP, dropQ, trailP, trailQ = Bsplines.boundaryDropCounts(kappa, grid)
     keep = vcat( collect(dropP+1:nsL-trailP), collect(nsL+dropQ+1:nsL+nsS-trailQ) )
 
+    # (2a) **IS THE ORBITAL YOU HANDED IN ACTUALLY AN EIGENSTATE OF THE POTENTIAL YOU HANDED IN?**
+    #      Added 14-Oct-2026 on the maintainer's instruction that "the size of the error should be measured,
+    #      not assumed".  This whole solve assumes `sourceOrbital` is an eigenstate of the one-body
+    #      Hamiltonian built from `potential`, with eigenvalue `sourceOrbital.energy`:  that is what makes
+    #      (h - E) the right operator and `targetEnergy` the right shift.  **Nothing has ever checked it, and
+    #      it is a SILENT error class** -- hand in AL or EOL orbitals with a DFS potential, or frozen-core
+    #      orbitals with a core-Hartree one, and every number below is quietly wrong with no symptom.  (I made
+    #      exactly that mistake in a core-polarizability script the same day and nothing told me.)
+    #
+    #      TWO NUMBERS, both cheap next to the SVD the pole guard already does:
+    #        * the REPRESENTATION defect -- how much of the orbital the B-spline basis of this channel can
+    #          hold at all.  Large means the grid cannot carry the orbital and nothing else matters.
+    #        * the EIGENSTATE residual  ||(h - eps) P_a|| / ||h P_a||, with P_a projected onto the basis.
+    #          Zero for a consistent pair;  its size IS the error the frozen-core (or mismatched-field)
+    #          approximation introduces, which is what the maintainer asked to see.
+    bOverlap = zeros(nsL+nsS)
+    for  i = 1:nsL
+        bsp = primitives.bsplinesL[i];   upper = min(bsp.upper, length(sourceOrbital.P))
+        wa  = 0.0
+        for  r = bsp.lower:upper   wa = wa + bsp.bs[r-bsp.lower+1] * sourceOrbital.P[r] * grid.wr[r]   end
+        bOverlap[i] = wa
+    end
+    for  i = 1:nsS
+        bsp = primitives.bsplinesS[i];   upper = min(bsp.upper, length(sourceOrbital.Q))
+        wa  = 0.0
+        for  r = bsp.lower:upper   wa = wa + bsp.bs[r-bsp.lower+1] * sourceOrbital.Q[r] * grid.wr[r]   end
+        bOverlap[nsL+i] = wa
+    end
+    #      **THE HAMILTONIAN MUST BE THE SOURCE ORBITAL'S OWN kappa, NOT THE TARGET'S.**  `matrixA` above is
+    #      built for the TARGET channel, which is the right operator for chi and the WRONG one for this check:
+    #      asking whether a kappa = -1 orbital is an eigenstate of the p_1/2 Hamiltonian is meaningless and
+    #      returns a residual of exactly 1.000 every time, consistent pair or not.  (That is what the first
+    #      version of this diagnostic did, and only the "must be SILENT when consistent" half of its test
+    #      caught it -- the mismatched case warned correctly and would have passed on its own.)  The boundary
+    #      drops differ per kappa too, so they are recomputed here.
+    storageSrc = Dict{String,Array{Float64,2}}()
+    kappaSrc   = sourceOrbital.subshell.kappa
+    matrixASrc = Bsplines.setupLocalMatrix(kappaSrc, primitives, potential, storageSrc)
+    dpS, dqS, tpS, tqS = Bsplines.boundaryDropCounts(kappaSrc, grid)
+    keepSrc    = vcat( collect(dpS+1:nsL-tpS), collect(nsL+dqS+1:nsL+nsS-tqS) )
+    cProj = matrixB[keepSrc,keepSrc] \ bOverlap[keepSrc]
+    projNorm2 = LinearAlgebra.dot(cProj, matrixB[keepSrc,keepSrc] * cProj)
+    orbNorm2  = RadialIntegrals.overlap(sourceOrbital.P, sourceOrbital.P, grid) +
+                RadialIntegrals.overlap(sourceOrbital.Q, sourceOrbital.Q, grid)
+    representationDefect = orbNorm2 > 0.0 ? abs(1.0 - projNorm2/orbNorm2) : 0.0
+    hC        = matrixASrc[keepSrc,keepSrc] * cProj
+    residual  = hC - sourceOrbital.energy * (matrixB[keepSrc,keepSrc] * cProj)
+    hNorm     = LinearAlgebra.norm(hC)
+    eigenDefect = hNorm > 0.0 ? LinearAlgebra.norm(residual) / hNorm : 0.0
+    if  eigenDefect > 1.0e-3   ||   representationDefect > 1.0e-3
+        @warn("DalgarnoLewis.solve(): the orbital handed in is NOT an eigenstate of the potential handed in. " *
+              "Eigenstate residual ||(h-eps)P||/||hP|| = $(eigenDefect), basis-representation defect = " *
+              "$(representationDefect), for $(sourceOrbital.subshell) at eps = $(sourceOrbital.energy). " *
+              "This solve assumes it IS one -- (h-eps) is then the right operator and targetEnergy the right " *
+              "shift -- so chi, and anything built from it, carries an error of about this size. It happens " *
+              "whenever orbitals and potential come from different fields: AL or EOL orbitals have NO local " *
+              "potential of their own, so pairing them with a DFS or core-Hartree one is an APPROXIMATION " *
+              "whose size this number is. A consistent pair gives ~1e-6 or below, basis-limited.", maxlog=3)
+    end
+    if  settings.printBefore
+        @printf(">> DalgarnoLewis.solve():  eigenstate residual %.3e, representation defect %.3e\n",
+                eigenDefect, representationDefect)
+    end
+
     # (3) GUARD AGAINST AN EXACT (OR NEAR) POLE. A target energy that coincides with a genuine bound-state
     #     energy of this channel makes `shifted` singular -- physically, that is the resonance a sum-over-
     #     states calculation guards with "skip when the denominator vanishes" (MultiPhotonTransition.
