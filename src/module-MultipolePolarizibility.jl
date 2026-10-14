@@ -96,7 +96,25 @@
     yields a meaningless ratio near 2000-3000, which was recorded for eight days as "the module is too large by a
     factor of ~2600". CONVERTED, the same two Ba 6s8s cases give 1.63 against 5.68 and 1.88 against 4.68 -- a factor
     ~3 LOW, which is the lower bound this block describes, and consistent with H 1s at 0.46 of the exact value.
-    So: convert before forming any ratio, and expect this module to come out BELOW an experiment, never above.
+    So: convert before forming any ratio.
+
+    **AND THE "NEVER ABOVE AN EXPERIMENT" THAT USED TO END THIS PARAGRAPH IS WITHDRAWN -- 14-Oct-2026, with a
+    measured counterexample.** The lower-bound property is real but much narrower than that sentence claimed,
+    and the two limits matter in practice:
+
+      * it holds only for the LOWEST level of its parity, where every energy denominator carries the same sign
+        so that each omitted perturber can only ADD. For an excited level such as Ba 6s8s the perturbers lying
+        BELOW it contribute with the opposite sign, and the sum is then bounded in neither direction;
+      * and even for a ground state it bounds only what THE GIVEN MEAN FIELD would yield with a complete
+        perturber set -- it says nothing whatever about agreement with EXPERIMENT, because the field itself can
+        overshoot. Measured on Li 2s against Puchalski et al.'s 164.0740 a.u., same perturber set throughout:
+        DFS gives 183.7863 (12 % ABOVE), HS gives 227.9872 (39 % ABOVE), AL gives 167.6745 (2.2 % above).
+        DFS underbinds the valence 2s to -0.079 Ha against the true -0.198, shrinking the 2s-2p denominator.
+
+    **THAT IS ALSO THE USEFUL DIAGNOSTIC, so it is worth stating the other way round:** a ground-state value
+    coming out ABOVE a trusted reference CANNOT be blamed on an incomplete perturber set, and points at the
+    mean field instead. That is how the Li case was solved -- see `examples/example-Cj.jl` branch (C), which
+    now runs on `ALField` for exactly this reason.
 """
 module MultipolePolarizibility
 
