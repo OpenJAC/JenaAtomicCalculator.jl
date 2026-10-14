@@ -3360,6 +3360,50 @@ function testModule_RandomPhase(; short::Bool=true)
         if printTest   info(iostream, "the coupled solve did not run for the requested maxIterations")   end
     end
 
+    # THE DIRECT SOLVE.  Two assertions, and they separate the SOLVER from the PHYSICS deliberately -- the
+    # new code is a linear solver plus a coupling operator, and a failure in either would otherwise be blamed
+    # on the other.
+    #
+    # (6) `RandomPhase.gmres` SOLVES A KNOWN LINEAR SYSTEM EXACTLY.  GMRES reaches the exact solution of an
+    #     n x n system within n steps, so on a fixed, non-symmetric, diagonally dominant matrix -- given to
+    #     the solver ONLY through its action, exactly as the coupled problem is -- the residual must fall to
+    #     machine precision.  This tests the solver with no atomic physics in it at all.
+    nTest  = 24
+    aTest  = [ (i == j ? 4.0 : 1.0/(1.0 + i + 2j))  for i = 1:nTest, j = 1:nTest ]
+    bTest  = [ sin(0.7*i) + 0.3  for i = 1:nTest ]
+    xTest, kTest, resTest = RandomPhase.gmres(v -> aTest * v, bTest, nTest, 1.0e-14)
+    ## sqrt(sum(abs2, .)) rather than LinearAlgebra.norm:  TestFrames does not import LinearAlgebra, and one
+    ## assertion is not a reason to widen the test module's imports.
+    trueResidual = sqrt(sum(abs2, aTest * xTest - bTest)) / sqrt(sum(abs2, bTest))
+    if  trueResidual > 1.0e-10
+        success = false
+        if printTest   info(iostream, "RandomPhase.gmres() left a relative residual of $trueResidual on a " *
+                                      "$(nTest)x$(nTest) system it should solve exactly within $nTest steps")   end
+    end
+    if  kTest > nTest
+        success = false
+        if printTest   info(iostream, "RandomPhase.gmres() used $kTest steps on a $(nTest)-dimensional system")   end
+    end
+
+    # (7) THE DIRECT SOLVE'S OWN RIGOROUS LIMIT.  With ONE active electron there is no other electron to
+    #     induce anything, so the drive b is identically zero, the solved sources are zero, and the chi must
+    #     come back EXACTLY equal to the uncoupled one -- the same decisive check the iteration path carries,
+    #     applied to the new route.  `converged` must also be true: a zero right-hand side is solved, not
+    #     merely approached.
+    settings1D = RandomPhase.Settings(settings1U; couplingEnabled=true, directSolve=true, maxIterations=20,
+                                       accuracy=1.0e-10)
+    r1D = RandomPhase.solve(E1, Basics.Coulomb, omega, activeOrbitals, potential, primitives; settings=settings1D)
+    c1d = r1D.perturbedOrbitals[Subshell("2s_1/2")]
+    if  maximum(abs.(c1u.P - c1d.P)) > 0.  ||  maximum(abs.(c1u.Q - c1d.Q)) > 0.
+        success = false
+        if printTest   info(iostream, "RandomPhase.solve() with directSolve=true and ONE active electron must " *
+                                      "reproduce the uncoupled chi exactly (no induced source exists)")   end
+    end
+    if  !r1D.converged
+        success = false
+        if printTest   info(iostream, "the single-electron DIRECT solve did not report converged = true")   end
+    end
+
     # THE ANGULAR MACHINERY, ASSERTED DIRECTLY -- because it is pure algebra, costs nothing to check, and is
     # what the coupled path was silently missing until 14-Oct-2026. Four statements, each of which would have
     # failed then or would fail on the mistake most likely to be made next.
@@ -3449,7 +3493,12 @@ function testModule_RandomPhase(; short::Bool=true)
                       "CL_reduced_me(a,0,a) = sqrt(2j+1) exactly (the L=0 Hartree limit that fixes the induced " *
                       "weight), the two spin-orbit partners carry OPPOSITE signs (an argument-order swap would " *
                       "make them agree), forbidden channels return exactly zero, and reachableChannels agrees " *
-                      "with angularCoefficient on every candidate. No approved data is used.")
+                      "with angularCoefficient on every candidate. The direct solve is covered too, and " *
+                      "the solver is separated from the physics: gmres() must solve a fixed 24x24 " *
+                      "non-symmetric system -- handed to it only through its action -- to machine " *
+                      "precision within 24 steps, and directSolve=true with ONE active electron must " *
+                      "reproduce the uncoupled chi exactly, since the drive is then identically zero. " *
+                      "No approved data is used.")
     Defaults.setDefaults("print summary: close", "")
     testPrint("testModule_RandomPhase()::", success)
     return( success )
