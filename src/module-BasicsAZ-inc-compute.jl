@@ -596,14 +596,61 @@ end
             
         with r_> = max(r,r')  and  rho_c(r) =  sum_a (Pa^2(r) + Qa^2(r)) the charge density of the core-electrons.  
         An Radial.Potential with -r * V_CH(r)  is returned to be consistent with an effective charge Z(r).
+
+        **WHAT IT IS FOR, and why `performSCF` refuses it -- written 14-Oct-2026 on making this usable.**  A
+        core-Hartree potential is a FROZEN-CORE object: the core orbitals are held at their converged values
+        and the valence electron moves in their Hartree field, with no exchange and NO self-interaction.  That
+        is not a self-consistent field, so `SelfConsistent.performSCF` is right to refuse it;  its use is to be
+        BUILT FROM an already-converged level and handed to response work as a local potential --
+
+            pot = Basics.add( Nuclear.nuclearPotential(nm, grid),
+                              Basics.computePotential(Basics.CHField(), grid, level) )
+
+        which matters because `ALField` and `EOLField` have NO local potential of their own, being SCF routes:
+        this is how orbitals from the better field reach a `DalgarnoLewis.solve`, which needs one.
+
+        **THE ONE-LINE CORRECTNESS CHECK, since it is cheap and catches a wrong core.**  At large r the core's
+        Hartree potential tends to N_core/r, so the returned `Zr` tends to **-N_core**.  Measured for Li
+        [He]2s: -2.000 at r = 5 a.u. against two core electrons, with nucleus + core-Hartree therefore giving
+        Z_eff = 3 - 2 = 1, correct for a neutral atom's valence electron.
+
+        **AND THE FROZEN-CORE ERROR IS LARGE -- MEASURED 14-Oct-2026, NOT ASSUMED, AND IT DISQUALIFIES THIS
+        PAIRING FOR QUANTITATIVE WORK.**  A valence orbital from an AL or EOL calculation is not an eigenstate
+        of V_CH, and `DalgarnoLewis.solve` now reports how far off it is.  On Li [He]2s, static E1:
+
+            pairing                             eigenstate residual    alpha_0 [a.u.]
+            DFS orbitals + DFS potential             4.01e-06            224.1740
+            AL  orbitals + core-Hartree              2.16e-01            164.0547
+            DFS orbitals + core-Hartree              6.05e-01           -256.6837
+            AL  orbitals + DFS potential             1.52e+00             63.2594
+
+        **READ THE SECOND ROW WITH THE THIRD.**  AL + core-Hartree lands on 164.0547 against Puchalski et
+        al.'s 164.0740 -- agreement to 0.012 %, which looks like a triumph and is a COINCIDENCE: the operator
+        carries a 22 % error, and the SAME pairing with DFS orbitals returns -256.68, which no acceptable
+        method does.  Without the residual that number would have been published.
+
+        **SO: do not use this for a quantitative valence polarizability.**  The usable combination would be a
+        good field AND a consistent operator, and it does not exist today -- a consistent pair (DFS + DFS)
+        gives 224.17, i.e. +37 %, because DFS underbinds the valence electron, while the good field has no
+        local potential at all.  A response calculation for AL/EOL orbitals has to be built on the same
+        orbital set and energy functional as the SCF, not on a local potential.  V_CH remains appropriate for
+        a CORE response, where the frozen core IS the physics and DFS-quality core orbitals are adequate.
 """
 function Basics.computePotential(scField::Basics.CHField, grid::Radial.Grid, level::Level)
     basis = level.basis;    npoints = grid.NoPoints
-    println("coreSubshells = $(basis.coreSubshells);    subshells = $(basis.subshells)")
+    # **THE CORE MUST ACTUALLY BE DEFINED, or this returns a potential that is identically ZERO and the caller
+    # silently gets the bare nucleus.** `basis.coreSubshells` is populated from a configuration's core notation
+    # (`Configuration("[He] 2s")` gives [1s_1/2]), so an empty list means the level was built without one --
+    # which is a caller error rather than a physical statement, and is named here instead of returning a
+    # plausible-looking zero.  Checked 14-Oct-2026 while making this field usable for response work.
+    isempty(basis.coreSubshells)  &&
+        error("Basics.computePotential(::CHField, ...): this level has NO coreSubshells, so a core-Hartree "  *
+              "potential is not defined for it -- the result would be identically zero and indistinguishable " *
+              "from the bare nucleus. Build the level from a configuration carrying a core, e.g. " *
+              "Configuration(\"[He] 2s\") rather than Configuration(\"1s^2 2s\").")
     rhoc = zeros( npoints );    wx = zeros( npoints );    wb = zeros( npoints )
     # Compute the charge density of the core orbitals for the given level
     for  sh in basis.coreSubshells
-    ## for  sh in basis.subshells
         orb  = basis.orbitals[sh]
         occ  = Basics.computeMeanSubshellOccupation(sh, [level])    ## (Basics.subshell_2j(sh) + 1.0)  for closed-shells
         nrho = length(orb.P)
@@ -618,6 +665,7 @@ function Basics.computePotential(scField::Basics.CHField, grid::Radial.Grid, lev
     for i = 1:npoints    wb[i] = - wb[i] * grid.r[i]   end
     #
     wc = Radial.Potential("CoreHartree", wb, grid)
+
     return( wc )
 end
 
