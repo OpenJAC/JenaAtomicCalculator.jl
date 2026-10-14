@@ -75,6 +75,13 @@ setDefaults("unit: rate", "1/s")
 ## invariance and the monochromatic limit. All of these are fixed by angular algebra and are independent of the
 ## open overall constant. The remaining four (b, c, e, f) carry "Last visit" with the blocking reason named.
 ##
+## THAT GATE IS LIFTED -- 14-Oct-2026. The constant was the PREFACTOR (challenge S5, `b399f5ff`), and branch
+## (b) re-run after the fix gives 10.1040 /s against the exact 8.22906 /s: 23 % high, where it had been a
+## factor 13.1 low. Nothing in this file is now gated by an unexplained scale. What DOES remain is basis
+## incompleteness in the bound-only intermediate sum -- it overshoots, and the gauges disagree 7.3 : 1 -- so
+## an absolute rate still belongs to `example-As.jl` branch (c)'s complete-chi route, while this file is the
+## anchor for the sum-over-states ASSEMBLY, correct at matched truncation against Drake (10.046 vs 10.0466).
+## THE SUPERSEDED TEXT, kept one release so a reader of the old numbers is not misled:
 ## THE ONE OPEN ISSUE THAT GATES EVERY EMISSION MAGNITUDE: a constant factor 26.7 (was 6.679 before the
 ## 08-Aug-2026 total-rate correction, and 12.98 before A1),
 ## measured to 0.05 % over Z = 1..3 and therefore a prefactor, not a physics omission. It is NOT calibrated
@@ -201,9 +208,19 @@ elseif  false
     # 16 (should be `32*pi*...`), confirmed via Drake (PRA 34, 2871 (1986)) summed over this SAME bound n_max=20
     # truncation (10.0466 /s against this branch's own dated 0.62789 /s, ratio 16.00) and independently via
     # `example-As.jl` branch (c)'s complete-basis chi result, now 8.229061 /s in BOTH gauges, matching Amaro et
-    # al. 2011's 8.22906 /s to 6 figures. This branch itself (a bound-only truncation, which can never reach
-    # the exact rate regardless of the prefactor) was NOT re-run after the fix -- `example-As.jl` branch (c) is
-    # now the trusted, complete-basis anchor; re-run this branch before quoting a fresh number from it.
+    # al. 2011's 8.22906 /s to 6 figures.
+    #
+    # RE-RUN 14-Oct-2026, AND THE OPEN CONSTANT IS GONE: Babushkin = 10.1040 /s against the exact 8.22906 /s,
+    # i.e. 23 % HIGH where this branch used to be a factor 13.1 LOW. **So the whole of the old constant was
+    # the prefactor.** What is left is NOT a scale error but BASIS INCOMPLETENESS, and it shows itself twice
+    # over: a bound-only intermediate sum OVERSHOOTS (the continuum contributes with the opposite sign and
+    # brings 10.10 down to 8.23), and the two gauges disagree 7.3 : 1 (Coulomb 1.37631 against Babushkin
+    # 10.1040), which is what an incomplete intermediate set always does to gauge invariance. The matched
+    # comparison is the convincing one: Drake summed over the same n_max=20 bound set gives 10.0466 /s, and
+    # this route now gives 10.046 /s there.
+    # STILL NOT DATED SUCCESSFUL, and deliberately so: 23 % off the exact rate is not physical consistency.
+    # `example-As.jl` branch (c), with the complete chi, remains the trusted anchor for an ABSOLUTE rate; this
+    # branch is the anchor for the sum-over-states ASSEMBLY, which is now shown correct at matched truncation.
     #
     # Last visit:  03-Sep-2026        ## runs again; it could not run at all before, see the grid note below
     # Last successful:  unknown ...   ## a factor 13.1 below the exact rate is not physical consistency

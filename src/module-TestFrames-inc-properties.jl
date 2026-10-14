@@ -356,6 +356,53 @@ function testModule_MultipolePolarizibility(; short::Bool=true)
         end
     end
     Defaults.setDefaults("print summary: close", "")
+    ## THE RANK-2 BRANCH, ASSERTED AGAINST AN EXACT NUMBER -- added 14-Oct-2026, item 68.  Everything above
+    ## checks that alpha_2 VANISHES (J = 1/2, and J < 1 generally), and a vanishing test cannot detect a wrong
+    ## rank-2 prefactor, a wrong 6-j or a sign.  This can, and it needs no reference data.
+    ##
+    ## WITH EXACTLY ONE INTERMEDIATE LEVEL the two Angel-Sandars formulae share the same radial factor,
+    ##     alpha_0 = -2/(3(2J+1)) * R ,
+    ##     alpha_2 = -2 sqrt(10/3) G(J) (-1)^(2J) (-1)^(J-J') {J J' 1; 1 2 J} * R ,
+    ## so every radial integral AND every energy denominator cancels in the ratio, leaving a pure angular
+    ## number -- which turns out to be a simple rational:
+    ##     J = 3/2, J' = 1/2  ->  -1          J = 3/2, J' = 3/2  ->  +4/5
+    ##     J = 3/2, J' = 5/2  ->  -1/5        J = 5/2, J' = 5/2  ->  +8/7
+    ## Measured 14-Oct-2026 at -1.00000000 (2.2e-16 off), +0.80000000 (bit-exact) and -0.20000000 (2.8e-17).
+    ##
+    ## TWO CONSEQUENCES WORTH KNOWING.  Because the radial factor cancels, THE GRID IS IRRELEVANT here -- the
+    ## coarse, cheap basis below gives the exact ratio, so this costs the suite almost nothing.  And together
+    ## with the hydrogen checks above the pair is complete: those validate the RADIAL part of alpha_0 against
+    ## the exact 4.5, this validates the ANGULAR part of alpha_2, and alpha_2 shares the radial factor.
+    gridA2 = Radial.Grid(Radial.Grid(false), rnt = 4.0e-06, h = 5.0e-2, hp = 1.2, rbox = 60.0)
+    nmA2   = Nuclear.Model(4., PointNucleus())
+    asfA2  = AsfSettings(AsfSettings(); scField = Basics.NuclearField(), gridStopper = false)
+    for  (confA2, twoJp, exactRatio)  in  (("3s", 1, -1.0), ("3d", 3, 0.8))
+        wp  = Atomic.Computation(Atomic.Computation(), name="alpha_2 perturber", grid=gridA2, nuclearModel=nmA2,
+                                  configs=[Configuration(confA2)], asfSettings=asfA2)
+        gMp = perform(wp; output=true)[ResultKeys.Multiplet]
+        ## exactly ONE intermediate level, which is what the identity requires
+        oneLevel = [ lev  for lev in gMp.levels  if Basics.twice(lev.J) == twoJp ]
+        if  length(oneLevel) != 1
+            success = false
+            println("** the $confA2 perturber multiplet does not contain exactly one level with 2J = $twoJp")
+            continue
+        end
+        polA2 = MultipolePolarizibility.Settings(MultipolePolarizibility.Settings(), multipoles=[E1],
+                                                  gMultiplet=Multiplet("one level", oneLevel), printBefore=false)
+        wA2   = Atomic.Computation(Atomic.Computation(), name="alpha_2 ratio", grid=gridA2, nuclearModel=nmA2,
+                                    configs=[Configuration("2p")], propertySettings=[polA2], asfSettings=asfA2)
+        for  oc  in  perform(wA2; output=true)[MultipolePolarizibility.Settings]
+            Basics.twice(oc.level.J) == 3  ||  continue        ## the 2p_3/2 level is the one carrying alpha_2
+            ratioA2 = oc.alpha2.Babushkin / oc.alpha0.Babushkin
+            if  abs(ratioA2 - exactRatio) > 1.0e-10
+                success = false
+                println("** alpha_2/alpha_0 for J = 3/2 with a single J' = $twoJp/2 intermediate came out " *
+                        "$ratioA2 where the pure angular identity gives exactly $exactRatio -- the rank-2 " *
+                        "prefactor, the 6-j or the sign is wrong")
+            end
+        end
+    end
+
     ## AND the approved reference, restored 03-Sep-2026. The two exact invariants above cannot be fooled but they
     ## are also very loose -- anything in (0, 4.5) passes -- so they would not notice alpha_0 drifting from 1.164
     ## to 3.9, nor a column vanishing from the table. The file comparison catches exactly that, at rtol = 1e-6.
@@ -368,7 +415,10 @@ function testModule_MultipolePolarizibility(; short::Bool=true)
     success = success  &&  scomp
     _, iostream = Defaults.getDefaults("test flag/stream")
     println(iostream, "MultipolePolarizibility: the J = 1/2 tensor-polarizability zero, the bound on alpha0, and " *
-                      "the approved results table; the Coulomb gauge is deliberately not asserted.")
+                      "the approved results table; the Coulomb gauge is deliberately not asserted. The RANK-2 " *
+                      "branch is now asserted too, against the exact angular identity alpha_2/alpha_0 = -1 and " *
+                      "+4/5 for a single J' = 1/2 and J' = 3/2 intermediate -- a ratio in which every radial " *
+                      "integral cancels, so it needs no reference data and no converged grid.")
     testPrint("testModule_MultipolePolarizibility()::", success)
     return(success)
 end

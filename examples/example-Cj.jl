@@ -116,6 +116,38 @@ elseif false
     println(">> ratio computed/exact [Babushkin] = $(outcome.alpha0.Babushkin/4.5)")
     #
 elseif true
+    #
+    # Last successful:  14-Oct-2026
+    # Branch C: Li [He]2s STATIC DIPOLE POLARIZABILITY -- AND THE LESSON IS THAT THE MEAN FIELD MATTERS FAR
+    #   MORE THAN THE PERTURBER COUNT.
+    #
+    # MEASURED 14-Oct-2026, the SAME perturber set ([He]np, n = 2..10) under four mean fields, against
+    #   Puchalski et al.'s 164.0740 a.u.:
+    #
+    #       mean field        alpha_0     ratio/lit   E(2s) [Ha]   E(2p) [Ha]   2s-2p gap
+    #       DFSField          183.7863    1.1201      -0.079004    -0.135171    0.056168
+    #       ALField           167.6745    1.0219      -0.196333    -0.128645    0.067688
+    #       HSField           227.9872    1.3895      -0.058373    -0.121186    0.062814
+    #       experiment        164.0740    1.0000      -0.198140    -0.130440    0.067700
+    #
+    #   (CHField and KSField are not self-consistent fields;  `SelfConsistent.performSCF` refuses both.)
+    #
+    # **THE SIGN OF THE DFS ERROR IS WHAT IDENTIFIED THE CAUSE, AND IT RULES THE PERTURBER SET OUT.**  For a
+    #   GROUND state every energy denominator carries the same sign, so every omitted perturber ADDS to
+    #   alpha_0 and a truncated sum is a strict LOWER bound on what a given field would give with a complete
+    #   set.  DFS lands 12 % ABOVE the true value, which truncation cannot do -- so the field, not the sum,
+    #   had to be responsible.  The mechanism is visible in the table: alpha_0 ~ |<2s|r|2p>|^2 / gap, DFS puts
+    #   the 2s at -0.079 against the true -0.198 (underbound by a factor 2.5), the gap comes out 17 % small,
+    #   and alpha_0 is inflated to match.  HS underbinds further still and overshoots by 39 %.
+    #
+    # WHY ALField IS USED BELOW:  it reproduces the 2s-2p gap as 0.067688 against the experimental 0.067700 --
+    #   FOUR DIGITS -- and alpha_0 then lands 2.2 % high.  That residual is where a Hartree-Fock value for Li
+    #   belongs (~169-170 before core-valence correlation brings it to 164.07), so it is the known physics of
+    #   the approximation rather than a defect.  **A few per cent is therefore what this module can deliver
+    #   for an alkali-like system, PROVIDED the mean field binds the valence electron properly.**
+    #
+    # DO NOT revert to the default DFSField here: it is what made this case look broken for months.
+    #
     # NOT Radial.Grid(true) here. Its box is 614 a.u. and Bsplines.checkGridRepresentation refuses it for
     # Li [He]2s + [He]np, n = 2..10 -- a box much TOO LARGE starves the fixed number of B-splines exactly as
     # badly as one too small (Rule 12). The guard names 359 a.u. as the box these subshells want, and the
@@ -126,8 +158,10 @@ elseif true
     nm   = Nuclear.Model(3., PointNucleus())
     nMaxLi = 10
 
+    asfLi = AsfSettings(AsfSettings(); scField = Basics.ALField())   ## see the table above: NOT the DFS default
     wa1 = Atomic.Computation(Atomic.Computation(), name="Li perturber multiplet ([He]np, n=2..$nMaxLi)", grid=grid,
-                            nuclearModel=nm, configs=[Configuration("[He] $(n)p") for n = 2:nMaxLi])
+                            nuclearModel=nm, configs=[Configuration("[He] $(n)p") for n = 2:nMaxLi],
+                            asfSettings=asfLi)
     wb1 = perform(wa1; output=true)
     gMultiplet = wb1[ResultKeys.Multiplet]
 
@@ -135,7 +169,7 @@ elseif true
     wa = Atomic.Computation(Atomic.Computation(), name="Li [He]2s static electric-dipole polarizability", grid=grid,
                             nuclearModel=nm,
                             configs=[Configuration("[He] 2s")],
-                            propertySettings=[polSettings] )
+                            propertySettings=[polSettings], asfSettings=asfLi )
     wb = perform(wa; output=true)
     outcome = wb[MultipolePolarizibility.Settings][1]
 
