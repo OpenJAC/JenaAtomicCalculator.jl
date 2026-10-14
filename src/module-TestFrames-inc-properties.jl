@@ -1111,3 +1111,70 @@ function testModule_UncertaintyEstimate(; short::Bool=true)
     testPrint("testModule_UncertaintyEstimate()::", success)
     return(success)
 end
+
+
+"""
+`TestFrames.testModule_AdjustedLevels(; short::Bool=true)`
+    ... tests module AdjustedLevels on a small, cheap, REAL He-like C V (Z=6) 1s2p J=1(odd) block (2 CSFs,
+        singlet ^1P1 and triplet ^3P1): (i) AdjustedLevels.buildOneAndTwoBodyMatrices at an UNSCALED
+        combination (oneBody + 1.0*twoBody) must reproduce `Hamiltonian.setupMatrix`'s own, independently
+        trusted CI matrix EXACTLY -- this is the one check that matters most, since everything else in the
+        module rests on this parallel construction being faithful; (ii) fitting against a target deliberately
+        10% off the ab initio splitting converges to a scale factor measurably different from 1.0, with a
+        near-zero residual RMS (a single parameter fit to a single target should match almost exactly);
+        (iii) AdjustedLevels.mergeIntoMultiplet, against a basis that ALSO carries the 1s^2 ground state (a
+        different J^P block the fit never touches), must keep that other block's levels unchanged, replace
+        only the fitted block's levels, and return exactly as many levels as the ab initio multiplet it started
+        from. A success::Bool is returned.
+"""
+function testModule_AdjustedLevels(; short::Bool=true)
+    printstyled("\n\nTest the module  AdjustedLevels  ... \n", color=:cyan)
+    success = true
+
+    ni   = Nuclear.Model(6.)
+    grid = Radial.Grid(true)
+    asfSettings = AsfSettings()
+    wb    = SelfConsistent.performSCF([Configuration("1s 2p")], ni, grid, asfSettings; printout=false)
+    basis = wb.levels[1].basis
+    sym   = LevelSymmetry(AngularJ64(1), Basics.minus)
+
+    # (i) Faithfulness against Hamiltonian.setupMatrix, at the unscaled combination.
+    xlCache   = InteractionStrength.XLCache()
+    refMatrix = Hamiltonian.setupMatrix(sym, basis, ni, grid, asfSettings, xlCache; printout=false)
+    idxCsf, oneBody, twoBody = AdjustedLevels.buildOneAndTwoBodyMatrices(sym, basis, ni, grid)
+    myMatrix  = oneBody .+ 1.0 .* twoBody
+    if  maximum(abs.(myMatrix .- refMatrix)) > 1.0e-10
+        success = false;   println("  ** buildOneAndTwoBodyMatrices does NOT reproduce Hamiltonian.setupMatrix at c=1.0")
+    end
+
+    # (ii) The fit itself: target 10% below the ab initio splitting, scale factor must move away from 1.0.
+    eig1  = Hamiltonian.diagonalizeCiMatrix(refMatrix, LevelSelection())
+    auPerKayser = 1.0 / Defaults.convertUnits("energy: from atomic to Kayser", 1.0)
+    abInitioRel = (sort(eig1.values) .- sort(eig1.values)[1]) ./ auPerKayser
+    target_cm   = abInitioRel[2] * 0.9
+    fm = AdjustedLevels.fitScaleFactor(sym, basis, ni, grid, [(2, target_cm)], "test source"; scaleBounds=(0.5,1.2))
+    if  abs(fm.scaleFactors[1].value - 1.0) < 0.01
+        success = false;   println("  ** fitted scale factor did not move away from 1.0 for a 10%-off target")
+    end
+    if  fm.rmsDeviation > 1.0
+        success = false;   println("  ** rms deviation too large for a single-parameter, single-target fit: $(fm.rmsDeviation)")
+    end
+
+    # (iii) mergeIntoMultiplet: a basis with BOTH 1s^2 (J=0 even, untouched) and 1s2p (the fitted J=1 odd block).
+    wb2       = SelfConsistent.performSCF([Configuration("1s^2"), Configuration("1s 2p")], ni, grid, asfSettings; printout=false)
+    basis2    = wb2.levels[1].basis
+    abInitio2 = Hamiltonian.performCI(basis2, ni, grid, asfSettings; printout=false)
+    fm2       = AdjustedLevels.fitScaleFactor(sym, basis2, ni, grid, [(2, target_cm)], "test source"; scaleBounds=(0.5,1.2))
+    combined  = AdjustedLevels.mergeIntoMultiplet(fm2, abInitio2)
+    if  length(combined.levels) != length(abInitio2.levels)
+        success = false;   println("  ** mergeIntoMultiplet changed the total number of levels")
+    end
+    groundSymEnergies    = sort([lev.energy for lev in abInitio2.levels if LevelSymmetry(lev.J, lev.parity) == LevelSymmetry(AngularJ64(0), Basics.plus)])
+    groundSymEnergiesNew = sort([lev.energy for lev in combined.levels  if LevelSymmetry(lev.J, lev.parity) == LevelSymmetry(AngularJ64(0), Basics.plus)])
+    if  groundSymEnergies != groundSymEnergiesNew
+        success = false;   println("  ** mergeIntoMultiplet changed a level in a symmetry block the fit never touched")
+    end
+
+    testPrint("testModule_AdjustedLevels()::", success)
+    return(success)
+end

@@ -87,7 +87,7 @@ export AbstractComputeTheme, AbstractConfigurationRestriction, AbstractConfigura
        AbstractDisplayTheme, AbstractEeInteraction, AbstractEmpiricalSettings, AbstractLineShiftSettings,
        AbstractNuclearModel, AbstractPlasmaModel, AbstractPlotTheme,
        AbstractProcessSettings, AbstractPropertySettings, AbstractQedModel, AbstractStartOrbitals,
-       add, AddElectrons, AllShells, AlphaVariation, analyze, AngularJ64, AngularM64, AngularMomentum,
+       add, AddElectrons, AdjustedLevels, AllShells, AlphaVariation, analyze, AngularJ64, AngularM64, AngularMomentum,
        Application, AsfSettings, Atomic, AtomicFeatures, AtomicModel, AtomicState,
        Auger, AugerInPlasma, AutoIonization,
        Basics, Basis, Beam, BeamPhotoExcitation, BiOrthogonal, BreitInteraction, Bsplines, ByMultipoles, ByNumber, ByParity,
@@ -284,6 +284,9 @@ include("module-NistCalibration.jl")
 
 # Functions for reporting the spread of a computed quantity across a few named, alternative calculations
 include("module-UncertaintyEstimate.jl")
+
+# Functions for fitting a Coulomb scale factor against measured levels, at the end of an SCF+RAS line
+include("module-AdjustedLevels.jl")
 
 # Functions/methods for atomic computations
 include("module-Atomic.jl");            using ..Atomic

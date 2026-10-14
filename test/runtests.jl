@@ -136,6 +136,13 @@ end
                                                     ## spread and relative spread match plain arithmetic, a single
                                                     ## variant is refused (no spread with one point), and a zero
                                                     ## mean is refused (relative spread undefined).
+        @test TestFrames.testModule_AdjustedLevels()
+                                                    ## added 14-Oct-2026; a small, real He-like C V 1s2p J=1 block:
+                                                    ## the module's own parallel one-body/two-body matrix construction
+                                                    ## reproduces Hamiltonian.setupMatrix EXACTLY at the unscaled
+                                                    ## combination (the one check that matters most here), and fitting
+                                                    ## against a deliberately 10%-off target moves the scale factor
+                                                    ## measurably away from 1.0 with a near-zero residual.
     end
 
     @testset "JAC processes" begin
