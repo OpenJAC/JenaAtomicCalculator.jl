@@ -132,6 +132,21 @@ elseif true
     #
     #   (CHField and KSField are not self-consistent fields;  `SelfConsistent.performSCF` refuses both.)
     #
+    # **THOSE FOUR NUMBERS ARE ALL n <= 10 SUMS, AND THAT MATTERS FOR ONE OF THEM -- measured 14-Oct-2026.**
+    #   A ground-state perturber sum is a strict LOWER bound, so each row is a lower bound on what its own
+    #   field would give with a complete set.  Checked by extending the set:
+    #       ALField   167.6745 -> 167.6911 -> 167.7780 -> 168.5143   at n <= 10/14/18/22   (+0.5 %, CONVERGED)
+    #       DFSField  183.7863 -> 184.9772 -> 185.9129 -> 186.8963   at n <= 10/16/22/28   (+1.7 %, STILL RISING)
+    #   and the complete-basis chi route (`DalgarnoLewis.solve(...; staticDrive=true)`) gives **224.17** for
+    #   DFS, box-independent to five digits.  **So the DFS row above UNDERSTATES its own error: converged DFS
+    #   is about +37 %, not +12 %.**  The AL row is sound, which is why the conclusion below is unaffected.
+    #
+    # **AND THE REASON IS WORTH MORE THAN THE CORRECTION: HOW GOOD A PERTURBER SET IS DEPENDS ON HOW WELL THE
+    #   MEAN FIELD BINDS THE VALENCE ORBITAL.**  AL puts the Li 2s at -0.196 Ha against the true -0.198, so it
+    #   is compact and n <= 10 suffices;  DFS leaves it at -0.079, far more diffuse, and its response needs np
+    #   states well beyond n = 28.  So a field that underbinds is punished TWICE -- once in the energy
+    #   denominator (item 70) and again in how many perturbers it then takes to converge.
+    #
     # **THE SIGN OF THE DFS ERROR IS WHAT IDENTIFIED THE CAUSE, AND IT RULES THE PERTURBER SET OUT.**  For a
     #   GROUND state every energy denominator carries the same sign, so every omitted perturber ADDS to
     #   alpha_0 and a truncated sum is a strict LOWER bound on what a given field would give with a complete
@@ -144,7 +159,8 @@ elseif true
     #   FOUR DIGITS -- and alpha_0 then lands 2.2 % high.  That residual is where a Hartree-Fock value for Li
     #   belongs (~169-170 before core-valence correlation brings it to 164.07), so it is the known physics of
     #   the approximation rather than a defect.  **A few per cent is therefore what this module can deliver
-    #   for an alkali-like system, PROVIDED the mean field binds the valence electron properly.**
+    #   for an alkali-like system, PROVIDED the mean field binds the valence electron properly** -- and that
+    #   +2.2 % is CONVERGED, not a truncation artefact:  extending the set to n <= 22 moves it 0.5 %.
     #
     # DO NOT revert to the default DFSField here: it is what made this case look broken for months.
     #
