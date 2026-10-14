@@ -151,7 +151,7 @@ export AbstractComputeTheme, AbstractConfigurationRestriction, AbstractConfigura
        tabulate, ThomasFermiField, ThreeParameterFermiNucleus, TimeHarmonicField, TotalAM,
        Triangle,
        TwoElectronOnePhoton,
-       UniformNucleus, UseBabushkin, UseCoulomb, UseGauge,
+       UncertaintyEstimate, UniformNucleus, UseBabushkin, UseCoulomb, UseGauge,
        ValenceOccupation, ValenceShells,
        W3j, W6j, W9j, WeakInteractionEnhancement, WeakInteractionMoment,
        Ylm
@@ -281,6 +281,9 @@ include("module-ExportVamdc.jl")
 
 # Functions for calibrating computed level energies against externally supplied (e.g. NIST ASD) data
 include("module-NistCalibration.jl")
+
+# Functions for reporting the spread of a computed quantity across a few named, alternative calculations
+include("module-UncertaintyEstimate.jl")
 
 # Functions/methods for atomic computations
 include("module-Atomic.jl");            using ..Atomic

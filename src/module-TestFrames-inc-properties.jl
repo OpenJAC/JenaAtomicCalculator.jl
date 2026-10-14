@@ -1075,3 +1075,39 @@ function testModule_CrystalField(; short::Bool=true)
     testPrint("testModule_CrystalField()::", success)
     return( success )
 end
+
+
+"""
+`TestFrames.testModule_UncertaintyEstimate(; short::Bool=true)`
+    ... tests module UncertaintyEstimate on hand-built variants, no grid, no orbitals and no approved file:
+        (i) the spread and relative spread of two variants match the plain arithmetic by hand; (ii) a single
+        variant is refused, since a spread needs at least two; (iii) a mean of exactly zero is refused, since
+        the relative spread would be undefined. A success::Bool is returned.
+"""
+function testModule_UncertaintyEstimate(; short::Bool=true)
+    printstyled("\n\nTest the module  UncertaintyEstimate  ... \n", color=:cyan)
+    success = true
+
+    variants = [ UncertaintyEstimate.Variant("a", 100.0), UncertaintyEstimate.Variant("b", 120.0) ]
+    est = UncertaintyEstimate.estimate("test quantity", variants)
+    if  abs(est.spread - 20.0) > 1.0e-10   ||   abs(est.relSpread - 20.0/110.0) > 1.0e-10
+        success = false;   println("  ** spread or relSpread wrong: $(est.spread), $(est.relSpread)")
+    end
+
+    try
+        UncertaintyEstimate.estimate("x", [UncertaintyEstimate.Variant("only", 1.0)])
+        success = false;   println("  ** a single variant was NOT refused")
+    catch
+        # expected
+    end
+
+    try
+        UncertaintyEstimate.estimate("x", [UncertaintyEstimate.Variant("a", 5.0), UncertaintyEstimate.Variant("b", -5.0)])
+        success = false;   println("  ** a zero mean was NOT refused")
+    catch
+        # expected
+    end
+
+    testPrint("testModule_UncertaintyEstimate()::", success)
+    return(success)
+end

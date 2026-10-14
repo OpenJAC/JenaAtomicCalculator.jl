@@ -131,6 +131,11 @@ end
                                                     ## suppresses a match, re-calibrating cm.multiplet a second time
                                                     ## reproduces the first result exactly (idempotence), and
                                                     ## calibrating a CalibratedMultiplet directly raises an error.
+        @test TestFrames.testModule_UncertaintyEstimate()
+                                                    ## added 14-Oct-2026; hand-built variants, no grid, no orbitals:
+                                                    ## spread and relative spread match plain arithmetic, a single
+                                                    ## variant is refused (no spread with one point), and a zero
+                                                    ## mean is refused (relative spread undefined).
     end
 
     @testset "JAC processes" begin
