@@ -3360,11 +3360,96 @@ function testModule_RandomPhase(; short::Bool=true)
         if printTest   info(iostream, "the coupled solve did not run for the requested maxIterations")   end
     end
 
+    # THE ANGULAR MACHINERY, ASSERTED DIRECTLY -- because it is pure algebra, costs nothing to check, and is
+    # what the coupled path was silently missing until 14-Oct-2026. Four statements, each of which would have
+    # failed then or would fail on the mistake most likely to be made next.
+    #
+    # (1) CL_reduced_me(a, 0, a) = sqrt(2j_a+1) EXACTLY. This is not decoration: the occupation weight in
+    #     RandomPhase.inducedPotentialZr is DERIVED from it through the L = 0 Hartree limit, so if this
+    #     identity ever stopped holding the weight 2*sqrt(2j_b+1) would be void and nothing else would say so.
+    for  sh  in  (Subshell("1s_1/2"), Subshell("2p_1/2"), Subshell("2p_3/2"), Subshell("3d_5/2"), Subshell("4f_7/2"))
+        if  abs( RandomPhase.angularCoefficient(0, sh, sh) - sqrt(Basics.subshell_2j(sh) + 1.0) ) > 1.0e-12
+            success = false
+            if printTest   info(iostream, "RandomPhase.angularCoefficient(0, $sh, $sh) must equal sqrt(2j+1) -- " *
+                                          "the L=0 Hartree limit that fixes inducedPotentialZr's weight depends on it")   end
+        end
+    end
+
+    # (2) THE TWO SPIN-ORBIT PARTNERS CARRY OPPOSITE SIGNS. This is the physical cancellation in the induced
+    #     field, and it is also the exact thing an ARGUMENT-ORDER SWAP destroys: CL_reduced_me(a,L,b) and
+    #     CL_reduced_me(b,L,a) differ by (-1)^(j_a-j_b), so writing the pair the wrong way round leaves the two
+    #     partners AGREEING in sign and silently doubles their contribution instead of cancelling it.
+    cHalf = RandomPhase.angularCoefficient(1, Subshell("2p_1/2"), Subshell("2s_1/2"))
+    cThree = RandomPhase.angularCoefficient(1, Subshell("2p_3/2"), Subshell("2s_1/2"))
+    if  !(cHalf * cThree < 0.0)
+        success = false
+        if printTest   info(iostream, "the 2p_1/2 and 2p_3/2 channels out of 2s_1/2 must carry OPPOSITE angular " *
+                                      "signs ($cHalf and $cThree); equal signs mean the argument order was swapped")   end
+    end
+
+    # (3) THE SELECTION RULES BITE. A channel the parity or triangular rule forbids must return exactly 0.0,
+    #     not a small number: 2s_1/2 -> 2s_1/2 is forbidden for E1 by parity, and 2s_1/2 -> 3d_5/2 by the
+    #     triangular condition on j.
+    for  (t, a)  in  ( (Subshell("2s_1/2"), Subshell("2s_1/2")), (Subshell("3d_5/2"), Subshell("2s_1/2")) )
+        if  RandomPhase.angularCoefficient(1, t, a) != 0.0
+            success = false
+            if printTest   info(iostream, "RandomPhase.angularCoefficient(1, $t, $a) must be exactly 0.0 -- " *
+                                          "the channel is forbidden")   end
+        end
+    end
+
+    # (4) reachableChannels AND angularCoefficient MUST AGREE, which ties the enumerator to the rules it claims
+    #     to implement. Every channel the enumerator returns must have a NON-ZERO coefficient, and every
+    #     candidate it leaves out must have a zero one -- so neither can drift from the other unnoticed. The
+    #     worked case: from 2p_3/2 an E1 reaches s_1/2, d_3/2 and d_5/2 and nothing else, three channels where
+    #     Settings.targetSubshells can name only one.
+    candidates = [ Subshell("1s_1/2"), Subshell("2s_1/2"), Subshell("2p_1/2"), Subshell("2p_3/2"),
+                   Subshell("3d_3/2"), Subshell("3d_5/2"), Subshell("4f_5/2"), Subshell("4f_7/2") ]
+    for  aSub  in  (Subshell("2s_1/2"), Subshell("2p_1/2"), Subshell("2p_3/2"), Subshell("3d_5/2"))
+        reached = [ t.kappa  for t in RandomPhase.reachableChannels(1, aSub) ]
+        for  cand  in  candidates
+            isReached = cand.kappa in reached
+            isAllowed = RandomPhase.angularCoefficient(1, cand, aSub) != 0.0
+            if  isReached != isAllowed
+                success = false
+                if printTest   info(iostream, "RandomPhase.reachableChannels(1, $aSub) and angularCoefficient " *
+                                              "disagree about $cand (reached = $isReached, allowed = $isAllowed)")   end
+            end
+        end
+    end
+    if  sort([ t.kappa for t in RandomPhase.reachableChannels(1, Subshell("2p_3/2")) ]) != [-3, -1, 2]
+        success = false
+        if printTest   info(iostream, "an E1 from 2p_3/2 must reach exactly the s_1/2, d_5/2 and d_3/2 channels")   end
+    end
+
+    # (5) THE WIDENED CHANNEL SET RUNS AND CHANGES NOTHING ABOUT THE RETURNED TYPE. With allChannels the
+    #     iteration is keyed by (active, target) pair and one electron carries several channels, but
+    #     CoupledResponse must still hand back exactly one perturbed orbital per ACTIVE subshell -- the
+    #     primary channel's. Its convergence is NOT asserted, for the measured reason in the module's docstring.
+    respAll = RandomPhase.solve(E1, Basics.Coulomb, omega, activeOrbitals, potential, primitives;
+                                 settings=RandomPhase.Settings(rpSettings; couplingEnabled=true, maxIterations=2,
+                                                                allChannels=true))
+    if  sort(string.(collect(keys(respAll.perturbedOrbitals)))) != sort(string.(rpSettings.activeSubshells))
+        success = false
+        if printTest   info(iostream, "with allChannels = true, CoupledResponse must still carry one perturbed " *
+                                      "orbital per ACTIVE subshell, not one per channel")   end
+    end
+    for  (sh, chi)  in  respAll.perturbedOrbitals
+        if  any(isnan, chi.P)  ||  any(isinf, chi.P)
+            success = false
+            if printTest   info(iostream, "the allChannels coupled solve returned a non-finite chi for $sh")   end
+        end
+    end
+
     println(iostream, "RandomPhase: the independent-particle limit over two active electrons is bit-identical to " *
                       "a bare DalgarnoLewis.solve() call for each electron alone; the coupled path with ONE " *
                       "active electron reproduces it exactly (no induced source exists); a genuine two-electron " *
                       "coupled call runs and returns finite numbers. Its CONVERGENCE on this toy case is not " *
-                      "asserted -- see the module's own docstring. No approved data is used.")
+                      "asserted -- see the module's own docstring. The angular machinery is asserted directly: " *
+                      "CL_reduced_me(a,0,a) = sqrt(2j+1) exactly (the L=0 Hartree limit that fixes the induced " *
+                      "weight), the two spin-orbit partners carry OPPOSITE signs (an argument-order swap would " *
+                      "make them agree), forbidden channels return exactly zero, and reachableChannels agrees " *
+                      "with angularCoefficient on every candidate. No approved data is used.")
     Defaults.setDefaults("print summary: close", "")
     testPrint("testModule_RandomPhase()::", success)
     return( success )
