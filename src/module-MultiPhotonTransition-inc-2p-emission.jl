@@ -317,6 +317,30 @@ function computeReducedAmplitudeEmission(K::AngularJ64, finalLevel::Level, omega
                                         gauge::EmGauge, grid::Radial.Grid,
                                         intermediateStates::Union{Multiplet,Array{AtomicState.GreenChannel,1}},
                                         selfTolerance::Float64=1.0e-8)
+    # **WHY THIS SUM CANNOT REACH AN EXACT RATE, AND WHAT TO USE WHEN YOU NEED ONE -- measured 14-Oct-2026,
+    # priority item 66.**  The sum below is over the intermediate LEVELS the caller supplies, and the scale of
+    # it is now right: after the prefactor fix of 13-Oct (`b399f5ff`) it agrees with Drake at MATCHED
+    # truncation, 10.046 /s against his 10.0466 /s over the same n_max = 20 bound set.  What it cannot do is
+    # converge, and the reason is the intermediate SPACE rather than anything here:
+    #
+    #   * the BOUND series saturates at 10.104 /s against the exact 8.22906 /s for H 2s -> 1s, so adding bound
+    #     states does not help -- it has already converged, to the wrong number;
+    #   * admitting the box-confined pseudo-continuum moves it the right way and far too slowly:  58
+    #     intermediate levels (np to n = 30) give 9.770 /s, still 19 % high, with the two gauges 5.8 : 1 apart,
+    #     and the box cannot carry hundreds more (the 13p-30p orbitals already fill it);
+    #   * **and RESUMMING this sum would gain nothing.**  Sum_nu |nu><nu| is the identity on the space the
+    #     levels span, so solving (H - E_i + omega1) chi = O_1 |i> over the SAME CSF space returns exactly what
+    #     the sum returns.  That would buy speed, not accuracy, and it is worth saying because it is the
+    #     obvious-looking fix.
+    #
+    # The difference that matters is the SIZE AND KIND of the intermediate space.  `DalgarnoLewis` solves in the
+    # B-spline basis of one kappa channel -- 211 states on the grid used above, the whole pseudo-continuum of
+    # that channel included -- where a configuration list gave 58 levels, 27 % as many and of the wrong kind.
+    # **So for a transition with ONE active electron, use `DalgarnoLewis.twoPhotonAmplitude`**, which reaches
+    # 8.229061 /s in BOTH gauges against Amaro et al. 2011's 8.22906 -- see `examples/example-As.jl` branch (c).
+    # This function remains the right route for a genuine MANY-electron intermediate spectrum, where no
+    # one-electron chi can represent the intermediates;  there it is correct in scale and limited by whatever
+    # space the caller provides, which the caller must converge and report.
     U = Complex(0.);    nuLevels = MultiPhotonTransition.intermediateLevels(intermediateStates, Jsym)
     found = length(nuLevels) > 0
     for  nuLevel in nuLevels
