@@ -41,9 +41,20 @@
         explicit sum before being trusted anywhere), the (2j_b+1) weight, the factor-of-2 symmetrization and
         the choice of rank L have no literature RPA/RPAE cross-check yet. TREAT A COUPLED NUMBER AS A
         DEMONSTRATION THAT THE MACHINERY RUNS AND REDUCES TO THE RIGHT LIMIT, NOT YET AS A VALIDATED PHYSICAL
-        RESULT. The natural next step is a genuine multi-electron SCF system (a real mean-field potential, not
-        `NuclearField`) with a known polarizability or RPA correction to check against -- exactly the
-        direction of `MultipolePolarizibility`, should that module be unparked.
+        RESULT.
+
+        **THAT NEXT STEP HAS NOW BEEN TAKEN, AND IT FOUND A DEFECT -- 14-Oct-2026.** The genuine
+        multi-electron SCF system the paragraph above asks for is Ne 1s^2 2s^2 2p^6 in its own DFS potential,
+        E1 at omega = 0.1, three active subshells. The coupled iteration does not converge there under any
+        damping, and Anderson acceleration does not repair it. Measuring the iteration map's spectral radius
+        directly -- by scaling the induced term by lambda and tracking successive residual norms -- gives
+        rho = 5.03, where a closed shell's tens-of-percent screening calls for 0.2-0.4. **The coupling term
+        is about 12x too strong, and at least a factor 3 of that is identified: this module applies no
+        angular coefficient at all, where a rank-L induced potential needs a reduced matrix element of C^L at
+        each end.** So `couplingEnabled = true` is not merely unvalidated, it is known wrong; the
+        single-electron limit remains exact and is unaffected. The full account, including what the factor 3
+        does NOT explain, is at `RandomPhase.solve`. Fixing the angular algebra and re-measuring rho is the
+        next step -- days of work, and it must come before any larger scheme.
 
         WHAT IS STILL OUT OF SCOPE EVEN NOW. Only the DIRECT term is built: the EXCHANGE contribution to the
         induced field needs the same two-electron angular machinery (`SpinAngular`) the CI path already
@@ -227,7 +238,18 @@ end
         weighted by (2j_b+1), treating it statistically as a filled shell (the same choice
         `Basics.computePotential(::Basics.AaHSField, ...)` makes for its own L=0 Hartree term), and the
         induced density itself is 2*[Pb*Pchi_b + Qb*Qchi_b] -- the psi*chi + chi*psi symmetrization for a real
-        response. NOT YET validated against a literature RPA result -- see the module's own docstring.
+        response -- which is exact only at omega = 0, since at finite omega the two terms are the two time
+        orderings and are different functions.
+
+        **KNOWN INCOMPLETE, MEASURED 14-Oct-2026:  THE ANGULAR FACTOR IS MISSING AT BOTH ENDS.** The radial
+        part built here is right, but a rank-L induced density does not act as a spherical potential: a
+        reduced matrix element of C^L belongs where psi_b chi_b is projected onto rank L, and a second one
+        where `RandomPhase.inducedSourceVector` lets the result act on the active electron. Neither is applied
+        anywhere in this module, which contains no angular algebra at all. For the three channels of the Ne
+        test case `AngularMomentum.CL_reduced_me(t, 1, a)/sqrt(2j_a+1)` is -1/sqrt(3) throughout, so the
+        product over the two ends is 1/3 and the coupled iteration's induced term is 3x too strong. That is
+        why `couplingEnabled = true` does not converge; see the long note at `RandomPhase.solve` for the
+        measurement and for what it leaves unexplained.
         A VindZr::Array{Float64,1} of length grid.NoPoints is returned.
 """
 function inducedPotentialZr(multipole::EmMultipole, activeOrbitals::Dict{Subshell,Orbital},
@@ -253,6 +275,10 @@ end
         formula and sign -- the one difference being that computeVlocal's SECOND argument is itself a single
         primitive, where here it is a general tabulated orbital, so the shared formula is written out again
         rather than called. This is `DalgarnoLewis.solve`'s `extraSource` keyword's own input.
+
+        **AND IT CARRIES NO ANGULAR COEFFICIENT, WHICH IS A KNOWN DEFECT** -- the rank-L potential is applied
+        here as though it were spherical. See `RandomPhase.inducedPotentialZr` for the measurement; the factor
+        belonging at this end is a reduced matrix element of C^L between the active subshell and its target.
         An extraSource::Array{Float64,1} of length primitives.grid.nsL + primitives.grid.nsS is returned.
 """
 function inducedSourceVector(VindZr::Array{Float64,1}, sourceOrbital::Orbital, primitives::Bsplines.Primitives)
@@ -357,15 +383,48 @@ function solve(multipole::EmMultipole, gauge::EmGauge, omega::Float64, activeOrb
     #
     # WHAT THAT TOGETHER IMPLIES, and it is the useful part:  a fixed point that neither damping nor Anderson
     # can reach is not a step-size problem at all.  Anderson accelerates a map whose iteration matrix has
-    # spectral radius near or below one;  it cannot rescue one well above it.  **The remedy is therefore a
-    # DIRECT SOLVE of the coupled system rather than any iteration of it** -- the coupled Dalgarno-Lewis
-    # equations for all active subshells form ONE linear system, and iterating them is a Jacobi scheme that
-    # diverges exactly when the coupling is strong, which is the interesting regime.  That is how an RPA is
-    # normally solved, and it is the next thing to try.
+    # spectral radius near or below one;  it cannot rescue one well above it.  So the question is WHY the
+    # spectral radius is large, and that was measured next rather than argued about.
     #
-    # NOT YET RULED OUT, and it must be before the above is believed:  the measurement used three active
-    # subshells with ONE target channel each, which is a crude induced potential.  The instability may belong
-    # to that truncation rather than to the method.
+    # **THE LAMBDA TEST, 14-Oct-2026:  IT IS A DEFECT IN THIS TERM AND NOT STRONG COUPLING.**  The coupled
+    # equations are AFFINE in chi -- chi = c + J chi, with c the external drive and J the induced term -- so
+    # convergence depends ONLY on the spectral radius rho(J) and NOT on how the external operator is
+    # normalised.  rho(J) is therefore a physical number:  it IS the screening strength.  Scaling the induced
+    # source by lambda and measuring rho as the limit of successive residual norms ||f_k+1||/||f_k||,
+    # UNDAMPED (damping would measure (1-m)I + mJ instead of J), on the same Ne case:
+    #       lambda  1.000   0.500   0.250   0.125       rho/lambda  3.3276  3.3276  3.3276  3.3276
+    # The ratio rho/lambda is CONSTANT TO FIVE FIGURES, which is what proves the quantity measured really is
+    # the spectral radius of a linear map rather than some transient.  The per-iteration ratios oscillate
+    # (6.4, 3.7, 5.8, 5.2, 3.5, 7.2, ...), the signature of a complex-conjugate eigenvalue pair, so the sound
+    # estimate is their geometric mean:  **rho_1 = 5.03, i.e. lambda_crit = 0.199.**
+    #
+    # AND THAT NUMBER CANNOT BE READ AS PHYSICS.  For a closed shell the screening correction is a
+    # tens-of-percent effect, so rho_1 should be about 0.2-0.4 and an undamped iteration should simply work;
+    # omega = 0.1 sits far below the 2s-2p excitation energy of ~1 Ha, so there is no resonance to blame.  The
+    # term is therefore about 12x too strong, and the measurement says so independently of any literature.
+    #
+    # **WHERE AT LEAST A FACTOR 3 OF IT SITS:  THIS MODULE CONTAINS NO ANGULAR ALGEBRA AT ALL.**  The induced
+    # potential is of rank L, and `inducedSourceVector` applies it as though it were a local SPHERICAL
+    # potential -- a pure radial projection with no coefficient anywhere.  Two reduced matrix elements of C^L
+    # are missing, one at each end:  where the induced density psi_b chi_b is projected onto rank L, and where
+    # the resulting rank-L potential acts on a to make channel t_a.  For the three channels of the Ne case
+    # `AngularMomentum.CL_reduced_me(t, 1, a)/sqrt(2j_a+1)` is -0.577350 = -1/sqrt(3) for every one of them,
+    # so the product over the two ends is exactly 1/3 and the coupling is 3.00x too strong on that count
+    # alone.  Applying it would bring rho_1 from 5.03 to 1.68 -- much better and still divergent, so the
+    # factor 3 is a part of the defect and not the whole of it.
+    #
+    # THE REMAINING CANDIDATE, not yet measured:  the induced density carries `2.0 *` for the psi*chi +
+    # chi*psi symmetrization, which is EXACT ONLY AT omega = 0.  At finite omega the two terms are the two
+    # time orderings, driven at +omega and -omega, and they are different functions;  replacing one by the
+    # other overstates the response.  That is an approximation rather than a double count, so it accounts for
+    # less than a factor 2, and it should be checked at omega -> 0 where it becomes exact.
+    #
+    # SO THE NEXT STEP IS NOT A DIRECT SOLVE.  An earlier version of this note concluded that the coupling was
+    # genuinely strong and that the remedy was to assemble the coupled equations as ONE linear system.  The
+    # lambda test withdraws that:  a Jacobi iteration of a correctly-built RPA for a closed shell converges
+    # perfectly well, so the work to do is to ADD THE MISSING ANGULAR ALGEBRA and re-measure rho, which is
+    # days rather than weeks.  A direct solve may still be wanted afterwards, for genuinely strongly-screened
+    # cases, but it would be solving a different problem from the one measured here.
     converged = false;   nIterations = 0;   previousExtraSource = Dict{Subshell,Array{Float64,1}}()
     xHistory = Dict{Subshell,Vector{Vector{Float64}}}();   fHistory = Dict{Subshell,Vector{Vector{Float64}}}()
     for  a in subshells   xHistory[a] = Vector{Float64}[];   fHistory[a] = Vector{Float64}[]   end
