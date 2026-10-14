@@ -143,7 +143,11 @@ using  LinearAlgebra, Printf, ..AngularMomentum, ..Basics, ..Bsplines, ..Dalgarn
                                                          `RandomPhase.gmres` over `RandomPhase.sourceMap`,
                                                          so no matrix is ever formed.  `maxIterations` then
                                                          bounds the Krylov dimension and `accuracy` is the
-                                                         relative residual demanded.
+                                                         relative residual demanded.  **THE DEFAULT IS TRUE
+                                                         since 14-Oct-2026**, because an iterating default
+                                                         cannot converge at all;  and on this route
+                                                         `nIterations` of the returned `CoupledResponse`
+                                                         counts KRYLOV STEPS rather than sweeps.
     + allChannels         ::Bool                      ... True if the induced field is built from EVERY target
                                                          symmetry the multipole can reach from each active
                                                          subshell, rather than from the single one named in
@@ -158,8 +162,10 @@ using  LinearAlgebra, Printf, ..AngularMomentum, ..Basics, ..Bsplines, ..Dalgarn
                                                          and still names each active subshell's PRIMARY channel,
                                                          which is the one whose chi is returned;  the extra
                                                          channels are solved too and enter the induced density.
-                                                         The default is false, so an existing caller is
-                                                         unaffected.
+                                                         **THE DEFAULT IS TRUE since 14-Oct-2026.** It was
+                                                         false until then, which made the default coupled path
+                                                         the one measured to give a sign-reversed total; see
+                                                         `RandomPhase.solve`'s note for the numbers.
 """
 struct Settings
     activeSubshells        ::Array{Subshell,1}
@@ -180,8 +186,16 @@ end
 `RandomPhase.Settings()`  ... constructor for an `empty` instance of RandomPhase.Settings.
 """
 function Settings()
+    ## allChannels DEFAULTS TO TRUE -- changed 14-Oct-2026, on the maintainer's instruction and on a
+    ## measurement: with one target per subshell the total coherent response comes out SIGN-REVERSED
+    ## (ratio -0.793 against the uncoupled total), while the complete channel set gives a physical +0.835.
+    ## A default that produces the wrong sign is not a conservative default.
+    ## directSolve DEFAULTS TO TRUE for the same reason -- 14-Oct-2026, the maintainer's instruction.  The
+    ## iteration's spectral radius is about 2.7 and belongs to the OPERATOR, so an iterating default could not
+    ## converge for any setting of anything else.  NOTE what this changes for a caller: on the direct route
+    ## `maxIterations` bounds the KRYLOV DIMENSION and `nIterations` reports Krylov steps, not sweeps.
     Settings( Subshell[], Dict{Subshell,Subshell}(), false, 15, 1.0e-6, 0.3, DalgarnoLewis.Settings(), false, 0,
-               false, false )
+               true, true )
 end
 
 
@@ -625,6 +639,23 @@ function solve(multipole::EmMultipole, gauge::EmGauge, omega::Float64, activeOrb
         @printf(">> RandomPhase.solve():  %d channel(s) over %d active subshell(s):  %s\n",
                 length(channels), length(subshells),
                 join([ "$(c[1])->$(c[2])" for c in channels ], ", "))
+    end
+    # TWO WARNINGS A CALLER MUST NOT BE ABLE TO MISS, and neither is suppressible by printBefore: both say the
+    # returned number is untrustworthy, which is not a matter of verbosity.  `maxlog=1` because each states a
+    # standing fact about the module rather than something about one call -- repeating it per call would bury
+    # it in its own noise, which is how a warning stops being read.
+    if  !settings.allChannels
+        @warn("RandomPhase.solve(): allChannels = false keeps ONE target channel per active subshell, and that " *
+              "truncation was measured on 14-Oct-2026 to give a SIGN-REVERSED total coherent response " *
+              "(-0.793 of the uncoupled total, against +0.835 with every reachable channel). The spin-orbit " *
+              "partners carry OPPOSITE angular signs, so a truncated set breaks a cancellation rather than " *
+              "merely dropping a term. Use it for diagnostics, not for a physical number.", maxlog=1)
+    end
+    if  !settings.directSolve
+        @warn("RandomPhase.solve(): directSolve = false iterates a map whose spectral radius was measured at " *
+              "about 2.7, which belongs to the operator and not to the stepping -- so NO damping, Anderson " *
+              "depth or channel choice converges, and whatever this call returns is an unconverged iterate. " *
+              "Set directSolve = true.", maxlog=1)
     end
 
     chis = Dict{Tuple{Subshell,Subshell},DalgarnoLewis.PerturbedOrbital}()

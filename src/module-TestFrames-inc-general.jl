@@ -3330,7 +3330,10 @@ function testModule_RandomPhase(; short::Bool=true)
     # see the module's own docstring for why a genuine two-electron coupled number is NOT yet asserted here.
     oneActive  = Dict(Subshell("2s_1/2") => targets[Subshell("2s_1/2")])
     settings1U = RandomPhase.Settings(RandomPhase.Settings(); activeSubshells=[Subshell("2s_1/2")], targetSubshells=oneActive)
-    settings1C = RandomPhase.Settings(settings1U; couplingEnabled=true, maxIterations=5, accuracy=1.0e-10)
+    ## directSolve=false PINNED EXPLICITLY: since 14-Oct-2026 it DEFAULTS to true, and this check exists to
+    ## exercise the ITERATION path's zero-induced-source limit.  Check (7) below covers the direct path.
+    settings1C = RandomPhase.Settings(settings1U; couplingEnabled=true, maxIterations=5, accuracy=1.0e-10,
+                                       directSolve=false)
     r1U = RandomPhase.solve(E1, Basics.Coulomb, omega, activeOrbitals, potential, primitives; settings=settings1U)
     r1C = RandomPhase.solve(E1, Basics.Coulomb, omega, activeOrbitals, potential, primitives; settings=settings1C)
     c1u = r1U.perturbedOrbitals[Subshell("2s_1/2")];   c1c = r1C.perturbedOrbitals[Subshell("2s_1/2")]
@@ -3347,7 +3350,8 @@ function testModule_RandomPhase(; short::Bool=true)
     # A GENUINE TWO-ELECTRON COUPLED CALL MUST AT LEAST RUN AND RETURN FINITE NUMBERS -- its CONVERGENCE on
     # this toy case is NOT asserted; see the module's own docstring for the measured, honest reason why not.
     respC = RandomPhase.solve(E1, Basics.Coulomb, omega, activeOrbitals, potential, primitives;
-                               settings=RandomPhase.Settings(rpSettings; couplingEnabled=true, maxIterations=3))
+                               settings=RandomPhase.Settings(rpSettings; couplingEnabled=true, maxIterations=3,
+                                                              directSolve=false))   ## sweeps, so nIterations == 3
     for  sh  in  (Subshell("1s_1/2"), Subshell("2s_1/2"))
         chi = respC.perturbedOrbitals[sh]
         if  any(isnan, chi.P)  ||  any(isnan, chi.Q)  ||  any(isinf, chi.P)  ||  any(isinf, chi.Q)
@@ -3472,7 +3476,7 @@ function testModule_RandomPhase(; short::Bool=true)
     #     primary channel's. Its convergence is NOT asserted, for the measured reason in the module's docstring.
     respAll = RandomPhase.solve(E1, Basics.Coulomb, omega, activeOrbitals, potential, primitives;
                                  settings=RandomPhase.Settings(rpSettings; couplingEnabled=true, maxIterations=2,
-                                                                allChannels=true))
+                                                                allChannels=true, directSolve=false))
     if  sort(string.(collect(keys(respAll.perturbedOrbitals)))) != sort(string.(rpSettings.activeSubshells))
         success = false
         if printTest   info(iostream, "with allChannels = true, CoupledResponse must still carry one perturbed " *
