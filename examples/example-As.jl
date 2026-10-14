@@ -209,4 +209,146 @@ elseif  true
             "to 5-6 significant figures with the precise literature value -- the factor-16 prefactor fix " *
             "(challenge S5) closes the gap entirely. The remaining ~1e-5 relative residual is consistent with " *
             "basis/box truncation at this grid, not a further physics gap.")
+elseif  false
+    #
+    # Last successful:  14-Oct-2026
+    # Branch (d): THE FIRST FEW-ELECTRON TEST THIS MACHINERY HAS EVER HAD, AND THE FIRST AWAY FROM Z = 1.
+    #
+    # WHY IT WAS NEEDED.  Every run of `DalgarnoLewis` and `RandomPhase` before today -- branches (a)-(c)
+    #   here, both branches of example-At.jl, and both suite tests -- was Z = 1 hydrogen in a BARE NUCLEAR
+    #   field.  That is the one point at which the independent-particle approximation CANNOT be wrong: with
+    #   one electron there is no mean field and no screening, so hydrogen tests the solver and not the
+    #   approximation.  Nothing had ever exercised the two things that distinguish a real ion -- finite Z,
+    #   where relativity enters, and a screened field.
+    #
+    #   The result transfers to `RandomPhase` without a separate run, because its uncoupled path is
+    #   BIT-IDENTICAL to a bare `DalgarnoLewis.solve` per electron -- which `testModule_RandomPhase`
+    #   asserts as an exact equality, not an approximate one.
+    #
+    # (a) THE Z^6 LAW, H-LIKE.  The non-relativistic 2s -> 1s two-photon rate scales as Gamma = 8.229 Z^6 /s.
+    #   Measured here in the bare nuclear field:
+    #
+    #       Z        1           2           5           10          20          30
+    #       rate/Z^6 8.229061    8.228189    8.222099    8.200527    8.116607    7.982835
+    #
+    #   The coefficient at Z = 1 is the literature one, and the DEPARTURE at higher Z is the leading
+    #   relativistic correction -- in the right functional form, which is the point of running five Z rather
+    #   than one.  Dividing the departure by (Z*alpha)^2 gives
+    #
+    #       Z                    5        10       20       30
+    #       coeff of (Z alpha)^2 0.6356   0.6511   0.6416   0.6243
+    #
+    #   i.e. CONSTANT to 2 % over a factor 6 in Z:  Gamma(Z) = 8.2291 Z^6 [1 - 0.64 (Z alpha)^2].  (The Z = 2
+    #   point gives 0.4975 and is NOT an outlier in the physics -- there the departure is only 1.1e-4, which
+    #   is the convergence level of the rate itself, so the ratio has ~20 % noise.  Judge the law from Z >= 5.)
+    #   The relativistic Z-by-Z table is Goldman & Drake, Phys. Rev. A 24, 183 (1981); it is NOT reproduced
+    #   here, so what is demonstrated is the FORM of the correction and not its last digit.
+    #
+    # (b) THE SCREENING, HE-LIKE -- ONE CONSTANT FOR THE WHOLE FAMILY.  The active 2s electron sees the
+    #   nucleus plus ONE 1s spectator.  That field is built EXPLICITLY below as V = nuclear(Z) - Y_0[rho_1s],
+    #   with the 1s made self-consistent in its own partner's field, and NOT taken from a DFS run on the
+    #   two-electron configuration:  a DFS field built from a two-electron density has the active electron
+    #   screening ITSELF, which for two electrons is a ~50 % error rather than a small one (cf.
+    #   `SelfConsistent.checkOneElectronSelfInteraction`).  Measured:
+    #
+    #       Z                  2        5        10       20       30
+    #       rate [1/s]         28.908   4.679e4  5.032e6  4.088e8  4.972e9
+    #       He-like / H-like   0.0549   0.3642   0.6136   0.7870   0.8543
+    #       sigma = Z(1-r^1/6) 0.7670   0.7746   0.7818   0.7828   0.7770
+    #
+    #   **THE WHOLE HE-LIKE FAMILY IS THE H-LIKE FAMILY AT Z -> Z - 0.777**, with that screening constant
+    #   holding to 2 % across a factor 15 in Z and a factor 2e8 in the rate itself.  That is the check worth
+    #   having: a single constant reproducing eight decades says the screened field is entering the orbitals,
+    #   the transition energy AND the intermediate-state sum consistently, and one implemented inconsistently
+    #   could not do it.  sigma ~ 0.78 is also physically where it belongs, just below Slater's 0.85 for an
+    #   (n-1)-shell electron screening an n-shell one.
+    #
+    # WHAT THIS DOES *NOT* SHOW, because it is easy to over-read.  There is still NO comparison against an
+    #   external few-electron number.  The quantity computed here is a ONE-ELECTRON 2s -> 1s rate
+    #   (J = 1/2 -> 1/2) in a screened field, which is NOT the He-like 2^1S_0 -> 1^1S_0 rate: that is a
+    #   two-electron J = 0 -> 0 transition carrying an exchange contribution and its own angular factor.  At
+    #   Z = 2 this branch gives 28.9 /s where the literature 2^1S_0 value for neutral helium is ~51 /s, and
+    #   those two numbers are DIFFERENT QUANTITIES -- the agreement in order of magnitude is reassurance, not
+    #   validation.  Nor is the He-like 2^3S_1 -> 1^1S_0 rate comparable: it changes spin, so E1E1 cannot
+    #   drive it at all and it proceeds through relativistic singlet-triplet mixing.
+    #   So: the machinery is shown CONSISTENT at finite Z and under screening;  its ABSOLUTE accuracy for a
+    #   genuine two-electron state remains untested.
+    #
+    # THE BOX FOLLOWS Z, WITH NO FLOOR -- Rule 12, and a floor is how that rule gets broken.  The 2s outer
+    #   turning point is r_+ = 8/Z and branch (c) is converged at rbox = 80 for Z = 1, i.e. at 10 r_+;  so
+    #   rbox = 80/Z holds that ratio everywhere.  A floor such as max(12, 80/Z) would leave Z = 30 on a box
+    #   44 r_+ wide, which spends the fixed B-spline set on empty space and returns a WRONG NUMBER rather
+    #   than a refusal.  That mistake was made and caught here before any number was believed.
+    #
+    p12 = Subshell("2p_1/2");   p32 = Subshell("2p_3/2")
+    Ji  = AngularJ64(1,2);      Jf = AngularJ64(1,2);   Kzero = AngularJ64(0)
+    wx12 = AngularMomentum.Wigner_6j(Ji, Jf, Kzero, AngularJ64(1), AngularJ64(1), AngularJ64(1,2))
+    wx32 = AngularMomentum.Wigner_6j(Ji, Jf, Kzero, AngularJ64(1), AngularJ64(1), AngularJ64(3,2))
+    nodes   = [-0.1488743389, 0.1488743389, -0.4333953941, 0.4333953941, -0.6794095683, 0.6794095683,
+               -0.8650633667, 0.8650633667, -0.9739065285, 0.9739065285]
+    weights = [ 0.2955242247, 0.2955242247,  0.2692667193, 0.2692667193,  0.2190863625, 0.2190863625,
+                0.1494513492, 0.1494513492,  0.0666713443, 0.0666713443]
+    alphaFs = Defaults.getDefaults("alpha")
+    #
+    # the amplitude assembly is branch (c)'s, UNCHANGED;  only the orbitals and the potential differ
+    function twoPhotonRate(orb2s::Orbital, orb1s::Orbital, pot::Radial.Potential, prim::Bsplines.Primitives)
+        DeltaE = orb2s.energy - orb1s.energy;   total = 0.0;   a = 0.0;   b = DeltaE/2
+        for  (x,w)  in  zip(nodes, weights)
+            omega1 = (b-a)/2*x + (a+b)/2;   omega2 = DeltaE - omega1
+            U = wx12 * DalgarnoLewis.twoPhotonAmplitude(E1, E1, Basics.Babushkin, omega1, omega2, orb2s, orb1s,
+                                                         p12, pot, prim) +
+                wx32 * DalgarnoLewis.twoPhotonAmplitude(E1, E1, Basics.Babushkin, omega1, omega2, orb2s, orb1s,
+                                                         p32, pot, prim)
+            total = total + w * (b-a)/2 * (32pi * alphaFs^2 * omega1 * omega2 / 2.0 * abs2(U))
+        end
+
+        return( Defaults.convertUnits("rate: from atomic to 1/s", total), DeltaE )
+    end
+    #
+    gridFor(Z) = Radial.Grid(Radial.Grid(false), rnt = 4.0e-6/Z, h = 5.0e-2, hp = 3.0e-2/Z, rbox = 80.0/Z)
+    #
+    println("\n>>> (a) H-like, bare nuclear field:  the Z^6 law and its relativistic departure")
+    @printf("%-5s %-16s %-16s %-14s %s\n", "Z", "DeltaE [a.u.]", "rate [1/s]", "rate/Z^6", "coeff of (Z alpha)^2")
+    ## Z = 1 FIRST, and the reference read back out of the Dict rather than held in a plain variable:  a
+    ## top-level `for` opens a new scope, so assigning a scalar inside it makes that name LOCAL to each
+    ## iteration and the next one finds it undefined.  Mutating a Dict needs no such care.
+    hRates = Dict{Float64,Float64}()
+    for  Z  in  (1.0, 2.0, 5.0, 10.0, 20.0, 30.0)
+        grid = gridFor(Z);   prim = Bsplines.generatePrimitives(grid)
+        nm   = Nuclear.Model(Z, Nuclear.PointNucleus());   pot = Nuclear.nuclearPotential(nm, grid)
+        orbs = Bsplines.generateOrbitals([Subshell("1s_1/2"), Subshell("2s_1/2")], pot, nm, prim; printout=false)
+        rate, dE = twoPhotonRate(orbs[Subshell("2s_1/2")], orbs[Subshell("1s_1/2")], pot, prim)
+        hRates[Z] = rate
+        departure = 1.0 - (rate/Z^6)/(hRates[1.0]/1.0^6)
+        @printf("%-5.0f %-16.8f %-16.6e %-14.6f %s\n", Z, dE, rate, rate/Z^6,
+                Z == 1.0 ? "(reference)" : @sprintf("%.4f", departure/(Z*alphaFs)^2))
+    end
+    #
+    println("\n>>> (b) He-like, nucleus + ONE self-consistent 1s spectator:  is it ONE screening constant?")
+    @printf("%-5s %-16s %-16s %-14s %s\n", "Z", "DeltaE [a.u.]", "rate [1/s]", "He-like/H-like", "sigma = Z(1-r^(1/6))")
+    for  Z  in  (2.0, 5.0, 10.0, 20.0, 30.0)
+        grid = gridFor(Z);   prim = Bsplines.generatePrimitives(grid)
+        nm   = Nuclear.Model(Z, Nuclear.PointNucleus());   nucPot = Nuclear.nuclearPotential(nm, grid)
+        orb1s = Bsplines.generateOrbitals([Subshell("1s_1/2")], nucPot, nm, prim; printout=false)[Subshell("1s_1/2")]
+        pot   = nucPot
+        for  iter = 1:12
+            mtp = min(length(orb1s.P), length(orb1s.Q));   rho = zeros(grid.NoPoints)
+            for  i = 1:mtp   rho[i] = orb1s.P[i]^2 + orb1s.Q[i]^2   end
+            ## ONE electron's Hartree potential in the Zr = -r*V(r) convention:  V_H = +Y_0/r, so Zr = -Y_0
+            screen = Radial.Potential("one-1s Hartree",
+                                       [ -RadialIntegrals.Yk_ab(0, grid.r[i], rho, mtp, grid) for i = 1:grid.NoPoints ], grid)
+            pot    = Basics.add(nucPot, screen)
+            newOrb = Bsplines.generateOrbitals([Subshell("1s_1/2")], pot, nm, prim; printout=false)[Subshell("1s_1/2")]
+            converged = abs(newOrb.energy - orb1s.energy) < 1.0e-10
+            orb1s = newOrb
+            converged   &&   break
+        end
+        orbs = Bsplines.generateOrbitals([Subshell("1s_1/2"), Subshell("2s_1/2")], pot, nm, prim; printout=false)
+        rate, dE = twoPhotonRate(orbs[Subshell("2s_1/2")], orbs[Subshell("1s_1/2")], pot, prim)
+        ratio = rate/hRates[Z]
+        @printf("%-5.0f %-16.8f %-16.6e %-14.5f %.4f\n", Z, dE, rate, ratio, Z*(1.0 - ratio^(1/6)))
+    end
+    println("\n>>> sigma must come out CONSTANT near 0.777;  a varying sigma means the screened field is not " *
+            "reaching the orbitals, the transition energy and the intermediate sum consistently.")
+    #
 end
