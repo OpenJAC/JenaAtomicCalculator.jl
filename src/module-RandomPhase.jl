@@ -258,6 +258,23 @@ end
                                                                                   in; see `DalgarnoLewis`'s
                                                                                   own docstring for which
                                                                                   gauges are currently usable.
+    + channelOrbitals     ::Dict{Tuple{Subshell,Subshell},PerturbedOrbital}  ... EVERY channel's perturbed
+                                                                                  orbital, keyed by the
+                                                                                  (active, target) pair.
+                                                                                  **Added 14-Oct-2026 because
+                                                                                  `perturbedOrbitals` alone
+                                                                                  makes the physics
+                                                                                  unreachable:** with
+                                                                                  `allChannels` one electron
+                                                                                  carries several channels, the
+                                                                                  observable is the COHERENT
+                                                                                  SUM over all of them, and a
+                                                                                  caller given only the primary
+                                                                                  ones cannot form it -- it
+                                                                                  gets a 3-channel sum of a
+                                                                                  7-channel solve, which is a
+                                                                                  different quantity.  Empty on
+                                                                                  the uncoupled path.
     + omega                ::Float64                                          ... the perturbing frequency,
                                                                                   shared by every electron.
     + perturbedOrbitals    ::Dict{Subshell,DalgarnoLewis.PerturbedOrbital}    ... chi, keyed by the ACTIVE
@@ -284,6 +301,7 @@ struct CoupledResponse
     perturbedOrbitals         ::Dict{Subshell,DalgarnoLewis.PerturbedOrbital}
     nIterations               ::Int64
     converged                  ::Bool
+    channelOrbitals      ::Dict{Tuple{Subshell,Subshell},DalgarnoLewis.PerturbedOrbital}
 end
 
 
@@ -609,7 +627,8 @@ function solve(multipole::EmMultipole, gauge::EmGauge, omega::Float64, activeOrb
                                                          potential, primitives; settings=settings.dalgarnoLewis)
         end
 
-        return( CoupledResponse(multipole, gauge, omega, perturbedOrbitals, 1, true) )
+        return( CoupledResponse(multipole, gauge, omega, perturbedOrbitals, 1, true,
+                                 Dict{Tuple{Subshell,Subshell},DalgarnoLewis.PerturbedOrbital}()) )
     end
 
     # THE COUPLED ITERATION. Start from the independent-particle chi's (iteration 0, no induced potential yet),
@@ -696,7 +715,8 @@ function solve(multipole::EmMultipole, gauge::EmGauge, omega::Float64, activeOrb
         for  a in subshells   perturbedOrbitals[a] = chis[(a, targets[a])]   end
 
         return( CoupledResponse(multipole, gauge, omega, perturbedOrbitals, nKrylov,
-                                 relResidual < settings.accuracy  &&  selfConsistency < sqrt(settings.accuracy)) )
+                                 relResidual < settings.accuracy  &&  selfConsistency < sqrt(settings.accuracy),
+                                 chis) )
     end
 
     # THE ITERATION.  The fixed-point variable is the INDUCED SOURCE, one vector per active subshell, and the
@@ -898,7 +918,7 @@ function solve(multipole::EmMultipole, gauge::EmGauge, omega::Float64, activeOrb
     perturbedOrbitals = Dict{Subshell,DalgarnoLewis.PerturbedOrbital}()
     for  a in subshells   perturbedOrbitals[a] = chis[(a, targets[a])]   end
 
-    return( CoupledResponse(multipole, gauge, omega, perturbedOrbitals, nIterations, converged) )
+    return( CoupledResponse(multipole, gauge, omega, perturbedOrbitals, nIterations, converged, chis) )
 end
 
 

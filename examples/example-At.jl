@@ -92,4 +92,91 @@ elseif  true
     respC = RandomPhase.solve(E1, Basics.Coulomb, omega, activeOrbitals, potential, primitives; settings=settings2)
     println(">> TWO active electrons (toy case): converged = $(respC.converged) after $(respC.nIterations) iterations " *
             "-- see this branch's own comment for why that is not yet expected to be true.")
+elseif  false
+    #
+    # Last successful:  14-Oct-2026
+    # Branch c: THE COUPLED RESPONSE ON A REAL ATOM -- the first branch of this file that is not a Z = 1 toy.
+    #
+    # WHY IT EXISTS.  Branches (a) and (b) run hydrogen at Z = 1 in a BARE NUCLEAR field with two fictitious
+    #   non-interacting electrons, and assert identities (exact zeros).  Those are the right checks for the
+    #   orchestration and say nothing about the physics, because with one electron in no mean field there is
+    #   nothing to screen.  This branch runs the coupled path where it means something.
+    #
+    # WHAT IT SHOWS, measured 14-Oct-2026 on Ne 1s^2 2s^2 2p^6 in its own DFS field, E1, three active
+    #   subshells, all seven reachable channels, with the direct solve:
+    #
+    #       omega        0.05     0.10     0.20     0.30
+    #       screening    0.7816   0.8347   0.9739   1.2066
+    #
+    #   where the screening factor is the ratio coupled/uncoupled of the TOTAL COHERENT response -- every
+    #   channel's return amplitude, weighted as the induced density weights it.  The absolute scale is not
+    #   pinned (chi is driven by the photon-normalised operator), but the RATIO is normalisation-free, and
+    #   that ratio IS the screening.  It tends to ~0.78 at low omega, i.e. about 22 % screening, which is the
+    #   tens-of-percent a closed shell should give.
+    #
+    # THREE THINGS A READER MUST NOT TAKE FROM THIS, all measured rather than supposed:
+    #
+    #   (1) **A PER-CHANNEL |chi| RATIO IS NOT A SCREENING DIAGNOSTIC AT FULL COUPLING.**  At 1/8 coupling
+    #       every channel is screened;  at full strength the 2p_1/2 channel comes out ENHANCED, 1.22x over
+    #       three channels and 1.82x over seven, while the coherent total is still screened.  The channels mix
+    #       strongly, so screening is a statement about the total and not about any one norm.
+    #
+    #   (2) **EXCHANGE IS ABSENT BY DESIGN** -- this is "RPA", not "RPA with exchange" -- and a direct-only
+    #       induced field is known to over-screen.  So read 0.835 as a direct-only number, never as a
+    #       validated screening correction;  there is no literature comparison behind it.
+    #
+    #   (3) **THE CROSSING ABOVE 1 NEAR omega ~ 0.22 IS UNVALIDATED.**  It may be a genuine collective shift
+    #       or the direct-only approximation failing;  Ne's first excitations lie well above omega = 0.3, so
+    #       proximity to a resonance does not explain it.
+    #
+    # WHY THE DEFAULTS MATTER HERE, and why this branch sets neither flag.  `allChannels` and `directSolve`
+    #   both DEFAULT TO TRUE since 14-Oct-2026, each because the opposite was measured not to work: with one
+    #   target channel per subshell the coherent total comes out SIGN-REVERSED (-0.793), and the iteration's
+    #   spectral radius is about 2.7, which belongs to the operator so that no damping or acceleration
+    #   converges.  The direct solve reaches the fixed point in ~10 Krylov steps and was verified against the
+    #   iteration to THIRTEEN DIGITS in the one regime where both work (1/8 coupling).
+    #
+    grid = Radial.Grid(Radial.Grid(false), rnt = 2.0e-6, h = 5.0e-2, hp = 2.0e-2, rbox = 25.0)
+    prim = Bsplines.generatePrimitives(grid)
+    nm   = Nuclear.Model(10.0, 20.18)
+    asf  = AsfSettings(AsfSettings(); scField = Basics.DFSField(), scfRoute = Basics.MeanFieldRoute(40))
+    mp   = SelfConsistent.performSCF([Configuration("1s^2 2s^2 2p^6")], nm, grid, asf; printout=false)
+    orbs = mp.levels[1].basis.orbitals
+    pot  = Basics.add( Nuclear.nuclearPotential(nm, grid),
+                       Basics.computePotential(Basics.DFSField(), grid, mp.levels[1].basis) )
+    subs = [Subshell("2p_1/2"), Subshell("2p_3/2"), Subshell("2s_1/2")]
+    act  = Dict( a => orbs[a] for a in subs )
+    tgt  = Dict(Subshell("2p_1/2") => Subshell("2s_1/2"), Subshell("2p_3/2") => Subshell("2s_1/2"),
+                Subshell("2s_1/2") => Subshell("2p_1/2"))
+    ## the weight each channel's return amplitude carries is the one the induced DENSITY uses
+    weightOf(a, t) = sqrt(Basics.subshell_2j(a) + 1.0) * RandomPhase.angularCoefficient(1, t, a)
+    #
+    println("\n>>> Ne 1s^2 2s^2 2p^6:  the coupled (screened) response against the uncoupled one\n")
+    @printf("%-12s %-10s %-18s %-18s %s\n", "omega [a.u.]", "channels", "A uncoupled", "A coupled", "screening factor")
+    for  omega  in  (0.05, 0.10, 0.20, 0.30)
+        setU = RandomPhase.Settings(RandomPhase.Settings(); activeSubshells=subs, targetSubshells=tgt,
+                                     couplingEnabled=false)
+        setC = RandomPhase.Settings(setU; couplingEnabled=true, maxIterations=150, accuracy=1.0e-10)
+        ## the UNCOUPLED reference over the SAME seven channels: a coupled solve bounded to zero Krylov steps
+        ## returns the uncoupled chis, since the drive is what the solver starts from
+        setU0 = RandomPhase.Settings(setC; maxIterations=0)
+        rU0 = RandomPhase.solve(E1, Basics.Babushkin, omega, act, pot, prim; settings=setU0)
+        rC  = RandomPhase.solve(E1, Basics.Babushkin, omega, act, pot, prim; settings=setC)
+        ## THE SUM MUST RUN OVER EVERY CHANNEL, not over `perturbedOrbitals`.  With allChannels one electron
+        ## carries several channels and the observable is their COHERENT sum;  summing only the primary ones
+        ## gives a 3-channel sum of a 7-channel solve, which is a DIFFERENT quantity and comes out wild
+        ## (0.892, 1.392, 8.854, -3.571 -- measured, 14-Oct-2026).  `channelOrbitals` exists for this.
+        au = 0.0;   ac = 0.0
+        for  (ch, chi)  in  rC.channelOrbitals
+            ac = ac + weightOf(ch[1], ch[2]) * DalgarnoLewis.amplitude(E1, act[ch[1]], chi, grid)
+        end
+        for  (ch, chi)  in  rU0.channelOrbitals
+            au = au + weightOf(ch[1], ch[2]) * DalgarnoLewis.amplitude(E1, act[ch[1]], chi, grid)
+        end
+        @printf("%-12.3f %-10d %-18.8e %-18.8e %.5f\n", omega, length(rC.channelOrbitals), au, ac, ac/au)
+    end
+    println("\n>>> measured 14-Oct-2026:  0.7816, 0.8347, 0.9739, 1.2066 -- about 22 % screening at low omega.")
+    println(">>> READ THE COMMENT BLOCK ABOVE before quoting any of these: exchange is absent, the per-channel")
+    println(">>> norms are NOT a screening diagnostic, and the crossing above 1 is unvalidated.")
+    #
 end
