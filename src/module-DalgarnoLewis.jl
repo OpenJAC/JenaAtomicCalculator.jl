@@ -297,7 +297,7 @@ end
 `DalgarnoLewis.solve(multipole::EmMultipole, gauge::EmGauge, omega::Float64, targetSubshell::Subshell,
                       sourceOrbital::Orbital, potential::Radial.Potential, primitives::Bsplines.Primitives;
                       settings::DalgarnoLewis.Settings=DalgarnoLewis.Settings(),
-                      extraSource::Union{Nothing,Array{Float64,1}}=nothing)`
+                      extraSource::Union{Nothing,Array{Float64,1}}=nothing, staticDrive::Bool=false)`
     ... solves (H_eff - targetEnergy) |chi> = O^(multipole, gauge) |sourceOrbital> for chi, in the
         kappa-channel of targetSubshell, where H_eff is the one-body Dirac Hamiltonian for `potential` on
         the SAME B-spline primitives sourceOrbital was (or could have been) generated from, and
@@ -320,7 +320,7 @@ end
 function solve(multipole::EmMultipole, gauge::EmGauge, omega::Float64, targetSubshell::Subshell,
                 sourceOrbital::Orbital, potential::Radial.Potential, primitives::Bsplines.Primitives;
                 settings::DalgarnoLewis.Settings=DalgarnoLewis.Settings(),
-                extraSource::Union{Nothing,Array{Float64,1}}=nothing)
+                extraSource::Union{Nothing,Array{Float64,1}}=nothing, staticDrive::Bool=false)
     kappa = targetSubshell.kappa;   grid = primitives.grid;   nsL = grid.nsL;   nsS = grid.nsS
     targetEnergy = sourceOrbital.energy + omega
 
@@ -370,20 +370,58 @@ function solve(multipole::EmMultipole, gauge::EmGauge, omega::Float64, targetSub
     #     Routed through DalgarnoLewis.amplitudeKernel rather than InteractionStrength.MabEmission directly --
     #     for Coulomb/Magnetic that function passes through to MabEmission unchanged; for Babushkin it uses
     #     the role-based, constant-sign formula this module's own docstring explains.
+    # (4a) WHICH OPERATOR DRIVES IT.  `staticDrive = true` replaces the photon-normalised multipole field by
+    #      the FREQUENCY-INDEPENDENT static one, `InteractionStrength.eMultipole` -- Johnson's r^k C_k, the
+    #      same operator `MultipoleMoment.emmStaticAmplitude` is built from and the one a static polarizability
+    #      actually requires.  Added 14-Oct-2026, and it RELEASES this module's own earlier scope line, which
+    #      said a static source "is `MultipolePolarizibility`'s business and not this function's".  That was
+    #      wrong in a way three separate measurements then ran into:  the complete intermediate basis lives
+    #      HERE -- 211 B-spline states of one kappa channel on a typical grid -- while a sum-over-states route
+    #      must be handed a perturber list the caller has to choose and converge, which cannot be done for a
+    #      heavy ion.  With the static drive the same chi gives a static polarizability from a COMPLETE basis,
+    #      the core-polarizability term a heavy one-valence-electron ion needs, and -- through
+    #      `RandomPhase` -- its SCREENED counterpart.
+    #      `omega` still sets the energy shift, so omega = 0 is the genuinely static case;  the gauge argument
+    #      is then unused, since a frequency-independent operator has no gauge freedom.
+    #
+    #      **HOW TO TURN THE RESULTING chi INTO A POLARIZABILITY, with the prefactor MEASURED rather than
+    #      argued (14-Oct-2026).**  chi solves (H - E_a) chi = source, so contracting it back with the same
+    #      operator gives sum_n |<a||P||n>|^2/(E_n - E_a), i.e. MINUS the Angel-Sandars sum.  For a
+    #      ONE-ELECTRON level,
+    #
+    #            alpha_0 = (2/3) * sum_kappa  InteractionStrength.eMultipole(1, a, chi_kappa, grid)
+    #
+    #      summed over EVERY kappa the rank-1 operator reaches from a (p_1/2 AND p_3/2 for an s state).  The
+    #      2/3 is not a fudge:  `eMultipole` divides by sqrt(2j+1) of its FIRST argument and is applied twice
+    #      -- once building the source, once contracting back -- which gives 1/(2j_a+1) = 1/(2J+1) for a
+    #      one-electron level and cancels the (2J+1) in the Angel-Sandars denominator, leaving 2/3.
+    #
+    #      VALIDATED, H 1s:  alpha_0 = 4.49975 against the EXACT 4.500000, a relative 5.5e-05, from TWO
+    #      solves.  **And it is BOX-INDEPENDENT to nine digits** -- 2.24984358 and 4.49978367 for the two
+    #      channels at rbox = 40, 60, 80 and 120 a.u. (487 to 1255 splines).  That is the point of the whole
+    #      thing: chi saturates the channel, so there is no perturber set to choose and no box to match, where
+    #      the sum-over-states route needs np to n ~ 16-20 and Rule-12 care to reach the same number
+    #      (3.49 at 2p..4p, 3.63 at 2p..8p, 4.4997 at 2p..16p).
+    #
+    #      A MANY-ELECTRON level needs the level factor put back (Rule 18) and the occupation summed over, and
+    #      that has NOT been done here -- only the one-electron case above is validated.
+    driveKernel = staticDrive ?
+        (a::Orbital, b::Orbital) -> InteractionStrength.eMultipole(multipole.L, a, b, grid) :
+        (a::Orbital, b::Orbital) -> DalgarnoLewis.amplitudeKernel(multipole, gauge, omega, a, b, grid)
     source = zeros(eltype(shiftedKept) <: Complex ? ComplexF64 : Float64, nsL+nsS)
     for  i = 1:nsL
         full = zeros(grid.NoPoints);   bsp = primitives.bsplinesL[i]
         full[bsp.lower:bsp.upper] = bsp.bs
         synthetic = Orbital(targetSubshell, false, true, targetEnergy, full, zeros(grid.NoPoints),
                             zeros(grid.NoPoints), zeros(grid.NoPoints), Radial.Grid())
-        source[i] = DalgarnoLewis.amplitudeKernel(multipole, gauge, omega, sourceOrbital, synthetic, grid)
+        source[i] = driveKernel(sourceOrbital, synthetic)
     end
     for  i = 1:nsS
         full = zeros(grid.NoPoints);   bsp = primitives.bsplinesS[i]
         full[bsp.lower:bsp.upper] = bsp.bs
         synthetic = Orbital(targetSubshell, false, true, targetEnergy, zeros(grid.NoPoints), full,
                             zeros(grid.NoPoints), zeros(grid.NoPoints), Radial.Grid())
-        source[nsL+i] = DalgarnoLewis.amplitudeKernel(multipole, gauge, omega, sourceOrbital, synthetic, grid)
+        source[nsL+i] = driveKernel(sourceOrbital, synthetic)
     end
     # (4b) AN OPTIONAL EXTRA SOURCE CONTRIBUTION, added here unchanged -- this is how a CALLER that knows about
     #      more than one electron (RandomPhase, building an induced potential this module has no notion of)
