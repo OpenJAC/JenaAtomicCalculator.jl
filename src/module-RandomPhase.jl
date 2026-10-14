@@ -54,15 +54,24 @@
         are now fixed, the radial route is verified against `InteractionStrength.XL_Coulomb` to ten digits
         including its sign, and the response is confirmed to SCREEN rather than anti-screen.
 
-        **WHAT IS STILL NOT CONVERGED, STATED PLAINLY.** The fix improved rho by 2.17x, from 5.03 to 2.32 --
-        a genuine improvement and still above one, so the undamped iteration continues to fail at full
-        coupling strength and a coupled number is STILL not to be trusted. The measurement now points at the
-        one-target-per-subshell truncation: because the angular factors of the two spin-orbit partners have
-        OPPOSITE signs, they cancel in the induced field, and a truncated channel set breaks that
-        cancellation -- rho moves between 1.94 and 3.66 on nothing but the choice of targets. Widening
-        `Settings.targetSubshells` beyond one target per subshell is therefore the next step, and it is an API
-        change. See `RandomPhase.solve` for the full account, the two smaller remaining candidates, and why a
-        direct linear solve should wait until the channel set is right.
+        **AND WHY THE COUPLED PATH STILL CANNOT BE ITERATED -- THE ANSWER, NOT A SUSPICION.** The angular
+        repair improved the spectral radius 2.17x, from 5.03 to 2.32, and left three candidates for the rest.
+        All three were then measured and two are eliminated: widening the channel set to every symmetry the
+        multipole reaches (`Settings.allChannels`, 3 channels to 7 on this case) does NOT help, 2.33 against
+        2.49; and the `2.0` density symmetrization is not the cause either, since sweeping omega down to
+        0.001 -- where that factor becomes EXACT -- leaves rho RISING to 2.72 rather than falling. What
+        remains is the approximation itself: **only the DIRECT (ring) term is built, a direct-only induced
+        field OVER-screens because exchange opposes it, and rho ~ 2.7 is what that looks like.**
+
+        **SO THE POSITION IS NOW CLEAR, AND IT IS A QUESTION OF SCOPE.** rho ~ 2.7 is a property of the
+        operator rather than of the stepping, so no damping, acceleration or channel choice can reach the
+        fixed point -- a DIRECT SOLVE could, since (I - J) stays invertible, and that is the right method for
+        it. But solving this term exactly would make the module CONVERGE without making it RIGHT: a
+        direct-only screening correction for a closed shell is not trustworthy, and exchange is not a small
+        correction in this regime. Whether to build the direct solve anyway, to extend to exchange (which the
+        scope note below puts out of reach), or to leave `couplingEnabled = true` as a documented
+        demonstration is the maintainer's decision. The single-electron limit remains exact throughout and is
+        unaffected by any of this. The full account, with every number, is at `RandomPhase.solve`.
 
         WHAT IS STILL OUT OF SCOPE EVEN NOW. Only the DIRECT term is built: the EXCHANGE contribution to the
         induced field needs the same two-electron angular machinery (`SpinAngular`) the CI path already
@@ -123,6 +132,22 @@ using  LinearAlgebra, Printf, ..AngularMomentum, ..Basics, ..Bsplines, ..Dalgarn
                                                          because it is sound, costs nothing when unused, and
                                                          may help a better-posed case;  do not switch it on
                                                          without checking that it converges.
+    + allChannels         ::Bool                      ... True if the induced field is built from EVERY target
+                                                         symmetry the multipole can reach from each active
+                                                         subshell, rather than from the single one named in
+                                                         `targetSubshells`.  **This is what an RPA actually
+                                                         asks for**, and the one-target truncation was measured
+                                                         on 14-Oct-2026 to change the iteration's spectral
+                                                         radius between 1.94 and 3.66 on nothing but the choice
+                                                         of target -- because the two spin-orbit partners of a
+                                                         subshell carry OPPOSITE angular signs and cancel, so a
+                                                         truncated set breaks a cancellation rather than merely
+                                                         dropping a term.  `targetSubshells` is still required
+                                                         and still names each active subshell's PRIMARY channel,
+                                                         which is the one whose chi is returned;  the extra
+                                                         channels are solved too and enter the induced density.
+                                                         The default is false, so an existing caller is
+                                                         unaffected.
 """
 struct Settings
     activeSubshells        ::Array{Subshell,1}
@@ -134,6 +159,7 @@ struct Settings
     dalgarnoLewis            ::DalgarnoLewis.Settings
     printBefore              ::Bool
     andersonDepth            ::Int64
+    allChannels              ::Bool
 end
 
 
@@ -141,13 +167,14 @@ end
 `RandomPhase.Settings()`  ... constructor for an `empty` instance of RandomPhase.Settings.
 """
 function Settings()
-    Settings( Subshell[], Dict{Subshell,Subshell}(), false, 15, 1.0e-6, 0.3, DalgarnoLewis.Settings(), false, 0 )
+    Settings( Subshell[], Dict{Subshell,Subshell}(), false, 15, 1.0e-6, 0.3, DalgarnoLewis.Settings(), false, 0, false )
 end
 
 
 """
 `RandomPhase.Settings(settings::RandomPhase.Settings; activeSubshells=.., targetSubshells=.., couplingEnabled=..,
-                       maxIterations=.., accuracy=.., dalgarnoLewis=.., printBefore=..)`
+                       maxIterations=.., accuracy=.., mixing=.., dalgarnoLewis=.., printBefore=.., andersonDepth=..,
+                       allChannels=..)`
     ... the standard JAC keyword copy-constructor.
 """
 function Settings(settings::RandomPhase.Settings;
@@ -155,7 +182,7 @@ function Settings(settings::RandomPhase.Settings;
     couplingEnabled::Union{Nothing,Bool}=nothing,                 maxIterations::Union{Nothing,Int64}=nothing,
     accuracy::Union{Nothing,Float64}=nothing,                     mixing::Union{Nothing,Float64}=nothing,
     dalgarnoLewis::Union{Nothing,DalgarnoLewis.Settings}=nothing, printBefore::Union{Nothing,Bool}=nothing,
-    andersonDepth::Union{Nothing,Int64}=nothing)
+    andersonDepth::Union{Nothing,Int64}=nothing,                  allChannels::Union{Nothing,Bool}=nothing)
 
     if  isnothing(activeSubshells)   activeSubshellsx = settings.activeSubshells   else   activeSubshellsx = activeSubshells   end
     if  isnothing(targetSubshells)   targetSubshellsx = settings.targetSubshells   else   targetSubshellsx = targetSubshells   end
@@ -166,9 +193,10 @@ function Settings(settings::RandomPhase.Settings;
     if  isnothing(dalgarnoLewis)     dalgarnoLewisx   = settings.dalgarnoLewis     else   dalgarnoLewisx   = dalgarnoLewis      end
     if  isnothing(printBefore)       printBeforex     = settings.printBefore       else   printBeforex     = printBefore       end
     if  isnothing(andersonDepth)     andersonDepthx   = settings.andersonDepth     else   andersonDepthx   = andersonDepth     end
+    if  isnothing(allChannels)       allChannelsx     = settings.allChannels       else   allChannelsx     = allChannels       end
 
     Settings( activeSubshellsx, targetSubshellsx, couplingEnabledx, maxIterationsx, accuracyx, mixingx, dalgarnoLewisx, printBeforex,
-              andersonDepthx )
+              andersonDepthx, allChannelsx )
 end
 
 
@@ -182,6 +210,8 @@ function Base.show(io::IO, settings::RandomPhase.Settings)
     println(io, "mixing:                   $(settings.mixing)  ")
     println(io, "dalgarnoLewis:            $(settings.dalgarnoLewis)  ")
     println(io, "printBefore:              $(settings.printBefore)  ")
+    println(io, "andersonDepth:            $(settings.andersonDepth)  ")
+    println(io, "allChannels:              $(settings.allChannels)  ")
 end
 
 
@@ -271,10 +301,44 @@ end
 
 
 """
+`RandomPhase.reachableChannels(L::Int64, aSub::Subshell)`
+    ... every target symmetry a rank-L multipole can reach from the subshell `aSub`, i.e. every kappa allowed
+        by the triangular condition on j and by the parity rule l_t + l_a + L even. This is what an RPA's
+        induced field has to be built from, and it needs no input from the caller because the selection rules
+        determine it completely.
+
+        **ONLY THE kappa OF THE RETURNED SUBSHELLS MATTERS.** `DalgarnoLewis.solve` takes a `targetSubshell`
+        purely to read `targetSubshell.kappa` off it -- the channel is a symmetry, not a particular orbital --
+        so each entry here is built with the LOWEST principal quantum number that symmetry admits, n = l+1,
+        and that n carries no meaning. A caller must not read anything into it.
+
+        Worked, because it is easy to under-count: from 2p_3/2 with L = 1 the reachable symmetries are
+        s_1/2, d_3/2 and d_5/2 -- THREE channels, where `Settings.targetSubshells` can name only one. The p
+        symmetries are excluded by parity and j = 7/2 by the triangular condition. An
+        `Array{Subshell,1}` is returned, ordered by l and then by j, and it is empty only for a rank and
+        symmetry that admit nothing at all. The order is by l and then by kappa, so the j = l+1/2 partner comes
+        before the j = l-1/2 one.
+"""
+function reachableChannels(L::Int64, aSub::Subshell)
+    la = Basics.subshell_l(aSub);   ja2 = Basics.subshell_2j(aSub)
+    channels = Subshell[]
+    for  lt = max(0, la-L):(la+L)
+        rem(lt + la + L, 2) == 1   &&   continue
+        for  kappa  in  (lt == 0 ? (-1,) : (-lt-1, lt))
+            jt2 = abs(2*kappa) - 1
+            AngularMomentum.triangularDelta(jt2+1, ja2+1, L+L+1) == 0   &&   continue
+            push!(channels, Subshell(lt+1, kappa))
+        end
+    end
+
+    return( channels )
+end
+
+
+"""
 `RandomPhase.inducedPotentialZr(multipole::EmMultipole, activeOrbitals::Dict{Subshell,Orbital},
-                                 chis::Dict{Subshell,DalgarnoLewis.PerturbedOrbital},
-                                 targets::Dict{Subshell,Subshell}, excludeSubshell::Subshell,
-                                 grid::Radial.Grid)`
+                                 chis::Dict{Tuple{Subshell,Subshell},DalgarnoLewis.PerturbedOrbital},
+                                 excludeSubshell::Subshell, grid::Radial.Grid)`
     ... builds the DIRECT (Hartree, "ring") induced potential electron `excludeSubshell` feels from every OTHER
         active electron's CURRENT chi, at the multipole's own rank L, in the SAME "Zr" (= -r*V(r)) convention
         `Radial.Potential` and `Bsplines.computeVlocal` use throughout JAC -- so that the minus sign below is
@@ -317,17 +381,20 @@ end
         A VindZr::Array{Float64,1} of length grid.NoPoints is returned.
 """
 function inducedPotentialZr(multipole::EmMultipole, activeOrbitals::Dict{Subshell,Orbital},
-                             chis::Dict{Subshell,DalgarnoLewis.PerturbedOrbital},
-                             targets::Dict{Subshell,Subshell}, excludeSubshell::Subshell,
-                             grid::Radial.Grid)
+                             chis::Dict{Tuple{Subshell,Subshell},DalgarnoLewis.PerturbedOrbital},
+                             excludeSubshell::Subshell, grid::Radial.Grid)
     rho = zeros(grid.NoPoints);   mtpRho = 1
-    for  (b, chiB)  in  chis
+    # EVERY CHANNEL OF EVERY OTHER ELECTRON CONTRIBUTES, EACH WITH ITS OWN ANGULAR FACTOR.  `chis` is keyed
+    # by the (active, target) PAIR, so the target is read off the key rather than looked up -- which is what
+    # lets one electron carry several channels, as an RPA requires.  Channels of the excluded electron are
+    # skipped whatever their target: b is excluded from its own induced field, not merely one channel of it.
+    for  ((b, tb), chiB)  in  chis
         b == excludeSubshell   &&   continue
         orbB   = activeOrbitals[b];   jb2 = Basics.subshell_2j(b)
         # The weight is sqrt(2j_b+1), NOT (2j_b+1):  see this method's docstring for the Hartree calibration
         # that fixes it.  The remaining sqrt(2j_b+1) of the occupation is carried by CL_reduced_me's own
         # normalisation at this end, since CL_reduced_me(b, 0, b) = sqrt(2j_b+1) exactly.
-        weightB = sqrt(jb2 + 1.0) * RandomPhase.angularCoefficient(multipole.L, b, targets[b])
+        weightB = sqrt(jb2 + 1.0) * RandomPhase.angularCoefficient(multipole.L, b, tb)
         weightB == 0.0   &&   continue
         mtpB = min(length(orbB.P), length(chiB.P), length(orbB.Q), length(chiB.Q))
         for  i = 1:mtpB   rho[i] = rho[i] + weightB * 2.0 * (orbB.P[i]*chiB.P[i] + orbB.Q[i]*chiB.Q[i])   end
@@ -427,10 +494,36 @@ function solve(multipole::EmMultipole, gauge::EmGauge, omega::Float64, activeOrb
     # THE COUPLED ITERATION. Start from the independent-particle chi's (iteration 0, no induced potential yet),
     # then repeatedly rebuild each electron's induced source from the OTHERS' current chi and re-solve.
     grid = primitives.grid
-    chis = Dict{Subshell,DalgarnoLewis.PerturbedOrbital}()
+    # THE CHANNEL LIST.  With settings.allChannels the induced field is built from every target symmetry the
+    # multipole can reach from each active subshell (`RandomPhase.reachableChannels`), which is what an RPA
+    # asks for;  otherwise it is the single channel named in `targetSubshells`, which is the old behaviour and
+    # remains the default.  The PRIMARY channel -- the one `targetSubshells` names -- is listed first for each
+    # active subshell and is the one whose chi is returned, so `CoupledResponse` keeps its meaning either way.
+    channels = Tuple{Subshell,Subshell}[]
     for  a in subshells
-        chis[a] = DalgarnoLewis.solve(multipole, gauge, omega, targets[a], activeOrbitals[a], potential, primitives;
-                                       settings=settings.dalgarnoLewis)
+        push!(channels, (a, targets[a]))
+        if  settings.allChannels
+            for  t  in  RandomPhase.reachableChannels(multipole.L, a)
+                # COMPARE ON kappa, NOT ON THE SUBSHELL.  `reachableChannels` labels each symmetry with the
+                # lowest principal quantum number it admits, so the kappa = -1 channel comes back as 1s_1/2
+                # while `targetSubshells` may name it 2s_1/2.  Those are unequal as Subshells and identical as
+                # CHANNELS -- `DalgarnoLewis.solve` reads only the kappa -- so testing the Subshell would add
+                # the primary channel a second time and double-count it in the induced field.
+                t.kappa == targets[a].kappa   &&   continue
+                push!(channels, (a, t))
+            end
+        end
+    end
+    if  settings.printBefore   &&   settings.allChannels
+        @printf(">> RandomPhase.solve():  %d channel(s) over %d active subshell(s):  %s\n",
+                length(channels), length(subshells),
+                join([ "$(c[1])->$(c[2])" for c in channels ], ", "))
+    end
+
+    chis = Dict{Tuple{Subshell,Subshell},DalgarnoLewis.PerturbedOrbital}()
+    for  (a, t)  in  channels
+        chis[(a, t)] = DalgarnoLewis.solve(multipole, gauge, omega, t, activeOrbitals[a], potential, primitives;
+                                            settings=settings.dalgarnoLewis)
     end
 
     # THE ITERATION.  The fixed-point variable is the INDUCED SOURCE, one vector per active subshell, and the
@@ -494,53 +587,81 @@ function solve(multipole::EmMultipole, gauge::EmGauge, omega::Float64, activeOrb
     #       only the two 2p partners active   rho = 1.94
     # Non-monotonic in the number of channels, which is the signature of cancellation rather than of a sum.
     #
-    # SO THE NEXT STEP IS TO WIDEN THE CHANNEL SET, AND IT NEEDS AN API CHANGE:  `Settings.targetSubshells`
-    # is a `Dict{Subshell,Subshell}`, one target per active subshell, where an RPA wants every kappa the
-    # multipole can reach.  Only after that is the remaining excess worth attributing.
+    # **AND BOTH REMAINING CANDIDATES ARE NOW ELIMINATED -- 14-Oct-2026, SAME DAY.**  The angular repair left
+    # rho at 2.32 and named three things that might account for the rest.  All three have been measured.
     #
-    # TWO FURTHER CANDIDATES, both smaller and both named rather than guessed at.  The `2.0` symmetrization
-    # of the induced density is exact only at omega = 0, so at finite omega it overstates the response by at
-    # most a factor 2;  checking it at omega -> 0 costs nothing.  And EXCHANGE IS ABSENT BY DESIGN -- this is
-    # "RPA", not "RPA with exchange" -- and a direct-only induced field is known to over-screen, so part of
-    # the residual excess may be a limitation of the approximation rather than a defect in it.
+    #   (a) THE CHANNEL TRUNCATION DOES NOT EXPLAIN IT.  `settings.allChannels` widens the Ne case from 3
+    #       channels to 7 -- 2p_1/2 -> s_1/2, d_3/2;  2p_3/2 -> s_1/2, d_5/2, d_3/2;  2s_1/2 -> p_1/2, p_3/2 --
+    #       and rho does NOT fall:  2.33 on three channels against 2.49 on seven.  So the cancellation between
+    #       the spin-orbit partners is real (rho moves 1.94-3.66 on WHICH single target is chosen) but
+    #       restoring all of it does not bring the iteration into range.  The hypothesis is dead; the setting
+    #       stays, because the 7-channel field is the physically correct one regardless.
     #
-    # FINALLY, A CORRECTION WORTH HAVING:  rho > 1 MEANS THE ITERATION FAILS, NOT THAT NO SOLUTION EXISTS.
-    # The coupled equations are chi = c + J chi, and (I - J) is invertible whether or not rho(J) < 1.  A
-    # DIRECT SOLVE would therefore reach the fixed point even at rho = 2.32 -- so it remains a legitimate
-    # method, and the earlier note was wrong only in calling it the remedy for a term that was mis-built.
-    # Build it when the channel set is right, not before: solving the wrong operator exactly gains nothing.
-    converged = false;   nIterations = 0;   previousExtraSource = Dict{Subshell,Array{Float64,1}}()
-    xHistory = Dict{Subshell,Vector{Vector{Float64}}}();   fHistory = Dict{Subshell,Vector{Vector{Float64}}}()
-    for  a in subshells   xHistory[a] = Vector{Float64}[];   fHistory[a] = Vector{Float64}[]   end
+    #   (b) THE FACTOR 2 DOES NOT EXPLAIN IT EITHER, and the test is clean because that factor becomes EXACT
+    #       at omega = 0.  Sweeping omega down with all seven channels:
+    #           omega   0.100   0.030   0.010   0.003   0.001
+    #           rho     2.433   2.623   2.690   2.714   2.721
+    #       rho RISES slightly and saturates rather than falling towards one, so at the point where the
+    #       symmetrization is no longer an approximation the iteration is at its WORST.  The factor 2 is
+    #       therefore not the defect, and if anything it slightly understates the term.
+    #
+    #   (c) WHAT IS LEFT IS THE APPROXIMATION ITSELF:  ONLY THE DIRECT (ring) TERM IS BUILT.  A direct-only
+    #       induced field is known to OVER-screen, because exchange opposes it, and rho ~ 2.7 is what that
+    #       looks like.  This is a property of "RPA without exchange" for a closed shell, not a defect in the
+    #       code -- and it is omega-independent in character, which is exactly what (b) measured.
+    #
+    # **SO TWO CONCLUSIONS, AND THE SECOND MATTERS MORE THAN THE FIRST.**
+    #
+    # FIRST, A JACOBI ITERATION CANNOT WORK HERE AND A DIRECT SOLVE IS THE RIGHT METHOD.  rho = 2.7 is a
+    # property of the operator, not of the stepping, so no damping, acceleration or channel choice will reach
+    # the fixed point -- while (I - J) remains invertible and a direct solve would find it in one step.  This
+    # RESTORES the conclusion of 13-Oct that an earlier version of this note withdrew.  The withdrawal was
+    # wrong for a reason worth stating: it assumed a correctly-built induced term for a closed shell would
+    # have rho ~ 0.3, extrapolating from the tens-of-percent screening the FULL RPA is known to give.  That
+    # extrapolation does not survive the direct-only approximation, and nothing had measured it.
+    #
+    # SECOND, AND IT IS A QUESTION OF SCOPE RATHER THAN OF CODE:  rho ~ 2.7 means this term OVER-SCREENS
+    # badly, so even solving it exactly would not yield a trustworthy screening correction for a closed shell.
+    # Exchange is not a small correction in this regime, and the module's own scope note puts it out of
+    # reach ("RPA", not "RPA with exchange").  **So a direct solve would make the module converge without
+    # making it right.**  Whether to build it anyway, to extend to exchange, or to leave the coupled path
+    # as a documented demonstration is the maintainer's decision and is not taken here.
+    converged = false;   nIterations = 0
+    previousExtraSource = Dict{Tuple{Subshell,Subshell},Array{Float64,1}}()
+    xHistory = Dict{Tuple{Subshell,Subshell},Vector{Vector{Float64}}}()
+    fHistory = Dict{Tuple{Subshell,Subshell},Vector{Vector{Float64}}}()
+    for  ch in channels   xHistory[ch] = Vector{Float64}[];   fHistory[ch] = Vector{Float64}[]   end
     for  iteration = 1:settings.maxIterations
         nIterations = iteration
-        newChis = Dict{Subshell,DalgarnoLewis.PerturbedOrbital}();   maxRelChange = 0.0
-        for  a in subshells
-            VindZr      = RandomPhase.inducedPotentialZr(multipole, activeOrbitals, chis, targets, a, grid)
+        newChis = Dict{Tuple{Subshell,Subshell},DalgarnoLewis.PerturbedOrbital}();   maxRelChange = 0.0
+        for  ch in channels
+            a = ch[1];   t = ch[2]
+            VindZr      = RandomPhase.inducedPotentialZr(multipole, activeOrbitals, chis, a, grid)
             # THE a-END ANGULAR FACTOR AND THE SIGN.  `inducedSourceVector` returns the bare radial
-            # projection;  the channel's own reduced matrix element belongs here, and the (-1)^L that
+            # projection;  THIS channel's own reduced matrix element belongs here -- t, not targets[a], since
+            # one active subshell may carry several channels -- and the (-1)^L that
             # `InteractionStrength.XL_Coulomb` carries for the two-electron product is applied ONCE, here,
             # rather than at both ends (see `RandomPhase.angularCoefficient`).
-            aCoeff      = RandomPhase.angularCoefficient(multipole.L, targets[a], a)
+            aCoeff      = RandomPhase.angularCoefficient(multipole.L, t, a)
             if  rem(multipole.L, 2) == 1    aCoeff = -aCoeff    end
             justComputed = aCoeff * RandomPhase.inducedSourceVector(VindZr, activeOrbitals[a], primitives)
-            priorSource  = get(previousExtraSource, a, zeros(length(justComputed)))
+            priorSource  = get(previousExtraSource, ch, zeros(length(justComputed)))
             if  settings.andersonDepth <= 0  ||  iteration == 1
                 dampedSource = settings.mixing * justComputed + (1.0 - settings.mixing) * priorSource
             else
                 # x is the source actually used last time, f its residual against what the chis then implied
                 fNew = justComputed - priorSource
-                push!(xHistory[a], copy(priorSource));   push!(fHistory[a], copy(fNew))
-                while  length(xHistory[a]) > settings.andersonDepth + 1
-                    popfirst!(xHistory[a]);   popfirst!(fHistory[a])
+                push!(xHistory[ch], copy(priorSource));   push!(fHistory[ch], copy(fNew))
+                while  length(xHistory[ch]) > settings.andersonDepth + 1
+                    popfirst!(xHistory[ch]);   popfirst!(fHistory[ch])
                 end
-                m = length(xHistory[a]) - 1
+                m = length(xHistory[ch]) - 1
                 if  m < 1
                     dampedSource = priorSource + fNew
                 else
                     dF = zeros(length(fNew), m);   dX = zeros(length(fNew), m)
                     for  j = 1:m
-                        dF[:,j] = fHistory[a][j+1] - fHistory[a][j];   dX[:,j] = xHistory[a][j+1] - xHistory[a][j]
+                        dF[:,j] = fHistory[ch][j+1] - fHistory[ch][j];   dX[:,j] = xHistory[ch][j+1] - xHistory[ch][j]
                     end
                     local gamma
                     try
@@ -554,8 +675,8 @@ function solve(multipole::EmMultipole, gauge::EmGauge, omega::Float64, activeOrb
                 end
             end
 
-            newChis[a] = DalgarnoLewis.solve(multipole, gauge, omega, targets[a], activeOrbitals[a], potential,
-                                              primitives; settings=settings.dalgarnoLewis, extraSource=dampedSource)
+            newChis[ch] = DalgarnoLewis.solve(multipole, gauge, omega, t, activeOrbitals[a], potential,
+                                               primitives; settings=settings.dalgarnoLewis, extraSource=dampedSource)
 
             denom = LinearAlgebra.norm(priorSource)
             # denom == 0 on the FIRST iteration just means "nothing to compare against yet" (Inf, keep
@@ -564,7 +685,7 @@ function solve(multipole::EmMultipole, gauge::EmGauge, omega::Float64, activeOrb
             relChange = denom > 0.0 ? LinearAlgebra.norm(dampedSource - priorSource) / denom :
                         (LinearAlgebra.norm(dampedSource) > 0.0 ? Inf : 0.0)
             maxRelChange = max(maxRelChange, relChange)
-            previousExtraSource[a] = dampedSource
+            previousExtraSource[ch] = dampedSource
         end
         chis = newChis
 
@@ -578,7 +699,14 @@ function solve(multipole::EmMultipole, gauge::EmGauge, omega::Float64, activeOrb
         end
     end
 
-    return( CoupledResponse(multipole, gauge, omega, chis, nIterations, converged) )
+    # BACK TO ONE chi PER ACTIVE SUBSHELL.  `CoupledResponse` carries the PRIMARY channel's perturbed orbital,
+    # the one `targetSubshells` names, so its type and meaning are the same whether or not allChannels was set.
+    # The extra channels are solved and do enter the induced field;  they are not returned, because an active
+    # subshell's full first-order change is a SUM over its channels and that sum is not a PerturbedOrbital.
+    perturbedOrbitals = Dict{Subshell,DalgarnoLewis.PerturbedOrbital}()
+    for  a in subshells   perturbedOrbitals[a] = chis[(a, targets[a])]   end
+
+    return( CoupledResponse(multipole, gauge, omega, perturbedOrbitals, nIterations, converged) )
 end
 
 
