@@ -75,12 +75,40 @@ setDefaults("unit: rate", "1/s")
 ## invariance and the monochromatic limit. All of these are fixed by angular algebra and are independent of the
 ## open overall constant. The remaining four (b, c, e, f) carry "Last visit" with the blocking reason named.
 ##
-## THAT GATE IS LIFTED -- 14-Oct-2026. The constant was the PREFACTOR (challenge S5, `b399f5ff`), and branch
-## (b) re-run after the fix gives 10.1040 /s against the exact 8.22906 /s: 23 % high, where it had been a
-## factor 13.1 low. Nothing in this file is now gated by an unexplained scale. What DOES remain is basis
-## incompleteness in the bound-only intermediate sum -- it overshoots, and the gauges disagree 7.3 : 1 -- so
-## an absolute rate still belongs to `example-As.jl` branch (c)'s complete-chi route, while this file is the
-## anchor for the sum-over-states ASSEMBLY, correct at matched truncation against Drake (10.046 vs 10.0466).
+## **BOTH GATES ARE NOW LIFTED, AND BRANCH (b) IS DATED -- 15-Oct-2026.**  It gives Coulomb 8.22865 and
+## Babushkin 8.22902 against the exact 8.22906 /s: 0.999995 of it, with the two gauges agreeing to 4.5e-05.
+## So the condition this file states below -- "no other branch of this file should be believed until this one
+## reproduces 8.2206 s^-1" -- is MET, and an absolute rate from the sum-over-states route is now defensible.
+##
+## THE TWO GATES, and what each turned out to be:
+##   * THE SCALE was the PREFACTOR, fixed 13-Oct-2026 (challenge S5, `b399f5ff`).  Before it this branch sat a
+##     factor 13.1 LOW;  immediately after, 23 % HIGH.
+##   * THE BASIS was an intermediate set that stopped at the BOUND series.  n_max = 12 was "the first
+##     converged point" of that series, and the bound series converges to the wrong number.  The continuum
+##     switches on SHARPLY rather than gradually:
+##         n_max   30      60       100
+##         levels  58      118      198
+##         Bab     9.7702  8.2322   8.22902
+##         Cou/Bab 0.1728  0.9374   0.99996
+##     Extrapolating the n <= 30 trend (10.104, 9.998, 9.770) as slow linear convergence suggested hundreds of
+##     configurations could not close it.  That extrapolation was WRONG -- the measurement above is what
+##     settles it, and the gauge ratio, which only a complete intermediate set can restore, is the independent
+##     witness: 6 : 1 apart at n = 30, agreeing to 4e-05 at n = 100.
+##
+## THE RECIPE, since none of it was written down before:  n_max ~ 100 (not 12);  `gridStopper = false`,
+## because the high-n members are deliberately box-confined stand-ins for the continuum and the guard is right
+## to refuse them as Rydbergs;  the box held FIXED at the 12p recommendation, since enlarging it to suit
+## n = 100 would chase accurate Rydbergs and starve the spline set (Rule 12) -- what must converge is the SUM,
+## not each state.  And the intermediates must come from an `Atomic.Computation`: the
+## `Representation`/`MeanFieldMultiplet` path CANNOT express this, because `AtomicState.MeanFieldSettings`
+## carries only `scField` and has no gridStopper.  That API gap is why this branch sat on a bound-only set.
+##
+## STILL OPEN, and not to be confused with the above:  the test system here is H 2s -> 1s, i.e. ONE electron
+## run through the many-electron machinery.  This validates the ASSEMBLY at CSF level and NOT a genuine
+## many-electron intermediate spectrum with correlation in it;  the He-like 2^1S_0 -> 1^1S_0 case is that
+## test, and it is now reachable because the recipe above is known.
+##
+## THE SUPERSEDED TEXT, kept one release so a reader of the old numbers is not misled:
 ## THE SUPERSEDED TEXT, kept one release so a reader of the old numbers is not misled:
 ## THE ONE OPEN ISSUE THAT GATES EVERY EMISSION MAGNITUDE: a constant factor 26.7 (was 6.679 before the
 ## 08-Aug-2026 total-rate correction, and 12.98 before A1),
@@ -222,8 +250,9 @@ elseif  false
     # `example-As.jl` branch (c), with the complete chi, remains the trusted anchor for an ABSOLUTE rate; this
     # branch is the anchor for the sum-over-states ASSEMBLY, which is now shown correct at matched truncation.
     #
-    # Last visit:  03-Sep-2026        ## runs again; it could not run at all before, see the grid note below
-    # Last successful:  unknown ...   ## a factor 13.1 below the exact rate is not physical consistency
+    # Last successful:  15-Oct-2026   ## Coulomb 8.22865, Babushkin 8.22902 against the exact 8.22906 /s,
+    #                                 ## i.e. 0.999995 of it with the two gauges agreeing to 4.5e-05.
+    #                                 ## THE GATE THIS FILE SETS FOR ITSELF IS PASSED (see the header).
     #
     # A(2s -> 1s) = 8.2206 s^-1 is the single most-checked number in two-photon atomic physics: Breit & Teller,
     # Klarsfeld, Goldman & Drake, Labzowsky and others all agree on it. The transition is strictly forbidden for
@@ -305,13 +334,34 @@ elseif  false
     ## rbox = 80, which is fine for the other branches but far too small for a 12p intermediate: this branch used
     ## to fail outright on Bsplines.checkGridRepresentation. Basics.recommendedGrid sizes the box from the shells
     ## it is given, which is exactly Rule 12 done for us.
-    nMax        = 12                                  ## 8 is an outlier; 12 is the first converged point
-    grid        = Basics.recommendedGrid(Dict(Shell("1s") => 1, Shell("2s") => 1, Shell("$(nMax)p") => 1), 1.0)
+    ## **nMax = 100, NOT 12 -- 15-Oct-2026, AND THIS IS WHAT MAKES THE BRANCH CONVERGE.**  12 was "the first
+    ## converged point" of the BOUND series, and the bound series converges to the WRONG number (10.104 /s).
+    ## The continuum is the missing piece and it switches on SHARPLY rather than gradually:
+    ##     n_max   30      60       100
+    ##     levels  58      118      198
+    ##     Bab     9.7702  8.2322   8.22902      (exact 8.22906)
+    ##     Cou/Bab 0.1728  0.9374   0.99996
+    ## so the gauge ratio -- which a complete intermediate set alone can restore -- goes from 6:1 apart to
+    ## agreeing within 4e-5.  Extrapolating the n <= 30 trend as slow linear convergence (10.104, 9.998,
+    ## 9.770) said "hundreds of configurations cannot close this";  that extrapolation was WRONG and the
+    ## measurement is above.
+    nMax        = 100
+    grid        = Basics.recommendedGrid(Dict(Shell("1s") => 1, Shell("2s") => 1, Shell("12p") => 1), 1.0)
     interConfs  = [Configuration("$(n)p")  for n = 2:nMax]
     scf         = Basics.NuclearField()          ## the SAME one-body Hamiltonian for all three; see above
-    asfA        = AsfSettings(AsfSettings(); scField = scf)
-    interRep    = Representation("intermediate np levels", ni, grid, interConfs, MeanFieldMultiplet(MeanFieldSettings(scf)))
-    interMp     = generate(interRep, output=true)[ResultKeys.MeanFieldMultiplet]
+    ## **gridStopper = false IS REQUIRED, and the route must be an Atomic.Computation.**  The high-n members
+    ## are deliberately box-confined pseudo-continuum states standing in for the true continuum -- the grid
+    ## guard is RIGHT to refuse them as Rydbergs and wrong to exclude them here.  The box is held FIXED at the
+    ## 12p recommendation on purpose: enlarging it to suit n = 100 would chase accurate Rydbergs and starve
+    ## the spline set (Rule 12), and what must converge is the SUM, not each state.
+    ##   NOTE the `Representation`/`MeanFieldMultiplet` path CANNOT express this: `AtomicState.MeanFieldSettings`
+    ## carries only `scField`, with no gridStopper, which is exactly why this branch was stuck on a bound-only
+    ## set for months.  The intermediates therefore come from an `Atomic.Computation`, as
+    ## `MultipolePolarizibility` builds its perturbers.
+    asfA        = AsfSettings(AsfSettings(); scField = scf, gridStopper = false)
+    interComp   = Atomic.Computation(Atomic.Computation(), name="intermediate np levels", grid=grid,
+                                      nuclearModel=ni, configs=interConfs, asfSettings=asfA)
+    interMp     = perform(interComp; output=true)[ResultKeys.Multiplet]
     #
     mpSettings  = MultiPhotonTransition.Settings(MultiPhotonTransition.Settings();
                         scheme = MultiPhotonTransition.TwoPhotonEmissionScheme(
