@@ -148,90 +148,119 @@ end
 """
 `AdjustedLevels.fitOrthogonalParameters(sym::LevelSymmetry, basis::Basis, nm::Nuclear.Model, grid::Radial.Grid,
                                           targets::Array{Tuple{Int64,Float64},1}, source::String;
-                                          determinacyThreshold::Float64=1.0e-6)`
+                                          determinacyThreshold::Float64=1.0e-6, maxIterations::Int64=20,
+                                          tolerance::Float64=1.0e-6)`
     ... the orthogonal (Uylings/Raassen-style) route: discovers the integral classes present in `sym`'s block
         via `buildParameterMatrices`, fits one scaling parameter PER class against `targets` (same convention
         as `fitScaleFactor`'s own `targets`), and reports the fit in terms of the ORTHOGONAL combinations the
-        targets can actually determine. THE FIT ITSELF IS A FIRST-ORDER (LINEARIZED) LEAST-SQUARES STEP: a
-        sensitivity matrix J[target,class] = d(energy)/d(parameter), evaluated once at every class = 1 via the
-        ab initio eigenvectors (no extra diagonalization), is decomposed by `LinearAlgebra.svd`; the fitted
-        correction is the MINIMUM-NORM solution of `J * delta = measured - ab initio`, which leaves any
-        direction the targets cannot determine untouched (determinacy ~ 0) rather than guessing. The spectrum
-        is then re-diagonalized EXACTLY at the resulting parameters, so `rmsDeviation` reflects the real fit,
-        not the linear estimate. This is honest for the SMALL-correction regime a spectroscopic fit usually
-        is in; it is not a general nonlinear optimizer, and a determinacy near zero is reported rather than
-        hidden. A fm::AdjustedLevels.FittedMultipletOrthogonal is returned.
+        targets can actually determine. THE FIT IS A GAUSS-NEWTON ITERATION, not a single linearized step
+        (that single-step version was tried first and MEASURED to leave a real, growing residual even in an
+        idealised recovery test with exactly as many targets as free parameters -- one linear step is only the
+        leading-order correction to a genuinely nonlinear eigenvalue problem). At each iteration: diagonalize
+        EXACTLY at the current parameters, build the sensitivity matrix J[target,class] = d(energy)/d(parameter)
+        from the CURRENT eigenvectors (no extra diagonalization beyond the one already needed), take the
+        MINIMUM-NORM correction via `LinearAlgebra.svd` (a direction the targets cannot determine is left
+        untouched rather than amplifying noise), and re-center there for the next round. Iteration stops when
+        the rms stops improving by more than `tolerance`, or after `maxIterations` -- AND THE BEST ITERATE SEEN
+        is what is returned, never just the last one: an undamped Gauss-Newton step is not guaranteed to
+        improve the fit (measured directly: without this guard, one real case got WORSE after iterating, 175
+        to 323 cm^-1), so every candidate point is compared against the best found so far. MEASURED RANGE OF
+        VALIDITY: on an idealised recovery test (synthetic targets generated from this route's own model, so a
+        perfect fit exists in principle), this converges to the true parameters for corrections up to roughly
+        30% per class; beyond that the iteration can stall in a poorly-conditioned region well short of the
+        solution (a slow, near-linear crawl, not an oscillation) rather than diverging outright. A correction
+        this large is exactly the sign that the underlying ab initio calculation needs more correlation
+        (more configurations), not a better fit -- see this module's own docstring. `value` on each returned
+        `OrthogonalParameter` is the TOTAL accumulated shift along that direction, and `determinacy` is read at
+        the CONVERGED point, not the starting one -- so a mode whose shift is reported but whose determinacy is
+        still near zero signals the fit has not actually converged along it. A
+        fm::AdjustedLevels.FittedMultipletOrthogonal is returned.
 """
 function  fitOrthogonalParameters(sym::LevelSymmetry, basis::Basis, nm::Nuclear.Model, grid::Radial.Grid,
                                     targets::Array{Tuple{Int64,Float64},1}, source::String;
-                                    determinacyThreshold::Float64=1.0e-6)
+                                    determinacyThreshold::Float64=1.0e-6, maxIterations::Int64=20,
+                                    tolerance::Float64=1.0e-6)
     isempty(targets)   &&   error("AdjustedLevels.fitOrthogonalParameters(): need at least one target level to fit against.")
     idxCsf, oneBody, parameterClasses, matrices = buildParameterMatrices(sym, basis, nm, grid)
     nParam = length(matrices)
     nParam == 0   &&   error("AdjustedLevels.fitOrthogonalParameters(): no two-body (Coulomb) contributions were found for this block.")
     auPerKayser = 1.0 / Defaults.convertUnits("energy: from atomic to Kayser", 1.0)
+    nTargets    = length(targets)
 
-    # ab initio (every parameter = 1): one diagonalization gives both the reference spectrum and the eigenvectors
-    # the sensitivity matrix needs.
-    totalAbInitio = copy(oneBody)
-    for  mtx in matrices   totalAbInitio .+= mtx   end
-    eig0       = Hamiltonian.diagonalizeCiMatrix(totalAbInitio, LevelSelection())
-    order0     = sortperm(eig0.values)
-    energies0  = eig0.values[order0]
-    relKayser0 = (energies0 .- energies0[1]) ./ auPerKayser
+    cVec    = ones(Float64, nParam)
+    rmsPrev = Inf
+    bestCVec = copy(cVec);   bestRms = Inf
+    bestEigC = nothing;   bestOrderC = nothing;   bestRelKayserC = Float64[]
 
-    nTargets  = length(targets)
-    J         = zeros(Float64, nTargets, nParam)
-    residual0 = zeros(Float64, nTargets)
-    for  (row, (idx, measured)) in enumerate(targets)
-        vec = eig0.vectors[order0[idx]]
-        for  p = 1:nParam   J[row, p] = (vec' * Symmetric(matrices[p]) * vec) / auPerKayser   end
-        residual0[row] = measured - relKayser0[idx]
+    for  iteration = 1:maxIterations
+        totalC = copy(oneBody);   for  p = 1:nParam   totalC .+= cVec[p] .* matrices[p]   end
+        eigC   = Hamiltonian.diagonalizeCiMatrix(totalC, LevelSelection())
+        orderC = sortperm(eigC.values)
+        energiesC  = eigC.values[orderC]
+        relKayserC = (energiesC .- energiesC[1]) ./ auPerKayser
+
+        J = zeros(Float64, nTargets, nParam);   residual = zeros(Float64, nTargets)
+        for  (row, (idx, measured)) in enumerate(targets)
+            vec = eigC.vectors[orderC[idx]]
+            for  p = 1:nParam   J[row, p] = (vec' * Symmetric(matrices[p]) * vec) / auPerKayser   end
+            residual[row] = measured - relKayserC[idx]
+        end
+        rmsNow = sqrt(sum(residual.^2)/nTargets)
+
+        # TRACK THE BEST ITERATE SEEN, and return that one -- Gauss-Newton without damping is NOT guaranteed
+        # to improve every step (confirmed by measurement: an undamped run made a real case worse, 175 -> 323
+        # cm^-1, before this guard was added), so trusting the LAST point blindly is unsafe.
+        if  rmsNow < bestRms
+            bestRms = rmsNow;   bestCVec = copy(cVec)
+            bestEigC = eigC;    bestOrderC = orderC;   bestRelKayserC = relKayserC
+        end
+
+        ( rmsNow < tolerance   ||   ( iteration > 1   &&   rmsNow >= rmsPrev - tolerance * max(rmsPrev, 1.0) ) )   &&   break
+        rmsPrev = rmsNow
+
+        F    = svd(J)
+        sMax = isempty(F.S) ? 0.0 : maximum(F.S)
+        deltaC = zeros(Float64, nParam)
+        for  k = 1:length(F.S)
+            F.S[k] <= determinacyThreshold * max(sMax, 1.0)   &&   continue
+            deltaC .+= ( (F.U[:,k]' * residual) / F.S[k] ) .* F.V[:,k]
+        end
+        cVec = cVec .+ deltaC
     end
 
-    # Minimum-norm least-squares correction, by hand through the SVD: a direction with a near-zero singular
-    # value is left at delta = 0 rather than amplifying measurement-sized noise into an enormous "fit".
-    F = svd(J)
-    sMax = isempty(F.S) ? 0.0 : maximum(F.S)
-    deltaC = zeros(Float64, nParam)
-    for  k = 1:length(F.S)
-        F.S[k] <= determinacyThreshold * max(sMax, 1.0)   &&   continue
-        deltaC .+= ( (F.U[:,k]' * residual0) / F.S[k] ) .* F.V[:,k]
-    end
-    cVec = ones(Float64, nParam) .+ deltaC
-
-    # The real fit: re-diagonalize EXACTLY at cVec, so rmsDeviation is not the linearized estimate.
-    totalFitted = copy(oneBody)
-    for  p = 1:nParam   totalFitted .+= cVec[p] .* matrices[p]   end
-    eig1       = Hamiltonian.diagonalizeCiMatrix(totalFitted, LevelSelection())
-    order1     = sortperm(eig1.values)
-    energies1  = eig1.values[order1]
-    relKayser1 = (energies1 .- energies1[1]) ./ auPerKayser
-
-    s = 0.0
-    for  (idx, measured) in targets   s = s + (relKayser1[idx] - measured)^2   end
-    rmsBest = sqrt(s/length(targets))
+    cVec   = bestCVec;   eigC = bestEigC;   orderC = bestOrderC;   relKayserC = bestRelKayserC
+    rmsBest = bestRms
 
     levels = Level[]
-    for  (pos, ev) in enumerate(order1)
+    for  (pos, ev) in enumerate(orderC)
         vector = zeros( length(basis.csfs) );   ns = 0
         for  r = 1:length(basis.csfs)
-            if  LevelSymmetry(basis.csfs[r].J, basis.csfs[r].parity) == sym    ns = ns + 1;   vector[r] = eig1.vectors[ev][ns]   end
+            if  LevelSymmetry(basis.csfs[r].J, basis.csfs[r].parity) == sym    ns = ns + 1;   vector[r] = eigC.vectors[ev][ns]   end
         end
-        push!( levels, Level(sym.J, AngularM64(sym.J.num//sym.J.den), sym.parity, pos, energies1[pos], 0., true, basis, vector) )
+        push!( levels, Level(sym.J, AngularM64(sym.J.num//sym.J.den), sym.parity, pos, eigC.values[orderC[pos]], 0., true, basis, vector) )
     end
 
     radialParameters = [ RadialParameter(parameterClasses[p], cVec[p]) for p = 1:nParam ]
 
+    # Determinacy and the orthogonal breakdown are read AT THE CONVERGED point, from a fresh sensitivity matrix --
+    # not carried over from the first iteration's, which described a point the fit has since moved away from.
+    Jfinal = zeros(Float64, nTargets, nParam);   residualFinal = zeros(Float64, nTargets)
+    for  (row, (idx, measured)) in enumerate(targets)
+        vec = eigC.vectors[orderC[idx]]
+        for  p = 1:nParam   Jfinal[row, p] = (vec' * Symmetric(matrices[p]) * vec) / auPerKayser   end
+        residualFinal[row] = measured - relKayserC[idx]
+    end
+    Ffinal    = svd(Jfinal)
+    sMaxFinal = isempty(Ffinal.S) ? 0.0 : maximum(Ffinal.S)
+    totalShift = cVec .- ones(nParam)
+
     orthogonalParameters = OrthogonalParameter[]
-    for  k = 1:length(F.S)
-        composition = [ (parameterClasses[p], F.V[p,k]) for p = 1:nParam ]
-        determined  = F.S[k] > determinacyThreshold * max(sMax, 1.0)
-        shiftAlong  = determined ? (F.U[:,k]' * residual0) / F.S[k] : 0.0
-        push!( orthogonalParameters, OrthogonalParameter("mode $k", shiftAlong, composition, F.S[k]) )
+    for  k = 1:length(Ffinal.S)
+        composition = [ (parameterClasses[p], Ffinal.V[p,k]) for p = 1:nParam ]
+        push!( orthogonalParameters, OrthogonalParameter("mode $k", dot(Ffinal.V[:,k], totalShift), composition, Ffinal.S[k]) )
     end
 
-    fitTargets = [ FitTarget(idx, measured, relKayser1[idx]) for (idx, measured) in targets ]
+    fitTargets = [ FitTarget(idx, measured, relKayserC[idx]) for (idx, measured) in targets ]
 
     return( FittedMultipletOrthogonal(Multiplet(string(sym)*"+ (fitted, orthogonal)", levels), radialParameters,
                                         orthogonalParameters, fitTargets, rmsBest, source) )
