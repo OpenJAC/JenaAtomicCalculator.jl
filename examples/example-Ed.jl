@@ -6,8 +6,7 @@ setDefaults("method: continuum, Galerkin")
 setDefaults("method: normalization, pure sine")   ## setDefaults("method: normalization, pure Coulomb")    setDefaults("method: normalization, pure sine")
 
 if  true
-    # Last visit:  31-Aug-2026
-    # Last successful:  unknown ...
+    # Last successful:  15-Oct-2026
     # REWRITTEN 31-Aug-2026. It drove the retired PlasmaShift module -- PlasmaShift.PhotoSettings passed to an
     #   Atomic.Computation -- and PlasmaShift no longer exists anywhere in src/: it was folded into Plasma on
     #   09-Aug-2026, and the route through Atomic.Computation is gone with it. The current route is
@@ -37,9 +36,18 @@ if  true
     #   2.4 % of the field-free route, and those two numbers come from DIFFERENT FUNCTIONS with independently
     #   written normalisations. Before item 64 was fixed the same comparison would have shown a factor of ~175,
     #   which is precisely what no check inside example-Jb.jl could see.
-    # NOT ASSERTED: the lambda = 10 and lambda = 2 values are NOT monotonic at 3000 eV (2.097 -> 1.343 -> 1.559
-    #   e5 barn) though they are at 3200 eV. Strong screening at 0.25-2 a_o on a Ne-like Kr ion is a hard regime
-    #   and no claim is made about it here; the branch is recorded, not explained.
+    # THE NON-MONOTONICITY AT 3000 eV IS A CHANNEL OPENING, NOT AN ARTIFACT -- explained 15-Oct-2026, and the
+    #   control is already in this branch's own output. The cross section falls 2.212 -> 2.097 -> 1.343 and then
+    #   RISES to 1.559e5 barn, and the "No lines" column goes 2, 2, 2 -> 3 across exactly those four rows:
+    #   screening destabilises the bound orbitals and so lowers the ionisation threshold, and the 2s-hole channel
+    #   that is CLOSED at 3000 eV under weak screening is OPEN at lambda = 2. The extra channel adds cross
+    #   section, which is why the sequence stops falling.
+    #   AT 3200 eV THE COUNT IS 3 IN EVERY ROW AND THE SEQUENCE IS MONOTONIC (1.734 -> 1.693 -> 1.400 -> 1.316),
+    #   which is the control: same ion, same models, same code, and the only difference is that no channel opens.
+    #   So nothing here is unexplained, and the earlier "recorded, not explained" note is withdrawn.
+    #   RE-RUN 15-Oct-2026: all EIGHT numbers above reproduce to every recorded digit -- 2.212102 / 1.734163 /
+    #   2.096794 / 1.693182 / 1.343052 / 1.400447 / 1.558702 / 1.316345 e5 barn -- and the cross-route ratios
+    #   come out 0.9479 and 0.9764 against the 0.948 and 0.976 recorded. Nothing drifted in six weeks.
     grid = Radial.Grid(Radial.Grid(false), rnt = 4.0e-6, h = 5.0e-2, hp = 0.6e-2, rbox = 10.0)
     nm   = Nuclear.Model(36.)
     iC   = [Configuration("1s^2 2s^2 2p^6")]
