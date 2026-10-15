@@ -346,9 +346,7 @@ end
         ... to generate the mean configuration, i.e. a configuration with mean occupation numbers.
     + RelativisticConfigurations()
         ... to generate/deal with relativistic configurations.
-    + SuperConfiguration()
-        ... to generate configurations that are described by a given super-configuration.
-       
+
     Extract selected configurations from given lists or information about them
     --------------------------------------------------------------------------    
     + ByMultipoles()
@@ -1842,59 +1840,6 @@ function Basics.generateConfigurations(theme::Basics.GeneralizedConfigurations, 
     return( nothing )        
 end
 
-
-"""
-`Basics.generateConfigurations(theme::Basics.SuperConfiguration, NoElectrons::Int64, fixedShells::Dict{Shell,Int64}, 
-                               mutableShells::Array{Shell,1})`  
-    ... to generate all configurations that are described by the superconfiguration as encoded by the NoElectrons, fixedShells 
-        as well as mutableShells. The fixedShells are tyically taken from a configuration conf.shells, while 
-        k = NoElectrons - conf.NoElectrons > 0 are the number of electrons, which are distributed among the mutable shells.  
-        The routine terminates if k <= 0  or if any shell appears both in fixedShells and mutableShells simultaneously. 
-        A confList::Array{Configuration,1}.
-"""
-function Basics.generateConfigurations(theme::Basics.SuperConfiguration, NoElectrons::Int64, fixedShells::Dict{Shell,Int64}, 
-                                       mutableShells::Array{Shell,1})
-    function distribute_items(m::Int, k::Int)
-        # Function to generate all distributions of m identical items into k boxes
-        results = Int[] |> x -> Vector{Vector{Int}}()
-        
-        function backtrack(remaining::Int, box::Int, current::Vector{Int})
-            if box == k    # Last box gets whatever is left
-                push!(results, vcat(current, [remaining]))
-            else
-                for i in 0:remaining   backtrack(remaining - i, box + 1, vcat(current, [i]))   end
-            end
-        end
-        
-        backtrack(m, 1, Int[])
-        return( results )
-    end
-    
-    confList = Configuration[];         nc = 0;   newShells = deepcopy(fixedShells)
-    for  (shell, occ) in fixedShells    nc = nc + fixedShells[shell]   end
-    k = NoElectrons - nc;               if  k <= 0    error("Improper number of electrons.")    end
-    
-    # Now distribute k items over length(fixedShells) items
-    itemsList = distribute_items(k, length(mutableShells))
-    for  items  in  itemsList
-        newShells = deepcopy(fixedShells);    newNoElectrons = nc;   breakOut = false
-        for  (it, item)  in  enumerate(items)
-            mShell = mutableShells[it];   maxNoe = 2*(2 * mShell.l + 1)
-            if   item > maxNoe    breakOut = true;    break
-            else                  newShells[mShell] = item;   newNoElectrons = newNoElectrons + item
-            end 
-        end
-        if      breakOut
-        elseif  newNoElectrons != NoElectrons    error("Basics.generateConfigurations(): the generated configuration has "  *
-                                                         "$newNoElectrons electrons but $NoElectrons were expected.")    
-        else                                     push!(confList, Configuration(newShells, NoElectrons))
-        end
-    end
-    confList = unique(confList)
-    
-    return( confList )        
-end
-    
 
 """
 `Basics.generateConfigurations(theme::Basics.RelativisticConfigurations, conf::Configuration)`  

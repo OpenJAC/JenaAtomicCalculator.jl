@@ -528,7 +528,6 @@ end
     + GroundConfiguration     ... to generate the ground configuration for a given number of electrons.
     + MeanConfiguration       ... to generate the mean configuration, i.e. a configuration with mean occupation numbers.
     + RelativisticConfigurations  to generate/deal with relativistic configurations.
-    + SuperConfiguration      ... to generate configurations from a given super-configuration.
 
     + AllShells               ... to extract all occupied shells from a set of configurations.
     + ByMultipoles            ... to extract the configurations due to multipole selection themes.
@@ -583,12 +582,10 @@ struct   ForIsoelectronicSequence       <:  AbstractConfigurationTheme     end
 
 struct   MeanConfiguration              <:  AbstractConfigurationTheme     end
 struct   RelativisticConfigurations     <:  AbstractConfigurationTheme     end
-struct   SuperConfiguration             <:  AbstractConfigurationTheme     end
 
 @doc "... to generate/deal with relativistic configurations."                                                               RelativisticConfigurations
 
 @doc "... to generate the mean configuration, i.e. a configuration with mean occupation numbers."                                    MeanConfiguration
-@doc "... to generate configurations from a given super-configuration."                                                             SuperConfiguration
 
 struct   AllShells                      <:  AbstractConfigurationTheme     end
 struct   ByMultipoles                   <:  AbstractConfigurationTheme     end
@@ -656,8 +653,7 @@ export  AbstractConfigurationTheme, AddElectrons, ExciteElectrons, RemoveElectro
         ForAutoIonization, ForElectronCapture, ForDielectronicCapture, ForDielectronicRecombination, ForGivenConfigs,
         ForHollowIons, ForImpactIonization, ForIsoelectronicSequence,
         ForPhotoEmission, ForPhotoIonization,  ForPhotoRecombination, ForRasExcitations, ForStepwiseDecay,
-        GeneralizedConfigurations, GroundConfiguration, MeanConfiguration, RelativisticConfigurations, 
-        SuperConfiguration,
+        GeneralizedConfigurations, GroundConfiguration, MeanConfiguration, RelativisticConfigurations,
         AllShells, ByMultipoles, ByNumber, ByParity, ClosedCore, ClosedShells, ClosedSubshells, ContractShells, ExcitationLevel,
         ExpandShells, FromBasis, FromMultiplet, GetParity, IsOccupied, LeadingConfiguration, LeadingConfigurationR, 
         MeanOccupation, Multiplicity, NonrelativisticBasis, NumberOfElectrons, OccupationDifference, OpenShellNumber, 

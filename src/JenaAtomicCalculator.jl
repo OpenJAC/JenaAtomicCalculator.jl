@@ -147,7 +147,7 @@ export AbstractComputeTheme, AbstractConfigurationRestriction, AbstractConfigura
        SelfConsistent, Semiempirical, setDefaults, Shell, ShellSelection, SolidAngle,
        SphericalMesh, SphericalTensor, SpinAngularGaigalas, SpinAngular, SpinAngularTables, StarkShift, StarkZeeman, StartFromHydrogenic,
        StartFromPrevious, StartFromThomasFermi, StaticField,
-       StaticQuantizationAxis, Statistical, StrongField, Subshell, SuperConfiguration,
+       StaticQuantizationAxis, Statistical, StrongField, Subshell,
        tabulate, ThomasFermiField, ThreeParameterFermiNucleus, TimeHarmonicField, TotalAM,
        Triangle,
        TwoElectronOnePhoton,
