@@ -595,11 +595,44 @@ elseif  false
     #   UPWARD -- 5.43e7, 8.37e7, 1.71e8, rising towards the H-like bound 8.22906*18^6 = 2.799e8 and reaching
     #   0.61 of it at n = 60, which is how a filling intermediate set should behave.  Babushkin is STUCK about
     #   5x ABOVE a bound it must lie below, nearly flat and drifting WORSE as states are added.
-    #   So: the defect is NOT basis size (more states make the bound violation worse), and it is SPECIFIC TO
-    #   THE LENGTH GAUGE IN THE MANY-ELECTRON CASE -- branch (b) converged in BOTH gauges to 8.22902 against
-    #   the exact 8.22906 the same day, so the assembly is right for one active electron.
-    #   WHERE TO LOOK NEXT, and it is not the basis:  the intermediate CSF composition (1snp gives both ^1P_1
-    #   and ^3P_1, and only the singlet should carry this transition) and the two-electron Babushkin assembly.
+    #   So: the defect is NOT basis size -- more states make the bound violation worse.
+    #
+    # **AND IT IS NOT THE SECOND ELECTRON EITHER:  THE CONTROL REFUTED THAT WITHIN THE HOUR, 15-Oct-2026.**
+    #   This note first read "specific to the length gauge in the MANY-ELECTRON case", on the grounds that
+    #   branch (b) converges in both gauges for one active electron.  That inference was wrong, because
+    #   branch (b) runs at Z = 1 and the failing case at Z = 18:  THREE things differ at once -- the second
+    #   electron, the charge, and the nuclear model -- and the second electron was simply the one I noticed.
+    #   Running H-LIKE Ar17+ 2s -> 1s through the identical script, box, recipe and code path, with one
+    #   electron removed, shows the one-electron case at Z = 18 is wrong TOO.  So the whole scan below is
+    #   one-electron, each Z on its OWN recommended box, np to n = 10, bound only:
+    #
+    #       Z    box[au]  Cou/Bab   Bab/(8.229 Z^6)   Cou/(8.229 Z^6)
+    #       1    365.3    0.1325    1.23267           0.16331
+    #       2    365.3    1.0919    0.14950           0.16323
+    #       4    121.9    1.0908    0.14937           0.16293
+    #       9     45.6    1.0850    0.14868           0.16132
+    #       18    21.5    1.0631    0.14622           0.15545
+    #
+    #   **THE COULOMB GAUGE OBEYS THE HYDROGENIC Z^6 LAW EXACTLY** -- constant to 0.2 % over Z = 1...4 and
+    #   4.8 % out to Z = 18.  So the sum, the denominators, the angular assembly and the box recipe are all
+    #   SOUND, and 0.149-0.163 is simply the CORRECT bound-only truncation deficit at any Z.
+    #   **BABUSHKIN STEPS BY 8.245 BETWEEN Z = 1 AND Z = 2** (1.23267 -> 0.14950), and those two points share
+    #   the SAME BOX, 365.3 a.u., and the SAME point nucleus.  Not the box, not the nuclear model, not the
+    #   truncation, not a drift:  a step.  At Z = 1 the length gauge shows its known fast convergence -- 1.23
+    #   on bound states alone while Coulomb has only 0.16, the two 7.5x apart as they SHOULD be on an
+    #   incomplete set -- and for every Z >= 2 Babushkin COLLAPSES ONTO Coulomb (1.092, 1.091, 1.085, 1.063).
+    #   **Two gauges agreeing on an incomplete set is the anomaly and not the reassurance**, since that
+    #   agreement is guaranteed only for a complete one.
+    #   SO THE DEFECT IS ONE-ELECTRON, Z-DEPENDENT, AND IN THE BABUSHKIN TWO-PHOTON AMPLITUDE -- with an exact
+    #   reference available at every Z, which makes it a far better-posed problem than this branch.
+    #   HYPOTHESIS, not yet tested:  the sum calls `PhotoEmission.amplitude` with the VIRTUAL photon energy
+    #   omega1 rather than the natural transition energy of that level pair, and an expression equivalent to
+    #   the length form ON-shell need not be equivalent OFF-shell.  How far off-shell omega1 sits grows with
+    #   Z, which is a step followed by a plateau.
+    #   **THE He-LIKE SIGNATURE IS A DIFFERENT ONE AND IS NOT UNIFIED WITH THIS:**  there Babushkin was 24x
+    #   COULOMB, the opposite of the collapse measured above, so a second effect is present.  It stays
+    #   subordinate -- no many-electron conclusion from this branch is safe while the ONE-electron length
+    #   gauge is wrong by a factor 8.
     #   The transition energy is NOT the problem -- 3126.4 eV against ~3123 eV is 0.1 % at this Z.
     #   STILL NO DATE, and now for a sharper reason than "not converged".
     #
