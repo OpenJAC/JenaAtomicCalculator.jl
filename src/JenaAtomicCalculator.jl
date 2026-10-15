@@ -147,7 +147,7 @@ export AbstractComputeTheme, AbstractConfigurationRestriction, AbstractConfigura
        SelfConsistent, Semiempirical, setDefaults, Shell, ShellSelection, SolidAngle,
        SphericalMesh, SphericalTensor, SpinAngularGaigalas, SpinAngular, SpinAngularTables, StarkShift, StarkZeeman, StartFromHydrogenic,
        StartFromPrevious, StartFromThomasFermi, StaticField,
-       StaticQuantizationAxis, Statistical, StrongField, Subshell,
+       StaticQuantizationAxis, Statistical, StrongField, Subshell, SuperConfigurations,
        tabulate, ThomasFermiField, ThreeParameterFermiNucleus, TimeHarmonicField, TotalAM,
        Triangle,
        TwoElectronOnePhoton,
@@ -324,6 +324,11 @@ end
 # Basic functions/methods to manipulate these data
 include("module-BasicsAZ.jl")
 include("module-ManyElectronAZ.jl")
+
+# Gaussian (mean + variance) statistical description of one configuration's unresolved level spectrum,
+# without diagonalizing it -- the building block a future superconfiguration opacity scheme needs.
+# Depends on BasicsAZ.meanEnergyInClosedForm, so it must be included AFTER module-BasicsAZ.jl above.
+include("module-SuperConfigurations.jl")
 
 # Specialized macros
 

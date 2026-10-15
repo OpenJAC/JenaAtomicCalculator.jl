@@ -1215,3 +1215,56 @@ function testModule_AdjustedLevels(; short::Bool=true)
     testPrint("testModule_AdjustedLevels()::", success)
     return(success)
 end
+
+
+"""
+`TestFrames.testModule_SuperConfigurations(; short::Bool=true)`
+    ... tests module SuperConfigurations on C I (Z=6) 2s^2 2p^2 (5 CSFs across J=0,1,2): the mean energy and
+        degeneracy (trivially exact, a CSF count) against a direct brute-force check, and -- the decisive
+        test -- the variance against the SAME (2J+1)-weighted brute-force statistic computed by fully
+        diagonalizing EVERY symmetry block of the configuration via Hamiltonian.performCI, which this
+        module's own `varianceFromCsfMatrix` is explicitly built never to need. The two must agree to within
+        the known ~1e-9-relative imprecision of the REUSED `BasicsAZ.meanEnergyInClosedForm` (propagated
+        through variance = <E^2> - mean^2), not to machine precision, since that reused mean is itself only
+        approximate; the variance's OWN <E^2> term (this module's actual new content) is exact and carries no
+        such slack. A success::Bool is returned.
+"""
+function testModule_SuperConfigurations(; short::Bool=true)
+    printstyled("\n\nTest the module  SuperConfigurations  ... \n", color=:cyan)
+    success = true
+
+    ni   = Nuclear.Model(6.)
+    grid = Radial.Grid(true)
+    asfSettings = AsfSettings()
+    conf  = Configuration("2s^2 2p^2")
+    wb    = SelfConsistent.performSCF([conf], ni, grid, asfSettings; printout=false)
+    orbitals = wb.levels[1].basis.orbitals
+
+    group = SuperConfigurations.buildGroup(conf, orbitals, ni, grid, asfSettings)
+
+    abInitio = Hamiltonian.performCI(wb.levels[1].basis, ni, grid, asfSettings; printout=false)
+    wsum = 0.0;   wEsum = 0.0;   wE2sum = 0.0
+    for  lev in abInitio.levels
+        w = Basics.twice(lev.J) + 1
+        wsum   = wsum   + w
+        wEsum  = wEsum  + w*lev.energy
+        wE2sum = wE2sum + w*lev.energy^2
+    end
+    bruteMean = wEsum/wsum
+    bruteVar  = wE2sum/wsum - bruteMean^2
+
+    if  group.degeneracy != wsum
+        success = false;   println("  ** degeneracy does not match the exact (2J+1)-weighted CSF count")
+    end
+    if  abs(group.meanEnergy - bruteMean) > 1.0e-6
+        success = false;   println("  ** meanEnergy too far from the brute-force (2J+1)-weighted mean: " *
+                                     "$(group.meanEnergy) vs $(bruteMean)")
+    end
+    if  abs(group.variance - bruteVar) / abs(bruteVar) > 1.0e-3
+        success = false;   println("  ** variance too far from the brute-force (2J+1)-weighted variance: " *
+                                     "$(group.variance) vs $(bruteVar)")
+    end
+
+    testPrint("testModule_SuperConfigurations()::", success)
+    return(success)
+end

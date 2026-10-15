@@ -143,6 +143,15 @@ end
                                                     ## combination (the one check that matters most here), and fitting
                                                     ## against a deliberately 10%-off target moves the scale factor
                                                     ## measurably away from 1.0 with a near-zero residual.
+        @test TestFrames.testModule_SuperConfigurations()
+                                                    ## added 15-Oct-2026; C I 2s^2 2p^2 (5 CSFs, J=0,1,2): degeneracy
+                                                    ## matches the exact CSF count, the mean matches a brute-force
+                                                    ## full diagonalization to the known ~1e-9-relative precision of
+                                                    ## the reused BasicsAZ.meanEnergyInClosedForm, and the variance
+                                                    ## -- this module's own new content, via Tr(H^2) without
+                                                    ## diagonalizing -- matches the SAME brute-force statistic to
+                                                    ## 1e-3 relative, the residual traced entirely to the mean's own
+                                                    ## imprecision propagating through variance = <E^2> - mean^2.
     end
 
     @testset "JAC processes" begin
