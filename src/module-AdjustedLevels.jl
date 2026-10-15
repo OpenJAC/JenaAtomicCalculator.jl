@@ -18,14 +18,18 @@ using Printf
         already is. No process module depends on this one, nor is this one depended on by any of them --
         the same one-way relationship every module built tonight keeps.
 
-        SCOPE, DELIBERATELY NARROW -- READ THIS BEFORE TRUSTING A FITTED NUMBER. This is NOT Cowan's full RCE
-        scheme, which fits SEPARATE scale factors for F^k (direct), G^k (exchange) and R^k (configuration-
-        interaction) integral GROUPS, typically 3-8 independent parameters for a real multi-configuration
-        spectrum. This module fits exactly ONE factor for the WHOLE two-body Coulomb matrix element,
-        uniformly across every rank and every pair of orbitals -- the crudest version of the idea, chosen
-        because it is the smallest piece that still does the thing that matters (a genuine re-diagonalization,
-        so the fit improves the WAVEFUNCTIONS too, not just one level's energy the way `NistCalibration`
-        does). Separate F^k/G^k/R^k groups are real, future work, not attempted here.
+        TWO ROUTES, SELECTED BY WHICH FUNCTION YOU CALL -- never by a flag, the same discipline
+        `Hamiltonian.performCI`/`performCIwithFrozenOrbitals`/`performCIKinkAware` already use for choosing
+        an algorithm by name. `fitScaleFactor` (this file) fits exactly ONE factor for the WHOLE two-body
+        Coulomb matrix element, uniformly across every rank and every pair of orbitals -- the crudest version
+        of the idea, chosen because it is the smallest piece that still does the thing that matters (a
+        genuine re-diagonalization, so the fit improves the WAVEFUNCTIONS too, not just one level's energy
+        the way `NistCalibration` does). `fitOrthogonalParameters` (`module-AdjustedLevels-inc-orthogonal.jl`)
+        is the second route: it discovers the SEPARATE integral classes (grouped by multipole rank) actually
+        present in a block, fits one parameter per class, and reports which combinations of them the given
+        targets can and cannot determine -- the Uylings/Raassen idea, in its most mechanical form. A caller
+        who only needs the simple route never has to know the second one exists; the return TYPE
+        (`FittedMultiplet` against `FittedMultipletOrthogonal`) says which one produced a given result.
 
         Also NOT handled: the Breit interaction and QED corrections (pure Coulomb CI only -- the same
         restriction as `settings.eeInteractionCI == CoulombInteraction()`), and fitting ACROSS more than one
@@ -52,20 +56,21 @@ using Printf
 """
 module AdjustedLevels
 
-using Printf, ..Basics, ..Defaults, ..ManyElectron, ..Nuclear, ..Radial, ..RadialIntegrals, ..InteractionStrength,
-       ..SpinAngular, ..Hamiltonian
+using Printf, LinearAlgebra, ..Basics, ..Defaults, ..ManyElectron, ..Nuclear, ..Radial, ..RadialIntegrals,
+       ..InteractionStrength, ..SpinAngular, ..Hamiltonian
 
 
 """
-`struct  AdjustedLevels.ScaleFactor`
-    ... one fitted scale factor. This module's first version always returns an Array with exactly ONE of
-        these (parameterClass = "Coulomb (uniform)"); the type stays general for the F^k/G^k/R^k-separated
-        version this module's own docstring names as future work.
+`struct  AdjustedLevels.ScalingParameter`
+    ... one fitted scaling parameter. `fitScaleFactor` always returns an Array with exactly ONE of these
+        (parameterClass = "Coulomb (uniform)"); `fitOrthogonalParameters` (see this module's
+        `-inc-orthogonal` file) returns one PER integral class it discovers, which is why this type -- and
+        its sibling `RadialParameter` there -- are named for the ROLE, not the count.
 
     + parameterClass   ::String    ... which class of integral this factor multiplies.
     + value             ::Float64  ... the fitted factor itself, e.g. 0.82; NOT 1.0 by construction.
 """
-struct  ScaleFactor
+struct  ScalingParameter
     parameterClass      ::String
     value               ::Float64
 end
@@ -98,7 +103,7 @@ end
     + multiplet       ::ManyElectron.Multiplet     ... the single-symmetry-block multiplet from the FITTED,
                                                          re-diagonalized Hamiltonian; same CSFs/orbitals as
                                                          the input Basis.
-    + scaleFactors    ::Array{ScaleFactor,1}        ... the fitted scale factor(s) -- never empty.
+    + scaleFactors    ::Array{ScalingParameter,1}   ... the fitted scaling parameter(s) -- never empty.
     + fitTargets       ::Array{FitTarget,1}          ... the measured levels this fit was matched against.
     + rmsDeviation      ::Float64                    ... root-mean-square deviation, fitted vs measured, over
                                                            the fit targets, in cm^-1.
@@ -106,7 +111,7 @@ end
 """
 struct  FittedMultiplet
     multiplet            ::ManyElectron.Multiplet
-    scaleFactors         ::Array{ScaleFactor,1}
+    scaleFactors         ::Array{ScalingParameter,1}
     fitTargets           ::Array{FitTarget,1}
     rmsDeviation         ::Float64
     source               ::String
@@ -243,7 +248,7 @@ function  fitScaleFactor(sym::LevelSymmetry, basis::Basis, nm::Nuclear.Model, gr
 
     fitTargets = [ FitTarget(idx, measured, relKayser[idx]) for (idx, measured) in targets ]
 
-    return( FittedMultiplet(Multiplet(string(sym)*"+ (fitted)", levels), [ScaleFactor("Coulomb (uniform)", cBest)],
+    return( FittedMultiplet(Multiplet(string(sym)*"+ (fitted)", levels), [ScalingParameter("Coulomb (uniform)", cBest)],
                              fitTargets, rmsBest, source) )
 end
 
@@ -274,5 +279,8 @@ function  mergeIntoMultiplet(fm::FittedMultiplet, abInitioMultiplet::ManyElectro
 
     return( Basics.sortByEnergy(mp) )
 end
+
+
+include("module-AdjustedLevels-inc-orthogonal.jl")
 
 end # module

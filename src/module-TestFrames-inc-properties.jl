@@ -1125,7 +1125,13 @@ end
         (iii) AdjustedLevels.mergeIntoMultiplet, against a basis that ALSO carries the 1s^2 ground state (a
         different J^P block the fit never touches), must keep that other block's levels unchanged, replace
         only the fitted block's levels, and return exactly as many levels as the ab initio multiplet it started
-        from. A success::Bool is returned.
+        from; (iv) the SECOND, orthogonal route, on a richer He-like C V 2p-3d J=2(odd) block (4 CSFs, several
+        multipole ranks): AdjustedLevels.buildParameterMatrices's rank-separated matrices must SUM to exactly
+        the same two-body matrix AdjustedLevels.buildOneAndTwoBodyMatrices builds in one lump (the same
+        faithfulness check as (i), one level up); and against targets whose SHAPE a single uniform factor
+        cannot reproduce, AdjustedLevels.fitOrthogonalParameters must achieve a materially smaller rms
+        deviation than AdjustedLevels.fitScaleFactor on the SAME targets -- the mechanical version of the
+        "power" this route exists for. A success::Bool is returned.
 """
 function testModule_AdjustedLevels(; short::Bool=true)
     printstyled("\n\nTest the module  AdjustedLevels  ... \n", color=:cyan)
@@ -1173,6 +1179,37 @@ function testModule_AdjustedLevels(; short::Bool=true)
     groundSymEnergiesNew = sort([lev.energy for lev in combined.levels  if LevelSymmetry(lev.J, lev.parity) == LevelSymmetry(AngularJ64(0), Basics.plus)])
     if  groundSymEnergies != groundSymEnergiesNew
         success = false;   println("  ** mergeIntoMultiplet changed a level in a symmetry block the fit never touched")
+    end
+
+    # (iv) The orthogonal route: a richer block (He-like C V, 2p-3d, J=2 odd -- 4 CSFs, several multipole ranks).
+    wb3    = SelfConsistent.performSCF([Configuration("2p 3d")], ni, grid, asfSettings; printout=false)
+    basis3 = wb3.levels[1].basis
+    sym3   = LevelSymmetry(AngularJ64(2), Basics.minus)
+
+    idxCsf3, oneBody3, classes3, matrices3 = AdjustedLevels.buildParameterMatrices(sym3, basis3, ni, grid)
+    idxCsf3b, oneBody3b, twoBody3b         = AdjustedLevels.buildOneAndTwoBodyMatrices(sym3, basis3, ni, grid)
+    lumped3 = zeros(Float64, length(idxCsf3), length(idxCsf3));   for  mtx in matrices3   lumped3 .+= mtx   end
+    if  maximum(abs.(lumped3 .- twoBody3b)) > 1.0e-8
+        success = false;   println("  ** buildParameterMatrices' rank-separated matrices do NOT sum to buildOneAndTwoBodyMatrices' twoBody")
+    end
+
+    eig3  = Hamiltonian.diagonalizeCiMatrix(oneBody3b .+ twoBody3b, LevelSelection())
+    rel3  = (sort(eig3.values) .- sort(eig3.values)[1]) ./ auPerKayser
+    # Targets deliberately NOT proportional to the ab initio shape, so one uniform knob cannot match all three.
+    targets3 = [ (2, rel3[2]*0.80), (3, rel3[3]*1.05), (4, rel3[4]*0.95) ]
+
+    fmSingle3 = AdjustedLevels.fitScaleFactor(sym3, basis3, ni, grid, targets3, "test source"; scaleBounds=(0.5,1.3))
+    fmOrtho3  = AdjustedLevels.fitOrthogonalParameters(sym3, basis3, ni, grid, targets3, "test source")
+    if  fmOrtho3.rmsDeviation > 0.5 * fmSingle3.rmsDeviation
+        success = false
+        println("  ** orthogonal route did not materially improve on the single-factor route for a non-proportional target " *
+                 "(single = $(fmSingle3.rmsDeviation) cm^-1, orthogonal = $(fmOrtho3.rmsDeviation) cm^-1)")
+    end
+
+    abInitio3 = Hamiltonian.performCI(basis3, ni, grid, asfSettings; printout=false)
+    combined3 = AdjustedLevels.mergeIntoMultiplet(fmOrtho3, abInitio3)
+    if  length(combined3.levels) != length(abInitio3.levels)
+        success = false;   println("  ** mergeIntoMultiplet (orthogonal route) changed the total number of levels")
     end
 
     testPrint("testModule_AdjustedLevels()::", success)
