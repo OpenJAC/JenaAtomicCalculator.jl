@@ -365,6 +365,27 @@ end
         The three ratios agree with one another, which is the statement that E1, M1 and E2 amplitudes computed through this function stand
         on a common footing and may be added as they occur in the full electron-photon interaction.
 
+        **THE `eps` ORIENTATION BELOW, AND WHAT IT DOES AND DOES NOT AFFECT -- MEASURED 15-Oct-2026.** The
+        Babushkin branch settles the orientation of its length-form expression from the ORBITAL ENERGIES,
+        `eps = a.energy <= b.energy`, which is a PROXY for which orbital plays which role. It is exact for an ordinary
+        transition, where the more strongly bound orbital is also the final state. Inside a SECOND-ORDER sum the
+        intermediate orbital may be either more or less bound than the initial one, so the two factors of a chain can
+        receive OPPOSITE orientations -- which is what `MultiPhotonTransition`'s two-photon emission sum does.
+        **AND THAT TURNS OUT NOT TO MATTER FOR A CONVERGED SUM, WHICH IS WORTH KNOWING BEFORE ANYONE "FIXES" IT.**
+        For H 2s -> 1s at n_max = 60, the shipped mixed assignment and all four forced combinations (+-1, +-1) agree
+        to 2e-5 AND ALL REPRODUCE the exact 8.22906 /s, with the Coulomb value identical throughout (eps is
+        Babushkin-only, so that is the control). A complete sum is a physical object and cannot depend on this.
+        **WHERE IT DOES BITE IS A SEVERELY TRUNCATED SUM**, and there neither gauge means anything anyway: a
+        bound-only intermediate set captures about 15 % of this rate in the Coulomb gauge, and over such a set the
+        Babushkin value moves by a factor 8 between Z = 1 and Z = 2. **So a gauge ratio taken from a truncated
+        two-photon basis is NOT evidence about this function** -- converge the intermediate space first.
+        Do not, in any case, replace the test below by a constant: that breaks four test modules (Einstein,
+        PhotoEmission, PhotoExcitation, Empirical), because a MANY-electron amplitude sums over SUBSHELL pairs whose
+        binding order does not follow the levels' roles, and there the energy test is doing real work.
+        `DalgarnoLewis.amplitudeKernel` is this branch with the orientation fixed at +1, valid because its own callers
+        never swap which argument plays which role; it is the right choice where a caller can guarantee that, and it
+        is not a general-purpose replacement for this function.
+
         THE COULOMB GAUGE IS STRUCTURALLY ZERO FOR A DIAGONAL ELECTRIC MULTIPOLE, i.e. whenever the two orbitals belong to the SAME subshell
         and hence kapa == kapb. The Coulomb branch below is built only from I^+ and I^-, and there both die at once: the prefactor
         (kapa-kapb) vanishes, and I^-(a,a) = int j_L (P_a Q_a - Q_a P_a) dr is identically zero. The Babushkin branch keeps J_L = int j_L

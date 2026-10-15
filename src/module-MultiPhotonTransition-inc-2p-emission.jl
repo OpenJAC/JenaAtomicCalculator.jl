@@ -333,6 +333,27 @@ function computeReducedAmplitudeEmission(K::AngularJ64, finalLevel::Level, omega
     #     the sum returns.  That would buy speed, not accuracy, and it is worth saying because it is the
     #     obvious-looking fix.
     #
+    # **AND THERE IS A HARD Z LIMIT ON THIS ROUTE, MEASURED 15-Oct-2026:  IT CONVERGES AT LOW Z AND FAILS AT
+    # HIGH Z, FOR A SINGLE ELECTRON.**  H-like Ar17+ 2s -> 1s has the exact answer 8.22906 * 18^6 = 2.7989e8 /s,
+    # and this route run with ONE active electron, no correlation and the box at the 12p recommendation gives
+    #
+    #     n_max     10        30        60        100       | 100 on a 97.1 a.u. box
+    #     Cou/Bab   1.063     1.332     2.286     4.009     | 1.476
+    #     Bab/exact 0.1462    0.1412    0.1320    0.1266    | 0.1392
+    #     Cou/exact 0.1554    0.1881    0.3016    0.5076    | 0.2054
+    #
+    # The gauge ratio DIVERGES as states are added, Babushkin moves AWAY from the exact value, and the two
+    # boxes disagree by 2.5x at the same n_max.  At Z = 1 the identical route reaches 8.22902 against 8.22906 in
+    # BOTH gauges.  So this is not a truncation that more states would cure:  **do not quote a high-Z
+    # two-photon rate from this route.**
+    #   **WHAT TO USE INSTEAD, and it needs no code change:** `DalgarnoLewis.twoPhotonAmplitude`, driven as in
+    # `examples/example-As.jl` branch (c) with the grid scaled as 1/Z, gives 2.767763e8 /s at Z = 18 -- 0.98888
+    # of the non-relativistic Z^6 value, where (Z*alpha)^2 = 1.7 % accounts for the deficit -- with the two
+    # gauges IDENTICAL to every printed digit and the result unchanged to 7 digits when the box is doubled.
+    #   This also settles what the He-like 2^1S_0 -> 1^1S_0 failure of `example-Dh.jl` branch (e) was:  a Z
+    # effect of THIS ROUTE, not two-electron physics.  The second electron, the `MabEmission` orientation, the
+    # many-electron assembly and the box were each excluded by measurement that day.
+    #
     # The difference that matters is the SIZE AND KIND of the intermediate space.  `DalgarnoLewis` solves in the
     # B-spline basis of one kappa channel -- 211 states on the grid used above, the whole pseudo-continuum of
     # that channel included -- where a configuration list gave 58 levels, 27 % as many and of the wrong kind.

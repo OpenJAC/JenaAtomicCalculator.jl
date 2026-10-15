@@ -58,8 +58,22 @@ function  reducedAmplitude2pOneElectron(K::AngularJ64, fOrbital::Orbital, omega2
                   "number it cannot stand behind.")
         end
         found = true
-        ## MabEmission(mp, gauge, omega, a, b, grid) returns <a || O || b>, so the chain reads
-        ##     <f || O2 || v>  <v || O1 || i>
+        # MabEmission(mp, gauge, omega, a, b, grid) returns <a || O || b>, so the chain reads
+        #     <f || O2 || v>  <v || O1 || i>
+        # AND THIS CHAIN IS SAFE AGAINST THE ORIENTATION DEFECT -- verified by measurement 15-Oct-2026.
+        # `MabEmission`'s Babushkin branch settles the orientation of its length form from the ORBITAL ENERGIES,
+        # which is a proxy for which orbital plays which role and is wrong inside a second-order sum (see that
+        # function's own docstring).  It does not bite HERE, and the reason is worth stating because it is what
+        # distinguishes this chain from the two-photon EMISSION one:  BOTH factors are passed in the same
+        # bra-ket order, so both receive the same orientation, and re-orienting both at once flips `eps` AND the
+        # two antisymmetric radial terms in each factor -- each factor changes sign and the PRODUCT does not.
+        # Rebuilding this chain on `DalgarnoLewis.amplitudeKernel` in role order was tried and reproduces
+        # `example-Ei.jl` branch (b) BYTE-IDENTICALLY in both gauges (0.8224 / 0.7927 / 0.7653 / 0.7538), so it
+        # was not kept.  **The 0.75 gauge-ratio plateau of that branch therefore has some OTHER cause.**
+        #   `MultiPhotonTransition`'s emission sum DOES give its two factors opposite orientations, and that was
+        # measured the same day to be harmless once the intermediate sum is CONVERGED:  at n_max = 60 the shipped
+        # assignment and all four forced combinations agree to 2e-5 and all reproduce the exact 8.22906 /s.  The
+        # orientation only moves a badly TRUNCATED sum, where neither gauge is meaningful in any case.
         U = U + InteractionStrength.MabEmission(mp2, gauge, omega2, fOrbital, vOrbital, grid) *
                 InteractionStrength.MabEmission(mp1, gauge, omega1, vOrbital, iOrbital, grid) / denom
     end

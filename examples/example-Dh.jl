@@ -636,6 +636,22 @@ elseif  false
     #   The transition energy is NOT the problem -- 3126.4 eV against ~3123 eV is 0.1 % at this Z.
     #   STILL NO DATE, and now for a sharper reason than "not converged".
     #
+    # **AND THE SHARPEST REASON OF ALL, SETTLED LATER THE SAME DAY:  THIS IS A Z LIMIT OF THE ROUTE, NOT
+    #   TWO-ELECTRON PHYSICS.**  The sum-over-states route was run with ONE active electron at the same Z --
+    #   H-like Ar17+ 2s -> 1s, which has the exact answer 8.22906 * 18^6 = 2.7989e8 /s -- and it fails the same
+    #   way:  the gauge ratio DIVERGES with basis size (1.063, 1.332, 2.286, 4.009 at n_max = 10, 30, 60, 100),
+    #   Babushkin moves AWAY from exact (0.1462 -> 0.1266) and two boxes disagree by 2.5x at n_max = 100.  At
+    #   Z = 1 the identical route reaches 8.22902 against 8.22906 in both gauges.  So no second electron, no
+    #   correlation and an exact reference -- and it still fails.
+    #   **The chi route does NOT fail there:** `DalgarnoLewis.twoPhotonAmplitude`, driven as in `example-As.jl`
+    #   branch (c) with the grid scaled as 1/Z, gives 2.767763e8 /s at Z = 18 (0.98888 of the non-relativistic
+    #   Z^6 value, and (Z*alpha)^2 = 1.7 % accounts for that), both gauges identical to every printed digit and
+    #   unchanged to 7 digits when the box is doubled.
+    #   SO EVERYTHING THIS BRANCH SUGGESTED ABOUT ITSELF IS WITHDRAWN:  the second electron, the `MabEmission`
+    #   orientation, the many-electron assembly and the box were each excluded by measurement.  **A He-like
+    #   two-photon rate at this Z should be built on the chi route, and this branch cannot be rescued by a
+    #   larger intermediate set.**  It keeps no date, and under its own gate it never will on this route.
+    #
     # SETUP NOTES. 1s2s produces BOTH 3S_1 and 1S_0; only the singlet is wanted, and it must not be confused with
     # 2 3S_1 -> 1 1S_0, which is a different process dominated by M1 rather than 2E1. The selection is therefore
     # made on SYMMETRY, 0+ -> 0+, which picks the singlet robustly however the levels happen to be ordered.
