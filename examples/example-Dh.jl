@@ -572,6 +572,37 @@ elseif  false
     # causes -- correlation at low Z, basis truncation everywhere, and something still unexplained in H-like.
     # No date is written until Ar16+ is converged in gauge and compared with Drake's actual tabulated value.
     #
+    # **EVERYTHING ABOVE FROM 07-Aug-2026 IS STALE IN BOTH MAGNITUDE AND RATIO -- re-measured 15-Oct-2026.**
+    #   The magnitudes predate the prefactor fix of 13-Oct (challenge S5, `b399f5ff`, a factor 16), so "He is
+    #   8-9x LOW" is really ~1.7x high and "Ar sits at 0.97 of the H-like expectation" is ~8x above it.  **And
+    #   the RATIO is stale too, which a common prefactor cannot explain:** 1.85 was recorded for Ar16+ at
+    #   n = 10 and the same case now gives 0.042, i.e. inverted.  Changes since then -- the exchange-phase fix,
+    #   the coherent-Jsym correction -- have altered the Coulomb/Babushkin balance.  So the conclusion drawn
+    #   above ("opposite directions, so a single cause cannot explain both") rests on arithmetic that no longer
+    #   holds, and is withdrawn;  it is kept because the REASONING -- test the diagnosis on an independent
+    #   system before building machinery for it -- was right and is why this branch exists.
+    #
+    # **RE-MEASURED WITH THE RECIPE THAT CONVERGED BRANCH (b), AND THE He-LIKE CASE STILL DOES NOT CONVERGE.**
+    #   Ar16+, box held at the n = 10 recommendation, configurations 1snp to n = 60, grid guard relaxed
+    #   (possible on this route only since `95ebb3a5` -- MeanFieldSettings had no gridStopper before):
+    #
+    #       n_conf  levels  Coulomb      Babushkin    Cou/Bab   Bab / H-like bound
+    #       10      36      5.4254e+07   1.3029e+09   0.04164   4.655
+    #       30      116     8.3707e+07   1.3512e+09   0.06195   4.828
+    #       60      236     1.7051e+08   1.4251e+09   0.11965   5.092
+    #
+    #   **THE TWO GAUGES BEHAVE QUITE DIFFERENTLY, AND THAT IS THE FINDING.**  Coulomb is sane and converging
+    #   UPWARD -- 5.43e7, 8.37e7, 1.71e8, rising towards the H-like bound 8.22906*18^6 = 2.799e8 and reaching
+    #   0.61 of it at n = 60, which is how a filling intermediate set should behave.  Babushkin is STUCK about
+    #   5x ABOVE a bound it must lie below, nearly flat and drifting WORSE as states are added.
+    #   So: the defect is NOT basis size (more states make the bound violation worse), and it is SPECIFIC TO
+    #   THE LENGTH GAUGE IN THE MANY-ELECTRON CASE -- branch (b) converged in BOTH gauges to 8.22902 against
+    #   the exact 8.22906 the same day, so the assembly is right for one active electron.
+    #   WHERE TO LOOK NEXT, and it is not the basis:  the intermediate CSF composition (1snp gives both ^1P_1
+    #   and ^3P_1, and only the singlet should carry this transition) and the two-electron Babushkin assembly.
+    #   The transition energy is NOT the problem -- 3126.4 eV against ~3123 eV is 0.1 % at this Z.
+    #   STILL NO DATE, and now for a sharper reason than "not converged".
+    #
     # SETUP NOTES. 1s2s produces BOTH 3S_1 and 1S_0; only the singlet is wanted, and it must not be confused with
     # 2 3S_1 -> 1 1S_0, which is a different process dominated by M1 rather than 2E1. The selection is therefore
     # made on SYMMETRY, 0+ -> 0+, which picks the singlet robustly however the levels happen to be ordered.
