@@ -173,8 +173,15 @@ end
         (more configurations), not a better fit -- see this module's own docstring. `value` on each returned
         `OrthogonalParameter` is the TOTAL accumulated shift along that direction, and `determinacy` is read at
         the CONVERGED point, not the starting one -- so a mode whose shift is reported but whose determinacy is
-        still near zero signals the fit has not actually converged along it. A
-        fm::AdjustedLevels.FittedMultipletOrthogonal is returned.
+        still near zero signals the fit has not actually converged along it.
+        THE ITERATION IS WARM-STARTED from the single-factor (uniform) optimum over these same matrices, not
+        from all-ones: "every rank equal" is itself a point inside this route's own parameter space, so this
+        route's rms can never be worse than `fitScaleFactor`'s on the same targets -- it WAS, measured, before
+        this warm start was added, since a plain Gauss-Newton iteration can fail to reach even that nested
+        point within `maxIterations` when starting far from it (confirmed on a real case: Pr IV 4f^2, J=2,
+        where the orthogonal route returned a worse rms than the single-factor route on identical targets --
+        mathematically impossible for the true optimum of a strictly richer, nested model).
+        A fm::AdjustedLevels.FittedMultipletOrthogonal is returned.
 """
 function  fitOrthogonalParameters(sym::LevelSymmetry, basis::Basis, nm::Nuclear.Model, grid::Radial.Grid,
                                     targets::Array{Tuple{Int64,Float64},1}, source::String;
@@ -187,7 +194,21 @@ function  fitOrthogonalParameters(sym::LevelSymmetry, basis::Basis, nm::Nuclear.
     auPerKayser = 1.0 / Defaults.convertUnits("energy: from atomic to Kayser", 1.0)
     nTargets    = length(targets)
 
-    cVec    = ones(Float64, nParam)
+    # WARM START from the UNIFORM (single-factor-equivalent) optimum over these SAME matrices -- cheap, since
+    # it costs only re-diagonalizations, no rebuild. "every rank equal" is a point INSIDE this route's own
+    # parameter space, so without this the richer model could (and was measured to) return a WORSE rms than
+    # the simpler, nested one it contains as a special case -- a mathematical impossibility for the true
+    # optimum, and a sign the iteration was starting too far away to reach it within `maxIterations`.
+    function  rmsAtUniform(c::Float64)
+        total = copy(oneBody);   for  mtx in matrices   total .+= c .* mtx   end
+        eig = Hamiltonian.diagonalizeCiMatrix(total, LevelSelection())
+        rel = (sort(eig.values) .- sort(eig.values)[1]) ./ auPerKayser
+        s = 0.0;   for  (idx, measured) in targets   s = s + (rel[idx] - measured)^2   end
+        return( sqrt(s/length(targets)) )
+    end
+    cUniform, _ = goldenSectionMinimize(rmsAtUniform, 0.5, 1.5)
+
+    cVec    = fill(cUniform, nParam)
     rmsPrev = Inf
     bestCVec = copy(cVec);   bestRms = Inf
     bestEigC = nothing;   bestOrderC = nothing;   bestRelKayserC = Float64[]
