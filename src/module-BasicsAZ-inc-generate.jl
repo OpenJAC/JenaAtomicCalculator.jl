@@ -36,8 +36,11 @@ function Basics.generate(repType::AtomicState.MeanFieldBasis, rep::AtomicState.R
     if  output    results = Dict{String, Any}()    else    results = nothing    end
     nModel    = rep.nuclearModel
 
-    # The asfSettings only define the SCF part and are partly derived from the MeanFieldSettings
-    asfSettings = AsfSettings(AsfSettings(); scField=repType.settings.scField) 
+    # The asfSettings only define the SCF part and are partly derived from the MeanFieldSettings.
+    # `gridStopper` is passed through as of 15-Oct-2026: without it this route could not express a
+    # pseudo-continuum intermediate set, which is what kept example-Dh.jl branch (b) on a bound-only sum.
+    asfSettings = AsfSettings(AsfSettings(); scField=repType.settings.scField,
+                                              gridStopper=repType.settings.gridStopper) 
     
     multiplet      = SelfConsistent.performSCF(rep.refConfigs, nModel, rep.grid, asfSettings; printout=true)
     basis          = multiplet.levels[1].basis
@@ -60,8 +63,11 @@ function Basics.generate(repType::AtomicState.MeanFieldMultiplet, rep::AtomicSta
     if  output    results = Dict{String, Any}()    else    results = nothing    end
     nModel    = rep.nuclearModel
 
-    # The asfSettings only define the SCF part and are partly derived from the MeanFieldSettings
-    asfSettings = AsfSettings(AsfSettings(); scField=repType.settings.scField) 
+    # The asfSettings only define the SCF part and are partly derived from the MeanFieldSettings.
+    # `gridStopper` is passed through as of 15-Oct-2026 -- see the MeanFieldBasis method above.  BOTH methods
+    # need it: they carry identical comment lines, and a single-site edit silently fixed only the other one.
+    asfSettings = AsfSettings(AsfSettings(); scField=repType.settings.scField,
+                                              gridStopper=repType.settings.gridStopper) 
     
     multiplet  = SelfConsistent.performSCF(rep.refConfigs, nModel, rep.grid, asfSettings; printout=true)
     if output    

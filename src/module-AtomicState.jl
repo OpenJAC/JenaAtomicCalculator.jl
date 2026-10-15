@@ -37,22 +37,59 @@ abstract type  AbstractRepresentationType                           end
     + scField           ::AbstractScField   
         ... Specify the (mean) self-consistent field as DFSField() or HSField(); note that not all AbstractScField's 
             allowed here.
+    + gridStopper       ::Bool
+        ... False to let `Bsplines.checkGridRepresentation` WARN instead of raising, so that deliberately
+            box-confined high-n orbitals can be generated.  **Added 15-Oct-2026, and it was a real gap rather
+            than a convenience:** this struct carried `scField` alone, so the whole
+            `Representation`/`MeanFieldMultiplet` route could not express a PSEUDO-CONTINUUM intermediate set
+            at all -- and that is what kept `example-Dh.jl` branch (b) on a bound-only sum for months, giving
+            10.104 /s where the exact two-photon rate is 8.22906.  The recipe that converges it (n_max ~ 100,
+            the grid guard relaxed, the box held fixed) had to be driven through an `Atomic.Computation`
+            instead.  The default is TRUE, i.e. the guard raises as before, so no existing caller changes;
+            set it false only where the high-n states are MEANT to be box-confined stand-ins for the
+            continuum, and say so at the call site.
 """
 struct  MeanFieldSettings
     scField              ::AbstractScField
+    gridStopper           ::Bool
 end
 
 """
 `AtomicState.MeanFieldSettings()`  ... constructor for setting the default values.
 """
 function MeanFieldSettings()
-    MeanFieldSettings(DFSField())
+    MeanFieldSettings(DFSField(), true)
+end
+
+
+"""
+`AtomicState.MeanFieldSettings(scField::AbstractScField)`
+    ... constructor from a field alone, keeping `gridStopper = true`.  It exists so that the one-argument form
+        every existing caller uses goes on meaning what it meant;  a `settings::MeanFieldSettings` is returned.
+"""
+function MeanFieldSettings(scField::AbstractScField)
+    MeanFieldSettings(scField, true)
+end
+
+
+"""
+`AtomicState.MeanFieldSettings(settings::AtomicState.MeanFieldSettings; scField=.., gridStopper=..)`
+    ... the standard JAC keyword copy-constructor; a `settings::MeanFieldSettings` is returned.
+"""
+function MeanFieldSettings(settings::AtomicState.MeanFieldSettings;
+    scField::Union{Nothing,AbstractScField}=nothing,              gridStopper::Union{Nothing,Bool}=nothing)
+
+    if  isnothing(scField)          scFieldx        = settings.scField          else   scFieldx        = scField          end
+    if  isnothing(gridStopper)      gridStopperx    = settings.gridStopper      else   gridStopperx    = gridStopper      end
+
+    MeanFieldSettings( scFieldx, gridStopperx )
 end
 
 
 # `Base.show(io::IO, settings::MeanFieldSettings)`  ... prepares a proper printout of the settings::MeanFieldSettings.
 function Base.show(io::IO, settings::MeanFieldSettings)
         println(io, "scField:                  $(settings.scField)  ")
+        println(io, "gridStopper:              $(settings.gridStopper)  ")
 end
 
 
