@@ -385,9 +385,44 @@ end
 
 
 """
+`RandomPhase.projectOntoUnoccupied(chi::DalgarnoLewis.PerturbedOrbital, targetSubshell::Subshell,
+                                    occupiedOrbitals::Dict{Subshell,Orbital}, grid::Radial.Grid)`
+    ... removes from chi every component along an OCCUPIED orbital of chi's own kappa, and returns the result
+        as an `orbital::Orbital`. A channel label such as `5p_3/2 -> 3d_5/2` names a kappa SYMMETRY and not one
+        target orbital, so the solved chi spans that whole symmetry -- filled members included. A core electron
+        cannot be excited into a filled orbital, so those components are forbidden and must not appear in any
+        observable built from chi.
+
+        **WHY THIS EXISTS AS ITS OWN FUNCTION -- 16-Oct-2026, item 73(c).** The projection had been applied to
+        the POLARIZABILITY assembly since 14-Oct and never to the induced DENSITY, although both are built from
+        the same chi. The consequence was measured and is large: the density's rank-1 moment, which must equal
+        the polarizability computed from the same chi, instead ran from -886 to +2081 times it across 42 core
+        channels of Ba+. With the projection applied the ratio is **exactly 3.00000 on every one of them**, and
+        that residue is the (2L+1) of `RandomPhase.inducedPotentialZr`. Two separately-correct pieces again
+        failed to compose because nothing required them to.
+"""
+function projectOntoUnoccupied(chi::DalgarnoLewis.PerturbedOrbital, targetSubshell::Subshell,
+                                occupiedOrbitals::Dict{Subshell,Orbital}, grid::Radial.Grid)
+    P = copy(chi.P);   Q = copy(chi.Q)
+    for  (sh, orb)  in  occupiedOrbitals
+        (sh.kappa == targetSubshell.kappa  &&  orb.energy < 0.0)   ||   continue
+        ov = RadialIntegrals.overlap(orb.P, P, grid) + RadialIntegrals.overlap(orb.Q, Q, grid)
+        nn = RadialIntegrals.overlap(orb.P, orb.P, grid) + RadialIntegrals.overlap(orb.Q, orb.Q, grid)
+        nn <= 0.0   &&   continue
+        for  i = 1:min(length(P), length(orb.P))   P[i] = P[i] - ov/nn * orb.P[i]   end
+        for  i = 1:min(length(Q), length(orb.Q))   Q[i] = Q[i] - ov/nn * orb.Q[i]   end
+    end
+
+    return( Orbital(chi.subshell, false, true, chi.targetEnergy, P, Q,
+                    zeros(length(P)), zeros(length(Q)), Radial.Grid()) )
+end
+
+
+"""
 `RandomPhase.inducedPotentialZr(multipole::EmMultipole, activeOrbitals::Dict{Subshell,Orbital},
                                  chis::Dict{Tuple{Subshell,Subshell},DalgarnoLewis.PerturbedOrbital},
-                                 excludeSubshell::Subshell, grid::Radial.Grid)`
+                                 excludeSubshell::Subshell, grid::Radial.Grid;
+                                 occupiedOrbitals::Union{Nothing,Dict{Subshell,Orbital}}=nothing)`
     ... builds the DIRECT (Hartree, "ring") induced potential electron `excludeSubshell` feels from every OTHER
         active electron's CURRENT chi, at the multipole's own rank L, in the SAME "Zr" (= -r*V(r)) convention
         `Radial.Potential` and `Bsplines.computeVlocal` use throughout JAC -- so that the minus sign below is
@@ -431,7 +466,8 @@ end
 """
 function inducedPotentialZr(multipole::EmMultipole, activeOrbitals::Dict{Subshell,Orbital},
                              chis::Dict{Tuple{Subshell,Subshell},DalgarnoLewis.PerturbedOrbital},
-                             excludeSubshell::Subshell, grid::Radial.Grid)
+                             excludeSubshell::Subshell, grid::Radial.Grid;
+                             occupiedOrbitals::Union{Nothing,Dict{Subshell,Orbital}}=nothing)
     rho = zeros(grid.NoPoints);   mtpRho = 1
     # EVERY CHANNEL OF EVERY OTHER ELECTRON CONTRIBUTES, EACH WITH ITS OWN ANGULAR FACTOR.  `chis` is keyed
     # by the (active, target) PAIR, so the target is read off the key rather than looked up -- which is what
@@ -443,10 +479,21 @@ function inducedPotentialZr(multipole::EmMultipole, activeOrbitals::Dict{Subshel
         # The weight is sqrt(2j_b+1), NOT (2j_b+1):  see this method's docstring for the Hartree calibration
         # that fixes it.  The remaining sqrt(2j_b+1) of the occupation is carried by CL_reduced_me's own
         # normalisation at this end, since CL_reduced_me(b, 0, b) = sqrt(2j_b+1) exactly.
-        weightB = sqrt(jb2 + 1.0) * RandomPhase.angularCoefficient(multipole.L, b, tb)
+        # THE (2L+1), DERIVED AND NOT FITTED -- 16-Oct-2026, item 73(c).  The density's rank-L moment
+        # int r^L rho dr is the induced multipole moment, which for L = 1 is the quantity the POLARIZABILITY
+        # assembly computes from this very chi -- and that assembly reproduces the exact 4.5 a.u. of H 1s.
+        # Measured on 42 core channels of Ba+ spanning j = 1/2...7/2 and l = 0...3, the two agreed to
+        # EXACTLY 3.00000 = 2L+1, with zero spread, once the projection below was applied.  The L = 0
+        # Hartree calibration that fixes the sqrt(2j_b+1) is silent about this factor, since 2L+1 = 1 there.
+        weightB = sqrt(jb2 + 1.0) * RandomPhase.angularCoefficient(multipole.L, b, tb) / (2*multipole.L + 1)
         weightB == 0.0   &&   continue
-        mtpB = min(length(orbB.P), length(chiB.P), length(orbB.Q), length(chiB.Q))
-        for  i = 1:mtpB   rho[i] = rho[i] + weightB * 2.0 * (orbB.P[i]*chiB.P[i] + orbB.Q[i]*chiB.Q[i])   end
+        # THE PAULI PROJECTION.  A channel label names a kappa SYMMETRY, so chi spans the filled members of
+        # it too, and a core electron cannot be excited into a filled orbital.  Without this the forbidden
+        # components swamp the density -- the moment ratio above ran from -886 to +2081 instead of 3.
+        chiP = RandomPhase.projectOntoUnoccupied(chiB, tb, isnothing(occupiedOrbitals) ? activeOrbitals :
+                                                 occupiedOrbitals, grid)
+        mtpB = min(length(orbB.P), length(chiP.P), length(orbB.Q), length(chiP.Q))
+        for  i = 1:mtpB   rho[i] = rho[i] + weightB * 2.0 * (orbB.P[i]*chiP.P[i] + orbB.Q[i]*chiP.Q[i])   end
         mtpRho = max(mtpRho, mtpB)
     end
 
@@ -497,7 +544,8 @@ end
 `RandomPhase.sourceMap(multipole::EmMultipole, gauge::EmGauge, omega::Float64, activeOrbitals::Dict{Subshell,Orbital},
                         channels::Array{Tuple{Subshell,Subshell},1}, sources::Array{Float64,1},
                         potential::Radial.Potential, primitives::Bsplines.Primitives,
-                        dlSettings::DalgarnoLewis.Settings)`
+                        dlSettings::DalgarnoLewis.Settings;
+                        occupiedOrbitals::Union{Nothing,Dict{Subshell,Orbital}}=nothing)`
     ... one application of the coupled map: given the induced source of EVERY channel, concatenated into a
         single vector, solve each channel's Dalgarno-Lewis equation and rebuild every channel's source from
         the resulting chi's. This is exactly one sweep of the fixed-point iteration, isolated so that it can
@@ -514,7 +562,8 @@ end
 function sourceMap(multipole::EmMultipole, gauge::EmGauge, omega::Float64, activeOrbitals::Dict{Subshell,Orbital},
                     channels::Array{Tuple{Subshell,Subshell},1}, sources::Array{Float64,1},
                     potential::Radial.Potential, primitives::Bsplines.Primitives,
-                    dlSettings::DalgarnoLewis.Settings)
+                    dlSettings::DalgarnoLewis.Settings;
+                    occupiedOrbitals::Union{Nothing,Dict{Subshell,Orbital}}=nothing)
     grid = primitives.grid;   m = grid.nsL + grid.nsS
     chis = Dict{Tuple{Subshell,Subshell},DalgarnoLewis.PerturbedOrbital}()
     for  (k, ch)  in  enumerate(channels)
@@ -525,7 +574,8 @@ function sourceMap(multipole::EmMultipole, gauge::EmGauge, omega::Float64, activ
     newSources = zeros(length(sources))
     for  (k, ch)  in  enumerate(channels)
         a = ch[1];   t = ch[2]
-        VindZr = RandomPhase.inducedPotentialZr(multipole, activeOrbitals, chis, a, grid)
+        VindZr = RandomPhase.inducedPotentialZr(multipole, activeOrbitals, chis, a, grid;
+                                                 occupiedOrbitals=occupiedOrbitals)
         aCoeff = RandomPhase.angularCoefficient(multipole.L, t, a)
         if  rem(multipole.L, 2) == 1    aCoeff = -aCoeff    end
         newSources[(k-1)*m+1 : k*m] = aCoeff * RandomPhase.inducedSourceVector(VindZr, activeOrbitals[a], primitives)
@@ -601,7 +651,8 @@ end
 """
 function solve(multipole::EmMultipole, gauge::EmGauge, omega::Float64, activeOrbitals::Dict{Subshell,Orbital},
                 potential::Radial.Potential, primitives::Bsplines.Primitives;
-                settings::RandomPhase.Settings=RandomPhase.Settings())
+                settings::RandomPhase.Settings=RandomPhase.Settings(),
+                occupiedOrbitals::Union{Nothing,Dict{Subshell,Orbital}}=nothing)
     subshells = isempty(settings.activeSubshells) ? collect(keys(activeOrbitals)) : settings.activeSubshells
     targets   = Dict{Subshell,Subshell}()
     for  a in subshells
@@ -691,17 +742,20 @@ function solve(multipole::EmMultipole, gauge::EmGauge, omega::Float64, activeOrb
     if  settings.directSolve
         m = (primitives.grid.nsL + primitives.grid.nsS) * length(channels)
         drive, _ = RandomPhase.sourceMap(multipole, gauge, omega, activeOrbitals, channels, zeros(m),
-                                          potential, primitives, settings.dalgarnoLewis)
+                                          potential, primitives, settings.dalgarnoLewis;
+                                          occupiedOrbitals=occupiedOrbitals)
         applyIminusM = function(v::Array{Float64,1})
             mapped, _ = RandomPhase.sourceMap(multipole, gauge, omega, activeOrbitals, channels, v,
-                                               potential, primitives, settings.dalgarnoLewis)
+                                               potential, primitives, settings.dalgarnoLewis;
+                                               occupiedOrbitals=occupiedOrbitals)
             return( v - (mapped - drive) )
         end
         sources, nKrylov, relResidual =
             RandomPhase.gmres(applyIminusM, drive, settings.maxIterations, settings.accuracy)
         # one last application turns the solved sources into the chis themselves
         checkSources, chis = RandomPhase.sourceMap(multipole, gauge, omega, activeOrbitals, channels, sources,
-                                                    potential, primitives, settings.dalgarnoLewis)
+                                                    potential, primitives, settings.dalgarnoLewis;
+                                                    occupiedOrbitals=occupiedOrbitals)
         # the SELF-CONSISTENCY of the answer, measured on the sources rather than taken on trust from the solver
         selfConsistency = LinearAlgebra.norm(checkSources - sources) /
                           max(LinearAlgebra.norm(sources), 1.0e-300)
@@ -848,7 +902,8 @@ function solve(multipole::EmMultipole, gauge::EmGauge, omega::Float64, activeOrb
         newChis = Dict{Tuple{Subshell,Subshell},DalgarnoLewis.PerturbedOrbital}();   maxRelChange = 0.0
         for  ch in channels
             a = ch[1];   t = ch[2]
-            VindZr      = RandomPhase.inducedPotentialZr(multipole, activeOrbitals, chis, a, grid)
+            VindZr      = RandomPhase.inducedPotentialZr(multipole, activeOrbitals, chis, a, grid;
+                                                      occupiedOrbitals=occupiedOrbitals)
             # THE a-END ANGULAR FACTOR AND THE SIGN.  `inducedSourceVector` returns the bare radial
             # projection;  THIS channel's own reduced matrix element belongs here -- t, not targets[a], since
             # one active subshell may carry several channels -- and the (-1)^L that

@@ -94,7 +94,27 @@ elseif  true
             "-- see this branch's own comment for why that is not yet expected to be true.")
 elseif  false
     #
-    # Last successful:  14-Oct-2026
+    # Last visit:       16-Oct-2026
+    # Last successful:  unknown ... WITHDRAWN 16-Oct-2026, and the reason is a repair elsewhere rather than a
+    #   fault here.  `RandomPhase.inducedPotentialZr` was corrected that day (item 73(c)): it had built its
+    #   induced density from UNPROJECTED chi, so the density carried Pauli-forbidden components, and its
+    #   rank-1 moment exceeded the polarizability computed from the same chi by exactly (2L+1).  Both are
+    #   fixed, and the numbers this branch prints MOVE:
+    #
+    #       omega     as dated 14-Oct    with the fix    fix + the opposite overall sign
+    #       0.05          0.7816            1.6486              0.71253
+    #       0.10          0.8347            1.6929              0.69901
+    #       0.20          0.9739            1.8076              0.66641
+    #       0.30          1.2066            1.9930              0.61824
+    #
+    #   THE FIRST TWO COLUMNS CANNOT BOTH BE RIGHT, AND NEITHER IS VERIFIED.  The middle column ANTI-screens
+    #   at every frequency, which a closed shell must not do;  the third screens everywhere and its near-static
+    #   value sits on the one anchor available -- Ne's exact static polarizability 2.661 against JAC's
+    #   unscreened 3.7592 requires a factor 0.7078, and 0.71253 agrees to 0.6 %.  But that third column needs
+    #   the `(-1)^L` of `sourceMap`/`solve` suppressed, and that factor has its own documented derivation, so
+    #   the sign is an OPEN DERIVATION and not a decided fix.
+    #   **So this branch has no verified output today.**  Its finite-omega factors have no literature anchor at
+    #   all;  only the near-static one can be checked.  A date returns when the sign is derived.
     # Branch c: THE COUPLED RESPONSE ON A REAL ATOM -- the first branch of this file that is not a Z = 1 toy.
     #
     # WHY IT EXISTS.  Branches (a) and (b) run hydrogen at Z = 1 in a BARE NUCLEAR field with two fictitious
@@ -175,7 +195,8 @@ elseif  false
         end
         @printf("%-12.3f %-10d %-18.8e %-18.8e %.5f\n", omega, length(rC.channelOrbitals), au, ac, ac/au)
     end
-    println("\n>>> measured 14-Oct-2026:  0.7816, 0.8347, 0.9739, 1.2066 -- about 22 % screening at low omega.")
+    println("\n>>> 14-Oct-2026 measured 0.7816, 0.8347, 0.9739, 1.2066;  the 16-Oct repair of inducedPotentialZr")
+    println(">>> moves these -- see this branch's header for all three number sets and why none is verified.")
     println(">>> READ THE COMMENT BLOCK ABOVE before quoting any of these: exchange is absent, the per-channel")
     println(">>> norms are NOT a screening diagnostic, and the crossing above 1 is unvalidated.")
     #
