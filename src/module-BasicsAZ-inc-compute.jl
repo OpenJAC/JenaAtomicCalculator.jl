@@ -7,6 +7,7 @@
 # src/ sat behind Defaults.saRatip(), which was hardcoded false. The Julia route -- SpinAngular and
 # SpinAngularGaigalas -- is what the package actually uses.
 
+
 """
 `Basics.compute(::CImatrixWithSymmetryJP, JP::LevelSymmetry, basis::Basis, nuclearModel::Nuclear.Model, grid::Radial.Grid,`
                 settings::AsfSettings; printout::Bool=true)
@@ -28,8 +29,6 @@ function Basics.compute(::CImatrixWithSymmetryJP, JP::LevelSymmetry, basis::Basi
     potential = Nuclear.nuclearPotential(nuclearModel, grid)
     if  settings.qedModel in [QedPetersburg(), QedSydney()]    
         meanPot = potential
-        ## meanPot = compute("radial potential: Dirac-Fock-Slater", grid, basis)
-        ## meanPot = Basics.add(potential, meanPot)   
     end   
 
     matrix = zeros(Float64, n, n)
@@ -38,7 +37,6 @@ function Basics.compute(::CImatrixWithSymmetryJP, JP::LevelSymmetry, basis::Basi
     xlCache = InteractionStrength.XLCache()
     for  r = 1:n
         for  s = 1:n
-            #
             if  settings.eeInteractionCI == DiagonalCoulomb()  &&  r != s    continue    end
             # Calculate the spin-angular coefficients
             if  Defaults.saGG()
@@ -49,7 +47,6 @@ function Basics.compute(::CImatrixWithSymmetryJP, JP::LevelSymmetry, basis::Basi
                 waG2 = SpinAngular.computeCoefficients(opa, basis.csfs[idx_csf[r]], basis.csfs[idx_csf[s]], subshellList)
                 wa   = [waG1, waG2]
             end
-            #
             me = 0.
             for  coeff in wa[1]
                 me = me + coeff.T * RadialIntegrals.GrantIab(basis.orbitals[coeff.a], basis.orbitals[coeff.b], grid, potential)
@@ -63,11 +60,10 @@ function Basics.compute(::CImatrixWithSymmetryJP, JP::LevelSymmetry, basis::Basi
                 if  typeof(settings.eeInteractionCI) in [DiagonalCoulomb, CoulombInteraction, CoulombBreit, CoulombGaunt]
                     me = me + coeff.V * InteractionStrength.XL_Coulomb(coeff.nu, basis.orbitals[coeff.a], basis.orbitals[coeff.b],
                                                                                     basis.orbitals[coeff.c], basis.orbitals[coeff.d], grid, xlCache)
-                ## The two disabled branches below are the REFERENCE CROSS-CHECK for the optimized
-                ## Coulomb strength: flip a false to true to compare XL_Coulomb against the literal,
-                ## unoptimized XL_CoulombReference, or to run the whole CI on the reference version.
-                ## The matching pair for Breit was removed on 13-Aug-2026: it called XL_Breit_WO,
-                ## which HAS NEVER EXISTED, so that half of the check could not have run at all.
+                # The two disabled branches below are the REFERENCE CROSS-CHECK for the optimized Coulomb strength: flip a false to true to
+                # compare XL_Coulomb against the literal, unoptimized XL_CoulombReference, or to run the whole CI on the reference version.
+                # The matching pair for Breit was removed on 13-Aug-2026: it called XL_Breit_WO, which HAS NEVER EXISTED, so that half of
+                # the check could not have run at all.
                 elseif  false
                     xl1 = InteractionStrength.XL_Coulomb(coeff.nu, basis.orbitals[coeff.a], basis.orbitals[coeff.b],
                                                                                             basis.orbitals[coeff.c], basis.orbitals[coeff.d], grid)
@@ -92,6 +88,7 @@ function Basics.compute(::CImatrixWithSymmetryJP, JP::LevelSymmetry, basis::Basi
 
     return( matrix )
 end
+
 
 """
 `Basics.compute(JP::LevelSymmetry, basis::Basis, nuclearModel::Nuclear.Model, grid::Radial.Grid,
@@ -137,7 +134,6 @@ function Basics.compute(JP::LevelSymmetry, basis::Basis, nuclearModel::Nuclear.M
                     waG2 = SpinAngular.computeCoefficients(opa, basis.csfs[idx_csf[r]], basis.csfs[idx_csf[s]], subshellList)
                     wa   = [waG1, waG2]
                 end
-                #
                 me = 0.
                 for  coeff in wa[1]
                     me = me + coeff.T * RadialIntegrals.GrantIab(basis.orbitals[coeff.a], basis.orbitals[coeff.b], grid, potential)
@@ -162,20 +158,15 @@ function Basics.compute(JP::LevelSymmetry, basis::Basis, nuclearModel::Nuclear.M
     return( matrix )
 end
 
-## THE RadialOrbital* START-ORBITAL THEMES ARE GONE, retired 13-Aug-2026.
-##
-## Four of them once existed -- Bunge1993, McLean1981, Hydrogenic and ThomasFermi -- reached as
-## Basics.compute(theme, subshell, Z).  NONE ever worked and NONE ever had a caller: each called a function
-## of Radial that either was never defined or could not run.  The first two went when it emerged that their
-## data tables had never been part of JAC; these last two go because they name the wrong thing.
-##
-## A start orbital is not chosen per subshell through a compute theme.  It is chosen per computation through
-## ManyElectron.AbstractStartOrbitals -- StartFromHydrogenic, StartFromThomasFermi, StartFromPrevious -- which
-## is what AsfSettings carries and what SelfConsistent dispatches on, and the orbitals themselves come from
-## Bsplines.generateOrbitals(subshells, pot, nm, primitives), which works in ANY potential.  Thomas-Fermi
-## accordingly arrived as Basics.ThomasFermiField, a screened POTENTIAL beside DFSField and its siblings,
-## with the orbitals following from machinery that already existed.  Keeping a parallel per-subshell route
-## that had never been called would have been a third way to say the same thing.
+# THE RadialOrbital* START-ORBITAL THEMES ARE GONE, retired 13-Aug-2026. Four of them once existed -- Bunge1993, McLean1981, Hydrogenic and
+# ThomasFermi -- reached as Basics.compute(theme, subshell, Z). NONE ever worked and NONE ever had a caller: each called a function of
+# Radial that either was never defined or could not run. The first two went when it emerged that their data tables had never been part of
+# JAC; these last two go because they name the wrong thing. A start orbital is not chosen per subshell through a compute theme. It is chosen
+# per computation through ManyElectron.AbstractStartOrbitals -- StartFromHydrogenic, StartFromThomasFermi, StartFromPrevious -- which is
+# what AsfSettings carries and what SelfConsistent dispatches on, and the orbitals themselves come from Bsplines.generateOrbitals(subshells,
+# pot, nm, primitives), which works in ANY potential. Thomas-Fermi accordingly arrived as Basics.ThomasFermiField, a screened POTENTIAL
+# beside DFSField and its siblings, with the orbitals following from machinery that already existed. Keeping a parallel per-subshell route
+# that had never been called would have been a third way to say the same thing.
 
 
 """
@@ -193,62 +184,6 @@ function Basics.computeDensity(level::Level, grid::Radial.Grid)
     end
     
     return( rho )
-end
-
-"""
-`Basics.densityAtNucleus(orbital::Radial.Orbital, grid::Radial.Grid, nm::Nuclear.Model)`
-    ... computes the electron density of a SINGLE orbital at the nucleus, averaged over the nuclear volume; a
-        density::Float64 in atomic units (electrons per bohr^3, for one electron in that orbital) is returned.
-
-        WHY AN AVERAGE AND NOT A LIMIT.  The quantity wanted is |psi(0)|^2, and one is tempted to take
-        (P/r)^2 as r -> 0.  That works for s_1/2, whose large component behaves as P ~ r, but it is
-        numerically hopeless for p_1/2: there the large component vanishes as r^2 and the density is carried
-        by the SMALL component, Q ~ r, which a logarithmic grid resolves poorly near the origin.  Measured on
-        Ho on 04-Sep-2026, (P/r)^2 for the s orbitals was flat to 0.2-1.6 % across the innermost grid points
-        while (Q/r)^2 for the p_1/2 ones varied by 36 %, by a factor 8 and by a factor 20.  An INTEGRAL over
-        the nuclear volume is stable where a limit is not, and it is also the physically right object: a
-        nucleus has a finite size and the capture samples the electron density across it.
-
-        THE DEFINITION.  With the nucleus taken as a homogeneously charged sphere of radius R = nm.radius,
-        the volume density (P^2 + Q^2)/(4 pi r^2) averaged over that sphere is
-
-            <|psi|^2>  =  int_0^R [ P(r)^2 + Q(r)^2 ] dr   /   ( 4 pi  int_0^R r^2 dr )
-
-        since the 4 pi r^2 of the volume element cancels the 1/r^2 of the density.  BOTH integrals are formed
-        with the same quadrature over the same points, so that the error of stopping at the last grid point
-        inside R cancels between them; dividing by the analytic 4 pi R^3/3 instead leaves the result several
-        percent low.  The p_1/2 contribution
-        enters through Q and is a purely relativistic effect -- non-relativistically a p electron has no
-        density at the nucleus at all, which is why p_1/2 orbitals take part in electron capture only in a
-        relativistic treatment.
-
-        A GUARD IS APPLIED rather than a silent result: if fewer than three grid points fall inside the
-        nucleus the integral is meaningless and the function raises, naming the radius and the count.
-"""
-function Basics.densityAtNucleus(orbital::Radial.Orbital, grid::Radial.Grid, nm::Nuclear.Model)
-    R = Defaults.convertUnits("length: from fm to atomic", nm.radius)
-    R <= 0.   &&   error("Basics.densityAtNucleus(): the nuclear radius is $(nm.radius) fm; a point nucleus " *
-                         "has no volume to average over, so use a uniform or Fermi model instead.")
-    mtp = 0
-    for  i = 1:min(length(orbital.P), grid.NoPoints)
-        grid.r[i] <= R   &&   (mtp = i)
-    end
-    mtp < 3   &&   error("Basics.densityAtNucleus(): only $mtp grid points lie inside the nucleus " *
-                         "(R = $R a.u.); refine rnt and h before trusting an integral over that region.")
-    ## THE NORMALISATION IS TAKEN FROM THE SAME QUADRATURE, not from the analytic R^3/3, and that is the
-    ## whole trick.  The volume average is int (P^2+Q^2) dr / (4 pi int r^2 dr) over the nuclear interior; if
-    ## both integrals are formed with the SAME weights over the SAME points, the error made by stopping at the
-    ## last grid point inside R cancels between them.  Dividing instead by the exact 4 pi R^3/3 left the
-    ## hydrogenic anchor 5 % LOW, and hand-adding the missing sliver then overshot by 5-10 %, because grid.wr
-    ## already covers part of it; the self-normalised form needs no such correction.
-    num = 0.;   den = 0.
-    for  i = 1:mtp
-        num = num + (orbital.P[i]^2 + orbital.Q[i]^2) * grid.wr[i]
-        den = den + grid.r[i]^2 * grid.wr[i]
-    end
-    den <= 0.   &&   error("Basics.densityAtNucleus(): the nuclear-volume normalisation came out non-positive.")
-
-    return( num / (4pi * den) )
 end
 
 
@@ -271,8 +206,30 @@ function Basics.computeDiracEnergy(sh::Subshell, Z::Float64; mass::Float64=1.0)
     wa = sqrt(jPlusHalf^2 - Z^2 * alpha^2 )  
     wa = sqrt(1.0 + Z^2 * alpha^2 / (nr + wa)^2)
     wa = mass * Defaults.getDefaults("speed of light: c")^2 * (1/wa - 1.0)
+
     return( wa )
 end
+
+
+"""
+`Basics.computeMeanSubshellOccupation(sh::Subshell, basis::Basis)`  
+    ... computes the mean subshell occupation for the subshell sh and for the given CSF in the basis; a q::Float64 is returned.
+"""
+function Basics.computeMeanSubshellOccupation(sh::Subshell, basis::Basis)
+    # The loop below runs over the CSFs ONCE. An additional, outer loop over basis.csfs used to enclose it (10-Aug-2026); since the inner
+    # loop already sums over every CSF, that outer loop repeated the full sum length(basis.csfs) times while the division below removes only
+    # one such factor -- so this function returned the SUM over CSFs instead of their mean, i.e. a result too large by exactly the number of
+    # CSFs. For a 12-CSF [Ar] 4p 4d basis the subshell occupations then summed to 240 rather than 20 electrons. Only the DFS potential built
+    # from a Basis and ImpactIonization use this method; every other caller passes an Array{Level,1} to the method above, which was never
+    # affected.
+    q = 0.;    subshells = basis.subshells;    nsh = 0
+    for  i = 1:length(basis.subshells)    if  sh == subshells[i]   nsh = i;   break   end    end
+    if   nsh == 0   error("Subshell not found in CSF basis.")   end
+    for  i = 1:length(basis.csfs)   q = q + basis.csfs[i].occupation[nsh]    end
+
+    return( q/length(basis.csfs) )
+end
+
 
 """
 `Basics.computeMeanSubshellOccupation(sh::Subshell, levels::Array{Level,1})`  
@@ -285,31 +242,12 @@ function Basics.computeMeanSubshellOccupation(sh::Subshell, levels::Array{Level,
         subshells = level.basis.subshells;    nsh = 0
         for  i = 1:length(level.basis.subshells)    if  sh == subshells[i]   nsh = i;   break   end    end
         if   nsh == 0   error("Subshell not found in CSF basis.")   end
-        #
         for  i = 1:length(level.basis.csfs)   q = q + abs(level.mc[i])^2 * level.basis.csfs[i].occupation[nsh]    end
     end
+
     return( q/length(levels) )
 end
 
-"""
-`Basics.computeMeanSubshellOccupation(sh::Subshell, basis::Basis)`  
-    ... computes the mean subshell occupation for the subshell sh and for the given CSF in the basis; a q::Float64 is returned.
-"""
-function Basics.computeMeanSubshellOccupation(sh::Subshell, basis::Basis)
-    ## The loop below runs over the CSFs ONCE. An additional, outer loop over basis.csfs used to enclose it
-    ## (10-Aug-2026); since the inner loop already sums over every CSF, that outer loop repeated the full sum
-    ## length(basis.csfs) times while the division below removes only one such factor -- so this function
-    ## returned the SUM over CSFs instead of their mean, i.e. a result too large by exactly the number of
-    ## CSFs. For a 12-CSF [Ar] 4p 4d basis the subshell occupations then summed to 240 rather than 20
-    ## electrons. Only the DFS potential built from a Basis and ImpactIonization use this method; every other
-    ## caller passes an Array{Level,1} to the method above, which was never affected.
-    q = 0.;    subshells = basis.subshells;    nsh = 0
-    for  i = 1:length(basis.subshells)    if  sh == subshells[i]   nsh = i;   break   end    end
-    if   nsh == 0   error("Subshell not found in CSF basis.")   end
-    #
-    for  i = 1:length(basis.csfs)   q = q + basis.csfs[i].occupation[nsh]    end
-    return( q/length(basis.csfs) )
-end
 
 """
 `Basics.computeMultipletForGreenApproach(approach::AtomicState.SingleCSFwithoutCI, basis::Basis, nModel::Nuclear.Model, grid::Radial.Grid, 
@@ -343,7 +281,6 @@ function Basics.computeMultipletForGreenApproach(approach::AtomicState.SingleCSF
             waG2 = SpinAngular.computeCoefficients(opa, basis.csfs[r], basis.csfs[r], subshellList)
             wa   = [waG1, waG2]
         end
-        #
         me = 0.
         for  coeff in wa[1]
             me = me + coeff.T * RadialIntegrals.GrantIab(basis.orbitals[coeff.a], basis.orbitals[coeff.b], grid, potential)
@@ -371,8 +308,10 @@ function Basics.computeMultipletForGreenApproach(approach::AtomicState.SingleCSF
     println("done with $(length(levels)) levels")
     
     multiplet = Multiplet("SingleCSFwithoutCI multiplet for $sym", levels)
+
     return( multiplet )
 end
+
 
 """
 `Basics.computeMultipletForGreenApproach(approach::AtomicState.CoreSpaceCI, basis::Basis, nModel::Nuclear.Model, grid::Radial.Grid, 
@@ -412,7 +351,6 @@ function Basics.computeMultipletForGreenApproach(approach::AtomicState.CoreSpace
                 waG2 = SpinAngular.computeCoefficients(opa, basis.csfs[r], basis.csfs[s], subshellList)
                 wa   = [waG1, waG2]
             end
-            #
             me = 0.
             for  coeff in wa[1]
                 if  basis.orbitals[coeff.a].isBound   &&   basis.orbitals[coeff.b].isBound
@@ -446,8 +384,10 @@ function Basics.computeMultipletForGreenApproach(approach::AtomicState.CoreSpace
     println("done with $(length(levels)) levels")
 
     multiplet = Multiplet("CoreSpaceCI multiplet for $sym", levels)
+
     return( multiplet )
 end
+
 
 """
 `Basics.computeMultipletForGreenApproach(approach::AtomicState.DampedSpaceCI, basis::Basis, nModel::Nuclear.Model, grid::Radial.Grid,
@@ -486,7 +426,6 @@ function Basics.computeMultipletForGreenApproach(approach::AtomicState.DampedSpa
                 waG2 = SpinAngular.computeCoefficients(opa, basis.csfs[r], basis.csfs[s], subshellList)
                 wa   = [waG1, waG2]
             end
-            #
             me = 0.
             for  coeff in wa[1]
                 me = me + coeff.T * RadialIntegrals.GrantIabDamped(tau, basis.orbitals[coeff.a], basis.orbitals[coeff.b], grid, potential)
@@ -515,41 +454,10 @@ function Basics.computeMultipletForGreenApproach(approach::AtomicState.DampedSpa
     println("done with $(length(levels)) levels")
     
     multiplet = Multiplet("DampedSpaceCI multiplet for $sym", levels)
+
     return( multiplet )
 end
 
-"""
-`Basics.computePotential(scField::Basics.AaHSField, grid::Radial.Grid, orbitals::Dict{Subshell, Orbital}, mu::Float64, temp::Float64)`  
-    ... to compute a (radial) Hartree-Slater-type potential for the density as modeled by the given set of orbital
-        and their occupation numbers in the atomic-average model; a potential::RadialPotential is returned. 
-        Here, the atomic-average HS potential is defined by
-                                                    
-                                        (2ja+1)                       3  [     3          ]^1/3      r
-            V_HS(r) = = - Sum_a  --------------------  Y0_aa(r)  +  -  [ ---------  rho ]       *  -
-                                    [exp(eps-mu/kT) + 1]               2  [ 4pi^2 r^2      ]          2
-
-        with rho(r) = Sum_a  (2j_a+1) * (Pa^2(r) + Qa^2(r)) / [1 + exp(epsilon-mu)/kT]   ... charge density of all electrons.  
-        An Radial.Potential with V_aa_HS(r)  is returned that is consistent with an effective charge Z(r).
-"""
-function Basics.computePotential(scField::Basics.AaHSField, grid::Radial.Grid, orbitals::Dict{Subshell, Orbital}, mu::Float64, temp::Float64)
-    npoints = grid.NoPoints;    wx = zeros( npoints );    rho = zeros( npoints )
-    # Sum_a ...
-    for (k,v)  in  orbitals 
-        occa = Basics.twice( Basics.subshell_j(k)) + 1
-        occa = occa * Basics.FermiDirac(v.energy, mu, temp)
-        nrho = length(v.P);      rhoaa  = zeros(nrho)
-        for  i = 1:nrho    rhoaa[i] = v.P[i]^2 + v.Q[i]^2    end
-        for  i = 1:nrho    wx[i]    = wx[i]  - occa * RadialIntegrals.Yk_ab(0, grid.r[i], rhoaa, nrho, grid)   end
-        for  i = 1:nrho    rho[i]   = rho[i] + occa * rhoaa[i]     end
-        Yk = RadialIntegrals.Yk_ab(0, grid.r[nrho], rhoaa, nrho, grid)
-        for  i = nrho+1:npoints       wx[i] = wx[i] - occa * Yk    end
-    end
-    ## for  i = 2:npoints     rho[i]   = rho[i] / (4pi * grid.r[i])   end;       rho[1] = 0.
-    for  i = 2:npoints     wx[i]    = wx[i] + (3/2) * (3/(4pi^2 * grid.r[i]^2) * rho[i])^(1/3) * grid.r[i] / 2   end
-    #
-    wc = Radial.Potential("average-atom HS", wx, grid)
-    return( wc )
-end
 
 """
 `Basics.computePotential(scField::Basics.AaDFSField, grid::Radial.Grid, orbitals::Dict{Subshell, Orbital}, mu::Float64, temp::Float64)`  
@@ -582,10 +490,45 @@ function Basics.computePotential(scField::Basics.AaDFSField, grid::Radial.Grid, 
     end
     # Define the potential with regard to Z(r)
     for i = 2:npoints    wb[i] = - wb[i] * grid.r[i]   end;    wb[1] = 0.
-    #
     wc = Radial.Potential("average-atom DFS", wb, grid)
+
     return( wc )
 end
+
+
+"""
+`Basics.computePotential(scField::Basics.AaHSField, grid::Radial.Grid, orbitals::Dict{Subshell, Orbital}, mu::Float64, temp::Float64)`  
+    ... to compute a (radial) Hartree-Slater-type potential for the density as modeled by the given set of orbital
+        and their occupation numbers in the atomic-average model; a potential::RadialPotential is returned. 
+        Here, the atomic-average HS potential is defined by
+                                                    
+                                        (2ja+1)                       3  [     3          ]^1/3      r
+            V_HS(r) = = - Sum_a  --------------------  Y0_aa(r)  +  -  [ ---------  rho ]       *  -
+                                    [exp(eps-mu/kT) + 1]               2  [ 4pi^2 r^2      ]          2
+
+        with rho(r) = Sum_a  (2j_a+1) * (Pa^2(r) + Qa^2(r)) / [1 + exp(epsilon-mu)/kT]   ... charge density of all electrons.  
+        An Radial.Potential with V_aa_HS(r)  is returned that is consistent with an effective charge Z(r).
+"""
+function Basics.computePotential(scField::Basics.AaHSField, grid::Radial.Grid, orbitals::Dict{Subshell, Orbital}, mu::Float64, temp::Float64)
+    npoints = grid.NoPoints;    wx = zeros( npoints );    rho = zeros( npoints )
+    # Sum_a ...
+    for (k,v)  in  orbitals 
+        occa = Basics.twice( Basics.subshell_j(k)) + 1
+        occa = occa * Basics.FermiDirac(v.energy, mu, temp)
+        nrho = length(v.P);      rhoaa  = zeros(nrho)
+        for  i = 1:nrho    rhoaa[i] = v.P[i]^2 + v.Q[i]^2    end
+        for  i = 1:nrho    wx[i]    = wx[i]  - occa * RadialIntegrals.Yk_ab(0, grid.r[i], rhoaa, nrho, grid)   end
+        for  i = 1:nrho    rho[i]   = rho[i] + occa * rhoaa[i]     end
+        Yk = RadialIntegrals.Yk_ab(0, grid.r[nrho], rhoaa, nrho, grid)
+        for  i = nrho+1:npoints       wx[i] = wx[i] - occa * Yk    end
+    end
+    # for i = 2:npoints rho[i] = rho[i] / (4pi * grid.r[i]) end; rho[1] = 0.
+    for  i = 2:npoints     wx[i]    = wx[i] + (3/2) * (3/(4pi^2 * grid.r[i]^2) * rho[i])^(1/3) * grid.r[i] / 2   end
+    wc = Radial.Potential("average-atom HS", wx, grid)
+
+    return( wc )
+end
+
 
 """
 `Basics.computePotential(scField::Basics.CHField, grid::Radial.Grid, level::Level)`  
@@ -663,11 +606,78 @@ function Basics.computePotential(scField::Basics.CHField, grid::Radial.Grid, lev
     end
     # Define the potential with regard to Z(r)
     for i = 1:npoints    wb[i] = - wb[i] * grid.r[i]   end
-    #
     wc = Radial.Potential("CoreHartree", wb, grid)
 
     return( wc )
 end
+
+
+"""
+`Basics.computePotential(scField::Basics.DFSField, grid::Radial.Grid, level::Level)`  
+    ... to compute a (radial) Dirac-Fock-Slater potential for the given level; a potential::RadialPotential is returned. 
+        The Dirac-Fock-Slater potential is defined by
+
+                                                            [   3                   ]^(1/3)
+            V_DFS(r) = int_0^infty dr'  rho_t(r') / r_>  -- [-----------   rho_t(r) ]
+                                                            [ 4 pi^2 r^2            ]
+
+        with r_> = max(r,r')  and  rho_t(r) = sum_a (Pa^2(r) + Qa^2(r))   ... charge density of all electrons.  
+        An Radial.Potential with -r * V_DFS(r)  is returned to be consistent with an effective charge Z(r).
+"""
+function Basics.computePotential(scField::Basics.DFSField, grid::Radial.Grid, level::Level)
+    basis = level.basis;    npoints = grid.NoPoints
+    rhot = zeros( npoints );    wb = zeros( npoints );    wx = zeros( npoints )
+    # Compute the charge density of the core orbitals for the given level
+    for  sh in basis.subshells
+        orb  = basis.orbitals[sh]
+        occ  = Basics.computeMeanSubshellOccupation(sh, [level])
+        nrho = length(orb.P)
+        for    i = 1:nrho   rhot[i] = rhot[i] + occ * (orb.P[i]^2 + orb.Q[i]^2)    end
+    end
+    # Define the integrant and take the integrals
+    # println(">>>>> wy = $(scField.strength) * DFS potential");
+    wy = scField.strength
+    for i = 1:npoints
+        for j = 1:npoints    rg = max( grid.r[i],  grid.r[j]);    wx[j] = rhot[j]/rg   end
+        wb[i] = RadialIntegrals.V0(wx, npoints, grid::Radial.Grid)
+        wb[i] = wb[i] - (3 /(4*pi^2 * grid.r[i]^2) * rhot[i])^(1/3) * wy
+    end
+    # wb = 1.02 * wb
+    # Define the potential with regard to Z(r)
+    for i = 2:npoints    wb[i] = - wb[i] * grid.r[i]   end;    wb[1] = 0.
+    wc = Radial.Potential("DFS", wb, grid)
+
+    return( wc )
+end
+
+
+"""
+`Basics.computePotential(scField::Basics.DFSField, grid::Radial.Grid, basis::Basis)`  
+    ... to compute the same but for the mean occupation of the orbitals in the given basis.
+"""
+function Basics.computePotential(scField::Basics.DFSField, grid::Radial.Grid, basis::Basis)
+    npoints = grid.NoPoints
+    rhot = zeros( npoints );    wb = zeros( npoints );    wx = zeros( npoints )
+    # Compute the charge density of the core orbitals for the given level
+    for  sh in basis.subshells
+        orb  = basis.orbitals[sh]
+        occ  = Basics.computeMeanSubshellOccupation(sh, basis)
+        nrho = length(orb.P)
+        for    i = 1:nrho   rhot[i] = rhot[i] + occ * (orb.P[i]^2 + orb.Q[i]^2)    end
+    end
+    # Define the integrant and take the integrals
+    for i = 1:npoints
+        for j = 1:npoints    rg = max( grid.r[i],  grid.r[j]);    wx[j] = rhot[j]/rg   end
+        wb[i] = RadialIntegrals.V0(wx, npoints, grid::Radial.Grid)
+        wb[i] = wb[i] - (3 /(4*pi^2 * grid.r[i]^2) * rhot[i])^(1/3)
+    end
+    # Define the potential with regard to Z(r)
+    for i = 2:npoints    wb[i] = - wb[i] * grid.r[i]   end;    wb[1] = 0.
+    wc = Radial.Potential("DFS for CSF basis", wb, grid)
+
+    return( wc )
+end
+
 
 """
 `Basics.computePotential(scField::Basics.HSField, grid::Radial.Grid, level::Level)`  
@@ -693,12 +703,13 @@ function Basics.computePotential(scField::Basics.HSField, grid::Radial.Grid, lev
         Yk = RadialIntegrals.Yk_ab(0, grid.r[nrho], rhoaa, nrho, grid)
         for  i = nrho+1:npoints       wx[i] = wx[i] - occa * Yk    end
     end
-    ## for  i = 2:npoints     rho[i]   = rho[i] / (4pi * grid.r[i])   end;       rho[1] = 0.
+    # for i = 2:npoints rho[i] = rho[i] / (4pi * grid.r[i]) end; rho[1] = 0.
     for  i = 2:npoints     wx[i]    = wx[i] + (3/2) * (3/(4pi^2 * grid.r[i]^2) * rho[i])^(1/3) * grid.r[i] / 2   end
-    #
     wc = Radial.Potential("Hartree-Slater", wx, grid)
+
     return( wc )
 end
+
 
 """
 `Basics.computePotential(scField::Basics.KSField, grid::Radial.Grid, level::Level)`  
@@ -730,10 +741,11 @@ function Basics.computePotential(scField::Basics.KSField, grid::Radial.Grid, lev
     end
     # Define the potential with regard to Z(r)
     for i = 2:npoints    wb[i] = - wb[i] * grid.r[i]   end;    wb[1] = 0.
-    #
     wc = Radial.Potential("Kohn-Sham", wb, grid)
+
     return( wc )
 end
+
 
 """
 `Basics.computePotential(scField::Basics.ThomasFermiField, grid::Radial.Grid, Z::Float64, noElectrons::Int64)`
@@ -769,7 +781,6 @@ function Basics.computePotential(scField::Basics.ThomasFermiField, grid::Radial.
     npoints = grid.NoPoints;    wb = zeros( npoints )
     bTF     = 0.8853 * Z^(-1/3)                 ## Thomas-Fermi length [a.u.]
     zFloor  = Z - noElectrons + 1.0             ## Latter tail: the charge seen from outside the electron cloud
-    #
     for  i = 2:npoints
         x    = grid.r[i] / bTF
         phi  = 0.35 * exp(-0.3x) + 0.55 * exp(-1.2x) + 0.10 * exp(-6.0x)
@@ -777,74 +788,64 @@ function Basics.computePotential(scField::Basics.ThomasFermiField, grid::Radial.
         wb[i] = zEff - Z                        ## the SCREENING part only; <= 0, as for the other fields
     end
     wb[1] = 0.
-    #
     wc = Radial.Potential("Thomas-Fermi screening", wb, grid)
+
     return( wc )
 end
 
 
 """
-`Basics.computePotential(scField::Basics.DFSField, grid::Radial.Grid, level::Level)`  
-    ... to compute a (radial) Dirac-Fock-Slater potential for the given level; a potential::RadialPotential is returned. 
-        The Dirac-Fock-Slater potential is defined by
+`Basics.densityAtNucleus(orbital::Radial.Orbital, grid::Radial.Grid, nm::Nuclear.Model)`
+    ... computes the electron density of a SINGLE orbital at the nucleus, averaged over the nuclear volume; a
+        density::Float64 in atomic units (electrons per bohr^3, for one electron in that orbital) is returned.
 
-                                                            [   3                   ]^(1/3)
-            V_DFS(r) = int_0^infty dr'  rho_t(r') / r_>  -- [-----------   rho_t(r) ]
-                                                            [ 4 pi^2 r^2            ]
+        WHY AN AVERAGE AND NOT A LIMIT.  The quantity wanted is |psi(0)|^2, and one is tempted to take
+        (P/r)^2 as r -> 0.  That works for s_1/2, whose large component behaves as P ~ r, but it is
+        numerically hopeless for p_1/2: there the large component vanishes as r^2 and the density is carried
+        by the SMALL component, Q ~ r, which a logarithmic grid resolves poorly near the origin.  Measured on
+        Ho on 04-Sep-2026, (P/r)^2 for the s orbitals was flat to 0.2-1.6 % across the innermost grid points
+        while (Q/r)^2 for the p_1/2 ones varied by 36 %, by a factor 8 and by a factor 20.  An INTEGRAL over
+        the nuclear volume is stable where a limit is not, and it is also the physically right object: a
+        nucleus has a finite size and the capture samples the electron density across it.
 
-        with r_> = max(r,r')  and  rho_t(r) = sum_a (Pa^2(r) + Qa^2(r))   ... charge density of all electrons.  
-        An Radial.Potential with -r * V_DFS(r)  is returned to be consistent with an effective charge Z(r).
-"""
-function Basics.computePotential(scField::Basics.DFSField, grid::Radial.Grid, level::Level)
-    basis = level.basis;    npoints = grid.NoPoints
-    rhot = zeros( npoints );    wb = zeros( npoints );    wx = zeros( npoints )
-    # Compute the charge density of the core orbitals for the given level
-    for  sh in basis.subshells
-        orb  = basis.orbitals[sh]
-        occ  = Basics.computeMeanSubshellOccupation(sh, [level])
-        nrho = length(orb.P)
-        for    i = 1:nrho   rhot[i] = rhot[i] + occ * (orb.P[i]^2 + orb.Q[i]^2)    end
-    end
-    # Define the integrant and take the integrals
-    ## println(">>>>> wy = $(scField.strength) * DFS potential");     
-    wy = scField.strength
-    for i = 1:npoints
-        for j = 1:npoints    rg = max( grid.r[i],  grid.r[j]);    wx[j] = rhot[j]/rg   end
-        wb[i] = RadialIntegrals.V0(wx, npoints, grid::Radial.Grid)
-        wb[i] = wb[i] - (3 /(4*pi^2 * grid.r[i]^2) * rhot[i])^(1/3) * wy
-    end
-    ## wb = 1.02 * wb
-    # Define the potential with regard to Z(r)
-    for i = 2:npoints    wb[i] = - wb[i] * grid.r[i]   end;    wb[1] = 0.
-    #
-    wc = Radial.Potential("DFS", wb, grid)
-    return( wc )
-end
+        THE DEFINITION.  With the nucleus taken as a homogeneously charged sphere of radius R = nm.radius,
+        the volume density (P^2 + Q^2)/(4 pi r^2) averaged over that sphere is
 
+            <|psi|^2>  =  int_0^R [ P(r)^2 + Q(r)^2 ] dr   /   ( 4 pi  int_0^R r^2 dr )
+
+        since the 4 pi r^2 of the volume element cancels the 1/r^2 of the density.  BOTH integrals are formed
+        with the same quadrature over the same points, so that the error of stopping at the last grid point
+        inside R cancels between them; dividing by the analytic 4 pi R^3/3 instead leaves the result several
+        percent low.  The p_1/2 contribution
+        enters through Q and is a purely relativistic effect -- non-relativistically a p electron has no
+        density at the nucleus at all, which is why p_1/2 orbitals take part in electron capture only in a
+        relativistic treatment.
+
+        A GUARD IS APPLIED rather than a silent result: if fewer than three grid points fall inside the
+        nucleus the integral is meaningless and the function raises, naming the radius and the count.
 """
-`Basics.computePotential(scField::Basics.DFSField, grid::Radial.Grid, basis::Basis)`  
-    ... to compute the same but for the mean occupation of the orbitals in the given basis.
-"""
-function Basics.computePotential(scField::Basics.DFSField, grid::Radial.Grid, basis::Basis)
-    npoints = grid.NoPoints
-    rhot = zeros( npoints );    wb = zeros( npoints );    wx = zeros( npoints )
-    # Compute the charge density of the core orbitals for the given level
-    for  sh in basis.subshells
-        orb  = basis.orbitals[sh]
-        occ  = Basics.computeMeanSubshellOccupation(sh, basis)
-        nrho = length(orb.P)
-        for    i = 1:nrho   rhot[i] = rhot[i] + occ * (orb.P[i]^2 + orb.Q[i]^2)    end
+function Basics.densityAtNucleus(orbital::Radial.Orbital, grid::Radial.Grid, nm::Nuclear.Model)
+    R = Defaults.convertUnits("length: from fm to atomic", nm.radius)
+    R <= 0.   &&   error("Basics.densityAtNucleus(): the nuclear radius is $(nm.radius) fm; a point nucleus " *
+                         "has no volume to average over, so use a uniform or Fermi model instead.")
+    mtp = 0
+    for  i = 1:min(length(orbital.P), grid.NoPoints)
+        grid.r[i] <= R   &&   (mtp = i)
     end
-    # Define the integrant and take the integrals
-    for i = 1:npoints
-        for j = 1:npoints    rg = max( grid.r[i],  grid.r[j]);    wx[j] = rhot[j]/rg   end
-        wb[i] = RadialIntegrals.V0(wx, npoints, grid::Radial.Grid)
-        wb[i] = wb[i] - (3 /(4*pi^2 * grid.r[i]^2) * rhot[i])^(1/3)
+    mtp < 3   &&   error("Basics.densityAtNucleus(): only $mtp grid points lie inside the nucleus " *
+                         "(R = $R a.u.); refine rnt and h before trusting an integral over that region.")
+    # THE NORMALISATION IS TAKEN FROM THE SAME QUADRATURE, not from the analytic R^3/3, and that is the whole trick. The volume average is
+    # int (P^2+Q^2) dr / (4 pi int r^2 dr) over the nuclear interior; if both integrals are formed with the SAME weights over the SAME
+    # points, the error made by stopping at the last grid point inside R cancels between them. Dividing instead by the exact 4 pi R^3/3 left
+    # the hydrogenic anchor 5 % LOW, and hand-adding the missing sliver then overshot by 5-10 %, because grid.wr already covers part of it;
+    # the self-normalised form needs no such correction.
+    num = 0.;   den = 0.
+    for  i = 1:mtp
+        num = num + (orbital.P[i]^2 + orbital.Q[i]^2) * grid.wr[i]
+        den = den + grid.r[i]^2 * grid.wr[i]
     end
-    # Define the potential with regard to Z(r)
-    for i = 2:npoints    wb[i] = - wb[i] * grid.r[i]   end;    wb[1] = 0.
-    #
-    wc = Radial.Potential("DFS for CSF basis", wb, grid)
-    return( wc )
+    den <= 0.   &&   error("Basics.densityAtNucleus(): the nuclear-volume normalisation came out non-positive.")
+
+    return( num / (4pi * den) )
 end
 
