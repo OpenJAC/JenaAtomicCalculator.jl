@@ -155,6 +155,7 @@ elseif  char == 'J'
     println("Jc) Apply & test the Saha-Boltzmann computations for an ionic mixture in LTE.")
     println("Jd) Apply & test the Plasma.SatelliteDiagnosticScheme (dielectronic-satellite-to-parent-line intensity-ratio Te diagnostic).")
     println("Je) Apply & test the Plasma.CollisionalRadiativeScheme: kinetic (non-LTE) level populations for a small level set.")
+    println("Jf) Apply & test the Plasma.SuperConfigurationOpacityScheme (Stage 1: population weighting, not yet an opacity).")
     #
 elseif  char == 'K'
     println("K)  Examples, tests & development of deep-learning applications")
