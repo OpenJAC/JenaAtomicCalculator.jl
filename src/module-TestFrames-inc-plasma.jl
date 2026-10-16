@@ -203,6 +203,62 @@ function testModule_AverageAtom(; short::Bool=true)
 end
 
 
+"""
+`TestFrames.testModule_SuperConfigurationOpacity(; short::Bool=true)`
+    ... tests `Plasma.SuperConfigurationOpacityScheme` (STAGE 1: population weighting only, see that
+        struct's own docstring) on C I (Z=6), three configurations of `2s^2 2p^2`'s own complex:
+        `2s^2 2p^2`, `2s 2p^3`, `2p^4`. Checks: each group's degeneracy against the EXACT, independently
+        known CSF/microstate count (C(2,2)*C(6,2)=15, 2*C(6,3)=40, C(6,4)=15); the returned populations sum
+        to 1; and, the real physics check, that in the T -> 0 limit the population concentrates entirely on
+        whichever group has the LOWEST mean energy -- the defining property of a Boltzmann distribution, not
+        a number borrowed from elsewhere. A success::Bool is returned.
+"""
+function testModule_SuperConfigurationOpacity(; short::Bool=true)
+    printstyled("\n\nTest the module  Plasma (SuperConfigurationOpacityScheme)  ... \n", color=:cyan)
+    success = true
+
+    ni   = Nuclear.Model(6.)
+    grid = Radial.Grid(true)
+    asfSettings = AsfSettings()
+    refConfigs  = [Configuration("2s^2 2p^2"), Configuration("2s 2p^3"), Configuration("2p^4")]
+
+    scheme   = Plasma.SuperConfigurationOpacityScheme(refConfigs)
+    settings = Plasma.Settings(1.0, 1.0e22, false)
+    wa = Plasma.Computation(Plasma.Computation(); scheme=scheme, nuclearModel=ni, grid=grid,
+                              refConfigs=refConfigs, asfSettings=asfSettings, settings=settings)
+    wb = perform(wa; output=true)
+
+    groups      = wb["superconfiguration groups"]
+    populations = wb["superconfiguration populations"]
+
+    expectedDegeneracies = [15.0, 40.0, 15.0]
+    for  (group, expected) in zip(groups, expectedDegeneracies)
+        if  group.degeneracy != expected
+            success = false
+            println("  ** degeneracy for $(group.conf) is $(group.degeneracy), expected $expected")
+        end
+    end
+    if  abs(sum(populations) - 1.0) > 1.0e-10
+        success = false;   println("  ** populations do not sum to 1: $(sum(populations))")
+    end
+
+    # T -> 0: population must concentrate on the lowest-mean-energy group.
+    coldSettings = Plasma.Settings(1.0e-6, 1.0e22, false)
+    waCold = Plasma.Computation(wa; settings=coldSettings)
+    wbCold = perform(waCold; output=true)
+    coldPopulations = wbCold["superconfiguration populations"]
+    groundIdx = argmin( [group.meanEnergy for group in groups] )
+    if  coldPopulations[groundIdx] < 0.999999
+        success = false
+        println("  ** at T -> 0 the lowest-energy group should carry essentially all the population, got " *
+                 "$(coldPopulations[groundIdx])")
+    end
+
+    testPrint("testModule_SuperConfigurationOpacity()::", success)
+    return( success )
+end
+
+
 ## PlasmaShift: no test exists and none is planned here. The former testModule_PlasmaShift was deleted
 ## on 09-Aug-2026 as obsolete: PlasmaShift is no longer an Atomic property but a Plasma.Computation
 ## scheme, so a test for it belongs with the Plasma module and has to be written afresh.

@@ -27,6 +27,9 @@ using  ..AngularMomentum, ..Atomic, ..AtomicState, ..Basics, ..Bsplines, ..Conti
     + struct CollisionalRadiativeScheme
         ... to compute the (relative) collisional-radiative population balance among a small set of
             levels of one ion.
+    + struct SuperConfigurationOpacityScheme
+        ... to build one SuperConfigurations.Group per reference configuration and report its Boltzmann
+            population at a given plasma temperature. STAGE 1 of 2 -- see that struct's own docstring.
 """
 abstract type  AbstractPlasmaScheme       end
 
@@ -652,6 +655,43 @@ end
 
 
 """
+`struct  Plasma.SuperConfigurationOpacityScheme  <:  Plasma.AbstractPlasmaScheme`
+    ... a type for a superconfiguration-based plasma computation: ONE Gaussian `SuperConfigurations.Group`
+        per reference configuration (a shared orbital set is built once, from ALL of `refConfigs` together),
+        and the Boltzmann population each group carries at the plasma temperature
+        `computation.settings.temperature`.
+
+        STAGE 1 OF 2, STATED EXPLICITLY. This computes the POPULATION-WEIGHTING half -- which configuration
+        group carries how much of the total population, a real and useful plasma quantity in its own right,
+        and the natural precursor to any partition-function or ionization-balance use -- NOT YET the
+        bound-bound absorption/opacity itself, which needs a TRANSITION moment BETWEEN two groups
+        (`SuperConfigurations.TransitionArray`, not yet implemented; see that module's own docstring). A
+        scheme named "Opacity" that does not yet compute an opacity is worth saying plainly rather than
+        quietly, and this struct's own docstring is where that is said.
+
+    + refConfigs   ::Array{Configuration,1}   ... the configurations whose `SuperConfigurations.Group` this
+                                                     scheme builds, one group per configuration.
+"""
+struct  SuperConfigurationOpacityScheme  <:  Plasma.AbstractPlasmaScheme
+    refConfigs     ::Array{Configuration,1}
+end
+
+
+"""
+`Plasma.SuperConfigurationOpacityScheme()`  ... constructor for a standard (empty) instance.
+"""
+function SuperConfigurationOpacityScheme()
+    SuperConfigurationOpacityScheme( Configuration[] )
+end
+
+
+# `Base.show(io::IO, scheme::Plasma.SuperConfigurationOpacityScheme)`  ... prepares a proper printout.
+function Base.show(io::IO, scheme::Plasma.SuperConfigurationOpacityScheme)
+    println(io, "refConfigs:   $(scheme.refConfigs)  ")
+end
+
+
+"""
 `struct  Plasma.Settings`  ... defines a type for the details and parameters of computing photoionization lines.
 
     + temperature               ::Float64
@@ -841,6 +881,7 @@ include("module-Plasma-inc-line-shifts.jl")
 include("module-Plasma-inc-saha-boltzmann-mixture.jl")
 include("module-Plasma-inc-satellite-diagnostic.jl")
 include("module-Plasma-inc-collisional-radiative.jl")
+include("module-Plasma-inc-superconfiguration-opacity.jl")
 
 #######################################################################################################################
 #######################################################################################################################

@@ -212,6 +212,12 @@ end
                                                     ## as the ideal gas, and the 1s Thomas-Reiche-Kuhn sum --
                                                     ## plus two numbers PUBLISHED by Johnson, Guet and Bertsch.
                                                     ## No stored reference of our own, so it cannot go stale.
+        @test TestFrames.testModule_SuperConfigurationOpacity()
+                                                    ## added 16-Oct-2026; C I 2s^2 2p^2 / 2s 2p^3 / 2p^4: each
+                                                    ## group's degeneracy against the exact microstate count,
+                                                    ## populations summing to 1, and the T -> 0 limit putting
+                                                    ## essentially all population on the lowest-mean-energy
+                                                    ## group -- the defining property of a Boltzmann weight.
     end
 
     @testset "JAC strongfield" begin
