@@ -101,20 +101,23 @@ elseif  false
     #   rank-1 moment exceeded the polarizability computed from the same chi by exactly (2L+1).  Both are
     #   fixed, and the numbers this branch prints MOVE:
     #
-    #       omega     as dated 14-Oct    with the fix    fix + the opposite overall sign
-    #       0.05          0.7816            1.6486              0.71253
-    #       0.10          0.8347            1.6929              0.69901
-    #       0.20          0.9739            1.8076              0.66641
-    #       0.30          1.2066            1.9930              0.61824
+    #       omega     as dated 14-Oct    + projection, (2L+1)    + the argument-order fix
+    #       0.05          0.7816                 1.6486                    0.74413
+    #       0.10          0.8347                 1.6929                    0.72908
+    #       0.20          0.9739                 1.8076                    0.69512
+    #       0.30          1.2066                 1.9930                    0.65086
     #
-    #   THE FIRST TWO COLUMNS CANNOT BOTH BE RIGHT, AND NEITHER IS VERIFIED.  The middle column ANTI-screens
-    #   at every frequency, which a closed shell must not do;  the third screens everywhere and its near-static
-    #   value sits on the one anchor available -- Ne's exact static polarizability 2.661 against JAC's
-    #   unscreened 3.7592 requires a factor 0.7078, and 0.71253 agrees to 0.6 %.  But that third column needs
-    #   the `(-1)^L` of `sourceMap`/`solve` suppressed, and that factor has its own documented derivation, so
-    #   the sign is an OPEN DERIVATION and not a decided fix.
-    #   **So this branch has no verified output today.**  Its finite-omega factors have no literature anchor at
-    #   all;  only the near-static one can be checked.  A date returns when the sign is derived.
+    #   THE THIRD COLUMN IS THE CURRENT CODE AND IT IS THE FIRST TO BE ANCHORED.  The middle column
+    #   ANTI-screens at every frequency, which a closed shell must not do;  it was the state after two of the
+    #   three corrections, with the argument order at the density end still reversed.  The third screens
+    #   everywhere, and its near-static value meets the one anchor available -- Ne's exact static
+    #   polarizability 2.661 against JAC's unscreened 3.7592 requires 0.7078, and 0.74413 agrees to 5 %.
+    #   THE SAME CONVENTION ALSO SETTLES Ba+:  alpha_core([Xe]) comes out 9.944 a.u. against the published RPA
+    #   10.6(5), i.e. 6.2 %, inside the literature's own +-4.7 %.  Every earlier state had one of those two
+    #   anchors right and the other inverted;  this is the first that has both.  See item 73(c).
+    #   **STILL NO DATE, and for a narrower reason than before:** the near-static factor is anchored, the
+    #   finite-omega ones are not, and exchange is absent by construction (item 75), which the residual 6 % on
+    #   Ba+ is consistent with.  What this branch prints is believable;  it is not yet verified.
     # Branch c: THE COUPLED RESPONSE ON A REAL ATOM -- the first branch of this file that is not a Z = 1 toy.
     #
     # WHY IT EXISTS.  Branches (a) and (b) run hydrogen at Z = 1 in a BARE NUCLEAR field with two fictitious
@@ -196,7 +199,8 @@ elseif  false
         @printf("%-12.3f %-10d %-18.8e %-18.8e %.5f\n", omega, length(rC.channelOrbitals), au, ac, ac/au)
     end
     println("\n>>> 14-Oct-2026 measured 0.7816, 0.8347, 0.9739, 1.2066;  the 16-Oct repair of inducedPotentialZr")
-    println(">>> moves these -- see this branch's header for all three number sets and why none is verified.")
+    println(">>> and 16-Oct argument-order fixes move these -- the current code screens at every frequency and")
+    println(">>> meets the Ne anchor to 5 %;  see this branch's header for all three number sets.")
     println(">>> READ THE COMMENT BLOCK ABOVE before quoting any of these: exchange is absent, the per-channel")
     println(">>> norms are NOT a screening diagnostic, and the crossing above 1 is unvalidated.")
     #

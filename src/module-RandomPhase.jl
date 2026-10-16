@@ -485,7 +485,20 @@ function inducedPotentialZr(multipole::EmMultipole, activeOrbitals::Dict{Subshel
         # Measured on 42 core channels of Ba+ spanning j = 1/2...7/2 and l = 0...3, the two agreed to
         # EXACTLY 3.00000 = 2L+1, with zero spread, once the projection below was applied.  The L = 0
         # Hartree calibration that fixes the sqrt(2j_b+1) is silent about this factor, since 2L+1 = 1 there.
-        weightB = sqrt(jb2 + 1.0) * RandomPhase.angularCoefficient(multipole.L, b, tb) / (2*multipole.L + 1)
+        # **THE ARGUMENT ORDER IS TARGET-FIRST, AND IT MATTERS -- derived 16-Oct-2026, item 73(c).**
+        # `InteractionStrength.XL_Coulomb` is explicit about the convention:
+        #     X^L(abcd) = (-1)^L * CL_reduced_me(a,L,c) * CL_reduced_me(b,L,d) * R^L(abcd)
+        # i.e. TARGET first and SOURCE second at EACH end, with the (-1)^L applied once to the product.  The
+        # induced direct term is <t_a t_b| 1/r12 |a b> = XL_Coulomb(L, t_a, t_b, a, b), so this end wants
+        # CL(t_b, L, b) -- target first.  It read CL(b, L, t_b) until today, and the two differ by
+        # (-1)^(j_b - j_t_b):  +1 when Delta j = 0 and -1 when |Delta j| = 1, verified to 1e-10.
+        #   **SO IT DOES NOT RESCALE THE ANSWER, IT FLIPS 25 OF THE 42 Ba+ CORE CHANNELS** and corrupts the
+        # BALANCE between them, which is why the symptom was a wrong SIGN on some shells rather than a wrong
+        # magnitude everywhere.
+        #   **AND IT IS THE THIRD THING INVISIBLE TO THE L = 0 HARTREE CALIBRATION**, with the (2L+1) above and
+        # the (-1)^L in `solve`:  at L = 0 this end is DIAGONAL (b = t_b), so j_b = j_t_b and the two orders
+        # coincide exactly.  That limit fixed the sqrt(2j_b+1) and could not have caught any of the three.
+        weightB = sqrt(jb2 + 1.0) * RandomPhase.angularCoefficient(multipole.L, tb, b) / (2*multipole.L + 1)
         weightB == 0.0   &&   continue
         # THE PAULI PROJECTION.  A channel label names a kappa SYMMETRY, so chi spans the filled members of
         # it too, and a core electron cannot be excited into a filled orbital.  Without this the forbidden
