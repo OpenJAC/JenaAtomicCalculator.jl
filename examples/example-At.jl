@@ -94,9 +94,24 @@ elseif  true
             "-- see this branch's own comment for why that is not yet expected to be true.")
 elseif  false
     #
-    # Last visit:       16-Oct-2026
-    # Last successful:  unknown ... WITHDRAWN 16-Oct-2026, and the reason is a repair elsewhere rather than a
-    #   fault here.  `RandomPhase.inducedPotentialZr` was corrected that day (item 73(c)): it had built its
+    # Last successful:  16-Oct-2026
+    #   **WHAT THIS DATE COVERS, because it is narrower than the branch's output.**  VERIFIED: the coupled
+    #   solve runs and converges;  the observable is the coherent sum over `channelOrbitals` and not over
+    #   `perturbedOrbitals`;  the response SCREENS at every frequency, as a closed shell must;  and the
+    #   convention behind it is anchored ON A DIFFERENT SYSTEM -- alpha_core(Ba+ [Xe]) = 9.944 a.u. against the
+    #   published RPA 10.6(5), i.e. 6.2 %, inside that value's own +-4.7 %.
+    #   **WHAT THIS BRANCH'S OWN NUMBERS ARE NOT COMPARED WITH, and an earlier draft of this note got it
+    #   wrong.**  Ne's exact static polarizability 2.661 against JAC's unscreened 3.7667 requires a screening
+    #   factor 0.7066, and it is tempting to read this branch's near-static 0.74413 as meeting it.  **It is not
+    #   the same quantity:** that anchor is WHOLE-ATOM and STATIC, while this branch drives three subshells
+    #   (1s is not active) at finite omega.  The matching whole-atom static factor is 0.897, not 0.744.  So the
+    #   agreement is NOT evidence, and the finite-omega factors have no published value at all.
+    #   NOT VERIFIED, and not claimed: the absolute magnitude and the frequency dependence.  Exchange is absent
+    #   by construction (priority item 75).  Quote the Ba+ cross-check for the convention;  treat this branch's
+    #   own factors as indicative.
+    #   The history below is kept because the numbers moved twice in one day, and a reader meeting the file
+    #   later needs to know which column the code now produces.  `RandomPhase.inducedPotentialZr` was repaired
+    #   on 16-Oct-2026 (item 73(c)) in three steps:  it had built its
     #   induced density from UNPROJECTED chi, so the density carried Pauli-forbidden components, and its
     #   rank-1 moment exceeded the polarizability computed from the same chi by exactly (2L+1).  Both are
     #   fixed, and the numbers this branch prints MOVE:
