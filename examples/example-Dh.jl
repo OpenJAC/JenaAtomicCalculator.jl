@@ -217,7 +217,9 @@ elseif  false
     # non-exponential family is used because the exponential one quantises r_max coarsely and cannot
     # be tuned to a target; hp = rbox/300 is Basics.recommendedGrid's own recipe.
     grid = Radial.Grid(Radial.Grid(false), rnt = 4.0e-06, h = 5.0e-2, hp = 0.8500, rbox = 255.0)
-    # Last visit:  07-Aug-2026        ## NOT successful: the open prefactor, and this basis is not converged
+    # EARLIER, 07-Aug-2026 -- NOT successful: the open prefactor, and this basis is not converged.  This was
+    #   a `Last visit` marker until 17-Oct-2026;  the branch has been `Last successful` since 15-Oct, so the
+    #   marker was stale and read as the branch's status.  The account below is kept, the status field is not.
     #
     # RE-RUN 07-Aug-2026 AFTER THE EXCHANGE-PHASE FIX (blocker A1). Babushkin = 1.461 /s with the 2p..8p basis
     # written below; the CONVERGED value (2p..45p, same box) is 1.231 /s, so this branch as configured is 19 %
