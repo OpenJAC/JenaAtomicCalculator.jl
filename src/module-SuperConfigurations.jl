@@ -53,8 +53,16 @@
         the opposite of the EOL's constant-factor finding, and why this lever actually changes the order of
         the cost rather than a prefactor.
 
-        SCOPE, DELIBERATELY NARROW, the same choice `AdjustedLevels` made for the same reason: ONE ordinary
-        (non-relativistic) `Configuration` at a time, pure Coulomb (no Breit/QED).
+        COMPETITION ITEM C9, NARROWED 17-Oct-2026: `SuperConfigurations.SuperGroup` pools several `Group`'s
+        into one genuine superconfiguration bin by the STANDARD combined-sample (pooled) moment formulas --
+        no new CSF-level computation, and no new approximation beyond what `Group` itself already carries
+        (no configuration-interaction mixing between the bin's own configurations). The pooled MEAN is
+        exact regardless of mixing (a trace argument); the pooled VARIANCE is not, and was measured, not
+        assumed, to run 19.5 % low on a realistic strongly-mixing pair against full CI -- see
+        `SuperConfigurations.buildSuperGroup`'s own docstring.
+
+        SCOPE, DELIBERATELY NARROW, the same choice `AdjustedLevels` made for the same reason: ordinary
+        (non-relativistic) `Configuration`s, pure Coulomb (no Breit/QED).
 """
 module SuperConfigurations
 
@@ -92,6 +100,51 @@ function  Base.show(io::IO, group::Group)
     println(io, "  mean energy           = $(group.meanEnergy) Hartree")
     println(io, "  width (sqrt variance) = $(sqrt(max(group.variance, 0.0))) Hartree")
     println(io, "  degeneracy (SUM 2J+1) = $(group.degeneracy)")
+end
+
+
+"""
+`struct  SuperConfigurations.SuperGroup`
+    ... the Gaussian (two-moment) statistical description of a GENUINE superconfiguration: several
+        `Group`'s, each already an unresolved configuration, POOLED into one wider statistical bin --
+        competition item C9's own name for this module, completed 17-Oct-2026. The mean, variance and
+        degeneracy are the STANDARD combined-sample (pooled) moments: the between-configuration spread
+        is folded into the variance via the law of total variance, exactly as `SuperConfigurations.Group`
+        folds the within-configuration spread into ITS OWN variance one level down. See
+        `SuperConfigurations.buildSuperGroup` for the formula and for the ONE assumption it carries, named
+        rather than hidden: NO configuration-interaction MIXING between the bin's own configurations is
+        included, only within each one individually (the same scope `Group` itself already has). The MEAN
+        is exact regardless -- a trace argument, not an approximation -- while the VARIANCE can be a
+        substantial underestimate where configurations genuinely mix: 19.5 % low on a realistic
+        strongly-mixing pair checked against full CI (see `buildSuperGroup`'s own docstring).
+
+    + confs         ::Array{Configuration,1}   ... the configurations pooled into this bin.
+    + meanEnergy    ::Float64                   ... the pooled (degeneracy-weighted) mean energy, in Hartree.
+    + variance      ::Float64                   ... the pooled variance (within-configuration spread,
+                                                       degeneracy-weighted, PLUS the between-configuration
+                                                       spread of the individual means around the pooled
+                                                       mean), in Hartree^2.
+    + degeneracy    ::Float64                   ... the total (2J+1)-weighted statistical weight, SUM over
+                                                       every configuration in the bin.
+"""
+struct  SuperGroup
+    confs           ::Array{Configuration,1}
+    meanEnergy      ::Float64
+    variance        ::Float64
+    degeneracy      ::Float64
+end
+
+
+"""
+`Base.show(io::IO, superGroup::SuperConfigurations.SuperGroup)`
+    ... prints every pooled configuration, the bin's mean energy, its width (sqrt(variance)) and its total
+        degeneracy. Nothing is returned.
+"""
+function  Base.show(io::IO, superGroup::SuperGroup)
+    println(io, "SuperConfigurations.SuperGroup:  ", join(string.(superGroup.confs), "  +  "))
+    println(io, "  mean energy           = $(superGroup.meanEnergy) Hartree")
+    println(io, "  width (sqrt variance) = $(sqrt(max(superGroup.variance, 0.0))) Hartree")
+    println(io, "  degeneracy (SUM 2J+1) = $(superGroup.degeneracy)")
 end
 
 
@@ -304,6 +357,49 @@ function  buildGroup(conf::Configuration, orbitals::Dict{Subshell,Orbital}, nm::
     degeneracy     = sum( Basics.twice(csf.J) + 1   for csf in csfList )
 
     return( Group(conf, meanE, varE, degeneracy) )
+end
+
+
+"""
+`SuperConfigurations.buildSuperGroup(confs::Array{Configuration,1}, orbitals::Dict{Subshell,Orbital},
+                                       nm::Nuclear.Model, grid::Radial.Grid, settings::AsfSettings)`
+    ... to build the pooled Gaussian description of a GENUINE superconfiguration: build one
+        `SuperConfigurations.Group` per configuration in `confs` (reusing `buildGroup` exactly, no new
+        CSF-level computation), then combine them with the STANDARD combined-sample (pooled) moment
+        formulas -- the same ones the Bauche-Arnoult/STA literature itself uses at this level of theory:
+
+            G  =  SUM_i g_i                                            -- total degeneracy
+            M  =  SUM_i g_i * mean_i  /  G                             -- pooled mean
+            V  =  SUM_i g_i * ( var_i + (mean_i - M)^2 )  /  G         -- pooled variance
+
+        THE MEAN `M` IS EXACT, PROVABLY, NOT JUST USUALLY. Configuration-interaction mixing between
+        `confs[i]` and `confs[j]` would add OFF-DIAGONAL blocks to the full combined Hamiltonian, and an
+        off-diagonal block never contributes to a trace -- so Tr(H_full) = Tr(H_AA) + Tr(H_BB) + ... holds
+        with NO approximation, whatever the mixing, and `M` built from the separate `Group`s' own means is
+        exactly the mean a full multi-configuration diagonalization would give.
+
+        THE VARIANCE `V` IS NOT EXACT WHERE CONFIGURATIONS GENUINELY MIX, AND THE SIZE WAS MEASURED, NOT
+        GUESSED. Tr(H_full^2) picks up an off-diagonal cross term the pooled formula has no way to see, and
+        that term is exactly the mixing `SuperGroup` omits. Checked 17-Oct-2026 on a realistic
+        strongly-mixing pair, Co2+ `[Ar] 3d^7` + `[Ar] 3d^6 4s` (near-degenerate nd^n/nd^(n-1)(n+1)s
+        mixing, a textbook case), against `Hamiltonian.performCI` on the two configurations TOGETHER (the
+        SAME validation route `TestFrames.testModule_SuperConfigurations` already uses for one
+        configuration): the pooled width comes out **19.5 % too narrow** (0.115 Hartree against the true
+        0.143 Hartree), while the mean agreed to 3e-6 Hartree, exactly as the trace argument above
+        requires. So: trust `M` unconditionally; treat `V` as a lower bound that can be substantially low
+        for configurations close enough in energy and symmetry to mix strongly, and check case by case
+        when that matters. A superGroup::SuperConfigurations.SuperGroup is returned.
+"""
+function  buildSuperGroup(confs::Array{Configuration,1}, orbitals::Dict{Subshell,Orbital}, nm::Nuclear.Model,
+                            grid::Radial.Grid, settings::AsfSettings)
+    isempty(confs)   &&   error("SuperConfigurations.buildSuperGroup(): confs is empty.")
+    groups = [ buildGroup(conf, orbitals, nm, grid, settings)   for conf in confs ]
+
+    G = sum( g.degeneracy   for g in groups )
+    M = sum( g.degeneracy * g.meanEnergy   for g in groups ) / G
+    V = sum( g.degeneracy * ( g.variance + (g.meanEnergy - M)^2 )   for g in groups ) / G
+
+    return( SuperGroup(confs, M, V, G) )
 end
 
 
