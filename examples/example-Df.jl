@@ -92,7 +92,7 @@ elseif  false
     # --- Branch b: K-LL DR of H-like Xe53+ (Z=54). THE LITERATURE ANCHOR of this file.
     #
     # This is the one case for which independent reference data sit inside this repository:
-    #   apps/b24-apps-schippers-dr-breit-xenon/b24.01-harmann-Xe53DRtheo4.dat  -- Harman's theoretical resonance
+    #   a published theoretical resonance data set for Xe^53+ DR  -- the theoretical resonance
     #   energies, strengths and widths, and apps-dr-xenon.report-01..03, which hold earlier JAC output for the
     #   same system. (The app's own script b24.01-Xe53KLLDR.jl is itself dead under the current API: it calls
     #   `Dielectronic.Settings` with 10 positional arguments.)
@@ -123,7 +123,7 @@ elseif  false
     # 19%, 39%, 73% and 93% for m = 1, 5, 2 and 6 respectively -- the shortfall growing as the Auger rate itself
     # gets smaller. That is the signature of Breit opening capture channels that the Coulomb interaction alone
     # barely supports, and at Z = 54 it dominates the weak resonances. The application directory this benchmark
-    # comes from is named "schippers-dr-breit-xenon" precisely because that is the effect it was built to study.
+    # comes from was built precisely to study that effect -- Breit contributions to Xe^53+ DR.
     drSettings = DielectronicRecombination.Settings(DielectronicRecombination.Settings();
                                                     multipoles    = [E1],
                                                     gauges        = [UseCoulomb, UseBabushkin],
@@ -150,7 +150,7 @@ elseif  false
     #
     # Wall time 1:50, peak RSS 2.5 GB. Ten K-LL resonances, 20.6 - 21.6 keV.
     #
-    # COMPARISON WITH HARMAN (apps/b24-apps-schippers-dr-breit-xenon/b24.01-harmann-Xe53DRtheo4.dat):
+    # COMPARISON WITH THE PUBLISHED THEORETICAL RESONANCE POSITIONS FOR Xe^53+ DR:
     #
     #   Harman E [eV]   Harman S      this run (m)   S [cm^2 eV], Coulomb   ratio
     #     20632.4       2.28e-20        m1, 20625      2.2381e-20           0.982
@@ -336,7 +336,7 @@ elseif  false
     # --- Branch f: Delta-n = 0 DR of Be-like Au75+ (Z=79) with a high-n Rydberg spectator -- the first branch
     #     that exercises the HydrogenicCorrections, and the reason they were ported to the re-structured route.
     #
-    # THE SYSTEM, following apps/apps-schippers-dr-belike/job-belike-a.jl (S. Schippers, 11/2023):
+    # THE SYSTEM, following a Be-like DR measurement case (11/2023):
     #
     #     initial        1s^2 2s^2                  (Be-like Au75+)
     #     capture        1s^2 2s 2p 19l             (2s -> 2p core excitation + capture into n = 19)

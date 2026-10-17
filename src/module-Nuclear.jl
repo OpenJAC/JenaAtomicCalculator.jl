@@ -442,7 +442,7 @@ end
         alpha belongs to the 1/c of the magnetic multipole radiation operator and is applied in
         HyperfineInduced.amplitude, not to the nuclear moment itself.
 
-        Doing this by hand has already gone wrong: apps/apps-wuwang-hfs-induced/job-a-uranium.jl computes
+        Doing this by hand has already gone wrong: an HFS-induced uranium calculation computed
         `sqrt(8/7. * 5.38e-27)` -- without the pi, and from a B value that differs from the one in the text.
 """
 function  reducedTransitionAmplitude(mp::EmMultipole, B::Float64, A::Int64, spinI::AngularJ64;

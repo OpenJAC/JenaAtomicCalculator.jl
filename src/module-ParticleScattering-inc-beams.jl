@@ -9,7 +9,7 @@
 # a different theory than the one the rest of the module now uses.
 #
 # WHERE THE RE-DERIVATION BELONGS, so it is not started here by mistake (noted 11-Oct-2026, out of
-# apps-andrey-twisted-electron-dr). A twisted beam's own decomposition into plane waves -- its transverse-momentum
+# the twisted-electron DR study). A twisted beam's own decomposition into plane waves -- its transverse-momentum
 # amplitude, and how displacing the target by an impact parameter translates that decomposition -- is GENERIC: every
 # twisted-beam process needs it (this module's elastic scattering, ElectronCapture's dielectronic capture,
 # PhotonScattering's analogous photon case), and it has nothing to do with WHICH physics couples to the beam once

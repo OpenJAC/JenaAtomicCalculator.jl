@@ -183,10 +183,10 @@ function  computeAmplitudesProperties(pathway::ResonantInelastic.Pathway, grid::
     
     #  The particular application requires to decide, which levels need to be "mixed with enhanced factor"
     
-    ## Farid + Ruben (June 2025): Interference in the RIXS out-channel
+    ## Interference in the RIXS out-channel (June 2025)
     ## if settings.calcRixsCI    intermediateLevel =  Basics.modifyLevelMixing(intermediateLevel, settings.ciEnhancement)   end 
     
-    ## Ruben + Johan (Nov 2025): RIXS signals with double excitations
+    ## RIXS signals with double excitations (Nov 2025)
     if settings.calcRixsCI       initialLevel      =  Basics.modifyLevelMixing(initialLevel, settings.ciEnhancement)        end 
     
     # Compute the amplitudes of the excitation and emission channels separately

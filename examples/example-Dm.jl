@@ -7,9 +7,9 @@ setDefaults("unit: rate", "1/s")
 
 grid = Radial.Grid(Radial.Grid(false), rnt = 4.0e-6, h = 5.0e-2, hp = 0.6e-2, rbox = 10.0)
 
-## ABOUT THIS PROCESS (2-Aug-2026, revisited together with S. Fritzsche): "internal recombination" (also called
-## "internal excitation"/"internal stabilization"/"IDE" interchangeably in the prior correspondence with
-## M. Pajek & L. Michel, see apps/apps-pajek-internal-excitation/) is NOT a standard, widely-published named
+## ABOUT THIS PROCESS (2-Aug-2026): "internal recombination" (also called "internal excitation", "internal
+## stabilization" or "IDE" interchangeably in the prior correspondence behind this branch) is NOT a standard,
+## widely-published named
 ## process -- a genuine web-literature search this session found no paper using this exact term; the closest
 ## hit was Fritzsche, Huang & Huang, Eur. Phys. J. D 79, 22 (2025) on DR into high-n Rydberg shells, which the
 ## user confirmed is relevant background for DR examples but not for this module specifically. The scarce,
@@ -31,7 +31,7 @@ grid = Radial.Grid(Radial.Grid(false), rnt = 4.0e-6, h = 5.0e-2, hp = 0.6e-2, rb
 ## jump directly from a high-n Rydberg configuration to an all-low-n doubly-excited one, which then decays via
 ## an ORDINARY, fast allowed radiative transition (e.g. 3p->3s) -- potentially much faster overall than the
 ## Rydberg electron's own slow, many-step radiative cascade down from n=10. This is exactly the scenario
-## explored (for Xe^35+) in the 2023-2024 correspondence with M. Pajek's group, motivated by their measured
+## explored (for Xe^35+) in the 2023-2024 correspondence behind this branch, motivated by the measured
 ## fluorescence yields for highly-charged Xe ions with high-n Rydberg spectators.
 ##
 ## NO BIORTHOGONAL TRANSFORMATION NEEDED here (confirmed again this session): capture is always into a
@@ -44,7 +44,7 @@ grid = Radial.Grid(Radial.Grid(false), rnt = 4.0e-6, h = 5.0e-2, hp = 0.6e-2, rb
 ##
 ## *** BUG FOUND, ROOT CAUSE CONFIRMED, FIXED -- BUT A SECOND, OPEN ISSUE REMAINS (2/3-Aug-2026) ***
 ## Branch 1 below is a faithful reproduction of a real, previously-validated case from
-## apps/apps-pajek-internal-excitation/job-internal-a.jl and report-06 (5 May 2024): Xe^35+ K-like
+## the application's own job script and report of 5 May 2024: Xe^35+ K-like
 ## [Ar]3d(10g) --> [Ar](4s^2+4s4p+...+4f^2), same grid, same settings, same configs. The companion radiative
 ## calculation (job branch 2, [Ar](4s+4p+4d+4f)-->[Ar]3d) reproduces report-06's numbers EXACTLY, to every
 ## printed digit -- confirming the SCF/grid/orbital machinery in general has not drifted; the discrepancy is
@@ -94,8 +94,8 @@ if  true
     # Last visit:  3-Aug-2026
     # Last successful:  unknown ... (see REPORT -- root cause #2 above still open, absolute magnitude not
     #   yet trustworthy)
-    # Branch 1: reproduction of the Xe^35+ K-like case from apps/apps-pajek-internal-excitation/
-    #   job-internal-a.jl and report-06 (5-May-2024, correspondence with M. Pajek & L. Michel):
+    # Branch 1: reproduction of the Xe^35+ K-like internal-recombination case recorded by the application's
+    #   own job script and report of 5-May-2024:
     #   [Ar] 3d (10g) --> [Ar] (4s^2 + 4s4p + 4s4d + 4s4f + 4p^2 + 4p4d + 4p4f + 4d^2 + 4d4f + 4f^2)
     #
     #   REPORT: run three times this session, tracking the investigation above. (1) BEFORE the nuclear-

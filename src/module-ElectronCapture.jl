@@ -286,7 +286,7 @@ end
         implemented (settings.beamType, settings.impactVectors -- see `ElectronCapture.Settings`, both unused
         today): this function returns A_k0 ONLY, because an on-axis beam leaves the process axially symmetric and
         every A_kq with q != 0 vanishes by that symmetry alone. An OFF-axis impact vector breaks that symmetry --
-        the project memory on twisted-electron capture (apps-andrey-twisted-electron-dr) finds populations
+        the twisted-electron capture study in the project's own working notes finds populations
         depending on |b_perp| while the azimuthal angle phi_b rotates the ensemble -- so a genuinely twisted
         calculation produces q != 0 components that this function cannot express at all. At that point the right
         fix is NOT to extend this closed form rank by rank, but to go back to `Statistical.Tensor` and build the

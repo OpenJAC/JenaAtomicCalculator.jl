@@ -8,7 +8,7 @@
 # calculations instead (same CSF basis throughout, since configs and asfSettings are unchanged).
 #
 # This script reruns the exact case the challenge was measured on (Cf17+'s own reference levels,
-# apps-very-schaefer-californium) and prints the clock-transition q-factor -- q(J=1/2) - q(J=5/2) -- at a
+# the Cf clock-transition q-factor case) and prints the q-factor -- q(J=1/2) - q(J=5/2) -- at a
 # safe step (x=0.01, where the levels do not cross) and at the module's own dangerous DEFAULT step
 # (x=0.125, where they do). Keep this script; it is the regression evidence for the fix, not scratch.
 #

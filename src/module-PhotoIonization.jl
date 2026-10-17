@@ -1273,7 +1273,7 @@ function  displayResults(stream::IO, lines::Array{PhotoIonization.Line,1}, setti
                                             TableStrings.inUnits("cross section"); na=3)
     println(stream, sa);    println(stream, sb);    println(stream, "  ", TableStrings.hLine(nx)) 
 
-    wx = 1.0 # wx = 1.0  (Schippers, August'23; wx = 2.0; wx = pi/2)
+    wx = 1.0    ## the normalisation settled Aug-2023;  the alternatives tried were wx = 2.0 and wx = pi/2
     for  line in lines
         sa  = "";    isym = LevelSymmetry( line.initialLevel.J, line.initialLevel.parity)
                         fsym = LevelSymmetry( line.finalLevel.J,   line.finalLevel.parity)

@@ -12,7 +12,7 @@
         WHY THIS EXISTS. A sum-over-states second-order amplitude (used throughout MultiPhotonTransition,
         PhotonScattering, MultipolePolarizibility, ...) needs the intermediate spectrum to be COMPLETE for
         length and velocity gauges to agree, and a finite, however large, set of discrete pseudostates is
-        not that -- measured directly (apps-very-schaefer-californium work, 08-Oct-2026, and independently
+        not that -- measured directly (on a Cf^15+/Cf^17+ clock-transition case, 08-Oct-2026, and independently
         on the H 2s -> 1s two-photon-emission anchor, challenge S5 in the project's own working notes): two
         gauges can each individually CONVERGE, cleanly, as the pseudostate count grows, while converging to
         DIFFERENT answers, because the off-shell relation between the two gauges is state-specific

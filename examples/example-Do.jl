@@ -6,7 +6,7 @@ setDefaults("unit: energy", "eV")
 setDefaults("unit: rate", "1/s")
 
 ## NEW FILE (06-Aug-2026). module-HyperfineInduced.jl had no example at all, and none of the scripts under
-## apps/apps-wuwang-hfs-induced/ could run: they build a `Nuclear.Compound` that does not exist anywhere in src/,
+## an HFS-induced application could run: they build a `Nuclear.Compound` that does not exist anywhere in src/,
 ## and construct Nuclear.Isomer with seven positional arguments (or scalars where arrays are required) against an
 ## eight-field struct. The module itself was rewritten the same day -- see its header.
 ##
@@ -97,7 +97,7 @@ elseif  false
     # nuclear SPIN. For I = 0 (32S) the 3P_0 level cannot decay by a single-photon E1 at all -- J = 0 to J = 0 is
     # strictly forbidden. Replacing one neutron gives 33S with I = 3/2; the hyperfine interaction then admixes the
     # nearby 3P_1 and 1P_1 levels into 3P_0 and opens an effective E1 path. The measured lifetime at a heavy-ion
-    # storage ring is tau = 10.4 +- 0.5 s (Schippers/Bernhardt 2012), cited in §II.E.1 of the draft.
+    # storage ring is tau = 10.4 +- 0.5 s (a 2012 storage-ring measurement), cited in the draft.
     #
     # NOTE HOW LITTLE HAS TO BE SAID. Only the two levels of the LINE are named -- 3P_0 decays, 1S_0 is decayed
     # to. The perturbers 3P_1 and 1P_1 are not listed at all: mixingLevels defaults to the whole multiplet, so
