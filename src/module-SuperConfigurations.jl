@@ -41,13 +41,25 @@
         that function's own docstring for the trace identities it uses and why no extra statistical-weight
         factor is needed beyond the dipole reduced matrix element's own Wigner-Eckart normalization.
 
+        PRIORITY ITEM 79, CLOSED 17-Oct-2026. The blind double loop over CSF pairs in
+        `buildHamiltonianMatrix`/`buildDipoleMatrix` was measured to need ~6700 s at 2725 CSFs (Dy3+
+        `4f^9`/`4f^8 5d`) -- the regime real superconfiguration work is FOR. The fix is NOT skipping
+        zero-coupling CSF pairs, which a related register entry for the EOL solver already found plateaus
+        at a constant factor: it is memoizing the one-particle RADIAL integral (`RadialIntegrals.GrantIab`,
+        `InteractionStrength.eMultipole`) BY ORBITAL PAIR -- `oneParticleIntegralCached`,
+        `matrixElementCached`, and the matching cache inside `buildDipoleMatrix`. Measured on Co2+
+        `3d^7`/`3d^6 4p`: the same orbital pair recurs about 12 times per 400 same-block CSF pairs, and that
+        redundancy GROWS with the configuration (CSF pairs scale as n^2, distinct orbital pairs do not) --
+        the opposite of the EOL's constant-factor finding, and why this lever actually changes the order of
+        the cost rather than a prefactor.
+
         SCOPE, DELIBERATELY NARROW, the same choice `AdjustedLevels` made for the same reason: ONE ordinary
         (non-relativistic) `Configuration` at a time, pure Coulomb (no Breit/QED).
 """
 module SuperConfigurations
 
-using ..Basics, ..BasicsAZ, ..ManyElectron, ..Nuclear, ..Radial, ..InteractionStrength, ..Hamiltonian, ..SpinAngular,
-      LinearAlgebra
+using ..Basics, ..BasicsAZ, ..ManyElectron, ..Nuclear, ..Radial, ..InteractionStrength, ..InteractionStrengthQED,
+      ..RadialIntegrals, ..Hamiltonian, ..SpinAngular, LinearAlgebra
 
 
 """
@@ -166,6 +178,84 @@ end
 
 
 """
+`SuperConfigurations.oneParticleIntegralCached(a::Subshell, b::Subshell, orbitals::Dict{Subshell,Orbital},
+                                                  nm::Nuclear.Model, grid::Radial.Grid, settings::AsfSettings,
+                                                  potential::Radial.Potential,
+                                                  cache::Dict{Tuple{Subshell,Subshell},Float64})`
+    ... a private helper returning the SAME one-particle quantity `Hamiltonian.matrixElement`'s own inner
+        loop computes per coefficient -- `RadialIntegrals.GrantIab` plus the QED local term when
+        `settings.qedModel` asks for one -- but MEMOIZED by the orbital-pair key `(a,b)`. THIS IS THE FIX
+        FOR PRIORITY ITEM 79. Measured 17-Oct-2026 on Co2+ `3d^7`/`3d^6 4p`: across 400 sampled same-block
+        CSF pairs, the SAME orbital pair recurred about 12 TIMES, because every CSF pair's one-particle
+        coefficients can only ever name orbitals from the small, SHARED active set, while the number of CSF
+        PAIRS grows as the square of the CSF count -- so the redundancy grows with the configuration, not a
+        constant. `GrantIab` alone was 82 % of the sampled cost (measured ~199 microseconds per call
+        against ~12.5 for the angular coefficients feeding it), so caching IT specifically, by orbital pair
+        rather than by CSF pair, is what changes the ORDER of the cost -- unlike skipping zero-coupling CSF
+        pairs, which the EOL solver's own register entry already found plateaus at a constant factor rather
+        than vanishing. A value::Float64 is returned.
+"""
+function  oneParticleIntegralCached(a::Subshell, b::Subshell, orbitals::Dict{Subshell,Orbital}, nm::Nuclear.Model,
+                                      grid::Radial.Grid, settings::AsfSettings, potential::Radial.Potential,
+                                      cache::Dict{Tuple{Subshell,Subshell},Float64})
+    key = (a, b)
+    haskey(cache, key)   &&   return( cache[key] )
+
+    val = RadialIntegrals.GrantIab(orbitals[a], orbitals[b], grid, potential)
+    if  settings.qedModel != NoneQed()
+        val = val + InteractionStrengthQED.qedLocal(orbitals[a], orbitals[b], nm, settings.qedModel, potential, grid)
+    end
+    cache[key] = val
+
+    return( val )
+end
+
+
+"""
+`SuperConfigurations.matrixElementCached(basis::Basis, r::Int64, s::Int64, nm::Nuclear.Model, grid::Radial.Grid,
+                                            settings::AsfSettings, potential::Radial.Potential,
+                                            cache::InteractionStrength.XLCache,
+                                            grantCache::Dict{Tuple{Subshell,Subshell},Float64})`
+    ... a private helper, EXACTLY `Hamiltonian.matrixElement`'s own logic -- the two-particle
+        `XL_Coulomb`/`XL_Breit` terms already reuse `cache` across every CSF pair and are unchanged here --
+        with its one-particle term routed through `oneParticleIntegralCached` instead of calling
+        `RadialIntegrals.GrantIab` fresh every time. Kept as a LOCAL copy rather than a change to
+        `Hamiltonian.matrixElement` itself, since that function is shared by the whole RAS/CI machinery and
+        extending it is a larger, separate decision this module does not make for it -- the fix here stays
+        inside this module's own file. A value::Float64 is returned.
+"""
+function  matrixElementCached(basis::Basis, r::Int64, s::Int64, nm::Nuclear.Model, grid::Radial.Grid,
+                                settings::AsfSettings, potential::Radial.Potential, cache::InteractionStrength.XLCache,
+                                grantCache::Dict{Tuple{Subshell,Subshell},Float64})
+    if  settings.eeInteractionCI == DiagonalCoulomb()  &&  r != s    return( 0. )    end
+    subshellList = basis.subshells
+    opa  = SpinAngular.OneParticleOperator(0, plus)
+    waG1 = SpinAngular.computeCoefficients(opa, basis.csfs[r], basis.csfs[s], subshellList)
+    opa  = SpinAngular.TwoParticleOperator(0, plus)
+    waG2 = SpinAngular.computeCoefficients(opa, basis.csfs[r], basis.csfs[s], subshellList)
+
+    me = 0.
+    for  coeff in waG1
+        me = me + coeff.T * oneParticleIntegralCached(coeff.a, coeff.b, basis.orbitals, nm, grid, settings,
+                                                         potential, grantCache)
+    end
+    for  coeff in waG2
+        if  typeof(settings.eeInteractionCI) in [DiagonalCoulomb, CoulombInteraction, CoulombBreit, CoulombGaunt]
+            me = me + coeff.V * InteractionStrength.XL_Coulomb(coeff.nu, basis.orbitals[coeff.a], basis.orbitals[coeff.b],
+                                                                        basis.orbitals[coeff.c], basis.orbitals[coeff.d], grid, cache)
+        end
+        if  typeof(settings.eeInteractionCI) in [BreitInteraction, CoulombBreit, CoulombGaunt]
+            me = me + coeff.V * InteractionStrength.XL_Breit(coeff.nu, basis.orbitals[coeff.a], basis.orbitals[coeff.b],
+                                                                      basis.orbitals[coeff.c], basis.orbitals[coeff.d], grid,
+                                                                      settings.eeInteractionCI, cache)
+        end
+    end
+
+    return( me )
+end
+
+
+"""
 `SuperConfigurations.varianceFromCsfMatrix(conf::Configuration, orbitals::Dict{Subshell,Orbital},
                                              nm::Nuclear.Model, grid::Radial.Grid, settings::AsfSettings,
                                              meanEnergy::Float64)`
@@ -179,8 +269,9 @@ end
 function  varianceFromCsfMatrix(conf::Configuration, orbitals::Dict{Subshell,Orbital}, nm::Nuclear.Model,
                                   grid::Radial.Grid, settings::AsfSettings, meanEnergy::Float64)
     basis, csfList = buildBasisAndCsfs(conf, orbitals)
-    potential = Nuclear.nuclearPotential(nm, grid)
-    cache     = InteractionStrength.XLCache()
+    potential  = Nuclear.nuclearPotential(nm, grid)
+    cache      = InteractionStrength.XLCache()
+    grantCache = Dict{Tuple{Subshell,Subshell},Float64}()
 
     num2 = 0.;   den = 0.
     for  r = 1:length(csfList)
@@ -188,7 +279,7 @@ function  varianceFromCsfMatrix(conf::Configuration, orbitals::Dict{Subshell,Orb
         den = den + wr
         for  s = 1:length(csfList)
             ( csfList[s].J != csfList[r].J   ||   csfList[s].parity != csfList[r].parity )   &&   continue
-            Hrs  = Hamiltonian.matrixElement(basis, r, s, nm, grid, settings, potential, cache)
+            Hrs  = matrixElementCached(basis, r, s, nm, grid, settings, potential, cache, grantCache)
             num2 = num2 + wr * Hrs^2
         end
     end
@@ -222,18 +313,22 @@ end
     ... a private helper that fills the FULL CSF-pair Hamiltonian matrix of `basis` -- zero between different
         J^P blocks, exactly as `varianceFromCsfMatrix`'s own loop skips them -- needed here because
         `buildTransitionArray` contracts this matrix with the transition operator rather than only reading
-        its trace. A matrix::Array{Float64,2} is returned.
+        its trace. Uses `matrixElementCached`, NOT `Hamiltonian.matrixElement` directly, so the one-particle
+        radial integral is memoized by orbital pair across every CSF pair in this build (priority item 79;
+        see `oneParticleIntegralCached`'s own docstring for the measurement). A matrix::Array{Float64,2} is
+        returned.
 """
 function  buildHamiltonianMatrix(csfList::Array{CsfR,1}, basis::Basis, nm::Nuclear.Model, grid::Radial.Grid,
                                    settings::AsfSettings)
-    potential = Nuclear.nuclearPotential(nm, grid)
-    cache     = InteractionStrength.XLCache()
-    n         = length(csfList)
-    H         = zeros(Float64, n, n)
+    potential  = Nuclear.nuclearPotential(nm, grid)
+    cache      = InteractionStrength.XLCache()
+    grantCache = Dict{Tuple{Subshell,Subshell},Float64}()
+    n          = length(csfList)
+    H          = zeros(Float64, n, n)
     for  r = 1:n
         for  s = 1:n
             ( csfList[s].J != csfList[r].J   ||   csfList[s].parity != csfList[r].parity )   &&   continue
-            H[r,s] = Hamiltonian.matrixElement(basis, r, s, nm, grid, settings, potential, cache)
+            H[r,s] = matrixElementCached(basis, r, s, nm, grid, settings, potential, cache, grantCache)
         end
     end
 
@@ -254,21 +349,30 @@ end
         residual sqrt(2J_f+1) factor Rule 18 places AFTER the CSF loop is applied HERE PER ROW, using that
         row's OWN csf.J, since `csfListFinal` spans several J blocks at once rather than one level's fixed J
         -- the direct generalization of `varianceFromCsfMatrix`'s per-CSF `wr` weight to a rank-1 operator.
-        A matrix::Array{Float64,2} of size (length(csfListFinal), length(csfListInitial)) is returned.
+        `eMultipole` is MEMOIZED by orbital pair here too, the SAME fix and the SAME reason as
+        `oneParticleIntegralCached` (priority item 79) -- the number of distinct orbital pairs is bounded
+        by the two configurations' active shells, not by `nF x nI`. A matrix::Array{Float64,2} of size
+        (length(csfListFinal), length(csfListInitial)) is returned.
 """
 function  buildDipoleMatrix(csfListFinal::Array{CsfR,1}, basisFinal::Basis, csfListInitial::Array{CsfR,1},
                               basisInitial::Basis, subshellList::Array{Subshell,1}, grid::Radial.Grid)
     nF  = length(csfListFinal);   nI = length(csfListInitial)
     D   = zeros(Float64, nF, nI)
     opa = SpinAngular.OneParticleOperator(1, Basics.multipoleParity(EmMultipole(1, true)))
+    dipoleCache = Dict{Tuple{Subshell,Subshell},Float64}()
     for  s = 1:nF
         wf = sqrt( Basics.twice(csfListFinal[s].J) + 1.0 )
         for  r = 1:nI
             wa = SpinAngular.computeCoefficients(opa, csfListFinal[s], csfListInitial[r], subshellList)
             me = 0.
             for  coeff in wa
-                me = me + coeff.T * InteractionStrength.eMultipole(1, basisFinal.orbitals[coeff.a],
-                                                                       basisInitial.orbitals[coeff.b], grid)
+                key = (coeff.a, coeff.b)
+                if  haskey(dipoleCache, key)
+                      tamp = dipoleCache[key]
+                else  tamp = InteractionStrength.eMultipole(1, basisFinal.orbitals[coeff.a], basisInitial.orbitals[coeff.b], grid)
+                      dipoleCache[key] = tamp
+                end
+                me = me + coeff.T * tamp
             end
             D[s,r] = me * wf
         end
