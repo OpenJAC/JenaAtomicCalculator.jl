@@ -28,8 +28,10 @@ using  ..AngularMomentum, ..Atomic, ..AtomicState, ..Basics, ..Bsplines, ..Conti
         ... to compute the (relative) collisional-radiative population balance among a small set of
             levels of one ion.
     + struct SuperConfigurationOpacityScheme
-        ... to build one SuperConfigurations.Group per reference configuration and report its Boltzmann
-            population at a given plasma temperature. STAGE 1 of 2 -- see that struct's own docstring.
+        ... to build one SuperConfigurations.Group per reference configuration, report its Boltzmann
+            population at a given plasma temperature, and build a SuperConfigurations.TransitionArray for
+            every E1-connected pair with its oscillator-strength sum. STAGE 2 of 3 -- see that struct's own
+            docstring for what a Stage 3 (a single summed opacity spectrum) would still need to add.
 """
 abstract type  AbstractPlasmaScheme       end
 
@@ -658,16 +660,18 @@ end
 `struct  Plasma.SuperConfigurationOpacityScheme  <:  Plasma.AbstractPlasmaScheme`
     ... a type for a superconfiguration-based plasma computation: ONE Gaussian `SuperConfigurations.Group`
         per reference configuration (a shared orbital set is built once, from ALL of `refConfigs` together),
-        and the Boltzmann population each group carries at the plasma temperature
-        `computation.settings.temperature`.
+        the Boltzmann population each group carries at the plasma temperature
+        `computation.settings.temperature`, and ONE `SuperConfigurations.TransitionArray` for every PAIR of
+        `refConfigs` connected by a single-electron E1 transition (opposite parity).
 
-        STAGE 1 OF 2, STATED EXPLICITLY. This computes the POPULATION-WEIGHTING half -- which configuration
-        group carries how much of the total population, a real and useful plasma quantity in its own right,
-        and the natural precursor to any partition-function or ionization-balance use -- NOT YET the
-        bound-bound absorption/opacity itself, which needs a TRANSITION moment BETWEEN two groups
-        (`SuperConfigurations.TransitionArray`, not yet implemented; see that module's own docstring). A
-        scheme named "Opacity" that does not yet compute an opacity is worth saying plainly rather than
-        quietly, and this struct's own docstring is where that is said.
+        STAGE 2 OF 3, STATED EXPLICITLY. Stage 1 was the population weighting alone. This stage adds the
+        TRANSITION moment between two groups that Stage 1 explicitly lacked: each array's own mean
+        transition energy, width, and oscillator-strength sum `gf`, together with that `gf` weighted by the
+        lower configuration's population -- the quantity a plasma opacity is actually built from. STILL NOT
+        BUILT, and said plainly rather than quietly: a single SUMMED opacity as a function of photon energy,
+        which needs every array's own Gaussian line-shape folded together on one frequency grid -- that is
+        Stage 3. A scheme named "Opacity" that does not yet compute a spectrum is worth saying so rather
+        than letting a caller discover it from an empty key.
 
     + refConfigs   ::Array{Configuration,1}   ... the configurations whose `SuperConfigurations.Group` this
                                                      scheme builds, one group per configuration.
