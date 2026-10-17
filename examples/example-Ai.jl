@@ -450,4 +450,122 @@ elseif  false
         haskey(wb, k)  &&  println(">> step $i : lowest level = $(sort(wb[k].levels, by = l -> l.energy)[1].energy) Ha")
     end
     #
+elseif  false
+    # Last successful:  17-Oct-2026   ## increments -42.7061 / -43.3205 / -47.6452 mHa for
+    #                  :previousLayersFrozen / :coreFrozen / :allFree;  ordering check PASSED
+    #
+    # MEASURED 17-Oct-2026, the run this branch performs, 0 warnings and no grid complaint:
+    #
+    #       policy                   step 1 [Ha]        step 2 [Ha]     layer-2 increment [mHa]
+    #       previousLayersFrozen     -14.571325453      -14.614031602              -42.7061
+    #       coreFrozen               -14.571325453      -14.614645976              -43.3205
+    #       allFree                  -14.571325453      -14.618970649              -47.6452
+    #
+    #   THREE CONTROLS FELL OUT OF IT, and together they are why this branch is worth running rather than
+    #   reading:
+    #   (1) STEP 1 IS IDENTICAL TO EVERY DIGIT across the three policies, as it must be -- step 1 has nothing
+    #       to inherit, so the policy can only act from step 2 on.  A difference there would mean the policy
+    #       was leaking into the reference layer.
+    #   (2) THE FROZEN POLICY REPRODUCES BRANCH (b)'s OWN DATED NUMBERS, -14.571325453 / -14.614031602, to
+    #       every recorded digit -- an independent branch of this file agreeing with this one.
+    #   (3) EACH RELEASE PHASE DESCENDS FROM ITS OWN WARM-UP, by -0.6144 mHa (:coreFrozen) and -4.9390 mHa
+    #       (:allFree), and both warm-ups reach exactly the :previousLayersFrozen answer.  That is the
+    #       two-phase entry working: before it existed a released layer BEGAN 36.1 mHa above the layer it sat
+    #       on and its increment had a budget-dependent SIGN.
+    #
+    #   SO :allFree IS 11.6 % DEEPER THAN THE DEFAULT HERE -- the same direction as the three ions in the
+    #   `freezing` docstring (+158 % on Ca+, +4.2 % on C II, +7.3 % on Ti III) and a reminder that the size is
+    #   a property of the case and not a rule.  It is NOT a recommendation: see the paragraph above on what
+    #   the release is actually buying back.
+    #
+    # f) THE FREEZING POLICY, WITH EVERYTHING ELSE HELD FIXED -- which orbitals a layer may still move.
+    #
+    # WHY THIS BRANCH EXISTS.  `AtomicState.RasSettings.freezing` carries Rule 21's three freezing policies and
+    #   is measured in its own docstring on three ions -- but until now NO example exercised it, so a capability
+    #   that changes a layer increment by over 100 % was invisible to a user and never reached by a sweep.
+    #   This branch makes the comparison runnable on the lightest system that shows it.
+    #
+    # THE THREE POLICIES, and they differ only in what a LATER layer is allowed to relax:
+    #   :previousLayersFrozen ... every shell an earlier layer optimized is held;  only this layer's new shells
+    #                             move.  GRASP's default and the safe one -- the layer's space contains the
+    #                             previous layer's, and with the earlier orbitals held it cannot help but descend.
+    #   :coreFrozen           ... only `coreShells` are held, so the VALENCE may relax against the correlation
+    #                             this layer adds.
+    #   :allFree              ... nothing is held.  Richest and most expensive.
+    #
+    # ONE VARIABLE.  The reference, the layers, the route, the accuracy, the grid, the nucleus, `coreShells` and
+    #   `fromShells` are all identical across the three runs;  only `freezing` changes.  That is what makes the
+    #   three increments comparable, and it is why Rule 21 asks for the policy to be NAMED beside a number.
+    #
+    # WHAT TO LOOK AT IS THE LAYER INCREMENT, NOT THE TOTAL -- Rule 21 again.  Two policies can land at nearly
+    #   the same total and disagree about where the correlation came from, and it is the increment that says
+    #   whether another layer is still worth adding.
+    #
+    # AND READ THIS BEFORE CONCLUDING THAT `:allFree` IS BETTER, because the docstring's own measurement says it
+    #   mostly is not.  Across three ions `:allFree` is deeper every time (+158 %, +4.2 %, +7.3 % on Ca+, C II
+    #   and Ti III) at 1.65-2.0x the cost -- but that advantage is almost entirely the release buying back what a
+    #   FROZEN REFERENCE LAYER was forbidden to do.  On Ti III with `coreShells` as the only variable, letting the
+    #   core relax at the REFERENCE layer is worth 16.8 mHa, and once it has, this policy is worth 0.048 mHa, a
+    #   factor 228 less than it appeared.  So `:allFree` is a REMEDY FOR A FROZEN-CORE REFERENCE rather than a
+    #   general improvement:  declare `coreShells` only when cost forces it, and reach for `:allFree` when it is.
+    #   This branch DOES freeze the 1s, so it is deliberately in the case where the policy can show itself.
+    #
+    # A RELEASED POLICY RUNS THE LAYER TWICE, and the printout says so.  Phase 1 warms the new shells with the
+    #   earlier ones frozen;  phase 2 releases and restarts the optimized-level solver from those warm orbitals
+    #   through `ManyElectron.StartFromPrevious`, which skips the average-level pre-pass -- that pass optimizes
+    #   the configuration AVERAGE, a different functional from the level energy, and would otherwise re-derive
+    #   the inherited orbitals before the solver ever saw them.  Without the two-step entry a released layer
+    #   began 36.1 mHa ABOVE the layer it sits on, with a budget-dependent SIGN.
+    name        = "Be 1s^2 2s^2 ^1S_0 -- 2-layer RAS, the FREEZING POLICY as the only variable"
+    refConfigs  = [Configuration("[He] 2s^2")]
+    coreShells  = [Shell("1s")]
+    fromShells  = [Shell("2s")]
+    layers      = [ RasLayer(Shell[]; se=false, de=false),
+                    RasLayer([Shell("2p")]) ]
+    results     = Tuple{Symbol,Float64,Float64}[]
+    for  policy  in  (:previousLayersFrozen, :coreFrozen, :allFree)
+        rasSettings = RasSettings([1], Basics.RotationRoute(24), 1.0e-6, CoulombInteraction(),
+                                  LevelSelection(true, indices=[1]), policy)
+        wa = Representation(name * "  [freezing = :$policy]", Nuclear.Model(4.), Radial.Grid(true), refConfigs,
+                            RasExpansion([LevelSymmetry(0, Basics.plus)], 4, coreShells, fromShells,
+                                         layers, rasSettings) )
+        wb = generate(wa, output=true)
+        e  = Float64[]
+        for  i = 1:length(layers)
+            k = "step" * string(i)
+            haskey(wb, k)  &&  push!(e, sort(wb[k].levels, by = l -> l.energy)[1].energy)
+        end
+        length(e) == length(layers)  ||  error("example-Ai.jl branch f: policy :$policy returned " *
+                                               "$(length(e)) step energies of $(length(layers)).")
+        push!(results, (policy, e[1], e[2]))
+        println(">> [freezing = :$policy]  step 1 = $(e[1]) Ha,  step 2 = $(e[2]) Ha,  " *
+                "increment = $((e[2]-e[1])*1000) mHa")
+    end
+    #
+    println("\n  The freezing policy, everything else identical:")
+    println("  policy                   step 1 [Ha]        step 2 [Ha]     layer-2 increment [mHa]")
+    println("  " * "-"^84)
+    for  (policy, e1, e2)  in  results
+        println("  " * rpad(string(policy), 22) * lpad(string(round(e1, digits=9)), 16) *
+                lpad(string(round(e2, digits=9)), 19) * lpad(string(round((e2-e1)*1000, digits=4)), 22))
+    end
+    println("  " * "-"^84)
+    # THE BRANCH CHECKS ITS OWN PHYSICS rather than only printing it.  A richer policy may not come out ABOVE a
+    # poorer one: each release strictly enlarges the set of orbitals the layer may move, so its stationary point
+    # cannot be higher than the restricted one by more than the solver's own resolution.
+    ePrev = results[1][3];   eCore = results[2][3];   eFree = results[3][3]
+    tol   = 1.0e-7
+    if  eCore <= ePrev + tol  &&  eFree <= eCore + tol
+        println("  >> ORDERING AS IT MUST: allFree <= coreFrozen <= previousLayersFrozen.  Releasing orbitals")
+        println("  >> cannot raise the energy, since each release only enlarges what the layer may move.")
+    else
+        println("  >> ORDERING VIOLATED, and that is a FINDING rather than noise: a released policy came out")
+        println("  >> ABOVE a more restricted one by more than $(tol) Ha.  The release phase is entering above")
+        println("  >> the layer it sits on -- suspect the handover, the grid, or the level selection, and see")
+        println("  >> the `freezing` docstring in src/module-AtomicState.jl for what the repaired entry gives.")
+    end
+    println("  >> And compare the INCREMENTS, not the totals (Rule 21): two policies can agree on the total")
+    println("  >> and disagree about where the correlation came from.")
+    #
+
 end
