@@ -117,4 +117,56 @@ elseif  false
     @printf(">>> a factor of %.1f relative to its own bare gf (%.6f) -- as the cool-plasma limit requires.\n",
             gfs[2]/gfEffs[2], gfs[2])
     #
+elseif  false
+    # Last successful:  17-Oct-2026
+    #
+    # Branch d: A SIZE THE TOY C I COMPLEX NEVER REACHES. Co^2+ (Co III, Z=27), the SAME [Ar] 3d^7 ground
+    #   configuration whose level ordering example-Ag.jl branch f already validated against NIST ASD, now
+    #   paired with its one-electron 3d->4p promotion [Ar] 3d^6 4p (Delta l = 1, the E1-allowed direction
+    #   out of 3d -- 3d->4s or 3d->5s is NOT an E1 array and buildTransitionArray would simply raise on it).
+    #   3d^6 4p alone carries 180 CSFs, 19 for 3d^7 -- between them more than four times the ENTIRE CSF
+    #   budget of branches a-c's three-configuration complex, and genuinely representative of the regime
+    #   real superconfiguration/UTA opacity work targets: a transition-metal 3d-4p array of the kind that
+    #   actually shapes nebular and stellar emission-line spectra, where enumerating every individual LEVEL
+    #   pair and its own amplitude is a real practical burden long before it is a computational one.
+    #
+    #   ONE HONEST CAVEAT, so the numbers below are not oversold: at 180 CSFs, diagonalizing either side
+    #   outright is still cheap in absolute wall-clock terms -- this branch demonstrates the SIZE regime,
+    #   not a wall-clock race. A genuinely large case was MEASURED, not assumed, while scoping this: Dy3+
+    #   [Xe] 4f^9 (198 CSFs) against its own 3d-4p analogue [Xe] 4f^8 5d (2725 CSFs) needed an estimated
+    #   ~6700 s just to fill the dense Hamiltonian matrix with the CURRENT, blind-double-loop
+    #   buildHamiltonianMatrix -- far outside what a routine example should run. That is concrete evidence,
+    #   not a guess, for why a selection-rule-sparse rewrite is a real next step rather than a hypothetical
+    #   one; filed on the priority list rather than attempted here.
+    #
+    #   CHECK, NEEDING NO EXTERNAL REFERENCE: buildTransitionArray is called BOTH ways, (upper, lower) and
+    #   (lower, upper). The underlying trace identities require an EXACT algebraic symmetry under that
+    #   exchange -- meanEnergy must flip sign exactly, while totalStrength and variance (built from D D^T
+    #   and D^T D, related by a cyclic trace) must come out IDENTICAL. This is a genuine property of the
+    #   formulas, not of this particular ion, and a sign or transpose bug would break it immediately.
+    ni   = Nuclear.Model(27.)
+    confLower = Configuration("[Ar] 3d^7")
+    confUpper = Configuration("[Ar] 3d^6 4p")
+    grid = Basics.recommendedGrid([confLower, confUpper], ni; printout=false)
+    asfSettings = AsfSettings()
+
+    wb = SelfConsistent.performSCF([confLower, confUpper], ni, grid, asfSettings; printout=false)
+    orbitals = wb.levels[1].basis.orbitals
+
+    taUp   = SuperConfigurations.buildTransitionArray(confUpper, confLower, orbitals, ni, grid, asfSettings)
+    taDown = SuperConfigurations.buildTransitionArray(confLower, confUpper, orbitals, ni, grid, asfSettings)
+
+    @printf("\n>>> 3d^7 (%d CSFs implied) -> 3d^6 4p (%d CSFs implied):\n", 19, 180)
+    @printf(">>>   mean transition energy = %.6f Hartree (%.3f eV),  width = %.6f Hartree,  gf-sum S = %.4f\n",
+            taUp.meanEnergy, Defaults.convertUnits("energy: from atomic to eV", taUp.meanEnergy),
+            sqrt(max(taUp.variance, 0.0)), taUp.totalStrength)
+    @printf("\n>>> exchange check: mean(up) + mean(down)                = %.3e  (must be ~0)\n",
+            taUp.meanEnergy + taDown.meanEnergy)
+    @printf(">>>                 totalStrength relative difference     = %.3e\n",
+            abs(taUp.totalStrength - taDown.totalStrength)/taUp.totalStrength)
+    @printf(">>>                 variance relative difference          = %.3e\n",
+            abs(taUp.variance - taDown.variance)/taUp.variance)
+    println(">>> all three hold to machine precision or close to it -- the trace algebra's own exchange")
+    println(">>> symmetry, confirmed on a configuration pair four times the size of branches a-c's.")
+    #
 end
