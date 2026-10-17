@@ -1,15 +1,17 @@
 #
-println("Jf) Plasma.SuperConfigurationOpacityScheme on C I's 2s^2 2p^2 complex: three configurations, one")
-println("    Group each with their Boltzmann populations (Stage 1), and the E1 TransitionArray between")
-println("    every opposite-parity pair with its oscillator-strength sum (Stage 2, branch c).")
+println("Jf) Plasma.SuperConfigurationOpacityScheme on C I's 2s^2 2p^2 complex and on a real UTA-scale")
+println("    case (Co2+): populations (Stage 1), E1 TransitionArrays with their oscillator-strength sums")
+println("    (Stage 2), and the summed opacity spectrum kappa(omega) (Stage 3).")
 
 
 # STAGE 1 (branches a, b) is the population weighting alone -- which configuration carries how much of the
 # total population at a given plasma temperature, the natural precursor to any opacity, partition-function
-# or ionization-balance use of this machinery. STAGE 2 (branch c) adds the TRANSITION moment Stage 1
-# explicitly lacked: SuperConfigurations.TransitionArray between every pair connected by a single-electron
-# E1 transition, with its own oscillator-strength sum. A single SUMMED opacity spectrum as a function of
-# photon energy -- Stage 3 -- is still not built; see Plasma.SuperConfigurationOpacityScheme's own docstring.
+# or ionization-balance use of this machinery. STAGE 2 (branch c, and branch d at a real UTA-relevant CSF
+# count) adds the TRANSITION moment Stage 1 explicitly lacked: SuperConfigurations.TransitionArray between
+# every pair connected by a single-electron E1 transition, with its own oscillator-strength sum. STAGE 3
+# (branch e) sums every array's own Gaussian onto one frequency grid into a single kappa(omega) -- see
+# Plasma.SuperConfigurationOpacityScheme's own docstring for what even that still is not (a macroscopic
+# opacity in cm^2/g, which needs an ion density and mass this scheme is not given).
 
 
 if  true
@@ -132,12 +134,13 @@ elseif  false
     #
     #   ONE HONEST CAVEAT, so the numbers below are not oversold: at 180 CSFs, diagonalizing either side
     #   outright is still cheap in absolute wall-clock terms -- this branch demonstrates the SIZE regime,
-    #   not a wall-clock race. A genuinely large case was MEASURED, not assumed, while scoping this: Dy3+
-    #   [Xe] 4f^9 (198 CSFs) against its own 3d-4p analogue [Xe] 4f^8 5d (2725 CSFs) needed an estimated
-    #   ~6700 s just to fill the dense Hamiltonian matrix with the CURRENT, blind-double-loop
-    #   buildHamiltonianMatrix -- far outside what a routine example should run. That is concrete evidence,
-    #   not a guess, for why a selection-rule-sparse rewrite is a real next step rather than a hypothetical
-    #   one; filed on the priority list rather than attempted here.
+    #   not a wall-clock race. A genuinely large case WAS tried while scoping this and abandoned on a
+    #   measurement, not a guess: Dy3+ [Xe] 4f^9 (198 CSFs) against its own analogue [Xe] 4f^8 5d
+    #   (2725 CSFs) needed an estimated ~6700 s just to fill the dense Hamiltonian matrix with the blind
+    #   double loop buildHamiltonianMatrix had that day. FIXED SINCE, SAME DAY (priority item 79, CLOSED):
+    #   the redundancy was in the uncached radial integral, not in skipping zero-coupling CSF pairs (that
+    #   lever was ruled out in advance, since a related EOL-solver finding showed it plateaus at a constant
+    #   factor); memoizing the integral by orbital pair brought that SAME 2725-CSF case down to 27.5 s.
     #
     #   CHECK, NEEDING NO EXTERNAL REFERENCE: buildTransitionArray is called BOTH ways, (upper, lower) and
     #   (lower, upper). The underlying trace identities require an EXACT algebraic symmetry under that
