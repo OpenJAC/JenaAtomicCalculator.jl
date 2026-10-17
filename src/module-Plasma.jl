@@ -661,23 +661,29 @@ end
     ... a type for a superconfiguration-based plasma computation: ONE Gaussian `SuperConfigurations.Group`
         per reference configuration (a shared orbital set is built once, from ALL of `refConfigs` together),
         the Boltzmann population each group carries at the plasma temperature
-        `computation.settings.temperature`, and ONE `SuperConfigurations.TransitionArray` for every PAIR of
-        `refConfigs` connected by a single-electron E1 transition (opposite parity).
+        `computation.settings.temperature`, ONE `SuperConfigurations.TransitionArray` for every PAIR of
+        `refConfigs` connected by a single-electron E1 transition (opposite parity), and -- if
+        `opacityOmegas` is non-empty -- the SUM of every array's own Gaussian line profile on that
+        frequency grid: a per-absorber photo-absorption cross section kappa(omega), in atomic units (a0^2).
 
-        STAGE 2 OF 3, STATED EXPLICITLY. Stage 1 was the population weighting alone. This stage adds the
-        TRANSITION moment between two groups that Stage 1 explicitly lacked: each array's own mean
-        transition energy, width, and oscillator-strength sum `gf`, together with that `gf` weighted by the
-        lower configuration's population -- the quantity a plasma opacity is actually built from. STILL NOT
-        BUILT, and said plainly rather than quietly: a single SUMMED opacity as a function of photon energy,
-        which needs every array's own Gaussian line-shape folded together on one frequency grid -- that is
-        Stage 3. A scheme named "Opacity" that does not yet compute a spectrum is worth saying so rather
-        than letting a caller discover it from an empty key.
+        STAGE 3 OF 3. Stage 1 was the population weighting alone; Stage 2 added the per-array transition
+        moment (mean energy, width, oscillator-strength sum `gf`) that Stage 1 lacked. This stage folds
+        every array's own Gaussian -- whose shape was CALIBRATED, not assumed, against a direct
+        diagonalization (skewness +0.28, excess kurtosis +1.11 on a real case; see
+        `SuperConfigurations.TransitionArray`'s own docstring) -- onto one shared frequency grid, weighted
+        by its lower configuration's population, into the single summed spectrum the scheme is named for.
+        `opacityOmegas` left empty (the default) skips this stage exactly as before; Stages 1 and 2 do not
+        need it. WHAT THIS STILL IS NOT: a macroscopic opacity in cm^2/g -- that needs an ion number density
+        and mass this scheme is not given, a multiplication the caller supplies.
 
-    + refConfigs   ::Array{Configuration,1}   ... the configurations whose `SuperConfigurations.Group` this
-                                                     scheme builds, one group per configuration.
+    + refConfigs      ::Array{Configuration,1}   ... the configurations whose `SuperConfigurations.Group`
+                                                        this scheme builds, one group per configuration.
+    + opacityOmegas   ::Array{Float64,1}          ... photon energies [a.u.] at which to sum the Stage-3
+                                                        spectrum; empty (the default) skips Stage 3.
 """
 struct  SuperConfigurationOpacityScheme  <:  Plasma.AbstractPlasmaScheme
-    refConfigs     ::Array{Configuration,1}
+    refConfigs        ::Array{Configuration,1}
+    opacityOmegas     ::Array{Float64,1}
 end
 
 
@@ -685,13 +691,24 @@ end
 `Plasma.SuperConfigurationOpacityScheme()`  ... constructor for a standard (empty) instance.
 """
 function SuperConfigurationOpacityScheme()
-    SuperConfigurationOpacityScheme( Configuration[] )
+    SuperConfigurationOpacityScheme( Configuration[], Float64[] )
+end
+
+
+"""
+`Plasma.SuperConfigurationOpacityScheme(refConfigs::Array{Configuration,1})`
+    ... constructor with `opacityOmegas` defaulted to empty, i.e. Stages 1 and 2 only -- every existing
+        caller from before Stage 3 was added keeps working unchanged.
+"""
+function SuperConfigurationOpacityScheme(refConfigs::Array{Configuration,1})
+    SuperConfigurationOpacityScheme( refConfigs, Float64[] )
 end
 
 
 # `Base.show(io::IO, scheme::Plasma.SuperConfigurationOpacityScheme)`  ... prepares a proper printout.
 function Base.show(io::IO, scheme::Plasma.SuperConfigurationOpacityScheme)
-    println(io, "refConfigs:   $(scheme.refConfigs)  ")
+    println(io, "refConfigs:      $(scheme.refConfigs)  ")
+    println(io, "opacityOmegas:   $(scheme.opacityOmegas)  ")
 end
 
 

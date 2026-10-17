@@ -82,22 +82,61 @@ end
 
 
 """
+`Plasma.gaussianLineProfile(omega::Float64, mean::Float64, sigma::Float64)`
+    ... the NORMALIZED Gaussian line-shape value at `omega` for a line centered at `mean` with standard
+        deviation `sigma`, i.e. `integral d(omega) of this function over all omega is exactly 1`, so that
+        multiplying it by a total strength and integrating recovers that strength exactly. A
+        value::Float64 is returned.
+"""
+function  gaussianLineProfile(omega::Float64, mean::Float64, sigma::Float64)
+    sigma <= 0.0   &&   return( omega == mean ? Inf : 0.0 )
+
+    return( exp( -(omega-mean)^2 / (2*sigma^2) ) / (sigma * sqrt(2*pi)) )
+end
+
+
+"""
+`Plasma.displayOpacitySpectrum(stream::IO, omegas::Array{Float64,1}, kappa::Array{Float64,1})`
+    ... prints the Stage-3 summed photo-absorption cross section kappa(omega) [a0^2 per absorber, NOT YET a
+        macroscopic opacity -- see `Plasma.SuperConfigurationOpacityScheme`'s own docstring] at every
+        `omegas` entry. Nothing is returned.
+"""
+function  displayOpacitySpectrum(stream::IO, omegas::Array{Float64,1}, kappa::Array{Float64,1})
+    println(stream, "\n  Superconfiguration summed opacity spectrum (per-absorber cross section):\n")
+    println(stream, "  ", TableStrings.hLine(46))
+    sa = "    " * TableStrings.center(18, "omega [a.u.]"; na=2)
+    sa = sa     * TableStrings.center(20, "kappa(omega) [a0^2]"; na=2)
+    println(stream, sa)
+    println(stream, "  ", TableStrings.hLine(46))
+    for  (om, kp) in zip(omegas, kappa)
+        sa = "    " * @sprintf("%18.6f", om)
+        sa = sa     * @sprintf("%20.6e", kp)
+        println(stream, sa)
+    end
+    println(stream, "  ", TableStrings.hLine(46))
+
+    return( nothing )
+end
+
+
+"""
 `Plasma.perform(scheme::Plasma.SuperConfigurationOpacityScheme, computation::Plasma.Computation; output::Bool=true)`
     ... to build one `SuperConfigurations.Group` per configuration in `scheme.refConfigs`, on a SHARED
         orbital set obtained from `SelfConsistent.performSCF` over all of `refConfigs` together, to report
-        each group's Boltzmann population fraction at `computation.settings.temperature`, and -- STAGE 2 --
-        to build a `SuperConfigurations.TransitionArray` for every PAIR of `refConfigs` connected by a
-        single-electron E1 transition (opposite parity), reporting each array's own oscillator-strength sum
-        `gf` and that `gf` weighted by the lower configuration's population. See
-        `Plasma.SuperConfigurationOpacityScheme`'s own docstring for what this does and does not yet
-        compute -- in particular, these are per-array Gaussian line-shape PARAMETERS, not yet a single
-        summed opacity as a function of photon energy. For output=true, a dictionary is returned under the
-        keys "superconfiguration groups" (`Array{SuperConfigurations.Group,1}`), "superconfiguration
+        each group's Boltzmann population fraction at `computation.settings.temperature`, to build a
+        `SuperConfigurations.TransitionArray` for every PAIR of `refConfigs` connected by a single-electron
+        E1 transition (opposite parity) with its oscillator-strength sum `gf` (STAGE 2), and -- STAGE 3,
+        only if `scheme.opacityOmegas` is non-empty -- to sum every array's own Gaussian line profile,
+        weighted by `gf` and the lower configuration's population, onto that frequency grid into a single
+        kappa(omega). See `Plasma.SuperConfigurationOpacityScheme`'s own docstring for what this still is
+        not (a macroscopic opacity). For output=true, a dictionary is returned under the keys
+        "superconfiguration groups" (`Array{SuperConfigurations.Group,1}`), "superconfiguration
         populations" (the matching Boltzmann population fractions, `Array{Float64,1}`, summing to 1),
         "superconfiguration transition arrays" (`Array{SuperConfigurations.TransitionArray,1}`, one per
         E1-connected pair), "superconfiguration transition gf" (each array's own `gf`, `Array{Float64,1}`),
-        and "superconfiguration opacity contributions" (that `gf` weighted by the lower configuration's
-        population, `Array{Float64,1}` -- the quantity a later summed spectrum would be built from).
+        "superconfiguration opacity contributions" (that `gf` weighted by the lower configuration's
+        population, `Array{Float64,1}`), and, only when `scheme.opacityOmegas` is non-empty,
+        "superconfiguration opacity spectrum" (`kappa(omega)` on that grid, `Array{Float64,1}`).
 """
 function  perform(scheme::Plasma.SuperConfigurationOpacityScheme, computation::Plasma.Computation; output::Bool=true)
     if  output    results = Dict{String, Any}()    else    results = nothing    end
@@ -150,9 +189,27 @@ function  perform(scheme::Plasma.SuperConfigurationOpacityScheme, computation::P
     Plasma.displayTransitionArrays(stdout, tArrays, gfValues, gfEffValues)
     if  printSummary   Plasma.displayTransitionArrays(iostream, tArrays, gfValues, gfEffValues)   end
 
-    println("SuperConfigurationOpacityScheme computation complete (Stage 2: population weighting plus " *
-            "per-array oscillator-strength sums for every E1-connected pair -- see this scheme's own " *
-            "docstring for what is not yet built from them) ...")
+    # STAGE 3: fold every array's own Gaussian, weighted by its population-weighted gf, onto one shared
+    # frequency grid. Skipped entirely (not an error) when scheme.opacityOmegas is empty, which is the
+    # default and keeps every pre-Stage-3 caller's behaviour unchanged.
+    alpha     = Defaults.getDefaults("alpha")
+    haveStage3 = !isempty(scheme.opacityOmegas)
+    if  haveStage3
+        kappa = zeros(Float64, length(scheme.opacityOmegas))
+        for  (ta, gfEff) in zip(tArrays, gfEffValues)
+            sigma = sqrt(max(ta.variance, 0.0))
+            for  (k, om) in enumerate(scheme.opacityOmegas)
+                kappa[k] = kappa[k] + 2*pi^2*alpha * gfEff * Plasma.gaussianLineProfile(om, ta.meanEnergy, sigma)
+            end
+        end
+        Plasma.displayOpacitySpectrum(stdout, scheme.opacityOmegas, kappa)
+        if  printSummary   Plasma.displayOpacitySpectrum(iostream, scheme.opacityOmegas, kappa)   end
+    end
+
+    println("SuperConfigurationOpacityScheme computation complete (Stage " * (haveStage3 ? "3" : "2") *
+            ": population weighting, per-array oscillator-strength sums" *
+            (haveStage3 ? ", and the summed opacity spectrum" : "") *
+            " -- see this scheme's own docstring for what is not yet built from them) ...")
 
     if  output
         results = Base.merge( results, Dict("superconfiguration groups"                => groups,
@@ -160,6 +217,9 @@ function  perform(scheme::Plasma.SuperConfigurationOpacityScheme, computation::P
                                               "superconfiguration transition arrays"     => tArrays,
                                               "superconfiguration transition gf"         => gfValues,
                                               "superconfiguration opacity contributions" => gfEffValues) )
+        if  haveStage3
+            results["superconfiguration opacity spectrum"] = kappa
+        end
     end
 
     Defaults.warn(PrintWarnings())
