@@ -114,6 +114,14 @@ function  resultKeyStrings(T::Type)
     T === ResultKeys.SuperConfigurationOpacityContributions &&
         return( ["superconfiguration opacity contributions"] )
     T === ResultKeys.SuperConfigurationOpacitySpectrum      &&  return( ["superconfiguration opacity spectrum"] )
+    T === ResultKeys.SuperConfigurationIonizationGroups     &&  return( ["superconfiguration ionization groups"] )
+    T === ResultKeys.SuperConfigurationIonizationCharges    &&  return( ["superconfiguration ionization charges"] )
+    T === ResultKeys.SuperConfigurationIonizationStagePopulations   &&
+        return( ["superconfiguration ionization stage populations"] )
+    T === ResultKeys.SuperConfigurationIonizationGroupPopulations   &&
+        return( ["superconfiguration ionization group populations"] )
+    T === ResultKeys.SuperConfigurationIonizationElectronDensity    &&
+        return( ["superconfiguration ionization electron density"] )
 
     return( String[] )
 end
@@ -152,6 +160,10 @@ function  allResultKeyTypes()
             ResultKeys.SuperConfigurationGroups, ResultKeys.SuperConfigurationPopulations,
             ResultKeys.SuperConfigurationTransitionArrays, ResultKeys.SuperConfigurationTransitionGf,
             ResultKeys.SuperConfigurationOpacityContributions, ResultKeys.SuperConfigurationOpacitySpectrum,
+            ResultKeys.SuperConfigurationIonizationGroups, ResultKeys.SuperConfigurationIonizationCharges,
+            ResultKeys.SuperConfigurationIonizationStagePopulations,
+            ResultKeys.SuperConfigurationIonizationGroupPopulations,
+            ResultKeys.SuperConfigurationIonizationElectronDensity,
             Einstein.Settings, Hfs.Settings, LandeZeeman.Settings, StarkShift.Settings, StarkZeeman.Settings,
             IsotopeShift.Settings, AlphaVariation.Settings, FormFactor.Settings, DecayYield.Settings,
             MultipolePolarizibility.Settings, ReducedDensityMatrix.Settings, WeakInteractionEnhancement.Settings,

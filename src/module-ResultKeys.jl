@@ -248,6 +248,47 @@ struct  SuperConfigurationOpacityContributions <: Basics.AbstractResultKey end
 """
 struct  SuperConfigurationOpacitySpectrum    <: Basics.AbstractResultKey   end
 
+"""
+`struct  ResultKeys.SuperConfigurationIonizationGroups`  ... one `SuperConfigurations.Group` array per
+                                                               ionization stage; was
+                                                               `"superconfiguration ionization groups"`.
+"""
+struct  SuperConfigurationIonizationGroups   <: Basics.AbstractResultKey   end
+
+"""
+`struct  ResultKeys.SuperConfigurationIonizationCharges`  ... each stage's charge, matching
+                                                                `SuperConfigurationIonizationGroups` in
+                                                                order; was
+                                                                `"superconfiguration ionization charges"`.
+"""
+struct  SuperConfigurationIonizationCharges  <: Basics.AbstractResultKey   end
+
+"""
+`struct  ResultKeys.SuperConfigurationIonizationStagePopulations`  ... the equilibrium population fraction
+                                                                         per stage, summing to 1; was
+                                                                         `"superconfiguration ionization
+                                                                         stage populations"`.
+"""
+struct  SuperConfigurationIonizationStagePopulations <: Basics.AbstractResultKey end
+
+"""
+`struct  ResultKeys.SuperConfigurationIonizationGroupPopulations`  ... the same equilibrium population,
+                                                                         resolved per GROUP within each
+                                                                         stage, summing to 1 over ALL stages
+                                                                         together; was
+                                                                         `"superconfiguration ionization
+                                                                         group populations"`.
+"""
+struct  SuperConfigurationIonizationGroupPopulations <: Basics.AbstractResultKey end
+
+"""
+`struct  ResultKeys.SuperConfigurationIonizationElectronDensity`  ... the converged self-consistent
+                                                                        electron number density [a.u.]; was
+                                                                        `"superconfiguration ionization
+                                                                        electron density"`.
+"""
+struct  SuperConfigurationIonizationElectronDensity <: Basics.AbstractResultKey end
+
 
 # ---------------------------------------------------------------------------------------------------------------
 # WHAT IS DELIBERATELY NOT HERE: the RAS ladder's per-step results, stored as "step1", "step2", ... one per layer.
