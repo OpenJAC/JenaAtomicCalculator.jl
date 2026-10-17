@@ -218,6 +218,14 @@ end
                                                     ## populations summing to 1, and the T -> 0 limit putting
                                                     ## essentially all population on the lowest-mean-energy
                                                     ## group -- the defining property of a Boltzmann weight.
+        @test TestFrames.testModule_SuperConfigurationIonization()
+                                                    ## added 17-Oct-2026; three carbon charge states: stage
+                                                    ## populations sum to 1, electron density matches the
+                                                    ## charge-neutrality sum built from them, and BOTH
+                                                    ## adjacent-pair population ratios independently satisfy
+                                                    ## the textbook two-level Saha equation built from nothing
+                                                    ## but the scheme's own groups -- the equivalence of the
+                                                    ## grand-canonical and pairwise formulas, proved not assumed.
     end
 
     @testset "JAC strongfield" begin

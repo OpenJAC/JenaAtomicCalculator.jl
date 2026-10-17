@@ -259,6 +259,69 @@ function testModule_SuperConfigurationOpacity(; short::Bool=true)
 end
 
 
+"""
+`TestFrames.testModule_SuperConfigurationIonization(; short::Bool=true)`
+    ... tests `Plasma.SuperConfigurationIonizationScheme` on three charge states of carbon (Z=6):
+        `1s^2 2s^2 2p^2` (q=0), `1s^2 2s^2 2p` (q=1), `1s^2 2s^2` (q=2). Checks: the stage populations sum
+        to 1; electron density equals the charge-neutrality sum built from those very populations (a
+        self-consistency floor, not an external reference); and -- the decisive test -- BOTH adjacent-pair
+        population ratios independently satisfy the TEXTBOOK two-level Saha equation,
+        `n_{q+1}*n_e/n_q = (g_{q+1}/g_q) * 2*(kT/2pi)^1.5 * exp(-IP/kT)`, built here from nothing but the
+        SAME groups' own `meanEnergy`/`degeneracy` fields the scheme itself read. The scheme's
+        grand-canonical formula and the textbook pairwise formula are mathematically equivalent only if
+        implemented consistently; this is what actually proves that identity in code, not merely asserts
+        it. A success::Bool is returned.
+"""
+function testModule_SuperConfigurationIonization(; short::Bool=true)
+    printstyled("\n\nTest the module  Plasma (SuperConfigurationIonizationScheme)  ... \n", color=:cyan)
+    success = true
+
+    ni   = Nuclear.Model(6.)
+    grid = Radial.Grid(true)
+    asfSettings = AsfSettings()
+    refConfigsPerStage = [ [Configuration("1s^2 2s^2 2p^2")], [Configuration("1s^2 2s^2 2p")],
+                            [Configuration("1s^2 2s^2")] ]
+
+    scheme   = Plasma.SuperConfigurationIonizationScheme(refConfigsPerStage)
+    kT       = 15.0 / 27.211386   # 15 eV in Hartree, close to carbon's own ionization energies
+    settings = Plasma.Settings(kT, 1.0e-8, true)
+    wa = Plasma.Computation(Plasma.Computation(); scheme=scheme, nuclearModel=ni, grid=grid, asfSettings=asfSettings,
+                              settings=settings)
+    wb = perform(wa; output=true)
+
+    groupsPerStage   = wb[ResultKeys.SuperConfigurationIonizationGroups]
+    charges          = wb[ResultKeys.SuperConfigurationIonizationCharges]
+    stagePopulations = wb[ResultKeys.SuperConfigurationIonizationStagePopulations]
+    ne               = wb[ResultKeys.SuperConfigurationIonizationElectronDensity]
+
+    if  abs(sum(stagePopulations) - 1.0) > 1.0e-10
+        success = false;   println("  ** stage populations do not sum to 1: $(sum(stagePopulations))")
+    end
+
+    neFromNeutrality = 1.0e-8 * sum( charges[i]*stagePopulations[i]   for i = 1:length(charges) )
+    if  abs(ne - neFromNeutrality) > 1.0e-10 * ne
+        success = false
+        println("  ** electron density $ne is not the charge-neutrality sum $neFromNeutrality built from the " *
+                 "SAME populations the scheme itself returned")
+    end
+
+    for  i = 1:length(charges)-1
+        g0 = groupsPerStage[i][1].degeneracy;      E0 = groupsPerStage[i][1].meanEnergy
+        g1 = groupsPerStage[i+1][1].degeneracy;    E1 = groupsPerStage[i+1][1].meanEnergy
+        sahaRHS = (g1/g0) * 2 * (kT/(2*pi))^1.5 * exp( -(E1-E0)/kT )
+        sahaLHS = stagePopulations[i+1] * ne / stagePopulations[i]
+        if  abs(sahaLHS - sahaRHS) > 1.0e-6 * sahaRHS
+            success = false
+            println("  ** pair (q=$(charges[i]), q=$(charges[i+1])): Saha check failed, " *
+                     "LHS = $sahaLHS, RHS = $sahaRHS")
+        end
+    end
+
+    testPrint("testModule_SuperConfigurationIonization()::", success)
+    return( success )
+end
+
+
 ## PlasmaShift: no test exists and none is planned here. The former testModule_PlasmaShift was deleted
 ## on 09-Aug-2026 as obsolete: PlasmaShift is no longer an Atomic property but a Plasma.Computation
 ## scheme, so a test for it belongs with the Plasma module and has to be written afresh.
