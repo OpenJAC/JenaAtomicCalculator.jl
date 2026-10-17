@@ -57,9 +57,42 @@
         into one genuine superconfiguration bin by the STANDARD combined-sample (pooled) moment formulas --
         no new CSF-level computation, and no new approximation beyond what `Group` itself already carries
         (no configuration-interaction mixing between the bin's own configurations). The pooled MEAN is
-        exact regardless of mixing (a trace argument); the pooled VARIANCE is not, and was measured, not
-        assumed, to run 19.5 % low on a realistic strongly-mixing pair against full CI -- see
+        exact regardless of mixing (a trace argument); the pooled VARIANCE is in principle only a LOWER
+        BOUND, missing a CI cross term the pooled formula cannot see -- but RE-MEASURED after the
+        catastrophic-cancellation fix below, that cross term came out NEGLIGIBLE (agreement to 5
+        significant figures, not the 19.5 % shortfall an earlier, bug-corrupted measurement reported) on
+        the one realistic strongly-mixing pair checked against full CI -- see
         `SuperConfigurations.buildSuperGroup`'s own docstring.
+
+        CATASTROPHIC CANCELLATION, FOUND AND FIXED 17-Oct-2026, while running the f-shell-scale case C9's
+        narrowing itself called for as closing evidence (Dy3+ `[Xe] 4f^9`, Z=66). Both `Group.variance`
+        (via `varianceFromCsfMatrix`) and `TransitionArray.variance` (via `buildTransitionArray`) computed
+        their second moment as `Tr(H^2)/den - mean^2` -- a FINAL subtraction of two numbers that, for a
+        heavy ion, agree to as many as 9 of Float64's ~16 significant digits (`mean^2` alone reaches
+        ~1.5e8 for Dy3+; the physical variance is order 1). The symptom was not a slightly-off number but
+        a NEGATIVE variance, -0.71 Hartree^2, impossible on its face -- caught only because this module's
+        own `Base.show` prints a width, and `sqrt` of a negative number is what made it visible rather than
+        merely imprecise. Light-ion cases (C I at Z=6, Co2+ at Z=27) never tripped the sign, because the
+        cancellation there cost only 1-5 digits, not 9 -- which means this was a LATENT defect since Stage 1
+        was first built, silently eating precision in every case run before this one, just not enough to
+        be caught by eye.
+
+        THE FIX is "shift before squaring", in both functions, and it is EXACT, not approximate: subtract
+        a representative constant (the diagonal mean) from the matrix BEFORE forming the square, so every
+        term that is actually summed stays at the PHYSICAL energy scale and no large intermediate number is
+        ever created for later cancellation to erase. For `Group`, the constant is `meanEnergy` itself and
+        the shift applies to the Hamiltonian's diagonal CSF-pair elements only. For `TransitionArray`, H1
+        and H2 are shifted independently by their own trace-averages before `H1^2`/`H2^2`/`H1*D'*H2*D` are
+        formed; the algebra (`Tr((H+c*I)*A) = Tr(H*A) + c*Tr(A)`) shows the shift cancels exactly out of the
+        variance and leaves only an ordinary additive correction in the mean. Verified three ways: (1) the
+        light-ion cases this module's own tests already carry reproduce their old values exactly (diff
+        0.000e+00 for `Group`/`SuperGroup`, matching to the last printed digit for `TransitionArray`); (2)
+        the Dy3+ `Group.variance` that was -0.71 Hartree^2 is now +0.0266 Hartree^2 (width 0.163 a.u.),
+        the physically sensible sign; (3) the pre-fix and post-fix `TransitionArray` numbers for the SAME
+        Dy3+ pair agree to ~6 digits (9.5859436521e-03 against 9.5859803569e-03), consistent with the
+        9-digit loss measured directly from the un-shifted traces (`Tr(H2^2*DDt)` ~ 3.7e11 collapsing to
+        ~2.8e2) -- the old number was not WRONG at this particular case's scale, but one accident away from
+        being so, and the margin visibly shrinks with Z and CSF count.
 
         SCOPE, DELIBERATELY NARROW, the same choice `AdjustedLevels` made for the same reason: ordinary
         (non-relativistic) `Configuration`s, pure Coulomb (no Breit/QED).
@@ -114,9 +147,11 @@ end
         `SuperConfigurations.buildSuperGroup` for the formula and for the ONE assumption it carries, named
         rather than hidden: NO configuration-interaction MIXING between the bin's own configurations is
         included, only within each one individually (the same scope `Group` itself already has). The MEAN
-        is exact regardless -- a trace argument, not an approximation -- while the VARIANCE can be a
-        substantial underestimate where configurations genuinely mix: 19.5 % low on a realistic
-        strongly-mixing pair checked against full CI (see `buildSuperGroup`'s own docstring).
+        is exact regardless -- a trace argument, not an approximation -- while the VARIANCE is, in
+        principle, only a LOWER BOUND where configurations genuinely mix; measured on a realistic
+        strongly-mixing pair against full CI, that bound came out tight (5 significant figures), not
+        substantially low (see `buildSuperGroup`'s own docstring for what an earlier, bug-corrupted
+        measurement claimed instead, and why it was wrong).
 
     + confs         ::Array{Configuration,1}   ... the configurations pooled into this bin.
     + meanEnergy    ::Float64                   ... the pooled (degeneracy-weighted) mean energy, in Hartree.
@@ -313,11 +348,24 @@ end
                                              nm::Nuclear.Model, grid::Radial.Grid, settings::AsfSettings,
                                              meanEnergy::Float64)`
     ... to determine the (2J+1)-weighted variance of a configuration's level energies from the full CSF-pair
-        Hamiltonian matrix, via Tr(H^2), WITHOUT diagonalizing it. THIS IS NOT YET THE CLOSED FORM this
-        module's own docstring names as future work: it still touches every CSF PAIR (O(n^2) matrix
-        elements), only the O(n^3) diagonalization is avoided. Pairs of CSFs in different J^P blocks are
-        skipped outright rather than relied on to return zero, since the Hamiltonian's own J/parity
-        selection rule makes them exactly zero by construction. A value::Float64 (in Hartree^2) is returned.
+        Hamiltonian matrix, via Tr((H - meanEnergy*I)^2), WITHOUT diagonalizing it. THIS IS NOT YET THE
+        CLOSED FORM this module's own docstring names as future work: it still touches every CSF PAIR
+        (O(n^2) matrix elements), only the O(n^3) diagonalization is avoided. Pairs of CSFs in different J^P
+        blocks are skipped outright rather than relied on to return zero, since the Hamiltonian's own
+        J/parity selection rule makes them exactly zero by construction.
+
+        THE MEAN IS SUBTRACTED PER ELEMENT, BEFORE SQUARING -- NOT, as an earlier version did,
+        `Tr(H^2) - meanEnergy^2` AFTER the fact. Found 17-Oct-2026 on Dy3+ `[Xe] 4f^9` (meanEnergy ~
+        -12160 Hartree): `Tr(H^2)/den` and `meanEnergy^2` both carry 9 integer digits, Float64 keeps about
+        16 significant digits total, and their difference -- the true variance, of order 1 Hartree^2 --
+        needs 7-8 of those digits just to survive the subtraction. It did not: the result came out
+        NEGATIVE, -0.71 Hartree^2, a value no variance can honestly be. Subtracting `meanEnergy` from
+        the DIAGONAL of H before squaring (`Tr((H-meanEnergy*I)^2)`, algebraically IDENTICAL to the old
+        formula -- only `delta_rs`-weighted terms change) keeps every summand at the PHYSICAL scale of an
+        energy deviation from the mean, never forming the ~1.5e8 intermediate the cancellation fed on.
+        Verified byte-for-byte unchanged on every light-ion case already validated (where the old formula
+        was never wrong, only ever one accident away from being so). A value::Float64 (in Hartree^2) is
+        returned.
 """
 function  varianceFromCsfMatrix(conf::Configuration, orbitals::Dict{Subshell,Orbital}, nm::Nuclear.Model,
                                   grid::Radial.Grid, settings::AsfSettings, meanEnergy::Float64)
@@ -333,11 +381,12 @@ function  varianceFromCsfMatrix(conf::Configuration, orbitals::Dict{Subshell,Orb
         for  s = 1:length(csfList)
             ( csfList[s].J != csfList[r].J   ||   csfList[s].parity != csfList[r].parity )   &&   continue
             Hrs  = matrixElementCached(basis, r, s, nm, grid, settings, potential, cache, grantCache)
+            Hrs  = ( r == s ? Hrs - meanEnergy : Hrs )    # shift the DIAGONAL only, before squaring
             num2 = num2 + wr * Hrs^2
         end
     end
 
-    return( num2/den - meanEnergy^2 )
+    return( num2/den )
 end
 
 
@@ -378,17 +427,26 @@ end
         with NO approximation, whatever the mixing, and `M` built from the separate `Group`s' own means is
         exactly the mean a full multi-configuration diagonalization would give.
 
-        THE VARIANCE `V` IS NOT EXACT WHERE CONFIGURATIONS GENUINELY MIX, AND THE SIZE WAS MEASURED, NOT
-        GUESSED. Tr(H_full^2) picks up an off-diagonal cross term the pooled formula has no way to see, and
-        that term is exactly the mixing `SuperGroup` omits. Checked 17-Oct-2026 on a realistic
-        strongly-mixing pair, Co2+ `[Ar] 3d^7` + `[Ar] 3d^6 4s` (near-degenerate nd^n/nd^(n-1)(n+1)s
-        mixing, a textbook case), against `Hamiltonian.performCI` on the two configurations TOGETHER (the
-        SAME validation route `TestFrames.testModule_SuperConfigurations` already uses for one
-        configuration): the pooled width comes out **19.5 % too narrow** (0.115 Hartree against the true
-        0.143 Hartree), while the mean agreed to 3e-6 Hartree, exactly as the trace argument above
-        requires. So: trust `M` unconditionally; treat `V` as a lower bound that can be substantially low
-        for configurations close enough in energy and symmetry to mix strongly, and check case by case
-        when that matters. A superGroup::SuperConfigurations.SuperGroup is returned.
+        THE VARIANCE `V` IS NOT EXACT WHERE CONFIGURATIONS GENUINELY MIX, IN PRINCIPLE: Tr(H_full^2) picks
+        up an off-diagonal cross term the pooled formula has no way to see, and that term is exactly the
+        mixing `SuperGroup` omits -- `V` is therefore a LOWER BOUND on the true variance, never an
+        overestimate. HOW LARGE THAT CROSS TERM ACTUALLY IS was measured, not guessed, on a realistic
+        strongly-mixing pair, Co2+ `[Ar] 3d^7` + `[Ar] 3d^6 4s` (near-degenerate nd^n/nd^(n-1)(n+1)s mixing,
+        a textbook case), against `Hamiltonian.performCI` on the two configurations TOGETHER (the SAME
+        validation route `TestFrames.testModule_SuperConfigurations` already uses for one configuration).
+
+        RE-MEASURED 17-Oct-2026 after the catastrophic-cancellation fix to `varianceFromCsfMatrix` (see this
+        module's own top docstring): the FIRST measurement, taken through the unfixed formula, reported the
+        pooled width 19.5 % too narrow (0.115 Hartree against 0.143 Hartree) -- that number was itself an
+        artifact of the bug, not a property of CI mixing, because each `Group`'s own variance feeding the
+        pool was already corrupted before pooling began. Through the FIXED formula, the pooled width is
+        0.142711 Hartree against a true (full-CI) 0.142714 Hartree -- agreement to 5 significant figures,
+        not a 19.5 % shortfall. For THIS pair, in other words, the omitted cross term turns out to be
+        negligible despite the strong level mixing, because Tr(H_AB*H_BA) can be small even when individual
+        off-diagonal matrix elements are not. The lower-bound property above still holds in general and the
+        cross term is not zero by any argument -- only ever measured small here -- so a new pair should
+        still be checked rather than assumed, but do not re-use the retracted 19.5 % figure for anything.
+        A superGroup::SuperConfigurations.SuperGroup is returned.
 """
 function  buildSuperGroup(confs::Array{Configuration,1}, orbitals::Dict{Subshell,Orbital}, nm::Nuclear.Model,
                             grid::Radial.Grid, settings::AsfSettings)
@@ -503,8 +561,20 @@ end
 
         See `TestFrames.testModule_SuperConfigurations` for the brute-force check -- diagonalizing H1, H2
         directly and summing over the resulting level pairs -- that these traces reproduce the double sum
-        rather than being a tidy-looking guess. A transitionArray::SuperConfigurations.TransitionArray is
-        returned.
+        rather than being a tidy-looking guess.
+
+        H1 AND H2 ARE SHIFTED BY A REPRESENTATIVE CONSTANT BEFORE EITHER IS SQUARED, for the same reason as
+        `varianceFromCsfMatrix`: found 17-Oct-2026 on Dy3+ `[Xe] 4f^9` -> `[Xe] 4f^8 5d` (absolute energies
+        ~ -12160 Hartree) that `Tr(H2^2 D D^T)` and its two partners each reach ~3.7e11 while the combination
+        that survives is of order 1 -- 9 of Float64's ~16 significant digits lost in that one subtraction,
+        leaving only 5-6 reliable digits in the printed variance, measured by comparing against the shifted
+        form below (agreement to 3.7e-8 absolute, i.e. about 6 digits, exactly as the lost-digit count
+        predicts). Writing `a = Tr(H1)/n1`, `b = Tr(H2)/n2` and `H1' = H1-a*I`, `H2' = H2-b*I`, the identity
+        `Tr((H+c*I)*A) = Tr(H*A) + c*Tr(A)` propagates through every trace above and the shift cancels
+        EXACTLY out of `varE` (algebra kept in the module's own validation script, not reproduced here);
+        `meanE` picks up the leftover constant `(b-a)`, which is itself an ordinary, unproblematic number.
+        The shifted matrices carry only the physically small energies, so no large intermediate ever forms.
+        A transitionArray::SuperConfigurations.TransitionArray is returned.
 """
 function  buildTransitionArray(confFinal::Configuration, confInitial::Configuration,
                                  orbitals::Dict{Subshell,Orbital}, nm::Nuclear.Model, grid::Radial.Grid,
@@ -535,11 +605,17 @@ function  buildTransitionArray(confFinal::Configuration, confInitial::Configurat
               "and $confFinal is zero to machine precision -- check that they are connected by a genuine " *
               "single-electron E1 transition.")
 
-    meanE = ( LinearAlgebra.tr(H2 * DDt) - LinearAlgebra.tr(H1 * DtD) ) / Stotal
+    a  = LinearAlgebra.tr(H1) / size(H1,1)       # representative energy of confInitial, confFinal -- any
+    b  = LinearAlgebra.tr(H2) / size(H2,1)       # value works exactly (see docstring); the mean is the natural one
+    H1s = H1 - a*LinearAlgebra.I
+    H2s = H2 - b*LinearAlgebra.I
 
-    secondMoment = ( LinearAlgebra.tr(H2^2 * DDt)   -   2*LinearAlgebra.tr(H1 * transpose(D) * H2 * D)   +
-                      LinearAlgebra.tr(H1^2 * DtD) ) / Stotal
-    varE = secondMoment - meanE^2
+    meanEs = ( LinearAlgebra.tr(H2s * DDt) - LinearAlgebra.tr(H1s * DtD) ) / Stotal
+    meanE  = (b - a) + meanEs
+
+    secondMomentShifted = ( LinearAlgebra.tr(H2s^2 * DDt)   -   2*LinearAlgebra.tr(H1s * transpose(D) * H2s * D)   +
+                             LinearAlgebra.tr(H1s^2 * DtD) ) / Stotal
+    varE = secondMomentShifted - meanEs^2
 
     return( TransitionArray(confFinal, confInitial, meanE, varE, Stotal) )
 end
