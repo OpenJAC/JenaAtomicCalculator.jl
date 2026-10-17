@@ -91,6 +91,17 @@ end
         configuration's CI matrix. See `SuperConfigurations.buildTransitionArray` for exactly how these are
         obtained, and this module's own docstring for why they are EXACT rather than a closed form.
 
+        WHETHER A GAUSSIAN IS A GOOD MODEL FOR THE TRUE DISTRIBUTION -- not just whether these two moments
+        are computed correctly -- was CALIBRATED, not assumed, 17-Oct-2026, on Co2+ [Ar] 3d^7 -> 3d^6 4p
+        (3420 individual CSF-pair lines, exact eigenbasis via direct diagonalization, used only for this
+        one-time check and nowhere in the production path): skewness +0.28, excess kurtosis +1.11 against
+        the Gaussian's 0 and 0, with no single line carrying more than 2.2 % of the total strength (the top
+        five together 8.4 %). So at this CSF count a Gaussian is a reasonable, mildly heavy-tailed and
+        mildly asymmetric approximation, not an exact one, and NOT an artefact of a few outlier lines
+        dominating the sum. This is ONE measurement on ONE array, not a theorem -- re-check before trusting
+        it at a very different size or shell structure, in particular before building Stage 3 (a single
+        summed opacity spectrum) on top of it.
+
     + confFinal     ::Configuration   ... the configuration the transition ends in.
     + confInitial   ::Configuration   ... the configuration the transition starts from.
     + meanEnergy    ::Float64          ... line-strength-weighted mean of (E_final - E_initial), in Hartree;
