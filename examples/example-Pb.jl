@@ -411,6 +411,18 @@ elseif  false
     #   a BoundsError from inside SpinAngular, with nothing in the message pointing at the cause.  This branch
     #   merges the bases itself.  Fixing it belongs to a MultipoleMoment task, not to this one.
     #
+    #   RE-CONFIRMED FROM A THIRD, INDEPENDENT ROUTE, 17-Oct-2026, while building
+    #   SuperConfigurations.buildTransitionArray (module-SuperConfigurations.jl): a trivial one-electron
+    #   test (1s vs 2p, so j_a = J_f identically, no cancellation possible) showed MultipoleMoment.
+    #   dipoleAmplitude's |amplitude|^2 short of the correct line strength by EXACTLY (2*J_f+1) --
+    #   2 for 2p_1/2, 4 for 2p_3/2.  This is NOT a new puzzle: it is precisely the missing sqrt(2J_f+1) that
+    #   the assistant's own 22-Aug-2026 gos-module calibration (hydrogen, EXACT analytic
+    #   reduced m.e., L=0..4) already established and marked "DO NOT RE-DERIVE".  The j_a=J_f cancellation
+    #   this branch found for the Li-like pair belongs to PhotoEmission's OWN extra /sqrt(2j_a+1) (itself an
+    #   artefact of MabEmission's normalization, not a general rule) and has no bearing on dipoleAmplitude,
+    #   which never applies that factor either way and is simply missing sqrt(2J_f+1) always, for L >= 1.
+    #   Still not repaired here -- same reason as above.
+    #
     grid  = Radial.Grid(Radial.Grid(true), rnt = 4.0e-6, h = 5.0e-2, rbox = 12.0)
     alpha = Defaults.getDefaults("alpha")
 
