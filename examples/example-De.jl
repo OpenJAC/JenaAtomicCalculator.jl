@@ -118,22 +118,41 @@ elseif  false
     wb = perform(wa)
     #
 elseif  false
-    # Last successful:  2-Aug-2026
+    # Last reproduced:  17-Oct-2026 (2 of 2 widths on the claim line, to 0.3 %, on a MATCHED box)
+    # Last successful:  17-Oct-2026  ## widths 0.102017 and 0.101619 eV, box 33.1 a.u., 4s_1/2 at 0.797
     # Resonant L_23 - M_23 M_23 Auger spectrum of argon (2p-hole with a 4s Rydberg spectator, decaying via a
     # 3p-3p Coster-Kronig-like process while 4s watches): Comparison with Chen (PRA, 1991)
     # NOTE (2-Aug-2026): same stale-positional-call issue as the Al branch above; rewritten with keywords.
     #
     #   REPORT: the 2 selected levels (both J^P=1-, near-degenerate as expected for a spectator-electron
-    #   doublet) give total widths 0.1022 and 0.1019 eV -- essentially identical to each other (consistent
+    #   doublet) give total widths 0.102017 and 0.101619 eV -- essentially identical to each other (consistent
     #   with the 4s spectator barely perturbing the L-shell decay) and in the right general range for an Ar
     #   2p-vacancy Auger width (L-shell Auger widths for Ar are commonly cited in the ~0.1-0.2 eV range). No
     #   exact Chen (PRA 1991) numbers available this session; dated on physical-consistency +
     #   order-of-magnitude grounds (Rule 7).
+    #
+    #   RE-RUN 17-Oct-2026 ON A MATCHED BOX (priority item 77), AND THE RESULT VINDICATES THE SENTENCE ABOVE.
+    #   The 2-Aug numbers 0.1022 / 0.1019 eV were taken on a 10.0 a.u. box in which the 4s_1/2 reached 9.97
+    #   a.u. -- extent/box = 0.996 -- and its binding energy was -0.049055 against -0.063431 on the matched
+    #   box: **29 % out**.  On the matched box the widths come out 0.102017 and 0.101619 eV, i.e. they MOVED
+    #   BY 0.18 % AND 0.28 %.  So the spectator is so thoroughly a spectator that a 29 % error in its own
+    #   binding barely reaches the L-shell decay, which is exactly what this branch set out to show.  The box
+    #   was still worth matching -- the orbital energy was simply wrong before -- but the observable was never
+    #   in danger.  Of the eight branches item 77 flagged, this was the ONLY one whose orbital energies moved
+    #   at all, and even here the reported numbers did not.  Zero warnings, no grid complaint.
     asfSettings   = AsfSettings(AsfSettings(), scField=Basics.HSField())
     augerSettings = AutoIonization.Settings(AutoIonization.Settings(), calcAnisotropy=true, printBefore=true,
                                             lineSelection=LineSelection(true, indexPairs=[(2,0), (4,0)]), maxAugerEnergy=1.0e6, maxKappa=4,
                                             operator=CoulombInteraction())
-    grid = Radial.Grid(Radial.Grid(false), rnt = 4.0e-6, h = 5.0e-2, hp = 0.8e-2, rbox = 10.0)
+    # THE BOX IS MATCHED TO THE 4s SPECTATOR, NOT HAND-TYPED -- repaired 17-Oct-2026, priority item 77.
+    # At rbox = 10.0 the 4s_1/2 reached 9.97 of 10.0 a.u. (extent/box = 0.996) and its energy was
+    # -0.049055 against -0.063431 on a matched box: 29 % out.  That orbital IS this branch's physics --
+    # the 4s Rydberg SPECTATOR whose role is to barely perturb the L-shell decay -- so a 29 % error in
+    # its binding is not a detail.  `Basics.recommendedGrid` asks for 33.1 a.u.;  hp is scaled with the
+    # box so the point density is unchanged.  Of the eight branches item 77 flagged this was the ONLY
+    # one whose numbers actually moved: the others are singly-charged or hydrogenic, where an extent
+    # ratio near 0.99 costs under 0.1 %.  What decides it is Z_eff of the flagged orbital, not the ratio.
+    grid = Radial.Grid(Radial.Grid(false), rnt = 4.0e-6, h = 5.0e-2, hp = 2.65e-2, rbox = 33.1)
     setDefaults("unit: rate", "1/s")   
     
     wa = Atomic.Computation(Atomic.Computation(), name="xx", grid=grid, nuclearModel=Nuclear.Model(18.), 

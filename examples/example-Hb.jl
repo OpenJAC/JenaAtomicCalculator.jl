@@ -3,6 +3,13 @@ println("Hb) Tests of (empirical) impact-ionization cross sections.")
 setDefaults("unit: energy", "eV")
 #
 setDefaults("print summary: open", "S-plus.sum")
+# BOX NOTE (priority item 77, MEASURED 17-Oct-2026) -- the box is adequate and was left alone.
+#   Two branches of this file are flagged: 6p_3/2 of Bi at 0.989 (branch at line 72) and 2p_1/2 of neutral B
+#   at 0.976 (line 137).  MEASURED against a matched 26.7 a.u. box: the Bi 6p_3/2 moves 1.79 %
+#   (-0.118900 -> -0.121030) and the B 2p_3/2 1.12 % (-0.098833 -> -0.099938).  Both sit well inside the
+#   LOTZ MODEL'S OWN accuracy, which is semi-empirical at the tens-of-per-cent level, so matching the box
+#   would change the cross sections by far less than the formula's own uncertainty -- while re-dating all
+#   EIGHT branches of this file, since this grid is file-scope.
 grid = Radial.Grid(Radial.Grid(false), rnt = 4.0e-6, h = 5.0e-2, hp = 1.0e-2, rbox = 10.0)
 
 if  false

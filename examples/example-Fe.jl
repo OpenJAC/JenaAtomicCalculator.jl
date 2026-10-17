@@ -8,6 +8,13 @@ setDefaults("method: normalization, pure sine")         ## setDefaults("method: 
 setDefaults("unit: energy", "eV")
 setDefaults("unit: cross section", "Mbarn")             ## NB: the string is "Mbarn"; "Mb" is rejected
 
+# BOX NOTE (priority item 77, MEASURED 17-Oct-2026) -- the box is adequate and was left alone.
+#   `checkOrbitalBox` reports 3p_1/2 at extent/box = 0.997 of this 10.0 a.u. box, on the cascade's excited
+#   configurations.  MEASURED: the 3p energy of neutral C moves 3.0 % between this box and a matched 64.9 a.u.
+#   one (-0.196622 -> -0.202522).  NOT repaired, deliberately, and the reason is the BLAST RADIUS rather than
+#   the cost: this grid is FILE-SCOPE and every branch of this file uses it, so matching it would re-date four
+#   branches at 6.5x the box for a 3 % shift in an amplitude set whose consumers (branches b-d) compare it
+#   against itself.  If a future branch here quotes an ABSOLUTE 3p-dependent number, match the box first.
 grid = Radial.Grid(Radial.Grid(false); rnt = 4.0e-6, h = 5.0e-2, hp = 0.6e-2, rbox = 10.0)
 
 

@@ -4,6 +4,14 @@ using JLD2, Printf
 #
 setDefaults("unit: energy", "eV")
 
+# BOX NOTE (priority item 77, MEASURED 17-Oct-2026) -- the box is adequate and was left alone.
+#   `checkOrbitalBox` flags 6p_3/2 (0.987), 5d_5/2 (0.971) and 6s_1/2 (0.952) of Sr II in this 25.0 a.u. box.
+#   MEASURED against a 62 a.u. box, every one of them -- and the 5p and 4d that carry the opacity's own line
+#   list -- moves by AT MOST 0.04 %:
+#       5p_3/2 0.00 %   4d_5/2 0.01 %   6s_1/2 0.00 %   6p_3/2 0.04 %   5d_5/2 0.00 %
+#   So this box is fine and the warning is firing on the TAIL'S EXISTENCE rather than its WEIGHT.  Sr II is
+#   singly charged, so its orbitals are compact;  what decides box adequacy is Z_eff of the orbital, not the
+#   extent ratio.  Leave this grid as it is -- it is shared by all seven branches of this file.
 grid = Radial.Grid(Radial.Grid(false); rnt = 1.0e-5, h = 5.0e-2, hp = 2.0e-2, rbox = 25.0)
 
 

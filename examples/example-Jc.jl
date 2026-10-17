@@ -27,6 +27,17 @@ if  false
     #   code's own built-in pressure cross-check (computed once from the mean charge state, once by explicitly
     #   summing level populations, cf. Plasma.pressure's ">>>> Pressure = ... =!= wp = ..." printout) matched
     #   exactly (0.0010282945050021789 both ways).
+    # BOX NOTE (priority item 77, MEASURED 17-Oct-2026) -- the box is adequate and was left alone.
+    #   `checkOrbitalBox` flags 4d_3/2, 4d_5/2 (0.995) and 4f_5/2 (0.955) in this 10.0 a.u. box, and item 77
+    #   first put this branch at 9.6x oversize, the worst of the eight it listed.  IT IS IN FACT THE SAFEST,
+    #   and the reason is a lesson worth keeping: THE WARNING NAMES AN ORBITAL LABEL, BUT THE DAMAGE DEPENDS
+    #   ON THE CONFIGURATION IT SITS IN.  The sweep log shows these 4d/4f warnings come from `4d_3/2^1`
+    #   (q = 6, BARE carbon -- one electron at Z = 6) and `1s 4d` (q = 5), not from a neutral atom:  this
+    #   branch runs q = 4:6, He-like through bare.  Those orbitals are hydrogenic and COMPACT.
+    #   MEASURED against the EXACT Dirac energies, which a one-electron system makes available:
+    #       4s_1/2 0.006 %   4p_3/2 0.004 %   4d_3/2 0.002 %   4d_5/2 0.002 %   4f_7/2 0.000 %
+    #   A neutral-carbon 4d, by contrast, is out by 429 % in this box -- a Z_eff ~ 1 Rydberg orbital is a
+    #   different object entirely.  So: adequate here, and read the CONFIGURATION before trusting a ratio.
     grid        = Radial.Grid(Radial.Grid(false), rnt = 4.0e-6, h = 5.0e-2, hp = 0.6e-2, rbox = 10.0)
     nm          = Nuclear.Model(6.0)
     rho         = 2.0e-5      # number density

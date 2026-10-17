@@ -112,6 +112,12 @@ elseif  false
     #   all artefacts of the wrong state returned on the 614 a.u. box; they are not AL-Field physics.
     nm = Nuclear.Model(32., FermiNucleus(), 74., 4.07, AngularJ64(0//1), 0.0, 0.0, 0.0)
 
+    # BOX NOTE (priority item 77, MEASURED 17-Oct-2026) -- the box is adequate and was left alone.
+    #   `checkOrbitalBox` reports 4f_5/2 and 4f_7/2 at extent/box = 0.954-0.973 of the 30.0 a.u. box used
+    #   below.  MEASURED against a 90 a.u. box, the 4f_7/2 energy moves 0.01 % (-0.074629 -> -0.074638) and
+    #   no subshell moves more than 0.05 %.  Ge II is singly charged, so the 4f is compact and the warning
+    #   fires on the tail's existence rather than its weight.  Note that -0.074629 is exactly the number
+    #   this branch's own comment above already quotes, which is what makes the check trustworthy here.
     wa1 = Atomic.Computation(Atomic.Computation(), name="Cd-d-GeII4f-DFS-Coulomb", grid=Radial.Grid(Radial.Grid(false); rbox=30.0),
                             nuclearModel=nm, configs=[Configuration("[Ar] 3d^10 4s^2 4f")],
                             propertySettings=[ LandeZeeman.Settings(LandeZeeman.Settings(); calcLandeJ=true,
