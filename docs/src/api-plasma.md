@@ -13,6 +13,20 @@ Pages   = ["module-Plasma-inc-average-atom.jl"]
 Order   = [:type, :function]
 ```
 
+## Average-atom optical properties
+```@autodocs
+Modules = [Plasma]
+Pages   = ["module-Plasma-inc-average-atom-optical.jl"]
+Order   = [:type, :function]
+```
+
+## Super-configuration opacities
+```@autodocs
+Modules = [Plasma]
+Pages   = ["module-Plasma-inc-superconfiguration-opacity.jl"]
+Order   = [:type, :function]
+```
+
 ## Collisional-radiative level populations
 ```@autodocs
 Modules = [Plasma]

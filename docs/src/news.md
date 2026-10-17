@@ -6,6 +6,81 @@
 
 # 2026
 
+## Version 0.7.0
+
+!!! warning "Four breaking changes"
+    * **String keys into a `perform` result now raise.** A result is asked for by the settings type that
+      produced it, `res[PhotoEmission.Settings]`, or by one of the `ResultKeys` types for results that have no
+      settings. The old strings were deprecated in 0.6.0 and have been removed; a retired key raises an error
+      that names what to write instead.
+    * **`TestFrames` is no longer exported.** From 1.0.0 an exported name is a promise, and this one is the
+      test suite. Call it as `JenaAtomicCalculator.TestFrames` if you need it.
+    * **The `SuperConfiguration` configuration theme has been retired**, having never had a caller. Super
+      configurations are now reached through `Plasma.SuperConfigurationOpacityScheme` and the
+      `SuperConfigurations` module.
+    * **An unrecognized `stepping` no longer passes silently** but names the options it accepts.
+
+* **You can now compute static polarizabilities without choosing a set of intermediate states.** The new
+    [`DalgarnoLewis`](api-atomic.md) module solves for the perturbed orbital directly, which saturates the
+    channel: there is no perturber sum to truncate and no box to match. Hydrogen's dipole polarizability comes
+    out **4.499752 a.u. against the exact 4.5**, from two solves, and unchanged to nine digits over boxes from
+    40 to 120 a.u. *(October'26)*
+
+* **And you can now SCREEN them.** The new [`RandomPhase`](api-atomic.md) module couples the response of every
+    electron to the induced field of all the others. The screened core polarizability of Ba⁺ comes out
+    **9.944 a.u. against the published RPA value 10.6(5)** -- inside that value's own uncertainty, and the
+    first screened polarizability in JAC that can be quoted against the literature. Exchange is not yet
+    included, which is consistent with the residual. *(October'26)*
+
+* **A caveat that matters more than a feature: do NOT compute a polarizability in the default field.**
+    `AsfSettings()` defaults to `DFSField`, and measured on Li 2s against 164.07 a.u. the three fields give
+    **+12 % (DFS), +39 % (Hartree-Slater) and +2.2 % (average-level)** -- same code, same basis. The response
+    machinery is exact to six parts in 10⁵; the accuracy you get is set almost entirely by the mean field.
+    Use `scField = Basics.ALField()` or an optimized level. *(October'26)*
+
+* **Level energies can be fitted to measurement.** The new [`AdjustedLevels`](api-atomic.md) module scales the
+    Coulomb interaction to reproduce a set of known levels and merges the result back into a multiplet, with a
+    second, orthogonal (Uylings/Raassen-style) route that fits parameters independently. Its companion
+    [`NistCalibration`](api-infrastructure.md) replaces computed level energies by measured ones explicitly,
+    so a cascade or rate built on them says which energies it used. *(October'26)*
+
+* **Plasma opacities from super configurations.** `Plasma.SuperConfigurationOpacityScheme` groups the
+    enormous level spaces of a hot plasma into super configurations and builds the unresolved transition arrays
+    between them -- a Gaussian mean and variance per array rather than a line list -- together with
+    [average-atom optical properties](api-plasma.md): the Planck and Rosseland means, and a DC conductivity
+    taken from the scattering phase shifts with nothing fitted. *(September/October'26)*
+
+* **Nuclear magnetic shielding, self-consistently.** The new [`NuclearShielding`](api-properties.md) module
+    computes the shielding of the nuclear magnetic moment by the electron cloud, with the induced electron
+    response solved rather than estimated. *(September'26)*
+
+* **Atomic data can be exported for the data community.** `ExportAdas` writes ADAS `adf04`, `ExportChianti`
+    writes CHIANTI-style files, and `ExportVamdc` writes a VAMDC/XSAMS sketch. These are demonstrations rather
+    than complete writers, and each says what it does and does not cover. *(September'26)*
+
+* **An uncertainty you can actually quote.** `UncertaintyEstimate` runs a quantity across a few named variants
+    -- a different mean field, a wider box, one more correlation layer -- and reports the spread, which is a
+    defensible statement about a computed number where a single value is not. *(October'26)*
+
+* **Isotope shifts gained a King-plot family**, so field and mass shifts can be separated from measured
+    isotope shifts the way the experimental literature does it. *(September'26)*
+
+* **A second-order treatment of a RAS Q space.** A correlation layer can now promote the strongly coupled part
+    of its Q space into the CI and fold the rest in at second order, reporting its own sum of weights and
+    refusing when the fold-in is not justified. It has a domain: a deep, weakly coupled core folds well, a
+    same-`n` core does not, and the step says which it saw. *(September'26)*
+
+* **Three-photon transitions are NOT in this release, and the path is still in flight.** What exists is the
+    energy-sharing machinery only -- `computeLines(::ThreePhotonEmissionScheme)` says so when called -- while
+    the amplitudes are not implemented. Work on that path was in progress when 0.7.0 was snapshotted and is
+    deliberately not part of it. Two-photon emission and absorption are unaffected and complete. *(October'26)*
+
+* **A caveat for two-photon rates at high nuclear charge.** The sum-over-states route of
+    `MultiPhotonTransition` reproduces the exact hydrogenic Z⁶ law at Z = 1 and **fails at Z = 18** -- the two
+    gauges diverge as states are added rather than converging. Use `DalgarnoLewis.twoPhotonAmplitude` instead,
+    which gives 2.7678e8 /s at Z = 18 against the exact 2.7989e8. The limitation is documented at the function
+    itself. *(October'26)*
+
 ## Version 0.6.0
 
 !!! warning "One breaking change"

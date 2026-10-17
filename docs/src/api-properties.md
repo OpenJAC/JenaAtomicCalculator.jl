@@ -77,3 +77,15 @@ Order   = [:type, :function]
 Modules = [WeakInteractionEnhancement]
 Order   = [:type, :function]
 ```
+
+##  Multipole polarizibilities
+```@autodocs
+Modules = [MultipolePolarizibility]
+Order   = [:type, :function]
+```
+
+##  Nuclear magnetic shielding
+```@autodocs
+Modules = [NuclearShielding]
+Order   = [:type, :function]
+```

@@ -70,3 +70,9 @@ Order   = [:type, :function]
 Modules = [Statistical]
 Order   = [:type, :function]
 ```
+
+##  Typed result keys
+```@autodocs
+Modules = [ResultKeys]
+Order   = [:type, :function]
+```

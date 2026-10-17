@@ -65,7 +65,7 @@ condition than the energy minimum, and it lands above the rotation route by
 | Be-like, Z = 92  | 7.1 mHa | 6e-07 |
 | C-like, Z = 6    | 10.2 mHa | 3e-04 |
 
-*Measured 10 September 2026 at commit `5976750`; regenerate with `julia --project=. tools/regenerateRouteAccuracy.jl --write`.*
+*Measured 17 October 2026 at commit `20bd7c32`; regenerate with `julia --project=. tools/regenerateRouteAccuracy.jl --write`.*
 <!-- END generated: route accuracy -->
 
 The pattern is the useful part: **the relative error falls by three orders of magnitude from neutral-like to

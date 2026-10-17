@@ -380,7 +380,7 @@ const GAMMA_PREFACTOR = -0.4
 
 """
 `NuclearShielding.multipolePotential(density::Array{Float64,1}, grid::Radial.Grid)`
-    ... returns the rank-2 potential of a radial density, Y_2[f](r) = (1/r^3) int_0^r r'^2 f dr' + r^2 int_r^inf f/r'^3 dr',
+    ... returns the rank-2 potential of a radial density, `Y_2[f](r) = (1/r^3) int_0^r r'^2 f dr' + r^2 int_r^inf f/r'^3 dr'`,
         tabulated on the grid; an array::Array{Float64,1} is returned.
 
         THE SECOND TERM IS WHY THIS FUNCTION IS WORTH ITS OWN NAME.  Its coefficient, int_0^inf f/r'^3 dr', is the
