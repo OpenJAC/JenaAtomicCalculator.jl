@@ -201,6 +201,55 @@ struct  EiiCrossSections       <: Basics.AbstractResultKey   end
 
 
 # ---------------------------------------------------------------------------------------------------------------
+# PLASMA.SUPERCONFIGURATIONOPACITYSCHEME'S RESULTS.  Driven by a scheme, not a settings type, exactly the
+# Cascade/generate reason above -- so these need names here too, rather than a sixth vocabulary of raw strings.
+# ---------------------------------------------------------------------------------------------------------------
+
+"""
+`struct  ResultKeys.SuperConfigurationGroups`  ... the `SuperConfigurations.Group` per reference configuration;
+                                                     was `"superconfiguration groups"`.
+"""
+struct  SuperConfigurationGroups             <: Basics.AbstractResultKey   end
+
+"""
+`struct  ResultKeys.SuperConfigurationPopulations`  ... the Boltzmann population fraction per group, matching
+                                                          `SuperConfigurationGroups` in order; was
+                                                          `"superconfiguration populations"`.
+"""
+struct  SuperConfigurationPopulations        <: Basics.AbstractResultKey   end
+
+"""
+`struct  ResultKeys.SuperConfigurationTransitionArrays`  ... one `SuperConfigurations.TransitionArray` per
+                                                               E1-connected pair of reference configurations;
+                                                               was `"superconfiguration transition arrays"`.
+"""
+struct  SuperConfigurationTransitionArrays   <: Basics.AbstractResultKey   end
+
+"""
+`struct  ResultKeys.SuperConfigurationTransitionGf`  ... each array's own oscillator-strength sum
+                                                           `gf = (2/3)*meanEnergy*totalStrength`, matching
+                                                           `SuperConfigurationTransitionArrays` in order; was
+                                                           `"superconfiguration transition gf"`.
+"""
+struct  SuperConfigurationTransitionGf       <: Basics.AbstractResultKey   end
+
+"""
+`struct  ResultKeys.SuperConfigurationOpacityContributions`  ... that `gf` weighted by the lower configuration's
+                                                                   population; was
+                                                                   `"superconfiguration opacity contributions"`.
+"""
+struct  SuperConfigurationOpacityContributions <: Basics.AbstractResultKey end
+
+"""
+`struct  ResultKeys.SuperConfigurationOpacitySpectrum`  ... the Stage-3 summed per-absorber cross section
+                                                              kappa(omega), present only when
+                                                              `scheme.opacityOmegas` was non-empty; was
+                                                              `"superconfiguration opacity spectrum"`.
+"""
+struct  SuperConfigurationOpacitySpectrum    <: Basics.AbstractResultKey   end
+
+
+# ---------------------------------------------------------------------------------------------------------------
 # WHAT IS DELIBERATELY NOT HERE: the RAS ladder's per-step results, stored as "step1", "step2", ... one per layer.
 # Their number is not known until the ladder is built, so no fixed set of types can name them and they KEEP THEIR
 # STRINGS.  That is why the deprecation warning fires only where a typed key actually replaces the string: a

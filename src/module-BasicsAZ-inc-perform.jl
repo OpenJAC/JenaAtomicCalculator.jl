@@ -106,6 +106,14 @@ function  resultKeyStrings(T::Type)
     T === ResultKeys.CiMultiplet            &&  return( ["CI multiplet"] )
     T === ResultKeys.GreenChannels          &&  return( ["Green channels"] )
     T === ResultKeys.EiiCrossSections       &&  return( ["EII cross sections:"] )
+    # --- Plasma.SuperConfigurationOpacityScheme's results
+    T === ResultKeys.SuperConfigurationGroups               &&  return( ["superconfiguration groups"] )
+    T === ResultKeys.SuperConfigurationPopulations          &&  return( ["superconfiguration populations"] )
+    T === ResultKeys.SuperConfigurationTransitionArrays     &&  return( ["superconfiguration transition arrays"] )
+    T === ResultKeys.SuperConfigurationTransitionGf         &&  return( ["superconfiguration transition gf"] )
+    T === ResultKeys.SuperConfigurationOpacityContributions &&
+        return( ["superconfiguration opacity contributions"] )
+    T === ResultKeys.SuperConfigurationOpacitySpectrum      &&  return( ["superconfiguration opacity spectrum"] )
 
     return( String[] )
 end
@@ -141,6 +149,9 @@ function  allResultKeyTypes()
             ResultKeys.SimulationProperty, ResultKeys.MeanFieldBasis, ResultKeys.MeanFieldMultiplet,
             ResultKeys.MeanPotential, ResultKeys.Orbitals, ResultKeys.ReferenceMultiplet,
             ResultKeys.CiMultiplet, ResultKeys.GreenChannels, ResultKeys.EiiCrossSections,
+            ResultKeys.SuperConfigurationGroups, ResultKeys.SuperConfigurationPopulations,
+            ResultKeys.SuperConfigurationTransitionArrays, ResultKeys.SuperConfigurationTransitionGf,
+            ResultKeys.SuperConfigurationOpacityContributions, ResultKeys.SuperConfigurationOpacitySpectrum,
             Einstein.Settings, Hfs.Settings, LandeZeeman.Settings, StarkShift.Settings, StarkZeeman.Settings,
             IsotopeShift.Settings, AlphaVariation.Settings, FormFactor.Settings, DecayYield.Settings,
             MultipolePolarizibility.Settings, ReducedDensityMatrix.Settings, WeakInteractionEnhancement.Settings,
