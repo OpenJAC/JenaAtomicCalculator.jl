@@ -106,6 +106,7 @@ elseif  false
     #
 elseif  false
     #
+    # Last reproduced:  16-Oct-2026 (1 of 1 numbers on the claim line)
     # Last successful:  17-Jul-2026
     # Branch 4: protons in solid aluminum and in a partially ionized gas -- the projectile and material axes.
     #   (a) IonProjectile(1, M_p) in NeutralAtomGas(13, 26.98, n_atom of solid Al): the classic Bethe

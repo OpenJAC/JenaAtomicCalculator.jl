@@ -75,6 +75,7 @@ if  true
     #
 elseif  false
     # Last visit:  11-Sep-2026
+    # Last reproduced:  16-Oct-2026 (4 of 5 to 1e-5, 1 more to 1e-3)
     # Last successful:  11-Sep-2026 -- -14.571325453 / -14.614031602 / -14.616162172 Ha, w_ref 0.90461 at
     #                   step 3, 3l orbitals at 3.86-8.38 a.u.  THE OPEN ISSUE BELOW IS CLOSED: what took more
     #                   than 40 minutes without converging now takes seconds.
@@ -127,6 +128,7 @@ elseif  false
     #
 elseif  false
     # Last visit:  01-Sep-2026
+    # Last reproduced:  16-Oct-2026 (3 of 3 numbers on the claim line)
     # Last successful:  01-Sep-2026 -- -14.570964036 / -14.605737784 / -14.616949323 Ha, total 0.6 s.
     #                   FASTER THAN THE EOL ROUTE BY A FACTOR OF THIRTY, as this branch expects -- and, less
     #                   expectedly, 2.2 mHa LOWER than it on the same three layers.  A field that optimizes a

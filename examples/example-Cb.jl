@@ -45,6 +45,7 @@ if  false
     wb = perform(wa)
     #
 elseif  false
+    # Last reproduced:  16-Oct-2026 (1 of 1 numbers on the claim line)
     # Last successful:  26-Jul-2026
     # Branch b: HFS A parameter for the Na (Z=11) [Ne]3s ^2S_1/2 ground state -- the paper's own second
     #   test case (Section 6: "excellent agreement with the Breit-Rabi formula", no explicit number given

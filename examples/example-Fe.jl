@@ -142,6 +142,7 @@ elseif  false
     #
 elseif  false
     # Last visit:      06-Aug-2026
+    # Last reproduced:  16-Oct-2026 (4 of 4 numbers on the claim line)
     # Last successful: 06-Aug-2026 ... three spectra, <1 s.  Level 1 peaks at 287.6 eV and level 2 at
     #                  288.4 eV on the paper's mesh (287.49 / 288.36 converged), and the 90:10 admixture is
     #                  the exact weighted superposition of the two to 5.2e-5.

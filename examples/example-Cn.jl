@@ -302,6 +302,7 @@ elseif  false
     setDefaults("print summary: close", "")
     #
 elseif  false
+    # Last reproduced:  16-Oct-2026 (1 of 1 numbers on the claim line)
     # Last successful:  28-Aug-2026 -- AND THIS BRANCH CAUGHT A SILENT ZERO, fixed in the same commit.
     #   WHAT WAS WRONG: E1_PNC came out +0.00000000e+00 for EVERY intermediate set and BOTH ions, while the
     #   2s-2p_1/2 splitting printed correctly (36.1 eV in Ca, 235.1 eV in Pb) -- so the levels were fine and only

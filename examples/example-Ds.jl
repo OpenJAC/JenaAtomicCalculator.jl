@@ -3,6 +3,7 @@ println("Ds) Test of the CoulombExcitation module with ASF from an internally ge
 
 
 if  true
+    # Last reproduced:  16-Oct-2026 (3 of 3 numbers on the claim line)
     # Last successful:  28-Aug-2026 -- RE-RUN. This branch's hard, quantitative claim is a SYMMETRY, and it still
     # holds bit-for-bit: sigma(Mi,Mf) = sigma(-Mi,-Mf) with no post-hoc averaging. At Tp = 600 MeV/u the 0+ -> 1-
     # line gives Mf = -1 and Mf = +1 both exactly 5.809794e-01 barn, against 1.431879e-01 for Mf = 0, total

@@ -5,6 +5,7 @@ grid = Radial.Grid(Radial.Grid(false), rnt = 4.0e-6, h = 5.0e-2, hp = 0.6e-2, rb
 
 if  true
     #
+    # Last reproduced:  16-Oct-2026 (4 of 5 to 1e-5, 1 more to 1e-3)
     # Last successful:  28-Aug-2026 -- REPRODUCES ITS 18-Jul RECORD EXACTLY, which makes it the longest-baseline
     #   AutoIonization check in the test set: 3.367867e+13 (field-free), 3.388540e+13 (10 a_o) and 3.448074e+13 1/s
     #   (2 a_o), against the recorded 3.368e13 -> 3.389e13 -> 3.448e13. The weak-screening consistency check also

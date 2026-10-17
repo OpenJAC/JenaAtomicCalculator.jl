@@ -51,6 +51,7 @@ setDefaults("unit: rate", "1/s")
 ## long-standing open question of its own and is NOT a high-Z gauge-convergence problem.
 
 if  true
+    # Last reproduced:  16-Oct-2026 (6 of 6 numbers on the claim line)
     # Last successful:  28-Aug-2026 -- Coulomb/Babushkin 4911.864/4073.194, 1403.839/1139.254, 799.1763/643.5974
     # barn @ 10/30/50 eV. Unchanged from 14-Aug in the first five figures: this branch is Z=12 with E1 and M1 only,
     # so the 27-Aug parity correction described at the head of this file has almost nothing to act on.

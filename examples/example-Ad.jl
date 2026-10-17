@@ -101,6 +101,7 @@ elseif  false
     println(">> [Branch 2] Timing ratio CI-only:  Breit/Coulomb = $(round(tBreitCI/tCoulombCI,digits=2))x,  Gaunt/Coulomb = $(round(tGauntCI/tCoulombCI,digits=2))x,  Gaunt/Breit = $(round(tGauntCI/tBreitCI,digits=2))x")
 
 elseif  false
+    # Last reproduced:  16-Oct-2026 (3 of 3 numbers on the claim line)
     # Last successful:  14-Aug-2026: Delta E(Breit) grows monotonically with Z as expected (5.245391 ->
     # 14.872162 -> 31.357648 Ha for Z=54,74,92 -- roughly Z^3.3 empirically between these points, consistent
     # with an inner-shell-dominated relativistic correction). Gaunt/Breit ratio drifts DOWN slightly with Z

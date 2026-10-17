@@ -38,6 +38,7 @@ elseif  false
     computeProperties(Basics.HyperfineStructure(AngularJ64(3//2)), configs)
     #
 elseif  false
+    # Last reproduced:  16-Oct-2026 (3 of 3 numbers on the claim line)
     # Last successful:  18Aug2026
     # Ge II (Z=32) 4s^2 4f: the Lande g_J factors of the (2)F_5/2,7/2 pair, against Andersson & Jonsson,
     # CPC 178 (2008) 156.  JAC gives 1.14318192 and 0.856804697 against their 1.143182 and 0.856804 -- six
