@@ -33,7 +33,7 @@ if  true
                                      refConfigs=refConfigs, asfSettings=asfSettings, settings=settings)
     wb = perform(comp; output=true)
 
-    pops = wb["superconfiguration populations"]
+    pops = wb[ResultKeys.SuperConfigurationPopulations]
     @printf("\n>>> T = 1 eV:  populations = %s\n", string(round.(pops, digits=6)))
     @printf(">>> ground-state (2s^2 2p^2) population = %.6f -- essentially the whole distribution, as the\n", pops[1])
     println(">>> cool-plasma limit requires.")
@@ -59,8 +59,8 @@ elseif  false
                                      refConfigs=refConfigs, asfSettings=asfSettings, settings=settings)
     wb = perform(comp; output=true)
 
-    pops   = wb["superconfiguration populations"]
-    groups = wb["superconfiguration groups"]
+    pops   = wb[ResultKeys.SuperConfigurationPopulations]
+    groups = wb[ResultKeys.SuperConfigurationGroups]
     degRatio = [ g.degeneracy for g in groups ] ./ sum( g.degeneracy for g in groups )
 
     @printf("\n>>> T = 100 eV:  populations        = %s\n", string(round.(pops, digits=4)))
@@ -100,10 +100,10 @@ elseif  false
                                      refConfigs=refConfigs, asfSettings=asfSettings, settings=settings)
     wb = perform(comp; output=true)
 
-    pops    = wb["superconfiguration populations"]
-    tArrays = wb["superconfiguration transition arrays"]
-    gfs     = wb["superconfiguration transition gf"]
-    gfEffs  = wb["superconfiguration opacity contributions"]
+    pops    = wb[ResultKeys.SuperConfigurationPopulations]
+    tArrays = wb[ResultKeys.SuperConfigurationTransitionArrays]
+    gfs     = wb[ResultKeys.SuperConfigurationTransitionGf]
+    gfEffs  = wb[ResultKeys.SuperConfigurationOpacityContributions]
 
     @printf("\n>>> number of E1-connected pairs found = %d  (3 possible, 1 same-parity pair skipped)\n",
             length(tArrays))
@@ -201,8 +201,8 @@ elseif  false
                                      refConfigs=refConfigs, asfSettings=asfSettings, settings=settings)
     wb = perform(comp; output=true)
 
-    kappa  = wb["superconfiguration opacity spectrum"]
-    gfEffs = wb["superconfiguration opacity contributions"]
+    kappa  = wb[ResultKeys.SuperConfigurationOpacitySpectrum]
+    gfEffs = wb[ResultKeys.SuperConfigurationOpacityContributions]
     alpha  = Defaults.getDefaults("alpha")
 
     expectedIntegral = 2*pi^2*alpha*sum(gfEffs)

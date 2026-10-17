@@ -228,8 +228,8 @@ function testModule_SuperConfigurationOpacity(; short::Bool=true)
                               refConfigs=refConfigs, asfSettings=asfSettings, settings=settings)
     wb = perform(wa; output=true)
 
-    groups      = wb["superconfiguration groups"]
-    populations = wb["superconfiguration populations"]
+    groups      = wb[ResultKeys.SuperConfigurationGroups]
+    populations = wb[ResultKeys.SuperConfigurationPopulations]
 
     expectedDegeneracies = [15.0, 40.0, 15.0]
     for  (group, expected) in zip(groups, expectedDegeneracies)
@@ -246,7 +246,7 @@ function testModule_SuperConfigurationOpacity(; short::Bool=true)
     coldSettings = Plasma.Settings(1.0e-6, 1.0e22, false)
     waCold = Plasma.Computation(wa; settings=coldSettings)
     wbCold = perform(waCold; output=true)
-    coldPopulations = wbCold["superconfiguration populations"]
+    coldPopulations = wbCold[ResultKeys.SuperConfigurationPopulations]
     groundIdx = argmin( [group.meanEnergy for group in groups] )
     if  coldPopulations[groundIdx] < 0.999999
         success = false
