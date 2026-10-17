@@ -119,16 +119,59 @@ The session should still be started on the JAC root rather than on the subdirect
 touches `src/` as well.
 
 
-## "Last successful" health contract (Rule 7)
+## The three dates on an example branch (Rule 7)
 
-A `# Last successful:  DD-Mon-YYYY` date is written into an example file **only** after the output
-has been verified for physical consistency — not merely "it ran without error." Zero rates, wrong
-units, or clearly wrong magnitudes mean the date stays blank. A blank date is a regression signal.
+Rewritten 17-Oct-2026. The two-marker scheme it replaces left a sweep able to write nothing honest, so
+sweeps recorded nothing and nothing accumulated: measured over 150 branches run that week, **40 of the 41
+undated branches should have had a date touched and did not**. There are now three markers, and **who may
+write each is the whole point**:
 
-Whenever a branch's date is left as `# Last successful:  unknown ...` (i.e. not yet verified), add a
-`# Last visit:  DD-Mon-YYYY` line directly above it, updated every time that branch is touched or
-run, even without a successful verification. This makes it easy to see later how recently a
-not-yet-verified branch was last worked on, independent of whether it ever became verifiable.
+| marker | what it asserts | written by |
+|---|---|---|
+| `# Last visit:  DD-Mon-YYYY` | the branch was RUN on that date. No claim at all about the result. | a sweep, mechanically |
+| `# Last reproduced:  DD-Mon-YYYY` | it ran AND the numbers quoted on its own dated claim line came back to better than 1e-5 | a sweep, mechanically |
+| `# Last successful:  DD-Mon-YYYY` | a HUMAN judged the PHYSICS — magnitudes, quantum numbers, partial sums against totals, gauge agreement | a person, never a tool |
+
+A useful visit updates whichever of these it has actually earned, and no more than that.
+
+**`Last successful` IS NOT MACHINE-WRITABLE, AND THE PROOF IS IN THIS REPOSITORY.** On 16-Oct-2026
+`examples/example-At.jl` branch (c) was dated and the date then WITHDRAWN. Not one number had moved — every
+number reproduced exactly. What was wrong was the COMPARISON: a three-subshell finite-`omega` screening factor
+was being read against a whole-atom static anchor, which is a different quantity. `tools/checkExampleDrift.py`
+reports REPRODUCED throughout. So **reproduction proves STABILITY, not CORRECTNESS**, and a tool permitted to
+write `Last successful` would have certified a branch whose claim was wrong. Zero rates, wrong units or clearly
+wrong magnitudes still mean the date stays blank, and a blank date is a regression signal.
+
+**`Last reproduced` EXISTS SO THAT A SWEEP CAN RECORD SOMETHING TRUE.** It is a separate, greppable line rather
+than a parenthetical note on `Last visit`, for a measured reason: a sweep must READ the previous sweep's verdict
+for the record to be cumulative, and free prose in these comment blocks is not machine-readable — parsing
+numbers out of them ran at a **77 % false-match rate** until the search was restricted to a structured field.
+
+**AN ATTEMPT THAT PRODUCED NO RESULT IS STILL RECORDED, AND IT CARRIES ITS CLASS.** A timeout or a raise does
+not erase what was there: the existing dates REMAIN, and the attempt is added in parentheses with its class
+named — because the classes mean opposite things, and a bare "an attempt happened" invites exactly the
+misreading this exists to stop.
+
+    # Last visit:  17-Oct-2026 (TIMED OUT at 500 s)
+    # Last visit:  17-Oct-2026 (RAISED AS DESIGNED -- this branch is a guard test)
+    # Last visit:  17-Oct-2026 (NEEDS AN EARLIER BRANCH OF THIS FILE)
+    # Last reproduced:  17-Oct-2026 (4 of 4 numbers on the claim line)
+    # Last successful:  15-Oct-2026
+
+`RAISED AS DESIGNED` is the class a does-it-run sweep gets backwards: for a guard test, raising is the PASS and
+completing would be the defect. On 28-Aug-2026 a sweep marked `example-Pc.jl` branch b a failure when that
+branch's own comment says it sets `width = 0` deliberately.
+
+**AND PUT THE NUMBERS ON THE CLAIM LINE.** Measured over 150 branches, 17-Oct-2026: a branch whose
+`Last successful` line QUOTES ITS OWN NUMBERS leaves **1.0** open question for a later reader, while one whose
+numbers are buried in the prose history leaves **4.1** — because there the whole comment block has to be read,
+and its superseded values, literature targets and inputs all come with it. `examples/example-Dh.jl` branch (b)
+is the model, and it costs one line of writing:
+
+    # Last successful:  15-Oct-2026   ## Coulomb 8.22865, Babushkin 8.22902 against the exact 8.22906 /s,
+
+A branch written that way is machine-checkable; one that is not, is not — whatever else is true of it.
+
 
 ## New ForPedestrians function template (Rule 8)
 
@@ -844,10 +887,23 @@ branch" and sets `width = 0` deliberately. Judge such a branch by whether the er
 says it expects — and if it dies on a DIFFERENT error first, that is a real finding, because the earlier fault
 is masking the guard the branch exists to demonstrate. That is exactly what had happened there.
 
-**6. Add DRIFTED, FAILED and example-is-wrong results to the priority list**, one item each, with the file and
-line, the error or the two numbers, and **one sentence saying what made you doubt it** — that sentence is the
-point of the exercise and is what a later reader will act on. Do NOT add timeouts, and do NOT add branches that
-merely need an earlier branch to have run.
+**6. Add FAILED, example-is-wrong, and FAILED-TO-REPRODUCE results to the priority list**, one item each, with
+the file and line, the error or the two numbers, and **one sentence saying what made you doubt it** — that
+sentence is the point of the exercise and is what a later reader will act on. Do NOT add timeouts, and do NOT
+add branches that merely need an earlier branch to have run.
+
+**AND THE REPRODUCTION TRIGGER IS NARROW ON PURPOSE, because the wide version drowns the list.** File an item
+only when a branch that **HAS a `Last successful` date** fails to reproduce the numbers written **ON that dated
+line**. That is the regression signal and nothing else is. Measured on the 150-branch run of 17-Oct-2026: the
+wide rule — any unreproduced number anywhere in any checkable branch — would have filed **51 items in one
+night** against a list holding 8; the narrow rule files **9**. And most of the 51 are not drift at all:
+`example-Cb.jl` alone contributes 12, every one of them a published Dirac-Fock target that the run never
+prints. `tools/checkExampleDrift.py` cannot tell a moved number from one that was never a result, and says so
+rather than guessing.
+
+A branch that fails this way has two equally legitimate ends, and the second is often the right one: restore
+its `Last successful` status, **or change the branch deliberately** because the dated claim is no longer the
+claim worth making. The second closes the item with no `src/` work at all.
 
 **RUN THE REGISTER CHECK ON EVERY ONE BEFORE FILING IT** -- step 5 of `/priority`, and this command is where it
 matters most. A sweep re-derives symptoms from scratch and has no memory of what was decided; it will happily
@@ -856,9 +912,12 @@ write the symptom as the sweep reported it, grep `THE SETTLED REGISTER`, and the
 because the same thing returning under a different description is precisely what a grep cannot catch and is the
 failure this check exists for.
 
-**7. Never re-date a branch from this command.** Rule 7 asks for verified physical consistency, and a sampled
-overnight run is not that. `/testExamples` reports and files items; dating stays with `/test Mx` and with a
-human deciding.
+**7. UPDATE THE DATES THE SWEEP HAS EARNED, AND ONLY THOSE** — per Rule 7, which this command is the main
+consumer of. Every branch run gets `# Last visit:` with its class in parentheses where it produced no result.
+A branch whose dated claim line reproduces gets `# Last reproduced:`. **`# Last successful:` is never written
+by this command**, because a sampled overnight run is not the physical judgement Rule 7 asks for and
+reproduction proves stability rather than correctness — that date stays with `/test Mx` and with a human
+deciding. An existing date is never erased by a failed attempt; the attempt is recorded beside it.
 
 ### /push JAC
 **Test, then commit to git.**
