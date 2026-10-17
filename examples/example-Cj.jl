@@ -2,7 +2,7 @@
 println("Cj) Apply & test the MultipolePolarizibility module with ASF from an internally generated multiplet.")
 
 if  false
-    # Last visit:  31-Jul-2026
+    # Last visit:  16-Oct-2026
     # Last successful:  unknown ... (see comparison-to-literature note below; date NOT set since the
     #   result does not yet match the known exact value -- Rule 7).
     # Branch a: hydrogen 1s static electric-dipole polarizability -- the one case with an EXACT, textbook

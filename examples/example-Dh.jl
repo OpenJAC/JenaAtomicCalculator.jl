@@ -511,7 +511,7 @@ elseif  false
     perform(wc)
     #
 elseif  false
-    # Last visit:  07-Aug-2026        ## NOT successful: correlation-limited, plus the open prefactor
+    # Last visit:  16-Oct-2026        ## NOT successful: correlation-limited, plus the open prefactor
     #
     # RE-RUN 07-Aug-2026 AFTER THE EXCHANGE-PHASE FIX: He Bab = 2.670 /s, Ar16+ Bab = 1.543e7 /s.
     # Scaling by the open constant 26.7 gives He ~ 17.8 /s against the accepted 51.3 /s -- still a factor ~3

@@ -16,7 +16,7 @@ println("Dv) Apply & test the ElectronCapture module: capture rates and the ALIG
 # The module implements Eq. (4) of the latter for A_k0, and Eq. (3) for the capture rate itself.
 
 if  false
-    # Last visit:  02-Sep-2026
+    # Last visit:  16-Oct-2026
     # Last successful:  unknown ...
     #
     # a) K-LL DIELECTRONIC CAPTURE into helium-like carbon: e- + C(5+) 1s -> C(4+) 2l2l'.

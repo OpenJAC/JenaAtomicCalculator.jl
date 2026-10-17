@@ -64,6 +64,7 @@ elseif  true
     plot(energies, phases2);   plot(energies, 1.005*phases3);   plot(energies, 1.01*phases4)
     #
 elseif true
+    # Last visit:  16-Oct-2026 (RAISED -- see the sweep record)
     # Last successful:  unknown 
     # Compute and display single continuum orbital
     ##  "method: continuum, pure sine"  "method: continuum, asymptotic Coulomb"  "method: continuum, Galerkin"  "method: continuum, spherical Bessel"

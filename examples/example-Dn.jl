@@ -38,7 +38,7 @@ grid = Radial.Grid(Radial.Grid(false), rnt = 4.0e-6, h = 5.0e-2, hp = 0.6e-2, rb
 
 
 if  false
-    # Last visit:  28-Aug-2026 -- RE-RUN, AND EVERY LINE AGREES TO 0.08-0.14 %. Today against the 9-Aug column:
+    # Last visit:  16-Oct-2026 -- RE-RUN, AND EVERY LINE AGREES TO 0.08-0.14 %. Today against the 9-Aug column:
     #   STEP 2   2-->1  C 2.760519e+06 / B 9.565061e+06   (was 2.757046e+06 / 9.551948e+06)   +0.13 %
     #            4-->1  C 1.375121e+10 / B 5.448745e+10   (was 1.376205e+10 / 5.453150e+10)   -0.08 %
     #   STEP 3   2-->1  C 3.101045e+06 / B 1.073773e+07   (was 3.097219e+06 / 1.072328e+07)   +0.12 %

@@ -49,7 +49,7 @@ grid = Radial.Grid(Radial.Grid(false), rnt = 4.0e-6, h = 5.0e-2, hp = 0.6e-2, rb
 
 
 if  false
-    # Last visit:  05-Aug-2026
+    # Last visit:  16-Oct-2026
     # --- Branch a: He-like C4+ (Z=6) + e- --> Li-like C3+, K-LL dielectronic recombination.
     #
     # WHY THIS FIRST. It is the smallest system in which DR is a genuine three-step process, and small enough
@@ -332,7 +332,7 @@ elseif  false
     perform(we)
     #
 elseif  false
-    # Last visit:  05-Aug-2026
+    # Last visit:  16-Oct-2026 (TIMED OUT at 500 s)
     # --- Branch f: Delta-n = 0 DR of Be-like Au75+ (Z=79) with a high-n Rydberg spectator -- the first branch
     #     that exercises the HydrogenicCorrections, and the reason they were ported to the re-structured route.
     #

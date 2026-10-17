@@ -143,7 +143,7 @@ if  false
     # reproduce exactly. The anchor holds.
     #
 elseif  false
-    # Last visit:  04-Aug-2026
+    # Last visit:  16-Oct-2026 (TIMED OUT at 500 s)
     # --- Branch b: He-like C V (Z=6), 1s^2 1S_0 --> the n=2 manifold. THREE analytic behaviours in one run.
     #
     # Branch a) fixed the machinery against the Bethe limit for a dipole-allowed transition. This branch asks a

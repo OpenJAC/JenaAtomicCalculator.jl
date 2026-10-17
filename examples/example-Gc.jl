@@ -18,6 +18,7 @@ Xp1 = Basic(:Xp1);   Xm2 = Basic(:Xm2);   Xp2 = Basic(:Xp2);   Xm3 = Basic(:Xm3)
 J   = Basic(:J)
 
 if  false
+    # Last visit:  16-Oct-2026
     # Last successful:  unknown ...
     # Compute 
     leftCsq  = RacahAlgebra.Csq( j1, j2, j3)
@@ -31,6 +32,7 @@ elseif false
     wa       = RacahAlgebra.evaluate(leftCsq, rightCsq)    
     #
 elseif false
+    # Last visit:  16-Oct-2026
     # Last successful:  unknown ...
     # LSJ-recoupling, two open shells
     leftCsq  = RacahAlgebra.Csq( RacahAlgebra.Csq( L1, L2, L12), RacahAlgebra.Csq( S1, S2, S12), J)
@@ -45,6 +47,7 @@ elseif false
     wa       = RacahAlgebra.evaluate(leftCsq, rightCsq) 
     #
 elseif false
+    # Last visit:  16-Oct-2026
     # Last successful:  unknown ...
     # LSJ-recoupling, three open shells
     leftCsq  = RacahAlgebra.Csq( RacahAlgebra.Csq( RacahAlgebra.Csq( L1, L2, L12), L3, L123), 
@@ -54,6 +57,7 @@ elseif false
     wa       = RacahAlgebra.evaluate(leftCsq, rightCsq)    
     #
 elseif true
+    # Last visit:  16-Oct-2026
     # Last successful:  unknown ...
     # jjJ-recoupling, three open shells
     leftCsq  = RacahAlgebra.Csq( RacahAlgebra.Csq( RacahAlgebra.Csq( Jm1, Jp1, J1),   RacahAlgebra.Csq( Jm2, Jp2, J2), J12),
@@ -70,6 +74,7 @@ elseif true
     wa       = RacahAlgebra.evaluate(leftCsq, rightCsq)
     #
 elseif true
+    # Last visit:  16-Oct-2026 (TIMED OUT at 500 s)
     # Last successful:  unknown ...
     # Compute 
     leftCsq  = RacahAlgebra.Csq( RacahAlgebra.Csq( RacahAlgebra.Csq(j1,j2,j9),j3,j10), 

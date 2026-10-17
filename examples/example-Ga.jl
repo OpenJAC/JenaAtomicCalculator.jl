@@ -32,6 +32,7 @@ elseif  true
     RacahAlgebra.evaluate(rex, special=true)
     #
 elseif  true    
+    # Last visit:  16-Oct-2026
     # Last successful:  unknown ...
     # Look for special value for Wigner 9j symbol 
     a   = Basic(:a);    b = Basic(:b);    c = Basic(:c);    d = Basic(:d);    ee = Basic(:ee);    f = Basic(:f)
@@ -41,6 +42,7 @@ elseif  true
     RacahAlgebra.evaluate(rex, special=true)
     #
 elseif  false    
+    # Last visit:  16-Oct-2026
     # Last successful:  unknown ...
     # Evaluate the recoupling coefficient for 3 angular momenta explicitly from Racah expression; from Racah-02.ps
     j1   = Basic(:j1);    j2 = Basic(:j2);    j3 = Basic(:j3);    J12 = Basic(:J12);    J23 = Basic(:J23);    J = Basic(:J)

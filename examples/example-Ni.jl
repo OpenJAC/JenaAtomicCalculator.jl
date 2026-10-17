@@ -65,6 +65,7 @@ if  true
     #
 elseif  false
     #
+    # Last visit:  16-Oct-2026
     # Last successful:  unknown -- deliberately left undated, see below.
     # Branch 2: Empirical.inelasticHCollisionRateMatrix -- the full K_if(T) rate-coefficient matrix (neutralization,
     #   ion-pair formation, excitation, de-excitation) for the same Ba2+/Ba+ + H(H^-) system, at several temperatures,

@@ -2,6 +2,7 @@
 println("La) Apply & test the Liouville (time-evolution) computations for the stimulated Raman scattering.")
 
 if  true
+    # Last visit:  16-Oct-2026
     # Last successful:  unknown ...
     nm          = Nuclear.Model(10.0)
     grid        = Radial.Grid(true)

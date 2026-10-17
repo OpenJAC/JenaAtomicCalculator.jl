@@ -9,7 +9,7 @@ setDefaults("print summary: open", "zzz-ForPedestrians.sum")
 
 
 if  false
-    # Last visit:  18Aug2026
+    # Last visit:  16-Oct-2026
     # Last successful:  unknown ... 23Na 3s ground level; A is the textbook case, 885.8 MHz for the 3s_1/2.
     setDefaults("nuclear: charge", 11.0)
     configs = [Configuration("[Ne] 3s")]

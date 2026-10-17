@@ -56,6 +56,7 @@ elseif  false
          Basics.displayConfigurations(stdout, wg, longForm=true, details="ForRasExcitations")
     #
 elseif  true
+    # Last visit:  16-Oct-2026
     # Add, excite or remove electrons due to given atomic processes
     # -------------------------------------------------------------
     conf        = Configuration("1s^2 2s^2 2p^2")
@@ -107,6 +108,7 @@ elseif  false
     wc = Basics.generateConfigurations(RelativisticConfigurations(), xeConf);                           @show wc
     #
 elseif  false
+    # Last visit:  16-Oct-2026
     # Extract some particular single configuration
     # -------------------------------------------- 
     name        = "Oxygen 1s^2 2s^2 2p^4 ground configuration"
@@ -146,6 +148,7 @@ elseif  false
          Basics.displayConfigurations(stdout, wb, longForm=true, details="ByNumber([2, 18])")
     #
 elseif  false
+    # Last visit:  16-Oct-2026 (RAISED -- see the sweep record)
     # Extract selected configurations from given lists or information about them
     # -------------------------------------------------------------------------- 
     # `basis` is built by an earlier branch of this file (line 118).
@@ -158,6 +161,7 @@ elseif  false
     wd = Basics.extractConfigurations(TotalAM(false, [AngularJ64(3//2)]), allConfs);                    @show wd
     #
 elseif  false
+    # Last visit:  16-Oct-2026
     # Extract several (relativistic) configurations
     # --------------------------------------------- 
     name        = "Oxygen 1s^2 2s^2 2p^4 ground configuration"

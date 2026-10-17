@@ -169,7 +169,7 @@ elseif  false
     wb = perform(wa)
     #
 elseif  true
-    # Last visit:  03-Sep-2026
+    # Last visit:  16-Oct-2026
     # Last successful:  unknown ...
     #
     # FURTHER WORK ON THIS BRANCH IS DELAYED, on the maintainer's decision of 03-Sep-2026, and the reason is a

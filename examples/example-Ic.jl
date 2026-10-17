@@ -41,6 +41,7 @@ if true
 	finalLevel      = AtomicData[ResultKeys.Multiplet].levels[1]
 
 elseif true
+    # Last visit:  16-Oct-2026 (RAISED -- see the sweep record)
     # Last successful:  unknown ...
     # Perform the StrongField computation; use a hydrogen-like 1s initial state and FreeVolkov continuum
 	hydrogenic 	    = true

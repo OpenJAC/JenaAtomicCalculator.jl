@@ -5,7 +5,7 @@ setDefaults("print summary: open", "zzz-PhotonScattering.sum")
 setDefaults("unit: energy", "eV")
 
 if  true
-    # Last visit:      21-Aug-2026
+    # Last visit:      16-Oct-2026
     # Last successful:  unknown ... the Lorentzian IS reproduced to 0.6 %, but the absolute cross sections rest on
     #                              an underived prefactor, Gamma was chosen rather than computed, and nothing here
     #                              constrains a PHASE.  See the report below.

@@ -22,7 +22,7 @@ if  true
     wb = perform(wa; output=true)
     #
 elseif  true
-    # Last visit:  30-Aug-2026 -- RUNS (exit 0), and WHAT STOPS A DATE IS THE GAUGES. C (Z=6), four
+    # Last visit:  16-Oct-2026 -- RUNS (exit 0), and WHAT STOPS A DATE IS THE GAUGES. C (Z=6), four
     #   configurations, 13 E1 transitions. The strong lines to levels 6 and 7 (A ~ 4e8 1/s) agree to 25 %,
     #   which is ordinary; but the equally strong lines 13-->11 and 13-->12 (A ~ 1e8 and 7e7 1/s) come out
     #   with Coulomb/Babushkin = 6.28 and 6.31, and 15-->11, 15-->12 with 4.01 and 4.12. A factor of four to

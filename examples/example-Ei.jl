@@ -125,7 +125,7 @@ elseif false
     setDefaults("print summary: close", "")
     #
 elseif false
-    # Last visit:      01-Sep-2026
+    # Last visit:      16-Oct-2026 (RAISED -- see the sweep record)
     # Last successful: unknown ... ROUTE CHANGED 01-Sep-2026; see branch a.
     #
     # Branch c: THE RESONANCE GUARD, which REFUSES rather than skips.  If a photon energy brings a real

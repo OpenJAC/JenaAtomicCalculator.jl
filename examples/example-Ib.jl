@@ -27,6 +27,7 @@ observable      = StrongField.SfaEnergyDistribution(pi/2, pi/2, 100, 10*omega)  
 
 
 if true
+    # Last visit:  16-Oct-2026
     # Last successful:  unknown ...
     # Prepare the atomic target
 	asfSettings      = AsfSettings(AsfSettings(), generateScf=true)
@@ -50,6 +51,7 @@ if true
 	finalLevel       = AtomicData[ResultKeys.Multiplet].levels[1]
 
 elseif true
+    # Last visit:  16-Oct-2026 (RAISED -- see the sweep record)
     # Last successful:  unknown ...
     # Perform the StrongField computation
 	if  !@isdefined(nuclearModel)   error("Run the earlier branch of this file first; it defines "     *
