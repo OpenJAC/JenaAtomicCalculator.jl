@@ -422,9 +422,11 @@ end
 `RandomPhase.inducedPotentialZr(multipole::EmMultipole, activeOrbitals::Dict{Subshell,Orbital},
                                  chis::Dict{Tuple{Subshell,Subshell},DalgarnoLewis.PerturbedOrbital},
                                  excludeSubshell::Subshell, grid::Radial.Grid;
-                                 occupiedOrbitals::Union{Nothing,Dict{Subshell,Orbital}}=nothing)`
-    ... builds the DIRECT (Hartree, "ring") induced potential electron `excludeSubshell` feels from every OTHER
-        active electron's CURRENT chi, at the multipole's own rank L, in the SAME "Zr" (= -r*V(r)) convention
+                                 occupiedOrbitals::Union{Nothing,Dict{Subshell,Orbital}}=nothing,
+                                 occupations::Union{Nothing,Dict{Subshell,Float64}}=nothing)`
+    ... builds the DIRECT (Hartree, "ring") induced potential ONE electron of `excludeSubshell` feels from every
+        OTHER active electron's CURRENT chi -- its `(N-1)` PARTNERS IN ITS OWN SUBSHELL INCLUDED, whenever
+        `occupations` is given -- at the multipole's own rank L, in the SAME "Zr" (= -r*V(r)) convention
         `Radial.Potential` and `Bsplines.computeVlocal` use throughout JAC -- so that the minus sign below is
         the ordinary nuclear-potential-style sign, not a new convention. The induced density itself is
         2*[Pb*Pchi_b + Qb*Qchi_b] -- the psi*chi + chi*psi symmetrization for a real response -- which is
@@ -467,14 +469,23 @@ end
 function inducedPotentialZr(multipole::EmMultipole, activeOrbitals::Dict{Subshell,Orbital},
                              chis::Dict{Tuple{Subshell,Subshell},DalgarnoLewis.PerturbedOrbital},
                              excludeSubshell::Subshell, grid::Radial.Grid;
-                             occupiedOrbitals::Union{Nothing,Dict{Subshell,Orbital}}=nothing)
+                             occupiedOrbitals::Union{Nothing,Dict{Subshell,Orbital}}=nothing,
+                             occupations::Union{Nothing,Dict{Subshell,Float64}}=nothing)
     rho = zeros(grid.NoPoints);   mtpRho = 1
     # EVERY CHANNEL OF EVERY OTHER ELECTRON CONTRIBUTES, EACH WITH ITS OWN ANGULAR FACTOR.  `chis` is keyed
     # by the (active, target) PAIR, so the target is read off the key rather than looked up -- which is what
-    # lets one electron carry several channels, as an RPA requires.  Channels of the excluded electron are
-    # skipped whatever their target: b is excluded from its own induced field, not merely one channel of it.
+    # lets one electron carry several channels, as an RPA requires.
+    #   **AN ELECTRON IS SCREENED BY ITS OWN SUBSHELL PARTNERS, AND UNTIL 17-Oct-2026 IT WAS NOT.**  The line
+    # here was `b == excludeSubshell && continue`, which skipped the WHOLE source subshell and so denied every
+    # electron its (N-1) partners -- 5 of 6 for a p^6 shell, and for a TWO-ELECTRON atom all of them, so He
+    # came out with EXACTLY ZERO screening although two electrons must certainly screen each other.
+    #   The self-term needs the ACTUAL occupation and cannot be guessed from 2j+1:  a one-electron subshell has
+    # no partners at all, so assuming a closed shell would invent self-screening for hydrogen and break both
+    # the exact alpha(H 1s) = 4.5 anchor and `example-At.jl` branch (a), whose whole assertion is that a single
+    # active electron induces nothing.  Hence `occupations`, and hence the CONSERVATIVE default: with no
+    # occupations given the partners are omitted exactly as before, which is incomplete but never wrong.
     for  ((b, tb), chiB)  in  chis
-        b == excludeSubshell   &&   continue
+        isnothing(occupations)  &&  b == excludeSubshell   &&   continue
         orbB   = activeOrbitals[b];   jb2 = Basics.subshell_2j(b)
         # The weight is sqrt(2j_b+1), NOT (2j_b+1):  see this method's docstring for the Hartree calibration
         # that fixes it.  The remaining sqrt(2j_b+1) of the occupation is carried by CL_reduced_me's own
@@ -499,6 +510,19 @@ function inducedPotentialZr(multipole::EmMultipole, activeOrbitals::Dict{Subshel
         # the (-1)^L in `solve`:  at L = 0 this end is DIAGONAL (b = t_b), so j_b = j_t_b and the two orders
         # coincide exactly.  That limit fixed the sqrt(2j_b+1) and could not have caught any of the three.
         weightB = sqrt(jb2 + 1.0) * RandomPhase.angularCoefficient(multipole.L, tb, b) / (2*multipole.L + 1)
+        # ONE electron is removed from its own subshell, never the whole subshell.  The weight above carries
+        # the occupation N_b (half here as sqrt(2j_b+1), half through CL_reduced_me's normalisation), so an
+        # electron of `excludeSubshell` feels (N-1)/N of that subshell's induced density: its partners screen
+        # it, only IT does not.
+        #   **THE REPAIR MAKES THE AGREEMENT WORSE ON ITS OWN, AND THAT IS EXPECTED AND NOT A REGRESSION:** it
+        # strengthens the direct term and so LOWERS alpha, while measured alpha is already too low for He and
+        # Ne.  The partners it restores were an uncontrolled stand-in for the self-interaction that EXCHANGE
+        # cancels properly, so the two belong together and a number measured before this repair is not a
+        # baseline for the exchange work.
+        if  !isnothing(occupations)  &&  b == excludeSubshell
+            nb      = get(occupations, b, jb2 + 1.0)
+            weightB = weightB * (nb - 1.0) / nb
+        end
         weightB == 0.0   &&   continue
         # THE PAULI PROJECTION.  A channel label names a kappa SYMMETRY, so chi spans the filled members of
         # it too, and a core electron cannot be excited into a filled orbital.  Without this the forbidden
@@ -558,7 +582,8 @@ end
                         channels::Array{Tuple{Subshell,Subshell},1}, sources::Array{Float64,1},
                         potential::Radial.Potential, primitives::Bsplines.Primitives,
                         dlSettings::DalgarnoLewis.Settings;
-                        occupiedOrbitals::Union{Nothing,Dict{Subshell,Orbital}}=nothing)`
+                        occupiedOrbitals::Union{Nothing,Dict{Subshell,Orbital}}=nothing,
+                        occupations::Union{Nothing,Dict{Subshell,Float64}}=nothing)`
     ... one application of the coupled map: given the induced source of EVERY channel, concatenated into a
         single vector, solve each channel's Dalgarno-Lewis equation and rebuild every channel's source from
         the resulting chi's. This is exactly one sweep of the fixed-point iteration, isolated so that it can
@@ -576,7 +601,8 @@ function sourceMap(multipole::EmMultipole, gauge::EmGauge, omega::Float64, activ
                     channels::Array{Tuple{Subshell,Subshell},1}, sources::Array{Float64,1},
                     potential::Radial.Potential, primitives::Bsplines.Primitives,
                     dlSettings::DalgarnoLewis.Settings;
-                    occupiedOrbitals::Union{Nothing,Dict{Subshell,Orbital}}=nothing)
+                    occupiedOrbitals::Union{Nothing,Dict{Subshell,Orbital}}=nothing,
+                    occupations::Union{Nothing,Dict{Subshell,Float64}}=nothing)
     grid = primitives.grid;   m = grid.nsL + grid.nsS
     chis = Dict{Tuple{Subshell,Subshell},DalgarnoLewis.PerturbedOrbital}()
     for  (k, ch)  in  enumerate(channels)
@@ -588,7 +614,7 @@ function sourceMap(multipole::EmMultipole, gauge::EmGauge, omega::Float64, activ
     for  (k, ch)  in  enumerate(channels)
         a = ch[1];   t = ch[2]
         VindZr = RandomPhase.inducedPotentialZr(multipole, activeOrbitals, chis, a, grid;
-                                                 occupiedOrbitals=occupiedOrbitals)
+                                                 occupiedOrbitals=occupiedOrbitals, occupations=occupations)
         aCoeff = RandomPhase.angularCoefficient(multipole.L, t, a)
         if  rem(multipole.L, 2) == 1    aCoeff = -aCoeff    end
         newSources[(k-1)*m+1 : k*m] = aCoeff * RandomPhase.inducedSourceVector(VindZr, activeOrbitals[a], primitives)
@@ -665,7 +691,8 @@ end
 function solve(multipole::EmMultipole, gauge::EmGauge, omega::Float64, activeOrbitals::Dict{Subshell,Orbital},
                 potential::Radial.Potential, primitives::Bsplines.Primitives;
                 settings::RandomPhase.Settings=RandomPhase.Settings(),
-                occupiedOrbitals::Union{Nothing,Dict{Subshell,Orbital}}=nothing)
+                occupiedOrbitals::Union{Nothing,Dict{Subshell,Orbital}}=nothing,
+                occupations::Union{Nothing,Dict{Subshell,Float64}}=nothing)
     subshells = isempty(settings.activeSubshells) ? collect(keys(activeOrbitals)) : settings.activeSubshells
     targets   = Dict{Subshell,Subshell}()
     for  a in subshells
@@ -756,11 +783,11 @@ function solve(multipole::EmMultipole, gauge::EmGauge, omega::Float64, activeOrb
         m = (primitives.grid.nsL + primitives.grid.nsS) * length(channels)
         drive, _ = RandomPhase.sourceMap(multipole, gauge, omega, activeOrbitals, channels, zeros(m),
                                           potential, primitives, settings.dalgarnoLewis;
-                                          occupiedOrbitals=occupiedOrbitals)
+                                          occupiedOrbitals=occupiedOrbitals, occupations=occupations)
         applyIminusM = function(v::Array{Float64,1})
             mapped, _ = RandomPhase.sourceMap(multipole, gauge, omega, activeOrbitals, channels, v,
                                                potential, primitives, settings.dalgarnoLewis;
-                                               occupiedOrbitals=occupiedOrbitals)
+                                               occupiedOrbitals=occupiedOrbitals, occupations=occupations)
             return( v - (mapped - drive) )
         end
         sources, nKrylov, relResidual =
@@ -768,7 +795,7 @@ function solve(multipole::EmMultipole, gauge::EmGauge, omega::Float64, activeOrb
         # one last application turns the solved sources into the chis themselves
         checkSources, chis = RandomPhase.sourceMap(multipole, gauge, omega, activeOrbitals, channels, sources,
                                                     potential, primitives, settings.dalgarnoLewis;
-                                                    occupiedOrbitals=occupiedOrbitals)
+                                                    occupiedOrbitals=occupiedOrbitals, occupations=occupations)
         # the SELF-CONSISTENCY of the answer, measured on the sources rather than taken on trust from the solver
         selfConsistency = LinearAlgebra.norm(checkSources - sources) /
                           max(LinearAlgebra.norm(sources), 1.0e-300)
@@ -916,7 +943,7 @@ function solve(multipole::EmMultipole, gauge::EmGauge, omega::Float64, activeOrb
         for  ch in channels
             a = ch[1];   t = ch[2]
             VindZr      = RandomPhase.inducedPotentialZr(multipole, activeOrbitals, chis, a, grid;
-                                                      occupiedOrbitals=occupiedOrbitals)
+                                                      occupiedOrbitals=occupiedOrbitals, occupations=occupations)
             # THE a-END ANGULAR FACTOR AND THE SIGN.  `inducedSourceVector` returns the bare radial
             # projection;  THIS channel's own reduced matrix element belongs here -- t, not targets[a], since
             # one active subshell may carry several channels -- and the (-1)^L that
