@@ -40,6 +40,12 @@ using  ..AngularMomentum, ..Atomic, ..AtomicState, ..Basics, ..Bsplines, ..Conti
             -- the natural extension of SuperConfigurationOpacityScheme ACROSS charge states instead of
             within one. See that struct's own docstring for the grand-canonical Saha-Boltzmann equations
             and their self-consistent electron-density solve.
+    + struct SuperConfigurationMixtureOpacityScheme
+        ... to combine several SPECIES (each its own Nuclear.Model, own reference configurations, own
+            number fraction of the mixture) into one PLANCK MEAN opacity at a shared LTE temperature -- the
+            natural extension of SuperConfigurationOpacityScheme ACROSS a composition instead of within one
+            species. See that struct's own docstring for the mixing rule, why the Rosseland mean is
+            deliberately not part of what this scheme returns, and the Planck weight function.
 """
 abstract type  AbstractPlasmaScheme       end
 
@@ -771,6 +777,85 @@ end
 
 
 """
+`struct  Plasma.SuperConfigurationMixtureOpacityScheme  <:  Plasma.AbstractPlasmaScheme`
+    ... a type for a MIXTURE of species, each already described (one ionization stage, one set of
+        `refConfigs`) exactly the way `SuperConfigurationOpacityScheme` describes a single species, combined
+        at a SHARED LTE temperature `computation.settings.temperature` into one PLANCK MEAN opacity over
+        `opacityOmegas`. This is C9's own named remainder, item C20 in the competition list: "opacity for a
+        realistic mixture, not one species".
+
+        EACH SPECIES CARRIES ITS OWN `Nuclear.Model` AND OWN GRID, built automatically
+        (`Basics.recommendedGrid`) rather than shared from `computation` -- a mixture is, by definition, more
+        than one element, so `computation.nuclearModel`/`computation.grid` (sized for ONE species) cannot
+        be reused across species without breaking Rule 12's box-matching requirement for whichever species
+        is not the one `computation` was built for. `computation.nuclearModel`/`computation.grid` are
+        therefore UNUSED by this scheme, the same way `computation.refConfigs` is already unused by
+        `SuperConfigurationOpacityScheme`'s own `refConfigs` field.
+
+        THE MIXING RULE is the standard one for a per-absorber cross section: each species' own Stage-3
+        `kappa_s(omega)` (built internally with EXACTLY `SuperConfigurationOpacityScheme`'s own machinery,
+        one call per species) is weighted by that species' `numberFractions` entry and summed,
+
+            kappa_mix(omega)  =  SUM_s  numberFractions[s] * kappa_s(omega)
+
+        THE PLANCK MEAN is the standard dimensionless-weight form, written in terms of `x = omega/kT`:
+
+            kappa_P  =  INTEGRAL  kappa_mix(x) * w_P(x) dx,     w_P(x) = (15/pi^4) * x^3/(e^x-1)
+
+        normalized so `INTEGRAL w_P(x) dx = 1` over `x in (0,infinity)` -- the standard check this scheme's
+        own test uses: a FREQUENCY-INDEPENDENT `kappa_mix` must return exactly that same constant as its
+        Planck mean, since a weighted average of a constant is that constant. The integral is evaluated by
+        the trapezoidal rule over `opacityOmegas` itself, so the grid must be wide and fine enough to
+        resolve `w_P`'s own peak near `x ~ 3-4` AND every species' own line widths -- not merely wide
+        enough for the lines alone, as a single-species `opacityOmegas` choice would be.
+
+        **THE ROSSELAND MEAN IS DELIBERATELY NOT PART OF WHAT THIS SCHEME RETURNS**, and this is a finding,
+        not an oversight: a Rosseland mean is a HARMONIC average, dominated by whichever frequencies are
+        LEAST opaque, and this scheme's `kappa(omega)` is a SUM OF E1 LINES ONLY -- no bound-free or
+        free-free continuum -- so every frequency between lines is a true gap with nothing to divide
+        sensibly into. Measured, not assumed, 17-Oct-2026: sweeping the numerical floor
+        `Plasma.rosselandMeanOpacity` needs just to avoid dividing by machine-zero moved the returned value
+        by MORE THAN ELEVEN ORDERS OF MAGNITUDE (0.049 down to 7.7e-13) on the SAME spectrum -- proof the
+        number has no content here, set by an implementation detail rather than physics. The function
+        itself is kept, as a building block for the day a continuum opacity exists to fill the gaps; see its
+        own docstring. The PLANCK mean, an ARITHMETIC (kappa-weighted) average, has no such gap-sensitivity
+        and is the only mean opacity this scheme reports.
+
+    + nuclearModels          ::Array{Nuclear.Model,1}            ... one nuclear model per species.
+    + refConfigsPerSpecies   ::Array{Array{Configuration,1},1}   ... one species' own `refConfigs`
+                                                                        (its own single ionization stage), matching
+                                                                        `nuclearModels` and `numberFractions` by index.
+    + numberFractions        ::Array{Float64,1}                  ... each species' number fraction of the mixture;
+                                                                        expected to sum to 1, checked, not enforced silently.
+    + opacityOmegas          ::Array{Float64,1}                  ... the SHARED photon-energy grid [a.u.] every
+                                                                        species' Stage-3 spectrum and the two means are built on.
+"""
+struct  SuperConfigurationMixtureOpacityScheme  <:  Plasma.AbstractPlasmaScheme
+    nuclearModels          ::Array{Nuclear.Model,1}
+    refConfigsPerSpecies   ::Array{Array{Configuration,1},1}
+    numberFractions        ::Array{Float64,1}
+    opacityOmegas          ::Array{Float64,1}
+end
+
+
+"""
+`Plasma.SuperConfigurationMixtureOpacityScheme()`  ... constructor for a standard (empty) instance.
+"""
+function SuperConfigurationMixtureOpacityScheme()
+    SuperConfigurationMixtureOpacityScheme( Nuclear.Model[], Array{Configuration,1}[], Float64[], Float64[] )
+end
+
+
+# `Base.show(io::IO, scheme::Plasma.SuperConfigurationMixtureOpacityScheme)`  ... prepares a proper printout.
+function Base.show(io::IO, scheme::Plasma.SuperConfigurationMixtureOpacityScheme)
+    println(io, "nuclearModels:          $(scheme.nuclearModels)  ")
+    println(io, "refConfigsPerSpecies:   $(scheme.refConfigsPerSpecies)  ")
+    println(io, "numberFractions:        $(scheme.numberFractions)  ")
+    println(io, "opacityOmegas:          $(scheme.opacityOmegas)  ")
+end
+
+
+"""
 `struct  Plasma.Settings`  ... defines a type for the details and parameters of computing photoionization lines.
 
     + temperature               ::Float64
@@ -962,6 +1047,7 @@ include("module-Plasma-inc-satellite-diagnostic.jl")
 include("module-Plasma-inc-collisional-radiative.jl")
 include("module-Plasma-inc-superconfiguration-opacity.jl")
 include("module-Plasma-inc-superconfiguration-ionization.jl")
+include("module-Plasma-inc-superconfiguration-mixture.jl")
 
 #######################################################################################################################
 #######################################################################################################################

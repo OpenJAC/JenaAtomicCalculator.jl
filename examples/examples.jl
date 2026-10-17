@@ -157,6 +157,7 @@ elseif  char == 'J'
     println("Je) Apply & test the Plasma.CollisionalRadiativeScheme: kinetic (non-LTE) level populations for a small level set.")
     println("Jf) Apply & test the Plasma.SuperConfigurationOpacityScheme (populations, oscillator strengths, and a summed opacity spectrum).")
     println("Jg) Apply & test the Plasma.SuperConfigurationIonizationScheme (equilibrium ionization balance across configurations).")
+    println("Jh) Apply & test the Plasma.SuperConfigurationMixtureOpacityScheme (a multi-species mixture, Planck mean opacity).")
     #
 elseif  char == 'K'
     println("K)  Examples, tests & development of deep-learning applications")

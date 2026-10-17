@@ -322,6 +322,85 @@ function testModule_SuperConfigurationIonization(; short::Bool=true)
 end
 
 
+"""
+`TestFrames.testModule_SuperConfigurationMixtureOpacity(; short::Bool=true)`
+    ... tests `Plasma.SuperConfigurationMixtureOpacityScheme` on a two-species mixture, carbon (Z=6, the
+        SAME three-configuration complex `testModule_SuperConfigurationOpacity` already validates) and neon
+        (Z=10, an analogous `2s^2 2p^4`/`2s 2p^5`/`2p^6` complex). Checks: (1) the mixing rule itself, by an
+        independent re-derivation -- `kappa_mix` must equal `numberFractions[1]*kappa_C +
+        numberFractions[2]*kappa_Ne` to machine precision, since both species' own spectra are also
+        returned; (2) the REDUCTION check -- a one-species-only mixture (`numberFractions=[1.0]`) must
+        reproduce `SuperConfigurationOpacityScheme`'s own `kappa(omega)` exactly, proving no new physics was
+        introduced in the mixing layer itself; (3) a parameter-free check on `Plasma.planckMeanOpacity`
+        alone -- a FREQUENCY-INDEPENDENT `kappa` must return exactly that constant as its Planck mean, since
+        a weighted average of a constant is that constant; (4) that no Rosseland-mean key is present among
+        the results, which documents -- rather than silently drops -- the deliberate finding (see
+        `Plasma.rosselandMeanOpacity`'s own docstring) that a Rosseland mean has no stable value for a
+        line-only spectrum. A success::Bool is returned.
+"""
+function testModule_SuperConfigurationMixtureOpacity(; short::Bool=true)
+    printstyled("\n\nTest the module  Plasma (SuperConfigurationMixtureOpacityScheme)  ... \n", color=:cyan)
+    success = true
+
+    nmC   = Nuclear.Model(6.)
+    nmNe  = Nuclear.Model(10.)
+    refsC  = [Configuration("2s^2 2p^2"), Configuration("2s 2p^3"), Configuration("2p^4")]
+    refsNe = [Configuration("2s^2 2p^4"), Configuration("2s 2p^5"), Configuration("2p^6")]
+    omegas = collect(0.05:0.05:1.2)
+
+    scheme   = Plasma.SuperConfigurationMixtureOpacityScheme([nmC, nmNe], [refsC, refsNe], [0.6, 0.4], omegas)
+    settings = Plasma.Settings(0.2, 1.0e22, false)
+    wa = Plasma.Computation(Plasma.Computation(); scheme=scheme, nuclearModel=nmC, grid=Radial.Grid(true),
+                              asfSettings=AsfSettings(), settings=settings)
+    wb = perform(wa; output=true)
+
+    speciesKappas = wb[ResultKeys.SuperConfigurationMixtureSpeciesOpacities]
+    kappaMix      = wb[ResultKeys.SuperConfigurationMixtureOpacitySpectrum]
+    kappaP        = wb[ResultKeys.SuperConfigurationMixturePlanckOpacity]
+
+    maxMixDiff = maximum( abs.(kappaMix .- (0.6 .* speciesKappas[1] .+ 0.4 .* speciesKappas[2])) )
+    if  maxMixDiff > 1.0e-12
+        success = false
+        println("  ** mixing rule failed: max |kappa_mix - (0.6*kappa_C+0.4*kappa_Ne)| = $maxMixDiff")
+    end
+
+    schemeOnlyC = Plasma.SuperConfigurationMixtureOpacityScheme([nmC], [refsC], [1.0], omegas)
+    waOnlyC     = Plasma.Computation(wa; scheme=schemeOnlyC)
+    wbOnlyC     = perform(waOnlyC; output=true)
+    kappaOnlyC  = wbOnlyC[ResultKeys.SuperConfigurationMixtureOpacitySpectrum]
+
+    schemeSingle = Plasma.SuperConfigurationOpacityScheme(refsC, omegas)
+    gridC        = Basics.recommendedGrid(refsC, nmC; printout=false)
+    waSingle     = Plasma.Computation(wa; scheme=schemeSingle, nuclearModel=nmC, grid=gridC, refConfigs=refsC)
+    wbSingle     = perform(waSingle; output=true)
+    kappaSingle  = wbSingle[ResultKeys.SuperConfigurationOpacitySpectrum]
+
+    maxReductionDiff = maximum(abs.(kappaOnlyC .- kappaSingle))
+    if  maxReductionDiff > 1.0e-12
+        success = false
+        println("  ** reduction check failed: max |mixture(1 species) - single-species scheme| = $maxReductionDiff")
+    end
+
+    # a DEDICATED, wide synthetic x-grid for this check -- the physical `omegas`/`kT` above cover only the
+    # lines themselves (x up to ~6) and are not meant to resolve planckWeight's own tail out past x~20-30.
+    xGridWide  = collect(0.01:0.01:30.0)
+    kappaConst = fill(2.3, length(xGridWide))
+    planckOfConst = Plasma.planckMeanOpacity(xGridWide, kappaConst)
+    if  abs(planckOfConst - 2.3) > 1.0e-4
+        success = false
+        println("  ** Planck mean of a constant kappa=2.3 returned $planckOfConst, not 2.3")
+    end
+
+    if  haskey(wb, "superconfiguration mixture rosseland opacity")
+        success = false
+        println("  ** a Rosseland-mean key is present -- it should not be, see this scheme's own docstring")
+    end
+
+    testPrint("testModule_SuperConfigurationMixtureOpacity()::", success)
+    return( success )
+end
+
+
 ## PlasmaShift: no test exists and none is planned here. The former testModule_PlasmaShift was deleted
 ## on 09-Aug-2026 as obsolete: PlasmaShift is no longer an Atomic property but a Plasma.Computation
 ## scheme, so a test for it belongs with the Plasma module and has to be written afresh.

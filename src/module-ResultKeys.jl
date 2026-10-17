@@ -289,6 +289,34 @@ struct  SuperConfigurationIonizationGroupPopulations <: Basics.AbstractResultKey
 """
 struct  SuperConfigurationIonizationElectronDensity <: Basics.AbstractResultKey end
 
+"""
+`struct  ResultKeys.SuperConfigurationMixtureSpeciesOpacities`  ... one Stage-3 `kappa(omega)` array per
+                                                                        species, in `scheme`'s own order; was
+                                                                        `"superconfiguration mixture species
+                                                                        opacities"`.
+"""
+struct  SuperConfigurationMixtureSpeciesOpacities   <: Basics.AbstractResultKey   end
+
+"""
+`struct  ResultKeys.SuperConfigurationMixtureOpacitySpectrum`  ... the number-fraction-weighted SUM of every
+                                                                       species' own spectrum; was
+                                                                       `"superconfiguration mixture opacity
+                                                                       spectrum"`.
+"""
+struct  SuperConfigurationMixtureOpacitySpectrum    <: Basics.AbstractResultKey   end
+
+"""
+`struct  ResultKeys.SuperConfigurationMixturePlanckOpacity`  ... the Planck mean of the mixture spectrum; was
+                                                                     `"superconfiguration mixture planck
+                                                                     opacity"`. THERE IS NO MATCHING
+                                                                     `...RosselandOpacity` key: measured, not
+                                                                     assumed, to have no stable value for a
+                                                                     line-only spectrum -- see
+                                                                     `Plasma.rosselandMeanOpacity`'s own
+                                                                     docstring.
+"""
+struct  SuperConfigurationMixturePlanckOpacity      <: Basics.AbstractResultKey   end
+
 
 # ---------------------------------------------------------------------------------------------------------------
 # WHAT IS DELIBERATELY NOT HERE: the RAS ladder's per-step results, stored as "step1", "step2", ... one per layer.

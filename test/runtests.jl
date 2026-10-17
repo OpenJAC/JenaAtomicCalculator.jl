@@ -237,6 +237,15 @@ end
                                                     ## the textbook two-level Saha equation built from nothing
                                                     ## but the scheme's own groups -- the equivalence of the
                                                     ## grand-canonical and pairwise formulas, proved not assumed.
+        @test TestFrames.testModule_SuperConfigurationMixtureOpacity()
+                                                    ## added 17-Oct-2026; carbon+neon two-species mixture (item
+                                                    ## C20): the mixing rule by independent re-derivation, the
+                                                    ## one-species reduction reproducing SuperConfigurationOpacity
+                                                    ## Scheme exactly, a parameter-free Planck-mean-of-a-constant
+                                                    ## check, and that no Rosseland key is present -- a real
+                                                    ## finding (not an oversight): the Rosseland mean moved by
+                                                    ## 11+ orders of magnitude under an arbitrary numerical floor
+                                                    ## for this line-only spectrum, so it is not reported.
     end
 
     @testset "JAC strongfield" begin
