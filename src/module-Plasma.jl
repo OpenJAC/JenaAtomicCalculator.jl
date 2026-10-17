@@ -29,9 +29,17 @@ using  ..AngularMomentum, ..Atomic, ..AtomicState, ..Basics, ..Bsplines, ..Conti
             levels of one ion.
     + struct SuperConfigurationOpacityScheme
         ... to build one SuperConfigurations.Group per reference configuration, report its Boltzmann
-            population at a given plasma temperature, and build a SuperConfigurations.TransitionArray for
-            every E1-connected pair with its oscillator-strength sum. STAGE 2 of 3 -- see that struct's own
-            docstring for what a Stage 3 (a single summed opacity spectrum) would still need to add.
+            population at a given plasma temperature, build a SuperConfigurations.TransitionArray for every
+            E1-connected pair with its oscillator-strength sum, and -- if opacityOmegas is given -- sum
+            every array's Gaussian onto that frequency grid into a photo-absorption cross section
+            kappa(omega). All three stages are built; see that struct's own docstring for what even that
+            still is not (a macroscopic opacity in cm^2/g).
+    + struct SuperConfigurationIonizationScheme
+        ... to compute the EQUILIBRIUM (LTE) population across several ionization stages of one species,
+            each stage described by its own SuperConfigurations.Group's rather than by diagonalized levels
+            -- the natural extension of SuperConfigurationOpacityScheme ACROSS charge states instead of
+            within one. See that struct's own docstring for the grand-canonical Saha-Boltzmann equations
+            and their self-consistent electron-density solve.
 """
 abstract type  AbstractPlasmaScheme       end
 
@@ -713,6 +721,56 @@ end
 
 
 """
+`struct  Plasma.SuperConfigurationIonizationScheme  <:  Plasma.AbstractPlasmaScheme`
+    ... a type for the EQUILIBRIUM (LTE) population across several ionization stages of ONE species, each
+        stage described by `SuperConfigurations.Group`'s rather than by diagonalized levels -- the natural
+        extension of `SuperConfigurationOpacityScheme` ACROSS charge states instead of within one.
+
+        THE PHYSICS IS THE GRAND-CANONICAL REFORMULATION OF THE SAHA EQUATION, the SAME one
+        `Plasma.SahaBoltzmannScheme` already uses and the SAME equations example-Jc.jl independently
+        verified by hand: every (stage q, group g) pair carries a Boltzmann weight
+        `g.degeneracy * exp(-(mu_e*q + g.meanEnergy - Eref)/kT)` in ONE shared sum over every stage at
+        once, where `mu_e` is the electron chemical potential and `q` the stage's charge (nuclear charge
+        minus its own electron count). `mu_e` is tied to the electron density by the standard non-degenerate
+        ideal-electron-gas relation, and the two are found together by a SELF-CONSISTENT fixed-point
+        iteration on charge neutrality -- reimplemented here rather than calling `SahaBoltzmannScheme`'s own
+        code, which is NOT in the test suite and carries isotopic-mixture and ionization-potential-
+        depression machinery this scheme deliberately does not need.
+
+        REUSES, NOT REIMPLEMENTS, EVERY STAGE'S OWN STRUCTURE: one `SuperConfigurations.Group` per
+        configuration, exactly as `SuperConfigurationOpacityScheme`'s Stage 1 already builds them -- no
+        diagonalization, no new structure physics.
+
+        SCOPE, DELIBERATELY NARROW, the same choice `SuperConfigurations` itself made for the same reason:
+        ONE species (no isotopic mixture), vacuum ionization energies (no ionization-potential-depression
+        model), and every stage considered must carry AT LEAST ONE electron -- a fully stripped bare
+        nucleus needs no `Group` at all and is not handled here.
+
+    + refConfigsPerStage   ::Array{Array{Configuration,1},1}   ... one list of reference configurations per
+                                                                     ionization stage, ORDERED from the
+                                                                     LEAST to the MOST ionized stage
+                                                                     considered.
+"""
+struct  SuperConfigurationIonizationScheme  <:  Plasma.AbstractPlasmaScheme
+    refConfigsPerStage     ::Array{Array{Configuration,1},1}
+end
+
+
+"""
+`Plasma.SuperConfigurationIonizationScheme()`  ... constructor for a standard (empty) instance.
+"""
+function SuperConfigurationIonizationScheme()
+    SuperConfigurationIonizationScheme( Array{Configuration,1}[] )
+end
+
+
+# `Base.show(io::IO, scheme::Plasma.SuperConfigurationIonizationScheme)`  ... prepares a proper printout.
+function Base.show(io::IO, scheme::Plasma.SuperConfigurationIonizationScheme)
+    println(io, "refConfigsPerStage:   $(scheme.refConfigsPerStage)  ")
+end
+
+
+"""
 `struct  Plasma.Settings`  ... defines a type for the details and parameters of computing photoionization lines.
 
     + temperature               ::Float64
@@ -903,6 +961,7 @@ include("module-Plasma-inc-saha-boltzmann-mixture.jl")
 include("module-Plasma-inc-satellite-diagnostic.jl")
 include("module-Plasma-inc-collisional-radiative.jl")
 include("module-Plasma-inc-superconfiguration-opacity.jl")
+include("module-Plasma-inc-superconfiguration-ionization.jl")
 
 #######################################################################################################################
 #######################################################################################################################
