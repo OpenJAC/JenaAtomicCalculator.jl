@@ -169,4 +169,51 @@ elseif  false
     println(">>> all three hold to machine precision or close to it -- the trace algebra's own exchange")
     println(">>> symmetry, confirmed on a configuration pair four times the size of branches a-c's.")
     #
+elseif  false
+    # Last successful:  17-Oct-2026
+    #
+    # Branch e: STAGE 3, FINALLY A SPECTRUM. The SAME C I complex and cool (1 eV) temperature as branch c,
+    #   but now supplying `opacityOmegas` so Plasma.perform folds every array's own (CALIBRATED, not
+    #   assumed -- see SuperConfigurations.TransitionArray's own docstring) Gaussian onto one frequency
+    #   grid, weighted by its population-weighted gf, into a single kappa(omega): a per-absorber
+    #   photo-absorption cross section, in a0^2 -- NOT YET a macroscopic opacity in cm^2/g, which still
+    #   needs an ion density and mass this scheme is not given.
+    #
+    #   CHECK, NEEDING NO EXTERNAL REFERENCE: the oscillator-strength sum rule this spectrum must obey by
+    #   construction -- integral d(omega) kappa(omega) over the WHOLE grid equals 2 pi^2 alpha times the
+    #   sum of every array's population-weighted gf, exactly the same numbers branch c already reported.
+    #   A grid wide enough to hold both lines' Gaussian tails should recover that integral to a fraction of
+    #   a percent; a grid too narrow would show the shortfall directly, which is itself the point of
+    #   checking rather than assuming.
+    ni   = Nuclear.Model(6.)
+    grid = Radial.Grid(true)
+    asfSettings = AsfSettings()
+    refConfigs  = [Configuration("2s^2 2p^2"), Configuration("2s 2p^3"), Configuration("2p^4")]
+    omegas      = collect(0.0:0.002:0.7)
+    scheme      = Plasma.SuperConfigurationOpacityScheme(refConfigs, omegas)
+
+    eV_to_au = 1.0 / Defaults.convertUnits("energy: from atomic to eV", 1.0)
+    settings = Plasma.Settings(1.0*eV_to_au, 1.0e22, false)
+    comp     = Plasma.Computation(Plasma.Computation(); scheme=scheme, nuclearModel=ni, grid=grid,
+                                     refConfigs=refConfigs, asfSettings=asfSettings, settings=settings)
+    wb = perform(comp; output=true)
+
+    kappa  = wb["superconfiguration opacity spectrum"]
+    gfEffs = wb["superconfiguration opacity contributions"]
+    alpha  = Defaults.getDefaults("alpha")
+
+    expectedIntegral = 2*pi^2*alpha*sum(gfEffs)
+    dOmega            = omegas[2] - omegas[1]
+    numericIntegral   = sum(kappa)*dOmega
+    peakIdx           = argmax(kappa)
+
+    @printf("\n>>> expected integral (2 pi^2 alpha x sum of population-weighted gf) = %.6e\n", expectedIntegral)
+    @printf(">>> numeric integral of kappa(omega) over the grid                    = %.6e\n", numericIntegral)
+    @printf(">>> relative difference = %.3e -- the sum rule the spectrum is built to obey, checked rather\n",
+            abs(expectedIntegral-numericIntegral)/expectedIntegral)
+    println(">>> than assumed.")
+    @printf("\n>>> peak kappa = %.4f a0^2 at omega = %.4f Hartree -- sitting on the stronger (ground-state)\n",
+            kappa[peakIdx], omegas[peakIdx])
+    println(">>> array's own mean transition energy from branch c, as it must.")
+    #
 end
