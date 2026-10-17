@@ -152,6 +152,17 @@ end
                                                     ## diagonalizing -- matches the SAME brute-force statistic to
                                                     ## 1e-3 relative, the residual traced entirely to the mean's own
                                                     ## imprecision propagating through variance = <E^2> - mean^2.
+        @test TestFrames.testModule_SuperGroup()
+                                                    ## added 17-Oct-2026 (competition item C9, narrowed); C I
+                                                    ## 2s^2 2p^2 + 2p^4 pooled: the pooled degeneracy/mean/variance
+                                                    ## match an independent hand evaluation of the SAME
+                                                    ## combined-sample formula, and the pooled variance strictly
+                                                    ## exceeds the within-group-only average, confirming the
+                                                    ## between-configuration term is present and adding, not
+                                                    ## subtracting. The mean's exactness under CI mixing and the
+                                                    ## variance's measured 19.5% shortfall on a realistic mixing
+                                                    ## pair are recorded in buildSuperGroup's own docstring, not
+                                                    ## re-run here (needs a second SCF + full CI, too slow routinely).
     end
 
     @testset "JAC processes" begin

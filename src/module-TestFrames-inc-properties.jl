@@ -1268,3 +1268,57 @@ function testModule_SuperConfigurations(; short::Bool=true)
     testPrint("testModule_SuperConfigurations()::", success)
     return(success)
 end
+
+
+"""
+`TestFrames.testModule_SuperGroup(; short::Bool=true)`
+    ... tests `SuperConfigurations.SuperGroup` (competition item C9) on C I's `2s^2 2p^2` and `2p^4`
+        (both even parity, from the same complex `module-SuperConfigurations.jl`'s own toy case uses).
+        Checks the pooled degeneracy, mean and variance against an INDEPENDENT hand evaluation of the
+        combined-sample formula from the two configurations' own separately-built `Group`s -- the same
+        formula `buildSuperGroup` itself uses, re-derived here rather than re-run, so this is a check on
+        the ARITHMETIC rather than a second measurement of the same code path. The mean's EXACTNESS under
+        configuration-interaction mixing (a trace argument, not an approximation) and the variance's
+        measured 19.5 % shortfall on a realistic mixing pair are recorded in `buildSuperGroup`'s own
+        docstring rather than re-verified here every run, since that check needs a second SCF and a full
+        CI diagonalization and is not cheap enough for the routine suite. A success::Bool is returned.
+"""
+function testModule_SuperGroup(; short::Bool=true)
+    printstyled("\n\nTest the module  SuperConfigurations (SuperGroup)  ... \n", color=:cyan)
+    success = true
+
+    ni   = Nuclear.Model(6.)
+    grid = Radial.Grid(true)
+    asfSettings = AsfSettings()
+    confA = Configuration("2s^2 2p^2");   confB = Configuration("2p^4")
+    wb    = SelfConsistent.performSCF([confA, confB], ni, grid, asfSettings; printout=false)
+    orbitals = wb.levels[1].basis.orbitals
+
+    gA = SuperConfigurations.buildGroup(confA, orbitals, ni, grid, asfSettings)
+    gB = SuperConfigurations.buildGroup(confB, orbitals, ni, grid, asfSettings)
+    sg = SuperConfigurations.buildSuperGroup([confA, confB], orbitals, ni, grid, asfSettings)
+
+    G = gA.degeneracy + gB.degeneracy
+    M = (gA.degeneracy*gA.meanEnergy + gB.degeneracy*gB.meanEnergy) / G
+    V = (gA.degeneracy*(gA.variance + (gA.meanEnergy-M)^2) + gB.degeneracy*(gB.variance + (gB.meanEnergy-M)^2)) / G
+
+    if  sg.degeneracy != G
+        success = false;   println("  ** SuperGroup degeneracy $(sg.degeneracy) != hand-pooled $G")
+    end
+    if  abs(sg.meanEnergy - M) > 1.0e-12
+        success = false;   println("  ** SuperGroup mean $(sg.meanEnergy) != hand-pooled $M")
+    end
+    if  abs(sg.variance - V) > 1.0e-12 * abs(V)
+        success = false;   println("  ** SuperGroup variance $(sg.variance) != hand-pooled $V")
+    end
+    # the pooled variance must EXCEED the degeneracy-weighted average of the two groups' OWN variances --
+    # the between-configuration spread (the two means are nowhere near equal) can only add, never subtract.
+    withinOnly = (gA.degeneracy*gA.variance + gB.degeneracy*gB.variance) / G
+    if  sg.variance <= withinOnly
+        success = false;   println("  ** pooled variance $(sg.variance) does not exceed the within-group-only " *
+                                     "average $withinOnly -- the between-configuration term is missing or wrong")
+    end
+
+    testPrint("testModule_SuperGroup()::", success)
+    return(success)
+end
