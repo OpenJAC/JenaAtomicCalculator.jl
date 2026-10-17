@@ -52,6 +52,8 @@ if true
 elseif true
     # Last successful:  unknown ...
     # Perform the StrongField computation
+	if  !@isdefined(nuclearModel)   error("Run the earlier branch of this file first; it defines "     *
+	                                      "nuclearModel, rGrid, initialLevel and finalLevel.")   end
 	sfaSettings      = StrongField.Settings([E1], "VelocityGauge", true, true, hydrogenic, hydrogenic1s, mAverage)
 	SFIComp	         = StrongField.Computation(observable, nuclearModel, rGrid, initialLevel, finalLevel, 
 	                                           beam, envelope, polarization, volkov, sfaSettings)
@@ -60,6 +62,8 @@ elseif true
 elseif true
     # Last successful:  unknown ...
     # Export the data and plots
+	if  !@isdefined(nuclearModel)   error("Run the earlier branch of this file first; it defines "     *
+	                                      "nuclearModel, rGrid, initialLevel and finalLevel.")   end
     StrongField.exportData([SFIComp], [SFIData], "example-Ib")
     StrongField.plot([SFIComp], [SFIData], "omega", "linear", "example-Ib")
 end
