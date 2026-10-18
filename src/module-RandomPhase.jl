@@ -915,6 +915,20 @@ end
         the induced potential's relative change falls below settings.accuracy or settings.maxIterations is
         reached -- see the module's own docstring for what this coupled path has, and has not yet, been
         checked against.
+        **WHAT THIS FUNCTION HAS BEEN VALIDATED TO DO, AND WHAT IT STILL CANNOT DO -- 18-Oct-2026, priority
+        item 62 closed.** At omega = 0 with `staticDrive = true` the coupled response has been checked against an
+        INDEPENDENT m-resolved implementation -- explicit magnetic substates, no angular reduction, no 6j, no
+        CL convention -- function by function rather than in a total: on the nine E1 channels of Ne the chi
+        returned here is CL(a,1,t_a)/sqrt(2j_a+1) times that calculation's, the whole difference being the
+        normalisation `InteractionStrength.eMultipole` puts on the drive, to 9.9e-11 against a GMRES tolerance of
+        1e-8. **Checking the TOTAL would not have shown this:** the two angular conventions tried before
+        `cbdedacb` agree to 0.7 % on Ne's screened total while differing by 0.644 to 2.194 PER CHANNEL, which is
+        how a convention error survived two repairs here.
+        **WHAT IS STILL ABSENT IS EXCHANGE** (priority item 75; the verified lines are in this file and
+        deliberately unwired). A direct-only induced field over-screens, so a number from this function is a
+        direct-only result in a strongly-coupled regime and NOT a validated screening correction. Do not read the
+        paragraph above as more than it says: it establishes that two routes compute the SAME thing, not that the
+        thing is the measured one.
         A response::RandomPhase.CoupledResponse is returned.
 """
 function solve(multipole::EmMultipole, gauge::EmGauge, omega::Float64, activeOrbitals::Dict{Subshell,Orbital},
