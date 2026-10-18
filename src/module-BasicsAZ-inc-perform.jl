@@ -128,6 +128,12 @@ function  resultKeyStrings(T::Type)
         return( ["superconfiguration mixture opacity spectrum"] )
     T === ResultKeys.SuperConfigurationMixturePlanckOpacity         &&
         return( ["superconfiguration mixture planck opacity"] )
+    T === ResultKeys.SuperConfigurationMixtureCharges               &&
+        return( ["superconfiguration mixture charges"] )
+    T === ResultKeys.SuperConfigurationMixtureStagePopulations      &&
+        return( ["superconfiguration mixture stage populations"] )
+    T === ResultKeys.SuperConfigurationMixtureElectronDensity       &&
+        return( ["superconfiguration mixture electron density"] )
 
     return( String[] )
 end
@@ -171,7 +177,8 @@ function  allResultKeyTypes()
             ResultKeys.SuperConfigurationIonizationGroupPopulations,
             ResultKeys.SuperConfigurationIonizationElectronDensity,
             ResultKeys.SuperConfigurationMixtureSpeciesOpacities, ResultKeys.SuperConfigurationMixtureOpacitySpectrum,
-            ResultKeys.SuperConfigurationMixturePlanckOpacity,
+            ResultKeys.SuperConfigurationMixturePlanckOpacity, ResultKeys.SuperConfigurationMixtureCharges,
+            ResultKeys.SuperConfigurationMixtureStagePopulations, ResultKeys.SuperConfigurationMixtureElectronDensity,
             Einstein.Settings, Hfs.Settings, LandeZeeman.Settings, StarkShift.Settings, StarkZeeman.Settings,
             IsotopeShift.Settings, AlphaVariation.Settings, FormFactor.Settings, DecayYield.Settings,
             MultipolePolarizibility.Settings, ReducedDensityMatrix.Settings, WeakInteractionEnhancement.Settings,

@@ -41,11 +41,13 @@ using  ..AngularMomentum, ..Atomic, ..AtomicState, ..Basics, ..Bsplines, ..Conti
             within one. See that struct's own docstring for the grand-canonical Saha-Boltzmann equations
             and their self-consistent electron-density solve.
     + struct SuperConfigurationMixtureOpacityScheme
-        ... to combine several SPECIES (each its own Nuclear.Model, own reference configurations, own
-            number fraction of the mixture) into one PLANCK MEAN opacity at a shared LTE temperature -- the
-            natural extension of SuperConfigurationOpacityScheme ACROSS a composition instead of within one
-            species. See that struct's own docstring for the mixing rule, why the Rosseland mean is
-            deliberately not part of what this scheme returns, and the Planck weight function.
+        ... to combine several SPECIES (each its own Nuclear.Model, own number fraction, and now possibly
+            several of its own ionization STAGES) into one coupled multi-species Saha-Boltzmann balance and
+            one PLANCK MEAN opacity at a shared LTE temperature -- the natural extension of
+            SuperConfigurationOpacityScheme ACROSS a composition AND of SuperConfigurationIonizationScheme
+            ACROSS species, both axes at once. See that struct's own docstring for the coupled balance, the
+            two-stage mixing rule, why the Rosseland mean is deliberately not part of what this scheme
+            returns, and the Planck weight function.
 """
 abstract type  AbstractPlasmaScheme       end
 
@@ -778,24 +780,44 @@ end
 
 """
 `struct  Plasma.SuperConfigurationMixtureOpacityScheme  <:  Plasma.AbstractPlasmaScheme`
-    ... a type for a MIXTURE of species, each already described (one ionization stage, one set of
-        `refConfigs`) exactly the way `SuperConfigurationOpacityScheme` describes a single species, combined
-        at a SHARED LTE temperature `computation.settings.temperature` into one PLANCK MEAN opacity over
-        `opacityOmegas`. This is C9's own named remainder, item C20 in the competition list: "opacity for a
-        realistic mixture, not one species".
+    ... a type for a MIXTURE of species, each possibly spread over SEVERAL of its own ionization stages,
+        combined at a SHARED LTE temperature `computation.settings.temperature` into one PLANCK MEAN
+        opacity over `opacityOmegas`. This is C9's own named remainder, item C20 in the competition list:
+        "opacity for a realistic mixture, not one species" -- EXTENDED 18-Oct-2026 to also cover the stage
+        axis `SuperConfigurationIonizationScheme` covers for one species alone, so a mixture no longer has
+        to be given a single hand-picked charge state per species.
 
-        EACH SPECIES CARRIES ITS OWN `Nuclear.Model` AND OWN GRID, built automatically
+        EACH SPECIES CARRIES ITS OWN `Nuclear.Model` AND OWN GRID PER STAGE, built automatically
         (`Basics.recommendedGrid`) rather than shared from `computation` -- a mixture is, by definition, more
-        than one element, so `computation.nuclearModel`/`computation.grid` (sized for ONE species) cannot
-        be reused across species without breaking Rule 12's box-matching requirement for whichever species
-        is not the one `computation` was built for. `computation.nuclearModel`/`computation.grid` are
-        therefore UNUSED by this scheme, the same way `computation.refConfigs` is already unused by
+        than one element (and, now, each element possibly more than one charge state), so
+        `computation.nuclearModel`/`computation.grid` (sized for ONE species at ONE stage) cannot be reused
+        without breaking Rule 12's box-matching requirement for whichever (species,stage) is not the one
+        `computation` was built for. `computation.nuclearModel`/`computation.grid` are therefore UNUSED by
+        this scheme, the same way `computation.refConfigs` is already unused by
         `SuperConfigurationOpacityScheme`'s own `refConfigs` field.
 
-        THE MIXING RULE is the standard one for a per-absorber cross section: each species' own Stage-3
-        `kappa_s(omega)` (built internally with EXACTLY `SuperConfigurationOpacityScheme`'s own machinery,
-        one call per species) is weighted by that species' `numberFractions` entry and summed,
+        THE IONIZATION BALANCE IS SOLVED FIRST, COUPLED ACROSS EVERY SPECIES AT ONCE -- the genuinely new
+        physics here, not a wiring exercise: `SuperConfigurationIonizationScheme`'s own charge-neutrality
+        equation assumes ONE species supplies every electron, which is wrong the moment a species is a
+        trace component of the mixture -- its own ionization balance then depends on an electron density
+        set mostly by everyone ELSE. The SAME grand-canonical fixed-point iteration is reused, with the
+        charge-neutrality sum lifted to range over every (species, stage) pair:
 
+            n_e  =  n_ion,total * SUM_species  numberFractions[s] * SUM_stages_i  charge[s,i] * p[s,i]
+
+        where `p[s,i]` is species `s`'s OWN Boltzmann population of stage `i`, normalized to 1 WITHIN that
+        species (`SUM_i p[s,i] = 1`) at the SHARED chemical potential `mu_e` every species sees -- each
+        species keeps its own, purely numerical energy reference for the exponentials (Eref_s), which never
+        needs to agree ACROSS species since it cancels out of that species' own normalization. A SINGLE-
+        STAGE species has `p[s,1] = 1` identically, whatever `mu_e` is -- which is exactly why the
+        backward-compatible constructor below reproduces the ORIGINAL (17-Oct-2026) scheme's numbers
+        unchanged: the balance above is trivial when there is only one state to belong to.
+
+        THE MIXING RULE builds on that balance in two stages: WITHIN a species, its own stages' Stage-3
+        `kappa_{s,i}(omega)` (each built with EXACTLY `SuperConfigurationOpacityScheme`'s own machinery) are
+        weighted by that stage's OWN population `p[s,i]`; ACROSS species, by `numberFractions`:
+
+            kappa_s(omega)    =  SUM_i  p[s,i] * kappa_{s,i}(omega)
             kappa_mix(omega)  =  SUM_s  numberFractions[s] * kappa_s(omega)
 
         THE PLANCK MEAN is the standard dimensionless-weight form, written in terms of `x = omega/kT`:
@@ -821,20 +843,25 @@ end
         own docstring. The PLANCK mean, an ARITHMETIC (kappa-weighted) average, has no such gap-sensitivity
         and is the only mean opacity this scheme reports.
 
-    + nuclearModels          ::Array{Nuclear.Model,1}            ... one nuclear model per species.
-    + refConfigsPerSpecies   ::Array{Array{Configuration,1},1}   ... one species' own `refConfigs`
-                                                                        (its own single ionization stage), matching
-                                                                        `nuclearModels` and `numberFractions` by index.
-    + numberFractions        ::Array{Float64,1}                  ... each species' number fraction of the mixture;
-                                                                        expected to sum to 1, checked, not enforced silently.
-    + opacityOmegas          ::Array{Float64,1}                  ... the SHARED photon-energy grid [a.u.] every
-                                                                        species' Stage-3 spectrum and the two means are built on.
+    + nuclearModels              ::Array{Nuclear.Model,1}                      ... one nuclear model per species.
+    + refConfigsPerSpeciesStages ::Array{Array{Array{Configuration,1},1},1}
+        ... one species' own `refConfigsPerStage` -- EXACTLY `SuperConfigurationIonizationScheme`'s own field
+            shape, one `Array{Configuration,1}` per ionization stage of that species -- matching
+            `nuclearModels` and `numberFractions` by index. A species with only ONE stage (the common case
+            before the coupled balance below existed) is simply a length-1 outer array; the backward-
+            compatible constructor below builds exactly that from the OLD one-stage-per-species call shape.
+    + numberFractions            ::Array{Float64,1}                            ... each species' number
+                                                                        fraction of the mixture; expected to
+                                                                        sum to 1, checked, not enforced silently.
+    + opacityOmegas              ::Array{Float64,1}                           ... the SHARED photon-energy
+                                                                        grid [a.u.] every species' Stage-3
+                                                                        spectrum and the Planck mean are built on.
 """
 struct  SuperConfigurationMixtureOpacityScheme  <:  Plasma.AbstractPlasmaScheme
-    nuclearModels          ::Array{Nuclear.Model,1}
-    refConfigsPerSpecies   ::Array{Array{Configuration,1},1}
-    numberFractions        ::Array{Float64,1}
-    opacityOmegas          ::Array{Float64,1}
+    nuclearModels              ::Array{Nuclear.Model,1}
+    refConfigsPerSpeciesStages ::Array{Array{Array{Configuration,1},1},1}
+    numberFractions            ::Array{Float64,1}
+    opacityOmegas              ::Array{Float64,1}
 end
 
 
@@ -842,16 +869,36 @@ end
 `Plasma.SuperConfigurationMixtureOpacityScheme()`  ... constructor for a standard (empty) instance.
 """
 function SuperConfigurationMixtureOpacityScheme()
-    SuperConfigurationMixtureOpacityScheme( Nuclear.Model[], Array{Configuration,1}[], Float64[], Float64[] )
+    SuperConfigurationMixtureOpacityScheme( Nuclear.Model[], Array{Array{Configuration,1},1}[], Float64[], Float64[] )
+end
+
+
+"""
+`Plasma.SuperConfigurationMixtureOpacityScheme(nuclearModels::Array{Nuclear.Model,1},
+                                                  refConfigsPerSpecies::Array{Array{Configuration,1},1},
+                                                  numberFractions::Array{Float64,1}, opacityOmegas::Array{Float64,1})`
+    ... BACKWARD-COMPATIBLE constructor for the ORIGINAL, single-stage-per-species call shape (17-Oct-2026):
+        each species' flat `Array{Configuration,1}` is wrapped into a length-1 outer array, so every
+        pre-existing call site keeps compiling and -- since a single-stage species has a TRIVIAL ionization
+        balance (`stagePopulations = [1.0]` whatever the temperature or density, there being only one state
+        to belong to) -- keeps returning EXACTLY the result it always did, unaffected by the coupled
+        multi-species balance the general constructor now also allows. A scheme::SuperConfigurationMixtureOpacityScheme
+        is returned.
+"""
+function SuperConfigurationMixtureOpacityScheme(nuclearModels::Array{Nuclear.Model,1},
+                                                   refConfigsPerSpecies::Array{Array{Configuration,1},1},
+                                                   numberFractions::Array{Float64,1}, opacityOmegas::Array{Float64,1})
+    SuperConfigurationMixtureOpacityScheme( nuclearModels, [ [refs]  for refs in refConfigsPerSpecies ],
+                                              numberFractions, opacityOmegas )
 end
 
 
 # `Base.show(io::IO, scheme::Plasma.SuperConfigurationMixtureOpacityScheme)`  ... prepares a proper printout.
 function Base.show(io::IO, scheme::Plasma.SuperConfigurationMixtureOpacityScheme)
-    println(io, "nuclearModels:          $(scheme.nuclearModels)  ")
-    println(io, "refConfigsPerSpecies:   $(scheme.refConfigsPerSpecies)  ")
-    println(io, "numberFractions:        $(scheme.numberFractions)  ")
-    println(io, "opacityOmegas:          $(scheme.opacityOmegas)  ")
+    println(io, "nuclearModels:               $(scheme.nuclearModels)  ")
+    println(io, "refConfigsPerSpeciesStages:  $(scheme.refConfigsPerSpeciesStages)  ")
+    println(io, "numberFractions:             $(scheme.numberFractions)  ")
+    println(io, "opacityOmegas:               $(scheme.opacityOmegas)  ")
 end
 
 

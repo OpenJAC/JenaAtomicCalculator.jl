@@ -326,17 +326,31 @@ end
 `TestFrames.testModule_SuperConfigurationMixtureOpacity(; short::Bool=true)`
     ... tests `Plasma.SuperConfigurationMixtureOpacityScheme` on a two-species mixture, carbon (Z=6, the
         SAME three-configuration complex `testModule_SuperConfigurationOpacity` already validates) and neon
-        (Z=10, an analogous `2s^2 2p^4`/`2s 2p^5`/`2p^6` complex). Checks: (1) the mixing rule itself, by an
-        independent re-derivation -- `kappa_mix` must equal `numberFractions[1]*kappa_C +
-        numberFractions[2]*kappa_Ne` to machine precision, since both species' own spectra are also
-        returned; (2) the REDUCTION check -- a one-species-only mixture (`numberFractions=[1.0]`) must
-        reproduce `SuperConfigurationOpacityScheme`'s own `kappa(omega)` exactly, proving no new physics was
-        introduced in the mixing layer itself; (3) a parameter-free check on `Plasma.planckMeanOpacity`
-        alone -- a FREQUENCY-INDEPENDENT `kappa` must return exactly that constant as its Planck mean, since
-        a weighted average of a constant is that constant; (4) that no Rosseland-mean key is present among
-        the results, which documents -- rather than silently drops -- the deliberate finding (see
-        `Plasma.rosselandMeanOpacity`'s own docstring) that a Rosseland mean has no stable value for a
-        line-only spectrum. A success::Bool is returned.
+        (Z=10, an analogous `2s^2 2p^4`/`2s 2p^5`/`2p^6` complex). Checks (1)-(4) are the ORIGINAL
+        (17-Oct-2026) species-axis checks, unaffected by the stage axis added 18-Oct-2026 and run here
+        UNEDITED as the backward-compatibility proof: (1) the mixing rule itself, by an independent
+        re-derivation -- `kappa_mix` must equal `numberFractions[1]*kappa_C + numberFractions[2]*kappa_Ne`
+        to machine precision; (2) the species REDUCTION check -- a one-species-only mixture
+        (`numberFractions=[1.0]`) must reproduce `SuperConfigurationOpacityScheme`'s own `kappa(omega)`
+        exactly; (3) a parameter-free check on `Plasma.planckMeanOpacity` alone -- a FREQUENCY-INDEPENDENT
+        `kappa` must return exactly that constant; (4) that no Rosseland-mean key is present, documenting
+        the deliberate finding that it has no stable value for a line-only spectrum.
+
+        CHECKS (5)-(7) are NEW 18-Oct-2026, for the STAGE axis: (5) the STAGE reduction check -- one
+        species alone, carried through THREE charge states (the SAME `1s^2 2s^2 2p^2`/`...2p`/`1s^2 2s^2`
+        case `testModule_SuperConfigurationIonization` already validates against the textbook Saha
+        equation) -- must reproduce that scheme's OWN stage populations and electron density to its own
+        1e-10 convergence tolerance, proving the coupled N-species solve reduces correctly to the
+        already-validated single-species one; (6) a HOMOGENEITY check -- splitting that SAME species into
+        TWO IDENTICAL species at 0.5/0.5 abundance must reproduce the single full-abundance species
+        EXACTLY (electron density, both species' own populations, and the mixture spectrum all to machine
+        precision) -- the genuinely new coupled-across-species physics, exercised directly; (7) a real
+        TWO-STAGE opacity-mixing check (carbon's own `2s^2 2p^2`/`2s 2p^3` complex as one stage, its
+        `2s^2 2p`/`2s 2p^2` ionized partner as the next) -- the mixture's own `kappa` must equal the
+        STAGE-population-weighted sum of each stage's OWN independently-computed `kappa`, built by an
+        independent re-derivation exactly as check (1) does for species, and must differ from EITHER
+        stage's own `kappa` alone (proving a genuine mix, not a degenerate one-stage result). A
+        success::Bool is returned.
 """
 function testModule_SuperConfigurationMixtureOpacity(; short::Bool=true)
     printstyled("\n\nTest the module  Plasma (SuperConfigurationMixtureOpacityScheme)  ... \n", color=:cyan)
@@ -394,6 +408,79 @@ function testModule_SuperConfigurationMixtureOpacity(; short::Bool=true)
     if  haskey(wb, "superconfiguration mixture rosseland opacity")
         success = false
         println("  ** a Rosseland-mean key is present -- it should not be, see this scheme's own docstring")
+    end
+
+    # --- CHECK (5): STAGE reduction -- one species, three charge states, against
+    #     SuperConfigurationIonizationScheme's OWN already-validated numbers for the identical case.
+    refConfigsPerStage = [ [Configuration("1s^2 2s^2 2p^2")], [Configuration("1s^2 2s^2 2p")],
+                            [Configuration("1s^2 2s^2")] ]
+    ionScheme   = Plasma.SuperConfigurationIonizationScheme(refConfigsPerStage)
+    kTIon       = 15.0 / 27.211386
+    settingsIon = Plasma.Settings(kTIon, 1.0e-8, true)
+    waIon       = Plasma.Computation(wa; scheme=ionScheme, settings=settingsIon)
+    wbIon       = perform(waIon; output=true)
+    popIon      = wbIon[ResultKeys.SuperConfigurationIonizationStagePopulations]
+    neIon       = wbIon[ResultKeys.SuperConfigurationIonizationElectronDensity]
+
+    mixSchemeOneSpecies = Plasma.SuperConfigurationMixtureOpacityScheme([nmC], [refConfigsPerStage], [1.0], omegas)
+    waMixOne  = Plasma.Computation(wa; scheme=mixSchemeOneSpecies, settings=settingsIon)
+    wbMixOne  = perform(waMixOne; output=true)
+    popMixOne = wbMixOne[ResultKeys.SuperConfigurationMixtureStagePopulations][1]
+    neMixOne  = wbMixOne[ResultKeys.SuperConfigurationMixtureElectronDensity]
+
+    if  maximum(abs.(popIon .- popMixOne)) > 1.0e-8   ||   abs(neIon-neMixOne) > 1.0e-8*neIon
+        success = false
+        println("  ** stage-reduction check failed: populations $popIon vs $popMixOne, ne $neIon vs $neMixOne")
+    end
+
+    # --- CHECK (6): HOMOGENEITY -- the SAME species split into two identical halves (0.5/0.5) must
+    #     reproduce the single full-abundance species exactly: electron density, both halves' own
+    #     populations (equal to each other AND to the single-species case), and the mixture spectrum.
+    mixSchemeSplit = Plasma.SuperConfigurationMixtureOpacityScheme([nmC, nmC],
+                                                                       [refConfigsPerStage, refConfigsPerStage],
+                                                                       [0.5, 0.5], omegas)
+    waMixSplit = Plasma.Computation(wa; scheme=mixSchemeSplit, settings=settingsIon)
+    wbMixSplit = perform(waMixSplit; output=true)
+    neMixSplit = wbMixSplit[ResultKeys.SuperConfigurationMixtureElectronDensity]
+    popSplitA, popSplitB = wbMixSplit[ResultKeys.SuperConfigurationMixtureStagePopulations]
+    kappaMixSplit = wbMixSplit[ResultKeys.SuperConfigurationMixtureOpacitySpectrum]
+    kappaMixOne   = wbMixOne[ResultKeys.SuperConfigurationMixtureOpacitySpectrum]
+
+    if  abs(neMixOne-neMixSplit) > 1.0e-10*neMixOne   ||   maximum(abs.(popSplitA.-popSplitB)) > 1.0e-10   ||
+        maximum(abs.(popMixOne.-popSplitA)) > 1.0e-10   ||   maximum(abs.(kappaMixOne.-kappaMixSplit)) > 1.0e-10
+        success = false
+        println("  ** homogeneity check failed: splitting one species into two identical halves moved the result")
+    end
+
+    # --- CHECK (7): a REAL two-stage opacity mix -- each stage now has its OWN E1-connected pair, so
+    #     kappa is genuinely non-zero per stage, and the across-stage population weighting does something.
+    stageA = [Configuration("2s^2 2p^2"), Configuration("2s 2p^3")]   # 4 electrons (C2+)
+    stageB = [Configuration("2s^2 2p"),   Configuration("2s 2p^2")]   # 3 electrons (C3+)
+    twoStageScheme = Plasma.SuperConfigurationMixtureOpacityScheme([nmC], [[stageA, stageB]], [1.0], omegas)
+    waTwoStage = Plasma.Computation(wa; scheme=twoStageScheme, settings=settingsIon)
+    wbTwoStage = perform(waTwoStage; output=true)
+    popTwoStage   = wbTwoStage[ResultKeys.SuperConfigurationMixtureStagePopulations][1]
+    kappaTwoStage = wbTwoStage[ResultKeys.SuperConfigurationMixtureOpacitySpectrum]
+
+    gridA = Basics.recommendedGrid(stageA, nmC; printout=false)
+    schemeA = Plasma.SuperConfigurationOpacityScheme(stageA, omegas)
+    waA = Plasma.Computation(wa; scheme=schemeA, nuclearModel=nmC, grid=gridA, refConfigs=stageA, settings=settingsIon)
+    kappaA = perform(waA; output=true)[ResultKeys.SuperConfigurationOpacitySpectrum]
+
+    gridB = Basics.recommendedGrid(stageB, nmC; printout=false)
+    schemeB = Plasma.SuperConfigurationOpacityScheme(stageB, omegas)
+    waB = Plasma.Computation(wa; scheme=schemeB, nuclearModel=nmC, grid=gridB, refConfigs=stageB, settings=settingsIon)
+    kappaB = perform(waB; output=true)[ResultKeys.SuperConfigurationOpacitySpectrum]
+
+    handMixed = popTwoStage[1].*kappaA .+ popTwoStage[2].*kappaB
+    if  maximum(abs.(kappaTwoStage .- handMixed)) > 1.0e-10
+        success = false
+        println("  ** two-stage mixing rule failed: max |kappa - (p1*kappaA+p2*kappaB)| = " *
+                 "$(maximum(abs.(kappaTwoStage .- handMixed)))")
+    end
+    if  maximum(abs.(kappaTwoStage.-kappaA)) < 1.0e-6   ||   maximum(abs.(kappaTwoStage.-kappaB)) < 1.0e-6
+        success = false
+        println("  ** two-stage mix is degenerate -- it equals one stage's own kappa alone")
     end
 
     testPrint("testModule_SuperConfigurationMixtureOpacity()::", success)

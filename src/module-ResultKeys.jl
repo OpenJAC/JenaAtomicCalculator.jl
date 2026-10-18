@@ -317,6 +317,33 @@ struct  SuperConfigurationMixtureOpacitySpectrum    <: Basics.AbstractResultKey 
 """
 struct  SuperConfigurationMixturePlanckOpacity      <: Basics.AbstractResultKey   end
 
+"""
+`struct  ResultKeys.SuperConfigurationMixtureCharges`  ... one charge array per species (matching
+                                                               `refConfigsPerSpeciesStages`'s own stage
+                                                               order), added 18-Oct-2026 when the mixture
+                                                               scheme gained its own stage axis; was
+                                                               `"superconfiguration mixture charges"`.
+"""
+struct  SuperConfigurationMixtureCharges            <: Basics.AbstractResultKey   end
+
+"""
+`struct  ResultKeys.SuperConfigurationMixtureStagePopulations`  ... one stage-population array per species,
+                                                                        summing to 1 WITHIN that species
+                                                                        (not across the whole mixture); was
+                                                                        `"superconfiguration mixture stage
+                                                                        populations"`.
+"""
+struct  SuperConfigurationMixtureStagePopulations   <: Basics.AbstractResultKey   end
+
+"""
+`struct  ResultKeys.SuperConfigurationMixtureElectronDensity`  ... the ONE converged electron number density
+                                                                       [a.u.] shared by the WHOLE mixture
+                                                                       (every species, every stage); was
+                                                                       `"superconfiguration mixture electron
+                                                                       density"`.
+"""
+struct  SuperConfigurationMixtureElectronDensity    <: Basics.AbstractResultKey   end
+
 
 # ---------------------------------------------------------------------------------------------------------------
 # WHAT IS DELIBERATELY NOT HERE: the RAS ladder's per-step results, stored as "step1", "step2", ... one per layer.
