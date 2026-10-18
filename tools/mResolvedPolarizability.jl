@@ -68,6 +68,26 @@ function unitFix(aSub, vSub, orbs, prim, grid)
     return( R - b )
 end
 
+# the SAME two vectors, returned separately:  R_i = <B_i| r |phi_a> is the pure radial drive and
+# b_i = eMultipole(1, phi_a, B_i) is the drive `DalgarnoLewis.solve` builds for itself
+function driveVectors(aSub, vSub, orbs, prim, grid)
+    nsL = grid.nsL;  nsS = grid.nsS;  R = zeros(nsL+nsS);  b = zeros(nsL+nsS)
+    for i = 1:nsL
+        full = zeros(grid.NoPoints);  bsp = prim.bsplinesL[i];  full[bsp.lower:bsp.upper] = bsp.bs
+        syn  = Orbital(vSub, false, true, orbs[aSub].energy, full, zeros(grid.NoPoints),
+                       zeros(grid.NoPoints), zeros(grid.NoPoints), Radial.Grid())
+        R[i] = RI.rkDiagonal(1, orbs[aSub], syn, grid);   b[i] = IS.eMultipole(1, orbs[aSub], syn, grid)
+    end
+    for i = 1:nsS
+        full = zeros(grid.NoPoints);  bsp = prim.bsplinesS[i];  full[bsp.lower:bsp.upper] = bsp.bs
+        syn  = Orbital(vSub, false, true, orbs[aSub].energy, zeros(grid.NoPoints), full,
+                       zeros(grid.NoPoints), zeros(grid.NoPoints), Radial.Grid())
+        R[nsL+i] = RI.rkDiagonal(1, orbs[aSub], syn, grid)
+        b[nsL+i] = IS.eMultipole(1, orbs[aSub], syn, grid)
+    end
+    return( R, b )
+end
+
 # ---- the UNIT-SOURCE perturbed orbital:  (H - eps_a) chi = r * phi_a, with NO angular factor at all -------
 #      DL.solve always builds its own source b_i = eMultipole(1, phi_a, B_i);  passing
 #      extraSource = R_i - b_i makes the total source exactly R_i, the pure radial drive.
@@ -472,3 +492,66 @@ end
 @printf(">> the ratio is sqrt(2j_a+1) on every channel, worst deviation %.2e\n", worst)
 @printf(">> AND IT IS THE SAME SIGN IN BOTH, so each route is separately symmetrizable and RECIPROCITY CANNOT\n")
 @printf(">> DECIDE between them;  the invariant above can, and it says the two are DIFFERENT OPERATORS.\n")
+
+
+# ==========================================================================================================
+# CASE F -- ITEM 75, STEP 3.  THE DECIDING TEST, AND IT NEEDS NO EXCHANGE, NO LITERATURE AND NO CONVENTION.
+#
+# WHY THE HYDROGEN CANCELLATION IS NOT THE TEST IT WAS RECORDED AS.  Item 75 held that for ONE electron the
+# direct and exchange induced fields must cancel exactly, since `V_HF` vanishes there, and the attempt gave
+# -2.604 and +3.665 where both were expected to be 1.  Writing out the first-order Hartree-Fock equations
+# shows why it cannot be 1:
+#
+#     (delta_J - delta_K) phi_a  =  phi_a J[phi chi]  -  chi J[|phi|^2]        and      (J - K) chi  =  -that
+#
+# so the induced self-field cancels against the HF self-interaction acting on CHI, not against the exchange
+# induced field.  `phi_a J[phi chi]` and `chi J[|phi|^2]` are different radial functions in the same channel
+# and nothing makes them equal.  JAC's left-hand side carries a DFS mean field with no `J - K` at all, so
+# "direct + E1 + E2 = 0" is not an identity in this formulation and was never going to come out at 1.
+#
+# THE TEST THAT DOES DECIDE IT.  The external drive and the induced potential are BOTH ordinary one-body
+# potentials, acting on the SAME electron, in the SAME Dalgarno-Lewis equation.  A one-body potential has ONE
+# matrix element, so the same v(r) must produce the SAME source vector down either path.  Take v(r) = r --
+# which is the external dipole drive itself -- and push it through the induced path:
+#
+#     V = -VindZr/r  by `RandomPhase.inducedSourceVector`'s convention, so v(r) = r means VindZr = -r^2,
+#     and `inducedSourceVector` then returns exactly  +int B_i(r) r phi_a(r) dr = R_i.
+#
+# The module multiplies that by aCoeff = -CL(t_a,1,a) and compares against its OWN drive
+# `eMultipole(1, phi_a, B_i) = CL(a,1,t_a)/sqrt(2j_a+1) * R_i`;  the m-resolved route multiplies by 1 and
+# compares against R_i.  Whichever route returns the same vector for the same potential is the consistent one.
+#
+# AND THE DRIVE IS THE SIDE THAT IS ALREADY ANCHORED, which is what makes this an arbitration rather than
+# another comparison: `eMultipole`'s normalisation is fixed by the EXACT alpha(H 1s) = 4.5 through the
+# assembly alpha = (2/3)(2j_a+1) eMultipole(1, phi_a, chi), and CASE A reproduces 4.49972686 while CASE B
+# shows the m-resolved assembly agreeing with it to 1.0000000000 on all nine Ne channels.  So the drive's
+# reduction is not in question; only the induced term's is.
+# ==========================================================================================================
+@printf("\n=== CASE F -- the SAME potential v(r) = r down the drive path and the induced path ===\n")
+@printf("%-10s %-10s %14s %14s %12s %12s\n", "a", "t_a", "module ratio", "m-res ratio", "spread(mod)",
+        "spread(mres)")
+VindR = [ -grid.r[i]^2   for i = 1:grid.NoPoints ]       # the Zr representation of v(r) = r
+worstMod = 0.0;  worstMres = 0.0
+for  a  in  shellsNe
+    for  t  in  RP.reachableChannels(1, a)
+        R, bDrive = driveVectors(a, t, orbsNe, prim, grid)
+        sInd = RP.inducedSourceVector(VindR, orbsNe[a], prim)
+        # the module's induced path carries aCoeff = -CL(t_a,1,a), the (-1)^L applied once in `solve`
+        aCo  = -AM.CL_reduced_me(t, 1, a)
+        keep = [ i  for i = 1:length(R)  if abs(bDrive[i]) > 1.0e-14 * maximum(abs, bDrive) ]
+        rM   = [ aCo * sInd[i] / bDrive[i]   for i in keep ]
+        rR   = [ 1.0 * sInd[i] / R[i]        for i in keep if abs(R[i]) > 0.0 ]
+        mM   = sum(rM)/length(rM);   mR = sum(rR)/length(rR)
+        @printf("%-10s %-10s %+14.8f %+14.8f %12.2e %12.2e\n", string(a), string(t), mM, mR,
+                maximum(abs, rM .- mM), maximum(abs, rR .- mR))
+        global worstMod  = max(worstMod,  abs(abs(mM) - 1.0))
+        global worstMres = max(worstMres, abs(mR - 1.0))
+    end
+end
+@printf(">> m-RESOLVED:  the induced path returns the drive EXACTLY -- worst |ratio - 1| = %.2e over all\n",
+        worstMres)
+@printf(">>              channels, so one potential has one matrix element and the two paths agree.\n")
+@printf(">> MODULE:      worst ||ratio| - 1| = %.2e.  The ratio is -sqrt(2j_a+1) CL(t,1,a)/CL(a,1,t), i.e.\n",
+        worstMod)
+@printf(">>              sqrt(2j_a+1) in magnitude:  THE SAME POTENTIAL GETS TWO DIFFERENT MATRIX ELEMENTS,\n")
+@printf(">>              which is a defect and not a convention, and it sits at the RECEIVING end.\n")
