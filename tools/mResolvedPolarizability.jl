@@ -226,71 +226,10 @@ function densityWeight(bSub::Subshell, tSub::Subshell)
     return( w )
 end
 
-chans = Tuple{Subshell,Subshell}[]
-for  a  in  shellsNe
-    for  t  in  RP.reachableChannels(1, a)   push!(chans, (a, t))   end
-end
-msz   = grid.nsL + grid.nsS
-fixV  = Dict( ch => unitFix(ch[1], ch[2], orbsNe, prim, grid)   for ch in chans )
-occNe = Dict( Subshell("1s_1/2") => 2.0, Subshell("2s_1/2") => 2.0,
-              Subshell("2p_1/2") => 2.0, Subshell("2p_3/2") => 4.0 )
-@printf("\n=== CASE C:  %d channels, %d splines per channel, %d unknowns ===\n",
-        length(chans), msz, length(chans)*msz)
-@printf("%-10s %-10s %16s %16s\n", "b", "t_b", "m-res weight", "module weight")
-for  ch  in  chans
-    jb2 = Basics.subshell_2j(ch[1])
-    wMod = sqrt(jb2+1.0) * RP.angularCoefficient(1, ch[2], ch[1]) / 3.0 * AM.CL_reduced_me(ch[1], 1, ch[2]) /
-           sqrt(jb2+1.0)
-    @printf("%-10s %-10s %+16.10f %+16.10f\n", string(ch[1]), string(ch[2]), densityWeight(ch[1], ch[2]), wMod)
-end
-
-function solveAll(s::Array{Float64,1})
-    gs = Dict{Tuple{Subshell,Subshell},DalgarnoLewis.PerturbedOrbital}()
-    for  (k, ch)  in  enumerate(chans)
-        gs[ch] = redirect_stdout(devnull) do
-            DL.solve(E1, Basics.Babushkin, 0.0, ch[2], orbsNe[ch[1]], potNe, prim; settings=dls,
-                     staticDrive=true, extraSource = fixV[ch] + s[(k-1)*msz+1 : k*msz])
-        end
-    end
-    return( gs )
-end
-
-# ONE APPLICATION OF THE COUPLED MAP, WITH THE ANGULAR BOOKKEEPING AS AN ARGUMENT.  `wFun` is the weight the
-# induced DENSITY gives the channel (b -> t_b) and `aFun` the coefficient the RECEIVING channel (a -> t_a)
-# applies to the projected potential.  Everything else -- the Poisson step, the B-spline projection, the Pauli
-# projection, the grid, the orbitals, the GMRES -- is shared, so a difference between two (wFun, aFun) pairs
-# is a difference in the angular algebra and in nothing else.  Both routes are expressed in the SAME radial
-# normalisation, the one where each channel's g solves (H - eps_a) g = r phi_a, so their chi's differ only by
-# the scalar each route puts in front.
-function rebuild(gs, wFun::Function, aFun::Function)
-    out = zeros(length(chans)*msz)
-    gP  = Dict( ch => projectPauli(gs[ch], ch[2], orbsNe, shellsNe, grid)   for ch in chans )
-    for  (k, ch)  in  enumerate(chans)
-        aSub = ch[1];   rho = zeros(grid.NoPoints);   mtp = 1
-        for  ch2  in  chans
-            b = ch2[1];   tb = ch2[2];   nb = occNe[b];   jb2 = Basics.subshell_2j(b)
-            w = wFun(b, tb) * nb / (jb2 + 1.0)
-            # ONE electron is removed from its own subshell.  This is the m-AVERAGED self-exclusion, which is
-            # what (N-1)/N is:  the substate's own share of its subshell's L = 1 density is exactly 1/N of it
-            # only after averaging over m, so both routes make the same approximation here and the comparison
-            # is unaffected by it.
-            b == aSub   &&   (w = w * (nb - 1.0) / nb)
-            w == 0.0   &&   continue
-            g = gP[ch2];   ob = orbsNe[b]
-            mtpB = min(length(ob.P), length(g.P), length(ob.Q), length(g.Q))
-            for  i = 1:mtpB   rho[i] = rho[i] + w * 2.0 * (ob.P[i]*g.P[i] + ob.Q[i]*g.Q[i])   end
-            mtp = max(mtp, mtpB)
-        end
-        VindZr = [ -RI.Yk_ab(1, grid.r[i], rho, mtp, grid)   for i = 1:grid.NoPoints ]
-        out[(k-1)*msz+1 : k*msz] = aFun(aSub, ch[2]) * RP.inducedSourceVector(VindZr, orbsNe[aSub], prim)
-    end
-    return( out )
-end
-
-# THE m-RESOLVED PAIR.  The density weight is the explicit substate sum;  the MINUS is item (3) above, since
-# JAC's chi is the negative of the first-order correction, and with it the induced field opposes the drive.
-# The receiving end carries NOTHING, because its own matrix element factors out of the radial equation exactly
-# as the drive's does -- which is the whole content of the m-resolved formulation.
+# THE m-RESOLVED PAIR OF ANGULAR FACTORS.  The density weight is the explicit substate sum;  the MINUS is
+# item (3) above, since JAC's chi is the negative of the first-order correction, and with it the induced field
+# opposes the drive.  The receiving end carries NOTHING, because its own matrix element factors out of the
+# radial equation exactly as the drive's does -- which is the whole content of the m-resolved formulation.
 wMres(b, tb) = -densityWeight(b, tb)
 aMres(a, ta) = 1.0
 
@@ -304,62 +243,190 @@ aMres(a, ta) = 1.0
 wMod(b, tb) = AM.CL_reduced_me(tb, 1, b) * AM.CL_reduced_me(b, 1, tb) / 3.0
 aMod(a, ta) = -sqrt(Basics.subshell_2j(a) + 1.0) * AM.CL_reduced_me(ta, 1, a) / AM.CL_reduced_me(a, 1, ta)
 
-function alphaFrom(gs)
-    tot = 0.0;   per = Dict{Tuple{Subshell,Subshell},Float64}()
+
+# ==========================================================================================================
+# THE COUPLED CASE, PARAMETERISED BY THE SYSTEM IT IS HANDED.  One body of angular code serves every system,
+# deliberately: Rule 18's lesson is that a second copy of this algebra drifts, and the Ne numbers below are
+# the control that the parameterisation changed nothing.
+#
+# `uncRef` is the uncoupled alpha this system must reproduce with the induced term switched off (0.0 to skip
+# the control), and `refValue`/`refName` the external number both routes are finally compared against.
+# A tuple (alpha_uncoupled, alpha_mResolved, alpha_moduleConvention) is returned.
+# ==========================================================================================================
+function runCoupledCase(label::String, grid, prim, orbs, pot, shells, occ, uncRef::Float64,
+                        refValue::Float64, refName::String; showOperator::Bool=true)
+    chans = Tuple{Subshell,Subshell}[]
+    for  a  in  shells
+        (!haskey(orbs, a) || orbs[a].energy >= 0.0)   &&   continue
+        for  t  in  RP.reachableChannels(1, a)   push!(chans, (a, t))   end
+    end
+    msz  = grid.nsL + grid.nsS
+    fixV = Dict( ch => unitFix(ch[1], ch[2], orbs, prim, grid)   for ch in chans )
+    @printf("\n=== %s:  %d channels, %d splines per channel, %d unknowns ===\n", label, length(chans), msz,
+            length(chans)*msz)
+
+    function solveAll(s::Array{Float64,1})
+        gs = Dict{Tuple{Subshell,Subshell},DalgarnoLewis.PerturbedOrbital}()
+        for  (k, ch)  in  enumerate(chans)
+            gs[ch] = redirect_stdout(devnull) do
+                DL.solve(E1, Basics.Babushkin, 0.0, ch[2], orbs[ch[1]], pot, prim; settings=dls,
+                         staticDrive=true, extraSource = fixV[ch] + s[(k-1)*msz+1 : k*msz])
+            end
+        end
+        return( gs )
+    end
+
+    # ONE APPLICATION OF THE COUPLED MAP, WITH THE ANGULAR BOOKKEEPING AS AN ARGUMENT.  `wFun` is the weight
+    # the induced DENSITY gives the channel (b -> t_b) and `aFun` the coefficient the RECEIVING channel
+    # (a -> t_a) applies to the projected potential.  Everything else -- the Poisson step, the B-spline
+    # projection, the Pauli projection, the grid, the orbitals, the GMRES -- is shared, so a difference
+    # between two (wFun, aFun) pairs is a difference in the angular algebra and in nothing else.
+    function rebuild(gs, wFun::Function, aFun::Function)
+        out = zeros(length(chans)*msz)
+        gP  = Dict( ch => projectPauli(gs[ch], ch[2], orbs, shells, grid)   for ch in chans )
+        for  (k, ch)  in  enumerate(chans)
+            aSub = ch[1];   rho = zeros(grid.NoPoints);   mtp = 1
+            for  ch2  in  chans
+                b = ch2[1];   tb = ch2[2];   nb = occ[b];   jb2 = Basics.subshell_2j(b)
+                w = wFun(b, tb) * nb / (jb2 + 1.0)
+                # ONE electron is removed from its own subshell.  This is the m-AVERAGED self-exclusion,
+                # which is what (N-1)/N is:  the substate's own share of its subshell's L = 1 density is
+                # exactly 1/N of it only after averaging over m, so both routes make the same approximation
+                # here and the comparison between them is unaffected by it.
+                b == aSub   &&   (w = w * (nb - 1.0) / nb)
+                w == 0.0   &&   continue
+                g = gP[ch2];   ob = orbs[b]
+                mtpB = min(length(ob.P), length(g.P), length(ob.Q), length(g.Q))
+                for  i = 1:mtpB   rho[i] = rho[i] + w * 2.0 * (ob.P[i]*g.P[i] + ob.Q[i]*g.Q[i])   end
+                mtp = max(mtp, mtpB)
+            end
+            VindZr = [ -RI.Yk_ab(1, grid.r[i], rho, mtp, grid)   for i = 1:grid.NoPoints ]
+            out[(k-1)*msz+1 : k*msz] = aFun(aSub, ch[2]) * RP.inducedSourceVector(VindZr, orbs[aSub], prim)
+        end
+        return( out )
+    end
+
+    function alphaFrom(gs)
+        tot = 0.0;   per = Dict{Tuple{Subshell,Subshell},Float64}()
+        for  ch  in  chans
+            aSub = ch[1];   tSub = ch[2];   ja = Basics.subshell_2j(aSub)//2
+            gPp  = projectPauli(gs[ch], tSub, orbs, shells, grid)
+            rU   = RI.rkDiagonal(1, orbs[aSub], gPp, grid)
+            a    = 0.0
+            for  m  in  -ja:1//1:ja   a = a + 2.0 * meM(aSub, tSub, m) * meM(tSub, aSub, m) * rU   end
+            per[ch] = a * occ[aSub] / (Basics.subshell_2j(aSub) + 1.0);   tot = tot + per[ch]
+        end
+        return( tot, per )
+    end
+
+    # (i) the UNCOUPLED limit -- the control on the whole plumbing, where an independent value exists
+    gs0 = solveAll(zeros(length(chans)*msz))
+    a0, per0 = alphaFrom(gs0)
+    if  uncRef != 0.0
+        @printf(">> CONTROL, induced term OFF:  alpha = %.8f   against %.8f   (diff %.2e)\n", a0, uncRef,
+                abs(a0 - uncRef))
+    else
+        @printf(">> induced term OFF:  alpha = %.8f\n", a0)
+    end
+
+    # (ii) the two coupled solves.  The map is affine, F(s) = b + M s, so b = F(0) and (I - M) s = b;  the
+    #      iteration's spectral radius is above one here, which is why this is a GMRES solve and not a sweep.
+    function coupled(wFun::Function, aFun::Function)
+        b0 = rebuild(gs0, wFun, aFun)
+        applyA(s) = s - (rebuild(solveAll(s), wFun, aFun) - b0)
+        sStar, nKry, relRes = RP.gmres(applyA, b0, 20, 1.0e-8)
+        return( solveAll(sStar), nKry, relRes )
+    end
+    gsMres, nkM, rrM = coupled(wMres, aMres)
+    aScr, perScr = alphaFrom(gsMres)
+    @printf(">> m-RESOLVED  GMRES:  %d Krylov steps, relative residual %.2e\n", nkM, rrM)
+    gsMod, nkD, rrD = coupled(wMod, aMod)
+    aModTot, perMod = alphaFrom(gsMod)
+    @printf(">> MODULE      GMRES:  %d Krylov steps, relative residual %.2e\n", nkD, rrD)
+
+    # (iii) what the two routes do to ONE element of the coupled operator, so that the bridge is visible as a
+    #       number per (receiving, source) pair rather than inferred from the totals alone.
+    if  showOperator
+        @printf("\n%-21s %-21s %12s %12s %10s\n", "receiving (a -> t_a)", "source (b -> t_b)", "module",
+                "m-resolved", "ratio")
+        for  cha  in  chans[max(1,length(chans)-2):end]
+            for  chb  in  chans[max(1,length(chans)-2):end]
+                mM = aMod(cha[1], cha[2]) * wMod(chb[1], chb[2])
+                mR = aMres(cha[1], cha[2]) * wMres(chb[1], chb[2])
+                @printf("%-21s %-21s %+12.6f %+12.6f %10.6f\n", "$(cha[1]) -> $(cha[2])",
+                        "$(chb[1]) -> $(chb[2])", mM, mR, mM/mR)
+            end
+        end
+    end
+
+    @printf("\n%-10s %-10s %14s %14s %14s %10s %10s\n", "a", "t_a", "uncoupled", "m-res scr.", "module scr.",
+            "ratio", "sqrt(2ja+1)")
     for  ch  in  chans
-        aSub = ch[1];   tSub = ch[2];   ja = Basics.subshell_2j(aSub)//2
-        gPp  = projectPauli(gs[ch], tSub, orbsNe, shellsNe, grid)
-        rU   = RI.rkDiagonal(1, orbsNe[aSub], gPp, grid)
-        a    = 0.0
-        for  m  in  -ja:1//1:ja   a = a + 2.0 * meM(aSub, tSub, m) * meM(tSub, aSub, m) * rU   end
-        per[ch] = a;   tot = tot + a
+        @printf("%-10s %-10s %+14.8f %+14.8f %+14.8f %10.6f %10.6f\n", string(ch[1]), string(ch[2]), per0[ch],
+                perScr[ch], perMod[ch], perMod[ch]/perScr[ch], sqrt(Basics.subshell_2j(ch[1]) + 1.0))
     end
-    return( tot, per )
+    @printf("\n>> %s alpha:  unscreened %.8f   m-resolved screened %.8f   module screened %.8f\n", label, a0,
+            aScr, aModTot)
+    @printf(">> screening k:  m-resolved %.6f   module %.6f      (k = 1 - alpha_screened/alpha_unscreened)\n",
+            1.0 - aScr/a0, 1.0 - aModTot/a0)
+    @printf(">> against %s = %.4f:  m-resolved %+.1f %%,  module %+.1f %%\n", refName, refValue,
+            100*(aScr/refValue - 1), 100*(aModTot/refValue - 1))
+
+    return( (a0, aScr, aModTot) )
 end
 
-# (i) the UNCOUPLED limit must reproduce CASE B exactly -- the control on the whole CASE C plumbing
-gs0 = solveAll(zeros(length(chans)*msz))
-a0, per0 = alphaFrom(gs0)
-@printf("\n>> CONTROL, induced term OFF:  alpha = %.8f   against CASE B's %.8f   (diff %.2e)\n",
-        a0, totMres, abs(a0 - totMres))
 
-# (ii) the two coupled solves.  The map is affine, F(s) = b + M s, so b = F(0) and (I - M) s = b;  the
-#      iteration's spectral radius is above one here, which is why this is a GMRES solve and not a sweep.
-function coupled(wFun::Function, aFun::Function)
-    b0 = rebuild(gs0, wFun, aFun)
-    applyA(s) = s - (rebuild(solveAll(s), wFun, aFun) - b0)
-    sStar, nKry, relRes = RP.gmres(applyA, b0, 20, 1.0e-8)
-    return( solveAll(sStar), nKry, relRes )
-end
-gsMres, nkM, rrM = coupled(wMres, aMres)
-aScr, perScr = alphaFrom(gsMres)
-@printf(">> m-RESOLVED  GMRES:  %d Krylov steps, relative residual %.2e\n", nkM, rrM)
-gsMod, nkD, rrD = coupled(wMod, aMod)
-aModTot, perMod = alphaFrom(gsMod)
-@printf(">> MODULE      GMRES:  %d Krylov steps, relative residual %.2e\n", nkD, rrD)
+# ==========================================================================================================
+# CASE C -- Ne at lam*, which is the CONTROL on everything above: its three numbers were measured before the
+# case was parameterised and must come back unchanged.
+# ==========================================================================================================
+occNe = Dict( Subshell("1s_1/2") => 2.0, Subshell("2s_1/2") => 2.0,
+              Subshell("2p_1/2") => 2.0, Subshell("2p_3/2") => 4.0 )
+runCoupledCase("CASE C -- Ne at lam*", grid, prim, orbsNe, potNe, shellsNe, occNe, totMres, 2.669,
+               "the measured alpha(Ne)")
 
-# (iii) what the two routes do to ONE element of the coupled operator, so that the bridge is visible as a
-#       number per (receiving, source) pair rather than inferred from the totals alone.
-@printf("\n%-21s %-21s %12s %12s %10s\n", "receiving (a -> t_a)", "source (b -> t_b)", "module", "m-resolved",
-        "ratio")
-for  cha  in  chans[[6, 8, 9]]
-    for  chb  in  chans[[6, 8, 9]]
-        mMod = aMod(cha[1], cha[2]) * wMod(chb[1], chb[2])
-        mMre = aMres(cha[1], cha[2]) * wMres(chb[1], chb[2])
-        @printf("%-21s %-21s %+12.6f %+12.6f %10.6f\n", "$(cha[1]) -> $(cha[2])", "$(chb[1]) -> $(chb[2])",
-                mMod, mMre, mMod/mMre)
-    end
+# ==========================================================================================================
+# CASE D -- ITEM 75, STEP 2c.  THE CORE POLARIZABILITY OF Ba+ [Xe], WHICH IS WHAT ARBITRATES.
+#
+# WHY HERE AND NOT ON Ne.  Both routes sit 34 % below Ne's measured 2.669, for reasons that have nothing to
+# do with the angular algebra -- the mean field and the missing exchange -- so Ne cannot say which convention
+# is right.  Ba+'s core has an external target that CAN: the published RPA alpha_core = 10.6(5), which item
+# 73 reached at 9.944 with the module's convention.  Two things are therefore checked at once: whether this
+# harness reproduces item 73's numbers (unscreened ~18.16, screened ~9.94) with the module's angular factors,
+# which validates the emulation, and where the m-resolved route lands against the same published value.
+#
+# THE GRID IS `Basics.recommendedGrid`'s, NOT a hand-chosen box -- Rule 12, and the reason it matters here is
+# the span: a box sized for the diffuse 5p must still carry the 1s of Z = 56.  The perturbed orbital chi of a
+# STATIC drive is bound (it decays as the source does), so the function's continuum caveat does not apply.
+# ==========================================================================================================
+occBaShell = Dict( Shell("1s") => 2, Shell("2s") => 2, Shell("2p") => 6, Shell("3s") => 2, Shell("3p") => 6,
+                   Shell("3d") => 10, Shell("4s") => 2, Shell("4p") => 6, Shell("4d") => 10, Shell("5s") => 2,
+                   Shell("5p") => 6, Shell("6s") => 1 )
+gridBa = Basics.recommendedGrid(occBaShell, 56.0; printout=true)
+primBa = Bsplines.generatePrimitives(gridBa)
+nmBa   = Nuclear.Model(56.0)
+coreBa = [ Subshell("1s_1/2"), Subshell("2s_1/2"), Subshell("2p_1/2"), Subshell("2p_3/2"),
+           Subshell("3s_1/2"), Subshell("3p_1/2"), Subshell("3p_3/2"), Subshell("3d_3/2"), Subshell("3d_5/2"),
+           Subshell("4s_1/2"), Subshell("4p_1/2"), Subshell("4p_3/2"), Subshell("4d_3/2"), Subshell("4d_5/2"),
+           Subshell("5s_1/2"), Subshell("5p_1/2"), Subshell("5p_3/2") ]
+occBa  = Dict( sh => Float64(Basics.subshell_2j(sh) + 1)   for sh in coreBa )
+asfBa  = AsfSettings(AsfSettings(); scField = Basics.DFSField(), gridStopper = false)
+mpBa   = redirect_stdout(devnull) do
+    SelfConsistent.performSCF([Configuration("[Xe] 6s")], nmBa, gridBa, asfBa; printout=false)
 end
-
-@printf("\n%-10s %-10s %14s %14s %14s %10s %10s\n", "a", "t_a", "uncoupled", "m-res scr.", "module scr.",
-        "ratio", "sqrt(2ja+1)")
-for  ch  in  chans
-    @printf("%-10s %-10s %+14.8f %+14.8f %+14.8f %10.6f %10.6f\n", string(ch[1]), string(ch[2]), per0[ch],
-            perScr[ch], perMod[ch], perMod[ch]/perScr[ch],
-            sqrt(Basics.subshell_2j(ch[1]) + 1.0))
+potBa  = Basics.add( Nuclear.nuclearPotential(nmBa, gridBa),
+                     Basics.computePotential(Basics.DFSField(), gridBa, mpBa.levels[1].basis) )
+orbsBa = redirect_stdout(devnull) do
+    Bsplines.generateOrbitals(coreBa, potBa, nmBa, primBa; printout=false)
 end
-@printf("\n>> Ne alpha:  unscreened %.8f   m-resolved screened %.8f   module screened %.8f\n", a0, aScr, aModTot)
-@printf(">> screening k:  m-resolved %.6f   module %.6f      (k = 1 - alpha_screened/alpha_unscreened)\n",
-        1.0 - aScr/a0, 1.0 - aModTot/a0)
-@printf(">> measured alpha(Ne) = 2.669 a.u.;  m-resolved is %+.1f %%, module %+.1f %% against it\n",
-        100*(aScr/2.669 - 1), 100*(aModTot/2.669 - 1))
+@printf("\n=== CASE D:  Ba+ [Xe] core on recommendedGrid, rbox = %.2f, %d points, %d+%d splines ===\n",
+        gridBa.r[gridBa.NoPoints], gridBa.NoPoints, gridBa.nsL, gridBa.nsS)
+# the two spin-orbit partners of the outermost core subshell must agree in mean radius -- Rule 12's second
+# guard, and the one that catches a WRONG STATE rather than an inaccurate one
+for  sh  in  [Subshell("1s_1/2"), Subshell("4d_3/2"), Subshell("4d_5/2"), Subshell("5p_1/2"),
+              Subshell("5p_3/2")]
+    @printf("   %-9s  eps = %+14.6f   <r> = %8.4f\n", string(sh), orbsBa[sh].energy,
+            RI.rkDiagonal(1, orbsBa[sh], orbsBa[sh], gridBa))
+end
+runCoupledCase("CASE D -- Ba+ [Xe] core", gridBa, primBa, orbsBa, potBa, coreBa, occBa, 0.0, 10.6,
+               "the published RPA alpha_core(Ba+)")
