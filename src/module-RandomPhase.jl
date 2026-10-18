@@ -802,7 +802,8 @@ end
                         potential::Radial.Potential, primitives::Bsplines.Primitives,
                         dlSettings::DalgarnoLewis.Settings;
                         occupiedOrbitals::Union{Nothing,Dict{Subshell,Orbital}}=nothing,
-                        occupations::Union{Nothing,Dict{Subshell,Float64}}=nothing)`
+                        occupations::Union{Nothing,Dict{Subshell,Float64}}=nothing,
+                        staticDrive::Bool=false)`
     ... one application of the coupled map: given the induced source of EVERY channel, concatenated into a
         single vector, solve each channel's Dalgarno-Lewis equation and rebuild every channel's source from
         the resulting chi's. This is exactly one sweep of the fixed-point iteration, isolated so that it can
@@ -813,6 +814,10 @@ end
         action of the linear part follows as M s = F(s) - b, with no matrix ever formed. The fixed point is
         the solution of (I - M) s = b, which exists whenever (I - M) is invertible, whether or not the
         spectral radius of M is below one.
+        **`staticDrive` IS PASSED STRAIGHT THROUGH TO `DalgarnoLewis.solve`, and at omega = 0 it is not
+        optional** -- the dynamic kernel is identically zero there, so every channel would be driven by
+        nothing. `RandomPhase.solve` raises rather than let that happen; this function is the lower level and
+        trusts its caller.
         A newSources::Array{Float64,1} of the same length is returned, together with the chis it passed
         through, as a tuple (newSources, chis).
 """
@@ -821,13 +826,14 @@ function sourceMap(multipole::EmMultipole, gauge::EmGauge, omega::Float64, activ
                     potential::Radial.Potential, primitives::Bsplines.Primitives,
                     dlSettings::DalgarnoLewis.Settings;
                     occupiedOrbitals::Union{Nothing,Dict{Subshell,Orbital}}=nothing,
-                    occupations::Union{Nothing,Dict{Subshell,Float64}}=nothing)
+                    occupations::Union{Nothing,Dict{Subshell,Float64}}=nothing,
+                    staticDrive::Bool=false)
     grid = primitives.grid;   m = grid.nsL + grid.nsS
     chis = Dict{Tuple{Subshell,Subshell},DalgarnoLewis.PerturbedOrbital}()
     for  (k, ch)  in  enumerate(channels)
         a = ch[1];   t = ch[2];   slice = sources[(k-1)*m+1 : k*m]
         chis[ch] = DalgarnoLewis.solve(multipole, gauge, omega, t, activeOrbitals[a], potential, primitives;
-                                        settings=dlSettings, extraSource=slice)
+                                        settings=dlSettings, extraSource=slice, staticDrive=staticDrive)
     end
     newSources = zeros(length(sources))
     for  (k, ch)  in  enumerate(channels)
@@ -895,7 +901,10 @@ end
 """
 `RandomPhase.solve(multipole::EmMultipole, gauge::EmGauge, omega::Float64, activeOrbitals::Dict{Subshell,Orbital},
                     potential::Radial.Potential, primitives::Bsplines.Primitives;
-                    settings::RandomPhase.Settings=RandomPhase.Settings())`
+                    settings::RandomPhase.Settings=RandomPhase.Settings(),
+                    occupiedOrbitals::Union{Nothing,Dict{Subshell,Orbital}}=nothing,
+                    occupations::Union{Nothing,Dict{Subshell,Float64}}=nothing,
+                    staticDrive::Bool=false)`
     ... solves one `DalgarnoLewis` equation per active electron named in `settings.activeSubshells` (or, if
         that is empty, per subshell of `activeOrbitals`), all driven by the SAME external multipole operator
         at the SAME frequency omega. With settings.couplingEnabled == false (the default), this is the
@@ -912,7 +921,20 @@ function solve(multipole::EmMultipole, gauge::EmGauge, omega::Float64, activeOrb
                 potential::Radial.Potential, primitives::Bsplines.Primitives;
                 settings::RandomPhase.Settings=RandomPhase.Settings(),
                 occupiedOrbitals::Union{Nothing,Dict{Subshell,Orbital}}=nothing,
-                occupations::Union{Nothing,Dict{Subshell,Float64}}=nothing)
+                occupations::Union{Nothing,Dict{Subshell,Float64}}=nothing,
+                staticDrive::Bool=false)
+    # THE STATIC CASE MUST SAY SO, AND UNTIL 18-Oct-2026 IT COULD NOT -- item 69.  `DalgarnoLewis.solve` gained
+    # `staticDrive` on 14-Oct, which swaps the photon-normalised multipole field for `eMultipole`'s
+    # frequency-independent r^L C_L;  this module had no pass-through, so a call at omega = 0 drove every
+    # channel with an `amplitudeKernel` that is identically zero there, returned chi = 0 on every channel and
+    # reported `converged = true`.  The module as shipped had therefore never produced a static screened
+    # response, and nothing said so.  Raising is the right answer rather than warning: there is no useful
+    # omega = 0 calculation with the dynamic drive, so a caller that asks for one has made a mistake.
+    if  omega == 0.0  &&  !staticDrive
+        error("RandomPhase.solve(): omega = 0 with staticDrive = false drives every channel with a kernel " *
+              "that is identically zero at omega = 0, so the response would be zero for a reason that has " *
+              "nothing to do with the physics. Pass staticDrive = true for the static case.")
+    end
     subshells = isempty(settings.activeSubshells) ? collect(keys(activeOrbitals)) : settings.activeSubshells
     targets   = Dict{Subshell,Subshell}()
     for  a in subshells
@@ -935,7 +957,8 @@ function solve(multipole::EmMultipole, gauge::EmGauge, omega::Float64, activeOrb
         perturbedOrbitals = Dict{Subshell,DalgarnoLewis.PerturbedOrbital}()
         for  a in subshells
             perturbedOrbitals[a] = DalgarnoLewis.solve(multipole, gauge, omega, targets[a], activeOrbitals[a],
-                                                         potential, primitives; settings=settings.dalgarnoLewis)
+                                                         potential, primitives; settings=settings.dalgarnoLewis,
+                                                         staticDrive=staticDrive)
         end
 
         return( CoupledResponse(multipole, gauge, omega, perturbedOrbitals, 1, true,
@@ -991,7 +1014,7 @@ function solve(multipole::EmMultipole, gauge::EmGauge, omega::Float64, activeOrb
     chis = Dict{Tuple{Subshell,Subshell},DalgarnoLewis.PerturbedOrbital}()
     for  (a, t)  in  channels
         chis[(a, t)] = DalgarnoLewis.solve(multipole, gauge, omega, t, activeOrbitals[a], potential, primitives;
-                                            settings=settings.dalgarnoLewis)
+                                            settings=settings.dalgarnoLewis, staticDrive=staticDrive)
     end
 
     # THE DIRECT SOLVE.  The coupled map is AFFINE in the concatenated channel sources, F(s) = b + M s, so the
@@ -1003,11 +1026,13 @@ function solve(multipole::EmMultipole, gauge::EmGauge, omega::Float64, activeOrb
         m = (primitives.grid.nsL + primitives.grid.nsS) * length(channels)
         drive, _ = RandomPhase.sourceMap(multipole, gauge, omega, activeOrbitals, channels, zeros(m),
                                           potential, primitives, settings.dalgarnoLewis;
-                                          occupiedOrbitals=occupiedOrbitals, occupations=occupations)
+                                          occupiedOrbitals=occupiedOrbitals, occupations=occupations,
+                                          staticDrive=staticDrive)
         applyIminusM = function(v::Array{Float64,1})
             mapped, _ = RandomPhase.sourceMap(multipole, gauge, omega, activeOrbitals, channels, v,
                                                potential, primitives, settings.dalgarnoLewis;
-                                               occupiedOrbitals=occupiedOrbitals, occupations=occupations)
+                                               occupiedOrbitals=occupiedOrbitals, occupations=occupations,
+                                               staticDrive=staticDrive)
             return( v - (mapped - drive) )
         end
         sources, nKrylov, relResidual =
@@ -1015,7 +1040,8 @@ function solve(multipole::EmMultipole, gauge::EmGauge, omega::Float64, activeOrb
         # one last application turns the solved sources into the chis themselves
         checkSources, chis = RandomPhase.sourceMap(multipole, gauge, omega, activeOrbitals, channels, sources,
                                                     potential, primitives, settings.dalgarnoLewis;
-                                                    occupiedOrbitals=occupiedOrbitals, occupations=occupations)
+                                                    occupiedOrbitals=occupiedOrbitals, occupations=occupations,
+                                                    staticDrive=staticDrive)
         # the SELF-CONSISTENCY of the answer, measured on the sources rather than taken on trust from the solver
         selfConsistency = LinearAlgebra.norm(checkSources - sources) /
                           max(LinearAlgebra.norm(sources), 1.0e-300)
@@ -1205,7 +1231,8 @@ function solve(multipole::EmMultipole, gauge::EmGauge, omega::Float64, activeOrb
             end
 
             newChis[ch] = DalgarnoLewis.solve(multipole, gauge, omega, t, activeOrbitals[a], potential,
-                                               primitives; settings=settings.dalgarnoLewis, extraSource=dampedSource)
+                                               primitives; settings=settings.dalgarnoLewis,
+                                               extraSource=dampedSource, staticDrive=staticDrive)
 
             denom = LinearAlgebra.norm(priorSource)
             # denom == 0 on the FIRST iteration just means "nothing to compare against yet" (Inf, keep

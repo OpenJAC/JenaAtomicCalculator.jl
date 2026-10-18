@@ -271,7 +271,8 @@ aMod(a, ta) = -sqrt(Basics.subshell_2j(a) + 1.0) * AM.CL_reduced_me(ta, 1, a) / 
 #
 # `uncRef` is the uncoupled alpha this system must reproduce with the induced term switched off (0.0 to skip
 # the control), and `refValue`/`refName` the external number both routes are finally compared against.
-# A tuple (alpha_uncoupled, alpha_mResolved, alpha_moduleConvention) is returned.
+# A tuple (alpha_uncoupled, alpha_mResolved, alpha_moduleConvention, gsMres, chans) is returned -- the last
+# two so that a caller can compare the m-resolved coupled functions themselves against the module's.
 # ==========================================================================================================
 function runCoupledCase(label::String, grid, prim, orbs, pot, shells, occ, uncRef::Float64,
                         refValue::Float64, refName::String; showOperator::Bool=true,
@@ -404,7 +405,7 @@ function runCoupledCase(label::String, grid, prim, orbs, pot, shells, occ, uncRe
     @printf(">> against %s = %.4f:  m-resolved %+.1f %%,  module %+.1f %%\n", refName, refValue,
             100*(aScr/refValue - 1), 100*(aModTot/refValue - 1))
 
-    return( (a0, aScr, aModTot) )
+    return( (a0, aScr, aModTot, gsMres, chans) )
 end
 
 
@@ -414,9 +415,10 @@ end
 # ==========================================================================================================
 occNe = Dict( Subshell("1s_1/2") => 2.0, Subshell("2s_1/2") => 2.0,
               Subshell("2p_1/2") => 2.0, Subshell("2p_3/2") => 4.0 )
+caseC = nothing
 if  !("skipC" in ARGS)
-    runCoupledCase("CASE C -- Ne at lam*", grid, prim, orbsNe, potNe, shellsNe, occNe, totMres, 2.669,
-               "the measured alpha(Ne)")
+    global caseC = runCoupledCase("CASE C -- Ne at lam*", grid, prim, orbsNe, potNe, shellsNe, occNe, totMres,
+               2.669, "the measured alpha(Ne)")
 else
     println("\n(CASE C -- Ne at lam* -- skipped;  \"skipC\" was passed.)")
 end
@@ -753,3 +755,53 @@ for  a  in  shellsNe
 end
 @printf(">> worst relative difference %.2e:  the repaired `inducedPotentialZr` builds the m-resolved\n", worstH3)
 @printf(">> induced potential, so BOTH ends of the module now carry the convention CASE F anchored.\n")
+
+
+# ==========================================================================================================
+# CASE I -- `RandomPhase.solve` ITSELF, AT omega = 0, AGAINST THE M-RESOLVED COUPLED FUNCTIONS.
+#
+# This is the end-to-end check the harness could not make until today, and it needed TWO repairs to become
+# possible:  the angular one of 18-Oct (item 75) and the `staticDrive` pass-through (item 69).  Before them
+# `RandomPhase.solve` at omega = 0 drove every channel with a kernel that is identically zero there, returned
+# chi = 0, and reported `converged = true` -- so the module had never produced a static screened response at
+# all, and this harness was a SUBSTITUTE for it rather than a CHECK on it.
+#
+# WHAT MUST AGREE, AND EXACTLY BY HOW MUCH.  The harness drives with the pure radial source r*phi_a, giving
+# g;  the module drives with `InteractionStrength.eMultipole`, giving chi = s_a g with
+# s_a = CL(a,1,t_a)/sqrt(2j_a+1).  That scalar rides through the whole linear problem, so after the COUPLED
+# solve the module's chi must still be exactly s_a times the m-resolved g on EVERY channel.  Comparing the
+# functions rather than the polarizability is deliberate: a total can agree while the channels do not, which
+# is precisely how the convention error hid (CASE C -- 0.7 % on the total, 0.644 to 2.194 per channel).
+# ==========================================================================================================
+if  isnothing(caseC)
+    println("\n(CASE I -- needs CASE C's m-resolved chis;  re-run without \"skipC\".)")
+else
+_, _, _, gsRef, chansRef = caseC
+tgtNe = Dict( a => first(RP.reachableChannels(1, a))   for a in shellsNe )
+setI  = RP.Settings(RP.Settings(); activeSubshells=shellsNe, targetSubshells=tgtNe, couplingEnabled=true,
+                     allChannels=true, directSolve=true, maxIterations=20, accuracy=1.0e-8, printBefore=false)
+respI = redirect_stdout(devnull) do
+    RP.solve(E1, Basics.Babushkin, 0.0, Dict(a => orbsNe[a] for a in shellsNe), potNe, prim;
+             settings=setI, occupiedOrbitals=Dict(a => orbsNe[a] for a in shellsNe), occupations=occNe,
+             staticDrive=true)
+end
+@printf("\n=== CASE I:  RandomPhase.solve at omega = 0, staticDrive = true -- %d channels, converged = %s ===\n",
+        length(respI.channelOrbitals), string(respI.converged))
+@printf("%-10s %-10s %16s %16s %14s\n", "a", "t_a", "chi_mod/g measured", "CL(a,1,t)/sqrt(2j+1)", "rel. diff")
+worstI = 0.0;  nMissing = 0
+for  ch  in  chansRef
+    if  !haskey(respI.channelOrbitals, ch)   global nMissing = nMissing + 1;   continue   end
+    cm = respI.channelOrbitals[ch];   gr = gsRef[ch]
+    sa = AM.CL_reduced_me(ch[1], 1, ch[2]) / sqrt(Basics.subshell_2j(ch[1]) + 1.0)
+    mtp = min(length(cm.P), length(gr.P))
+    nrm = maximum(abs, gr.P[1:mtp])
+    rat = sum(cm.P[i]*gr.P[i] for i = 1:mtp) / sum(gr.P[i]^2 for i = 1:mtp)
+    dev = maximum(abs(cm.P[i] - sa*gr.P[i]) for i = 1:mtp) / (abs(sa) * nrm)
+    @printf("%-10s %-10s %+16.10f %+16.10f %14.2e\n", string(ch[1]), string(ch[2]), rat, sa, dev)
+    global worstI = max(worstI, dev)
+end
+@printf(">> worst pointwise deviation of chi_module from s_a * g_m-resolved:  %.2e  (%d channels missing)\n",
+        worstI, nMissing)
+@printf(">> So the MODULE now reproduces the m-resolved coupled response function by function, not merely in\n")
+@printf(">> the total -- which is the end-to-end statement neither route could make before today.\n")
+end
