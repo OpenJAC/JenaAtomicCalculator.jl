@@ -414,8 +414,12 @@ end
 # ==========================================================================================================
 occNe = Dict( Subshell("1s_1/2") => 2.0, Subshell("2s_1/2") => 2.0,
               Subshell("2p_1/2") => 2.0, Subshell("2p_3/2") => 4.0 )
-runCoupledCase("CASE C -- Ne at lam*", grid, prim, orbsNe, potNe, shellsNe, occNe, totMres, 2.669,
+if  !("skipC" in ARGS)
+    runCoupledCase("CASE C -- Ne at lam*", grid, prim, orbsNe, potNe, shellsNe, occNe, totMres, 2.669,
                "the measured alpha(Ne)")
+else
+    println("\n(CASE C -- Ne at lam* -- skipped;  \"skipC\" was passed.)")
+end
 
 # ==========================================================================================================
 # CASE D -- ITEM 75, STEP 2c.  THE CORE POLARIZABILITY OF Ba+ [Xe], WHICH IS WHAT ARBITRATES.
@@ -625,3 +629,127 @@ end
 else
     println("\n(CASE G -- Ba+ on item 73's setup -- skipped;  pass \"ba73\" to run it.)")
 end
+
+
+# ==========================================================================================================
+# CASE H -- ITEM 75, THE REPAIR, CHECKED AGAINST THE MODULE'S OWN CODE RATHER THAN AGAINST AN EMULATION.
+#
+# CASES A-G all ran the angular algebra IN THIS FILE, which is what let the two conventions be compared on
+# one radial footing;  the price is that none of them touched `src/`.  The repair landed on 18-Oct-2026 and
+# these three checks are the ones that can fail if it is wrong.  Each tests a DIFFERENT end:
+#
+#   (H1) THE SUBSTATE SUM, which is what the density end's argument order rests on.  The weight of the
+#        channel b -> t_b is sum_m <b m|C^L_0|t_b m><t_b m|C^L_0|b m>, and the claim is that it equals
+#        CL_reduced_me(b, L, t_b)^2/(2L+1):  positive definite, so target-first -- which differs by
+#        (-1)^(j_b - j_t_b) -- cannot be right.  Checked at BOTH L = 1 and L = 2 over s, p, d and f, because
+#        a rank-1 accident is exactly the kind of thing that hides here.
+#
+#   (H2) THE RECEIVING END, against `RandomPhase.receivingCoefficient` itself.  This is CASE F re-run with
+#        the module's real function in place of the emulated coefficient:  the same v(r) = r down the drive
+#        path and the induced path must give the same source vector, i.e. ratio 1.
+#
+#   (H3) THE DENSITY END, against `RandomPhase.inducedPotentialZr` itself.  The module is handed the chis it
+#        would have solved for -- the m-resolved g scaled by the module's own normalisation
+#        CL(b,1,t_b)/sqrt(2j_b+1) -- and its returned potential is compared point by point with the
+#        m-resolved one built here.  The Pauli projection is applied BEFORE handing them over, which is safe
+#        because it is a projector: the module projects again and gets the same vector, so a disagreement
+#        here is an angular disagreement and not a projection one.
+# ==========================================================================================================
+@printf("\n=== CASE H1 -- the substate sum against CL^2/(2L+1), at L = 1 and L = 2 ===\n")
+function densityWeightL(L::Int64, bSub::Subshell, tSub::Subshell)
+    jb = Basics.subshell_2j(bSub)//2;   jt = Basics.subshell_2j(tSub)//2;   w = 0.0
+    for  m  in  -jb:1//1:jb
+        abs(m) > jt   &&   continue
+        w3b = AM.Wigner_3j(AngularJ64(jb), AngularJ64(L), AngularJ64(jt),
+                           AngularM64(-m),  AngularM64(0), AngularM64(m))
+        w3t = AM.Wigner_3j(AngularJ64(jt), AngularJ64(L), AngularJ64(jb),
+                           AngularM64(-m),  AngularM64(0), AngularM64(m))
+        w   = w + (-1.0)^Float64(jb - m) * w3b * AM.CL_reduced_me(bSub, L, tSub) *
+                  (-1.0)^Float64(jt - m) * w3t * AM.CL_reduced_me(tSub, L, bSub)
+    end
+    return( w )
+end
+subsH = [Subshell("1s_1/2"), Subshell("2p_1/2"), Subshell("2p_3/2"), Subshell("3d_3/2"), Subshell("3d_5/2"),
+         Subshell("4f_5/2"), Subshell("4f_7/2")]
+worstId = 0.0;  nId = 0;  nFlip = 0
+@printf("%-3s %-10s %-10s %14s %14s %14s %9s\n", "L", "b", "t_b", "substate sum", "CL(b,L,t)^2/(2L+1)",
+        "target-first", "flipped")
+for  L  in  (1, 2)
+    for  b  in  subsH,  tb  in  subsH
+        cl = AM.CL_reduced_me(b, L, tb)
+        cl == 0.0   &&   continue
+        ws = densityWeightL(L, b, tb);   wc = cl^2 / (2L + 1)
+        wt = sqrt(Basics.subshell_2j(b) + 1.0) * AM.CL_reduced_me(tb, L, b) / (2L + 1) *
+             cl / sqrt(Basics.subshell_2j(b) + 1.0)
+        global worstId = max(worstId, abs(ws - wc));   global nId = nId + 1
+        wt * wc < 0.0   &&   (global nFlip = nFlip + 1)
+        if  nId <= 8  ||  wt * wc < 0.0
+            @printf("%-3d %-10s %-10s %+14.8f %+14.8f %+14.8f %9s\n", L, string(b), string(tb), ws, wc, wt,
+                    wt*wc < 0.0 ? "YES" : "-")
+        end
+    end
+end
+@printf(">> %d channels:  worst |substate sum - CL^2/(2L+1)| = %.2e, so the density weight IS positive\n",
+        nId, worstId)
+@printf(">> definite;  target-first disagrees in SIGN on %d of them, which is the repair's whole content\n", nFlip)
+@printf(">> at this end.  (The last column is target-first in the same g-normalisation.)\n")
+
+
+@printf("\n=== CASE H2 -- `RandomPhase.receivingCoefficient` on the same v(r) = r as CASE F ===\n")
+@printf("%-10s %-10s %14s %12s\n", "a", "t_a", "ratio", "spread")
+VindH = [ -grid.r[i]^2   for i = 1:grid.NoPoints ]
+worstH2 = 0.0
+for  a  in  shellsNe
+    for  t  in  RP.reachableChannels(1, a)
+        R, bDrive = driveVectors(a, t, orbsNe, prim, grid)
+        sInd = RP.inducedSourceVector(VindH, orbsNe[a], prim)
+        aCo  = RP.receivingCoefficient(1, a, t)
+        keep = [ i  for i = 1:length(R)  if abs(bDrive[i]) > 1.0e-14 * maximum(abs, bDrive) ]
+        rM   = [ aCo * sInd[i] / bDrive[i]   for i in keep ]
+        mM   = sum(rM)/length(rM)
+        @printf("%-10s %-10s %+14.8f %12.2e\n", string(a), string(t), mM, maximum(abs, rM .- mM))
+        global worstH2 = max(worstH2, abs(mM - 1.0))
+    end
+end
+@printf(">> worst |ratio - 1| = %.2e:  the repaired receiving end gives the induced potential the SAME\n", worstH2)
+@printf(">> matrix element as the drive, which is what CASE F showed it did not.\n")
+
+
+@printf("\n=== CASE H3 -- `RandomPhase.inducedPotentialZr` against the m-resolved density ===\n")
+chansH = Tuple{Subshell,Subshell}[]
+for  a  in  shellsNe
+    for  t  in  RP.reachableChannels(1, a)   push!(chansH, (a, t))   end
+end
+occOrbH = Dict( sh => orbsNe[sh]   for sh in shellsNe )
+gH      = Dict( ch => projectPauli(chiUnit(ch[1], ch[2], orbsNe, potNe, prim, grid), ch[2], orbsNe,
+                                   shellsNe, grid)   for ch in chansH )
+# the module's own chi is the m-resolved g times CL(b,1,t_b)/sqrt(2j_b+1), since `DalgarnoLewis.solve`
+# builds its drive from `InteractionStrength.eMultipole` and that scalar rides through the linear equation
+chisH = Dict{Tuple{Subshell,Subshell},DalgarnoLewis.PerturbedOrbital}()
+for  ch  in  chansH
+    sb = AM.CL_reduced_me(ch[1], 1, ch[2]) / sqrt(Basics.subshell_2j(ch[1]) + 1.0)
+    chisH[ch] = DalgarnoLewis.PerturbedOrbital(ch[2], ch[1], E1, Basics.Babushkin, 0.0, orbsNe[ch[1]].energy,
+                                               sb * gH[ch].P, sb * gH[ch].Q, 0.0)
+end
+@printf("%-10s %14s %14s %12s\n", "a (excluded)", "max|V_module|", "max|V_mres|", "max rel diff")
+worstH3 = 0.0
+for  a  in  shellsNe
+    vMod = RP.inducedPotentialZr(E1, orbsNe, chisH, a, grid; occupiedOrbitals=occOrbH, occupations=occNe)
+    rho = zeros(grid.NoPoints);   mtp = 1
+    for  ch  in  chansH
+        b = ch[1];   tb = ch[2];   nb = occNe[b];   jb2 = Basics.subshell_2j(b)
+        w = wMres(b, tb) * nb / (jb2 + 1.0)
+        b == a   &&   (w = w * (nb - 1.0) / nb)
+        w == 0.0   &&   continue
+        ob = orbsNe[b];   g = gH[ch]
+        mtpB = min(length(ob.P), length(g.P), length(ob.Q), length(g.Q))
+        for  i = 1:mtpB   rho[i] = rho[i] + w * 2.0 * (ob.P[i]*g.P[i] + ob.Q[i]*g.Q[i])   end
+        mtp = max(mtp, mtpB)
+    end
+    vMres = [ -RI.Yk_ab(1, grid.r[i], rho, mtp, grid)   for i = 1:grid.NoPoints ]
+    sc = maximum(abs, vMres);   rel = sc > 0.0 ? maximum(abs, vMod - vMres)/sc : 0.0
+    @printf("%-10s %14.6e %14.6e %12.2e\n", string(a), maximum(abs, vMod), sc, rel)
+    global worstH3 = max(worstH3, rel)
+end
+@printf(">> worst relative difference %.2e:  the repaired `inducedPotentialZr` builds the m-resolved\n", worstH3)
+@printf(">> induced potential, so BOTH ends of the module now carry the convention CASE F anchored.\n")

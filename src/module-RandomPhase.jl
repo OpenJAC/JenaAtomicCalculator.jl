@@ -321,21 +321,23 @@ end
         selection rules forbid the channel. It exists as a named function, rather than inline, because the
         convention is the thing most easily got wrong here and Rule 18 asks for it to be visible.
 
-        **WHICH CONVENTION, AND HOW IT WAS FIXED -- 14-Oct-2026.** `DalgarnoLewis.solve` builds its EXTERNAL
-        source from `DalgarnoLewis.amplitudeKernel`, i.e. from a REDUCED one-electron matrix element on the
-        channel aSub -> tSub. An induced source added to that same equation must therefore be reduced the
-        same way, which is exactly one factor of `CL_reduced_me` per end and no division by sqrt(2j+1)
-        anywhere. The argument ORDER matters and is not free: `CL_reduced_me(tSub, L, aSub)` and
-        `CL_reduced_me(aSub, L, tSub)` differ by (-1)^(j_t - j_a), so they have OPPOSITE signs for
-        2s_1/2 <-> 2p_3/2 and the same sign for 2s_1/2 <-> 2p_1/2. The order used here is the one
-        `InteractionStrength.XL_Coulomb(L, a::Subshell, b, c::Subshell, d, primitives)` uses for the
-        corresponding two-electron strength -- target (row) first, source (column) second -- so that this
-        module's radial route and JAC's own already-validated angular factor agree term by term.
+        **THE ARGUMENT ORDER IS THE CALLER'S BUSINESS, AND THE TWO ENDS OF THE INDUCED TERM USE DIFFERENT ONES.**
+        This function is the bare reduced matrix element with its selection rules attached, and nothing else;  it does
+        not know which end of the induced interaction it is serving.  `RandomPhase.inducedPotentialZr` calls it
+        SOURCE-FIRST, as `angularCoefficient(L, b, t_b)`, because the weight it needs is the sum over the magnetic
+        substates of a filled subshell and that sum is CL_reduced_me(b, L, t_b)^2 / (2L+1) -- positive definite, so the
+        order is not free.  The receiving end does NOT call this function at all:  a one-body potential's matrix element
+        carries `InteractionStrength.eMultipole`'s own reduction, which is `RandomPhase.receivingCoefficient`.  The two
+        orders differ by (-1)^(j_1 - j_2), i.e. by a SIGN on every channel with |Delta j| = 1, so getting one of them
+        wrong corrupts the BALANCE between channels rather than the scale.
 
-        **THE `(-1)^L` IS NOT APPLIED HERE.** `XL_Coulomb` carries it once for the whole two-electron
-        product, and this function is called at BOTH ends -- once where the induced density is formed and
-        once where it acts -- so applying it here would square it away. `RandomPhase.solve` applies it once,
-        and says so at the line that does.
+        **AND THERE IS NO `(-1)^L` ANYWHERE ON THE DIRECT PATH -- amended 18-Oct-2026, priority item 75.**  It was
+        applied once in `RandomPhase.solve`, on the reading that the induced direct term is the two-electron matrix
+        element <t_a t_b| 1/r12 |a b> that `InteractionStrength.XL_Coulomb` assembles.  The direct term is not assembled
+        that way here:  a charge density is built, Poisson is solved for a potential, and that potential's ONE-BODY
+        matrix element is taken at the other end, so the two-electron product's phase never enters.  EXCHANGE is a
+        different object and does go through XL_Coulomb's convention, which is why
+        `RandomPhase.exchangeAngularCoefficient` keeps target-first at both of its ends.
         A coefficient::Float64 is returned, which is 0.0 for a channel the selection rules forbid.
 """
 function angularCoefficient(L::Int64, tSub::Subshell, aSub::Subshell)
@@ -346,6 +348,40 @@ function angularCoefficient(L::Int64, tSub::Subshell, aSub::Subshell)
     end
 
     return( AngularMomentum.CL_reduced_me(tSub, L, aSub) )
+end
+
+
+"""
+`RandomPhase.receivingCoefficient(L::Int64, aSub::Subshell, tSub::Subshell)`
+    ... the one-electron angular factor the rank-L induced potential carries where it ACTS, i.e. at the active end of
+        the channel aSub -> tSub, namely `AngularMomentum.CL_reduced_me(aSub, L, tSub) / sqrt(2*j_a+1)`, or 0.0 where
+        the triangular and parity selection rules forbid the channel. It is the counterpart of
+        `RandomPhase.angularCoefficient`, which is the factor the induced DENSITY carries at the other end, and they are
+        deliberately two functions because they are two different reductions of the same algebra.
+
+        **WHY IT IS NOT `angularCoefficient`, AND HOW THAT WAS DECIDED -- 18-Oct-2026, priority item 75.** The induced
+        potential and the EXTERNAL drive are both ordinary one-body potentials, acting on the same electron, in the same
+        Dalgarno-Lewis equation; and a one-body potential has ONE matrix element, so the same radial function v(r) must
+        produce the same source vector down either path. `DalgarnoLewis.solve` reduces its drive with
+        `InteractionStrength.eMultipole`, which is CL_reduced_me(a, L, t)/sqrt(2j_a+1) times the bare radial integral --
+        source first, and DIVIDED. Pushing v(r) = r down both paths on the nine E1 channels of Ne, the induced path as
+        it stood returned -sqrt(2j_a+1)*CL(t,L,a)/CL(a,L,t) times the drive instead of 1.0, i.e. sqrt(2j_a+1) in
+        magnitude with a channel-dependent sign, reproducible to 2.0e-15.
+
+        **AND THE DRIVE IS THE ANCHORED SIDE, which is what makes that an arbitration rather than one more comparison:**
+        `eMultipole`'s normalisation is fixed by the EXACT alpha(H 1s) = 4.5 a.u. through the polarizability assembly
+        alpha = (2/3)(2j_a+1) eMultipole(1, phi_a, chi), which reproduces 4.49972686 on this grid. So the drive's
+        reduction was never in question and the induced term's was.
+        A coefficient::Float64 is returned, which is 0.0 for a channel the selection rules forbid.
+"""
+function receivingCoefficient(L::Int64, aSub::Subshell, tSub::Subshell)
+    la = Basics.subshell_l(aSub);   ja2 = Basics.subshell_2j(aSub)
+    lt = Basics.subshell_l(tSub);   jt2 = Basics.subshell_2j(tSub)
+    if  AngularMomentum.triangularDelta(ja2+1, jt2+1, L+L+1) == 0   ||   rem(la+lt+L, 2) == 1
+        return( 0.0 )
+    end
+
+    return( AngularMomentum.CL_reduced_me(aSub, L, tSub) / sqrt(ja2 + 1.0) )
 end
 
 
@@ -442,7 +478,8 @@ end
             2*(2j_b+1)*Y_0[rho]/r, which is what the old code had and what is not in dispute;
           * the source this potential feeds is `DalgarnoLewis.solve`'s, which is REDUCED -- it comes from
             `DalgarnoLewis.amplitudeKernel`, a reduced one-electron matrix element -- so the induced term must
-            be reduced to match, one factor of `CL_reduced_me` per end (see `RandomPhase.angularCoefficient`);
+            be reduced to match:  `RandomPhase.angularCoefficient` at this end, and
+            `RandomPhase.receivingCoefficient`, which divides by sqrt(2j_a+1), where the potential acts;
           * and `AngularMomentum.CL_reduced_me(b, 0, b) = sqrt(2j_b+1)` EXACTLY, checked for s, p, d and f.
 
         Equating the two therefore gives weight * sqrt(2j_b+1) = 2*(2j_b+1), i.e. a weight of
@@ -451,11 +488,15 @@ end
         is about, and it is written out because the two quantities it sits between -- an ordinary potential
         and a reduced source -- are otherwise denoted alike.
 
-        **AND THE ANGULAR FACTOR CHANGES THE PHYSICS, NOT ONLY THE SCALE.** `CL_reduced_me(b, L, t_b)` carries
-        a SIGN, and for the two spin-orbit partners of a subshell those signs are OPPOSITE: for L = 1,
-        CL(2p_1/2, 1, 2s_1/2) = -0.816 against CL(2p_3/2, 1, 2s_1/2) = +1.155. So the partners partially
-        cancel in the induced field, where the old weighting added them with one sign and with weights 2 and
-        4. That cancellation is physical and is a large part of why the uncorrected term was far too strong.
+        **AND THE WEIGHT IS POSITIVE DEFINITE, WHICH AN EARLIER VERSION OF THIS DOCSTRING DENIED -- 18-Oct-2026,
+        priority item 75.**  Written out as the explicit sum over the magnetic substates of a filled subshell, the
+        weight of the channel b -> t_b is sum_m <b m|C^L_0|t_b m> <t_b m|C^L_0|b m> = CL_reduced_me(b, L, t_b)^2/(2L+1),
+        where the (2L+1) is 3j orthogonality at fixed middle projection and not a calibration.  It cannot change sign.
+        The text here previously argued the opposite -- that the two spin-orbit partners of a subshell enter the induced
+        field with OPPOSITE signs, that the cancellation is "physical", and that it is "a large part of why the
+        uncorrected term was far too strong".  THAT CLAIM IS WITHDRAWN:  the alternation was an artefact of calling
+        `RandomPhase.angularCoefficient` target-first at this end, which differs from source-first by
+        (-1)^(j_b - j_t_b) and so flips exactly the |Delta j| = 1 channels -- 25 of Ba+'s 42 core channels.
 
         **THE RADIAL PART IS VERIFIED AGAINST JAC'S OWN, TO TEN DIGITS.** `InteractionStrength.XL_Coulomb`
         builds the corresponding two-electron strength from `RadialIntegrals.SlaterRkComponent`, so the two
@@ -497,20 +538,25 @@ function inducedPotentialZr(multipole::EmMultipole, activeOrbitals::Dict{Subshel
         # Measured on 42 core channels of Ba+ spanning j = 1/2...7/2 and l = 0...3, the two agreed to
         # EXACTLY 3.00000 = 2L+1, with zero spread, once the projection below was applied.  The L = 0
         # Hartree calibration that fixes the sqrt(2j_b+1) is silent about this factor, since 2L+1 = 1 there.
-        # **THE ARGUMENT ORDER IS TARGET-FIRST, AND IT MATTERS -- derived 16-Oct-2026, item 73(c).**
-        # `InteractionStrength.XL_Coulomb` is explicit about the convention:
-        #     X^L(abcd) = (-1)^L * CL_reduced_me(a,L,c) * CL_reduced_me(b,L,d) * R^L(abcd)
-        # i.e. TARGET first and SOURCE second at EACH end, with the (-1)^L applied once to the product.  The
-        # induced direct term is <t_a t_b| 1/r12 |a b> = XL_Coulomb(L, t_a, t_b, a, b), so this end wants
-        # CL(t_b, L, b) -- target first.  It read CL(b, L, t_b) until today, and the two differ by
-        # (-1)^(j_b - j_t_b):  +1 when Delta j = 0 and -1 when |Delta j| = 1, verified to 1e-10.
-        #   **SO IT DOES NOT RESCALE THE ANSWER, IT FLIPS 25 OF THE 42 Ba+ CORE CHANNELS** and corrupts the
-        # BALANCE between them, which is why the symptom was a wrong SIGN on some shells rather than a wrong
-        # magnitude everywhere.
-        #   **AND IT IS THE THIRD THING INVISIBLE TO THE L = 0 HARTREE CALIBRATION**, with the (2L+1) above and
-        # the (-1)^L in `solve`:  at L = 0 this end is DIAGONAL (b = t_b), so j_b = j_t_b and the two orders
-        # coincide exactly.  That limit fixed the sqrt(2j_b+1) and could not have caught any of the three.
-        weightB = sqrt(jb2 + 1.0) * RandomPhase.angularCoefficient(multipole.L, tb, b) / (2*multipole.L + 1)
+        # **THE ARGUMENT ORDER IS SOURCE-FIRST, AND THE MINUS IS PART OF IT -- derived and measured 18-Oct-2026,
+        # priority item 75.**  This end turns a channel's chi into the induced CHARGE DENSITY, and the weight that does
+        # so is the explicit sum over the magnetic substates of a filled subshell,
+        #     w(b -> t_b)  =  sum_m <b m|C^L_0|t_b m> <t_b m|C^L_0|b m>  =  CL_reduced_me(b, L, t_b)^2 / (2L+1) ,
+        # the (2L+1) coming from 3j orthogonality at fixed middle projection rather than from a calibration.  The sum is
+        # POSITIVE DEFINITE, and that is what decides the argument order:  the sign of a channel's contribution to the
+        # density is the sign of its chi and nothing else.
+        #   **SO ITEM 73(c)'s TARGET-FIRST ORDER IS WITHDRAWN.**  It was taken from `InteractionStrength.XL_Coulomb`'s
+        # two-electron convention, X^L(abcd) = (-1)^L CL(a,L,c) CL(b,L,d) R^L(abcd), on the reading that the induced
+        # direct term is <t_a t_b| 1/r12 |a b>.  That reading is right about the two-electron matrix element and wrong
+        # here, because this module does not assemble one:  it builds a density, solves Poisson for a potential, and
+        # takes that potential's ONE-BODY matrix element at the other end (`RandomPhase.receivingCoefficient`).
+        # Target-first differs from source-first by (-1)^(j_b - j_t_b), so it FLIPPED the 25 of Ba+'s 42 core channels
+        # that have |Delta j| = 1 and made the weight alternate in sign between spin-orbit partners.
+        #   The MINUS is JAC's chi convention made visible:  `DalgarnoLewis` returns the NEGATIVE of the first-order
+        # correction, so a density built from phi*chi carries the opposite sign to the physical one.  With the minus
+        # here the induced field OPPOSES the drive, which is what makes the response screen;  without it the sign of
+        # every screening factor this module produces is wrong.
+        weightB = -sqrt(jb2 + 1.0) * RandomPhase.angularCoefficient(multipole.L, b, tb) / (2*multipole.L + 1)
         # ONE electron is removed from its own subshell, never the whole subshell.  The weight above carries
         # the occupation N_b (half here as sqrt(2j_b+1), half through CL_reduced_me's normalisation), so an
         # electron of `excludeSubshell` feels (N-1)/N of that subshell's induced density: its partners screen
@@ -720,11 +766,11 @@ end
         rather than called. This is `DalgarnoLewis.solve`'s `extraSource` keyword's own input.
 
         **IT CARRIES NO ANGULAR COEFFICIENT, DELIBERATELY, AND THE CALLER MUST SUPPLY ONE.** What this
-        function returns is the bare radial projection; the active channel's own reduced matrix element of
-        C^L, and the `(-1)^L` of the two-electron product, are applied by `RandomPhase.solve` through
-        `RandomPhase.angularCoefficient`. Until 14-Oct-2026 nothing applied them at all, which is what made
-        the coupled iteration diverge. A caller that uses this function directly, as a diagnostic does, must
-        multiply by `angularCoefficient(L, target, active)` and the sign itself -- see `RandomPhase.solve`.
+        function returns is the bare radial projection;  the reduction belonging to the active channel is applied by
+        `RandomPhase.solve` and `RandomPhase.sourceMap` through `RandomPhase.receivingCoefficient`. Until 14-Oct-2026
+        nothing applied any angular factor at all, which is what made the coupled iteration diverge. A caller that uses
+        this function directly, as a diagnostic does, must multiply by `receivingCoefficient(L, active, target)` --
+        ACTIVE first, divided by sqrt(2j_active+1), and with no (-1)^L.
         An extraSource::Array{Float64,1} of length primitives.grid.nsL + primitives.grid.nsS is returned.
 """
 function inducedSourceVector(VindZr::Array{Float64,1}, sourceOrbital::Orbital, primitives::Bsplines.Primitives)
@@ -788,8 +834,9 @@ function sourceMap(multipole::EmMultipole, gauge::EmGauge, omega::Float64, activ
         a = ch[1];   t = ch[2]
         VindZr = RandomPhase.inducedPotentialZr(multipole, activeOrbitals, chis, a, grid;
                                                  occupiedOrbitals=occupiedOrbitals, occupations=occupations)
-        aCoeff = RandomPhase.angularCoefficient(multipole.L, t, a)
-        if  rem(multipole.L, 2) == 1    aCoeff = -aCoeff    end
+        # the receiving end's reduction, `InteractionStrength.eMultipole`'s own -- see
+        # `RandomPhase.receivingCoefficient` and the same lines in `RandomPhase.solve`
+        aCoeff = RandomPhase.receivingCoefficient(multipole.L, a, t)
         newSources[(k-1)*m+1 : k*m] = aCoeff * RandomPhase.inducedSourceVector(VindZr, activeOrbitals[a], primitives)
     end
 
@@ -1014,9 +1061,11 @@ function solve(multipole::EmMultipole, gauge::EmGauge, omega::Float64, activeOrb
     #
     # **THE ANGULAR ALGEBRA WENT IN ON 14-Oct-2026, AND THIS NOTE RECORDS WHAT IT DID AND DID NOT FIX.**
     # Until then the module applied no angular coefficient anywhere, and weighted each contributing electron
-    # by its full (2j_b+1).  Both are now corrected -- one reduced matrix element of C^L per end, a weight of
-    # 2*sqrt(2j_b+1), and the (-1)^L of the two-electron product applied once -- with the derivation in
-    # `RandomPhase.inducedPotentialZr` and the convention in `RandomPhase.angularCoefficient`.
+    # by its full (2j_b+1).  Both are corrected -- a weight of 2*sqrt(2j_b+1) times the channel's reduced matrix
+    # element at the density end, and `InteractionStrength.eMultipole`'s own reduction where the potential acts -- with
+    # the derivation in `RandomPhase.inducedPotentialZr` and the two conventions in `RandomPhase.angularCoefficient`
+    # and `RandomPhase.receivingCoefficient`.  **THE (-1)^L THIS NOTE CLAIMED IS GONE, 18-Oct-2026, item 75:** it
+    # belonged to a two-electron product this formulation never assembles.
     #
     # THREE THINGS ARE NOW ESTABLISHED, each by a check that could have failed.
     #
@@ -1117,13 +1166,13 @@ function solve(multipole::EmMultipole, gauge::EmGauge, omega::Float64, activeOrb
             a = ch[1];   t = ch[2]
             VindZr      = RandomPhase.inducedPotentialZr(multipole, activeOrbitals, chis, a, grid;
                                                       occupiedOrbitals=occupiedOrbitals, occupations=occupations)
-            # THE a-END ANGULAR FACTOR AND THE SIGN.  `inducedSourceVector` returns the bare radial
-            # projection;  THIS channel's own reduced matrix element belongs here -- t, not targets[a], since
-            # one active subshell may carry several channels -- and the (-1)^L that
-            # `InteractionStrength.XL_Coulomb` carries for the two-electron product is applied ONCE, here,
-            # rather than at both ends (see `RandomPhase.angularCoefficient`).
-            aCoeff      = RandomPhase.angularCoefficient(multipole.L, t, a)
-            if  rem(multipole.L, 2) == 1    aCoeff = -aCoeff    end
+            # THE a-END ANGULAR FACTOR.  `inducedSourceVector` returns the bare radial projection;  what belongs
+            # here is the reduction `InteractionStrength.eMultipole` applies to the EXTERNAL drive of this very
+            # equation, because the induced potential is a one-body potential exactly as the drive is -- see
+            # `RandomPhase.receivingCoefficient`, which on 18-Oct-2026 (item 75) replaced a target-first
+            # `angularCoefficient` and a (-1)^L here.  It is THIS channel's own t, not targets[a], since one active
+            # subshell may carry several channels.
+            aCoeff      = RandomPhase.receivingCoefficient(multipole.L, a, t)
             justComputed = aCoeff * RandomPhase.inducedSourceVector(VindZr, activeOrbitals[a], primitives)
             priorSource  = get(previousExtraSource, ch, zeros(length(justComputed)))
             if  settings.andersonDepth <= 0  ||  iteration == 1
