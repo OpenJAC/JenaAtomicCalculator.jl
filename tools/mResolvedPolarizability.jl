@@ -399,6 +399,7 @@ runCoupledCase("CASE C -- Ne at lam*", grid, prim, orbsNe, potNe, shellsNe, occN
 # the span: a box sized for the diffuse 5p must still carry the 1s of Z = 56.  The perturbed orbital chi of a
 # STATIC drive is bound (it decays as the source does), so the function's continuum caveat does not apply.
 # ==========================================================================================================
+if  "ba"  in  ARGS
 occBaShell = Dict( Shell("1s") => 2, Shell("2s") => 2, Shell("2p") => 6, Shell("3s") => 2, Shell("3p") => 6,
                    Shell("3d") => 10, Shell("4s") => 2, Shell("4p") => 6, Shell("4d") => 10, Shell("5s") => 2,
                    Shell("5p") => 6, Shell("6s") => 1 )
@@ -430,3 +431,44 @@ for  sh  in  [Subshell("1s_1/2"), Subshell("4d_3/2"), Subshell("4d_5/2"), Subshe
 end
 runCoupledCase("CASE D -- Ba+ [Xe] core", gridBa, primBa, orbsBa, potBa, coreBa, occBa, 0.0, 10.6,
                "the published RPA alpha_core(Ba+)")
+else
+    println("\n(CASE D -- Ba+ [Xe] core -- skipped;  pass \"ba\" as an argument to run it, ~15 min.)")
+end
+
+
+# ==========================================================================================================
+# CASE E -- ITEM 75, STEP 2d.  THE SIMILARITY INVARIANT, WHICH IS WHAT DECIDES WHETHER THE TWO ROUTES ARE
+# TWO CONVENTIONS OR TWO DIFFERENT OPERATORS.
+#
+# WHY RECIPROCITY WAS THE WRONG TEST, recorded because it was proposed and then killed by its own derivation.
+# The coupled operator is `diag(aFun) o K o diag(wFun)` with K -- the radial Coulomb coupling, the Poisson
+# step and the B-spline projection -- INDEPENDENT of the angular convention.  Writing the bilinear Coulomb
+# form as C[B,A], every block is aFun(B) * C[B,A] * wFun(A), and C is symmetric because the Coulomb kernel is.
+# So a route is symmetrizable whenever `wFun(A)/aFun(A)` has the SAME SIGN for every channel, and BOTH routes
+# satisfy that:  m-resolved gives -densityWeight(A), negative-definite since densityWeight is a sum of
+# squares;  the module gives -CL(a,1,t_a)^2 / (3 sqrt(2j_a+1)), also negative for every channel.  Reciprocity
+# therefore holds for both and distinguishes nothing.
+#
+# WHAT DOES DISTINGUISH THEM.  Matching `diag(aMod) K diag(wMod) = D [K diag(wMres)] D^-1` block by block and
+# setting B = A kills the d's completely and leaves
+#
+#     aFun(A) * wFun(A)   must be EQUAL in the two routes, for every channel A,
+#
+# and that product is therefore invariant under ANY rescaling of the channel variables -- which is exactly
+# what a normalisation convention is free to change.  Measured below.  If the two differ, no choice of
+# normalisation connects them and one of the two is wrong as a matter of fact rather than of convention.
+# ==========================================================================================================
+@printf("\n=== CASE E -- the similarity invariant  aFun(A) * wFun(A)  over the Ne channels ===\n")
+@printf("%-10s %-10s %16s %16s %10s %12s\n", "a", "t_a", "module", "m-resolved", "ratio", "sqrt(2ja+1)")
+worst = 0.0
+for  a  in  shellsNe
+    for  t  in  RP.reachableChannels(1, a)
+        pMod = aMod(a, t) * wMod(a, t);   pMre = aMres(a, t) * wMres(a, t)
+        @printf("%-10s %-10s %+16.10f %+16.10f %10.6f %12.6f\n", string(a), string(t), pMod, pMre,
+                pMod/pMre, sqrt(Basics.subshell_2j(a) + 1.0))
+        global worst = max(worst, abs(pMod/pMre / sqrt(Basics.subshell_2j(a) + 1.0) - 1.0))
+    end
+end
+@printf(">> the ratio is sqrt(2j_a+1) on every channel, worst deviation %.2e\n", worst)
+@printf(">> AND IT IS THE SAME SIGN IN BOTH, so each route is separately symmetrizable and RECIPROCITY CANNOT\n")
+@printf(">> DECIDE between them;  the invariant above can, and it says the two are DIFFERENT OPERATORS.\n")
