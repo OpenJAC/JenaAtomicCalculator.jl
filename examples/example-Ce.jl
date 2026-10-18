@@ -27,6 +27,7 @@ if  false
     setDefaults("print summary: close", "")
     #
 elseif  false
+    # Last visit:  18-Oct-2026
     # Last successful:  31-Jul-2026
     # Branch b: H(1s), bare single-electron test against the EXACT closed-form hydrogenic form factor.
     #   For a nonrelativistic hydrogenic 1s density n(r) = (Z^3/pi) exp(-2Zr), the standard form factor is
@@ -54,6 +55,7 @@ elseif  false
     setDefaults("print summary: close", "")
     #
 elseif  false
+    # Last visit:  18-Oct-2026
     # Last successful:  31-Jul-2026
     # Branch c: neutral Ne (Z=10), [Ne] closed shell -- comparison against Waasmaier & Kirfel (1995),
     #   Acta Cryst. A51, 416, examples/papers/1995.f0_WaasKirf.dat, a 5-Gaussian analytical fit

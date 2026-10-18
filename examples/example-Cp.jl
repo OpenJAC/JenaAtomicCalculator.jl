@@ -69,7 +69,7 @@ elseif  false
     end
     #
 elseif  false
-    # Last visit:      29-Sep-2026
+    # Last visit:  18-Oct-2026
     # Last successful: 29-Sep-2026 -- A NEGATIVE RESULT, AND THAT IS WHY THE BRANCH EXISTS.  The far-field
     #   coefficient assumes the external charges are infinitely distant.  In CaF2 the nearest neighbours sit
     #   2.4-3.9 A away, comparable with the ion, so the uniform-field assumption was expected to fail and to
@@ -115,7 +115,7 @@ elseif  false
     end
     #
 elseif  false
-    # Last visit:      29-Sep-2026
+    # Last visit:  18-Oct-2026
     # Last successful: 29-Sep-2026 -- A GUARD TEST: both calls below MUST raise, and raising is the pass.
     #   (i)  an OPEN-SHELL ion.  A shielding factor is the SCALAR response of a spherical ion; for an open shell
     #        the response is not one number and the factorisation does not apply.  Returning something plausible
@@ -216,7 +216,7 @@ elseif  false
     #
 
 elseif  false
-    # Last visit:      06-Oct-2026
+    # Last visit:  18-Oct-2026
     # Last successful: 06-Oct-2026 -- SELF-CONSISTENT SCREENING, AND THE SHELL THAT DECIDES ITS SIZE.
     #   The module's default response is UNCOUPLED: the induced field is not allowed to act back.  With
     #   selfConsistent = true it is, and the loop converges (spread below 0.01 over the last four of 16 steps at

@@ -7,6 +7,7 @@ setDefaults("unit: energy", "eV")
 setDefaults("unit: rate", "1/s")
 
 if  true
+    # Last visit:  18-Oct-2026
     # Last successful:  14-Oct-2026
     #
     # Branch a: Na I (Z=11), 3s ^2S_1/2 (ground) -> 3p ^2P_1/2, ^2P_3/2 -- the sodium D-lines, among the most

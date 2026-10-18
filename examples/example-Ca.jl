@@ -8,6 +8,7 @@ grid=Radial.Grid(true)
 
 
 if  true
+    # Last visit:  18-Oct-2026
     # Last successful:  30-Aug-2026 -- Fe (Z=26), three configurations, 16 E1 transitions, and the
     #   two gauges agree reasonably: Coulomb/Babushkin has median 1.039 over all 16, range 0.544 to 1.083.
     #   The single 0.544 sits on a weak line, where the two gauges are differences of large cancelling terms

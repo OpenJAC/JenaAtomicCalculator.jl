@@ -85,7 +85,7 @@ if  true
     setDefaults("print summary: close", "")
     #
 elseif  false
-    # Last visit:      08-Aug-2026
+    # Last visit:  18-Oct-2026
     # Last successful: 08-Aug-2026 ... 26 s for both runs.
     #                      decayShells            radiative lines    Auger lines
     #                      2s, 2p (no 1s)               11                0
@@ -118,7 +118,7 @@ elseif  false
     setDefaults("print summary: close", "")
     #
 elseif  false
-    # Last visit:      08-Aug-2026
+    # Last visit:  18-Oct-2026
     # Last successful: 08-Aug-2026 ... 48 s for the three runs.
     #                      processes           radiative lines    Auger lines
     #                      [Radiative()]             38                0

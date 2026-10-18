@@ -24,6 +24,7 @@ elseif  false
     computeCrossSections(Basics.ForPhotoIonization(), initialConfigs, finalConfigs)
     #
 elseif  false
+    # Last visit:  18-Oct-2026
     # Last successful:  26Jun2026
     # Photoionization cross sections for neutral neon; all subshell channels including K-shell.
     setDefaults("nuclear: charge", 10.0)

@@ -127,6 +127,7 @@ elseif  false
     perform(wa)
     #
 elseif  false
+    # Last visit:  18-Oct-2026
     # Last successful:  06-Aug-2026
     # --- Branch b: the hyperfine-interaction matrix elements of H-like 229Th89+, against Shabaev Table I.
     #
@@ -230,6 +231,7 @@ elseif  false
     perform(wc)
     #
 elseif  true
+    # Last visit:  18-Oct-2026
     # Last successful:  06-Aug-2026
     # --- Branch d: the isomeric lifetime of H-like 229Th89+, as a function of B(M1). THE HEADLINE RESULT.
     #
@@ -336,7 +338,7 @@ elseif  true
     end
     #
 elseif  false
-    # Last visit:  06-Aug-2026
+    # Last visit:  18-Oct-2026
     # --- Branch e: B-like 205Pb77+, from Wang/Li/Wang, examples/papers/2025.prl-wu-nuclear-mixing-boron-like.pdf.
     #
     # An INDEPENDENT check of the same mechanism on a different nucleus, a different electronic shell and a
@@ -402,7 +404,7 @@ elseif  false
     end
     #
 elseif  false
-    # Last visit:  06-Aug-2026
+    # Last visit:  18-Oct-2026
     # --- Branch g: 235U -- an E3 hyperfine interaction with an E1 photon.
     #
     # THE ONE CASE with a hyperfine multipole other than M1, and therefore the branch that exercises that path

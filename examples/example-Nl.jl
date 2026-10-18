@@ -17,6 +17,7 @@ setDefaults("print summary: open", "zzz-Empirical.sum")
 
 if  true
     #
+    # Last visit:  18-Oct-2026
     # Last successful:  24-Jul-2026
     # Branch 1 (Ba): the configuration-level interface, Empirical.InelasticHReaction -- input is entirely strict JAC
     #   entities (Nuclear.Model, Configuration), with reduced mass, molecular symmetry, and statistical weight all
@@ -145,6 +146,7 @@ elseif  false
     #
 elseif  false
     #
+    # Last visit:  18-Oct-2026
     # Last successful:  24-Jul-2026
     # Branch 3 (Mg): same recipe again, the lightest case (Z=12), completing the S/P/D-channel comparison across
     #   three alkaline-earth-like ions spanning Z=12-56.

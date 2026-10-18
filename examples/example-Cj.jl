@@ -40,7 +40,7 @@ if  false
     println(">> ratio computed/exact [Babushkin] = $(outcome.alpha0.Babushkin/4.5)")
     #
 elseif false
-    # Last visit:  31-Jul-2026
+    # Last visit:  18-Oct-2026
     # Last successful:  unknown ... (exploratory: high-n perturbers are NOT physically accurate bound
     #   states at this grid/basis size -- see module docstring -- so no literature-comparison date applies).
     # Branch b: same H(1s) system as branch a, but with a MUCH larger perturber multiplet (np, n=2..45)
@@ -117,6 +117,7 @@ elseif false
     #
 elseif true
     #
+    # Last visit:  18-Oct-2026
     # Last successful:  14-Oct-2026
     # Branch C: Li [He]2s STATIC DIPOLE POLARIZABILITY -- AND THE LESSON IS THAT THE MEAN FIELD MATTERS FAR
     #   MORE THAN THE PERTURBER COUNT.
@@ -233,6 +234,7 @@ elseif  false
     #
 elseif  false
     #
+    # Last visit:  18-Oct-2026
     # Last successful:  13-Oct-2026
     # Branch E: THE PSEUDO-CONTINUUM -- how to get the CONVERGED polarizability rather than a lower bound.
     #
@@ -274,7 +276,7 @@ elseif  false
     #
 elseif  false
     #
-    # Last visit:  13-Oct-2026
+    # Last visit:  18-Oct-2026
     # Last successful:  unknown
     # Branch F: A REAL ATOM, AND THE UNIT THAT HAS ALREADY COST EIGHT DAYS.
     #

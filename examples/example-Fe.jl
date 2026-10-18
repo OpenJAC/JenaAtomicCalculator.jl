@@ -181,7 +181,7 @@ elseif  false
     setDefaults("print summary: close", "")
     #
 elseif  false
-    # Last visit:      06-Aug-2026
+    # Last visit:  18-Oct-2026 (NEEDS AN EARLIER BRANCH OF THIS FILE)
     # Last successful: 06-Aug-2026 ... three spectra, <1 s.  Additivity of Eq. (1) confirmed to 3.1e-5, and
     #                  the direct term is a flat 8.2e-3 Mb background four orders below the peaks.
     #

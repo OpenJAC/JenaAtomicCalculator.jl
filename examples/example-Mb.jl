@@ -7,6 +7,7 @@ setDefaults("print summary: open", "zzz-ForPedestrians.sum")
 
 
 if  false
+    # Last visit:  18-Oct-2026
     # Last successful:  26Jun2026
     # computeTransitionRates(ForPhotoEmission): K-alpha radiative rates for the 1s-hole of neutral neon.
     # Initial: 1s vacancy;  final: 2s or 2p vacancy (same number of electrons).

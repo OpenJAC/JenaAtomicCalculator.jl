@@ -63,6 +63,8 @@ elseif false
     wb = perform(wa)
     #
 elseif false
+    # Last visit:  18-Oct-2026
+    # Last reproduced:  18-Oct-2026 (6 of 9 to 1e-5, 1 more to 1e-3;  2 are the superseded pre-fix values)
     # Last successful:  28-Aug-2026 -- SAME PRE-FIX HALVING AS THE BRANCH ABOVE, and for the same reason.
     # Today: f(1->2) = 1.8213e-02 / 1.7616e-02, f(1->4) = 7.6512e-01 / 7.3954e-01 at 3.88546592e+03 and
     # 3.90529938e+03 eV, against the recorded 0.3826(C)/0.3684(B) for 1->4 -- ratio 2.0003.

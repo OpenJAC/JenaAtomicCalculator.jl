@@ -82,6 +82,7 @@ elseif  false
     wb = perform(wa)
 
 elseif  false
+    # Last visit:  18-Oct-2026
     # Last successful:  unknown
     # Branch 1 (was: `if true`): the original neon/ALField case that started this debugging session.
     # State as of 19-Jul-2026, before switching to the simpler He case above:
@@ -110,7 +111,7 @@ elseif  false
     wb = perform(wa)
 
 elseif  true
-    # Last visit:  16-Oct-2026
+    # Last visit:  18-Oct-2026
     # Last successful:  unknown
     # Compute different direct potentials for the charge density of a given level 
     # (a Radial.Grid(...; NoPoints = 900) call stood here until 29-Aug-2026: the keyword became `rbox`, and the

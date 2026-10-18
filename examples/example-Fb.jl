@@ -37,7 +37,7 @@ grid = Radial.Grid(Radial.Grid(false), rnt = 4.0e-6, h = 5.0e-2, hp = 0.6e-2, rb
 
 
 if  false
-    # Last visit:      23-Aug-2026
+    # Last visit:  18-Oct-2026
     # Last successful: 23-Aug-2026
     #
     # Branch a: THE COMPUTATION. Everything below consumes the .jld file this branch writes; the branches
@@ -140,7 +140,7 @@ elseif  false
     setDefaults("print summary: close", "")
     #
 elseif  false
-    # Last visit:      23-Aug-2026
+    # Last visit:  18-Oct-2026
     # Last successful: 23-Aug-2026
     #
     # Branch d: PHOTON INTENSITIES -- the fluorescence spectrum of the cascade, i.e. the photon lines weighted

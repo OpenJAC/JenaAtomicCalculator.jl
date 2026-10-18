@@ -109,7 +109,7 @@ if  true
     wb = perform(wa; output=true)
     #
 elseif  false
-    # Last visit:      22-Aug-2026
+    # Last visit:  18-Oct-2026
     # Last successful:  unknown ... BOTH LIMITS are verified -- sigma ~ omega^2 at low energy from the closure
     #                              expansion, and sigma / N sigma_T rising monotonically toward 1 at high -- but
     #                              the MIDDLE of the range rests on S(q) = N - |F|^2/N, which the Hartree-Fock

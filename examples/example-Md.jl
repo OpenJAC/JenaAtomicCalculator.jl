@@ -15,6 +15,7 @@ if  false
     computeLifetimes(Basics.ForPhotoEmission(), configs)
     #
 elseif  false
+    # Last visit:  18-Oct-2026
     # Last successful:  26Jun2026
     # computeLifetimes(ForAutoIonization): KLL Auger lifetime of the Ne 1s-hole state.
     # Final configs (Ne^2+ two-L-vacancy states) are generated automatically.

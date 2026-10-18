@@ -462,7 +462,7 @@ elseif  false
     # the amplitude itself, and is deliberately left to a separate session.
     #
 elseif  true
-    # Last visit:  04-Aug-2026
+    # Last visit:  18-Oct-2026
     # --- Branch e: F-like Ne+ (Z=10), 2p^5 2P_3/2 --> 2P_1/2. The cheapest branch, and the most different.
     #
     # ESTIMATE BEFORE RUNNING: 1 pair x 4 energies = 4 lines. Branch a) cost ~3.5 min per line at maxKappa = 120

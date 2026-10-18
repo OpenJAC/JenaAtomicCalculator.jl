@@ -209,6 +209,7 @@ elseif  false
     setDefaults("print summary: close", "")
     #
 elseif  false
+    # Last visit:  18-Oct-2026
     # Last successful:  20-Aug-2026
     #   [PROVENANCE: produced on Julia 1.10.9, with a Manifest re-resolved for 1.10 because the checkout's Manifest had been
     #    resolved under 1.12.6 on the maintainer machine.  Every figure quoted below is an ABSOLUTE comparison against a

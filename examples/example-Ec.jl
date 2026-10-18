@@ -6,6 +6,7 @@ setDefaults("print summary: open", "zzz-PhotoExcitationAutoIon.sum")
 
 
 if  true
+    # Last visit:  18-Oct-2026 (RAISED AS DESIGNED -- the module is parked under Rule 13)
     # Last successful:  unknown ...
     # 1s photoexcitation and subsequent autoionization of Li-like carbon
     asfSettings   = AsfSettings(AsfSettings(), scField=Basics.HSField())  # not used

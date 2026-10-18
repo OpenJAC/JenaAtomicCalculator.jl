@@ -49,7 +49,7 @@ grid = Radial.Grid(Radial.Grid(false), rnt = 4.0e-6, h = 5.0e-2, hp = 0.6e-2, rb
 
 
 if  false
-    # Last visit:  16-Oct-2026
+    # Last visit:  18-Oct-2026
     # --- Branch a: He-like C4+ (Z=6) + e- --> Li-like C3+, K-LL dielectronic recombination.
     #
     # WHY THIS FIRST. It is the smallest system in which DR is a genuine three-step process, and small enough
@@ -215,7 +215,7 @@ elseif  false
     perform(wc)
     #
 elseif  false
-    # Last visit:  05-Aug-2026
+    # Last visit:  18-Oct-2026
     # --- Branch d: branch b)'s Xe53+ literature case through the RE-STRUCTURED route.
     #
     # The regression that matters most: the six resonances matched against Harman in branch b) must stay within
@@ -241,7 +241,7 @@ elseif  false
     perform(wd)
     #
 elseif  false
-    # Last visit:  05-Aug-2026
+    # Last visit:  18-Oct-2026
     # --- Branch e: K-LL DR of He-like W72+ (Z=74) -- the Tu et al. benchmark, and the first case with a WIDE
     #     spread of J_f. Structurally identical to branch a): initial 1s^2, intermediate 1s2l2l', final 1s^2 2l,
     #     but at Z = 74 instead of Z = 6.
@@ -728,7 +728,7 @@ elseif  false
     perform(wh)
     #
 elseif  true
-    # Last visit:  05-Aug-2026
+    # Last visit:  18-Oct-2026
     # --- Branch h: K-LL DR of Li-like C3+ (Z=6) with the initial ion HYPERFINE-RESOLVED -- the first branch that
     #     exercises module-DielectronicRecombination-inc-HF-resolved.jl on the dimension where the physics lives.
     #
@@ -808,7 +808,7 @@ elseif  true
     #
 
 elseif  false
-    # Last visit:      05-Oct-2026
+    # Last visit:  18-Oct-2026
     # Last successful: unknown -- SEE THE WARNING AT THE END OF THIS HEADER. The mode runs and the machinery is
     #   cross-validated, but the NUMBER it produces has not been confirmed against anything outside JAC.
     #

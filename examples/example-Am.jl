@@ -15,6 +15,7 @@ xeShells = Basics.generateShellList(6, 8, [0,1,2,3,4,5,6]);    xeSubshells = Bas
 allConfs = Basics.merge([heConf], [arConf], [xeConf])
 
 if      false
+    # Last visit:  18-Oct-2026
     # Basic operations
     # ----------------
     # Merge three configuration lists
@@ -22,6 +23,7 @@ if      false
          Basics.displayConfigurations(stdout, wa, longForm=true, details="He + Ar + Xe")
     #
 elseif  false
+    # Last visit:  18-Oct-2026
     # Add, excite or remove electrons from some reference configurations
     # ------------------------------------------------------------------
     fromShells = Basics.generateShellList(5, 5, 2)
@@ -34,6 +36,7 @@ elseif  false
          Basics.displayConfigurations(stdout, wa, longForm=true, details="1 removed electron")
     #
 elseif  false
+    # Last visit:  18-Oct-2026
     # Add, excite or remove electrons due to given atomic processes
     # -------------------------------------------------------------
     fromShells = [Shell("3s"), Shell("3p")]
@@ -69,6 +72,7 @@ elseif  true
          Basics.displayConfigurations(stdout, wa[2], longForm=true, details="ForDielectronicRecombination: final confs")
     #
 elseif  false
+    # Last visit:  18-Oct-2026
     # Add, excite or remove electrons due to given atomic processes
     # -------------------------------------------------------------
     fromShells  = [Shell("3s"), Shell("3p")]
@@ -126,6 +130,7 @@ elseif  false
     we = Basics.extractConfiguration(FromBasis(), basis, basis.csfs[8]);                                @show we
     #
 elseif  false
+    # Last visit:  18-Oct-2026
     # Extract information from a single (relativistic) configuration
     # --------------------------------------------------------------
     wa = Atomic.Computation(Atomic.Computation(), name="Oxygen", grid=Radial.Grid(true), nuclearModel=Nuclear.Model(18.), 
@@ -148,7 +153,7 @@ elseif  false
          Basics.displayConfigurations(stdout, wb, longForm=true, details="ByNumber([2, 18])")
     #
 elseif  false
-    # Last visit:  16-Oct-2026 (RAISED -- see the sweep record)
+    # Last visit:  18-Oct-2026 (NEEDS AN EARLIER BRANCH OF THIS FILE)
     # Extract selected configurations from given lists or information about them
     # -------------------------------------------------------------------------- 
     # `basis` is built by an earlier branch of this file (line 118).
@@ -200,6 +205,7 @@ elseif  false
     wj = Basics.extractFromConfiguration(ClosedSubshells(), "[Xe]");                                    @show wj
     #
 elseif  false
+    # Last visit:  18-Oct-2026
     # Extract parity, is-occupied and multiplicity from a single standard or relativistic configuration
     # -------------------------------------------------------------------------------------------------
     conf = Configuration("[Ar] 4p");   coreConf = Configuration("[Ne]");   innerConf = Configuration("[He] 2s^2 2p^4 3s 3p^6")
@@ -241,6 +247,7 @@ elseif  false
     wj = Basics.extractFromConfigurations(OccupationDifference(), wh[1], wh[2]);                        @show wj
     #
 elseif  false
+    # Last visit:  18-Oct-2026
     # Display configurations with additional information 
     # --------------------------------------------------
     fromShells = Basics.generateShellList(5, 5, 2)

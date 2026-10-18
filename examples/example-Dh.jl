@@ -382,7 +382,8 @@ elseif  false
     perform(wa)
     #
 elseif  false
-    # Last visit:  07-Aug-2026        ## NOT successful: n_max = 12 is far from converged
+    # Last visit:  18-Oct-2026
+    # 07-Aug-2026: NOT successful -- n_max = 12 is far from converged
     #
     # RE-RUN 07-Aug-2026 AFTER THE EXCHANGE-PHASE FIX. Babushkin, and the deviation from the non-relativistic
     # Z^6 law normalised at Z = 1:
@@ -709,7 +710,8 @@ elseif  false
     end
     #
 elseif  false
-    # Last visit:  07-Aug-2026        ## NOT successful: the Green route remains worse than the multiplet one
+    # Last visit:  18-Oct-2026
+    # 07-Aug-2026: NOT successful -- the Green route remains worse than the multiplet one
     #
     # RE-RUN 07-Aug-2026 AFTER THE EXCHANGE-PHASE FIX: Bab = 1.144 /s, Cou/Bab = 0.349, against the multiplet
     # route's converged 1.231 /s at Cou/Bab = 0.907. So the Green expansion is still the WORSE representation
@@ -1089,7 +1091,7 @@ elseif  false
     perform(we)
     #
 elseif  false
-    # Last visit:  11-Aug-2026
+    # Last visit:  18-Oct-2026
     # Last successful:  11-Aug-2026     ## for the PHOTON-ENERGY DEPENDENCE of the absorption cross section;
     #                                   ## the absolute scale remains unverified, see below.
     #

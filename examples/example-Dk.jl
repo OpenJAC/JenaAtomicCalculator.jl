@@ -22,7 +22,7 @@ if  true
     raGreen          = greenOut[ResultKeys.GreenChannels]
     #
 elseif true
-    # Last visit:  16-Oct-2026 (RAISED -- see the sweep record)
+    # Last visit:  18-Oct-2026 (NEEDS AN EARLIER BRANCH OF THIS FILE)
     # Last successful:  unknown ...
     # Radiative Auger decay of 1s photoionized neon
     # `raGreen` is produced by branch a of this file (line 22).

@@ -121,6 +121,7 @@ elseif  false
     #
 elseif  false
     #
+    # Last visit:  18-Oct-2026
     # Last successful:  16-Jul-2026
     # Branch 4: Empirical.boundFreeGauntFactor(n, x) -- the quantum correction to Kramers' formula.
     # Basis: for n = 1 the factor is exact, the ratio of Stobbe's (1930) closed-form 1s cross section to the

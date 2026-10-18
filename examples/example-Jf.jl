@@ -39,6 +39,7 @@ if  true
     println(">>> cool-plasma limit requires.")
     #
 elseif  false
+    # Last visit:  18-Oct-2026
     # Last successful:  16-Oct-2026
     #
     # Branch b: the SAME three configurations, at a HOT, ICF-hohlraum-relevant temperature (100 eV). CHECK:

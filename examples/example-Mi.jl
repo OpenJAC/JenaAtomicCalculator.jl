@@ -30,7 +30,7 @@ elseif  true
     computeProperties(Basics.HyperfineStructure(AngularJ64(1//2)), configs, nuclearModel=nm)
     #
 elseif  false
-    # Last visit:  18Aug2026
+    # Last visit:  18-Oct-2026
     # Last successful:  unknown ... the same sodium case WITHOUT nuclear moments, to show what the note says:
     # Nuclear.Model(Z) carries mu = Q = 0, so every constant comes out zero by construction rather than by error.
     setDefaults("nuclear: charge", 11.0)
@@ -65,7 +65,7 @@ elseif  false
     computeProperties(Basics.ZeemanStructure(0.0), configs)
     #
 elseif  false
-    # Last visit:  18Aug2026
+    # Last visit:  18-Oct-2026
     # Last successful:  unknown ... the same levels IN A FIELD: g_J plus the Zeeman splittings at 1 Tesla.
     # A non-zero field in the theme is what turns the splittings on.
     setDefaults("nuclear: charge", 32.0)

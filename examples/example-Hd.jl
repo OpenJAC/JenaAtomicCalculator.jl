@@ -35,6 +35,7 @@ if  false
     #
 elseif  false
     #
+    # Last visit:  18-Oct-2026
     # Last successful:  16-Jul-2026
     # Branch 2: Empirical.augerRate(iConf, fConf, ScaledHydrogenic()) -- empirical K-shell Auger rates
     #   from A_auger = A_rad (1 - omega_K)/omega_K, with A_rad the empirical K-alpha rate.

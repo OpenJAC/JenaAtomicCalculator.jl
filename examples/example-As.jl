@@ -72,6 +72,7 @@ if  false
     println(">> ratio direct/explicit-sum       = $(directAmplitude/explicitSum)   (must be 1.000000 to within the solver's own accuracy)")
     #
 elseif  false
+    # Last visit:  18-Oct-2026
     # Last successful:  11-Oct-2026
     # Branch (b): THE SAME IDENTITY, BABUSHKIN GAUGE -- fixed 11-Oct-2026. `DalgarnoLewis.solve`/`.amplitude`
     # now route the Babushkin gauge through `DalgarnoLewis.amplitudeKernel`, Grant's (1974) eq (4.11) applied
@@ -211,6 +212,7 @@ elseif  true
             "basis/box truncation at this grid, not a further physics gap.")
 elseif  false
     #
+    # Last visit:  18-Oct-2026
     # Last successful:  14-Oct-2026
     # Branch (d): THE FIRST FEW-ELECTRON TEST THIS MACHINERY HAS EVER HAD, AND THE FIRST AWAY FROM Z = 1.
     #

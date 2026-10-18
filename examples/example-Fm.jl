@@ -90,6 +90,7 @@ elseif  false
     setDefaults("print summary: close", "")
     #
 elseif  false
+    # Last visit:  18-Oct-2026
     # Last successful:  23-Aug-2026
     #   [PROVENANCE: as branch a.]  ~1.3 s warm.
     #   9 Auger steps are set up and only 3 of them produce a line: steps 1, 4 and 7 give 1, 7 and 8 lines,

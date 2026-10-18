@@ -9,6 +9,7 @@ println("    the nuclear matrix element cancels in the alpha = (IC rate)/(gamma 
 println("    nuclear transition energy (settings.gammaEnergy) is the only externally-given quantity.")
 
 if  true
+    # Last visit:  18-Oct-2026
     # Last successful:  15-Aug-2026 -- verified: ICC identical (to all printed digits) across
     #   maxKappa=2,3,5; ICC strictly monotonically decreasing over gammaEnergy=35,40,60,100 Hartree.
     # Branch a: internal-consistency checks -- run FIRST, before any literature comparison, mirroring
@@ -67,6 +68,7 @@ if  true
     setDefaults("print summary: close", "")
     #
 elseif  false
+    # Last visit:  18-Oct-2026
     # Last successful:  unknown ...
     # Branch b: 207Pb, K-shell M4 alpha_K vs. Raman et al., Phys. Rev. C 66, 044312 (2002), Table VII /
     #   Fig. 1 (gamma energy 1063.6 keV): experimental alpha_K = 0.0945 +/- 0.0022. This is a

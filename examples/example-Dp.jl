@@ -81,7 +81,7 @@ if  true
     setDefaults("print summary: close", "")
     #
 elseif  false
-    # Last visit:      25-Aug-2026
+    # Last visit:  18-Oct-2026
     # Last successful: 25-Aug-2026
     #
     # Branch b: THE PARTIAL-WAVE TRUNCATION, which is the one approximation here that the user controls directly

@@ -58,6 +58,8 @@ if  false
     wb = perform(wa)
     #
 elseif  false
+    # Last visit:  18-Oct-2026
+    # Last reproduced:  18-Oct-2026 (4 of 4 to 1e-5)
     # Last successful:  28-Aug-2026 -- REPRODUCES ALL FOUR WIDTHS EXACTLY: 7.987094e-02, 7.970066e-02,
     # 7.938559e-02 and 4.612132e-02 eV, against the recorded 0.0799, 0.0797, 0.0794, 0.0461 eV.
     # Previously: 2-Aug-2026

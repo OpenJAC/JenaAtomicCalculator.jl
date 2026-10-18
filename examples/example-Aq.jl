@@ -20,7 +20,7 @@ for  relconf in relconfList
 end
 
 if  true
-    # Last visit:      22-Aug-2026
+    # Last visit:  18-Oct-2026
     # Last successful:  22-Aug-2026
     #
     # Branch a (AGAINST GRASP2018, the independent oracle): rank-0 one-particle coefficients for 1s^2 2s and 1s^2 2p,
@@ -112,7 +112,7 @@ elseif  true
     println("  maximum deviation over all CSFs = $maxDeviation      (must be 0)")
     #
 elseif  true
-    # Last visit:      22-Aug-2026
+    # Last visit:  18-Oct-2026
     # Last successful:  22-Aug-2026
     #
     # Branch c (AGAINST THE PRESENT MODULE): the same rank-0 coefficients from SpinAngular, so that the convention change
@@ -474,7 +474,7 @@ elseif  true
     println("\n  matched $nMatched of $(length(graspGen));   worst ratio = $worstRatio")
     #
 elseif  true
-    # Last visit:      23-Aug-2026
+    # Last visit:  18-Oct-2026
     # Last successful:  23-Aug-2026
     #
     # Branch h (SUBSTITUTIONS): CSF pairs of UNEQUAL occupation, where one electron moves between two subshells. This is
@@ -1152,7 +1152,7 @@ elseif  true
     #
 
 elseif  true
-    # Last visit:      24-Aug-2026
+    # Last visit:  18-Oct-2026
     # Last successful:  24-Aug-2026
     #
     # Branch o (THE COMPLETE DIFFERENCE INVENTORY): the question this branch answers is the one that decides whether
@@ -1282,7 +1282,7 @@ elseif  true
     #
 
 elseif  true
-    # Last visit:      25-Aug-2026
+    # Last visit:  18-Oct-2026
     # Last successful:  25-Aug-2026
     #
     # Branch p (MOVING TWO ELECTRONS BETWEEN FOUR DISTINCT SUBSHELLS): the last large topology, and the one whose shape

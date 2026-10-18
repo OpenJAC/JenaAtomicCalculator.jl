@@ -42,6 +42,7 @@ if  false
     #
 elseif  false
     #
+    # Last visit:  18-Oct-2026
     # Last successful:  16-Jul-2026
     # Branch 2: the *total* TBR coefficient, summed over all capture channels with the truncation policy
     #   n_max = n_valence + nLayers (default 10).

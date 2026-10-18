@@ -27,7 +27,7 @@ grid = Radial.Grid(Radial.Grid(false), rnt = 4.0e-6, h = 5.0e-2, hp = 0.6e-2, rb
 
 
 if  false
-    # Last visit:      23-Aug-2026
+    # Last visit:  18-Oct-2026
     # Last successful: 23-Aug-2026
     #
     # Branch a: FAST reference case -- the K-shell hole of Mg^+ (1s^1 2s^2 2p^6 3s^2, 11 electrons), decaying
@@ -255,7 +255,7 @@ elseif  false
     #
     #
 elseif  false
-    # Last visit:      23-Aug-2026
+    # Last visit:  18-Oct-2026
     # Last successful: 23-Aug-2026
     #
     # Branch d: THE SAME Mg K-hole system as branch a, but one tier up the approach hierarchy --

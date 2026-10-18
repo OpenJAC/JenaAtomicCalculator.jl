@@ -8,7 +8,7 @@ setDefaults("unit: energy", "eV")
 setDefaults("unit: rate", "1/s")
 
 if  false
-    # Last visit:  15-Oct-2026
+    # Last visit:  18-Oct-2026
     # Last successful:  unknown -- the fit TARGET below is deliberately SYNTHETIC (see this branch's own
     #   comment), so there is nothing measured to verify the result against yet; this demonstrates the
     #   MECHANISM honestly, and earns a date only once a real measured splitting is substituted.

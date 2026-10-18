@@ -216,6 +216,8 @@ elseif  false
     wb = perform(wa)
     #
 elseif  false
+    # Last visit:  18-Oct-2026
+    # Last reproduced:  18-Oct-2026 (1 of 12 to 1e-5, 5 more to 1e-3;  6 are the superseded 9-Aug values)
     # Last successful:  28-Aug-2026 -- Coulomb/Babushkin 546.201/539.408 barn @10 keV (1.24 %), 20.2192/19.9138
     # @100 keV (1.51 %), 0.670034/0.665195 @500 keV (0.72 %). Against 9-Aug (545.5/538.7, 21.35/21.03,
     # 0.9988/0.9923) the shift is +0.1 %, -5.3 % and -32.9 %: the 27-Aug parity correction, growing with the
@@ -247,6 +249,8 @@ elseif  false
     wb = perform(wa)
     #
 elseif  false
+    # Last visit:  18-Oct-2026
+    # Last reproduced:  18-Oct-2026 (3 of 12 to 1e-5, 5 more to 1e-3;  4 are the superseded 9-Aug values)
     # Last successful:  28-Aug-2026 -- Coulomb/Babushkin 1329.07/1320.32 barn @10 keV (0.66 %), 75.7433/75.0374
     # @100 keV (0.93 %), 4.08271/4.05165 @500 keV (0.76 %). Against 9-Aug (1329.3/1320.6, 80.72/79.98,
     # 6.226/6.183) the shift is -0.0 %, -6.2 % and -34.4 %. This is the branch where the 27-Aug parity correction

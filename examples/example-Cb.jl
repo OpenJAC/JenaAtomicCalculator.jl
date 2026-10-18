@@ -177,6 +177,8 @@ elseif  false
     wb = perform(wa)
     #
 elseif  true
+    # Last visit:  18-Oct-2026
+    # Last reproduced:  18-Oct-2026 (5 of 5 to 1e-5)
     # Last successful:  28-Aug-2026 -- REPRODUCES EXACTLY, and being dated 18-Aug it is the tighter of this file's
     # two checks: Ho I A = 8.957463e+02 MHz and B = -9.516364e+02 MHz against the recorded 895.75 and -951.6;
     # Pr I A = 9.301445e+02 MHz and B = -5.849614e+00 MHz against the recorded 930.14 and -5.85.

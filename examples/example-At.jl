@@ -49,6 +49,7 @@ if  true
     end
     #
 elseif  true
+    # Last visit:  18-Oct-2026
     # Last successful:  11-Oct-2026
     # Branch (b): THE COUPLED PATH. Part 1 is RIGOROUS: a single active electron has no coupling partner, so
     # couplingEnabled=true must reproduce couplingEnabled=false to the last bit. Part 2 runs the SAME toy

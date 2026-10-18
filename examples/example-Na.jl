@@ -6,6 +6,7 @@ setDefaults("print summary: open", "zzz-Empirical.sum")
 
 if  false
     #
+    # Last visit:  18-Oct-2026
     # Last successful:  15-Jul-2026
     # Branch 1: Empirical.bindingEnergy(Z, sh::Shell) -- compare Williams2000, Larkins1977, XrayDataBooklet
     #   for Ne (Z=10) and Ar (Z=18).

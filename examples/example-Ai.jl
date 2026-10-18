@@ -7,7 +7,8 @@ println("Ai) Apply & test for restricted-active-space (RAS) expansions.")
 # see example-Ar.jl.  Nothing in THIS file uses it; every branch here is variational.
 
 if  true
-    # Last visit:  01-Sep-2026
+    # Last visit:  18-Oct-2026
+    # Last reproduced:  18-Oct-2026 (3 of 5 to 1e-5, 2 more to 1e-3)
     # Last successful:  01-Sep-2026 -- step1 -14.57132546, step2 -14.61403156 Ha, w_ref 0.90451, 2p at
     #                   2.5276 / 2.5289 a.u., 22.0 s.  See the 01-Sep survey below.
     #
@@ -127,8 +128,8 @@ elseif  false
     wb = generate(wa, output=true)
     #
 elseif  false
-    # Last visit:  01-Sep-2026
-    # Last reproduced:  16-Oct-2026 (3 of 3 numbers on the claim line)
+    # Last visit:  18-Oct-2026
+    # Last reproduced:  18-Oct-2026 (3 of 3 to 1e-5)
     # Last successful:  01-Sep-2026 -- -14.570964036 / -14.605737784 / -14.616949323 Ha, total 0.6 s.
     #                   FASTER THAN THE EOL ROUTE BY A FACTOR OF THIRTY, as this branch expects -- and, less
     #                   expectedly, 2.2 mHa LOWER than it on the same three layers.  A field that optimizes a

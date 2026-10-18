@@ -43,6 +43,7 @@ elseif  false
     wb = perform(wa)
     #
 elseif  false
+    # Last visit:  18-Oct-2026
     # Last successful:  10-Aug-2026
     # Branch c: Ge II (Z=32) 4s^2 4f (2)F_5/2,7/2, the paper's own single-f-electron test case (their label
     #   "4s^2 4f^2" cannot literally mean two f-electrons -- equivalent f^2 gives only singlet/triplet terms,

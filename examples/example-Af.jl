@@ -30,6 +30,7 @@ if  false
     ## plot(grid.r, ww.Zr)
     #
 elseif  true
+    # Last visit:  18-Oct-2026 (NEEDS PyPlot, WHICH IS NOT A JAC DEPENDENCY)
     # Last successful:  unknown 
     # Generate ...
     phases1 = Float64[];   phases2 = Float64[];   phases3 = Float64[];   phases4 = Float64[];   

@@ -248,6 +248,7 @@ elseif  false
     perform(wa2)
     #
 elseif  true
+    # Last visit:  18-Oct-2026 (TIMED OUT at 500 s)
     # Last successful:  13-Oct-2026
     # Branch g: Sc (Z=21) K-shell hole, "1s 2s^2 2p^6 3s^2 3p^6 3d^1 4s^2" (20 electrons; neutral Sc
     #   [Ar]3d^1 4s^2 minus one 1s electron) -- a SECOND literature comparison point alongside Ca/branch b and

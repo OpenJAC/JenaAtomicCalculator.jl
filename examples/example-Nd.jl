@@ -115,6 +115,7 @@ elseif  false
     #
 elseif  false
     #
+    # Last visit:  18-Oct-2026
     # Last successful:  17-Jul-2026
     # Branch 4: Empirical.forbiddenExcitationCrossSection/PlasmaAlpha(..., ConstantCollisionStrength()) --
     #   electron-impact excitation of an optically forbidden (M1 or E2) transition via a constant, order-unity

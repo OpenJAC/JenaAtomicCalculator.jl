@@ -66,8 +66,12 @@ elseif true
 	SFIData2        = StrongField.perform(SFIComp2, output=true)
 
 elseif true
+    # Last visit:  18-Oct-2026 (NEEDS AN EARLIER BRANCH OF THIS FILE)
     # Last successful:  unknown ...
-    # Export data and plots
+    # Export data and plots.  `SFIComp`, `SFIComp2`, `SFIData` and `SFIData2` are all produced by the earlier
+    # branch of this file; without them this branch died on an UndefVarError naming only the first of them.
+    if  !@isdefined(SFIComp)   error("Run the earlier branch of this file first; it defines "         *
+                                     "SFIComp, SFIComp2, SFIData and SFIData2.")   end
     StrongField.exportData([SFIComp,SFIComp2], [SFIData,SFIData2], "example-Ic")
     StrongField.plot([SFIComp,SFIComp2], [SFIData,SFIData2], "omega", "linear", "example-Ic")
 end

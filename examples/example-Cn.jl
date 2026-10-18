@@ -11,6 +11,7 @@ println("    than hiding it.")
 using Printf
 
 if  true
+    # Last visit:  18-Oct-2026
     # Last successful:  21-Aug-2026
     #   [PROVENANCE: produced on Julia 1.10.9, with a Manifest re-resolved for 1.10 because the checkout's Manifest had been
     #    resolved under 1.12.6 on the maintainer machine.  Re-run there to confirm.]
@@ -96,6 +97,7 @@ if  true
     setDefaults("print summary: close", "")
     #
 elseif  false
+    # Last visit:  18-Oct-2026
     # Last successful:  21-Aug-2026
     #   [PROVENANCE: as branch a.]
     # Branch b: DOES THE SUM CONVERGE?  This is the branch that decides whether a number may be quoted at all, and it is
@@ -205,6 +207,7 @@ elseif  false
     setDefaults("print summary: close", "")
     #
 elseif  false
+    # Last visit:  18-Oct-2026
     # Last successful:  21-Aug-2026
     #   [PROVENANCE: as branch a.]
     # Branch d: WHY R IS PRINTED AS UNCONVERGED, AND WHAT THAT DOES AND DOES NOT MEAN.  Schiff's theorem says that the

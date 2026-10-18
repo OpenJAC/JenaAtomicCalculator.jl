@@ -2,6 +2,8 @@
 println("Ac) Apply & test the CI part for open-shell multiplets of increasing complexity, without Breit interaction.")
 
 if  false
+    # Last visit:  18-Oct-2026
+    # Last reproduced:  18-Oct-2026 (1 of 2 to 1e-5, 1 more to 1e-3)
     # Last successful:  31-Aug-2026: E1 = -54.414213603268 Ha, nlev=5.
     #   THE NUMBER MOVED BY 1.43 mHa FROM THE 28-Jul-2026 VALUE OF -54.412785002103, AND THAT IS NOT A
     #   REGRESSION. Bisected 31-Aug over the 469 commits since: the shift is `4cc94eb` (15-Aug-2026), "The
@@ -33,6 +35,7 @@ if  false
     println(">> [Branch 1] CI-only (isolated re-diagonalization) took $(round(time()-t1, digits=3)) s,  lowest level energy = $(mp2.levels[1].energy)")
 
 elseif  false
+    # Last visit:  18-Oct-2026
     # Last successful:  28-Jul-2026: E1 = -54.406266419642 Ha, nlev=34. CI-only (isolated) timing:
     # 0.685 s BEFORE the caching fix -> 0.401 s AFTER (1.71x speedup, bit-identical energy).
     # Branch 2: N I + one correlating layer -- reference 2p^3 plus single/double excitations represented
@@ -79,6 +82,7 @@ elseif  false
     println(">> [Branch 3] CI-only (isolated re-diagonalization) took $(round(time()-t1, digits=3)) s,  lowest level energy = $(mp2.levels[1].energy)")
 
 elseif  true
+    # Last visit:  18-Oct-2026
     # Last successful:  28-Jul-2026: E1 = -74.960229746756 Ha, nlev=139. CI-only (isolated) timing:
     # 2.017 s BEFORE the caching fix -> 0.939 s AFTER (2.15x speedup -- the LARGEST of the four branches,
     # confirming the predicted pattern that speedup grows with block count: 1.37x (3 blocks) -> 1.71x

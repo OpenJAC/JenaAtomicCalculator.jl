@@ -40,6 +40,7 @@ elseif  false
     wb = perform(wa)
     #
 elseif  false
+    # Last visit:  18-Oct-2026
     # Last successful:  18-Aug-2026
     # Branch d: FOUR open shells -- exercises LSjj.GeneralOpenShells(4); no prior hand-derived code
     #   exists for this shell count, so this is the first-ever 4-open-shell jj-LS transformation in JAC.

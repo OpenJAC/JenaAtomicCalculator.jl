@@ -19,6 +19,7 @@ if  false
     wb = generate(wa, output=true)
     #
 elseif true
+    # Last visit:  18-Oct-2026
     # Last successful:  unknown ...
     # Test example for MS "Approximate atomic Green functions" in molecules (2021)
     name            = "Approximate Green function for neon-like ions."

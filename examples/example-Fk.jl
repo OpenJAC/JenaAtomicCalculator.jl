@@ -140,6 +140,7 @@ if  true
     setDefaults("print summary: close", "")
     #
 elseif  false
+    # Last visit:  18-Oct-2026
     # Last successful:  09-Aug-2026
     #
     # b) kappa_exp(lambda) at kilonova conditions:  t_exp = 1 day, T = 5000 K, rho = 1.5e-13 g/cm^3.
@@ -242,6 +243,7 @@ elseif  false
     setDefaults("print summary: close", "")
     #
 elseif  false
+    # Last visit:  18-Oct-2026
     # Last successful:  09-Aug-2026
     #
     # d) The two parameters a light-curve model varies: the expansion time and the temperature.

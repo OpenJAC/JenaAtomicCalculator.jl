@@ -218,7 +218,7 @@ elseif  false
     wb = perform(wa; output=true)
     #
 elseif  false
-    # Last visit:      22-Aug-2026
+    # Last visit:  18-Oct-2026
     # Last successful:  unknown ... see the report below.
     #
     # Branch c (HERMITICITY -- a check that constrains a PHASE): the Raman amplitude for i --> f is compared with

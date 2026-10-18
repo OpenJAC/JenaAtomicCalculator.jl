@@ -22,6 +22,7 @@ elseif  false
     computeLevelEnergies(Basics.ForGivenConfigs(), configs)
     #
 elseif  false
+    # Last visit:  18-Oct-2026
     # Last successful:  26Jun2026
     # Level energies for several low-lying configurations of neutral oxygen (open-shell case).
     setDefaults("nuclear: charge", 8.0)
@@ -39,6 +40,7 @@ elseif  false
                          plotfile="isoelectronic-he-like.pdf")
     #
 elseif  true
+    # Last visit:  18-Oct-2026
     # Last successful:  27Jun2026
     # Li-like isoelectronic sequence Z=6..14: configuration-averaged energies of 1s^2 2s and 1s 2p^2.
     # Shows the 2s-2p energy splitting and its Z-dependence across C^3+ ... Si^11+.

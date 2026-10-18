@@ -86,6 +86,7 @@ elseif  false
     #
 elseif  false
     #
+    # Last visit:  18-Oct-2026
     # Last successful:  24-Jul-2026
     # Branch 3: DR vs. RR -- the physical motivation for implementing DR at all. Same capture channel,
     #   Fe XXV (He-like) + e -> Fe XXIV (Li-like, ground state), computed two independent ways:

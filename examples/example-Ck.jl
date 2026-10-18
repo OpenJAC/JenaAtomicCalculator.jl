@@ -69,6 +69,7 @@ if  true
     setDefaults("print summary: close", "")
     #
 elseif  false
+    # Last visit:  18-Oct-2026
     # Last successful:  28-Jul-2026 (illustrative only, see caveats below -- not a literature match)
     # Branch b: real published crystal geometry, illustrative magnitude check (NOT a reproduction of
     #   Table 1). The 6-nearest-neighbor Er2O3 lattice below is transcribed verbatim (charge, distance
@@ -146,6 +147,7 @@ elseif  false
     setDefaults("print summary: close", "")
     #
 elseif  false
+    # Last visit:  18-Oct-2026
     # Last successful:  29-Jul-2026
     # Branch c: test the two new features suggested by a re-read of Uldry, Vernay & Delley, Phys.
     #   Rev. B 85, 125133 (2012) -- CrystalField.characteristicSplitting (their CXS, Sec. II F) and
@@ -290,6 +292,7 @@ elseif  false
     setDefaults("print summary: close", "")
     #
 elseif  false
+    # Last visit:  18-Oct-2026
     # Last successful:  22-Aug-2026
     #   [PROVENANCE: as branch d.]
     # Branch e: CHARGE COMPENSATION, which is where the inhomogeneous broadening actually comes from.

@@ -74,7 +74,7 @@ elseif true
     wa       = RacahAlgebra.evaluate(leftCsq, rightCsq)
     #
 elseif true
-    # Last visit:  16-Oct-2026 (TIMED OUT at 500 s)
+    # Last visit:  18-Oct-2026 (TIMED OUT at 500 s)
     # Last successful:  unknown ...
     # Compute 
     leftCsq  = RacahAlgebra.Csq( RacahAlgebra.Csq( RacahAlgebra.Csq(j1,j2,j9),j3,j10), 

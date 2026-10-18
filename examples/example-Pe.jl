@@ -5,7 +5,7 @@ setDefaults("print summary: open", "zzz-PhotonScattering.sum")
 setDefaults("unit: energy", "eV")
 
 if  true
-    # Last visit:      16-Oct-2026
+    # Last visit:  18-Oct-2026
     # Last successful:  unknown ... see the report below.
     #
     # Branch a (THE VORTEX NODE, and the plane-wave limit): Rayleigh scattering of a Bessel beam at beryllium-like

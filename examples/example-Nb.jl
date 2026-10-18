@@ -37,6 +37,7 @@ if  false
     #
 elseif  false
     #
+    # Last visit:  18-Oct-2026
     # Last successful:  15-Jul-2026
     # Branch 2: Empirical.photoemissionEinsteinA(iConf, fConf, UsingJAC()) --
     #   mean-field computation for the transition energy and E1/M1 rate.
@@ -56,6 +57,8 @@ elseif  false
     setDefaults("print summary: close", "")
     #
 elseif  false
+    # Last visit:  18-Oct-2026
+    # Last reproduced:  18-Oct-2026 (1 of 1 to 1e-5)
     #
     # Last successful:  15-Jul-2026
     # Branch 3: Empirical.photoexcitationPlasmaRatePerIon and photodeexcitationPlasmaRatePerIon --

@@ -158,6 +158,7 @@ elseif false
     perform(comp)
     #
 elseif false
+    # Last visit:  18-Oct-2026
     # Last successful:  1-Aug-2026
     # Compute transition probabilities among low-lying levels of He-like Si^12+ ions
     # Test: Lifetimes of various helium- and lithium-like ions; cf. Figure 8.1 in section 8.1.a
@@ -182,6 +183,7 @@ elseif false
     wb = @time( perform(wa) )
     #
 elseif false
+    # Last visit:  18-Oct-2026
     # Last successful:  1-Aug-2026
     # Compute transition probabilities among low-lying levels of Li-like Mg^9+ ions
     # Test: Lifetimes for lithium-like ions; cf. Figure 8.1 in section 8.1.a
@@ -206,7 +208,7 @@ elseif false
     wb = @time( perform(wa) )
     #
 elseif true
-    # Last visit:  18-Aug-2026
+    # Last visit:  18-Oct-2026
     # Last successful:  18-Aug-2026
     # THE QUALITY INDICATORS, on a case chosen so that the two of them disagree.
     #

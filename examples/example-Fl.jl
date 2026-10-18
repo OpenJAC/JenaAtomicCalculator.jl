@@ -220,6 +220,7 @@ elseif  false
     #
 
 elseif  false
+    # Last visit:  18-Oct-2026 (NEEDS AN EARLIER BRANCH OF THIS FILE)
     # Last successful:  23-Aug-2026
     #   [PROVENANCE: as branch a.]
     #   P(double Auger) = 0.06245 for neon with 2s and 2p passive, and the self-projection limit came out at

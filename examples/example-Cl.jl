@@ -2,7 +2,8 @@
 println("Cl) Apply & test the StarkShift module with ASF from an internally generated multiplet.")
 
 if  false
-    # Last visit:  16-Oct-2026 -- RUNS (exit 0) after the box was matched, and CANNOT BE DATED.
+    # Last visit:  18-Oct-2026
+    # 16-Oct-2026: RUNS (exit 0) after the box was matched, and CANNOT BE DATED.
     #   H(1s) with np perturbers, n = 2..5: alpha_0 = 2.0699 a.u. in both gauges against the EXACT 4.5,
     #   i.e. 46 % of the right answer. alpha_2 = 0.0 exactly, correct for J = 1/2. This is the known
     #   MultipolePolarizibility shortfall, not a fault of this branch: the module is blocked on the
@@ -78,7 +79,7 @@ elseif false
     end
     #
 elseif false
-    # Last visit:  16-Oct-2026
+    # Last visit:  18-Oct-2026
     # Last successful:  unknown ... -- RUNS (exit 0) and is the CLEAREST demonstration of why this file
     #   cannot be dated. Ba 6s8s: alpha_0 = 13098 and 15075 a.u. against the branch's own quoted literature
     #   (van Leeuwen & Hogervorst 1984, Table 1) of 4.68 and 5.68 a.u. -- too large by a factor of about

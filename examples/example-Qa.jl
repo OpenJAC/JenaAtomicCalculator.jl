@@ -126,7 +126,7 @@ elseif  false
     setDefaults("print summary: close", "")
     #
 elseif  false
-    # Last visit:      25-Aug-2026
+    # Last visit:  18-Oct-2026
     # Last successful: 25-Aug-2026
     #
     # Branch c: THE OTHER SCREENING -- what the MUON does to the ELECTRONS.  A muonic atom is chemically almost

@@ -51,7 +51,7 @@ if true
 	finalLevel       = AtomicData[ResultKeys.Multiplet].levels[1]
 
 elseif true
-    # Last visit:  16-Oct-2026 (RAISED -- see the sweep record)
+    # Last visit:  18-Oct-2026 (NEEDS AN EARLIER BRANCH OF THIS FILE)
     # Last successful:  unknown ...
     # Perform the StrongField computation
 	if  !@isdefined(nuclearModel)   error("Run the earlier branch of this file first; it defines "     *
@@ -62,6 +62,7 @@ elseif true
 	SFIData          = StrongField.perform(SFIComp, output=true)
 
 elseif true
+    # Last visit:  18-Oct-2026 (NEEDS AN EARLIER BRANCH OF THIS FILE)
     # Last successful:  unknown ...
     # Export the data and plots
 	if  !@isdefined(nuclearModel)   error("Run the earlier branch of this file first; it defines "     *

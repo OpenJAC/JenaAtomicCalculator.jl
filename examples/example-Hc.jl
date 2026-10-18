@@ -152,6 +152,7 @@ elseif  false
     #
 elseif  false
     #
+    # Last visit:  18-Oct-2026
     # Last successful:  15-Jul-2026
     # Branch 6: EstimateBindingEnergyNist2025 -- successive ionization potentials from NIST (2025).
     # New physics compared to Branches 1-5: valence and successive IPs, covering Z=1..90.

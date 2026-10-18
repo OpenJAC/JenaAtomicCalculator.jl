@@ -237,7 +237,8 @@ elseif  false
     setDefaults("print summary: close", "")
     #
 elseif  false
-    # Last visit:      08-Aug-2026 ... the empirical side alone, seconds.  alpha^EA for Li-like C [cm^3/s]:
+    # Last visit:  18-Oct-2026 (NEEDS AN EARLIER BRANCH OF THIS FILE)
+    # 08-Aug-2026 ... the empirical side alone, seconds.  alpha^EA for Li-like C [cm^3/s]:
     #                      1.0e+06 K   (kT =   86 eV)   2.2406e-11
     #                      3.0e+06 K   (kT =  259 eV)   1.5966e-10
     #                      1.0e+07 K   (kT =  862 eV)   2.8943e-10

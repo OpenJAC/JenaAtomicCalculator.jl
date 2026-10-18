@@ -123,7 +123,7 @@ if  true
     setDefaults("print summary: close", "")
     #
 elseif  false
-    # Last visit:      07-Aug-2026
+    # Last visit:  18-Oct-2026
     # Last successful: 07-Aug-2026 ... alpha^RR = 6.08e-14, 2.46e-14, 7.66e-15 cm^3/s at 1e6, 3e6, 1e7 K, i.e.
     #                  falling as T^-0.90 against the empirical T^-1.14.  Before the two bug fixes this path
     #                  raised a FieldError, then returned exactly zero; with asymptotic Coulomb it returned
@@ -223,7 +223,7 @@ elseif  false
     setDefaults("print summary: close", "")
     #
 elseif  false
-    # Last visit:      07-Aug-2026
+    # Last visit:  18-Oct-2026
     # Last successful: 07-Aug-2026 ... ~38 s.  Ratios 13.6, 18.0 and 23.7 at 1e6, 3e6 and 1e7 K.  This is the
     #                  branch that first exposed the flat temperature dependence and then confirmed the
     #                  Galerkin fix; the residual offset matches the one already documented in example-Dd.jl.

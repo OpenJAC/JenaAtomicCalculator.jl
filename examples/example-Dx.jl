@@ -169,7 +169,8 @@ elseif  false
     setDefaults("print summary: close", "")
     #
 elseif  false
-    # Last reproduced:  16-Oct-2026 (1 of 1 numbers on the claim line)
+    # Last visit:  18-Oct-2026
+    # Last reproduced:  18-Oct-2026 (1 of 1 to 1e-5)
     # Last successful:  20-Aug-2026
     #   [PROVENANCE: as branch a.]
     # Branch c: THE INTERFERENCE ITSELF, Li-like Fe23+ across one KLL resonance.  Both terms on, scanning the electron

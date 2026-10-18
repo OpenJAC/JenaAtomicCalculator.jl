@@ -5,6 +5,7 @@ setDefaults("print summary: open", "zzz-saha-boltzmann.sum")
 
 
 if  false
+    # Last visit:  18-Oct-2026
     # Last successful:  18-Jul-2026
     # Compute the Saha-Boltzmann equilibrium densities for a mixture of Carbon ions, restricted to the highest
     # charge states q = 4:6 (bare through He-like), NoExcitations = 1, upperShellNo = 4 -- a light, fast case to
@@ -76,6 +77,8 @@ elseif  false
     wb          = perform(wa, output=true)
 
 elseif  true
+    # Last visit:  18-Oct-2026
+    # Last reproduced:  18-Oct-2026 (1 of 6 to 1e-5, 2 more to 1e-3;  3 are NIST ionization energies, not results)
     # Last successful:  18-Jul-2026
     # Branch 3: same carbon mixture, q = 2:6, but at T = 50 eV instead of 200 eV -- chosen (via NIST/CODATA
     # sequential ionization energies for carbon: 11.26, 24.38, 47.89, 64.49, 392.09, 489.99 eV) to sit between

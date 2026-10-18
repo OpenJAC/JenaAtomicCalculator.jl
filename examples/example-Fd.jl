@@ -105,7 +105,7 @@ grid = Radial.Grid(Radial.Grid(false); rnt = 4.0e-6, h = 5.0e-2, hp = 0.6e-2, rb
 
 
 if  true
-    # Last visit:      23-Aug-2026
+    # Last visit:  18-Oct-2026
     # Last successful: 23-Aug-2026
     #
     # REPORT (23-Aug-2026, Galerkin): 5 lines, total 18.148 Mb (Coulomb) / 13.686 Mb (Babushkin), i.e. a

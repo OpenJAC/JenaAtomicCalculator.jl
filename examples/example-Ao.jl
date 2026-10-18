@@ -124,7 +124,8 @@ if  true
                   [Configuration("1s^2 2s^2"), Configuration("1s^2 2p^2")], grid)
     #
 elseif  false
-    # Last visit:  01-Sep-2026
+    # Last visit:  18-Oct-2026
+    # Last reproduced:  18-Oct-2026 (2 of 3 to 1e-5;  the third is EOL-AL, a difference of two near-equal totals)
     # Last successful:  01-Sep-2026 -- AL -34.74190845, EOL -34.74192244, EOL-AL -1.399e-05 Ha,
     #                   worst same-kappa overlap 2.8e-10 (the three-orbital kappa = -1 block).
     #
@@ -150,9 +151,18 @@ elseif  false
                   [Configuration("1s^2 2s^2 2p^6 3s^2 3p"), Configuration("1s^2 2s^2 2p^6 3p^3")], grid)
     #
 elseif  false
-    # Last visit:  01-Sep-2026
+    # Last visit:  18-Oct-2026
     # Last successful:  01-Sep-2026 -- AL -288.66105540, EOL -288.66499124, EOL-AL -0.00393584 Ha,
     #                   mixing +0.9745 +0.1826 (AL) against +0.9740 +0.1835 (EOL); 26 s and 45 s.
+    #
+    # 18-Oct-2026: THE AL SIDE OF THIS CLAIM IS AN INVARIANT AND THE EOL SIDE IS NOT, which is worth knowing
+    # before reading the gain as a result. AL came back bit-identical today (-288.66105540, +0.9745 +0.1826).
+    # EOL came back -288.66401063 at +0.9734 +0.1869, so the gain was -0.00295523 Ha rather than -0.00393584 --
+    # a quarter less, while the EOL TOTAL agrees to 3.4e-06 relative. The rotation route finds a STATIONARY
+    # POINT, not the minimum, and its energy is start-dependent at 0.05-0.57 mHa (measured 10-Sep-2026); the
+    # second-order stepping shipped since then moves it again. So the gain is reproducible only to ~1 mHa and
+    # should not be compared to six digits. The branch's CONCLUSION -- that EOL binds its own target level
+    # better than AL -- is unaffected, and that is what this branch exists to show.
     #
     # d) Mg-like Si^2+, [Ne] 3s^2 + [Ne] 3p^2.  Branch (a) again, now with a real Ne core beneath it: the
     #    same closed-valence competition, and with the old solver the same collapse (0.1825 -> -0.0000) and
