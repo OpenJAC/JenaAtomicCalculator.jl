@@ -276,7 +276,8 @@ aMod(a, ta) = -sqrt(Basics.subshell_2j(a) + 1.0) * AM.CL_reduced_me(ta, 1, a) / 
 # ==========================================================================================================
 function runCoupledCase(label::String, grid, prim, orbs, pot, shells, occ, uncRef::Float64,
                         refValue::Float64, refName::String; showOperator::Bool=true,
-                        projectShells::Union{Nothing,Array{Subshell,1}}=nothing, selfMode::Symbol=:partners)
+                        projectShells::Union{Nothing,Array{Subshell,1}}=nothing, selfMode::Symbol=:partners,
+                        exchangeSign::Float64=0.0)
     # the set that blocks Pauli-forbidden components is not always the ACTIVE set:  for alpha_core of Ba+ the
     # 6s valence is occupied and must block the s channels, while not itself being an active core subshell.
     proj  = isnothing(projectShells) ? shells : projectShells
@@ -306,9 +307,18 @@ function runCoupledCase(label::String, grid, prim, orbs, pot, shells, occ, uncRe
     # (a -> t_a) applies to the projected potential.  Everything else -- the Poisson step, the B-spline
     # projection, the Pauli projection, the grid, the orbitals, the GMRES -- is shared, so a difference
     # between two (wFun, aFun) pairs is a difference in the angular algebra and in nothing else.
-    function rebuild(gs, wFun::Function, aFun::Function)
+    # `xSign` adds `RandomPhase.exchangeSourceVector`, which is written in THIS normalisation (receiving
+    # coefficient 1, channel function g) because its coefficient was derived as the ratio to
+    # ME(t_a, m_ta, L, q, a, m_a) -- the same object the drive is proportional to.  It is therefore added to
+    # the m-RESOLVED pair only;  the module-convention pair carries aFun != 1 and mixing the two would be the
+    # very normalisation error this file exists to find.  xSign is +-1 because the chi-convention minus that
+    # the direct term carries explicitly (wMres) cannot be read off the exchange assembly -- see CASE J.
+    function rebuild(gs, wFun::Function, aFun::Function, xSign::Float64)
         out = zeros(length(chans)*msz)
         gP  = Dict( ch => projectPauli(gs[ch], ch[2], orbs, proj, grid)   for ch in chans )
+        xChis = xSign == 0.0 ? nothing :
+                Dict( ch => DalgarnoLewis.PerturbedOrbital(ch[2], ch[1], E1, Basics.Babushkin, 0.0,
+                            orbs[ch[1]].energy, gP[ch].P, gP[ch].Q, 0.0)   for ch in chans )
         for  (k, ch)  in  enumerate(chans)
             aSub = ch[1];   rho = zeros(grid.NoPoints);   mtp = 1
             for  ch2  in  chans
@@ -335,6 +345,11 @@ function runCoupledCase(label::String, grid, prim, orbs, pot, shells, occ, uncRe
             end
             VindZr = [ -RI.Yk_ab(1, grid.r[i], rho, mtp, grid)   for i = 1:grid.NoPoints ]
             out[(k-1)*msz+1 : k*msz] = aFun(aSub, ch[2]) * RP.inducedSourceVector(VindZr, orbs[aSub], prim)
+            if  !isnothing(xChis)
+                out[(k-1)*msz+1 : k*msz] = out[(k-1)*msz+1 : k*msz] + xSign *
+                    RP.exchangeSourceVector(E1, orbs, xChis, aSub, ch[2], grid, prim; occupations=occ,
+                                            maxRank=8)
+            end
         end
         return( out )
     end
@@ -364,16 +379,16 @@ function runCoupledCase(label::String, grid, prim, orbs, pot, shells, occ, uncRe
 
     # (ii) the two coupled solves.  The map is affine, F(s) = b + M s, so b = F(0) and (I - M) s = b;  the
     #      iteration's spectral radius is above one here, which is why this is a GMRES solve and not a sweep.
-    function coupled(wFun::Function, aFun::Function)
-        b0 = rebuild(gs0, wFun, aFun)
-        applyA(s) = s - (rebuild(solveAll(s), wFun, aFun) - b0)
-        sStar, nKry, relRes = RP.gmres(applyA, b0, 20, 1.0e-8)
+    function coupled(wFun::Function, aFun::Function, xSign::Float64)
+        b0 = rebuild(gs0, wFun, aFun, xSign)
+        applyA(s) = s - (rebuild(solveAll(s), wFun, aFun, xSign) - b0)
+        sStar, nKry, relRes = RP.gmres(applyA, b0, xSign == 0.0 ? 20 : 30, 1.0e-8)
         return( solveAll(sStar), nKry, relRes )
     end
-    gsMres, nkM, rrM = coupled(wMres, aMres)
+    gsMres, nkM, rrM = coupled(wMres, aMres, exchangeSign)
     aScr, perScr = alphaFrom(gsMres)
     @printf(">> m-RESOLVED  GMRES:  %d Krylov steps, relative residual %.2e\n", nkM, rrM)
-    gsMod, nkD, rrD = coupled(wMod, aMod)
+    gsMod, nkD, rrD = coupled(wMod, aMod, 0.0)
     aModTot, perMod = alphaFrom(gsMod)
     @printf(">> MODULE      GMRES:  %d Krylov steps, relative residual %.2e\n", nkD, rrD)
 
@@ -804,4 +819,99 @@ end
         worstI, nMissing)
 @printf(">> So the MODULE now reproduces the m-resolved coupled response function by function, not merely in\n")
 @printf(">> the total -- which is the end-to-end statement neither route could make before today.\n")
+end
+
+
+# ==========================================================================================================
+# CASE J -- ITEM 75's OWN SCOPE: HOW BIG IS EXCHANGE?  Sized, not built.
+#
+# `RandomPhase.exchangeSourceVector` and `exchangeAngularCoefficient` are in `src/` and verified (970
+# informative cases per term, worst 1.11e-16, validated out of sample) but deliberately UNWIRED.  What the
+# item asks is whether wiring them is worth it, and that is a question about SIZE, which costs one source
+# rebuild rather than a coupled solve.
+#
+# **WHY THIS IS DONE IN THE HARNESS AND NOT IN THE MODULE, which is a normalisation argument and not a
+# preference.**  `exchangeSourceVector`'s coefficient was derived m-RESOLVED, as the ratio of the m-resolved
+# exchange source to ME(t_a, m_ta, L, q, a, m_a) -- the same object the DRIVE is proportional to.  So the
+# function is written in the normalisation where the receiving coefficient is 1 and the channel function is
+# g, i.e. THIS harness's, not the module's chi = s_a g.  Wiring it into `solve` therefore needs a per-partner
+# rescale by s_a/s_b, and that is precisely the kind of invisible factor this item exists to stop.  Size it
+# first, in the normalisation it was derived in, and wire it only if the size justifies the bookkeeping.
+#
+# **AND THE SELF TERM IS KEPT IN FULL, because that is what exchange is for:** in a proper RPAE the direct
+# term runs over all N_b electrons, self included, and the spurious self-interaction is cancelled by exchange
+# rather than by hand.  Removing it on the direct side as well would remove it twice.
+#
+# **WHAT IS NOT ANCHORED HERE, SAID PLAINLY: the overall SIGN.**  Both terms are linear in chi_b, exactly as
+# the direct term is, so both carry the same factor for JAC's chi convention -- and on the direct side that
+# factor is a MINUS, fixed by the exact alpha(H 1s) = 4.5 (CASE A) and not by inspection.  Whether
+# `exchangeSourceVector` already contains it cannot be read off its assembly, so BOTH signs are reported and
+# the physics decides: exchange must OPPOSE the direct induced field, hence reduce screening and RAISE alpha.
+# A size is quoted as |exchange| / |direct| and is sign-independent;  only the alpha columns depend on it.
+# ==========================================================================================================
+@printf("\n=== CASE J -- the size of the exchange source against the direct one, Ne at lam* ===\n")
+chansJ = Tuple{Subshell,Subshell}[]
+for  a  in  shellsNe
+    for  t  in  RP.reachableChannels(1, a)   push!(chansJ, (a, t))   end
+end
+gJ = Dict( ch => projectPauli(chiUnit(ch[1], ch[2], orbsNe, potNe, prim, grid), ch[2], orbsNe, shellsNe, grid)
+           for ch in chansJ )
+# the SAME functions, packaged as PerturbedOrbitals, which is what `exchangeSourceVector` takes
+chisJ = Dict( ch => DalgarnoLewis.PerturbedOrbital(ch[2], ch[1], E1, Basics.Babushkin, 0.0,
+                      orbsNe[ch[1]].energy, gJ[ch].P, gJ[ch].Q, 0.0)   for ch in chansJ )
+@printf("%-10s %-10s %14s %14s %10s %12s\n", "a", "t_a", "|direct|", "|exchange|", "ratio", "cos(angle)")
+sumD = 0.0;  sumX = 0.0
+tJ = @elapsed for  ch  in  chansJ
+    aSub = ch[1];   rho = zeros(grid.NoPoints);   mtp = 1
+    for  ch2  in  chansJ
+        b = ch2[1];   tb = ch2[2];   nb = occNe[b];   jb2 = Basics.subshell_2j(b)
+        w = wMres(b, tb) * nb / (jb2 + 1.0)         # self term kept IN FULL -- exchange is what cancels it
+        w == 0.0   &&   continue
+        ob = orbsNe[b];   g = gJ[ch2]
+        mtpB = min(length(ob.P), length(g.P), length(ob.Q), length(g.Q))
+        for  i = 1:mtpB   rho[i] = rho[i] + w * 2.0 * (ob.P[i]*g.P[i] + ob.Q[i]*g.Q[i])   end
+        mtp = max(mtp, mtpB)
+    end
+    VindJ = [ -RI.Yk_ab(1, grid.r[i], rho, mtp, grid)   for i = 1:grid.NoPoints ]
+    sD = RP.inducedSourceVector(VindJ, orbsNe[aSub], prim)
+    sX = RP.exchangeSourceVector(E1, orbsNe, chisJ, aSub, ch[2], grid, prim; occupations=occNe, maxRank=8)
+    nD = sqrt(sum(sD.^2));   nX = sqrt(sum(sX.^2))
+    cosA = nD*nX > 0.0 ? sum(sD .* sX)/(nD*nX) : 0.0
+    @printf("%-10s %-10s %14.6e %14.6e %10.4f %12.5f\n", string(aSub), string(ch[2]), nD, nX, nX/nD, cosA)
+    global sumD = sumD + nD^2;   global sumX = sumX + nX^2
+end
+@printf(">> over all %d channels:  |exchange|/|direct| = %.4f in norm,  one rebuild took %.1f s\n",
+        length(chansJ), sqrt(sumX/sumD), tJ)
+@printf(">> cos(angle) says whether exchange opposes the direct source channel by channel;  a value near -1\n")
+@printf(">> means the two nearly cancel there, near +1 that they reinforce AT THE SIGN `exchangeSourceVector`\n")
+@printf(">> returns -- which is the sign this case does NOT anchor.\n")
+
+
+# ==========================================================================================================
+# CASE K -- WHAT EXCHANGE DOES TO THE NUMBER, Ne, both signs, against the direct-only result.
+#
+# CASE J measured the SIZE and it is 0.84 of the direct term in norm -- so this is not a correction and the
+# alpha it produces is not a refinement of the direct-only one.  Three runs, ONE variable:
+#
+#   exchange OFF   the direct-only result with the self term kept IN FULL (not (N-1)/N), which is the
+#                  reference exchange has to be compared against -- removing the self term by hand and then
+#                  adding exchange would remove it twice
+#   exchange -1    the sign for which exchange OPPOSES the direct induced source, i.e. REDUCES screening and
+#                  RAISES alpha, which is what exchange must do
+#   exchange +1    the sign `RandomPhase.exchangeSourceVector` returns as written
+#
+# The physics picks the sign and says so out loud: at +1 CASE J measured cos(direct, exchange) POSITIVE on
+# eight of nine channels, i.e. exchange would ADD to the screening, which is wrong.  That is consistent with
+# the chi-convention minus being absent from the assembly -- the direct term carries it explicitly in
+# `wMres`, fixed by the exact alpha(H 1s) = 4.5, and both terms are linear in chi_b so both need it.
+# ==========================================================================================================
+if  "exch" in ARGS
+for  xs  in  (0.0, -1.0, 1.0)
+    @printf("\n--- exchange %s ---\n", xs == 0.0 ? "OFF (direct only, self term in full)" :
+            xs < 0.0 ? "ON, sign -1 (opposes the direct source)" : "ON, sign +1 (as the function returns)")
+    runCoupledCase("CASE K -- Ne at lam*, exchange $(xs)", grid, prim, orbsNe, potNe, shellsNe, occNe, 0.0,
+                   2.669, "the measured alpha(Ne)"; showOperator=false, selfMode=:full, exchangeSign=xs)
+end
+else
+    println("\n(CASE K -- exchange on/off -- skipped;  pass \"exch\" to run it.)")
 end
