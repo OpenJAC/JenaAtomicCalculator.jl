@@ -220,6 +220,28 @@ function  computeLines(scheme::TwoPhotonEmissionScheme, finalMultiplet::Multiple
     printstyled("------------------------------------------------------------------------------------------------------- \n", color=:light_green)
     println("")
     lines = MultiPhotonTransition.determineLines_2pEmission(finalMultiplet, initialMultiplet, settings)
+    # THE Z GUARD, AND IT IS NOT SUPPRESSIBLE -- measured 15-Oct-2026, priority item 66;  the table and the
+    # full measurement are at `MultiPhotonTransition.computeReducedAmplitudeEmission` below.  This route is a
+    # SUM OVER A CONFIGURATION-BASED INTERMEDIATE SPECTRUM, and that spectrum cannot be made adequate at high
+    # Z:  for H-like Ar17+ 2s -> 1s, where the exact answer is known, the gauge ratio DIVERGES as states are
+    # added (1.063 -> 4.009 over n_max 10 -> 100), Babushkin moves AWAY from exact, and two boxes disagree by
+    # 2.5x at the same n_max -- while the identical route at Z = 1 reaches 8.22902 against 8.22906 in BOTH
+    # gauges.  So this is not a truncation more states would cure, and a high-Z number from here must not be
+    # quoted.  The transition ENERGY is the guard's variable rather than Z, because Z is not carried here and
+    # the energy is what makes a transition "high Z":  the hydrogenic 2s -> 1s interval is 0.375 Z^2 Ha, so
+    # 2 Ha is about Z = 2.3.  Intermediate Z has never been measured with a CONVERGED basis, which is why the
+    # warning says "untested" there rather than pretending to a threshold.
+    maxEnergy = isempty(lines) ? 0.0 : maximum(l.initialLevel.energy - l.finalLevel.energy  for l in lines)
+    if  maxEnergy > 2.0
+        @warn("MultiPhotonTransition.computeLines(::TwoPhotonEmissionScheme): the largest transition energy " *
+              "is $(round(maxEnergy, digits=3)) Ha, i.e. a hydrogenic equivalent of about Z = " *
+              "$(round(sqrt(maxEnergy/0.375), digits=1)).  THIS ROUTE IS MEASURED SOUND AT Z = 1 AND MEASURED " *
+              "TO FAIL AT Z = 18, with the gauge ratio diverging as intermediate states are added;  " *
+              "intermediate Z has never been tested with a converged basis.  Check the two gauges against " *
+              "each other before quoting anything, and for a transition with ONE active electron use " *
+              "DalgarnoLewis.twoPhotonAmplitude instead, which is gauge-invariant and box-independent at " *
+              "Z = 18.  See the measured table at computeReducedAmplitudeEmission.", maxlog=1)
+    end
     # Display all selected lines before the computations start
     if  settings.printBefore    MultiPhotonTransition.displayLines_2pEmission(lines)    end
     # OVERVIEW MODE: rank the intermediate levels and stop before any amplitude is formed
