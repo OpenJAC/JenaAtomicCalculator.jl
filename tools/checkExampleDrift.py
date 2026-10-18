@@ -29,6 +29,15 @@ HENCE THE THREE RULES THIS TOOL IS BUILT ON:
      does not.
   3. **A LAST-DIGIT DIFFERENCE IS NOT DRIFT.**  5.28415 against 5.28416 is the same number rebuilt, so the
      closest printed number and the relative difference are always shown and the reader judges the margin.
+  4. **A RELATIVE WINDOW HIDES A MOVE IN A SMALL DIFFERENCE, so the ABSOLUTE difference is shown too.**  Found
+     on the 18-Oct-2026 sweep, and it is the one way this tool can report REPRODUCED about a claim that has in
+     fact moved.  `example-Ao.jl` branch at line 152 quotes an EOL total of -288.66499124 Ha and got
+     -288.66401063 -- 3.4e-06 relative, so REPRODUCED -- but the claim's own subject is the EOL-AL GAIN, and
+     that gain fell from -0.00393584 to -0.00295523 Ha, a quarter of itself.  Both numbers are near 288 and
+     their DIFFERENCE is near 0.003, so no relative test on the totals can see it.  The absolute column shows
+     9.8e-04 Ha and a reader asks the right question.  **Where a claim's subject is a DIFFERENCE of two large
+     numbers, check the difference and not the totals** -- the same rule that says not to subtract large
+     near-equal numbers, read from the other end.
 
 FOUR MEASURED SOURCES OF NOISE, each handled below and each found by running the control:
   * **A PROSE EXPONENT.**  A table writes a column of mantissas and ONE exponent in the words -- "2.212102 /
@@ -112,11 +121,21 @@ def quotedNumbers(path, guardLine, lookahead=80):
     # A BLOCK MAY CARRY SEVERAL DATE LINES -- the control branch holds a stale `Last visit: ... NOT successful`
     # above its live `Last successful`, and taking the first found the stale one.  A `Last successful` therefore
     # beats a `Last visit`, and among equals the LAST one wins, history accumulating above the current claim.
-    claim = []
-    for pattern in (r'Last\s+successful\s*:', r'Last\s+visit\s*:'):
-        hits = [i for i, l in enumerate(block) if re.search(pattern, l)]
+    # AND A DATE LINE READING `unknown` IS NOT A CLAIM.  Measured on the 18-Oct-2026 sweep: two branches were
+    # labelled dated claims they do not make -- `example-Dq.jl` says `Last successful:  unknown ...` and
+    # `example-Cl.jl` says in its `Last visit` line that it CANNOT BE DATED, so in both cases the numbers
+    # harvested came from the literature table below.  Neither produced a finding, but both wasted a reading.
+    # AND ONLY `Last successful` IS A CLAIM.  Rule 7 as rewritten 17-Oct-2026 gives `Last visit` one meaning --
+    # the branch RAN on that date, with no claim at all about the result -- so harvesting numbers from it
+    # contradicts the rule;  `Last reproduced` is this tool's own output and quotes counts, not values.  Where
+    # there is no `Last successful` the whole block is checked, as for any undated branch.
+    claim, claimKind = [], None
+    for pattern, kind in ((r'Last\s+successful\s*:', 'Last successful'),):
+        hits = [i for i, l in enumerate(block)
+                if re.search(pattern, l) and 'unknown' not in l.lower() and 'cannot be dated' not in l.lower()]
         if not hits:
             continue
+        claimKind = kind
         # AND CAP IT.  Where a block carries no bare `#` separator the run-on would swallow the whole thing
         # and then be LABELLED a dated claim, which is worse than not finding one: on `example-Cb.jl` it ate a
         # paper's Dirac-Fock target table.  A dated claim is a line plus a continuation or two.
@@ -183,7 +202,7 @@ def quotedNumbers(path, guardLine, lookahead=80):
 
     dated = harvest(claim) if claim else []
     if dated:
-        return (dated, 'the dated claim on the `Last successful` line')
+        return (dated, f'the dated claim on the `{claimKind}` line')
     return (harvest(block), 'the whole comment block (its date line quotes no number)')
 
 
@@ -280,8 +299,8 @@ def main():
 
     meanCand = sum(len(c) for _, c in quoted) / len(quoted)
     r5, r3   = falseMatchRate(printed, meanCand)
-    print(f"\n{'quoted':>18}  {'read as':>16}  {'closest printed':>18}  {'rel.diff':>10}  verdict")
-    print('-' * 92)
+    print(f"\n{'quoted':>18}  {'read as':>16}  {'closest printed':>18}  {'rel.diff':>10}  {'abs.diff':>11}  verdict")
+    print('-' * 105)
     nRep, nLast, notFound = 0, 0, []
     for s, cand in quoted:
         best, rel, used = None, None, cand[0]
@@ -292,9 +311,11 @@ def main():
         if   rel is not None and rel < REPRODUCED:   verdict = 'REPRODUCED';   nRep  += 1
         elif rel is not None and rel < LASTDIGITS:   verdict = 'last digits';  nLast += 1
         else:                                        verdict = 'NOT FOUND';    notFound.append(s)
+        absd = abs(abs(used) - best) if best is not None else None
         print(f"{s:>18}  {used:>16.6g}  {(('%.6g' % best) if best is not None else '-'):>18}  "
-              f"{('%.2e' % rel) if rel is not None else '-':>10}  {verdict}")
-    print('-' * 92)
+              f"{('%.2e' % rel) if rel is not None else '-':>10}  "
+              f"{('%.3e' % absd) if absd is not None else '-':>11}  {verdict}")
+    print('-' * 105)
     print(f">> REPRODUCED to better than {REPRODUCED:g}:  {nRep} of {len(quoted)}."
           f"   Expected by chance here: {r5 * len(quoted):.1f}"
           f"  (false-match rate {r5:.1%} at {meanCand:.1f} candidate scalings each).")
