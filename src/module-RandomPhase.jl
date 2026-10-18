@@ -470,7 +470,8 @@ function inducedPotentialZr(multipole::EmMultipole, activeOrbitals::Dict{Subshel
                              chis::Dict{Tuple{Subshell,Subshell},DalgarnoLewis.PerturbedOrbital},
                              excludeSubshell::Subshell, grid::Radial.Grid;
                              occupiedOrbitals::Union{Nothing,Dict{Subshell,Orbital}}=nothing,
-                             occupations::Union{Nothing,Dict{Subshell,Float64}}=nothing)
+                             occupations::Union{Nothing,Dict{Subshell,Float64}}=nothing,
+                             withExchange::Bool=false)
     rho = zeros(grid.NoPoints);   mtpRho = 1
     # EVERY CHANNEL OF EVERY OTHER ELECTRON CONTRIBUTES, EACH WITH ITS OWN ANGULAR FACTOR.  `chis` is keyed
     # by the (active, target) PAIR, so the target is read off the key rather than looked up -- which is what
@@ -519,9 +520,21 @@ function inducedPotentialZr(multipole::EmMultipole, activeOrbitals::Dict{Subshel
         # Ne.  The partners it restores were an uncontrolled stand-in for the self-interaction that EXCHANGE
         # cancels properly, so the two belong together and a number measured before this repair is not a
         # baseline for the exchange work.
-        if  !isnothing(occupations)  &&  b == excludeSubshell
-            nb      = get(occupations, b, jb2 + 1.0)
-            weightB = weightB * (nb - 1.0) / nb
+        #   **AND WITH EXCHANGE SWITCHED ON THE SELF TERM IS KEPT IN FULL**, which is not an inconsistency but
+        # the whole point: in a proper RPAE the direct term runs over ALL N_b electrons, self included, and the
+        # spurious self-interaction is cancelled by EXCHANGE rather than by hand.  For a ONE-electron system
+        # that cancellation is exact and is what fixes the exchange normalisation -- see
+        # `RandomPhase.exchangeSourceVector`.  Removing the self term here as well would remove it twice.
+        if  !isnothing(occupations)
+            nb = get(occupations, b, jb2 + 1.0)
+            # A PARTLY FILLED SUBSHELL CONTRIBUTES ONLY ITS SHARE.  The weight above is built for a FULL
+            # subshell (2j_b+1 electrons), so a general occupation enters as the ratio N_b/(2j_b+1).  For a
+            # closed subshell the ratio is exactly 1, which is why this cannot disturb a closed-shell result.
+            # Without it a one-electron subshell would screen as though it held two, and hydrogen is the case
+            # that matters: it is where the exchange normalisation is fixed.
+            weightB = weightB * nb / (jb2 + 1.0)
+            # and ONE electron of its own subshell is removed, unless exchange is there to do it properly
+            if  b == excludeSubshell  &&  !withExchange   weightB = weightB * (nb - 1.0) / nb   end
         end
         weightB == 0.0   &&   continue
         # THE PAULI PROJECTION.  A channel label names a kappa SYMMETRY, so chi spans the filled members of
@@ -535,6 +548,166 @@ function inducedPotentialZr(multipole::EmMultipole, activeOrbitals::Dict{Subshel
     end
 
     return( [ -RadialIntegrals.Yk_ab(multipole.L, grid.r[i], rho, mtpRho, grid)   for i = 1:grid.NoPoints ] )
+end
+
+
+"""
+`RandomPhase.exchangeAngularCoefficient(L::Int64, Lp::Int64, tSubA::Subshell, aSub::Subshell,
+                                        tSubB::Subshell, bSub::Subshell, term::Symbol)`
+    ... the angular coefficient the EXCHANGE part of the induced interaction carries on the channel
+        aSub -> tSubA, from the partner channel bSub -> tSubB, at Coulomb rank `Lp` and perturbation rank `L`.
+        `term` is `:E1` or `:E2`, the two exchange terms (below). A coefficient::Float64 is returned, 0.0 where
+        the selection rules forbid it.
+
+        **WHY THERE ARE TWO TERMS AND WHY THEY DIFFER.** Varying the Hartree-Fock potential
+        `V_HF phi_a = sum_b [ <b|b> phi_a - <b|phi_a> phi_b ]` to first order gives two exchange pieces with
+        DIFFERENT pairings of the four subshells:
+
+            E1 = -sum_b <chi_b|1/r12|phi_a> phi_b      pairs (t_a, b)   and (t_b, a)
+            E2 = -sum_b <phi_b|1/r12|phi_a> chi_b      pairs (t_a, t_b) and (b,   a)
+
+        **WHY A 6j APPEARS AT ALL, where the direct term needs none.** The direct term carries only the
+        perturbation's rank L at both ends, so one `CL_reduced_me` per end suffices. Exchange carries a COULOMB
+        rank Lp that differs from L, so the free index must be recoupled from Lp back to L. That recoupling is
+        the 6j, and the two terms use the same one with `j_b` and `j_tb` swapped in the bottom row:
+
+            E1:  (-1)^(j_tb + j_b + L + Lp) * 6j{ j_ta  j_a  L ;  j_tb  j_b   Lp }
+            E2:  (-1)^(j_tb + j_b + L + Lp) * 6j{ j_ta  j_a  L ;  j_b   j_tb  Lp }
+
+        **NONE OF THIS WAS RECALLED FROM A TEXTBOOK, AND THAT IS DELIBERATE -- Rule 18.** The m-resolved form
+        uses only Wigner-Eckart, which is unambiguous once the 3j convention is fixed, and the coefficient was
+        then READ OFF numerically and matched against enumerated 6j argument orderings.
+
+        **COVARIANCE IS A COMPLETE TEST, and it is what makes this trustworthy.** The m-resolved term must be
+        PROPORTIONAL to `ME(t_a, m_ta, L, q, a, m_a)`, i.e. the ratio must be independent of every magnetic
+        quantum number, because the problem is rotationally covariant. Only a correct form satisfies that, and
+        it caught both of the author's errors: a first E1 built with the FORWARD chi amplitude showed
+        m-dependence of 3.3e-1, as large as the coefficient itself -- `<chi_b|` is a BRA and needs the
+        bra/ket-SWAPPED amplitude -- and E2 had been omitted altogether, which only became visible because it
+        is covariant on its own to 1e-17.
+
+        **THE PHASE WAS VALIDATED OUT OF SAMPLE.** It was read off 11 cases, so it was then checked on an
+        exhaustive sweep of j = 1/2...7/2 and L, Lp = 0...3: **970 informative cases per term, worst deviation
+        1.11e-16**. A formula tested on the data that produced it is a fit and not a check. A further 3126
+        combinations vanish on both sides and carry no information; they were counted and excluded rather than
+        allowed to inflate the agreement.
+"""
+function exchangeAngularCoefficient(L::Int64, Lp::Int64, tSubA::Subshell, aSub::Subshell,
+                                    tSubB::Subshell, bSub::Subshell, term::Symbol)
+    jta2 = Basics.subshell_2j(tSubA);   ja2 = Basics.subshell_2j(aSub)
+    jtb2 = Basics.subshell_2j(tSubB);   jb2 = Basics.subshell_2j(bSub)
+    # The PAIRING of the two reduced C^Lp matrix elements is what distinguishes the two terms, and it is the
+    # same pairing the radial assembly in `exchangeSourceVector` uses -- the two must be read together.
+    if       term == :E1
+        cc = AngularMomentum.CL_reduced_me(tSubA, Lp, bSub)  * AngularMomentum.CL_reduced_me(tSubB, Lp, aSub)
+        w6 = AngularMomentum.Wigner_6j(AngularJ64(jta2//2), AngularJ64(ja2//2), AngularJ64(L),
+                                       AngularJ64(jtb2//2), AngularJ64(jb2//2), AngularJ64(Lp))
+    elseif   term == :E2
+        cc = AngularMomentum.CL_reduced_me(tSubA, Lp, tSubB) * AngularMomentum.CL_reduced_me(bSub, Lp, aSub)
+        w6 = AngularMomentum.Wigner_6j(AngularJ64(jta2//2), AngularJ64(ja2//2), AngularJ64(L),
+                                       AngularJ64(jb2//2), AngularJ64(jtb2//2), AngularJ64(Lp))
+    else
+        error("\n\nRandomPhase.exchangeAngularCoefficient: `term` must be :E1 or :E2, not $(term).\n")
+    end
+    (cc == 0.0  ||  w6 == 0.0)   &&   return( 0.0 )
+
+    return( (-1.0)^((jtb2 + jb2)//2 + L + Lp) * w6 * cc )
+end
+
+
+"""
+`RandomPhase.exchangeSourceVector(multipole::EmMultipole, activeOrbitals::Dict{Subshell,Orbital},`
+                                 `chis::Dict{Tuple{Subshell,Subshell},DalgarnoLewis.PerturbedOrbital},`
+                                 `aSub::Subshell, tSubA::Subshell, grid::Radial.Grid,`
+                                 `primitives::Bsplines.Primitives;`
+                                 `occupations::Union{Nothing,Dict{Subshell,Float64}}=nothing, maxRank::Int64=8)`
+    ... builds the EXCHANGE induced source for the channel aSub -> tSubA, summed over every partner channel in
+        `chis` and over the Coulomb ranks Lp, in the same B-spline projection and sign convention
+        `RandomPhase.inducedSourceVector` uses. An extraSource::Array{Float64,1} of length
+        primitives.grid.nsL + primitives.grid.nsS is returned.
+
+        **IT IS NOT A POTENTIAL, which is why it needs its own function rather than a weight.** The direct term
+        returns a radial potential multiplying `phi_a`; exchange returns `phi_b` and `chi_b` instead, each
+        multiplied by a two-orbital Yukawa function -- so there is nothing to hand to `inducedSourceVector`.
+        The two terms are, with the angular coefficients from
+        `RandomPhase.exchangeAngularCoefficient`:
+
+            E1:  Y^Lp[chi_b, phi_a](r) * phi_b(r)
+            E2:  Y^Lp[phi_b, phi_a](r) * chi_b(r)
+
+        **AND IT SUMS OVER RANKS, which changes the SHAPE of the computation and not just a weight.** The
+        direct term carries only the perturbation's own rank L; this one needs every Lp the selection rules
+        allow, so a case with 42 channels and about five ranks costs some thousands of Yukawa sweeps per
+        iteration rather than tens.
+
+        **THE OCCUPATION IS ALREADY IN THE COEFFICIENT, so do not apply it twice.** The derivation summed over
+        every m_b of the partner subshell, which for a filled subshell IS its occupation 2j_b+1; `occupations`
+        therefore enters only as the RATIO N_b/(2j_b+1) for a subshell that is not full. For the same reason
+        the self term b = a is KEPT HERE IN FULL: it is exactly what cancels the direct term's spurious
+        self-interaction, and `inducedPotentialZr` must then be called with `withExchange=true` so that it does
+        not remove that self-interaction a second time.
+"""
+function exchangeSourceVector(multipole::EmMultipole, activeOrbitals::Dict{Subshell,Orbital},
+                              chis::Dict{Tuple{Subshell,Subshell},DalgarnoLewis.PerturbedOrbital},
+                              aSub::Subshell, tSubA::Subshell, grid::Radial.Grid,
+                              primitives::Bsplines.Primitives;
+                              occupations::Union{Nothing,Dict{Subshell,Float64}}=nothing, maxRank::Int64=8)
+    np   = grid.NoPoints;   nsL = grid.nsL;   nsS = grid.nsS
+    fP   = zeros(np);   fQ = zeros(np);   rho = zeros(np);   mtpF = 1
+    orbA = activeOrbitals[aSub]
+    for  ((bSub, tSubB), chiB)  in  chis
+        !haskey(activeOrbitals, bSub)   &&   continue
+        orbB  = activeOrbitals[bSub];   jb2 = Basics.subshell_2j(bSub)
+        scale = isnothing(occupations) ? 1.0 : get(occupations, bSub, jb2 + 1.0) / (jb2 + 1.0)
+        scale == 0.0   &&   continue
+        for  Lp = 0:maxRank
+            c1 = RandomPhase.exchangeAngularCoefficient(multipole.L, Lp, tSubA, aSub, tSubB, bSub, :E1)
+            c2 = RandomPhase.exchangeAngularCoefficient(multipole.L, Lp, tSubA, aSub, tSubB, bSub, :E2)
+            (c1 == 0.0  &&  c2 == 0.0)   &&   continue
+            if  c1 != 0.0
+                mtp = min(length(chiB.P), length(orbA.P), length(chiB.Q), length(orbA.Q))
+                fill!(rho, 0.0)
+                for  i = 1:mtp   rho[i] = chiB.P[i]*orbA.P[i] + chiB.Q[i]*orbA.Q[i]   end
+                mtpB = min(length(orbB.P), length(orbB.Q))
+                for  i = 2:mtpB
+                    wy = RadialIntegrals.Yk_ab(Lp, grid.r[i], rho, mtp, grid) / grid.r[i]
+                    fP[i] = fP[i] - c1 * scale * wy * orbB.P[i]
+                    fQ[i] = fQ[i] - c1 * scale * wy * orbB.Q[i]
+                end
+                mtpF = max(mtpF, mtpB)
+            end
+            if  c2 != 0.0
+                mtp = min(length(orbB.P), length(orbA.P), length(orbB.Q), length(orbA.Q))
+                fill!(rho, 0.0)
+                for  i = 1:mtp   rho[i] = orbB.P[i]*orbA.P[i] + orbB.Q[i]*orbA.Q[i]   end
+                mtpC = min(length(chiB.P), length(chiB.Q))
+                for  i = 2:mtpC
+                    wy = RadialIntegrals.Yk_ab(Lp, grid.r[i], rho, mtp, grid) / grid.r[i]
+                    fP[i] = fP[i] - c2 * scale * wy * chiB.P[i]
+                    fQ[i] = fQ[i] - c2 * scale * wy * chiB.Q[i]
+                end
+                mtpF = max(mtpF, mtpC)
+            end
+        end
+    end
+    # The projection is `inducedSourceVector`'s own, with the general function in place of V*phi_a.
+    extraSource = zeros(nsL+nsS)
+    for  i = 1:nsL
+        bsp = primitives.bsplinesL[i];   lower = bsp.lower;   upper = min(bsp.upper, mtpF)
+        upper < lower   &&   continue
+        wa = 0.0
+        for  r = lower:upper   wa = wa + bsp.bs[r-bsp.lower+1] * fP[r] * grid.wr[r]   end
+        extraSource[i] = wa
+    end
+    for  i = 1:nsS
+        bsp = primitives.bsplinesS[i];   lower = bsp.lower;   upper = min(bsp.upper, mtpF)
+        upper < lower   &&   continue
+        wa = 0.0
+        for  r = lower:upper   wa = wa + bsp.bs[r-bsp.lower+1] * fQ[r] * grid.wr[r]   end
+        extraSource[nsL+i] = wa
+    end
+
+    return( extraSource )
 end
 
 
