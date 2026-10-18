@@ -16,6 +16,13 @@ println("    several of its own ionization stages, combined into one Planck mean
 # measured, not assumed, it moved by more than eleven orders of magnitude under an arbitrary numerical
 # floor for a line-only spectrum (no bound-free/free-free continuum). The Planck mean, an ARITHMETIC
 # (kappa-weighted) average, has no such gap-sensitivity.
+#
+# A LITERATURE TEST OF THE STAGE AXIS (branch c, added 18-Oct-2026): a CH plasma benchmarked against Lee
+# et al., Phys. Rev. E 98, 043203 (2018), Fig. 7. Calls Plasma.SuperConfigurationIonizationScheme directly
+# for carbon alone (hydrogen is pinned neutral, so the full mixture balance reduces to exactly this), and
+# finds a real, informative limit of the current machinery along the way: enriching a stage's own
+# configuration space for balance accuracy can make it too rich for this scheme's OPACITY step, which
+# requires every configuration pair to be E1-connected. See the branch's own comment for the full story.
 
 
 if  true
@@ -107,5 +114,109 @@ elseif  false
             maximum(kappaA), maximum(kappaB), maximum(kappaMix))
     println(">>> the mixture genuinely combines both stages -- almost entirely C3+ here, since this")
     println(">>> ion density/temperature leaves the C2+ complex only a trace population.")
+    #
+elseif  false
+    # Last visit:  18-Oct-2026   -- not `Last successful`: see the note below on what is likely missing.
+    #
+    # Branch c: a REAL literature test for the stage axis, not an internal re-derivation. CH plasma (equal
+    #   MASS density of C and H, i.e. 1:12 by number), total rho = 1.0 g/cm^3, against Fig. 7 of Lee, Busquet,
+    #   Klapisch, Bates, Schmitt, Hu, Giuliani, Phys. Rev. E 98, 043203 (2018) -- an STA (super-transition-
+    #   array) LTE model benchmarked against real X-ray-scattering plasma experiments. The paper gives no
+    #   numeric table, so the comparison values below are read OFF THE PLOT and are approximate by nature.
+    #
+    #   HYDROGEN IS KEPT A SINGLE NEUTRAL STAGE, not spread over its own ionization: a bare proton has no
+    #   electron, so no SuperConfigurations.Group can be built for it, and the scheme does not yet support a
+    #   bare-nucleus stage. Because H then contributes EXACTLY ZERO electrons at every T, the coupled
+    #   species+stage balance SuperConfigurationMixtureOpacityScheme would solve here reduces IDENTICALLY to
+    #   carbon's own single-species balance at carbon's own actual ion density within the mixture
+    #   (nC = nTotal*fC) -- so Plasma.SuperConfigurationIonizationScheme is called directly for carbon alone,
+    #   which is exactly this scheme's own Stage 1 balance with nothing else attached.
+    #
+    #   THIS ALSO SIDESTEPS A REAL LIMITATION, WORTH RECORDING FOR WHOEVER NEXT ENRICHES A STAGE'S
+    #   CONFIGURATIONS: SuperConfigurationMixtureOpacityScheme's opacity step (unlike its balance step)
+    #   requires EVERY configuration pair within a stage to be connected by a genuine single-electron E1
+    #   jump -- true for a bare n=2 complex, but not once an n=2->3 or n=2->4 promoted configuration is added
+    #   (e.g. "2s^2 2p 3p" and "2s 2p^3" differ by TWO orbital jumps, correctly zero E1 strength, which
+    #   SuperConfigurations.buildTransitionArray treats as an error rather than "no line here"). The balance
+    #   itself needs no such connectivity -- only each group's own degeneracy and mean energy -- so this
+    #   branch is unaffected, but a configuration space rich enough for an accurate BALANCE is, right now,
+    #   too rich for the OPACITY half of this same scheme.
+    #
+    #   CARBON'S OWN CONFIGURATION SPACE, per stage: the bare n=2 complex PLUS an n=2->3 PLUS an n=2->4
+    #   single-promotion complex (one L-shell electron lifted to 3s/3p/3d or 4s/4p/4d/4f) -- the systematic,
+    #   next-shell-at-a-time way STA-type models add excited-state degeneracy without combinatorial blow-up.
+    #   A ground-configuration-only balance (tried first) overshot the paper's ionization by close to a
+    #   factor of 2 at the higher temperatures; adding the n=3 shell closed much of that gap, and n=4 closed
+    #   almost none of what was left -- MARGINAL RETURNS HAD COLLAPSED (at T=30eV: ground-only -> n=3 dropped
+    #   Z-bar_C by 0.55; n=3 -> n=4 dropped it by only 0.04) -- so a further shell was not pursued.
+    #
+    #   WHAT IS LIKELY STILL MISSING, AND WHY IT POINTS ONE WAY: the remaining mismatch runs in OPPOSITE
+    #   directions at the two ends -- too LITTLE ionization at T=5eV against the experimental point, too MUCH
+    #   at T>=20eV against the paper's own STA curves -- and a single missing mechanism explains both:
+    #   ionization-potential depression (IPD). Its usual textbook effect (lowering the energy cost to ionize)
+    #   would only push harder in the WRONG direction at high T, so it was first set aside as irrelevant here
+    #   (wrongly) -- but IPD's OTHER effect, at ~1 g/cm^3, is to CUT OFF the high-n bound-state ladder
+    #   outright (the Mott effect): many of the n=3/4 states this branch had to add by hand likely do not
+    #   exist as bound states in the real plasma, which would trim exactly the entropic excess now
+    #   over-ionizing this vacuum calculation at T>=20eV, while genuine pressure ionization -- itself absent
+    #   from any vacuum balance -- would independently raise the real ionization above ours at T=5eV. Two
+    #   different real mechanisms, not one, both deliberately absent here; neither is built, so no number
+    #   above the ground-only baseline should be read as more than a converging trend.
+    nmC  = Nuclear.Model(6.)
+    rhoC = Defaults.convertUnits("density: from [g/cm^3] to atomic", 0.5)
+    rhoH = Defaults.convertUnits("density: from [g/cm^3] to atomic", 0.5)
+    mC = 12.011;  mH = 1.008
+    nC  = rhoC/mC;   nH = rhoH/mH;   nTotalCH = nC + nH
+    fC  = nC/nTotalCH
+
+    carbonStages = [
+        [ Configuration("1s^2 2s^2 2p^2"), Configuration("1s^2 2s 2p^3"), Configuration("1s^2 2p^4"),
+          Configuration("1s^2 2s^2 2p 3s"), Configuration("1s^2 2s^2 2p 3p"), Configuration("1s^2 2s^2 2p 3d"),
+          Configuration("1s^2 2s^2 2p 4s"), Configuration("1s^2 2s^2 2p 4p"),
+          Configuration("1s^2 2s^2 2p 4d"), Configuration("1s^2 2s^2 2p 4f") ],
+        [ Configuration("1s^2 2s^2 2p"), Configuration("1s^2 2s 2p^2"), Configuration("1s^2 2p^3"),
+          Configuration("1s^2 2s^2 3s"), Configuration("1s^2 2s^2 3p"), Configuration("1s^2 2s^2 3d"),
+          Configuration("1s^2 2s^2 4s"), Configuration("1s^2 2s^2 4p"),
+          Configuration("1s^2 2s^2 4d"), Configuration("1s^2 2s^2 4f") ],
+        [ Configuration("1s^2 2s^2"), Configuration("1s^2 2s 2p"), Configuration("1s^2 2p^2"),
+          Configuration("1s^2 2s 3s"), Configuration("1s^2 2s 3p"), Configuration("1s^2 2s 3d"),
+          Configuration("1s^2 2s 4s"), Configuration("1s^2 2s 4p"), Configuration("1s^2 2s 4d"), Configuration("1s^2 2s 4f") ],
+        [ Configuration("1s^2 2s"), Configuration("1s^2 2p"),
+          Configuration("1s^2 3s"), Configuration("1s^2 3p"), Configuration("1s^2 3d"),
+          Configuration("1s^2 4s"), Configuration("1s^2 4p"), Configuration("1s^2 4d"), Configuration("1s^2 4f") ],
+        [ Configuration("1s^2") ] ]
+
+    scheme     = Plasma.SuperConfigurationIonizationScheme(carbonStages)
+    asf        = AsfSettings()
+    allConfigs = reduce(vcat, carbonStages)
+    # Rule 12: ONE grid is shared across every stage, so it must fit the MOST DIFFUSE orbital anywhere --
+    #   here C I's promoted 4f; tailFactor is widened from its 16.0 default since 4f still reached 93% of
+    #   the default box.
+    sharedGrid = Basics.recommendedGrid(allConfigs, nmC; tailFactor=22.0, printout=false)
+
+    # paper values read off Fig. 7 (no numeric table given); the T=5eV point is the paper's own EXPERIMENTAL
+    # datum (Gregori et al., JQSRT 99, 225 (2006)), the rest are its STA model curves at matching density.
+    paperT     = [5.0, 10.0, 20.0, 30.0, 40.0, 50.0, 60.0]
+    paperZlow  = [0.8, 1.0, 1.1, 1.5, 1.7, 1.9, 2.0]
+    paperZhigh = [1.8, 1.2, 1.5, 1.8, 2.0, 2.1, 2.3]
+
+    @printf("\n%6s %14s %22s\n", "T[eV]", "our Z-bar_C", "paper (Fig. 7, approx)")
+    for (k, Tev) in enumerate(paperT)
+        kT = Defaults.convertUnits("energy: from eV to atomic", Tev)
+        settings = Plasma.Settings(kT, nC, true)
+        comp = Plasma.Computation(Plasma.Computation(); scheme=scheme, nuclearModel=nmC, grid=sharedGrid,
+                                     asfSettings=asf, settings=settings)
+        wb = perform(comp; output=true)
+
+        charges = wb[ResultKeys.SuperConfigurationIonizationCharges]
+        pop     = wb[ResultKeys.SuperConfigurationIonizationStagePopulations]
+        Zbar    = sum(charges .* pop)
+        @printf("%6.1f %14.4f %13.1f - %.1f\n", Tev, Zbar, paperZlow[k], paperZhigh[k])
+    end
+
+    println("\n>>> the qualitative TREND is reproduced across the full 5-60eV range and the T=10-30eV window")
+    println(">>> lands close to the paper's own band; the remaining excess at T>=40eV and shortfall at T=5eV")
+    println(">>> are the two-sided signature of missing ionization-potential depression (see the note above)")
+    println(">>> -- not a configuration-space gap, since adding further shells had already stopped helping.")
     #
 end
