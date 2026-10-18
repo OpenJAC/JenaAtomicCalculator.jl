@@ -274,7 +274,11 @@ aMod(a, ta) = -sqrt(Basics.subshell_2j(a) + 1.0) * AM.CL_reduced_me(ta, 1, a) / 
 # A tuple (alpha_uncoupled, alpha_mResolved, alpha_moduleConvention) is returned.
 # ==========================================================================================================
 function runCoupledCase(label::String, grid, prim, orbs, pot, shells, occ, uncRef::Float64,
-                        refValue::Float64, refName::String; showOperator::Bool=true)
+                        refValue::Float64, refName::String; showOperator::Bool=true,
+                        projectShells::Union{Nothing,Array{Subshell,1}}=nothing, selfMode::Symbol=:partners)
+    # the set that blocks Pauli-forbidden components is not always the ACTIVE set:  for alpha_core of Ba+ the
+    # 6s valence is occupied and must block the s channels, while not itself being an active core subshell.
+    proj  = isnothing(projectShells) ? shells : projectShells
     chans = Tuple{Subshell,Subshell}[]
     for  a  in  shells
         (!haskey(orbs, a) || orbs[a].energy >= 0.0)   &&   continue
@@ -303,7 +307,7 @@ function runCoupledCase(label::String, grid, prim, orbs, pot, shells, occ, uncRe
     # between two (wFun, aFun) pairs is a difference in the angular algebra and in nothing else.
     function rebuild(gs, wFun::Function, aFun::Function)
         out = zeros(length(chans)*msz)
-        gP  = Dict( ch => projectPauli(gs[ch], ch[2], orbs, shells, grid)   for ch in chans )
+        gP  = Dict( ch => projectPauli(gs[ch], ch[2], orbs, proj, grid)   for ch in chans )
         for  (k, ch)  in  enumerate(chans)
             aSub = ch[1];   rho = zeros(grid.NoPoints);   mtp = 1
             for  ch2  in  chans
@@ -313,7 +317,15 @@ function runCoupledCase(label::String, grid, prim, orbs, pot, shells, occ, uncRe
                 # which is what (N-1)/N is:  the substate's own share of its subshell's L = 1 density is
                 # exactly 1/N of it only after averaging over m, so both routes make the same approximation
                 # here and the comparison between them is unaffected by it.
-                b == aSub   &&   (w = w * (nb - 1.0) / nb)
+                # :partners is the current module -- an electron is screened by its (N-1) subshell partners.
+                # :skip is what `inducedPotentialZr` did BEFORE the 17-Oct-2026 repair, and item 73's Ba+
+                # number predates that repair, so reproducing it needs this option.
+                if  b == aSub
+                    selfMode == :skip   &&   continue
+                    # :full keeps the whole subshell, self-interaction included -- which a proper RPAE does,
+                    # because EXCHANGE cancels it;  without exchange it is spurious and OVER-screens.
+                    selfMode == :partners   &&   (w = w * (nb - 1.0) / nb)
+                end
                 w == 0.0   &&   continue
                 g = gP[ch2];   ob = orbs[b]
                 mtpB = min(length(ob.P), length(g.P), length(ob.Q), length(g.Q))
@@ -330,7 +342,7 @@ function runCoupledCase(label::String, grid, prim, orbs, pot, shells, occ, uncRe
         tot = 0.0;   per = Dict{Tuple{Subshell,Subshell},Float64}()
         for  ch  in  chans
             aSub = ch[1];   tSub = ch[2];   ja = Basics.subshell_2j(aSub)//2
-            gPp  = projectPauli(gs[ch], tSub, orbs, shells, grid)
+            gPp  = projectPauli(gs[ch], tSub, orbs, proj, grid)
             rU   = RI.rkDiagonal(1, orbs[aSub], gPp, grid)
             a    = 0.0
             for  m  in  -ja:1//1:ja   a = a + 2.0 * meM(aSub, tSub, m) * meM(tSub, aSub, m) * rU   end
@@ -555,3 +567,61 @@ end
         worstMod)
 @printf(">>              sqrt(2j_a+1) in magnitude:  THE SAME POTENTIAL GETS TWO DIFFERENT MATRIX ELEMENTS,\n")
 @printf(">>              which is a defect and not a convention, and it sits at the RECEIVING end.\n")
+
+
+# ==========================================================================================================
+# CASE G -- ITEM 75, STEP 3's GAP CLOSED.  Ba+ ON ITEM 73's OWN SETUP, RECONSTRUCTED FROM ITS FINGERPRINT.
+#
+# Item 73's grid and mean field were never recorded, so its alpha_core(Ba+) = 9.944 against the published RPA
+# 10.6(5) could not be used to test anything.  They were recovered by scanning against the three per-shell
+# numbers the item DOES record -- 5p_3/2 12.34, 5p_1/2 4.93, 4d 0.86, total 18.1598 -- and the match is
+# [Xe] 6s, DFS, on a dense grid, using THE SCF BASIS'S OWN ORBITALS:
+#     tot 18.1339 (-0.1 %)   5p_3/2 12.3164 (-0.2 %)   5p_1/2 4.9197 (-0.2 %)   4d 0.8564 (-0.4 %)
+#
+# TWO NEGATIVES WORTH KEEPING FROM THAT SCAN, because each kills a plausible explanation:
+#   * THE BOX IS NOT THE VARIABLE.  rbox = 20, 25, 30 and 40 at hp = 2e-2 give IDENTICAL numbers to four
+#     decimals, and `recommendedGrid`'s far sparser basis agrees to 0.09 %.  So nothing here was grid-limited.
+#   * WHAT THE VARIABLE IS: whether the orbitals are the SCF's own or REGENERATED in a frozen DFS potential
+#     built from that same basis.  Those are not the same orbitals -- the potential is not the operator whose
+#     eigenstates they are -- and the difference is **9.6 % on alpha_core** (19.909 against 18.134).  Item 75
+#     already records the violent form of this for AL/EOL orbitals;  this is the mild DFS form of it, and it
+#     is large enough to swamp a 5.7 % convention difference, which is exactly why step 2c could not arbitrate.
+# ==========================================================================================================
+if  "ba73"  in  ARGS
+gridB3 = Radial.Grid(Radial.Grid(false), rnt = 2.0e-6, h = 5.0e-2, hp = 2.0e-2, rbox = 25.0)
+primB3 = Bsplines.generatePrimitives(gridB3)
+nmB3   = Nuclear.Model(56.0)
+coreB3 = [ Subshell("1s_1/2"), Subshell("2s_1/2"), Subshell("2p_1/2"), Subshell("2p_3/2"),
+           Subshell("3s_1/2"), Subshell("3p_1/2"), Subshell("3p_3/2"), Subshell("3d_3/2"), Subshell("3d_5/2"),
+           Subshell("4s_1/2"), Subshell("4p_1/2"), Subshell("4p_3/2"), Subshell("4d_3/2"), Subshell("4d_5/2"),
+           Subshell("5s_1/2"), Subshell("5p_1/2"), Subshell("5p_3/2") ]
+asfB3  = AsfSettings(AsfSettings(); scField = Basics.DFSField(), gridStopper = false)
+mpB3   = redirect_stdout(devnull) do
+    SelfConsistent.performSCF([Configuration("[Xe] 6s")], nmB3, gridB3, asfB3; printout=false)
+end
+potB3  = Basics.add( Nuclear.nuclearPotential(nmB3, gridB3),
+                     Basics.computePotential(Basics.DFSField(), gridB3, mpB3.levels[1].basis) )
+orbsB3 = Dict{Subshell,Orbital}()
+for  (k, v)  in  mpB3.levels[1].basis.orbitals   orbsB3[k] = v   end
+occB3  = Dict( sh => Float64(Basics.subshell_2j(sh) + 1)   for sh in coreB3 )
+projB3 = vcat(coreB3, [Subshell("6s_1/2")])
+@printf("\n=== CASE G:  Ba+ on item 73's reconstructed setup -- SCF basis orbitals, rbox %.2f, %d points ===\n",
+        gridB3.r[gridB3.NoPoints], gridB3.NoPoints)
+@printf("   eps(5p_3/2) = %+.6f,  eps(5p_1/2) = %+.6f,  eps(6s_1/2) = %+.6f\n",
+        orbsB3[Subshell("5p_3/2")].energy, orbsB3[Subshell("5p_1/2")].energy,
+        orbsB3[Subshell("6s_1/2")].energy)
+smList = [ Symbol(a)  for a in ARGS  if a in ["partners", "skip", "full"] ]
+isempty(smList)  &&  (smList = [:partners, :skip, :full])
+for  sm  in  smList
+    @printf("\n--- self term: %s %s---\n", sm,
+            sm == :skip ? "(the whole source subshell skipped, as `inducedPotentialZr` did before 17-Oct) " :
+            sm == :full ? "(the self term kept IN FULL -- spurious without exchange, over-screens) " :
+                          "(the (N-1) partners screen, the current module) ")
+    runCoupledCase("CASE G -- Ba+ [Xe] core, item 73's setup", gridB3, primB3, orbsB3, potB3, coreB3, occB3,
+                   18.1598, 10.6, "the published RPA alpha_core(Ba+)"; showOperator=false,
+                   projectShells=projB3, selfMode=sm)
+end
+@printf(">> THE EMULATION CONTROL: one of the two module-convention columns should land near item 73's 9.944.\n")
+else
+    println("\n(CASE G -- Ba+ on item 73's setup -- skipped;  pass \"ba73\" to run it.)")
+end
