@@ -289,6 +289,100 @@ end
 
 
 """
+`Plasma.resonanceTransitionArrays(groupsPerStage::Array, flags::Array{Array{Bool,1},1}, orbitalsPerStage::Array,
+                                    nm::Nuclear.Model, gridPerStage::Array, settings::AsfSettings)`
+    ... for every stage but the last, builds a `SuperConfigurations.TransitionArray` (typed loosely here for
+        the SAME include-order reason `superConfigurationsModule()` exists for, see
+        `module-Plasma-inc-superconfiguration-opacity.jl`) from that stage's OWN ground group -- the group of
+        LOWEST `meanEnergy`, the configuration a plasma actually populates -- to every OTHER group
+        `Plasma.classifyResonantGroups` flagged RESONANT. Ground and resonance are the SAME electron count,
+        built from the SAME stage SCF, so no cross-stage energy-scale assumption enters here the way it does
+        in `classifyResonantGroups` itself.
+
+        **THIS IS A BOUND-BOUND E1 ARRAY, EXACTLY `SuperConfigurationOpacityScheme`'s OWN STAGE 2** -- a
+        photoionization resonance is REACHED by ordinary photoabsorption from the ground configuration into a
+        doubly-excited state embedded in the continuum, and only DECAYS via a separate channel (autoionization
+        into the adjacent, more-ionized stage) that this function does not touch. So what is built here is the
+        resonance's own absorption strength (its `gf`, exactly as Stage 2 already defines it), not yet its
+        width or line shape -- see `Plasma.classifyResonantGroups`'s own docstring for what step is still
+        missing before either exists. A ground-to-resonance pair of the SAME parity is not a genuine E1 array
+        and is SKIPPED, not an error, the same convention `SuperConfigurationOpacityScheme.perform`'s own
+        Stage 2 already uses; so is a stage whose own GROUND group was itself flagged resonant, since an array
+        from a group to itself is not meaningful.
+
+        Returns `(arrays::Array, groupIndices::Array{Tuple{Int64,Int64},1})`: `arrays[k]` is the
+        TransitionArray built for the resonant group at stage `groupIndices[k][1]`, index `groupIndices[k][2]`
+        within that stage's own `groupsPerStage` entry -- a flagged group skipped for either reason above has
+        NO entry in either array.
+"""
+function  resonanceTransitionArrays(groupsPerStage::Array, flags::Array{Array{Bool,1},1}, orbitalsPerStage::Array,
+                                       nm::Nuclear.Model, gridPerStage::Array, settings::AsfSettings)
+    nStages = length(groupsPerStage)
+    ( length(flags) == nStages  &&  length(orbitalsPerStage) == nStages  &&  length(gridPerStage) == nStages )   ||
+        error("Plasma.resonanceTransitionArrays(): groupsPerStage, flags, orbitalsPerStage and gridPerStage " *
+              "must all have the same length.")
+    SC = superConfigurationsModule()
+
+    arrays       = Any[]
+    groupIndices = Tuple{Int64,Int64}[]
+    for  i = 1:nStages-1
+        groups = groupsPerStage[i]
+        isempty(groups)   &&   continue
+        groundIdx    = argmin( [ g.meanEnergy   for g in groups ] )
+        groundGroup  = groups[groundIdx]
+        groundParity = Basics.extractFromConfiguration(Basics.GetParity(), groundGroup.conf)
+
+        for  (k, g)  in  enumerate(groups)
+            ( flags[i][k]  &&  k != groundIdx )   ||   continue
+            resParity = Basics.extractFromConfiguration(Basics.GetParity(), g.conf)
+            resParity == groundParity   &&   continue
+
+            ta = SC.buildTransitionArray(g.conf, groundGroup.conf, orbitalsPerStage[i], nm, gridPerStage[i], settings)
+            push!(arrays, ta);   push!(groupIndices, (i, k))
+        end
+    end
+
+    return( (arrays, groupIndices) )
+end
+
+
+"""
+`Plasma.displayResonanceTransitionArrays(stream::IO, arrays::Array, groupIndices::Array{Tuple{Int64,Int64},1},
+                                            gfValues::Array{Float64,1})`
+    ... prints, for every `SuperConfigurations.TransitionArray` `Plasma.resonanceTransitionArrays` built, the
+        stage and group index it belongs to, the initial (ground) and final (resonant) configuration, the
+        mean transition energy, its width (sqrt variance), and the array's own total oscillator-strength sum
+        `gf` -- the SAME `gf = (2/3) * meanEnergy * totalStrength` `SuperConfigurationOpacityScheme`'s own
+        Stage 2 uses. Nothing is returned.
+"""
+function  displayResonanceTransitionArrays(stream::IO, arrays::Array, groupIndices::Array{Tuple{Int64,Int64},1},
+                                              gfValues::Array{Float64,1})
+    println(stream, "\n  Resonant (autoionizing) bound-bound E1 arrays, ground configuration to resonance:\n")
+    println(stream, "  ", TableStrings.hLine(120))
+    sa = "    " * TableStrings.center(14, "Stage, group"; na=2)
+    sa = sa     * TableStrings.center(20, "Initial (ground)"; na=2)
+    sa = sa     * TableStrings.center(20, "Final (resonance)"; na=2)
+    sa = sa     * TableStrings.center(18, "Mean energy [a.u.]"; na=2)
+    sa = sa     * TableStrings.center(16, "Width [a.u.]"; na=2)
+    sa = sa     * TableStrings.center(14, "gf (array)"; na=2)
+    println(stream, sa)
+    println(stream, "  ", TableStrings.hLine(120))
+    for  (ta, (i, k), gf)  in  zip(arrays, groupIndices, gfValues)
+        sa = "    " * TableStrings.center(14, "$i, $k"; na=2)
+        sa = sa     * TableStrings.center(20, string(ta.confInitial); na=2)
+        sa = sa     * TableStrings.center(20, string(ta.confFinal); na=2)
+        sa = sa     * @sprintf("%18.6f", ta.meanEnergy)
+        sa = sa     * @sprintf("%16.6f", sqrt(max(ta.variance, 0.0)))
+        sa = sa     * @sprintf("%14.6f", gf)
+        println(stream, sa)
+    end
+    println(stream, "  ", TableStrings.hLine(120))
+
+    return( nothing )
+end
+
+
+"""
 `Plasma.freeFreeOpacityContribution(chargesPerStage::Array{Int64,1}, stagePopulations::Array{Float64,1},
                                        omegas::Array{Float64,1}, ne::Float64, kT::Float64)`
     ... sums the free-free (inverse-bremsstrahlung) contribution to kappa(omega), for ONE species, over
