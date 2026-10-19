@@ -217,6 +217,78 @@ end
 
 
 """
+`Plasma.classifyResonantGroups(groupsPerStage::Array)`
+    ... classifies every `SuperConfigurations.Group` (typed loosely here for the SAME include-order reason
+        `superConfigurationsModule()` exists for, see `module-Plasma-inc-superconfiguration-opacity.jl`) in
+        every stage but the LAST as BOUND or RESONANT (autoionizing), by comparing its own `meanEnergy`
+        against the GROUND energy of the adjacent, one-electron-more-ionized stage --
+        `minimum(g.meanEnergy for g in groupsPerStage[i+1])`, the SAME stage-to-stage pairing
+        `Plasma.boundFreeOpacityContribution` already uses for its own configuration-level connectivity
+        test. A group whose mean energy EXCEEDS that threshold has, on average, enough energy to
+        autoionize into the adjacent stage's ground level and is flagged `true`; one below it is an
+        ordinary bound excited configuration and is flagged `false`. The LAST stage has no stage above it
+        to compare against and is returned all-`false`, by convention rather than by any physics claim.
+        Classification ALONE: no width, no line profile, and nothing here is wired into any `kappa` -- an
+        `Array{Array{Bool,1},1}` is returned, matching `groupsPerStage`'s own shape.
+
+        **ONE CAVEAT STATED RATHER THAN HIDDEN**, since it bears directly on whether the comparison means
+        anything: `Plasma.perform(::SuperConfigurationMixtureOpacityScheme,...)`'s own Stage 0 builds each
+        stage's groups from an INDEPENDENT SCF, on that stage's OWN grid and orbitals. The comparison here
+        assumes the two stages' absolute energies already sit on a mutually consistent scale -- true for a
+        shared nuclear model and adequately converged orbitals (Rule 12), but NOT independently checked by
+        this function.
+"""
+function  classifyResonantGroups(groupsPerStage::Array)
+    nStages = length(groupsPerStage)
+    flags   = [ zeros(Bool, length(groupsPerStage[i]))   for i = 1:nStages ]
+    for  i = 1:nStages-1
+        isempty(groupsPerStage[i+1])   &&
+            error("Plasma.classifyResonantGroups(): stage $(i+1) has no groups to set a threshold from.")
+        threshold = minimum( g.meanEnergy   for g in groupsPerStage[i+1] )
+        for  (k, g)  in  enumerate(groupsPerStage[i])
+            flags[i][k] = g.meanEnergy > threshold
+        end
+    end
+
+    return( flags )
+end
+
+
+"""
+`Plasma.displayResonantClassification(stream::IO, groupsPerStage::Array, flags::Array{Array{Bool,1},1})`
+    ... prints, for every stage but the last, each of its groups' configuration and mean energy, the
+        adjacent higher stage's own threshold energy, and whether `Plasma.classifyResonantGroups` flagged
+        it bound or resonant. Nothing is returned.
+"""
+function  displayResonantClassification(stream::IO, groupsPerStage::Array, flags::Array{Array{Bool,1},1})
+    println(stream, "\n  Bound/resonant classification of each stage's excited configurations:\n")
+    println(stream, "  ", TableStrings.hLine(100))
+    sa = "    " * TableStrings.center(10, "Stage"; na=2)
+    sa = sa     * TableStrings.center(22, "Configuration"; na=2)
+    sa = sa     * TableStrings.center(18, "Mean energy [a.u.]"; na=2)
+    sa = sa     * TableStrings.center(18, "Threshold [a.u.]"; na=2)
+    sa = sa     * TableStrings.center(14, "Classification"; na=2)
+    println(stream, sa)
+    println(stream, "  ", TableStrings.hLine(100))
+    nStages = length(groupsPerStage)
+    for  i = 1:nStages-1
+        threshold = minimum( g.meanEnergy   for g in groupsPerStage[i+1] )
+        for  (k, g)  in  enumerate(groupsPerStage[i])
+            sa = "    " * @sprintf("%10i", i)
+            sa = sa     * TableStrings.center(22, string(g.conf); na=2)
+            sa = sa     * @sprintf("%18.6f", g.meanEnergy)
+            sa = sa     * @sprintf("%18.6f", threshold)
+            sa = sa     * TableStrings.center(14, flags[i][k] ? "RESONANT" : "bound"; na=2)
+            println(stream, sa)
+        end
+    end
+    println(stream, "  ", TableStrings.hLine(100))
+
+    return( nothing )
+end
+
+
+"""
 `Plasma.freeFreeOpacityContribution(chargesPerStage::Array{Int64,1}, stagePopulations::Array{Float64,1},
                                        omegas::Array{Float64,1}, ne::Float64, kT::Float64)`
     ... sums the free-free (inverse-bremsstrahlung) contribution to kappa(omega), for ONE species, over
