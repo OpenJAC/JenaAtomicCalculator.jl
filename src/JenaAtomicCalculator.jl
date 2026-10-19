@@ -101,7 +101,7 @@ export AbstractComputeTheme, AbstractConfigurationRestriction, AbstractConfigura
        DalgarnoLewis,
        DecayYield, DeepLearning, DefaultQuantizationAxis, Defaults, DeformedFermiNucleus, DiagonalCoulomb, diagonalize,
        DielectronicRecombination,
-       Dierec, displayConfiguration, displayConfigurations, displayCouplings, displaySpectrum, Distribution, Djpq,
+       Dierec, DispersionCoefficient, displayConfiguration, displayConfigurations, displayCouplings, displaySpectrum, Distribution, Djpq,
        DoubleAuger, DoubleAutoIonization,
        E1, E2, E3, E4, Einstein, ElecCapture, ElectronCapture, EmMultipole, Empirical, EmProperty,
        EmPropertyC, estimateCrossSections, evaluate, ExcitationLevel, ExciteElectrons, ExpandShells,
@@ -216,6 +216,7 @@ include("module-FormFactor.jl")
 include("module-ReducedDensityMatrix.jl")
 include("module-AlphaVariation.jl")
 include("module-MultipolePolarizibility.jl")
+include("module-DispersionCoefficient.jl")
 include("module-NuclearShielding.jl")
 include("module-StarkShift.jl")
 include("module-StarkZeeman.jl")
