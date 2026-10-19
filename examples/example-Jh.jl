@@ -23,6 +23,21 @@ println("    several of its own ionization stages, combined into one Planck mean
 # finds a real, informative limit of the current machinery along the way: enriching a stage's own
 # configuration space for balance accuracy can make it too rich for this scheme's OPACITY step, which
 # requires every configuration pair to be E1-connected. See the branch's own comment for the full story.
+#
+# TWO CONTINUUM CONTRIBUTIONS, each on branch b's own C2+/C3+ pair (added 19-Oct-2026, item C20):
+#
+# BOUND-FREE (branch d): `boundFreeApprox = Empirical.ScaledHydrogenic()` adds photoionization between
+# the two adjacent stages, reusing the already-validated Empirical.photoionizationCrossSection. Far out on
+# the line's own exponential tail, where bound-bound has decayed to a literal float64 near-zero, bound-free
+# still supplies a physically meaningful Kramers-type cross section -- the regime that makes the Rosseland
+# mean ill-defined without it (Plasma.rosselandMeanOpacity's own docstring).
+#
+# FREE-FREE (branch e): `freeFreeIncluded = true` adds inverse bremsstrahlung, per stage via its own ion
+# charge -- Karzas & Latter's (1961) classical cross section times Sutherland's (1998) thermally-averaged
+# Gaunt factor. Unlike bound-free, free-free has NO threshold at all, and falls only as a power law
+# (omega^-3, modulated by the Gaunt factor and the stimulated-emission factor) rather than bound-bound's
+# EXPONENTIAL fall past its last line -- so free-free eventually CROSSES OVER and dominates, however tiny
+# it is near a resonance peak.
 
 
 if  true
@@ -218,5 +233,82 @@ elseif  false
     println(">>> lands close to the paper's own band; the remaining excess at T>=40eV and shortfall at T=5eV")
     println(">>> are the two-sided signature of missing ionization-potential depression (see the note above)")
     println(">>> -- not a configuration-space gap, since adding further shells had already stopped helping.")
+    #
+elseif  false
+    # Last successful:  19-Oct-2026   ## at omega = 1.2 Ha: bound-bound 1.5e-15, bound-free 4.1e-7 [a0^2];
+    #                                    Rosseland (bound-bound+bound-free) 9.1e-6 [a0^2]
+    #
+    # Branch d: BOUND-FREE, on branch b's own C2+/C3+ two-stage mixture, now with
+    #   boundFreeApprox = Empirical.ScaledHydrogenic() turned on. CHECK, NEEDING NO EXTERNAL REFERENCE: far
+    #   out on the line's own exponential tail (the LARGEST omega on this grid, 1.2 Hartree), bound-bound
+    #   has decayed to a literal float64 near-zero while bound-free -- a smooth Kramers-type cross section
+    #   with no line shape to decay -- remains eight orders of magnitude larger there. Without bound-free,
+    #   the Rosseland mean is not even well-defined (Plasma.rosselandMeanOpacity's own docstring: it moved
+    #   by more than eleven orders of magnitude under an arbitrary numerical floor for a line-only
+    #   spectrum); with it on, that same mean is a single stable number.
+    nmC    = Nuclear.Model(6.)
+    stageA = [Configuration("2s^2 2p^2"), Configuration("2s 2p^3")]   # 4 electrons (C2+), E1 pair
+    stageB = [Configuration("2s^2 2p"),   Configuration("2s 2p^2")]   # 3 electrons (C3+), E1 pair
+    omegas = collect(0.05:0.05:1.2)
+    kT     = Defaults.convertUnits("energy: from eV to atomic", 15.0)
+
+    schemeBB = Plasma.SuperConfigurationMixtureOpacityScheme([nmC], [[stageA, stageB]], [1.0], omegas)
+    settings = Plasma.Settings(kT, 1.0e-8, true)
+    compBB   = Plasma.Computation(Plasma.Computation(); scheme=schemeBB, nuclearModel=nmC, grid=Radial.Grid(true),
+                                     asfSettings=AsfSettings(), settings=settings)
+    wbBB     = perform(compBB; output=true)
+    kappaBB  = wbBB[ResultKeys.SuperConfigurationMixtureOpacitySpectrum]
+
+    schemeBF = Plasma.SuperConfigurationMixtureOpacityScheme([nmC], [[stageA, stageB]], [1.0], omegas,
+                                                                 Empirical.ScaledHydrogenic())
+    compBF   = Plasma.Computation(compBB; scheme=schemeBF)
+    wbBF     = perform(compBF; output=true)
+    kappaBF  = wbBF[ResultKeys.SuperConfigurationMixtureBoundFreeOpacity]
+    kappaR   = wbBF[ResultKeys.SuperConfigurationMixtureRosselandOpacity]
+
+    @printf("\n>>> far out on the tail, omega = %.2f Ha: bound-bound = %.3e, bound-free = %.3e [a0^2] (ratio %.2e)\n",
+            omegas[end], kappaBB[end], kappaBF[end], kappaBF[end]/kappaBB[end])
+    @printf(">>> Rosseland mean opacity (bound-bound + bound-free) = %.6e [a0^2]\n", kappaR)
+    println(">>> without bound-free this mean is not even well-defined -- see Plasma.rosselandMeanOpacity's")
+    println(">>> own docstring: it moved by more than eleven orders of magnitude under an arbitrary floor for")
+    println(">>> a line-only spectrum. Bound-free supplies the physical floor that makes it meaningful.")
+    #
+elseif  false
+    # Last successful:  19-Oct-2026   ## crossover at omega = 0.95 Ha: bound-bound 1.0e-9, free-free 9.8e-9
+    #                                    [a0^2] (free-free already 10x larger at the NEXT point past the
+    #                                    crossing, omega = 1.0: 6.5e-11 vs 8.6e-9)
+    #
+    # Branch e: FREE-FREE, on the SAME C2+/C3+ two-stage mixture, now with freeFreeIncluded = true
+    #   (boundFreeApprox left at nothing, to isolate free-free alone). CHECK, NEEDING NO EXTERNAL
+    #   REFERENCE: unlike bound-free, free-free has NO threshold -- it is present at every omega down to
+    #   omega -> 0, via Empirical.freeFreeAbsorptionCoefficient (Karzas & Latter 1961's classical cross
+    #   section times Sutherland's 1998 thermally-averaged Gaunt factor). Bound-bound falls EXPONENTIALLY
+    #   past its last line while free-free falls only as a power law, so free-free eventually CROSSES OVER
+    #   and dominates -- found here, not assumed, at omega = 0.95 Hartree.
+    nmC    = Nuclear.Model(6.)
+    stageA = [Configuration("2s^2 2p^2"), Configuration("2s 2p^3")]
+    stageB = [Configuration("2s^2 2p"),   Configuration("2s 2p^2")]
+    omegas = collect(0.05:0.05:1.2)
+    kT     = Defaults.convertUnits("energy: from eV to atomic", 15.0)
+
+    scheme   = Plasma.SuperConfigurationMixtureOpacityScheme([nmC], [[stageA, stageB]], [1.0], omegas,
+                                                                 nothing, true)
+    settings = Plasma.Settings(kT, 1.0e-8, true)
+    comp = Plasma.Computation(Plasma.Computation(); scheme=scheme, nuclearModel=nmC, grid=Radial.Grid(true),
+                                 asfSettings=AsfSettings(), settings=settings)
+    wb = perform(comp; output=true)
+
+    kappaBB = wb[ResultKeys.SuperConfigurationMixtureOpacitySpectrum]
+    kappaFF = wb[ResultKeys.SuperConfigurationMixtureFreeFreeOpacity]
+
+    crossIdx = findfirst(k -> kappaFF[k] > kappaBB[k], 1:length(omegas))
+    @printf("\n%8s %16s %16s\n", "omega [Ha]", "bound-bound", "free-free [a0^2]")
+    for  k = max(1,crossIdx-3):min(length(omegas),crossIdx+2)
+        @printf("%8.3f %16.4e %16.4e%s\n", omegas[k], kappaBB[k], kappaFF[k], k==crossIdx ? "   <- crossover" : "")
+    end
+    println("\n>>> free-free has NO threshold and falls only as a power law; bound-bound falls exponentially")
+    println(">>> past its last line -- so free-free eventually dominates even though it is everywhere tiny")
+    println(">>> compared to a resonance peak. This is the regime where a bound-bound-only (or even")
+    println(">>> bound-free-only) opacity most understates the true continuum.")
     #
 end
