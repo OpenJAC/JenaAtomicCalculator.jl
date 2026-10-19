@@ -109,15 +109,33 @@ elseif false
     #
 elseif true
     # Last visit:  19-Oct-2026
-    # Last successful:  unknown ... (the numbers below reproduce; the date is the maintainer's to set -- Rule 7)
+    # Last reproduced:  19-Oct-2026 (3 of 3 numbers on the claim line)
+    # Last successful:  19-Oct-2026   ## alpha^(E1,0) 4.4997514334 and C_6 6.4983890995 a.u., at 1.4e-8 and
+    #   4.8e-7 of the Dirac reference;  C_3 0.2499886321 a.u., which is 0.854 alpha^2 BELOW the
+    #   NONRELATIVISTIC exact 1/4 -- the gap is the relativistic correction, not an unconverged sum.
     # Branch c: THE IMAGINARY AXIS, AND THE TWO COEFFICIENTS THAT NEED ONLY THE DIPOLE RESPONSE -- the
     #   van der Waals C_6 of H-H and the atom-wall C_3 of H.  Both have exact comparison values, and C_3's
     #   needs no literature at all.
     #
     #   CLAIM, 19-Oct-2026:  H 1s with np n = 2..16 on a 64 a.u. box,
-    #       alpha^(E1,0)(0) = 4.4997514334 a.u.   (reference 4.499751495178,  1.00000)
-    #       C_6(H-H)        = 6.4983890995 a.u.   (Dirac    6.498392245754,   1.000000)
-    #       C_3(H, perfect conductor) = 0.2499886321 a.u.  (EXACTLY 1/4,      0.999955)
+    #       alpha^(E1,0)(0) = 4.4997514334 a.u.   (reference 4.499751495178,  0.999999986)
+    #       C_6(H-H)        = 6.4983890995 a.u.   (Dirac    6.498392245754,   0.999999516)
+    #       C_3(H, perfect conductor) = 0.2499886321 a.u.  (the nonrel. exact 1/4,  0.999954528)
+    #
+    #   WHY THE THIRD RATIO IS THE INTERESTING ONE, AND WHY IT IS NOT A CONVERGENCE FAILURE.  The first two
+    #   comparisons are Dirac against Dirac and agree to 1.4e-8 and 4.8e-7, so they say the machinery is right
+    #   but nothing about the physics.  The third compares a DIRAC C_3 with the NONRELATIVISTIC exact 1/4, which
+    #   follows from <r^2> = 3 a.u. for H 1s -- two different quantities, and the 4.5e-5 gap is therefore
+    #   EXPECTED rather than a defect.  Its size settles which it is:  4.5472e-05 is 0.854 alpha^2, i.e. exactly
+    #   the order a relativistic correction to <r^2> must have.  Read as incompleteness of the 15-member np sum
+    #   it would instead be an unexplained coincidence with alpha^2.
+    #
+    #   AND THE SAME TEST TIES THE THREE NUMBERS TOGETHER.  The Dirac reference's own alpha is 1.037 alpha^2
+    #   below the exact nonrelativistic 9/2, and its C_6 is 1.768 TIMES that relative shift below the exact
+    #   nonrelativistic 6.49902670540.  A factor between 1 and 2 is what a double sum over a response shifted
+    #   NON-uniformly in frequency must give -- 2 exactly would mean a uniform rescaling of alpha(i omega).
+    #   So the three numbers are consistent with one another through a single correction, which no amount of
+    #   reproducing them separately could establish.
     #
     #   ON THE IMAGINARY AXIS THERE ARE NO POLES AT ALL -- the denominator is dE^2 + omega^2 -- which is why a
     #   dispersion coefficient is built there and why none of the real-axis warnings apply.
