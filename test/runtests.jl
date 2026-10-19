@@ -104,6 +104,9 @@ end
         @test TestFrames.testModule_FormFactor() 
         @test TestFrames.testModule_DecayYield()
         @test TestFrames.testModule_MultipolePolarizibility()
+        @test TestFrames.testModule_DispersionCoefficient()   ## added 19-Oct-2026; the Casimir-Polder
+                                                              ## prefactors, the closed-form omega integral,
+                                                              ## and C_3(H 1s) = 1/4 from the dipole sum rule
         @test TestFrames.testModule_ReducedDensityMatrix()  ## added 28-Aug-2026; algebraic invariants of
                                                             ## rho^(1p), no stored .sum
         @test TestFrames.testModule_StarkShift()   ## added 29-Aug-2026; the tensor term is traceless in M and the

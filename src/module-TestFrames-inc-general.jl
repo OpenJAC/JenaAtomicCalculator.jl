@@ -704,6 +704,7 @@ function testStructConstructors(; short::Bool=true)
         ("FormFactor.Settings()",                   () -> FormFactor.Settings()                        ),
         ("DecayYield.Settings()",                   () -> DecayYield.Settings()                        ),
         ("MultipolePolarizibility.Settings()",      () -> MultipolePolarizibility.Settings()           ),
+        ("DispersionCoefficient.Settings()",        () -> DispersionCoefficient.Settings()             ),
         ("ReducedDensityMatrix.Settings()",         () -> ReducedDensityMatrix.Settings()              ),
         # Basic process settings
         ("PhotoEmission.Settings()",                () -> PhotoEmission.Settings()                     ),

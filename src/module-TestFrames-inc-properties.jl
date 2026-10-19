@@ -102,6 +102,170 @@ end
 
 
 """
+`TestFrames.testModule_DispersionCoefficient(; short::Bool=true)`  ... tests on module DispersionCoefficient; a
+    success::Bool is returned.
+"""
+function testModule_DispersionCoefficient(; short::Bool=true)
+    Defaults.setDefaults("print summary: open", "test-DispersionCoefficient-new.sum")
+    printstyled("\n\nTest the module  DispersionCoefficient  ... \n", color=:cyan)
+    # Four invariants, of which only ONE uses a published number.  A dispersion coefficient is a re-summation of the
+    # multipole response, so the module's own content is the combinatorics and the omega integral, and both can be
+    # checked exactly.
+    #
+    #   (1) THE CASIMIR-POLDER COMBINATORICS, which needs no atomic input at all.  Summed over ORDERED (l1,l2)
+    #       pairs the single binomial must reproduce the prefactors the literature writes out by hand.
+    #   (2) THE CLOSED-FORM OVERLAP INTEGRAL against a quadrature of its own integrand.  This is what justifies
+    #       having NO omega quadrature in src/: on a discrete spectrum every polarizability is a sum of single
+    #       poles and int_0^inf [a/(a^2+w^2)][b/(b^2+w^2)] dw = pi/(2(a+b)) exactly, so each C_n is a double sum.
+    #   (3) THE DIPOLE SUM RULE, which fixes the atom-wall C_3 of hydrogen EXACTLY and needs no literature.  With
+    #       A_a = (2/3)|<a|d|0>|^2 the sum over a complete set is (2/3)<d^2> = 2 for H 1s, so
+    #       C_3 = (1/8) sum_a A_a = 1/4 exactly -- which is also what an electrostatic image dipole gives.  This
+    #       one check exercises the amplitudes, the angular factors and the normalization in one number.
+    #   (4) C_6 of H-H against the published Dirac value, the single external anchor.
+    #
+    # AND TWO BEHAVIOURS, both of which are the module refusing rather than returning: the ground-level guard must
+    # RAISE for an excited partner, and a C_n needing a multipole the partner does not carry must be reported
+    # INCOMPLETE rather than silently computed too small.
+    #
+    # Cost: the hydrogen part is one 64 a.u. box with np n = 2..16, measured at 0.1 s once JAC is compiled.  The
+    # BOX IS DELIBERATELY SMALL and points the opposite way to Rule 12's usual advice -- a sum over states needs
+    # its upper members to stand in for the CONTINUUM, and a box matched to the highest orbital leaves them genuine
+    # bound states, whereupon the continuum is missing entirely.  Measured, sum_a A_a / 2 over this np set:
+    # 0.702 (n <= 6), 0.735 (8), 0.887 (10), 0.993 (12), 0.99995 (16), so n = 16 is what the 1e-4 below needs.
+    # No approved reference file is used, so nothing here can be made to pass by re-approving data.
+    success = true;    printTest, iostream = Defaults.getDefaults("test flag/stream")
+    #
+    # (1) the combinatorics alone
+    for  (l1, l2, exact, name)  in  ( (1, 1, 3/pi, "3/pi"),  (1, 2, 15/(2pi), "15/2pi"), (2, 1, 15/(2pi), "15/2pi"),
+                                      (1, 3, 14/pi, "14/pi"), (3, 1, 14/pi, "14/pi"),    (2, 2, 35/pi, "35/pi") )
+        prefactor = DispersionCoefficient.casimirPolderPrefactor(l1, l2)
+        if  abs(prefactor/exact - 1.0) > 1.0e-13
+            success = false
+            if printTest   info(iostream, "the Casimir-Polder prefactor of the ordered pair ($l1,$l2) came out " *
+                                          "$prefactor where the literature writes $name = $exact")   end
+        end
+    end
+    #
+    # (2) the closed-form overlap integral against a trapezoidal quadrature of the same integrand.  The integrand
+    #     falls as w^-4, so the truncated tail, not the step, sets the error: measured -2.6e-11 at wmax = 1000 and
+    #     -4.0e-10 at wmax = 400, both with 40000 intervals, so wmax = 1000 is chosen and 1e-9 is the bound.
+    #     THE TOLERANCE IS WHAT GIVES THIS CHECK ITS TEETH, and it was calibrated by mutation: at the 1e-6 first
+    #     written here, a prefactor deliberately wrong by 2e-7 still PASSED. Two other mutations -- the
+    #     imaginary-axis denominator by 1e-3 and the Casimir-Polder prefactor by 1e-6 -- were caught at once.
+    termsA  = DispersionCoefficient.MultipoleTerms(E1, [0.4162, 0.0791, 0.0290], [0.3750, 0.4444, 0.46875])
+    termsB  = DispersionCoefficient.MultipoleTerms(E2, [1.2000, 0.3000],         [0.3750, 0.4800])
+    closed  = DispersionCoefficient.overlapIntegral(termsA, termsB)
+    nw      = 40000;    wmax = 1000.0;    dw = wmax/nw;    quad = 0.0
+    for  i = 0:nw
+        w     = i * dw
+        value = DispersionCoefficient.polarizability(termsA, w) * DispersionCoefficient.polarizability(termsB, w)
+        quad  = quad + ((i == 0  ||  i == nw) ? 0.5*value : value) * dw
+    end
+    if  abs(quad/closed - 1.0) > 1.0e-9
+        success = false
+        if printTest   info(iostream, "the closed-form overlap integral gives $closed where a $nw-point quadrature " *
+                                      "of the same integrand gives $quad; the pi/(2(a+b)) identity that removes " *
+                                      "the omega quadrature from src/ does not hold")   end
+    end
+    #
+    # (3) and (4): hydrogen 1s, reached through Atomic.Computation exactly as a user would reach it
+    nmDi   = Nuclear.Model(1.0, PointNucleus())
+    gridDi = Radial.Grid(Radial.Grid(true); rbox = 64.0)
+    asfDi  = AsfSettings(AsfSettings(); gridStopper = false)
+    gmDi   = redirect_stdout(devnull) do
+        perform(Atomic.Computation(Atomic.Computation(); name="np perturbers", grid=gridDi, nuclearModel=nmDi,
+                 configs=[Configuration("$(n)p")  for n = 2:16], asfSettings=asfDi);
+                 output=true)[ResultKeys.Multiplet]
+    end
+    setDi  = DispersionCoefficient.Settings(DispersionCoefficient.Settings();
+                 orders=[6], multipoles=[E1], gMultiplet=gmDi, calcAtomWall=true)
+    ocsDi  = redirect_stdout(devnull) do
+        perform(Atomic.Computation(Atomic.Computation(); name="H(1s) dispersion", grid=gridDi, nuclearModel=nmDi,
+                 configs=[Configuration("1s")], asfSettings=asfDi, propertySettings=[setDi]);
+                 output=true)[DispersionCoefficient.Settings]
+    end
+    if  length(ocsDi) != 1
+        success = false
+        if printTest   info(iostream, "the property route returned $(length(ocsDi)) outcomes for the single " *
+                                      "1s level of hydrogen")   end
+    else
+        outcomeDi = ocsDi[1]
+        # an empty partnerB means a homonuclear pair, and partner B must then BE partner A
+        if  outcomeDi.partnerA !== outcomeDi.partnerB
+            success = false
+            if printTest   info(iostream, "an empty settings.partnerB must give a homonuclear pair, but partner B " *
+                                          "is a separate object from partner A")   end
+        end
+        sumA = sum(outcomeDi.partnerA.terms[1].strengths)
+        if  abs(sumA/2.0 - 1.0) > 1.0e-4
+            success = false
+            if printTest   info(iostream, "the dipole oscillator-strength sum came out $sumA where the sum rule " *
+                                          "(2/3)<d^2> = 2 for H 1s is exact; the amplitudes, the angular factor " *
+                                          "or the perturber set is at fault")   end
+        end
+        # the atom-wall coefficient IS that sum over eight, so this part of it has no freedom at all
+        if  outcomeDi.atomWallC3 != 0.125*sumA
+            success = false
+            if printTest   info(iostream, "C_3 = $(outcomeDi.atomWallC3) is not (1/8) sum_a A_a = $(0.125*sumA), " *
+                                          "although the omega integral of a single pole leaves exactly that")   end
+        end
+        if  abs(outcomeDi.atomWallC3/0.25 - 1.0) > 1.0e-4
+            success = false
+            if printTest   info(iostream, "the atom-wall coefficient of H 1s came out $(outcomeDi.atomWallC3) " *
+                                          "against the exactly 1/4 that the dipole sum rule and the image dipole " *
+                                          "both give")   end
+        end
+        c6Di = outcomeDi.coefficients[1]
+        if  !c6Di.complete
+            success = false
+            if printTest   info(iostream, "C_6 was reported incomplete although it needs the E1 response alone, " *
+                                          "which this partner carries")   end
+        end
+        if  abs(c6Di.value/6.498392245754 - 1.0) > 1.0e-5
+            success = false
+            if printTest   info(iostream, "C_6(H-H) came out $(c6Di.value) against the published Dirac value " *
+                                          "6.498392245754")   end
+        end
+        # a C_n that needs a multipole the partner does not carry is a LOWER BOUND and must say so
+        setC8 = DispersionCoefficient.Settings(setDi; orders=[8])
+        c8Di  = DispersionCoefficient.computeOutcome(outcomeDi.partnerA, outcomeDi.partnerA,
+                                                      setC8).coefficients[1]
+        if  c8Di.complete
+            success = false
+            if printTest   info(iostream, "C_8 was reported complete although it needs the E2 response and this " *
+                                          "partner carries E1 only")   end
+        end
+    end
+    #
+    # the ground-level guard must RAISE.  A negative excitation energy is all it takes, so this needs no structure:
+    # the contour argument behind the imaginary-frequency integral fails the moment one dE changes sign.
+    excited = DispersionCoefficient.Partner("an excited partner", Level(),
+                  [ DispersionCoefficient.MultipoleTerms(E1, [0.4], [-0.1]) ])
+    raised  = false
+    try
+        DispersionCoefficient.checkGroundLevel(excited)
+    catch
+        raised = true
+    end
+    if  !raised
+        success = false
+        if printTest   info(iostream, "checkGroundLevel accepted a partner with a perturber BELOW it; the " *
+                                      "Casimir-Polder form is not defined there and the guard must refuse")   end
+    end
+
+    println(iostream, "DispersionCoefficient: the Casimir-Polder prefactors against 3/pi, 15/2pi, 14/pi and " *
+                      "35/pi; the closed-form overlap integral against a quadrature of its own integrand; the " *
+                      "dipole sum rule, which fixes C_3(H 1s) = 1/4 exactly; C_6(H-H) against the published " *
+                      "Dirac value; and the two refusals -- the ground-level guard raises, and a C_n missing a " *
+                      "multipole is reported incomplete. Only C_6 uses an external number, and no approved " *
+                      "reference file is read.")
+    Defaults.setDefaults("print summary: close", "")
+    testPrint("testModule_DispersionCoefficient()::", success)
+    return( success )
+end
+
+
+"""
 `TestFrames.testModule_Einstein(; short::Bool=true)`  ... tests on module Einstein.
 """
 function testModule_Einstein(; short::Bool=true)
@@ -320,6 +484,22 @@ function testModule_MultipolePolarizibility(; short::Bool=true)
                     "H 1s with 2p, 3p and 4p perturbers -- a relative difference of " *
                     "$(abs(outcome.alpha0.Babushkin/3.4921 - 1.0))")
         end
+        ## THE GENERAL alphas TABLE MUST MEET THE STATIC PAIR BIT FOR BIT AT omega = 0 -- added 19-Oct-2026,
+        ## item 69.  `outcome.alpha0` and the (Mp, K, omega, alpha) table are filled by DIFFERENT code paths: the
+        ## first by the original scalar/tensor route, the second by the general-rank, general-frequency one.  The
+        ## module special-cases omega = 0 precisely so that adding the dynamic capability moves no approved
+        ## reference, so a difference of one ulp here means the two paths have parted -- hence `!=` and not a
+        ## tolerance.  This costs nothing: the computation above already runs with omegas = [0.].
+        iDy = findfirst(t -> t[1] == E1  &&  t[2] == 0  &&  t[3] == 0.0, outcome.alphas)
+        if      isnothing(iDy)
+            success = false
+            println("** outcome.alphas carries no (E1, K = 0, omega = 0) entry, so the general-rank table was " *
+                    "not filled at all")
+        elseif  outcome.alphas[iDy][4].Babushkin != outcome.alpha0.Babushkin
+            success = false
+            println("** the omega = 0 entry of the general alphas table is $(outcome.alphas[iDy][4].Babushkin) " *
+                    "while alpha0 is $(outcome.alpha0.Babushkin); the two paths must meet bit for bit at omega = 0")
+        end
         ## A STATIC POLARIZABILITY HAS NO GAUGE FREEDOM, so the two columns must be identical, not merely close.
         if  outcome.alpha0.Coulomb != outcome.alpha0.Babushkin
             success = false
@@ -400,6 +580,83 @@ function testModule_MultipolePolarizibility(; short::Bool=true)
                         "$ratioA2 where the pure angular identity gives exactly $exactRatio -- the rank-2 " *
                         "prefactor, the 6-j or the sign is wrong")
             end
+        end
+    end
+
+    ## THE DYNAMIC BRANCH, ASSERTED AGAINST AN EXACT IDENTITY -- added 19-Oct-2026, item 69.  Everything above
+    ## runs at omega = 0, so until now NOTHING in the suite touched the frequency dependence: `Settings.omegas`,
+    ## `MultipolePolarizibility.frequencyFactor` and the entire imaginary axis were held only by a `tools/` probe,
+    ## which the suite never runs.
+    ##
+    ## WITH EXACTLY ONE INTERMEDIATE LEVEL the frequency dependence is a pure RATIO in which the radial integral,
+    ## the angular factor and the oscillator strength all cancel, leaving the denominator alone:
+    ##     alpha(omega)   / alpha(0) = dE^2 / (dE^2 - omega^2)     on the real axis,
+    ##     alpha(i omega) / alpha(0) = dE^2 / (dE^2 + omega^2)     on the imaginary axis.
+    ## So this tests `frequencyFactor` and nothing else -- which is the whole point, since the frequency enters the
+    ## module ONLY through that one function.  As with the rank-2 ratio above the grid is therefore irrelevant, and
+    ## the perturber here is the SAME 3s level, so the test costs one extra multiplet and nothing more.
+    ##
+    ## THE TWO AXES MUST ALSO MEET AT omega = 0, exactly:  dE/(dE^2 +- 0) is 1/dE either way, and that is the
+    ## identity the omega = 0 fast path rests on.
+    gridDy = Radial.Grid(Radial.Grid(false), rnt = 4.0e-06, h = 5.0e-2, hp = 1.2, rbox = 60.0)
+    nmDy   = Nuclear.Model(4., PointNucleus())
+    asfDy  = AsfSettings(AsfSettings(); scField = Basics.NuclearField(), gridStopper = false)
+    wpDy   = Atomic.Computation(Atomic.Computation(); name="one perturber", grid=gridDy, nuclearModel=nmDy,
+                                 configs=[Configuration("3s")], asfSettings=asfDy)
+    gmDy   = perform(wpDy; output=true)[ResultKeys.Multiplet]
+    wrDy   = Atomic.Computation(Atomic.Computation(); name="reference level", grid=gridDy, nuclearModel=nmDy,
+                                 configs=[Configuration("2p")], asfSettings=asfDy)
+    mpDy   = perform(wrDy; output=true)[ResultKeys.Multiplet]
+    ## the 2p_1/2 level, which carries K = 0 alone, and the single 3s perturber above it
+    iHalf  = findfirst(lev -> Basics.twice(lev.J) == 1, mpDy.levels)
+    jHalf  = findfirst(lev -> Basics.twice(lev.J) == 1, gmDy.levels)
+    if  isnothing(iHalf)  ||  isnothing(jHalf)
+        success = false
+        println("** the 2p or the 3s multiplet carries no J = 1/2 level, so the single-pole frequency identity " *
+                "cannot be set up")
+    else
+        levDy  = mpDy.levels[iHalf];          oneDy = Multiplet("one level", [gmDy.levels[jHalf]])
+        dEDy   = gmDy.levels[jHalf].energy - levDy.energy
+        alphaDy = function(omega::Float64, imaginary::Bool)
+            aw, _ = MultipolePolarizibility.computeMultipolePolarizabilities(E1, levDy, oneDy, gridDy;
+                                                    omega = omega, imaginaryOmega = imaginary)
+            return( aw[1][2].Babushkin )
+        end
+        a0Dy = alphaDy(0.0, false)
+        if  dEDy <= 0.0  ||  a0Dy == 0.0
+            success = false
+            println("** the single-perturber setup is degenerate: dE = $dEDy and alpha(0) = $a0Dy")
+        else
+            ## the two axes meet at omega = 0, bit for bit
+            if  alphaDy(0.0, true) != a0Dy
+                success = false
+                println("** the imaginary axis at omega = 0 gives $(alphaDy(0.0, true)) against $a0Dy on the real " *
+                        "axis; dE/(dE^2 + 0) and dE/(dE^2 - 0) are the same number and must stay so")
+            end
+            ## and away from it, the exact single-pole ratio.  0.3 and 0.6 a.u. both sit below dE ~ 1.1 a.u.
+            for  (omDy, imDy)  in  ((0.3, false), (0.6, false), (0.3, true), (0.6, true))
+                exactDy = imDy ? dEDy^2/(dEDy^2 + omDy^2) : dEDy^2/(dEDy^2 - omDy^2)
+                ratioDy = alphaDy(omDy, imDy) / a0Dy
+                if  abs(ratioDy/exactDy - 1.0) > 1.0e-12
+                    axisDy = imDy ? "imaginary" : "real"
+                    success = false
+                    println("** on the $axisDy axis at omega = $omDy the single-pole ratio alpha(omega)/alpha(0) " *
+                            "came out $ratioDy where the exact dE^2/(dE^2 -+ omega^2) gives $exactDy -- " *
+                            "frequencyFactor is wrong")
+                end
+            end
+        end
+    end
+    ## THE RANK RULES, spot-checked against values derived by hand rather than from the code.  K <= 2L, K <= 2J and
+    ## K even act together, and the J = 1/2 row is a physical statement and not a restatement of the formula: a
+    ## spin-1/2 level cannot be aligned by ANY multipole, however high.
+    for  (mpRk, twoJRk, exactRk)  in  ( (E1, 1, [0]),  (E2, 1, [0]),  (E3, 1, [0]),
+                                        (E1, 5, [0,2]), (E2, 5, [0,2,4]), (E3, 5, [0,2,4]) )
+        ranksRk = MultipolePolarizibility.allowedRanks(mpRk, AngularJ64(twoJRk//2))
+        if  ranksRk != exactRk
+            success = false
+            println("** allowedRanks($mpRk, J = $(twoJRk)/2) returned $ranksRk where K <= 2L, K <= 2J and K even " *
+                    "together give $exactRk")
         end
     end
 
@@ -596,13 +853,13 @@ function testModule_StarkShift(; short::Bool=true)
     nm         = Nuclear.Model(1., PointNucleus())
     perturbers = [Configuration("1s"), Configuration("3s"), Configuration("4s"), Configuration("3d"), Configuration("4d")]
     grid       = Basics.recommendedGrid( vcat(perturbers, [Configuration("2p")]), nm )
-    starkOutcomes = function(EField::Float64)
+    starkOutcomes = function(EField::Float64, omega::Float64 = 0.0)
         wb1 = redirect_stdout(devnull) do
             perform( Atomic.Computation(Atomic.Computation(); name = "H perturbers", grid = grid, nuclearModel = nm,
                                         configs = perturbers); output = true )
         end
         settings = StarkShift.Settings(StarkShift.Settings(); calcStarkshifts = true, gMultiplet = wb1[ResultKeys.Multiplet],
-                                       EField = EField)
+                                       EField = EField, omega = omega)
         wb = redirect_stdout(devnull) do
             perform( Atomic.Computation(Atomic.Computation(); name = "H 2p Stark shift", grid = grid, nuclearModel = nm,
                                         configs = [Configuration("2p")], propertySettings = [settings]); output = true )
@@ -670,9 +927,35 @@ function testModule_StarkShift(; short::Bool=true)
         end
     end
 
+    # (5) THE AC BRANCH, AND THE ONE THING THAT CAN GO WRONG IN IT -- added 19-Oct-2026.  A static field of
+    #     strength E and a field oscillating with PEAK amplitude E are not the same field: <cos^2> = 1/2, so the
+    #     cycle-averaged shift carries -(1/4) alpha E^2 where the static one carries -(1/2) alpha E^2.  Hence the
+    #     omega -> 0 LIMIT OF THE AC EXPRESSION IS EXACTLY HALF THE STATIC SHIFT, and that factor is the classic
+    #     error in this quantity -- adopted in one convention and quoted in the other, it is invisible in every
+    #     other check here, since halving every shift leaves the traceless sum, the M -> -M degeneracy and the
+    #     exact E^2 scaling all intact.
+    #
+    #     omega = 1.0e-6 a.u. is far below the 2p -> ns/nd excitation energies, so alpha(omega) differs from
+    #     alpha(0) by order (omega/dE)^2 ~ 1e-12 and the ratio is the convention factor alone.  The bound is 1e-9.
+    for  (outcome, acOutcome)  in  zip(outcomes, starkOutcomes(EField, 1.0e-6))
+        for  (subDc, subAc)  in  zip(outcome.Jsublevels, acOutcome.Jsublevels)
+            abs(subDc.energy.Babushkin) > 0.  ||  continue
+            ratioAc = subAc.energy.Babushkin / subDc.energy.Babushkin
+            if  abs(ratioAc - 0.5) > 1.0e-9
+                success = false
+                if printTest   info(iostream, "the ac shift of the M = $(subAc.M) sublevel at omega -> 0 is " *
+                                              "$ratioAc times the static one, where the cycle average demands " *
+                                              "exactly one half")   end
+            end
+        end
+    end
+
     println(iostream, "StarkShift: for hydrogen 2p the tensor term is traceless in M, the sublevels are degenerate " *
                       "in M -> -M, J = 1/2 leaves alpha_2 exactly zero, and doubling the field multiplies every " *
-                      "shift by exactly four. No approved data is used.")
+                      "shift by exactly four. The ac branch is asserted too: at omega -> 0 every sublevel shift " *
+                      "is EXACTLY HALF the static one, which is the cycle average <cos^2> = 1/2 and the one " *
+                      "factor this quantity is habitually quoted in the wrong convention. No approved data is " *
+                      "used.")
     Defaults.setDefaults("print summary: close", "")
     testPrint("testModule_StarkShift()::", success)
     return( success )
