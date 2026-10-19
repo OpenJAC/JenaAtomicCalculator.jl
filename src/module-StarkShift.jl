@@ -18,6 +18,32 @@
     see examples/example-Cl.jl), and only adds the field-strength/M-dependent energy-shift conversion
     on top. Both Coulomb and Babushkin gauge are reported throughout (EmProperty), not calibrated onto
     a common scale, following the same convention already established for MultipolePolarizibility.
+
+    THE AC SHIFT IS THE SAME EXPRESSION WITH alpha(omega) IN PLACE OF alpha(0), AND ONE FACTOR OF TWO
+    THAT IS NOT A DETAIL.  For a field oscillating as E(t) = E_0 cos(omega t) the shift is averaged
+    over the cycle, and <cos^2> = 1/2, so
+
+        STATIC :  DeltaE(J,M) = -(1/2) alpha_0(0) E^2   - (1/2) alpha_2(0) E^2   [3M^2-J(J+1)]/[J(2J-1)]
+        AC     :  DeltaE(J,M) = -(1/4) alpha_0(om) E_0^2 - (1/4) alpha_2(om) E_0^2 [3M^2-J(J+1)]/[J(2J-1)]
+
+    where E in the first line is the CONSTANT field and E_0 in the second is the PEAK amplitude.  The
+    omega -> 0 limit of the ac line is therefore HALF the static line, and that is correct physics
+    rather than a discontinuity: a field held at E and a field swinging between +E and -E are not the
+    same field.  `Settings.omega` selects between the two -- 0. means static, and nothing about the
+    static path changes -- and `Settings.EField` is read as the constant field or as the peak
+    amplitude accordingly.  THE HALVING IS ASSERTED IN THE TEST SUITE, since a factor of two silently
+    adopted in one convention and quoted in the other is this quantity's classic error.
+
+    WHAT THE AC SHIFT IS GOOD FOR.  -DeltaE at the trap frequency IS the optical-trap depth of that
+    sublevel, so the M-dependence of the table is the differential light shift that a clock or a
+    quantum-logic experiment has to control;  and a MAGIC WAVELENGTH is a zero of
+    alpha_0(omega, upper) - alpha_0(omega, lower), which is read off by running two levels over a
+    range of `omega`.  Both follow from the dynamic polarizability and need nothing further.
+
+    THE POLE STRUCTURE IS INHERITED, NOT RE-CHECKED HERE.  Above the lowest excitation energy of the
+    level the true polarizability is COMPLEX, and near a pole it rides on one energy denominator;
+    `MultipolePolarizibility.checkFrequency` warns about both and runs on every call made from here,
+    so a shift quoted close to a resonance carries its own warning.
 """
 module StarkShift
 
@@ -104,7 +130,12 @@ end
                                                        ahead of time, by the caller (see the module docstring
                                                        and examples/example-Cl.jl); only used if calcStarkshifts.
     + printBefore             ::Bool              ... True if a list of selected levels is printed before the actual computations start.
-    + EField                 ::Float64           ... Strength of the electric field in [V/cm]
+    + EField                 ::Float64           ... Strength of the electric field in [V/cm]: the CONSTANT
+                                                       field if omega = 0., the PEAK amplitude E_0 otherwise
+                                                       (see the module docstring on the factor of two).
+    + omega                  ::Float64           ... Angular frequency of the driving field, in atomic units.
+                                                       0., the default, means a STATIC field and leaves that
+                                                       path bit-identical to what it was.
     + levelSelection         ::LevelSelection    ... Specifies the selected levels, if any.
 """
 struct Settings  <:  AbstractPropertySettings
@@ -114,6 +145,7 @@ struct Settings  <:  AbstractPropertySettings
     gMultiplet                ::Multiplet
     printBefore               ::Bool
     EField                   ::Float64
+    omega                    ::Float64
     levelSelection           ::LevelSelection
 end
 
@@ -123,14 +155,15 @@ end
     ... constructor for an `empty` instance of StarkShift.Settings.
 """
 function Settings()
-        Settings(false, false, false, Multiplet(), false, 0., LevelSelection() )
+        Settings(false, false, false, Multiplet(), false, 0., 0., LevelSelection() )
 end
 
 
 """
 `StarkShift.Settings(set::StarkShift.Settings;`
 
-        calcEDM=.., calcEQM=.., calcStarkshifts=.., gMultiplet=.., printBefore=.., EField=.., levelSelection=..)
+        calcEDM=.., calcEQM=.., calcStarkshifts=.., gMultiplet=.., printBefore=.., EField=.., omega=..,
+        levelSelection=..)
 
     ... keyword copy-constructor for re-defining selected values of a settings::StarkShift.Settings.
 """
@@ -138,6 +171,7 @@ function Settings(set::StarkShift.Settings;
         calcEDM::Union{Nothing,Bool}=nothing,                   calcEQM::Union{Nothing,Bool}=nothing,
         calcStarkshifts::Union{Nothing,Bool}=nothing,           gMultiplet::Union{Nothing,Multiplet}=nothing,
         printBefore::Union{Nothing,Bool}=nothing,               EField::Union{Nothing,Float64}=nothing,
+        omega::Union{Nothing,Float64}=nothing,
         levelSelection::Union{Nothing,LevelSelection}=nothing)
     if  isnothing(calcEDM)           calcEDMx          = set.calcEDM          else   calcEDMx          = calcEDM          end
     if  isnothing(calcEQM)           calcEQMx          = set.calcEQM          else   calcEQMx          = calcEQM          end
@@ -145,9 +179,10 @@ function Settings(set::StarkShift.Settings;
     if  isnothing(gMultiplet)        gMultipletx       = set.gMultiplet       else   gMultipletx       = gMultiplet       end
     if  isnothing(printBefore)       printBeforex      = set.printBefore      else   printBeforex      = printBefore      end
     if  isnothing(EField)            EFieldx           = set.EField           else   EFieldx           = EField           end
+    if  isnothing(omega)             omegax            = set.omega            else   omegax            = omega            end
     if  isnothing(levelSelection)    levelSelectionx   = set.levelSelection   else   levelSelectionx   = levelSelection   end
 
-    Settings( calcEDMx, calcEQMx, calcStarkshiftsx, gMultipletx, printBeforex, EFieldx, levelSelectionx )
+    Settings( calcEDMx, calcEQMx, calcStarkshiftsx, gMultipletx, printBeforex, EFieldx, omegax, levelSelectionx )
 end
 
 
@@ -159,6 +194,7 @@ function Base.show(io::IO, settings::StarkShift.Settings)
     println(io, "gMultiplet:            $(settings.gMultiplet)  ")
     println(io, "printBefore:           $(settings.printBefore)  ")
     println(io, "EField:                $(settings.EField)  ")
+    println(io, "omega:                 $(settings.omega)  ")
     println(io, "levelSelection:        $(settings.levelSelection)  ")
 end
 
@@ -194,16 +230,36 @@ const AU_EFIELD_IN_VCM = 5.142206751e9
 
 """
 `StarkShift.computeStarkShifts(level::Level, gMultiplet::Multiplet, grid::Radial.Grid, settings::StarkShift.Settings)`
-    ... computes the static Stark shift of every M-sublevel of `level` in a field of strength
-        settings.EField [V/cm], from the level's own static E1 scalar/tensor polarizability
-        (MultipolePolarizibility.computeScalarTensorPolarizability, reused directly rather than
-        re-derived here -- see module docstring): DeltaE(J,M) = -(1/2) alpha_0(J) E^2 -
-        (1/2) alpha_2(J) E^2 [3M^2-J(J+1)] / [J(2J-1)], undefined/trivially 0. for J<1 (matching
-        MultipolePolarizibility's own alpha_2 guard). A tuple (alpha0::EmProperty, alpha2::EmProperty,
-        Jsublevels::Array{StarkShift.SublevelJ,1}) is returned.
+    ... computes the Stark shift of every M-sublevel of `level` in a field of strength settings.EField [V/cm] and
+        angular frequency settings.omega [a.u.], from the level's own E1 scalar/tensor polarizability (taken from
+        MultipolePolarizibility rather than re-derived here -- see module docstring):
+
+            DeltaE(J,M) = - c alpha_0(omega) E^2  -  c alpha_2(omega) E^2 [3M^2-J(J+1)] / [J(2J-1)]
+
+        with c = 1/2 for a STATIC field (omega = 0.) and c = 1/4 for a field oscillating at omega, where the
+        second case is averaged over the cycle and E is then the PEAK amplitude.  The tensor term is undefined
+        and set to 0. for J < 1, matching MultipolePolarizibility's own alpha_2 guard.  A tuple
+        (alpha0::EmProperty, alpha2::EmProperty, Jsublevels::Array{StarkShift.SublevelJ,1}) is returned.
+
+        AT omega = 0. THE STATIC ENTRY POINT IS CALLED, not the general one with omega = 0. passed through.  The
+        two agree bit for bit -- that is asserted in `testModule_MultipolePolarizibility` -- but keeping the
+        static call makes it visible here that adding the dynamic case moved no static number.
 """
 function computeStarkShifts(level::Level, gMultiplet::Multiplet, grid::Radial.Grid, settings::StarkShift.Settings)
-    alpha0, alpha2, _ = MultipolePolarizibility.computeScalarTensorPolarizability(level, gMultiplet, grid)
+    if  settings.omega == 0.0
+        alpha0, alpha2, _ = MultipolePolarizibility.computeScalarTensorPolarizability(level, gMultiplet, grid)
+        cycleFactor = 0.5                ## a constant field
+    else
+        alphas, _ = MultipolePolarizibility.computeMultipolePolarizabilities(E1, level, gMultiplet, grid;
+                                                                              omega = settings.omega)
+        alpha0 = EmProperty(0.);     alpha2 = EmProperty(0.)
+        for  (K, alphaK) in alphas
+            if      K == 0   alpha0 = alphaK
+            elseif  K == 2   alpha2 = alphaK
+            end
+        end
+        cycleFactor = 0.25               ## a field oscillating at omega, averaged over the cycle
+    end
     Efield  = settings.EField / StarkShift.AU_EFIELD_IN_VCM
     Efield2 = Efield^2
     Jd      = Basics.twice(level.J) / 2.0
@@ -211,12 +267,12 @@ function computeStarkShifts(level::Level, gMultiplet::Multiplet, grid::Radial.Gr
     Jsublevels = StarkShift.SublevelJ[]
     for  M in AngularMomentum.m_values(level.J)
         Md = Basics.twice(M) / 2.0
-        scalarShift = (-0.5) * alpha0 * Efield2
+        scalarShift = (-cycleFactor) * alpha0 * Efield2
         if  Jd*(2*Jd-1) == 0.0
             tensorShift = EmProperty(0.)
         else
             tensorFactor = (3*Md^2 - Jd*(Jd+1)) / (Jd*(2*Jd-1))
-            tensorShift  = (-0.5*tensorFactor) * alpha2 * Efield2
+            tensorShift  = (-cycleFactor*tensorFactor) * alpha2 * Efield2
         end
         push!(Jsublevels, StarkShift.SublevelJ(M, scalarShift + tensorShift))
     end
@@ -388,7 +444,14 @@ function  displayResults(stream::IO, outcomes::Array{StarkShift.Outcome,1}, sett
     if  settings.calcStarkshifts
         nx1 = 106
         println(stream, " ")
-        println(stream, "  Static scalar/tensor polarizabilities entering the Stark shift (Coulomb and Babushkin gauge):")
+        if  settings.omega == 0.0
+            println(stream, "  Static scalar/tensor polarizabilities entering the Stark shift (Coulomb and " *
+                            "Babushkin gauge):")
+        else
+            println(stream, "  Scalar/tensor polarizabilities at omega = $(settings.omega) a.u. entering the ac " *
+                            "Stark shift, i.e. the cycle-averaged shift of a field of PEAK amplitude EField " *
+                            "(Coulomb and Babushkin gauge):")
+        end
         println(stream, " ")
         println(stream, "  ", TableStrings.hLine(nx1))
         sa = "  ";   sb = "  "
