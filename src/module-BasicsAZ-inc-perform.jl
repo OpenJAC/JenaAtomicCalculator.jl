@@ -47,6 +47,7 @@ function  resultKeyStrings(T::Type)
     T === FormFactor.Settings               &&  return( ["Form factor outcomes:"] )
     T === DecayYield.Settings               &&  return( ["Fluorescence and AutoIonization yield outcomes:"] )
     T === MultipolePolarizibility.Settings  &&  return( ["Polarizibility outcomes:"] )
+    T === DispersionCoefficient.Settings    &&  return( ["Dispersion coefficient outcomes:"] )
     T === ReducedDensityMatrix.Settings     &&  return( ["RDM outcomes:"] )
     T === WeakInteractionEnhancement.Settings  &&  return( ["Weak-interaction enhancement outcomes:"] )
     # --- the one process of the computation
@@ -194,7 +195,8 @@ function  allResultKeyTypes()
             ResultKeys.SuperConfigurationMixtureTotalPlanckOpacity, ResultKeys.SuperConfigurationMixtureRosselandOpacity,
             Einstein.Settings, Hfs.Settings, LandeZeeman.Settings, StarkShift.Settings, StarkZeeman.Settings,
             IsotopeShift.Settings, AlphaVariation.Settings, FormFactor.Settings, DecayYield.Settings,
-            MultipolePolarizibility.Settings, ReducedDensityMatrix.Settings, WeakInteractionEnhancement.Settings,
+            MultipolePolarizibility.Settings, DispersionCoefficient.Settings, ReducedDensityMatrix.Settings,
+            WeakInteractionEnhancement.Settings,
             AutoIonization.Settings, RayleighCompton.Settings, ElectronCapture.Settings,
             DoubleAutoIonization.Settings, DielectronicRecombination.Settings, MultiPhotonTransition.Settings,
             PhotoIonization.Settings, PhotoDoubleIonization.Settings, PhotoExcitation.Settings,
@@ -366,6 +368,10 @@ function Basics.perform(computation::Atomic.Computation; output::Bool=false)
             elseif  typeof(settings) == MultipolePolarizibility.Settings
                 outcome = MultipolePolarizibility.computeOutcomes(multiplet, nModel, computation.grid, settings)
                 if output    results = Base.merge( results, Dict("Polarizibility outcomes:" => outcome) )         end
+                #
+            elseif  typeof(settings) == DispersionCoefficient.Settings
+                outcome = DispersionCoefficient.computeOutcomes(multiplet, nModel, computation.grid, settings)
+                if output    results = Base.merge( results, Dict("Dispersion coefficient outcomes:" => outcome) )  end
                 #
             elseif  typeof(settings) == ReducedDensityMatrix.Settings
                 outcome = ReducedDensityMatrix.computeOutcomes(multiplet, nModel, computation.grid, settings)

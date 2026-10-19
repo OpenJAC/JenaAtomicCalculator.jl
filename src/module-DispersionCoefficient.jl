@@ -68,7 +68,7 @@
 module DispersionCoefficient
 
 
-using Printf, ..Basics, ..Defaults, ..ManyElectron, ..MultipolePolarizibility, ..Radial, ..TableStrings
+using Printf, ..Basics, ..Defaults, ..ManyElectron, ..MultipolePolarizibility, ..Nuclear, ..Radial, ..TableStrings
 
 
 """
@@ -140,6 +140,17 @@ function Partner(name::String, level::Level, gMultiplet::Multiplet, grid::Radial
     end
 
     return( DispersionCoefficient.Partner(name, level, terms) )
+end
+
+
+"""
+`DispersionCoefficient.Partner()`
+    ... constructor for an `empty` instance of DispersionCoefficient.Partner. It carries no multipole response at all,
+        and is the value that tells `DispersionCoefficient.computeOutcomes` to treat the pair as HOMONUCLEAR; a
+        `partner::DispersionCoefficient.Partner` is returned.
+"""
+function Partner()
+    Partner( "", Level(), DispersionCoefficient.MultipoleTerms[] )
 end
 
 
@@ -231,10 +242,13 @@ end
 
 """
 `struct  DispersionCoefficient.Settings`
-    ... defines a type for the details and parameters of computing long-range dispersion coefficients. It is a plain
-        struct and NOT an `AbstractPropertySettings`: a dispersion coefficient is a property of a PAIR of atoms, for
-        which `perform(::Atomic.Computation)` -- which carries one multiplet and loops over its levels -- has no
-        shape. The module is therefore called directly, as `module-DalgarnoLewis.jl` and `module-RandomPhase.jl` are.
+    ... defines a type for the details and parameters of computing long-range dispersion coefficients. It IS an
+        `AbstractPropertySettings`, so the module is reached through `propertySettings` of an `Atomic.Computation`
+        exactly as every other property module is, and the module's own functions remain available for the cases the
+        property route cannot express. A dispersion coefficient is a property of a PAIR of atoms, and
+        `perform(::Atomic.Computation)` carries only ONE multiplet -- so the computed atom is partner A, taken level
+        by level from that multiplet, while partner B is carried IN THESE SETTINGS, already built. Leaving
+        `partnerB` empty asks for a HOMONUCLEAR pair, which is what a published C_n of a single species means.
 
     + orders            ::Array{Int64,1}        ... The orders n of the atom-atom coefficients C_n wanted; even and at
                                                       least 6. The default [6, 8, 10] is what the literature quotes.
@@ -246,15 +260,33 @@ end
     + wallDielectric    ::Float64               ... The CONSTANT dielectric constant of that wall; Inf, the default,
                                                       is a perfect conductor. A frequency-dependent eps(i omega) is
                                                       not supported -- see the module docstring.
+    + gMultiplet        ::Multiplet             ... The perturber multiplet of the atom whose levels are computed,
+                                                      i.e. the intermediate ASF over which the response is summed.
+                                                      As in `MultipolePolarizibility`, the caller generates it ahead
+                                                      of time; see the module docstring.
+    + partnerB          ::DispersionCoefficient.Partner
+                                                ... The SECOND atom, fully built by the caller, including its own
+                                                      perturber response. An empty partner -- the default -- means a
+                                                      HOMONUCLEAR pair, and partner B is then taken to be partner A
+                                                      itself, which is the common case and the one every published
+                                                      C_n of a single species refers to.
     + printBefore       ::Bool                  ... True if the partners and their response are printed before the
                                                       coefficients are computed.
+    + levelSelection    ::LevelSelection        ... Specifies the levels to be computed. The Casimir-Polder form
+                                                      holds only for the LOWEST level a perturber set can see, so a
+                                                      selection that admits an excited level makes
+                                                      `DispersionCoefficient.checkGroundLevel` raise rather than
+                                                      return a plausible number.
 """
-struct Settings
+struct Settings <: Basics.AbstractPropertySettings
     orders              ::Array{Int64,1}
     multipoles          ::Array{EmMultipole,1}
     calcAtomWall        ::Bool
     wallDielectric      ::Float64
+    gMultiplet          ::Multiplet
+    partnerB            ::DispersionCoefficient.Partner
     printBefore         ::Bool
+    levelSelection      ::LevelSelection
 end
 
 
@@ -263,28 +295,36 @@ end
     ... constructor for an `empty` instance of DispersionCoefficient.Settings.
 """
 function Settings()
-    Settings( [6, 8, 10], EmMultipole[E1, E2, E3], false, Inf, false )
+    Settings( [6, 8, 10], EmMultipole[E1, E2, E3], false, Inf, Multiplet(), DispersionCoefficient.Partner(),
+              false, LevelSelection() )
 end
 
 
 """
 `DispersionCoefficient.Settings(set::DispersionCoefficient.Settings;`
 
-        orders=.., multipoles=.., calcAtomWall=.., wallDielectric=.., printBefore=..)
+        orders=.., multipoles=.., calcAtomWall=.., wallDielectric=.., gMultiplet=.., partnerB=..,
+        printBefore=.., levelSelection=..)
 
     ... keyword copy-constructor for re-defining selected values of a settings::DispersionCoefficient.Settings.
 """
 function Settings(set::DispersionCoefficient.Settings;
         orders::Union{Nothing,Array{Int64,1}}=nothing,       multipoles::Union{Nothing,Array{EmMultipole,1}}=nothing,
         calcAtomWall::Union{Nothing,Bool}=nothing,           wallDielectric::Union{Nothing,Float64}=nothing,
-        printBefore::Union{Nothing,Bool}=nothing)
+        gMultiplet::Union{Nothing,Multiplet}=nothing,
+        partnerB::Union{Nothing,DispersionCoefficient.Partner}=nothing,
+        printBefore::Union{Nothing,Bool}=nothing,            levelSelection::Union{Nothing,LevelSelection}=nothing)
     if  isnothing(orders)           ordersx         = set.orders         else   ordersx         = orders         end
     if  isnothing(multipoles)       multipolesx     = set.multipoles     else   multipolesx     = multipoles     end
     if  isnothing(calcAtomWall)     calcAtomWallx   = set.calcAtomWall   else   calcAtomWallx   = calcAtomWall   end
     if  isnothing(wallDielectric)   wallDielectricx = set.wallDielectric else   wallDielectricx = wallDielectric end
+    if  isnothing(gMultiplet)       gMultipletx     = set.gMultiplet     else   gMultipletx     = gMultiplet     end
+    if  isnothing(partnerB)         partnerBx       = set.partnerB       else   partnerBx       = partnerB       end
     if  isnothing(printBefore)      printBeforex    = set.printBefore    else   printBeforex    = printBefore    end
+    if  isnothing(levelSelection)   levelSelectionx = set.levelSelection else   levelSelectionx = levelSelection end
 
-    Settings( ordersx, multipolesx, calcAtomWallx, wallDielectricx, printBeforex )
+    Settings( ordersx, multipolesx, calcAtomWallx, wallDielectricx, gMultipletx, partnerBx, printBeforex,
+              levelSelectionx )
 end
 
 
@@ -295,7 +335,10 @@ function Base.show(io::IO, settings::DispersionCoefficient.Settings)
     println(io, "multipoles:               $(settings.multipoles)  ")
     println(io, "calcAtomWall:             $(settings.calcAtomWall)  ")
     println(io, "wallDielectric:           $(settings.wallDielectric)  ")
+    println(io, "gMultiplet:               $(settings.gMultiplet)  ")
+    println(io, "partnerB:                 $(settings.partnerB.name)  ")
     println(io, "printBefore:              $(settings.printBefore)  ")
+    println(io, "levelSelection:           $(settings.levelSelection)  ")
 end
 
 
@@ -492,6 +535,48 @@ function computeOutcome(partnerA::DispersionCoefficient.Partner, partnerB::Dispe
          DispersionCoefficient.computeAtomWallCoefficient(partnerA, settings.wallDielectric) : 0.0
 
     return( DispersionCoefficient.Outcome(partnerA, partnerB, coefficients, c3, settings.wallDielectric) )
+end
+
+
+"""
+`DispersionCoefficient.computeOutcomes(multiplet::Multiplet, nm::Nuclear.Model, grid::Radial.Grid,
+                                        settings::DispersionCoefficient.Settings; output=true)`
+    ... computes the dispersion coefficients for the selected levels of the given multiplet, which is the entry point
+        `perform(::Atomic.Computation)` uses, so that the module is reached exactly as every other property module is;
+        an `outcomes::Array{DispersionCoefficient.Outcome,1}` is returned. The computed atom is partner A and its
+        response is built from `settings.gMultiplet`; partner B is `settings.partnerB` where the caller supplied one
+        and partner A itself otherwise, which is the homonuclear case every published C_n of a single species means.
+        Each selected level passes `DispersionCoefficient.checkGroundLevel` FIRST, so a selection that admits an
+        excited level raises here rather than returning a number the Casimir-Polder form cannot support.
+"""
+function computeOutcomes(multiplet::Multiplet, nm::Nuclear.Model, grid::Radial.Grid,
+            settings::DispersionCoefficient.Settings; output=true)
+    println("")
+    printstyled("DispersionCoefficient.computeOutcomes(): The computation of dispersion coefficients starts now ... \n",
+                color=:light_green)
+    printstyled("------------------------------------------------------------------------------------------------- \n",
+                color=:light_green)
+    #
+    printSummary, iostream = Defaults.getDefaults("summary flag/stream")
+    outcomes = DispersionCoefficient.Outcome[]
+    for  level  in  multiplet.levels
+        Basics.selectLevel(level, settings.levelSelection)   ||   continue
+        partnerA = DispersionCoefficient.Partner( "level $(level.index), $(LevelSymmetry(level.J, level.parity))",
+                                                  level, settings.gMultiplet, grid, settings.multipoles )
+        DispersionCoefficient.checkGroundLevel(partnerA)
+        partnerB = isempty(settings.partnerB.terms) ? partnerA : settings.partnerB
+        if  settings.printBefore
+            println("");   println(partnerA);   partnerB === partnerA   ||   println(partnerB)
+        end
+        outcome = DispersionCoefficient.computeOutcome(partnerA, partnerB, settings)
+        push!( outcomes, outcome )
+        DispersionCoefficient.displayResults(stdout, outcome)
+        if  printSummary    DispersionCoefficient.displayResults(iostream, outcome)   end
+    end
+
+    if    output    return( outcomes )
+    else            return( nothing )
+    end
 end
 
 
