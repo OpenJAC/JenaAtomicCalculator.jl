@@ -2408,6 +2408,33 @@ struct     AaHSField            <:  AbstractScField     end
 `struct  Basics.DFSField        <:  AbstractScField`  
     ... defines a type to describe a mean Dirac-Fock-Slater field.
 
+        THIS IS JAC's DEFAULT FIELD AND ITS ORBITAL EIGENVALUES ARE NOT BINDING ENERGIES.  The local-exchange
+        approximation leaves every valence orbital systematically underbound.  Measured against Koopmans, i.e.
+        against the ionization potential that `PeriodicTable.ionizationPotentials_Nist2025` already carries for
+        the same ion, where the AL field is the non-local Dirac-Fock comparison on the same grid and basis:
+
+            He 1s            -eps/IP = 0.57 (DFSField)    1.02 (ALField)
+            Ne 2p                      0.56               1.07
+            Eu^3+ 4f^6                 0.73               1.00     ... an OPEN f shell, measured 19-Oct-2026
+
+        So use `Basics.ALField()` wherever an INDIVIDUAL orbital energy matters -- a binding energy, a BEB cross
+        section, a perturbation-theory denominator -- and note that the underbinding reaches an open f shell as
+        readily as a closed s one.
+
+        WHAT THE CHOICE OF FIELD DOES AND DOES NOT REACH, measured on Eu^3+ 4f^6 against the twelve known levels
+        of that configuration, is worth knowing before quoting any of it:
+
+          * a LANDE g_J IS ESSENTIALLY IMMUNE.  Over the ^7F ladder g_J sits within 0.09-0.38 % of the exact LS
+            value 3/2 and moves by at most 5e-4 relative between the two fields, while eps(4f) moves 27 %.  The
+            same was found for Ti+ 3d^2 4s a^4F.  BUT a level that is NEAR-DEGENERATE WITH A SAME-J PARTNER is
+            the exception and must be checked: ^5D_4 sits 340-610 cm^-1 from ^5G_4, and ITS g_J moves 3.5 %
+            between the fields, seventy times more than any ^7F level.
+          * FINE STRUCTURE IMPROVES.  The ^7F intervals come out 9-15 % too wide on DFS and 3-11 % on AL.
+          * A TERM SEPARATION GETS WORSE, and this is the trap.  ^5D - ^7F is 10-11 % too large on DFS and
+            14-18 % too large on AL, so DFS "agrees better" by a CANCELLATION OF ERRORS: its 4f is 3 % more
+            diffuse, which lowers the Slater integrals and imitates the reduction that correlation -- absent
+            from a single-configuration calculation -- would supply.  Do not choose DFS on that evidence.
+
     + strength           ::Float64   ... Strength factor of the DFS potential (default: strength=1.0)
 """
 struct     DFSField             <:  AbstractScField     
