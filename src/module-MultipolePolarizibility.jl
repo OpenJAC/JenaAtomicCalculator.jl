@@ -102,13 +102,30 @@
     radial box -- which is what identified it as the wrong operator rather than a numerical problem. There is
     no gauge diagnostic to be had from a static quantity, and none is offered here.
 
-    Stage 2, PART DONE 19-Oct-2026: general multipoles beyond E1 and the general rank-K decomposition are now
-    implemented and validated, as described at the head of this docstring. What remains deferred is the DYNAMIC
-    (nonzero omega) polarizability -- for which the per-perturber reduced matrix element and energy denominator are
-    now stored on Contribution, so that any real or imaginary frequency is a re-summation of the SAME terms and needs
-    no new structure calculation -- and the MAGNETIC multipoles, for which `MultipoleMoment.emmStaticAmplitude` has no
-    operator and the literature is thin. Stark shifts and dispersion coefficients are separate, later consumers of
-    this module and are still not implemented here.
+    Stage 2 IS DONE, 19-Oct-2026: general multipoles beyond E1, the general rank-K decomposition, and the DYNAMIC
+    polarizability at both real and imaginary frequency. What remains deferred is the MAGNETIC multipoles, for which
+    `MultipoleMoment.emmStaticAmplitude` has no operator and the literature is thin, and the dispersion coefficients
+    themselves, which are a separate, later consumer of this module.
+
+    THE FREQUENCY ENTERS ONLY THROUGH THE DENOMINATOR, so the dynamic case costs nothing beyond the static one. With
+    dE = W_J' - W_J, MultipolePolarizibility.frequencyFactor replaces 1/dE by dE/(dE^2 - omega^2) at a real frequency
+    and by dE/(dE^2 + omega^2) at the imaginary frequency i*omega, and nothing else changes: the same reduced matrix
+    elements, the same angular coefficients, the same perturber set. `Settings.omegas` lists the REAL frequencies
+    wanted (omega = 0 is always computed as well, so alpha0/alpha2 keep their meaning); the imaginary axis is reached
+    by calling computeMultipolePolarizabilities directly, since i*omega has no physical meaning of its own and exists
+    for dispersion coefficients.
+
+    THE TWO AXES BEHAVE QUITE DIFFERENTLY, AND THE IMAGINARY ONE IS THE EASY ONE. On the real axis the factor diverges
+    whenever omega meets an excitation energy, and ABOVE the lowest excitation energy the true alpha(omega) is COMPLEX
+    -- the atom absorbs -- while a sum over a discrete perturber set can only return a principal-value-like real part
+    with no width. On the imaginary axis dE^2 + omega^2 cannot vanish, so there are no poles at all; that is why a
+    dispersion coefficient is built there. MultipolePolarizibility.checkFrequency warns about both real-axis traps.
+
+    AND alpha(i*omega) MAKES A DISPERSION COEFFICIENT A DOUBLE SUM RATHER THAN A QUADRATURE. On a discrete perturber
+    spectrum the Casimir-Polder integral is closed form, int_0^inf [a/(a^2+w^2)][b/(b^2+w^2)] dw = pi/(2(a+b)), so
+    with A_a = c(L,0,J,J_a) |<J_a||O||J>|^2 one gets C_6 = (3/2) sum_ab A_a A_b / (dE_a + dE_b), which is Dalgarno's
+    oscillator-strength form. Measured on H(1s)-H(1s) with np to n = 16, this reproduces the published C_6 -- see
+    `tools/probe-dynamicPolarizability.jl`. The coefficients themselves belong in a module of their own.
 
     UNPARKED 13-Oct-2026 ON THE MAINTAINER'S INSTRUCTION, AND THE MODULE REPRODUCES EXACT HYDROGEN.
     It had been parked since 10-Aug-2026, and the whole of the reason was a stale number. The story is kept
@@ -219,6 +236,11 @@ const AU_ALPHA_IN_MHZ_PER_KVCM2 = 1.0e-6 * Defaults.convertUnits("energy: from a
     + contribAlphas  ::Array{Tuple{Int64,EmProperty},1}
                                     ... (K, contribution) for EVERY rank K this perturber feeds, in ascending K;
                                         contribAlpha0/contribAlpha2 are the K = 0 and K = 2 members of it.
+    + omega          ::Float64      ... The frequency at which this term was evaluated; 0. for a static one. A
+                                        Contribution belongs to ONE (multipole, frequency) evaluation, so a caller
+                                        that asked for several frequencies can tell the terms apart by this field.
+    + imaginaryOmega ::Bool         ... True if `omega` is to be read as the IMAGINARY frequency i*omega, which is
+                                        what a dispersion coefficient needs and where the sum has no poles at all.
 """
 struct Contribution
     nuLevel          ::Level
@@ -228,6 +250,8 @@ struct Contribution
     multipole        ::EmMultipole
     reducedMe        ::Float64
     contribAlphas    ::Array{Tuple{Int64,EmProperty},1}
+    omega            ::Float64
+    imaginaryOmega   ::Bool
 end
 
 
@@ -247,19 +271,25 @@ end
                                                                     intermediate ASF in gMultiplet that the requested
                                                                     multipoles can reach from level; each term names
                                                                     its own multipole (see module docstring).
-    + alphas         ::Array{Tuple{EmMultipole,Int64,EmProperty},1}
-                                                                ... (Mp, K, alpha^(Mp,K)) for every multipole
-                                                                    requested and every rank K that this level can
-                                                                    carry, in the order they were computed; alpha0
-                                                                    and alpha2 above are the (E1,0) and (E1,2)
-                                                                    members of it.
+    + alphas         ::Array{Tuple{EmMultipole,Int64,Float64,EmProperty},1}
+                                                                ... (Mp, K, omega, alpha^(Mp,K)(omega)) for every
+                                                                    multipole requested, every rank K this level can
+                                                                    carry and every frequency in Settings.omegas,
+                                                                    in the order computed; omega = 0. is ALWAYS
+                                                                    present, and alpha0/alpha2 above are its (E1,0)
+                                                                    and (E1,2) members. These frequencies are REAL;
+                                                                    the imaginary axis is reached by calling
+                                                                    computeMultipolePolarizabilities directly, since
+                                                                    i*omega is an internal device for dispersion
+                                                                    coefficients rather than a property anyone asks
+                                                                    for on its own.
 """
 struct Outcome
     level          ::Level
     alpha0         ::EmProperty
     alpha2         ::EmProperty
     contributions  ::Array{MultipolePolarizibility.Contribution,1}
-    alphas         ::Array{Tuple{EmMultipole,Int64,EmProperty},1}
+    alphas         ::Array{Tuple{EmMultipole,Int64,Float64,EmProperty},1}
 end
 
 
@@ -270,7 +300,7 @@ end
 """
 function Outcome()
     Outcome(Level(), EmProperty(0.), EmProperty(0.), MultipolePolarizibility.Contribution[],
-            Tuple{EmMultipole,Int64,EmProperty}[])
+            Tuple{EmMultipole,Int64,Float64,EmProperty}[])
 end
 
 
@@ -298,9 +328,14 @@ end
                                                               caller (e.g. via AtomicState.GreenExpansion/generate(),
                                                               see examples/example-Aj.jl) and simply consumed here;
                                                               mirrors MultiPhotonTransition.Settings.gMultiplet.
-    + omegas                    ::Array{Float64,1}      ... List of omegas (energies) of the dynamic polarizibility.
-                                                              Stage 1 only supports the static case (omega=0);
-                                                              this list is currently unused.
+    + omegas                    ::Array{Float64,1}      ... List of REAL frequencies (in atomic units) at which the
+                                                              dynamic polarizability is wanted, beside the static
+                                                              case. omega = 0. is always computed whether or not it
+                                                              appears here, so alpha0/alpha2 of the Outcome keep
+                                                              their meaning; duplicates are dropped. A frequency at
+                                                              or above the lowest excitation energy is WARNED about
+                                                              rather than refused -- see
+                                                              MultipolePolarizibility.checkFrequency.
     + printBefore               ::Bool                  ... True if a list of selected levels is printed before the
                                                             actual computations start.
     + levelSelection            ::LevelSelection        ... Specifies the selected levels, if any.
@@ -370,6 +405,84 @@ function allowedRanks(multipole::EmMultipole, J::AngularJ64)
     Jd = Basics.twice(J) / 2.0
 
     return( [K   for K = 0:min(2*multipole.L, round(Int64, 2*Jd))   if iseven(K)] )
+end
+
+
+"""
+`MultipolePolarizibility.checkFrequency(multipole::EmMultipole, level::Level, omega::Float64, imaginaryOmega::Bool,
+                                        contributions::Array{MultipolePolarizibility.Contribution,1})`  
+    ... inspects the frequency a dynamic polarizability was asked for and WARNS LOUDLY, to stdout, about the two ways
+        it goes wrong while still returning a finite, plausible-looking number. Both concern the REAL axis only; on the
+        imaginary axis the denominator is dE^2 + omega^2, which cannot vanish, and that is precisely why a dispersion
+        coefficient is evaluated there. Nothing is returned.
+
+        THE FIRST IS THAT THE TRUE POLARIZABILITY IS COMPLEX AND THIS SUM IS REAL. Above the lowest excitation energy
+        the atom absorbs, alpha(omega) acquires an imaginary part, and a sum over a DISCRETE perturber set cannot
+        represent it -- what comes back is a principal-value-like real part with no width. The number is not a
+        polarizability there, however reasonable it looks.
+
+        THE SECOND IS A POLE. As omega approaches a perturber's excitation energy the factor dE/(dE^2 - omega^2)
+        diverges, so the result is carried by ONE term and is only as accurate as that ONE energy. For a genuine
+        low-lying perturber that is a real resonance; for a high-n pseudo-state standing in for the continuum -- which
+        is most of the set, and whose energy means nothing individually -- it is an artefact of the discretisation.
+"""
+function checkFrequency(multipole::EmMultipole, level::Level, omega::Float64, imaginaryOmega::Bool,
+                        contributions::Array{MultipolePolarizibility.Contribution,1})
+    if  omega == 0.0  ||  imaginaryOmega  ||  isempty(contributions)    return( nothing )    end
+
+    # dE = W_J' - W_J > 0 for every perturber above the level;  only those can be resonant with a positive omega
+    dEs = [ -c.deltaE  for c in contributions  if -c.deltaE > 0.0 ]
+    if  isempty(dEs)    return( nothing )    end
+    dEmin = minimum(dEs)
+
+    if  omega >= dEmin
+        printstyled("\n>>> omega = " * @sprintf("%.6f", omega) * " a.u. IS AT OR ABOVE THE LOWEST EXCITATION ENERGY " *
+                    @sprintf("%.6f", dEmin) * " a.u. of this perturber set,\n" *
+                    "    so the true alpha^($multipole, K) is COMPLEX there and this real sum over a DISCRETE set " *
+                    "cannot represent its\n    imaginary part. What is returned is a principal-value-like real part " *
+                    "with no width -- not a polarizability.\n", color=:light_red)
+    end
+
+    # the nearest perturber in frequency, as a fraction of its own energy: that is what sets the sensitivity
+    wa    = argmin( [abs(dE - omega) for dE in dEs] )
+    dNear = dEs[wa]
+    if  abs(dNear - omega) < 2.0e-2 * dNear
+        printstyled("\n>>> omega = " * @sprintf("%.6f", omega) * " a.u. SITS ON A POLE: a perturber lies at " *
+                    @sprintf("%.6f", dNear) * " a.u., i.e. " *
+                    @sprintf("%.2f", 100*abs(dNear-omega)/dNear) * " % away, so\n" *
+                    "    alpha^($multipole, K) is carried by that ONE term and is only as accurate as that ONE " *
+                    "energy. For a genuine\n    low-lying perturber that is a resonance; for a high-n pseudo-state " *
+                    "standing in for the continuum it is an\n    artefact of the discretisation, since such a " *
+                    "state's individual energy means nothing.\n", color=:light_red)
+    end
+
+    return( nothing )
+end
+
+
+"""
+`MultipolePolarizibility.frequencyFactor(dE::Float64, omega::Float64, imaginaryOmega::Bool)`  
+    ... returns the energy-denominator factor which carries the WHOLE frequency dependence of a multipole
+        polarizability, so that alpha^(Mp,K)(omega) = sum_J' c(L,K,J,J') |<J'||O^(Mp)||J>|^2 * this factor, with
+        dE = W_J' - W_J:
+
+            omega = 0           1 / dE
+            real omega          dE / (dE^2 - omega^2)
+            imaginary i*omega   dE / (dE^2 + omega^2)
+
+        All three agree at omega = 0. THE IMAGINARY AXIS HAS NO POLES -- dE^2 + omega^2 cannot vanish -- which is why
+        a dispersion coefficient is built there and why alpha(i*omega) is numerically the EASIER quantity, despite
+        having no direct physical meaning of its own. On the real axis the factor diverges whenever omega meets an
+        excitation energy; MultipolePolarizibility.checkFrequency warns about that. A value::Float64 is returned.
+
+        For an EXCITED level of interest some perturbers lie BELOW it, dE < 0, and the same expressions hold: such a
+        term contributes with the opposite sign, which is the de-excitation channel and not an error.
+"""
+function frequencyFactor(dE::Float64, omega::Float64, imaginaryOmega::Bool)
+    if      omega == 0.0        return( 1.0 / dE )
+    elseif  imaginaryOmega      return( dE / (dE*dE + omega*omega) )
+    else                        return( dE / (dE*dE - omega*omega) )
+    end
 end
 
 
@@ -465,7 +578,8 @@ end
 
 """
 `MultipolePolarizibility.computeMultipolePolarizabilities(multipole::EmMultipole, level::Level, gMultiplet::Multiplet,
-                                                           grid::Radial.Grid)`  
+                                                           grid::Radial.Grid; omega::Float64=0.0,
+                                                           imaginaryOmega::Bool=false)`  
     ... computes the static multipole polarizabilities alpha^(Mp,K)(level) of `level` for the 2^L-pole `multipole` and
         for EVERY rank K that the level can carry (MultipolePolarizibility.allowedRanks), by summing the static reduced
         matrix elements <J' || O^(Mp) || J> = MultipoleMoment.emmStaticAmplitude(L, ...) over every level of
@@ -476,8 +590,17 @@ end
         perturber set is checked and warned about (MultipolePolarizibility.checkPerturberSet). A tuple
         (alphas::Array{Tuple{Int64,EmProperty},1}, contributions::Array{MultipolePolarizibility.Contribution,1}) is
         returned, the latter giving each perturber's own additive share of every rank.
+
+        THE FREQUENCY ENTERS ONLY THROUGH THE DENOMINATOR, which is why the dynamic case costs nothing beyond the
+        static one: `omega` (real, atomic units) or, with `imaginaryOmega = true`, the imaginary frequency i*omega
+        replaces 1/dE by MultipolePolarizibility.frequencyFactor and NOTHING else changes -- the same reduced matrix
+        elements, the same angular coefficients, the same perturber set. A caller sweeping many frequencies therefore
+        pays for one structure calculation, and `Contribution.reducedMe` is stored so that even that can be reused.
+        The frequency is checked and warned about by MultipolePolarizibility.checkFrequency, which matters on the real
+        axis only.
 """
-function computeMultipolePolarizabilities(multipole::EmMultipole, level::Level, gMultiplet::Multiplet, grid::Radial.Grid)
+function computeMultipolePolarizabilities(multipole::EmMultipole, level::Level, gMultiplet::Multiplet,
+                                          grid::Radial.Grid; omega::Float64=0.0, imaginaryOmega::Bool=false)
     Ks            = MultipolePolarizibility.allowedRanks(multipole, level.J)
     alphaK        = zeros( Float64, length(Ks) )
     contributions = MultipolePolarizibility.Contribution[]
@@ -498,9 +621,18 @@ function computeMultipolePolarizabilities(multipole::EmMultipole, level::Level, 
 
         ## The coefficient below multiplies |<J'||O||J>|^2 / (E_J' - E_J), i.e. the denominator with the SIGN OPPOSITE
         ## to deltaE, which is kept as E_J - E_J' because that is what Contribution has always stored and printed.
+        ## THE STATIC BRANCH IS WRITTEN EXACTLY AS IT WAS, not folded into the general one, so that a static result is
+        ## BIT-identical and not merely equal to rounding: c*|d|^2*(1/dE) and -c*|d|^2/dE differ in the last bit, and
+        ## test/approved is not to move for a change that adds a frequency.
         contribAlphas = Tuple{Int64,EmProperty}[]
         for  (i, K) in enumerate(Ks)
-            wa = - MultipolePolarizibility.rankCoefficient(multipole.L, K, level.J, nuLevel.J) * abs2(dStatic) / deltaE
+            coeff = MultipolePolarizibility.rankCoefficient(multipole.L, K, level.J, nuLevel.J)
+            if  omega == 0.0
+                wa = - coeff * abs2(dStatic) / deltaE
+            else
+                wa =   coeff * abs2(dStatic) *
+                       MultipolePolarizibility.frequencyFactor(-deltaE, omega, imaginaryOmega)
+            end
             alphaK[i] = alphaK[i] + wa
             push!( contribAlphas, (K, EmProperty(wa, wa)) )
         end
@@ -513,13 +645,20 @@ function computeMultipolePolarizabilities(multipole::EmMultipole, level::Level, 
             elseif  K == 2   c2 = cAlpha
             end
         end
-        push!( contributions, MultipolePolarizibility.Contribution(nuLevel, deltaE, c0, c2, multipole, dStatic, contribAlphas) )
+        push!( contributions, MultipolePolarizibility.Contribution(nuLevel, deltaE, c0, c2, multipole, dStatic,
+                                  contribAlphas, omega, imaginaryOmega) )
     end
 
     alphas = Tuple{Int64,EmProperty}[]
     for  (i, K) in enumerate(Ks)   push!( alphas, (K, EmProperty(alphaK[i], alphaK[i])) )    end
+    ## THE PERTURBER SET DOES NOT DEPEND ON THE FREQUENCY, so it is checked at omega = 0 only. A caller sweeping
+    ## thirty frequencies would otherwise get thirty copies of the same warning, and a guard that repeats is a guard
+    ## that gets scrolled past.
     scalar = isempty(alphas) ? 0.0 : alphas[1][2].Babushkin
-    MultipolePolarizibility.checkPerturberSet(multipole, level, gMultiplet, grid, contributions, scalar)
+    if  omega == 0.0
+        MultipolePolarizibility.checkPerturberSet(multipole, level, gMultiplet, grid, contributions, scalar)
+    end
+    MultipolePolarizibility.checkFrequency(multipole, level, omega, imaginaryOmega, contributions)
 
     return( (alphas, contributions) )
 end
@@ -565,18 +704,24 @@ function  computeAmplitudesProperties(outcome::MultipolePolarizibility.Outcome, 
                                        grid::Radial.Grid, settings::MultipolePolarizibility.Settings)
     if  isempty(settings.multipoles)  ||  isempty(gMultiplet.levels)   return  outcome   end
 
-    alphas = Tuple{EmMultipole,Int64,EmProperty}[];    contributions = MultipolePolarizibility.Contribution[]
-    alpha0 = EmProperty(0.);                           alpha2        = EmProperty(0.)
+    alphas = Tuple{EmMultipole,Int64,Float64,EmProperty}[];   contributions = MultipolePolarizibility.Contribution[]
+    alpha0 = EmProperty(0.);                                  alpha2        = EmProperty(0.)
 
-    for  multipole in settings.multipoles
+    ## omega = 0. IS ALWAYS COMPUTED, whether or not the caller listed it, because alpha0/alpha2 of the Outcome are
+    ## defined as the STATIC scalar and tensor polarizabilities and several callers read them. It is also computed
+    ## FIRST, so that with an empty settings.omegas -- the default -- the loop below is term for term what it was
+    ## before a frequency existed here.
+    frequencies = unique( vcat(0.0, settings.omegas) )
+
+    for  multipole in settings.multipoles,  omega in frequencies
         mpAlphas, mpContributions = MultipolePolarizibility.computeMultipolePolarizabilities(multipole, outcome.level,
-                                                                                             gMultiplet, grid)
-        for  (K, alphaK) in mpAlphas             push!( alphas, (multipole, K, alphaK) )    end
-        for  contribution in mpContributions     push!( contributions, contribution )       end
+                                                                 gMultiplet, grid; omega=omega)
+        for  (K, alphaK) in mpAlphas             push!( alphas, (multipole, K, omega, alphaK) )    end
+        for  contribution in mpContributions     push!( contributions, contribution )               end
 
-        ## alpha0/alpha2 remain the E1 rank-0 and rank-2 members, so that every existing caller, printout and
+        ## alpha0/alpha2 remain the STATIC E1 rank-0 and rank-2 members, so that every existing caller, printout and
         ## approved reference sees exactly what it saw before.
-        if  multipole == E1
+        if  multipole == E1  &&  omega == 0.0
             for  (K, alphaK) in mpAlphas
                 if      K == 0   alpha0 = alphaK
                 elseif  K == 2   alpha2 = alphaK
@@ -638,7 +783,7 @@ function  determineOutcomes(multiplet::Multiplet, settings::MultipolePolarizibil
     for  level  in  multiplet.levels
         if  Basics.selectLevel(level, settings.levelSelection)
             push!( outcomes, MultipolePolarizibility.Outcome(level, EmProperty(0.), EmProperty(0.),
-                                 MultipolePolarizibility.Contribution[], Tuple{EmMultipole,Int64,EmProperty}[]) )
+                                 MultipolePolarizibility.Contribution[], Tuple{EmMultipole,Int64,Float64,EmProperty}[]) )
         end
     end
     return( outcomes )
@@ -728,9 +873,12 @@ function  displayResults(stream::IO, outcomes::Array{MultipolePolarizibility.Out
     #     the formula says they must.  `AsfSettings()` DEFAULTS to DFSField, so this is the common case, not
     #     an exotic one.
     for  outcome in outcomes
-        isempty(outcome.contributions)   &&   continue
-        dominant = outcome.contributions[1]
-        for  c in outcome.contributions
+        # the STATIC terms only: with several frequencies requested the list holds one set per frequency, and the
+        # note below is about alpha_0, which is the static quantity
+        statics = [c  for c in outcome.contributions  if c.omega == 0.0  &&  c.multipole == E1]
+        isempty(statics)   &&   continue
+        dominant = statics[1]
+        for  c in statics
             abs(c.contribAlpha0.Babushkin) > abs(dominant.contribAlpha0.Babushkin)   &&   (dominant = c)
         end
         share = abs(outcome.alpha0.Babushkin) > 0.0 ?
@@ -758,17 +906,19 @@ function  displayResults(stream::IO, outcomes::Array{MultipolePolarizibility.Out
     # whole of the output for every caller that wants a Stark shift, and no stored reference moves.
     general = false
     for  outcome in outcomes
-        for  (mp, K, alphaK) in outcome.alphas
-            if  mp != E1  ||  !(K in [0, 2])    general = true    end
+        for  (mp, K, omega, alphaK) in outcome.alphas
+            if  mp != E1  ||  !(K in [0, 2])  ||  omega != 0.0    general = true    end
         end
     end
     if  general
         println(stream, " ")
-        println(stream, "  Static MULTIPOLE polarizibilities alpha^(Mp,K), in the convention of the module docstring: " *
+        println(stream, "  MULTIPOLE polarizibilities alpha^(Mp,K)(omega), in the convention of the module docstring: " *
                          "alpha^(Mp,K) is the")
         println(stream, "  coefficient of the angular shape A_K(J,M) in the substate polarizability, so alpha^(Mp,0) is " *
                          "the scalar one and")
-        println(stream, "  alpha^(Mp,K>0) is the anisotropy carried by the stretched M = J substate:")
+        println(stream, "  alpha^(Mp,K>0) is the anisotropy carried by the stretched M = J substate. The frequencies " *
+                         "are REAL, and omega = 0 is")
+        println(stream, "  the static case:")
         println(stream, " ")
         println(stream, "  ", TableStrings.hLine(nx))
         sa = "  ";   sb = "  "
@@ -776,17 +926,20 @@ function  displayResults(stream::IO, outcomes::Array{MultipolePolarizibility.Out
         sa = sa * TableStrings.center(10, "J^P";   na=4);                         sb = sb * TableStrings.hBlank(14)
         sa = sa * TableStrings.center( 8, "Mp";    na=2);                         sb = sb * TableStrings.hBlank(10)
         sa = sa * TableStrings.center( 5, "K";     na=3);                         sb = sb * TableStrings.hBlank( 8)
+        sa = sa * TableStrings.center(14, "omega";  na=3)
+        sb = sb * TableStrings.center(14, "[a.u.]"; na=3)
         sa = sa * TableStrings.center(18, "alpha^(Mp,K)"; na=3)
         sb = sb * TableStrings.center(18, "[a.u.]"; na=3)
         println(stream, sa);    println(stream, sb);    println(stream, "  ", TableStrings.hLine(nx))
         for  outcome in outcomes
             sym = LevelSymmetry( outcome.level.J, outcome.level.parity)
-            for  (mp, K, alphaK) in outcome.alphas
+            for  (mp, K, omega, alphaK) in outcome.alphas
                 sa = "  "
                 sa = sa * TableStrings.center(10, TableStrings.level(outcome.level.index); na=2)
                 sa = sa * TableStrings.center(10, string(sym); na=4)
                 sa = sa * TableStrings.center( 8, string(mp);  na=2)
                 sa = sa * TableStrings.center( 5, string(K);   na=3)
+                sa = sa * TableStrings.flushright(14, @sprintf("%.6f", omega) )              * "    "
                 sa = sa * TableStrings.flushright(18, @sprintf("%.6e", alphaK.Babushkin) )   * "    "
                 println(stream, sa)
             end
@@ -800,6 +953,10 @@ function  displayResults(stream::IO, outcomes::Array{MultipolePolarizibility.Out
         println(stream, "  >>> np to n = 16 for 1.00000 of the reference, E2 nd to 16 for 0.99999, E3 nf to 22 for")
         println(stream, "  >>> 0.99999, E4 ng to 16 for 1.0031 -- while a few bound perturbers give only 0.81, 0.34,")
         println(stream, "  >>> 0.08 and 0.01 of it.  See MultipolePolarizibility.checkPerturberSet for the guards.")
+        println(stream, "  >>> AND A REAL FREQUENCY HAS TWO TRAPS OF ITS OWN: above the lowest excitation energy the")
+        println(stream, "  >>> true alpha is COMPLEX and this discrete real sum cannot represent its imaginary part,")
+        println(stream, "  >>> and near an excitation energy the sum is carried by ONE term and is only as good as")
+        println(stream, "  >>> that one energy.  MultipolePolarizibility.checkFrequency warns about both.")
         println(stream, "  ", TableStrings.hLine(nx), "\n\n")
     end
     #
