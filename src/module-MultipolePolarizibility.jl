@@ -3,6 +3,60 @@
 `module  JAC.MultipolePolarizibility`
 ... a submodel of JAC that contains all methods for computing static multipole polarizibilities.
 
+    ONE NOTATION, WRITTEN `alpha^(Mp,K)`, AND NO SUBSCRIPTS -- the maintainer's instruction, 19-Oct-2026, in the form
+    JAC already uses for `O^(Mp, emission)`, `T^(Mp, absorption)` and `H^(sms,C)`: a single parenthesised superscript
+    carrying a comma-separated label list, multipole first and rank second. The literature splits these two labels
+    between a superscript and a subscript and then disagrees about which is which, and the collision is not
+    hypothetical: `alpha_2` means the RANK-2 DIPOLE polarizability in the Stark-shift literature and the SCALAR
+    QUADRUPOLE polarizability in the dispersion-coefficient literature, which differ by orders of magnitude. Here they
+    are `alpha^(E1,2)` and `alpha^(E2,0)` and cannot be confused.
+
+    THE CONVENTION IS FIXED BY AN OBSERVABLE, NOT BY A CONVENIENT FACTOR (Rule 18). `alpha^(Mp,K)(J)` is defined as the
+    coefficient of the angular shape A_K(J,M) in the polarizability of the individual magnetic substate,
+
+        alpha(J,M)  =  sum_K  A_K(J,M) alpha^(Mp,K)(J),       A_K(J,M) = C^(JM)_(JM,K0) / C^(JJ)_(JJ,K0),   A_0 = 1
+
+    so that alpha^(Mp,0) is the usual scalar polarizability and every alpha^(Mp,K>0) is the anisotropy carried by the
+    stretched M = J substate. For K = 2 the shape is the familiar [3M^2 - J(J+1)]/[J(2J-1)], so alpha^(E1,0) and
+    alpha^(E1,2) ARE the alpha_0 and alpha_2 of Angel & Sandars (1968) below, unchanged.
+
+    THE GENERAL RANK, for any multipole and any rank the level can carry, is computed by
+    MultipolePolarizibility.computeMultipolePolarizabilities from
+
+        alpha^(Mp,K)(J)  =  sum_J'  c(L,K,J,J') |<J' || O^(Mp) || J>|^2 / (W_J' - W_J)
+
+        c(L,K,J,J')      =  2 (-1)^(J+J') C^(JJ)_(JJ,K0) (2K+1)/sqrt(2J+1) * (L L K; 0 0 0) * {J J' L; L K J}
+
+    with a Wigner 3-j and a Wigner 6-j symbol, and the three selection rules are carried BY the formula rather than
+    imposed on it: the 3-j vanishes for odd K and for K > 2L, the Clebsch-Gordan for K > 2J. Setting K = 0 collapses it
+    analytically to 2/((2J+1)(2L+1)), which at L = 1 is the Angel & Sandars scalar prefactor. Odd K -- the vector or
+    axial polarizability, K = 1 -- exists only for a circularly polarized field and is not computed here.
+
+    HOW MUCH OF THIS IS PROVEN, AND HOW. The angular machinery is exact and was settled numerically rather than by
+    hand, since a factor of this shape is exactly what gets written with a wrong phase and compensated elsewhere:
+      * the substate polarizability was built directly from Clebsch-Gordan coefficients and decomposed in the A_K
+        shapes over 70 (J,L) combinations -- residual <= 1.7e-16, which proves the rank set complete;
+      * the ratio of the extracted coefficient to (-1)^(J+J') {J J' L; L K J} is INDEPENDENT of J' to <= 9.1e-15,
+        which proves the 6-j structure, and the normalisation and phase then matched with ZERO mismatches over 421
+        samples;
+      * with REAL matrix elements, alpha(J,M) rebuilt as sum_K A_K alpha^(E1,K) reproduces the direct substate sum to
+        5.8e-16 on H 2p_3/2 with nd perturbers -- the first NON-ZERO alpha^(E1,2) this module has produced;
+      * against the Dirac B-spline values of Tang, Zhang, Zhang, Jiang & Mitroy, arXiv:1205.6883, on H 1s and on a box
+        MATCHED to the perturbers: alpha^(E1,0) 1.00000, alpha^(E2,0) 0.99999, alpha^(E3,0) 0.99999, alpha^(E4,0)
+        1.0031 of the reference. That the K = 0 normalisation holds at FOUR multipole orders rules out a (2L+1)-type
+        error, which would have shown as a factor of 5 at E2.
+    `tools/probe-generalRankPolarizability.jl` is the harness and records its own results.
+
+    AND WHAT IS NOT THE FORMULA BUT THE PERTURBER SET, which is where every remaining error lives. The discrete series
+    stands in for the continuum, and it saturates far more slowly the higher the multipole: a few bound perturbers give
+    0.81, 0.34, 0.08 and 0.01 of the reference at E1, E2, E3 and E4, and reaching 1.0 needs the series run to n ~ 16
+    (E1, E2, E4) or n ~ 22 (E3). WORSE, THE RADIAL BOX IS AMPLIFIED BY THE MULTIPOLE ORDER, because the matrix elements
+    weight r^L: the very box that is harmless for E1 (614 a.u. with the grid guard overridden, which is what
+    examples/example-Cj.jl branch b does deliberately and correctly) gives alpha^(E3,0) 4.9 times and alpha^(E4,0)
+    47500 TIMES the reference. Rule 12 with a multipole lever on it. Three guards warn about this -- see
+    MultipolePolarizibility.checkPerturberSet, which also records the two candidate detectors that were measured and
+    REJECTED for not discriminating.
+
     Stage 1 (implemented here): the static electric-dipole (E1) scalar and tensor polarizabilities
     alpha_0(J), alpha_2(J), following the classic Angel & Sandars (1968) rank-0/rank-2 decomposition
     (formula and prefactors confirmed against van Leeuwen & Hogervorst, Z. Phys. A 316, 149 (1984),
@@ -48,10 +102,13 @@
     radial box -- which is what identified it as the wrong operator rather than a numerical problem. There is
     no gauge diagnostic to be had from a static quantity, and none is offered here.
 
-    Stage 2 (explicitly NOT implemented here, deferred): dynamic (nonzero omega) polarizabilities,
-    general multipoles beyond E1 (needs the general rank-K decomposition, not just rank-0/rank-2),
-    magnetic multipoles. Stark shifts and dispersion coefficients are separate, later consumers of
-    this module and are also not implemented here.
+    Stage 2, PART DONE 19-Oct-2026: general multipoles beyond E1 and the general rank-K decomposition are now
+    implemented and validated, as described at the head of this docstring. What remains deferred is the DYNAMIC
+    (nonzero omega) polarizability -- for which the per-perturber reduced matrix element and energy denominator are
+    now stored on Contribution, so that any real or imaginary frequency is a re-summation of the SAME terms and needs
+    no new structure calculation -- and the MAGNETIC multipoles, for which `MultipoleMoment.emmStaticAmplitude` has no
+    operator and the literature is thin. Stark shifts and dispersion coefficients are separate, later consumers of
+    this module and are still not implemented here.
 
     UNPARKED 13-Oct-2026 ON THE MAINTAINER'S INSTRUCTION, AND THE MODULE REPRODUCES EXACT HYDROGEN.
     It had been parked since 10-Aug-2026, and the whole of the reason was a stale number. The story is kept
@@ -119,7 +176,8 @@
 module MultipolePolarizibility
 
 
-using Printf, ..AngularMomentum, ..AtomicState, ..Basics, ..Defaults, ..ManyElectron, ..MultipoleMoment, ..Nuclear, ..PhotoEmission, ..Radial, ..TableStrings
+using Printf, ..AngularMomentum, ..AtomicState, ..Basics, ..Bsplines, ..Defaults, ..ManyElectron, ..MultipoleMoment,
+      ..Nuclear, ..PhotoEmission, ..Radial, ..TableStrings
 
 
 """
@@ -139,8 +197,10 @@ const AU_ALPHA_IN_MHZ_PER_KVCM2 = 1.0e-6 * Defaults.convertUnits("energy: from a
 
 """
 `struct  MultipolePolarizibility.Contribution`
-    ... defines a type to keep the individual contribution of ONE intermediate (perturber) ASF from
-        gMultiplet to the scalar/tensor static E1 polarizability of some other (fixed) level.
+    ... defines a type to keep the individual contribution of ONE intermediate (perturber) ASF from gMultiplet to the
+        static multipole polarizability alpha^(Mp,K) of some other (fixed) level. One such term is built per perturber
+        AND per multipole, and it carries the multipole it belongs to in its own `multipole` field, so that the
+        contributions of several requested multipoles can be told apart in one Outcome.
 
     + nuLevel        ::Level        ... The intermediate (perturber) level nuLevel = J' from gMultiplet.
     + deltaE         ::Float64      ... Energy denominator W_J - W_J' (atomic units) entering this term.
@@ -149,12 +209,25 @@ const AU_ALPHA_IN_MHZ_PER_KVCM2 = 1.0e-6 * Defaults.convertUnits("energy: from a
     + contribAlpha2  ::EmProperty   ... This perturber's own additive contribution to alpha_2(J), in a.u.,
                                         in both gauges; identically 0. for J<1, where the tensor
                                         polarizability does not exist.
+    + multipole      ::EmMultipole  ... The multipole Mp whose polarizability this term contributes to; E1 for
+                                        every term built by computeScalarTensorPolarizability.
+    + reducedMe      ::Float64      ... The static reduced matrix element <J' || O^(Mp) || J> ITSELF, kept
+                                        because the whole frequency dependence of a polarizability sits in the
+                                        denominator: with reducedMe and deltaE stored, alpha^(Mp,K) at any real
+                                        or imaginary frequency -- and hence any dispersion coefficient -- is a
+                                        re-summation of these same terms and needs no new structure calculation.
+    + contribAlphas  ::Array{Tuple{Int64,EmProperty},1}
+                                    ... (K, contribution) for EVERY rank K this perturber feeds, in ascending K;
+                                        contribAlpha0/contribAlpha2 are the K = 0 and K = 2 members of it.
 """
 struct Contribution
     nuLevel          ::Level
     deltaE           ::Float64
     contribAlpha0    ::EmProperty
     contribAlpha2    ::EmProperty
+    multipole        ::EmMultipole
+    reducedMe        ::Float64
+    contribAlphas    ::Array{Tuple{Int64,EmProperty},1}
 end
 
 
@@ -171,14 +244,22 @@ end
                                                                     where the tensor polarizability does not exist.
     + contributions  ::Array{MultipolePolarizibility.Contribution,1}
                                                                 ... individual, additive contribution of every
-                                                                    intermediate ASF in gMultiplet that couples
-                                                                    to level via E1 (see module docstring).
+                                                                    intermediate ASF in gMultiplet that the requested
+                                                                    multipoles can reach from level; each term names
+                                                                    its own multipole (see module docstring).
+    + alphas         ::Array{Tuple{EmMultipole,Int64,EmProperty},1}
+                                                                ... (Mp, K, alpha^(Mp,K)) for every multipole
+                                                                    requested and every rank K that this level can
+                                                                    carry, in the order they were computed; alpha0
+                                                                    and alpha2 above are the (E1,0) and (E1,2)
+                                                                    members of it.
 """
 struct Outcome
     level          ::Level
     alpha0         ::EmProperty
     alpha2         ::EmProperty
     contributions  ::Array{MultipolePolarizibility.Contribution,1}
+    alphas         ::Array{Tuple{EmMultipole,Int64,EmProperty},1}
 end
 
 
@@ -188,7 +269,8 @@ end
         polarizibilities.
 """
 function Outcome()
-    Outcome(Level(), EmProperty(0.), EmProperty(0.), MultipolePolarizibility.Contribution[])
+    Outcome(Level(), EmProperty(0.), EmProperty(0.), MultipolePolarizibility.Contribution[],
+            Tuple{EmMultipole,Int64,EmProperty}[])
 end
 
 
@@ -275,68 +357,198 @@ end
 
 
 """
-`MultipolePolarizibility.computeScalarTensorPolarizability(level::Level, gMultiplet::Multiplet, grid::Radial.Grid)`
-    ... computes the static E1 scalar (alpha_0) and tensor (alpha_2) polarizabilities of `level` (Angel & Sandars 1968;
-        prefactors as given in the module docstring) by summing the reduced E1 matrix elements over every level
-        `nuLevel` in `gMultiplet`, using `MultipoleMoment.emmStaticAmplitude(1, nuLevel, level, grid)` -- the
-        frequency-INDEPENDENT static multipole-moment operator. A static polarizability carries no gauge freedom,
-        so both components of the returned EmProperty hold the same number; see the note in the body. A tuple
-        (alpha0::EmProperty, alpha2::EmProperty, contributions::Array{MultipolePolarizibility.Contribution,1})
-        is returned, the latter giving each perturber level's own additive share of alpha0/alpha2 in both gauges.
+`MultipolePolarizibility.allowedRanks(multipole::EmMultipole, J::AngularJ64)`  
+    ... returns the ranks K for which a level of angular momentum J can carry a non-vanishing static multipole
+        polarizability alpha^(Mp,K) in the field of the given 2^L-pole `multipole`. Three rules act together: K <= 2L,
+        because the rank-K component is built by coupling the two 2^L-pole operators of the second-order expression;
+        K <= 2J, by the Wigner-Eckart theorem applied between the substates of one level; and K EVEN, because the two
+        coupled operators are identical. Odd K does exist physically -- K = 1 is the vector (axial) polarizability --
+        but only for a circularly polarized field, and it is deliberately not returned here. A ranks::Array{Int64,1}
+        is returned, in ascending order; it always contains K = 0.
 """
-function computeScalarTensorPolarizability(level::Level, gMultiplet::Multiplet, grid::Radial.Grid)
-    Jd = Basics.twice(level.J) / 2.0
-    rawScalar = EmProperty(0.);   rawTensor = EmProperty(0.)
-    prefactor0 = -2.0 / (3.0*(2*Jd+1))
-    if  Jd < 1.0    prefactor2 = 0.0
-    else            prefactor2 = -2.0*sqrt(10.0/3.0) * sqrt( Jd*(2*Jd-1) / ((2*Jd+3)*(Jd+1)*(2*Jd+1)) ) * (-1.0)^round(Int64, 2*Jd)
+function allowedRanks(multipole::EmMultipole, J::AngularJ64)
+    Jd = Basics.twice(J) / 2.0
+
+    return( [K   for K = 0:min(2*multipole.L, round(Int64, 2*Jd))   if iseven(K)] )
+end
+
+
+"""
+`MultipolePolarizibility.checkPerturberSet(multipole::EmMultipole, level::Level, gMultiplet::Multiplet,
+                                            grid::Radial.Grid,
+                                            contributions::Array{MultipolePolarizibility.Contribution,1},
+                                            alphaScalar::Float64)`  
+    ... inspects the perturber set that was actually used and WARNS LOUDLY, to stdout, about the two conditions under
+        which a multipole polarizability comes out wrong while looking perfectly reasonable. The first is that NO level
+        of `gMultiplet` can be reached at all: a 2^L-pole operator needs perturbers of its own parity and within its own
+        triangle, so a set of np levels -- right for E1 -- reaches NOTHING for E2, and the sum then returns a clean zero
+        rather than an error. The second is that the sum HAS NOT SATURATED: the discrete perturber series stands in for
+        the continuum, so the highest-lying member must already contribute negligibly, and where it does not the result
+        is a lower bound of unknown quality rather than a polarizability. The third, for L >= 2 only, re-runs
+        `Bsplines.checkOrbitalConsistency` on the perturber orbitals, because an ill-matched radial box is far more
+        dangerous for a high multipole than for E1 -- see the measured figures in the module docstring. Nothing is
+        returned.
+
+        NO FOURTH GUARD IS OFFERED, AND THAT IS DELIBERATE. Two candidate detectors for a box-corrupted sum were
+        built and MEASURED on one healthy and two catastrophic E4 cases, and NEITHER discriminates: where the largest
+        contribution sits in the energy-ordered series put the healthy case FURTHER up (78 % of the way) than either
+        corrupted one (43 %, 37 %), and box/<r> of the dominant perturber ran 1.67/1.45 for the healthy cases against
+        1.33/1.27 for the corrupted ones -- overlapping, and in the wrong direction. An uncalibrated guard here would
+        be worse than none, since it would be read as a clean bill of health.
+"""
+function checkPerturberSet(multipole::EmMultipole, level::Level, gMultiplet::Multiplet, grid::Radial.Grid,
+                           contributions::Array{MultipolePolarizibility.Contribution,1}, alphaScalar::Float64)
+    # the parity a perturber must carry: an electric 2^L-pole has parity (-1)^L, a magnetic one (-1)^(L+1)
+    nReach = 0
+    for  nuLevel in gMultiplet.levels
+        if  MultipolePolarizibility.isReachable(multipole, level, nuLevel)   nReach = nReach + 1    end
     end
+
+    if  nReach == 0
+        wantsSame = multipole.electric ? iseven(multipole.L) : isodd(multipole.L)
+        printstyled("\n>>> NO PERTURBER REACHED for alpha^($multipole, K) of level $(level.index): " *
+                    "the given gMultiplet holds $(length(gMultiplet.levels)) level(s), and not one of them is\n" *
+                    "    reachable from J^P = $(level.J)$(string(level.parity)) by a $multipole operator. " *
+                    "A $multipole needs perturbers of the " * (wantsSame ? "SAME" : "OPPOSITE") * " parity with\n" *
+                    "    |J - $(multipole.L)| <= J' <= J + $(multipole.L), so the polarizability below is a " *
+                    "STRUCTURAL ZERO and not a physical one.\n", color=:light_red)
+        return( nothing )
+    end
+
+    if  isempty(contributions)  ||  alphaScalar == 0.0   return( nothing )   end
+
+    # the highest-lying perturber stands at the top of the discrete stand-in for the continuum; its own share of
+    # alpha^(Mp,0) is the cheapest honest measure of whether the series has run out
+    wa       = sortperm( [c.nuLevel.energy  for c in contributions] )
+    topContr = contributions[wa[end]]
+    topShare = 0.0
+    for  (K, cAlpha) in topContr.contribAlphas
+        if  K == 0   topShare = abs( cAlpha.Babushkin / alphaScalar )    end
+    end
+
+    if  topShare > 1.0e-2
+        printstyled("\n>>> PERTURBER SUM NOT SATURATED for alpha^($multipole, 0) of level $(level.index): " *
+                    "the HIGHEST-lying perturber still carries\n" *
+                    @sprintf("    %.2f %% of the total (%d perturbers, top one at %.3f a.u. above the level). ",
+                             100*topShare, length(contributions), topContr.nuLevel.energy - level.energy) *
+                    "The discrete series stands in for\n" *
+                    "    the continuum, so this is a LOWER BOUND of unknown quality rather than a converged " *
+                    "polarizability; extend gMultiplet\n    to higher n and watch alpha^($multipole, 0) settle.\n",
+                    color=:light_red)
+    end
+
+    ## For a rank-L polarizability the matrix elements weight r^L, so the radial box matters far more than it does
+    ## for E1 -- and overriding the grid guard, which is standard and right for an E1 pseudo-continuum (see
+    ## examples/example-Cj.jl branch b), is ruinous above it. Rather than invent a detector, JAC's own calibrated
+    ## check is re-run here on the perturber orbitals.
+    if  multipole.L >= 2
+        orbitals = Dict{Subshell,Orbital}()
+        for  nuLevel in gMultiplet.levels
+            for  (sub, orb) in nuLevel.basis.orbitals    orbitals[sub] = orb    end
+        end
+        if  !isempty(orbitals)
+            wa = Bsplines.checkOrbitalConsistency(orbitals, grid; stopper=false)
+            if  !wa.ok
+                printstyled(">>> AND THE ORBITAL CHECK ABOVE MATTERS MORE FOR alpha^($multipole, K) THAN IT WOULD FOR E1: " *
+                            "the matrix elements\n    weight r^$(multipole.L), so an ill-matched box is amplified by the " *
+                            "multipole order. Measured on H 1s, 19-Oct-2026, against\n    the Dirac values of " *
+                            "arXiv:1205.6883: on a MATCHED 129 a.u. box alpha^(E3,0) and alpha^(E4,0) come out at 1.0000 " *
+                            "and 1.0031\n    of the reference, while on a 614 a.u. box they come out at 4.9 and 47500 " *
+                            "times it. Match the box.\n", color=:light_red)
+            end
+        end
+    end
+
+    return( nothing )
+end
+
+
+"""
+`MultipolePolarizibility.computeMultipolePolarizabilities(multipole::EmMultipole, level::Level, gMultiplet::Multiplet,
+                                                           grid::Radial.Grid)`  
+    ... computes the static multipole polarizabilities alpha^(Mp,K)(level) of `level` for the 2^L-pole `multipole` and
+        for EVERY rank K that the level can carry (MultipolePolarizibility.allowedRanks), by summing the static reduced
+        matrix elements <J' || O^(Mp) || J> = MultipoleMoment.emmStaticAmplitude(L, ...) over every level of
+        `gMultiplet`. The convention is the one fixed in the module docstring: alpha^(Mp,K) is the coefficient of the
+        angular shape A_K(J,M) = C^(JM)_(JM,K0) / C^(JJ)_(JJ,K0) in the substate polarizability alpha(J,M), so that
+        alpha^(Mp,0) is the scalar polarizability and alpha^(Mp,K>0) is the anisotropy carried by the M = J substate.
+        A static polarizability has no gauge freedom, so both components of every EmProperty hold the same number. The
+        perturber set is checked and warned about (MultipolePolarizibility.checkPerturberSet). A tuple
+        (alphas::Array{Tuple{Int64,EmProperty},1}, contributions::Array{MultipolePolarizibility.Contribution,1}) is
+        returned, the latter giving each perturber's own additive share of every rank.
+"""
+function computeMultipolePolarizabilities(multipole::EmMultipole, level::Level, gMultiplet::Multiplet, grid::Radial.Grid)
+    Ks            = MultipolePolarizibility.allowedRanks(multipole, level.J)
+    alphaK        = zeros( Float64, length(Ks) )
     contributions = MultipolePolarizibility.Contribution[]
 
     for  nuLevel in gMultiplet.levels
         deltaE = level.energy - nuLevel.energy
         if  deltaE == 0.0   continue    end
 
-        # Both emmStaticAmplitude's and PhotoEmission.amplitude's SpinAngular/CSF machinery need
-        # BOTH levels' CSFs indexed against the SAME subshell list; nuLevel (from gMultiplet's
-        # typically much larger pseudo-basis) and level (the level of interest's own, typically
-        # much smaller basis) do not share one -- reduce both onto their union first (same idiom
-        # as AutoIonization/InternalConversion's amplitude construction).
+        # Both emmStaticAmplitude's and PhotoEmission.amplitude's SpinAngular/CSF machinery need BOTH levels' CSFs
+        # indexed against the SAME subshell list; nuLevel (from gMultiplet's typically much larger pseudo-basis) and
+        # level (the level of interest's own, typically much smaller basis) do not share one -- reduce both onto their
+        # union first (same idiom as AutoIonization/InternalConversion's amplitude construction).
         subshellList = Basics.generate(OrderedSubshellList(), nuLevel.basis, level.basis)
         newNuLevel   = Basics.generateLevelWithSymmetryReducedBasis(nuLevel, subshellList)
         newLevel     = Basics.generateLevelWithSymmetryReducedBasis(level,   subshellList)
+        dStatic      = MultipoleMoment.emmStaticAmplitude(multipole.L, newNuLevel, newLevel, grid)
+        if  abs2(dStatic) == 0.0   continue    end
 
-        ## A STATIC POLARIZABILITY HAS NO GAUGE FREEDOM (corrected 10-Aug-2026), so both components of the
-        ## EmProperty are filled from the same, frequency-INDEPENDENT static multipole moment. Until now the
-        ## Coulomb component came from PhotoEmission.amplitude(.., Basics.Coulomb, 0., ..), i.e. MabEmission --
-        ## the frequency-DEPENDENT transition operator -- evaluated at omega = 0. That is a category error, not
-        ## a gauge: the velocity form is related to the length form by <f|p|i> = i (E_f - E_i) <f|r|i>, so
-        ## taking it at omega = 0 drops exactly the 1/omega that connects the two. It produced alpha_0(Coulomb)
-        ## ~ 1.5e-6 against 1.164 in Babushkin -- six orders, and completely insensitive to the radial box,
-        ## which is what finally identified it as a wrong operator rather than a numerical problem.
-        ## The operator used here, InteractionStrength.eMultipole via MultipoleMoment.emmStaticAmplitude, is
-        ## Johnson's static r^k C_k: no omega, no gauge. It is also the operator that belongs in the C_6/C_8/C_10
-        ## dispersion coefficients. The two columns are therefore deliberately identical; they are kept only
-        ## because Outcome carries EmProperty fields throughout JAC.
-        dStatic = MultipoleMoment.emmStaticAmplitude(1, newNuLevel, newLevel, grid)
-        S = EmProperty( abs2(dStatic), abs2(dStatic) )
-        if  S.Coulomb == 0.0  &&  S.Babushkin == 0.0   continue    end
+        ## The coefficient below multiplies |<J'||O||J>|^2 / (E_J' - E_J), i.e. the denominator with the SIGN OPPOSITE
+        ## to deltaE, which is kept as E_J - E_J' because that is what Contribution has always stored and printed.
+        contribAlphas = Tuple{Int64,EmProperty}[]
+        for  (i, K) in enumerate(Ks)
+            wa = - MultipolePolarizibility.rankCoefficient(multipole.L, K, level.J, nuLevel.J) * abs2(dStatic) / deltaE
+            alphaK[i] = alphaK[i] + wa
+            push!( contribAlphas, (K, EmProperty(wa, wa)) )
+        end
 
-        Sd = S * (1.0/deltaE)
-        contribScalar = prefactor0 * Sd
-        rawScalar     = rawScalar + Sd
-
-        Jpd    = Basics.twice(nuLevel.J) / 2.0
-        phase  = (-1.0)^round(Int64, Jd - Jpd)
-        w6j    = AngularMomentum.Wigner_6j(level.J, nuLevel.J, AngularJ64(1), AngularJ64(1), AngularJ64(2), level.J)
-        contribTensor = (prefactor2 * phase * w6j) * Sd
-        rawTensor     = rawTensor + (phase * w6j) * Sd
-
-        push!(contributions, MultipolePolarizibility.Contribution(nuLevel, deltaE, contribScalar, contribTensor))
+        ## alpha0/alpha2 are retained on Contribution so that every existing caller and printout is unaffected; they
+        ## are the K = 0 and K = 2 members of contribAlphas and are not computed a second time.
+        c0 = EmProperty(0.);   c2 = EmProperty(0.)
+        for  (K, cAlpha) in contribAlphas
+            if      K == 0   c0 = cAlpha
+            elseif  K == 2   c2 = cAlpha
+            end
+        end
+        push!( contributions, MultipolePolarizibility.Contribution(nuLevel, deltaE, c0, c2, multipole, dStatic, contribAlphas) )
     end
 
-    alpha0 = prefactor0 * rawScalar
-    alpha2 = prefactor2 * rawTensor
+    alphas = Tuple{Int64,EmProperty}[]
+    for  (i, K) in enumerate(Ks)   push!( alphas, (K, EmProperty(alphaK[i], alphaK[i])) )    end
+    scalar = isempty(alphas) ? 0.0 : alphas[1][2].Babushkin
+    MultipolePolarizibility.checkPerturberSet(multipole, level, gMultiplet, grid, contributions, scalar)
+
+    return( (alphas, contributions) )
+end
+
+
+"""
+`MultipolePolarizibility.computeScalarTensorPolarizability(level::Level, gMultiplet::Multiplet, grid::Radial.Grid)`
+    ... computes the static E1 scalar and tensor polarizabilities of `level`, i.e. alpha^(E1,0) and alpha^(E1,2) in the
+        notation of the module docstring, which the Stark-shift literature writes alpha_0 and alpha_2 (Angel & Sandars
+        1968). This is the E1 rank-0/rank-2 FACE of MultipolePolarizibility.computeMultipolePolarizabilities and adds
+        nothing of its own: it is kept because it is the entry point that module-StarkShift.jl and several examples
+        call, and because those two ranks are what a Stark shift of a linearly polarized field needs. A static
+        polarizability carries no gauge freedom, so both components of each EmProperty hold the same number. A tuple
+        (alpha0::EmProperty, alpha2::EmProperty, contributions::Array{MultipolePolarizibility.Contribution,1}) is
+        returned, the latter giving each perturber level's own additive share of alpha0/alpha2 in both gauges.
+
+        UNTIL 19-Oct-2026 THIS FUNCTION CARRIED ITS OWN LOOP, with the two Angel & Sandars prefactors written out. The
+        general function reproduces that loop EXACTLY -- 0.0e+00 relative difference on the total and 3.2e-16 on the
+        worst of its eight perturber terms, on the H 1s case of test/approved -- which is what made it safe to have
+        one implementation instead of two that can drift apart.
+"""
+function computeScalarTensorPolarizability(level::Level, gMultiplet::Multiplet, grid::Radial.Grid)
+    alphas, contributions = MultipolePolarizibility.computeMultipolePolarizabilities(E1, level, gMultiplet, grid)
+    alpha0 = EmProperty(0.);     alpha2 = EmProperty(0.)
+    for  (K, alphaK) in alphas
+        if      K == 0   alpha0 = alphaK
+        elseif  K == 2   alpha2 = alphaK
+        end
+    end
 
     return  (alpha0, alpha2, contributions)
 end
@@ -351,10 +563,29 @@ end
 """
 function  computeAmplitudesProperties(outcome::MultipolePolarizibility.Outcome, gMultiplet::Multiplet,
                                        grid::Radial.Grid, settings::MultipolePolarizibility.Settings)
-    if  !(E1 in settings.multipoles)  ||  isempty(gMultiplet.levels)   return  outcome   end
+    if  isempty(settings.multipoles)  ||  isempty(gMultiplet.levels)   return  outcome   end
 
-    alpha0, alpha2, contributions = MultipolePolarizibility.computeScalarTensorPolarizability(outcome.level, gMultiplet, grid)
-    return  MultipolePolarizibility.Outcome(outcome.level, alpha0, alpha2, contributions)
+    alphas = Tuple{EmMultipole,Int64,EmProperty}[];    contributions = MultipolePolarizibility.Contribution[]
+    alpha0 = EmProperty(0.);                           alpha2        = EmProperty(0.)
+
+    for  multipole in settings.multipoles
+        mpAlphas, mpContributions = MultipolePolarizibility.computeMultipolePolarizabilities(multipole, outcome.level,
+                                                                                             gMultiplet, grid)
+        for  (K, alphaK) in mpAlphas             push!( alphas, (multipole, K, alphaK) )    end
+        for  contribution in mpContributions     push!( contributions, contribution )       end
+
+        ## alpha0/alpha2 remain the E1 rank-0 and rank-2 members, so that every existing caller, printout and
+        ## approved reference sees exactly what it saw before.
+        if  multipole == E1
+            for  (K, alphaK) in mpAlphas
+                if      K == 0   alpha0 = alphaK
+                elseif  K == 2   alpha2 = alphaK
+                end
+            end
+        end
+    end
+
+    return  MultipolePolarizibility.Outcome(outcome.level, alpha0, alpha2, contributions, alphas)
 end
 
 
@@ -406,7 +637,8 @@ function  determineOutcomes(multiplet::Multiplet, settings::MultipolePolarizibil
     outcomes = MultipolePolarizibility.Outcome[]
     for  level  in  multiplet.levels
         if  Basics.selectLevel(level, settings.levelSelection)
-            push!( outcomes, MultipolePolarizibility.Outcome(level, EmProperty(0.), EmProperty(0.), MultipolePolarizibility.Contribution[]) )
+            push!( outcomes, MultipolePolarizibility.Outcome(level, EmProperty(0.), EmProperty(0.),
+                                 MultipolePolarizibility.Contribution[], Tuple{EmMultipole,Int64,EmProperty}[]) )
         end
     end
     return( outcomes )
@@ -521,7 +753,126 @@ function  displayResults(stream::IO, outcomes::Array{MultipolePolarizibility.Out
     println(stream, "  >>> polarizability;  see examples/example-Cj.jl branch (C).")
     println(stream, "  ", TableStrings.hLine(nx), "\n\n")
     #
+    # THE GENERAL-RANK TABLE IS PRINTED ONLY WHEN THERE IS SOMETHING IN IT BEYOND (E1,0) AND (E1,2), i.e. only when
+    # a multipole other than E1 or a rank other than 0 and 2 was actually asked for. The table above then stays the
+    # whole of the output for every caller that wants a Stark shift, and no stored reference moves.
+    general = false
+    for  outcome in outcomes
+        for  (mp, K, alphaK) in outcome.alphas
+            if  mp != E1  ||  !(K in [0, 2])    general = true    end
+        end
+    end
+    if  general
+        println(stream, " ")
+        println(stream, "  Static MULTIPOLE polarizibilities alpha^(Mp,K), in the convention of the module docstring: " *
+                         "alpha^(Mp,K) is the")
+        println(stream, "  coefficient of the angular shape A_K(J,M) in the substate polarizability, so alpha^(Mp,0) is " *
+                         "the scalar one and")
+        println(stream, "  alpha^(Mp,K>0) is the anisotropy carried by the stretched M = J substate:")
+        println(stream, " ")
+        println(stream, "  ", TableStrings.hLine(nx))
+        sa = "  ";   sb = "  "
+        sa = sa * TableStrings.center(10, "Level"; na=2);                         sb = sb * TableStrings.hBlank(12)
+        sa = sa * TableStrings.center(10, "J^P";   na=4);                         sb = sb * TableStrings.hBlank(14)
+        sa = sa * TableStrings.center( 8, "Mp";    na=2);                         sb = sb * TableStrings.hBlank(10)
+        sa = sa * TableStrings.center( 5, "K";     na=3);                         sb = sb * TableStrings.hBlank( 8)
+        sa = sa * TableStrings.center(18, "alpha^(Mp,K)"; na=3)
+        sb = sb * TableStrings.center(18, "[a.u.]"; na=3)
+        println(stream, sa);    println(stream, sb);    println(stream, "  ", TableStrings.hLine(nx))
+        for  outcome in outcomes
+            sym = LevelSymmetry( outcome.level.J, outcome.level.parity)
+            for  (mp, K, alphaK) in outcome.alphas
+                sa = "  "
+                sa = sa * TableStrings.center(10, TableStrings.level(outcome.level.index); na=2)
+                sa = sa * TableStrings.center(10, string(sym); na=4)
+                sa = sa * TableStrings.center( 8, string(mp);  na=2)
+                sa = sa * TableStrings.center( 5, string(K);   na=3)
+                sa = sa * TableStrings.flushright(18, @sprintf("%.6e", alphaK.Babushkin) )   * "    "
+                println(stream, sa)
+            end
+        end
+        println(stream, "  ", TableStrings.hLine(nx))
+        println(stream, "  >>> A perturber set is specific to ONE multipole: an np set serves E1 and reaches NOTHING")
+        println(stream, "  >>> for E2, which needs same-parity nd levels.  And the discrete series stands in for the")
+        println(stream, "  >>> continuum, so EVERY alpha^(Mp,0) here is a lower bound until it is seen to settle;")
+        println(stream, "  >>> the higher the multipole, the deeper the series has to run.  Measured on H 1s against")
+        println(stream, "  >>> the Dirac values of arXiv:1205.6883, on a box MATCHED to the perturbers:  E1 needs")
+        println(stream, "  >>> np to n = 16 for 1.00000 of the reference, E2 nd to 16 for 0.99999, E3 nf to 22 for")
+        println(stream, "  >>> 0.99999, E4 ng to 16 for 1.0031 -- while a few bound perturbers give only 0.81, 0.34,")
+        println(stream, "  >>> 0.08 and 0.01 of it.  See MultipolePolarizibility.checkPerturberSet for the guards.")
+        println(stream, "  ", TableStrings.hLine(nx), "\n\n")
+    end
+    #
     return( nothing )
+end
+
+
+"""
+`MultipolePolarizibility.isReachable(multipole::EmMultipole, level::Level, nuLevel::Level)`  
+    ... returns true if the static 2^L-pole operator of `multipole` can connect `level` to the perturber `nuLevel` at
+        all, i.e. if the two angular momenta satisfy the triangle |J - L| <= J' <= J + L AND the two parities match the
+        parity of the operator, which is (-1)^L for an electric and (-1)^(L+1) for a magnetic multipole. This is the
+        selection rule that decides whether a given gMultiplet is of any use for a given multipole -- an np set serves
+        E1 and reaches nothing at all for E2. A value::Bool is returned.
+"""
+function isReachable(multipole::EmMultipole, level::Level, nuLevel::Level)
+    Jd = Basics.twice(level.J) / 2.0;      Jnud = Basics.twice(nuLevel.J) / 2.0
+    if  Jnud < abs(Jd - multipole.L) - 1.0e-10   ||   Jnud > Jd + multipole.L + 1.0e-10    return( false )    end
+    wantsSameParity = multipole.electric ? iseven(multipole.L) : isodd(multipole.L)
+
+    return( wantsSameParity == (level.parity == nuLevel.parity) )
+end
+
+
+"""
+`MultipolePolarizibility.rankCoefficient(L::Int64, K::Int64, J::AngularJ64, Jnu::AngularJ64)`  
+    ... returns the angular coefficient c(L,K,J,J') which multiplies |<J' || O^(Mp) || J>|^2 / (E_J' - E_J) in the
+        rank-K static multipole polarizability alpha^(Mp,K)(J) of the module docstring, i.e.
+
+            c(L,K,J,J')  =  2 (-1)^(J+J') C^(JJ)_(JJ,K0) (2K+1) / sqrt(2J+1) * (L L K; 0 0 0) * {J J' L; L K J}
+
+        with a Wigner 3-j and a Wigner 6-j symbol. The three selection rules are carried by the formula itself rather
+        than imposed on it: the 3-j symbol vanishes for odd K and for K > 2L, and the Clebsch-Gordan coefficient for
+        K > 2J. For K = 0 the expression collapses analytically to 2 / ((2J+1)(2L+1)), which for L = 1 is the scalar
+        prefactor of Angel & Sandars (1968) that this module has always used. A value::Float64 is returned.
+
+        THE FORMULA WAS SETTLED NUMERICALLY RATHER THAN BY HAND, 19-Oct-2026, because a factor of this shape is exactly
+        what gets written with the wrong phase and then compensated elsewhere (Rule 18). The substate polarizability
+        alpha(J,M) was built directly from the Clebsch-Gordan coefficients, decomposed in the A_K shapes, and the
+        coefficient read off: the decomposition residual is <= 1.7e-16 over 70 (J,L) combinations, which proves the
+        rank set complete, and the ratio of the extracted coefficient to (-1)^(J+J') {J J' L; L K J} is INDEPENDENT of
+        J' to <= 9.1e-15, which proves the 6-j structure. The remaining normalisation came out as 2 sqrt(2J+1) times
+        the Clebsch-Gordan/3-j product above, and the phase as (-1)^(J+J') with ZERO mismatches over 421 samples.
+"""
+function rankCoefficient(L::Int64, K::Int64, J::AngularJ64, Jnu::AngularJ64)
+    Jd = Basics.twice(J) / 2.0;      Jnud = Basics.twice(Jnu) / 2.0
+    if  Jnud < abs(Jd - L) - 1.0e-10   ||   Jnud > Jd + L + 1.0e-10    return( 0.0 )    end
+    if  isodd(K)   ||   K > 2*L   ||   K > round(Int64, 2*Jd)          return( 0.0 )    end
+
+    gK  = AngularMomentum.ClebschGordan(Jd, Jd, 1.0*K, 0.0, Jd, Jd)
+    c3j = AngularMomentum.Wigner_3j(1.0*L, 1.0*L, 1.0*K, 0.0, 0.0, 0.0)
+    c6j = AngularMomentum.Wigner_6j(Jd, Jnud, 1.0*L, 1.0*L, 1.0*K, Jd)
+    ph  = (-1.0)^round(Int64, Jd + Jnud)
+
+    return( 2.0 * ph * gK * (2*K + 1.0) / sqrt(2*Jd + 1.0) * c3j * c6j )
+end
+
+
+"""
+`MultipolePolarizibility.rankShape(J::AngularJ64, K::Int64, M::AngularM64)`  
+    ... returns the angular shape A_K(J,M) = C^(JM)_(JM,K0) / C^(JJ)_(JJ,K0) in which the substate polarizability of a
+        level is expanded, alpha(J,M) = sum_K A_K(J,M) alpha^(Mp,K)(J). The normalisation is fixed by A_0 = 1 and
+        A_K(J,J) = 1, so that alpha^(Mp,0) is the usual scalar polarizability and every alpha^(Mp,K>0) is the anisotropy
+        carried by the stretched M = J substate -- which is what makes the number directly readable. For K = 2 the
+        shape is the familiar [3M^2 - J(J+1)] / [J(2J-1)] of the Stark-shift literature. A value::Float64 is returned.
+"""
+function rankShape(J::AngularJ64, K::Int64, M::AngularM64)
+    if  K == 0   return( 1.0 )    end
+    Jd = Basics.twice(J) / 2.0;      Md = Basics.twice(M) / 2.0
+    if  K > round(Int64, 2*Jd)   return( 0.0 )    end
+
+    return( AngularMomentum.ClebschGordan(Jd, Md, 1.0*K, 0.0, Jd, Md) /
+            AngularMomentum.ClebschGordan(Jd, Jd, 1.0*K, 0.0, Jd, Jd) )
 end
 
 
