@@ -65,6 +65,7 @@ elseif  char == 'C'
     println("Cn) Apply & test the WeakInteractionEnhancement module: the parity-non-conserving E1 amplitude and the electron-EDM enhancement factor, both as sums over caller-supplied intermediate states.")
     println("Co) Statistical tensors of an atomic ensemble: alignment and orientation from photoexcitation, the axis they are stated about, and the tensor machinery itself.")
     println("Cp) Apply & test the NuclearShielding module: the quadrupole antishielding factor of a closed-shell ion, i.e. how its own electrons amplify at the nucleus a field gradient applied from outside.")
+    println("Cq) Multipole polarizabilities alpha^(Mp,K) at real and imaginary frequency, and the long-range dispersion coefficients C_6, C_8, C_10 and the atom-wall C_3 built from them.")
     #
 elseif  char == 'D'
     println("D)  Examples, tests & development of basic atomic processes")
