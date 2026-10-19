@@ -383,6 +383,144 @@ end
 
 
 """
+`Plasma.resonanceAutoionizationWidth(confResonant::Configuration, finalConfigs::Array{Configuration,1},
+                                       nm::Nuclear.Model, grid::Radial.Grid, settings::AsfSettings,
+                                       augerSettings::AutoIonization.Settings)`
+    ... the REPRESENTATIVE-LEVEL autoionization width of one resonant group's configuration, reusing JAC's own,
+        already-validated `AutoIonization` process UNCHANGED, through the SAME top-level call every other JAC
+        process uses -- `Atomic.Computation(initialConfigs=[confResonant], finalConfigs=finalConfigs,
+        processSettings=augerSettings)` followed by `Basics.perform` -- the same pattern
+        `Plasma.SatelliteDiagnosticScheme` already uses for its own DR/impact-excitation steps, and the SAME
+        electron-count direction that module's own comment warns about: `confResonant` must carry ONE electron
+        MORE than every configuration in `finalConfigs`, or every channel comes back empty (NOT an error --
+        see below).
+
+        **"REPRESENTATIVE" MEANS ONE LEVEL, NOT A GROUP AVERAGE** -- the choice made explicitly over two more
+        elaborate alternatives (a degeneracy-scaled estimate, or a true trace-based group average with no
+        existing building block and no reference checked), because it needs NO new formula. `confResonant` is
+        fully diagonalized here (ordinary CI -- exactly what `SuperConfigurations.Group` itself avoids doing,
+        affordable here only because this function runs on ONE flagged group, not a whole stage), its LOWEST
+        level is taken as the representative, and `AutoIonization.Line.totalRate` is summed over every channel
+        that level has into `finalConfigs` -- the SAME aggregation `AutoIonization.displayLifetimes` itself
+        uses for a level's own total width, already in Hartree (rate and energy share units since hbar=1, so
+        no conversion is needed before combining it with a `TransitionArray`'s own Hartree-valued variance in
+        a later Voigt profile).
+
+        **THE GRID IS THE CALLER'S RESPONSIBILITY, AND THIS MATTERS (Rule 12).** `AutoIonization.computeLines`
+        needs a CONTINUUM orbital for the ejected electron, and `Basics.recommendedGrid` -- the grid every
+        OTHER function in this file uses -- is explicitly documented as sized for BOUND orbitals only and
+        gives NO warning when it is too small for a continuum one. `grid` here is therefore NOT auto-derived;
+        pass one already checked adequate for the ejected electron's kinetic energy (halve `hp` until the
+        width stops moving, per Rule 12), not simply a stage's own bound-orbital grid. Likewise, the ambient
+        continuum-method defaults (`"method: continuum, ..."`, `"method: normalization, ..."`) are left
+        UNTOUCHED here -- set by the caller beforehand, exactly as any other direct `AutoIonization` call
+        already requires.
+
+        A `(width::Float64, line::Union{Nothing,AutoIonization.Line})` tuple is returned: `width` in Hartree,
+        zero when no channel is open (a parity- or angular-momentum-forbidden case, or `confResonant`'s own
+        lowest level sitting below every open threshold -- NOT an error, the same convention every
+        pair-connectivity check elsewhere in this file already uses), and `line` one representative
+        `AutoIonization.Line` for display, or `nothing` when width is zero.
+"""
+function  resonanceAutoionizationWidth(confResonant::Configuration, finalConfigs::Array{Configuration,1},
+                                          nm::Nuclear.Model, grid::Radial.Grid, settings::AsfSettings,
+                                          augerSettings::AutoIonization.Settings)
+    comp = Atomic.Computation(Atomic.Computation(), name="Plasma.resonanceAutoionizationWidth", grid=grid, nuclearModel=nm,
+                                initialConfigs=[confResonant], finalConfigs=finalConfigs,
+                                initialAsfSettings=settings, finalAsfSettings=settings,
+                                processSettings=augerSettings)
+    results = Basics.perform(comp; output=true)
+    lines   = results[AutoIonization.Settings]
+    isempty(lines)   &&   return( (0.0, nothing) )
+
+    initialMultiplet = results[ResultKeys.InitialMultiplet]
+    repLevel          = initialMultiplet.levels[ argmin( [ lv.energy   for lv in initialMultiplet.levels ] ) ]
+    repLines          = filter( ln -> ln.initialLevel.index == repLevel.index, lines )
+    isempty(repLines)   &&   return( (0.0, nothing) )
+
+    width = sum( ln.totalRate   for ln in repLines )
+
+    return( (width, repLines[1]) )
+end
+
+
+"""
+`Plasma.resonanceAutoionizationWidths(groupsPerStage::Array, flags::Array{Array{Bool,1},1},
+                                         stagesConfigs::Array{Array{Configuration,1},1}, nm::Nuclear.Model,
+                                         continuumGrid::Radial.Grid, settings::AsfSettings,
+                                         augerSettings::AutoIonization.Settings)`
+    ... calls `Plasma.resonanceAutoionizationWidth` for every group `Plasma.classifyResonantGroups` flagged
+        RESONANT in every stage but the last, decaying into the adjacent, one-electron-more-ionized stage's
+        own reference configurations (`stagesConfigs[i+1]`) -- the SAME stage-to-stage pairing used
+        throughout this file. A stage's own GROUND group is never passed here even if flagged (see
+        `Plasma.resonanceTransitionArrays`'s own docstring for why an array from a group to itself is not
+        meaningful; the same reasoning rules out a self-width here). `continuumGrid` is the ONE grid used for
+        EVERY call -- see `resonanceAutoionizationWidth`'s own docstring for why this is not auto-derived and
+        must already be checked adequate for the channel energies actually involved.
+
+        Returns `(widths::Array{Float64,1}, lines::Array, groupIndices::Array{Tuple{Int64,Int64},1})`,
+        aligned entry-by-entry: `widths[k]`/`lines[k]` belong to the resonant group at stage
+        `groupIndices[k][1]`, index `groupIndices[k][2]` -- the SAME `groupIndices` convention
+        `Plasma.resonanceTransitionArrays` returns, so the two can be zipped together by a later Voigt-profile
+        step.
+"""
+function  resonanceAutoionizationWidths(groupsPerStage::Array, flags::Array{Array{Bool,1},1},
+                                           stagesConfigs::Array{Array{Configuration,1},1}, nm::Nuclear.Model,
+                                           continuumGrid::Radial.Grid, settings::AsfSettings,
+                                           augerSettings::AutoIonization.Settings)
+    nStages = length(groupsPerStage)
+    ( length(flags) == nStages  &&  length(stagesConfigs) == nStages )   ||
+        error("Plasma.resonanceAutoionizationWidths(): groupsPerStage, flags and stagesConfigs must all have " *
+              "the same length.")
+
+    widths       = Float64[]
+    lines        = Any[]
+    groupIndices = Tuple{Int64,Int64}[]
+    for  i = 1:nStages-1
+        groups = groupsPerStage[i]
+        isempty(groups)   &&   continue
+        groundIdx = argmin( [ g.meanEnergy   for g in groups ] )
+        for  (k, g)  in  enumerate(groups)
+            ( flags[i][k]  &&  k != groundIdx )   ||   continue
+            width, line = resonanceAutoionizationWidth(g.conf, stagesConfigs[i+1], nm, continuumGrid, settings, augerSettings)
+            push!(widths, width);   push!(lines, line);   push!(groupIndices, (i, k))
+        end
+    end
+
+    return( (widths, lines, groupIndices) )
+end
+
+
+"""
+`Plasma.displayResonanceWidths(stream::IO, groupIndices::Array{Tuple{Int64,Int64},1}, widths::Array{Float64,1})`
+    ... prints, for every resonant group `Plasma.resonanceAutoionizationWidths` computed a width for, its stage
+        and group index, the autoionization width (Hartree and eV), and -- where the width is zero -- a note
+        that no channel was open rather than leaving a silent zero to be misread as a vanishingly narrow
+        resonance. Nothing is returned.
+"""
+function  displayResonanceWidths(stream::IO, groupIndices::Array{Tuple{Int64,Int64},1}, widths::Array{Float64,1})
+    println(stream, "\n  Representative-level autoionization widths of the resonant groups:\n")
+    println(stream, "  ", TableStrings.hLine(60))
+    sa = "    " * TableStrings.center(14, "Stage, group"; na=2)
+    sa = sa     * TableStrings.center(18, "Width [Hartree]"; na=2)
+    sa = sa     * TableStrings.center(14, "Width [eV]"; na=2)
+    println(stream, sa)
+    println(stream, "  ", TableStrings.hLine(60))
+    for  ((i, k), w)  in  zip(groupIndices, widths)
+        sa = "    " * TableStrings.center(14, "$i, $k"; na=2)
+        if  w <= 0.0
+              sa = sa * TableStrings.center(18, "(no channel open)"; na=2)
+        else  sa = sa * @sprintf("%18.6e", w) * "    " * @sprintf("%14.6e", Defaults.convertUnits("energy: from atomic to eV", w))
+        end
+        println(stream, sa)
+    end
+    println(stream, "  ", TableStrings.hLine(60))
+
+    return( nothing )
+end
+
+
+"""
 `Plasma.freeFreeOpacityContribution(chargesPerStage::Array{Int64,1}, stagePopulations::Array{Float64,1},
                                        omegas::Array{Float64,1}, ne::Float64, kT::Float64)`
     ... sums the free-free (inverse-bremsstrahlung) contribution to kappa(omega), for ONE species, over
