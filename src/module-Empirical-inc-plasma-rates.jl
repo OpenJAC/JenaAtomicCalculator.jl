@@ -31,6 +31,77 @@ end
 
 
 """
+`Empirical.freeFreeGauntFactor(u::Float64, gamma2::Float64)`
+    ... to provide the thermally-averaged, frequency-resolved free-free (bremsstrahlung) Gaunt factor
+        <gff(u,gamma^2)>, the quantum correction to the classical Kramers free-free cross section used by
+        Empirical.freeFreeAbsorptionCoefficient. u = omega/kT is the scaled photon energy and gamma^2 =
+        Z^2*Ry/kT the scaled ionic binding scale [P. A. M. van Hoof et al., MNRAS 444, 420 (2014), eq. (21)].
+        Looked up by bilinear interpolation, in log10(u) and log10(gamma^2), on Sutherland's (1998, MNRAS
+        300, 321) table `FREEFREE_GAUNT_TABLE` (module-Empirical-inc-freefree-gaunt-data.jl); arguments
+        outside the table's own log10 range [-4,4] x [-4,4] are CLAMPED to the nearest edge rather than
+        extrapolated, since the table gives no information on the function's behaviour beyond it. A
+        gff::Float64 is returned.
+"""
+function freeFreeGauntFactor(u::Float64, gamma2::Float64)
+    ( u > 0.0  &&  gamma2 > 0.0 )   ||
+        error("Empirical.freeFreeGauntFactor(): u = $u and gamma2 = $gamma2 must both be positive.")
+    logU  = clamp( log10(u),      FREEFREE_LOG10_U_GRID[1],  FREEFREE_LOG10_U_GRID[end]  )
+    logG2 = clamp( log10(gamma2), FREEFREE_LOG10_G2_GRID[1], FREEFREE_LOG10_G2_GRID[end] )
+
+    dU  = step(FREEFREE_LOG10_U_GRID);    dG2 = step(FREEFREE_LOG10_G2_GRID)
+    i   = clamp( 1 + floor(Int64, (logU  - FREEFREE_LOG10_U_GRID[1])  / dU),  1, length(FREEFREE_LOG10_U_GRID)-1  )
+    j   = clamp( 1 + floor(Int64, (logG2 - FREEFREE_LOG10_G2_GRID[1]) / dG2), 1, length(FREEFREE_LOG10_G2_GRID)-1 )
+    tU  = (logU  - FREEFREE_LOG10_U_GRID[i])  / dU
+    tG2 = (logG2 - FREEFREE_LOG10_G2_GRID[j]) / dG2
+
+    g00 = FREEFREE_GAUNT_TABLE[i][j];        g01 = FREEFREE_GAUNT_TABLE[i][j+1]
+    g10 = FREEFREE_GAUNT_TABLE[i+1][j];      g11 = FREEFREE_GAUNT_TABLE[i+1][j+1]
+
+    return( (1-tU)*(1-tG2)*g00 + (1-tU)*tG2*g01 + tU*(1-tG2)*g10 + tU*tG2*g11 )
+end
+
+
+"""
+`Empirical.freeFreeAbsorptionCoefficient(omegas::Array{Float64,1}, Z::Int64, ne::Float64, kT::Float64)`
+    ... to provide the free-free (inverse-bremsstrahlung) absorption coefficient, PER ABSORBING ION of
+        charge Z, at every photon energy in `omegas` [a.u.], for a Maxwellian electron gas of density
+        `ne` [a.u.] at temperature `kT` [Hartree]:
+
+            kappa_ff(omega) = ne * Z^2 * (8*pi)/(3*sqrt(3)) * alpha * omega^(-3) * (1-exp(-u)) * <gff(u,gamma2)>
+
+        with u = omega/kT and gamma2 = Z^2*0.5/kT (Ry = 0.5 Hartree). Derived from first principles, every
+        step checked directly against the typeset page of W. J. Karzas & R. Latter, ApJS 6, 167 (1961): their
+        eq. (15) is the classical Kramers cross section, eq. (16)-(17) define the Gaunt factor g_ff as its
+        quantum correction, and eq. (18)'s Boltzmann electron-energy distribution integrates, after the
+        substitution x = E_i/kT, u = omega/kT, into EXACTLY their own thermally-averaged <gff> (their eq. 21,
+        reproduced independently by Empirical.freeFreeGauntFactor's table) -- the clean cancellation of every
+        kT factor in that substitution is itself a check that no step of the derivation lost a factor. The
+        `(1-exp(-u))` stimulated-emission correction is the standard LTE factor, not from Karzas & Latter
+        directly. `Z <= 0` (a neutral stage, no Coulomb field for a passing electron) returns an all-zero
+        array rather than raising, since it is a legitimate stage charge in a mixture, just one with no
+        free-free contribution. A kappaFF::Array{Float64,1} is returned, matching `omegas` in length.
+"""
+function freeFreeAbsorptionCoefficient(omegas::Array{Float64,1}, Z::Int64, ne::Float64, kT::Float64)
+    kT <= 0.0   &&   error("Empirical.freeFreeAbsorptionCoefficient(): kT must be positive.")
+    Z <= 0   &&   return( zeros(Float64, length(omegas)) )
+
+    alpha  = Defaults.getDefaults("alpha")
+    gamma2 = Z^2 * 0.5 / kT
+    prefac = ne * Z^2 * (8pi)/(3*sqrt(3.0)) * alpha
+
+    kappaFF = zeros(Float64, length(omegas))
+    for  (k, omega)  in  enumerate(omegas)
+        omega <= 0.0   &&   continue
+        u   = omega / kT
+        gff = Empirical.freeFreeGauntFactor(u, gamma2)
+        kappaFF[k] = prefac * omega^(-3) * (1 - exp(-u)) * gff
+    end
+
+    return( kappaFF )
+end
+
+
+"""
 `Empirical.groundConfiguration(Z::Int64)`
     ... to build the ground configuration of the NEUTRAL atom with nuclear charge Z by filling the shells in Madelung
         (aufbau) order, i.e. by increasing n+l and, for equal n+l, by increasing n. This reproduces [Ar] 4s^2 for Ca,

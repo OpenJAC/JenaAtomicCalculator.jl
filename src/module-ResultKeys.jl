@@ -306,16 +306,103 @@ struct  SuperConfigurationMixtureSpeciesOpacities   <: Basics.AbstractResultKey 
 struct  SuperConfigurationMixtureOpacitySpectrum    <: Basics.AbstractResultKey   end
 
 """
-`struct  ResultKeys.SuperConfigurationMixturePlanckOpacity`  ... the Planck mean of the mixture spectrum; was
-                                                                     `"superconfiguration mixture planck
-                                                                     opacity"`. THERE IS NO MATCHING
-                                                                     `...RosselandOpacity` key: measured, not
-                                                                     assumed, to have no stable value for a
-                                                                     line-only spectrum -- see
-                                                                     `Plasma.rosselandMeanOpacity`'s own
-                                                                     docstring.
+`struct  ResultKeys.SuperConfigurationMixturePlanckOpacity`  ... the Planck mean of the BOUND-BOUND-ONLY
+                                                                     mixture spectrum (unaffected by
+                                                                     `boundFreeApprox`, so its meaning never
+                                                                     changes); was `"superconfiguration
+                                                                     mixture planck opacity"`. See
+                                                                     `ResultKeys.SuperConfigurationMixtureTotalOpacitySpectrum`
+                                                                     for the Planck mean of the FULL
+                                                                     (bound-bound+bound-free) spectrum once
+                                                                     bound-free is turned on.
 """
 struct  SuperConfigurationMixturePlanckOpacity      <: Basics.AbstractResultKey   end
+
+"""
+`struct  ResultKeys.SuperConfigurationMixtureBoundFreeOpacity`  ... added 18-Oct-2026: the mixture's own
+                                                                        bound-free (photoionization) kappa(omega),
+                                                                        on the SAME `opacityOmegas` grid, summed
+                                                                        over every adjacent-stage pair of every
+                                                                        species and weighted the same way the
+                                                                        bound-bound spectrum is. Present ONLY
+                                                                        when `scheme.boundFreeApprox !== nothing`;
+                                                                        was `"superconfiguration mixture
+                                                                        bound-free opacity"`. See
+                                                                        `ResultKeys.SuperConfigurationMixtureFreeFreeOpacity`
+                                                                        for the SEPARATE free-free contribution.
+"""
+struct  SuperConfigurationMixtureBoundFreeOpacity   <: Basics.AbstractResultKey   end
+
+"""
+`struct  ResultKeys.SuperConfigurationMixtureFreeFreeOpacity`  ... added 19-Oct-2026: the mixture's own
+                                                                        free-free (inverse-bremsstrahlung)
+                                                                        kappa(omega), on the SAME `opacityOmegas`
+                                                                        grid, summed over EVERY stage (no
+                                                                        adjacency needed -- a stage's own ion
+                                                                        charge alone sets its free-free cross
+                                                                        section) of every species and weighted
+                                                                        the same way the bound-bound spectrum
+                                                                        is. Present ONLY when
+                                                                        `scheme.freeFreeIncluded`; was
+                                                                        `"superconfiguration mixture free-free
+                                                                        opacity"`.
+"""
+struct  SuperConfigurationMixtureFreeFreeOpacity    <: Basics.AbstractResultKey   end
+
+"""
+`struct  ResultKeys.SuperConfigurationMixtureTotalOpacitySpectrum`  ... added 18-Oct-2026, GENERALIZED
+                                                                            19-Oct-2026: bound-bound PLUS
+                                                                            whichever of bound-free/free-free
+                                                                            are switched on, i.e.
+                                                                            `SuperConfigurationMixtureOpacitySpectrum`
+                                                                            plus `...BoundFreeOpacity` (if
+                                                                            `scheme.boundFreeApprox !== nothing`)
+                                                                            plus `...FreeFreeOpacity` (if
+                                                                            `scheme.freeFreeIncluded`), on the
+                                                                            same `opacityOmegas` grid. Present
+                                                                            whenever EITHER continuum switch is
+                                                                            on; this is the spectrum both
+                                                                            `Plasma.planckMeanOpacity` and
+                                                                            `Plasma.rosselandMeanOpacity` are
+                                                                            evaluated on for
+                                                                            `...TotalPlanckOpacity` and
+                                                                            `...RosselandOpacity` below.
+"""
+struct  SuperConfigurationMixtureTotalOpacitySpectrum <: Basics.AbstractResultKey   end
+
+"""
+`struct  ResultKeys.SuperConfigurationMixtureTotalPlanckOpacity`  ... added 18-Oct-2026, GENERALIZED
+                                                                           19-Oct-2026: the Planck mean of the
+                                                                           TOTAL spectrum (bound-bound plus
+                                                                           whichever of bound-free/free-free
+                                                                           are on) -- distinct from
+                                                                           `SuperConfigurationMixturePlanckOpacity`,
+                                                                           which stays bound-bound-only so its
+                                                                           own meaning never changes. Present
+                                                                           whenever EITHER continuum switch is on.
+"""
+struct  SuperConfigurationMixtureTotalPlanckOpacity <: Basics.AbstractResultKey   end
+
+"""
+`struct  ResultKeys.SuperConfigurationMixtureRosselandOpacity`  ... added 18-Oct-2026, GENERALIZED
+                                                                         19-Oct-2026: the Rosseland mean of the
+                                                                         TOTAL spectrum (bound-bound plus
+                                                                         whichever of bound-free/free-free are
+                                                                         on) -- MUCH LESS floor-sensitive than
+                                                                         bound-bound alone once a continuum
+                                                                         contribution exists (measured stable
+                                                                         across 9 orders of magnitude of the
+                                                                         internal floor choice on a real case,
+                                                                         vs. 12 orders of movement for
+                                                                         bound-bound alone), but NOT
+                                                                         unconditionally floor-free -- see
+                                                                         `Plasma.displayMixtureSpectrumBreakdown`'s
+                                                                         own docstring. Present whenever EITHER
+                                                                         continuum switch is on; remains a
+                                                                         LOWER BOUND whenever the OTHER one is
+                                                                         still off.
+"""
+struct  SuperConfigurationMixtureRosselandOpacity   <: Basics.AbstractResultKey   end
 
 """
 `struct  ResultKeys.SuperConfigurationMixtureCharges`  ... one charge array per species (matching

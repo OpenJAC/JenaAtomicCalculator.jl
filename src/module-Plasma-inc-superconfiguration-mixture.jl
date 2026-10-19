@@ -111,10 +111,12 @@ end
 
 """
 `Plasma.displayMixtureSpectrum(stream::IO, omegas::Array{Float64,1}, kappaMix::Array{Float64,1}, kappaP::Float64)`
-    ... prints the mixture's own summed per-absorber cross section kappaMix(omega) at every `omegas` entry,
-        followed by its Planck mean opacity `kappaP`. The Rosseland mean is DELIBERATELY not printed here --
-        see `Plasma.rosselandMeanOpacity`'s own docstring for why it is not yet a trustworthy number for a
-        line-only spectrum. Nothing is returned.
+    ... prints the mixture's own summed BOUND-BOUND per-absorber cross section kappaMix(omega) at every
+        `omegas` entry, followed by its Planck mean opacity `kappaP`. Used UNCHANGED whenever
+        `scheme.boundFreeApprox === nothing` (the default); see `Plasma.displayMixtureSpectrumBreakdown` for
+        the richer, three-column table used once bound-free is turned on. The Rosseland mean is DELIBERATELY
+        not printed here -- see `Plasma.rosselandMeanOpacity`'s own docstring for why it is not yet a
+        trustworthy number for a line-only spectrum. Nothing is returned.
 """
 function  displayMixtureSpectrum(stream::IO, omegas::Array{Float64,1}, kappaMix::Array{Float64,1}, kappaP::Float64)
     println(stream, "\n  Superconfiguration MIXTURE opacity spectrum (per-absorber cross section):\n")
@@ -132,6 +134,201 @@ function  displayMixtureSpectrum(stream::IO, omegas::Array{Float64,1}, kappaMix:
     println(stream, "\n  Planck mean opacity:     $(@sprintf("%.6e", kappaP)) [a0^2]")
     println(stream, "  (Rosseland mean not reported -- not yet well-defined for a line-only spectrum; " *
                      "see Plasma.rosselandMeanOpacity's own docstring)")
+
+    return( nothing )
+end
+
+
+"""
+`Plasma.boundFreeOpacityContribution(stages::Array{Array{Configuration,1},1}, popsPerStage::Array{Array{Float64,1},1},
+                                        stagePopulations::Array{Float64,1}, omegas::Array{Float64,1},
+                                        approx::Empirical.AbstractEmpiricalApproximation)`
+    ... sums the bound-free (photoionization) contribution to kappa(omega), for ONE species, over every pair
+        of groups in every pair of ADJACENT stages whose configurations differ by exactly one electron in
+        exactly one shell -- checked by `Basics.extractFromConfigurations(Basics.OccupationDifference(),...)`,
+        the SAME compatibility test `Empirical.photoionizationCrossSection` applies internally. A pair that is
+        not a genuine single-electron ionization channel is simply SKIPPED, not an error, the same way a
+        same-parity pair is skipped (not an error) for the bound-bound Stage 2 in
+        `Plasma.perform(::SuperConfigurationOpacityScheme,...)`. Each valid channel's cross section -- from
+        `Empirical.photoionizationCrossSection`, Kramers' (1923) formula scaled by the ionized shell's own
+        binding energy and a bound-free Gaunt factor -- is weighted by the INITIAL group's own ABSOLUTE
+        population within the species, `stagePopulations[i] * popsPerStage[i][g]`; the FINAL state's own
+        population plays no role, since a photoionization event is driven by the absorber, not by how occupied
+        the state it is ejected into happens to be. A `(kappaBF::Array{Float64,1},
+        channels::Array{Tuple{Configuration,Configuration,Float64,Array{Float64,1}},1})` tuple is returned --
+        `channels` holding `(initialConf, finalConf, population, crossSection(omegas))` for every channel
+        actually used, for display.
+"""
+function  boundFreeOpacityContribution(stages::Array{Array{Configuration,1},1}, popsPerStage::Array{Array{Float64,1},1},
+                                          stagePopulations::Array{Float64,1}, omegas::Array{Float64,1},
+                                          approx::Empirical.AbstractEmpiricalApproximation)
+    kappaBF  = zeros(Float64, length(omegas))
+    channels = Tuple{Configuration,Configuration,Float64,Array{Float64,1}}[]
+    for  i = 1:length(stages)-1
+        for  (g, iConf)  in  enumerate(stages[i])
+            popAbs = stagePopulations[i] * popsPerStage[i][g]
+            popAbs <= 0.0   &&   continue
+            for  fConf  in  stages[i+1]
+                wa = Basics.extractFromConfigurations(Basics.OccupationDifference(), iConf, fConf)
+                ( length(wa) == 1  &&  wa[1][2] == 1 )   ||   continue
+                css = Empirical.photoionizationCrossSection(omegas, iConf, fConf, approx)
+                kappaBF .+= popAbs .* css
+                push!(channels, (iConf, fConf, popAbs, css))
+            end
+        end
+    end
+
+    return( kappaBF, channels )
+end
+
+
+"""
+`Plasma.displayMixtureBoundFreeChannels(stream::IO, channels::Array{Tuple{Configuration,Configuration,Float64,Array{Float64,1}},1})`
+    ... prints, for every bound-free channel `Plasma.boundFreeOpacityContribution` found, its initial and
+        final configuration, the initial group's own absolute population, and the PEAK cross section (the
+        maximum of `crossSection(omegas)` over the grid it was evaluated on -- not the full spectrum, which is
+        in the opacity table that follows). Nothing is returned.
+"""
+function  displayMixtureBoundFreeChannels(stream::IO,
+                                             channels::Array{Tuple{Configuration,Configuration,Float64,Array{Float64,1}},1})
+    println(stream, "\n  Bound-free (photoionization) channels contributing to the mixture opacity:\n")
+    println(stream, "  ", TableStrings.hLine(92))
+    sa = "    " * TableStrings.center(22, "Initial"; na=2)
+    sa = sa     * TableStrings.center(22, "Final"; na=2)
+    sa = sa     * TableStrings.center(16, "Population"; na=2)
+    sa = sa     * TableStrings.center(20, "Peak cross sec. [a0^2]"; na=2)
+    println(stream, sa)
+    println(stream, "  ", TableStrings.hLine(92))
+    if  isempty(channels)
+        println(stream, "    (none -- no pair of configurations in adjacent stages differs by exactly one " *
+                         "electron in exactly one shell)")
+    end
+    for  (iConf, fConf, pop, css)  in  channels
+        sa = "    " * TableStrings.center(22, string(iConf); na=2)
+        sa = sa     * TableStrings.center(22, string(fConf); na=2)
+        sa = sa     * @sprintf("%16.6f", pop)
+        sa = sa     * @sprintf("%20.6e", maximum(css))
+        println(stream, sa)
+    end
+    println(stream, "  ", TableStrings.hLine(92))
+
+    return( nothing )
+end
+
+
+"""
+`Plasma.freeFreeOpacityContribution(chargesPerStage::Array{Int64,1}, stagePopulations::Array{Float64,1},
+                                       omegas::Array{Float64,1}, ne::Float64, kT::Float64)`
+    ... sums the free-free (inverse-bremsstrahlung) contribution to kappa(omega), for ONE species, over
+        every one of its OWN stages. Unlike `Plasma.boundFreeOpacityContribution` this needs no PAIR of
+        adjacent stages: a stage's own ion charge alone sets the Coulomb field a passing free electron
+        feels, so each stage contributes independently through
+        `Empirical.freeFreeAbsorptionCoefficient(omegas, chargesPerStage[i], ne, kT)`, weighted by that
+        stage's own ABSOLUTE population within the species, `stagePopulations[i]`. A neutral stage
+        (charge 0) contributes exactly zero, through that function's own Z^2 factor, not as a special case
+        here. A kappaFF::Array{Float64,1} is returned, matching `omegas` in length.
+"""
+function  freeFreeOpacityContribution(chargesPerStage::Array{Int64,1}, stagePopulations::Array{Float64,1},
+                                         omegas::Array{Float64,1}, ne::Float64, kT::Float64)
+    kappaFF = zeros(Float64, length(omegas))
+    for  i = 1:length(chargesPerStage)
+        stagePopulations[i] <= 0.0   &&   continue
+        kappaFF .+= stagePopulations[i] .* Empirical.freeFreeAbsorptionCoefficient(omegas, chargesPerStage[i], ne, kT)
+    end
+
+    return( kappaFF )
+end
+
+
+"""
+`Plasma.displayMixtureFreeFreeStages(stream::IO, stages::Array{Tuple{Int64,Int64,Float64,Array{Float64,1}},1})`
+    ... prints, for every (species,stage) `Plasma.freeFreeOpacityContribution` actually used (charge > 0),
+        its species index, ion charge, absolute population, and PEAK free-free absorption coefficient (the
+        maximum of `kappaFF(omegas)` over the grid it was evaluated on -- not the full spectrum, which is in
+        the opacity table that follows). Nothing is returned.
+"""
+function  displayMixtureFreeFreeStages(stream::IO, stages::Array{Tuple{Int64,Int64,Float64,Array{Float64,1}},1})
+    println(stream, "\n  Free-free (inverse-bremsstrahlung) stages contributing to the mixture opacity:\n")
+    println(stream, "  ", TableStrings.hLine(70))
+    sa = "    " * TableStrings.center(10, "Species"; na=2)
+    sa = sa     * TableStrings.center(10, "Charge q"; na=2)
+    sa = sa     * TableStrings.center(16, "Population"; na=2)
+    sa = sa     * TableStrings.center(20, "Peak kappa_ff [a0^2]"; na=2)
+    println(stream, sa)
+    println(stream, "  ", TableStrings.hLine(70))
+    if  isempty(stages)
+        println(stream, "    (none -- every stage of every species has charge 0)")
+    end
+    for  (s, q, pop, kff)  in  stages
+        sa = "    " * TableStrings.center(10, string(s); na=2)
+        sa = sa     * TableStrings.center(10, string(q); na=2)
+        sa = sa     * @sprintf("%16.6f", pop)
+        sa = sa     * @sprintf("%20.6e", maximum(kff))
+        println(stream, sa)
+    end
+    println(stream, "  ", TableStrings.hLine(70))
+
+    return( nothing )
+end
+
+
+"""
+`Plasma.displayMixtureSpectrumBreakdown(stream::IO, omegas::Array{Float64,1}, kappaBB::Array{Float64,1},
+                                           kappaBF::Union{Nothing,Array{Float64,1}},
+                                           kappaFF::Union{Nothing,Array{Float64,1}}, kappaTotal::Array{Float64,1},
+                                           kappaPbb::Float64, kappaPtotal::Float64, kappaR::Float64)`
+    ... prints the mixture's BOUND-BOUND, and whichever of BOUND-FREE/FREE-FREE are active (`kappaBF`/
+        `kappaFF` not `nothing`), and TOTAL per-absorber cross sections SIDE BY SIDE at every `omegas`
+        entry, each column clearly labelled so no contribution is ever read as one undifferentiated number,
+        followed by the Planck mean of the bound-bound-only spectrum (`kappaPbb`, UNCHANGED in meaning from
+        `Plasma.displayMixtureSpectrum`'s own number), the Planck mean of the TOTAL spectrum (`kappaPtotal`),
+        and the Rosseland mean of the TOTAL spectrum (`kappaR` -- MUCH LESS floor-sensitive now that a
+        continuum contribution supplies a smooth, physically decaying tail in place of a Gaussian line's
+        literal float64 underflow, but NOT UNCONDITIONALLY floor-free: measured, not assumed, 18-Oct-2026 for
+        bound-free alone, a floor sweep on a real case stayed CONSTANT across 9 orders of magnitude of floor
+        choice -- `kappaMax*1e-6` down to `kappaMax*1e-15` all agreed to 6 figures on a moderate
+        `opacityOmegas` grid -- but widening that SAME grid further past threshold moved the `1e-6` point away
+        from the (still-stable) `1e-9`-to`-1e-15` plateau, since a power-law tail can still underflow a FIXED
+        multiplicative floor given enough span. `Plasma.rosselandMeanOpacity`'s hardcoded `1e-12` sat inside
+        the stable plateau in both tests run, but this is a measured observation on those cases, not a proof
+        for every grid). Ends with an EXPLICIT reminder naming whichever of bound-free/free-free is still
+        `nothing`, so neither mean is mistaken for a complete continuum opacity unless BOTH are active.
+        Nothing is returned.
+"""
+function  displayMixtureSpectrumBreakdown(stream::IO, omegas::Array{Float64,1}, kappaBB::Array{Float64,1},
+                                             kappaBF::Union{Nothing,Array{Float64,1}},
+                                             kappaFF::Union{Nothing,Array{Float64,1}}, kappaTotal::Array{Float64,1},
+                                             kappaPbb::Float64, kappaPtotal::Float64, kappaR::Float64)
+    println(stream, "\n  Superconfiguration MIXTURE opacity spectrum, by CONTRIBUTION (per-absorber cross section):\n")
+    width = 14 + 18 + (isnothing(kappaBF) ? 0 : 18) + (isnothing(kappaFF) ? 0 : 18) + 16
+    println(stream, "  ", TableStrings.hLine(width))
+    sa = "    " * TableStrings.center(14, "omega [a.u.]"; na=2)
+    sa = sa     * TableStrings.center(18, "bound-bound [a0^2]"; na=2)
+    isnothing(kappaBF)   ||   (sa = sa * TableStrings.center(18, "bound-free [a0^2]"; na=2))
+    isnothing(kappaFF)   ||   (sa = sa * TableStrings.center(18, "free-free [a0^2]"; na=2))
+    sa = sa     * TableStrings.center(16, "TOTAL [a0^2]"; na=2)
+    println(stream, sa)
+    println(stream, "  ", TableStrings.hLine(width))
+    for  k = 1:length(omegas)
+        sa = "    " * @sprintf("%14.6f", omegas[k])
+        sa = sa     * @sprintf("%18.6e", kappaBB[k])
+        isnothing(kappaBF)   ||   (sa = sa * @sprintf("%18.6e", kappaBF[k]))
+        isnothing(kappaFF)   ||   (sa = sa * @sprintf("%18.6e", kappaFF[k]))
+        sa = sa     * @sprintf("%16.6e", kappaTotal[k])
+        println(stream, sa)
+    end
+    println(stream, "  ", TableStrings.hLine(width))
+    label = "bound-bound" * (isnothing(kappaBF) ? "" : " + bound-free") * (isnothing(kappaFF) ? "" : " + free-free")
+    println(stream, "\n  Planck mean opacity    (bound-bound only)  = $(@sprintf("%.6e", kappaPbb)) [a0^2]")
+    println(stream, "  Planck mean opacity    ($label)  = $(@sprintf("%.6e", kappaPtotal)) [a0^2]")
+    println(stream, "  Rosseland mean opacity ($label)  = $(@sprintf("%.6e", kappaR)) [a0^2]")
+    missingParts = String[]
+    isnothing(kappaBF)   &&   push!(missingParts, "bound-free")
+    isnothing(kappaFF)   &&   push!(missingParts, "free-free")
+    if  !isempty(missingParts)
+        println(stream, "\n  " * join(missingParts, " AND ") * " NOT INCLUDED IN ANY COLUMN OR MEAN ABOVE. The")
+        println(stream, "  means above are therefore LOWER BOUNDS on the true continuum-inclusive opacity.")
+    end
 
     return( nothing )
 end
@@ -192,13 +389,44 @@ end
         schemes this way: every (species,stage)'s SCF and grid are built TWICE -- once here for its `Group`
         (Stage 0) and again inside `SuperConfigurationOpacityScheme`'s own `perform` call (Stage 2/3) --
         rather than changing THAT scheme's interface to accept externally-built orbitals, which would be a
-        separate module's change. For output=true, a dictionary is returned under the keys
-        "superconfiguration mixture species opacities" (`Array{Array{Float64,1},1}`, one spectrum per
-        species), "superconfiguration mixture opacity spectrum" (`kappaMix`, `Array{Float64,1}`),
-        "superconfiguration mixture planck opacity" (`Float64`), "superconfiguration mixture charges"
-        (`Array{Array{Int64,1},1}`, one array per species), "superconfiguration mixture stage populations"
-        (`Array{Array{Float64,1},1}`, matching, summing to 1 WITHIN each species), and "superconfiguration
-        mixture electron density" (`Float64`, the ONE value shared by the whole mixture).
+        separate module's change.
+
+        STAGE 2.5, ONLY WHEN `scheme.boundFreeApprox !== nothing` (18-Oct-2026): for every species with more
+        than one stage, `Plasma.boundFreeOpacityContribution` sums a bound-free (photoionization) contribution
+        between every pair of ADJACENT stages, reusing the within-stage populations `SuperConfigurationOpacityScheme`
+        already returned in Stage 2/3 -- no extra SCF, no extra grid.
+
+        STAGE 2.6, ONLY WHEN `scheme.freeFreeIncluded` (19-Oct-2026): for every species, EVERY one of its
+        stages (no adjacency needed -- a stage's own ion charge alone sets the free-free cross section),
+        `Plasma.freeFreeOpacityContribution` sums the free-free (inverse-bremsstrahlung) contribution,
+        weighted the same way. This needs a real electron density: `scheme.freeFreeIncluded` with no
+        density given (STAGE 1 skipped) raises, naming what is missing.
+
+        The bound-bound-only `ResultKeys` (`SuperConfigurationMixtureOpacitySpectrum`, `...PlanckOpacity`)
+        keep their EXACT, UNCHANGED pre-18-Oct meaning regardless of either switch; the bound-free spectrum
+        and the free-free spectrum are each reported under their OWN key (present only when their own switch
+        is on); and the TOTAL spectrum, its Planck mean, and its Rosseland mean (MUCH LESS floor-sensitive
+        than bound-bound alone once EITHER continuum contribution supplies a floor -- see
+        `Plasma.displayMixtureSpectrumBreakdown`'s own docstring for the measured, not-unconditional extent
+        of that improvement) sum bound-bound plus WHICHEVER of bound-free/free-free are active, and are
+        present whenever EITHER is. No contribution is ever merged into another's own key; see
+        `Plasma.displayMixtureSpectrumBreakdown`. When NEITHER switch is on (the default), both new stages
+        are skipped entirely and every printout/result is BYTE-IDENTICAL to the pre-18-Oct scheme.
+
+        For output=true, a dictionary is returned under the keys "superconfiguration mixture species
+        opacities" (`Array{Array{Float64,1},1}`, one BOUND-BOUND spectrum per species), "superconfiguration
+        mixture opacity spectrum" (`kappaMix`, BOUND-BOUND ONLY, `Array{Float64,1}`), "superconfiguration
+        mixture planck opacity" (`Float64`, of that bound-bound-only spectrum), "superconfiguration mixture
+        charges" (`Array{Array{Int64,1},1}`, one array per species), "superconfiguration mixture stage
+        populations" (`Array{Array{Float64,1},1}`, matching, summing to 1 WITHIN each species), and
+        "superconfiguration mixture electron density" (`Float64`, the ONE value shared by the whole mixture)
+        -- ALWAYS present -- plus, ONLY when `scheme.boundFreeApprox !== nothing`: "superconfiguration mixture
+        bound-free opacity" (`Array{Float64,1}`) -- plus, ONLY when `scheme.freeFreeIncluded`:
+        "superconfiguration mixture free-free opacity" (`Array{Float64,1}`) -- plus, WHENEVER EITHER is
+        active: "superconfiguration mixture total opacity spectrum" (bound-bound plus whichever of
+        bound-free/free-free are on, `Array{Float64,1}`), "superconfiguration mixture total planck opacity"
+        (`Float64`), and "superconfiguration mixture rosseland opacity" (`Float64`, of that same TOTAL
+        spectrum).
 """
 function  perform(scheme::Plasma.SuperConfigurationMixtureOpacityScheme, computation::Plasma.Computation; output::Bool=true)
     if  output    results = Dict{String, Any}()    else    results = nothing    end
@@ -230,6 +458,10 @@ function  perform(scheme::Plasma.SuperConfigurationMixtureOpacityScheme, computa
         error("Plasma.perform(::SuperConfigurationMixtureOpacityScheme, ...): some species has more than " *
               "one stage, so settings.useNumberDensity must be true with settings.density the TOTAL ION " *
               "number density of the WHOLE mixture, in a.u.")
+    scheme.freeFreeIncluded  &&  !haveDensity   &&
+        error("Plasma.perform(::SuperConfigurationMixtureOpacityScheme, ...): freeFreeIncluded is true, so " *
+              "settings.useNumberDensity must be true with settings.density the TOTAL ION number density of " *
+              "the WHOLE mixture, in a.u. -- free-free needs a real electron density.")
     nIonTotal = haveDensity ? computation.settings.density : NaN
 
     SC = superConfigurationsModule()
@@ -312,12 +544,19 @@ function  perform(scheme::Plasma.SuperConfigurationMixtureOpacityScheme, computa
 
     # STAGE 2/3, per (species,stage): SuperConfigurationOpacityScheme's own machinery, UNCHANGED; weight
     # WITHIN a species by that stage's own balance population, then ACROSS species by numberFractions.
-    kappaMix      = zeros(Float64, length(scheme.opacityOmegas))
-    speciesKappas = Array{Float64,1}[]
+    haveBoundFree      = !isnothing(scheme.boundFreeApprox)
+    haveFreeFree       = scheme.freeFreeIncluded
+    kappaMix           = zeros(Float64, length(scheme.opacityOmegas))
+    kappaMixBF         = zeros(Float64, length(scheme.opacityOmegas))
+    kappaMixFF         = zeros(Float64, length(scheme.opacityOmegas))
+    speciesKappas      = Array{Float64,1}[]
+    allChannels        = Tuple{Configuration,Configuration,Float64,Array{Float64,1}}[]
+    allFreeFreeStages  = Tuple{Int64,Int64,Float64,Array{Float64,1}}[]
     for  s = 1:nSpecies
         nm           = scheme.nuclearModels[s]
         stages       = scheme.refConfigsPerSpeciesStages[s]
         kappaSpecies = zeros(Float64, length(scheme.opacityOmegas))
+        popsPerStage = Vector{Array{Float64,1}}(undef, nStages[s])
         for  i = 1:nStages[s]
             refConfigs = stages[i]
             println("\n  -- species $s of $nSpecies, stage $i of $(nStages[s]) " *
@@ -329,21 +568,84 @@ function  perform(scheme::Plasma.SuperConfigurationMixtureOpacityScheme, computa
                                                        refConfigs=Configuration[])
             stageResults       = Plasma.perform(stageScheme, stageComputation; output=true)
             kappaStage         = stageResults[ResultKeys.SuperConfigurationOpacitySpectrum]
+            popsPerStage[i]    = stageResults[ResultKeys.SuperConfigurationPopulations]
             kappaSpecies .+= stagePopulations[s][i] .* kappaStage
         end
         push!(speciesKappas, kappaSpecies)
         kappaMix .+= scheme.numberFractions[s] .* kappaSpecies
+
+        # STAGE 2.5, bound-free -- see Plasma.boundFreeOpacityContribution's own docstring. Skipped for a
+        # single-stage species (no adjacent stage to ionize into) even when boundFreeApprox is set.
+        # Empirical.photoionizationCrossSection reads the nuclear charge from the GLOBAL Defaults (1.0,
+        # hydrogen, unless set) -- see Cascade.spectralOpacityContribution(::Cascade.BoundFreeOpacity,...)
+        # for the SAME trap met there first. Set from THIS species' own nm.Z, restored afterwards, so a
+        # multi-species mixture never silently scores one species' channels against another's Z.
+        if  haveBoundFree  &&  nStages[s] > 1
+            zOld = Defaults.getDefaults("nuclear: charge")
+            Defaults.setDefaults("nuclear: charge", nm.Z)
+            try
+                kappaSpeciesBF, channelsS = Plasma.boundFreeOpacityContribution(stages, popsPerStage, stagePopulations[s],
+                                                                                   scheme.opacityOmegas, scheme.boundFreeApprox)
+                kappaMixBF .+= scheme.numberFractions[s] .* kappaSpeciesBF
+                append!(allChannels, channelsS)
+            finally
+                Defaults.setDefaults("nuclear: charge", zOld)
+            end
+        end
+
+        # STAGE 2.6, free-free -- see Plasma.freeFreeOpacityContribution's own docstring. Unlike bound-free,
+        # runs for EVERY species including a single-stage one, since a stage's own charge alone suffices.
+        if  haveFreeFree
+            kappaSpeciesFF = Plasma.freeFreeOpacityContribution(chargesPerSpecies[s], stagePopulations[s],
+                                                                   scheme.opacityOmegas, ne, kT)
+            kappaMixFF .+= scheme.numberFractions[s] .* kappaSpeciesFF
+            for  i = 1:nStages[s]
+                chargesPerSpecies[s][i] <= 0   &&   continue
+                push!(allFreeFreeStages, (s, chargesPerSpecies[s][i], stagePopulations[s][i],
+                        Empirical.freeFreeAbsorptionCoefficient(scheme.opacityOmegas, chargesPerSpecies[s][i], ne, kT)))
+            end
+        end
     end
 
     xGrid  = scheme.opacityOmegas ./ kT
     kappaP = Plasma.planckMeanOpacity(xGrid, kappaMix)
 
-    Plasma.displayMixtureSpectrum(stdout, scheme.opacityOmegas, kappaMix, kappaP)
-    if  printSummary   Plasma.displayMixtureSpectrum(iostream, scheme.opacityOmegas, kappaMix, kappaP)   end
+    haveContinuum = haveBoundFree  ||  haveFreeFree
+    if  haveContinuum
+        kappaMixTotal = kappaMix .+ (haveBoundFree ? kappaMixBF : 0.0) .+ (haveFreeFree ? kappaMixFF : 0.0)
+        kappaPtotal   = Plasma.planckMeanOpacity(xGrid, kappaMixTotal)
+        kappaR        = Plasma.rosselandMeanOpacity(xGrid, kappaMixTotal)
 
-    println("SuperConfigurationMixtureOpacityScheme computation complete ($nSpecies species, electron " *
-            "density " * (converged ? "converged" : "NOT CONVERGED") * ", Planck $(@sprintf("%.4e", kappaP)) " *
-            "[a0^2]; Rosseland not reported, see this scheme's own docstring) ...")
+        if  haveBoundFree
+            Plasma.displayMixtureBoundFreeChannels(stdout, allChannels)
+            if  printSummary   Plasma.displayMixtureBoundFreeChannels(iostream, allChannels)   end
+        end
+        if  haveFreeFree
+            Plasma.displayMixtureFreeFreeStages(stdout, allFreeFreeStages)
+            if  printSummary   Plasma.displayMixtureFreeFreeStages(iostream, allFreeFreeStages)   end
+        end
+        Plasma.displayMixtureSpectrumBreakdown(stdout, scheme.opacityOmegas, kappaMix, haveBoundFree ? kappaMixBF : nothing,
+                                                  haveFreeFree ? kappaMixFF : nothing, kappaMixTotal,
+                                                  kappaP, kappaPtotal, kappaR)
+        if  printSummary
+            Plasma.displayMixtureSpectrumBreakdown(iostream, scheme.opacityOmegas, kappaMix, haveBoundFree ? kappaMixBF : nothing,
+                                                      haveFreeFree ? kappaMixFF : nothing, kappaMixTotal,
+                                                      kappaP, kappaPtotal, kappaR)
+        end
+
+        println("SuperConfigurationMixtureOpacityScheme computation complete ($nSpecies species, electron " *
+                "density " * (converged ? "converged" : "NOT CONVERGED") * "; Planck (bound-bound) " *
+                "$(@sprintf("%.4e", kappaP)), Planck (total) $(@sprintf("%.4e", kappaPtotal)), Rosseland " *
+                "(total) $(@sprintf("%.4e", kappaR)) [a0^2]; bound-free $(haveBoundFree ? "included" : "NOT included"), " *
+                "free-free $(haveFreeFree ? "included" : "NOT included")) ...")
+    else
+        Plasma.displayMixtureSpectrum(stdout, scheme.opacityOmegas, kappaMix, kappaP)
+        if  printSummary   Plasma.displayMixtureSpectrum(iostream, scheme.opacityOmegas, kappaMix, kappaP)   end
+
+        println("SuperConfigurationMixtureOpacityScheme computation complete ($nSpecies species, electron " *
+                "density " * (converged ? "converged" : "NOT CONVERGED") * ", Planck $(@sprintf("%.4e", kappaP)) " *
+                "[a0^2]; Rosseland not reported, see this scheme's own docstring) ...")
+    end
 
     if  output
         results = Base.merge( results, Dict(
@@ -353,6 +655,17 @@ function  perform(scheme::Plasma.SuperConfigurationMixtureOpacityScheme, computa
             "superconfiguration mixture charges"           => chargesPerSpecies,
             "superconfiguration mixture stage populations" => stagePopulations,
             "superconfiguration mixture electron density"  => ne) )
+        if  haveBoundFree
+            results["superconfiguration mixture bound-free opacity"]       = kappaMixBF
+        end
+        if  haveFreeFree
+            results["superconfiguration mixture free-free opacity"]       = kappaMixFF
+        end
+        if  haveContinuum
+            results["superconfiguration mixture total opacity spectrum"]   = kappaMixTotal
+            results["superconfiguration mixture total planck opacity"]    = kappaPtotal
+            results["superconfiguration mixture rosseland opacity"]       = kappaR
+        end
     end
 
     Defaults.warn(PrintWarnings())

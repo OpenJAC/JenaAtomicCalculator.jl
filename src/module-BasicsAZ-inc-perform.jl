@@ -134,6 +134,16 @@ function  resultKeyStrings(T::Type)
         return( ["superconfiguration mixture stage populations"] )
     T === ResultKeys.SuperConfigurationMixtureElectronDensity       &&
         return( ["superconfiguration mixture electron density"] )
+    T === ResultKeys.SuperConfigurationMixtureBoundFreeOpacity      &&
+        return( ["superconfiguration mixture bound-free opacity"] )
+    T === ResultKeys.SuperConfigurationMixtureFreeFreeOpacity       &&
+        return( ["superconfiguration mixture free-free opacity"] )
+    T === ResultKeys.SuperConfigurationMixtureTotalOpacitySpectrum  &&
+        return( ["superconfiguration mixture total opacity spectrum"] )
+    T === ResultKeys.SuperConfigurationMixtureTotalPlanckOpacity    &&
+        return( ["superconfiguration mixture total planck opacity"] )
+    T === ResultKeys.SuperConfigurationMixtureRosselandOpacity      &&
+        return( ["superconfiguration mixture rosseland opacity"] )
 
     return( String[] )
 end
@@ -179,6 +189,9 @@ function  allResultKeyTypes()
             ResultKeys.SuperConfigurationMixtureSpeciesOpacities, ResultKeys.SuperConfigurationMixtureOpacitySpectrum,
             ResultKeys.SuperConfigurationMixturePlanckOpacity, ResultKeys.SuperConfigurationMixtureCharges,
             ResultKeys.SuperConfigurationMixtureStagePopulations, ResultKeys.SuperConfigurationMixtureElectronDensity,
+            ResultKeys.SuperConfigurationMixtureBoundFreeOpacity, ResultKeys.SuperConfigurationMixtureFreeFreeOpacity,
+            ResultKeys.SuperConfigurationMixtureTotalOpacitySpectrum,
+            ResultKeys.SuperConfigurationMixtureTotalPlanckOpacity, ResultKeys.SuperConfigurationMixtureRosselandOpacity,
             Einstein.Settings, Hfs.Settings, LandeZeeman.Settings, StarkShift.Settings, StarkZeeman.Settings,
             IsotopeShift.Settings, AlphaVariation.Settings, FormFactor.Settings, DecayYield.Settings,
             MultipolePolarizibility.Settings, ReducedDensityMatrix.Settings, WeakInteractionEnhancement.Settings,

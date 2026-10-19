@@ -7,7 +7,7 @@
 module Plasma
 
 using  Dates, JLD2, LinearAlgebra, Printf, ..ResultKeys
-using  ..AngularMomentum, ..Atomic, ..AtomicState, ..Basics, ..Bsplines, ..Continuum, ..Defaults, ..DielectronicRecombination, ..Hamiltonian, ..ImpactExcitation,
+using  ..AngularMomentum, ..Atomic, ..AtomicState, ..Basics, ..Bsplines, ..Continuum, ..Defaults, ..DielectronicRecombination, ..Empirical, ..Hamiltonian, ..ImpactExcitation,
        ..ManyElectron, ..Nuclear, ..Radial, ..RadialIntegrals,
        ..Semiempirical, ..TableStrings, ..FormFactor, ..PhotoEmission, ..PhotoIonization, ..AutoIonization, ..SelfConsistent
 
@@ -45,9 +45,14 @@ using  ..AngularMomentum, ..Atomic, ..AtomicState, ..Basics, ..Bsplines, ..Conti
             several of its own ionization STAGES) into one coupled multi-species Saha-Boltzmann balance and
             one PLANCK MEAN opacity at a shared LTE temperature -- the natural extension of
             SuperConfigurationOpacityScheme ACROSS a composition AND of SuperConfigurationIonizationScheme
-            ACROSS species, both axes at once. See that struct's own docstring for the coupled balance, the
-            two-stage mixing rule, why the Rosseland mean is deliberately not part of what this scheme
-            returns, and the Planck weight function.
+            ACROSS species, both axes at once. OPTIONALLY (`boundFreeApprox`, 18-Oct-2026) also sums a
+            bound-free (photoionization) contribution between every pair of adjacent stages, reusing
+            `Empirical.photoionizationCrossSection`, and OPTIONALLY (`freeFreeIncluded`, 19-Oct-2026) also
+            sums a free-free (inverse-bremsstrahlung) contribution per stage, via
+            `Empirical.freeFreeAbsorptionCoefficient` -- once EITHER is on, the ROSSELAND mean, previously
+            withheld as ill-posed, becomes well-defined and is reported too. See that struct's own
+            docstring for the coupled balance, the two-stage mixing rule, both continuum additions, and the
+            Planck/Rosseland weight functions.
 """
 abstract type  AbstractPlasmaScheme       end
 
@@ -831,17 +836,53 @@ end
         resolve `w_P`'s own peak near `x ~ 3-4` AND every species' own line widths -- not merely wide
         enough for the lines alone, as a single-species `opacityOmegas` choice would be.
 
-        **THE ROSSELAND MEAN IS DELIBERATELY NOT PART OF WHAT THIS SCHEME RETURNS**, and this is a finding,
-        not an oversight: a Rosseland mean is a HARMONIC average, dominated by whichever frequencies are
-        LEAST opaque, and this scheme's `kappa(omega)` is a SUM OF E1 LINES ONLY -- no bound-free or
-        free-free continuum -- so every frequency between lines is a true gap with nothing to divide
-        sensibly into. Measured, not assumed, 17-Oct-2026: sweeping the numerical floor
-        `Plasma.rosselandMeanOpacity` needs just to avoid dividing by machine-zero moved the returned value
-        by MORE THAN ELEVEN ORDERS OF MAGNITUDE (0.049 down to 7.7e-13) on the SAME spectrum -- proof the
-        number has no content here, set by an implementation detail rather than physics. The function
-        itself is kept, as a building block for the day a continuum opacity exists to fill the gaps; see its
-        own docstring. The PLANCK mean, an ARITHMETIC (kappa-weighted) average, has no such gap-sensitivity
-        and is the only mean opacity this scheme reports.
+        **THE ROSSELAND MEAN IS WITHHELD UNLESS `boundFreeApprox` IS GIVEN**, and this was a finding, not
+        an oversight: a Rosseland mean is a HARMONIC average, dominated by whichever frequencies are LEAST
+        opaque, and a `kappa(omega)` built from E1 lines ALONE -- no bound-free or free-free continuum --
+        leaves every frequency between lines a true gap with nothing sensible to divide into. Measured, not
+        assumed, 17-Oct-2026: sweeping the numerical floor `Plasma.rosselandMeanOpacity` needs just to avoid
+        dividing by machine-zero moved the returned value by MORE THAN ELEVEN ORDERS OF MAGNITUDE (0.049
+        down to 7.7e-13) on the SAME line-only spectrum -- proof the number had no content, set by an
+        implementation detail rather than physics. The PLANCK mean, an ARITHMETIC (kappa-weighted) average,
+        has no such gap-sensitivity and remains reported unconditionally.
+
+        **BOUND-FREE, 18-Oct-2026 (`boundFreeApprox`, optional, default `nothing` = off):** when given an
+        `Empirical.AbstractEmpiricalApproximation` (e.g. `Empirical.ScaledHydrogenic()`, the default choice
+        once turned on), `Plasma.perform` ALSO sums a photoionization contribution between every pair of
+        ADJACENT stages of a species, reusing the ALREADY-VALIDATED `Empirical.photoionizationCrossSection`
+        -- Kramers' (1923) formula scaled by the ionized shell's own binding energy and a bound-free Gaunt
+        factor, the SAME machinery `Cascade.BoundFreeOpacity` already relies on for exactly this purpose
+        elsewhere in JAC. No new ab initio machinery is needed: that function already takes a bare
+        `(initialConfig, finalConfig)` pair, which is exactly what `refConfigsPerSpeciesStages`' own
+        adjacent-stage configurations already are, so this is substantially a WIRING addition on top of
+        machinery this project has already audited (see [[project_empirical_module]]-equivalent history),
+        NOT a new physical capability built from scratch. For every GROUP `g` in stage `i` and GROUP `h` in
+        stage `i+1` whose configurations differ by exactly one electron in exactly one shell (checked via
+        `Basics.extractFromConfigurations(Basics.OccupationDifference(), ...)`, the SAME compatibility test
+        `Empirical.photoionizationCrossSection` itself applies), the cross section is weighted by `g`'s own
+        ABSOLUTE population within the species -- `stagePopulations[s][i] * (g's population WITHIN stage i)`
+        -- and summed; a pair whose configurations are not a genuine single-electron ionization channel is
+        simply SKIPPED, not an error, exactly as a same-parity pair is skipped (not an error) in the
+        bound-bound Stage 2 above. Reported SEPARATELY from the bound-bound spectrum (own ResultKeys), so a
+        user always sees bound-bound, bound-free, and their sum as three distinct, clearly labelled things
+        -- never silently merged. Once this exists, `Plasma.rosselandMeanOpacity` is called on the SUMMED
+        (bound-bound + bound-free) spectrum and reported.
+
+        **FREE-FREE (inverse bremsstrahlung), 19-Oct-2026 (`freeFreeIncluded`, optional `Bool`, default
+        `false`):** when `true`, `Plasma.perform` ALSO sums, for every (species,stage), the free-free
+        (inverse-bremsstrahlung) absorption coefficient of a free electron scattering off that stage's own
+        ion charge, `Empirical.freeFreeAbsorptionCoefficient` -- the classical Kramers cross section times
+        the quantum Gaunt-factor correction, read from Sutherland's (1998) thermally-averaged table and
+        derived, step for step, against the typeset equations of Karzas & Latter (1961); see that function's
+        own docstring for the full derivation and provenance. Unlike bound-free, this needs no PAIR of
+        adjacent stages -- a stage's own charge alone sets the Coulomb field a passing electron feels -- so
+        it is available even for a single-stage species, PROVIDED a real electron density exists, i.e.
+        `useNumberDensity`/`density` must be set exactly as bound-free's multi-stage case already requires;
+        `freeFreeIncluded = true` with no density raises, naming what is missing. A neutral stage (charge 0)
+        contributes exactly zero, by construction of the formula's own Z^2 factor, not as a special case.
+        Reported under its OWN new key, SuperConfigurationMixtureFreeFreeOpacity, never merged into the
+        bound-free number; the TOTAL spectrum/Planck/Rosseland keys now mean "bound-bound plus whichever of
+        bound-free/free-free are switched on", and are present whenever EITHER is active.
 
     + nuclearModels              ::Array{Nuclear.Model,1}                      ... one nuclear model per species.
     + refConfigsPerSpeciesStages ::Array{Array{Array{Configuration,1},1},1}
@@ -856,12 +897,21 @@ end
     + opacityOmegas              ::Array{Float64,1}                           ... the SHARED photon-energy
                                                                         grid [a.u.] every species' Stage-3
                                                                         spectrum and the Planck mean are built on.
+    + boundFreeApprox            ::Union{Nothing,Empirical.AbstractEmpiricalApproximation}
+        ... `nothing` (default) turns the bound-free contribution OFF, reproducing every pre-18-Oct-2026
+            result unchanged; `Empirical.ScaledHydrogenic()` turns it ON. See above for what it adds.
+    + freeFreeIncluded           ::Bool
+        ... `false` (default) turns the free-free contribution OFF; `true` turns it ON. See above for what
+            it adds. Unlike `boundFreeApprox` there is only ONE trusted free-free formula available, so this
+            is a plain switch rather than a choice among `Empirical.AbstractEmpiricalApproximation`s.
 """
 struct  SuperConfigurationMixtureOpacityScheme  <:  Plasma.AbstractPlasmaScheme
     nuclearModels              ::Array{Nuclear.Model,1}
     refConfigsPerSpeciesStages ::Array{Array{Array{Configuration,1},1},1}
     numberFractions            ::Array{Float64,1}
     opacityOmegas              ::Array{Float64,1}
+    boundFreeApprox            ::Union{Nothing,Empirical.AbstractEmpiricalApproximation}
+    freeFreeIncluded           ::Bool
 end
 
 
@@ -869,7 +919,8 @@ end
 `Plasma.SuperConfigurationMixtureOpacityScheme()`  ... constructor for a standard (empty) instance.
 """
 function SuperConfigurationMixtureOpacityScheme()
-    SuperConfigurationMixtureOpacityScheme( Nuclear.Model[], Array{Array{Configuration,1},1}[], Float64[], Float64[] )
+    SuperConfigurationMixtureOpacityScheme( Nuclear.Model[], Array{Array{Configuration,1},1}[], Float64[], Float64[],
+                                              nothing, false )
 end
 
 
@@ -878,18 +929,56 @@ end
                                                   refConfigsPerSpecies::Array{Array{Configuration,1},1},
                                                   numberFractions::Array{Float64,1}, opacityOmegas::Array{Float64,1})`
     ... BACKWARD-COMPATIBLE constructor for the ORIGINAL, single-stage-per-species call shape (17-Oct-2026):
-        each species' flat `Array{Configuration,1}` is wrapped into a length-1 outer array, so every
-        pre-existing call site keeps compiling and -- since a single-stage species has a TRIVIAL ionization
-        balance (`stagePopulations = [1.0]` whatever the temperature or density, there being only one state
-        to belong to) -- keeps returning EXACTLY the result it always did, unaffected by the coupled
-        multi-species balance the general constructor now also allows. A scheme::SuperConfigurationMixtureOpacityScheme
-        is returned.
+        each species' flat `Array{Configuration,1}` is wrapped into a length-1 outer array and
+        `boundFreeApprox`/`freeFreeIncluded` are set to `nothing`/`false`, so every pre-existing call site
+        keeps compiling and -- since a single-stage species has a TRIVIAL ionization balance
+        (`stagePopulations = [1.0]` whatever the temperature or density, there being only one state to
+        belong to) AND both continuum contributions are off by default -- keeps returning EXACTLY the
+        result it always did, unaffected by the coupled multi-species balance or either continuum addition
+        the general constructor now also allows. A scheme::SuperConfigurationMixtureOpacityScheme is returned.
 """
 function SuperConfigurationMixtureOpacityScheme(nuclearModels::Array{Nuclear.Model,1},
                                                    refConfigsPerSpecies::Array{Array{Configuration,1},1},
                                                    numberFractions::Array{Float64,1}, opacityOmegas::Array{Float64,1})
     SuperConfigurationMixtureOpacityScheme( nuclearModels, [ [refs]  for refs in refConfigsPerSpecies ],
-                                              numberFractions, opacityOmegas )
+                                              numberFractions, opacityOmegas, nothing, false )
+end
+
+
+"""
+`Plasma.SuperConfigurationMixtureOpacityScheme(nuclearModels::Array{Nuclear.Model,1},
+                                                  refConfigsPerSpeciesStages::Array{Array{Array{Configuration,1},1},1},
+                                                  numberFractions::Array{Float64,1}, opacityOmegas::Array{Float64,1})`
+    ... BACKWARD-COMPATIBLE constructor for the 18-Oct-2026 species+stage call shape WITHOUT a 5th argument
+        (`example-Jh.jl` branch b's own call shape): `boundFreeApprox`/`freeFreeIncluded` are set to
+        `nothing`/`false`, so every such call site keeps compiling and both continuum contributions stay
+        off unless explicitly requested through the full 6-argument form. A
+        scheme::SuperConfigurationMixtureOpacityScheme is returned.
+"""
+function SuperConfigurationMixtureOpacityScheme(nuclearModels::Array{Nuclear.Model,1},
+                                                   refConfigsPerSpeciesStages::Array{Array{Array{Configuration,1},1},1},
+                                                   numberFractions::Array{Float64,1}, opacityOmegas::Array{Float64,1})
+    SuperConfigurationMixtureOpacityScheme( nuclearModels, refConfigsPerSpeciesStages, numberFractions, opacityOmegas,
+                                              nothing, false )
+end
+
+
+"""
+`Plasma.SuperConfigurationMixtureOpacityScheme(nuclearModels::Array{Nuclear.Model,1},
+                                                  refConfigsPerSpeciesStages::Array{Array{Array{Configuration,1},1},1},
+                                                  numberFractions::Array{Float64,1}, opacityOmegas::Array{Float64,1},
+                                                  boundFreeApprox::Empirical.AbstractEmpiricalApproximation)`
+    ... BACKWARD-COMPATIBLE constructor for the 18-Oct-2026 bound-free-only 5-argument call shape (the one
+        `TestFrames.testModule_SuperConfigurationMixtureOpacity`'s own check (8) uses): `freeFreeIncluded` is
+        set to `false`, so this call shape keeps compiling and free-free stays off unless explicitly
+        requested through the full 6-argument form. A scheme::SuperConfigurationMixtureOpacityScheme is returned.
+"""
+function SuperConfigurationMixtureOpacityScheme(nuclearModels::Array{Nuclear.Model,1},
+                                                   refConfigsPerSpeciesStages::Array{Array{Array{Configuration,1},1},1},
+                                                   numberFractions::Array{Float64,1}, opacityOmegas::Array{Float64,1},
+                                                   boundFreeApprox::Empirical.AbstractEmpiricalApproximation)
+    SuperConfigurationMixtureOpacityScheme( nuclearModels, refConfigsPerSpeciesStages, numberFractions, opacityOmegas,
+                                              boundFreeApprox, false )
 end
 
 
@@ -899,6 +988,8 @@ function Base.show(io::IO, scheme::Plasma.SuperConfigurationMixtureOpacityScheme
     println(io, "refConfigsPerSpeciesStages:  $(scheme.refConfigsPerSpeciesStages)  ")
     println(io, "numberFractions:             $(scheme.numberFractions)  ")
     println(io, "opacityOmegas:               $(scheme.opacityOmegas)  ")
+    println(io, "boundFreeApprox:             $(scheme.boundFreeApprox)  ")
+    println(io, "freeFreeIncluded:            $(scheme.freeFreeIncluded)  ")
 end
 
 

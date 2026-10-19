@@ -349,7 +349,30 @@ end
         `2s^2 2p`/`2s 2p^2` ionized partner as the next) -- the mixture's own `kappa` must equal the
         STAGE-population-weighted sum of each stage's OWN independently-computed `kappa`, built by an
         independent re-derivation exactly as check (1) does for species, and must differ from EITHER
-        stage's own `kappa` alone (proving a genuine mix, not a degenerate one-stage result). A
+        stage's own `kappa` alone (proving a genuine mix, not a degenerate one-stage result).
+
+        CHECK (8) IS NEW 18-Oct-2026, for BOUND-FREE: on the SAME stageA/stageB pair as check (7), now with
+        `boundFreeApprox=Empirical.ScaledHydrogenic()`, it independently re-derives the scheme's own
+        bound-free spectrum by calling `Empirical.photoionizationCrossSection` directly for every
+        (initialConf,finalConf) pair differing by exactly one electron in exactly one shell, weighted by
+        stageA's own within-stage populations (from `SuperConfigurationOpacityScheme`'s own result for
+        stageA alone) times stage A's balance population -- built by a DIFFERENT route than
+        `Plasma.boundFreeOpacityContribution` itself uses, to machine precision. Also checks that turning
+        bound-free on leaves the bound-bound-only spectrum UNCHANGED from check (7), that the TOTAL spectrum
+        is exactly bound-bound+bound-free, and that the ORIGINAL (no `boundFreeApprox`) mixture from this
+        test's own opening carries NONE of the new keys -- the backward-compatibility proof for this
+        addition, mirroring check (4)'s "no Rosseland key" proof.
+
+        CHECK (9) IS NEW 19-Oct-2026, for FREE-FREE: on the SAME stageA/stageB pair, now with
+        `freeFreeIncluded=true` (`boundFreeApprox` left at `nothing`, isolating free-free alone), it
+        independently re-derives the scheme's own free-free spectrum by calling
+        `Empirical.freeFreeAbsorptionCoefficient` directly for EACH stage's own ion charge -- no adjacency
+        needed, unlike bound-free -- weighted by that stage's own balance population, built by a DIFFERENT
+        route than `Plasma.freeFreeOpacityContribution` itself uses, to machine precision. Also checks (a)
+        turning free-free on leaves the bound-bound-only spectrum UNCHANGED, (b) the TOTAL spectrum is
+        exactly bound-bound+free-free, (c) the ORIGINAL (no `freeFreeIncluded`) mixture carries NONE of the
+        new keys, and (d) two literal values of the embedded Sutherland (1998) Gaunt-factor table against
+        the downloaded file itself -- a data-transcription check independent of the physics above. A
         success::Bool is returned.
 """
 function testModule_SuperConfigurationMixtureOpacity(; short::Bool=true)
@@ -481,6 +504,125 @@ function testModule_SuperConfigurationMixtureOpacity(; short::Bool=true)
     if  maximum(abs.(kappaTwoStage.-kappaA)) < 1.0e-6   ||   maximum(abs.(kappaTwoStage.-kappaB)) < 1.0e-6
         success = false
         println("  ** two-stage mix is degenerate -- it equals one stage's own kappa alone")
+    end
+
+    # --- CHECK (8), NEW 18-Oct-2026: BOUND-FREE, on the SAME stageA/stageB pair as check (7), now with
+    #     boundFreeApprox turned on. Independently re-derives the scheme's own bound-free spectrum by
+    #     calling Empirical.photoionizationCrossSection directly for every (iConf,fConf) pair that differs
+    #     by exactly one electron in exactly one shell, weighted by stageA's own WITHIN-stage populations
+    #     (from SuperConfigurationOpacityScheme's own result for stageA alone) times the balance population
+    #     of stage A itself -- EXACTLY the quantity Plasma.boundFreeOpacityContribution computes, built here
+    #     by a different route. Also checks that (a) the bound-bound-only keys are UNCHANGED from check (7)'s
+    #     own numbers, (b) total = bound-bound + bound-free exactly, and (c) the ORIGINAL (no-boundFreeApprox)
+    #     mixture from the top of this test carries NONE of the new keys -- the backward-compatibility proof
+    #     for this addition, mirroring check (4)'s "no Rosseland key" proof for the Rosseland mean itself.
+    popsA = perform(waA; output=true)[ResultKeys.SuperConfigurationPopulations]
+
+    bfScheme = Plasma.SuperConfigurationMixtureOpacityScheme([nmC], [[stageA, stageB]], [1.0], omegas,
+                                                                 Empirical.ScaledHydrogenic())
+    waBF = Plasma.Computation(wa; scheme=bfScheme, settings=settingsIon)
+    wbBF = perform(waBF; output=true)
+    kappaBound     = wbBF[ResultKeys.SuperConfigurationMixtureOpacitySpectrum]
+    kappaBF        = wbBF[ResultKeys.SuperConfigurationMixtureBoundFreeOpacity]
+    kappaTotalBF   = wbBF[ResultKeys.SuperConfigurationMixtureTotalOpacitySpectrum]
+    popTwoStageBF  = wbBF[ResultKeys.SuperConfigurationMixtureStagePopulations][1]
+
+    if  maximum(abs.(kappaBound .- kappaTwoStage)) > 1.0e-10
+        success = false
+        println("  ** turning boundFreeApprox ON changed the BOUND-BOUND-only spectrum -- it must not")
+    end
+
+    zOld = Defaults.getDefaults("nuclear: charge");   Defaults.setDefaults("nuclear: charge", nmC.Z)
+    handBF = zeros(Float64, length(omegas))
+    try
+        for  (g, iConf)  in  enumerate(stageA)
+            popAbs = popTwoStageBF[1] * popsA[g]
+            popAbs <= 0.0   &&   continue
+            for  fConf  in  stageB
+                occDiff = Basics.extractFromConfigurations(Basics.OccupationDifference(), iConf, fConf)
+                ( length(occDiff) == 1  &&  occDiff[1][2] == 1 )   ||   continue
+                css = Empirical.photoionizationCrossSection(omegas, iConf, fConf, Empirical.ScaledHydrogenic())
+                handBF .+= popAbs .* css
+            end
+        end
+    finally
+        Defaults.setDefaults("nuclear: charge", zOld)
+    end
+
+    if  maximum(handBF) <= 0.0
+        success = false
+        println("  ** bound-free check is vacuous -- no compatible channel found between stageA and stageB")
+    end
+    if  maximum(abs.(kappaBF .- handBF)) > 1.0e-10
+        success = false
+        println("  ** bound-free check failed: max |kappaBF - hand-derived| = $(maximum(abs.(kappaBF.-handBF)))")
+    end
+    if  maximum(abs.(kappaTotalBF .- (kappaBound.+kappaBF))) > 1.0e-12
+        success = false
+        println("  ** total spectrum is not exactly bound-bound + bound-free")
+    end
+    if  haskey(wb, "superconfiguration mixture bound-free opacity")
+        success = false
+        println("  ** the ORIGINAL (no boundFreeApprox) mixture carries a bound-free key -- it must not")
+    end
+
+    # --- CHECK (9), NEW 19-Oct-2026: FREE-FREE, on the SAME stageA/stageB pair, now with freeFreeIncluded
+    #     turned on (boundFreeApprox left at nothing, to isolate free-free alone). Independently re-derives
+    #     the scheme's own free-free spectrum by calling Empirical.freeFreeAbsorptionCoefficient directly
+    #     for EACH stage's own charge -- no adjacency needed, unlike bound-free -- weighted by that stage's
+    #     own balance population, EXACTLY the quantity Plasma.freeFreeOpacityContribution computes, built
+    #     here by a different route. Also checks (a) turning it on leaves the bound-bound-only spectrum
+    #     UNCHANGED, (b) total = bound-bound + free-free exactly, (c) the ORIGINAL (freeFreeIncluded=false)
+    #     mixture carries NONE of the new keys, and (d) two literal values of the embedded Sutherland (1998)
+    #     Gaunt-factor table -- a transcription check independent of the physics above, since a wrong digit
+    #     anywhere in 3321 embedded numbers would not necessarily show up as an obviously wrong cross section.
+    ffScheme = Plasma.SuperConfigurationMixtureOpacityScheme([nmC], [[stageA, stageB]], [1.0], omegas,
+                                                                 nothing, true)
+    waFF = Plasma.Computation(wa; scheme=ffScheme, settings=settingsIon)
+    wbFF = perform(waFF; output=true)
+    kappaBoundFF    = wbFF[ResultKeys.SuperConfigurationMixtureOpacitySpectrum]
+    kappaFF         = wbFF[ResultKeys.SuperConfigurationMixtureFreeFreeOpacity]
+    kappaTotalFF    = wbFF[ResultKeys.SuperConfigurationMixtureTotalOpacitySpectrum]
+    popTwoStageFF   = wbFF[ResultKeys.SuperConfigurationMixtureStagePopulations][1]
+    neFF            = wbFF[ResultKeys.SuperConfigurationMixtureElectronDensity]
+
+    if  maximum(abs.(kappaBoundFF .- kappaTwoStage)) > 1.0e-10
+        success = false
+        println("  ** turning freeFreeIncluded ON changed the BOUND-BOUND-only spectrum -- it must not")
+    end
+
+    chargesAB = [6 - stageA[1].NoElectrons, 6 - stageB[1].NoElectrons]
+    handFF    = zeros(Float64, length(omegas))
+    for  (i, q)  in  enumerate(chargesAB)
+        handFF .+= popTwoStageFF[i] .* Empirical.freeFreeAbsorptionCoefficient(omegas, q, neFF, kTIon)
+    end
+
+    if  maximum(handFF) <= 0.0
+        success = false
+        println("  ** free-free check is vacuous -- both stage charges gave zero")
+    end
+    if  maximum(abs.(kappaFF .- handFF)) > 1.0e-10
+        success = false
+        println("  ** free-free check failed: max |kappaFF - hand-derived| = $(maximum(abs.(kappaFF.-handFF)))")
+    end
+    if  maximum(abs.(kappaTotalFF .- (kappaBoundFF.+kappaFF))) > 1.0e-12
+        success = false
+        println("  ** total spectrum is not exactly bound-bound + free-free")
+    end
+    if  haskey(wb, "superconfiguration mixture free-free opacity")
+        success = false
+        println("  ** the ORIGINAL (no freeFreeIncluded) mixture carries a free-free key -- it must not")
+    end
+
+    # literal spot values from Sutherland's (1998) gffgu.dat itself, at its own grid nodes (u,gamma^2) =
+    # (1e-4,1e-4) and (1.0,1.0), read directly off the downloaded, md5-verified file -- NOT recomputed from
+    # any formula, so this check is independent of everything else in this test.
+    gffCorner = Empirical.freeFreeGauntFactor(1.0e-4, 1.0e-4)
+    gffCenter = Empirical.freeFreeGauntFactor(1.0, 1.0)
+    if  abs(gffCorner - 5.524282) > 1.0e-5   ||   abs(gffCenter - 1.293904) > 1.0e-5
+        success = false
+        println("  ** embedded Sutherland table spot check failed: gff(1e-4,1e-4) = $gffCorner " *
+                 "(expect 5.524282), gff(1,1) = $gffCenter (expect 1.293904)")
     end
 
     testPrint("testModule_SuperConfigurationMixtureOpacity()::", success)

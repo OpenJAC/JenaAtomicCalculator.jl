@@ -239,14 +239,24 @@ end
                                                     ## grand-canonical and pairwise formulas, proved not assumed.
         @test TestFrames.testModule_SuperConfigurationMixtureOpacity()
                                                     ## added 17-Oct-2026 (item C20), EXTENDED 18-Oct-2026 to the
-                                                    ## stage axis: species-axis checks 1-4 (mixing rule, species
-                                                    ## reduction, Planck-of-constant, no Rosseland key) run
-                                                    ## UNEDITED as the backward-compat proof; NEW checks 5-7 --
-                                                    ## stage reduction against SuperConfigurationIonizationScheme's
-                                                    ## own validated numbers, a HOMOGENEITY check (splitting one
-                                                    ## species into two identical halves must be invisible to the
-                                                    ## coupled balance), and a real two-stage opacity mix matched
-                                                    ## to an independent hand re-derivation.
+                                                    ## stage axis AND (same day) to bound-free: species-axis
+                                                    ## checks 1-4 (mixing rule, species reduction, Planck-of-
+                                                    ## constant, no Rosseland key) run UNEDITED as the backward-
+                                                    ## compat proof; checks 5-7 -- stage reduction against
+                                                    ## SuperConfigurationIonizationScheme's own validated numbers,
+                                                    ## a HOMOGENEITY check (splitting one species into two
+                                                    ## identical halves must be invisible to the coupled
+                                                    ## balance), and a real two-stage opacity mix matched to an
+                                                    ## independent hand re-derivation; check 8 -- bound-free on
+                                                    ## that SAME two-stage pair, independently re-derived via
+                                                    ## Empirical.photoionizationCrossSection, plus the proof that
+                                                    ## turning it on leaves the bound-bound spectrum unchanged and
+                                                    ## the original (no boundFreeApprox) mixture carries none of
+                                                    ## the new keys; check 9 -- ADDED 19-Oct-2026, free-free on
+                                                    ## the same pair, independently re-derived via
+                                                    ## Empirical.freeFreeAbsorptionCoefficient, the same
+                                                    ## backward-compatibility proof, plus two literal spot values
+                                                    ## of the embedded Sutherland (1998) Gaunt-factor table.
     end
 
     @testset "JAC strongfield" begin
