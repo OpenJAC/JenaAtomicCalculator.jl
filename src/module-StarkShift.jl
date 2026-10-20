@@ -40,6 +40,31 @@
     alpha_0(omega, upper) - alpha_0(omega, lower), which is read off by running two levels over a
     range of `omega`.  Both follow from the dynamic polarizability and need nothing further.
 
+    THE BLACK-BODY SHIFT IS THE SAME EXPRESSION AVERAGED OVER THE PLANCK SPECTRUM, and it needs no
+    further physics:  a level in thermal radiation at temperature T is shifted by
+
+        DeltaE_BBR  =  -(1/2) <E^2> alpha_0(0) (1 + eta)        <E^2> = (4 pi^3/15) alpha_fs^3 T^4
+
+    with <E^2> the MEAN-SQUARE field of the radiation -- already a time average, so there is NO second
+    factor of two here, unlike the ac line above -- and eta the dynamic correction that comes from
+    alpha_0(omega) not being flat across the spectrum.  The leading term is the universally quoted
+    -(2/15)(alpha_fs pi)^3 T^4 alpha_0, which is the same number written differently.
+
+    ONLY THE RANK-0 POLARIZABILITY ENTERS, and that is why a black-body shift is ONE number per level
+    rather than a table over M.  Thermal radiation is isotropic and unpolarized, so its field
+    correlation tensor is <E_i E_j> = (1/3) delta_ij <E^2>:  the rank-1 component averages to zero for
+    want of a net handedness and the rank-2 component for want of a preferred axis.  `Settings.temperature`
+    is read in KELVIN, to match `Settings.EField` being read in V/cm, and 0. -- the default -- means no
+    black-body shift is computed and nothing about the other two paths changes.
+
+    THE REGIME THAT MUST BE WATCHED IS THE RYDBERG ONE.  For a low-lying level at room temperature the
+    Planck weight peaks around 2.8 kT, far BELOW every excitation energy, so alpha_0(omega) is flat over
+    the whole spectrum and eta is a small correction -- measured on H 1s, +1.2e-04 at 300 K.  For a
+    Rydberg level the excitation energies fall as 1/n^3 and the Planck weight sits ON them:  the integral
+    is then a PRINCIPAL VALUE whose imaginary part is the BBR-INDUCED TRANSITION RATE, and neither is
+    what a plain quadrature returns.  StarkShift.checkBlackbodyResonance measures the fraction of the
+    Planck weight lying above the lowest excitation energy and warns when it is not negligible.
+
     THE POLE STRUCTURE IS INHERITED, NOT RE-CHECKED HERE.  Above the lowest excitation energy of the
     level the true polarizability is COMPLEX, and near a pole it rides on one energy denominator;
     `MultipolePolarizibility.checkFrequency` warns about both and runs on every call made from here,
@@ -86,6 +111,15 @@ end
                                                        a.u.; identically 0. for J<1 (see module docstring).
     + Jsublevels              ::Array{StarkShift.SublevelJ,1}
         ... List of the Stark-shifted fine-structure sublevels and data with well-defined J-value
+    + bbrShift               ::EmProperty        ... Black-body radiation shift of the level at
+                                                       Settings.temperature, in a.u.; 0. if no temperature was
+                                                       given. It carries NO M-dependence, by the isotropy
+                                                       argument in the module docstring.
+    + bbrEta                 ::Float64           ... The dynamic correction eta of that shift, i.e. how far
+                                                       alpha_0(omega) departs from alpha_0(0) across the Planck
+                                                       spectrum. A small eta says the static polarizability was
+                                                       sufficient; a large one says the spectrum reaches the
+                                                       level's own excitation energies.
 """
 struct Outcome
     Jlevel                   ::Level
@@ -94,6 +128,8 @@ struct Outcome
     alpha0                   ::EmProperty
     alpha2                   ::EmProperty
     Jsublevels                ::Array{StarkShift.SublevelJ,1}
+    bbrShift                 ::EmProperty
+    bbrEta                   ::Float64
 end
 
 
@@ -101,7 +137,7 @@ end
 `StarkShift.Outcome()`  ... constructor for an `empty` instance of StarkShift.Outcome.
 """
 function Outcome()
-    Outcome(Level(), 0., 0., EmProperty(0.), EmProperty(0.), StarkShift.SublevelJ[])
+    Outcome(Level(), 0., 0., EmProperty(0.), EmProperty(0.), StarkShift.SublevelJ[], EmProperty(0.), 0.)
 end
 
 
@@ -113,6 +149,8 @@ function Base.show(io::IO, outcome::StarkShift.Outcome)
     println(io, "alpha0:           $(outcome.alpha0)  ")
     println(io, "alpha2:           $(outcome.alpha2)  ")
     println(io, "Jsublevels:       $(outcome.Jsublevels)  ")
+    println(io, "bbrShift:         $(outcome.bbrShift)  ")
+    println(io, "bbrEta:           $(outcome.bbrEta)  ")
 end
 
 
@@ -136,6 +174,12 @@ end
     + omega                  ::Float64           ... Angular frequency of the driving field, in atomic units.
                                                        0., the default, means a STATIC field and leaves that
                                                        path bit-identical to what it was.
+    + temperature            ::Float64           ... Temperature of a black-body radiation field, in KELVIN (the
+                                                       same user-facing convention as EField in V/cm). 0., the
+                                                       default, means no black-body shift is computed. It is
+                                                       INDEPENDENT of EField and omega: a black-body shift is an
+                                                       average over the whole Planck spectrum and does not read
+                                                       either of them.
     + levelSelection         ::LevelSelection    ... Specifies the selected levels, if any.
 """
 struct Settings  <:  AbstractPropertySettings
@@ -146,6 +190,7 @@ struct Settings  <:  AbstractPropertySettings
     printBefore               ::Bool
     EField                   ::Float64
     omega                    ::Float64
+    temperature              ::Float64
     levelSelection           ::LevelSelection
 end
 
@@ -155,7 +200,7 @@ end
     ... constructor for an `empty` instance of StarkShift.Settings.
 """
 function Settings()
-        Settings(false, false, false, Multiplet(), false, 0., 0., LevelSelection() )
+        Settings(false, false, false, Multiplet(), false, 0., 0., 0., LevelSelection() )
 end
 
 
@@ -163,7 +208,7 @@ end
 `StarkShift.Settings(set::StarkShift.Settings;`
 
         calcEDM=.., calcEQM=.., calcStarkshifts=.., gMultiplet=.., printBefore=.., EField=.., omega=..,
-        levelSelection=..)
+        temperature=.., levelSelection=..)
 
     ... keyword copy-constructor for re-defining selected values of a settings::StarkShift.Settings.
 """
@@ -171,7 +216,7 @@ function Settings(set::StarkShift.Settings;
         calcEDM::Union{Nothing,Bool}=nothing,                   calcEQM::Union{Nothing,Bool}=nothing,
         calcStarkshifts::Union{Nothing,Bool}=nothing,           gMultiplet::Union{Nothing,Multiplet}=nothing,
         printBefore::Union{Nothing,Bool}=nothing,               EField::Union{Nothing,Float64}=nothing,
-        omega::Union{Nothing,Float64}=nothing,
+        omega::Union{Nothing,Float64}=nothing,                  temperature::Union{Nothing,Float64}=nothing,
         levelSelection::Union{Nothing,LevelSelection}=nothing)
     if  isnothing(calcEDM)           calcEDMx          = set.calcEDM          else   calcEDMx          = calcEDM          end
     if  isnothing(calcEQM)           calcEQMx          = set.calcEQM          else   calcEQMx          = calcEQM          end
@@ -180,9 +225,11 @@ function Settings(set::StarkShift.Settings;
     if  isnothing(printBefore)       printBeforex      = set.printBefore      else   printBeforex      = printBefore      end
     if  isnothing(EField)            EFieldx           = set.EField           else   EFieldx           = EField           end
     if  isnothing(omega)             omegax            = set.omega            else   omegax            = omega            end
+    if  isnothing(temperature)       temperaturex      = set.temperature      else   temperaturex      = temperature      end
     if  isnothing(levelSelection)    levelSelectionx   = set.levelSelection   else   levelSelectionx   = levelSelection   end
 
-    Settings( calcEDMx, calcEQMx, calcStarkshiftsx, gMultipletx, printBeforex, EFieldx, omegax, levelSelectionx )
+    Settings( calcEDMx, calcEQMx, calcStarkshiftsx, gMultipletx, printBeforex, EFieldx, omegax, temperaturex,
+              levelSelectionx )
 end
 
 
@@ -195,6 +242,7 @@ function Base.show(io::IO, settings::StarkShift.Settings)
     println(io, "printBefore:           $(settings.printBefore)  ")
     println(io, "EField:                $(settings.EField)  ")
     println(io, "omega:                 $(settings.omega)  ")
+    println(io, "temperature:           $(settings.temperature)  ")
     println(io, "levelSelection:        $(settings.levelSelection)  ")
 end
 
@@ -214,7 +262,15 @@ function  computeAmplitudesProperties(outcome::StarkShift.Outcome, grid::Radial.
         alpha0, alpha2, Jsublevels = StarkShift.computeStarkShifts(outcome.Jlevel, settings.gMultiplet, grid, settings)
     end
 
-    newOutcome = StarkShift.Outcome( outcome.Jlevel, edm, eqm, alpha0, alpha2, Jsublevels)
+    ## THE BLACK-BODY SHIFT IS INDEPENDENT OF EField AND omega and is therefore gated on its own temperature
+    ## alone, not on calcStarkshifts: a caller may want the thermal shift and no applied field at all.
+    bbrShift = EmProperty(0.);   bbrEta = 0.
+    if  settings.temperature > 0.0
+        bbrShift, bbrEta = StarkShift.computeBlackbodyShift(outcome.Jlevel, settings.gMultiplet, grid,
+                                                             settings.temperature)
+    end
+
+    newOutcome = StarkShift.Outcome( outcome.Jlevel, edm, eqm, alpha0, alpha2, Jsublevels, bbrShift, bbrEta)
     return( newOutcome )
 end
 
@@ -226,6 +282,145 @@ end
         StarkShift.Settings.EField (documented in V/cm) to atomic units.
 """
 const AU_EFIELD_IN_VCM = 5.142206751e9
+
+
+"""
+`StarkShift.blackbodyFieldSquare(temperature::Float64)`  
+    ... returns the mean-square electric field <E^2> of an isotropic black-body radiation field at `temperature`,
+        given in KELVIN as StarkShift.Settings.temperature is, in ATOMIC UNITS. It is four pi times the
+        Stefan-Boltzmann energy density u = (pi^2/15) alpha_fs^3 T^4, since u = <E^2>/(4 pi) for a field with
+        <E^2> = <B^2>, so
+
+            <E^2>  =  (4 pi^3/15) alpha_fs^3 T^4
+
+        with T the temperature in Hartree. A value::Float64 is returned, and 0. for a non-positive temperature.
+
+        THIS IS A COMPLETE EXTERNAL ANCHOR AND COSTS NOTHING TO CHECK, because no atomic quantity enters it: only
+        the fine-structure constant does. At 300 K it gives E_rms = 831.945 V/m against the textbook 831.9 V/m,
+        and the leading shift it implies for a level of alpha_0 = 1 a.u. is -0.008611 Hz. The same number by
+        QUADRATURE over JAC's own `Distribution.photonNumberDensity(Distribution.PhotonPlanck(T), omega)` agrees
+        to 1.3e-10, which is how the Planck normalisation used in StarkShift.computeBlackbodyShift was checked;
+        that module is deliberately not a dependency here, since the closed form is exact and the spectral weight
+        is one expression.
+"""
+function blackbodyFieldSquare(temperature::Float64)
+    if  temperature <= 0.0    return( 0.0 )    end
+    T     = Defaults.convertUnits("temperature: from Kelvin to (Hartree) units", temperature)
+    alpha = 1.0 / Defaults.getDefaults("speed of light: c")
+
+    return( 4.0 * pi^3 / 15.0 * alpha^3 * T^4 )
+end
+
+
+"""
+`StarkShift.checkBlackbodyResonance(temperature::Float64, energies::Array{Float64,1}, nPoints::Int64,
+                                        xMax::Float64)`  
+    ... inspects whether the Planck spectrum at `temperature` reaches the level's own excitation energies and
+        WARNS LOUDLY, to stdout, when it does -- which is the one way a black-body shift comes out wrong while
+        looking perfectly reasonable. It measures the FRACTION of the Planck weight x^3/(exp(x)-1) lying ABOVE
+        the lowest excitation energy, since that is the part of the spectrum for which alpha_0(omega) is not a
+        polarizability at all, and warns when that fraction exceeds 1e-3. Nothing is returned.
+
+        WHY A FRACTION RATHER THAN A RULE OF THUMB. The weight peaks at x = 2.82 and is spent by x = 15, so
+        "kT well below the first excitation energy" is the usual statement; but what decides whether a number is
+        usable is how much weight actually sits above it, and that is one integral. For a low-lying level at
+        room temperature the fraction is utterly negligible and nothing is printed. For a RYDBERG level the
+        excitation energies fall as 1/n^3 and the fraction approaches one.
+
+        WHAT IS WRONG IN THAT REGIME IS NOT PRECISION BUT THE QUANTITY. Above the lowest excitation energy the
+        true alpha_0(omega) is COMPLEX, so the integral is a PRINCIPAL VALUE and its imaginary part is the
+        BBR-INDUCED TRANSITION RATE -- a real, separate observable. A plain quadrature gives neither: it returns
+        whatever the point nearest a pole happened to contribute, so the distance from the nearest quadrature
+        point to the lowest excitation energy is reported too.
+"""
+function checkBlackbodyResonance(temperature::Float64, energies::Array{Float64,1}, nPoints::Int64, xMax::Float64)
+    T   = Defaults.convertUnits("temperature: from Kelvin to (Hartree) units", temperature)
+    dEs = [dE  for dE in energies  if dE > 0.0]
+    if  isempty(dEs)    return( nothing )    end
+    dEmin = minimum(dEs);      xMin = dEmin / T
+    if  xMin >= xMax    return( nothing )    end
+
+    # the fraction of the Planck weight above the lowest excitation energy, by Simpson on [xMin, xMax]
+    nf = 2000;    hf = (xMax - xMin)/nf;    wa = 0.0
+    for  i = 0:nf
+        x  = xMin + i*hf
+        fx = x == 0.0 ? 0.0 : x^3 / (exp(x) - 1.0)
+        wa = wa + ((i == 0 || i == nf) ? 1.0 : (isodd(i) ? 4.0 : 2.0)) * fx
+    end
+    frac = (hf/3.0 * wa) / (pi^4/15.0)
+    if  frac <= 1.0e-3    return( nothing )    end
+
+    h     = xMax/nPoints
+    near  = minimum( [abs(T*i*h - dEmin)  for i = 0:nPoints] ) / dEmin
+    printstyled("\n>>> THE PLANCK SPECTRUM AT T = " * @sprintf("%.1f", temperature) * " K REACHES THIS LEVEL'S OWN " *
+                "EXCITATION ENERGIES: " * @sprintf("%.1f", 100*frac) * " % of the\n" *
+                "    weight lies above the lowest one at " * @sprintf("%.6f", dEmin) * " a.u. There alpha_0(omega) " *
+                "is COMPLEX, so the integral is a\n    PRINCIPAL VALUE and its imaginary part is the BBR-induced " *
+                "transition rate -- and a plain quadrature\n    returns neither. The nearest quadrature point sits " *
+                @sprintf("%.2f", 100*near) * " % away from that energy, so the number below is\n" *
+                "    carried by whichever point came closest to the pole. DO NOT QUOTE IT.\n", color=:light_red)
+
+    return( nothing )
+end
+
+
+"""
+`StarkShift.computeBlackbodyShift(level::Level, gMultiplet::Multiplet, grid::Radial.Grid, temperature::Float64;
+                                     nPoints::Int64=400, xMax::Float64=40.0)`  
+    ... computes the black-body radiation shift of `level` at `temperature` (in Kelvin) by averaging the rank-0
+        E1 polarizability over the Planck spectrum,
+
+            DeltaE_BBR  =  -(1/2) <E^2> alpha_eff       alpha_eff  =  int x^3 alpha_0(T x)/(exp(x)-1) dx / (pi^4/15)
+
+        where x = omega/T, so that alpha_eff -> alpha_0(0) for a flat polarizability and the leading term is the
+        universally quoted -(2/15)(alpha_fs pi)^3 T^4 alpha_0. There is NO second factor of two here, unlike the
+        ac Stark shift: <E^2> is already a mean square. Only the RANK-0 polarizability enters, because thermal
+        radiation is isotropic and unpolarized -- see the module docstring. A tuple
+        (bbrShift::EmProperty, eta::Float64) is returned, with eta = alpha_eff/alpha_0(0) - 1.
+
+        THE SUM OVER STATES IS EVALUATED ONCE, AT omega = 0, and the quadrature over omega is then arithmetic on
+        its own stored terms -- the reduced matrix elements and energies that MultipolePolarizibility.Contribution
+        carries -- recombined through MultipolePolarizibility.rankCoefficient and .frequencyFactor. That is the
+        idiom module-DispersionCoefficient.jl uses for its Casimir-Polder integral, and it matters twice here: a
+        few hundred quadrature points would otherwise mean a few hundred sum-over-states evaluations, and
+        MultipolePolarizibility.checkFrequency would fire once per point, which is a guard that gets scrolled past.
+
+        eta IS SMALL FOR A LOW-LYING LEVEL AND GROWS AS T^2. Measured on the approved H 1s case, +1.15e-04 at
+        300 K, +1.28e-03 at 1000 K and +1.18e-02 at 3000 K -- a T^2 law to three digits, which is what it must be,
+        since eta is first order in <omega^2>/dE^2 and <omega^2> is proportional to T^2. Where eta is NOT small the
+        spectrum has reached the level's excitation energies and StarkShift.checkBlackbodyResonance says so.
+"""
+function computeBlackbodyShift(level::Level, gMultiplet::Multiplet, grid::Radial.Grid, temperature::Float64;
+                               nPoints::Int64=400, xMax::Float64=40.0)
+    if  temperature <= 0.0  ||  isempty(gMultiplet.levels)    return( (EmProperty(0.), 0.) )    end
+    T = Defaults.convertUnits("temperature: from Kelvin to (Hartree) units", temperature)
+
+    alphas, contributions = MultipolePolarizibility.computeMultipolePolarizabilities(E1, level, gMultiplet, grid)
+    if  isempty(contributions)    return( (EmProperty(0.), 0.) )    end
+    strengths = Float64[];      energies = Float64[]
+    for  c in contributions
+        push!( strengths, MultipolePolarizibility.rankCoefficient(1, 0, level.J, c.nuLevel.J) * abs2(c.reducedMe) )
+        push!( energies,  -c.deltaE )             ## = W_J' - W_J
+    end
+    alpha0 = sum( strengths[i] / energies[i]  for i = 1:length(strengths) )
+    if  alpha0 == 0.0    return( (EmProperty(0.), 0.) )    end
+
+    StarkShift.checkBlackbodyResonance(temperature, energies, nPoints, xMax)
+
+    h = xMax/nPoints;      wa = 0.0
+    for  i = 0:nPoints
+        x  = i*h
+        fx = x == 0.0 ? 0.0 :
+             x^3 / (exp(x) - 1.0) *
+             sum( strengths[k] * MultipolePolarizibility.frequencyFactor(energies[k], T*x, false)
+                  for k = 1:length(strengths) )
+        wa = wa + ((i == 0 || i == nPoints) ? 1.0 : (isodd(i) ? 4.0 : 2.0)) * fx
+    end
+    alphaEff = (h/3.0 * wa) / (pi^4/15.0)
+    shift    = -0.5 * StarkShift.blackbodyFieldSquare(temperature) * alphaEff
+
+    return( (EmProperty(shift, shift), alphaEff/alpha0 - 1.0) )
+end
 
 
 """
@@ -366,7 +561,8 @@ function  determineOutcomes(multiplet::Multiplet, settings::StarkShift.Settings)
         if  Basics.selectLevel(level, settings.levelSelection)
             Jsublevels = StarkShift.SublevelJ[];   Mvalues = AngularMomentum.m_values(level.J)
             for  M in Mvalues   push!(Jsublevels, StarkShift.SublevelJ(M, EmProperty(0.)) )    end
-            push!( outcomes, StarkShift.Outcome(level, 0., 0., EmProperty(0.), EmProperty(0.), Jsublevels) )
+            push!( outcomes, StarkShift.Outcome(level, 0., 0., EmProperty(0.), EmProperty(0.), Jsublevels,
+                                                 EmProperty(0.), 0.) )
         end
     end
     return( outcomes )
@@ -501,6 +697,39 @@ function  displayResults(stream::IO, outcomes::Array{StarkShift.Outcome,1}, sett
             end
         end
         println(stream, "  ", TableStrings.hLine(nx2))
+    end
+    #
+    if  settings.temperature > 0.0
+        nx3 = 104
+        println(stream, " ")
+        println(stream, "  Black-body radiation shift at T = $(settings.temperature) K, i.e. the rank-0 " *
+                        "polarizability averaged over the Planck")
+        println(stream, "  spectrum. It carries NO M-dependence: thermal radiation is isotropic and unpolarized, " *
+                        "so only rank 0 survives.")
+        println(stream, "  eta is the dynamic correction -- how far alpha_0(omega) departs from alpha_0(0) across " *
+                        "the spectrum:")
+        println(stream, " ")
+        println(stream, "  ", TableStrings.hLine(nx3))
+        sa = "  ";   sb = "  "
+        sa = sa * TableStrings.center(10, "Level"; na=2);                   sb = sb * TableStrings.hBlank(12)
+        sa = sa * TableStrings.center(10, "J^P";   na=4);                   sb = sb * TableStrings.hBlank(14)
+        sa = sa * TableStrings.center(17, "Delta-E [Coul]"; na=3);          sb = sb * TableStrings.center(17, "[Hz]"; na=3)
+        sa = sa * TableStrings.center(17, "Delta-E [Bab]";  na=3);          sb = sb * TableStrings.center(17, "[Hz]"; na=3)
+        sa = sa * TableStrings.center(15, "eta";            na=3);          sb = sb * TableStrings.center(15, " "   ; na=3)
+        println(stream, sa);    println(stream, sb);    println(stream, "  ", TableStrings.hLine(nx3))
+        #
+        for  outcome in outcomes
+            sa  = "  ";    sym = LevelSymmetry( outcome.Jlevel.J, outcome.Jlevel.parity)
+            sa = sa * TableStrings.center(10, TableStrings.level(outcome.Jlevel.index); na=2)
+            sa = sa * TableStrings.center(10, string(sym); na=4)
+            sa = sa * TableStrings.flushright(17, @sprintf("%.6e",
+                          Defaults.convertUnits("energy: from atomic to Hz", outcome.bbrShift.Coulomb)) )   * "    "
+            sa = sa * TableStrings.flushright(17, @sprintf("%.6e",
+                          Defaults.convertUnits("energy: from atomic to Hz", outcome.bbrShift.Babushkin)) ) * "    "
+            sa = sa * TableStrings.flushright(15, @sprintf("%+.3e", outcome.bbrEta) )                       * "    "
+            println(stream, sa )
+        end
+        println(stream, "  ", TableStrings.hLine(nx3))
     end
     #
     return( nothing )
