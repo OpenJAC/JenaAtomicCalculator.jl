@@ -568,9 +568,11 @@ function inducedPotentialZr(multipole::EmMultipole, activeOrbitals::Dict{Subshel
         # baseline for the exchange work.
         #   **AND WITH EXCHANGE SWITCHED ON THE SELF TERM IS KEPT IN FULL**, which is not an inconsistency but
         # the whole point: in a proper RPAE the direct term runs over ALL N_b electrons, self included, and the
-        # spurious self-interaction is cancelled by EXCHANGE rather than by hand.  For a ONE-electron system
-        # that cancellation is exact and is what fixes the exchange normalisation -- see
-        # `RandomPhase.exchangeSourceVector`.  Removing the self term here as well would remove it twice.
+        # spurious self-interaction is cancelled by EXCHANGE rather than by hand.  **DO NOT CALIBRATE THAT ON A
+        # ONE-ELECTRON SYSTEM, 20-Oct-2026, item 75:** hydrogen is the one case where this method's own
+        # N_b/(2j_b+1) is not 1, and its nuclear-only left-hand side drops a term the identity needs -- see
+        # `RandomPhase.exchangeSourceVector` for the two measurements and for what IS settled.  Removing the
+        # self term here as well would remove it twice.
         if  !isnothing(occupations)
             nb = get(occupations, b, jb2 + 1.0)
             # A PARTLY FILLED SUBSHELL CONTRIBUTES ONLY ITS SHARE.  The weight above is built for a FULL
@@ -624,7 +626,16 @@ end
         uses only Wigner-Eckart, which is unambiguous once the 3j convention is fixed, and the coefficient was
         then READ OFF numerically and matched against enumerated 6j argument orderings.
 
-        **COVARIANCE IS A COMPLETE TEST, and it is what makes this trustworthy.** The m-resolved term must be
+        **COVARIANCE IS A COMPLETE TEST OF THE STRUCTURE AND BLIND TO THE SCALE -- amended 20-Oct-2026, item
+        75.** It fixes the 6j, the pairing and the phase, and it caught both of the author's errors below. What
+        it cannot see is a factor depending only on (j_b, L, Lp), an overall normalisation included, since such a
+        factor leaves every magnetic quantum number untouched. The scale is fixed elsewhere and by other means:
+        for the E2 branch by the frozen-Hartree comparison recorded in `RandomPhase.exchangeSourceVector`, which
+        holds for a closed subshell; for the E1 branch not at all, because the frozen NONLOCAL exchange it would
+        have to be compared against does not exist in JAC. Do not read the 1.11e-16 below as a check on the
+        magnitude.
+
+        **COVARIANCE, THEN, IN ITS OWN RIGHT.** The m-resolved term must be
         PROPORTIONAL to `ME(t_a, m_ta, L, q, a, m_a)`, i.e. the ratio must be independent of every magnetic
         quantum number, because the problem is rotationally covariant. Only a correct form satisfies that, and
         it caught both of the author's errors: a first E1 built with the FORWARD chi amplitude showed
@@ -692,6 +703,39 @@ end
         the self term b = a is KEPT HERE IN FULL: it is exactly what cancels the direct term's spurious
         self-interaction, and `inducedPotentialZr` must then be called with `withExchange=true` so that it does
         not remove that self-interaction a second time.
+
+        **HYDROGEN IS NOT THE TEST OF THIS NORMALISATION, AND THE CLAIM THAT IT IS HAS BEEN WITHDRAWN --
+        measured 20-Oct-2026, priority item 75.** The appeal is obvious and it is a trap: for one electron
+        V_HF = J - K vanishes identically, so a reader concludes that the induced direct and induced exchange
+        sources must be the same vector and that comparing them needs no reference value. Two measurements say
+        otherwise.
+
+        FIRST, THE IDENTITY HAS THREE TERMS AND THE THIRD ONE CANNOT BE FORMED HERE. Varying
+        (J[phi] - K[phi]) phi = 0, which holds for ANY single orbital, gives delta(J-K)[chi] phi_a + (J-K) chi = 0:
+        the FROZEN potential acting on chi is part of it. The problem carries exactly two radial shapes,
+        v1 = phi_a Y_1[phi_a, chi] and v2 = chi Y_0[phi_a, phi_a], and the identity splits into
+        `v1:  A - B1 - C_K = 0` and `v2:  -B2 + C_J = 0`, where A is the induced direct coefficient, B1 and B2
+        the two induced exchange coefficients, and C_J, C_K the frozen Hartree and frozen exchange ones. JAC has
+        no NONLOCAL exchange operator, so C_K does not exist and the v1 equation is not checkable. Comparing the
+        direct source against this function's output tests neither equation: measured on H 1s in a 120 a.u. box
+        the ratios are 1.402708 (2p_3/2) and 1.811708 (2p_1/2) with cos 0.826089 and 0.899776, and both are
+        REPRODUCED EXACTLY by the split below -- they are the angle between a pure v1 and a v1/v2 mixture, not a
+        defect.
+
+        SECOND, HYDROGEN IS THE ONE CASE WHERE THE FACTOR UNDER TEST IS NOT 1. `scale` above is N_b/(2j_b+1),
+        which is exactly 1 for every closed subshell and 1/2 for a single electron -- so the open-shell
+        occupation rule, the only thing a hydrogen comparison could calibrate, is also the only thing hydrogen
+        cannot be calibrated against. Its left-hand side is nuclear-only as well, so C_J = 0 there while a
+        many-electron mean field supplies it.
+
+        **WHAT IS SETTLED, AND IT IS THE PART THAT MATTERS FOR A CLOSED SHELL.** The v2 equation IS checkable
+        and it holds: C_J is the frozen Hartree coefficient of the partner subshell, N_b, and B2 comes out as
+        `1.0` EXACTLY for every subshell and every multipole rank -- analytically, since at Lp = 0 the 6j with a
+        zero argument is 1/sqrt((2j_a+1)(2j_t+1)) and cancels both reduced matrix elements. With `scale` = 1 for
+        a closed subshell, B2 = 1 = C_J/N_b per electron and the E2 branch is correctly normalised. The radial
+        assembly is sound too: the E1 term is collinear with the direct term to cos = -1.000000000000, the E2
+        term lies along v2 to a residual of 2e-16, and E1 + E2 reproduces this function to 3e-16.
+        `tools/mResolvedPolarizability.jl` CASE L carries the measurement.
 """
 function exchangeSourceVector(multipole::EmMultipole, activeOrbitals::Dict{Subshell,Orbital},
                               chis::Dict{Tuple{Subshell,Subshell},DalgarnoLewis.PerturbedOrbital},
@@ -924,8 +968,9 @@ end
         1e-8. **Checking the TOTAL would not have shown this:** the two angular conventions tried before
         `cbdedacb` agree to 0.7 % on Ne's screened total while differing by 0.644 to 2.194 PER CHANNEL, which is
         how a convention error survived two repairs here.
-        **WHAT IS STILL ABSENT IS EXCHANGE** (priority item 75; the verified lines are in this file and
-        deliberately unwired). A direct-only induced field over-screens, so a number from this function is a
+        **WHAT IS STILL ABSENT IS EXCHANGE** (item 75, HELD rather than open since 20-Oct-2026: its one blocker is
+        a frozen NONLOCAL exchange operator, which JAC does not have anywhere; the verified lines are in this file
+        and deliberately unwired). A direct-only induced field over-screens, so a number from this function is a
         direct-only result in a strongly-coupled regime and NOT a validated screening correction. Do not read the
         paragraph above as more than it says: it establishes that two routes compute the SAME thing, not that the
         thing is the measured one.
