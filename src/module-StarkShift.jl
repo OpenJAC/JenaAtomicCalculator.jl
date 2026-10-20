@@ -97,6 +97,49 @@ end
 
 
 """
+`struct  StarkShift.MagicWavelength`
+    ... one magic wavelength of a PAIR of levels, i.e. one zero of alpha_0(omega, A) - alpha_0(omega, B). At such a
+        frequency the two levels are shifted EQUALLY, so the transition between them is untouched by the trapping
+        light to first order in the intensity -- which is what makes an optical trap compatible with a clock or a
+        qubit. There are generically MANY of them, one or more between every pair of consecutive resonances, so
+        StarkShift.magicWavelengths returns a list and never "the" magic wavelength.
+
+    + omega          ::Float64   ... the frequency, in atomic units.
+    + wavelength     ::Float64   ... the same frequency as a vacuum wavelength, in nm, which is how this quantity
+                                       is universally quoted.
+    + alphaCommon    ::Float64   ... the polarizability the two levels SHARE there, in a.u. IT IS THE TRAP DEPTH per
+                                       unit intensity, and ITS SIGN DECIDES WHETHER THE TRAP TRAPS: a magic
+                                       wavelength with alphaCommon < 0 shifts both levels UP and repels the atom
+                                       from the focus, so it is magic and useless at the same time.
+    + slope          ::Float64   ... d(alpha_A - alpha_B)/d omega at the zero, in a.u. per a.u. It says how
+                                       SHARP the magic wavelength is: a small slope means a wide tolerance on the
+                                       laser frequency, a large one means the differential shift returns at once.
+    + aboveResonance ::Bool      ... true if omega lies at or above the lowest excitation energy of either level,
+                                       where the true polarizability is COMPLEX and this real sum is a
+                                       principal-value-like part with no width. Such a zero is still a real
+                                       crossing of the two real parts, but it is not a usable magic wavelength
+                                       without the widths.
+"""
+struct MagicWavelength
+    omega            ::Float64
+    wavelength       ::Float64
+    alphaCommon      ::Float64
+    slope            ::Float64
+    aboveResonance   ::Bool
+end
+
+
+# `Base.show(io::IO, mw::StarkShift.MagicWavelength)`
+#        ... prepares a proper printout of the variable mw::StarkShift.MagicWavelength.
+function Base.show(io::IO, mw::StarkShift.MagicWavelength)
+    sa = mw.aboveResonance ? "  [ABOVE a resonance: a principal value, not a polarizability]" : ""
+    sb = mw.alphaCommon < 0.0 ? "  [alphaCommon < 0: this trap REPELS]" : ""
+    println(io, "magic wavelength:  omega = $(mw.omega) a.u. = $(mw.wavelength) nm;  shared alpha_0 = " *
+                "$(mw.alphaCommon) a.u.;  slope = $(mw.slope) a.u./a.u." * sa * sb)
+end
+
+
+"""
 `struct  StarkShift.Outcome`
     ... defines a type to keep the Stark shift and electric-quadrupole-moment parameters of a fine-structure level.
 
@@ -365,6 +408,56 @@ end
 
 
 """
+`StarkShift.polarizabilityTerms(level::Level, gMultiplet::Multiplet, grid::Radial.Grid)`  
+    ... returns the per-perturber pieces from which the rank-0 E1 polarizability of `level` can be rebuilt at ANY
+        frequency by arithmetic alone,
+
+            alpha_0(omega) = sum_a strengths[a] * MultipolePolarizibility.frequencyFactor(energies[a], omega, false)
+
+        with strengths[a] = c(L=1, K=0, J, J_a) |<J_a||O^(E1)||J>|^2 and energies[a] = W_a - W_J. The sum over states
+        is therefore evaluated ONCE, and that is what makes a frequency quadrature or a root search affordable: a few
+        hundred frequencies would otherwise be a few hundred sum-over-states evaluations, each rebuilding subshell
+        unions and reduced matrix elements. A tuple (strengths::Array{Float64,1}, energies::Array{Float64,1}) is
+        returned, both empty if no perturber of gMultiplet can be reached at all.
+
+        AND THE ENERGIES ARE ALSO THE POLE POSITIONS, which is the second reason this function exists: a root search
+        on a difference of polarizabilities has to know where the poles are, because a sign change ACROSS one is not
+        a zero -- see StarkShift.magicWavelengths.
+
+        THE REBUILD IS EXACT RATHER THAN AN APPROXIMATION, and that is measured instead of asserted: against a full
+        sum-over-states evaluation it is BIT-IDENTICAL at omega = 0, 1e-3, 1e-2, 0.1 and 0.3 a.u. on the approved
+        H 1s case (tools/probe-blackbodyShift.jl), the last being a frequency at which alpha_0 has already grown
+        from 3.49 to 9.18 a.u.
+"""
+function polarizabilityTerms(level::Level, gMultiplet::Multiplet, grid::Radial.Grid)
+    strengths = Float64[];      energies = Float64[]
+    if  isempty(gMultiplet.levels)    return( (strengths, energies) )    end
+    _, contributions = MultipolePolarizibility.computeMultipolePolarizabilities(E1, level, gMultiplet, grid)
+    for  c in contributions
+        push!( strengths, MultipolePolarizibility.rankCoefficient(1, 0, level.J, c.nuLevel.J) * abs2(c.reducedMe) )
+        push!( energies,  -c.deltaE )             ## = W_J' - W_J
+    end
+
+    return( (strengths, energies) )
+end
+
+
+"""
+`StarkShift.rebuiltPolarizability(strengths::Array{Float64,1}, energies::Array{Float64,1}, omega::Float64)`  
+    ... returns the rank-0 E1 polarizability alpha_0(omega), in a.u., from the pieces that
+        StarkShift.polarizabilityTerms extracted once, on the REAL frequency axis. It is the one place where those
+        pieces are recombined, so that a quadrature and a root search cannot drift apart in how they do it. A
+        value::Float64 is returned, and 0. for an empty set of terms.
+"""
+function rebuiltPolarizability(strengths::Array{Float64,1}, energies::Array{Float64,1}, omega::Float64)
+    if  isempty(strengths)    return( 0.0 )    end
+
+    return( sum( strengths[k] * MultipolePolarizibility.frequencyFactor(energies[k], omega, false)
+                 for k = 1:length(strengths) ) )
+end
+
+
+"""
 `StarkShift.computeBlackbodyShift(level::Level, gMultiplet::Multiplet, grid::Radial.Grid, temperature::Float64;
                                      nPoints::Int64=400, xMax::Float64=40.0)`  
     ... computes the black-body radiation shift of `level` at `temperature` (in Kelvin) by averaging the rank-0
@@ -400,14 +493,9 @@ function computeBlackbodyShift(level::Level, gMultiplet::Multiplet, grid::Radial
     if  temperature <= 0.0  ||  isempty(gMultiplet.levels)    return( (EmProperty(0.), 0.) )    end
     T = Defaults.convertUnits("temperature: from Kelvin to (Hartree) units", temperature)
 
-    alphas, contributions = MultipolePolarizibility.computeMultipolePolarizabilities(E1, level, gMultiplet, grid)
-    if  isempty(contributions)    return( (EmProperty(0.), 0.) )    end
-    strengths = Float64[];      energies = Float64[]
-    for  c in contributions
-        push!( strengths, MultipolePolarizibility.rankCoefficient(1, 0, level.J, c.nuLevel.J) * abs2(c.reducedMe) )
-        push!( energies,  -c.deltaE )             ## = W_J' - W_J
-    end
-    alpha0 = sum( strengths[i] / energies[i]  for i = 1:length(strengths) )
+    strengths, energies = StarkShift.polarizabilityTerms(level, gMultiplet, grid)
+    if  isempty(strengths)    return( (EmProperty(0.), 0.) )    end
+    alpha0 = StarkShift.rebuiltPolarizability(strengths, energies, 0.0)
     if  alpha0 == 0.0    return( (EmProperty(0.), 0.) )    end
 
     StarkShift.checkBlackbodyResonance(temperature, energies, nPoints, xMax)
@@ -424,14 +512,144 @@ function computeBlackbodyShift(level::Level, gMultiplet::Multiplet, grid::Radial
         x  = i*h
         gx = x == 0.0 ? 0.0 : x^3 / (exp(x) - 1.0)
         w  = (i == 0 || i == nPoints) ? 1.0 : (isodd(i) ? 4.0 : 2.0)
-        wa = wa + w * gx * sum( strengths[k] * MultipolePolarizibility.frequencyFactor(energies[k], T*x, false)
-                                for k = 1:length(strengths) )
+        wa = wa + w * gx * StarkShift.rebuiltPolarizability(strengths, energies, T*x)
         wb = wb + w * gx
     end
     alphaEff = wa / wb                    ## the h/3 of the Simpson rule cancels in the ratio
     shift    = -0.5 * StarkShift.blackbodyFieldSquare(temperature) * alphaEff
 
     return( (EmProperty(shift, shift), alphaEff/alpha0 - 1.0) )
+end
+
+
+"""
+`StarkShift.magicWavelengths(levelA::Level, levelB::Level, gMultiplet::Multiplet, grid::Radial.Grid;
+                                omegaMin::Float64=0.01, omegaMax::Float64=0.25, nSamples::Int64=40,
+                                tolerance::Float64=1.0e-12, residualTolerance::Float64=1.0e-6)`  
+    ... finds every magic wavelength of the pair (`levelA`, `levelB`) between `omegaMin` and `omegaMax`, i.e. every
+        zero of alpha_0(omega, A) - alpha_0(omega, B), and returns them as an
+        Array{StarkShift.MagicWavelength,1} in ascending frequency -- empty if the range holds none. At such a
+        frequency the trapping light shifts both levels equally, so the TRANSITION between them is untouched to
+        first order in the intensity, which is what lets an optical trap coexist with a clock or a qubit. One
+        gMultiplet serves both levels: each one's own selection rules decide which perturbers it reaches, so
+        unreachable ones drop out on their own.
+
+        A SIGN CHANGE IS NOT A ZERO, AND THAT IS THE WHOLE DIFFICULTY. alpha_0(omega) runs to +infinity as omega
+        approaches an excitation energy from below and comes back from -infinity above it, so the difference jumps
+        sign across EVERY resonance of EITHER level. A bisection let loose on such a sign change converges
+        contentedly onto the POLE and reports a resonance as a magic wavelength -- which is the one error that
+        looks entirely plausible, since the answer is a sharp, reproducible frequency.
+
+        THE FIRST HALF OF THE REMEDY IS THAT THE POLES ARE KNOWN EXACTLY: they are the excitation energies that
+        StarkShift.polarizabilityTerms returns. The range is CUT at every one of them, and each bracket is taken
+        strictly inside a pole-free subinterval.
+
+        AND THAT IS NECESSARY BUT NOT SUFFICIENT, which was MEASURED rather than foreseen -- the first version of
+        this function did only the partition and returned two poles as magic wavelengths. THE POLES COME IN
+        NEAR-DEGENERATE PAIRS: in hydrogen 2p -> 3s and 2p -> 3d sit 1e-7 apart, and the fine-structure partners of
+        any subshell closer still. The sliver between such a pair is below numerical resolution, so the sign change
+        inside it is the PAIR OF POLES and not a zero, and bisection converges onto one of them. Measured on
+        H 1s against H 2p: the two spurious roots came back with |alpha_A - alpha_B|/alpha of 1.2e+01 and 1.1e+01
+        and slopes of 1e12 and 1e13, against 3.5e-09 and 7.8e+04 for the one genuine root.
+
+        SO EVERY CANDIDATE IS VERIFIED by its residual: |alpha_A - alpha_B| must be below `residualTolerance` times
+        the scale of the two polarizabilities there, or it is discarded and counted. The two populations are seven
+        orders apart, so the default 1e-6 is nowhere near either of them.
+
+        AND EACH SUBINTERVAL IS SAMPLED RATHER THAN MERELY TESTED AT ITS ENDS. Between a pole of A and a pole of B
+        the difference runs from -infinity to -infinity, so it holds an EVEN number of zeros -- commonly two, and
+        an end-point test finds neither. `nSamples` points per subinterval is the resolution at which two zeros
+        can still be separated; raise it if a known magic wavelength is missed.
+
+        WHAT COMES BACK IS NOT AUTOMATICALLY USABLE, and MagicWavelength carries the two reasons why: a zero with
+        `alphaCommon` negative is a trap that REPELS, and one with `aboveResonance` true sits where the true
+        polarizability is complex and this real sum has no width.
+"""
+function magicWavelengths(levelA::Level, levelB::Level, gMultiplet::Multiplet, grid::Radial.Grid;
+                          omegaMin::Float64=0.01, omegaMax::Float64=0.25, nSamples::Int64=40,
+                          tolerance::Float64=1.0e-12, residualTolerance::Float64=1.0e-6)
+    results = StarkShift.MagicWavelength[]
+    sA, eA  = StarkShift.polarizabilityTerms(levelA, gMultiplet, grid)
+    sB, eB  = StarkShift.polarizabilityTerms(levelB, gMultiplet, grid)
+    if  isempty(sA)  ||  isempty(sB)
+        printstyled("\n>>> ONE OF THE TWO LEVELS REACHES NO PERTURBER of this gMultiplet at all -- a magic " *
+                    "wavelength needs an E1 response\n    from BOTH, and a set of one parity serves only one of " *
+                    "them. No zero can be found and none is returned.\n", color=:light_red)
+        return( results )
+    end
+    if  omegaMax <= omegaMin    return( results )    end
+    dAlpha = omega -> StarkShift.rebuiltPolarizability(sA, eA, omega) -
+                      StarkShift.rebuiltPolarizability(sB, eB, omega)
+
+    # the poles inside the range, from BOTH levels, are where the range must be cut
+    poles    = sort( unique( [dE  for dE in vcat(eA, eB)  if  omegaMin < dE < omegaMax] ) )
+    edges    = vcat( omegaMin, poles, omegaMax )
+    positive = [dE  for dE in vcat(eA, eB)  if dE > 0.0]
+    lowest   = isempty(positive) ? Inf : minimum(positive)
+
+    # a candidate survives only if its RESIDUAL is small on the scale of the polarizabilities there;  that is what
+    # separates a zero from a pole caught between two near-degenerate resonances
+    nRejected = 0
+    keep      = function(omega::Float64)
+        aA = StarkShift.rebuiltPolarizability(sA, eA, omega)
+        aB = StarkShift.rebuiltPolarizability(sB, eB, omega)
+        if  abs(aA - aB) > residualTolerance * max(abs(aA), abs(aB), 1.0)
+            nRejected = nRejected + 1
+            return( nothing )
+        end
+        push!( results, StarkShift.makeMagicWavelength(omega, sA, eA, dAlpha, lowest) )
+        return( nothing )
+    end
+
+    for  i = 1:length(edges)-1
+        delta = 1.0e-6 * (edges[i+1] - edges[i])
+        lo    = edges[i] + delta;        hi = edges[i+1] - delta
+        hi <= lo   &&   continue
+        step  = (hi - lo) / nSamples
+        xPrev = lo;      fPrev = dAlpha(lo)
+        for  k = 1:nSamples
+            xNext = lo + k*step;     fNext = dAlpha(xNext)
+            if      fPrev == 0.0            keep(xPrev)
+            elseif  fPrev * fNext < 0.0
+                # a sign change strictly inside a pole-free subinterval;  plain bisection, then verified
+                a = xPrev;   b = xNext;   fa = fPrev
+                while  b - a > tolerance
+                    m = 0.5*(a + b);     fm = dAlpha(m)
+                    fm == 0.0   &&   (a = b = m;  break)
+                    if  fa * fm < 0.0    b = m    else    a = m;  fa = fm    end
+                end
+                keep( 0.5*(a + b) )
+            end
+            xPrev = xNext;      fPrev = fNext
+        end
+    end
+    if  nRejected > 0
+        println(">>> magicWavelengths: $nRejected candidate(s) discarded as POLES rather than zeros -- a sign " *
+                "change between two\n    near-degenerate resonances, whose residual |alpha_A - alpha_B| was not " *
+                "small. $(length(results)) zero(s) kept.")
+    end
+
+    return( results )
+end
+
+
+"""
+`StarkShift.makeMagicWavelength(omega::Float64, strengths::Array{Float64,1}, energies::Array{Float64,1},
+                                    dAlpha::Function, lowest::Float64)`  
+    ... assembles the StarkShift.MagicWavelength record for a zero already located at `omega`: it converts the
+        frequency to a vacuum wavelength in nm, reads off the polarizability the two levels share there from
+        `strengths`/`energies` (either level will do, since that is what a zero of the difference means), takes
+        d(alpha_A - alpha_B)/d omega by a central difference on `dAlpha`, and compares omega with `lowest`, the
+        lowest excitation energy of either level. A mw::StarkShift.MagicWavelength is returned.
+"""
+function makeMagicWavelength(omega::Float64, strengths::Array{Float64,1}, energies::Array{Float64,1},
+                             dAlpha::Function, lowest::Float64)
+    h     = 1.0e-6 * omega
+    slope = (dAlpha(omega + h) - dAlpha(omega - h)) / (2*h)
+
+    return( StarkShift.MagicWavelength(omega,
+                Defaults.convertUnits("energy: from atomic to Angstrom", omega) / 10.0,
+                StarkShift.rebuiltPolarizability(strengths, energies, omega), slope, omega >= lowest) )
 end
 
 
