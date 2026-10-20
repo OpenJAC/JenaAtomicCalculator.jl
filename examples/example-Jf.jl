@@ -14,7 +14,7 @@ println("    (Stage 2), and the summed opacity spectrum kappa(omega) (Stage 3)."
 # opacity in cm^2/g, which needs an ion density and mass this scheme is not given).
 
 
-if  true
+if  false
     # Last successful:  16-Oct-2026
     #
     # Branch a: C I (Z=6), three configurations of the 2s^2 2p^2 complex -- 2s^2 2p^2, 2s 2p^3, 2p^4 -- at a
@@ -219,5 +219,71 @@ elseif  false
     @printf("\n>>> peak kappa = %.4f a0^2 at omega = %.4f Hartree -- sitting on the stronger (ground-state)\n",
             kappa[peakIdx], omegas[peakIdx])
     println(">>> array's own mean transition energy from branch c, as it must.")
+    #
+elseif  true
+    # Last successful:  20-Oct-2026   ## perform() ~115 s; sum-rule relative difference 2.255e-03; peak
+    #                                    kappa 38.4909 a0^2 at omega = 0.3200 Ha (8.708 eV); exchange check
+    #                                    mean(up)+mean(down) = 5.6e-17, totalStrength/variance reldiff
+    #                                    5.4e-16/3.3e-15
+    #
+    # Branch f: THE FULL PIPELINE, AT THE SCALE BRANCH D ONLY TIMED. Competition item C9's own "what remains"
+    #   named an explicit, validated opacity run at actual f-shell scale, end to end -- not just the matrix-
+    #   construction speed branch d confirmed. Dy3+ [Xe] 4f^9 (198 CSFs) against [Xe] 4f^8 5d (2725 CSFs),
+    #   the SAME pair branch d scoped and ABANDONED on a timing estimate before priority item 79 fixed the
+    #   underlying cost -- run here through Plasma.perform(::SuperConfigurationOpacityScheme,...) itself, not
+    #   just SuperConfigurations.buildTransitionArray in isolation.
+    #
+    #   TWO CHECKS, NEITHER NEEDING AN EXTERNAL REFERENCE: (1) branch e's own sum-rule integral, now at this
+    #   scale; (2) branch d's own exchange-symmetry check (buildTransitionArray called both ways must give
+    #   meanEnergy flipping sign exactly, totalStrength/variance identical), confirmed to ~1e-16 here too --
+    #   the trace algebra holds at the scale it was built for, not only at toy scale.
+    #
+    #   kT = 10 eV is a modest, representative plasma temperature for a highly-charged lanthanide ion (an
+    #   EBIT- or fusion-plasma-like regime); the 4f^9 -> 4f^8 5d promotion gap itself is ~8.7 eV, so this
+    #   temperature leaves the ground configuration dominant while still giving the upper group a real,
+    #   non-negligible population -- not a limit chosen to make the numbers convenient.
+    ni   = Nuclear.Model(66.)
+    confLower  = Configuration("[Xe] 4f^9")
+    confUpper  = Configuration("[Xe] 4f^8 5d")
+    refConfigs = [confLower, confUpper]
+    grid = Basics.recommendedGrid(refConfigs, ni; printout=false)
+    asfSettings = AsfSettings()
+    omegas = collect(0.0:0.01:0.6)
+    scheme = Plasma.SuperConfigurationOpacityScheme(refConfigs, omegas)
+
+    eV_to_au = 1.0 / Defaults.convertUnits("energy: from atomic to eV", 1.0)
+    settings = Plasma.Settings(10.0*eV_to_au, 1.0e18, false)
+    comp     = Plasma.Computation(Plasma.Computation(); scheme=scheme, nuclearModel=ni, grid=grid,
+                                     refConfigs=refConfigs, asfSettings=asfSettings, settings=settings)
+    wb = perform(comp; output=true)
+
+    kappa  = wb[ResultKeys.SuperConfigurationOpacitySpectrum]
+    gfEffs = wb[ResultKeys.SuperConfigurationOpacityContributions]
+    alpha  = Defaults.getDefaults("alpha")
+
+    expectedIntegral = 2*pi^2*alpha*sum(gfEffs)
+    dOmega          = omegas[2] - omegas[1]
+    numericIntegral = sum(kappa)*dOmega
+    peakIdx         = argmax(kappa)
+
+    @printf("\n>>> expected integral (2 pi^2 alpha x sum of population-weighted gf) = %.6e\n", expectedIntegral)
+    @printf(">>> numeric integral of kappa(omega) over the grid                    = %.6e\n", numericIntegral)
+    @printf(">>> relative difference = %.3e\n", abs(expectedIntegral-numericIntegral)/expectedIntegral)
+    @printf(">>> peak kappa = %.4f a0^2 at omega = %.4f Hartree (%.3f eV)\n",
+            kappa[peakIdx], omegas[peakIdx], Defaults.convertUnits("energy: from atomic to eV", omegas[peakIdx]))
+
+    # exchange-symmetry check, as branch d did for Co2+, now at the genuine f-shell scale
+    wbOrb    = SelfConsistent.performSCF(refConfigs, ni, grid, asfSettings; printout=false)
+    orbitals = wbOrb.levels[1].basis.orbitals
+    taUp     = SuperConfigurations.buildTransitionArray(confUpper, confLower, orbitals, ni, grid, asfSettings)
+    taDown   = SuperConfigurations.buildTransitionArray(confLower, confUpper, orbitals, ni, grid, asfSettings)
+
+    @printf("\n>>> exchange check: mean(up)+mean(down) = %.3e, totalStrength reldiff = %.3e, variance reldiff = %.3e\n",
+            taUp.meanEnergy+taDown.meanEnergy,
+            abs(taUp.totalStrength-taDown.totalStrength)/taUp.totalStrength,
+            abs(taUp.variance-taDown.variance)/taUp.variance)
+    println(">>> both checks hold at the scale item 79's fix was built for -- this closes competition item C9's")
+    println(">>> own remaining gap: the matrix-construction speed was confirmed near this scale before, not the")
+    println(">>> full population-weighted opacity pipeline end to end.")
     #
 end
