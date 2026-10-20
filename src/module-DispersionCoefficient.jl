@@ -480,6 +480,32 @@ end
 
 
 """
+`DispersionCoefficient.checkWall(settings::DispersionCoefficient.Settings)`
+    ... refuses a wall that is not a dielectric BEFORE any perturber set is built; `nothing` is returned. Neither
+        eps(0) < 1, which has no reflection factor on the imaginary axis, nor omega_0 <= 0, which has no pole, is an
+        extreme case to be clamped; both are typing errors. WHAT THIS BUYS IS THE TIMING, since the wall enters only
+        at the END of `DispersionCoefficient.computeOutcome`: a mistyped eps(0) was discovered after the multipole
+        sums of the first selected level had been assembled, and the remaining levels never ran at all. The algebra
+        is `DispersionCoefficient.wallReflectionPole` and costs nothing, so it is done once here as well. A perfect
+        conductor reflects fully at every frequency and so carries no resonance to check.
+"""
+function checkWall(settings::DispersionCoefficient.Settings)
+    settings.calcAtomWall              ||   return( nothing )
+    isinf(settings.wallDielectric)     &&   return( nothing )
+    if  settings.wallDielectric < 1.0
+        error("\nDispersionCoefficient: a wall needs a static dielectric constant eps(0) >= 1, but eps(0) = " *
+              "$(settings.wallDielectric) was given;  Inf asks for a perfect conductor.  Below 1 the reflection " *
+              "factor (eps-1)/(eps+1) comes out NEGATIVE, which no dielectric does, so this is refused here " *
+              "rather than silently carried into C_3.")
+    end
+    isinf(settings.wallResonance)      ||   DispersionCoefficient.wallReflectionPole(settings.wallDielectric,
+                                                                                    settings.wallResonance)
+
+    return( nothing )
+end
+
+
+"""
 `DispersionCoefficient.computeAtomWallCoefficient(partner::DispersionCoefficient.Partner, wallDielectric::Float64)`
     ... computes the non-retarded atom-wall coefficient C_3 of `partner` against a wall that responds
         INSTANTANEOUSLY on the atom's own frequency scale, i.e. in the limit omega_0 >> dE_a; a `C3::Float64` in
@@ -631,6 +657,7 @@ function computeOutcomes(multiplet::Multiplet, nm::Nuclear.Model, grid::Radial.G
                 color=:light_green)
     #
     printSummary, iostream = Defaults.getDefaults("summary flag/stream")
+    DispersionCoefficient.checkWall(settings)
     outcomes = DispersionCoefficient.Outcome[]
     for  level  in  multiplet.levels
         Basics.selectLevel(level, settings.levelSelection)   ||   continue

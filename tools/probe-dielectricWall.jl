@@ -15,7 +15,9 @@
 #            algebra check at machine precision and not a convergence statement.
 #   CASE W4  A REAL WALL.  H(1s) against a silica-like oscillator, and a scan in omega_0, to put a number
 #            on what the constant-eps shortcut costs where it matters.
-#   CASE W5  THE GUARDS.  eps(0) < 1 and omega_0 <= 0 are not dielectrics and must RAISE.
+#   CASE W5  THE GUARDS.  eps(0) < 1 and omega_0 <= 0 are not dielectrics and must RAISE -- both at
+#            `wallReflectionPole`, the last line of defence for a direct caller, and at `checkWall`,
+#            which is where a USER meets them and which runs BEFORE the first perturber set is built.
 #
 # RESULTS, 20-Oct-2026.  All five cases pass, and the answer to the question above is that the shipped
 # constant-eps wall is a LIMIT and that a real wall sits FAR from it.
@@ -32,7 +34,12 @@
 #       1.808x TOO LARGE -- 81 %, and that is the set-averaged figure now quoted in the module docstring;
 #       the 65 % of the single 2p pole (f = 1.6519) is the per-pole value and is the smaller of the two,
 #       since the higher np poles carry larger dE_a.
-#   W5  all three guards raise.
+#   W5  all three raise at `wallReflectionPole`, and `checkWall` -- added later the same day, so that the
+#       refusal arrives BEFORE the first level's perturber set rather than after it -- refuses four and
+#       accepts two:  eps(0) = 0.5 with NO resonance at all is the fourth, and it is a hole the shipped
+#       constant-eps path let through silently, since (eps-1)/(eps+1) then simply comes out negative.  The
+#       silica-like wall and the perfect conductor are accepted, as they must be.  W1-W4 are bit-identical
+#       across the two runs.
 #
 using JenaAtomicCalculator
 const JAC = JenaAtomicCalculator
@@ -88,6 +95,25 @@ function main()
             println("   eps(0) = $eps0, omega_0 = $om0  ->  raised as it should")
         end
     end
+    #
+    # AND THE SAME THREE THROUGH `checkWall`, which is where a USER meets them:  the wall is read only at the
+    # END of computeOutcome, so without this the message arrives after the first level's multipole sums are
+    # already built and the remaining levels never run.  The fourth pair is the one the two-argument path let
+    # through SILENTLY before 20-Oct-2026 -- eps(0) < 1 with no resonance at all, where (eps-1)/(eps+1) simply
+    # comes out negative.
+    println("")
+    for  (eps0, om0) in [(0.5, 0.4), (3.9, 0.0), (3.9, -1.0), (0.5, Inf), (3.9, 10.0*EV), (Inf, 0.4)]
+        set = DispersionCoefficient.Settings(DispersionCoefficient.Settings(); calcAtomWall=true,
+                                             wallDielectric=eps0, wallResonance=om0)
+        try
+            DispersionCoefficient.checkWall(set)
+            println("   checkWall(eps(0) = $eps0, omega_0 = $om0)  ->  accepted")
+        catch e
+            println("   checkWall(eps(0) = $eps0, omega_0 = $om0)  ->  raised as it should")
+        end
+    end
+    println("   >> the last two MUST be accepted:  a silica-like wall is legitimate, and a perfect conductor")
+    println("   >> reflects fully at every frequency and so carries no resonance to check.")
 
     ## now the atom
     println("\n", "="^120)
