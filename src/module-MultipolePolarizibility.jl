@@ -345,6 +345,13 @@ end
                                                               or above the lowest excitation energy is WARNED about
                                                               rather than refused -- see
                                                               MultipolePolarizibility.checkFrequency.
+    + helicity                  ::Int64                 ... Helicity of the field: 0 for a linearly polarized or static
+                                                              field, which is the default and carries only the EVEN
+                                                              ranks K = 0, 2, ... as this module always has, and +-1 for
+                                                              a circularly polarized one, which carries every K and so
+                                                              opens the ODD ranks -- K = 1 being the vector
+                                                              polarizability alpha_1. An odd rank is purely dynamic and
+                                                              comes back as zero unless a frequency is given in omegas.
     + printBefore               ::Bool                  ... True if a list of selected levels is printed before the
                                                             actual computations start.
     + levelSelection            ::LevelSelection        ... Specifies the selected levels, if any.
@@ -353,6 +360,7 @@ struct Settings  <:  AbstractPropertySettings
     multipoles                  ::Array{EmMultipole,1}
     gMultiplet                  ::Multiplet
     omegas                      ::Array{Float64,1}
+    helicity                    ::Int64
     printBefore                 ::Bool
     levelSelection              ::LevelSelection
 end
@@ -363,29 +371,31 @@ end
     ... constructor for an `empty` instance of MultipolePolarizibility.Settings for the computation dynamic polarizibilities.
 """
 function Settings()
-    Settings(EmMultipole[], Multiplet(), Float64[], false, LevelSelection() )
+    Settings(EmMultipole[], Multiplet(), Float64[], 0, false, LevelSelection() )
 end
 
 
 """
 `MultipolePolarizibility.Settings(set::MultipolePolarizibility.Settings;`
 
-        multipoles=.., gMultiplet=.., omegas=.., printBefore=.., levelSelection=..)
+        multipoles=.., gMultiplet=.., omegas=.., helicity=.., printBefore=.., levelSelection=..)
 
     ... keyword copy-constructor for re-defining selected values of a settings::MultipolePolarizibility.Settings.
 """
 function Settings(set::MultipolePolarizibility.Settings;
         multipoles::Union{Nothing,Array{EmMultipole,1}}=nothing,
         gMultiplet::Union{Nothing,Multiplet}=nothing,
-        omegas::Union{Nothing,Array{Float64,1}}=nothing,   printBefore::Union{Nothing,Bool}=nothing,
+        omegas::Union{Nothing,Array{Float64,1}}=nothing,   helicity::Union{Nothing,Int64}=nothing,
+        printBefore::Union{Nothing,Bool}=nothing,
         levelSelection::Union{Nothing,LevelSelection}=nothing)
     if  isnothing(multipoles)       multipolesx     = set.multipoles     else   multipolesx     = multipoles     end
     if  isnothing(gMultiplet)       gMultipletx     = set.gMultiplet     else   gMultipletx     = gMultiplet     end
     if  isnothing(omegas)           omegasx         = set.omegas         else   omegasx         = omegas         end
+    if  isnothing(helicity)         helicityx       = set.helicity       else   helicityx       = helicity       end
     if  isnothing(printBefore)      printBeforex    = set.printBefore    else   printBeforex    = printBefore    end
     if  isnothing(levelSelection)   levelSelectionx = set.levelSelection else   levelSelectionx = levelSelection end
 
-    Settings( multipolesx, gMultipletx, omegasx, printBeforex, levelSelectionx )
+    Settings( multipolesx, gMultipletx, omegasx, helicityx, printBeforex, levelSelectionx )
 end
 
 
@@ -395,25 +405,33 @@ function Base.show(io::IO, settings::MultipolePolarizibility.Settings)
     println(io, "multipoles:               $(settings.multipoles)  ")
     println(io, "gMultiplet:               $(settings.gMultiplet)  ")
     println(io, "omegas:                   $(settings.omegas)  ")
+    println(io, "helicity:                 $(settings.helicity)  ")
     println(io, "printBefore:              $(settings.printBefore)  ")
     println(io, "levelSelection:           $(settings.levelSelection)  ")
 end
 
 
 """
-`MultipolePolarizibility.allowedRanks(multipole::EmMultipole, J::AngularJ64)`  
-    ... returns the ranks K for which a level of angular momentum J can carry a non-vanishing static multipole
-        polarizability alpha^(Mp,K) in the field of the given 2^L-pole `multipole`. Three rules act together: K <= 2L,
-        because the rank-K component is built by coupling the two 2^L-pole operators of the second-order expression;
-        K <= 2J, by the Wigner-Eckart theorem applied between the substates of one level; and K EVEN, because the two
-        coupled operators are identical. Odd K does exist physically -- K = 1 is the vector (axial) polarizability --
-        but only for a circularly polarized field, and it is deliberately not returned here. A ranks::Array{Int64,1}
-        is returned, in ascending order; it always contains K = 0.
+`MultipolePolarizibility.allowedRanks(multipole::EmMultipole, J::AngularJ64; helicity::Int64=0)`  
+    ... returns the ranks K for which a level of angular momentum J can carry a non-vanishing multipole polarizability
+        alpha^(Mp,K) in the field of the given 2^L-pole `multipole` and of the given `helicity`. Two rules always act: K <= 2L,
+        because the rank-K component is built by coupling the two 2^L-pole operators of the second-order expression, and
+        K <= 2J, by the Wigner-Eckart theorem applied between the substates of one level. THE THIRD RULE IS THE HELICITY,
+        and it is what decides the parity of K: a linearly polarized or static field, helicity = 0, carries only EVEN K,
+        because its two coupled operators are identical and the 3-j symbol of MultipolePolarizibility.rankCoefficient then
+        vanishes; a circularly polarized field, helicity = +-1, carries EVERY K <= min(2L, 2J), the odd members being the
+        axial polarizabilities of which K = 1 is the one the literature calls the vector polarizability alpha_1. A
+        ranks::Array{Int64,1} is returned, in ascending order; it always contains K = 0.
+
+        AN ODD RANK IS PURELY DYNAMIC. It is returned here whenever the helicity allows it, but it comes back as a clean
+        zero from a static computation, because its energy denominator is proportional to omega -- see
+        MultipolePolarizibility.frequencyFactorOdd. That is physics and not a missing case: a static field has no handedness.
 """
-function allowedRanks(multipole::EmMultipole, J::AngularJ64)
+function allowedRanks(multipole::EmMultipole, J::AngularJ64; helicity::Int64=0)
+    if  !(helicity in [-1, 0, 1])   error("helicity must be -1, 0 or +1 (circular, linear/static, circular);  got $helicity")   end
     Jd = Basics.twice(J) / 2.0
 
-    return( [K   for K = 0:min(2*multipole.L, round(Int64, 2*Jd))   if iseven(K)] )
+    return( [K   for K = 0:min(2*multipole.L, round(Int64, 2*Jd))   if  helicity != 0  ||  iseven(K)] )
 end
 
 
@@ -492,6 +510,35 @@ function frequencyFactor(dE::Float64, omega::Float64, imaginaryOmega::Bool)
     elseif  imaginaryOmega      return( dE / (dE*dE + omega*omega) )
     else                        return( dE / (dE*dE - omega*omega) )
     end
+end
+
+
+"""
+`MultipolePolarizibility.frequencyFactorOdd(dE::Float64, omega::Float64, imaginaryOmega::Bool)`  
+    ... returns the energy-denominator factor of an ODD-rank multipole polarizability, omega / (dE^2 - omega^2), which is
+        what MultipolePolarizibility.frequencyFactor is to an even one. The two differ because the two second-order terms
+        of a field of helicity q carry the polarization vectors eps and eps*, hence the operator components q and -q: the
+        part of the angular factor SYMMETRIC in q goes with the sum of the two denominators, dE/(dE^2 - omega^2), and the
+        part ANTISYMMETRIC in q -- which is the whole of odd K -- goes with their difference, omega/(dE^2 - omega^2).
+
+        SO AN ODD RANK VANISHES IDENTICALLY AT omega = 0, and 0.0 is returned there: a static field has no handedness, and
+        the rank-1 polarizability is a purely dynamic quantity proportional to omega at small omega. This was MEASURED
+        rather than assumed -- see tools/probe-rank1Polarizability.jl, where the ratio of the extracted alpha^(E1,1) to
+        this factor is 1.0000000000 at every frequency while the even factor gives 0.057 ... 0.431.
+
+        ON THE IMAGINARY AXIS AN ODD RANK HAS NO REAL VALUE -- the factor becomes i*omega/(dE^2 + omega^2), purely
+        imaginary -- so this RAISES rather than return a plausible-looking real number. A dispersion coefficient needs
+        only K = 0 and must therefore be asked for at helicity = 0. A value::Float64 is returned.
+"""
+function frequencyFactorOdd(dE::Float64, omega::Float64, imaginaryOmega::Bool)
+    if  imaginaryOmega
+        error("An ODD-rank polarizability has no real value on the imaginary axis, where its factor is " *
+              "i*omega/(dE^2 + omega^2) and purely imaginary. A dispersion coefficient needs only K = 0; " *
+              "ask for it at helicity = 0.")
+    end
+    if  omega == 0.0    return( 0.0 )    end
+
+    return( omega / (dE*dE - omega*omega) )
 end
 
 
@@ -609,8 +656,9 @@ end
         axis only.
 """
 function computeMultipolePolarizabilities(multipole::EmMultipole, level::Level, gMultiplet::Multiplet,
-                                          grid::Radial.Grid; omega::Float64=0.0, imaginaryOmega::Bool=false)
-    Ks            = MultipolePolarizibility.allowedRanks(multipole, level.J)
+                                          grid::Radial.Grid; omega::Float64=0.0, imaginaryOmega::Bool=false,
+                                          helicity::Int64=0)
+    Ks            = MultipolePolarizibility.allowedRanks(multipole, level.J; helicity=helicity)
     alphaK        = zeros( Float64, length(Ks) )
     contributions = MultipolePolarizibility.Contribution[]
 
@@ -635,8 +683,13 @@ function computeMultipolePolarizabilities(multipole::EmMultipole, level::Level, 
         ## test/approved is not to move for a change that adds a frequency.
         contribAlphas = Tuple{Int64,EmProperty}[]
         for  (i, K) in enumerate(Ks)
-            coeff = MultipolePolarizibility.rankCoefficient(multipole.L, K, level.J, nuLevel.J)
-            if  omega == 0.0
+            coeff = MultipolePolarizibility.rankCoefficient(multipole.L, K, level.J, nuLevel.J; helicity=helicity)
+            if      isodd(K)
+                ## AN ODD RANK TAKES THE ANTISYMMETRIC DENOMINATOR, omega/(dE^2-omega^2), and so is a clean zero at
+                ## omega = 0; it is reachable only at helicity = +-1, where rankCoefficient does not vanish.
+                wa =   coeff * abs2(dStatic) *
+                       MultipolePolarizibility.frequencyFactorOdd(-deltaE, omega, imaginaryOmega)
+            elseif  omega == 0.0
                 wa = - coeff * abs2(dStatic) / deltaE
             else
                 wa =   coeff * abs2(dStatic) *
@@ -724,7 +777,8 @@ function  computeAmplitudesProperties(outcome::MultipolePolarizibility.Outcome, 
 
     for  multipole in settings.multipoles,  omega in frequencies
         mpAlphas, mpContributions = MultipolePolarizibility.computeMultipolePolarizabilities(multipole, outcome.level,
-                                                                 gMultiplet, grid; omega=omega)
+                                                                 gMultiplet, grid; omega=omega,
+                                                                 helicity=settings.helicity)
         for  (K, alphaK) in mpAlphas             push!( alphas, (multipole, K, omega, alphaK) )    end
         for  contribution in mpContributions     push!( contributions, contribution )               end
 
@@ -928,6 +982,21 @@ function  displayResults(stream::IO, outcomes::Array{MultipolePolarizibility.Out
         println(stream, "  alpha^(Mp,K>0) is the anisotropy carried by the stretched M = J substate. The frequencies " *
                          "are REAL, and omega = 0 is")
         println(stream, "  the static case:")
+        ## THE HELICITY IS NOT ON Settings HERE -- displayResults does not receive it -- so it is INFERRED from the
+        ## presence of an odd rank, which can only have come from a circular field. With no odd rank the output is
+        ## byte for byte what it was before 20-Oct-2026.
+        if  any( isodd(K)  for outcome in outcomes  for (mp, K, omega, alphaK) in outcome.alphas )
+            println(stream, " ")
+            println(stream, "  AN ODD RANK IS PRESENT, so these were computed for a CIRCULARLY polarized field " *
+                             "(Settings.helicity = +-1).")
+            println(stream, "  An odd rank -- K = 1 is the vector polarizability alpha_1 of the Stark-shift " *
+                             "literature -- is normalised to")
+            println(stream, "  that field, reverses with the handedness, and vanishes identically both for linear " *
+                             "polarization and at")
+            println(stream, "  omega = 0. MultipolePolarizibility.polarizationFactor composes the substate shift " *
+                             "of any helicity from")
+            println(stream, "  the alpha^(Mp,K) listed here.")
+        end
         println(stream, " ")
         println(stream, "  ", TableStrings.hLine(nx))
         sa = "  ";   sb = "  "
@@ -991,16 +1060,55 @@ end
 
 
 """
-`MultipolePolarizibility.rankCoefficient(L::Int64, K::Int64, J::AngularJ64, Jnu::AngularJ64)`  
+`MultipolePolarizibility.polarizationFactor(L::Int64, K::Int64, helicity::Int64)`  
+    ... returns the factor P(L,K,q) by which the rank-K polarizability of a 2^L-pole field of helicity q = `helicity`
+        enters the substate shift, so that the shift of one magnetic substate reads
+
+            alpha(J,M; q)  =  sum_K  P(L,K,q) * MultipolePolarizibility.rankShape(J,K,M) * alpha^(Mp,K)
+
+        The normalisation is the one that leaves each alpha^(Mp,K) an ATOMIC quantity, independent of the field:
+        P(L,K,q) = 1 at the REFERENCE helicity of that rank, which is q = 0 for even K -- so that alpha^(Mp,0) and
+        alpha^(Mp,2) keep exactly the meaning they have always had here, the scalar and tensor polarizabilities of a
+        linearly polarized field -- and q = +1 for odd K, which has no q = 0 value to be normalised against.
+
+        FOR E1 THE TABLE IS THE FAMILIAR ONE and is worth quoting, since it is the one external check this machinery
+        has that needed no literature value to be looked up: P(1,0,q) = 1 at every helicity, so the scalar shift does
+        not care about polarization; P(1,1,q) = q, so the vector shift reverses with the handedness and vanishes for
+        linear light; and P(1,2,0) = 1 against P(1,2,+-1) = -1/2, which is the textbook statement that circular
+        polarization gives MINUS ONE HALF of the linear tensor shift. For E2 the same formula gives P(2,2,+-1) = +1/2
+        and P(2,4,+-1) = -2/3. A value::Float64 is returned.
+"""
+function polarizationFactor(L::Int64, K::Int64, helicity::Int64)
+    if  !(helicity in [-1, 0, 1])   error("helicity must be -1, 0 or +1;  got $helicity")   end
+    if  K > 2*L                     return( 0.0 )    end
+    q0  = iseven(K) ? 0 : 1
+    ref = (-1.0)^q0 * AngularMomentum.Wigner_3j(1.0*L, 1.0*L, 1.0*K, 1.0*q0, -1.0*q0, 0.0)
+    wa  = (-1.0)^abs(helicity) * AngularMomentum.Wigner_3j(1.0*L, 1.0*L, 1.0*K, 1.0*helicity, -1.0*helicity, 0.0)
+
+    return( wa / ref )
+end
+
+
+"""
+`MultipolePolarizibility.rankCoefficient(L::Int64, K::Int64, J::AngularJ64, Jnu::AngularJ64; helicity::Int64=0)`  
     ... returns the angular coefficient c(L,K,J,J') which multiplies |<J' || O^(Mp) || J>|^2 / (E_J' - E_J) in the
         rank-K static multipole polarizability alpha^(Mp,K)(J) of the module docstring, i.e.
 
-            c(L,K,J,J')  =  2 (-1)^(J+J') C^(JJ)_(JJ,K0) (2K+1) / sqrt(2J+1) * (L L K; 0 0 0) * {J J' L; L K J}
+            c(L,K,J,J')  =  2 (-1)^(J+J'+q) C^(JJ)_(JJ,K0) (2K+1) / sqrt(2J+1) * (L L K; q -q 0) * {J J' L; L K J}
 
-        with a Wigner 3-j and a Wigner 6-j symbol. The three selection rules are carried by the formula itself rather
-        than imposed on it: the 3-j symbol vanishes for odd K and for K > 2L, and the Clebsch-Gordan coefficient for
-        K > 2J. For K = 0 the expression collapses analytically to 2 / ((2J+1)(2L+1)), which for L = 1 is the scalar
-        prefactor of Angel & Sandars (1968) that this module has always used. A value::Float64 is returned.
+        with a Wigner 3-j and a Wigner 6-j symbol and q = `helicity`. The three selection rules are carried by the
+        formula itself rather than imposed on it: the 3-j symbol vanishes for K > 2L, and at q = 0 also for odd K, and
+        the Clebsch-Gordan coefficient vanishes for K > 2J. For K = 0 the expression collapses analytically to
+        2 / ((2J+1)(2L+1)) at every helicity, which for L = 1 is the scalar prefactor of Angel & Sandars (1968) that
+        this module has always used. A value::Float64 is returned.
+
+        THE HELICITY IS THE ONLY THING ADDED ON 20-Oct-2026, and q = 0 is the default, so every caller written before
+        that date gets BIT-IDENTICALLY what it got: at q = 0 the factor (-1)^q is 1.0 and (L L K; 0 0 0) is the symbol
+        that was there. What q = +-1 opens is ODD K, and K = 1 in particular -- the vector polarizability alpha_1 of
+        the Stark-shift and optical-tweezer literature -- which is unreachable at q = 0 because the 3-j symbol with
+        three zero projections vanishes whenever L + L + K is odd. That vanishing is not a convention: it says that the
+        SYMMETRIC product of two identical multipole operators has no odd rank, and a circular field is precisely what
+        makes the product unsymmetric, since its two second-order terms carry eps and eps*, i.e. q and -q.
 
         THE FORMULA WAS SETTLED NUMERICALLY RATHER THAN BY HAND, 19-Oct-2026, because a factor of this shape is exactly
         what gets written with the wrong phase and then compensated elsewhere (Rule 18). The substate polarizability
@@ -1010,15 +1118,16 @@ end
         J' to <= 9.1e-15, which proves the 6-j structure. The remaining normalisation came out as 2 sqrt(2J+1) times
         the Clebsch-Gordan/3-j product above, and the phase as (-1)^(J+J') with ZERO mismatches over 421 samples.
 """
-function rankCoefficient(L::Int64, K::Int64, J::AngularJ64, Jnu::AngularJ64)
+function rankCoefficient(L::Int64, K::Int64, J::AngularJ64, Jnu::AngularJ64; helicity::Int64=0)
     Jd = Basics.twice(J) / 2.0;      Jnud = Basics.twice(Jnu) / 2.0
-    if  Jnud < abs(Jd - L) - 1.0e-10   ||   Jnud > Jd + L + 1.0e-10    return( 0.0 )    end
-    if  isodd(K)   ||   K > 2*L   ||   K > round(Int64, 2*Jd)          return( 0.0 )    end
+    if  !(helicity in [-1, 0, 1])   error("helicity must be -1, 0 or +1;  got $helicity")   end
+    if  Jnud < abs(Jd - L) - 1.0e-10   ||   Jnud > Jd + L + 1.0e-10              return( 0.0 )    end
+    if  K > 2*L   ||   K > round(Int64, 2*Jd)   ||   (isodd(K) && helicity == 0) return( 0.0 )    end
 
     gK  = AngularMomentum.ClebschGordan(Jd, Jd, 1.0*K, 0.0, Jd, Jd)
-    c3j = AngularMomentum.Wigner_3j(1.0*L, 1.0*L, 1.0*K, 0.0, 0.0, 0.0)
+    c3j = AngularMomentum.Wigner_3j(1.0*L, 1.0*L, 1.0*K, 1.0*helicity, -1.0*helicity, 0.0)
     c6j = AngularMomentum.Wigner_6j(Jd, Jnud, 1.0*L, 1.0*L, 1.0*K, Jd)
-    ph  = (-1.0)^round(Int64, Jd + Jnud)
+    ph  = (-1.0)^round(Int64, Jd + Jnud) * (-1.0)^abs(helicity)
 
     return( 2.0 * ph * gK * (2*K + 1.0) / sqrt(2*Jd + 1.0) * c3j * c6j )
 end
