@@ -950,12 +950,113 @@ function testModule_StarkShift(; short::Bool=true)
         end
     end
 
+    # (6) THE BLACK-BODY SHIFT, AND THE TWO THINGS THAT DECIDE IT -- added 20-Oct-2026.  They fail differently,
+    #     so they are asserted differently.
+    #
+    #     (a) <E^2> IS A COMPLETE EXTERNAL ANCHOR, because no atomic quantity enters it at all -- only the
+    #         fine-structure constant does.  (4 pi^3/15) alpha_fs^3 T^4 at 300 K is E_rms = 831.9 V/m, the number
+    #         every clock paper quotes.  The 0.1 V/m bound is LOOSE ON PURPOSE: what is being checked is the
+    #         SCALE, and a wrong scale is wrong by a factor -- a missing factor of two moves E_rms by 1.41, and
+    #         4 pi in place of 4 pi^3/15 by 2.2.
+    #
+    #     (b) eta -> 0 AS T -> 0.  The Planck average must collapse onto the closed-form leading term
+    #         -(2/15)(alpha_fs pi)^3 T^4 alpha_0 once the spectrum is too cold to resolve any excitation energy,
+    #         and that is what fixes the quadrature's normalisation.
+    #
+    #     AND THE LIMIT ALONE IS NOT ENOUGH, WHICH IS WHY THE T^2 SCALING IS ASSERTED BESIDE IT.  Both reasons
+    #     were measured rather than supposed.  The first implementation normalised the Planck weight by the
+    #     analytic pi^4/15 while taking its numerator by Simpson; those differ by the quadrature error, +2.57e-07
+    #     relative at 400 nodes, and that went into the answer as a FLOOR on eta.  A floor looks exactly like a
+    #     converged zero -- it was the SCALING that exposed it, eta coming out 5.97e-07 at 3 K where the law
+    #     demands 3.4e-07.  That was a real defect, found while writing this test.  The second reason is that a
+    #     quadrature using the IMAGINARY-axis factor dE/(dE^2 + omega^2) in place of the real
+    #     dE/(dE^2 - omega^2) satisfies the limit to 1e-13 and is caught only away from it, where it returns eta
+    #     of the opposite SIGN.  Hence three assertions and not one: eta > 0, eta -> 0, and eta(10 K)/eta(3 K)
+    #     = (10/3)^2.
+    alphaFs = 1.0 / Defaults.getDefaults("speed of light: c")
+    T300    = Defaults.convertUnits("temperature: from Kelvin to (Hartree) units", 300.0)
+    eRms300 = sqrt( StarkShift.blackbodyFieldSquare(300.0) ) * StarkShift.AU_EFIELD_IN_VCM * 100.0
+    if  abs(eRms300 - 831.9) > 0.1
+        success = false
+        if printTest   info(iostream, "the black-body field at 300 K came out E_rms = $eRms300 V/m where the " *
+                                      "Stefan-Boltzmann value, which needs only the fine-structure constant, " *
+                                      "is 831.9 V/m")   end
+    end
+    ratioBb = 0.5 * StarkShift.blackbodyFieldSquare(300.0) / (2.0/15.0 * (alphaFs*pi)^3 * T300^4)
+    if  abs(ratioBb - 1.0) > 1.0e-13
+        success = false
+        if printTest   info(iostream, "(1/2)(4 pi^3/15) alpha_fs^3 T^4 and (2/15)(alpha_fs pi)^3 T^4 are the " *
+                                      "same expression, but their ratio came out $ratioBb")   end
+    end
+    #
+    gmBb = redirect_stdout(devnull) do
+        perform( Atomic.Computation(Atomic.Computation(); name = "H perturbers", grid = grid, nuclearModel = nm,
+                                    configs = perturbers); output = true )[ResultKeys.Multiplet]
+    end
+    mpBb = redirect_stdout(devnull) do
+        perform( Atomic.Computation(Atomic.Computation(); name = "H 2p", grid = grid, nuclearModel = nm,
+                                    configs = [Configuration("2p")]); output = true )[ResultKeys.Multiplet]
+    end
+    levBb      = mpBb.levels[1]
+    a0Bb, _, _ = redirect_stdout(devnull) do
+        MultipolePolarizibility.computeScalarTensorPolarizability(levBb, gmBb, grid)   end
+    alpha0Bb   = a0Bb.Babushkin
+    shiftBb    = function(TK::Float64)
+        sh, et = redirect_stdout(devnull) do;   StarkShift.computeBlackbodyShift(levBb, gmBb, grid, TK)   end
+        return( (sh.Babushkin, et) )
+    end
+    if  alpha0Bb <= 0.0
+        success = false
+        if printTest   info(iostream, "the H 2p level came out with alpha_0 = $alpha0Bb, so the black-body " *
+                                      "checks below cannot be set up")   end
+    else
+        ## the limit: at 1 K the whole Planck spectrum lies ~4 orders below the smallest gap, so the shift must be
+        ## the closed-form leading term and eta must be a clean zero -- 3.8e-08 as measured, bounded at 1e-06
+        sh1, eta1 = shiftBb(1.0)
+        T1Bb      = Defaults.convertUnits("temperature: from Kelvin to (Hartree) units", 1.0)
+        leadBb    = -2.0/15.0 * (alphaFs*pi)^3 * T1Bb^4 * alpha0Bb
+        if  abs(sh1/leadBb - 1.0) > 1.0e-6
+            success = false
+            if printTest   info(iostream, "at 1 K the black-body shift came out $sh1 against the closed-form " *
+                                          "leading term $leadBb, a ratio of $(sh1/leadBb); as T -> 0 the Planck " *
+                                          "average must collapse onto it")   end
+        end
+        if  !(0.0 < eta1 < 1.0e-6)
+            success = false
+            if printTest   info(iostream, "at 1 K the dynamic correction came out eta = $eta1, where it must be " *
+                                          "positive -- the real-axis factor dE/(dE^2 - omega^2) exceeds 1/dE -- " *
+                                          "and below 1e-6, since the spectrum resolves no excitation energy")   end
+        end
+        ## and the scaling, which is what a floor or a wrong frequency factor cannot survive
+        _, eta3  = shiftBb(3.0)
+        _, eta10 = shiftBb(10.0)
+        if  eta3 <= 0.0  ||  eta10 <= 0.0
+            success = false
+            if printTest   info(iostream, "eta came out $eta3 at 3 K and $eta10 at 10 K; both must be positive " *
+                                          "on the real frequency axis")   end
+        else
+            for  (TaBb, TbBb, etaA, etaB)  in  ( (1.0, 3.0, eta1, eta3), (3.0, 10.0, eta3, eta10) )
+                scaleBb = (etaB/etaA) / (TbBb/TaBb)^2
+                if  abs(scaleBb - 1.0) > 1.0e-2
+                    success = false
+                    if printTest   info(iostream, "eta grew by a factor $(etaB/etaA) from $TaBb K to $TbBb K, " *
+                                                  "where eta ~ <omega^2>/dE^2 ~ T^2 demands " *
+                                                  "$((TbBb/TaBb)^2); the ratio of the two is $scaleBb")   end
+                end
+            end
+        end
+    end
+
     println(iostream, "StarkShift: for hydrogen 2p the tensor term is traceless in M, the sublevels are degenerate " *
                       "in M -> -M, J = 1/2 leaves alpha_2 exactly zero, and doubling the field multiplies every " *
                       "shift by exactly four. The ac branch is asserted too: at omega -> 0 every sublevel shift " *
                       "is EXACTLY HALF the static one, which is the cycle average <cos^2> = 1/2 and the one " *
-                      "factor this quantity is habitually quoted in the wrong convention. No approved data is " *
-                      "used.")
+                      "factor this quantity is habitually quoted in the wrong convention. The black-body shift " *
+                      "is asserted too: <E^2> at 300 K gives E_rms = 831.9 V/m, which needs only the " *
+                      "fine-structure constant and is therefore a genuine external anchor, and the Planck " *
+                      "average collapses onto the closed-form leading term as T -> 0 with eta growing as T^2 " *
+                      "thereafter -- the scaling being the part that a quadrature floor or a wrong frequency " *
+                      "factor cannot survive. No approved data is used.")
     Defaults.setDefaults("print summary: close", "")
     testPrint("testModule_StarkShift()::", success)
     return( success )
