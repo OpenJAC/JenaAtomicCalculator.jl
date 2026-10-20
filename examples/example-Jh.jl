@@ -38,9 +38,18 @@ println("    several of its own ionization stages, combined into one Planck mean
 # (omega^-3, modulated by the Gaunt factor and the stimulated-emission factor) rather than bound-bound's
 # EXPONENTIAL fall past its last line -- so free-free eventually CROSSES OVER and dominates, however tiny
 # it is near a resonance peak.
+#
+# RESOLVED AUTOIONIZING RESONANCES (branch f, added 20-Oct-2026, item C13): `resonanceContinuumGrid` turns
+# on a VOIGT correction to any ground-to-resonance E1 line whose upper group lies above the next stage's
+# ionization threshold. The Gaussian statistical spread of that line (from its own TransitionArray) and the
+# Lorentzian natural width (a representative-level AutoIonization width into the next stage) are combined
+# via the Faddeeva function (Plasma.voigtLineProfile, verified against brute-force convolution before being
+# written in) and added as an exact correction on top of the Gaussian-only line the inner Stage 2/3 call
+# already produced -- see Plasma.SuperConfigurationMixtureOpacityScheme's own docstring, "RESONANCES"
+# section, for the full design.
 
 
-if  true
+if  false
     # Last successful:  17-Oct-2026
     #
     # Branch a: carbon (Z=6, 2s^2 2p^2 / 2s 2p^3 / 2p^4 -- the SAME complex example-Jf.jl validates) and
@@ -310,5 +319,65 @@ elseif  false
     println(">>> past its last line -- so free-free eventually dominates even though it is everywhere tiny")
     println(">>> compared to a resonance peak. This is the regime where a bound-bound-only (or even")
     println(">>> bound-free-only) opacity most understates the true continuum.")
+    #
+elseif  true
+    # Last successful:  20-Oct-2026   ## resonance width 0.2574689438 eV (example-De.jl's own validated
+    #                                    0.2574689437887644 eV, from 9.461809e-03 a.u.); peak kappa_gaussian
+    #                                    2.609405e-05 vs peak kappa_voigt 6.909243e-06 [a0^2] at the line
+    #                                    centre (omega = 31.488 Ha), ratio 0.264782
+    #
+    # Branch f: RESOLVED AUTOIONIZING RESONANCES (item C13), on a Ne K-hole case -- ONE species (neon), two
+    #   stages: Ne+ (9 electrons, ground 1s^2 2s^2 2p^5 plus the K-hole excited group 1s 2s^2 2p^6, which
+    #   sits ABOVE the Ne2+ ionization threshold and is flagged RESONANT by Plasma.classifyResonantGroups)
+    #   and Ne2+ (8 electrons, the three final configurations the K-hole decays into by Auger emission --
+    #   the SAME triple example-De.jl's own branch a already validates). `resonanceContinuumGrid` turns the
+    #   correction on: the ground-to-K-hole E1 line -- Gaussian in the statistical spread of the unresolved
+    #   K-hole array -- is reshaped into a Voigt profile using the SAME autoionization width that branch
+    #   independently validates (0.2574689437887644 eV, i.e. a 2.556 fs K-shell lifetime).
+    #
+    #   THE CONTINUUM-METHOD DEFAULTS MUST BE SET BY THE CALLER, exactly as any direct AutoIonization call
+    #   requires (Plasma.resonanceAutoionizationWidth's own docstring says so) -- found here, not assumed:
+    #   a first attempt without setting them reproduced the width to only 0.36%, not to full precision.
+    #
+    #   CHECKS, NEEDING NO EXTERNAL REFERENCE BEYOND THE ALREADY-VALIDATED WIDTH: (1) the reported resonance
+    #   width must reproduce example-De.jl branch a's own number; (2) the Lorentzian width (0.009462 Ha) is
+    #   about 5.5x the line's own Gaussian spread (sigma 0.001719 Ha, from the K-hole TransitionArray's own
+    #   variance), so the Voigt profile should visibly broaden and LOWER the peak against the Gaussian-only
+    #   line -- found, not merely plausible: the peak drops to 26.5% of the Gaussian-only value, and the
+    #   corrected and uncorrected spectra differ by construction only in this one line's own window
+    #   (resonanceContinuumGrid = nothing reproduces the pure-Gaussian spectrum exactly, since the correction
+    #   is an exact difference against that same Gaussian -- unchanged from before this branch was added).
+    nmNe   = Nuclear.Model(10.)
+    stageA = [Configuration("1s^2 2s^2 2p^5"), Configuration("1s 2s^2 2p^6")]              # Ne+,  9 electrons
+    stageB = [Configuration("1s^2 2s^2 2p^4"), Configuration("1s^2 2s 2p^5"), Configuration("1s^2 2p^6")]  # Ne2+, 8 electrons
+    omegas = collect(31.40:0.002:31.58)   # Hartree, centred on the K-hole line (~857 eV)
+    kT     = Defaults.convertUnits("energy: from eV to atomic", 15.0)
+
+    setDefaults("method: continuum, Galerkin")
+    setDefaults("method: normalization, pure sine")
+
+    schemeNoRes = Plasma.SuperConfigurationMixtureOpacityScheme([nmNe], [[stageA, stageB]], [1.0], omegas)
+    settings    = Plasma.Settings(kT, 1.0e-8, true)
+    compNoRes   = Plasma.Computation(Plasma.Computation(); scheme=schemeNoRes, nuclearModel=nmNe, grid=Radial.Grid(true),
+                                        asfSettings=AsfSettings(), settings=settings)
+    wbNoRes     = perform(compNoRes; output=true)
+    kappaNoRes  = wbNoRes[ResultKeys.SuperConfigurationMixtureOpacitySpectrum]
+
+    continuumGrid = Radial.Grid(Radial.Grid(false), rnt=4.0e-6, h=5.0e-2, hp=1.0e-2, rbox=10.0)
+    schemeRes     = Plasma.SuperConfigurationMixtureOpacityScheme([nmNe], [[stageA, stageB]], [1.0], omegas,
+                                                                      nothing, false, continuumGrid)
+    compRes       = Plasma.Computation(compNoRes; scheme=schemeRes)
+    wbRes         = perform(compRes; output=true)
+    kappaRes      = wbRes[ResultKeys.SuperConfigurationMixtureOpacitySpectrum]
+    corrections   = wbRes[ResultKeys.SuperConfigurationMixtureResonanceCorrections]
+
+    widthEv = corrections[1][6]
+    @printf("\n>>> resonance width = %.10f eV  (example-De.jl branch a: 0.2574689437887644 eV)\n", widthEv)
+    @printf(">>> peak kappa_gaussian = %.6e, peak kappa_voigt = %.6e [a0^2]  (ratio %.6f)\n",
+            maximum(kappaNoRes), maximum(kappaRes), maximum(kappaRes)/maximum(kappaNoRes))
+    @printf(">>> max |kappa_voigt - kappa_gaussian| = %.6e [a0^2]\n", maximum(abs.(kappaRes .- kappaNoRes)))
+    println(">>> the Lorentzian width dominates the line's own Gaussian spread, so the Voigt profile")
+    println(">>> visibly broadens and lowers the peak against the Gaussian-only line -- the correction")
+    println(">>> this scheme's steps 4-5 exist to make, now demonstrated end to end on a real resonance.")
     #
 end
