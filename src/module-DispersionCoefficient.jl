@@ -32,8 +32,8 @@
         C_3 = (1/4 pi) integral_0^inf alpha^(E1,0)(i omega) d omega = (1/8) sum_a A_a
 
     the second form again being exact on a discrete spectrum. A wall of CONSTANT dielectric constant eps simply
-    scales this by the reflection factor (eps-1)/(eps+1); a real dielectric needs eps(i omega) inside the
-    integral and is NOT supported here. The closed form is worth stating because it is independently checkable:
+    scales this by the reflection factor (eps-1)/(eps+1). The closed form is worth stating because it is
+    independently checkable:
     with A_a = (2/3) |<a|d|0>|^2 the sum rule sum_a A_a = (2/3) <d^2> gives C_3 = <d^2>/12, which is exactly what
     the electrostatic image dipole yields, and for H(1s), <r^2> = 3, so C_3 = 1/4 EXACTLY.
 
@@ -43,6 +43,26 @@
     1.00000 of the reference and C_3 is 0.99995 of the exact 1/4, while on a 775 a.u. box they are 0.86054 and
     0.77026 -- the error is 1.7 times larger on C_3, and NOTHING in alpha(0) says so.
     `DispersionCoefficient.checkSaturation` is the guard for it.
+
+    A FREQUENCY-DEPENDENT WALL COSTS NO QUADRATURE EITHER, AND IT SHOWS THAT THE CONSTANT-eps OPTION IS A LIMIT
+    RATHER THAN A MODEL. One undamped Lorentz oscillator, eps(i omega) = 1 + omega_p^2/(omega_0^2 + omega^2), has a
+    reflection factor that is ITSELF a single pole,
+
+        r(i omega) = (eps-1)/(eps+1) = R/(Omega^2 + omega^2),   R = omega_p^2/2,   Omega^2 = omega_0^2 + omega_p^2/2
+
+    which is the same shape as one polarizability term -- so the wall integral stays the closed form the rest of
+    this module uses, and `DispersionCoefficient.wallReflectionPole` is that one line. Writing the oscillator by its
+    STATIC dielectric constant eps(0) = 1 + omega_p^2/omega_0^2 and its resonance omega_0 gives
+
+        C_3 = (R/8) sum_a A_a / [Omega (dE_a + Omega)],   Omega = omega_0 sqrt((eps(0)+1)/2),  R = (eps(0)-1) omega_0^2/2
+
+    THE CONSTANT-eps ANSWER IS THE Omega >> dE LIMIT OF THAT, i.e. a wall whose electrons respond instantaneously on
+    the atom's own scale, and the error of using it is one factor per pole, exactly 1 + dE_a/Omega. That is not a
+    small correction for a real wall: a silica-like oscillator (eps(0) = 3.9, omega_0 = 10 eV) puts Omega = 0.575
+    a.u. against dE = 0.375 a.u. for H(1s) -> 2p, so the constant-eps shortcut OVERSTATES C_3 by 65 % on that one
+    pole and, MEASURED over the whole np n = 2..16 set, by 81 % -- 0.147952 against 0.081850 a.u., the ratio 0.5532
+    (`tools/probe-dielectricWall.jl`, 20-Oct-2026). A perfect conductor needs no resonance at all, reflecting fully
+    at every frequency, and is the default.
 
     AND THE RADIAL BOX IS WHAT DECIDES THAT, IN THE OPPOSITE DIRECTION TO RULE 12'S USUAL ADVICE. A sum over
     states needs the upper members of its perturber series to stand in for the CONTINUUM, and a box matched to
@@ -207,8 +227,12 @@ end
                                                                         ascending order of n.
     + atomWallC3      ::Float64                                     ... The atom-wall coefficient C_3 of partnerA in
                                                                         atomic units, or 0. if it was not requested.
-    + wallDielectric  ::Float64                                     ... The constant dielectric constant the wall was
+    + wallDielectric  ::Float64                                     ... The STATIC dielectric constant the wall was
                                                                         given; Inf for a perfect conductor.
+    + wallResonance   ::Float64                                     ... The resonance omega_0 of that wall's Lorentz
+                                                                        oscillator, in atomic units; Inf for the
+                                                                        instantaneous-response limit, in which the
+                                                                        constant-eps reflection factor is exact.
 """
 struct Outcome
     partnerA          ::DispersionCoefficient.Partner
@@ -216,6 +240,7 @@ struct Outcome
     coefficients      ::Array{DispersionCoefficient.Coefficient,1}
     atomWallC3        ::Float64
     wallDielectric    ::Float64
+    wallResonance     ::Float64
 end
 
 
@@ -226,7 +251,7 @@ end
 function Outcome()
     Outcome( Partner("", Level(), DispersionCoefficient.MultipoleTerms[]),
              Partner("", Level(), DispersionCoefficient.MultipoleTerms[]),
-             DispersionCoefficient.Coefficient[], 0., Inf )
+             DispersionCoefficient.Coefficient[], 0., Inf, Inf )
 end
 
 
@@ -257,9 +282,16 @@ end
                                                       E1, C_8 needs E1 and E2, and C_10 needs E1, E2 and E3.
     + calcAtomWall      ::Bool                  ... True if the atom-wall coefficient C_3 of partnerA is wanted
                                                       beside the atom-atom ones.
-    + wallDielectric    ::Float64               ... The CONSTANT dielectric constant of that wall; Inf, the default,
-                                                      is a perfect conductor. A frequency-dependent eps(i omega) is
-                                                      not supported -- see the module docstring.
+    + wallDielectric    ::Float64               ... The STATIC dielectric constant eps(0) of that wall; Inf, the
+                                                      default, is a perfect conductor at every frequency.
+    + wallResonance     ::Float64               ... The resonance omega_0 of the wall's one Lorentz oscillator, in
+                                                      atomic units, which fixes eps(i omega) = 1 + omega_p^2 /
+                                                      (omega_0^2 + omega^2) together with wallDielectric. Inf, the
+                                                      default, is the instantaneous-response limit, where the
+                                                      constant-eps reflection factor (eps-1)/(eps+1) is exact; a
+                                                      FINITE omega_0 reduces C_3 by 1 + dE_a/Omega per perturber,
+                                                      which is not a small factor for a real wall -- see the module
+                                                      docstring.
     + gMultiplet        ::Multiplet             ... The perturber multiplet of the atom whose levels are computed,
                                                       i.e. the intermediate ASF over which the response is summed.
                                                       As in `MultipolePolarizibility`, the caller generates it ahead
@@ -283,6 +315,7 @@ struct Settings <: Basics.AbstractPropertySettings
     multipoles          ::Array{EmMultipole,1}
     calcAtomWall        ::Bool
     wallDielectric      ::Float64
+    wallResonance       ::Float64
     gMultiplet          ::Multiplet
     partnerB            ::DispersionCoefficient.Partner
     printBefore         ::Bool
@@ -295,7 +328,7 @@ end
     ... constructor for an `empty` instance of DispersionCoefficient.Settings.
 """
 function Settings()
-    Settings( [6, 8, 10], EmMultipole[E1, E2, E3], false, Inf, Multiplet(), DispersionCoefficient.Partner(),
+    Settings( [6, 8, 10], EmMultipole[E1, E2, E3], false, Inf, Inf, Multiplet(), DispersionCoefficient.Partner(),
               false, LevelSelection() )
 end
 
@@ -303,28 +336,29 @@ end
 """
 `DispersionCoefficient.Settings(set::DispersionCoefficient.Settings;`
 
-        orders=.., multipoles=.., calcAtomWall=.., wallDielectric=.., gMultiplet=.., partnerB=..,
-        printBefore=.., levelSelection=..)
+        orders=.., multipoles=.., calcAtomWall=.., wallDielectric=.., wallResonance=.., gMultiplet=..,
+        partnerB=.., printBefore=.., levelSelection=..)
 
     ... keyword copy-constructor for re-defining selected values of a settings::DispersionCoefficient.Settings.
 """
 function Settings(set::DispersionCoefficient.Settings;
         orders::Union{Nothing,Array{Int64,1}}=nothing,       multipoles::Union{Nothing,Array{EmMultipole,1}}=nothing,
         calcAtomWall::Union{Nothing,Bool}=nothing,           wallDielectric::Union{Nothing,Float64}=nothing,
-        gMultiplet::Union{Nothing,Multiplet}=nothing,
+        wallResonance::Union{Nothing,Float64}=nothing,       gMultiplet::Union{Nothing,Multiplet}=nothing,
         partnerB::Union{Nothing,DispersionCoefficient.Partner}=nothing,
         printBefore::Union{Nothing,Bool}=nothing,            levelSelection::Union{Nothing,LevelSelection}=nothing)
     if  isnothing(orders)           ordersx         = set.orders         else   ordersx         = orders         end
     if  isnothing(multipoles)       multipolesx     = set.multipoles     else   multipolesx     = multipoles     end
     if  isnothing(calcAtomWall)     calcAtomWallx   = set.calcAtomWall   else   calcAtomWallx   = calcAtomWall   end
     if  isnothing(wallDielectric)   wallDielectricx = set.wallDielectric else   wallDielectricx = wallDielectric end
+    if  isnothing(wallResonance)    wallResonancex  = set.wallResonance  else   wallResonancex  = wallResonance  end
     if  isnothing(gMultiplet)       gMultipletx     = set.gMultiplet     else   gMultipletx     = gMultiplet     end
     if  isnothing(partnerB)         partnerBx       = set.partnerB       else   partnerBx       = partnerB       end
     if  isnothing(printBefore)      printBeforex    = set.printBefore    else   printBeforex    = printBefore    end
     if  isnothing(levelSelection)   levelSelectionx = set.levelSelection else   levelSelectionx = levelSelection end
 
-    Settings( ordersx, multipolesx, calcAtomWallx, wallDielectricx, gMultipletx, partnerBx, printBeforex,
-              levelSelectionx )
+    Settings( ordersx, multipolesx, calcAtomWallx, wallDielectricx, wallResonancex, gMultipletx, partnerBx,
+              printBeforex, levelSelectionx )
 end
 
 
@@ -335,6 +369,7 @@ function Base.show(io::IO, settings::DispersionCoefficient.Settings)
     println(io, "multipoles:               $(settings.multipoles)  ")
     println(io, "calcAtomWall:             $(settings.calcAtomWall)  ")
     println(io, "wallDielectric:           $(settings.wallDielectric)  ")
+    println(io, "wallResonance:            $(settings.wallResonance)  ")
     println(io, "gMultiplet:               $(settings.gMultiplet)  ")
     println(io, "partnerB:                 $(settings.partnerB.name)  ")
     println(io, "printBefore:              $(settings.printBefore)  ")
@@ -446,30 +481,66 @@ end
 
 """
 `DispersionCoefficient.computeAtomWallCoefficient(partner::DispersionCoefficient.Partner, wallDielectric::Float64)`
-    ... computes the non-retarded atom-wall coefficient C_3 of `partner` in U(z) = - C_3/z^3, for a wall of CONSTANT
-        dielectric constant `wallDielectric` (Inf for a perfect conductor); a `C3::Float64` in atomic units is
-        returned, and 0. if the partner carries no E1 response.
+    ... computes the non-retarded atom-wall coefficient C_3 of `partner` against a wall that responds
+        INSTANTANEOUSLY on the atom's own frequency scale, i.e. in the limit omega_0 >> dE_a; a `C3::Float64` in
+        atomic units is returned. It is `DispersionCoefficient.computeAtomWallCoefficient(partner, wallDielectric,
+        Inf)` and is kept as its own method because that limit is the only wall most callers want.
+"""
+function computeAtomWallCoefficient(partner::DispersionCoefficient.Partner, wallDielectric::Float64)
+    return( DispersionCoefficient.computeAtomWallCoefficient(partner, wallDielectric, Inf) )
+end
+
+
+"""
+`DispersionCoefficient.computeAtomWallCoefficient(partner::DispersionCoefficient.Partner, wallDielectric::Float64,
+                                                   wallResonance::Float64)`
+    ... computes the non-retarded atom-wall coefficient C_3 of `partner` in U(z) = - C_3/z^3, for a wall of STATIC
+        dielectric constant `wallDielectric` (Inf for a perfect conductor) whose one Lorentz oscillator sits at
+        `wallResonance` (Inf for the instantaneous-response limit); a `C3::Float64` in atomic units is returned, and
+        0. if the partner carries no E1 response.
 
         The Lennard-Jones form C_3 = (1/4 pi) int_0^inf alpha^(E1,0)(i w) dw collapses on a discrete spectrum to
-        C_3 = (1/8) sum_a A_a, since int_0^inf dE/(dE^2 + w^2) dw = pi/2 for every pole alike. A constant eps scales it
-        by the reflection factor (eps-1)/(eps+1); a real dielectric needs eps(i w) INSIDE the integral and is not
-        supported. The closed form is exactly checkable: with A_a = (2/3) |<a|d|0>|^2 the dipole sum rule gives
-        C_3 = <d^2>/12, which is what an electrostatic image dipole yields, so C_3(H 1s) = 1/4 exactly.
+        C_3 = (1/8) sum_a A_a, since int_0^inf dE/(dE^2 + w^2) dw = pi/2 for every pole alike. The wall enters as the
+        reflection factor r(i w), which for one oscillator is itself a single pole R/(Omega^2 + w^2) -- see
+        `DispersionCoefficient.wallReflectionPole` -- so the integral stays closed and
+
+        C_3 = (R/8) sum_a A_a / [Omega (dE_a + Omega)],   collapsing to (eps-1)/(eps+1) times (1/8) sum_a A_a as
+        Omega >> dE_a.
+
+        SO THE CONSTANT-eps ANSWER IS A LIMIT AND NOT A SEPARATE MODEL, and its error is one factor per pole,
+        exactly 1 + dE_a/Omega. For a silica-like wall (eps(0) = 3.9, omega_0 = 10 eV, Omega = 0.575 a.u.) against
+        H(1s) that is 65 % on the 2p pole alone and 81 % measured over the np n = 2..16 set, so a real dielectric is
+        NOT well described by its static constant alone. A perfect conductor reflects fully at every frequency and
+        ignores `wallResonance` altogether.
+
+        The perfectly conducting closed form is exactly checkable: with A_a = (2/3) |<a|d|0>|^2 the dipole sum rule
+        gives C_3 = <d^2>/12, which is what an electrostatic image dipole yields, so C_3(H 1s) = 1/4 exactly.
 
         BEWARE THAT A POOR PERTURBER SET DAMAGES THIS BEFORE ANYTHING ELSE, because sum_a A_a carries no energy
         denominator while alpha(0) and every C_n suppress the high poles: measured on one H(1s) np n = 2..16 set,
         moving the radial box from 64 to 775 a.u. costs alpha^(E1,0) 14 % and C_3 23 %. See
         `DispersionCoefficient.checkSaturation`.
 """
-function computeAtomWallCoefficient(partner::DispersionCoefficient.Partner, wallDielectric::Float64)
+function computeAtomWallCoefficient(partner::DispersionCoefficient.Partner, wallDielectric::Float64,
+                                    wallResonance::Float64)
     terms = DispersionCoefficient.selectTerms(partner, 1)
     if  isnothing(terms)
         println(">>> DispersionCoefficient: '$(partner.name)' carries no E1 response, so no atom-wall C_3.")
         return( 0.0 )
     end
-    reflection = isinf(wallDielectric) ? 1.0 : (wallDielectric - 1.0) / (wallDielectric + 1.0)
+    ## A perfect conductor has r = 1 at EVERY frequency, so no resonance can enter; the same closed form serves
+    ## the instantaneous-response limit, where r is the constant (eps-1)/(eps+1).
+    if  isinf(wallDielectric)   ||   isinf(wallResonance)
+        reflection = isinf(wallDielectric) ? 1.0 : (wallDielectric - 1.0) / (wallDielectric + 1.0)
+        return( 0.125 * sum(terms.strengths) * reflection )
+    end
+    strength, Omega = DispersionCoefficient.wallReflectionPole(wallDielectric, wallResonance)
+    wa = 0.0
+    for  a = 1:length(terms.strengths)
+        wa = wa + terms.strengths[a] / ( Omega * (terms.energies[a] + Omega) )
+    end
 
-    return( 0.125 * sum(terms.strengths) * reflection )
+    return( 0.125 * strength * wa )
 end
 
 
@@ -532,9 +603,11 @@ function computeOutcome(partnerA::DispersionCoefficient.Partner, partnerB::Dispe
         push!( coefficients, DispersionCoefficient.computeCoefficient(n, partnerA, partnerB) )
     end
     c3 = settings.calcAtomWall ?
-         DispersionCoefficient.computeAtomWallCoefficient(partnerA, settings.wallDielectric) : 0.0
+         DispersionCoefficient.computeAtomWallCoefficient(partnerA, settings.wallDielectric,
+                                                          settings.wallResonance) : 0.0
 
-    return( DispersionCoefficient.Outcome(partnerA, partnerB, coefficients, c3, settings.wallDielectric) )
+    return( DispersionCoefficient.Outcome(partnerA, partnerB, coefficients, c3, settings.wallDielectric,
+                                          settings.wallResonance) )
 end
 
 
@@ -614,12 +687,22 @@ function displayResults(stream::IO, outcome::DispersionCoefficient.Outcome)
     #
     if  outcome.atomWallC3 != 0.0
         wall = isinf(outcome.wallDielectric) ? "a perfectly conducting wall" :
-               "a wall of constant eps = " * @sprintf("%.4f", outcome.wallDielectric)
+               isinf(outcome.wallResonance)    ? "a wall of constant eps = " * @sprintf("%.4f", outcome.wallDielectric) :
+               "a wall with eps(0) = " * @sprintf("%.4f", outcome.wallDielectric) * " at omega_0 = " *
+               @sprintf("%.4f", outcome.wallResonance) * " a.u."
         println(stream, " ")
         println(stream, "  Atom-wall coefficient of $(outcome.partnerA.name) against " * wall *
                         ",  U(z) = - C_3/z^3:")
         println(stream, "      C_3 = " * @sprintf("%.8e", outcome.atomWallC3) * " a.u.")
         println(stream, "  ")
+        if  !isinf(outcome.wallDielectric)  &&  !isinf(outcome.wallResonance)
+            om = DispersionCoefficient.wallReflectionPole(outcome.wallDielectric, outcome.wallResonance)[2]
+            println(stream, "  ")
+            println(stream, "  >>> This wall is frequency dependent, Omega = " * @sprintf("%.4f", om) * " a.u., so " *
+                            "C_3 is SMALLER than its constant-eps value")
+            println(stream, "  >>> by the factor 1 + dE_a/Omega on every perturber.  The constant-eps number is the " *
+                            "Omega >> dE limit, not a model of its own.")
+        end
         println(stream, "  >>> C_3 = (1/8) sum_a A_a carries NO energy denominator, so a poor perturber set damages")
         println(stream, "  >>> it before anything else:  measured on one H(1s) np n = 2..16 set, moving the radial")
         println(stream, "  >>> box from 64 to 775 a.u. costs alpha^(E1,0) 14 % and C_3 23 %, and alpha(0) does not")
@@ -741,6 +824,36 @@ function staticPolarizability(terms::DispersionCoefficient.MultipoleTerms)
     end
 
     return( alpha )
+end
+
+
+"""
+`DispersionCoefficient.wallReflectionPole(wallDielectric::Float64, wallResonance::Float64)`
+    ... writes the imaginary-frequency reflection factor of a wall with one undamped Lorentz oscillator as a SINGLE
+        POLE, which is what keeps the atom-wall integral closed; a `(strength, energy)::Tuple{Float64,Float64}` in
+        atomic units is returned, meaning r(i w) = strength/(energy^2 + w^2).
+
+        With eps(i w) = 1 + omega_p^2/(omega_0^2 + w^2) the factor (eps-1)/(eps+1) is omega_p^2 / (omega_p^2 +
+        2 omega_0^2 + 2 w^2), hence strength = omega_p^2/2 and energy^2 = omega_0^2 + omega_p^2/2. Expressed through
+        the STATIC constant eps(0) = 1 + omega_p^2/omega_0^2, which is what a wall is tabulated by,
+
+            strength = (eps(0) - 1) omega_0^2 / 2,     energy = omega_0 sqrt( (eps(0) + 1) / 2 )
+
+        and the three limits are worth knowing because each is a physical wall: energy >> dE returns the constant
+        (eps(0)-1)/(eps(0)+1), eps(0) -> Inf returns 1 at every frequency (a perfect conductor), and omega_0 -> 0
+        returns 0 -- a wall whose charges are too slow to follow the atom does not reflect at the frequencies that
+        carry C_3. The function RAISES for eps(0) < 1 or omega_0 <= 0, neither of which is a dielectric.
+"""
+function wallReflectionPole(wallDielectric::Float64, wallResonance::Float64)
+    if  wallDielectric < 1.0   ||   wallResonance <= 0.0
+        error("A wall needs a static dielectric constant eps(0) >= 1 and a resonance omega_0 > 0, but " *
+              "eps(0) = $wallDielectric and omega_0 = $wallResonance were given;  Inf for either means " *
+              "a perfect conductor or the instantaneous-response limit and is handled without this function.")
+    end
+    strength = (wallDielectric - 1.0) * wallResonance^2 / 2.0
+    energy   = wallResonance * sqrt( (wallDielectric + 1.0) / 2.0 )
+
+    return( (strength, energy) )
 end
 
 end # module
