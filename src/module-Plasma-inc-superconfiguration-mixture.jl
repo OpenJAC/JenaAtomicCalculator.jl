@@ -521,6 +521,77 @@ end
 
 
 """
+`Plasma.voigtLineProfile(omega::Float64, mean::Float64, sigma::Float64, gammaFWHM::Float64)`
+    ... the NORMALIZED Voigt line-shape value at `omega` for a line centered at `mean`, with GAUSSIAN
+        standard deviation `sigma` (the statistical spread `Plasma.gaussianLineProfile` already uses) and a
+        LORENTZIAN component of FULL WIDTH AT HALF MAXIMUM `gammaFWHM` -- the natural-linewidth convention,
+        i.e. `gammaFWHM` is the quantity `Plasma.resonanceAutoionizationWidth` already returns (a total decay
+        rate, in Hartree, which under hbar=1 IS the FWHM of the line it produces). `integral d(omega) of this
+        function over all omega is exactly 1`, like `Plasma.gaussianLineProfile`'s own normalization.
+
+        Evaluated through the Faddeeva function, `w(z) = erfcx(-i*z)` with `z = (omega-mean + i*gammaFWHM/2) /
+        (sigma*sqrt(2))`, so that `Plasma.voigtLineProfile(omega,mean,sigma,gammaFWHM) = Re[w(z)] /
+        (sigma*sqrt(2*pi))` -- the standard closed form, **VERIFIED, NOT ASSUMED, before being written into
+        this scheme**: against a direct numerical convolution of a normalized Gaussian and a normalized
+        Lorentzian (QuadGK, `rtol=1e-12`) over six widely spread `(omega-mean, sigma, gammaFWHM)` cases,
+        relative agreement at or below `1e-6` in every case (most at `1e-15`-`1e-16`); against its own
+        normalization integral over `(-Inf,Inf)`, to `1e-8`; and against both single-component limits --
+        `gammaFWHM -> 0` reduces to `Plasma.gaussianLineProfile` (`rtol=1e-5`) and `sigma -> 0` reduces to the
+        plain Lorentzian `(gammaFWHM/(2*pi)) / ((omega-mean)^2+(gammaFWHM/2)^2)` (`rtol=1e-3`, limited by how
+        close to zero a finite test value can be pushed, not by the formula). The two DEGENERATE limits
+        (`gammaFWHM <= 0` or `sigma <= 0`) are handled EXACTLY, not through the Faddeeva function, so that
+        `Plasma.resonanceAutoionizationWidth` returning zero (no channel open) gives a correction of
+        EXACTLY zero against `Plasma.gaussianLineProfile`, never a tiny numerical residual. A value::Float64
+        is returned.
+"""
+function  voigtLineProfile(omega::Float64, mean::Float64, sigma::Float64, gammaFWHM::Float64)
+    gammaFWHM <= 0.0   &&   return( Plasma.gaussianLineProfile(omega, mean, sigma) )
+    sigma     <= 0.0   &&   return( (gammaFWHM/(2*pi)) / ((omega-mean)^2 + (gammaFWHM/2)^2) )
+
+    z = (omega - mean + im*(gammaFWHM/2)) / (sigma*sqrt(2))
+    w = SpecialFunctions.erfcx(-im*z)
+
+    return( real(w) / (sigma*sqrt(2*pi)) )
+end
+
+
+"""
+`Plasma.displayMixtureResonanceCorrections(stream::IO,
+                                              records::Array{Tuple{Int64,Int64,Int64,Float64,Float64,Float64},1})`
+    ... prints, for every resonant line `Plasma.perform(::SuperConfigurationMixtureOpacityScheme,...)` actually
+        corrected from a Gaussian to a Voigt profile, its species, stage and group index, its mean energy, its
+        population-weighted `gfEff`, and its autoionization width (eV). A resonant group with NO open
+        autoionization channel is never corrected (its line stays the Gaussian Stage 2/3 already gave it) and
+        so never appears here -- see `Plasma.resonanceAutoionizationWidth`'s own docstring for why that is zero,
+        not an error. Nothing is returned.
+"""
+function  displayMixtureResonanceCorrections(stream::IO,
+                                                records::Array{Tuple{Int64,Int64,Int64,Float64,Float64,Float64},1})
+    println(stream, "\n  Resonant lines corrected from Gaussian to Voigt (autoionization broadening):\n")
+    println(stream, "  ", TableStrings.hLine(100))
+    sa = "    " * TableStrings.center(22, "Species, stage, group"; na=2)
+    sa = sa     * TableStrings.center(18, "Mean energy [a.u.]"; na=2)
+    sa = sa     * TableStrings.center(14, "gfEff"; na=2)
+    sa = sa     * TableStrings.center(16, "Width [eV]"; na=2)
+    println(stream, sa)
+    println(stream, "  ", TableStrings.hLine(100))
+    if  isempty(records)
+        println(stream, "    (none -- no resonant group in this mixture has an open autoionization channel)")
+    end
+    for  (s, i, k, meanEnergy, gfEff, widthEv)  in  records
+        sa = "    " * TableStrings.center(22, "$s, $i, $k"; na=2)
+        sa = sa     * @sprintf("%18.6f", meanEnergy)
+        sa = sa     * @sprintf("%14.6f", gfEff)
+        sa = sa     * @sprintf("%16.6e", widthEv)
+        println(stream, sa)
+    end
+    println(stream, "  ", TableStrings.hLine(100))
+
+    return( nothing )
+end
+
+
+"""
 `Plasma.freeFreeOpacityContribution(chargesPerStage::Array{Int64,1}, stagePopulations::Array{Float64,1},
                                        omegas::Array{Float64,1}, ne::Float64, kT::Float64)`
     ... sums the free-free (inverse-bremsstrahlung) contribution to kappa(omega), for ONE species, over
@@ -706,6 +777,20 @@ end
         weighted the same way. This needs a real electron density: `scheme.freeFreeIncluded` with no
         density given (STAGE 1 skipped) raises, naming what is missing.
 
+        STAGE 4/5, ONLY WHEN `scheme.resonanceContinuumGrid !== nothing` (20-Oct-2026): for every species with
+        more than one stage, `Plasma.classifyResonantGroups` + `Plasma.resonanceTransitionArrays` (built from
+        STAGE 0's OWN groups/orbitals/grid, no extra SCF) find every ground-to-resonance E1 line of every
+        stage, `Plasma.resonanceAutoionizationWidth` gives each an autoionization width, and -- for every one
+        with an OPEN channel -- that line is corrected, IN PLACE inside THIS stage's own `kappaStage` (before
+        it is weighted into `kappaSpecies`/`kappaMix`), from the Gaussian `SuperConfigurationOpacityScheme`'s
+        own Stage 2/3 already gave it to the Voigt profile `Plasma.voigtLineProfile` implies, via
+        `gfEff * (voigt - gaussian)`. A resonant group with NO open channel, or whose own ground-to-resonance
+        pair shares its parity (no E1 array at all), is left as the Gaussian it already had. This changes
+        `kappaMix`, `kappaP` and every other BOUND-BOUND-ONLY number WHENEVER a resonant line is actually
+        corrected -- unlike bound-free/free-free, it is not a separately-added contribution, so there is no
+        new `kappaMixTotal` term for it; the lines actually corrected are reported separately (see below) for
+        inspection, not because they are excluded from the totals.
+
         The bound-bound-only `ResultKeys` (`SuperConfigurationMixtureOpacitySpectrum`, `...PlanckOpacity`)
         keep their EXACT, UNCHANGED pre-18-Oct meaning regardless of either switch; the bound-free spectrum
         and the free-free spectrum are each reported under their OWN key (present only when their own switch
@@ -730,7 +815,10 @@ end
         active: "superconfiguration mixture total opacity spectrum" (bound-bound plus whichever of
         bound-free/free-free are on, `Array{Float64,1}`), "superconfiguration mixture total planck opacity"
         (`Float64`), and "superconfiguration mixture rosseland opacity" (`Float64`, of that same TOTAL
-        spectrum).
+        spectrum) -- plus, ONLY when `scheme.resonanceContinuumGrid !== nothing`: "superconfiguration mixture
+        resonance corrections" (`Array{Tuple{Int64,Int64,Int64,Float64,Float64,Float64},1}`, one entry per
+        resonant line actually corrected: species, stage, group index, mean energy [a.u.], `gfEff`, and
+        autoionization width [eV]).
 """
 function  perform(scheme::Plasma.SuperConfigurationMixtureOpacityScheme, computation::Plasma.Computation; output::Bool=true)
     if  output    results = Dict{String, Any}()    else    results = nothing    end
@@ -771,7 +859,12 @@ function  perform(scheme::Plasma.SuperConfigurationMixtureOpacityScheme, computa
     SC = superConfigurationsModule()
 
     # STAGE 0: one Group per configuration, for every stage of every species, each on its OWN grid/orbitals.
-    groupsPerSpeciesStage = Vector{Vector{Any}}(undef, nSpecies)
+    # orbitalsPerSpeciesStage/gridPerSpeciesStage are kept (not merely used and discarded) SOLELY for the
+    # resonance treatment below (Rule 12 line 698's "ground-to-resonance" arrays need the SAME orbitals the
+    # classification already used) -- no extra SCF, this is data Stage 0 built anyway.
+    groupsPerSpeciesStage    = Vector{Vector{Any}}(undef, nSpecies)
+    orbitalsPerSpeciesStage  = Vector{Vector{Any}}(undef, nSpecies)
+    gridPerSpeciesStage      = Vector{Vector{Radial.Grid}}(undef, nSpecies)
     chargesPerSpecies     = Vector{Vector{Int64}}(undef, nSpecies)
     ErefPerSpecies        = zeros(Float64, nSpecies)
     for  s = 1:nSpecies
@@ -780,7 +873,9 @@ function  perform(scheme::Plasma.SuperConfigurationMixtureOpacityScheme, computa
         isempty(stages)   &&
             error("Plasma.perform(::SuperConfigurationMixtureOpacityScheme, ...): species $s has no stages.")
 
-        groupsPerSpeciesStage[s] = Vector{Any}(undef, nStages[s])
+        groupsPerSpeciesStage[s]   = Vector{Any}(undef, nStages[s])
+        orbitalsPerSpeciesStage[s] = Vector{Any}(undef, nStages[s])
+        gridPerSpeciesStage[s]     = Vector{Radial.Grid}(undef, nStages[s])
         chargesPerSpecies[s]     = zeros(Int64, nStages[s])
         for  i = 1:nStages[s]
             refConfigs = stages[i]
@@ -794,8 +889,10 @@ function  perform(scheme::Plasma.SuperConfigurationMixtureOpacityScheme, computa
             grid     = Basics.recommendedGrid(refConfigs, nm; printout=false)
             wb       = SelfConsistent.performSCF(refConfigs, nm, grid, computation.asfSettings; printout=false)
             orbitals = wb.levels[1].basis.orbitals
-            groupsPerSpeciesStage[s][i] = [ SC.buildGroup(conf, orbitals, nm, grid, computation.asfSettings)
-                                             for conf in refConfigs ]
+            groupsPerSpeciesStage[s][i]   = [ SC.buildGroup(conf, orbitals, nm, grid, computation.asfSettings)
+                                               for conf in refConfigs ]
+            orbitalsPerSpeciesStage[s][i] = orbitals
+            gridPerSpeciesStage[s][i]     = grid
             chargesPerSpecies[s][i]     = round(Int64, nm.Z) - refConfigs[1].NoElectrons
         end
         ErefPerSpecies[s] = minimum( minimum(g.meanEnergy for g in groups)  for groups in groupsPerSpeciesStage[s] )
@@ -850,17 +947,41 @@ function  perform(scheme::Plasma.SuperConfigurationMixtureOpacityScheme, computa
     # WITHIN a species by that stage's own balance population, then ACROSS species by numberFractions.
     haveBoundFree      = !isnothing(scheme.boundFreeApprox)
     haveFreeFree       = scheme.freeFreeIncluded
+    haveResonance      = !isnothing(scheme.resonanceContinuumGrid)
+    alphaConst         = Defaults.getDefaults("alpha")
     kappaMix           = zeros(Float64, length(scheme.opacityOmegas))
     kappaMixBF         = zeros(Float64, length(scheme.opacityOmegas))
     kappaMixFF         = zeros(Float64, length(scheme.opacityOmegas))
     speciesKappas      = Array{Float64,1}[]
     allChannels        = Tuple{Configuration,Configuration,Float64,Array{Float64,1}}[]
     allFreeFreeStages  = Tuple{Int64,Int64,Float64,Array{Float64,1}}[]
+    allResonanceLines  = Tuple{Int64,Int64,Int64,Float64,Float64,Float64}[]
     for  s = 1:nSpecies
         nm           = scheme.nuclearModels[s]
         stages       = scheme.refConfigsPerSpeciesStages[s]
         kappaSpecies = zeros(Float64, length(scheme.opacityOmegas))
         popsPerStage = Vector{Array{Float64,1}}(undef, nStages[s])
+
+        # STAGE 4/5, resonances -- see Plasma.SuperConfigurationMixtureOpacityScheme's own docstring. Built
+        # from Stage 0's OWN groups/orbitals/grid for this species (no extra SCF); a same-parity ground-to-
+        # resonance pair has no E1 array and is simply absent here (Plasma.resonanceTransitionArrays' own
+        # convention), so it never gets corrected -- correctly, since it carries no absorption strength to
+        # correct in the first place.
+        resonanceRecordsS = Tuple{Int64,Int64,Any,Float64,Float64}[]
+        if  haveResonance  &&  nStages[s] > 1
+            flagsS              = Plasma.classifyResonantGroups(groupsPerSpeciesStage[s])
+            arraysS, groupIdxS  = Plasma.resonanceTransitionArrays(groupsPerSpeciesStage[s], flagsS, orbitalsPerSpeciesStage[s],
+                                                                       nm, gridPerSpeciesStage[s], computation.asfSettings)
+            for  (ta, (i, k))  in  zip(arraysS, groupIdxS)
+                gf = 2/3 * ta.meanEnergy * ta.totalStrength
+                width, line = Plasma.resonanceAutoionizationWidth(groupsPerSpeciesStage[s][i][k].conf, stages[i+1], nm,
+                                                                      scheme.resonanceContinuumGrid, computation.asfSettings,
+                                                                      scheme.resonanceAugerSettings)
+                width <= 0.0   &&   continue   # no open channel -- leave this line as the Gaussian Stage 2/3 already gave it
+                push!(resonanceRecordsS, (i, k, ta, gf, width))
+            end
+        end
+
         for  i = 1:nStages[s]
             refConfigs = stages[i]
             println("\n  -- species $s of $nSpecies, stage $i of $(nStages[s]) " *
@@ -873,6 +994,24 @@ function  perform(scheme::Plasma.SuperConfigurationMixtureOpacityScheme, computa
             stageResults       = Plasma.perform(stageScheme, stageComputation; output=true)
             kappaStage         = stageResults[ResultKeys.SuperConfigurationOpacitySpectrum]
             popsPerStage[i]    = stageResults[ResultKeys.SuperConfigurationPopulations]
+
+            # Correct, IN PLACE, every resonant line of THIS stage from Gaussian to Voigt -- see
+            # Plasma.SuperConfigurationMixtureOpacityScheme's own docstring for why this is a correction on
+            # kappaStage rather than a separately-reported contribution.
+            for  (ri, rk, ta, gf, width)  in  resonanceRecordsS
+                ri == i   ||   continue
+                groundIdx = argmin( [ g.meanEnergy   for g in groupsPerSpeciesStage[s][i] ] )
+                gfEff     = popsPerStage[i][groundIdx] * gf
+                sigma     = sqrt(max(ta.variance, 0.0))
+                for  (ko, om)  in  enumerate(scheme.opacityOmegas)
+                    kappaStage[ko] = kappaStage[ko] + 2*pi^2*alphaConst * gfEff *
+                                        ( Plasma.voigtLineProfile(om, ta.meanEnergy, sigma, width) -
+                                          Plasma.gaussianLineProfile(om, ta.meanEnergy, sigma) )
+                end
+                push!(allResonanceLines, (s, i, rk, ta.meanEnergy, gfEff,
+                        Defaults.convertUnits("energy: from atomic to eV", width)))
+            end
+
             kappaSpecies .+= stagePopulations[s][i] .* kappaStage
         end
         push!(speciesKappas, kappaSpecies)
@@ -909,6 +1048,11 @@ function  perform(scheme::Plasma.SuperConfigurationMixtureOpacityScheme, computa
                         Empirical.freeFreeAbsorptionCoefficient(scheme.opacityOmegas, chargesPerSpecies[s][i], ne, kT)))
             end
         end
+    end
+
+    if  haveResonance
+        Plasma.displayMixtureResonanceCorrections(stdout, allResonanceLines)
+        if  printSummary   Plasma.displayMixtureResonanceCorrections(iostream, allResonanceLines)   end
     end
 
     xGrid  = scheme.opacityOmegas ./ kT
@@ -964,6 +1108,9 @@ function  perform(scheme::Plasma.SuperConfigurationMixtureOpacityScheme, computa
         end
         if  haveFreeFree
             results["superconfiguration mixture free-free opacity"]       = kappaMixFF
+        end
+        if  haveResonance
+            results["superconfiguration mixture resonance corrections"]   = allResonanceLines
         end
         if  haveContinuum
             results["superconfiguration mixture total opacity spectrum"]   = kappaMixTotal

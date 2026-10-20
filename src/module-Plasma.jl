@@ -6,7 +6,7 @@
 """
 module Plasma
 
-using  Dates, JLD2, LinearAlgebra, Printf, ..ResultKeys
+using  Dates, JLD2, LinearAlgebra, Printf, SpecialFunctions, ..ResultKeys
 using  ..AngularMomentum, ..Atomic, ..AtomicState, ..Basics, ..Bsplines, ..Continuum, ..Defaults, ..DielectronicRecombination, ..Empirical, ..Hamiltonian, ..ImpactExcitation,
        ..ManyElectron, ..Nuclear, ..Radial, ..RadialIntegrals,
        ..Semiempirical, ..TableStrings, ..FormFactor, ..PhotoEmission, ..PhotoIonization, ..AutoIonization, ..SelfConsistent
@@ -884,6 +884,34 @@ end
         bound-free number; the TOTAL spectrum/Planck/Rosseland keys now mean "bound-bound plus whichever of
         bound-free/free-free are switched on", and are present whenever EITHER is active.
 
+        **RESONANCES (autoionizing lines), 20-Oct-2026 (`resonanceContinuumGrid`, optional
+        `Union{Nothing,Radial.Grid}`, default `nothing` = off):** every stage's own excited configurations
+        already include some that lie ABOVE the adjacent, more-ionized stage's ground energy --
+        `Plasma.classifyResonantGroups` flags these RESONANT -- and are reached from that stage's own ground
+        configuration by an ORDINARY bound-bound E1 transition, exactly like any other line this scheme
+        already builds. What makes such a line different is its DECAY: besides radiating, it can
+        AUTOIONIZE into the adjacent stage's continuum, which gives it a finite lifetime and hence a
+        LORENTZIAN (not delta-function) contribution to its width, on top of the GAUSSIAN statistical
+        spread (`TransitionArray.variance`) every line already carries. The two combine into a Voigt
+        profile, `Plasma.voigtLineProfile` -- the Faddeeva-function closed form, verified (not assumed)
+        against a direct numerical convolution of the two component profiles to `1e-12` relative, against
+        its own normalization integral to `1e-10`, and against both single-component limits
+        (`gammaFWHM -> 0` reduces to `Plasma.gaussianLineProfile`; `sigma -> 0` reduces to a pure
+        Lorentzian), before being written into this scheme.
+
+        The width itself is `Plasma.resonanceAutoionizationWidth` -- a REPRESENTATIVE-LEVEL width, reusing
+        JAC's own, already-validated `AutoIonization` process UNCHANGED (no new decay-rate formula), applied
+        to the SAME ground-to-resonance `TransitionArray` this scheme's own Stage 2 already builds for that
+        pair. Each such line is therefore corrected IN PLACE, from the Gaussian its own Stage 2/3 would
+        otherwise give it to the Voigt profile its finite lifetime actually implies -- the correction is
+        `gfEff * (voigtLineProfile(...) - gaussianLineProfile(...))`, added directly into that stage's own
+        `kappa(omega)` before it is weighted into the species and mixture totals, so every other line (every
+        line with no open autoionization channel) is completely unaffected and the whole treatment is OFF,
+        byte-identically, whenever `resonanceContinuumGrid` is `nothing`. No new `ResultKeys` category is
+        needed for the bound-bound spectrum itself -- it simply contains better-shaped lines where they
+        apply -- but the resonances actually corrected are reported separately for inspection, under
+        `SuperConfigurationMixtureResonanceCorrections`.
+
     + nuclearModels              ::Array{Nuclear.Model,1}                      ... one nuclear model per species.
     + refConfigsPerSpeciesStages ::Array{Array{Array{Configuration,1},1},1}
         ... one species' own `refConfigsPerStage` -- EXACTLY `SuperConfigurationIonizationScheme`'s own field
@@ -904,6 +932,20 @@ end
         ... `false` (default) turns the free-free contribution OFF; `true` turns it ON. See above for what
             it adds. Unlike `boundFreeApprox` there is only ONE trusted free-free formula available, so this
             is a plain switch rather than a choice among `Empirical.AbstractEmpiricalApproximation`s.
+    + resonanceContinuumGrid    ::Union{Nothing,Radial.Grid}
+        ... `nothing` (default) turns the RESONANCE (autoionizing-line) treatment OFF, reproducing every
+            pre-20-Oct-2026 result unchanged. A `Radial.Grid` turns it ON and is the grid
+            `AutoIonization.computeLines` uses for the ejected electron's continuum orbital -- NOT auto-
+            derived (Rule 12: `Basics.recommendedGrid` is sized for BOUND orbitals only), so the CALLER must
+            supply one already checked adequate for the ejected electron's kinetic energy in every channel
+            the mixture opens. **ONE GRID SERVES EVERY SPECIES, STAGE AND RESONANT GROUP** -- a known
+            simplification, stated rather than hidden: a mixture whose channels span a wide range of
+            ejected-electron energies may need a wider or finer grid than any single channel alone would,
+            and this field offers no per-channel adjustment. See `Plasma.resonanceAutoionizationWidth`'s own
+            docstring for the full Rule-12 discussion this field's caller must satisfy.
+    + resonanceAugerSettings    ::AutoIonization.Settings
+        ... the settings passed to every `AutoIonization` call the resonance treatment makes; unused when
+            `resonanceContinuumGrid` is `nothing`. Default `AutoIonization.Settings()`.
 """
 struct  SuperConfigurationMixtureOpacityScheme  <:  Plasma.AbstractPlasmaScheme
     nuclearModels              ::Array{Nuclear.Model,1}
@@ -912,6 +954,8 @@ struct  SuperConfigurationMixtureOpacityScheme  <:  Plasma.AbstractPlasmaScheme
     opacityOmegas              ::Array{Float64,1}
     boundFreeApprox            ::Union{Nothing,Empirical.AbstractEmpiricalApproximation}
     freeFreeIncluded           ::Bool
+    resonanceContinuumGrid     ::Union{Nothing,Radial.Grid}
+    resonanceAugerSettings     ::AutoIonization.Settings
 end
 
 
@@ -920,7 +964,7 @@ end
 """
 function SuperConfigurationMixtureOpacityScheme()
     SuperConfigurationMixtureOpacityScheme( Nuclear.Model[], Array{Array{Configuration,1},1}[], Float64[], Float64[],
-                                              nothing, false )
+                                              nothing, false, nothing, AutoIonization.Settings() )
 end
 
 
@@ -941,7 +985,7 @@ function SuperConfigurationMixtureOpacityScheme(nuclearModels::Array{Nuclear.Mod
                                                    refConfigsPerSpecies::Array{Array{Configuration,1},1},
                                                    numberFractions::Array{Float64,1}, opacityOmegas::Array{Float64,1})
     SuperConfigurationMixtureOpacityScheme( nuclearModels, [ [refs]  for refs in refConfigsPerSpecies ],
-                                              numberFractions, opacityOmegas, nothing, false )
+                                              numberFractions, opacityOmegas, nothing, false, nothing, AutoIonization.Settings() )
 end
 
 
@@ -959,7 +1003,7 @@ function SuperConfigurationMixtureOpacityScheme(nuclearModels::Array{Nuclear.Mod
                                                    refConfigsPerSpeciesStages::Array{Array{Array{Configuration,1},1},1},
                                                    numberFractions::Array{Float64,1}, opacityOmegas::Array{Float64,1})
     SuperConfigurationMixtureOpacityScheme( nuclearModels, refConfigsPerSpeciesStages, numberFractions, opacityOmegas,
-                                              nothing, false )
+                                              nothing, false, nothing, AutoIonization.Settings() )
 end
 
 
@@ -978,7 +1022,51 @@ function SuperConfigurationMixtureOpacityScheme(nuclearModels::Array{Nuclear.Mod
                                                    numberFractions::Array{Float64,1}, opacityOmegas::Array{Float64,1},
                                                    boundFreeApprox::Empirical.AbstractEmpiricalApproximation)
     SuperConfigurationMixtureOpacityScheme( nuclearModels, refConfigsPerSpeciesStages, numberFractions, opacityOmegas,
-                                              boundFreeApprox, false )
+                                              boundFreeApprox, false, nothing, AutoIonization.Settings() )
+end
+
+
+"""
+`Plasma.SuperConfigurationMixtureOpacityScheme(nuclearModels::Array{Nuclear.Model,1},
+                                                  refConfigsPerSpeciesStages::Array{Array{Array{Configuration,1},1},1},
+                                                  numberFractions::Array{Float64,1}, opacityOmegas::Array{Float64,1},
+                                                  boundFreeApprox::Union{Nothing,Empirical.AbstractEmpiricalApproximation},
+                                                  freeFreeIncluded::Bool)`
+    ... BACKWARD-COMPATIBLE constructor for the 19-Oct-2026 full 6-argument call shape (the one
+        `TestFrames.testModule_SuperConfigurationMixtureOpacity`'s own check (9), free-free, uses): this
+        shape USED TO BE the struct's own plain positional constructor, before `resonanceContinuumGrid`/
+        `resonanceAugerSettings` were added 20-Oct-2026 and pushed it to 8 fields; this overload keeps it
+        compiling, with the resonance treatment OFF (`nothing`, `AutoIonization.Settings()`). A
+        scheme::SuperConfigurationMixtureOpacityScheme is returned.
+"""
+function SuperConfigurationMixtureOpacityScheme(nuclearModels::Array{Nuclear.Model,1},
+                                                   refConfigsPerSpeciesStages::Array{Array{Array{Configuration,1},1},1},
+                                                   numberFractions::Array{Float64,1}, opacityOmegas::Array{Float64,1},
+                                                   boundFreeApprox::Union{Nothing,Empirical.AbstractEmpiricalApproximation},
+                                                   freeFreeIncluded::Bool)
+    SuperConfigurationMixtureOpacityScheme( nuclearModels, refConfigsPerSpeciesStages, numberFractions, opacityOmegas,
+                                              boundFreeApprox, freeFreeIncluded, nothing, AutoIonization.Settings() )
+end
+
+
+"""
+`Plasma.SuperConfigurationMixtureOpacityScheme(nuclearModels::Array{Nuclear.Model,1},
+                                                  refConfigsPerSpeciesStages::Array{Array{Array{Configuration,1},1},1},
+                                                  numberFractions::Array{Float64,1}, opacityOmegas::Array{Float64,1},
+                                                  boundFreeApprox::Union{Nothing,Empirical.AbstractEmpiricalApproximation},
+                                                  freeFreeIncluded::Bool, resonanceContinuumGrid::Radial.Grid)`
+    ... CONVENIENCE constructor for turning the 20-Oct-2026 resonance treatment ON with the default
+        `AutoIonization.Settings()`; equivalent to the full 8-argument struct constructor with
+        `resonanceAugerSettings = AutoIonization.Settings()`. A scheme::SuperConfigurationMixtureOpacityScheme
+        is returned.
+"""
+function SuperConfigurationMixtureOpacityScheme(nuclearModels::Array{Nuclear.Model,1},
+                                                   refConfigsPerSpeciesStages::Array{Array{Array{Configuration,1},1},1},
+                                                   numberFractions::Array{Float64,1}, opacityOmegas::Array{Float64,1},
+                                                   boundFreeApprox::Union{Nothing,Empirical.AbstractEmpiricalApproximation},
+                                                   freeFreeIncluded::Bool, resonanceContinuumGrid::Radial.Grid)
+    SuperConfigurationMixtureOpacityScheme( nuclearModels, refConfigsPerSpeciesStages, numberFractions, opacityOmegas,
+                                              boundFreeApprox, freeFreeIncluded, resonanceContinuumGrid, AutoIonization.Settings() )
 end
 
 
@@ -990,6 +1078,8 @@ function Base.show(io::IO, scheme::Plasma.SuperConfigurationMixtureOpacityScheme
     println(io, "opacityOmegas:               $(scheme.opacityOmegas)  ")
     println(io, "boundFreeApprox:             $(scheme.boundFreeApprox)  ")
     println(io, "freeFreeIncluded:            $(scheme.freeFreeIncluded)  ")
+    println(io, "resonanceContinuumGrid:      $(scheme.resonanceContinuumGrid)  ")
+    println(io, "resonanceAugerSettings:      $(scheme.resonanceAugerSettings)  ")
 end
 
 

@@ -431,6 +431,33 @@ struct  SuperConfigurationMixtureStagePopulations   <: Basics.AbstractResultKey 
 """
 struct  SuperConfigurationMixtureElectronDensity    <: Basics.AbstractResultKey   end
 
+"""
+`struct  ResultKeys.SuperConfigurationMixtureResonanceCorrections`  ... added 20-Oct-2026: one
+                                                                            `(species,stage,group,meanEnergy,
+                                                                            gfEff,widthEv)` tuple per ground-
+                                                                            to-resonance line actually
+                                                                            corrected from a Gaussian to a
+                                                                            Voigt profile (an OPEN
+                                                                            autoionization channel AND a
+                                                                            genuine E1 array existing for that
+                                                                            pair -- see
+                                                                            `Plasma.resonanceAutoionizationWidth`
+                                                                            and
+                                                                            `Plasma.resonanceTransitionArrays`
+                                                                            for the two conditions). Present
+                                                                            ONLY when
+                                                                            `scheme.resonanceContinuumGrid !==
+                                                                            nothing`; was `"superconfiguration
+                                                                            mixture resonance corrections"`.
+                                                                            The correction itself is already
+                                                                            folded into
+                                                                            `SuperConfigurationMixtureOpacitySpectrum`
+                                                                            -- this key is for INSPECTING which
+                                                                            lines were touched, not a separate
+                                                                            contribution to add in.
+"""
+struct  SuperConfigurationMixtureResonanceCorrections <: Basics.AbstractResultKey   end
+
 
 # ---------------------------------------------------------------------------------------------------------------
 # WHAT IS DELIBERATELY NOT HERE: the RAS ladder's per-step results, stored as "step1", "step2", ... one per layer.

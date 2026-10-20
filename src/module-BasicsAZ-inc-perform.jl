@@ -145,6 +145,8 @@ function  resultKeyStrings(T::Type)
         return( ["superconfiguration mixture total planck opacity"] )
     T === ResultKeys.SuperConfigurationMixtureRosselandOpacity      &&
         return( ["superconfiguration mixture rosseland opacity"] )
+    T === ResultKeys.SuperConfigurationMixtureResonanceCorrections  &&
+        return( ["superconfiguration mixture resonance corrections"] )
 
     return( String[] )
 end
@@ -193,6 +195,7 @@ function  allResultKeyTypes()
             ResultKeys.SuperConfigurationMixtureBoundFreeOpacity, ResultKeys.SuperConfigurationMixtureFreeFreeOpacity,
             ResultKeys.SuperConfigurationMixtureTotalOpacitySpectrum,
             ResultKeys.SuperConfigurationMixtureTotalPlanckOpacity, ResultKeys.SuperConfigurationMixtureRosselandOpacity,
+            ResultKeys.SuperConfigurationMixtureResonanceCorrections,
             Einstein.Settings, Hfs.Settings, LandeZeeman.Settings, StarkShift.Settings, StarkZeeman.Settings,
             IsotopeShift.Settings, AlphaVariation.Settings, FormFactor.Settings, DecayYield.Settings,
             MultipolePolarizibility.Settings, DispersionCoefficient.Settings, ReducedDensityMatrix.Settings,
