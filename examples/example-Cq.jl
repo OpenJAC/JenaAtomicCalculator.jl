@@ -13,7 +13,9 @@ println("Cq) Multipole polarizabilities alpha^(Mp,K) at real and imaginary frequ
 ## statement that nobody has judged the physics yet, not that the branch failed.
 
 if  false
-    # Last visit:  19-Oct-2026
+    # Last visit:  20-Oct-2026
+    # Last reproduced:  20-Oct-2026 (2 of 2 numbers on the claim line, after the branch was converted to the
+    #   standard perform route -- which is what says the conversion changed no physics)
     # Last successful:  unknown ... (the numbers below reproduce; the date is the maintainer's to set -- Rule 7)
     # Branch a: alpha^(Mp,K) FOR ANY MULTIPOLE AND ANY RANK A LEVEL CAN CARRY.  H 2p_3/2 with nd perturbers is
     #   the smallest case in which the rank-2 polarizability is NOT ZERO, so it is the one that actually tests
@@ -58,14 +60,20 @@ if  false
 
     println("\n>> ranks a J = 3/2 level can carry:  E1 $(MultipolePolarizibility.allowedRanks(E1, p32.J)), " *
             "E2 $(MultipolePolarizibility.allowedRanks(E2, p32.J)), E3 $(MultipolePolarizibility.allowedRanks(E3, p32.J))")
-    for  mp in [E1, E2]
-        alphas, _ = MultipolePolarizibility.computeMultipolePolarizabilities(mp, p32, gMultiplet, grid)
-        for  (K, alpha) in alphas
+    ## THROUGH THE STANDARD ROUTE:  the multipoles asked for go on the Settings and the whole alpha^(Mp,K) table
+    ## comes back on the Outcome, one entry per (multipole, rank, frequency)
+    set = MultipolePolarizibility.Settings(MultipolePolarizibility.Settings(); multipoles=[E1, E2],
+                                           gMultiplet=gMultiplet)
+    wc  = Atomic.Computation(Atomic.Computation(), name="H 2p alpha^(Mp,K)", grid=grid, nuclearModel=nm,
+                             configs=[Configuration("2p")], propertySettings=[set])
+    for  oc  in  perform(wc; output=true)[MultipolePolarizibility.Settings]
+        Basics.twice(oc.level.J) == 3   ||   continue
+        for  (mp, K, omega, alpha)  in  oc.alphas
             println(">> alpha^($mp,$K) = $(alpha.Babushkin) a.u.")
         end
-        mp == E2  &&  println(">> (both E2 ranks vanish because an E2 operator reaches p and f from a p level, " *
-                              "and this perturber set is nd only)")
     end
+    println(">> (both E2 ranks vanish because an E2 operator reaches p and f from a p level, and this perturber " *
+            "set is nd only)")
     #
 elseif false
     # Last visit:  19-Oct-2026
@@ -109,8 +117,10 @@ elseif false
     println(">> part of a complex quantity;  the warning printed above is the point of including it.")
     #
 elseif false
-    # Last visit:  19-Oct-2026
-    # Last reproduced:  19-Oct-2026 (3 of 3 numbers on the claim line)
+    # Last visit:  20-Oct-2026
+    # Last reproduced:  20-Oct-2026 (3 of 3 numbers on the claim line, after the branch was converted to the
+    #   standard perform route:  4.499751433446605 a.u., and the ratios 0.9999995158 and 0.9999545283 -- every
+    #   quoted digit unchanged, which is the evidence that the conversion was faithful)
     # Last successful:  19-Oct-2026   ## alpha^(E1,0) 4.4997514334 and C_6 6.4983890995 a.u., at 1.4e-8 and
     #   4.8e-7 of the Dirac reference;  C_3 0.2499886321 a.u., which is 0.854 alpha^2 BELOW the
     #   NONRELATIVISTIC exact 1/4 -- the gap is the relativistic correction, not an unconverged sum.
@@ -164,21 +174,30 @@ elseif false
                               configs=confs, asfSettings=asf)
     gMultiplet = perform(wa2; output=true)[ResultKeys.Multiplet]
 
-    hydrogen = DispersionCoefficient.Partner("H(1s)", level, gMultiplet, grid, [E1])
-    terms    = DispersionCoefficient.selectTerms(hydrogen, 1)
+    ## THROUGH THE STANDARD ROUTE:  the perturber multiplet, the orders and the wall go on the Settings, and
+    ## computeOutcomes reports the saturation of the set and displays the results itself
+    set = DispersionCoefficient.Settings(DispersionCoefficient.Settings(); orders=[6], multipoles=[E1],
+                              calcAtomWall=true, gMultiplet=gMultiplet)
+    wa3 = Atomic.Computation(Atomic.Computation(), name="H(1s) C_6 and C_3", grid=grid, nuclearModel=nm,
+                              configs=[Configuration("1s")], propertySettings=[set], asfSettings=asf)
+    oc  = perform(wa3; output=true)[DispersionCoefficient.Settings][1]
+
+    ## and the scan below is ARITHMETIC on the terms that one computation stored -- a sum of single poles
+    ## evaluated at a new frequency.  There is no Settings field for a list of imaginary frequencies and none is
+    ## wanted:  a second perform would repeat the SCF to learn nothing new.
+    terms = DispersionCoefficient.selectTerms(oc.partnerA, 1)
     println("\n>> alpha^(E1,0)(i omega) on the imaginary axis -- positive, monotone, and no poles:")
     for  omega in [0.0, 0.1, 0.3, 1.0, 3.0, 10.0]
         println(">>    omega = $omega  ->  $(DispersionCoefficient.polarizability(terms, omega)) a.u.")
     end
-
-    set = DispersionCoefficient.Settings(DispersionCoefficient.Settings(), orders=[6], calcAtomWall=true)
-    oc  = DispersionCoefficient.computeOutcome(hydrogen, hydrogen, set)
-    DispersionCoefficient.displayResults(stdout, oc)
     println(">> C_6 / published Dirac 6.498392245754  =  $(oc.coefficients[1].value/6.498392245754)")
     println(">> C_3 / the exact 1/4                   =  $(oc.atomWallC3/0.25)")
     #
 elseif false
-    # Last visit:  19-Oct-2026
+    # Last visit:  20-Oct-2026
+    # Last reproduced:  20-Oct-2026 (3 of 3 numbers on the claim line, after the branch was converted to the
+    #   standard perform route with ONE combined perturber computation in place of three:  0.9999995158,
+    #   1.0000009257, 1.0000234525 -- every quoted digit unchanged, and C_6 bit-identical to branch c's)
     # Last successful:  unknown ... (the numbers below reproduce; the date is the maintainer's to set -- Rule 7)
     # Branch d: C_6, C_8 AND C_10 OF H(1s)-H(1s) TOGETHER, which is the full Casimir-Polder machinery and needs
     #   the E1, E2 and E3 responses at once.  This is the branch that anchors the module.
@@ -201,23 +220,24 @@ elseif false
     asf  = AsfSettings(AsfSettings(); gridStopper=false)
     grid = Radial.Grid(Radial.Grid(true); rbox = 64.0)
 
-    terms = DispersionCoefficient.MultipoleTerms[];    level = Level()
-    for  (mp, letter, nmax) in [(E1, "p", 16), (E2, "d", 16), (E3, "f", 22)]
-        confs = Configuration[];   for  n = (mp.L+1):nmax    push!(confs, Configuration("$n$letter"))    end
-        wa1 = Atomic.Computation(Atomic.Computation(), name="H 1s", grid=grid, nuclearModel=nm,
-                                 configs=[Configuration("1s")], asfSettings=asf)
-        lev = perform(wa1; output=true)[ResultKeys.Multiplet].levels[1]
-        wa2 = Atomic.Computation(Atomic.Computation(), name="H $letter perturbers", grid=grid, nuclearModel=nm,
-                                 configs=confs, asfSettings=asf)
-        gm  = perform(wa2; output=true)[ResultKeys.Multiplet]
-        push!( terms, DispersionCoefficient.multipoleTerms(mp, lev, gm, grid) )
-        level = lev
-    end
-    hydrogen = DispersionCoefficient.Partner("H(1s)", level, terms)
-
-    oc = DispersionCoefficient.computeOutcome(hydrogen, hydrogen,
-                DispersionCoefficient.Settings(DispersionCoefficient.Settings(), calcAtomWall=true))
-    DispersionCoefficient.displayResults(stdout, oc)
+    ## THROUGH THE STANDARD ROUTE, AND NOTE WHAT THAT COSTS HERE:  `Settings` carries ONE gMultiplet for all
+    ## multipoles, so the three series go in together and each multipole picks the members its own selection
+    ## rules allow -- E1 the np, E2 the nd, E3 the nf -- with the rest dropping out.  That is one perturber
+    ## computation of 48 configurations instead of three of 15, 14 and 19;  the orbitals are the same, since for
+    ## a one-electron system each subshell is solved in the nuclear field independently of the others, and the
+    ## claim line above is what checks that -- measured 20-Oct-2026, all three ratios unchanged to every quoted
+    ## digit.  FOR A MANY-ELECTRON ATOM THE COMBINATION IS NOT FREE:  one SCF over all three series is a
+    ## different mean field from three separate ones, so there the perturber sets would have to be chosen with
+    ## that in mind rather than simply concatenated.
+    confs = vcat( [Configuration("$(n)p")  for n = 2:16], [Configuration("$(n)d")  for n = 3:16],
+                  [Configuration("$(n)f")  for n = 4:22] )
+    gm  = perform( Atomic.Computation(Atomic.Computation(), name="H np + nd + nf perturbers", grid=grid,
+                   nuclearModel=nm, configs=confs, asfSettings=asf); output=true )[ResultKeys.Multiplet]
+    set = DispersionCoefficient.Settings(DispersionCoefficient.Settings(); orders=[6, 8, 10],
+                   multipoles=[E1, E2, E3], calcAtomWall=true, gMultiplet=gm)
+    wa  = Atomic.Computation(Atomic.Computation(), name="H(1s) C_6, C_8, C_10", grid=grid, nuclearModel=nm,
+                   configs=[Configuration("1s")], propertySettings=[set], asfSettings=asf)
+    oc  = perform(wa; output=true)[DispersionCoefficient.Settings][1]
     for  (c, ref) in zip(oc.coefficients, [6.498392245754, 124.384030658, 3285.370788289])
         println(">> C_$(c.n) / published = $(c.value/ref)")
     end
