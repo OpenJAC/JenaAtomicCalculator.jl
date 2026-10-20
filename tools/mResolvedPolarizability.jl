@@ -915,3 +915,103 @@ end
 else
     println("\n(CASE K -- exchange on/off -- skipped;  pass \"exch\" to run it.)")
 end
+
+
+# ==========================================================================================================
+# CASE L -- THE HYDROGEN CANCELLATION, which is a COMPLETE test and settles two open questions at once.
+#
+# For a ONE-ELECTRON system the Hartree-Fock potential vanishes identically:  V_HF = J - K and J_aa = K_aa.
+# Hence its FIRST-ORDER change vanishes too, delta J = delta K, so the INDUCED DIRECT source and the INDUCED
+# EXCHANGE source must be the SAME VECTOR to machine precision, channel by channel.  There is no reference
+# value to look up, no free parameter and nothing to fit:  the ratio must be 1 and the two must be COLLINEAR.
+#
+# WHY IT IS WORTH RUNNING NOW.  Item 75 recorded this cancellation as its blocker -- "gives ratios -2.604
+# and +3.665 where both must be 1" -- but that was measured BEFORE the normalisation bridge was repaired in
+# `src/` on 18-Oct-2026 (`receivingCoefficient`, and the density weight back to source-first with an explicit
+# minus).  The repair put the module's direct term onto the SAME m-resolved convention that
+# `exchangeSourceVector` was derived in, so the mismatch the ratios measured should now be gone.  If it is,
+# the exchange normalisation is sound and the ANTI-SCREENING that CASE K found is a property of the
+# left-hand side rather than of these coefficients.  If it is not, CASE K's 52 % swing is void.
+#
+# AND IT ALSO DECIDES THE SIGN, which CASE J explicitly could not:  cos(direct, exchange) = +1 means
+# `exchangeSourceVector` already carries the chi-convention minus that the direct term carries in `wMres`,
+# and -1 means it does not.  That sign has been carried as an open question since 18-Oct and no agreement
+# with any alpha can settle it, because both signs produce a plausible number.
+#
+# THE COLLINEARITY IS THE STRONGER HALF OF THE TEST.  A ratio of norms can be made 1 by a single wrong
+# scalar;  |cos| = 1 says the RADIAL SHAPES agree, which no scalar can arrange, and the exchange term has a
+# different radial structure from the direct one -- it returns chi_b where the direct term returns phi_a, and
+# it SUMS OVER RANKS L' where the direct term carries only L.  So |cos| = 1 tests the rank sum as well.
+#
+# MEASURED 20-Oct-2026, AND IT STILL FAILS -- the repair moved it toward 1 but not to it:
+#
+#     1s_1/2 -> 2p_3/2    |direct| 3.724002e-01    ratio 1.402708    cos 0.826089
+#     1s_1/2 -> 2p_1/2    |direct| 3.724002e-01    ratio 1.811708    cos 0.899776
+#
+# Before the 18-Oct bridge repair the same two channels gave -2.604 and +3.665, so the repair was real and
+# incomplete.  The informative number is the COSINE, not the ratio:  cos != +-1 says the two RADIAL SHAPES
+# differ, and no scalar normalisation can arrange a shape.  TRUNCATION IS RULED OUT -- the maxRank sweep
+# below returns bit-identical values at 1, 2, 4, 8 and 16, as it must, since a 1s source into a p channel
+# admits only L' = 1.  So the defect is in the ASSEMBLY of the two exchange terms, not in their number, and
+# CASE J's size (0.8429) and CASE K's alpha columns rest on a source failing its own exact test.
+# ==========================================================================================================
+if  "hcancel" in ARGS
+@printf("\n=== CASE L -- the hydrogen cancellation:  V_HF = 0 for one electron, so direct = exchange ===\n")
+gridL = Radial.Grid(Radial.Grid(false), rnt = 4.0e-6/5, h = 5.0e-2, hp = 1.0, rbox = 120.0)
+primL = Bsplines.generatePrimitives(gridL)
+nmL   = Nuclear.Model(1.0, PointNucleus())
+shellsL = [Subshell("1s_1/2")]
+potL    = Nuclear.nuclearPotential(nmL, gridL)
+orbsL   = redirect_stdout(devnull) do
+    Bsplines.generateOrbitals(shellsL, potL, nmL, primL; printout=false)   end
+occL    = Dict( Subshell("1s_1/2") => 1.0 )
+@printf("   H 1s:  eps = %+.10f  (exact -0.5)   occupation %.1f\n",
+        orbsL[Subshell("1s_1/2")].energy, occL[Subshell("1s_1/2")])
+
+chansL = Tuple{Subshell,Subshell}[]
+for  a  in  shellsL,  t  in  RP.reachableChannels(1, a)      push!(chansL, (a, t))      end
+gL = Dict( ch => projectPauli(chiUnit(ch[1], ch[2], orbsL, potL, primL, gridL), ch[2], orbsL, shellsL, gridL)
+           for ch in chansL )
+chisL = Dict( ch => DalgarnoLewis.PerturbedOrbital(ch[2], ch[1], E1, Basics.Babushkin, 0.0,
+                      orbsL[ch[1]].energy, gL[ch].P, gL[ch].Q, 0.0)   for ch in chansL )
+
+@printf("\n   %-10s %-10s %14s %14s %12s %14s\n", "a", "t_a", "|direct|", "|exchange|", "ratio", "cos(angle)")
+worstR = 0.0;   worstC = 0.0
+for  ch  in  chansL
+    aSub = ch[1];   rho = zeros(gridL.NoPoints);   mtp = 1
+    for  ch2  in  chansL
+        b = ch2[1];   tb = ch2[2];   nb = occL[b];   jb2 = Basics.subshell_2j(b)
+        w = wMres(b, tb) * nb / (jb2 + 1.0)        # self term kept IN FULL -- exchange is what cancels it
+        w == 0.0   &&   continue
+        ob = orbsL[b];   g = gL[ch2]
+        mtpB = min(length(ob.P), length(g.P), length(ob.Q), length(g.Q))
+        for  i = 1:mtpB   rho[i] = rho[i] + w * 2.0 * (ob.P[i]*g.P[i] + ob.Q[i]*g.Q[i])   end
+        mtp = max(mtp, mtpB)
+    end
+    VindL = [ -RI.Yk_ab(1, gridL.r[i], rho, mtp, gridL)   for i = 1:gridL.NoPoints ]
+    sD = RP.inducedSourceVector(VindL, orbsL[aSub], primL)
+    nD = sqrt(sum(sD.^2))
+    # IS IT MERELY A TRUNCATED RANK SUM?  Exchange sums over L' where the direct term carries only L, so a
+    # cutoff that is too low would show up as a ratio that is still moving.  Measured here, not assumed.
+    for  mr  in  (1, 2, 4, 8, 16)
+        sXr  = RP.exchangeSourceVector(E1, orbsL, chisL, aSub, ch[2], gridL, primL; occupations=occL, maxRank=mr)
+        nXr  = sqrt(sum(sXr.^2))
+        cosR = nD*nXr > 0.0 ? sum(sD .* sXr)/(nD*nXr) : 0.0
+        @printf("   %-10s %-10s maxRank %-3d  |X| %12.6e  ratio %10.6f  cos %12.8f\n",
+                string(aSub), string(ch[2]), mr, nXr, nXr/nD, cosR)
+    end
+    sX = RP.exchangeSourceVector(E1, orbsL, chisL, aSub, ch[2], gridL, primL; occupations=occL, maxRank=8)
+    nX = sqrt(sum(sX.^2))
+    cosA = nD*nX > 0.0 ? sum(sD .* sX)/(nD*nX) : 0.0
+    global worstR = max(worstR, abs(nX/nD - 1.0))
+    global worstC = max(worstC, 1.0 - abs(cosA))
+end
+@printf("\n   worst |ratio - 1| = %.3e      worst 1 - |cos| = %.3e\n", worstR, worstC)
+println("""
+   HOW TO READ IT.  Both must be ~1e-15 for the cancellation to hold.  A ratio of 1 with |cos| = 1 says the
+   exchange assembly is in the SAME normalisation as the direct one and its rank sum is right;  the SIGN of
+   cos then says whether `exchangeSourceVector` carries the chi-convention minus (+1) or not (-1).  A ratio
+   away from 1 means the bridge is still open and CASE K's alpha columns are void.""")
+else
+    println("\n(CASE L -- the hydrogen cancellation -- skipped;  pass \"hcancel\" to run it.)")
+end
