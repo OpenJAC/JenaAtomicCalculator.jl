@@ -862,7 +862,7 @@ chisJ = Dict( ch => DalgarnoLewis.PerturbedOrbital(ch[2], ch[1], E1, Basics.Babu
 @printf("%-10s %-10s %14s %14s %10s %12s\n", "a", "t_a", "|direct|", "|exchange|", "ratio", "cos(angle)")
 sumD = 0.0;  sumX = 0.0
 tJ = @elapsed for  ch  in  chansJ
-    aSub = ch[1];   rho = zeros(grid.NoPoints);   mtp = 1
+    local aSub = ch[1];   rho = zeros(grid.NoPoints);   mtp = 1
     for  ch2  in  chansJ
         b = ch2[1];   tb = ch2[2];   nb = occNe[b];   jb2 = Basics.subshell_2j(b)
         w = wMres(b, tb) * nb / (jb2 + 1.0)         # self term kept IN FULL -- exchange is what cancels it
@@ -943,17 +943,36 @@ end
 # different radial structure from the direct one -- it returns chi_b where the direct term returns phi_a, and
 # it SUMS OVER RANKS L' where the direct term carries only L.  So |cos| = 1 tests the rank sum as well.
 #
-# MEASURED 20-Oct-2026, AND IT STILL FAILS -- the repair moved it toward 1 but not to it:
+# ==========================================================================================================
+# EVERYTHING ABOVE THIS LINE IS WITHDRAWN, 20-Oct-2026.  THE TEST IS WRONG, NOT THE SOURCE.
+#
+# The case was first run expecting ratio 1 and |cos| 1, and it measured
 #
 #     1s_1/2 -> 2p_3/2    |direct| 3.724002e-01    ratio 1.402708    cos 0.826089
 #     1s_1/2 -> 2p_1/2    |direct| 3.724002e-01    ratio 1.811708    cos 0.899776
 #
-# Before the 18-Oct bridge repair the same two channels gave -2.604 and +3.665, so the repair was real and
-# incomplete.  The informative number is the COSINE, not the ratio:  cos != +-1 says the two RADIAL SHAPES
-# differ, and no scalar normalisation can arrange a shape.  TRUNCATION IS RULED OUT -- the maxRank sweep
-# below returns bit-identical values at 1, 2, 4, 8 and 16, as it must, since a 1s source into a p channel
-# admits only L' = 1.  So the defect is in the ASSEMBLY of the two exchange terms, not in their number, and
-# CASE J's size (0.8429) and CASE K's alpha columns rest on a source failing its own exact test.
+# which was read as a shape error in the exchange assembly.  It is not.  TWO reasons, each measured:
+#
+# (1) THE IDENTITY HAS THREE TERMS.  Varying (J[phi] - K[phi]) phi = 0, true for ANY single orbital, gives
+#     delta(J-K)[chi] phi_a + (J-K) chi = 0 -- the FROZEN potential acting on chi belongs to it.  There are
+#     exactly two radial shapes here, v1 = phi_a Y_1[phi_a,chi] and v2 = chi Y_0[phi_a,phi_a], so the identity
+#     splits into  v1: A - B1 - C_K = 0  and  v2: -B2 + C_J = 0.  The direct source is pure v1 and the
+#     exchange source is a v1/v2 MIXTURE, so their ratio is an angle between different objects and is not 1
+#     even when every coefficient is right.  CASE M below measures the split and reproduces both numbers
+#     above exactly from it.  JAC has no nonlocal frozen exchange, so C_K cannot be formed and the v1
+#     equation is not checkable at all.
+#
+# (2) HYDROGEN IS THE ONE CASE WHERE THE FACTOR UNDER TEST IS NOT 1.  `exchangeSourceVector` scales by
+#     N_b/(2j_b+1), which is 1 for every CLOSED subshell and 1/2 for one electron -- so the open-shell
+#     occupation rule is the only thing such a comparison could calibrate and the only thing hydrogen cannot
+#     calibrate.  And its left-hand side is nuclear-only, so C_J = 0 here where a mean field supplies it.
+#
+# A third point of the original text was right and is kept:  TRUNCATION IS RULED OUT, the maxRank sweep
+# returning bit-identical values at 1, 2, 4, 8 and 16, since a 1s source into a p channel admits only L' = 1.
+#
+# SO CASE J's SIZE AND CASE K's ALPHA COLUMNS ARE NOT VOIDED BY THIS CASE.  They stand or fall on the missing
+# left-hand side, which is a separate and larger question.
+# ==========================================================================================================
 # ==========================================================================================================
 if  "hcancel" in ARGS
 @printf("\n=== CASE L -- the hydrogen cancellation:  V_HF = 0 for one electron, so direct = exchange ===\n")
@@ -978,7 +997,7 @@ chisL = Dict( ch => DalgarnoLewis.PerturbedOrbital(ch[2], ch[1], E1, Basics.Babu
 @printf("\n   %-10s %-10s %14s %14s %12s %14s\n", "a", "t_a", "|direct|", "|exchange|", "ratio", "cos(angle)")
 worstR = 0.0;   worstC = 0.0
 for  ch  in  chansL
-    aSub = ch[1];   rho = zeros(gridL.NoPoints);   mtp = 1
+    local aSub = ch[1];   rho = zeros(gridL.NoPoints);   mtp = 1
     for  ch2  in  chansL
         b = ch2[1];   tb = ch2[2];   nb = occL[b];   jb2 = Basics.subshell_2j(b)
         w = wMres(b, tb) * nb / (jb2 + 1.0)        # self term kept IN FULL -- exchange is what cancels it
@@ -1014,4 +1033,179 @@ println("""
    away from 1 means the bridge is still open and CASE K's alpha columns are void.""")
 else
     println("\n(CASE L -- the hydrogen cancellation -- skipped;  pass \"hcancel\" to run it.)")
+end
+
+
+# ==========================================================================================================
+# CASE M -- THE SPLIT, which is what withdrew CASE L's verdict.
+#
+# `exchangeSourceVector` assembles two terms with DIFFERENT radial structure,
+#
+#     E1 = Y^Lp[chi_b, phi_a](r) * phi_b(r)        E2 = Y^Lp[phi_b, phi_a](r) * chi_b(r) ,
+#
+# and for H 1s the whole problem carries only two shapes:  v1 = phi_a Y_1[phi_a,chi] and v2 = chi Y_0[phi_a,
+# phi_a].  E1 lies along v1 and E2 along v2, so a comparison of the exchange source with the DIRECT source --
+# which is pure v1 -- measures the angle of a mixture and can never be 1.  This case separates the two terms,
+# written out again here rather than called, and reads off their coefficients in the (v1, v2) basis.
+#
+# WHAT IT IS FOR.  The v2 equation of the three-term identity, -B2 + C_J = 0, is the ONE part that can be
+# checked without a nonlocal frozen exchange:  C_J is the frozen Hartree coefficient, which needs only Y_0.
+# So this case decides whether the E2 branch is correctly normalised, and the answer is that it is.
+#
+# MEASURED 20-Oct-2026, H 1s in a 120 a.u. box:
+#
+#     cos(direct, E1) = -1.000000000000 (2p_3/2)  and  +1.000000000000 (2p_1/2)   -- collinear, as predicted
+#     E2 along v2 with residual 2e-16;   E1 + E2 reproduces `exchangeSourceVector` to 3e-16
+#     direct = -0.6666611769 v1 = -(4/9 + 2/9) v1,  the two target channels' density weights
+#     E2 coefficient = -0.5000000000 exactly = -c2 * N_b/(2j_b+1) with c2 = 1 and N_b/(2j_b+1) = 1/2
+#
+# and the coefficient c2(Lp=0) is `1.0` for EVERY subshell and EVERY multipole rank, which is analytic:  the
+# 6j with a zero argument is 1/sqrt((2j_a+1)(2j_t+1)) and cancels both reduced matrix elements.  With the
+# scale equal to 1 for a closed subshell, B2 = 1 per electron and matches C_J.  The E2 branch is right where
+# item 75 needs it; hydrogen's 1/2 is the open-shell factor and not a defect in the angular algebra.
+# ==========================================================================================================
+if  "hsplit" in ARGS
+@printf("\n=== CASE M -- the E1/E2 split, and the v2 equation of the three-term identity ===\n")
+gridM = Radial.Grid(Radial.Grid(false), rnt = 4.0e-6/5, h = 5.0e-2, hp = 1.0, rbox = 120.0)
+primM = Bsplines.generatePrimitives(gridM)
+nmM   = Nuclear.Model(1.0, PointNucleus())
+shellsM = [Subshell("1s_1/2")]
+potM    = Nuclear.nuclearPotential(nmM, gridM)
+orbsM   = redirect_stdout(devnull) do
+    Bsplines.generateOrbitals(shellsM, potM, nmM, primM; printout=false)   end
+occM    = Dict( Subshell("1s_1/2") => 1.0 )
+
+# the projection of a general (fP,fQ) onto the primitives -- `exchangeSourceVector`'s own projection block
+function projectPairM(fP, fQ, mtpF, prim, grid)
+    nsL = grid.nsL;   nsS = grid.nsS;   v = zeros(nsL+nsS)
+    for  i = 1:nsL
+        bsp = prim.bsplinesL[i];   lower = bsp.lower;   upper = min(bsp.upper, mtpF)
+        upper < lower   &&   continue
+        wa = 0.0
+        for  r = lower:upper   wa = wa + bsp.bs[r-bsp.lower+1] * fP[r] * grid.wr[r]   end
+        v[i] = wa
+    end
+    for  i = 1:nsS
+        bsp = prim.bsplinesS[i];   lower = bsp.lower;   upper = min(bsp.upper, mtpF)
+        upper < lower   &&   continue
+        wa = 0.0
+        for  r = lower:upper   wa = wa + bsp.bs[r-bsp.lower+1] * fQ[r] * grid.wr[r]   end
+        v[nsL+i] = wa
+    end
+    return( v )
+end
+
+# the two exchange terms SEPARATELY, the loops of `RandomPhase.exchangeSourceVector` with two accumulators
+function exchangePartsM(orbs, chis, aSub, tSubA, grid, prim; occupations, maxRank=8)
+    np = grid.NoPoints
+    p1 = zeros(np);  q1 = zeros(np);  p2 = zeros(np);  q2 = zeros(np);  rho = zeros(np)
+    m1 = 1;  m2 = 1;  orbA = orbs[aSub]
+    for  ((bSub, tSubB), chiB)  in  chis
+        !haskey(orbs, bSub)   &&   continue
+        orbB = orbs[bSub];   jb2 = Basics.subshell_2j(bSub)
+        scale = get(occupations, bSub, jb2 + 1.0) / (jb2 + 1.0)
+        scale == 0.0   &&   continue
+        for  Lp = 0:maxRank
+            c1 = RP.exchangeAngularCoefficient(1, Lp, tSubA, aSub, tSubB, bSub, :E1)
+            c2 = RP.exchangeAngularCoefficient(1, Lp, tSubA, aSub, tSubB, bSub, :E2)
+            if  c1 != 0.0
+                mtp = min(length(chiB.P), length(orbA.P), length(chiB.Q), length(orbA.Q))
+                fill!(rho, 0.0)
+                for  i = 1:mtp   rho[i] = chiB.P[i]*orbA.P[i] + chiB.Q[i]*orbA.Q[i]   end
+                mtpB = min(length(orbB.P), length(orbB.Q))
+                for  i = 2:mtpB
+                    wy = RI.Yk_ab(Lp, grid.r[i], rho, mtp, grid) / grid.r[i]
+                    p1[i] = p1[i] - c1 * scale * wy * orbB.P[i]
+                    q1[i] = q1[i] - c1 * scale * wy * orbB.Q[i]
+                end
+                m1 = max(m1, mtpB)
+            end
+            if  c2 != 0.0
+                mtp = min(length(orbB.P), length(orbA.P), length(orbB.Q), length(orbA.Q))
+                fill!(rho, 0.0)
+                for  i = 1:mtp   rho[i] = orbB.P[i]*orbA.P[i] + orbB.Q[i]*orbA.Q[i]   end
+                mtpC = min(length(chiB.P), length(chiB.Q))
+                for  i = 2:mtpC
+                    wy = RI.Yk_ab(Lp, grid.r[i], rho, mtp, grid) / grid.r[i]
+                    p2[i] = p2[i] - c2 * scale * wy * chiB.P[i]
+                    q2[i] = q2[i] - c2 * scale * wy * chiB.Q[i]
+                end
+                m2 = max(m2, mtpC)
+            end
+        end
+    end
+    return( projectPairM(p1, q1, m1, prim, grid), projectPairM(p2, q2, m2, prim, grid) )
+end
+
+function caseM(grid, prim, orbs, pot, shells, occ)
+    chans = Tuple{Subshell,Subshell}[]
+    for  a in shells, t in RP.reachableChannels(1, a)    push!(chans, (a, t))    end
+    g = Dict( ch => projectPauli(chiUnit(ch[1], ch[2], orbs, pot, prim, grid), ch[2], orbs, shells, grid)
+              for ch in chans )
+    chis = Dict( ch => DalgarnoLewis.PerturbedOrbital(ch[2], ch[1], E1, Basics.Babushkin, 0.0,
+                        orbs[ch[1]].energy, g[ch].P, g[ch].Q, 0.0)   for ch in chans )
+    aSub = shells[1];   orbA = orbs[aSub];   np = grid.NoPoints
+    # Y_0 of the 1s density:  the frozen Hartree potential of ONE electron, which is C_J and needs no exchange
+    rho0 = zeros(np);   m0 = min(length(orbA.P), length(orbA.Q))
+    for  i = 1:m0   rho0[i] = orbA.P[i]^2 + orbA.Q[i]^2   end
+    U0 = [ i == 1 ? 0.0 : RI.Yk_ab(0, grid.r[i], rho0, m0, grid)/grid.r[i]   for i = 1:np ]
+    @printf("   <a|a> = %.12f      r*Y_0(rho_aa) far out = %.8f   (both must be 1)\n",
+            RI.overlap(orbA.P, orbA.P, grid) + RI.overlap(orbA.Q, orbA.Q, grid), U0[np-20]*grid.r[np-20])
+
+    for  ch  in  chans
+        gg = g[ch];   tSub = ch[2]
+        rho1 = zeros(np);   mr = min(length(orbA.P), length(gg.P), length(orbA.Q), length(gg.Q))
+        for  i = 1:mr   rho1[i] = orbA.P[i]*gg.P[i] + orbA.Q[i]*gg.Q[i]   end
+        U1 = [ i == 1 ? 0.0 : RI.Yk_ab(1, grid.r[i], rho1, mr, grid)/grid.r[i]   for i = 1:np ]
+        mA = min(length(orbA.P), length(orbA.Q));   mC = min(length(gg.P), length(gg.Q))
+        v1 = projectPairM([U1[i]*orbA.P[i] for i=1:mA], [U1[i]*orbA.Q[i] for i=1:mA], mA, prim, grid)
+        v2 = projectPairM([U0[i]*gg.P[i]   for i=1:mC], [U0[i]*gg.Q[i]   for i=1:mC], mC, prim, grid)
+
+        rho = zeros(np);   mtp = 1
+        for  ch2  in  chans
+            b = ch2[1];  tb = ch2[2];  nb = occ[b];  jb2 = Basics.subshell_2j(b)
+            w = wMres(b, tb) * nb / (jb2 + 1.0)
+            w == 0.0 && continue
+            ob = orbs[b];  gc = g[ch2]
+            mtpB = min(length(ob.P), length(gc.P), length(ob.Q), length(gc.Q))
+            for i = 1:mtpB   rho[i] = rho[i] + w * 2.0 * (ob.P[i]*gc.P[i] + ob.Q[i]*gc.Q[i])   end
+            mtp = max(mtp, mtpB)
+        end
+        Vind = [ -RI.Yk_ab(1, grid.r[i], rho, mtp, grid)   for i = 1:np ]
+        sD = RP.inducedSourceVector(Vind, orbA, prim)
+        sX = RP.exchangeSourceVector(E1, orbs, chis, aSub, tSub, grid, prim; occupations=occ, maxRank=8)
+        x1, x2 = exchangePartsM(orbs, chis, aSub, tSub, grid, prim; occupations=occ, maxRank=8)
+        pr(u, v) = sum(u .* v) / sum(v .* v)
+        rs(u, v) = norm(u .- pr(u,v)*v) / norm(u)
+        cs(u, v) = sum(u .* v) / (norm(u)*norm(v))
+        @printf("\n   channel %s -> %s\n", string(aSub), string(tSub))
+        @printf("      E1 + E2 against exchangeSourceVector :  %.3e   (must be ~1e-16)\n",
+                norm(x1 .+ x2 .- sX)/norm(sX))
+        @printf("      cos(direct, E1) = %+.12f    (must be +-1:  BOTH lie along v1)\n", cs(sD, x1))
+        @printf("      cos(direct, X)  = %+.12f    |X|/|direct| = %.6f   (a MIXTURE, so not 1)\n",
+                cs(sD, sX), norm(sX)/norm(sD))
+        @printf("      direct = %+.10f v1  (residual %.1e)      E2 = %+.10f v2  (residual %.1e)\n",
+                pr(sD, v1), rs(sD, v1), pr(x2, v2), rs(x2, v2))
+    end
+    # and the coefficient the v2 equation turns on, across subshells and ranks
+    @printf("\n   c2(Lp=0) across subshells -- it is 1 everywhere, so the occupation is NOT inside it:\n")
+    for  s  in  ["1s_1/2", "2p_3/2", "3d_5/2", "4f_7/2"]
+        b = Subshell(s)
+        for  t  in  RP.reachableChannels(1, b)
+            c2 = RP.exchangeAngularCoefficient(1, 0, t, b, t, b, :E2)
+            c2 == 0.0 && continue
+            @printf("      %-8s -> %-8s  2j+1 = %-2d   c2 = %.10f\n", s, string(t),
+                    Basics.subshell_2j(b)+1, c2)
+            break
+        end
+    end
+    println("""
+   HOW TO READ IT.  cos(direct, E1) = +-1 and a 1e-16 split say the radial assembly is right;  the mixture
+   angle explains CASE L's 1.40 and 1.81 with nothing left over.  c2 = 1 with the scale N_b/(2j_b+1) gives
+   B2 = 1 per electron for a CLOSED subshell, which is what the v2 equation -B2 + C_J = 0 requires.  The v1
+   equation stays unchecked:  it needs a frozen NONLOCAL exchange, and JAC has none.""")
+end
+caseM(gridM, primM, orbsM, potM, shellsM, occM)
+else
+    println("\n(CASE M -- the E1/E2 split -- skipped;  pass \"hsplit\" to run it.)")
 end
