@@ -104,8 +104,11 @@
 
     Stage 2 IS DONE, 19-Oct-2026: general multipoles beyond E1, the general rank-K decomposition, and the DYNAMIC
     polarizability at both real and imaginary frequency. What remains deferred is the MAGNETIC multipoles, for which
-    `MultipoleMoment.emmStaticAmplitude` has no operator and the literature is thin, and the dispersion coefficients
-    themselves, which are a separate, later consumer of this module.
+    `MultipoleMoment.emmStaticAmplitude` has no operator and the literature is thin. THE DISPERSION COEFFICIENTS NOW
+    EXIST and are no longer pending: `module-DispersionCoefficient.jl` (19-Oct-2026) turns alpha^(E l,0)(i omega) from
+    here into the atom-atom C_6/C_8/C_10 and the atom-wall C_3. It computes no structure of its own -- it re-sums the
+    per-perturber `Contribution` terms this module stores -- so a C_n is only ever as good as the response under it,
+    and a perturber set or a radial box that spoils alpha here spoils every coefficient built from it.
 
     THE FREQUENCY ENTERS ONLY THROUGH THE DENOMINATOR, so the dynamic case costs nothing beyond the static one. With
     dE = W_J' - W_J, MultipolePolarizibility.frequencyFactor replaces 1/dE by dE/(dE^2 - omega^2) at a real frequency
@@ -113,7 +116,7 @@
     elements, the same angular coefficients, the same perturber set. `Settings.omegas` lists the REAL frequencies
     wanted (omega = 0 is always computed as well, so alpha0/alpha2 keep their meaning); the imaginary axis is reached
     by calling computeMultipolePolarizabilities directly, since i*omega has no physical meaning of its own and exists
-    for dispersion coefficients.
+    for `module-DispersionCoefficient.jl`, which is its one consumer.
 
     THE TWO AXES BEHAVE QUITE DIFFERENTLY, AND THE IMAGINARY ONE IS THE EASY ONE. On the real axis the factor diverges
     whenever omega meets an excitation energy, and ABOVE the lowest excitation energy the true alpha(omega) is COMPLEX
@@ -124,8 +127,14 @@
     AND alpha(i*omega) MAKES A DISPERSION COEFFICIENT A DOUBLE SUM RATHER THAN A QUADRATURE. On a discrete perturber
     spectrum the Casimir-Polder integral is closed form, int_0^inf [a/(a^2+w^2)][b/(b^2+w^2)] dw = pi/(2(a+b)), so
     with A_a = c(L,0,J,J_a) |<J_a||O||J>|^2 one gets C_6 = (3/2) sum_ab A_a A_b / (dE_a + dE_b), which is Dalgarno's
-    oscillator-strength form. Measured on H(1s)-H(1s) with np to n = 16, this reproduces the published C_6 -- see
-    `tools/probe-dynamicPolarizability.jl`. The coefficients themselves belong in a module of their own.
+    oscillator-strength form. THAT SUM IS NOT HERE: it lives in `module-DispersionCoefficient.jl`, where the general
+    binomial over ordered (l1,l2) pairs gives every order at once, and where H(1s)-H(1s) reproduces the published
+    Dirac C_6, C_8 and C_10 to 1.000000, 1.000001 and 1.000023. **ONE WARNING THAT BELONGS HERE RATHER THAN THERE,
+    because it is about this module's input:** a sum over states feeding a dispersion coefficient needs its UPPER
+    perturbers to stand in for the CONTINUUM, so a radial box matched to the highest orbital leaves them genuine bound
+    states and the continuum is then missing entirely -- `Basics.recommendedGrid` of such a union returned 775 a.u.
+    and alpha^(E1,0)/alpha^(E2,0)/alpha^(E3,0) at 0.861/0.443/1.275 of their references, where 40-100 a.u. gives
+    1.000. This is the opposite of Rule 12's usual advice and is measured, not argued.
 
     UNPARKED 13-Oct-2026 ON THE MAINTAINER'S INSTRUCTION, AND THE MODULE REPRODUCES EXACT HYDROGEN.
     It had been parked since 10-Aug-2026, and the whole of the reason was a stale number. The story is kept
