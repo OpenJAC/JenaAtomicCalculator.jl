@@ -370,9 +370,11 @@ end
     ... computes the black-body radiation shift of `level` at `temperature` (in Kelvin) by averaging the rank-0
         E1 polarizability over the Planck spectrum,
 
-            DeltaE_BBR  =  -(1/2) <E^2> alpha_eff       alpha_eff  =  int x^3 alpha_0(T x)/(exp(x)-1) dx / (pi^4/15)
+            DeltaE_BBR = -(1/2) <E^2> alpha_eff      alpha_eff = int x^3 alpha_0(Tx)/(e^x-1) dx / int x^3/(e^x-1) dx
 
-        where x = omega/T, so that alpha_eff -> alpha_0(0) for a flat polarizability and the leading term is the
+        where x = omega/T and BOTH integrals are taken by the SAME quadrature on the SAME nodes -- see the comment
+        at the loop, which is the one thing here that must not be tidied -- so that alpha_eff -> alpha_0(0) for a
+        flat polarizability to machine precision rather than to the quadrature error, and the leading term is the
         universally quoted -(2/15)(alpha_fs pi)^3 T^4 alpha_0. There is NO second factor of two here, unlike the
         ac Stark shift: <E^2> is already a mean square. Only the RANK-0 polarizability enters, because thermal
         radiation is isotropic and unpolarized -- see the module docstring. A tuple
@@ -385,10 +387,13 @@ end
         few hundred quadrature points would otherwise mean a few hundred sum-over-states evaluations, and
         MultipolePolarizibility.checkFrequency would fire once per point, which is a guard that gets scrolled past.
 
-        eta IS SMALL FOR A LOW-LYING LEVEL AND GROWS AS T^2. Measured on the approved H 1s case, +1.15e-04 at
-        300 K, +1.28e-03 at 1000 K and +1.18e-02 at 3000 K -- a T^2 law to three digits, which is what it must be,
-        since eta is first order in <omega^2>/dE^2 and <omega^2> is proportional to T^2. Where eta is NOT small the
-        spectrum has reached the level's excitation energies and StarkShift.checkBlackbodyResonance says so.
+        eta IS SMALL FOR A LOW-LYING LEVEL AND GROWS AS T^2, being first order in <omega^2>/dE^2 with <omega^2>
+        proportional to T^2. Measured on the approved H 1s case: +1.15e-04 at 300 K, +1.28e-03 at 1000 K and
+        +1.18e-02 at 3000 K. The law is far sharper on H 2p, whose smaller gap makes eta bigger, and that is the
+        case the test suite asserts: the successive ratios at 1, 3, 10, 30, 100 and 300 K come out 9.000, 11.111,
+        9.001, 11.120 and 9.062 against the exact (T2/T1)^2 of 9, 11.111, 9, 11.111 and 9 -- holding from
+        eta = 3.8e-08 upwards, over two and a half decades. Where eta is NOT small the spectrum has reached the
+        level's own excitation energies and StarkShift.checkBlackbodyResonance says so.
 """
 function computeBlackbodyShift(level::Level, gMultiplet::Multiplet, grid::Radial.Grid, temperature::Float64;
                                nPoints::Int64=400, xMax::Float64=40.0)
@@ -407,16 +412,23 @@ function computeBlackbodyShift(level::Level, gMultiplet::Multiplet, grid::Radial
 
     StarkShift.checkBlackbodyResonance(temperature, energies, nPoints, xMax)
 
-    h = xMax/nPoints;      wa = 0.0
+    ## THE PLANCK WEIGHT IS NORMALISED BY ITS OWN QUADRATURE, on the SAME nodes, and NOT by the analytic
+    ## pi^4/15.  The two differ by the quadrature error -- +2.57e-07 relative at these 400 nodes -- and dividing
+    ## a Simpson numerator by an exact denominator puts that error straight into the answer, giving eta a FLOOR
+    ## that is not physics: measured on H 2p, eta came out 5.97e-07 at 3 K where the T^2 law demands 3.4e-07, and
+    ## the 3 K -> 10 K ratio was 6.8 against the required 11.1.  Sharing the quadrature makes alphaEff an exact
+    ## weighted average of alpha_0 over the nodes, so it is EXACTLY alpha_0 for a flat polarizability and eta
+    ## measures the dynamic departure alone.  Do not "simplify" this back to pi^4/15.
+    h = xMax/nPoints;      wa = 0.0;      wb = 0.0
     for  i = 0:nPoints
         x  = i*h
-        fx = x == 0.0 ? 0.0 :
-             x^3 / (exp(x) - 1.0) *
-             sum( strengths[k] * MultipolePolarizibility.frequencyFactor(energies[k], T*x, false)
-                  for k = 1:length(strengths) )
-        wa = wa + ((i == 0 || i == nPoints) ? 1.0 : (isodd(i) ? 4.0 : 2.0)) * fx
+        gx = x == 0.0 ? 0.0 : x^3 / (exp(x) - 1.0)
+        w  = (i == 0 || i == nPoints) ? 1.0 : (isodd(i) ? 4.0 : 2.0)
+        wa = wa + w * gx * sum( strengths[k] * MultipolePolarizibility.frequencyFactor(energies[k], T*x, false)
+                                for k = 1:length(strengths) )
+        wb = wb + w * gx
     end
-    alphaEff = (h/3.0 * wa) / (pi^4/15.0)
+    alphaEff = wa / wb                    ## the h/3 of the Simpson rule cancels in the ratio
     shift    = -0.5 * StarkShift.blackbodyFieldSquare(temperature) * alphaEff
 
     return( (EmProperty(shift, shift), alphaEff/alpha0 - 1.0) )

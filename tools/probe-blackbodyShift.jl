@@ -19,8 +19,11 @@
 #         Distribution.photonNumberDensity(Distribution.PhotonPlanck(T), omega), which is what fixes the Planck
 #         normalisation used in the module.  THE 300 K VALUE IS A COMPLETE EXTERNAL ANCHOR and costs nothing to
 #         check, because no atomic quantity enters it -- only the fine-structure constant does.
-# CASE B  THE DYNAMIC CORRECTION eta on the approved H 1s case, at three temperatures, both by an independent
-#         quadrature written out here and through StarkShift.computeBlackbodyShift.  eta must grow as T^2.
+# CASE B  THE DYNAMIC CORRECTION eta on the approved H 1s case, at three temperatures, three ways:  the module's
+#         RECONSTRUCTION of alpha_0(omega) from the stored reduced matrix elements against a full sum-over-states
+#         evaluation at the same frequency (that reconstruction is the module's whole efficiency trick, so it is
+#         worth checking on its own);  the shift by a CONVERGED independent quadrature written out here at 20000
+#         nodes, where the Simpson error is 1.4e-14 and the analytic pi^4/15 may safely be used;  and eta's T^2 law.
 # CASE C  THE RESONANCE GUARD.  It must stay silent for a low-lying level at room temperature and speak when
 #         the Planck spectrum reaches the level's own excitation energies.
 #
@@ -31,13 +34,25 @@
 #            shift for a level of alpha_0 = 1 a.u. is -0.008611 Hz at 300 K, and -(1/2)<E^2> and
 #            -(2/15)(alpha_fs pi)^3 T^4 agree to all six printed digits, as they must, being the same expression.
 #   CASE B   H 1s, perturbers 2p/3p/4p in the nuclear field (the approved case, alpha_0 = 3.491829):
-#                 300 K   DeltaE = -0.030072 Hz     eta = +1.153e-04
-#                1000 K   DeltaE = -3.716979 Hz     eta = +1.282e-03
-#                3000 K   DeltaE = -304.241942 Hz   eta = +1.181e-02
-#            The module reproduces the independent quadrature DIGIT FOR DIGIT at all three.  And eta follows T^2
-#            to three digits -- 1.153e-04 * (10/3)^2 = 1.28e-03 against the measured 1.282e-03 -- which is what
-#            it must do, since eta is first order in <omega^2>/dE^2 and <omega^2> goes as T^2.  That is the
-#            check that the WEIGHT in the quadrature is right and not merely its normalisation.
+#                 300 K   DeltaE = -0.030072 Hz     eta = +1.151e-04
+#                1000 K   DeltaE = -3.716978 Hz     eta = +1.282e-03
+#                3000 K   DeltaE = -304.241864 Hz   eta = +1.181e-02
+#            against the converged independent quadrature, which agrees to all printed digits of the shift.  eta
+#            follows T^2, which is the check that the WEIGHT in the quadrature is right and not merely its
+#            normalisation:  eta is first order in <omega^2>/dE^2 and <omega^2> goes as T^2.
+#
+#   AND THAT T^2 LAW IS WHAT FOUND A REAL DEFECT, 20-Oct-2026, which is recorded here because it is the kind of
+#   thing that gets tidied back.  The first version divided a SIMPSON numerator by the ANALYTIC pi^4/15.  Those
+#   differ by the quadrature error -- measured +2.566e-07 relative at 400 nodes over [0,40] -- and that error
+#   went straight into the answer, giving eta a FLOOR of 2.6e-07 that was not physics at all:  on H 2p, eta came
+#   out 5.97e-07 at 3 K where the law demands 3.4e-07, and the 3 K -> 10 K ratio was 6.8 against the required
+#   11.1.  Normalising the weight by ITS OWN quadrature on the SAME nodes makes alpha_eff an exact weighted
+#   average of alpha_0 over those nodes -- hence exactly alpha_0 for a flat polarizability -- and the floor is
+#   gone:  on H 2p the ratios are now 9.000, 11.111, 9.001, 11.120, 9.062 at 1/3/10/30/100/300 K against the
+#   exact 9, 11.111, 9, 11.111, 9, holding from eta = 3.8e-08 upwards over two and a half decades.
+#   THE LIMIT ALONE WOULD NOT HAVE FOUND IT.  A floor of 2.6e-07 looks like a converged zero;  it is the SCALING
+#   that exposes it, which is the general lesson -- a check on how a quantity VARIES is sharper than a check on
+#   one of its values.
 #   CASE C   silent at 300 K.  At 50000 K (kT = 0.158 a.u. against a lowest excitation energy of 0.375 a.u.) it
 #            reports 74.4 % of the Planck weight above that energy and the nearest quadrature point 1.34 % away
 #            from it, and says the number must not be quoted.  eta there is -8.97e-01, i.e. the "correction" has
@@ -79,22 +94,39 @@ function fieldSquareByQuadrature(temperature::Float64; nx::Int64=4000, xMax::Flo
 end
 
 
-# the black-body shift by an INDEPENDENT quadrature, taking alpha_0(omega) from the module one point at a time
+# the per-perturber strengths and energies, extracted here rather than taken from the module, so that the
+# reconstruction the module relies on can be checked against a full sum-over-states evaluation
+function pieces(level::Level, gMultiplet::Multiplet, grid::Radial.Grid)
+    _, cs = redirect_stdout(devnull) do
+        MP.computeMultipolePolarizabilities(E1, level, gMultiplet, grid)   end
+    strengths = [ MP.rankCoefficient(1, 0, level.J, c.nuLevel.J) * abs2(c.reducedMe)  for c in cs ]
+    energies  = [ -c.deltaE  for c in cs ]
+
+    return( (strengths, energies) )
+end
+
+
+alphaRebuilt(strengths, energies, omega) =
+    sum( strengths[k] * MP.frequencyFactor(energies[k], omega, false)  for k = 1:length(strengths) )
+
+
+# the black-body shift by a CONVERGED independent quadrature:  20000 nodes, where the Simpson error on
+# int x^3/(exp(x)-1) dx is 1.4e-14, so the ANALYTIC pi^4/15 may be used as the normalisation without the
+# floor that 400 nodes would introduce -- which is the whole point of doing it differently here
 function shiftByQuadrature(level::Level, gMultiplet::Multiplet, grid::Radial.Grid, temperature::Float64;
-                           nx::Int64=400, xMax::Float64=40.0)
-    T  = Defaults.convertUnits("temperature: from Kelvin to (Hartree) units", temperature)
-    a0 = om -> redirect_stdout(devnull) do
-             alphas, _ = MP.computeMultipolePolarizabilities(E1, level, gMultiplet, grid; omega=om)
-             alphas[1][2].Babushkin   end
-    h  = xMax/nx;    wa = 0.0
+                           nx::Int64=20000, xMax::Float64=40.0)
+    T = Defaults.convertUnits("temperature: from Kelvin to (Hartree) units", temperature)
+    strengths, energies = pieces(level, gMultiplet, grid)
+    h = xMax/nx;    wa = 0.0
     for  i = 0:nx
         x  = i*h
-        fx = x == 0.0 ? 0.0 : x^3 * a0(T*x) / (exp(x) - 1.0)
+        fx = x == 0.0 ? 0.0 : x^3 * alphaRebuilt(strengths, energies, T*x) / (exp(x) - 1.0)
         wa = wa + ((i == 0 || i == nx) ? 1.0 : (isodd(i) ? 4.0 : 2.0)) * fx
     end
     alphaEff = (h/3.0 * wa) / (pi^4/15.0)
 
-    return( (-0.5 * SS.blackbodyFieldSquare(temperature) * alphaEff, alphaEff/a0(0.0) - 1.0) )
+    return( (-0.5 * SS.blackbodyFieldSquare(temperature) * alphaEff,
+             alphaEff/alphaRebuilt(strengths, energies, 0.0) - 1.0) )
 end
 
 
@@ -135,7 +167,19 @@ end
 
 
 function caseB(lev, gMp, grid)
-    println("\nCASE B   THE DYNAMIC CORRECTION eta on the approved H 1s case, by two independent quadratures.")
+    println("\nCASE B   THE RECONSTRUCTION, then eta by two independent quadratures.")
+    println("\n   alpha_0(omega) rebuilt from the stored reduced matrix elements, against a full sum-over-states")
+    println("   evaluation at the same frequency.  That reconstruction is what lets the quadrature be arithmetic:")
+    strengths, energies = pieces(lev, gMp, grid)
+    @printf("\n   %-12s %-22s %-22s %-12s\n", "omega [a.u.]", "rebuilt", "full sum over states", "rel. diff")
+    for  om in [0.0, 1.0e-3, 1.0e-2, 0.1, 0.3]
+        reb  = alphaRebuilt(strengths, energies, om)
+        full = redirect_stdout(devnull) do
+            aw, _ = MP.computeMultipolePolarizabilities(E1, lev, gMp, grid; omega=om)
+            aw[1][2].Babushkin   end
+        @printf("   %-12.4f %-22.14e %-22.14e %-12.2e\n", om, reb, full, abs(reb/full - 1.0))
+    end
+    println()
     @printf("\n   %-10s %-20s %-14s %-20s %-14s\n", "T [K]", "DeltaE module [Hz]", "eta module",
             "DeltaE probe [Hz]", "eta probe")
     etas = Float64[]
