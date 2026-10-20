@@ -7,9 +7,10 @@ println("Cq) Multipole polarizabilities alpha^(Mp,K) at real and imaginary frequ
 ## quantities;  here they are alpha^(E1,2) and alpha^(E2,0) and cannot be confused.  alpha^(E1,0) and
 ## alpha^(E1,2) are the alpha_0 and alpha_2 of Angel & Sandars.
 ##
-## NONE OF THE FIVE BRANCHES BELOW CARRIES A `Last successful` DATE, and that is deliberate (Rule 7): the
-## numbers quoted on each branch's claim line were produced on 19-Oct-2026 and are reproduced by it, but the
-## physical judgement that earns that date is the maintainer's and is not machine-writable.
+## OF THE SIX BRANCHES BELOW, ONLY (c) CARRIES A `Last successful` DATE, and the rest say `unknown` on
+## purpose (Rule 7): every branch's claim line quotes numbers that the branch reproduces, but the physical
+## judgement that earns the date is the maintainer's and is not machine-writable. A blank date here is a
+## statement that nobody has judged the physics yet, not that the branch failed.
 
 if  false
     # Last visit:  19-Oct-2026
@@ -107,7 +108,7 @@ elseif false
     println(">> the omega = 0.60 entry lies ABOVE the first resonance at 0.375 a.u. and is therefore the real")
     println(">> part of a complex quantity;  the warning printed above is the point of including it.")
     #
-elseif true
+elseif false
     # Last visit:  19-Oct-2026
     # Last reproduced:  19-Oct-2026 (3 of 3 numbers on the claim line)
     # Last successful:  19-Oct-2026   ## alpha^(E1,0) 4.4997514334 and C_6 6.4983890995 a.u., at 1.4e-8 and
@@ -269,5 +270,114 @@ elseif false
                     [DispersionCoefficient.multipoleTerms(E1, p32, gmx, grid)])
     DispersionCoefficient.computeCoefficient(6, excited, excited)
     println(">> IF THIS LINE IS REACHED THE GUARD IS BROKEN -- the call above must have raised.")
+    #
+elseif true
+    # Last visit:  20-Oct-2026
+    # Last successful:  unknown ... (Rule 7: the conductor limit is checked against an EXACT 1/4 that needs no
+    #   literature, and the three limits and the per-pole factor are algebra, but the silica-like number itself
+    #   has no published counterpart -- so the judgement, and the date, are the maintainer's)
+    #
+    #   CLAIM, 20-Oct-2026:  H(1s) with np n = 2..16 on a 64 a.u. box, eps(0) = 3.9 throughout.
+    #       THROUGH `perform`:  C_6 = 6.49838910e+00 a.u., the same number branch d anchors against the published
+    #           Dirac value, and against a silica-like wall (w_0 = 10 eV = 0.3675 a.u., hence Omega = 0.5752 a.u.)
+    #           C_3 = 8.18504949e-02 a.u.;
+    #       THE THREE LIMITS:  w_0 -> Inf gives 0.14795245571963425, BIT-IDENTICAL to the constant-eps value, so
+    #           the new path does not disturb the old one;  eps(0) -> Inf gives 0.2499886320780027 against the
+    #           EXACT 1/4, a ratio of 0.999955 which is the perturber set and not the wall;  and w_0 = 1e-6 gives
+    #           5.2105e-07, falling LINEARLY in w_0 toward zero;
+    #       WHAT THE RESONANCE COSTS, C_3(w_0)/C_3(const eps):  0.203400 (2 eV), 0.386166 (5), 0.553222 (10),
+    #           0.708593 (20), 0.856002 (50), 0.958810 (200 eV) -- so at the silica-like 10 eV the static
+    #           dielectric constant alone OVERSTATES C_3 by 81 %, and only by 200 eV is the limit nearly reached;
+    #       and eps(0) = 0.5 RAISES.
+    #       Every figure agrees with tools/probe-dielectricWall.jl to better than 1e-8 by an independent route --
+    #           that probe calls the coefficient directly, this branch arrives through perform.
+    # Branch f: A WALL THAT HAS A RESONANCE, and the point of the branch is that it still needs NO QUADRATURE.
+    #   Added 20-Oct-2026 as DispersionCoefficient.Settings.wallResonance;  this is also the only branch in this
+    #   file that goes through `perform`, so it exercises the whole user-facing path -- computeOutcomes, the
+    #   ground-level guard, the new wall guard and displayResults -- where branch d calls computeOutcome directly.
+    #
+    #   WHY THERE IS NO INTEGRAL TO DO.  The atom-wall coefficient is
+    #
+    #       C_3 = (1/4 pi) int_0^inf alpha^(E1,0)(i w) r(i w) dw
+    #
+    #   and ONE Lorentz oscillator, eps(i w) = 1 + w_p^2/(w_0^2 + w^2), has
+    #
+    #       r(i w) = (eps-1)/(eps+1) = R/(Omega^2 + w^2),    R = w_p^2/2,   Omega^2 = w_0^2 + w_p^2/2
+    #
+    #   which is the SAME single-pole shape as one polarizability term.  Since
+    #   int_0^inf dw/((a^2+w^2)(b^2+w^2)) = pi/(2ab(a+b)), the whole thing collapses to a double sum,
+    #
+    #       C_3 = (R/8) sum_a A_a / [Omega (dE_a + Omega)],   Omega = w_0 sqrt((eps(0)+1)/2),
+    #                                                         R     = (eps(0)-1) w_0^2/2
+    #
+    #   so the frequency dependence of a real dielectric costs exactly nothing beyond the static case.  That is
+    #   the same reason C_6, C_8 and C_10 need no quadrature in branch d, applied to the wall instead of to the
+    #   second atom.  `DispersionCoefficient.wallReflectionPole` is the one line that turns (eps(0), w_0) into
+    #   (R, Omega).
+    #
+    #   AND IT SHOWS THE CONSTANT-eps OPTION TO BE A LIMIT RATHER THAN A MODEL.  Scaling C_3 by (eps-1)/(eps+1),
+    #   which is what this module shipped first, is the Omega >> dE case -- a wall whose charges respond
+    #   INSTANTANEOUSLY on the atom's own frequency scale -- and its error is one factor per pole, exactly
+    #   1 + dE_a/Omega.  For a silica-like wall that is not a small correction, as the scan below shows.
+    #
+    #   THREE LIMITS, EACH A PHYSICAL WALL, and the third is the one worth pausing on:
+    #       w_0 -> Inf      the instantaneous-response limit, i.e. the constant-eps answer;
+    #       eps(0) -> Inf   a perfect conductor, reflecting fully at EVERY frequency, so no resonance can enter;
+    #       w_0 -> 0        ZERO -- a wall whose charges cannot follow the atom does not reflect at the
+    #                       frequencies that carry C_3, which is why a wall is not characterised by eps(0) alone.
+    #
+    #   THE BOX IS 64 a.u. AND THAT IS DELIBERATELY SMALL -- see branch c.  C_3 is the quantity a poor perturber
+    #   set damages FIRST, because its sum carries no energy denominator at all, so the saturation report printed
+    #   below is the first thing to read.
+    nm   = Nuclear.Model(1., PointNucleus())
+    asf  = AsfSettings(AsfSettings(); gridStopper=false)
+    grid = Radial.Grid(Radial.Grid(true); rbox = 64.0)
+    eV   = Defaults.convertUnits("energy: from eV to atomic", 1.0)
+
+    confs = [Configuration("$(n)p")  for n = 2:16]
+    gm    = perform(Atomic.Computation(Atomic.Computation(), name="H np perturbers", grid=grid, nuclearModel=nm,
+                    configs=confs, asfSettings=asf); output=true)[ResultKeys.Multiplet]
+
+    ## the user-facing route:  the wall is two numbers on the Settings and C_3 comes back on the Outcome
+    set = DispersionCoefficient.Settings(DispersionCoefficient.Settings(); orders=[6], multipoles=[E1],
+                     calcAtomWall=true, wallDielectric=3.9, wallResonance=10.0*eV, gMultiplet=gm)
+    wa  = Atomic.Computation(Atomic.Computation(), name="H(1s) against a silica-like wall", grid=grid,
+                     nuclearModel=nm, configs=[Configuration("1s")], propertySettings=[set], asfSettings=asf)
+    oc  = perform(wa; output=true)[DispersionCoefficient.Settings][1]
+
+    ## everything else is arithmetic on the terms that one computation already produced -- no further SCF
+    partner = oc.partnerA
+    cConst  = DispersionCoefficient.computeAtomWallCoefficient(partner, 3.9)
+    println("\n>> ===== the three limits =====")
+    println(">>   w_0 -> Inf   (instantaneous response) = " *
+            "$(DispersionCoefficient.computeAtomWallCoefficient(partner, 3.9, Inf))" *
+            "   against the constant-eps $cConst")
+    println(">>   eps(0) -> Inf (perfect conductor)     = " *
+            "$(DispersionCoefficient.computeAtomWallCoefficient(partner, Inf, 10.0*eV))" *
+            "   against the EXACT 0.25")
+    println(">>   w_0 -> 0     (charges cannot follow)  = " *
+            "$(DispersionCoefficient.computeAtomWallCoefficient(partner, 3.9, 1.0e-6))" *
+            "   which must fall to zero like w_0")
+
+    println("\n>> ===== what the resonance costs:  eps(0) = 3.9 throughout =====")
+    println(">>   w_0 [eV]    Omega [a.u.]      C_3(w_0)             C_3(const eps)       ratio")
+    for  w0eV  in  (2.0, 5.0, 10.0, 20.0, 50.0, 200.0)
+        c3 = DispersionCoefficient.computeAtomWallCoefficient(partner, 3.9, w0eV*eV)
+        Om = DispersionCoefficient.wallReflectionPole(3.9, w0eV*eV)[2]
+        println(@sprintf(">>   %-11.1f %-17.6f %-20.12f %-20.12f %.6f", w0eV, Om, c3, cConst, c3/cConst))
+    end
+    println(">>   the ratio is the per-pole factor 1/(1 + dE_a/Omega) averaged over the set;  H(1s) -> 2p sits " *
+            "at dE = 0.375 a.u., so a wall whose Omega is comparable to that is nowhere near the limit.")
+
+    ## and the guard, which now runs BEFORE any perturber set is built
+    println("\n>> ===== the guard =====")
+    try
+        DispersionCoefficient.checkWall( DispersionCoefficient.Settings(DispersionCoefficient.Settings();
+                                         calcAtomWall=true, wallDielectric=0.5) )
+        println(">>   eps(0) = 0.5 was ACCEPTED -- the guard is broken;  (eps-1)/(eps+1) is negative there.")
+    catch
+        println(">>   eps(0) = 0.5 raised, as it must:  no dielectric has a negative reflection factor, and the " *
+                "refusal arrives before the first perturber set is built rather than after it.")
+    end
     #
 end
