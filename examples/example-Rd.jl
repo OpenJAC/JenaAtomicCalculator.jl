@@ -163,7 +163,7 @@ elseif  false
     println(fm)
     println("\n>>> source: ", fm.source)
     #
-elseif  true
+elseif  false
     # Last visit:  20-Oct-2026
     # Last successful:  15-Oct-2026 -- VERIFIED AS A MECHANISM DEMONSTRATION, not as a close numerical match;
     #   see the branch's own text for exactly what is and is not being claimed.
@@ -220,5 +220,105 @@ elseif  true
     println("\n>>> Report BOTH blocks together, since neither alone tells the honest story:")
     println(">>> J=2: ", fmOrtho2.source, " -- ", round(fmSingle2.rmsDeviation/fmOrtho2.rmsDeviation, digits=1), "x improvement")
     println(">>> J=4: ", fmOrtho4.source, " -- consistent, smaller-in-absolute-terms residual, same relative size")
+    #
+elseif  false
+    # Last successful:  21-Oct-2026   ## 10 classes (F^0/F^2/F^4/F^6/G^2/G^4/G^6/R^2/R^4/R^6, all (4f,4f)),
+    #                                    2 targets, degreesOfFreedom = -8; orthogonal rms = 79.0 cm^-1 against
+    #                                    the single-factor route's 1953.7 cm^-1 (24.7x) -- see the branch's own
+    #                                    text for what this is and is not claiming.
+    #
+    # Branch e: THE OVERFITTING GUARD, on Pr IV's OWN J=2 block (competition-list item C1's remainder --
+    #   Cowan's separated F^k/G^k/R^k classes, see AdjustedLevels.twoBodyParameterClass). Once the two
+    #   relativistic j-partners of 4f (4f_5/2, 4f_7/2) are told apart from each other by TYPE as well as by
+    #   rank, a SINGLE open shell no longer gives one class per rank -- it gives TEN: direct F^0/F^2/F^4/F^6,
+    #   exchange G^2/G^4/G^6, and configuration-interaction R^2/R^4/R^6, all still labelled "(4f,4f)" since
+    #   both j-partners share one Cowan-style shell parameter (see that function's own docstring for why).
+    #
+    # TEN classes against the SAME TWO measured levels this file's branch d already uses is a textbook
+    #   underdetermined fit -- degreesOfFreedom = -8, and AdjustedLevels.FittedMultipletOrthogonal's own
+    #   Base.show prints the warning unprompted. THIS IS NOT A FAILURE OF THE MODULE: the richer model still
+    #   finds a materially better rms than the single uniform factor (79.0 against 1953.7 cm^-1, nested-model
+    #   guarantee holds), and the SVD's own determinacy cutoff protects any one class from being amplified
+    #   past what two numbers can support. What the guard actually buys is honesty: nobody should quote any
+    #   ONE of these ten numbers as "the" fitted 4f spin-orbit or Slater parameter from this run alone -- read
+    #   each one's own `determinacy` first. See Branch f for what pooling a second block does to this guard.
+    #
+    # NIST ASD (L3974): 4f^2 3H4 = 0 (ground), 3F2 = 0.619501 eV, 1D2 = 2.149190 eV, 3P2 = 2.871550 eV.
+    ni      = Nuclear.Model(59.)
+    configs = [Configuration("[Xe] 4f^2")]
+    grid    = Basics.recommendedGrid(configs, ni)                 ## Rule 12: the automatic bare grid is WRONG here
+    asfSettings = AsfSettings()                                   ## (614 vs the needed ~11 a.u.) -- always use this for Pr IV.
+    wb    = SelfConsistent.performSCF(configs, ni, grid, asfSettings; printout=false)
+    basis = wb.levels[1].basis
+    ev_to_cm = Defaults.convertUnits("energy: from atomic to Kayser", 1.0) / Defaults.convertUnits("energy: from atomic to eV", 1.0)
+
+    sym2 = LevelSymmetry(AngularJ64(2), Basics.plus)
+    target_1D2 = (2.149190 - 0.619501) * ev_to_cm
+    target_3P2 = (2.871550 - 0.619501) * ev_to_cm
+
+    fmSingleE = AdjustedLevels.fitScaleFactor(sym2, basis, ni, grid, [(2, target_1D2), (3, target_3P2)],
+                      "NIST ASD (L3974): Pr IV 4f2 J=2, 3F2/1D2/3P2"; scaleBounds=(0.5,1.3))
+    fmOrthoE  = AdjustedLevels.fitOrthogonalParameters(sym2, basis, ni, grid, [(2, target_1D2), (3, target_3P2)],
+                      "NIST ASD (L3974): Pr IV 4f2 J=2, 3F2/1D2/3P2")
+
+    println(fmOrthoE)
+    @printf("\n>>> classes discovered: %d   (all ten are listed above, by AdjustedLevels.twoBodyParameterClass)\n",
+            length(fmOrthoE.radialParameters))
+    @printf(">>> single-factor rms = %8.1f cm^-1\n", fmSingleE.rmsDeviation)
+    @printf(">>> orthogonal    rms = %8.1f cm^-1   (%.1fx improvement, nested-model guarantee holds)\n",
+            fmOrthoE.rmsDeviation, fmSingleE.rmsDeviation/fmOrthoE.rmsDeviation)
+    @printf(">>> degrees of freedom = %d   (negative -- read this result through 'determinacy', not in isolation)\n",
+            fmOrthoE.degreesOfFreedom)
+    #
+elseif  true
+    # Last successful:  21-Oct-2026   ## pooled J=2+J=4, SAME 10 global classes, 4 targets, degreesOfFreedom
+    #                                    improves from -8 (either block alone) to -6; combined orthogonal rms
+    #                                    = 125.2 cm^-1, still far below the unscaled ab initio residual.
+    #
+    # Branch f: MULTI-BLOCK FITTING -- the other half of item C1's remainder, and the reason the class
+    #   separation in Branch e is worth having at all rather than merely correct. An `F^2(4f,4f)` class means
+    #   the SAME physical radial integral in Pr IV's J=2 block as in its J=4 block (both come from the SAME
+    #   4f^2 reference), so AdjustedLevels.fitOrthogonalParametersMultiBlock fits ONE shared parameter set
+    #   against BOTH blocks' measured levels SIMULTANEOUSLY -- exactly Cowan's own standard practice (fit
+    #   across every symmetry a reference configuration touches, not one block at a time), which this module
+    #   could not do before tonight.
+    #
+    # THE HONEST READING, stated plainly rather than oversold: pooling turns Branch e's degreesOfFreedom = -8
+    #   into -6 here (4 targets now, against the SAME 10 global classes) -- measurably better, STILL
+    #   negative. An f-shell open to BOTH its relativistic j-partners simply has more independent Slater
+    #   classes than a two-level, two-block literature case can pin down on its own. That is not a defect in
+    #   this fit; it is exactly the standard RCE caveat competition-list item C1 names, made visible rather
+    #   than hidden -- and it is precisely why Cowan's own practice ties F^2/F^4/F^6 (etc.) into ONE scaled
+    #   group rather than fitting each independently, a further simplification this module does not yet
+    #   offer and is not pretending to.
+    #
+    # NIST ASD (L3974): 4f^2 3H4 = 0 (ground), 3F2 = 0.619501 eV, 1D2 = 2.149190 eV, 3P2 = 2.871550 eV,
+    #                    3F4 = 0.849881 eV, 1G4 = 1.230077 eV.
+    ni      = Nuclear.Model(59.)
+    configs = [Configuration("[Xe] 4f^2")]
+    grid    = Basics.recommendedGrid(configs, ni)                 ## Rule 12: the automatic bare grid is WRONG here
+    asfSettings = AsfSettings()                                   ## (614 vs the needed ~11 a.u.) -- always use this for Pr IV.
+    wb    = SelfConsistent.performSCF(configs, ni, grid, asfSettings; printout=false)
+    basis = wb.levels[1].basis
+    ev_to_cm = Defaults.convertUnits("energy: from atomic to Kayser", 1.0) / Defaults.convertUnits("energy: from atomic to eV", 1.0)
+
+    sym2 = LevelSymmetry(AngularJ64(2), Basics.plus)
+    target_1D2 = (2.149190 - 0.619501) * ev_to_cm
+    target_3P2 = (2.871550 - 0.619501) * ev_to_cm
+    sym4 = LevelSymmetry(AngularJ64(4), Basics.plus)
+    target_3F4 = 0.849881 * ev_to_cm
+    target_1G4 = 1.230077 * ev_to_cm
+
+    blocks = [ (sym2, [(2, target_1D2), (3, target_3P2)]), (sym4, [(2, target_3F4), (3, target_1G4)]) ]
+    fmMulti = AdjustedLevels.fitOrthogonalParametersMultiBlock(blocks, basis, ni, grid,
+                      "NIST ASD (L3974): Pr IV 4f2, J=2 (3F2/1D2/3P2) and J=4 (3H4/3F4/1G4) pooled")
+    println(fmMulti)
+
+    @printf("\n>>> pooled rms = %8.1f cm^-1  across %d block(s), %d target(s), %d GLOBAL class(es)\n",
+            fmMulti.rmsDeviation, length(fmMulti.blocks), sum(length(b.fitTargets) for b in fmMulti.blocks),
+            length(fmMulti.radialParameters))
+    @printf(">>> degrees of freedom = %d   (improved from Branch e's -8 by pooling, still negative)\n",
+            fmMulti.degreesOfFreedom)
+    println(">>> source: NIST ASD (L3974), Pr IV 4f2 J=2 and J=4 together")
     #
 end

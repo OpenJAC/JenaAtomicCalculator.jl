@@ -1510,12 +1510,22 @@ end
         different J^P block the fit never touches), must keep that other block's levels unchanged, replace
         only the fitted block's levels, and return exactly as many levels as the ab initio multiplet it started
         from; (iv) the SECOND, orthogonal route, on a richer He-like C V 2p-3d J=2(odd) block (4 CSFs, several
-        multipole ranks): AdjustedLevels.buildParameterMatrices's rank-separated matrices must SUM to exactly
-        the same two-body matrix AdjustedLevels.buildOneAndTwoBodyMatrices builds in one lump (the same
-        faithfulness check as (i), one level up); and against targets whose SHAPE a single uniform factor
+        F^k/G^k/R^k classes, see AdjustedLevels.twoBodyParameterClass): reconstructing the FULL CI matrix as
+        oneBody + (the SUM of every discovered class's own matrix) must reproduce
+        AdjustedLevels.buildOneAndTwoBodyMatrices' own (oneBody+twoBody) EXACTLY -- the faithfulness check of
+        (i), one level up, now allowing for classes AdjustedLevels.buildParameterMatrices folds into oneBody
+        itself (a closed subshell, or a class that is a multiple of the identity on this block, neither of
+        which any splitting could ever determine); and against targets whose SHAPE a single uniform factor
         cannot reproduce, AdjustedLevels.fitOrthogonalParameters must achieve a materially smaller rms
         deviation than AdjustedLevels.fitScaleFactor on the SAME targets -- the mechanical version of the
-        "power" this route exists for. A success::Bool is returned.
+        "power" this route exists for; (v) THE OVERFITTING GUARD: this same richer block has more discovered
+        classes than fit targets, so `degreesOfFreedom` must be negative and the warning naming it must
+        appear in `Base.show`'s own output; (vi) AdjustedLevels.fitOrthogonalParametersMultiBlock, pooling
+        THIS J=2 block with an independent J=1(odd) block of the SAME basis: the returned radial parameters
+        are GLOBAL (one shared value per class, not one per block), the combined rms must be finite and no
+        worse than either block's own single-factor rms, and AdjustedLevels.mergeIntoMultiplet for the
+        multi-block result must replace exactly the two fitted blocks and return the ab initio multiplet's
+        own total level count. A success::Bool is returned.
 """
 function testModule_AdjustedLevels(; short::Bool=true)
     printstyled("\n\nTest the module  AdjustedLevels  ... \n", color=:cyan)
@@ -1565,16 +1575,26 @@ function testModule_AdjustedLevels(; short::Bool=true)
         success = false;   println("  ** mergeIntoMultiplet changed a level in a symmetry block the fit never touched")
     end
 
-    # (iv) The orthogonal route: a richer block (He-like C V, 2p-3d, J=2 odd -- 4 CSFs, several multipole ranks).
+    # (iv) The orthogonal route: a richer block (He-like C V, 2p-3d, J=2 odd -- 4 CSFs, several F^k/G^k/R^k classes).
     wb3    = SelfConsistent.performSCF([Configuration("2p 3d")], ni, grid, asfSettings; printout=false)
     basis3 = wb3.levels[1].basis
     sym3   = LevelSymmetry(AngularJ64(2), Basics.minus)
 
     idxCsf3, oneBody3, classes3, matrices3 = AdjustedLevels.buildParameterMatrices(sym3, basis3, ni, grid)
     idxCsf3b, oneBody3b, twoBody3b         = AdjustedLevels.buildOneAndTwoBodyMatrices(sym3, basis3, ni, grid)
-    lumped3 = zeros(Float64, length(idxCsf3), length(idxCsf3));   for  mtx in matrices3   lumped3 .+= mtx   end
-    if  maximum(abs.(lumped3 .- twoBody3b)) > 1.0e-8
-        success = false;   println("  ** buildParameterMatrices' rank-separated matrices do NOT sum to buildOneAndTwoBodyMatrices' twoBody")
+    lumped3   = zeros(Float64, length(idxCsf3), length(idxCsf3));   for  mtx in matrices3   lumped3 .+= mtx   end
+    totalNew3 = oneBody3  .+ lumped3
+    totalOld3 = oneBody3b .+ twoBody3b
+    if  maximum(abs.(totalNew3 .- totalOld3)) > 1.0e-8
+        success = false
+        println("  ** buildParameterMatrices' reconstruction (oneBody + every class) does NOT match " *
+                 "buildOneAndTwoBodyMatrices' own (oneBody+twoBody)")
+    end
+    if  !any(startswith(cl, "F^") for cl in classes3)   ||   !any(startswith(cl, "G^") for cl in classes3)
+        success = false;   println("  ** 2p-3d (a genuine two-shell-pair case) did not separate into BOTH F^ and G^ classes")
+    end
+    if  length(classes3) > 20
+        success = false;   println("  ** class count exploded ($(length(classes3))) -- closed-shell/identity folding is not working")
     end
 
     eig3  = Hamiltonian.diagonalizeCiMatrix(oneBody3b .+ twoBody3b, LevelSelection())
@@ -1594,6 +1614,57 @@ function testModule_AdjustedLevels(; short::Bool=true)
     combined3 = AdjustedLevels.mergeIntoMultiplet(fmOrtho3, abInitio3)
     if  length(combined3.levels) != length(abInitio3.levels)
         success = false;   println("  ** mergeIntoMultiplet (orthogonal route) changed the total number of levels")
+    end
+
+    # (v) THE OVERFITTING GUARD: more classes (length(classes3)) than targets (3) here, so dof must be negative
+    # and Base.show must say so -- this is the thing that stops a fitted class value from being read in
+    # isolation as if it were independently confirmed.
+    if  fmOrtho3.degreesOfFreedom != length(targets3) - length(fmOrtho3.radialParameters)
+        success = false;   println("  ** degreesOfFreedom is not length(fitTargets) - length(radialParameters)")
+    end
+    if  fmOrtho3.degreesOfFreedom >= 0
+        success = false;   println("  ** this richer block has more classes than targets, yet degreesOfFreedom >= 0")
+    end
+    if  !occursin("WARNING", sprint(show, fmOrtho3))
+        success = false;   println("  ** Base.show did not print the overfitting-guard WARNING for a non-positive degreesOfFreedom")
+    end
+
+    # (vi) Multi-block fitting: pool THIS J=2(odd) block with an INDEPENDENT J=1(odd) block of the SAME basis --
+    # one shared (GLOBAL) parameter set determined from both together.
+    sym1 = LevelSymmetry(AngularJ64(1), Basics.minus)
+    idxCsf1, oneBody1, twoBody1 = AdjustedLevels.buildOneAndTwoBodyMatrices(sym1, basis3, ni, grid)
+    eig1b = Hamiltonian.diagonalizeCiMatrix(oneBody1 .+ twoBody1, LevelSelection())
+    rel1  = (sort(eig1b.values) .- sort(eig1b.values)[1]) ./ auPerKayser
+    targets1 = [ (2, rel1[2]*0.85), (3, rel1[3]*1.10) ]
+
+    fmMulti = AdjustedLevels.fitOrthogonalParametersMultiBlock(
+                  [ (sym3, targets3), (sym1, targets1) ], basis3, ni, grid, "test source" )
+    if  length(fmMulti.blocks) != 2
+        success = false;   println("  ** fitOrthogonalParametersMultiBlock did not return exactly 2 blocks")
+    end
+    if  !isfinite(fmMulti.rmsDeviation)
+        success = false;   println("  ** fitOrthogonalParametersMultiBlock's combined rms is not finite")
+    end
+    # Baseline: the UNSCALED (c=1, pure ab initio) combined rms against the same, deliberately-off targets --
+    # the one comparison that needs no assumption about what the fit COULD reach, only that it does better
+    # than not fitting at all.
+    function  combinedRmsAtC(c::Float64)
+        r3 = (sort(Hamiltonian.diagonalizeCiMatrix(oneBody3b .+ c.*twoBody3b, LevelSelection()).values)); r3 = (r3 .- r3[1]) ./ auPerKayser
+        r1 = (sort(Hamiltonian.diagonalizeCiMatrix(oneBody1  .+ c.*twoBody1,  LevelSelection()).values)); r1 = (r1 .- r1[1]) ./ auPerKayser
+        s = sum( (r3[idx]-m)^2 for (idx,m) in targets3 ) + sum( (r1[idx]-m)^2 for (idx,m) in targets1 )
+        return( sqrt(s/(length(targets3)+length(targets1))) )
+    end
+    baselineRms = combinedRmsAtC(1.0)
+    if  fmMulti.rmsDeviation > baselineRms
+        success = false
+        println("  ** pooled multi-block orthogonal fit is WORSE than the unscaled (c=1) ab initio baseline " *
+                 "($(fmMulti.rmsDeviation) against $(baselineRms) cm^-1)")
+    end
+
+    abInitio4 = Hamiltonian.performCI(basis3, ni, grid, asfSettings; printout=false)
+    combined4 = AdjustedLevels.mergeIntoMultiplet(fmMulti, abInitio4)
+    if  length(combined4.levels) != length(abInitio4.levels)
+        success = false;   println("  ** mergeIntoMultiplet (multi-block route) changed the total number of levels")
     end
 
     testPrint("testModule_AdjustedLevels()::", success)

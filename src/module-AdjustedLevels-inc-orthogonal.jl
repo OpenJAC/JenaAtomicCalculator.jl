@@ -3,10 +3,13 @@
 `struct  AdjustedLevels.RadialParameter`
     ... one fitted scaling parameter for ONE automatically-discovered integral class -- the sibling of
         `AdjustedLevels.ScalingParameter` for the orthogonal route: `fitScaleFactor` always returns exactly
-        one, uniform across every rank; `fitOrthogonalParameters` returns one PER multipole rank it finds
-        among this block's two-body coefficients (see `AdjustedLevels.buildParameterMatrices`).
+        one, uniform across every rank and every shell pair; `fitOrthogonalParameters` returns one PER
+        (operator type, shell pair, rank) class it finds among this block's two-body coefficients -- Cowan's
+        own F^k (direct)/G^k (exchange)/R^k (configuration-interaction) separation, not multipole rank alone
+        (see `AdjustedLevels.twoBodyParameterClass` and `AdjustedLevels.buildParameterMatrices`).
 
-    + parameterClass   ::String    ... which integral class this factor multiplies, e.g. "rank k=1".
+    + parameterClass   ::String    ... which integral class this factor multiplies, e.g. "F^2(4f,4f)" or
+                                        "G^2(2p,3d)" -- see `AdjustedLevels.twoBodyParameterClass`.
     + value             ::Float64  ... the fitted factor itself; NOT 1.0 by construction unless that class
                                         turned out to be exactly undetermined by the given targets.
 """
@@ -61,6 +64,17 @@ end
                                                                       measured, over the fit targets, in cm^-1,
                                                                       from the EXACT re-diagonalized spectrum
                                                                       (not the linearized estimate).
+    + degreesOfFreedom      ::Int64                             ... length(fitTargets) - length(radialParameters).
+                                                                      THE OVERFITTING GUARD: zero or negative
+                                                                      means every class was fit with no spare
+                                                                      data to check it against (zero) or more
+                                                                      classes than data at all (negative) --
+                                                                      a legitimate fit (the SVD cutoff still
+                                                                      protects an individual undetermined
+                                                                      direction) but not one whose per-class
+                                                                      values should be read as independently
+                                                                      confirmed. `fitOrthogonalParameters`
+                                                                      prints a warning when this is <= 0.
     + source                ::String                           ... a dated citation for the measured data used.
 """
 struct  FittedMultipletOrthogonal
@@ -69,6 +83,7 @@ struct  FittedMultipletOrthogonal
     orthogonalParameters     ::Array{OrthogonalParameter,1}
     fitTargets               ::Array{FitTarget,1}
     rmsDeviation              ::Float64
+    degreesOfFreedom          ::Int64
     source                    ::String
 end
 
@@ -91,7 +106,56 @@ function  Base.show(io::IO, fm::FittedMultipletOrthogonal)
         println(io, "  orthogonal $(op.label): shift = $(op.value), determinacy = $(op.determinacy)$flag")
     end
     println(io, "  fit against $(length(fm.fitTargets)) measured level(s), rms deviation = $(fm.rmsDeviation) cm^-1")
+    println(io, "  degrees of freedom: $(fm.degreesOfFreedom)")
+    fm.degreesOfFreedom <= 0   &&
+        println(io, "  WARNING: at or under the identifiability boundary -- read each class's own determinacy " *
+                     "before trusting its value in isolation.")
     println(io, "  multiplet: $(fm.multiplet.name), $(length(fm.multiplet.levels)) level(s)")
+end
+
+
+"""
+`AdjustedLevels.twoBodyParameterClass(a::Subshell, b::Subshell, c::Subshell, d::Subshell, nu::Int64)`
+    ... to classify ONE two-body coefficient `coeff.V * XL_Coulomb(nu, orbital[a], orbital[b], orbital[c],
+        orbital[d], ...)` into Cowan's own RCE integral classes, by the SHELL (n,l) of each involved orbital
+        -- not the (possibly split, j-dependent) subshell itself, so that a p_1/2/p_3/2 or f_5/2/f_7/2 pair
+        shares ONE parameter exactly as Cowan's nonrelativistic scheme does, rather than fitting a spin-orbit
+        splitting of the Slater parameter itself that nobody asks for. Three cases, read directly off which
+        subshells coincide (the same convention `SpinAngular.computeCoefficients` itself uses to build a
+        direct term as `(sha,shb,sha,shb)` and an exchange term as `(sha,shb,shb,sha)`):
+
+        - DIRECT, `a==c && b==d`: the density-density (F^k) term -- labelled `"F^k(shellA,shellB)"`, shells
+          sorted so the label does not depend on which orbital happened to be listed first.
+        - EXCHANGE, `a==d && b==c && a!=b`: the antisymmetrization (G^k) term -- `"G^k(shellA,shellB)"`,
+          shells sorted likewise; a==b falls through to the DIRECT case above instead (equivalent electrons
+          have no separate exchange term, exactly as `SpinAngular`'s own same-shell coefficient has none).
+        - OTHERWISE: a genuine configuration-interaction (R^k) term connecting two different orbital
+          occupations -- `"R^k(shellA,shellB;shellC,shellD)"`, canonicalized over the integral's own 4-index
+          symmetry `R^k(ab,cd) = R^k(ba,dc) = R^k(cd,ab) = R^k(dc,ba)` by taking the lexicographically
+          smallest of the four equivalent labellings, so the SAME physical integral is never split into
+          several distinct classes merely because of which CSF pair it was read off from.
+
+        A value::String is returned.
+"""
+function  twoBodyParameterClass(a::Subshell, b::Subshell, c::Subshell, d::Subshell, nu::Int64)
+    shellOf(sh::Subshell) = string(sh.n) * Basics.shellNotation( Basics.subshell_l(sh) )
+
+    if  a == c  &&  b == d
+        sa, sb = shellOf(a), shellOf(b)
+        lo, hi = sa <= sb ? (sa, sb) : (sb, sa)
+        return( "F^$(nu)($(lo),$(hi))" )
+    elseif  a == d  &&  b == c  &&  a != b
+        sa, sb = shellOf(a), shellOf(b)
+        lo, hi = sa <= sb ? (sa, sb) : (sb, sa)
+        return( "G^$(nu)($(lo),$(hi))" )
+    else
+        tup1 = (shellOf(a), shellOf(b), shellOf(c), shellOf(d))
+        tup2 = (shellOf(b), shellOf(a), shellOf(d), shellOf(c))
+        tup3 = (shellOf(c), shellOf(d), shellOf(a), shellOf(b))
+        tup4 = (shellOf(d), shellOf(c), shellOf(b), shellOf(a))
+        best = minimum((tup1, tup2, tup3, tup4))
+        return( "R^$(nu)($(best[1]),$(best[2]);$(best[3]),$(best[4]))" )
+    end
 end
 
 
@@ -99,12 +163,20 @@ end
 `AdjustedLevels.buildParameterMatrices(sym::LevelSymmetry, basis::Basis, nm::Nuclear.Model, grid::Radial.Grid)`
     ... the orthogonal route's generalization of `AdjustedLevels.buildOneAndTwoBodyMatrices`: instead of
         summing every two-body (Coulomb) contribution into ONE lumped matrix, each contribution is kept in
-        the matrix belonging to its own multipole RANK (`coeff.nu`) -- the same grouping Cowan's RCE uses to
-        separate F^k (direct) from G^k (exchange), since for two orbitals of different l these occupy
-        disjoint rank sets automatically; no direct/exchange bookkeeping is needed beyond the rank itself.
+        the matrix belonging to its own (operator type, shell pair, rank) class, via
+        `AdjustedLevels.twoBodyParameterClass` -- Cowan's own F^k/G^k/R^k separation, which rank alone cannot
+        give: two different shell pairs can share the same rank (a p-d pair's F^2 and G^2 both exist at
+        k=2), and a correlation model with more than one active shell pair would otherwise have them fitted
+        as if they were one physical quantity. A CLOSED subshell is never separately parametrized (Cowan's
+        RCE fits the open shell(s) only, see this function's own comment on why), and a class whose matrix
+        turns out to be a multiple of the identity on this block -- the rank-0 monopole within one fixed-
+        occupation open shell, most often -- is folded into `oneBody` too, since no splitting could ever
+        determine it. Even a single OPEN shell with l>=1 still separates into several classes, not one: its
+        own relativistic j-splitting (e.g. 4f_5/2 against 4f_7/2) already gives distinct F^k, G^k and R^k
+        integrals at a given rank, which a single rank-only bucket could not have told apart either.
         A (idxCsf, oneBody, parameterClasses, matrices) tuple is returned: idxCsf::Array{Int64,1} as in
         `buildOneAndTwoBodyMatrices`; oneBody::Array{Float64,2} the shared one-body matrix; parameterClasses
-        ::Array{String,1} a label per discovered rank; matrices::Array{Array{Float64,2},1} the matching
+        ::Array{String,1} a label per discovered class; matrices::Array{Array{Float64,2},1} the matching
         upper-triangular two-body matrices, one per class, same convention as `buildOneAndTwoBodyMatrices`.
 """
 function  buildParameterMatrices(sym::LevelSymmetry, basis::Basis, nm::Nuclear.Model, grid::Radial.Grid)
@@ -112,7 +184,23 @@ function  buildParameterMatrices(sym::LevelSymmetry, basis::Basis, nm::Nuclear.M
     n = length(idxCsf)
     potential = Nuclear.nuclearPotential(nm, grid)
     oneBody = zeros(Float64, n, n)
-    twoBodyByRank = Dict{Int64,Array{Float64,2}}()
+    twoBodyByClass = Dict{String,Array{Float64,2}}()
+
+    # CLOSED subshells (full occupation in EVERY CSF of this block) are NEVER separately parametrized here,
+    # matching Cowan's own RCE exactly: it fits Slater parameters among the OPEN shell(s) only and treats a
+    # closed core as part of the fixed, frozen background -- never as a source of its own adjustable integral,
+    # whether that closed shell is interacting with itself, with another closed shell, or with an open one.
+    # (MEASURED, not merely argued: a core-open EXCHANGE term can still vary CSF to CSF within one fixed open
+    # shell's own internal coupling -- the closed shell does not simply average it away -- so this is a scope
+    # choice tracking standard RCE practice, not a claim that every excluded term is itself numerically inert.)
+    # Left unfiltered, an explicit closed core (as any `[Xe] ...`-style reference carries) turns into hundreds
+    # of such classes -- academic clutter, not capability.
+    closedSubshell = Dict{Subshell,Bool}()
+    for  (i, sh) in enumerate(basis.subshells)
+        capacity = Basics.subshell_2j(sh) + 1
+        closedSubshell[sh] = all( basis.csfs[idxCsf[r]].occupation[i] == capacity  for  r = 1:n )
+    end
+    allOpen(a,b,c,d) = !closedSubshell[a] && !closedSubshell[b] && !closedSubshell[c] && !closedSubshell[d]
 
     for  r = 1:n
         for  s = r:n
@@ -126,20 +214,42 @@ function  buildParameterMatrices(sym::LevelSymmetry, basis::Basis, nm::Nuclear.M
             for  coeff in waG1
                 me1 = me1 + coeff.T * RadialIntegrals.GrantIab(basis.orbitals[coeff.a], basis.orbitals[coeff.b], grid, potential)
             end
-            oneBody[r,s] = me1
 
             for  coeff in waG2
                 contribution = coeff.V * InteractionStrength.XL_Coulomb(coeff.nu, basis.orbitals[coeff.a], basis.orbitals[coeff.b],
                                                                           basis.orbitals[coeff.c], basis.orbitals[coeff.d], grid)
-                if  !haskey(twoBodyByRank, coeff.nu)   twoBodyByRank[coeff.nu] = zeros(Float64, n, n)   end
-                twoBodyByRank[coeff.nu][r,s] += contribution
+                if  allOpen(coeff.a, coeff.b, coeff.c, coeff.d)
+                    class = twoBodyParameterClass(coeff.a, coeff.b, coeff.c, coeff.d, coeff.nu)
+                    if  !haskey(twoBodyByClass, class)   twoBodyByClass[class] = zeros(Float64, n, n)   end
+                    twoBodyByClass[class][r,s] += contribution
+                else
+                    me1 = me1 + contribution
+                end
             end
+            oneBody[r,s] = me1
         end
     end
 
-    ranks = sort(collect(keys(twoBodyByRank)))
-    parameterClasses = [ "rank k=$(k)" for k in ranks ]
-    matrices         = [ twoBodyByRank[k] for k in ranks ]
+    # AMONG THE SURVIVING, OPEN-SHELL-ONLY classes, one further, numerical (not scope-based) simplification:
+    # a class whose matrix is a multiple of the IDENTITY on this block -- same value on every diagonal, zero
+    # off it -- shifts every level by the SAME amount and so cancels EXACTLY from any splitting regardless of
+    # its scale factor. The rank-0 (monopole) direct term within a single fixed-occupation open shell is
+    # exactly this case (F^0 is the coupling-independent average Coulomb repulsion). Folded into `oneBody` at
+    # its full, UNSCALED value, same reasoning as the closed-shell exclusion above, one level down.
+    for  (class, M) in collect(twoBodyByClass)
+        diagVals  = [ M[i,i] for i = 1:n ]
+        scale     = max(1.0, maximum(abs.(diagVals)))
+        offDiag   = n > 1 ? maximum( abs(M[i,j])  for i = 1:n  for j = i+1:n ) : 0.0
+        isInert   = (maximum(diagVals) - minimum(diagVals)) < 1.0e-10*scale   &&   offDiag < 1.0e-10*scale
+        if  isInert
+            oneBody .+= M
+            delete!(twoBodyByClass, class)
+        end
+    end
+
+    classes          = sort(collect(keys(twoBodyByClass)))
+    parameterClasses = classes
+    matrices         = [ twoBodyByClass[cl] for cl in classes ]
 
     return( (idxCsf, oneBody, parameterClasses, matrices) )
 end
@@ -284,7 +394,276 @@ function  fitOrthogonalParameters(sym::LevelSymmetry, basis::Basis, nm::Nuclear.
     fitTargets = [ FitTarget(idx, measured, relKayserC[idx]) for (idx, measured) in targets ]
 
     return( FittedMultipletOrthogonal(Multiplet(string(sym)*"+ (fitted, orthogonal)", levels), radialParameters,
-                                        orthogonalParameters, fitTargets, rmsBest, source) )
+                                        orthogonalParameters, fitTargets, rmsBest, nTargets - nParam, source) )
+end
+
+
+"""
+`struct  AdjustedLevels.FittedBlock`
+    ... one symmetry block's share of a `AdjustedLevels.FittedMultipletOrthogonalMultiBlock` fit: the radial
+        parameters are shared GLOBALLY across every block of such a fit, but each block keeps its own CSFs,
+        its own re-diagonalized levels and its own measured targets.
+
+    + sym          ::LevelSymmetry              ... which J^P block this is.
+    + multiplet    ::ManyElectron.Multiplet      ... this block's re-diagonalized, fitted levels.
+    + fitTargets   ::Array{FitTarget,1}          ... the measured levels THIS block was matched against.
+"""
+struct  FittedBlock
+    sym          ::LevelSymmetry
+    multiplet    ::ManyElectron.Multiplet
+    fitTargets   ::Array{FitTarget,1}
+end
+
+
+"""
+`struct  AdjustedLevels.FittedMultipletOrthogonalMultiBlock`
+    ... the result of `AdjustedLevels.fitOrthogonalParametersMultiBlock`: ONE shared set of radial parameters,
+        fit SIMULTANEOUSLY against measured levels drawn from SEVERAL symmetry blocks of the SAME basis --
+        the capability this module's own docstring names as missing from both single-block routes. An
+        `F^k(4f,4f)`-type class means the SAME physical radial integral in every block it appears in, so
+        pooling blocks turns a borderline, exactly-determined (or worse) per-block fit into a comfortably
+        over-determined one, at no extra configuration-space cost -- see `degreesOfFreedom`.
+
+    + blocks                ::Array{FittedBlock,1}            ... one entry per symmetry block, in the order
+                                                                     given to `fitOrthogonalParametersMultiBlock`.
+    + radialParameters       ::Array{RadialParameter,1}         ... the fitted factors, GLOBAL across every
+                                                                       block -- the same class in two blocks is
+                                                                       the SAME parameter, not two independent
+                                                                       ones.
+    + orthogonalParameters   ::Array{OrthogonalParameter,1}      ... the orthogonal breakdown of the GLOBAL
+                                                                        parameter space, read at the converged
+                                                                        point, over EVERY target in EVERY
+                                                                        block together -- the sibling of
+                                                                        `FittedMultipletOrthogonal`'s own field.
+    + rmsDeviation            ::Float64                           ... root-mean-square deviation over every
+                                                                         target in every block together, in
+                                                                         cm^-1.
+    + degreesOfFreedom        ::Int64                             ... total targets (all blocks) minus the
+                                                                         number of GLOBAL parameters -- THE
+                                                                         OVERFITTING GUARD, see
+                                                                         `AdjustedLevels.FittedMultipletOrthogonal`'s
+                                                                         own field of the same name.
+    + source                  ::String                            ... a dated citation for the measured data.
+"""
+struct  FittedMultipletOrthogonalMultiBlock
+    blocks                ::Array{FittedBlock,1}
+    radialParameters       ::Array{RadialParameter,1}
+    orthogonalParameters    ::Array{OrthogonalParameter,1}
+    rmsDeviation             ::Float64
+    degreesOfFreedom         ::Int64
+    source                   ::String
+end
+
+
+"""
+`Base.show(io::IO, fm::AdjustedLevels.FittedMultipletOrthogonalMultiBlock)`
+    ... ALWAYS prints the "fitted, not ab initio" disclosure first, the GLOBAL parameters, the overfitting-
+        guard warning when `degreesOfFreedom <= 0`, and then each block's own share of the fit. Nothing is
+        returned.
+"""
+function  Base.show(io::IO, fm::FittedMultipletOrthogonalMultiBlock)
+    println(io, "FittedMultipletOrthogonalMultiBlock -- FITTED, NOT AB INITIO.")
+    println(io, "  source: $(fm.source)")
+    for  rp in fm.radialParameters
+        println(io, "  radial parameter [$(rp.parameterClass)] = $(rp.value)  (shared across every block below)")
+    end
+    for  op in fm.orthogonalParameters
+        flag = op.determinacy < 1.0e-6 ? "  (UNDETERMINED by these targets)" : ""
+        println(io, "  orthogonal $(op.label): shift = $(op.value), determinacy = $(op.determinacy)$flag")
+    end
+    nTargetsTotal = sum( length(b.fitTargets) for b in fm.blocks )
+    println(io, "  fit against $(nTargetsTotal) measured level(s) across $(length(fm.blocks)) block(s), " *
+                 "rms deviation = $(fm.rmsDeviation) cm^-1")
+    println(io, "  degrees of freedom: $(fm.degreesOfFreedom)")
+    fm.degreesOfFreedom <= 0   &&
+        println(io, "  WARNING: at or under the identifiability boundary -- read each class's own determinacy " *
+                     "before trusting its value in isolation.")
+    for  b in fm.blocks
+        println(io, "  block $(b.sym): $(length(b.fitTargets)) target(s), $(length(b.multiplet.levels)) level(s)")
+    end
+end
+
+
+"""
+`AdjustedLevels.fitOrthogonalParametersMultiBlock(blocks::Array{Tuple{LevelSymmetry,Array{Tuple{Int64,Float64},1}},1},
+                                                    basis::Basis, nm::Nuclear.Model, grid::Radial.Grid, source::String;
+                                                    determinacyThreshold::Float64=1.0e-6, maxIterations::Int64=20,
+                                                    tolerance::Float64=1.0e-6)`
+    ... the multi-block generalization of `AdjustedLevels.fitOrthogonalParameters`: ONE shared parameter per
+        (type, shell pair, rank) class -- see `AdjustedLevels.twoBodyParameterClass` -- fit SIMULTANEOUSLY
+        against targets drawn from SEVERAL symmetry blocks of the SAME `basis`, e.g.
+        `[(sym2, targets2), (sym4, targets4)]` for two different J^P blocks of one open-shell reference.
+        THIS IS WHAT MAKES CLASS-SEPARATED FITTING ACTUALLY WORTH HAVING, not merely correct: a class shared
+        by several blocks is the SAME physical radial integral in every one of them, so pooling the blocks'
+        targets turns an exactly-determined (or worse) per-block fit into a comfortably over-determined one,
+        without adding a single CSF -- see `AdjustedLevels.FittedMultipletOrthogonalMultiBlock`'s own
+        `degreesOfFreedom` field. The iteration is otherwise the SAME Gauss-Newton + SVD scheme
+        `fitOrthogonalParameters` uses (warm-started the same way, from the single uniform factor minimizing
+        the COMBINED rms over every block), just with each block's own Jacobian rows and residuals stacked
+        together before the one, shared SVD solve each iteration -- a class absent from a given block simply
+        contributes a zero column there. A fm::AdjustedLevels.FittedMultipletOrthogonalMultiBlock is returned.
+"""
+function  fitOrthogonalParametersMultiBlock(blocks::Array{Tuple{LevelSymmetry,Array{Tuple{Int64,Float64},1}},1},
+                                              basis::Basis, nm::Nuclear.Model, grid::Radial.Grid, source::String;
+                                              determinacyThreshold::Float64=1.0e-6, maxIterations::Int64=20,
+                                              tolerance::Float64=1.0e-6)
+    isempty(blocks)   &&   error("AdjustedLevels.fitOrthogonalParametersMultiBlock(): need at least one block.")
+    auPerKayser = 1.0 / Defaults.convertUnits("energy: from atomic to Kayser", 1.0)
+    nBlocks = length(blocks)
+
+    idxCsfB   = Vector{Array{Int64,1}}(undef, nBlocks)
+    oneBodyB  = Vector{Array{Float64,2}}(undef, nBlocks)
+    classesB  = Vector{Array{String,1}}(undef, nBlocks)
+    matricesB = Vector{Array{Array{Float64,2},1}}(undef, nBlocks)
+    for  ib = 1:nBlocks
+        sym, _ = blocks[ib]
+        idxCsfB[ib], oneBodyB[ib], classesB[ib], matricesB[ib] = buildParameterMatrices(sym, basis, nm, grid)
+    end
+
+    globalClasses = sort(unique(vcat(classesB...)))
+    nParam = length(globalClasses)
+    nParam == 0   &&
+        error("AdjustedLevels.fitOrthogonalParametersMultiBlock(): no two-body (Coulomb) contributions were found in any block.")
+    classIndex = Dict{String,Int64}( cl => k for (k,cl) in enumerate(globalClasses) )
+
+    # Each block's own two-body matrices, reindexed onto the GLOBAL class list; a class absent from a block
+    # simply has no entry here (equivalent to a zero column for that block in the Jacobian below).
+    globalMatricesB = Vector{Dict{Int64,Array{Float64,2}}}(undef, nBlocks)
+    for  ib = 1:nBlocks
+        d = Dict{Int64,Array{Float64,2}}()
+        for  (loc, cl) in enumerate(classesB[ib])   d[classIndex[cl]] = matricesB[ib][loc]   end
+        globalMatricesB[ib] = d
+    end
+
+    nTargetsTotal = sum( length(blocks[ib][2]) for ib = 1:nBlocks )
+
+    # Warm start: ONE uniform factor minimizing the COMBINED rms over every block's own targets together --
+    # the multi-block counterpart of fitOrthogonalParameters' own single-block warm start, for the same reason.
+    function  rmsAtUniformAll(c::Float64)
+        s = 0.0
+        for  ib = 1:nBlocks
+            total = copy(oneBodyB[ib]);   for  mtx in matricesB[ib]   total .+= c .* mtx   end
+            eig = Hamiltonian.diagonalizeCiMatrix(total, LevelSelection())
+            rel = (sort(eig.values) .- sort(eig.values)[1]) ./ auPerKayser
+            for  (idx, measured) in blocks[ib][2]   s = s + (rel[idx] - measured)^2   end
+        end
+        return( sqrt(s/nTargetsTotal) )
+    end
+    cUniform, _ = goldenSectionMinimize(rmsAtUniformAll, 0.5, 1.5)
+
+    cVec = fill(cUniform, nParam)
+    rmsPrev = Inf
+    bestCVec = copy(cVec);   bestRms = Inf
+    bestEigB = Vector{Any}(undef, nBlocks);   bestOrderB = Vector{Any}(undef, nBlocks)
+    bestRelB = Vector{Array{Float64,1}}(undef, nBlocks)
+
+    for  iteration = 1:maxIterations
+        eigB   = Vector{Any}(undef, nBlocks);   orderB = Vector{Any}(undef, nBlocks)
+        relB   = Vector{Array{Float64,1}}(undef, nBlocks)
+        J        = zeros(Float64, nTargetsTotal, nParam)
+        residual = zeros(Float64, nTargetsTotal)
+        row = 0
+
+        for  ib = 1:nBlocks
+            total = copy(oneBodyB[ib])
+            for  (gIdx, mtx) in globalMatricesB[ib]   total .+= cVec[gIdx] .* mtx   end
+            eig   = Hamiltonian.diagonalizeCiMatrix(total, LevelSelection())
+            order = sortperm(eig.values)
+            relKayser = (eig.values[order] .- eig.values[order][1]) ./ auPerKayser
+            eigB[ib] = eig;   orderB[ib] = order;   relB[ib] = relKayser
+
+            for  (idx, measured) in blocks[ib][2]
+                row += 1
+                vec = eig.vectors[order[idx]]
+                for  (gIdx, mtx) in globalMatricesB[ib]   J[row, gIdx] = (vec' * Symmetric(mtx) * vec) / auPerKayser   end
+                residual[row] = measured - relKayser[idx]
+            end
+        end
+        rmsNow = sqrt(sum(residual.^2)/nTargetsTotal)
+
+        if  rmsNow < bestRms
+            bestRms = rmsNow;   bestCVec = copy(cVec)
+            bestEigB = eigB;    bestOrderB = orderB;   bestRelB = relB
+        end
+
+        ( rmsNow < tolerance   ||   ( iteration > 1   &&   rmsNow >= rmsPrev - tolerance * max(rmsPrev, 1.0) ) )   &&   break
+        rmsPrev = rmsNow
+
+        F    = svd(J)
+        sMax = isempty(F.S) ? 0.0 : maximum(F.S)
+        deltaC = zeros(Float64, nParam)
+        for  k = 1:length(F.S)
+            F.S[k] <= determinacyThreshold * max(sMax, 1.0)   &&   continue
+            deltaC .+= ( (F.U[:,k]' * residual) / F.S[k] ) .* F.V[:,k]
+        end
+        cVec = cVec .+ deltaC
+    end
+
+    cVec = bestCVec;   eigB = bestEigB;   orderB = bestOrderB;   relB = bestRelB
+    rmsBest = bestRms
+    radialParameters = [ RadialParameter(globalClasses[p], cVec[p]) for p = 1:nParam ]
+
+    # Determinacy and the orthogonal breakdown, read AT THE CONVERGED (best) point -- same discipline as the
+    # single-block route: a mode's determinacy describes where the fit ENDED, not an earlier iterate.
+    Jfinal = zeros(Float64, nTargetsTotal, nParam);   residualFinal = zeros(Float64, nTargetsTotal);   row = 0
+    for  ib = 1:nBlocks
+        for  (idx, measured) in blocks[ib][2]
+            row += 1
+            vec = eigB[ib].vectors[orderB[ib][idx]]
+            for  (gIdx, mtx) in globalMatricesB[ib]   Jfinal[row, gIdx] = (vec' * Symmetric(mtx) * vec) / auPerKayser   end
+            residualFinal[row] = measured - relB[ib][idx]
+        end
+    end
+    Ffinal = svd(Jfinal)
+    totalShift = cVec .- ones(nParam)
+    orthogonalParameters = OrthogonalParameter[]
+    for  k = 1:length(Ffinal.S)
+        composition = [ (globalClasses[p], Ffinal.V[p,k]) for p = 1:nParam ]
+        push!( orthogonalParameters, OrthogonalParameter("mode $k", dot(Ffinal.V[:,k], totalShift), composition, Ffinal.S[k]) )
+    end
+
+    fittedBlocks = FittedBlock[]
+    for  ib = 1:nBlocks
+        sym, targets = blocks[ib]
+        levels = Level[]
+        for  (pos, ev) in enumerate(orderB[ib])
+            vector = zeros( length(basis.csfs) );   ns = 0
+            for  r = 1:length(basis.csfs)
+                if  LevelSymmetry(basis.csfs[r].J, basis.csfs[r].parity) == sym    ns = ns + 1;   vector[r] = eigB[ib].vectors[ev][ns]   end
+            end
+            push!( levels, Level(sym.J, AngularM64(sym.J.num//sym.J.den), sym.parity, pos, eigB[ib].values[orderB[ib][pos]], 0., true, basis, vector) )
+        end
+        fitTargets = [ FitTarget(idx, measured, relB[ib][idx]) for (idx, measured) in targets ]
+        push!( fittedBlocks, FittedBlock(sym, Multiplet(string(sym)*"+ (fitted, multi-block)", levels), fitTargets) )
+    end
+
+    return( FittedMultipletOrthogonalMultiBlock(fittedBlocks, radialParameters, orthogonalParameters,
+                                                  rmsBest, nTargetsTotal - nParam, source) )
+end
+
+
+"""
+`AdjustedLevels.mergeIntoMultiplet(fm::AdjustedLevels.FittedMultipletOrthogonalMultiBlock, abInitioMultiplet::ManyElectron.Multiplet)`
+    ... the multi-block generalization of the other `mergeIntoMultiplet` methods: EVERY block carried by `fm`
+        replaces its own matching block of `abInitioMultiplet` in one call, every OTHER symmetry block is
+        kept unchanged, and the result is re-sorted by energy. A mp::ManyElectron.Multiplet is returned.
+"""
+function  mergeIntoMultiplet(fm::FittedMultipletOrthogonalMultiBlock, abInitioMultiplet::ManyElectron.Multiplet)
+    isempty(fm.blocks)   &&   error("AdjustedLevels.mergeIntoMultiplet(): the FittedMultipletOrthogonalMultiBlock has no blocks.")
+    syms = [ b.sym for b in fm.blocks ]
+    length(unique(syms)) == length(syms)   ||
+        error("AdjustedLevels.mergeIntoMultiplet(): the FittedMultipletOrthogonalMultiBlock carries the same symmetry block twice.")
+
+    otherLevels  = [ lev for lev in abInitioMultiplet.levels if !(LevelSymmetry(lev.J, lev.parity) in syms) ]
+    fittedLevels = vcat( [ b.multiplet.levels for b in fm.blocks ]... )
+
+    length(otherLevels) + length(fittedLevels) != length(abInitioMultiplet.levels)   &&
+        error("AdjustedLevels.mergeIntoMultiplet(): the FittedMultipletOrthogonalMultiBlock's blocks do not account for " *
+              "exactly the levels of the matching blocks in abInitioMultiplet -- they must come from the same Basis.")
+
+    mp = Multiplet(abInitioMultiplet.name * "+fitted", vcat(otherLevels, fittedLevels))
+
+    return( Basics.sortByEnergy(mp) )
 end
 
 

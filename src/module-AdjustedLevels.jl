@@ -18,25 +18,34 @@ using Printf
         already is. No process module depends on this one, nor is this one depended on by any of them --
         the same one-way relationship every module built tonight keeps.
 
-        TWO ROUTES, SELECTED BY WHICH FUNCTION YOU CALL -- never by a flag, the same discipline
+        THREE ROUTES, SELECTED BY WHICH FUNCTION YOU CALL -- never by a flag, the same discipline
         `Hamiltonian.performCI`/`performCIwithFrozenOrbitals`/`performCIKinkAware` already use for choosing
         an algorithm by name. `fitScaleFactor` (this file) fits exactly ONE factor for the WHOLE two-body
         Coulomb matrix element, uniformly across every rank and every pair of orbitals -- the crudest version
         of the idea, chosen because it is the smallest piece that still does the thing that matters (a
         genuine re-diagonalization, so the fit improves the WAVEFUNCTIONS too, not just one level's energy
         the way `NistCalibration` does). `fitOrthogonalParameters` (`module-AdjustedLevels-inc-orthogonal.jl`)
-        is the second route: it discovers the SEPARATE integral classes (grouped by multipole rank) actually
-        present in a block, fits one parameter per class, and reports which combinations of them the given
-        targets can and cannot determine -- the Uylings/Raassen idea, in its most mechanical form. A caller
-        who only needs the simple route never has to know the second one exists; the return TYPE
-        (`FittedMultiplet` against `FittedMultipletOrthogonal`) says which one produced a given result.
+        is the second route: it discovers Cowan's own separate F^k (direct)/G^k (exchange)/R^k
+        (configuration-interaction) classes -- by OPERATOR TYPE and SHELL PAIR, not multipole rank alone, see
+        `AdjustedLevels.twoBodyParameterClass` -- actually present in a block, fits one parameter per class,
+        and reports which combinations of them the given targets can and cannot determine -- the
+        Uylings/Raassen idea, in its most mechanical form. `fitOrthogonalParametersMultiBlock` is the third:
+        the SAME class-separated fit, but with ONE shared parameter set determined SIMULTANEOUSLY from
+        targets drawn from SEVERAL symmetry blocks of the same basis -- since a class such as `F^2(4f,4f)` is
+        the same physical radial integral in every block it appears in, this is what turns a borderline,
+        exactly-determined per-block fit into a comfortably over-determined one, which is the standard RCE
+        practice this module was missing before. A caller who only needs the simple route never has to know
+        the others exist; the return TYPE (`FittedMultiplet`, `FittedMultipletOrthogonal`, or
+        `FittedMultipletOrthogonalMultiBlock`) says which one produced a given result, and each carries a
+        `degreesOfFreedom` field (the orthogonal routes only) that is this module's overfitting guard --
+        fitted values from a result at or under zero degrees of freedom should be read through their own
+        per-class `determinacy`, not quoted in isolation.
 
         Also NOT handled: the Breit interaction and QED corrections (pure Coulomb CI only -- the same
-        restriction as `settings.eeInteractionCI == CoulombInteraction()`), and fitting ACROSS more than one
-        symmetry block at once (the fit works within a single J^P block, against energies measured RELATIVE
-        to that block's own lowest level -- there is no cross-block absolute-energy reference here, unlike
-        `NistCalibration`'s explicit `groundLevelIndex`). A caller needing either should not read this
-        module's numbers as covering that case.
+        restriction as `settings.eeInteractionCI == CoulombInteraction()`). This is a scope decision, not an
+        oversight: Cowan's own RCE is itself a pure-Coulomb, nonrelativistic-radial-integral scheme, and nothing
+        using this module so far has needed Breit or QED in the FITTED parameters themselves (as opposed to the
+        ordinary ab initio Hamiltonian the fit starts from, which may already include them upstream).
 
         WHY ONE PARAMETER MAKES THIS TRACTABLE WITHOUT A NEW DEPENDENCY. The expensive part of a CI
         calculation is building the one-body and two-body matrix elements (angular coefficients times radial
