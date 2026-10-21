@@ -112,15 +112,19 @@ end
 """
 `Plasma.AverageAtomScheme(nMax::Int64, lMax::Int64, scField::AbstractScField, calcPhotoionizationCs::Bool,
                            calcFormFactor::Bool, calcScatteringFactor::Bool, piSubshells::Array{Subshell,1},
-                           omegas::Array{Float64,1}, qValues::Array{Float64,1})`
+                           omegas::AbstractArray{<:Real,1}, qValues::AbstractArray{<:Real,1})`
     ... the nine-argument constructor, kept so that every call written before the conductivity existed still
-        works;  it leaves the conductivity out.  A `scheme::AverageAtomScheme` is returned.
+        works;  it leaves the conductivity out.  The two meshes are accepted as ANY real arrays and converted
+        here, since a mesh written with whole numbers -- `qValues = [q  for q = 1:10]` -- is an `Array{Int64,1}`:
+        the struct's own constructor converts such a list silently, but a typed method of the same arity
+        shadows it, so a narrower signature here would refuse the very calls this constructor exists to keep
+        working.  A `scheme::AverageAtomScheme` is returned.
 """
 function AverageAtomScheme(nMax::Int64, lMax::Int64, scField::AbstractScField, calcPhotoionizationCs::Bool,
                            calcFormFactor::Bool, calcScatteringFactor::Bool, piSubshells::Array{Subshell,1},
-                           omegas::Array{Float64,1}, qValues::Array{Float64,1})
+                           omegas::AbstractArray{<:Real,1}, qValues::AbstractArray{<:Real,1})
     AverageAtomScheme( nMax, lMax, scField, calcPhotoionizationCs, calcFormFactor, calcScatteringFactor,
-                       piSubshells, omegas, qValues, false, Float64[], 0., 0., false )
+                       piSubshells, Float64.(omegas), Float64.(qValues), false, Float64[], 0., 0., false )
 end
 
 
@@ -285,15 +289,19 @@ end
         `calcFormFactor` needs `qValues`, `calcPhotoionizationCs` needs `omegas` (and reads `piSubshells`), and
         `calcConductivity` needs `condOmegas`.  A switch set without its mesh raises at construction time, where
         the mistake is, rather than returning an empty array from deep inside `perform`.
+
+        **EVERY MESH AND MODEL PARAMETER TAKES WHOLE NUMBERS AS WELL AS DECIMALS**, so `qValues = [1, 2, 3]`
+        and `condCollisionRate = -1` are accepted exactly as `[1., 2., 3.]` and `-1.0` are;  the conversion to
+        Float64 happens on the way into the struct and the stored values are identical.
 """
 function AverageAtomScheme(scheme::Plasma.AverageAtomScheme;
     nMax::Union{Nothing,Int64}=nothing,                          lMax::Union{Nothing,Int64}=nothing, 
     scField::Union{Nothing,AbstractScField}=nothing,             calcPhotoionizationCs::Union{Nothing,Bool}=nothing, 
     calcFormFactor::Union{Nothing,Bool}=nothing,                 calcScatteringFactor::Union{Nothing,Bool}=nothing, 
-    piSubshells::Union{Nothing,Array{Subshell,1}}=nothing,       omegas::Union{Nothing,Array{Float64,1}}=nothing, 
-    qValues::Union{Nothing,Array{Float64,1}}=nothing,            calcConductivity::Union{Nothing,Bool}=nothing, 
-    condOmegas::Union{Nothing,Array{Float64,1}}=nothing,         condBroadening::Union{Nothing,Float64}=nothing, 
-    condCollisionRate::Union{Nothing,Float64}=nothing,   calcMeanOpacities::Union{Nothing,Bool}=nothing)
+    piSubshells::Union{Nothing,Array{Subshell,1}}=nothing,       omegas::Union{Nothing,AbstractArray{<:Real,1}}=nothing, 
+    qValues::Union{Nothing,AbstractArray{<:Real,1}}=nothing,     calcConductivity::Union{Nothing,Bool}=nothing, 
+    condOmegas::Union{Nothing,AbstractArray{<:Real,1}}=nothing,  condBroadening::Union{Nothing,Real}=nothing, 
+    condCollisionRate::Union{Nothing,Real}=nothing,      calcMeanOpacities::Union{Nothing,Bool}=nothing)
     
     if  isnothing(nMax)                   nMaxx                  = scheme.nMax                   else   nMaxx                  = nMax                   end 
     if  isnothing(lMax)                   lMaxx                  = scheme.lMax                   else   lMaxx                  = lMax                   end 
