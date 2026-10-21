@@ -291,7 +291,7 @@ elseif false
     DispersionCoefficient.computeCoefficient(6, excited, excited)
     println(">> IF THIS LINE IS REACHED THE GUARD IS BROKEN -- the call above must have raised.")
     #
-elseif true
+elseif false
     # Last visit:  20-Oct-2026
     # Last successful:  unknown ... (Rule 7: the conductor limit is checked against an EXACT 1/4 that needs no
     #   literature, and the three limits and the per-pole factor are algebra, but the silica-like number itself
@@ -399,5 +399,70 @@ elseif true
         println(">>   eps(0) = 0.5 raised, as it must:  no dielectric has a negative reflection factor, and the " *
                 "refusal arrives before the first perturber set is built rather than after it.")
     end
+    #
+elseif true
+    # Last visit:  21-Oct-2026
+    # Last successful:  unknown ... (Rule 7: the omega = 0 reduction and the omega^2 law are exact and are
+    #   asserted in the suite, but whether 1.2778 a.u. is the number to QUOTE for Na+ depends on the screening
+    #   discussed below -- so the physical judgement, and the date, are the maintainer's)
+    #
+    #   CLAIM, 21-Oct-2026:  Na+ (Ne-like) on a 120 a.u. box, hp = 1.0, DFS field.
+    #       alpha_core(0)        = 1.277831 a.u.
+    #       alpha_core(1064 nm)  = 1.278686 a.u.        enhancement 0.0670 %
+    #   Branch g: THE CORE POLARIZABILITY AT A TRAP FREQUENCY, FROM A COMPLETE BASIS RATHER THAN A PERTURBER
+    #   LIST.  This is the branch to read if you want the ion core's contribution to an optical trap or clock
+    #   shift, and it is a DIFFERENT calculation from every other branch in this file rather than a larger one.
+    #
+    #   WHY A PERTURBER LIST CANNOT DO IT.  For a closed shell the CONTINUUM carries about 35 % of the dipole
+    #   polarizability (18.6 % for hydrogen's 1s), so a sum over bound perturbers cannot converge to the answer.
+    #   Measured on this very system with 2p^5 ns + 2p^5 nd, n <= 8: the sum gives 1.1213, 0.8719, 0.6861 and
+    #   0.6135 at rbox = 12, 20, 32 and 50 a.u. -- a monotone slide in which the box has silently become a
+    #   FITTED PARAMETER, and one which passes straight through the published RRPA 0.9457 on its way down.  The
+    #   `calcCore = true` route below solves the Dalgarno-Lewis equation in each channel instead, which saturates
+    #   it: 1.277625, 1.277776, 1.277831 and 1.277876 over rbox = 40 to 200 a.u., a spread of 2.0e-4 across a
+    #   FIVEFOLD change of box.  There is no perturber set to choose and no box to tune.
+    #
+    #   WHAT THE FREQUENCY COSTS, AND IT IS ALMOST NOTHING -- WHICH IS THE USEFUL RESULT.  A dynamic polarizability
+    #   needs TWO solves per channel, at +omega and -omega, because the energy denominators dE - omega and
+    #   dE + omega no longer coincide.  At omega = 0 the two coincide again and the result is identical to the
+    #   static assembly to the last bit.  At 1064 nm the core's polarizability rises by only 0.067 %, because a
+    #   closed shell's excitations lie near 1.7 a.u. while the trap photon is 0.043 -- so alpha_core may be treated
+    #   as STATIC for trapping work, and the enhancement is itself better determined than alpha_core is, being a
+    #   ratio in which the box error cancels.  Measured across species at 1064 nm, with dE_eff = omega/sqrt(enh):
+    #
+    #        Ne    0.3044 %   dE_eff 0.776        Ar    0.7279 %   dE_eff 0.502
+    #        Na+   0.0670 %   dE_eff 1.655        K+    0.3029 %   dE_eff 0.778
+    #        Mg2+  0.0256 %   dE_eff 2.674
+    #
+    #   dE_eff rises along the Ne-like sequence and is smaller for the looser 3p shells, which is what a single
+    #   effective oscillator must do -- so the 0.067 % is a law with a known scaling, not one system's accident.
+    #
+    #   AND WHAT LIMITS THE NUMBER IS NOT THIS BRANCH BUT THE SCREENING, said plainly because 1.2778 is 1.351
+    #   times the RRPA 0.9457 and a reader should not mistake a box-independent number for an accurate one.  The
+    #   value below is UNSCREENED: the induced field of the other core electrons is absent.  And that correction is
+    #   not small and not even one-sided -- measured on Ne, the DIRECT induced term ALONE moves the answer from
+    #   -21 % to -36 % against the measured polarizability, i.e. the wrong way, while the induced EXCHANGE term is
+    #   0.84 of it in norm and of undetermined sign.  So the honest reading of this branch is: the basis question is
+    #   settled and the frequency question is settled, and what remains is a mean-field question.
+    omega1064 = 2.0 * pi * 137.035999 / (1064.0e-9 / 5.29177210903e-11)
+    grid = Radial.Grid(Radial.Grid(false), rnt = 8.0e-7, h = 5.0e-2, hp = 1.0, rbox = 120.0)
+    coreSettings = MultipolePolarizibility.Settings(MultipolePolarizibility.Settings();
+                       calcCore = true, omegas = [omega1064])
+    wa = Atomic.Computation(Atomic.Computation(); name = "alpha_core(omega) of Na+ at a trap frequency",
+                            grid = grid, nuclearModel = Nuclear.Model(11., PointNucleus()),
+                            configs      = [Configuration("1s^2 2s^2 2p^6")],
+                            asfSettings  = AsfSettings(AsfSettings(); scField = Basics.DFSField(),
+                                                        gridStopper = false),
+                            propertySettings = [ coreSettings ] )
+    wb = perform(wa; output = true)
+    outcome = wb[MultipolePolarizibility.Settings][1]
+    println("\n  alpha_core of Na+, complete basis, UNSCREENED:")
+    aStatic = outcome.alphaCore[1][2]
+    for  (omega, alpha)  in  outcome.alphaCore
+        @printf("    omega = %.8f a.u.   alpha_core = %.6f a.u.   %+.4f %% of the static value\n",
+                omega, alpha, 100*(alpha/aStatic - 1))
+    end
+    @printf("    against the published RRPA 0.9457 a.u.:  ratio %.3f -- the missing screening, not the basis\n",
+            aStatic/0.9457)
     #
 end
